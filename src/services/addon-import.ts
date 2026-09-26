@@ -8,6 +8,7 @@ import { applyDiscoveredCharacters } from "./roster-discovery.js";
 import { findCharacter } from "./character-match.js";
 import { applyReserves } from "./reserves.js";
 import { applyRecipeData } from "./recipes.js";
+import { planCalendarSync } from "./calendar-sync.js";
 
 export function createAddonImportService(database: PrismaClient) {
   return {
@@ -214,6 +215,10 @@ export function createAddonImportService(database: PrismaClient) {
         // Who can craft what, and profession cooldowns.
         const crafting = await applyRecipeData(tx, guildId, { recipes: snapshot.recipes, recipeNames: snapshot.recipeNames, cooldowns: snapshot.cooldowns });
 
+        // In-game calendar events -> which Discord raid, who answered (the signups are made after this commits).
+        const calendarPlan = await planCalendarSync(tx, guildId, snapshot.calendarEvents,
+          characters.map((character) => ({ id: character.id, name: character.name, realm: character.realm, memberId: character.memberId })));
+
         // In-game raid presence -> Discord raid attendance (best effort, like
         // readiness: an unmatched raid or character doesn't block the import).
         const raids = await applyRaidAttendance(tx, guildId, snapshot.raids, characters, appliedBy);
@@ -226,7 +231,7 @@ export function createAddonImportService(database: PrismaClient) {
           where: { id: imported.id },
           data: { status: "APPLIED" }
         });
-        return { import: imported, transactions, epgpTransactions, readinessSnapshots, attunements, consumables, reserves, crafting, discovery, raids, loot, dungeons, skipped };
+        return { import: imported, transactions, epgpTransactions, readinessSnapshots, attunements, consumables, reserves, crafting, calendarPlan, discovery, raids, loot, dungeons, skipped };
       });
     }
   };

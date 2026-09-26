@@ -175,6 +175,20 @@ export const addonCooldownSetSchema = z.object({
 export type AddonRecipeSet = z.infer<typeof addonRecipeSetSchema>;
 export type AddonCooldownSet = z.infer<typeof addonCooldownSetSchema>;
 
+// A guild event from the in-game calendar and how each member answered it (/guilded calendar sync).
+export const addonCalendarEventSchema = z.object({
+  ref: z.string().min(1).max(80),
+  title: z.string().min(1).max(100),
+  startsAt: z.coerce.date(),
+  invites: z.array(z.object({
+    character: z.string().min(1),
+    realm: z.string().min(1),
+    status: z.enum(["ACCEPTED", "TENTATIVE", "DECLINED"])
+  })).max(200).default([])
+});
+
+export type AddonCalendarEvent = z.infer<typeof addonCalendarEventSchema>;
+
 export type AddonCharacter = z.infer<typeof addonCharacterSchema>;
 
 export const addonSnapshotSchema = z.object({
@@ -186,6 +200,7 @@ export const addonSnapshotSchema = z.object({
   characters: z.array(addonCharacterSchema).max(500).default([]),
   consumeScan: addonConsumeScanSchema.optional(),
   reserves: addonReservesSchema.optional(),
+  calendarEvents: z.array(addonCalendarEventSchema).max(100).default([]),
   recipes: z.array(addonRecipeSetSchema).max(400).default([]),
   recipeNames: z.record(z.string(), z.string().max(100)).default({}),
   cooldowns: z.array(addonCooldownSetSchema).max(300).default([]),

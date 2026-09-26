@@ -8,6 +8,7 @@ import { addonDungeonBoard } from "./services/dungeon-stats.js";
 import { nextRaidRoster } from "./services/raid-roster.js";
 import { itemInsights } from "./services/item-insights.js";
 import { lootRulesForAddon } from "./services/loot-rules-export.js";
+import { upcomingRaidsForAddon } from "./services/calendar-sync.js";
 import { createAuditService } from "./services/audit.js";
 import { followUpImport } from "./services/import-followup.js";
 import type { Client } from "discord.js";
@@ -115,7 +116,8 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         // How each raid core decides loot, with its item prices and own-pool standings.
         const loot = await lootRulesForAddon(prisma, guild.id, async (coreId, coreBaseGp) =>
           (await epgpService.getGuildStandings(guild.id, coreBaseGp, coreId)).map((row) => ({ character: row.character, main: row.main, ep: row.ep, gp: row.gp }))).catch(() => null);
-        json(response, 200, { updatedAt: new Date().toISOString(), baseGp, acceptedRunRefs, dungeonBoard, nextRaid, items, loot, standings: await epgpService.getGuildStandings(guild.id, baseGp) });
+        const raids = await upcomingRaidsForAddon(prisma, guild.id).catch(() => []);
+        json(response, 200, { updatedAt: new Date().toISOString(), baseGp, acceptedRunRefs, dungeonBoard, nextRaid, raids, items, loot, standings: await epgpService.getGuildStandings(guild.id, baseGp) });
         return;
       }
       const payload = await readBody(request);

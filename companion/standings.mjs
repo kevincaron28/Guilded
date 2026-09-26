@@ -90,6 +90,13 @@ export function standingsToLua(data) {
       "}"
     ] : ["GuildedItems = nil"]),
     "",
+    "-- Upcoming Discord raids (next three weeks): the addon can make in-game calendar events from them.",
+    ...((data.raids ?? []).length ? [
+      "GuildedRaids = {",
+      ...data.raids.map((raid) => `  { id = ${luaString(raid.id)}, title = ${luaString(raid.title)}, at = ${luaString(raid.at)}, core = ${luaString(raid.core ?? "")}, note = ${luaString(raid.note ?? "")} },`),
+      "}"
+    ] : ["GuildedRaids = nil"]),
+    "",
     "-- How each raid core decides loot: the system, set item prices, own-pool standings.",
     ...lootToLua(data.loot),
     "",

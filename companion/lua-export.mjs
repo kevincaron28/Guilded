@@ -235,6 +235,20 @@ export async function readAddonExport(path, realm) {
   // Soft reserves (addon Modules/Reserve.lua): the whole list, replaced in Discord when newer.
   const reserves = buildReserves(database.reserves, realm);
 
+  // Guild events from the in-game calendar and each member's answer (addon Modules/Calendar.lua).
+  const calendarEvents = Object.values(database.calendarEvents?.events ?? {})
+    .filter((event) => event && Number(event.startsAt) > 0 && event.title)
+    .slice(0, 100)
+    .map((event) => ({
+      ref: String(event.ref).slice(0, 80),
+      title: String(event.title).slice(0, 100),
+      startsAt: new Date(Number(event.startsAt) * 1000).toISOString(),
+      invites: Object.values(event.invites ?? {})
+        .filter((invite) => invite?.name && ["ACCEPTED", "TENTATIVE", "DECLINED"].includes(invite.status))
+        .slice(0, 200)
+        .map((invite) => ({ character: String(invite.name), realm, status: String(invite.status) }))
+    }));
+
   // Who can craft what, and profession cooldowns (addon Modules/Recipes.lua).
   const recipeData = buildRecipes(database.recipeBook, realm);
 
@@ -282,6 +296,7 @@ export async function readAddonExport(path, realm) {
     ...(reserves ? { reserves: { ...reserves, at: reserves.at ?? exportedAt } } : {}),
     ...(recipeData.recipes.length ? { recipes: recipeData.recipes, recipeNames: recipeData.recipeNames } : {}),
     ...(recipeData.cooldowns.length ? { cooldowns: recipeData.cooldowns } : {}),
+    ...(calendarEvents.length ? { calendarEvents } : {}),
     raids,
     loot,
     dungeonRuns

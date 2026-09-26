@@ -378,6 +378,24 @@ local function buildLootPage(page)
   forModule("bidding", at(newLabel(page, "Pugs without the addon bid by whispering you a number.", "GameFontDisableSmall"), page, 116, -283))
 end
 
+-- Guild calendar, both ways with Discord (Modules/Calendar.lua). Creating an event is done from
+-- a button here because some clients need a real click for it.
+local function buildCalendarPage(page)
+  at(newLabel(page, "Read the in-game guild calendar so the answers reach Discord, and make in-game events for your Discord raids.", "GameFontNormalSmall"), page, 0, 0)
+  ui.calendarStatus = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -70)
+  ui.calendarStatus:SetWidth(PAGE_WIDTH)
+  at(newButton(page, "Scan the calendar", 150, function()
+    if ns.calendar then ns.message("Reading the guild calendar..."); ns.calendar.sync(false) end
+  end), page, 0, -32)
+  local x = 156
+  for n, label in ipairs({ "Create next raid", "Create #2", "Create #3" }) do
+    at(newButton(page, label, n == 1 and 130 or 90, function()
+      if ns.calendar then ns.calendar.createNext(n) end
+    end), page, x, -32)
+    x = x + (n == 1 and 134 or 94)
+  end
+end
+
 -- Soft reserves: everyone reserves for the raid; officers open, lock and roll.
 local function buildReservePage(page)
   at(newLabel(page, "Item (click the box, then shift-click the item)"), page, 0, 0)
@@ -854,6 +872,7 @@ local TAB_DEFS = {
   { name = "Standings", hint = "EP, GP and PR from Discord", group = "Overview", usesPlayer = true, build = buildStandingsPage },
   { name = "Ready", hint = "who is ready for the raid", group = "Raid night", leader = true, build = buildReadyPage },
   { name = "Reserves", hint = "soft reserves for the raid", group = "Raid night", module = "reserve", usesPlayer = true, build = buildReservePage },
+  { name = "Calendar", hint = "guild calendar and Discord raids", group = "Raid night", module = "calendar", officer = true, build = buildCalendarPage },
   { name = "Raid", hint = "run a raid: start, bosses, attendance", group = "Raid night", officer = true, usesPlayer = true, build = buildRaidPage },
   { name = "EPGP", hint = "award EP and GP", group = "Raid night", officer = true, usesPlayer = true, build = buildEpgpPage },
   { name = "Loot", hint = "bids and loot", group = "Raid night", officer = true, usesPlayer = true, build = buildLootPage },
@@ -1072,6 +1091,9 @@ refresh = function()
   local me = ns.playerName()
   local name = selectedPlayer()
   refreshHome(db, officer, me)
+  if ui.calendarStatus then
+    ui.calendarStatus:SetText(moduleOn("calendar") and ns.calendar and ns.calendar.statusText and ns.calendar.statusText() or "")
+  end
   if ui.reserveStatus then
     ui.reserveStatus:SetText(moduleOn("reserve") and ns.reserve and ns.reserve.statusText and ns.reserve.statusText(14) or "")
   end
@@ -1266,6 +1288,7 @@ local function buildPanel()
   ns.onBiddingChange = function() refresh() end
   ns.onCouncilChange = function() refresh() end
   ns.onReserveChange = function() refresh() end
+  ns.onCalendarChange = function() refresh() end
   ns.onDungeonChange = function() refresh() end
   ns.onModulesChange = function() refresh() end
   ns.onPeerReadiness = function() if readyTabOpen() then refresh() end end

@@ -2,6 +2,7 @@ import { SlashCommandBuilder, type ChatInputCommandInteraction } from "discord.j
 import { createAddonImportService } from "../services/addon-import.js";
 import { createAuditService } from "../services/audit.js";
 import { followUpImport } from "../services/import-followup.js";
+import { describeCalendar } from "../services/calendar-sync.js";
 import type { RaidImportSummary } from "../services/raid-import.js";
 import type { DungeonImportSummary } from "../services/dungeon-import.js";
 import { formatDuration } from "../services/dungeon-rules.js";
@@ -71,7 +72,7 @@ export async function executeImportApply(interaction: ChatInputCommandInteractio
       skippedAlreadyImported: result.skipped
     }
   });
-  const { autoLinked } = await followUpImport(interaction.guild, context.guildId, result);
+  const { autoLinked, calendar } = await followUpImport(interaction.guild, context.guildId, result);
   await interaction.reply({
     content: `Applied import \`${importId}\`: ${result.transactions.length} DKP transaction(s), `
       + (result.consumables ? `${result.consumables} consumable check(s), ` : "")
@@ -84,6 +85,7 @@ export async function executeImportApply(interaction: ChatInputCommandInteractio
       + (result.loot.recorded ? ` ${result.loot.recorded} in-game loot award(s) added to /loot history.` : "")
       + (result.loot.unmatched.length ? ` Loot for unlinked characters skipped: ${result.loot.unmatched.join(", ")}.` : "")
       + raidReport(result.raids)
+      + (calendar && describeCalendar(calendar) ? `\n\n**Calendar**\n${describeCalendar(calendar)}` : "")
       + dungeonReport(result.dungeons),
     ephemeral: true
   });

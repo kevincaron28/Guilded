@@ -1,4 +1,4 @@
-# CurseForge copy-paste sheet: Guilded 3.3.0
+# CurseForge copy-paste sheet: Guilded 4.0.0
 
 Each block below is one field. Copy the block, paste it in.
 
@@ -11,7 +11,7 @@ Guilded
 
 ## Summary (one line)
 ```
-Raid attendance, EPGP, loot bidding, pre-raid gear checks and fun roll games for WoW Forever guilds, with an optional Discord bot.
+Raid attendance, EPGP, four loot systems, soft reserves, recipes, guild calendar, gear checks and roll games for WoW Forever guilds, with an optional Discord bot.
 ```
 
 ## Category
@@ -21,7 +21,7 @@ Raid & Instance (secondary: Guild, Miscellaneous)
 `docs/branding/guilded-logo-400.png` (400x400). Full size: `docs/branding/guilded-logo.png`.
 
 ## File to upload
-`dist/Guilded-v3.3.0.zip` (top folder inside is `Guilded`). Release type: **Beta** for the first day, then **Release**.
+`dist/Guilded-v4.0.0.zip` (top folder inside is `Guilded`). Release type: **Beta** for the first day, then **Release**.
 Game versions: the WoW Forever / Classic entries closest to interface 16001 and 20506.
 
 ## License
@@ -42,8 +42,19 @@ free Discord bot when you want signups and reports outside the game too.
 
 ## In game
 - **Raid tools:** start and end a raid, attendance with bench credit, boss kills, notes.
-- **EPGP and loot:** award EP and GP, live GP bidding with a popup for raiders (whisper
-  bids work for people without the addon), standings with priority (PR).
+- **EPGP and loot:** award EP and GP, standings with priority (PR), and **four loot systems**
+  you choose per raid core: GP bidding, loot council (BiS / upgrade / off-spec answers),
+  soft reserves (reservers roll) and EPGP priority (every item has a set GP price and goes to
+  the highest PR of the players who want it). One command, `/guilded drop <item>`, runs the
+  right one. Raiders get a popup; whispers work for people without the addon.
+- **Soft reserves** built in, with no website: reserve with an item link, the list is shared
+  with the guild and shows on item tooltips.
+- **Recipes and cooldowns:** open your professions once and the guild can ask who can craft
+  what (`/guilded recipes who <item>`), see transmute and other cooldowns, and make a materials
+  shopping list.
+- **Guild calendar, both ways with Discord:** in-game event answers fill in Discord raid
+  signups, and your Discord raids become in-game events with one click (if the game client
+  offers the calendar to addons).
 - **Ready page** (officers and raid leaders): see at a glance who in your raid is ready and who is not, and why (flask, food, enchants, gear, durability), with a one-click ready check.
 - **Gear check before the raid:** empty slots, missing enchants, flasks, food and
   attunements, with a one-line readiness status for every raider.
@@ -57,7 +68,8 @@ free Discord bot when you want signups and reports outside the game too.
   module can be switched off.
 
 ## Optional Discord bot (self-hosted, free)
-Signups with roles and waitlist, raid cores with priority, weekly raids, dungeon
+Signups with roles and waitlist, raid cores with their own loot system and item prices,
+weekly raids, soft reserves and who-can-craft-what in Discord, calendar sync, dungeon
 challenge and leaderboard, craft board, readiness board, polls, Warcraft Logs and
 weekly reports. A small Windows companion app (tray icon) uploads your data after
 each `/reload`.
@@ -74,6 +86,23 @@ PolyForm Noncommercial license. Not affiliated with or endorsed by Blizzard Ente
 
 ## Changelog (paste for the file upload)
 ```markdown
+## 4.0.0
+
+**Loot, crafting and the calendar**
+- **Loot systems per raid core:** GP bids, loot council, soft reserves or EPGP priority (set item prices, the highest PR of those who want it wins). Chosen per core on Discord; `/guilded drop <item link>` runs the right one, and `/guilded core <name>` picks the core you are running.
+- **Loot council:** a popup with BiS, Upgrade, Off-spec and Pass (whispers work too); officers see the answers ranked, with what each player wears in that slot, and award.
+- **Soft reserves:** `/guilded reserve open`, then everyone reserves with an item link (or the Reserves tab). Lock it, roll between the reservers, award. Item tooltips say who reserved the item.
+- **Recipes and cooldowns:** open each profession window once. `/guilded recipes who <item>`, `/guilded recipes mats <item link>` (a shopping list), `/guilded cooldowns`; tooltips say who can craft an item.
+- **Guild calendar:** `/guilded calendar sync` reads guild events and answers for Discord; the Calendar tab makes in-game events from your Discord raids. Works only if the game client offers the calendar to addons (`/guilded calendar check`).
+- **Ready page runs by itself:** when anyone starts the ready check, every Guilded in the group reports flask, food, augment and vantus rune, raid buffs, weapon enchant and durability; one icon per check.
+- **Attunements track themselves:** tell it once which quest an attunement needs (`/guilded attune track`).
+
+**Discord bot (self-hosted)**
+- Commands merged into 17 parents (`/setup`, `/character`, `/raid`, `/core`, `/loot`, `/craft`, `/report` and more).
+- Per-core loot systems and item prices (`/core items`, `/loot priority`), `/loot reserves`, `/craft who`, `/character profession cooldowns`, calendar sync into raid signups. Run `npm run db:update` once when upgrading.
+
+Credits: spell ids and the approach of the Ready page follow Ready Check Consumables (MIT).
+
 ## 3.3.0
 
 **In game**

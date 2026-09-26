@@ -41,6 +41,7 @@ Finish with `/setup start status:true`: nothing should be red.
 Then:
 - **`/core setup`** makes a raid core (a named roster). Change it any time with **`/core edit`**
   (roles, bench, add, remove, rename).
+- In step 3 of `/core setup` choose **how that core's loot is decided**: GP bids, loot council, soft reserves, or EPGP priority (every item has a set GP price and goes to the highest PR of the players who want it). For EPGP priority give the item prices with the **Item prices** button or `/core items`. A core that says nothing follows the guild's choice (`/setup config loot-mode`).
 - **`/setup config auto-import`** lets the bot apply uploads by itself. Otherwise an officer runs `/import apply`.
 - **`/craft permissions`** (only needed for a craft board made by an older version).
 
@@ -62,13 +63,20 @@ never reloads on its own unless a player turns that on with `/guilded sync auto 
   companion is online with them, and are linked by matching the Discord nickname (for example "Ray" or
   "[GOLD] Ray"). Otherwise run **`/character claim`**.
 - Raid leaders: `/raid create` (add `core:` and `weekly:true` as needed). Members sign up with the buttons.
-- Officers: in game, `/guilded start` opens a raid, the Loot page runs GP bidding, and the Home page shows what
+- Officers: in game, `/guilded start` opens a raid; when an item drops, `/guilded drop <item link>` runs it the way
+  the raid's core decides loot (`/guilded core <name>` picks the core; it follows the next raid by itself). The Home page shows what
   is waiting to go to Discord.
+- Soft reserves: an officer runs `/guilded reserve open`, everyone reserves with `/guilded reserve <item link>` (or the Reserves tab), and
+  `/loot reserves` shows the list in Discord.
+- Guild calendar: an officer's `/guilded calendar sync` sends in-game event answers to Discord, and the Calendar tab makes in-game events
+  for Discord raids. It needs a game client that offers the calendar to addons (`/guilded calendar check`).
+- Crafters: open each profession window once; `/craft who <item>` in Discord and `/guilded recipes who <item>` in game find them.
 
 ## Updating
 
-Pull or copy the new files, then run `start-bot.bat` again (it applies database changes). Copy the new
-`Guilded` addon folder over the old one. Existing data is kept.
+Pull or copy the new files, then run `start-bot.bat` again (it applies database changes; or run `npm run db:update`). Copy the new
+`Guilded` addon folder over the old one. Existing data is kept. Coming from 3.x, note that several bot commands moved under parents
+(17 commands now): see [COMMANDS.md](../COMMANDS.md).
 
 ## When something goes wrong
 

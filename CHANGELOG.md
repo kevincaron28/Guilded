@@ -1,8 +1,17 @@
 # Changelog
 
-## Unreleased
+## 4.0.0
+
+The biggest release so far: four loot systems chosen per raid core, soft reserves, loot council, recipes and cooldowns, and the guild calendar, on top of the self-running Ready page and attunements.
+
+**Upgrading from 3.x**
+- Bot: run `npm run db:update` once (or start with `start-bot.bat`, which does it). Several new tables and columns are added; nothing is removed.
+- Bot commands were merged: 17 commands instead of 34 (the list is below). The old top-level names are gone; the guided setup is now `/setup start`.
+- Addon: copy the new `Guilded` folder over the old one. Saved data is kept.
+- Companion: no change needed, but restart it so it sends the new data (recipes, reserves, calendar) and writes the loot rules.
 
 **Discord bot**
+- **Guild calendar sync.** In-game guild events and how each member answered them reach Discord with the companion's export. An event at the same time as a planned raid fills in the signups of players who have not answered on Discord (accepted signs up, tentative is a Maybe) through the normal role caps and waitlist. Declined answers and anyone who already answered on Discord are never changed, and the signup post refreshes. Events with no Discord raid are listed for the officers. No database change.
 - **Loot systems per raid core.** Each core now decides how its loot is given out: GP bids, loot council, soft reserves, or the new **EPGP priority** (every item has a set GP price and goes to the highest PR of the players who want it). Pick it in `/core setup` or `/core rules loot_mode`; the guild default is `/setup config loot-mode`. Prices: `/core items` (per core or guild-wide, import from a file) and an **Item prices** form in `/core setup`. `/loot priority` shows who is next for an item, `/loot award` charges the set price when you leave out the GP, and reserves per player are set per core. The addon learns each core's system, prices and own-pool standings from the companion. Needs a database update: run `npm run db:update` once.
 - **Who can craft what, and profession cooldowns.** The addon's recipe scan reaches Discord with the companion's export. `/craft who <item>` lists the guild's crafters, `/character profession cooldowns` lists everyone's cooldowns, and `notify: true` sends you a DM when one of yours is ready. Needs new database tables and a column: run `npm run db:update` once.
 - **Soft reserves reach Discord.** The list kept in the addon goes up with the companion's export, and `/loot reserves [item]` shows who reserved what (the newest export replaces the old list; a cleared list clears it). Needs the new database tables: run `npm run db:update` once.
@@ -11,6 +20,7 @@
 - `/setup config channel` replaces the eleven separate `/config ...-channel` commands: pick which channel from a list, then the channel.
 
 **In game**
+- **Guild calendar, both ways.** `/guilded calendar sync` (officers; it also runs by itself now and then) reads the guild's calendar events and each member's answer, and the companion sends them to Discord. The new **Calendar** tab lists the upcoming Discord raids (the companion writes them next to the standings) and has buttons to make the in-game events (a real click, which some clients need). `/guilded calendar list` and `create`. It works only if the game client offers the calendar to addons: `/guilded calendar check` tells you, and everything says so plainly when it cannot.
 - **`/guilded drop <item>` runs the loot the way the raid core does it.** GP bids, loot council, soft reserves or EPGP priority, chosen per core on Discord. `/guilded core <name>` picks the core you are running (it follows the next raid by itself). **EPGP priority** opens an "I want it / Pass" popup at the item's set price and, when time is up, gives it to the highest PR among those who want it and charges the price. `/guilded reserve open` uses the core's reserves per player.
 - **Recipes and cooldowns.** Open a profession window and Guilded reads your recipes, what they need and any cooldown, then shares them with the guild in a few short messages. `/guilded recipes who <item>` says who can craft it, `/guilded recipes mats <item link> [count]` is a shopping list with what you already carry, `/guilded cooldowns` lists profession cooldowns (all transmutes as one line), and item tooltips say who can craft the item.
 - **Soft reserves, built into the addon.** No website needed: an officer runs `/guilded reserve open`, everyone reserves with `/guilded reserve [item link]` (or the new Reserves tab), and the list is shared with the guild. Lock it when the raid starts; when an item drops, `/guilded reserve roll [item link]` rolls between only the players who reserved it and `/guilded reserve award <player> [item link]` records the loot and uses up the reserve. Players without the addon whisper `res [item link]` to the officer. Item tooltips say who reserved the item, and the loot council list puts reservers first.
@@ -23,7 +33,7 @@
 - Only the player themselves can report themselves, and only through raid or party chat.
 
 - **Attunements track themselves.** Tell your addon once which quest (or reputation) an attunement needs: `/guilded attune track "Hyjal Summit" quest <id>` (or `rep <factionId> <standing>`). From then on it records the attunement by itself when you complete it and tells the guild; no more filling it in. Nothing is built in, because WoW Forever's raids (Barrow Deeps, Hyjal Summit, Onyxia's Lair) differ from the old ones. `/guilded attune tracked`, `untrack` and `auto` (look now) manage it. It only adds, never clears; `/guilded attune` by hand still works. Officers keep what each guildmate reports about themselves.
-- **One player, one name.** "Ray" and "Ray pissjug" (name plus a realm written with a space) are now the same person in the group list and everywhere else.
+- **One player, one name.** "Ann" and "Ann Forever" (a name plus a realm written with a space) are now the same person in the group list and everywhere else.
 
 **Credits:** spell ids and the approach follow Ready Check Consumables (MIT); see `docs/CREDITS.md`.
 

@@ -42,7 +42,8 @@ Hover a page name for what it is for. The **Player** box (target someone, or **M
 | `/guilded digest [on/off]` | What changed since your last login (also shown once at login) |
 | `/guilded peers` | Which guildmates run which addon version this session |
 | `/guilded snapshot [label]` / `/guilded snapshot list` | Officers: record who is in the group right now (also counts as presence for the active raid) |
-| `/guilded calendar check` | Checks whether the in-game guild calendar can be synced (send the result to an officer) |
+| `/guilded calendar check` | Checks whether this client's guild calendar works for addons (read only) |
+| `/guilded calendar sync` / `list` / `create [n]` | Officers: read the guild's calendar events and answers for Discord; list the upcoming Discord raids and which are in the game calendar; make the in-game event for the next (or nth) one. The Calendar tab has the same buttons |
 | `/guilded lang en` / `fr` / `auto` | Language of your window and bid popup (auto = same as your game client) |
 | `/guilded standings [player]` | EPGP standings from Discord (top 10, or one player) |
 | `/guilded dungeon status` | The dungeon run being recorded: state, timer, bosses, deaths |
@@ -51,7 +52,7 @@ Hover a page name for what it is for. The **Player** box (target someone, or **M
 | `/guilded version` | Your addon version. You're also told automatically when a guildmate has a newer one |
 | `/guilded minimap show` / `hide` / `reset` | Control the minimap button |
 | `/guilded officer list` | Show which ranks count as officers, and whether you do |
-| `/guilded modules` | List the optional parts (games, bidding, dungeon, calendar, sim) and whether each is on |
+| `/guilded modules` | List the optional parts (games, bidding, council, reserve, recipes, dungeon, calendar, sim ...) and whether each is on |
 | `/guilded modules off\|on <module>` | Turn one off or back on just for you (also in the Tools tab). Back on after being off at login needs `/reload` |
 
 ### Officers: raid and EPGP
@@ -129,6 +130,14 @@ or `/guilded core <name>` (`auto` goes back). Then one command for every system:
 In EPGP priority raiders get a popup (or whisper `want` / `pass`); when the time is up the highest
 PR among those who want it gets the item and is charged the set price by itself. PR uses the core's own
 point pool when it has one. Nothing else to press: cancel before the timer ends with `/guilded council cancel`.
+
+### Guild calendar
+
+The in-game guild calendar and Discord raids, both ways (in game: officers, the Calendar tab or `/guilded calendar ...`).
+
+- **In game to Discord:** `/guilded calendar sync` reads the guild's calendar events and how each member answered. The companion sends them with the rest of the export. An event at the same time (within 90 minutes) as a planned Discord raid fills in signups for players who have **not answered on Discord**: accepted signs up, tentative is a Maybe, through the normal role caps and waitlist (core members get their core role, others DPS). Declined answers and anyone who already signed up or cancelled on Discord are never changed. Players are matched by character name. Events with no Discord raid and unlinked names are listed for the officers in the officer log and the `/import apply` reply.
+- **Discord to in game:** the companion writes the next three weeks of planned raids next to the standings. The Calendar tab (or `/guilded calendar create`) makes the in-game guild event for one. It will not make a duplicate of an event that is already there.
+- It works only if WoW Forever's client offers the calendar to addons; `/guilded calendar check` tells you, and every calendar command says so when it cannot.
 
 ### Recipes and cooldowns
 

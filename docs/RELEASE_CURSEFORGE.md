@@ -1,4 +1,4 @@
-# Releasing on CurseForge (v3.3.0)
+# Releasing on CurseForge (v4.0.0)
 
 Everything you need is here; the parts only you can do are marked **YOU**.
 
@@ -7,7 +7,7 @@ Everything you need is here; the parts only you can do are marked **YOU**.
 1. The public name is **Guilded** (decided). Use "WoW"/"Warcraft" only descriptively
    ("for WoW Forever"), not in the name. Confirm the name is free on CurseForge.
 2. `node addon/Guilded/validate-addon.mjs` passes and `npm run addon:zip` builds
-   `dist/Guilded-v3.3.0.zip` (top folder inside the zip must be `Guilded`).
+   `dist/Guilded-v4.0.0.zip` (top folder inside the zip must be `Guilded`).
 3. **YOU:** play with the zip installed, tick the "Before release" list in
    RELEASE_CHECKLIST.md.
 4. **YOU:** take 3 to 5 screenshots in game (Home page, Raid page during a raid,
@@ -59,12 +59,12 @@ Made for WoW Forever (interface 16001 and 20506). Not affiliated with Blizzard.
 
 ## 3. Upload the file
 
-- Files, Upload File: `dist/Guilded-v3.3.0.zip`.
+- Files, Upload File: `dist/Guilded-v4.0.0.zip`.
 - Release type: **Beta** for the first day, then **Release**.
 - Game versions: pick the entries matching WoW Forever / Classic (the same numbers as
   the TOC: 16001 and 20506). If your version is not listed, choose the closest Classic
   entry; the TOC is what the game reads.
-- Changelog: paste the "3.3.0" section of CHANGELOG.md.
+- Changelog: paste the "4.0.0" section of CHANGELOG.md.
 - Submit; CurseForge moderators review the first file (usually within a day).
 
 ## 4. After it is live

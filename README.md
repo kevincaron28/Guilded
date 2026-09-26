@@ -5,8 +5,8 @@ Windows companion app that connect the two. Free for noncommercial use ([license
 
 | Part | What it does | Where |
 | --- | --- | --- |
-| **Addon** | Raids, attendance, EPGP, GP bidding, gear and consumable checks, roll games, a friendly window (gold coin on the minimap). Works alone, no Discord needed. | `addon/Guilded/` |
-| **Discord bot** (optional, self-hosted, free) | Raid signups with roles and waitlist, raid cores with a bench, weekly raids, EPGP standings, loot log, dungeon challenge, craft board, readiness board, polls, Warcraft Logs, applications, moderation helpers. | `src/` |
+| **Addon** | Raids, attendance, EPGP, four loot systems (GP bids, loot council, soft reserves, EPGP priority), recipes and cooldowns, the guild calendar, gear and consumable checks, a live Ready page, roll games, a friendly window (gold coin on the minimap). Works alone, no Discord needed. | `addon/Guilded/` |
+| **Discord bot** (optional, self-hosted, free) | Raid signups with roles and waitlist, raid cores with a bench and their own loot system and item prices, weekly raids, EPGP standings, loot log, soft reserves, who can craft what, guild calendar sync, dungeon challenge, craft board, readiness board, polls, Warcraft Logs, applications, moderation helpers. | `src/` |
 | **Companion app** (optional) | Tray app that sends the addon's saved data to the bot after each `/reload` or logout and writes standings back into the game. | `companion-app/`, `companion/` |
 
 Every in-game and Discord command, and who can run it, is in [COMMANDS.md](COMMANDS.md).
@@ -59,7 +59,7 @@ crashes. Never commit `.env*` or `companion/companion.config.json` (both are alr
 | Script | Purpose |
 | --- | --- |
 | `npm run dev` | Run the bot with tsx |
-| `npm test` | Run the tests (bot and addon, 300+) |
+| `npm test` | Run the tests (bot and addon, 550+) |
 | `npm run build` | Type-check |
 | `npm run lint` | ESLint |
 | `npm run db:update` | Apply migrations and regenerate the Prisma client |

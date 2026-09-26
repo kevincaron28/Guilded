@@ -25,8 +25,12 @@ switched off:
 | --- | --- |
 | `games` | Fun /roll games (high roll, deathroll, duel): no gold |
 | `bidding` | In-game GP bidding on loot |
+| `council` | Loot council answers (BiS / upgrade / off-spec) and EPGP priority loot |
+| `reserve` | Soft reserves: reserve items for a raid, shared list, roll between reservers |
+| `recipes` | Who can craft what, profession cooldowns, materials list |
 | `dungeon` | Dungeon run tracking for the Dungeon Challenge |
-| `calendar` | Guild calendar check |
+| `calendar` | The guild calendar, both ways with Discord |
+| `consumables`, `tooltip`, `chattab`, `digest`, `backup`, `autoinvite`, `syncnow` | Consumable scan, item tooltips, the Guilded chat tab, login digest, backup and restore, auto-invite, save-now |
 | `sim` | Test raid / dungeon run for officers |
 
 Raids, attendance, EPGP, loot, the gear check, standings and the version
@@ -48,8 +52,8 @@ logged in needs a `/reload`.
 
 A gold coin button sits on the minimap edge. Left-click opens the tools
 window, right-click checks your gear, drag moves it. Each rank sees only
-what it can use: members get Me, Standings, Dungeons, and Tools; officers
-also get Raid, EPGP, Loot, and the officer tools (rank is re-checked
+what it can use: members get Me, Standings, Reserves, Dungeons, and Tools; officers
+also get Ready, Calendar, Raid, EPGP, Loot, Council, and the officer tools (rank is re-checked
 each time the window opens). Tabs for switched-off modules are hidden. A shared **Player** box sits at the top: targeting a
 player fills it in, and **Me** / **Group...** (clickable raid/party list, or
 online guildmates when solo) fill it on demand. Amounts and

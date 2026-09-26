@@ -1,9 +1,9 @@
 ## Interface: 16001, 20506
 ## Title: Guilded
-## Notes: Manual-first raid attendance, DKP/EPGP ledger, gear checks and fun roll games for WoW Forever
-## Notes-frFR: Presences de raid, registre EPGP, verification d'equipement et jeux de des pour WoW Forever
+## Notes: Raid attendance, EPGP and four loot systems, soft reserves, recipes, guild calendar, gear checks and roll games for WoW Forever
+## Notes-frFR: Presences de raid, EPGP et quatre systemes de butin, reserves, recettes, calendrier de guilde, verification d'equipement et jeux de des pour WoW Forever
 ## Author: Kevin Caron
-## Version: 3.3.0
+## Version: 4.0.0
 ## IconTexture: Interface\Icons\INV_Misc_Coin_01
 ## Category: Raid
 ## X-License: PolyForm-Noncommercial-1.0.0

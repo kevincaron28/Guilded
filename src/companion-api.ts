@@ -72,7 +72,7 @@ const auditService = createAuditService(prisma);
 export function startCompanionApi(client?: Client): ReturnType<typeof createServer> {
   const server = createServer(async (request, response) => {
     try {
-      if (request.method === "GET" && request.url === "/report ping") {
+      if (request.method === "GET" && request.url === "/health") {
         json(response, 200, { ok: true });
         return;
       }

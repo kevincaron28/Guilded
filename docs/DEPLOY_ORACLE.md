@@ -121,16 +121,24 @@ allowed to reach it) and the same `COMPANION_UPLOAD_TOKEN` as on your PC.
 
 ### 5. Updates
 
+Push your changes to GitHub from your PC, then on the server, inside the clone you installed from:
+
 ```bash
-cd /opt/guilded && sudo -u guilded git pull && sudo systemctl restart guilded
+cd ~/guilded && sudo bash deploy/update.sh
 ```
 
+It pulls the new code (with your own git login, so a private repository works), copies it to
+`/opt/guilded`, runs `npm ci` only when the dependencies changed, restarts the bot and waits until
+`/health` answers. If the new version does not start, it prints the last log lines and the command to
+go back to the previous version. About 15 seconds of downtime.
+
 The service runs `npm run db:update` before starting, so database changes apply
-themselves. Logs: `journalctl -u guilded -n 100`.
+themselves. Logs: `journalctl -u guilded -n 100`. Only the bot lives on the server: the addon (CurseForge)
+and the companion (officers' PCs) are updated where they run.
 
 ## Security notes
 
-- The API only answers `/report ping` without a token; every other path needs the
+- The API only answers `/health` without a token; every other path needs the
   bearer token, compared in constant time.
 - Ten wrong tokens from one address in ten minutes locks that address out.
 - Keep `COMPANION_UPLOAD_TOKEN` at 32+ random characters and never commit it.

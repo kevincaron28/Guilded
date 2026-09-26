@@ -33,13 +33,12 @@ API, and the release notes say which parts are untested.
 
 1. **Publish 4.0.0 as a Beta and test with a second player** (see the checklist). Fix whatever it finds. This
    comes before any feature.
-2. **Web dashboard** for standings, loot and raid history.
-3. **Hosting:** the free Oracle Cloud setup is written ([docs/DEPLOY_ORACLE.md](docs/DEPLOY_ORACLE.md)); a hosted
+2. **Hosting:** the free Oracle Cloud setup is written ([docs/DEPLOY_ORACLE.md](docs/DEPLOY_ORACLE.md)); a hosted
    multi-guild bot is a bigger step and only worth it if other guilds ask.
 
 ## Also done
 
-Every item of the old numbered list except the two above is built: item tooltips (3.1), Warcraft Logs
+Every item of the old numbered list except hosting is built: item tooltips (3.1), Warcraft Logs
 automation (3.1), the Guilded chat tab (3.2), loot council answers, soft reserves, guild calendar sync, and
 recipes and cooldowns (4.0).
 
@@ -50,6 +49,7 @@ recipes and cooldowns (4.0).
 
 ## Decided against
 
+- **Web dashboard** for standings, loot and raid history: Discord and the in-game window already show them.
 - **Imports from other addons and sites** (SoftRes, That's My BiS, Guild Roster Manager): soft reserves are built in, and the rest were never worth the sample-file chase.
 - **Casino games and gold wagers:** removed in 2.4 (debts and disputes, no value for a guild).
 - **Message edit/delete logging and a starboard:** need Discord's privileged Message Content or reaction intents.

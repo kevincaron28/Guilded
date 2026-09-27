@@ -98,6 +98,44 @@ describe("the tools window (sidebar and Home page)", () => {
     expect(shown()).toBe("false");
   });
 
+  it("shows Reserves or Council only when the raid's own loot system uses them", () => {
+    const withLoot = (rank: number, lootMode?: string) => {
+      const s = newLuaSession();
+      s.run(RICH_FRAMES);
+      s.run(String.raw`
+        GuildedDB = nil; NS = {}
+        MOCK_UNITS = { player = { name = "Kev", buffs = {} } }
+        function GetGuildInfo() return "Alpha", "Rank", ${rank} end
+      `);
+      for (const file of ["Core.lua", "Compat.lua", "Modules/Sync.lua", "Modules/SyncNow.lua", "Modules/Games.lua", "Modules/ConsumableData.lua", "Modules/Consumables.lua", "Modules/Ready.lua", "Modules/Loot.lua", "Modules/Minimap.lua"]) s.load(file);
+      s.run(`fire_event("PLAYER_LOGIN"); fire_event("PLAYER_ENTERING_WORLD")`);
+      if (lootMode) s.run(`NS.getSettings().lootMode = ${JSON.stringify(lootMode)}`);
+      s.run(`NS.commandHandlers["menu"]()`);
+      return s;
+    };
+    // No mode set: falls back to the guild default (EPGP) — neither shows.
+    const none = withLoot(1);
+    expect(visibleTabs(none)).not.toContain("Reserves");
+    expect(visibleTabs(none)).not.toContain("Council");
+    none.close();
+
+    const reserve = withLoot(1, "RESERVE");
+    expect(visibleTabs(reserve)).toContain("Reserves");
+    expect(visibleTabs(reserve)).not.toContain("Council");
+    reserve.close();
+
+    const council = withLoot(1, "COUNCIL");
+    expect(visibleTabs(council)).toContain("Council");
+    expect(visibleTabs(council)).not.toContain("Reserves");
+    council.close();
+
+    // EPGP priority uses the Council tab's award flow too.
+    const priority = withLoot(1, "PRIORITY");
+    expect(visibleTabs(priority)).toContain("Council");
+    expect(visibleTabs(priority)).not.toContain("Reserves");
+    priority.close();
+  });
+
   it("titles each page with what it is for", () => {
     const s = openWindow(1);
     expect(s.run(`return NS.windowState().pageTitle.text`)).toContain("Home");

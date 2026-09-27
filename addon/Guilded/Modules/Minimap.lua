@@ -871,12 +871,12 @@ local TAB_DEFS = {
   { name = "Me", hint = "your gear check and attunements", group = "Overview", usesPlayer = true, build = buildMePage },
   { name = "Standings", hint = "EP, GP and PR from Discord", group = "Overview", usesPlayer = true, build = buildStandingsPage },
   { name = "Ready", hint = "who is ready for the raid", group = "Raid night", leader = true, build = buildReadyPage },
-  { name = "Reserves", hint = "soft reserves for the raid", group = "Raid night", module = "reserve", usesPlayer = true, build = buildReservePage },
+  { name = "Reserves", hint = "soft reserves for the raid", group = "Raid night", module = "reserve", lootModes = { RESERVE = true }, usesPlayer = true, build = buildReservePage },
   { name = "Calendar", hint = "guild calendar and Discord raids", group = "Raid night", module = "calendar", officer = true, build = buildCalendarPage },
   { name = "Raid", hint = "run a raid: start, bosses, attendance", group = "Raid night", officer = true, usesPlayer = true, build = buildRaidPage },
   { name = "EPGP", hint = "award EP and GP", group = "Raid night", officer = true, usesPlayer = true, build = buildEpgpPage },
   { name = "Loot", hint = "bids and loot", group = "Raid night", officer = true, usesPlayer = true, build = buildLootPage },
-  { name = "Council", hint = "loot council: BiS / upgrade / off-spec answers", group = "Raid night", module = "council", officer = true, usesPlayer = true, build = buildCouncilPage },
+  { name = "Council", hint = "loot council: BiS / upgrade / off-spec answers", group = "Raid night", module = "council", lootModes = { COUNCIL = true, PRIORITY = true }, officer = true, usesPlayer = true, build = buildCouncilPage },
   { name = "Dungeons", hint = "the run being recorded, points", group = "Fun and runs", module = "dungeon", build = buildDungeonPage },
   { name = "Games", hint = "fun roll games", group = "Fun and runs", module = "games", usesPlayer = true, build = buildGamesPage },
   { name = "Tools", hint = "switch parts on or off, diagnostics", group = "System", build = buildToolsPage }
@@ -961,6 +961,16 @@ local function tabAllowed(tab, officer)
   return not tab.officer
 end
 
+-- A tab tied to specific loot systems (Reserves, Council) only clutters the window when the
+-- raid actually being run uses a different one. Fails open (shows the tab) if the mode can't
+-- be read yet, same as everything else that reads ns.loot.mode().
+local function lootModeAllowed(tab)
+  if not tab.lootModes then return true end
+  local mode = ns.loot and ns.loot.mode and ns.loot.mode()
+  if not mode then return true end
+  return tab.lootModes[mode] == true
+end
+
 local function layoutTabs(officer)
   local y = -62
   local firstVisible
@@ -969,7 +979,7 @@ local function layoutTabs(officer)
   for _, group in ipairs(GROUPS) do
     local any = false
     for _, tab in ipairs(ui.tabs) do
-      if tab.group == group and tabAllowed(tab, officer) and (not tab.module or moduleOn(tab.module)) then any = true end
+      if tab.group == group and tabAllowed(tab, officer) and (not tab.module or moduleOn(tab.module)) and lootModeAllowed(tab) then any = true end
     end
     if any then
       local label = ui.groupLabels[group]
@@ -983,7 +993,7 @@ local function layoutTabs(officer)
       y = y - 16
       for i, tab in ipairs(ui.tabs) do
         if tab.group == group then
-          local visible = tabAllowed(tab, officer) and (not tab.module or moduleOn(tab.module))
+          local visible = tabAllowed(tab, officer) and (not tab.module or moduleOn(tab.module)) and lootModeAllowed(tab)
           tab.visible = visible
           if visible then
             at(tab.button, panel, 20, y)
@@ -1265,7 +1275,7 @@ local function buildPanel()
     def.build(page)
     page:Hide()
     local tabButton = newButton(panel, L(def.name), 132, function() selectTab(i) end, 24)
-    ui.tabs[i] = { name = def.name, hint = def.hint, group = def.group, officer = def.officer, leader = def.leader, module = def.module, usesPlayer = def.usesPlayer, page = page, button = tabButton }
+    ui.tabs[i] = { name = def.name, hint = def.hint, group = def.group, officer = def.officer, leader = def.leader, module = def.module, lootModes = def.lootModes, usesPlayer = def.usesPlayer, page = page, button = tabButton }
     tabButton:SetScript("OnEnter", function(self)
       if not GameTooltip then return end
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")

@@ -25,6 +25,7 @@ import { runWeeklyReports } from "./commands/stats.js";
 import { executeBank } from "./commands/bank.js";
 import { executeCraft } from "./commands/craft.js";
 import { greetNewGuild, logSetupStatus } from "./commands/setup.js";
+import { executeUninstall } from "./commands/uninstall.js";
 import { executeHelp } from "./commands/help.js";
 import { handleAutocomplete } from "./commands/autocomplete.js";
 import { prisma } from "./database.js";
@@ -51,6 +52,7 @@ handlers.set("poll", executePoll);
 handlers.set("bank", executeBank);
 handlers.set("craft", executeCraft);
 handlers.set("help", executeHelp);
+handlers.set("uninstall", executeUninstall);
 
 client.once(Events.ClientReady, (readyClient) => {
   registerCommandsEverywhere().catch((error: unknown) => console.error("Command registration failed", error));

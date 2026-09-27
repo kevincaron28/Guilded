@@ -402,7 +402,8 @@ async function createMissingRoles(guild: DiscordGuild, lang: Lang): Promise<stri
 const CORE_CHANNELS: ChannelField[] = ["notifyChannelId", "raidSignupChannelId", "raidLogChannelId", "logChannelId"];
 const RAIDTEAM_CHANNELS: ChannelField[] = ["coreChannelId", "readinessChannelId", "lootChannelId", "craftChannelId"];
 const DUNGEON_CHANNELS: ChannelField[] = ["dungeonLeaderboardChannelId", "dungeonSignupChannelId", "dungeonChannelId"];
-const ALL_CHANNELS: ChannelField[] = [...CORE_CHANNELS, ...RAIDTEAM_CHANNELS, ...DUNGEON_CHANNELS];
+// Every channel field /setup can create. Also used by /setup uninstall to find what to remove.
+export const ALL_CHANNELS: ChannelField[] = [...CORE_CHANNELS, ...RAIDTEAM_CHANNELS, ...DUNGEON_CHANNELS];
 
 // The category for a group of channels; created once and reused (found by its English or French name).
 async function ensureCategory(guild: DiscordGuild, key: CategoryKey, lang: Lang) {

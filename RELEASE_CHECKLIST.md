@@ -13,12 +13,12 @@
 
 ## To publish (about 30 minutes)
 
-- [ ] **3 to 5 screenshots** in game: Home page, Raid or Loot page, Me page (and a Discord signup post with the core roster).
-- [ ] **Logo:** `docs/branding/guilded-logo-400.png` still reads "GILDED"; regenerate it with the u, then upload it to CurseForge.
-- [ ] **Discord developer portal:** set the bot's name to Guilded and its avatar to the logo.
+- [x] **3 to 5 screenshots** in game: Home page, Raid or Loot page, Me page (and a Discord signup post with the core roster).
+- [x] **Logo:** regenerated with the u; ready to upload to CurseForge.
+- [x] **Discord developer portal:** bot's name set to Guilded and its avatar set to the logo.
 - [ ] **CurseForge:** upload `dist/Guilded-v4.0.0.zip` as **Beta**, paste the changelog from `docs/CURSEFORGE_COPYPASTE.md`. Coming from 3.x, the bot needs `npm run db:update` once (say so in the description).
-- [ ] **GitHub** stays private (no source URL on the listing). Optional: rename the repository from `QC-Gold` to `Guilded` in its settings.
-- [ ] **Companion installer** (optional, for guilds that do not want the batch file): `cd companion-app`, `npm install`, `npm run dist`; the installer lands in `dist\companion\`.
+- [x] **GitHub** stays private (no source URL on the listing). Repository is already named `Guilded`.
+- [x] **Companion installer** built: `dist\companion\Guilded Companion Setup 4.0.0.exe`.
 - [ ] After a day with no bug reports: switch the file from Beta to **Release**.
 
 ## Still to test with a second player or a party

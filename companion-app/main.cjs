@@ -11,7 +11,7 @@ const DEFAULTS = {
   watchFile: "",
   realm: "WoW Forever",
   wowGuild: "",
-  uploadUrl: "http://127.0.0.1:8787/api/v1/addon-imports",
+  uploadUrl: "https://guildedqc.duckdns.org/api/v1/addon-imports",
   guildDiscordId: "",
   uploadToken: "",
   standingsIntervalMinutes: 2

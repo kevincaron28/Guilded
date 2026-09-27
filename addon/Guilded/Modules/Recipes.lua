@@ -224,7 +224,8 @@ local function collapseAgain(api, opened)
 end
 
 -- Returns { profession, keys, names, mats, cooldowns } or nil when there is nothing to read.
-local function readWindow(kind)
+-- The classic trade/craft window and functions (GetTradeSkillInfo, GetCraftInfo, ...).
+local function readLegacyWindow(kind)
   local api = apiFor(kind)
   if not (api.count and api.info and api.link) then return nil end
   local profession = api.line()
@@ -265,6 +266,70 @@ local function readWindow(kind)
   collapseAgain(api, opened)
   table.sort(result.keys)
   return result
+end
+
+-- The revamped profession window (Legion and later; also the Classic clients that share that
+-- code). GetTradeSkillInfo/GetCraftInfo and TRADE_SKILL_SHOW/CRAFT_SHOW do not exist here, so
+-- the classic reader above finds nothing and this one runs instead. C_TradeSkillUI.GetAllRecipeIDs
+-- ignores collapsed groups and filters by itself, so there is no expand/collapse to do.
+local function readModernWindow()
+  local ui = C_TradeSkillUI
+  if not (ui and ui.GetAllRecipeIDs and ui.GetRecipeInfo) then return nil end
+  local ok, recipeIDs = pcall(ui.GetAllRecipeIDs)
+  if not ok or not recipeIDs or #recipeIDs == 0 then return nil end
+  local profession
+  if ui.GetBaseProfessionInfo then
+    local infoOk, baseInfo = pcall(ui.GetBaseProfessionInfo)
+    profession = infoOk and baseInfo and baseInfo.professionName or nil
+  end
+  if type(profession) ~= "string" or profession == "" or NOT_PROFESSIONS[profession] then return nil end
+  local result = { profession = profession, keys = {}, names = {}, mats = {}, cooldowns = {} }
+  local seen = {}
+  for _, recipeID in ipairs(recipeIDs) do
+    local infoOk, info = pcall(ui.GetRecipeInfo, recipeID)
+    if infoOk and info and info.learned and info.name then
+      local key
+      if info.isEnchantingRecipe and info.skillLineAbilityID then
+        key = -info.skillLineAbilityID
+      elseif info.hyperlink then
+        key = keyFromLink(info.hyperlink)
+      end
+      local schematic
+      if (not key or ui.GetRecipeSchematic) and ui.GetRecipeSchematic then
+        local schemaOk, s = pcall(ui.GetRecipeSchematic, recipeID, false)
+        if schemaOk then schematic = s end
+      end
+      if not key and schematic and schematic.outputItemID then key = schematic.outputItemID end
+      if key and not seen[key] then
+        seen[key] = true
+        table.insert(result.keys, key)
+        result.names[key] = info.name
+        if schematic and schematic.reagentSlotSchematics then
+          local mats = {}
+          for _, slot in ipairs(schematic.reagentSlotSchematics) do
+            local reagent = slot.reagents and slot.reagents[1]
+            local itemId = reagent and reagent.itemID
+            if itemId and slot.quantityRequired then
+              local reagentName = GetItemInfo and GetItemInfo(itemId)
+              table.insert(mats, { id = itemId, count = slot.quantityRequired, name = reagentName or ("item " .. itemId) })
+            end
+          end
+          result.mats[key] = mats
+        end
+        -- No cooldown reading here yet: unlike the classic API there is no single call for it,
+        -- and a recipe missing from the cooldown list is harmless (it just shows as not on cooldown).
+      end
+    end
+  end
+  table.sort(result.keys)
+  return result
+end
+
+local function readWindow(kind)
+  local legacy = readLegacyWindow(kind)
+  if legacy then return legacy end
+  if kind == "trade" then return readModernWindow() end
+  return nil
 end
 
 -- Recipes that share one cooldown (all transmutes) are shown as one line.
@@ -601,7 +666,7 @@ local function onEvent(_, event, ...)
         if b and (not b.sharedAt or serverTime() - b.sharedAt > 12 * 3600) then recipes.shareMine() end
       end)
     end
-  elseif event == "TRADE_SKILL_SHOW" or event == "TRADE_SKILL_UPDATE" then
+  elseif event == "TRADE_SKILL_SHOW" or event == "TRADE_SKILL_UPDATE" or event == "TRADE_SKILL_LIST_UPDATE" then
     recipes.later("trade")
   elseif event == "CRAFT_SHOW" or event == "CRAFT_UPDATE" then
     recipes.later("craft")
@@ -627,7 +692,7 @@ function recipes.later(kind)
 end
 
 local frame = CreateFrame("Frame")
-for _, event in ipairs({ "PLAYER_LOGIN", "TRADE_SKILL_SHOW", "TRADE_SKILL_UPDATE", "CRAFT_SHOW", "CRAFT_UPDATE", "CHAT_MSG_ADDON" }) do
+for _, event in ipairs({ "PLAYER_LOGIN", "TRADE_SKILL_SHOW", "TRADE_SKILL_UPDATE", "TRADE_SKILL_LIST_UPDATE", "CRAFT_SHOW", "CRAFT_UPDATE", "CHAT_MSG_ADDON" }) do
   if ns.compat and ns.compat.registerEvent then ns.compat.registerEvent(frame, event)
   else pcall(frame.RegisterEvent, frame, event) end
 end

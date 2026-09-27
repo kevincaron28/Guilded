@@ -121,6 +121,32 @@ describe("Recipes.lua reading a profession window", () => {
     s.run(`GetNumTradeSkills = nil; NS.recipes.scan("trade")`);
     expect(s.run("return tostring(DB.recipeBook and DB.recipeBook.people.Ray)")).toBe("nil");
   });
+
+  it("falls back to the modern C_TradeSkillUI window when the classic API is gone", () => {
+    const s = withRecipes();
+    s.run(String.raw`
+      GetNumTradeSkills = nil
+      C_TradeSkillUI = {
+        GetAllRecipeIDs = function() return { 501, 502, 503 } end,
+        GetBaseProfessionInfo = function() return { professionName = "Enchanting" } end,
+        GetRecipeInfo = function(id)
+          if id == 501 then return { learned = true, name = "Minor Health", isEnchantingRecipe = true, skillLineAbilityID = 7418 } end
+          if id == 502 then return { learned = true, name = "Flask of Y", hyperlink = "|Hitem:1002::::|h[Flask of Y]|h" } end
+          if id == 503 then return { learned = false, name = "Not Learned Yet" } end
+        end,
+        GetRecipeSchematic = function(id)
+          if id == 501 then return { reagentSlotSchematics = { { reagents = { { itemID = 2447 } }, quantityRequired = 2 } } } end
+          return { reagentSlotSchematics = {} }
+        end
+      }
+      GetItemInfo = function(id) return id == 2447 and "Peacebloom" or nil end
+      NS.recipes.scan("trade")
+    `);
+    expect(keysOf(s, "Ray", "Enchanting")).toBe("-7418,1002");
+    expect(s.run("return DB.recipeBook.names[1002]")).toBe("Flask of Y");
+    expect(s.run("return DB.recipeBook.mats[-7418][1].name")).toBe("Peacebloom");
+    expect(s.run("return DB.recipeBook.mats[-7418][1].count")).toBe("2");
+  });
 });
 
 describe("Recipes.lua sharing with the guild", () => {

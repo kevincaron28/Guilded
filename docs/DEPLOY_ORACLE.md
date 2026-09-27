@@ -11,7 +11,7 @@ or `/reload`, so a server can never see it. What changes with a cloud bot:
 
 - **Bot: always online** (cloud).
 - **Companion: on any officer's PC that plays**, uploading over the internet
-  to the cloud bot each time that player logs out. Put `start-companion.bat` in
+  to the cloud bot each time that player logs out. Put `start-companion-app.bat` in
   the Windows Startup folder (Win+R, `shell:startup`, drop a shortcut to it)
   and it runs whenever the PC is on.
 - The addon already shares data guild-wide, so one officer's upload carries
@@ -112,7 +112,7 @@ allowed to reach it) and the same `COMPANION_UPLOAD_TOKEN` as on your PC.
 2. Start the cloud bot; in Discord run `/report ping`.
 3. On your PC edit `companion/companion.config.json`:
    `"uploadUrl": "https://qcgold.duckdns.org/api/v1/addon-imports"`.
-   (`start-companion.bat` now only starts the companion; the bot is no longer
+   (`start-companion-app.bat` now only starts the companion; the bot is no longer
    started locally.) Restart the companion: it should print `Uploaded ...` and
    `Wrote EPGP standings ...`.
 4. `https://qcgold.duckdns.org/health` should answer `{"ok":true}` in a browser.

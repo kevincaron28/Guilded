@@ -199,6 +199,22 @@ async function tellBumped(
   })).catch(() => undefined);
 }
 
+// When an officer doesn't pass core:, guess it instead of leaving the raid core-less (which
+// means no one gets signup priority and /guilded drop can't tell which loot system to use).
+// Weekly repeats already carry their core forward (raid.ts service); this covers the first
+// time a title is used. Two signals, in order, both unambiguous enough to trust without asking:
+// the same title was linked to a core before, or there is only one core to begin with.
+async function inferCoreId(guildId: string, title: string): Promise<string | null> {
+  const previous = await prisma.raid.findFirst({
+    where: { guildId, title: { equals: title.trim(), mode: "insensitive" }, coreId: { not: null }, isTest: false },
+    orderBy: { scheduledAt: "desc" },
+    select: { coreId: true }
+  });
+  if (previous?.coreId) return previous.coreId;
+  const cores = await prisma.raidCore.findMany({ where: { guildId }, select: { id: true }, take: 2 });
+  return cores.length === 1 ? (cores[0]?.id ?? null) : null;
+}
+
 export async function executeRaid(interaction: ChatInputCommandInteraction): Promise<void> {
   const context = await requireGuildContext(interaction);
   if (!context) return;
@@ -212,12 +228,21 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     const tanks = interaction.options.getInteger("tanks");
     const healers = interaction.options.getInteger("healers");
     const dps = interaction.options.getInteger("dps");
+    const title = interaction.options.getString("title", true);
     const coreName = interaction.options.getString("core");
-    const core = coreName ? await createRaidCoreService(prisma).byIdOrName(context.guildId, coreName) : null;
+    let core = coreName ? await createRaidCoreService(prisma).byIdOrName(context.guildId, coreName) : null;
+    let coreGuessed = false;
+    if (!core) {
+      const inferredId = await inferCoreId(context.guildId, title);
+      if (inferredId) {
+        core = await createRaidCoreService(prisma).byIdOrName(context.guildId, inferredId);
+        coreGuessed = true;
+      }
+    }
     const raid = await raidService.create({
       ...(core ? { coreId: core.id } : {}),
       guildId: context.guildId,
-      title: interaction.options.getString("title", true),
+      title,
       scheduledAt: await readRaidTime(context.guildId, interaction.options.getString("time", true)),
       createdBy: interaction.user.id,
       ...(interaction.options.getBoolean("weekly") ? { repeatWeekly: true } : {}),
@@ -230,7 +255,10 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     if (interaction.guild) await syncSignupEmbed(interaction.guild, context.guildId, raid.id);
     // Discord shows <t:...> in each reader's own timezone, so this doubles as a check.
     const when = Math.floor(raid.scheduledAt.getTime() / 1000);
-    await interaction.reply({ content: `Created raid **${raid.title}** for <t:${when}:F> (<t:${when}:R>)${core ? ` for the **${core.name}** core (its ${core.members.length} members get signup priority)` : ""}. If that time looks wrong, fix it with \`/raid edit\`.`, ephemeral: true });
+    const coreNote = core
+      ? ` for the **${core.name}** core (its ${core.members.length} members get signup priority)${coreGuessed ? " — guessed from your other raids/cores, pass core: to change it" : ""}`
+      : "";
+    await interaction.reply({ content: `Created raid **${raid.title}** for <t:${when}:F> (<t:${when}:R>)${coreNote}. If that time looks wrong, fix it with \`/raid edit\`.`, ephemeral: true });
     return;
   }
 

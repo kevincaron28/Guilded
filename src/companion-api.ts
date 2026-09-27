@@ -23,26 +23,45 @@ function json(response: ServerResponse, status: number, body: unknown): void {
 
 // Failed-login throttle, because on a server this API is reachable from the
 // internet: 10 bad tokens from one address in 10 minutes locks it out for
-// the rest of that window. `x-forwarded-for` is the client address when a
-// reverse proxy (Caddy) sits in front.
+// the rest of that window. `x-forwarded-for` is trusted as the client address
+// only when the direct connection itself comes from loopback — per
+// docs/DEPLOY_ORACLE.md, Caddy is the only thing allowed to reach this API
+// (COMPANION_API_HOST=127.0.0.1), so a real remote peer can never be
+// loopback. This stops a direct client from picking its own throttle key.
 const FAILURE_WINDOW_MS = 10 * 60_000;
 const MAX_FAILURES = 10;
+const MAX_TRACKED_ADDRESSES = 5_000;
 const failures = new Map<string, number[]>();
 
+function isTrustedProxyPeer(remoteAddress: string | undefined): boolean {
+  const address = remoteAddress?.replace(/^::ffff:/, "");
+  return address === "127.0.0.1" || address === "::1";
+}
+
 export function clientAddress(request: IncomingMessage): string {
-  const forwarded = request.headers["x-forwarded-for"];
-  const first = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(",")[0]?.trim();
-  return first || request.socket.remoteAddress || "unknown";
+  const peer = request.socket.remoteAddress;
+  if (isTrustedProxyPeer(peer)) {
+    const forwarded = request.headers["x-forwarded-for"];
+    const first = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(",")[0]?.trim();
+    if (first) return first;
+  }
+  return peer || "unknown";
 }
 
 export function isLockedOut(address: string, now = Date.now()): boolean {
   const recent = (failures.get(address) ?? []).filter((at) => now - at < FAILURE_WINDOW_MS);
-  failures.set(address, recent);
+  if (recent.length === 0) failures.delete(address);
+  else failures.set(address, recent);
   return recent.length >= MAX_FAILURES;
 }
 
 export function recordFailure(address: string, now = Date.now()): void {
-  failures.set(address, [...(failures.get(address) ?? []).filter((at) => now - at < FAILURE_WINDOW_MS), now]);
+  const recent = [...(failures.get(address) ?? []).filter((at) => now - at < FAILURE_WINDOW_MS), now];
+  if (!failures.has(address) && failures.size >= MAX_TRACKED_ADDRESSES) {
+    const oldest = failures.keys().next().value;
+    if (oldest !== undefined) failures.delete(oldest);
+  }
+  failures.set(address, recent);
 }
 
 export function resetFailures(): void {

@@ -7,14 +7,16 @@ event journal in the `GuildedDB` SavedVariables table.
 
 ## Install
 
-Copy the `Guilded` directory into the game's `Interface\AddOns` directory:
+Copy the `Guilded` directory into WoW Forever's `Interface\AddOns` directory:
 
 ```text
-World of Warcraft\Interface\AddOns\Guilded\
+World of Warcraft\_forever_\Interface\AddOns\Guilded\
 ```
 
-Enable **Load out of date AddOns** if the client requests it. The addon does not
-require the Guilded Discord bot or any external library.
+`_forever_` is the WoW Forever client folder; other client flavors (Classic, Retail, PTR, ...)
+use a different folder under `World of Warcraft\`, so copy into the one the client you actually
+launch reads from. Enable **Load out of date AddOns** if the client requests it. The addon does
+not require the Guilded Discord bot or any external library.
 
 ## Modules: use only what you want
 

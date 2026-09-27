@@ -171,11 +171,14 @@ local function receiveItemChunk(text, sender)
   local updatedAt, index, total, payload = string.match(text, "^ITEM|([^|]+)|(%d+)|(%d+)|(.*)$")
   index, total = tonumber(index), tonumber(total)
   if not updatedAt or not index or not total or total < 1 or total > 60 then return end
+  if index < 1 or index > total then return end
   if not ns.isOfficerName(sender) then return end
   local d = db()
   if not d or (d.items and d.items.updatedAt and d.items.updatedAt >= updatedAt) then return end
   if not incomingItems or incomingItems.updatedAt ~= updatedAt then
-    incomingItems = { updatedAt = updatedAt, total = total, parts = {}, received = 0 }
+    incomingItems = { updatedAt = updatedAt, total = total, sender = sender, parts = {}, received = 0 }
+  elseif incomingItems.total ~= total or incomingItems.sender ~= sender then
+    return -- inconsistent chunk for an in-progress snapshot; ignore rather than corrupt it
   end
   if not incomingItems.parts[index] then
     incomingItems.parts[index] = payload
@@ -190,11 +193,14 @@ local function receiveChunk(text, sender)
   local updatedAt, baseGp, index, total, payload = string.match(text, "^STAND|([^|]+)|(%d+)|(%d+)|(%d+)|(.*)$")
   index, total, baseGp = tonumber(index), tonumber(total), tonumber(baseGp)
   if not updatedAt or not index or not total or total < 1 or total > 50 then return end
+  if index < 1 or index > total then return end
   if not ns.isOfficerName(sender) then return end
   local s = standings()
   if s and s.updatedAt and s.updatedAt >= updatedAt then return end
   if not incoming or incoming.updatedAt ~= updatedAt then
-    incoming = { updatedAt = updatedAt, baseGp = baseGp, total = total, parts = {}, received = 0 }
+    incoming = { updatedAt = updatedAt, baseGp = baseGp, total = total, sender = sender, parts = {}, received = 0 }
+  elseif incoming.total ~= total or incoming.sender ~= sender or incoming.baseGp ~= baseGp then
+    return -- inconsistent chunk for an in-progress snapshot; ignore rather than corrupt it
   end
   if not incoming.parts[index] then
     incoming.parts[index] = payload

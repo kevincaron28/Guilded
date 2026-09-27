@@ -156,3 +156,44 @@ describe("item tooltip data", () => {
     expect(s.run(`return tostring(NS.getLootRules())`)).toBe("nil");
   });
 });
+
+describe("standings chunk reassembly", () => {
+  it("rejects an out-of-range chunk index instead of completing an incomplete snapshot", () => {
+    const s = withSync();
+    s.run(`NS.isOfficerName = function() return true end; fire_event("PLAYER_ENTERING_WORLD")`);
+    // total says 2; an out-of-range index 3 arrives first. Without the bound, this
+    // would still count toward "2 received" once index 1 arrives, and the snapshot
+    // would complete with index 2 (never sent) missing.
+    s.run(`fire_event("CHAT_MSG_ADDON", "GuildedSync", "STAND|2026-09-26T00:00:00Z|0|3|2|Bad:1:1", "GUILD", "Amy-Realm")`);
+    s.run(`fire_event("CHAT_MSG_ADDON", "GuildedSync", "STAND|2026-09-26T00:00:00Z|0|1|2|Amy:10:5", "GUILD", "Amy-Realm")`);
+    expect(s.run(`return tostring(DB.standings)`)).toBe("nil");
+    // The real chunk 2 now arrives and the snapshot completes correctly.
+    s.run(`fire_event("CHAT_MSG_ADDON", "GuildedSync", "STAND|2026-09-26T00:00:00Z|0|2|2|Bob:4:2", "GUILD", "Amy-Realm")`);
+    expect(s.run(`return DB.standings.players.Amy.ep`)).toBe("10");
+    expect(s.run(`return DB.standings.players.Bob.ep`)).toBe("4");
+  });
+
+  it("ignores a chunk that disagrees with the in-progress snapshot's total or sender", () => {
+    const s = withSync();
+    s.run(`NS.isOfficerName = function() return true end; fire_event("PLAYER_ENTERING_WORLD")`);
+    s.run(`fire_event("CHAT_MSG_ADDON", "GuildedSync", "STAND|2026-09-26T00:00:00Z|0|1|2|Amy:10:5", "GUILD", "Amy-Realm")`);
+    // Same updatedAt, but a different claimed total and a different sender: ignored
+    // rather than mixed into the in-progress assembly.
+    s.run(`fire_event("CHAT_MSG_ADDON", "GuildedSync", "STAND|2026-09-26T00:00:00Z|0|2|3|Bob:4:2", "GUILD", "Evil-Realm")`);
+    expect(s.run(`return tostring(DB.standings)`)).toBe("nil");
+    // The real second chunk from the original sender completes it correctly.
+    s.run(`fire_event("CHAT_MSG_ADDON", "GuildedSync", "STAND|2026-09-26T00:00:00Z|0|2|2|Bob:4:2", "GUILD", "Amy-Realm")`);
+    expect(s.run(`return DB.standings.players.Bob.ep`)).toBe("4");
+  });
+
+  it("rejects an out-of-range item chunk index the same way", () => {
+    const s = withSync();
+    s.run(`NS.isOfficerName = function() return true end; fire_event("PLAYER_ENTERING_WORLD")`);
+    s.run(`fire_event("CHAT_MSG_ADDON", "GuildedSync", "ITEM|2026-09-26T00:00:00Z|3|2|bad~~0~0~", "GUILD", "Amy-Realm")`);
+    s.run(`fire_event("CHAT_MSG_ADDON", "GuildedSync", "ITEM|2026-09-26T00:00:00Z|1|2|some ring~10~0~0~", "GUILD", "Amy-Realm")`);
+    expect(s.run(`return tostring(DB.items)`)).toBe("nil");
+    s.run(`fire_event("CHAT_MSG_ADDON", "GuildedSync", "ITEM|2026-09-26T00:00:00Z|2|2|other ring~20~0~0~", "GUILD", "Amy-Realm")`);
+    expect(s.run(`return DB.items.list["some ring"].gp`)).toBe("10");
+    expect(s.run(`return DB.items.list["other ring"].gp`)).toBe("20");
+  });
+});

@@ -1,11 +1,21 @@
 # Caddy: HTTPS in front of the bot's companion API (installed by deploy/setup-server.sh,
 # which replaces YOUR_HOSTNAME). Caddy gets and renews the certificate by itself.
+#
+# `handle` blocks are mutually exclusive and run in the order written, unlike bare top-level
+# directives (which Caddy reorders by its own built-in priority regardless of file order) -
+# needed here so the 404 fallback doesn't run before reverse_proxy gets a chance.
 YOUR_HOSTNAME {
 	request_body {
 		max_size 2MB
 	}
-	# Only the paths the companion uses.
-	@api path /health /api/v1/*
-	reverse_proxy @api 127.0.0.1:8787
-	respond "Not found" 404
+	# Only the paths the companion uses; everything else is a plain 404.
+	handle /health {
+		reverse_proxy 127.0.0.1:8787
+	}
+	handle /api/v1/* {
+		reverse_proxy 127.0.0.1:8787
+	}
+	handle {
+		respond "Not found" 404
+	}
 }

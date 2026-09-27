@@ -13,7 +13,7 @@ import { executeProfile } from "./commands/profile.js";
 import { replyWithCommandError } from "./commands/context.js";
 import { handleRaidSignupButton, RAID_SIGNUP_PREFIX } from "./commands/raid.js";
 import { executeLoot } from "./commands/loot.js";
-import { executeApply } from "./commands/application.js";
+import { APPLY_PREFIX, executeApply, handleApplyButton, handleApplyModal, handleApplySelect } from "./commands/application.js";
 import { executeTag } from "./commands/tag.js";
 import { handleSelfRoleButton, SELF_ROLE_PREFIX } from "./commands/selfroles.js";
 import { EP_AWARD_PREFIX, handleEpAwardButton } from "./commands/ep-award.js";
@@ -36,12 +36,31 @@ import { runWclDiscovery } from "./services/wcl-check.js";
 import { config } from "./config.js";
 import { startCompanionApi } from "./companion-api.js";
 import { handleMemberJoin, handleMemberLeave, handleWelcomeRoleButton, WELCOME_ROLE_PREFIX } from "./services/housekeeping.js";
+import { createErrorReportService } from "./services/error-report.js";
 
 // GuildMembers is a privileged intent: it must also be enabled for this bot
 // application under "Server Members Intent" in the Discord Developer Portal,
 // or login will fail with "Used disallowed intents".
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
 startCompanionApi(client);
+const errorReportService = createErrorReportService(prisma);
+// Background jobs run unattended (no interaction to reply to), so this is
+// their only way to surface a failure beyond the console/journalctl.
+const reportJobError = (source: string) => (error: unknown) => {
+  console.warn(`${source} failed`, error);
+  void errorReportService.report(client, error, { source });
+};
+// Same idea for a button/select/modal handler, with the guild and user it happened to.
+const reportInteractionError = (source: string, interaction: { guildId: string | null; guild: { name: string } | null; user: { id: string } }, error: unknown): void => {
+  console.error(`${source} failed`, error);
+  void errorReportService.report(client, error, { source, guildId: interaction.guildId, guildName: interaction.guild?.name, userId: interaction.user.id });
+};
+
+// A crashed process only shows up as a systemd restart today; capture the
+// actual cause before that happens (or before an unhandled rejection is
+// silently swallowed).
+process.on("uncaughtException", (error) => { void errorReportService.report(client, error, { source: "uncaughtException" }); });
+process.on("unhandledRejection", (error) => { void errorReportService.report(client, error, { source: "unhandledRejection" }); });
 const handlers = new Collection<string, (interaction: ChatInputCommandInteraction) => Promise<void>>();
 handlers.set("profile", executeProfile);
 handlers.set("loot", executeLoot);
@@ -55,55 +74,47 @@ handlers.set("help", executeHelp);
 handlers.set("uninstall", executeUninstall);
 
 client.once(Events.ClientReady, (readyClient) => {
-  registerCommandsEverywhere().catch((error: unknown) => console.error("Command registration failed", error));
+  registerCommandsEverywhere().catch(reportJobError("Command registration"));
   console.info(`Logged in as ${readyClient.user.tag}`);
-  logSetupStatus(readyClient.guilds.cache.values()).catch(() => undefined);
+  logSetupStatus(readyClient.guilds.cache.values()).catch(reportJobError("Setup status log"));
   // Daily database backup to backups/ (keeps 14 days). Runs now if today's
   // file is missing, then checks hourly.
   const backup = () => runBackup(prisma)
     .then((result) => { if (result) console.info(`Backup saved: backups/${result.file} (${result.rows} rows).`); })
-    .catch((error: unknown) => console.warn(`Backup skipped, will retry in an hour: ${error instanceof Error ? error.message : String(error)}`));
+    .catch(reportJobError("Database backup"));
   void backup();
   setInterval(() => void backup(), 60 * 60 * 1000);
   // A free hosted database goes to sleep when idle and the first command after
   // that takes over Discord's 3 second limit ("Unknown interaction"). A tiny
   // query every 2 minutes keeps it awake.
-  setInterval(() => void prisma.$queryRaw`SELECT 1`.catch(() => undefined), 2 * 60 * 1000);
+  setInterval(() => void prisma.$queryRaw`SELECT 1`.catch(reportJobError("Keep-awake query")), 2 * 60 * 1000);
   // Raid reminders: checked every 5 minutes so a "60 minutes before" ping
   // lands within a few minutes of that mark.
   setInterval(() => {
-    runRaidReminders(readyClient, prisma).catch((error: unknown) => {
-      const text = error instanceof Error ? error.message.split("\n").filter(Boolean).at(-1) : String(error);
-      console.warn(`Raid reminder check skipped, will retry in 5 minutes: ${text}`);
-    });
+    runRaidReminders(readyClient, prisma).catch(reportJobError("Raid reminder check"));
   }, 5 * 60 * 1000);
   // Profession cooldowns: a DM to members who asked for it, when one of theirs is ready.
   setInterval(() => {
-    runCooldownPings(readyClient, prisma).catch((error: unknown) => console.warn("Cooldown pings skipped:", error instanceof Error ? error.message : error));
+    runCooldownPings(readyClient, prisma).catch(reportJobError("Cooldown pings"));
   }, 10 * 60 * 1000);
   // Warcraft Logs: new reports of the guild set with /setup config wcl-guild, every 10 minutes.
   setInterval(() => {
-    runWclDiscovery(readyClient, prisma).catch((error: unknown) => console.warn("Warcraft Logs check skipped:", error instanceof Error ? error.message : error));
+    runWclDiscovery(readyClient, prisma).catch(reportJobError("Warcraft Logs check"));
   }, 10 * 60 * 1000);
   // Dungeon group voice channels: deleted after a few empty minutes.
   setInterval(() => {
-    cleanupDungeonGroups(readyClient).catch((error: unknown) => {
-      console.warn(`Dungeon group cleanup skipped: ${error instanceof Error ? error.message : String(error)}`);
-    });
+    cleanupDungeonGroups(readyClient).catch(reportJobError("Dungeon group cleanup"));
   }, 2 * 60 * 1000);
   // Weekly guild report (if enabled): checked hourly.
   setInterval(() => {
-    runWeeklyReports(readyClient).catch((error: unknown) => {
-      const text = error instanceof Error ? error.message.split("\n").filter(Boolean).at(-1) : String(error);
-      console.warn(`Weekly report check skipped, will retry in an hour: ${text}`);
-    });
+    runWeeklyReports(readyClient).catch(reportJobError("Weekly report check"));
   }, 60 * 60 * 1000);
 });
 
 // Bot just added to a server: point whoever invited it at /setup.
 client.on(Events.GuildCreate, (guild) => {
-  registerCommands(guild.id).catch((error: unknown) => console.error("Registering commands for new guild failed", error));
-  greetNewGuild(guild).catch((error: unknown) => console.error("Greeting new guild failed", error));
+  registerCommands(guild.id).catch(reportJobError("Registering commands for new guild"));
+  greetNewGuild(guild).catch((error: unknown) => { console.error("Greeting new guild failed", error); void errorReportService.report(client, error, { source: "Greeting new guild", guildId: guild.id, guildName: guild.name }); });
 });
 
 client.on(Events.GuildMemberAdd, async (member) => {
@@ -111,6 +122,7 @@ client.on(Events.GuildMemberAdd, async (member) => {
     await handleMemberJoin(member.guild, member);
   } catch (error) {
     console.error("GuildMemberAdd handling failed", error);
+    void errorReportService.report(client, error, { source: "GuildMemberAdd", guildId: member.guild.id, guildName: member.guild.name, userId: member.id });
   }
 });
 
@@ -119,6 +131,7 @@ client.on(Events.GuildMemberRemove, async (member) => {
     await handleMemberLeave(member.guild, member);
   } catch (error) {
     console.error("GuildMemberRemove handling failed", error);
+    void errorReportService.report(client, error, { source: "GuildMemberRemove", guildId: member.guild.id, guildName: member.guild.name, userId: member.id });
   }
 });
 
@@ -129,27 +142,28 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
   if (interaction.isButton() && interaction.customId.startsWith(WELCOME_ROLE_PREFIX)) {
     await handleWelcomeRoleButton(interaction).catch(async (error: unknown) => {
-      console.error("Welcome role button failed", error);
+      reportInteractionError("Welcome role button", interaction, error);
       if (!interaction.replied) await interaction.reply({ content: "That didn't work, try again or ask an officer.", ephemeral: true }).catch(() => undefined);
     });
     return;
   }
   if (interaction.isModalSubmit() && interaction.customId.startsWith(CRAFT_PREFIX)) {
-    await handleCraftModal(interaction).catch((error: unknown) => console.error("Craft form failed", error));
+    await handleCraftModal(interaction).catch((error: unknown) => reportInteractionError("Craft form", interaction, error));
     return;
   }
   if (interaction.isButton() && interaction.customId.startsWith(CRAFT_PREFIX)) {
-    await handleCraftButton(interaction).catch((error: unknown) => console.error("Craft button failed", error));
+    await handleCraftButton(interaction).catch((error: unknown) => reportInteractionError("Craft button", interaction, error));
     return;
   }
   if (interaction.isButton() && interaction.customId.startsWith(POLL_PREFIX)) {
-    await handlePollButton(interaction).catch((error: unknown) => console.error("Poll button failed", error));
+    await handlePollButton(interaction).catch((error: unknown) => reportInteractionError("Poll button", interaction, error));
     return;
   }
   if (interaction.isButton() && interaction.customId.startsWith(DUNGEON_GROUP_PREFIX)) {
     try {
       await handleDungeonGroupButton(interaction);
     } catch (error) {
+      reportInteractionError("Dungeon group button", interaction, error);
       const content = error instanceof Error && error.message.length < 200 ? error.message : "Could not update the group.";
       if (!interaction.replied) await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
     }
@@ -159,6 +173,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     try {
       await handleRaidSignupButton(interaction);
     } catch (error) {
+      reportInteractionError("Raid signup button", interaction, error);
       const content = error instanceof Error ? error.message : "Could not update your signup.";
       if (!interaction.replied) await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
     }
@@ -168,17 +183,29 @@ client.on(Events.InteractionCreate, async (interaction) => {
     try {
       await handleEpAwardButton(interaction);
     } catch (error) {
-      console.error("EP award button failed", error);
+      reportInteractionError("EP award button", interaction, error);
       const content = error instanceof Error ? error.message : "Could not record the EP award.";
       if (!interaction.replied) await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
     }
+    return;
+  }
+  if (interaction.isModalSubmit() && interaction.customId.startsWith(APPLY_PREFIX)) {
+    await handleApplyModal(interaction).catch((error: unknown) => reportInteractionError("Application form", interaction, error));
+    return;
+  }
+  if (interaction.isButton() && interaction.customId.startsWith(APPLY_PREFIX)) {
+    await handleApplyButton(interaction).catch((error: unknown) => reportInteractionError("Application button", interaction, error));
+    return;
+  }
+  if (interaction.isStringSelectMenu() && interaction.customId.startsWith(APPLY_PREFIX)) {
+    await handleApplySelect(interaction).catch((error: unknown) => reportInteractionError("Application core select", interaction, error));
     return;
   }
   if (interaction.isButton() && interaction.customId.startsWith(SELF_ROLE_PREFIX)) {
     try {
       await handleSelfRoleButton(interaction);
     } catch (error) {
-      console.error("Self-role button failed", error);
+      reportInteractionError("Self-role button", interaction, error);
       if (!interaction.replied) {
         await interaction.reply({ content: "Could not update that role. Please try again or contact an officer.", ephemeral: true }).catch(() => undefined);
       }

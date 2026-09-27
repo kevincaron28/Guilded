@@ -10,6 +10,7 @@ import { isValidTimeZone } from "../services/raid-time.js";
 import { BRAND } from "../brand.js";
 import { config } from "../config.js";
 import { createWclClient, parseGuildRef } from "../integrations/warcraftlogs.js";
+import { ensureApplyGuide } from "./application.js";
 
 export const configCommand = new SlashCommandBuilder()
   .setName("config")
@@ -54,7 +55,7 @@ export const configCommand = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName("roles").setDescription("Configure automatic role assignment.")
     .addRoleOption((o) => o.setName("applicant").setDescription("Role auto-assigned when someone joins the Discord server"))
     .addRoleOption((o) => o.setName("member").setDescription("Role assigned automatically when an application is approved")))
-  .addSubcommand((sub) => sub.setName("channel").setDescription("Choose where the bot posts: announcements, raids, loot, logs, rosters, dungeons, crafts.")
+  .addSubcommand((sub) => sub.setName("channel").setDescription("Choose which channel the bot posts to.")
     .addStringOption((o) => o.setName("which").setDescription("Which channel to set").setRequired(true).addChoices(
       { name: "Announcements (raids, bosses, loot, EPGP)", value: "notify-channel" },
       { name: "Raid signups and reminders", value: "raid-channel" },
@@ -66,7 +67,9 @@ export const configCommand = new SlashCommandBuilder()
       { name: "Craft board", value: "craft-channel" },
       { name: "Dungeon runs and records", value: "dungeon-channel" },
       { name: "Dungeon leaderboard", value: "dungeon-leaderboard-channel" },
-      { name: "Dungeon signups", value: "dungeon-signup-channel" }))
+      { name: "Dungeon signups", value: "dungeon-signup-channel" },
+      { name: "Applications (private)", value: "application-channel" },
+      { name: "Apply here (public)", value: "apply-guide-channel" }))
     .addChannelOption((o) => o.setName("channel").setDescription("The channel (a forum works for the craft board)")
       .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement, ChannelType.GuildForum))
     .addBooleanOption((o) => o.setName("disable").setDescription("Clear this setting")))
@@ -120,6 +123,8 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
         `Loot system: ${LOOT_MODE_LABEL[asLootMode(settings.lootMode)]} (cores can differ: /core rules)`,
         `Raid roster channel: ${settings.coreChannelId ? `<#${settings.coreChannelId}>` : "not set"}`,
         `Readiness channel: ${settings.readinessChannelId ? `<#${settings.readinessChannelId}>` : "not set"}`,
+        `Applications channel: ${settings.applicationChannelId ? `<#${settings.applicationChannelId}>` : "officer log"}`,
+        `Apply here channel: ${settings.applyGuideChannelId ? `<#${settings.applyGuideChannelId}>` : "not set"}`,
         `Craft board: ${settings.craftChannelId ? `<#${settings.craftChannelId}>` : "officer log"}`,
         `Dungeon leaderboard: ${settings.dungeonLeaderboardChannelId ? `<#${settings.dungeonLeaderboardChannelId}>` : "not set"}`,
         `Dungeon signups: ${settings.dungeonSignupChannelId ? `<#${settings.dungeonSignupChannelId}>` : "not set"}`,
@@ -254,14 +259,16 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
     return;
   }
 
-  const channelSettings: Record<string, { field: "raidLogChannelId" | "dungeonLeaderboardChannelId" | "dungeonSignupChannelId" | "lootChannelId" | "craftChannelId" | "readinessChannelId" | "coreChannelId"; label: string }> = {
+  const channelSettings: Record<string, { field: "raidLogChannelId" | "dungeonLeaderboardChannelId" | "dungeonSignupChannelId" | "lootChannelId" | "craftChannelId" | "readinessChannelId" | "coreChannelId" | "applicationChannelId" | "applyGuideChannelId"; label: string }> = {
     "core-channel": { field: "coreChannelId", label: "Raid core rosters" },
     "readiness-channel": { field: "readinessChannelId", label: "Raid readiness" },
     "loot-channel": { field: "lootChannelId", label: "Loot and EP/GP changes" },
     "craft-channel": { field: "craftChannelId", label: "Craft requests" },
     "raid-log-channel": { field: "raidLogChannelId", label: "Raid summaries" },
     "dungeon-leaderboard-channel": { field: "dungeonLeaderboardChannelId", label: "The dungeon leaderboard" },
-    "dungeon-signup-channel": { field: "dungeonSignupChannelId", label: "Dungeon signups" }
+    "dungeon-signup-channel": { field: "dungeonSignupChannelId", label: "Dungeon signups" },
+    "application-channel": { field: "applicationChannelId", label: "Applications" },
+    "apply-guide-channel": { field: "applyGuideChannelId", label: "Apply here (pinned Apply buttons)" }
   };
   const channelSetting = channelSettings[subcommand];
   if (channelSetting) {
@@ -281,6 +288,10 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
     });
     if (channelSetting.field === "dungeonLeaderboardChannelId") await updateDungeonLeaderboard(interaction.guild);
     if (channelSetting.field === "coreChannelId") await syncAllCoreRosters(interaction.guild, prisma, context.guildId);
+    if (channelSetting.field === "applyGuideChannelId") {
+      const fetched = await interaction.guild?.channels.fetch(channel.id).catch(() => null);
+      if (fetched?.isTextBased()) await ensureApplyGuide(fetched);
+    }
     await interaction.reply({ content: `${channelSetting.label} will use <#${channel.id}>.`, ephemeral: true });
     return;
   }

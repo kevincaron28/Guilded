@@ -31,6 +31,7 @@ import { uninstallCommand } from "./uninstall.js";
 import { helpCommand } from "./help.js";
 import { dungeonCommand, executeDungeon } from "./dungeon.js";
 import { dungeonAdminCommand, executeDungeonAdmin } from "./dungeon-admin.js";
+import { bugCommand, executeBug } from "./bugreport.js";
 
 import { MergedCommand, type AnyCommand } from "./router.js";
 import { BRAND } from "../brand.js";
@@ -69,12 +70,13 @@ const importer = new MergedCommand("import", "Bring addon data into Discord: pre
   { command: importApplyCommand, handler: executeImportApply, as: "apply" }
 ]);
 
-const report = new MergedCommand("report", "Guild reports: activity, inactive members, health, exports and bot status.", [
+const report = new MergedCommand("report", "Guild reports: activity, inactive members, health, exports, bot status and bug reports.", [
   { command: statsCommand, handler: executeStats, as: "stats" },
   { command: inactiveCommand, handler: executeInactive, as: "inactive" },
   { command: guildHealthCommand, handler: executeGuildHealth, as: "guild" },
   { command: exportCommand, handler: executeExport, as: "export" },
-  { command: healthCommand, handler: executeHealth, as: "ping" }
+  { command: healthCommand, handler: executeHealth, as: "ping" },
+  { command: bugCommand, handler: executeBug, as: "bug" }
 ]);
 
 // Top level: the merged parents above, plus the commands main.ts handles itself.

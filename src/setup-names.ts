@@ -7,7 +7,7 @@ import type { Lang } from "./i18n.js";
 
 export type ChannelField = "notifyChannelId" | "raidSignupChannelId" | "raidLogChannelId" | "logChannelId"
   | "dungeonLeaderboardChannelId" | "dungeonSignupChannelId" | "dungeonChannelId"
-  | "lootChannelId" | "craftChannelId" | "readinessChannelId" | "coreChannelId";
+  | "lootChannelId" | "craftChannelId" | "readinessChannelId" | "coreChannelId" | "applicationChannelId" | "applyGuideChannelId";
 
 // Access: "open" everyone talks; "readonly" everyone reads, only the bot and
 // leadership post (signup channels are read-only too: people use the buttons);
@@ -34,7 +34,9 @@ const ACCESS: Record<ChannelField, { access: Access; category: CategoryKey; foru
   dungeonChannelId: { access: "readonly", category: "dungeon" },
   craftChannelId: { access: "board", category: "craft", forum: true },
   logChannelId: { access: "officers", category: "officers" },
-  readinessChannelId: { access: "leaders", category: "officers" }
+  readinessChannelId: { access: "leaders", category: "officers" },
+  applicationChannelId: { access: "officers", category: "officers" },
+  applyGuideChannelId: { access: "readonly", category: "guild" }
 };
 
 const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> = {
@@ -49,7 +51,9 @@ const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> 
     dungeonChannelId: { name: "dungeon-runs", topic: "Completed dungeon runs and new records" },
     craftChannelId: { name: "craft-board", topic: "Craft requests: press Request a craft in the pinned post. Crafters filter by profession tag and press I'll craft it." },
     logChannelId: { name: "officer-log", topic: "Officer log: joins, moderation, bank and craft requests" },
-    readinessChannelId: { name: "raid-readiness", topic: "Who is ready for raid night: gear and consumable checks (officers and raid leaders only)" }
+    readinessChannelId: { name: "raid-readiness", topic: "Who is ready for raid night: gear and consumable checks (officers and raid leaders only)" },
+    applicationChannelId: { name: "raid-applications", topic: "New recruitment applications (officers only): use /application list|view|approve|reject|trial" },
+    applyGuideChannelId: { name: "apply-here", topic: "Press Apply below to submit a guild application" }
   },
   fr: {
     notifyChannelId: { name: `${BRAND.channelPrefix}-annonces`, topic: `Annonces de raid, de boss et de guilde de ${BRAND.name}` },
@@ -62,7 +66,9 @@ const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> 
     dungeonChannelId: { name: "donjons-termines", topic: "Donjons terminés et nouveaux records" },
     craftChannelId: { name: "tableau-artisanat", topic: "Demandes d'artisanat : appuyez sur Demander un craft dans le message épinglé. Les artisans filtrent par métier et appuient sur Je le fabrique." },
     logChannelId: { name: "journal-officiers", topic: "Journal des officiers : arrivées, modération, banque et demandes d'artisanat" },
-    readinessChannelId: { name: "preparation-raid", topic: "Qui est prêt pour la soirée de raid : gear et consommables (officiers et chefs de raid seulement)" }
+    readinessChannelId: { name: "preparation-raid", topic: "Qui est prêt pour la soirée de raid : gear et consommables (officiers et chefs de raid seulement)" },
+    applicationChannelId: { name: "candidatures-raid", topic: "Nouvelles candidatures de recrutement (officiers seulement) : utilisez /application list|view|approve|reject|trial" },
+    applyGuideChannelId: { name: "postuler-ici", topic: "Appuyez sur Postuler ci-dessous pour soumettre une candidature de guilde" }
   }
 };
 

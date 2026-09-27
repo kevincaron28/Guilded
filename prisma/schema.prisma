@@ -338,6 +338,8 @@ model Application {
   id           String            @id @default(cuid())
   guildId      String
   memberId     String
+  // Which raid core this application is for; empty means a general guild application.
+  coreId       String?
   status       ApplicationStatus @default(PENDING)
   character    String
   className    String
@@ -351,9 +353,29 @@ model Application {
   updatedAt    DateTime          @updatedAt
   guild        Guild             @relation(fields: [guildId], references: [id], onDelete: Cascade)
   member       Member            @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  core         RaidCore?         @relation(fields: [coreId], references: [id], onDelete: SetNull)
 
   @@index([guildId, status, createdAt])
   @@index([memberId, createdAt])
+  @@index([coreId])
+}
+
+// Bot-wide, not per-guild (no FK to Guild): captured command/job failures and
+// /report bug submissions, for the developer to review after a release. The
+// guildId here is the raw Discord server ID, kept even if the guild is never
+// otherwise seen again, and is null for a global/background-job error.
+model ErrorReport {
+  id        String   @id @default(cuid())
+  source    String
+  guildId   String?
+  userId    String?
+  message   String
+  stack     String?
+  context   String?
+  createdAt DateTime @default(now())
+
+  @@index([source, createdAt])
+  @@index([guildId, createdAt])
 }
 
 model AuditLog {
@@ -443,6 +465,10 @@ model GuildSettings {
   readinessChannelId       String?
   // Where each raid core's roster is shown (one live message per core).
   coreChannelId            String?
+  // Private channel where new applications are posted; falls back to the officer log.
+  applicationChannelId     String?
+  // Public channel with a pinned "Apply" post (buttons open the application form).
+  applyGuideChannelId      String?
   // "EPGP" (bids decide) or "COUNCIL" (officers decide with /loot award; bids are off).
   lootMode                 String    @default("EPGP")
   // true: an addon upload from the companion is applied right away, with no /import-apply.
@@ -969,6 +995,7 @@ model RaidCore {
   guild           Guild            @relation(fields: [guildId], references: [id], onDelete: Cascade)
   members         RaidCoreMember[]
   raids           Raid[]
+  applications    Application[]
 
   @@unique([guildId, name])
 }

@@ -4,6 +4,9 @@ import { FR_TEXT } from "../src/i18n-fr.js";
 import { tx } from "../src/i18n.js";
 import { channelNames, channelSpec, CATEGORY_NAMES, type ChannelField } from "../src/setup-names.js";
 import { isPermissionRoleName, permissionRoleNames, permissionRolesFr } from "../src/permissions.js";
+import { craftEmbed, ensureBoardTags, boardTagNames } from "../src/commands/craft-board.js";
+import { coreRosterEmbed } from "../src/services/raid-core.js";
+import { buildSignupEmbed } from "../src/services/signup-embed.js";
 
 const placeholders = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((match) => match[1]).sort();
 
@@ -67,9 +70,6 @@ describe("French server names", () => {
 
 describe("French posts", () => {
   it("renders the craft request, the core roster and the signup post in French", async () => {
-    const { craftEmbed, ensureBoardTags, boardTagNames } = await import("../src/commands/craft-board.js");
-    const { coreRosterEmbed } = await import("../src/services/raid-core.js");
-    const { buildSignupEmbed } = await import("../src/services/signup-embed.js");
     const request = {
       id: "r1", item: "Flacon des Titans", quantity: 2, profession: "Alchemy", note: null, materialsProvided: true, status: "CLAIMED" as const,
       createdAt: new Date(0), requester: { discordUserId: "u1", displayName: "Amy" }, crafter: { discordUserId: "u2", displayName: "Bob" }

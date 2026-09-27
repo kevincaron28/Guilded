@@ -21,7 +21,8 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/bank request` — ask the guild bank · `/craft request` — ask a crafter",
       "`/dungeon leaderboard` · `/dungeon records` · `/dungeon player` — dungeon challenge · `/dungeon group` — form a group with its own voice channel",
       "`/character readiness me` — your latest gear check from the addon",
-      "`/apply` — apply to the guild"
+      "`/apply` — apply to a raid core (or press **Apply to a core** on the pinned post in the apply channel)",
+      "`/report bug` — report a bug or problem with the bot"
     ],
     fr: [
       "`/character add` — liez votre personnage WoW (à faire en premier), ou `/character import` avec la ligne de `/guilded character` en jeu, ou `/character sync` avec `/guilded share`",
@@ -33,7 +34,8 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/bank request` — demander à la banque de guilde · `/craft request` — demander à un artisan",
       "`/dungeon leaderboard` · `/dungeon records` · `/dungeon player` — défi des donjons · `/dungeon group` — former un groupe avec son salon vocal",
       "`/character readiness me` — votre dernière vérification d'équipement (addon)",
-      "`/apply` — postuler à la guilde"
+      "`/apply` — postuler à un core de raid (ou appuyez sur **Postuler à un core** sur le message épinglé du salon de candidature)",
+      "`/report bug` — signaler un bug ou un problème avec le bot"
     ]
   },
   raidLeader: {

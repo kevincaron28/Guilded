@@ -274,6 +274,7 @@ There are 17 commands, not 34: small ones sit under a parent, so typing `/` show
 | --- | --- |
 | `/help` | The commands you can use (shows more for officers and leaders) |
 | `/report ping` | Is the bot online? |
+| `/report bug <description> [screenshot]` | Report a bug or problem. Also captured automatically whenever a command errors, for the developer to review |
 | `/profile` | Your profile: characters (race, class, professions, last seen), EP/GP/PR |
 | `/character who <character>` | Look anyone up: main and alts, professions, EP/GP/PR, 30-day attendance, last seen |
 | `/character add <name> <realm> <class> <main> [spec] [level] [race]` / `/character list` | Link your WoW characters (needed before imports can match you) |
@@ -281,7 +282,7 @@ There are 17 commands, not 34: small ones sit under a parent, so typing `/` show
 | `/character import <code> [main]` | Link or refresh a character from the line `/guilded character` shows in game (name, realm, class, race, level, spec, professions), no typing |
 | `/raid wcl check [raid] [url]` | Officers: the private check of a raid's log: who is in the log but not credited (or the reverse), characters not linked to anyone, EP not yet awarded, who came to boss pulls without a flask or food, and deaths. No damage or parse numbers |
 | `/raid wcl list` | The latest Warcraft Logs reports the officers pulled in |
-| `/apply` | Submit a guild application |
+| `/apply <core> <character> <class> <spec> <experience> <availability> [notes]` | Apply to a raid core. Or press **Apply to a core** on the pinned post in the apply-here channel — same result, a short form instead of typing options |
 | `/raid signup <raid> <role> [availability]` | Sign up (Tank, Healer, DPS). `availability:Maybe` doesn't take a slot. If your role is full you go on the **waitlist** and get a DM when a slot opens |
 | `/raid cancel-signup <raid>` | Drop out (the next waitlisted player moves up) |
 | `/raid status <raid>` / `/raid roster <raid>` | Raid info and roster |
@@ -410,6 +411,8 @@ Approve, and a raid can never be paid twice.
 | `/setup config channel` | Channel showing each raid core's roster as one live message |
 | `/setup config channel` | Private channel (officers and raid leaders only) where the raid readiness board is posted. `/setup start` step 4 can create it with the right permissions |
 | `/setup config channel` | Where craft requests are posted so crafters see them; default: the officer log |
+| `/setup config channel` | Private channel (officers only) where new `/apply` applications are announced; default: the officer log. `/setup start` step 3 can create it with the right permissions |
+| `/setup config channel` | Public channel with a pinned post: the **Apply to a core** button picks the core, then opens the application form. `/setup start` step 2 can create it |
 | `/setup config channel` | Channel with one auto-updated dungeon leaderboard message (refreshed after every dungeon import) |
 | `/setup config channel` | Channel for dungeon signups (channel only; no dungeon signup flow yet) |
 | `/setup config merit <true\|false>` | Rank the leaderboard by PR x attendance |

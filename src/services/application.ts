@@ -9,6 +9,7 @@ export interface CreateApplicationInput {
   experience: string;
   availability: string;
   notes?: string;
+  coreId?: string;
 }
 
 export function createApplicationService(database: PrismaClient) {
@@ -26,21 +27,23 @@ export function createApplicationService(database: PrismaClient) {
           spec: input.spec.trim(),
           experience: input.experience.trim(),
           availability: input.availability.trim(),
-          ...(input.notes ? { notes: input.notes.trim() } : {})
-        }
+          ...(input.notes ? { notes: input.notes.trim() } : {}),
+          ...(input.coreId ? { coreId: input.coreId } : {})
+        },
+        include: { core: true }
       });
     },
 
     list(guildId: string, status?: ApplicationStatus) {
       return database.application.findMany({
         where: { guildId, ...(status ? { status } : {}) },
-        include: { member: true },
+        include: { member: true, core: true },
         orderBy: { createdAt: "desc" }
       });
     },
 
     get(guildId: string, id: string) {
-      return database.application.findFirst({ where: { guildId, id }, include: { member: true } });
+      return database.application.findFirst({ where: { guildId, id }, include: { member: true, core: true } });
     },
 
     async transition(guildId: string, id: string, status: ApplicationStatus, reviewedBy: string) {

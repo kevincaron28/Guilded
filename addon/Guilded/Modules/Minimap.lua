@@ -567,31 +567,40 @@ local function buildToolsPage(page)
     "Export: press it, then /reload so the game saves; the companion uploads it to Discord.", "GameFontHighlightSmall"), page, 0, -142))
   ui.exportHelp:SetWidth(PAGE_WIDTH)
 
-  -- Optional modules: your own switch, and (officers) the guild-wide one.
-  at(newLabel(page, L("Modules"), "GameFontNormal"), page, 0, -164)
+  local help = at(newLabel(page,
+    L("Minimap button hidden? /guilded minimap show. Problem? Press Diagnostics and send a screenshot to an officer."),
+    "GameFontHighlightSmall"), page, 0, -164)
+  help:SetWidth(PAGE_WIDTH)
+
+  -- Optional modules: your own switch, and (officers) the guild-wide one. There are more of
+  -- these than fit in the page, so they scroll instead of running off the bottom of the window.
+  at(newLabel(page, L("Modules"), "GameFontNormal"), page, 0, -196)
+  local scroll = CreateFrame("ScrollFrame", nil, page, "UIPanelScrollFrameTemplate")
+  scroll:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -214)
+  scroll:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -24, 2)
+  local scrollChild = CreateFrame("Frame", nil, scroll)
+  scrollChild:SetWidth(PAGE_WIDTH - 24)
+  scrollChild:SetHeight(math.max(1, #(ns.MODULES or {}) * 22))
+  scroll:SetScrollChild(scrollChild)
+
   ui.moduleRows = {}
   for i, module in ipairs(ns.MODULES or {}) do
-    local y = -182 - (i - 1) * 22
+    local y = -(i - 1) * 22
     local row = { key = module.key }
-    row.label = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, y - 4)
+    row.label = at(newLabel(scrollChild, "", "GameFontHighlightSmall"), scrollChild, 0, y - 4)
     row.label:SetWidth(330)
-    row.mine = at(newButton(page, "", 86, function()
+    row.mine = at(newButton(scrollChild, "", 86, function()
       local s = ns.getSettings and ns.getSettings()
       local mineOff = s and s.modules and s.modules[module.key] == false
       run("modules " .. (mineOff and "on " or "off ") .. module.key)
-    end), page, 334, y)
-    row.guild = officerOnly(at(newButton(page, "", 110, function()
+    end), scrollChild, 334, y)
+    row.guild = officerOnly(at(newButton(scrollChild, "", 110, function()
       local s = ns.getSettings and ns.getSettings()
       local guildOff = s and s.guildModules and s.guildModules.off and s.guildModules.off[module.key]
       run("modules guild " .. (guildOff and "on " or "off ") .. module.key)
-    end), page, 424, y))
+    end), scrollChild, 424, y))
     ui.moduleRows[i] = row
   end
-
-  local help = at(newLabel(page,
-    L("Minimap button hidden? /guilded minimap show. Problem? Press Diagnostics and send a screenshot to an officer."),
-    "GameFontHighlightSmall"), page, 0, -300)
-  help:SetWidth(PAGE_WIDTH)
 end
 
 -- Dungeon challenge: the run being recorded, recent runs, and the

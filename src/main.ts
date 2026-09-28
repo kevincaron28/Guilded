@@ -39,7 +39,7 @@ import { runBackup } from "./services/backup.js";
 import { runWclDiscovery } from "./services/wcl-check.js";
 import { config } from "./config.js";
 import { startCompanionApi } from "./companion-api.js";
-import { handleMemberJoin, handleMemberLeave, handleWelcomeRoleButton, WELCOME_ROLE_PREFIX } from "./services/housekeeping.js";
+import { handleMemberJoin, handleMemberRolesChange, handleMemberLeave, handleWelcomeRoleButton, WELCOME_ROLE_PREFIX } from "./services/housekeeping.js";
 import { createErrorReportService } from "./services/error-report.js";
 
 // GuildMembers is a privileged intent: it must also be enabled for this bot
@@ -131,6 +131,16 @@ client.on(Events.GuildMemberAdd, async (member) => {
   } catch (error) {
     console.error("GuildMemberAdd handling failed", error);
     void errorReportService.report(client, error, { source: "GuildMemberAdd", guildId: member.guild.id, guildName: member.guild.name, userId: member.id });
+  }
+});
+
+// The officer log's "joined the guild" line: someone got the Member role or a leadership role.
+client.on(Events.GuildMemberUpdate, async (before, after) => {
+  try {
+    await handleMemberRolesChange(after.guild, before, after);
+  } catch (error) {
+    console.error("GuildMemberUpdate handling failed", error);
+    void errorReportService.report(client, error, { source: "GuildMemberUpdate", guildId: after.guild.id, guildName: after.guild.name, userId: after.id });
   }
 });
 

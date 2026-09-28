@@ -11,7 +11,6 @@ local FR = {
   ["Show the minimap button"] = "Afficher le bouton de la minicarte",
   ["Guilded's messages in their own chat tab"] = "Les messages de Guilded dans leur propre onglet",
   ["Show what changed since my last login"] = "Montrer ce qui a chang\195\169 depuis ma derni\195\168re connexion",
-  ["Save for Discord by itself at safe moments (reloads the UI)"] = "Enregistrer pour Discord tout seul aux moments s\195\187rs (recharge l'interface)",
   ["Switches for you only. Officers turn modules off for the whole guild with /guilded modules guild."] = "R\195\169glages pour vous seulement. Les officiers d\195\169sactivent un module pour toute la guilde avec /guilded modules guild.",
   ["Open the tools window"] = "Ouvrir la fen\195\170tre d'outils",
   ["Optional parts (a part turned back on starts after /reload)"] = "Parties optionnelles (une partie r\195\169activ\195\169e d\195\169marre apr\195\168s /reload)",

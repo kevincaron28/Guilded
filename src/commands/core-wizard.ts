@@ -5,7 +5,7 @@ import {
 import type { RaidCore, RaidRole } from "@prisma/client";
 import { prisma } from "../database.js";
 import { asLootMode, describeRules, effectiveRules, LOOT_MODE_HELP, LOOT_MODE_LABEL, LOOT_MODES } from "../services/core-rules.js";
-import { createItemValueService, parseItemValues } from "../services/item-values.js";
+import { createItemValueService, parseItemValues, priceDraft } from "../services/item-values.js";
 import { coreRosterEmbed, createRaidCoreService, syncCoreRoster } from "../services/raid-core.js";
 import { modeKey, parseMode, type EditMode } from "./core-editor.js";
 import { guildService } from "./context.js";
@@ -81,7 +81,9 @@ async function rulesStep(coreId: string, guildId: string, note: string) {
     btn("ep", "Change EP values"),
     btn("pool", core.separatePool ? "Own point pool: ON" : "Own point pool: off", core.separatePool ? ButtonStyle.Success : ButtonStyle.Secondary)
   ];
-  if (rules.lootMode === "PRIORITY") buttons.push(btn("prices", "Item prices", ButtonStyle.Primary));
+  // Prices are used by EPGP priority loot and by /loot award when the GP is left out, so they
+  // can be set whatever the loot system.
+  buttons.push(btn("prices", "Item prices", rules.lootMode === "PRIORITY" ? ButtonStyle.Primary : ButtonStyle.Secondary));
   if (rules.lootMode === "RESERVE") buttons.push(btn("reserves", `Reserves per player: ${rules.reservesPerPlayer}`));
   return {
     embeds: [embed],
@@ -101,10 +103,14 @@ function nameModal() {
   );
 }
 
-export function pricesModal(core: Pick<RaidCore, "name">) {
+// `draft` prefills the form (priceDraft): current prices, then items still missing one with a
+// suggestion from past awards ("= ?" lines are skipped on save).
+export function pricesModal(core: Pick<RaidCore, "name">, draft = "") {
+  const field = new TextInputBuilder().setCustomId("prices").setLabel("One 'item = GP' per line; '= ?' is skipped")
+    .setPlaceholder("Sulfuras, Hand of Ragnaros = 250\nBindings of the Windseeker = 120").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(4000);
+  if (draft) field.setValue(draft.slice(0, 4000));
   return new ModalBuilder().setCustomId("corewiz:prices-modal").setTitle(`Item prices: ${core.name}`.slice(0, 45)).addComponents(
-    new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("prices").setLabel("One 'item = GP price' per line")
-      .setPlaceholder("Sulfuras, Hand of Ragnaros = 250\nBindings of the Windseeker = 120").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(4000)));
+    new ActionRowBuilder<TextInputBuilder>().addComponents(field));
 }
 
 export function epModal(core: RaidCore) {
@@ -212,7 +218,7 @@ export async function runCoreWizard(interaction: ChatInputCommandInteraction): P
         return;
       }
       if (action === "prices" && i.isButton()) {
-        await i.showModal(pricesModal(core));
+        await i.showModal(pricesModal(core, (await priceDraft(prisma, guildId, coreId)).text));
         const submitted = await i.awaitModalSubmit({ time: 10 * 60_000, filter: (m) => m.user.id === i.user.id }).catch(() => null);
         if (!submitted) return;
         try {

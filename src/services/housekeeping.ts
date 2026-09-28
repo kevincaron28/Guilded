@@ -5,6 +5,7 @@ import {
 import type { GuildSettings } from "@prisma/client";
 import { prisma } from "../database.js";
 import { createGuildService } from "./guild.js";
+import { isPermissionRoleName, type Permission } from "../permissions.js";
 import { asLang, t } from "../i18n.js";
 
 const guildService = createGuildService(prisma);
@@ -50,11 +51,36 @@ export async function postToLogChannel(discordGuild: DiscordGuild, content: stri
   }
 }
 
+// The officer log only follows the WoW guild's people, not everyone who joins the Discord
+// server: someone counts once they hold the Member role or a leadership role (Guild Master,
+// Officer, Raid Leader, DKP Officer, Loot Leader, Class Leader, a per-class leader). A new
+// arrival has no roles yet, so their line comes when they *get* one (handleMemberRolesChange),
+// and a leave is logged only for someone who held one. Returns that role's name, or null.
+const GUILD_PERMISSIONS: Permission[] = ["guildMaster", "officer", "raidLeader", "dkpOfficer", "lootLeader", "classLeader"];
+export function guildRoleOf(roles: { id: string; name: string }[], memberRoleId: string | null | undefined): string | null {
+  const found = roles.find((role) => (memberRoleId && role.id === memberRoleId)
+    || GUILD_PERMISSIONS.some((permission) => isPermissionRoleName(permission, role.name)));
+  return found?.name ?? null;
+}
+
+const rolesOf = (member: GuildMember | PartialGuildMember) => [...member.roles.cache.values()].map((role) => ({ id: role.id, name: role.name }));
+
+// Someone just received their first guild role (Member or leadership): log them joining the roster.
+export async function handleMemberRolesChange(discordGuild: DiscordGuild, before: GuildMember | PartialGuildMember, after: GuildMember): Promise<void> {
+  const settings = await guildService.getSettings((await guildService.ensureGuild(discordGuild.id, discordGuild.name)).id);
+  // Without the "before" roles (not cached) there is no way to tell what is new: say nothing.
+  if (before.partial) return;
+  const had = guildRoleOf(rolesOf(before), settings?.memberRoleId);
+  const has = guildRoleOf(rolesOf(after), settings?.memberRoleId);
+  if (!had && has) await postToLogChannel(discordGuild, `Joined the guild: ${after.user.tag} (${after.id}) got the ${has} role.`);
+  if (had && !has) await postToLogChannel(discordGuild, `Left the guild roles: ${after.user.tag} (${after.id}) no longer has ${had}.`);
+}
+
 export async function handleMemberJoin(discordGuild: DiscordGuild, member: GuildMember): Promise<void> {
   const guild = await guildService.ensureGuild(discordGuild.id, discordGuild.name);
   const settings = await guildService.getSettings(guild.id);
   if (!settings) return;
-  await postToLogChannel(discordGuild, `Member joined: ${member.user.tag} (${member.id})`);
+  // Not logged here: a new arrival has no guild role yet (see guildRoleOf).
 
   if (settings.applicantRoleId) {
     await member.roles.add(settings.applicantRoleId).catch((error: unknown) => {
@@ -170,7 +196,14 @@ export async function handleMemberLeave(discordGuild: DiscordGuild, member: Guil
   const guild = await guildService.ensureGuild(discordGuild.id, discordGuild.name);
   const settings = await guildService.getSettings(guild.id);
   const username = member.user?.username ?? "A member";
-  await postToLogChannel(discordGuild, `Member left: ${member.user?.tag ?? username} (${member.id})`);
+  // Only guild people are logged. When Discord did not keep their roles (not cached), a linked
+  // WoW character in the database stands in for "was in the guild".
+  let guildRole = guildRoleOf(rolesOf(member), settings?.memberRoleId);
+  if (!guildRole && member.partial) {
+    const linked = await prisma.member.findFirst({ where: { guildId: guild.id, discordUserId: member.id, characters: { some: {} } }, select: { id: true } });
+    if (linked) guildRole = "a linked character";
+  }
+  if (guildRole) await postToLogChannel(discordGuild, `Member left: ${member.user?.tag ?? username} (${member.id}), had ${guildRole}.`);
   if (!settings?.farewellChannelId) return;
 
   const channel = await discordGuild.channels.fetch(settings.farewellChannelId).catch(() => null);

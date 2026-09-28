@@ -20,7 +20,8 @@ import {
 import type { GuildSettings } from "@prisma/client";
 import { config } from "../config.js";
 import { prisma } from "../database.js";
-import { hasPermission, isPermissionRoleName, permissionRoleNames, roleNamesFor, type Permission } from "../permissions.js";
+import { classLeaderRoleName, hasPermission, isPermissionRoleName, permissionRoleNames, roleNamesFor, type Permission } from "../permissions.js";
+import { CLASSES } from "../wow-data.js";
 import { formatChecks, setupChecks, setupComplete, type ChannelFact, type SetupFacts } from "../services/setup-status.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { sendWelcome, welcomeDelivery } from "../services/housekeeping.js";
@@ -215,10 +216,21 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       T("Press **Create missing roles**, then give them to your officers (right-click a member → Roles).")
     ].join("\n"));
     const missing = REQUIRED_ROLES.filter((permission) => !has(permission));
+    const missingOptional = OPTIONAL_ROLES.filter((permission) => !has(permission));
     components.push(navRow(1, lang, [
       button("create-roles", missing.length ? T("Create missing roles ({count})", { count: missing.length }) : T("All roles exist"), ButtonStyle.Success, missing.length === 0),
+      button("create-optional-roles", T("Create optional roles ({count})", { count: missingOptional.length }), ButtonStyle.Secondary, missingOptional.length === 0),
       button("give-gm", T("Give me {gm}", { gm: roleName("guildMaster") }), ButtonStyle.Secondary, !has("guildMaster"))
     ]));
+    // One Class Leader role per class, picked from a menu (only the classes your guild plays).
+    components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder()
+      .setCustomId("setup:class-leaders").setPlaceholder(T("Create a Class Leader role per class..."))
+      .setMinValues(1).setMaxValues(CLASSES.length)
+      .addOptions(CLASSES.map((className) => ({
+        label: classLeaderRoleName(className, lang),
+        value: className,
+        ...(guild.roles.cache.some((role) => role.name === classLeaderRoleName(className, "en") || role.name === classLeaderRoleName(className, "fr")) ? { description: T("Already exists") } : {})
+      })))));
   }
 
   if (step === 2) {
@@ -412,6 +424,33 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
 // ---------------------------------------------------------------------
 // Actions
 // ---------------------------------------------------------------------
+
+// Loot Leader and Class Leader: not needed to run the bot, created on request.
+async function createOptionalRoles(guild: DiscordGuild, lang: Lang): Promise<string> {
+  await guild.roles.fetch();
+  const created: string[] = [];
+  for (const permission of OPTIONAL_ROLES) {
+    if (guild.roles.cache.some((role) => permissionRoleNames(permission).includes(role.name))) continue;
+    const name = roleNamesFor(lang)[permission];
+    await guild.roles.create({ name, reason: `${BRAND.name} /setup` });
+    created.push(name);
+  }
+  return created.length ? tx(lang, "Created roles: {roles}. Now give them to your officers.", { roles: created.join(", ") }) : tx(lang, "All roles already existed.");
+}
+
+// "Class Leader (Warrior)" and so on for the picked classes (either language's name counts as there).
+async function createClassLeaderRoles(guild: DiscordGuild, lang: Lang, classes: string[]): Promise<string> {
+  await guild.roles.fetch();
+  const created: string[] = [];
+  for (const className of classes.filter((name) => (CLASSES as readonly string[]).includes(name))) {
+    const names = [classLeaderRoleName(className, "en"), classLeaderRoleName(className, "fr")];
+    if (guild.roles.cache.some((role) => names.includes(role.name))) continue;
+    const name = classLeaderRoleName(className, lang);
+    await guild.roles.create({ name, reason: `${BRAND.name} /setup` });
+    created.push(name);
+  }
+  return created.length ? tx(lang, "Created roles: {roles}. Now give them to your officers.", { roles: created.join(", ") }) : tx(lang, "All roles already existed.");
+}
 
 async function createMissingRoles(guild: DiscordGuild, lang: Lang): Promise<string> {
   await guild.roles.fetch();
@@ -656,6 +695,8 @@ export async function executeSetup(interaction: ChatInputCommandInteraction): Pr
           await guildService.updateSettings(guildId, { language: chosen });
           note = tx(chosen, "Language: English for roles, channels and member messages.");
         } else if (action === "create-roles") note = await createMissingRoles(guild, lang);
+        else if (action === "create-optional-roles") note = await createOptionalRoles(guild, lang);
+        else if (i.isStringSelectMenu() && action === "class-leaders") note = await createClassLeaderRoles(guild, lang, i.values);
         else if (action === "give-gm") {
           const role = guild.roles.cache.find((r) => isPermissionRoleName("guildMaster", r.name));
           const member = await guild.members.fetch(i.user.id);

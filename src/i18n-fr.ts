@@ -49,6 +49,9 @@ export const FR_TEXT: Record<string, string> = {
   "• **{dkp}** — award and correct EP/GP.": "• **{dkp}** — attribuer et corriger les EP/GP.",
   "Press **Create missing roles**, then give them to your officers (right-click a member → Roles).": "Appuyez sur **Créer les rôles manquants**, puis donnez-les à vos officiers (clic droit sur un membre → Rôles).",
   "Create missing roles ({count})": "Créer les rôles manquants ({count})",
+  "Create optional roles ({count})": "Créer les rôles facultatifs ({count})",
+  "Create a Class Leader role per class...": "Créer un rôle Chef de classe par classe...",
+  "Already exists": "Existe déjà",
   "All roles exist": "Tous les rôles existent",
   "Create missing channels ({count})": "Créer les salons manquants ({count})",
   "All channels exist": "Tous les salons existent",
@@ -337,6 +340,8 @@ export const FR_TEXT: Record<string, string> = {
   "{count} core members": "{count} membres du core",
   "core members get priority at this core's raid signups": "les membres du core ont la priorité aux inscriptions des raids de ce core",
   " + {n} on the bench": " + {n} sur le banc",
+  "Trial": "Essai",
+  " + {n} on trial": " + {n} à l'essai",
 
   // --- Warcraft Logs card
   "{n} wipe": "{n} échec",

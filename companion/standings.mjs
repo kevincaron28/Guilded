@@ -102,7 +102,7 @@ export function standingsToLua(data) {
     "",
     "-- The next raid's signed-up players (main characters), for /guilded invite raid.",
     ...(data.nextRaid ? [
-      `GuildedNextRaid = { id = ${luaString(data.nextRaid.id)}, title = ${luaString(data.nextRaid.title)}, at = ${luaString(data.nextRaid.scheduledAt)}, core = ${luaString(data.nextRaid.core ?? "")}, players = {`,
+      `GuildedNextRaid = { id = ${luaString(data.nextRaid.id)}, title = ${luaString(data.nextRaid.title)}, at = ${luaString(data.nextRaid.scheduledAt)}, core = ${luaString(data.nextRaid.core ?? "")}, coreId = ${luaString(data.nextRaid.coreId ?? "")}, players = {`,
       ...data.nextRaid.players.map((player) => `  { name = ${luaString(player.name)}, role = ${luaString(player.role)} },`),
       "}, maybe = {",
       ...(data.nextRaid.maybe ?? []).map((name) => `  ${luaString(name)},`),

@@ -1,5 +1,27 @@
 # Changelog
 
+## 4.5.0
+
+4.0.0 was never published on its own: 4.5.0 is the first public release of everything below (4.5, the addon audit, and all of 4.0).
+
+**Upgrading**
+- Bot: run `npm run db:update` once (or start with `start-bot.bat`). Two columns are added (an application's raid role, a core member's trial mark); nothing is removed.
+- Addon: copy the new `Guilded` folder over the old one. Companion: install the new version (it sends your alts and in-game item prices).
+
+**Discord bot**
+- **Trial members.** Moving an application to **Trial** adds the player to that core as a trial member: the roster message lists them in their own "🧪 Trial" section. The card keeps **Approve** and **Reject**, so the trial is settled later with one click: Approve makes them a full core member (and gives the member role), Reject takes them off the core.
+- **Raid role on applications.** The Apply button on a core's roster now asks Tank, Healer or DPS first, then shows the form; `/apply` has a `role` option. The card shows the role, and the player joins the core in that role.
+- **Rename a core:** `/core rename` (also the Rename button in `/core edit`). Raids, prices, the roster message and the addon follow; the addon now keeps the core it runs by id, so a rename never loses it.
+- **Item prices made easy.** An **Item prices** button in `/core edit` (and in `/core setup`, whatever the loot system) opens a list already filled in: the core's prices, then every item people wishlisted or were given before that has no price yet, with the average GP paid as a suggestion. Change the numbers and save.
+- **Optional roles in setup.** Step 1 has **Create optional roles** (Loot Leader, Class Leader) and a menu to create **one Class Leader role per class** ("Class Leader (Warrior)", "Chef de classe (Guerrier)" in French). Each counts as Class Leader everywhere.
+- **Officer log: guild people only.** Join and leave lines are no longer posted for everyone who enters the Discord server: the log says when someone **gets** the Member role or a leadership role (Guild Master, Officer, Raid Leader, DKP Officer, Loot Leader, Class Leader or a per-class leader), and when someone who had one leaves.
+- **Alts link by themselves.** A player who paired their companion (`/character pair`) gets every character that logs in on their PC linked to them, not just the one that uploaded.
+
+**In game**
+- **Send to Discord works again.** Newer clients block addons from reloading the UI ("action blocked ... ReloadUI"). The Send to Discord buttons (window and officers' banner) are now the game's own secure buttons running `/reload`, which is allowed from your click. The old automatic save could never work under this rule and is gone.
+- **Prices at the moment of the drop.** `/guilded drop` on an item with no price asks for one in a box, starts the item at that price and remembers it; `/guilded price <item> <GP>` sets one directly. Prices set in game reach Discord with the next upload (the newer price wins).
+- **Recipes fill in by themselves.** Opening a guildmate's profession (from a chat link or the guild window) saves their recipes under their name, even if they have no addon. A one-time line reminds you to open a crafting profession Guilded has never read (gathering skills are left out).
+
 ## 4.0.0
 
 The biggest release so far: four loot systems chosen per raid core, soft reserves, loot council, recipes and cooldowns, and the guild calendar, on top of the self-running Ready page and attunements.
@@ -52,7 +74,7 @@ The biggest release so far: four loot systems chosen per raid core, soft reserve
 - Item tooltip lines now show every time, comparison tooltips included.
 - Raid and ledger ids use the server clock; module errors go to `/guilded diag` instead of chat.
 - **Open GP bidding and loot council survive a `/reload`** (or a disconnect): the timer carries on, or the item closes a few seconds after login.
-- **Options page:** Esc > Options > AddOns > Guilded (or `/guilded options`) has the minimap button, chat tab, login digest, auto-save and your module switches. Guilded is also in the **Addon Compartment** (the addon list under the minimap).
+- **Options page:** Esc > Options > AddOns > Guilded (or `/guilded options`) has the minimap button, chat tab, login digest and your module switches. Guilded is also in the **Addon Compartment** (the addon list under the minimap).
 
 **Credits:** spell ids and the approach follow Ready Check Consumables (MIT); see `docs/CREDITS.md`.
 

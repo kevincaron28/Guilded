@@ -21,6 +21,8 @@ export function parseItemValues(text: string): ParsedValues {
   const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   if (lines.length > MAX_LINES) problems.push(`Only the first ${MAX_LINES} lines are read.`);
   for (const line of lines.slice(0, MAX_LINES)) {
+    // "Item = ?" (a prefilled list's item with no price yet) is skipped quietly.
+    if (/[=;:\t]\s*\??\s*$/.test(line)) continue;
     const match = /^(.*?)\s*[=;\t,:]\s*(\d{1,6})\s*(?:gp)?$/i.exec(line) ?? /^(.*\S)\s+(\d{1,6})\s*(?:gp)?$/i.exec(line);
     if (!match) {
       // A header such as "Item,GP" is not worth complaining about.
@@ -102,6 +104,79 @@ export function createItemValueService(database: Db) {
       return rows.sort((a, b) => order(b) - order(a))[0]?.gp ?? null;
     }
   };
+}
+
+// A ready-to-edit price list for one core (or the guild-wide list when coreId is null), for the
+// "Item prices" form: the prices set now, then the items people wishlisted or that were awarded
+// before and have no price yet, with the average GP paid over the last 180 days as a suggestion
+// ("Item = ?" when never awarded; those lines are skipped on save). Fits Discord's 4000-character field.
+const DRAFT_LIMIT = 3900;
+const DRAFT_HISTORY_DAYS = 180;
+export async function priceDraft(
+  database: Pick<PrismaClient, "coreItemValue" | "wishlistEntry" | "lootAward">,
+  guildId: string, coreId: string | null
+): Promise<{ text: string; set: number; suggested: number }> {
+  const service = createItemValueService(database);
+  const current = coreId ? await service.list(guildId, coreId) : await service.list(guildId, null);
+  const priced = new Set((await service.effective(guildId, coreId)).map((row) => row.key));
+  const [wishes, awards] = await Promise.all([
+    database.wishlistEntry.findMany({ where: { character: { member: { guildId } } }, select: { itemName: true } }),
+    database.lootAward.findMany({
+      where: { guildId, amount: { gt: 0 }, awardedAt: { gte: new Date(Date.now() - DRAFT_HISTORY_DAYS * 86_400_000) } },
+      select: { itemName: true, amount: true }
+    })
+  ]);
+  const paid = new Map<string, { name: string; sum: number; count: number }>();
+  for (const award of awards) {
+    const key = clean(itemKey(award.itemName));
+    const entry = paid.get(key) ?? { name: award.itemName, sum: 0, count: 0 };
+    entry.sum += award.amount;
+    entry.count++;
+    paid.set(key, entry);
+  }
+  const missing = new Map<string, string>();
+  for (const name of [...wishes.map((wish) => wish.itemName), ...[...paid.values()].map((entry) => entry.name)]) {
+    const key = clean(itemKey(name));
+    if (key.length >= 2 && !priced.has(key) && !missing.has(key)) missing.set(key, name);
+  }
+  const lines = current.map((row) => `${row.name} = ${row.gp}`);
+  let suggested = 0;
+  for (const [key, name] of [...missing.entries()].sort((a, b) => a[1].localeCompare(b[1]))) {
+    const history = paid.get(key);
+    if (history) suggested++;
+    lines.push(`${name} = ${history ? Math.round(history.sum / history.count) : "?"}`);
+  }
+  const kept: string[] = [];
+  let used = 0;
+  for (const line of lines) {
+    if (used + line.length + 1 > DRAFT_LIMIT) break;
+    kept.push(line);
+    used += line.length + 1;
+  }
+  return { text: kept.join("\n"), set: current.length, suggested };
+}
+
+// Prices an officer set in game (the addon asks when /guilded drop has none). A price is saved
+// for its core when that core exists in this guild, otherwise guild-wide, and only when it is
+// newer than the one Discord has (so an edit made in Discord later is not undone by the next
+// upload). Returns how many were saved.
+export async function applyAddonItemPrices(
+  database: Pick<PrismaClient, "coreItemValue" | "raidCore">,
+  guildId: string,
+  prices: { name: string; id?: number | undefined; gp: number; coreId?: string | undefined; at: Date }[]
+): Promise<number> {
+  if (prices.length === 0) return 0;
+  const cores = new Set((await database.raidCore.findMany({ where: { guildId }, select: { id: true } })).map((core) => core.id));
+  const service = createItemValueService(database);
+  let saved = 0;
+  for (const price of prices) {
+    const coreId = price.coreId && cores.has(price.coreId) ? price.coreId : null;
+    const key = keyOf({ name: price.name, id: null });
+    const existing = await database.coreItemValue.findUnique({ where: { guildId_coreId_itemKey: { guildId, coreId: coreId ?? GUILD_DEFAULT, itemKey: key } } });
+    if (existing && existing.updatedAt >= price.at) continue;
+    saved += await service.setMany(guildId, coreId, [{ name: price.name, id: price.id ?? null, gp: price.gp }]);
+  }
+  return saved;
 }
 
 export function describeValues(title: string, rows: ValueRow[]): string {

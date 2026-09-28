@@ -1,55 +1,37 @@
 -- Getting your data to Discord sooner.
 --
--- The game only writes the addon's saved file when you /reload or log out,
--- and the companion can only read that file. So "send to Discord" means "save
--- now", which is a UI reload. This module makes that easy and regular:
+-- The game only writes the addon's saved file when you /reload or log out, and the companion
+-- can only read that file. So "send to Discord" means "save now", which is a UI reload.
 --
---   /guilded sync              save now (reloads the UI) so the companion uploads
---   /guilded sync auto on|off [minutes]   reload by itself at SAFE moments
+-- Newer clients do not let an addon call ReloadUI() itself: it is blocked ("Guilded tried to
+-- call ReloadUI"). A *secure* button whose click runs the macro "/reload" is allowed, because
+-- the click is yours. So every "Send to Discord" button (the banner, the window) is such a
+-- button (module.reloadButton), and nothing ever reloads by itself.
+--
+--   /guilded sync              how to save now (type /reload, or press Send to Discord)
 --   /guilded sync status
 --
--- Safe moment = out of combat, not inside an instance, data actually changed
--- since the last reload, changes quiet for 90 seconds, and at least
--- `minutes` (default 10) since the last reload. Nobody is reloaded without
--- asking: auto-reload is OFF by default (opt in with /guilded sync auto on).
--- Officers (the people who run the companion) get a small banner with a
--- "Send to Discord" button instead; logging out also saves the data.
+-- Officers (the people who run the companion) get a small banner with a "Send to Discord"
+-- button when data is waiting, at safe moments (out of combat, outside instances, changes
+-- quiet for 90 seconds), at most every 20 minutes. Logging out also saves the data.
 local addonName, ns = ...
 ns = ns or {}
 
 local CHECK_SECONDS = 60
 local SETTLE_SECONDS = 90
-local DEFAULT_MINUTES = 10
 local BANNER_REPEAT_SECONDS = 20 * 60
-local COUNTDOWN_SECONDS = 5
 
 local module = {}
 ns.syncNow = module
 
 local dirtyAt        -- when unsaved data first appeared (this session)
-local lastReloadAt   -- session start
 local bannerShownAt
-local pending = false
 local banner
 
 local function clock() return time and time() or 0 end
 
-local function state()
-  local db = ns.getDb and ns.getDb()
-  if not db then return nil end
-  db.syncNow = db.syncNow or { minutes = DEFAULT_MINUTES }
-  return db.syncNow
-end
-
 local function officer()
   return ns.isOfficer and ns.isOfficer() or false
-end
-
--- Off unless the player turned it on: the game never reloads on its own by default.
-local function autoEnabled()
-  local s = state()
-  if not s then return false end
-  return s.auto == true
 end
 
 -- Called by Core whenever something worth saving happens.
@@ -75,14 +57,37 @@ function module.safeMoment()
   return not inCombat() and not inInstance()
 end
 
-function module.reloadNow()
-  if not ReloadUI then
-    ns.message("Type /reload to save your data for the companion.")
-    return false
+-- A button that reloads the UI when clicked: a secure action button running the macro
+-- "/reload" (allowed from a click; calling ReloadUI() from addon code is blocked). Must be
+-- created out of combat, which is always the case here (the window and the banner are built
+-- from the login and ticker code, never mid-fight). `onClick` runs as well (hide a banner...).
+function module.reloadButton(parent, text, width, height, onClick)
+  -- In combat a secure button cannot be set up (that is blocked too): a plain button that
+  -- explains, until the window is built again after a /reload.
+  if inCombat() then
+    local plain = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    plain:SetWidth(width or 140)
+    plain:SetHeight(height or 22)
+    plain:SetText(text)
+    plain:SetScript("OnClick", function()
+      if onClick then pcall(onClick) end
+      ns.message("Type /reload to send your data to Discord (the button works when the window is opened out of combat).")
+    end)
+    return plain
   end
-  local ok = pcall(ReloadUI)
-  if not ok then ns.message("The game would not reload from here. Type /reload.") end
-  return ok
+  local ok, button = pcall(CreateFrame, "Button", nil, parent, "SecureActionButtonTemplate,UIPanelButtonTemplate")
+  if not ok or not button then button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate") end
+  button:SetWidth(width or 140)
+  button:SetHeight(height or 22)
+  button:SetText(text)
+  -- Newer clients fire secure clicks on the key-down or key-up edge depending on a setting.
+  if button.RegisterForClicks then button:RegisterForClicks("AnyUp", "AnyDown") end
+  if button.SetAttribute then
+    button:SetAttribute("type", "macro")
+    button:SetAttribute("macrotext", "/reload")
+  end
+  if onClick and button.HookScript then button:HookScript("OnClick", onClick) end
+  return button
 end
 
 local function hideBanner()
@@ -102,11 +107,8 @@ local function showBanner()
     local text = banner:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     text:SetPoint("TOPLEFT", 10, -8)
     text:SetText("Guilded: new data is waiting to go to Discord.")
-    local send = CreateFrame("Button", nil, banner, "UIPanelButtonTemplate")
-    send:SetSize(140, 22)
+    local send = module.reloadButton(banner, "Send to Discord", 140, 22, hideBanner)
     send:SetPoint("BOTTOMLEFT", 10, 6)
-    send:SetText("Send to Discord")
-    send:SetScript("OnClick", function() hideBanner() module.reloadNow() end)
     local later = CreateFrame("Button", nil, banner, "UIPanelButtonTemplate")
     later:SetSize(90, 22)
     later:SetPoint("BOTTOMRIGHT", -10, 6)
@@ -115,45 +117,34 @@ local function showBanner()
   end
   banner:Show()
 end
+module.showBanner = showBanner
 
--- One check, once a minute.
+-- One check, once a minute: officers get the banner when data is waiting (never in combat:
+-- a secure button cannot be shown then, and nobody wants a popup mid-fight).
 function module.tick()
   if ns.moduleActive and not ns.moduleActive("syncnow") then return end
-  local s = state()
-  if not s or not dirtyAt or pending then return end
+  if not dirtyAt then return end
   local now = clock()
   if now - dirtyAt < SETTLE_SECONDS then return end
-  if now - (lastReloadAt or now) < (s.minutes or DEFAULT_MINUTES) * 60 then return end
   if not module.safeMoment() then return end
-  if autoEnabled() then
-    pending = true
-    ns.message(string.format("Saving your data for Discord: reloading in %d seconds. (/guilded sync auto off to stop this.)", COUNTDOWN_SECONDS))
-    local function go()
-      pending = false
-      if module.safeMoment() then module.reloadNow() end
-    end
-    if C_Timer and C_Timer.After then C_Timer.After(COUNTDOWN_SECONDS, go) else go() end
-  elseif officer() and (not bannerShownAt or now - bannerShownAt >= BANNER_REPEAT_SECONDS) then
+  if officer() and (not bannerShownAt or now - bannerShownAt >= BANNER_REPEAT_SECONDS) then
     showBanner()
   end
 end
 
 -- One plain-language sentence for the Home page.
 function module.statusLine()
-  local s = state()
-  local auto = s and autoEnabled()
   if dirtyAt then
     local minutes = math.floor((clock() - dirtyAt) / 60)
-    return string.format("Changes are waiting (%s). %s", minutes <= 0 and "just now" or (minutes .. " min"),
-      auto and "The addon will save them by itself at a safe moment; or press Send to Discord now." or "Press Send to Discord now (it reloads the UI), or they are sent when you log out.")
+    return string.format("Changes are waiting (%s). Press Send to Discord (it reloads the UI), or they are sent when you log out.",
+      minutes <= 0 and "just now" or (minutes .. " min"))
   end
-  return "Everything is saved. " .. (auto and "New changes are saved automatically at safe moments." or "After changes, press Send to Discord now.")
+  return "Everything is saved. After changes, press Send to Discord."
 end
 
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("PLAYER_LOGIN")
 frame:SetScript("OnEvent", function()
-  lastReloadAt = clock()
   if C_Timer and C_Timer.NewTicker then
     C_Timer.NewTicker(CHECK_SECONDS, function()
       local ok, err = pcall(module.tick)
@@ -166,22 +157,15 @@ ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHandlers["sync"] = function(args)
   if ns.moduleActive and not ns.moduleActive("syncnow") then return end
   local action = string.lower(args[1] or "")
-  local s = state()
-  if action == "" or action == "now" then
-    ns.message("Saving now so the companion can send your data to Discord...")
-    module.reloadNow()
-  elseif action == "auto" then
-    local sub = string.lower(args[2] or "")
-    if sub == "on" then s.auto = true elseif sub == "off" then s.auto = false end
-    local minutes = tonumber(args[3] or (tonumber(sub) and sub))
-    if minutes and minutes >= 2 and minutes <= 240 then s.minutes = math.floor(minutes) end
-    ns.message(string.format("Auto-save for Discord is %s (at most every %d minutes, only out of combat and outside instances).",
-      autoEnabled() and "on" or "off", s.minutes or DEFAULT_MINUTES))
+  if action == "auto" then
+    -- The old automatic reload: the game no longer allows it (see the top of this file).
+    ns.message("Automatic saving is no longer possible: the game only reloads on your own click. Press Send to Discord, or type /reload.")
+  elseif action == "status" then
+    ns.message("Sync to Discord: " .. (dirtyAt and ("changes waiting since " .. math.floor((clock() - dirtyAt) / 60) .. " min") or "nothing waiting") .. ".")
   else
-    local waiting = dirtyAt and ("changes waiting since " .. math.floor((clock() - dirtyAt) / 60) .. " min") or "nothing waiting"
-    ns.message(string.format("Sync to Discord: %s. Auto-reload %s (every %d min at most). /guilded sync = save now; sync auto on = reload by itself at safe moments.", waiting,
-      autoEnabled() and "on" or "off", s.minutes or DEFAULT_MINUTES))
+    -- A slash command cannot reload either; the player types it (or clicks the button).
+    ns.message("To send your data to Discord now, type /reload (or press Send to Discord in the Guilded window).")
   end
 end
 ns.commandHelp = ns.commandHelp or {}
-table.insert(ns.commandHelp, "/guilded sync | sync auto on/off [min] | sync status - save now so the companion sends your data to Discord")
+table.insert(ns.commandHelp, "/guilded sync | sync status - how to send your data to Discord now (/reload, or the Send to Discord button)")

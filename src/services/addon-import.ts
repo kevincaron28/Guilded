@@ -7,6 +7,7 @@ import { importDungeonRuns } from "./dungeon-import.js";
 import { applyDiscoveredCharacters } from "./roster-discovery.js";
 import { findCharacter } from "./character-match.js";
 import { applyReserves } from "./reserves.js";
+import { applyAddonItemPrices } from "./item-values.js";
 import { applyRecipeData } from "./recipes.js";
 import { planCalendarSync } from "./calendar-sync.js";
 import { createSelfCharacter } from "./character-pairing.js";
@@ -225,6 +226,9 @@ export function createAddonImportService(database: PrismaClient) {
         // The soft-reserve list from the addon replaces the bot's copy when it is newer.
         const reserves = await applyReserves(tx, guildId, snapshot.reserves);
 
+        // Prices officers set in game: kept unless Discord changed that price more recently.
+        const itemPrices = await applyAddonItemPrices(tx, guildId, snapshot.itemPrices);
+
         // Who can craft what, and profession cooldowns.
         const crafting = await applyRecipeData(tx, guildId, { recipes: snapshot.recipes, recipeNames: snapshot.recipeNames, cooldowns: snapshot.cooldowns });
 
@@ -244,7 +248,7 @@ export function createAddonImportService(database: PrismaClient) {
           where: { id: imported.id },
           data: { status: "APPLIED" }
         });
-        return { import: imported, transactions, epgpTransactions, readinessSnapshots, attunements, consumables, reserves, crafting, calendarPlan, discovery, raids, loot, dungeons, skipped };
+        return { import: imported, transactions, epgpTransactions, readinessSnapshots, attunements, consumables, reserves, itemPrices, crafting, calendarPlan, discovery, raids, loot, dungeons, skipped };
       });
     }
   };

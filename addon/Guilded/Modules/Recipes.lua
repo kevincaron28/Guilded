@@ -299,35 +299,46 @@ local function readModernWindow()
   return result
 end
 
--- True when the open window shows someone else's recipes: a profession link from chat, the
--- guild's crafter list, or an NPC/crafting-order view. Those must never be saved as yours.
+-- Whether the open window shows someone else's recipes, and whose. A profession link from chat
+-- or a guildmate's profession opened from the guild window names its owner: those recipes are
+-- saved under the owner's name (never as yours), so browsing the guild fills in who can craft
+-- what, even for players without Guilded. The guild-wide recipe list and NPC / crafting-order
+-- views belong to nobody in particular and are not saved. Returns viewingOthers, ownerName.
 local function viewingOthers()
-  local checks = {}
-  local ui = C_TradeSkillUI
-  if ui then
-    checks[#checks + 1] = ui.IsTradeSkillLinked
-    checks[#checks + 1] = ui.IsTradeSkillGuild
-    checks[#checks + 1] = ui.IsNPCCrafting
-    checks[#checks + 1] = ui.IsTradeSkillGuildMember
+  local function secret(value) return ns.isSecret and ns.isSecret(value) end
+  local function call(fn)
+    if type(fn) ~= "function" then return nil end
+    local ok, first, second = pcall(fn)
+    if ok and not secret(first) then return first, second end
+    return nil
   end
-  checks[#checks + 1] = IsTradeSkillLinked
-  checks[#checks + 1] = IsTradeSkillGuild
-  for _, fn in ipairs(checks) do
-    if type(fn) == "function" then
-      local ok, result = pcall(fn)
-      if ok and result and not (ns.isSecret and ns.isSecret(result)) then return true end
+  local ui = C_TradeSkillUI
+  for _, fn in ipairs({ ui and ui.IsTradeSkillLinked or false, IsTradeSkillLinked or false }) do
+    local linked, owner = call(fn)
+    if linked then
+      if type(owner) == "string" and owner ~= "" and not secret(owner) then
+        return true, ns.normalizeName and ns.normalizeName(owner) or owner
+      end
+      return true, nil
     end
   end
-  return false
+  for _, fn in ipairs({ ui and ui.IsTradeSkillGuild or false, ui and ui.IsNPCCrafting or false,
+    ui and ui.IsTradeSkillGuildMember or false, IsTradeSkillGuild or false }) do
+    if call(fn) then return true, nil end
+  end
+  return false, nil
 end
 recipes.viewingOthers = viewingOthers
 
 local function readWindow(kind)
-  if viewingOthers() then return nil end
-  local legacy = readLegacyWindow(kind)
-  if legacy then return legacy end
-  if kind == "trade" then return readModernWindow() end
-  return nil
+  local others, owner = viewingOthers()
+  if others and not owner then return nil end
+  local read = readLegacyWindow(kind) or (kind == "trade" and readModernWindow() or nil)
+  if read and owner then
+    -- Someone else's list: only which recipes they know. Materials and cooldowns are yours only.
+    read.owner, read.mats, read.cooldowns = owner, {}, {}
+  end
+  return read
 end
 
 -- Recipes that share one cooldown (all transmutes) are shown as one line.
@@ -373,6 +384,17 @@ end
 function recipes.store(read)
   local b, me = book(), ns.playerName()
   if not (b and me and read) then return false end
+  if read.owner and read.owner ~= me then
+    -- A guildmate's profession you looked at: kept under their name, marked "viewed", and never
+    -- over what their own addon reported (that is fresher and complete).
+    b.people[read.owner] = b.people[read.owner] or {}
+    local before = b.people[read.owner][read.profession]
+    if before and not before.viewed then return false end
+    local changed = not (before and sameKeys(before.keys, read.keys))
+    if changed then b.people[read.owner][read.profession] = { v = serverTime(), keys = read.keys, viewed = true } end
+    for key, name in pairs(read.names) do b.names[key] = name end
+    return changed
+  end
   b.people[me] = b.people[me] or {}
   local before = b.people[me][read.profession]
   local changed = not (before and sameKeys(before.keys, read.keys))
@@ -402,6 +424,13 @@ local function scan(kind)
   end
   if not read then return end
   local changed = recipes.store(read)
+  if read.owner and read.owner ~= ns.playerName() then
+    if changed then
+      ns.message(string.format(L("Guilded saved %s's %s recipes (%d) from the window you opened."), read.owner, read.profession, #read.keys))
+    end
+    if ns.onRecipesChange then pcall(ns.onRecipesChange) end
+    return
+  end
   local b = book()
   if b and (changed or b.dirty) then
     b.dirty = nil
@@ -449,7 +478,8 @@ local function onMessage(text, sender)
     pending[id] = nil
     b.people[name] = b.people[name] or {}
     local current = b.people[name][profession]
-    if current and current.v >= v then return end
+    -- Their own report always beats a copy someone saved by looking at their window.
+    if current and not current.viewed and current.v >= v then return end
     b.people[name][profession] = { v = v, keys = keys }
     if ns.onRecipesChange then pcall(ns.onRecipesChange) end
   elseif kind == "CDC" then
@@ -615,6 +645,53 @@ function recipes.cooldownLines(onlyMine)
 end
 
 -- ---------------------------------------------------------------------
+-- A reminder for professions never read
+-- ---------------------------------------------------------------------
+
+-- The game gives addons a recipe list only while its window is open, so a profession nobody
+-- opened yet is unknown. Gathering skills have no recipes and are left out (by skill line id,
+-- which does not depend on the game language).
+local GATHERING = { [182] = true, [186] = true, [393] = true, [356] = true, [794] = true }
+
+function recipes.unreadProfessions()
+  local out = {}
+  if not (GetProfessions and GetProfessionInfo) then return out end
+  local b, me = book(), ns.playerName()
+  local mine = (b and me and b.people[me]) or {}
+  local ok, a, b2, c, d, e, f = pcall(GetProfessions)
+  if not ok then return out end
+  for _, index in ipairs({ a or false, b2 or false, c or false, d or false, e or false, f or false }) do
+    if index then
+      local infoOk, name, _, _, _, _, _, skillLine = pcall(GetProfessionInfo, index)
+      if infoOk and type(name) == "string" and not (ns.isSecret and ns.isSecret(name))
+        and not GATHERING[tonumber(skillLine) or 0] and not mine[name] then
+        table.insert(out, name)
+      end
+    end
+  end
+  return out
+end
+
+-- Once per character and profession, a line saying which window to open once. Returns the names.
+function recipes.remindUnread()
+  local b, me = book(), ns.playerName()
+  if not (b and me) then return {} end
+  b.reminded = b.reminded or {}
+  local names = {}
+  for _, name in ipairs(recipes.unreadProfessions()) do
+    local key = me .. ":" .. name
+    if not b.reminded[key] then
+      b.reminded[key] = true
+      table.insert(names, name)
+    end
+  end
+  if #names > 0 then
+    ns.message(string.format(L("Open your %s window once so your guild can see what you craft (Guilded reads it by itself)."), table.concat(names, ", ")))
+  end
+  return names
+end
+
+-- ---------------------------------------------------------------------
 -- Commands and events
 -- ---------------------------------------------------------------------
 
@@ -658,6 +735,7 @@ local function onEvent(_, event, ...)
       C_Timer.After(45 + math.random(0, 60), function()
         local b = book()
         if b and (not b.sharedAt or serverTime() - b.sharedAt > 12 * 3600) then recipes.shareMine() end
+        pcall(recipes.remindUnread)
       end)
     end
   elseif event == "TRADE_SKILL_SHOW" or event == "TRADE_SKILL_UPDATE" or event == "TRADE_SKILL_LIST_UPDATE" then

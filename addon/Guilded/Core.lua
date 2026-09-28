@@ -946,7 +946,7 @@ ns.MODULES = {
   { key = "recipes", name = "Recipes and cooldowns", desc = "who can craft what, profession cooldowns", commands = { "recipes", "cooldowns" } },
   { key = "dungeon", name = "Dungeons", desc = "dungeon run tracking and points", commands = { "dungeon" } },
   { key = "calendar", name = "Calendar", desc = "guild calendar check", commands = { "calendar" } },
-  { key = "syncnow", name = "Send to Discord", desc = "save now / auto-save so the companion uploads sooner", commands = { "sync" } },
+  { key = "syncnow", name = "Send to Discord", desc = "a Send to Discord button and reminder so the companion uploads sooner", commands = { "sync" } },
   { key = "autoinvite", name = "Auto-invite", desc = "guild invite when someone whispers a phrase", commands = { "autoinvite", "invite" } },
   { key = "backup", name = "Backup and restore", desc = "copy this guild's saved data as one code", commands = { "backup", "restore" } },
   { key = "digest", name = "Login digest", desc = "what changed since your last login", commands = { "digest" } },
@@ -1308,7 +1308,19 @@ local function onEvent(_, event, ...)
     ensureDb()
     -- Keep the character block fresh for the companion export.
     local capturedOk, captured = pcall(collectCharacter)
-    if capturedOk then db.character = captured end
+    if capturedOk then
+      db.character = captured
+      -- Every character that logs in on this PC (for this guild): a paired companion links
+      -- them all to the same Discord member, so alts need no /character claim.
+      db.myCharacters = db.myCharacters or {}
+      if type(captured) == "table" and captured.name and captured.name ~= "Unknown" then db.myCharacters[captured.name] = captured end
+      local count, oldestName, oldestAt = 0, nil, nil
+      for name, entry in pairs(db.myCharacters) do
+        count = count + 1
+        if not oldestAt or (entry.capturedAt or "") < oldestAt then oldestName, oldestAt = name, entry.capturedAt or "" end
+      end
+      if count > 50 and oldestName then db.myCharacters[oldestName] = nil end
+    end
     snapshotModules()
     registerPrefix()
     message("Loaded. /guilded help for commands" .. (activeRaid and (" - raid '" .. activeRaid.title .. "' is still active.") or "."))

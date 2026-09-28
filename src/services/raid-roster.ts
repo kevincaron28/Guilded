@@ -9,6 +9,8 @@ export interface NextRaid {
   title: string;
   scheduledAt: string;
   core: string | null;
+  // The core's id: the addon keeps the core it follows by id, so a renamed core still matches.
+  coreId: string | null;
   players: { name: string; role: string }[];
   maybe: string[];
 }
@@ -37,6 +39,7 @@ export async function nextRaidRoster(database: Db, guildId: string, now = new Da
     title: raid.title,
     scheduledAt: raid.scheduledAt.toISOString(),
     core: raid.core?.name ?? null,
+    coreId: raid.coreId ?? null,
     players: raid.signups.filter((s) => s.status === "SIGNED_UP").flatMap((s) => { const name = nameOf(s); return name ? [{ name, role: s.role }] : []; }),
     maybe: raid.signups.filter((s) => s.status === "MAYBE").flatMap((s) => { const name = nameOf(s); return name ? [name] : []; })
   };

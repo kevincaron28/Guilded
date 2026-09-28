@@ -351,6 +351,8 @@ model Application {
   experience   String
   availability String
   notes        String?
+  // Tank / healer / DPS, picked before the form; used when the applicant is added to the core.
+  role         RaidRole?
   reviewedBy   String?
   reviewedAt   DateTime?
   // The applications-channel card's message id, so a decision made with
@@ -1021,6 +1023,8 @@ model RaidCoreMember {
   memberId String
   role     RaidRole @default(DPS)
   bench    Boolean  @default(false)
+  // On trial (an application moved to Trial): shown apart on the roster until approved.
+  trial    Boolean  @default(false)
   addedAt  DateTime @default(now())
   core     RaidCore @relation(fields: [coreId], references: [id], onDelete: Cascade)
   member   Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)

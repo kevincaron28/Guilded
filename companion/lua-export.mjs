@@ -255,6 +255,21 @@ export async function readAddonExport(path, realm) {
   const recipeData = buildRecipes(database.recipeBook, realm);
 
   // SavedVariables key order is arbitrary; the ISO timestamps sort correctly.
+  const alts = Object.values(database.myCharacters ?? {})
+    .filter((entry) => entry?.name && entry.class)
+    .slice(0, 50)
+    .map((entry) => exportCharacter(entry, realm));
+  // Item prices officers set in game (addon Modules/Loot.lua); the bot keeps the newer of this and Discord's.
+  const itemPrices = Object.values(database.itemPrices ?? {})
+    .filter((entry) => entry?.name && Number.isFinite(Number(entry.gp)) && entry.at)
+    .slice(0, 500)
+    .map((entry) => ({
+      name: String(entry.name).slice(0, 100),
+      ...(Number(entry.id) > 0 ? { id: Math.trunc(Number(entry.id)) } : {}),
+      gp: Math.max(0, Math.min(100000, Math.trunc(Number(entry.gp)))),
+      ...(entry.core ? { coreId: String(entry.core).slice(0, 40) } : {}),
+      at: String(entry.at)
+    }));
   const exportKeys = Object.keys(database.exports ?? {}).sort();
   const exportedAt = exportKeys.at(-1) ?? new Date().toISOString();
   return {
@@ -262,17 +277,11 @@ export async function readAddonExport(path, realm) {
     exportedAt,
     // The WoW guild this saved data belongs to ("Guild Name-Realm").
     ...(database.guildKey ? { wowGuild: String(database.guildKey) } : {}),
-    ...(database.character?.name ? {
-      character: {
-        name: String(database.character.name),
-        realm: String(database.character.realm || realm),
-        class: String(database.character.class ?? ""),
-        race: String(database.character.race ?? ""),
-        level: Number(database.character.level) || 0,
-        spec: String(database.character.spec ?? ""),
-        professions: Array.isArray(database.character.professions) ? database.character.professions : []
-      }
-    } : {}),
+    ...(database.character?.name ? { character: exportCharacter(database.character, realm) } : {}),
+    // Every character that logged in on this PC for this guild (addon Core.lua, myCharacters):
+    // a paired companion links them all to the same Discord member.
+    ...(alts.length ? { alts } : {}),
+    ...(itemPrices.length ? { itemPrices } : {}),
     transactions,
     epgpTransactions,
     readiness: [
@@ -302,6 +311,19 @@ export async function readAddonExport(path, realm) {
     raids,
     loot,
     dungeonRuns
+  };
+}
+
+// One character as the bot's addonCharacterSchema expects it.
+function exportCharacter(entry, realm) {
+  return {
+    name: String(entry.name),
+    realm: String(entry.realm || realm),
+    class: String(entry.class ?? ""),
+    race: String(entry.race ?? ""),
+    level: Number(entry.level) || 0,
+    spec: String(entry.spec ?? ""),
+    professions: Array.isArray(entry.professions) ? entry.professions : Object.values(entry.professions ?? {})
   };
 }
 

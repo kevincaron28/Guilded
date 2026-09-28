@@ -198,6 +198,14 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const pairedCharacterStatus = pairedMemberId && preview.snapshot.character
         ? await linkPairedCharacter(prisma, guild.id, pairedMemberId, preview.snapshot.character)
         : pairedMemberId ? "missing-character" : "unpaired";
+      // The other characters that logged in on this PC belong to the same player: link them too.
+      // A name already owned by someone else is left alone (linkPairedCharacter refuses it).
+      if (pairedMemberId) {
+        for (const alt of preview.snapshot.alts) {
+          if (preview.snapshot.character && alt.name === preview.snapshot.character.name) continue;
+          await linkPairedCharacter(prisma, guild.id, pairedMemberId, alt).catch((error: unknown) => console.error("Linking an alt failed", error));
+        }
+      }
       if (preview.duplicate) {
         json(response, 409, { error: "This export was already received", checksum: preview.checksum, pairedCharacterStatus });
         return;

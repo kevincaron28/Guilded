@@ -24,8 +24,25 @@ export const permissionRolesFr = {
 
 export const permissionRoleNames = (permission: Permission): string[] => [permissionRoles[permission], permissionRolesFr[permission]];
 export const roleNamesFor = (lang: "en" | "fr") => (lang === "fr" ? permissionRolesFr : permissionRoles);
+
+// One Class Leader role per class ("Class Leader (Warrior)", "Chef de classe (Guerrier)"),
+// created from /setup. Each counts as Class Leader everywhere the bot checks.
+export const CLASS_NAMES_FR: Record<string, string> = {
+  Warrior: "Guerrier", Paladin: "Paladin", Hunter: "Chasseur", Rogue: "Voleur", Priest: "Prêtre", Shaman: "Chaman",
+  Mage: "Mage", Warlock: "Démoniste", Druid: "Druide", "Death Knight": "Chevalier de la mort", Monk: "Moine",
+  "Demon Hunter": "Chasseur de démons", Evoker: "Évocateur"
+};
+export function classLeaderRoleName(className: string, lang: "en" | "fr"): string {
+  return lang === "fr"
+    ? `${permissionRolesFr.classLeader} (${CLASS_NAMES_FR[className] ?? className})`
+    : `${permissionRoles.classLeader} (${className})`;
+}
+const isClassLeaderVariant = (name: string): boolean =>
+  [permissionRoles.classLeader, permissionRolesFr.classLeader].some((base) => name.startsWith(`${base} (`) && name.endsWith(")"));
+
 // True when a Discord role name is one of the names for the permission (either language).
-export const isPermissionRoleName = (permission: Permission, name: string): boolean => permissionRoleNames(permission).includes(name);
+export const isPermissionRoleName = (permission: Permission, name: string): boolean =>
+  permissionRoleNames(permission).includes(name) || (permission === "classLeader" && isClassLeaderVariant(name));
 
 const inheritedPermissions: Record<Permission, readonly Permission[]> = {
   guildMaster: ["guildMaster"],

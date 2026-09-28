@@ -5,6 +5,8 @@ import {
 import type { RaidRole } from "@prisma/client";
 import { prisma } from "../database.js";
 import { coreRosterEmbed, createRaidCoreService, syncCoreRoster } from "../services/raid-core.js";
+import { createItemValueService, parseItemValues, priceDraft } from "../services/item-values.js";
+import { pricesModal } from "./core-wizard.js";
 import { guildService } from "./context.js";
 
 // /core edit: change a raid core by clicking.
@@ -49,6 +51,7 @@ async function screen(guildId: string, coreId: string, mode: EditMode, note: str
         new UserSelectMenuBuilder().setCustomId("coreedit:remove").setPlaceholder("➖ Remove players from this core").setMinValues(1).setMaxValues(25)),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId("coreedit:rename").setLabel("Rename").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("coreedit:prices").setLabel("Item prices").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("coreedit:done").setLabel("Done ✔").setStyle(ButtonStyle.Success))
     ]
   };
@@ -100,6 +103,22 @@ export async function runCoreEditor(interaction: ChatInputCommandInteraction, gu
         await refresh(removed.length ? `Removed ${removed.join(", ")}.` : "None of them were in this core.");
         return;
       }
+      if (i.customId === "coreedit:prices" && i.isButton()) {
+        // The same prefilled list as /core setup: current prices, then missing ones with suggestions.
+        await i.showModal(pricesModal(core, (await priceDraft(prisma, guildId, core.id)).text));
+        const submitted = await i.awaitModalSubmit({ time: 10 * 60_000, filter: (m) => m.user.id === i.user.id }).catch(() => null);
+        if (!submitted) return;
+        try {
+          const parsed = parseItemValues(submitted.fields.getTextInputValue("prices"));
+          if (parsed.values.length === 0) throw new Error(parsed.problems[0] ?? "No prices found. Use one line per item: Sulfuras = 250");
+          const saved = await createItemValueService(prisma).setMany(guildId, core.id, parsed.values);
+          await submitted.deferUpdate();
+          await refresh(`Saved ${saved} price(s).${parsed.problems.length ? ` Skipped: ${parsed.problems.slice(0, 2).join("; ")}` : ""}`);
+        } catch (error) {
+          await submitted.reply({ content: error instanceof Error ? error.message : "Could not save the prices.", ephemeral: true });
+        }
+        return;
+      }
       if (i.customId === "coreedit:rename" && i.isButton()) {
         const current = await prisma.raidCore.findUniqueOrThrow({ where: { id: core.id } });
         await i.showModal(new ModalBuilder().setCustomId("coreedit:rename-modal").setTitle("Rename raid core").addComponents(
@@ -112,10 +131,7 @@ export async function runCoreEditor(interaction: ChatInputCommandInteraction, gu
         const submitted = await i.awaitModalSubmit({ time: 5 * 60_000, filter: (m) => m.user.id === i.user.id }).catch(() => null);
         if (!submitted) return;
         try {
-          const name = submitted.fields.getTextInputValue("name").trim();
-          const clash = await prisma.raidCore.findFirst({ where: { guildId, id: { not: core.id }, name: { equals: name, mode: "insensitive" } } });
-          if (clash) throw new Error(`A core called "${clash.name}" already exists.`);
-          await prisma.raidCore.update({ where: { id: core.id }, data: { name, description: submitted.fields.getTextInputValue("description").trim().slice(0, 300) || null } });
+          const { name } = await coreService.rename(guildId, core.id, submitted.fields.getTextInputValue("name"), submitted.fields.getTextInputValue("description"));
           await submitted.deferUpdate();
           await refresh(`Renamed to ${name}.`);
         } catch (error) {

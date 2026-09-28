@@ -191,6 +191,16 @@ export type AddonCalendarEvent = z.infer<typeof addonCalendarEventSchema>;
 
 export type AddonCharacter = z.infer<typeof addonCharacterSchema>;
 
+// An item price an officer set in game (Modules/Loot.lua, when /guilded drop had none).
+export const addonItemPriceSchema = z.object({
+  name: z.string().min(2).max(100),
+  id: z.number().int().positive().optional(),
+  gp: z.number().int().min(0).max(100000),
+  // The raid core it was set for ("" or missing = the guild-wide list).
+  coreId: z.string().max(40).optional(),
+  at: z.coerce.date()
+});
+
 export const addonSnapshotSchema = z.object({
   source: z.string().min(1),
   exportedAt: z.coerce.date(),
@@ -198,6 +208,10 @@ export const addonSnapshotSchema = z.object({
   character: addonCharacterSchema.optional(),
   // Every guildmate whose addon told the guild who they are (peer digests).
   characters: z.array(addonCharacterSchema).max(500).default([]),
+  // Every character that logged in on the exporter's PC (the same WoW account): a paired
+  // companion links them all to its member, not just the one that exported.
+  alts: z.array(addonCharacterSchema).max(50).default([]),
+  itemPrices: z.array(addonItemPriceSchema).max(500).default([]),
   consumeScan: addonConsumeScanSchema.optional(),
   reserves: addonReservesSchema.optional(),
   calendarEvents: z.array(addonCalendarEventSchema).max(100).default([]),

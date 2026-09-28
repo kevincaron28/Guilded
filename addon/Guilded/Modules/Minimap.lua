@@ -864,9 +864,9 @@ local function buildHomePage(page)
   ui.homeSync:SetWidth(PAGE_WIDTH)
 
   at(newButton(page, L("Check my gear"), 170, function() run("inspect") end, 30), page, 0, -322)
-  at(newButton(page, L("Send to Discord now"), 190, function()
-    if ns.syncNow and ns.syncNow.reloadNow then ns.syncNow.reloadNow() else run("sync") end
-  end, 30), page, 178, -322)
+  -- A secure button: the game only lets a click reload the UI (see Modules/SyncNow.lua).
+  at(ns.syncNow and ns.syncNow.reloadButton(page, L("Send to Discord now"), 190, 30)
+    or newButton(page, L("Send to Discord now"), 190, function() run("sync") end, 30), page, 178, -322)
   at(newButton(page, L("Standings"), 130, function() ui.selectTabByName("Standings") end, 30), page, 376, -322)
   officerOnly(at(newButton(page, L("Run a raid"), 170, function() ui.selectTabByName("Raid") end, 30), page, 0, -360))
   officerOnly(at(newButton(page, L("Give loot"), 190, function() ui.selectTabByName("Loot") end, 30), page, 178, -360))
@@ -1262,9 +1262,8 @@ local function buildPanel()
   -- Sidebar footer: one button that gets your data to Discord, and whether anything is waiting.
   ui.sidebarSync = newLabel(panel, "", "GameFontHighlightSmall")
   ui.sidebarSync:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 24, 70)
-  local sendButton = newButton(panel, L("Send to Discord"), 132, function()
-    if ns.syncNow and ns.syncNow.reloadNow then ns.syncNow.reloadNow() else run("sync") end
-  end, 26)
+  local sendButton = ns.syncNow and ns.syncNow.reloadButton(panel, L("Send to Discord"), 132, 26)
+    or newButton(panel, L("Send to Discord"), 132, function() run("sync") end, 26)
   sendButton:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 22, 40)
 
   -- Shared player field (shown only on pages that act on a player).

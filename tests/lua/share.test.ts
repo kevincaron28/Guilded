@@ -44,4 +44,10 @@ describe("/guilded share -> /character sync", () => {
     expect(() => parseSelfExport("QGEXP1:@@@@@@@@")).toThrow(/damaged/);
     expect(() => parseSelfExport(`QGEXP1:${Buffer.from("not a character line").toString("base64")}`)).toThrow(/Guilded character line/);
   });
+
+  it("points a /guilded character line (pasted into the wrong command) at /character import instead", () => {
+    expect(() => parseSelfExport("QG2;Ray;Classic Beta PvP;PRIEST;Scourge;11;;Skinning:15,First Aid:54,Cooking:20"))
+      .toThrow(/character import/);
+    expect(() => parseSelfExport("QG1|Ray|Classic Beta PvP|PRIEST|Scourge|11||Skinning:15")).toThrow(/character import/);
+  });
 });

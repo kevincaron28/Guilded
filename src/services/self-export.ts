@@ -25,7 +25,12 @@ const MAX_LINES = 200;
 
 export function parseSelfExport(input: string): SelfExport {
   const text = input.trim();
-  if (!text.startsWith("QGEXP1:")) throw new Error(`That is not a ${BRAND.name} share code. In game, type /guilded share and copy the code it shows.`);
+  if (!text.startsWith("QGEXP1:")) {
+    // A common mix-up: /guilded character's line (QG1/QG2) is for /character
+    // import, not /character sync's share code from /guilded share.
+    if (/^QG[12][;|]/.test(text)) throw new Error(`That's the line from /guilded character, not a share code. Use /character import with it instead, or run /guilded share in game for a code to use here.`);
+    throw new Error(`That is not a ${BRAND.name} share code. In game, type /guilded share and copy the code it shows.`);
+  }
   const encoded = text.slice("QGEXP1:".length).replace(/\s+/g, "");
   if (!/^[A-Za-z0-9+/]*={0,2}$/.test(encoded) || encoded.length < 8) throw new Error("The share code looks damaged. Run /guilded share again and copy the whole code.");
   const lines = Buffer.from(encoded, "base64").toString("utf8").split("\n").slice(0, MAX_LINES);

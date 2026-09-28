@@ -15,7 +15,7 @@ if not "%BRANCH%"=="main" (
 )
 
 set "DIRTY="
-for /f "delims=" %%i in ('git -C "%REPO%" status --porcelain') do set "DIRTY=1"
+for /f "delims=" %%i in ('git -C "%REPO%" status --porcelain --untracked-files=all -- . ":(exclude)AUDIT.md" ":(exclude)Screenshots/**"') do set "DIRTY=1"
 if defined DIRTY (
   echo.
   echo ERROR: There are uncommitted or untracked changes in this checkout.

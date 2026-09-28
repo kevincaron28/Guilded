@@ -121,7 +121,7 @@ allowed to reach it) and the same `COMPANION_UPLOAD_TOKEN` as on your PC.
 
 ### 5. Updates
 
-Push your changes to GitHub from your PC, then run `redeploy-oracle.bat` from a clean local checkout on `main`. It fetches GitHub first and stops if there are uncommitted/untracked changes or your local `main` is not exactly at `origin/main`; this prevents a redeploy that silently leaves local session work behind. Review, commit, and push the changes you want deployed before retrying.
+Push your changes to GitHub from your PC, then run `redeploy-oracle.bat` from a clean local checkout on `main`. It fetches GitHub first and stops if there are uncommitted/untracked code changes or your local `main` is not exactly at `origin/main`; this prevents a redeploy that silently leaves local session work behind. Local `AUDIT.md` and `Screenshots/` are deliberately excluded. Review, commit, and push the changes you want deployed before retrying.
 
 The batch file connects to the server, where the update script verifies the server checkout is clean and on `main`, explicitly fetches `origin/main`, and fast-forwards to that commit before copying and restarting. You can also run the server update manually, inside the clone you installed from:
 

@@ -17,16 +17,18 @@ import { guildService } from "./context.js";
 const coreService = createRaidCoreService(prisma);
 const ROLE_LABEL: Record<RaidRole, string> = { TANK: "Tank", HEALER: "Healer", DPS: "DPS" };
 
+// Shared with core-wizard.ts, whose roster step reuses this same role+bench picker.
 export type EditMode = { role: RaidRole; bench: boolean };
-const modeKey = (mode: EditMode) => `${mode.role}${mode.bench ? "-bench" : ""}`;
-const parseMode = (value: string): EditMode => {
+export const modeKey = (mode: EditMode) => `${mode.role}${mode.bench ? "-bench" : ""}`;
+export const parseMode = (value: string): EditMode => {
   const [role, bench] = value.split("-");
   return { role: (role === "TANK" || role === "HEALER" ? role : "DPS") as RaidRole, bench: bench === "bench" };
 };
 
 async function screen(guildId: string, coreId: string, mode: EditMode, note: string) {
   const core = await coreService.byIdOrName(guildId, coreId);
-  const embed = coreRosterEmbed(core).setTitle(`⚜️ Editing ${core.name}`).setDescription([
+  const settings = await guildService.getSettings(guildId);
+  const embed = coreRosterEmbed(core, settings?.lootMode).setTitle(`⚜️ Editing ${core.name}`).setDescription([
     core.description ?? "",
     "**1.** Choose how to add (role, main roster or bench). **2.** Pick the players. Players already in the core are moved to that role or spot.",
     "Use the red menu to remove players. Changes are saved at once.",

@@ -84,8 +84,8 @@ describe("core roster embed", () => {
       ]
     }).toJSON();
     expect(embed.title).toContain("Tuesday MC");
-    expect(embed.fields?.map((f) => f.name)).toEqual(["🛡️ Tanks (1)", "💚 Healers (0)", "⚔️ DPS (2)"]);
-    expect(embed.fields?.[2]?.value).toBe("Amy\nZed");
+    expect(embed.fields?.map((f) => f.name)).toEqual(["🎲 Loot", "🛡️ Tanks (1)", "💚 Healers (0)", "⚔️ DPS (2)"]);
+    expect(embed.fields?.find((f) => f.name.startsWith("⚔️"))?.value).toBe("Amy\nZed");
     expect(embed.footer?.text).toContain("3 core members");
   });
 });

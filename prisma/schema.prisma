@@ -478,8 +478,6 @@ model GuildSettings {
   coreChannelId            String?
   // Private channel where new applications are posted; falls back to the officer log.
   applicationChannelId     String?
-  // Public channel with a pinned "Apply" post (buttons open the application form).
-  applyGuideChannelId      String?
   // Public channel with the pinned getting-started guide; also where a short
   // notice posts when the bot/addon version changes (they share one version).
   guideChannelId           String?
@@ -992,6 +990,8 @@ model RaidCore {
   guildId         String
   name            String
   description     String?
+  // Recurring raid nights, e.g. "Tue/Thu 8-11pm EST"; shown on the roster message.
+  schedule        String?
   rosterMessageId String?
   // Per-core EP rules; empty means the guild's default from /config.
   attendanceEp    Int?

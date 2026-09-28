@@ -13,7 +13,7 @@ import { executeProfile } from "./commands/profile.js";
 import { replyWithCommandError } from "./commands/context.js";
 import { handleRaidSignupButton, RAID_SIGNUP_PREFIX } from "./commands/raid.js";
 import { executeLoot } from "./commands/loot.js";
-import { APPLY_PREFIX, executeApply, handleApplyButton, handleApplyModal, handleApplySelect } from "./commands/application.js";
+import { APPLY_PREFIX, executeApply, handleApplyButton, handleApplyModal } from "./commands/application.js";
 import { executeTag } from "./commands/tag.js";
 import { handleSelfRoleButton, SELF_ROLE_PREFIX } from "./commands/selfroles.js";
 import { EP_AWARD_PREFIX, handleEpAwardButton } from "./commands/ep-award.js";
@@ -223,10 +223,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
   if (interaction.isButton() && interaction.customId.startsWith(APPLY_PREFIX)) {
     await handleApplyButton(interaction).catch((error: unknown) => reportInteractionError("Application button", interaction, error));
-    return;
-  }
-  if (interaction.isStringSelectMenu() && interaction.customId.startsWith(APPLY_PREFIX)) {
-    await handleApplySelect(interaction).catch((error: unknown) => reportInteractionError("Application core select", interaction, error));
     return;
   }
   if (interaction.isButton() && interaction.customId.startsWith(SELF_ROLE_PREFIX)) {

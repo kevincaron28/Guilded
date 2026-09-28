@@ -284,7 +284,7 @@ There are 17 commands, not 34: small ones sit under a parent, so typing `/` show
 | `/character unlink <name>` | Unlink a character: yours, or (Officers/GM) anyone's. If the addon reports it again it goes back to unclaimed |
 | `/raid wcl check [raid] [url]` | Officers: the private check of a raid's log: who is in the log but not credited (or the reverse), characters not linked to anyone, EP not yet awarded, who came to boss pulls without a flask or food, and deaths. No damage or parse numbers |
 | `/raid wcl list` | The latest Warcraft Logs reports the officers pulled in |
-| `/apply <core> <character> <class> <spec> <experience> <availability> [notes]` | Apply to a raid core. Or press **Apply to a core** on the pinned post in the apply-here channel — same result, a short form instead of typing options |
+| `/apply <core> <character> <class> <spec> <experience> <availability> [notes]` | Apply to a raid core. Or press **Apply to `<core>`** on that core's own roster message (raid roster channel) — same result, a short form instead of typing options |
 | `/raid signup <raid> <role> [availability]` | Sign up (Tank, Healer, DPS). `availability:Maybe` doesn't take a slot. If your role is full you go on the **waitlist** and get a DM when a slot opens |
 | `/raid cancel-signup <raid>` | Drop out (the next waitlisted player moves up) |
 | `/raid status <raid>` / `/raid roster <raid>` | Raid info and roster |
@@ -415,7 +415,6 @@ Approve, and a raid can never be paid twice.
 | `/setup config channel` | Private channel (officers and raid leaders only) where the raid readiness board is posted. `/setup start` step 4 can create it with the right permissions |
 | `/setup config channel` | Where craft requests are posted so crafters see them; default: the officer log |
 | `/setup config channel` | Private channel (officers only) where new `/apply` applications are announced; default: the officer log. `/setup start` step 3 can create it with the right permissions |
-| `/setup config channel` | Public channel with a pinned post: the **Apply to a core** button picks the core, then opens the application form. `/setup start` step 2 can create it |
 | `/setup config channel` | Channel with one auto-updated dungeon leaderboard message (refreshed after every dungeon import) |
 | `/setup config channel` | Channel for dungeon signups; setting it posts the pinned group-creation guide automatically. `/setup start status:true` checks the channel and guide; `/dungeon guide` repairs a missing guide |
 | `/setup config merit <true\|false>` | Rank the leaderboard by PR x attendance |
@@ -448,11 +447,11 @@ A **raid core** is a named roster (e.g. "Tuesday MC core"); a guild can have sev
 
 | Command | What it does |
 | --- | --- |
-| `/core setup` | **Start here.** A guided message: name the core in a form, pick its tanks, healers and DPS from member menus, then choose its rules (same as the guild by default; own point pool, loot council or EP values are buttons). Saved as you go (Raid Leaders) |
+| `/core setup` | **Start here.** A guided message: name the core in a form (with an optional raid-nights schedule), pick its tanks, healers and DPS from member menus (main roster or bench/reserve), then choose its rules (same as the guild by default; own point pool, loot council or EP values are buttons). Saved as you go (Raid Leaders) |
 | `/core edit <core>` | **Easiest way to change a core.** One message: pick how to add (Tank / Healer / DPS, main roster or **bench**), pick the players (players already in the core are moved to that role or spot), pick players to remove, rename. The roster message updates at once (Raid Leaders) |
-| `/core create <name> [description]` | Create a core with a command instead (Raid Leaders) |
+| `/core create <name> [description] [schedule]` | Create a core with a command instead (Raid Leaders) |
 | `/core add <core> <player> [role] [bench]` / `/core remove <core> <player>` | Manage its players (Raid Leaders); role Tank / Healer / DPS; `bench:true` makes them a replacement (shown with a chair, no signup priority) |
-| `/core rules <core> [attendance] [late] [boss] [clear] [base_gp] [decay] [loot_mode] [pool] [reset]` | The core's point rules. **Every core follows the guild's settings** (`/setup config`, `/setup start`) **unless you change a value here**; with no options it shows the effective rules and which differ. `pool:separate` gives the core its own EP/GP pool (from now on), `loot_mode` can make one core loot council, `reset` goes back to the guild defaults |
+| `/core rules <core> [attendance] [late] [boss] [clear] [base_gp] [decay] [loot_mode] [pool] [schedule] [reset]` | The core's point rules, plus its raid-nights schedule. **Every core follows the guild's settings** (`/setup config`, `/setup start`) **unless you change a value here**; with no options it shows the effective rules and which differ. `pool:separate` gives the core its own EP/GP pool (from now on), `loot_mode` can make one core loot council, `schedule` sets or clears the raid-nights text shown on the roster message, `reset` goes back to the guild defaults (schedule and description are untouched by reset) |
 | `/core show <core>` / `/core list` | See a roster / all cores (everyone) |
 | `/core post [core]` | Refresh the roster message(s) in the roster channel |
 | `/core delete <core>` | Delete a core; raids made for it keep their signups |

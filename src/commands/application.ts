@@ -1,8 +1,8 @@
 import { ApplicationStatus } from "@prisma/client";
 import {
-  ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalBuilder, SlashCommandBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle,
+  ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalBuilder, SlashCommandBuilder, TextInputBuilder, TextInputStyle,
   type ButtonInteraction, type ChatInputCommandInteraction, type Guild as DiscordGuild, type GuildMember,
-  type GuildTextBasedChannel, type ModalSubmitInteraction, type StringSelectMenuInteraction
+  type ModalSubmitInteraction
 } from "discord.js";
 import { prisma } from "../database.js";
 import { APPLY_PREFIX, createApplicationService } from "../services/application.js";
@@ -175,35 +175,6 @@ export async function executeApplication(interaction: ChatInputCommandInteractio
   await interaction.reply(`Application \`${updated.id}\` is now **${updated.status}**.`);
 }
 
-// ---------------------------------------------------------------------
-// Click-to-apply: a pinned post with buttons, in the applications guide
-// channel (see /setup and /config channel). Reactions can't open a Discord
-// form (only a button or select menu can), so this is button -> modal.
-// ---------------------------------------------------------------------
-
-const applyGuideText = [
-  "**How to apply**",
-  "• Press **Apply to a core** below, pick the raid core (you can apply to more than one, one at a time).",
-  "• A short form pops up — fill it in and submit.",
-  "• An officer will review it and follow up."
-].join("\n");
-
-function applyGuideComponents() {
-  return [new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`${APPLY_PREFIX}core`).setLabel("Apply to a core").setStyle(ButtonStyle.Primary)
-  )];
-}
-
-// Idempotent: does nothing if a guide post with this button already exists
-// among the channel's pinned messages (safe to call again from /config channel).
-export async function ensureApplyGuide(channel: GuildTextBasedChannel): Promise<void> {
-  const pins = await channel.messages.fetchPinned().catch(() => null);
-  const already = pins?.some((message) => message.components.some((row) => "components" in row && row.components.some((c) => "customId" in c && c.customId === `${APPLY_PREFIX}core`)));
-  if (already) return;
-  const message = await channel.send({ content: applyGuideText, components: applyGuideComponents() });
-  await message.pin().catch(() => undefined);
-}
-
 function applicationModal(core: { id: string; name: string }) {
   const input = (id: string, label: string, placeholder: string) =>
     new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId(id).setLabel(label).setPlaceholder(placeholder).setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100));
@@ -274,29 +245,7 @@ export async function handleApplyButton(interaction: ButtonInteraction): Promise
       return;
     }
     await interaction.showModal(applicationModal(core));
-    return;
   }
-  if (suffix !== "core") return;
-  const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
-  const cores = await prisma.raidCore.findMany({ where: { guildId: guild.id }, select: { id: true, name: true }, orderBy: { name: "asc" }, take: 25 });
-  if (cores.length === 0) {
-    await interaction.reply({ content: "There are no raid cores yet. Ask an officer to create one with `/core create`.", ephemeral: true });
-    return;
-  }
-  const select = new StringSelectMenuBuilder().setCustomId(`${APPLY_PREFIX}core-pick`).setPlaceholder("Pick a raid core")
-    .addOptions(cores.map((c) => ({ label: c.name.slice(0, 100), value: c.id })));
-  await interaction.reply({ content: "Which core are you applying to?", components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)], ephemeral: true });
-}
-
-export async function handleApplySelect(interaction: StringSelectMenuInteraction): Promise<void> {
-  if (interaction.customId !== `${APPLY_PREFIX}core-pick`) return;
-  const coreId = interaction.values[0];
-  const core = coreId ? await prisma.raidCore.findUnique({ where: { id: coreId }, select: { id: true, name: true } }) : null;
-  if (!core) {
-    await interaction.update({ content: "That core no longer exists. Press **Apply to a core** again.", components: [] });
-    return;
-  }
-  await interaction.showModal(applicationModal(core));
 }
 
 export async function handleApplyModal(interaction: ModalSubmitInteraction): Promise<void> {

@@ -78,9 +78,9 @@ describe("French posts", () => {
     expect(craft.fields?.map((f) => f.name)).toEqual(["Statut", "Demandé par", "Artisan", "Métier", "Matériaux", "Artisans de la guilde (Alchimie)"]);
     expect(craft.fields?.[0]?.value).toBe("🟡 Pris en charge");
 
-    const roster = coreRosterEmbed({ name: "Mardi", description: null, members: [{ role: "HEALER", bench: true, member: { displayName: "Cy" } }, { role: "TANK", bench: false, member: { displayName: "Dee" } }] }, "fr").toJSON();
-    expect(roster.fields?.map((f) => f.name)).toEqual(["🛡️ Tanks (1)", "💚 Soigneurs (0)", "⚔️ DPS (0)", "🪑 Banc (1)"]);
-    expect(roster.fields?.[3]?.value).toBe("Cy (Soigneur)");
+    const roster = coreRosterEmbed({ name: "Mardi", description: null, members: [{ role: "HEALER", bench: true, member: { displayName: "Cy" } }, { role: "TANK", bench: false, member: { displayName: "Dee" } }] }, undefined, "fr").toJSON();
+    expect(roster.fields?.map((f) => f.name)).toEqual(["🎲 Butin", "🛡️ Tanks (1)", "💚 Soigneurs (0)", "⚔️ DPS (0)", "🪑 Banc (1)"]);
+    expect(roster.fields?.find((f) => f.name.startsWith("🪑"))?.value).toBe("Cy (Soigneur)");
     expect(roster.footer?.text).toBe("1 membre du core + 1 sur le banc · les membres du core ont la priorité aux inscriptions des raids de ce core");
 
     const signup = buildSignupEmbed({

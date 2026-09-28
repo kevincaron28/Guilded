@@ -25,7 +25,8 @@ export const coreCommand = new SlashCommandBuilder()
     .addStringOption(coreOption))
   .addSubcommand((sub) => sub.setName("create").setDescription("Create a raid core with a command (Raid Leaders). /core setup is easier.")
     .addStringOption((o) => o.setName("name").setDescription("e.g. Tuesday MC core").setMinLength(2).setMaxLength(50).setRequired(true))
-    .addStringOption((o) => o.setName("description").setDescription("Optional: schedule, goals").setMaxLength(300)))
+    .addStringOption((o) => o.setName("description").setDescription("Optional: goals, progression").setMaxLength(300))
+    .addStringOption((o) => o.setName("schedule").setDescription("Optional: raid nights, e.g. Tue/Thu 8-11pm EST").setMaxLength(100)))
   .addSubcommand((sub) => sub.setName("add").setDescription("Add a player to a core (Raid Leaders).")
     .addStringOption(coreOption)
     .addUserOption((o) => o.setName("player").setDescription("Discord member").setRequired(true))
@@ -47,6 +48,7 @@ export const coreCommand = new SlashCommandBuilder()
     .addIntegerOption((o) => o.setName("reserves").setDescription("Soft reserves per player (soft reserves mode, 1 to 5)").setMinValue(1).setMaxValue(5))
     .addStringOption((o) => o.setName("pool").setDescription("Points: shared guild pool, or this core's own pool (applies to future points)").addChoices(
       { name: "Shared guild pool", value: "shared" }, { name: "Its own pool", value: "separate" }))
+    .addStringOption((o) => o.setName("schedule").setDescription("Raid nights, e.g. Tue/Thu 8-11pm EST (empty clears it)").setMaxLength(100))
     .addBooleanOption((o) => o.setName("reset").setDescription("Go back to the guild defaults for every rule (points already in a pool stay there)")))
   .addSubcommand((sub) => sub.setName("items").setDescription("Set GP prices for items (EPGP priority loot): for one core, or the whole guild (Raid Leaders).")
     .addStringOption((o) => o.setName("action").setDescription("What to do").setRequired(true).addChoices(
@@ -94,7 +96,7 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
   }
 
   if (subcommand === "create") {
-    const core = await coreService.create(guildId, interaction.options.getString("name", true), interaction.options.getString("description"));
+    const core = await coreService.create(guildId, interaction.options.getString("name", true), interaction.options.getString("description"), interaction.options.getString("schedule"));
     const posted = await syncCoreRoster(interaction.guild, prisma, guildId, core.id);
     await interaction.reply({
       content: `Created raid core **${core.name}**. Add players with \`/core add\`, and create its raids with \`/raid create core:${core.name}\`.`
@@ -134,6 +136,8 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
       const mode = interaction.options.getString("loot_mode");
       if (mode) data["lootMode"] = mode === "DEFAULT" ? null : mode;
     }
+    const schedule = interaction.options.getString("schedule");
+    if (schedule !== null) data["schedule"] = schedule.trim() || null;
     const pool = interaction.options.getString("pool");
     if (pool === "separate" && !core.separatePool) data["separatePool"] = true;
     if (pool === "shared" && core.separatePool) {

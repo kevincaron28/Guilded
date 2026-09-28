@@ -60,7 +60,7 @@ describe("core roster with a bench", () => {
       ]
     }).toJSON();
     expect(embed.fields?.find((f) => f.name.startsWith("🪑"))?.value).toBe("Sub (Healer)");
-    expect(embed.fields?.[1]?.value).toBe("—");
+    expect(embed.fields?.find((f) => f.name.startsWith("💚"))?.value).toBe("—");
     expect(embed.footer?.text).toContain("1 core member + 1 on the bench");
   });
 });

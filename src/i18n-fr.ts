@@ -63,7 +63,6 @@ export const FR_TEXT: Record<string, string> = {
   "📅 **Raid signups** — signup posts that update live, and raid reminders: {channel}": "📅 **Inscriptions aux raids** — messages d'inscription mis à jour en direct, et rappels de raid : {channel}",
   "📜 **Raid logs** — the raid summary (report) posted after each raid: {channel}": "📜 **Rapports de raid** — le résumé du raid publié après chaque raid : {channel}",
   "🔒 **Officer log** — joins/leaves, moderation, bank and craft requests: {channel}": "🔒 **Journal des officiers** — arrivées et départs, modération, banque et demandes d'artisanat : {channel}",
-  "📝 **Apply here** — a public pinned post with an Apply to a core button that opens a short form: {channel} (\"Create the missing ones for me\" makes this one too, or pick it later with `/config channel`)": "📝 **Postuler ici** — un message épinglé public avec un bouton Postuler à un core qui ouvre un court formulaire : {channel} (« Créer ceux qui manquent » crée aussi ce salon, ou choisissez-le plus tard avec `/config channel`)",
   "📖 **Bot guide** — the getting-started guide, pinned; also where update notices post: {channel} (\"Create the missing ones for me\" makes this one too, or pick it later with `/config channel`)": "📖 **Guide du bot** — le guide de démarrage, épinglé ; aussi l'endroit où les avis de mise à jour sont publiés : {channel} (« Créer ceux qui manquent » crée aussi ce salon, ou choisissez-le plus tard avec `/config channel`)",
   "📢 Pick the announcements channel": "📢 Choisir le salon des annonces",
   "📅 Pick the raid signups channel": "📅 Choisir le salon des inscriptions aux raids",
@@ -330,6 +329,10 @@ export const FR_TEXT: Record<string, string> = {
 
   // --- core roster
   "Bench": "Banc",
+  "Schedule": "Horaire",
+  "Loot": "Butin",
+  "{n} reserve/player": "{n} réserve/joueur",
+  "{n} reserves/player": "{n} réserves/joueur",
   "{count} core member": "{count} membre du core",
   "{count} core members": "{count} membres du core",
   "core members get priority at this core's raid signups": "les membres du core ont la priorité aux inscriptions des raids de ce core",

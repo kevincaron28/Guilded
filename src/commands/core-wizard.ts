@@ -7,16 +7,18 @@ import { prisma } from "../database.js";
 import { asLootMode, describeRules, effectiveRules, LOOT_MODE_HELP, LOOT_MODE_LABEL, LOOT_MODES } from "../services/core-rules.js";
 import { createItemValueService, parseItemValues } from "../services/item-values.js";
 import { coreRosterEmbed, createRaidCoreService, syncCoreRoster } from "../services/raid-core.js";
+import { modeKey, parseMode, type EditMode } from "./core-editor.js";
 import { guildService } from "./context.js";
 
 // /core setup: build a raid core by clicking, not by remembering commands.
-//   1. name it (a small form)          2. pick its tanks, healers and DPS from member menus
+//   1. name it (a small form)          2. pick its tanks, healers and DPS (main roster or bench)
 //   3. rules: same as the guild (default), or its own point pool / loot council / EP values
 // Everything is saved as you go; closing the message loses nothing.
 
 const coreService = createRaidCoreService(prisma);
 const itemValues = createItemValueService(prisma);
 const ROLE_LABEL: Record<RaidRole, string> = { TANK: "Tanks", HEALER: "Healers", DPS: "DPS" };
+const MODE_ROLE_LABEL: Record<RaidRole, string> = { TANK: "Tank", HEALER: "Healer", DPS: "DPS" };
 
 const btn = (id: string, label: string, style: ButtonStyle = ButtonStyle.Secondary) =>
   new ButtonBuilder().setCustomId(`corewiz:${id}`).setLabel(label).setStyle(style);
@@ -32,22 +34,26 @@ function nameStep() {
   return { embeds: [embed], components: [new ActionRowBuilder<ButtonBuilder>().addComponents(btn("name", "Name your core", ButtonStyle.Primary), btn("cancel", "Cancel"))] };
 }
 
-async function rosterStep(core: { id: string; name: string; description: string | null }, guildId: string, note: string) {
+async function rosterStep(core: { id: string; name: string; description: string | null }, guildId: string, note: string, mode: EditMode) {
   const full = await coreService.byIdOrName(guildId, core.id);
-  const embed = coreRosterEmbed(full).setTitle(`⚜️ ${core.name} — step 2 of 3: pick the players`)
+  const settings = await guildService.getSettings(guildId);
+  const embed = coreRosterEmbed(full, settings?.lootMode).setTitle(`⚜️ ${core.name} — step 2 of 3: pick the players`)
     .setDescription([
-      "Pick people from each menu: tanks, healers, DPS. Each pick is saved at once; you can use a menu again to add more.",
-      "To change roles, use the bench or remove someone later: `/core edit`.",
+      "Pick a role below (main roster or bench/reserve), then pick the players. Each pick is saved at once; use the menus again to add more.",
+      "To change someone's role or remove them later: `/core edit`.",
       note ? `\n**Last action:** ${note}` : ""
     ].join("\n"));
-  const menu = (id: string, placeholder: string) => new ActionRowBuilder<UserSelectMenuBuilder>().addComponents(
-    new UserSelectMenuBuilder().setCustomId(`corewiz:${id}`).setPlaceholder(placeholder).setMinValues(1).setMaxValues(25));
+  const modeMenu = new StringSelectMenuBuilder().setCustomId("corewiz:mode").setPlaceholder("Adding as…").addOptions(
+    (["TANK", "HEALER", "DPS"] as const).flatMap((role) => [
+      { label: `${MODE_ROLE_LABEL[role]} (main roster)`, value: modeKey({ role, bench: false }), default: mode.role === role && !mode.bench },
+      { label: `${MODE_ROLE_LABEL[role]} (bench, reserve)`, value: modeKey({ role, bench: true }), default: mode.role === role && mode.bench }
+    ]));
   return {
     embeds: [embed],
     components: [
-      menu("pick-TANK", "🛡️ Add tanks"),
-      menu("pick-HEALER", "💚 Add healers"),
-      menu("pick-DPS", "⚔️ Add DPS"),
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(modeMenu),
+      new ActionRowBuilder<UserSelectMenuBuilder>().addComponents(
+        new UserSelectMenuBuilder().setCustomId("corewiz:add").setPlaceholder(`➕ Add players as ${MODE_ROLE_LABEL[mode.role]}${mode.bench ? " (bench)" : ""}`).setMinValues(1).setMaxValues(25)),
       new ActionRowBuilder<ButtonBuilder>().addComponents(btn("rules", "Next: rules ▶", ButtonStyle.Primary), btn("finish", "Skip rules, finish", ButtonStyle.Success))
     ]
   };
@@ -90,7 +96,8 @@ async function rulesStep(coreId: string, guildId: string, note: string) {
 function nameModal() {
   return new ModalBuilder().setCustomId("corewiz:name-modal").setTitle("New raid core").addComponents(
     new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("name").setLabel("Name").setPlaceholder("Tuesday Molten Core").setStyle(TextInputStyle.Short).setMinLength(2).setMaxLength(50).setRequired(true)),
-    new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("description").setLabel("Description (optional)").setPlaceholder("Tuesdays 8pm, progression").setStyle(TextInputStyle.Short).setMaxLength(300).setRequired(false))
+    new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("description").setLabel("Description (optional)").setPlaceholder("Progression, achievement runs").setStyle(TextInputStyle.Short).setMaxLength(300).setRequired(false)),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("schedule").setLabel("Raid nights (optional)").setPlaceholder("Tue/Thu 8-11pm EST").setStyle(TextInputStyle.Short).setMaxLength(100).setRequired(false))
   );
 }
 
@@ -127,6 +134,7 @@ export async function runCoreWizard(interaction: ChatInputCommandInteraction): P
   const message: Message = await interaction.fetchReply();
   const collector = message.createMessageComponentCollector({ time: 20 * 60_000, filter: (i) => i.user.id === interaction.user.id });
   let coreId: string | null = null;
+  let mode: EditMode = { role: "DPS", bench: false };
 
   const show = async (payload: Awaited<ReturnType<typeof rosterStep>> | ReturnType<typeof nameStep>) => { await interaction.editReply(payload); };
 
@@ -143,10 +151,14 @@ export async function runCoreWizard(interaction: ChatInputCommandInteraction): P
         const submitted = await i.awaitModalSubmit({ time: 5 * 60_000, filter: (m) => m.user.id === i.user.id }).catch(() => null);
         if (!submitted) return;
         try {
-          const core = await coreService.create(guildId, submitted.fields.getTextInputValue("name"), submitted.fields.getTextInputValue("description") || null);
+          const core = await coreService.create(
+            guildId, submitted.fields.getTextInputValue("name"),
+            submitted.fields.getTextInputValue("description") || null,
+            submitted.fields.getTextInputValue("schedule") || null
+          );
           coreId = core.id;
           await submitted.deferUpdate();
-          await show(await rosterStep(core, guildId, `Created **${core.name}**.`));
+          await show(await rosterStep(core, guildId, `Created **${core.name}**.`, mode));
         } catch (error) {
           await submitted.reply({ content: error instanceof Error ? error.message : "Could not create the core.", ephemeral: true });
         }
@@ -154,24 +166,29 @@ export async function runCoreWizard(interaction: ChatInputCommandInteraction): P
       }
       if (!coreId) return;
       const core = await prisma.raidCore.findUniqueOrThrow({ where: { id: coreId } });
-      if (action.startsWith("pick-") && i.isUserSelectMenu()) {
+      if (action === "mode" && i.isStringSelectMenu()) {
         await i.deferUpdate();
-        const role = action.slice("pick-".length) as RaidRole;
+        mode = parseMode(i.values[0] ?? "DPS");
+        await show(await rosterStep(core, guildId, "", mode));
+        return;
+      }
+      if (action === "add" && i.isUserSelectMenu()) {
+        await i.deferUpdate();
         const added: string[] = [];
         for (const userId of i.values) {
           const person = await interaction.guild?.members.fetch(userId).catch(() => null);
           if (!person || person.user.bot) continue;
           const member = await guildService.ensureMember(guildId, userId, person.displayName);
-          await coreService.addMember(guildId, coreId, member.id, role);
+          await coreService.addMember(guildId, coreId, member.id, mode.role, mode.bench);
           added.push(person.displayName);
         }
         await syncCoreRoster(interaction.guild, prisma, guildId, coreId);
-        await show(await rosterStep(core, guildId, added.length ? `Added ${added.join(", ")} as ${ROLE_LABEL[role]}.` : "Nobody added (bots are skipped)."));
+        await show(await rosterStep(core, guildId, added.length ? `Added ${added.join(", ")} as ${ROLE_LABEL[mode.role]}${mode.bench ? " (bench)" : ""}.` : "Nobody added (bots are skipped).", mode));
         return;
       }
       if (action === "rules" || action === "back") {
         await i.deferUpdate();
-        await interaction.editReply(action === "rules" ? await rulesStep(coreId, guildId, "") : await rosterStep(core, guildId, ""));
+        await interaction.editReply(action === "rules" ? await rulesStep(coreId, guildId, "") : await rosterStep(core, guildId, "", mode));
         return;
       }
       if (action === "pool") {

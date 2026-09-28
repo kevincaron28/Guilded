@@ -11,7 +11,6 @@ import { isValidTimeZone } from "../services/raid-time.js";
 import { BRAND } from "../brand.js";
 import { config } from "../config.js";
 import { createWclClient, parseGuildRef } from "../integrations/warcraftlogs.js";
-import { ensureApplyGuide } from "./application.js";
 import { ensureBotGuide } from "./setup.js";
 import { asLang } from "../i18n.js";
 
@@ -72,7 +71,6 @@ export const configCommand = new SlashCommandBuilder()
       { name: "Dungeon leaderboard", value: "dungeon-leaderboard-channel" },
       { name: "Dungeon signups", value: "dungeon-signup-channel" },
       { name: "Applications (private)", value: "application-channel" },
-      { name: "Apply here (public)", value: "apply-guide-channel" },
       { name: "Bot guide", value: "guide" }))
     .addChannelOption((o) => o.setName("channel").setDescription("The channel (a forum works for the craft board)")
       .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement, ChannelType.GuildForum))
@@ -128,7 +126,6 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
         `Raid roster channel: ${settings.coreChannelId ? `<#${settings.coreChannelId}>` : "not set"}`,
         `Readiness channel: ${settings.readinessChannelId ? `<#${settings.readinessChannelId}>` : "not set"}`,
         `Applications channel: ${settings.applicationChannelId ? `<#${settings.applicationChannelId}>` : "officer log"}`,
-        `Apply here channel: ${settings.applyGuideChannelId ? `<#${settings.applyGuideChannelId}>` : "not set"}`,
         `Craft board: ${settings.craftChannelId ? `<#${settings.craftChannelId}>` : "officer log"}`,
         `Dungeon leaderboard: ${settings.dungeonLeaderboardChannelId ? `<#${settings.dungeonLeaderboardChannelId}>` : "not set"}`,
         `Dungeon signups: ${settings.dungeonSignupChannelId ? `<#${settings.dungeonSignupChannelId}>` : "not set"}`,
@@ -263,7 +260,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
     return;
   }
 
-  const channelSettings: Record<string, { field: "raidLogChannelId" | "dungeonLeaderboardChannelId" | "dungeonSignupChannelId" | "lootChannelId" | "craftChannelId" | "readinessChannelId" | "coreChannelId" | "applicationChannelId" | "applyGuideChannelId" | "guideChannelId"; label: string }> = {
+  const channelSettings: Record<string, { field: "raidLogChannelId" | "dungeonLeaderboardChannelId" | "dungeonSignupChannelId" | "lootChannelId" | "craftChannelId" | "readinessChannelId" | "coreChannelId" | "applicationChannelId" | "guideChannelId"; label: string }> = {
     "core-channel": { field: "coreChannelId", label: "Raid core rosters" },
     "readiness-channel": { field: "readinessChannelId", label: "Raid readiness" },
     "loot-channel": { field: "lootChannelId", label: "Loot and EP/GP changes" },
@@ -272,7 +269,6 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
     "dungeon-leaderboard-channel": { field: "dungeonLeaderboardChannelId", label: "The dungeon leaderboard" },
     "dungeon-signup-channel": { field: "dungeonSignupChannelId", label: "Dungeon signups" },
     "application-channel": { field: "applicationChannelId", label: "Applications" },
-    "apply-guide-channel": { field: "applyGuideChannelId", label: "Apply here (pinned Apply buttons)" },
     "guide": { field: "guideChannelId", label: "Bot guide" }
   };
   const channelSetting = channelSettings[subcommand];
@@ -293,10 +289,6 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
     });
     if (channelSetting.field === "dungeonLeaderboardChannelId") await updateDungeonLeaderboard(interaction.guild);
     if (channelSetting.field === "coreChannelId") await syncAllCoreRosters(interaction.guild, prisma, context.guildId);
-    if (channelSetting.field === "applyGuideChannelId") {
-      const fetched = await interaction.guild?.channels.fetch(channel.id).catch(() => null);
-      if (fetched?.isTextBased()) await ensureApplyGuide(fetched);
-    }
     if (channelSetting.field === "guideChannelId") {
       const fetched = await interaction.guild?.channels.fetch(channel.id).catch(() => null);
       if (fetched?.isTextBased()) await ensureBotGuide(fetched, asLang((await guildService.getSettings(context.guildId))?.language));

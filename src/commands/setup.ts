@@ -32,7 +32,6 @@ import { asLang, t, tx, type Lang } from "../i18n.js";
 import { CATEGORY_NAMES, categoryNames, channelNames, channelSpec, type Access, type CategoryKey, type ChannelField } from "../setup-names.js";
 import { BRAND } from "../brand.js";
 import { boardTagNames, postBoardGuide } from "./craft-board.js";
-import { ensureApplyGuide } from "./application.js";
 
 // Guided first-time setup. One private message that walks an admin through
 // seven steps with buttons and dropdowns only (no IDs, no typing):
@@ -230,7 +229,6 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       T("📅 **Raid signups** — signup posts that update live, and raid reminders: {channel}", { channel: channelLabel(lang, settings.raidSignupChannelId) }),
       T("📜 **Raid logs** — the raid summary (report) posted after each raid: {channel}", { channel: same(lang, settings.raidLogChannelId, "same as announcements") }),
       T("🔒 **Officer log** — joins/leaves, moderation, bank and craft requests: {channel}", { channel: channelLabel(lang, settings.logChannelId) }),
-      T("📝 **Apply here** — a public pinned post with an Apply to a core button that opens a short form: {channel} (\"Create the missing ones for me\" makes this one too, or pick it later with `/config channel`)", { channel: channelLabel(lang, settings.applyGuideChannelId) }),
       T("📖 **Bot guide** — the getting-started guide, pinned; also where update notices post: {channel} (\"Create the missing ones for me\" makes this one too, or pick it later with `/config channel`)", { channel: channelLabel(lang, settings.guideChannelId) })
     ].join("\n"));
     const select = (id: string, placeholder: string) => new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(
@@ -428,7 +426,7 @@ async function createMissingRoles(guild: DiscordGuild, lang: Lang): Promise<stri
   return created.length ? tx(lang, "Created roles: {roles}. Now give them to your officers.", { roles: created.join(", ") }) : tx(lang, "All roles already existed.");
 }
 
-const CORE_CHANNELS: ChannelField[] = ["notifyChannelId", "raidSignupChannelId", "raidLogChannelId", "logChannelId", "applyGuideChannelId", "guideChannelId"];
+const CORE_CHANNELS: ChannelField[] = ["notifyChannelId", "raidSignupChannelId", "raidLogChannelId", "logChannelId", "guideChannelId"];
 const RAIDTEAM_CHANNELS: ChannelField[] = ["coreChannelId", "readinessChannelId", "lootChannelId", "craftChannelId", "applicationChannelId"];
 const DUNGEON_CHANNELS: ChannelField[] = ["dungeonLeaderboardChannelId", "dungeonSignupChannelId", "dungeonChannelId"];
 // Every channel field /setup can create. Also used by /setup uninstall to find what to remove.
@@ -538,7 +536,6 @@ async function createSectionChannels(guild: DiscordGuild, guildId: string, field
         ...(overwrites ? { permissionOverwrites: overwrites } : {})
       });
     if (spec.forum && channel.type === ChannelType.GuildForum) await postBoardGuide(channel, lang).catch((error: unknown) => guidedFor(`<#${channel.id}>`, error));
-    if (field === "applyGuideChannelId" && channel.isTextBased()) await ensureApplyGuide(channel).catch((error: unknown) => guidedFor(`<#${channel.id}>`, error));
     if (field === "guideChannelId" && channel.isTextBased()) await ensureBotGuide(channel, lang).catch((error: unknown) => guidedFor(`<#${channel.id}>`, error));
     update[field] = channel.id;
     made.push(`<#${channel.id}>${spec.access === "officers" ? tx(lang, " (officers only)") : spec.access === "leaders" ? tx(lang, " (officers and raid leaders only)") : ""}`);

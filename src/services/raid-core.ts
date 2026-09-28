@@ -2,6 +2,7 @@ import { EmbedBuilder, type Guild as DiscordGuild } from "discord.js";
 import type { PrismaClient, RaidRole } from "@prisma/client";
 import { createGuildService } from "./guild.js";
 import { applyToCoreButtonRow } from "./application.js";
+import { asLootMode, LOOT_MODE_LABEL } from "./core-rules.js";
 import { asLang, tx, type Lang } from "../i18n.js";
 
 // A raid core is a named roster (e.g. "Tuesday MC core"). A guild can have
@@ -34,12 +35,18 @@ export function createRaidCoreService(database: Db) {
   return {
     byIdOrName,
 
-    async create(guildId: string, name: string, description?: string | null) {
+    async create(guildId: string, name: string, description?: string | null, schedule?: string | null) {
       const clean = name.trim();
       if (clean.length < 2 || clean.length > 50) throw new Error("A core name must be 2 to 50 characters.");
       const exists = await database.raidCore.findFirst({ where: { guildId, name: { equals: clean, mode: "insensitive" } } });
       if (exists) throw new Error(`A core called "${exists.name}" already exists.`);
-      return database.raidCore.create({ data: { guildId, name: clean, description: description?.trim().slice(0, 300) || null } });
+      return database.raidCore.create({
+        data: {
+          guildId, name: clean,
+          description: description?.trim().slice(0, 300) || null,
+          schedule: schedule?.trim().slice(0, 100) || null
+        }
+      });
     },
 
     async remove(guildId: string, value: string) {
@@ -93,13 +100,24 @@ export function createRaidCoreService(database: Db) {
 type CoreForEmbed = {
   name: string;
   description: string | null;
+  schedule?: string | null;
+  lootMode?: string | null;
+  reservesPerPlayer?: number | null;
   members: { role: RaidRole; bench: boolean; member: { displayName: string } }[];
 };
 
-export function coreRosterEmbed(core: CoreForEmbed, lang: Lang = "en"): EmbedBuilder {
+// `guildLootMode` is the guild's raw default (GuildSettings.lootMode); the core's own
+// lootMode overrides it when set, so the message always shows the *effective* mode.
+export function coreRosterEmbed(core: CoreForEmbed, guildLootMode?: string | null, lang: Lang = "en"): EmbedBuilder {
   const ROLE_LABEL = ROLE_LABELS[lang];
   const embed = new EmbedBuilder().setColor(0xd4af37).setTitle(`⚜️ ${core.name}`);
   if (core.description) embed.setDescription(core.description);
+  if (core.schedule) embed.addFields({ name: `📅 ${tx(lang, "Schedule")}`, value: core.schedule, inline: true });
+  const mode = asLootMode(core.lootMode ?? guildLootMode);
+  const reserves = mode === "RESERVE" && core.reservesPerPlayer
+    ? ` (${core.reservesPerPlayer === 1 ? tx(lang, "{n} reserve/player", { n: core.reservesPerPlayer }) : tx(lang, "{n} reserves/player", { n: core.reservesPerPlayer })})`
+    : "";
+  embed.addFields({ name: `🎲 ${tx(lang, "Loot")}`, value: `${LOOT_MODE_LABEL[mode]}${reserves}`, inline: true });
   for (const role of ROLE_ORDER) {
     const names = core.members.filter((entry) => entry.role === role && !entry.bench).map((entry) => entry.member.displayName).sort((a, b) => a.localeCompare(b));
     embed.addFields({ name: `${ROLE_LABEL[role]} (${names.length})`, value: names.length ? names.join("\n").slice(0, 1000) : "—", inline: true });
@@ -127,7 +145,7 @@ export async function syncCoreRoster(discordGuild: DiscordGuild | null, database
     const core = await database.raidCore.findFirst({ where: { id: coreId, guildId }, include: { members: { include: { member: true } } } });
     if (!core) return false;
     const payload = {
-      embeds: [coreRosterEmbed(core, asLang(settings.language))],
+      embeds: [coreRosterEmbed(core, settings.lootMode, asLang(settings.language))],
       components: [applyToCoreButtonRow(core)],
       allowedMentions: { parse: [] as never[] }
     };

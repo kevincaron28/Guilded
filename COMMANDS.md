@@ -38,7 +38,7 @@ Hover a page name for what it is for. The **Player** box (target someone, or **M
 | `/guilded invite raid` / `/guilded invite missing` | Officers: invite everyone signed up for the next Discord raid (their main characters, from the companion's Standings.lua, for raids in the next 36 hours), or just list who is not in your group yet. Invites go out 0.6 seconds apart; convert to a raid yourself when the group passes 5 |
 | `/guilded autoinvite on [phrase]` / `off` / `status` | Officers: guild-invite anyone who whispers you the phrase (default `ginv`). Off by default; skips people already in the guild, never in combat, max 15 invites an hour |
 | `/guilded backup` | A box with one code (`QGBKP1:...`) holding this guild's saved data (raids, EPGP ledger, roster, attendance, loot, settings). Copy it somewhere safe |
-| `/guilded restore` / `/guilded restore undo` | Paste a backup code and press Restore twice (first shows what it holds, then replaces your data). A backup from another guild is refused; `undo` puts back what was there before |
+| `/guilded restore` / `/guilded restore undo` / `/guilded restore forget` | Paste a backup code and press Restore twice (first shows what it holds, then replaces your data). A backup from another guild is refused; `undo` puts back what was there before (kept 7 days); `forget` drops that undo copy now. Recipes, calendar and consumable scans are not in a backup: they rebuild themselves |
 | `/guilded digest [on/off]` | What changed since your last login (also shown once at login) |
 | `/guilded peers` | Which guildmates run which addon version this session |
 | `/guilded snapshot [label]` / `/guilded snapshot list` | Officers: record who is in the group right now (also counts as presence for the active raid) |
@@ -50,7 +50,8 @@ Hover a page name for what it is for. The **Player** box (target someone, or **M
 | `/guilded dungeon start` / `complete` / `abandon` | Fix a run by hand when detection missed it (group leader, officer, or solo) |
 | `/guilded dungeon check` | Checks which dungeon features work on this client (send the result to an officer) |
 | `/guilded version` | Your addon version. You're also told automatically when a guildmate has a newer one |
-| `/guilded minimap show` / `hide` / `reset` | Control the minimap button |
+| `/guilded minimap show` / `hide` / `reset` | Control the minimap button (Guilded is also in the addon list under the minimap, the Addon Compartment) |
+| `/guilded options` | Guilded's page in the game's options (Esc > Options > AddOns): minimap button, chat tab, login digest, auto-save and your module switches |
 | `/guilded officer list` | Show which ranks count as officers, and whether you do |
 | `/guilded modules` | List the optional parts (games, bidding, council, reserve, recipes, dungeon, calendar, sim ...) and whether each is on |
 | `/guilded modules off\|on <module>` | Turn one off or back on just for you (also in the Tools tab). Back on after being off at login needs `/reload` |

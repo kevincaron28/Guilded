@@ -75,20 +75,9 @@ end
 -- Time: the addon keeps ISO timestamps ("2026-09-26T12:00:00Z"); this turns one into seconds.
 -- ---------------------------------------------------------------------
 
-local function daysFromCivil(y, m, d)
-  if m <= 2 then y = y - 1 end
-  local era = math.floor(y / 400)
-  local yoe = y - era * 400
-  local mp = (m + 9) % 12
-  local doy = math.floor((153 * mp + 2) / 5) + d - 1
-  local doe = yoe * 365 + math.floor(yoe / 4) - math.floor(yoe / 100) + doy
-  return era * 146097 + doe - 719468
-end
-
 function module.epoch(iso)
-  local y, mo, d, h, mi, s = string.match(iso or "", "^(%d+)-(%d+)-(%d+)T(%d+):(%d+):(%d+)Z$")
-  if not y then return nil end
-  return daysFromCivil(tonumber(y), tonumber(mo), tonumber(d)) * 86400 + tonumber(h) * 3600 + tonumber(mi) * 60 + tonumber(s)
+  if not string.match(iso or "", "Z$") then return nil end
+  return ns.util.isoEpoch(iso)
 end
 
 local function nowEpoch()
@@ -446,9 +435,7 @@ local lastSentAt = 0
 local lastSignature
 
 function module.groupChannel()
-  if IsInRaid and IsInRaid() then return "RAID" end
-  if IsInGroup and IsInGroup() then return "PARTY" end
-  return nil
+  return ns.util.groupChannel()
 end
 
 local function consumablesOn()

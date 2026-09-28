@@ -137,6 +137,20 @@ local function ensureDb()
   end
 end
 
+-- The roster keeps everyone the addon has met. Only entries the guild roster confirmed are
+-- guild members: raid pugs are kept (attendance history needs them) with inGuild = false,
+-- and a member who leaves the guild is marked inGuild = false the next time the roster loads.
+-- Entries from before this field existed have no inGuild and count as members.
+local function noteSeen(name)
+  if not db.roster[name] then db.roster[name] = { firstSeen = now(), inGuild = false } end
+end
+
+local function isGuildMember(name)
+  name = normalizeName(name)
+  local entry = name and db and db.roster[name]
+  return entry ~= nil and entry.inGuild ~= false
+end
+
 local function logEvent(kind, payload)
   table.insert(db.events, {
     at = now(), kind = kind, player = playerName(), data = payload
@@ -186,7 +200,7 @@ local function logDiagnostic(kind, detail, foreign)
     table.remove(list, removeIndex)
   end
   -- Slow-handler timings are recorded quietly; only real problems print.
-  if not foreign and kind ~= "SLOW" then
+  if not foreign and kind ~= "SLOW" and kind ~= "SEND" then
     message("|cffff5555[Diagnostic]|r " .. kind .. ": " .. detail .. " (see /guilded diag)")
   end
 end
@@ -267,26 +281,18 @@ local function split(text)
   return result
 end
 
+-- Shared helpers and the paced message queue live in Util.lua (loaded first).
+local util = ns.util
+local comm = ns.comm
+
+-- Sending can be refused (not in a group, throttled, encounter lockdown);
+-- none of that should ever break the command that triggered it.
 local function send(messageText, target)
-  target = target or "RAID"
-  messageText = string.sub(tostring(messageText), 1, MAX_ADDON_MESSAGE)
-  -- Sending can be refused (not in a group, throttled, encounter lockdown);
-  -- none of that should ever break the command that triggered it.
-  pcall(function()
-    if C_ChatInfo and C_ChatInfo.SendAddonMessage then
-      C_ChatInfo.SendAddonMessage(PREFIX, messageText, target)
-    elseif SendAddonMessage then
-      SendAddonMessage(PREFIX, messageText, target)
-    end
-  end)
+  comm.send(PREFIX, messageText, target or "RAID")
 end
 
 local function registerPrefix()
-  if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then
-    C_ChatInfo.RegisterAddonMessagePrefix(PREFIX)
-  elseif RegisterAddonMessagePrefix then
-    RegisterAddonMessagePrefix(PREFIX)
-  end
+  comm.register(PREFIX)
 end
 
 -- Assigned below groupMembers(); declared here so raid start/end can use it.
@@ -299,7 +305,8 @@ local function raidStart(title)
   end
   if not title or title == "" then title = "Raid" end
   activeRaid = {
-    id = tostring(time()) .. "-" .. playerName(),
+    -- Server clock, so ids and times from different officers' clients agree.
+    id = tostring(util.serverTime()) .. "-" .. playerName(),
     title = title,
     startedAt = now(), endedAt = nil, startedBy = playerName()
   }
@@ -331,7 +338,7 @@ local function setAttendance(name, status, quiet)
   end
   db.attendance[activeRaid.id] = db.attendance[activeRaid.id] or {}
   db.attendance[activeRaid.id][name] = { status = status, at = now(), by = playerName() }
-  db.roster[name] = db.roster[name] or { firstSeen = now() }
+  noteSeen(name)
   logEvent("ATTENDANCE", { raid = activeRaid.id, name = name, status = status })
   send("ATTENDANCE|" .. activeRaid.id .. "|" .. name .. "|" .. status)
   if not quiet then message(name .. " marked " .. status .. ".") end
@@ -359,7 +366,7 @@ local EPGP_KINDS = {
 -- carries the whole ledger, so without ids every import would re-add them.
 local function nextLedgerId()
   db.ledgerSeq = (db.ledgerSeq or 0) + 1
-  return string.format("%s-%d-%d", playerName(), time(), db.ledgerSeq)
+  return string.format("%s-%d-%d", playerName(), util.serverTime(), db.ledgerSeq)
 end
 
 local function changeEpgp(rawName, rawAmount, reason, kind, quiet)
@@ -419,7 +426,7 @@ recordPresence = function()
   for _, name in ipairs(groupMembers()) do
     seen[name] = seen[name] or { firstSeen = now() }
     seen[name].lastSeen = now()
-    db.roster[name] = db.roster[name] or { firstSeen = now() }
+    noteSeen(name)
   end
 end
 
@@ -538,19 +545,7 @@ local function characterString(info)
   }, ";")
 end
 
--- Plain base64 (RFC 4648), so a pasted string survives chat, edit boxes and Discord.
-local B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-local function base64Encode(data)
-  local out = {}
-  for i = 1, #data, 3 do
-    local a, b, c = string.byte(data, i, i + 2)
-    local n = a * 65536 + (b or 0) * 256 + (c or 0)
-    local c1, c2, c3, c4 = math.floor(n / 262144) % 64, math.floor(n / 4096) % 64, math.floor(n / 64) % 64, n % 64
-    out[#out + 1] = string.sub(B64, c1 + 1, c1 + 1) .. string.sub(B64, c2 + 1, c2 + 1)
-      .. (b and string.sub(B64, c3 + 1, c3 + 1) or "=") .. (c and string.sub(B64, c4 + 1, c4 + 1) or "=")
-  end
-  return table.concat(out)
-end
+local base64Encode = util.base64Encode
 
 -- One paste for Discord's /character import: who you are (the QG1 line), your
 -- last gear check, active consumables and attunements. It is only ever YOUR
@@ -851,6 +846,9 @@ end
 
 local function showDiagnostics()
   showIdentity()
+  if (ns.ignoredMessages or 0) > 0 then
+    message(string.format("%d addon message(s) from other players were ignored this session (informational only).", ns.ignoredMessages))
+  end
   local entries = db.diagnostics or {}
   if #entries == 0 then
     message("No diagnostics recorded.")
@@ -1007,6 +1005,8 @@ function ns.applyGuildModules(off, updatedAt, by)
   local s = moduleSettings()
   if not s then return false end
   local current = s.guildModules
+  -- A switch dated in the future would pin itself forever; refuse it.
+  if util.tooFarAhead(tonumber(updatedAt) or 0) then return false end
   if current and (current.updatedAt or 0) >= (updatedAt or 0) then return false end
   s.guildModules = { off = off or {}, updatedAt = updatedAt, by = by }
   return true
@@ -1073,9 +1073,11 @@ local function command(text)
     message(activeRaid and ("Active raid: " .. activeRaid.title .. " (started " .. activeRaid.startedAt .. ")") or "No active raid.")
   elseif action == "roster" then
     local names = {}
-    for name in pairs(db.roster) do table.insert(names, name) end
+    for name in pairs(db.roster) do
+      if isGuildMember(name) then table.insert(names, name) end
+    end
     table.sort(names)
-    message(#names .. " known character(s): " .. table.concat(names, ", "))
+    message(#names .. " guild member(s): " .. table.concat(names, ", "))
   elseif action == "snapshot" then
     if string.lower(args[2] or "") == "list" then listSnapshots()
     elseif requireOfficer() then takeSnapshot(table.concat(args, " ", 2)) end
@@ -1137,7 +1139,7 @@ local function command(text)
     local target = playerName()
     local keyStart = 2
     local candidate = normalizeName(args[2])
-    if args[3] and candidate and db.roster[candidate] and candidate ~= playerName() then
+    if args[3] and candidate and isGuildMember(candidate) and candidate ~= playerName() then
       target, keyStart = candidate, 3
     end
     local key = table.concat(args, " ", keyStart)
@@ -1185,7 +1187,7 @@ local function parseRoll(text)
   return nil
 end
 
-local function handlePeerReadiness(text, sender)
+local function handlePeerReadiness(text, sender, channel)
   local parts = {}
   for part in string.gmatch(text, "[^|]+") do table.insert(parts, part) end
   if parts[1] ~= "READINESS" or not parts[2] then return end
@@ -1193,6 +1195,9 @@ local function handlePeerReadiness(text, sender)
   -- overwrite a guildmate's readiness in every officer's export.
   local name = normalizeName(parts[2])
   if not name or name ~= normalizeName(sender) then return end
+  -- The guild channel only carries guildmates; in a raid or party a pug's digest would end
+  -- up in every officer's export (and the bot would "discover" them), so only members count.
+  if channel ~= "GUILD" and not isGuildMember(name) then return end
   local professions, flags, identity = "", "", nil
   for index = 6, #parts do
     if string.sub(parts[index], 1, 2) == "F:" then flags = string.sub(parts[index], 3)
@@ -1328,9 +1333,30 @@ local function onEvent(_, event, ...)
     resolveGuildData()
     local count = GetNumGuildMembers and GetNumGuildMembers() or 0
     db.lastRosterUpdate = now()
+    local inRoster = {}
     for i = 1, count do
       local name = normalizeName(GetGuildRosterInfo(i))
-      if name then db.roster[name] = db.roster[name] or { firstSeen = now() } end
+      if name then
+        inRoster[name] = true
+        local entry = db.roster[name]
+        if not entry then
+          db.roster[name] = { firstSeen = now(), inGuild = true, joinedAt = now() }
+        elseif entry.inGuild == false then
+          entry.inGuild, entry.joinedAt, entry.leftAt = true, now(), nil
+        end
+      end
+    end
+    -- A full roster that no longer lists someone means they left. Nothing is concluded from
+    -- an empty roster (not loaded yet) or one that hides offline members.
+    local showsOffline = true
+    if GetGuildRosterShowOffline then
+      local ok, value = pcall(GetGuildRosterShowOffline)
+      if ok and value == false then showsOffline = false end
+    end
+    if next(inRoster) and showsOffline then
+      for name, entry in pairs(db.roster) do
+        if not inRoster[name] and entry.inGuild ~= false then entry.inGuild, entry.leftAt = false, now() end
+      end
     end
   elseif event == "CHAT_MSG_LOOT" and db.settings.captureLoot then
     local text = ...
@@ -1341,7 +1367,7 @@ local function onEvent(_, event, ...)
     if prefix ~= PREFIX or normalizeName(sender) == playerName() then return end
     if string.sub(text, 1, 10) == "READINESS|" then
       -- Every online guildmate sends these; keep them out of the journal.
-      handlePeerReadiness(text, sender)
+      handlePeerReadiness(text, sender, channel)
     elseif string.sub(text, 1, 9) == "READYREQ|" then
       handleReadyRequest(channel, sender)
     elseif string.sub(text, 1, 11) == "ATTUNEMENT|" then
@@ -1351,7 +1377,10 @@ local function onEvent(_, event, ...)
       -- What a groupmate carries, sent by their own addon (Modules/Ready.lua checks who and where).
       if ns.ready and ns.ready.handleReport then pcall(ns.ready.handleReport, text, channel, sender) end
     else
-      logEvent("ADDON_MESSAGE", { text = text, channel = channel, sender = normalizeName(sender) })
+      -- Everything else on this prefix is informational (other officers' raid, loot and
+      -- EP lines). It is not saved: a chatty or broken client would push real history out
+      -- of the journal and keep marking the data as changed. /guilded diag shows the count.
+      ns.ignoredMessages = (ns.ignoredMessages or 0) + 1
     end
   elseif event == "ADDON_ACTION_BLOCKED" or event == "ADDON_ACTION_FORBIDDEN" then
     -- Fires with the exact addon and function name WoW refused to let run --
@@ -1419,6 +1448,7 @@ ns.send = send
 ns.inspectReadiness = inspectReadiness
 ns.isOfficer = isOfficer
 ns.isOfficerName = isOfficerName
+ns.isGuildMember = isGuildMember
 ns.runCommand = command
 ns.getSettings = function() return db and db.settings end
 -- Read-only views for the tools panel (Modules/Minimap.lua).

@@ -16,6 +16,8 @@ local addonName, ns = ...
 ns = ns or {}
 
 local PREFIX = "GuildedBid"
+-- A saved session that ran out more than this long ago is dropped at login, not resumed.
+local STALE_SESSION_SECONDS = 10 * 60
 local DEFAULT_SECONDS = 30
 local MAX_BID = 100000
 
@@ -32,8 +34,8 @@ local function L(text) return ns.L and ns.L(text) or text end
 -- ---------------------------------------------------------------------
 
 local function groupChannel()
-  if IsInRaid and IsInRaid() then return "RAID" end
-  if IsInGroup and IsInGroup() then return "PARTY" end
+  local channel = ns.util.groupChannel()
+  if channel then return channel end
   -- A running test raid (/guilded sim start) lets an officer try bidding alone:
   -- nothing is sent to anyone, fake raiders bid with /guilded sim bids.
   local raid = ns.getActiveRaid and ns.getActiveRaid()
@@ -43,14 +45,7 @@ end
 
 local function sendAddon(text, channel, target)
   if channel == "TEST" then return end
-  pcall(function()
-    text = string.sub(text, 1, 255)
-    if C_ChatInfo and C_ChatInfo.SendAddonMessage then
-      C_ChatInfo.SendAddonMessage(PREFIX, text, channel, target)
-    elseif SendAddonMessage then
-      SendAddonMessage(PREFIX, text, channel, target)
-    end
-  end)
+  ns.comm.send(PREFIX, text, channel, target)
 end
 
 local function sendChat(text, channel, target)
@@ -70,17 +65,33 @@ local function announce(text)
   if channel then sendChat("[Guilded] " .. text, channel) end
 end
 
+local function clock()
+  return GetTime and GetTime() or time()
+end
+
+-- The officer's open auction is saved, so a /reload (or a disconnect) mid-bidding picks it
+-- up again instead of leaving raiders' popups pointing at nothing. Times are kept on the
+-- server clock because GetTime() restarts with the client.
+local function persist()
+  local d = ns.getDb and ns.getDb()
+  if not d then return end
+  local auction = bidding.current
+  if not auction then d.biddingSession = nil return end
+  local saved = {}
+  for key, value in pairs(auction) do saved[key] = value end
+  saved.endsAt = nil
+  saved.endsAtServer = ns.util.serverTime() + math.floor((auction.endsAt or clock()) - clock() + 0.5)
+  d.biddingSession = saved
+end
+
 local function changed()
+  persist()
   if ns.onBiddingChange then pcall(ns.onBiddingChange) end
 end
 
 -- "[Name]" out of an item link (or the text itself), for ledger reasons.
 local function plainItem(item)
   return string.match(item or "", "%[(.-)%]") or item
-end
-
-local function clock()
-  return GetTime and GetTime() or time()
 end
 
 -- ---------------------------------------------------------------------
@@ -198,6 +209,34 @@ local function cancelBidding()
   announce(string.format(L("Bidding on %s cancelled."), auction.item))
   bidding.current = nil
   changed()
+end
+
+-- Picks up an auction saved before a /reload: still open -> the timer runs on; its time ran
+-- out while reloading -> it closes a few seconds after login (the group is known by then).
+function bidding.restore()
+  local d = ns.getDb and ns.getDb()
+  local saved = d and d.biddingSession
+  if type(saved) ~= "table" or not saved.id or bidding.current then return end
+  local left = (tonumber(saved.endsAtServer) or 0) - ns.util.serverTime()
+  -- Ran out long ago (logged out mid-loot and came back later): nobody is waiting for it any
+  -- more, so it is dropped rather than closed and awarded by itself.
+  if saved.open and left < -STALE_SESSION_SECONDS then
+    d.biddingSession = nil
+    ns.message(string.format("Bidding on %s from an earlier session ran out while you were away and was dropped.", plainItem(saved.item)))
+    return
+  end
+  local auction = {}
+  for key, value in pairs(saved) do auction[key] = value end
+  auction.endsAtServer = nil
+  auction.bids = type(auction.bids) == "table" and auction.bids or {}
+  auction.endsAt = clock() + math.max(0, left)
+  bidding.current = auction
+  if auction.open and C_Timer and C_Timer.After then
+    C_Timer.After(math.max(5, left), function() closeBidding(auction.id) end)
+  end
+  ns.message(string.format("Bidding on %s was restored after the reload%s.", plainItem(auction.item),
+    auction.open and (left > 0 and string.format(" (%ds left)", left) or " and closes now") or " (waiting for Award)"))
+  if ns.onBiddingChange then pcall(ns.onBiddingChange) end
 end
 
 -- Short description for the tools window.
@@ -362,18 +401,19 @@ table.insert(ns.commandHelp, { officer = true, text = "/guilded bid start <min G
 
 local function onEvent(_, event, ...)
   if event == "PLAYER_LOGIN" then
-    if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then
-      C_ChatInfo.RegisterAddonMessagePrefix(PREFIX)
-    elseif RegisterAddonMessagePrefix then
-      RegisterAddonMessagePrefix(PREFIX)
-    end
+    ns.comm.register(PREFIX)
+    bidding.restore()
   elseif event == "CHAT_MSG_WHISPER" then
     -- Players without the addon bid by whispering a number ("25" or "bid 25").
     if not bidding.current or not bidding.current.open then return end
     local text, sender = ...
     if ns.isSecret(text) or ns.isSecret(sender) then return end
     local amount = string.match(text or "", "^%s*[Bb][Ii][Dd]%s+(%d+)%s*$") or string.match(text or "", "^%s*(%d+)%s*$")
-    if amount then addBid(ns.normalizeName(sender), amount, sender, "whisper") end
+    -- Only someone in your raid or party can bid; a number whispered by anyone else (a
+    -- trade chat reply, a friend) is not a bid.
+    if amount and (bidding.current.channel == "TEST" or ns.util.inMyGroup(sender)) then
+      addBid(ns.normalizeName(sender), amount, sender, "whisper")
+    end
   elseif event == "CHAT_MSG_ADDON" then
     local prefix, text, _, sender = ...
     if ns.isSecret(prefix) or ns.isSecret(text) or ns.isSecret(sender) or prefix ~= PREFIX then return end
@@ -382,7 +422,7 @@ local function onEvent(_, event, ...)
     local kind = string.match(text, "^(%u+)|")
     if kind == "BID" then
       local id, amount = string.match(text, "^BID|([^|]+)|(%d+)$")
-      if bidding.current and bidding.current.id == id then addBid(name, amount, sender, "addon") end
+      if bidding.current and bidding.current.id == id and ns.util.inMyGroup(sender) then addBid(name, amount, sender, "addon") end
     elseif kind == "OPEN" then
       -- Only an officer can open bidding for the raid.
       if not ns.isOfficerName(name) then return end
@@ -418,5 +458,5 @@ frame:RegisterEvent("CHAT_MSG_ADDON")
 frame:SetScript("OnEvent", function(...)
   if ns.moduleActive and not ns.moduleActive("bidding") then return end -- /guilded modules
   local ok, err = pcall(onEvent, ...)
-  if not ok then ns.message("Bidding error: " .. tostring(err)) end
+  if not ok and ns.logDiagnostic then ns.logDiagnostic("LUA_ERROR", "Guilded bidding: " .. tostring(err)) end
 end)

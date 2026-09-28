@@ -29,10 +29,13 @@ for (const file of walk(rootPath)) {
 }
 
 const core = readFileSync(new URL("Core.lua", root), "utf8");
-for (const required of ["PLAYER_LOGIN", "GUILD_ROSTER_UPDATE", "CHAT_MSG_LOOT",
-  "SendAddonMessage", "SlashCmdList"]) {
+for (const required of ["PLAYER_LOGIN", "GUILD_ROSTER_UPDATE", "CHAT_MSG_LOOT", "SlashCmdList"]) {
   if (!core.includes(required)) throw new Error(`Missing ${required} in Core.lua`);
 }
+// Every addon message goes through Util.lua's paced queue (ns.comm); a module calling the
+// game's send function directly would bypass the throttle and be dropped in a burst.
+const utilSource = readFileSync(new URL("Util.lua", root), "utf8");
+if (!utilSource.includes("SendAddonMessage")) throw new Error("Util.lua must send addon messages (ns.comm)");
 // Since patch 12.0.0 (inherited by WoW Forever) addons cannot register the
 // combat log event; attempting it triggers a "blocked from an action only
 // available to the Blizzard UI" popup on load.
@@ -54,12 +57,17 @@ if (/GuildedCasino|debt|ledger|wager/i.test(games.replace(/no ledger|no wagers|n
   throw new Error("Games.lua must stay free of gold, wagers and ledgers");
 }
 
-const addonFiles = ["Core.lua", "Compat.lua", "Locale.lua", "Standings.lua", "Modules/Games.lua", "Modules/Sync.lua", "Modules/Sim.lua", "Modules/Bidding.lua", "Modules/Council.lua", "Modules/Loot.lua", "Modules/Reserve.lua", "Modules/Recipes.lua", "Modules/Calendar.lua", "Modules/ConsumableData.lua", "Modules/Consumables.lua", "Modules/Digest.lua", "Modules/API.lua", "Modules/Backup.lua", "Modules/SyncNow.lua", "Modules/AutoInvite.lua", "Modules/Dungeon.lua", "Modules/Attunements.lua", "Modules/Ready.lua", "Modules/Minimap.lua"];
+const addonFiles = ["Util.lua", "Core.lua", "Compat.lua", "Locale.lua", "Standings.lua", "Modules/Games.lua", "Modules/Sync.lua", "Modules/Sim.lua", "Modules/Bidding.lua", "Modules/Council.lua", "Modules/Loot.lua", "Modules/Reserve.lua", "Modules/Recipes.lua", "Modules/Calendar.lua", "Modules/ConsumableData.lua", "Modules/Consumables.lua", "Modules/Digest.lua", "Modules/API.lua", "Modules/Backup.lua", "Modules/SyncNow.lua", "Modules/AutoInvite.lua", "Modules/Dungeon.lua", "Modules/Attunements.lua", "Modules/Ready.lua", "Modules/Minimap.lua", "Modules/Options.lua"];
 for (const file of addonFiles) {
   const source = readFileSync(new URL(file, root), "utf8");
   if (/RegisterEvent\(\s*"COMBAT_LOG_EVENT/.test(source)) {
     throw new Error(`${file} registers a combat log event, which addons are blocked from doing`);
   }
+}
+for (const file of addonFiles) {
+  if (file === "Util.lua") continue;
+  const source = readFileSync(new URL(file, root), "utf8");
+  if (/SendAddonMessage\(/.test(source)) throw new Error(`${file} calls SendAddonMessage directly; use ns.comm.send (Util.lua)`);
 }
 // Addon message prefixes are limited to 16 characters.
 for (const file of addonFiles) {

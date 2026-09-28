@@ -8,6 +8,12 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
+**Open work: read `docs/ADDON_AUDIT_HANDOFF.md` first.** The addon audit (11 fixes,
+6 upgrades) is committed on branch `claude/sleepy-pascal-cmmf3q` but not yet merged
+to `main`. That file lists every change and file, the protocol and saved-data
+changes, and what is left: merge, rebuild the addon zip and companion installer,
+redeploy the bot, and the in-game checks in `RELEASE_CHECKLIST.md`.
+
 This file is for whichever agent picks this repo up next — including a cloud
 session with no access to this machine's local state. If you're running
 somewhere that can't reach Neon or Discord and has no `.env.local`, that's
@@ -15,12 +21,19 @@ normal; see below.
 
 ## Before you consider anything done
 
-Run both, always — `tsc` passing is not enough on its own:
+Run these, always — `tsc` passing is not enough on its own:
 
 ```
 npx tsc --noEmit -p .
 npx vitest run
+npx eslint .
+node addon/Guilded/validate-addon.mjs
 ```
+
+Without `.env.local` (cloud sandboxes), 9 bot test files fail to load on
+`src/config.ts`'s environment check, not on a code error. Run the suite with
+throwaway placeholders set in the shell only (never commit them):
+`DISCORD_TOKEN=placeholder DISCORD_CLIENT_ID=123 DISCORD_GUILD_ID=456 DATABASE_URL=postgresql://u:p@localhost:5432/x npx vitest run`.
 
 Two failure modes only the test suite catches, not the type checker:
 
@@ -95,5 +108,8 @@ as a real, user-facing announcement trigger, not a housekeeping field.
 - `companion/` — the Node/CLI half of the uploader (also embedded in
   `companion-app/`, the Electron desktop app); `companion/engine.mjs` is the
   shared logic both use.
+- `addon/Guilded/Util.lua` — loaded first: shared helpers (`ns.util`) and the paced
+  addon-message queue (`ns.comm`). Every module sends through `ns.comm.send`; the validator
+  fails a module that calls `SendAddonMessage` directly.
 - `addon/Guilded/` — the WoW Lua addon; `tests/lua/` runs the real `.lua`
   files against a mocked game client (fengari), not a JS reimplementation.

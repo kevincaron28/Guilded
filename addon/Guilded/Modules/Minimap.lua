@@ -1465,6 +1465,23 @@ end
 ns.commandHelp = ns.commandHelp or {}
 table.insert(ns.commandHelp, "/guilded minimap show|hide|reset - the minimap button")
 
+-- The Addon Compartment (the addon list under the minimap on newer clients; Guilded.toc names
+-- these functions): same actions as the minimap button, so hiding that button loses nothing.
+function Guilded_OnAddonCompartmentClick(_, mouseButton)
+  if mouseButton == "RightButton" then run("inspect") else togglePanel() end
+end
+function Guilded_OnAddonCompartmentEnter(_, anchor)
+  if not GameTooltip then return end
+  GameTooltip:SetOwner(anchor or UIParent, "ANCHOR_LEFT")
+  GameTooltip:AddLine("Guilded")
+  GameTooltip:AddLine(L("Left-click: open the tools window"), 1, 1, 1)
+  GameTooltip:AddLine(L("Right-click: check my gear"), 1, 1, 1)
+  GameTooltip:Show()
+end
+function Guilded_OnAddonCompartmentLeave()
+  if GameTooltip then GameTooltip:Hide() end
+end
+
 -- Wait until the world has loaded so Core.lua's saved settings exist.
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")

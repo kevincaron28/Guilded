@@ -42,14 +42,10 @@ local function versionNewer(a, b)
   return false
 end
 
+-- Through Core's paced queue (ns.comm), so a long standings list is never dropped by the
+-- client's message throttle.
 local function send(text, channel, target)
-  pcall(function()
-    if C_ChatInfo and C_ChatInfo.SendAddonMessage then
-      C_ChatInfo.SendAddonMessage(PREFIX, text, channel, target)
-    elseif SendAddonMessage then
-      SendAddonMessage(PREFIX, text, channel, target)
-    end
-  end)
+  ns.comm.send(PREFIX, text, channel, target)
 end
 
 local function db()
@@ -108,13 +104,11 @@ local function shareStandings()
     current = current == "" and entry or (current .. ";" .. entry)
   end
   if current ~= "" then table.insert(chunks, current) end
-  -- One chunk per second stays well inside the client's addon-message throttle.
+  -- The queue paces the chunks inside the client's addon-message throttle.
   for i, chunk in ipairs(chunks) do
-    after(i - 1, function()
-      send(string.format("STAND|%s|%d|%d|%d|%s", s.updatedAt, s.baseGp or 0, i, #chunks, chunk), "GUILD")
-    end)
+    send(string.format("STAND|%s|%d|%d|%d|%s", s.updatedAt, s.baseGp or 0, i, #chunks, chunk), "GUILD")
   end
-  shareItems(#chunks)
+  shareItems()
 end
 
 -- Item tooltip data (who wishlisted an item, what it usually costs) travels next to the
@@ -132,7 +126,7 @@ local function encodeItems(list)
   return entries
 end
 
-function shareItems(offset)
+function shareItems()
   local d = db()
   local s = standings()
   if not d or not d.items or not s or not s.updatedAt then return end
@@ -146,9 +140,7 @@ function shareItems(offset)
   end
   if current ~= "" then table.insert(chunks, current) end
   for i, chunk in ipairs(chunks) do
-    after(offset + i - 1, function()
-      send(string.format("ITEM|%s|%d|%d|%s", s.updatedAt, i, #chunks, chunk), "GUILD")
-    end)
+    send(string.format("ITEM|%s|%d|%d|%s", s.updatedAt, i, #chunks, chunk), "GUILD")
   end
 end
 
@@ -173,6 +165,8 @@ local function receiveItemChunk(text, sender)
   if not updatedAt or not index or not total or total < 1 or total > 60 then return end
   if index < 1 or index > total then return end
   if not ns.isOfficerName(sender) then return end
+  -- A date in the future would make this copy "newest" forever.
+  if ns.util.tooFarAhead(updatedAt) then return end
   local d = db()
   if not d or (d.items and d.items.updatedAt and d.items.updatedAt >= updatedAt) then return end
   if not incomingItems or incomingItems.updatedAt ~= updatedAt then
@@ -195,6 +189,7 @@ local function receiveChunk(text, sender)
   if not updatedAt or not index or not total or total < 1 or total > 50 then return end
   if index < 1 or index > total then return end
   if not ns.isOfficerName(sender) then return end
+  if ns.util.tooFarAhead(updatedAt) then return end
   local s = standings()
   if s and s.updatedAt and s.updatedAt >= updatedAt then return end
   if not incoming or incoming.updatedAt ~= updatedAt then
@@ -443,11 +438,7 @@ local function onEvent(_, event, ...)
     if started then return end
     started = true
     myVersion = getMetadata("Version") or "0"
-    if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then
-      C_ChatInfo.RegisterAddonMessagePrefix(PREFIX)
-    elseif RegisterAddonMessagePrefix then
-      RegisterAddonMessagePrefix(PREFIX)
-    end
+    ns.comm.register(PREFIX)
     local adopted = adoptFileStandings()
     -- Wait for the guild channel to be ready before talking on it.
     after(STARTUP_DELAY_SECONDS, function()
@@ -503,5 +494,5 @@ frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 frame:RegisterEvent("CHAT_MSG_ADDON")
 frame:SetScript("OnEvent", function(...)
   local ok, err = pcall(onEvent, ...)
-  if not ok then ns.message("Sync error: " .. tostring(err)) end
+  if not ok and ns.logDiagnostic then ns.logDiagnostic("LUA_ERROR", "Guilded sync: " .. tostring(err)) end
 end)

@@ -72,7 +72,8 @@ const diagnostics = (s: LuaSession) => s.run(`local n = 0; for _, d in ipairs((N
 describe("the whole addon, loaded in .toc order", () => {
   it("lists the files it is about to load", () => {
     expect(FILES.length).toBeGreaterThan(20);
-    expect(FILES[0]).toBe("Core.lua");
+    expect(FILES[0]).toBe("Util.lua");
+    expect(FILES[1]).toBe("Core.lua");
     for (const name of ["Modules/Bidding.lua", "Modules/Council.lua", "Modules/Loot.lua", "Modules/Reserve.lua", "Modules/Recipes.lua", "Modules/Calendar.lua", "Modules/Minimap.lua"]) {
       expect(FILES).toContain(name);
     }
@@ -83,6 +84,17 @@ describe("the whole addon, loaded in .toc order", () => {
     expect(problems(s)).toEqual([]);
     expect(diagnostics(s)).toBe("0");
     expect(s.run(`return tostring(NS.windowState() ~= nil)`)).toBe("true");
+  });
+
+  it("has an options page and an Addon Compartment entry", () => {
+    const s = fullAddon(1);
+    expect(s.run(`return type(Guilded_OnAddonCompartmentClick) .. type(Guilded_OnAddonCompartmentEnter) .. type(Guilded_OnAddonCompartmentLeave)`)).toBe("functionfunctionfunction");
+    expect(s.run(`return tostring(#NS.options.switches() == 4 + #NS.MODULES)`)).toBe("true");
+    // A switch runs the same command you could type.
+    s.run(`for _, sw in ipairs(NS.options.switches()) do if sw.module == "games" then sw.set(false) end end`);
+    expect(s.run(`return tostring(GuildedDB.settings.modules.games)`)).toBe("false");
+    s.run(`SlashCmdList["GUILDED"]("options")`);
+    expect(problems(s)).toEqual([]);
   });
 
   it("every part registered its commands", () => {

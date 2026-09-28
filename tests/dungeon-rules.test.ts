@@ -24,6 +24,12 @@ describe("run validation", () => {
     const twice = { character: "Kev", realm: "R", deaths: 0, presentSec: 0, inGuild: true };
     expect(validateRun(run({ players: [twice, { ...twice, character: "kev" }] }), now).reason).toContain("twice");
   });
+  it("only believes a run from someone who was in it", () => {
+    expect(validateRun(run({ recorder: "Kev" }), now)).toEqual({ ok: true });
+    expect(validateRun(run({ recorder: "Faker" }), now).reason).toContain("recorder was not in the run");
+    expect(validateRun(run({ reporterNames: ["Faker", "kev"] }), now)).toEqual({ ok: true });
+    expect(validateRun(run({ reporterNames: ["Faker"] }), now).reason).toContain("no reporter was in the run");
+  });
   it("keeps abandoned runs (no points) as valid records", () => {
     expect(validateRun(run({ state: "ABANDONED", endedAt: undefined }), now)).toEqual({ ok: true });
   });

@@ -53,36 +53,19 @@ local function me() return ns.playerName() end
 -- Messaging (queued while in combat, spaced out)
 -- ---------------------------------------------------------------------
 
-local function sendNow(text, channel)
-  pcall(function()
-    text = string.sub(text, 1, 255)
-    if C_ChatInfo and C_ChatInfo.SendAddonMessage then
-      C_ChatInfo.SendAddonMessage(PREFIX, text, channel)
-    elseif SendAddonMessage then
-      SendAddonMessage(PREFIX, text, channel)
-    end
-  end)
-end
-
 local function groupChannel()
-  if IsInRaid and IsInRaid() then return "RAID" end
-  if compat.inGroup() then return "PARTY" end
-  return nil
+  return ns.util.groupChannel()
 end
 
+-- Held back while in combat (messages can be blocked mid-fight), then handed to the paced
+-- queue in Util.lua.
 local function flush()
   if compat.inCombat() then return end
   local queued = dungeon.outbox
   dungeon.outbox = {}
-  for index, message in ipairs(queued) do
+  for _, message in ipairs(queued) do
     local channel = message.channel == "GROUP" and groupChannel() or message.channel
-    if channel then
-      if C_Timer and C_Timer.After and index > 1 then
-        C_Timer.After((index - 1) * 0.5, function() sendNow(message.text, channel) end)
-      else
-        sendNow(message.text, channel)
-      end
-    end
+    if channel then ns.comm.send(PREFIX, message.text, channel) end
   end
 end
 
@@ -358,6 +341,20 @@ end
 -- Events
 -- ---------------------------------------------------------------------
 
+local function run_recorder(run) return run and run.recorder end
+
+-- Is `name` the leader of your party or raid?
+local function leaderIs(name)
+  if not UnitIsGroupLeader then return false end
+  for _, member in ipairs(compat.groupMembers()) do
+    if member.name == name then
+      local ok, leader = pcall(UnitIsGroupLeader, member.unit)
+      return ok and leader == true
+    end
+  end
+  return false
+end
+
 local function onAddonMessage(text, sender)
   local d = db()
   local run = d and d.current
@@ -380,8 +377,9 @@ local function onAddonMessage(text, sender)
     end
   elseif kind == "ACTIVE" then
     local id, startedAt = string.match(text, "^ACTIVE|([^|]+)|(%d+)$")
-    if run and run.id == id then
-      startedAt = tonumber(startedAt)
+    startedAt = tonumber(startedAt)
+    -- A start time before this run was even detected (or in the future) is not believed.
+    if run and run.id == id and startedAt and startedAt >= (run.detectedAt or 0) - 600 and startedAt <= now() + 60 then
       if run.state == "STARTING" then activate(startedAt)
       elseif run.state == "ACTIVE" and startedAt and startedAt < (run.startedAt or math.huge) then run.startedAt = startedAt; save(run) end
     end
@@ -397,7 +395,13 @@ local function onAddonMessage(text, sender)
     end
   elseif kind == "END" then
     local id, state, endedAt, reason = string.match(text, "^END|([^|]+)|(%u+)|(%d+)|(.*)$")
-    if run and run.id == id and not TERMINAL[run.state] and (state == "COMPLETED" or state == "ABANDONED") then
+    -- Only the run's recorder or the group leader can end the run for everyone, and only
+    -- with an end time that makes sense (after the start, not in the future). Anyone else's
+    -- END is ignored; their own client still records the run the normal way.
+    local trusted = sender == run_recorder(run) or leaderIs(sender)
+    local stamp = tonumber(endedAt)
+    local sane = stamp and stamp <= now() + 60 and stamp >= ((run and (run.startedAt or run.detectedAt)) or 0)
+    if run and run.id == id and trusted and sane and not TERMINAL[run.state] and (state == "COMPLETED" or state == "ABANDONED") then
       run.state = state
       run.endedAt = tonumber(endedAt)
       if state == "COMPLETED" then run.completedBy = reason else run.endReason = reason end
@@ -415,7 +419,11 @@ local function onAddonMessage(text, sender)
     if pending.count >= pending.total then
       dungeon.incoming[key] = nil
       local peer = deserialize(id, table.concat(pending.parts))
-      if peer then storePeerRun(peer, sender) end
+      -- Only someone who was in the run can report it, and not with times in the future.
+      if peer and peer.players[sender] and not ns.util.tooFarAhead(peer.endedAt or 0)
+        and not ns.util.tooFarAhead(peer.startedAt or 0) then
+        storePeerRun(peer, sender)
+      end
     end
   end
 end
@@ -423,7 +431,7 @@ end
 local function onEvent(_, event, ...)
   local d = db()
   if event == "PLAYER_LOGIN" then
-    if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then C_ChatInfo.RegisterAddonMessagePrefix(PREFIX) end
+    ns.comm.register(PREFIX)
     return
   end
   if not d then return end

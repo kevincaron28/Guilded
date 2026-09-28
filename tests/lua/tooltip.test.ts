@@ -86,6 +86,21 @@ describe("Tooltip.lua", () => {
   });
 });
 
+describe("Tooltip.lua with the tooltip data processor", () => {
+  it("adds the lines every time a tooltip is filled, comparison tooltips included", () => {
+    const s = withTooltip();
+    s.run(`
+      ADDED = {}
+      TIP = { GetItem = function() return "Lonely Ring", "link" end, AddLine = function(_, text) ADDED[#ADDED + 1] = text end, Show = function() end }
+      -- The processor calls once per freshly filled tooltip; there is no "cleared" event to rely on.
+      NS.tooltip.decorate(TIP, true)
+      NS.tooltip.decorate(TIP, true)
+    `);
+    expect(s.run(`return #ADDED`)).toBe("4");
+    expect(s.run(`return tostring(TIP.guildedDone)`)).toBe("nil");
+  });
+});
+
 describe("Tooltip.lua in French", () => {
   it("uses the player's language through Locale", () => {
     const s = withTooltip();

@@ -21,7 +21,6 @@ ns = ns or {}
 
 local PREFIX = "GuildedRcp"
 local CHUNK = 200
-local SEND_GAP = 1.2
 local MAX_KEYS = 800
 local MAX_CHUNKS = 40
 local MAX_COOLDOWNS = 20
@@ -90,39 +89,12 @@ recipes.nameFor = nameFor
 -- Sending to the guild (slowly)
 -- ---------------------------------------------------------------------
 
-local queue, flushing = {}, false
-
-local function sendOne(text)
-  pcall(function()
-    text = string.sub(text, 1, 255)
-    if C_ChatInfo and C_ChatInfo.SendAddonMessage then
-      C_ChatInfo.SendAddonMessage(PREFIX, text, "GUILD")
-    elseif SendAddonMessage then
-      SendAddonMessage(PREFIX, text, "GUILD")
-    end
-  end)
-end
-
-local function flush()
-  flushing = false
-  local text = table.remove(queue, 1)
-  if not text then return end
-  sendOne(text)
-  if #queue > 0 then
-    flushing = true
-    if C_Timer and C_Timer.After then C_Timer.After(SEND_GAP, flush) else flush() end
-  end
-end
-
+-- Core's paced queue (Util.lua) spaces the messages out.
 local function enqueue(text)
   if not (IsInGuild and IsInGuild()) then return end
-  table.insert(queue, text)
-  if not flushing then
-    flushing = true
-    if C_Timer and C_Timer.After then C_Timer.After(0.2, flush) else flush() end
-  end
+  ns.comm.send(PREFIX, text, "GUILD")
 end
-recipes.queueLength = function() return #queue end
+recipes.queueLength = function() return ns.comm.pending(PREFIX) end
 
 -- One profession's list, cut into chunks: R|profession|version|n|N|key,key,...
 local function shareProfession(profession, entry)
@@ -289,8 +261,10 @@ local function readModernWindow()
     local infoOk, info = pcall(ui.GetRecipeInfo, recipeID)
     if infoOk and info and info.learned and info.name then
       local key
-      if info.isEnchantingRecipe and info.skillLineAbilityID then
-        key = -info.skillLineAbilityID
+      if info.isEnchantingRecipe then
+        -- The recipe id is the enchant's spell id: the same key the classic window gives
+        -- ("enchant:<spell id>"), so crafters are found whichever client read the recipe.
+        key = -recipeID
       elseif info.hyperlink then
         key = keyFromLink(info.hyperlink)
       end
@@ -325,7 +299,31 @@ local function readModernWindow()
   return result
 end
 
+-- True when the open window shows someone else's recipes: a profession link from chat, the
+-- guild's crafter list, or an NPC/crafting-order view. Those must never be saved as yours.
+local function viewingOthers()
+  local checks = {}
+  local ui = C_TradeSkillUI
+  if ui then
+    checks[#checks + 1] = ui.IsTradeSkillLinked
+    checks[#checks + 1] = ui.IsTradeSkillGuild
+    checks[#checks + 1] = ui.IsNPCCrafting
+    checks[#checks + 1] = ui.IsTradeSkillGuildMember
+  end
+  checks[#checks + 1] = IsTradeSkillLinked
+  checks[#checks + 1] = IsTradeSkillGuild
+  for _, fn in ipairs(checks) do
+    if type(fn) == "function" then
+      local ok, result = pcall(fn)
+      if ok and result and not (ns.isSecret and ns.isSecret(result)) then return true end
+    end
+  end
+  return false
+end
+recipes.viewingOthers = viewingOthers
+
 local function readWindow(kind)
+  if viewingOthers() then return nil end
   local legacy = readLegacyWindow(kind)
   if legacy then return legacy end
   if kind == "trade" then return readModernWindow() end
@@ -654,11 +652,7 @@ table.insert(ns.commandHelp, "/guilded recipes who <item> - who in the guild can
 
 local function onEvent(_, event, ...)
   if event == "PLAYER_LOGIN" then
-    if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then
-      C_ChatInfo.RegisterAddonMessagePrefix(PREFIX)
-    elseif RegisterAddonMessagePrefix then
-      RegisterAddonMessagePrefix(PREFIX)
-    end
+    ns.comm.register(PREFIX)
     -- Tell the guild what you know, once in a while and not all at the same second.
     if C_Timer and C_Timer.After then
       C_Timer.After(45 + math.random(0, 60), function()

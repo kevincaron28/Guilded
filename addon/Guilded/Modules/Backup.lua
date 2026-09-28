@@ -20,10 +20,17 @@ local MAX_CHARS = 4000000
 
 -- Fields that are not part of a backup (scratch or per-machine data), and
 -- fields that always stay in place.
+-- Also left out: data that rebuilds itself (recipes are re-read and re-shared, the calendar
+-- and consumable scans are redone, open loot sessions are minutes long), which keeps codes
+-- much smaller: a very long code is slow to paste into the game's edit box.
 local SKIP = {
   diagnostics = true, peerRoster = true, events = true, exports = true, standings = true, items = true,
-  calendarCheck = true, character = true, preRestore = true, snapshots = false
+  calendarCheck = true, character = true, preRestore = true, recipeBook = true, calendarEvents = true,
+  consumeScan = true, lootRules = true, biddingSession = true, councilSession = true
 }
+-- The copy kept for /guilded restore undo is a whole second set of data in the saved file,
+-- so it is dropped after this long (or at once with /guilded restore forget).
+local UNDO_KEEP_SECONDS = 7 * 86400
 local KEEP = { version = true, guildKey = true, otherGuilds = true }
 
 local module = {}
@@ -33,38 +40,7 @@ ns.backup = module
 -- base64 (RFC 4648)
 -- ---------------------------------------------------------------------
 
-local B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-local B64_INDEX = {}
-for i = 1, #B64 do B64_INDEX[string.sub(B64, i, i)] = i - 1 end
-
-local function b64encode(data)
-  local out = {}
-  for i = 1, #data, 3 do
-    local a, b, c = string.byte(data, i, i + 2)
-    local n = a * 65536 + (b or 0) * 256 + (c or 0)
-    local c1, c2, c3, c4 = math.floor(n / 262144) % 64, math.floor(n / 4096) % 64, math.floor(n / 64) % 64, n % 64
-    out[#out + 1] = string.sub(B64, c1 + 1, c1 + 1) .. string.sub(B64, c2 + 1, c2 + 1)
-      .. (b and string.sub(B64, c3 + 1, c3 + 1) or "=") .. (c and string.sub(B64, c4 + 1, c4 + 1) or "=")
-  end
-  return table.concat(out)
-end
-
-local function b64decode(text)
-  text = string.gsub(text, "%s", "")
-  if #text % 4 ~= 0 or string.find(text, "[^A-Za-z0-9+/=]") then return nil end
-  local out = {}
-  for i = 1, #text, 4 do
-    local a, b = B64_INDEX[string.sub(text, i, i)], B64_INDEX[string.sub(text, i + 1, i + 1)]
-    local c3, c4 = string.sub(text, i + 2, i + 2), string.sub(text, i + 3, i + 3)
-    if not a or not b then return nil end
-    local c, d = B64_INDEX[c3] or 0, B64_INDEX[c4] or 0
-    local n = a * 262144 + b * 4096 + c * 64 + d
-    out[#out + 1] = string.char(math.floor(n / 65536) % 256)
-    if c3 ~= "=" then out[#out + 1] = string.char(math.floor(n / 256) % 256) end
-    if c4 ~= "=" then out[#out + 1] = string.char(n % 256) end
-  end
-  return table.concat(out)
-end
+local b64encode, b64decode = ns.util.base64Encode, ns.util.base64Decode
 module.b64encode, module.b64decode = b64encode, b64decode
 
 -- ---------------------------------------------------------------------
@@ -345,7 +321,7 @@ local function ensureFrame()
     previewed = nil
     local done, problem = module.restore(code)
     if done then
-      ns.message("Backup restored. /reload now so everything uses it.")
+      ns.message("Backup restored. /reload now so everything uses it. The old data is kept for 7 days for /guilded restore undo (/guilded restore forget removes it now).")
       frame:Hide()
     else
       ns.message(problem)
@@ -376,8 +352,36 @@ ns.commandHandlers["backup"] = function()
   ns.lastBackupCode = code
   openBox("Guilded backup - copy this (Ctrl+C)", code, false)
 end
+-- Drops the undo copy once it is older than UNDO_KEEP_SECONDS. Returns true if it did.
+function module.expireUndo()
+  local db = activeDb()
+  local saved = db and db.preRestore
+  if type(saved) ~= "table" then return false end
+  local at = ns.util.isoEpoch(saved.at)
+  if at and ns.util.serverTime() - at < UNDO_KEEP_SECONDS then return false end
+  db.preRestore = nil
+  return true
+end
+
+local events = CreateFrame("Frame")
+events:RegisterEvent("PLAYER_LOGIN")
+events:SetScript("OnEvent", function()
+  local ok, err = pcall(module.expireUndo)
+  if not ok and ns.logDiagnostic then ns.logDiagnostic("LUA_ERROR", "backup: " .. tostring(err)) end
+end)
+
 ns.commandHandlers["restore"] = function(args)
   if ns.moduleActive and not ns.moduleActive("backup") then return end
+  if string.lower(args[1] or "") == "forget" then
+    local db = activeDb()
+    if db and db.preRestore then
+      db.preRestore = nil
+      ns.message("The copy kept for /guilded restore undo was removed.")
+    else
+      ns.message("There is no undo copy to remove.")
+    end
+    return
+  end
   if string.lower(args[1] or "") == "undo" then
     local ok, err = module.undo()
     ns.message(ok and "Put back what was there before the last restore. /reload now." or err)
@@ -386,4 +390,4 @@ ns.commandHandlers["restore"] = function(args)
   openBox("Guilded restore - paste your backup code, then press Restore", "", true)
 end
 ns.commandHelp = ns.commandHelp or {}
-table.insert(ns.commandHelp, "/guilded backup | restore [undo] - copy this guild's saved data as one code / put it back")
+table.insert(ns.commandHelp, "/guilded backup | restore [undo|forget] - copy this guild's saved data as one code / put it back")

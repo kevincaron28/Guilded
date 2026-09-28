@@ -6,9 +6,13 @@
 ## Version: 4.0.0
 ## IconTexture: Interface\Icons\INV_Misc_Coin_01
 ## Category: Raid
+## AddonCompartmentFunc: Guilded_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: Guilded_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: Guilded_OnAddonCompartmentLeave
 ## X-License: PolyForm-Noncommercial-1.0.0
 ## SavedVariables: GuildedDB, QuebecGoldDB
 
+Util.lua
 Core.lua
 Compat.lua
 Locale.lua
@@ -35,3 +39,4 @@ Modules\ChatTab.lua
 Modules\Attunements.lua
 Modules\Ready.lua
 Modules\Minimap.lua
+Modules\Options.lua

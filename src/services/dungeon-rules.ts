@@ -23,6 +23,8 @@ export const dungeonRunSchema = z.object({
   endReason: z.string().max(80).optional(),
   recorder: z.string().max(40).optional(),
   reporters: z.number().int().nonnegative().default(1),
+  // Characters whose addon reported the run (newer companions only).
+  reporterNames: z.array(z.string().min(1).max(40)).max(10).optional(),
   players: z.array(z.object({
     character: z.string().min(1).max(40),
     realm: z.string().min(1).max(60),
@@ -112,6 +114,13 @@ export function validateRun(run: DungeonRunInput, now = new Date()): Validation 
   if (duration > MAX_DURATION_SEC) return { ok: false, reason: `too long (${Math.round(duration / 60)} min)` };
   const names = new Set(run.players.map((player) => player.character.toLowerCase()));
   if (names.size !== run.players.length) return { ok: false, reason: "same player listed twice" };
+  // A run is only believed from someone who was in it: the recorder, and at least one of
+  // the reporters when the companion says who they were.
+  if (run.recorder && !names.has(run.recorder.toLowerCase())) return { ok: false, reason: "recorder was not in the run" };
+  if (run.reporterNames && run.reporterNames.length > 0
+    && !run.reporterNames.some((name) => names.has(name.toLowerCase()))) {
+    return { ok: false, reason: "no reporter was in the run" };
+  }
   return { ok: true };
 }
 

@@ -24,7 +24,8 @@ end
 -- Builds the digest lines for everything newer than `since` (ISO string).
 local function build(db, since)
   local lines = {}
-  local newMembers = count(db.roster, function(e) return after(e.firstSeen, since) end)
+  -- Joined the guild since (raid pugs are in the roster too, with inGuild = false).
+  local newMembers = count(db.roster, function(e) return e.inGuild ~= false and after(e.joinedAt or e.firstSeen, since) end)
   if newMembers > 0 then table.insert(lines, string.format("%d new guild member(s) seen", newMembers)) end
 
   local ledger = 0

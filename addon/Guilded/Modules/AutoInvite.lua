@@ -43,7 +43,10 @@ local function canInvite()
   return true
 end
 
+-- Someone the guild roster lists now (a pug you raided with, or a member who left, can
+-- still be invited).
 local function alreadyInGuild(name)
+  if ns.isGuildMember then return ns.isGuildMember(name) end
   local db = ns.getDb and ns.getDb()
   return db and db.roster and db.roster[name] ~= nil
 end

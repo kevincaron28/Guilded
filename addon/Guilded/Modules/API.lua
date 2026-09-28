@@ -9,7 +9,7 @@
 --   api.GetStandingsUpdatedAt()  -> ISO time string or nil
 --   api.GetReadiness(name)       -> { status, itemLevel, findings = { { code, severity, message } }, source, updatedAt } or nil
 --   api.GetAttunements(name)     -> { { name, completed } } (possibly empty)
---   api.GetRosterNames()         -> sorted list of known guild member names
+--   api.GetRosterNames()         -> sorted list of guild member names (not raid pugs or past members)
 --   api.GetActiveRaid()          -> { title, startedAt } or nil
 --
 -- Deliberately read-only: there is no function that awards EP/GP, changes
@@ -91,7 +91,9 @@ api.GetRosterNames = safe(function()
   local d = db()
   local names = {}
   if not d then return names end
-  for name in pairs(d.roster or {}) do table.insert(names, name) end
+  for name, entry in pairs(d.roster or {}) do
+    if type(entry) == "table" and entry.inGuild ~= false then table.insert(names, name) end
+  end
   table.sort(names)
   return names
 end)

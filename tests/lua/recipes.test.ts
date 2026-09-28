@@ -127,15 +127,16 @@ describe("Recipes.lua reading a profession window", () => {
     s.run(String.raw`
       GetNumTradeSkills = nil
       C_TradeSkillUI = {
-        GetAllRecipeIDs = function() return { 501, 502, 503 } end,
+        GetAllRecipeIDs = function() return { 7418, 502, 503 } end,
         GetBaseProfessionInfo = function() return { professionName = "Enchanting" } end,
         GetRecipeInfo = function(id)
-          if id == 501 then return { learned = true, name = "Minor Health", isEnchantingRecipe = true, skillLineAbilityID = 7418 } end
+          -- The recipe id of an enchant is its spell id (the classic window's "enchant:7418").
+          if id == 7418 then return { learned = true, name = "Minor Health", isEnchantingRecipe = true, skillLineAbilityID = 31 } end
           if id == 502 then return { learned = true, name = "Flask of Y", hyperlink = "|Hitem:1002::::|h[Flask of Y]|h" } end
           if id == 503 then return { learned = false, name = "Not Learned Yet" } end
         end,
         GetRecipeSchematic = function(id)
-          if id == 501 then return { reagentSlotSchematics = { { reagents = { { itemID = 2447 } }, quantityRequired = 2 } } } end
+          if id == 7418 then return { reagentSlotSchematics = { { reagents = { { itemID = 2447 } }, quantityRequired = 2 } } } end
           return { reagentSlotSchematics = {} }
         end
       }
@@ -246,5 +247,23 @@ describe("Recipes.lua receiving from guildmates", () => {
     s.run(`NS.moduleActive = function() return false end`);
     receive(s, "Ann", "R|Tailoring|100|1|1|555");
     expect(s.run("return tostring(DB.recipeBook and next(DB.recipeBook.people) or nil)")).toBe("nil");
+  });
+
+  it("never saves someone else's profession (a chat link or the guild view) as yours", () => {
+    const s = withRecipes();
+    s.run(String.raw`
+      GetNumTradeSkills = nil
+      C_TradeSkillUI = {
+        IsTradeSkillLinked = function() return true end,
+        GetAllRecipeIDs = function() return { 502 } end,
+        GetBaseProfessionInfo = function() return { professionName = "Alchemy" } end,
+        GetRecipeInfo = function() return { learned = true, name = "Flask of Y", hyperlink = "|Hitem:1002::::|h[Flask of Y]|h" } end,
+        GetRecipeSchematic = function() return { reagentSlotSchematics = {} } end
+      }
+      NS.recipes.scan("trade")
+    `);
+    expect(s.run("return tostring(DB.recipeBook and DB.recipeBook.people.Ray)")).toBe("nil");
+    s.run("C_TradeSkillUI.IsTradeSkillLinked = function() return false end; NS.recipes.scan('trade')");
+    expect(keysOf(s, "Ray", "Alchemy")).toBe("1002");
   });
 });

@@ -35,17 +35,8 @@ local function rules()
   return ns.getLootRules and ns.getLootRules() or nil
 end
 
--- Same spelling rule as the bot's item keys and the tooltip's (see Modules/Tooltip.lua).
-local function itemKey(name)
-  if type(name) ~= "string" then return nil end
-  local key = string.lower(name)
-  key = string.gsub(key, "[|;~:,%c]", " ")
-  key = string.gsub(key, "%s+", " ")
-  key = string.gsub(key, "^ ", "")
-  key = string.gsub(key, " $", "")
-  if key == "" then return nil end
-  return key
-end
+-- Same spelling rule as the bot's item keys and the tooltip's (Util.lua).
+local function itemKey(name) return ns.util.itemKey(name) end
 
 -- ---------------------------------------------------------------------
 -- Which core, which system

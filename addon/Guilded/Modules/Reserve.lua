@@ -120,9 +120,7 @@ end
 -- ---------------------------------------------------------------------
 
 local function groupChannel()
-  if IsInRaid and IsInRaid() then return "RAID" end
-  if IsInGroup and IsInGroup() then return "PARTY" end
-  return nil
+  return ns.util.groupChannel()
 end
 
 -- Reserves are usually made days before the raid, so the guild is the audience.
@@ -133,14 +131,7 @@ end
 
 local function sendAddon(text, channel, target)
   if not channel then return end
-  pcall(function()
-    text = string.sub(text, 1, 255)
-    if C_ChatInfo and C_ChatInfo.SendAddonMessage then
-      C_ChatInfo.SendAddonMessage(PREFIX, text, channel, target)
-    elseif SendAddonMessage then
-      SendAddonMessage(PREFIX, text, channel, target)
-    end
-  end)
+  ns.comm.send(PREFIX, text, channel, target)
 end
 
 local function sendChat(text, channel, target)
@@ -159,30 +150,40 @@ local function announce(text)
   sendChat("[Guilded] " .. text, groupChannel() or (IsInGuild and IsInGuild() and "GUILD" or nil))
 end
 
--- Every change stamps the list (the companion exports it, and the newest copy wins in Discord).
-local function changed()
-  local s = state()
-  if s and ns.now then s.updatedAt = ns.now() end
+local function notify()
   if ns.onReserveChange then pcall(ns.onReserveChange) end
 end
 
--- The keeper shares the whole list: settings, then the entries in short chunks.
+-- A change made by the keeper stamps the list (the companion exports it, and the newest copy
+-- wins in Discord). Everyone else keeps the keeper's stamp, which travels with the list, so a
+-- member's copy can never look newer than the keeper's.
+local function changed()
+  local s = state()
+  if s and ns.now then s.updatedAt = ns.now() end
+  notify()
+end
+
+-- The keeper shares the whole list: settings, then "VER|<stamp>|<chunks>", then the entries
+-- in short chunks. A receiver only swaps in the new list once every chunk has arrived, so a
+-- lost message leaves the previous list in place instead of a half list.
 local function shareNow()
   local s = state()
   if not (s and isHost()) then return end
   local channel = shareChannel()
-  sendAddon(string.format("STATE|%d|%d|%s", s.open and 1 or 0, s.limit, s.title or ""), channel)
-  sendAddon("CLR", channel)
-  local buffer = ""
+  local chunks, buffer = {}, ""
   for _, name in ipairs(sortedPlayers(s)) do
     local piece = name .. "=" .. table.concat(s.entries[name], ",")
     if buffer ~= "" and string.len(buffer) + 1 + string.len(piece) > CHUNK then
-      sendAddon("L|" .. buffer, channel)
+      table.insert(chunks, buffer)
       buffer = ""
     end
     buffer = buffer == "" and piece or (buffer .. ";" .. piece)
   end
-  if buffer ~= "" then sendAddon("L|" .. buffer, channel) end
+  if buffer ~= "" then table.insert(chunks, buffer) end
+  sendAddon(string.format("STATE|%d|%d|%s", s.open and 1 or 0, s.limit, s.title or ""), channel)
+  sendAddon("CLR", channel)
+  sendAddon(string.format("VER|%s|%d", s.updatedAt or (ns.now and ns.now()) or "", #chunks), channel)
+  for _, chunk in ipairs(chunks) do sendAddon("L|" .. chunk, channel) end
 end
 reserve.share = shareNow
 
@@ -308,10 +309,10 @@ local function openList(args)
   local title = table.concat(args, " ", first)
   s.open, s.limit, s.title, s.host, s.hostSender = true, limit, title, ns.playerName(), nil
   s.entries = {}
+  changed()
   shareNow()
   announce(string.format(L("Soft reserves are open%s: %d per player. Reserve with /guilded reserve [item link], or whisper me: res [item link]."),
     title ~= "" and (" (" .. title .. ")") or "", limit))
-  changed()
 end
 
 local function setLocked(locked)
@@ -320,9 +321,9 @@ local function setLocked(locked)
   if not (s and s.host) then ns.message(L("No reserve list is open. An officer opens one with /guilded reserve open.")); return end
   if not isHost() then s.host = ns.playerName(); s.hostSender = nil end
   s.open = not locked
+  changed()
   shareNow()
   announce(locked and L("Soft reserves are locked.") or L("Soft reserves are open again."))
-  changed()
 end
 
 local function clearList()
@@ -330,9 +331,9 @@ local function clearList()
   local s = state()
   if not s then return end
   s.open, s.host, s.hostSender, s.entries = false, nil, nil, {}
-  sendAddon("DONE", shareChannel())
-  ns.message(L("Reserves cleared."))
   changed()
+  sendAddon("DONE|" .. (s.updatedAt or ""), shareChannel())
+  ns.message(L("Reserves cleared."))
 end
 
 -- An officer adds or removes for another player (someone without the addon, a fix).
@@ -354,8 +355,8 @@ local function officerChange(action, args)
   else
     removeFor(name, id)
   end
-  shareNow()
   changed()
+  shareNow()
 end
 
 local function whoText(itemText)
@@ -407,9 +408,10 @@ local function awardTo(args)
   local plain = itemName(id)
   ns.runCommand("loot " .. name .. " " .. plain .. " " .. gp)
   if gp > 0 then ns.runCommand("gp " .. name .. " " .. gp .. " Reserve: " .. plain) end
-  if s and isHost() and removeFor(name, id) then shareNow() end
-  announce(string.format(L("%s goes to %s."), plain, name))
+  local removed = s and isHost() and removeFor(name, id)
   changed()
+  if removed then shareNow() end
+  announce(string.format(L("%s goes to %s."), plain, name))
 end
 
 -- ---------------------------------------------------------------------
@@ -487,11 +489,7 @@ table.insert(ns.commandHelp, "/guilded reserve <item link> - soft reserve an ite
 
 local function onEvent(_, event, ...)
   if event == "PLAYER_LOGIN" then
-    if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then
-      C_ChatInfo.RegisterAddonMessagePrefix(PREFIX)
-    elseif RegisterAddonMessagePrefix then
-      RegisterAddonMessagePrefix(PREFIX)
-    end
+    ns.comm.register(PREFIX)
     -- Ask the keeper for the current list (they answer once in a while).
     if C_Timer and C_Timer.After then
       C_Timer.After(15, function()
@@ -539,23 +537,42 @@ local function onEvent(_, event, ...)
         local open, limit, title = string.match(text, "^STATE|(%d)|(%d+)|(.*)$")
         if not open then return end
         s.host, s.hostSender = name, sender
-        s.open, s.limit, s.title = open == "1", tonumber(limit) or DEFAULT_LIMIT, title
+        s.open, s.limit, s.title = open == "1", math.max(1, math.min(MAX_LIMIT, tonumber(limit) or DEFAULT_LIMIT)), title
       elseif kind == "DONE" then
-        if s.host == name then s.open, s.host, s.hostSender, s.entries = false, nil, nil, {} end
+        if s.host == name then
+          s.open, s.host, s.hostSender, s.entries = false, nil, nil, {}
+          local stamp = string.match(text, "^DONE|(.+)$")
+          if stamp and not ns.util.tooFarAhead(stamp) then s.updatedAt = stamp end
+        end
+        reserve.incoming = nil
       elseif kind == "CLR" then
-        if s.host == name then s.entries = {} end
+        if s.host == name then reserve.incoming = { from = name, entries = {}, received = 0 } end
+      elseif kind == "VER" then
+        local incoming = reserve.incoming
+        local stamp, total = string.match(text, "^VER|([^|]*)|(%d+)$")
+        if not (incoming and incoming.from == name and total) then return end
+        incoming.stamp, incoming.total = stamp, tonumber(total)
       elseif kind == "L" then
-        if s.host ~= name then return end
+        local incoming = reserve.incoming
+        if s.host ~= name or not incoming or incoming.from ~= name then return end
         for entry in string.gmatch(string.match(text, "^L|(.*)$") or "", "[^;]+") do
           local player, ids = string.match(entry, "^([^=]+)=([%d,]+)$")
           if player then
             local list = {}
             for id in string.gmatch(ids, "%d+") do table.insert(list, tonumber(id)) end
-            s.entries[player] = list
+            incoming.entries[player] = list
           end
         end
+        incoming.received = incoming.received + 1
       end
-      changed()
+      -- The whole list arrived: swap it in at once, with the keeper's stamp.
+      local incoming = reserve.incoming
+      if incoming and incoming.total and incoming.received >= incoming.total then
+        s.entries = incoming.entries
+        if incoming.stamp and incoming.stamp ~= "" and not ns.util.tooFarAhead(incoming.stamp) then s.updatedAt = incoming.stamp end
+        reserve.incoming = nil
+      end
+      notify()
     end
   end
 end

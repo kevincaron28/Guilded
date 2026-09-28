@@ -13,6 +13,9 @@ function withReserve(me: string, officer: boolean): LuaSession {
   session = newLuaSession();
   session.run(String.raw`
     SENT = {}
+    -- The clock moves on, so Util.lua's message pacing lets every message out at once.
+    local T = 0
+    function GetTime() T = T + 10; return T end
     function IsInGuild() return true end
     function IsInRaid() return false end
     function IsInGroup() return false end
@@ -180,7 +183,7 @@ describe("Reserve.lua keeper side", () => {
     cmd(s, "clear");
     expect(s.run("return tostring(DB.reserves.host)")).toBe("nil");
     expect(holders(s, 1)).toBe("");
-    expect(sent(s, "^ADDON:GUILD:nil:DONE$")).toBe("1");
+    expect(sent(s, "^ADDON:GUILD:nil:DONE|")).toBe("1");
   });
 });
 
@@ -198,6 +201,7 @@ describe("Reserve.lua member side", () => {
     expect(s.run("return tostring(DB.reserves and DB.reserves.host)")).toBe("nil");
     addon(s, "Boss", "STATE|1|2|Onyxia");
     addon(s, "Boss", "CLR");
+    addon(s, "Boss", "VER|2026-09-20T10:00:00Z|1");
     addon(s, "Boss", "L|Bob=19364,17063;Cy=17063");
     expect(s.run("return DB.reserves.host")).toBe("Boss");
     expect(s.run("return DB.reserves.limit")).toBe("2");
@@ -229,6 +233,7 @@ describe("Reserve.lua member side", () => {
     const s = withReserve("Ann", false);
     addon(s, "Boss", "STATE|0|1|Onyxia");
     addon(s, "Boss", "CLR");
+    addon(s, "Boss", "VER|2026-09-20T10:00:00Z|1");
     addon(s, "Boss", "L|Ann=19364;Bob=19364");
     const text = s.run("return NS.reserve.statusText()");
     expect(text).toContain("Reserves: locked, 1 per player - Onyxia (Boss)");
@@ -251,5 +256,41 @@ describe("Reserve.lua member side", () => {
     s.run(`NS.moduleActive = function() return false end`);
     addon(s, "Boss", "STATE|1|1|");
     expect(s.run("return tostring(DB.reserves)")).toBe("nil");
+  });
+
+  it("keeps the old list until every chunk of a new one has arrived", () => {
+    const s = withReserve("Ann", false);
+    addon(s, "Boss", "STATE|1|1|Onyxia");
+    addon(s, "Boss", "CLR");
+    addon(s, "Boss", "VER|2026-09-20T10:00:00Z|1");
+    addon(s, "Boss", "L|Bob=19364");
+    // A new share whose second chunk never arrives: Bob's reserve stays, nothing is half-replaced.
+    addon(s, "Boss", "CLR");
+    addon(s, "Boss", "VER|2026-09-21T10:00:00Z|2");
+    addon(s, "Boss", "L|Cy=19364");
+    expect(holders(s, 19364)).toBe("Bob");
+    addon(s, "Boss", "L|Dee=17063");
+    expect(holders(s, 19364)).toBe("Cy");
+    expect(holders(s, 17063)).toBe("Dee");
+  });
+
+  it("the keeper sends the stamp of the list it is sending, not the previous one", () => {
+    const s = withReserve("Boss", true);
+    s.run(`DB.reserves = { updatedAt = "2020-01-01T00:00:00Z" }; NS.now = function() return "2026-09-22T10:00:00Z" end`);
+    cmd(s, "open");
+    const stamp = s.run("return DB.reserves.updatedAt");
+    expect(stamp).not.toBe("2020-01-01T00:00:00Z");
+    expect(sent(s, "VER|" + stamp.replace(/-/g, "%-") + "|0")).toBe("1");
+  });
+
+  it("takes the keeper's stamp instead of stamping its own copy", () => {
+    const s = withReserve("Ann", false);
+    addon(s, "Boss", "STATE|1|1|");
+    addon(s, "Boss", "CLR");
+    addon(s, "Boss", "VER|2026-09-20T10:00:00Z|1");
+    addon(s, "Boss", "L|Bob=19364");
+    expect(s.run("return DB.reserves.updatedAt")).toBe("2026-09-20T10:00:00Z");
+    addon(s, "Boss", "STATE|0|1|");
+    expect(s.run("return DB.reserves.updatedAt")).toBe("2026-09-20T10:00:00Z");
   });
 });

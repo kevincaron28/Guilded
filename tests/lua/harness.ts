@@ -114,6 +114,11 @@ export function newLuaSession(): LuaSession {
   return {
     run: (code) => exec(code),
     load(file, ns = "NS") {
+      // Every file can use Util.lua's shared helpers (ns.util, ns.comm), as in the game where
+      // it loads first; tests that load one module on a fake namespace get the real ones.
+      if (file !== "Util.lua" && exec(`return tostring(${ns} ~= nil and ${ns}.comm ~= nil)`) !== "true") {
+        this.load("Util.lua", ns);
+      }
       // The source travels as a Lua long string, so no escaping is needed.
       const source = addonSource(file);
       lua.lua_pushstring(L, to_luastring(source));

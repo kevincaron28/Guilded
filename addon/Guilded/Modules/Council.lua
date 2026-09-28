@@ -23,6 +23,8 @@ local addonName, ns = ...
 ns = ns or {}
 
 local PREFIX = "GuildedLC"
+-- A saved session that ran out more than this long ago is dropped at login, not resumed.
+local STALE_SESSION_SECONDS = 10 * 60
 local DEFAULT_SECONDS = 60
 local MAX_GP = 100000
 
@@ -63,8 +65,8 @@ council.TIERS = TIERS
 -- ---------------------------------------------------------------------
 
 local function groupChannel()
-  if IsInRaid and IsInRaid() then return "RAID" end
-  if IsInGroup and IsInGroup() then return "PARTY" end
+  local channel = ns.util.groupChannel()
+  if channel then return channel end
   -- A running test raid (/guilded sim start) lets an officer try it alone.
   local raid = ns.getActiveRaid and ns.getActiveRaid()
   if raid and raid.test then return "TEST" end
@@ -73,14 +75,7 @@ end
 
 local function sendAddon(text, channel, target)
   if channel == "TEST" then return end
-  pcall(function()
-    text = string.sub(text, 1, 255)
-    if C_ChatInfo and C_ChatInfo.SendAddonMessage then
-      C_ChatInfo.SendAddonMessage(PREFIX, text, channel, target)
-    elseif SendAddonMessage then
-      SendAddonMessage(PREFIX, text, channel, target)
-    end
-  end)
+  ns.comm.send(PREFIX, text, channel, target)
 end
 
 local function sendChat(text, channel, target)
@@ -100,16 +95,31 @@ local function announce(text)
   if channel then sendChat("[Guilded] " .. text, channel) end
 end
 
-local function changed()
-  if ns.onCouncilChange then pcall(ns.onCouncilChange) end
-end
-
 local function plainItem(item)
   return string.match(item or "", "%[(.-)%]") or item
 end
 
 local function clock()
   return GetTime and GetTime() or time()
+end
+
+-- The officer's open session is saved (like Bidding.lua does), so a /reload mid-council
+-- picks it up again. Times are kept on the server clock.
+local function persist()
+  local d = ns.getDb and ns.getDb()
+  if not d then return end
+  local session = council.current
+  if not session then d.councilSession = nil return end
+  local saved = {}
+  for key, value in pairs(session) do saved[key] = value end
+  saved.endsAt = nil
+  saved.endsAtServer = ns.util.serverTime() + math.floor((session.endsAt or clock()) - clock() + 0.5)
+  d.councilSession = saved
+end
+
+local function changed()
+  persist()
+  if ns.onCouncilChange then pcall(ns.onCouncilChange) end
 end
 
 -- ---------------------------------------------------------------------
@@ -315,6 +325,33 @@ local function cancelSession()
   changed()
 end
 
+-- Picks up a session saved before a /reload (see persist above).
+function council.restore()
+  local d = ns.getDb and ns.getDb()
+  local saved = d and d.councilSession
+  if type(saved) ~= "table" or not saved.id or council.current then return end
+  local left = (tonumber(saved.endsAtServer) or 0) - ns.util.serverTime()
+  -- Ran out long ago (logged out mid-loot and came back later): nobody is waiting for it any
+  -- more, so it is dropped rather than closed and awarded by itself.
+  if saved.open and left < -STALE_SESSION_SECONDS then
+    d.councilSession = nil
+    ns.message(string.format("Loot council on %s from an earlier session ran out while you were away and was dropped.", plainItem(saved.item)))
+    return
+  end
+  local session = {}
+  for key, value in pairs(saved) do session[key] = value end
+  session.endsAtServer = nil
+  session.responses = type(session.responses) == "table" and session.responses or {}
+  session.endsAt = clock() + math.max(0, left)
+  council.current = session
+  if session.open and C_Timer and C_Timer.After then
+    C_Timer.After(math.max(5, left), function() closeSession(session.id) end)
+  end
+  ns.message(string.format("Loot council on %s was restored after the reload%s.", plainItem(session.item),
+    session.open and (left > 0 and string.format(" (%ds left)", left) or " and closes now") or " (waiting for Award)"))
+  if ns.onCouncilChange then pcall(ns.onCouncilChange) end
+end
+
 -- Short description for the window.
 function council.statusText()
   local session = council.current
@@ -500,19 +537,20 @@ table.insert(ns.commandHelp, { officer = true, text = "/guilded council start <i
 
 local function onEvent(_, event, ...)
   if event == "PLAYER_LOGIN" then
-    if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then
-      C_ChatInfo.RegisterAddonMessagePrefix(PREFIX)
-    elseif RegisterAddonMessagePrefix then
-      RegisterAddonMessagePrefix(PREFIX)
-    end
+    ns.comm.register(PREFIX)
+    council.restore()
   elseif event == "CHAT_MSG_WHISPER" then
     -- Players without the addon answer by whispering one word.
     if not council.current or not council.current.open then return end
     local text, sender = ...
     if ns.isSecret(text) or ns.isSecret(sender) then return end
-    local word = string.match(string.lower(text or ""), "^%s*([%a%-]+)%s*$")
+    local word = string.match(string.lower(text or ""), "^%s*([%a%-%+]+)%s*$")
     local tier = word and WORDS[word]
-    if tier then addResponse(ns.normalizeName(sender), tier, "", sender, "whisper") end
+    -- Only someone in your raid or party can answer. Words like "yes" or "need" are everyday
+    -- chat, and in priority loot the top answer is charged GP by itself.
+    if tier and (council.current.channel == "TEST" or ns.util.inMyGroup(sender)) then
+      addResponse(ns.normalizeName(sender), tier, "", sender, "whisper")
+    end
   elseif event == "CHAT_MSG_ADDON" then
     local prefix, text, _, sender = ...
     if ns.isSecret(prefix) or ns.isSecret(text) or ns.isSecret(sender) or prefix ~= PREFIX then return end
@@ -521,7 +559,7 @@ local function onEvent(_, event, ...)
     local kind = string.match(text, "^(%u+)|")
     if kind == "RESP" then
       local id, tier, gear = string.match(text, "^RESP|([^|]+)|(%a+)|?(.*)$")
-      if council.current and council.current.id == id then addResponse(name, tier, gear or "", sender, "addon") end
+      if council.current and council.current.id == id and ns.util.inMyGroup(sender) then addResponse(name, tier, gear or "", sender, "addon") end
     elseif kind == "OPEN" then
       -- Only an officer can open the council for the raid.
       if not ns.isOfficerName(name) then return end
@@ -564,5 +602,5 @@ frame:RegisterEvent("CHAT_MSG_ADDON")
 frame:SetScript("OnEvent", function(...)
   if ns.moduleActive and not ns.moduleActive("council") then return end -- /guilded modules
   local ok, err = pcall(onEvent, ...)
-  if not ok then ns.message("Loot council error: " .. tostring(err)) end
+  if not ok and ns.logDiagnostic then ns.logDiagnostic("LUA_ERROR", "Guilded loot council: " .. tostring(err)) end
 end)

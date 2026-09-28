@@ -15,18 +15,8 @@ local PRIORITY_WORD = { [1] = "high", [2] = "medium", [3] = "low" }
 local function L(text) return ns.L and ns.L(text) or text end
 local GOLD_R, GOLD_G, GOLD_B = 0.83, 0.69, 0.22
 
--- Same rule as the bot's item keys: lower case, separators and control characters become
--- spaces, runs of spaces collapse.
-function module.itemKey(name)
-  if type(name) ~= "string" then return nil end
-  local key = string.lower(name)
-  key = string.gsub(key, "[|;~:,%c]", " ")
-  key = string.gsub(key, "%s+", " ")
-  key = string.gsub(key, "^ ", "")
-  key = string.gsub(key, " $", "")
-  if key == "" then return nil end
-  return key
-end
+-- Same rule as the bot's item keys (Util.lua).
+function module.itemKey(name) return ns.util.itemKey(name) end
 
 -- Position among the players with standings, by PR (1 = highest).
 local function rankOf(mine)
@@ -79,8 +69,11 @@ function module.lines(itemName, link)
   return lines
 end
 
-local function decorate(tooltip)
-  if not tooltip or tooltip.guildedDone then return end
+-- `fresh` = called by the tooltip data processor, which runs once per newly filled tooltip on
+-- every tooltip (comparison tooltips included), so no "already done" flag is needed; the flag
+-- is only for the old script hook, which can fire more than once for one item.
+local function decorate(tooltip, fresh)
+  if not tooltip or (not fresh and tooltip.guildedDone) then return end
   if ns.moduleActive and not ns.moduleActive("tooltip") then return end
   if not tooltip.GetItem then return end
   local ok, name, link = pcall(tooltip.GetItem, tooltip)
@@ -89,7 +82,7 @@ local function decorate(tooltip)
   if type(link) ~= "string" or (ns.isSecret and ns.isSecret(link)) then link = nil end
   local lines = module.lines(name, link)
   if #lines == 0 then return end
-  tooltip.guildedDone = true
+  if not fresh then tooltip.guildedDone = true end
   for _, line in ipairs(lines) do
     tooltip:AddLine("Guilded: " .. line, GOLD_R, GOLD_G, GOLD_B)
   end
@@ -102,7 +95,7 @@ local function clear(tooltip) tooltip.guildedDone = nil end
 local function hookTooltips()
   if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType then
     TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tooltip)
-      pcall(decorate, tooltip)
+      pcall(decorate, tooltip, true)
     end)
   end
   -- Older tooltip system (and the shift-click link tooltip): the script hook.

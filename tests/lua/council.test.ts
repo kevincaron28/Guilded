@@ -10,6 +10,9 @@ function withCouncil(channel: "TEST" | "RAID" | "NONE", officer = true): LuaSess
   session = newLuaSession();
   session.run(String.raw`
     SENT = {}
+    -- The raid: Ann, Bob, Cy and Dee (whispers and answers only count from the group).
+    MOCK_UNITS = { raid1 = { name = "Ann" }, raid2 = { name = "Bob" }, raid3 = { name = "Cy" }, raid4 = { name = "Dee" } }
+    MOCK_GROUP_SIZE = 4
     function IsInRaid() return ${channel === "RAID" ? "true" : "false"} end
     function IsInGroup() return ${channel === "RAID" ? "true" : "false"} end
     C_ChatInfo = {

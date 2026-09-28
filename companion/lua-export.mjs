@@ -220,6 +220,8 @@ export async function readAddonExport(path, realm) {
       ...(run.endReason ? { endReason: String(run.endReason) } : {}),
       ...(run.recorder ? { recorder: String(run.recorder) } : {}),
       reporters: Object.keys(run.reporters ?? {}).length || 1,
+      // Who reported it, so the bot can check at least one of them was in the run.
+      ...(run.reporters && Object.keys(run.reporters).length ? { reporterNames: Object.keys(run.reporters).slice(0, 10) } : {}),
       players: Object.entries(run.players ?? {}).map(([character, player]) => ({
         character,
         realm,

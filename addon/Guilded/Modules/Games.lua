@@ -33,9 +33,7 @@ ns.games = games
 -- ---------------------------------------------------------------------
 
 local function groupChannel()
-  if IsInRaid and IsInRaid() then return "RAID" end
-  if IsInGroup and IsInGroup() then return "PARTY" end
-  return nil
+  return ns.util.groupChannel()
 end
 
 local queue, flushScheduled, lastChatAt = {}, false, 0

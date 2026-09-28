@@ -64,7 +64,9 @@ Item box to award loot. Whole-group actions and ending a raid need a second
 click to confirm. Every button runs the same `/guilded` command you could type,
 so the permission checks are the same. Roll games run from the
 Games tab; players join from chat (see `Modules/README.md`). `/guilded menu` opens the window from chat, and
-`/guilded minimap show|hide|reset` controls the button.
+`/guilded minimap show|hide|reset` controls the button. Guilded is also in the Addon
+Compartment (the addon list under the minimap), and `/guilded options` (or Esc > Options >
+AddOns > Guilded) has the minimap button, chat tab, digest, auto-save and module switches.
 
 ## Standings, version check, and attendance
 

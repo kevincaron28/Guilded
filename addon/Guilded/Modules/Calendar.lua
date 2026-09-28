@@ -146,29 +146,14 @@ ns.calendar = calendar
 
 local function L(text) return ns.L and ns.L(text) or text end
 
--- Days since 1970-01-01 of a civil date (no time zone in it), and back.
-local function daysFromCivil(y, m, d)
-  if m <= 2 then y = y - 1 end
-  local era = math.floor(y / 400)
-  local yoe = y - era * 400
-  local mp = (m + 9) % 12
-  local doy = math.floor((153 * mp + 2) / 5) + d - 1
-  local doe = yoe * 365 + math.floor(yoe / 4) - math.floor(yoe / 100) + doy
-  return era * 146097 + doe - 719468
-end
-
--- A date and clock reading taken as UTC -> seconds since 1970.
+-- A date and clock reading taken as UTC -> seconds since 1970 (date math in Util.lua).
 local function utcEpoch(y, m, d, hour, minute, second)
-  return daysFromCivil(y, m, d) * 86400 + (hour or 0) * 3600 + (minute or 0) * 60 + (second or 0)
+  return ns.util.daysFromCivil(y, m, d) * 86400 + (hour or 0) * 3600 + (minute or 0) * 60 + (second or 0)
 end
 calendar.utcEpoch = utcEpoch
 
 -- "2026-10-01T23:00:00.000Z" -> seconds since 1970 (UTC), or nil.
-local function isoEpoch(text)
-  local y, m, d, hh, mm, ss = string.match(tostring(text or ""), "^(%d+)-(%d+)-(%d+)T(%d+):(%d+):(%d+)")
-  if not y then return nil end
-  return utcEpoch(tonumber(y), tonumber(m), tonumber(d), tonumber(hh), tonumber(mm), tonumber(ss))
-end
+local function isoEpoch(text) return ns.util.isoEpoch(text) end
 calendar.isoEpoch = isoEpoch
 
 local function serverNow()

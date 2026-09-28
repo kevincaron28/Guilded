@@ -39,6 +39,21 @@ The biggest release so far: four loot systems chosen per raid core, soft reserve
 - **Attunements track themselves.** Tell your addon once which quest (or reputation) an attunement needs: `/guilded attune track "Hyjal Summit" quest <id>` (or `rep <factionId> <standing>`). From then on it records the attunement by itself when you complete it and tells the guild; no more filling it in. Nothing is built in, because WoW Forever's raids (Barrow Deeps, Hyjal Summit, Onyxia's Lair) differ from the old ones. `/guilded attune tracked`, `untrack` and `auto` (look now) manage it. It only adds, never clears; `/guilded attune` by hand still works. Officers keep what each guildmate reports about themselves.
 - **One player, one name.** "Ann" and "Ann Forever" (a name plus a realm written with a space) are now the same person in the group list and everywhere else.
 
+**Safer and steadier (addon audit)**
+- **Whispered bids and loot answers only count from your raid or party.** A number whispered by anyone else (a trade reply, a friend) is no longer a GP bid, and "yes", "need" or "+" from outside the group no longer enters EPGP priority loot, where the top answer is charged GP by itself.
+- **Dungeon runs are only believed from people who were in them.** Only the run's recorder or the group leader can end a run for everyone, with a sensible end time; a run shared with the guild is only kept from someone listed in it; and the bot rejects a run whose recorder, or all of whose reporters, were not in it.
+- **Shared data dated in the future is refused** (standings, item data, guild module switches, reserve lists), so one wrong clock can no longer freeze everyone on an old copy.
+- **Messages are paced.** Every addon message goes through one queue that stays inside the game's send limit and retries what the game throttled, so big raids, long standings and reserve lists are no longer silently cut short. Over-long messages are cut cleanly (never mid-letter) and noted in `/guilded diag`.
+- **Reserve lists arrive whole or not at all,** carrying the keeper's time stamp, so a member's partial copy can never replace the keeper's list in Discord.
+- **Recipes:** opening someone else's profession (a chat link, the guild's crafter view) is no longer saved as your own recipes, and enchants have the same key on every client, so "who can craft this" finds all enchanters.
+- **Guild roster:** raid pugs and players who left the guild are kept for attendance but no longer counted as members (roster list, API, login digest, auto-invite, officer attunements), and a pug's gear report in raid chat is no longer exported or "discovered" as a character.
+- Other players' informational messages are no longer saved to the event journal (`/guilded diag` counts them), so real history is not pushed out.
+- **Backup:** the copy kept for `/guilded restore undo` is dropped after 7 days (`/guilded restore forget` drops it now); recipes, calendar and consumable scans are left out of backup codes, which keeps them much shorter.
+- Item tooltip lines now show every time, comparison tooltips included.
+- Raid and ledger ids use the server clock; module errors go to `/guilded diag` instead of chat.
+- **Open GP bidding and loot council survive a `/reload`** (or a disconnect): the timer carries on, or the item closes a few seconds after login.
+- **Options page:** Esc > Options > AddOns > Guilded (or `/guilded options`) has the minimap button, chat tab, login digest, auto-save and your module switches. Guilded is also in the **Addon Compartment** (the addon list under the minimap).
+
 **Credits:** spell ids and the approach follow Ready Check Consumables (MIT); see `docs/CREDITS.md`.
 
 ## 3.3.0

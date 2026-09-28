@@ -95,5 +95,8 @@ as a real, user-facing announcement trigger, not a housekeeping field.
 - `companion/` — the Node/CLI half of the uploader (also embedded in
   `companion-app/`, the Electron desktop app); `companion/engine.mjs` is the
   shared logic both use.
+- `addon/Guilded/Util.lua` — loaded first: shared helpers (`ns.util`) and the paced
+  addon-message queue (`ns.comm`). Every module sends through `ns.comm.send`; the validator
+  fails a module that calls `SendAddonMessage` directly.
 - `addon/Guilded/` — the WoW Lua addon; `tests/lua/` runs the real `.lua`
   files against a mocked game client (fengari), not a JS reimplementation.

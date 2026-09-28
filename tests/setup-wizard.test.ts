@@ -66,8 +66,15 @@ describe("setup wizard screens", () => {
   it("the checklist step lists what's missing with a fix", async () => {
     const text = (await renderStep(8, guild as never, "g1", "")).embeds[0]!.toJSON().description ?? "";
     expect(text).toContain("❌ Raid signups channel");
-    expect(text).toContain("Run /setup start, step 2");
+    expect(text).toContain("Press \"Create missing channels\" on this checklist");
     expect(text).toContain("✅ Announcements channel (#announcements)");
+  });
+
+  it("the checklist step offers to create every missing channel and role in one click", async () => {
+    const screen = await renderStep(8, guild as never, "g1", "");
+    const labels = screen.components.flatMap((row) => row.toJSON().components.map((c) => (c as { label?: string }).label));
+    expect(labels).toContain("Create missing channels (13)");
+    expect(labels).toContain("Create missing roles (3)");
   });
 
   it("offers to post or repair the dungeon signup guide on the dungeon channels step", async () => {
@@ -103,7 +110,7 @@ describe("setup wizard in French", () => {
       expect(roles).toContain("(facultatif)");
       const checklist = (await renderStep(8, guild as never, "g1", "")).embeds[0]!.toJSON().description ?? "";
       expect(checklist).toContain("❌ Salon des inscriptions aux raids");
-      expect(checklist).toContain("Lancez /setup start, étape 2 (Salons).");
+      expect(checklist).toContain("Appuyez sur « Créer les salons manquants »");
     } finally {
       settings.language = "en";
     }

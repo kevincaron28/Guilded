@@ -61,11 +61,11 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en"): SetupCheck[] 
       optional: false,
       fix: T("Missing: {roles}. Run /setup start and press \"Create missing roles\", then give them to your officers.", { roles: missingRoles.join(", ") })
     },
-    channelCheck(lang, T("Announcements channel"), facts.notifyChannel, false, T("Run /setup start, step 2 (Channels).")),
-    channelCheck(lang, T("Raid signups channel"), facts.raidChannel, false, T("Run /setup start, step 2 (Channels).")),
-    channelCheck(lang, T("Officer log channel"), facts.logChannel, false, T("Run /setup start, step 2 (Channels).")),
-    channelCheck(lang, T("Raid logs channel"), facts.raidLogChannel ?? null, true, T("Optional: run /setup start, step 2 (Channels). Raid summaries use announcements until then.")),
-    channelCheck(lang, T("Dungeon signups channel"), facts.dungeonSignupChannel ?? null, true, T("Optional: run /setup start, step 4 (Dungeon channels).")),
+    channelCheck(lang, T("Announcements channel"), facts.notifyChannel, false, T("Press \"Create missing channels\" on this checklist, or /config to pick an existing one.")),
+    channelCheck(lang, T("Raid signups channel"), facts.raidChannel, false, T("Press \"Create missing channels\" on this checklist, or /config to pick an existing one.")),
+    channelCheck(lang, T("Officer log channel"), facts.logChannel, false, T("Press \"Create missing channels\" on this checklist, or /config to pick an existing one.")),
+    channelCheck(lang, T("Raid logs channel"), facts.raidLogChannel ?? null, true, T("Optional: press \"Create missing channels\" on this checklist. Raid summaries use announcements until then.")),
+    channelCheck(lang, T("Dungeon signups channel"), facts.dungeonSignupChannel ?? null, true, T("Optional: press \"Create missing channels\" on this checklist.")),
     {
       label: T("Pinned dungeon signup guide"),
       ok: facts.dungeonSignupGuide === true,
@@ -78,7 +78,7 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en"): SetupCheck[] 
       optional: !facts.dungeonSignupChannel,
       fix: T("Give the bot role the \"Pin Messages\" permission in the dungeon signup channel.")
     },
-    channelCheck(lang, T("Dungeon leaderboard channel"), facts.dungeonLeaderboardChannel ?? null, true, T("Optional: run /setup start, step 3 (Dungeon channels).")),
+    channelCheck(lang, T("Dungeon leaderboard channel"), facts.dungeonLeaderboardChannel ?? null, true, T("Optional: press \"Create missing channels\" on this checklist.")),
     channelCheck(lang, T("Welcome channel"), facts.welcomeChannel, true, T("Optional: run /setup start, step 5 (Welcome).")),
     ...facts.autoRoles.map((role) => ({
       label: T("Auto-role \"{name}\"", { name: role.name }),

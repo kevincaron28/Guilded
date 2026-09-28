@@ -376,6 +376,9 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
   if (step === SUMMARY_STEP) {
     const checks = setupChecks(await gatherFacts(guild, guildId, settings), lang);
     const done = setupComplete(checks);
+    const missingChannels = ALL_CHANNELS.filter((field) => !settings[field]).length;
+    await guild.roles.fetch();
+    const missingRoles = REQUIRED_ROLES.filter((permission) => !guild.roles.cache.some((role) => isPermissionRoleName(permission, role.name))).length;
     embed.setDescription([
       done ? T("**Everything required is set up.** 🎉") : T("**Almost there** — fix the ❌ items (each says how)."),
       "",
@@ -388,6 +391,14 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       T("4. Try everything safely: `/setup testraid start` (fake raid, removed with `/setup testraid cleanup`)."),
       T("5. `/help` lists every command by role.")
     ].join("\n").slice(0, 4000));
+    // A missing channel/role after an update used to mean walking back through
+    // every wizard step just to reach the one that creates it. These fix
+    // everything at once, right from the checklist, in the standard categories
+    // (bot-created names) — to link an existing channel instead, use /config.
+    components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
+      button("create-all-channels", missingChannels ? T("Create missing channels ({count})", { count: missingChannels }) : T("All channels exist"), ButtonStyle.Success, missingChannels === 0),
+      button("create-roles", missingRoles ? T("Create missing roles ({count})", { count: missingRoles }) : T("All roles exist"), ButtonStyle.Success, missingRoles === 0)
+    ));
     components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
       button("post-guide", T("Post a getting-started message for members"), ButtonStyle.Success, !settings.notifyChannelId),
       button("organize", T("Tidy my channels into categories")),
@@ -603,12 +614,12 @@ export async function executeSetup(interaction: ChatInputCommandInteraction): Pr
   const guild = interaction.guild;
   const guildId = context.guildId;
 
-  if (interaction.options.getBoolean("status")) {
-    await interaction.reply({ ...(await renderStep(SUMMARY_STEP, guild, guildId, "")), ephemeral: true });
-    return;
-  }
-
-  let step = 0;
+  // `status:true` used to reply once with no collector, so its buttons (Create
+  // missing channels/roles, Tidy, etc.) were dead — a click did nothing. It
+  // now gets the same interactive collector as the full wizard, just starting
+  // on the checklist instead of step 1, so fixing what's missing never means
+  // walking back through every step.
+  let step = interaction.options.getBoolean("status") ? SUMMARY_STEP : 0;
   let note = "";
   await interaction.reply({ ...(await renderStep(step, guild, guildId, note)), ephemeral: true });
   const message = await interaction.fetchReply();
@@ -658,6 +669,7 @@ export async function executeSetup(interaction: ChatInputCommandInteraction): Pr
         } else if (action === "create-channels") note = await createSectionChannels(guild, guildId, CORE_CHANNELS, lang);
         else if (action === "create-raidteam-channels") note = await createSectionChannels(guild, guildId, RAIDTEAM_CHANNELS, lang);
         else if (action === "create-dungeon-channels") note = await createSectionChannels(guild, guildId, DUNGEON_CHANNELS, lang);
+        else if (action === "create-all-channels") note = await createSectionChannels(guild, guildId, ALL_CHANNELS, lang);
         else if (action === "dungeon-guide") {
           const settings = await guildService.getSettings(guildId);
           const channel = settings?.dungeonSignupChannelId

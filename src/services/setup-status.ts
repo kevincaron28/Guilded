@@ -104,7 +104,7 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en"): SetupCheck[] 
       label: T("Characters linked"),
       ok: facts.linkedCharacters > 0,
       optional: true,
-      fix: T("Everyone runs /character add once so addon data and EPGP match them.")
+      fix: T("Everyone runs /character pair once (or /character add) so addon data and EPGP match them.")
     }
   ];
   return checks;

@@ -11,6 +11,7 @@ import { lootRulesForAddon } from "./services/loot-rules-export.js";
 import { upcomingRaidsForAddon } from "./services/calendar-sync.js";
 import { createAuditService } from "./services/audit.js";
 import { followUpImport } from "./services/import-followup.js";
+import { exchangeCharacterPairingCode, hashCompanionSecret, linkPairedCharacter } from "./services/character-pairing.js";
 import type { Client } from "discord.js";
 
 const importService = createAddonImportService(prisma);
@@ -97,8 +98,9 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       }
       const url = new URL(request.url ?? "/", "http://localhost");
       const isImport = request.method === "POST" && url.pathname === "/api/v1/addon-imports";
+      const isPairing = request.method === "POST" && url.pathname === "/api/v1/addon-pairings";
       const isStandings = request.method === "GET" && url.pathname === "/api/v1/standings";
-      if (!isImport && !isStandings) {
+      if (!isImport && !isPairing && !isStandings) {
         json(response, 404, { error: "Not found" });
         return;
       }
@@ -110,6 +112,26 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (!authorized(request)) {
         recordFailure(address);
         json(response, 401, { error: "Unauthorized" });
+        return;
+      }
+      if (isPairing) {
+        const payload = await readBody(request);
+        if (!payload || typeof payload !== "object" || !("guildDiscordId" in payload) || !("code" in payload)) {
+          json(response, 400, { error: "guildDiscordId and code are required" });
+          return;
+        }
+        const pairingPayload = payload as { guildDiscordId: unknown; code: unknown };
+        if (typeof pairingPayload.guildDiscordId !== "string" || typeof pairingPayload.code !== "string") {
+          json(response, 400, { error: "guildDiscordId and code must be strings" });
+          return;
+        }
+        const guild = await prisma.guild.findUnique({ where: { discordId: pairingPayload.guildDiscordId }, select: { id: true } });
+        if (!guild) {
+          json(response, 404, { error: "Guild is not initialized" });
+          return;
+        }
+        const result = await exchangeCharacterPairingCode(prisma, pairingPayload.guildDiscordId, pairingPayload.code);
+        json(response, 200, result);
         return;
       }
       if (isStandings) {
@@ -154,13 +176,33 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         json(response, 404, { error: "Guild is not initialized" });
         return;
       }
+      const suppliedCredential = request.headers["x-companion-credential"];
+      let pairedMemberId: string | undefined;
+      if (suppliedCredential !== undefined) {
+        if (typeof suppliedCredential !== "string" || suppliedCredential.length > 256) {
+          json(response, 401, { error: "Invalid companion credential" });
+          return;
+        }
+        const credential = await prisma.companionCredential.findFirst({
+          where: { tokenHash: hashCompanionSecret(suppliedCredential), revokedAt: null, member: { guildId: guild.id } },
+          select: { memberId: true }
+        });
+        if (!credential) {
+          json(response, 401, { error: "Invalid companion credential" });
+          return;
+        }
+        pairedMemberId = credential.memberId;
+      }
       const createdBy = typeof requestPayload.createdBy === "string" ? requestPayload.createdBy : "companion-app";
       const preview = await importService.preview(guild.id, requestPayload.export, createdBy);
+      const pairedCharacterStatus = pairedMemberId && preview.snapshot.character
+        ? await linkPairedCharacter(prisma, guild.id, pairedMemberId, preview.snapshot.character)
+        : pairedMemberId ? "missing-character" : "unpaired";
       if (preview.duplicate) {
-        json(response, 409, { error: "This export was already received", checksum: preview.checksum });
+        json(response, 409, { error: "This export was already received", checksum: preview.checksum, pairedCharacterStatus });
         return;
       }
-      const record = await importService.record(guild.id, preview.snapshot, preview.checksum, createdBy);
+      const record = await importService.record(guild.id, preview.snapshot, preview.checksum, createdBy, pairedMemberId);
       // Auto-apply (a guild opt-in: /setup config auto-import): apply now and follow up, no /import apply.
       const settings = await prisma.guildSettings.findUnique({ where: { guildId: guild.id } });
       let autoApplied: { epgp: number; discovered: number } | null = null;
@@ -185,6 +227,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         checksum: preview.checksum,
         source: preview.snapshot.source,
         transactionCount: preview.transactionCount,
+        pairedCharacterStatus,
         status: record.status
       });
     } catch (error) {

@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld("companion", {
   getAll: () => ipcRenderer.invoke("get-all"),
   saveConfig: (config) => ipcRenderer.invoke("save-config", config),
   testConnection: (config) => ipcRenderer.invoke("test-connection", config),
+  pairAccount: (config) => ipcRenderer.invoke("pair-account", config),
   browseFile: () => ipcRenderer.invoke("browse-file"),
   detectWow: () => ipcRenderer.invoke("detect-wow"),
   uploadNow: () => ipcRenderer.invoke("upload-now"),

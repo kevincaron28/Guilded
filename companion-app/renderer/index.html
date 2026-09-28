@@ -58,6 +58,10 @@
           <input id="guildDiscordId" placeholder="e.g. 123456789012345678">
           <small>Discord: Settings, Advanced, turn on Developer Mode, then right-click your server and Copy Server ID.</small>
         </label>
+        <label>Discord account pairing code
+          <div class="row"><input id="pairingCode" placeholder="Generate with /character pair in Discord"><button type="button" id="btnPair" class="small">Link Discord account</button></div>
+          <small>Generate a one-time code in Discord with /character pair, enter it here, then link. Your next upload links your own character automatically; guild data imports still follow the usual apply setting.</small>
+        </label>
         <label>Addon saved data file (Guilded.lua)
           <div class="row"><input id="watchFile" placeholder="...\WTF\Account\YOURACCOUNT\SavedVariables\Guilded.lua"><button type="button" id="btnDetect" class="small">Find it</button><button type="button" id="btnBrowse" class="small">Browse...</button></div>
           <small id="detectNote">Press Find it and the app looks in the usual game folders.</small>

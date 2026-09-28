@@ -14,6 +14,8 @@ const DEFAULTS = {
   uploadUrl: "https://guildedqc.duckdns.org/api/v1/addon-imports",
   guildDiscordId: "",
   uploadToken: "",
+  pairingCode: "",
+  companionCredential: "",
   standingsIntervalMinutes: 2
 };
 
@@ -189,6 +191,18 @@ ipcMain.handle("save-config", async (_event, next) => {
 });
 
 ipcMain.handle("test-connection", (_event, next) => engineModules.testConnection({ ...config, ...next }));
+
+ipcMain.handle("pair-account", async (_event, next) => {
+  const result = await engineModules.pairAccount({ ...config, ...next });
+  if (!result.ok) return result;
+  config = { ...config, ...next, pairingCode: "", companionCredential: result.companionCredential };
+  saveConfig();
+  const started = await engine.configure(config);
+  return {
+    ok: true,
+    message: started ? result.message : `${result.message} Finish the remaining settings and choose Save and start.`
+  };
+});
 
 ipcMain.handle("browse-file", async () => {
   const start = config.watchFile ? path.dirname(config.watchFile) : undefined;

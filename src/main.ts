@@ -28,6 +28,7 @@ import { runWeeklyReports } from "./commands/stats.js";
 import { executeBank } from "./commands/bank.js";
 import { executeCraft } from "./commands/craft.js";
 import { greetNewGuild, logSetupStatus } from "./commands/setup.js";
+import { announceVersionUpdates } from "./services/version-announce.js";
 import { executeUninstall } from "./commands/uninstall.js";
 import { executeHelp } from "./commands/help.js";
 import { handleAutocomplete } from "./commands/autocomplete.js";
@@ -80,6 +81,10 @@ client.once(Events.ClientReady, (readyClient) => {
   registerCommandsEverywhere().catch(reportJobError("Command registration"));
   console.info(`Logged in as ${readyClient.user.tag}`);
   logSetupStatus(readyClient.guilds.cache.values()).catch(reportJobError("Setup status log"));
+  // One-shot: the running version only changes on a redeploy/restart, so a
+  // per-ClientReady check is enough (safe on reconnect too: it marks each
+  // guild before posting, so it won't repeat once it's caught up).
+  announceVersionUpdates(readyClient).catch(reportJobError("Version announcement"));
   // Daily database backup to backups/ (keeps 14 days). Runs now if today's
   // file is missing, then checks hourly.
   const backup = () => runBackup(prisma)

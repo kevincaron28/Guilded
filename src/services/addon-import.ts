@@ -9,6 +9,7 @@ import { findCharacter } from "./character-match.js";
 import { applyReserves } from "./reserves.js";
 import { applyRecipeData } from "./recipes.js";
 import { planCalendarSync } from "./calendar-sync.js";
+import { createSelfCharacter } from "./character-pairing.js";
 
 export function createAddonImportService(database: PrismaClient) {
   return {
@@ -29,7 +30,7 @@ export function createAddonImportService(database: PrismaClient) {
       };
     },
 
-    async record(guildId: string, snapshot: AddonSnapshot, checksum: string, createdBy: string) {
+    async record(guildId: string, snapshot: AddonSnapshot, checksum: string, createdBy: string, pairedMemberId?: string) {
       return database.addonImport.create({
         data: {
           guildId,
@@ -38,7 +39,8 @@ export function createAddonImportService(database: PrismaClient) {
           status: "PREVIEWED",
           // Parsed from a JSON upload, so it is JSON (dungeonRuns stay unvalidated until apply).
           payload: snapshot as unknown as Prisma.InputJsonValue,
-          createdBy
+          createdBy,
+          ...(pairedMemberId ? { pairedMemberId } : {})
         }
       });
     },
@@ -53,6 +55,17 @@ export function createAddonImportService(database: PrismaClient) {
           where: { member: { guildId } },
           include: { member: true }
         });
+
+        // A paired companion attests only to the exporter's own character;
+        // guildmate characters in the same digest still use the normal claim flow.
+        // (Ordinarily already linked at upload time by linkPairedCharacter; this
+        // is a safety net for e.g. a name that was owned by someone else then,
+        // freed since, and only now being applied.)
+        const self = snapshot.character;
+        if (imported.pairedMemberId && self?.class && !findCharacter(characters, self.name, self.realm)) {
+          const linked = await createSelfCharacter(tx, guildId, imported.pairedMemberId, self);
+          characters.push({ ...linked, member: await tx.member.findUniqueOrThrow({ where: { id: linked.memberId } }) });
+        }
 
         // Each addon export carries the officer's WHOLE ledger, not just new
         // entries. Entries with a stable ref are keyed `addon:<ref>` and skipped

@@ -7,10 +7,14 @@ import { postToLogChannel } from "../services/housekeeping.js";
 import { hasPermission } from "../permissions.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { CLASSES } from "../wow-data.js";
+import { issueCharacterPairingCode, revokeCompanionCredentials } from "../services/character-pairing.js";
 
 export const characterCommand = new SlashCommandBuilder()
   .setName("character")
   .setDescription("Manage your WoW Forever characters.")
+  .addSubcommand((subcommand) => subcommand
+    .setName("pair")
+    .setDescription("Link your companion to Discord once so your own character links automatically."))
   .addSubcommand((subcommand) => subcommand
     .setName("add")
     .setDescription("Link a character to your profile.")
@@ -62,6 +66,14 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
   const context = await requireGuildContext(interaction);
   if (!context) return;
   const subcommand = interaction.options.getSubcommand();
+  if (subcommand === "pair") {
+    const pairing = await issueCharacterPairingCode(prisma, context.guildId, context.memberId);
+    await interaction.reply({
+      content: `In Companion Settings, enter **${pairing.code}** under **Discord account pairing code**, then choose **Link Discord account**. This code expires <t:${Math.floor(pairing.expiresAt.getTime() / 1000)}:R> and can be used once.`,
+      ephemeral: true
+    });
+    return;
+  }
   if (subcommand === "list") {
     const characters = await guildService.listCharacters(context.memberId);
     await interaction.reply({
@@ -90,13 +102,17 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
       throw new Error(`${character.name} is linked to ${character.member.displayName}. Only Officers and Guild Masters can unlink someone else's character.`);
     }
     await prisma.character.delete({ where: { id: character.id } });
+    // An officer unlinking someone else's character is a correction, not routine
+    // cleanup: revoke their paired companion access too, or their next upload
+    // would silently relink this character right back.
+    if (!isOwn) await revokeCompanionCredentials(prisma, character.memberId);
     if (interaction.guild) {
       await postToLogChannel(interaction.guild, isOwn
         ? `${interaction.user.username} unlinked their character ${character.name}.`
-        : `${interaction.user.username} unlinked ${character.name} from ${character.member.displayName}.`);
+        : `${interaction.user.username} unlinked ${character.name} from ${character.member.displayName} (their companion pairing was also revoked).`);
     }
     await interaction.reply({
-      content: `Unlinked **${character.name}**${isOwn ? "" : ` from ${character.member.displayName}`}. If the addon reports it again, it will show up as unclaimed until it's linked again.`,
+      content: `Unlinked **${character.name}**${isOwn ? "" : ` from ${character.member.displayName}. Their companion pairing was revoked, so a re-upload won't relink it automatically`}. If the addon reports it again, it will show up as unclaimed until it's linked again.`,
       ephemeral: true
     });
     return;

@@ -62,6 +62,7 @@ export const FR_TEXT: Record<string, string> = {
   "📜 **Raid logs** — the raid summary (report) posted after each raid: {channel}": "📜 **Rapports de raid** — le résumé du raid publié après chaque raid : {channel}",
   "🔒 **Officer log** — joins/leaves, moderation, bank and craft requests: {channel}": "🔒 **Journal des officiers** — arrivées et départs, modération, banque et demandes d'artisanat : {channel}",
   "📝 **Apply here** — a public pinned post with an Apply to a core button that opens a short form: {channel} (\"Create the missing ones for me\" makes this one too, or pick it later with `/config channel`)": "📝 **Postuler ici** — un message épinglé public avec un bouton Postuler à un core qui ouvre un court formulaire : {channel} (« Créer ceux qui manquent » crée aussi ce salon, ou choisissez-le plus tard avec `/config channel`)",
+  "📖 **Bot guide** — the getting-started guide, pinned; also where update notices post: {channel} (\"Create the missing ones for me\" makes this one too, or pick it later with `/config channel`)": "📖 **Guide du bot** — le guide de démarrage, épinglé ; aussi l'endroit où les avis de mise à jour sont publiés : {channel} (« Créer ceux qui manquent » crée aussi ce salon, ou choisissez-le plus tard avec `/config channel`)",
   "📢 Pick the announcements channel": "📢 Choisir le salon des annonces",
   "📅 Pick the raid signups channel": "📅 Choisir le salon des inscriptions aux raids",
   "📜 Pick the raid logs channel": "📜 Choisir le salon des rapports de raid",
@@ -180,7 +181,7 @@ export const FR_TEXT: Record<string, string> = {
   "**Everything required is set up.** 🎉": "**Tout le nécessaire est configuré.** 🎉",
   "**Almost there** — fix the ❌ items (each says how).": "**Presque terminé** — corrigez les éléments ❌ (chacun explique comment).",
   "**Next steps**": "**Prochaines étapes**",
-  "1. Everyone: `/character add` to link their WoW character.": "1. Tout le monde : `/character add` pour lier son personnage WoW.",
+  "1. Everyone: `/character pair` to link their companion (or `/character add` to link a character by hand).": "1. Tout le monde : `/character pair` pour lier son companion (ou `/character add` pour lier un personnage manuellement).",
   "2. Officers: install the WoW addon — {url}": "2. Officiers : installez l'addon WoW — {url}",
   "3. Raid leaders: `/core setup` builds a raid core (name, players, rules) with menus; then `/raid create core:<name>`.": "3. Chefs de raid : `/core setup` crée un core de raid (nom, joueurs, règles) avec des menus ; ensuite `/raid create core:<nom>`.",
   "4. Try everything safely: `/setup testraid start` (fake raid, removed with `/setup testraid cleanup`).": "4. Tout essayer sans risque : `/setup testraid start` (faux raid, supprimé avec `/setup testraid cleanup`).",
@@ -228,7 +229,7 @@ export const FR_TEXT: Record<string, string> = {
   "Companion link to the WoW addon": "Lien du compagnon avec l'addon WoW",
   "Needed only to sync the addon: put COMPANION_UPLOAD_TOKEN in .env.local (and the same value in companion.config.json), then restart the bot.": "Nécessaire seulement pour synchroniser l'addon : mettez COMPANION_UPLOAD_TOKEN dans .env.local (et la même valeur dans companion.config.json), puis redémarrez le bot.",
   "Characters linked": "Personnages liés",
-  "Everyone runs /character add once so addon data and EPGP match them.": "Chacun lance /character add une fois pour que les données de l'addon et l'EPGP leur correspondent.",
+  "Everyone runs /character pair once (or /character add) so addon data and EPGP match them.": "Chacun lance /character pair une fois (ou /character add) pour que les données de l'addon et l'EPGP leur correspondent.",
 
   // --- craft board
   "Status": "Statut",

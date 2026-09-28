@@ -12,6 +12,7 @@ import { BRAND } from "../brand.js";
 import { config } from "../config.js";
 import { createWclClient, parseGuildRef } from "../integrations/warcraftlogs.js";
 import { ensureApplyGuide } from "./application.js";
+import { ensureBotGuide } from "./setup.js";
 import { asLang } from "../i18n.js";
 
 export const configCommand = new SlashCommandBuilder()
@@ -71,7 +72,8 @@ export const configCommand = new SlashCommandBuilder()
       { name: "Dungeon leaderboard", value: "dungeon-leaderboard-channel" },
       { name: "Dungeon signups", value: "dungeon-signup-channel" },
       { name: "Applications (private)", value: "application-channel" },
-      { name: "Apply here (public)", value: "apply-guide-channel" }))
+      { name: "Apply here (public)", value: "apply-guide-channel" },
+      { name: "Bot guide", value: "guide" }))
     .addChannelOption((o) => o.setName("channel").setDescription("The channel (a forum works for the craft board)")
       .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement, ChannelType.GuildForum))
     .addBooleanOption((o) => o.setName("disable").setDescription("Clear this setting")))
@@ -261,7 +263,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
     return;
   }
 
-  const channelSettings: Record<string, { field: "raidLogChannelId" | "dungeonLeaderboardChannelId" | "dungeonSignupChannelId" | "lootChannelId" | "craftChannelId" | "readinessChannelId" | "coreChannelId" | "applicationChannelId" | "applyGuideChannelId"; label: string }> = {
+  const channelSettings: Record<string, { field: "raidLogChannelId" | "dungeonLeaderboardChannelId" | "dungeonSignupChannelId" | "lootChannelId" | "craftChannelId" | "readinessChannelId" | "coreChannelId" | "applicationChannelId" | "applyGuideChannelId" | "guideChannelId"; label: string }> = {
     "core-channel": { field: "coreChannelId", label: "Raid core rosters" },
     "readiness-channel": { field: "readinessChannelId", label: "Raid readiness" },
     "loot-channel": { field: "lootChannelId", label: "Loot and EP/GP changes" },
@@ -270,7 +272,8 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
     "dungeon-leaderboard-channel": { field: "dungeonLeaderboardChannelId", label: "The dungeon leaderboard" },
     "dungeon-signup-channel": { field: "dungeonSignupChannelId", label: "Dungeon signups" },
     "application-channel": { field: "applicationChannelId", label: "Applications" },
-    "apply-guide-channel": { field: "applyGuideChannelId", label: "Apply here (pinned Apply buttons)" }
+    "apply-guide-channel": { field: "applyGuideChannelId", label: "Apply here (pinned Apply buttons)" },
+    "guide": { field: "guideChannelId", label: "Bot guide" }
   };
   const channelSetting = channelSettings[subcommand];
   if (channelSetting) {
@@ -293,6 +296,10 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
     if (channelSetting.field === "applyGuideChannelId") {
       const fetched = await interaction.guild?.channels.fetch(channel.id).catch(() => null);
       if (fetched?.isTextBased()) await ensureApplyGuide(fetched);
+    }
+    if (channelSetting.field === "guideChannelId") {
+      const fetched = await interaction.guild?.channels.fetch(channel.id).catch(() => null);
+      if (fetched?.isTextBased()) await ensureBotGuide(fetched, asLang((await guildService.getSettings(context.guildId))?.language));
     }
     if (channelSetting.field === "dungeonSignupChannelId") {
       const fetched = await interaction.guild?.channels.fetch(channel.id).catch(() => null);

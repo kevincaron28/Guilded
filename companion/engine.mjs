@@ -34,6 +34,29 @@ export async function testConnection(config) {
   }
 }
 
+export async function pairAccount(config) {
+  if (!config.uploadUrl || !config.guildDiscordId || !config.uploadToken || typeof config.pairingCode !== "string" || !config.pairingCode.trim()) {
+    return { ok: false, message: "Enter the bot address, upload token, Discord server ID and code from /character pair first." };
+  }
+  try {
+    const url = new URL("/api/v1/addon-pairings", config.uploadUrl);
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { authorization: `Bearer ${config.uploadToken}`, "content-type": "application/json" },
+      body: JSON.stringify({ guildDiscordId: config.guildDiscordId, code: config.pairingCode }),
+      signal: AbortSignal.timeout(10_000)
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) return { ok: false, message: `Pairing failed (${response.status}): ${describeApiError(response.status, body.error)}` };
+    if (typeof body.companionCredential !== "string" || body.companionCredential.length < 32) {
+      return { ok: false, message: "The bot response did not include a valid companion credential." };
+    }
+    return { ok: true, message: "Discord account paired. The companion links your own character on its next upload; the guild import still follows its usual apply setting.", companionCredential: body.companionCredential };
+  } catch (error) {
+    return { ok: false, message: describeError(error) };
+  }
+}
+
 // "fetch failed" tells nobody anything: say what to check.
 export function describeError(error) {
   const text = error instanceof Error ? error.message : String(error);
@@ -86,24 +109,37 @@ export function createEngine(initialConfig, hooks = {}) {
     }
     const response = await fetch(config.uploadUrl, {
       method: "POST",
-      headers: { authorization: `Bearer ${config.uploadToken}`, "content-type": "application/json" },
+      headers: {
+        authorization: `Bearer ${config.uploadToken}`,
+        "content-type": "application/json",
+        ...(config.companionCredential ? { "x-companion-credential": config.companionCredential } : {})
+      },
       body: JSON.stringify({ guildDiscordId: config.guildDiscordId, export: exported })
     });
     const body = await response.json().catch(() => ({}));
     if (response.ok) {
       const message = body.autoApplied
-        ? `Uploaded and applied automatically (${body.autoApplied.epgp} ledger entries, ${body.autoApplied.discovered} new characters).`
-        : `Uploaded ${body.transactionCount} ledger entries. Apply on Discord with: /import apply id:${body.importId}`;
+        ? `Uploaded and applied automatically (${body.autoApplied.epgp} ledger entries, ${body.autoApplied.discovered} new characters).${pairingNote(body.pairedCharacterStatus)}`
+        : `Uploaded ${body.transactionCount} ledger entries. Apply on Discord with: /import apply id:${body.importId}.${pairingNote(body.pairedCharacterStatus)}`;
       state.lastUpload = { at: new Date().toISOString(), message };
       state.uploads += 1;
       log("ok", message);
       setTimeout(() => void refreshStandings(), 5000);
     } else if (response.status === 409) {
-      state.lastUpload = { at: new Date().toISOString(), message: "Nothing new since the last upload." };
-      log("info", "Nothing new since the last upload.");
+      const message = `Nothing new since the last upload.${pairingNote(body.pairedCharacterStatus)}`;
+      state.lastUpload = { at: new Date().toISOString(), message };
+      log("info", message);
     } else {
       log("error", `Upload failed (${response.status}): ${describeApiError(response.status, body.error)}`);
     }
+  }
+
+  function pairingNote(status) {
+    if (status === "linked") return " Your character was linked to your Discord account.";
+    if (status === "already-linked") return " Your character is linked to your Discord account.";
+    if (status === "owned-by-another") return " This character is linked to another member; ask an officer to resolve it.";
+    if (status === "missing-class" || status === "missing-character") return " The export did not include character details; use /guilded character and /character import.";
+    return "";
   }
 
   function scheduleUpload(delay = 1000) {

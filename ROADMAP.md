@@ -14,7 +14,8 @@ addon in .toc order):
   calendar both ways, gear/enchant/consumable checks, a live Ready page, roll games, dungeon challenge,
   attunements, item tooltips, backups, a window with a Home page, French, per-guild data, switchable modules,
   a public read-only API for other addons.
-- **Bot:** `/setup` wizard, raid signups with roles and waitlist, raid cores with a bench, their own loot
+- **Bot:** `/setup` wizard, raid signups with roles and waitlist, one-time `/character pair` Companion linking,
+  raid cores with a bench, their own loot
   system, item prices and point pool, weekly raids, EPGP standings and decay, soft reserves and who-can-craft-what
   in Discord, calendar sync into signups, dungeon leaderboard, forum craft board, readiness board, polls,
   Warcraft Logs, applications, moderation helpers, daily backups, automatic character linking. 17 commands.
@@ -38,10 +39,9 @@ API, and the release notes say which parts are untested.
 
 ## 4.1
 
-- **Pairing code for character linking:** `/character pair` gives a short code; the companion app takes it once
-  and tags all its future uploads with that Discord ID. Every character it then reports links straight to that
-  person, no Discord-nickname match needed. Closes the gap left by [character-autolink.ts](src/services/character-autolink.ts),
-  which only links a character whose name resembles the owner's Discord name.
+- **Pairing code for character linking (implemented):** `/character pair` gives a short-lived code; the
+  companion exchanges it once for a per-account credential and links the uploader's own character
+  automatically. Shared guildmate characters still use the existing claim/link flow.
 - **Guild member map module:** a Minimap-style module showing guildmates' zone and position on the world map,
   based on the **GuildMap** addon in `Published Addons/GuildMap` (a MapMate fork: HereBeDragons + HereBeDragons-Pins
   for the pins, guild-chat addon messages broadcasting each player's mapID/x/y every 3-5s past a small movement

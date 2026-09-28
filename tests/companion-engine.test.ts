@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, writeFileSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createEngine, describeError, testConnection, validateConfig } from "../companion/engine.mjs";
+import { createEngine, describeError, pairAccount, testConnection, validateConfig } from "../companion/engine.mjs";
 
 const dirs: string[] = [];
 afterEach(() => { vi.unstubAllGlobals(); for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }); });
@@ -40,6 +40,22 @@ describe("companion engine", () => {
     expect((await testConnection(config("a.lua"))).ok).toBe(false);
   });
 
+  it("exchanges a pairing code for a companion credential", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true, status: 200, json: async () => ({ companionCredential: "c".repeat(43) })
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await pairAccount({ ...config("a.lua"), pairingCode: "A1B2C3D4E5F6" });
+    expect(result.ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledWith(
+      new URL("http://bot.test/api/v1/addon-pairings"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ guildDiscordId: "123", code: "A1B2C3D4E5F6" })
+      })
+    );
+  });
+
   it("writes standings when it starts and reports state and log lines", async () => {
     const game = gameFolder();
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
@@ -72,10 +88,12 @@ describe("companion engine", () => {
       ? { ok: true, status: 200, json: async () => ({ updatedAt: "x", baseGp: 0, standings: [] }) }
       : { ok: true, status: 200, json: async () => ({ transactionCount: 0, importId: "i1", autoApplied: { epgp: 0, discovered: 0 } }) });
     vi.stubGlobal("fetch", fetchMock);
-    const engine = createEngine(config(game.file), {});
+    const engine = createEngine({ ...config(game.file), companionCredential: "paired-secret" }, {});
     await engine.start();
     engine.uploadNow();
     await vi.waitFor(() => expect(engine.state().uploads + (engine.state().lastError ? 1 : 0)).toBeGreaterThan(0), { timeout: 3000 });
+    const upload = fetchMock.mock.calls.find(([url]) => String(url).includes("addon-imports"));
+    expect(upload?.[1]?.headers["x-companion-credential"]).toBe("paired-secret");
     await engine.stop();
   });
 });

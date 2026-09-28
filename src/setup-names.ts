@@ -7,7 +7,7 @@ import type { Lang } from "./i18n.js";
 
 export type ChannelField = "notifyChannelId" | "raidSignupChannelId" | "raidLogChannelId" | "logChannelId"
   | "dungeonLeaderboardChannelId" | "dungeonSignupChannelId" | "dungeonChannelId"
-  | "lootChannelId" | "craftChannelId" | "readinessChannelId" | "coreChannelId" | "applicationChannelId" | "applyGuideChannelId";
+  | "lootChannelId" | "craftChannelId" | "readinessChannelId" | "coreChannelId" | "applicationChannelId" | "applyGuideChannelId" | "guideChannelId";
 
 // Access: "open" everyone talks; "readonly" everyone reads, only the bot and
 // leadership post (signup channels are read-only too: people use the buttons);
@@ -36,7 +36,8 @@ const ACCESS: Record<ChannelField, { access: Access; category: CategoryKey; foru
   logChannelId: { access: "officers", category: "officers" },
   readinessChannelId: { access: "leaders", category: "officers" },
   applicationChannelId: { access: "officers", category: "officers" },
-  applyGuideChannelId: { access: "readonly", category: "guild" }
+  applyGuideChannelId: { access: "readonly", category: "guild" },
+  guideChannelId: { access: "pinned", category: "guild" }
 };
 
 const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> = {
@@ -53,7 +54,8 @@ const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> 
     logChannelId: { name: "officer-log", topic: "Officer log: joins, moderation, bank and craft requests" },
     readinessChannelId: { name: "raid-readiness", topic: "Who is ready for raid night: gear and consumable checks (officers and raid leaders only)" },
     applicationChannelId: { name: "raid-applications", topic: "New recruitment applications (officers only): use /application list|view|approve|reject|trial" },
-    applyGuideChannelId: { name: "apply-here", topic: "Press Apply below to submit a guild application" }
+    applyGuideChannelId: { name: "apply-here", topic: "Press Apply below to submit a guild application" },
+    guideChannelId: { name: `${BRAND.channelPrefix}-guide`, topic: "How Guilded works, and what's new when it updates" }
   },
   fr: {
     notifyChannelId: { name: `${BRAND.channelPrefix}-annonces`, topic: `Annonces de raid, de boss et de guilde de ${BRAND.name}` },
@@ -68,7 +70,8 @@ const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> 
     logChannelId: { name: "journal-officiers", topic: "Journal des officiers : arrivées, modération, banque et demandes d'artisanat" },
     readinessChannelId: { name: "preparation-raid", topic: "Qui est prêt pour la soirée de raid : gear et consommables (officiers et chefs de raid seulement)" },
     applicationChannelId: { name: "candidatures-raid", topic: "Nouvelles candidatures de recrutement (officiers seulement) : utilisez /application list|view|approve|reject|trial" },
-    applyGuideChannelId: { name: "postuler-ici", topic: "Appuyez sur Postuler ci-dessous pour soumettre une candidature de guilde" }
+    applyGuideChannelId: { name: "postuler-ici", topic: "Appuyez sur Postuler ci-dessous pour soumettre une candidature de guilde" },
+    guideChannelId: { name: `${BRAND.channelPrefix}-guide`, topic: "Comment fonctionne Guilded, et les nouveautés lors des mises à jour" }
   }
 };
 

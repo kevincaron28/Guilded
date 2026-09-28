@@ -277,6 +277,7 @@ There are 17 commands, not 34: small ones sit under a parent, so typing `/` show
 | `/report bug <description> [screenshot]` | Report a bug or problem. Also captured automatically whenever a command errors, for the developer to review |
 | `/profile` | Your profile: characters (race, class, professions, last seen), EP/GP/PR |
 | `/character who <character>` | Look anyone up: main and alts, professions, EP/GP/PR, 30-day attendance, last seen |
+| `/character pair` | Generate a one-time code to link your Companion to your Discord account; future uploads link your own character when applied |
 | `/character add <name> <realm> <class> <main> [spec] [level] [race]` / `/character list` | Link your WoW characters (needed before imports can match you) |
 | `/character claim <name>` | Link a character your addon already reported (pick it from the list; nothing to type or paste). Most people never need it: characters whose name matches the Discord nickname are linked automatically |
 | `/character import <code> [main]` | Link or refresh a character: paste the line `/guilded character` shows (name, realm, class, race, level, spec, professions), or the code `/guilded share` shows (also records a gear check, consumables and attunements) — no typing |
@@ -465,9 +466,9 @@ By default everyone has **one guild pool** of EP/GP, whatever raid core they rai
 
 1. Every addon tells the guild who it is (name, class, race, level, spec, professions) in its normal gear digest, so an officer's upload (the companion) carries everyone who was online.
 2. The bot remembers new names as *unclaimed* characters and refreshes the linked ones.
-3. A character is linked to a Discord member **automatically when the Discord name contains the character name** (`Ray`, `[GOLD] Ray`, `Ray | Priest`; exactly one member must fit). The first character becomes the main.
-4. Anyone left over picks their character with `/character claim` (a dropdown, no code), or an officer uses `/character link`.
-5. With `/setup config auto-import true` steps 1-3 happen right after each upload, with no officer action.
+3. A member can pair their own Companion with `/character pair`; its one-time code establishes an account credential, and the uploader's own character is linked on its next upload. The first character becomes the main.
+4. Without pairing, a character may still be linked automatically when the Discord name matches (`Ray`, `[GOLD] Ray`, `Ray | Priest`; exactly one member must fit). Anyone left over can use `/character claim` or an officer can use `/character link`.
+5. With `/setup config auto-import true`, the guild-wide import (including the shared digest and ledger) is applied right after each upload. Otherwise an officer runs `/import apply`.
 
 The addon's `/guilded character` and `/guilded share` codes still work as a fallback. Linking trusts the Discord name or the person's own pick (small, trusted guild); officers can see and fix links with `/character unclaimed` and `/character link`. Discord does not let a bot see a member's Battle.net connection without a separate login page, and Blizzard has no character list for Forever, so "linked WoW account" cannot be used.
 

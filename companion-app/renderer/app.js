@@ -55,7 +55,7 @@ function addLog(entry) {
   while (list.children.length > 300) list.lastChild.remove();
 }
 
-const fields = ["uploadUrl", "uploadToken", "guildDiscordId", "watchFile", "realm", "wowGuild", "standingsIntervalMinutes"];
+const fields = ["uploadUrl", "uploadToken", "guildDiscordId", "pairingCode", "watchFile", "realm", "wowGuild", "standingsIntervalMinutes"];
 const readForm = () => Object.fromEntries(fields.map((id) => [id, $(id).value.trim()]));
 const say = (text, ok) => { const el = $("formResult"); el.textContent = text; el.className = `result ${ok ? "ok" : "bad"}`; };
 
@@ -84,6 +84,13 @@ $("btnTest").addEventListener("click", async () => {
   say("Testing...", true);
   const result = await api.testConnection(readForm());
   say(result.message, result.ok);
+});
+
+$("btnPair").addEventListener("click", async () => {
+  say("Linking Discord account...", true);
+  const result = await api.pairAccount(readForm());
+  say(result.message, result.ok);
+  if (result.ok) $("pairingCode").value = "";
 });
 
 $("form").addEventListener("submit", async (event) => {

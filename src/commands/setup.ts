@@ -13,6 +13,7 @@ import {
   type ChatInputCommandInteraction,
   type Guild as DiscordGuild,
   type GuildMember,
+  type GuildTextBasedChannel,
   type MessageComponentInteraction,
   type OverwriteResolvable
 } from "discord.js";
@@ -229,7 +230,8 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       T("📅 **Raid signups** — signup posts that update live, and raid reminders: {channel}", { channel: channelLabel(lang, settings.raidSignupChannelId) }),
       T("📜 **Raid logs** — the raid summary (report) posted after each raid: {channel}", { channel: same(lang, settings.raidLogChannelId, "same as announcements") }),
       T("🔒 **Officer log** — joins/leaves, moderation, bank and craft requests: {channel}", { channel: channelLabel(lang, settings.logChannelId) }),
-      T("📝 **Apply here** — a public pinned post with an Apply to a core button that opens a short form: {channel} (\"Create the missing ones for me\" makes this one too, or pick it later with `/config channel`)", { channel: channelLabel(lang, settings.applyGuideChannelId) })
+      T("📝 **Apply here** — a public pinned post with an Apply to a core button that opens a short form: {channel} (\"Create the missing ones for me\" makes this one too, or pick it later with `/config channel`)", { channel: channelLabel(lang, settings.applyGuideChannelId) }),
+      T("📖 **Bot guide** — the getting-started guide, pinned; also where update notices post: {channel} (\"Create the missing ones for me\" makes this one too, or pick it later with `/config channel`)", { channel: channelLabel(lang, settings.guideChannelId) })
     ].join("\n"));
     const select = (id: string, placeholder: string) => new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(
       new ChannelSelectMenuBuilder().setCustomId(`setup:${id}`).setPlaceholder(placeholder)
@@ -380,7 +382,7 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       formatChecks(checks),
       "",
       T("**Next steps**"),
-      T("1. Everyone: `/character add` to link their WoW character."),
+      T("1. Everyone: `/character pair` to link their companion (or `/character add` to link a character by hand)."),
       T("2. Officers: install the WoW addon — {url}", { url: ADDON_URL }),
       T("3. Raid leaders: `/core setup` builds a raid core (name, players, rules) with menus; then `/raid create core:<name>`."),
       T("4. Try everything safely: `/setup testraid start` (fake raid, removed with `/setup testraid cleanup`)."),
@@ -415,7 +417,7 @@ async function createMissingRoles(guild: DiscordGuild, lang: Lang): Promise<stri
   return created.length ? tx(lang, "Created roles: {roles}. Now give them to your officers.", { roles: created.join(", ") }) : tx(lang, "All roles already existed.");
 }
 
-const CORE_CHANNELS: ChannelField[] = ["notifyChannelId", "raidSignupChannelId", "raidLogChannelId", "logChannelId", "applyGuideChannelId"];
+const CORE_CHANNELS: ChannelField[] = ["notifyChannelId", "raidSignupChannelId", "raidLogChannelId", "logChannelId", "applyGuideChannelId", "guideChannelId"];
 const RAIDTEAM_CHANNELS: ChannelField[] = ["coreChannelId", "readinessChannelId", "lootChannelId", "craftChannelId", "applicationChannelId"];
 const DUNGEON_CHANNELS: ChannelField[] = ["dungeonLeaderboardChannelId", "dungeonSignupChannelId", "dungeonChannelId"];
 // Every channel field /setup can create. Also used by /setup uninstall to find what to remove.
@@ -526,6 +528,7 @@ async function createSectionChannels(guild: DiscordGuild, guildId: string, field
       });
     if (spec.forum && channel.type === ChannelType.GuildForum) await postBoardGuide(channel, lang).catch((error: unknown) => guidedFor(`<#${channel.id}>`, error));
     if (field === "applyGuideChannelId" && channel.isTextBased()) await ensureApplyGuide(channel).catch((error: unknown) => guidedFor(`<#${channel.id}>`, error));
+    if (field === "guideChannelId" && channel.isTextBased()) await ensureBotGuide(channel, lang).catch((error: unknown) => guidedFor(`<#${channel.id}>`, error));
     update[field] = channel.id;
     made.push(`<#${channel.id}>${spec.access === "officers" ? tx(lang, " (officers only)") : spec.access === "leaders" ? tx(lang, " (officers and raid leaders only)") : ""}`);
   }
@@ -572,6 +575,16 @@ function gettingStartedPost(lang: Lang): EmbedBuilder {
     .setTitle(t(lang, "guide.title"))
     .setColor(0xd4af37)
     .setDescription(t(lang, "guide.body", { url: ADDON_URL }));
+}
+
+// Idempotent: does nothing if the guide is already pinned (safe to call again
+// from /config channel). Also where version-update notices post (main.ts).
+export async function ensureBotGuide(channel: GuildTextBasedChannel, lang: Lang): Promise<void> {
+  const pins = await channel.messages.fetchPinned().catch(() => null);
+  const already = pins?.some((message) => message.embeds.some((embed) => embed.title === t(lang, "guide.title")));
+  if (already) return;
+  const message = await channel.send({ embeds: [gettingStartedPost(lang)] });
+  await message.pin().catch(() => undefined);
 }
 
 

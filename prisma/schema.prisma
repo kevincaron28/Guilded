@@ -145,6 +145,7 @@ model Guild {
   dungeonGroups       DungeonGroup[]
   polls               Poll[]
   unclaimedCharacters UnclaimedCharacter[]
+  characterPairings   CharacterPairing[]
 }
 
 model Member {
@@ -178,6 +179,9 @@ model Member {
   bankRequests        BankRequest[]
   // DM me when a profession cooldown of one of my characters is ready.
   cooldownPings       Boolean                      @default(false)
+  characterPairings   CharacterPairing[]
+  companionCredentials CompanionCredential[]
+  pairedImports       AddonImport[]
 
   @@unique([guildId, discordUserId])
   @@index([guildId, status])
@@ -396,17 +400,20 @@ model AuditLog {
 }
 
 model AddonImport {
-  id        String   @id @default(cuid())
-  guildId   String
-  source    String
-  checksum  String
-  status    String
-  payload   Json
-  createdBy String
-  createdAt DateTime @default(now())
-  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  id             String   @id @default(cuid())
+  guildId        String
+  source         String
+  checksum       String
+  status         String
+  payload        Json
+  createdBy      String
+  pairedMemberId String?
+  createdAt      DateTime @default(now())
+  guild          Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  pairedMember   Member?  @relation(fields: [pairedMemberId], references: [id], onDelete: SetNull)
 
   @@index([guildId, createdAt])
+  @@index([pairedMemberId])
 }
 
 model GuildSettings {
@@ -473,6 +480,10 @@ model GuildSettings {
   applicationChannelId     String?
   // Public channel with a pinned "Apply" post (buttons open the application form).
   applyGuideChannelId      String?
+  // Public channel with the pinned getting-started guide; also where a short
+  // notice posts when the bot/addon version changes (they share one version).
+  guideChannelId           String?
+  lastAnnouncedVersion     String?
   // "EPGP" (bids decide) or "COUNCIL" (officers decide with /loot award; bids are off).
   lootMode                 String    @default("EPGP")
   // true: an addon upload from the companion is applied right away, with no /import-apply.
@@ -1108,4 +1119,30 @@ model UnclaimedCharacter {
   guild       Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@unique([guildId, nameKey])
+}
+
+model CharacterPairing {
+  id         String    @id @default(cuid())
+  guildId    String
+  memberId   String
+  codeHash   String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  guild      Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  member     Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, memberId])
+  @@index([expiresAt])
+}
+
+model CompanionCredential {
+  id        String    @id @default(cuid())
+  memberId  String
+  tokenHash String    @unique
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+  member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId, revokedAt])
 }

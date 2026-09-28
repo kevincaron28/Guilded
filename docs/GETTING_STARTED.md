@@ -64,9 +64,13 @@ never reloads on its own unless a player turns that on with `/guilded sync auto 
 
 ## 6. Players
 
-- Everyone: install the addon. Characters appear in Discord automatically when someone with the
-  companion is online with them, and are linked by matching the Discord nickname (for example "Ray" or
-  "[GOLD] Ray"). Otherwise run **`/character claim`**.
+- Everyone: install the addon. For automatic ownership, run **`/character pair`** in Discord, enter
+  the one-time code in Companion Settings, and choose **Link Discord account**. The companion links
+  your own character on its next upload. The rest of the guild data still follows the usual import
+  setting: an officer applies it unless auto-import is enabled.
+- If you do not use a paired companion, characters still appear when an uploader's companion sends
+  the guild digest. Matching Discord nicknames can link them automatically; otherwise use
+  **`/character claim`** to select your character.
 - Raid leaders: `/raid create` (add `core:` and `weekly:true` as needed). Members sign up with the buttons.
 - Officers: in game, `/guilded start` opens a raid; when an item drops, `/guilded drop <item link>` runs it the way
   the raid's core decides loot (`/guilded core <name>` picks the core; it follows the next raid by itself). The Home page shows what

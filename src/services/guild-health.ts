@@ -68,7 +68,7 @@ export async function guildHealth(database: Db, guildId: string, now = new Date(
   const composition = buildComposition(characters, withoutCharacter);
   const retention = buildRetention(members, now);
   const attention: string[] = [];
-  if (withoutCharacter > 0) attention.push(`${withoutCharacter} member(s) have no linked character (they can use /character import).`);
+  if (withoutCharacter > 0) attention.push(`${withoutCharacter} member(s) have no linked character (they can use /character pair or /character import).`);
   if (openApplications > 0) attention.push(`${openApplications} open application(s) waiting for a decision.`);
   for (const row of retention) {
     const rate = Math.round((row.stillHere / row.joined) * 100);

@@ -21,6 +21,13 @@ This lightweight companion watches a normalized addon export file and sends new 
 3. Start the bot.
 4. Run `node companion/watcher.mjs`.
 
+To link this companion to your own Discord account, run `/character pair` in
+Discord and put the one-time code in `pairingCode` in `companion.config.json`.
+Start the watcher once; it exchanges the code, clears it, and stores the
+companion credential in that config. Future uploads link the exporter's own
+character immediately; the rest of the guild import still waits for an officer
+unless auto-import is enabled. The desktop app has the same flow in Settings.
+
 The watcher can read the addon's Lua SavedVariables directly. It also accepts
 a normalized JSON export matching the bot import contract:
 

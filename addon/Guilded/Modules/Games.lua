@@ -145,9 +145,22 @@ local function beginRolling()
   callRoll()
 end
 
+-- A bonus added to a player's high roll (soft reserve SR+: +10 per week they reserved the item
+-- and did not get it; see Reserve.lua). Only for a High Roll that is still joining.
+function games.setBonus(name, amount)
+  local session = games.session
+  amount = math.floor(tonumber(amount) or 0)
+  if not (session and session.game == "HIGH" and name and session.players[name]) then return false end
+  session.bonus = session.bonus or {}
+  session.bonus[name] = amount > 0 and amount or nil
+  return true
+end
+
 local function resolveHigh(session)
   local best, winners = nil, {}
-  for name, value in pairs(session.rolls) do
+  local rolls = {}
+  for name, value in pairs(session.rolls) do rolls[name] = value + ((session.bonus and session.bonus[name]) or 0) end
+  for name, value in pairs(rolls) do
     if not best or value > best then best, winners = value, { name }
     elseif value == best then table.insert(winners, name) end
   end
@@ -158,7 +171,9 @@ local function resolveHigh(session)
     callRoll(string.format("Tie at %d! Roll-off: ", best))
     return
   end
-  announce(string.format("High Roll: %s wins with %d!", winners[1], best))
+  local bonus = session.bonus and session.bonus[winners[1]]
+  announce(string.format("High Roll: %s wins with %d%s!", winners[1], best,
+    bonus and string.format(" (%d + %d SR+)", best - bonus, bonus) or ""))
   games.session = nil
 end
 

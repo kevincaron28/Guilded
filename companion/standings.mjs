@@ -42,6 +42,7 @@ function lootToLua(loot) {
       "    {",
       `      id = ${luaString(core.id)}, name = ${luaString(core.name)}, mode = ${luaString(core.mode)}, pool = ${core.separatePool ? "true" : "false"},`,
       `      reserves = ${Math.max(1, Math.trunc(core.reserves ?? 1))}, baseGp = ${Math.max(0, Math.trunc(core.baseGp ?? 0))},`,
+      `      offspec = ${Math.max(0, Math.min(100, Math.trunc(core.offspecPercent ?? 50)))}, minEp = ${Math.max(0, Math.trunc(core.minEp ?? 0))},`,
       "      values = {",
       ...valuesToLua(core.values, "        "),
       "      },",

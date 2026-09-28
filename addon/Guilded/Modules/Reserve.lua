@@ -18,6 +18,9 @@ local addonName, ns = ...
 ns = ns or {}
 
 local PREFIX = "GuildedRes"
+-- SR+: every week a player reserves the same item and does not get it adds this much to their
+-- roll for it (the list is carried over when an officer clears or reopens it).
+local PLUS_STEP = 10
 local DEFAULT_LIMIT = 1
 local MAX_LIMIT = 5
 local CHUNK = 200
@@ -39,9 +42,33 @@ local function state()
   s.entries = s.entries or {}
   s.names = s.names or {}
   s.limit = s.limit or DEFAULT_LIMIT
+  s.plus = s.plus or {}
   return s
 end
 reserve.state = state
+
+-- SR+ bonus of a player for an item id (0 when none).
+function reserve.plusFor(name, id)
+  local s = state()
+  local weeks = s and name and id and s.plus[name .. ":" .. tostring(id)] or 0
+  return weeks * PLUS_STEP
+end
+
+-- Called before the list is emptied: every reserve still on it (not won) counts one more week;
+-- items a player did not reserve again lose their bonus. An empty list changes nothing (so
+-- clearing, then opening, counts once).
+local function carryPlus(s)
+  local kept, any = {}, false
+  for name, list in pairs(s.entries or {}) do
+    for _, id in ipairs(list) do
+      local key = name .. ":" .. tostring(id)
+      kept[key] = (s.plus[key] or 0) + 1
+      any = true
+    end
+  end
+  if any then s.plus = kept end
+end
+reserve.carryPlus = carryPlus
 
 -- "|cff...|Hitem:17067::...|h[Name]|h|r", "item:17067" or "17067" -> 17067
 local function itemId(text)
@@ -308,6 +335,7 @@ local function openList(args)
   limit = math.max(1, math.min(MAX_LIMIT, math.floor(limit)))
   local title = table.concat(args, " ", first)
   s.open, s.limit, s.title, s.host, s.hostSender = true, limit, title, ns.playerName(), nil
+  carryPlus(s)
   s.entries = {}
   changed()
   shareNow()
@@ -330,6 +358,7 @@ local function clearList()
   if not needOfficer() then return end
   local s = state()
   if not s then return end
+  carryPlus(s)
   s.open, s.host, s.hostSender, s.entries = false, nil, nil, {}
   changed()
   sendAddon("DONE|" .. (s.updatedAt or ""), shareChannel())
@@ -387,9 +416,17 @@ local function rollFor(itemText)
     return
   end
   if ns.games and ns.games.session then ns.message(L("A roll game is already open. Finish or cancel it first.")); return end
-  announce(string.format(L("%s: rolling between %s."), itemName(id), table.concat(found, ", ")))
+  local shown = {}
+  for _, name in ipairs(found) do
+    local plus = reserve.plusFor(name, id)
+    table.insert(shown, plus > 0 and string.format("%s (+%d)", name, plus) or name)
+  end
+  announce(string.format(L("%s: rolling between %s."), itemName(id), table.concat(shown, ", ")))
   games({ "highroll" })
-  for _, name in ipairs(found) do games({ "add", name }) end
+  for _, name in ipairs(found) do
+    games({ "add", name })
+    if ns.games and ns.games.setBonus then ns.games.setBonus(name, reserve.plusFor(name, id)) end
+  end
   games({ "roll" })
 end
 
@@ -409,6 +446,8 @@ local function awardTo(args)
   ns.runCommand("loot " .. name .. " " .. plain .. " " .. gp)
   if gp > 0 then ns.runCommand("gp " .. name .. " " .. gp .. " Reserve: " .. plain) end
   local removed = s and isHost() and removeFor(name, id)
+  -- Won: the SR+ bonus for that item is used up.
+  if s then s.plus[name .. ":" .. tostring(id)] = nil end
   changed()
   if removed then shareNow() end
   announce(string.format(L("%s goes to %s."), plain, name))
@@ -439,7 +478,10 @@ function reserve.statusText(maxLines)
   local shown = maxLines or 12
   for i = 1, math.min(shown, #players) do
     local names = {}
-    for _, id in ipairs(s.entries[players[i]]) do table.insert(names, itemName(id)) end
+    for _, id in ipairs(s.entries[players[i]]) do
+      local plus = reserve.plusFor(players[i], id)
+      table.insert(names, itemName(id) .. (plus > 0 and string.format(" (SR+%d)", plus) or ""))
+    end
     table.insert(lines, players[i] .. ": " .. table.concat(names, ", "))
   end
   if #players > shown then table.insert(lines, string.format(L("... and %d more players"), #players - shown)) end

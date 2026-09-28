@@ -1,34 +1,72 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, type GuildTextBasedChannel, type Message } from "discord.js";
+import { ActionRowBuilder, StringSelectMenuBuilder, type GuildTextBasedChannel, type Message } from "discord.js";
 import { tx, type Lang } from "../i18n.js";
+import { GROUP_KINDS, type GroupKind } from "./dungeon-group.js";
 
+// The pinned group finder message in the group finder channel (it was the dungeon signup guide):
+// a menu to post a group of any kind. The old "Post a dungeon group" button still works on posts
+// made before 4.6, and the checklist offers to update those (GUIDE_VERSION).
 export const DUNGEON_GUIDE_PREFIX = "dguide:";
 export const DUNGEON_GUIDE_CREATE_ID = `${DUNGEON_GUIDE_PREFIX}create`;
+export const DUNGEON_GUIDE_KIND_ID = `${DUNGEON_GUIDE_PREFIX}kind`;
+export const GUIDE_VERSION = 2;
+
+// The role pinged when a group of that kind is posted: a role with exactly this name (members
+// opt in, e.g. with the welcome role buttons). /setup can create them.
+export const LFG_ROLE_NAMES: Record<GroupKind, string> = {
+  DUNGEON: "LFG Dungeon", LEVELING: "LFG Leveling", PVP: "LFG PvP", WORLDPVP: "LFG World PvP", WORLD: "LFG World", OTHER: "LFG Other"
+};
 
 export function dungeonSignupGuideText(lang: Lang): string {
   return [
-    tx(lang, "**How dungeon signups work**"),
-    tx(lang, "• Press **Post a dungeon group** below and enter the dungeon, time, and what roles you need."),
-    tx(lang, "• Choose Tank, Healer, or DPS on the new post to sign up. Extra players go on that role's waitlist."),
-    tx(lang, "• The group leader can start the private voice channel when ready; it starts automatically when 5 players have joined.")
+    tx(lang, "**Group finder**"),
+    tx(lang, "• Pick what you want to do in the menu below (dungeon, leveling, PvP, world PvP, a world activity or anything else), then say what, when and who you need."),
+    tx(lang, "• Join a group with the buttons on its post. A dungeon takes 1 tank, 1 healer and 3 DPS; the other kinds take anyone up to their size. Extra players wait on the waitlist."),
+    tx(lang, "• When the group is full (or the leader presses Start) it gets a private voice channel, deleted once it is empty."),
+    tx(lang, "• Want a ping when a group of a kind is posted? Take the matching \"LFG\" role.")
   ].join("\n");
 }
 
 export function dungeonSignupGuideComponents(lang: Lang) {
-  return [new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(DUNGEON_GUIDE_CREATE_ID)
-      .setLabel(tx(lang, "Post a dungeon group"))
-      .setStyle(ButtonStyle.Primary)
-  )];
+  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder()
+    .setCustomId(DUNGEON_GUIDE_KIND_ID)
+    .setPlaceholder(tx(lang, "Post a group..."))
+    .addOptions((Object.keys(GROUP_KINDS) as GroupKind[]).map((kind) => ({
+      label: tx(lang, GROUP_KINDS[kind].label).slice(0, 100), value: kind, emoji: GROUP_KINDS[kind].emoji
+    }))))];
+}
+
+function componentIds(message: Message): string[] {
+  const ids: string[] = [];
+  for (const row of message.components) {
+    if (!("components" in row)) continue;
+    for (const component of row.components) {
+      if ("customId" in component && typeof component.customId === "string") ids.push(component.customId);
+    }
+  }
+  return ids;
 }
 
 function isDungeonGuide(message: Message): boolean {
-  return message.components.some((row) => "components" in row
-    && row.components.some((component) => "customId" in component && component.customId === DUNGEON_GUIDE_CREATE_ID));
+  const ids = componentIds(message);
+  return ids.includes(DUNGEON_GUIDE_CREATE_ID) || ids.includes(DUNGEON_GUIDE_KIND_ID);
+}
+
+// True when the pinned message is the current version (the menu, not the old button).
+export function isCurrentGuide(message: Message): boolean {
+  return componentIds(message).includes(DUNGEON_GUIDE_KIND_ID);
 }
 
 export async function hasDungeonSignupGuide(channel: GuildTextBasedChannel): Promise<boolean> {
   const pins = await channel.messages.fetchPinned();
   return pins.some(isDungeonGuide);
+}
+
+// "missing", "outdated" (the pre-4.6 button) or "current".
+export async function dungeonGuideState(channel: GuildTextBasedChannel): Promise<"missing" | "outdated" | "current"> {
+  const pins = await channel.messages.fetchPinned();
+  const guide = pins.find(isDungeonGuide);
+  if (!guide) return "missing";
+  return isCurrentGuide(guide) ? "current" : "outdated";
 }
 
 export async function ensureDungeonSignupGuide(channel: GuildTextBasedChannel, lang: Lang): Promise<void> {

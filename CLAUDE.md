@@ -8,12 +8,12 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Open work: read `docs/V4_5_HANDOFF.md` first.** Version 4.5.0 (the first public
-release; 4.0.0 was never published) is on `main`: every 4.5 change with its files, the
-protocol / saved-data / database changes, and what is left (db:update, rebuild the addon
-zip and companion installer, redeploy, the in-game checks in `RELEASE_CHECKLIST.md`, the
-CurseForge upload). The addon audit that came before it is in `docs/ADDON_AUDIT_HANDOFF.md`.
-Next after 4.5 is polished: the v5 raid tools module (`ROADMAP.md`).
+**Open work: read `docs/V4_6_HANDOFF.md` first.** Version 4.6.0 is on `main` (4.5.0 and 4.6.0
+are unpublished; 4.0.0 was never published): every 4.6 change with its files, the protocol /
+saved-data / database changes, and what is left (db:update, rebuild the addon zip and companion
+installer, redeploy, "Update bot messages" in `/setup`, the in-game checks in `RELEASE_CHECKLIST.md`,
+the CurseForge upload). 4.5 is in `docs/V4_5_HANDOFF.md`, the addon audit before it in
+`docs/ADDON_AUDIT_HANDOFF.md`. Next after 4.6 is polished: the v5 raid tools module (`ROADMAP.md`).
 
 This file is for whichever agent picks this repo up next — including a cloud
 session with no access to this machine's local state. If you're running

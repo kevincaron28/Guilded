@@ -87,6 +87,20 @@ const STRINGS = {
   "stats.applications": { en: "📝 Applications", fr: "📝 Candidatures" },
   "stats.mostRaids": { en: "Most raids attended", fr: "Plus de raids" },
   "stats.mostLoot": { en: "Most loot", fr: "Plus de butin" },
+  "weekly.week": { en: "Week of {start} to {end} (weekly reset to weekly reset)", fr: "Semaine du {start} au {end} (d'une réinitialisation à l'autre)" },
+  "weekly.players": { en: "🏆 Players of the week", fr: "🏆 Joueurs de la semaine" },
+  "weekly.raider": { en: "**Raider of the week:** {name}, +{ep} EP ({raids} raid(s))", fr: "**Raideur de la semaine :** {name}, +{ep} EP ({raids} raid(s))" },
+  "weekly.hero": { en: "**Dungeon hero:** {name}, {points} point(s)", fr: "**Héros des donjons :** {name}, {points} point(s)" },
+  "weekly.cores": { en: "⚔️ Raid cores", fr: "⚔️ Groupes de raid" },
+  "weekly.coreLine": { en: "{raids} raid(s), {kills} boss kill(s), attendance {attendance}, {loot} item(s) for {gp} GP", fr: "{raids} raid(s), {kills} boss vaincu(s), présence {attendance}, {loot} objet(s) pour {gp} GP" },
+  "weekly.perfect": { en: "Every raid: {names}", fr: "Tous les raids : {names}" },
+  "weekly.dungeons": { en: "🗝️ Dungeon week", fr: "🗝️ Semaine des donjons" },
+  "weekly.dungeonRuns": { en: "{completed} run(s) completed ({runs} recorded)", fr: "{completed} donjon(s) terminé(s) ({runs} enregistré(s))" },
+  "weekly.fastest": { en: "Fastest", fr: "Plus rapides" },
+  "weekly.topPoints": { en: "Most points", fr: "Plus de points" },
+  "weekly.firsts": { en: "First completions", fr: "Premières réussites" },
+  "weekly.records": { en: "Records", fr: "Records" },
+  "weekly.nothing": { en: "A quiet week: nothing recorded.", fr: "Semaine calme : rien d'enregistré." },
 
   // Welcome
   "welcome.default": {

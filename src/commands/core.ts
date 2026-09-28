@@ -7,6 +7,7 @@ import { runCoreEditor } from "./core-editor.js";
 import { describeRules, effectiveRules, LOOT_MODE_LABEL, LOOT_MODES } from "../services/core-rules.js";
 import { executeCoreItems } from "./core-items.js";
 import { createRaidCoreService, removeCoreRosterMessage, syncCoreRoster } from "../services/raid-core.js";
+import { deleteCoreDiscord, renameCoreDiscord } from "../services/core-channels.js";
 import { guildService, requireGuildContext } from "./context.js";
 
 const coreService = createRaidCoreService(prisma);
@@ -46,6 +47,8 @@ export const coreCommand = new SlashCommandBuilder()
     .addStringOption((o) => o.setName("loot_mode").setDescription("How this core's loot is decided").addChoices(
       { name: "Follow the guild", value: "DEFAULT" }, ...LOOT_MODES.map((mode) => ({ name: LOOT_MODE_LABEL[mode], value: mode }))))
     .addIntegerOption((o) => o.setName("reserves").setDescription("Soft reserves per player (soft reserves mode, 1 to 5)").setMinValue(1).setMaxValue(5))
+    .addIntegerOption((o) => o.setName("offspec_percent").setDescription("Share of the GP an off-spec winner pays (default 50)").setMinValue(0).setMaxValue(100))
+    .addIntegerOption((o) => o.setName("min_ep").setDescription("EP needed before a player takes loot priority (0 = off)").setMinValue(0))
     .addStringOption((o) => o.setName("pool").setDescription("Points: shared guild pool, or this core's own pool (applies to future points)").addChoices(
       { name: "Shared guild pool", value: "shared" }, { name: "Its own pool", value: "separate" }))
     .addStringOption((o) => o.setName("schedule").setDescription("Raid nights, e.g. Tue/Thu 8-11pm EST (empty clears it)").setMaxLength(100))
@@ -67,7 +70,8 @@ export const coreCommand = new SlashCommandBuilder()
     .addStringOption(coreOption)
     .addStringOption((o) => o.setName("name").setDescription("New name").setMinLength(2).setMaxLength(50).setRequired(true)))
   .addSubcommand((sub) => sub.setName("delete").setDescription("Delete a core (Raid Leaders). Raids created for it keep their signups.")
-    .addStringOption(coreOption));
+    .addStringOption(coreOption)
+    .addBooleanOption((o) => o.setName("channels").setDescription("Also delete its role, category and channels (default: keep them)")));
 
 function requireRaidLeader(interaction: ChatInputCommandInteraction): void {
   if (!interaction.member || !hasPermission(interaction.member as GuildMember, "raidLeader")) {
@@ -112,6 +116,7 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
   if (subcommand === "rename") {
     const before = await coreService.byIdOrName(guildId, interaction.options.getString("core", true));
     const renamed = await coreService.rename(guildId, before.id, interaction.options.getString("name", true));
+    if (interaction.guild) await renameCoreDiscord(interaction.guild, renamed);
     await syncCoreRoster(interaction.guild, prisma, guildId, renamed.id);
     await interaction.reply({ content: `Renamed **${before.name}** to **${renamed.name}**. In game the new name arrives with the next companion upload.`, ephemeral: true });
     return;
@@ -137,13 +142,15 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
     const number = (name: string) => interaction.options.getInteger(name);
     const data: Record<string, number | string | boolean | null> = {};
     if (interaction.options.getBoolean("reset")) {
-      Object.assign(data, { attendanceEp: null, lateEp: null, bossEp: null, completionEp: null, baseGp: null, decayPercent: null, lootMode: null, reservesPerPlayer: null });
+      Object.assign(data, { attendanceEp: null, lateEp: null, bossEp: null, completionEp: null, baseGp: null, decayPercent: null, lootMode: null, reservesPerPlayer: null, offspecPercent: null, minEp: null });
     } else {
       for (const [option, field] of [["attendance", "attendanceEp"], ["late", "lateEp"], ["boss", "bossEp"], ["clear", "completionEp"], ["base_gp", "baseGp"]] as const) {
         if (number(option) !== null) data[field] = number(option);
       }
       if (number("decay") !== null) data["decayPercent"] = (number("decay") ?? 0) / 100;
       if (number("reserves") !== null) data["reservesPerPlayer"] = number("reserves");
+      if (number("offspec_percent") !== null) data["offspecPercent"] = number("offspec_percent");
+      if (number("min_ep") !== null) data["minEp"] = number("min_ep");
       const mode = interaction.options.getString("loot_mode");
       if (mode) data["lootMode"] = mode === "DEFAULT" ? null : mode;
     }
@@ -204,6 +211,9 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
   const pooled = toDelete.separatePool ? await prisma.epgpTransaction.count({ where: { guildId, coreId: toDelete.id } }) : 0;
   if (pooled > 0) throw new Error(`${toDelete.name} has ${pooled} entries in its own point pool. Deleting it would orphan them, so it can't be deleted while it keeps its own points.`);
   const core = await coreService.remove(guildId, toDelete.id);
-  await removeCoreRosterMessage(interaction.guild, prisma, guildId, core.rosterMessageId);
-  await interaction.reply({ content: `Deleted raid core **${core.name}**.`, ephemeral: true });
+  await removeCoreRosterMessage(interaction.guild, prisma, guildId, core.rosterMessageId, core.rosterChannelId);
+  const withChannels = interaction.options.getBoolean("channels") === true;
+  const removed = withChannels && interaction.guild ? await deleteCoreDiscord(interaction.guild, core) : 0;
+  const kept = !withChannels && (core.roleId || core.categoryId) ? " Its role and channels were kept (delete them by hand, or use `channels:true` next time)." : "";
+  await interaction.reply({ content: `Deleted raid core **${core.name}**.${removed ? ` Removed ${removed} channel(s)/role.` : ""}${kept}`, ephemeral: true });
 }

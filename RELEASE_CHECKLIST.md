@@ -40,6 +40,25 @@ Say "untested" on the listing until these pass.
 - [ ] A non-officer alt sees fewer pages (no Raid, EPGP, Loot).
 - [ ] A second officer's companion uploads and the guild digest carries other online players.
 
+## 4.6: to check in game and on Discord
+
+What changed and why: `docs/V4_6_HANDOFF.md`. Two players unless it says solo. Run `npm run db:update` first.
+
+**Discord**
+- [ ] **Setup checklist (solo, admin).** `/setup start`: the summary lists every channel (optional rows with ➖) and every bot message. With an old dungeon signup post pinned, "Pinned dungeon signup guide" shows ⚠️; **Update bot messages** replaces it with the menu and the row turns ✅. Pick "Loot log channel" in **Use an existing channel for...**, then a channel in the second menu: the row turns ✅ without creating anything.
+- [ ] **Core role and channels.** `/core edit <core>` > **Create channels & role**: a category "⚔️ <core>" with roster, signups, chat and voice appears; the roster message moves to `#<core>-roster`. A member of the core sees the chat and voice; someone outside it does not (but sees roster and signups and cannot type there). `/core add` a friend: they get the core role; `/core remove`: it is taken off. Create a raid for that core: the signup post lands in `#<core>-signups`. `/core rename`: the role, category and channels follow. (Try `/core delete channels:true` on a test core.)
+- [ ] **Group finder.** In `#group-finder` pick **Leveling** in the menu, size 3: the post shows 0/3; three players join with any role, the fourth is waitlisted; a voice channel limited to 3 appears. **Dungeon** still asks 1 tank, 1 healer, 3 DPS. `/setup` **Create LFG ping roles**, take "LFG PvP", post a PvP group: you are pinged.
+- [ ] **Weekly report.** With the weekly report on, after Tuesday 15:00 UTC the report posts once: guild numbers with ▲/▼, a cores embed, a dungeons embed, Raider of the week and Dungeon hero (when there was data).
+- [ ] **Loot rules.** `/core rules <core> offspec_percent:40 min_ep:100`: `/core rules <core>` lists both. `/loot award <item> <player> offspec:true` on a priced item charges 40% of the price. `/epgp decay weekly:true`: the next hourly check after the reset decays each pool once (EPGP history shows "auto-decay"), not twice.
+
+**In game** (after the companion upload, so the core's off-spec share and minimum EP arrive)
+- [ ] **Off-spec in priority (two players).** `/guilded drop <item>` in a priority core: Friend's popup has **Off-spec**. Friend answers Off-spec, you answer nothing: Friend wins and pays the off-spec share. With someone answering I want it, they win instead.
+- [ ] **Council votes (three players, two officers).** Officer A opens a council; when it closes, officer B gets "Vote for ..." in chat and on the Council page; B votes: A's list shows "1 vote" by that name.
+- [ ] **SR+ (solo with an alt is fine).** Open a reserve list, reserve an item, clear it, reopen, reserve the same item: the list shows "(SR+10)"; roll between reservers: the roll announcement says "+10" and the result adds it.
+- [ ] **Drops and trades.** Kill a boss in a raid with epic loot: the Loot page lists it with a **Drop** button (and who holds it with personal or group loot). Give it to someone else: the holder is reminded to trade it; the Loot page shows the trade with the time left.
+- [ ] **Price suggestion.** `/guilded drop` an item with no price: the price box already holds a number.
+- [ ] **Window.** Tools page: **Test tools** work (Start test raid, Fake bids on open bidding, Fake council answers, Test dungeon run, End, Clear with a second click). **Export and send** reloads the UI with no "action blocked" popup. Move the window, `/reload`: it opens where you left it; **+** / **-** change its size. Options > Keybindings > Guilded: bind a key, it opens and closes the window. **Crafting** page: type an item, **Who can craft it** lists crafters; cooldowns show. `/guilded lang fr`, `/reload`: officer pages are in French.
+
 ## 4.5: to check in game and on Discord
 
 What changed and why: `docs/V4_5_HANDOFF.md`. Two players unless it says solo.

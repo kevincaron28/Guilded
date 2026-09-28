@@ -39,7 +39,8 @@ export const epgpCommand = new SlashCommandBuilder()
     .addStringOption((o) => o.setName("reason").setDescription("Reason (pick one, or type your own)").setMinLength(3).setAutocomplete(true).setRequired(true))
     .addStringOption(poolOption))
   .addSubcommand((sub) => sub.setName("decay").setDescription("Apply EPGP decay to all active members (guild pool, or one core's own pool).")
-    .addStringOption(poolOption))
+    .addStringOption(poolOption)
+    .addBooleanOption((o) => o.setName("weekly").setDescription("Turn automatic decay after every weekly reset on or off (instead of applying it now)")))
   .addSubcommand((sub) => sub.setName("reverse").setDescription("Undo a mistaken EPGP entry (adds an opposite entry; history is kept).")
     .addStringOption((o) => o.setName("entry").setDescription("Entry (start typing a name or reason)").setAutocomplete(true).setRequired(true))
     .addStringOption((o) => o.setName("reason").setDescription("Why it is being reversed (pick or type)").setMinLength(3).setAutocomplete(true).setRequired(true)));
@@ -119,6 +120,15 @@ export async function executeEpgp(interaction: ChatInputCommandInteraction): Pro
   }
   if (subcommand === "decay") {
     if (!settings) throw new Error("Guild settings have not been initialized.");
+    const weekly = interaction.options.getBoolean("weekly");
+    if (weekly !== null) {
+      // Every pool (the guild's and each core's own) decays by its own percent after each reset.
+      await prisma.guildSettings.update({ where: { guildId: context.guildId }, data: { autoDecay: weekly, ...(weekly ? { lastAutoDecayAt: new Date() } : {}) } });
+      await interaction.reply({ content: weekly
+        ? "Automatic decay is **on**: after every weekly reset (Tuesday 15:00 UTC) each point pool decays by its own percent (`/core rules decay` for a core's own pool). Nothing was decayed now."
+        : "Automatic decay is **off**. Run `/epgp decay` when you want one.", ephemeral: true });
+      return;
+    }
     const transactions = await epgpService.applyDecay(context.guildId, pool.decay, interaction.user.id, pool.id);
     await auditService.record({
       guildId: context.guildId,

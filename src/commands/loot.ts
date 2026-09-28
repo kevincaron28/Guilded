@@ -27,6 +27,7 @@ export const lootCommand = new SlashCommandBuilder()
     .addStringOption((o) => o.setName("item").setDescription("Item name").setRequired(true))
     .addUserOption((o) => o.setName("player").setDescription("Who gets it").setRequired(true))
     .addIntegerOption((o) => o.setName("gp").setDescription("GP to charge (default 0)").setMinValue(0))
+    .addBooleanOption((o) => o.setName("offspec").setDescription("Off-spec win: charge the core's off-spec share of the price (default 50%)"))
     .addStringOption((o) => o.setName("boss").setDescription("Boss that dropped it (for loot history)"))
     .addStringOption((o) => o.setName("raid").setDescription("Raid for loot history (start typing its name)").setAutocomplete(true)))
   .addSubcommand((sub) => sub.setName("bid").setDescription("Bid on an active auction.")
@@ -70,7 +71,7 @@ export async function executeLoot(interaction: ChatInputCommandInteraction): Pro
   const lootMode = rules.lootMode;
   if (subcommand === "priority") {
     const itemName = interaction.options.getString("item", true);
-    const result = await priorityFor(prisma, context.guildId, itemName, { coreId: raidCore?.id ?? null, separatePool: rules.separatePool, baseGp: rules.baseGp });
+    const result = await priorityFor(prisma, context.guildId, itemName, { coreId: raidCore?.id ?? null, separatePool: rules.separatePool, baseGp: rules.baseGp, minEp: rules.minEp });
     await interaction.reply({ content: describePriority(itemName, raidCore?.name ?? null, result).slice(0, 1990), ephemeral: true });
     return;
   }
@@ -85,12 +86,15 @@ export async function executeLoot(interaction: ChatInputCommandInteraction): Pro
       const price = await itemValues.priceOf(context.guildId, raidCore?.id ?? null, { name: itemName });
       if (price !== null) { gp = price; usedSetPrice = true; }
     }
+    // Off-spec: the core's share of the price (a GP typed by hand is the price it applies to).
+    const offspec = interaction.options.getBoolean("offspec") === true;
+    if (offspec && gp !== null) gp = Math.round(gp * rules.offspecPercent / 100);
     const award = await lootService.awardDirect({
       guildId: context.guildId, memberId: target.id, itemName,
       gp: gp ?? 0, raidId: interaction.options.getString("raid") ?? undefined,
       bossName: interaction.options.getString("boss") ?? undefined, awardedBy: interaction.user.id
     });
-    await interaction.reply({ content: `**${award.itemName}** awarded to ${user.username}${award.amount ? ` for ${award.amount} GP${usedSetPrice ? " (its set price)" : ""}` : ""}.`, allowedMentions: { parse: [] } });
+    await interaction.reply({ content: `**${award.itemName}** awarded to ${user.username}${award.amount ? ` for ${award.amount} GP${usedSetPrice ? " (its set price)" : ""}${offspec ? ` (off-spec, ${rules.offspecPercent}%)` : ""}` : ""}.`, allowedMentions: { parse: [] } });
     await notify(interaction.guild, notifications.lootAwarded(award.itemName, award.member.displayName, award.amount), "loot");
     return;
   }

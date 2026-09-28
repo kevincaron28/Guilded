@@ -18,6 +18,8 @@ export interface LootRulesForAddon {
     separatePool: boolean;
     reserves: number;
     baseGp: number;
+    offspecPercent: number;
+    minEp: number;
     values: { key: string; id: number | null; gp: number }[];
     /** Only for a core with its own pool. */
     standings: { character: string; main: boolean; ep: number; gp: number }[];
@@ -48,6 +50,7 @@ export async function lootRulesForAddon(
     const rules = effectiveRules(settings, core);
     out.cores.push({
       id: core.id, name: core.name, mode: rules.lootMode, separatePool: rules.separatePool, reserves: rules.reservesPerPlayer, baseGp: rules.baseGp,
+      offspecPercent: rules.offspecPercent, minEp: rules.minEp,
       values: rules.lootMode === "PRIORITY" ? slim(await values.effective(guildId, core.id)) : [],
       standings: rules.separatePool ? await poolStandings(core.id, rules.baseGp) : []
     });

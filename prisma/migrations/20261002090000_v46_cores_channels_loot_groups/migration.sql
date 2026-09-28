@@ -1,0 +1,13 @@
+ALTER TABLE "RaidCore" ADD COLUMN "offspecPercent" INTEGER;
+ALTER TABLE "RaidCore" ADD COLUMN "minEp" INTEGER;
+ALTER TABLE "RaidCore" ADD COLUMN "roleId" TEXT;
+ALTER TABLE "RaidCore" ADD COLUMN "categoryId" TEXT;
+ALTER TABLE "RaidCore" ADD COLUMN "rosterChannelId" TEXT;
+ALTER TABLE "RaidCore" ADD COLUMN "signupChannelId" TEXT;
+ALTER TABLE "RaidCore" ADD COLUMN "chatChannelId" TEXT;
+ALTER TABLE "RaidCore" ADD COLUMN "voiceChannelId" TEXT;
+ALTER TABLE "GuildSettings" ADD COLUMN "autoDecay" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "GuildSettings" ADD COLUMN "lastAutoDecayAt" TIMESTAMP(3);
+ALTER TABLE "GuildSettings" ADD COLUMN "botMessages" JSONB;
+ALTER TABLE "DungeonGroup" ADD COLUMN "kind" TEXT NOT NULL DEFAULT 'DUNGEON';
+ALTER TABLE "DungeonGroup" ADD COLUMN "maxSize" INTEGER NOT NULL DEFAULT 5;

@@ -130,10 +130,19 @@ or `/guilded core <name>` (`auto` goes back). Then one command for every system:
 | `/guilded drop mode [system\|auto]` | Show the loot system, or override it for tonight |
 | `/guilded core [name\|auto]` | Show or pick the raid core you are running |
 | `/guilded council priority <GP> <item> [seconds]` | EPGP priority with a price you give (for an item with no set price) |
+| `/guilded drops [number\|clear]` | The epic items that dropped this raid (noted by themselves from the loot window and personal/group loot), start one by its number, and the trades still owed. Also on the Loot page, with a **Drop** button each |
 
-In EPGP priority raiders get a popup (or whisper `want` / `pass`); when the time is up the highest
+In EPGP priority raiders get a popup (or whisper `want`, `os` or `pass`); when the time is up the highest
 PR among those who want it gets the item and is charged the set price by itself. PR uses the core's own
 point pool when it has one. Nothing else to press: cancel before the timer ends with `/guilded council cancel`.
+An **Off-spec** answer only wins when nobody wants the item for their main spec, and pays the core's off-spec
+share (`/core rules offspec_percent`, 50% by default). With a minimum EP (`/core rules min_ep`), players below it
+rank after everyone who has it. When the price box asks for a GP price it is prefilled with a suggestion from the
+item level and slot. When the item is given to someone other than the player holding it (personal or group loot),
+both get a reminder to trade it within the 2 hours the game allows.
+
+Soft reserves use **SR+**: every week a player reserves the same item and does not get it adds +10 to their
+roll for it (clearing or reopening the list counts the week; winning the item uses the bonus up).
 
 ### Guild calendar
 
@@ -209,6 +218,7 @@ records the loot (and GP only if you give a price) like any other award.
 | `/guilded council close` | Stop early and show the list |
 | `/guilded council award [player] [GP]` | Give it to a player (default: the top pick, 0 GP) |
 | `/guilded council cancel` | Cancel, nothing recorded |
+| `/guilded council vote <player or number>` | Other officers in the group: when a council closes you get the answers; your vote goes to the officer running it, who sees the count per player (the Council page has **Vote for selected**) |
 | `/guilded council status` | Current answers |
 | `/guilded council bis\|upgrade\|os\|pass` | Members: answer from the keyboard |
 | `/guilded sim council` | Fake raiders answer the open item (test raid) |
@@ -369,7 +379,7 @@ Approve, and a raid can never be paid twice.
 | `/epgp award-gp <player> <amount> <reason>` | Charge GP |
 | `/epgp history player:<member>` | Anyone's history, with entry IDs |
 | `/epgp reverse <entry> <reason>` | Undo a mistaken entry (adds the opposite entry; both stay in history) |
-| `/epgp decay` | Apply the weekly EPGP decay |
+| `/epgp decay [weekly:true\|false]` | Apply the EPGP decay now; `weekly:true` makes it automatic after every weekly reset (Tuesday 15:00 UTC), each pool by its own percent |
 
 ### Officers
 
@@ -379,7 +389,7 @@ Approve, and a raid can never be paid twice.
 | `/report export <what>` | CSV file of the roster, raid attendance, loot history or the EPGP ledger (only you see it) |
 | `/report guild` | Class / race / level mix, retention at 30 / 60 / 90 days, and what needs attention |
 | `/poll create <question> <option1> <option2> [option3-5] [closes]` / `/poll close <poll>` | Poll answered with buttons; one vote each, changeable; the result bars update live |
-| `/loot award <item> <player> [gp] [boss] [raid]` | Give an item straight to a player (loot council or manual); GP is charged only if you give a price; lands in `/loot history` |
+| `/loot award <item> <player> [gp] [boss] [raid] [offspec]` | Give an item straight to a player (loot council or manual); GP is charged only if you give a price; `offspec:true` charges the core's off-spec share of it (50% by default); lands in `/loot history` |
 | `/setup config loot-mode <EPGP\|Council>` | Council mode turns `/loot auction` and `/loot bid` off; officers decide with `/loot award` |
 | `/character unclaimed` / `link <name> <player>` / `autolink` | Characters the addons reported that nobody has linked: list them, link one by hand, or link every one whose name matches a Discord member |
 | `/setup config auto-import <true/false>` | Apply what the companion uploads by itself (ledger, attendance, loot, dungeon runs, gear checks, discovered characters) with no `/import apply`. Also a button in `/setup start` step 7 |
@@ -456,7 +466,7 @@ A **raid core** is a named roster (e.g. "Tuesday MC core"); a guild can have sev
 | `/core edit <core>` | **Easiest way to change a core.** One message: pick how to add (Tank / Healer / DPS, main roster or **bench**), pick the players (players already in the core are moved to that role or spot), pick players to remove, rename. The roster message updates at once (Raid Leaders) |
 | `/core create <name> [description] [schedule]` | Create a core with a command instead (Raid Leaders) |
 | `/core add <core> <player> [role] [bench]` / `/core remove <core> <player>` | Manage its players (Raid Leaders); role Tank / Healer / DPS; `bench:true` makes them a replacement (shown with a chair, no signup priority) |
-| `/core rules <core> [attendance] [late] [boss] [clear] [base_gp] [decay] [loot_mode] [pool] [schedule] [reset]` | The core's point rules, plus its raid-nights schedule. **Every core follows the guild's settings** (`/setup config`, `/setup start`) **unless you change a value here**; with no options it shows the effective rules and which differ. `pool:separate` gives the core its own EP/GP pool (from now on), `loot_mode` can make one core loot council, `schedule` sets or clears the raid-nights text shown on the roster message, `reset` goes back to the guild defaults (schedule and description are untouched by reset) |
+| `/core rules <core> [attendance] [late] [boss] [clear] [base_gp] [decay] [loot_mode] [pool] [offspec_percent] [min_ep] [schedule] [reset]` | The core's point rules, plus its raid-nights schedule. **Every core follows the guild's settings** (`/setup config`, `/setup start`) **unless you change a value here**; with no options it shows the effective rules and which differ. `pool:separate` gives the core its own EP/GP pool (from now on), `loot_mode` can make one core loot council, `schedule` sets or clears the raid-nights text shown on the roster message, `offspec_percent` is the share of the price an off-spec win costs (default 50), `min_ep` the EP a player needs before priority loot counts them ahead of those below it (0 = off), `reset` goes back to the guild defaults (schedule and description are untouched by reset) |
 | `/core show <core>` / `/core list` | See a roster / all cores (everyone) |
 | `/core post [core]` | Refresh the roster message(s) in the roster channel |
 | `/core delete <core>` | Delete a core; raids made for it keep their signups |

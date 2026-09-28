@@ -61,9 +61,9 @@ describe("the tools window (sidebar and Home page)", () => {
   });
 
   it("officers see every group in order; members only what they can use", () => {
-    expect(visibleTabs(openWindow(1))).toBe("Home,Me,Standings,Ready,Reserves,Calendar,Raid,EPGP,Loot,Council,Dungeons,Games,Tools");
+    expect(visibleTabs(openWindow(1))).toBe("Home,Me,Standings,Ready,Reserves,Calendar,Raid,EPGP,Loot,Council,Dungeons,Games,Crafting,Tools");
     session?.close();
-    expect(visibleTabs(openWindow(5))).toBe("Home,Me,Standings,Reserves,Dungeons,Games,Tools");
+    expect(visibleTabs(openWindow(5))).toBe("Home,Me,Standings,Reserves,Dungeons,Games,Crafting,Tools");
   });
 
   it("Home says who you are, what is running, and why there is no standing yet", () => {
@@ -178,5 +178,34 @@ describe("the Ready page", () => {
     expect(leader.chat().join(" ")).not.toContain("failed");
     const assistant = openWindow(5, `function UnitIsGroupAssistant() return true end`);
     expect(visibleTabs(assistant)).toContain("Ready");
+  });
+});
+
+describe("the tools window in 4.6", () => {
+  it("remembers where it was dragged and its size", () => {
+    const s = openWindow(1);
+    s.run(`local panel = _G.GuildedPanel or NS.windowState().tabs[1].page
+      for _, f in ipairs(FRAMES) do if f.scripts.OnDragStop and f.GetPoint then PANEL = f end end`);
+    s.run(`PANEL.GetPoint = function() return "TOPLEFT", nil, "TOPLEFT", 120.7, -80.2 end; PANEL.scripts.OnDragStop(PANEL)`);
+    expect(s.run(`local p = GuildedDB.settings.panelPoint; return table.concat({ p[1], p[2], p[3], p[4] }, ",")`)).toBe("TOPLEFT,TOPLEFT,120,-81");
+    s.run(`NS.commandHandlers["menu"]({ "scale", "bigger" })`);
+    s.run(`NS.commandHandlers["menu"]({ "scale", "bigger" })`);
+    expect(s.run("return GuildedDB.settings.panelScale")).toBe("1.2");
+    s.run(`NS.commandHandlers["menu"]({ "scale", "9" })`);
+    expect(s.run("return GuildedDB.settings.panelScale")).toBe("1.5");
+    s.run(`NS.commandHandlers["menu"]({ "scale", "reset" })`);
+    expect(s.run("return tostring(GuildedDB.settings.panelScale) .. ':' .. tostring(GuildedDB.settings.panelPoint)")).toBe("nil:nil");
+  });
+
+  it("has a key binding to open it", () => {
+    const s = openWindow(5);
+    expect(s.run("return type(Guilded_ToggleWindow) .. ':' .. BINDING_HEADER_GUILDED")).toBe("function:Guilded");
+  });
+
+  it("shows the Crafting page for everyone while the Recipes module is on", () => {
+    const s = openWindow(5);
+    s.run(`NS.windowState().selectTabByName("Crafting")`);
+    expect(s.run("return NS.windowState().tabs[NS.windowState().currentTab].name")).toBe("Crafting");
+    expect(s.chat().join("\n")).not.toContain("failed");
   });
 });

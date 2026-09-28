@@ -151,8 +151,13 @@ export async function syncSignupEmbed(discordGuild: DiscordGuild, guildId: strin
     }
 
     const settings = await guildService.getSettings(guildId);
-    if (!raid.signupChannelId && settings?.raidSignupChannelId) {
-      const channel = await discordGuild.channels.fetch(settings.raidSignupChannelId).catch(() => null);
+    // A core with its own channels posts its raids in its #<core>-signups channel.
+    const coreChannel = raid.coreId
+      ? (await prisma.raidCore.findUnique({ where: { id: raid.coreId }, select: { signupChannelId: true } }))?.signupChannelId ?? null
+      : null;
+    const postIn = coreChannel ?? settings?.raidSignupChannelId;
+    if (!raid.signupChannelId && postIn) {
+      const channel = await discordGuild.channels.fetch(postIn).catch(() => null);
       if (channel?.isTextBased()) {
         const message = await channel.send({ embeds: [embed], components: signupButtons(raid.id, raid.status, lang) });
         await raidService.setSignupMessage(raidId, guildId, channel.id, message.id);

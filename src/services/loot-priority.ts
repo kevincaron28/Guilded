@@ -19,9 +19,12 @@ export interface PriorityCandidate {
   pr: number;
 }
 
-export function rankCandidates(candidates: PriorityCandidate[]): PriorityCandidate[] {
+// Players with at least `minEp` EP come first (EPGP's minimum EP: newcomers can't jump the queue
+// with a tiny GP); inside each group, the higher PR.
+export function rankCandidates(candidates: PriorityCandidate[], minEp = 0): PriorityCandidate[] {
+  const eligible = (candidate: PriorityCandidate) => (candidate.ep >= minEp ? 0 : 1);
   return [...candidates].sort((a, b) =>
-    b.pr - a.pr || a.wishPriority - b.wishPriority || a.wishedAt.getTime() - b.wishedAt.getTime() || a.displayName.localeCompare(b.displayName));
+    eligible(a) - eligible(b) || b.pr - a.pr || a.wishPriority - b.wishPriority || a.wishedAt.getTime() - b.wishedAt.getTime() || a.displayName.localeCompare(b.displayName));
 }
 
 type Db = Pick<PrismaClient, "wishlistEntry" | "epgpTransaction" | "raidCoreMember" | "coreItemValue">;
@@ -35,7 +38,7 @@ export interface PriorityResult {
 
 export async function priorityFor(
   database: Db, guildId: string, itemName: string,
-  options: { coreId: string | null; separatePool: boolean; baseGp: number }
+  options: { coreId: string | null; separatePool: boolean; baseGp: number; minEp?: number }
 ): Promise<PriorityResult> {
   const price = await createItemValueService(database).priceOf(guildId, options.coreId, { name: itemName });
   const wishes = await database.wishlistEntry.findMany({
@@ -62,7 +65,7 @@ export async function priorityFor(
     const existing = best.get(member.id);
     if (!existing || candidate.wishPriority < existing.wishPriority) best.set(member.id, candidate);
   }
-  return { price, ranking: rankCandidates([...best.values()]), outsideCore };
+  return { price, ranking: rankCandidates([...best.values()], options.minEp ?? 0), outsideCore };
 }
 
 export function describePriority(itemName: string, coreName: string | null, result: PriorityResult): string {

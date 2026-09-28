@@ -1,5 +1,27 @@
 # Changelog
 
+## 4.6.0
+
+**Upgrading**
+- Bot: run `npm run db:update` once (or start with `start-bot.bat`). New columns only (raid cores: role, category and channels, off-spec share, minimum EP; guild settings: automatic decay; groups: kind and size); nothing is removed.
+- Addon: copy the new `Guilded` folder over the old one. Companion: install the new version (it sends each core's off-spec share and minimum EP to the game).
+- On Discord, run `/setup start` once: the checklist now lists every channel and every bot message, and **Update bot messages** brings the pinned posts up to date (the group finder menu replaces the old dungeon button).
+
+**Discord bot**
+- **Each raid core gets its own role and channels.** Every core now has a Discord role named after it: the bot gives it to everyone in the core (main roster, bench and trial) and takes it off when they leave, with every roster change. **Create channels & role** in `/core edit` makes a category with `#<core>-roster` and `#<core>-signups` (everyone can read, only the bot posts: the roster message and the core's raid signups move there) and a private `#<core>-chat` and voice channel for the core and the leadership. Renaming the core renames them; `/core delete channels:true` removes them.
+- **Group finder for everything.** The dungeon signup channel is now `#group-finder`: its pinned menu posts a group of any kind (dungeon, leveling, PvP, world PvP, world activity, other). Dungeons keep 1 tank, 1 healer and 3 DPS; the other kinds take anyone up to the size the leader sets (2 to 40). Full groups get a private voice channel as before. Players who take an "LFG ..." role (`/setup` can create them) get a ping when a group of that kind is posted.
+- **Setup checklist shows everything.** `/setup start` lists every channel it can create and every message the bot keeps (pinned guide, group finder menu, craft board guide, dungeon leaderboard, each core's roster), with ⚠️ when one is out of date. **Update bot messages** fixes them all; a menu links an existing channel to any role in setup instead of creating one.
+- **A better weekly report,** posted right after the weekly reset: the guild's week against the one before (▲/▼), each raid core (raids, attendance of its main roster, bosses, loot, players who made every raid), the dungeon week (runs, fastest per dungeon, first clears, records, top points), the **Raider of the week** (most EP earned) and the **Dungeon hero** (most dungeon points).
+- **Loot rules:** a core can set the share of the price an off-spec win costs (`/core rules offspec_percent`, 50% by default; `/loot award offspec:true`) and a **minimum EP** before priority loot counts a player first (`/core rules min_ep`). `/epgp decay weekly:true` turns on **automatic decay** after every weekly reset, each pool by its own percent.
+
+**In game**
+- **Off-spec in EPGP priority:** raiders answer I want it, **Off-spec** or Pass. Off-spec only wins when nobody wants the item for their main spec, and pays the core's share. Players below the core's minimum EP rank after everyone else.
+- **Officer votes on the loot council:** when a council closes, the other officers in the group get the answers and vote (`/guilded council vote`, or **Vote for selected** on the Council page); the officer running it sees the votes next to each name.
+- **SR+ soft reserves:** each week a player reserves the same item and does not get it adds +10 to their roll for it.
+- **Drops noted by themselves:** epic items that drop in a raid (loot window, personal or group loot) are listed on the Loot page with a **Drop** button (`/guilded drops`). When the winner is not the player holding the item, both are reminded to trade it within the 2 hours the game allows.
+- **Price suggestion:** the "what does this cost?" box is prefilled with a GP price from the item level and slot.
+- **Tools window:** a **Test tools** section on the Tools page (test raid, fake bids, fake council answers, test dungeon run, end, clear), a **Crafting** page (who can craft an item, your professions, cooldowns), **Export and send** for officers (export and reload in one click), the window remembers where you left it and its size (Tools page, or `/guilded menu scale`), a key binding (Options > Keybindings > Guilded), tooltips on the new buttons, and French on every page, officer pages included. Shift-clicking an item now fills whichever Item box is selected (Council and Reserves too).
+
 ## 4.5.0
 
 4.0.0 was never published on its own: 4.5.0 is the first public release of everything below (4.5, the addon audit, and all of 4.0).

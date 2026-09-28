@@ -243,7 +243,10 @@ local function adoptLootRules(file, updatedAt)
       end
       table.insert(rules.cores, {
         id = tostring(core.id or ""), name = core.name, mode = tostring(core.mode or "EPGP"), pool = core.pool == true,
-        reserves = tonumber(core.reserves) or 1, baseGp = baseGp, values = cleanValues(core.values), players = players
+        reserves = tonumber(core.reserves) or 1, baseGp = baseGp, values = cleanValues(core.values), players = players,
+        -- 4.6: the share of the price an off-spec win costs (percent) and the EP a player needs
+        -- before priority counts them ahead of those below it.
+        offspec = math.max(0, math.min(100, tonumber(core.offspec) or 50)), minEp = math.max(0, tonumber(core.minEp) or 0)
       })
     end
   end

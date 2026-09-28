@@ -35,11 +35,16 @@ export interface EffectiveRules {
   // Soft reserves each player may hold (RESERVE mode; the officer can still choose when opening the list).
   reservesPerPlayer: number;
   separatePool: boolean;
+  // Share of the GP an off-spec winner pays (percent, default 50) and the EP a player needs before
+  // they take priority over players below it (EPGP minimum EP, default 0 = off).
+  offspecPercent: number;
+  minEp: number;
   // Which values this core changed (the rest are the guild default).
   overridden: string[];
 }
 
-type CoreRules = Pick<RaidCore, "attendanceEp" | "lateEp" | "bossEp" | "completionEp" | "baseGp" | "decayPercent" | "lootMode" | "separatePool" | "reservesPerPlayer">;
+type CoreRules = Pick<RaidCore, "attendanceEp" | "lateEp" | "bossEp" | "completionEp" | "baseGp" | "decayPercent" | "lootMode" | "separatePool" | "reservesPerPlayer" | "offspecPercent" | "minEp">;
+export const DEFAULT_OFFSPEC_PERCENT = 50;
 type GuildRules = Pick<GuildSettings, "attendanceDkp" | "lateAttendanceDkp" | "bossKillDkp" | "epCompletionBonus" | "baseGp" | "epgpDecayPercent" | "lootMode">;
 
 export function effectiveRules(guild: Partial<GuildRules> | null | undefined, core: Partial<CoreRules> | null | undefined): EffectiveRules {
@@ -58,11 +63,15 @@ export function effectiveRules(guild: Partial<GuildRules> | null | undefined, co
   const reservesPerPlayer = Math.max(1, Math.min(5, pick("reserves", core?.reservesPerPlayer, 1)));
   const separatePool = core?.separatePool === true;
   if (separatePool) overridden.push("separate pool");
+  const offspecPercent = Math.max(0, Math.min(100, pick("off-spec", core?.offspecPercent, DEFAULT_OFFSPEC_PERCENT)));
+  const minEp = Math.max(0, pick("minimum EP", core?.minEp, 0));
   return {
     attendanceEp, lateEp, bossEp, completionEp, baseGp, decayPercent,
     lootMode: asLootMode(mode),
     reservesPerPlayer,
     separatePool,
+    offspecPercent,
+    minEp,
     overridden
   };
 }
@@ -76,6 +85,7 @@ export function describeRules(rules: EffectiveRules, coreName: string): string {
     `• Per boss ${rules.bossEp} EP (${mark("boss EP")}) · full clear +${rules.completionEp} EP (${mark("full-clear EP")})`,
     `• Base GP ${rules.baseGp} (${mark("base GP")}) · decay ${Math.round(rules.decayPercent * 100)}% (${mark("decay")})`,
     `• Loot: ${LOOT_MODE_LABEL[rules.lootMode]} (${mark("loot mode")})${rules.lootMode === "RESERVE" ? ` · ${rules.reservesPerPlayer} reserve(s) per player (${mark("reserves")})` : ""}`,
+    `• Off-spec pays ${rules.offspecPercent}% of the GP (${mark("off-spec")}) · minimum EP for priority ${rules.minEp || "off"} (${mark("minimum EP")})`,
     `• Points: ${rules.separatePool ? "this core has its **own point pool**" : "shared guild pool"}`
   ].join("\n");
 }

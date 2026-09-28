@@ -61,7 +61,8 @@ end
 -- "/reload" (allowed from a click; calling ReloadUI() from addon code is blocked). Must be
 -- created out of combat, which is always the case here (the window and the banner are built
 -- from the login and ticker code, never mid-fight). `onClick` runs as well (hide a banner...).
-function module.reloadButton(parent, text, width, height, onClick)
+-- `macro` replaces "/reload" (e.g. "/guilded export\n/reload" for an officer's Export and send).
+function module.reloadButton(parent, text, width, height, onClick, macro)
   -- In combat a secure button cannot be set up (that is blocked too): a plain button that
   -- explains, until the window is built again after a /reload.
   if inCombat() then
@@ -84,7 +85,7 @@ function module.reloadButton(parent, text, width, height, onClick)
   if button.RegisterForClicks then button:RegisterForClicks("AnyUp", "AnyDown") end
   if button.SetAttribute then
     button:SetAttribute("type", "macro")
-    button:SetAttribute("macrotext", "/reload")
+    button:SetAttribute("macrotext", macro or "/reload")
   end
   if onClick and button.HookScript then button:HookScript("OnClick", onClick) end
   return button

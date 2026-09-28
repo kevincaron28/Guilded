@@ -46,7 +46,7 @@ const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> 
     coreChannelId: { name: "raid-roster", topic: "Raid core rosters: core members get signup priority" },
     raidLogChannelId: { name: "raid-logs", topic: "Raid summaries and Warcraft Logs, posted after each raid" },
     lootChannelId: { name: "loot-log", topic: "Loot awards and EP/GP changes" },
-    dungeonSignupChannelId: { name: "dungeon-signups", topic: "Dungeon groups: use the buttons under each post" },
+    dungeonSignupChannelId: { name: "group-finder", topic: "Group finder: dungeons, leveling, PvP, world activities. Post a group with the pinned menu; join with the buttons" },
     dungeonLeaderboardChannelId: { name: "dungeon-leaderboard", topic: "Dungeon challenge standings, updated automatically" },
     dungeonChannelId: { name: "dungeon-runs", topic: "Completed dungeon runs and new records" },
     craftChannelId: { name: "craft-board", topic: "Craft requests: press Request a craft in the pinned post. Crafters filter by profession tag and press I'll craft it." },
@@ -61,7 +61,7 @@ const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> 
     coreChannelId: { name: "cores-de-raid", topic: "Compositions des cores de raid : les membres du core ont la priorité aux inscriptions" },
     raidLogChannelId: { name: "rapports-raid", topic: "Résumés de raid et Warcraft Logs, publiés après chaque raid" },
     lootChannelId: { name: "butin", topic: "Butin attribué et changements d'EP/GP" },
-    dungeonSignupChannelId: { name: "inscriptions-donjon", topic: "Groupes de donjon : utilisez les boutons sous chaque annonce" },
+    dungeonSignupChannelId: { name: "recherche-de-groupe", topic: "Recherche de groupe : donjons, montée de niveau, JcJ, activités du monde. Publiez un groupe avec le menu épinglé; rejoignez avec les boutons" },
     dungeonLeaderboardChannelId: { name: "classement-donjons", topic: "Classement du défi des donjons, mis à jour automatiquement" },
     dungeonChannelId: { name: "donjons-termines", topic: "Donjons terminés et nouveaux records" },
     craftChannelId: { name: "tableau-artisanat", topic: "Demandes d'artisanat : appuyez sur Demander un craft dans le message épinglé. Les artisans filtrent par métier et appuient sur Je le fabrique." },
@@ -77,5 +77,7 @@ export function channelSpec(field: ChannelField, lang: Lang): ChannelSpec {
 }
 
 // Every name the bot has ever given this channel (either language).
-export const channelNames = (field: ChannelField): string[] => [TEXT.en[field].name, TEXT.fr[field].name];
+// Names used by earlier versions still count (the group finder was "dungeon-signups").
+const LEGACY_NAMES: Partial<Record<ChannelField, string[]>> = { dungeonSignupChannelId: ["dungeon-signups", "inscriptions-donjon"] };
+export const channelNames = (field: ChannelField): string[] => [TEXT.en[field].name, TEXT.fr[field].name, ...(LEGACY_NAMES[field] ?? [])];
 export const categoryNames = (key: CategoryKey): string[] => [CATEGORY_NAMES.en[key], CATEGORY_NAMES.fr[key]];

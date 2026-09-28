@@ -23,6 +23,12 @@ export interface SetupFacts {
   weeklyReportOn: boolean;
   companionTokenSet: boolean;
   linkedCharacters: number;
+  // The pinned group finder message is the pre-4.6 button, not the current menu.
+  dungeonSignupGuideOutdated?: boolean;
+  // Every other channel setup can create (field name -> state), shown as optional rows.
+  extraChannels?: { field: string; fact: ChannelFact | null }[];
+  // The bot's own messages in its channels (services/bot-messages.ts).
+  botMessages?: { kind: string; name?: string; state: "current" | "outdated" | "missing" }[];
 }
 
 export interface ChannelFact {
@@ -36,6 +42,8 @@ export interface SetupCheck {
   ok: boolean;
   optional: boolean;
   fix: string;
+  // Shown with ⚠️: there but out of date (does not block "set up").
+  warn?: boolean;
 }
 
 function channelCheck(lang: Lang, label: string, fact: ChannelFact | null, optional: boolean, fix: string): SetupCheck {
@@ -68,9 +76,12 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en"): SetupCheck[] 
     channelCheck(lang, T("Dungeon signups channel"), facts.dungeonSignupChannel ?? null, true, T("Optional: press \"Create missing channels\" on this checklist.")),
     {
       label: T("Pinned dungeon signup guide"),
-      ok: facts.dungeonSignupGuide === true,
-      optional: !facts.dungeonSignupChannel,
-      fix: T("Run /dungeon guide to post or repair the pinned signup guide. Set a channel first with /setup config channel.")
+      ok: facts.dungeonSignupGuide === true && !facts.dungeonSignupGuideOutdated,
+      optional: !facts.dungeonSignupChannel || (facts.dungeonSignupGuide === true && facts.dungeonSignupGuideOutdated === true),
+      ...(facts.dungeonSignupGuide === true && facts.dungeonSignupGuideOutdated ? { warn: true } : {}),
+      fix: facts.dungeonSignupGuide === true && facts.dungeonSignupGuideOutdated
+        ? T("It is the old dungeon-only button: press \"Update bot messages\" for the group finder menu (or run /dungeon guide).")
+        : T("Run /dungeon guide to post or repair the pinned signup guide. Set a channel first with /setup config channel.")
     },
     {
       label: T("Dungeon signup guide pin permission"),
@@ -107,6 +118,30 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en"): SetupCheck[] 
       fix: T("Everyone runs /character pair once (or /character add) so addon data and EPGP match them.")
     }
   ];
+  // Every other channel setup can create: optional, each with how to get it.
+  const CHANNEL_LABELS: Record<string, string> = {
+    coreChannelId: T("Raid roster channel"), readinessChannelId: T("Raid readiness channel"), lootChannelId: T("Loot log channel"),
+    craftChannelId: T("Craft board channel"), applicationChannelId: T("Applications channel"), guideChannelId: T("Bot guide channel"),
+    dungeonChannelId: T("Dungeon runs channel")
+  };
+  for (const entry of facts.extraChannels ?? []) {
+    const label = CHANNEL_LABELS[entry.field];
+    if (!label) continue;
+    checks.push(channelCheck(lang, label, entry.fact, true, T("Optional: press \"Create missing channels\", or pick an existing channel with the menu below.")));
+  }
+  // The bot's messages: missing (❌-style, optional) or out of date (⚠️), fixed by one button.
+  const MESSAGE_LABELS: Record<string, string> = {
+    botGuide: T("Pinned bot guide"), craftGuide: T("Pinned craft board guide"), leaderboard: T("Dungeon leaderboard message")
+  };
+  for (const message of facts.botMessages ?? []) {
+    const label = message.kind === "roster" ? T("Roster message: {name}", { name: message.name ?? "?" }) : MESSAGE_LABELS[message.kind];
+    if (!label) continue;
+    checks.push({
+      label, ok: message.state === "current", optional: true,
+      ...(message.state === "outdated" ? { warn: true } : {}),
+      fix: message.state === "outdated" ? T("Out of date: press \"Update bot messages\".") : T("Missing: press \"Update bot messages\".")
+    });
+  }
   return checks;
 }
 
@@ -114,7 +149,7 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en"): SetupCheck[] 
 export function formatChecks(checks: SetupCheck[]): string {
   return checks.map((check) => {
     if (check.ok) return `✅ ${check.label}`;
-    return `${check.optional ? "➖" : "❌"} ${check.label}\n   ↳ ${check.fix}`;
+    return `${check.warn ? "⚠️" : check.optional ? "➖" : "❌"} ${check.label}\n   ↳ ${check.fix}`;
   }).join("\n");
 }
 

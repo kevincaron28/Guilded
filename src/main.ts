@@ -20,7 +20,10 @@ import { EP_AWARD_PREFIX, handleEpAwardButton } from "./commands/ep-award.js";
 import { executeCore } from "./commands/core.js";
 import { executePoll, handlePollButton, POLL_PREFIX } from "./commands/poll.js";
 import { CRAFT_PREFIX, handleCraftButton, handleCraftModal } from "./commands/craft-board.js";
-import { cleanupDungeonGroups, DUNGEON_GROUP_PREFIX, handleDungeonGroupButton } from "./commands/dungeon-group.js";
+import {
+  cleanupDungeonGroups, DUNGEON_GROUP_PREFIX, handleDungeonGroupButton, handleDungeonGuideButton, handleDungeonGuideModal
+} from "./commands/dungeon-group.js";
+import { DUNGEON_GUIDE_PREFIX } from "./services/dungeon-guide.js";
 import { runWeeklyReports } from "./commands/stats.js";
 import { executeBank } from "./commands/bank.js";
 import { executeCraft } from "./commands/craft.js";
@@ -151,12 +154,32 @@ client.on(Events.InteractionCreate, async (interaction) => {
     await handleCraftModal(interaction).catch((error: unknown) => reportInteractionError("Craft form", interaction, error));
     return;
   }
+  if (interaction.isModalSubmit() && interaction.customId === `${DUNGEON_GUIDE_PREFIX}create`) {
+    await handleDungeonGuideModal(interaction).catch((error: unknown) => {
+      reportInteractionError("Dungeon group form", interaction, error);
+      if (interaction.deferred) {
+        void interaction.editReply({ content: error instanceof Error ? error.message : "Could not post the dungeon group." }).catch(() => undefined);
+      } else if (!interaction.replied) {
+        void interaction.reply({ content: error instanceof Error ? error.message : "Could not post the dungeon group.", ephemeral: true }).catch(() => undefined);
+      }
+    });
+    return;
+  }
   if (interaction.isButton() && interaction.customId.startsWith(CRAFT_PREFIX)) {
     await handleCraftButton(interaction).catch((error: unknown) => reportInteractionError("Craft button", interaction, error));
     return;
   }
   if (interaction.isButton() && interaction.customId.startsWith(POLL_PREFIX)) {
     await handlePollButton(interaction).catch((error: unknown) => reportInteractionError("Poll button", interaction, error));
+    return;
+  }
+  if (interaction.isButton() && interaction.customId === `${DUNGEON_GUIDE_PREFIX}create`) {
+    await handleDungeonGuideButton(interaction).catch((error: unknown) => {
+      reportInteractionError("Dungeon signup guide button", interaction, error);
+      if (!interaction.replied) {
+        void interaction.reply({ content: "Could not open the dungeon group form.", ephemeral: true }).catch(() => undefined);
+      }
+    });
     return;
   }
   if (interaction.isButton() && interaction.customId.startsWith(DUNGEON_GROUP_PREFIX)) {

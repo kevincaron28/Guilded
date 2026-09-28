@@ -1,4 +1,4 @@
-import type { EmbedBuilder, Guild as DiscordGuild } from "discord.js";
+import type { ActionRowBuilder, ButtonBuilder, EmbedBuilder, Guild as DiscordGuild, Message } from "discord.js";
 import { prisma } from "../database.js";
 import { asLang, t, type Lang } from "../i18n.js";
 import { createGuildService } from "./guild.js";
@@ -27,6 +27,12 @@ async function notifyTarget(discordGuild: DiscordGuild, kind: NotifyKind = "noti
   if (!channel?.isTextBased()) return null;
   return { channel, lang: asLang(settings.language) };
 }
+
+// The same channel a notify()/notifyInteractive() call of this kind would
+// use, for a caller that already has a message id and just needs to fetch
+// and edit it later (e.g. syncing an applications card that /application
+// approve|reject|trial decided, instead of a button click).
+export const resolveNotifyChannel = notifyTarget;
 
 // Dungeon challenge posts go to /setup config channel, or the normal
 // announcements channel when none is set.
@@ -75,6 +81,26 @@ export async function notifyEmbed(discordGuild: DiscordGuild | null, embed: Embe
   } catch (error) {
     console.error("Failed to post notification embed", error);
     return false;
+  }
+}
+
+// Same channel rules as notify(), for a message the caller needs a live
+// reference to afterward (e.g. buttons that later edit the message itself
+// to show the decision and remove the buttons). Null if there's no target
+// channel, or the send failed.
+export async function notifyInteractive(
+  discordGuild: DiscordGuild | null,
+  build: (lang: Lang) => { embeds: EmbedBuilder[]; components: ActionRowBuilder<ButtonBuilder>[] },
+  kind: NotifyKind = "notify"
+): Promise<Message | null> {
+  if (!discordGuild) return null;
+  try {
+    const target = await notifyTarget(discordGuild, kind);
+    if (!target) return null;
+    return await target.channel.send({ ...build(target.lang), allowedMentions: { parse: [] } });
+  } catch (error) {
+    console.error("Failed to post interactive notification", error);
+    return null;
   }
 }
 

@@ -121,16 +121,18 @@ allowed to reach it) and the same `COMPANION_UPLOAD_TOKEN` as on your PC.
 
 ### 5. Updates
 
-Push your changes to GitHub from your PC, then on the server, inside the clone you installed from:
+Push your changes to GitHub from your PC, then run `redeploy-oracle.bat` from a clean local checkout on `main`. It fetches GitHub first and stops if there are uncommitted/untracked changes or your local `main` is not exactly at `origin/main`; this prevents a redeploy that silently leaves local session work behind. Review, commit, and push the changes you want deployed before retrying.
+
+The batch file connects to the server, where the update script verifies the server checkout is clean and on `main`, explicitly fetches `origin/main`, and fast-forwards to that commit before copying and restarting. You can also run the server update manually, inside the clone you installed from:
 
 ```bash
 cd ~/guilded && sudo bash deploy/update.sh
 ```
 
-It pulls the new code (with your own git login, so a private repository works), copies it to
+It fetches and deploys the latest `origin/main` (with your own git login, so a private repository works), copies it to
 `/opt/guilded`, runs `npm ci` only when the dependencies changed, restarts the bot and waits until
 `/health` answers. If the new version does not start, it prints the last log lines and the command to
-go back to the previous version. About 15 seconds of downtime.
+go back to the previous version. It prints the deployed commit SHA after the health check. About 15 seconds of downtime.
 
 The service runs `npm run db:update` before starting, so database changes apply
 themselves. Logs: `journalctl -u guilded -n 100`. Only the bot lives on the server: the addon (CurseForge)

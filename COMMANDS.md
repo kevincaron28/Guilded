@@ -280,6 +280,7 @@ There are 17 commands, not 34: small ones sit under a parent, so typing `/` show
 | `/character add <name> <realm> <class> <main> [spec] [level] [race]` / `/character list` | Link your WoW characters (needed before imports can match you) |
 | `/character claim <name>` | Link a character your addon already reported (pick it from the list; nothing to type or paste). Most people never need it: characters whose name matches the Discord nickname are linked automatically |
 | `/character import <code> [main]` | Link or refresh a character from the line `/guilded character` shows in game (name, realm, class, race, level, spec, professions), no typing |
+| `/character unlink <name>` | Unlink a character: yours, or (Officers/GM) anyone's. If the addon reports it again it goes back to unclaimed |
 | `/raid wcl check [raid] [url]` | Officers: the private check of a raid's log: who is in the log but not credited (or the reverse), characters not linked to anyone, EP not yet awarded, who came to boss pulls without a flask or food, and deaths. No damage or parse numbers |
 | `/raid wcl list` | The latest Warcraft Logs reports the officers pulled in |
 | `/apply <core> <character> <class> <spec> <experience> <availability> [notes]` | Apply to a raid core. Or press **Apply to a core** on the pinned post in the apply-here channel — same result, a short form instead of typing options |
@@ -332,7 +333,8 @@ points when a season ends). They show in the run post and on `/dungeon player`.
 | `/dungeon player [member | character]` | Points, runs, best times and recent runs (default: you) |
 | `/dungeon history [member]` | Last 10 runs, including ones that did not count and why |
 | `/dungeon season` | Current season and its top 5 |
-| `/dungeon group <title>` | Form a dungeon group: a post in the dungeon signups channel with Tank / Healer / DPS / Leave buttons (1 tank, 1 healer, 3 DPS, extras waitlist). At 5 players, or when the leader presses **Start now**, the bot creates a **private temporary voice channel** for the group (only its players, the leader and Officers can join). The channel is deleted after 5 empty minutes or when the group is closed; unfinished groups close after 24 hours. Needs the bot to have Manage Channels |
+| `/dungeon guide` | Post or repair the pinned **Post a dungeon group** button in the configured dungeon signup channel |
+| `/dungeon group <title>` | Form a dungeon group: a post in the dungeon signups channel with Tank / Healer / DPS / Leave buttons (1 tank, 1 healer, 3 DPS, extras waitlist). Members can also create these posts from the pinned guide button. At 5 players, or when the leader presses **Start now**, the bot creates a **private temporary voice channel** for the group (only its players, the leader and Officers can join). The channel is deleted after 5 empty minutes or when the group is closed; unfinished groups close after 24 hours. Needs the bot to have Manage Channels |
 
 After each import, completed runs and new records are posted once in the dungeon channel (`/setup config channel`, also in `/setup start`), or the notify channel if none is set.
 
@@ -414,7 +416,7 @@ Approve, and a raid can never be paid twice.
 | `/setup config channel` | Private channel (officers only) where new `/apply` applications are announced; default: the officer log. `/setup start` step 3 can create it with the right permissions |
 | `/setup config channel` | Public channel with a pinned post: the **Apply to a core** button picks the core, then opens the application form. `/setup start` step 2 can create it |
 | `/setup config channel` | Channel with one auto-updated dungeon leaderboard message (refreshed after every dungeon import) |
-| `/setup config channel` | Channel for dungeon signups (channel only; no dungeon signup flow yet) |
+| `/setup config channel` | Channel for dungeon signups; setting it posts the pinned group-creation guide automatically. `/setup start status:true` checks the channel and guide; `/dungeon guide` repairs a missing guide |
 | `/setup config merit <true\|false>` | Rank the leaderboard by PR x attendance |
 
 **Base GP:** PR = EP / (GP + base GP). With base GP 100, someone with 50 EP

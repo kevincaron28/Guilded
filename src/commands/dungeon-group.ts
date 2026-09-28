@@ -1,12 +1,13 @@
 import {
-  ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, PermissionFlagsBits,
-  type ButtonInteraction, type ChatInputCommandInteraction, type Client, type Guild as DiscordGuild, type GuildMember,
+  ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, ModalBuilder, PermissionFlagsBits, TextInputBuilder, TextInputStyle,
+  type ButtonInteraction, type ChatInputCommandInteraction, type Client, type Guild as DiscordGuild, type GuildMember, type ModalSubmitInteraction,
   type OverwriteResolvable
 } from "discord.js";
 import type { RaidRole } from "@prisma/client";
 import { prisma } from "../database.js";
 import { hasPermission, isPermissionRoleName } from "../permissions.js";
 import { createDungeonGroupService, GROUP_CAPS, GROUP_SIZE, shouldDeleteVoice, shouldExpireOpenGroup } from "../services/dungeon-group.js";
+import { DUNGEON_GUIDE_CREATE_ID, DUNGEON_GUIDE_PREFIX } from "../services/dungeon-guide.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { BRAND } from "../brand.js";
 import { asLang, tx, type Lang } from "../i18n.js";
@@ -18,6 +19,59 @@ import { asLang, tx, type Lang } from "../i18n.js";
 
 const service = createDungeonGroupService(prisma);
 export const DUNGEON_GROUP_PREFIX = "dgrp:";
+
+function dungeonGroupModal(lang: Lang) {
+  const input = new TextInputBuilder()
+    .setCustomId("title")
+    .setLabel(tx(lang, "Dungeon, time, and roles needed"))
+    .setPlaceholder(tx(lang, "e.g. Deadmines tonight, need tank and healer"))
+    .setStyle(TextInputStyle.Short)
+    .setMinLength(3)
+    .setMaxLength(80)
+    .setRequired(true);
+  return new ModalBuilder()
+    .setCustomId(`${DUNGEON_GUIDE_PREFIX}create`)
+    .setTitle(tx(lang, "Post a dungeon group"))
+    .addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(input));
+}
+
+export async function handleDungeonGuideButton(interaction: ButtonInteraction): Promise<void> {
+  if (interaction.customId !== DUNGEON_GUIDE_CREATE_ID || !interaction.guild) return;
+  const record = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
+  await interaction.showModal(dungeonGroupModal(await groupLang(record.id)));
+}
+
+export async function handleDungeonGuideModal(interaction: ModalSubmitInteraction): Promise<void> {
+  if (interaction.customId !== DUNGEON_GUIDE_CREATE_ID || !interaction.guild) return;
+  await interaction.deferReply({ ephemeral: true });
+  const guild = interaction.guild;
+  const record = await guildService.ensureGuild(guild.id, guild.name);
+  const member = await guildService.ensureMember(record.id, interaction.user.id,
+    (interaction.member as GuildMember | null)?.displayName ?? interaction.user.username);
+  const settings = await guildService.getSettings(record.id);
+  const channel = settings?.dungeonSignupChannelId
+    ? await guild.channels.fetch(settings.dungeonSignupChannelId).catch(() => null)
+    : null;
+  if (!channel?.isTextBased() || !("send" in channel)) {
+    throw new Error("I can't post in the configured dungeon signups channel. Check /setup status and channel permissions.");
+  }
+  const lang = asLang(settings?.language);
+  const group = await service.create({
+    guildId: record.id,
+    title: interaction.fields.getTextInputValue("title").trim(),
+    leaderId: member.id,
+    channelId: channel.id
+  });
+  const message = await channel.send({
+    embeds: [await groupEmbed(group.id)],
+    components: buttons(group.id, group.status, lang),
+    allowedMentions: { parse: [] }
+  });
+  await service.setMessage(group.id, channel.id, message.id);
+  await interaction.editReply({
+    content: tx(lang, "Posted your dungeon group in <#{id}>. You're the leader: pick your role with the buttons, and press **Start now** when ready (or it starts by itself at 5 players).", { id: channel.id })
+  });
+}
 
 const ROLE_LABELS: Record<Lang, Record<RaidRole, string>> = {
   en: { TANK: "🛡️ Tank", HEALER: "💚 Healer", DPS: "⚔️ DPS" },

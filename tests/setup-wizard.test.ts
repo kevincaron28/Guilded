@@ -69,6 +69,12 @@ describe("setup wizard screens", () => {
     expect(text).toContain("Run /setup start, step 2");
     expect(text).toContain("✅ Announcements channel (#announcements)");
   });
+
+  it("offers to post or repair the dungeon signup guide on the dungeon channels step", async () => {
+    const screen = await renderStep(4, guild as never, "g1", "");
+    const labels = screen.components.flatMap((row) => row.toJSON().components.map((c) => (c as { label?: string }).label));
+    expect(labels).toContain("Post/repair signup guide");
+  });
 });
 
 describe("setup wizard in French", () => {

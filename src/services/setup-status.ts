@@ -11,6 +11,9 @@ export interface SetupFacts {
   raidChannel: ChannelFact | null;
   logChannel: ChannelFact | null;
   raidLogChannel?: ChannelFact | null;
+  dungeonSignupChannel?: ChannelFact | null;
+  dungeonSignupGuide?: boolean | null;
+  dungeonSignupCanPin?: boolean | null;
   dungeonLeaderboardChannel?: ChannelFact | null;
   welcomeChannel: ChannelFact | null;
   // Auto-roles the bot must be able to hand out (null when not configured).
@@ -39,7 +42,7 @@ function channelCheck(lang: Lang, label: string, fact: ChannelFact | null, optio
   if (!fact) return { label, ok: false, optional, fix };
   if (!fact.exists) return { label, ok: false, optional, fix: `${tx(lang, "The saved channel was deleted.")} ${fix}` };
   if (!fact.botCanPost) {
-    return { label: `${label} (#${fact.name})`, ok: false, optional, fix: tx(lang, "I can't post in #{name}. Give my role \"Send Messages\" and \"Embed Links\" there, or pick another channel.", { name: fact.name }) };
+    return { label: `${label} (#${fact.name})`, ok: false, optional, fix: tx(lang, "I can't post in #{name} or check its pinned messages. Give my role \"View Channel\", \"Read Message History\", \"Send Messages\" and \"Embed Links\" there, or pick another channel.", { name: fact.name }) };
   }
   return { label: `${label} (#${fact.name})`, ok: true, optional, fix: "" };
 }
@@ -62,6 +65,19 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en"): SetupCheck[] 
     channelCheck(lang, T("Raid signups channel"), facts.raidChannel, false, T("Run /setup start, step 2 (Channels).")),
     channelCheck(lang, T("Officer log channel"), facts.logChannel, false, T("Run /setup start, step 2 (Channels).")),
     channelCheck(lang, T("Raid logs channel"), facts.raidLogChannel ?? null, true, T("Optional: run /setup start, step 2 (Channels). Raid summaries use announcements until then.")),
+    channelCheck(lang, T("Dungeon signups channel"), facts.dungeonSignupChannel ?? null, true, T("Optional: run /setup start, step 4 (Dungeon channels).")),
+    {
+      label: T("Pinned dungeon signup guide"),
+      ok: facts.dungeonSignupGuide === true,
+      optional: !facts.dungeonSignupChannel,
+      fix: T("Run /dungeon guide to post or repair the pinned signup guide. Set a channel first with /setup config channel.")
+    },
+    {
+      label: T("Dungeon signup guide pin permission"),
+      ok: facts.dungeonSignupCanPin === true,
+      optional: !facts.dungeonSignupChannel,
+      fix: T("Give the bot role the \"Pin Messages\" permission in the dungeon signup channel.")
+    },
     channelCheck(lang, T("Dungeon leaderboard channel"), facts.dungeonLeaderboardChannel ?? null, true, T("Optional: run /setup start, step 3 (Dungeon channels).")),
     channelCheck(lang, T("Welcome channel"), facts.welcomeChannel, true, T("Optional: run /setup start, step 5 (Welcome).")),
     ...facts.autoRoles.map((role) => ({

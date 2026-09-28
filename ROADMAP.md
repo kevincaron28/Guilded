@@ -36,6 +36,18 @@ API, and the release notes say which parts are untested.
 2. **Hosting:** the free Oracle Cloud setup is written ([docs/DEPLOY_ORACLE.md](docs/DEPLOY_ORACLE.md)); a hosted
    multi-guild bot is a bigger step and only worth it if other guilds ask.
 
+## 4.1
+
+- **Pairing code for character linking:** `/character pair` gives a short code; the companion app takes it once
+  and tags all its future uploads with that Discord ID. Every character it then reports links straight to that
+  person, no Discord-nickname match needed. Closes the gap left by [character-autolink.ts](src/services/character-autolink.ts),
+  which only links a character whose name resembles the owner's Discord name.
+- **Guild member map module:** a Minimap-style module showing guildmates' zone and position on the world map,
+  based on the **GuildMap** addon in `Published Addons/GuildMap` (a MapMate fork: HereBeDragons + HereBeDragons-Pins
+  for the pins, guild-chat addon messages broadcasting each player's mapID/x/y every 3-5s past a small movement
+  threshold). Ours would reuse that broadcast/pin approach but fit Guilded's module system and rank visibility
+  (officers vs members) instead of GuildMap's own UI.
+
 ## Also done
 
 Every item of the old numbered list except hosting is built: item tooltips (3.1), Warcraft Logs

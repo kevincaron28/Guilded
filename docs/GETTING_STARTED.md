@@ -5,7 +5,8 @@ the addon alone; the bot and the companion are optional.
 
 ## 1. Install the addon (everyone)
 
-1. Unzip `Guilded-v<version>.zip` into `World of Warcraft\_forever_\Interface\AddOns\`. You should end up with
+1. Download it from [CurseForge](https://www.curseforge.com/wow/addons/guilded), or unzip an existing
+   `Guilded-v<version>.zip`, into `World of Warcraft\_forever_\Interface\AddOns\`. You should end up with
    `AddOns\Guilded\Guilded.toc`.
 2. Start the game. Type `/guilded` for the command list, or click the gold coin on the minimap.
 
@@ -33,8 +34,8 @@ the addon alone; the bot and the companion are optional.
 
 ## 4. Set up the Discord server
 
-Run **`/setup start`** (you need Administrator). The first screen asks for the language, **English or Français**: pick Français and the guide, the roles, the channels and the posts members see are French. It is a click-through guide in seven steps. Choose
-**Create the whole WoW section** to make the channels, sorted into categories with the right permissions
+Run **`/setup start`** (you need Administrator). The first screen asks for the language, **English or Français**: pick Français and the guide, the roles, the channels and the posts members see are French. It is a click-through guide in seven steps. On each channel step, already have a channel for one of these? Pick it from its menu. Otherwise press
+**Create the missing ones for me** to make the rest, sorted into categories with the right permissions
 (members read announcements and use buttons; the officer log and readiness board are private).
 Finish with `/setup start status:true`: nothing should be red.
 

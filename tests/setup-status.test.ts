@@ -8,6 +8,9 @@ const done: SetupFacts = {
   notifyChannel: channel("guilded-announcements"),
   raidChannel: channel("raid-signups"),
   logChannel: channel("officer-log"),
+  dungeonSignupChannel: channel("dungeon-signups"),
+  dungeonSignupGuide: true,
+  dungeonSignupCanPin: true,
   welcomeChannel: null,
   autoRoles: [],
   epgpConfigured: false,
@@ -43,5 +46,20 @@ describe("setup checklist", () => {
   it("warns when the bot's role is below an auto-role", () => {
     const text = formatChecks(setupChecks({ ...done, autoRoles: [{ name: "Member", botCanAssign: false }] }));
     expect(text).toContain("My role must be above \"Member\"");
+  });
+
+  it("reports a missing pinned dungeon signup guide and its repair command", () => {
+    const checks = setupChecks({ ...done, dungeonSignupGuide: false });
+    const guide = checks.find((check) => check.label === "Pinned dungeon signup guide");
+    expect(guide?.ok).toBe(false);
+    expect(guide?.fix).toContain("/dungeon guide");
+    expect(setupComplete(checks)).toBe(false);
+  });
+
+  it("reports missing pin permission for the dungeon signup guide", () => {
+    const checks = setupChecks({ ...done, dungeonSignupCanPin: false });
+    const permission = checks.find((check) => check.label === "Dungeon signup guide pin permission");
+    expect(permission?.fix).toContain("Pin Messages");
+    expect(setupComplete(checks)).toBe(false);
   });
 });

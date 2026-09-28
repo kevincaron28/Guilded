@@ -16,10 +16,24 @@ say() { printf '\n== %s\n' "$1"; }
 
 if [ ! -d "$APP" ]; then echo "$APP does not exist. Run deploy/setup-server.sh first."; exit 1; fi
 
-say "Pulling the new code"
+say "Checking the server checkout"
 git config --global --add safe.directory "$SRC" >/dev/null 2>&1 || true
+BRANCH="$(sudo -u "$WHO" git -C "$SRC" branch --show-current)"
+if [ "$BRANCH" != "main" ]; then
+  echo "The server checkout is on '$BRANCH', not 'main'. Switch it to main before deploying."
+  exit 1
+fi
+STATUS="$(sudo -u "$WHO" git -C "$SRC" status --porcelain)"
+if [ -n "$STATUS" ]; then
+  echo "The server checkout has local changes; refusing to overwrite them."
+  sudo -u "$WHO" git -C "$SRC" status --short
+  exit 1
+fi
+
+say "Fetching GitHub main"
 BEFORE="$(sudo -u "$WHO" git -C "$SRC" rev-parse --short HEAD)"
-sudo -u "$WHO" git -C "$SRC" pull --ff-only
+sudo -u "$WHO" git -C "$SRC" fetch origin main:refs/remotes/origin/main
+sudo -u "$WHO" git -C "$SRC" merge --ff-only origin/main
 AFTER="$(sudo -u "$WHO" git -C "$SRC" rev-parse --short HEAD)"
 if [ "$BEFORE" = "$AFTER" ]; then echo "Already on the newest code ($AFTER)."; else echo "Updated $BEFORE -> $AFTER"; sudo -u "$WHO" git -C "$SRC" log --oneline "$BEFORE..$AFTER" | head -10; fi
 

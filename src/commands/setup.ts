@@ -25,6 +25,7 @@ import { guildService, requireGuildContext } from "./context.js";
 import { sendWelcome, welcomeDelivery } from "../services/housekeeping.js";
 import { isValidTimeZone } from "../services/raid-time.js";
 import { updateDungeonLeaderboard } from "../services/dungeon-leaderboard.js";
+import { ensureDungeonSignupGuide, hasDungeonSignupGuide } from "../services/dungeon-guide.js";
 import { syncAllCoreRosters } from "../services/raid-core.js";
 import { asLang, t, tx, type Lang } from "../i18n.js";
 import { CATEGORY_NAMES, categoryNames, channelNames, channelSpec, type Access, type CategoryKey, type ChannelField } from "../setup-names.js";
@@ -46,7 +47,7 @@ export const setupCommand = new SlashCommandBuilder()
 
 const REQUIRED_ROLES: Permission[] = ["guildMaster", "officer", "raidLeader", "dkpOfficer"];
 const OPTIONAL_ROLES: Permission[] = ["lootLeader", "classLeader"];
-const RELEASES_URL = "https://github.com/kevincaron28/QC-Gold/releases/latest";
+const ADDON_URL = "https://www.curseforge.com/wow/addons/guilded";
 
 const RECOMMENDED_EPGP = {
   attendanceDkp: 10,
@@ -92,7 +93,7 @@ async function channelFact(guild: DiscordGuild, channelId: string | null | undef
   return {
     name: channel.name,
     exists: true,
-    botCanPost: !!perms?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])
+    botCanPost: !!perms?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])
   };
 }
 
@@ -106,6 +107,15 @@ function botCanAssign(guild: DiscordGuild, roleId: string): { name: string; botC
 
 async function gatherFacts(guild: DiscordGuild, guildId: string, settings: GuildSettings): Promise<SetupFacts> {
   await guild.roles.fetch();
+  const signupChannel = settings.dungeonSignupChannelId
+    ? await guild.channels.fetch(settings.dungeonSignupChannelId).catch(() => null)
+    : null;
+  const signupGuide = signupChannel?.isTextBased() && "messages" in signupChannel
+    ? await hasDungeonSignupGuide(signupChannel)
+    : settings.dungeonSignupChannelId ? false : null;
+  const signupCanPin = signupChannel
+    ? !!guild.members.me && !!signupChannel.permissionsFor(guild.members.me)?.has(PermissionFlagsBits.PinMessages)
+    : null;
   const autoRoles = [settings.applicantRoleId, settings.memberRoleId, ...settings.welcomeRoleIds]
     .filter((id): id is string => !!id)
     .map((id) => botCanAssign(guild, id))
@@ -118,6 +128,9 @@ async function gatherFacts(guild: DiscordGuild, guildId: string, settings: Guild
     raidChannel: await channelFact(guild, settings.raidSignupChannelId),
     logChannel: await channelFact(guild, settings.logChannelId),
     raidLogChannel: await channelFact(guild, settings.raidLogChannelId),
+    dungeonSignupChannel: await channelFact(guild, settings.dungeonSignupChannelId),
+    dungeonSignupGuide: signupGuide,
+    dungeonSignupCanPin: signupCanPin,
     dungeonLeaderboardChannel: await channelFact(guild, settings.dungeonLeaderboardChannelId),
     welcomeChannel: welcomeDelivery(settings) === "DM" ? null : await channelFact(guild, settings.welcomeChannelId),
     autoRoles,
@@ -210,13 +223,13 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
 
   if (step === 2) {
     embed.setDescription([
-      T("Pick a channel for each, **or press \"Create them for me\"** and I'll make the missing ones (the log channel will be private to officers). **\"Create the whole WoW section\"** makes every channel from steps 2-4 at once, sorted into tidy categories (Guild, Raiding, Dungeons, Crafting, Officers) with the right permissions."),
+      T("Already have channels for these? **Pick them from the menus below** — nothing gets created or moved. Don't have them yet? Skip the menus and press **\"Create the missing ones for me\"**: I'll make only the ones you haven't picked (the log channel will be private to officers), sorted into tidy categories."),
       "",
       T("📢 **Announcements** — raid started, boss kills, loot, EP awards: {channel}", { channel: channelLabel(lang, settings.notifyChannelId) }),
       T("📅 **Raid signups** — signup posts that update live, and raid reminders: {channel}", { channel: channelLabel(lang, settings.raidSignupChannelId) }),
       T("📜 **Raid logs** — the raid summary (report) posted after each raid: {channel}", { channel: same(lang, settings.raidLogChannelId, "same as announcements") }),
       T("🔒 **Officer log** — joins/leaves, moderation, bank and craft requests: {channel}", { channel: channelLabel(lang, settings.logChannelId) }),
-      T("📝 **Apply here** — a public pinned post with an Apply to a core button that opens a short form: {channel} (\"Create them for me\" makes this one too, or pick it later with `/config channel`)", { channel: channelLabel(lang, settings.applyGuideChannelId) })
+      T("📝 **Apply here** — a public pinned post with an Apply to a core button that opens a short form: {channel} (\"Create the missing ones for me\" makes this one too, or pick it later with `/config channel`)", { channel: channelLabel(lang, settings.applyGuideChannelId) })
     ].join("\n"));
     const select = (id: string, placeholder: string) => new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(
       new ChannelSelectMenuBuilder().setCustomId(`setup:${id}`).setPlaceholder(placeholder)
@@ -226,10 +239,7 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       select("ch-raid", T("📅 Pick the raid signups channel")),
       select("ch-raidlog", T("📜 Pick the raid logs channel")),
       select("ch-log", T("🔒 Pick the officer log channel")),
-      navRow(2, lang, [
-        button("create-channels", T("Create them for me"), ButtonStyle.Success),
-        button("create-all-channels", T("Create the whole WoW section"), ButtonStyle.Success)
-      ])
+      navRow(2, lang, [button("create-channels", T("Create the missing ones for me"), ButtonStyle.Success)])
     );
   }
 
@@ -239,7 +249,7 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
 
   if (step === 3) {
     embed.setDescription([
-      T("**Optional.** Skip with **Next** if you don't want these. Pick a channel for each, **or press \"Create them for me\"**."),
+      T("**Optional.** Skip with **Next** if you don't want these. Already have channels for these? Pick them from the menus below. Otherwise press **\"Create the missing ones for me\"**."),
       "",
       T("⭐ **Raid roster** — one live message per raid core (`/core create`); core members get signup priority: {channel}", { channel: channelLabel(lang, settings.coreChannelId) }),
       T("🛡️ **Raid readiness** — private, officers and raid leaders only: who is ready for raid night: {channel}", { channel: channelLabel(lang, settings.readinessChannelId) }),
@@ -252,23 +262,26 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       channelSelect("ch-readiness", T("🛡️ Pick the raid readiness channel (keep it private)")),
       channelSelect("ch-loot", T("🎁 Pick the loot & EP log channel")),
       channelSelect("ch-craft", T("🔨 Pick the craft board channel")),
-      navRow(3, lang, [button("create-raidteam-channels", T("Create them for me"), ButtonStyle.Success)])
+      navRow(3, lang, [button("create-raidteam-channels", T("Create the missing ones for me"), ButtonStyle.Success)])
     );
   }
 
   if (step === 4) {
     embed.setDescription([
-      T("**Optional.** Skip with **Next** if you don't run the dungeon challenge."),
+      T("**Optional.** Skip with **Next** if you don't run the dungeon challenge. Already have channels for these? Pick them from the menus below. Otherwise press **\"Create the missing ones for me\"**."),
       "",
       T("🏆 **Dungeon leaderboard** — one message I keep updated after every imported dungeon run: {channel}", { channel: channelLabel(lang, settings.dungeonLeaderboardChannelId) }),
-      T("📝 **Dungeon signups** — where dungeon groups sign up (each group gets a temporary voice channel): {channel}", { channel: channelLabel(lang, settings.dungeonSignupChannelId) }),
+      T("📝 **Dungeon signups** — a pinned **Post a dungeon group** button starts a signup post; groups get a temporary voice channel: {channel}", { channel: channelLabel(lang, settings.dungeonSignupChannelId) }),
       T("🏰 **Dungeon runs** — each completed dungeon and new records: {channel}", { channel: same(lang, settings.dungeonChannelId, "same as announcements") })
     ].join("\n"));
     components.push(
       channelSelect("ch-dungeon-lb", T("🏆 Pick the dungeon leaderboard channel")),
       channelSelect("ch-dungeon-signup", T("📝 Pick the dungeon signups channel")),
       channelSelect("ch-dungeon", T("🏰 Pick the dungeon runs channel")),
-      navRow(4, lang, [button("create-dungeon-channels", T("Create them for me"), ButtonStyle.Success)])
+      navRow(4, lang, [
+        button("create-dungeon-channels", T("Create the missing ones for me"), ButtonStyle.Success),
+        button("dungeon-guide", T("Post/repair signup guide"), ButtonStyle.Secondary, !settings.dungeonSignupChannelId)
+      ])
     );
   }
 
@@ -368,7 +381,7 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       "",
       T("**Next steps**"),
       T("1. Everyone: `/character add` to link their WoW character."),
-      T("2. Officers: install the WoW addon — {url}", { url: RELEASES_URL }),
+      T("2. Officers: install the WoW addon — {url}", { url: ADDON_URL }),
       T("3. Raid leaders: `/core setup` builds a raid core (name, players, rules) with menus; then `/raid create core:<name>`."),
       T("4. Try everything safely: `/setup testraid start` (fake raid, removed with `/setup testraid cleanup`)."),
       T("5. `/help` lists every command by role.")
@@ -424,7 +437,13 @@ function overwritesFor(guild: DiscordGuild, access: Access): OverwriteResolvable
   const leaders = named(["guildMaster", "officer", "raidLeader", "lootLeader", "classLeader"]);
   const me = guild.members.me;
   const bot: OverwriteResolvable[] = me
-    ? [{ id: me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks] }]
+    ? [{
+      id: me.id,
+      allow: [
+        PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks,
+        ...(access === "pinned" ? [PermissionFlagsBits.PinMessages] : [])
+      ]
+    }]
     : [];
   if (access === "officers" || access === "leaders") {
     const who = access === "officers" ? officers : leaders;
@@ -448,7 +467,7 @@ function overwritesFor(guild: DiscordGuild, access: Access): OverwriteResolvable
       ...(me ? [{ id: me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.SendMessagesInThreads, PermissionFlagsBits.CreatePublicThreads, PermissionFlagsBits.ManageThreads, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ReadMessageHistory] }] : [])
     ];
   }
-  if (access === "readonly") {
+  if (access === "readonly" || access === "pinned") {
     return [
       { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.SendMessages, PermissionFlagsBits.SendMessagesInThreads, PermissionFlagsBits.CreatePublicThreads, PermissionFlagsBits.CreatePrivateThreads] },
       ...officers.map((role) => ({ id: role.id, allow: [PermissionFlagsBits.SendMessages] })),
@@ -500,6 +519,10 @@ async function createSectionChannels(guild: DiscordGuild, guildId: string, field
     made.push(`<#${channel.id}>${spec.access === "officers" ? tx(lang, " (officers only)") : spec.access === "leaders" ? tx(lang, " (officers and raid leaders only)") : ""}`);
   }
   await guildService.updateSettings(guildId, update);
+  if (update.dungeonSignupChannelId) {
+    const channel = await guild.channels.fetch(update.dungeonSignupChannelId);
+    if (channel?.isTextBased() && "send" in channel) await ensureDungeonSignupGuide(channel, lang);
+  }
   if (update.dungeonLeaderboardChannelId) await updateDungeonLeaderboard(guild);
   if (update.coreChannelId) await syncAllCoreRosters(guild, prisma, guildId);
   return tx(lang, "Created {channels} in tidy categories. Move or rename them however you like.", { channels: made.join(", ") });
@@ -526,7 +549,7 @@ async function organizeChannels(guild: DiscordGuild, guildId: string, lang: Lang
     await channel.edit({ parent: category.id, permissionOverwrites: overwrites ?? [], reason: `${BRAND.name} /setup organize` });
     tidied.push(`<#${channel.id}>`);
   }
-  return `${tidied.length ? tx(lang, "Tidied {channels}.", { channels: tidied.join(", ") }) : tx(lang, "Nothing of mine to tidy yet: run \"Create the whole WoW section\" in step 2 first.")}`
+  return `${tidied.length ? tx(lang, "Tidied {channels}.", { channels: tidied.join(", ") }) : tx(lang, "Nothing of mine to tidy yet: run \"Create the missing ones for me\" in step 2, 3 or 4 first.")}`
     + `${skipped.length ? ` ${tx(lang, "Left alone (renamed or your own): {channels}.", { channels: skipped.join(", ") })}` : ""}`;
 }
 
@@ -534,7 +557,7 @@ function gettingStartedPost(lang: Lang): EmbedBuilder {
   return new EmbedBuilder()
     .setTitle(t(lang, "guide.title"))
     .setColor(0xd4af37)
-    .setDescription(t(lang, "guide.body", { url: RELEASES_URL }));
+    .setDescription(t(lang, "guide.body", { url: ADDON_URL }));
 }
 
 
@@ -569,18 +592,23 @@ export async function executeSetup(interaction: ChatInputCommandInteraction): Pr
   // The language can change during setup (the first screen, or step 7), so read it fresh.
   const currentLang = async () => asLang((await guildService.getSettings(guildId))?.language);
 
-  collector.on("collect", async (i: MessageComponentInteraction) => {
-    const action = i.customId.replace("setup:", "");
+  // Clicks run one at a time, in the order they arrive. Without this, a
+  // double-click (or two clicks close together) would start two overlapping
+  // database reads before either had written back, so both could see the
+  // same channel as "missing" and create it twice — and whichever finished
+  // last would silently overwrite the other's saved channel ids, leaving
+  // some channels created in Discord but never recorded as set. Queuing
+  // means the second click always reads the first click's finished result.
+  let queue: Promise<void> = Promise.resolve();
+
+  async function handleClick(i: MessageComponentInteraction, action: string): Promise<void> {
+    if (action === "close") {
+      await interaction.editReply({ content: tx(await currentLang(), "Setup closed. Run `/setup start` any time to come back, or `/setup start status:true` for the checklist."), embeds: [], components: [] }).catch(() => undefined);
+      collector.stop("closed");
+      return;
+    }
     try {
       note = "";
-      if (action === "close") {
-        await i.update({ content: tx(await currentLang(), "Setup closed. Run `/setup start` any time to come back, or `/setup start status:true` for the checklist."), embeds: [], components: [] });
-        collector.stop("closed");
-        return;
-      }
-      // Acknowledge right away: Discord allows 3 seconds, and the database
-      // (or creating roles/channels) can take longer than that.
-      await i.deferUpdate();
       const lang = await currentLang();
       const T = (english: string, vars: Record<string, string | number> = {}) => tx(lang, english, vars);
       if (action === "next") step = Math.min(SUMMARY_STEP, step + 1);
@@ -603,7 +631,18 @@ export async function executeSetup(interaction: ChatInputCommandInteraction): Pr
         } else if (action === "create-channels") note = await createSectionChannels(guild, guildId, CORE_CHANNELS, lang);
         else if (action === "create-raidteam-channels") note = await createSectionChannels(guild, guildId, RAIDTEAM_CHANNELS, lang);
         else if (action === "create-dungeon-channels") note = await createSectionChannels(guild, guildId, DUNGEON_CHANNELS, lang);
-        else if (action === "create-all-channels") note = await createSectionChannels(guild, guildId, ALL_CHANNELS, lang);
+        else if (action === "dungeon-guide") {
+          const settings = await guildService.getSettings(guildId);
+          const channel = settings?.dungeonSignupChannelId
+            ? await guild.channels.fetch(settings.dungeonSignupChannelId).catch(() => null)
+            : null;
+          if (channel?.isTextBased() && "send" in channel) {
+            await ensureDungeonSignupGuide(channel, lang);
+            note = T("Pinned dungeon signup guide is ready in <#{id}>.", { id: channel.id });
+          } else {
+            note = T("Set a dungeon signups channel with /setup config channel, then run /dungeon guide again.");
+          }
+        }
         else if (action === "organize") note = await organizeChannels(guild, guildId, lang);
         else if (i.isChannelSelectMenu()) {
           const channelId = i.values[0];
@@ -615,6 +654,10 @@ export async function executeSetup(interaction: ChatInputCommandInteraction): Pr
             if (field === "dungeonLeaderboardChannelId") {
               await guildService.updateSettings(guildId, { dungeonLeaderboardMessageId: null });
               await updateDungeonLeaderboard(guild);
+            }
+            if (field === "dungeonSignupChannelId") {
+              const channel = await guild.channels.fetch(channelId);
+              if (channel?.isTextBased() && "send" in channel) await ensureDungeonSignupGuide(channel, lang);
             }
           }
         } else if (i.isRoleSelectMenu() && action === "welcome-roles") {
@@ -692,9 +735,18 @@ export async function executeSetup(interaction: ChatInputCommandInteraction): Pr
       const lang = await currentLang().catch(() => "en" as Lang);
       const text = error instanceof Error ? error.message : String(error);
       note = `⚠️ ${tx(lang, "That didn't work: {error}", { error: text })}${/Missing Permissions/i.test(text) ? ` — ${tx(lang, "I need the Manage Roles / Manage Channels permissions (or Administrator).")}` : ""}`;
-      if (!i.replied && !i.deferred) await i.deferUpdate().catch(() => undefined);
       await interaction.editReply(await renderStep(step, guild, guildId, note)).catch(() => undefined);
     }
+  }
+
+  collector.on("collect", (i: MessageComponentInteraction) => {
+    const action = i.customId.replace("setup:", "");
+    // Ack the click immediately (Discord allows 3 seconds) regardless of how
+    // long this click's turn in the queue takes to come up; the visible
+    // message update always goes through `interaction.editReply` below, once
+    // it's this click's turn.
+    void i.deferUpdate().catch(() => undefined);
+    queue = queue.then(() => handleClick(i, action)).catch((error: unknown) => console.error("Setup click failed", error));
   });
 
   collector.on("end", async (_collected, reason) => {

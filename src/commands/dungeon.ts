@@ -1,7 +1,8 @@
 import { EmbedBuilder, SlashCommandBuilder, type ChatInputCommandInteraction } from "discord.js";
 import { prisma } from "../database.js";
-import { asLang, t, type Lang } from "../i18n.js";
+import { asLang, t, tx, type Lang } from "../i18n.js";
 import { achievementName } from "../services/dungeon-achievements.js";
+import { ensureDungeonSignupGuide } from "../services/dungeon-guide.js";
 import { formatDuration } from "../services/dungeon-rules.js";
 import {
   activeSeasonOrNull, difficultyName, formatLeaderboard, leaderboard, playerSummary, recentRuns, records,
@@ -28,6 +29,8 @@ export const dungeonCommand = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName("history").setDescription("The most recent dungeon runs")
     .addUserOption((o) => o.setName("member").setDescription("Only runs with this member")))
   .addSubcommand((sub) => sub.setName("season").setDescription("The current season and its leaders"))
+  .addSubcommand((sub) => sub.setName("guide").setDescription("Post or repair the pinned dungeon signup button")
+    .setDescriptionLocalizations({ fr: "Publier ou réparer le bouton épinglé pour les inscriptions aux donjons" }))
   .addSubcommand((sub) => sub.setName("group").setDescription("Form a dungeon group: a signup post with buttons and a temporary voice channel")
     .addStringOption((o) => o.setName("title").setDescription("e.g. Deadmines, need tank + healer").setMinLength(3).setMaxLength(80).setRequired(true)));
 
@@ -80,6 +83,18 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
   if (!context) return;
   const lang = asLang((await guildService.getSettings(context.guildId))?.language);
   const subcommand = interaction.options.getSubcommand();
+  if (subcommand === "guide") {
+    const settings = await guildService.getSettings(context.guildId);
+    const channel = settings?.dungeonSignupChannelId
+      ? await interaction.guild?.channels.fetch(settings.dungeonSignupChannelId).catch(() => null)
+      : null;
+    if (!channel?.isTextBased() || !("send" in channel)) {
+      throw new Error("Set a dungeon signups channel with /setup config channel, then run /dungeon guide again.");
+    }
+    await ensureDungeonSignupGuide(channel, lang);
+    await interaction.reply({ content: tx(lang, "Pinned dungeon signup guide is ready in <#{id}>.", { id: channel.id }), ephemeral: true });
+    return;
+  }
   if (subcommand === "group") {
     await executeDungeonGroup(interaction);
     return;

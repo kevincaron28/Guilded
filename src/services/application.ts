@@ -1,4 +1,17 @@
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import { ApplicationStatus, type PrismaClient } from "@prisma/client";
+
+// Shared with commands/application.ts (the click-to-apply flow) and
+// raid-core.ts (the "Apply" button on a core's live roster message).
+export const APPLY_PREFIX = "apply-form:";
+
+// Opens the application form straight to one core (skips the "which core?"
+// picker), for that core's own roster message.
+export function applyToCoreButtonRow(core: { id: string; name: string }) {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`${APPLY_PREFIX}roster:${core.id}`).setLabel(`Apply to ${core.name}`.slice(0, 80)).setEmoji("📋").setStyle(ButtonStyle.Primary)
+  );
+}
 
 export interface CreateApplicationInput {
   guildId: string;
@@ -44,6 +57,15 @@ export function createApplicationService(database: PrismaClient) {
 
     get(guildId: string, id: string) {
       return database.application.findFirst({ where: { guildId, id }, include: { member: true, core: true } });
+    },
+
+    // Remembers the applications-channel card's message id, so a decision
+    // made later with /application approve|reject|trial can update that
+    // same card (never throws: losing this is cosmetic, not a data loss).
+    async setCardMessage(id: string, messageId: string): Promise<void> {
+      await database.application.update({ where: { id }, data: { cardMessageId: messageId } }).catch((error: unknown) => {
+        console.error(`Failed to save application card message for ${id}`, error);
+      });
     },
 
     async transition(guildId: string, id: string, status: ApplicationStatus, reviewedBy: string) {

@@ -3,6 +3,7 @@ import { prisma } from "../database.js";
 import { importCharacter, parseCharacterString } from "../services/character-import.js";
 import { applySelfExport, parseSelfExport } from "../services/self-export.js";
 import { autoLinkUnclaimed, claimCharacter, linkUnclaimed } from "../services/character-autolink.js";
+import { postToLogChannel } from "../services/housekeeping.js";
 import { hasPermission } from "../permissions.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { CLASSES } from "../wow-data.js";
@@ -35,6 +36,10 @@ export const characterCommand = new SlashCommandBuilder()
     .setName("claim")
     .setDescription("Link a character your addon has already reported (pick it from the list, nothing to type or paste).")
     .addStringOption((option) => option.setName("name").setDescription("Your character").setAutocomplete(true).setRequired(true)))
+  .addSubcommand((subcommand) => subcommand
+    .setName("unlink")
+    .setDescription("Unlink a character (yours, or an officer can unlink anyone's).")
+    .addStringOption((option) => option.setName("name").setDescription("The character").setAutocomplete(true).setRequired(true)))
   .addSubcommand((subcommand) => subcommand
     .setName("unclaimed")
     .setDescription("Officers: characters the addons reported that nobody has linked yet."))
@@ -76,6 +81,29 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
   if (subcommand === "claim") {
     const result = await claimCharacter(prisma, context.guildId, context.memberId, interaction.options.getString("name", true));
     await interaction.reply({ content: `Linked **${result.row.name}** (${result.row.className}${result.row.level ? `, level ${result.row.level}` : ""}) as ${result.isMain ? "your main" : "an alt"}. Its gear and consumables now show up by themselves.`, ephemeral: true });
+    return;
+  }
+  if (subcommand === "unlink") {
+    const wanted = interaction.options.getString("name", true).trim();
+    const character = await prisma.character.findFirst({
+      where: { member: { guildId: context.guildId }, name: { equals: wanted, mode: "insensitive" } },
+      include: { member: true }
+    });
+    if (!character) throw new Error(`No linked character called "${wanted}". /character list shows what is linked.`);
+    const isOwn = character.memberId === context.memberId;
+    if (!isOwn && !(interaction.member && hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "officer"))) {
+      throw new Error(`${character.name} is linked to ${character.member.displayName}. Only Officers and Guild Masters can unlink someone else's character.`);
+    }
+    await prisma.character.delete({ where: { id: character.id } });
+    if (interaction.guild) {
+      await postToLogChannel(interaction.guild, isOwn
+        ? `${interaction.user.username} unlinked their character ${character.name}.`
+        : `${interaction.user.username} unlinked ${character.name} from ${character.member.displayName}.`);
+    }
+    await interaction.reply({
+      content: `Unlinked **${character.name}**${isOwn ? "" : ` from ${character.member.displayName}`}. If the addon reports it again, it will show up as unclaimed until it's linked again.`,
+      ephemeral: true
+    });
     return;
   }
   if (["unclaimed", "link", "autolink"].includes(subcommand)) {

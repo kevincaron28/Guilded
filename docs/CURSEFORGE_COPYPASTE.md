@@ -100,6 +100,7 @@ PolyForm Noncommercial license. Not affiliated with or endorsed by Blizzard Ente
 **Discord bot (self-hosted)**
 - Commands merged into 17 parents (`/setup`, `/character`, `/raid`, `/core`, `/loot`, `/craft`, `/report` and more).
 - Per-core loot systems and item prices (`/core items`, `/loot priority`), `/loot reserves`, `/craft who`, `/character profession cooldowns`, calendar sync into raid signups. Run `npm run db:update` once when upgrading.
+- Applications get Approve / Trial / Reject buttons right on the officer card, and a core's roster message has its own Apply button. `/character unlink` undoes a character link. `/setup start`'s channel steps are safe against a double-click.
 
 Credits: spell ids and the approach of the Ready page follow Ready Check Consumables (MIT).
 

@@ -1,6 +1,7 @@
 import { EmbedBuilder, type Guild as DiscordGuild } from "discord.js";
 import type { PrismaClient, RaidRole } from "@prisma/client";
 import { createGuildService } from "./guild.js";
+import { applyToCoreButtonRow } from "./application.js";
 import { asLang, tx, type Lang } from "../i18n.js";
 
 // A raid core is a named roster (e.g. "Tuesday MC core"). A guild can have
@@ -125,7 +126,11 @@ export async function syncCoreRoster(discordGuild: DiscordGuild | null, database
     if (!channel?.isTextBased()) return false;
     const core = await database.raidCore.findFirst({ where: { id: coreId, guildId }, include: { members: { include: { member: true } } } });
     if (!core) return false;
-    const payload = { embeds: [coreRosterEmbed(core, asLang(settings.language))], allowedMentions: { parse: [] as never[] } };
+    const payload = {
+      embeds: [coreRosterEmbed(core, asLang(settings.language))],
+      components: [applyToCoreButtonRow(core)],
+      allowedMentions: { parse: [] as never[] }
+    };
     const existing = core.rosterMessageId ? await channel.messages.fetch(core.rosterMessageId).catch(() => null) : null;
     if (existing?.editable) {
       await existing.edit(payload);

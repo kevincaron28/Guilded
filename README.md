@@ -14,8 +14,9 @@ What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 
 ## Quick start
 
-- **Just the addon:** unzip `Guilded-v<version>.zip` into `World of Warcraft\_forever_\Interface\AddOns\`
-  (a folder named `Guilded`), restart the game, type `/guilded` or click the gold coin.
+- **Just the addon:** download from [CurseForge](https://www.curseforge.com/wow/addons/guilded), unzip
+  `Guilded-v<version>.zip` into `World of Warcraft\_forever_\Interface\AddOns\` (a folder named `Guilded`),
+  restart the game, type `/guilded` or click the gold coin.
 - **The whole system (bot, addon, companion):** follow [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).
 
 ## Documentation

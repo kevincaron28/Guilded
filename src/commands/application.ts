@@ -1,21 +1,21 @@
 import { ApplicationStatus } from "@prisma/client";
 import {
-  ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, SlashCommandBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle,
+  ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalBuilder, SlashCommandBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle,
   type ButtonInteraction, type ChatInputCommandInteraction, type Guild as DiscordGuild, type GuildMember,
   type GuildTextBasedChannel, type ModalSubmitInteraction, type StringSelectMenuInteraction
 } from "discord.js";
 import { prisma } from "../database.js";
-import { createApplicationService } from "../services/application.js";
+import { APPLY_PREFIX, createApplicationService } from "../services/application.js";
 import { createRaidCoreService } from "../services/raid-core.js";
 import { syncApprovedMemberRoles } from "../services/housekeeping.js";
-import { notify } from "../services/notify.js";
+import { notifyInteractive, resolveNotifyChannel } from "../services/notify.js";
 import { hasPermission } from "../permissions.js";
 import { requireGuildContext, guildService } from "./context.js";
 import { CLASSES } from "../wow-data.js";
 
+export { APPLY_PREFIX };
 export const applicationService = createApplicationService(prisma);
 const coreService = createRaidCoreService(prisma);
-export const APPLY_PREFIX = "apply-form:";
 
 export const applicationCommand = new SlashCommandBuilder()
   .setName("application").setDescription("Review recruitment applications.")
@@ -46,11 +46,80 @@ function isOfficer(interaction: ChatInputCommandInteraction): boolean {
   return !!interaction.member && hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "officer");
 }
 
-// Posts a short heads-up to the applications channel (falls back to the
-// officer log); officers still review with /application list|view|approve.
-export async function announceApplication(guild: DiscordGuild | null, applicantId: string, application: { id: string; character: string; className: string; core: { name: string } | null }): Promise<void> {
-  const target = application.core ? ` for **${application.core.name}**` : "";
-  await notify(guild, `📋 New application from <@${applicantId}> — **${application.character}** (${application.className})${target}. Review with \`/application view id:${application.id}\`.`, "application");
+type ApplicationCard = {
+  id: string; character: string; className: string; spec: string; experience: string; availability: string;
+  notes?: string | null; core: { name: string } | null;
+};
+
+const DECISION_COLOR: Record<ApplicationStatus, number> = {
+  [ApplicationStatus.PENDING]: 0xd4af37, [ApplicationStatus.TRIAL]: 0x5865f2,
+  [ApplicationStatus.APPROVED]: 0x2ecc71, [ApplicationStatus.REJECTED]: 0xe74c3c
+};
+const DECISION_LABEL: Record<ApplicationStatus, string> = {
+  [ApplicationStatus.PENDING]: "", [ApplicationStatus.TRIAL]: "🧪 Moved to trial",
+  [ApplicationStatus.APPROVED]: "✅ Approved", [ApplicationStatus.REJECTED]: "❌ Rejected"
+};
+
+function applicationEmbed(app: ApplicationCard, applicantId: string, decision?: { status: ApplicationStatus; by: string }): EmbedBuilder {
+  const embed = new EmbedBuilder().setColor(decision ? DECISION_COLOR[decision.status] : DECISION_COLOR.PENDING)
+    .setTitle(`📋 Application — ${app.character}`)
+    .setDescription(`From <@${applicantId}>`)
+    .addFields(
+      { name: "Class / Spec", value: `${app.className} / ${app.spec}`, inline: true },
+      { name: "Core", value: app.core?.name ?? "General", inline: true },
+      { name: "Experience", value: app.experience.slice(0, 500) },
+      { name: "Availability", value: app.availability.slice(0, 500) }
+    );
+  if (app.notes) embed.addFields({ name: "Notes", value: app.notes.slice(0, 500) });
+  if (decision) embed.addFields({ name: "Decision", value: `${DECISION_LABEL[decision.status]} by <@${decision.by}>` });
+  else embed.setFooter({ text: `Application id ${app.id}` });
+  return embed;
+}
+
+function applicationDecisionRow(id: string) {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`${APPLY_PREFIX}decide:approve:${id}`).setLabel("Approve").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`${APPLY_PREFIX}decide:trial:${id}`).setLabel("Trial").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`${APPLY_PREFIX}decide:reject:${id}`).setLabel("Reject").setStyle(ButtonStyle.Danger)
+  );
+}
+
+// Posts a card with Approve / Trial / Reject buttons to the applications
+// channel (falls back to the officer log): officers decide right there,
+// no /application commands needed. Still available as a fallback
+// (/application list|view|approve|reject|trial), e.g. if the card scrolled
+// out of view.
+export async function announceApplication(guild: DiscordGuild | null, applicantId: string, application: ApplicationCard): Promise<void> {
+  const message = await notifyInteractive(guild, () => ({
+    embeds: [applicationEmbed(application, applicantId)],
+    components: [applicationDecisionRow(application.id)]
+  }), "application");
+  if (message) await applicationService.setCardMessage(application.id, message.id);
+}
+
+// After a decision made with /application approve|reject|trial (rather than
+// the card's own buttons), updates that same card: shows who decided and
+// removes the buttons, so it can't also be clicked afterward. Never throws:
+// a decision must stand even if the card was deleted or moved.
+async function syncApplicationCard(
+  guild: DiscordGuild | null,
+  application: ApplicationCard & { cardMessageId: string | null; member: { discordUserId: string } },
+  status: ApplicationStatus,
+  by: string
+): Promise<void> {
+  if (!guild || !application.cardMessageId) return;
+  try {
+    const target = await resolveNotifyChannel(guild, "application");
+    if (!target) return;
+    const message = await target.channel.messages.fetch(application.cardMessageId).catch(() => null);
+    if (!message?.editable) return;
+    await message.edit({
+      embeds: [applicationEmbed(application, application.member.discordUserId, { status, by })],
+      components: []
+    });
+  } catch (error) {
+    console.error("Failed to sync application card", error);
+  }
 }
 
 export async function executeApply(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -102,6 +171,7 @@ export async function executeApplication(interaction: ChatInputCommandInteractio
   if (status === ApplicationStatus.APPROVED && interaction.guild) {
     await syncApprovedMemberRoles(interaction.guild, context.guildId, application.member.discordUserId);
   }
+  await syncApplicationCard(interaction.guild, application, status, interaction.user.id);
   await interaction.reply(`Application \`${updated.id}\` is now **${updated.status}**.`);
 }
 
@@ -156,9 +226,57 @@ function matchClass(typed: string): string {
   return CLASSES.find((name) => name.toLowerCase() === trimmed.toLowerCase()) ?? trimmed;
 }
 
+// Approve / Trial / Reject on the applications-channel card: officers click
+// instead of typing /application approve|reject|trial. Whoever gets there
+// first wins — transition() itself refuses a second decision on the same
+// application, so two officers clicking at once can't both "win".
+async function handleApplyDecision(interaction: ButtonInteraction, decision: string, id: string): Promise<void> {
+  if (!interaction.guild) return;
+  if (!interaction.member || !hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "officer")) {
+    await interaction.reply({ content: "Only officers, Guild Masters, or administrators can review applications.", ephemeral: true });
+    return;
+  }
+  const status = ({ approve: ApplicationStatus.APPROVED, reject: ApplicationStatus.REJECTED, trial: ApplicationStatus.TRIAL } as const)[decision as "approve" | "reject" | "trial"];
+  if (!status) return;
+  const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
+  const application = await applicationService.get(guild.id, id);
+  if (!application) {
+    await interaction.reply({ content: "That application no longer exists.", ephemeral: true });
+    return;
+  }
+  try {
+    const updated = await applicationService.transition(guild.id, id, status, interaction.user.id);
+    if (status === ApplicationStatus.APPROVED) await syncApprovedMemberRoles(interaction.guild, guild.id, application.member.discordUserId);
+    await interaction.update({
+      embeds: [applicationEmbed(application, application.member.discordUserId, { status: updated.status, by: interaction.user.id })],
+      components: []
+    });
+  } catch (error) {
+    await interaction.reply({ content: error instanceof Error ? error.message : "Could not update the application.", ephemeral: true }).catch(() => undefined);
+  }
+}
+
 export async function handleApplyButton(interaction: ButtonInteraction): Promise<void> {
   if (!interaction.guild) return;
-  if (interaction.customId.slice(APPLY_PREFIX.length) !== "core") return;
+  const suffix = interaction.customId.slice(APPLY_PREFIX.length);
+  if (suffix.startsWith("decide:")) {
+    const [, decision, id] = suffix.split(":");
+    if (decision && id) await handleApplyDecision(interaction, decision, id);
+    return;
+  }
+  // The "Apply" button on a core's own roster message: straight to that
+  // core's form, no "which core?" picker needed.
+  if (suffix.startsWith("roster:")) {
+    const coreId = suffix.slice("roster:".length);
+    const core = await prisma.raidCore.findUnique({ where: { id: coreId }, select: { id: true, name: true } });
+    if (!core) {
+      await interaction.reply({ content: "That core no longer exists.", ephemeral: true });
+      return;
+    }
+    await interaction.showModal(applicationModal(core));
+    return;
+  }
+  if (suffix !== "core") return;
   const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
   const cores = await prisma.raidCore.findMany({ where: { guildId: guild.id }, select: { id: true, name: true }, orderBy: { name: "asc" }, take: 25 });
   if (cores.length === 0) {

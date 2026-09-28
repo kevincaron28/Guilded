@@ -13,7 +13,7 @@ export type ChannelField = "notifyChannelId" | "raidSignupChannelId" | "raidLogC
 // leadership post (signup channels are read-only too: people use the buttons);
 // "officers" hidden from everyone but Guild Master/Officer; "leaders" hidden
 // from everyone but the leadership roles; "board" the craft board forum.
-export type Access = "open" | "readonly" | "officers" | "leaders" | "board";
+export type Access = "open" | "readonly" | "pinned" | "officers" | "leaders" | "board";
 export type CategoryKey = "guild" | "raid" | "dungeon" | "craft" | "officers";
 
 export const CATEGORY_NAMES: Record<Lang, Record<CategoryKey, string>> = {
@@ -29,7 +29,7 @@ const ACCESS: Record<ChannelField, { access: Access; category: CategoryKey; foru
   coreChannelId: { access: "readonly", category: "raid" },
   raidLogChannelId: { access: "readonly", category: "raid" },
   lootChannelId: { access: "readonly", category: "raid" },
-  dungeonSignupChannelId: { access: "readonly", category: "dungeon" },
+  dungeonSignupChannelId: { access: "pinned", category: "dungeon" },
   dungeonLeaderboardChannelId: { access: "readonly", category: "dungeon" },
   dungeonChannelId: { access: "readonly", category: "dungeon" },
   craftChannelId: { access: "board", category: "craft", forum: true },

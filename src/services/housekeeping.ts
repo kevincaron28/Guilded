@@ -13,7 +13,8 @@ export const welcomeGuildService = guildService;
 
 export const DEFAULT_WELCOME_TEMPLATE =
   "Welcome to {guild}, {mention}! Run `/apply` to submit a recruitment application, "
-  + "or `/character add` to link a character if you're already a member.";
+  + "or `/character add` to link a character if you're already a member. "
+  + "Get the addon: https://www.curseforge.com/wow/addons/guilded";
 export const DEFAULT_FAREWELL_TEMPLATE = "{username} has left {guild}. o7";
 
 interface TemplateVars {

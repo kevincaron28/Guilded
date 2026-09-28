@@ -2,6 +2,7 @@ import { prisma } from "../database.js";
 import { syncAllCoreRosters } from "../services/raid-core.js";
 import { asLootMode, LOOT_MODE_HELP, LOOT_MODE_LABEL, LOOT_MODES } from "../services/core-rules.js";
 import { updateDungeonLeaderboard } from "../services/dungeon-leaderboard.js";
+import { ensureDungeonSignupGuide } from "../services/dungeon-guide.js";
 import { ChannelType, SlashCommandBuilder, type ChatInputCommandInteraction } from "discord.js";
 import { permissionRoles, hasPermission } from "../permissions.js";
 import { guildService, requireGuildContext } from "./context.js";
@@ -11,6 +12,7 @@ import { BRAND } from "../brand.js";
 import { config } from "../config.js";
 import { createWclClient, parseGuildRef } from "../integrations/warcraftlogs.js";
 import { ensureApplyGuide } from "./application.js";
+import { asLang } from "../i18n.js";
 
 export const configCommand = new SlashCommandBuilder()
   .setName("config")
@@ -291,6 +293,12 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
     if (channelSetting.field === "applyGuideChannelId") {
       const fetched = await interaction.guild?.channels.fetch(channel.id).catch(() => null);
       if (fetched?.isTextBased()) await ensureApplyGuide(fetched);
+    }
+    if (channelSetting.field === "dungeonSignupChannelId") {
+      const fetched = await interaction.guild?.channels.fetch(channel.id).catch(() => null);
+      if (fetched?.isTextBased() && "send" in fetched) {
+        await ensureDungeonSignupGuide(fetched, asLang((await guildService.getSettings(context.guildId))?.language));
+      }
     }
     await interaction.reply({ content: `${channelSetting.label} will use <#${channel.id}>.`, ephemeral: true });
     return;

@@ -90,8 +90,8 @@ const STRINGS = {
 
   // Welcome
   "welcome.default": {
-    en: "Welcome to {guild}, {mention}! Run `/apply` to submit a recruitment application, or `/character add` to link a character if you're already a member.",
-    fr: "Bienvenue sur {guild}, {mention} ! Utilisez `/apply` pour postuler, ou `/character add` pour lier votre personnage si vous êtes déjà membre."
+    en: "Welcome to {guild}, {mention}! Run `/apply` to submit a recruitment application, or `/character add` to link a character if you're already a member. Get the addon: https://www.curseforge.com/wow/addons/guilded",
+    fr: "Bienvenue sur {guild}, {mention} ! Utilisez `/apply` pour postuler, ou `/character add` pour lier votre personnage si vous êtes déjà membre. Obtenez l'addon : https://www.curseforge.com/wow/addons/guilded"
   },
   "welcome.rolePrompt": {
     en: "Pick what you're here for (you can pick more than one, click again to remove):",
@@ -103,8 +103,8 @@ const STRINGS = {
   // Getting started guide
   "guide.title": { en: "⚜️ Getting started with Guilded", fr: "⚜️ Bien commencer avec Guilded" },
   "guide.body": {
-    en: "**1. Link your character** — `/character add` (name and realm exactly as in game).\n**2. Sign up for raids** — click the buttons on the raid posts in the raid signups channel.\n**3. Install the addon** (optional but recommended) — download the zip from {url}, unzip into `World of Warcraft\\_forever_\\Interface\\AddOns\\`, restart the game, click the gold coin on the minimap.\n**4. See your standing** — `/epgp balance`, `/profile`, `/raid progress`.\n**5. Need something?** — `/bank request` for the guild bank, `/craft request` for crafters.\n\n`/help` lists every command.",
-    fr: "**1. Liez votre personnage** — `/character add` (nom et royaume exactement comme en jeu).\n**2. Inscrivez-vous aux raids** — cliquez les boutons sur les annonces de raid dans le salon des inscriptions.\n**3. Installez l'addon** (optionnel mais recommandé) — téléchargez le zip sur {url}, décompressez-le dans `World of Warcraft\\_forever_\\Interface\\AddOns\\`, redémarrez le jeu, cliquez la pièce d'or près de la minicarte.\n**4. Voyez votre classement** — `/epgp balance`, `/profile`, `/raid progress`.\n**5. Besoin de quelque chose ?** — `/bank request` pour la banque de guilde, `/craft request` pour les artisans.\n\n`/help` liste toutes les commandes."
+    en: "**1. Link your character** — `/character add` (name and realm exactly as in game).\n**2. Sign up for raids** — click the buttons on the raid posts in the raid signups channel.\n**3. Install the addon** (optional but recommended) — download it from {url}, unzip into `World of Warcraft\\_forever_\\Interface\\AddOns\\`, restart the game, click the gold coin on the minimap.\n**4. See your standing** — `/epgp balance`, `/profile`, `/raid progress`.\n**5. Need something?** — `/bank request` for the guild bank, `/craft request` for crafters.\n\n`/help` lists every command.",
+    fr: "**1. Liez votre personnage** — `/character add` (nom et royaume exactement comme en jeu).\n**2. Inscrivez-vous aux raids** — cliquez les boutons sur les annonces de raid dans le salon des inscriptions.\n**3. Installez l'addon** (optionnel mais recommandé) — téléchargez-le sur {url}, décompressez-le dans `World of Warcraft\\_forever_\\Interface\\AddOns\\`, redémarrez le jeu, cliquez la pièce d'or près de la minicarte.\n**4. Voyez votre classement** — `/epgp balance`, `/profile`, `/raid progress`.\n**5. Besoin de quelque chose ?** — `/bank request` pour la banque de guilde, `/craft request` pour les artisans.\n\n`/help` liste toutes les commandes."
   },
 
   // Help
@@ -113,7 +113,7 @@ const STRINGS = {
   "help.raidLeaders": { en: "Raid Leaders", fr: "Chefs de raid" },
   "help.epgpOfficers": { en: "EPGP Officers", fr: "Officiers EPGP" },
   "help.officers": { en: "Officers", fr: "Officiers" },
-  "help.footer": { en: "In game: click the gold coin on the minimap, or type /guilded help.", fr: "En jeu : cliquez la pièce d'or près de la minicarte, ou tapez /guilded help." },
+  "help.footer": { en: "In game: click the gold coin on the minimap, or type /guilded help. Get the addon: curseforge.com/wow/addons/guilded", fr: "En jeu : cliquez la pièce d'or près de la minicarte, ou tapez /guilded help. Obtenez l'addon : curseforge.com/wow/addons/guilded" },
 
   // Dungeon challenge
   "dungeon.board.week": { en: "🏰 Dungeon points — this week", fr: "🏰 Points de donjon — cette semaine" },

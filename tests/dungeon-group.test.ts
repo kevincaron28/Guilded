@@ -11,7 +11,10 @@ function fake(status = "OPEN") {
     return v && typeof v === "object" && "not" in (v as object) ? actual !== (v as { not: unknown }).not : actual === v;
   });
   const database = {
-    dungeonGroup: { findFirst: async () => ({ id: "g1", guildId: "guild", status }) },
+    dungeonGroup: {
+      findFirst: async () => ({ id: "g1", guildId: "guild", status, kind: "DUNGEON", maxSize: 5 }),
+      findUnique: async () => ({ id: "g1", kind: "DUNGEON", maxSize: 5 })
+    },
     dungeonGroupSignup: {
       count: async ({ where }: { where: Record<string, unknown> }) => rows.filter((r) => ok(r, where)).length,
       findUnique: async ({ where }: { where: { groupId_memberId: { memberId: string } } }) => rows.find((r) => r.memberId === where.groupId_memberId.memberId) ?? null,

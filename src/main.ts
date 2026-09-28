@@ -21,10 +21,11 @@ import { executeCore } from "./commands/core.js";
 import { executePoll, handlePollButton, POLL_PREFIX } from "./commands/poll.js";
 import { CRAFT_PREFIX, handleCraftButton, handleCraftModal } from "./commands/craft-board.js";
 import {
-  cleanupDungeonGroups, DUNGEON_GROUP_PREFIX, handleDungeonGroupButton, handleDungeonGuideButton, handleDungeonGuideModal
+  cleanupDungeonGroups, DUNGEON_GROUP_PREFIX, handleDungeonGroupButton, handleDungeonGuideButton, handleDungeonGuideModal, handleDungeonGuideSelect
 } from "./commands/dungeon-group.js";
 import { DUNGEON_GUIDE_PREFIX } from "./services/dungeon-guide.js";
 import { runWeeklyReports } from "./commands/stats.js";
+import { runAutoDecay } from "./services/auto-decay.js";
 import { executeBank } from "./commands/bank.js";
 import { executeCraft } from "./commands/craft.js";
 import { greetNewGuild, logSetupStatus } from "./commands/setup.js";
@@ -116,6 +117,8 @@ client.once(Events.ClientReady, (readyClient) => {
   // Weekly guild report (if enabled): checked hourly.
   setInterval(() => {
     runWeeklyReports(readyClient).catch(reportJobError("Weekly report check"));
+    // Automatic EPGP decay after each weekly reset (guilds that turned it on).
+    runAutoDecay(prisma).catch(reportJobError("Automatic decay"));
   }, 60 * 60 * 1000);
 });
 
@@ -169,7 +172,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     await handleCraftModal(interaction).catch((error: unknown) => reportInteractionError("Craft form", interaction, error));
     return;
   }
-  if (interaction.isModalSubmit() && interaction.customId === `${DUNGEON_GUIDE_PREFIX}create`) {
+  if (interaction.isModalSubmit() && interaction.customId.startsWith(`${DUNGEON_GUIDE_PREFIX}create`)) {
     await handleDungeonGuideModal(interaction).catch((error: unknown) => {
       reportInteractionError("Dungeon group form", interaction, error);
       if (interaction.deferred) {
@@ -186,6 +189,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
   if (interaction.isButton() && interaction.customId.startsWith(POLL_PREFIX)) {
     await handlePollButton(interaction).catch((error: unknown) => reportInteractionError("Poll button", interaction, error));
+    return;
+  }
+  if (interaction.isStringSelectMenu() && interaction.customId === `${DUNGEON_GUIDE_PREFIX}kind`) {
+    await handleDungeonGuideSelect(interaction).catch((error: unknown) => {
+      reportInteractionError("Group finder menu", interaction, error);
+      if (!interaction.replied) void interaction.reply({ content: "Could not open the group form.", ephemeral: true }).catch(() => undefined);
+    });
     return;
   }
   if (interaction.isButton() && interaction.customId === `${DUNGEON_GUIDE_PREFIX}create`) {

@@ -53,7 +53,8 @@ describe("French server names", () => {
       expect(fr.category).toBe(en.category);
       expect(names.has(fr.name)).toBe(false);
       names.add(fr.name);
-      expect(channelNames(field)).toEqual([en.name, fr.name]);
+      // Current names first; names from earlier versions may follow (the group finder was "dungeon-signups").
+      expect(channelNames(field).slice(0, 2)).toEqual([en.name, fr.name]);
     }
   });
 

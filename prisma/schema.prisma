@@ -450,6 +450,11 @@ model GuildSettings {
   // Weekly guild report posted to the notify channel.
   weeklyReportEnabled      Boolean   @default(false)
   weeklyReportLastAt       DateTime?
+  // EPGP decay applied by itself after each weekly reset (the guild pool and every core's own pool).
+  autoDecay                Boolean   @default(false)
+  lastAutoDecayAt          DateTime?
+  // Bot messages the setup checklist watches: { [kind]: { channelId, messageId, version } }.
+  botMessages              Json?
   // IANA timezone for typing raid times ("friday 8pm") and showing them.
   timezone                 String    @default("America/Toronto")
   // "en" or "fr": language for member-facing bot messages.
@@ -1008,6 +1013,18 @@ model RaidCore {
   reservesPerPlayer Int?
   // true: this core keeps its own EP/GP, apart from the guild pool.
   separatePool    Boolean          @default(false)
+  // Share of an item's GP an off-spec winner pays, in percent; empty = 50.
+  offspecPercent  Int?
+  // EP a player needs before they take priority over players below it (EPGP minimum EP); empty = 0.
+  minEp           Int?
+  // The core's own Discord role (given to its members, trial members included) and, once created
+  // with "Create channels", its category and channels. Empty = the guild's shared channels.
+  roleId          String?
+  categoryId      String?
+  rosterChannelId String?
+  signupChannelId String?
+  chatChannelId   String?
+  voiceChannelId  String?
   createdAt       DateTime         @default(now())
   guild           Guild            @relation(fields: [guildId], references: [id], onDelete: Cascade)
   members         RaidCoreMember[]
@@ -1045,6 +1062,9 @@ model DungeonGroup {
   id               String               @id @default(cuid())
   guildId          String
   title            String
+  // DUNGEON, LEVELING, PVP, WORLDPVP, WORLD or OTHER (the group finder); sets size and roles.
+  kind             String               @default("DUNGEON")
+  maxSize          Int                  @default(5)
   leaderId         String
   status           DungeonGroupStatus   @default(OPEN)
   signupChannelId  String?

@@ -4,8 +4,9 @@ import {
 } from "discord.js";
 import type { RaidRole } from "@prisma/client";
 import { prisma } from "../database.js";
-import { coreRosterEmbed, createRaidCoreService, syncCoreRoster } from "../services/raid-core.js";
+import { coreRosterEmbed, createRaidCoreService, removeCoreRosterMessage, syncCoreRoster } from "../services/raid-core.js";
 import { createItemValueService, parseItemValues, priceDraft } from "../services/item-values.js";
+import { createCoreChannels, renameCoreDiscord } from "../services/core-channels.js";
 import { pricesModal } from "./core-wizard.js";
 import { guildService } from "./context.js";
 
@@ -52,6 +53,7 @@ async function screen(guildId: string, coreId: string, mode: EditMode, note: str
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId("coreedit:rename").setLabel("Rename").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("coreedit:prices").setLabel("Item prices").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("coreedit:channels").setLabel("Create channels & role").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("coreedit:done").setLabel("Done ✔").setStyle(ButtonStyle.Success))
     ]
   };
@@ -103,6 +105,24 @@ export async function runCoreEditor(interaction: ChatInputCommandInteraction, gu
         await refresh(removed.length ? `Removed ${removed.join(", ")}.` : "None of them were in this core.");
         return;
       }
+      if (i.customId === "coreedit:channels" && i.isButton()) {
+        // The core's role, category and channels (safe to press again: only what is missing).
+        await i.deferUpdate();
+        if (!interaction.guild) return;
+        try {
+          const before = await prisma.raidCore.findUniqueOrThrow({ where: { id: core.id } });
+          const created = await createCoreChannels(interaction.guild, prisma, core.id);
+          const old = await prisma.raidCore.findUnique({ where: { id: core.id } });
+          // The roster message moved: the one left in the shared roster channel is removed.
+          if (old && before.rosterChannelId !== old.rosterChannelId) {
+            await removeCoreRosterMessage(interaction.guild, prisma, guildId, before.rosterMessageId, before.rosterChannelId);
+          }
+          await refresh(created.length ? `Created ${created.join(", ")}. The roster moved to the core's own channel; its raids post in its signups channel.` : `Everything already exists${old?.rosterChannelId ? ` (<#${old.rosterChannelId}>)` : ""}.`);
+        } catch (error) {
+          await refresh(error instanceof Error ? error.message : "Could not create the channels.");
+        }
+        return;
+      }
       if (i.customId === "coreedit:prices" && i.isButton()) {
         // The same prefilled list as /core setup: current prices, then missing ones with suggestions.
         await i.showModal(pricesModal(core, (await priceDraft(prisma, guildId, core.id)).text));
@@ -131,7 +151,9 @@ export async function runCoreEditor(interaction: ChatInputCommandInteraction, gu
         const submitted = await i.awaitModalSubmit({ time: 5 * 60_000, filter: (m) => m.user.id === i.user.id }).catch(() => null);
         if (!submitted) return;
         try {
-          const { name } = await coreService.rename(guildId, core.id, submitted.fields.getTextInputValue("name"), submitted.fields.getTextInputValue("description"));
+          const renamed = await coreService.rename(guildId, core.id, submitted.fields.getTextInputValue("name"), submitted.fields.getTextInputValue("description"));
+          const name = renamed.name;
+          if (interaction.guild) await renameCoreDiscord(interaction.guild, renamed);
           await submitted.deferUpdate();
           await refresh(`Renamed to ${name}.`);
         } catch (error) {

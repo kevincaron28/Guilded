@@ -13,7 +13,6 @@ import {
   type ChatInputCommandInteraction,
   type Guild as DiscordGuild,
   type GuildMember,
-  type GuildTextBasedChannel,
   type MessageComponentInteraction,
   type OverwriteResolvable
 } from "discord.js";
@@ -27,9 +26,12 @@ import { guildService, requireGuildContext } from "./context.js";
 import { sendWelcome, welcomeDelivery } from "../services/housekeeping.js";
 import { isValidTimeZone } from "../services/raid-time.js";
 import { updateDungeonLeaderboard } from "../services/dungeon-leaderboard.js";
-import { ensureDungeonSignupGuide, hasDungeonSignupGuide } from "../services/dungeon-guide.js";
+import { ensureDungeonSignupGuide } from "../services/dungeon-guide.js";
 import { syncAllCoreRosters } from "../services/raid-core.js";
-import { asLang, t, tx, type Lang } from "../i18n.js";
+import { botMessageFacts, ensureBotGuide, gettingStartedPost, updateBotMessages } from "../services/bot-messages.js";
+import { dungeonGuideState, LFG_ROLE_NAMES } from "../services/dungeon-guide.js";
+import { guideText as craftGuideText } from "./craft-board.js";
+import { asLang, tx, type Lang } from "../i18n.js";
 import { CATEGORY_NAMES, categoryNames, channelNames, channelSpec, type Access, type CategoryKey, type ChannelField } from "../setup-names.js";
 import { BRAND } from "../brand.js";
 import { boardTagNames, postBoardGuide } from "./craft-board.js";
@@ -67,6 +69,8 @@ const STEP_TITLES = [
   "Step 7 of 7 — EPGP, time & language", "All done"
 ];
 const LAST_STEP = 7;
+// The checklist's "use an existing channel for…" choice, until the channel is picked (per guild).
+const pendingField = new Map<string, ChannelField>();
 const SUMMARY_STEP = 8;
 
 // Common choices; anything else can be set with /setup config timezone.
@@ -111,9 +115,11 @@ async function gatherFacts(guild: DiscordGuild, guildId: string, settings: Guild
   const signupChannel = settings.dungeonSignupChannelId
     ? await guild.channels.fetch(settings.dungeonSignupChannelId).catch(() => null)
     : null;
-  const signupGuide = signupChannel?.isTextBased() && "messages" in signupChannel
-    ? await hasDungeonSignupGuide(signupChannel)
-    : settings.dungeonSignupChannelId ? false : null;
+  const guideState = signupChannel?.isTextBased() && "messages" in signupChannel
+    ? await dungeonGuideState(signupChannel).catch(() => "missing" as const)
+    : null;
+  const signupGuide = guideState ? guideState !== "missing" : settings.dungeonSignupChannelId ? false : null;
+  const lang = asLang(settings.language);
   const signupCanPin = signupChannel
     ? !!guild.members.me && !!signupChannel.permissionsFor(guild.members.me)?.has(PermissionFlagsBits.PinMessages)
     : null;
@@ -139,7 +145,11 @@ async function gatherFacts(guild: DiscordGuild, guildId: string, settings: Guild
     remindersOn: settings.raidReminderMinutes > 0,
     weeklyReportOn: settings.weeklyReportEnabled,
     companionTokenSet: !!config.COMPANION_UPLOAD_TOKEN,
-    linkedCharacters: await prisma.character.count({ where: { member: { guildId, isTest: false } } })
+    linkedCharacters: await prisma.character.count({ where: { member: { guildId, isTest: false } } }),
+    dungeonSignupGuideOutdated: guideState === "outdated",
+    extraChannels: await Promise.all((["coreChannelId", "readinessChannelId", "lootChannelId", "craftChannelId", "applicationChannelId", "guideChannelId", "dungeonChannelId"] as const)
+      .map(async (field) => ({ field, fact: await channelFact(guild, settings[field]) }))),
+    botMessages: await botMessageFacts(guild, prisma, settings, lang, craftGuideText(lang)).catch(() => [])
   };
 }
 
@@ -410,8 +420,26 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       button("create-roles", missingRoles ? T("Create missing roles ({count})", { count: missingRoles }) : T("All roles exist"), ButtonStyle.Success, missingRoles === 0)
     ));
     components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
-      button("post-guide", T("Post a getting-started message for members"), ButtonStyle.Success, !settings.notifyChannelId),
-      button("organize", T("Tidy my channels into categories")),
+      button("update-messages", T("Update bot messages"), ButtonStyle.Success),
+      button("lfg-roles", T("Create LFG ping roles")),
+      button("post-guide", T("Post a getting-started message for members"), ButtonStyle.Secondary, !settings.notifyChannelId),
+      button("organize", T("Tidy my channels into categories"))
+    ));
+    // Link an existing channel instead of creating one: pick which, then the channel.
+    const pending = pendingField.get(guildId);
+    components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder()
+      .setCustomId("setup:pick-field").setPlaceholder(T("Use an existing channel for..."))
+      .addOptions([...ALL_CHANNELS].map((field) => ({
+        label: `#${channelSpec(field, lang).name}`.slice(0, 100), value: field,
+        description: settings[field] ? T("Set") : T("Not set"), default: pending === field
+      })))));
+    if (pending) {
+      components.push(new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(new ChannelSelectMenuBuilder()
+        .setCustomId("setup:ch-pick").setPlaceholder(T("Pick the channel for #{name}", { name: channelSpec(pending, lang).name }))
+        .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement, ...(pending === "craftChannelId" ? [ChannelType.GuildForum] : []))
+        .setMinValues(1).setMaxValues(1)));
+    }
+    components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
       button("restart", T("Go through setup again")),
       button("close", T("Close"), ButtonStyle.Primary)
     ));
@@ -617,22 +645,9 @@ async function organizeChannels(guild: DiscordGuild, guildId: string, lang: Lang
     + `${skipped.length ? ` ${tx(lang, "Left alone (renamed or your own): {channels}.", { channels: skipped.join(", ") })}` : ""}`;
 }
 
-function gettingStartedPost(lang: Lang): EmbedBuilder {
-  return new EmbedBuilder()
-    .setTitle(t(lang, "guide.title"))
-    .setColor(0xd4af37)
-    .setDescription(t(lang, "guide.body", { url: ADDON_URL }));
-}
-
-// Idempotent: does nothing if the guide is already pinned (safe to call again
-// from /config channel). Also where version-update notices post (main.ts).
-export async function ensureBotGuide(channel: GuildTextBasedChannel, lang: Lang): Promise<void> {
-  const pins = await channel.messages.fetchPinned().catch(() => null);
-  const already = pins?.some((message) => message.embeds.some((embed) => embed.title === t(lang, "guide.title")));
-  if (already) return;
-  const message = await channel.send({ embeds: [gettingStartedPost(lang)] });
-  await message.pin().catch(() => undefined);
-}
+// The getting-started guide and ensureBotGuide live in services/bot-messages.ts (the checklist
+// checks and updates them there); re-exported for the callers that import them from here.
+export { ensureBotGuide };
 
 
 // ---------------------------------------------------------------------
@@ -721,7 +736,55 @@ export async function executeSetup(interaction: ChatInputCommandInteraction): Pr
           }
         }
         else if (action === "organize") note = await organizeChannels(guild, guildId, lang);
-        else if (i.isChannelSelectMenu()) {
+        else if (i.isStringSelectMenu() && action === "pick-field") {
+          const field = i.values[0] as ChannelField | undefined;
+          if (field && (ALL_CHANNELS as string[]).includes(field)) pendingField.set(guildId, field);
+        } else if (action === "update-messages") {
+          const settings = await guildService.getSettings(guildId);
+          if (settings) {
+            note = await updateBotMessages(guild, settings, lang, {
+              craftGuide: async () => {
+                if (!settings.craftChannelId) return;
+                const forum = await guild.channels.fetch(settings.craftChannelId).catch(() => null);
+                if (forum?.type !== ChannelType.GuildForum) return;
+                const pinned = (await forum.threads.fetchActive().catch(() => null))?.threads.find((thread) => thread.flags.has("Pinned"));
+                const starter = pinned ? await pinned.fetchStarterMessage().catch(() => null) : null;
+                if (starter?.editable) { if (starter.content !== craftGuideText(lang)) await starter.edit({ content: craftGuideText(lang) }); }
+                else if (!pinned) await postBoardGuide(forum, lang);
+              },
+              leaderboard: () => updateDungeonLeaderboard(guild),
+              rosters: () => syncAllCoreRosters(guild, prisma, guildId)
+            });
+          }
+        } else if (action === "lfg-roles") {
+          await guild.roles.fetch();
+          const created: string[] = [];
+          for (const name of Object.values(LFG_ROLE_NAMES)) {
+            if (guild.roles.cache.some((role) => role.name.toLowerCase() === name.toLowerCase())) continue;
+            await guild.roles.create({ name, mentionable: false, reason: `${BRAND.name} /setup: group finder pings` });
+            created.push(name);
+          }
+          note = created.length
+            ? T("Created {roles}. Offer them in the welcome role buttons (step 5) so members can opt in to group finder pings.", { roles: created.join(", ") })
+            : T("All LFG ping roles already exist.");
+        } else if (i.isChannelSelectMenu() && action === "ch-pick") {
+          const field = pendingField.get(guildId);
+          const channelId = i.values[0];
+          if (field && channelId) {
+            await guildService.updateSettings(guildId, { [field]: channelId });
+            pendingField.delete(guildId);
+            note = T("Saved <#{id}>.", { id: channelId });
+            if (field === "coreChannelId") await syncAllCoreRosters(guild, prisma, guildId);
+            if (field === "guideChannelId") {
+              const channel = await guild.channels.fetch(channelId).catch(() => null);
+              if (channel?.isTextBased() && "messages" in channel) await ensureBotGuide(channel, lang);
+            }
+            if (field === "dungeonSignupChannelId") {
+              const channel = await guild.channels.fetch(channelId).catch(() => null);
+              if (channel?.isTextBased() && "send" in channel) await ensureDungeonSignupGuide(channel, lang);
+            }
+          }
+        } else if (i.isChannelSelectMenu()) {
           const channelId = i.values[0];
           const field = { "ch-notify": "notifyChannelId", "ch-raid": "raidSignupChannelId", "ch-raidlog": "raidLogChannelId", "ch-log": "logChannelId", "ch-welcome": "welcomeChannelId", "ch-dungeon": "dungeonChannelId", "ch-dungeon-lb": "dungeonLeaderboardChannelId", "ch-dungeon-signup": "dungeonSignupChannelId", "ch-core": "coreChannelId", "ch-readiness": "readinessChannelId", "ch-loot": "lootChannelId", "ch-craft": "craftChannelId" }[action];
           if (channelId && field) {

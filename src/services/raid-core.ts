@@ -4,6 +4,7 @@ import { createGuildService } from "./guild.js";
 import { applyToCoreButtonRow } from "./application.js";
 import { asLootMode, LOOT_MODE_LABEL } from "./core-rules.js";
 import { asLang, tx, type Lang } from "../i18n.js";
+import { syncCoreRole } from "./core-channels.js";
 
 // A raid core is a named roster (e.g. "Tuesday MC core"). A guild can have
 // several. Core members get priority at signups for raids created for that
@@ -177,13 +178,17 @@ export function coreRosterEmbed(core: CoreForEmbed, guildLootMode?: string | nul
 // Never throws: a failed refresh must not undo the change that caused it.
 export async function syncCoreRoster(discordGuild: DiscordGuild | null, database: Db, guildId: string, coreId: string): Promise<boolean> {
   if (!discordGuild) return false;
+  // The core's role follows its members with every roster refresh (see core-channels.ts).
+  await syncCoreRole(discordGuild, database, coreId);
   try {
     const settings = await createGuildService(database).getSettings(guildId);
-    if (!settings?.coreChannelId) return false;
-    const channel = await discordGuild.channels.fetch(settings.coreChannelId).catch(() => null);
-    if (!channel?.isTextBased()) return false;
     const core = await database.raidCore.findFirst({ where: { id: coreId, guildId }, include: { members: { include: { member: true } } } });
     if (!core) return false;
+    // The core's own roster channel when it has one, else the guild's shared roster channel.
+    const channelId = core.rosterChannelId ?? settings?.coreChannelId;
+    if (!settings || !channelId) return false;
+    const channel = await discordGuild.channels.fetch(channelId).catch(() => null);
+    if (!channel?.isTextBased()) return false;
     const payload = {
       embeds: [coreRosterEmbed(core, settings.lootMode, asLang(settings.language))],
       components: [applyToCoreButtonRow(core)],
@@ -204,12 +209,13 @@ export async function syncCoreRoster(discordGuild: DiscordGuild | null, database
 }
 
 // Removes a deleted core's roster message from the channel.
-export async function removeCoreRosterMessage(discordGuild: DiscordGuild | null, database: Db, guildId: string, messageId: string | null): Promise<void> {
+export async function removeCoreRosterMessage(discordGuild: DiscordGuild | null, database: Db, guildId: string, messageId: string | null, channelId?: string | null): Promise<void> {
   if (!discordGuild || !messageId) return;
   try {
     const settings = await createGuildService(database).getSettings(guildId);
-    if (!settings?.coreChannelId) return;
-    const channel = await discordGuild.channels.fetch(settings.coreChannelId).catch(() => null);
+    const where = channelId ?? settings?.coreChannelId;
+    if (!where) return;
+    const channel = await discordGuild.channels.fetch(where).catch(() => null);
     if (!channel?.isTextBased()) return;
     const message = await channel.messages.fetch(messageId).catch(() => null);
     await message?.delete().catch(() => undefined);

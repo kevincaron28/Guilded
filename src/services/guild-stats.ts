@@ -11,6 +11,8 @@ export interface GuildStats {
   newMembers: number;
   applications: number;
   topAttendance: { name: string; raids: number }[];
+  // Raids attended per player name (everyone, not just the top five).
+  attendanceByName?: Map<string, number>;
   topLoot: { name: string; items: number; gp: number }[];
 }
 
@@ -18,19 +20,21 @@ type Db = Pick<PrismaClient, "raid" | "lootAward" | "epgpTransaction" | "member"
 
 // Guild activity over a window: raids, kills, loot, EP, recruitment, and who
 // showed up the most. Counts only - no performance rankings.
-export async function guildStats(database: Db, guildId: string, since: Date): Promise<GuildStats> {
+// `until` (exclusive) bounds the window; without it, everything since `since`.
+export async function guildStats(database: Db, guildId: string, since: Date, until?: Date): Promise<GuildStats> {
+  const window = until ? { gte: since, lt: until } : { gte: since };
   const [raids, loot, ep, newMembers, applications] = await Promise.all([
     database.raid.findMany({
-      where: { guildId, status: "COMPLETED", endedAt: { gte: since } },
+      where: { guildId, status: "COMPLETED", endedAt: window },
       include: { bosses: true, attendance: { include: { member: true } } }
     }),
-    database.lootAward.findMany({ where: { guildId, awardedAt: { gte: since } }, include: { member: true } }),
+    database.lootAward.findMany({ where: { guildId, awardedAt: window }, include: { member: true } }),
     database.epgpTransaction.aggregate({
-      where: { guildId, createdAt: { gte: since }, type: "EP_AWARD" },
+      where: { guildId, createdAt: window, type: "EP_AWARD" },
       _sum: { epAmount: true }
     }),
-    database.member.count({ where: { guildId, createdAt: { gte: since } } }),
-    database.application.count({ where: { guildId, createdAt: { gte: since } } })
+    database.member.count({ where: { guildId, createdAt: window } }),
+    database.application.count({ where: { guildId, createdAt: window } })
   ]);
 
   const attended = new Map<string, { name: string; raids: number }>();
@@ -64,6 +68,7 @@ export async function guildStats(database: Db, guildId: string, since: Date): Pr
     newMembers,
     applications,
     topAttendance: [...attended.values()].sort((a, b) => b.raids - a.raids || a.name.localeCompare(b.name)).slice(0, 5),
+    attendanceByName: new Map([...attended.values()].map((row) => [row.name, row.raids])),
     topLoot: [...looted.values()].sort((a, b) => b.items - a.items || b.gp - a.gp).slice(0, 5)
   };
 }

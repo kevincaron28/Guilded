@@ -53,6 +53,10 @@ On the officer's PC that plays WoW (a Windows installer, `Guilded Companion Setu
    clock; Windows may hide it behind the **^** arrow.
 2. Settings: **Find it** (it looks for `WTF\...\SavedVariables\Guilded.lua`), enter the server ID and the same
    upload token, press **Test connection**, then **Save and start**. The coin turns green.
+   **Verify the server ID before saving**: Discord Settings → Advanced → Developer Mode (if not already
+   on), then right-click your server's icon and **Copy Server ID** again, and paste that exact value into
+   the field — don't type it from memory or reuse an ID from another server or an old setup. If the bot is
+   in more than one Discord server, make sure you copied the ID of the *right* one.
 3. In game, `/reload`. The companion's Status page shows a fresh upload within seconds.
 
 The game only writes the addon's data on `/reload` or logout, so that is when data moves. The addon
@@ -84,6 +88,7 @@ Pull or copy the new files, then run `start-bot.bat` again (it applies database 
 | You see | Why and what to do |
 | --- | --- |
 | "Could not reach the bot" in the companion | The bot is not running or still starting. Wait for `/report ping` to answer in Discord, then `/reload`. |
+| "Upload failed (404): Guild is not initialized" | The companion's server ID doesn't match a Discord server the bot is actually in. Re-copy it (Developer Mode → right-click the server → **Copy Server ID**) and paste it into the companion's settings exactly — don't retype it by hand. If the bot is in more than one server, double-check you copied the right one's ID. |
 | "Addon import not found" | You ran `/import apply` in a different Discord server than the companion's server ID. |
 | "No unclaimed character called ..." | The character is already linked (`/character list`), or its upload has not been applied yet (`/import apply`, or turn on `/setup config auto-import`). |
 | "Unknown interaction" in the bot window | A command took over 3 seconds (a sleeping database). Run it again; the bot keeps running. |

@@ -28,7 +28,7 @@ export async function testConnection(config) {
     const body = await response.json().catch(() => ({}));
     if (response.ok) return { ok: true, message: `Connected. The bot knows ${body.standings?.length ?? 0} character(s).` };
     if (response.status === 401 || response.status === 403) return { ok: false, message: "The bot refused the token. Check COMPANION_UPLOAD_TOKEN on the bot." };
-    return { ok: false, message: `The bot answered ${response.status}: ${body.error ?? "unknown error"}` };
+    return { ok: false, message: `The bot answered ${response.status}: ${describeApiError(response.status, body.error)}` };
   } catch (error) {
     return { ok: false, message: describeError(error) };
   }
@@ -41,6 +41,16 @@ export function describeError(error) {
     return "Could not reach the bot. Is it running, and is the bot address right?";
   }
   return text;
+}
+
+// The bot doesn't recognize this Discord server ID at all (wrong ID, or the
+// bot isn't in that server). Distinct from a bad token (401/403) or a config
+// problem on the bot's own side.
+function describeApiError(status, apiError) {
+  if (status === 404 && apiError === "Guild is not initialized") {
+    return `${apiError}. Check the Discord server ID: Discord Settings, Advanced, Developer Mode, then right-click your server and Copy Server ID again — paste it in exactly, don't retype it.`;
+  }
+  return apiError ?? "unknown error";
 }
 
 export function createEngine(initialConfig, hooks = {}) {
@@ -92,7 +102,7 @@ export function createEngine(initialConfig, hooks = {}) {
       state.lastUpload = { at: new Date().toISOString(), message: "Nothing new since the last upload." };
       log("info", "Nothing new since the last upload.");
     } else {
-      log("error", `Upload failed (${response.status}): ${body.error ?? "unknown error"}`);
+      log("error", `Upload failed (${response.status}): ${describeApiError(response.status, body.error)}`);
     }
   }
 

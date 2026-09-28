@@ -24,13 +24,8 @@ export const characterCommand = new SlashCommandBuilder()
     .addStringOption((option) => option.setName("race").setDescription("Race (pick or type)").setAutocomplete(true)))
   .addSubcommand((subcommand) => subcommand
     .setName("import")
-    .setDescription("Link a character from the line the addon gives you (no typing details).")
-    .addStringOption((option) => option.setName("code").setDescription("Paste the line from /guilded character in game").setRequired(true))
-    .addBooleanOption((option) => option.setName("main").setDescription("Set as your main (default: main only if you have none)")))
-  .addSubcommand((subcommand) => subcommand
-    .setName("sync")
-    .setDescription("Send your character, gear check, consumables and attunements from the code /guilded share shows.")
-    .addStringOption((option) => option.setName("code").setDescription("Paste the whole code from /guilded share in game").setRequired(true))
+    .setDescription("Link a character, or send a gear check, from the /guilded character or /guilded share line.")
+    .addStringOption((option) => option.setName("code").setDescription("Paste the line from /guilded character, or the code from /guilded share").setRequired(true))
     .addBooleanOption((option) => option.setName("main").setDescription("Set as your main (default: main only if you have none)")))
   .addSubcommand((subcommand) => subcommand
     .setName("claim")
@@ -137,22 +132,22 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
     return;
   }
 
-  if (subcommand === "sync") {
-    const data = parseSelfExport(interaction.options.getString("code", true));
-    const outcome = await applySelfExport(prisma, context.memberId, data, interaction.options.getBoolean("main") ?? undefined);
-    const problems = data.findings.filter((finding) => finding.severity !== "INFO").length;
-    await interaction.reply({
-      content: `${outcome.action === "created" ? "Linked" : "Updated"} **${outcome.name}**${outcome.isMain ? " (your main)" : ""}.`
-        + (outcome.status ? ` Gear check: **${outcome.status}**${problems ? ` (${problems} issue${problems === 1 ? "" : "s"})` : ""}.` : " No gear check in that code (run /guilded inspect first).")
-        + (data.consumables.length ? ` Consumables: ${data.consumables.map((row) => row.name).join(", ")}.` : "")
-        + (outcome.attunements ? ` ${outcome.attunements} attunement${outcome.attunements === 1 ? "" : "s"} recorded.` : ""),
-      ephemeral: true
-    });
-    return;
-  }
-
   if (subcommand === "import") {
-    const parsed = parseCharacterString(interaction.options.getString("code", true));
+    const code = interaction.options.getString("code", true);
+    if (code.trim().startsWith("QGEXP1:")) {
+      const data = parseSelfExport(code);
+      const outcome = await applySelfExport(prisma, context.memberId, data, interaction.options.getBoolean("main") ?? undefined);
+      const problems = data.findings.filter((finding) => finding.severity !== "INFO").length;
+      await interaction.reply({
+        content: `${outcome.action === "created" ? "Linked" : "Updated"} **${outcome.name}**${outcome.isMain ? " (your main)" : ""}.`
+          + (outcome.status ? ` Gear check: **${outcome.status}**${problems ? ` (${problems} issue${problems === 1 ? "" : "s"})` : ""}.` : " No gear check in that code (run /guilded inspect first).")
+          + (data.consumables.length ? ` Consumables: ${data.consumables.map((row) => row.name).join(", ")}.` : "")
+          + (outcome.attunements ? ` ${outcome.attunements} attunement${outcome.attunements === 1 ? "" : "s"} recorded.` : ""),
+        ephemeral: true
+      });
+      return;
+    }
+    const parsed = parseCharacterString(code);
     const outcome = await importCharacter(prisma, context.memberId, parsed, interaction.options.getBoolean("main") ?? undefined);
     const details = [parsed.race, parsed.className, parsed.spec ? `(${parsed.spec})` : "", parsed.level ? `level ${parsed.level}` : ""].filter(Boolean).join(" ");
     await interaction.reply({

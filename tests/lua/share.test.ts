@@ -6,7 +6,7 @@ import { newLuaSession, type LuaSession } from "./harness.js";
 let session: LuaSession | undefined;
 afterEach(() => { session?.close(); session = undefined; });
 
-describe("/guilded share -> /character sync", () => {
+describe("/guilded share -> /character import", () => {
   it("round-trips character, gear check, consumables and attunements", () => {
     session = newLuaSession();
     session.run(`

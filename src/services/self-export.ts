@@ -10,7 +10,7 @@ import { BRAND } from "../brand.js";
 //   C|CATEGORY|name               active consumables
 //   A|name|1 or 0                 attunements
 // It only ever describes the sender's own character, so members can apply it
-// themselves with /character sync, with no officer review.
+// themselves with /character import, with no officer review.
 
 export interface SelfExport {
   character: ParsedCharacter;
@@ -26,9 +26,10 @@ const MAX_LINES = 200;
 export function parseSelfExport(input: string): SelfExport {
   const text = input.trim();
   if (!text.startsWith("QGEXP1:")) {
-    // A common mix-up: /guilded character's line (QG1/QG2) is for /character
-    // import, not /character sync's share code from /guilded share.
-    if (/^QG[12][;|]/.test(text)) throw new Error(`That's the line from /guilded character, not a share code. Use /character import with it instead, or run /guilded share in game for a code to use here.`);
+    // /character import dispatches to this function only once it already sees a
+    // "QGEXP1:" prefix, so this only fires for a direct caller (e.g. a test) that
+    // hands it /guilded character's QG1/QG2 line instead of a share code.
+    if (/^QG[12][;|]/.test(text)) throw new Error(`That's the line from /guilded character, not a share code. Paste it with /character import, or run /guilded share in game for a code to use here.`);
     throw new Error(`That is not a ${BRAND.name} share code. In game, type /guilded share and copy the code it shows.`);
   }
   const encoded = text.slice("QGEXP1:".length).replace(/\s+/g, "");

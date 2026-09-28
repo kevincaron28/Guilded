@@ -12,7 +12,7 @@ export const helpCommand = new SlashCommandBuilder()
 const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record<Lang, string[]>> = {
   everyone: {
     en: [
-      "`/character add` — link your WoW character (do this first), or `/character import` with the line `/guilded character` shows in game, or `/character sync` with `/guilded share`",
+      "`/character add` — link your WoW character (do this first), or `/character import` — paste the line `/guilded character` shows, or the code from `/guilded share`",
       "Raid posts have buttons to sign up (or use `/raid signup`)",
       "`/epgp balance` · `/epgp leaderboard` · `/profile` · `/character who <name>`",
       "`/raid progress` · `/raid report` · `/report stats` · `/loot history`",
@@ -25,7 +25,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/report bug` — report a bug or problem with the bot"
     ],
     fr: [
-      "`/character add` — liez votre personnage WoW (à faire en premier), ou `/character import` avec la ligne de `/guilded character` en jeu, ou `/character sync` avec `/guilded share`",
+      "`/character add` — liez votre personnage WoW (à faire en premier), ou `/character import` — collez la ligne de `/guilded character`, ou le code de `/guilded share`",
       "Les annonces de raid ont des boutons pour s'inscrire (ou `/raid signup`)",
       "`/epgp balance` · `/epgp leaderboard` · `/profile` · `/character who <nom>`",
       "`/raid progress` · `/raid report` · `/report stats` · `/loot history`",

@@ -180,7 +180,7 @@ presence, loot, and dungeon runs. An officer reviews and applies it with
 
 ## Version 2.0 additions
 
-- **`/guilded share`** builds one code (`QGEXP1:...`) with your character, your last gear check, active consumables and attunements, in a box you copy. In Discord, `/character sync code:<paste>` applies it. Nothing to install besides the addon; it only ever describes your own character.
+- **`/guilded share`** builds one code (`QGEXP1:...`) with your character, your last gear check, active consumables and attunements, in a box you copy. In Discord, `/character import code:<paste>` applies it. Nothing to install besides the addon; it only ever describes your own character.
 - **Enchant check.** `/guilded inspect` reads the enchant id in each equipped item link and warns `Missing enchants: Chest, Legs.` for Chest, Legs, Feet, Wrist, Hands and Main Hand from level 60. `/guilded enchants off` or `/guilded enchants level 70` changes it for you.
 - **Reason flags.** The guild digest now carries `F:NOFLASK,NOFOOD,ENCH:Chest+Legs` so an officer's export shows *why* someone is PARTIAL.
 - **Login digest** (`/guilded digest`): new members, EPGP changes, finished raids and loot since your last login, from saved data only.

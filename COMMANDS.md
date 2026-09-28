@@ -29,7 +29,7 @@ Hover a page name for what it is for. The **Player** box (target someone, or **M
 | `/guilded attune <key> clear` | Mark it not done |
 | `/guilded diag` | Show recent addon errors / blocked actions (send this when reporting a bug) |
 | `/guilded menu` | Open the tools window |
-| `/guilded share` | One paste with your character, latest gear check, consumables and attunements (a box to copy). In Discord: `/character sync` |
+| `/guilded share` | One paste with your character, latest gear check, consumables and attunements (a box to copy). In Discord: `/character import` |
 | `/guilded character` | One line with your character (name, class, race, level, spec, professions) for `/character import` |
 | `/guilded enchants [on/off/level <n>]` | Show or change the missing-enchant check (which slots, from what level) |
 | `/guilded ready` / `ready ask` / `ready post` | Officers and group leaders (raid leader or assistant): who in your raid or party is ready: a summary and everyone who is not. It runs by itself on every Blizzard ready check (each addon reports what it carries, and you get a summary when it ends). `ask` asks every addon to check again without a ready check; `post` tells the group who needs attention. The window's **Ready** page (officers and group leaders only) shows an icon per check |
@@ -279,7 +279,7 @@ There are 17 commands, not 34: small ones sit under a parent, so typing `/` show
 | `/character who <character>` | Look anyone up: main and alts, professions, EP/GP/PR, 30-day attendance, last seen |
 | `/character add <name> <realm> <class> <main> [spec] [level] [race]` / `/character list` | Link your WoW characters (needed before imports can match you) |
 | `/character claim <name>` | Link a character your addon already reported (pick it from the list; nothing to type or paste). Most people never need it: characters whose name matches the Discord nickname are linked automatically |
-| `/character import <code> [main]` | Link or refresh a character from the line `/guilded character` shows in game (name, realm, class, race, level, spec, professions), no typing |
+| `/character import <code> [main]` | Link or refresh a character: paste the line `/guilded character` shows (name, realm, class, race, level, spec, professions), or the code `/guilded share` shows (also records a gear check, consumables and attunements) — no typing |
 | `/character unlink <name>` | Unlink a character: yours, or (Officers/GM) anyone's. If the addon reports it again it goes back to unclaimed |
 | `/raid wcl check [raid] [url]` | Officers: the private check of a raid's log: who is in the log but not credited (or the reverse), characters not linked to anyone, EP not yet awarded, who came to boss pulls without a flask or food, and deaths. No damage or parse numbers |
 | `/raid wcl list` | The latest Warcraft Logs reports the officers pulled in |

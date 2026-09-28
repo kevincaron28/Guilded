@@ -552,7 +552,7 @@ local function base64Encode(data)
   return table.concat(out)
 end
 
--- One paste for Discord's /character sync: who you are (the QG1 line), your
+-- One paste for Discord's /character import: who you are (the QG1 line), your
 -- last gear check, active consumables and attunements. It is only ever YOUR
 -- data, so there is no ledger and no officer review step.
 local function selfExportString(info, snapshot, attunements)
@@ -906,7 +906,7 @@ local function showHelp()
   message("/guilded attune <key> [clear] - mark your own attunement")
   message("/guilded snapshot [label] | list - record who is in the group right now (officers)")
   message("/guilded enchants - show or change the missing-enchant check (on/off, starting level)")
-  message("/guilded share - one paste with your character, gear check, consumables and attunements (Discord: /character sync)")
+  message("/guilded share - one paste with your character, gear check, consumables and attunements (Discord: /character import)")
   message("/guilded character - copy a line to link this character in Discord (/character import)")
   if officer then
     message("Officer: /guilded start [title] | end | attendance <name>|group|seen [PRESENT|ABSENT|LATE] | boss <name>")
@@ -1097,8 +1097,8 @@ local function command(text)
     local info = collectCharacter()
     db.character = info
     local code = selfExportString(info, db.readiness[playerName()], db.attunements[playerName()])
-    message("Your share code is " .. #code .. " characters (also shown in a box to copy). In Discord: /character sync")
-    showCharacterExport(code, "Guilded - copy this (Ctrl+C), then in Discord: /character sync")
+    message("Your share code is " .. #code .. " characters (also shown in a box to copy). In Discord: /character import")
+    showCharacterExport(code, "Guilded - copy this (Ctrl+C), then in Discord: /character import")
     ns.lastShareCode = code
   elseif action == "character" then
     local info = collectCharacter()

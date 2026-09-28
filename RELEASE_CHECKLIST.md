@@ -40,7 +40,7 @@ Say "untested" on the listing until these pass.
 
 ## Addon audit: to check in game (with a second player)
 
-Everything here is covered by automated tests against a mocked game; these steps check what only the real client can show. Two characters in a party or raid unless it says solo: **Officer** (you) and **Friend** (the second player). A third character outside the group, **Outsider**, helps for the first two items (any alt or a friend who is not grouped). If something fails, `/guilded diag` and a screenshot.
+What changed and why, file by file: `docs/ADDON_AUDIT_HANDOFF.md`. Everything here is covered by automated tests against a mocked game; these steps check what only the real client can show. Two characters in a party or raid unless it says solo: **Officer** (you) and **Friend** (the second player). A third character outside the group, **Outsider**, helps for the first two items (any alt or a friend who is not grouped). If something fails, `/guilded diag` and a screenshot.
 
 **Fixes**
 

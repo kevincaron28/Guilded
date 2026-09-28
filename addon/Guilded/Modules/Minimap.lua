@@ -57,9 +57,24 @@ local function newButton(parent, text, width, onClick, height)
   local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
   b:SetWidth(width or 110)
   b:SetHeight(height or 22)
-  b:SetText(text)
+  b:SetText(L(text))
   if onClick then b:SetScript("OnClick", onClick) end
   return b
+end
+
+-- A hover tooltip that says what a button does.
+local function tip(widget, text)
+  if not (widget and widget.SetScript and text) then return widget end
+  local function show(self)
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:AddLine(L(text), 1, 1, 1, true)
+    GameTooltip:Show()
+  end
+  if widget.HookScript then widget:HookScript("OnEnter", show) else widget:SetScript("OnEnter", show) end
+  local function hide() if GameTooltip then GameTooltip:Hide() end end
+  if widget.HookScript then widget:HookScript("OnLeave", hide) else widget:SetScript("OnLeave", hide) end
+  return widget
 end
 
 -- Hidden entirely for members (not just greyed out).
@@ -80,6 +95,10 @@ local function moduleOn(key)
   return not ns.moduleActive or ns.moduleActive(key)
 end
 
+-- Every "Item" box: shift-clicking an item fills whichever of them has focus.
+local itemBoxes = {}
+local function itemBox(box) table.insert(itemBoxes, box) return box end
+
 local function newEdit(parent, width, numeric)
   local e = CreateFrame("EditBox", nil, parent, "InputBoxTemplate")
   e:SetWidth(width)
@@ -95,7 +114,7 @@ local function newLabel(parent, text, font)
   local l = parent:CreateFontString(nil, "OVERLAY", font or "GameFontNormal")
   l:SetJustifyH("LEFT")
   l:SetJustifyV("TOP")
-  l:SetText(text or "")
+  l:SetText(text and text ~= "" and L(text) or "")
   return l
 end
 
@@ -110,16 +129,16 @@ local function confirmClick(b, label, action)
   b:SetScript("OnClick", function(self)
     if self.armed or not C_Timer then
       self.armed = false
-      self:SetText(label)
+      self:SetText(L(label))
       action()
       return
     end
     self.armed = true
-    self:SetText("Click again to confirm")
+    self:SetText(L("Click again to confirm"))
     C_Timer.After(3, function()
       if self.armed then
         self.armed = false
-        self:SetText(label)
+        self:SetText(L(label))
       end
     end)
   end)
@@ -313,7 +332,7 @@ end
 -- Loot: GP bidding on an item, or giving it directly at a set price.
 local function buildLootPage(page)
   at(newLabel(page, "Item (click the box, then shift-click the item)"), page, 0, 0)
-  ui.itemBox = at(newEdit(page, 400), page, 6, -18)
+  ui.itemBox = itemBox(at(newEdit(page, 400), page, 6, -18))
 
   at(newLabel(page, "Min GP"), page, 0, -52)
   ui.minGpBox = at(newEdit(page, 50, true), page, 60, -48)
@@ -417,7 +436,7 @@ end
 -- Soft reserves: everyone reserves for the raid; officers open, lock and roll.
 local function buildReservePage(page)
   at(newLabel(page, "Item (click the box, then shift-click the item)"), page, 0, 0)
-  ui.reserveItemBox = at(newEdit(page, 400), page, 6, -18)
+  ui.reserveItemBox = itemBox(at(newEdit(page, 400), page, 6, -18))
   local function itemText()
     local text = ui.reserveItemBox:GetText()
     if text == "" then ns.message("Put the item in the Item box first (shift-click it).") end
@@ -462,7 +481,7 @@ end
 -- Loot council: officers open an item, raiders answer BiS / Upgrade / Off-spec / Pass, officers award.
 local function buildCouncilPage(page)
   at(newLabel(page, "Item (click the box, then shift-click the item)"), page, 0, 0)
-  ui.councilItemBox = at(newEdit(page, 400), page, 6, -18)
+  ui.councilItemBox = itemBox(at(newEdit(page, 400), page, 6, -18))
   at(newLabel(page, "Time"), page, 0, -52)
   ui.councilSeconds = 60
   ui.councilSecondsButtons = {}
@@ -583,23 +602,45 @@ local function buildToolsPage(page)
   at(newButton(page, L("Hide minimap button"), 180, function() run("minimap hide") end), page, 0, -64)
 
   officerOnly(at(newLabel(page, "Officer", "GameFontNormalSmall"), page, 0, -100))
-  officerOnly(at(newButton(page, "Export data", 136, function() run("export") end), page, 0, -116))
-  officerOnly(at(newButton(page, "Officer setup", 136, function() run("officer list") end), page, 142, -116))
+  -- Export and send: marks the export and reloads in one click (a secure button: the game lets a
+  -- click reload, not addon code). The companion then uploads it to Discord.
+  local exportSend = ns.syncNow and ns.syncNow.reloadButton(page, L("Export and send"), 136, 22, nil, "/guilded export\n/reload")
+    or newButton(page, "Export data", 136, function() run("export") end)
+  officerOnly(tip(at(exportSend, page, 0, -116), "Marks an export and reloads the game so it saves; the companion uploads it to Discord."))
+  officerOnly(tip(at(newButton(page, "Officer setup", 136, function() run("officer list") end), page, 142, -116), "Who counts as an officer in this guild."))
   forModule("games", at(newButton(page, "Games help", 136, function() run("games") end), page, 284, -116), true)
-  ui.exportHelp = officerOnly(at(newLabel(page,
-    "Export: press it, then /reload so the game saves; the companion uploads it to Discord.", "GameFontHighlightSmall"), page, 0, -142))
-  ui.exportHelp:SetWidth(PAGE_WIDTH)
+
+  -- Test tools (/guilded sim): a pretend raid with fake players, to learn the tools alone.
+  forModule("sim", at(newLabel(page, "Test tools (fake players, nothing reaches Discord)", "GameFontNormalSmall"), page, 0, -146), true)
+  local tests = {
+    { "Start test raid", "sim start", "A test raid with fake players; bosses and loot work like a real one." },
+    { "Fake bids", "sim bids", "Fake players bid on the item open for GP bids." },
+    { "Fake council answers", "sim council", "Fake players answer the open loot council or priority item." },
+    { "Test dungeon run", "sim dungeon", "A finished dungeon run with fake players, for the Dungeons page." },
+    { "End test raid", "sim end", "Ends the test raid." },
+  }
+  for i, test in ipairs(tests) do
+    forModule("sim", tip(at(newButton(page, test[1], 136, function() run(test[2]) end), page, ((i - 1) % 3) * 142, -162 - math.floor((i - 1) / 3) * 26), test[3]), true)
+  end
+  local clearTests = forModule("sim", tip(at(newButton(page, "Clear test data", 136), page, 284, -188), "Deletes every test raid and test dungeon run from this PC."), true)
+  confirmClick(clearTests, "Clear test data", function() run("sim clear") end)
+
+  -- Window size, kept between sessions.
+  at(newLabel(page, "Window size", "GameFontNormalSmall"), page, 0, -224)
+  tip(at(newButton(page, "-", 30, function() run("menu scale smaller") end), page, 90, -220), "Smaller window")
+  tip(at(newButton(page, "+", 30, function() run("menu scale bigger") end), page, 124, -220), "Bigger window")
+  tip(at(newButton(page, "Reset", 60, function() run("menu scale reset") end), page, 158, -220), "Normal size, back in the middle of the screen")
 
   local help = at(newLabel(page,
-    L("Minimap button hidden? /guilded minimap show. Problem? Press Diagnostics and send a screenshot to an officer."),
-    "GameFontHighlightSmall"), page, 0, -164)
+    L("Minimap button hidden? /guilded minimap show. Problem? Press Diagnostics and send a screenshot to an officer. A key can open this window: Options > Keybindings > Guilded."),
+    "GameFontHighlightSmall"), page, 0, -250)
   help:SetWidth(PAGE_WIDTH)
 
   -- Optional modules: your own switch, and (officers) the guild-wide one. There are more of
   -- these than fit in the page, so they scroll instead of running off the bottom of the window.
-  at(newLabel(page, L("Modules"), "GameFontNormal"), page, 0, -196)
+  at(newLabel(page, L("Modules"), "GameFontNormal"), page, 0, -280)
   local scroll = CreateFrame("ScrollFrame", nil, page, "UIPanelScrollFrameTemplate")
-  scroll:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -214)
+  scroll:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -298)
   scroll:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -24, 2)
   local scrollChild = CreateFrame("Frame", nil, scroll)
   scrollChild:SetWidth(PAGE_WIDTH - 24)
@@ -624,6 +665,32 @@ local function buildToolsPage(page)
     end), scrollChild, 424, y))
     ui.moduleRows[i] = row
   end
+end
+
+-- Crafting: who in the guild can craft an item, your own professions, and cooldowns
+-- (Modules/Recipes.lua; recipes are read by themselves when a profession window opens).
+local function buildCraftingPage(page)
+  at(newLabel(page, "Item or recipe (a name, or click the box and shift-click the item)"), page, 0, 0)
+  ui.craftBox = itemBox(at(newEdit(page, 300), page, 6, -18))
+  local function who()
+    local text = ui.craftBox:GetText()
+    if text == "" then ns.message(L("Type a name or shift-click an item first.")) return end
+    ui.craftResult:SetText(ns.recipes and ns.recipes.whoText and ns.recipes.whoText(text) or "")
+  end
+  ui.craftBox:SetScript("OnEnterPressed", function(self) self:ClearFocus(); who() end)
+  tip(at(newButton(page, "Who can craft it", 130, who), page, 314, -16), "Guildmates who know the recipe (from their own addon).")
+  ui.craftResult = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -46)
+  ui.craftResult:SetWidth(PAGE_WIDTH)
+
+  at(newLabel(page, "My professions", "GameFontNormal"), page, 0, -130)
+  tip(at(newButton(page, "Share now", 100, function() run("recipes share") end), page, PAGE_WIDTH - 100, -126),
+    "Send your recipes to the guild now (it also happens by itself twice a day).")
+  ui.craftMine = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -150)
+  ui.craftMine:SetWidth(PAGE_WIDTH)
+
+  at(newLabel(page, "Cooldowns", "GameFontNormal"), page, 0, -230)
+  ui.craftCooldowns = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -250)
+  ui.craftCooldowns:SetWidth(PAGE_WIDTH)
 end
 
 -- Dungeon challenge: the run being recorded, recent runs, and the
@@ -911,6 +978,7 @@ local TAB_DEFS = {
   { name = "Council", hint = "loot council: BiS / upgrade / off-spec answers", group = "Raid night", module = "council", lootModes = { COUNCIL = true, PRIORITY = true }, officer = true, usesPlayer = true, build = buildCouncilPage },
   { name = "Dungeons", hint = "the run being recorded, points", group = "Fun and runs", module = "dungeon", build = buildDungeonPage },
   { name = "Games", hint = "fun roll games", group = "Fun and runs", module = "games", usesPlayer = true, build = buildGamesPage },
+  { name = "Crafting", hint = "who can craft what, cooldowns", group = "Fun and runs", module = "recipes", build = buildCraftingPage },
   { name = "Tools", hint = "switch parts on or off, diagnostics", group = "System", build = buildToolsPage }
 }
 
@@ -1231,6 +1299,13 @@ refresh = function()
 
   refreshDungeons(db)
   refreshReady()
+  if ui.craftMine and ns.recipes then
+    ui.craftMine:SetText(ns.recipes.mineText and ns.recipes.mineText() or "")
+    local lines = ns.recipes.cooldownLines and ns.recipes.cooldownLines(false) or {}
+    local shown = {}
+    for i = 1, math.min(8, #lines) do shown[i] = lines[i] end
+    ui.craftCooldowns:SetText(#shown > 0 and table.concat(shown, "\n") or L("No profession cooldowns are known. They are read when you open a profession window."))
+  end
 
   local updatedAt = ns.getStandingsUpdatedAt and ns.getStandingsUpdatedAt()
   if not updatedAt then
@@ -1285,7 +1360,22 @@ local function buildPanel()
   panel:EnableMouse(true)
   panel:RegisterForDrag("LeftButton")
   panel:SetScript("OnDragStart", panel.StartMoving)
-  panel:SetScript("OnDragStop", panel.StopMovingOrSizing)
+  panel:SetScript("OnDragStop", function(self)
+    self:StopMovingOrSizing()
+    -- Where you left it is where it opens next time.
+    local s = settings()
+    local point, _, relativePoint, x, y = self:GetPoint()
+    if s and point then s.panelPoint = { point, relativePoint, math.floor(x or 0), math.floor(y or 0) } end
+  end)
+  do
+    local s = settings()
+    local saved = s and s.panelPoint
+    if type(saved) == "table" and saved[1] then
+      panel:ClearAllPoints()
+      panel:SetPoint(saved[1], UIParent, saved[2] or saved[1], tonumber(saved[3]) or 0, tonumber(saved[4]) or 0)
+    end
+    if s and tonumber(s.panelScale) and panel.SetScale then panel:SetScale(tonumber(s.panelScale)) end
+  end
   if panel.SetBackdrop then
     panel:SetBackdrop({
       bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
@@ -1357,6 +1447,7 @@ local function buildPanel()
   ns.onBiddingChange = function() refresh() end
   ns.onCouncilChange = function() refresh() end
   ns.onLootChange = function() ui.lastOfficer = nil; refresh() end
+  ns.onRecipesChange = function() refresh() end
   ns.onReserveChange = function() refresh() end
   ns.onCalendarChange = function() refresh() end
   ns.onDungeonChange = function() refresh() end
@@ -1385,7 +1476,10 @@ local function buildPanel()
   -- original and never replaces it, so it cannot taint Blizzard's code.
   if hooksecurefunc and ChatEdit_InsertLink then
     hooksecurefunc("ChatEdit_InsertLink", function(link)
-      if ui.itemBox and ui.itemBox:HasFocus() and link then ui.itemBox:Insert(link) end
+      if not link then return end
+      for _, box in ipairs(itemBoxes) do
+        if box:HasFocus() then box:Insert(link) return end
+      end
     end)
   end
 
@@ -1492,7 +1586,31 @@ end
 
 -- /guilded minimap show|hide|reset  and  /guilded menu
 ns.commandHandlers = ns.commandHandlers or {}
-ns.commandHandlers["menu"] = function() togglePanel() end
+ns.commandHandlers["menu"] = function(args)
+  local action = string.lower(args and args[1] or "")
+  if action ~= "scale" then togglePanel() return end
+  local s = settings()
+  if not s then return end
+  local wanted = string.lower(args[2] or "")
+  local scale = tonumber(s.panelScale) or 1
+  if wanted == "bigger" then scale = scale + 0.1
+  elseif wanted == "smaller" then scale = scale - 0.1
+  elseif wanted == "reset" then scale = 1; s.panelPoint = nil
+  elseif tonumber(wanted) then scale = tonumber(wanted)
+  else ns.message("/guilded menu scale bigger | smaller | reset | <0.6 to 1.5>") return end
+  scale = math.max(0.6, math.min(1.5, math.floor(scale * 10 + 0.5) / 10))
+  s.panelScale = scale ~= 1 and scale or nil
+  if panel then
+    if panel.SetScale then panel:SetScale(scale) end
+    if wanted == "reset" then panel:ClearAllPoints(); panel:SetPoint("CENTER") end
+  end
+  ns.message(string.format(L("Window size: %d%%."), math.floor(scale * 100 + 0.5)))
+end
+
+-- The key binding (Bindings.xml: Options > Keybindings > Guilded).
+BINDING_HEADER_GUILDED = "Guilded"
+BINDING_NAME_GUILDED_TOGGLE = L("Open or close the Guilded window")
+function Guilded_ToggleWindow() togglePanel() end
 ns.commandHandlers["minimap"] = function(args)
   local action = string.lower(args[1] or "")
   local s = settings()

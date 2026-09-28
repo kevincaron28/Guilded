@@ -1,0 +1,5 @@
+<Bindings>
+  <Binding name="GUILDED_TOGGLE" header="GUILDED" category="ADDONS">
+    Guilded_ToggleWindow()
+  </Binding>
+</Bindings>

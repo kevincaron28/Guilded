@@ -695,6 +695,9 @@ end
 -- Commands and events
 -- ---------------------------------------------------------------------
 
+recipes.whoText = whoText
+recipes.mineText = mineText
+
 ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHandlers["recipes"] = function(args)
   local action = string.lower(args[1] or "")

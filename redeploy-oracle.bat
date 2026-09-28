@@ -1,7 +1,7 @@
 @echo off
 setlocal
 title Guilded - Update the Oracle bot
-set "REPO=%~dp0"
+set "REPO=%~dp0."
 
 echo Checking that this checkout is clean and exactly matches GitHub main...
 git -C "%REPO%" fetch origin main:refs/remotes/origin/main

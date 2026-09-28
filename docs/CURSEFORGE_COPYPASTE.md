@@ -44,8 +44,9 @@ free Discord bot when you want signups and reports outside the game too.
 - **Raid tools:** start and end a raid, attendance with bench credit, boss kills, notes.
 - **EPGP and loot:** award EP and GP, standings with priority (PR), and **four loot systems**
   you choose per raid core: GP bidding, loot council (BiS / upgrade / off-spec answers),
-  soft reserves (reservers roll) and EPGP priority (every item has a set GP price and goes to
-  the highest PR of the players who want it). One command, `/guilded drop <item>`, runs the
+  soft reserves (reservers roll, with an SR+ bonus for reserves that went unwon) and EPGP
+  priority (every item has a set GP price and goes to the highest PR of the players who want it;
+  off-spec answers pay a share). One command, `/guilded drop <item>`, runs the
   right one. Raiders get a popup; whispers work for people without the addon.
 - **Soft reserves** built in, with no website: reserve with an item link, the list is shared
   with the guild and shows on item tooltips.
@@ -86,6 +87,16 @@ PolyForm Noncommercial license. Not affiliated with or endorsed by Blizzard Ente
 
 ## Changelog (paste for the file upload)
 ```markdown
+## 4.6.0
+
+**New in 4.6**
+- **Off-spec** answers in EPGP priority (they pay a share of the price, 50% by default) and a **minimum EP** per raid core.
+- **Officer votes** on the loot council, **SR+** soft reserves (+10 per week a reserve goes unwon).
+- **Drops noted by themselves** on the Loot page with a Drop button, and **trade reminders** for the 2-hour window.
+- **GP price suggestion** from the item level and slot.
+- **Tools window:** Test tools, a Crafting page, Export and send, remembered position and size, a key binding, French on every page.
+- Discord bot (optional): a role and channels per raid core, a group finder for every kind of group, a weekly report with dungeons and players of the week, and a setup checklist that checks every bot message.
+
 ## 4.5.0
 
 **New in 4.5**

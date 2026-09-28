@@ -4,7 +4,11 @@ Where Guilded stands and what could come next. The full idea backlog, the code a
 other addons are kept in [docs/archive/ROADMAP-history.md](docs/archive/ROADMAP-history.md).
 What is left before publishing is in [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
 
-## Status (2026-10-01): version 4.5.0, ready to publish as a Beta (4.0.0 was never published separately)
+## Status (2026-10-02): version 4.6.0, ready to publish as a Beta (4.0.0 was never published separately)
+
+4.6 added a role and channels per raid core, a group finder for every kind of group, a richer weekly report, a
+setup checklist that checks every bot message, off-spec / minimum EP / automatic decay / SR+ / council votes /
+drop detection for loot, and window upgrades (test tools, Crafting page, key binding). Details: [docs/V4_6_HANDOFF.md](docs/V4_6_HANDOFF.md).
 
 Built and tested (550+ automated tests, lint, type check and the addon validator pass; a test loads the whole
 addon in .toc order):
@@ -32,12 +36,12 @@ API, and the release notes say which parts are untested.
 
 ## Next, in the order I would do them
 
-1. **Publish 4.5.0 as a Beta and test with a second player** (see the checklist). Fix whatever it finds. This
-   comes before any feature (v5 below starts once 4.5 is polished).
+1. **Publish 4.6.0 as a Beta and test with a second player** (see the checklist, 4.6 and 4.5 sections). Fix
+   whatever it finds. This comes before any feature (v5 below starts once 4.6 is polished).
 2. **Hosting:** the free Oracle Cloud setup is written ([docs/DEPLOY_ORACLE.md](docs/DEPLOY_ORACLE.md)); a hosted
    multi-guild bot is a bigger step and only worth it if other guilds ask.
 
-## v5: Raid tools module (planned, after 4.5 is polished)
+## v5: Raid tools module (planned, after 4.6 is polished)
 
 A new optional module (`raidtools`, switchable like the others) to help the raid leader explain mechanics.
 What the game allows shapes the design:

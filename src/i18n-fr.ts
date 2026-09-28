@@ -72,6 +72,7 @@ export const FR_TEXT: Record<string, string> = {
   " (officers only)": " (officiers seulement)",
   " (officers and raid leaders only)": " (officiers et chefs de raid seulement)",
   "Created {channels} in tidy categories. Move or rename them however you like.": "{channels} créés dans des catégories bien rangées. Déplacez-les ou renommez-les comme vous voulez.",
+  "Couldn't post the guide message in {channel} ({error}). Run setup again or use \"organize channels\" to retry.": "Impossible de publier le message-guide dans {channel} ({error}). Relancez la configuration ou utilisez « organiser les salons » pour réessayer.",
   "Saved <#{id}>.": "<#{id}> enregistré.",
 
   // --- step 3

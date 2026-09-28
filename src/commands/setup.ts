@@ -498,6 +498,17 @@ async function createSectionChannels(guild: DiscordGuild, guildId: string, field
   if (missing.length === 0) return tx(lang, "Those channels were already set. Pick different ones from the menus if you want.");
   await guild.roles.fetch();
   const made: string[] = [];
+  // A guide message failing to post (missing permission, API hiccup) should
+  // never hide that the channel itself was created and saved — collect it as
+  // a warning on the final message instead of losing the confirmation, and
+  // log it so the underlying cause (e.g. missing Pin Messages) is visible.
+  const warnings: string[] = [];
+  const guidedFor = (channel: string, error: unknown) => {
+    console.warn(`Guide message not posted in ${channel}`, error);
+    warnings.push(tx(lang, "Couldn't post the guide message in {channel} ({error}). Run setup again or use \"organize channels\" to retry.", {
+      channel, error: error instanceof Error ? error.message : String(error)
+    }));
+  };
   const update: Partial<Record<ChannelField, string>> = {};
   for (const field of missing) {
     const spec = channelSpec(field, lang);
@@ -513,19 +524,22 @@ async function createSectionChannels(guild: DiscordGuild, guildId: string, field
         name: spec.name, type: ChannelType.GuildText, topic: spec.topic, parent: category.id,
         ...(overwrites ? { permissionOverwrites: overwrites } : {})
       });
-    if (spec.forum && channel.type === ChannelType.GuildForum) await postBoardGuide(channel, lang).catch((error: unknown) => console.warn("Craft board guide not posted", error));
-    if (field === "applyGuideChannelId" && channel.isTextBased()) await ensureApplyGuide(channel).catch((error: unknown) => console.warn("Apply guide not posted", error));
+    if (spec.forum && channel.type === ChannelType.GuildForum) await postBoardGuide(channel, lang).catch((error: unknown) => guidedFor(`<#${channel.id}>`, error));
+    if (field === "applyGuideChannelId" && channel.isTextBased()) await ensureApplyGuide(channel).catch((error: unknown) => guidedFor(`<#${channel.id}>`, error));
     update[field] = channel.id;
     made.push(`<#${channel.id}>${spec.access === "officers" ? tx(lang, " (officers only)") : spec.access === "leaders" ? tx(lang, " (officers and raid leaders only)") : ""}`);
   }
   await guildService.updateSettings(guildId, update);
   if (update.dungeonSignupChannelId) {
     const channel = await guild.channels.fetch(update.dungeonSignupChannelId);
-    if (channel?.isTextBased() && "send" in channel) await ensureDungeonSignupGuide(channel, lang);
+    if (channel?.isTextBased() && "send" in channel) {
+      await ensureDungeonSignupGuide(channel, lang).catch((error: unknown) => guidedFor(`<#${channel.id}>`, error));
+    }
   }
-  if (update.dungeonLeaderboardChannelId) await updateDungeonLeaderboard(guild);
-  if (update.coreChannelId) await syncAllCoreRosters(guild, prisma, guildId);
-  return tx(lang, "Created {channels} in tidy categories. Move or rename them however you like.", { channels: made.join(", ") });
+  if (update.dungeonLeaderboardChannelId) await updateDungeonLeaderboard(guild).catch((error: unknown) => guidedFor(`<#${update.dungeonLeaderboardChannelId}>`, error));
+  if (update.coreChannelId) await syncAllCoreRosters(guild, prisma, guildId).catch((error: unknown) => guidedFor(`<#${update.coreChannelId}>`, error));
+  const summary = tx(lang, "Created {channels} in tidy categories. Move or rename them however you like.", { channels: made.join(", ") });
+  return warnings.length ? `${summary}\n⚠️ ${warnings.join(" ")}` : summary;
 }
 
 // Tidies channels the bot made earlier (same name as the standard one):

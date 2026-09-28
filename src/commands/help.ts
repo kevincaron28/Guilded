@@ -78,6 +78,28 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
   }
 };
 
+// A field's value has a hard 1024-char Discord limit; French translations run
+// longer than English and have crashed this command in the past by going
+// just over it. Split into as many fields as needed instead of assuming any
+// given language list fits in one.
+function addSection(embed: EmbedBuilder, name: string, lines: string[]): void {
+  const chunks: string[] = [];
+  let current = "";
+  for (const line of lines) {
+    const candidate = current ? `${current}\n${line}` : line;
+    if (candidate.length > 1024 && current) {
+      chunks.push(current);
+      current = line;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) chunks.push(current);
+  chunks.forEach((value, index) => {
+    embed.addFields({ name: index === 0 ? name : `${name} (${index + 1})`, value });
+  });
+}
+
 export async function executeHelp(interaction: ChatInputCommandInteraction): Promise<void> {
   let lang: Lang = "en";
   if (interaction.guildId && interaction.guild) {
@@ -86,11 +108,11 @@ export async function executeHelp(interaction: ChatInputCommandInteraction): Pro
   }
   const member = interaction.member as GuildMember | null;
   const can = (permission: Parameters<typeof hasPermission>[1]) => !!member && hasPermission(member, permission);
-  const embed = new EmbedBuilder().setTitle(t(lang, "help.title")).setColor(0xd4af37)
-    .addFields({ name: t(lang, "help.everyone"), value: LINES.everyone[lang].join("\n") });
-  if (can("raidLeader")) embed.addFields({ name: t(lang, "help.raidLeaders"), value: LINES.raidLeader[lang].join("\n") });
-  if (can("dkpOfficer")) embed.addFields({ name: t(lang, "help.epgpOfficers"), value: LINES.dkpOfficer[lang].join("\n") });
-  if (can("officer")) embed.addFields({ name: t(lang, "help.officers"), value: LINES.officer[lang].join("\n") });
+  const embed = new EmbedBuilder().setTitle(t(lang, "help.title")).setColor(0xd4af37);
+  addSection(embed, t(lang, "help.everyone"), LINES.everyone[lang]);
+  if (can("raidLeader")) addSection(embed, t(lang, "help.raidLeaders"), LINES.raidLeader[lang]);
+  if (can("dkpOfficer")) addSection(embed, t(lang, "help.epgpOfficers"), LINES.dkpOfficer[lang]);
+  if (can("officer")) addSection(embed, t(lang, "help.officers"), LINES.officer[lang]);
   embed.setFooter({ text: t(lang, "help.footer") });
   await interaction.reply({ embeds: [embed], ephemeral: true });
 }

@@ -1,4 +1,4 @@
-# CurseForge copy-paste sheet: Guilded 4.0.0
+# CurseForge copy-paste sheet: Guilded 4.5.0
 
 Each block below is one field. Copy the block, paste it in.
 
@@ -21,7 +21,7 @@ Raid & Instance (secondary: Guild, Miscellaneous)
 `docs/branding/guilded-logo-400.png` (400x400). Full size: `docs/branding/guilded-logo.png`.
 
 ## File to upload
-`dist/Guilded-v4.0.0.zip` (top folder inside is `Guilded`). Release type: **Beta** for the first day, then **Release**.
+`dist/Guilded-v4.5.0.zip` (top folder inside is `Guilded`). Release type: **Beta** for the first day, then **Release**.
 Game versions: the WoW Forever / Classic entries closest to interface 16001 and 20506.
 
 ## License
@@ -86,6 +86,16 @@ PolyForm Noncommercial license. Not affiliated with or endorsed by Blizzard Ente
 
 ## Changelog (paste for the file upload)
 ```markdown
+## 4.5.0
+
+**New in 4.5**
+- **Send to Discord works again** on newer clients (it is now the game's own secure button running /reload).
+- **Prices at the drop:** `/guilded drop` asks for a GP price when an item has none; `/guilded price <item> <GP>` sets one. They reach Discord with the next upload.
+- **Recipes fill in by themselves:** opening a guildmate's profession saves their recipes under their name; a one-time reminder for professions never read.
+- **Safer loot:** whispered bids and answers only count from your raid or party; open bidding and loot council survive a /reload.
+- **Options page** (Esc > Options > AddOns > Guilded) and an **Addon Compartment** entry.
+- Many fixes: paced addon messages (nothing lost in big raids), reserve lists arrive whole, tooltips on comparison items, pugs no longer counted as guild members.
+
 ## 4.0.0
 
 **Loot, crafting and the calendar**

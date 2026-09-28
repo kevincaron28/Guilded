@@ -1,4 +1,6 @@
-# Release checklist: Guilded 4.0.0
+# Release checklist: Guilded 4.5.0
+
+4.0.0 was never published; 4.5.0 is the first public release of all of it. What 4.5 changed, file by file: `docs/V4_5_HANDOFF.md`.
 
 `[x]` done, `[ ]` left. Anything that fails: send a screenshot or the `/guilded diag` output.
 
@@ -17,10 +19,10 @@
 - [x] **3 to 5 screenshots** in game: Home page, Raid or Loot page, Me page (and a Discord signup post with the core roster).
 - [x] **Logo:** regenerated with the u; ready to upload to CurseForge.
 - [x] **Discord developer portal:** bot's name set to Guilded and its avatar set to the logo.
-- [ ] **Rebuild after the addon audit:** `npm run addon:zip` (the zip above predates it and lacks `Util.lua` and `Modules/Options.lua`), and rebuild the companion installer (the companion now sends who reported each dungeon run). Then redeploy the bot (`redeploy-oracle.bat`) for the new dungeon run check.
-- [ ] **CurseForge:** upload `dist/Guilded-v4.0.0.zip` as **Beta**, paste the changelog from `docs/CURSEFORGE_COPYPASTE.md`. Coming from 3.x, the bot needs `npm run db:update` once (say so in the description).
+- [ ] **Rebuild for 4.5.0:** `npm run addon:zip` (makes `dist/Guilded-v4.5.0.zip`; the 4.0.0 zip is out of date), and rebuild the companion installer (4.5.0: it sends alts, in-game prices and dungeon reporters). Then `npm run db:update` (two new columns) and redeploy the bot (`redeploy-oracle.bat`). The bot posts a one-time "updated to v4.5.0" notice in each guild's bot-guide channel on its first start.
+- [ ] **CurseForge:** upload `dist/Guilded-v4.5.0.zip` as **Beta**, paste the changelog from `docs/CURSEFORGE_COPYPASTE.md`. Coming from 3.x, the bot needs `npm run db:update` once (say so in the description).
 - [x] **GitHub** stays private (no source URL on the listing). Repository is already named `Guilded`.
-- [x] **Companion installer** built: `dist\companion\Guilded Companion Setup 4.0.0.exe`.
+- [ ] **Companion installer** rebuilt: `dist\companion\Guilded Companion Setup 4.5.0.exe`.
 - [ ] After a day with no bug reports: switch the file from Beta to **Release**.
 
 ## Still to test with a second player or a party
@@ -37,6 +39,20 @@ Say "untested" on the listing until these pass.
 - [ ] `/guilded invite missing` and `/guilded invite raid` as officer in a party, after creating a raid you and a friend signed up for.
 - [ ] A non-officer alt sees fewer pages (no Raid, EPGP, Loot).
 - [ ] A second officer's companion uploads and the guild digest carries other online players.
+
+## 4.5: to check in game and on Discord
+
+What changed and why: `docs/V4_5_HANDOFF.md`. Two players unless it says solo.
+
+- [ ] **Send to Discord (solo, the reported bug).** Open the window, press **Send to Discord**: the UI reloads with **no** "action blocked" popup. Same with the officers' banner (make a change, wait 2 minutes out of combat). `/guilded sync` tells you to type `/reload`.
+- [ ] **Price at the drop (officer).** Pick a core in EPGP priority mode (`/guilded core <name>`), `/guilded drop <item link>` for an item with no price: a box asks the price; type 120, Enter: the item starts at 120 GP. Drop it again: no box. `/guilded price <item> 90` changes it. After `/reload` and the companion upload, the price shows in `/core items action:list` on Discord.
+- [ ] **Item prices list (Discord).** `/core edit <core>` > **Item prices**: the form is filled in with current prices and wishlisted/awarded items (`= ?` or a suggested number). Change one, save: `/core items action:list` shows it.
+- [ ] **Rename a core.** `/core rename <core> <new name>`: the roster message updates; in game (after the next upload) `/guilded core` still shows the same core with its new name.
+- [ ] **Application with a role and a trial.** Friend presses **Apply to <core>** on the roster: role buttons appear, pick Healer, fill the form. The card shows the role. Officer presses **Trial**: the roster shows Friend under "🧪 Trial (1)", and the card still has **Approve (end trial)** and **Reject**. Approve: Friend moves into the Healer column and gets the member role. (Try Reject on another trial: they leave the roster.)
+- [ ] **Optional roles (solo, admin).** `/setup start`, step 1: **Create optional roles** creates Loot Leader and Class Leader; the class menu creates e.g. "Class Leader (Warrior)". Give it to someone: they can open the readiness board like a Class Leader.
+- [ ] **Officer log.** A new account joins the Discord server: **no** line in the officer log. Give them the Member role: "Joined the guild: ... got the Member role." They leave: "Member left: ..., had ...". Someone without any guild role leaves: no line.
+- [ ] **Alts.** A paired player (`/character pair`) logs in on a second character, `/reload`: after the upload, `/character who` (or their profile) lists both characters under their Discord account.
+- [ ] **Recipes.** Friend (without the addon is fine) links their profession in chat; you open the link: chat says "Guilded saved Friend's <profession> recipes". `/guilded recipes who <item>` finds Friend. A character with a crafting profession never opened gets one reminder at login, not again the next day.
 
 ## Addon audit: to check in game (with a second player)
 

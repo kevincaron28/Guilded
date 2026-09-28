@@ -42,27 +42,47 @@ local function itemKey(name) return ns.util.itemKey(name) end
 -- Which core, which system
 -- ---------------------------------------------------------------------
 
--- The rules of the core with this name (case does not matter), or nil.
-local function coreNamed(name)
+-- The rules of a core by its id, or by its name (case does not matter), or nil. Ids are what is
+-- kept (a core renamed on Discord still matches); names are what people type.
+local function coreNamed(value)
   local r = rules()
-  if not (r and name and name ~= "") then return nil end
-  local wanted = string.lower(name)
+  if not (r and value and value ~= "") then return nil end
+  for _, core in ipairs(r.cores or {}) do
+    if core.id ~= "" and core.id == value then return core end
+  end
+  local wanted = string.lower(value)
   for _, core in ipairs(r.cores or {}) do
     if string.lower(core.name) == wanted then return core end
   end
   return nil
 end
+loot.coreNamed = coreNamed
 
--- The core being run: picked by hand, else the one the next raid was made for.
+-- The core being run: picked by hand, else the one the next raid was made for. Returns its
+-- current name (a saved id is turned into the name Discord has now) and whether it was picked.
 function loot.coreName()
   local s = settings()
-  if s and s.activeCore and s.activeCore ~= "" then return s.activeCore, true end
+  if s and s.activeCore and s.activeCore ~= "" then
+    local core = coreNamed(s.activeCore)
+    return core and core.name or s.activeCore, true
+  end
   local nextRaid = GuildedNextRaid
-  if type(nextRaid) == "table" and type(nextRaid.core) == "string" and nextRaid.core ~= "" then return nextRaid.core, false end
+  if type(nextRaid) == "table" then
+    local byId = type(nextRaid.coreId) == "string" and nextRaid.coreId ~= "" and coreNamed(nextRaid.coreId)
+    if byId then return byId.name, false end
+    if type(nextRaid.core) == "string" and nextRaid.core ~= "" then return nextRaid.core, false end
+  end
   return nil
 end
 
 function loot.core()
+  local s = settings()
+  if s and s.activeCore and s.activeCore ~= "" then return coreNamed(s.activeCore) end
+  local nextRaid = GuildedNextRaid
+  if type(nextRaid) == "table" and type(nextRaid.coreId) == "string" and nextRaid.coreId ~= "" then
+    local byId = coreNamed(nextRaid.coreId)
+    if byId then return byId end
+  end
   return coreNamed((loot.coreName()))
 end
 
@@ -86,6 +106,32 @@ function loot.reserveLimit()
   return core and core.reserves or 1
 end
 
+-- Prices an officer set in game (the popup below, or /guilded price): used at once, and sent
+-- to Discord with the next companion upload (the newer of this and Discord's price is kept).
+-- db.itemPrices["<core id>:<item key>"] = { name, id, gp, core, at }.
+local function localPrices()
+  local d = ns.getDb and ns.getDb()
+  if not d then return nil end
+  d.itemPrices = d.itemPrices or {}
+  return d.itemPrices
+end
+
+function loot.setPrice(item, gp)
+  local prices = localPrices()
+  local name = string.match(item or "", "%[(.-)%]") or item
+  local key = itemKey(name)
+  gp = math.floor(tonumber(gp) or -1)
+  if not (prices and key) or gp < 0 or gp > 100000 then return false end
+  local core = loot.core()
+  local coreId = core and core.id or ""
+  prices[coreId .. ":" .. key] = {
+    name = name, id = tonumber(string.match(item or "", "item:(%d+)")), gp = gp, core = coreId,
+    at = ns.now and ns.now() or ""
+  }
+  if ns.syncNow and ns.syncNow.mark then ns.syncNow.mark() end
+  return true, name, core and core.name
+end
+
 -- The set GP price of an item (a link, or a plain name) in this core, or nil.
 function loot.priceOf(item)
   if type(item) ~= "string" then return nil end
@@ -93,6 +139,13 @@ function loot.priceOf(item)
   local r = rules()
   local name = string.match(item, "%[(.-)%]") or item
   local id = string.match(item, "item:(%d+)") or string.match(item, "^%s*(%d+)%s*$")
+  -- A price set in game wins (it is the newest), this core's first, then the guild-wide one.
+  local prices = localPrices()
+  local key = itemKey(name)
+  if prices and key then
+    local own = (core and core.id ~= "" and prices[core.id .. ":" .. key]) or prices[":" .. key]
+    if own then return own.gp end
+  end
   local keys = {}
   local byName = itemKey(name)
   if byName and not string.match(item, "^%s*%d+%s*$") then table.insert(keys, byName) end
@@ -156,7 +209,9 @@ function loot.drop(args)
     if not moduleOn("council") then ns.message(L("Loot council is off (/guilded modules).")) return end
     local price = loot.priceOf(item)
     if not price then
-      ns.message(string.format(L("No GP price is set for %s in %s. Set it on Discord (/core items), or run it with a price: /guilded council priority <GP> <item>."),
+      -- No price yet: ask for one right here; it is kept and sent to Discord for next time.
+      if loot.askPrice(item, seconds) then return end
+      ns.message(string.format(L("No GP price is set for %s in %s. Set it with /guilded price <item> <GP> (or /core items on Discord), then drop it again."),
         item, loot.coreName() or L("this raid")))
       return
     end
@@ -178,6 +233,42 @@ function loot.drop(args)
     local r = rules()
     call("bid", { "start", tostring(r and r.minimumBid or 10), item, tostring(seconds) })
   end
+end
+
+-- The "what does this cost?" box: a game popup with a number field. Accept saves the price and
+-- starts the item at it. Returns false where the popup system is missing (tests, odd clients).
+local PRICE_POPUP = "GUILDED_ITEM_PRICE"
+function loot.priceAccepted(data, text)
+  local gp = math.floor(tonumber(text) or -1)
+  if gp < 0 or gp > 100000 then ns.message(L("Type a price from 0 to 100000 GP.")) return false end
+  local ok, name, coreName = loot.setPrice(data.item, gp)
+  if not ok then return false end
+  ns.message(string.format(L("%s now costs %d GP in %s (sent to Discord with the next upload)."), name, gp, coreName or L("every core")))
+  if ns.council and ns.council.startPriority then ns.council.startPriority(data.item, gp, data.seconds) end
+  return true
+end
+
+function loot.askPrice(item, seconds)
+  if not (StaticPopupDialogs and StaticPopup_Show) then return false end
+  if not StaticPopupDialogs[PRICE_POPUP] then
+    StaticPopupDialogs[PRICE_POPUP] = {
+      text = L("%s has no GP price in %s yet. Its price in GP:"),
+      button1 = ACCEPT or "Accept", button2 = CANCEL or "Cancel",
+      hasEditBox = true, timeout = 0, whileDead = true, hideOnEscape = true,
+      OnAccept = function(self, data)
+        local box = self.editBox or self.EditBox
+        pcall(loot.priceAccepted, data, box and box:GetText() or "")
+      end,
+      EditBoxOnEnterPressed = function(box)
+        local popup = box:GetParent()
+        pcall(loot.priceAccepted, popup.data, box:GetText() or "")
+        popup:Hide()
+      end,
+      EditBoxOnEscapePressed = function(box) box:GetParent():Hide() end
+    }
+  end
+  local ok = pcall(StaticPopup_Show, PRICE_POPUP, string.match(item, "%[(.-)%]") or item, loot.coreName() or L("this raid"), { item = item, seconds = seconds })
+  return ok
 end
 
 -- ---------------------------------------------------------------------
@@ -219,6 +310,21 @@ ns.commandHandlers["drop"] = function(args)
   loot.drop(args)
 end
 
+-- /guilded price <item link or name> <GP>: set a price in game (officers), for the core being run.
+ns.commandHandlers["price"] = function(args)
+  if not officerOnly() then return end
+  local last = #args
+  local gp = tonumber(args[last] or "")
+  if last < 2 or not gp then
+    ns.message("Usage: /guilded price <item link or name> <GP>   (the price is kept for the raid core being run)")
+    return
+  end
+  local item = table.concat(args, " ", 1, last - 1)
+  local ok, name, coreName = loot.setPrice(item, gp)
+  if not ok then ns.message(L("Type a price from 0 to 100000 GP.")) return end
+  ns.message(string.format(L("%s now costs %d GP in %s (sent to Discord with the next upload)."), name, math.floor(gp), coreName or L("every core")))
+end
+
 ns.commandHandlers["core"] = function(args)
   local wanted = table.concat(args, " ")
   local s = settings()
@@ -240,7 +346,8 @@ ns.commandHandlers["core"] = function(args)
   else
     local core = coreNamed(wanted)
     if not core then ns.message(string.format(L("No raid core called \"%s\" is known."), wanted)) return end
-    if s then s.activeCore = core.name end
+    -- Kept by id, so a rename on Discord does not lose it (older data without ids: the name).
+    if s then s.activeCore = (core.id ~= "" and core.id) or core.name end
   end
   ns.message(describe())
   if ns.onLootChange then pcall(ns.onLootChange) end
@@ -248,3 +355,4 @@ end
 
 ns.commandHelp = ns.commandHelp or {}
 table.insert(ns.commandHelp, { officer = true, text = "/guilded drop <item link> [seconds] - start an item the way this raid core decides loot (bids, council, reserves or priority); /guilded core [name] - pick the raid core" })
+table.insert(ns.commandHelp, { officer = true, text = "/guilded price <item> <GP> - set an item's GP price in game (sent to Discord with the next upload)" })

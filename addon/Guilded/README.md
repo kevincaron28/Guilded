@@ -66,7 +66,7 @@ so the permission checks are the same. Roll games run from the
 Games tab; players join from chat (see `Modules/README.md`). `/guilded menu` opens the window from chat, and
 `/guilded minimap show|hide|reset` controls the button. Guilded is also in the Addon
 Compartment (the addon list under the minimap), and `/guilded options` (or Esc > Options >
-AddOns > Guilded) has the minimap button, chat tab, digest, auto-save and module switches.
+AddOns > Guilded) has the minimap button, chat tab, digest and module switches.
 
 ## Standings, version check, and attendance
 
@@ -211,6 +211,6 @@ presence, loot, and dungeon runs. An officer reviews and applies it with
 - **Item tooltips** (module `tooltip`): hover an item that someone wishlisted in Discord (`/character wishlist`) or that was awarded before and you get up to three gold lines: who wants it, what it usually costs in GP, and your own PR and rank. The data comes from the bot with the standings and is shared with the guild the same way; items with no data show nothing. `/guilded modules off tooltip` turns it off.
 - **Ready page** (in the window, and `/guilded ready`; officers and group leaders only, meaning guild officers plus the leader or an assistant of the current raid or party): who in your raid or party is ready. Each player is Ready, Issues, Not ready or No data, worst first, with the reason. It uses what each player's addon shared (gear, enchants, durability, flask, food) plus a live look at their buffs, so a player without the addon still shows flask and food. `ready ask` asks every addon in the group to check itself again; `ready post` posts the result to raid or party chat. Flask and food count only in a raid group.
 - **Guilded chat tab** (module `chattab`): `/guilded chat tab` opens a chat window named Guilded and sends the addon's own lines there (bid results, sync status, answers to commands), so raid chat stays clean. `/guilded chat off` puts them back in the main chat. Raid, party and whisper messages are never moved.
-- **`/guilded sync`** saves now so the companion can upload sooner, and **auto-save** does it by itself at safe moments (out of combat, outside instances, changes quiet for 90 seconds, at most every 10 minutes). It is **off by default**: nobody is reloaded without asking; officers get a small banner with a button, and logging out also saves. Turn it on with `/guilded sync auto on`.
+- **Send to Discord** (the button in the window, and a small banner officers get when data is waiting) reloads the UI so the companion can upload sooner; logging out also saves. The game only allows a reload from your own click, so it never happens by itself; `/guilded sync` reminds you to type `/reload`.
 - **The standings line says why** it has no number: not arrived yet, the bot has nobody linked yet, or this character is not linked.
 - **A new tools window.** A sidebar with grouped pages (Overview, Raid night, Fun and runs, System) instead of a row of tabs, a **Home** page that answers "what is going on and is my data on Discord?", tooltips saying what each page is for, a page title, the Player field only where it is used, and a permanent **Send to Discord** button.

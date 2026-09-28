@@ -1,5 +1,5 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
-import { ApplicationStatus, type PrismaClient } from "@prisma/client";
+import { ApplicationStatus, type PrismaClient, type RaidRole } from "@prisma/client";
 
 // Shared with commands/application.ts (the click-to-apply flow) and
 // raid-core.ts (the "Apply" button on a core's live roster message).
@@ -13,6 +13,16 @@ export function applyToCoreButtonRow(core: { id: string; name: string }) {
   );
 }
 
+// The card's buttons: all three while pending; after Trial, Approve and Reject stay so the
+// trial can be settled later with one click; after Approve or Reject, none.
+export function applicationDecisionRows(id: string, status: ApplicationStatus = ApplicationStatus.PENDING) {
+  if (status === ApplicationStatus.APPROVED || status === ApplicationStatus.REJECTED) return [];
+  const buttons = [new ButtonBuilder().setCustomId(`${APPLY_PREFIX}decide:approve:${id}`).setLabel(status === ApplicationStatus.TRIAL ? "Approve (end trial)" : "Approve").setStyle(ButtonStyle.Success)];
+  if (status === ApplicationStatus.PENDING) buttons.push(new ButtonBuilder().setCustomId(`${APPLY_PREFIX}decide:trial:${id}`).setLabel("Trial").setStyle(ButtonStyle.Secondary));
+  buttons.push(new ButtonBuilder().setCustomId(`${APPLY_PREFIX}decide:reject:${id}`).setLabel("Reject").setStyle(ButtonStyle.Danger));
+  return [new ActionRowBuilder<ButtonBuilder>().addComponents(buttons)];
+}
+
 export interface CreateApplicationInput {
   guildId: string;
   memberId: string;
@@ -23,6 +33,7 @@ export interface CreateApplicationInput {
   availability: string;
   notes?: string;
   coreId?: string;
+  role?: RaidRole;
 }
 
 export function createApplicationService(database: PrismaClient) {
@@ -41,7 +52,8 @@ export function createApplicationService(database: PrismaClient) {
           experience: input.experience.trim(),
           availability: input.availability.trim(),
           ...(input.notes ? { notes: input.notes.trim() } : {}),
-          ...(input.coreId ? { coreId: input.coreId } : {})
+          ...(input.coreId ? { coreId: input.coreId } : {}),
+          ...(input.role ? { role: input.role } : {})
         },
         include: { core: true }
       });

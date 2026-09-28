@@ -1,12 +1,12 @@
-import { ApplicationStatus } from "@prisma/client";
+import { ApplicationStatus, type RaidRole } from "@prisma/client";
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalBuilder, SlashCommandBuilder, TextInputBuilder, TextInputStyle,
   type ButtonInteraction, type ChatInputCommandInteraction, type Guild as DiscordGuild, type GuildMember,
   type ModalSubmitInteraction
 } from "discord.js";
 import { prisma } from "../database.js";
-import { APPLY_PREFIX, createApplicationService } from "../services/application.js";
-import { createRaidCoreService } from "../services/raid-core.js";
+import { APPLY_PREFIX, applicationDecisionRows, createApplicationService } from "../services/application.js";
+import { createRaidCoreService, syncCoreRoster } from "../services/raid-core.js";
 import { syncApprovedMemberRoles } from "../services/housekeeping.js";
 import { notifyInteractive, resolveNotifyChannel } from "../services/notify.js";
 import { hasPermission } from "../permissions.js";
@@ -40,7 +40,13 @@ export const applyCommand = new SlashCommandBuilder()
   .addStringOption((o) => o.setName("spec").setDescription("Specialization (pick or type)").setRequired(true).setAutocomplete(true))
   .addStringOption((o) => o.setName("experience").setDescription("Raid experience").setRequired(true))
   .addStringOption((o) => o.setName("availability").setDescription("Availability (pick or type)").setRequired(true).setAutocomplete(true))
+  .addStringOption((o) => o.setName("role").setDescription("Your raid role").setRequired(true).addChoices(
+    { name: "Tank", value: "TANK" }, { name: "Healer", value: "HEALER" }, { name: "DPS", value: "DPS" }))
   .addStringOption((o) => o.setName("notes").setDescription("Additional notes"));
+
+const ROLES: RaidRole[] = ["TANK", "HEALER", "DPS"];
+const ROLE_TEXT: Record<RaidRole, string> = { TANK: "🛡️ Tank", HEALER: "💚 Healer", DPS: "⚔️ DPS" };
+const asRole = (value: string | null | undefined): RaidRole | undefined => ROLES.find((role) => role === value);
 
 function isOfficer(interaction: ChatInputCommandInteraction): boolean {
   return !!interaction.member && hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "officer");
@@ -48,7 +54,7 @@ function isOfficer(interaction: ChatInputCommandInteraction): boolean {
 
 type ApplicationCard = {
   id: string; character: string; className: string; spec: string; experience: string; availability: string;
-  notes?: string | null; core: { name: string } | null;
+  notes?: string | null; role?: RaidRole | null; core: { name: string } | null;
 };
 
 const DECISION_COLOR: Record<ApplicationStatus, number> = {
@@ -66,6 +72,7 @@ function applicationEmbed(app: ApplicationCard, applicantId: string, decision?: 
     .setDescription(`From <@${applicantId}>`)
     .addFields(
       { name: "Class / Spec", value: `${app.className} / ${app.spec}`, inline: true },
+      { name: "Role", value: app.role ? ROLE_TEXT[app.role] : "—", inline: true },
       { name: "Core", value: app.core?.name ?? "General", inline: true },
       { name: "Experience", value: app.experience.slice(0, 500) },
       { name: "Availability", value: app.availability.slice(0, 500) }
@@ -76,12 +83,23 @@ function applicationEmbed(app: ApplicationCard, applicantId: string, decision?: 
   return embed;
 }
 
-function applicationDecisionRow(id: string) {
-  return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`${APPLY_PREFIX}decide:approve:${id}`).setLabel("Approve").setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(`${APPLY_PREFIX}decide:trial:${id}`).setLabel("Trial").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`${APPLY_PREFIX}decide:reject:${id}`).setLabel("Reject").setStyle(ButtonStyle.Danger)
-  );
+// What a decision does beyond the application itself: Trial puts the applicant in the core as
+// a trial member, Approve makes them a full member (and gives the member role), Reject takes a
+// trial member off again. The core's roster message follows. Never throws: the decision stands
+// even if Discord refuses a role or the roster message is gone.
+async function applyDecision(
+  guild: DiscordGuild | null, guildId: string,
+  application: { coreId: string | null; memberId: string; role?: RaidRole | null; member: { discordUserId: string } },
+  status: ApplicationStatus
+): Promise<void> {
+  try {
+    if (status === ApplicationStatus.APPROVED && guild) await syncApprovedMemberRoles(guild, guildId, application.member.discordUserId);
+    if (!application.coreId || status === ApplicationStatus.PENDING) return;
+    const changed = await coreService.settleApplicant(application.coreId, application.memberId, status, application.role ?? null);
+    if (changed) await syncCoreRoster(guild, prisma, guildId, application.coreId);
+  } catch (error) {
+    console.error("Application decision follow-up failed", error);
+  }
 }
 
 // Posts a card with Approve / Trial / Reject buttons to the applications
@@ -92,7 +110,7 @@ function applicationDecisionRow(id: string) {
 export async function announceApplication(guild: DiscordGuild | null, applicantId: string, application: ApplicationCard): Promise<void> {
   const message = await notifyInteractive(guild, () => ({
     embeds: [applicationEmbed(application, applicantId)],
-    components: [applicationDecisionRow(application.id)]
+    components: applicationDecisionRows(application.id)
   }), "application");
   if (message) await applicationService.setCardMessage(application.id, message.id);
 }
@@ -115,7 +133,7 @@ async function syncApplicationCard(
     if (!message?.editable) return;
     await message.edit({
       embeds: [applicationEmbed(application, application.member.discordUserId, { status, by })],
-      components: []
+      components: applicationDecisionRows(application.id, status)
     });
   } catch (error) {
     console.error("Failed to sync application card", error);
@@ -127,6 +145,7 @@ export async function executeApply(interaction: ChatInputCommandInteraction): Pr
   if (!context) return;
   const notes = interaction.options.getString("notes");
   const core = await coreService.byIdOrName(context.guildId, interaction.options.getString("core", true));
+  const pickedRole = asRole(interaction.options.getString("role"));
   const application = await applicationService.create({
     guildId: context.guildId, memberId: context.memberId,
     character: interaction.options.getString("character", true),
@@ -135,7 +154,8 @@ export async function executeApply(interaction: ChatInputCommandInteraction): Pr
     experience: interaction.options.getString("experience", true),
     availability: interaction.options.getString("availability", true),
     ...(notes ? { notes } : {}),
-    coreId: core.id
+    coreId: core.id,
+    ...(pickedRole ? { role: pickedRole } : {})
   });
   await announceApplication(interaction.guild, interaction.user.id, application);
   await interaction.reply({ content: `Application submitted for **${core.name}**. Your application ID is \`${application.id}\`.`, ephemeral: true });
@@ -161,25 +181,30 @@ export async function executeApplication(interaction: ChatInputCommandInteractio
   if (subcommand === "view") {
     const app = await applicationService.get(context.guildId, id);
     if (!app) throw new Error("Application not found");
-    await interaction.reply(`\`${app.id}\` **${app.character}** — ${app.status}${app.core ? `\nCore: ${app.core.name}` : ""}\nClass/spec: ${app.className} / ${app.spec}\nExperience: ${app.experience}\nAvailability: ${app.availability}${app.notes ? `\nNotes: ${app.notes}` : ""}`);
+    await interaction.reply(`\`${app.id}\` **${app.character}** — ${app.status}${app.core ? `\nCore: ${app.core.name}` : ""}\nClass/spec: ${app.className} / ${app.spec}${app.role ? ` (${ROLE_TEXT[app.role]})` : ""}\nExperience: ${app.experience}\nAvailability: ${app.availability}${app.notes ? `\nNotes: ${app.notes}` : ""}`);
     return;
   }
   const application = await applicationService.get(context.guildId, id);
   if (!application) throw new Error("Application not found");
   const status = ({ approve: ApplicationStatus.APPROVED, reject: ApplicationStatus.REJECTED, trial: ApplicationStatus.TRIAL } as const)[subcommand as "approve" | "reject" | "trial"];
   const updated = await applicationService.transition(context.guildId, id, status, interaction.user.id);
-  if (status === ApplicationStatus.APPROVED && interaction.guild) {
-    await syncApprovedMemberRoles(interaction.guild, context.guildId, application.member.discordUserId);
-  }
+  await applyDecision(interaction.guild, context.guildId, application, status);
   await syncApplicationCard(interaction.guild, application, status, interaction.user.id);
   await interaction.reply(`Application \`${updated.id}\` is now **${updated.status}**.`);
 }
 
-function applicationModal(core: { id: string; name: string }) {
+// Step 1 of applying from a roster message: the raid role (a form holds at most five fields,
+// all taken), then the form with the role carried in its id.
+function rolePickerRow(coreId: string) {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(ROLES.map((role) =>
+    new ButtonBuilder().setCustomId(`${APPLY_PREFIX}role:${coreId}:${role}`).setLabel(ROLE_TEXT[role]).setStyle(ButtonStyle.Primary)));
+}
+
+function applicationModal(core: { id: string; name: string }, role?: RaidRole) {
   const input = (id: string, label: string, placeholder: string) =>
     new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId(id).setLabel(label).setPlaceholder(placeholder).setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100));
   return new ModalBuilder()
-    .setCustomId(`${APPLY_PREFIX}submit:${core.id}`)
+    .setCustomId(`${APPLY_PREFIX}submit:${core.id}${role ? `:${role}` : ""}`)
     .setTitle(`Apply to ${core.name}`.slice(0, 45))
     .addComponents(
       input("character", "Character name", "Thrall"),
@@ -217,11 +242,11 @@ async function handleApplyDecision(interaction: ButtonInteraction, decision: str
   }
   try {
     const updated = await applicationService.transition(guild.id, id, status, interaction.user.id);
-    if (status === ApplicationStatus.APPROVED) await syncApprovedMemberRoles(interaction.guild, guild.id, application.member.discordUserId);
     await interaction.update({
       embeds: [applicationEmbed(application, application.member.discordUserId, { status: updated.status, by: interaction.user.id })],
-      components: []
+      components: applicationDecisionRows(application.id, updated.status)
     });
+    await applyDecision(interaction.guild, guild.id, application, status);
   } catch (error) {
     await interaction.reply({ content: error instanceof Error ? error.message : "Could not update the application.", ephemeral: true }).catch(() => undefined);
   }
@@ -235,8 +260,8 @@ export async function handleApplyButton(interaction: ButtonInteraction): Promise
     if (decision && id) await handleApplyDecision(interaction, decision, id);
     return;
   }
-  // The "Apply" button on a core's own roster message: straight to that
-  // core's form, no "which core?" picker needed.
+  // The "Apply" button on a core's own roster message: pick a raid role first (a private
+  // message with three buttons), then that core's form. No "which core?" picker needed.
   if (suffix.startsWith("roster:")) {
     const coreId = suffix.slice("roster:".length);
     const core = await prisma.raidCore.findUnique({ where: { id: coreId }, select: { id: true, name: true } });
@@ -244,7 +269,17 @@ export async function handleApplyButton(interaction: ButtonInteraction): Promise
       await interaction.reply({ content: "That core no longer exists.", ephemeral: true });
       return;
     }
-    await interaction.showModal(applicationModal(core));
+    await interaction.reply({ content: `Applying to **${core.name}**: which role do you play?`, components: [rolePickerRow(core.id)], ephemeral: true });
+    return;
+  }
+  if (suffix.startsWith("role:")) {
+    const [, coreId, rawRole] = suffix.split(":");
+    const core = coreId ? await prisma.raidCore.findUnique({ where: { id: coreId }, select: { id: true, name: true } }) : null;
+    if (!core) {
+      await interaction.reply({ content: "That core no longer exists.", ephemeral: true });
+      return;
+    }
+    await interaction.showModal(applicationModal(core, asRole(rawRole)));
   }
 }
 
@@ -254,8 +289,9 @@ export async function handleApplyModal(interaction: ModalSubmitInteraction): Pro
   try {
     const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
     const member = await guildService.ensureMember(guild.id, interaction.user.id, (interaction.member as GuildMember | null)?.displayName ?? interaction.user.username);
-    const coreId = interaction.customId.slice(`${APPLY_PREFIX}submit:`.length);
+    const [coreId = "", rawRole] = interaction.customId.slice(`${APPLY_PREFIX}submit:`.length).split(":");
     const core = await coreService.byIdOrName(guild.id, coreId);
+    const role = asRole(rawRole);
     const application = await applicationService.create({
       guildId: guild.id, memberId: member.id,
       character: interaction.fields.getTextInputValue("character"),
@@ -263,7 +299,8 @@ export async function handleApplyModal(interaction: ModalSubmitInteraction): Pro
       spec: interaction.fields.getTextInputValue("spec"),
       experience: interaction.fields.getTextInputValue("experience"),
       availability: interaction.fields.getTextInputValue("availability"),
-      coreId: core.id
+      coreId: core.id,
+      ...(role ? { role } : {})
     });
     await announceApplication(interaction.guild, interaction.user.id, application);
     await interaction.editReply({ content: `Application submitted for **${core.name}**. Your application ID is \`${application.id}\`. An officer will follow up.` });

@@ -36,11 +36,6 @@ function module.switches()
       get = function() local d = db(); return not (d and d.digest and d.digest.enabled == false) end,
       set = function(on) run(on and "digest on" or "digest off") end
     },
-    {
-      label = L("Save for Discord by itself at safe moments (reloads the UI)"),
-      get = function() local d = db(); return d and d.syncNow and d.syncNow.auto == true or false end,
-      set = function(on) run(on and "sync auto on" or "sync auto off") end
-    }
   }
   -- One switch per optional module, just for you (officers still use /guilded modules guild).
   for _, entry in ipairs(ns.MODULES or {}) do
@@ -88,7 +83,7 @@ local function build()
   boxes = {}
   local y = -100
   for index, switch in ipairs(module.switches()) do
-    if index == 5 then
+    if index == 4 then
       local header = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
       header:SetPoint("TOPLEFT", 16, y - 6)
       header:SetText(L("Optional parts (a part turned back on starts after /reload)"))

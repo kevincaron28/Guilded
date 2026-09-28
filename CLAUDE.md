@@ -8,11 +8,12 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Open work: read `docs/ADDON_AUDIT_HANDOFF.md` first.** The addon audit (11 fixes,
-6 upgrades) is committed on branch `claude/sleepy-pascal-cmmf3q` but not yet merged
-to `main`. That file lists every change and file, the protocol and saved-data
-changes, and what is left: merge, rebuild the addon zip and companion installer,
-redeploy the bot, and the in-game checks in `RELEASE_CHECKLIST.md`.
+**Open work: read `docs/V4_5_HANDOFF.md` first.** Version 4.5.0 (the first public
+release; 4.0.0 was never published) is on `main`: every 4.5 change with its files, the
+protocol / saved-data / database changes, and what is left (db:update, rebuild the addon
+zip and companion installer, redeploy, the in-game checks in `RELEASE_CHECKLIST.md`, the
+CurseForge upload). The addon audit that came before it is in `docs/ADDON_AUDIT_HANDOFF.md`.
+Next after 4.5 is polished: the v5 raid tools module (`ROADMAP.md`).
 
 This file is for whichever agent picks this repo up next — including a cloud
 session with no access to this machine's local state. If you're running

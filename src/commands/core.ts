@@ -63,6 +63,9 @@ export const coreCommand = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName("list").setDescription("All raid cores and how many players each has."))
   .addSubcommand((sub) => sub.setName("post").setDescription("Refresh the roster messages in the roster channel (Raid Leaders).")
     .addStringOption((o) => o.setName("core").setDescription("One core (default: all)").setAutocomplete(true)))
+  .addSubcommand((sub) => sub.setName("rename").setDescription("Rename a core (Raid Leaders). Its raids, prices and roster follow.")
+    .addStringOption(coreOption)
+    .addStringOption((o) => o.setName("name").setDescription("New name").setMinLength(2).setMaxLength(50).setRequired(true)))
   .addSubcommand((sub) => sub.setName("delete").setDescription("Delete a core (Raid Leaders). Raids created for it keep their signups.")
     .addStringOption(coreOption));
 
@@ -77,7 +80,7 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
   if (!context) return;
   const guildId = context.guildId;
   const subcommand = interaction.options.getSubcommand();
-  if (["setup", "edit", "create", "add", "remove", "post", "delete", "rules"].includes(subcommand)) requireRaidLeader(interaction);
+  if (["setup", "edit", "create", "add", "remove", "post", "delete", "rules", "rename"].includes(subcommand)) requireRaidLeader(interaction);
   if (subcommand === "items") {
     // Anyone can look at the prices; changing them is for Raid Leaders.
     if (interaction.options.getString("action", true) !== "list") requireRaidLeader(interaction);
@@ -103,6 +106,14 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
         + (posted ? "" : " (Set a roster channel in `/setup start` or `/setup config channel` to show the roster there.)"),
       ephemeral: true
     });
+    return;
+  }
+
+  if (subcommand === "rename") {
+    const before = await coreService.byIdOrName(guildId, interaction.options.getString("core", true));
+    const renamed = await coreService.rename(guildId, before.id, interaction.options.getString("name", true));
+    await syncCoreRoster(interaction.guild, prisma, guildId, renamed.id);
+    await interaction.reply({ content: `Renamed **${before.name}** to **${renamed.name}**. In game the new name arrives with the next companion upload.`, ephemeral: true });
     return;
   }
 

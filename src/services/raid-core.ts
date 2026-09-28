@@ -62,10 +62,44 @@ export function createRaidCoreService(database: Db) {
       const core = await byIdOrName(guildId, value);
       await database.raidCoreMember.upsert({
         where: { coreId_memberId: { coreId: core.id, memberId } },
+        // Added or moved by an officer: a full member from now on (not on trial).
         create: { coreId: core.id, memberId, role, bench },
-        update: { role, bench }
+        update: { role, bench, trial: false }
       });
       return core;
+    },
+
+    // Renames a core (names are unique per guild, ignoring case). Raids, signups, prices and
+    // the addon follow by id, so nothing else has to change; the roster message is refreshed
+    // by the caller.
+    async rename(guildId: string, value: string, name: string, description?: string | null) {
+      const core = await byIdOrName(guildId, value);
+      const trimmed = name.trim();
+      if (trimmed.length < 2 || trimmed.length > 50) throw new Error("A core name is 2 to 50 characters.");
+      const clash = await database.raidCore.findFirst({ where: { guildId, id: { not: core.id }, name: { equals: trimmed, mode: "insensitive" } } });
+      if (clash) throw new Error(`A core called "${clash.name}" already exists.`);
+      return database.raidCore.update({
+        where: { id: core.id },
+        data: { name: trimmed, ...(description !== undefined ? { description: description?.trim().slice(0, 300) || null } : {}) }
+      });
+    },
+
+    // An applicant's place in the core after a decision: on Trial they join as a trial member
+    // (with the role they applied for), on Approve the trial mark is cleared (or they join as a
+    // full member), on Reject a trial member is taken off again. A role or bench spot an officer
+    // already set is kept. Returns false when nothing changed.
+    async settleApplicant(coreId: string, memberId: string, outcome: "TRIAL" | "APPROVED" | "REJECTED", role: RaidRole | null): Promise<boolean> {
+      if (outcome === "REJECTED") {
+        const removed = await database.raidCoreMember.deleteMany({ where: { coreId, memberId, trial: true } });
+        return removed.count > 0;
+      }
+      const trial = outcome === "TRIAL";
+      await database.raidCoreMember.upsert({
+        where: { coreId_memberId: { coreId, memberId } },
+        create: { coreId, memberId, role: role ?? "DPS", trial },
+        update: { trial }
+      });
+      return true;
     },
 
     async removeMember(guildId: string, value: string, memberId: string) {
@@ -103,7 +137,7 @@ type CoreForEmbed = {
   schedule?: string | null;
   lootMode?: string | null;
   reservesPerPlayer?: number | null;
-  members: { role: RaidRole; bench: boolean; member: { displayName: string } }[];
+  members: { role: RaidRole; bench: boolean; trial?: boolean; member: { displayName: string } }[];
 };
 
 // `guildLootMode` is the guild's raw default (GuildSettings.lootMode); the core's own
@@ -119,16 +153,22 @@ export function coreRosterEmbed(core: CoreForEmbed, guildLootMode?: string | nul
     : "";
   embed.addFields({ name: `🎲 ${tx(lang, "Loot")}`, value: `${LOOT_MODE_LABEL[mode]}${reserves}`, inline: true });
   for (const role of ROLE_ORDER) {
-    const names = core.members.filter((entry) => entry.role === role && !entry.bench).map((entry) => entry.member.displayName).sort((a, b) => a.localeCompare(b));
+    const names = core.members.filter((entry) => entry.role === role && !entry.bench && !entry.trial).map((entry) => entry.member.displayName).sort((a, b) => a.localeCompare(b));
     embed.addFields({ name: `${ROLE_LABEL[role]} (${names.length})`, value: names.length ? names.join("\n").slice(0, 1000) : "—", inline: true });
   }
+  // Trial members (an application moved to Trial) are listed apart until they are approved.
+  const trial = core.members.filter((entry) => entry.trial && !entry.bench)
+    .map((entry) => `${entry.member.displayName} (${ROLE_WORD[lang][entry.role]})`)
+    .sort((a, b) => a.localeCompare(b));
+  if (trial.length) embed.addFields({ name: `🧪 ${tx(lang, "Trial")} (${trial.length})`, value: trial.join("\n").slice(0, 1000), inline: false });
   const bench = core.members.filter((entry) => entry.bench)
     .map((entry) => `${entry.member.displayName} (${ROLE_WORD[lang][entry.role]})`)
     .sort((a, b) => a.localeCompare(b));
   if (bench.length) embed.addFields({ name: `🪑 ${tx(lang, "Bench")} (${bench.length})`, value: bench.join("\n").slice(0, 1000), inline: false });
-  const mains = core.members.length - bench.length;
+  const mains = core.members.length - bench.length - trial.length;
   const people = mains === 1 ? tx(lang, "{count} core member", { count: mains }) : tx(lang, "{count} core members", { count: mains });
-  embed.setFooter({ text: `${people}${bench.length ? tx(lang, " + {n} on the bench", { n: bench.length }) : ""} · ${tx(lang, "core members get priority at this core's raid signups")}` });
+  const extra = `${trial.length ? tx(lang, " + {n} on trial", { n: trial.length }) : ""}${bench.length ? tx(lang, " + {n} on the bench", { n: bench.length }) : ""}`;
+  embed.setFooter({ text: `${people}${extra} · ${tx(lang, "core members get priority at this core's raid signups")}` });
   return embed;
 }
 

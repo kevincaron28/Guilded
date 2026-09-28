@@ -4,7 +4,7 @@ Where Guilded stands and what could come next. The full idea backlog, the code a
 other addons are kept in [docs/archive/ROADMAP-history.md](docs/archive/ROADMAP-history.md).
 What is left before publishing is in [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
 
-## Status (2026-09-30): version 4.0.0, ready to publish as a Beta
+## Status (2026-10-01): version 4.5.0, ready to publish as a Beta (4.0.0 was never published separately)
 
 Built and tested (550+ automated tests, lint, type check and the addon validator pass; a test loads the whole
 addon in .toc order):
@@ -32,10 +32,27 @@ API, and the release notes say which parts are untested.
 
 ## Next, in the order I would do them
 
-1. **Publish 4.0.0 as a Beta and test with a second player** (see the checklist). Fix whatever it finds. This
-   comes before any feature.
+1. **Publish 4.5.0 as a Beta and test with a second player** (see the checklist). Fix whatever it finds. This
+   comes before any feature (v5 below starts once 4.5 is polished).
 2. **Hosting:** the free Oracle Cloud setup is written ([docs/DEPLOY_ORACLE.md](docs/DEPLOY_ORACLE.md)); a hosted
    multi-guild bot is a bigger step and only worth it if other guilds ask.
+
+## v5: Raid tools module (planned, after 4.5 is polished)
+
+A new optional module (`raidtools`, switchable like the others) to help the raid leader explain mechanics.
+What the game allows shapes the design:
+
+- **Raid target icons** (skull, cross...) on players or mobs: `SetRaidTarget` works for the leader and assistants;
+  a click panel of the eight icons, plus "mark the tanks / healers" presets from the group's roles.
+- **World markers** (the coloured floor markers): only through secure buttons running `/wm` macros (like 4.5's
+  Send to Discord button), so a click panel, prepared out of combat.
+- **Map and area drawings:** arrows, circles and numbered spots drawn on the world map / a boss room picture,
+  seen by every raider **with Guilded** (sent as addon messages through `ns.comm`). Newer clients restrict addon
+  messages during a boss fight, so plans are shared **before the pull** and stay on screen.
+- **Boss plans:** a saved drawing plus a few text lines per boss ("group 1 left, group 2 right"), picked by the
+  raid leader at the pull; the officers edit them in the window, the companion can back them up to Discord.
+- Checks before starting: which of these APIs WoW Forever really exposes (a `/guilded raidtools check` like the
+  calendar's), and the addon-message limits in instances.
 
 ## 4.1
 

@@ -3,7 +3,7 @@
 What was changed in the addon audit, why, and exactly what is left to do. Written
 for whoever picks this up next (you in VS Code, or another Claude session). Commit:
 `05fefd8 Harden the addon: audit fixes and upgrades` on branch
-`claude/sleepy-pascal-cmmf3q` (not merged to `main` yet).
+`claude/sleepy-pascal-cmmf3q`, merged to `main` (pull request #1). 4.5.0 followed: see `docs/V4_5_HANDOFF.md`.
 
 ## Status at a glance
 
@@ -78,7 +78,7 @@ maintainer's PC with `.env.local`, plain `npx vitest run` works.
 | U2 | Shared helpers in `ns.util`: `itemKey`, `daysFromCivil`, `isoEpoch`, `serverTime`, `tooFarAhead`, `groupChannel`, `inMyGroup`, `base64Encode/Decode`, `truncate`. The copies in Loot, Tooltip, Ready, Calendar, Backup, Games were replaced (old names like `NS.tooltip.itemKey`, `NS.ready.epoch`, `NS.calendar.isoEpoch`, `NS.backup.b64decode` still exist as thin wrappers). | `Util.lua`, those modules |
 | U3 | Addon Compartment: `## AddonCompartmentFunc*` lines in the TOC; globals `Guilded_OnAddonCompartmentClick/Enter/Leave` (left-click opens the window, right-click the gear check). | `Guilded.toc`, `Modules/Minimap.lua` |
 | U4 | Open GP bidding / loot council survive `/reload`: saved in `db.biddingSession` / `db.councilSession` with `endsAtServer` (server clock); restored at `PLAYER_LOGIN` (`bidding.restore`, `council.restore`), timer rescheduled (closes 5s after login if it ran out during the reload). A session that ran out more than 10 minutes before login is dropped, never auto-awarded. | `Modules/Bidding.lua`, `Modules/Council.lua` |
-| U5 | Options page: `Modules/Options.lua` (new, last in the TOC). Settings API canvas (`Settings.RegisterCanvasLayoutCategory`), falls back to `InterfaceOptions_AddCategory`. Switches: minimap button, chat tab, login digest, auto-save, and one per optional module (just for you). Each switch runs the normal `/guilded` command. `/guilded options` (alias `settings`) opens it. French labels in `Locale.lua`. | `Modules/Options.lua`, `Locale.lua`, `Guilded.toc`, `validate-addon.mjs` |
+| U5 | Options page: `Modules/Options.lua` (new, last in the TOC). Settings API canvas (`Settings.RegisterCanvasLayoutCategory`), falls back to `InterfaceOptions_AddCategory`. Switches: minimap button, chat tab, login digest, and one per optional module (4.5 removed auto-save: the game blocks automatic reloads) (just for you). Each switch runs the normal `/guilded` command. `/guilded options` (alias `settings`) opens it. French labels in `Locale.lua`. | `Modules/Options.lua`, `Locale.lua`, `Guilded.toc`, `validate-addon.mjs` |
 | U6 | Tests: `tests/lua/audit-fixes.test.ts` (new) plus added cases in `reserve`, `recipes`, `tooltip`, `full-addon` Lua tests and `tests/dungeon-rules.test.ts`. The Lua harness (`tests/lua/harness.ts`) now loads `Util.lua` automatically before any file loaded on a namespace that lacks `ns.comm`, like the game does. | `tests/` |
 
 ## Protocol changes (addon messages)

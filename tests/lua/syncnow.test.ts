@@ -4,7 +4,9 @@ import { newLuaSession, type LuaSession } from "./harness.js";
 let session: LuaSession | undefined;
 afterEach(() => { session?.close(); session = undefined; });
 
-function withSync(officer = true, autoOn = false): LuaSession {
+// Newer clients block ReloadUI() from addon code, so SyncNow never calls it: saving is a
+// secure button whose click runs the macro "/reload".
+function withSync(officer = true): LuaSession {
   session = newLuaSession();
   session.run(`
     DB = {}
@@ -17,98 +19,84 @@ function withSync(officer = true, autoOn = false): LuaSession {
     InCombatLockdown = function() return COMBAT end
     UnitAffectingCombat = function() return COMBAT end
     IsInInstance = function() return INSTANCE end
-    TIMERS = {}
-    C_Timer = { After = function(_, fn) TIMERS[#TIMERS + 1] = fn end }
     NS = {
       isOfficer = function() return ${officer} end,
       getDb = function() return DB end,
       message = function(text) CHAT_LOG = CHAT_LOG or {}; CHAT_LOG[#CHAT_LOG + 1] = text end,
       commandHandlers = {}, commandHelp = {}
     }
+    -- Frames that remember their template and attributes.
+    local base = CreateFrame
+    CreateFrame = function(kind, name, parent, template)
+      local f = base(kind, name, parent, template)
+      f.template = template
+      f.attributes = {}
+      f.SetAttribute = function(self, key, value) self.attributes[key] = value end
+      f.shown = false
+      f.Show = function(self) self.shown = true end
+      f.Hide = function(self) self.shown = false end
+      if name then _G[name] = f end
+      return f
+    end
   `);
   session.load("Modules/SyncNow.lua");
   session.run(`fire_event("PLAYER_LOGIN")`);
-  if (autoOn) session.run(`NS.commandHandlers["sync"]({ "auto", "on" })`);
   return session;
 }
 
 const advance = (s: LuaSession, seconds: number) => s.run(`NOW = NOW + ${seconds}`);
-const runTimers = (s: LuaSession) => s.run(`local t = TIMERS; TIMERS = {}; for _, fn in ipairs(t) do fn() end`);
-const reloads = (s: LuaSession) => Number(s.run(`return RELOADS`));
 
 describe("SyncNow.lua", () => {
-  it("never reloads anyone by default, not even an officer (auto is opt-in)", () => {
-    const s = withSync(true);
-    s.run(`NS.syncNow.mark()`);
-    advance(s, 3600);
-    s.run(`NS.syncNow.tick()`);
-    expect(s.run(`return #TIMERS`)).toBe("0");
-    expect(reloads(s)).toBe(0);
+  it("the Send to Discord button is a secure button that runs /reload (ReloadUI is never called)", () => {
+    const s = withSync();
+    s.run(`BUTTON = NS.syncNow.reloadButton(UIParent, "Send to Discord", 140, 22)`);
+    expect(s.run(`return BUTTON.template`)).toContain("SecureActionButtonTemplate");
+    expect(s.run(`return BUTTON.attributes.type .. "|" .. BUTTON.attributes.macrotext`)).toBe("macro|/reload");
+    expect(Number(s.run(`return RELOADS`))).toBe(0);
   });
 
-  it("does nothing until something changed, then waits for the changes to settle and the interval to pass", () => {
-    const s = withSync(true, true);
-    advance(s, 3600);
+  it("in combat it makes a plain button that says to type /reload", () => {
+    const s = withSync();
+    s.run(`COMBAT = true; BUTTON = NS.syncNow.reloadButton(UIParent, "Send to Discord", 140, 22)`);
+    expect(s.run(`return tostring(BUTTON.template)`)).toBe("UIPanelButtonTemplate");
+    s.run(`BUTTON:GetScript("OnClick")()`);
+    expect(s.chat().join("\n")).toContain("Type /reload");
+  });
+
+  it("officers get the banner once data changed and settled, never in combat or an instance", () => {
+    const s = withSync(true);
+    const shown = () => s.run(`return tostring(GuildedSyncBanner ~= nil and GuildedSyncBanner.shown)`);
     s.run(`NS.syncNow.tick()`);
-    expect(s.run(`return #TIMERS`)).toBe("0");
+    expect(shown()).toBe("false");        // nothing changed yet
     s.run(`NS.syncNow.mark()`);
     advance(s, 30);
     s.run(`NS.syncNow.tick()`);
-    expect(s.run(`return #TIMERS`)).toBe("0");   // still settling
+    expect(shown()).toBe("false");        // still settling
     advance(s, 100);
-    s.run(`NS.syncNow.tick()`);
-    expect(s.run(`return #TIMERS`)).toBe("1");   // countdown started
-    runTimers(s);
-    expect(reloads(s)).toBe(1);
-    expect(s.chat().join("\n")).toContain("reloading in 5 seconds");
-  });
-
-  it("respects the minimum interval since login", () => {
-    const s = withSync(true, true);
-    s.run(`NS.syncNow.mark()`);
-    advance(s, 200);
-    s.run(`NS.syncNow.tick()`);
-    expect(s.run(`return #TIMERS`)).toBe("0");   // only 200s since login, default is 10 minutes
-    advance(s, 500);
-    s.run(`NS.syncNow.tick()`);
-    expect(s.run(`return #TIMERS`)).toBe("1");
-  });
-
-  it("never reloads in combat or inside an instance, even at the last second", () => {
-    const s = withSync(true, true);
-    s.run(`NS.syncNow.mark()`);
-    advance(s, 1000);
     s.run(`INSTANCE = true; NS.syncNow.tick()`);
-    expect(s.run(`return #TIMERS`)).toBe("0");
-    s.run(`INSTANCE = false; NS.syncNow.tick()`);
-    expect(s.run(`return #TIMERS`)).toBe("1");
-    s.run(`COMBAT = true`);            // combat starts during the countdown
-    runTimers(s);
-    expect(reloads(s)).toBe(0);
+    expect(shown()).toBe("false");        // inside an instance
+    s.run(`INSTANCE = false; COMBAT = true; NS.syncNow.tick()`);
+    expect(shown()).toBe("false");        // in combat
+    s.run(`COMBAT = false; NS.syncNow.tick()`);
+    expect(shown()).toBe("true");
+    expect(Number(s.run(`return RELOADS`))).toBe(0);
   });
 
-  it("members get a banner instead of an automatic reload, and can opt in", () => {
+  it("members never get the banner", () => {
     const s = withSync(false);
     s.run(`NS.syncNow.mark()`);
     advance(s, 1000);
     s.run(`NS.syncNow.tick()`);
-    expect(s.run(`return #TIMERS`)).toBe("0");
-    expect(reloads(s)).toBe(0);
-    s.run(`NS.commandHandlers["sync"]({ "auto", "on", "5" })`);
-    expect(s.chat().join("\n")).toContain("Auto-save for Discord is on (at most every 5 minutes");
-    s.run(`NS.syncNow.tick()`);
-    expect(s.run(`return #TIMERS`)).toBe("1");
+    expect(s.run(`return tostring(GuildedSyncBanner)`)).toBe("nil");
   });
 
-  it("auto can be turned off, and /guilded sync saves right away", () => {
+  it("/guilded sync explains to type /reload; the old auto option says it is gone", () => {
     const s = withSync();
-    s.run(`NS.commandHandlers["sync"]({ "auto", "off" })`);
-    s.run(`NS.syncNow.mark()`);
-    advance(s, 1000);
-    s.run(`NS.syncNow.tick()`);
-    expect(s.run(`return #TIMERS`)).toBe("0");
     s.run(`NS.commandHandlers["sync"]({})`);
-    expect(reloads(s)).toBe(1);
+    expect(s.chat().join("\n")).toContain("type /reload");
+    s.run(`NS.commandHandlers["sync"]({ "auto", "on" })`);
+    expect(s.chat().join("\n")).toContain("Automatic saving is no longer possible");
+    expect(Number(s.run(`return RELOADS`))).toBe(0);
   });
 
   it("Core marks data as changed when it logs an event", () => {

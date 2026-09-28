@@ -51,7 +51,8 @@ Hover a page name for what it is for. The **Player** box (target someone, or **M
 | `/guilded dungeon check` | Checks which dungeon features work on this client (send the result to an officer) |
 | `/guilded version` | Your addon version. You're also told automatically when a guildmate has a newer one |
 | `/guilded minimap show` / `hide` / `reset` | Control the minimap button (Guilded is also in the addon list under the minimap, the Addon Compartment) |
-| `/guilded options` | Guilded's page in the game's options (Esc > Options > AddOns): minimap button, chat tab, login digest, auto-save and your module switches |
+| `/guilded options` | Guilded's page in the game's options (Esc > Options > AddOns): minimap button, chat tab, login digest and your module switches |
+| `/guilded sync` | How to send your data to Discord now: press **Send to Discord** in the window (or the officers' banner), or type `/reload`. The game only reloads on your own click |
 | `/guilded officer list` | Show which ranks count as officers, and whether you do |
 | `/guilded modules` | List the optional parts (games, bidding, council, reserve, recipes, dungeon, calendar, sim ...) and whether each is on |
 | `/guilded modules off\|on <module>` | Turn one off or back on just for you (also in the Tools tab). Back on after being off at login needs `/reload` |
@@ -111,6 +112,8 @@ choice, `/setup config loot-mode`). Pick it in `/core setup` (step 3, the loot s
 | `/core items action:set core:<core> item:<name or id> gp:<price>` | One price. Leave `core` out for the guild-wide list |
 | `/core items action:import core:<core> file:<file>` | A text or CSV file, one `item = price` per line (`Sulfuras, Hand of Ragnaros = 250`, `Bindings;120`, `19019 = 90`) |
 | `/core items action:list` / `remove` / `clear` | Look at, remove one, or empty a list. Anyone can list; changing is for Raid Leaders |
+| **Item prices** button (`/core edit` or `/core setup`) | The easiest way: a list already filled in with the core's prices, then the items people wishlisted or were given before that have no price yet, with the average GP paid as a suggestion. Edit the numbers and save; lines left as `= ?` are skipped |
+| `/guilded price <item> <GP>` (in game, officers) | Set a price for the core you are running. `/guilded drop` also asks for a price when an item has none. Prices set in game reach Discord with the next companion upload (the newer price wins) |
 | **Item prices** button in `/core setup` | Paste a list into a form |
 | `/loot priority item:<item> [raid:<raid>]` (officers) | Who is next for an item: the wishlist members of the raid's core, highest PR first (that core's pool when it has its own), with the price |
 | `/loot award item player [gp]` | In priority raids, leaving out `gp` charges the item's set price |
@@ -285,7 +288,7 @@ There are 17 commands, not 34: small ones sit under a parent, so typing `/` show
 | `/character unlink <name>` | Unlink a character: yours, or (Officers/GM) anyone's. If the addon reports it again it goes back to unclaimed |
 | `/raid wcl check [raid] [url]` | Officers: the private check of a raid's log: who is in the log but not credited (or the reverse), characters not linked to anyone, EP not yet awarded, who came to boss pulls without a flask or food, and deaths. No damage or parse numbers |
 | `/raid wcl list` | The latest Warcraft Logs reports the officers pulled in |
-| `/apply <core> <character> <class> <spec> <experience> <availability> [notes]` | Apply to a raid core. Or press **Apply to `<core>`** on that core's own roster message (raid roster channel) — same result, a short form instead of typing options |
+| `/apply <core> <character> <class> <spec> <experience> <availability> <role> [notes]` | Apply to a raid core, with your raid role (Tank, Healer or DPS). Or press **Apply to `<core>`** on that core's own roster message (raid roster channel): pick your role, then a short form. Officers decide on the card: **Trial** adds you to the core as a trial member (shown apart on the roster) and keeps **Approve** and **Reject** on the card to settle it later; **Approve** makes you a full core member |
 | `/raid signup <raid> <role> [availability]` | Sign up (Tank, Healer, DPS). `availability:Maybe` doesn't take a slot. If your role is full you go on the **waitlist** and get a DM when a slot opens |
 | `/raid cancel-signup <raid>` | Drop out (the next waitlisted player moves up) |
 | `/raid status <raid>` / `/raid roster <raid>` | Raid info and roster |
@@ -449,6 +452,7 @@ A **raid core** is a named roster (e.g. "Tuesday MC core"); a guild can have sev
 | Command | What it does |
 | --- | --- |
 | `/core setup` | **Start here.** A guided message: name the core in a form (with an optional raid-nights schedule), pick its tanks, healers and DPS from member menus (main roster or bench/reserve), then choose its rules (same as the guild by default; own point pool, loot council or EP values are buttons). Saved as you go (Raid Leaders) |
+| `/core rename <core> <name>` | Rename a core (Raid Leaders). Raids, prices, the roster message and the addon follow |
 | `/core edit <core>` | **Easiest way to change a core.** One message: pick how to add (Tank / Healer / DPS, main roster or **bench**), pick the players (players already in the core are moved to that role or spot), pick players to remove, rename. The roster message updates at once (Raid Leaders) |
 | `/core create <name> [description] [schedule]` | Create a core with a command instead (Raid Leaders) |
 | `/core add <core> <player> [role] [bench]` / `/core remove <core> <player>` | Manage its players (Raid Leaders); role Tank / Healer / DPS; `bench:true` makes them a replacement (shown with a chair, no signup priority) |

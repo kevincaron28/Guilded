@@ -15,8 +15,15 @@
 --     the ledger and loot history like any other award.
 --
 -- The same window also runs EPGP priority loot (a core's loot system, see Loot.lua): every item
--- has a set GP price, raiders answer "I want it" or Pass, and the highest PR among those who
--- want it wins and pays that price. It is awarded by itself when time runs out.
+-- has a set GP price, raiders answer "I want it", Off-spec or Pass, and the highest PR among those
+-- who want it wins and pays that price (an off-spec answer only wins when nobody wants it for
+-- their main spec, and pays the core's off-spec share, 50% unless Discord says otherwise). A core
+-- can set a minimum EP: players below it rank after everyone who has it. It is awarded by itself
+-- when time runs out.
+--
+-- Council votes: when a loot council closes, the officers in the group get the answers and vote
+-- (/guilded council vote <player or number>, or the Loot page). The host sees the count per
+-- player; the host still awards.
 --
 -- Chat: one raid-chat line to open, one to announce the winner. Answers stay private.
 local addonName, ns = ...
@@ -46,7 +53,7 @@ local TIERS = {
 -- Which answers a kind of session takes, in popup order.
 local KIND_TIERS = {
   council = { "bis", "up", "os", "pass" },
-  priority = { "want", "pass" }
+  priority = { "want", "os", "pass" }
 }
 local WORDS = {
   bis = "bis", upgrade = "up", up = "up", os = "os", offspec = "os", ["off-spec"] = "os", pass = "pass",
@@ -182,21 +189,40 @@ local function wishlisted(name, item)
   return false
 end
 
+local function epFor(name)
+  if ns.loot and ns.loot.epFor then return ns.loot.epFor(name) end
+  local standing = ns.getStanding and ns.getStanding(name)
+  return standing and standing.ep or 0
+end
+
+local function voteCounts(session)
+  local counts = {}
+  for _, candidate in pairs(session.votes or {}) do counts[candidate] = (counts[candidate] or 0) + 1 end
+  return counts
+end
+
 -- Answers that count, best first: tier, then PR, then earliest.
 local function rankedResponses(session)
   local list = {}
+  local minEp = tonumber(session.minEp) or 0
+  local votes = voteCounts(session)
   for name, r in pairs(session.responses) do
     if r.tier ~= "pass" then
       table.insert(list, {
         name = name, tier = r.tier, at = r.at, gear = r.gear, pr = prFor(name),
-        wish = wishlisted(name, session.item),
+        wish = wishlisted(name, session.item), votes = votes[name] or 0,
+        belowMin = minEp > 0 and epFor(name) < minEp,
         reserved = ns.reserve and ns.reserve.isReserved and ns.reserve.isReserved(name, session.item) or false
       })
     end
   end
   table.sort(list, function(a, b)
     if session.kind == "priority" then
-      -- EPGP priority: the highest PR among those who want it.
+      -- EPGP priority: players with the core's minimum EP first, then main spec before
+      -- off-spec, then the highest PR.
+      if a.belowMin ~= b.belowMin then return not a.belowMin end
+      local ra, rb = TIERS[a.tier].rank, TIERS[b.tier].rank
+      if ra ~= rb then return ra < rb end
       if a.pr ~= b.pr then return a.pr > b.pr end
       return a.at < b.at
     end
@@ -238,8 +264,43 @@ local function closeSession(id)
   else
     ns.message(string.format("Council closed: %d want %s. Look at the list, then award: /guilded council award <player> [GP].",
       #ranked, plainItem(session.item)))
+    council.sendList(session, ranked)
   end
   changed()
+end
+
+-- The answers go to the other officers in the group (a whisper each), so they can vote.
+-- "LIST|<id>|<item>|Name:tier;Name:tier" (as many as fit in one message).
+function council.sendList(session, ranked)
+  if session.channel == "TEST" or not ns.groupMembers then return 0 end
+  local head = string.format("LIST|%s|%s|", session.id, string.gsub(plainItem(session.item) or "?", "|", ""))
+  local parts = {}
+  local size = string.len(head)
+  for _, r in ipairs(ranked) do
+    local part = r.name .. ":" .. r.tier
+    if size + string.len(part) + 1 > 250 then break end
+    table.insert(parts, part)
+    size = size + string.len(part) + 1
+  end
+  local sent = 0
+  for _, name in ipairs(ns.groupMembers()) do
+    if name ~= ns.playerName() and ns.isOfficerName and ns.isOfficerName(name) then
+      sendAddon(head .. table.concat(parts, ";"), "WHISPER", name)
+      sent = sent + 1
+    end
+  end
+  return sent
+end
+
+-- An officer's vote (host side): one vote per officer, the latest counts.
+function council.addVote(officer, id, candidate)
+  local session = council.current
+  if not (session and session.id == id and session.kind ~= "priority" and officer and candidate) then return false end
+  if not session.responses[candidate] or session.responses[candidate].tier == "pass" then return false end
+  session.votes = session.votes or {}
+  session.votes[officer] = candidate
+  changed()
+  return true
 end
 
 -- opts: { kind = "priority", price = GP } for EPGP priority loot; nothing for a loot council.
@@ -260,11 +321,13 @@ local function openSession(args, opts)
   local id = string.format("%d%03d", time(), math.random(0, 999))
   council.current = {
     id = id, item = item, seconds = seconds, endsAt = clock() + seconds,
-    responses = {}, open = true, channel = channel, kind = opts.kind or "council", price = opts.price
+    responses = {}, votes = {}, open = true, channel = channel, kind = opts.kind or "council", price = opts.price,
+    minEp = ns.loot and ns.loot.minEp and ns.loot.minEp() or 0,
+    offspec = ns.loot and ns.loot.offspecPercent and ns.loot.offspecPercent() or 50
   }
   if opts.kind == "priority" then
     sendAddon(string.format("OPENP|%s|%d|%d|%s", id, seconds, opts.price or 0, item), channel)
-    announce(string.format(L("%s costs %d GP. Want it? Answer in the Guilded popup, or whisper me want or pass. The highest PR gets it (%ds)."),
+    announce(string.format(L("%s costs %d GP. Want it? Answer in the Guilded popup, or whisper me want, os or pass. The highest PR gets it (%ds)."),
       item, opts.price or 0, seconds))
   else
     sendAddon(string.format("OPEN|%s|%d|%s", id, seconds, item), channel)
@@ -300,15 +363,19 @@ awardSession = function(args)
     if not ranked[1] then ns.message("Say who gets it: /guilded council award <player> [GP]."); return end
     name = ranked[1].name
   end
-  -- Priority loot costs the set price unless the officer names another one.
+  -- Priority loot costs the set price unless the officer names another one; an off-spec win
+  -- costs the core's off-spec share of it.
   local gp = math.floor(tonumber(args[2]) or session.price or 0)
+  local answer = session.responses[name]
+  local offspecWin = not tonumber(args[2]) and session.price and answer and answer.tier == "os"
+  if offspecWin then gp = math.floor(session.price * (tonumber(session.offspec) or 50) / 100 + 0.5) end
   if gp < 0 or gp > MAX_GP then ns.message("That GP is out of range."); return end
   local item = plainItem(session.item)
   ns.runCommand("loot " .. name .. " " .. item .. " " .. gp)
   if gp > 0 then ns.runCommand("gp " .. name .. " " .. gp .. " " .. (session.kind == "priority" and "Priority: " or "Council: ") .. item) end
   sendAddon(string.format("AWARD|%s|%s", session.id, name), session.channel)
   if session.kind == "priority" then
-    announce(string.format(L("%s goes to %s for %d GP."), session.item, name, gp))
+    announce(string.format(L("%s goes to %s for %d GP."), session.item, name, gp) .. (offspecWin and (" " .. L("(off-spec)")) or ""))
   else
     announce(string.format(L("%s goes to %s."), session.item, name))
   end
@@ -365,9 +432,12 @@ function council.statusText()
     local r = ranked[i]
     local extra = {}
     if r.reserved then table.insert(extra, "reserved") end
+    if r.belowMin then table.insert(extra, "below min EP") end
+    if r.votes > 0 then table.insert(extra, string.format("%d vote%s", r.votes, r.votes == 1 and "" or "s")) end
     if r.wish then table.insert(extra, "wishlist") end
     if r.gear then table.insert(extra, "wears " .. r.gear) end
-    table.insert(lines, string.format("%d. %s  %s  (PR %.2f)%s", i, r.name, session.kind == "priority" and "wants it" or TIERS[r.tier].label, r.pr,
+    local answer = session.kind == "priority" and (r.tier == "os" and "off-spec" or "wants it") or TIERS[r.tier].label
+    table.insert(lines, string.format("%d. %s  %s  (PR %.2f)%s", i, r.name, answer, r.pr,
       #extra > 0 and ("  - " .. table.concat(extra, ", ")) or ""))
   end
   if #ranked == 0 then table.insert(lines, "No answers yet.") end
@@ -387,7 +457,7 @@ ns.simulateCouncil = function()
   if not session or not session.open then ns.message("Open the loot council first (/guilded council start ...)."); return end
   local names = ns.SIM_NAMES or {}
   local pick = { "bis", "up", "os", "up", "pass" }
-  if session.kind == "priority" then pick = { "want", "want", "pass", "want", "want" } end
+  if session.kind == "priority" then pick = { "want", "os", "pass", "want", "want" } end
   for i = 1, math.min(#pick, #names) do
     addResponse(names[i], pick[i], i == 2 and "Old Sword (60)" or "", nil, nil)
   end
@@ -524,14 +594,39 @@ ns.commandHandlers["council"] = function(args)
   elseif action == "award" then awardSession(args)
   elseif action == "cancel" then cancelSession()
   elseif action == "status" then ns.message(council.statusText())
+  elseif action == "vote" then council.vote(args[1])
   elseif WORDS[action] then
     -- A member answering from the keyboard, e.g. /guilded council bis
     if council.incoming then respond(WORDS[action]) else ns.message("No loot council is open for you.") end
   else
-    ns.message("/guilded council start <item> [seconds] | priority <GP> <item> [seconds] | close | award [player] [GP] | cancel | status  -  members: bis | upgrade | os | want | pass")
+    ns.message("/guilded council start <item> [seconds] | priority <GP> <item> [seconds] | close | award [player] [GP] | cancel | status | vote <player>  -  members: bis | upgrade | os | want | pass")
   end
 end
 ns.commandHandlers["lc"] = ns.commandHandlers["council"]
+
+-- Officer side of a vote: the list from the host (council.voting), a name or a number from it.
+function council.vote(choice)
+  local voting = council.voting
+  if not voting then ns.message("No loot council is waiting for your vote.") return end
+  if not ns.isOfficer() then ns.message("Only officers vote on the loot council.") return end
+  local pick = voting.candidates[tonumber(choice or "") or 0]
+  if not pick then
+    local wanted = ns.normalizeName and ns.normalizeName(choice)
+    for _, entry in ipairs(voting.candidates) do
+      if entry.name == wanted then pick = entry end
+    end
+  end
+  if not pick then
+    local names = {}
+    for i, entry in ipairs(voting.candidates) do table.insert(names, string.format("%d. %s (%s)", i, entry.name, L(TIERS[entry.tier] and TIERS[entry.tier].label or entry.tier))) end
+    ns.message(string.format(L("Vote for %s: %s  -  /guilded council vote <number or name>"), voting.item, table.concat(names, ", ")))
+    return
+  end
+  sendAddon(string.format("VOTE|%s|%s", voting.id, pick.name), "WHISPER", voting.host)
+  voting.mine = pick.name
+  ns.message(string.format(L("Your vote: %s for %s."), pick.name, voting.item))
+  if ns.onCouncilChange then pcall(ns.onCouncilChange) end
+end
 ns.commandHelp = ns.commandHelp or {}
 table.insert(ns.commandHelp, { officer = true, text = "/guilded council start <item> [seconds] | close | award [player] [GP] | cancel | status - loot council answers" })
 
@@ -581,11 +676,29 @@ local function onEvent(_, event, ...)
         incoming.mine = tier
         updatePopup()
       end
+    elseif kind == "LIST" then
+      -- The host's answers, for officers to vote on.
+      if not (ns.isOfficerName(name) and ns.isOfficer()) then return end
+      local id, item, body = string.match(text, "^LIST|([^|]+)|([^|]*)|(.*)$")
+      if not id then return end
+      local candidates = {}
+      for who, tier in string.gmatch(body, "([^:;]+):(%a+)") do table.insert(candidates, { name = who, tier = tier }) end
+      if #candidates == 0 then return end
+      council.voting = { id = id, item = item, host = sender, candidates = candidates }
+      council.vote(nil)
+      if ns.onCouncilChange then pcall(ns.onCouncilChange) end
+    elseif kind == "VOTE" then
+      if not ns.isOfficerName(name) then return end
+      local id, candidate = string.match(text, "^VOTE|([^|]+)|(.+)$")
+      if id and council.addVote(name, id, candidate) then
+        ns.message(string.format(L("%s votes for %s."), name, candidate))
+      end
     elseif kind == "CLOSE" then
       local id = string.match(text, "^CLOSE|(.+)$")
       if council.incoming and council.incoming.id == id then hidePopup() end
     elseif kind == "AWARD" then
       local id, winner = string.match(text, "^AWARD|([^|]+)|(.+)$")
+      if council.voting and council.voting.id == id then council.voting = nil end
       if council.incoming and council.incoming.id == id then
         hidePopup()
         if winner == ns.playerName() then ns.message(string.format(L("You got %s."), council.incoming.item)) end

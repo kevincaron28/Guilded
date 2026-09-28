@@ -169,6 +169,65 @@ function loot.prFor(name)
   return standing and standing.pr or 0
 end
 
+-- EP in the pool the core uses (for the core's minimum EP).
+function loot.epFor(name)
+  local core = loot.core()
+  if core and core.pool then
+    local row = core.players and core.players[name]
+    return row and row.ep or 0
+  end
+  local standing = ns.getStanding and ns.getStanding(name)
+  return standing and standing.ep or 0
+end
+
+-- The share of the price an off-spec win costs (percent, 50 unless Discord says otherwise:
+-- /core rules offspec_percent) and the EP a player needs before priority counts them first
+-- (/core rules min_ep; 0 = no minimum).
+function loot.offspecPercent()
+  local core = loot.core()
+  local value = core and tonumber(core.offspec)
+  if not value then return 50 end
+  return math.max(0, math.min(100, value))
+end
+
+function loot.minEp()
+  local core = loot.core()
+  return math.max(0, core and tonumber(core.minEp) or 0)
+end
+
+-- A starting GP price for an item nobody priced yet, from its item level and slot: the usual EPGP
+-- shape (price doubles every 26 item levels, weighted by slot), scaled so a Classic tier chest
+-- (ilvl 66-78) lands around 70-100 GP and capped at 5000. Only a suggestion: the officer sees it
+-- in the price box and can change it. nil when the game does not know the item yet.
+local SLOT_WEIGHT = {
+  INVTYPE_HEAD = 1, INVTYPE_CHEST = 1, INVTYPE_ROBE = 1, INVTYPE_LEGS = 1, INVTYPE_2HWEAPON = 2,
+  INVTYPE_SHOULDER = 0.75, INVTYPE_HAND = 0.75, INVTYPE_WAIST = 0.75, INVTYPE_FEET = 0.75, INVTYPE_TRINKET = 0.75,
+  INVTYPE_WRIST = 0.5625, INVTYPE_NECK = 0.5625, INVTYPE_CLOAK = 0.5625, INVTYPE_FINGER = 0.5625,
+  INVTYPE_SHIELD = 0.5625, INVTYPE_HOLDABLE = 0.5625, INVTYPE_WEAPONOFFHAND = 0.5625,
+  INVTYPE_WEAPON = 1.5, INVTYPE_WEAPONMAINHAND = 1.5,
+  INVTYPE_RANGED = 0.5, INVTYPE_RANGEDRIGHT = 0.5, INVTYPE_THROWN = 0.5, INVTYPE_RELIC = 0.3
+}
+function loot.suggestGp(level, equipLoc, quality)
+  level = tonumber(level)
+  if not level or level <= 0 then return nil end
+  local weight = SLOT_WEIGHT[equipLoc or ""] or 1
+  -- Epic items cost the full price; rare ones less (as in the EPGP tables).
+  local qualityFactor = (tonumber(quality) or 4) >= 4 and 1 or 0.6
+  local value = 200 * 2 ^ (level / 26 - 4) * weight * qualityFactor
+  value = math.min(5000, value) -- capped before rounding (huge item levels overflow an integer)
+  return math.max(1, math.floor(value / 5 + 0.5) * 5)
+end
+
+function loot.suggestFor(item)
+  local suggestion
+  pcall(function()
+    if not GetItemInfo then return end
+    local _, _, quality, level, _, _, _, _, equipLoc = GetItemInfo(item)
+    suggestion = loot.suggestGp(level, equipLoc, quality)
+  end)
+  return suggestion
+end
+
 -- ---------------------------------------------------------------------
 -- An item dropped
 -- ---------------------------------------------------------------------
@@ -267,8 +326,166 @@ function loot.askPrice(item, seconds)
       EditBoxOnEscapePressed = function(box) box:GetParent():Hide() end
     }
   end
-  local ok = pcall(StaticPopup_Show, PRICE_POPUP, string.match(item, "%[(.-)%]") or item, loot.coreName() or L("this raid"), { item = item, seconds = seconds })
+  local ok, frame = pcall(StaticPopup_Show, PRICE_POPUP, string.match(item, "%[(.-)%]") or item, loot.coreName() or L("this raid"), { item = item, seconds = seconds })
+  -- Prefilled with a suggestion from the item level and slot (see suggestGp).
+  local suggestion = ok and loot.suggestFor(item)
+  local box = frame and (frame.editBox or frame.EditBox)
+  if suggestion and box and box.SetText then
+    pcall(box.SetText, box, tostring(suggestion))
+    if box.HighlightText then pcall(box.HighlightText, box) end
+  end
   return ok
+end
+
+-- ---------------------------------------------------------------------
+-- Drops seen in the raid, and trades still owed
+-- ---------------------------------------------------------------------
+--
+-- The officer's addon notes the epic items that drop (a corpse opened with LOOT_OPENED, or items
+-- handed out by personal / group loot with ENCOUNTER_LOOT_RECEIVED, which also names who got
+-- it). The Loot page lists them with a Drop button, so nobody has to shift-click from the loot
+-- window. When an item is awarded to someone other than the player holding it, both are told
+-- to trade it: a looted item can only be traded for 2 hours.
+
+local DROP_KEEP_SECONDS = 2 * 60 * 60
+local TRADE_SECONDS = 2 * 60 * 60
+local MIN_QUALITY = 4 -- epic
+local MAX_DROPS = 30
+
+local function serverNow() return ns.util.serverTime() end
+
+local function dropState()
+  local d = ns.getDb and ns.getDb()
+  if not d then return nil end
+  d.lootDrops = d.lootDrops or { items = {}, trades = {} }
+  local now = serverNow()
+  for _, list in ipairs({ d.lootDrops.items, d.lootDrops.trades }) do
+    for i = #list, 1, -1 do
+      if (now - (tonumber(list[i].at) or 0)) > DROP_KEEP_SECONDS then table.remove(list, i) end
+    end
+  end
+  return d.lootDrops
+end
+
+local function nameOfLink(link) return string.match(link or "", "%[(.-)%]") or link end
+
+local function qualityOf(link, fallback)
+  if fallback then return fallback end
+  local quality
+  pcall(function() if GetItemInfo then quality = select(3, GetItemInfo(link)) end end)
+  return quality
+end
+
+-- Returns true when the drop was new. `key` tells the same drop seen twice apart from a second copy.
+function loot.recordDrop(link, holder, key, quality)
+  if type(link) ~= "string" or link == "" then return false end
+  quality = qualityOf(link, quality)
+  if quality and quality < MIN_QUALITY then return false end
+  local state = dropState()
+  if not state then return false end
+  key = key or (link .. "|" .. tostring(holder or ""))
+  for _, entry in ipairs(state.items) do
+    if entry.key == key then return false end
+  end
+  table.insert(state.items, { key = key, link = link, holder = holder, at = serverNow() })
+  while #state.items > MAX_DROPS do table.remove(state.items, 1) end
+  if ns.onLootChange then pcall(ns.onLootChange) end
+  return true
+end
+
+-- Drops not started yet, newest first.
+function loot.drops()
+  local state = dropState()
+  local list = {}
+  if not state then return list end
+  for i = #state.items, 1, -1 do
+    if not state.items[i].started then table.insert(list, state.items[i]) end
+  end
+  return list
+end
+
+-- Starts a listed drop the way this core decides loot.
+function loot.startDrop(index)
+  local entry = loot.drops()[tonumber(index) or 0]
+  if not entry then ns.message(L("No such drop. /guilded drops lists them.")) return end
+  entry.started = true
+  loot.drop({ entry.link })
+  if ns.onLootChange then pcall(ns.onLootChange) end
+end
+
+-- Called when loot is recorded (Core.lua): if a player other than the winner holds the item,
+-- remember the trade and say so.
+function loot.noteAward(item, winner)
+  local state = dropState()
+  if not (state and winner) then return end
+  local wanted = nameOfLink(item)
+  for i = #state.items, 1, -1 do
+    local entry = state.items[i]
+    if nameOfLink(entry.link) == wanted and not entry.awarded then
+      entry.awarded, entry.started = winner, true
+      if entry.holder and entry.holder ~= winner then
+        table.insert(state.trades, { link = entry.link, holder = entry.holder, winner = winner, at = entry.at })
+        if entry.holder == ns.playerName() then
+          ns.message(string.format(L("Trade %s to %s (you can trade it for 2 hours after it dropped)."), entry.link, winner))
+        else
+          ns.message(string.format(L("%s holds %s: remind them to trade it to %s within 2 hours."), entry.holder, entry.link, winner))
+        end
+      end
+      if ns.onLootChange then pcall(ns.onLootChange) end
+      return
+    end
+  end
+end
+
+-- "Holder -> winner: item (1:23 left)" lines, for the Loot page and /guilded drops.
+function loot.tradesText()
+  local state = dropState()
+  local lines = {}
+  if not state then return "" end
+  local now = serverNow()
+  for _, trade in ipairs(state.trades) do
+    if not trade.done then
+      local left = math.max(0, TRADE_SECONDS - (now - (tonumber(trade.at) or now)))
+      table.insert(lines, string.format(L("Trade: %s -> %s: %s (%d:%02d left)"), trade.holder, trade.winner, nameOfLink(trade.link),
+        math.floor(left / 3600), math.floor(left / 60) % 60))
+    end
+  end
+  return table.concat(lines, "\n")
+end
+
+function loot.clearDrops()
+  local d = ns.getDb and ns.getDb()
+  if d then d.lootDrops = { items = {}, trades = {} } end
+  if ns.onLootChange then pcall(ns.onLootChange) end
+end
+
+-- Only an officer in a raid (or a test raid) notes drops.
+local function watching()
+  if not (ns.isOfficer and ns.isOfficer()) then return false end
+  if IsInRaid and IsInRaid() then return true end
+  local raid = ns.getActiveRaid and ns.getActiveRaid()
+  return raid ~= nil
+end
+
+function loot.onLootEvent(event, ...)
+  if not watching() then return end
+  if event == "ENCOUNTER_LOOT_RECEIVED" then
+    local encounterId, _, link, _, player = ...
+    if ns.isSecret and (ns.isSecret(link) or ns.isSecret(player)) then return end
+    local holder = ns.normalizeName and ns.normalizeName(player)
+    loot.recordDrop(link, holder, string.format("%s|%s|%s", tostring(encounterId), tostring(link), tostring(holder)))
+  elseif event == "LOOT_OPENED" then
+    if not (GetNumLootItems and GetLootSlotLink) then return end
+    for slot = 1, GetNumLootItems() do
+      local link = GetLootSlotLink(slot)
+      if link and not (ns.isSecret and ns.isSecret(link)) then
+        local source = GetLootSourceInfo and GetLootSourceInfo(slot)
+        local quality
+        if GetLootSlotInfo then quality = select(5, GetLootSlotInfo(slot)) end
+        loot.recordDrop(link, nil, string.format("%s|%s", tostring(source or slot), link), tonumber(quality))
+      end
+    end
+  end
 end
 
 -- ---------------------------------------------------------------------
@@ -353,6 +570,37 @@ ns.commandHandlers["core"] = function(args)
   if ns.onLootChange then pcall(ns.onLootChange) end
 end
 
+-- /guilded drops [number | clear]: the items that dropped, start one, or empty the list.
+ns.commandHandlers["drops"] = function(args)
+  if not officerOnly() then return end
+  local first = string.lower(args[1] or "")
+  if first == "clear" then loot.clearDrops() ns.message(L("Drop list cleared.")) return end
+  if tonumber(first) then loot.startDrop(tonumber(first)) return end
+  local list = loot.drops()
+  if #list == 0 then ns.message(L("No drops noted yet (epic items, while you are in a raid).")) end
+  for i, entry in ipairs(list) do
+    if i > 10 then break end
+    ns.message(string.format("%d. %s%s", i, entry.link, entry.holder and (" - " .. entry.holder) or ""))
+  end
+  local trades = loot.tradesText()
+  if trades ~= "" then ns.message(trades) end
+end
+
+do
+  local events = CreateFrame and CreateFrame("Frame")
+  if events then
+    for _, event in ipairs({ "LOOT_OPENED", "ENCOUNTER_LOOT_RECEIVED" }) do
+      if ns.compat and ns.compat.registerEvent then ns.compat.registerEvent(events, event)
+      else pcall(events.RegisterEvent, events, event) end
+    end
+    events:SetScript("OnEvent", function(_, event, ...)
+      local ok, err = pcall(loot.onLootEvent, event, ...)
+      if not ok and ns.logDiagnostic then ns.logDiagnostic("LUA_ERROR", "Guilded loot drops: " .. tostring(err)) end
+    end)
+  end
+end
+
 ns.commandHelp = ns.commandHelp or {}
+table.insert(ns.commandHelp, { officer = true, text = "/guilded drops [number | clear] - the epic items that dropped this raid (start one by its number) and trades still owed" })
 table.insert(ns.commandHelp, { officer = true, text = "/guilded drop <item link> [seconds] - start an item the way this raid core decides loot (bids, council, reserves or priority); /guilded core [name] - pick the raid core" })
 table.insert(ns.commandHelp, { officer = true, text = "/guilded price <item> <GP> - set an item's GP price in game (sent to Discord with the next upload)" })

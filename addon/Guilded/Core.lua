@@ -819,6 +819,8 @@ local function recordLoot(args)
   logEvent("LOOT", row)
   send("LOOT|" .. name .. "|" .. item .. "|" .. row.cost)
   message("Recorded loot: " .. item .. " -> " .. name .. ".")
+  -- Someone else holding the item (personal or group loot)? Remind them to trade it (Loot.lua).
+  if ns.loot and ns.loot.noteAward then pcall(ns.loot.noteAward, item, name) end
 end
 
 local function exportData()

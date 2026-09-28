@@ -148,6 +148,21 @@ describe("item tooltip data", () => {
     expect(s.run(`return ${core}.values["sulfuras hand of ragnaros"]`)).toBe("250");
     expect(s.run(`return tostring(${core}.values.bad)`)).toBe("nil");
     expect(s.run(`return string.format("%.2f", ${core}.players.Amy.pr)`)).toBe("3.00"); // 300 / (90 + 10)
+    // 4.6: no off-spec share or minimum EP in the file: 50% and none.
+    expect(s.run(`return ${core}.offspec .. ":" .. ${core}.minEp`)).toBe("50:0");
+  });
+
+  it("keeps a core's off-spec share and minimum EP (4.6), kept in range", () => {
+    const s = withSync();
+    s.run(`
+      GuildedStandings = { updatedAt = "2026-09-27T00:00:00Z", baseGp = 0, players = {} }
+      GuildedLoot = { default = "EPGP", cores = {
+        { id = "c1", name = "A", mode = "PRIORITY", offspec = 25, minEp = 100, players = {} },
+        { id = "c2", name = "B", mode = "PRIORITY", offspec = 250, minEp = -5, players = {} }
+      } }
+      fire_event("PLAYER_ENTERING_WORLD")
+    `);
+    expect(s.run(`local c = NS.getLootRules().cores; return c[1].offspec .. ":" .. c[1].minEp .. "|" .. c[2].offspec .. ":" .. c[2].minEp`)).toBe("25:100|100:0");
   });
 
   it("has no loot rules when the file carries none", () => {

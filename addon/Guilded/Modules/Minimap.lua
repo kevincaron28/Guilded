@@ -376,6 +376,24 @@ local function buildLootPage(page)
     end
   end), page, 0, -278)
   forModule("bidding", at(newLabel(page, "Pugs without the addon bid by whispering you a number.", "GameFontDisableSmall"), page, 116, -283))
+
+  -- Epic items seen dropping (Loot.lua): one click starts each the way this core decides loot.
+  at(newLabel(page, L("Dropped this raid"), "GameFontNormalSmall"), page, 0, -306)
+  ui.dropRows = {}
+  for i = 1, 4 do
+    local y = -322 - (i - 1) * 20
+    local row = {}
+    row.button = at(newButton(page, L("Drop"), 60, function()
+      if row.index then run("drops " .. row.index) end
+    end, 20), page, 0, y)
+    row.label = at(newLabel(page, "", "GameFontHighlightSmall"), page, 66, y - 4)
+    row.label:SetWidth(PAGE_WIDTH - 66)
+    ui.dropRows[i] = row
+  end
+  ui.dropEmpty = at(newLabel(page, "", "GameFontDisableSmall"), page, 0, -326)
+  ui.dropEmpty:SetWidth(PAGE_WIDTH)
+  ui.tradeText = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -404)
+  ui.tradeText:SetWidth(PAGE_WIDTH)
 end
 
 -- Guild calendar, both ways with Discord (Modules/Calendar.lua). Creating an event is done from
@@ -482,6 +500,11 @@ local function buildCouncilPage(page)
     run("council award")
     ui.councilItemBox:SetText("")
   end), page, 166, -134)
+  -- Another officer's council: vote for the selected Player (the host counts the votes).
+  ui.councilVote = at(newButton(page, "Vote for selected", 130, function()
+    local name = needPlayer()
+    if name then run("council vote " .. name) end
+  end), page, 292, -134)
 
   ui.councilStatus = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -170)
   ui.councilStatus:SetWidth(PAGE_WIDTH)
@@ -1138,7 +1161,15 @@ refresh = function()
 
     ui.gamesStatus:SetText(moduleOn("games") and ns.games and ns.games.statusText and ns.games.statusText() or "")
     if ui.councilStatus then
-      ui.councilStatus:SetText(moduleOn("council") and ns.council and ns.council.statusText and ns.council.statusText() or "")
+      local councilText = moduleOn("council") and ns.council and ns.council.statusText and ns.council.statusText() or ""
+      local voting = moduleOn("council") and ns.council and ns.council.voting
+      if voting and not ns.council.current then
+        local names = {}
+        for i, entry in ipairs(voting.candidates) do table.insert(names, string.format("%d. %s (%s)", i, entry.name, entry.tier)) end
+        councilText = string.format(L("Vote for %s: %s"), voting.item, table.concat(names, ", "))
+          .. (voting.mine and ("\n" .. string.format(L("Your vote: %s for %s."), voting.mine, voting.item)) or "")
+      end
+      ui.councilStatus:SetText(councilText)
       local session = moduleOn("council") and ns.council and ns.council.current
       if session and session.open and not ui.councilTickPending and C_Timer then
         ui.councilTickPending = true
@@ -1146,6 +1177,26 @@ refresh = function()
       end
     end
     ui.bidStatus:SetText(moduleOn("bidding") and ns.bidding and ns.bidding.statusText and ns.bidding.statusText() or "")
+    if ui.dropRows and ns.loot and ns.loot.drops then
+      local drops = ns.loot.drops()
+      for i, row in ipairs(ui.dropRows) do
+        local entry = drops[i]
+        row.index = entry and i or nil
+        if entry then
+          row.button:Show()
+          row.label:SetText(entry.link .. (entry.holder and ("  |cff999999" .. entry.holder .. "|r") or ""))
+        else
+          row.button:Hide()
+          row.label:SetText("")
+        end
+      end
+      ui.dropEmpty:SetText(#drops == 0 and L("Nothing yet: epic items that drop while you are in a raid show here.") or "")
+      ui.tradeText:SetText(ns.loot.tradesText and ns.loot.tradesText() or "")
+    end
+    if ui.councilVote then
+      local voting = ns.council and ns.council.voting
+      if voting then ui.councilVote:Show() else ui.councilVote:Hide() end
+    end
     -- Keep the bid countdown moving while bidding is open.
     local auction = moduleOn("bidding") and ns.bidding and ns.bidding.current
     if auction and auction.open and not ui.bidTickPending and C_Timer then
@@ -1305,6 +1356,7 @@ local function buildPanel()
   ns.onGamesChange = function() refresh() end
   ns.onBiddingChange = function() refresh() end
   ns.onCouncilChange = function() refresh() end
+  ns.onLootChange = function() ui.lastOfficer = nil; refresh() end
   ns.onReserveChange = function() refresh() end
   ns.onCalendarChange = function() refresh() end
   ns.onDungeonChange = function() refresh() end

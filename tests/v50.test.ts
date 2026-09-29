@@ -1,7 +1,13 @@
 import { ChannelType, Collection } from "discord.js";
 import { describe, expect, it } from "vitest";
 import { ARCHIVE_CATEGORY, archiveCoreDiscord, setupCoreDiscord } from "../src/services/core-channels.js";
-import { aiMessages, askAi, createAnswerLimiter, foldText, looksLikeQuestion, looksLikeScheduleQuestion, matchFaq, parseTriggers, scheduleAnswer, USER_COOLDOWN_MS } from "../src/services/answers.js";
+import {
+  activePollAnswer, aiMessages, applicationStatusAnswer, askAi, createAnswerLimiter, foldText, looksLikeActivePollQuestion,
+  looksLikeApplicationStatusQuestion, looksLikeBankRequestQuestion, looksLikeCraftRequestQuestion, looksLikeLootRulesQuestion,
+  looksLikeMyCharactersQuestion, looksLikeOpenGroupsQuestion, looksLikePersonalStandingQuestion, looksLikeQuestion,
+  looksLikeScheduleQuestion, lootRulesAnswer, matchFaq, myBankRequestAnswer, myCharactersAnswer, myCraftRequestAnswer,
+  openGroupsAnswer, parseTriggers, personalStandingAnswer, scheduleAnswer, USER_COOLDOWN_MS
+} from "../src/services/answers.js";
 import { buildGuildedReference } from "../src/services/guilded-reference.js";
 import { alertRecipients, dungeonLevelsFromTitle, fitsGroup, parseLevelRange, rolesFromTitle, type AlertGroup } from "../src/services/group-alerts.js";
 
@@ -283,6 +289,205 @@ describe("answer channel: raid-schedule fast path", () => {
     const answer = await scheduleAnswer(database as never, "g1", "America/New_York", "fr");
     expect(answer).toContain("Horaire de raid :");
     expect(answer).toContain("**Coeur Mardi** — Mardis 20h");
+  });
+});
+
+describe("answer channel: loot-rules fast path", () => {
+  it("recognizes loot-rules questions but not unrelated loot chatter", () => {
+    expect(looksLikeLootRulesQuestion("how does loot work")).toBe(true);
+    expect(looksLikeLootRulesQuestion("epgp rules?")).toBe(true);
+    expect(looksLikeLootRulesQuestion("comment fonctionne le loot")).toBe(true);
+    expect(looksLikeLootRulesQuestion("nice loot last night")).toBe(false);
+  });
+
+  it("returns null without guild settings", () => {
+    expect(lootRulesAnswer(null, "en")).toBeNull();
+  });
+
+  it("explains council loot with no numbers", () => {
+    const answer = lootRulesAnswer({ lootMode: "COUNCIL", baseGp: 0, epgpDecayPercent: 0, epgpDecayIntervalHours: 0 }, "en");
+    expect(answer).toBe("This guild uses council loot: officers decide who gets each drop. There is no bidding.");
+  });
+
+  it("explains the EPGP formula, adding decay only when it is enabled", () => {
+    const noDecay = lootRulesAnswer({ lootMode: "EPGP", baseGp: 100, epgpDecayPercent: 0, epgpDecayIntervalHours: 0 }, "en");
+    expect(noDecay).toContain("EP ÷ (GP + 100)");
+    expect(noDecay).not.toContain("decay");
+
+    const withDecay = lootRulesAnswer({ lootMode: "EPGP", baseGp: 100, epgpDecayPercent: 0.1, epgpDecayIntervalHours: 168 }, "en");
+    expect(withDecay).toContain("decay by 10% every 168h");
+    expect(withDecay).toContain("Check your own numbers with /epgp.");
+  });
+});
+
+describe("answer channel: open-groups fast path", () => {
+  function fakeGroupsDatabase(groups: { title: string; maxSize: number; signups: number }[] = []) {
+    return {
+      dungeonGroup: {
+        findMany: async () => groups.map((g) => ({ title: g.title, maxSize: g.maxSize, _count: { signups: g.signups } }))
+      }
+    };
+  }
+
+  it("recognizes open-groups questions", () => {
+    expect(looksLikeOpenGroupsQuestion("any groups open?")).toBe(true);
+    expect(looksLikeOpenGroupsQuestion("des groupes ouverts?")).toBe(true);
+    expect(looksLikeOpenGroupsQuestion("I joined a group yesterday")).toBe(false);
+  });
+
+  it("returns null when no group is open", async () => {
+    expect(await openGroupsAnswer(fakeGroupsDatabase() as never, "g1", "en")).toBeNull();
+  });
+
+  it("lists open groups with their fill", async () => {
+    const answer = await openGroupsAnswer(fakeGroupsDatabase([{ title: "Deadmines", maxSize: 5, signups: 3 }]) as never, "g1", "en");
+    expect(answer).toContain("Open groups:");
+    expect(answer).toContain("Deadmines (3/5)");
+  });
+});
+
+describe("answer channel: active-poll fast path", () => {
+  function fakePollDatabase(poll: { question: string; options: string[] } | null) {
+    return { poll: { findFirst: async () => poll } };
+  }
+
+  it("recognizes active-poll questions", () => {
+    expect(looksLikeActivePollQuestion("any poll open?")).toBe(true);
+    expect(looksLikeActivePollQuestion("un sondage en cours?")).toBe(true);
+    expect(looksLikeActivePollQuestion("I voted yesterday")).toBe(false);
+  });
+
+  it("returns null when no poll is open", async () => {
+    expect(await activePollAnswer(fakePollDatabase(null) as never, "g1", "en")).toBeNull();
+  });
+
+  it("shows the open poll's question and options", async () => {
+    const answer = await activePollAnswer(fakePollDatabase({ question: "Which raid next?", options: ["MC", "BWL"] }) as never, "g1", "en");
+    expect(answer).toBe("Open poll: Which raid next? (MC, BWL)");
+  });
+});
+
+describe("answer channel: personal EPGP fast path", () => {
+  function fakeEpgpDatabase(sum: { epAmount: number | null; gpAmount: number | null }) {
+    return { epgpTransaction: { aggregate: async () => ({ _sum: sum }) } };
+  }
+
+  it("recognizes personal-standing questions but not the general loot-rules ones", () => {
+    expect(looksLikePersonalStandingQuestion("what's my ep")).toBe(true);
+    expect(looksLikePersonalStandingQuestion("combien j'ai de gp")).toBe(true);
+    expect(looksLikePersonalStandingQuestion("how does epgp work")).toBe(false);
+  });
+
+  it("returns null when the member has never earned or spent any EP/GP", async () => {
+    const database = fakeEpgpDatabase({ epAmount: null, gpAmount: null });
+    expect(await personalStandingAnswer(database as never, "m1", 0, "en")).toBeNull();
+  });
+
+  it("reports EP, GP and PR", async () => {
+    const database = fakeEpgpDatabase({ epAmount: 100, gpAmount: 50 });
+    const answer = await personalStandingAnswer(database as never, "m1", 0, "en");
+    expect(answer).toBe("Your EPGP: EP 100, GP 50, PR 2.00.");
+  });
+});
+
+describe("answer channel: my-characters fast path", () => {
+  function fakeCharactersDatabase(characters: { name: string; className: string; level: number | null; isMain: boolean }[] = []) {
+    return { character: { findMany: async () => characters } };
+  }
+
+  it("recognizes my-characters questions", () => {
+    expect(looksLikeMyCharactersQuestion("what are my characters")).toBe(true);
+    expect(looksLikeMyCharactersQuestion("mes personnages?")).toBe(true);
+    expect(looksLikeMyCharactersQuestion("that character is strong")).toBe(false);
+  });
+
+  it("returns null when the member has none linked yet", async () => {
+    expect(await myCharactersAnswer(fakeCharactersDatabase() as never, "m1", "en")).toBeNull();
+  });
+
+  it("lists characters, marking the main", async () => {
+    const database = fakeCharactersDatabase([
+      { name: "Thrall", className: "Shaman", level: 60, isMain: true },
+      { name: "Thralt", className: "Warrior", level: 45, isMain: false }
+    ]);
+    const answer = await myCharactersAnswer(database as never, "m1", "en");
+    expect(answer).toBe("Your characters: Thrall (60 Shaman, main), Thralt (45 Warrior)");
+  });
+});
+
+describe("answer channel: application-status fast path", () => {
+  function fakeApplicationDatabase(application: { status: string; character: string } | null) {
+    return { application: { findFirst: async () => application } };
+  }
+
+  it("recognizes application-status questions", () => {
+    expect(looksLikeApplicationStatusQuestion("what's my application status")).toBe(true);
+    expect(looksLikeApplicationStatusQuestion("statut de ma candidature")).toBe(true);
+    expect(looksLikeApplicationStatusQuestion("that guild accepted new recruits")).toBe(false);
+  });
+
+  it("returns null when the member has never applied", async () => {
+    expect(await applicationStatusAnswer(fakeApplicationDatabase(null) as never, "m1", "en")).toBeNull();
+  });
+
+  it("reports each status in plain language", async () => {
+    const cases: [string, string][] = [
+      ["PENDING", "still pending review"], ["APPROVED", "approved"], ["TRIAL", "on trial"], ["REJECTED", "not accepted"]
+    ];
+    for (const [status, expected] of cases) {
+      const answer = await applicationStatusAnswer(fakeApplicationDatabase({ status, character: "Thrall" }) as never, "m1", "en");
+      expect(answer).toBe(`Your application for Thrall is ${expected}.`);
+    }
+  });
+});
+
+describe("answer channel: bank-request fast path", () => {
+  function fakeBankDatabase(request: { item: string; quantity: number; status: string; reply: string | null } | null) {
+    return { bankRequest: { findFirst: async () => request } };
+  }
+
+  it("recognizes bank-request questions", () => {
+    expect(looksLikeBankRequestQuestion("where's my bank request")).toBe(true);
+    expect(looksLikeBankRequestQuestion("ma demande de banque")).toBe(true);
+    expect(looksLikeBankRequestQuestion("the bank is closed")).toBe(false);
+  });
+
+  it("returns null when the member has never made one", async () => {
+    expect(await myBankRequestAnswer(fakeBankDatabase(null) as never, "m1", "en")).toBeNull();
+  });
+
+  it("reports the status, appending the officer's reply when present", async () => {
+    const database = fakeBankDatabase({ item: "Thorium Bar", quantity: 20, status: "APPROVED", reply: "Pick it up next raid." });
+    const answer = await myBankRequestAnswer(database as never, "m1", "en");
+    expect(answer).toBe("Your bank request for Thorium Bar x20 is approved, waiting to be handed out. Pick it up next raid.");
+  });
+
+  it("omits the trailing note when there is no reply", async () => {
+    const database = fakeBankDatabase({ item: "Thorium Bar", quantity: 20, status: "PENDING", reply: null });
+    const answer = await myBankRequestAnswer(database as never, "m1", "en");
+    expect(answer).toBe("Your bank request for Thorium Bar x20 is waiting for an officer.");
+  });
+});
+
+describe("answer channel: craft-request fast path", () => {
+  function fakeCraftDatabase(request: { item: string; quantity: number; status: string } | null) {
+    return { craftRequest: { findFirst: async () => request } };
+  }
+
+  it("recognizes craft-request questions", () => {
+    expect(looksLikeCraftRequestQuestion("is my craft request done")).toBe(true);
+    expect(looksLikeCraftRequestQuestion("ma commande d'artisanat")).toBe(true);
+    expect(looksLikeCraftRequestQuestion("that craft looks great")).toBe(false);
+  });
+
+  it("returns null when the member has never made one", async () => {
+    expect(await myCraftRequestAnswer(fakeCraftDatabase(null) as never, "m1", "en")).toBeNull();
+  });
+
+  it("reports the status", async () => {
+    const database = fakeCraftDatabase({ item: "Arcanite Rod", quantity: 1, status: "CLAIMED" });
+    const answer = await myCraftRequestAnswer(database as never, "m1", "en");
+    expect(answer).toBe("Your craft request for Arcanite Rod x1 is claimed by a crafter.");
   });
 });
 

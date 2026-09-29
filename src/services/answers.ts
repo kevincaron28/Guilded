@@ -6,12 +6,14 @@ import { tx, type Lang } from "../i18n.js";
 //   1. Officer-written answers (FaqEntry, /mod faq): a message matches an entry when it contains
 //      every word of one of its triggers ("raid time" matches "what time is the raid?"). The
 //      entry with the most specific (longest) matching trigger wins. Free, and always on.
-//   2. A raid-schedule answer straight from the database when the question is about raid timing
-//      ("raid night?", "quand est le raid ?"): free and always on, no AI needed.
-//   3. Optionally an AI answer when neither of the above matches: any OpenAI-compatible chat
-//      endpoint, set by AI_BASE_URL / AI_MODEL / AI_API_KEY (a free Gemini or Groq key, or a
-//      local Ollama on the server), switched on per guild with /mod faq ai. It only sees the
-//      guild facts below.
+//   2. Free, deterministic answers straight from the database when a question names its subject
+//      (raid timing, loot rules, open groups, an active poll, or — for a linked member — their
+//      own EPGP standing, characters, application status, or bank/craft requests). Always on, no
+//      AI needed: each `looksLikeX`/`xAnswer` pair below returns null when the guild or member has
+//      nothing to say yet, so the caller falls through to the next check.
+//   3. Optionally an AI answer when nothing above matches: any OpenAI-compatible chat endpoint,
+//      set by AI_BASE_URL / AI_MODEL / AI_API_KEY (a free Gemini or Groq key, or a local Ollama on
+//      the server), switched on per guild with /mod faq ai. It only sees the guild facts below.
 // Reading messages needs Discord's Message Content intent (MESSAGE_CONTENT_INTENT=true).
 
 export const MAX_TRIGGERS = 10;
@@ -100,6 +102,178 @@ export async function scheduleAnswer(
     for (const raid of raids) lines.push(`• ${raid.title}${raid.core ? ` [${raid.core.name}]` : ""} — ${when(raid.scheduledAt)}`);
   }
   return lines.join("\n").slice(0, MAX_ANSWER_LENGTH);
+}
+
+// "how does loot work", "epgp rules", "comment fonctionne le loot"…
+const LOOT_SUBJECT = /\b(loot|epgp|dkp)\b/;
+const LOOT_WORD = /\b(work|works|worked|rule|rules|system|mode|how|explain|explique|comment|regle|regles|fonctionne|fonctionnent)\b/;
+
+export function looksLikeLootRulesQuestion(text: string): boolean {
+  const folded = foldText(text);
+  return LOOT_SUBJECT.test(folded) && LOOT_WORD.test(folded);
+}
+
+// A free explanation of the guild's own loot rules, straight from its settings. Synchronous:
+// callers already have the settings row (from answerSettings/guildService.getSettings).
+export function lootRulesAnswer(
+  settings: { lootMode: string; baseGp: number; epgpDecayPercent: number; epgpDecayIntervalHours: number } | null, lang: Lang
+): string | null {
+  if (!settings) return null;
+  if (settings.lootMode === "COUNCIL") {
+    return tx(lang, "This guild uses council loot: officers decide who gets each drop. There is no bidding.");
+  }
+  const lines = [tx(lang, "This guild uses EPGP loot: priority (PR) is EP ÷ (GP + {baseGp}), and the highest PR wins each roll or bid.", { baseGp: settings.baseGp })];
+  if (settings.epgpDecayPercent > 0) {
+    lines.push(tx(lang, "EP and GP can decay by {percent}% every {hours}h (an officer runs this).", {
+      percent: (settings.epgpDecayPercent * 100).toFixed(0), hours: settings.epgpDecayIntervalHours
+    }));
+  }
+  lines.push(tx(lang, "Check your own numbers with /epgp."));
+  return lines.join("\n").slice(0, MAX_ANSWER_LENGTH);
+}
+
+// "any groups open?", "lfg?", "des groupes ouverts?"…
+const GROUP_SUBJECT = /\b(group|groups|lfg|dungeon|donjon|groupe|groupes)\b/;
+const GROUP_WORD = /\b(open|opens|looking|need|any|active|ouvert|ouverts|cherche|besoin)\b/;
+
+export function looksLikeOpenGroupsQuestion(text: string): boolean {
+  const folded = foldText(text);
+  return GROUP_SUBJECT.test(folded) && GROUP_WORD.test(folded);
+}
+
+// Every open (not yet started) dungeon/group-finder group, guild-wide. Returns null when none
+// are open right now.
+export async function openGroupsAnswer(database: PrismaClient, guildId: string, lang: Lang): Promise<string | null> {
+  const groups = await database.dungeonGroup.findMany({
+    where: { guildId, status: "OPEN" },
+    select: { title: true, maxSize: true, _count: { select: { signups: true } } },
+    orderBy: { createdAt: "desc" }, take: 5
+  });
+  if (groups.length === 0) return null;
+  const lines = [tx(lang, "Open groups:")];
+  for (const group of groups) lines.push(`• ${group.title} (${group._count.signups}/${group.maxSize})`);
+  return lines.join("\n").slice(0, MAX_ANSWER_LENGTH);
+}
+
+// "any poll?", "active vote", "un sondage en cours?"…
+const POLL_SUBJECT = /\b(poll|polls|vote|votes|voting|sondage|sondages)\b/;
+const POLL_WORD = /\b(open|active|current|any|ongoing|ouvert|actif|cours)\b/;
+
+export function looksLikeActivePollQuestion(text: string): boolean {
+  const folded = foldText(text);
+  return POLL_SUBJECT.test(folded) && POLL_WORD.test(folded);
+}
+
+// The most recent still-open poll, guild-wide. Returns null when nothing is open.
+export async function activePollAnswer(database: PrismaClient, guildId: string, lang: Lang): Promise<string | null> {
+  const poll = await database.poll.findFirst({ where: { guildId, closed: false }, orderBy: { createdAt: "desc" }, select: { question: true, options: true } });
+  if (!poll) return null;
+  return tx(lang, "Open poll: {question} ({options})", { question: poll.question, options: poll.options.join(", ") });
+}
+
+// "what's my ep", "my gp", "combien j'ai de ep"… narrow subject (ep/gp/pr are rare outside this
+// context) so a loose intent word ("my"/"i") stays safe.
+const EPGP_PERSONAL_SUBJECT = /\b(ep|gp|pr|epgp|dkp)\b/;
+const EPGP_PERSONAL_WORD = /\b(my|mine|i|me|combien|mon|ma|mes)\b/;
+
+export function looksLikePersonalStandingQuestion(text: string): boolean {
+  const folded = foldText(text);
+  return EPGP_PERSONAL_SUBJECT.test(folded) && EPGP_PERSONAL_WORD.test(folded);
+}
+
+// The asker's own EPGP standing. Returns null when they have never earned or spent any (nothing
+// to report, same threshold guildFacts uses for the AI answer).
+export async function personalStandingAnswer(database: PrismaClient, memberId: string, baseGp: number, lang: Lang): Promise<string | null> {
+  const standing = await createEpgpService(database).getStanding(memberId, baseGp);
+  if (standing.ep === 0 && standing.gp === 0) return null;
+  return tx(lang, "Your EPGP: EP {ep}, GP {gp}, PR {pr}.", { ep: standing.ep, gp: standing.gp, pr: standing.pr.toFixed(2) });
+}
+
+// "my characters", "which toons do I have", "mes personnages"…
+const CHARACTERS_SUBJECT = /\b(character|characters|char|chars|toon|toons|alt|alts|perso|personnage|personnages)\b/;
+const CHARACTERS_WORD = /\b(my|mine|i|me|which|what|combien|mon|ma|mes|quel|quels|quelle|quelles)\b/;
+
+export function looksLikeMyCharactersQuestion(text: string): boolean {
+  const folded = foldText(text);
+  return CHARACTERS_SUBJECT.test(folded) && CHARACTERS_WORD.test(folded);
+}
+
+// The asker's own linked characters. Returns null when they have none linked yet.
+export async function myCharactersAnswer(database: PrismaClient, memberId: string, lang: Lang): Promise<string | null> {
+  const characters = await database.character.findMany({
+    where: { memberId }, select: { name: true, className: true, level: true, isMain: true }, orderBy: [{ isMain: "desc" }, { name: "asc" }]
+  });
+  if (characters.length === 0) return null;
+  const list = characters.map((c) => `${c.name} (${c.level ?? "?"} ${c.className}${c.isMain ? `, ${tx(lang, "main")}` : ""})`).join(", ");
+  return tx(lang, "Your characters: {list}", { list });
+}
+
+// "my application", "did I get accepted", "ma candidature", "statut de ma demande"…
+const APPLICATION_SUBJECT = /\b(application|apply|applied|applying|candidature|postule|postuler)\b/;
+const APPLICATION_WORD = /\b(my|mine|i|me|status|accepted|rejected|approved|combien|mon|ma|mes|statut|accepte|refuse)\b/;
+
+export function looksLikeApplicationStatusQuestion(text: string): boolean {
+  const folded = foldText(text);
+  return APPLICATION_SUBJECT.test(folded) && APPLICATION_WORD.test(folded);
+}
+
+// The asker's most recent application. Returns null when they have never applied.
+export async function applicationStatusAnswer(database: PrismaClient, memberId: string, lang: Lang): Promise<string | null> {
+  const application = await database.application.findFirst({ where: { memberId }, orderBy: { createdAt: "desc" }, select: { status: true, character: true } });
+  if (!application) return null;
+  const statusText: Record<string, string> = {
+    PENDING: tx(lang, "still pending review"),
+    APPROVED: tx(lang, "approved"),
+    TRIAL: tx(lang, "on trial"),
+    REJECTED: tx(lang, "not accepted")
+  };
+  return tx(lang, "Your application for {character} is {status}.", { character: application.character, status: statusText[application.status] ?? application.status });
+}
+
+// "my bank request", "where's my bank item", "ma demande de banque"…
+const BANK_REQUEST_SUBJECT = /\bbank\b|\bbanque\b/;
+const BANK_REQUEST_WORD = /\b(my|mine|request|requests|status|where|demande)\b/;
+
+export function looksLikeBankRequestQuestion(text: string): boolean {
+  const folded = foldText(text);
+  return BANK_REQUEST_SUBJECT.test(folded) && BANK_REQUEST_WORD.test(folded);
+}
+
+// The asker's most recent guild bank request. Returns null when they have never made one.
+export async function myBankRequestAnswer(database: PrismaClient, memberId: string, lang: Lang): Promise<string | null> {
+  const request = await database.bankRequest.findFirst({ where: { memberId }, orderBy: { createdAt: "desc" }, select: { item: true, quantity: true, status: true, reply: true } });
+  if (!request) return null;
+  const statusText: Record<string, string> = {
+    PENDING: tx(lang, "waiting for an officer"),
+    APPROVED: tx(lang, "approved, waiting to be handed out"),
+    FULFILLED: tx(lang, "fulfilled"),
+    DENIED: tx(lang, "denied"),
+    CANCELLED: tx(lang, "cancelled")
+  };
+  const base = tx(lang, "Your bank request for {item} x{quantity} is {status}.", { item: request.item, quantity: request.quantity, status: statusText[request.status] ?? request.status });
+  return request.reply ? `${base} ${request.reply}` : base;
+}
+
+// "my craft request", "is my craft done", "ma commande d'artisanat"…
+const CRAFT_REQUEST_SUBJECT = /\bcraft(ed|ing)?\b|\bcommande\b/;
+const CRAFT_REQUEST_WORD = /\b(my|mine|request|requests|status|where|done|ready|order|orders|ma|mes|commande|commandes)\b/;
+
+export function looksLikeCraftRequestQuestion(text: string): boolean {
+  const folded = foldText(text);
+  return CRAFT_REQUEST_SUBJECT.test(folded) && CRAFT_REQUEST_WORD.test(folded);
+}
+
+// The asker's most recent craft request. Returns null when they have never made one.
+export async function myCraftRequestAnswer(database: PrismaClient, memberId: string, lang: Lang): Promise<string | null> {
+  const request = await database.craftRequest.findFirst({ where: { requesterId: memberId }, orderBy: { createdAt: "desc" }, select: { item: true, quantity: true, status: true } });
+  if (!request) return null;
+  const statusText: Record<string, string> = {
+    OPEN: tx(lang, "waiting for a crafter"),
+    CLAIMED: tx(lang, "claimed by a crafter"),
+    DONE: tx(lang, "done"),
+    CANCELLED: tx(lang, "cancelled")
+  };
+  return tx(lang, "Your craft request for {item} x{quantity} is {status}.", { item: request.item, quantity: request.quantity, status: statusText[request.status] ?? request.status });
 }
 
 // Remembers when each member was last answered, and how many AI answers each guild used today.

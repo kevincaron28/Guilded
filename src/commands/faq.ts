@@ -5,7 +5,14 @@ import {
 import { prisma } from "../database.js";
 import { config } from "../config.js";
 import { hasPermission } from "../permissions.js";
-import { aiMessages, askAi, createAnswerLimiter, guildFacts, looksLikeQuestion, looksLikeScheduleQuestion, matchFaq, MAX_ANSWER_LENGTH, parseTriggers, scheduleAnswer } from "../services/answers.js";
+import {
+  activePollAnswer, aiMessages, applicationStatusAnswer, askAi, createAnswerLimiter, guildFacts,
+  looksLikeActivePollQuestion, looksLikeApplicationStatusQuestion, looksLikeBankRequestQuestion,
+  looksLikeCraftRequestQuestion, looksLikeLootRulesQuestion, looksLikeMyCharactersQuestion,
+  looksLikeOpenGroupsQuestion, looksLikePersonalStandingQuestion, looksLikeQuestion, looksLikeScheduleQuestion,
+  lootRulesAnswer, matchFaq, MAX_ANSWER_LENGTH, myBankRequestAnswer, myCharactersAnswer, myCraftRequestAnswer,
+  openGroupsAnswer, parseTriggers, personalStandingAnswer, scheduleAnswer
+} from "../services/answers.js";
 import { BRAND } from "../brand.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { asLang, tx, type Lang } from "../i18n.js";
@@ -181,15 +188,45 @@ export async function answerMessage(message: Message, productReference: string):
     await prisma.faqEntry.update({ where: { id: match.id }, data: { uses: { increment: 1 } } });
     return;
   }
+  // Everything below is free and deterministic (no AI needed): one settings row and, only if a
+  // personal question actually comes up, one member lookup, shared across every check.
+  const settings = await guildService.getSettings(where.guildId);
+  const lang = asLang(settings?.language);
+  let member: { id: string } | null | undefined;
+  const getMember = async () => {
+    if (member === undefined) member = await prisma.member.findFirst({ where: { guildId: where.guildId, discordUserId: message.author.id }, select: { id: true } });
+    return member;
+  };
+  const tryAnswer = async (answer: string | null) => {
+    if (answer === null || !limiter.allowUser(userKey)) return false;
+    await reply(answer);
+    return true;
+  };
   // Raid-timing questions ("raid night?") get a free, deterministic answer straight from the
-  // database (core schedules and next planned raids), whether or not AI is configured.
-  if (looksLikeScheduleQuestion(text)) {
-    const scheduled = await scheduleAnswer(prisma, where.guildId, where.timeZone, asLang((await guildService.getSettings(where.guildId))?.language));
-    if (scheduled) {
-      if (!limiter.allowUser(userKey)) return;
-      await reply(scheduled);
-      return;
-    }
+  // database (core schedules and next planned raids).
+  if (looksLikeScheduleQuestion(text) && await tryAnswer(await scheduleAnswer(prisma, where.guildId, where.timeZone, lang))) return;
+  if (looksLikeLootRulesQuestion(text) && await tryAnswer(lootRulesAnswer(settings, lang))) return;
+  if (looksLikeOpenGroupsQuestion(text) && await tryAnswer(await openGroupsAnswer(prisma, where.guildId, lang))) return;
+  if (looksLikeActivePollQuestion(text) && await tryAnswer(await activePollAnswer(prisma, where.guildId, lang))) return;
+  if (looksLikePersonalStandingQuestion(text)) {
+    const asker = await getMember();
+    if (asker && await tryAnswer(await personalStandingAnswer(prisma, asker.id, settings?.baseGp ?? 0, lang))) return;
+  }
+  if (looksLikeMyCharactersQuestion(text)) {
+    const asker = await getMember();
+    if (asker && await tryAnswer(await myCharactersAnswer(prisma, asker.id, lang))) return;
+  }
+  if (looksLikeApplicationStatusQuestion(text)) {
+    const asker = await getMember();
+    if (asker && await tryAnswer(await applicationStatusAnswer(prisma, asker.id, lang))) return;
+  }
+  if (looksLikeBankRequestQuestion(text)) {
+    const asker = await getMember();
+    if (asker && await tryAnswer(await myBankRequestAnswer(prisma, asker.id, lang))) return;
+  }
+  if (looksLikeCraftRequestQuestion(text)) {
+    const asker = await getMember();
+    if (asker && await tryAnswer(await myCraftRequestAnswer(prisma, asker.id, lang))) return;
   }
   if (!where.ai || !config.AI_BASE_URL || !config.AI_MODEL) return;
   const botId = message.client.user.id;
@@ -200,8 +237,8 @@ export async function answerMessage(message: Message, productReference: string):
   } catch (error) {
     console.warn("Could not send typing indicator for answer channel", error);
   }
-  const member = await prisma.member.findFirst({ where: { guildId: where.guildId, discordUserId: message.author.id }, select: { id: true } });
-  const facts = await guildFacts(prisma, where.guildId, member?.id ?? null, where.timeZone);
+  const asker = await getMember();
+  const facts = await guildFacts(prisma, where.guildId, asker?.id ?? null, where.timeZone);
   const question = text.replace(new RegExp(`<@!?${botId}>`, "g"), "").trim();
   const result = await askAi(
     { baseUrl: config.AI_BASE_URL, model: config.AI_MODEL, apiKey: config.AI_API_KEY },
@@ -214,8 +251,7 @@ export async function answerMessage(message: Message, productReference: string):
     return;
   }
   console.error("Answer channel AI request failed", { guildId: where.guildId, failure: result.failure });
-  const settings = await guildService.getSettings(where.guildId);
-  await reply(tx(asLang(settings?.language), "Sorry, I couldn't get an AI answer right now. Please try again later or ask an officer."));
+  await reply(tx(lang, "Sorry, I couldn't get an AI answer right now. Please try again later or ask an officer."));
 }
 
 // /mod faq channel and ai change what the listener reads: forget the cached copy.

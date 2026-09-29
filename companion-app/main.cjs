@@ -134,7 +134,8 @@ function createTray() {
       label: "Start with Windows", type: "checkbox", checked: app.getLoginItemSettings().openAtLogin,
       click: (item) => { setAutostart(item.checked); }
     },
-    { label: "Quit (stops sending data)", click: () => { quitting = true; app.quit(); } }
+    { label: "Quit (stops sending data)", click: () => { quitting = true; app.quit(); } },
+    { label: "Remove all data and quit...", click: () => { void removeAllDataAndQuit(); } }
   ]));
   rebuild();
   tray.on("right-click", rebuild);
@@ -143,6 +144,42 @@ function createTray() {
 function setAutostart(on) {
   app.setLoginItemSettings({ openAtLogin: !!on, args: ["--hidden"] });
   return app.getLoginItemSettings().openAtLogin;
+}
+
+// "Clean my computer": stop watching, turn off Start with Windows (so the
+// registry Run key does not outlive this install), delete the saved config
+// (bot address, upload token, companion credential) and Electron's cache
+// under userData, then quit. Uninstalling normally (Add/Remove Programs)
+// does the same via the nsis "deleteAppDataOnUninstall" option and
+// installer.nsh, for anyone who uninstalls without opening the app first.
+async function removeAllDataAndQuit() {
+  const choice = dialog.showMessageBoxSync(win ?? undefined, {
+    type: "warning",
+    buttons: ["Cancel", "Remove and quit"],
+    defaultId: 0,
+    cancelId: 0,
+    title: "Remove all data?",
+    message: "Stop the companion and remove its saved data from this PC?",
+    detail: "This turns off Start with Windows and deletes the saved bot address, token and Discord link. Nothing in World of Warcraft is touched. Set it up again any time by reopening Guilded Companion."
+  });
+  if (choice !== 1) return false;
+  setAutostart(false);
+  await engine.stop();
+  quitting = true;
+  // config.json (the token and companion credential) first and on its own:
+  // it has no open handle, unlike Chromium's cache files below, which can
+  // still be locked while this process is exiting and would otherwise abort
+  // the whole recursive delete before reaching it.
+  try {
+    fs.rmSync(configFile(), { force: true });
+  } catch (error) {
+    pushLog({ time: new Date().toISOString(), level: "error", message: `Could not remove the saved settings file: ${engineModules.describeError(error)}` });
+  }
+  try {
+    fs.rmSync(app.getPath("userData"), { recursive: true, force: true });
+  } catch { /* best effort: leftover cache files, not sensitive */ }
+  app.quit();
+  return true;
 }
 
 app.on("second-instance", showWindow);
@@ -223,3 +260,4 @@ ipcMain.handle("open-addon-folder", () => {
   if (target) shell.showItemInFolder(target);
   return !!target;
 });
+ipcMain.handle("remove-data", () => removeAllDataAndQuit());

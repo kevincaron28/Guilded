@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld("companion", {
   refreshStandings: () => ipcRenderer.invoke("refresh-standings"),
   setAutostart: (on) => ipcRenderer.invoke("set-autostart", on),
   openAddonFolder: () => ipcRenderer.invoke("open-addon-folder"),
+  removeData: () => ipcRenderer.invoke("remove-data"),
   onState: (callback) => ipcRenderer.on("state", (_event, state) => callback(state)),
   onLog: (callback) => ipcRenderer.on("log", (_event, entry) => callback(entry))
 });

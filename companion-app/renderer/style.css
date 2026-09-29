@@ -73,3 +73,9 @@ details label { color: var(--text); }
 .log time { color: var(--muted); flex: none; }
 .log .ok { color: var(--ok); } .log .error { color: var(--bad); } .log .warn { color: var(--warn); }
 .log .empty { color: var(--muted); }
+
+.danger { max-width: 640px; margin-top: 24px; border: 1px solid var(--bad); border-radius: 12px; padding: 14px 18px; }
+.danger h2 { color: var(--bad); }
+.danger p { color: var(--muted); font-size: 13px; line-height: 1.5; margin: 0 0 12px; }
+.danger-btn { background: transparent; border-color: var(--bad); color: var(--bad); }
+.danger-btn:hover { background: var(--bad); color: var(--text); border-color: var(--bad); }

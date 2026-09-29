@@ -102,6 +102,7 @@ $("form").addEventListener("submit", async (event) => {
 });
 
 $("autostart").addEventListener("change", (event) => api.setAutostart(event.target.checked));
+$("btnRemoveData").addEventListener("click", () => api.removeData());
 
 $("btnUpload").addEventListener("click", async () => { $("btnUpload").disabled = true; await api.uploadNow(); setTimeout(() => { $("btnUpload").disabled = false; }, 2000); });
 $("btnStandings").addEventListener("click", async () => { $("btnStandings").disabled = true; await api.refreshStandings(); $("btnStandings").disabled = false; });

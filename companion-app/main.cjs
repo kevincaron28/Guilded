@@ -184,15 +184,28 @@ async function removeAllDataAndQuit() {
 
 app.on("second-instance", showWindow);
 
+// A startup failure must be loud: otherwise the process lives on with no
+// window and no tray, holding the single-instance lock, so every later launch
+// quits silently and the installer reports the app as "already running".
+function failStartup(error) {
+  dialog.showErrorBox("Guilded Companion could not start", `${error?.stack ?? error}\n\nReinstall Guilded Companion. If this keeps happening, send this message to your guild's officers.`);
+  app.exit(1);
+}
+
 app.whenReady().then(async () => {
-  engineModules = await loadEngineModules();
-  loadConfig();
-  engine = engineModules.createEngine(config, {
-    onLog: (entry) => pushLog(entry),
-    onState
-  });
-  createWindow();
-  createTray();
+  try {
+    engineModules = await loadEngineModules();
+    loadConfig();
+    engine = engineModules.createEngine(config, {
+      onLog: (entry) => pushLog(entry),
+      onState
+    });
+    createWindow();
+    createTray();
+  } catch (error) {
+    failStartup(error);
+    return;
+  }
   // First run: start with Windows by default, since the whole point is that it just works.
   if (app.isPackaged && !config.autostartAsked) {
     config.autostartAsked = true;

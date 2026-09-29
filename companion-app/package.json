@@ -39,6 +39,14 @@
           "lua-export.mjs",
           "standings.mjs"
         ]
+      },
+      {
+        "from": "node_modules/luaparse",
+        "to": "engine/node_modules/luaparse",
+        "filter": [
+          "package.json",
+          "luaparse.js"
+        ]
       }
     ],
     "win": {
@@ -54,5 +62,8 @@
       "deleteAppDataOnUninstall": true,
       "include": "installer.nsh"
     }
+  },
+  "dependencies": {
+    "luaparse": "^0.3.1"
   }
 }

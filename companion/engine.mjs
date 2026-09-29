@@ -3,6 +3,7 @@ import { watch } from "node:fs";
 import { basename, dirname } from "node:path";
 import { readAddonExport } from "./lua-export.mjs";
 import { writeStandings } from "./standings.mjs";
+import { credentialHeaders, checkUrl, requestJson } from "./request.mjs";
 
 // The companion's working parts, shared by the command-line watcher
 // (watcher.mjs) and the desktop app (companion-app/). It watches the addon's
@@ -15,7 +16,8 @@ export function validateConfig(config) {
   if (!config.watchFile) problems.push("The saved-data file (Guilded.lua) is not set.");
   if (!config.uploadUrl) problems.push("The bot address is not set.");
   if (!config.guildDiscordId) problems.push("The Discord server ID is not set.");
-  if (typeof config.uploadToken !== "string" || config.uploadToken.length < 32) problems.push("The upload token must be at least 32 characters.");
+  if (typeof config.companionCredential !== "string" || config.companionCredential.length < 32) problems.push("Link this companion with /character pair before starting.");
+  if (config.uploadUrl) { try { checkUrl(config.uploadUrl); } catch (error) { problems.push(error.message); } }
   return problems;
 }
 
@@ -24,10 +26,9 @@ export async function testConnection(config) {
   try {
     const url = new URL("/api/v1/standings", config.uploadUrl);
     url.searchParams.set("guild", config.guildDiscordId);
-    const response = await fetch(url, { headers: { authorization: `Bearer ${config.uploadToken}` }, signal: AbortSignal.timeout(10_000) });
-    const body = await response.json().catch(() => ({}));
+    const { response, body } = await requestJson(url, { headers: credentialHeaders(config) });
     if (response.ok) return { ok: true, message: `Connected. The bot knows ${body.standings?.length ?? 0} character(s).` };
-    if (response.status === 401 || response.status === 403) return { ok: false, message: "The bot refused the token. Check COMPANION_UPLOAD_TOKEN on the bot." };
+    if (response.status === 401 || response.status === 403) return { ok: false, message: "The bot refused the pairing. Run /character pair and link this companion again." };
     return { ok: false, message: `The bot answered ${response.status}: ${describeApiError(response.status, body.error)}` };
   } catch (error) {
     return { ok: false, message: describeError(error) };
@@ -35,18 +36,17 @@ export async function testConnection(config) {
 }
 
 export async function pairAccount(config) {
-  if (!config.uploadUrl || !config.guildDiscordId || !config.uploadToken || typeof config.pairingCode !== "string" || !config.pairingCode.trim()) {
-    return { ok: false, message: "Enter the bot address, upload token, Discord server ID and code from /character pair first." };
+  if (!config.uploadUrl || !config.guildDiscordId || typeof config.pairingCode !== "string" || !config.pairingCode.trim()) {
+    return { ok: false, message: "Enter the bot address, Discord server ID and code from /character pair first." };
   }
   try {
     const url = new URL("/api/v1/addon-pairings", config.uploadUrl);
-    const response = await fetch(url, {
+    const { response, body } = await requestJson(url, {
       method: "POST",
-      headers: { authorization: `Bearer ${config.uploadToken}`, "content-type": "application/json" },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({ guildDiscordId: config.guildDiscordId, code: config.pairingCode }),
       signal: AbortSignal.timeout(10_000)
     });
-    const body = await response.json().catch(() => ({}));
     if (!response.ok) return { ok: false, message: `Pairing failed (${response.status}): ${describeApiError(response.status, body.error)}` };
     if (typeof body.companionCredential !== "string" || body.companionCredential.length < 32) {
       return { ok: false, message: "The bot response did not include a valid companion credential." };
@@ -81,17 +81,33 @@ export function createEngine(initialConfig, hooks = {}) {
   let watcher;
   let uploadTimer;
   let standingsTimer;
+  let controller = new AbortController();
+  let uploading = false;
+  let refreshing = false;
+  let queued = false;
+  let generation = 0;
+  let failures = 0;
+  const active = new Set();
   const state = {
     running: false,
     watching: null,
     lastUpload: null,     // { at, message }
     lastStandings: null,  // { at, message }
     lastError: null,      // { at, message }
+    botVersion: null,
+    addonVersion: null,
+    pendingUpload: false,
+    retryAt: null,
+    uploadError: null,
+    standingsError: null,
     uploads: 0
   };
 
   const snapshot = () => JSON.parse(JSON.stringify(state));
   const log = (level, message) => {
+    for (const secret of [config.companionCredential, config.uploadToken, config.pairingCode]) {
+      if (typeof secret === "string" && secret.length >= 6) message = message.replaceAll(secret, "[redacted]");
+    }
     const at = new Date().toISOString();
     if (level === "error") state.lastError = { at, message };
     hooks.onLog?.({ time: at, level, message });
@@ -99,24 +115,32 @@ export function createEngine(initialConfig, hooks = {}) {
   };
 
   async function upload() {
-    const exported = config.watchFile.toLowerCase().endsWith(".lua")
-      ? await readAddonExport(config.watchFile, config.realm)
-      : JSON.parse(await readFile(config.watchFile, "utf8"));
+    if (!state.running) return;
+    if (uploading) { queued = true; return; }
+    uploading = true;
+    queued = false;
+    const epoch = generation;
+    const current = { ...config };
+    state.pendingUpload = true;
+    state.retryAt = null;
+    try {
+    const exported = current.watchFile.toLowerCase().endsWith(".lua")
+      ? await readAddonExport(current.watchFile, current.realm)
+      : JSON.parse(await readFile(current.watchFile, "utf8"));
     // The saved data belongs to one WoW guild; do not send an alt's other guild.
-    if (config.wowGuild && exported.wowGuild && exported.wowGuild !== config.wowGuild) {
-      log("warn", `Skipped: the saved data belongs to "${exported.wowGuild}", this companion is for "${config.wowGuild}".`);
+    if (current.wowGuild && exported.wowGuild && exported.wowGuild !== current.wowGuild) {
+      state.pendingUpload = false;
+      log("warn", `Skipped: the saved data belongs to "${exported.wowGuild}", this companion is for "${current.wowGuild}".`);
       return;
     }
-    const response = await fetch(config.uploadUrl, {
+    const { response, body } = await requestJson(current.uploadUrl, {
       method: "POST",
-      headers: {
-        authorization: `Bearer ${config.uploadToken}`,
-        "content-type": "application/json",
-        ...(config.companionCredential ? { "x-companion-credential": config.companionCredential } : {})
-      },
-      body: JSON.stringify({ guildDiscordId: config.guildDiscordId, export: exported })
-    });
-    const body = await response.json().catch(() => ({}));
+      headers: { ...credentialHeaders(current), "content-type": "application/json" },
+      body: JSON.stringify({ guildDiscordId: current.guildDiscordId, export: exported })
+    }, controller.signal);
+    if (epoch !== generation) return;
+    state.botVersion = body.botVersion ?? state.botVersion;
+    state.addonVersion = exported.addonVersion ?? state.addonVersion;
     if (response.ok) {
       const message = body.autoApplied
         ? `Uploaded and applied automatically (${body.autoApplied.epgp} ledger entries, ${body.autoApplied.discovered} new characters).${pairingNote(body.pairedCharacterStatus)}`
@@ -124,13 +148,34 @@ export function createEngine(initialConfig, hooks = {}) {
       state.lastUpload = { at: new Date().toISOString(), message };
       state.uploads += 1;
       log("ok", message);
-      setTimeout(() => void refreshStandings(), 5000);
+      void refreshStandings();
     } else if (response.status === 409) {
-      const message = `Nothing new since the last upload.${pairingNote(body.pairedCharacterStatus)}`;
+      const message = body.status === "PREVIEWED"
+        ? `Upload is waiting for officer review: /import apply id:${body.importId}.`
+        : `Nothing new since the last upload.${pairingNote(body.pairedCharacterStatus)}`;
       state.lastUpload = { at: new Date().toISOString(), message };
       log("info", message);
     } else {
-      log("error", `Upload failed (${response.status}): ${describeApiError(response.status, body.error)}`);
+      const error = new Error(`Upload failed (${response.status}): ${describeApiError(response.status, body.error)}`);
+      error.retryable = response.status === 429 || response.status >= 500;
+      throw error;
+    }
+      state.uploadError = null;
+      failures = 0;
+      state.pendingUpload = false;
+    } catch (error) {
+      if (epoch !== generation) return;
+      state.uploadError = describeError(error);
+      log("error", `Upload failed: ${state.uploadError}`);
+      if (error.retryable !== false && state.running) {
+        const delay = Math.min(300_000, 5_000 * 2 ** Math.min(failures++, 6));
+        state.retryAt = new Date(Date.now() + delay).toISOString();
+        scheduleUpload(delay);
+      }
+    } finally {
+      uploading = false;
+      if (epoch === generation && state.running && queued) scheduleUpload(0);
+      hooks.onState?.(snapshot());
     }
   }
 
@@ -144,18 +189,28 @@ export function createEngine(initialConfig, hooks = {}) {
 
   function scheduleUpload(delay = 1000) {
     clearTimeout(uploadTimer);
-    uploadTimer = setTimeout(() => upload().catch((error) => log("error", `Upload failed: ${describeError(error)}`)), delay);
+    uploadTimer = setTimeout(() => track(upload()), delay);
   }
 
+  function track(promise) { active.add(promise); void promise.finally(() => active.delete(promise)); }
+
   async function refreshStandings() {
+    if (!state.running || refreshing) return;
+    refreshing = true;
+    const epoch = generation;
     try {
-      const { path, count, unchanged } = await writeStandings(config);
+      const { path, count, unchanged, botVersion } = await writeStandings({ ...config }, controller.signal);
+      if (epoch !== generation) return;
+      state.botVersion = botVersion ?? state.botVersion;
+      state.standingsError = null;
       state.lastStandings = { at: new Date().toISOString(), message: unchanged ? `Standings already up to date (${count} characters).` : `Wrote standings for ${count} character(s).` };
       if (!unchanged) log("ok", `Wrote EPGP standings for ${count} character(s) to ${path}.`);
       else hooks.onState?.(snapshot());
     } catch (error) {
-      log("error", `Standings update failed: ${describeError(error)}`);
-    }
+      if (epoch !== generation) return;
+      state.standingsError = describeError(error);
+      log("error", `Standings update failed: ${state.standingsError}`);
+    } finally { refreshing = false; hooks.onState?.(snapshot()); }
   }
 
   async function startWatching() {
@@ -172,27 +227,34 @@ export function createEngine(initialConfig, hooks = {}) {
     watcher = watch(dirname(config.watchFile), (_event, filename) => {
       if (filename && filename.toString().toLowerCase() === name) scheduleUpload();
     });
-    watcher.on("error", (error) => log("error", `File watch stopped: ${error.message}`));
+    watcher.on("error", (error) => { state.running = false; log("error", `File watch stopped: ${error.message}. Restart the companion.`); });
     state.running = true;
     state.watching = config.watchFile;
     log("info", `Watching ${config.watchFile}`);
     await refreshStandings();
-    standingsTimer = setInterval(refreshStandings, Math.max(1, Number(config.standingsIntervalMinutes) || 2) * 60 * 1000);
+    scheduleUpload(0);
+    standingsTimer = setInterval(() => track(refreshStandings()), Math.max(1, Number(config.standingsIntervalMinutes) || 2) * 60 * 1000);
     return true;
   }
 
   return {
     state: snapshot,
-    async start() { await this.stop(); return startWatching(); },
+    async start() { await this.stop(); controller = new AbortController(); return startWatching(); },
     async stop() {
-      clearTimeout(uploadTimer); clearInterval(standingsTimer);
-      watcher?.close(); watcher = undefined;
       const was = state.running;
-      state.running = false; state.watching = null;
+      state.running = false;
+      watcher?.close(); watcher = undefined;
+      generation++;
+      controller.abort();
+      clearTimeout(uploadTimer); clearInterval(standingsTimer);
+      queued = false;
+      await Promise.allSettled([...active]);
+      state.pendingUpload = false; state.retryAt = null;
+      state.watching = null;
       if (was) log("info", "Stopped."); else hooks.onState?.(snapshot());
     },
     // Apply new settings and restart.
-    async configure(next) { config = next; return this.start(); },
+    async configure(next) { await this.stop(); config = next; return this.start(); },
     uploadNow() { scheduleUpload(0); },
     refreshStandings
   };

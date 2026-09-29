@@ -12,13 +12,13 @@ about 1 GB free disk; the installer lands in `dist/companion/`).
 The command-line watcher below does the same job without a window; both use
 `companion/engine.mjs`.
 
-This lightweight companion watches a normalized addon export file and sends new exports to the bot. It runs on the same Windows computer as WoW and the bot.
+This lightweight companion watches a normalized addon export file and sends new exports to the bot. It runs on the same Windows computer as WoW; the bot may run on Oracle.
 
 ## One-time setup
 
 1. Copy `companion.config.example.json` to `companion.config.json`.
-2. Put the same `COMPANION_UPLOAD_TOKEN` in the bot `.env` and the companion config.
-3. Start the bot.
+2. Set the bot URL, server ID and saved-data path. Run `/character pair` and enter its code as `pairingCode`.
+3. Ensure the existing bot is running (do not start a second instance).
 4. Run `node companion/watcher.mjs`.
 
 To link this companion to your own Discord account, run `/character pair` in
@@ -26,7 +26,7 @@ Discord and put the one-time code in `pairingCode` in `companion.config.json`.
 Start the watcher once; it exchanges the code, clears it, and stores the
 companion credential in that config. Future uploads link the exporter's own
 character immediately; the rest of the guild import still waits for an officer
-unless auto-import is enabled. The desktop app has the same flow in Settings.
+unless auto-import is enabled. Personal uploads contain only owned character data and auto-apply. The desktop app has the same flow in Settings.
 
 The watcher can read the addon's Lua SavedVariables directly. It also accepts
 a normalized JSON export matching the bot import contract:

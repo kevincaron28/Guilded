@@ -19,7 +19,10 @@
     "prisma:generate": "node scripts/with-env.mjs prisma generate",
     "prisma:migrate": "node scripts/with-env.mjs prisma migrate dev",
     "db:update": "node scripts/with-env.mjs prisma migrate deploy && node scripts/with-env.mjs prisma generate",
-    "companion:setup": "node scripts/setup-companion.mjs"
+    "companion:setup": "node scripts/setup-companion.mjs",
+    "test:postgres": "node scripts/test-postgres.mjs",
+    "release:ledger-check": "node scripts/with-env.mjs node scripts/ledger-preflight.mjs",
+    "release:prepare": "node scripts/release-prepare.mjs"
   },
   "dependencies": {
     "@neon/config": "^1.7.3",
@@ -34,10 +37,14 @@
     "@types/node": "^24.5.2",
     "eslint": "^9.36.0",
     "fengari": "^0.1.5",
+    "fflate": "^0.8.3",
     "prisma": "^6.16.2",
     "tsx": "^4.19.2",
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.44.0",
-    "vitest": "^3.2.4"
+    "vitest": "^4.1.11"
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.0"
   }
 }

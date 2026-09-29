@@ -1,5 +1,7 @@
 # Getting started: the bot, the addon and the companion
 
+**Updating an existing install? Follow [V5_0_RELEASE_HANDOFF.md](V5_0_RELEASE_HANDOFF.md).**
+
 For the officer who sets Guilded up for a guild. About 30 minutes. You can stop after step 3 and use
 the addon alone; the bot and the companion are optional.
 
@@ -26,8 +28,7 @@ the addon alone; the bot and the companion are optional.
 1. Install [Node.js 22+](https://nodejs.org). Create a free database at [neon.tech](https://neon.tech)
    and copy its connection string.
 2. In the project folder run `npm install`, then create `.env.local` from `.env.example` and fill in
-   `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_GUILD_ID` (your server ID), `DATABASE_URL` and a long random
-   `COMPANION_UPLOAD_TOKEN`.
+   `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_GUILD_ID` (your server ID), `DATABASE_URL`. Companions pair separately; no shared upload token is required.
 3. Double-click **`start-bot.bat`**. It updates the database, starts the companion app and keeps the bot
    running (it restarts by itself if it crashes). Leave its window open.
 4. In Discord, run **`/report ping`**: the bot should answer.
@@ -51,8 +52,8 @@ Then:
 On the officer's PC that plays WoW (a Windows installer, `Guilded Companion Setup.exe`, does the same without Node.js; Windows may warn about an unknown publisher because it is not code-signed):
 1. Run **`start-companion-app.bat`** (it is also started by `start-bot.bat`). Look for the gold coin near the
    clock; Windows may hide it behind the **^** arrow.
-2. Settings: **Find it** (it looks for `WTF\...\SavedVariables\Guilded.lua`), enter the server ID and the same
-   upload token, press **Test connection**, then **Save and start**. The coin turns green.
+2. Settings: **Find it** (it looks for `WTF\...\SavedVariables\Guilded.lua`), enter the server ID and a
+   pairing code from `/character pair`, choose **Link Discord account**, then **Save and start**. The coin turns green.
    **Verify the server ID before saving**: Discord Settings → Advanced → Developer Mode (if not already
    on), then right-click your server's icon and **Copy Server ID** again, and paste that exact value into
    the field — don't type it from memory or reuse an ID from another server or an old setup. If the bot is

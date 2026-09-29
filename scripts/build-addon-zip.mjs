@@ -1,41 +1,27 @@
-import { readFileSync, mkdtempSync, cpSync, rmSync, existsSync, mkdirSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, readdirSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { spawnSync } from "node:child_process";
-
+import { zipSync, unzipSync } from "fflate";
 const addonDir = "addon/Guilded";
 const toc = readFileSync(join(addonDir, "Guilded.toc"), "utf8");
-const versionMatch = toc.match(/^## Version:\s*(\S+)/m);
-if (!versionMatch) throw new Error("Could not find ## Version in Guilded.toc");
-const version = versionMatch[1];
-
-const staging = mkdtempSync(join(tmpdir(), "guilded-zip-"));
-const stagingAddon = join(staging, "Guilded");
-
-// validate-addon.mjs is a dev-only sanity check (see the file itself); it has
-// no place in what guild members download and run in WoW.
-cpSync(addonDir, stagingAddon, {
-  recursive: true,
-  filter: (src) => !src.replace(/\\/g, "/").endsWith("/validate-addon.mjs")
-});
-
-const distDir = "dist";
-if (!existsSync(distDir)) mkdirSync(distDir);
-const zipName = `Guilded-v${version}.zip`;
-const zipPath = join(distDir, zipName);
-if (existsSync(zipPath)) rmSync(zipPath);
-
-console.log(`Building ${zipPath} from addon version ${version}...`);
-// Windows PowerShell 5.1's Compress-Archive writes backslash paths, which
-// CurseForge and non-Windows unzip tools mishandle. Windows' own bsdtar writes
-// a normal zip with forward slashes.
-const tar = join(process.env.SystemRoot ?? "C:/Windows", "System32", "tar.exe");
-const result = spawnSync(existsSync(tar) ? tar : "tar", ["-a", "-c", "-f", zipPath, "-C", staging, "Guilded"], { stdio: "inherit" });
-
-rmSync(staging, { recursive: true, force: true });
-
-if (result.status !== 0) {
-  console.error("Zip build failed.");
-  process.exit(1);
+const version = toc.match(/^## Version:\s*(\S+)/m)?.[1];
+if (!version) throw new Error("Missing addon version.");
+const files = {};
+function collect(dir, relative = "") {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const child = relative ? `${relative}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) collect(join(dir, entry.name), child);
+    else if (entry.isFile() && entry.name !== "validate-addon.mjs") files[`Guilded/${child}`] = new Uint8Array(readFileSync(join(dir, entry.name)));
+  }
 }
-console.log(`Built ${zipPath}. Attach this to a GitHub release tagged v${version}.`);
+collect(addonDir);
+// Never accidentally package an officer's locally generated data.
+files["Guilded/Standings.lua"] = new TextEncoder().encode("-- Replaced by your paired companion. No guild data is shipped.\nGuildedStandings = { updatedAt = nil, baseGp = 0, players = {} }\nGuildedLedgerAccepted = {}\nGuildedItems = nil\nGuildedLoot = nil\nGuildedNextRaid = nil\nGuildedRaids = nil\nGuildedDungeonAccepted = {}\nGuildedDungeonBoard = nil\n");
+const zip = zipSync(files, { level: 9 });
+const unpacked = unzipSync(zip);
+for (const line of toc.split(/\r?\n/).map((v) => v.trim()).filter((v) => v.endsWith(".lua"))) {
+  if (!unpacked[`Guilded/${line.replace(/\\/g, "/")}`]) throw new Error(`Missing packaged file: ${line}`);
+}
+mkdirSync("dist", { recursive: true });
+const target = `dist/Guilded-v${version}.zip`;
+writeFileSync(target, zip);
+console.log(`Built and verified ${target} (${Object.keys(unpacked).length} files).`);

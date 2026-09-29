@@ -210,7 +210,11 @@ local function receiveChunk(text, sender)
     end
   end
   local d = db()
-  if d then d.standings = { updatedAt = updatedAt, baseGp = incoming.baseGp, players = players, from = sender } end
+  local pending = false
+  for _, account in pairs(d and d.epgp or {}) do
+    for _, entry in ipairs(account.ledger or {}) do if entry.pending then pending = true end end
+  end
+  if d and not pending then d.standings = { updatedAt = updatedAt, baseGp = incoming.baseGp, players = players, from = sender } end
   incoming = nil
 end
 
@@ -238,7 +242,7 @@ local function adoptLootRules(file, updatedAt)
         local name = ns.normalizeName(row.name)
         if name then
           local ep, gp = tonumber(row.ep) or 0, tonumber(row.gp) or 0
-          players[name] = { ep = ep, gp = gp, pr = priority(ep, gp, baseGp) }
+          players[name] = { ep = ep, gp = gp, pr = priority(ep, gp, baseGp), account = row.account ~= "" and row.account or nil }
         end
       end
       -- Who is in the core, by in-game character (5.0.x): a backup character is its own row.
@@ -278,7 +282,13 @@ local function adoptFileStandings()
     local name = ns.normalizeName(row.name)
     if name then
       local ep, gp = tonumber(row.ep) or 0, tonumber(row.gp) or 0
-      players[name] = { ep = ep, gp = gp, pr = priority(ep, gp, baseGp) }
+      players[name] = { ep = ep, gp = gp, pr = priority(ep, gp, baseGp), account = row.account ~= "" and row.account or nil }
+    end
+  end
+  d.acceptedLedgerRefs = type(GuildedLedgerAccepted) == "table" and GuildedLedgerAccepted or {}
+  for _, account in pairs(d.epgp or {}) do
+    for _, entry in ipairs(account.ledger or {}) do
+      if entry.id and d.acceptedLedgerRefs["addon:qg:" .. entry.id] then entry.pending = nil end
     end
   end
   d.standings = { updatedAt = file.updatedAt, baseGp = baseGp, players = players, from = "companion" }
@@ -356,6 +366,10 @@ function ns.publishLocalStandings()
     end
   end
   if count == 0 then return false, "Nothing to share: the ledger on this PC is empty." end
+  d.localPublishedRefs = {}
+  for _, account in pairs(d.epgp or {}) do
+    for _, entry in ipairs(account.ledger or {}) do if entry.id then d.localPublishedRefs[entry.id] = true end end
+  end
   d.standings = { updatedAt = date("!%Y-%m-%dT%H:%M:%S.000Z", ns.util.serverTime()), baseGp = baseGp, players = players, from = ns.playerName() .. " (in game)" }
   lastShareAt = 0
   shareStandings()
@@ -421,7 +435,11 @@ end
 ns.peerVersions = function() return peerVersions end
 ns.commandHelp = ns.commandHelp or {}
 table.insert(ns.commandHelp, "/guilded peers - which guildmates run which addon version (this session)")
-ns.getStanding = lookup
+ns.getStanding = function(name)
+  local row = lookup(name)
+  if row and ns.effectiveStanding then return ns.effectiveStanding(name) end
+  return row
+end
 ns.getStandingsUpdatedAt = function()
   local s = standings()
   return s and s.updatedAt

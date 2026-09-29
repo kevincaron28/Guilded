@@ -1,5 +1,15 @@
 # Changelog
 
+## 5.0.0 stabilization (unreleased)
+
+- Fixed stale loot priority, separate core pool charges, and guild-wide price fallback.
+- Protected concurrent imports with database event uniqueness and transaction locking.
+- Required guild-scoped companion pairing and server-side officer authorization.
+- Added companion startup recovery, retries, cancellation, atomic standings writes and version diagnostics.
+- Updated Electron/build dependencies and test tooling; added CI, PostgreSQL restore rehearsal and cross-platform ZIP builds.
+- Added `docs/V5_0_RELEASE_HANDOFF.md` for the local Claude update process.
+
+
 ## 5.0.0
 
 **Upgrading**

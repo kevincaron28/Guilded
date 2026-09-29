@@ -16,7 +16,7 @@ const done: SetupFacts = {
   epgpConfigured: false,
   remindersOn: true,
   weeklyReportOn: false,
-  companionTokenSet: false,
+  companionPaired: false,
   linkedCharacters: 0
 };
 

@@ -1,0 +1,117 @@
+# Guilded 5.0 stabilization — local Claude update handoff
+
+Read this first, then `CLAUDE.md`. This supersedes the deployment order in older handoffs.
+Keep version **5.0.0**: it is not publicly released. Do not claim the live server, Windows install,
+or real-game checks have passed just because unit tests pass.
+
+## User's requested outcome
+
+The owner asked for all review fixes and a one-prompt local update from Claude in VS Code.
+Implement/review/build work is authorized. The local agent should do the mechanical update steps
+using the owner's existing configuration, without asking them to type commands. Never reset a dirty
+checkout, discard changes, print secrets, start a second live bot, or invent credentials. Public
+CurseForge/GitHub release publication is a separate release gate, after the manual checks below.
+
+## What changed
+
+- Loot: guild-price fallback works without a selected core. New local ledger events keep `coreId`.
+  Effective EP/GP overlays unacknowledged events on a consistent server snapshot, including alts
+  sharing an account. GP deductions use the current synced balance and the selected pool.
+- Protocol **2**: standings include accepted ledger references and account identities. The bot reads
+  standings and acknowledgements in one repeatable-read transaction; companion writes atomically.
+  Old ledger entries without `coreId` remain in the guild pool. Do not guess historic core assignments.
+- Import concurrency: per-guild PostgreSQL transaction advisory lock plus unique `(guildId, sourceRef)`
+  indexes on both ledgers. Migration `20261021090000_ledger_event_uniqueness` is additive and refuses
+  existing duplicate references. It NEVER deletes point history to make the migration pass.
+- Access: the shared `COMPANION_UPLOAD_TOKEN` no longer authorizes uploads or standings. Each companion
+  needs its existing personal credential or a new `/character pair` code. Pairing codes do not need
+  a shared server secret. Every request verifies active guild membership and fresh Discord roles.
+  Officers may upload guild state; other accounts upload only owned character readiness, attunements,
+  recipes and cooldowns. Personal uploads auto-apply; officer uploads obey `autoApplyImports`.
+  Member dungeon/peer-guild uploads are deliberately excluded from personal scope; an officer's
+  companion imports guild dungeon reports. Do not re-enable arbitrary guild writes for members.
+- Companion: startup reconciliation, bounded network timeouts, single upload in flight, coalescing,
+  exponential retry (5 seconds to 5 minutes), cancellation on stop/reconfigure, no retries for 401,
+  HTTPS except loopback, no credential-bearing redirects, separate upload/standings health, versions.
+- Dependencies: Electron 44 + builder 26, patched Vitest 4; deepmerge-ts 8 override for Prisma CLI's
+  transitive advisory. Prisma remains on 6 (no unrelated ORM-major migration). Recheck the override
+  on future Prisma upgrades and remove it when upstream supplies the patched dependency.
+- ZIP packaging uses fflate on Windows/Linux and always substitutes empty Standings.lua.
+- GitHub Actions: unit/type/lint/Lua checks, security audit, local PostgreSQL migration/concurrency/
+  restore rehearsal, addon ZIP, Windows installer artifacts. No deployment secrets required.
+
+## Local agent: execute in this order
+
+1. Inspect git status and current branch. Fetch origin. If this work is on a PR, inspect its diff and
+   require the `Guilded quality` jobs to pass; merge it using the owner's GitHub access, then fast-forward
+   local main. Preserve unrelated local edits (stop with an exact conflict report if necessary).
+2. Use Node 24 LTS for the bot/build. Run `npm ci` and `npm ci --prefix companion-app`, then
+   `npm run release:prepare`. This validates versions, generates Prisma, runs checks/audits, builds
+   `dist/Guilded-v5.0.0.zip`, and on Windows builds `dist/companion/Guilded Companion Setup 5.0.0.exe`.
+   Do not use `npm audit fix --force` or bump the product version as housekeeping.
+3. Confirm CI's PostgreSQL job is green. To reproduce locally, start a DISPOSABLE localhost
+   PostgreSQL 16 database named `guilded_release_test`, install PostgreSQL client tools, set
+   `TEST_DATABASE_URL` to that database, and run `npm run test:postgres`. This command overwrites
+   ONLY that named localhost test database during restore. Never point it at production/Neon.
+4. Before production migration, run `npm run release:ledger-check` against the existing server
+   environment (read-only). Save a real PostgreSQL custom-format backup (`pg_dump`) on the server
+   outside the git checkout, mode 600, and verify `pg_restore --list` can read it. Record its path
+   and current deployed commit WITHOUT printing connection strings. Confirm provider restore
+   availability as an additional recovery path; do not assume the account's retention period.
+   If duplicates are reported, STOP the deployment and explain which event IDs need accounting
+   review. Do not remove/rename source references or delete records to evade the gate.
+5. On the owner's Windows PC only, use the EXISTING configured Oracle SSH key/host from
+   `redeploy-oracle.bat`. Cloud agents do not have that key. Run `redeploy-oracle.bat --yes` after
+   the gates above. It requires clean main equal to origin/main. Do not launch `npm run dev` or
+   `start-bot.bat`; Oracle already runs the bot. Server startup applies pending migrations.
+   Check the deployed commit, systemd status, and `/health` (requires Discord ready, protocol 2),
+   then `/report ping` using the owner's existing Discord access if available.
+6. Quit the old companion. Locate the actual WoW install and current Guilded folder from existing
+   companion config; do not guess among multiple accounts. Back up `WTF/.../SavedVariables/Guilded.lua`
+   and the old addon folder. Extract the new ZIP into `Interface/AddOns`. Do not delete SavedVariables.
+   Run the new companion installer with `/S` for the existing per-user install, then reopen the app.
+   Preserve its config and personal credential. Verify tray/window and version 5.0.0.
+7. Existing paired companions should keep working. An unpaired/revoked companion must be linked with
+   `/character pair` from its actual Discord account. If local Claude cannot operate that authenticated
+   account, this one-time identity step needs the user; do not impersonate the account or distribute
+   the old shared token. Link OFFICER accounts on PCs that upload guild ledgers.
+8. Run `/setup start` > Update bot messages per guild using the user's existing authorized Discord
+   session if available. Message Content Intent remains OPTIONAL; enable it in the Developer Portal
+   before setting `MESSAGE_CONTENT_INTENT=true`, and only if the answer-channel feature is wanted.
+9. Finish the real-client checklist below. Produce a short completion report with commit, versions,
+   successful checks, backup location, deployment status and any exact remaining human actions.
+   Do not claim a polished public release until those checks pass.
+
+## Required real-client release checks (not replaceable by mocks)
+
+- Windows: clean install AND upgrade; tray/window, startup, pairing, restart with unsent data,
+  offline bot recovery, revoked pairing, uninstall and data cleanup. Test on a non-developer PC.
+- Two players: award two items consecutively without reload; priority changes after the first.
+  Reload/upload both companions together; points do not double. Verify a GP deduction.
+- Core A has its own pool; Core B and guild pool stay unchanged after A's awards. Test an alt sharing
+  the account and changing cores. Confirm each historical migration preserves existing points.
+- Ordinary member: personal upload works, arbitrary ledger/other-guild access does not. Demote the
+  officer/revoke its credential and verify the next request loses privilege.
+- Verify every 5.0 item in `RELEASE_CHECKLIST.md`: permissions, bidding/council/reserves, roster/backup
+  invites, map, group board, raid tools, recipes, French UI, and real WoW API behavior.
+- One real raid night with officer diagnostics and accurate totals before promoting Beta to Release.
+
+## Rollback
+
+Keep the previous code/artifacts and the verified database backup before updating. Stop the service
+before restoring a database. Do not run old and new bots simultaneously. The new indexes are additive,
+so a code rollback normally does not require a database rollback, but old companions/new bot are not
+an authentication-compatible mix: roll the bot and companion together if rollback is necessary.
+Do not undo a migration with `migrate reset` or edit applied SQL. If a migration failed, inspect
+`prisma migrate status`; only mark it rolled back after verifying its partial effects were removed.
+The server updater refuses detached/non-main checkouts; its normal update path is not a rollback tool.
+A local agent can deploy a reviewed revert on main, or restore a saved application directory while
+keeping secrets and backups. Database restore discards later writes and requires an explicit choice.
+
+## Prompt for the owner
+
+“Read CLAUDE.md and docs/V5_0_RELEASE_HANDOFF.md. Complete the Guilded 5.0 stabilization update on my
+local Windows setup and existing Oracle deployment, following the gates and preserving my data.
+Inspect and merge the stabilization PR only after CI passes, sync main, build, back up, update the
+bot/addon/companion, and verify what you can. Do not start a second bot or publish the public release.
+Tell me only the exact identity or in-game checks that require me.”

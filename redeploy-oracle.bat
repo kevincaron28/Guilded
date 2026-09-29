@@ -41,7 +41,7 @@ echo This updates the live bot (guildedqc.duckdns.org) and restarts it.
 echo The database applies migrations during startup.
 echo Expect about 15 seconds where the bot is offline.
 echo.
-pause
+if /I not "%~1"=="--yes" pause
 
 ssh -i "%USERPROFILE%\.ssh\guilded_oracle" -o StrictHostKeyChecking=accept-new ubuntu@168.138.70.194 "cd ~/guilded && sudo bash deploy/update.sh"
 
@@ -55,7 +55,7 @@ if errorlevel 1 (
   echo  Check Discord with /report ping to confirm.
   echo ============================================================
 )
-pause
+if /I not "%~1"=="--yes" pause
 exit /b 0
 
 :preflight_failed
@@ -68,5 +68,5 @@ echo.
 echo ============================================================
 echo  Redeploy stopped or failed. Scroll up for the reason.
 echo ============================================================
-pause
+if /I not "%~1"=="--yes" pause
 exit /b 1

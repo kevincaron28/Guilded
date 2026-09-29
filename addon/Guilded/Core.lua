@@ -77,6 +77,7 @@ local function ensureDb()
   GuildedDB = GuildedDB or {}
   db = GuildedDB
   db.version = DB_VERSION
+  db.addonVersion = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(addonName, "Version")) or (GetAddOnMetadata and GetAddOnMetadata(addonName, "Version")) or "5.0.0"
   -- Fill in any setting missing from an older saved file instead of only
   -- creating settings when the whole table is absent.
   db.settings = db.settings or {}
@@ -372,6 +373,40 @@ local function nextLedgerId()
   return string.format("%s-%d-%d", playerName(), util.serverTime(), db.ledgerSeq)
 end
 
+-- The downloaded ledger is a baseline. Only new, unacknowledged local entries are
+-- overlaid, so loot priority changes immediately and does not double on the next sync.
+function ns.effectiveStanding(rawName, coreId)
+  local name = normalizeName(rawName)
+  local s = db and db.standings
+  local players, baseGp = s and s.players, s and s.baseGp or 0
+  if coreId then
+    players = nil
+    for _, core in ipairs(db and db.lootRules and db.lootRules.cores or {}) do
+      if core.id == coreId then players, baseGp = core.players, core.baseGp or 0; break end
+    end
+  end
+  local baseline = players and players[name]
+  local ep, gp = baseline and baseline.ep or 0, baseline and baseline.gp or 0
+  local accepted = db and db.acceptedLedgerRefs or {}
+  for character, account in pairs(db and db.epgp or {}) do
+    local other = players and players[character]
+    local sameAccount = character == name or (baseline and baseline.account and other and other.account == baseline.account)
+    if sameAccount then
+      for _, entry in ipairs(account.ledger or {}) do
+        local samePool = (entry.coreId or "") == (coreId or "")
+        local includedInLocalPublish = not coreId and s and s.from == playerName() and db.localPublishedRefs and db.localPublishedRefs[entry.id]
+        if samePool and (not baseline or (entry.pending and not accepted["addon:qg:" .. tostring(entry.id)] and not includedInLocalPublish)) then
+          ep, gp = ep + (entry.epAmount or 0), gp + (entry.gpAmount or 0)
+        end
+      end
+      -- Old standalone data can contain balances without a ledger.
+      if not baseline and not coreId and #(account.ledger or {}) == 0 then ep, gp = ep + (account.ep or 0), gp + (account.gp or 0) end
+    end
+  end
+  local denominator = gp + math.max(0, baseGp)
+  return { ep = ep, gp = gp, pr = denominator > 0 and ep / denominator or 0 }
+end
+
 local function changeEpgp(rawName, rawAmount, reason, kind, quiet)
   local spec = EPGP_KINDS[kind]
   local name = normalizeName(rawName)
@@ -384,16 +419,21 @@ local function changeEpgp(rawName, rawAmount, reason, kind, quiet)
   if not reason or string.len(reason) < 3 then reason = "Manual adjustment" .. (reason and reason ~= "" and (": " .. reason) or "") end
   db.epgp[name] = db.epgp[name] or { ep = 0, gp = 0, ledger = {} }
   local account = db.epgp[name]
+  local core = ns.loot and ns.loot.core()
+  local coreId = core and core.pool and core.id or nil
+  local standing = ns.effectiveStanding(name, coreId)
   if spec.gp < 0 then
     -- GP never goes below zero: deduct at most what the player has.
-    if account.gp <= 0 then message(name .. " has no GP to deduct."); return end
-    amount = math.min(amount, account.gp)
+    if standing.gp <= 0 then message(name .. " has no GP to deduct."); return end
+    amount = math.min(amount, standing.gp)
   end
   local epAmount, gpAmount = spec.ep * amount, spec.gp * amount
-  account.ep = account.ep + epAmount
-  account.gp = account.gp + gpAmount
+  if not coreId then
+    account.ep = account.ep + epAmount
+    account.gp = account.gp + gpAmount
+  end
   table.insert(account.ledger, {
-    id = nextLedgerId(), epAmount = epAmount, gpAmount = gpAmount, type = spec.type or kind, reason = reason,
+    id = nextLedgerId(), pending = true, coreId = coreId, epAmount = epAmount, gpAmount = gpAmount, type = spec.type or kind, reason = reason,
     at = now(), by = playerName(), raid = activeRaid and activeRaid.id
   })
   logEvent(spec.type or kind, { name = name, epAmount = epAmount, gpAmount = gpAmount, reason = reason })

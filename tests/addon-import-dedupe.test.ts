@@ -17,6 +17,7 @@ function fakeDatabase() {
   imports.set("import-2", { id: "import-2", status: "PREVIEWED", payload: payload(["qg:a", "qg:b"]) });
 
   const tx = {
+    $executeRaw: async () => 0,
     addonImport: {
       findFirst: async ({ where }: { where: { id: string } }) => imports.get(where.id) ?? null,
       update: async ({ where, data }: { where: { id: string }; data: { status: string } }) => {

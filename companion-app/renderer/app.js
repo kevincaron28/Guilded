@@ -23,11 +23,12 @@ let lastSnapshot;
 function renderState(snapshot) {
   lastSnapshot = snapshot;
   const { state, health } = snapshot;
+  $("versions").textContent = `Addon: ${state.addonVersion ?? "awaiting upload"} · Bot: ${state.botVersion ?? "not connected"}`;
   const banner = $("banner");
   banner.className = `banner ${health.level}`;
   $("bannerTitle").textContent = { ok: "All good", error: "Needs attention", setup: "Setup needed" }[health.level];
   $("bannerText").textContent = health.level === "setup"
-    ? "Open Settings and fill in the bot address, token and Discord server ID."
+    ? "Open Settings and link this companion with /character pair."
     : health.text;
   $("setupBadge").hidden = health.level !== "setup";
   $("setupHint").hidden = health.level !== "setup";
@@ -55,15 +56,9 @@ function addLog(entry) {
   while (list.children.length > 300) list.lastChild.remove();
 }
 
-const fields = ["uploadUrl", "uploadToken", "guildDiscordId", "pairingCode", "watchFile", "realm", "wowGuild", "standingsIntervalMinutes"];
+const fields = ["uploadUrl", "guildDiscordId", "pairingCode", "watchFile", "realm", "wowGuild", "standingsIntervalMinutes"];
 const readForm = () => Object.fromEntries(fields.map((id) => [id, $(id).value.trim()]));
 const say = (text, ok) => { const el = $("formResult"); el.textContent = text; el.className = `result ${ok ? "ok" : "bad"}`; };
-
-$("btnShow").addEventListener("click", () => {
-  const input = $("uploadToken");
-  input.type = input.type === "password" ? "text" : "password";
-  $("btnShow").textContent = input.type === "password" ? "Show" : "Hide";
-});
 
 $("btnBrowse").addEventListener("click", async () => {
   const file = await api.browseFile();

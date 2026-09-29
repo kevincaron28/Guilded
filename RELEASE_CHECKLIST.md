@@ -1,5 +1,7 @@
 # Release checklist: Guilded 5.0.0
 
+**Read `docs/V5_0_RELEASE_HANDOFF.md` first for the current update order and stabilization gates.**
+
 4.0.0 was never published; 4.5.0, 4.6.0 and 5.0.0 are unpublished too, so the first public release carries all of it. What each changed, file by file: `docs/V5_0_HANDOFF.md`, `docs/V4_6_HANDOFF.md`, `docs/V4_5_HANDOFF.md`.
 
 `[x]` done, `[ ]` left. Anything that fails: send a screenshot or the `/guilded diag` output.
@@ -19,11 +21,11 @@
 - [x] **3 to 5 screenshots** in game: Home page, Raid or Loot page, Me page (and a Discord signup post with the core roster).
 - [x] **Logo:** regenerated with the u; ready to upload to CurseForge.
 - [x] **Discord developer portal:** bot's name set to Guilded and its avatar set to the logo.
-- [ ] **Rebuild for 4.5.0:** `npm run addon:zip` (makes `dist/Guilded-v4.5.0.zip`; the 4.0.0 zip is out of date), and rebuild the companion installer (4.5.0: it sends alts, in-game prices and dungeon reporters). Then `npm run db:update` (two new columns) and redeploy the bot (`redeploy-oracle.bat`). The bot posts a one-time "updated to v4.5.0" notice in each guild's bot-guide channel on its first start.
-- [ ] **CurseForge:** upload `dist/Guilded-v4.5.0.zip` as **Beta**, paste the changelog from `docs/CURSEFORGE_COPYPASTE.md`. Coming from 3.x, the bot needs `npm run db:update` once (say so in the description).
-- [x] **GitHub** stays private (no source URL on the listing). Repository is already named `Guilded`.
-- [ ] **Companion installer** rebuilt: `dist\companion\Guilded Companion Setup 4.5.0.exe`.
-- [ ] After a day with no bug reports: switch the file from Beta to **Release**.
+- [ ] **Build and update 5.0.0:** follow `docs/V5_0_RELEASE_HANDOFF.md`, including CI, `npm run release:prepare`, ledger preflight, backup, migration, bot deployment and companion installation.
+- [ ] **CurseForge:** upload `dist/Guilded-v5.0.0.zip` as **Beta**, paste the changelog from `docs/CURSEFORGE_COPYPASTE.md`. Coming from 3.x, the bot needs `npm run db:update` once (say so in the description).
+- [x] **GitHub** repository is public: `kevincaron28/Guilded`. Listing and security documentation must reflect that.
+- [ ] **Companion installer** rebuilt: `dist\companion\Guilded Companion Setup 5.0.0.exe`.
+- [ ] After all stabilization gates and a real raid night pass: switch the file from Beta to **Release**.
 
 ## Still to test with a second player or a party
 

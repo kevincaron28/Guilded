@@ -261,7 +261,7 @@ export const FR_TEXT: Record<string, string> = {
   "Weekly guild report": "Rapport hebdomadaire de la guilde",
   "Optional: turn it on in /setup step 7.": "Facultatif : activez-le à l'étape 7 de /setup.",
   "Companion link to the WoW addon": "Lien du compagnon avec l'addon WoW",
-  "Needed only to sync the addon: put COMPANION_UPLOAD_TOKEN in .env.local (and the same value in companion.config.json), then restart the bot.": "Nécessaire seulement pour synchroniser l'addon : mettez COMPANION_UPLOAD_TOKEN dans .env.local (et la même valeur dans companion.config.json), puis redémarrez le bot.",
+  "Needed only to sync the addon: run /character pair and link the code in Companion Settings.": "Pour synchroniser l'addon : lancez /character pair et entrez le code dans les paramètres du compagnon.",
   "Characters linked": "Personnages liés",
   "Everyone runs /character pair once (or /character add) so addon data and EPGP match them.": "Chacun lance /character pair une fois (ou /character add) pour que les données de l'addon et l'EPGP leur correspondent.",
 

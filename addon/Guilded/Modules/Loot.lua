@@ -151,7 +151,7 @@ function loot.priceOf(item)
   local byName = itemKey(name)
   if byName and not string.match(item, "^%s*%d+%s*$") then table.insert(keys, byName) end
   if id then table.insert(keys, "#" .. id) end
-  for _, source in ipairs({ core and core.values, r and r.values }) do
+  for _, source in ipairs({ (core and core.values) or {}, (r and r.values) or {} }) do
     for _, key in ipairs(keys) do
       if source and source[key] then return source[key] end
     end
@@ -162,6 +162,7 @@ end
 -- PR in the pool the core uses: its own pool when it has one, else the guild pool.
 function loot.prFor(name)
   local core = loot.core()
+  if ns.effectiveStanding then return ns.effectiveStanding(name, core and core.pool and core.id or nil).pr end
   if core and core.pool then
     local row = core.players and core.players[name]
     return row and row.pr or 0
@@ -173,6 +174,7 @@ end
 -- EP in the pool the core uses (for the core's minimum EP).
 function loot.epFor(name)
   local core = loot.core()
+  if ns.effectiveStanding then return ns.effectiveStanding(name, core and core.pool and core.id or nil).ep end
   if core and core.pool then
     local row = core.players and core.players[name]
     return row and row.ep or 0

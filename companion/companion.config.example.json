@@ -4,7 +4,6 @@
   "wowGuild": "",
   "uploadUrl": "https://guildedqc.duckdns.org/api/v1/addon-imports",
   "guildDiscordId": "YOUR_DISCORD_GUILD_ID",
-  "uploadToken": "replace-with-a-random-32-character-token",
   "pairingCode": "",
   "companionCredential": ""
 }

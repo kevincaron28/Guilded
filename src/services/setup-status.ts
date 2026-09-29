@@ -21,7 +21,7 @@ export interface SetupFacts {
   epgpConfigured: boolean;
   remindersOn: boolean;
   weeklyReportOn: boolean;
-  companionTokenSet: boolean;
+  companionPaired: boolean;
   linkedCharacters: number;
   // The pinned group finder message is the pre-4.6 button, not the current menu.
   dungeonSignupGuideOutdated?: boolean;
@@ -107,9 +107,9 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en"): SetupCheck[] 
     { label: T("Weekly guild report"), ok: facts.weeklyReportOn, optional: true, fix: T("Optional: turn it on in /setup step 7.") },
     {
       label: T("Companion link to the WoW addon"),
-      ok: facts.companionTokenSet,
+      ok: facts.companionPaired,
       optional: true,
-      fix: T("Needed only to sync the addon: put COMPANION_UPLOAD_TOKEN in .env.local (and the same value in companion.config.json), then restart the bot.")
+      fix: T("Needed only to sync the addon: run /character pair and link the code in Companion Settings.")
     },
     {
       label: T("Characters linked"),

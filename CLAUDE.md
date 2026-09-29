@@ -8,7 +8,7 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Open work: read `docs/V5_0_HANDOFF.md` first.** Version 5.0.0 is the current version (4.5.0, 4.6.0 and
+**Open work: read `docs/V5_0_RELEASE_HANDOFF.md` first**, then `docs/V5_0_HANDOFF.md` for feature history. Version 5.0.0 is the current version (4.5.0, 4.6.0 and
 5.0.0 are unpublished; 4.0.0 was never published): every 5.0 change with its files, the protocol /
 saved-data / database changes, and what is left (db:update, rebuild the addon zip and companion
 installer, redeploy, "Update bot messages" in `/setup`, the optional Message Content Intent for the
@@ -89,14 +89,19 @@ when one is configured for local dev. Consequences:
   (`tests/lua/`, fengari — fully offline, no external dependencies), not by
   starting a live bot.
 
-## Deployment happens on the maintainer's PC, not here
+## Deployment and the local Claude handoff
 
-The live bot runs on an Oracle Cloud VM, updated by `redeploy-oracle.bat`,
-which requires an SSH key that only exists on the maintainer's machine. An
-agent session (cloud or local) cannot deploy. The flow is: push to `main` on
-GitHub, then the maintainer runs `redeploy-oracle.bat` themselves. Don't
-attempt SSH, don't ask for deploy credentials — just get the code and tests
-right and land it on `main`.
+The owner requested a one-prompt update using Claude in their local VS Code checkout.
+Follow `docs/V5_0_RELEASE_HANDOFF.md` in order. Cloud sessions lack the existing Oracle SSH key;
+do not request or invent it. A local agent on the owner's PC may use the already configured
+key and deployment script after tests, CI, ledger preflight and backup succeed. The owner
+has authorized the mechanical update work. Preserve local changes and SavedVariables.
+Never start a second bot. Public release still depends on real-client checks.
+
+Use `npm run release:prepare` for a complete build/check. The new migration refuses duplicate
+ledger source refs; `npm run release:ledger-check` diagnoses them without changing data.
+The shared upload token is retired: companions authenticate with personal pairing credentials.
+Never reintroduce a global-token write bypass to make an old companion appear compatible.
 
 ## `package.json`'s version has a live side effect
 

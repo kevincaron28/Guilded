@@ -1,12 +1,6 @@
 // One-click companion setup: `npm run companion:setup`.
 //
-// Finds the WoW install and account, suggests the realm from the game's own
-// folders, creates (or reuses) the upload token, and writes it to BOTH
-// .env.local (for the bot) and companion/companion.config.json (for the
-// companion) so the two always match. Asks only when there's a real choice;
-// `--yes` takes the first option everywhere. `--wow "D:\\Games\\World of
-// Warcraft"` points it at an unusual install folder.
-import { randomBytes } from "node:crypto";
+// Finds the game data and preserves an existing pairing. Never creates server secrets.
 import { copyFile, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
@@ -82,13 +76,6 @@ function parseEnv(text) {
   return values;
 }
 
-function setEnvValue(text, key, value) {
-  const line = `${key}=${value}`;
-  const pattern = new RegExp(`^\\s*${key}\\s*=.*$`, "m");
-  if (pattern.test(text)) return text.replace(pattern, line);
-  return `${text.replace(/\s*$/, "")}\n${line}\n`;
-}
-
 async function main() {
   console.log("\n=== Guilded companion setup ===\n");
 
@@ -129,34 +116,23 @@ async function main() {
     process.exitCode = 1;
     return;
   }
-  const existingToken = env.COMPANION_UPLOAD_TOKEN;
-  const token = existingToken && existingToken.length >= 32 && !existingToken.startsWith("replace-")
-    ? existingToken
-    : randomBytes(24).toString("hex");
   const port = env.COMPANION_API_PORT || "8787";
-
-  if (token !== existingToken) {
-    if (envText) await copyFile(ENV_FILE, `${ENV_FILE}.bak`);
-    await writeFile(ENV_FILE, setEnvValue(envText, "COMPANION_UPLOAD_TOKEN", token));
-    console.log(`\nSaved a new upload token in ${ENV_FILE} (old file kept as ${ENV_FILE}.bak).`);
-  } else {
-    console.log(`\nKept the existing upload token from ${ENV_FILE}.`);
-  }
-
+  const previous = (await exists(CONFIG_FILE)) ? JSON.parse(await readFile(CONFIG_FILE, "utf8")) : {};
   if (await exists(CONFIG_FILE)) await copyFile(CONFIG_FILE, `${CONFIG_FILE}.bak`);
   const config = {
+    ...previous,
     watchFile,
     realm,
-    uploadUrl: `http://127.0.0.1:${port}/api/v1/addon-imports`,
+    uploadUrl: previous.uploadUrl || `http://127.0.0.1:${port}/api/v1/addon-imports`,
     guildDiscordId: guildId,
-    uploadToken: token
+    companionCredential: previous.guildDiscordId === guildId ? previous.companionCredential || "" : "",
+    pairingCode: ""
   };
   await writeFile(CONFIG_FILE, `${JSON.stringify(config, null, 2)}\n`);
   console.log(`Wrote ${CONFIG_FILE}.`);
 
   console.log("\nAll set. Next:");
-  if (token !== existingToken) console.log("  1. Restart the bot (close its window and use the desktop shortcut) so it picks up the new token.");
-  console.log(`  ${token !== existingToken ? "2" : "1"}. Double-click start-companion.bat (or run: npm run companion:watch) and leave it open while you play.`);
+  console.log("Open Companion Settings and link with /character pair if not already paired. Then Save and start.");
   console.log("");
 }
 

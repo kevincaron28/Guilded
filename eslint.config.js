@@ -11,6 +11,8 @@ export default tseslint.config(
       globals: {
         Buffer: "readonly",
         AbortSignal: "readonly",
+        AbortController: "readonly",
+        TextEncoder: "readonly",
         clearInterval: "readonly",
         clearTimeout: "readonly",
         console: "readonly",

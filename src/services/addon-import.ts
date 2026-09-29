@@ -26,6 +26,7 @@ export function createAddonImportService(database: PrismaClient) {
         snapshot,
         checksum,
         duplicate: existing !== null,
+        existingImport: existing ? { id: existing.id, status: existing.status } : null,
         transactionCount: snapshot.transactions.length + snapshot.epgpTransactions.length,
         createdBy
       };
@@ -48,6 +49,9 @@ export function createAddonImportService(database: PrismaClient) {
 
     async apply(guildId: string, importId: string, appliedBy: string) {
       return database.$transaction(async (tx) => {
+        // All imports for one guild serialize, including different snapshots of the same
+        // ledger. Transaction-scoped lock releases automatically on rollback/crash.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${guildId}, 0))`;
         const imported = await tx.addonImport.findFirst({ where: { id: importId, guildId } });
         if (!imported) throw new Error("Addon import not found.");
         if (imported.status === "APPLIED") throw new Error("Addon import has already been applied.");
@@ -104,6 +108,9 @@ export function createAddonImportService(database: PrismaClient) {
           }));
         }
         const epgpTransactions = [];
+        const poolIds = [...new Set(snapshot.epgpTransactions.flatMap((item) => item.coreId ? [item.coreId] : []))];
+        const validPools = poolIds.length ? await tx.raidCore.findMany({ where: { guildId, id: { in: poolIds }, separatePool: true }, select: { id: true } }) : [];
+        if (poolIds.some((id) => !validPools.some((pool) => pool.id === id))) throw new Error("Unknown or inactive core point pool. Ask an officer to review this import.");
         for (const item of snapshot.epgpTransactions) {
           const sourceRef = ledgerRef(item);
           if (alreadyImported.has(sourceRef)) { skipped++; continue; }
@@ -114,6 +121,7 @@ export function createAddonImportService(database: PrismaClient) {
             data: {
               guildId,
               memberId: character.memberId,
+              coreId: item.coreId ?? null,
               epAmount: item.epAmount,
               gpAmount: item.gpAmount,
               type: item.type as EpgpTransactionType,
@@ -249,7 +257,7 @@ export function createAddonImportService(database: PrismaClient) {
           data: { status: "APPLIED" }
         });
         return { import: imported, transactions, epgpTransactions, readinessSnapshots, attunements, consumables, reserves, itemPrices, crafting, calendarPlan, discovery, raids, loot, dungeons, skipped };
-      });
+      }, { timeout: 60_000, maxWait: 15_000 });
     }
   };
 }

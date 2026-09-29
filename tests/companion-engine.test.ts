@@ -16,13 +16,13 @@ function gameFolder() {
   return { root, file: join(saved, "Guilded.lua"), standings: join(root, "Interface", "AddOns", "Guilded", "Standings.lua") };
 }
 
-const config = (file: string) => ({ watchFile: file, realm: "R", uploadUrl: "http://bot.test/api/v1/addon-imports", guildDiscordId: "123", uploadToken: "x".repeat(32) });
+const config = (file: string) => ({ watchFile: file, realm: "R", uploadUrl: "https://bot.test/api/v1/addon-imports", guildDiscordId: "123", companionCredential: "x".repeat(32) });
 
 describe("companion engine", () => {
   it("lists what is missing from a config", () => {
     expect(validateConfig({})).toHaveLength(4);
     expect(validateConfig(config("a.lua"))).toEqual([]);
-    expect(validateConfig({ ...config("a.lua"), uploadToken: "short" })[0]).toContain("token");
+    expect(validateConfig({ ...config("a.lua"), companionCredential: "short" })[0]).toContain("pair");
   });
 
   it("explains a network failure in plain words", () => {
@@ -35,7 +35,7 @@ describe("companion engine", () => {
     answer(200, { standings: [1, 2] });
     expect((await testConnection(config("a.lua"))).message).toContain("2 character");
     answer(401, { error: "no" });
-    expect((await testConnection(config("a.lua"))).message).toContain("refused the token");
+    expect((await testConnection(config("a.lua"))).message).toContain("refused the pairing");
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")));
     expect((await testConnection(config("a.lua"))).ok).toBe(false);
   });
@@ -48,7 +48,7 @@ describe("companion engine", () => {
     const result = await pairAccount({ ...config("a.lua"), pairingCode: "A1B2C3D4E5F6" });
     expect(result.ok).toBe(true);
     expect(fetchMock).toHaveBeenCalledWith(
-      new URL("http://bot.test/api/v1/addon-pairings"),
+      new URL("https://bot.test/api/v1/addon-pairings"),
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({ guildDiscordId: "123", code: "A1B2C3D4E5F6" })
@@ -60,7 +60,7 @@ describe("companion engine", () => {
     const game = gameFolder();
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
       ok: true, status: 200,
-      json: async () => ({ updatedAt: "2026-09-26T00:00:00Z", baseGp: 0, acceptedRunRefs: [], standings: [{ character: "Kev", ep: 10, gp: 5, main: true }] })
+      json: async () => ({ protocolVersion: 2, updatedAt: "2026-09-26T00:00:00Z", baseGp: 0, acceptedRunRefs: [], standings: [{ character: "Kev", ep: 10, gp: 5, main: true }] })
     }));
     const logs: string[] = [];
     let last: { running: boolean; lastStandings: { message: string } | null } | undefined;
@@ -85,15 +85,15 @@ describe("companion engine", () => {
     const game = gameFolder();
     writeFileSync(game.file, 'GuildedDB = { version = 1 }\n');
     const fetchMock = vi.fn().mockImplementation(async (url: URL | string) => String(url).includes("standings")
-      ? { ok: true, status: 200, json: async () => ({ updatedAt: "x", baseGp: 0, standings: [] }) }
+      ? { ok: true, status: 200, json: async () => ({ protocolVersion: 2, updatedAt: "x", baseGp: 0, standings: [] }) }
       : { ok: true, status: 200, json: async () => ({ transactionCount: 0, importId: "i1", autoApplied: { epgp: 0, discovered: 0 } }) });
     vi.stubGlobal("fetch", fetchMock);
-    const engine = createEngine({ ...config(game.file), companionCredential: "paired-secret" }, {});
+    const engine = createEngine({ ...config(game.file), companionCredential: "p".repeat(43) }, {});
     await engine.start();
     engine.uploadNow();
     await vi.waitFor(() => expect(engine.state().uploads + (engine.state().lastError ? 1 : 0)).toBeGreaterThan(0), { timeout: 3000 });
     const upload = fetchMock.mock.calls.find(([url]) => String(url).includes("addon-imports"));
-    expect(upload?.[1]?.headers["x-companion-credential"]).toBe("paired-secret");
+    expect(upload?.[1]?.headers["x-companion-credential"]).toBe("p".repeat(43));
     await engine.stop();
   });
 });

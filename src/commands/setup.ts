@@ -17,7 +17,6 @@ import {
   type OverwriteResolvable
 } from "discord.js";
 import type { GuildSettings } from "@prisma/client";
-import { config } from "../config.js";
 import { prisma } from "../database.js";
 import { classLeaderRoleName, hasPermission, isPermissionRoleName, permissionRoleNames, roleNamesFor, type Permission } from "../permissions.js";
 import { CLASSES } from "../wow-data.js";
@@ -144,7 +143,7 @@ async function gatherFacts(guild: DiscordGuild, guildId: string, settings: Guild
     epgpConfigured: settings.baseGp > 0,
     remindersOn: settings.raidReminderMinutes > 0,
     weeklyReportOn: settings.weeklyReportEnabled,
-    companionTokenSet: !!config.COMPANION_UPLOAD_TOKEN,
+    companionPaired: (await prisma.companionCredential.count({ where: { revokedAt: null, member: { guildId, status: "ACTIVE" } } })) > 0,
     linkedCharacters: await prisma.character.count({ where: { member: { guildId, isTest: false } } }),
     dungeonSignupGuideOutdated: guideState === "outdated",
     extraChannels: await Promise.all((["coreChannelId", "readinessChannelId", "lootChannelId", "craftChannelId", "applicationChannelId", "guideChannelId", "dungeonChannelId"] as const)

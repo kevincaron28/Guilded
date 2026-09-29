@@ -13,8 +13,8 @@
     "pack": "npm run icon && electron-builder --win dir --publish never"
   },
   "devDependencies": {
-    "electron": "^33.2.0",
-    "electron-builder": "^25.1.8"
+    "electron": "^44.5.0",
+    "electron-builder": "^26.15.3"
   },
   "build": {
     "appId": "com.guilded.companion",
@@ -37,7 +37,8 @@
         "filter": [
           "engine.mjs",
           "lua-export.mjs",
-          "standings.mjs"
+          "standings.mjs",
+          "request.mjs"
         ]
       },
       {

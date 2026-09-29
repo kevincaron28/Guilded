@@ -75,6 +75,7 @@ export async function readAddonExport(path, realm) {
         epgpTransactions.push({
           character,
           realm,
+          ...(entry.coreId ? { coreId: String(entry.coreId) } : {}),
           epAmount: Number(entry.epAmount ?? 0),
           gpAmount: Number(entry.gpAmount ?? 0),
           type: entry.type ?? "ADJUSTMENT",
@@ -284,6 +285,7 @@ export async function readAddonExport(path, realm) {
     ...(itemPrices.length ? { itemPrices } : {}),
     transactions,
     epgpTransactions,
+    addonVersion: database.addonVersion ?? null,
     readiness: [
       ...Object.values(database.readiness ?? {}).map((entry) => ({ ...entry, realm })),
       ...peerReadiness

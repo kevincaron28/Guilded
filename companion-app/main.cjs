@@ -74,9 +74,8 @@ function health(state) {
   const problems = engineModules.validateConfig(config);
   if (problems.length > 0) return { level: "setup", text: "Setup needed" };
   if (!state.running) return { level: "error", text: "Not running" };
-  if (state.lastError && (!state.lastStandings || state.lastError.at > state.lastStandings.at) && (!state.lastUpload || state.lastError.at > state.lastUpload.at)) {
-    return { level: "error", text: "Problem: " + state.lastError.message };
-  }
+  if (state.uploadError || state.standingsError) return { level: "error", text: state.uploadError || state.standingsError };
+  if (state.pendingUpload) return { level: "setup", text: state.retryAt ? `Upload pending; retry at ${state.retryAt}` : "Uploading saved data..." };
   return { level: "ok", text: "Running: watching for changes" };
 }
 
@@ -106,7 +105,7 @@ function createWindow() {
     width: 900, height: 660, minWidth: 720, minHeight: 520,
     show: false, autoHideMenuBar: true, backgroundColor: "#15120d",
     title: "Guilded Companion", icon: asset("icon.png"),
-    webPreferences: { preload: path.join(__dirname, "preload.cjs"), contextIsolation: true, nodeIntegration: false, sandbox: false }
+    webPreferences: { preload: path.join(__dirname, "preload.cjs"), contextIsolation: true, nodeIntegration: false, sandbox: true }
   });
   win.setMenu(null);
   win.loadFile(path.join(__dirname, "renderer", "index.html"), { query: screenshotTab ? { tab: screenshotTab } : {} });
@@ -117,7 +116,8 @@ function createWindow() {
     win.hide();
   });
   // Links open in the browser, never inside the app.
-  win.webContents.setWindowOpenHandler(({ url }) => { void shell.openExternal(url); return { action: "deny" }; });
+  win.webContents.on("will-navigate", (event) => event.preventDefault());
+  win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:\/\//i.test(url)) void shell.openExternal(url); return { action: "deny" }; });
 }
 
 function createTray() {
@@ -224,7 +224,7 @@ app.whenReady().then(async () => {
     }, 3500));
     win.show();
   }
-});
+}).catch(failStartup);
 
 app.on("window-all-closed", () => { /* stay in the tray */ });
 app.on("before-quit", () => { quitting = true; });

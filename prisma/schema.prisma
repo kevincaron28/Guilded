@@ -258,6 +258,7 @@ model DkpTransaction {
 
   @@index([memberId, createdAt])
   @@index([guildId, createdAt])
+  @@unique([guildId, sourceRef])
 }
 
 /// Append-only EPGP ledger. Corrections are represented by REVERSAL entries.
@@ -280,6 +281,7 @@ model EpgpTransaction {
   @@index([memberId, createdAt])
   @@index([guildId, createdAt])
   @@index([guildId, sourceRef])
+  @@unique([guildId, sourceRef])
 }
 
 model Auction {

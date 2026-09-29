@@ -21,6 +21,7 @@
     <section id="page-status" class="page">
       <h1>Status</h1>
       <div id="banner" class="banner"><span id="bannerDot" class="dot"></span><div><strong id="bannerTitle"></strong><div id="bannerText"></div></div></div>
+      <p id="versions" class="hint"></p>
       <div class="tiles">
         <div class="tile"><span class="label">Last upload to Discord</span><strong id="tileUpload">Nothing yet</strong><span id="tileUploadNote"></span></div>
         <div class="tile"><span class="label">In-game standings</span><strong id="tileStandings">Not written yet</strong><span id="tileStandingsNote"></span></div>
@@ -44,15 +45,11 @@
 
     <section id="page-settings" class="page" hidden>
       <h1>Settings</h1>
-      <p id="setupHint" class="hint" hidden>Fill in the three things below and press <b>Save and start</b>. Your officer can give you the bot address and token.</p>
+      <p id="setupHint" class="hint" hidden>Enter the bot address and server ID, link with <b>/character pair</b>, then choose your saved-data file.</p>
       <form id="form" autocomplete="off">
         <label>Bot address
           <input id="uploadUrl" placeholder="https://your-bot.duckdns.org/api/v1/addon-imports">
           <small>Where the bot listens. On the officer's own PC this is http://127.0.0.1:8787/api/v1/addon-imports.</small>
-        </label>
-        <label>Upload token
-          <div class="row"><input id="uploadToken" type="password" placeholder="At least 32 characters"><button type="button" id="btnShow" class="small">Show</button></div>
-          <small>The secret shared with the bot (COMPANION_UPLOAD_TOKEN).</small>
         </label>
         <label>Discord server ID
           <input id="guildDiscordId" placeholder="e.g. 123456789012345678">
@@ -60,7 +57,7 @@
         </label>
         <label>Discord account pairing code
           <div class="row"><input id="pairingCode" placeholder="Generate with /character pair in Discord"><button type="button" id="btnPair" class="small">Link Discord account</button></div>
-          <small>Generate a one-time code in Discord with /character pair, enter it here, then link. Your next upload links your own character automatically; guild data imports still follow the usual apply setting.</small>
+          <small>Generate a one-time code in Discord with /character pair, enter it here, then link. Your next upload links your own character automatically; Only an officer account can upload guild ledgers; other accounts upload personal character data.</small>
         </label>
         <label>Addon saved data file (Guilded.lua)
           <div class="row"><input id="watchFile" placeholder="...\WTF\Account\YOURACCOUNT\SavedVariables\Guilded.lua"><button type="button" id="btnDetect" class="small">Find it</button><button type="button" id="btnBrowse" class="small">Browse...</button></div>

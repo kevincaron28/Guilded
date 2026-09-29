@@ -19,6 +19,8 @@ What changed in each version: [CHANGELOG.md](CHANGELOG.md).
   restart the game, type `/guilded` or click the gold coin.
 - **The whole system (bot, addon, companion):** follow [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).
 
+For the 5.0 update, read [the local Claude handoff](docs/V5_0_RELEASE_HANDOFF.md).
+
 ## Documentation
 
 | Document | For |
@@ -52,15 +54,14 @@ npm run db:update                      # applies the database migrations
 npm run dev
 ```
 
-`.env.local` needs `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_GUILD_ID`, `DATABASE_URL` and a random
-`COMPANION_UPLOAD_TOKEN`. `WCL_CLIENT_ID` and `WCL_CLIENT_SECRET` are optional (they turn on `/raid wcl`).
+`.env.local` needs `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_GUILD_ID`, `DATABASE_URL`. Companions authenticate using `/character pair`. `WCL_CLIENT_ID` and `WCL_CLIENT_SECRET` are optional (they turn on `/raid wcl`).
 On Windows, `start-bot.bat` does the database update, starts the companion app and restarts the bot if it
 crashes. Never commit `.env*` or `companion/companion.config.json` (both are already gitignored).
 
 | Script | Purpose |
 | --- | --- |
 | `npm run dev` | Run the bot with tsx |
-| `npm test` | Run the tests (bot and addon, 550+) |
+| `npm test` | Run the tests (bot and addon, 778+) |
 | `npm run build` | Type-check |
 | `npm run lint` | ESLint |
 | `npm run db:update` | Apply migrations and regenerate the Prisma client |
@@ -80,7 +81,7 @@ WoW addon --(saved file on logout or /reload)--> companion --(HTTP, local)--> bo
 - The game only writes the addon's data file on `/reload` or logout, so a reload (or logging out) is what
   sends new data. Nothing reloads the game on its own unless a player opts in with `/guilded sync auto on`.
 - Uploads wait as a preview until an officer runs `/import apply`, unless `/setup config auto-import` is on.
-- The bot's local API listens on `127.0.0.1` only and rejects every request without the upload token.
+- The API defaults to `127.0.0.1`; use HTTPS behind a reverse proxy remotely. Uploads and standings require a guild-scoped personal pairing credential.
 - Each WoW guild keeps its own saved data in the addon; a realm rename keeps the data.
 
 ## Project layout

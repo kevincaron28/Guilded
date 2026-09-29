@@ -12,6 +12,7 @@ export const addonTransactionSchema = z.object({
 // Separate from addonTransactionSchema because the addon's EPGP ledger tracks
 // EP and GP independently per entry, not a single signed amount.
 export const addonEpgpTransactionSchema = z.object({
+  coreId: z.string().min(1).max(100).optional(),
   character: z.string().min(1),
   realm: z.string().min(1),
   epAmount: z.number().int().default(0),

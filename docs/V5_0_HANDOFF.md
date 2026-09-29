@@ -1,4 +1,6 @@
-# 5.0.0 handoff
+# 5.0.0 feature handoff
+
+**Update/install instructions are superseded by [V5_0_RELEASE_HANDOFF.md](V5_0_RELEASE_HANDOFF.md).**
 
 What 5.0 changed, where, and what is left. Written for whoever picks this up next (you in
 VS Code, or another Claude session). Version is **5.0.0** everywhere (`package.json`,

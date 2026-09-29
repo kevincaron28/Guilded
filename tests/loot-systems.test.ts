@@ -234,7 +234,7 @@ describe("the loot block written for the addon", () => {
     expect(lua).toContain('["#17182"] = 250,');
     expect(lua).toContain('["#19019"] = 90,'); // not written twice
     expect(lua.match(/\["#19019"\]/g)).toHaveLength(1);
-    expect(lua).toContain('{ name = "Ann", ep = 300, gp = 90 },');
+    expect(lua).toContain('{ name = "Ann", ep = 300, gp = 90, account = "" },');
     expect(lua).toContain('{ name = "Jaina", member = "Kev", role = "TANK", spot = "main", backup = false },');
     expect(lua).toContain('{ name = "Anduin", member = "Kev", role = "HEALER", spot = "bench", backup = true },');
   });

@@ -1,0 +1,72 @@
+name: Guilded quality
+on:
+  push:
+    branches: [main, 'fix/**']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DISCORD_TOKEN: placeholder
+      DISCORD_CLIENT_ID: '123'
+      DISCORD_GUILD_ID: '456'
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/guilded_release_test
+      TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/guilded_release_test
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: guilded_release_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run prisma:generate
+      - run: npm run build
+      - run: npm test
+      - run: npm run lint
+      - run: node addon/Guilded/validate-addon.mjs
+      - name: PostgreSQL integration and restore rehearsal
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+          npm run test:postgres
+      - run: npm audit --audit-level=high
+      - run: npm run addon:zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: guilded-addon
+          path: dist/Guilded-v*.zip
+  windows-package:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: companion-app/package-lock.json
+      - run: npm ci
+      - run: npm ci --prefix companion-app
+      - run: npm audit --prefix companion-app --audit-level=high
+      - run: npm run dist --prefix companion-app
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: guilded-companion-windows
+          path: dist/companion/*.exe

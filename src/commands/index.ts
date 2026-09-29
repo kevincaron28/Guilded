@@ -32,6 +32,7 @@ import { helpCommand } from "./help.js";
 import { dungeonCommand, executeDungeon } from "./dungeon.js";
 import { dungeonAdminCommand, executeDungeonAdmin } from "./dungeon-admin.js";
 import { bugCommand, executeBug } from "./bugreport.js";
+import { faqCommand, executeFaq } from "./faq.js";
 
 import { MergedCommand, type AnyCommand } from "./router.js";
 import { BRAND } from "../brand.js";
@@ -61,8 +62,9 @@ const dungeon = new MergedCommand("dungeon", "Dungeon challenge: leaderboard, re
   { command: dungeonAdminCommand, handler: executeDungeonAdmin, as: "admin" }
 ], { command: dungeonCommand, handler: executeDungeon });
 
-const mod = new MergedCommand("mod", "Moderation and guild applications (officers).", [
-  { command: applicationCommand, handler: executeApplication, as: "application" }
+const mod = new MergedCommand("mod", "Moderation, guild applications and the answer channel (officers).", [
+  { command: applicationCommand, handler: executeApplication, as: "application" },
+  { command: faqCommand, handler: executeFaq, as: "faq" }
 ], { command: moderationCommand, handler: executeModeration });
 
 const importer = new MergedCommand("import", "Bring addon data into Discord: preview a file, then apply it (officers).", [

@@ -37,6 +37,8 @@ local FR = {
   ["Cooldowns"] = "Temps de recharge",
   ["Deathroll"] = "Deathroll",
   ["Deduct EP"] = "Retirer des EP",
+  ["Deduct GP"] = "Retirer des GP",
+  ["Takes GP back, for example a mistaken charge or a returned item. Never below 0."] = "Retire des GP, par exemple une erreur de facturation ou un objet rendu. Jamais sous 0.",
   ["Deletes every test raid and test dungeon run from this PC."] = "Supprime de ce PC tous les raids et donjons de test.",
   ["Drop"] = "Lancer",
   ["Dropped this raid"] = "Tomb\195\169 pendant ce raid",
@@ -390,6 +392,19 @@ local FR = {
   ["Language: English. /reload to update the window."] = "Langue : anglais. /reload pour mettre la fen\195\170tre \195\160 jour.",
   ["Language: French. /reload to update the window."] = "Langue : fran\195\167ais. /reload pour mettre la fen\195\170tre \195\160 jour.",
   ["Language follows your game client. /reload to update the window."] = "La langue suit votre client de jeu. /reload pour mettre la fen\195\170tre \195\160 jour.",
+  ["Explain a game in chat (party/raid, or /say when not grouped)"] = "Expliquer un jeu dans le chat (groupe/raid, ou /dire hors groupe)",
+  ["Explain High roll"] = "Expliquer High roll",
+  ["Explain Deathroll"] = "Expliquer Deathroll",
+  ["Explain Duel"] = "Expliquer le duel",
+  ["Posts how High Roll works in chat."] = "Explique High Roll dans le chat.",
+  ["Posts how Deathroll works in chat."] = "Explique le Deathroll dans le chat.",
+  ["Posts how a deathroll duel works in chat."] = "Explique le duel de deathroll dans le chat.",
+  ["How High Roll works: type 1 in chat to join. When the host calls the roll, type /roll %d."] = "High Roll : tapez 1 dans le chat pour participer. Quand l'organisateur lance le tirage, tapez /roll %d.",
+  ["Highest roll wins. A tie rolls again between the tied players. Just for fun, no gold."] = "Le plus haut gagne. En cas d'\195\169galit\195\169, les joueurs \195\160 \195\169galit\195\169 relancent. Pour le plaisir, sans or.",
+  ["How Deathroll works: type 1 in chat to join. When the host calls the roll, type /roll %d."] = "Deathroll : tapez 1 dans le chat pour participer. Quand l'organisateur lance le tirage, tapez /roll %d.",
+  ["The lowest roll is out. The next round rolls up to that lowest number. Last one left wins. Just for fun, no gold."] = "Le plus bas est \195\169limin\195\169. Le tour suivant se joue jusqu'\195\160 ce nombre. Le dernier restant gagne. Pour le plaisir, sans or.",
+  ["How a deathroll duel works: two players take turns. The first types /roll %d."] = "Duel de deathroll : deux joueurs jouent \195\160 tour de r\195\180le. Le premier tape /roll %d.",
+  ["Then each rolls up to the number the other got (rolled 57? type /roll 57). Whoever rolls 1 loses. Just for fun, no gold."] = "Ensuite chacun lance jusqu'au nombre obtenu par l'autre (57 ? tapez /roll 57). Celui qui fait 1 perd. Pour le plaisir, sans or.",
 }
 
 local function language()

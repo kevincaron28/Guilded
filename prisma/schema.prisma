@@ -143,6 +143,8 @@ model Guild {
   itemReserves        ItemReserve[]
   raidCores           RaidCore[]
   dungeonGroups       DungeonGroup[]
+  groupAlerts         GroupAlert[]
+  faqEntries          FaqEntry[]
   polls               Poll[]
   unclaimedCharacters UnclaimedCharacter[]
   characterPairings   CharacterPairing[]
@@ -166,6 +168,7 @@ model Member {
   raidSignups         RaidSignup[]
   coreMemberships     RaidCoreMember[]
   dungeonGroupSignups DungeonGroupSignup[]
+  groupAlert          GroupAlert?
   pollVotes           PollVote[]
   raidAttendance      RaidAttendance[]
   bids                AuctionBid[]
@@ -455,6 +458,10 @@ model GuildSettings {
   lastAutoDecayAt          DateTime?
   // Bot messages the setup checklist watches: { [kind]: { channelId, messageId, version } }.
   botMessages              Json?
+  // The answer channel (5.0): the bot replies there with officer-written answers (FaqEntry),
+  // and, when aiAnswers is on and an AI endpoint is configured, with an AI answer otherwise.
+  answerChannelId          String?
+  aiAnswers                Boolean   @default(false)
   // IANA timezone for typing raid times ("friday 8pm") and showing them.
   timezone                 String    @default("America/Toronto")
   // "en" or "fr": language for member-facing bot messages.
@@ -1065,6 +1072,10 @@ model DungeonGroup {
   // DUNGEON, LEVELING, PVP, WORLDPVP, WORLD or OTHER (the group finder); sets size and roles.
   kind             String               @default("DUNGEON")
   maxSize          Int                  @default(5)
+  // The level range players need (5.0: from the form, or guessed from the dungeon in the title);
+  // group alerts only ping members with a linked character in it. Null = any level.
+  minLevel         Int?
+  maxLevel         Int?
   leaderId         String
   status           DungeonGroupStatus   @default(OPEN)
   signupChannelId  String?
@@ -1092,6 +1103,41 @@ model DungeonGroupSignup {
   member   Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@unique([groupId, memberId])
+}
+
+// A member's group alerts (5.0): ping me in the group finder when a group of these kinds is
+// posted that my linked characters' level fits and that still needs one of my roles.
+model GroupAlert {
+  id        String   @id @default(cuid())
+  guildId   String
+  memberId  String   @unique
+  // GroupKind values (DUNGEON, LEVELING, PVP, WORLDPVP, WORLD, OTHER).
+  kinds     String[]
+  // RaidRole values the member plays; empty = any role.
+  roles     String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([guildId])
+}
+
+// An answer officers wrote for the bot's answer channel (5.0): when a message there matches
+// one of the triggers, the bot replies with the answer.
+model FaqEntry {
+  id        String   @id @default(cuid())
+  guildId   String
+  // Lower-case words or phrases; a message matches when it contains all words of one of them.
+  triggers  String[]
+  answer    String
+  uses      Int      @default(0)
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId])
 }
 
 // An officer poll answered with buttons; one vote per member, changeable.

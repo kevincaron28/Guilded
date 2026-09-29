@@ -70,6 +70,7 @@ Hover a page name for what it is for. The **Player** box (target someone, or **M
 | `/guilded award group <amount> [reason]` | Give EP to everyone in the group |
 | `/guilded gp <player> <amount> [reason]` | Charge GP for an item |
 | `/guilded deduct <player> <amount> [reason]` | Remove EP |
+| `/guilded gpdeduct <player> <amount> [reason]` | Remove GP (never below 0) |
 | `/guilded loot <player> <item> [cost]` | Record who got an item (shift-click links work) |
 | `/guilded attune <player> <key> [clear]` | Set someone else's attunement, e.g. `/guilded attune Bob "Onyxia Key"` |
 | `/guilded end` | End the raid |
@@ -256,6 +257,7 @@ Anyone in a party or raid can run one; your client is the referee. Players type 
 | `/guilded games deathroll [max]` | Everyone rolls, the lowest is out, again until one is left |
 | `/guilded games duel <player> [max]` | Two players, classic deathroll: each rolls the last number, whoever rolls 1 loses |
 | `/guilded games roll` / `remind` / `add <p>` / `remove <p>` / `cancel` / `status` | Call the roll, nudge, add or remove a player, stop, see what is running |
+| `/guilded games explain highroll\|deathroll\|duel` | Post the game's rules in party/raid chat (or /say when not grouped) so new players can join in; the Games page has a button for each |
 
 The gold casino (wagers, house games, the debt ledger) was removed on purpose: gambling gold inside a guild is too risky.
 
@@ -464,12 +466,12 @@ A **raid core** is a named roster (e.g. "Tuesday MC core"); a guild can have sev
 | `/core setup` | **Start here.** A guided message: name the core in a form (with an optional raid-nights schedule), pick its tanks, healers and DPS from member menus (main roster or bench/reserve), then choose its rules (same as the guild by default; own point pool, loot council or EP values are buttons). Saved as you go (Raid Leaders) |
 | `/core rename <core> <name>` | Rename a core (Raid Leaders). Raids, prices, the roster message and the addon follow |
 | `/core edit <core>` | **Easiest way to change a core.** One message: pick how to add (Tank / Healer / DPS, main roster or **bench**), pick the players (players already in the core are moved to that role or spot), pick players to remove, rename. The roster message updates at once (Raid Leaders) |
-| `/core create <name> [description] [schedule]` | Create a core with a command instead (Raid Leaders) |
+| `/core create <name> [description] [schedule]` | Create a core with a command instead (Raid Leaders). Its role, category and channels (`#<core>-roster`, `-signups`, `-chat`, voice) are made with it |
 | `/core add <core> <player> [role] [bench]` / `/core remove <core> <player>` | Manage its players (Raid Leaders); role Tank / Healer / DPS; `bench:true` makes them a replacement (shown with a chair, no signup priority) |
 | `/core rules <core> [attendance] [late] [boss] [clear] [base_gp] [decay] [loot_mode] [pool] [offspec_percent] [min_ep] [schedule] [reset]` | The core's point rules, plus its raid-nights schedule. **Every core follows the guild's settings** (`/setup config`, `/setup start`) **unless you change a value here**; with no options it shows the effective rules and which differ. `pool:separate` gives the core its own EP/GP pool (from now on), `loot_mode` can make one core loot council, `schedule` sets or clears the raid-nights text shown on the roster message, `offspec_percent` is the share of the price an off-spec win costs (default 50), `min_ep` the EP a player needs before priority loot counts them ahead of those below it (0 = off), `reset` goes back to the guild defaults (schedule and description are untouched by reset) |
 | `/core show <core>` / `/core list` | See a roster / all cores (everyone) |
 | `/core post [core]` | Refresh the roster message(s) in the roster channel |
-| `/core delete <core>` | Delete a core; raids made for it keep their signups |
+| `/core delete <core> [channels]` | Delete a core; raids made for it keep their signups. Its text channels move read-only to **Archived cores** (history kept), its voice channel and category go, its role is renamed "(archived)". `channels:true` deletes them instead |
 | `/raid create ... core:<name>` | Create a raid whose signups give that core priority |
 
 ### Point pools

@@ -9,7 +9,8 @@ import { dungeonGuideState, ensureDungeonSignupGuide } from "./dungeon-guide.js"
 //   groupFinder  pinned group finder menu (was the dungeon signup guide)
 //   craftGuide   pinned "Start here" post of the craft board forum
 //   leaderboard  the dungeon leaderboard message (kept current by the bot)
-//   roster       each raid core's roster message (kept current by the bot)
+//   roster       each raid core's roster message (kept current by the bot; outdated while the
+//                core has no channels of its own)
 
 export type BotMessageState = "current" | "outdated" | "missing";
 export interface BotMessageFact { kind: "botGuide" | "groupFinder" | "craftGuide" | "leaderboard" | "roster"; name?: string; state: BotMessageState }
@@ -85,7 +86,9 @@ export async function botMessageFacts(
     const channel = await textChannel(guild, core.rosterChannelId ?? settings.coreChannelId);
     if (!channel) continue;
     const message = core.rosterMessageId ? await channel.messages.fetch(core.rosterMessageId).catch(() => null) : null;
-    facts.push({ kind: "roster", name: core.name, state: message ? "current" : "missing" });
+    // A core without its own channels (made before 5.0) is out of date: "Update bot messages"
+    // creates them and moves the roster there.
+    facts.push({ kind: "roster", name: core.name, state: !message ? "missing" : core.categoryId ? "current" : "outdated" });
   }
   return facts;
 }

@@ -44,12 +44,15 @@ export function createDungeonGroupService(database: Db) {
   }
 
   return {
-    create(input: { guildId: string; title: string; leaderId: string; channelId: string | null; kind?: GroupKind; size?: number | null }) {
+    create(input: { guildId: string; title: string; leaderId: string; channelId: string | null; kind?: GroupKind; size?: number | null; minLevel?: number | null; maxLevel?: number | null }) {
       const title = input.title.trim();
       if (title.length < 3 || title.length > 80) throw new Error("A group title must be 3 to 80 characters.");
       const kind = input.kind ?? "DUNGEON";
       return database.dungeonGroup.create({
-        data: { guildId: input.guildId, title, leaderId: input.leaderId, signupChannelId: input.channelId, kind, maxSize: groupSize(kind, input.size) }
+        data: {
+          guildId: input.guildId, title, leaderId: input.leaderId, signupChannelId: input.channelId, kind, maxSize: groupSize(kind, input.size),
+          minLevel: input.minLevel ?? null, maxLevel: input.maxLevel ?? null
+        }
       });
     },
 

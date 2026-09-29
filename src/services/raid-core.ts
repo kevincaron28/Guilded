@@ -4,7 +4,7 @@ import { createGuildService } from "./guild.js";
 import { applyToCoreButtonRow } from "./application.js";
 import { asLootMode, LOOT_MODE_LABEL } from "./core-rules.js";
 import { asLang, tx, type Lang } from "../i18n.js";
-import { syncCoreRole } from "./core-channels.js";
+import { setupCoreDiscord, syncCoreRole } from "./core-channels.js";
 
 // A raid core is a named roster (e.g. "Tuesday MC core"). A guild can have
 // several. Core members get priority at signups for raids created for that
@@ -222,6 +222,23 @@ export async function removeCoreRosterMessage(discordGuild: DiscordGuild | null,
   } catch (error) {
     console.error("Failed to remove core roster message", error);
   }
+}
+
+// A core's own category, channels and role (made when the core is created, since 5.0), then its
+// roster in its own channel. Never throws; the error says what permission is missing.
+export async function ensureCoreDiscord(discordGuild: DiscordGuild | null, database: Db, guildId: string, coreId: string): Promise<{ created: string[]; error?: string }> {
+  if (!discordGuild) return { created: [] };
+  const result = await setupCoreDiscord(discordGuild, database, coreId,
+    (messageId, channelId) => removeCoreRosterMessage(discordGuild, database, guildId, messageId, channelId));
+  await syncCoreRoster(discordGuild, database, guildId, coreId);
+  return result;
+}
+
+// Every core's channels and roster ("Update bot messages" in /setup: cores made before 5.0 get
+// their channels too).
+export async function ensureAllCoresDiscord(discordGuild: DiscordGuild | null, database: Db, guildId: string): Promise<void> {
+  const cores = await database.raidCore.findMany({ where: { guildId }, select: { id: true } });
+  for (const core of cores) await ensureCoreDiscord(discordGuild, database, guildId, core.id);
 }
 
 // Reposts every core's roster (used when the roster channel is first set).

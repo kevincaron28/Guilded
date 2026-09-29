@@ -24,6 +24,8 @@ import {
   cleanupDungeonGroups, DUNGEON_GROUP_PREFIX, handleDungeonGroupButton, handleDungeonGuideButton, handleDungeonGuideModal, handleDungeonGuideSelect
 } from "./commands/dungeon-group.js";
 import { DUNGEON_GUIDE_PREFIX } from "./services/dungeon-guide.js";
+import { answerMessage, FAQ_MODAL_PREFIX, handleFaqModal } from "./commands/faq.js";
+import { GROUP_ALERT_OPEN_ID, GROUP_ALERT_PREFIX, handleGroupAlertComponent, openGroupAlerts } from "./commands/group-alerts.js";
 import { runWeeklyReports } from "./commands/stats.js";
 import { runAutoDecay } from "./services/auto-decay.js";
 import { executeBank } from "./commands/bank.js";
@@ -45,8 +47,15 @@ import { createErrorReportService } from "./services/error-report.js";
 
 // GuildMembers is a privileged intent: it must also be enabled for this bot
 // application under "Server Members Intent" in the Discord Developer Portal,
-// or login will fail with "Used disallowed intents".
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
+// or login will fail with "Used disallowed intents". The same goes for
+// MessageContent ("Message Content Intent"), asked for only when
+// MESSAGE_CONTENT_INTENT=true (5.0 answer channel, /mod faq).
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers,
+    ...(config.MESSAGE_CONTENT_INTENT ? [GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] : [])
+  ]
+});
 startCompanionApi(client);
 const errorReportService = createErrorReportService(prisma);
 // Background jobs run unattended (no interaction to reply to), so this is
@@ -156,6 +165,16 @@ client.on(Events.GuildMemberRemove, async (member) => {
   }
 });
 
+// The answer channel (5.0): only when the bot may read message text.
+if (config.MESSAGE_CONTENT_INTENT) {
+  client.on(Events.MessageCreate, (message) => {
+    void answerMessage(message).catch((error: unknown) => {
+      console.warn("Answer channel failed", error);
+      void errorReportService.report(client, error, { source: "Answer channel", guildId: message.guildId, guildName: message.guild?.name, userId: message.author.id });
+    });
+  });
+}
+
 client.on(Events.InteractionCreate, async (interaction) => {
   if (interaction.isAutocomplete()) {
     await handleAutocomplete(interaction);
@@ -165,6 +184,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
     await handleWelcomeRoleButton(interaction).catch(async (error: unknown) => {
       reportInteractionError("Welcome role button", interaction, error);
       if (!interaction.replied) await interaction.reply({ content: "That didn't work, try again or ask an officer.", ephemeral: true }).catch(() => undefined);
+    });
+    return;
+  }
+  if (interaction.isModalSubmit() && interaction.customId.startsWith(FAQ_MODAL_PREFIX)) {
+    await handleFaqModal(interaction).catch((error: unknown) => {
+      if (!(error instanceof Error && error.message.length < 200)) reportInteractionError("Answer form", interaction, error);
+      if (!interaction.replied) void interaction.reply({ content: error instanceof Error ? error.message : "Could not save the answer.", ephemeral: true }).catch(() => undefined);
     });
     return;
   }
@@ -195,6 +221,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
     await handleDungeonGuideSelect(interaction).catch((error: unknown) => {
       reportInteractionError("Group finder menu", interaction, error);
       if (!interaction.replied) void interaction.reply({ content: "Could not open the group form.", ephemeral: true }).catch(() => undefined);
+    });
+    return;
+  }
+  if (interaction.isButton() && interaction.customId === GROUP_ALERT_OPEN_ID) {
+    await openGroupAlerts(interaction).catch((error: unknown) => {
+      reportInteractionError("Group alerts button", interaction, error);
+      if (!interaction.replied) void interaction.reply({ content: "Could not open your group alerts.", ephemeral: true }).catch(() => undefined);
+    });
+    return;
+  }
+  if ((interaction.isButton() || interaction.isStringSelectMenu()) && interaction.customId.startsWith(GROUP_ALERT_PREFIX)) {
+    await handleGroupAlertComponent(interaction).catch((error: unknown) => {
+      reportInteractionError("Group alerts", interaction, error);
+      if (!interaction.replied) void interaction.reply({ content: "Could not save your group alerts.", ephemeral: true }).catch(() => undefined);
     });
     return;
   }

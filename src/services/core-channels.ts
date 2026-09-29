@@ -13,12 +13,17 @@ import { BRAND } from "../brand.js";
 // roster refresh (so adding, removing, trial, approve, /core add|remove and /core edit all
 // follow without their own code).
 //
-// Channels ("Create channels" in /core edit): a category named after the core with
+// Channels (made automatically when a core is created, since 5.0; "Create channels" in /core
+// edit and "Update bot messages" in /setup fill in what is missing): a category named after
+// the core with
 //   #<core>-roster   the core's roster message    visible to everyone, only the bot posts
 //   #<core>-signups  the core's raid signup posts visible to everyone, only the bot posts
 //   #<core>-chat     the core's own chat          core role + leadership only
 //   🔊 <core>        voice                        core role + leadership only
-// Guilds that never press it keep the shared roster and signup channels.
+// When the core is deleted they are archived (archiveCoreDiscord): the text channels move to a
+// read-only "Archived cores" category so the history stays, the voice channel and the empty
+// category go, and the role is renamed "<core> (archived)" so former members can still read.
+// If the bot lacks Manage Roles / Manage Channels the core still works with the shared channels.
 
 type Db = Pick<PrismaClient, "raidCore" | "raidCoreMember">;
 type CoreLike = Pick<RaidCore, "id" | "name" | "roleId" | "categoryId" | "rosterChannelId" | "signupChannelId" | "chatChannelId" | "voiceChannelId">;
@@ -149,6 +154,72 @@ export async function renameCoreDiscord(guild: DiscordGuild, core: CoreLike): Pr
   await rename(core.signupChannelId, names.signups);
   await rename(core.chatChannelId, names.chat);
   await rename(core.voiceChannelId, names.voice);
+}
+
+// Creates the channels of a new (or pre-5.0) core and moves its roster message there. Never
+// throws: returns what was created, or the reason it could not (a missing permission).
+export async function setupCoreDiscord(
+  guild: DiscordGuild, database: Db, coreId: string,
+  removeOldRoster: (messageId: string | null, channelId: string | null) => Promise<void>
+): Promise<{ created: string[]; error?: string }> {
+  try {
+    const before = await database.raidCore.findUniqueOrThrow({ where: { id: coreId } });
+    const created = await createCoreChannels(guild, database, coreId);
+    const after = await database.raidCore.findUnique({ where: { id: coreId } });
+    // The roster message moved: the one left in the shared roster channel is removed.
+    if (after && before.rosterChannelId !== after.rosterChannelId) await removeOldRoster(before.rosterMessageId, before.rosterChannelId);
+    return { created };
+  } catch (error) {
+    return { created: [], error: error instanceof Error ? error.message : "Could not create the core's channels." };
+  }
+}
+
+export const ARCHIVE_CATEGORY = "🗄️ Archived cores";
+// Discord allows 50 channels in a category.
+const CATEGORY_LIMIT = 50;
+
+// When a core is deleted: its text channels are kept, read-only, in an "Archived cores"
+// category (a new one when the last is full); the voice channel and the core's category go;
+// the role stays, renamed, so the people who were in the core can still read their chat.
+// Returns how many channels were archived.
+export async function archiveCoreDiscord(guild: DiscordGuild, core: CoreLike): Promise<number> {
+  await guild.channels.fetch();
+  const textIds = [core.rosterChannelId, core.signupChannelId, core.chatChannelId].filter((id): id is string => !!id && guild.channels.cache.has(id));
+  let archived = 0;
+  if (textIds.length > 0) {
+    const categories = guild.channels.cache.filter((channel) => channel.type === ChannelType.GuildCategory && channel.name.startsWith(ARCHIVE_CATEGORY));
+    const childCount = (id: string) => guild.channels.cache.filter((channel) => "parentId" in channel && channel.parentId === id).size;
+    let archive = categories.find((category) => childCount(category.id) + textIds.length <= CATEGORY_LIMIT) ?? null;
+    if (!archive) {
+      const name = categories.size === 0 ? ARCHIVE_CATEGORY : `${ARCHIVE_CATEGORY} ${categories.size + 1}`;
+      archive = await guild.channels.create({
+        name, type: ChannelType.GuildCategory, reason: `${BRAND.name}: archived raid core channels`,
+        permissionOverwrites: [{ id: guild.roles.everyone.id, deny: [PermissionFlagsBits.SendMessages] }]
+      }).catch(() => null);
+    }
+    for (const id of textIds) {
+      const channel = guild.channels.cache.get(id);
+      if (!channel || channel.type !== ChannelType.GuildText) continue;
+      const moved = await channel.edit({ parent: archive?.id ?? null, lockPermissions: false, reason: `${BRAND.name}: raid core deleted, channel archived` }).then(() => true, () => false);
+      if (!moved) continue;
+      archived++;
+      // Read-only for everyone who could see it (the core role, leadership); the bot still can.
+      for (const overwrite of channel.permissionOverwrites.cache.values()) {
+        if (overwrite.id === guild.members.me?.id) continue;
+        await channel.permissionOverwrites.edit(overwrite.id, { SendMessages: false }).catch(() => undefined);
+      }
+    }
+  }
+  for (const id of [core.voiceChannelId, core.categoryId]) {
+    if (!id) continue;
+    const channel = await guild.channels.fetch(id).catch(() => null);
+    await channel?.delete(`${BRAND.name}: raid core deleted`).catch(() => undefined);
+  }
+  if (core.roleId) {
+    const role = await guild.roles.fetch(core.roleId).catch(() => null);
+    await role?.edit({ name: `${core.name} (archived)`.slice(0, 100), mentionable: false, reason: `${BRAND.name}: raid core deleted` }).catch(() => undefined);
+  }
+  return archived;
 }
 
 // When a core is deleted with its channels: the four channels, the category and the role go.

@@ -27,7 +27,7 @@ import { sendWelcome, welcomeDelivery } from "../services/housekeeping.js";
 import { isValidTimeZone } from "../services/raid-time.js";
 import { updateDungeonLeaderboard } from "../services/dungeon-leaderboard.js";
 import { ensureDungeonSignupGuide } from "../services/dungeon-guide.js";
-import { syncAllCoreRosters } from "../services/raid-core.js";
+import { ensureAllCoresDiscord, syncAllCoreRosters } from "../services/raid-core.js";
 import { botMessageFacts, ensureBotGuide, gettingStartedPost, updateBotMessages } from "../services/bot-messages.js";
 import { dungeonGuideState, LFG_ROLE_NAMES } from "../services/dungeon-guide.js";
 import { guideText as craftGuideText } from "./craft-board.js";
@@ -753,7 +753,7 @@ export async function executeSetup(interaction: ChatInputCommandInteraction): Pr
                 else if (!pinned) await postBoardGuide(forum, lang);
               },
               leaderboard: () => updateDungeonLeaderboard(guild),
-              rosters: () => syncAllCoreRosters(guild, prisma, guildId)
+              rosters: () => ensureAllCoresDiscord(guild, prisma, guildId)
             });
           }
         } else if (action === "lfg-roles") {

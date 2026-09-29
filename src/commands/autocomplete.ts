@@ -13,6 +13,7 @@ import { dungeonChoices } from "../services/dungeon-stats.js";
 import { recipeNameSuggestions } from "../services/recipes.js";
 import { runChoices } from "../services/dungeon-admin.js";
 import { guildService } from "./context.js";
+import { faqChoices } from "./faq.js";
 import { commands } from "./index.js";
 import { resolveCommand } from "./router.js";
 
@@ -34,7 +35,9 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
     const timeZone = settings?.timezone ?? "America/Toronto";
     const language = settings?.language ?? "en";
 
-    if (focused.name === "race") {
+    if (command === "faq" && focused.name === "entry") {
+      choices = await faqChoices(guild.id, query);
+    } else if (focused.name === "race") {
       choices = raceSuggestions(query);
     } else if (focused.name === "spec") {
       choices = specSuggestions(interaction.options.getString("class"), query);

@@ -358,7 +358,10 @@ end
 local EPGP_KINDS = {
   EP_AWARD = { command = "award", ep = 1, gp = 0 },
   GP_AWARD = { command = "gp", ep = 0, gp = 1 },
-  ADJUSTMENT = { command = "deduct", ep = -1, gp = 0 }
+  ADJUSTMENT = { command = "deduct", ep = -1, gp = 0 },
+  -- Takes GP back (a mistaken charge, a returned item). Stored as an
+  -- ADJUSTMENT with a negative GP amount, which the bot already imports.
+  GP_DEDUCT = { command = "gpdeduct", ep = 0, gp = -1, type = "ADJUSTMENT" }
 }
 
 -- Every ledger entry gets a permanent unique id. The companion sends it to
@@ -379,16 +382,21 @@ local function changeEpgp(rawName, rawAmount, reason, kind, quiet)
   amount = math.floor(amount + 0.5)
   -- The bot requires a reason of at least 3 characters on import.
   if not reason or string.len(reason) < 3 then reason = "Manual adjustment" .. (reason and reason ~= "" and (": " .. reason) or "") end
-  local epAmount, gpAmount = spec.ep * amount, spec.gp * amount
   db.epgp[name] = db.epgp[name] or { ep = 0, gp = 0, ledger = {} }
   local account = db.epgp[name]
+  if spec.gp < 0 then
+    -- GP never goes below zero: deduct at most what the player has.
+    if account.gp <= 0 then message(name .. " has no GP to deduct."); return end
+    amount = math.min(amount, account.gp)
+  end
+  local epAmount, gpAmount = spec.ep * amount, spec.gp * amount
   account.ep = account.ep + epAmount
   account.gp = account.gp + gpAmount
   table.insert(account.ledger, {
-    id = nextLedgerId(), epAmount = epAmount, gpAmount = gpAmount, type = kind, reason = reason,
+    id = nextLedgerId(), epAmount = epAmount, gpAmount = gpAmount, type = spec.type or kind, reason = reason,
     at = now(), by = playerName(), raid = activeRaid and activeRaid.id
   })
-  logEvent(kind, { name = name, epAmount = epAmount, gpAmount = gpAmount, reason = reason })
+  logEvent(spec.type or kind, { name = name, epAmount = epAmount, gpAmount = gpAmount, reason = reason })
   send("EPGP|" .. name .. "|" .. epAmount .. "|" .. gpAmount .. "|" .. reason)
   if not quiet then
     message(string.format("%s EP %d, GP %d (%s), PR %.3f.", name, account.ep, account.gp, reason,
@@ -910,7 +918,7 @@ local function showHelp()
   message("/guilded character - copy a line to link this character in Discord (/character import)")
   if officer then
     message("Officer: /guilded start [title] | end | attendance <name>|group|seen [PRESENT|ABSENT|LATE] | boss <name>")
-    message("Officer: /guilded award <name>|group <amount> [reason] | gp <name> <amount> [reason] | deduct <name> <amount> [reason]")
+    message("Officer: /guilded award <name>|group <amount> [reason] | gp <name> <amount> [reason] | deduct <name> <amount> [reason] | gpdeduct <name> <amount> [reason]")
     message("Officer: /guilded loot <name> <item> [cost] | export | attune <player> <key> [clear] | officer list|add|remove|rank")
   end
   for _, line in pairs(ns.commandHelp or {}) do
@@ -1123,6 +1131,7 @@ local function command(text)
   elseif action == "award" then if requireOfficer() then changeEpgp(args[2], args[3], table.concat(args, " ", 4), "EP_AWARD") end
   elseif action == "gp" then if requireOfficer() then changeEpgp(args[2], args[3], table.concat(args, " ", 4), "GP_AWARD") end
   elseif action == "deduct" then if requireOfficer() then changeEpgp(args[2], args[3], table.concat(args, " ", 4), "ADJUSTMENT") end
+  elseif action == "gpdeduct" then if requireOfficer() then changeEpgp(args[2], args[3], table.concat(args, " ", 4), "GP_DEDUCT") end
   elseif action == "loot" then if requireOfficer() then recordLoot(args) end
   elseif action == "attune" and ns.attunements and (function()
       local sub = string.lower(args[2] or "")

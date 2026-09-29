@@ -5,6 +5,7 @@
 --   /guilded games deathroll [max]   everyone rolls, the lowest is out, again until one is left
 --   /guilded games duel <player> [max]   two players, classic deathroll: roll the last number, first to roll 1 loses
 --   /guilded games roll | remind | add <p> | remove <p> | cancel | status
+--   /guilded games explain highroll|deathroll|duel   post the rules in chat for new players
 --
 -- Anyone can run a game: your client is the referee. It reads the group's
 -- /roll results and chat, and posts short lines in party/raid chat. Players
@@ -47,14 +48,20 @@ local function sendChat(text, channel)
 end
 
 local scheduleFlush
+-- Queue entries are plain strings (sent to the group) or { text, channel }
+-- for a line with its own channel (the rules, when you are not grouped).
+local function entryText(entry) return type(entry) == "table" and entry.text or entry end
+local function entryChannel(entry) return type(entry) == "table" and entry.channel or nil end
+
 local function flush()
   flushScheduled = false
   if #queue == 0 then return end
-  local line = table.remove(queue, 1)
-  while queue[1] and string.len(line) + 3 + string.len(queue[1]) <= CHAT_MAX do
-    line = line .. " | " .. table.remove(queue, 1)
+  local first = table.remove(queue, 1)
+  local line, fixed = entryText(first), entryChannel(first)
+  while queue[1] and entryChannel(queue[1]) == fixed and string.len(line) + 3 + string.len(entryText(queue[1])) <= CHAT_MAX do
+    line = line .. " | " .. entryText(table.remove(queue, 1))
   end
-  local channel = groupChannel()
+  local channel = fixed or groupChannel()
   if channel then sendChat("[Guilded] " .. line, channel) end
   lastChatAt = clock()
   if #queue > 0 then scheduleFlush() end
@@ -72,6 +79,46 @@ local function announce(text)
   scheduleFlush()
 end
 local function tell(text) ns.message(text) end
+local function L(text) return ns.L and ns.L(text) or text end
+
+-- The rules of each game, short enough for chat, so players new to it can
+-- join in. Posted in party/raid chat, or /say when you are not grouped.
+local RULES = {
+  HIGH = {
+    "How High Roll works: type 1 in chat to join. When the host calls the roll, type /roll %d.",
+    "Highest roll wins. A tie rolls again between the tied players. Just for fun, no gold."
+  },
+  DEATH = {
+    "How Deathroll works: type 1 in chat to join. When the host calls the roll, type /roll %d.",
+    "The lowest roll is out. The next round rolls up to that lowest number. Last one left wins. Just for fun, no gold."
+  },
+  DUEL = {
+    "How a deathroll duel works: two players take turns. The first types /roll %d.",
+    "Then each rolls up to the number the other got (rolled 57? type /roll 57). Whoever rolls 1 loses. Just for fun, no gold."
+  }
+}
+local RULE_ALIASES = { highroll = "HIGH", high = "HIGH", deathroll = "DEATH", death = "DEATH", duel = "DUEL" }
+
+local function explain(which)
+  local game = RULE_ALIASES[string.lower(which or "")]
+  if not game then
+    -- No game named: explain the one that is running, if any.
+    game = (games.session and games.session.game) or (games.duel and "DUEL")
+  end
+  if not game then tell("Which game? /guilded games explain highroll | deathroll | duel"); return end
+  local maxRoll = (game ~= "DUEL" and games.session and games.session.game == game and games.session.maxRoll)
+    or (game == "DUEL" and games.duel and games.duel.max) or DEFAULT_MAX
+  local channel
+  if not groupChannel() then channel = "SAY" end
+  for _, rule in ipairs(RULES[game]) do
+    local text = string.format(L(rule), maxRoll)
+    ns.message(text)
+    table.insert(queue, channel and { text = string.sub(text, 1, CHAT_MAX), channel = channel } or string.sub(text, 1, CHAT_MAX))
+  end
+  scheduleFlush()
+end
+games.explain = explain
+games.RULES = RULES
 
 local function countKeys(t)
   local n = 0
@@ -263,6 +310,7 @@ end
 local function help()
   tell("Roll games (just for fun, no gold): /guilded games highroll [max] | deathroll [max] | duel <player> [max]")
   tell("  then: roll (call the roll) | remind | add <player> | remove <player> | cancel | status. Players type 1 in chat to join.")
+  tell("  explain highroll|deathroll|duel posts the rules in chat for players new to the game.")
 end
 
 ns.commandHandlers = ns.commandHandlers or {}
@@ -281,6 +329,7 @@ ns.commandHandlers["games"] = function(args)
   elseif action == "remove" then removePlayer(ns.normalizeName(args[2]))
   elseif action == "cancel" then cancelAll()
   elseif action == "status" then tell(games.statusText())
+  elseif action == "explain" or action == "rules" then explain(args[2])
   else help() end
   if ns.onGamesChange then ns.onGamesChange() end
 end

@@ -320,6 +320,8 @@ local function buildEpgpPage(page)
   at(newButton(page, "Award EP", 120, function() epgp("award") end), page, 0, -126)
   at(newButton(page, "Charge GP", 120, function() epgp("gp") end), page, 126, -126)
   at(newButton(page, "Deduct EP", 120, function() epgp("deduct") end), page, 252, -126)
+  tip(at(newButton(page, "Deduct GP", 120, function() epgp("gpdeduct") end), page, 378, -126),
+    "Takes GP back, for example a mistaken charge or a returned item. Never below 0.")
   local groupButton = at(newButton(page, "Award EP to whole group", 220), page, 0, -158)
   confirmClick(groupButton, "Award EP to whole group", function()
     local n = amount()
@@ -549,7 +551,16 @@ local function buildGamesPage(page)
     if name then run("games duel " .. name) end
   end), page, 0, -112)
 
-  ui.gamesStatus = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -150)
+  -- Rules in chat, so players new to a game can join in.
+  at(newLabel(page, "Explain a game in chat (party/raid, or /say when not grouped)", "GameFontNormalSmall"), page, 0, -148)
+  tip(at(newButton(page, "Explain High roll", 150, function() run("games explain highroll") end), page, 0, -168),
+    "Posts how High Roll works in chat.")
+  tip(at(newButton(page, "Explain Deathroll", 150, function() run("games explain deathroll") end), page, 156, -168),
+    "Posts how Deathroll works in chat.")
+  tip(at(newButton(page, "Explain Duel", 150, function() run("games explain duel") end), page, 312, -168),
+    "Posts how a deathroll duel works in chat.")
+
+  ui.gamesStatus = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -206)
   ui.gamesStatus:SetWidth(PAGE_WIDTH)
 end
 

@@ -6,7 +6,7 @@ import type { RaidCore, RaidRole } from "@prisma/client";
 import { prisma } from "../database.js";
 import { asLootMode, describeRules, effectiveRules, LOOT_MODE_HELP, LOOT_MODE_LABEL, LOOT_MODES } from "../services/core-rules.js";
 import { createItemValueService, parseItemValues, priceDraft } from "../services/item-values.js";
-import { coreRosterEmbed, createRaidCoreService, syncCoreRoster } from "../services/raid-core.js";
+import { coreRosterEmbed, createRaidCoreService, ensureCoreDiscord, syncCoreRoster } from "../services/raid-core.js";
 import { modeKey, parseMode, type EditMode } from "./core-editor.js";
 import { guildService } from "./context.js";
 
@@ -164,7 +164,10 @@ export async function runCoreWizard(interaction: ChatInputCommandInteraction): P
           );
           coreId = core.id;
           await submitted.deferUpdate();
-          await show(await rosterStep(core, guildId, `Created **${core.name}**.`, mode));
+          // Its own category, channels and role (5.0: made with the core).
+          const discord = await ensureCoreDiscord(interaction.guild, prisma, guildId, core.id);
+          const note = discord.error ? `Created **${core.name}**. Its channels could not be made: ${discord.error}` : `Created **${core.name}** and its channels.`;
+          await show(await rosterStep(core, guildId, note, mode));
         } catch (error) {
           await submitted.reply({ content: error instanceof Error ? error.message : "Could not create the core.", ephemeral: true });
         }

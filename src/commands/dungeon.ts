@@ -10,6 +10,7 @@ import {
 } from "../services/dungeon-stats.js";
 import { findPlayer } from "../services/player-search.js";
 import { executeDungeonGroup } from "./dungeon-group.js";
+import { openGroupAlerts } from "./group-alerts.js";
 import { guildService, requireGuildContext } from "./context.js";
 
 // Dungeon challenge views (roadmap D5). Points come from runs the addon
@@ -32,7 +33,9 @@ export const dungeonCommand = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName("guide").setDescription("Post or repair the pinned dungeon signup button")
     .setDescriptionLocalizations({ fr: "Publier ou réparer le bouton épinglé pour les inscriptions aux donjons" }))
   .addSubcommand((sub) => sub.setName("group").setDescription("Form a dungeon group: a signup post with buttons and a temporary voice channel")
-    .addStringOption((o) => o.setName("title").setDescription("e.g. Deadmines, need tank + healer").setMinLength(3).setMaxLength(80).setRequired(true)));
+    .addStringOption((o) => o.setName("title").setDescription("e.g. Deadmines, need tank + healer").setMinLength(3).setMaxLength(80).setRequired(true)))
+  .addSubcommand((sub) => sub.setName("alerts").setDescription("Your group alerts: get pinged for groups your level and roles fit")
+    .setDescriptionLocalizations({ fr: "Vos alertes de groupe : être mentionné pour les groupes à votre niveau et vos rôles" }));
 
 function dungeonOption(interaction: ChatInputCommandInteraction): number | null {
   const raw = interaction.options.getString("dungeon");
@@ -97,6 +100,10 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
   }
   if (subcommand === "group") {
     await executeDungeonGroup(interaction);
+    return;
+  }
+  if (subcommand === "alerts") {
+    await openGroupAlerts(interaction);
     return;
   }
   const embed = new EmbedBuilder().setColor(0xd4a017);

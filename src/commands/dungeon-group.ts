@@ -1,13 +1,14 @@
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, ModalBuilder, PermissionFlagsBits, TextInputBuilder, TextInputStyle,
   type ButtonInteraction, type ChatInputCommandInteraction, type Client, type Guild as DiscordGuild, type GuildMember, type ModalSubmitInteraction,
-  type OverwriteResolvable, type StringSelectMenuInteraction
+  type GuildTextBasedChannel, type OverwriteResolvable, type StringSelectMenuInteraction
 } from "discord.js";
-import type { RaidRole } from "@prisma/client";
+import type { DungeonGroup, RaidRole } from "@prisma/client";
 import { prisma } from "../database.js";
 import { hasPermission, isPermissionRoleName } from "../permissions.js";
 import { asGroupKind, createDungeonGroupService, GROUP_CAPS, GROUP_KINDS, groupSize, shouldDeleteVoice, shouldExpireOpenGroup, type GroupKind } from "../services/dungeon-group.js";
 import { DUNGEON_GUIDE_CREATE_ID, DUNGEON_GUIDE_KIND_ID, LFG_ROLE_NAMES } from "../services/dungeon-guide.js";
+import { alertRecipients, dungeonLevelsFromTitle, parseLevelRange, rolesFromTitle, type AlertGroup } from "../services/group-alerts.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { BRAND } from "../brand.js";
 import { asLang, tx, type Lang } from "../i18n.js";
@@ -41,6 +42,11 @@ function dungeonGroupModal(lang: Lang, kind: GroupKind = "DUNGEON") {
       .setCustomId("size").setLabel(tx(lang, "Group size ({min} to {max})", { min: info.minSize, max: info.maxSize }))
       .setPlaceholder(String(info.size)).setStyle(TextInputStyle.Short).setMaxLength(2).setRequired(false)));
   }
+  // 5.0: the level range, for group alerts (empty: guessed from the dungeon in the title).
+  modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder()
+    .setCustomId("levels").setLabel(tx(lang, "Levels (optional)"))
+    .setPlaceholder(tx(lang, "e.g. 55-60, or 60. Empty: guessed from the dungeon"))
+    .setStyle(TextInputStyle.Short).setMaxLength(9).setRequired(false)));
   return modal;
 }
 
@@ -56,6 +62,45 @@ export async function handleDungeonGuideSelect(interaction: StringSelectMenuInte
   if (interaction.customId !== DUNGEON_GUIDE_KIND_ID || !interaction.guild) return;
   const record = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
   await interaction.showModal(dungeonGroupModal(await groupLang(record.id), asGroupKind(interaction.values[0])));
+}
+
+// The group's level range: the Levels box, else (dungeons and leveling) the dungeon in the title.
+function groupLevels(kind: GroupKind, title: string, typed: string): { minLevel: number | null; maxLevel: number | null } {
+  const range = parseLevelRange(typed) ?? (kind === "DUNGEON" || kind === "LEVELING" ? dungeonLevelsFromTitle(title) : null);
+  return { minLevel: range?.min ?? null, maxLevel: range?.max ?? null };
+}
+
+// Posts a new group: the kind's "LFG" role is pinged (as before 5.0), plus the members whose
+// group alerts fit it (kind, level, roles still needed), mentioned by name.
+async function postGroup(
+  guild: DiscordGuild, channel: GuildTextBasedChannel, group: { id: string; guildId: string; kind: string; title: string; status: DungeonGroup["status"]; minLevel: number | null; maxLevel: number | null },
+  leaderDiscordId: string, lang: Lang
+): Promise<void> {
+  const kind = asGroupKind(group.kind);
+  const ping = pingRoleId(guild, kind);
+  const pingedByRole = new Set(ping ? guild.roles.cache.get(ping)?.members.map((m) => m.id) ?? [] : []);
+  const users = await matchingAlertUsers(group.guildId, {
+    kind, minLevel: group.minLevel, maxLevel: group.maxLevel, rolesNeeded: rolesFromTitle(group.title), leaderDiscordId
+  }, pingedByRole);
+  const mentions = [...(ping ? [`<@&${ping}>`] : []), ...users.map((id) => `<@${id}>`)];
+  const message = await channel.send({
+    ...(mentions.length ? { content: mentions.join(" ") } : {}),
+    embeds: [await groupEmbed(group.id)],
+    components: buttons(group.id, group.status, lang),
+    allowedMentions: { roles: ping ? [ping] : [], users }
+  });
+  await service.setMessage(group.id, channel.id, message.id);
+}
+
+// The Discord ids of members whose alerts fit the group.
+async function matchingAlertUsers(guildId: string, group: AlertGroup, alreadyPinged: Set<string>): Promise<string[]> {
+  const alerts = await prisma.groupAlert.findMany({
+    where: { guildId, kinds: { has: group.kind } },
+    include: { member: { select: { discordUserId: true, characters: { select: { level: true } } } } }
+  });
+  return alertRecipients(group, alerts.map((alert) => ({
+    discordUserId: alert.member.discordUserId, kinds: alert.kinds, roles: alert.roles, levels: alert.member.characters.map((c) => c.level)
+  })), alreadyPinged);
 }
 
 // The role pinged for a kind (a role named e.g. "LFG PvP"), or null.
@@ -81,23 +126,18 @@ export async function handleDungeonGuideModal(interaction: ModalSubmitInteractio
     throw new Error("I can't post in the configured dungeon signups channel. Check /setup status and channel permissions.");
   }
   const lang = asLang(settings?.language);
+  const title = interaction.fields.getTextInputValue("title").trim();
+  const levels = groupLevels(kind, title, interaction.fields.fields.has("levels") ? interaction.fields.getTextInputValue("levels") : "");
   const group = await service.create({
     guildId: record.id,
-    title: interaction.fields.getTextInputValue("title").trim(),
+    title,
     leaderId: member.id,
     channelId: channel.id,
     kind,
-    size: askedSize
+    size: askedSize,
+    ...levels
   });
-  // Players who took the kind's "LFG" role are pinged.
-  const ping = pingRoleId(guild, kind);
-  const message = await channel.send({
-    ...(ping ? { content: `<@&${ping}>` } : {}),
-    embeds: [await groupEmbed(group.id)],
-    components: buttons(group.id, group.status, lang),
-    allowedMentions: ping ? { roles: [ping] } : { parse: [] }
-  });
-  await service.setMessage(group.id, channel.id, message.id);
+  await postGroup(guild, channel, group, interaction.user.id, lang);
   await interaction.editReply({
     content: tx(lang, "Posted your group in <#{id}>. You're the leader: pick your role with the buttons, and press **Start now** when ready (or it starts by itself at {size} players).", { id: channel.id, size: group.maxSize })
   });
@@ -138,6 +178,10 @@ async function groupEmbed(groupId: string): Promise<EmbedBuilder> {
       { name: T("Leader"), value: `<@${(await prisma.member.findUnique({ where: { id: group.leaderId }, select: { discordUserId: true } }))?.discordUserId ?? "0"}>`, inline: true }
     )
     .setFooter({ text: T("Group {id}", { id: group.id }) });
+  if (group.minLevel !== null || group.maxLevel !== null) {
+    const min = group.minLevel ?? 1, max = group.maxLevel ?? 80;
+    embed.addFields({ name: T("Levels"), value: min === max ? String(min) : max >= 80 ? `${min}+` : `${min}-${max}`, inline: true });
+  }
   if (waiting.length) embed.addFields({ name: T("Waitlist"), value: waiting.join(", ").slice(0, 1000) });
   if (group.voiceChannelId) embed.addFields({ name: T("Voice"), value: T("<#{id}> (private to the group; deleted when empty)", { id: group.voiceChannelId }) });
   return embed;
@@ -232,13 +276,12 @@ export async function executeDungeonGroup(interaction: ChatInputCommandInteracti
   const channel = (settings?.dungeonSignupChannelId ? await interaction.guild.channels.fetch(settings.dungeonSignupChannelId).catch(() => null) : null) ?? interaction.channel;
   if (!channel?.isTextBased() || !("send" in channel)) throw new Error("I can't post in that channel. Set a dungeon signups channel in /setup.");
   const lang = asLang(settings?.language);
+  const title = interaction.options.getString("title", true);
   const group = await service.create({
-    guildId: context.guildId, title: interaction.options.getString("title", true), leaderId: context.memberId, channelId: channel.id, kind: "DUNGEON", size: groupSize("DUNGEON")
+    guildId: context.guildId, title, leaderId: context.memberId, channelId: channel.id, kind: "DUNGEON", size: groupSize("DUNGEON"),
+    ...groupLevels("DUNGEON", title, "")
   });
-  const message = await channel.send({
-    embeds: [await groupEmbed(group.id)], components: buttons(group.id, group.status, lang), allowedMentions: { parse: [] }
-  });
-  await service.setMessage(group.id, channel.id, message.id);
+  await postGroup(interaction.guild, channel as GuildTextBasedChannel, group, interaction.user.id, lang);
   await interaction.reply({ content: tx(lang, "Posted your group in <#{id}>. You're the leader: pick your role with the buttons, and press **Start now** when ready (or it starts by itself at {size} players).", { id: channel.id, size: group.maxSize }), ephemeral: true });
 }
 

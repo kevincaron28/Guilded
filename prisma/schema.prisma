@@ -208,6 +208,7 @@ model Character {
   attunements        CharacterAttunement[]
   wishlist           WishlistEntry[]
   readinessSnapshots InspectedCharacterSnapshot[]
+  coreSpots          RaidCoreMember[]
 
   @@unique([realm, name])
   @@index([memberId, isMain])
@@ -1049,9 +1050,13 @@ model RaidCoreMember {
   bench    Boolean  @default(false)
   // On trial (an application moved to Trial): shown apart on the roster until approved.
   trial    Boolean  @default(false)
+  // The character they bring to this core (one member can be in several cores, with the same
+  // character or a different one in each). Empty = not said: the roster shows only their name.
+  characterId String?
   addedAt  DateTime @default(now())
   core     RaidCore @relation(fields: [coreId], references: [id], onDelete: Cascade)
   member   Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  character Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
 
   @@unique([coreId, memberId])
   @@index([memberId])

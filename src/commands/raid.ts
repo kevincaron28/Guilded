@@ -12,7 +12,7 @@ import { bossProgress } from "../services/progress.js";
 import { parseRaidTime } from "../services/raid-time.js";
 import { asLang, t, type Lang } from "../i18n.js";
 import { createRaidService, type SignupAvailability } from "../services/raid.js";
-import { createRaidCoreService } from "../services/raid-core.js";
+import { coreSpotLabel, createRaidCoreService } from "../services/raid-core.js";
 import { buildSignupEmbed } from "../services/signup-embed.js";
 import { hasPermission } from "../permissions.js";
 import { guildService, requireGuildContext } from "./context.js";
@@ -131,12 +131,14 @@ export async function syncSignupEmbed(discordGuild: DiscordGuild, guildId: strin
     const lang = asLang((await guildService.getSettings(guildId))?.language);
     const everyone = await raidService.signups(raidId, guildId);
     const core = raid.coreId
-      ? await prisma.raidCore.findUnique({ where: { id: raid.coreId }, select: { name: true, members: { select: { memberId: true, role: true, bench: true, member: { select: { displayName: true } } } } } })
+      ? await prisma.raidCore.findUnique({ where: { id: raid.coreId }, select: { name: true, members: { select: { memberId: true, role: true, bench: true, member: { select: { displayName: true } }, character: { select: { name: true } } } } } })
       : null;
+    // A core raid shows the character each core member brings to this core ("Kevin · Thrall").
+    const coreLabel = new Map(core?.members.map((m) => [m.memberId, coreSpotLabel(m)]) ?? []);
     const embed = buildSignupEmbed({
       lang, raid,
-      signups: everyone.map((signup) => ({ memberId: signup.memberId, displayName: signup.member.displayName, role: signup.role, status: signup.status })),
-      core: core ? { name: core.name, members: core.members.map((m) => ({ memberId: m.memberId, displayName: m.member.displayName, role: m.role, bench: m.bench })) } : undefined
+      signups: everyone.map((signup) => ({ memberId: signup.memberId, displayName: coreLabel.get(signup.memberId) ?? signup.member.displayName, role: signup.role, status: signup.status })),
+      core: core ? { name: core.name, members: core.members.map((m) => ({ memberId: m.memberId, displayName: coreSpotLabel(m), role: m.role, bench: m.bench })) } : undefined
     });
 
     if (raid.signupChannelId && raid.signupMessageId) {

@@ -6,7 +6,7 @@ import { runCoreWizard } from "./core-wizard.js";
 import { runCoreEditor } from "./core-editor.js";
 import { describeRules, effectiveRules, LOOT_MODE_LABEL, LOOT_MODES } from "../services/core-rules.js";
 import { executeCoreItems } from "./core-items.js";
-import { createRaidCoreService, ensureCoreDiscord, removeCoreRosterMessage, syncCoreRoster } from "../services/raid-core.js";
+import { coreSpotLabel, createRaidCoreService, ensureCoreDiscord, removeCoreRosterMessage, syncCoreRoster } from "../services/raid-core.js";
 import { archiveCoreDiscord, deleteCoreDiscord, renameCoreDiscord } from "../services/core-channels.js";
 import { guildService, requireGuildContext } from "./context.js";
 
@@ -17,6 +17,8 @@ const coreOption = (o: import("discord.js").SlashCommandStringOption) =>
 const roleOption = (o: import("discord.js").SlashCommandStringOption) =>
   o.setName("role").setDescription("Their role in the core (default DPS)").addChoices(
     { name: "Tank", value: "TANK" }, { name: "Healer", value: "HEALER" }, { name: "DPS", value: "DPS" });
+const characterOption = (o: import("discord.js").SlashCommandStringOption) =>
+  o.setName("character").setDescription("The character they bring to this core (one of their linked characters)").setAutocomplete(true);
 
 export const coreCommand = new SlashCommandBuilder()
   .setName("core")
@@ -32,7 +34,12 @@ export const coreCommand = new SlashCommandBuilder()
     .addStringOption(coreOption)
     .addUserOption((o) => o.setName("player").setDescription("Discord member").setRequired(true))
     .addStringOption(roleOption)
-    .addBooleanOption((o) => o.setName("bench").setDescription("Put them on the bench (a replacement) instead of the main roster")))
+    .addBooleanOption((o) => o.setName("bench").setDescription("Put them on the bench (a replacement) instead of the main roster"))
+    .addStringOption(characterOption))
+  .addSubcommand((sub) => sub.setName("character").setDescription("Which character you (or a player) bring to a core: the same in every core, or one per core.")
+    .addStringOption(coreOption)
+    .addStringOption(characterOption)
+    .addUserOption((o) => o.setName("player").setDescription("Someone else (Raid Leaders); default: you")))
   .addSubcommand((sub) => sub.setName("remove").setDescription("Remove a player from a core (Raid Leaders).")
     .addStringOption(coreOption)
     .addUserOption((o) => o.setName("player").setDescription("Discord member").setRequired(true)))
@@ -84,6 +91,7 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
   if (!context) return;
   const guildId = context.guildId;
   const subcommand = interaction.options.getSubcommand();
+  // "character" checks for itself: anyone may set their own.
   if (["setup", "edit", "create", "add", "remove", "post", "delete", "rules", "rename"].includes(subcommand)) requireRaidLeader(interaction);
   if (subcommand === "items") {
     // Anyone can look at the prices; changing them is for Raid Leaders.
@@ -129,11 +137,32 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
     const user = interaction.options.getUser("player", true);
     const target = await guildService.ensureMember(guildId, user.id, user.username);
     const core = subcommand === "add"
-      ? await coreService.addMember(guildId, interaction.options.getString("core", true), target.id, (interaction.options.getString("role") ?? "DPS") as RaidRole, interaction.options.getBoolean("bench") ?? false)
+      ? await coreService.addMember(guildId, interaction.options.getString("core", true), target.id, (interaction.options.getString("role") ?? "DPS") as RaidRole, interaction.options.getBoolean("bench") ?? false, interaction.options.getString("character"))
       : await coreService.removeMember(guildId, interaction.options.getString("core", true), target.id);
     await syncCoreRoster(interaction.guild, prisma, guildId, core.id);
+    // Being in several cores is fine: say where else they are, so nobody thinks it was a move.
+    const others = subcommand === "add" ? (await coreService.spotsOf(guildId, target.id)).filter((spot) => spot.coreId !== core.id) : [];
+    const character = interaction.options.getString("character");
     await interaction.reply({
-      content: subcommand === "add" ? `Added ${user.username} to **${core.name}**${interaction.options.getBoolean("bench") ? " (bench)" : ""}.` : `Removed ${user.username} from **${core.name}**.`,
+      content: subcommand === "add"
+        ? `Added ${user.username} to **${core.name}**${character ? ` with ${character}` : ""}${interaction.options.getBoolean("bench") ? " (bench)" : ""}.`
+          + (others.length ? ` Also in: ${others.map((spot) => `${spot.core.name}${spot.character ? ` (${spot.character.name})` : ""}`).join(", ")}.` : "")
+        : `Removed ${user.username} from **${core.name}**.`,
+      ephemeral: true
+    });
+    return;
+  }
+
+  if (subcommand === "character") {
+    // Your own spot; someone else's is for Raid Leaders.
+    const user = interaction.options.getUser("player") ?? interaction.user;
+    if (user.id !== interaction.user.id) requireRaidLeader(interaction);
+    const target = await guildService.ensureMember(guildId, user.id, user.username);
+    const { core, character } = await coreService.setCharacter(guildId, interaction.options.getString("core", true), target.id, interaction.options.getString("character"));
+    await syncCoreRoster(interaction.guild, prisma, guildId, core.id);
+    const who = user.id === interaction.user.id ? "You bring" : `${user.username} brings`;
+    await interaction.reply({
+      content: character ? `${who} **${character.name}** to **${core.name}**.` : `Cleared the character for ${user.id === interaction.user.id ? "you" : user.username} in **${core.name}**.`,
       ephemeral: true
     });
     return;
@@ -177,8 +206,8 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
 
   if (subcommand === "show") {
     const core = await coreService.byIdOrName(guildId, interaction.options.getString("core", true));
-    const byRole = (role: RaidRole) => core.members.filter((entry) => entry.role === role && !entry.bench).map((entry) => entry.member.displayName).join(", ") || "—";
-    const benchNames = core.members.filter((entry) => entry.bench).map((entry) => `${entry.member.displayName} (${entry.role})`).join(", ");
+    const byRole = (role: RaidRole) => core.members.filter((entry) => entry.role === role && !entry.bench).map(coreSpotLabel).join(", ") || "—";
+    const benchNames = core.members.filter((entry) => entry.bench).map((entry) => `${coreSpotLabel(entry)} (${entry.role})`).join(", ");
     const rules = describeRules(effectiveRules(await guildService.getSettings(guildId), core), core.name);
     await interaction.reply({
       content: `${core.description ? `${core.description}\n` : ""}${rules}\n🛡️ Tanks: ${byRole("TANK")}\n💚 Healers: ${byRole("HEALER")}\n⚔️ DPS: ${byRole("DPS")}${benchNames ? `
@@ -190,9 +219,17 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
 
   if (subcommand === "list") {
     const cores = await coreService.list(guildId);
+    const me = await prisma.member.findFirst({ where: { guildId, discordUserId: interaction.user.id }, select: { id: true } });
+    // The cores you are in, with your role and character there.
+    const mine = (core: (typeof cores)[number]) => {
+      const spot = me ? core.members.find((entry) => entry.memberId === me.id) : undefined;
+      if (!spot) return "";
+      const state = spot.trial ? ", trial" : spot.bench ? ", bench" : "";
+      return ` · you: ${spot.role}${spot.character ? ` (${spot.character.name})` : ""}${state}`;
+    };
     await interaction.reply({
       content: cores.length
-        ? cores.map((core) => `• **${core.name}** — ${core.members.length} player${core.members.length === 1 ? "" : "s"}, ${core._count.raids} raid${core._count.raids === 1 ? "" : "s"}`).join("\n")
+        ? cores.map((core) => `• **${core.name}** — ${core.members.length} player${core.members.length === 1 ? "" : "s"}, ${core._count.raids} raid${core._count.raids === 1 ? "" : "s"}${mine(core)}`).join("\n").slice(0, 1990)
         : "No raid cores yet. Create one with `/core create`.",
       ephemeral: true
     });

@@ -9,7 +9,8 @@ import { setupCoreDiscord, syncCoreRole } from "./core-channels.js";
 // A raid core is a named roster (e.g. "Tuesday MC core"). A guild can have
 // several. Core members get priority at signups for raids created for that
 // core (see raid.ts), and every core's roster is kept as one live message in
-// the roster channel.
+// the roster channel. One member can be in several cores (a different role in each), and each
+// core spot can name the character they bring there: the same one everywhere, or an alt per core.
 
 const ROLE_ORDER: RaidRole[] = ["TANK", "HEALER", "DPS"];
 const ROLE_LABELS: Record<Lang, Record<RaidRole, string>> = {
@@ -27,10 +28,17 @@ export function createRaidCoreService(database: Db) {
   async function byIdOrName(guildId: string, value: string) {
     const core = await database.raidCore.findFirst({
       where: { guildId, OR: [{ id: value }, { name: { equals: value.trim(), mode: "insensitive" } }] },
-      include: { members: { include: { member: true }, orderBy: { addedAt: "asc" } } }
+      include: { members: { include: { member: true, character: true }, orderBy: { addedAt: "asc" } } }
     });
     if (!core) throw new Error(`No raid core "${value}". See /core list.`);
     return core;
+  }
+
+  // One of the member's own linked characters, by name (case does not matter).
+  async function ownCharacter(memberId: string, name: string) {
+    const character = await database.character.findFirst({ where: { memberId, name: { equals: name.trim(), mode: "insensitive" } } });
+    if (!character) throw new Error(`"${name.trim()}" is not one of that player's linked characters. Link it first with /character.`);
+    return character;
   }
 
   return {
@@ -58,16 +66,41 @@ export function createRaidCoreService(database: Db) {
       return core;
     },
 
-    // Adds a player, or changes the role / bench spot of one already in the core.
-    async addMember(guildId: string, value: string, memberId: string, role: RaidRole, bench = false) {
+    // Adds a player, or changes the role / bench spot of one already in the core. Being in
+    // another core changes nothing here. `characterName` (one of their linked characters) says
+    // which character they bring to this core; left out, the one already set is kept.
+    async addMember(guildId: string, value: string, memberId: string, role: RaidRole, bench = false, characterName?: string | null) {
       const core = await byIdOrName(guildId, value);
+      const characterId = characterName ? (await ownCharacter(memberId, characterName)).id : undefined;
       await database.raidCoreMember.upsert({
         where: { coreId_memberId: { coreId: core.id, memberId } },
         // Added or moved by an officer: a full member from now on (not on trial).
-        create: { coreId: core.id, memberId, role, bench },
-        update: { role, bench, trial: false }
+        create: { coreId: core.id, memberId, role, bench, ...(characterId ? { characterId } : {}) },
+        update: { role, bench, trial: false, ...(characterId ? { characterId } : {}) }
       });
       return core;
+    },
+
+    // The character a core member brings to this core; null clears it. Returns the core and the
+    // character (null when cleared).
+    async setCharacter(guildId: string, value: string, memberId: string, characterName: string | null) {
+      const core = await byIdOrName(guildId, value);
+      if (!core.members.some((entry) => entry.memberId === memberId)) throw new Error(`That player is not in ${core.name}.`);
+      const character = characterName ? await ownCharacter(memberId, characterName) : null;
+      await database.raidCoreMember.update({
+        where: { coreId_memberId: { coreId: core.id, memberId } },
+        data: { characterId: character?.id ?? null }
+      });
+      return { core, character };
+    },
+
+    // Every core a member is in, with their role, spot and character there.
+    spotsOf(guildId: string, memberId: string) {
+      return database.raidCoreMember.findMany({
+        where: { memberId, core: { guildId } },
+        include: { core: { select: { id: true, name: true } }, character: true },
+        orderBy: { core: { name: "asc" } }
+      });
     },
 
     // Renames a core (names are unique per guild, ignoring case). Raids, signups, prices and
@@ -88,18 +121,26 @@ export function createRaidCoreService(database: Db) {
     // An applicant's place in the core after a decision: on Trial they join as a trial member
     // (with the role they applied for), on Approve the trial mark is cleared (or they join as a
     // full member), on Reject a trial member is taken off again. A role or bench spot an officer
-    // already set is kept. Returns false when nothing changed.
-    async settleApplicant(coreId: string, memberId: string, outcome: "TRIAL" | "APPROVED" | "REJECTED", role: RaidRole | null): Promise<boolean> {
+    // already set is kept. The character named on the application becomes their character in
+    // this core when it is one of their linked characters and none is set yet (their spots in
+    // other cores are left alone). Returns false when nothing changed.
+    async settleApplicant(coreId: string, memberId: string, outcome: "TRIAL" | "APPROVED" | "REJECTED", role: RaidRole | null, characterName?: string | null): Promise<boolean> {
       if (outcome === "REJECTED") {
         const removed = await database.raidCoreMember.deleteMany({ where: { coreId, memberId, trial: true } });
         return removed.count > 0;
       }
       const trial = outcome === "TRIAL";
-      await database.raidCoreMember.upsert({
+      const character = characterName?.trim()
+        ? await database.character.findFirst({ where: { memberId, name: { equals: characterName.trim(), mode: "insensitive" } }, select: { id: true } })
+        : null;
+      const spot = await database.raidCoreMember.upsert({
         where: { coreId_memberId: { coreId, memberId } },
-        create: { coreId, memberId, role: role ?? "DPS", trial },
+        create: { coreId, memberId, role: role ?? "DPS", trial, ...(character ? { characterId: character.id } : {}) },
         update: { trial }
       });
+      if (character && !spot.characterId) {
+        await database.raidCoreMember.update({ where: { id: spot.id }, data: { characterId: character.id } });
+      }
       return true;
     },
 
@@ -113,7 +154,7 @@ export function createRaidCoreService(database: Db) {
     list(guildId: string) {
       return database.raidCore.findMany({
         where: { guildId },
-        include: { members: { include: { member: true }, orderBy: { addedAt: "asc" } }, _count: { select: { raids: true } } },
+        include: { members: { include: { member: true, character: true }, orderBy: { addedAt: "asc" } }, _count: { select: { raids: true } } },
         orderBy: { name: "asc" }
       });
     },
@@ -138,8 +179,15 @@ type CoreForEmbed = {
   schedule?: string | null;
   lootMode?: string | null;
   reservesPerPlayer?: number | null;
-  members: { role: RaidRole; bench: boolean; trial?: boolean; member: { displayName: string } }[];
+  members: CoreSpot[];
 };
+
+type CoreSpot = { role: RaidRole; bench: boolean; trial?: boolean; member: { displayName: string }; character?: { name: string } | null };
+
+// "Kevin · Thrall" when the spot names the character brought to this core, else just the name.
+export function coreSpotLabel(entry: CoreSpot): string {
+  return entry.character ? `${entry.member.displayName} · ${entry.character.name}` : entry.member.displayName;
+}
 
 // `guildLootMode` is the guild's raw default (GuildSettings.lootMode); the core's own
 // lootMode overrides it when set, so the message always shows the *effective* mode.
@@ -154,16 +202,16 @@ export function coreRosterEmbed(core: CoreForEmbed, guildLootMode?: string | nul
     : "";
   embed.addFields({ name: `🎲 ${tx(lang, "Loot")}`, value: `${LOOT_MODE_LABEL[mode]}${reserves}`, inline: true });
   for (const role of ROLE_ORDER) {
-    const names = core.members.filter((entry) => entry.role === role && !entry.bench && !entry.trial).map((entry) => entry.member.displayName).sort((a, b) => a.localeCompare(b));
+    const names = core.members.filter((entry) => entry.role === role && !entry.bench && !entry.trial).map(coreSpotLabel).sort((a, b) => a.localeCompare(b));
     embed.addFields({ name: `${ROLE_LABEL[role]} (${names.length})`, value: names.length ? names.join("\n").slice(0, 1000) : "—", inline: true });
   }
   // Trial members (an application moved to Trial) are listed apart until they are approved.
   const trial = core.members.filter((entry) => entry.trial && !entry.bench)
-    .map((entry) => `${entry.member.displayName} (${ROLE_WORD[lang][entry.role]})`)
+    .map((entry) => `${coreSpotLabel(entry)} (${ROLE_WORD[lang][entry.role]})`)
     .sort((a, b) => a.localeCompare(b));
   if (trial.length) embed.addFields({ name: `🧪 ${tx(lang, "Trial")} (${trial.length})`, value: trial.join("\n").slice(0, 1000), inline: false });
   const bench = core.members.filter((entry) => entry.bench)
-    .map((entry) => `${entry.member.displayName} (${ROLE_WORD[lang][entry.role]})`)
+    .map((entry) => `${coreSpotLabel(entry)} (${ROLE_WORD[lang][entry.role]})`)
     .sort((a, b) => a.localeCompare(b));
   if (bench.length) embed.addFields({ name: `🪑 ${tx(lang, "Bench")} (${bench.length})`, value: bench.join("\n").slice(0, 1000), inline: false });
   const mains = core.members.length - bench.length - trial.length;
@@ -182,7 +230,7 @@ export async function syncCoreRoster(discordGuild: DiscordGuild | null, database
   await syncCoreRole(discordGuild, database, coreId);
   try {
     const settings = await createGuildService(database).getSettings(guildId);
-    const core = await database.raidCore.findFirst({ where: { id: coreId, guildId }, include: { members: { include: { member: true } } } });
+    const core = await database.raidCore.findFirst({ where: { id: coreId, guildId }, include: { members: { include: { member: true, character: true } } } });
     if (!core) return false;
     // The core's own roster channel when it has one, else the guild's shared roster channel.
     const channelId = core.rosterChannelId ?? settings?.coreChannelId;

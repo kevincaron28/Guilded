@@ -45,6 +45,13 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
       choices = availabilitySuggestions(query);
     } else if (focused.name === "character" && ["profession", "attunement", "wishlist"].includes(command)) {
       choices = await ownCharacterChoices(prisma, member.id, query);
+    } else if (command === "core" && focused.name === "character") {
+      // The characters of the player picked in the same command (or your own).
+      const userId = interaction.options.get("player")?.value;
+      const player = typeof userId === "string" && userId !== interaction.user.id
+        ? await prisma.member.findFirst({ where: { guildId: guild.id, discordUserId: userId }, select: { id: true } })
+        : member;
+      choices = player ? await ownCharacterChoices(prisma, player.id, query) : [];
     } else if (command === "attunement" && focused.name === "name") {
       choices = await attunementSuggestions(prisma, guild.id, query);
     } else if ((command === "wishlist" || command === "loot") && focused.name === "item") {

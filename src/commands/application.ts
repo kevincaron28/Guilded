@@ -89,13 +89,13 @@ function applicationEmbed(app: ApplicationCard, applicantId: string, decision?: 
 // even if Discord refuses a role or the roster message is gone.
 async function applyDecision(
   guild: DiscordGuild | null, guildId: string,
-  application: { coreId: string | null; memberId: string; role?: RaidRole | null; member: { discordUserId: string } },
+  application: { coreId: string | null; memberId: string; role?: RaidRole | null; character?: string | null; member: { discordUserId: string } },
   status: ApplicationStatus
 ): Promise<void> {
   try {
     if (status === ApplicationStatus.APPROVED && guild) await syncApprovedMemberRoles(guild, guildId, application.member.discordUserId);
     if (!application.coreId || status === ApplicationStatus.PENDING) return;
-    const changed = await coreService.settleApplicant(application.coreId, application.memberId, status, application.role ?? null);
+    const changed = await coreService.settleApplicant(application.coreId, application.memberId, status, application.role ?? null, application.character);
     if (changed) await syncCoreRoster(guild, prisma, guildId, application.coreId);
   } catch (error) {
     console.error("Application decision follow-up failed", error);

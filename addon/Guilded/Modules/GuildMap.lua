@@ -89,11 +89,29 @@ end
 function map.minimapOffset(mine, other, facing, zoom, indoors)
   local ox, oy = map.translate(other.mapId, other.x, other.y, mine.mapId)
   if not ox then return nil end
-  if not (C_Map and C_Map.GetMapWorldSize) then return nil end
-  local ok, width, height = pcall(C_Map.GetMapWorldSize, mine.mapId)
-  if not ok or type(width) ~= "number" or type(height) ~= "number" or width <= 0 or height <= 0 then return nil end
-  local east = (ox - mine.x) * width
-  local north = -(oy - mine.y) * height
+  if not C_Map then return nil end
+  local east, north
+  if C_Map.GetMapWorldSize then
+    local ok, width, height = pcall(C_Map.GetMapWorldSize, mine.mapId)
+    if not ok or type(width) ~= "number" or type(height) ~= "number" or width <= 0 or height <= 0 then return nil end
+    east = (ox - mine.x) * width
+    north = -(oy - mine.y) * height
+  elseif C_Map.GetWorldPosFromMapPos and CreateVector2D then
+    local function worldPosition(x, y)
+      local ok, continent, position = pcall(C_Map.GetWorldPosFromMapPos, mine.mapId, CreateVector2D(x, y))
+      if not ok or not continent or not position then return nil end
+      local okXY, worldX, worldY = pcall(function() return position:GetXY() end)
+      if not okXY or type(worldX) ~= "number" or type(worldY) ~= "number" then return nil end
+      return continent, worldX, worldY
+    end
+    local mineContinent, mineX, mineY = worldPosition(mine.x, mine.y)
+    local otherContinent, otherX, otherY = worldPosition(ox, oy)
+    if not mineContinent or mineContinent ~= otherContinent then return nil end
+    east = otherX - mineX
+    north = -(otherY - mineY)
+  else
+    return nil
+  end
   if facing then
     -- Rotating minimap: the way you face is up.
     local c, s = math.cos(facing), math.sin(facing)

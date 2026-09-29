@@ -96,13 +96,13 @@ function withMap(): LuaSession {
       GetPlayerMapPosition = function() return CreateVector2D(MY.x, MY.y) end,
       -- Elwynn (1429) sits in the middle of its continent (1415) at a quarter of its size.
       GetWorldPosFromMapPos = function(mapId, pos)
-        if mapId == 1429 then return 0, CreateVector2D(0.375 + pos.x / 4, 0.375 + pos.y / 4) end
-        if mapId == 1415 then return 0, CreateVector2D(pos.x, pos.y) end
+        if mapId == 1429 then return 0, CreateVector2D(1500 + pos.x * 1000, 1500 + pos.y * 1000) end
+        if mapId == 1415 then return 0, CreateVector2D(pos.x * 4000, pos.y * 4000) end
         return nil
       end,
       GetMapPosFromWorldPos = function(_, world, toMap)
-        if toMap == 1415 then return 1415, CreateVector2D(world.x, world.y) end
-        if toMap == 1429 then return 1429, CreateVector2D((world.x - 0.375) * 4, (world.y - 0.375) * 4) end
+        if toMap == 1415 then return 1415, CreateVector2D(world.x / 4000, world.y / 4000) end
+        if toMap == 1429 then return 1429, CreateVector2D((world.x / 4000 - 0.375) * 4, (world.y / 4000 - 0.375) * 4) end
         return nil
       end,
       GetMapWorldSize = function(mapId) return 4000, 4000 end,
@@ -178,6 +178,13 @@ describe("guild map", () => {
     const rotated = s.run(`local e, n = NS.guildMap.minimapOffset({ mapId = 1429, x = 0.40, y = 0.60 }, { mapId = 1429, x = 0.39, y = 0.60 }, math.pi / 2, 0, false); return string.format("%.3f,%.3f", math.abs(e) < 0.0005 and 0 or e, n)`);
     expect(rotated).toBe("0.000,0.171");
     expect(s.run(`return tostring(NS.guildMap.minimapOffset({ mapId = 1429, x = 0.4, y = 0.6 }, { mapId = 1429, x = 0.5, y = 0.6 }, nil, 0, false))`)).toBe("nil");
+  });
+
+  it("uses world-coordinate conversion for minimap dots when Classic omits GetMapWorldSize", () => {
+    const s = withMap();
+    s.run(`C_Map.GetMapWorldSize = nil`);
+    const offset = s.run(`local e, n = NS.guildMap.minimapOffset({ mapId = 1429, x = 0.40, y = 0.60 }, { mapId = 1429, x = 0.41, y = 0.60 }, nil, 0, false); return string.format("%.3f,%.3f", e, n)`);
+    expect(offset).toBe("0.043,0.000");
   });
 });
 

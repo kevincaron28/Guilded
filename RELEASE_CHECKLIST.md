@@ -44,6 +44,15 @@ Say "untested" on the listing until these pass.
 
 What changed and why: `docs/V5_0_HANDOFF.md`. Two players unless it says solo. Run `npm run db:update` first, then `/setup start` > **Update bot messages**.
 
+**Raid cores: several per member, visibility, fill**
+- [ ] A member without a leadership role: `/core add`, `/core character`, `/core edit` are refused; the **Apply** button under a core's roster works.
+- [ ] Put one member in two cores: same character in both, then a different one (`/core character`), then a backup healer (`backup:true role:Healer`). Each roster shows "Name · Character" and the backup; `/core list` (as that member) shows both spots.
+- [ ] `/core edit` > **Characters**: pick the player, change their character and backups; the roster follows.
+- [ ] With a member role set and @everyone unable to see channels: an account with only the member role sees `#<core>-roster` and `#<core>-signups` (not `-chat`), and can sign up.
+- [ ] A core raid with caps and missing core players shows **Open spots**; `/raid fill` posts in the raid signup channel and pings the bench.
+- [ ] Sign up for two raids 2 hours apart: the second reply warns about the first.
+- [ ] In game after an upload: `/guilded core roster` lists here / missing / bench / fill-ins; `/guilded invite raid` invites the core character (or the backup of the signed-up role).
+
 **Companion (solo)**
 - [ ] Rebuild the installer (`cd companion-app`, `npm install`, `npm run dist`). Quit any old Guilded Companion (Task Manager) first. Install `dist\companion\Guilded Companion Setup 5.0.0.exe`: the window opens and the tray icon appears; `Start Quebec Gold Bot` (start-companion-app.bat) also opens it.
 

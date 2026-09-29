@@ -217,7 +217,8 @@ describe("the loot block written for the addon", () => {
     cores: [
       { id: "c1", name: 'Tuesday "MC"', mode: "PRIORITY", separatePool: true, reserves: 1, baseGp: 10,
         values: [{ key: "sulfuras hand of ragnaros", id: 17182, gp: 250 }, { key: "#19019", id: 19019, gp: 90 }],
-        standings: [{ character: "Ann", main: true, ep: 300, gp: 90 }] }
+        standings: [{ character: "Ann", main: true, ep: 300, gp: 90 }],
+        roster: [{ name: "Jaina", member: "Kev", role: "TANK", spot: "main", backup: false }, { name: "Anduin", member: "Kev", role: "HEALER", spot: "bench", backup: true }] }
     ]
   };
   const BASE = { updatedAt: "2026-10-01T00:00:00Z", baseGp: 0, standings: [], nextRaid: null };
@@ -234,6 +235,8 @@ describe("the loot block written for the addon", () => {
     expect(lua).toContain('["#19019"] = 90,'); // not written twice
     expect(lua.match(/\["#19019"\]/g)).toHaveLength(1);
     expect(lua).toContain('{ name = "Ann", ep = 300, gp = 90 },');
+    expect(lua).toContain('{ name = "Jaina", member = "Kev", role = "TANK", spot = "main", backup = false },');
+    expect(lua).toContain('{ name = "Anduin", member = "Kev", role = "HEALER", spot = "bench", backup = true },');
   });
 
   it("writes nil when the bot sent no rules", () => {
@@ -248,9 +251,13 @@ describe("the loot block written for the addon", () => {
       ...valueDb,
       guildSettings: { findUnique: async () => ({ lootMode: "COUNCIL", minimumBid: 20, baseGp: 5, attendanceDkp: 10, lateAttendanceDkp: 5, bossKillDkp: 5, epCompletionBonus: 0, epgpDecayPercent: 0.1 }) },
       raidCore: { findMany: async () => [
-        { id: "c1", name: "Priority Core", lootMode: "PRIORITY", separatePool: true, reservesPerPlayer: null, baseGp: 10 },
-        { id: "c2", name: "Follows Guild", lootMode: null, separatePool: false, reservesPerPlayer: null },
-        { id: "c3", name: "Reserve Core", lootMode: "RESERVE", separatePool: false, reservesPerPlayer: 2 }
+        { id: "c1", name: "Priority Core", lootMode: "PRIORITY", separatePool: true, reservesPerPlayer: null, baseGp: 10, members: [
+          { role: "TANK", bench: false, trial: false, member: { displayName: "Kev", characters: [{ name: "Thrall" }] }, character: { name: "Jaina" }, backups: [{ role: "HEALER", character: { name: "Anduin" } }] },
+          { role: "DPS", bench: true, trial: false, member: { displayName: "Amy", characters: [{ name: "Amyx" }] }, character: null, backups: [] },
+          { role: "DPS", bench: false, trial: true, member: { displayName: "New", characters: [] }, character: null, backups: [] }
+        ] },
+        { id: "c2", name: "Follows Guild", lootMode: null, separatePool: false, reservesPerPlayer: null, members: [] },
+        { id: "c3", name: "Reserve Core", lootMode: "RESERVE", separatePool: false, reservesPerPlayer: 2, members: [] }
       ] }
     };
     const rules = await lootRulesForAddon(database as never, "g1", async (coreId, baseGp) => [{ character: `pool-${coreId}-${baseGp}`, main: true, ep: 1, gp: 2 }]);
@@ -263,5 +270,13 @@ describe("the loot block written for the addon", () => {
     expect(rules.cores[1]?.values).toEqual([]);
     expect(rules.cores[0]?.standings).toEqual([{ character: "pool-c1-10", main: true, ep: 1, gp: 2 }]);
     expect(rules.cores[1]?.standings).toEqual([]);
+    // The roster by in-game character: the character brought to the core, else the main; backups
+    // as their own rows; nobody without a linked character.
+    expect(rules.cores[0]?.roster).toEqual([
+      { name: "Jaina", member: "Kev", role: "TANK", spot: "main", backup: false },
+      { name: "Anduin", member: "Kev", role: "HEALER", spot: "main", backup: true },
+      { name: "Amyx", member: "Amy", role: "DPS", spot: "bench", backup: false }
+    ]);
+    expect(rules.cores[1]?.roster).toEqual([]);
   });
 });

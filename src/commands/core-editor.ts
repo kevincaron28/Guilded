@@ -15,6 +15,7 @@ import { guildService } from "./context.js";
 //     new players are added, players already in the core get that role or bench spot
 //   • pick players to remove
 //   • rename the core
+//   • Characters: pick a player, then the character they bring to this core and their backups
 // Every change is saved at once and the roster message in the roster channel is refreshed.
 
 const coreService = createRaidCoreService(prisma);
@@ -51,6 +52,7 @@ async function screen(guildId: string, coreId: string, mode: EditMode, note: str
       new ActionRowBuilder<UserSelectMenuBuilder>().addComponents(
         new UserSelectMenuBuilder().setCustomId("coreedit:remove").setPlaceholder("➖ Remove players from this core").setMinValues(1).setMaxValues(25)),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId("coreedit:characters").setLabel("Characters").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("coreedit:rename").setLabel("Rename").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("coreedit:prices").setLabel("Item prices").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("coreedit:channels").setLabel("Create channels & role").setStyle(ButtonStyle.Secondary),
@@ -103,6 +105,10 @@ export async function runCoreEditor(interaction: ChatInputCommandInteraction, gu
           if (result.count > 0) removed.push(person?.displayName ?? member.displayName);
         }
         await refresh(removed.length ? `Removed ${removed.join(", ")}.` : "None of them were in this core.");
+        return;
+      }
+      if (i.customId === "coreedit:characters" && i.isButton()) {
+        await runCharacterPicker(i, guildId, core.id, mode.role, () => syncCoreRoster(interaction.guild, prisma, guildId, core.id).then(() => undefined));
         return;
       }
       if (i.customId === "coreedit:channels" && i.isButton()) {
@@ -174,5 +180,80 @@ export async function runCoreEditor(interaction: ChatInputCommandInteraction, gu
   });
   collector.on("end", async (_c, reason) => {
     if (reason !== "closed") await interaction.editReply({ content: "The editor timed out. Everything you changed was saved; run /core edit again to continue.", embeds: [], components: [] }).catch(() => undefined);
+  });
+}
+
+// The Characters step of /core edit, in its own ephemeral message: pick a core player, then the
+// character they bring to this core and the backup characters they can bring instead (new
+// backups get the role picked in the editor's "Adding as" menu).
+const NO_CHARACTER = "__none__";
+
+async function characterScreen(guildId: string, coreId: string, memberId: string | null, backupRole: RaidRole, note: string) {
+  const playerRow = new ActionRowBuilder<UserSelectMenuBuilder>().addComponents(
+    new UserSelectMenuBuilder().setCustomId("corechar:player").setPlaceholder("Pick a player of this core").setMinValues(1).setMaxValues(1));
+  if (!memberId) return { content: note || "Pick a player of this core.", components: [playerRow] };
+  const core = await coreService.byIdOrName(guildId, coreId);
+  const spot = core.members.find((entry) => entry.memberId === memberId);
+  if (!spot) return { content: "That player is not in this core. Add them first.", components: [playerRow] };
+  const characters = await prisma.character.findMany({ where: { memberId }, orderBy: [{ isMain: "desc" }, { name: "asc" }], take: 24 });
+  if (characters.length === 0) return { content: `${spot.member.displayName} has no linked characters yet (/character).`, components: [playerRow] };
+  const label = (c: { name: string; className: string; isMain: boolean }) => `${c.name} - ${c.className}${c.isMain ? " (main)" : ""}`.slice(0, 100);
+  const main = new StringSelectMenuBuilder().setCustomId("corechar:main").setPlaceholder("Character they bring to this core").addOptions(
+    { label: "No character (show only their name)", value: NO_CHARACTER, default: !spot.characterId },
+    ...characters.map((c) => ({ label: label(c), value: c.id, default: spot.characterId === c.id })));
+  const backupIds = new Set(spot.backups.map((backup) => backup.characterId));
+  const backups = new StringSelectMenuBuilder().setCustomId("corechar:backups").setPlaceholder(`Backup characters (new ones as ${ROLE_LABEL[backupRole]})`)
+    .setMinValues(0).setMaxValues(characters.length).addOptions(characters.map((c) => ({ label: label(c), value: c.id, default: backupIds.has(c.id) })));
+  const current = [
+    `**${spot.member.displayName}** in ${core.name}: ${spot.character ? spot.character.name : "no character set"}`,
+    spot.backups.length ? `Backups: ${spot.backups.map((b) => `${b.character.name} (${ROLE_LABEL[b.role]})`).join(", ")}` : "No backup characters.",
+    note ? `**Last action:** ${note}` : ""
+  ].filter(Boolean).join("\n");
+  return {
+    content: current,
+    components: [
+      playerRow,
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(main),
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(backups)
+    ]
+  };
+}
+
+async function runCharacterPicker(button: MessageComponentInteraction, guildId: string, coreId: string, backupRole: RaidRole, refresh: () => Promise<void>): Promise<void> {
+  let memberId: string | null = null;
+  await button.reply({ ...(await characterScreen(guildId, coreId, null, backupRole, "")), ephemeral: true });
+  const message = await button.fetchReply();
+  const collector = message.createMessageComponentCollector({ time: 10 * 60_000, filter: (i) => i.user.id === button.user.id });
+  collector.on("collect", async (i: MessageComponentInteraction) => {
+    try {
+      await i.deferUpdate();
+      let note = "";
+      if (i.customId === "corechar:player" && i.isUserSelectMenu()) {
+        const member = await prisma.member.findFirst({ where: { guildId, discordUserId: i.values[0] ?? "" } });
+        memberId = member?.id ?? null;
+        if (!memberId) note = "That player is not in this core.";
+      } else if (memberId && i.customId === "corechar:main" && i.isStringSelectMenu()) {
+        const pick = i.values[0] ?? NO_CHARACTER;
+        const character = pick === NO_CHARACTER ? null : await prisma.character.findFirst({ where: { id: pick, memberId } });
+        await coreService.setCharacter(guildId, coreId, memberId, character?.name ?? null);
+        note = character ? `Brings ${character.name}.` : "Character cleared.";
+      } else if (memberId && i.customId === "corechar:backups" && i.isStringSelectMenu()) {
+        const core = await coreService.byIdOrName(guildId, coreId);
+        const spot = core.members.find((entry) => entry.memberId === memberId);
+        if (spot) {
+          const wanted = new Set(i.values.filter((id) => id !== spot.characterId));
+          const characters = await prisma.character.findMany({ where: { memberId, id: { in: [...wanted] } } });
+          for (const backup of spot.backups) if (!wanted.has(backup.characterId)) await coreService.removeBackup(guildId, coreId, memberId, backup.character.name);
+          for (const character of characters) {
+            if (!spot.backups.some((backup) => backup.characterId === character.id)) await coreService.addBackup(guildId, coreId, memberId, character.name, backupRole);
+          }
+          note = `${wanted.size} backup character(s).`;
+        }
+      }
+      if (note && memberId) await refresh();
+      await i.editReply(await characterScreen(guildId, coreId, memberId, backupRole, note));
+    } catch (error) {
+      await i.followUp({ content: `That didn't work: ${error instanceof Error ? error.message : String(error)}`, ephemeral: true }).catch(() => undefined);
+    }
   });
 }

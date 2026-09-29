@@ -192,3 +192,53 @@ describe("Loot.lua: /guilded drop", () => {
     expect(last(s)).toContain("GP bidding is off");
   });
 });
+
+describe("Loot.lua: core roster against the group (several cores per player)", () => {
+  const withRoster = () => {
+    const s = withLoot(false);
+    s.run(`
+      RULES.cores[1].roster = {
+        { name = "Jaina", member = "Kev", role = "TANK", spot = "main", backup = false },
+        { name = "Anduin", member = "Kev", role = "HEALER", spot = "main", backup = true },
+        { name = "Uther", member = "Uth", role = "HEALER", spot = "main", backup = false },
+        { name = "Rex", member = "Rex", role = "DPS", spot = "bench", backup = false },
+        { name = "Newb", member = "Newb", role = "DPS", spot = "trial", backup = false },
+      }
+      NS.groupMembers = function() return { "Anduin", "Pug", "Newb" } end
+    `);
+    return s;
+  };
+
+  it("sees a player on a backup character, the missing core players, the bench and fill-ins", () => {
+    const s = withRoster();
+    s.run(`CHECK = NS.loot.rosterCheck(RULES.cores[1])`);
+    expect(s.run(`return CHECK.present[1].name .. ":" .. tostring(CHECK.present[1].backup)`)).toBe("Anduin:true");
+    expect(s.run(`return CHECK.present[2].name`)).toBe("Newb");
+    expect(s.run(`return #CHECK.missing .. ":" .. CHECK.missing[1].name`)).toBe("1:Uther");
+    expect(s.run(`return #CHECK.bench .. ":" .. CHECK.bench[1].name`)).toBe("1:Rex");
+    expect(s.run(`return table.concat(CHECK.fillIns, ",")`)).toBe("Pug");
+  });
+
+  it("/guilded core roster works for everyone, not only officers", () => {
+    const s = withRoster();
+    cmd(s, "core", "Tuesday MC"); // not an officer: cannot pick the core
+    expect(last(s)).toBe("Only officers can do that.");
+    s.run(`SETTINGS.activeCore = "Tuesday MC"`);
+    cmd(s, "core", "roster");
+    const log = s.run(`return table.concat(CHAT_LOG, "\\n")`);
+    expect(log).toContain("Tuesday MC: 2 core player(s) in the group.");
+    expect(log).toContain("Here: Anduin (Healer, backup), Newb (DPS)");
+    expect(log).toContain("Missing: Uther (Healer)");
+    expect(log).toContain("Bench not here: Rex (DPS)");
+    expect(log).toContain("Filling in: Pug");
+  });
+
+  it("says when there is no core or no roster yet", () => {
+    const s = withLoot();
+    cmd(s, "core", "roster");
+    expect(last(s)).toContain("No raid core is being run");
+    s.run(`SETTINGS.activeCore = "Pool Raid"`);
+    cmd(s, "core", "roster");
+    expect(last(s)).toContain("Pool Raid has no roster from Discord yet");
+  });
+});

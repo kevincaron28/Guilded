@@ -378,6 +378,10 @@ export const FR_TEXT: Record<string, string> = {
 
   // --- core roster
   "Bench": "Banc",
+  "Points": "Points",
+  "This core's own pool": "Réserve propre à ce noyau",
+  "Shared guild pool": "Réserve commune de la guilde",
+  "Backup characters": "Personnages de secours",
   "Schedule": "Horaire",
   "Loot": "Butin",
   "{n} reserve/player": "{n} réserve/joueur",

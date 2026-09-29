@@ -11,8 +11,8 @@ VS Code, or another Claude session). Version is **5.0.0** everywhere (`package.j
 2. `npm run db:update`: applies migration `20261010090000_v50_alerts_answers` (new columns
    `DungeonGroup.minLevel` / `maxLevel`, `GuildSettings.answerChannelId` / `aiAnswers`, new tables
    `GroupAlert` and `FaqEntry`; nothing removed).
-   Also `20261020090000_core_member_character` (new nullable column `RaidCoreMember.characterId`,
-   see "Several cores per member" below).
+   Also `20261020090000_core_member_character` (column `RaidCoreMember.characterId`, table
+   `RaidCoreBackup`; see "Several cores per member" below).
 3. `npm run addon:zip` → `dist/Guilded-v5.0.0.zip`.
 4. Rebuild the companion installer: `cd companion-app`, `npm install` (it now pulls `luaparse`),
    `npm run dist`. **Quit every running Guilded Companion first** (Task Manager: "Guilded
@@ -66,22 +66,54 @@ fits for officers; `validate-addon.mjs` now checks every `.lua` file the `.toc` 
 hand-kept list that missed Tooltip.lua and ChatTab.lua); `scripts/i18n-keys.mjs` enforces French for
 `src/services/dungeon-guide.ts`, `src/commands/group-alerts.ts` and `src/commands/faq.ts` too.
 
-## Several cores per member (after 5.0.0)
+## Several cores per member, who may change a core, filling raid nights (after 5.0.0)
 
-A member could already be in several cores (one `RaidCoreMember` row per core, own role and bench
-spot in each); nothing recorded which character they bring. Each core spot now has an optional
-`characterId` (one of the member's linked characters; `SET NULL` if the character is unlinked), so
-a member can bring the same character to every core or a different one to each. Set with
-`/core add ... character:` (officers), `/core character core: character: [player:]` (anyone for
-themselves; Raid Leaders for others; no character clears it), or from an accepted core
-application (the application's character, when linked and none is set yet). Shown as
-"Name · Character" on the roster message, `/core show` and core raids' signup posts; `/core list`
-marks your own role/character in each core and `/core add` says which other cores the player is in.
-Points are unchanged: EP/GP stay per member (per pool), so every character of a member shares them,
-and in-game standings are exported for every linked character. Tests: `tests/raid-core.test.ts`.
-Files: `prisma/schema.prisma`, the migration, `src/services/raid-core.ts`, `src/commands/core.ts`,
-`src/commands/application.ts`, `src/commands/raid.ts`, `src/commands/autocomplete.ts`,
-`src/commands/help.ts`.
+Migration `20261020090000_core_member_character`: nullable `RaidCoreMember.characterId` (`SET NULL`
+when the character is unlinked) and table `RaidCoreBackup` (spot, character, role; cascades).
+
+- **One member, several cores:** one `RaidCoreMember` per core (own role, bench, trial), each with
+  the character they bring there (same one everywhere, or one per core) and optional **backup
+  characters** in the same core, each with its own role (a healer alt). Shown as "Name · Character"
+  on the roster, `/core show` and core raids' signup posts; backups in their own roster field.
+  `/core list` marks your own spot per core; `/core add` says which other cores the player is in.
+- **Who changes a core:** Raid Leaders / Officers / Guild Masters / admins only, for every `/core`
+  subcommand that changes something, `/core character` included (tested:
+  `tests/core-permissions.test.ts`). Members join through the **Apply** button under a core's
+  roster (application decisions were already officer-only). An accepted core application brings
+  its character into that core when it is linked and none is set yet.
+- **Setting characters:** `/core add ... character:`, `/core character core: player: character:
+  [backup:] [role:] [remove:]`, or `/core edit` > **Characters** (pick a player, then their
+  character and backups; new backups take the role picked in "Adding as").
+- **Everyone can see the cores and signups:** a core's `-roster` and `-signups` channels allow
+  every guild role (member role, applicant role, welcome roles, leadership and class leaders,
+  every core's role: `guildViewerRoleIds`). On a server that hides channels from @everyone only
+  those roles read them; on an open server @everyone does too. `openCoreChannels` repairs older
+  channels (adds the roles; on a hidden server takes back an @everyone read) and runs on core
+  creation and **Update bot messages**. Chat and voice stay core + leadership only.
+- **Filling a raid night:** a core raid's signup post shows **Open spots** (per capped role) that
+  anyone in the guild can take; `/raid fill raid:` (Raid Leaders) posts a call in the shared raid
+  signup channel with the open spots, the core players still missing and a link to the signup
+  post, and pings the core's bench.
+- **Overlapping raid nights:** signing up (button or `/raid signup`) warns when you are also down
+  for another raid starting within 4 hours (`CLASH_WINDOW_MS`).
+- **Points:** unchanged: per member, per pool, shared by all their characters. Each roster now
+  shows its pool (shared guild pool, or the core's own: `/core rules pool:`).
+- **Addon:** `/guilded invite raid` invites, for a core raid, the backup of the role the player
+  signed up as, else the character they bring to that core, else their main (`raid-roster.ts`).
+  The loot rules carry each core's `roster` (companion `standings.mjs` writes `roster = {...}`;
+  `Sync.lua` keeps it); `/guilded core roster` (anyone) compares the running core with your group:
+  here (and on which character), missing, bench not here, fill-ins. **Rebuild the companion
+  installer** so it writes the roster.
+
+Files: `prisma/schema.prisma`, the migration, `src/services/raid-core.ts`,
+`src/services/core-channels.ts`, `src/services/raid.ts`, `src/services/signup-embed.ts`,
+`src/services/raid-roster.ts`, `src/services/loot-rules-export.ts`, `src/commands/core.ts`,
+`src/commands/core-editor.ts`, `src/commands/raid.ts`, `src/commands/application.ts`,
+`src/commands/autocomplete.ts`, `src/commands/help.ts`, `src/i18n.ts`, `src/i18n-fr.ts`,
+`companion/standings.mjs`, `addon/Guilded/Modules/Sync.lua`, `Modules/Loot.lua`, `Locale.lua`.
+Tests: `tests/raid-core.test.ts`, `tests/core-permissions.test.ts`, `tests/v50.test.ts`,
+`tests/signup-embed.test.ts`, `tests/raid-roster.test.ts`, `tests/loot-systems.test.ts`,
+`tests/lua/loot.test.ts`, `tests/lua/sync.test.ts`.
 
 ## Protocol, saved-data and database changes
 

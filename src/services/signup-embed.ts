@@ -34,6 +34,16 @@ function clip(lines: string[]): string {
   return text || "—";
 }
 
+// Free slots per role on a raid with slot caps (roles without a cap are left out).
+export function openSpots(caps: Record<RaidRole, number | null>, signups: { role: RaidRole; status: string }[]): { role: RaidRole; open: number }[] {
+  return ROLES.flatMap((role) => {
+    const cap = caps[role];
+    if (cap === null) return [];
+    const open = cap - signups.filter((s) => s.status === "SIGNED_UP" && s.role === role).length;
+    return open > 0 ? [{ role, open }] : [];
+  });
+}
+
 export function buildSignupEmbed(input: SignupEmbedInput): EmbedBuilder {
   const { lang, raid, signups, core } = input;
   const roleName = (role: RaidRole) => t(lang, `role.${role}` as const);
@@ -81,6 +91,11 @@ export function buildSignupEmbed(input: SignupEmbedInput): EmbedBuilder {
     embed.addFields({ name: t(lang, "signup.core"), value: `**${core.name}** — ${t(lang, "signup.coreLegend")}`, inline: false });
     if (missing.length) embed.addFields({ name: t(lang, "signup.coreMissing", { count: missing.length }), value: clip(missing.map((m) => `${m.displayName} (${roleName(m.role)})`)), inline: false });
     if (benchFree.length) embed.addFields({ name: t(lang, "signup.benchFree", { count: benchFree.length }), value: clip(benchFree.map((m) => `🪑 ${m.displayName} (${roleName(m.role)})`)), inline: false });
+    // Not enough core members for tonight: anyone in the guild can take the free slots.
+    const free = raid.status === "PLANNED" ? openSpots(caps, signups) : [];
+    if (free.length) {
+      embed.addFields({ name: t(lang, "signup.openSpots"), value: free.map((spot) => `${ROLE_ICON[spot.role]} ${spot.open} ${roleName(spot.role)}`).join(" · "), inline: false });
+    }
   }
   return embed;
 }

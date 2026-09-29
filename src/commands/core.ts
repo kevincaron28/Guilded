@@ -36,10 +36,14 @@ export const coreCommand = new SlashCommandBuilder()
     .addStringOption(roleOption)
     .addBooleanOption((o) => o.setName("bench").setDescription("Put them on the bench (a replacement) instead of the main roster"))
     .addStringOption(characterOption))
-  .addSubcommand((sub) => sub.setName("character").setDescription("Which character you (or a player) bring to a core: the same in every core, or one per core.")
+  .addSubcommand((sub) => sub.setName("character").setDescription("Set the character a player brings to a core, or a backup character (Raid Leaders).")
     .addStringOption(coreOption)
+    .addUserOption((o) => o.setName("player").setDescription("Discord member").setRequired(true))
     .addStringOption(characterOption)
-    .addUserOption((o) => o.setName("player").setDescription("Someone else (Raid Leaders); default: you")))
+    .addBooleanOption((o) => o.setName("backup").setDescription("Add it as a backup character (e.g. a healer alt) instead"))
+    .addStringOption((o) => o.setName("role").setDescription("The backup's role (default DPS)").addChoices(
+      { name: "Tank", value: "TANK" }, { name: "Healer", value: "HEALER" }, { name: "DPS", value: "DPS" }))
+    .addBooleanOption((o) => o.setName("remove").setDescription("Remove that backup character")))
   .addSubcommand((sub) => sub.setName("remove").setDescription("Remove a player from a core (Raid Leaders).")
     .addStringOption(coreOption)
     .addUserOption((o) => o.setName("player").setDescription("Discord member").setRequired(true)))
@@ -91,8 +95,8 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
   if (!context) return;
   const guildId = context.guildId;
   const subcommand = interaction.options.getSubcommand();
-  // "character" checks for itself: anyone may set their own.
-  if (["setup", "edit", "create", "add", "remove", "post", "delete", "rules", "rename"].includes(subcommand)) requireRaidLeader(interaction);
+  // Only leadership changes a core; members join through the Apply button on its roster.
+  if (["setup", "edit", "create", "add", "remove", "character", "post", "delete", "rules", "rename"].includes(subcommand)) requireRaidLeader(interaction);
   if (subcommand === "items") {
     // Anyone can look at the prices; changing them is for Raid Leaders.
     if (interaction.options.getString("action", true) !== "list") requireRaidLeader(interaction);
@@ -154,17 +158,32 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
   }
 
   if (subcommand === "character") {
-    // Your own spot; someone else's is for Raid Leaders.
-    const user = interaction.options.getUser("player") ?? interaction.user;
-    if (user.id !== interaction.user.id) requireRaidLeader(interaction);
+    const user = interaction.options.getUser("player", true);
     const target = await guildService.ensureMember(guildId, user.id, user.username);
-    const { core, character } = await coreService.setCharacter(guildId, interaction.options.getString("core", true), target.id, interaction.options.getString("character"));
-    await syncCoreRoster(interaction.guild, prisma, guildId, core.id);
-    const who = user.id === interaction.user.id ? "You bring" : `${user.username} brings`;
-    await interaction.reply({
-      content: character ? `${who} **${character.name}** to **${core.name}**.` : `Cleared the character for ${user.id === interaction.user.id ? "you" : user.username} in **${core.name}**.`,
-      ephemeral: true
-    });
+    const coreValue = interaction.options.getString("core", true);
+    const name = interaction.options.getString("character");
+    let content: string;
+    let coreId: string;
+    if (interaction.options.getBoolean("backup") || interaction.options.getBoolean("remove")) {
+      if (!name) throw new Error("Pick the backup character.");
+      if (interaction.options.getBoolean("remove")) {
+        const { core, character } = await coreService.removeBackup(guildId, coreValue, target.id, name);
+        content = `${character.name} is no longer a backup of ${user.username} in **${core.name}**.`;
+        coreId = core.id;
+      } else {
+        const role = (interaction.options.getString("role") ?? "DPS") as RaidRole;
+        const { core, character } = await coreService.addBackup(guildId, coreValue, target.id, name, role);
+        content = `${user.username} can also bring **${character.name}** (${role}) to **${core.name}**.`;
+        coreId = core.id;
+      }
+    } else {
+      // No character clears it: the roster then shows only their name.
+      const { core, character } = await coreService.setCharacter(guildId, coreValue, target.id, name);
+      content = character ? `${user.username} brings **${character.name}** to **${core.name}**.` : `Cleared the character for ${user.username} in **${core.name}**.`;
+      coreId = core.id;
+    }
+    await syncCoreRoster(interaction.guild, prisma, guildId, coreId);
+    await interaction.reply({ content, ephemeral: true });
     return;
   }
 
@@ -208,10 +227,12 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
     const core = await coreService.byIdOrName(guildId, interaction.options.getString("core", true));
     const byRole = (role: RaidRole) => core.members.filter((entry) => entry.role === role && !entry.bench).map(coreSpotLabel).join(", ") || "—";
     const benchNames = core.members.filter((entry) => entry.bench).map((entry) => `${coreSpotLabel(entry)} (${entry.role})`).join(", ");
+    const backupNames = core.members.flatMap((entry) => entry.backups.map((backup) => `${entry.member.displayName} · ${backup.character.name} (${backup.role})`)).join(", ");
     const rules = describeRules(effectiveRules(await guildService.getSettings(guildId), core), core.name);
     await interaction.reply({
       content: `${core.description ? `${core.description}\n` : ""}${rules}\n🛡️ Tanks: ${byRole("TANK")}\n💚 Healers: ${byRole("HEALER")}\n⚔️ DPS: ${byRole("DPS")}${benchNames ? `
-🪑 Bench: ${benchNames}` : ""}`,
+🪑 Bench: ${benchNames}` : ""}${backupNames ? `
+🔁 Backups: ${backupNames}` : ""}`,
       ephemeral: true
     });
     return;

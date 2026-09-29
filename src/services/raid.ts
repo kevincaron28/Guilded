@@ -10,6 +10,9 @@ import type {
 
 const activeSignupStatuses: RaidSignupStatus[] = ["SIGNED_UP"];
 
+// Two raids starting less than this apart can't both be done (a raid night is about 3 hours).
+export const CLASH_WINDOW_MS = 4 * 3_600_000;
+
 const roleCapField: Record<RaidRole, "tankLimit" | "healerLimit" | "dpsLimit"> = {
   TANK: "tankLimit",
   HEALER: "healerLimit",
@@ -219,6 +222,21 @@ export function createRaidService(database: PrismaClient) {
         update: { status, role, signedUpAt: new Date(), cancelledAt: null }
       });
       return Object.assign(saved, { bumped });
+    },
+
+    // Other raids the member is also down for (signed up, waitlisted or maybe) that start within
+    // CLASH_WINDOW_MS of this one: someone in two cores whose raid nights overlap.
+    async clashingSignups(raidId: string, guildId: string, memberId: string) {
+      const raid = await getRaid(raidId, guildId);
+      const at = raid.scheduledAt.getTime();
+      return database.raidSignup.findMany({
+        where: {
+          memberId, raidId: { not: raidId }, status: { in: ["SIGNED_UP", "WAITLISTED", "MAYBE"] },
+          raid: { guildId, status: { in: ["PLANNED", "ACTIVE"] }, scheduledAt: { gt: new Date(at - CLASH_WINDOW_MS), lt: new Date(at + CLASH_WINDOW_MS) } }
+        },
+        include: { raid: { select: { id: true, title: true, scheduledAt: true } } },
+        orderBy: { raid: { scheduledAt: "asc" } }
+      });
     },
 
     // Everyone not cancelled, for the embed: signed up, maybe, waitlist.

@@ -23,7 +23,33 @@ export interface LootRulesForAddon {
     values: { key: string; id: number | null; gp: number }[];
     /** Only for a core with its own pool. */
     standings: { character: string; main: boolean; ep: number; gp: number }[];
+    /** Who is in the core, by in-game character (see coreRosterRows). */
+    roster: CoreRosterRow[];
   }[];
+}
+
+// One character of a core's roster: the one a player brings to the core (else their main), plus
+// one row per backup character with its own role. `member` (their Discord name) ties a player's
+// rows together; `spot` is "main", "bench" or "trial"; `backup` marks a backup character.
+export interface CoreRosterRow { name: string; member: string; role: string; spot: "main" | "bench" | "trial"; backup: boolean }
+
+type SpotForRoster = {
+  role: string; bench: boolean; trial: boolean;
+  member: { displayName: string; characters: { name: string }[] };
+  character: { name: string } | null;
+  backups: { role: string; character: { name: string } }[];
+};
+
+export function coreRosterRows(spots: SpotForRoster[]): CoreRosterRow[] {
+  return spots.flatMap((spot) => {
+    const spotKind = spot.trial ? "trial" : spot.bench ? "bench" : "main";
+    const name = spot.character?.name ?? spot.member.characters[0]?.name;
+    const rows: CoreRosterRow[] = name ? [{ name, member: spot.member.displayName, role: spot.role, spot: spotKind, backup: false }] : [];
+    for (const backup of spot.backups) {
+      rows.push({ name: backup.character.name, member: spot.member.displayName, role: backup.role, spot: spotKind, backup: true });
+    }
+    return rows;
+  });
 }
 
 const MAX_VALUES = 400;
@@ -37,7 +63,14 @@ export async function lootRulesForAddon(
 ): Promise<LootRulesForAddon> {
   const [settings, cores] = await Promise.all([
     database.guildSettings.findUnique({ where: { guildId } }),
-    database.raidCore.findMany({ where: { guildId }, orderBy: { name: "asc" }, take: 30 })
+    database.raidCore.findMany({
+      where: { guildId }, orderBy: { name: "asc" }, take: 30,
+      include: { members: { include: {
+        member: { select: { displayName: true, characters: { select: { name: true }, orderBy: { isMain: "desc" }, take: 1 } } },
+        character: { select: { name: true } },
+        backups: { select: { role: true, character: { select: { name: true } } } }
+      } } }
+    })
   ]);
   const values = createItemValueService(database);
   const out: LootRulesForAddon = {
@@ -52,7 +85,8 @@ export async function lootRulesForAddon(
       id: core.id, name: core.name, mode: rules.lootMode, separatePool: rules.separatePool, reserves: rules.reservesPerPlayer, baseGp: rules.baseGp,
       offspecPercent: rules.offspecPercent, minEp: rules.minEp,
       values: rules.lootMode === "PRIORITY" ? slim(await values.effective(guildId, core.id)) : [],
-      standings: rules.separatePool ? await poolStandings(core.id, rules.baseGp) : []
+      standings: rules.separatePool ? await poolStandings(core.id, rules.baseGp) : [],
+      roster: coreRosterRows(core.members)
     });
   }
   return out;

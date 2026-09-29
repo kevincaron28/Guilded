@@ -49,6 +49,11 @@ function lootToLua(loot) {
       "      players = {",
       ...(core.standings ?? []).map((row) => `        { name = ${luaString(row.character)}, ep = ${Math.trunc(row.ep)}, gp = ${Math.trunc(row.gp)} },`),
       "      },",
+      // Who is in the core, by in-game character (a backup character is its own row).
+      "      roster = {",
+      ...(core.roster ?? []).slice(0, 200).map((row) =>
+        `        { name = ${luaString(row.name)}, member = ${luaString(row.member)}, role = ${luaString(row.role)}, spot = ${luaString(row.spot)}, backup = ${row.backup ? "true" : "false"} },`),
+      "      },",
       "    },"
     ]),
     "  }",

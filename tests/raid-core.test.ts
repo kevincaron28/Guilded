@@ -100,13 +100,26 @@ function fakeCoreDatabase() {
   ];
   type Spot = { id: string; coreId: string; memberId: string; role: string; bench: boolean; trial: boolean; characterId: string | null };
   const spots: Spot[] = [];
+  type Backup = { id: string; spotId: string; characterId: string; role: string };
+  const backups: Backup[] = [];
   const withRelations = (spot: Spot) => ({
     ...spot, member: { displayName: spot.memberId }, character: characters.find((c) => c.id === spot.characterId) ?? null,
-    core: cores.find((c) => c.id === spot.coreId)
+    core: cores.find((c) => c.id === spot.coreId),
+    backups: backups.filter((b) => b.spotId === spot.id).map((b) => ({ ...b, character: characters.find((c) => c.id === b.characterId)! }))
   });
   const lower = (value: string) => value.trim().toLowerCase();
   return {
-    spots,
+    spots, backups,
+    raidCoreBackup: {
+      upsert: async ({ where, create, update }: { where: { spotId_characterId: { spotId: string; characterId: string } }; create: Omit<Backup, "id">; update: Partial<Backup> }) => {
+        const existing = backups.find((b) => b.spotId === where.spotId_characterId.spotId && b.characterId === where.spotId_characterId.characterId);
+        if (existing) return Object.assign(existing, update);
+        const row = { id: `b${backups.length + 1}`, ...create };
+        backups.push(row);
+        return row;
+      },
+      delete: async ({ where }: { where: { id: string } }) => backups.splice(backups.findIndex((b) => b.id === where.id), 1)[0]
+    },
     raidCore: {
       findFirst: async ({ where }: { where: { OR: [{ id: string }, { name: { equals: string } }] } }) => {
         const core = cores.find((c) => c.id === where.OR[0].id || lower(c.name) === lower(where.OR[1].name.equals));
@@ -193,5 +206,35 @@ describe("one member in several raid cores", () => {
     expect(embed.fields?.find((f) => f.name.startsWith("⚔️"))?.value).toBe("Amy\nKevin · Jaina");
     expect(embed.fields?.find((f) => f.name.startsWith("🪑"))?.value).toBe("Bob · Garrosh (Tank)");
     expect(coreSpotLabel({ role: "DPS", bench: false, member: { displayName: "Kevin" }, character: null })).toBe("Kevin");
+  });
+});
+
+describe("backup characters in the same core", () => {
+  it("adds a backup with its own role, changes its role when added again, and removes it", async () => {
+    const database = fakeCoreDatabase();
+    const service = createRaidCoreService(database as never);
+    await service.addMember("g", "c1", "m1", "TANK", false, "Thrall");
+    await service.addBackup("g", "c1", "m1", "jaina", "HEALER");
+    await service.addBackup("g", "c1", "m1", "Jaina", "DPS");
+    expect(database.backups).toEqual([{ id: "b1", spotId: "s1", characterId: "ch-alt", role: "DPS" }]);
+    await expect(service.addBackup("g", "c1", "m1", "Thrall", "DPS")).rejects.toThrow(/already their character/);
+    await expect(service.addBackup("g", "c2", "m1", "Jaina", "DPS")).rejects.toThrow(/not in Weekend BWL/);
+    await expect(service.addBackup("g", "c1", "m1", "Uther", "DPS")).rejects.toThrow(/linked characters/);
+    const { character } = await service.removeBackup("g", "c1", "m1", "JAINA");
+    expect(character.name).toBe("Jaina");
+    expect(database.backups).toEqual([]);
+    await expect(service.removeBackup("g", "c1", "m1", "Jaina")).rejects.toThrow(/not a backup/);
+  });
+
+  it("the roster lists backups apart and says which point pool the core uses", () => {
+    const embed = coreRosterEmbed({
+      name: "Tuesday MC", description: null, separatePool: true, members: [
+        { role: "TANK", bench: false, member: { displayName: "Kevin" }, character: { name: "Thrall" }, backups: [{ role: "HEALER", character: { name: "Anduin" } }] }
+      ]
+    }).toJSON();
+    expect(embed.fields?.find((f) => f.name.startsWith("💰"))?.value).toBe("This core's own pool");
+    expect(embed.fields?.find((f) => f.name.startsWith("🔁"))).toEqual({ name: "🔁 Backup characters (1)", value: "Kevin · Anduin (Healer)", inline: false });
+    const shared = coreRosterEmbed({ name: "X", description: null, separatePool: false, members: [] }).toJSON();
+    expect(shared.fields?.find((f) => f.name.startsWith("💰"))?.value).toBe("Shared guild pool");
   });
 });

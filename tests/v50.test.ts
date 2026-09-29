@@ -1,6 +1,7 @@
 import { ChannelType, Collection } from "discord.js";
 import { describe, expect, it } from "vitest";
-import { ARCHIVE_CATEGORY, archiveCoreDiscord, setupCoreDiscord } from "../src/services/core-channels.js";
+import { PermissionFlagsBits } from "discord.js";
+import { ARCHIVE_CATEGORY, archiveCoreDiscord, guildViewerRoleIds, openCoreChannels, setupCoreDiscord } from "../src/services/core-channels.js";
 import {
   activePollAnswer, aiMessages, applicationStatusAnswer, askAi, commandHelpAnswer, createAnswerLimiter, foldText, looksLikeActivePollQuestion,
   looksLikeApplicationStatusQuestion, looksLikeBankRequestQuestion, looksLikeBotHealthQuestion, looksLikeCommandHelpQuestion, looksLikeCraftRequestQuestion,
@@ -16,13 +17,14 @@ import { alertRecipients, dungeonLevelsFromTitle, fitsGroup, parseLevelRange, ro
 
 type FakeChannel = {
   id: string; name: string; type: ChannelType; parentId: string | null;
+  created?: { id: string; allow?: bigint[]; deny?: bigint[] }[];
   overwrites: Record<string, Record<string, boolean>>;
   permissionOverwrites: { cache: Collection<string, { id: string }>; edit: (id: string, value: Record<string, boolean>) => Promise<void> };
   edit: (value: { parent?: string | null }) => Promise<void>;
   delete: () => Promise<void>;
 };
 
-function fakeGuild(options: { canManageRoles?: boolean } = {}) {
+function fakeGuild(options: { canManageRoles?: boolean; openServer?: boolean } = {}) {
   let next = 1;
   const channels = new Collection<string, FakeChannel>();
   const roles = new Collection<string, { id: string; name: string; mentionable: boolean }>();
@@ -31,7 +33,7 @@ function fakeGuild(options: { canManageRoles?: boolean } = {}) {
     const channel: FakeChannel = {
       id, name, type, parentId, overwrites: {},
       permissionOverwrites: {
-        cache: new Collection(overwriteIds.map((overwriteId) => [overwriteId, { id: overwriteId }])),
+        cache: new Collection(overwriteIds.map((overwriteId) => [overwriteId, { id: overwriteId, allow: { has: () => false } }])),
         edit: async (target, value) => { channel.overwrites[target] = { ...channel.overwrites[target], ...value }; }
       },
       edit: async (value) => { if ("parent" in value) channel.parentId = value.parent ?? null; },
@@ -43,7 +45,7 @@ function fakeGuild(options: { canManageRoles?: boolean } = {}) {
   const guild = {
     id: "g",
     roles: {
-      everyone: { id: "everyone" },
+      everyone: { id: "everyone", permissions: { has: () => options.openServer !== false } },
       cache: roles,
       fetch: async (id?: string) => {
         if (!id) return roles;
@@ -61,8 +63,11 @@ function fakeGuild(options: { canManageRoles?: boolean } = {}) {
     channels: {
       cache: channels,
       fetch: async (id?: string) => (id ? channels.get(id) ?? null : channels),
-      create: async ({ name, type, parent, permissionOverwrites }: { name: string; type: ChannelType; parent?: string; permissionOverwrites?: { id: string }[] }) =>
-        makeChannel(name, type, parent ?? null, (permissionOverwrites ?? []).map((overwrite) => overwrite.id))
+      create: async ({ name, type, parent, permissionOverwrites }: { name: string; type: ChannelType; parent?: string; permissionOverwrites?: { id: string }[] }) => {
+        const channel = makeChannel(name, type, parent ?? null, (permissionOverwrites ?? []).map((overwrite) => overwrite.id));
+        channel.created = permissionOverwrites ?? [];
+        return channel;
+      }
     }
   };
   return { guild, channels, roles, makeChannel };
@@ -73,6 +78,7 @@ function fakeDatabase(core: Record<string, unknown>) {
   return {
     row,
     raidCore: {
+      findMany: async () => [{ ...row }],
       findUniqueOrThrow: async () => ({ ...row }),
       findUnique: async () => ({ ...row }),
       update: async ({ data }: { data: Record<string, unknown> }) => { Object.assign(row, data); return { ...row }; }
@@ -594,5 +600,57 @@ describe("Guilded AI product reference", () => {
     expect(reference).toContain("/guilded help");
     expect(reference).toContain("/guilded map share on|off");
     expect(reference).toContain("/guilded lfg");
+  });
+});
+
+describe("core roster and signups channels are readable by the whole guild", () => {
+  const withGuildRoles = (openServer: boolean) => {
+    const fake = fakeGuild({ openServer });
+    for (const [id, name] of [["member", "Raider"], ["officer", "Officer"], ["other-core", "Weekend BWL"], ["welcome", "Friend"], ["random", "Muted"]]) {
+      fake.roles.set(id as string, { id: id as string, name: name as string, mentionable: true });
+    }
+    const database = {
+      ...fakeDatabase({ ...baseCore, guildId: "g" }),
+      guildSettings: { findUnique: async () => ({ memberRoleId: "member", applicantRoleId: "gone", welcomeRoleIds: ["welcome"] }) }
+    };
+    database.raidCore.findMany = async () => [{ ...database.row, roleId: null }, { roleId: "other-core" }] as never;
+    return { ...fake, database };
+  };
+  const view = PermissionFlagsBits.ViewChannel;
+
+  it("lists the member, welcome, leadership and every core's role (not unknown or unrelated roles)", async () => {
+    const { guild, database } = withGuildRoles(false);
+    expect((await guildViewerRoleIds(guild as never, database as never, "g")).sort()).toEqual(["member", "officer", "other-core", "welcome"]);
+  });
+
+  it("on a server that hides channels from @everyone, the guild roles read the roster and signups, not @everyone", async () => {
+    const { guild, database, channels } = withGuildRoles(false);
+    await setupCoreDiscord(guild as never, database as never, "k1", async () => undefined);
+    const roster = [...channels.values()].find((channel) => channel.name === "tuesday-mc-roster")!;
+    const everyone = roster.created?.find((entry) => entry.id === "everyone");
+    expect(everyone?.allow ?? []).not.toContain(view);
+    expect(everyone?.deny).toContain(PermissionFlagsBits.SendMessages);
+    for (const id of ["member", "officer", "other-core", "welcome"]) expect(roster.created?.find((entry) => entry.id === id)?.allow).toContain(view);
+    // The core's own chat stays private to the core and leadership.
+    const chat = [...channels.values()].find((channel) => channel.name === "tuesday-mc-chat")!;
+    expect(chat.created?.find((entry) => entry.id === "member")).toBeUndefined();
+  });
+
+  it("on an open server, @everyone reads them too", async () => {
+    const { guild, database, channels } = withGuildRoles(true);
+    await setupCoreDiscord(guild as never, database as never, "k1", async () => undefined);
+    const signups = [...channels.values()].find((channel) => channel.name === "tuesday-mc-signups")!;
+    expect(signups.created?.find((entry) => entry.id === "everyone")?.allow).toContain(view);
+  });
+
+  it("repairs an older core's channels: adds the guild roles and takes back an @everyone read on a hidden server", async () => {
+    const { guild, database, makeChannel } = withGuildRoles(false);
+    const roster = makeChannel("old-roster", ChannelType.GuildText);
+    roster.permissionOverwrites.cache.set("everyone", { id: "everyone", allow: { has: () => true } } as never);
+    roster.permissionOverwrites.cache.set("officer", { id: "officer", allow: { has: () => true } } as never);
+    expect(await openCoreChannels(guild as never, database as never, "g", [roster.id, null])).toBe(1);
+    expect(roster.overwrites["member"]).toEqual({ ViewChannel: true, ReadMessageHistory: true });
+    expect(roster.overwrites["officer"]).toBeUndefined(); // already could read
+    expect(roster.overwrites["everyone"]).toEqual({ ViewChannel: null, ReadMessageHistory: null, SendMessages: false });
   });
 });

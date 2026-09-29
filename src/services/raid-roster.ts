@@ -1,8 +1,9 @@
 import type { PrismaClient } from "@prisma/client";
 
 // The next raid's signed-up players, for the addon's mass invite (/guilded invite
-// raid). Signups are per Discord member, so each is shown as their main
-// character (or their first one): the name an officer can invite in game.
+// raid). Signups are per Discord member, so each is shown as one character: for a
+// core raid the backup character of the role they signed up as, else the character
+// they bring to that core; otherwise (or when none is set) their main, or their first one.
 
 export interface NextRaid {
   id: string;
@@ -28,12 +29,17 @@ export async function nextRaidRoster(database: Db, guildId: string, now = new Da
     },
     orderBy: { scheduledAt: "asc" },
     include: {
-      core: { select: { name: true } },
+      core: { select: { name: true, members: { select: { memberId: true, character: { select: { name: true } }, backups: { select: { role: true, character: { select: { name: true } } } } } } } },
       signups: { where: { status: { in: ["SIGNED_UP", "MAYBE"] } }, include: { member: { include: { characters: { orderBy: { isMain: "desc" } } } } }, orderBy: { signedUpAt: "asc" } }
     }
   });
   if (!raid) return null;
-  const nameOf = (signup: (typeof raid.signups)[number]) => signup.member.characters[0]?.name ?? null;
+  const spots = new Map(raid.core?.members.map((spot) => [spot.memberId, spot]) ?? []);
+  const nameOf = (signup: (typeof raid.signups)[number]) => {
+    const spot = spots.get(signup.memberId);
+    const backup = spot?.backups.find((entry) => entry.role === signup.role);
+    return backup?.character.name ?? spot?.character?.name ?? signup.member.characters[0]?.name ?? null;
+  };
   return {
     id: raid.id,
     title: raid.title,

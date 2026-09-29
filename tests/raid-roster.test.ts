@@ -9,7 +9,7 @@ describe("next raid roster for the addon", () => {
 
   it("lists signed-up players by main character and the maybes separately", async () => {
     const findFirst = vi.fn(async () => ({
-      id: "r1", title: "Molten Core", scheduledAt: new Date("2026-10-01T23:00:00Z"), coreId: "c1", core: { name: "Tuesday" },
+      id: "r1", title: "Molten Core", scheduledAt: new Date("2026-10-01T23:00:00Z"), coreId: "c1", core: { name: "Tuesday", members: [] },
       signups: [
         { status: "SIGNED_UP", role: "TANK", member: member(["Amy"]) },
         { status: "MAYBE", role: "DPS", member: member(["Bob"]) },
@@ -25,6 +25,30 @@ describe("next raid roster for the addon", () => {
     const where = (findFirst.mock.calls[0] as unknown as [{ where: { scheduledAt: { gte: Date; lte: Date } } }])[0].where;
     expect(where.scheduledAt.gte.getTime()).toBe(now.getTime() - 3 * 3_600_000);
     expect(where.scheduledAt.lte.getTime()).toBe(now.getTime() + 36 * 3_600_000);
+  });
+
+  it("for a core raid, invites the character each player brings to that core (or the backup of the role they signed up as)", async () => {
+    const findFirst = vi.fn(async () => ({
+      id: "r2", title: "BWL", scheduledAt: new Date("2026-10-01T23:00:00Z"), coreId: "c2",
+      core: { name: "Weekend", members: [
+        { memberId: "m1", character: { name: "Jaina" }, backups: [{ role: "HEALER", character: { name: "Anduin" } }] },
+        { memberId: "m2", character: null, backups: [] }
+      ] },
+      signups: [
+        { memberId: "m1", status: "SIGNED_UP", role: "DPS", member: member(["Thrall", "Jaina", "Anduin"]) },
+        { memberId: "m2", status: "SIGNED_UP", role: "TANK", member: member(["Uther"]) },
+        { memberId: "m3", status: "SIGNED_UP", role: "DPS", member: member(["Pug"]) }
+      ]
+    }));
+    expect((await nextRaidRoster({ raid: { findFirst } } as never, "g", now))?.players).toEqual([
+      { name: "Jaina", role: "DPS" }, { name: "Uther", role: "TANK" }, { name: "Pug", role: "DPS" }
+    ]);
+    findFirst.mockImplementationOnce(async () => ({
+      id: "r2", title: "BWL", scheduledAt: new Date("2026-10-01T23:00:00Z"), coreId: "c2",
+      core: { name: "Weekend", members: [{ memberId: "m1", character: { name: "Jaina" }, backups: [{ role: "HEALER", character: { name: "Anduin" } }] }] },
+      signups: [{ memberId: "m1", status: "SIGNED_UP", role: "HEALER", member: member(["Thrall"]) }]
+    }));
+    expect((await nextRaidRoster({ raid: { findFirst } } as never, "g", now))?.players).toEqual([{ name: "Anduin", role: "HEALER" }]);
   });
 
   it("is null when no raid is coming up", async () => {

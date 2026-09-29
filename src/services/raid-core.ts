@@ -4,7 +4,7 @@ import { createGuildService } from "./guild.js";
 import { applyToCoreButtonRow } from "./application.js";
 import { asLootMode, LOOT_MODE_LABEL } from "./core-rules.js";
 import { asLang, tx, type Lang } from "../i18n.js";
-import { setupCoreDiscord, syncCoreRole } from "./core-channels.js";
+import { openAllCoreChannels, setupCoreDiscord, syncCoreRole } from "./core-channels.js";
 
 // A raid core is a named roster (e.g. "Tuesday MC core"). A guild can have
 // several. Core members get priority at signups for raids created for that
@@ -24,11 +24,14 @@ const ROLE_WORD: Record<Lang, Record<RaidRole, string>> = {
 
 type Db = PrismaClient;
 
+// What a roster needs of each core spot: the player, the character they bring, their backups.
+const SPOT_INCLUDE = { member: true, character: true, backups: { include: { character: true }, orderBy: { addedAt: "asc" as const } } };
+
 export function createRaidCoreService(database: Db) {
   async function byIdOrName(guildId: string, value: string) {
     const core = await database.raidCore.findFirst({
       where: { guildId, OR: [{ id: value }, { name: { equals: value.trim(), mode: "insensitive" } }] },
-      include: { members: { include: { member: true, character: true }, orderBy: { addedAt: "asc" } } }
+      include: { members: { include: SPOT_INCLUDE, orderBy: { addedAt: "asc" } } }
     });
     if (!core) throw new Error(`No raid core "${value}". See /core list.`);
     return core;
@@ -94,11 +97,36 @@ export function createRaidCoreService(database: Db) {
       return { core, character };
     },
 
+    // A backup character the member can bring to this core instead (its own role). Adding one
+    // already listed changes its role. The spot's own character cannot also be a backup.
+    async addBackup(guildId: string, value: string, memberId: string, characterName: string, role: RaidRole) {
+      const core = await byIdOrName(guildId, value);
+      const spot = core.members.find((entry) => entry.memberId === memberId);
+      if (!spot) throw new Error(`That player is not in ${core.name}. Add them first.`);
+      const character = await ownCharacter(memberId, characterName);
+      if (spot.characterId === character.id) throw new Error(`${character.name} is already their character in ${core.name}.`);
+      await database.raidCoreBackup.upsert({
+        where: { spotId_characterId: { spotId: spot.id, characterId: character.id } },
+        create: { spotId: spot.id, characterId: character.id, role },
+        update: { role }
+      });
+      return { core, character };
+    },
+
+    async removeBackup(guildId: string, value: string, memberId: string, characterName: string) {
+      const core = await byIdOrName(guildId, value);
+      const spot = core.members.find((entry) => entry.memberId === memberId);
+      const backup = spot?.backups.find((entry) => entry.character.name.toLowerCase() === characterName.trim().toLowerCase());
+      if (!spot || !backup) throw new Error(`"${characterName.trim()}" is not a backup character of that player in ${core.name}.`);
+      await database.raidCoreBackup.delete({ where: { id: backup.id } });
+      return { core, character: backup.character };
+    },
+
     // Every core a member is in, with their role, spot and character there.
     spotsOf(guildId: string, memberId: string) {
       return database.raidCoreMember.findMany({
         where: { memberId, core: { guildId } },
-        include: { core: { select: { id: true, name: true } }, character: true },
+        include: { core: { select: { id: true, name: true } }, character: true, backups: { include: { character: true } } },
         orderBy: { core: { name: "asc" } }
       });
     },
@@ -154,7 +182,7 @@ export function createRaidCoreService(database: Db) {
     list(guildId: string) {
       return database.raidCore.findMany({
         where: { guildId },
-        include: { members: { include: { member: true, character: true }, orderBy: { addedAt: "asc" } }, _count: { select: { raids: true } } },
+        include: { members: { include: SPOT_INCLUDE, orderBy: { addedAt: "asc" } }, _count: { select: { raids: true } } },
         orderBy: { name: "asc" }
       });
     },
@@ -179,10 +207,14 @@ type CoreForEmbed = {
   schedule?: string | null;
   lootMode?: string | null;
   reservesPerPlayer?: number | null;
+  separatePool?: boolean;
   members: CoreSpot[];
 };
 
-type CoreSpot = { role: RaidRole; bench: boolean; trial?: boolean; member: { displayName: string }; character?: { name: string } | null };
+type CoreSpot = {
+  role: RaidRole; bench: boolean; trial?: boolean; member: { displayName: string }; character?: { name: string } | null;
+  backups?: { role: RaidRole; character: { name: string } }[];
+};
 
 // "Kevin · Thrall" when the spot names the character brought to this core, else just the name.
 export function coreSpotLabel(entry: CoreSpot): string {
@@ -201,6 +233,10 @@ export function coreRosterEmbed(core: CoreForEmbed, guildLootMode?: string | nul
     ? ` (${core.reservesPerPlayer === 1 ? tx(lang, "{n} reserve/player", { n: core.reservesPerPlayer }) : tx(lang, "{n} reserves/player", { n: core.reservesPerPlayer })})`
     : "";
   embed.addFields({ name: `🎲 ${tx(lang, "Loot")}`, value: `${LOOT_MODE_LABEL[mode]}${reserves}`, inline: true });
+  // Shared pool: points earned in any core count here too. Own pool: this core's points only.
+  if (core.separatePool !== undefined) {
+    embed.addFields({ name: `💰 ${tx(lang, "Points")}`, value: core.separatePool ? tx(lang, "This core's own pool") : tx(lang, "Shared guild pool"), inline: true });
+  }
   for (const role of ROLE_ORDER) {
     const names = core.members.filter((entry) => entry.role === role && !entry.bench && !entry.trial).map(coreSpotLabel).sort((a, b) => a.localeCompare(b));
     embed.addFields({ name: `${ROLE_LABEL[role]} (${names.length})`, value: names.length ? names.join("\n").slice(0, 1000) : "—", inline: true });
@@ -214,6 +250,10 @@ export function coreRosterEmbed(core: CoreForEmbed, guildLootMode?: string | nul
     .map((entry) => `${coreSpotLabel(entry)} (${ROLE_WORD[lang][entry.role]})`)
     .sort((a, b) => a.localeCompare(b));
   if (bench.length) embed.addFields({ name: `🪑 ${tx(lang, "Bench")} (${bench.length})`, value: bench.join("\n").slice(0, 1000), inline: false });
+  // Other characters players can bring to this core (a healer alt, a second tank...).
+  const backups = core.members.flatMap((entry) => (entry.backups ?? []).map((backup) => `${entry.member.displayName} · ${backup.character.name} (${ROLE_WORD[lang][backup.role]})`))
+    .sort((a, b) => a.localeCompare(b));
+  if (backups.length) embed.addFields({ name: `🔁 ${tx(lang, "Backup characters")} (${backups.length})`, value: backups.join("\n").slice(0, 1000), inline: false });
   const mains = core.members.length - bench.length - trial.length;
   const people = mains === 1 ? tx(lang, "{count} core member", { count: mains }) : tx(lang, "{count} core members", { count: mains });
   const extra = `${trial.length ? tx(lang, " + {n} on trial", { n: trial.length }) : ""}${bench.length ? tx(lang, " + {n} on the bench", { n: bench.length }) : ""}`;
@@ -230,7 +270,7 @@ export async function syncCoreRoster(discordGuild: DiscordGuild | null, database
   await syncCoreRole(discordGuild, database, coreId);
   try {
     const settings = await createGuildService(database).getSettings(guildId);
-    const core = await database.raidCore.findFirst({ where: { id: coreId, guildId }, include: { members: { include: { member: true, character: true } } } });
+    const core = await database.raidCore.findFirst({ where: { id: coreId, guildId }, include: { members: { include: SPOT_INCLUDE } } });
     if (!core) return false;
     // The core's own roster channel when it has one, else the guild's shared roster channel.
     const channelId = core.rosterChannelId ?? settings?.coreChannelId;
@@ -278,6 +318,8 @@ export async function ensureCoreDiscord(discordGuild: DiscordGuild | null, datab
   if (!discordGuild) return { created: [] };
   const result = await setupCoreDiscord(discordGuild, database, coreId,
     (messageId, channelId) => removeCoreRosterMessage(discordGuild, database, guildId, messageId, channelId));
+  // Every core's roster and signups stay readable by the whole guild (this core's new role too).
+  await openAllCoreChannels(discordGuild, database, guildId);
   await syncCoreRoster(discordGuild, database, guildId, coreId);
   return result;
 }

@@ -13,6 +13,7 @@
 --   /guilded drop <item link> [seconds]   an item dropped: start it the way this core does it
 --   /guilded drop mode [system|auto]      show, or override, the loot system
 --   /guilded core [name|auto]             show, or pick, the raid core you are running
+--   /guilded core roster                  the running core's players: here, missing, bench, fill-ins
 local addonName, ns = ...
 ns = ns or {}
 
@@ -542,9 +543,72 @@ ns.commandHandlers["price"] = function(args)
   ns.message(string.format(L("%s now costs %d GP in %s (sent to Discord with the next upload)."), name, math.floor(gp), coreName or L("every core")))
 end
 
+-- The running core's roster against your group (5.0.x): who of the core is here (and on which
+-- character: the one they bring to the core or a backup), which core players are missing, who
+-- of the bench could come, and who in the group is filling in from outside the core.
+-- `names` is a list of normalized character names (default: your raid or party).
+local ROLE_WORD = { TANK = "Tank", HEALER = "Healer", DPS = "DPS" }
+function loot.rosterCheck(core, names)
+  local inGroup = {}
+  for _, name in ipairs(names or (ns.groupMembers and ns.groupMembers()) or {}) do inGroup[name] = true end
+  local result = { present = {}, missing = {}, bench = {}, fillIns = {} }
+  local members, order, known = {}, {}, {}
+  for _, row in ipairs(core and core.roster or {}) do
+    known[row.name] = true
+    if not members[row.member] then members[row.member] = {} table.insert(order, row.member) end
+    table.insert(members[row.member], row)
+  end
+  for _, member in ipairs(order) do
+    local rows, here = members[member], nil
+    for _, row in ipairs(rows) do
+      if inGroup[row.name] then here = row break end
+    end
+    local usual = rows[1]
+    for _, row in ipairs(rows) do
+      if not row.backup then usual = row break end
+    end
+    if here then
+      table.insert(result.present, here)
+    elseif usual.spot == "bench" then
+      table.insert(result.bench, usual)
+    elseif usual.spot == "main" then
+      table.insert(result.missing, usual)
+    end
+  end
+  for name in pairs(inGroup) do
+    if not known[name] then table.insert(result.fillIns, name) end
+  end
+  table.sort(result.fillIns)
+  return result
+end
+
+function loot.rosterText(core, names)
+  if not core then return { L("No raid core is being run: pick one with /guilded core <name>.") } end
+  if #(core.roster or {}) == 0 then return { string.format(L("%s has no roster from Discord yet (it comes with the companion upload)."), core.name) } end
+  local check = loot.rosterCheck(core, names)
+  local function list(rows)
+    local out = {}
+    for _, row in ipairs(rows) do
+      table.insert(out, string.format("%s (%s%s)", row.name, L(ROLE_WORD[row.role] or row.role), row.backup and (", " .. L("backup")) or ""))
+    end
+    return table.concat(out, ", ")
+  end
+  local lines = { string.format(L("%s: %d core player(s) in the group."), core.name, #check.present) }
+  if #check.present > 0 then table.insert(lines, L("Here:") .. " " .. list(check.present)) end
+  if #check.missing > 0 then table.insert(lines, L("Missing:") .. " " .. list(check.missing)) end
+  if #check.bench > 0 then table.insert(lines, L("Bench not here:") .. " " .. list(check.bench)) end
+  if #check.fillIns > 0 then table.insert(lines, L("Filling in:") .. " " .. table.concat(check.fillIns, ", ")) end
+  return lines
+end
+
 ns.commandHandlers["core"] = function(args)
   local wanted = table.concat(args, " ")
   local s = settings()
+  -- /guilded core roster: anyone can compare the running core's roster with the group.
+  if string.lower(wanted) == "roster" then
+    for _, line in ipairs(loot.rosterText(loot.core())) do ns.message(line) end
+    return
+  end
   if wanted == "" then
     ns.message(describe())
     local r = rules()
@@ -601,6 +665,7 @@ do
 end
 
 ns.commandHelp = ns.commandHelp or {}
+table.insert(ns.commandHelp, { text = "/guilded core roster - who of the raid core is in your group, who is missing, the bench and fill-ins" })
 table.insert(ns.commandHelp, { officer = true, text = "/guilded drops [number | clear] - the epic items that dropped this raid (start one by its number) and trades still owed" })
 table.insert(ns.commandHelp, { officer = true, text = "/guilded drop <item link> [seconds] - start an item the way this raid core decides loot (bids, council, reserves or priority); /guilded core [name] - pick the raid core" })
 table.insert(ns.commandHelp, { officer = true, text = "/guilded price <item> <GP> - set an item's GP price in game (sent to Discord with the next upload)" })

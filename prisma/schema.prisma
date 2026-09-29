@@ -209,6 +209,7 @@ model Character {
   wishlist           WishlistEntry[]
   readinessSnapshots InspectedCharacterSnapshot[]
   coreSpots          RaidCoreMember[]
+  coreBackups        RaidCoreBackup[]
 
   @@unique([realm, name])
   @@index([memberId, isMain])
@@ -1057,9 +1058,25 @@ model RaidCoreMember {
   core     RaidCore @relation(fields: [coreId], references: [id], onDelete: Cascade)
   member   Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
   character Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
+  // Other characters they can bring to this same core (e.g. a healer alt as a backup).
+  backups  RaidCoreBackup[]
 
   @@unique([coreId, memberId])
   @@index([memberId])
+}
+
+// A backup character a core member can bring to that core instead of their usual one, with its
+// own role. Deleted with the core spot or the character.
+model RaidCoreBackup {
+  id          String         @id @default(cuid())
+  spotId      String
+  characterId String
+  role        RaidRole       @default(DPS)
+  addedAt     DateTime       @default(now())
+  spot        RaidCoreMember @relation(fields: [spotId], references: [id], onDelete: Cascade)
+  character   Character      @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([spotId, characterId])
 }
 
 enum DungeonGroupStatus {

@@ -13,7 +13,7 @@ import { parseRaidTime } from "../services/raid-time.js";
 import { asLang, t, type Lang } from "../i18n.js";
 import { createRaidService, type SignupAvailability } from "../services/raid.js";
 import { coreSpotLabel, createRaidCoreService } from "../services/raid-core.js";
-import { buildSignupEmbed } from "../services/signup-embed.js";
+import { buildSignupEmbed, openSpots } from "../services/signup-embed.js";
 import { hasPermission } from "../permissions.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { BRAND } from "../brand.js";
@@ -52,6 +52,9 @@ export const raidCommand = new SlashCommandBuilder()
     .addIntegerOption((o) => o.setName("tanks").setDescription("New tank slot cap").setMinValue(0))
     .addIntegerOption((o) => o.setName("healers").setDescription("New healer slot cap").setMinValue(0))
     .addIntegerOption((o) => o.setName("dps").setDescription("New DPS slot cap").setMinValue(0)))
+  .addSubcommand((sub) => sub.setName("fill").setDescription("Short on players? Post the open spots for the whole guild and ping the core's bench.")
+    .addStringOption((o) => o.setName("raid").setDescription("Raid (start typing its name)").setAutocomplete(true).setRequired(true))
+    .addStringOption((o) => o.setName("message").setDescription("Optional extra text").setMaxLength(300)))
   .addSubcommand((sub) => sub.setName("cancel").setDescription("Cancel a raid.")
     .addStringOption((o) => o.setName("raid").setDescription("Raid (start typing its name)").setAutocomplete(true).setRequired(true)))
   .addSubcommand((sub) => sub.setName("signup").setDescription("Sign up for a raid.")
@@ -226,7 +229,7 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
   const context = await requireGuildContext(interaction);
   if (!context) return;
   const subcommand = interaction.options.getSubcommand();
-  const management = ["create", "edit", "cancel", "start", "end", "attendance", "boss", "note", "award-ep"].includes(subcommand);
+  const management = ["create", "edit", "cancel", "start", "end", "attendance", "boss", "note", "award-ep", "fill"].includes(subcommand);
   if (management) requireRaidLeader(interaction);
 
   if (subcommand === "create") {
@@ -297,7 +300,12 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
       MAYBE: `You are marked as **maybe** (${roleLabel[role]}). Sign up again as Available to take a slot.`,
       WAITLISTED: `${roleLabel[role]} slots are full, so you're on the **waitlist**. You'll get a DM if a slot opens.`
     };
-    await interaction.reply({ content: replies[signup.status] ?? "Signup recorded.", ephemeral: true });
+    const lang = asLang((await guildService.getSettings(context.guildId))?.language);
+    await interaction.reply({ content: (replies[signup.status] ?? "Signup recorded.") + await clashNote(raidId, context.guildId, context.memberId, lang), ephemeral: true });
+    return;
+  }
+  if (subcommand === "fill") {
+    await postFillCall(interaction, context.guildId, raidId);
     return;
   }
   if (subcommand === "cancel-signup") {
@@ -416,6 +424,56 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
   await interaction.reply({ content: `Recorded **${attendance.status}** attendance for ${player.username}.`, ephemeral: true });
 }
 
+// /raid fill: a call for players in the guild's shared raid signup channel (everyone reads it),
+// with the free slots, the core members still missing and a link to the signup post. The core's
+// bench (its replacements) is pinged; nobody else is.
+async function postFillCall(interaction: ChatInputCommandInteraction, guildId: string, raidId: string): Promise<void> {
+  const raid = await raidService.getStatus(raidId, guildId);
+  if (raid.status !== "PLANNED") throw new Error("Signups are closed for this raid.");
+  const settings = await guildService.getSettings(guildId);
+  const lang = asLang(settings?.language);
+  const everyone = await raidService.signups(raidId, guildId);
+  const core = raid.coreId
+    ? await prisma.raidCore.findUnique({ where: { id: raid.coreId }, select: { name: true, members: { select: { memberId: true, bench: true, member: { select: { discordUserId: true } } } } } })
+    : null;
+  const answered = new Set(everyone.map((signup) => signup.memberId));
+  const free = openSpots({ TANK: raid.tankLimit, HEALER: raid.healerLimit, DPS: raid.dpsLimit }, everyone);
+  const missing = core?.members.filter((m) => !m.bench && !answered.has(m.memberId)).length ?? 0;
+  const bench = core?.members.filter((m) => m.bench && !answered.has(m.memberId)).map((m) => m.member.discordUserId) ?? [];
+  if (!free.length && !missing && raid.tankLimit !== null && raid.healerLimit !== null && raid.dpsLimit !== null) {
+    throw new Error("Every slot of this raid is taken: no call needed.");
+  }
+  const when = Math.floor(raid.scheduledAt.getTime() / 1000);
+  const spots = free.length
+    ? free.map((spot) => `${spot.open} ${t(lang, `role.${spot.role}` as const)}`).join(" · ")
+    : t(lang, "fill.any");
+  const link = raid.signupChannelId && raid.signupMessageId
+    ? `https://discord.com/channels/${interaction.guildId}/${raid.signupChannelId}/${raid.signupMessageId}`
+    : null;
+  const extra = interaction.options.getString("message");
+  const lines = [
+    t(lang, "fill.title", { raid: raid.title, core: core ? ` (${core.name})` : "", time: `<t:${when}:F>`, relative: `<t:${when}:R>` }),
+    t(lang, "fill.spots", { spots }),
+    ...(missing ? [t(lang, "fill.missing", { count: missing })] : []),
+    ...(extra ? [extra] : []),
+    link ? t(lang, "fill.link", { link }) : t(lang, "fill.command"),
+    ...(bench.length ? [`${t(lang, "fill.bench")} ${bench.map((id) => `<@${id}>`).join(" ")}`] : [])
+  ];
+  // The guild's shared signup channel (read by everyone); else where the command was used.
+  const target = settings?.raidSignupChannelId ? await interaction.guild?.channels.fetch(settings.raidSignupChannelId).catch(() => null) : null;
+  const channel = target?.isTextBased() ? target : interaction.channel;
+  if (!channel?.isSendable()) throw new Error("I can't post in the raid signup channel. Check my permissions there.");
+  await channel.send({ content: lines.join("\n").slice(0, 1900), allowedMentions: { users: bench.slice(0, 40), parse: [] } });
+  await interaction.reply({ content: `Posted the call for players in <#${channel.id}>${bench.length ? ` and pinged ${bench.length} bench player(s)` : ""}.`, ephemeral: true });
+}
+
+// A warning added to a signup reply when the member is also down for another raid at about the
+// same time (two cores with overlapping raid nights). Empty when there is none.
+async function clashNote(raidId: string, guildId: string, memberId: string, lang: Lang): Promise<string> {
+  const clashes = await raidService.clashingSignups(raidId, guildId, memberId).catch(() => []);
+  return clashes.map((entry) => `\n${t(lang, "reply.clash", { raid: entry.raid.title, time: `<t:${Math.floor(entry.raid.scheduledAt.getTime() / 1000)}:f>` })}`).join("");
+}
+
 // Clicks on the signup post's buttons. Maybe keeps your current role (DPS if
 // you had none); Can't come cancels, which can move a waitlisted player up.
 export async function handleRaidSignupButton(interaction: ButtonInteraction): Promise<void> {
@@ -446,7 +504,7 @@ export async function handleRaidSignupButton(interaction: ButtonInteraction): Pr
       MAYBE: t(lang, "reply.maybe", { role: roleText }),
       WAITLISTED: t(lang, "reply.waitlisted", { role: roleText })
     };
-    content = replies[signup.status] ?? "Signup saved.";
+    content = (replies[signup.status] ?? "Signup saved.") + await clashNote(raidId, guild.id, member.id, lang);
   }
   await interaction.reply({ content, ephemeral: true });
   await syncSignupEmbed(interaction.guild, guild.id, raidId);

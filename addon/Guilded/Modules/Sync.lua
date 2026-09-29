@@ -241,7 +241,20 @@ local function adoptLootRules(file, updatedAt)
           players[name] = { ep = ep, gp = gp, pr = priority(ep, gp, baseGp) }
         end
       end
+      -- Who is in the core, by in-game character (5.0.x): a backup character is its own row.
+      local roster = {}
+      for _, row in ipairs(type(core.roster) == "table" and core.roster or {}) do
+        local name = type(row) == "table" and type(row.name) == "string" and ns.normalizeName(row.name)
+        if name then
+          local spot = (row.spot == "bench" or row.spot == "trial") and row.spot or "main"
+          table.insert(roster, {
+            name = name, member = type(row.member) == "string" and row.member or name, role = tostring(row.role or "DPS"),
+            spot = spot, backup = row.backup == true
+          })
+        end
+      end
       table.insert(rules.cores, {
+        roster = roster,
         id = tostring(core.id or ""), name = core.name, mode = tostring(core.mode or "EPGP"), pool = core.pool == true,
         reserves = tonumber(core.reserves) or 1, baseGp = baseGp, values = cleanValues(core.values), players = players,
         -- 4.6: the share of the price an off-spec win costs (percent) and the EP a player needs

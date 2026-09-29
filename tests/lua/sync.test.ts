@@ -135,7 +135,8 @@ describe("item tooltip data", () => {
         cores = {
           { id = "c1", name = "Tuesday MC", mode = "PRIORITY", pool = true, reserves = 2, baseGp = 10,
             values = { ["sulfuras hand of ragnaros"] = 250, ["#19019"] = 250, ["bad"] = "x" },
-            players = { { name = "amy-Realm", ep = 300, gp = 90 } } },
+            players = { { name = "amy-Realm", ep = 300, gp = 90 } },
+            roster = { { name = "jaina-Realm", member = "Kev", role = "TANK", spot = "bench", backup = true }, { name = 5 }, { name = "Bob", spot = "odd" } } },
         }
       }
       fire_event("PLAYER_ENTERING_WORLD")
@@ -150,6 +151,9 @@ describe("item tooltip data", () => {
     expect(s.run(`return string.format("%.2f", ${core}.players.Amy.pr)`)).toBe("3.00"); // 300 / (90 + 10)
     // 4.6: no off-spec share or minimum EP in the file: 50% and none.
     expect(s.run(`return ${core}.offspec .. ":" .. ${core}.minEp`)).toBe("50:0");
+    // The core's roster by character; bad rows are dropped, an unknown spot counts as main.
+    expect(s.run(`local r = ${core}.roster; return #r .. "|" .. r[1].name .. ":" .. r[1].member .. ":" .. r[1].spot .. ":" .. tostring(r[1].backup) .. "|" .. r[2].name .. ":" .. r[2].spot .. ":" .. r[2].role`))
+      .toBe("2|Jaina:Kev:bench:true|Bob:main:DPS");
   });
 
   it("keeps a core's off-spec share and minimum EP (4.6), kept in range", () => {

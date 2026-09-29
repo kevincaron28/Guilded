@@ -963,9 +963,12 @@ ns.MODULES = {
   { key = "chattab", name = "Guilded chat tab", desc = "Guilded's own lines in a separate chat tab", commands = { "chat" } },
   { key = "tooltip", name = "Item tooltips", desc = "who wants an item and what it costs, on item tooltips", commands = {} },
   { key = "consumables", name = "Consumable scan", desc = "who is missing a flask or food", commands = { "consumes" } },
-  { key = "sim", name = "Test tools", desc = "fake raid and dungeon runs for officers", commands = { "sim" } }
+  { key = "sim", name = "Test tools", desc = "fake raid and dungeon runs for officers", commands = { "sim" } },
+  { key = "guildmap", name = "Guild map", desc = "guildmates on your world map and minimap", commands = { "map" } },
+  { key = "scores", name = "Dungeon scores", desc = "a dungeon score per player from recorded runs, on tooltips", commands = { "score" } },
+  { key = "groups", name = "Group board", desc = "post a group to the guild in game, alerts for groups you fit", commands = { "lfg" } }
 }
-local MODULE_ALIASES = { casino = "games", game = "games", bid = "bidding", bids = "bidding", gp = "bidding", lc = "council", reserves = "reserve", recipe = "recipes", cooldown = "recipes", crafting = "recipes", softres = "reserve", sr = "reserve", lootcouncil = "council", dungeons = "dungeon", test = "sim", tests = "sim", consumable = "consumables", consumes = "consumables", flask = "consumables" }
+local MODULE_ALIASES = { map = "guildmap", score = "scores", lfg = "groups", group = "groups", casino = "games", game = "games", bid = "bidding", bids = "bidding", gp = "bidding", lc = "council", reserves = "reserve", recipe = "recipes", cooldown = "recipes", crafting = "recipes", softres = "reserve", sr = "reserve", lootcouncil = "council", dungeons = "dungeon", test = "sim", tests = "sim", consumable = "consumables", consumes = "consumables", flask = "consumables" }
 local moduleByKey, commandModule, activeAtLogin = {}, {}, {}
 for _, module in ipairs(ns.MODULES) do
   moduleByKey[module.key] = module

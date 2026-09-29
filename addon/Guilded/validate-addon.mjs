@@ -57,7 +57,9 @@ if (/GuildedCasino|debt|ledger|wager/i.test(games.replace(/no ledger|no wagers|n
   throw new Error("Games.lua must stay free of gold, wagers and ledgers");
 }
 
-const addonFiles = ["Util.lua", "Core.lua", "Compat.lua", "Locale.lua", "Standings.lua", "Modules/Games.lua", "Modules/Sync.lua", "Modules/Sim.lua", "Modules/Bidding.lua", "Modules/Council.lua", "Modules/Loot.lua", "Modules/Reserve.lua", "Modules/Recipes.lua", "Modules/Calendar.lua", "Modules/ConsumableData.lua", "Modules/Consumables.lua", "Modules/Digest.lua", "Modules/API.lua", "Modules/Backup.lua", "Modules/SyncNow.lua", "Modules/AutoInvite.lua", "Modules/Dungeon.lua", "Modules/Attunements.lua", "Modules/Ready.lua", "Modules/Minimap.lua", "Modules/Options.lua"];
+// Every Lua file the .toc loads (so a new module is checked without editing this list).
+const addonFiles = toc.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.endsWith(".lua") && !line.startsWith("#")).map((line) => line.replace(/\\/g, "/"));
+if (addonFiles.length < 20) throw new Error("Guilded.toc lists too few Lua files; is it complete?");
 for (const file of addonFiles) {
   const source = readFileSync(new URL(file, root), "utf8");
   if (/RegisterEvent\(\s*"COMBAT_LOG_EVENT/.test(source)) {

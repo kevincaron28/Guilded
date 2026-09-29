@@ -23,7 +23,8 @@ local ICON = "Interface\\Icons\\INV_Misc_Coin_01"
 local DEFAULT_ANGLE = math.rad(220)
 local RADIUS_PAD = 5
 local PANEL_WIDTH = 790
-local PANEL_HEIGHT = 540
+-- 600 (5.0, was 540): room in the sidebar for the Groups and Raid tools pages.
+local PANEL_HEIGHT = 600
 -- A sidebar of tabs on the left (grouped, like most modern addons), the page on the right.
 local SIDEBAR_WIDTH = 160
 local CONTENT_X = SIDEBAR_WIDTH + 26
@@ -60,6 +61,18 @@ local function newButton(parent, text, width, onClick, height)
   b:SetText(L(text))
   if onClick then b:SetScript("OnClick", onClick) end
   return b
+end
+
+-- A tick box with a label on its right.
+local function newCheck(parent, text)
+  local box = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
+  box:SetWidth(24)
+  box:SetHeight(24)
+  local label = box:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  label:SetPoint("LEFT", box, "RIGHT", 2, 0)
+  label:SetText(L(text))
+  box.label = label
+  return box
 end
 
 -- A hover tooltip that says what a button does.
@@ -601,6 +614,10 @@ local function buildStandingsPage(page)
   ui.standingsPlayer:SetWidth(PAGE_WIDTH)
   ui.standingsList = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -28)
   ui.standingsList:SetWidth(PAGE_WIDTH)
+  -- Standalone guilds (no Discord bot): the officer's own ledger becomes everyone's standings.
+  local publish = officerOnly(at(newButton(page, "Share my ledger as standings", 230), page, 0, -420))
+  confirmClick(publish, "Share my ledger as standings", function() run("standings publish") end)
+  tip(publish, "For guilds without the Discord bot: sends the EP and GP recorded on this PC to the guild as the standings. A newer upload from the bot replaces them.")
 end
 
 local function buildToolsPage(page)
@@ -974,6 +991,53 @@ local function buildHomePage(page)
   at(newLabel(page, L("Everything here is also a chat command: /guilded help lists them."), "GameFontDisableSmall"), page, 0, -402)
 end
 
+-- Groups: the in-game group board (Groups.lua) and dungeon scores (Scores.lua), no Discord needed.
+local function buildGroupsPage(page)
+  at(newLabel(page, "Post a group to the guild (levels like 55-60, and tank / heal / dps, are read from the text)", "GameFontNormalSmall"), page, 0, -4)
+  ui.lfgBox = at(newEdit(page, 360), page, 6, -24)
+  at(newButton(page, "Post", 70, function()
+    local text = ui.lfgBox:GetText()
+    if text and text ~= "" then run("lfg post " .. text); ui.lfgBox:SetText("") end
+  end), page, 374, -22)
+  at(newButton(page, "Close mine", 100, function() run("lfg close") end), page, 448, -22)
+  ui.groupsList = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -54)
+  ui.groupsList:SetWidth(PAGE_WIDTH)
+  ui.groupsList:SetHeight(120)
+  if ui.groupsList.SetJustifyV then ui.groupsList:SetJustifyV("TOP") end
+
+  heading(page, L("Alert me for"), -182)
+  local kinds = { { "Dungeon", "dungeon" }, { "Leveling", "leveling" }, { "PvP", "pvp" }, { "World", "world" }, { "Other", "other" } }
+  ui.lfgKindChecks = {}
+  local x = 0
+  for _, kind in ipairs(kinds) do
+    local check = at(newCheck(page, kind[1]), page, x, -200)
+    ui.lfgKindChecks[kind[2]] = check
+    x = x + 104
+  end
+  at(newLabel(page, "as", "GameFontNormalSmall"), page, 0, -232)
+  ui.lfgRoleChecks = {}
+  x = 30
+  for _, role in ipairs({ { "Tank", "tank" }, { "Healer", "healer" }, { "DPS", "dps" } }) do
+    ui.lfgRoleChecks[role[2]] = at(newCheck(page, role[1]), page, x, -226)
+    x = x + 104
+  end
+  tip(at(newButton(page, "Save alerts", 110, function()
+    local kindsOn, rolesOn = {}, {}
+    for key, check in pairs(ui.lfgKindChecks) do if check:GetChecked() then table.insert(kindsOn, key) end end
+    for key, check in pairs(ui.lfgRoleChecks) do if check:GetChecked() then table.insert(rolesOn, key) end end
+    table.sort(kindsOn); table.sort(rolesOn)
+    run(#kindsOn > 0 and ("lfg alerts " .. table.concat(kindsOn, ",") .. (#rolesOn > 0 and (" " .. table.concat(rolesOn, ",")) or "")) or "lfg alerts off")
+  end), page, 350, -226), "You get a raid warning and a sound when a guildmate posts a group of these kinds that your level fits (and, for dungeons, needs one of your roles).")
+
+  heading(page, L("Dungeon scores"), -266)
+  ui.scoresMine = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -284)
+  ui.scoresMine:SetWidth(PAGE_WIDTH / 2 - 10)
+  if ui.scoresMine.SetJustifyV then ui.scoresMine:SetJustifyV("TOP") end
+  ui.scoresTop = at(newLabel(page, "", "GameFontHighlightSmall"), page, PAGE_WIDTH / 2, -284)
+  ui.scoresTop:SetWidth(PAGE_WIDTH / 2)
+  if ui.scoresTop.SetJustifyV then ui.scoresTop:SetJustifyV("TOP") end
+end
+
 -- Sidebar order: pages are grouped under these headings.
 local GROUPS = { "Overview", "Raid night", "Fun and runs", "System" }
 local TAB_DEFS = {
@@ -988,6 +1052,7 @@ local TAB_DEFS = {
   { name = "Loot", hint = "bids and loot", group = "Raid night", officer = true, usesPlayer = true, build = buildLootPage },
   { name = "Council", hint = "loot council: BiS / upgrade / off-spec answers", group = "Raid night", module = "council", lootModes = { COUNCIL = true, PRIORITY = true }, officer = true, usesPlayer = true, build = buildCouncilPage },
   { name = "Dungeons", hint = "the run being recorded, points", group = "Fun and runs", module = "dungeon", build = buildDungeonPage },
+  { name = "Groups", hint = "post a group to the guild, dungeon scores", group = "Fun and runs", build = buildGroupsPage },
   { name = "Games", hint = "fun roll games", group = "Fun and runs", module = "games", usesPlayer = true, build = buildGamesPage },
   { name = "Crafting", hint = "who can craft what, cooldowns", group = "Fun and runs", module = "recipes", build = buildCraftingPage },
   { name = "Tools", hint = "switch parts on or off, diagnostics", group = "System", build = buildToolsPage }
@@ -1109,7 +1174,7 @@ local function layoutTabs(officer)
           if visible then
             at(tab.button, panel, 20, y)
             tab.button:Show()
-            y = y - 28
+            y = y - 26
             firstVisible = firstVisible or i
           else
             tab.button:Hide()
@@ -1310,6 +1375,21 @@ refresh = function()
 
   refreshDungeons(db)
   refreshReady()
+  if ui.groupsList then
+    ui.groupsList:SetText(moduleOn("groups") and ns.groups and ns.groups.listText() or L("The group board is off (Tools)."))
+    local settings = ns.getSettings and ns.getSettings()
+    local alerts = settings and settings.lfgAlerts or { kinds = {}, roles = {} }
+    local roleKey = { tank = "TANK", healer = "HEALER", dps = "DPS" }
+    for key, check in pairs(ui.lfgKindChecks or {}) do check:SetChecked(alerts.kinds and alerts.kinds[key] and true or false) end
+    for key, check in pairs(ui.lfgRoleChecks or {}) do check:SetChecked(alerts.roles and alerts.roles[roleKey[key]] and true or false) end
+    if moduleOn("scores") and ns.scores then
+      ui.scoresMine:SetText(ns.scores.detailText(name or me))
+      ui.scoresTop:SetText(L("Guild best") .. "\n" .. ns.scores.topText(10))
+    else
+      ui.scoresMine:SetText(L("Dungeon scores are off (Tools)."))
+      ui.scoresTop:SetText("")
+    end
+  end
   if ui.craftMine and ns.recipes then
     ui.craftMine:SetText(ns.recipes.mineText and ns.recipes.mineText() or "")
     local lines = ns.recipes.cooldownLines and ns.recipes.cooldownLines(false) or {}
@@ -1434,7 +1514,7 @@ local function buildPanel()
     page:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -22, 44)
     def.build(page)
     page:Hide()
-    local tabButton = newButton(panel, L(def.name), 132, function() selectTab(i) end, 24)
+    local tabButton = newButton(panel, L(def.name), 132, function() selectTab(i) end, 22)
     ui.tabs[i] = { name = def.name, hint = def.hint, group = def.group, officer = def.officer, leader = def.leader, module = def.module, lootModes = def.lootModes, usesPlayer = def.usesPlayer, page = page, button = tabButton }
     tabButton:SetScript("OnEnter", function(self)
       if not GameTooltip then return end
@@ -1462,6 +1542,7 @@ local function buildPanel()
   ns.onReserveChange = function() refresh() end
   ns.onCalendarChange = function() refresh() end
   ns.onDungeonChange = function() refresh() end
+  ns.onGroupsChange = function() refresh() end
   ns.onModulesChange = function() refresh() end
   ns.onPeerReadiness = function() if readyTabOpen() then refresh() end end
 

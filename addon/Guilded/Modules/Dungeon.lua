@@ -184,6 +184,8 @@ local function finalize(run)
   local chunks = {}
   for index = 1, #summary, CHUNK_BYTES do table.insert(chunks, string.sub(summary, index, index + CHUNK_BYTES - 1)) end
   for index, chunk in ipairs(chunks) do send(string.format("SUM|%s|%d|%d|%s", run.id, index, #chunks, chunk), "GUILD") end
+  -- Dungeon scores (Scores.lua) learn from every finished run.
+  if ns.onDungeonRunFinished then pcall(ns.onDungeonRunFinished, run) end
   ns.message(string.format("Dungeon run %s: %s%s.", run.state, run.name or "?",
     run.durationSec and run.state == "COMPLETED" and string.format(" in %d:%02d", math.floor(run.durationSec / 60), run.durationSec % 60) or ""))
   if ns.onDungeonChange then pcall(ns.onDungeonChange) end
@@ -326,6 +328,7 @@ local function storePeerRun(run, sender)
   if not existing then
     run.reporters = { [sender] = true }
     d.runs[run.id] = run
+    if ns.onDungeonRunFinished then pcall(ns.onDungeonRunFinished, run) end
     return
   end
   existing.reporters = existing.reporters or {}
@@ -335,6 +338,7 @@ local function storePeerRun(run, sender)
     if not mine then existing.players[name] = player
     elseif player.deaths and (not mine.deaths or player.deaths > mine.deaths) then mine.deaths = player.deaths; mine.addon = true end
   end
+  if ns.onDungeonRunFinished then pcall(ns.onDungeonRunFinished, existing) end
 end
 
 -- ---------------------------------------------------------------------

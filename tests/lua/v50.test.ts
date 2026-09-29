@@ -82,3 +82,228 @@ describe("games: explain the rules in chat", () => {
     expect(s.run(`local n = 0; for _, lines in pairs(NS.games.RULES) do for _, l in ipairs(lines) do n = math.max(n, #string.format(l, 1000000)) end end; return n`)).toSatisfy((n: string) => Number(n) <= 230);
   });
 });
+
+function withMap(): LuaSession {
+  session = newLuaSession();
+  session.run(String.raw`
+    SENT = {}
+    SETTINGS = {}
+    MY = { map = 1429, x = 0.40, y = 0.60 }
+    function IsInInstance() return MY.instance or false end
+    function CreateVector2D(x, y) return { x = x, y = y, GetXY = function(self) return self.x, self.y end } end
+    C_Map = {
+      GetBestMapForUnit = function() return MY.map end,
+      GetPlayerMapPosition = function() return CreateVector2D(MY.x, MY.y) end,
+      -- Elwynn (1429) sits in the middle of its continent (1415) at a quarter of its size.
+      GetWorldPosFromMapPos = function(mapId, pos)
+        if mapId == 1429 then return 0, CreateVector2D(0.375 + pos.x / 4, 0.375 + pos.y / 4) end
+        if mapId == 1415 then return 0, CreateVector2D(pos.x, pos.y) end
+        return nil
+      end,
+      GetMapPosFromWorldPos = function(_, world, toMap)
+        if toMap == 1415 then return 1415, CreateVector2D(world.x, world.y) end
+        if toMap == 1429 then return 1429, CreateVector2D((world.x - 0.375) * 4, (world.y - 0.375) * 4) end
+        return nil
+      end,
+      GetMapWorldSize = function(mapId) return 4000, 4000 end,
+      GetMapInfo = function(mapId) return { name = mapId == 1429 and "Elwynn Forest" or "Eastern Kingdoms" } end
+    }
+    NS = {
+      L = function(t) return t end,
+      getSettings = function() return SETTINGS end,
+      isSecret = function() return false end,
+      normalizeName = function(n) return n and (string.gsub(n, "%-.*", "")) or nil end,
+      playerName = function() return "Me" end,
+      compat = { inCombat = function() return false end, registerEvent = function(f, e) end },
+      message = function(text) CHAT_LOG = CHAT_LOG or {}; CHAT_LOG[#CHAT_LOG + 1] = text end,
+      commandHandlers = {}, commandHelp = {}
+    }
+    local t = 100
+    function GetTime() return t end
+    function ADVANCE(s) t = t + s end
+  `);
+  session.load("Modules/GuildMap.lua");
+  return session;
+}
+const sentText = (s: LuaSession) => s.run(`local t = {}; for _, m in ipairs(SENT) do t[#t + 1] = m.prefix .. ":" .. m.text end; return table.concat(t, ",")`);
+
+describe("guild map", () => {
+  it("sends your position to the guild while you move, less often standing still, and nothing in an instance", () => {
+    const s = withMap();
+    s.run(`NS.guildMap.tick()`);
+    expect(sentText(s)).toBe("GuildedMap:P|1429|4000|6000|WARRIOR|60");
+    s.run(`ADVANCE(3); NS.guildMap.tick()`);
+    expect(sentText(s).split(",")).toHaveLength(1);
+    s.run(`ADVANCE(10); NS.guildMap.tick()`);
+    expect(sentText(s).split(",")).toHaveLength(1); // standing still: every 30 s
+    s.run(`ADVANCE(20); NS.guildMap.tick()`);
+    expect(sentText(s).split(",")).toHaveLength(2);
+    s.run(`MY.x = 0.45; ADVANCE(5); NS.guildMap.tick()`);
+    expect(sentText(s)).toContain("P|1429|4500|6000");
+    s.run(`MY.instance = true; ADVANCE(5); NS.guildMap.tick()`);
+    expect(sentText(s).split(",").pop()).toBe("GuildedMap:G");
+  });
+
+  it("stops sharing when you turn it off, and says so", () => {
+    const s = withMap();
+    s.run(`NS.guildMap.tick(); NS.commandHandlers["map"]({ "share", "off" })`);
+    expect(sentText(s).split(",").pop()).toBe("GuildedMap:G");
+    s.run(`SENT = {}; ADVANCE(60); NS.guildMap.tick()`);
+    expect(sentText(s)).toBe("");
+    expect(s.chat().join("\n")).toContain("no longer shared");
+  });
+
+  it("keeps guildmates' positions, lists them with their zone, and drops them when they leave", () => {
+    const s = withMap();
+    s.run(`NS.guildMap.receive("P|1429|5000|5000|MAGE|42", "Ann-Realm")`);
+    s.run(`NS.guildMap.receive("P|99999|5000|5000|MAGE|42", "Me-Realm")`); // yourself: ignored
+    s.run(`NS.guildMap.receive("P|1429|20000|5000|MAGE|42", "Bad")`);       // off the map: ignored
+    expect(s.run(`return NS.guildMap.listText()`)).toBe("Ann (42): Elwynn Forest");
+    s.run(`NS.guildMap.receive("G", "Ann")`);
+    expect(s.run(`return NS.guildMap.listText()`)).toContain("No guildmate");
+    s.run(`NS.guildMap.receive("P|1429|5000|5000|MAGE|42", "Ann"); ADVANCE(91)`);
+    expect(s.run(`return NS.guildMap.listText()`)).toContain("No guildmate");
+  });
+
+  it("places a zone position on its continent map, and guildmates on the minimap around you", () => {
+    const s = withMap();
+    expect(s.run(`local x, y = NS.guildMap.translate(1429, 0.5, 0.5, 1415); return x .. "," .. y`)).toBe("0.5,0.5");
+    expect(s.run(`return tostring(NS.guildMap.translate(1429, 0.5, 0.5, 42))`)).toBe("nil");
+    // 0.01 of a 4000-yard map = 40 yards east; the outdoor minimap at zoom 0 is ~233 yards across the radius.
+    const east = s.run(`local e, n = NS.guildMap.minimapOffset({ mapId = 1429, x = 0.40, y = 0.60 }, { mapId = 1429, x = 0.41, y = 0.60 }, nil, 0, false); return string.format("%.3f,%.3f", e, n)`);
+    expect(east).toBe("0.171,0.000");
+    const north = s.run(`local e, n = NS.guildMap.minimapOffset({ mapId = 1429, x = 0.40, y = 0.60 }, { mapId = 1429, x = 0.40, y = 0.59 }, nil, 0, false); return string.format("%.3f,%.3f", e, n)`);
+    expect(north).toBe("0.000,0.171");
+    // Facing west (90 degrees left) on a rotating minimap: someone to the west is straight up.
+    const rotated = s.run(`local e, n = NS.guildMap.minimapOffset({ mapId = 1429, x = 0.40, y = 0.60 }, { mapId = 1429, x = 0.39, y = 0.60 }, math.pi / 2, 0, false); return string.format("%.3f,%.3f", math.abs(e) < 0.0005 and 0 or e, n)`);
+    expect(rotated).toBe("0.000,0.171");
+    expect(s.run(`return tostring(NS.guildMap.minimapOffset({ mapId = 1429, x = 0.4, y = 0.6 }, { mapId = 1429, x = 0.5, y = 0.6 }, nil, 0, false))`)).toBe("nil");
+  });
+});
+
+function withStandalone(level = 58): LuaSession {
+  session = newLuaSession();
+  session.run(String.raw`
+    SENT = {}
+    SETTINGS = {}
+    DB = {}
+    function UnitLevel() return ${level} end
+    NS = {
+      L = function(t) return t end,
+      getDb = function() return DB end,
+      getSettings = function() return SETTINGS end,
+      isSecret = function() return false end,
+      isOfficer = function() return true end,
+      normalizeName = function(n) return n and (string.gsub(n, "%-.*", "")) or nil end,
+      playerName = function() return "Me" end,
+      message = function(text) CHAT_LOG = CHAT_LOG or {}; CHAT_LOG[#CHAT_LOG + 1] = text end,
+      commandHandlers = {}, commandHelp = {}
+    }
+    RaidWarningFrame = {}
+    ChatTypeInfo = { GUILD = { r = 0, g = 1, b = 0 } }
+    WARNINGS = {}
+    function RaidNotice_AddMessage(_, text) WARNINGS[#WARNINGS + 1] = text end
+  `);
+  session.load("Modules/Scores.lua");
+  session.load("Modules/Groups.lua");
+  return session;
+}
+const run = (players: Record<string, { deaths?: number; presentSec?: number }>, name: string, sec: number, id = "r") =>
+  `{ id = "${id}", state = "COMPLETED", name = "${name}", durationSec = ${sec}, players = { ${Object.entries(players).map(([n, p]) => `${n} = { deaths = ${p.deaths ?? 0}${p.presentSec !== undefined ? `, presentSec = ${p.presentSec}` : ""} }`).join(", ")} } }`;
+
+describe("dungeon scores (no bot needed)", () => {
+  it("scores each dungeon once with its best run: level x 2, speed against the guild record, deaths", () => {
+    const s = withStandalone();
+    s.run(`NS.scores.learn(${run({ Me: {}, Ann: { deaths: 2 } }, "Stratholme", 1800, "a")})`);
+    s.run(`NS.scores.learn(${run({ Me: { deaths: 1 } }, "Stratholme", 3600, "b")})`); // slower: not the best
+    s.run(`NS.scores.learn(${run({ Me: {} }, "Mortemines", 1200, "c")})`);             // French name
+    // Stratholme: 60 x 2 = 120 at record speed; Deadmines: 26 x 2 = 52.
+    expect(s.run(`local t, n = NS.scores.compute("Me"); return t .. "/" .. n`)).toBe("172/2");
+    // Ann: same time (record) but 2 deaths = -10%: 108.
+    expect(s.run(`return (NS.scores.compute("Ann"))`)).toBe("108");
+    // A faster Stratholme by someone else lowers Me's speed share: 0.75 + 0.25 x 1200/1800.
+    s.run(`NS.scores.learn(${run({ Bob: {} }, "Stratholme", 1200, "d")})`);
+    expect(s.run(`return (NS.scores.compute("Me"))`)).toBe(String(Math.round(120 * (0.75 + 0.25 * 1200 / 1800)) + 52));
+    expect(s.run(`return NS.scores.detailText("Me")`)).toContain("Me: dungeon score");
+  });
+
+  it("ignores unfinished runs and players who were only there briefly", () => {
+    const s = withStandalone();
+    s.run(`NS.scores.learn({ id = "x", state = "ABANDONED", name = "Stratholme", durationSec = 900, players = { Me = {} } })`);
+    s.run(`NS.scores.learn(${run({ Me: { presentSec: 1700 }, Late: { presentSec: 60 } }, "Stratholme", 1800)})`);
+    expect(s.run(`return tostring(NS.scores.scoreOf("Late"))`)).toBe("nil");
+    expect(s.run(`return tostring(NS.scores.scoreOf("Me"))`)).toBe("120");
+  });
+
+  it("shares your score with the guild, keeps others' shared scores, and ranks everyone", () => {
+    const s = withStandalone();
+    s.run(`NS.scores.learn(${run({ Me: {} }, "Scholomance", 1500)})`);
+    s.run(`NS.scores.share(true)`);
+    expect(s.run(`return SENT[#SENT].prefix .. ":" .. SENT[#SENT].text`)).toBe("GuildedScore:S|120|1");
+    s.run(`NS.scores.receive("S|300|4", "Ann-Realm"); NS.scores.receive("S|999999|4", "Cheat")`);
+    expect(s.run(`return NS.scores.topText(5)`)).toBe(" 1. Ann            300  (4)\n 2. Me             120  (1)");
+  });
+
+  it("adds the score to a player's tooltip", () => {
+    const s = withStandalone();
+    s.run(`NS.scores.receive("S|300|4", "Ann")`);
+    s.run(`LINES = {}; local tip = { GetUnit = function() return "Ann", "mouseover" end, AddLine = function(_, t) LINES[#LINES + 1] = t end }
+      function UnitIsPlayer() return true end; function UnitName() return "Ann" end
+      NS.scores.decorateUnit(tip)`);
+    expect(s.run(`return LINES[1]`)).toBe("Guilded dungeon score: 300 (4 dungeons)");
+  });
+});
+
+describe("in-game group board (no bot needed)", () => {
+  it("reads the kind, level range and roles from a post, and skips times", () => {
+    const s = withStandalone();
+    const parse = (text: string) => s.run(`local k, a, b, r = NS.groups.parse(${JSON.stringify(text)}); return k .. "|" .. tostring(a) .. "|" .. tostring(b) .. "|" .. table.concat(r, ",")`);
+    expect(parse("Stratholme need tank and heal")).toBe("dungeon|52|60|TANK,HEALER");
+    expect(parse("pvp WSG premade 60")).toBe("pvp|nil|nil|");
+    expect(parse("BRD 55-60 dps")).toBe("dungeon|55|60|DPS");
+    expect(parse("leveling duo lvl 34")).toBe("leveling|34|34|");
+    expect(parse("Mortemines ce soir 20-22h")).toBe("dungeon|18|26|");
+  });
+
+  it("alerts guildmates whose alerts, level and roles fit, and lists open groups until closed", () => {
+    const s = withStandalone(58);
+    s.run(`NS.groups.setAlerts("dungeon", "healer")`);
+    s.run(`NS.groups.receive("O|123|dungeon|52|60|TANK,HEALER|Strat UD need tank and heal", "Ann-Realm")`);
+    expect(s.run(`return WARNINGS[1]`)).toContain("Ann is looking for a group: Strat UD need tank and heal (52-60)");
+    s.run(`NS.groups.receive("O|124|dungeon|52|60|TANK|Strat need tank", "Bob")`);       // tank only: no alert
+    s.run(`NS.groups.receive("O|125|dungeon|20|30||Deadmines", "Cy")`);                  // wrong level: no alert
+    s.run(`NS.groups.receive("O|126|pvp||||WSG", "Dee")`);                                 // kind not wanted
+    expect(s.run(`return #WARNINGS`)).toBe("1");
+    expect(s.run(`return NS.groups.listText()`).split("\n")).toHaveLength(4);
+    s.run(`NS.groups.receive("X|123", "Ann")`);
+    s.run(`NS.groups.receive("X|124", "Mallory")`); // not the leader: ignored
+    expect(s.run(`return NS.groups.listText()`)).not.toContain("Ann");
+    expect(s.run(`return NS.groups.listText()`)).toContain("Bob");
+  });
+
+  it("posts your group to the guild and closes it", () => {
+    const s = withStandalone();
+    s.run(`NS.commandHandlers["lfg"]({ "post", "BRD", "55-60", "need", "healer" })`);
+    expect(s.run(`return SENT[#SENT].text`)).toMatch(/^O\|\d+\|dungeon\|55\|60\|HEALER\|BRD 55-60 need healer$/);
+    expect(s.run(`return NS.groups.listText()`)).toContain("Me: BRD 55-60 need healer");
+    s.run(`NS.commandHandlers["lfg"]({ "close" })`);
+    expect(s.run(`return SENT[#SENT].text`)).toMatch(/^X\|\d+$/);
+    expect(s.run(`return NS.groups.listText()`)).toContain("No open groups");
+  });
+});
+
+describe("standings without the bot", () => {
+  it("an officer shares the ledger on this PC as the guild's standings", () => {
+    session = newLuaSession();
+    session.run(`GuildedDB = nil; SLASH = SlashCmdList; NS = {}; MOCK_UNITS = { player = { name = "Kev" } }`);
+    session.load("Core.lua");
+    session.load("Modules/Sync.lua");
+    session.run(`fire_event("PLAYER_LOGIN")`);
+    session.run(`SlashCmdList["GUILDED"]("award Ann 100 Raid"); SlashCmdList["GUILDED"]("gp Ann 40 Sword"); SENT = {}`);
+    session.run(`SlashCmdList["GUILDED"]("standings publish")`);
+    expect(session.chat().join("\n")).toContain("Shared the standings of 1 players");
+    expect(session.run(`local t = {}; for _, m in ipairs(SENT) do if m.prefix == "GuildedSync" then t[#t + 1] = m.text end end; return table.concat(t, ",")`)).toMatch(/^STAND\|[^|]+\|0\|1\|1\|Ann:100:40$/);
+    session.run(`SlashCmdList["GUILDED"]("standings Ann")`);
+    expect(session.chat().join("\n")).toContain("Ann: EP 100, GP 40, PR 2.50 (Kev (in game)");
+  });
+});

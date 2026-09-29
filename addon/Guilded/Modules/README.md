@@ -38,7 +38,7 @@ new `KIND`, never a changed one.
   Core already blocks the module's commands and help lines, and the window
   hides its tab and widgets (`module =` on a tab, `forModule(...)` on a
   widget). Adding a module = add it to `ns.MODULES`, add the file to the
-  TOC and to `addonFiles` in `validate-addon.mjs`, gate its handler.
+  TOC (`validate-addon.mjs` checks every file the TOC lists), gate its handler.
 
 | Module | Switch | Prefix | What it does |
 | --- | --- | --- | --- |
@@ -60,6 +60,9 @@ new `KIND`, never a changed one.
 | Ready.lua | always on | Guilded (`CONSUME\|`) | The Ready page and `/guilded ready`: runs on every ready check by itself, each addon reports what it carries |
 | Sim.lua | `sim` | (none) | Test raid / dungeon run for officers |
 | Sync.lua | always on | GuildedSync | Version check, standings, guild module switches |
+| GuildMap.lua | `guildmap` | GuildedMap | 5.0: guildmates as dots on the world map and minimap (`P\|map\|x\|y\|class\|level`, `G` = gone); `/guilded map share\|show on\|off` |
+| Scores.lua | `scores` | GuildedScore | 5.0: a dungeon score per player from recorded runs (best run per dungeon), on tooltips; `S\|score\|dungeons`; `/guilded score [player\|top]` |
+| Groups.lua | `groups` | GuildedLFG | 5.0: in-game group board with alerts (`O\|id\|kind\|min\|max\|roles\|title`, `X\|id`); `/guilded lfg` |
 | Minimap.lua | always on | (none) | Minimap button and tools window |
 
 ## Games.lua

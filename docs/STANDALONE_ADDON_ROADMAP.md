@@ -11,6 +11,39 @@ tracking, attendance, EPGP actions, loot tools, readiness checks, backups,
 recipes, roll games, and other optional modules. The aim here is to make that
 standalone use clearer and more complete, not to duplicate the whole bot.
 
+## Status in 5.0
+
+5.0 added the first standalone features that stand on their own, following the guardrails below
+(own prefixes, officer authority, sources labelled):
+
+- **Dungeon scores** (`Modules/Scores.lua`, switch `scores`): a Raider.IO-style score per player,
+  built from the runs the Dungeon module records: each dungeon counts once, with the player's best
+  completed run (dungeon level x 2, x a speed share against the guild record, x a death penalty).
+  Shown on player tooltips, on the **Groups** page and with `/guilded score [player|top]`. Each
+  player also sends their own total (`GuildedScore`), so guildmates who never shared a run still
+  see it; a received score is a self-report, not a verified one, and the page says when this
+  client has not seen some of a player's runs.
+- **Group board** (`Modules/Groups.lua`, switch `groups`): post a group to the guild in game
+  (`/guilded lfg post BRD 55-60 need healer`, or the Groups page), see open groups with the
+  leader's score, and get a raid-warning alert for groups your level and roles fit (the Discord
+  group alerts' rules, in game). Groups close after 30 minutes.
+- **Guild map** (`Modules/GuildMap.lua`, switch `guildmap`): guildmates as dots on the world map
+  and minimap. Each client shares only its own map, position, class and level, never inside an
+  instance or in combat, and can stop sharing (`/guilded map share off`).
+- **Standings without the bot**: an officer can share the EP/GP ledger kept on their PC as the
+  guild's standings (`/guilded standings publish`, or the Standings page). This is the
+  single-writer, officer-authority model: one officer's snapshot replaces the previous one,
+  it is labelled "(in game)" with the officer's name, and a newer bot upload replaces it again.
+- **Deduct GP** in the EPGP page and `/guilded gpdeduct`.
+
+What still needs the bot (Discord) in 5.0: raid signups and rosters, core rules and item prices
+set on Discord (the addon then uses its defaults), wishlist data on item tooltips, dungeon
+points and the leaderboard, Warcraft Logs, the weekly report, applications, the answer channel
+and the Discord group finder.
+
+Steps 0, 1 and 4 below are still open (a first-run "in game only" path, and relabelling the
+Discord wording on pages when no bot is used).
+
 ## Current standalone boundaries
 
 - The addon stores its records in local WoW SavedVariables. Each player's

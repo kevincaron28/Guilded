@@ -38,5 +38,8 @@ Modules\Tooltip.lua
 Modules\ChatTab.lua
 Modules\Attunements.lua
 Modules\Ready.lua
+Modules\GuildMap.lua
+Modules\Scores.lua
+Modules\Groups.lua
 Modules\Minimap.lua
 Modules\Options.lua

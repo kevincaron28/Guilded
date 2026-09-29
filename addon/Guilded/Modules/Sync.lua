@@ -326,7 +326,35 @@ function ns.standingProblemText(name)
   return string.format(PROBLEM_TEXT[problem], name or "?")
 end
 
+-- Standalone guilds (no Discord bot): an officer shares the EPGP ledger kept on this PC as the
+-- guild's standings. They travel like the bot's (STAND chunks, officers only); a newer
+-- companion upload replaces them again.
+function ns.publishLocalStandings()
+  local d = db()
+  if not d then return false, "no data" end
+  if not (ns.isOfficer and ns.isOfficer()) then return false, "Officer or guild-master rank is required for this command." end
+  local baseGp = (d.standings and d.standings.baseGp) or 0
+  local players, count = {}, 0
+  for name, account in pairs(d.epgp or {}) do
+    local ep, gp = tonumber(account.ep) or 0, tonumber(account.gp) or 0
+    if ep ~= 0 or gp ~= 0 then
+      players[name] = { ep = ep, gp = gp, pr = priority(ep, gp, baseGp) }
+      count = count + 1
+    end
+  end
+  if count == 0 then return false, "Nothing to share: the ledger on this PC is empty." end
+  d.standings = { updatedAt = date("!%Y-%m-%dT%H:%M:%S.000Z", ns.util.serverTime()), baseGp = baseGp, players = players, from = ns.playerName() .. " (in game)" }
+  lastShareAt = 0
+  shareStandings()
+  return true, count
+end
+
 local function showStandings(args)
+  if args[1] and string.lower(args[1]) == "publish" then
+    local ok, result = ns.publishLocalStandings()
+    ns.message(ok and string.format(ns.L and ns.L("Shared the standings of %d players from this PC's ledger with the guild.") or "Shared the standings of %d players from this PC's ledger with the guild.", result) or tostring(result))
+    return
+  end
   local s = standings()
   if not s or not s.updatedAt then
     ns.message(PROBLEM_TEXT.none)
@@ -335,7 +363,8 @@ local function showStandings(args)
   if args[1] then
     local row = lookup(args[1])
     if row then
-      ns.message(string.format("%s: EP %d, GP %d, PR %.2f (Discord, %s)", ns.normalizeName(args[1]), row.ep, row.gp, row.pr, s.updatedAt))
+      local source = (s.from and string.find(s.from, "(in game)", 1, true)) and s.from or "Discord"
+      ns.message(string.format("%s: EP %d, GP %d, PR %.2f (%s, %s)", ns.normalizeName(args[1]), row.ep, row.gp, row.pr, source, s.updatedAt))
     else
       ns.message(ns.standingProblemText(ns.normalizeName(args[1])) or "No standing.")
     end

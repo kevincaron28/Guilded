@@ -432,6 +432,7 @@ export const FR_TEXT: Record<string, string> = {
   "AI answers are on (up to {limit} a day) when no officer answer matches.": "Les réponses IA sont activées (jusqu'à {limit} par jour) quand aucune réponse des officiers ne correspond.",
   "AI answers are on, but no AI service is set on the server yet (AI_BASE_URL and AI_MODEL). Until then only officer answers are used.": "Les réponses IA sont activées, mais aucun service IA n'est configuré sur le serveur (AI_BASE_URL et AI_MODEL). En attendant, seules les réponses des officiers sont utilisées.",
   "AI answers are off: only officer answers are used.": "Les réponses IA sont désactivées : seules les réponses des officiers sont utilisées.",
+  "Sorry, I couldn't get an AI answer right now. Please try again later or ask an officer.": "Désolé, je n'ai pas pu obtenir de réponse de l'IA pour le moment. Réessayez plus tard ou demandez à un officier.",
   "Matched **{triggers}**:\n{answer}": "Correspond à **{triggers}** :\n{answer}",
   "No officer answer matches: the AI would answer.": "Aucune réponse des officiers ne correspond : l'IA répondrait.",
   "No answer matches: the bot stays quiet.": "Aucune réponse ne correspond : le bot ne dit rien.",

@@ -50,26 +50,48 @@ export function matchFaq<T extends FaqLike>(entries: T[], message: string): T | 
   return best?.entry ?? null;
 }
 
+export function looksLikeQuestion(text: string, mentionsBot: boolean): boolean {
+  if (mentionsBot || text.includes("?")) return true;
+  const folded = foldText(text);
+  return /^(what|when|where|who|why|how|which|can|could|would|do|does|is|are|comment|quand|ou|qui|pourquoi|quel|quelle|quels|quelles|est ce que|peux tu|pouvez vous)\b/.test(folded)
+    || /\b(help|aide|explain|explique|how do i|how can i|can you|could you|comment faire|comment utiliser)\b/.test(folded);
+}
+
 // Remembers when each member was last answered, and how many AI answers each guild used today.
 export function createAnswerLimiter(now: () => number = Date.now) {
   const lastAnswer = new Map<string, number>();
   const aiUsed = new Map<string, { day: string; count: number }>();
   const today = () => new Date(now()).toISOString().slice(0, 10);
+  const aiCount = (guildId: string, day: string) => {
+    const used = aiUsed.get(guildId);
+    return used && used.day === day ? used.count : 0;
+  };
+  const canAnswerUser = (key: string) => {
+    const last = lastAnswer.get(key);
+    return last === undefined || now() - last >= USER_COOLDOWN_MS;
+  };
+  const canUseAi = (guildId: string, dailyLimit: number) => aiCount(guildId, today()) < dailyLimit;
+  const recordAiAnswer = (guildId: string) => {
+    const day = today();
+    aiUsed.set(guildId, { day, count: aiCount(guildId, day) + 1 });
+  };
   return {
+    canAnswerUser,
+    recordUserAnswer(key: string): void {
+      lastAnswer.set(key, now());
+    },
     // True (and remembered) when this member may get an answer now.
     allowUser(key: string): boolean {
-      const last = lastAnswer.get(key);
-      if (last !== undefined && now() - last < USER_COOLDOWN_MS) return false;
+      if (!canAnswerUser(key)) return false;
       lastAnswer.set(key, now());
       return true;
     },
+    canUseAi,
+    recordAiAnswer,
     // True (and counted) while the guild is under its daily AI limit.
     allowAi(guildId: string, dailyLimit: number): boolean {
-      const day = today();
-      const used = aiUsed.get(guildId);
-      const count = used && used.day === day ? used.count : 0;
-      if (count >= dailyLimit) return false;
-      aiUsed.set(guildId, { day, count: count + 1 });
+      if (!canUseAi(guildId, dailyLimit)) return false;
+      recordAiAnswer(guildId);
       return true;
     }
   };
@@ -113,22 +135,31 @@ export async function guildFacts(
   return lines.join("\n");
 }
 
-export function aiMessages(facts: string, question: string, botName: string) {
+export function aiMessages(facts: string, question: string, botName: string, productReference = "") {
   return [
     {
       role: "system" as const,
-      content: `You are ${botName}, the helper bot of a World of Warcraft Classic guild on Discord. Answer the member's question in at most 4 short sentences, in the language they wrote in (French or English). Use only the guild facts below and general World of Warcraft Classic knowledge. If the facts do not answer a question about the guild (times, rules, loot, who is in charge), say you do not know and to ask an officer; never invent guild rules, times or numbers. No mentions, no links unless they are in the facts.\n\nGuild facts:\n${facts}`
+      content: `You are ${botName}, the helpful support assistant for the Guilded Discord bot and its World of Warcraft Classic addon. Answer in the language the member used (French or English), usually in a few clear sentences. Use the product reference below for exact Guilded command names, syntax, permissions and features. Explain how to use the bot and addon, and answer general World of Warcraft Classic questions. Do not invent commands, options, permissions, guild schedules, loot rules or member data. Guild-specific facts below are authoritative; if they do not contain an answer about this guild, say you do not know and direct the member to an officer. If product documentation does not cover a Guilded-specific detail, say so and suggest /help in Discord or /guilded help in game. Do not mention users or include links unless they are present in the supplied facts.\n\nGuilded product reference:\n${productReference || "Use /help in Discord or /guilded help in game for the current command list."}\n\nGuild facts:\n${facts}`
     },
     { role: "user" as const, content: question.slice(0, 800) }
   ];
 }
 
-// One chat completion from an OpenAI-compatible endpoint. Null on any failure (the caller stays
-// quiet: a missing answer is better than an error message in the channel).
+export type AiFailure =
+  | { kind: "http"; status: number }
+  | { kind: "timeout" }
+  | { kind: "network" }
+  | { kind: "invalid-response" }
+  | { kind: "empty-response" };
+
+export type AiResult = { answer: string } | { answer: null; failure: AiFailure };
+
+// One chat completion from an OpenAI-compatible endpoint. Failures are classified without
+// logging provider response bodies, which may contain sensitive request details.
 export async function askAi(
   settings: AiSettings, messages: { role: "system" | "user"; content: string }[],
   fetchImpl: typeof fetch = fetch, timeoutMs = 20_000
-): Promise<string | null> {
+): Promise<AiResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -138,12 +169,25 @@ export async function askAi(
       body: JSON.stringify({ model: settings.model, messages, max_tokens: 400, temperature: 0.3 }),
       signal: controller.signal
     });
-    if (!response.ok) return null;
-    const body = await response.json() as { choices?: { message?: { content?: string } }[] };
-    const text = body.choices?.[0]?.message?.content?.trim();
-    return text ? text.slice(0, MAX_ANSWER_LENGTH) : null;
+    if (!response.ok) return { answer: null, failure: { kind: "http", status: response.status } };
+    let parsed: unknown;
+    try { parsed = await response.json(); } catch {
+      return { answer: null, failure: { kind: "invalid-response" } };
+    }
+    if (typeof parsed !== "object" || parsed === null || !("choices" in parsed) || !Array.isArray(parsed.choices)) {
+      return { answer: null, failure: { kind: "invalid-response" } };
+    }
+    const choice: unknown = parsed.choices[0];
+    if (typeof choice !== "object" || choice === null || !("message" in choice) || typeof choice.message !== "object" || choice.message === null || !("content" in choice.message)) {
+      return { answer: null, failure: { kind: "empty-response" } };
+    }
+    const content: unknown = choice.message.content;
+    if (typeof content !== "string" || !content.trim()) return { answer: null, failure: { kind: "empty-response" } };
+    return { answer: content.trim().slice(0, MAX_ANSWER_LENGTH) };
   } catch {
-    return null;
+    return controller.signal.aborted
+      ? { answer: null, failure: { kind: "timeout" } }
+      : { answer: null, failure: { kind: "network" } };
   } finally {
     clearTimeout(timer);
   }

@@ -5,7 +5,7 @@ import {
 import { prisma } from "../database.js";
 import { config } from "../config.js";
 import { hasPermission } from "../permissions.js";
-import { aiMessages, askAi, createAnswerLimiter, guildFacts, matchFaq, MAX_ANSWER_LENGTH, parseTriggers } from "../services/answers.js";
+import { aiMessages, askAi, createAnswerLimiter, guildFacts, looksLikeQuestion, matchFaq, MAX_ANSWER_LENGTH, parseTriggers } from "../services/answers.js";
 import { BRAND } from "../brand.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { asLang, tx, type Lang } from "../i18n.js";
@@ -165,11 +165,7 @@ async function answerSettings(discordGuildId: string, name: string) {
 }
 
 // A question worth an AI answer: it asks something (a "?") or names the bot.
-export function looksLikeQuestion(text: string, mentionsBot: boolean): boolean {
-  return mentionsBot || text.includes("?");
-}
-
-export async function answerMessage(message: Message): Promise<void> {
+export async function answerMessage(message: Message, productReference: string): Promise<void> {
   if (message.author.bot || message.system || !message.inGuild()) return;
   const text = message.content.trim();
   if (text.length < 3) return;
@@ -187,13 +183,29 @@ export async function answerMessage(message: Message): Promise<void> {
   if (!where.ai || !config.AI_BASE_URL || !config.AI_MODEL) return;
   const botId = message.client.user.id;
   if (!looksLikeQuestion(text, message.mentions.users.has(botId))) return;
-  if (!limiter.allowUser(`${where.guildId}:${message.author.id}`) || !limiter.allowAi(where.guildId, config.AI_DAILY_LIMIT)) return;
-  await message.channel.sendTyping().catch(() => undefined);
+  const userKey = `${where.guildId}:${message.author.id}`;
+  if (!limiter.canAnswerUser(userKey) || !limiter.canUseAi(where.guildId, config.AI_DAILY_LIMIT)) return;
+  try {
+    await message.channel.sendTyping();
+  } catch (error) {
+    console.warn("Could not send typing indicator for answer channel", error);
+  }
   const member = await prisma.member.findFirst({ where: { guildId: where.guildId, discordUserId: message.author.id }, select: { id: true } });
   const facts = await guildFacts(prisma, where.guildId, member?.id ?? null, where.timeZone);
   const question = text.replace(new RegExp(`<@!?${botId}>`, "g"), "").trim();
-  const answer = await askAi({ baseUrl: config.AI_BASE_URL, model: config.AI_MODEL, apiKey: config.AI_API_KEY }, aiMessages(facts, question, BRAND.name));
-  if (answer) await reply(answer);
+  const result = await askAi(
+    { baseUrl: config.AI_BASE_URL, model: config.AI_MODEL, apiKey: config.AI_API_KEY },
+    aiMessages(facts, question, BRAND.name, productReference)
+  );
+  if (result.answer !== null) {
+    await reply(result.answer);
+    limiter.recordUserAnswer(userKey);
+    limiter.recordAiAnswer(where.guildId);
+    return;
+  }
+  console.error("Answer channel AI request failed", { guildId: where.guildId, failure: result.failure });
+  const settings = await guildService.getSettings(where.guildId);
+  await reply(tx(asLang(settings?.language), "Sorry, I couldn't get an AI answer right now. Please try again later or ask an officer."));
 }
 
 // /mod faq channel and ai change what the listener reads: forget the cached copy.

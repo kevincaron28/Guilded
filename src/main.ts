@@ -44,6 +44,7 @@ import { config } from "./config.js";
 import { startCompanionApi } from "./companion-api.js";
 import { handleMemberJoin, handleMemberRolesChange, handleMemberLeave, handleWelcomeRoleButton, WELCOME_ROLE_PREFIX } from "./services/housekeeping.js";
 import { createErrorReportService } from "./services/error-report.js";
+import { buildGuildedReference } from "./services/guilded-reference.js";
 
 // GuildMembers is a privileged intent: it must also be enabled for this bot
 // application under "Server Members Intent" in the Discord Developer Portal,
@@ -56,6 +57,7 @@ const client = new Client({
     ...(config.MESSAGE_CONTENT_INTENT ? [GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] : [])
   ]
 });
+const answerCommandList = buildGuildedReference(commands);
 startCompanionApi(client);
 const errorReportService = createErrorReportService(prisma);
 // Background jobs run unattended (no interaction to reply to), so this is
@@ -168,7 +170,7 @@ client.on(Events.GuildMemberRemove, async (member) => {
 // The answer channel (5.0): only when the bot may read message text.
 if (config.MESSAGE_CONTENT_INTENT) {
   client.on(Events.MessageCreate, (message) => {
-    void answerMessage(message).catch((error: unknown) => {
+    void answerMessage(message, answerCommandList).catch((error: unknown) => {
       console.warn("Answer channel failed", error);
       void errorReportService.report(client, error, { source: "Answer channel", guildId: message.guildId, guildName: message.guild?.name, userId: message.author.id });
     });

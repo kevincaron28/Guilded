@@ -1,7 +1,8 @@
 import { ChannelType, Collection } from "discord.js";
 import { describe, expect, it } from "vitest";
 import { ARCHIVE_CATEGORY, archiveCoreDiscord, setupCoreDiscord } from "../src/services/core-channels.js";
-import { aiMessages, askAi, createAnswerLimiter, foldText, matchFaq, parseTriggers, USER_COOLDOWN_MS } from "../src/services/answers.js";
+import { aiMessages, askAi, createAnswerLimiter, foldText, looksLikeQuestion, matchFaq, parseTriggers, USER_COOLDOWN_MS } from "../src/services/answers.js";
+import { buildGuildedReference } from "../src/services/guilded-reference.js";
 import { alertRecipients, dungeonLevelsFromTitle, fitsGroup, parseLevelRange, rolesFromTitle, type AlertGroup } from "../src/services/group-alerts.js";
 
 // 5.0 on Discord: core channels made with the core and archived with it; group alerts; the answer channel.
@@ -220,6 +221,26 @@ describe("answer channel: officer answers", () => {
     now += 86_400_000;
     expect(limiter.allowAi("g", 2)).toBe(true);
   });
+
+  it("does not consume the cooldown or daily quota until an answer is recorded", () => {
+    const limiter = createAnswerLimiter(() => 1_000);
+    expect(limiter.canAnswerUser("g:a")).toBe(true);
+    expect(limiter.canUseAi("g", 1)).toBe(true);
+    expect(limiter.canAnswerUser("g:a")).toBe(true);
+    expect(limiter.canUseAi("g", 1)).toBe(true);
+    limiter.recordUserAnswer("g:a");
+    limiter.recordAiAnswer("g");
+    expect(limiter.canAnswerUser("g:a")).toBe(false);
+    expect(limiter.canUseAi("g", 1)).toBe(false);
+  });
+
+  it("recognizes English and French help questions even without punctuation", () => {
+    expect(looksLikeQuestion("how do I link my character", false)).toBe(true);
+    expect(looksLikeQuestion("Comment utiliser la carte", false)).toBe(true);
+    expect(looksLikeQuestion("help with the addon", false)).toBe(true);
+    expect(looksLikeQuestion("I was raiding last night", false)).toBe(false);
+    expect(looksLikeQuestion("anything", true)).toBe(true);
+  });
 });
 
 describe("answer channel: AI answers", () => {
@@ -229,22 +250,50 @@ describe("answer channel: AI answers", () => {
       sent = { url, body: JSON.parse(String(init.body)), auth: (init.headers as Record<string, string>)["Authorization"] };
       return new Response(JSON.stringify({ choices: [{ message: { content: " Raid is Tuesday. " } }] }), { status: 200 });
     }) as unknown as typeof fetch;
-    const messages = aiMessages("Guild: Quebec Gold.\nNext raids:\n- MC: Tuesday", "When is raid?", "Guilded");
+    const messages = aiMessages("Guild: Quebec Gold.\nNext raids:\n- MC: Tuesday", "When is raid?", "Guilded", "/raid create — Create a raid.");
     const answer = await askAi({ baseUrl: "https://ai.example/v1/", model: "m", apiKey: "k" }, messages, fetchImpl);
-    expect(answer).toBe("Raid is Tuesday.");
+    expect(answer).toEqual({ answer: "Raid is Tuesday." });
     expect(sent!.url).toBe("https://ai.example/v1/chat/completions");
     expect(sent!.auth).toBe("Bearer k");
     expect(sent!.body.model).toBe("m");
     expect(sent!.body.messages[0]!.content).toContain("Guild: Quebec Gold.");
-    expect(sent!.body.messages[0]!.content).toContain("never invent guild rules");
+    expect(sent!.body.messages[0]!.content).toContain("Do not invent commands, options, permissions");
+    expect(sent!.body.messages[0]!.content).toContain("/raid create");
   });
 
-  it("stays quiet (null) on an error, a bad answer or no key needed for a local model", async () => {
-    const failing = (async () => new Response("nope", { status: 429 })) as unknown as typeof fetch;
-    expect(await askAi({ baseUrl: "http://x", model: "m" }, [], failing)).toBeNull();
+  it("classifies provider, network and malformed-response failures for a visible fallback", async () => {
+    const failing = (async () => new Response("provider details are not logged", { status: 429 })) as unknown as typeof fetch;
+    expect(await askAi({ baseUrl: "http://x", model: "m" }, [], failing)).toEqual({ answer: null, failure: { kind: "http", status: 429 } });
     const empty = (async () => new Response(JSON.stringify({ choices: [] }), { status: 200 })) as unknown as typeof fetch;
-    expect(await askAi({ baseUrl: "http://x", model: "m" }, [], empty)).toBeNull();
+    expect(await askAi({ baseUrl: "http://x", model: "m" }, [], empty)).toEqual({ answer: null, failure: { kind: "empty-response" } });
+    const malformed = (async () => new Response("not json", { status: 200 })) as unknown as typeof fetch;
+    expect(await askAi({ baseUrl: "http://x", model: "m" }, [], malformed)).toEqual({ answer: null, failure: { kind: "invalid-response" } });
     const throwing = (async () => { throw new Error("offline"); }) as unknown as typeof fetch;
-    expect(await askAi({ baseUrl: "http://x", model: "m" }, [], throwing)).toBeNull();
+    expect(await askAi({ baseUrl: "http://x", model: "m" }, [], throwing)).toEqual({ answer: null, failure: { kind: "network" } });
+  });
+});
+
+describe("Guilded AI product reference", () => {
+  it("includes the current slash command schema and the addon help essentials", () => {
+    const command = {
+      name: "raid",
+      toJSON: () => ({
+        name: "raid",
+        description: "Raids and signups",
+        options: [{
+          type: 1,
+          name: "create",
+          description: "Create a raid",
+          options: [{ name: "title", description: "Raid name", required: true }]
+        }]
+      })
+    };
+    const reference = buildGuildedReference([command]);
+    expect(reference).toContain("/raid — Raids and signups");
+    expect(reference).toContain("/raid create — Create a raid");
+    expect(reference).toContain("title (required): Raid name");
+    expect(reference).toContain("/guilded help");
+    expect(reference).toContain("/guilded map share on|off");
+    expect(reference).toContain("/guilded lfg");
   });
 });

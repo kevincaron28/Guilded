@@ -1,13 +1,17 @@
 import type { PrismaClient } from "@prisma/client";
 import { createEpgpService } from "./epgp.js";
+import { tx, type Lang } from "../i18n.js";
 
 // The answer channel (5.0): members ask a question in one channel and the bot replies.
 //   1. Officer-written answers (FaqEntry, /mod faq): a message matches an entry when it contains
 //      every word of one of its triggers ("raid time" matches "what time is the raid?"). The
 //      entry with the most specific (longest) matching trigger wins. Free, and always on.
-//   2. Optionally an AI answer when no entry matches: any OpenAI-compatible chat endpoint, set by
-//      AI_BASE_URL / AI_MODEL / AI_API_KEY (a free Gemini or Groq key, or a local Ollama on the
-//      server), switched on per guild with /mod faq ai. It only sees the guild facts below.
+//   2. A raid-schedule answer straight from the database when the question is about raid timing
+//      ("raid night?", "quand est le raid ?"): free and always on, no AI needed.
+//   3. Optionally an AI answer when neither of the above matches: any OpenAI-compatible chat
+//      endpoint, set by AI_BASE_URL / AI_MODEL / AI_API_KEY (a free Gemini or Groq key, or a
+//      local Ollama on the server), switched on per guild with /mod faq ai. It only sees the
+//      guild facts below.
 // Reading messages needs Discord's Message Content intent (MESSAGE_CONTENT_INTENT=true).
 
 export const MAX_TRIGGERS = 10;
@@ -55,6 +59,47 @@ export function looksLikeQuestion(text: string, mentionsBot: boolean): boolean {
   const folded = foldText(text);
   return /^(what|when|where|who|why|how|which|can|could|would|do|does|is|are|comment|quand|ou|qui|pourquoi|quel|quelle|quels|quelles|est ce que|peux tu|pouvez vous)\b/.test(folded)
     || /\b(help|aide|explain|explique|how do i|how can i|can you|could you|comment faire|comment utiliser)\b/.test(folded);
+}
+
+// "raid night?", "when is the raid", "quand est le raid ce soir", "core schedule", "prochain raid"…
+const SCHEDULE_SUBJECT = /\b(raids?|core)\b/;
+const SCHEDULE_WORD = /\b(night|nights|time|times|schedule|day|days|hour|hours|when|next|soir|soirs|horaire|horaires|heure|heures|jour|jours|prochain|prochaine|quand)\b/;
+
+// A raid-schedule question doesn't need AI: it names "raid"/"core" and asks about timing.
+export function looksLikeScheduleQuestion(text: string): boolean {
+  const folded = foldText(text);
+  return SCHEDULE_SUBJECT.test(folded) && SCHEDULE_WORD.test(folded);
+}
+
+// A free, deterministic answer straight from the database: each core's schedule and the next
+// planned raids. Returns null when the guild has nothing to say yet (no core schedule set, no
+// raid planned), so the caller can fall back to the AI answer or admit it doesn't know.
+export async function scheduleAnswer(
+  database: PrismaClient, guildId: string, timeZone: string, lang: Lang, now = new Date()
+): Promise<string | null> {
+  const [cores, raids] = await Promise.all([
+    database.raidCore.findMany({
+      where: { guildId, schedule: { not: null } }, select: { name: true, schedule: true }, orderBy: { name: "asc" }, take: 10
+    }),
+    database.raid.findMany({
+      where: { guildId, isTest: false, status: { in: ["PLANNED", "ACTIVE"] }, scheduledAt: { gte: new Date(now.getTime() - 6 * 3_600_000) } },
+      orderBy: { scheduledAt: "asc" }, take: 3, include: { core: { select: { name: true } } }
+    })
+  ]);
+  if (cores.length === 0 && raids.length === 0) return null;
+  const when = (date: Date) =>
+    date.toLocaleString(lang === "fr" ? "fr-CA" : "en-CA", { timeZone, weekday: "long", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  const lines: string[] = [];
+  if (cores.length) {
+    lines.push(tx(lang, "Raid schedule:"));
+    for (const core of cores) lines.push(`• **${core.name}** — ${core.schedule}`);
+  }
+  if (raids.length) {
+    if (lines.length) lines.push("");
+    lines.push(tx(lang, "Next raid:"));
+    for (const raid of raids) lines.push(`• ${raid.title}${raid.core ? ` [${raid.core.name}]` : ""} — ${when(raid.scheduledAt)}`);
+  }
+  return lines.join("\n").slice(0, MAX_ANSWER_LENGTH);
 }
 
 // Remembers when each member was last answered, and how many AI answers each guild used today.

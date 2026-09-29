@@ -5,7 +5,7 @@ import {
 import { prisma } from "../database.js";
 import { config } from "../config.js";
 import { hasPermission } from "../permissions.js";
-import { aiMessages, askAi, createAnswerLimiter, guildFacts, looksLikeQuestion, matchFaq, MAX_ANSWER_LENGTH, parseTriggers } from "../services/answers.js";
+import { aiMessages, askAi, createAnswerLimiter, guildFacts, looksLikeQuestion, looksLikeScheduleQuestion, matchFaq, MAX_ANSWER_LENGTH, parseTriggers, scheduleAnswer } from "../services/answers.js";
 import { BRAND } from "../brand.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { asLang, tx, type Lang } from "../i18n.js";
@@ -171,19 +171,29 @@ export async function answerMessage(message: Message, productReference: string):
   if (text.length < 3) return;
   const where = await answerSettings(message.guild.id, message.guild.name);
   if (!where.channelId || message.channelId !== where.channelId) return;
+  const userKey = `${where.guildId}:${message.author.id}`;
   const entries = await prisma.faqEntry.findMany({ where: { guildId: where.guildId } });
   const match = matchFaq(entries, text);
   const reply = (content: string) => message.reply({ content, allowedMentions: { parse: [], repliedUser: true }, failIfNotExists: false });
   if (match) {
-    if (!limiter.allowUser(`${where.guildId}:${message.author.id}`)) return;
+    if (!limiter.allowUser(userKey)) return;
     await reply(match.answer);
     await prisma.faqEntry.update({ where: { id: match.id }, data: { uses: { increment: 1 } } });
     return;
   }
+  // Raid-timing questions ("raid night?") get a free, deterministic answer straight from the
+  // database (core schedules and next planned raids), whether or not AI is configured.
+  if (looksLikeScheduleQuestion(text)) {
+    const scheduled = await scheduleAnswer(prisma, where.guildId, where.timeZone, asLang((await guildService.getSettings(where.guildId))?.language));
+    if (scheduled) {
+      if (!limiter.allowUser(userKey)) return;
+      await reply(scheduled);
+      return;
+    }
+  }
   if (!where.ai || !config.AI_BASE_URL || !config.AI_MODEL) return;
   const botId = message.client.user.id;
   if (!looksLikeQuestion(text, message.mentions.users.has(botId))) return;
-  const userKey = `${where.guildId}:${message.author.id}`;
   if (!limiter.canAnswerUser(userKey) || !limiter.canUseAi(where.guildId, config.AI_DAILY_LIMIT)) return;
   try {
     await message.channel.sendTyping();

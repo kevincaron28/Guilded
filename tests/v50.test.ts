@@ -1,7 +1,7 @@
 import { ChannelType, Collection } from "discord.js";
 import { describe, expect, it } from "vitest";
 import { ARCHIVE_CATEGORY, archiveCoreDiscord, setupCoreDiscord } from "../src/services/core-channels.js";
-import { aiMessages, askAi, createAnswerLimiter, foldText, looksLikeQuestion, matchFaq, parseTriggers, USER_COOLDOWN_MS } from "../src/services/answers.js";
+import { aiMessages, askAi, createAnswerLimiter, foldText, looksLikeQuestion, looksLikeScheduleQuestion, matchFaq, parseTriggers, scheduleAnswer, USER_COOLDOWN_MS } from "../src/services/answers.js";
 import { buildGuildedReference } from "../src/services/guilded-reference.js";
 import { alertRecipients, dungeonLevelsFromTitle, fitsGroup, parseLevelRange, rolesFromTitle, type AlertGroup } from "../src/services/group-alerts.js";
 
@@ -240,6 +240,49 @@ describe("answer channel: officer answers", () => {
     expect(looksLikeQuestion("help with the addon", false)).toBe(true);
     expect(looksLikeQuestion("I was raiding last night", false)).toBe(false);
     expect(looksLikeQuestion("anything", true)).toBe(true);
+  });
+
+  it("recognizes raid-timing questions but not unrelated raid chatter", () => {
+    expect(looksLikeScheduleQuestion("raid night?")).toBe(true);
+    expect(looksLikeScheduleQuestion("when is the next raid")).toBe(true);
+    expect(looksLikeScheduleQuestion("quand est le raid ce soir")).toBe(true);
+    expect(looksLikeScheduleQuestion("what's the core schedule")).toBe(true);
+    expect(looksLikeScheduleQuestion("I was raiding last night")).toBe(false);
+    expect(looksLikeScheduleQuestion("what are the raid loot rules")).toBe(false);
+  });
+});
+
+describe("answer channel: raid-schedule fast path", () => {
+  function fakeScheduleDatabase(options: { cores?: { name: string; schedule: string }[]; raids?: { title: string; scheduledAt: Date; core: { name: string } | null }[] } = {}) {
+    return {
+      raidCore: { findMany: async () => options.cores ?? [] },
+      raid: { findMany: async () => options.raids ?? [] }
+    };
+  }
+
+  it("returns null when the guild has no core schedule and no planned raid", async () => {
+    const database = fakeScheduleDatabase();
+    expect(await scheduleAnswer(database as never, "g1", "America/New_York", "en")).toBeNull();
+  });
+
+  it("lists each core's schedule and the next planned raids", async () => {
+    const database = fakeScheduleDatabase({
+      cores: [{ name: "Tuesday MC", schedule: "Tuesdays 8pm" }],
+      raids: [{ title: "MC Week 3", scheduledAt: new Date("2025-01-07T20:00:00-05:00"), core: { name: "Tuesday MC" } }]
+    });
+    const answer = await scheduleAnswer(database as never, "g1", "America/New_York", "en", new Date("2025-01-01T00:00:00-05:00"));
+    expect(answer).not.toBeNull();
+    expect(answer).toContain("Raid schedule:");
+    expect(answer).toContain("**Tuesday MC** — Tuesdays 8pm");
+    expect(answer).toContain("Next raid:");
+    expect(answer).toContain("MC Week 3 [Tuesday MC]");
+  });
+
+  it("answers in French when the guild's language is fr", async () => {
+    const database = fakeScheduleDatabase({ cores: [{ name: "Coeur Mardi", schedule: "Mardis 20h" }] });
+    const answer = await scheduleAnswer(database as never, "g1", "America/New_York", "fr");
+    expect(answer).toContain("Horaire de raid :");
+    expect(answer).toContain("**Coeur Mardi** — Mardis 20h");
   });
 });
 

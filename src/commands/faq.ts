@@ -6,13 +6,15 @@ import { prisma } from "../database.js";
 import { config } from "../config.js";
 import { hasPermission } from "../permissions.js";
 import {
-  activePollAnswer, aiMessages, applicationStatusAnswer, askAi, createAnswerLimiter, guildFacts,
+  activePollAnswer, aiMessages, applicationStatusAnswer, askAi, commandHelpAnswer, createAnswerLimiter, guildFacts,
   looksLikeActivePollQuestion, looksLikeApplicationStatusQuestion, looksLikeBankRequestQuestion,
-  looksLikeCraftRequestQuestion, looksLikeLootRulesQuestion, looksLikeMyCharactersQuestion,
-  looksLikeOpenGroupsQuestion, looksLikePersonalStandingQuestion, looksLikeQuestion, looksLikeScheduleQuestion,
-  lootRulesAnswer, matchFaq, MAX_ANSWER_LENGTH, myBankRequestAnswer, myCharactersAnswer, myCraftRequestAnswer,
-  openGroupsAnswer, parseTriggers, personalStandingAnswer, scheduleAnswer
+  looksLikeBotHealthQuestion, looksLikeCommandHelpQuestion, looksLikeCraftRequestQuestion, looksLikeLootRulesQuestion,
+  looksLikeMyCharactersQuestion, looksLikeOpenGroupsQuestion, looksLikePersonalStandingQuestion, looksLikeQuestion,
+  looksLikeScheduleQuestion, lootRulesAnswer, matchFaq, MAX_ANSWER_LENGTH, myBankRequestAnswer, myCharactersAnswer,
+  myCraftRequestAnswer, openGroupsAnswer, parseTriggers, personalStandingAnswer, scheduleAnswer
 } from "../services/answers.js";
+import { botHealthAnswer } from "../services/bot-messages.js";
+import { guideText as craftGuideText } from "./craft-board.js";
 import { BRAND } from "../brand.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { asLang, tx, type Lang } from "../i18n.js";
@@ -197,6 +199,14 @@ export async function answerMessage(message: Message, productReference: string):
     if (member === undefined) member = await prisma.member.findFirst({ where: { guildId: where.guildId, discordUserId: message.author.id }, select: { id: true } });
     return member;
   };
+  let officerAsker: boolean | undefined;
+  const isOfficerAsker = async () => {
+    if (officerAsker === undefined) {
+      const discordMember = message.member ?? await message.guild.members.fetch(message.author.id).catch(() => null);
+      officerAsker = discordMember ? hasPermission(discordMember, "officer") : false;
+    }
+    return officerAsker;
+  };
   const tryAnswer = async (answer: string | null) => {
     if (answer === null || !limiter.allowUser(userKey)) return false;
     await reply(answer);
@@ -227,6 +237,14 @@ export async function answerMessage(message: Message, productReference: string):
   if (looksLikeCraftRequestQuestion(text)) {
     const asker = await getMember();
     if (asker && await tryAnswer(await myCraftRequestAnswer(prisma, asker.id, lang))) return;
+  }
+  // Command/setup help ("what commands?", "how do I use this bot?") never needs AI: it's just a
+  // pointer to /help, plus /setup for officers.
+  if (looksLikeCommandHelpQuestion(text) && await tryAnswer(commandHelpAnswer(await isOfficerAsker(), lang))) return;
+  // "Is the bot outdated?" is diagnostic content, so it's officer-only; a non-officer asking falls
+  // through silently to AI, same as every other check above when it doesn't apply.
+  if (looksLikeBotHealthQuestion(text) && settings && await isOfficerAsker()) {
+    if (await tryAnswer(await botHealthAnswer(message.guild, prisma, settings, lang, craftGuideText(lang)))) return;
   }
   if (!where.ai || !config.AI_BASE_URL || !config.AI_MODEL) return;
   const botId = message.client.user.id;

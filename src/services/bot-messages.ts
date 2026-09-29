@@ -109,3 +109,27 @@ export async function updateBotMessages(
   if (extra.rosters) { await extra.rosters(); done.push(tx(lang, "core rosters")); }
   return done.length ? tx(lang, "Updated: {list}.", { list: done.join(", ") }) : tx(lang, "No bot message channel is set yet.");
 }
+
+// The label used for each kind in /setup's checklist (roster gets its own name-based label there).
+const HEALTH_LABELS: Record<Exclude<BotMessageFact["kind"], "roster">, string> = {
+  botGuide: "Pinned bot guide", groupFinder: "Pinned group finder menu", craftGuide: "Pinned craft board guide", leaderboard: "Dungeon leaderboard message"
+};
+
+// An answer-channel summary of botMessageFacts, for an officer asking if anything is outdated or
+// missing: same facts and wording as /setup's checklist, but as a short chat reply. Never null.
+export async function botHealthAnswer(
+  guild: DiscordGuild, database: Pick<PrismaClient, "raidCore">, settings: GuildSettings, lang: Lang, craftGuideText: string
+): Promise<string> {
+  const facts = await botMessageFacts(guild, database, settings, lang, craftGuideText);
+  const stale = facts.filter((fact) => fact.state !== "current");
+  if (stale.length === 0) return tx(lang, "Everything looks current: no outdated or missing bot messages found.");
+  const lines = [tx(lang, "These bot messages need attention:")];
+  for (const fact of stale) {
+    const label = fact.kind === "roster" ? tx(lang, "Roster message: {name}", { name: fact.name ?? "?" }) : tx(lang, HEALTH_LABELS[fact.kind]);
+    lines.push(fact.state === "missing" ? tx(lang, "• {label} — missing", { label }) : tx(lang, "• {label} — out of date", { label }));
+  }
+  lines.push(tx(lang, "An officer can fix these: run /setup start, then press \"Update bot messages\"."));
+  // 1500 matches MAX_ANSWER_LENGTH in services/answers.ts (kept as a literal to avoid this file
+  // depending on answers.ts, which faq.ts already imports both of for the answer channel).
+  return lines.join("\n").slice(0, 1500);
+}

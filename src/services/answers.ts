@@ -276,6 +276,40 @@ export async function myCraftRequestAnswer(database: PrismaClient, memberId: str
   return tx(lang, "Your craft request for {item} x{quantity} is {status}.", { item: request.item, quantity: request.quantity, status: statusText[request.status] ?? request.status });
 }
 
+// "what commands", "how do I use this bot", "quelles commandes", "comment utiliser ce bot"…
+const COMMAND_HELP_SUBJECT = /\b(command|commands|commande|commandes)\b/;
+const COMMAND_HELP_WORD = /\b(what|which|list|how|use|do|quel|quelle|quels|quelles|comment|utiliser|liste)\b/;
+const COMMAND_HELP_PHRASE = /\b(what can you do|how do i use (this|the) bot|how does (this|the) bot work|comment (utiliser|fonctionne) (ce|le) bot|que peux tu faire)\b/;
+
+// A question about the bot's commands or how to use it: doesn't need AI, just a pointer to /help
+// (the full, rank-aware command list) and, for officers, /setup.
+export function looksLikeCommandHelpQuestion(text: string): boolean {
+  const folded = foldText(text);
+  return (COMMAND_HELP_SUBJECT.test(folded) && COMMAND_HELP_WORD.test(folded)) || COMMAND_HELP_PHRASE.test(folded);
+}
+
+// Always answers (never null): the command list lives in /help, so this only points to it.
+export function commandHelpAnswer(canOfficer: boolean, lang: Lang): string {
+  const lines = [
+    tx(lang, "Use /help to see every command you can use, grouped by what it's for."),
+    tx(lang, "A few common ones: /raid signup, /epgp balance, /character pair.")
+  ];
+  if (canOfficer) {
+    lines.push(tx(lang, "Officers: /setup start walks through setting up (or checking) everything, and /mod faq manages this answer channel."));
+  }
+  return lines.join("\n").slice(0, MAX_ANSWER_LENGTH);
+}
+
+// "is the bot outdated", "does the bot need updating", "old version", "pinned messages up to
+// date", "vieille version", "a besoin d'une mise a jour"… officer-only: see faq.ts.
+const BOT_HEALTH_SUBJECT = /\b(bot|pin|pins|pinned|messages?|version|setup|epingle|epingles|epinglee|epinglees)\b/;
+const BOT_HEALTH_WORD = /\b(outdated|out of date|old|update|updates|updated|updating|missing|current|perime|perimee|perimes|vieux|vieille|vieilles|desuet|desuete|manque|manquant|manquants)\b|\ba jour\b/;
+
+export function looksLikeBotHealthQuestion(text: string): boolean {
+  const folded = foldText(text);
+  return BOT_HEALTH_SUBJECT.test(folded) && BOT_HEALTH_WORD.test(folded);
+}
+
 // Remembers when each member was last answered, and how many AI answers each guild used today.
 export function createAnswerLimiter(now: () => number = Date.now) {
   const lastAnswer = new Map<string, number>();

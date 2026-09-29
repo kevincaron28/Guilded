@@ -2,12 +2,13 @@ import { ChannelType, Collection } from "discord.js";
 import { describe, expect, it } from "vitest";
 import { ARCHIVE_CATEGORY, archiveCoreDiscord, setupCoreDiscord } from "../src/services/core-channels.js";
 import {
-  activePollAnswer, aiMessages, applicationStatusAnswer, askAi, createAnswerLimiter, foldText, looksLikeActivePollQuestion,
-  looksLikeApplicationStatusQuestion, looksLikeBankRequestQuestion, looksLikeCraftRequestQuestion, looksLikeLootRulesQuestion,
-  looksLikeMyCharactersQuestion, looksLikeOpenGroupsQuestion, looksLikePersonalStandingQuestion, looksLikeQuestion,
+  activePollAnswer, aiMessages, applicationStatusAnswer, askAi, commandHelpAnswer, createAnswerLimiter, foldText, looksLikeActivePollQuestion,
+  looksLikeApplicationStatusQuestion, looksLikeBankRequestQuestion, looksLikeBotHealthQuestion, looksLikeCommandHelpQuestion, looksLikeCraftRequestQuestion,
+  looksLikeLootRulesQuestion, looksLikeMyCharactersQuestion, looksLikeOpenGroupsQuestion, looksLikePersonalStandingQuestion, looksLikeQuestion,
   looksLikeScheduleQuestion, lootRulesAnswer, matchFaq, myBankRequestAnswer, myCharactersAnswer, myCraftRequestAnswer,
   openGroupsAnswer, parseTriggers, personalStandingAnswer, scheduleAnswer, USER_COOLDOWN_MS
 } from "../src/services/answers.js";
+import { botHealthAnswer } from "../src/services/bot-messages.js";
 import { buildGuildedReference } from "../src/services/guilded-reference.js";
 import { alertRecipients, dungeonLevelsFromTitle, fitsGroup, parseLevelRange, rolesFromTitle, type AlertGroup } from "../src/services/group-alerts.js";
 
@@ -488,6 +489,56 @@ describe("answer channel: craft-request fast path", () => {
     const database = fakeCraftDatabase({ item: "Arcanite Rod", quantity: 1, status: "CLAIMED" });
     const answer = await myCraftRequestAnswer(database as never, "m1", "en");
     expect(answer).toBe("Your craft request for Arcanite Rod x1 is claimed by a crafter.");
+  });
+});
+
+describe("answer channel: command-help fast path", () => {
+  it("recognizes command-help questions", () => {
+    expect(looksLikeCommandHelpQuestion("what commands does this bot have")).toBe(true);
+    expect(looksLikeCommandHelpQuestion("quelles commandes existent")).toBe(true);
+    expect(looksLikeCommandHelpQuestion("how do I use this bot")).toBe(true);
+    expect(looksLikeCommandHelpQuestion("comment fonctionne ce bot")).toBe(true);
+    expect(looksLikeCommandHelpQuestion("nice raid last night")).toBe(false);
+  });
+
+  it("always answers, pointing to /help", () => {
+    const answer = commandHelpAnswer(false, "en");
+    expect(answer).toContain("Use /help");
+    expect(answer).not.toContain("/setup start");
+  });
+
+  it("adds an officer-only line about /setup and /mod faq", () => {
+    const answer = commandHelpAnswer(true, "en");
+    expect(answer).toContain("/setup start");
+    expect(answer).toContain("/mod faq");
+  });
+});
+
+describe("answer channel: bot-health fast path", () => {
+  it("recognizes bot-health questions", () => {
+    expect(looksLikeBotHealthQuestion("is the bot outdated")).toBe(true);
+    expect(looksLikeBotHealthQuestion("are the pinned messages out of date")).toBe(true);
+    expect(looksLikeBotHealthQuestion("le bot a besoin d'une mise a jour")).toBe(true);
+    expect(looksLikeBotHealthQuestion("great raid tonight")).toBe(false);
+  });
+
+  it("reports everything current when no channels are configured", async () => {
+    const guild = { channels: { fetch: async () => null } } as never;
+    const database = { raidCore: { findMany: async () => [] } } as never;
+    const settings = { guildId: "g1" } as never;
+    const answer = await botHealthAnswer(guild, database, settings, "en", "craft guide text");
+    expect(answer).toBe("Everything looks current: no outdated or missing bot messages found.");
+  });
+
+  it("lists missing bot messages with a fix hint", async () => {
+    const channel = { isTextBased: () => true, messages: { fetchPinned: async () => new Collection() } };
+    const guild = { channels: { fetch: async () => channel } } as never;
+    const database = { raidCore: { findMany: async () => [] } } as never;
+    const settings = { guildId: "g1", guideChannelId: "c1" } as never;
+    const answer = await botHealthAnswer(guild, database, settings, "en", "craft guide text");
+    expect(answer).toBe(
+      "These bot messages need attention:\n• Pinned bot guide — missing\nAn officer can fix these: run /setup start, then press \"Update bot messages\"."
+    );
   });
 });
 

@@ -8,12 +8,14 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Open work: read `docs/V4_6_HANDOFF.md` first.** Version 4.6.0 is on `main` (4.5.0 and 4.6.0
-are unpublished; 4.0.0 was never published): every 4.6 change with its files, the protocol /
+**Open work: read `docs/V5_0_HANDOFF.md` first.** Version 5.0.0 is the current version (4.5.0, 4.6.0 and
+5.0.0 are unpublished; 4.0.0 was never published): every 5.0 change with its files, the protocol /
 saved-data / database changes, and what is left (db:update, rebuild the addon zip and companion
-installer, redeploy, "Update bot messages" in `/setup`, the in-game checks in `RELEASE_CHECKLIST.md`,
-the CurseForge upload). 4.5 is in `docs/V4_5_HANDOFF.md`, the addon audit before it in
-`docs/ADDON_AUDIT_HANDOFF.md`. Next after 4.6 is polished: the v5 raid tools module (`ROADMAP.md`).
+installer, redeploy, "Update bot messages" in `/setup`, the optional Message Content Intent for the
+answer channel, the in-game checks in `RELEASE_CHECKLIST.md`, the CurseForge upload). 4.6 is in
+`docs/V4_6_HANDOFF.md`, 4.5 in `docs/V4_5_HANDOFF.md`, the addon audit before it in
+`docs/ADDON_AUDIT_HANDOFF.md`. Left from the roadmap after 5.0: raid-tools map drawings (`ROADMAP.md`)
+and the standalone first-run path (`docs/STANDALONE_ADDON_ROADMAP.md`).
 
 This file is for whichever agent picks this repo up next — including a cloud
 session with no access to this machine's local state. If you're running
@@ -49,8 +51,12 @@ Two failure modes only the test suite catches, not the type checker:
   `tx(lang, "...")` / `T("...")` call in `src/commands/setup.ts`,
   `src/services/setup-status.ts`, `src/commands/craft-board.ts`,
   `src/commands/dungeon-group.ts`, `src/commands/poll.ts`,
-  `src/services/raid-core.ts`, or `src/commands/wcl.ts` needs a matching
-  entry in `src/i18n-fr.ts`, or `tests/i18n-fr.test.ts` fails. Other files
+  `src/services/raid-core.ts`, `src/commands/wcl.ts`,
+  `src/services/dungeon-guide.ts`, `src/commands/group-alerts.ts` or
+  `src/commands/faq.ts` needs a matching entry in `src/i18n-fr.ts`, or
+  `tests/i18n-fr.test.ts` fails (the list is `SOURCES` in
+  `scripts/i18n-keys.mjs`). In the addon, French lives in `Locale.lua`
+  (accents as `\195\169`-style escapes: the validator rejects non-ASCII). Other files
   aren't checked (e.g. `src/commands/help.ts` keeps its own separate
   `en`/`fr` arrays, not `tx()`).
 
@@ -72,6 +78,10 @@ when one is configured for local dev. Consequences:
   hardcoded tokens, a committed `.env`, a fallback credential in code. If a
   task seems to need real credentials, it needs a human with access, not a
   workaround.
+- **Privileged intents break the login.** The bot asks for Message Content
+  only when `MESSAGE_CONTENT_INTENT=true` (answer channel, 5.0). Never make
+  a new privileged intent unconditional: if the Developer Portal switch is
+  off, Discord refuses the login and the live bot stays down.
 - **Never suggest running the bot itself** (`npm run dev`, `start-bot.bat`)
   from an agent session. If a real bot is already live on Oracle, a second
   instance with the same token answers every Discord command twice. Verify

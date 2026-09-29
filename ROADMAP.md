@@ -4,11 +4,14 @@ Where Guilded stands and what could come next. The full idea backlog, the code a
 other addons are kept in [docs/archive/ROADMAP-history.md](docs/archive/ROADMAP-history.md).
 What is left before publishing is in [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
 
-## Status (2026-10-02): version 4.6.0, ready to publish as a Beta (4.0.0 was never published separately)
+## Status (2026-10-10): version 5.0.0, ready to publish as a Beta (4.0.0, 4.5.0 and 4.6.0 were never published separately)
 
-4.6 added a role and channels per raid core, a group finder for every kind of group, a richer weekly report, a
-setup checklist that checks every bot message, off-spec / minimum EP / automatic decay / SR+ / council votes /
-drop detection for loot, and window upgrades (test tools, Crafting page, key binding). Details: [docs/V4_6_HANDOFF.md](docs/V4_6_HANDOFF.md).
+5.0 added a guild map, Raider.IO-style dungeon scores, an in-game group board, raid tools, GP deduction and
+standings without the bot in game; on Discord, core channels made and archived by themselves, group alerts
+matched to level and roles, and an answer channel (officer answers, optional free AI). It also fixes the
+4.6 companion installer, which did not start. Details: [docs/V5_0_HANDOFF.md](docs/V5_0_HANDOFF.md).
+4.6 (a role and channels per raid core, a group finder for every kind of group, a richer weekly report, a
+setup checklist, loot upgrades): [docs/V4_6_HANDOFF.md](docs/V4_6_HANDOFF.md).
 
 Built and tested (550+ automated tests, lint, type check and the addon validator pass; a test loads the whole
 addon in .toc order):
@@ -36,34 +39,25 @@ API, and the release notes say which parts are untested.
 
 ## Next, in the order I would do them
 
-1. **Publish 4.6.0 as a Beta and test with a second player** (see the checklist, 4.6 and 4.5 sections). Fix
-   whatever it finds. This comes before any feature (v5 below starts once 4.6 is polished).
+1. **Publish 5.0.0 as a Beta and test with a second player** (see the checklist, 5.0, 4.6 and 4.5 sections).
+   Fix whatever it finds before any new feature.
 2. **Hosting:** the free Oracle Cloud setup is written ([docs/DEPLOY_ORACLE.md](docs/DEPLOY_ORACLE.md)); a hosted
    multi-guild bot is a bigger step and only worth it if other guilds ask.
 
-## v5: Raid tools module (planned, after 4.6 is polished)
+## v5: Raid tools module (built in 5.0, drawings left)
 
-A new optional module (`raidtools`, switchable like the others) to help the raid leader explain mechanics.
-What the game allows shapes the design:
-
-- **Raid target icons** (skull, cross...) on players or mobs: `SetRaidTarget` works for the leader and assistants;
-  a click panel of the eight icons, plus "mark the tanks / healers" presets from the group's roles.
-- **World markers** (the coloured floor markers): only through secure buttons running `/wm` macros (like 4.5's
-  Send to Discord button), so a click panel, prepared out of combat.
-- **Map and area drawings:** arrows, circles and numbered spots drawn on the world map / a boss room picture,
-  seen by every raider **with Guilded** (sent as addon messages through `ns.comm`). Newer clients restrict addon
-  messages during a boss fight, so plans are shared **before the pull** and stay on screen.
-- **Boss plans:** a saved drawing plus a few text lines per boss ("group 1 left, group 2 right"), picked by the
-  raid leader at the pull; the officers edit them in the window, the companion can back them up to Discord.
-- Checks before starting: which of these APIs WoW Forever really exposes (a `/guilded raidtools check` like the
-  calendar's), and the addon-message limits in instances.
+`Modules/RaidTools.lua` (switch `raidtools`): raid target icons and "mark the tanks", world marker buttons
+(secure `/wm` macros), boss plans shared before the pull and shown on every raider's screen, or posted in
+raid chat, and `/guilded rt check`. **Left:** arrows, circles and numbered spots drawn on the world map or a
+boss room picture (the guild map's pin code in `Modules/GuildMap.lua` is the starting point), officers
+editing plans in Discord through the companion.
 
 ## 4.1
 
 - **Pairing code for character linking (implemented):** `/character pair` gives a short-lived code; the
   companion exchanges it once for a per-account credential and links the uploader's own character
   automatically. Shared guildmate characters still use the existing claim/link flow.
-- **Guild member map module:** a Minimap-style module showing guildmates' zone and position on the world map,
+- **Guild member map module (built in 5.0, `Modules/GuildMap.lua`, without HereBeDragons):** a Minimap-style module showing guildmates' zone and position on the world map,
   based on the **GuildMap** addon in `Published Addons/GuildMap` (a MapMate fork: HereBeDragons + HereBeDragons-Pins
   for the pins, guild-chat addon messages broadcasting each player's mapID/x/y every 3-5s past a small movement
   threshold). Ours would reuse that broadcast/pin approach but fit Guilded's module system and rank visibility

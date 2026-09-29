@@ -1,4 +1,4 @@
-# CurseForge copy-paste sheet: Guilded 4.5.0
+# CurseForge copy-paste sheet: Guilded 5.0.0
 
 Each block below is one field. Copy the block, paste it in.
 
@@ -21,7 +21,7 @@ Raid & Instance (secondary: Guild, Miscellaneous)
 `docs/branding/guilded-logo-400.png` (400x400). Full size: `docs/branding/guilded-logo.png`.
 
 ## File to upload
-`dist/Guilded-v4.5.0.zip` (top folder inside is `Guilded`). Release type: **Beta** for the first day, then **Release**.
+`dist/Guilded-v5.0.0.zip` (top folder inside is `Guilded`). Release type: **Beta** for the first day, then **Release**.
 Game versions: the WoW Forever / Classic entries closest to interface 16001 and 20506.
 
 ## License
@@ -59,7 +59,12 @@ free Discord bot when you want signups and reports outside the game too.
 - **Ready page** (officers and raid leaders): see at a glance who in your raid is ready and who is not, and why (flask, food, enchants, gear, durability), with a one-click ready check.
 - **Gear check before the raid:** empty slots, missing enchants, flasks, food and
   attunements, with a one-line readiness status for every raider.
-- **Roll games:** high roll, deathroll, 1v1 duels. No gold, no wagers, no debts.
+- **Roll games:** high roll, deathroll, 1v1 duels, with a button that explains each game in chat. No gold, no wagers, no debts.
+- **Guild map:** see guildmates on your world map and minimap.
+- **Dungeon scores and a group board:** a score per player from recorded runs (on tooltips, like Raider.IO), and
+  groups posted to the guild with an alert when one fits your level and role. No Discord needed.
+- **Raid tools for leaders:** raid target icons, mark the tanks, world markers and boss plans shown on every
+  raider's screen.
 - **Mass invite:** `/guilded invite raid` invites everyone who signed up on Discord.
 - **A friendly window:** click the gold coin on the minimap. The Home page shows your
   standing, what is going on, and whether your data reached Discord.
@@ -87,6 +92,16 @@ PolyForm Noncommercial license. Not affiliated with or endorsed by Blizzard Ente
 
 ## Changelog (paste for the file upload)
 ```markdown
+## 5.0.0
+
+**New in 5.0**
+- **Guild map:** guildmates as dots on your world map and minimap (never shared in instances or combat).
+- **Dungeon scores:** a Raider.IO-style score from the dungeon runs Guilded records, on player tooltips.
+- **Group board:** post a group to the guild in game and get an alert when a group you fit is posted.
+- **Raid tools:** raid target icons, mark the tanks, world marker buttons, and boss plans on every raider's screen.
+- **Deduct GP**, **explain the roll games in chat**, and **standings without the bot** (an officer shares their ledger).
+- Discord bot (optional): each raid core's channels are made and archived by themselves, group alerts matched to your level and roles, and an answer channel with officer-written answers (optional free AI answers).
+
 ## 4.6.0
 
 **New in 4.6**

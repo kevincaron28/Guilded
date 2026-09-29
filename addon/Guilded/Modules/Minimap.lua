@@ -1038,6 +1038,80 @@ local function buildGroupsPage(page)
   if ui.scoresTop.SetJustifyV then ui.scoresTop:SetJustifyV("TOP") end
 end
 
+-- Raid tools (RaidTools.lua): target icons, world markers, boss plans.
+local function buildRaidToolsPage(page)
+  at(newLabel(page, "Raid target icon on your target", "GameFontNormalSmall"), page, 0, -4)
+  for i = 8, 1, -1 do
+    local b = CreateFrame("Button", nil, page)
+    b:SetWidth(26)
+    b:SetHeight(26)
+    b:SetNormalTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcon_" .. i)
+    b:SetScript("OnClick", function() run("rt mark " .. i) end)
+    tip(b, ns.raidTools and ns.raidTools.ICON_NAMES[i] or tostring(i))
+    at(b, page, (8 - i) * 30, -22)
+  end
+  at(newButton(page, "Clear", 60, function() run("rt mark clear") end), page, 244, -24)
+  tip(at(newButton(page, "Mark tanks", 110, function() run("rt tanks") end), page, 310, -24),
+    "Skull, cross, square... on the group's tanks (from the roles in the raid frame, or main tanks).")
+  local clearAll = at(newButton(page, "Clear all marks", 130), page, 426, -24)
+  confirmClick(clearAll, "Clear all marks", function() run("rt clear") end)
+
+  at(newLabel(page, "World markers (click a number, then click the ground; leader or assistant)", "GameFontNormalSmall"), page, 0, -62)
+  if ns.syncNow and ns.syncNow.reloadButton then
+    for i = 1, 8 do
+      at(ns.syncNow.reloadButton(page, tostring(i), 34, 22, nil, "/wm " .. i), page, (i - 1) * 38, -80)
+    end
+    at(ns.syncNow.reloadButton(page, L("Clear all"), 90, 22, nil, "/cwm 0"), page, 310, -80)
+  end
+
+  heading(page, L("Boss plan"), -118)
+  at(newLabel(page, "Boss", "GameFontNormalSmall"), page, 0, -140)
+  ui.rtBoss = at(newEdit(page, 200), page, 40, -136)
+  ui.rtLines = {}
+  for i = 1, 6 do
+    at(newLabel(page, tostring(i) .. ".", "GameFontNormalSmall"), page, 0, -140 - i * 26)
+    ui.rtLines[i] = at(newEdit(page, 420), page, 22, -136 - i * 26)
+  end
+  local function boss()
+    local name = ui.rtBoss:GetText() or ""
+    if name == "" then ns.message(L("Type the boss name first.")); return nil end
+    return name
+  end
+  local y = -136 - 7 * 26 - 4
+  at(newButton(page, "Save", 70, function()
+    local name = boss()
+    if not name then return end
+    local lines = {}
+    for i = 1, 6 do
+      local text = ui.rtLines[i]:GetText() or ""
+      if text ~= "" then lines[#lines + 1] = (string.gsub(text, ";", ",")) end
+    end
+    if #lines == 0 then ns.message(L("Write at least one line of the plan.")); return end
+    run("rt plan save " .. name .. " = " .. table.concat(lines, "; "))
+  end), page, 0, y)
+  at(newButton(page, "Load", 70, function()
+    local name = boss()
+    local plan = name and ns.raidTools and ns.raidTools.getPlan(name)
+    if not plan then if name then ns.message(string.format(L("No plan for %s. /guilded rt plan list"), name)) end; return end
+    for i = 1, 6 do ui.rtLines[i]:SetText(plan.lines[i] or "") end
+  end), page, 74, y)
+  tip(at(newButton(page, "Show to the raid", 130, function()
+    local name = boss()
+    if name then run("rt plan share " .. name) end
+  end), page, 148, y), "Opens the plan on the screen of every raider who runs Guilded. Do it before the pull.")
+  tip(at(newButton(page, "Post in raid chat", 130, function()
+    local name = boss()
+    if name then run("rt plan post " .. name) end
+  end), page, 282, y), "For raiders without the addon: one chat line per plan line.")
+  local delete = at(newButton(page, "Delete", 70), page, 416, y)
+  confirmClick(delete, "Delete", function()
+    local name = boss()
+    if name then run("rt plan delete " .. name) end
+  end)
+  ui.rtPlans = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, y - 32)
+  ui.rtPlans:SetWidth(PAGE_WIDTH)
+end
+
 -- Sidebar order: pages are grouped under these headings.
 local GROUPS = { "Overview", "Raid night", "Fun and runs", "System" }
 local TAB_DEFS = {
@@ -1050,6 +1124,7 @@ local TAB_DEFS = {
   { name = "Raid", hint = "run a raid: start, bosses, attendance", group = "Raid night", officer = true, usesPlayer = true, build = buildRaidPage },
   { name = "EPGP", hint = "award EP and GP", group = "Raid night", officer = true, usesPlayer = true, build = buildEpgpPage },
   { name = "Loot", hint = "bids and loot", group = "Raid night", officer = true, usesPlayer = true, build = buildLootPage },
+  { name = "Raid tools", hint = "target icons, world markers, boss plans", group = "Raid night", module = "raidtools", leader = true, build = buildRaidToolsPage },
   { name = "Council", hint = "loot council: BiS / upgrade / off-spec answers", group = "Raid night", module = "council", lootModes = { COUNCIL = true, PRIORITY = true }, officer = true, usesPlayer = true, build = buildCouncilPage },
   { name = "Dungeons", hint = "the run being recorded, points", group = "Fun and runs", module = "dungeon", build = buildDungeonPage },
   { name = "Groups", hint = "post a group to the guild, dungeon scores", group = "Fun and runs", build = buildGroupsPage },
@@ -1375,6 +1450,10 @@ refresh = function()
 
   refreshDungeons(db)
   refreshReady()
+  if ui.rtPlans then
+    local names = ns.raidTools and ns.raidTools.planNames() or {}
+    ui.rtPlans:SetText(#names > 0 and (L("Saved plans: ") .. table.concat(names, ", ")) or L("No boss plans yet."))
+  end
   if ui.groupsList then
     ui.groupsList:SetText(moduleOn("groups") and ns.groups and ns.groups.listText() or L("The group board is off (Tools)."))
     local settings = ns.getSettings and ns.getSettings()
@@ -1543,6 +1622,7 @@ local function buildPanel()
   ns.onCalendarChange = function() refresh() end
   ns.onDungeonChange = function() refresh() end
   ns.onGroupsChange = function() refresh() end
+  ns.onRaidToolsChange = function() refresh() end
   ns.onModulesChange = function() refresh() end
   ns.onPeerReadiness = function() if readyTabOpen() then refresh() end end
 

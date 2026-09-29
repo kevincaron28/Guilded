@@ -20,7 +20,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/loot bid` — bid GP on a Discord loot auction",
       "`/character wishlist add` · `/character profession set` · `/character profession who <prof>`",
       "`/bank request` — ask the guild bank · `/craft request` — ask a crafter",
-      "`/dungeon leaderboard` · `/dungeon records` · `/dungeon player` — dungeon challenge · `/dungeon group` — form a group with its own voice channel",
+      "`/dungeon leaderboard` · `/dungeon records` · `/dungeon player` — dungeon challenge · `/dungeon group` — form a group with its own voice channel · `/dungeon alerts` — get pinged for groups you fit",
       "`/character readiness me` — your latest gear check from the addon",
       "`/apply` — apply to a raid core (or press **Apply** on that core's own roster post in the raid roster channel)",
       "`/report bug` — report a bug or problem with the bot"
@@ -34,7 +34,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/loot bid` — miser des GP sur une enchère Discord",
       "`/character wishlist add` · `/character profession set` · `/character profession who <métier>`",
       "`/bank request` — demander à la banque de guilde · `/craft request` — demander à un artisan",
-      "`/dungeon leaderboard` · `/dungeon records` · `/dungeon player` — défi des donjons · `/dungeon group` — former un groupe avec son salon vocal",
+      "`/dungeon leaderboard` · `/dungeon records` · `/dungeon player` — défi des donjons · `/dungeon group` — former un groupe avec son salon vocal · `/dungeon alerts` — être mentionné pour les groupes qui vous conviennent",
       "`/character readiness me` — votre dernière vérification d'équipement (addon)",
       "`/apply` — postuler à un core de raid (ou appuyez sur **Postuler** sur le message du core dans le salon des cores de raid)",
       "`/report bug` — signaler un bug ou un problème avec le bot"
@@ -64,7 +64,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/loot auction` · `/loot close` · `/import apply` (addon data)",
       "`/setup testraid start` — fake raid to try everything, `/setup testraid cleanup` after",
       "`/dungeon admin` — invalidate a run, award points, rules, target times, new season",
-      "`/bank list` / `handle` · `/mod application list` · `/mod` · `/tag set` · `/setup selfroles`",
+      "`/bank list` / `handle` · `/mod application list` · `/mod` · `/mod faq` — answer channel · `/tag set` · `/setup selfroles`",
       "`/raid wcl report url:` — pull a Warcraft Logs report into the raid history",
       "`/report inactive` · `/report export` · `/report guild` · `/poll create` · `/loot award` (loot council)"
     ],
@@ -73,7 +73,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/loot auction` · `/loot close` · `/import apply` (données de l'addon)",
       "`/setup testraid start` — faux raid pour tout essayer, puis `/setup testraid cleanup`",
       "`/dungeon admin` — annuler un donjon, donner des points, règles, temps cibles, nouvelle saison",
-      "`/bank list` / `handle` · `/mod application list` · `/mod` · `/tag set` · `/setup selfroles`",
+      "`/bank list` / `handle` · `/mod application list` · `/mod` · `/mod faq` — salon des réponses · `/tag set` · `/setup selfroles`",
       "`/raid wcl report url:` — importer un rapport Warcraft Logs dans l'historique des raids",
       "`/report inactive` · `/report export` · `/report guild` · `/poll create` · `/loot award` (conseil de loot)"
     ]

@@ -1,5 +1,31 @@
 # Changelog
 
+## 5.0.0
+
+**Upgrading**
+- Bot: run `npm run db:update` once (or start with `start-bot.bat`). New columns and tables only (group level ranges, group alerts, the answer channel and its answers); nothing is removed.
+- Addon: copy the new `Guilded` folder over the old one. Companion: install the new version (same version number, and the installer now starts again: see "Fixed" below).
+- On Discord, run `/setup start` > **Update bot messages** once: the group finder menu gets its **My group alerts** button, and raid cores made before 5.0 get their own category and channels.
+- Optional, for the answer channel: turn on **Message Content Intent** for the bot in the Discord Developer Portal (Bot page), then add `MESSAGE_CONTENT_INTENT=true` to the server's `.env.local` and redeploy. Without it the answer channel stays off; nothing else changes. For free AI answers, see `AI_BASE_URL` in `.env.example`.
+
+**Discord bot**
+- **Core channels made and archived by themselves.** Creating a core (`/core create` or `/core setup`) now makes its role, category and channels at once. Deleting a core **archives** its text channels: they move, read-only, to an **Archived cores** category with their history, the voice channel and the empty category go, and the role is renamed "(archived)". `/core delete channels:true` still deletes everything.
+- **Group alerts.** The group finder's pinned menu has a **My group alerts** button (also `/dungeon alerts`): pick the kinds of group you want and the roles you play. When a group is posted, you are pinged only if one of your linked characters is in its level range and (for dungeons) it still needs one of your roles. The group form has a **Levels** box; left empty, the range is guessed from the dungeon in the title (English or French names), and the roles from words like "need tank".
+- **Answer channel** (`/mod faq`). Officers write answers and the words that trigger them; when a member asks in the answer channel, the bot replies with the matching answer. Optional **AI answers** for questions no answer covers, through any OpenAI-compatible service: a free Google AI Studio or Groq key, or a local model (Ollama) on the server; capped per day, and it only uses the guild's own facts (answers, cores, next raids, the asker's characters and EPGP).
+
+**In game**
+- **Deduct GP** button on the EPGP page (and `/guilded gpdeduct`): takes GP back, never below 0.
+- **Explain the games in chat:** buttons on the Games page (and `/guilded games explain highroll|deathroll|duel`) post each game's rules in party/raid chat, so new players can join the rolls.
+- **Guild map** (module `guildmap`): guildmates who run Guilded show as class-coloured dots on your world map and minimap, with name, level and zone on hover. Nothing is shared inside instances or in combat; `/guilded map share off` stops sharing yours.
+- **Dungeon scores** (module `scores`): a Raider.IO-style score for every player, from the dungeon runs Guilded records: each dungeon counts once with the player's best run (dungeon level, speed against the guild record, deaths). Shown on player tooltips, on the new **Groups** page and with `/guilded score [player|top]`.
+- **Group board** (module `groups`): post a group to the guild without Discord (`/guilded lfg post BRD 55-60 need healer`, or the Groups page), see open groups with the leader's score, and get a raid warning when a group you fit is posted.
+- **Raid tools** (module `raidtools`, the v5 roadmap item): a **Raid tools** page for leaders with the eight raid target icons, **Mark tanks** (kill-order icons on the tanks), world marker buttons, and **boss plans**: a few lines per boss that open on every raider's screen before the pull (or go to raid chat for players without the addon). `/guilded rt`.
+- **Standings without the bot:** an officer can share the EP/GP recorded on their PC as the guild's standings (**Share my ledger as standings** on the Standings page, `/guilded standings publish`). A newer bot upload replaces them.
+- The window is a little taller, to fit the new Groups and Raid tools pages.
+
+**Fixed**
+- **Companion would not start after installing** (no window, no tray icon, and the next install said it was "already running"): the installer left out a library the engine needs. The installer now includes it, and a startup problem now shows an error message instead of leaving an invisible process behind.
+
 ## 4.6.0
 
 **Upgrading**

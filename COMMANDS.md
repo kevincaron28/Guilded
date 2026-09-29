@@ -46,6 +46,11 @@ Hover a page name for what it is for. The **Player** box (target someone, or **M
 | `/guilded calendar sync` / `list` / `create [n]` | Officers: read the guild's calendar events and answers for Discord; list the upcoming Discord raids and which are in the game calendar; make the in-game event for the next (or nth) one. The Calendar tab has the same buttons |
 | `/guilded lang en` / `fr` / `auto` | Language of your window and bid popup (auto = same as your game client) |
 | `/guilded standings [player]` | EPGP standings from Discord (top 10, or one player) |
+| `/guilded standings publish` | Officers, for guilds without the bot: share the EP/GP recorded on your PC as the guild's standings (a newer bot upload replaces them) |
+| `/guilded map` / `map share on\|off` / `map show on\|off` | Guild map: guildmates as dots on your world map and minimap; stop sharing your position, or hide the dots (never shared in instances or combat) |
+| `/guilded score [player]` / `score top` | Dungeon score: a player's best run per dungeon and total, or the guild's best (also on player tooltips) |
+| `/guilded lfg` / `lfg post <what>` / `lfg close` | The in-game group board: open groups, post yours (levels like `55-60` and tank / heal / dps are read from the text), close it |
+| `/guilded lfg alerts <kinds> [roles]` / `lfg alerts off` | A raid warning when a guildmate posts a group you fit, e.g. `dungeon,pvp tank,healer` |
 | `/guilded dungeon status` | The dungeon run being recorded: state, timer, bosses, deaths |
 | `/guilded dungeon start` / `complete` / `abandon` | Fix a run by hand when detection missed it (group leader, officer, or solo) |
 | `/guilded dungeon check` | Checks which dungeon features work on this client (send the result to an officer) |
@@ -69,8 +74,8 @@ Hover a page name for what it is for. The **Player** box (target someone, or **M
 | `/guilded award <player> <amount> [reason]` | Give EP |
 | `/guilded award group <amount> [reason]` | Give EP to everyone in the group |
 | `/guilded gp <player> <amount> [reason]` | Charge GP for an item |
+| `/guilded gpdeduct <player> <amount> [reason]` | Take GP back (a mistaken charge, a returned item); never below 0. **Deduct GP** on the EPGP page |
 | `/guilded deduct <player> <amount> [reason]` | Remove EP |
-| `/guilded gpdeduct <player> <amount> [reason]` | Remove GP (never below 0) |
 | `/guilded loot <player> <item> [cost]` | Record who got an item (shift-click links work) |
 | `/guilded attune <player> <key> [clear]` | Set someone else's attunement, e.g. `/guilded attune Bob "Onyxia Key"` |
 | `/guilded end` | End the raid |
@@ -247,6 +252,19 @@ records the loot (and GP only if you give a price) like any other award.
 | `/guilded officer rank <index> on\|off` | Make a guild rank count as officer (0 = GM, 1 = next rank...) |
 | `/guilded officer add\|remove <name>` | Make one person an addon officer |
 
+### Raid tools (Raid tools tab, raid leaders and assistants)
+
+| Command | What it does |
+| --- | --- |
+| `/guilded rt mark <1-8\|clear>` | Raid target icon on your target (8 = skull, 7 = cross ...) |
+| `/guilded rt tanks` / `rt clear` | Kill-order icons on the group's tanks (roles from the raid frame, or main tanks) / every icon off the group |
+| `/guilded rt plan save <boss> = line; line; ...` | Save a boss plan (officers and raid leaders; up to 8 lines) |
+| `/guilded rt plan share <boss>` | Open the plan on every raider's screen (raiders with Guilded). Before the pull: nothing is sent in combat |
+| `/guilded rt plan post <boss>` | The plan in raid chat, one line each, for players without the addon |
+| `/guilded rt plan show\|delete <boss>` / `rt plan list` / `rt check` | See, delete or list plans; what this client allows |
+
+World markers (the coloured floor markers) are the numbered buttons on the Raid tools page: the game only places them from a click on a secure button.
+
 ### Roll games (fun only: no gold, nothing owed)
 
 Anyone in a party or raid can run one; your client is the referee. Players type `1` in party/raid chat to join and use the game's own `/roll`; they don't need the addon.
@@ -352,6 +370,7 @@ points when a season ends). They show in the run post and on `/dungeon player`.
 | `/dungeon season` | Current season and its top 5 |
 | `/dungeon guide` | Post or repair the pinned **Post a dungeon group** button in the configured dungeon signup channel |
 | `/dungeon group <title>` | Form a dungeon group: a post in the dungeon signups channel with Tank / Healer / DPS / Leave buttons (1 tank, 1 healer, 3 DPS, extras waitlist). Members can also create these posts from the pinned guide button. At 5 players, or when the leader presses **Start now**, the bot creates a **private temporary voice channel** for the group (only its players, the leader and Officers can join). The channel is deleted after 5 empty minutes or when the group is closed; unfinished groups close after 24 hours. Needs the bot to have Manage Channels |
+| `/dungeon alerts` | Your group alerts (also **My group alerts** under the group finder menu): the kinds of group you want a ping for and the roles you play. You are pinged only for groups your linked characters' level fits and that still need one of your roles |
 
 After each import, completed runs and new records are posted once in the dungeon channel (`/setup config channel`, also in `/setup start`), or the notify channel if none is set.
 
@@ -411,6 +430,10 @@ Approve, and a raid can never be paid twice.
 | `/dungeon admin season-start <name>` | End the season (kept) and start a new one |
 | `/mod application list` / `view` / `approve` / `reject` / `trial` | Handle applications |
 | `/mod warn` / `timeout` / `kick` / `ban` / `history` | Moderation (logged) |
+| `/mod faq channel [#channel]` | The answer channel: members ask there and the bot replies (needs `MESSAGE_CONTENT_INTENT=true` on the server, after turning on Message Content Intent in the Discord Developer Portal). Empty = off |
+| `/mod faq add` / `edit <entry>` / `remove <entry>` / `list` | Officer-written answers: trigger words (one per line) and the answer. A message containing every word of a trigger gets that answer; the most specific trigger wins |
+| `/mod faq ai on\|off` | AI answers when no officer answer matches (needs `AI_BASE_URL` and `AI_MODEL` on the server; a free Google AI Studio or Groq key, or a local Ollama). Capped at `AI_DAILY_LIMIT` a day |
+| `/mod faq test <question>` | Which answer a question would get |
 | `/tag set` / `/tag delete` | Manage saved answers |
 | `/setup selfroles <title> <role1> [role2..5]` | Post a role button panel |
 | `/setup config view` | Show settings |

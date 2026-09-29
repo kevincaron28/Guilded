@@ -1,6 +1,6 @@
-# Release checklist: Guilded 4.5.0
+# Release checklist: Guilded 5.0.0
 
-4.0.0 was never published; 4.5.0 is the first public release of all of it. What 4.5 changed, file by file: `docs/V4_5_HANDOFF.md`.
+4.0.0 was never published; 4.5.0, 4.6.0 and 5.0.0 are unpublished too, so the first public release carries all of it. What each changed, file by file: `docs/V5_0_HANDOFF.md`, `docs/V4_6_HANDOFF.md`, `docs/V4_5_HANDOFF.md`.
 
 `[x]` done, `[ ]` left. Anything that fails: send a screenshot or the `/guilded diag` output.
 
@@ -39,6 +39,28 @@ Say "untested" on the listing until these pass.
 - [ ] `/guilded invite missing` and `/guilded invite raid` as officer in a party, after creating a raid you and a friend signed up for.
 - [ ] A non-officer alt sees fewer pages (no Raid, EPGP, Loot).
 - [ ] A second officer's companion uploads and the guild digest carries other online players.
+
+## 5.0: to check in game and on Discord
+
+What changed and why: `docs/V5_0_HANDOFF.md`. Two players unless it says solo. Run `npm run db:update` first, then `/setup start` > **Update bot messages**.
+
+**Companion (solo)**
+- [ ] Rebuild the installer (`cd companion-app`, `npm install`, `npm run dist`). Quit any old Guilded Companion (Task Manager) first. Install `dist\companion\Guilded Companion Setup 5.0.0.exe`: the window opens and the tray icon appears; `Start Quebec Gold Bot` (start-companion-app.bat) also opens it.
+
+**Discord**
+- [ ] **Core channels with the core.** `/core create Test Core`: the reply says its channels are ready; the category, `#test-core-roster` (with the roster), `-signups`, `-chat` and voice exist. `/core delete Test Core`: the three text channels are in **🗄️ Archived cores**, nobody can type there, the history is there; the voice channel and the category are gone; the role is "Test Core (archived)". A core made before 5.0: **Update bot messages** creates its channels (its checklist row was ⚠️).
+- [ ] **Group alerts.** **My group alerts** under the group finder menu (or `/dungeon alerts`): pick Dungeon and Healer. With a linked level-60 character, a friend posts a Dungeon "Stratholme need heal": you are mentioned. "Deadmines need tank": you are not (level and role). The post shows a **Levels** field. Turn alerts off: no more mentions.
+- [ ] **Answer channel.** In the Developer Portal turn on **Message Content Intent**, add `MESSAGE_CONTENT_INTENT=true` to `.env.local` on the server, redeploy. `/mod faq channel #questions`, `/mod faq add` (triggers "raid time", answer "Tuesday 8 pm"). In #questions, "what time is the raid?": the bot replies; `/mod faq list` shows 1 use. Ask something else: silence. Optional: set `AI_BASE_URL` / `AI_MODEL` / `AI_API_KEY` (free Google AI Studio or Groq key), `/mod faq ai on`, ask "when is the next raid?": an AI answer from the guild's facts.
+
+**In game**
+- [ ] **Deduct GP (solo, officer).** EPGP page: charge 30 GP, **Deduct GP** 10: the player has 20. Deduct 50: 0, never below.
+- [ ] **Explain games.** Games page: **Explain Deathroll** in a party posts the rules in party chat; alone it uses /say.
+- [ ] **Guild map (two players, outdoors).** Both see each other as a class-coloured dot on the world map (zone and continent view) and on the minimap when close; hover shows name, level, zone. Enter a dungeon: the dot disappears for the other. `/guilded map share off`: gone. With a rotating minimap the dot stays in the right direction.
+- [ ] **Dungeon scores.** Complete a dungeon with Guilded recording: `/guilded score` shows your score and the run; hovering your friend shows "Guilded dungeon score" on their tooltip; the Groups page lists the guild's best.
+- [ ] **Group board (two players).** Friend ticks Dungeon + Healer on the Groups page and saves; you post "Stratholme need heal": friend gets a raid warning and a sound; the post is on both boards; **Close mine** removes it.
+- [ ] **Raid tools (two players in a raid, you lead).** Raid tools page: skull on your target; **Mark tanks** with a tank role set; a world marker button then a click on the ground places it (no "action blocked"); **Clear all**. Save a plan for "Onyxia" with three lines, **Show to the raid**: it opens on your friend's screen; **Post in raid chat** posts the lines. In combat, Show to the raid refuses.
+- [ ] **Standings without the bot (officer).** Standings page > **Share my ledger as standings** (click twice): a member's `/guilded standings <name>` shows the numbers "(<you> (in game), ...)".
+- [ ] **Window.** The window is taller; with every module on, the officer sidebar fits (Raid tools and Groups included). `/guilded lang fr`, `/reload`: the new pages are in French.
 
 ## 4.6: to check in game and on Discord
 

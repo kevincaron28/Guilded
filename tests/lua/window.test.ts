@@ -61,7 +61,7 @@ describe("the tools window (sidebar and Home page)", () => {
   });
 
   it("officers see every group in order; members only what they can use", () => {
-    expect(visibleTabs(openWindow(1))).toBe("Home,Me,Standings,Ready,Reserves,Calendar,Raid,EPGP,Loot,Council,Dungeons,Groups,Games,Crafting,Tools");
+    expect(visibleTabs(openWindow(1))).toBe("Home,Me,Standings,Ready,Reserves,Calendar,Raid,EPGP,Loot,Raid tools,Council,Dungeons,Groups,Games,Crafting,Tools");
     session?.close();
     expect(visibleTabs(openWindow(5))).toBe("Home,Me,Standings,Reserves,Dungeons,Groups,Games,Crafting,Tools");
   });

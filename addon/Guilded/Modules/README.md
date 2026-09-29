@@ -63,6 +63,7 @@ new `KIND`, never a changed one.
 | GuildMap.lua | `guildmap` | GuildedMap | 5.0: guildmates as dots on the world map and minimap (`P\|map\|x\|y\|class\|level`, `G` = gone); `/guilded map share\|show on\|off` |
 | Scores.lua | `scores` | GuildedScore | 5.0: a dungeon score per player from recorded runs (best run per dungeon), on tooltips; `S\|score\|dungeons`; `/guilded score [player\|top]` |
 | Groups.lua | `groups` | GuildedLFG | 5.0: in-game group board with alerts (`O\|id\|kind\|min\|max\|roles\|title`, `X\|id`); `/guilded lfg` |
+| RaidTools.lua | `raidtools` | GuildedRT | 5.0: raid target icons, mark the tanks, world marker buttons (secure `/wm`), boss plans shown on raiders' screens (`PLAN\|id\|i\|n\|text`, line 0 = boss); `/guilded rt` |
 | Minimap.lua | always on | (none) | Minimap button and tools window |
 
 ## Games.lua

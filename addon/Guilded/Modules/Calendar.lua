@@ -355,6 +355,15 @@ end
 -- Is there already a guild event at (about) this time with this title, from the last scan?
 local pendingCreates = {}
 local function alreadyInGame(raid)
+  local db = ns.getDb and ns.getDb()
+  local scan = db and db.calendarEvents
+  local linked = {}
+  for _, event in ipairs(scan and scan.events or {}) do
+    if event.botRaidId then
+      linked[tostring(event.ref)] = event.botRaidId
+      if raid.id ~= "" and event.botRaidId == raid.id then return true end
+    end
+  end
   -- Read the actual day, including announcements, instead of relying on a six-hour-old scan.
   if has("GetNumDayEvents") and has("GetDayEvent") then
     local clock = serverClock(raid.at)
@@ -365,14 +374,15 @@ local function alreadyInGame(raid)
       local event = C_Calendar.GetDayEvent(offset, clock.monthDay, i)
       if event and (event.calendarType == "GUILD_EVENT" or event.calendarType == "GUILD_ANNOUNCEMENT") then
         local at = eventEpoch(event.startTime or {}, serverOffset())
-        if at and math.abs(at - raid.at) <= 30 * 60 and string.lower(event.title or "") == string.lower(raid.title) then return true end
+        local identity = linked[tostring(event.eventID)]
+        if identity then
+          if identity == raid.id then return true end
+        elseif at and math.abs(at - raid.at) <= 30 * 60 and string.lower(event.title or "") == string.lower(raid.title) then return true end
       end
     end
   end
-  local db = ns.getDb and ns.getDb()
-  local scan = db and db.calendarEvents
   for _, event in ipairs(scan and scan.events or {}) do
-    if math.abs(event.startsAt - raid.at) <= 30 * 60 and string.lower(event.title) == string.lower(raid.title) then return true end
+    if not event.botRaidId and math.abs(event.startsAt - raid.at) <= 30 * 60 and string.lower(event.title) == string.lower(raid.title) then return true end
   end
   return false
 end

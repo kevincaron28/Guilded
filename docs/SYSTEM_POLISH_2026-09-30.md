@@ -10,6 +10,8 @@ Raid posts, standings, profession directories and announcements use a durable qu
 
 The addon embeds `[Guilded raid:<id>]` in created calendar events, reads it when opening the event and sends it through the companion. Matching is ID-first and guild-scoped. Unavailable IDs never select another raid. Legacy events require a unique title within the existing time window; ambiguity is reported. Native Discord events without bot raids receive no invented raid ID.
 
+Pending announcements resolve their current configured destination on retry, preserving private officer/application routing when channels are replaced. Cancelled or finished raids are removed from queued calendar plans. After a calendar scan, another core's linked event no longer suppresses creation of an identically named raid event; legacy events still retain duplicate protection.
+
 `/dungeon archive page:` reaches all seasons beyond the dropdown's 25-item limit. `/dungeon hall-of-fame page:` shows champions and ties. Season close captures member names, points and scoring rules; Discord and the in-game feed use frozen points. Older seasons use existing champion awards and are labeled legacy. Corrections remain visible in the ledger/all-time totals and do not silently rewrite published season ceremonies. In-game history remains bounded to the ten most recent past seasons; Discord exposes the complete archive.
 
 Directories refresh after profession relay transactions and recover archived posts. Reused setup guides receive documented access. General raid signups, the addon guide and FAQ remain owned by setup/reset, including historical aliases.

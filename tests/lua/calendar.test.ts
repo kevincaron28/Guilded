@@ -146,6 +146,15 @@ describe("Calendar.lua making in-game events from Discord raids", () => {
     expect(s.run("return CREATED.description")).toContain("[Guilded raid:r1]");
     expect(last(s)).toContain("Created the in-game event");
   });
+  it("does not mistake another core's linked event for this raid with the same title and time", () => {
+    const s = withCalendar();
+    s.run('C_Calendar.GetEventInfo = function() return { description = "[Guilded raid:core_a]" } end');
+    cmd(s, "sync");
+    s.run('RAID_B = { id = "core_b", title = "Molten Core", at = 1790964000 }; RAID_B.at = DB.calendarEvents.events[1].startsAt');
+    expect(s.run("return tostring(NS.calendar.alreadyInGame(RAID_B))")).toBe("false");
+    s.run('RAID_B.id = "core_a"');
+    expect(s.run("return tostring(NS.calendar.alreadyInGame(RAID_B))")).toBe("true");
+  });
 
   it("imports the next missing event without needing a stale saved scan and suppresses repeated clicks", () => {
     const s = withCalendar();

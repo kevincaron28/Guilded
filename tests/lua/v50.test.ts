@@ -186,6 +186,68 @@ describe("guild map", () => {
     const offset = s.run(`local e, n = NS.guildMap.minimapOffset({ mapId = 1429, x = 0.40, y = 0.60 }, { mapId = 1429, x = 0.41, y = 0.60 }, nil, 0, false); return string.format("%.3f,%.3f", e, n)`);
     expect(offset).toBe("0.043,0.000");
   });
+  it("renders received positions on both map frames and hides expired dots", () => {
+    const s = withMap();
+    s.run(`
+      local original = CreateFrame
+      function CreateFrame(...)
+        local f = original(...)
+        f.SetPoint = function(self, _, _, _, x, y) self.px, self.py = x, y end
+        f.Show = function(self) self.visible = true end
+        f.Hide = function(self) self.visible = false end
+        f.SetFrameLevel = function(self, n) self.level = n end
+        return f
+      end
+      local canvas = { GetWidth = function() return 1000 end, GetHeight = function() return 500 end, GetFrameLevel = function() return 10 end }
+      WorldMapFrame = { IsShown = function() return true end, GetMapID = function() return 1429 end,
+        ScrollContainer = { Child = canvas, GetCanvasScale = function() return 1 end } }
+      Minimap = { GetWidth = function() return 200 end, GetHeight = function() return 200 end,
+        GetZoom = function() return 0 end, GetFrameLevel = function() return 5 end }
+      NS.guildMap.receive("P|1429|4100|6000|MAGE|60", "Ann")
+      NS.guildMap.refreshWorldMap(); NS.guildMap.refreshMinimap()
+    `);
+    expect(s.run(`local p=NS.guildMap.worldPins[1]; return p.name..":"..tostring(p.visible)..":"..string.format("%.0f,%.0f",p.px,p.py)`)).toBe("Ann:true:410,-300");
+    expect(s.run(`local p=NS.guildMap.minimapPins[1]; return p.name..":"..p.level..":"..string.format("%.1f,%.1f",p.px,p.py)`)).toBe("Ann:25:17.1,0.0");
+    s.run(`ADVANCE(91); NS.guildMap.listText(); NS.guildMap.refresh()`);
+    expect(s.run(`return tostring(NS.guildMap.worldPins[1].visible)..":"..tostring(NS.guildMap.minimapPins[1].visible)`)).toBe("false:false");
+  });
+
+  it("preserves east/north on Classic world axes, including a present but unusable size API", () => {
+    const s = withMap();
+    s.run(`C_Map.GetMapWorldSize = function() return 0, 0 end
+      C_Map.GetWorldPosFromMapPos = function(_, p) return 0, CreateVector2D(9000 - p.y * 2000, 8000 - p.x * 4000) end`);
+    expect(s.run(`local e, n = NS.guildMap.minimapOffset({mapId=1429,x=.4,y=.6}, {mapId=1429,x=.41,y=.58}, nil, 0, false); return string.format("%.3f,%.3f",e,n)`)).toBe("0.171,0.171");
+  });
+
+  it("projects zone dots onto a parent map when world conversion is unavailable", () => {
+    const s = withMap();
+    s.run(`C_Map.GetMapPosFromWorldPos = nil
+      C_Map.GetMapRectOnMap = function(from, to)
+        if from == 1429 and to == 947 then return .2, .4, .3, .7 end
+      end`);
+    expect(s.run(`local x,y = NS.guildMap.translate(1429,.5,.5,947); return string.format("%.2f,%.2f",x,y)`)).toBe("0.30,0.50");
+    expect(s.run(`return tostring(NS.guildMap.translate(1429,.5,.5,99))`)).toBe("nil");
+  });
+
+  it("requests fresh positions and rate limits requests and replies, respecting privacy", () => {
+    const s = withMap();
+    s.run(`NS.guildMap.requestPositions(); NS.guildMap.requestPositions()`);
+    expect(sentText(s).split(",").filter((x) => x === "GuildedMap:Q")).toHaveLength(1);
+    s.run(`SENT = {}; NS.guildMap.receive("Q", "Ann"); NS.guildMap.receive("Q", "Bob")`);
+    expect(sentText(s).split(",")).toHaveLength(1);
+    s.run(`SETTINGS.mapShare = false; ADVANCE(11); SENT = {}; NS.guildMap.receive("Q", "Ann")`);
+    expect(sentText(s)).toBe("");
+  });
+
+  it("keeps the update loop available when enabled after login", () => {
+    const s = withMap();
+    s.run(`ENABLED = false; NS.moduleActive = function() return ENABLED end
+      fire_event("PLAYER_LOGIN"); SENT = {}; ENABLED = true
+      for _, f in ipairs(FRAMES) do if f.scripts.OnUpdate then f.scripts.OnUpdate(f, 1) end end`);
+    expect(sentText(s)).toContain("GuildedMap:P|1429|4000|6000");
+    expect(s.run(`return NS.guildMap.statusText()`)).toContain("Both players need Guilded");
+  });
+
 });
 
 function withStandalone(level = 58): LuaSession {

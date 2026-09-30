@@ -60,7 +60,7 @@ new `KIND`, never a changed one.
 | Ready.lua | always on | Guilded (`CONSUME\|`) | The Ready page and `/guilded ready`: runs on every ready check by itself, each addon reports what it carries |
 | Sim.lua | `sim` | (none) | Test raid / dungeon run for officers |
 | Sync.lua | always on | GuildedSync | Version check, standings, guild module switches |
-| GuildMap.lua | `guildmap` | GuildedMap | 5.0: guildmates as dots on the world map and minimap (`P\|map\|x\|y\|class\|level`, `G` = gone); `/guilded map share\|show on\|off` |
+| GuildMap.lua | `guildmap` | GuildedMap | 5.0: guildmates as dots on the world map and minimap (`P\|map\|x\|y\|class\|level`, `G` = gone, `Q` = rate-limited position refresh); `/guilded map share\|show on\|off` |
 | Scores.lua | `scores` | GuildedScore | 5.0: a dungeon score per player from recorded runs (best run per dungeon), on tooltips; `S\|score\|dungeons`; `/guilded score [player\|top]` |
 | Groups.lua | `groups` | GuildedLFG | 5.0: in-game group board with alerts (`O\|id\|kind\|min\|max\|roles\|title`, `X\|id`); `/guilded lfg` |
 | RaidTools.lua | `raidtools` | GuildedRT | 5.0: raid target icons, mark the tanks, world marker buttons (secure `/wm`), boss plans shown on raiders' screens (`PLAN\|id\|i\|n\|text`, line 0 = boss); `/guilded rt` |
@@ -152,3 +152,7 @@ Minimap button and the tabbed tools window. Tabs and officer tools are
 shown per rank and per module switch (re-checked each time the window
 opens and whenever a switch changes). The Tools tab lists every module
 with its switches.
+
+5.0 map shortcuts: Shift-click the minimap coin opens Raid tools; Alt-click opens the guild map.
+Use `/guilded map check` for sharing status, map availability and peer count. Guildmates must
+run Guilded and enable sharing; minimap dots are limited to nearby players outside instances.

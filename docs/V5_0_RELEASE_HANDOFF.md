@@ -6,7 +6,7 @@ or real-game checks have passed just because unit tests pass.
 
 ## Delivery status and offline import
 
-The cloud workspace completed 778 tests across 101 files, TypeScript, ESLint, addon static
+The cloud workspace completed 784 tests across 101 files, TypeScript, ESLint, addon static
 validation, both npm audits (zero reported vulnerabilities), and the 37-file addon ZIP.
 GitHub rejected publishing with HTTP 403 "Resource not accessible by integration".
 No remote branch/PR was created, no CI run occurred, and no production deployment was attempted.
@@ -37,6 +37,28 @@ Implement/review/build work is authorized. The local agent should do the mechani
 using the owner's existing configuration, without asking them to type commands. Never reset a dirty
 checkout, discard changes, print secrets, start a second live bot, or invent credentials. Public
 CurseForge/GitHub release publication is a separate release gate, after the manual checks below.
+
+## Raid helper and guild map follow-up
+
+- Raid target icons, secure floor-marker buttons and boss plans are in the addon TOC/package.
+- Shift-click the Guilded minimap coin to open Raid tools directly. Alt-click opens the world map
+  and requests fresh guild positions. Existing left-click menu/right-click gear behavior is kept.
+- The map module keeps its update timer when enabled after login. Parent-map rectangle projection
+  supports world/continent views when world conversion is unavailable. Classic minimap coordinates
+  now derive map width/height without assuming the game's world axes are east/north.
+- Position requests/replies are rate limited; sharing off stays private. Pin frames sit above their
+  map parent. English/French help includes the shortcuts and map diagnostics.
+- `/guilded map check` explains module/share/show state, available player position and received peers.
+  If the module is off, use `/guilded modules on guildmap` first. Both players need the updated addon
+  and `/guilded map share on`; the viewer needs `/guilded map show on`. Guild tracking does not
+  reveal players without Guilded or positions hidden by the client (including instances).
+- Local Claude must install the updated addon for BOTH test players. Real-client test: stand nearby
+  outdoors, Alt-click the coin, verify named dots on the minimap and M zone map, then zoom out to
+  the continent/world map. Walk north/east and rotate/zoom the minimap; dots should follow correctly.
+  Test sharing off/on and module off/on, then confirm Shift-click, target icons and floor markers
+  as raid leader/assistant. Floor markers remain subject to the actual client's supported commands.
+- The exact cause on the owner's live client cannot be confirmed until this build is installed
+  and the above two-player test runs; do not describe the fixes as a completed in-game verification.
 
 ## What changed
 

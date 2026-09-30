@@ -60,6 +60,34 @@ describe("the tools window (sidebar and Home page)", () => {
     expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`)).toBe("Home");
   });
 
+  it("opens raid tools directly and routes the minimap shortcuts", () => {
+    const s = openWindow(1, `
+      local original = CreateFrame
+      function CreateFrame(kind, name, ...)
+        local frame = original(kind, name, ...)
+        if name then _G[name] = frame end
+        return frame
+      end
+    `);
+    s.run(`NS.commandHandlers["menu"]({"raidtools"})`);
+    expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`)).toBe("Raid tools");
+    s.run(`NS.commandHandlers["menu"]({"raidtools"})`);
+    expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`)).toBe("Raid tools");
+    s.run(`
+      function IsShiftKeyDown() return true end
+      GuildedMinimapButton.scripts.OnClick(GuildedMinimapButton, "LeftButton")
+    `);
+    expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`)).toBe("Raid tools");
+    s.run(`
+      function IsShiftKeyDown() return false end
+      function IsAltKeyDown() return true end
+      NS.commandHandlers["map"] = function(args) MAP_ACTION = args[1] end
+      GuildedMinimapButton.scripts.OnClick(GuildedMinimapButton, "LeftButton")
+    `);
+    expect(s.run(`return MAP_ACTION`)).toBe("open");
+    expect(s.chat().join("\n")).not.toContain("failed");
+  });
+
   it("officers see every group in order; members only what they can use", () => {
     expect(visibleTabs(openWindow(1))).toBe("Home,Me,Standings,Ready,Reserves,Calendar,Raid,EPGP,Loot,Raid tools,Council,Dungeons,Groups,Games,Crafting,Tools");
     session?.close();

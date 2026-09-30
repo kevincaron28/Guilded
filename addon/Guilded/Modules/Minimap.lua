@@ -1685,6 +1685,28 @@ local function togglePanel()
   if not ok then ns.message("Tools window failed to open: " .. tostring(err)) end
 end
 
+-- Direct shortcuts always open the requested page, even if the window is already open.
+local function openRaidTools()
+  local ok, err = pcall(function()
+    if not panel then buildPanel() end
+    panel:Show()
+    refresh()
+    ui.selectTabByName("Raid tools")
+    if not ui.currentTab or ui.tabs[ui.currentTab].name ~= "Raid tools" then
+      ns.message(L("Raid tools require the module enabled and raid leader, assistant or officer access."))
+    end
+  end)
+  if not ok then ns.message("Tools window failed to open: " .. tostring(err)) end
+end
+ns.openRaidTools = openRaidTools
+
+local function minimapClick(mouseButton)
+  if IsShiftKeyDown and IsShiftKeyDown() then openRaidTools()
+  elseif IsAltKeyDown and IsAltKeyDown() then run("map open")
+  elseif mouseButton == "RightButton" then run("inspect")
+  else togglePanel() end
+end
+
 -- ---------------------------------------------------------------------
 -- Minimap button
 -- ---------------------------------------------------------------------
@@ -1725,13 +1747,15 @@ local function buildButton()
   button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   button:RegisterForDrag("LeftButton")
   button:SetScript("OnClick", function(_, mouseButton)
-    if mouseButton == "RightButton" then run("inspect") else togglePanel() end
+    minimapClick(mouseButton)
   end)
   button:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_LEFT")
     GameTooltip:AddLine("Guilded")
     GameTooltip:AddLine(L("Left-click: open the tools window"), 1, 1, 1)
     GameTooltip:AddLine(L("Right-click: check my gear"), 1, 1, 1)
+    GameTooltip:AddLine(L("Shift-click: raid tools"), 1, 1, 1)
+    GameTooltip:AddLine(L("Alt-click: guild map"), 1, 1, 1)
     GameTooltip:AddLine(L("Drag: move this button"), 1, 1, 1)
     GameTooltip:Show()
   end)
@@ -1760,6 +1784,7 @@ end
 ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHandlers["menu"] = function(args)
   local action = string.lower(args and args[1] or "")
+  if action == "raidtools" then openRaidTools() return end
   if action ~= "scale" then togglePanel() return end
   local s = settings()
   if not s then return end
@@ -1809,7 +1834,7 @@ table.insert(ns.commandHelp, "/guilded minimap show|hide|reset - the minimap but
 -- The Addon Compartment (the addon list under the minimap on newer clients; Guilded.toc names
 -- these functions): same actions as the minimap button, so hiding that button loses nothing.
 function Guilded_OnAddonCompartmentClick(_, mouseButton)
-  if mouseButton == "RightButton" then run("inspect") else togglePanel() end
+  minimapClick(mouseButton)
 end
 function Guilded_OnAddonCompartmentEnter(_, anchor)
   if not GameTooltip then return end

@@ -8,6 +8,15 @@ local addonName, ns = ...
 ns = ns or {}
 
 local FR = {
+  ["Shift-click: raid tools"] = "Maj-clic : outils de raid",
+  ["Alt-click: guild map"] = "Alt-clic : carte de guilde",
+  ["Raid tools require the module enabled and raid leader, assistant or officer access."] = "Les outils de raid demandent le module actif et le statut de chef, assistant ou officier.",
+  ["Guild map: module %s, sharing %s, dots %s, peers %d."] = "Carte de guilde : module %s, partage %s, points %s, joueurs %d.",
+  ["Your map: %s (%d)."] = "Votre carte : %s (%d).",
+  ["Your position is unavailable here (instances or unsupported map API)."] = "Votre position est indisponible ici (instance ou API de carte non compatible).",
+  ["Both players need Guilded and map sharing enabled. Minimap dots show nearby players only."] = "Les deux joueurs doivent avoir Guilded et le partage actif. La minicarte montre seulement les joueurs proches.",
+  ["Use /guilded modules on guildmap, /guilded map share on and /guilded map show on."] = "Utilisez /guilded modules on guildmap, /guilded map share on et /guilded map show on.",
+
   -- The tools window, officer pages included (Modules/Minimap.lua), and 4.6 loot lines
   ["%s: %d thing(s) to fix (see Me)."] = "%s : %d chose(s) \195\160 corriger (voir Moi).",
   ["%s: nothing missing."] = "%s : rien ne manque.",

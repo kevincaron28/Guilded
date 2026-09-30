@@ -223,3 +223,9 @@ A big release: everything below since 1.x, polished for the public.
 ## 2.x and 1.x
 
 See ROADMAP.md, "Progress log".
+
+### 5.0 map and raid-helper follow-up (unreleased)
+
+- Direct minimap shortcuts: Shift-click Raid tools, Alt-click guild map.
+- Fix Classic minimap axis conversion and map updates after enabling the module.
+- Add parent-map projection, rate-limited position refresh, visible pin layers and map diagnostics.

@@ -73,6 +73,15 @@ end
 -- viewed map does not contain it.
 function map.translate(fromMap, x, y, toMap)
   if fromMap == toMap then return x, y end
+  -- Parent-map rectangles also work when world conversion cannot represent the world map.
+  if C_Map and C_Map.GetMapRectOnMap then
+    local ok, left, right, top, bottom = pcall(C_Map.GetMapRectOnMap, fromMap, toMap)
+    if ok and type(left) == "number" and type(right) == "number" and type(top) == "number" and type(bottom) == "number"
+      and right > left and bottom > top then
+      local tx, ty = left + x * (right - left), top + y * (bottom - top)
+      if tx >= 0 and tx <= 1 and ty >= 0 and ty <= 1 then return tx, ty end
+    end
+  end
   if not (C_Map and C_Map.GetWorldPosFromMapPos and C_Map.GetMapPosFromWorldPos and CreateVector2D) then return nil end
   local ok, continent, world = pcall(C_Map.GetWorldPosFromMapPos, fromMap, CreateVector2D(x, y))
   if not ok or not continent or not world then return nil end
@@ -90,13 +99,12 @@ function map.minimapOffset(mine, other, facing, zoom, indoors)
   local ox, oy = map.translate(other.mapId, other.x, other.y, mine.mapId)
   if not ox then return nil end
   if not C_Map then return nil end
-  local east, north
+  local width, height
   if C_Map.GetMapWorldSize then
-    local ok, width, height = pcall(C_Map.GetMapWorldSize, mine.mapId)
-    if not ok or type(width) ~= "number" or type(height) ~= "number" or width <= 0 or height <= 0 then return nil end
-    east = (ox - mine.x) * width
-    north = -(oy - mine.y) * height
-  elseif C_Map.GetWorldPosFromMapPos and CreateVector2D then
+    local ok, w, h = pcall(C_Map.GetMapWorldSize, mine.mapId)
+    if ok and type(w) == "number" and type(h) == "number" and w > 0 and h > 0 then width, height = w, h end
+  end
+  if not width and C_Map.GetWorldPosFromMapPos and CreateVector2D then
     local function worldPosition(x, y)
       local ok, continent, position = pcall(C_Map.GetWorldPosFromMapPos, mine.mapId, CreateVector2D(x, y))
       if not ok or not continent or not position then return nil end
@@ -104,14 +112,18 @@ function map.minimapOffset(mine, other, facing, zoom, indoors)
       if not okXY or type(worldX) ~= "number" or type(worldY) ~= "number" then return nil end
       return continent, worldX, worldY
     end
-    local mineContinent, mineX, mineY = worldPosition(mine.x, mine.y)
-    local otherContinent, otherX, otherY = worldPosition(ox, oy)
-    if not mineContinent or mineContinent ~= otherContinent then return nil end
-    east = otherX - mineX
-    north = -(otherY - mineY)
-  else
-    return nil
+    -- World axes are not map east/north (Classic swaps and reverses them).
+    -- Measure the map's horizontal and vertical edges, then use map deltas.
+    local c0, x0, y0 = worldPosition(0, 0)
+    local cx, xx, yx = worldPosition(1, 0)
+    local cy, xy, yy = worldPosition(0, 1)
+    if c0 and c0 == cx and c0 == cy then
+      width = math.sqrt((xx - x0)^2 + (yx - y0)^2)
+      height = math.sqrt((xy - x0)^2 + (yy - y0)^2)
+    end
   end
+  if not width or not height or width <= 0 or height <= 0 then return nil end
+  local east, north = (ox - mine.x) * width, -(oy - mine.y) * height
   if facing then
     -- Rotating minimap: the way you face is up.
     local c, s = math.cos(facing), math.sin(facing)
@@ -128,6 +140,7 @@ end
 -- ---------------------------------------------------------------------
 
 local lastSent = { at = -1000 }
+local lastRequest, lastReply = -1000, -1000
 
 local function send(text)
   if not (IsInGuild and IsInGuild()) then return end
@@ -157,10 +170,26 @@ function map.tick()
   lastSent = { at = now, mapId = mapId, x = x, y = y }
 end
 
+function map.requestPositions()
+  if not active() or clock() - lastRequest < 10 then return end
+  lastRequest = clock()
+  send("Q")
+  lastSent.at = -1000
+  map.tick()
+end
+
 function map.receive(text, sender)
   if not active() then return end
   local name = ns.normalizeName and ns.normalizeName(sender)
   if not name or name == (ns.playerName and ns.playerName()) then return end
+  if text == "Q" then
+    if clock() - lastReply >= 10 then
+      lastReply = clock()
+      lastSent.at = -1000
+      map.tick()
+    end
+    return
+  end
   if text == "G" then map.members[name] = nil; map.refresh(); return end
   local mapId, x, y, class, level = string.match(text, "^P|(%d+)|(%d+)|(%d+)|(%u*)|(%d+)")
   if not mapId then return end
@@ -199,6 +228,10 @@ local function newPin(parent, pool, index)
   local pin = pool[index]
   if pin then return pin end
   pin = CreateFrame("Frame", nil, parent)
+  if pin.SetFrameLevel and parent.GetFrameLevel then
+    local level = parent:GetFrameLevel()
+    if type(level) == "number" then pin:SetFrameLevel(level + 20) end
+  end
   pin:SetWidth(14)
   pin:SetHeight(14)
   pin.icon = pin:CreateTexture(nil, "OVERLAY")
@@ -317,23 +350,51 @@ function map.listText()
   return #lines > 0 and table.concat(lines, "\n") or L("No guildmate is sharing a position right now.")
 end
 
+function map.statusText()
+  local s = settings() or {}
+  local mapId = map.myPosition()
+  local count = 0
+  forgetOld()
+  for _ in pairs(map.members) do count = count + 1 end
+  local lines = {
+    string.format(L("Guild map: module %s, sharing %s, dots %s, peers %d."),
+      active() and L("on") or L("off"), s.mapShare and L("on") or L("off"), s.mapShow and L("on") or L("off"), count),
+    mapId and string.format(L("Your map: %s (%d)."), zoneName(mapId), mapId) or L("Your position is unavailable here (instances or unsupported map API)."),
+    L("Both players need Guilded and map sharing enabled. Minimap dots show nearby players only."),
+    L("Use /guilded modules on guildmap, /guilded map share on and /guilded map show on.")
+  }
+  return table.concat(lines, "\n")
+end
+
 ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHandlers["map"] = function(args)
   local s = settings()
   if not s then return end
   local what, value = string.lower(args[1] or ""), string.lower(args[2] or "")
+  if what == "check" then
+    for line in string.gmatch(map.statusText(), "[^\n]+") do ns.message(line) end
+    return
+  end
+  if what == "open" then
+    if ToggleWorldMap and not (WorldMapFrame and WorldMapFrame:IsShown()) then ToggleWorldMap() end
+    map.requestPositions()
+    map.refresh()
+    return
+  end
   if (what == "share" or what == "show") and (value == "on" or value == "off") then
     if what == "share" then
       s.mapShare = value == "on"
-      if not s.mapShare then sayGone() end
+      if not s.mapShare then sayGone() else lastSent.at = -1000; map.tick() end
       ns.message(s.mapShare and L("Your position is shared with the guild.") or L("Your position is no longer shared."))
     else
       s.mapShow = value == "on"
+      if s.mapShow then map.requestPositions() end
       map.refresh()
       ns.message(s.mapShow and L("Guildmates show on your maps.") or L("Guildmates are hidden from your maps."))
     end
     return
   end
+  map.requestPositions()
   ns.message(string.format(L("Guild map: sharing %s, dots %s. /guilded map share on|off, /guilded map show on|off"),
     s.mapShare and L("on") or L("off"), s.mapShow and L("on") or L("off")))
   for line in string.gmatch(map.listText(), "[^\n]+") do ns.message("  " .. line) end
@@ -378,7 +439,6 @@ frame:SetScript("OnEvent", function(_, event, ...)
   local ok, err = pcall(function()
     if event == "PLAYER_LOGIN" then
       ns.comm.register(PREFIX)
-      if not active() then return end
       frame:SetScript("OnUpdate", onUpdate)
       if WorldMapFrame and hooksecurefunc and WorldMapFrame.OnMapChanged then
         hooksecurefunc(WorldMapFrame, "OnMapChanged", function() pcall(map.refreshWorldMap) end)
@@ -389,6 +449,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     elseif event == "PLAYER_ENTERING_WORLD" then
       -- Zoning in or out of an instance: send (or clear) the position soon.
       lastSent.at = -1000
+      map.requestPositions()
     elseif event == "CHAT_MSG_ADDON" then
       local prefix, text, channel, sender = args[1], args[2], args[3], args[4]
       if secret(prefix) or secret(text) or secret(sender) or prefix ~= PREFIX or channel ~= "GUILD" then return end

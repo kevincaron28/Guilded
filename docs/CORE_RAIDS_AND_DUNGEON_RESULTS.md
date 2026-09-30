@@ -13,3 +13,21 @@ The addon displays a small run-results window after its local dungeon finishes: 
 The companion fetches standings every two minutes and after uploads. WoW loads the generated file on login/reload, so its displayed update timestamp is the loaded snapshot, not a live connection. Addon-only members receive newer official snapshots from an online guild officer. The guild relay includes the current top fifty and top ten from each of the latest ten past seasons, with sender checks, bounded chunks and a sharing cooldown. Current and past season totals use one shared aggregation; timestamp-only responses do not rewrite the file. Run summaries retry on login and on an officer's request, limited to five own unsynced runs from the past week and a sixty-second cooldown. Server run IDs prevent duplicate points. An online guild officer's paired companion is still needed for members using only the addon.
 
 Validation includes mirrored-post recovery, shared-channel deduplication, serialized updates, reset permission/failure behavior, disposable PostgreSQL cascade and restore checks, official current/past season totals, core import filtering, unknown deaths and trusted-officer replay. Required real-client follow-up: use both signup copies, complete a dungeon, open Season after reload, and verify an addon-only guildmate's run reaches the officer relay. Do not test the destructive reset against the live guild merely to validate the update.
+
+
+## Setup/reset channel coverage correction
+
+Setup now includes the automatic FAQ channel (`answerChannelId`, `bot-faq`)
+with member posting enabled, alongside the general raid signup and member guide.
+The setup checklist and channel picker include FAQ; saving it refreshes the
+answer listener immediately. Creating missing channels saves each ID before
+posting guides, so a partially interrupted setup does not lose its links.
+
+Reset/uninstall previews include the configured general signup, guide and FAQ
+channels even if renamed. Known leftover names (including `guilded-addon` and
+`raid-inscription`/`raid-inscriptions`) are recognized only in the corresponding
+Guilded category or the legacy `⚜️ Guilded` category. Setup reuses those survivors
+instead of creating duplicates. Reset can also remove them when the old reset
+already erased their saved IDs. Unrelated channels and welcome channels retain
+the existing conservative handling. The server-name confirmation still applies;
+installing this correction does not itself run a reset.

@@ -7,7 +7,7 @@ import type { Lang } from "./i18n.js";
 
 export type ChannelField = "notifyChannelId" | "raidSignupChannelId" | "raidLogChannelId" | "logChannelId"
   | "dungeonLeaderboardChannelId" | "dungeonSignupChannelId" | "dungeonChannelId"
-  | "lootChannelId" | "craftChannelId" | "readinessChannelId" | "coreChannelId" | "applicationChannelId" | "guideChannelId";
+  | "lootChannelId" | "craftChannelId" | "readinessChannelId" | "coreChannelId" | "applicationChannelId" | "guideChannelId" | "answerChannelId";
 
 // Access: "open" everyone talks; "readonly" everyone reads, only the bot and
 // leadership post (signup channels are read-only too: people use the buttons);
@@ -36,11 +36,13 @@ const ACCESS: Record<ChannelField, { access: Access; category: CategoryKey; foru
   logChannelId: { access: "officers", category: "officers" },
   readinessChannelId: { access: "leaders", category: "officers" },
   applicationChannelId: { access: "officers", category: "officers" },
+  answerChannelId: { access: "open", category: "guild" },
   guideChannelId: { access: "pinned", category: "guild" }
 };
 
 const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> = {
   en: {
+    answerChannelId: { name: "bot-faq", topic: "Ask Guilded questions about the addon, setup and guild features" },
     notifyChannelId: { name: `${BRAND.channelPrefix}-announcements`, topic: `Raid, boss and guild announcements from ${BRAND.name}` },
     raidSignupChannelId: { name: "raid-signups", topic: "Raid signups: use the buttons under each raid post" },
     coreChannelId: { name: "raid-roster", topic: "Raid core rosters: core members get signup priority" },
@@ -56,6 +58,7 @@ const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> 
     guideChannelId: { name: `${BRAND.channelPrefix}-guide`, topic: "How Guilded works, and what's new when it updates" }
   },
   fr: {
+    answerChannelId: { name: "bot-faq", topic: "Posez vos questions à Guilded sur l’addon, la configuration et la guilde" },
     notifyChannelId: { name: `${BRAND.channelPrefix}-annonces`, topic: `Annonces de raid, de boss et de guilde de ${BRAND.name}` },
     raidSignupChannelId: { name: "inscriptions-raid", topic: "Inscriptions aux raids : utilisez les boutons sous chaque annonce de raid" },
     coreChannelId: { name: "cores-de-raid", topic: "Compositions des cores de raid : les membres du core ont la priorité aux inscriptions" },
@@ -78,6 +81,16 @@ export function channelSpec(field: ChannelField, lang: Lang): ChannelSpec {
 
 // Every name the bot has ever given this channel (either language).
 // Names used by earlier versions still count (the group finder was "dungeon-signups").
-const LEGACY_NAMES: Partial<Record<ChannelField, string[]>> = { dungeonSignupChannelId: ["dungeon-signups", "inscriptions-donjon"] };
+const LEGACY_NAMES: Partial<Record<ChannelField, string[]>> = { guideChannelId: [`${BRAND.channelPrefix}-addon`], raidSignupChannelId: ["raid-inscription", "raid-inscriptions"], dungeonSignupChannelId: ["dungeon-signups", "inscriptions-donjon"] };
 export const channelNames = (field: ChannelField): string[] => [TEXT.en[field].name, TEXT.fr[field].name, ...(LEGACY_NAMES[field] ?? [])];
 export const categoryNames = (key: CategoryKey): string[] => [CATEGORY_NAMES.en[key], CATEGORY_NAMES.fr[key]];
+
+// These channels are part of setup/reset even when an administrator renames them.
+export const RESET_REQUIRED_CHANNELS: ChannelField[] = ["raidSignupChannelId", "guideChannelId", "answerChannelId"];
+
+// Recover known leftovers after an older reset erased their saved IDs. Restrict
+// recovery to text channels in Guilded's categories, never similarly named user channels.
+export function isSetupLeftover(field: ChannelField, name: string, parentName: string | undefined): boolean {
+  return RESET_REQUIRED_CHANNELS.includes(field) && channelNames(field).includes(name)
+    && parentName !== undefined && [...categoryNames(channelSpec(field, "en").category), "⚜️ Guilded"].includes(parentName);
+}

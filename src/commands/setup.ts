@@ -31,7 +31,8 @@ import { botMessageFacts, ensureBotGuide, gettingStartedPost, updateBotMessages 
 import { dungeonGuideState, LFG_ROLE_NAMES } from "../services/dungeon-guide.js";
 import { guideText as craftGuideText } from "./craft-board.js";
 import { asLang, tx, type Lang } from "../i18n.js";
-import { CATEGORY_NAMES, categoryNames, channelNames, channelSpec, type Access, type CategoryKey, type ChannelField } from "../setup-names.js";
+import { CATEGORY_NAMES, isSetupLeftover, categoryNames, channelNames, channelSpec, type Access, type CategoryKey, type ChannelField } from "../setup-names.js";
+import { forgetAnswerSettings } from "./faq.js";
 import { BRAND } from "../brand.js";
 import { boardTagNames, postBoardGuide } from "./craft-board.js";
 
@@ -146,7 +147,7 @@ async function gatherFacts(guild: DiscordGuild, guildId: string, settings: Guild
     companionPaired: (await prisma.companionCredential.count({ where: { revokedAt: null, member: { guildId, status: "ACTIVE" } } })) > 0,
     linkedCharacters: await prisma.character.count({ where: { member: { guildId, isTest: false } } }),
     dungeonSignupGuideOutdated: guideState === "outdated",
-    extraChannels: await Promise.all((["coreChannelId", "readinessChannelId", "lootChannelId", "craftChannelId", "applicationChannelId", "guideChannelId", "dungeonChannelId"] as const)
+    extraChannels: await Promise.all((["coreChannelId", "readinessChannelId", "lootChannelId", "craftChannelId", "applicationChannelId", "guideChannelId", "answerChannelId", "dungeonChannelId"] as const)
       .map(async (field) => ({ field, fact: await channelFact(guild, settings[field]) }))),
     botMessages: await botMessageFacts(guild, prisma, settings, lang, craftGuideText(lang)).catch(() => [])
   };
@@ -250,7 +251,8 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       T("📅 **Raid signups** — signup posts that update live, and raid reminders: {channel}", { channel: channelLabel(lang, settings.raidSignupChannelId) }),
       T("📜 **Raid logs** — the raid summary (report) posted after each raid: {channel}", { channel: same(lang, settings.raidLogChannelId, "same as announcements") }),
       T("🔒 **Officer log** — joins/leaves, moderation, bank and craft requests: {channel}", { channel: channelLabel(lang, settings.logChannelId) }),
-      T("📖 **Bot guide** — the getting-started guide, pinned; also where update notices post: {channel} (\"Create the missing ones for me\" makes this one too, or pick it later with `/config channel`)", { channel: channelLabel(lang, settings.guideChannelId) })
+      T("📖 **Bot guide** — the getting-started guide, pinned; also where update notices post: {channel} (\"Create the missing ones for me\" makes this one too, or pick it later with `/config channel`)", { channel: channelLabel(lang, settings.guideChannelId) }),
+      T("💬 **Bot FAQ** — members ask questions and the bot answers automatically: {channel}", { channel: channelLabel(lang, settings.answerChannelId) })
     ].join("\n"));
     const select = (id: string, placeholder: string) => new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(
       new ChannelSelectMenuBuilder().setCustomId(`setup:${id}`).setPlaceholder(placeholder)
@@ -492,7 +494,7 @@ async function createMissingRoles(guild: DiscordGuild, lang: Lang): Promise<stri
   return created.length ? tx(lang, "Created roles: {roles}. Now give them to your officers.", { roles: created.join(", ") }) : tx(lang, "All roles already existed.");
 }
 
-const CORE_CHANNELS: ChannelField[] = ["notifyChannelId", "raidSignupChannelId", "raidLogChannelId", "logChannelId", "guideChannelId"];
+const CORE_CHANNELS: ChannelField[] = ["notifyChannelId", "raidSignupChannelId", "raidLogChannelId", "logChannelId", "guideChannelId", "answerChannelId"];
 const RAIDTEAM_CHANNELS: ChannelField[] = ["coreChannelId", "readinessChannelId", "lootChannelId", "craftChannelId", "applicationChannelId"];
 const DUNGEON_CHANNELS: ChannelField[] = ["dungeonLeaderboardChannelId", "dungeonSignupChannelId", "dungeonChannelId"];
 // Every channel field /setup can create. Also used by /setup uninstall to find what to remove.
@@ -569,11 +571,12 @@ export async function repairCraftBoardPermissions(guild: DiscordGuild, channelId
 
 // Creates only the channels in `fields` that aren't set yet, each in its own
 // category with the right permissions; never touches ones that are set.
-async function createSectionChannels(guild: DiscordGuild, guildId: string, fields: ChannelField[], lang: Lang): Promise<string> {
+export async function createSectionChannels(guild: DiscordGuild, guildId: string, fields: ChannelField[], lang: Lang): Promise<string> {
   const settings = await guildService.getSettings(guildId);
   const missing = fields.filter((field) => !settings?.[field]);
   if (missing.length === 0) return tx(lang, "Those channels were already set. Pick different ones from the menus if you want.");
   await guild.roles.fetch();
+  await guild.channels.fetch();
   const made: string[] = [];
   // A guide message failing to post (missing permission, API hiccup) should
   // never hide that the channel itself was created and saved — collect it as
@@ -589,24 +592,28 @@ async function createSectionChannels(guild: DiscordGuild, guildId: string, field
   const update: Partial<Record<ChannelField, string>> = {};
   for (const field of missing) {
     const spec = channelSpec(field, lang);
-    const category = await ensureCategory(guild, spec.category, lang);
     const overwrites = overwritesFor(guild, spec.access);
-    const channel = spec.forum
+    const existing = guild.channels.cache.find(candidate => candidate.type === ChannelType.GuildText
+      && isSetupLeftover(field, candidate.name, candidate.parentId ? guild.channels.cache.get(candidate.parentId)?.name : undefined));
+    const category = existing ? null : await ensureCategory(guild, spec.category, lang);
+    const channel = existing ?? (spec.forum
       ? await guild.channels.create({
-        name: spec.name, type: ChannelType.GuildForum, topic: spec.topic, parent: category.id,
+        name: spec.name, type: ChannelType.GuildForum, topic: spec.topic, parent: category!.id,
         availableTags: boardTagNames(lang).map((name) => ({ name })),
         ...(overwrites ? { permissionOverwrites: overwrites } : {})
       })
       : await guild.channels.create({
-        name: spec.name, type: ChannelType.GuildText, topic: spec.topic, parent: category.id,
+        name: spec.name, type: ChannelType.GuildText, topic: spec.topic, parent: category!.id,
         ...(overwrites ? { permissionOverwrites: overwrites } : {})
-      });
+      }));
+    // Save each channel before posting guides so a partial setup remains recoverable.
+    await guildService.updateSettings(guildId, { [field]: channel.id });
+    if (field === "answerChannelId") forgetAnswerSettings(guild.id);
     if (spec.forum && channel.type === ChannelType.GuildForum) await postBoardGuide(channel, lang).catch((error: unknown) => guidedFor(`<#${channel.id}>`, error));
     if (field === "guideChannelId" && channel.isTextBased()) await ensureBotGuide(channel, lang).catch((error: unknown) => guidedFor(`<#${channel.id}>`, error));
     update[field] = channel.id;
     made.push(`<#${channel.id}>${spec.access === "officers" ? tx(lang, " (officers only)") : spec.access === "leaders" ? tx(lang, " (officers and raid leaders only)") : ""}`);
   }
-  await guildService.updateSettings(guildId, update);
   if (update.dungeonSignupChannelId) {
     const channel = await guild.channels.fetch(update.dungeonSignupChannelId);
     if (channel?.isTextBased() && "send" in channel) {
@@ -615,7 +622,7 @@ async function createSectionChannels(guild: DiscordGuild, guildId: string, field
   }
   if (update.dungeonLeaderboardChannelId) await updateDungeonLeaderboard(guild).catch((error: unknown) => guidedFor(`<#${update.dungeonLeaderboardChannelId}>`, error));
   if (update.coreChannelId) await syncAllCoreRosters(guild, prisma, guildId).catch((error: unknown) => guidedFor(`<#${update.coreChannelId}>`, error));
-  const summary = tx(lang, "Created {channels} in tidy categories. Move or rename them however you like.", { channels: made.join(", ") });
+  const summary = tx(lang, "Configured {channels}. Existing Guilded channels were reused; missing ones were created.", { channels: made.join(", ") });
   return warnings.length ? `${summary}\n⚠️ ${warnings.join(" ")}` : summary;
 }
 
@@ -771,6 +778,7 @@ export async function executeSetup(interaction: ChatInputCommandInteraction): Pr
           const channelId = i.values[0];
           if (field && channelId) {
             await guildService.updateSettings(guildId, { [field]: channelId });
+            if (field === "answerChannelId") forgetAnswerSettings(guild.id);
             pendingField.delete(guildId);
             note = T("Saved <#{id}>.", { id: channelId });
             if (field === "coreChannelId") await syncAllCoreRosters(guild, prisma, guildId);

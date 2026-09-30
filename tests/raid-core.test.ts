@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { createRaidService } from "../src/services/raid.js";
+import { withTransactionMock } from "./helpers/transaction.js";
+import { createRaidService as createService } from "../src/services/raid.js";
+const createRaidService = (database: Parameters<typeof createService>[0]) => createService(withTransactionMock(database));
 import { coreRosterEmbed, coreSpotLabel, createRaidCoreService } from "../src/services/raid-core.js";
 
 type Signup = { id: string; raidId: string; memberId: string; role: string; status: string; signedUpAt: Date; member: { discordUserId: string; displayName: string } };

@@ -40,6 +40,7 @@ export const FR_TEXT: Record<string, string> = {
   "Craft board channel": "Salon du tableau d'artisanat",
   "Applications channel": "Salon des candidatures",
   "Configured {channels}. Existing Guilded channels were reused; missing ones were created.": "Salons configurés : {channels}. Les salons Guilded existants ont été réutilisés; les salons manquants ont été créés.",
+  "Your signup was saved, but voice access could not be updated. Ask an officer.": "Votre inscription a été enregistrée, mais l’accès vocal n’a pas pu être mis à jour. Demandez à un officier.",
   "Bot FAQ channel": "Salon FAQ du bot",
   "💬 **Bot FAQ** — members ask questions and the bot answers automatically: {channel}": "💬 **FAQ du bot** — les membres posent des questions et le bot répond automatiquement : {channel}",
   "Bot guide channel": "Salon du guide du bot",

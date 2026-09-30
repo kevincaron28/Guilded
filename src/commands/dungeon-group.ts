@@ -5,6 +5,7 @@ import {
 } from "discord.js";
 import type { DungeonGroup, RaidRole } from "@prisma/client";
 import { prisma } from "../database.js";
+import { serializeDungeonGroup } from "../services/dungeon-group-queue.js";
 import { hasPermission, isPermissionRoleName } from "../permissions.js";
 import { asGroupKind, createDungeonGroupService, GROUP_CAPS, GROUP_KINDS, groupSize, shouldDeleteVoice, shouldDeleteClosedPost, shouldExpireOpenGroup, type GroupKind } from "../services/dungeon-group.js";
 import { DUNGEON_GUIDE_CREATE_ID, DUNGEON_GUIDE_KIND_ID, LFG_ROLE_NAMES } from "../services/dungeon-guide.js";
@@ -225,10 +226,8 @@ export async function syncGroupPost(guild: DiscordGuild, groupId: string): Promi
   }
 }
 
-// Creates the group's private voice channel: only signed-up players, the
-// leader, and leadership roles can join. Needs Manage Channels.
-async function createVoice(guild: DiscordGuild, groupId: string): Promise<string | null> {
-  const group = await prisma.dungeonGroup.findUniqueOrThrow({ where: { id: groupId } });
+async function dungeonVoiceOverwrites(guild: DiscordGuild, group: DungeonGroup): Promise<OverwriteResolvable[]> {
+  const groupId = group.id;
   const signups = await prisma.dungeonGroupSignup.findMany({ where: { groupId, status: "SIGNED_UP" }, include: { member: true } });
   const leader = await prisma.member.findUnique({ where: { id: group.leaderId } });
   await guild.roles.fetch();
@@ -236,12 +235,28 @@ async function createVoice(guild: DiscordGuild, groupId: string): Promise<string
   const allow = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak];
   const userIds = new Set([...signups.map((s) => s.member.discordUserId), ...(leader ? [leader.discordUserId] : [])]);
   const leadership = guild.roles.cache.filter((role) => isPermissionRoleName("guildMaster", role.name) || isPermissionRoleName("officer", role.name));
-  const overwrites: OverwriteResolvable[] = [
+  return [
     { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.Connect] },
     ...[...userIds].map((id) => ({ id, allow })),
     ...leadership.map((role) => ({ id: role.id, allow })),
     ...(me ? [{ id: me.id, allow: [...allow, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.MoveMembers] }] : [])
   ];
+}
+
+export async function syncDungeonVoiceAccess(guild: DiscordGuild, groupId: string): Promise<void> {
+  const group = await prisma.dungeonGroup.findUnique({ where: { id: groupId } });
+  if (!group || group.status !== "STARTED" || !group.voiceChannelId) return;
+  const voice = await guild.channels.fetch(group.voiceChannelId);
+  if (voice?.type === ChannelType.GuildVoice) {
+    await voice.permissionOverwrites.set(await dungeonVoiceOverwrites(guild, group), `${BRAND.name} dungeon roster updated`);
+  }
+}
+
+// Creates the group's private voice channel: only signed-up players, the
+// leader, and leadership roles can join. Needs Manage Channels.
+async function createVoice(guild: DiscordGuild, groupId: string): Promise<string | null> {
+  const group = await prisma.dungeonGroup.findUniqueOrThrow({ where: { id: groupId } });
+  const overwrites = await dungeonVoiceOverwrites(guild, group);
   const settings = await guildService.getSettings(group.guildId);
   // Same category as the dungeon signups channel, when there is one.
   const signupChannel = settings?.dungeonSignupChannelId ? await guild.channels.fetch(settings.dungeonSignupChannelId).catch(() => null) : null;
@@ -255,7 +270,10 @@ async function createVoice(guild: DiscordGuild, groupId: string): Promise<string
 
 // Starts the group: creates the voice channel and updates the post. Shared
 // by the Start button and by the group filling up.
-async function startGroup(guild: DiscordGuild, groupId: string): Promise<string | null> {
+export async function startGroup(guild: DiscordGuild, groupId: string): Promise<string | null> {
+  const current = await prisma.dungeonGroup.findUnique({ where: { id: groupId } });
+  if (!current || current.status === "CLOSED") return null;
+  if (current.status === "STARTED") return current.voiceChannelId;
   let voiceId: string | null = null;
   try {
     voiceId = await createVoice(guild, groupId);
@@ -301,7 +319,8 @@ const isLeadership = (member: GuildMember | null) => !!member && hasPermission(m
 export async function handleDungeonGroupButton(interaction: ButtonInteraction): Promise<void> {
   await interaction.deferReply({ ephemeral: true });
   try {
-    await handleDungeonGroupAction(interaction);
+    const groupId = interaction.customId.slice(DUNGEON_GROUP_PREFIX.length).split(":")[0] ?? "";
+    await serializeDungeonGroup(groupId, () => handleDungeonGroupAction(interaction));
   } catch (error) {
     const text = error instanceof Error && error.message.length < 200 ? error.message : tx(await groupLang((await guildService.ensureGuild(interaction.guildId ?? "", interaction.guild?.name ?? "")).id).catch(() => "en" as Lang), "Could not update the group.");
     await interaction.editReply({ content: text }).catch(() => undefined);
@@ -354,6 +373,12 @@ async function handleDungeonGroupAction(interaction: ButtonInteraction): Promise
     content = T("Group closed.");
   }
 
+  if (["TANK", "HEALER", "DPS", "LEAVE"].includes(action)) {
+    await syncDungeonVoiceAccess(guild, groupId).catch((error: unknown) => {
+      console.warn("Dungeon voice access update failed", error);
+      content += ` ${T("Your signup was saved, but voice access could not be updated. Ask an officer.")}`;
+    });
+  }
   await interaction.editReply({ content: content || T("Done.") });
   if (action !== "START" && action !== "CLOSE") await syncGroupPost(guild, groupId);
   // A full open group starts by itself.
@@ -368,42 +393,46 @@ async function handleDungeonGroupAction(interaction: ButtonInteraction): Promise
 export async function cleanupDungeonGroups(client: Client): Promise<void> {
   const now = new Date();
   const groups = await prisma.dungeonGroup.findMany({ where: { OR: [{ status: { in: ["OPEN", "STARTED"] } }, { status: "CLOSED", signupMessageId: { not: null } }] } });
-  for (const group of groups) {
-    try {
-      const guildRow = await prisma.guild.findUnique({ where: { id: group.guildId }, select: { discordId: true } });
-      const guild = guildRow ? client.guilds.cache.get(guildRow.discordId) : undefined;
-      if (!guild) continue;
-      if (group.status === "CLOSED") {
-        if (!shouldDeleteClosedPost(group.closedAt, now) || !group.signupChannelId || !group.signupMessageId) continue;
-        const channel = await guild.channels.fetch(group.signupChannelId);
-        if (!channel?.isTextBased() || !("messages" in channel)) continue;
-        try { await channel.messages.delete(group.signupMessageId); }
-        catch (error) { if (!(error && typeof error === "object" && "code" in error && error.code === 10008)) throw error; }
-        await prisma.dungeonGroup.update({ where: { id: group.id }, data: { signupMessageId: null } });
-        continue;
+  for (const candidate of groups) {
+    await serializeDungeonGroup(candidate.id, async () => {
+      try {
+        const group = await prisma.dungeonGroup.findUnique({ where: { id: candidate.id } });
+        if (!group) return;
+        const guildRow = await prisma.guild.findUnique({ where: { id: group.guildId }, select: { discordId: true } });
+        const guild = guildRow ? client.guilds.cache.get(guildRow.discordId) : undefined;
+        if (!guild) return;
+        if (group.status === "CLOSED") {
+          if (!shouldDeleteClosedPost(group.closedAt, now) || !group.signupChannelId || !group.signupMessageId) return;
+          const channel = await guild.channels.fetch(group.signupChannelId);
+          if (!channel?.isTextBased() || !("messages" in channel)) return;
+          try { await channel.messages.delete(group.signupMessageId); }
+          catch (error) { if (!(error && typeof error === "object" && "code" in error && error.code === 10008)) throw error; }
+          await prisma.dungeonGroup.update({ where: { id: group.id }, data: { signupMessageId: null } });
+          return;
+        }
+        if (group.status === "OPEN" && shouldExpireOpenGroup(group.createdAt, now)) {
+          await closeGroup(guild, group.id);
+          return;
+        }
+        if (group.status !== "STARTED" || !group.voiceChannelId) return;
+        const voice = await guild.channels.fetch(group.voiceChannelId).catch(() => null);
+        if (!voice || voice.type !== ChannelType.GuildVoice) {
+          await service.close(group.id);
+          await syncGroupPost(guild, group.id);
+          return;
+        }
+        if (voice.members.size > 0) {
+          if (group.voiceEmptySince) await prisma.dungeonGroup.update({ where: { id: group.id }, data: { voiceEmptySince: null } });
+          return;
+        }
+        if (!group.voiceEmptySince) {
+          await prisma.dungeonGroup.update({ where: { id: group.id }, data: { voiceEmptySince: now } });
+        } else if (shouldDeleteVoice(group.voiceEmptySince, now)) {
+          await closeGroup(guild, group.id);
+        }
+      } catch (error) {
+        console.warn(`Dungeon group cleanup failed for ${candidate.id}: ${error instanceof Error ? error.message : String(error)}`);
       }
-      if (group.status === "OPEN" && shouldExpireOpenGroup(group.createdAt, now)) {
-        await closeGroup(guild, group.id);
-        continue;
-      }
-      if (group.status !== "STARTED" || !group.voiceChannelId) continue;
-      const voice = await guild.channels.fetch(group.voiceChannelId).catch(() => null);
-      if (!voice || voice.type !== ChannelType.GuildVoice) {
-        await service.close(group.id);
-        await syncGroupPost(guild, group.id);
-        continue;
-      }
-      if (voice.members.size > 0) {
-        if (group.voiceEmptySince) await prisma.dungeonGroup.update({ where: { id: group.id }, data: { voiceEmptySince: null } });
-        continue;
-      }
-      if (!group.voiceEmptySince) {
-        await prisma.dungeonGroup.update({ where: { id: group.id }, data: { voiceEmptySince: now } });
-      } else if (shouldDeleteVoice(group.voiceEmptySince, now)) {
-        await closeGroup(guild, group.id);
-      }
-    } catch (error) {
-      console.warn(`Dungeon group cleanup failed for ${group.id}: ${error instanceof Error ? error.message : String(error)}`);
-    }
+    });
   }
 }

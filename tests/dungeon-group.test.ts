@@ -31,10 +31,22 @@ function fake(status = "OPEN") {
       }
     }
   };
+  let queue = Promise.resolve();
+  Object.assign(database, { $transaction: (work: (tx: unknown) => Promise<unknown>) => {
+    const task = queue.then(() => work({ ...database, $executeRaw: async () => 0 }));
+    queue = task.then(() => undefined, () => undefined);
+    return task;
+  } });
   return { rows, service: createDungeonGroupService(database as never) };
 }
 
 describe("dungeon group signup", () => {
+  it("waitlists simultaneous contenders for the final role slot", async () => {
+    const { rows, service } = fake();
+    const results = await Promise.all([service.join("g1", "guild", "tank-a", "TANK"), service.join("g1", "guild", "tank-b", "TANK")]);
+    expect(results.map(result => result.signup.status)).toEqual(["SIGNED_UP", "WAITLISTED"]);
+    expect(rows.filter(row => row.role === "TANK" && row.status === "SIGNED_UP")).toHaveLength(1);
+  });
   it("fills 1 tank, 1 healer, 3 dps and waitlists the rest", async () => {
     const { rows, service } = fake();
     await service.join("g1", "guild", "t", "TANK");

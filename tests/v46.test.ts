@@ -53,6 +53,7 @@ describe("group finder kinds", () => {
         }
       }
     };
+    Object.assign(database, { $transaction: async (work: (tx: unknown) => Promise<unknown>) => work({ ...database, $executeRaw: async () => 0 }) });
     const service = createDungeonGroupService(database as never);
     for (const id of ["a", "b", "c"]) await service.join("g1", "guild", id, "DPS");
     expect(await service.isFull("g1")).toBe(true);

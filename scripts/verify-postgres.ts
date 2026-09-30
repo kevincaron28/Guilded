@@ -1,3 +1,10 @@
+import { createRaidService } from "../src/services/raid.js";
+import { createDungeonGroupService } from "../src/services/dungeon-group.js";
+import { runBackup } from "../src/services/backup.js";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { gunzipSync } from "node:zlib";
 import { relayProfessions } from "../src/services/profession-relay.js";
 import { parseAddonSnapshot } from "../src/integrations/addon.js";
 import assert from "node:assert/strict";
@@ -20,6 +27,24 @@ try {
     await database.guild.deleteMany({ where: { discordId: { startsWith: "release-test-" } } });
     const guild = await database.guild.create({ data: { discordId: "release-test-guild", name: "Release fixture" } });
     const member = await database.member.create({ data: { guildId: guild.id, discordUserId: "release-test-member", displayName: "Ann" } });
+    const contender = await database.member.create({ data: { guildId: guild.id, discordUserId: "release-test-contender", displayName: "Bob" } });
+    const groups = createDungeonGroupService(database);
+    const group = await groups.create({ guildId: guild.id, title: "Concurrent dungeon", leaderId: member.id, channelId: null });
+    const contenders = await Promise.all([groups.join(group.id, guild.id, member.id, "TANK"), groups.join(group.id, guild.id, contender.id, "TANK")]);
+    assert.equal(contenders.filter(result => result.signup.status === "SIGNED_UP").length, 1);
+    assert.equal(contenders.filter(result => result.signup.status === "WAITLISTED").length, 1);
+    const backupDirectory = await mkdtemp(join(tmpdir(), "guilded-release-backup-"));
+    try {
+      const copy = await runBackup(database, new Date(), backupDirectory);
+      const backup = JSON.parse(gunzipSync(await readFile(join(backupDirectory, copy!.file))).toString("utf8"));
+      assert.ok(backup.tables.Guild.some((row: { id: string }) => row.id === guild.id));
+      assert.equal(backup.tables.DungeonGroupSignup.filter((row: { groupId: string }) => row.groupId === group.id).length, 2);
+    } finally { await rm(backupDirectory, { recursive: true, force: true }); }
+    const raids = createRaidService(database);
+    const capped = await raids.create({ guildId: guild.id, title: "Concurrent raid", scheduledAt: new Date(Date.now() + 86400000), createdBy: "release-test", tankLimit: 1 });
+    const raidContenders = await Promise.all([raids.signup(capped.id, guild.id, member.id, "TANK"), raids.signup(capped.id, guild.id, contender.id, "TANK")]);
+    assert.equal(raidContenders.filter(result => result.status === "SIGNED_UP").length, 1);
+    assert.equal(raidContenders.filter(result => result.status === "WAITLISTED").length, 1);
     const character = await database.character.create({ data: { memberId: member.id, name: "ReleaseAnn", realm: "ReleaseTest", className: "Warrior" } });
     const core = await database.raidCore.create({ data: { guildId: guild.id, name: "Core A", separatePool: true, lootChannelId: "core-loot", raidLogChannelId: "core-reports" } });
     await database.raid.create({ data: { guildId: guild.id, coreId: core.id, title: "Release mirrored raid", scheduledAt: new Date(), createdBy: "release-test", signupChannelId: "general", signupMessageId: "general-message", mirrorSignupChannelId: "core", mirrorSignupMessageId: "core-message" } });

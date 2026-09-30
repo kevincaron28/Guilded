@@ -116,13 +116,19 @@ GuildedDB = {
 });
 
 describe("in-game loot import", () => {
+  it("restricts attendance and loot matching to the selected core for simultaneous raids", async () => {
+    const { tx } = fakeTx();
+    const findMany = vi.spyOn(tx.raid, "findMany");
+    await applyRaidAttendance(tx as never, "g1", [{ ...addonRaid[0]!, coreId: "core-a" }], characters, "officer");
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ guildId: "g1", coreId: "core-a" }) }));
+  });
   it("adds loot once, links it to the matched raid, and reports unlinked characters", async () => {
     const { applyAddonLoot } = await import("../src/services/raid-import.js");
     const created: Record<string, unknown>[] = [];
     const tx = {
       lootAward: {
         findMany: vi.fn().mockResolvedValue([{ sourceRef: "qg-loot:old" }]),
-        create: vi.fn().mockImplementation(async ({ data }) => { created.push(data); return data; })
+        create: vi.fn().mockImplementation(async ({ data }) => { created.push(data); return { ...data, id: "award" }; })
       }
     };
     const result = await applyAddonLoot(tx as never, "g1", [
@@ -130,7 +136,7 @@ describe("in-game loot import", () => {
       { ref: "qg-loot:new", character: "bob", realm: "Forever", item: "[Helm]", gp: 30, raidRef: "1-Kev", boss: "Ragnaros" },
       { ref: "qg-loot:pug", character: "Stranger", realm: "Forever", item: "Cloak", gp: 5 }
     ], characters, new Map([["1-Kev", "r1"]]), "officer");
-    expect(result).toEqual({ recorded: 1, skipped: 1, unmatched: ["Stranger"] });
+    expect(result).toEqual({ recorded: 1, skipped: 1, unmatched: ["Stranger"], recordedIds: ["award"] });
     expect(created[0]).toMatchObject({ memberId: "m-bob", itemName: "[Helm]", amount: 30, raidId: "r1", bossName: "Ragnaros", sourceRef: "qg-loot:new" });
   });
 });

@@ -38,10 +38,11 @@ export function raidReportEmbed(report: RaidReport, lang: Lang = "en"): EmbedBui
 // Returns false when no channel is configured.
 export async function postRaidReport(discordGuild: DiscordGuild | null, guildId: string, raidId: string): Promise<boolean> {
   const report = await buildRaidReport(prisma, guildId, raidId);
+  const raid = await prisma.raid.findFirst({ where: { guildId, id: raidId }, select: { coreId: true } });
   const wcl = await linkedReport(prisma, guildId, raidId).catch(() => null);
   return notifyEmbed(discordGuild, (lang) => {
     const embed = raidReportEmbed(report, lang);
     if (wcl) embed.addFields({ name: "Warcraft Logs", value: `[${wcl.title}](${wcl.url})` });
     return embed;
-  }, "raidLog");
+  }, "raidLog", raid?.coreId ?? null);
 }

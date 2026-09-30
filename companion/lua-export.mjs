@@ -78,6 +78,7 @@ export async function readAddonExport(path, realm) {
           character,
           realm,
           ...(entry.coreId ? { coreId: String(entry.coreId) } : {}),
+          ...(entry.at ? { createdAt: typeof entry.at === "number" ? iso(entry.at) : String(entry.at) } : {}),
           epAmount: Number(entry.epAmount ?? 0),
           gpAmount: Number(entry.gpAmount ?? 0),
           type: entry.type ?? "ADJUSTMENT",
@@ -89,6 +90,7 @@ export async function readAddonExport(path, realm) {
           character,
           realm,
           amount: Number(entry.amount),
+          ...(entry.at ? { createdAt: typeof entry.at === "number" ? iso(entry.at) : String(entry.at) } : {}),
           type: entry.type === "DEDUCTION" ? "DEDUCTION" : "AWARD",
           reason,
           sourceRef
@@ -179,6 +181,7 @@ export async function readAddonExport(path, realm) {
     raids.push({
       ref: raid.id,
       title: String(raid.title || "Raid"),
+      ...(raid.coreId ? { coreId: String(raid.coreId) } : {}),
       startedAt: raid.startedAt,
       endedAt: raid.endedAt,
       players: [...names].sort().map((character) => ({

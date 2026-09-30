@@ -155,15 +155,32 @@ export async function dungeonChoices(database: Pick<PrismaClient, "dungeonRun">,
 // Season top 10 by in-game name (main character) for the addon's Dungeons
 // tab; the companion writes it into Standings.lua.
 export async function addonDungeonBoard(database: Db & Pick<PrismaClient, "character">, guildId: string) {
-  const season = await activeSeasonOrNull(database, guildId);
-  if (!season) return null;
-  const rows = await leaderboard(database, guildId, "season", null, 10);
-  const characters = await database.character.findMany({
-    where: { memberId: { in: rows.map((row) => row.memberId) } }, orderBy: [{ isMain: "desc" }, { createdAt: "asc" }], select: { memberId: true, name: true }
+  const [active, past] = await Promise.all([
+    activeSeasonOrNull(database, guildId),
+    database.dungeonSeason.findMany({ where: { guildId, status: "ENDED" }, orderBy: { startsAt: "desc" }, take: 10 })
+  ]);
+  const selected = [...(active ? [active] : []), ...past];
+  if (!selected.length) return null;
+  // Aggregate all requested seasons together: no leaderboard query per season.
+  const totals = await database.dungeonPointTransaction.groupBy({
+    by: ["seasonId", "memberId"], where: { guildId, seasonId: { in: selected.map(season => season.id) } }, _sum: { amount: true }
   });
+  const ids = [...new Set(totals.map(row => row.memberId))];
+  const [members, characters] = await Promise.all([
+    database.member.findMany({ where: { guildId, id: { in: ids } }, select: { id: true, displayName: true } }),
+    database.character.findMany({ where: { member: { guildId }, memberId: { in: ids } },
+      orderBy: [{ isMain: "desc" }, { createdAt: "asc" }], select: { memberId: true, name: true } })
+  ]);
+  const names = new Map(members.map(member => [member.id, member.displayName]));
   const mainName = new Map<string, string>();
   for (const character of characters) if (!mainName.has(character.memberId)) mainName.set(character.memberId, character.name);
-  return { season: season.name, rows: rows.map((row) => ({ name: mainName.get(row.memberId) ?? row.name, points: row.points })) };
+  const boards = selected.map(season => ({
+    id: season.id, season: season.name, status: season.status,
+    rows: totals.filter(row => row.seasonId === season.id && (row._sum.amount ?? 0) > 0)
+      .map(row => ({ name: mainName.get(row.memberId) ?? names.get(row.memberId) ?? "?", points: row._sum.amount ?? 0 }))
+      .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name)).slice(0, 50)
+  }));
+  return { ...boards[0]!, history: boards.slice(1) };
 }
 
 // "1. Kev — 240" lines with medals for the top three.

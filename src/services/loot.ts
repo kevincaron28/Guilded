@@ -147,9 +147,10 @@ export function createLootService(database: PrismaClient) {
       });
     },
 
-    getHistory(guildId: string, limit = 20) {
+    async getHistory(guildId: string, limit = 20, coreId?: string) {
+      const raids = coreId ? await database.raid.findMany({ where: { guildId, coreId }, select: { id: true } }) : [];
       return database.lootAward.findMany({
-        where: { guildId },
+        where: { guildId, ...(coreId ? { raidId: { in: raids.map((raid) => raid.id) } } : {}) },
         include: { member: true, auction: true },
         orderBy: { awardedAt: "desc" },
         take: limit

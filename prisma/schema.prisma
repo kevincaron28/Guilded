@@ -427,6 +427,8 @@ model AddonImport {
 }
 
 model GuildSettings {
+  // Full setup reset excludes history that still exists on members' PCs.
+  dataResetAt DateTime?
   id                       String    @id @default(cuid())
   guildId                  String    @unique
   attendanceDkp            Int       @default(10)
@@ -598,6 +600,8 @@ model Raid {
   dpsLimit        Int?
   signupChannelId String?
   signupMessageId String?
+  mirrorSignupChannelId String?
+  mirrorSignupMessageId String?
   // Raids created for a raid core give that core's members signup priority.
   coreId          String?
   core            RaidCore?        @relation(fields: [coreId], references: [id], onDelete: SetNull)
@@ -1035,6 +1039,8 @@ model RaidCore {
   categoryId      String?
   rosterChannelId String?
   signupChannelId String?
+  lootChannelId   String?
+  raidLogChannelId String?
   chatChannelId   String?
   voiceChannelId  String?
   createdAt       DateTime         @default(now())

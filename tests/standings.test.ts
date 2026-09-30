@@ -32,7 +32,7 @@ describe("companion standings file", () => {
     });
     expect(() => luaparse.parse(lua)).not.toThrow();
     expect(lua).toContain('"QG-20260925-120000-Kev",');
-    expect(lua).toContain('GuildedDungeonBoard = { season = "Season \\"1\\"", rows = {');
+    expect(lua).toContain('GuildedDungeonBoard = { season = "Season \\"1\\"", status = "ACTIVE", updatedAt = "2026-09-24T00:00:00.000Z", rows = {');
     expect(lua).toContain('{ name = "Kev", points = 240 },');
     expect(standingsToLua({ updatedAt: "x", standings: [] })).toContain("GuildedDungeonBoard = nil");
   });

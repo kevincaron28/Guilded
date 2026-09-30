@@ -88,8 +88,10 @@ export function standingsToLua(data) {
     "",
     "-- Dungeon points this season (top 10), for the addon's Dungeons tab.",
     ...(data.dungeonBoard ? [
-      `GuildedDungeonBoard = { season = ${luaString(data.dungeonBoard.season)}, rows = {`,
+      `GuildedDungeonBoard = { season = ${luaString(data.dungeonBoard.season)}, status = ${luaString(data.dungeonBoard.status ?? "ACTIVE")}, updatedAt = ${luaString(data.updatedAt)}, rows = {`,
       ...data.dungeonBoard.rows.map((row) => `  { name = ${luaString(row.name)}, points = ${Math.trunc(row.points)} },`),
+      "}, history = {",
+      ...(data.dungeonBoard.history ?? []).map(board => ` { season = ${luaString(board.season)}, status = ${luaString(board.status)}, rows = { ${board.rows.map(row => `{ name = ${luaString(row.name)}, points = ${Math.trunc(row.points)} }`).join(", ")} } },`),
       "} }"
     ] : ["GuildedDungeonBoard = nil"]),
     "",
@@ -133,7 +135,7 @@ export async function writeStandings(config, signal) {
   const text = standingsToLua(body);
   // The timestamp changes every call; compare the rest so an unchanged table
   // does not rewrite the file (the game only reads it on reload anyway).
-  const body2 = (value) => value.replace(/updatedAt = "[^"]*",/, "");
+  const body2 = (value) => value.replace(/updatedAt = "[^"]*",/g, "");
   let unchanged = false;
   try { unchanged = body2(await readFile(path, "utf8")) === body2(text); } catch { unchanged = false; }
   signal?.throwIfAborted();

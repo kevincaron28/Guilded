@@ -31,7 +31,7 @@ import { BRAND } from "../brand.js";
 // @everyone that is who sees them; on an open server @everyone reads them too.
 
 type Db = Pick<PrismaClient, "raidCore" | "raidCoreMember"> & Partial<Pick<PrismaClient, "guildSettings">>;
-type CoreLike = Pick<RaidCore, "id" | "name" | "roleId" | "categoryId" | "rosterChannelId" | "signupChannelId" | "chatChannelId" | "voiceChannelId">;
+type CoreLike = Pick<RaidCore, "id" | "name" | "roleId" | "categoryId" | "rosterChannelId" | "signupChannelId" | "lootChannelId" | "raidLogChannelId" | "chatChannelId" | "voiceChannelId">;
 
 const LEADERSHIP: Permission[] = ["guildMaster", "officer", "raidLeader"];
 
@@ -44,7 +44,7 @@ export function coreSlug(name: string): string {
 
 export function coreChannelNames(name: string) {
   const slug = coreSlug(name);
-  return { category: `⚔️ ${name}`.slice(0, 100), roster: `${slug}-roster`, signups: `${slug}-signups`, chat: `${slug}-chat`, voice: `🔊 ${name}`.slice(0, 100) };
+  return { category: `⚔️ ${name}`.slice(0, 100), roster: `${slug}-roster`, signups: `${slug}-signups`, loot: `${slug}-butin`, reports: `${slug}-rapports`, chat: `${slug}-chat`, voice: `🔊 ${name}`.slice(0, 100) };
 }
 
 // Creates the core's role when it has none (or it was deleted). Returns its id, or null when
@@ -157,15 +157,19 @@ export async function createCoreChannels(guild: DiscordGuild, database: Db, core
   };
   const rosterChannelId = await make(core.rosterChannelId, names.roster, ChannelType.GuildText, "public");
   const signupChannelId = await make(core.signupChannelId, names.signups, ChannelType.GuildText, "public");
+  const lootChannelId = await make(core.lootChannelId, names.loot, ChannelType.GuildText, "public");
+  await database.raidCore.update({ where: { id: core.id }, data: { lootChannelId } });
+  const raidLogChannelId = await make(core.raidLogChannelId, names.reports, ChannelType.GuildText, "public");
+  await database.raidCore.update({ where: { id: core.id }, data: { raidLogChannelId } });
   const chatChannelId = await make(core.chatChannelId, names.chat, ChannelType.GuildText, "private");
   const voiceChannelId = await make(core.voiceChannelId, names.voice, ChannelType.GuildVoice, "private");
   // The roster message moves to the core's own channel: the old one (shared channel) is removed.
   const movingRoster = core.rosterChannelId !== rosterChannelId;
   await database.raidCore.update({
     where: { id: core.id },
-    data: { categoryId, rosterChannelId, signupChannelId, chatChannelId, voiceChannelId, ...(movingRoster ? { rosterMessageId: null } : {}) }
+    data: { categoryId, rosterChannelId, signupChannelId, lootChannelId, raidLogChannelId, chatChannelId, voiceChannelId, ...(movingRoster ? { rosterMessageId: null } : {}) }
   });
-  await openCoreChannels(guild, database, core.guildId, [rosterChannelId, signupChannelId]);
+  await openCoreChannels(guild, database, core.guildId, [rosterChannelId, signupChannelId, lootChannelId, raidLogChannelId]);
   return created;
 }
 
@@ -201,8 +205,8 @@ export async function openCoreChannels(guild: DiscordGuild, database: Db, guildI
 
 // Every core's roster and signups channels, readable by the guild (a new core's role included).
 export async function openAllCoreChannels(guild: DiscordGuild, database: Db, guildId: string): Promise<number> {
-  const cores = await database.raidCore.findMany({ where: { guildId }, select: { rosterChannelId: true, signupChannelId: true } });
-  return openCoreChannels(guild, database, guildId, cores.flatMap((core) => [core.rosterChannelId, core.signupChannelId]));
+  const cores = await database.raidCore.findMany({ where: { guildId }, select: { rosterChannelId: true, signupChannelId: true, lootChannelId: true, raidLogChannelId: true } });
+  return openCoreChannels(guild, database, guildId, cores.flatMap((core) => [core.rosterChannelId, core.signupChannelId, core.lootChannelId, core.raidLogChannelId]));
 }
 
 // After a rename: the role, the category and the channels follow the new name.
@@ -220,6 +224,8 @@ export async function renameCoreDiscord(guild: DiscordGuild, core: CoreLike): Pr
   await rename(core.categoryId, names.category);
   await rename(core.rosterChannelId, names.roster);
   await rename(core.signupChannelId, names.signups);
+  await rename(core.lootChannelId, names.loot);
+  await rename(core.raidLogChannelId, names.reports);
   await rename(core.chatChannelId, names.chat);
   await rename(core.voiceChannelId, names.voice);
 }
@@ -252,7 +258,7 @@ const CATEGORY_LIMIT = 50;
 // Returns how many channels were archived.
 export async function archiveCoreDiscord(guild: DiscordGuild, core: CoreLike): Promise<number> {
   await guild.channels.fetch();
-  const textIds = [core.rosterChannelId, core.signupChannelId, core.chatChannelId].filter((id): id is string => !!id && guild.channels.cache.has(id));
+  const textIds = [core.rosterChannelId, core.signupChannelId, core.lootChannelId, core.raidLogChannelId, core.chatChannelId].filter((id): id is string => !!id && guild.channels.cache.has(id));
   let archived = 0;
   if (textIds.length > 0) {
     const categories = guild.channels.cache.filter((channel) => channel.type === ChannelType.GuildCategory && channel.name.startsWith(ARCHIVE_CATEGORY));
@@ -293,7 +299,7 @@ export async function archiveCoreDiscord(guild: DiscordGuild, core: CoreLike): P
 // When a core is deleted with its channels: the four channels, the category and the role go.
 export async function deleteCoreDiscord(guild: DiscordGuild, core: CoreLike): Promise<number> {
   let removed = 0;
-  for (const id of [core.rosterChannelId, core.signupChannelId, core.chatChannelId, core.voiceChannelId, core.categoryId]) {
+  for (const id of [core.rosterChannelId, core.signupChannelId, core.lootChannelId, core.raidLogChannelId, core.chatChannelId, core.voiceChannelId, core.categoryId]) {
     if (!id) continue;
     const channel = await guild.channels.fetch(id).catch(() => null);
     if (channel && await channel.delete(`${BRAND.name}: raid core deleted`).then(() => true, () => false)) removed++;

@@ -13,12 +13,44 @@ try {
     const character = await database.character.findFirstOrThrow({ where: { name: "ReleaseAnn" } });
     assert.equal(character.professionsUpdatedAt?.toISOString(), "2026-09-30T10:00:00.000Z");
     assert.equal(await database.professionSkill.count({ where: { characterId: character.id, profession: "Mining" } }), 1);
+    const raid = await database.raid.findFirstOrThrow({ where: { title: "Release mirrored raid" } });
+    assert.equal(raid.mirrorSignupMessageId, "core-message");
+    assert.equal((await database.raidCore.findUniqueOrThrow({ where: { id: raid.coreId! } })).lootChannelId, "core-loot");
   } else {
     await database.guild.deleteMany({ where: { discordId: { startsWith: "release-test-" } } });
     const guild = await database.guild.create({ data: { discordId: "release-test-guild", name: "Release fixture" } });
     const member = await database.member.create({ data: { guildId: guild.id, discordUserId: "release-test-member", displayName: "Ann" } });
     const character = await database.character.create({ data: { memberId: member.id, name: "ReleaseAnn", realm: "ReleaseTest", className: "Warrior" } });
-    const core = await database.raidCore.create({ data: { guildId: guild.id, name: "Core A", separatePool: true } });
+    const core = await database.raidCore.create({ data: { guildId: guild.id, name: "Core A", separatePool: true, lootChannelId: "core-loot", raidLogChannelId: "core-reports" } });
+    await database.raid.create({ data: { guildId: guild.id, coreId: core.id, title: "Release mirrored raid", scheduledAt: new Date(), createdBy: "release-test", signupChannelId: "general", signupMessageId: "general-message", mirrorSignupChannelId: "core", mirrorSignupMessageId: "core-message" } });
+    // Full setup reset replaces only the selected guild and cascades its credentials/data.
+    const resetGuild = await database.guild.create({ data: { discordId: "release-test-reset", name: "Reset fixture", settings: { create: {} } } });
+    const resetMember = await database.member.create({ data: { guildId: resetGuild.id, discordUserId: "reset-member", displayName: "Reset" } });
+    await database.companionCredential.create({ data: { memberId: resetMember.id, tokenHash: "disposable-reset-credential" } });
+    const resetCharacter = await database.character.create({ data: { memberId: resetMember.id, name: "ResetChar", realm: "ReleaseTest", className: "Warrior", professions: { create: { profession: "Mining", skillLevel: 300 } } } });
+    const resetAt = new Date();
+    await database.$transaction(async tx => {
+      await tx.guild.delete({ where: { id: resetGuild.id } });
+      await tx.guild.create({ data: { discordId: "release-test-reset", name: "Reset fixture", settings: { create: { dataResetAt: resetAt } } } });
+    });
+    assert.equal(await database.companionCredential.count({ where: { memberId: resetMember.id } }), 0);
+    assert.equal(await database.character.count({ where: { id: resetCharacter.id } }), 0);
+    assert.equal(await database.professionSkill.count({ where: { characterId: resetCharacter.id } }), 0);
+    assert.equal(await database.member.count({ where: { guildId: resetGuild.id } }), 0);
+    assert.ok(await database.guild.findUnique({ where: { id: guild.id } }));
+    const fresh = await database.guild.findUniqueOrThrow({ where: { discordId: "release-test-reset" } });
+    const freshMember = await database.member.create({ data: { guildId: fresh.id, discordUserId: "reset-member", displayName: "Reset" } });
+    await database.character.create({ data: { memberId: freshMember.id, name: "ResetChar", realm: "ReleaseTest", className: "Warrior" } });
+    const resetImporter = createAddonImportService(database);
+    const entry = { character: "ResetChar", realm: "ReleaseTest", epAmount: 10, gpAmount: 0, type: "EP_AWARD", reason: "Reset import" };
+    const resetPreview = await resetImporter.preview(fresh.id, { source: "Guilded", exportedAt: new Date(), epgpTransactions: [
+      { ...entry, sourceRef: "pre-reset", createdAt: new Date(resetAt.getTime() - 86400000) },
+      { ...entry, sourceRef: "unknown-date" },
+      { ...entry, sourceRef: "post-reset", createdAt: new Date(resetAt.getTime() + 1000) }
+    ] }, "reset-test");
+    const resetImport = await resetImporter.record(fresh.id, resetPreview.snapshot, "reset-fixture", "reset-test");
+    await resetImporter.apply(fresh.id, resetImport.id, "reset-test");
+    assert.equal(await database.epgpTransaction.count({ where: { guildId: fresh.id } }), 1);
     const service = createAddonImportService(database);
     const payload = { source: "Guilded", exportedAt: new Date(), epgpTransactions: [{ character: "ReleaseAnn", realm: "ReleaseTest", epAmount: 10, gpAmount: 5, type: "EP_AWARD", reason: "release test", sourceRef: "release-test-event", coreId: core.id }] };
     const preview = await service.preview(guild.id, payload, "release-test");

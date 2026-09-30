@@ -30,7 +30,7 @@ describe("discovering characters from the guild digests", () => {
     return {
       upserts,
       client: {
-        character: { update: vi.fn(async () => ({})) },
+        character: { findUnique: vi.fn(async () => null), update: vi.fn(async () => ({})) },
         professionSkill: { upsert: vi.fn(async () => ({})) },
         unclaimedCharacter: {
           findUnique: vi.fn(async ({ where }: { where: { guildId_nameKey: { nameKey: string } } }) => (where.guildId_nameKey.nameKey === "known" ? { id: "u" } : null)),

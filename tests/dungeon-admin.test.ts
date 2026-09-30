@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { adjustPoints, describeConfig, setWeeklyRepeat } from "../src/services/dungeon-admin.js";
+import { describe, expect, it, vi } from "vitest";
+import { adjustPoints, describeConfig, setWeeklyRepeat, startSeason } from "../src/services/dungeon-admin.js";
 import { dungeonConfig } from "../src/services/dungeon-rules.js";
 
 const noDb = {} as Parameters<typeof adjustPoints>[0];
@@ -34,4 +34,24 @@ describe("achievement rules", () => {
     expect(achievementName("seasonChampion:abc", "fr", "Saison 1")).toBe("👑 Champion de saison (Saison 1)");
     expect(achievementName("unknownThing", "en")).toBe("unknownThing");
   });
+});
+
+ it("archives a season without deleting history and remembers every tied champion, including ties beyond five players", async () => {
+  const past = { id: "past", name: "Season 1", status: "ACTIVE" };
+  const people = Array.from({ length: 6 }, (_, i) => ({ id: "m" + i, displayName: "Player " + i }));
+  const tx = {
+    $executeRaw: vi.fn(),
+    dungeonSeason: { findFirst: async () => past, findMany: async () => [past], updateMany: vi.fn(), create: vi.fn(async () => ({ id: "new", name: "Season 2" })) },
+    dungeonPointTransaction: { groupBy: async () => people.map((person) => ({ memberId: person.id, _sum: { amount: 100 } })), deleteMany: vi.fn() },
+    dungeonRun: { deleteMany: vi.fn() }, dungeonAchievement: { upsert: vi.fn() },
+    member: { count: async () => 6, findMany: async () => people }
+  };
+  const db = { ...tx, $transaction: async (fn: (client: typeof tx) => Promise<unknown>) => fn(tx) };
+  const result = await startSeason(db as never, "g", "Season 2");
+  expect(result.ended).toEqual(["Season 1"]);
+  expect(result.champions).toHaveLength(6);
+  expect(tx.dungeonAchievement.upsert).toHaveBeenCalledTimes(6);
+  expect(tx.dungeonSeason.updateMany).toHaveBeenCalledWith({ where: { guildId: "g", status: "ACTIVE" }, data: { status: "ENDED", endsAt: expect.any(Date) } });
+  expect(tx.dungeonPointTransaction.deleteMany).not.toHaveBeenCalled();
+  expect(tx.dungeonRun.deleteMany).not.toHaveBeenCalled();
 });

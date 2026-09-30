@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDungeonGroupService, shouldDeleteVoice, shouldExpireOpenGroup } from "../src/services/dungeon-group.js";
+import { createDungeonGroupService, shouldDeleteClosedPost, shouldDeleteVoice, shouldExpireOpenGroup } from "../src/services/dungeon-group.js";
 
 type Row = { id: string; groupId: string; memberId: string; role: string; status: string; joinedAt: Date; member: { discordUserId: string; displayName: string } };
 
@@ -82,4 +82,11 @@ describe("dungeon group timers", () => {
     expect(shouldExpireOpenGroup(new Date("2026-10-02T02:00:00Z"), now)).toBe(false);
     expect(shouldExpireOpenGroup(new Date("2026-10-01T19:00:00Z"), now)).toBe(true);
   });
+});
+
+it("removes closed posts only once the 48-hour retention period has passed", () => {
+  const closedAt = new Date("2026-09-28T12:00:00Z");
+  expect(shouldDeleteClosedPost(closedAt, new Date("2026-09-30T11:59:59Z"))).toBe(false);
+  expect(shouldDeleteClosedPost(closedAt, new Date("2026-09-30T12:00:00Z"))).toBe(true);
+  expect(shouldDeleteClosedPost(null, new Date())).toBe(false);
 });

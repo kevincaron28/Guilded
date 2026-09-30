@@ -56,7 +56,7 @@ export async function linkUnclaimed(database: Db, memberId: string, unclaimed: U
         update: { skillLevel: Number(profession.skillLevel) || 0 }
       });
     }
-    await database.character.update({ where: { id: created.id }, data: { lastSeenAt: unclaimed.lastSeenAt } });
+    await database.character.update({ where: { id: created.id }, data: { lastSeenAt: unclaimed.lastSeenAt, professionsUpdatedAt: unclaimed.professionsUpdatedAt } });
   }
   await database.unclaimedCharacter.delete({ where: { id: unclaimed.id } });
   return { isMain: !hasMain };

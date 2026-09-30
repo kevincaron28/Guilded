@@ -1,3 +1,4 @@
+import { updateProfessionDirectory } from "./services/profession-directory.js";
 import {
   Client,
   Collection,
@@ -38,7 +39,7 @@ import { handleAutocomplete } from "./commands/autocomplete.js";
 import { prisma } from "./database.js";
 import { runRaidReminders } from "./services/reminders.js";
 import { runCooldownPings } from "./services/recipes.js";
-import { DUNGEON_SEASON_SELECT, handleDungeonSeasonSelect } from "./services/dungeon-leaderboard.js";
+import { DUNGEON_SEASON_SELECT, handleDungeonSeasonSelect, updateDungeonLeaderboard } from "./services/dungeon-leaderboard.js";
 import { runBackup } from "./services/backup.js";
 import { runWclDiscovery } from "./services/wcl-check.js";
 import { config } from "./config.js";
@@ -93,6 +94,10 @@ handlers.set("uninstall", executeUninstall);
 client.once(Events.ClientReady, (readyClient) => {
   registerCommandsEverywhere().catch(reportJobError("Command registration"));
   console.info(`Logged in as ${readyClient.user.tag}`);
+  for (const guild of readyClient.guilds.cache.values()) {
+    void updateDungeonLeaderboard(guild);
+    void updateProfessionDirectory(guild);
+  }
   logSetupStatus(readyClient.guilds.cache.values()).catch(reportJobError("Setup status log"));
   // One-shot: the running version only changes on a redeploy/restart, so a
   // per-ClientReady check is enough (safe on reconnect too: it marks each

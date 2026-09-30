@@ -1,3 +1,6 @@
+import { relayProfessions } from "./services/profession-relay.js";
+import { autoLinkUnclaimed } from "./services/character-autolink.js";
+import { updateProfessionDirectory } from "./services/profession-directory.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { config } from "./config.js";
 import { prisma } from "./database.js";
@@ -196,13 +199,20 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const owned = await prisma.character.findMany({ where: { memberId: pairedMemberId }, select: { name: true, realm: true } });
         preview = await importService.preview(guild.id, personalSnapshot(preview.snapshot, owned), createdBy);
       }
+      const settings = await prisma.guildSettings.findUnique({ where: { guildId: guild.id } });
+      const professionRelay = access.officer && !settings?.autoApplyImports
+        ? await relayProfessions(prisma, guild.id, preview.snapshot) : null;
+      if (professionRelay) {
+        const discordGuild = client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null;
+        if (discordGuild && professionRelay.discovered) await autoLinkUnclaimed(discordGuild, prisma, guild.id).catch((error: unknown) => console.warn("Profession character linking failed", error));
+        await updateProfessionDirectory(discordGuild);
+      }
       if (preview.duplicate) {
         json(response, 409, { error: "This export was already received", checksum: preview.checksum, pairedCharacterStatus, importId: preview.existingImport?.id, status: preview.existingImport?.status, botVersion: BOT_VERSION, protocolVersion: 2 });
         return;
       }
       const record = await importService.record(guild.id, preview.snapshot, preview.checksum, createdBy, pairedMemberId);
       // Auto-apply (a guild opt-in: /setup config auto-import): apply now and follow up, no /import apply.
-      const settings = await prisma.guildSettings.findUnique({ where: { guildId: guild.id } });
       let autoApplied: { epgp: number; discovered: number } | null = null;
       if (!access.officer || settings?.autoApplyImports) {
         try {
@@ -222,6 +232,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       }
       json(response, 201, {
         autoApplied,
+        professionRelay,
         importId: record.id,
         checksum: preview.checksum,
         source: preview.snapshot.source,

@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { recordLine, runLine } from "../src/commands/dungeon.js";
-import { difficultyName, formatLeaderboard } from "../src/services/dungeon-stats.js";
+import { difficultyName, formatLeaderboard, pointsFilter } from "../src/services/dungeon-stats.js";
 
 describe("dungeon views", () => {
   it("formats the leaderboard with medals", () => {
@@ -32,4 +32,12 @@ describe("dungeon views", () => {
     expect(rejected).toContain("non compté (too short (30s))");
     expect(rejected).not.toContain("mort");
   });
+});
+
+it("selects archived season points without mixing the current season and rejects another guild's season", async () => {
+  const findFirst = vi.fn(async () => ({ id: "past" }));
+  const db = { dungeonSeason: { findFirst } };
+  expect(await pointsFilter(db as never, "g", "season", new Date(), "past")).toEqual({ guildId: "g", seasonId: "past" });
+  expect(findFirst).toHaveBeenCalledWith({ where: { guildId: "g", id: "past" } });
+  await expect(pointsFilter({ dungeonSeason: { findFirst: async () => null } } as never, "g", "season", new Date(), "foreign")).rejects.toThrow("does not belong");
 });

@@ -1,11 +1,14 @@
+import { ChannelType, EmbedBuilder, type Guild as DiscordGuild } from "discord.js";
+import { prisma } from "../database.js";
+import { asLang } from "../i18n.js";
 import type { PrismaClient } from "@prisma/client";
 import { findProfessionHolders, professionCoverage } from "./profession-search.js";
 import type { Lang } from "../i18n.js";
 
 export async function professionDirectoryText(database: Pick<PrismaClient, "professionSkill">, guildId: string, lang: Lang = "en"): Promise<string> {
   const header = lang === "fr"
-    ? "**Artisans de la guilde**\n`/craft who item:` : recettes connues. `/character profession who` : compétences. `/craft request` : demander une fabrication. Ouvrez vos métiers avec Guilded et synchronisez via le compagnon pour partager vos recettes."
-    : "**Guild profession directory**\n`/craft who item:` finds known recipes. `/character profession who` lists skills. `/craft request` arranges a craft. Open profession windows with Guilded and sync through the companion to share recipes.";
+    ? "**Artisans de la guilde**\n`/craft who item:` : recettes connues. `/character profession who` : compétences. `/craft request` : demander une fabrication. Ouvrez vos métiers avec Guilded : un officier en ligne avec le compagnon peut relayer vos recettes."
+    : "**Guild profession directory**\n`/craft who item:` finds known recipes. `/character profession who` lists skills. `/craft request` arranges a craft. Open profession windows with Guilded. An online officer with the companion can relay your recipes.";
   let text = header;
   const coverage = await professionCoverage(database, guildId);
   for (const row of coverage) {
@@ -15,4 +18,26 @@ export async function professionDirectoryText(database: Pick<PrismaClient, "prof
     text += line;
   }
   return text + (coverage.length ? "" : lang === "fr" ? "\nAucun métier enregistré." : "\nNo professions recorded yet.");
+}
+
+// Refresh existing directory posts after imports; never create repeated forum posts.
+export async function updateProfessionDirectory(discordGuild: DiscordGuild | null): Promise<void> {
+  if (!discordGuild) return;
+  try {
+    const guild = await prisma.guild.findUnique({ where: { discordId: discordGuild.id }, include: { settings: true } });
+    if (!guild?.settings?.craftChannelId) return;
+    const forum = await discordGuild.channels.fetch(guild.settings.craftChannelId);
+    if (forum?.type !== ChannelType.GuildForum) return;
+    const active = await forum.threads.fetchActive();
+    const lang = asLang(guild.settings.language);
+    const description = await professionDirectoryText(prisma, guild.id, lang);
+    for (const thread of active.threads.values()) {
+      const directory = thread.name === "Guild profession directory";
+      if (!directory && !thread.flags.has("Pinned")) continue;
+      const starter = await thread.fetchStarterMessage();
+      if (!starter?.editable) continue;
+      if (directory) await starter.edit({ content: description, allowedMentions: { parse: [] } });
+      else if (starter.components.length) await starter.edit({ embeds: [new EmbedBuilder().setTitle(lang === "fr" ? "Artisans de la guilde" : "Guild profession directory").setDescription(description).setColor(0xd4af37)], allowedMentions: { parse: [] } });
+    }
+  } catch (error) { console.warn("Profession directory refresh failed", error); }
 }

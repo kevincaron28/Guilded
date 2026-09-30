@@ -64,6 +64,13 @@ describe("readAddonExport (real WoW SavedVariables array syntax)", () => {
     await rm(dir, { recursive: true, force: true });
   });
 
+  it("exports complete empty peer professions with the sender's original timestamp", async () => {
+    await writeFile(file, 'GuildedDB = { peerRoster = { ["Amy"] = { professions = "", professionsComplete = true, professionsAt = 1800000000, updatedAt = "2026-09-30T10:00:00Z", identity = { class = "MAGE" } } } }');
+    const result = parseAddonSnapshot(await readAddonExport(file, "Realm"));
+    expect(result.characters[0]).toMatchObject({ name: "Amy", professions: [], professionsComplete: true, professionsAt: new Date(1800000000000) });
+    expect(result.readiness[0]).toMatchObject({ character: "Amy", professions: [], professionsComplete: true, professionsAt: new Date(1800000000000) });
+  });
+
   it("decodes bracketed-key Lua arrays as real arrays, not numeric-keyed objects", async () => {
     const result = await readAddonExport(file, "WoW Forever");
     const selfEntry = result.readiness.find((entry: { character: string }) => entry.character === "Kevin");

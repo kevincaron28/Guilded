@@ -1,3 +1,4 @@
+import { syncProfessionSnapshot } from "./profession-snapshot.js";
 import type { PrismaClient } from "@prisma/client";
 import { findCharacter } from "./character-match.js";
 import { createGuildService } from "./guild.js";
@@ -131,12 +132,9 @@ export async function importCharacter(
     action = "created";
   }
 
-  for (const profession of parsed.professions) {
-    await database.professionSkill.upsert({
-      where: { characterId_profession: { characterId, profession: profession.name } },
-      create: { characterId, profession: profession.name, skillLevel: profession.skillLevel },
-      update: { skillLevel: profession.skillLevel }
-    });
-  }
+  await database.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${owner.guildId}, 0))`;
+    await syncProfessionSnapshot(tx, owner.guildId, { id: characterId, name: existing?.name ?? parsed.name, realm: existing?.realm ?? parsed.realm }, parsed.professions, true, new Date());
+  });
   return { action, name: parsed.name, isMain };
 }

@@ -41,16 +41,23 @@ export async function applyDiscoveredCharacters(tx: Tx, guildId: string, entries
       continue;
     }
     if (!className) continue;
+    const before = await tx.unclaimedCharacter.findUnique({ where: { guildId_nameKey: { guildId, nameKey: key } }, select: { id: true, professionsUpdatedAt: true } });
+    const at = entry.professionsAt ?? new Date();
+    const acceptProfessions = !before?.professionsUpdatedAt || (entry.professionsComplete === true && at > before.professionsUpdatedAt);
     const data = {
       name: entry.name, realm: entry.realm, className, race, level, spec,
-      professions: entry.professions as unknown as Prisma.InputJsonValue, lastSeenAt: new Date()
+      ...(acceptProfessions ? { professions: entry.professions as unknown as Prisma.InputJsonValue, ...(entry.professionsComplete === true ? { professionsUpdatedAt: at } : {}) } : {}), lastSeenAt: new Date()
     };
-    const before = await tx.unclaimedCharacter.findUnique({ where: { guildId_nameKey: { guildId, nameKey: key } }, select: { id: true } });
     await tx.unclaimedCharacter.upsert({
       where: { guildId_nameKey: { guildId, nameKey: key } },
-      create: { guildId, nameKey: key, ...data },
+      create: { guildId, nameKey: key, professions: entry.professions as unknown as Prisma.InputJsonValue, ...data },
       update: data
     });
+    if (acceptProfessions && entry.professionsComplete === true) {
+      const where = { guildId, character: entry.name, realm: entry.realm, profession: { notIn: entry.professions.map((profession) => profession.name) } };
+      await tx.recipeKnown.deleteMany({ where });
+      await tx.professionCooldown.deleteMany({ where });
+    }
     if (!before) result.discovered++;
   }
   return result;

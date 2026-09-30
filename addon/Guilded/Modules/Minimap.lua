@@ -439,13 +439,9 @@ local function buildCalendarPage(page)
   at(newButton(page, "Scan the calendar", 150, function()
     if ns.calendar then ns.message("Reading the guild calendar..."); ns.calendar.sync(false) end
   end), page, 0, -32)
-  local x = 156
-  for n, label in ipairs({ "Create next raid", "Create #2", "Create #3" }) do
-    at(newButton(page, label, n == 1 and 130 or 90, function()
-      if ns.calendar then ns.calendar.createNext(n) end
-    end), page, x, -32)
-    x = x + (n == 1 and 134 or 94)
-  end
+  at(newButton(page, "Sync next missing event", 200, function()
+    if ns.calendar then ns.calendar.createMissing() end
+  end), page, 156, -32)
 end
 
 -- Soft reserves: everyone reserves for the raid; officers open, lock and roll.
@@ -1004,30 +1000,7 @@ end
 
 -- Raid tools (RaidTools.lua): target icons, world markers, boss plans.
 local function buildRaidToolsPage(page)
-  at(newLabel(page, "Raid target icon on your target", "GameFontNormalSmall"), page, 0, -4)
-  for i = 8, 1, -1 do
-    local b = CreateFrame("Button", nil, page)
-    b:SetWidth(26)
-    b:SetHeight(26)
-    b:SetNormalTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcon_" .. i)
-    b:SetScript("OnClick", function() run("rt mark " .. i) end)
-    tip(b, ns.raidTools and ns.raidTools.ICON_NAMES[i] or tostring(i))
-    at(b, page, (8 - i) * 30, -22)
-  end
-  at(newButton(page, "Clear", 60, function() run("rt mark clear") end), page, 244, -24)
-  tip(at(newButton(page, "Mark tanks", 110, function() run("rt tanks") end), page, 310, -24),
-    "Skull, cross, square... on the group's tanks (from the roles in the raid frame, or main tanks).")
-  local clearAll = at(newButton(page, "Clear all marks", 130), page, 426, -24)
-  confirmClick(clearAll, "Clear all marks", function() run("rt clear") end)
-
-  at(newLabel(page, "World markers (click a number, then click the ground; leader or assistant)", "GameFontNormalSmall"), page, 0, -62)
-  if ns.syncNow and ns.syncNow.reloadButton then
-    for i = 1, 8 do
-      at(ns.syncNow.reloadButton(page, tostring(i), 34, 22, nil, "/wm " .. i), page, (i - 1) * 38, -80)
-    end
-    at(ns.syncNow.reloadButton(page, L("Clear all"), 90, 22, nil, "/cwm 0"), page, 310, -80)
-  end
-
+  at(newButton(page, "Open raid markers", 180, function() if ns.raidTools then ns.raidTools.toggleMarkers(true) end end), page, 0, -4)
   heading(page, L("Boss plan"), -118)
   at(newLabel(page, "Boss", "GameFontNormalSmall"), page, 0, -140)
   ui.rtBoss = at(newEdit(page, 200), page, 40, -136)
@@ -1644,16 +1617,7 @@ end
 
 -- Direct shortcuts always open the requested page, even if the window is already open.
 local function openRaidTools()
-  local ok, err = pcall(function()
-    if not panel then buildPanel() end
-    panel:Show()
-    refresh()
-    ui.selectTabByName("Raid tools")
-    if not ui.currentTab or ui.tabs[ui.currentTab].name ~= "Raid tools" then
-      ns.message(L("Raid tools require the module enabled and raid leader, assistant or officer access."))
-    end
-  end)
-  if not ok then ns.message("Tools window failed to open: " .. tostring(err)) end
+  if ns.raidTools then ns.raidTools.toggleMarkers() end
 end
 ns.openRaidTools = openRaidTools
 

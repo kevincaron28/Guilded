@@ -2,6 +2,12 @@
 
 ## 5.0.0 stabilization (unreleased)
 
+- Export Discord scheduled Events as well as bot raids into the companion calendar feed; add a click-to-import next missing guild event action with duplicate checks.
+- Remove recurring save/sync banners; keep the Home status and manual save button.
+- Add a compact movable raid-marker palette, independent of the main window, with saved position and visibility. Shift-click the minimap coin or use `/guilded rt`.
+- Restore dungeon-only Discord signup creation and alerts; preserve existing groups and member-post PvP/leveling channels.
+- Add `/character profession directory` and recipe-aware crafter suggestions on craft requests; include a maintenance action to refresh the existing Discord guides and publish the profession directory.
+
 - Fixed stale loot priority, separate core pool charges, and guild-wide price fallback.
 - Protected concurrent imports with database event uniqueness and transaction locking.
 - Required guild-scoped companion pairing and server-side officer authorization.

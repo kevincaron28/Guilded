@@ -45,7 +45,7 @@ function openWindow(rank: number, extraLua = ""): LuaSession {
     function GetGuildInfo() return "Alpha", "Rank", ${rank} end
     ${extraLua}
   `);
-  for (const file of ["Core.lua", "Compat.lua", "Modules/Sync.lua", "Modules/SyncNow.lua", "Modules/Games.lua", "Modules/ConsumableData.lua", "Modules/Consumables.lua", "Modules/Ready.lua", "Modules/Minimap.lua"]) session.load(file);
+  for (const file of ["Core.lua", "Compat.lua", "Modules/Sync.lua", "Modules/SyncNow.lua", "Modules/Games.lua", "Modules/ConsumableData.lua", "Modules/Consumables.lua", "Modules/Ready.lua", "Modules/RaidTools.lua", "Modules/Minimap.lua"]) session.load(file);
   session.run(`fire_event("PLAYER_LOGIN"); fire_event("PLAYER_ENTERING_WORLD"); NS.commandHandlers["menu"]()`);
   return session;
 }
@@ -70,14 +70,17 @@ describe("the tools window (sidebar and Home page)", () => {
       end
     `);
     s.run(`NS.commandHandlers["menu"]({"raidtools"})`);
-    expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`)).toBe("Raid tools");
+    expect(s.run(`return tostring(NS.raidTools.markerFrame:IsShown())`)).toBe("true");
+    expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`)).toBe("Home");
     s.run(`NS.commandHandlers["menu"]({"raidtools"})`);
-    expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`)).toBe("Raid tools");
+    expect(s.run(`return tostring(NS.raidTools.markerFrame:IsShown())`)).toBe("false");
+    expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`)).toBe("Home");
     s.run(`
       function IsShiftKeyDown() return true end
       GuildedMinimapButton.scripts.OnClick(GuildedMinimapButton, "LeftButton")
     `);
-    expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`)).toBe("Raid tools");
+    expect(s.run(`return tostring(NS.raidTools.markerFrame:IsShown())`)).toBe("true");
+    expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`)).toBe("Home");
     s.run(`
       function IsShiftKeyDown() return false end
       function IsAltKeyDown() return true end

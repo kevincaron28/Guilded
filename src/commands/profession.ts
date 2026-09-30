@@ -1,6 +1,8 @@
 import { SlashCommandBuilder, type ChatInputCommandInteraction } from "discord.js";
 import { prisma } from "../database.js";
 import { findProfessionHolders, professionCoverage } from "../services/profession-search.js";
+import { professionDirectoryText } from "../services/profession-directory.js";
+import { asLang } from "../i18n.js";
 import { describeCooldowns } from "../services/recipes.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { PROFESSIONS } from "../wow-data.js";
@@ -29,6 +31,9 @@ export const professionCommand = new SlashCommandBuilder()
     .addBooleanOption((option) => option.setName("mine").setDescription("Only my characters"))
     .addBooleanOption((option) => option.setName("notify").setDescription("DM me when a cooldown of mine is ready (true or false)")))
   .addSubcommand((subcommand) => subcommand
+    .setName("directory")
+    .setDescription("Show the guild's top crafters and recipe lookup commands for everyone."))
+  .addSubcommand((subcommand) => subcommand
     .setName("coverage")
     .setDescription("How many characters have each profession, and who is highest."));
 
@@ -46,6 +51,13 @@ export async function executeProfession(interaction: ChatInputCommandInteraction
   const context = await requireGuildContext(interaction);
   if (!context) return;
   const subcommand = interaction.options.getSubcommand();
+
+  if (subcommand === "directory") {
+    await interaction.deferReply();
+    const lang = asLang((await guildService.getSettings(context.guildId))?.language);
+    await interaction.editReply({ content: await professionDirectoryText(prisma, context.guildId, lang), allowedMentions: { parse: [] } });
+    return;
+  }
 
   if (subcommand === "who") {
     const query = interaction.options.getString("profession", true);

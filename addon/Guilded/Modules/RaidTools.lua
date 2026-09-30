@@ -33,6 +33,77 @@ local function active() return not ns.moduleActive or ns.moduleActive("raidtools
 local function L(text) return ns.L and ns.L(text) or text end
 local function inCombat() return ns.compat and ns.compat.inCombat and ns.compat.inCombat() or false end
 
+-- Independent marker palette. Build secure ground-marker buttons before combat.
+local markerFrame
+function tools.buildMarkerFrame()
+  if markerFrame or inCombat() then return markerFrame end
+  markerFrame = CreateFrame("Frame", "GuildedMarkerFrame", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+  markerFrame:SetSize(286, 126)
+  markerFrame:SetClampedToScreen(true)
+  markerFrame:SetFrameStrata("MEDIUM")
+  local db = ns.getDb and ns.getDb()
+  local saved = db and db.markerWindow
+  if saved and saved.point then markerFrame:SetPoint(saved.point, UIParent, saved.relativePoint or saved.point, saved.x or 0, saved.y or 0)
+  else markerFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 160) end
+  if markerFrame.SetBackdrop then
+    markerFrame:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 12 })
+    markerFrame:SetBackdropColor(0, 0, 0, 0.85)
+  end
+  markerFrame:SetMovable(true)
+  markerFrame:EnableMouse(true)
+  markerFrame:RegisterForDrag("LeftButton")
+  markerFrame:SetScript("OnDragStart", function(self) if not inCombat() then self:StartMoving() end end)
+  markerFrame:SetScript("OnDragStop", function(self)
+    self:StopMovingOrSizing()
+    local point, _, relativePoint, x, y = self:GetPoint()
+    local current = ns.getDb and ns.getDb()
+    if current then current.markerWindow = { point = point, relativePoint = relativePoint, x = x, y = y } end
+  end)
+  local title = markerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  title:SetPoint("TOPLEFT", 10, -8)
+  title:SetText(L("Raid tools"))
+  local function button(text, x, y, width, click)
+    local b = CreateFrame("Button", nil, markerFrame, "UIPanelButtonTemplate")
+    b:SetSize(width, 20); b:SetPoint("TOPLEFT", x, y); b:SetText(L(text)); b:SetScript("OnClick", click)
+    return b
+  end
+  button("X", 256, -4, 22, function() tools.toggleMarkers(false) end)
+  for i = 8, 1, -1 do
+    local b = CreateFrame("Button", nil, markerFrame)
+    b:SetSize(26, 26); b:SetPoint("TOPLEFT", 10 + (8 - i) * 33, -28)
+    b:SetNormalTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcon_" .. i)
+    b:SetScript("OnClick", function() tools.mark(i) end)
+    b:SetScript("OnEnter", function(self)
+      if GameTooltip then GameTooltip:SetOwner(self, "ANCHOR_RIGHT"); GameTooltip:SetText(L(ICON_NAMES[i])); GameTooltip:Show() end
+    end)
+    b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    if ns.syncNow and ns.syncNow.reloadButton then
+      local ground = ns.syncNow.reloadButton(markerFrame, tostring(i), 26, 22, nil, "/wm " .. i)
+      ground:SetPoint("TOPLEFT", 10 + (8 - i) * 33, -60)
+    end
+  end
+  button("Mark tanks", 10, -94, 92, tools.markTanks)
+  button("Clear", 106, -94, 60, function() tools.mark(0) end)
+  if ns.syncNow and ns.syncNow.reloadButton then
+    local clear = ns.syncNow.reloadButton(markerFrame, L("Clear all"), 100, 20, nil, "/cwm 0")
+    clear:SetPoint("TOPLEFT", 170, -94)
+  end
+  markerFrame:Hide()
+  tools.markerFrame = markerFrame
+  return markerFrame
+end
+
+function tools.toggleMarkers(show)
+  if not active() then return end
+  if inCombat() then ns.message(L("Open or close raid markers before combat.")); return end
+  local palette = tools.buildMarkerFrame()
+  if not palette then return end
+  if show == nil then show = not palette:IsShown() end
+  local db = ns.getDb and ns.getDb()
+  if db then db.markersShown = show and true or false end
+  if show then palette:Show() else palette:Hide() end
+end
+
 local function store()
   local db = ns.getDb and ns.getDb()
   if not db then return nil end
@@ -317,7 +388,11 @@ end
 ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHandlers["rt"] = function(args)
   local action = string.lower(args[1] or "")
-  if action == "mark" then
+  if action == "" or action == "show" or action == "hide" then
+    if action == "hide" then tools.toggleMarkers(false)
+    elseif action == "show" then tools.toggleMarkers(true)
+    else tools.toggleMarkers() end
+  elseif action == "mark" then
     local value = string.lower(args[2] or "")
     local index = value == "clear" and 0 or tonumber(value)
     if not index or index < 0 or index > 8 then ns.message(L("Usage: /guilded rt mark <1-8|clear> (8 = skull, 7 = cross)")); return end
@@ -349,7 +424,15 @@ register("CHAT_MSG_ADDON")
 frame:SetScript("OnEvent", function(_, event, ...)
   local args = { ... }
   local ok, err = pcall(function()
-    if event == "PLAYER_LOGIN" then ns.comm.register(PREFIX); return end
+    if event == "PLAYER_LOGIN" then
+      ns.comm.register(PREFIX)
+      if active() then
+        tools.buildMarkerFrame()
+        local db = ns.getDb and ns.getDb()
+        if db and db.markersShown then tools.toggleMarkers(true) end
+      end
+      return
+    end
     if not active() then return end
     local prefix, text, channel, sender = args[1], args[2], args[3], args[4]
     if ns.isSecret and (ns.isSecret(prefix) or ns.isSecret(text) or ns.isSecret(sender)) then return end

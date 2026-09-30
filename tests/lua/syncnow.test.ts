@@ -63,7 +63,7 @@ describe("SyncNow.lua", () => {
     expect(s.chat().join("\n")).toContain("Type /reload");
   });
 
-  it("officers get the banner once data changed and settled, never in combat or an instance", () => {
+  it("officers retain pending status without any recurring banner", () => {
     const s = withSync(true);
     const shown = () => s.run(`return tostring(GuildedSyncBanner ~= nil and GuildedSyncBanner.shown)`);
     s.run(`NS.syncNow.tick()`);
@@ -78,7 +78,8 @@ describe("SyncNow.lua", () => {
     s.run(`INSTANCE = false; COMBAT = true; NS.syncNow.tick()`);
     expect(shown()).toBe("false");        // in combat
     s.run(`COMBAT = false; NS.syncNow.tick()`);
-    expect(shown()).toBe("true");
+    expect(shown()).toBe("false");
+    expect(s.run(`return NS.syncNow.statusLine()`)).toContain("Changes are waiting");
     expect(Number(s.run(`return RELOADS`))).toBe(0);
   });
 

@@ -8,6 +8,9 @@ local addonName, ns = ...
 ns = ns or {}
 
 local FR = {
+  ["Open raid markers"] = "Ouvrir les marqueurs de raid",
+  ["Sync next missing event"] = "Importer le prochain evenement",
+  ["Open or close raid markers before combat."] = "Ouvrez ou fermez les marqueurs avant le combat.",
   ["Scores"] = "Scores",
   ["scores from recorded dungeon runs"] = "scores des donjons enregistres",
   ["Shift-click: raid tools"] = "Maj-clic : outils de raid",

@@ -338,7 +338,7 @@ function calendar.discordRaids()
   if type(GuildedRaids) ~= "table" then return out end
   for _, raid in ipairs(GuildedRaids) do
     local at = type(raid) == "table" and isoEpoch(raid.at)
-    if at then local core = type(raid.core) == "string" and raid.core ~= "" and raid.core or nil
+    if at and at >= serverNow() then local core = type(raid.core) == "string" and raid.core ~= "" and raid.core or nil
       local note = type(raid.note) == "string" and raid.note ~= "" and raid.note or nil
       table.insert(out, { id = tostring(raid.id or ""), title = tostring(raid.title or "Raid"), at = at, core = core, note = note }) end
   end
@@ -347,7 +347,22 @@ function calendar.discordRaids()
 end
 
 -- Is there already a guild event at (about) this time with this title, from the last scan?
+local pendingCreates = {}
 local function alreadyInGame(raid)
+  -- Read the actual day, including announcements, instead of relying on a six-hour-old scan.
+  if has("GetNumDayEvents") and has("GetDayEvent") then
+    local clock = serverClock(raid.at)
+    local now = serverClock(serverNow())
+    if has("SetAbsMonth") then C_Calendar.SetAbsMonth(now.month, now.year) end
+    local offset = (clock.year - now.year) * 12 + clock.month - now.month
+    for i = 1, (C_Calendar.GetNumDayEvents(offset, clock.monthDay) or 0) do
+      local event = C_Calendar.GetDayEvent(offset, clock.monthDay, i)
+      if event and (event.calendarType == "GUILD_EVENT" or event.calendarType == "GUILD_ANNOUNCEMENT") then
+        local at = eventEpoch(event.startTime or {}, serverOffset())
+        if at and math.abs(at - raid.at) <= 30 * 60 and string.lower(event.title or "") == string.lower(raid.title) then return true end
+      end
+    end
+  end
   local db = ns.getDb and ns.getDb()
   local scan = db and db.calendarEvents
   for _, event in ipairs(scan and scan.events or {}) do
@@ -360,12 +375,17 @@ calendar.alreadyInGame = alreadyInGame
 -- Makes the in-game guild event. Returns true, or false and the reason.
 function calendar.createEvent(raid)
   if not raid then return false, L("No upcoming Discord raid to create.") end
+  if scanning then return false, "Calendar scan in progress; try again when it finishes." end
+  if InCombatLockdown and InCombatLockdown() then return false, "Sync calendar events outside combat." end
   if not (C_Calendar and has("CreateGuildSignUpEvent") and has("EventSetTitle") and has("EventSetDate")
     and has("EventSetTime") and has("AddEvent")) then
     return false, L("This game client cannot create calendar events for addons.")
   end
   if raid.at < serverNow() - 3600 then return false, L("That raid is in the past.") end
   if alreadyInGame(raid) then return false, L("That raid is already in the game calendar.") end
+  local ref = raid.id ~= "" and raid.id or (raid.title .. "|" .. raid.at)
+  if pendingCreates[ref] and serverNow() - pendingCreates[ref] < 30 then return false, "Waiting for the calendar to confirm this event. Try again shortly." end
+  if has("CanAddEvent") and not C_Calendar.CanAddEvent() then return false, "This character cannot add calendar events right now." end
   local ok, err = pcall(function()
     if has("OpenCalendar") then C_Calendar.OpenCalendar() end
     local clock = serverClock(raid.at)
@@ -377,7 +397,22 @@ function calendar.createEvent(raid)
     C_Calendar.AddEvent()
   end)
   if not ok then return false, tostring(err) end
+  pendingCreates[ref] = serverNow()
   return true
+end
+
+-- One event per real click: AddEvent is a hardware-event restricted API.
+function calendar.createMissing()
+  for _, raid in ipairs(calendar.discordRaids()) do
+    if not alreadyInGame(raid) then
+      local ok, problem = calendar.createEvent(raid)
+      ns.message(ok and ("Calendar event submitted: " .. raid.title .. ". Click again for the next missing event.") or (L("Could not create the event: ") .. tostring(problem)))
+      if ns.onCalendarChange then pcall(ns.onCalendarChange) end
+      return ok
+    end
+  end
+  ns.message("All upcoming Discord events are already in the guild calendar (or none are available).")
+  return false
 end
 
 function calendar.createNext(n)
@@ -447,6 +482,9 @@ ns.commandHandlers["calendar"] = function(args)
   elseif action == "create" then
     if not ns.isOfficer() then ns.message(L("Only officers can do that.")) return end
     calendar.createNext(args[2])
+  elseif action == "import" then
+    if not ns.isOfficer() then ns.message(L("Only officers can do that.")) return end
+    calendar.createMissing()
   else
     ns.message("/guilded calendar check | sync | list | create [n]")
   end

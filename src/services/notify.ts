@@ -37,8 +37,8 @@ async function notifyTarget(discordGuild: DiscordGuild, kind: NotifyKind = "noti
   return channel?.isTextBased() ? { channel, lang: address.lang } : null;
 }
 
-async function durableMessage(guild: DiscordGuild, guildId: string, channelId: string, message: MessageCreateOptions): Promise<boolean> {
-  const job = await enqueueDiscordJob(prisma, guildId, `message:${randomUUID()}`, "MESSAGE", { channelId, message: JSON.parse(JSON.stringify(message)) } as Prisma.InputJsonValue);
+async function durableMessage(guild: DiscordGuild, guildId: string, channelId: string, message: MessageCreateOptions, route: NotifyKind | "dungeon", coreId: string | null = null): Promise<boolean> {
+  const job = await enqueueDiscordJob(prisma, guildId, `message:${randomUUID()}`, "MESSAGE", { channelId, route, coreId, message: JSON.parse(JSON.stringify(message)) } as Prisma.InputJsonValue);
   await deliverDiscordJob(prisma, job.id, current => dispatchDiscordJob(guild, current));
   return (await prisma.discordJob.findUnique({ where: { id: job.id } }))?.status === "DONE";
 }
@@ -48,6 +48,7 @@ async function durableMessage(guild: DiscordGuild, guildId: string, channelId: s
 // and edit it later (e.g. syncing an applications card that /application
 // approve|reject|trial decided, instead of a button click).
 export const resolveNotifyChannel = notifyTarget;
+export const resolveNotifyAddress = notifyAddress;
 
 // Dungeon challenge posts go to /setup config channel, or the normal
 // announcements channel when none is set.
@@ -58,7 +59,7 @@ export async function notifyDungeon(discordGuild: DiscordGuild | null, embed: Lo
     const settings = await guildService.getSettings(guild.id);
     const channelId = settings?.dungeonChannelId ?? settings?.notifyChannelId;
     if (!channelId) return false;
-    return durableMessage(discordGuild, guild.id, channelId, { embeds: [embed(asLang(settings?.language))] });
+    return durableMessage(discordGuild, guild.id, channelId, { embeds: [embed(asLang(settings?.language))] }, "dungeon");
   } catch (error) {
     console.error("Failed to post dungeon announcement", error);
     return false;
@@ -75,7 +76,7 @@ export async function notify(discordGuild: DiscordGuild | null, content: string 
     const target = await notifyAddress(discordGuild, kind, coreId);
     if (!target) return;
     const text = typeof content === "string" ? content : content(target.lang);
-    await durableMessage(discordGuild, target.guildId, target.channelId, { embeds: [new EmbedBuilder().setDescription(text.slice(0, 1900)).setColor(0xd4a017)] });
+    await durableMessage(discordGuild, target.guildId, target.channelId, { embeds: [new EmbedBuilder().setDescription(text.slice(0, 1900)).setColor(0xd4a017)] }, kind, coreId);
   } catch (error) {
     console.error("Failed to post notification", error);
   }
@@ -88,7 +89,7 @@ export async function notifyEmbed(discordGuild: DiscordGuild | null, embed: Embe
   try {
     const target = await notifyAddress(discordGuild, channel, coreId);
     if (!target) return false;
-    return durableMessage(discordGuild, target.guildId, target.channelId, { embeds: [typeof embed === "function" ? embed(target.lang) : embed] });
+    return durableMessage(discordGuild, target.guildId, target.channelId, { embeds: [typeof embed === "function" ? embed(target.lang) : embed] }, channel, coreId);
   } catch (error) {
     console.error("Failed to post notification embed", error);
     return false;

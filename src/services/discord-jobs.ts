@@ -52,11 +52,28 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
   } else if (job.kind === "CALENDAR") {
     const { runCalendarPlan } = await import("./calendar-sync.js");
     const plan = payload["plan"] as unknown as import("./calendar-sync.js").CalendarPlan;
-    const summary = await runCalendarPlan(prisma, job.guildId, { ...plan, unmatched: plan.unmatched.map(event => ({ ...event, startsAt: new Date(event.startsAt) })) });
+    const planned = await prisma.raid.findMany({ where: { guildId: job.guildId, status: "PLANNED", isTest: false, id: { in: plan.matches.map(match => match.raidId) } }, select: { id: true } });
+    const eligible = new Set(planned.map(raid => raid.id));
+    const summary = await runCalendarPlan(prisma, job.guildId, { ...plan, matches: plan.matches.filter(match => eligible.has(match.raidId)), unmatched: plan.unmatched.map(event => ({ ...event, startsAt: new Date(event.startsAt) })) });
     for (const raidId of summary.changedRaidIds) await enqueueDiscordJob(prisma, job.guildId, `raid:${raidId}`, "RAID_POST", { raidId });
     if (summary.failed) throw new Error("Calendar signup retry required");
   } else if (job.kind === "MESSAGE") {
-    const channel = await guild.channels.fetch(String(payload["channelId"]));
+    let channelId = String(payload["channelId"]);
+    const route = payload["route"];
+    if (route === "dungeon") {
+      const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { dungeonChannelId: true, notifyChannelId: true } });
+      const current = settings?.dungeonChannelId ?? settings?.notifyChannelId;
+      if (!current) throw new Error("Configure dungeon announcements first");
+      channelId = current;
+    } else if (route !== undefined) {
+      if (!["notify", "raidLog", "loot", "officer", "application"].includes(String(route))) throw new Error("Unknown notification route");
+      const { resolveNotifyAddress } = await import("./notify.js");
+      const address = await resolveNotifyAddress(guild, route as "notify" | "raidLog" | "loot" | "officer" | "application", typeof payload["coreId"] === "string" ? payload["coreId"] : null);
+      if (!address) throw new Error("Configure the notification channel first");
+      if (address.guildId !== job.guildId) return; // A reset retired this guild identity.
+      channelId = address.channelId;
+    }
+    const channel = await guild.channels.fetch(channelId);
     if (!channel?.isTextBased()) throw new Error("Channel unavailable");
     // Discord only retains nonce deduplication briefly. A visible footer is also checked
     // after a crash so a delayed retry can reuse the already posted announcement.

@@ -394,7 +394,7 @@ function ns.effectiveStanding(rawName, coreId)
     if sameAccount then
       for _, entry in ipairs(account.ledger or {}) do
         local samePool = (entry.coreId or "") == (coreId or "")
-        local includedInLocalPublish = not coreId and s and s.from == playerName() and db.localPublishedRefs and db.localPublishedRefs[entry.id]
+        local includedInLocalPublish = not coreId and s and s.localPublish == true and db.localPublishedRefs and db.localPublishedRefs[entry.id]
         if samePool and (not baseline or (entry.pending and not accepted["addon:qg:" .. tostring(entry.id)] and not includedInLocalPublish)) then
           ep, gp = ep + (entry.epAmount or 0), gp + (entry.gpAmount or 0)
         end

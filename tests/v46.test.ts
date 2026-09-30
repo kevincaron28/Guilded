@@ -67,7 +67,7 @@ const baseFacts: SetupFacts = {
   raidChannel: { name: "raid-signups", exists: true, botCanPost: true },
   logChannel: { name: "journal", exists: true, botCanPost: true },
   welcomeChannel: { name: "welcome", exists: true, botCanPost: true },
-  autoRoles: [], epgpConfigured: true, remindersOn: true, weeklyReportOn: true, companionTokenSet: true, linkedCharacters: 3
+  autoRoles: [], epgpConfigured: true, remindersOn: true, weeklyReportOn: true, companionPaired: true, linkedCharacters: 3
 };
 
 describe("setup checklist: every channel and every bot message", () => {

@@ -55,15 +55,17 @@ upgrade to Pay As You Go, set the budget alert, use the files in `deploy/`, and
 keep the desktop shortcut as your backup way to run the bot. Never run both at
 the same time (two copies with one bot token answer every command twice).
 
+For the 5.0 upgrade, follow [the release handoff](V5_0_RELEASE_HANDOFF.md) first: it includes the ledger preflight, backup/restore gates, coordinated companion update, and rollback requirements.
+
 ## Steps
 
 ### 0. Before you start (on your PC)
 
-- Push the project to a **private** GitHub repository (the server clones it).
+- Use the GitHub repository (the server clones it). This project is public; never commit credentials or exported guild data.
   `.env.local`, `companion/companion.config.json` and `backups/` are ignored by git;
   they never go to GitHub.
 - Write down: your Discord bot token, `DATABASE_URL`, `DISCORD_GUILD_ID`,
-  `DISCORD_CLIENT_ID`, `COMPANION_UPLOAD_TOKEN`, and the optional `WCL_*` values.
+  `DISCORD_CLIENT_ID`, and the optional `WCL_*` values.
   They are all in your `.env.local`.
 
 ### 1. Create the server
@@ -103,7 +105,8 @@ sudo journalctl -u guilded -f         # watch it start
 ```
 
 Set in `.env.local`: `COMPANION_API_HOST=127.0.0.1` (Caddy is the only thing
-allowed to reach it) and the same `COMPANION_UPLOAD_TOKEN` as on your PC.
+allowed to reach it). Version 5.0 uses per-user pairing credentials; the retired
+`COMPANION_UPLOAD_TOKEN` grants no access and can be removed.
 
 ### 4. Switch over
 
@@ -113,7 +116,8 @@ allowed to reach it) and the same `COMPANION_UPLOAD_TOKEN` as on your PC.
 3. On your PC edit `companion/companion.config.json`:
    `"uploadUrl": "https://qcgold.duckdns.org/api/v1/addon-imports"`.
    (`start-companion-app.bat` now only starts the companion; the bot is no longer
-   started locally.) Restart the companion: it should print `Uploaded ...` and
+   started locally.) In Discord obtain your personal pairing code with
+   `/character pair`, then enter it in the companion. Restart the companion: it should print `Uploaded ...` and
    `Wrote EPGP standings ...`.
 4. `https://qcgold.duckdns.org/health` should answer `{"ok":true}` in a browser.
    Add that URL to a free uptime monitor (UptimeRobot) to get an email if the
@@ -140,9 +144,9 @@ and the companion (officers' PCs) are updated where they run.
 
 ## Security notes
 
-- The API only answers `/health` without a token; every other path needs the
-  bearer token, compared in constant time.
-- Ten wrong tokens from one address in ten minutes locks that address out.
-- Keep `COMPANION_UPLOAD_TOKEN` at 32+ random characters and never commit it.
+- Health is public. Pairing requires a short-lived code issued through Discord.
+- Uploads and standings require a personal paired credential and current guild membership.
+- Officer access is checked on each request; member uploads are limited to their own character data.
+- Never share pairing codes or commit companion credentials. Invalid pairing attempts are rate limited.
 - Keep the Discord bot token only in `.env.local` on the one machine running the bot.
 - `sudo apt install unattended-upgrades` keeps the server patched.

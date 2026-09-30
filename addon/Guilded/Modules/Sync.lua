@@ -370,7 +370,7 @@ function ns.publishLocalStandings()
   for _, account in pairs(d.epgp or {}) do
     for _, entry in ipairs(account.ledger or {}) do if entry.id then d.localPublishedRefs[entry.id] = true end end
   end
-  d.standings = { updatedAt = date("!%Y-%m-%dT%H:%M:%S.000Z", ns.util.serverTime()), baseGp = baseGp, players = players, from = ns.playerName() .. " (in game)" }
+  d.standings = { updatedAt = date("!%Y-%m-%dT%H:%M:%S.000Z", ns.util.serverTime()), baseGp = baseGp, players = players, localPublish = true, from = ns.playerName() .. " (in game)" }
   lastShareAt = 0
   shareStandings()
   return true, count

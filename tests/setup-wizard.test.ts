@@ -10,8 +10,7 @@ vi.mock("../src/commands/context.js", () => ({
   guildService: { getSettings: vi.fn(async () => settings), updateSettings: vi.fn() },
   requireGuildContext: vi.fn()
 }));
-vi.mock("../src/database.js", () => ({ prisma: { character: { count: vi.fn(async () => 0) } } }));
-vi.mock("../src/config.js", () => ({ config: { COMPANION_UPLOAD_TOKEN: undefined } }));
+vi.mock("../src/database.js", () => ({ prisma: { character: { count: vi.fn(async () => 0) }, companionCredential: { count: vi.fn(async () => 0) } } }));
 
 const roles = [{ id: "r1", name: "Officer", comparePositionTo: () => -1 }];
 const rolesCache = {

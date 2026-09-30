@@ -6,7 +6,7 @@ What is left before publishing is in [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md
 
 ## Status (2026-10-10): version 5.0.0, ready to publish as a Beta (4.0.0, 4.5.0 and 4.6.0 were never published separately)
 
-5.0 added a guild map, Raider.IO-style dungeon scores, an in-game group board, raid tools, GP deduction and
+5.0 added a guild map, Raider.IO-style dungeon scores, raid tools, GP deduction and
 standings without the bot in game; on Discord, core channels made and archived by themselves, group alerts
 matched to level and roles, and an answer channel (officer answers, optional free AI). It also fixes the
 4.6 companion installer, which did not start. Details: [docs/V5_0_HANDOFF.md](docs/V5_0_HANDOFF.md).

@@ -36,7 +36,6 @@ switched off:
 | `sim` | Test raid / dungeon run for officers |
 | `guildmap` | Guildmates on your world map and minimap (`/guilded map`) |
 | `scores` | A dungeon score per player from recorded runs, on player tooltips (`/guilded score`) |
-| `groups` | The in-game group board with alerts (`/guilded lfg`) |
 | `raidtools` | Raid target icons, mark the tanks, world markers, boss plans (`/guilded rt`) |
 
 Raids, attendance, EPGP, loot, the gear check, standings and the version
@@ -222,7 +221,6 @@ presence, loot, and dungeon runs. An officer reviews and applies it with
 ## Version 5.0 additions
 
 - **Guild map** (module `guildmap`): guildmates who run Guilded show as class-coloured dots on the world map and minimap (name, level and zone on hover). Each client shares only its own position, never inside an instance or in combat; `/guilded map share off` stops sharing, `/guilded map show off` hides the dots.
-- **Dungeon scores** (module `scores`): each dungeon counts once with a player's best completed run (dungeon level x 2, x speed against the guild record, minus 5% per death). On player tooltips, the **Groups** page and `/guilded score [player|top]`. Works without Discord.
-- **Group board** (module `groups`): `/guilded lfg post BRD 55-60 need healer` (or the Groups page) posts a group to the guild; guildmates whose alerts, level and roles fit get a raid warning. `/guilded lfg alerts dungeon,pvp tank,healer` sets yours.
+- **Dungeon scores** (module `scores`): each dungeon counts once with a player's best completed run (dungeon level x 2, x speed against the guild record, minus 5% per death). On player tooltips, the **Scores** page and `/guilded score [player|top]`. Works without Discord.
 - **Raid tools** (module `raidtools`, **Raid tools** page for leaders): target icons, **Mark tanks**, world marker buttons, and boss plans shown on every raider's screen (`/guilded rt plan share <boss>`) or posted in raid chat.
 - **Deduct GP** on the EPGP page (`/guilded gpdeduct`), **explain the roll games** in chat (Games page, `/guilded games explain`), and `/guilded standings publish` for guilds without the bot.

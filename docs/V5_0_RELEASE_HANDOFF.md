@@ -6,8 +6,8 @@ or real-game checks have passed just because unit tests pass.
 
 ## Delivery status and offline import
 
-The cloud workspace completed 784 tests across 101 files, TypeScript, ESLint, addon static
-validation, both npm audits (zero reported vulnerabilities), and the 37-file addon ZIP.
+The cloud workspace completed 781 tests across 101 files, TypeScript, ESLint, addon static
+validation, both npm audits (zero reported vulnerabilities), and the 36-file addon ZIP.
 GitHub rejected publishing with HTTP 403 "Resource not accessible by integration".
 No remote branch/PR was created, no CI run occurred, and no production deployment was attempted.
 PostgreSQL migration/restore and Windows installer checks are still REQUIRED.
@@ -59,6 +59,18 @@ CurseForge/GitHub release publication is a separate release gate, after the manu
   as raid leader/assistant. Floor markers remain subject to the actual client's supported commands.
 - The exact cause on the owner's live client cannot be confirmed until this build is installed
   and the above two-player test runs; do not describe the fixes as a completed in-game verification.
+
+## Removed addon group finder
+
+At the owner's request, the standalone in-game group finder has been removed: no Groups page,
+LFG posting/alerts, module switch, slash commands or GuildedLFG message receiver. Dungeon run
+tracking and scores remain; scores have their own Scores page. Discord group creation, signups
+and alerts remain unchanged. Use the game's built-in finder for in-game groups.
+
+Local Claude: install the full updated addon including Guilded.toc. An old Groups.lua left by an
+overlay install is not loaded by the new TOC; remove only that obsolete module file after backup.
+Preserve SavedVariables; unused old lfgAlerts/module preferences are harmless. Verify the menu has
+Scores and no Groups page, dungeon tracking still works, and Discord groups still work.
 
 ## What changed
 
@@ -141,7 +153,7 @@ CurseForge/GitHub release publication is a separate release gate, after the manu
 - Ordinary member: personal upload works, arbitrary ledger/other-guild access does not. Demote the
   officer/revoke its credential and verify the next request loses privilege.
 - Verify every 5.0 item in `RELEASE_CHECKLIST.md`: permissions, bidding/council/reserves, roster/backup
-  invites, map, group board, raid tools, recipes, French UI, and real WoW API behavior.
+  invites, map, raid tools, recipes, French UI, and real WoW API behavior.
 - One real raid night with officer diagnostics and accurate totals before promoting Beta to Release.
 
 ## Rollback

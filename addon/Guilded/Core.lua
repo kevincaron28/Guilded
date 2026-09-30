@@ -1006,10 +1006,9 @@ ns.MODULES = {
   { key = "sim", name = "Test tools", desc = "fake raid and dungeon runs for officers", commands = { "sim" } },
   { key = "guildmap", name = "Guild map", desc = "guildmates on your world map and minimap", commands = { "map" } },
   { key = "scores", name = "Dungeon scores", desc = "a dungeon score per player from recorded runs, on tooltips", commands = { "score" } },
-  { key = "groups", name = "Group board", desc = "post a group to the guild in game, alerts for groups you fit", commands = { "lfg" } },
   { key = "raidtools", name = "Raid tools", desc = "target icons, world markers and boss plans for raid leaders", commands = { "rt", "raidtools" } }
 }
-local MODULE_ALIASES = { rt = "raidtools", map = "guildmap", score = "scores", lfg = "groups", group = "groups", casino = "games", game = "games", bid = "bidding", bids = "bidding", gp = "bidding", lc = "council", reserves = "reserve", recipe = "recipes", cooldown = "recipes", crafting = "recipes", softres = "reserve", sr = "reserve", lootcouncil = "council", dungeons = "dungeon", test = "sim", tests = "sim", consumable = "consumables", consumes = "consumables", flask = "consumables" }
+local MODULE_ALIASES = { rt = "raidtools", map = "guildmap", score = "scores", casino = "games", game = "games", bid = "bidding", bids = "bidding", gp = "bidding", lc = "council", reserves = "reserve", recipe = "recipes", cooldown = "recipes", crafting = "recipes", softres = "reserve", sr = "reserve", lootcouncil = "council", dungeons = "dungeon", test = "sim", tests = "sim", consumable = "consumables", consumes = "consumables", flask = "consumables" }
 local moduleByKey, commandModule, activeAtLogin = {}, {}, {}
 for _, module in ipairs(ns.MODULES) do
   moduleByKey[module.key] = module

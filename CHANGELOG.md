@@ -28,7 +28,6 @@
 - **Explain the games in chat:** buttons on the Games page (and `/guilded games explain highroll|deathroll|duel`) post each game's rules in party/raid chat, so new players can join the rolls.
 - **Guild map** (module `guildmap`): guildmates who run Guilded show as class-coloured dots on your world map and minimap, with name, level and zone on hover. Nothing is shared inside instances or in combat; `/guilded map share off` stops sharing yours.
 - **Dungeon scores** (module `scores`): a Raider.IO-style score for every player, from the dungeon runs Guilded records: each dungeon counts once with the player's best run (dungeon level, speed against the guild record, deaths). Shown on player tooltips, on the new **Groups** page and with `/guilded score [player|top]`.
-- **Group board** (module `groups`): post a group to the guild without Discord (`/guilded lfg post BRD 55-60 need healer`, or the Groups page), see open groups with the leader's score, and get a raid warning when a group you fit is posted.
 - **Raid tools** (module `raidtools`, the v5 roadmap item): a **Raid tools** page for leaders with the eight raid target icons, **Mark tanks** (kill-order icons on the tanks), world marker buttons, and **boss plans**: a few lines per boss that open on every raider's screen before the pull (or go to raid chat for players without the addon). `/guilded rt`.
 - **Standings without the bot:** an officer can share the EP/GP recorded on their PC as the guild's standings (**Share my ledger as standings** on the Standings page, `/guilded standings publish`). A newer bot upload replaces them.
 - The window is a little taller, to fit the new Groups and Raid tools pages.
@@ -229,3 +228,5 @@ See ROADMAP.md, "Progress log".
 - Direct minimap shortcuts: Shift-click Raid tools, Alt-click guild map.
 - Fix Classic minimap axis conversion and map updates after enabling the module.
 - Add parent-map projection, rate-limited position refresh, visible pin layers and map diagnostics.
+
+- Removed the standalone addon group finder and LFG alerts; retained dungeon tracking, a dedicated Scores page, and Discord groups.

@@ -61,8 +61,7 @@ free Discord bot when you want signups and reports outside the game too.
   attunements, with a one-line readiness status for every raider.
 - **Roll games:** high roll, deathroll, 1v1 duels, with a button that explains each game in chat. No gold, no wagers, no debts.
 - **Guild map:** see guildmates on your world map and minimap.
-- **Dungeon scores and a group board:** a score per player from recorded runs (on tooltips, like Raider.IO), and
-  groups posted to the guild with an alert when one fits your level and role. No Discord needed.
+- **Dungeon scores:** a score per player from recorded runs, on tooltips and the Scores page. No Discord needed.
 - **Raid tools for leaders:** raid target icons, mark the tanks, world markers and boss plans shown on every
   raider's screen.
 - **Mass invite:** `/guilded invite raid` invites everyone who signed up on Discord.
@@ -97,7 +96,6 @@ PolyForm Noncommercial license. Not affiliated with or endorsed by Blizzard Ente
 **New in 5.0**
 - **Guild map:** guildmates as dots on your world map and minimap (never shared in instances or combat).
 - **Dungeon scores:** a Raider.IO-style score from the dungeon runs Guilded records, on player tooltips.
-- **Group board:** post a group to the guild in game and get an alert when a group you fit is posted.
 - **Raid tools:** raid target icons, mark the tanks, world marker buttons, and boss plans on every raider's screen.
 - **Deduct GP**, **explain the roll games in chat**, and **standings without the bot** (an officer shares their ledger).
 - Discord bot (optional): each raid core's channels are made and archived by themselves, group alerts matched to your level and roles, and an answer channel with officer-written answers (optional free AI answers).

@@ -11,7 +11,7 @@
 -- The score is the sum over dungeons. Every client works it out from the runs it knows, and
 -- each player also sends their own score to the guild (prefix GuildedScore), so guildmates who
 -- were never in a run with them still see it. It shows on player tooltips, on the Scores page
--- and next to group leaders on the Groups page.
+-- and on the Scores page.
 local addonName, ns = ...
 ns = ns or {}
 

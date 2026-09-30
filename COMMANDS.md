@@ -49,8 +49,6 @@ Hover a page name for what it is for. The **Player** box (target someone, or **M
 | `/guilded standings publish` | Officers, for guilds without the bot: share the EP/GP recorded on your PC as the guild's standings (a newer bot upload replaces them) |
 | `/guilded map` / `map share on\|off` / `map show on\|off` | Guild map: guildmates as dots on your world map and minimap; stop sharing your position, or hide the dots (never shared in instances or combat) |
 | `/guilded score [player]` / `score top` | Dungeon score: a player's best run per dungeon and total, or the guild's best (also on player tooltips) |
-| `/guilded lfg` / `lfg post <what>` / `lfg close` | The in-game group board: open groups, post yours (levels like `55-60` and tank / heal / dps are read from the text), close it |
-| `/guilded lfg alerts <kinds> [roles]` / `lfg alerts off` | A raid warning when a guildmate posts a group you fit, e.g. `dungeon,pvp tank,healer` |
 | `/guilded dungeon status` | The dungeon run being recorded: state, timer, bosses, deaths |
 | `/guilded dungeon start` / `complete` / `abandon` | Fix a run by hand when detection missed it (group leader, officer, or solo) |
 | `/guilded dungeon check` | Checks which dungeon features work on this client (send the result to an officer) |

@@ -599,7 +599,7 @@ describe("Guilded AI product reference", () => {
     expect(reference).toContain("title (required): Raid name");
     expect(reference).toContain("/guilded help");
     expect(reference).toContain("/guilded map share on|off");
-    expect(reference).toContain("/guilded lfg");
+    expect(reference).not.toContain("/guilded lfg");
   });
 });
 

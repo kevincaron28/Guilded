@@ -274,7 +274,6 @@ function withStandalone(level = 58): LuaSession {
     function RaidNotice_AddMessage(_, text) WARNINGS[#WARNINGS + 1] = text end
   `);
   session.load("Modules/Scores.lua");
-  session.load("Modules/Groups.lua");
   return session;
 }
 const run = (players: Record<string, { deaths?: number; presentSec?: number }>, name: string, sec: number, id = "r") =>
@@ -320,44 +319,6 @@ describe("dungeon scores (no bot needed)", () => {
       function UnitIsPlayer() return true end; function UnitName() return "Ann" end
       NS.scores.decorateUnit(tip)`);
     expect(s.run(`return LINES[1]`)).toBe("Guilded dungeon score: 300 (4 dungeons)");
-  });
-});
-
-describe("in-game group board (no bot needed)", () => {
-  it("reads the kind, level range and roles from a post, and skips times", () => {
-    const s = withStandalone();
-    const parse = (text: string) => s.run(`local k, a, b, r = NS.groups.parse(${JSON.stringify(text)}); return k .. "|" .. tostring(a) .. "|" .. tostring(b) .. "|" .. table.concat(r, ",")`);
-    expect(parse("Stratholme need tank and heal")).toBe("dungeon|52|60|TANK,HEALER");
-    expect(parse("pvp WSG premade 60")).toBe("pvp|nil|nil|");
-    expect(parse("BRD 55-60 dps")).toBe("dungeon|55|60|DPS");
-    expect(parse("leveling duo lvl 34")).toBe("leveling|34|34|");
-    expect(parse("Mortemines ce soir 20-22h")).toBe("dungeon|18|26|");
-  });
-
-  it("alerts guildmates whose alerts, level and roles fit, and lists open groups until closed", () => {
-    const s = withStandalone(58);
-    s.run(`NS.groups.setAlerts("dungeon", "healer")`);
-    s.run(`NS.groups.receive("O|123|dungeon|52|60|TANK,HEALER|Strat UD need tank and heal", "Ann-Realm")`);
-    expect(s.run(`return WARNINGS[1]`)).toContain("Ann is looking for a group: Strat UD need tank and heal (52-60)");
-    s.run(`NS.groups.receive("O|124|dungeon|52|60|TANK|Strat need tank", "Bob")`);       // tank only: no alert
-    s.run(`NS.groups.receive("O|125|dungeon|20|30||Deadmines", "Cy")`);                  // wrong level: no alert
-    s.run(`NS.groups.receive("O|126|pvp||||WSG", "Dee")`);                                 // kind not wanted
-    expect(s.run(`return #WARNINGS`)).toBe("1");
-    expect(s.run(`return NS.groups.listText()`).split("\n")).toHaveLength(4);
-    s.run(`NS.groups.receive("X|123", "Ann")`);
-    s.run(`NS.groups.receive("X|124", "Mallory")`); // not the leader: ignored
-    expect(s.run(`return NS.groups.listText()`)).not.toContain("Ann");
-    expect(s.run(`return NS.groups.listText()`)).toContain("Bob");
-  });
-
-  it("posts your group to the guild and closes it", () => {
-    const s = withStandalone();
-    s.run(`NS.commandHandlers["lfg"]({ "post", "BRD", "55-60", "need", "healer" })`);
-    expect(s.run(`return SENT[#SENT].text`)).toMatch(/^O\|\d+\|dungeon\|55\|60\|HEALER\|BRD 55-60 need healer$/);
-    expect(s.run(`return NS.groups.listText()`)).toContain("Me: BRD 55-60 need healer");
-    s.run(`NS.commandHandlers["lfg"]({ "close" })`);
-    expect(s.run(`return SENT[#SENT].text`)).toMatch(/^X\|\d+$/);
-    expect(s.run(`return NS.groups.listText()`)).toContain("No open groups");
   });
 });
 

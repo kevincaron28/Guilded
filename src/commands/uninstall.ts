@@ -19,7 +19,8 @@ import { prisma } from "../database.js";
 import { guildService } from "./context.js";
 import { BRAND } from "../brand.js";
 import { isPermissionRoleName, type Permission } from "../permissions.js";
-import { categoryNames, channelNames, type CategoryKey } from "../setup-names.js";
+import { RESET_REQUIRED_CHANNELS, isSetupLeftover, categoryNames, channelNames, type CategoryKey } from "../setup-names.js";
+import { forgetAnswerSettings } from "./faq.js";
 import { ALL_CHANNELS } from "./setup.js";
 import { ARCHIVE_CATEGORY, coreChannelNames } from "../services/core-channels.js";
 
@@ -56,7 +57,7 @@ interface Impact {
   counts: { members: number; characters: number; raids: number; epgp: number; loot: number; imports: number; dungeonRuns: number };
 }
 
-async function gatherImpact(guild: DiscordGuild, guildId: string, settings: GuildSettings): Promise<Impact> {
+export async function gatherImpact(guild: DiscordGuild, guildId: string, settings: GuildSettings): Promise<Impact> {
   const removableChannels: RemovableChannel[] = [];
   const keptChannels: string[] = [];
   for (const field of ALL_CHANNELS) {
@@ -64,19 +65,26 @@ async function gatherImpact(guild: DiscordGuild, guildId: string, settings: Guil
     if (!id) continue;
     const channel = await guild.channels.fetch(id).catch(() => null);
     if (!channel) continue;
-    // Only delete a channel that's still under the exact name Guilded gives it (either
-    // language). A renamed channel, or one an admin picked that already existed, is left alone.
-    if (channelNames(field).includes(channel.name)) removableChannels.push({ id: channel.id, name: channel.name });
+    // General signups, guide and FAQ are explicitly included in the reset,
+    // using their configured IDs even after a rename. Other channels retain
+    // the conservative name check.
+    if (RESET_REQUIRED_CHANNELS.includes(field) || channelNames(field).includes(channel.name)) removableChannels.push({ id: channel.id, name: channel.name });
     else keptChannels.push(`<#${channel.id}>`);
   }
   // The welcome channel has no standard name (it's always admin-picked), so never auto-delete it.
   if (settings.welcomeChannelId) {
     const channel = await guild.channels.fetch(settings.welcomeChannelId).catch(() => null);
-    if (channel && !keptChannels.includes(`<#${channel.id}>`)) keptChannels.push(`<#${channel.id}>`);
+    if (channel && !removableChannels.some(row => row.id === channel.id) && !keptChannels.includes(`<#${channel.id}>`)) keptChannels.push(`<#${channel.id}>`);
   }
 
   const coreCategories: string[] = [];
   await guild.channels.fetch();
+  for (const channel of guild.channels.cache.values()) {
+    if (channel.type !== ChannelType.GuildText) continue;
+    const parentName = channel.parentId ? guild.channels.cache.get(channel.parentId)?.name : undefined;
+    if (ALL_CHANNELS.some(field => isSetupLeftover(field, channel.name, parentName))
+      && !removableChannels.some(row => row.id === channel.id)) removableChannels.push({ id: channel.id, name: channel.name });
+  }
   for (const category of guild.channels.cache.values()) {
     if (category.type !== ChannelType.GuildCategory || !(category.name === ARCHIVE_CATEGORY || category.name.startsWith(`${ARCHIVE_CATEGORY} `))) continue;
     coreCategories.push(category.id);
@@ -124,7 +132,7 @@ async function gatherImpact(guild: DiscordGuild, guildId: string, settings: Guil
     prisma.addonImport.count({ where: { guildId } }),
     prisma.dungeonRun.count({ where: { guildId } })
   ]);
-  return { removableChannels, keptChannels, coreCategories, roleNames: [...roleNames], counts: { members, characters, raids, epgp, loot, imports, dungeonRuns } };
+  return { removableChannels: [...new Map(removableChannels.map(row => [row.id, row])).values()], keptChannels: keptChannels.filter(mention => !removableChannels.some(row => mention === `<#${row.id}>`)), coreCategories, roleNames: [...roleNames], counts: { members, characters, raids, epgp, loot, imports, dungeonRuns } };
 }
 
 function confirmEmbed(guild: DiscordGuild, impact: Impact, reset = false): EmbedBuilder {
@@ -136,7 +144,7 @@ function confirmEmbed(guild: DiscordGuild, impact: Impact, reset = false): Embed
       `${c.dungeonRuns} dungeon run(s), ${c.characters} linked character(s) across ${c.members} member record(s) — all deleted.`,
     "",
     impact.removableChannels.length
-      ? `**Channels to delete** (still under the name I gave them): ${impact.removableChannels.map((ch) => `#${ch.name}`).join(", ")}. Their categories too, if that empties them.`
+      ? `**Channels to delete** (configured signup, guide and FAQ channels, plus recognized Guilded channels): ${impact.removableChannels.map((ch) => `#${ch.name}`).join(", ")}. Their categories too, if that empties them.`
       : "**Channels to delete:** none — nothing of mine matched by name.",
     impact.keptChannels.length
       ? `**Left alone** (renamed, or not confidently mine): ${impact.keptChannels.join(", ")}. Delete these yourself if you want them gone.`
@@ -199,6 +207,7 @@ export async function performUninstall(guild: DiscordGuild, guildId: string, imp
     throw new Error("Database wipe failed; the bot remains in this server.");
   }
 
+  forgetAnswerSettings(guild.id);
   return [
     `**${BRAND.name} is ${reset ? "reset" : "uninstalled"} for "${guild.name}".**`,
     deletedChannels.length ? `Deleted channels: ${deletedChannels.map((n) => `#${n}`).join(", ")}.` : "No channels of mine matched to delete.",

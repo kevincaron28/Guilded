@@ -12,6 +12,7 @@ import { findPlayer } from "../services/player-search.js";
 import { executeDungeonGroup } from "./dungeon-group.js";
 import { openGroupAlerts } from "./group-alerts.js";
 import { guildService, requireGuildContext } from "./context.js";
+import { seasonArchive, seasonRows } from "../services/season-archive.js";
 
 // Dungeon challenge views (roadmap D5). Points come from runs the addon
 // recorded and an officer imported (/import apply).
@@ -31,6 +32,10 @@ export const dungeonCommand = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName("history").setDescription("The most recent dungeon runs")
     .addUserOption((o) => o.setName("member").setDescription("Only runs with this member")))
   .addSubcommand((sub) => sub.setName("season").setDescription("The current season and its leaders"))
+  .addSubcommand(sub => sub.setName("archive").setDescription("All seasons, including older ones")
+    .addIntegerOption(option => option.setName("page").setDescription("Page number").setMinValue(1).setMaxValue(100000)))
+  .addSubcommand(sub => sub.setName("hall-of-fame").setDescription("Past season champions")
+    .addIntegerOption(option => option.setName("page").setDescription("Page number").setMinValue(1).setMaxValue(100000)))
   .addSubcommand((sub) => sub.setName("guide").setDescription("Post or repair the pinned dungeon signup button")
     .setDescriptionLocalizations({ fr: "Publier ou réparer le bouton épinglé pour les inscriptions aux donjons" }))
   .addSubcommand((sub) => sub.setName("group").setDescription("Form a dungeon group: a signup post with buttons and a temporary voice channel")
@@ -87,6 +92,14 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
   if (!context) return;
   const lang = asLang((await guildService.getSettings(context.guildId))?.language);
   const subcommand = interaction.options.getSubcommand();
+  if (subcommand === "archive" || subcommand === "hall-of-fame") {
+    await interaction.deferReply({ ephemeral: true });
+    const archive = await seasonArchive(prisma, context.guildId, interaction.options.getInteger("page") ?? 1, subcommand === "hall-of-fame");
+    await interaction.editReply({ embeds: [new EmbedBuilder().setColor(0xd4a017)
+      .setTitle(subcommand === "archive" ? lang === "fr" ? "Saisons" : "Season archive" : lang === "fr" ? "Temple de la renommée" : "Hall of Fame")
+      .setDescription(archive.text).setFooter({ text: `${archive.current} / ${archive.pages}` })], allowedMentions: { parse: [] } });
+    return;
+  }
   if (subcommand === "guide") {
     const settings = await guildService.getSettings(context.guildId);
     const channel = settings?.dungeonSignupChannelId
@@ -114,7 +127,8 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
     const period = (seasonId ? "season" : interaction.options.getString("period") ?? "season") as Period;
     const instanceId = dungeonOption(interaction);
     const season = seasonId ? await prisma.dungeonSeason.findFirst({ where: { guildId: context.guildId, id: seasonId } }) : period === "season" ? await activeSeasonOrNull(prisma, context.guildId) : null;
-    const rows = await leaderboard(prisma, context.guildId, period, instanceId, 10, new Date(), seasonId);
+    if (seasonId && !season) throw new Error("That season does not belong to this guild.");
+    const rows = season?.status === "ENDED" && instanceId === null ? await seasonRows(prisma, context.guildId, season) : await leaderboard(prisma, context.guildId, period, instanceId, 10, new Date(), seasonId);
     embed.setTitle(period === "season"
       ? t(lang, "dungeon.board.season", { season: season?.name ?? "Season 1" })
       : t(lang, period === "week" ? "dungeon.board.week" : "dungeon.board.all"));

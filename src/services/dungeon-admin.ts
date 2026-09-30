@@ -141,6 +141,16 @@ export async function startSeason(database: Db, guildId: string, name: string) {
       }
     }
     const now = new Date();
+    // Freeze names, points and scoring rules while the season lock is held.
+    // Each accidentally duplicated active season receives its own standings.
+    const rules = await tx.guildSettings.findUnique({ where: { guildId }, select: { dungeonConfig: true } });
+    for (const past of ended) {
+      const standings = past.id === ending?.id ? top : await leaderboard(tx, guildId, "season", null, Math.max(count, 1), now, past.id);
+      await tx.dungeonSeason.update({ where: { id: past.id }, data: {
+        finalStandings: standings as unknown as Prisma.InputJsonValue,
+        rulesSnapshot: dungeonConfig(rules?.dungeonConfig) as unknown as Prisma.InputJsonValue
+      } });
+    }
     await tx.dungeonSeason.updateMany({ where: { guildId, status: "ACTIVE" }, data: { status: "ENDED", endsAt: now } });
     const season = await tx.dungeonSeason.create({ data: { guildId, name: trimmed, startsAt: now } });
     return { season, ended: ended.map((row) => row.name), champions: champions.map((row) => row.name) };

@@ -1,5 +1,7 @@
 # Guilded 5.0 stabilization — local Claude update handoff
 
+Latest audit follow-up: `docs/SYSTEM_POLISH_2026-09-30.md` (database-backed Discord retries, officer sync dashboard, explicit calendar raid IDs, frozen season archives/Hall of Fame and encrypted offsite recovery). PoE 2 planning: `docs/POE2_GUILD_COMPETITION_PLAN.md`. Product stays 5.0.0/protocol 2; deploy migration `20260930180000_system_delivery_archive`, rebuild both client packages and reinstall while preserving pairing/SavedVariables. Real-client gates remain outstanding.
+
 Latest core raid, full setup reset and dungeon results changes: `docs/CORE_RAIDS_AND_DUNGEON_RESULTS.md`.
 
 Read this first, then `CLAUDE.md`. This supersedes the deployment order in older handoffs.

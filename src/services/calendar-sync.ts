@@ -25,7 +25,7 @@ export interface CalendarMatch {
 
 export interface CalendarPlan {
   matches: CalendarMatch[];
-  unmatched: { title: string; startsAt: Date }[];
+  unmatched: { title: string; startsAt: Date; reason?: string }[];
 }
 
 export const emptyCalendarPlan = (): CalendarPlan => ({ matches: [], unmatched: [] });
@@ -40,13 +40,16 @@ export async function planCalendarSync(tx: Tx, guildId: string, events: AddonCal
     if (event.startsAt.getTime() < now.getTime() - 2 * 3_600_000) continue;
     const start = event.startsAt.getTime();
     const candidates = await tx.raid.findMany({
-      where: { guildId, isTest: false, status: "PLANNED", scheduledAt: { gte: new Date(start - MATCH_WINDOW_MS), lte: new Date(start + MATCH_WINDOW_MS) } },
+      where: { guildId, isTest: false, status: "PLANNED", ...(event.botRaidId ? { id: event.botRaidId } : { scheduledAt: { gte: new Date(start - MATCH_WINDOW_MS), lte: new Date(start + MATCH_WINDOW_MS) } }) },
       select: { id: true, title: true, scheduledAt: true }
     });
     const same = (title: string) => title.trim().toLowerCase() === event.title.trim().toLowerCase();
-    const raid = candidates.sort((a, b) =>
-      Number(same(b.title)) - Number(same(a.title)) || Math.abs(a.scheduledAt.getTime() - start) - Math.abs(b.scheduledAt.getTime() - start))[0];
-    if (!raid) { plan.unmatched.push({ title: event.title, startsAt: event.startsAt }); continue; }
+    // Explicit IDs are guild-scoped and never fall back to a different raid.
+    // Legacy events require a unique title, not just proximity to another core's raid.
+    const eligible = event.botRaidId ? candidates.filter(row => row.id === event.botRaidId) : candidates.filter(row => same(row.title) || same(row.title.slice(0, 30)));
+    const raid = eligible.length === 1 ? eligible[0] : undefined;
+    if (!raid) { plan.unmatched.push({ title: event.title, startsAt: event.startsAt,
+      ...(eligible.length > 1 ? { reason: "Multiple matching raids; recreate the calendar event from Discord to link its identity." } : event.botRaidId ? { reason: "Linked raid unavailable in this guild; no other raid was selected." } : {}) }); continue; }
 
     // One entry per player: the best answer of any of their characters.
     const best = new Map<string, CalendarMatch["entries"][number]>();
@@ -76,7 +79,7 @@ export interface CalendarSummary {
   failed: number;
   declined: number;
   unlinked: string[];
-  unmatched: { title: string; startsAt: Date }[];
+  unmatched: { title: string; startsAt: Date; reason?: string }[];
   changedRaidIds: string[];
 }
 
@@ -124,7 +127,7 @@ export function describeCalendar(summary: CalendarSummary | null): string {
   }
   if (summary.unlinked.length > 0) parts.push(`Not linked to a Discord member (skipped): ${summary.unlinked.slice(0, 10).join(", ")}${summary.unlinked.length > 10 ? ", ..." : ""}.`);
   for (const event of summary.unmatched.slice(0, 5)) {
-    parts.push(`In-game event "${event.title}" (<t:${Math.floor(event.startsAt.getTime() / 1000)}:f>) has no Discord raid: create one with /raid create.`);
+    parts.push(`In-game event "${event.title}" (<t:${Math.floor(event.startsAt.getTime() / 1000)}:f>): ${event.reason ?? "no matching Discord raid; create one with /raid create."}`);
   }
   return parts.join("\n");
 }

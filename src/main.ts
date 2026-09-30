@@ -1,6 +1,8 @@
 import { ensureCoreDiscord } from "./services/raid-core.js";
 import { guildService } from "./commands/context.js";
 import { pendingSignupRaidIds, syncSignupEmbed } from "./commands/raid.js";
+import { runDiscordJobs } from "./services/discord-jobs.js";
+import { executeSystem } from "./commands/system.js";
 import { updateProfessionDirectory } from "./services/profession-directory.js";
 import {
   Client,
@@ -93,6 +95,7 @@ handlers.set("bank", executeBank);
 handlers.set("craft", executeCraft);
 handlers.set("help", executeHelp);
 handlers.set("uninstall", executeUninstall);
+handlers.set("system", executeSystem);
 
 async function repairCoreRaids(guild: import("discord.js").Guild, provision = false): Promise<void> {
   const record = await guildService.ensureGuild(guild.id, guild.name);
@@ -108,6 +111,8 @@ async function repairCoreRaids(guild: import("discord.js").Guild, provision = fa
 }
 
 client.once(Events.ClientReady, (readyClient) => {
+  void runDiscordJobs(readyClient).catch(reportJobError("Discord delivery queue"));
+  setInterval(() => void runDiscordJobs(readyClient).catch(reportJobError("Discord delivery queue")), 60_000);
   registerCommandsEverywhere().catch(reportJobError("Command registration"));
   console.info(`Logged in as ${readyClient.user.tag}`);
   for (const guild of readyClient.guilds.cache.values()) {

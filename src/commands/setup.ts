@@ -606,6 +606,9 @@ export async function createSectionChannels(guild: DiscordGuild, guildId: string
         name: spec.name, type: ChannelType.GuildText, topic: spec.topic, parent: category!.id,
         ...(overwrites ? { permissionOverwrites: overwrites } : {})
       }));
+    // Recovered guide/FAQ/signup channels belong to setup too; reapply their
+    // documented access so a reused guide cannot keep stale write permissions.
+    if (existing && overwrites && "permissionOverwrites" in existing) await existing.permissionOverwrites.set(overwrites);
     // Save each channel before posting guides so a partial setup remains recoverable.
     await guildService.updateSettings(guildId, { [field]: channel.id });
     if (field === "answerChannelId") forgetAnswerSettings(guild.id);

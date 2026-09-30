@@ -1,6 +1,8 @@
 import { createRaidService } from "../src/services/raid.js";
 import { createDungeonGroupService } from "../src/services/dungeon-group.js";
 import { runBackup } from "../src/services/backup.js";
+import { deliverDiscordJob, enqueueDiscordJob } from "../src/services/discord-jobs.js";
+import { startSeason } from "../src/services/dungeon-admin.js";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -23,11 +25,31 @@ try {
     const raid = await database.raid.findFirstOrThrow({ where: { title: "Release mirrored raid" } });
     assert.equal(raid.mirrorSignupMessageId, "core-message");
     assert.equal((await database.raidCore.findUniqueOrThrow({ where: { id: raid.coreId! } })).lootChannelId, "core-loot");
+    assert.equal((await database.discordJob.findFirstOrThrow({ where: { key: "release-test-board" } })).status, "DONE");
+    const final = await database.dungeonSeason.findFirstOrThrow({ where: { name: "Release season" } });
+    assert.equal((final.finalStandings as { points: number }[])[0]?.points, 100);
   } else {
     await database.guild.deleteMany({ where: { discordId: { startsWith: "release-test-" } } });
     const guild = await database.guild.create({ data: { discordId: "release-test-guild", name: "Release fixture" } });
     const member = await database.member.create({ data: { guildId: guild.id, discordUserId: "release-test-member", displayName: "Ann" } });
     const contender = await database.member.create({ data: { guildId: guild.id, discordUserId: "release-test-contender", displayName: "Bob" } });
+    const job = await enqueueDiscordJob(database, guild.id, "release-test-board", "DUNGEON_BOARD");
+    let sends = 0;
+    await Promise.all([1, 2].map(() => deliverDiscordJob(database, job.id, async () => { sends++; })));
+    assert.equal(sends, 1);
+    await enqueueDiscordJob(database, guild.id, "release-test-board", "DUNGEON_BOARD");
+    await deliverDiscordJob(database, job.id, async () => { await enqueueDiscordJob(database, guild.id, "release-test-board", "DUNGEON_BOARD"); });
+    assert.equal((await database.discordJob.findUniqueOrThrow({ where: { id: job.id } })).status, "PENDING");
+    await database.discordJob.update({ where: { id: job.id }, data: { lockedUntil: new Date(0), leaseToken: "expired-process" } });
+    await deliverDiscordJob(database, job.id, async () => {});
+    assert.equal((await database.discordJob.findUniqueOrThrow({ where: { id: job.id } })).status, "DONE");
+    const season = await database.dungeonSeason.create({ data: { guildId: guild.id, name: "Release season" } });
+    await database.dungeonPointTransaction.createMany({ data: [member, contender].map(player => ({ guildId: guild.id, memberId: player.id, seasonId: season.id, amount: 100, reason: "Release fixture", source: "release-test", createdBy: "release-test" })) });
+    await startSeason(database, guild.id, "Next release season");
+    const closed = await database.dungeonSeason.findUniqueOrThrow({ where: { id: season.id } });
+    assert.equal((closed.finalStandings as unknown[]).length, 2);
+    assert.ok(closed.rulesSnapshot);
+    assert.equal(await database.dungeonAchievement.count({ where: { seasonId: season.id } }), 2);
     const groups = createDungeonGroupService(database);
     const group = await groups.create({ guildId: guild.id, title: "Concurrent dungeon", leaderId: member.id, channelId: null });
     const contenders = await Promise.all([groups.join(group.id, guild.id, member.id, "TANK"), groups.join(group.id, guild.id, contender.id, "TANK")]);
@@ -51,6 +73,7 @@ try {
     // Full setup reset replaces only the selected guild and cascades its credentials/data.
     const resetGuild = await database.guild.create({ data: { discordId: "release-test-reset", name: "Reset fixture", settings: { create: {} } } });
     const resetMember = await database.member.create({ data: { guildId: resetGuild.id, discordUserId: "reset-member", displayName: "Reset" } });
+    const resetJob = await enqueueDiscordJob(database, resetGuild.id, "reset-job", "PROFESSIONS");
     await database.companionCredential.create({ data: { memberId: resetMember.id, tokenHash: "disposable-reset-credential" } });
     const resetCharacter = await database.character.create({ data: { memberId: resetMember.id, name: "ResetChar", realm: "ReleaseTest", className: "Warrior", professions: { create: { profession: "Mining", skillLevel: 300 } } } });
     const resetAt = new Date();
@@ -62,6 +85,7 @@ try {
     assert.equal(await database.character.count({ where: { id: resetCharacter.id } }), 0);
     assert.equal(await database.professionSkill.count({ where: { characterId: resetCharacter.id } }), 0);
     assert.equal(await database.member.count({ where: { guildId: resetGuild.id } }), 0);
+    assert.equal(await database.discordJob.count({ where: { id: resetJob.id } }), 0);
     assert.ok(await database.guild.findUnique({ where: { id: guild.id } }));
     const fresh = await database.guild.findUniqueOrThrow({ where: { discordId: "release-test-reset" } });
     const freshMember = await database.member.create({ data: { guildId: fresh.id, discordUserId: "reset-member", displayName: "Reset" } });

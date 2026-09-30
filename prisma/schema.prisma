@@ -131,6 +131,7 @@ model Guild {
   bankRequests        BankRequest[]
   craftRequests       CraftRequest[]
   dungeonSeasons      DungeonSeason[]
+    discordJobs         DiscordJob[]
   dungeonRuns         DungeonRun[]
   dungeonPoints       DungeonPointTransaction[]
   dungeonAchievements DungeonAchievement[]
@@ -780,6 +781,9 @@ model DungeonSeason {
   endsAt       DateTime?
   // ACTIVE or ENDED. Ended seasons stay viewable forever.
   status       String                    @default("ACTIVE")
+  // Published final standings. Later ledger corrections do not rewrite the award ceremony.
+  finalStandings Json?
+  rulesSnapshot Json?
   createdAt    DateTime                  @default(now())
   guild        Guild                     @relation(fields: [guildId], references: [id], onDelete: Cascade)
   runs         DungeonRun[]
@@ -787,6 +791,27 @@ model DungeonSeason {
   achievements DungeonAchievement[]
 
   @@index([guildId, status])
+}
+
+model DiscordJob {
+  id String @id @default(cuid())
+  guildId String
+  key String
+  kind String
+  payload Json
+  revision Int @default(1)
+  status String @default("PENDING")
+  attempts Int @default(0)
+  nextAttemptAt DateTime @default(now())
+  leaseToken String?
+  lockedUntil DateTime?
+  lastError String?
+  deliveredAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  @@unique([guildId, key])
+  @@index([status, nextAttemptAt])
 }
 
 model DungeonRun {

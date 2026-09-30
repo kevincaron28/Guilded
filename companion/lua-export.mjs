@@ -253,6 +253,7 @@ export async function readAddonExport(path, realm) {
     .slice(0, 100)
     .map((event) => ({
       ref: String(event.ref).slice(0, 80),
+      ...(typeof event.botRaidId === "string" && /^[a-zA-Z0-9_-]{1,80}$/.test(event.botRaidId) ? { botRaidId: event.botRaidId } : {}),
       title: String(event.title).slice(0, 100),
       startsAt: new Date(Number(event.startsAt) * 1000).toISOString(),
       invites: Object.values(event.invites ?? {})

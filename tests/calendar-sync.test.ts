@@ -15,7 +15,7 @@ GuildedDB = {
   ["guildKey"] = "Quebec Gold-Forever",
   ["calendarEvents"] = {
     ["events"] = {
-      [1] = { ["ref"] = "501", ["title"] = "Molten Core", ["startsAt"] = 1790000000, ["invites"] = {
+      [1] = { ["ref"] = "501", ["botRaidId"] = "linked-raid", ["title"] = "Molten Core", ["startsAt"] = 1790000000, ["invites"] = {
         [1] = { ["name"] = "Ann", ["status"] = "ACCEPTED" }, [2] = { ["name"] = "Bob", ["status"] = "TENTATIVE" },
         [3] = { ["name"] = "Cy", ["status"] = "DECLINED" }, [4] = { ["name"] = "Bad", ["status"] = "WHATEVER" } } },
     },
@@ -35,7 +35,7 @@ describe("companion export of calendar events", () => {
     const snapshot = parseAddonSnapshot(await readAddonExport(file, "Forever"));
     expect(snapshot.calendarEvents).toHaveLength(1);
     const event = snapshot.calendarEvents[0]!;
-    expect(event).toMatchObject({ ref: "501", title: "Molten Core" });
+    expect(event).toMatchObject({ ref: "501", botRaidId: "linked-raid", title: "Molten Core" });
     expect(event.startsAt.getTime()).toBe(1790000000 * 1000);
     // An answer the addon does not know is not sent.
     expect(event.invites.map((invite) => `${invite.character}:${invite.status}:${invite.realm}`)).toEqual(["Ann:ACCEPTED:Forever", "Bob:TENTATIVE:Forever", "Cy:DECLINED:Forever"]);
@@ -115,6 +115,21 @@ describe("planCalendarSync", () => {
     const plan = await planCalendarSync(none as never, "g1", [...event(), ...event({ ref: "old", title: "Old", startsAt: "2026-09-01T18:00:00Z" })], CHARACTERS, NOW);
     expect(plan.matches).toEqual([]);
     expect(plan.unmatched.map((item) => item.title)).toEqual(["Molten Core"]);
+  });
+  it("uses an explicit identity despite a renamed title and does not fall back from a stale ID", async () => {
+    const linked = await planCalendarSync(tx as never, "g1", event({ botRaidId: "r1", title: "Renamed" }), CHARACTERS, NOW);
+    expect(linked.matches[0]?.raidId).toBe("r1");
+    const stale = await planCalendarSync(tx as never, "g1", event({ botRaidId: "foreign-raid" }), CHARACTERS, NOW);
+    expect(stale.matches).toEqual([]);
+    expect(stale.unmatched[0]?.reason).toMatch(/unavailable/);
+  });
+  it("does not guess between simultaneous cores or an unrelated nearby raid", async () => {
+    const ambiguous = { raid: { findMany: async () => [raids[1], { ...raids[1], id: "other-core" }] } };
+    const result = await planCalendarSync(ambiguous as never, "g1", event(), CHARACTERS, NOW);
+    expect(result.matches).toEqual([]);
+    expect(result.unmatched[0]?.reason).toMatch(/Multiple/);
+    const unrelated = { raid: { findMany: async () => [raids[0]] } };
+    expect((await planCalendarSync(unrelated as never, "g1", event(), CHARACTERS, NOW)).matches).toEqual([]);
   });
 });
 

@@ -6,6 +6,7 @@ describe("profession-only officer relay", () => {
   it("updates skills while leaving an included ledger pending for review", async () => {
     const tx = {
       $executeRaw: vi.fn(),
+      guildSettings: { findUnique: async () => null },
       character: { findMany: async () => [{ id: "c", name: "Ray", realm: "R" }], findUnique: async () => ({ professionsUpdatedAt: null }), update: vi.fn() },
       professionSkill: { deleteMany: vi.fn(), upsert: vi.fn() },
       recipeKnown: { deleteMany: vi.fn() }, professionCooldown: { deleteMany: vi.fn() },

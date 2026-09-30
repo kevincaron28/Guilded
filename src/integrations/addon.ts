@@ -185,6 +185,7 @@ export type AddonCooldownSet = z.infer<typeof addonCooldownSetSchema>;
 
 // A guild event from the in-game calendar and how each member answered it (/guilded calendar sync).
 export const addonCalendarEventSchema = z.object({
+  botRaidId: z.string().min(1).max(80).regex(/^[a-zA-Z0-9_-]+$/).optional(),
   ref: z.string().min(1).max(80),
   title: z.string().min(1).max(100),
   startsAt: z.coerce.date(),

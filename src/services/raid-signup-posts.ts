@@ -13,13 +13,13 @@ export async function serializeRaidPosts(key: string, work: () => Promise<void>)
 export async function syncRaidPosts(guild: Guild, database: Pick<PrismaClient, "raid">, raid: References,
   generalChannelId: string | null, coreChannelId: string | null, payload: Pick<MessageCreateOptions, "embeds" | "components" | "allowedMentions">): Promise<void> {
   const targets = [...new Set([generalChannelId, coreChannelId].filter((id): id is string => !!id))];
-  if (!targets.length) return;
+  if (!targets.length) throw new Error("Configure a raid signups channel in setup first.");
   const references = new Map<string, string>();
   if (raid.signupChannelId && raid.signupMessageId) references.set(raid.signupChannelId, raid.signupMessageId);
   if (raid.mirrorSignupChannelId && raid.mirrorSignupMessageId) references.set(raid.mirrorSignupChannelId, raid.mirrorSignupMessageId);
   for (const [index, channelId] of targets.entries()) {
     const channel = await guild.channels.fetch(channelId);
-    if (!channel?.isTextBased()) continue;
+    if (!channel?.isTextBased()) throw new Error("The raid signups channel is unavailable.");
     const messageId = references.get(channelId);
     let message = messageId ? await channel.messages.fetch(messageId).catch((error: unknown) => {
       if (error && typeof error === "object" && "code" in error && error.code === 10008) return null;

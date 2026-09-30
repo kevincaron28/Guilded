@@ -297,6 +297,12 @@ local function scanEvents(done)
     onOpened = function()
       if answered then return end
       answered = true
+      if has("GetEventInfo") then
+        local okInfo, info = pcall(C_Calendar.GetEventInfo)
+        if okInfo and type(info) == "table" then
+          event.botRaidId = tostring(info.description or ""):match("%[Guilded raid:([%w_-]+)%]")
+        end
+      end
       event.invites = readInvites()
       pcall(function() if has("CloseEvent") then C_Calendar.CloseEvent() end end)
       nextEvent()
@@ -391,7 +397,13 @@ function calendar.createEvent(raid)
     local clock = serverClock(raid.at)
     C_Calendar.CreateGuildSignUpEvent()
     C_Calendar.EventSetTitle(string.sub(raid.title, 1, 30))
-    if has("EventSetDescription") then C_Calendar.EventSetDescription(raid.note or ("Guilded raid" .. (raid.core and (" - " .. raid.core) or ""))) end
+    if has("EventSetDescription") then
+      local description = raid.note or ("Guilded raid" .. (raid.core and (" - " .. raid.core) or ""))
+      if raid.id ~= "" and raid.id:match("^[%w_-]+$") and not raid.id:match("^discord:") then
+        description = "[Guilded raid:" .. raid.id .. "]\n" .. description
+      end
+      C_Calendar.EventSetDescription(description)
+    end
     C_Calendar.EventSetDate(clock.month, clock.monthDay, clock.year)
     C_Calendar.EventSetTime(clock.hour, clock.minute)
     C_Calendar.AddEvent()

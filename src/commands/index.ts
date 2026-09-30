@@ -33,6 +33,7 @@ import { dungeonCommand, executeDungeon } from "./dungeon.js";
 import { dungeonAdminCommand, executeDungeonAdmin } from "./dungeon-admin.js";
 import { bugCommand, executeBug } from "./bugreport.js";
 import { faqCommand, executeFaq } from "./faq.js";
+import { systemCommand } from "./system.js";
 
 import { MergedCommand, type AnyCommand } from "./router.js";
 import { BRAND } from "../brand.js";
@@ -85,7 +86,7 @@ const report = new MergedCommand("report", "Guild reports: activity, inactive me
 // Top level: the merged parents above, plus the commands main.ts handles itself.
 export const commands: AnyCommand[] = [
   setup, helpCommand, profileCommand, character, raid, epgpCommand, lootCommand, dungeon, craftCommand,
-  bankCommand, applyCommand, pollCommand, report, mod, coreCommand, tagCommand, importer, uninstallCommand
+  bankCommand, applyCommand, pollCommand, report, mod, coreCommand, tagCommand, importer, uninstallCommand, systemCommand
 ];
 
 const commandNames = commands.map((command) => command.name);

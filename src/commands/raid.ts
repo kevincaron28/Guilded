@@ -1,4 +1,5 @@
 import { serializeRaidPosts, syncRaidPosts } from "../services/raid-signup-posts.js";
+import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "../services/discord-jobs.js";
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, SlashCommandBuilder,
   type ButtonInteraction, type ChatInputCommandInteraction, type Guild as DiscordGuild, type GuildMember
@@ -132,7 +133,12 @@ function signupButtons(raidId: string, status: string, lang: Lang) {
 const failedSignupSyncs = new Map<string, Set<string>>();
 export const pendingSignupRaidIds = (guildId: string): string[] => [...(failedSignupSyncs.get(guildId) ?? [])];
 
-export async function syncSignupEmbed(discordGuild: DiscordGuild, guildId: string, raidId: string): Promise<void> {
+export async function syncSignupEmbed(discordGuild: DiscordGuild, guildId: string, raidId: string, delivery = false): Promise<void> {
+  if (!delivery) {
+    const job = await enqueueDiscordJob(prisma, guildId, `raid:${raidId}`, "RAID_POST", { raidId });
+    await deliverDiscordJob(prisma, job.id, current => dispatchDiscordJob(discordGuild, current));
+    return;
+  }
   await serializeRaidPosts(`${guildId}:${raidId}`, async () => {
   try {
     const raid = await raidService.getStatus(raidId, guildId);
@@ -158,6 +164,7 @@ export async function syncSignupEmbed(discordGuild: DiscordGuild, guildId: strin
     if (!failedSignupSyncs.has(guildId)) failedSignupSyncs.set(guildId, new Set());
     failedSignupSyncs.get(guildId)!.add(raidId);
     console.error("Failed to sync raid signup embed", error);
+    throw error;
   }
   });
 }

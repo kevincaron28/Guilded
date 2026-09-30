@@ -4,6 +4,8 @@ import { asLang, t } from "../i18n.js";
 import { formatLeaderboard, leaderboard } from "./dungeon-stats.js";
 import { activeSeason } from "./dungeon-import.js";
 import { createGuildService } from "./guild.js";
+import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
+import { seasonRows } from "./season-archive.js";
 
 const guildService = createGuildService(prisma);
 export const DUNGEON_SEASON_SELECT = "dseason:choose";
@@ -17,7 +19,7 @@ export async function handleDungeonSeasonSelect(interaction: StringSelectMenuInt
   const selected = await prisma.dungeonSeason.findFirst({ where: { guildId: guild.id, id: selectedId } });
   if (!selected) { await interaction.editReply("That season is no longer available."); return; }
   const lang = asLang((await guildService.getSettings(guild.id))?.language);
-  const rows = await leaderboard(prisma, guild.id, "season", null, 10, new Date(), selected.id);
+  const rows = await seasonRows(prisma, guild.id, selected);
   await interaction.editReply({ embeds: [new EmbedBuilder().setColor(0xd4a017).setTitle(selected.name)
     .setDescription(rows.length ? formatLeaderboard(rows) : t(lang, "dungeon.board.empty"))
     .setFooter({ text: `${selected.status === "ACTIVE" ? "Current season" : "Archived season"} · ${selected.startsAt.toISOString().slice(0, 10)}${selected.endsAt ? " → " + selected.endsAt.toISOString().slice(0, 10) : ""}` })], allowedMentions: { parse: [] } });
@@ -27,8 +29,16 @@ export async function handleDungeonSeasonSelect(interaction: StringSelectMenuInt
 // place after every dungeon import so the channel always shows the standings.
 // If the message was deleted, a new one is posted and remembered.
 // Never throws: a failed refresh must not undo the import it follows.
-export async function updateDungeonLeaderboard(discordGuild: DiscordGuild | null): Promise<boolean> {
+export async function updateDungeonLeaderboard(discordGuild: DiscordGuild | null, delivery = false): Promise<boolean> {
   if (!discordGuild) return false;
+  if (!delivery) {
+    const guild = await guildService.ensureGuild(discordGuild.id, discordGuild.name);
+    const settings = await guildService.getSettings(guild.id);
+    if (!settings?.dungeonLeaderboardChannelId) return false;
+    const job = await enqueueDiscordJob(prisma, guild.id, "dungeon-board", "DUNGEON_BOARD");
+    await deliverDiscordJob(prisma, job.id, current => dispatchDiscordJob(discordGuild, current));
+    return (await prisma.discordJob.findUnique({ where: { id: job.id } }))?.status === "DONE";
+  }
   try {
     const guild = await guildService.ensureGuild(discordGuild.id, discordGuild.name);
     const settings = await guildService.getSettings(guild.id);
@@ -49,10 +59,10 @@ export async function updateDungeonLeaderboard(discordGuild: DiscordGuild | null
       .setTimestamp(new Date());
     const seasons = await prisma.dungeonSeason.findMany({ where: { guildId: guild.id }, orderBy: { startsAt: "desc" }, take: 25 });
     for (const past of seasons.filter((row) => row.status === "ENDED").slice(0, 3)) {
-      const top = await leaderboard(prisma, guild.id, "season", null, 3, new Date(), past.id);
+      const top = await seasonRows(prisma, guild.id, past, 3);
       embed.addFields({ name: `${lang === "fr" ? "Saison passée" : "Past season"}: ${past.name}`.slice(0, 256), value: (top.length ? formatLeaderboard(top) : t(lang, "dungeon.board.empty")).slice(0, 1024) });
     }
-    embed.setFooter({ text: lang === "fr" ? "Historique conservé. Choisissez une saison ci-dessous ou /dungeon leaderboard season." : "Season history is preserved. Choose a season below or use /dungeon leaderboard season." });
+    embed.setFooter({ text: lang === "fr" ? "Toutes les saisons : /dungeon archive. Champions : /dungeon hall-of-fame." : "All seasons: /dungeon archive. Champions: /dungeon hall-of-fame." });
     const components = seasons.length ? [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder()
       .setCustomId(DUNGEON_SEASON_SELECT).setPlaceholder(lang === "fr" ? "Voir une saison" : "Browse a season")
       .addOptions(seasons.map((row) => ({ label: `${row.name} (${row.status === "ACTIVE" ? lang === "fr" ? "actuelle" : "current" : lang === "fr" ? "passée" : "past"})`.slice(0, 100), value: row.id }))))] : [];

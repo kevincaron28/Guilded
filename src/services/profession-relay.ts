@@ -4,6 +4,7 @@ import { applyDiscoveredCharacters } from "./roster-discovery.js";
 import { findCharacter } from "./character-match.js";
 import { syncProfessionSnapshot } from "./profession-snapshot.js";
 import { applyRecipeData } from "./recipes.js";
+import { enqueueDiscordJob } from "./discord-jobs.js";
 
 // Officer uploads may relay guild professions even while ledger imports await review.
 // Keep this explicit allowlist separate from apply(): no points, loot, runs or attendance.
@@ -19,6 +20,8 @@ export async function relayProfessions(database: PrismaClient, guildId: string, 
         entry.professionsComplete === true, entry.professionsAt ?? entry.inspectedAt ?? snapshot.exportedAt);
     }
     const crafting = await applyRecipeData(tx, guildId, { recipes: snapshot.recipes, recipeNames: snapshot.recipeNames, cooldowns: snapshot.cooldowns });
+    const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { craftChannelId: true } });
+    if (settings?.craftChannelId) await enqueueDiscordJob(tx, guildId, "professions", "PROFESSIONS");
     return { ...discovery, recipeSets: crafting.recipeSets };
   }, { timeout: 60_000, maxWait: 15_000 });
 }

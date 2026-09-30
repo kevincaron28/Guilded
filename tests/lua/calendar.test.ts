@@ -96,6 +96,12 @@ describe("Calendar.lua reading the guild calendar", () => {
     cmd(s, "sync");
     expect(s.run("return tostring(DB.calendarEvents)")).toBe("nil");
   });
+  it("reads the explicit raid identity from the opened calendar event", () => {
+    const s = withCalendar();
+    s.run('C_Calendar.GetEventInfo = function() return { description = "[Guilded raid:raid_core_1] Bring flasks" } end');
+    cmd(s, "sync");
+    expect(s.run("return DB.calendarEvents.events[1].botRaidId")).toBe("raid_core_1");
+  });
 
   it("says so when the client has no calendar", () => {
     const s = withCalendar({ api: false });
@@ -137,6 +143,7 @@ describe("Calendar.lua making in-game events from Discord raids", () => {
     cmd(s, "create 2");
     expect(s.run("return CREATED.title .. '|' .. CREATED.date .. '|' .. CREATED.time .. '|' .. tostring(CREATED.added)")).toBe("Blackwing Lair|2026-10-3|21:0|true");
     expect(s.run("return CREATED.description")).toContain("Tuesday MC");
+    expect(s.run("return CREATED.description")).toContain("[Guilded raid:r1]");
     expect(last(s)).toContain("Created the in-game event");
   });
 

@@ -41,7 +41,8 @@ describe("achievement rules", () => {
   const people = Array.from({ length: 6 }, (_, i) => ({ id: "m" + i, displayName: "Player " + i }));
   const tx = {
     $executeRaw: vi.fn(),
-    dungeonSeason: { findFirst: async () => past, findMany: async () => [past], updateMany: vi.fn(), create: vi.fn(async () => ({ id: "new", name: "Season 2" })) },
+    dungeonSeason: { findFirst: async () => past, findMany: async () => [past], update: vi.fn(), updateMany: vi.fn(), create: vi.fn(async () => ({ id: "new", name: "Season 2" })) },
+    guildSettings: { findUnique: async () => null },
     dungeonPointTransaction: { groupBy: async () => people.map((person) => ({ memberId: person.id, _sum: { amount: 100 } })), deleteMany: vi.fn() },
     dungeonRun: { deleteMany: vi.fn() }, dungeonAchievement: { upsert: vi.fn() },
     member: { count: async () => 6, findMany: async () => people }
@@ -51,6 +52,7 @@ describe("achievement rules", () => {
   expect(result.ended).toEqual(["Season 1"]);
   expect(result.champions).toHaveLength(6);
   expect(tx.dungeonAchievement.upsert).toHaveBeenCalledTimes(6);
+  expect(tx.dungeonSeason.update).toHaveBeenCalledWith({ where: { id: "past" }, data: { finalStandings: expect.arrayContaining(people.map(person => ({ memberId: person.id, name: person.displayName, points: 100 }))), rulesSnapshot: expect.any(Object) } });
   expect(tx.dungeonSeason.updateMany).toHaveBeenCalledWith({ where: { guildId: "g", status: "ACTIVE" }, data: { status: "ENDED", endsAt: expect.any(Date) } });
   expect(tx.dungeonPointTransaction.deleteMany).not.toHaveBeenCalled();
   expect(tx.dungeonRun.deleteMany).not.toHaveBeenCalled();

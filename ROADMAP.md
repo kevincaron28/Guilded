@@ -77,6 +77,9 @@ editing plans in Discord through the companion.
 
 ## Also done
 
+- **Path of Exile 2 guild competition:** plan in `docs/POE2_GUILD_COMPETITION_PLAN.md`; separate league points, cooperative challenges, reviewed evidence, season archives and Hall of Fame. API tracking depends on GGG application access. Not implemented yet.
+- **System diagnostics and recovery:** `/system status`, durable Discord retries, explicit calendar raid IDs, frozen season results, full Discord archive and Hall of Fame. Real acceptance remains required (`docs/SYSTEM_POLISH_2026-09-30.md`).
+
 Every item of the old numbered list except hosting is built: item tooltips (3.1), Warcraft Logs
 automation (3.1), the Guilded chat tab (3.2), loot council answers, soft reserves, guild calendar sync, and
 recipes and cooldowns (4.0).

@@ -1,7 +1,10 @@
-import type { ActionRowBuilder, ButtonBuilder, EmbedBuilder, Guild as DiscordGuild, Message } from "discord.js";
+import { EmbedBuilder, type ActionRowBuilder, type ButtonBuilder, type Guild as DiscordGuild, type Message, type MessageCreateOptions } from "discord.js";
+import { randomUUID } from "node:crypto";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../database.js";
 import { asLang, t, type Lang } from "../i18n.js";
 import { createGuildService } from "./guild.js";
+import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
 
 const guildService = createGuildService(prisma);
 
@@ -12,22 +15,32 @@ export type Localized<T = string> = (lang: Lang) => T;
 // channel) only: no fallback to a public channel.
 type NotifyKind = "notify" | "raidLog" | "loot" | "officer" | "application";
 
-async function notifyTarget(discordGuild: DiscordGuild, kind: NotifyKind = "notify", coreId: string | null = null) {
+async function notifyAddress(discordGuild: DiscordGuild, kind: NotifyKind = "notify", coreId: string | null = null) {
   const guild = await guildService.ensureGuild(discordGuild.id, discordGuild.name);
   const settings = await guildService.getSettings(guild.id);
   if (kind === "officer" || kind === "application") {
     const channelId = kind === "application" ? (settings?.applicationChannelId ?? settings?.logChannelId) : settings?.logChannelId;
     if (!channelId) return null;
-    const channel = await discordGuild.channels.fetch(channelId).catch(() => null);
-    return channel?.isTextBased() ? { channel, lang: asLang(settings?.language) } : null;
+    return { guildId: guild.id, channelId, lang: asLang(settings?.language) };
   }
   const core = coreId && (kind === "raidLog" || kind === "loot") ? await prisma.raidCore.findFirst({ where: { id: coreId, guildId: guild.id }, select: { lootChannelId: true, raidLogChannelId: true } }) : null;
   const coreChannelId = kind === "raidLog" ? core?.raidLogChannelId : kind === "loot" ? core?.lootChannelId : null;
   const channelId = coreChannelId ?? (kind === "raidLog" ? settings?.raidLogChannelId : kind === "loot" ? settings?.lootChannelId : null) ?? settings?.notifyChannelId;
   if (!settings || !channelId) return null;
-  const channel = await discordGuild.channels.fetch(channelId).catch(() => null);
-  if (!channel?.isTextBased()) return null;
-  return { channel, lang: asLang(settings.language) };
+  return { guildId: guild.id, channelId, lang: asLang(settings.language) };
+}
+
+async function notifyTarget(discordGuild: DiscordGuild, kind: NotifyKind = "notify", coreId: string | null = null) {
+  const address = await notifyAddress(discordGuild, kind, coreId);
+  if (!address) return null;
+  const channel = await discordGuild.channels.fetch(address.channelId).catch(() => null);
+  return channel?.isTextBased() ? { channel, lang: address.lang } : null;
+}
+
+async function durableMessage(guild: DiscordGuild, guildId: string, channelId: string, message: MessageCreateOptions): Promise<boolean> {
+  const job = await enqueueDiscordJob(prisma, guildId, `message:${randomUUID()}`, "MESSAGE", { channelId, message: JSON.parse(JSON.stringify(message)) } as Prisma.InputJsonValue);
+  await deliverDiscordJob(prisma, job.id, current => dispatchDiscordJob(guild, current));
+  return (await prisma.discordJob.findUnique({ where: { id: job.id } }))?.status === "DONE";
 }
 
 // The same channel a notify()/notifyInteractive() call of this kind would
@@ -45,10 +58,7 @@ export async function notifyDungeon(discordGuild: DiscordGuild | null, embed: Lo
     const settings = await guildService.getSettings(guild.id);
     const channelId = settings?.dungeonChannelId ?? settings?.notifyChannelId;
     if (!channelId) return false;
-    const channel = await discordGuild.channels.fetch(channelId).catch(() => null);
-    if (!channel?.isTextBased()) return false;
-    await channel.send({ embeds: [embed(asLang(settings?.language))], allowedMentions: { parse: [] } });
-    return true;
+    return durableMessage(discordGuild, guild.id, channelId, { embeds: [embed(asLang(settings?.language))] });
   } catch (error) {
     console.error("Failed to post dungeon announcement", error);
     return false;
@@ -62,10 +72,10 @@ export async function notifyDungeon(discordGuild: DiscordGuild | null, embed: Lo
 export async function notify(discordGuild: DiscordGuild | null, content: string | Localized, kind: NotifyKind = "notify", coreId: string | null = null): Promise<void> {
   if (!discordGuild) return;
   try {
-    const target = await notifyTarget(discordGuild, kind, coreId);
+    const target = await notifyAddress(discordGuild, kind, coreId);
     if (!target) return;
     const text = typeof content === "string" ? content : content(target.lang);
-    await target.channel.send({ content: text.slice(0, 1900), allowedMentions: { parse: [] } });
+    await durableMessage(discordGuild, target.guildId, target.channelId, { embeds: [new EmbedBuilder().setDescription(text.slice(0, 1900)).setColor(0xd4a017)] });
   } catch (error) {
     console.error("Failed to post notification", error);
   }
@@ -76,10 +86,9 @@ export async function notify(discordGuild: DiscordGuild | null, content: string 
 export async function notifyEmbed(discordGuild: DiscordGuild | null, embed: EmbedBuilder | Localized<EmbedBuilder>, channel: NotifyKind = "notify", coreId: string | null = null): Promise<boolean> {
   if (!discordGuild) return false;
   try {
-    const target = await notifyTarget(discordGuild, channel, coreId);
+    const target = await notifyAddress(discordGuild, channel, coreId);
     if (!target) return false;
-    await target.channel.send({ embeds: [typeof embed === "function" ? embed(target.lang) : embed], allowedMentions: { parse: [] } });
-    return true;
+    return durableMessage(discordGuild, target.guildId, target.channelId, { embeds: [typeof embed === "function" ? embed(target.lang) : embed] });
   } catch (error) {
     console.error("Failed to post notification embed", error);
     return false;

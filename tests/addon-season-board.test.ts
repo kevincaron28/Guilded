@@ -20,4 +20,12 @@ describe("official season feed", () => {
     expect(lua).toContain('season = "Season 1", status = "ENDED"');
     expect(lua).toContain('name = "Main", points = 80');
   });
+  it("publishes the same archived points as Discord after later ledger corrections", async () => {
+    const database = {
+      dungeonSeason: { findFirst: async () => null, findMany: async () => [{ id: "old", name: "Season 1", status: "ENDED", finalStandings: [{ memberId: "a", name: "Ann", points: 100 }] }] },
+      dungeonPointTransaction: { groupBy: async () => [{ seasonId: "old", memberId: "a", _sum: { amount: 80 } }] },
+      member: { findMany: async () => [{ id: "a", displayName: "Ann" }] }, character: { findMany: async () => [] }
+    };
+    expect((await addonDungeonBoard(database as never, "guild"))?.rows).toEqual([{ name: "Ann", points: 100 }]);
+  });
 });

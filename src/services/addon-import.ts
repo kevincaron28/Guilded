@@ -13,6 +13,7 @@ import { applyRecipeData } from "./recipes.js";
 import { planCalendarSync } from "./calendar-sync.js";
 import { createSelfCharacter } from "./character-pairing.js";
 import { excludeHistoryBeforeReset } from "./import-reset.js";
+import { enqueueDiscordJob } from "./discord-jobs.js";
 
 export function createAddonImportService(database: PrismaClient) {
   return {
@@ -57,7 +58,8 @@ export function createAddonImportService(database: PrismaClient) {
         const imported = await tx.addonImport.findFirst({ where: { id: importId, guildId } });
         if (!imported) throw new Error("Addon import not found.");
         if (imported.status === "APPLIED") throw new Error("Addon import has already been applied.");
-        const resetAt = (await tx.guildSettings.findUnique({ where: { guildId }, select: { dataResetAt: true } }))?.dataResetAt ?? null;
+        const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { dataResetAt: true, dungeonLeaderboardChannelId: true, craftChannelId: true } });
+        const resetAt = settings?.dataResetAt ?? null;
         const snapshot = excludeHistoryBeforeReset(parseAddonSnapshot(imported.payload), resetAt);
         const characters = await tx.character.findMany({
           where: { member: { guildId } },
@@ -253,6 +255,11 @@ export function createAddonImportService(database: PrismaClient) {
           where: { id: imported.id },
           data: { status: "APPLIED" }
         });
+        // The import and its public refresh requests commit together. A process crash
+        // between commit and followUpImport cannot leave the display stale forever.
+        if (settings?.dungeonLeaderboardChannelId) await enqueueDiscordJob(tx, guildId, "dungeon-board", "DUNGEON_BOARD");
+        if (settings?.craftChannelId) await enqueueDiscordJob(tx, guildId, "professions", "PROFESSIONS");
+        if (calendarPlan.matches.length) await enqueueDiscordJob(tx, guildId, `calendar:${imported.id}`, "CALENDAR", { plan: JSON.parse(JSON.stringify(calendarPlan)) });
         return { import: imported, transactions, epgpTransactions, readinessSnapshots, attunements, consumables, reserves, itemPrices, crafting, calendarPlan, discovery, raids, loot, dungeons, skipped };
       }, { timeout: 60_000, maxWait: 15_000 });
     }

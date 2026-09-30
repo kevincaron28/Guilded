@@ -87,18 +87,18 @@ function fakeDatabase(core: Record<string, unknown>) {
   };
 }
 
-const baseCore = { id: "k1", name: "Tuesday MC", roleId: null, categoryId: null, rosterChannelId: null, rosterMessageId: "m-old", signupChannelId: null, chatChannelId: null, voiceChannelId: null };
+const baseCore = { id: "k1", name: "Tuesday MC", roleId: null, categoryId: null, rosterChannelId: null, lootChannelId: null, raidLogChannelId: null, rosterMessageId: "m-old", signupChannelId: null, chatChannelId: null, voiceChannelId: null };
 
 describe("core channels made with the core", () => {
-  it("creates the role, category and four channels, and removes the roster left in the shared channel", async () => {
+  it("creates the role, category and six channels, and removes the roster left in the shared channel", async () => {
     const { guild, channels, roles } = fakeGuild();
     const database = fakeDatabase(baseCore);
     const removed: (string | null)[] = [];
     const result = await setupCoreDiscord(guild as never, database as never, "k1", async (messageId) => { removed.push(messageId); });
     expect(result.error).toBeUndefined();
-    expect(result.created).toEqual(["⚔️ Tuesday MC", "#tuesday-mc-roster", "#tuesday-mc-signups", "#tuesday-mc-chat", "🔊 Tuesday MC"]);
+    expect(result.created).toEqual(["⚔️ Tuesday MC", "#tuesday-mc-roster", "#tuesday-mc-signups", "#tuesday-mc-butin", "#tuesday-mc-rapports", "#tuesday-mc-chat", "🔊 Tuesday MC"]);
     expect([...roles.values()].map((role) => role.name)).toEqual(["Tuesday MC"]);
-    expect(channels.size).toBe(5);
+    expect(channels.size).toBe(7);
     expect(database.row).toMatchObject({ categoryId: expect.any(String), chatChannelId: expect.any(String), rosterMessageId: null });
     expect(removed).toEqual(["m-old"]);
   });

@@ -1,3 +1,4 @@
+import { coreContext } from "../services/core-context.js";
 import { EmbedBuilder, SlashCommandBuilder, type ChatInputCommandInteraction, type Client } from "discord.js";
 import { prisma } from "../database.js";
 import { guildStats, type GuildStats } from "../services/guild-stats.js";
@@ -9,7 +10,8 @@ import { guildService, requireGuildContext } from "./context.js";
 export const statsCommand = new SlashCommandBuilder()
   .setName("stats")
   .setDescription("Guild activity: raids, boss kills, loot, EP, top attendance.")
-  .addIntegerOption((o) => o.setName("days").setDescription("How far back (default 7)").setMinValue(1).setMaxValue(365));
+  .addIntegerOption((o) => o.setName("days").setDescription("How far back (default 7)").setMinValue(1).setMaxValue(365))
+  .addStringOption(o => o.setName("core").setDescription("Raid core (defaults to this channel)").setAutocomplete(true));
 
 // "12 (▲3)": a number and how it moved against the week before (none when there is no week before).
 export function withDelta(value: number, previous?: number): string {
@@ -29,6 +31,7 @@ export function statsEmbed(stats: GuildStats, title: string, lang: Lang = "en", 
       { name: t(lang, "stats.newMembers"), value: withDelta(stats.newMembers, previous?.newMembers), inline: true },
       { name: t(lang, "stats.applications"), value: withDelta(stats.applications, previous?.applications), inline: true }
     );
+  if (stats.coreId) embed.spliceFields(4, 2);
   if (stats.topAttendance.length) {
     embed.addFields({ name: t(lang, "stats.mostRaids"), value: stats.topAttendance.map((row) => `${row.name} (${row.raids})`).join(", ").slice(0, 1000) });
   }
@@ -42,9 +45,10 @@ export async function executeStats(interaction: ChatInputCommandInteraction): Pr
   const context = await requireGuildContext(interaction);
   if (!context) return;
   const days = interaction.options.getInteger("days") ?? 7;
-  const stats = await guildStats(prisma, context.guildId, new Date(Date.now() - days * 86_400_000));
+  const core = await coreContext(prisma, context.guildId, interaction.channelId, interaction.options.getString("core"));
+  const stats = await guildStats(prisma, context.guildId, new Date(Date.now() - days * 86_400_000), undefined, core?.id);
   const lang = asLang((await guildService.getSettings(context.guildId))?.language);
-  await interaction.reply({ embeds: [statsEmbed(stats, t(lang, "stats.titleDays", { days }), lang)], allowedMentions: { parse: [] } });
+  await interaction.reply({ embeds: [statsEmbed(stats, `${core ? core.name + " · " : ""}${t(lang, "stats.titleDays", { days })}`, lang)], allowedMentions: { parse: [] } });
 }
 
 // The weekly report as embeds: the guild's week (against the week before) with the players of

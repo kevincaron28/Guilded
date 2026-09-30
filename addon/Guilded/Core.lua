@@ -311,6 +311,8 @@ local function raidStart(title)
     title = title,
     startedAt = now(), endedAt = nil, startedBy = playerName()
   }
+  local core = ns.loot and ns.loot.core and ns.loot.core()
+  if core then activeRaid.coreId = core.id end
   table.insert(db.raids, activeRaid)
   recordPresence()
   db.activeRaidId = activeRaid.id

@@ -186,6 +186,7 @@ local function finalize(run)
   for index, chunk in ipairs(chunks) do send(string.format("SUM|%s|%d|%d|%s", run.id, index, #chunks, chunk), "GUILD") end
   -- Dungeon scores (Scores.lua) learn from every finished run.
   if ns.onDungeonRunFinished then pcall(ns.onDungeonRunFinished, run) end
+  if ns.onDungeonSummary then pcall(ns.onDungeonSummary, run) end
   ns.message(string.format("Dungeon run %s: %s%s.", run.state, run.name or "?",
     run.durationSec and run.state == "COMPLETED" and string.format(" in %d:%02d", math.floor(run.durationSec / 60), run.durationSec % 60) or ""))
   if ns.onDungeonChange then pcall(ns.onDungeonChange) end
@@ -412,10 +413,12 @@ local function onAddonMessage(text, sender)
       if state == "COMPLETED" and not run.startedAt then run.startedAt = run.detectedAt end
       finalize(run)
     end
+  elseif kind == "REQUEST" and ns.isOfficerName and ns.isOfficerName(sender) then
+    dungeon.replayPending()
   elseif kind == "SUM" then
     local id, index, total, payload = string.match(text, "^SUM|([^|]+)|(%d+)|(%d+)|(.*)$")
     index, total = tonumber(index), tonumber(total)
-    if not id or not index or not total or total > 20 then return end
+    if not id or not index or not total or total < 1 or total > 20 or index < 1 or index > total then return end
     local key = sender .. id
     local pending = dungeon.incoming[key] or { parts = {}, count = 0, total = total }
     dungeon.incoming[key] = pending
@@ -436,6 +439,11 @@ local function onEvent(_, event, ...)
   local d = db()
   if event == "PLAYER_LOGIN" then
     ns.comm.register(PREFIX)
+    if C_Timer then C_Timer.After(30, function()
+      dungeon.markSynced()
+      dungeon.replayPending()
+      if ns.isOfficer and ns.isOfficer() then send("REQUEST|1", "GUILD") end
+    end) end
     return
   end
   if not d then return end
@@ -501,6 +509,30 @@ function dungeon.markSynced()
   local cutoff = now() - KEEP_SYNCED_DAYS * 86400
   for id, run in pairs(d.runs) do
     if run.synced and (run.endedAt or run.detectedAt or 0) < cutoff then d.runs[id] = nil end
+  end
+end
+
+-- Retry only our own recent unsynced runs. An officer arriving later can request
+-- them; the server's run id makes a repeated upload idempotent.
+function dungeon.replayPending()
+  if dungeon.lastReplay and now() - dungeon.lastReplay < 60 then return end
+  dungeon.lastReplay = now()
+  local d = db()
+  local runs = {}
+  for _, run in pairs(d and d.runs or {}) do
+    if not run.synced and run.players and run.players[me()] and TERMINAL[run.state]
+      and (run.endedAt or 0) >= now() - 7 * 86400 then runs[#runs + 1] = run end
+  end
+  table.sort(runs, function(a, b) return (a.endedAt or 0) > (b.endedAt or 0) end)
+  for index = 1, math.min(5, #runs) do
+    local run = runs[index]
+    local summary = serialize(run)
+    local total = math.ceil(#summary / CHUNK_BYTES)
+    if total <= 20 then
+      for part = 1, total do
+        send(string.format("SUM|%s|%d|%d|%s", run.id, part, total, string.sub(summary, (part - 1) * CHUNK_BYTES + 1, part * CHUNK_BYTES)), "GUILD")
+      end
+    end
   end
 end
 

@@ -998,6 +998,49 @@ local function buildScoresPage(page)
   if ui.scoresTop.SetJustifyV then ui.scoresTop:SetJustifyV("TOP") end
 end
 
+local function buildSeasonPage(page)
+  ui.seasonTitle = at(newLabel(page, "", "GameFontNormalLarge"), page, 0, -4)
+  ui.seasonInfo = at(newLabel(page, "", "GameFontDisableSmall"), page, 0, -30)
+  ui.seasonRows = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -92)
+  ui.seasonRows:SetWidth(PAGE_WIDTH)
+  ui.seasonRows:SetJustifyV("TOP")
+  ui.seasonIndex, ui.seasonOffset = 1, 0
+  local function move(delta, paging)
+    if paging then ui.seasonOffset = math.max(0, (ui.seasonOffset or 0) + delta)
+    else ui.seasonIndex = math.max(1, (ui.seasonIndex or 1) + delta); ui.seasonOffset = 0 end
+    refresh()
+  end
+  at(newButton(page, "Previous season", 145, function() move(1) end), page, 0, -52)
+  at(newButton(page, "Newer season", 145, function() move(-1) end), page, 150, -52)
+  at(newButton(page, "<", 36, function() move(-15, true) end), page, 360, -52)
+  at(newButton(page, ">", 36, function() move(15, true) end), page, 400, -52)
+end
+
+local function refreshSeason()
+  if not ui.seasonTitle then return end
+  local data = type(GuildedDungeonBoard) == "table" and GuildedDungeonBoard or nil
+  if not data then
+    ui.seasonTitle:SetText("Dungeon season")
+    ui.seasonInfo:SetText("No standings received. Reload after the companion fetches Discord standings.")
+    ui.seasonRows:SetText("")
+    return
+  end
+  local seasons = { data }
+  for _, board in ipairs(data.history or {}) do seasons[#seasons + 1] = board end
+  ui.seasonIndex = math.min(ui.seasonIndex or 1, #seasons)
+  local board = seasons[ui.seasonIndex]
+  local rows = board.rows or {}
+  ui.seasonOffset = math.min(ui.seasonOffset or 0, math.max(0, math.floor((#rows - 1) / 15) * 15))
+  ui.seasonTitle:SetText((board.season or "Season") .. (board.status == "ENDED" and " (past season)" or " (current season)"))
+  ui.seasonInfo:SetText("Official Discord points - updated " .. (data.updatedAt or "unknown") .. "\n" .. (data.from and ("Relayed by " .. data.from .. ". Past seasons: top 10.") or "Reload to load new standings. Top 50; latest 10 past seasons."))
+  local lines = {}
+  for index = ui.seasonOffset + 1, math.min(#rows, ui.seasonOffset + 15) do
+    local row = rows[index]
+    lines[#lines + 1] = string.format("%d. %s - %d points", index, row.name or "?", row.points or 0)
+  end
+  ui.seasonRows:SetText(#lines > 0 and table.concat(lines, "\n") or "No points recorded for this season.")
+end
+
 -- Raid tools (RaidTools.lua): target icons, world markers, boss plans.
 local function buildRaidToolsPage(page)
   at(newButton(page, "Open raid markers", 180, function() if ns.raidTools then ns.raidTools.toggleMarkers(true) end end), page, 0, -4)
@@ -1064,6 +1107,7 @@ local TAB_DEFS = {
   { name = "Raid tools", hint = "target icons, world markers, boss plans", group = "Raid night", module = "raidtools", leader = true, build = buildRaidToolsPage },
   { name = "Council", hint = "loot council: BiS / upgrade / off-spec answers", group = "Raid night", module = "council", lootModes = { COUNCIL = true, PRIORITY = true }, officer = true, usesPlayer = true, build = buildCouncilPage },
   { name = "Dungeons", hint = "the run being recorded, points", group = "Fun and runs", module = "dungeon", build = buildDungeonPage },
+  { name = "Season", hint = "official Discord standings and past seasons", group = "Fun and runs", module = "dungeon", build = buildSeasonPage },
   { name = "Scores", hint = "scores from recorded dungeon runs", group = "Fun and runs", module = "scores", build = buildScoresPage },
   { name = "Games", hint = "fun roll games", group = "Fun and runs", module = "games", usesPlayer = true, build = buildGamesPage },
   { name = "Crafting", hint = "who can craft what, cooldowns", group = "Fun and runs", module = "recipes", build = buildCraftingPage },
@@ -1386,6 +1430,7 @@ refresh = function()
     (officer and L("\n(Officers: Mark done applies to the selected player.)") or ""))
 
   refreshDungeons(db)
+  refreshSeason()
   refreshReady()
   if ui.rtPlans then
     local names = ns.raidTools and ns.raidTools.planNames() or {}

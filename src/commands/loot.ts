@@ -1,3 +1,4 @@
+import { coreContext } from "../services/core-context.js";
 import { SlashCommandBuilder, type ChatInputCommandInteraction } from "discord.js";
 import { createLootService } from "../services/loot.js";
 import { notifications, notify } from "../services/notify.js";
@@ -38,7 +39,7 @@ export const lootCommand = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName("priority").setDescription("EPGP priority: who gets an item (highest PR of those who wish for it) and its set price. Officers.")
     .addStringOption((o) => o.setName("item").setDescription("Item (pick a known one, or type)").setAutocomplete(true).setRequired(true).setMaxLength(100))
     .addStringOption((o) => o.setName("raid").setDescription("Raid, to use its core's roster, prices and pool (start typing its name)").setAutocomplete(true)))
-  .addSubcommand((sub) => sub.setName("history").setDescription("View awarded loot."))
+  .addSubcommand((sub) => sub.setName("history").setDescription("View awarded loot.").addStringOption(o => o.setName("core").setDescription("Raid core (defaults to this channel)").setAutocomplete(true)))
   .addSubcommand((sub) => sub.setName("reserves").setDescription("Who soft-reserved what (the list kept in the game addon).")
     .addStringOption((o) => o.setName("item").setDescription("Only this item (part of its name), or one character's reserves").setMaxLength(100)));
 
@@ -66,6 +67,15 @@ export async function executeLoot(interaction: ChatInputCommandInteraction): Pro
     const auction = await prisma.auction.findFirst({ where: { id: interaction.options.getString("auction", true), guildId: context.guildId }, select: { raidId: true } });
     raidForMode = auction?.raidId ?? null;
   }
+  if (!raidForMode && ["auction", "award", "priority"].includes(subcommand)) {
+    const channelCore = await coreContext(prisma, context.guildId, interaction.channelId);
+    if (channelCore) {
+      const raids = await prisma.raid.findMany({ where: { guildId: context.guildId, coreId: channelCore.id, status: "ACTIVE" }, take: 2 });
+      if (raids.length !== 1) throw new Error("Choose raid: to use this core's loot rules and history.");
+      raidForMode = raids[0]?.id ?? null;
+    }
+  }
+  if (raidForMode && !await prisma.raid.findFirst({ where: { id: raidForMode, guildId: context.guildId }, select: { id: true } })) throw new Error("That raid does not belong to this guild.");
   const raidCore = await coreForRaid(prisma, context.guildId, raidForMode);
   const rules = effectiveRules(guildSettings, raidCore);
   const lootMode = rules.lootMode;
@@ -91,11 +101,11 @@ export async function executeLoot(interaction: ChatInputCommandInteraction): Pro
     if (offspec && gp !== null) gp = Math.round(gp * rules.offspecPercent / 100);
     const award = await lootService.awardDirect({
       guildId: context.guildId, memberId: target.id, itemName,
-      gp: gp ?? 0, raidId: interaction.options.getString("raid") ?? undefined,
+      gp: gp ?? 0, raidId: raidForMode ?? undefined,
       bossName: interaction.options.getString("boss") ?? undefined, awardedBy: interaction.user.id
     });
     await interaction.reply({ content: `**${award.itemName}** awarded to ${user.username}${award.amount ? ` for ${award.amount} GP${usedSetPrice ? " (its set price)" : ""}${offspec ? ` (off-spec, ${rules.offspecPercent}%)` : ""}` : ""}.`, allowedMentions: { parse: [] } });
-    await notify(interaction.guild, notifications.lootAwarded(award.itemName, award.member.displayName, award.amount), "loot");
+    await notify(interaction.guild, notifications.lootAwarded(award.itemName, award.member.displayName, award.amount), "loot", raidCore?.id ?? null);
     return;
   }
   if (lootMode !== "EPGP" && (subcommand === "auction" || subcommand === "bid")) {
@@ -116,7 +126,7 @@ export async function executeLoot(interaction: ChatInputCommandInteraction): Pro
       durationSeconds: interaction.options.getInteger("duration") ?? guildSettings?.auctionDurationSec ?? 60,
       createdBy: interaction.user.id,
       bossName: interaction.options.getString("boss") ?? undefined,
-      raidId: interaction.options.getString("raid") ?? undefined
+      raidId: raidForMode ?? undefined
     });
     const wanting = await wishlistService.countWanting(context.guildId, auction.itemName);
     await interaction.reply(`Auction **${auction.itemName}** started. ID: \`${auction.id}\`; closes <t:${Math.floor(auction.closesAt.getTime() / 1000)}:R>.${wanting > 0 ? ` Wishlisted by ${wanting} raider(s).` : ""}`);
@@ -132,18 +142,20 @@ export async function executeLoot(interaction: ChatInputCommandInteraction): Pro
     return;
   }
   if (subcommand === "close") {
+    if (!await prisma.auction.findFirst({ where: { id: interaction.options.getString("auction", true), guildId: context.guildId }, select: { id: true } })) throw new Error("That auction does not belong to this guild.");
     const result = await lootService.closeAuction(interaction.options.getString("auction", true), interaction.user.id);
     await interaction.reply(result.award
       ? `Auction closed. **${result.award.itemName}** awarded for **${result.award.amount} GP**.`
       : "Auction closed with no bids.");
     if (result.award) {
-      await notify(interaction.guild, notifications.lootAwarded(result.award.itemName, result.award.member.displayName, result.award.amount), "loot");
+      await notify(interaction.guild, notifications.lootAwarded(result.award.itemName, result.award.member.displayName, result.award.amount), "loot", (await coreForRaid(prisma, context.guildId, result.auction.raidId))?.id ?? null);
     }
     return;
   }
-  const history = await lootService.getHistory(context.guildId);
+  const selectedCore = await coreContext(prisma, context.guildId, interaction.channelId, interaction.options.getString("core"));
+  const history = await lootService.getHistory(context.guildId, 20, selectedCore?.id);
   const raidIds = [...new Set(history.map((award) => award.raidId).filter((id): id is string => !!id))];
-  const raids = new Map((await prisma.raid.findMany({ where: { id: { in: raidIds } }, select: { id: true, title: true } }))
+  const raids = new Map((await prisma.raid.findMany({ where: { guildId: context.guildId, id: { in: raidIds } }, select: { id: true, title: true } }))
     .map((raid) => [raid.id, raid.title]));
   // One line per award: item, boss/raid, winner, GP, their GP before -> after,
   // who awarded it, and when.

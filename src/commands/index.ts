@@ -27,7 +27,7 @@ import { bankCommand } from "./bank.js";
 import { testRaidCommand, executeTestRaid } from "./testraid.js";
 import { craftCommand } from "./craft.js";
 import { setupCommand, executeSetup } from "./setup.js";
-import { uninstallCommand } from "./uninstall.js";
+import { uninstallCommand, resetCommand, executeSetupReset } from "./uninstall.js";
 import { helpCommand } from "./help.js";
 import { dungeonCommand, executeDungeon } from "./dungeon.js";
 import { dungeonAdminCommand, executeDungeonAdmin } from "./dungeon-admin.js";
@@ -38,11 +38,12 @@ import { MergedCommand, type AnyCommand } from "./router.js";
 import { BRAND } from "../brand.js";
 
 // One parent per area, with the smaller commands mounted under it (see router.ts).
-const setup = new MergedCommand("setup", `Set up ${BRAND.name} and change its settings (admins and officers).`, [
+const setup = new MergedCommand("setup", `${BRAND.name} setup and settings.`, [
   { command: setupCommand, handler: executeSetup, as: "start" },
   { command: configCommand, handler: executeConfig, as: "config" },
   { command: testRaidCommand, handler: executeTestRaid, as: "testraid" },
-  { command: selfRolesCommand, handler: executeSelfRoles, as: "selfroles" }
+  { command: selfRolesCommand, handler: executeSelfRoles, as: "selfroles" },
+  { command: resetCommand, handler: executeSetupReset, as: "reset" }
 ]);
 
 const character = new MergedCommand("character", "Your characters, professions, attunements, wishlist and readiness.", [

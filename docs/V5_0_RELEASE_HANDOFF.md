@@ -1,5 +1,7 @@
 # Guilded 5.0 stabilization — local Claude update handoff
 
+Latest core raid, full setup reset and dungeon results changes: `docs/CORE_RAIDS_AND_DUNGEON_RESULTS.md`.
+
 Read this first, then `CLAUDE.md`. This supersedes the deployment order in older handoffs.
 Keep version **5.0.0**: it is not publicly released. Do not claim the live server, Windows install,
 or real-game checks have passed just because unit tests pass.

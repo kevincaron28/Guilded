@@ -43,7 +43,7 @@ import { boardTagNames, postBoardGuide } from "./craft-board.js";
 
 export const setupCommand = new SlashCommandBuilder()
   .setName("setup")
-  .setDescription(`Guided setup for ${BRAND.name} (admins). Safe to run again any time.`)
+  .setDescription(`Guided ${BRAND.name} setup (admins). Safe to rerun.`)
   .setDescriptionLocalizations({ fr: `Configuration guidée de ${BRAND.name} (administrateurs). Peut être relancée en tout temps.` })
   .addBooleanOption((o) => o.setName("status").setDescription("Only show the setup checklist"));
 

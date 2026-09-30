@@ -58,6 +58,7 @@ export async function applyRaidAttendance(
       where: {
         guildId,
         status: { not: "CANCELLED" },
+        ...(addonRaid.coreId ? { coreId: addonRaid.coreId } : {}),
         scheduledAt: { gte: new Date(start - MATCH_WINDOW_MS), lte: new Date(start + MATCH_WINDOW_MS) }
       },
       include: { signups: true, attendance: true }
@@ -119,7 +120,7 @@ export async function applyAddonLoot(
   characters: LinkedCharacter[],
   raidIds: Map<string, string>,
   appliedBy: string
-): Promise<{ recorded: number; skipped: number; unmatched: string[] }> {
+): Promise<{ recorded: number; skipped: number; unmatched: string[]; recordedIds?: string[] }> {
   if (loot.length === 0) return { recorded: 0, skipped: 0, unmatched: [] };
   const refs = loot.map((row) => row.ref);
   const existing = new Set((await tx.lootAward.findMany({
@@ -127,13 +128,14 @@ export async function applyAddonLoot(
     select: { sourceRef: true }
   })).map((row) => row.sourceRef));
   let recorded = 0;
+  const recordedIds: string[] = [];
   let skipped = 0;
   const unmatched: string[] = [];
   for (const row of loot) {
     if (existing.has(row.ref)) { skipped++; continue; }
     const character = findCharacter(characters, row.character, row.realm);
     if (!character) { unmatched.push(row.character); continue; }
-    await tx.lootAward.create({
+    const award = await tx.lootAward.create({
       data: {
         guildId,
         memberId: character.memberId,
@@ -146,8 +148,9 @@ export async function applyAddonLoot(
         ...(row.awardedAt ? { awardedAt: row.awardedAt } : {})
       }
     });
+    recordedIds.push(award.id);
     existing.add(row.ref);
     recorded++;
   }
-  return { recorded, skipped, unmatched: [...new Set(unmatched)] };
+  return { recorded, skipped, unmatched: [...new Set(unmatched)], ...(recordedIds.length ? { recordedIds } : {}) };
 }

@@ -1,3 +1,6 @@
+import { ensureCoreDiscord } from "./services/raid-core.js";
+import { guildService } from "./commands/context.js";
+import { pendingSignupRaidIds, syncSignupEmbed } from "./commands/raid.js";
 import { updateProfessionDirectory } from "./services/profession-directory.js";
 import {
   Client,
@@ -91,12 +94,26 @@ handlers.set("craft", executeCraft);
 handlers.set("help", executeHelp);
 handlers.set("uninstall", executeUninstall);
 
+async function repairCoreRaids(guild: import("discord.js").Guild, provision = false): Promise<void> {
+  const record = await guildService.ensureGuild(guild.id, guild.name);
+  if (provision) {
+    const cores = await prisma.raidCore.findMany({ where: { guildId: record.id } });
+    for (const core of cores) await ensureCoreDiscord(guild, prisma, record.id, core.id);
+  }
+  const raids = await prisma.raid.findMany({ where: { guildId: record.id, coreId: { not: null }, OR: [
+    { status: { in: ["PLANNED", "ACTIVE"] }, ...(provision ? {} : { OR: [{ signupMessageId: null }, { mirrorSignupMessageId: null }] }) },
+    { id: { in: pendingSignupRaidIds(record.id) } }
+  ] }, select: { id: true } });
+  for (const raid of raids) await syncSignupEmbed(guild, record.id, raid.id);
+}
+
 client.once(Events.ClientReady, (readyClient) => {
   registerCommandsEverywhere().catch(reportJobError("Command registration"));
   console.info(`Logged in as ${readyClient.user.tag}`);
   for (const guild of readyClient.guilds.cache.values()) {
     void updateDungeonLeaderboard(guild);
     void updateProfessionDirectory(guild);
+    repairCoreRaids(guild, true).catch(reportJobError("Core channels and raid posts"));
   }
   logSetupStatus(readyClient.guilds.cache.values()).catch(reportJobError("Setup status log"));
   // One-shot: the running version only changes on a redeploy/restart, so a
@@ -131,6 +148,13 @@ client.once(Events.ClientReady, (readyClient) => {
   setInterval(() => {
     cleanupDungeonGroups(readyClient).catch(reportJobError("Dungeon group cleanup"));
   }, 2 * 60 * 1000);
+  let repairing = false;
+  setInterval(() => {
+    if (repairing) return;
+    repairing = true;
+    (async () => { for (const guild of readyClient.guilds.cache.values()) await repairCoreRaids(guild); })()
+      .catch(reportJobError("Raid signup repair")).finally(() => { repairing = false; });
+  }, 5 * 60 * 1000);
   // Weekly guild report (if enabled): checked hourly.
   setInterval(() => {
     runWeeklyReports(readyClient).catch(reportJobError("Weekly report check"));

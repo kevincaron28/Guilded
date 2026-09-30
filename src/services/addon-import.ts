@@ -12,6 +12,7 @@ import { syncProfessionSnapshot } from "./profession-snapshot.js";
 import { applyRecipeData } from "./recipes.js";
 import { planCalendarSync } from "./calendar-sync.js";
 import { createSelfCharacter } from "./character-pairing.js";
+import { excludeHistoryBeforeReset } from "./import-reset.js";
 
 export function createAddonImportService(database: PrismaClient) {
   return {
@@ -56,7 +57,8 @@ export function createAddonImportService(database: PrismaClient) {
         const imported = await tx.addonImport.findFirst({ where: { id: importId, guildId } });
         if (!imported) throw new Error("Addon import not found.");
         if (imported.status === "APPLIED") throw new Error("Addon import has already been applied.");
-        const snapshot = parseAddonSnapshot(imported.payload);
+        const resetAt = (await tx.guildSettings.findUnique({ where: { guildId }, select: { dataResetAt: true } }))?.dataResetAt ?? null;
+        const snapshot = excludeHistoryBeforeReset(parseAddonSnapshot(imported.payload), resetAt);
         const characters = await tx.character.findMany({
           where: { member: { guildId } },
           include: { member: true }

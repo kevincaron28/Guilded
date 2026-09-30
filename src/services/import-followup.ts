@@ -25,6 +25,12 @@ export async function followUpImport(discordGuild: DiscordGuild | null, guildId:
     // Housekeeping for officers, not news for members: the private officer log.
     await notify(discordGuild, notifications.importApplied(result.epgpTransactions.length, matchedRaids), "officer");
   }
+  if (discordGuild && result.loot.recordedIds?.length) {
+    const awards = await prisma.lootAward.findMany({ where: { guildId, id: { in: result.loot.recordedIds } }, include: { member: true } });
+    const raids = await prisma.raid.findMany({ where: { guildId, id: { in: awards.flatMap(award => award.raidId ? [award.raidId] : []) } }, select: { id: true, coreId: true } });
+    const coreByRaid = new Map(raids.map(raid => [raid.id, raid.coreId]));
+    for (const award of awards) await notify(discordGuild, notifications.lootAwarded(award.itemName, award.member.displayName, award.amount), "loot", award.raidId ? coreByRaid.get(award.raidId) ?? null : null);
+  }
   const dungeonPost = dungeonAnnouncement(result.dungeons, "en");
   if (dungeonPost) {
     await notifyDungeon(discordGuild, (lang) => dungeonAnnouncement(result.dungeons, lang) ?? dungeonPost);

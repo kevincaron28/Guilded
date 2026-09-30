@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const addonTransactionSchema = z.object({
+  createdAt: z.coerce.date().optional(),
   character: z.string().min(1),
   realm: z.string().min(1),
   amount: z.number().int().refine((amount) => amount !== 0, "must not be zero"),
@@ -12,6 +13,7 @@ export const addonTransactionSchema = z.object({
 // Separate from addonTransactionSchema because the addon's EPGP ledger tracks
 // EP and GP independently per entry, not a single signed amount.
 export const addonEpgpTransactionSchema = z.object({
+  createdAt: z.coerce.date().optional(),
   coreId: z.string().min(1).max(100).optional(),
   character: z.string().min(1),
   realm: z.string().min(1),
@@ -81,6 +83,7 @@ export const addonAttunementSchema = z.object({
 // by start time on import.
 export const addonRaidSchema = z.object({
   ref: z.string().min(1),
+  coreId: z.string().min(1).max(100).optional(),
   title: z.string().min(1),
   startedAt: z.coerce.date(),
   endedAt: z.coerce.date().optional(),

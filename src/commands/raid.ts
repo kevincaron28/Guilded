@@ -1,3 +1,4 @@
+import { serializeRaidPosts, syncRaidPosts } from "../services/raid-signup-posts.js";
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, SlashCommandBuilder,
   type ButtonInteraction, type ChatInputCommandInteraction, type Guild as DiscordGuild, type GuildMember
@@ -6,7 +7,7 @@ import { RaidAttendanceStatus, RaidBossStatus, RaidRole } from "@prisma/client";
 import { prisma } from "../database.js";
 import { notifications, notify } from "../services/notify.js";
 import { showEpProposal } from "./ep-award.js";
-import { raidReportEmbed } from "./raid-report.js";
+import { postRaidReport, raidReportEmbed } from "./raid-report.js";
 import { buildRaidReport } from "../services/raid-report.js";
 import { bossProgress } from "../services/progress.js";
 import { parseRaidTime } from "../services/raid-time.js";
@@ -128,7 +129,11 @@ function signupButtons(raidId: string, status: string, lang: Lang) {
   )];
 }
 
+const failedSignupSyncs = new Map<string, Set<string>>();
+export const pendingSignupRaidIds = (guildId: string): string[] => [...(failedSignupSyncs.get(guildId) ?? [])];
+
 export async function syncSignupEmbed(discordGuild: DiscordGuild, guildId: string, raidId: string): Promise<void> {
+  await serializeRaidPosts(`${guildId}:${raidId}`, async () => {
   try {
     const raid = await raidService.getStatus(raidId, guildId);
     const lang = asLang((await guildService.getSettings(guildId))?.language);
@@ -144,33 +149,17 @@ export async function syncSignupEmbed(discordGuild: DiscordGuild, guildId: strin
       core: core ? { name: core.name, members: core.members.map((m) => ({ memberId: m.memberId, displayName: coreSpotLabel(m), role: m.role, bench: m.bench })) } : undefined
     });
 
-    if (raid.signupChannelId && raid.signupMessageId) {
-      const channel = await discordGuild.channels.fetch(raid.signupChannelId).catch(() => null);
-      if (channel?.isTextBased()) {
-        const message = await channel.messages.fetch(raid.signupMessageId).catch(() => null);
-        if (message) {
-          await message.edit({ embeds: [embed], components: signupButtons(raid.id, raid.status, lang) });
-          return;
-        }
-      }
-    }
-
     const settings = await guildService.getSettings(guildId);
-    // A core with its own channels posts its raids in its #<core>-signups channel.
-    const coreChannel = raid.coreId
-      ? (await prisma.raidCore.findUnique({ where: { id: raid.coreId }, select: { signupChannelId: true } }))?.signupChannelId ?? null
-      : null;
-    const postIn = coreChannel ?? settings?.raidSignupChannelId;
-    if (!raid.signupChannelId && postIn) {
-      const channel = await discordGuild.channels.fetch(postIn).catch(() => null);
-      if (channel?.isTextBased()) {
-        const message = await channel.send({ embeds: [embed], components: signupButtons(raid.id, raid.status, lang) });
-        await raidService.setSignupMessage(raidId, guildId, channel.id, message.id);
-      }
-    }
+    const coreChannel = raid.coreId ? (await prisma.raidCore.findFirst({ where: { id: raid.coreId, guildId }, select: { signupChannelId: true } }))?.signupChannelId ?? null : null;
+    await syncRaidPosts(discordGuild, prisma, raid, settings?.raidSignupChannelId ?? null, coreChannel,
+      { embeds: [embed], components: signupButtons(raid.id, raid.status, lang), allowedMentions: { parse: [] } });
+    failedSignupSyncs.get(guildId)?.delete(raidId);
   } catch (error) {
+    if (!failedSignupSyncs.has(guildId)) failedSignupSyncs.set(guildId, new Set());
+    failedSignupSyncs.get(guildId)!.add(raidId);
     console.error("Failed to sync raid signup embed", error);
   }
+  });
 }
 
 // DMs players moved off the waitlist. Best effort: closed DMs are ignored,
@@ -318,7 +307,12 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
   if (subcommand === "report") {
     const report = await buildRaidReport(prisma, context.guildId, raidId);
     const lang = asLang((await guildService.getSettings(context.guildId))?.language);
-    await interaction.reply({ embeds: [raidReportEmbed(report, lang)], allowedMentions: { parse: [] } });
+    const raid = await prisma.raid.findFirst({ where: { id: raidId, guildId: context.guildId }, select: { coreId: true } });
+    if (raid?.coreId) {
+      await interaction.deferReply({ ephemeral: true });
+      const posted = await postRaidReport(interaction.guild, context.guildId, raidId);
+      await interaction.editReply({ content: posted ? "Posted in this core's raid reports channel." : "No report channel is configured for this core." });
+    } else await interaction.reply({ embeds: [raidReportEmbed(report, lang)], allowedMentions: { parse: [] } });
     return;
   }
   if (subcommand === "award-ep") {

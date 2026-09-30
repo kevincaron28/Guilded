@@ -21,6 +21,7 @@ import { BRAND } from "../brand.js";
 import { isPermissionRoleName, type Permission } from "../permissions.js";
 import { categoryNames, channelNames, type CategoryKey } from "../setup-names.js";
 import { ALL_CHANNELS } from "./setup.js";
+import { ARCHIVE_CATEGORY, coreChannelNames } from "../services/core-channels.js";
 
 // Permanently removes Guilded from a server: deletes the channels and (empty) categories it
 // made, wipes every database row for this guild (cascades from the Guild row: raids, EPGP,
@@ -32,6 +33,8 @@ import { ALL_CHANNELS } from "./setup.js";
 export const uninstallCommand = new SlashCommandBuilder()
   .setName("uninstall")
   .setDescription(`Permanently remove ${BRAND.name}: delete what it made and wipe its data (cannot be undone).`);
+export const resetCommand = new SlashCommandBuilder().setName("reset").setDescription("Erase channels and guild data; restart setup.");
+export const executeSetupReset = (interaction: ChatInputCommandInteraction) => executeUninstall(interaction, true);
 
 const PERMISSION_NAMES: Permission[] = ["guildMaster", "officer", "raidLeader", "dkpOfficer", "lootLeader", "classLeader"];
 const CATEGORY_KEYS: CategoryKey[] = ["guild", "raid", "dungeon", "craft", "officers"];
@@ -46,6 +49,7 @@ function canUninstall(interaction: ChatInputCommandInteraction): boolean {
 interface RemovableChannel { id: string; name: string }
 
 interface Impact {
+  coreCategories: string[];
   removableChannels: RemovableChannel[];
   keptChannels: string[];
   roleNames: string[];
@@ -71,6 +75,33 @@ async function gatherImpact(guild: DiscordGuild, guildId: string, settings: Guil
     if (channel && !keptChannels.includes(`<#${channel.id}>`)) keptChannels.push(`<#${channel.id}>`);
   }
 
+  const coreCategories: string[] = [];
+  await guild.channels.fetch();
+  for (const category of guild.channels.cache.values()) {
+    if (category.type !== ChannelType.GuildCategory || !(category.name === ARCHIVE_CATEGORY || category.name.startsWith(`${ARCHIVE_CATEGORY} `))) continue;
+    coreCategories.push(category.id);
+    for (const channel of guild.channels.cache.values()) {
+      if (channel.parentId === category.id && /-(roster|signups|butin|rapports|chat)$/.test(channel.name)
+        && !removableChannels.some(row => row.id === channel.id)) removableChannels.push({ id: channel.id, name: channel.name });
+    }
+  }
+  const cores = await prisma.raidCore.findMany({ where: { guildId } });
+  for (const core of cores) {
+    const names = coreChannelNames(core.name);
+    const fields = { rosterChannelId: names.roster, signupChannelId: names.signups, lootChannelId: names.loot, raidLogChannelId: names.reports, chatChannelId: names.chat, voiceChannelId: names.voice };
+    for (const [field, expected] of Object.entries(fields)) {
+      const id = core[field as keyof typeof fields];
+      if (!id) continue;
+      const channel = await guild.channels.fetch(id);
+      if (!channel) continue;
+      if (channel.name === expected && !removableChannels.some(row => row.id === id)) removableChannels.push({ id, name: channel.name });
+      else if (channel.name !== expected) keptChannels.push(`<#${id}>`);
+    }
+    if (core.categoryId) {
+      const category = await guild.channels.fetch(core.categoryId);
+      if (category?.name === names.category) coreCategories.push(category.id);
+    }
+  }
   await guild.roles.fetch();
   const roleNames = new Set<string>();
   for (const permission of PERMISSION_NAMES) {
@@ -93,13 +124,13 @@ async function gatherImpact(guild: DiscordGuild, guildId: string, settings: Guil
     prisma.addonImport.count({ where: { guildId } }),
     prisma.dungeonRun.count({ where: { guildId } })
   ]);
-  return { removableChannels, keptChannels, roleNames: [...roleNames], counts: { members, characters, raids, epgp, loot, imports, dungeonRuns } };
+  return { removableChannels, keptChannels, coreCategories, roleNames: [...roleNames], counts: { members, characters, raids, epgp, loot, imports, dungeonRuns } };
 }
 
-function confirmEmbed(guild: DiscordGuild, impact: Impact): EmbedBuilder {
+function confirmEmbed(guild: DiscordGuild, impact: Impact, reset = false): EmbedBuilder {
   const c = impact.counts;
   const lines = [
-    `**This permanently deletes everything ${BRAND.name} has for "${guild.name}" and the bot leaves this server. This cannot be undone.**`,
+    `**This permanently deletes everything ${BRAND.name} has for "${guild.name}". ${reset ? "The bot stays so you can restart setup. Companion pairings are revoked." : "The bot leaves this server."} This cannot be undone.**`,
     "",
     `**Database:** ${c.raids} raid(s), ${c.epgp} EPGP entr${c.epgp === 1 ? "y" : "ies"}, ${c.loot} loot award(s), ${c.imports} addon import(s), ` +
       `${c.dungeonRuns} dungeon run(s), ${c.characters} linked character(s) across ${c.members} member record(s) — all deleted.`,
@@ -117,11 +148,11 @@ function confirmEmbed(guild: DiscordGuild, impact: Impact): EmbedBuilder {
     "",
     `Press **Continue**, then type this server's name (**${guild.name}**) exactly to confirm.`
   ].filter((line) => line !== "");
-  return new EmbedBuilder().setTitle(`⚠️ Uninstall ${BRAND.name}`).setColor(0xcc3333).setDescription(lines.join("\n").slice(0, 4000));
+  return new EmbedBuilder().setTitle(`⚠️ ${reset ? "Reset" : "Uninstall"} ${BRAND.name}`).setColor(0xcc3333).setDescription(lines.join("\n").slice(0, 4000));
 }
 
-function confirmModal(guild: DiscordGuild): ModalBuilder {
-  return new ModalBuilder().setCustomId("uninstall:confirm-modal").setTitle("Confirm uninstall").addComponents(
+function confirmModal(guild: DiscordGuild, reset = false): ModalBuilder {
+  return new ModalBuilder().setCustomId("uninstall:confirm-modal").setTitle(reset ? "Confirm full reset" : "Confirm uninstall").addComponents(
     new ActionRowBuilder<TextInputBuilder>().addComponents(
       new TextInputBuilder().setCustomId("name").setLabel("Type the server's name exactly")
         .setPlaceholder(guild.name.slice(0, 100)).setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100)
@@ -144,33 +175,42 @@ async function deleteEmptyCategories(guild: DiscordGuild): Promise<string[]> {
   return removed;
 }
 
-async function performUninstall(guild: DiscordGuild, guildId: string, impact: Impact): Promise<string> {
+export async function performUninstall(guild: DiscordGuild, guildId: string, impact: Impact, reset = false): Promise<string> {
   const deletedChannels: string[] = [];
   for (const { id, name } of impact.removableChannels) {
     const channel = await guild.channels.fetch(id).catch(() => null);
     if (!channel) continue;
-    await channel.delete(`${BRAND.name} uninstall`).catch(() => undefined);
+    await channel.delete(`${BRAND.name} ${reset ? "reset" : "uninstall"}`);
     deletedChannels.push(name);
+  }
+  for (const id of impact.coreCategories) {
+    await guild.channels.fetch();
+    const category = guild.channels.cache.get(id);
+    if (category && !guild.channels.cache.some(channel => channel.parentId === id)) await category.delete(`${BRAND.name} reset`);
   }
   const deletedCategories = await deleteEmptyCategories(guild);
   try {
-    await prisma.guild.delete({ where: { id: guildId } });
+    await prisma.$transaction(async tx => {
+      await tx.guild.delete({ where: { id: guildId } });
+      if (reset) await tx.guild.create({ data: { discordId: guild.id, name: guild.name, settings: { create: { dataResetAt: new Date() } } } });
+    });
   } catch (error) {
     console.error("Uninstall: could not delete the guild's database row", error);
-    return "Deleted the channels above, but the database wipe failed — check the bot's logs. The bot will still leave the server.";
+    throw new Error("Database wipe failed; the bot remains in this server.");
   }
+
   return [
-    `**${BRAND.name} is uninstalled from "${guild.name}".**`,
+    `**${BRAND.name} is ${reset ? "reset" : "uninstalled"} for "${guild.name}".**`,
     deletedChannels.length ? `Deleted channels: ${deletedChannels.map((n) => `#${n}`).join(", ")}.` : "No channels of mine matched to delete.",
     deletedCategories.length ? `Deleted empty categories: ${deletedCategories.join(", ")}.` : "",
     "All of its data for this server — raids, EPGP, loot log, imports, characters, recipes, everything — is gone.",
     impact.keptChannels.length ? `Left alone: ${impact.keptChannels.join(", ")}.` : "",
     impact.roleNames.length ? `Roles left alone: ${impact.roleNames.join(", ")}.` : "",
-    "Leaving the server now."
+    reset ? "Run `/setup start` to create fresh channels, then pair companions again." : "Leaving the server now."
   ].filter((line) => line !== "").join("\n");
 }
 
-export async function executeUninstall(interaction: ChatInputCommandInteraction): Promise<void> {
+export async function executeUninstall(interaction: ChatInputCommandInteraction, reset = false): Promise<void> {
   if (!interaction.guild || !interaction.guildId) {
     await interaction.reply({ content: `This command can only be used inside the ${BRAND.name} Discord server.`, ephemeral: true });
     return;
@@ -180,51 +220,77 @@ export async function executeUninstall(interaction: ChatInputCommandInteraction)
     return;
   }
   const guild = interaction.guild;
+  await interaction.deferReply({ ephemeral: true });
   const record = await guildService.ensureGuild(guild.id, guild.name);
   const guildId = record.id;
   const settings = await guildService.getSettings(guildId);
   if (!settings) {
-    await interaction.reply({ content: `${BRAND.name} has no settings saved for this server — there is nothing to uninstall. Just remove the bot if you want it gone.`, ephemeral: true });
+    await interaction.editReply({ content: `${BRAND.name} has no saved settings for this server.` });
     return;
   }
 
   const impact = await gatherImpact(guild, guildId, settings);
-  await interaction.reply({
-    embeds: [confirmEmbed(guild, impact)],
+  await interaction.editReply({
+    embeds: [confirmEmbed(guild, impact, reset)],
+    files: [{ attachment: Buffer.from([
+      `Server: ${guild.name} (${guild.id})`,
+      "All Guilded database records for this server will be erased, including character links, professions, recipes, raid and dungeon history, loot, points and companion pairings.",
+      "Channels to delete:", ...impact.removableChannels.map(channel => `${channel.name} (${channel.id})`),
+      "Channels kept:", ...impact.keptChannels,
+      "Roles kept:", ...impact.roleNames,
+      reset ? "The bot stays. Run /setup start after resetting." : "The bot leaves."
+    ].join("\n")), name: "guilded-deletion-preview.txt" }],
     components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId("uninstall:continue").setLabel("Continue").setStyle(ButtonStyle.Danger),
       new ButtonBuilder().setCustomId("uninstall:cancel").setLabel("Cancel").setStyle(ButtonStyle.Secondary)
-    )],
-    ephemeral: true
+    )]
   });
   const message = await interaction.fetchReply();
   const collector = message.createMessageComponentCollector({ time: 5 * 60_000, filter: (i) => i.user.id === interaction.user.id });
 
+  let busy = false;
   collector.on("collect", async (i: MessageComponentInteraction) => {
     if (i.customId === "uninstall:cancel") {
       await i.update({ content: "Cancelled. Nothing was changed.", embeds: [], components: [] });
       collector.stop("closed");
       return;
     }
-    if (i.customId !== "uninstall:continue" || !i.isButton()) return;
-    await i.showModal(confirmModal(guild));
-    const submitted = await i.awaitModalSubmit({ time: 5 * 60_000, filter: (m) => m.user.id === i.user.id }).catch(() => null);
-    if (!submitted) return;
+    if (busy || i.customId !== "uninstall:continue" || !i.isButton()) return;
+    busy = true;
+    await i.showModal(confirmModal(guild, reset));
+    const submitted = await i.awaitModalSubmit({ time: 5 * 60_000, filter: (m) => m.user.id === i.user.id && m.customId === "uninstall:confirm-modal" }).catch(() => null);
+    if (!submitted) { busy = false; return; }
+    if (collector.ended) { await submitted.reply({ content: "Confirmation expired or was cancelled. Run the command again.", ephemeral: true }); return; }
     const typed = submitted.fields.getTextInputValue("name").trim();
     if (typed.toLowerCase() !== guild.name.trim().toLowerCase()) {
       await submitted.reply({ content: `That didn't match "${guild.name}" exactly. Press Continue to try again.`, ephemeral: true });
+      busy = false;
       return;
     }
     await submitted.deferReply({ ephemeral: true });
-    const result = await performUninstall(guild, guildId, impact);
-    await submitted.editReply({ content: result });
-    await interaction.editReply({ content: "Uninstall complete — see the reply above. Leaving the server.", embeds: [], components: [] }).catch(() => undefined);
+    const administrator = await guild.members.fetch(i.user.id);
+    if (guild.ownerId !== i.user.id && !administrator.permissions.has(PermissionFlagsBits.Administrator)) {
+      await submitted.editReply({ content: "Administrator permission is required to confirm." });
+      collector.stop("closed");
+      return;
+    }
     collector.stop("done");
-    await guild.leave().catch(() => undefined);
+    let result: string;
+    try { result = await performUninstall(guild, guildId, impact, reset); }
+    catch (error) {
+      console.error("Guild reset/uninstall failed", error);
+      await submitted.editReply({ content: "Stopped because a channel or database operation failed. Some channels may already be gone. The bot remains here; check its logs before retrying." });
+      await interaction.editReply({ content: "Reset stopped; see the reply above.", embeds: [], components: [] });
+      return;
+    }
+    await submitted.editReply({ content: result });
+    await interaction.editReply({ content: reset ? "Reset complete. Run `/setup start`." : "Uninstall complete — see the reply above. Leaving the server.", embeds: [], components: [] }).catch(() => undefined);
+    collector.stop("done");
+    if (!reset) await guild.leave().catch(() => undefined);
   });
 
   collector.on("end", async (_collected, reason) => {
     if (reason === "closed" || reason === "done") return;
-    await interaction.editReply({ content: "Uninstall timed out after 5 minutes — nothing was changed. Run `/setup uninstall` again if you want.", embeds: [], components: [] }).catch(() => undefined);
+    await interaction.editReply({ content: "Uninstall timed out after 5 minutes — nothing was changed. Run the command again if you want.", embeds: [], components: [] }).catch(() => undefined);
   });
 }

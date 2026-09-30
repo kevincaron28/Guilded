@@ -2,6 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 
 export interface GuildStats {
   since: Date;
+  coreId?: string;
   raids: number;
   averageRaiders: number;
   bossKills: number;
@@ -21,16 +22,17 @@ type Db = Pick<PrismaClient, "raid" | "lootAward" | "epgpTransaction" | "member"
 // Guild activity over a window: raids, kills, loot, EP, recruitment, and who
 // showed up the most. Counts only - no performance rankings.
 // `until` (exclusive) bounds the window; without it, everything since `since`.
-export async function guildStats(database: Db, guildId: string, since: Date, until?: Date): Promise<GuildStats> {
+export async function guildStats(database: Db, guildId: string, since: Date, until?: Date, coreId?: string): Promise<GuildStats> {
   const window = until ? { gte: since, lt: until } : { gte: since };
+  const coreRaids = coreId ? await database.raid.findMany({ where: { guildId, coreId }, select: { id: true } }) : [];
   const [raids, loot, ep, newMembers, applications] = await Promise.all([
     database.raid.findMany({
-      where: { guildId, status: "COMPLETED", endedAt: window },
+      where: { guildId, ...(coreId ? { coreId } : {}), status: "COMPLETED", endedAt: window },
       include: { bosses: true, attendance: { include: { member: true } } }
     }),
-    database.lootAward.findMany({ where: { guildId, awardedAt: window }, include: { member: true } }),
+    database.lootAward.findMany({ where: { guildId, ...(coreId ? { raidId: { in: coreRaids.map(raid => raid.id) } } : {}), awardedAt: window }, include: { member: true } }),
     database.epgpTransaction.aggregate({
-      where: { guildId, createdAt: window, type: "EP_AWARD" },
+      where: { guildId, createdAt: window, type: "EP_AWARD", ...(coreId ? { OR: [{ coreId }, ...coreRaids.map(raid => ({ sourceRef: { startsWith: `raid-ep:${raid.id}:` } }))] } : {}) },
       _sum: { epAmount: true }
     }),
     database.member.count({ where: { guildId, createdAt: window } }),
@@ -59,6 +61,7 @@ export async function guildStats(database: Db, guildId: string, since: Date, unt
 
   return {
     since,
+    ...(coreId ? { coreId } : {}),
     raids: raids.length,
     averageRaiders: raids.length ? Math.round(raiderTotal / raids.length) : 0,
     bossKills: raids.reduce((sum, raid) => sum + raid.bosses.filter((boss) => boss.status === "KILLED").length, 0),

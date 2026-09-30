@@ -17,7 +17,7 @@ describe("raid core channels", () => {
     expect(coreSlug("Équipe  #2 — Naxx!")).toBe("equipe-2-naxx");
     expect(coreSlug("⚔️")).toBe("core");
     expect(coreChannelNames("Tuesday MC")).toEqual({
-      category: "⚔️ Tuesday MC", roster: "tuesday-mc-roster", signups: "tuesday-mc-signups", chat: "tuesday-mc-chat", voice: "🔊 Tuesday MC"
+      category: "⚔️ Tuesday MC", roster: "tuesday-mc-roster", signups: "tuesday-mc-signups", loot: "tuesday-mc-butin", reports: "tuesday-mc-rapports", chat: "tuesday-mc-chat", voice: "🔊 Tuesday MC"
     });
   });
 });

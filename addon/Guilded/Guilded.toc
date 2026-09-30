@@ -34,6 +34,8 @@ Modules\Backup.lua
 Modules\SyncNow.lua
 Modules\AutoInvite.lua
 Modules\Dungeon.lua
+Modules\RunResults.lua
+Modules\SeasonSync.lua
 Modules\Tooltip.lua
 Modules\ChatTab.lua
 Modules\Attunements.lua

@@ -4,6 +4,32 @@ Read this first, then `CLAUDE.md`. This supersedes the deployment order in older
 Keep version **5.0.0**: it is not publicly released. Do not claim the live server, Windows install,
 or real-game checks have passed just because unit tests pass.
 
+## Delivery status and offline import
+
+The cloud workspace completed 778 tests across 101 files, TypeScript, ESLint, addon static
+validation, both npm audits (zero reported vulnerabilities), and the 37-file addon ZIP.
+GitHub rejected publishing with HTTP 403 "Resource not accessible by integration".
+No remote branch/PR was created, no CI run occurred, and no production deployment was attempted.
+PostgreSQL migration/restore and Windows installer checks are still REQUIRED.
+
+If this arrives as **Guilded-5.0-Stabilization.zip**, the owner only needs to download it.
+Local Claude should locate that exact archive in Downloads, extract it to a temporary directory,
+read START-HERE.md, and verify SHA256SUMS.json before importing the included git bundle.
+The bundle contains only changes after base commit
+`5a3c88f005a57cee53dc94a829d98a8eb34b4db5`; it needs that base in the local repository.
+
+In the owner's existing Guilded repo, preserve current work, fetch origin, and run:
+```text
+git bundle verify <extracted>/guilded-v5-stabilization.bundle
+git fetch <extracted>/guilded-v5-stabilization.bundle refs/heads/fix/v5-release-stabilization:refs/heads/review/guilded-v5-stabilization
+```
+Use a separate worktree on `review/guilded-v5-stabilization` if the main checkout has edits.
+If that branch already exists, compare it; never force-update it. Review the changes and merge
+current origin/main into the review branch if needed, resolving conflicts while preserving newer
+work. Push it with the owner's EXISTING GitHub access, open a PR to main, and require both
+`Guilded quality` jobs to pass before continuing the local update order below. Do not treat
+this document's local test results as proof that Windows/PostgreSQL CI passed.
+
 ## User's requested outcome
 
 The owner asked for all review fixes and a one-prompt local update from Claude in VS Code.

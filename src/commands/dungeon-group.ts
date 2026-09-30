@@ -60,6 +60,10 @@ export async function handleDungeonGuideButton(interaction: ButtonInteraction): 
 // The pinned menu: the kind picked, then its form.
 export async function handleDungeonGuideSelect(interaction: StringSelectMenuInteraction): Promise<void> {
   if (interaction.customId !== DUNGEON_GUIDE_KIND_ID || !interaction.guild) return;
+  if (interaction.values[0] !== "DUNGEON") {
+    await interaction.reply({ content: "The bot now forms dungeon groups only. Post PvP and leveling groups in their dedicated channels.", ephemeral: true });
+    return;
+  }
   const record = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
   await interaction.showModal(dungeonGroupModal(await groupLang(record.id), asGroupKind(interaction.values[0])));
 }
@@ -112,6 +116,11 @@ function pingRoleId(guild: DiscordGuild, kind: GroupKind): string | null {
 export async function handleDungeonGuideModal(interaction: ModalSubmitInteraction): Promise<void> {
   if (!interaction.customId.startsWith(DUNGEON_GUIDE_CREATE_ID) || !interaction.guild) return;
   const kind = asGroupKind(interaction.customId.slice(DUNGEON_GUIDE_CREATE_ID.length + 1));
+  const requestedKind = interaction.customId.slice(DUNGEON_GUIDE_CREATE_ID.length + 1);
+  if (requestedKind && requestedKind !== "DUNGEON") {
+    await interaction.reply({ content: "The bot now forms dungeon groups only. Use the dedicated channels for other groups.", ephemeral: true });
+    return;
+  }
   const askedSize = GROUP_KINDS[kind].roles ? null : Number(interaction.fields.fields.has("size") ? interaction.fields.getTextInputValue("size") : "") || null;
   await interaction.deferReply({ ephemeral: true });
   const guild = interaction.guild;

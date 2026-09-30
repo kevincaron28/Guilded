@@ -140,6 +140,16 @@ describe("Calendar.lua making in-game events from Discord raids", () => {
     expect(last(s)).toContain("Created the in-game event");
   });
 
+  it("imports the next missing event without needing a stale saved scan and suppresses repeated clicks", () => {
+    const s = withCalendar();
+    s.run(RAID);
+    s.run("NS.calendar.createMissing()");
+    expect(s.run("return CREATED.title")).toBe("Blackwing Lair");
+    s.run("CREATED = {}; NS.calendar.createMissing()");
+    expect(s.run("return tostring(CREATED.added)")).toBe("nil");
+    expect(last(s)).toContain("Waiting for the calendar");
+  });
+
   it("does not create one that is already there, or one in the past, or without the API", () => {
     const s = withCalendar();
     s.run(RAID);
@@ -149,7 +159,7 @@ describe("Calendar.lua making in-game events from Discord raids", () => {
     expect(s.run("return tostring(CREATED.added)")).toBe("nil");
     s.run(`GuildedRaids = { { id = "old", title = "Old", at = "2026-09-01T18:00:00.000Z" } }`);
     cmd(s, "create");
-    expect(last(s)).toContain("in the past");
+    expect(last(s)).toContain("No upcoming Discord raid");
     const bare = withCalendar({ api: false });
     bare.run(RAID);
     cmd(bare, "create");

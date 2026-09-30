@@ -52,6 +52,12 @@ raid chat, and `/guilded rt check`. **Left:** arrows, circles and numbered spots
 boss room picture (the guild map's pin code in `Modules/GuildMap.lua` is the starting point), officers
 editing plans in Discord through the companion.
 
+## Raid tools polish and standalone addon
+
+- Compact independent marker window: keep it visible during raids without opening the main Guilded window.
+- Polish layout, icon tooltips, scaling, saved position, locking, combat behavior and leader permissions in real raids.
+- Package a standalone raid-tools addon after the module is polished; reuse the marker and plan logic without requiring the bot or companion.
+
 ## 4.1
 
 - **Pairing code for character linking (implemented):** `/character pair` gives a short-lived code; the

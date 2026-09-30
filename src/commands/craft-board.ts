@@ -8,6 +8,7 @@ import { hasPermission } from "../permissions.js";
 import { asLang, tx, type Lang } from "../i18n.js";
 import { createCraftService } from "../services/craft.js";
 import { findProfessionHolders } from "../services/profession-search.js";
+import { findCrafters } from "../services/recipes.js";
 import { PROFESSIONS } from "../wow-data.js";
 import { guildService } from "./context.js";
 
@@ -124,6 +125,7 @@ function tagIds(forum: ForumChannel, status: CraftRequestStatus, profession: str
 
 export const guideText = (lang: Lang = "en"): string => [
   tx(lang, "**How the craft board works**"),
+  lang === "fr" ? "• `/character profession directory` : meilleurs artisans. `/craft who item:` : recettes connues. Les demandes indiquent si la recette est confirmée." : "• `/character profession directory` shows top guild crafters. `/craft who item:` finds known recipes. Requests distinguish recorded recipes from unverified skills.",
   tx(lang, "• Press **Request a craft** below (or use `/craft request`): fill in the item. It becomes its own post here."),
   tx(lang, "• Crafters: filter this forum by your profession tag, open a post and press **I'll craft it**. Press **Mark done** when it's made."),
   tx(lang, "• The post title and tag follow the status: 🟢 Open, 🟡 Claimed, ✅ Done. Finished posts lock."),
@@ -156,6 +158,15 @@ async function loadRequest(requestId: string): Promise<RequestRow & { threadId: 
   return prisma.craftRequest.findUniqueOrThrow({ where: { id: requestId }, include: { requester: true, crafter: true } });
 }
 
+async function requestCrafters(request: { guildId: string; item: string; profession: string | null }): Promise<string[]> {
+  const matches = await findCrafters(prisma, request.guildId, request.item);
+  const exact = matches.filter((match) => match.itemName.toLowerCase() === request.item.trim().toLowerCase() || String(match.itemKey) === request.item.trim());
+  const known = exact.flatMap((match) => match.crafters).filter((crafter) => !request.profession || crafter.profession.toLowerCase() === request.profession.toLowerCase());
+  if (known.length) return [...new Set(known.map((crafter) => `${crafter.character} (${crafter.profession}; recipe recorded)`))].slice(0, 10);
+  if (!request.profession) return [];
+  return (await findProfessionHolders(prisma, request.guildId, request.profession)).slice(0, 5).map((crafter) => `${crafter.character} (${crafter.skillLevel}; recipe unverified)`);
+}
+
 // Creates the forum post for a new request. False when the craft channel is not a forum.
 export async function postCraftRequest(discordGuild: DiscordGuild | null, requestId: string): Promise<{ posted: boolean; threadId?: string }> {
   if (!discordGuild) return { posted: false };
@@ -165,7 +176,7 @@ export async function postCraftRequest(discordGuild: DiscordGuild | null, reques
     if (!forum) return { posted: false };
     const lang = await boardLang(request.guildId);
     await ensureBoardTags(forum, lang);
-    const crafters = request.profession ? (await findProfessionHolders(prisma, request.guildId, request.profession)).slice(0, 5).map((c) => `${c.character} (${c.skillLevel})`) : [];
+    const crafters = await requestCrafters(request);
     const thread = await forum.threads.create({
       name: threadTitle(request),
       message: { embeds: [craftEmbed(request, crafters, lang)], components: buttonsFor(request, lang), allowedMentions: { parse: [] } },
@@ -190,7 +201,7 @@ export async function syncCraftPost(discordGuild: DiscordGuild | null, requestId
     const thread = await openThread(forum, request.threadId);
     if (!thread) return;
     const lang = await boardLang(request.guildId);
-    const crafters = request.profession ? (await findProfessionHolders(prisma, request.guildId, request.profession)).slice(0, 5).map((c) => `${c.character} (${c.skillLevel})`) : [];
+    const crafters = await requestCrafters(request);
     const starter = await thread.fetchStarterMessage().catch(() => null);
     await starter?.edit({ embeds: [craftEmbed(request, crafters, lang)], components: buttonsFor(request, lang), allowedMentions: { parse: [] } });
     await thread.setName(threadTitle(request)).catch(() => undefined);

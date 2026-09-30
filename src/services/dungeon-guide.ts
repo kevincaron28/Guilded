@@ -1,16 +1,14 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, type GuildTextBasedChannel, type Message } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, type GuildTextBasedChannel, type Message } from "discord.js";
 import { tx, type Lang } from "../i18n.js";
-import { GROUP_KINDS, type GroupKind } from "./dungeon-group.js";
+import { type GroupKind } from "./dungeon-group.js";
 
-// The pinned group finder message in the group finder channel (it was the dungeon signup guide):
-// a menu to post a group of any kind. The old "Post a dungeon group" button still works on posts
-// made before 4.6, and the checklist offers to update those (GUIDE_VERSION).
+// Pinned dungeon signup guide. Old multi-kind menus are detected and replaced.
 export const DUNGEON_GUIDE_PREFIX = "dguide:";
 export const DUNGEON_GUIDE_CREATE_ID = `${DUNGEON_GUIDE_PREFIX}create`;
 export const DUNGEON_GUIDE_KIND_ID = `${DUNGEON_GUIDE_PREFIX}kind`;
 export const DUNGEON_GUIDE_ALERTS_ID = `${DUNGEON_GUIDE_PREFIX}alerts`;
 // 3 (5.0): the "My group alerts" button under the menu.
-export const GUIDE_VERSION = 3;
+export const GUIDE_VERSION = 4;
 
 // The role pinged when a group of that kind is posted: a role with exactly this name (members
 // opt in, e.g. with the welcome role buttons). /setup can create them.
@@ -19,22 +17,23 @@ export const LFG_ROLE_NAMES: Record<GroupKind, string> = {
 };
 
 export function dungeonSignupGuideText(lang: Lang): string {
-  return [
-    tx(lang, "**Group finder**"),
-    tx(lang, "• Pick what you want to do in the menu below (dungeon, leveling, PvP, world PvP, a world activity or anything else), then say what, when and who you need."),
-    tx(lang, "• Join a group with the buttons on its post. A dungeon takes 1 tank, 1 healer and 3 DPS; the other kinds take anyone up to their size. Extra players wait on the waitlist."),
-    tx(lang, "• When the group is full (or the leader presses Start) it gets a private voice channel, deleted once it is empty."),
-    tx(lang, "• Want a ping when a group you could join is posted? Press **My group alerts**: pick the kinds and the roles you play. You are pinged only when your characters' level fits the group and it still needs one of your roles.")
-  ].join("\n");
+  return (lang === "fr" ? [
+    "**Groupes de donjon**", "• Publiez un donjon avec le bouton ci-dessous : précisez le donjon, l'heure et les rôles recherchés.",
+    "• 1 tank, 1 soigneur et 3 DPS. Les joueurs supplémentaires vont en liste d'attente.",
+    "• Un salon vocal privé est créé au départ et supprimé quand il reste vide.",
+    "• Utilisez les salons PvP et leveling pour vos annonces libres. Les alertes du bot concernent uniquement les donjons."
+  ] : [
+    "**Dungeon groups**", "• Post a dungeon below: say which dungeon, when, and which roles you need.",
+    "• 1 tank, 1 healer and 3 DPS. Extra players join the waitlist.",
+    "• A private voice channel opens when the group starts and is removed after it stays empty.",
+    "• Use the PvP and leveling channels for member posts. Bot alerts are for dungeons only."
+  ]).join("\n");
+
 }
 
 export function dungeonSignupGuideComponents(lang: Lang) {
-  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder()
-    .setCustomId(DUNGEON_GUIDE_KIND_ID)
-    .setPlaceholder(tx(lang, "Post a group..."))
-    .addOptions((Object.keys(GROUP_KINDS) as GroupKind[]).map((kind) => ({
-      label: tx(lang, GROUP_KINDS[kind].label).slice(0, 100), value: kind, emoji: GROUP_KINDS[kind].emoji
-    })))),
+  return [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder()
+    .setCustomId(DUNGEON_GUIDE_CREATE_ID).setLabel(lang === "fr" ? "Créer un groupe de donjon" : "Post a dungeon group").setEmoji("⚔️").setStyle(ButtonStyle.Primary)),
   new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder()
     .setCustomId(DUNGEON_GUIDE_ALERTS_ID).setLabel(tx(lang, "My group alerts")).setEmoji("🔔").setStyle(ButtonStyle.Secondary))];
 }
@@ -58,7 +57,7 @@ function isDungeonGuide(message: Message): boolean {
 // True when the pinned message is the current version (the menu and the alerts button).
 export function isCurrentGuide(message: Message): boolean {
   const ids = componentIds(message);
-  return ids.includes(DUNGEON_GUIDE_KIND_ID) && ids.includes(DUNGEON_GUIDE_ALERTS_ID);
+  return ids.includes(DUNGEON_GUIDE_CREATE_ID) && ids.includes(DUNGEON_GUIDE_ALERTS_ID) && !ids.includes(DUNGEON_GUIDE_KIND_ID);
 }
 
 export async function hasDungeonSignupGuide(channel: GuildTextBasedChannel): Promise<boolean> {

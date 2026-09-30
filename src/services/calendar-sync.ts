@@ -133,7 +133,7 @@ export function describeCalendar(summary: CalendarSummary | null): string {
 export async function upcomingRaidsForAddon(database: Pick<PrismaClient, "raid">, guildId: string, now = new Date()) {
   const raids = await database.raid.findMany({
     where: { guildId, isTest: false, status: "PLANNED", scheduledAt: { gte: now, lte: new Date(now.getTime() + 21 * 86_400_000) } },
-    orderBy: { scheduledAt: "asc" }, take: 8,
+    orderBy: { scheduledAt: "asc" }, take: 50,
     select: { id: true, title: true, scheduledAt: true, description: true, core: { select: { name: true } } }
   });
   return raids.map((raid) => ({

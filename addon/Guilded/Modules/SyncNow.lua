@@ -11,28 +11,15 @@
 --   /guilded sync              how to save now (type /reload, or press Send to Discord)
 --   /guilded sync status
 --
--- Officers (the people who run the companion) get a small banner with a "Send to Discord"
--- button when data is waiting, at safe moments (out of combat, outside instances, changes
--- quiet for 90 seconds), at most every 20 minutes. Logging out also saves the data.
+-- Pending changes are shown on Home only; no recurring popup. Logout also saves data.
 local addonName, ns = ...
 ns = ns or {}
 
-local CHECK_SECONDS = 60
-local SETTLE_SECONDS = 90
-local BANNER_REPEAT_SECONDS = 20 * 60
-
 local module = {}
 ns.syncNow = module
-
-local dirtyAt        -- when unsaved data first appeared (this session)
-local bannerShownAt
-local banner
+local dirtyAt
 
 local function clock() return time and time() or 0 end
-
-local function officer()
-  return ns.isOfficer and ns.isOfficer() or false
-end
 
 -- Called by Core whenever something worth saving happens.
 function module.mark()
@@ -91,47 +78,8 @@ function module.reloadButton(parent, text, width, height, onClick, macro)
   return button
 end
 
-local function hideBanner()
-  if banner then banner:Hide() end
-end
-
-local function showBanner()
-  bannerShownAt = clock()
-  if not banner then
-    banner = CreateFrame("Frame", "GuildedSyncBanner", UIParent)
-    banner:SetSize(320, 56)
-    banner:SetPoint("TOP", 0, -120)
-    banner:SetFrameStrata("HIGH")
-    local background = banner:CreateTexture(nil, "BACKGROUND")
-    background:SetAllPoints()
-    background:SetColorTexture(0, 0, 0, 0.8)
-    local text = banner:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    text:SetPoint("TOPLEFT", 10, -8)
-    text:SetText("Guilded: new data is waiting to go to Discord.")
-    local send = module.reloadButton(banner, "Send to Discord", 140, 22, hideBanner)
-    send:SetPoint("BOTTOMLEFT", 10, 6)
-    local later = CreateFrame("Button", nil, banner, "UIPanelButtonTemplate")
-    later:SetSize(90, 22)
-    later:SetPoint("BOTTOMRIGHT", -10, 6)
-    later:SetText("Later")
-    later:SetScript("OnClick", hideBanner)
-  end
-  banner:Show()
-end
-module.showBanner = showBanner
-
--- One check, once a minute: officers get the banner when data is waiting (never in combat:
--- a secure button cannot be shown then, and nobody wants a popup mid-fight).
-function module.tick()
-  if ns.moduleActive and not ns.moduleActive("syncnow") then return end
-  if not dirtyAt then return end
-  local now = clock()
-  if now - dirtyAt < SETTLE_SECONDS then return end
-  if not module.safeMoment() then return end
-  if officer() and (not bannerShownAt or now - bannerShownAt >= BANNER_REPEAT_SECONDS) then
-    showBanner()
-  end
-end
+-- No recurring banner: saving remains an explicit Home-page action or logout.
+function module.tick() end
 
 -- One plain-language sentence for the Home page.
 function module.statusLine()
@@ -142,17 +90,6 @@ function module.statusLine()
   end
   return "Everything is saved. After changes, press Send to Discord."
 end
-
-local frame = CreateFrame("Frame")
-frame:RegisterEvent("PLAYER_LOGIN")
-frame:SetScript("OnEvent", function()
-  if C_Timer and C_Timer.NewTicker then
-    C_Timer.NewTicker(CHECK_SECONDS, function()
-      local ok, err = pcall(module.tick)
-      if not ok and ns.logDiagnostic then ns.logDiagnostic("LUA_ERROR", "syncnow: " .. tostring(err)) end
-    end)
-  end
-end)
 
 ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHandlers["sync"] = function(args)

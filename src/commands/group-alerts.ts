@@ -21,7 +21,7 @@ const ROLE_EMOJI: Record<RaidRole, string> = { TANK: "🛡️", HEALER: "💚", 
 
 export function alertPanel(lang: Lang, alert: Pick<GroupAlert, "kinds" | "roles"> | null, levels: { name: string; level: number | null }[]) {
   const T = (english: string, vars: Record<string, string | number> = {}) => tx(lang, english, vars);
-  const kinds = alert?.kinds ?? [];
+  const kinds: string[] = (alert?.kinds ?? []).filter((kind) => kind === "DUNGEON");
   const roles = alert?.roles ?? [];
   const summary = describeAlert(kinds, roles, (kind) => T(GROUP_KINDS[kind].label), (role) => T(ROLE_NAMES[role]), T("Off"), T("any role"));
   const characters = levels.length
@@ -36,8 +36,8 @@ export function alertPanel(lang: Lang, alert: Pick<GroupAlert, "kinds" | "roles"
     .setCustomId(`${GROUP_ALERT_PREFIX}kinds`)
     .setPlaceholder(T("Ping me for... (none = off)"))
     .setMinValues(0)
-    .setMaxValues(Object.keys(GROUP_KINDS).length)
-    .addOptions((Object.keys(GROUP_KINDS) as GroupKind[]).map((kind) => ({
+    .setMaxValues(1)
+    .addOptions((["DUNGEON"] as GroupKind[]).map((kind) => ({
       label: T(GROUP_KINDS[kind].label).slice(0, 100), value: kind, emoji: GROUP_KINDS[kind].emoji, default: kinds.includes(kind)
     })));
   const roleMenu = new StringSelectMenuBuilder()
@@ -78,9 +78,9 @@ export async function openGroupAlerts(interaction: ButtonInteraction | ChatInput
 export async function handleGroupAlertComponent(interaction: ButtonInteraction | StringSelectMenuInteraction): Promise<void> {
   const { guildId, memberId, lang, alert, characters } = await context(interaction);
   const action = interaction.customId.slice(GROUP_ALERT_PREFIX.length);
-  let kinds = alert?.kinds ?? [];
+  let kinds: string[] = (alert?.kinds ?? []).filter((kind) => kind === "DUNGEON");
   let roles = alert?.roles ?? [];
-  if (action === "kinds" && interaction.isStringSelectMenu()) kinds = interaction.values.filter((value) => value in GROUP_KINDS);
+  if (action === "kinds" && interaction.isStringSelectMenu()) kinds = interaction.values.filter((value) => value === "DUNGEON");
   else if (action === "roles" && interaction.isStringSelectMenu()) roles = interaction.values.filter((value) => (ALL_ROLES as string[]).includes(value));
   else if (action === "off") kinds = [];
   else return;

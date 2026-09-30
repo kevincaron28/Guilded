@@ -1,3 +1,4 @@
+import { withTransactionMock } from "./helpers/transaction.js";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -141,7 +142,7 @@ function fakeDatabase(options: { existing?: string[]; caps?: Record<string, numb
       findMany: async () => Object.keys(options.core?.roles ?? {}).map((memberId) => ({ memberId }))
     }
   };
-  return { database, signups };
+  return { database: withTransactionMock(database), signups };
 }
 
 const plan = () => ({

@@ -140,6 +140,8 @@ export async function readAddonExport(path, realm) {
       character,
       realm,
       professions,
+      professionsComplete: entry.professionsComplete === true,
+      ...(entry.professionsAt ? { professionsAt: iso(entry.professionsAt) } : {}),
       findings,
       inspectedAt: entry.updatedAt
     };
@@ -156,6 +158,8 @@ export async function readAddonExport(path, realm) {
       race: String(entry.identity.race ?? ""),
       level: Number(entry.identity.level) || 0,
       spec: String(entry.identity.spec ?? ""),
+      professionsComplete: entry.professionsComplete === true,
+      ...(entry.professionsAt ? { professionsAt: iso(entry.professionsAt) } : {}),
       professions: String(entry.professions ?? "").split(",").filter(Boolean).map((part) => {
         const [professionName, skill] = part.split(":");
         return { name: professionName, skillLevel: Number(skill) || 0 };
@@ -325,7 +329,9 @@ function exportCharacter(entry, realm) {
     race: String(entry.race ?? ""),
     level: Number(entry.level) || 0,
     spec: String(entry.spec ?? ""),
-    professions: Array.isArray(entry.professions) ? entry.professions : Object.values(entry.professions ?? {})
+    professions: Array.isArray(entry.professions) ? entry.professions : Object.values(entry.professions ?? {}),
+    professionsComplete: entry.professionsComplete === true,
+    ...(entry.professionsAt ? { professionsAt: entry.professionsAt } : {})
   };
 }
 

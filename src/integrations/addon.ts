@@ -59,6 +59,8 @@ const addonReadinessSchema = z.object({
   items: z.array(addonItemSchema).default([]),
   consumables: z.array(addonConsumableSchema).default([]),
   professions: z.array(addonProfessionSchema).default([]),
+  professionsComplete: z.boolean().optional(),
+  professionsAt: z.coerce.date().optional(),
   findings: z.array(addonFindingSchema).default([]),
   inspectedAt: z.coerce.date().optional()
 });
@@ -116,7 +118,9 @@ export const addonCharacterSchema = z.object({
   race: z.string().default(""),
   level: z.number().int().min(0).max(100).default(0),
   spec: z.string().default(""),
-  professions: z.array(z.object({ name: z.string().min(1), skillLevel: z.number().int().nonnegative() })).default([])
+  professions: z.array(z.object({ name: z.string().min(1), skillLevel: z.number().int().nonnegative() })).default([]),
+  professionsComplete: z.boolean().optional(),
+  professionsAt: z.coerce.date().optional()
 });
 
 // Result of the officer's last /guilded consumes group scan.

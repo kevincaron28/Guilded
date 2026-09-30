@@ -539,23 +539,26 @@ local function collectProfessions()
   -- GetProfessions() returns up to 6 slot indices (some may be nil), so index
   -- by count rather than ipairs, which would stop at the first hole.
   local result = {}
-  if not GetProfessions or not GetProfessionInfo then return result end
+  if not GetProfessions or not GetProfessionInfo then return result, false end
+  local complete = true
   local indices = { GetProfessions() }
   local count = select("#", GetProfessions())
   for i = 1, count do
     local index = indices[i]
     if index then
       local name, _, skillLevel = GetProfessionInfo(index)
-      if name then table.insert(result, { name = name, skillLevel = skillLevel or 0 }) end
+      if name then table.insert(result, { name = name, skillLevel = skillLevel or 0 }) else complete = false end
     end
   end
-  return result
+  return result, complete
 end
+ns.collectProfessions = collectProfessions
 
 -- Who this character is, for the Discord bot's /character import. Class and
 -- race use the English file tokens (WARRIOR, NightElf) so the bot reads them
 -- the same on any client language.
 local function collectCharacter()
+  local professions, complete = collectProfessions()
   local _, classFile = UnitClass("player")
   local _, raceFile = UnitRace("player")
   local spec
@@ -573,7 +576,9 @@ local function collectCharacter()
     race = raceFile or "",
     level = UnitLevel("player") or 0,
     spec = spec or "",
-    professions = collectProfessions(),
+    professions = professions,
+    professionsComplete = complete,
+    professionsAt = now(),
     capturedAt = now()
   }
 end
@@ -668,8 +673,8 @@ local ENCHANTABLE = { Chest = true, Legs = true, Feet = true, Wrist = true, Hand
 local DEFAULT_ENCHANT_MIN_LEVEL = 60
 
 local function inspectReadiness(silent, target)
-  local professions = collectProfessions()
-  local snapshot = { character = playerName(), inspectedAt = now(), items = {}, consumables = {}, professions = professions, findings = {} }
+  local professions, complete = collectProfessions()
+  local snapshot = { character = playerName(), inspectedAt = now(), items = {}, consumables = {}, professions = professions, professionsComplete = complete, professionsAt = now(), findings = {} }
   local missing = 0
   local missingSlots = {}
   local unenchanted = {}
@@ -791,6 +796,7 @@ local function inspectReadiness(silent, target)
   if #flags > 0 and #digest + 3 + #flagText <= MAX_ADDON_MESSAGE then
     digest = digest .. "|F:" .. flagText
   end
+  if complete and #digest + 16 <= MAX_ADDON_MESSAGE then digest = digest .. "|P:" .. tostring((GetServerTime and GetServerTime()) or time()) end
   send(digest, target or "GUILD")
   if not silent then
     local detail = ""
@@ -1252,12 +1258,13 @@ local function handlePeerReadiness(text, sender, channel)
   -- The guild channel only carries guildmates; in a raid or party a pug's digest would end
   -- up in every officer's export (and the bot would "discover" them), so only members count.
   if channel ~= "GUILD" and not isGuildMember(name) then return end
-  local professions, flags, identity = "", "", nil
+  local professions, flags, identity, professionsAt = "", "", nil, nil
   for index = 6, #parts do
     if string.sub(parts[index], 1, 2) == "F:" then flags = string.sub(parts[index], 3)
     elseif string.sub(parts[index], 1, 2) == "I:" then
       local class, race, level, spec = string.match(string.sub(parts[index], 3), "^([^,]*),([^,]*),(%d*),?(.*)$")
       if class and class ~= "" then identity = { class = class, race = race, level = tonumber(level) or 0, spec = spec or "" } end
+    elseif string.sub(parts[index], 1, 2) == "P:" then professionsAt = tonumber(string.sub(parts[index], 3))
     elseif professions == "" then professions = parts[index] end
   end
   db.peerRoster[name] = {
@@ -1265,6 +1272,8 @@ local function handlePeerReadiness(text, sender, channel)
     missing = tonumber(parts[4]) or 0,
     minDurability = tonumber(parts[5]) or 100,
     professions = professions,
+    professionsComplete = professionsAt ~= nil,
+    professionsAt = professionsAt,
     flags = flags,
     identity = identity,
     updatedAt = now(),
@@ -1387,7 +1396,16 @@ local function onEvent(_, event, ...)
   if not db then return end
   if event == "PLAYER_ENTERING_WORLD" then
     resolveGuildData()
+    db.character = collectCharacter()
+    db.myCharacters = db.myCharacters or {}; db.myCharacters[playerName()] = db.character
     maybeAutoSync(AUTO_SYNC_DEBOUNCE_SECONDS)
+  elseif event == "SKILL_LINES_CHANGED" then
+    if C_Timer and C_Timer.After then C_Timer.After(1, function()
+      db.character = collectCharacter()
+      db.myCharacters = db.myCharacters or {}; db.myCharacters[playerName()] = db.character
+      inspectReadiness(true, "GUILD")
+      if ns.recipes and ns.recipes.pruneMine then ns.recipes.pruneMine() end
+    end) end
   elseif event == "UNIT_INVENTORY_CHANGED" then
     local unit = ...
     if unit == "player" then maybeAutoSync(AUTO_SYNC_DEBOUNCE_SECONDS) end
@@ -1471,6 +1489,7 @@ end
 
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("PLAYER_LOGIN")
+if ns.compat and ns.compat.registerEvent then ns.compat.registerEvent(frame, "SKILL_LINES_CHANGED") else pcall(frame.RegisterEvent, frame, "SKILL_LINES_CHANGED") end
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 frame:RegisterEvent("UNIT_INVENTORY_CHANGED")
 frame:RegisterEvent("GROUP_ROSTER_UPDATE")

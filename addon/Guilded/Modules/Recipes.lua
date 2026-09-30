@@ -108,6 +108,7 @@ local function shareProfession(profession, entry)
     buffer = buffer == "" and piece or (buffer .. "," .. piece)
   end
   if buffer ~= "" then table.insert(chunks, buffer) end
+  if #chunks == 0 then chunks[1] = "" end -- empty lists remove old recipes on receivers
   for n, chunk in ipairs(chunks) do
     enqueue(string.format("R|%s|%d|%d|%d|%s", cleanText(profession), entry.v, n, #chunks, chunk))
   end
@@ -144,6 +145,28 @@ local function scheduleShare(profession)
   if sharePending then return end
   sharePending = true
   C_Timer.After(5, function() sharePending = false; recipes.shareMine(profession) end)
+end
+
+function recipes.pruneMine()
+  if not ns.collectProfessions then return end
+  local current, complete = ns.collectProfessions()
+  if not complete then return end
+  local b, me = book(), ns.playerName()
+  if not (b and me) then return end
+  local keep = {}
+  for _, profession in ipairs(current) do keep[profession.name] = true end
+  for profession, entry in pairs(b.people[me] or {}) do
+    if not keep[profession] and #entry.keys > 0 then
+      local empty = { v = math.max(serverTime(), entry.v + 1), keys = {} }
+      b.people[me][profession] = empty
+      shareProfession(profession, empty)
+      shareCooldowns(profession, {})
+    end
+  end
+  local cooldowns = {}
+  for _, cooldown in ipairs(b.cooldowns[me] or {}) do if keep[cooldown.prof] then cooldowns[#cooldowns + 1] = cooldown end end
+  b.cooldowns[me] = cooldowns
+  b.cooldownAt[me] = serverTime()
 end
 
 -- ---------------------------------------------------------------------
@@ -448,13 +471,16 @@ recipes.scan = scan
 -- ---------------------------------------------------------------------
 
 local pending = {}
+local lastReply = 0
 
 local function onMessage(text, sender)
   local b = book()
   local name = ns.normalizeName(sender)
   if not (b and name) then return end
   local kind = string.match(text, "^(%u+)|")
-  if kind == "R" then
+  if kind == "Q" then
+    if serverTime() - lastReply >= 60 then lastReply = serverTime(); recipes.shareMine() end
+  elseif kind == "R" then
     local profession, v, n, total, list = string.match(text, "^R|([^|]+)|(%d+)|(%d+)|(%d+)|(.*)$")
     n, total, v = tonumber(n), tonumber(total), tonumber(v)
     if not (profession and n and total and v) or total < 1 or total > MAX_CHUNKS or n < 1 or n > total then return end
@@ -735,9 +761,14 @@ local function onEvent(_, event, ...)
     ns.comm.register(PREFIX)
     -- Tell the guild what you know, once in a while and not all at the same second.
     if C_Timer and C_Timer.After then
+      C_Timer.After(12, function()
+        recipes.pruneMine()
+        enqueue("Q|" .. serverTime()) -- collect online guildmates' recipes for an officer relay
+        if ns.send then ns.send("READYREQ|" .. serverTime(), "GUILD") end
+      end)
       C_Timer.After(45 + math.random(0, 60), function()
         local b = book()
-        if b and (not b.sharedAt or serverTime() - b.sharedAt > 12 * 3600) then recipes.shareMine() end
+        if b then recipes.shareMine() end
         pcall(recipes.remindUnread)
       end)
     end

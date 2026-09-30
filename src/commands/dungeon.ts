@@ -21,6 +21,7 @@ export const dungeonCommand = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName("leaderboard").setDescription("Who has the most dungeon points")
     .addStringOption((o) => o.setName("period").setDescription("Default: this season").addChoices(
       { name: "This week", value: "week" }, { name: "This season", value: "season" }, { name: "All time", value: "all" }))
+    .addStringOption((o) => o.setName("season").setDescription("Browse a past season (overrides period)").setAutocomplete(true))
     .addStringOption((o) => o.setName("dungeon").setDescription("Only one dungeon (pick from the list)").setAutocomplete(true)))
   .addSubcommand((sub) => sub.setName("records").setDescription("Fastest clears: every dungeon, or the top times of one")
     .addStringOption((o) => o.setName("dungeon").setDescription("One dungeon (pick from the list)").setAutocomplete(true)))
@@ -109,10 +110,11 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
   const embed = new EmbedBuilder().setColor(0xd4a017);
 
   if (subcommand === "leaderboard") {
-    const period = (interaction.options.getString("period") ?? "season") as Period;
+    const seasonId = interaction.options.getString("season") ?? undefined;
+    const period = (seasonId ? "season" : interaction.options.getString("period") ?? "season") as Period;
     const instanceId = dungeonOption(interaction);
-    const season = period === "season" ? await activeSeasonOrNull(prisma, context.guildId) : null;
-    const rows = await leaderboard(prisma, context.guildId, period, instanceId);
+    const season = seasonId ? await prisma.dungeonSeason.findFirst({ where: { guildId: context.guildId, id: seasonId } }) : period === "season" ? await activeSeasonOrNull(prisma, context.guildId) : null;
+    const rows = await leaderboard(prisma, context.guildId, period, instanceId, 10, new Date(), seasonId);
     embed.setTitle(period === "season"
       ? t(lang, "dungeon.board.season", { season: season?.name ?? "Season 1" })
       : t(lang, period === "week" ? "dungeon.board.week" : "dungeon.board.all"));

@@ -28,20 +28,21 @@ export async function activeSeasonOrNull(database: Pick<PrismaClient, "dungeonSe
 // Which points count for a period. Weekly uses when the RUN ended (a run
 // imported on Wednesday still counts for the week it was played); manual
 // awards without a run use when they were given.
-export async function pointsFilter(database: Pick<PrismaClient, "dungeonSeason">, guildId: string, period: Period, now = new Date()) {
+export async function pointsFilter(database: Pick<PrismaClient, "dungeonSeason">, guildId: string, period: Period, now = new Date(), seasonId?: string) {
   const where: Prisma.DungeonPointTransactionWhereInput = { guildId };
   if (period === "week") {
     const from = weekStart(now);
     where.OR = [{ run: { endedAt: { gte: from } } }, { runId: null, createdAt: { gte: from } }];
   } else if (period === "season") {
-    const season = await activeSeasonOrNull(database, guildId);
+    const season = seasonId ? await database.dungeonSeason.findFirst({ where: { guildId, id: seasonId } }) : await activeSeasonOrNull(database, guildId);
+    if (seasonId && !season) throw new Error("That season does not belong to this guild.");
     where.seasonId = season?.id ?? "none";
   }
   return where;
 }
 
-export async function leaderboard(database: Db, guildId: string, period: Period, instanceId: number | null, limit = 10, now = new Date()): Promise<LeaderRow[]> {
-  const where = await pointsFilter(database, guildId, period, now);
+export async function leaderboard(database: Db, guildId: string, period: Period, instanceId: number | null, limit = 10, now = new Date(), seasonId?: string): Promise<LeaderRow[]> {
+  const where = await pointsFilter(database, guildId, period, now, seasonId);
   if (instanceId !== null) where.run = { ...(where.run as object | undefined), instanceId };
   const grouped = await database.dungeonPointTransaction.groupBy({
     by: ["memberId"], where, _sum: { amount: true }, orderBy: { _sum: { amount: "desc" } }, take: limit + 5

@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import type { AddonCharacter } from "../integrations/addon.js";
+import { syncProfessionSnapshot } from "./profession-snapshot.js";
 import { findCharacter } from "./character-match.js";
 import { normalizeClassName, normalizeRaceName } from "./character-import.js";
 
@@ -35,13 +36,7 @@ export async function applyDiscoveredCharacters(tx: Tx, guildId: string, entries
         where: { id: existing.id },
         data: { ...(className ? { className } : {}), ...(race ? { race } : {}), ...(level ? { level } : {}), ...(spec ? { spec } : {}), lastSeenAt: new Date() }
       });
-      for (const profession of entry.professions) {
-        await tx.professionSkill.upsert({
-          where: { characterId_profession: { characterId: existing.id, profession: profession.name } },
-          create: { characterId: existing.id, profession: profession.name, skillLevel: profession.skillLevel },
-          update: { skillLevel: profession.skillLevel }
-        });
-      }
+      await syncProfessionSnapshot(tx, guildId, existing, entry.professions, entry.professionsComplete === true, entry.professionsAt ?? new Date());
       result.refreshed++;
       continue;
     }

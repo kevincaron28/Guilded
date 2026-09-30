@@ -8,6 +8,7 @@ import { applyDiscoveredCharacters } from "./roster-discovery.js";
 import { findCharacter } from "./character-match.js";
 import { applyReserves } from "./reserves.js";
 import { applyAddonItemPrices } from "./item-values.js";
+import { syncProfessionSnapshot } from "./profession-snapshot.js";
 import { applyRecipeData } from "./recipes.js";
 import { planCalendarSync } from "./calendar-sync.js";
 import { createSelfCharacter } from "./character-pairing.js";
@@ -146,13 +147,7 @@ export function createAddonImportService(database: PrismaClient) {
           if (!character) continue;
           await touchLastSeen(tx, character.id, entry.inspectedAt ?? new Date(snapshot.exportedAt));
 
-          for (const profession of entry.professions) {
-            await tx.professionSkill.upsert({
-              where: { characterId_profession: { characterId: character.id, profession: profession.name } },
-              create: { characterId: character.id, profession: profession.name, skillLevel: profession.skillLevel },
-              update: { skillLevel: profession.skillLevel }
-            });
-          }
+          await syncProfessionSnapshot(tx, guildId, character, entry.professions, entry.professionsComplete === true, entry.professionsAt ?? entry.inspectedAt ?? new Date(snapshot.exportedAt));
 
           readinessSnapshots.push(await tx.inspectedCharacterSnapshot.create({
             data: {

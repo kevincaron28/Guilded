@@ -201,6 +201,7 @@ model Character {
   isMain             Boolean                      @default(false)
   race               String?
   lastSeenAt         DateTime?
+  professionsUpdatedAt DateTime?
   createdAt          DateTime                     @default(now())
   updatedAt          DateTime                     @updatedAt
   member             Member                       @relation(fields: [memberId], references: [id], onDelete: Cascade)
@@ -1209,6 +1210,7 @@ model UnclaimedCharacter {
   level       Int?
   spec        String?
   professions Json?
+  professionsUpdatedAt DateTime?
   lastSeenAt  DateTime @default(now())
   guild       Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
 

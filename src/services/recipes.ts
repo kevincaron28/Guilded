@@ -7,7 +7,7 @@ import { findCharacter } from "./character-match.js";
 // profession window (/guilded recipes), shares them with the guild, and the companion's
 // export brings them here.
 
-type Tx = Pick<Prisma.TransactionClient, "recipeKnown" | "professionCooldown">;
+type Tx = Pick<Prisma.TransactionClient, "recipeKnown" | "professionCooldown" | "character">;
 type Db = Pick<PrismaClient, "recipeKnown" | "professionCooldown" | "character">;
 
 // Recipe keys are item ids, or minus a spell id for enchants.
@@ -24,8 +24,17 @@ export interface RecipeImportInput {
 
 export async function applyRecipeData(tx: Tx, guildId: string, input: RecipeImportInput): Promise<{ recipeSets: number; recipes: number; cooldownSets: number }> {
   const summary = { recipeSets: 0, recipes: 0, cooldownSets: 0 };
+  const characters = input.recipes.length || input.cooldowns.length ? await tx.character.findMany({
+    where: { member: { guildId } }, select: { name: true, realm: true, professionsUpdatedAt: true, professions: { select: { profession: true } } }
+  }) : [];
+  const dropped = (character: string, realm: string, profession: string, at: Date) => {
+    const linked = findCharacter(characters, character, realm);
+    return !!linked?.professionsUpdatedAt && linked.professionsUpdatedAt >= at
+      && !linked.professions.some((skill) => skill.profession.toLowerCase() === profession.toLowerCase());
+  };
 
   for (const set of input.recipes) {
+    if (dropped(set.character, set.realm, set.profession, set.at)) continue;
     const where = { guildId, character: set.character, realm: set.realm, profession: set.profession };
     const newest = await tx.recipeKnown.aggregate({ where, _max: { scannedAt: true } });
     if (newest._max.scannedAt && newest._max.scannedAt >= set.at) continue;
@@ -66,9 +75,10 @@ export async function applyRecipeData(tx: Tx, guildId: string, input: RecipeImpo
     if (newest._max.scannedAt && newest._max.scannedAt >= set.at) continue;
     const before = await tx.professionCooldown.findMany({ where });
     await tx.professionCooldown.deleteMany({ where });
-    if (set.entries.length > 0) {
+    const entries = set.entries.filter((entry) => !dropped(set.character, set.realm, entry.profession, set.at));
+    if (entries.length > 0) {
       await tx.professionCooldown.createMany({
-        data: set.entries.map((entry) => {
+        data: entries.map((entry) => {
           // The same cooldown seen again keeps its "already pinged" mark.
           const old = before.find((row) => row.profession === entry.profession && row.name === entry.name);
           const same = old && Math.abs(old.readyAt.getTime() - entry.readyAt.getTime()) < 5 * 60_000;

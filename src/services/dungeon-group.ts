@@ -32,6 +32,7 @@ export function groupSize(kind: GroupKind, asked?: number | null): number {
 // how long an unfinished signup stays open.
 export const VOICE_EMPTY_MINUTES = 5;
 export const OPEN_GROUP_HOURS = 24;
+export const CLOSED_POST_HOURS = 48;
 
 type Db = PrismaClient;
 
@@ -135,4 +136,8 @@ export function shouldDeleteVoice(emptySince: Date | null, now: Date): boolean {
 
 export function shouldExpireOpenGroup(createdAt: Date, now: Date): boolean {
   return now.getTime() - createdAt.getTime() >= OPEN_GROUP_HOURS * 3_600_000;
+}
+
+export function shouldDeleteClosedPost(closedAt: Date | null, now: Date): boolean {
+  return closedAt !== null && now.getTime() - closedAt.getTime() >= CLOSED_POST_HOURS * 3_600_000;
 }

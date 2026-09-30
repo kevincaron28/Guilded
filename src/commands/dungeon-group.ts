@@ -6,7 +6,7 @@ import {
 import type { DungeonGroup, RaidRole } from "@prisma/client";
 import { prisma } from "../database.js";
 import { hasPermission, isPermissionRoleName } from "../permissions.js";
-import { asGroupKind, createDungeonGroupService, GROUP_CAPS, GROUP_KINDS, groupSize, shouldDeleteVoice, shouldExpireOpenGroup, type GroupKind } from "../services/dungeon-group.js";
+import { asGroupKind, createDungeonGroupService, GROUP_CAPS, GROUP_KINDS, groupSize, shouldDeleteVoice, shouldDeleteClosedPost, shouldExpireOpenGroup, type GroupKind } from "../services/dungeon-group.js";
 import { DUNGEON_GUIDE_CREATE_ID, DUNGEON_GUIDE_KIND_ID, LFG_ROLE_NAMES } from "../services/dungeon-guide.js";
 import { alertRecipients, dungeonLevelsFromTitle, parseLevelRange, rolesFromTitle, type AlertGroup } from "../services/group-alerts.js";
 import { guildService, requireGuildContext } from "./context.js";
@@ -367,12 +367,21 @@ async function handleDungeonGroupAction(interaction: ButtonInteraction): Promise
 // empty a while, and closes groups that were never finished.
 export async function cleanupDungeonGroups(client: Client): Promise<void> {
   const now = new Date();
-  const groups = await prisma.dungeonGroup.findMany({ where: { status: { in: ["OPEN", "STARTED"] } } });
+  const groups = await prisma.dungeonGroup.findMany({ where: { OR: [{ status: { in: ["OPEN", "STARTED"] } }, { status: "CLOSED", signupMessageId: { not: null } }] } });
   for (const group of groups) {
     try {
       const guildRow = await prisma.guild.findUnique({ where: { id: group.guildId }, select: { discordId: true } });
       const guild = guildRow ? client.guilds.cache.get(guildRow.discordId) : undefined;
       if (!guild) continue;
+      if (group.status === "CLOSED") {
+        if (!shouldDeleteClosedPost(group.closedAt, now) || !group.signupChannelId || !group.signupMessageId) continue;
+        const channel = await guild.channels.fetch(group.signupChannelId);
+        if (!channel?.isTextBased() || !("messages" in channel)) continue;
+        try { await channel.messages.delete(group.signupMessageId); }
+        catch (error) { if (!(error && typeof error === "object" && "code" in error && error.code === 10008)) throw error; }
+        await prisma.dungeonGroup.update({ where: { id: group.id }, data: { signupMessageId: null } });
+        continue;
+      }
       if (group.status === "OPEN" && shouldExpireOpenGroup(group.createdAt, now)) {
         await closeGroup(guild, group.id);
         continue;

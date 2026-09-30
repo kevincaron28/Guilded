@@ -38,6 +38,7 @@ import { handleAutocomplete } from "./commands/autocomplete.js";
 import { prisma } from "./database.js";
 import { runRaidReminders } from "./services/reminders.js";
 import { runCooldownPings } from "./services/recipes.js";
+import { DUNGEON_SEASON_SELECT, handleDungeonSeasonSelect } from "./services/dungeon-leaderboard.js";
 import { runBackup } from "./services/backup.js";
 import { runWclDiscovery } from "./services/wcl-check.js";
 import { config } from "./config.js";
@@ -178,6 +179,10 @@ if (config.MESSAGE_CONTENT_INTENT) {
 }
 
 client.on(Events.InteractionCreate, async (interaction) => {
+  if (interaction.isStringSelectMenu() && interaction.customId === DUNGEON_SEASON_SELECT) {
+    await handleDungeonSeasonSelect(interaction).catch((error: unknown) => reportInteractionError("Dungeon season history", interaction, error));
+    return;
+  }
   if (interaction.isAutocomplete()) {
     await handleAutocomplete(interaction);
     return;

@@ -32,6 +32,7 @@ export function personalSnapshot(snapshot: AddonSnapshot, owned: { name: string;
     ...(snapshot.character && ownCharacter(snapshot.character) ? { character: snapshot.character } : {}),
     alts: snapshot.alts.filter(ownCharacter),
     readiness: snapshot.readiness.filter(own), attunements: snapshot.attunements.filter(own),
-    recipes: snapshot.recipes.filter(own), cooldowns: snapshot.cooldowns.filter(own)
+    recipes: snapshot.recipes.filter(own), cooldowns: snapshot.cooldowns.filter(own),
+    recipeNames: Object.fromEntries(Object.entries(snapshot.recipeNames).filter(([key]) => snapshot.recipes.filter(own).some((set) => set.keys.includes(Number(key)))))
   });
 }

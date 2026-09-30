@@ -144,7 +144,9 @@ export function createEngine(initialConfig, hooks = {}) {
     if (response.ok) {
       const message = body.autoApplied
         ? `Uploaded and applied automatically (${body.autoApplied.epgp} ledger entries, ${body.autoApplied.discovered} new characters).${pairingNote(body.pairedCharacterStatus)}`
-        : `Uploaded ${body.transactionCount} ledger entries. Apply on Discord with: /import apply id:${body.importId}.${pairingNote(body.pairedCharacterStatus)}`;
+        : body.professionRelay
+          ? `Professions and recipes synced. Guild ledger imports still await officer review.${pairingNote(body.pairedCharacterStatus)}`
+          : `Uploaded ${body.transactionCount} ledger entries. Apply on Discord with: /import apply id:${body.importId}.${pairingNote(body.pairedCharacterStatus)}`;
       state.lastUpload = { at: new Date().toISOString(), message };
       state.uploads += 1;
       log("ok", message);

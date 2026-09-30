@@ -283,3 +283,27 @@ describe("ready check requests", () => {
     expect(readinessSent(s)).toBe("0");
   });
 });
+
+describe("guild profession snapshots", () => {
+  it("saves a confirmed empty list immediately after unlearning a profession", () => {
+    const s = loggedIn();
+    s.run('C_Timer.After = function(_, fn) fn() end; GetProfessions = function() return nil, nil end; GetProfessionInfo = function() return nil end; fire_event("SKILL_LINES_CHANGED")');
+    expect(s.run('return tostring(GuildedDB.character.professionsComplete) .. ":" .. #GuildedDB.character.professions')).toBe("true:0");
+    s.run('GetProfessions = nil; local _, complete = NS.collectProfessions(); return tostring(complete)');
+    expect(s.run('local _, complete = NS.collectProfessions(); return tostring(complete)')).toBe("false");
+  });
+  it("keeps a fresh empty peer report against older or legacy digests", () => {
+    const s = loggedIn();
+    s.run('fire_event("CHAT_MSG_ADDON", "Guilded", "READINESS|Amy|READY|0|100||P:2000|I:MAGE,Human,60,", "GUILD", "Amy-Realm")');
+    expect(s.run('return tostring(GuildedDB.peerRoster.Amy.professionsComplete) .. ":" .. GuildedDB.peerRoster.Amy.professions')).toBe("true:");
+    s.run('fire_event("CHAT_MSG_ADDON", "Guilded", "READINESS|Amy|READY|0|100|Alchemy:300|P:1000", "GUILD", "Amy-Realm")');
+    expect(s.run('return GuildedDB.peerRoster.Amy.professions')).toBe("");
+    s.run('fire_event("CHAT_MSG_ADDON", "Guilded", "READINESS|Amy|READY|0|100|Alchemy:300", "GUILD", "Amy-Realm")');
+    expect(s.run('return GuildedDB.peerRoster.Amy.professions')).toBe("");
+  });
+  it("answers the guild profession request while preserving raid-ready request permissions", () => {
+    const s = loggedIn();
+    s.run('SENT = {}; GetInventoryItemLink = function() return nil end; GetServerTime = function() return 1800000000 end; GetProfessions = function() return nil end; GetProfessionInfo = function() return nil end; fire_event("CHAT_MSG_ADDON", "Guilded", "PROFREQ|1", "GUILD", "Amy-Realm")');
+    expect(s.run('local count = 0; for _, m in ipairs(SENT) do if m.target == "GUILD" and string.find(m.text, "P:1800000000", 1, true) then count = count + 1 end end; return count')).toBe("1");
+  });
+});

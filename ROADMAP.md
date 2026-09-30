@@ -58,6 +58,12 @@ editing plans in Discord through the companion.
 - Polish layout, icon tooltips, scaling, saved position, locking, combat behavior and leader permissions in real raids.
 - Package a standalone raid-tools addon after the module is polished; reuse the marker and plan logic without requiring the bot or companion.
 
+## Dungeon season history and Hall of Fame
+
+- Keep completed seasons, their run and point history, and season champion achievements.
+- Discord standings show current standings, recent past podiums, and a season selector; older seasons remain searchable with `/dungeon leaderboard season`.
+- Build a Hall of Fame after several seasons, with champions and podium finishes across seasons.
+
 ## 4.1
 
 - **Pairing code for character linking (implemented):** `/character pair` gives a short-lived code; the

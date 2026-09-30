@@ -7,7 +7,7 @@ import { findCharacter } from "./character-match.js";
 // profession window (/guilded recipes), shares them with the guild, and the companion's
 // export brings them here.
 
-type Tx = Pick<Prisma.TransactionClient, "recipeKnown" | "professionCooldown" | "character">;
+type Tx = Pick<Prisma.TransactionClient, "recipeKnown" | "professionCooldown" | "character" | "unclaimedCharacter">;
 type Db = Pick<PrismaClient, "recipeKnown" | "professionCooldown" | "character">;
 
 // Recipe keys are item ids, or minus a spell id for enchants.
@@ -27,8 +27,13 @@ export async function applyRecipeData(tx: Tx, guildId: string, input: RecipeImpo
   const characters = input.recipes.length || input.cooldowns.length ? await tx.character.findMany({
     where: { member: { guildId } }, select: { name: true, realm: true, professionsUpdatedAt: true, professions: { select: { profession: true } } }
   }) : [];
+  const unclaimed = input.recipes.length || input.cooldowns.length ? await tx.unclaimedCharacter.findMany({
+    where: { guildId }, select: { name: true, realm: true, professionsUpdatedAt: true, professions: true }
+  }) : [];
+  const unclaimedSkills = unclaimed.map((row) => ({ ...row, professions: (Array.isArray(row.professions) ? row.professions : [])
+    .flatMap((skill) => skill && typeof skill === "object" && "name" in skill && typeof skill["name"] === "string" ? [{ profession: skill["name"] }] : []) }));
   const dropped = (character: string, realm: string, profession: string, at: Date) => {
-    const linked = findCharacter(characters, character, realm);
+    const linked = findCharacter(characters, character, realm) ?? findCharacter(unclaimedSkills, character, realm);
     return !!linked?.professionsUpdatedAt && linked.professionsUpdatedAt >= at
       && !linked.professions.some((skill) => skill.profession.toLowerCase() === profession.toLowerCase());
   };

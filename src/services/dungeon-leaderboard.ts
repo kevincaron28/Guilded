@@ -1,7 +1,8 @@
 import { ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder, type StringSelectMenuInteraction, type Guild as DiscordGuild } from "discord.js";
 import { prisma } from "../database.js";
 import { asLang, t } from "../i18n.js";
-import { activeSeasonOrNull, formatLeaderboard, leaderboard } from "./dungeon-stats.js";
+import { formatLeaderboard, leaderboard } from "./dungeon-stats.js";
+import { activeSeason } from "./dungeon-import.js";
 import { createGuildService } from "./guild.js";
 
 const guildService = createGuildService(prisma);
@@ -11,7 +12,9 @@ export async function handleDungeonSeasonSelect(interaction: StringSelectMenuInt
   if (!interaction.guild) return;
   await interaction.deferReply({ ephemeral: true });
   const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
-  const selected = await prisma.dungeonSeason.findFirst({ where: { guildId: guild.id, id: interaction.values[0] } });
+  const selectedId = interaction.values[0];
+  if (!selectedId) { await interaction.editReply("Choose a season first."); return; }
+  const selected = await prisma.dungeonSeason.findFirst({ where: { guildId: guild.id, id: selectedId } });
   if (!selected) { await interaction.editReply("That season is no longer available."); return; }
   const lang = asLang((await guildService.getSettings(guild.id))?.language);
   const rows = await leaderboard(prisma, guild.id, "season", null, 10, new Date(), selected.id);
@@ -34,7 +37,10 @@ export async function updateDungeonLeaderboard(discordGuild: DiscordGuild | null
     if (!channel?.isTextBased()) return false;
 
     const lang = asLang(settings.language);
-    const season = await activeSeasonOrNull(prisma, guild.id);
+    const season = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${guild.id}, 0))`;
+      return activeSeason(tx, guild.id);
+    });
     const rows = await leaderboard(prisma, guild.id, "season", null);
     const embed = new EmbedBuilder()
       .setColor(0xd4a017)

@@ -28,6 +28,7 @@ export async function createSelfCharacter(tx: Tx, guildId: string, memberId: str
       level: self.level >= 1 ? self.level : null,
       spec: self.spec || null,
       isMain: !hasMain,
+      professionsUpdatedAt: self.professionsComplete === true ? self.professionsAt ?? new Date() : null,
       lastSeenAt: new Date()
     }
   });

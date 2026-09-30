@@ -44,7 +44,7 @@ function withRecipes(me = "Ray"): LuaSession {
   session.run(String.raw`
     SENT = {}
     function IsInGuild() return true end
-    C_Timer = { After = function(_, fn) fn() end }
+    C_Timer = { After = function(delay, fn) if delay <= 1 then NOW = NOW + 1 end; fn() end }
     C_ChatInfo = {
       SendAddonMessage = function(_, text, ch) SENT[#SENT + 1] = ch .. ":" .. text end,
       RegisterAddonMessagePrefix = function() return true end
@@ -52,6 +52,7 @@ function withRecipes(me = "Ray"): LuaSession {
     DB = {}
     NOW = 1800000000
     function GetServerTime() return NOW end
+    function GetTime() return NOW end
     NS = {
       L = function(t) return t end,
       isSecret = function() return false end,
@@ -155,8 +156,8 @@ describe("Recipes.lua sharing with the guild", () => {
     const s = withRecipes();
     s.run(`NS.recipes.scan("trade")`);
     expect(s.run("return SENT[1]")).toBe("GUILD:R|Alchemy|1800000000|1|1|1001,1002,3575,7910");
-    expect(s.run("return SENT[2]")).toBe("GUILD:CDC|Alchemy");
-    expect(s.run("return SENT[3]")).toBe(`GUILD:CD|Alchemy|${1800000000 + 172800}|Transmute`);
+    expect(s.run("return SENT[3]")).toBe("GUILD:CDC|Alchemy");
+    expect(s.run("return SENT[4]")).toBe(`GUILD:CD|Alchemy|${1800000000 + 172800}|Transmute`);
   });
 
   it("splits a big list, and every message stays under the limit", () => {
@@ -265,5 +266,25 @@ describe("Recipes.lua receiving from guildmates", () => {
     expect(s.run("return tostring(DB.recipeBook and DB.recipeBook.people.Ray)")).toBe("nil");
     s.run("C_TradeSkillUI.IsTradeSkillLinked = function() return false end; NS.recipes.scan('trade')");
     expect(keysOf(s, "Ray", "Alchemy")).toBe("1002");
+  });
+});
+
+describe("profession relay removals", () => {
+  it("broadcasts an empty recipe list after unlearning a profession, and the peer clears its copy", () => {
+    const s = withRecipes();
+    s.run('NS.recipes.scan("trade"); NS.collectProfessions = function() return {}, true end; NS.recipes.pruneMine()');
+    expect(keysOf(s, "Ray", "Alchemy")).toBe("");
+    expect(s.run('return #DB.recipeBook.cooldowns.Ray')).toBe("0");
+    expect(s.run('local found = false; for _, m in ipairs(SENT) do if m == "GUILD:R|Alchemy|1800000001|1|1|" then found = true end end; return tostring(found)')).toBe("true");
+    receive(s, "Ann", "R|Alchemy|1800000000|1|1|1001");
+    receive(s, "Ann", "R|Alchemy|1800000001|1|1|");
+    expect(keysOf(s, "Ann", "Alchemy")).toBe("");
+  });
+  it("relays names only for keys the sender actually reported", () => {
+    const s = withRecipes();
+    receive(s, "Ann", "R|Alchemy|1800000000|1|1|1001");
+    receive(s, "Ann", "N|1001~Elixir of X;9999~Unknown recipe");
+    expect(s.run('return DB.recipeBook.names[1001]')).toBe("Elixir of X");
+    expect(s.run('return tostring(DB.recipeBook.names[9999])')).toBe("nil");
   });
 });

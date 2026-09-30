@@ -137,7 +137,7 @@ export function createAddonImportService(database: PrismaClient) {
         // whose digest reached them): linked characters are refreshed (class,
         // race, level, spec, professions), the rest are remembered as
         // unclaimed until they are linked. Never creates a linked character.
-        const discovery = await applyDiscoveredCharacters(tx, guildId, [...(snapshot.character ? [snapshot.character] : []), ...snapshot.characters], characters);
+        const discovery = await applyDiscoveredCharacters(tx, guildId, [...(snapshot.character ? [snapshot.character] : []), ...snapshot.alts, ...snapshot.characters], characters);
 
         // Readiness is best-effort: an unlinked character shouldn't block the
         // DKP/EPGP transactions in the same import from being applied.

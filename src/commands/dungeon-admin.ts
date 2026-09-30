@@ -1,3 +1,4 @@
+import { updateDungeonLeaderboard } from "../services/dungeon-leaderboard.js";
 import { SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember } from "discord.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
@@ -135,4 +136,5 @@ export async function executeDungeonAdmin(interaction: ChatInputCommandInteracti
     await log(reply, { seasonId: result.season.id });
   }
   await interaction.reply({ content: reply.slice(0, 1990), ephemeral: true, allowedMentions: { parse: [] } });
+  if (["season-start", "award", "invalidate"].includes(subcommand)) await updateDungeonLeaderboard(interaction.guild);
 }

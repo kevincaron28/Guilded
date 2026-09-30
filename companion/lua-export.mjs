@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
 import luaparse from "luaparse";
 
+const iso = (epoch) => new Date(Number(epoch) * 1000).toISOString();
+
 function evaluate(node) {
   if (!node) return null;
   if (node.type === "StringLiteral") {
@@ -368,7 +370,6 @@ function buildReserves(saved, realm) {
 function buildRecipes(saved, realm) {
   const out = { recipes: [], recipeNames: {}, cooldowns: [] };
   if (!saved || typeof saved !== "object") return out;
-  const iso = (epoch) => new Date(Number(epoch) * 1000).toISOString();
   const used = new Set();
   for (const [player, professions] of Object.entries(saved.people ?? {})) {
     for (const [profession, entry] of Object.entries(professions ?? {})) {

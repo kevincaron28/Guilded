@@ -784,6 +784,7 @@ local function inspectReadiness(silent, target)
     elseif finding.code == "MISSING_ENCHANTS" then table.insert(flags, "ENCH:" .. table.concat(unenchanted, "+")) end
   end
   local digest = string.format("READINESS|%s|%s|%d|%d|%s", playerName(), snapshot.status, missing, minDurability, table.concat(profParts, ","))
+  if complete and #digest + 16 <= MAX_ADDON_MESSAGE then digest = digest .. "|P:" .. tostring((GetServerTime and GetServerTime()) or time()) end
   -- Who this is (class, race, level, spec) so officers' exports can discover
   -- every guildmate running the addon: "I:<CLASS>,<Race>,<level>,<spec>".
   local identityOk, identity = pcall(collectCharacter)
@@ -796,7 +797,6 @@ local function inspectReadiness(silent, target)
   if #flags > 0 and #digest + 3 + #flagText <= MAX_ADDON_MESSAGE then
     digest = digest .. "|F:" .. flagText
   end
-  if complete and #digest + 16 <= MAX_ADDON_MESSAGE then digest = digest .. "|P:" .. tostring((GetServerTime and GetServerTime()) or time()) end
   send(digest, target or "GUILD")
   if not silent then
     local detail = ""
@@ -1267,6 +1267,10 @@ local function handlePeerReadiness(text, sender, channel)
     elseif string.sub(parts[index], 1, 2) == "P:" then professionsAt = tonumber(string.sub(parts[index], 3))
     elseif professions == "" then professions = parts[index] end
   end
+  local previous = db.peerRoster[name]
+  if previous and previous.professionsAt and (not professionsAt or previous.professionsAt > professionsAt) then
+    professions, professionsAt = previous.professions, previous.professionsAt
+  end
   db.peerRoster[name] = {
     status = parts[3] or "UNKNOWN",
     missing = tonumber(parts[4]) or 0,
@@ -1288,6 +1292,7 @@ end
 -- the group channel. At most once per 20 seconds, never in combat, and only when it
 -- came through the raid or party channel (not from a stranger's whisper).
 local lastReadyAnswerAt = 0
+local lastProfessionAnswerAt = 0
 local function handleReadyRequest(channel, sender)
   if channel ~= "RAID" and channel ~= "PARTY" then return end
   -- Only an officer, the group leader or an assistant can ask (not any random raider).
@@ -1452,6 +1457,12 @@ local function onEvent(_, event, ...)
     if string.sub(text, 1, 10) == "READINESS|" then
       -- Every online guildmate sends these; keep them out of the journal.
       handlePeerReadiness(text, sender, channel)
+    elseif string.sub(text, 1, 8) == "PROFREQ|" and channel == "GUILD" then
+      local epoch = (GetServerTime and GetServerTime()) or time()
+      if epoch - lastProfessionAnswerAt >= 20 then
+        lastProfessionAnswerAt = epoch
+        inspectReadiness(true, "GUILD")
+      end
     elseif string.sub(text, 1, 9) == "READYREQ|" then
       handleReadyRequest(channel, sender)
     elseif string.sub(text, 1, 11) == "ATTUNEMENT|" then

@@ -1,3 +1,4 @@
+import { updateProfessionDirectory } from "./profession-directory.js";
 import type { Guild as DiscordGuild } from "discord.js";
 import { prisma } from "../database.js";
 import { autoLinkUnclaimed } from "./character-autolink.js";
@@ -18,6 +19,7 @@ export async function followUpImport(discordGuild: DiscordGuild | null, guildId:
   const autoLinked = discordGuild && result.discovery.discovered > 0
     ? await autoLinkUnclaimed(discordGuild, prisma, guildId).catch(() => [])
     : [];
+  await updateProfessionDirectory(discordGuild);
   const matchedRaids = result.raids.filter((raid) => raid.matchedRaidTitle).length;
   if (result.epgpTransactions.length > 0 || matchedRaids > 0) {
     // Housekeeping for officers, not news for members: the private officer log.

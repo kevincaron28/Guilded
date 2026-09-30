@@ -102,6 +102,7 @@ function fakeDb(characters: { name: string; realm: string; member: { displayName
   const db = {
     recipeKnown: table(() => recipes, (r) => { recipes = r; }),
     professionCooldown: table(() => cooldowns, (r) => { cooldowns = r; }),
+    unclaimedCharacter: { findMany: async () => [] },
     character: { findMany: async ({ where }: { where: { member: { cooldownPings?: boolean } } }) => characters.filter((c) => !where.member.cooldownPings || (c.member as { cooldownPings?: boolean }).cooldownPings) }
   };
   return { db, recipes: () => recipes, cooldowns: () => cooldowns };
@@ -111,6 +112,14 @@ const at = (iso: string) => new Date(iso);
 const set = (character: string, profession: string, keys: number[], when = "2026-10-01T18:00:00Z") => ({ character, realm: "F", profession, at: at(when), keys });
 
 describe("applyRecipeData", () => {
+  it("does not resurrect stale recipes or cooldowns for a confirmed dropped profession", async () => {
+    const { db, recipes, cooldowns } = fakeDb();
+    db.character.findMany = async () => [{ name: "Ann", realm: "F", professionsUpdatedAt: at("2026-10-02T18:00:00Z"), professions: [{ profession: "Mining" }], member: { displayName: "Ann", guildId: "g1", discordUserId: "u1" } }];
+    await applyRecipeData(db as never, "g1", { recipes: [set("Ann", "Alchemy", [1001])], recipeNames: {}, cooldowns: [{ character: "Ann", realm: "F", at: at("2026-10-01T18:00:00Z"), entries: [{ profession: "Alchemy", name: "Transmute", readyAt: at("2026-10-03T18:00:00Z") }] }] });
+    expect(recipes()).toEqual([]);
+    expect(cooldowns()).toEqual([]);
+  });
+
   it("stores each list with names, using placeholders for names nobody knows yet", async () => {
     const { db, recipes } = fakeDb();
     const summary = await applyRecipeData(db as never, "g1", { recipes: [set("Ann", "Alchemy", [1001, 1002, -7418])], recipeNames: { "1001": "Elixir of X" }, cooldowns: [] });

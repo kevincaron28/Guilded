@@ -112,6 +112,16 @@ local function shareProfession(profession, entry)
   for n, chunk in ipairs(chunks) do
     enqueue(string.format("R|%s|%d|%d|%d|%s", cleanText(profession), entry.v, n, #chunks, chunk))
   end
+  local b, names = book(), ""
+  for _, key in ipairs(entry.keys) do
+    local name = b and b.names[key]
+    if name then
+      local part = tostring(key) .. "~" .. string.sub(cleanText(name), 1, 180)
+      if #names + #part + 1 > 220 then enqueue("N|" .. names); names = "" end
+      names = names == "" and part or (names .. ";" .. part)
+    end
+  end
+  if names ~= "" then enqueue("N|" .. names) end
 end
 
 local function shareCooldowns(profession, list)
@@ -144,7 +154,7 @@ local function scheduleShare(profession)
   if not (C_Timer and C_Timer.After) then recipes.shareMine(profession) return end
   if sharePending then return end
   sharePending = true
-  C_Timer.After(5, function() sharePending = false; recipes.shareMine(profession) end)
+  C_Timer.After(5, function() sharePending = false; recipes.shareMine() end)
 end
 
 function recipes.pruneMine()
@@ -507,7 +517,20 @@ local function onMessage(text, sender)
     -- Their own report always beats a copy someone saved by looking at their window.
     if current and not current.viewed and current.v >= v then return end
     b.people[name][profession] = { v = v, keys = keys }
+    for _, key in ipairs(keys) do nameFor(key) end
     if ns.onRecipesChange then pcall(ns.onRecipesChange) end
+  elseif kind == "N" then
+    for part in string.gmatch(string.sub(text, 3), "[^;]+") do
+      local key, label = string.match(part, "^(%-?%d+)~(.+)$")
+      key = tonumber(key)
+      if key and #label <= 180 then
+        for _, entry in pairs(b.people[name] or {}) do
+          for _, known in ipairs(entry.keys) do
+            if known == key then b.names[key] = label end
+          end
+        end
+      end
+    end
   elseif kind == "CDC" then
     local profession = string.match(text, "^CDC|(.+)$")
     if not profession then return end
@@ -763,8 +786,10 @@ local function onEvent(_, event, ...)
     if C_Timer and C_Timer.After then
       C_Timer.After(12, function()
         recipes.pruneMine()
-        enqueue("Q|" .. serverTime()) -- collect online guildmates' recipes for an officer relay
-        if ns.send then ns.send("READYREQ|" .. serverTime(), "GUILD") end
+        if ns.isOfficer and ns.isOfficer() then
+          enqueue("Q|" .. serverTime()) -- collect online guildmates' recipes for an officer relay
+          if ns.send then ns.send("PROFREQ|" .. serverTime(), "GUILD") end
+        end
       end)
       C_Timer.After(45 + math.random(0, 60), function()
         local b = book()

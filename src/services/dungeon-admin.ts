@@ -123,10 +123,12 @@ export function describeConfig(config: DungeonConfig, dungeonNames: Map<number, 
 export async function startSeason(database: Db, guildId: string, name: string) {
   const trimmed = name.trim();
   if (trimmed.length < 2 || trimmed.length > 60) throw new Error("Season name must be 2 to 60 characters.");
-  const ending = await database.dungeonSeason.findFirst({ where: { guildId, status: "ACTIVE" }, orderBy: { startsAt: "desc" } });
-  const top = ending ? await leaderboard(database, guildId, "season", null, 5) : [];
-  const champions = top.filter((row) => row.points === top[0]?.points);
   return database.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${guildId}, 0))`;
+    const ending = await tx.dungeonSeason.findFirst({ where: { guildId, status: "ACTIVE" }, orderBy: { startsAt: "desc" } });
+    const count = ending ? await tx.member.count({ where: { guildId } }) : 0;
+    const top = ending ? await leaderboard(tx, guildId, "season", null, Math.max(count, 1)) : [];
+    const champions = top.filter((row) => row.points === top[0]?.points);
     const ended = await tx.dungeonSeason.findMany({ where: { guildId, status: "ACTIVE" } });
     if (ending) {
       for (const champion of champions) {

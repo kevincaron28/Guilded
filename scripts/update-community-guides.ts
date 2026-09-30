@@ -39,12 +39,19 @@ try {
         const created = await rest.post(Routes.threads(settings.craftChannelId), { body: { name: directoryName, auto_archive_duration: 1440, message: directoryBody } }) as { id: string };
         directoryId = created.id;
       }
-      if (directoryId) await rest.patch(Routes.channel(directoryId), { body: { flags: (directory?.flags ?? 0) | 2 } });
+      // Discord forums allow just one pinned thread. Keep the existing request guide pinned.
+      if (directoryId && !threads.some((thread) => thread.flags && (thread.flags & 2) !== 0 && thread.id !== directoryId)) {
+        await rest.patch(Routes.channel(directoryId), { body: { flags: (directory?.flags ?? 0) | 2 } });
+      }
       const guides = threads.filter((thread) => thread.flags && (thread.flags & 2) !== 0 && thread.name !== directoryName);
       for (const thread of guides) {
         const starter = await rest.get(Routes.channelMessage(thread.id, thread.id)) as APIMessage;
         if (starter.author.id === config.DISCORD_CLIENT_ID && starter.components?.length) {
-          await rest.patch(Routes.channelMessage(thread.id, thread.id), { body: { content: guideText(lang), allowed_mentions: { parse: [] } } });
+          await rest.patch(Routes.channelMessage(thread.id, thread.id), { body: {
+            content: guideText(lang),
+            embeds: [{ title: lang === "fr" ? "Artisans de la guilde" : "Guild profession directory", description: directoryBody.content, color: 0xd4af37 }],
+            allowed_mentions: { parse: [] }
+          } });
         }
       }
       console.log("Updated craft guide and profession directory.");

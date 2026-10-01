@@ -20,6 +20,7 @@ import { hasPermission } from "../permissions.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { BRAND } from "../brand.js";
 import { pickSignupCharacter } from "./signup-character-picker.js";
+import { CHARACTER_DISPLAY_SELECT, loadClassEmojis } from "../services/character-display.js";
 
 const raidService = createRaidService(prisma);
 
@@ -146,14 +147,14 @@ export async function syncSignupEmbed(discordGuild: DiscordGuild, guildId: strin
     const lang = asLang((await guildService.getSettings(guildId))?.language);
     const everyone = await raidService.signups(raidId, guildId);
     const core = raid.coreId
-      ? await prisma.raidCore.findUnique({ where: { id: raid.coreId }, select: { name: true, members: { select: { memberId: true, characterId: true, backups: { select: { characterId: true, role: true, character: { select: { name: true } } } }, role: true, bench: true, member: { select: { displayName: true } }, character: { select: { name: true } } } } } })
+      ? await prisma.raidCore.findUnique({ where: { id: raid.coreId }, select: { name: true, members: { select: { memberId: true, characterId: true, backups: { select: { characterId: true, role: true, character: { select: { name: true } } } }, role: true, bench: true, member: { select: { displayName: true } }, character: { select: CHARACTER_DISPLAY_SELECT } } } } })
       : null;
     // A core raid shows the character each core member brings to this core ("Kevin · Thrall").
     const coreLabel = new Map(core?.members.map((m) => [m.memberId, coreSpotLabel(m)]) ?? []);
     const embed = buildSignupEmbed({
-      lang, raid,
-      signups: everyone.map((signup) => ({ memberId: signup.memberId, characterId: signup.characterId, displayName: signup.characterName ? `${signup.characterName} — ${signup.characterRealm} · ${signup.member.displayName}` : coreLabel.get(signup.memberId) ?? signup.member.displayName, role: signup.role, status: signup.status })),
-      core: core ? { name: core.name, members: core.members.map((m) => ({ memberId: m.memberId, characterId: m.characterId, backupCharacterIds: m.backups.map(backup => backup.characterId), displayName: coreSpotLabel(m), role: m.role, bench: m.bench })) } : undefined
+      lang, raid, classEmojis: await loadClassEmojis(discordGuild),
+      signups: everyone.map((signup) => ({ memberId: signup.memberId, characterId: signup.characterId, character: signup.character?.memberId === signup.memberId && signup.member.guildId === guildId ? signup.character : null, displayName: signup.characterName ? `${signup.characterName} — ${signup.characterRealm} · ${signup.member.displayName}` : coreLabel.get(signup.memberId) ?? signup.member.displayName, role: signup.role, status: signup.status })),
+      core: core ? { name: core.name, members: core.members.map((m) => ({ memberId: m.memberId, characterId: m.characterId, character: m.character?.memberId === m.memberId ? m.character : null, backupCharacterIds: m.backups.map(backup => backup.characterId), displayName: coreSpotLabel(m), role: m.role, bench: m.bench })) } : undefined
     });
 
     const settings = await guildService.getSettings(guildId);

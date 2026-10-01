@@ -3,6 +3,7 @@ import { fillGuildWeeklyRaids } from "./services/core-weekly-raids.js";
 import { guildService } from "./commands/context.js";
 import { pendingSignupRaidIds, syncSignupEmbed } from "./commands/raid.js";
 import { runDiscordJobs } from "./services/discord-jobs.js";
+import { queueCharacterDisplayRefresh } from "./services/character-display-refresh.js";
 import { executeSystem } from "./commands/system.js";
 import { updateProfessionDirectory } from "./services/profession-directory.js";
 import {
@@ -164,6 +165,13 @@ client.once(Events.ClientReady, (readyClient) => {
   }, 5 * 60 * 1000);
   // Weekly guild report (if enabled): checked hourly.
   setInterval(() => {
+    // Re-evaluate snapshot age even when nobody clicks a signup or uploads new gear.
+    (async () => {
+      for (const guild of readyClient.guilds.cache.values()) {
+        const record = await guildService.ensureGuild(guild.id, guild.name);
+        await queueCharacterDisplayRefresh(prisma, record.id);
+      }
+    })().catch(reportJobError("Character display refresh"));
     runWeeklyReports(readyClient).catch(reportJobError("Weekly report check"));
     // Automatic EPGP decay after each weekly reset (guilds that turned it on).
     runAutoDecay(prisma).catch(reportJobError("Automatic decay"));

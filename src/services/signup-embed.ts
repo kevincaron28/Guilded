@@ -1,14 +1,16 @@
 import { EmbedBuilder } from "discord.js";
 import type { RaidRole, RaidStatus } from "@prisma/client";
 import { t, type Lang } from "../i18n.js";
+import { characterDisplayLine, hasStaleGear, staleGearNote, type ClassEmojis, type DisplayCharacter } from "./character-display.js";
+import { boundRosterEmbed } from "./roster-embed-limits.js";
 
 // The live raid signup post: who signed up in each role (with the count and
 // "FULL" when a role is at its limit), who is maybe or waiting, and for a
 // core raid which players are core mains (⭐), on the bench (🪑) or still
 // missing. Pure, so it can be tested without Discord.
 
-export interface SignupRow { memberId: string; characterId?: string | null; displayName: string; role: RaidRole; status: string; }
-export interface CoreRow { memberId: string; characterId?: string | null; backupCharacterIds?: string[]; displayName: string; role: RaidRole; bench: boolean; }
+export interface SignupRow { memberId: string; characterId?: string | null; character?: DisplayCharacter | null; displayName: string; role: RaidRole; status: string; }
+export interface CoreRow { memberId: string; characterId?: string | null; character?: DisplayCharacter | null; backupCharacterIds?: string[]; displayName: string; role: RaidRole; bench: boolean; }
 
 export interface SignupEmbedInput {
   lang: Lang;
@@ -17,6 +19,8 @@ export interface SignupEmbedInput {
     tankLimit: number | null; healerLimit: number | null; dpsLimit: number | null;
   };
   signups: SignupRow[];
+  classEmojis?: ClassEmojis;
+  now?: Date;
   core?: { name: string; members: CoreRow[] } | undefined;
 }
 
@@ -46,6 +50,8 @@ export function openSpots(caps: Record<RaidRole, number | null>, signups: { role
 
 export function buildSignupEmbed(input: SignupEmbedInput): EmbedBuilder {
   const { lang, raid, signups, core } = input;
+  const now = input.now ?? new Date();
+  const label = (row: SignupRow | CoreRow) => characterDisplayLine(row.displayName, row.character, lang, input.classEmojis, now);
   const roleName = (role: RaidRole) => t(lang, `role.${role}` as const);
   const mains = new Set(core?.members.filter((m) => !m.bench).map((m) => m.memberId));
   const bench = new Set(core?.members.filter((m) => m.bench).map((m) => m.memberId));
@@ -75,16 +81,16 @@ export function buildSignupEmbed(input: SignupEmbedInput): EmbedBuilder {
     const count = cap !== null ? `${players.length}/${cap}` : String(players.length);
     embed.addFields({
       name: `${ROLE_ICON[role]} ${roleName(role)} ${count}${full ? ` · ${t(lang, "signup.full")}` : ""}`,
-      value: clip(players.map((p) => `${mark(p.memberId, p.characterId)}${p.displayName}`)),
+      value: clip(players.map((p) => `${mark(p.memberId, p.characterId)}${label(p)}`)),
       inline: true
     });
   }
 
   const listOf = (status: string, showRole: boolean) => signups.filter((s) => s.status === status).sort(byName)
-    .map((s) => `${mark(s.memberId, s.characterId)}${s.displayName}${showRole ? ` (${roleName(s.role)})` : ""}`);
+    .map((s) => `${mark(s.memberId, s.characterId)}${label(s)}${showRole ? ` (${roleName(s.role)})` : ""}`);
   const maybe = listOf("MAYBE", true);
   const waitlist = signups.filter((s) => s.status === "WAITLISTED")
-    .map((s) => `${mark(s.memberId, s.characterId)}${s.displayName} (${roleName(s.role)})`); // the store returns waitlisted players in order
+    .map((s) => `${mark(s.memberId, s.characterId)}${label(s)} (${roleName(s.role)})`); // the store returns waitlisted players in order
   if (maybe.length) embed.addFields({ name: t(lang, "signup.maybe"), value: clip(maybe), inline: false });
   if (waitlist.length) embed.addFields({ name: t(lang, "signup.waitlist"), value: clip(waitlist), inline: false });
 
@@ -93,13 +99,16 @@ export function buildSignupEmbed(input: SignupEmbedInput): EmbedBuilder {
     const missing = core.members.filter((m) => !m.bench && !answered.has(m.memberId)).sort((a, b) => a.displayName.localeCompare(b.displayName));
     const benchFree = core.members.filter((m) => m.bench && !answered.has(m.memberId)).sort((a, b) => a.displayName.localeCompare(b.displayName));
     embed.addFields({ name: t(lang, "signup.core"), value: `**${core.name}** — ${t(lang, "signup.coreLegend")}`, inline: false });
-    if (missing.length) embed.addFields({ name: t(lang, "signup.coreMissing", { count: missing.length }), value: clip(missing.map((m) => `${m.displayName} (${roleName(m.role)})`)), inline: false });
-    if (benchFree.length) embed.addFields({ name: t(lang, "signup.benchFree", { count: benchFree.length }), value: clip(benchFree.map((m) => `🪑 ${m.displayName} (${roleName(m.role)})`)), inline: false });
+    if (missing.length) embed.addFields({ name: t(lang, "signup.coreMissing", { count: missing.length }), value: clip(missing.map((m) => `${label(m)} (${roleName(m.role)})`)), inline: false });
+    if (benchFree.length) embed.addFields({ name: t(lang, "signup.benchFree", { count: benchFree.length }), value: clip(benchFree.map((m) => `🪑 ${label(m)} (${roleName(m.role)})`)), inline: false });
     // Not enough core members for tonight: anyone in the guild can take the free slots.
     const free = raid.status === "PLANNED" ? openSpots(caps, signups) : [];
     if (free.length) {
       embed.addFields({ name: t(lang, "signup.openSpots"), value: free.map((spot) => `${ROLE_ICON[spot.role]} ${spot.open} ${roleName(spot.role)}`).join(" · "), inline: false });
     }
   }
-  return embed;
+  if ([...signups, ...(core?.members ?? [])].some(row => hasStaleGear(row.character, now))) {
+    embed.setFooter({ text: `${embed.data.footer!.text}\n${staleGearNote(lang)}` });
+  }
+  return boundRosterEmbed(embed);
 }

@@ -7,6 +7,8 @@ import { asLang, tx, type Lang } from "../i18n.js";
 import { openAllCoreChannels, setupCoreDiscord, syncCoreRole } from "./core-channels.js";
 import { weeklyScheduleData } from "./core-weekly-time.js";
 import { CHARACTER_REQUIRED, ownedSignupCharacter } from "./signup-character.js";
+import { CHARACTER_DISPLAY_SELECT, characterDisplayLine, hasStaleGear, loadClassEmojis, staleGearNote, type ClassEmojis, type DisplayCharacter } from "./character-display.js";
+import { boundRosterEmbed, clipRosterLines } from "./roster-embed-limits.js";
 
 // A raid core is a named roster (e.g. "Tuesday MC core"). A guild can have
 // several. Core members get priority at signups for raids created for that
@@ -233,8 +235,8 @@ type CoreForEmbed = {
 };
 
 type CoreSpot = {
-  role: RaidRole; bench: boolean; trial?: boolean; member: { displayName: string }; character?: { name: string } | null;
-  backups?: { role: RaidRole; character: { name: string } }[];
+  role: RaidRole; bench: boolean; trial?: boolean; member: { displayName: string }; character?: ({ name: string } & DisplayCharacter) | null;
+  backups?: { role: RaidRole; character: { name: string } & DisplayCharacter }[];
 };
 
 // "Kevin · Thrall" when the spot names the character brought to this core, else just the name.
@@ -244,8 +246,9 @@ export function coreSpotLabel(entry: CoreSpot): string {
 
 // `guildLootMode` is the guild's raw default (GuildSettings.lootMode); the core's own
 // lootMode overrides it when set, so the message always shows the *effective* mode.
-export function coreRosterEmbed(core: CoreForEmbed, guildLootMode?: string | null, lang: Lang = "en"): EmbedBuilder {
+export function coreRosterEmbed(core: CoreForEmbed, guildLootMode?: string | null, lang: Lang = "en", emojis: ClassEmojis = {}, now = new Date()): EmbedBuilder {
   const ROLE_LABEL = ROLE_LABELS[lang];
+  const label = (entry: CoreSpot) => characterDisplayLine(coreSpotLabel(entry), entry.character, lang, emojis, now);
   const embed = new EmbedBuilder().setColor(0xd4af37).setTitle(`⚜️ ${core.name}`);
   if (core.description) embed.setDescription(core.description);
   if (core.schedule) embed.addFields({ name: `📅 ${tx(lang, "Schedule")}`, value: core.schedule, inline: true });
@@ -259,27 +262,28 @@ export function coreRosterEmbed(core: CoreForEmbed, guildLootMode?: string | nul
     embed.addFields({ name: `💰 ${tx(lang, "Points")}`, value: core.separatePool ? tx(lang, "This core's own pool") : tx(lang, "Shared guild pool"), inline: true });
   }
   for (const role of ROLE_ORDER) {
-    const names = core.members.filter((entry) => entry.role === role && !entry.bench && !entry.trial).map(coreSpotLabel).sort((a, b) => a.localeCompare(b));
-    embed.addFields({ name: `${ROLE_LABEL[role]} (${names.length})`, value: names.length ? names.join("\n").slice(0, 1000) : "—", inline: true });
+    const names = core.members.filter((entry) => entry.role === role && !entry.bench && !entry.trial).map(label).sort((a, b) => a.localeCompare(b));
+    embed.addFields({ name: `${ROLE_LABEL[role]} (${names.length})`, value: clipRosterLines(names), inline: true });
   }
   // Trial members (an application moved to Trial) are listed apart until they are approved.
   const trial = core.members.filter((entry) => entry.trial && !entry.bench)
-    .map((entry) => `${coreSpotLabel(entry)} (${ROLE_WORD[lang][entry.role]})`)
+    .map((entry) => `${label(entry)} (${ROLE_WORD[lang][entry.role]})`)
     .sort((a, b) => a.localeCompare(b));
-  if (trial.length) embed.addFields({ name: `🧪 ${tx(lang, "Trial")} (${trial.length})`, value: trial.join("\n").slice(0, 1000), inline: false });
+  if (trial.length) embed.addFields({ name: `🧪 ${tx(lang, "Trial")} (${trial.length})`, value: clipRosterLines(trial), inline: false });
   const bench = core.members.filter((entry) => entry.bench)
-    .map((entry) => `${coreSpotLabel(entry)} (${ROLE_WORD[lang][entry.role]})`)
+    .map((entry) => `${label(entry)} (${ROLE_WORD[lang][entry.role]})`)
     .sort((a, b) => a.localeCompare(b));
-  if (bench.length) embed.addFields({ name: `🪑 ${tx(lang, "Bench")} (${bench.length})`, value: bench.join("\n").slice(0, 1000), inline: false });
+  if (bench.length) embed.addFields({ name: `🪑 ${tx(lang, "Bench")} (${bench.length})`, value: clipRosterLines(bench), inline: false });
   // Other characters players can bring to this core (a healer alt, a second tank...).
-  const backups = core.members.flatMap((entry) => (entry.backups ?? []).map((backup) => `${entry.member.displayName} · ${backup.character.name} (${ROLE_WORD[lang][backup.role]})`))
+  const backups = core.members.flatMap((entry) => (entry.backups ?? []).map((backup) => `${characterDisplayLine(`${entry.member.displayName} · ${backup.character.name}`, backup.character, lang, emojis, now)} (${ROLE_WORD[lang][backup.role]})`))
     .sort((a, b) => a.localeCompare(b));
-  if (backups.length) embed.addFields({ name: `🔁 ${tx(lang, "Backup characters")} (${backups.length})`, value: backups.join("\n").slice(0, 1000), inline: false });
+  if (backups.length) embed.addFields({ name: `🔁 ${tx(lang, "Backup characters")} (${backups.length})`, value: clipRosterLines(backups), inline: false });
   const mains = core.members.length - bench.length - trial.length;
   const people = mains === 1 ? tx(lang, "{count} core member", { count: mains }) : tx(lang, "{count} core members", { count: mains });
   const extra = `${trial.length ? tx(lang, " + {n} on trial", { n: trial.length }) : ""}${bench.length ? tx(lang, " + {n} on the bench", { n: bench.length }) : ""}`;
-  embed.setFooter({ text: `${people}${extra} · ${tx(lang, "core members get priority at this core's raid signups")}` });
-  return embed;
+  const stale = core.members.some(entry => hasStaleGear(entry.character, now) || entry.backups?.some(backup => hasStaleGear(backup.character, now)));
+  embed.setFooter({ text: `${people}${extra} · ${tx(lang, "core members get priority at this core's raid signups")}${stale ? `\n${staleGearNote(lang)}` : ""}` });
+  return boundRosterEmbed(embed);
 }
 
 // Keeps the core's roster message in the roster channel current (edit in
@@ -291,7 +295,10 @@ export async function syncCoreRoster(discordGuild: DiscordGuild | null, database
   await syncCoreRole(discordGuild, database, coreId);
   try {
     const settings = await createGuildService(database).getSettings(guildId);
-    const core = await database.raidCore.findFirst({ where: { id: coreId, guildId }, include: { members: { include: SPOT_INCLUDE } } });
+    const core = await database.raidCore.findFirst({ where: { id: coreId, guildId }, include: { members: { include: {
+      ...SPOT_INCLUDE, character: { select: CHARACTER_DISPLAY_SELECT },
+      backups: { include: { character: { select: CHARACTER_DISPLAY_SELECT } }, orderBy: { addedAt: "asc" } }
+    } } } });
     if (!core) return false;
     // The core's own roster channel when it has one, else the guild's shared roster channel.
     const channelId = core.rosterChannelId ?? settings?.coreChannelId;
@@ -299,7 +306,7 @@ export async function syncCoreRoster(discordGuild: DiscordGuild | null, database
     const channel = await discordGuild.channels.fetch(channelId).catch(() => null);
     if (!channel?.isTextBased()) return false;
     const payload = {
-      embeds: [coreRosterEmbed(core, settings.lootMode, asLang(settings.language))],
+      embeds: [coreRosterEmbed(core, settings.lootMode, asLang(settings.language), await loadClassEmojis(discordGuild))],
       components: [applyToCoreButtonRow(core)],
       allowedMentions: { parse: [] as never[] }
     };

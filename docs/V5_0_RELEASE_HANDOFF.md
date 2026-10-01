@@ -1,5 +1,9 @@
 # Guilded 5.0 stabilization — local Claude update handoff
 
+WoW class icons and inspected gear in signups/rosters:
+`docs/CLASS_AND_GEAR_SIGNUPS.md`. No migration; preserve existing signup
+identities. Accepted inspections refresh active posts through durable jobs.
+
 Character signups and approved WoW layout: `docs/CHARACTER_SIGNUPS.md`.
 Deploy additive migration `20261026090000_character_signups`, enable Quebec
 Gold's character policy and route the weekly report to its managed WoW channel.

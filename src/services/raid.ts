@@ -8,6 +8,7 @@ import type {
   RaidRole
 } from "@prisma/client";
 import { ownedSignupCharacter } from "./signup-character.js";
+import { CHARACTER_DISPLAY_SELECT } from "./character-display.js";
 
 const activeSignupStatuses: RaidSignupStatus[] = ["SIGNED_UP"];
 
@@ -266,7 +267,7 @@ export function createRaidService(database: PrismaClient) {
       await getRaid(raidId, guildId);
       return database.raidSignup.findMany({
         where: { raidId, status: { not: "CANCELLED" } },
-        include: { member: true },
+        include: { member: true, character: { select: CHARACTER_DISPLAY_SELECT } },
         orderBy: { signedUpAt: "asc" }
       });
     },

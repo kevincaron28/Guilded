@@ -9,6 +9,8 @@ import { effectiveRules } from "../services/core-rules.js";
 import { createRaidCoreService } from "../services/raid-core.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { BRAND } from "../brand.js";
+import { coreContext } from "../services/core-context.js";
+import { CORE_REQUIRED } from "../services/core-loot-policy.js";
 
 const epgpService = createEpgpService(prisma);
 const meritService = createMeritService(prisma);
@@ -16,12 +18,12 @@ const auditService = createAuditService(prisma);
 
 // Which point pool: leave empty for the guild pool, or name a raid core that keeps its own.
 const poolOption = (o: import("discord.js").SlashCommandStringOption) =>
-  o.setName("core").setDescription("A raid core with its own point pool (default: the guild pool)").setAutocomplete(true);
+  o.setName("core").setDescription("Raid core with its own points (defaults to this core channel)").setAutocomplete(true);
 
 export const epgpCommand = new SlashCommandBuilder()
   .setName("epgp")
   .setDescription("View and manage EPGP.")
-  .addSubcommand((sub) => sub.setName("balance").setDescription("View your EP, GP, and PR (guild pool, plus any raid core with its own pool).")
+  .addSubcommand((sub) => sub.setName("balance").setDescription("View your EP, GP, and PR by point pool.")
     .addStringOption(poolOption))
   .addSubcommand((sub) => sub.setName("history").setDescription("View recent EPGP history (officers can view anyone's).")
     .addUserOption((o) => o.setName("player").setDescription("Guild member (officers only; default you)"))
@@ -38,7 +40,7 @@ export const epgpCommand = new SlashCommandBuilder()
     .addIntegerOption((o) => o.setName("amount").setDescription("GP amount").setMinValue(1).setRequired(true))
     .addStringOption((o) => o.setName("reason").setDescription("Reason (pick one, or type your own)").setMinLength(3).setAutocomplete(true).setRequired(true))
     .addStringOption(poolOption))
-  .addSubcommand((sub) => sub.setName("decay").setDescription("Apply EPGP decay to all active members (guild pool, or one core's own pool).")
+  .addSubcommand((sub) => sub.setName("decay").setDescription("Apply EPGP decay to the selected point pool.")
     .addStringOption(poolOption)
     .addBooleanOption((o) => o.setName("weekly").setDescription("Turn automatic decay after every weekly reset on or off (instead of applying it now)")))
   .addSubcommand((sub) => sub.setName("reverse").setDescription("Undo a mistaken EPGP entry (adds an opposite entry; history is kept).")
@@ -55,7 +57,20 @@ export async function executeEpgp(interaction: ChatInputCommandInteraction): Pro
   const subcommand = interaction.options.getSubcommand();
   const settings = await guildService.getSettings(context.guildId);
   // The pool this command works on: the guild pool, or a core that keeps its own points.
-  const coreName = interaction.options.getString("core");
+  let coreName = interaction.options.getString("core");
+  if (settings?.coreLootOnly && subcommand !== "reverse") {
+    const core = await coreContext(prisma, context.guildId, interaction.channelId, coreName);
+    if (core) coreName = core.id;
+    else if (subcommand === "balance") {
+      const cores = (await createRaidCoreService(prisma).list(context.guildId)).filter(core => core.separatePool);
+      const lines = await Promise.all(cores.map(async core => {
+        const own = await epgpService.getStanding(context.memberId, effectiveRules(settings, core).baseGp, core.id);
+        return `**${core.name}** — EP ${own.ep} | GP ${own.gp} | PR ${own.pr.toFixed(3)}`;
+      }));
+      await interaction.reply({ content: lines.join("\n").slice(0, 1900) || "Aucun core configuré. Commence avec /core setup.", ephemeral: true });
+      return;
+    } else throw new Error(CORE_REQUIRED);
+  }
   let pool: { id: string | null; name: string; baseGp: number; decay: number } = { id: null, name: "Guild pool", baseGp: settings?.baseGp ?? 0, decay: settings?.epgpDecayPercent ?? 0.1 };
   if (coreName) {
     const core = await createRaidCoreService(prisma).byIdOrName(context.guildId, coreName);

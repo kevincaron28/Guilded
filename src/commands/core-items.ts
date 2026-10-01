@@ -2,6 +2,8 @@ import type { ChatInputCommandInteraction } from "discord.js";
 import { prisma } from "../database.js";
 import { createItemValueService, describeValues, parseItemValues } from "../services/item-values.js";
 import { createRaidCoreService } from "../services/raid-core.js";
+import { coreContext } from "../services/core-context.js";
+import { CORE_REQUIRED } from "../services/core-loot-policy.js";
 
 const values = createItemValueService(prisma);
 const coreService = createRaidCoreService(prisma);
@@ -11,14 +13,16 @@ const MAX_BYTES = 200_000;
 export async function executeCoreItems(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   const action = interaction.options.getString("action", true);
   const coreName = interaction.options.getString("core");
-  const core = coreName ? await coreService.byIdOrName(guildId, coreName) : null;
+  const settings = await prisma.guildSettings.findUnique({ where: { guildId } });
+  const core = coreName ? await coreService.byIdOrName(guildId, coreName) : settings?.coreLootOnly ? await coreContext(prisma, guildId, interaction.channelId) : null;
+  if (settings?.coreLootOnly && !core) throw new Error(CORE_REQUIRED);
   const scope = core ? `**${core.name}**` : "the whole guild";
   const coreId = core?.id ?? null;
 
   if (action === "list") {
     // A core shows what it actually uses: the guild-wide prices with its own on top.
     const rows = core ? await values.effective(guildId, core.id) : await values.list(guildId, null);
-    await interaction.reply({ content: describeValues(core ? `${core.name} prices (guild-wide ones included)` : "Guild-wide prices", rows), ephemeral: true });
+    await interaction.reply({ content: describeValues(core ? `${core.name} prices${settings?.coreLootOnly ? "" : " (guild-wide ones included)"}` : "Guild-wide prices", rows), ephemeral: true });
     return;
   }
 

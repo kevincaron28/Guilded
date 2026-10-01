@@ -221,6 +221,12 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
     const schedule = interaction.options.getString("schedule");
     if (schedule !== null) parseWeeklySchedule(schedule);
     const pool = interaction.options.getString("pool");
+    if (settings?.coreLootOnly) {
+      if (pool === "shared") throw new Error("Chaque core garde ses propres EP/GP : le pool partagé est désactivé.");
+      if (interaction.options.getString("loot_mode") === "DEFAULT") throw new Error("Choisis le système de butin de ce core : GP bids, council, reserves ou priority.");
+      data["separatePool"] = true;
+      if (data["lootMode"] === null) data["lootMode"] = core.lootMode ?? settings.lootMode;
+    }
     if (pool === "separate" && !core.separatePool) data["separatePool"] = true;
     if (pool === "shared" && core.separatePool) {
       // Going back to the shared pool would strand the points already in the core's pool.

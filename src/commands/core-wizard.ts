@@ -7,7 +7,7 @@ import { prisma } from "../database.js";
 import { asLootMode, describeRules, effectiveRules, LOOT_MODE_HELP, LOOT_MODE_LABEL, LOOT_MODES } from "../services/core-rules.js";
 import { createItemValueService, parseItemValues, priceDraft } from "../services/item-values.js";
 import { coreRosterEmbed, createRaidCoreService, ensureCoreDiscord, syncCoreRoster } from "../services/raid-core.js";
-import { modeKey, parseMode, type EditMode } from "./core-editor.js";
+import { CORE_LOOT_LABEL, modeKey, parseMode, type EditMode } from "./core-editor.js";
 import { guildService } from "./context.js";
 import { fillCoreWeeklyRaids } from "../services/core-weekly-raids.js";
 import { parseWeeklySchedule } from "../services/core-weekly-time.js";
@@ -69,7 +69,7 @@ async function rulesStep(coreId: string, guildId: string, note: string) {
   const priced = rules.lootMode === "PRIORITY" ? await itemValues.effective(guildId, core.id) : [];
   const embed = new EmbedBuilder().setColor(0xd4af37).setTitle(`⚜️ ${core.name} — step 3 of 3: rules`)
     .setDescription([
-      "By default a core follows **the guild's rules** (EP values, loot, points), exactly like every other core. Change only what should differ.",
+      settings?.coreLootOnly ? "Chaque core choisit **sa méthode de butin** et garde ses propres EP/GP. Aucun pot de points partagé entre les cores." : "By default a core follows **the guild's rules** (EP values, loot, points), exactly like every other core. Change only what should differ.",
       "",
       describeRules(rules, core.name),
       `\n**Loot system:** ${LOOT_MODE_HELP[rules.lootMode]}`,
@@ -77,11 +77,11 @@ async function rulesStep(coreId: string, guildId: string, note: string) {
       note ? `\n**Last action:** ${note}` : ""
     ].filter(Boolean).join("\n"));
   const menu = new StringSelectMenuBuilder().setCustomId("corewiz:lootmode").setPlaceholder("How is loot decided in this core?").addOptions(
-    { label: `Follow the guild (${LOOT_MODE_LABEL[guildMode]})`.slice(0, 100), value: "DEFAULT", default: !core.lootMode },
-    ...LOOT_MODES.map((mode) => ({ label: LOOT_MODE_LABEL[mode].replace(/^./, (c) => c.toUpperCase()), description: LOOT_MODE_HELP[mode].slice(0, 100), value: mode, default: core.lootMode === mode })));
+    ...(settings?.coreLootOnly ? [] : [{ label: `Follow the guild (${LOOT_MODE_LABEL[guildMode]})`.slice(0, 100), value: "DEFAULT", default: !core.lootMode }]),
+    ...LOOT_MODES.map((mode) => ({ label: CORE_LOOT_LABEL[mode], value: mode, default: core.lootMode === mode })));
   const buttons = [
     btn("ep", "Change EP values"),
-    btn("pool", core.separatePool ? "Own point pool: ON" : "Own point pool: off", core.separatePool ? ButtonStyle.Success : ButtonStyle.Secondary)
+    ...(settings?.coreLootOnly ? [] : [btn("pool", core.separatePool ? "Own point pool: ON" : "Own point pool: off", core.separatePool ? ButtonStyle.Success : ButtonStyle.Secondary)])
   ];
   // Prices are used by EPGP priority loot and by /loot award when the GP is left out, so they
   // can be set whatever the loot system.
@@ -213,6 +213,7 @@ export async function runCoreWizard(interaction: ChatInputCommandInteraction): P
         return;
       }
       if (action === "pool") {
+        if ((await guildService.getSettings(guildId))?.coreLootOnly) throw new Error("Les EP/GP restent séparés pour chaque core.");
         await i.deferUpdate();
         await prisma.raidCore.update({ where: { id: coreId }, data: { separatePool: !core.separatePool } });
         await interaction.editReply(await rulesStep(coreId, guildId, !core.separatePool ? "This core now has its own point pool (from now on)." : "Back to the shared guild pool."));
@@ -221,7 +222,9 @@ export async function runCoreWizard(interaction: ChatInputCommandInteraction): P
       if (action === "lootmode" && i.isStringSelectMenu()) {
         await i.deferUpdate();
         const chosen = i.values[0] ?? "DEFAULT";
-        await prisma.raidCore.update({ where: { id: coreId }, data: { lootMode: chosen === "DEFAULT" ? null : asLootMode(chosen) } });
+        const settings = await guildService.getSettings(guildId);
+        if (settings?.coreLootOnly && chosen === "DEFAULT") throw new Error("Choisis la méthode de butin de ce core.");
+        await prisma.raidCore.update({ where: { id: coreId }, data: { lootMode: chosen === "DEFAULT" ? null : asLootMode(chosen), ...(settings?.coreLootOnly ? { separatePool: true } : {}) } });
         await interaction.editReply(await rulesStep(coreId, guildId, chosen === "DEFAULT" ? "Loot follows the guild again." : `Loot in this core: ${LOOT_MODE_LABEL[asLootMode(chosen)]}.`));
         return;
       }

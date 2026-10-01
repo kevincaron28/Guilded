@@ -461,6 +461,10 @@ model GuildSettings {
   // Weekly guild report posted to the notify channel.
   weeklyReportEnabled      Boolean   @default(false)
   weeklyReportLastAt       DateTime?
+  // WoW report delivery is separate from future shared-guild and PoE reports.
+  weeklyReportChannelId    String?
+  // Opt-in: loot and EPGP belong to individual raid cores, never a shared guild pool.
+  coreLootOnly             Boolean   @default(false)
   // EPGP decay applied by itself after each weekly reset (the guild pool and every core's own pool).
   autoDecay                Boolean   @default(false)
   lastAutoDecayAt          DateTime?

@@ -15,7 +15,7 @@ export async function runAutoDecay(database: PrismaClient, now = new Date()): Pr
     if (settings.lastAutoDecayAt && settings.lastAutoDecayAt.getTime() >= reset.getTime()) continue;
     await database.guildSettings.update({ where: { id: settings.id }, data: { lastAutoDecayAt: now } });
     try {
-      if (settings.epgpDecayPercent > 0) await epgp.applyDecay(settings.guildId, settings.epgpDecayPercent, "auto-decay", null);
+      if (!settings.coreLootOnly && settings.epgpDecayPercent > 0) await epgp.applyDecay(settings.guildId, settings.epgpDecayPercent, "auto-decay", null);
       const cores = await database.raidCore.findMany({ where: { guildId: settings.guildId, separatePool: true } });
       for (const core of cores) {
         const percent = effectiveRules(settings, core).decayPercent;

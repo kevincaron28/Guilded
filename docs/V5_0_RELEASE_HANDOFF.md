@@ -1,5 +1,9 @@
 # Guilded 5.0 stabilization — local Claude update handoff
 
+Core-only loot and WoW weekly reports: `docs/CORE_LOOT_AND_WOW_REPORTS.md`.
+Deploy additive migration `20261025090000_core_loot_wow_report`, then enable
+Quebec Gold's policy and explicitly route its WoW report after backing up.
+
 Weekly core scheduling: `docs/CORE_WEEKLY_RAIDS.md`. Owner chose a rolling **7-day**
 signup window; deploy additive migration `20261024090000_core_weekly_schedule`.
 Existing display-only core schedules are not automatically enabled.

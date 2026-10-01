@@ -85,7 +85,7 @@ const STRINGS = {
 
   // Weekly stats
   "stats.titleDays": { en: "⚜️ Guilded — last {days} day(s)", fr: "⚜️ Guilded — {days} dernier(s) jour(s)" },
-  "stats.titleWeekly": { en: "⚜️ Guilded — weekly report", fr: "⚜️ Guilded — rapport de la semaine" },
+  "stats.titleWeekly": { en: "⚔️ Guilded — WoW weekly report", fr: "⚔️ Guilded — bilan hebdo WoW" },
   "stats.since": { en: "Since {date}", fr: "Depuis le {date}" },
   "stats.raids": { en: "⚔️ Raids", fr: "⚔️ Raids" },
   "stats.raidsValue": { en: "{count} (avg {avg} raiders)", fr: "{count} (moy. {avg} raideurs)" },

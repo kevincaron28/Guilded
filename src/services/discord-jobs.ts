@@ -65,6 +65,11 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
       const current = settings?.dungeonChannelId ?? settings?.notifyChannelId;
       if (!current) throw new Error("Configure dungeon announcements first");
       channelId = current;
+    } else if (route === "wowWeekly") {
+      const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { weeklyReportChannelId: true, notifyChannelId: true } });
+      const current = settings?.weeklyReportChannelId ?? settings?.notifyChannelId;
+      if (!current) throw new Error("Configure WoW weekly reports first");
+      channelId = current;
     } else if (route !== undefined) {
       if (!["notify", "raidLog", "loot", "officer", "application"].includes(String(route))) throw new Error("Unknown notification route");
       const { resolveNotifyAddress } = await import("./notify.js");

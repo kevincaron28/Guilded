@@ -10,6 +10,9 @@ import { gunzipSync } from "node:zlib";
 import { relayProfessions } from "../src/services/profession-relay.js";
 import { fillCoreWeeklyRaids, saveCoreWeeklySchedule } from "../src/services/core-weekly-raids.js";
 import { parseAddonSnapshot } from "../src/integrations/addon.js";
+import { queueWeeklyWowReport } from "../src/services/weekly-report-delivery.js";
+import { createEpgpService } from "../src/services/epgp.js";
+import { createLootService } from "../src/services/loot.js";
 import assert from "node:assert/strict";
 import { PrismaClient } from "@prisma/client";
 import { createAddonImportService } from "../src/services/addon-import.js";
@@ -30,6 +33,10 @@ try {
     assert.equal(weekly.weeklySchedule, null); // paused schedule survives restore
     assert.equal(await database.raid.count({ where: { coreId: weekly.id, weeklyOccurrence: { not: null } } }), 4);
     assert.equal((await database.discordJob.findFirstOrThrow({ where: { key: "release-test-board" } })).status, "DONE");
+    const restoredSettings = await database.guildSettings.findFirstOrThrow({ where: { guild: { discordId: "release-test-guild" } } });
+    assert.equal(restoredSettings.coreLootOnly, true);
+    assert.equal(restoredSettings.weeklyReportChannelId, "wow-reports");
+    assert.equal((await database.discordJob.findFirstOrThrow({ where: { key: { startsWith: "weekly-wow:" } } })).status, "PENDING");
     const final = await database.dungeonSeason.findFirstOrThrow({ where: { name: "Release season" } });
     assert.equal((final.finalStandings as { points: number }[])[0]?.points, 100);
   } else {
@@ -177,5 +184,30 @@ try {
     assert.equal(await database.professionSkill.count({ where: { characterId: character.id, profession: "Alchemy" } }), 0);
     assert.equal(await database.recipeKnown.count({ where: { guildId: guild.id } }), 0);
 
+    // Core-only loot preserves historical entries while rejecting new global writes.
+    await database.guildSettings.upsert({ where: { guildId: guild.id }, create: { guildId: guild.id, coreLootOnly: true, weeklyReportEnabled: true, weeklyReportChannelId: "wow-reports" }, update: { coreLootOnly: true, weeklyReportEnabled: true, weeklyReportChannelId: "wow-reports" } });
+    await assert.rejects(createEpgpService(database).awardEP({ guildId: guild.id, memberId: member.id, amount: 10, reason: "No core", createdBy: "policy-test" }), /Choisis un core/);
+    const raidForLoot = await database.raid.findFirstOrThrow({ where: { title: "Release mirrored raid" } });
+    await createLootService(database).awardDirect({ guildId: guild.id, memberId: member.id, itemName: "Core council loot", gp: 0, raidId: raidForLoot.id, awardedBy: "policy-test" });
+    await assert.rejects(createLootService(database).awardDirect({ guildId: guild.id, memberId: member.id, itemName: "Unscoped council loot", gp: 0, awardedBy: "policy-test" }), /Choisis un core/);
+    const missingCore = await service.preview(guild.id, { ...payload, epgpTransactions: [{ ...payload.epgpTransactions[0], sourceRef: "missing-core", coreId: undefined }] }, "policy-test");
+    const unscoped = await service.record(guild.id, missingCore.snapshot, "unscoped", "policy-test");
+    await assert.rejects(service.apply(guild.id, unscoped.id, "policy-test"), /propres EP\/GP/);
+    assert.equal((await database.addonImport.findUniqueOrThrow({ where: { id: unscoped.id } })).status, unscoped.status);
+    assert.notEqual(unscoped.status, "APPLIED");
+    assert.equal(await database.epgpTransaction.count({ where: { guildId: guild.id } }), 2);
+
+    // Concurrent ticks queue one report. Failed delivery retries without resetting its week.
+    const reportAt = new Date("2026-10-07T16:00:00Z");
+    const reportEnd = new Date("2026-10-06T15:00:00Z");
+    const queued = await Promise.all([1, 2, 3].map(() => queueWeeklyWowReport(database, guild.id, reportEnd, reportAt, { embeds: [{ title: "WoW weekly report" }] })));
+    assert.equal(queued.filter(Boolean).length, 1);
+    const reportJob = await database.discordJob.findUniqueOrThrow({ where: { guildId_key: { guildId: guild.id, key: `weekly-wow:${reportEnd.toISOString()}` } } });
+    assert.equal((reportJob.payload as { route: string }).route, "wowWeekly");
+    await deliverDiscordJob(database, reportJob.id, async () => { throw new Error("Discord unavailable"); });
+    assert.equal((await database.discordJob.findUniqueOrThrow({ where: { id: reportJob.id } })).status, "PENDING");
+    assert.equal(await queueWeeklyWowReport(database, guild.id, reportEnd, reportAt, {}), false);
+    await assert.rejects(queueWeeklyWowReport(brokenDatabase as never, guild.id, new Date("2026-10-13T15:00:00Z"), new Date("2026-10-14T16:00:00Z"), {}), /Forced job failure/);
+    assert.equal((await database.guildSettings.findUniqueOrThrow({ where: { guildId: guild.id } })).weeklyReportLastAt!.toISOString(), reportAt.toISOString());
   }
 } finally { await database.$disconnect(); }

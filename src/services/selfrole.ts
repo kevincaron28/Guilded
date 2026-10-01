@@ -8,6 +8,7 @@ const DANGEROUS_PERMISSIONS =
   PermissionFlagsBits.ManageMessages |
   PermissionFlagsBits.ManageWebhooks |
   PermissionFlagsBits.ManageNicknames |
+  PermissionFlagsBits.ManageGuildExpressions |
   PermissionFlagsBits.KickMembers |
   PermissionFlagsBits.BanMembers |
   PermissionFlagsBits.ModerateMembers |

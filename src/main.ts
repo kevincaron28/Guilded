@@ -364,7 +364,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
     } catch (error) {
       reportInteractionError("Self-role button", interaction, error);
       if (!interaction.replied) {
-        await interaction.reply({ content: "Could not update that role. Please try again or contact an officer.", ephemeral: true }).catch(() => undefined);
+        if (interaction.deferred) {
+          await interaction.editReply({ content: "Could not update that role. Please try again or contact an officer." }).catch(() => undefined);
+        } else {
+          await interaction.reply({ content: "Could not update that role. Please try again or contact an officer.", ephemeral: true }).catch(() => undefined);
+        }
       }
     }
     return;

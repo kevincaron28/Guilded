@@ -617,7 +617,9 @@ export async function createSectionChannels(guild: DiscordGuild, guildId: string
     if (field === "weeklyReportChannelId" && settings?.raidSignupChannelId) {
       const source = await guild.channels.fetch(settings.raidSignupChannelId);
       if (!source || !("permissionOverwrites" in source)) throw new Error("Raid signup permissions unavailable; WoW report access was not broadened.");
-      overwrites = source.permissionOverwrites.cache.map(overwrite => ({ id: overwrite.id, type: overwrite.type, allow: overwrite.allow, deny: overwrite.deny }));
+      const { reportChannelOverwrites } = await import("../services/report-channel-permissions.js");
+      const writers = (overwrites ?? []).filter(entry => new PermissionsBitField(entry.allow).has(PermissionFlagsBits.SendMessages)).map(entry => entry.id as string);
+      overwrites = reportChannelOverwrites(source.permissionOverwrites.cache.map(overwrite => ({ id: overwrite.id, type: overwrite.type, allow: overwrite.allow.bitfield, deny: overwrite.deny.bitfield })), guild.id, writers);
     }
     const existing = guild.channels.cache.find(candidate => candidate.type === ChannelType.GuildText
       && isSetupLeftover(field, candidate.name, candidate.parentId ? guild.channels.cache.get(candidate.parentId)?.name : undefined));

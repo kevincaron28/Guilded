@@ -571,6 +571,25 @@ local function collectCharacter()
       spec = specName
     end
   end
+  -- Classic clients expose talent trees rather than Retail specializations.
+  -- Only a unique tree with spent points identifies the current build.
+  if not spec and GetNumTalentTabs and GetTalentTabInfo then
+    local ok, tabs = pcall(GetNumTalentTabs)
+    local group = 1
+    if GetActiveTalentGroup then
+      local groupOk, active = pcall(GetActiveTalentGroup)
+      if groupOk and type(active) == "number" then group = active end
+    end
+    local most, tied, selected = 0, false, nil
+    for index = 1, (ok and type(tabs) == "number" and math.min(tabs, 10) or 0) do
+      local treeOk, treeName, _, points = pcall(GetTalentTabInfo, index, false, false, group)
+      if treeOk and not isSecret(treeName) and not isSecret(points) and type(treeName) == "string" and type(points) == "number" then
+        if points > most then most, tied, selected = points, false, treeName
+        elseif points == most and points > 0 then tied = true end
+      end
+    end
+    if most > 0 and not tied then spec = selected end
+  end
   return {
     name = playerName(),
     realm = (ns.compat and ns.compat.identity().realm) or (GetRealmName and GetRealmName()) or "",
@@ -1416,6 +1435,13 @@ local function onEvent(_, event, ...)
   elseif event == "UNIT_INVENTORY_CHANGED" then
     local unit = ...
     if unit == "player" then maybeAutoSync(AUTO_SYNC_DEBOUNCE_SECONDS) end
+  elseif event == "PLAYER_TALENT_UPDATE" or event == "CHARACTER_POINTS_CHANGED" or event == "ACTIVE_TALENT_GROUP_CHANGED" then
+    local ok, captured = pcall(collectCharacter)
+    if ok then
+      db.character = captured
+      db.myCharacters = db.myCharacters or {}; db.myCharacters[playerName()] = captured
+      maybeAutoSync(AUTO_SYNC_DEBOUNCE_SECONDS)
+    end
   elseif event == "GROUP_ROSTER_UPDATE" then
     if activeRaid then recordPresence() end
     if inRaidGroup() then maybeAutoSync(AUTO_SYNC_RAID_INTERVAL_SECONDS) end
@@ -1505,6 +1531,9 @@ frame:RegisterEvent("PLAYER_LOGIN")
 if ns.compat and ns.compat.registerEvent then ns.compat.registerEvent(frame, "SKILL_LINES_CHANGED") else pcall(frame.RegisterEvent, frame, "SKILL_LINES_CHANGED") end
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 frame:RegisterEvent("UNIT_INVENTORY_CHANGED")
+for _, event in ipairs({ "PLAYER_TALENT_UPDATE", "CHARACTER_POINTS_CHANGED", "ACTIVE_TALENT_GROUP_CHANGED" }) do
+  pcall(frame.RegisterEvent, frame, event)
+end
 frame:RegisterEvent("GROUP_ROSTER_UPDATE")
 frame:RegisterEvent("GUILD_ROSTER_UPDATE")
 frame:RegisterEvent("CHAT_MSG_LOOT")

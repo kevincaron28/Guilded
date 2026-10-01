@@ -17,8 +17,8 @@ describe("character class and equipment display", () => {
     expect(canonicalClass("Imaginary")).toBeUndefined();
   });
   it("shows class text with or without an emoji, and distinguishes character level from item level", () => {
-    expect(characterDisplayLine("Ray", priest, "fr", icons, now)).toBe(`${icons.Priest} Ray · Prêtre · niv. 13 · ilvl 4,2`);
-    expect(characterDisplayLine("Ray", priest, "en", {}, now)).toBe("Ray · Priest · lvl 13 · ilvl 4.2");
+    expect(characterDisplayLine("Ray", priest, "fr", icons, now)).toBe(`${icons.Priest} Ray · Prêtre — spé à préciser · niv. 13 · ilvl 4,2`);
+    expect(characterDisplayLine("Ray", priest, "en", {}, now)).toBe("Ray · Priest — spec not set · lvl 13 · ilvl 4.2");
     expect(characterDisplayLine("Legacy player", null, "fr", icons, now)).toBe("Legacy player");
   });
   it("does not turn unknown, invalid or future gear into a claimed equipment score", () => {
@@ -40,8 +40,8 @@ describe("character class and equipment display", () => {
   it("shows each core primary and backup's own class and inspection", () => {
     const embed = coreRosterEmbed({ name: "Core", description: null, members: [{ member: { displayName: "Kevin" }, role: "HEALER", bench: false,
       character: { name: "Ray", ...priest }, backups: [{ role: "HEALER", character: { name: "Duude", className: "Paladin", level: 13, readinessSnapshots: [{ itemLevel: 4.6, inspectedAt: now }] } }] }] }, "EPGP", "fr", icons, now).toJSON();
-    expect(embed.fields?.find(f => f.name.startsWith("💚"))?.value).toContain("Ray · Prêtre · niv. 13 · ilvl 4,2");
-    expect(embed.fields?.find(f => f.name.startsWith("🔁"))?.value).toContain(`${icons.Paladin} Kevin · Duude · Paladin · niv. 13 · ilvl 4,6`);
+    expect(embed.fields?.find(f => f.name.startsWith("💚"))?.value).toContain("Ray · Prêtre — spé à préciser · niv. 13 · ilvl 4,2");
+    expect(embed.fields?.find(f => f.name.startsWith("🔁"))?.value).toContain(`${icons.Paladin} Kevin · Duude · Paladin — spé à préciser · niv. 13 · ilvl 4,6`);
   });
   it("uses available server emojis and falls back to the cached catalog when REST fails", async () => {
     const list = [{ id: "1550000000000000001", name: "wow_pretre", available: true }, { id: "1550000000000000002", name: "wow_paladin", available: false }];

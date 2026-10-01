@@ -1,5 +1,11 @@
 # Guilded 5.0 stabilization — local Claude update handoff
 
+Class/spec display: `docs/CLASS_AND_GEAR_SIGNUPS.md`. Signup posts and core
+rosters show two icons plus the selected character's localized specialization.
+Provision the application-owned spec emojis, refresh existing posts, and install
+the rebuilt addon for Classic talent-tree detection. No migration, version bump
+or inferred character specialization is required. Real-client checks stay separate.
+
 Community activities and Carl-bot transition: `docs/COMMUNITY_ACTIVITIES.md`.
 New `/community` menus cover free/points/WoW gold/PoE currency lotteries,
 gaming nights, reviewed challenges, dice/quiz games and separate season rankings.

@@ -7,6 +7,10 @@ Deploy additive migration `20261027090000_community_activities` after CI and bac
 In-game payments require organizer confirmation. Existing game roles are reused;
 Carl-bot retirement and a real welcome/role-button check remain separate live gates.
 
+WoW class icons and inspected gear in signups/rosters:
+`docs/CLASS_AND_GEAR_SIGNUPS.md`. No migration; preserve existing signup
+identities. Accepted inspections refresh active posts through durable jobs.
+
 Character signups and approved WoW layout: `docs/CHARACTER_SIGNUPS.md`.
 Deploy additive migration `20261026090000_character_signups`, enable Quebec
 Gold's character policy and route the weekly report to its managed WoW channel.

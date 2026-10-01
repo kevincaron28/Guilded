@@ -60,7 +60,7 @@ describe("French server names", () => {
 
   it("has French categories and role names, and both spellings count as the role", () => {
     expect(Object.keys(CATEGORY_NAMES.fr)).toEqual(Object.keys(CATEGORY_NAMES.en));
-    expect(CATEGORY_NAMES.fr.guild).toBe("⚜️ Guilde");
+    expect(CATEGORY_NAMES.fr.guild).toBe("⚜️ Guilded");
     expect(permissionRolesFr.officer).toBe("Officier");
     expect(isPermissionRoleName("officer", "Officer")).toBe(true);
     expect(isPermissionRoleName("officer", "Officier")).toBe(true);

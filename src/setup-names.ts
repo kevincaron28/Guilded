@@ -17,14 +17,14 @@ export type Access = "open" | "readonly" | "pinned" | "officers" | "leaders" | "
 export type CategoryKey = "guild" | "raid" | "dungeon" | "craft" | "officers";
 
 export const CATEGORY_NAMES: Record<Lang, Record<CategoryKey, string>> = {
-  en: { guild: "⚜️ Guild", raid: "⚔️ Raiding", dungeon: "🏰 Dungeons", craft: "🔨 Crafting", officers: "🔒 Officers" },
-  fr: { guild: "⚜️ Guilde", raid: "⚔️ Raids", dungeon: "🏰 Donjons", craft: "🔨 Artisanat", officers: "🔒 Officiers" }
+  en: { guild: "⚜️ Guilded", raid: "⚔️ Raiding", dungeon: "🏰 Dungeons", craft: "🔨 Crafting", officers: "🔒 Officers" },
+  fr: { guild: "⚜️ Guilded", raid: "⚔️ Raids", dungeon: "🏰 Donjons", craft: "🔨 Artisanat", officers: "🔒 Officiers" }
 };
 
 export interface ChannelSpec { name: string; topic: string; access: Access; category: CategoryKey; forum?: boolean }
 
 const ACCESS: Record<ChannelField, { access: Access; category: CategoryKey; forum?: boolean }> = {
-  notifyChannelId: { access: "readonly", category: "guild" },
+  notifyChannelId: { access: "readonly", category: "raid" },
   raidSignupChannelId: { access: "readonly", category: "raid" },
   coreChannelId: { access: "readonly", category: "raid" },
   raidLogChannelId: { access: "readonly", category: "raid" },
@@ -42,7 +42,7 @@ const ACCESS: Record<ChannelField, { access: Access; category: CategoryKey; foru
 
 const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> = {
   en: {
-    answerChannelId: { name: "bot-faq", topic: "Ask Guilded questions about the addon, setup and guild features" },
+    answerChannelId: { name: "bot-faq", topic: "Talk to Guilded: bot help, WoW addon installation and companion setup, for all members" },
     notifyChannelId: { name: `${BRAND.channelPrefix}-announcements`, topic: `Raid, boss and guild announcements from ${BRAND.name}` },
     raidSignupChannelId: { name: "raid-signups", topic: "Raid signups: use the buttons under each raid post" },
     coreChannelId: { name: "raid-roster", topic: "Raid core rosters: core members get signup priority" },
@@ -58,7 +58,7 @@ const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> 
     guideChannelId: { name: `${BRAND.channelPrefix}-guide`, topic: "How Guilded works, and what's new when it updates" }
   },
   fr: {
-    answerChannelId: { name: "bot-faq", topic: "Posez vos questions à Guilded sur l’addon, la configuration et la guilde" },
+    answerChannelId: { name: "bot-faq", topic: "Jase avec Guilded : aide du bot, installation de l’addon WoW et du compagnon, pour toute la gang" },
     notifyChannelId: { name: `${BRAND.channelPrefix}-annonces`, topic: `Annonces de raid, de boss et de guilde de ${BRAND.name}` },
     raidSignupChannelId: { name: "inscriptions-raid", topic: "Inscriptions aux raids : utilisez les boutons sous chaque annonce de raid" },
     coreChannelId: { name: "cores-de-raid", topic: "Compositions des cores de raid : les membres du core ont la priorité aux inscriptions" },
@@ -71,7 +71,7 @@ const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> 
     logChannelId: { name: "journal-officiers", topic: "Journal des officiers : arrivées, modération, banque et demandes d'artisanat" },
     readinessChannelId: { name: "preparation-raid", topic: "Qui est prêt pour la soirée de raid : gear et consommables (officiers et chefs de raid seulement)" },
     applicationChannelId: { name: "candidatures-raid", topic: "Nouvelles candidatures de recrutement (officiers seulement) : utilisez /application list|view|approve|reject|trial" },
-    guideChannelId: { name: `${BRAND.channelPrefix}-guide`, topic: "Comment fonctionne Guilded, et les nouveautés lors des mises à jour" }
+    guideChannelId: { name: `${BRAND.channelPrefix}-guide`, topic: "Commence ici : utiliser Guilded, installer l’addon WoW et connecter le compagnon" }
   }
 };
 
@@ -83,7 +83,9 @@ export function channelSpec(field: ChannelField, lang: Lang): ChannelSpec {
 // Names used by earlier versions still count (the group finder was "dungeon-signups").
 const LEGACY_NAMES: Partial<Record<ChannelField, string[]>> = { guideChannelId: [`${BRAND.channelPrefix}-addon`], raidSignupChannelId: ["raid-inscription", "raid-inscriptions"], dungeonSignupChannelId: ["dungeon-signups", "inscriptions-donjon"] };
 export const channelNames = (field: ChannelField): string[] => [TEXT.en[field].name, TEXT.fr[field].name, ...(LEGACY_NAMES[field] ?? [])];
-export const categoryNames = (key: CategoryKey): string[] => [CATEGORY_NAMES.en[key], CATEGORY_NAMES.fr[key]];
+export const categoryNames = (key: CategoryKey): string[] => [...new Set([
+  CATEGORY_NAMES.en[key], CATEGORY_NAMES.fr[key], ...(key === "guild" ? ["⚜️ Guild", "⚜️ Guilde"] : [])
+])];
 
 // These channels are part of setup/reset even when an administrator renames them.
 export const RESET_REQUIRED_CHANNELS: ChannelField[] = ["raidSignupChannelId", "guideChannelId", "answerChannelId"];

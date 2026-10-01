@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { gunzipSync } from "node:zlib";
 import { relayProfessions } from "../src/services/profession-relay.js";
+import { fillCoreWeeklyRaids, saveCoreWeeklySchedule } from "../src/services/core-weekly-raids.js";
 import { parseAddonSnapshot } from "../src/integrations/addon.js";
 import assert from "node:assert/strict";
 import { PrismaClient } from "@prisma/client";
@@ -25,6 +26,9 @@ try {
     const raid = await database.raid.findFirstOrThrow({ where: { title: "Release mirrored raid" } });
     assert.equal(raid.mirrorSignupMessageId, "core-message");
     assert.equal((await database.raidCore.findUniqueOrThrow({ where: { id: raid.coreId! } })).lootChannelId, "core-loot");
+    const weekly = await database.raidCore.findFirstOrThrow({ where: { name: "Weekly release fixture" } });
+    assert.equal(weekly.weeklySchedule, null); // paused schedule survives restore
+    assert.equal(await database.raid.count({ where: { coreId: weekly.id, weeklyOccurrence: { not: null } } }), 4);
     assert.equal((await database.discordJob.findFirstOrThrow({ where: { key: "release-test-board" } })).status, "DONE");
     const final = await database.dungeonSeason.findFirstOrThrow({ where: { name: "Release season" } });
     assert.equal((final.finalStandings as { points: number }[])[0]?.points, 100);
@@ -69,6 +73,43 @@ try {
     assert.equal(raidContenders.filter(result => result.status === "WAITLISTED").length, 1);
     const character = await database.character.create({ data: { memberId: member.id, name: "ReleaseAnn", realm: "ReleaseTest", className: "Warrior" } });
     const core = await database.raidCore.create({ data: { guildId: guild.id, name: "Core A", separatePool: true, lootChannelId: "core-loot", raidLogChannelId: "core-reports" } });
+    const weekly = await database.raidCore.create({ data: { guildId: guild.id, name: "Weekly release fixture", schedule: "Tue/Thu 8-11pm EST" } });
+    const weeklyNow = new Date("2026-10-01T12:00:00Z");
+    assert.deepEqual(await fillCoreWeeklyRaids(database, guild.id, weekly.id, weeklyNow), []); // legacy display text stays inactive
+    await saveCoreWeeklySchedule(database, guild.id, weekly.id, "mardi 20h; jeudi 20h", "release-test");
+    const createdWeekly = (await Promise.all([1, 2, 3].map(() => fillCoreWeeklyRaids(database, guild.id, weekly.id, weeklyNow)))).flat();
+    assert.equal(createdWeekly.length, 2); // real PostgreSQL lock/unique index, concurrent ticks
+    assert.equal(await database.discordJob.count({ where: { guildId: guild.id, key: { in: createdWeekly.map(id => `raid:${id}`) } } }), 2);
+    const weeklyRaids = await database.raid.findMany({ where: { coreId: weekly.id }, orderBy: { scheduledAt: "asc" } });
+    await database.raid.update({ where: { id: weeklyRaids[0]!.id }, data: { status: "CANCELLED" } });
+    await database.raid.update({ where: { id: weeklyRaids[1]!.id }, data: { scheduledAt: new Date("2026-10-08T00:00:00Z") } });
+    assert.deepEqual(await fillCoreWeeklyRaids(database, guild.id, weekly.id, weeklyNow), []); // cancelled/moved never respawn
+    await assert.rejects(database.raid.create({ data: { guildId: guild.id, coreId: weekly.id, title: "Duplicate occurrence", createdBy: "release-test", scheduledAt: weeklyNow, weeklyOccurrence: weeklyRaids[0]!.weeklyOccurrence } }));
+    assert.equal((await fillCoreWeeklyRaids(database, guild.id, weekly.id, new Date("2026-10-09T12:00:00Z"))).length, 2); // missed days never backfilled
+    await saveCoreWeeklySchedule(database, guild.id, weekly.id, "off", "release-test");
+    assert.deepEqual(await fillCoreWeeklyRaids(database, guild.id, weekly.id, new Date("2026-10-16T12:00:00Z")), []);
+    assert.equal(await database.raid.count({ where: { coreId: weekly.id } }), 4); // pausing preserves signups/history
+    await assert.rejects(saveCoreWeeklySchedule(database, "wrong-guild", weekly.id, "mardi 20h", "release-test"), /this guild/);
+    // Manual raids are adopted, preserving existing signups and skipped nights.
+    const manualCore = await database.raidCore.create({ data: { guildId: guild.id, name: "Manual weekly fixture" } });
+    const manual = await database.raid.create({ data: { guildId: guild.id, coreId: manualCore.id, title: "Manual night", createdBy: "release-test", scheduledAt: new Date("2026-10-02T00:00:00Z"), repeatWeekly: true } });
+    await database.raidSignup.create({ data: { raidId: manual.id, memberId: member.id } });
+    await saveCoreWeeklySchedule(database, guild.id, manualCore.id, "jeudi 20h", "release-test");
+    assert.deepEqual(await fillCoreWeeklyRaids(database, guild.id, manualCore.id, weeklyNow), []);
+    assert.equal((await database.raid.findUniqueOrThrow({ where: { id: manual.id } })).repeatWeekly, false);
+    assert.equal(await database.raidSignup.count({ where: { raidId: manual.id } }), 1);
+    // A different core gets its own occurrence even at the same clock time.
+    const otherCore = await database.raidCore.create({ data: { guildId: guild.id, name: "Independent weekly fixture" } });
+    await saveCoreWeeklySchedule(database, guild.id, otherCore.id, "jeudi 20h", "release-test");
+    assert.equal((await fillCoreWeeklyRaids(database, guild.id, otherCore.id, weeklyNow)).length, 1);
+    // Force a delivery-job failure inside a real transaction: its raid must roll back too.
+    const brokenCore = await database.raidCore.create({ data: { guildId: guild.id, name: "Rollback weekly fixture" } });
+    await saveCoreWeeklySchedule(database, guild.id, brokenCore.id, "jeudi 20h", "release-test");
+    const brokenDatabase = { $transaction: (work: (tx: unknown) => Promise<unknown>) => database.$transaction(tx => work(new Proxy(tx, {
+      get(target, key) { return key === "discordJob" ? { upsert: async () => { throw new Error("Forced job failure"); } } : Reflect.get(target, key); }
+    }))) };
+    await assert.rejects(fillCoreWeeklyRaids(brokenDatabase as never, guild.id, brokenCore.id, weeklyNow), /Forced job failure/);
+    assert.equal(await database.raid.count({ where: { coreId: brokenCore.id } }), 0);
     await database.raid.create({ data: { guildId: guild.id, coreId: core.id, title: "Release mirrored raid", scheduledAt: new Date(), createdBy: "release-test", signupChannelId: "general", signupMessageId: "general-message", mirrorSignupChannelId: "core", mirrorSignupMessageId: "core-message" } });
     // Full setup reset replaces only the selected guild and cascades its credentials/data.
     const resetGuild = await database.guild.create({ data: { discordId: "release-test-reset", name: "Reset fixture", settings: { create: {} } } });

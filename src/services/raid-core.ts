@@ -5,6 +5,7 @@ import { applyToCoreButtonRow } from "./application.js";
 import { asLootMode, LOOT_MODE_LABEL } from "./core-rules.js";
 import { asLang, tx, type Lang } from "../i18n.js";
 import { openAllCoreChannels, setupCoreDiscord, syncCoreRole } from "./core-channels.js";
+import { weeklyScheduleData } from "./core-weekly-time.js";
 
 // A raid core is a named roster (e.g. "Tuesday MC core"). A guild can have
 // several. Core members get priority at signups for raids created for that
@@ -47,16 +48,18 @@ export function createRaidCoreService(database: Db) {
   return {
     byIdOrName,
 
-    async create(guildId: string, name: string, description?: string | null, schedule?: string | null) {
+    async create(guildId: string, name: string, description?: string | null, schedule?: string | null, automatic?: { timezone: string; createdBy: string }) {
       const clean = name.trim();
       if (clean.length < 2 || clean.length > 50) throw new Error("A core name must be 2 to 50 characters.");
+      const weekly = automatic ? weeklyScheduleData(schedule, automatic.timezone, automatic.createdBy) : {};
       const exists = await database.raidCore.findFirst({ where: { guildId, name: { equals: clean, mode: "insensitive" } } });
       if (exists) throw new Error(`A core called "${exists.name}" already exists.`);
       return database.raidCore.create({
         data: {
           guildId, name: clean,
           description: description?.trim().slice(0, 300) || null,
-          schedule: schedule?.trim().slice(0, 100) || null
+          schedule: schedule?.trim().slice(0, 100) || null,
+          ...weekly
         }
       });
     },

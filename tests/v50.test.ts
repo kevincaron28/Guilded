@@ -33,7 +33,7 @@ function fakeGuild(options: { canManageRoles?: boolean; openServer?: boolean } =
     const channel: FakeChannel = {
       id, name, type, parentId, overwrites: {},
       permissionOverwrites: {
-        cache: new Collection(overwriteIds.map((overwriteId) => [overwriteId, { id: overwriteId, allow: { has: () => false } }])),
+        cache: new Collection(overwriteIds.map((overwriteId) => [overwriteId, { id: overwriteId, type: 0, allow: { has: () => false }, deny: { has: () => false } }])),
         edit: async (target, value) => { channel.overwrites[target] = { ...channel.overwrites[target], ...value }; }
       },
       edit: async (value) => { if ("parent" in value) channel.parentId = value.parent ?? null; },
@@ -641,6 +641,37 @@ describe("core roster and signups channels are readable by the whole guild", () 
     await setupCoreDiscord(guild as never, database as never, "k1", async () => undefined);
     const signups = [...channels.values()].find((channel) => channel.name === "tuesday-mc-signups")!;
     expect(signups.created?.find((entry) => entry.id === "everyone")?.allow).toContain(view);
+  });
+
+  it("inherits the WoW raid audience on an open multi-game server and repairs stale PoE access", async () => {
+    const { guild, database, channels, roles, makeChannel } = withGuildRoles(true);
+    roles.set("wow", { id: "wow", name: "World of Warcraft", mentionable: true });
+    const source = makeChannel("wow-signups", ChannelType.GuildText);
+    const permission = (id: string, allow: boolean, deny: boolean) => ({ id, type: 0,
+      allow: { has: (flag: bigint) => allow && flag === view }, deny: { has: (flag: bigint) => deny && flag === view } });
+    source.permissionOverwrites.cache.set("everyone", permission("everyone", false, true));
+    source.permissionOverwrites.cache.set("wow", permission("wow", true, false));
+    database.guildSettings.findUnique = async () => ({ raidSignupChannelId: source.id, memberRoleId: "member", welcomeRoleIds: ["welcome"] }) as never;
+    expect(await guildViewerRoleIds(guild as never, database as never, "g")).toEqual(["wow"]);
+    await setupCoreDiscord(guild as never, database as never, "k1", async () => undefined);
+    const signups = [...channels.values()].find(channel => channel.name === "tuesday-mc-signups")!;
+    expect(signups.created?.find(entry => entry.id === "everyone")?.deny).toContain(view);
+    expect(signups.created?.find(entry => entry.id === "wow")?.allow).toContain(view);
+    expect(signups.created?.find(entry => entry.id === "welcome")).toBeUndefined();
+    expect(signups.created?.find(entry => entry.id === "member")).toBeUndefined();
+    signups.permissionOverwrites.cache.set("everyone", permission("everyone", true, false));
+    signups.permissionOverwrites.cache.set("welcome", permission("welcome", true, false));
+    await openCoreChannels(guild as never, database as never, "g", [signups.id]);
+    expect(signups.overwrites["welcome"]).toEqual({ ViewChannel: null, ReadMessageHistory: null });
+    expect(signups.overwrites["everyone"]).toEqual({ ViewChannel: false, SendMessages: false });
+  });
+
+  it("refuses to create public core channels when the configured raid audience cannot be read", async () => {
+    const { guild, database, channels } = withGuildRoles(true);
+    database.guildSettings.findUnique = async () => ({ raidSignupChannelId: "missing" }) as never;
+    const result = await setupCoreDiscord(guild as never, database as never, "k1", async () => undefined);
+    expect(result.error).toContain("permissions were not broadened");
+    expect(channels.size).toBe(0);
   });
 
   it("repairs an older core's channels: adds the guild roles and takes back an @everyone read on a hidden server", async () => {

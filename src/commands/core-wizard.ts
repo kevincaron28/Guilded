@@ -9,6 +9,8 @@ import { createItemValueService, parseItemValues, priceDraft } from "../services
 import { coreRosterEmbed, createRaidCoreService, ensureCoreDiscord, syncCoreRoster } from "../services/raid-core.js";
 import { modeKey, parseMode, type EditMode } from "./core-editor.js";
 import { guildService } from "./context.js";
+import { fillCoreWeeklyRaids } from "../services/core-weekly-raids.js";
+import { parseWeeklySchedule } from "../services/core-weekly-time.js";
 
 // /core setup: build a raid core by clicking, not by remembering commands.
 //   1. name it (a small form)          2. pick its tanks, healers and DPS (main roster or bench)
@@ -99,7 +101,7 @@ function nameModal() {
   return new ModalBuilder().setCustomId("corewiz:name-modal").setTitle("New raid core").addComponents(
     new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("name").setLabel("Name").setPlaceholder("Tuesday Molten Core").setStyle(TextInputStyle.Short).setMinLength(2).setMaxLength(50).setRequired(true)),
     new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("description").setLabel("Description (optional)").setPlaceholder("Progression, achievement runs").setStyle(TextInputStyle.Short).setMaxLength(300).setRequired(false)),
-    new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("schedule").setLabel("Raid nights (optional)").setPlaceholder("Tue/Thu 8-11pm EST").setStyle(TextInputStyle.Short).setMaxLength(100).setRequired(false))
+    new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("schedule").setLabel("Horaire auto : 7 jours (optionnel)").setPlaceholder("mardi 20h; jeudi 20h30 — heure du serveur").setStyle(TextInputStyle.Paragraph).setMaxLength(400).setRequired(false))
   );
 }
 
@@ -157,19 +159,29 @@ export async function runCoreWizard(interaction: ChatInputCommandInteraction): P
         const submitted = await i.awaitModalSubmit({ time: 5 * 60_000, filter: (m) => m.user.id === i.user.id }).catch(() => null);
         if (!submitted) return;
         try {
+          const schedule = submitted.fields.getTextInputValue("schedule");
+          parseWeeklySchedule(schedule);
+          await submitted.deferUpdate();
+          const settings = await guildService.getSettings(guildId);
           const core = await coreService.create(
             guildId, submitted.fields.getTextInputValue("name"),
             submitted.fields.getTextInputValue("description") || null,
-            submitted.fields.getTextInputValue("schedule") || null
+            schedule || null,
+            { timezone: settings?.timezone ?? "America/Toronto", createdBy: i.user.id }
           );
           coreId = core.id;
-          await submitted.deferUpdate();
           // Its own category, channels and role (5.0: made with the core).
           const discord = await ensureCoreDiscord(interaction.guild, prisma, guildId, core.id);
-          const note = discord.error ? `Created **${core.name}**. Its channels could not be made: ${discord.error}` : `Created **${core.name}** and its channels.`;
+          await fillCoreWeeklyRaids(prisma, guildId, core.id);
+          const { runDiscordJobs } = await import("../services/discord-jobs.js");
+          await runDiscordJobs(interaction.client);
+          const note = (discord.error ? `Created **${core.name}**. Its channels could not be made: ${discord.error}` : `Created **${core.name}** and its channels.`)
+            + (core.weeklySchedule ? `\n📅 ${core.schedule} (${core.weeklyTimezone}). Les raids des 7 prochains jours sont préparés; la suite s'ajoute automatiquement. Ajuste l'horaire dans /core edit.` : "");
           await show(await rosterStep(core, guildId, note, mode));
         } catch (error) {
-          await submitted.reply({ content: error instanceof Error ? error.message : "Could not create the core.", ephemeral: true });
+          const content = error instanceof Error ? error.message : "Could not create the core.";
+          if (submitted.deferred) await submitted.followUp({ content, ephemeral: true });
+          else await submitted.reply({ content, ephemeral: true });
         }
         return;
       }

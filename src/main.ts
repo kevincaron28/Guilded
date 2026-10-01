@@ -1,4 +1,5 @@
 import { ensureCoreDiscord } from "./services/raid-core.js";
+import { fillGuildWeeklyRaids } from "./services/core-weekly-raids.js";
 import { guildService } from "./commands/context.js";
 import { pendingSignupRaidIds, syncSignupEmbed } from "./commands/raid.js";
 import { runDiscordJobs } from "./services/discord-jobs.js";
@@ -103,6 +104,7 @@ async function repairCoreRaids(guild: import("discord.js").Guild, provision = fa
     const cores = await prisma.raidCore.findMany({ where: { guildId: record.id } });
     for (const core of cores) await ensureCoreDiscord(guild, prisma, record.id, core.id);
   }
+  await fillGuildWeeklyRaids(prisma, record.id, reportJobError("Core weekly raid schedule"));
   const raids = await prisma.raid.findMany({ where: { guildId: record.id, coreId: { not: null }, OR: [
     { status: { in: ["PLANNED", "ACTIVE"] }, ...(provision ? {} : { OR: [{ signupMessageId: null }, { mirrorSignupMessageId: null }] }) },
     { id: { in: pendingSignupRaidIds(record.id) } }

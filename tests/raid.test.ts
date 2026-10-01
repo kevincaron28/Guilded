@@ -87,6 +87,12 @@ describe("raid service", () => {
 describe("weekly raids", () => {
   const base = { id: "r1", guildId: "guild", title: "Karazhan", scheduledAt: new Date("2026-10-02T00:00:00Z"), createdBy: "u", description: null, tankLimit: 2, healerLimit: 4, dpsLimit: null, coreId: "c1", repeatWeekly: true, isTest: false, bosses: [{ name: "Attumen", sortOrder: 0 }] };
 
+  it("leaves rolling core occurrences to their scheduler instead of making an extra repeat", async () => {
+    const database = { raid: { findFirst: vi.fn().mockResolvedValue({ ...base, weeklyOccurrence: "c1:2026-10-01:20:0" }), create: vi.fn() } };
+    expect(await createRaidService(database as never).createNextRepeat("r1", "guild")).toBeNull();
+    expect(database.raid.create).not.toHaveBeenCalled();
+  });
+
   it("creates the next raid one week later with the same setup", async () => {
     const create = vi.fn().mockResolvedValue({ id: "r2" });
     const database = { raid: { findFirst: vi.fn().mockResolvedValueOnce(base).mockResolvedValueOnce(null), create } } as never;

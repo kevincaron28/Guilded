@@ -124,7 +124,7 @@ export function createRaidService(database: PrismaClient) {
     // (or the first such date still in the future). Null if it is not weekly.
     async createNextRepeat(raidId: string, guildId: string, now = new Date()) {
       const raid = await database.raid.findFirst({ where: { id: raidId, guildId }, include: { bosses: { orderBy: { sortOrder: "asc" } } } });
-      if (!raid || !raid.repeatWeekly || raid.isTest) return null;
+      if (!raid || !raid.repeatWeekly || raid.isTest || raid.weeklyOccurrence) return null;
       const week = 7 * 24 * 3_600_000;
       let next = raid.scheduledAt.getTime() + week;
       while (next <= now.getTime()) next += week;

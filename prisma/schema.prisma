@@ -615,6 +615,8 @@ model Raid {
   reminderSentAt  DateTime?
   // Weekly raids: ending one creates the next, seven days on.
   repeatWeekly    Boolean          @default(false)
+  // Original core/date/time identity; retained when cancelled or moved so it never respawns.
+  weeklyOccurrence String?         @unique
   bosses          RaidBoss[]
 
   @@index([guildId, scheduledAt])
@@ -1040,6 +1042,10 @@ model RaidCore {
   description     String?
   // Recurring raid nights, e.g. "Tue/Thu 8-11pm EST"; shown on the roster message.
   schedule        String?
+  // Explicitly enabled only by a leader. Old free-text schedules remain display-only.
+  weeklySchedule  String?
+  weeklyTimezone  String?
+  weeklyCreatedBy String?
   rosterMessageId String?
   // Per-core EP rules; empty means the guild's default from /config.
   attendanceEp    Int?

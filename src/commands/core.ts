@@ -9,6 +9,8 @@ import { executeCoreItems } from "./core-items.js";
 import { coreSpotLabel, createRaidCoreService, ensureCoreDiscord, removeCoreRosterMessage, syncCoreRoster } from "../services/raid-core.js";
 import { archiveCoreDiscord, deleteCoreDiscord, renameCoreDiscord } from "../services/core-channels.js";
 import { guildService, requireGuildContext } from "./context.js";
+import { fillCoreWeeklyRaids, saveCoreWeeklySchedule } from "../services/core-weekly-raids.js";
+import { parseWeeklySchedule } from "../services/core-weekly-time.js";
 
 const coreService = createRaidCoreService(prisma);
 
@@ -29,7 +31,8 @@ export const coreCommand = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName("create").setDescription("Create a raid core with a command (Raid Leaders). /core setup is easier.")
     .addStringOption((o) => o.setName("name").setDescription("e.g. Tuesday MC core").setMinLength(2).setMaxLength(50).setRequired(true))
     .addStringOption((o) => o.setName("description").setDescription("Optional: goals, progression").setMaxLength(300))
-    .addStringOption((o) => o.setName("schedule").setDescription("Optional: raid nights, e.g. Tue/Thu 8-11pm EST").setMaxLength(100)))
+    .addStringOption((o) => o.setName("schedule").setDescription("Auto raids, next 7 days: mardi 20h; jeudi 20h (server timezone)")
+      .setDescriptionLocalizations({ fr: "Raids auto, 7 prochains jours : mardi 20h; jeudi 20h (heure du serveur)" }).setMaxLength(400)))
   .addSubcommand((sub) => sub.setName("add").setDescription("Add a player to a core (Raid Leaders).")
     .addStringOption(coreOption)
     .addUserOption((o) => o.setName("player").setDescription("Discord member").setRequired(true))
@@ -62,7 +65,8 @@ export const coreCommand = new SlashCommandBuilder()
     .addIntegerOption((o) => o.setName("min_ep").setDescription("EP needed before a player takes loot priority (0 = off)").setMinValue(0))
     .addStringOption((o) => o.setName("pool").setDescription("Points: shared guild pool, or this core's own pool (applies to future points)").addChoices(
       { name: "Shared guild pool", value: "shared" }, { name: "Its own pool", value: "separate" }))
-    .addStringOption((o) => o.setName("schedule").setDescription("Raid nights, e.g. Tue/Thu 8-11pm EST (empty clears it)").setMaxLength(100))
+    .addStringOption((o) => o.setName("schedule").setDescription("Weekly starts: mardi 20h; jeudi 20h. off = stop auto raids")
+      .setDescriptionLocalizations({ fr: "Départs hebdomadaires : mardi 20h; jeudi 20h. off = arrêter les raids auto" }).setMaxLength(400))
     .addBooleanOption((o) => o.setName("reset").setDescription("Go back to the guild defaults for every rule (points already in a pool stay there)")))
   .addSubcommand((sub) => sub.setName("items").setDescription("Set GP prices for items (EPGP priority loot): for one core, or the whole guild (Raid Leaders).")
     .addStringOption((o) => o.setName("action").setDescription("What to do").setRequired(true).addChoices(
@@ -115,13 +119,22 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
   }
 
   if (subcommand === "create") {
-    const core = await coreService.create(guildId, interaction.options.getString("name", true), interaction.options.getString("description"), interaction.options.getString("schedule"));
+    const schedule = interaction.options.getString("schedule");
+    parseWeeklySchedule(schedule ?? "");
     // Discord work (a role, a category, four channels) can take longer than the 3 s reply window.
     await interaction.deferReply({ ephemeral: true });
+    const settings = await guildService.getSettings(guildId);
+    const core = await coreService.create(guildId, interaction.options.getString("name", true), interaction.options.getString("description"), schedule,
+      { timezone: settings?.timezone ?? "America/Toronto", createdBy: interaction.user.id });
     const discord = await ensureCoreDiscord(interaction.guild, prisma, guildId, core.id);
+    const created = await fillCoreWeeklyRaids(prisma, guildId, core.id);
+    const { runDiscordJobs } = await import("../services/discord-jobs.js");
+    await runDiscordJobs(interaction.client);
     const made = await prisma.raidCore.findUnique({ where: { id: core.id } });
     await interaction.editReply({
-      content: `Created raid core **${core.name}**. Add players with \`/core add\`, and create its raids with \`/raid create core:${core.name}\`.`
+      content: `Core **${core.name}** créé. Ajoute tes joueurs avec \`/core add\`.`
+        + (core.weeklySchedule ? `\n📅 ${created.length} raid(s) préparé(s) pour les 7 prochains jours. Horaire : **${core.schedule}** (${core.weeklyTimezone}). La prochaine semaine s'ajoute automatiquement. Modifie l'horaire avec \`/core edit\`.` : "")
+        + (!core.weeklySchedule ? ` Configure l'horaire automatique dans \`/core edit\`, ou crée un raid avec \`/raid create core:${core.name}\`.` : "")
         + (made?.categoryId ? ` Its channels are ready${made.chatChannelId ? ` (<#${made.chatChannelId}>)` : ""}.` : "")
         + (discord.error ? ` Its channels could not be made: ${discord.error} It uses the shared channels until then (\`/core edit\` > Create channels & role).` : "")
     });
@@ -206,7 +219,7 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
       if (mode) data["lootMode"] = mode === "DEFAULT" ? null : mode;
     }
     const schedule = interaction.options.getString("schedule");
-    if (schedule !== null) data["schedule"] = schedule.trim() || null;
+    if (schedule !== null) parseWeeklySchedule(schedule);
     const pool = interaction.options.getString("pool");
     if (pool === "separate" && !core.separatePool) data["separatePool"] = true;
     if (pool === "shared" && core.separatePool) {
@@ -215,11 +228,22 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
       if (stranded > 0) throw new Error(`${core.name} already has ${stranded} entries in its own pool. Those points would disappear from view, so it stays separate.`);
       data["separatePool"] = false;
     }
-    const updated = Object.keys(data).length ? await prisma.raidCore.update({ where: { id: core.id }, data }) : core;
+    if (schedule !== null) await interaction.deferReply({ ephemeral: true });
+    let updated = Object.keys(data).length ? await prisma.raidCore.update({ where: { id: core.id }, data }) : core;
+    if (schedule !== null) {
+      updated = { ...updated, ...await saveCoreWeeklySchedule(prisma, guildId, core.id, schedule, interaction.user.id) };
+      await fillCoreWeeklyRaids(prisma, guildId, core.id);
+      await syncCoreRoster(interaction.guild, prisma, guildId, core.id);
+      const { runDiscordJobs } = await import("../services/discord-jobs.js");
+      await runDiscordJobs(interaction.client);
+    }
     const note = pool === "separate" && data["separatePool"] === true
       ? "\nFrom now on this core's raids pay EP and GP into its own pool (`/epgp balance core:...`). Points already in the guild pool stay there."
       : "";
-    await interaction.reply({ content: describeRules(effectiveRules(settings, updated), core.name) + note, ephemeral: true });
+    const content = describeRules(effectiveRules(settings, updated), core.name) + note + (schedule !== null
+      ? `\n📅 ${updated.weeklySchedule ? `${updated.schedule} (${updated.weeklyTimezone}) — inscriptions des 7 prochains jours, renouvelées automatiquement.` : "Création automatique arrêtée."} Les raids déjà affichés gardent leurs inscriptions; annule-les avec /raid cancel au besoin.` : "");
+    if (interaction.deferred) await interaction.editReply({ content });
+    else await interaction.reply({ content, ephemeral: true });
     return;
   }
 

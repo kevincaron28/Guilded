@@ -25,10 +25,9 @@ import { BRAND } from "../brand.js";
 // category go, and the role is renamed "<core> (archived)" so former members can still read.
 // If the bot lacks Manage Roles / Manage Channels the core still works with the shared channels.
 //
-// "Visible to the guild": every role the bot knows as a guild role (member role, applicant role,
-// welcome roles, leadership and class leaders, every core's role) can read them, so anyone can
-// see a core's roster and sign up to fill a raid night. On a server that hides channels from
-// @everyone that is who sees them; on an open server @everyone reads them too.
+// Public core channels follow the configured general raid signup channel's audience, so
+// multi-game servers keep their game gates. Without a configured raid channel, guild roles
+// (member, applicant, welcome, leadership and core roles) provide the legacy audience.
 
 type Db = Pick<PrismaClient, "raidCore" | "raidCoreMember"> & Partial<Pick<PrismaClient, "guildSettings">>;
 type CoreLike = Pick<RaidCore, "id" | "name" | "roleId" | "categoryId" | "rosterChannelId" | "signupChannelId" | "lootChannelId" | "raidLogChannelId" | "chatChannelId" | "voiceChannelId">;
@@ -89,8 +88,20 @@ export async function syncCoreRole(guild: DiscordGuild, database: Db, coreId: st
 const GUILD_ROLES: Permission[] = ["guildMaster", "officer", "raidLeader", "dkpOfficer", "lootLeader", "classLeader"];
 
 // The roles that read every core's roster and signups channels (see the top of this file).
-export async function guildViewerRoleIds(guild: DiscordGuild, database: Db, guildId: string): Promise<string[]> {
-  const settings = database.guildSettings ? await database.guildSettings.findUnique({ where: { guildId } }).catch(() => null) : null;
+export async function corePublicAudience(guild: DiscordGuild, database: Db, guildId: string): Promise<{ viewers: string[]; denied: string[]; restricted: boolean }> {
+  const settings = database.guildSettings ? await database.guildSettings.findUnique({ where: { guildId } }) : null;
+  // A multi-game server's existing raid channel defines who belongs to its raid audience.
+  // Never broaden that gate to welcome/member roles belonging to another game.
+  if (settings?.raidSignupChannelId) {
+    const source = await guild.channels.fetch(settings.raidSignupChannelId);
+    if (!source || !('permissionOverwrites' in source)) throw new Error("Raid signups channel unavailable; core permissions were not broadened.");
+    const everyone = source.permissionOverwrites.cache.get(guild.roles.everyone.id);
+    const restricted = everyone?.deny.has(PermissionFlagsBits.ViewChannel) === true ||
+      (!everyone?.allow.has(PermissionFlagsBits.ViewChannel) && !openServer(guild));
+    const viewers = source.permissionOverwrites.cache.filter(overwrite => overwrite.id !== guild.roles.everyone.id && overwrite.allow.has(PermissionFlagsBits.ViewChannel)).map(overwrite => overwrite.id);
+    const denied = source.permissionOverwrites.cache.filter(overwrite => overwrite.id !== guild.roles.everyone.id && overwrite.deny.has(PermissionFlagsBits.ViewChannel)).map(overwrite => overwrite.id);
+    return { viewers, denied, restricted };
+  }
   const cores = await database.raidCore.findMany({ where: { guildId }, select: { roleId: true } });
   const ids = new Set<string>([
     ...(settings?.memberRoleId ? [settings.memberRoleId] : []),
@@ -100,23 +111,30 @@ export async function guildViewerRoleIds(guild: DiscordGuild, database: Db, guil
     ...guild.roles.cache.filter((role) => GUILD_ROLES.some((permission) => isPermissionRoleName(permission, role.name))).map((role) => role.id)
   ]);
   ids.delete(guild.roles.everyone.id);
-  return [...ids].filter((id) => guild.roles.cache.has(id));
+  return { viewers: [...ids].filter((id) => guild.roles.cache.has(id)), denied: [], restricted: false };
+}
+
+export async function guildViewerRoleIds(guild: DiscordGuild, database: Db, guildId: string): Promise<string[]> {
+  return (await corePublicAudience(guild, database, guildId)).viewers;
 }
 
 // True when the server shows channels to @everyone by default (no role needed to read).
 const openServer = (guild: DiscordGuild) => guild.roles.everyone.permissions.has(PermissionFlagsBits.ViewChannel);
 
-function overwrites(guild: DiscordGuild, roleId: string, access: "public" | "private", viewers: string[] = []): OverwriteResolvable[] {
+function overwrites(guild: DiscordGuild, roleId: string, access: "public" | "private", viewers: string[] = [], restricted = false, denied: string[] = []): OverwriteResolvable[] {
   const leaders = guild.roles.cache.filter((role) => LEADERSHIP.some((permission) => isPermissionRoleName(permission, role.name)));
   const me = guild.members.me;
   const list: OverwriteResolvable[] = [];
   if (access === "public") {
     // The guild reads; only the bot (and leadership) posts. Buttons on the bot's posts still work.
     // A server that hides channels from @everyone keeps doing so: its guild roles read them.
-    list.push(openServer(guild) || viewers.length === 0
+    list.push(restricted
+      ? { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }
+      : openServer(guild) || viewers.length === 0
       ? { id: guild.roles.everyone.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory], deny: [PermissionFlagsBits.SendMessages] }
       : { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.SendMessages] });
     for (const id of viewers) list.push({ id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory] });
+    for (const id of denied) list.push({ id, deny: [PermissionFlagsBits.ViewChannel] });
   } else {
     list.push({ id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] });
     list.push({ id: roleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak] });
@@ -125,13 +143,14 @@ function overwrites(guild: DiscordGuild, roleId: string, access: "public" | "pri
     list.push({ id: role.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak] });
   }
   if (me) list.push({ id: me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageMessages, PermissionFlagsBits.Connect] });
-  return list;
+  return [...new Map(list.map(entry => [entry.id, entry])).values()];
 }
 
 // Creates what is missing of the core's role, category and four channels (safe to press again:
 // existing ones are kept). Returns the names created.
 export async function createCoreChannels(guild: DiscordGuild, database: Db, coreId: string): Promise<string[]> {
   const core = await database.raidCore.findUniqueOrThrow({ where: { id: coreId } });
+  const audience = await corePublicAudience(guild, database, core.guildId);
   const roleId = await ensureCoreRole(guild, database, core);
   if (!roleId) throw new Error("I could not create the core's role: give my role \"Manage Roles\" (and \"Manage Channels\").");
   await guild.channels.fetch();
@@ -141,16 +160,16 @@ export async function createCoreChannels(guild: DiscordGuild, database: Db, core
 
   let categoryId = core.categoryId;
   if (!exists(categoryId)) {
-    const category = await guild.channels.create({ name: names.category, type: ChannelType.GuildCategory, reason: `${BRAND.name}: raid core channels` });
+    const category = await guild.channels.create({ name: names.category, type: ChannelType.GuildCategory,
+      permissionOverwrites: overwrites(guild, roleId, "public", audience.viewers, audience.restricted, audience.denied), reason: `${BRAND.name}: raid core channels` });
     categoryId = category.id;
     created.push(names.category);
   }
-  // Who reads the public channels; a failed lookup only means @everyone reads them, as before.
-  const viewers = await guildViewerRoleIds(guild, database, core.guildId).catch(() => []);
+  const viewers = audience.viewers;
   const make = async (current: string | null, name: string, type: ChannelType.GuildText | ChannelType.GuildVoice, access: "public" | "private") => {
     if (exists(current)) return current as string;
     const channel = await guild.channels.create({
-      name, type, parent: categoryId as string, permissionOverwrites: overwrites(guild, roleId, access, viewers), reason: `${BRAND.name}: raid core channels`
+      name, type, parent: categoryId as string, permissionOverwrites: overwrites(guild, roleId, access, viewers, audience.restricted, audience.denied), reason: `${BRAND.name}: raid core channels`
     });
     created.push(type === ChannelType.GuildVoice ? name : `#${name}`);
     return channel.id;
@@ -180,19 +199,40 @@ export async function createCoreChannels(guild: DiscordGuild, database: Db, core
 export async function openCoreChannels(guild: DiscordGuild, database: Db, guildId: string, channelIds: (string | null)[]): Promise<number> {
   let changed = 0;
   try {
-    const viewers = await guildViewerRoleIds(guild, database, guildId);
+    const { viewers, denied, restricted } = await corePublicAudience(guild, database, guildId);
     for (const id of channelIds) {
       if (!id) continue;
       const channel = await guild.channels.fetch(id).catch(() => null);
       if (!channel || channel.type !== ChannelType.GuildText) continue;
       let touched = false;
+      const leaders = new Set(guild.roles.cache.filter(role => LEADERSHIP.some(permission => isPermissionRoleName(permission, role.name))).map(role => role.id));
+      for (const roleId of denied) {
+        if (roleId === guild.members.me?.id || leaders.has(roleId) || channel.permissionOverwrites.cache.get(roleId)?.deny.has(PermissionFlagsBits.ViewChannel)) continue;
+        await channel.permissionOverwrites.edit(roleId, { ViewChannel: false });
+        touched = true;
+      }
+      if (restricted) {
+        const protectedIds = new Set([guild.members.me?.id, ...viewers, ...denied,
+          ...guild.roles.cache.filter(role => LEADERSHIP.some(permission => isPermissionRoleName(permission, role.name))).map(role => role.id)]);
+        for (const entry of channel.permissionOverwrites.cache.values()) {
+          if (entry.id === guild.roles.everyone.id || protectedIds.has(entry.id) || !entry.allow.has(PermissionFlagsBits.ViewChannel)) continue;
+          await channel.permissionOverwrites.edit(entry.id, { ViewChannel: null, ReadMessageHistory: null });
+          touched = true;
+        }
+        const everyone = channel.permissionOverwrites.cache.get(guild.roles.everyone.id);
+        if (!everyone?.deny.has(PermissionFlagsBits.ViewChannel) || !everyone.deny.has(PermissionFlagsBits.SendMessages)) {
+          await channel.permissionOverwrites.edit(guild.roles.everyone.id, { ViewChannel: false, SendMessages: false });
+          touched = true;
+        }
+      }
       for (const roleId of viewers) {
+        if (denied.includes(roleId)) continue;
         const current = channel.permissionOverwrites.cache.get(roleId);
         if (current?.allow.has(PermissionFlagsBits.ViewChannel) && current.allow.has(PermissionFlagsBits.ReadMessageHistory)) continue;
         if (await channel.permissionOverwrites.edit(roleId, { ViewChannel: true, ReadMessageHistory: true }).then(() => true, () => false)) touched = true;
       }
       const everyone = channel.permissionOverwrites.cache.get(guild.roles.everyone.id);
-      if (!openServer(guild) && viewers.length > 0 && everyone?.allow.has(PermissionFlagsBits.ViewChannel)) {
+      if (!restricted && !openServer(guild) && viewers.length > 0 && everyone?.allow.has(PermissionFlagsBits.ViewChannel)) {
         if (await channel.permissionOverwrites.edit(guild.roles.everyone.id, { ViewChannel: null, ReadMessageHistory: null, SendMessages: false }).then(() => true, () => false)) touched = true;
       }
       if (touched) changed++;

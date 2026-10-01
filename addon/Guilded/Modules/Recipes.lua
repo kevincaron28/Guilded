@@ -824,7 +824,9 @@ end
 
 local frame = CreateFrame("Frame")
 for _, event in ipairs({ "PLAYER_LOGIN", "TRADE_SKILL_SHOW", "TRADE_SKILL_UPDATE", "TRADE_SKILL_LIST_UPDATE", "CRAFT_SHOW", "CRAFT_UPDATE", "CHAT_MSG_ADDON" }) do
-  if ns.compat and ns.compat.registerEvent then ns.compat.registerEvent(frame, event)
+  -- Crafting events vary by client; unsupported alternatives are expected.
+  local optional = event ~= "PLAYER_LOGIN" and event ~= "CHAT_MSG_ADDON"
+  if ns.compat and ns.compat.registerEvent then ns.compat.registerEvent(frame, event, optional)
   else pcall(frame.RegisterEvent, frame, event) end
 end
 frame:SetScript("OnEvent", function(...)

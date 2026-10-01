@@ -19,7 +19,8 @@ the addon alone; the bot and the companion are optional.
 2. On the Bot page, turn on **Server Members Intent**.
 3. Invite it: OAuth2, URL Generator, scopes `bot` and `applications.commands`, and these permissions:
    View Channels, Send Messages, Send Messages in Threads, Create Public Threads, Manage Threads,
-   Embed Links, Read Message History, Manage Channels, Manage Roles.
+   Embed Links, Read Message History, Manage Channels, Manage Roles, Create Events.
+   For events hosted in a voice channel, also grant View Channel, Connect and Create Events there.
 4. In your server, drag the bot's role **above** the applicant and member roles.
 5. Turn on Developer Mode in Discord (Settings, Advanced), right-click your server and **Copy Server ID**.
 

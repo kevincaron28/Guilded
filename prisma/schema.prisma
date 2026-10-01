@@ -132,6 +132,7 @@ model Guild {
   craftRequests       CraftRequest[]
   dungeonSeasons      DungeonSeason[]
     discordJobs         DiscordJob[]
+    discordEvents       DiscordEventLink[]
   dungeonRuns         DungeonRun[]
   dungeonPoints       DungeonPointTransaction[]
   dungeonAchievements DungeonAchievement[]
@@ -149,6 +150,131 @@ model Guild {
   polls               Poll[]
   unclaimedCharacters UnclaimedCharacter[]
   characterPairings   CharacterPairing[]
+  communitySeasons    CommunitySeason[]
+  poeMapVisits        PoeMapVisit[]
+}
+
+// Discord community activities have their own seasons and wallet, separate from raid loot.
+model CommunitySeason {
+  id             String @id @default(cuid())
+  guildId        String
+  game           String
+  name           String
+  channelId      String
+  audienceRoleId String?
+  status         String @default("ACTIVE")
+  createdBy      String
+  createdAt      DateTime @default(now())
+  endedAt        DateTime?
+  finalStandings Json?
+  guild          Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  activities     CommunityActivity[]
+  points         CommunityPoint[]
+  participation  CommunityParticipationConfig?
+  participationDays CommunityParticipationDay[]
+  participationDeletions CommunityParticipationDeletion[]
+  kudos          CommunityKudos[]
+  @@index([guildId, game, status])
+}
+
+model CommunityActivity {
+  id          String @id @default(cuid())
+  seasonId    String
+  kind        String
+  title       String
+  rules       Json
+  status      String @default("OPEN")
+  startsAt    DateTime?
+  endsAt      DateTime
+  createdBy   String
+  createdAt   DateTime @default(now())
+  messageId   String?
+  reminderAt  DateTime?
+  result      Json?
+  season      CommunitySeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  entries     CommunityEntry[]
+  @@index([status, endsAt])
+  @@index([seasonId, kind])
+}
+
+model CommunityEntry {
+  id          String @id @default(cuid())
+  activityId  String
+  userId      String
+  status      String
+  quantity    Int @default(1)
+  evidence    String?
+  reviewedBy  String?
+  reviewNote  String?
+  createdAt   DateTime @default(now())
+  activity    CommunityActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  @@unique([activityId, userId])
+}
+
+model CommunityPoint {
+  id        String @id @default(cuid())
+  seasonId  String
+  userId    String
+  amount    Int
+  kind      String
+  reference String
+  reason    String
+  actorId   String
+  createdAt DateTime @default(now())
+  season    CommunitySeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  @@unique([seasonId, reference])
+  @@index([seasonId, userId])
+  @@index([seasonId, userId, createdAt])
+}
+
+model CommunityParticipationConfig {
+  seasonId String @id
+  enabled Boolean @default(false)
+  rules Json
+  revision Int @default(1)
+  updatedAt DateTime @updatedAt
+  season CommunitySeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+}
+
+model CommunityParticipationDay {
+  id String @id @default(cuid())
+  seasonId String
+  userId String
+  day String
+  messages Int @default(0)
+  reactions Int @default(0)
+  voiceMs Int @default(0)
+  voicePoints Int @default(0)
+  lastVoiceAt DateTime?
+  lastMessageAt DateTime?
+  messageHashes Json @default("[]")
+  season CommunitySeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  @@unique([seasonId, userId, day])
+  @@index([seasonId, day])
+}
+
+model CommunityKudos {
+  id String @id @default(cuid())
+  seasonId String
+  userId String
+  nominatorId String
+  week String
+  reason String
+  status String @default("PENDING")
+  reviewedBy String?
+  reviewNote String?
+  createdAt DateTime @default(now())
+  season CommunitySeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  @@unique([seasonId, nominatorId, userId, week])
+  @@index([seasonId, status])
+}
+
+model CommunityParticipationDeletion {
+  seasonId String
+  messageId String
+  createdAt DateTime @default(now())
+  season CommunitySeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  @@id([seasonId, messageId])
 }
 
 model Member {
@@ -186,6 +312,7 @@ model Member {
   characterPairings   CharacterPairing[]
   companionCredentials CompanionCredential[]
   pairedImports       AddonImport[]
+  poeMapVisits        PoeMapVisit[]
 
   @@unique([guildId, discordUserId])
   @@index([guildId, status])
@@ -432,6 +559,7 @@ model AddonImport {
 }
 
 model GuildSettings {
+  poeTrackingEnabled Boolean @default(false)
   // Full setup reset excludes history that still exists on members' PCs.
   dataResetAt DateTime?
   id                       String    @id @default(cuid())
@@ -523,6 +651,31 @@ model GuildSettings {
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
   guild                    Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+}
+
+// Personal, self-reported log observations; never completion evidence or loot points.
+model PoeMapVisit {
+  id              String @id @default(cuid())
+  guildId         String
+  memberId        String
+  runRef          String
+  character       String
+  league          String
+  mode            String
+  areaId          String
+  areaLevel       Int
+  startedAt       DateTime
+  endedAt         DateTime
+  durationSeconds Int?
+  endReason       String
+  source          String @default("CLIENT_LOG")
+  createdAt       DateTime @default(now())
+  guild           Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  member          Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, memberId, runRef])
+  @@index([guildId, league, mode, startedAt])
+  @@index([memberId, startedAt])
 }
 
 model InspectedCharacterSnapshot {
@@ -807,6 +960,21 @@ model DungeonSeason {
   achievements DungeonAchievement[]
 
   @@index([guildId, status])
+}
+
+// One native Discord event per raid or gaming night. Separate from signups.
+model DiscordEventLink {
+  id String @id @default(cuid())
+  guildId String
+  sourceType String
+  sourceId String
+  discordId String? @unique
+  signature String?
+  settled Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  @@unique([guildId, sourceType, sourceId])
 }
 
 model DiscordJob {

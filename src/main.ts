@@ -1,8 +1,10 @@
 import { ensureCoreDiscord } from "./services/raid-core.js";
 import { fillGuildWeeklyRaids } from "./services/core-weekly-raids.js";
 import { guildService } from "./commands/context.js";
+import { COMMUNITY_PREFIX, executeCommunity, handleCommunityButton, handleCommunityModal, runCommunityActivities } from "./commands/community.js";
 import { pendingSignupRaidIds, syncSignupEmbed } from "./commands/raid.js";
 import { runDiscordJobs } from "./services/discord-jobs.js";
+import { queueGuildScheduledEvents } from "./services/scheduled-events.js";
 import { executeSystem } from "./commands/system.js";
 import { updateProfessionDirectory } from "./services/profession-directory.js";
 import {
@@ -10,6 +12,7 @@ import {
   Collection,
   Events,
   GatewayIntentBits,
+  Partials,
   REST,
   Routes,
   type ChatInputCommandInteraction
@@ -50,6 +53,9 @@ import { runBackup } from "./services/backup.js";
 import { runWclDiscovery } from "./services/wcl-check.js";
 import { config } from "./config.js";
 import { startCompanionApi } from "./companion-api.js";
+import { executePoe } from "./commands/poe.js";
+import { executeParticipation } from "./commands/participation.js";
+import { createParticipationTracker } from "./services/participation-discord.js";
 import { handleMemberJoin, handleMemberRolesChange, handleMemberLeave, handleWelcomeRoleButton, WELCOME_ROLE_PREFIX } from "./services/housekeeping.js";
 import { createErrorReportService } from "./services/error-report.js";
 import { buildGuildedReference } from "./services/guilded-reference.js";
@@ -61,10 +67,13 @@ import { buildGuildedReference } from "./services/guilded-reference.js";
 // MESSAGE_CONTENT_INTENT=true (5.0 answer channel, /mod faq).
 const client = new Client({
   intents: [
-    GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers,
-    ...(config.MESSAGE_CONTENT_INTENT ? [GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] : [])
-  ]
+    GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessageReactions,
+    ...(config.MESSAGE_CONTENT_INTENT ? [GatewayIntentBits.MessageContent] : [])
+  ],
+  partials: [Partials.Message, Partials.Reaction, Partials.User]
 });
+const participationTracker = createParticipationTracker(prisma, config.MESSAGE_CONTENT_INTENT);
 const answerCommandList = buildGuildedReference(commands);
 startCompanionApi(client);
 const errorReportService = createErrorReportService(prisma);
@@ -97,6 +106,9 @@ handlers.set("craft", executeCraft);
 handlers.set("help", executeHelp);
 handlers.set("uninstall", executeUninstall);
 handlers.set("system", executeSystem);
+handlers.set("community", executeCommunity);
+handlers.set("poe", executePoe);
+handlers.set("participation", executeParticipation);
 
 async function repairCoreRaids(guild: import("discord.js").Guild, provision = false): Promise<void> {
   const record = await guildService.ensureGuild(guild.id, guild.name);
@@ -113,8 +125,27 @@ async function repairCoreRaids(guild: import("discord.js").Guild, provision = fa
 }
 
 client.once(Events.ClientReady, (readyClient) => {
+  const voice = async () => { for (const guild of readyClient.guilds.cache.values()) await participationTracker.sampleVoice(guild); };
+  void voice().catch(reportJobError("Participation voice checkpoint"));
+  setInterval(() => void voice().catch(reportJobError("Participation voice checkpoint")), 30_000);
+  void runCommunityActivities(readyClient.guilds.cache.values()).catch(reportJobError("Community activities"));
+  setInterval(() => void runCommunityActivities(readyClient.guilds.cache.values()).catch(reportJobError("Community activities")), 60_000);
   void runDiscordJobs(readyClient).catch(reportJobError("Discord delivery queue"));
   setInterval(() => void runDiscordJobs(readyClient).catch(reportJobError("Discord delivery queue")), 60_000);
+  // Repair missing event jobs after a restart and advance game nights at their times.
+  let reconcilingEvents = false;
+  const reconcileEvents = async () => {
+    if (reconcilingEvents) return;
+    reconcilingEvents = true;
+    try {
+      for (const guild of readyClient.guilds.cache.values()) {
+        const record = await prisma.guild.findUnique({ where: { discordId: guild.id } });
+        if (record) await queueGuildScheduledEvents(prisma, record.id);
+      }
+    } finally { reconcilingEvents = false; }
+  };
+  void reconcileEvents().catch(reportJobError("Discord scheduled events"));
+  setInterval(() => void reconcileEvents().catch(reportJobError("Discord scheduled events")), 60_000);
   registerCommandsEverywhere().catch(reportJobError("Command registration"));
   console.info(`Logged in as ${readyClient.user.tag}`);
   for (const guild of readyClient.guilds.cache.values()) {
@@ -204,6 +235,20 @@ client.on(Events.GuildMemberRemove, async (member) => {
   }
 });
 
+client.on(Events.MessageCreate, message => { void participationTracker.message(message).catch(reportJobError("Participation messages")); });
+client.on(Events.MessageReactionAdd, (reaction, user) => { void participationTracker.reaction(reaction, user).catch(reportJobError("Participation reactions")); });
+client.on(Events.MessageDelete, message => { void participationTracker.deleted(message).catch(reportJobError("Participation deleted message")); });
+client.on(Events.MessageBulkDelete, messages => { void (async () => { for (const message of messages.values()) await participationTracker.deleted(message); })().catch(reportJobError("Participation deleted messages")); });
+client.on(Events.VoiceStateUpdate, (_before, after) => { void participationTracker.sampleVoice(after.guild).catch(reportJobError("Participation voice change")); });
+client.on(Events.GuildMemberUpdate, (_before, after) => { void participationTracker.sampleVoice(after.guild).catch(reportJobError("Participation eligibility change")); });
+client.on(Events.GuildMemberRemove, member => { void participationTracker.sampleVoice(member.guild).catch(reportJobError("Participation member left")); });
+client.on(Events.GuildRoleUpdate, (_before, role) => { void participationTracker.sampleVoice(role.guild).catch(reportJobError("Participation role permissions")); });
+client.on(Events.ChannelUpdate, (_before, channel) => { if ("guild" in channel) void participationTracker.sampleVoice(channel.guild).catch(reportJobError("Participation channel permissions")); });
+client.on(Events.GuildUpdate, (_before, guild) => { void participationTracker.sampleVoice(guild).catch(reportJobError("Participation guild settings")); });
+client.on(Events.GuildUnavailable, guild => participationTracker.reset(guild.id));
+client.on(Events.ShardDisconnect, () => participationTracker.reset());
+client.on(Events.ShardReconnecting, () => participationTracker.reset());
+client.on(Events.ShardResume, () => participationTracker.reset());
 // The answer channel (5.0): only when the bot may read message text.
 if (config.MESSAGE_CONTENT_INTENT) {
   client.on(Events.MessageCreate, (message) => {
@@ -215,6 +260,18 @@ if (config.MESSAGE_CONTENT_INTENT) {
 }
 
 client.on(Events.InteractionCreate, async (interaction) => {
+  if ((interaction.isButton() || interaction.isModalSubmit()) && interaction.customId.startsWith(COMMUNITY_PREFIX)) {
+    try {
+      if (interaction.isButton()) await handleCommunityButton(interaction);
+      else await handleCommunityModal(interaction);
+    } catch (error) {
+      reportInteractionError("Community interaction", interaction, error);
+      const content = error instanceof Error && error.message.length < 200 ? error.message : "Impossible de traiter cette demande / Could not process this request.";
+      if (interaction.deferred) await interaction.editReply({ content }).catch(() => undefined);
+      else if (!interaction.replied) await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
+    }
+    return;
+  }
   if (interaction.isStringSelectMenu() && interaction.customId === DUNGEON_SEASON_SELECT) {
     await handleDungeonSeasonSelect(interaction).catch((error: unknown) => reportInteractionError("Dungeon season history", interaction, error));
     return;
@@ -340,7 +397,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
     } catch (error) {
       reportInteractionError("Self-role button", interaction, error);
       if (!interaction.replied) {
-        await interaction.reply({ content: "Could not update that role. Please try again or contact an officer.", ephemeral: true }).catch(() => undefined);
+        if (interaction.deferred) {
+          await interaction.editReply({ content: "Could not update that role. Please try again or contact an officer." }).catch(() => undefined);
+        } else {
+          await interaction.reply({ content: "Could not update that role. Please try again or contact an officer.", ephemeral: true }).catch(() => undefined);
+        }
       }
     }
     return;

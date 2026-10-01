@@ -7,9 +7,11 @@ coverage/
 *.log
 .neon
 companion/companion.config.json
+companion/poe-journal*.json*
 backups/
 companion-app/node_modules/
 companion-app/assets/
+companion-app/renderer/web-bundle.js
 
 # Local agent tooling
 .agents/

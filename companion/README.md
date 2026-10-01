@@ -60,3 +60,29 @@ standings (`GET /api/v1/standings`, same token) and writes them to
 differently, add `"standingsFile": "<full path to Standings.lua>"` to
 `companion.config.json`. The game reads it on login or `/reload`, and the
 officer's client then shares it with online guildmates.
+
+## Optional Path of Exile 2 mapping
+
+The desktop app can track PoE2 independently or alongside WoW. Enable it in
+Settings, select your PoE2 `logs/Client.txt`, declare your character/league/mode
+and keep your existing Discord pairing (or get a code with `/poe pair`). An
+officer must enable `/poe setup enabled:true` after updating the bot. For a
+PoE2-only setup, turn off WoW tracking. `/poe runs` and `/poe summary` show map
+observations; clears, deaths and loot are not inferred. Chat stays local.
+
+The CLI uses `poeEnabled`, `poeLogFile`, `poeCharacter`, `poeLeague`, `poeMode`
+and `wowEnabled` in its config. See [the mapping guide](../docs/POE2_MAPPING.md)
+for consent, queue recovery, limitations and the real-client checklist.
+
+## Branded desktop and online companion
+
+The redesigned companion uses the owner's Guilded logo, individual WoW and
+PoE2 pages, guided setup, light/dark themes, personal map history and searchable
+activity. `npm run companion:build` builds the shared browser interface.
+
+After the approved server release, members can visit `/companion/` on the
+bot's HTTPS hostname without installing the companion. WoW uses a manually
+selected Guilded.lua and a standings download; the WoW addon is still needed.
+PoE2 manually imports recent log observations. Reselect updated files after
+playing. Personal pairing replaces the previous desktop/browser link.
+See [delivery modes, privacy and release steps](../docs/COMPANION_EXPERIENCE.md).

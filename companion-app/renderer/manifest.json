@@ -1,0 +1,1 @@
+{"name":"Guilded Companion","short_name":"Guilded","description":"WoW guild sync and PoE2 mapping journal","start_url":"/companion/","scope":"/companion/","display":"standalone","background_color":"#101724","theme_color":"#101724","icons":[{"src":"logo.png","sizes":"400x400","type":"image/png","purpose":"any"}]}

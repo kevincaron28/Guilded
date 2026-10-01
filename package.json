@@ -22,7 +22,8 @@
     "companion:setup": "node scripts/setup-companion.mjs",
     "test:postgres": "node scripts/test-postgres.mjs",
     "release:ledger-check": "node scripts/with-env.mjs node scripts/ledger-preflight.mjs",
-    "release:prepare": "node scripts/release-prepare.mjs"
+    "release:prepare": "node scripts/release-prepare.mjs",
+    "companion:build": "node companion-app/make-icon.mjs && node scripts/build-companion-web.mjs"
   },
   "dependencies": {
     "@neon/config": "^1.7.3",
@@ -42,7 +43,8 @@
     "tsx": "^4.19.2",
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.44.0",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "esbuild": "^0.28.2"
   },
   "overrides": {
     "deepmerge-ts": "^8.0.0"

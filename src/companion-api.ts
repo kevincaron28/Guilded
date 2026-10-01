@@ -14,12 +14,14 @@ import { upcomingRaidsForAddon } from "./services/calendar-sync.js";
 import { discordCalendarEvents, mergeCalendarEvents } from "./services/discord-calendar.js";
 import { createAuditService } from "./services/audit.js";
 import { followUpImport } from "./services/import-followup.js";
-import { exchangeCharacterPairingCode, linkPairedCharacter } from "./services/character-pairing.js";
+import { exchangeCharacterPairingCode, hashCompanionSecret, linkPairedCharacter } from "./services/character-pairing.js";
+import { serveCompanionWeb } from "./services/companion-web.js";
 import type { Client } from "discord.js";
 import { companionAccess, personalSnapshot } from "./services/companion-access.js";
 import { readFileSync } from "node:fs";
 import { ZodError } from "zod";
 import type { PrismaClient } from "@prisma/client";
+import { createPoeMappingService, PoeMappingError } from "./services/poe-mapping.js";
 const BOT_VERSION = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version as string;
 
 const importService = createAddonImportService(prisma);
@@ -93,15 +95,22 @@ const auditService = createAuditService(prisma);
 export function startCompanionApi(client?: Client): ReturnType<typeof createServer> {
   const server = createServer(async (request, response) => {
     try {
+      response.setHeader("cache-control", "no-store");
+      response.setHeader("x-content-type-options", "nosniff");
       if (request.method === "GET" && request.url === "/health") {
         json(response, client?.isReady() ? 200 : 503, { ok: client?.isReady() ?? false, botVersion: BOT_VERSION, protocolVersion: 2 });
         return;
       }
       const url = new URL(request.url ?? "/", "http://localhost");
+      if (await serveCompanionWeb(request, response, url.pathname)) return;
       const isImport = request.method === "POST" && url.pathname === "/api/v1/addon-imports";
       const isPairing = request.method === "POST" && url.pathname === "/api/v1/addon-pairings";
       const isStandings = request.method === "GET" && url.pathname === "/api/v1/standings";
-      if (!isImport && !isPairing && !isStandings) {
+      const isPoeUpload = request.method === "POST" && url.pathname === "/api/v1/poe/visits";
+      const isPoeStatus = request.method === "GET" && url.pathname === "/api/v1/poe/status";
+      const isPoeRecent = request.method === "GET" && url.pathname === "/api/v1/poe/visits";
+      const isLogout = request.method === "POST" && url.pathname === "/api/v1/companion/logout";
+      if (!isImport && !isPairing && !isStandings && !isPoeUpload && !isPoeStatus && !isPoeRecent && !isLogout) {
         json(response, 404, { error: "Not found" });
         return;
       }
@@ -135,9 +144,9 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         json(response, 200, result);
         return;
       }
-      const payload = isImport ? await readBody(request) : null;
+      const payload = isImport || isPoeUpload || isLogout ? await readBody(request) : null;
       const requestPayload = payload as { guildDiscordId?: unknown; export?: unknown } | null;
-      const guildDiscordId = isStandings ? url.searchParams.get("guild") : requestPayload?.guildDiscordId;
+      const guildDiscordId = isStandings || isPoeStatus || isPoeRecent ? url.searchParams.get("guild") : requestPayload?.guildDiscordId;
       if (typeof guildDiscordId !== "string") { json(response, 400, { error: "guildDiscordId is required" }); return; }
       const guild = await prisma.guild.findUnique({ where: { discordId: guildDiscordId } });
       if (!guild) { json(response, 404, { error: "Guild is not initialized" }); return; }
@@ -147,8 +156,26 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         recordFailure(address);
         json(response, 401, { error: "Pair this companion with /character pair. The shared upload token no longer grants access." }); return;
       }
+      if (isLogout) {
+        await prisma.companionCredential.updateMany({ where: { memberId: access.memberId, tokenHash: hashCompanionSecret(header as string), revokedAt: null }, data: { revokedAt: new Date() } });
+        json(response, 200, { ok: true }); return;
+      }
+      if (isPoeRecent) {
+        const visits = await createPoeMappingService(prisma).recent(guild.id, access.memberId);
+        json(response, 200, { visits: visits.map(row => ({ character: row.character, league: row.league, mode: row.mode, areaId: row.areaId, areaLevel: row.areaLevel, startedAt: row.startedAt, endedAt: row.endedAt, durationSeconds: row.durationSeconds, endReason: row.endReason })), botVersion: BOT_VERSION }); return;
+      }
+      if (isPoeStatus) {
+        const settings = await prisma.guildSettings.findUnique({ where: { guildId: guild.id } });
+        json(response, 200, { enabled: settings?.poeTrackingEnabled ?? false, botVersion: BOT_VERSION });
+        return;
+      }
+      if (isPoeUpload) {
+        const result = await createPoeMappingService(prisma).ingest(guild.id, access.memberId, payload);
+        json(response, 200, { ...result, botVersion: BOT_VERSION });
+        return;
+      }
       if (isStandings) {
-        const scheduledEvents = await discordCalendarEvents(client, guild.discordId).catch(() => {
+        const scheduledEvents = await discordCalendarEvents(client, guild.discordId, access.actorId).catch(() => {
           console.warn("Discord calendar events could not be fetched; exporting bot raids only.");
           return [];
         });
@@ -244,6 +271,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         protocolVersion: 2
       });
     } catch (error) {
+      if (error instanceof PoeMappingError) { json(response, error.status, { error: error.message }); return; }
       console.error("Companion API request failed", error);
       json(response, error instanceof ZodError || error instanceof SyntaxError ? 400 : 503, { error: "Request could not be processed. Check the export or ask an officer to inspect the server log." });
     }

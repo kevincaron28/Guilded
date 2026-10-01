@@ -54,6 +54,9 @@ else
 fi
 
 # A changed service file needs systemd to reload it. (The Caddy config is host specific: left alone.)
+say "Building the online companion"
+sudo -u guilded bash -c "cd $APP && npm run companion:build"
+
 if ! cmp -s "$APP/deploy/guilded.service" /etc/systemd/system/guilded.service; then
   say "Service file changed"
   cp "$APP/deploy/guilded.service" /etc/systemd/system/guilded.service

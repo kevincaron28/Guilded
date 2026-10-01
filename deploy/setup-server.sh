@@ -46,6 +46,7 @@ fi
 chown -R guilded:guilded "$APP"
 chmod 600 "$APP/.env.local"
 sudo -u guilded bash -c "cd $APP && npm ci --no-audit --no-fund"
+sudo -u guilded bash -c "cd $APP && npm run companion:build"
 
 echo "== systemd"
 cp "$APP/deploy/guilded.service" /etc/systemd/system/guilded.service

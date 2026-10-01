@@ -2,15 +2,15 @@
   "name": "guilded-companion",
   "productName": "Guilded Companion",
   "version": "5.0.0",
-  "description": "Sends your Guilded addon data to the Discord bot and keeps in-game standings fresh.",
+  "description": "Your guild, connected. World of Warcraft sync and Path of Exile 2 mapping.",
   "main": "main.cjs",
   "private": true,
   "author": "Guilded",
   "scripts": {
     "start": "npm run icon && electron .",
     "icon": "node make-icon.mjs",
-    "dist": "npm run icon && electron-builder --win nsis --publish never",
-    "pack": "npm run icon && electron-builder --win dir --publish never"
+    "dist": "npm --prefix .. run companion:build && electron-builder --win nsis --publish never",
+    "pack": "npm --prefix .. run companion:build && electron-builder --win dir --publish never"
   },
   "devDependencies": {
     "electron": "^44.5.0",
@@ -38,7 +38,12 @@
           "engine.mjs",
           "lua-export.mjs",
           "standings.mjs",
-          "request.mjs"
+          "request.mjs",
+          "poe-engine.mjs",
+          "poe-log.mjs",
+          "lua-export-content.mjs",
+          "standings-format.mjs",
+          "poe-events.mjs"
         ]
       },
       {
@@ -53,7 +58,7 @@
     "win": {
       "target": "nsis",
       "icon": "assets/icon.png",
-      "signAndEditExecutable": false
+      "signExecutable": false
     },
     "nsis": {
       "oneClick": true,

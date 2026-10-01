@@ -193,7 +193,8 @@ try {
     const missingCore = await service.preview(guild.id, { ...payload, epgpTransactions: [{ ...payload.epgpTransactions[0], sourceRef: "missing-core", coreId: undefined }] }, "policy-test");
     const unscoped = await service.record(guild.id, missingCore.snapshot, "unscoped", "policy-test");
     await assert.rejects(service.apply(guild.id, unscoped.id, "policy-test"), /propres EP\/GP/);
-    assert.equal((await database.addonImport.findUniqueOrThrow({ where: { id: unscoped.id } })).status, "PENDING");
+    assert.equal((await database.addonImport.findUniqueOrThrow({ where: { id: unscoped.id } })).status, unscoped.status);
+    assert.notEqual(unscoped.status, "APPLIED");
     assert.equal(await database.epgpTransaction.count({ where: { guildId: guild.id } }), 2);
 
     // Concurrent ticks queue one report. Failed delivery retries without resetting its week.

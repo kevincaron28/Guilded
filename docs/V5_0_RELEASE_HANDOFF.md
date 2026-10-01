@@ -1,3 +1,7 @@
+Rules acceptance and final Carl-bot transition: `docs/RULES_ACCEPTANCE.md`.
+Self-role panels can require an existing role; clicks recheck live membership,
+role permissions and bot hierarchy. Preserve Exilé → Errant, remove only the
+owner-approved Errant permissions, and verify Guilded before disabling Carl.
 # Guilded 5.0 stabilization — local Claude update handoff
 
 Class/spec display: `docs/CLASS_AND_GEAR_SIGNUPS.md`. Signup posts and core

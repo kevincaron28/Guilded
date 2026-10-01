@@ -188,9 +188,9 @@ function compat.interfaceVersion()
 end
 
 -- Registers an event if the client knows it; returns true on success.
-function compat.registerEvent(frame, event)
+function compat.registerEvent(frame, event, optional)
   local ok = pcall(frame.RegisterEvent, frame, event)
-  if not ok then problem("event:" .. event, "event not available") end
+  if not ok and not optional then problem("event:" .. event, "event not available") end
   return ok
 end
 

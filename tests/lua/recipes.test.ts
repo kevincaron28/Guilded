@@ -77,6 +77,31 @@ const keysOf = (s: LuaSession, who: string, profession: string) =>
   s.run(`local t = {}; for _, k in ipairs(DB.recipeBook.people[${JSON.stringify(who)}][${JSON.stringify(profession)}].keys) do t[#t + 1] = tostring(k) end; return table.concat(t, ",")`);
 
 describe("Recipes.lua reading a profession window", () => {
+  it("quietly skips unsupported crafting events while registering supported events", () => {
+    const s = withRecipes();
+    s.run(`
+      DIAGNOSTICS = {}; REGISTERED = {}
+      NS.logDiagnostic = function(kind, detail) DIAGNOSTICS[#DIAGNOSTICS + 1] = detail end
+      local create = CreateFrame
+      CreateFrame = function(...)
+        local f = create(...)
+        f.RegisterEvent = function(_, event)
+          if event == "TRADE_SKILL_UPDATE" or event == "CRAFT_SHOW" or event == "CRAFT_UPDATE" then
+            error("Unknown event")
+          end
+          REGISTERED[event] = true
+        end
+        return f
+      end
+    `);
+    s.load("Compat.lua");
+    s.load("Modules/Recipes.lua");
+    expect(s.run(`return tostring(#DIAGNOSTICS)`)).toBe("0");
+    expect(s.run(`return tostring(REGISTERED.PLAYER_LOGIN and REGISTERED.CHAT_MSG_ADDON and REGISTERED.TRADE_SKILL_SHOW and REGISTERED.TRADE_SKILL_LIST_UPDATE)`)).toBe("true");
+    expect(s.run(`return tostring(NS.compat.registerEvent({ RegisterEvent = function() error("Unknown event") end }, "REQUIRED_EVENT"))`)).toBe("false");
+    expect(s.run(`return DIAGNOSTICS[1]`)).toBe("event:REQUIRED_EVENT: event not available");
+  });
+
   it("reads every recipe, even in collapsed groups, and leaves the window as it was", () => {
     const s = withRecipes();
     s.run(`NS.recipes.scan("trade")`);

@@ -18,7 +18,7 @@ export interface CalendarMatch {
   title: string;
   raidId: string;
   raidTitle: string;
-  entries: { memberId: string; name: string; availability: "AVAILABLE" | "MAYBE" }[];
+  entries: { memberId: string; name: string; characterId?: string; availability: "AVAILABLE" | "MAYBE" }[];
   declined: number;
   unlinked: string[];
 }
@@ -62,7 +62,7 @@ export async function planCalendarSync(tx: Tx, guildId: string, events: AddonCal
       const availability = invite.status === "ACCEPTED" ? "AVAILABLE" : "MAYBE";
       const existing = best.get(character.memberId);
       if (!existing || (existing.availability === "MAYBE" && availability === "AVAILABLE")) {
-        best.set(character.memberId, { memberId: character.memberId, name: invite.character, availability });
+        best.set(character.memberId, { memberId: character.memberId, name: invite.character, characterId: character.id, availability });
       }
     }
     plan.matches.push({ ref: event.ref, title: event.title, raidId: raid.id, raidTitle: raid.title, entries: [...best.values()], declined, unlinked: [...unlinked] });
@@ -103,7 +103,8 @@ export async function runCalendarPlan(database: PrismaClient, guildId: string, p
         ? (await database.raidCoreMember.findFirst({ where: { coreId: raid.coreId, memberId: entry.memberId }, select: { role: true } }))?.role
         : undefined;
       try {
-        const saved = await raids.signup(match.raidId, guildId, entry.memberId, (coreRole ?? "DPS") as RaidRole, entry.availability);
+        const settings = await database.guildSettings?.findUnique({ where: { guildId }, select: { characterSignups: true } });
+        const saved = await raids.signup(match.raidId, guildId, entry.memberId, (coreRole ?? "DPS") as RaidRole, entry.availability, settings?.characterSignups ? entry.characterId ?? entry.name : undefined);
         if (saved.status === "WAITLISTED") summary.waitlisted++;
         else if (saved.status === "MAYBE") summary.maybe++;
         else summary.signedUp++;

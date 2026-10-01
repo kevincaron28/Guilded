@@ -1,5 +1,10 @@
 # Guilded 5.0 stabilization — local Claude update handoff
 
+Character signups and approved WoW layout: `docs/CHARACTER_SIGNUPS.md`.
+Deploy additive migration `20261026090000_character_signups`, enable Quebec
+Gold's character policy and route the weekly report to its managed WoW channel.
+One primary plus backups per core; no existing character assignment is guessed.
+
 Core-only loot and WoW weekly reports: `docs/CORE_LOOT_AND_WOW_REPORTS.md`.
 Deploy additive migration `20261025090000_core_loot_wow_report`, then enable
 Quebec Gold's policy and explicitly route its WoW report after backing up.

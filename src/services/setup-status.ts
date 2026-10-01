@@ -122,7 +122,7 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en"): SetupCheck[] 
   const CHANNEL_LABELS: Record<string, string> = {
     coreChannelId: T("Raid roster channel"), readinessChannelId: T("Raid readiness channel"), lootChannelId: T("Loot log channel"),
     craftChannelId: T("Craft board channel"), applicationChannelId: T("Applications channel"), guideChannelId: T("Bot guide channel"), answerChannelId: T("Bot FAQ channel"),
-    dungeonChannelId: T("Dungeon runs channel")
+    dungeonChannelId: T("Dungeon runs channel"), weeklyReportChannelId: T("WoW weekly report channel")
   };
   for (const entry of facts.extraChannels ?? []) {
     const label = CHANNEL_LABELS[entry.field];

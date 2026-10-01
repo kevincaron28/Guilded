@@ -12,6 +12,7 @@ import { guildService } from "./context.js";
 import { fillCoreWeeklyRaids, saveCoreWeeklySchedule } from "../services/core-weekly-raids.js";
 import { parseWeeklySchedule } from "../services/core-weekly-time.js";
 import { asLootMode, effectiveRules, LOOT_MODES } from "../services/core-rules.js";
+import { pickSignupCharacter } from "./signup-character-picker.js";
 
 export const CORE_LOOT_LABEL = { EPGP: "Enchères en GP", COUNCIL: "Conseil de butin", RESERVE: "Réservations souples", PRIORITY: "Priorité EPGP — prix fixes" };
 
@@ -144,7 +145,10 @@ export async function runCoreEditor(interaction: ChatInputCommandInteraction, gu
           const person = await interaction.guild?.members.fetch(userId).catch(() => null);
           if (!person || person.user.bot) continue;
           const member = await guildService.ensureMember(guildId, userId, person.displayName);
-          await coreService.addMember(guildId, core.id, member.id, mode.role, mode.bench);
+          const settings = await guildService.getSettings(guildId);
+          const character = settings?.characterSignups ? await pickSignupCharacter(i, guildId, member.id) : null;
+          if (settings?.characterSignups && !character) continue;
+          await coreService.addMember(guildId, core.id, member.id, mode.role, mode.bench, character?.id);
           names.push(person.displayName);
         }
         await refresh(names.length ? `${names.join(", ")} → ${ROLE_LABEL[mode.role]}${mode.bench ? " (bench)" : ""}.` : "Nobody added (bots are skipped).");
@@ -253,9 +257,9 @@ async function characterScreen(guildId: string, coreId: string, memberId: string
   if (!spot) return { content: "That player is not in this core. Add them first.", components: [playerRow] };
   const characters = await prisma.character.findMany({ where: { memberId }, orderBy: [{ isMain: "desc" }, { name: "asc" }], take: 24 });
   if (characters.length === 0) return { content: `${spot.member.displayName} has no linked characters yet (/character).`, components: [playerRow] };
-  const label = (c: { name: string; className: string; isMain: boolean }) => `${c.name} - ${c.className}${c.isMain ? " (main)" : ""}`.slice(0, 100);
+  const label = (c: { name: string; realm: string; className: string; isMain: boolean }) => `${c.name} — ${c.realm} · ${c.className}`.slice(0, 100);
   const main = new StringSelectMenuBuilder().setCustomId("corechar:main").setPlaceholder("Character they bring to this core").addOptions(
-    { label: "No character (show only their name)", value: NO_CHARACTER, default: !spot.characterId },
+    ...((await guildService.getSettings(guildId))?.characterSignups ? [] : [{ label: "No character (show only their name)", value: NO_CHARACTER, default: !spot.characterId }]),
     ...characters.map((c) => ({ label: label(c), value: c.id, default: spot.characterId === c.id })));
   const backupIds = new Set(spot.backups.map((backup) => backup.characterId));
   const backups = new StringSelectMenuBuilder().setCustomId("corechar:backups").setPlaceholder(`Backup characters (new ones as ${ROLE_LABEL[backupRole]})`)
@@ -291,7 +295,7 @@ async function runCharacterPicker(button: MessageComponentInteraction, guildId: 
       } else if (memberId && i.customId === "corechar:main" && i.isStringSelectMenu()) {
         const pick = i.values[0] ?? NO_CHARACTER;
         const character = pick === NO_CHARACTER ? null : await prisma.character.findFirst({ where: { id: pick, memberId } });
-        await coreService.setCharacter(guildId, coreId, memberId, character?.name ?? null);
+        await coreService.setCharacter(guildId, coreId, memberId, ((await guildService.getSettings(guildId))?.characterSignups ? character?.id : character?.name) ?? null);
         note = character ? `Brings ${character.name}.` : "Character cleared.";
       } else if (memberId && i.customId === "corechar:backups" && i.isStringSelectMenu()) {
         const core = await coreService.byIdOrName(guildId, coreId);
@@ -299,9 +303,10 @@ async function runCharacterPicker(button: MessageComponentInteraction, guildId: 
         if (spot) {
           const wanted = new Set(i.values.filter((id) => id !== spot.characterId));
           const characters = await prisma.character.findMany({ where: { memberId, id: { in: [...wanted] } } });
-          for (const backup of spot.backups) if (!wanted.has(backup.characterId)) await coreService.removeBackup(guildId, coreId, memberId, backup.character.name);
+          const settings = await guildService.getSettings(guildId);
+          for (const backup of spot.backups) if (!wanted.has(backup.characterId)) await coreService.removeBackup(guildId, coreId, memberId, settings?.characterSignups ? backup.character.id : backup.character.name);
           for (const character of characters) {
-            if (!spot.backups.some((backup) => backup.characterId === character.id)) await coreService.addBackup(guildId, coreId, memberId, character.name, backupRole);
+            if (!spot.backups.some((backup) => backup.characterId === character.id)) await coreService.addBackup(guildId, coreId, memberId, settings?.characterSignups ? character.id : character.name, backupRole);
           }
           note = `${wanted.size} backup character(s).`;
         }

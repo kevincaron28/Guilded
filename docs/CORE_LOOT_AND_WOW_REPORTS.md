@@ -29,8 +29,9 @@ The existing weekly report covers WoW raids, loot and dungeons, with the title
 **Guilded — bilan hebdo WoW**. It omits server-wide membership and application
 counts. `weeklyReportChannelId` sets its dedicated destination independently
 from general bot notifications; an unset destination retains the legacy notify
-channel fallback. Quebec Gold explicitly targets its current WoW-only
-`guilded-annonces` channel. Guild-wide and PoE 2 reports remain future work.
+channel fallback. The approved WoW layout routes Quebec Gold to the dedicated
+`bilan-hebdo-wow` channel; `guilded-annonces` keeps automated reminders.
+Guild-wide and PoE 2 reports remain future work.
 
 Weekly reservations and Discord delivery jobs commit atomically under a
 PostgreSQL guild lock. Failed deliveries remain retryable, concurrent ticks queue

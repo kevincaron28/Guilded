@@ -52,9 +52,9 @@ export function timeSuggestions(query: string, timeZone: string, language: strin
   return out;
 }
 
-export async function ownCharacterChoices(database: Pick<PrismaClient, "character">, memberId: string, query: string): Promise<Suggestion[]> {
+export async function ownCharacterChoices(database: Pick<PrismaClient, "character">, memberId: string, query: string, identities = false): Promise<Suggestion[]> {
   const rows = await database.character.findMany({ where: { memberId, name: { contains: query.trim(), mode: "insensitive" } }, orderBy: [{ isMain: "desc" }, { name: "asc" }], take: 25 });
-  return rows.map((row) => ({ name: `${row.name}${row.isMain ? " (main)" : ""}`.slice(0, 100), value: row.name }));
+  return rows.map((row) => ({ name: `${row.name}${identities ? ` — ${row.realm}` : row.isMain ? " (main)" : ""}`.slice(0, 100), value: identities ? row.id : row.name }));
 }
 
 export async function attunementSuggestions(database: Db, guildId: string, query: string): Promise<Suggestion[]> {

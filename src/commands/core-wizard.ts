@@ -11,6 +11,7 @@ import { CORE_LOOT_LABEL, modeKey, parseMode, type EditMode } from "./core-edito
 import { guildService } from "./context.js";
 import { fillCoreWeeklyRaids } from "../services/core-weekly-raids.js";
 import { parseWeeklySchedule } from "../services/core-weekly-time.js";
+import { pickSignupCharacter } from "./signup-character-picker.js";
 
 // /core setup: build a raid core by clicking, not by remembering commands.
 //   1. name it (a small form)          2. pick its tanks, healers and DPS (main roster or bench)
@@ -200,7 +201,10 @@ export async function runCoreWizard(interaction: ChatInputCommandInteraction): P
           const person = await interaction.guild?.members.fetch(userId).catch(() => null);
           if (!person || person.user.bot) continue;
           const member = await guildService.ensureMember(guildId, userId, person.displayName);
-          await coreService.addMember(guildId, coreId, member.id, mode.role, mode.bench);
+          const settings = await guildService.getSettings(guildId);
+          const character = settings?.characterSignups ? await pickSignupCharacter(i, guildId, member.id) : null;
+          if (settings?.characterSignups && !character) continue;
+          await coreService.addMember(guildId, coreId, member.id, mode.role, mode.bench, character?.id);
           added.push(person.displayName);
         }
         await syncCoreRoster(interaction.guild, prisma, guildId, coreId);

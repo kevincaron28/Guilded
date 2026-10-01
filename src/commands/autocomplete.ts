@@ -46,6 +46,9 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
       choices = specSuggestions(interaction.options.getString("class"), query);
     } else if (focused.name === "availability") {
       choices = availabilitySuggestions(query);
+    } else if (focused.name === "character" && command === "apply") {
+      const characters = await prisma.character.findMany({ where: { memberId: member.id, name: { contains: query, mode: "insensitive" } }, orderBy: { name: "asc" }, take: 25 });
+      choices = characters.map(character => ({ name: `${character.name} — ${character.realm}`.slice(0, 100), value: settings?.characterSignups ? character.id : character.name }));
     } else if (focused.name === "character" && ["profession", "attunement", "wishlist"].includes(command)) {
       choices = await ownCharacterChoices(prisma, member.id, query);
     } else if (command === "core" && focused.name === "character") {
@@ -54,7 +57,7 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
       const player = typeof userId === "string" && userId !== interaction.user.id
         ? await prisma.member.findFirst({ where: { guildId: guild.id, discordUserId: userId }, select: { id: true } })
         : member;
-      choices = player ? await ownCharacterChoices(prisma, player.id, query) : [];
+      choices = player ? await ownCharacterChoices(prisma, player.id, query, settings?.characterSignups ?? false) : [];
     } else if (command === "attunement" && focused.name === "name") {
       choices = await attunementSuggestions(prisma, guild.id, query);
     } else if ((command === "wishlist" || command === "loot") && focused.name === "item") {

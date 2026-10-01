@@ -19,6 +19,7 @@ import { buildSignupEmbed, openSpots } from "../services/signup-embed.js";
 import { hasPermission } from "../permissions.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { BRAND } from "../brand.js";
+import { pickSignupCharacter } from "./signup-character-picker.js";
 
 const raidService = createRaidService(prisma);
 
@@ -145,14 +146,14 @@ export async function syncSignupEmbed(discordGuild: DiscordGuild, guildId: strin
     const lang = asLang((await guildService.getSettings(guildId))?.language);
     const everyone = await raidService.signups(raidId, guildId);
     const core = raid.coreId
-      ? await prisma.raidCore.findUnique({ where: { id: raid.coreId }, select: { name: true, members: { select: { memberId: true, role: true, bench: true, member: { select: { displayName: true } }, character: { select: { name: true } } } } } })
+      ? await prisma.raidCore.findUnique({ where: { id: raid.coreId }, select: { name: true, members: { select: { memberId: true, characterId: true, backups: { select: { characterId: true, role: true, character: { select: { name: true } } } }, role: true, bench: true, member: { select: { displayName: true } }, character: { select: { name: true } } } } } })
       : null;
     // A core raid shows the character each core member brings to this core ("Kevin · Thrall").
     const coreLabel = new Map(core?.members.map((m) => [m.memberId, coreSpotLabel(m)]) ?? []);
     const embed = buildSignupEmbed({
       lang, raid,
-      signups: everyone.map((signup) => ({ memberId: signup.memberId, displayName: coreLabel.get(signup.memberId) ?? signup.member.displayName, role: signup.role, status: signup.status })),
-      core: core ? { name: core.name, members: core.members.map((m) => ({ memberId: m.memberId, displayName: coreSpotLabel(m), role: m.role, bench: m.bench })) } : undefined
+      signups: everyone.map((signup) => ({ memberId: signup.memberId, characterId: signup.characterId, displayName: signup.characterName ? `${signup.characterName} — ${signup.characterRealm} · ${signup.member.displayName}` : coreLabel.get(signup.memberId) ?? signup.member.displayName, role: signup.role, status: signup.status })),
+      core: core ? { name: core.name, members: core.members.map((m) => ({ memberId: m.memberId, characterId: m.characterId, backupCharacterIds: m.backups.map(backup => backup.characterId), displayName: coreSpotLabel(m), role: m.role, bench: m.bench })) } : undefined
     });
 
     const settings = await guildService.getSettings(guildId);
@@ -288,7 +289,11 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
   if (subcommand === "signup") {
     const role = interaction.options.getString("role", true) as RaidRole;
     const availability = (interaction.options.getString("availability") ?? "AVAILABLE") as SignupAvailability;
-    const signup = await raidService.signup(raidId, context.guildId, context.memberId, role, availability);
+    const settings = await guildService.getSettings(context.guildId);
+    const character = settings?.characterSignups ? await pickSignupCharacter(interaction, context.guildId, context.memberId) : null;
+    if (settings?.characterSignups && !character) return;
+    if (!interaction.replied && !interaction.deferred) await interaction.deferReply({ ephemeral: true });
+    const signup = await raidService.signup(raidId, context.guildId, context.memberId, role, availability, character?.id);
     await tellBumped(interaction.client, signup.bumped);
     if (interaction.guild) await syncSignupEmbed(interaction.guild, context.guildId, raidId);
     const replies: Record<string, string> = {
@@ -297,7 +302,7 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
       WAITLISTED: `${roleLabel[role]} slots are full, so you're on the **waitlist**. You'll get a DM if a slot opens.`
     };
     const lang = asLang((await guildService.getSettings(context.guildId))?.language);
-    await interaction.reply({ content: (replies[signup.status] ?? "Signup recorded.") + await clashNote(raidId, context.guildId, context.memberId, lang), ephemeral: true });
+    await interaction.editReply({ content: (character ? `**${character.name} — ${character.realm}** : ` : "") + (replies[signup.status] ?? "Signup recorded.") + await clashNote(raidId, context.guildId, context.memberId, lang), components: [] });
     return;
   }
   if (subcommand === "fill") {
@@ -346,7 +351,7 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
   }
   if (subcommand === "roster") {
     const roster = await raidService.roster(raidId, context.guildId);
-    await interaction.reply({ content: roster.length ? roster.map((signup) => `• ${signup.member.displayName} (<@${signup.member.discordUserId}>) — ${roleLabel[signup.role]}`).join("\n") : "No members are signed up.", ephemeral: true });
+    await interaction.reply({ content: roster.length ? roster.map((signup) => `• ${signup.characterName ? `${signup.characterName} — ${signup.characterRealm}` : signup.member.displayName} (<@${signup.member.discordUserId}>) — ${roleLabel[signup.role]}`).join("\n") : "No members are signed up.", ephemeral: true });
     return;
   }
   if (subcommand === "edit") {
@@ -483,7 +488,8 @@ export async function handleRaidSignupButton(interaction: ButtonInteraction): Pr
   const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
   const member = await guildService.ensureMember(guild.id, interaction.user.id,
     (interaction.member as GuildMember | null)?.displayName ?? interaction.user.username);
-  const lang = asLang((await guildService.getSettings(guild.id))?.language);
+  const settings = await guildService.getSettings(guild.id);
+  const lang = asLang(settings?.language);
   let content: string;
   if (action === "CANCEL") {
     const existing = await prisma.raidSignup.findUnique({ where: { raidId_memberId: { raidId, memberId: member.id } } });
@@ -497,7 +503,10 @@ export async function handleRaidSignupButton(interaction: ButtonInteraction): Pr
   } else {
     const existing = await prisma.raidSignup.findUnique({ where: { raidId_memberId: { raidId, memberId: member.id } } });
     const role = (action === "MAYBE" ? existing?.role ?? "DPS" : action) as RaidRole;
-    const signup = await raidService.signup(raidId, guild.id, member.id, role, action === "MAYBE" ? "MAYBE" : "AVAILABLE");
+    const character = settings?.characterSignups ? await pickSignupCharacter(interaction, guild.id, member.id) : null;
+    if (settings?.characterSignups && !character) return;
+    if (!interaction.replied && !interaction.deferred) await interaction.deferReply({ ephemeral: true });
+    const signup = await raidService.signup(raidId, guild.id, member.id, role, action === "MAYBE" ? "MAYBE" : "AVAILABLE", character?.id);
     await tellBumped(interaction.client, signup.bumped);
     const roleText = t(lang, `role.${role}` as const);
     const replies: Record<string, string> = {
@@ -505,8 +514,9 @@ export async function handleRaidSignupButton(interaction: ButtonInteraction): Pr
       MAYBE: t(lang, "reply.maybe", { role: roleText }),
       WAITLISTED: t(lang, "reply.waitlisted", { role: roleText })
     };
-    content = (replies[signup.status] ?? "Signup saved.") + await clashNote(raidId, guild.id, member.id, lang);
+    content = (character ? `**${character.name} — ${character.realm}** : ` : "") + (replies[signup.status] ?? "Signup saved.") + await clashNote(raidId, guild.id, member.id, lang);
   }
-  await interaction.reply({ content, ephemeral: true });
+  if (interaction.replied || interaction.deferred) await interaction.editReply({ content, components: [] });
+  else await interaction.reply({ content, ephemeral: true });
   await syncSignupEmbed(interaction.guild, guild.id, raidId);
 }

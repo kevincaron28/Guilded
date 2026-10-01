@@ -52,6 +52,7 @@ export function createRaidCoreService(database: Db) {
       const clean = name.trim();
       if (clean.length < 2 || clean.length > 50) throw new Error("A core name must be 2 to 50 characters.");
       const weekly = automatic ? weeklyScheduleData(schedule, automatic.timezone, automatic.createdBy) : {};
+      const settings = await database.guildSettings?.findUnique({ where: { guildId }, select: { coreLootOnly: true, lootMode: true } });
       const exists = await database.raidCore.findFirst({ where: { guildId, name: { equals: clean, mode: "insensitive" } } });
       if (exists) throw new Error(`A core called "${exists.name}" already exists.`);
       return database.raidCore.create({
@@ -59,7 +60,8 @@ export function createRaidCoreService(database: Db) {
           guildId, name: clean,
           description: description?.trim().slice(0, 300) || null,
           schedule: schedule?.trim().slice(0, 100) || null,
-          ...weekly
+          ...weekly,
+          ...(settings?.coreLootOnly ? { separatePool: true, lootMode: asLootMode(settings.lootMode) } : {})
         }
       });
     },

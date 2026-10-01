@@ -6,6 +6,8 @@ import { isWeeklyReportDueAfterReset, weeklyReport, type WeeklyReport } from "..
 import { formatDuration } from "../services/dungeon-rules.js";
 import { asLang, t, type Lang } from "../i18n.js";
 import { guildService, requireGuildContext } from "./context.js";
+import { runDiscordJobs } from "../services/discord-jobs.js";
+import { queueWeeklyWowReport } from "../services/weekly-report-delivery.js";
 
 export const statsCommand = new SlashCommandBuilder()
   .setName("stats")
@@ -57,6 +59,8 @@ export function weeklyReportEmbeds(report: WeeklyReport, lang: Lang = "en"): Emb
   const date = (d: Date) => `<t:${Math.floor(d.getTime() / 1000)}:D>`;
   const main = statsEmbed(report.guild, t(lang, "stats.titleWeekly"), lang, report.previous)
     .setDescription(t(lang, "weekly.week", { start: date(report.weekStart), end: date(report.weekEnd) }));
+  // Membership and applications span the whole Discord guild, unlike WoW raids and dungeons.
+  if (!report.guild.coreId) main.spliceFields(4, 2);
   const players = [
     report.raiderOfWeek ? t(lang, "weekly.raider", { name: report.raiderOfWeek.name, ep: report.raiderOfWeek.ep, raids: report.raiderOfWeek.raids }) : "",
     report.dungeonHero ? t(lang, "weekly.hero", { name: report.dungeonHero.name, points: report.dungeonHero.points }) : ""
@@ -90,29 +94,26 @@ export function weeklyReportEmbeds(report: WeeklyReport, lang: Lang = "en"): Emb
   return embeds;
 }
 
-// Called hourly from main.ts: posts the weekly report to the notify channel for guilds that
-// turned it on (/setup config weekly-report), once per weekly reset (Tuesday 15:00 UTC), about
-// the week that just ended. Marks the guild first so a failed post can't repeat every hour.
+// Called hourly: the WoW report and its retryable delivery commit together. The guild lock
+// prevents concurrent ticks from queuing the same week twice.
 export async function runWeeklyReports(client: Client, now = new Date()): Promise<number> {
   const configured = await prisma.guildSettings.findMany({
-    where: { weeklyReportEnabled: true, notifyChannelId: { not: null } },
+    where: { weeklyReportEnabled: true, OR: [{ weeklyReportChannelId: { not: null } }, { notifyChannelId: { not: null } }] },
     include: { guild: true }
   });
   let posted = 0;
   for (const settings of configured) {
     if (!isWeeklyReportDueAfterReset({ enabled: settings.weeklyReportEnabled, lastAt: settings.weeklyReportLastAt, now })) continue;
-    await prisma.guildSettings.update({ where: { id: settings.id }, data: { weeklyReportLastAt: now } });
     try {
       const report = await weeklyReport(prisma, settings.guildId, now);
-      const discordGuild = await client.guilds.fetch(settings.guild.discordId);
-      const channel = await discordGuild.channels.fetch(settings.notifyChannelId ?? "");
-      if (!channel?.isTextBased()) continue;
       const lang = asLang(settings.language);
-      await channel.send({ embeds: weeklyReportEmbeds(report, lang), allowedMentions: { parse: [] } });
-      posted += 1;
+      const queued = await queueWeeklyWowReport(prisma, settings.guildId, report.weekEnd, now,
+        JSON.parse(JSON.stringify({ embeds: weeklyReportEmbeds(report, lang).map(embed => embed.toJSON()) })));
+      if (queued) posted += 1;
     } catch (error) {
       console.error(`Weekly report failed for guild ${settings.guild.discordId}`, error);
     }
   }
+  if (posted) await runDiscordJobs(client);
   return posted;
 }

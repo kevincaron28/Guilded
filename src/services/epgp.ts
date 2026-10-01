@@ -1,4 +1,5 @@
 import { EpgpTransactionType, type PrismaClient } from "@prisma/client";
+import { requireCorePool } from "./core-loot-policy.js";
 
 export interface CreateEpgpTransaction {
   guildId: string;
@@ -45,6 +46,8 @@ export function createEpgpService(database: PrismaClient) {
     if (reason.length < 3) {
       throw new Error("EPGP transaction reason must be at least 3 characters");
     }
+    // Historical corrections keep the original pool, including a retired guild pool.
+    if (input.type !== EpgpTransactionType.REVERSAL) await requireCorePool(database, input.guildId, input.coreId);
 
     // The ledger is append-only: corrections use reverseTransaction rather than updates/deletes.
     return database.epgpTransaction.create({
@@ -122,6 +125,7 @@ export function createEpgpService(database: PrismaClient) {
       if (!Number.isFinite(percent) || percent < 0 || percent > 1) {
         throw new Error("Decay percent must be between 0 and 1");
       }
+      await requireCorePool(database, guildId, coreId);
       const members = await database.member.findMany({
         where: { guildId, status: "ACTIVE" },
         select: { id: true }

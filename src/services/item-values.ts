@@ -43,14 +43,19 @@ export function parseItemValues(text: string): ParsedValues {
 export const keyOf = (value: { name: string | null; id: number | null }): string =>
   value.name ? clean(itemKey(value.name)) : `#${value.id}`;
 
-type Db = Pick<PrismaClient, "coreItemValue">;
+type Db = Pick<PrismaClient, "coreItemValue"> & Partial<Pick<PrismaClient, "guildSettings">>;
 
 export interface ValueRow { key: string; id: number | null; name: string; gp: number }
 
 export function createItemValueService(database: Db) {
+  async function pricePools(guildId: string, coreId: string | null) {
+    const settings = await database.guildSettings?.findUnique({ where: { guildId }, select: { coreLootOnly: true } });
+    return settings?.coreLootOnly ? (coreId ? [coreId] : []) : coreId ? [GUILD_DEFAULT, coreId] : [GUILD_DEFAULT];
+  }
   return {
     // Saves prices for a core (or the guild default when coreId is null). Returns how many rows changed.
     async setMany(guildId: string, coreId: string | null, values: ParsedValue[]): Promise<number> {
+      if (!(await pricePools(guildId, coreId)).length) throw new Error("Choisis un core : chaque core garde ses propres prix de butin.");
       let changed = 0;
       for (const value of values) {
         const key = keyOf(value);
@@ -82,8 +87,9 @@ export function createItemValueService(database: Db) {
 
     // The prices a core actually uses: the guild-wide list with the core's own prices on top.
     async effective(guildId: string, coreId: string | null): Promise<ValueRow[]> {
+      const pools = await pricePools(guildId, coreId);
       const rows = await database.coreItemValue.findMany({
-        where: { guildId, coreId: { in: coreId ? [GUILD_DEFAULT, coreId] : [GUILD_DEFAULT] } },
+        where: { guildId, coreId: { in: pools } },
         orderBy: { itemName: "asc" }
       });
       const merged = new Map<string, ValueRow>();
@@ -96,8 +102,9 @@ export function createItemValueService(database: Db) {
     async priceOf(guildId: string, coreId: string | null, item: { name?: string | null; id?: number | null }): Promise<number | null> {
       const keys = [item.name ? clean(itemKey(item.name)) : null, item.id ? `#${item.id}` : null].filter((key): key is string => !!key);
       if (keys.length === 0) return null;
+      const pools = await pricePools(guildId, coreId);
       const rows = await database.coreItemValue.findMany({
-        where: { guildId, itemKey: { in: keys }, coreId: { in: coreId ? [GUILD_DEFAULT, coreId] : [GUILD_DEFAULT] } }
+        where: { guildId, itemKey: { in: keys }, coreId: { in: pools } }
       });
       // The core's own price beats the guild's; a name match beats an id match.
       const order = (row: (typeof rows)[number]) => (row.coreId === GUILD_DEFAULT ? 0 : 2) + (row.itemKey.startsWith("#") ? 0 : 1);
@@ -163,10 +170,11 @@ export async function priceDraft(
 export async function applyAddonItemPrices(
   database: Pick<PrismaClient, "coreItemValue" | "raidCore">,
   guildId: string,
-  prices: { name: string; id?: number | undefined; gp: number; coreId?: string | undefined; at: Date }[]
+  prices: { name: string; id?: number | undefined; gp: number; coreId?: string | undefined; at: Date }[],
+  coreLootOnly = false
 ): Promise<number> {
   if (prices.length === 0) return 0;
-  const cores = new Set((await database.raidCore.findMany({ where: { guildId }, select: { id: true } })).map((core) => core.id));
+  const cores = new Set((await database.raidCore.findMany({ where: { guildId, ...(coreLootOnly ? { separatePool: true } : {}) }, select: { id: true } })).map((core) => core.id));
   const service = createItemValueService(database);
   let saved = 0;
   for (const price of prices) {
@@ -174,6 +182,7 @@ export async function applyAddonItemPrices(
     const key = keyOf({ name: price.name, id: null });
     const existing = await database.coreItemValue.findUnique({ where: { guildId_coreId_itemKey: { guildId, coreId: coreId ?? GUILD_DEFAULT, itemKey: key } } });
     if (existing && existing.updatedAt >= price.at) continue;
+    if (coreLootOnly && !coreId) throw new Error("Choisis un core : chaque core garde ses propres prix de butin.");
     saved += await service.setMany(guildId, coreId, [{ name: price.name, id: price.id ?? null, gp: price.gp }]);
   }
   return saved;

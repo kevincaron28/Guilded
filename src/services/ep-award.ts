@@ -39,6 +39,7 @@ export async function computeRaidEpProposal(database: Db, guildId: string, raidI
   // A raid made for a core uses that core's EP rules where it has set them
   // (everything else follows the guild), and pays into its pool if it has one.
   const core = raid.core;
+  if (settings?.coreLootOnly && (!core || !core.separatePool)) throw new Error("Choisis un raid de core : chaque core garde ses propres EP/GP.");
   const rules = effectiveRules(settings, core);
   const presentEp = rules.attendanceEp;
   const lateEp = rules.lateEp;

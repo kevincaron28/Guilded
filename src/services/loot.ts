@@ -1,5 +1,6 @@
 import { AuctionStatus, EpgpTransactionType, type PrismaClient } from "@prisma/client";
 import { poolFor } from "./core-rules.js";
+import { requireCorePool } from "./core-loot-policy.js";
 
 export interface CreateAuctionInput {
   guildId: string;
@@ -19,6 +20,8 @@ export function createLootService(database: PrismaClient) {
       if (!Number.isInteger(input.minimumBid) || input.minimumBid < 1) throw new Error("Minimum bid must be positive");
       if (!Number.isInteger(input.bidIncrement) || input.bidIncrement < 1) throw new Error("Bid increment must be positive");
       if (!Number.isInteger(input.durationSeconds) || input.durationSeconds < 1) throw new Error("Auction duration must be positive");
+      const raid = input.raidId ? await database.raid?.findFirst({ where: { id: input.raidId, guildId: input.guildId }, include: { core: true } }) : null;
+      await requireCorePool(database, input.guildId, poolFor(raid?.core));
       return database.auction.create({
         data: {
           guildId: input.guildId,
@@ -42,6 +45,8 @@ export function createLootService(database: PrismaClient) {
         }
         const member = await tx.member.findUnique({ where: { id: input.memberId } });
         if (!member || member.guildId !== auction.guildId) throw new Error("You cannot bid in this guild");
+        const raid = auction.raidId ? await tx.raid?.findFirst({ where: { id: auction.raidId, guildId: auction.guildId }, include: { core: true } }) : null;
+        await requireCorePool(tx, auction.guildId, poolFor(raid?.core));
         const highest = auction.bids.reduce((max, bid) => Math.max(max, bid.amount), 0);
         const minimum = Math.max(auction.minimumBid, highest ? highest + auction.bidIncrement : auction.minimumBid);
         if (input.amount < minimum) throw new Error(`Bid must be at least ${minimum} GP`);
@@ -70,6 +75,7 @@ export function createLootService(database: PrismaClient) {
         // GP lands in the raid's core pool when that core keeps its own points.
         const raid = auction.raidId ? await tx.raid.findFirst({ where: { id: auction.raidId, guildId: auction.guildId }, include: { core: true } }) : null;
         const coreId = poolFor(raid?.core);
+        await requireCorePool(tx, auction.guildId, coreId);
         // Snapshot the winner's totals before the GP lands, for loot history.
         const before = await tx.epgpTransaction.aggregate({
           where: { memberId: winner.memberId, coreId },
@@ -118,6 +124,7 @@ export function createLootService(database: PrismaClient) {
         if (!member || member.guildId !== input.guildId) throw new Error("That player is not in this guild");
         const raid = input.raidId?.trim() ? await tx.raid.findFirst({ where: { id: input.raidId.trim(), guildId: input.guildId }, include: { core: true } }) : null;
         const coreId = poolFor(raid?.core);
+        await requireCorePool(tx, input.guildId, coreId);
         const before = await tx.epgpTransaction.aggregate({ where: { memberId: input.memberId, coreId }, _sum: { epAmount: true, gpAmount: true } });
         if (input.gp > 0) {
           await tx.epgpTransaction.create({

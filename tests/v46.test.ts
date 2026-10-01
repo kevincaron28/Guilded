@@ -207,5 +207,8 @@ describe("weekly report", () => {
     expect(embeds.join()).toContain("Tuesday MC");
     expect(embeds.join()).toContain("Ann");
     expect(embeds.join()).toContain("Deadmines");
+    expect(weeklyReportEmbeds(report, "fr")[0]!.data.title).toContain("bilan hebdo WoW");
+    expect(embeds.join()).not.toContain("New members");
+    expect(embeds.join()).not.toContain("Applications");
   });
 });

@@ -122,7 +122,8 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
         `Raid logs: ${settings.raidLogChannelId ? `<#${settings.raidLogChannelId}>` : "notify channel"}`,
         `Loot and EP log: ${settings.lootChannelId ? `<#${settings.lootChannelId}>` : "notify channel"}`,
         `Auto-apply addon uploads: ${settings.autoApplyImports ? "on" : "off (officers run /import apply)"}`,
-        `Loot system: ${LOOT_MODE_LABEL[asLootMode(settings.lootMode)]} (cores can differ: /core rules)`,
+        settings.coreLootOnly ? "Butin : chaque core choisit sa méthode; EP/GP et prix séparés (/core edit)." : `Loot system: ${LOOT_MODE_LABEL[asLootMode(settings.lootMode)]} (cores can differ: /core rules)`,
+        `WoW weekly report: ${settings.weeklyReportChannelId ? `<#${settings.weeklyReportChannelId}>` : "notify channel"}`,
         `Raid roster channel: ${settings.coreChannelId ? `<#${settings.coreChannelId}>` : "not set"}`,
         `Readiness channel: ${settings.readinessChannelId ? `<#${settings.readinessChannelId}>` : "not set"}`,
         `Applications channel: ${settings.applicationChannelId ? `<#${settings.applicationChannelId}>` : "officer log"}`,
@@ -342,6 +343,10 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
   }
 
   if (subcommand === "loot-mode") {
+    if ((await guildService.getSettings(context.guildId))?.coreLootOnly) {
+      await interaction.reply({ content: "Chaque core choisit sa méthode de butin. Utilise /core edit → Méthode de butin, ou /core rules loot_mode:... pour le core voulu.", ephemeral: true });
+      return;
+    }
     const mode = asLootMode(interaction.options.getString("mode", true));
     await guildService.updateSettings(context.guildId, { lootMode: mode });
     await interaction.reply({

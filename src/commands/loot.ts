@@ -78,6 +78,9 @@ export async function executeLoot(interaction: ChatInputCommandInteraction): Pro
   if (raidForMode && !await prisma.raid.findFirst({ where: { id: raidForMode, guildId: context.guildId }, select: { id: true } })) throw new Error("That raid does not belong to this guild.");
   const raidCore = await coreForRaid(prisma, context.guildId, raidForMode);
   const rules = effectiveRules(guildSettings, raidCore);
+  if (guildSettings?.coreLootOnly && ["auction", "award", "priority", "bid"].includes(subcommand) && !raidCore?.separatePool) {
+    throw new Error("Le butin est propre à chaque core. Choisis raid: avec un raid de core.");
+  }
   const lootMode = rules.lootMode;
   if (subcommand === "priority") {
     const itemName = interaction.options.getString("item", true);

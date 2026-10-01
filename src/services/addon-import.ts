@@ -58,7 +58,7 @@ export function createAddonImportService(database: PrismaClient) {
         const imported = await tx.addonImport.findFirst({ where: { id: importId, guildId } });
         if (!imported) throw new Error("Addon import not found.");
         if (imported.status === "APPLIED") throw new Error("Addon import has already been applied.");
-        const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { dataResetAt: true, dungeonLeaderboardChannelId: true, craftChannelId: true } });
+        const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { dataResetAt: true, dungeonLeaderboardChannelId: true, craftChannelId: true, coreLootOnly: true } });
         const resetAt = settings?.dataResetAt ?? null;
         const snapshot = excludeHistoryBeforeReset(parseAddonSnapshot(imported.payload), resetAt);
         const characters = await tx.character.findMany({
@@ -119,6 +119,7 @@ export function createAddonImportService(database: PrismaClient) {
         for (const item of snapshot.epgpTransactions) {
           const sourceRef = ledgerRef(item);
           if (alreadyImported.has(sourceRef)) { skipped++; continue; }
+          if (settings?.coreLootOnly && !item.coreId) throw new Error("Chaque core garde ses propres EP/GP. Choisis le core dans l'addon avant d'attribuer des points; cet import reste en attente pour révision.");
           alreadyImported.add(sourceRef);
           const character = findCharacter(characters, item.character, item.realm);
           if (!character) throw new Error(`No linked character found for ${item.character} (${item.realm}).`);
@@ -234,7 +235,7 @@ export function createAddonImportService(database: PrismaClient) {
         const reserves = await applyReserves(tx, guildId, snapshot.reserves);
 
         // Prices officers set in game: kept unless Discord changed that price more recently.
-        const itemPrices = await applyAddonItemPrices(tx, guildId, snapshot.itemPrices);
+        const itemPrices = await applyAddonItemPrices(tx, guildId, snapshot.itemPrices, settings?.coreLootOnly ?? false);
 
         // Who can craft what, and profession cooldowns.
         const crafting = await applyRecipeData(tx, guildId, { recipes: snapshot.recipes, recipeNames: snapshot.recipeNames, cooldowns: snapshot.cooldowns });
@@ -247,7 +248,7 @@ export function createAddonImportService(database: PrismaClient) {
         // readiness: an unmatched raid or character doesn't block the import).
         const raids = await applyRaidAttendance(tx, guildId, snapshot.raids, characters, appliedBy);
         const raidIds = new Map(raids.filter((raid) => raid.matchedRaidId).map((raid) => [raid.ref, raid.matchedRaidId as string]));
-        const loot = await applyAddonLoot(tx, guildId, snapshot.loot, characters, raidIds, appliedBy);
+        const loot = await applyAddonLoot(tx, guildId, snapshot.loot, characters, raidIds, appliedBy, settings?.coreLootOnly ?? false);
         const dungeons = await importDungeonRuns(tx, guildId, snapshot.dungeonRuns,
           characters.map((character) => ({ name: character.name, realm: character.realm, memberId: character.memberId })), appliedBy, importId);
 

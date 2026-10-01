@@ -11,6 +11,9 @@ import { pricesModal } from "./core-wizard.js";
 import { guildService } from "./context.js";
 import { fillCoreWeeklyRaids, saveCoreWeeklySchedule } from "../services/core-weekly-raids.js";
 import { parseWeeklySchedule } from "../services/core-weekly-time.js";
+import { asLootMode, effectiveRules, LOOT_MODES } from "../services/core-rules.js";
+
+export const CORE_LOOT_LABEL = { EPGP: "Enchères en GP", COUNCIL: "Conseil de butin", RESERVE: "Réservations souples", PRIORITY: "Priorité EPGP — prix fixes" };
 
 // /core edit: change a raid core by clicking.
 //   • pick how to add (Tank / Healer / DPS, on the main roster or the bench), then pick the players:
@@ -60,7 +63,8 @@ async function screen(guildId: string, coreId: string, mode: EditMode, note: str
         new ButtonBuilder().setCustomId("coreedit:channels").setLabel("Create channels & role").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("coreedit:done").setLabel("Done ✔").setStyle(ButtonStyle.Success)),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId("coreedit:schedule").setLabel("📅 Horaire hebdomadaire").setStyle(ButtonStyle.Primary))
+        new ButtonBuilder().setCustomId("coreedit:schedule").setLabel("📅 Horaire hebdomadaire").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId("coreedit:lootmode").setLabel("🎲 Méthode de butin").setStyle(ButtonStyle.Primary))
     ]
   };
 }
@@ -79,6 +83,28 @@ export async function runCoreEditor(interaction: ChatInputCommandInteraction, gu
 
   collector.on("collect", async (i: MessageComponentInteraction) => {
     try {
+      if (i.customId === "coreedit:lootmode" && i.isButton()) {
+        const current = await prisma.raidCore.findUniqueOrThrow({ where: { id: core.id } });
+        const settings = await guildService.getSettings(guildId);
+        const selected = effectiveRules(settings, current).lootMode;
+        const picker = new StringSelectMenuBuilder().setCustomId(`coreloot:${core.id}`).setPlaceholder("Le butin de ce core")
+          .addOptions(LOOT_MODES.map(value => ({ value, label: CORE_LOOT_LABEL[value], default: value === selected })));
+        await i.reply({ content: `**${current.name}** : choisis sa méthode de butin. Les autres cores gardent leurs propres règles.`,
+          components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(picker)], ephemeral: true });
+        const message = await i.fetchReply();
+        const choice = await message.awaitMessageComponent({ time: 5 * 60_000,
+          filter: value => value.user.id === i.user.id && value.customId === `coreloot:${core.id}` }).catch(() => null);
+        if (!choice?.isStringSelectMenu()) {
+          await i.editReply({ content: "Choix expiré; la méthode actuelle est conservée.", components: [] });
+          return;
+        }
+        const lootMode = asLootMode(choice.values[0]);
+        await choice.deferUpdate();
+        await prisma.raidCore.update({ where: { id: core.id }, data: { lootMode, ...(settings?.coreLootOnly ? { separatePool: true } : {}) } });
+        await i.editReply({ content: `✅ ${current.name} : ${CORE_LOOT_LABEL[lootMode]}.`, components: [] });
+        await refresh(`Butin : ${CORE_LOOT_LABEL[lootMode]}.`);
+        return;
+      }
       if (i.customId === "coreedit:schedule" && i.isButton()) {
         const current = await prisma.raidCore.findUniqueOrThrow({ where: { id: core.id } });
         const settings = await guildService.getSettings(guildId);

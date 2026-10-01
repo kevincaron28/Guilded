@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import type { AddonLoot, AddonRaid } from "../integrations/addon.js";
 import { findCharacter } from "./character-match.js";
+import { CORE_REQUIRED } from "./core-loot-policy.js";
 
 // A Discord raid within this long of the in-game /guilded start counts as the
 // same raid (people start late, or schedule "8pm" and pull at 8:40).
@@ -24,7 +25,7 @@ interface LinkedCharacter {
 }
 
 type Tx = Pick<Prisma.TransactionClient, "raid" | "raidAttendance" | "member" | "character">;
-type LootTx = Pick<Prisma.TransactionClient, "lootAward">;
+type LootTx = Pick<Prisma.TransactionClient, "lootAward"> & Partial<Pick<Prisma.TransactionClient, "raid">>;
 
 // Moves a character's "last seen" forward (never backward) when the addon
 // reports them: a gear check, or being in a raid group.
@@ -119,7 +120,8 @@ export async function applyAddonLoot(
   loot: AddonLoot[],
   characters: LinkedCharacter[],
   raidIds: Map<string, string>,
-  appliedBy: string
+  appliedBy: string,
+  coreLootOnly = false
 ): Promise<{ recorded: number; skipped: number; unmatched: string[]; recordedIds?: string[] }> {
   if (loot.length === 0) return { recorded: 0, skipped: 0, unmatched: [] };
   const refs = loot.map((row) => row.ref);
@@ -135,13 +137,18 @@ export async function applyAddonLoot(
     if (existing.has(row.ref)) { skipped++; continue; }
     const character = findCharacter(characters, row.character, row.realm);
     if (!character) { unmatched.push(row.character); continue; }
+    const raidId = row.raidRef ? raidIds.get(row.raidRef) ?? null : null;
+    if (coreLootOnly) {
+      const raid = raidId ? await tx.raid?.findFirst({ where: { id: raidId, guildId, core: { separatePool: true } }, select: { id: true } }) : null;
+      if (!raid) throw new Error(CORE_REQUIRED);
+    }
     const award = await tx.lootAward.create({
       data: {
         guildId,
         memberId: character.memberId,
         itemName: row.item.slice(0, 200),
         amount: row.gp,
-        raidId: row.raidRef ? raidIds.get(row.raidRef) ?? null : null,
+        raidId,
         bossName: row.boss ?? null,
         awardedBy: appliedBy,
         sourceRef: row.ref,

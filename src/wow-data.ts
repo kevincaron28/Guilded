@@ -29,7 +29,7 @@ export const SPECS: Record<string, string[]> = {
   Druid: ["Balance", "Feral", "Guardian", "Restoration"],
   "Death Knight": ["Blood", "Frost", "Unholy"],
   Monk: ["Brewmaster", "Mistweaver", "Windwalker"],
-  "Demon Hunter": ["Havoc", "Vengeance"],
+  "Demon Hunter": ["Havoc", "Vengeance", "Devourer"],
   Evoker: ["Devastation", "Preservation", "Augmentation"]
 };
 

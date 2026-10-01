@@ -45,6 +45,7 @@ try {
     assert.equal(restoredSignup.characterRealm, "ReleaseTest");
     const restoredAlt = await database.character.findFirstOrThrow({ where: { name: "ReleaseAlt" }, include: { readinessSnapshots: { orderBy: { inspectedAt: "desc" }, take: 1 } } });
     assert.equal(restoredAlt.readinessSnapshots[0]!.itemLevel, 42.5);
+    assert.equal(restoredAlt.spec, "Fire");
     assert.equal(restoredAlt.readinessSnapshots[0]!.inspectedAt.toISOString(), "2026-10-01T12:00:00.000Z");
     assert.ok(await database.discordJob.count({ where: { kind: "CORE_ROSTER" } }));
     assert.equal((await database.discordJob.findFirstOrThrow({ where: { key: { startsWith: "weekly-wow:" } } })).status, "PENDING");
@@ -268,7 +269,7 @@ try {
     await applications.transition(guild.id, characterApplication.id, "APPROVED", "character-test");
     // Gear is selected by character, not the player's primary in another core.
     // A later upload of an older inspection must not replace a newer inspection.
-    const gearPayload = { source: "Guilded", exportedAt: new Date(), character: { name: alt.name, realm: alt.realm, class: "Mage", level: 60 },
+    const gearPayload = { source: "Guilded", exportedAt: new Date(), character: { name: alt.name, realm: alt.realm, class: "Mage", spec: "Fire", level: 60 },
       readiness: [{ character: alt.name, realm: alt.realm, itemLevel: 42.5, inspectedAt: new Date("2026-10-01T12:00:00Z") }] };
     const gearPreview = await service.preview(guild.id, gearPayload, "gear-test");
     const gearImport = await service.record(guild.id, gearPreview.snapshot, "gear-fixture", "gear-test");
@@ -280,6 +281,7 @@ try {
     await service.apply(guild.id, olderImport.id, "gear-test");
     const selectedAlt = (await raids.signups(concurrentCharRaid.id, guild.id)).find(row => row.memberId === member.id)!;
     assert.equal(selectedAlt.character?.className, "Mage");
+    assert.equal(selectedAlt.character?.spec, "Fire");
     assert.equal(selectedAlt.character?.level, 60);
     assert.equal(selectedAlt.character?.readinessSnapshots.length, 1);
     assert.equal(selectedAlt.character?.readinessSnapshots[0]!.itemLevel, 42.5);

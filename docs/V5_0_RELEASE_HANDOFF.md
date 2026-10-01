@@ -1,5 +1,12 @@
 # Guilded 5.0 stabilization — local Claude update handoff
 
+Community activities and Carl-bot transition: `docs/COMMUNITY_ACTIVITIES.md`.
+New `/community` menus cover free/points/WoW gold/PoE currency lotteries,
+gaming nights, reviewed challenges, dice/quiz games and separate season rankings.
+Deploy additive migration `20261027090000_community_activities` after CI and backup.
+In-game payments require organizer confirmation. Existing game roles are reused;
+Carl-bot retirement and a real welcome/role-button check remain separate live gates.
+
 Character signups and approved WoW layout: `docs/CHARACTER_SIGNUPS.md`.
 Deploy additive migration `20261026090000_character_signups`, enable Quebec
 Gold's character policy and route the weekly report to its managed WoW channel.

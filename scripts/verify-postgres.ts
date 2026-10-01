@@ -18,6 +18,7 @@ import { createApplicationService } from "../src/services/application.js";
 import assert from "node:assert/strict";
 import { PrismaClient } from "@prisma/client";
 import { createAddonImportService } from "../src/services/addon-import.js";
+import { verifyCommunityPostgres } from "./verify-community-postgres.js";
 const url = new URL(process.env["DATABASE_URL"] ?? "");
 if (!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) || url.pathname !== "/guilded_release_test") throw new Error("Disposable local test database required.");
 const database = new PrismaClient();
@@ -44,9 +45,15 @@ try {
     assert.equal((await database.discordJob.findFirstOrThrow({ where: { key: { startsWith: "weekly-wow:" } } })).status, "PENDING");
     const final = await database.dungeonSeason.findFirstOrThrow({ where: { name: "Release season" } });
     assert.equal((final.finalStandings as { points: number }[])[0]?.points, 100);
+    const community = await database.communitySeason.findFirstOrThrow({ where: { name: "Release community season" } });
+    assert.equal(community.status, "ENDED");
+    assert.ok(Array.isArray(community.finalStandings));
+    const draw = await database.communityActivity.findFirstOrThrow({ where: { title: "Release community gold draw" } });
+    assert.deepEqual((draw.result as { winners: string[] }).winners, ["player-a"]);
   } else {
     await database.guild.deleteMany({ where: { discordId: { startsWith: "release-test-" } } });
     const guild = await database.guild.create({ data: { discordId: "release-test-guild", name: "Release fixture" } });
+    await verifyCommunityPostgres(database, guild.id);
     const member = await database.member.create({ data: { guildId: guild.id, discordUserId: "release-test-member", displayName: "Ann" } });
     const contender = await database.member.create({ data: { guildId: guild.id, discordUserId: "release-test-contender", displayName: "Bob" } });
     const job = await enqueueDiscordJob(database, guild.id, "release-test-board", "DUNGEON_BOARD");

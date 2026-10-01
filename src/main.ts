@@ -1,6 +1,7 @@
 import { ensureCoreDiscord } from "./services/raid-core.js";
 import { fillGuildWeeklyRaids } from "./services/core-weekly-raids.js";
 import { guildService } from "./commands/context.js";
+import { COMMUNITY_PREFIX, executeCommunity, handleCommunityButton, handleCommunityModal, runCommunityActivities } from "./commands/community.js";
 import { pendingSignupRaidIds, syncSignupEmbed } from "./commands/raid.js";
 import { runDiscordJobs } from "./services/discord-jobs.js";
 import { executeSystem } from "./commands/system.js";
@@ -97,6 +98,7 @@ handlers.set("craft", executeCraft);
 handlers.set("help", executeHelp);
 handlers.set("uninstall", executeUninstall);
 handlers.set("system", executeSystem);
+handlers.set("community", executeCommunity);
 
 async function repairCoreRaids(guild: import("discord.js").Guild, provision = false): Promise<void> {
   const record = await guildService.ensureGuild(guild.id, guild.name);
@@ -113,6 +115,8 @@ async function repairCoreRaids(guild: import("discord.js").Guild, provision = fa
 }
 
 client.once(Events.ClientReady, (readyClient) => {
+  void runCommunityActivities(readyClient.guilds.cache.values()).catch(reportJobError("Community activities"));
+  setInterval(() => void runCommunityActivities(readyClient.guilds.cache.values()).catch(reportJobError("Community activities")), 60_000);
   void runDiscordJobs(readyClient).catch(reportJobError("Discord delivery queue"));
   setInterval(() => void runDiscordJobs(readyClient).catch(reportJobError("Discord delivery queue")), 60_000);
   registerCommandsEverywhere().catch(reportJobError("Command registration"));
@@ -215,6 +219,18 @@ if (config.MESSAGE_CONTENT_INTENT) {
 }
 
 client.on(Events.InteractionCreate, async (interaction) => {
+  if ((interaction.isButton() || interaction.isModalSubmit()) && interaction.customId.startsWith(COMMUNITY_PREFIX)) {
+    try {
+      if (interaction.isButton()) await handleCommunityButton(interaction);
+      else await handleCommunityModal(interaction);
+    } catch (error) {
+      reportInteractionError("Community interaction", interaction, error);
+      const content = error instanceof Error && error.message.length < 200 ? error.message : "Impossible de traiter cette demande / Could not process this request.";
+      if (interaction.deferred) await interaction.editReply({ content }).catch(() => undefined);
+      else if (!interaction.replied) await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
+    }
+    return;
+  }
   if (interaction.isStringSelectMenu() && interaction.customId === DUNGEON_SEASON_SELECT) {
     await handleDungeonSeasonSelect(interaction).catch((error: unknown) => reportInteractionError("Dungeon season history", interaction, error));
     return;

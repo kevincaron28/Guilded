@@ -504,13 +504,22 @@ export const ALL_CHANNELS: ChannelField[] = [...CORE_CHANNELS, ...RAIDTEAM_CHANN
 async function ensureCategory(guild: DiscordGuild, key: CategoryKey, lang: Lang) {
   await guild.channels.fetch();
   const names = categoryNames(key);
-  const existing = guild.channels.cache.find((channel) => channel.type === ChannelType.GuildCategory && names.includes(channel.name));
-  return existing ?? guild.channels.create({ name: CATEGORY_NAMES[lang][key], type: ChannelType.GuildCategory, reason: `${BRAND.name} /setup` });
+  const existing = guild.channels.cache.find(channel => channel.type === ChannelType.GuildCategory && channel.name === CATEGORY_NAMES[lang][key])
+    ?? guild.channels.cache.find(channel => channel.type === ChannelType.GuildCategory && names.includes(channel.name));
+  if (existing?.type === ChannelType.GuildCategory) {
+    if (key === "guild") {
+      if (existing.name !== CATEGORY_NAMES[lang][key]) await existing.setName(CATEGORY_NAMES[lang][key]);
+      await existing.permissionOverwrites.edit(guild.roles.everyone.id, { ViewChannel: true, ReadMessageHistory: true });
+    }
+    return existing;
+  }
+  return guild.channels.create({ name: CATEGORY_NAMES[lang][key], type: ChannelType.GuildCategory, reason: `${BRAND.name} /setup`,
+    ...(key === "guild" ? { permissionOverwrites: [{ id: guild.roles.everyone.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory] }] } : {}) });
 }
 
 // The permission overwrites for a kind of channel. Leadership can always
 // post in read-only channels; the bot can always post everywhere it makes.
-function overwritesFor(guild: DiscordGuild, access: Access): OverwriteResolvable[] | undefined {
+function overwritesFor(guild: DiscordGuild, access: Access, sharedSupport = false): OverwriteResolvable[] | undefined {
   const named = (permissions: Permission[]) => guild.roles.cache.filter((role) => permissions.some((permission) => isPermissionRoleName(permission, role.name)));
   const officers = named(["guildMaster", "officer"]);
   const leaders = named(["guildMaster", "officer", "raidLeader", "lootLeader", "classLeader"]);
@@ -548,12 +557,17 @@ function overwritesFor(guild: DiscordGuild, access: Access): OverwriteResolvable
   }
   if (access === "readonly" || access === "pinned") {
     return [
-      { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.SendMessages, PermissionFlagsBits.SendMessagesInThreads, PermissionFlagsBits.CreatePublicThreads, PermissionFlagsBits.CreatePrivateThreads] },
+      { id: guild.roles.everyone.id,
+        ...(sharedSupport ? { allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory] } : {}),
+        deny: [PermissionFlagsBits.SendMessages, PermissionFlagsBits.SendMessagesInThreads, PermissionFlagsBits.CreatePublicThreads, PermissionFlagsBits.CreatePrivateThreads] },
       ...officers.map((role) => ({ id: role.id, allow: [PermissionFlagsBits.SendMessages] })),
       ...bot
     ];
   }
-  return undefined;
+  return sharedSupport ? [
+    { id: guild.roles.everyone.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.AttachFiles] },
+    ...bot
+  ] : undefined;
 }
 
 // Puts the craft board's permissions right again (for a board made by an older version,
@@ -564,7 +578,14 @@ export async function repairCraftBoardPermissions(guild: DiscordGuild, channelId
   if (!channel || channel.type !== ChannelType.GuildForum) return false;
   for (const entry of overwritesFor(guild, "board") ?? []) {
     const flags = (list: unknown, value: boolean) => Object.fromEntries((Array.isArray(list) ? list : []).map((flag) => [new PermissionsBitField(flag as bigint).toArray()[0], value]));
-    await channel.permissionOverwrites.edit(entry.id as string, { ...flags(entry.allow, true), ...flags(entry.deny, false) } as never);
+    const edits = { ...flags(entry.allow, true), ...flags(entry.deny, false) };
+    // A game-specific board may deliberately hide itself from @everyone.
+    // Repair posting/thread permissions without undoing that visibility gate.
+    if (channel.permissionOverwrites.cache.get(entry.id as string)?.deny.has(PermissionFlagsBits.ViewChannel)) {
+      delete edits["ViewChannel"];
+      delete edits["ReadMessageHistory"];
+    }
+    await channel.permissionOverwrites.edit(entry.id as string, edits as never);
   }
   return true;
 }
@@ -592,10 +613,10 @@ export async function createSectionChannels(guild: DiscordGuild, guildId: string
   const update: Partial<Record<ChannelField, string>> = {};
   for (const field of missing) {
     const spec = channelSpec(field, lang);
-    const overwrites = overwritesFor(guild, spec.access);
+    const overwrites = overwritesFor(guild, spec.access, spec.category === "guild");
     const existing = guild.channels.cache.find(candidate => candidate.type === ChannelType.GuildText
       && isSetupLeftover(field, candidate.name, candidate.parentId ? guild.channels.cache.get(candidate.parentId)?.name : undefined));
-    const category = existing ? null : await ensureCategory(guild, spec.category, lang);
+    const category = existing && spec.category !== "guild" ? null : await ensureCategory(guild, spec.category, lang);
     const channel = existing ?? (spec.forum
       ? await guild.channels.create({
         name: spec.name, type: ChannelType.GuildForum, topic: spec.topic, parent: category!.id,
@@ -608,7 +629,10 @@ export async function createSectionChannels(guild: DiscordGuild, guildId: string
       }));
     // Recovered guide/FAQ/signup channels belong to setup too; reapply their
     // documented access so a reused guide cannot keep stale write permissions.
-    if (existing && overwrites && "permissionOverwrites" in existing) await existing.permissionOverwrites.set(overwrites);
+    if (existing && overwrites && "permissionOverwrites" in existing) {
+      await existing.permissionOverwrites.set(overwrites);
+      if (category) await existing.setParent(category.id, { lockPermissions: false });
+    }
     // Save each channel before posting guides so a partial setup remains recoverable.
     await guildService.updateSettings(guildId, { [field]: channel.id });
     if (field === "answerChannelId") forgetAnswerSettings(guild.id);
@@ -630,9 +654,10 @@ export async function createSectionChannels(guild: DiscordGuild, guildId: string
 }
 
 // Tidies channels the bot made earlier (same name as the standard one):
-// moves each into its category and resets its permissions to the standard
-// set. Channels you picked yourself (any other name) are left alone.
-async function organizeChannels(guild: DiscordGuild, guildId: string, lang: Lang): Promise<string> {
+// moves each into its category. The shared support hub gets its documented
+// public permissions; game and staff channels retain their existing gates.
+// Channels you picked yourself (any other name) are left alone.
+export async function organizeChannels(guild: DiscordGuild, guildId: string, lang: Lang): Promise<string> {
   const settings = await guildService.getSettings(guildId);
   if (!settings) return tx(lang, "No settings found.");
   await guild.roles.fetch();
@@ -646,7 +671,8 @@ async function organizeChannels(guild: DiscordGuild, guildId: string, lang: Lang
     const spec = channelSpec(field, lang);
     if (!channelNames(field).includes(channel.name)) { skipped.push(`<#${channel.id}>`); continue; }
     const category = await ensureCategory(guild, spec.category, lang);
-    const overwrites = overwritesFor(guild, spec.access);
+    const overwrites = spec.category === "guild" ? overwritesFor(guild, spec.access, true)
+      : channel.permissionOverwrites.cache.map(overwrite => ({ id: overwrite.id, type: overwrite.type, allow: overwrite.allow.bitfield, deny: overwrite.deny.bitfield }));
     await channel.edit({ parent: category.id, permissionOverwrites: overwrites ?? [], reason: `${BRAND.name} /setup organize` });
     tidied.push(`<#${channel.id}>`);
   }

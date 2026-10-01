@@ -11,13 +11,15 @@ import {
   looksLikeBotHealthQuestion, looksLikeCommandHelpQuestion, looksLikeCraftRequestQuestion, looksLikeLootRulesQuestion,
   looksLikeMyCharactersQuestion, looksLikeOpenGroupsQuestion, looksLikePersonalStandingQuestion, looksLikeQuestion,
   looksLikeScheduleQuestion, lootRulesAnswer, matchFaq, MAX_ANSWER_LENGTH, myBankRequestAnswer, myCharactersAnswer,
-  myCraftRequestAnswer, openGroupsAnswer, parseTriggers, personalStandingAnswer, scheduleAnswer
+  myCraftRequestAnswer, openGroupsAnswer, parseTriggers, personalStandingAnswer, scheduleAnswer,
+  installationAnswer, looksLikeInstallationQuestion, sharedSupportFacts
 } from "../services/answers.js";
 import { botHealthAnswer } from "../services/bot-messages.js";
 import { guideText as craftGuideText } from "./craft-board.js";
 import { BRAND } from "../brand.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { asLang, tx, type Lang } from "../i18n.js";
+import { categoryNames } from "../setup-names.js";
 
 // /mod faq (officers): the answer channel and its answers. See services/answers.ts.
 export const FAQ_MODAL_PREFIX = "faq:";
@@ -194,6 +196,12 @@ export async function answerMessage(message: Message, productReference: string):
   // personal question actually comes up, one member lookup, shared across every check.
   const settings = await guildService.getSettings(where.guildId);
   const lang = asLang(settings?.language);
+  // Guilded is shared product support, not a way around another section's
+  // channel permissions. Resolve a missing parent before selecting facts.
+  const parent = message.channel.type === ChannelType.GuildText
+    ? message.channel.parent ?? (message.channel.parentId ? await message.guild.channels.fetch(message.channel.parentId).catch(() => null) : null)
+    : null;
+  const sharedSupport = parent === null || categoryNames("guild").includes(parent.name);
   let member: { id: string } | null | undefined;
   const getMember = async () => {
     if (member === undefined) member = await prisma.member.findFirst({ where: { guildId: where.guildId, discordUserId: message.author.id }, select: { id: true } });
@@ -212,39 +220,40 @@ export async function answerMessage(message: Message, productReference: string):
     await reply(answer);
     return true;
   };
-  // Raid-timing questions ("raid night?") get a free, deterministic answer straight from the
-  // database (core schedules and next planned raids).
-  if (looksLikeScheduleQuestion(text) && await tryAnswer(await scheduleAnswer(prisma, where.guildId, where.timeZone, lang))) return;
-  if (looksLikeLootRulesQuestion(text) && await tryAnswer(lootRulesAnswer(settings, lang))) return;
-  if (looksLikeOpenGroupsQuestion(text) && await tryAnswer(await openGroupsAnswer(prisma, where.guildId, lang))) return;
-  if (looksLikeActivePollQuestion(text) && await tryAnswer(await activePollAnswer(prisma, where.guildId, lang))) return;
-  if (looksLikePersonalStandingQuestion(text)) {
-    const asker = await getMember();
-    if (asker && await tryAnswer(await personalStandingAnswer(prisma, asker.id, settings?.baseGp ?? 0, lang))) return;
-  }
-  if (looksLikeMyCharactersQuestion(text)) {
-    const asker = await getMember();
-    if (asker && await tryAnswer(await myCharactersAnswer(prisma, asker.id, lang))) return;
-  }
-  if (looksLikeApplicationStatusQuestion(text)) {
-    const asker = await getMember();
-    if (asker && await tryAnswer(await applicationStatusAnswer(prisma, asker.id, lang))) return;
-  }
-  if (looksLikeBankRequestQuestion(text)) {
-    const asker = await getMember();
-    if (asker && await tryAnswer(await myBankRequestAnswer(prisma, asker.id, lang))) return;
-  }
-  if (looksLikeCraftRequestQuestion(text)) {
-    const asker = await getMember();
-    if (asker && await tryAnswer(await myCraftRequestAnswer(prisma, asker.id, lang))) return;
-  }
-  // Command/setup help ("what commands?", "how do I use this bot?") never needs AI: it's just a
-  // pointer to /help, plus /setup for officers.
+  if (looksLikeInstallationQuestion(text) && await tryAnswer(installationAnswer(lang))) return;
   if (looksLikeCommandHelpQuestion(text) && await tryAnswer(commandHelpAnswer(await isOfficerAsker(), lang))) return;
-  // "Is the bot outdated?" is diagnostic content, so it's officer-only; a non-officer asking falls
-  // through silently to AI, same as every other check above when it doesn't apply.
-  if (looksLikeBotHealthQuestion(text) && settings && await isOfficerAsker()) {
-    if (await tryAnswer(await botHealthAnswer(message.guild, prisma, settings, lang, craftGuideText(lang)))) return;
+  if (!sharedSupport) {
+    // Raid-timing questions ("raid night?") get a free, deterministic answer straight from the
+    // database (core schedules and next planned raids).
+    if (looksLikeScheduleQuestion(text) && await tryAnswer(await scheduleAnswer(prisma, where.guildId, where.timeZone, lang))) return;
+    if (looksLikeLootRulesQuestion(text) && await tryAnswer(lootRulesAnswer(settings, lang))) return;
+    if (looksLikeOpenGroupsQuestion(text) && await tryAnswer(await openGroupsAnswer(prisma, where.guildId, lang))) return;
+    if (looksLikeActivePollQuestion(text) && await tryAnswer(await activePollAnswer(prisma, where.guildId, lang))) return;
+    if (looksLikePersonalStandingQuestion(text)) {
+      const asker = await getMember();
+      if (asker && await tryAnswer(await personalStandingAnswer(prisma, asker.id, settings?.baseGp ?? 0, lang))) return;
+    }
+    if (looksLikeMyCharactersQuestion(text)) {
+      const asker = await getMember();
+      if (asker && await tryAnswer(await myCharactersAnswer(prisma, asker.id, lang))) return;
+    }
+    if (looksLikeApplicationStatusQuestion(text)) {
+      const asker = await getMember();
+      if (asker && await tryAnswer(await applicationStatusAnswer(prisma, asker.id, lang))) return;
+    }
+    if (looksLikeBankRequestQuestion(text)) {
+      const asker = await getMember();
+      if (asker && await tryAnswer(await myBankRequestAnswer(prisma, asker.id, lang))) return;
+    }
+    if (looksLikeCraftRequestQuestion(text)) {
+      const asker = await getMember();
+      if (asker && await tryAnswer(await myCraftRequestAnswer(prisma, asker.id, lang))) return;
+    }
+    // "Is the bot outdated?" is diagnostic content, so it's officer-only; a non-officer asking falls
+    // through silently to AI, same as every other check above when it doesn't apply.
+    if (looksLikeBotHealthQuestion(text) && settings && await isOfficerAsker()) {
+      if (await tryAnswer(await botHealthAnswer(message.guild, prisma, settings, lang, craftGuideText(lang)))) return;
+    }
   }
   if (!where.ai || !config.AI_BASE_URL || !config.AI_MODEL) return;
   const botId = message.client.user.id;
@@ -255,8 +264,9 @@ export async function answerMessage(message: Message, productReference: string):
   } catch (error) {
     console.warn("Could not send typing indicator for answer channel", error);
   }
-  const asker = await getMember();
-  const facts = await guildFacts(prisma, where.guildId, asker?.id ?? null, where.timeZone);
+  const asker = sharedSupport ? null : await getMember();
+  const facts = sharedSupport ? sharedSupportFacts(message.guild.name, entries)
+    : await guildFacts(prisma, where.guildId, asker?.id ?? null, where.timeZone);
   const question = text.replace(new RegExp(`<@!?${botId}>`, "g"), "").trim();
   const result = await askAi(
     { baseUrl: config.AI_BASE_URL, model: config.AI_MODEL, apiKey: config.AI_API_KEY },

@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { createEpgpService } from "./epgp.js";
 import { tx, type Lang } from "../i18n.js";
+import { gettingStartedPost } from "./bot-messages.js";
 
 // The answer channel (5.0): members ask a question in one channel and the bot replies.
 //   1. Officer-written answers (FaqEntry, /mod faq): a message matches an entry when it contains
@@ -61,6 +62,29 @@ export function looksLikeQuestion(text: string, mentionsBot: boolean): boolean {
   const folded = foldText(text);
   return /^(what|when|where|who|why|how|which|can|could|would|do|does|is|are|comment|quand|ou|qui|pourquoi|quel|quelle|quels|quelles|est ce que|peux tu|pouvez vous)\b/.test(folded)
     || /\b(help|aide|explain|explique|how do i|how can i|can you|could you|comment faire|comment utiliser)\b/.test(folded);
+}
+
+// Installation help works without AI or a member/character record.
+export function looksLikeInstallationQuestion(text: string): boolean {
+  const folded = foldText(text);
+  return /\b(addon|add on|companion|compagnon|guilded)\b/.test(folded)
+    && /\b(install|installation|installer|installe|download|telecharger|pair|pairing|pairage|connect|connecter|relier|zip|synchroniser|sync)\b/.test(folded);
+}
+
+export function installationAnswer(lang: Lang): string {
+  const body = gettingStartedPost(lang).data.description ?? "";
+  // Reuse the two installation sections of the pinned guide, without its
+  // welcome and game-activity sections.
+  return body.split("\n\n").slice(1, 3).join("\n\n").slice(0, MAX_ANSWER_LENGTH);
+}
+
+// Shared bot help never gives the AI private raid/core or member records.
+export function sharedSupportFacts(name: string, entries: readonly FaqLike[]): string {
+  return [
+    `Guild: ${name}. This is a shared bot-support channel for all games.`,
+    "Only public product help and the officer-written answers below are available. Do not infer private guild, game, raid, character or member data. For personal records, direct the member to the appropriate Discord slash command; for game activities, to that game's section.",
+    ...entries.slice(0, 30).map(entry => `Public officer answer: ${entry.answer.slice(0, 300)}`)
+  ].join("\n");
 }
 
 // "raid night?", "when is the raid", "quand est le raid ce soir", "core schedule", "prochain raid"…

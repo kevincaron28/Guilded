@@ -4,6 +4,7 @@
 // the /setup guide, its checklist and the craft board has an entry.
 
 export const FR_TEXT: Record<string, string> = {
+  "WoW weekly report channel": "Salon du bilan hebdo WoW",
   // --- /setup: frame and navigation
   "{name} setup": "Configuration de {name}",
   "◀ Back": "◀ Retour",

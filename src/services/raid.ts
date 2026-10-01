@@ -7,6 +7,7 @@ import type {
   RaidStatus,
   RaidRole
 } from "@prisma/client";
+import { ownedSignupCharacter } from "./signup-character.js";
 
 const activeSignupStatuses: RaidSignupStatus[] = ["SIGNED_UP"];
 
@@ -51,10 +52,11 @@ export function createRaidService(database: PrismaClient) {
     return raid;
   }
 
-  async function coreMemberIds(coreId: string, tx: RaidDb = database): Promise<Set<string>> {
+  async function coreMemberIds(coreId: string, tx: RaidDb = database, byCharacter = false): Promise<Set<string>> {
     // Main players only: the bench (replacements) gets no signup priority.
-    const rows = await tx.raidCoreMember.findMany({ where: { coreId, bench: false }, select: { memberId: true } });
-    return new Set(rows.map((row) => row.memberId));
+    const rows = await tx.raidCoreMember.findMany({ where: { coreId, bench: false }, select: { memberId: true, characterId: true, backups: { select: { characterId: true } } } });
+    return new Set(rows.flatMap(row => byCharacter ? [row.characterId, ...(row.backups ?? []).map(backup => backup.characterId)]
+      .filter((id): id is string => !!id).map(id => `${row.memberId}:${id}`) : [row.memberId]));
   }
 
   // Fills open role slots from the waitlist, earliest signup first. Runs
@@ -62,6 +64,7 @@ export function createRaidService(database: PrismaClient) {
   async function promoteWaitlist(raidId: string, tx: RaidDb = database) {
     const raid = await tx.raid.findUnique({ where: { id: raidId } });
     if (!raid || raid.status !== "PLANNED") return [];
+    const byCharacter = (await (tx as Prisma.TransactionClient).guildSettings?.findUnique({ where: { guildId: raid.guildId }, select: { characterSignups: true } }))?.characterSignups ?? false;
     const promoted = [];
     for (const role of ["TANK", "HEALER", "DPS"] as const) {
       const cap = raid[roleCapField[role]];
@@ -73,8 +76,9 @@ export function createRaidService(database: PrismaClient) {
       if (waiting.length === 0) continue;
       // Core members move up first (then earliest signup) for a core raid.
       if (raid.coreId) {
-        const coreIds = await coreMemberIds(raid.coreId, tx);
-        waiting.sort((a, b) => Number(coreIds.has(b.memberId)) - Number(coreIds.has(a.memberId)) || a.signedUpAt.getTime() - b.signedUpAt.getTime());
+        const coreIds = await coreMemberIds(raid.coreId, tx, byCharacter);
+        const key = (row: { memberId: string; characterId: string | null }) => byCharacter ? `${row.memberId}:${row.characterId}` : row.memberId;
+        waiting.sort((a, b) => Number(coreIds.has(key(b))) - Number(coreIds.has(key(a))) || a.signedUpAt.getTime() - b.signedUpAt.getTime());
       }
       const taken = cap === null ? 0 : await tx.raidSignup.count({ where: { raidId, role, status: "SIGNED_UP" } });
       const open = cap === null ? waiting.length : Math.max(0, cap - taken);
@@ -196,10 +200,16 @@ export function createRaidService(database: PrismaClient) {
 
     // AVAILABLE takes a role slot, or joins the waitlist when that role is
     // full. MAYBE never takes a slot.
-    async signup(raidId: string, guildId: string, memberId: string, role: RaidRole, availability: SignupAvailability = "AVAILABLE") {
+    async signup(raidId: string, guildId: string, memberId: string, role: RaidRole, availability: SignupAvailability = "AVAILABLE", characterValue?: string | null) {
       return locked(raidId, async tx => {
         const raid = await getRaid(raidId, guildId, tx);
         if (raid.status !== "PLANNED") throw new Error("Signups are closed for this raid.");
+        const byCharacter = (await tx.guildSettings?.findUnique({ where: { guildId }, select: { characterSignups: true } }))?.characterSignups ?? false;
+        const character = characterValue || byCharacter ? await ownedSignupCharacter(tx, guildId, memberId, characterValue) : null;
+        if (character && await tx.raidSignup.findFirst({ where: { raidId, characterId: character.id, memberId: { not: memberId }, status: { not: "CANCELLED" } } })) {
+          throw new Error("Ce personnage est déjà inscrit à ce raid. Une inscription par personnage et une place par personne.");
+        }
+        const identity = byCharacter ? `${memberId}:${character?.id}` : memberId;
         let status: RaidSignupStatus = availability === "MAYBE" ? "MAYBE" : "SIGNED_UP";
         const cap = raid[roleCapField[role]];
         let bumped: Prisma.RaidSignupGetPayload<{ include: { member: true } }> | null = null;
@@ -211,14 +221,14 @@ export function createRaidService(database: PrismaClient) {
             status = "WAITLISTED";
             // Core priority: a core member takes the slot of the most recent
             // non-core signup in that role, who goes to the front of the waitlist.
-            if (raid.coreId && (await coreMemberIds(raid.coreId, tx)).has(memberId)) {
-              const coreIds = await coreMemberIds(raid.coreId, tx);
+            if (raid.coreId && (await coreMemberIds(raid.coreId, tx, byCharacter)).has(identity)) {
+              const coreIds = await coreMemberIds(raid.coreId, tx, byCharacter);
               const candidates = await tx.raidSignup.findMany({
                 where: { raidId, role, status: "SIGNED_UP", memberId: { not: memberId } },
                 include: { member: true },
                 orderBy: { signedUpAt: "desc" }
               });
-              const victim = candidates.find((signup) => !coreIds.has(signup.memberId));
+              const victim = candidates.find(signup => !coreIds.has(byCharacter ? `${signup.memberId}:${signup.characterId}` : signup.memberId));
               if (victim) {
                 await tx.raidSignup.update({ where: { id: victim.id }, data: { status: "WAITLISTED" } });
                 bumped = { ...victim, status: "WAITLISTED" };
@@ -229,8 +239,8 @@ export function createRaidService(database: PrismaClient) {
         }
         const saved = await tx.raidSignup.upsert({
           where: { raidId_memberId: { raidId, memberId } },
-          create: { raidId, memberId, role, status },
-          update: { status, role, signedUpAt: new Date(), cancelledAt: null }
+          create: { raidId, memberId, role, status, ...(character ? { characterId: character.id, characterName: character.name, characterRealm: character.realm } : {}) },
+          update: { status, role, signedUpAt: new Date(), cancelledAt: null, ...(character ? { characterId: character.id, characterName: character.name, characterRealm: character.realm } : {}) }
         });
         return Object.assign(saved, { bumped });
       });
@@ -271,7 +281,7 @@ export function createRaidService(database: PrismaClient) {
         if (!signup || signup.status === "CANCELLED") throw new Error("You are not signed up for this raid.");
         const cancelled = await tx.raidSignup.update({
           where: { id: signup.id },
-          data: { status: "CANCELLED", cancelledAt: new Date() }
+          data: { status: "CANCELLED", cancelledAt: new Date(), characterId: null }
         });
         const promoted = signup.status === "SIGNED_UP" ? await promoteWaitlist(raidId, tx) : [];
         return { cancelled, promoted };

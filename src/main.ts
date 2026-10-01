@@ -306,7 +306,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
     } catch (error) {
       reportInteractionError("Raid signup button", interaction, error);
       const content = error instanceof Error ? error.message : "Could not update your signup.";
-      if (!interaction.replied) await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
+      if (interaction.replied || interaction.deferred) await interaction.editReply({ content, components: [] }).catch(() => undefined);
+      else await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
     }
     return;
   }
@@ -325,7 +326,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
   if (interaction.isButton() && interaction.customId.startsWith(APPLY_PREFIX)) {
-    await handleApplyButton(interaction).catch((error: unknown) => reportInteractionError("Application button", interaction, error));
+    await handleApplyButton(interaction).catch(async (error: unknown) => {
+      reportInteractionError("Application button", interaction, error);
+      const content = error instanceof Error ? error.message : "Impossible d'ouvrir ta candidature.";
+      if (interaction.replied || interaction.deferred) await interaction.editReply({ content, components: [] }).catch(() => undefined);
+      else await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
+    });
     return;
   }
   if (interaction.isButton() && interaction.customId.startsWith(SELF_ROLE_PREFIX)) {

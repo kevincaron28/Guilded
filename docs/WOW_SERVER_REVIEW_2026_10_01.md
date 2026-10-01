@@ -2,7 +2,7 @@
 
 Revue basée sur les salons, rôles, permissions et réglages réellement lus dans
 Discord. Le serveur compte 95 salons, incluant les catégories et les vocaux.
-Les 14 salons gérés par Guilded sont présents; les commandes et messages gérés
+Les 14 salons gérés par Guilded avant ce changement sont présents; les commandes et messages gérés
 sont à jour. Les profils WoW, PoE 2 et Diablo, seuls et combinés, ainsi que les
 210 membres humains ont été vérifiés : aucune exposition entre les jeux relevée.
 Le vocal Officier WoW a des permissions privées distinctes de son parent.
@@ -21,10 +21,10 @@ les membres, quel que soit leur jeu.
 - Chaque core choisit sa méthode de butin et garde ses propres points et prix.
   Choix disponible dans `/core edit` → **Méthode de butin**.
 - Le bilan hebdomadaire couvre uniquement WoW. Sa destination explicite est
-  le salon WoW existant **guilded-annonces**; aucun bilan PoE 2 ou général ajouté.
+  le nouveau salon **bilan-hebdo-wow**; aucun bilan PoE 2 ou général ajouté.
 - Diablo 4, ses salons et sa saison restent en attente.
 
-## Recommandations proposées, sans déplacement ni suppression
+## Recommandations approuvées pour le déploiement
 
 1. **Uniformiser les noms en français.** Par exemple : « Vocal WoW »,
    « Jasette WoW », « Vos trouvailles WoW »; `wow-guild-info` → `infos-wow`,
@@ -32,9 +32,8 @@ les membres, quel que soit leur jeu.
    Garder les termes connus comme core, raid, tank et DPS. Un peu de couleur
    québécoise dans les textes suffit; les noms doivent rester faciles à trouver.
 2. **Clarifier les deux salons d'annonces.** `wow-annonces` sert aux annonces
-   humaines importantes; `guilded-annonces` aux rappels et bilans automatiques.
-   Plus tard, un `bilan-hebdo-wow` dédié permettrait de retrouver les semaines
-   sans chercher parmi les rappels. Rien n'oblige à ajouter ce salon maintenant.
+   humaines importantes; `guilded-annonces` aux rappels automatiques; `bilan-hebdo-wow` aux bilans.
+   Ce bilan dédié rend les semaines faciles à retrouver.
 3. **Regrouper les échanges occasionnels.** « Chat Room WoW » et « Show-off
    WoW » peuvent devenir une seule catégorie « Jasette WoW » en conservant
    multimédia, builds, transmog et butin. Aucun historique à effacer.
@@ -57,5 +56,4 @@ catégorie et que les exceptions rendent un salon non synchronisé :
 
 Les essais en jeu et les réglages internes de Carl-bot restent à vérifier dans
 leurs interfaces respectives; cette revue des permissions Discord ne les certifie
-pas. Les conseils de regroupement ci-dessus sont des propositions, pas des
-modifications déjà appliquées.
+pas. La réalisation des changements approuvés est vérifiée après le déploiement; les preuves sont conservées dans backups/discord-review/.

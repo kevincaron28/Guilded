@@ -7,8 +7,8 @@ import { t, type Lang } from "../i18n.js";
 // core raid which players are core mains (⭐), on the bench (🪑) or still
 // missing. Pure, so it can be tested without Discord.
 
-export interface SignupRow { memberId: string; displayName: string; role: RaidRole; status: string; }
-export interface CoreRow { memberId: string; displayName: string; role: RaidRole; bench: boolean; }
+export interface SignupRow { memberId: string; characterId?: string | null; displayName: string; role: RaidRole; status: string; }
+export interface CoreRow { memberId: string; characterId?: string | null; backupCharacterIds?: string[]; displayName: string; role: RaidRole; bench: boolean; }
 
 export interface SignupEmbedInput {
   lang: Lang;
@@ -49,7 +49,11 @@ export function buildSignupEmbed(input: SignupEmbedInput): EmbedBuilder {
   const roleName = (role: RaidRole) => t(lang, `role.${role}` as const);
   const mains = new Set(core?.members.filter((m) => !m.bench).map((m) => m.memberId));
   const bench = new Set(core?.members.filter((m) => m.bench).map((m) => m.memberId));
-  const mark = (memberId: string) => (mains.has(memberId) ? "⭐ " : bench.has(memberId) ? "🪑 " : "");
+  const mark = (memberId: string, characterId?: string | null) => {
+    const spot = core?.members.find(member => member.memberId === memberId);
+    if (characterId && spot && spot.characterId !== characterId && !spot.backupCharacterIds?.includes(characterId)) return "";
+    return mains.has(memberId) ? "⭐ " : bench.has(memberId) ? "🪑 " : "";
+  };
   const caps: Record<RaidRole, number | null> = { TANK: raid.tankLimit, HEALER: raid.healerLimit, DPS: raid.dpsLimit };
   const signed = signups.filter((s) => s.status === "SIGNED_UP");
   const byName = (a: SignupRow, b: SignupRow) => a.displayName.localeCompare(b.displayName);
@@ -71,16 +75,16 @@ export function buildSignupEmbed(input: SignupEmbedInput): EmbedBuilder {
     const count = cap !== null ? `${players.length}/${cap}` : String(players.length);
     embed.addFields({
       name: `${ROLE_ICON[role]} ${roleName(role)} ${count}${full ? ` · ${t(lang, "signup.full")}` : ""}`,
-      value: clip(players.map((p) => `${mark(p.memberId)}${p.displayName}`)),
+      value: clip(players.map((p) => `${mark(p.memberId, p.characterId)}${p.displayName}`)),
       inline: true
     });
   }
 
   const listOf = (status: string, showRole: boolean) => signups.filter((s) => s.status === status).sort(byName)
-    .map((s) => `${mark(s.memberId)}${s.displayName}${showRole ? ` (${roleName(s.role)})` : ""}`);
+    .map((s) => `${mark(s.memberId, s.characterId)}${s.displayName}${showRole ? ` (${roleName(s.role)})` : ""}`);
   const maybe = listOf("MAYBE", true);
   const waitlist = signups.filter((s) => s.status === "WAITLISTED")
-    .map((s) => `${mark(s.memberId)}${s.displayName} (${roleName(s.role)})`); // the store returns waitlisted players in order
+    .map((s) => `${mark(s.memberId, s.characterId)}${s.displayName} (${roleName(s.role)})`); // the store returns waitlisted players in order
   if (maybe.length) embed.addFields({ name: t(lang, "signup.maybe"), value: clip(maybe), inline: false });
   if (waitlist.length) embed.addFields({ name: t(lang, "signup.waitlist"), value: clip(waitlist), inline: false });
 

@@ -147,7 +147,7 @@ async function gatherFacts(guild: DiscordGuild, guildId: string, settings: Guild
     companionPaired: (await prisma.companionCredential.count({ where: { revokedAt: null, member: { guildId, status: "ACTIVE" } } })) > 0,
     linkedCharacters: await prisma.character.count({ where: { member: { guildId, isTest: false } } }),
     dungeonSignupGuideOutdated: guideState === "outdated",
-    extraChannels: await Promise.all((["coreChannelId", "readinessChannelId", "lootChannelId", "craftChannelId", "applicationChannelId", "guideChannelId", "answerChannelId", "dungeonChannelId"] as const)
+    extraChannels: await Promise.all((["coreChannelId", "readinessChannelId", "lootChannelId", "craftChannelId", "applicationChannelId", "guideChannelId", "answerChannelId", "dungeonChannelId", "weeklyReportChannelId"] as const)
       .map(async (field) => ({ field, fact: await channelFact(guild, settings[field]) }))),
     botMessages: await botMessageFacts(guild, prisma, settings, lang, craftGuideText(lang)).catch(() => [])
   };
@@ -495,7 +495,7 @@ async function createMissingRoles(guild: DiscordGuild, lang: Lang): Promise<stri
 }
 
 const CORE_CHANNELS: ChannelField[] = ["notifyChannelId", "raidSignupChannelId", "raidLogChannelId", "logChannelId", "guideChannelId", "answerChannelId"];
-const RAIDTEAM_CHANNELS: ChannelField[] = ["coreChannelId", "readinessChannelId", "lootChannelId", "craftChannelId", "applicationChannelId"];
+const RAIDTEAM_CHANNELS: ChannelField[] = ["coreChannelId", "readinessChannelId", "lootChannelId", "craftChannelId", "applicationChannelId", "weeklyReportChannelId"];
 const DUNGEON_CHANNELS: ChannelField[] = ["dungeonLeaderboardChannelId", "dungeonSignupChannelId", "dungeonChannelId"];
 // Every channel field /setup can create. Also used by /setup uninstall to find what to remove.
 export const ALL_CHANNELS: ChannelField[] = [...CORE_CHANNELS, ...RAIDTEAM_CHANNELS, ...DUNGEON_CHANNELS];
@@ -613,7 +613,12 @@ export async function createSectionChannels(guild: DiscordGuild, guildId: string
   const update: Partial<Record<ChannelField, string>> = {};
   for (const field of missing) {
     const spec = channelSpec(field, lang);
-    const overwrites = overwritesFor(guild, spec.access, spec.category === "guild");
+    let overwrites = overwritesFor(guild, spec.access, spec.category === "guild");
+    if (field === "weeklyReportChannelId" && settings?.raidSignupChannelId) {
+      const source = await guild.channels.fetch(settings.raidSignupChannelId);
+      if (!source || !("permissionOverwrites" in source)) throw new Error("Raid signup permissions unavailable; WoW report access was not broadened.");
+      overwrites = source.permissionOverwrites.cache.map(overwrite => ({ id: overwrite.id, type: overwrite.type, allow: overwrite.allow, deny: overwrite.deny }));
+    }
     const existing = guild.channels.cache.find(candidate => candidate.type === ChannelType.GuildText
       && isSetupLeftover(field, candidate.name, candidate.parentId ? guild.channels.cache.get(candidate.parentId)?.name : undefined));
     const category = existing && spec.category !== "guild" ? null : await ensureCategory(guild, spec.category, lang);

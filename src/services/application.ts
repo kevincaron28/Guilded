@@ -1,5 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import { ApplicationStatus, type PrismaClient, type RaidRole } from "@prisma/client";
+import { ownedSignupCharacter } from "./signup-character.js";
 
 // Shared with commands/application.ts (the click-to-apply flow) and
 // raid-core.ts (the "Apply" button on a core's live roster message).
@@ -27,6 +28,7 @@ export interface CreateApplicationInput {
   guildId: string;
   memberId: string;
   character: string;
+  characterId?: string;
   className: string;
   spec: string;
   experience: string;
@@ -39,15 +41,19 @@ export interface CreateApplicationInput {
 export function createApplicationService(database: PrismaClient) {
   return {
     async create(input: CreateApplicationInput) {
-      for (const [label, value] of Object.entries(input).slice(2, 7)) {
+      for (const [label, value] of Object.entries({ character: input.character, className: input.className, spec: input.spec, experience: input.experience, availability: input.availability })) {
         if (typeof value !== "string" || value.trim().length < 2) throw new Error(`${label} is required`);
       }
+      const settings = await database.guildSettings?.findUnique({ where: { guildId: input.guildId }, select: { characterSignups: true } });
+      const character = settings?.characterSignups && input.coreId ? await ownedSignupCharacter(database, input.guildId, input.memberId, input.characterId ?? input.character) : null;
+      if (input.coreId && settings?.characterSignups && !await database.raidCore.findFirst({ where: { id: input.coreId, guildId: input.guildId }, select: { id: true } })) throw new Error("Ce core n'est pas dans ce serveur.");
       return database.application.create({
         data: {
           guildId: input.guildId,
           memberId: input.memberId,
-          character: input.character.trim(),
-          className: input.className.trim(),
+          character: character ? `${character.name}-${character.realm}` : input.character.trim(),
+          ...(character ? { characterId: character.id } : {}),
+          className: character?.className ?? input.className.trim(),
           spec: input.spec.trim(),
           experience: input.experience.trim(),
           availability: input.availability.trim(),
@@ -85,6 +91,10 @@ export function createApplicationService(database: PrismaClient) {
       if (!application) throw new Error("Application not found");
       if (application.status !== ApplicationStatus.PENDING && application.status !== ApplicationStatus.TRIAL) {
         throw new Error("This application cannot be changed");
+      }
+      const settings = await database.guildSettings?.findUnique({ where: { guildId }, select: { characterSignups: true } });
+      if (settings?.characterSignups && application.coreId && status !== ApplicationStatus.REJECTED) {
+        await ownedSignupCharacter(database, guildId, application.memberId, application.characterId ?? application.character);
       }
       return database.application.update({
         where: { id },

@@ -7,7 +7,7 @@ import type { Lang } from "./i18n.js";
 
 export type ChannelField = "notifyChannelId" | "raidSignupChannelId" | "raidLogChannelId" | "logChannelId"
   | "dungeonLeaderboardChannelId" | "dungeonSignupChannelId" | "dungeonChannelId"
-  | "lootChannelId" | "craftChannelId" | "readinessChannelId" | "coreChannelId" | "applicationChannelId" | "guideChannelId" | "answerChannelId";
+  | "lootChannelId" | "craftChannelId" | "readinessChannelId" | "coreChannelId" | "applicationChannelId" | "guideChannelId" | "answerChannelId" | "weeklyReportChannelId";
 
 // Access: "open" everyone talks; "readonly" everyone reads, only the bot and
 // leadership post (signup channels are read-only too: people use the buttons);
@@ -18,13 +18,14 @@ export type CategoryKey = "guild" | "raid" | "dungeon" | "craft" | "officers";
 
 export const CATEGORY_NAMES: Record<Lang, Record<CategoryKey, string>> = {
   en: { guild: "⚜️ Guilded", raid: "⚔️ Raiding", dungeon: "🏰 Dungeons", craft: "🔨 Crafting", officers: "🔒 Officers" },
-  fr: { guild: "⚜️ Guilded", raid: "⚔️ Raids", dungeon: "🏰 Donjons", craft: "🔨 Artisanat", officers: "🔒 Officiers" }
+  fr: { guild: "⚜️ Guilded", raid: "⚔️ Raids WoW", dungeon: "🏰 Donjons", craft: "🔨 Artisanat", officers: "🔒 Officiers" }
 };
 
 export interface ChannelSpec { name: string; topic: string; access: Access; category: CategoryKey; forum?: boolean }
 
 const ACCESS: Record<ChannelField, { access: Access; category: CategoryKey; forum?: boolean }> = {
   notifyChannelId: { access: "readonly", category: "raid" },
+  weeklyReportChannelId: { access: "readonly", category: "raid" },
   raidSignupChannelId: { access: "readonly", category: "raid" },
   coreChannelId: { access: "readonly", category: "raid" },
   raidLogChannelId: { access: "readonly", category: "raid" },
@@ -42,8 +43,9 @@ const ACCESS: Record<ChannelField, { access: Access; category: CategoryKey; foru
 
 const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> = {
   en: {
+    weeklyReportChannelId: { name: "wow-weekly-report", topic: "WoW weekly report: raids, loot and dungeons; each core keeps its own loot rules" },
     answerChannelId: { name: "bot-faq", topic: "Talk to Guilded: bot help, WoW addon installation and companion setup, for all members" },
-    notifyChannelId: { name: `${BRAND.channelPrefix}-announcements`, topic: `Raid, boss and guild announcements from ${BRAND.name}` },
+    notifyChannelId: { name: `${BRAND.channelPrefix}-announcements`, topic: `WoW raid reminders and automatic announcements from ${BRAND.name}` },
     raidSignupChannelId: { name: "raid-signups", topic: "Raid signups: use the buttons under each raid post" },
     coreChannelId: { name: "raid-roster", topic: "Raid core rosters: core members get signup priority" },
     raidLogChannelId: { name: "raid-logs", topic: "Raid summaries and Warcraft Logs, posted after each raid" },
@@ -58,8 +60,9 @@ const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> 
     guideChannelId: { name: `${BRAND.channelPrefix}-guide`, topic: "How Guilded works, and what's new when it updates" }
   },
   fr: {
+    weeklyReportChannelId: { name: "bilan-hebdo-wow", topic: "Bilan de la semaine WoW : raids, butin et donjons; chaque core garde ses propres règles de butin" },
     answerChannelId: { name: "bot-faq", topic: "Jase avec Guilded : aide du bot, installation de l’addon WoW et du compagnon, pour toute la gang" },
-    notifyChannelId: { name: `${BRAND.channelPrefix}-annonces`, topic: `Annonces de raid, de boss et de guilde de ${BRAND.name}` },
+    notifyChannelId: { name: `${BRAND.channelPrefix}-annonces`, topic: `Rappels de raid et annonces automatiques WoW de ${BRAND.name}` },
     raidSignupChannelId: { name: "inscriptions-raid", topic: "Inscriptions aux raids : utilisez les boutons sous chaque annonce de raid" },
     coreChannelId: { name: "cores-de-raid", topic: "Compositions des cores de raid : les membres du core ont la priorité aux inscriptions" },
     raidLogChannelId: { name: "rapports-raid", topic: "Résumés de raid et Warcraft Logs, publiés après chaque raid" },
@@ -84,7 +87,7 @@ export function channelSpec(field: ChannelField, lang: Lang): ChannelSpec {
 const LEGACY_NAMES: Partial<Record<ChannelField, string[]>> = { guideChannelId: [`${BRAND.channelPrefix}-addon`], raidSignupChannelId: ["raid-inscription", "raid-inscriptions"], dungeonSignupChannelId: ["dungeon-signups", "inscriptions-donjon"] };
 export const channelNames = (field: ChannelField): string[] => [TEXT.en[field].name, TEXT.fr[field].name, ...(LEGACY_NAMES[field] ?? [])];
 export const categoryNames = (key: CategoryKey): string[] => [...new Set([
-  CATEGORY_NAMES.en[key], CATEGORY_NAMES.fr[key], ...(key === "guild" ? ["⚜️ Guild", "⚜️ Guilde"] : [])
+  CATEGORY_NAMES.en[key], CATEGORY_NAMES.fr[key], ...(key === "guild" ? ["⚜️ Guild", "⚜️ Guilde"] : key === "raid" ? ["⚔️ Raids"] : [])
 ])];
 
 // These channels are part of setup/reset even when an administrator renames them.

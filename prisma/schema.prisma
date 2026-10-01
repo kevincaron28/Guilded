@@ -212,6 +212,8 @@ model Character {
   readinessSnapshots InspectedCharacterSnapshot[]
   coreSpots          RaidCoreMember[]
   coreBackups        RaidCoreBackup[]
+  raidSignups        RaidSignup[]
+  coreApplications   Application[]
 
   @@unique([realm, name])
   @@index([memberId, isMain])
@@ -355,6 +357,7 @@ model Application {
   coreId       String?
   status       ApplicationStatus @default(PENDING)
   character    String
+  characterId  String?
   className    String
   spec         String
   experience   String
@@ -373,6 +376,7 @@ model Application {
   guild        Guild             @relation(fields: [guildId], references: [id], onDelete: Cascade)
   member       Member            @relation(fields: [memberId], references: [id], onDelete: Cascade)
   core         RaidCore?         @relation(fields: [coreId], references: [id], onDelete: SetNull)
+  linkedCharacter Character?     @relation(fields: [characterId], references: [id], onDelete: SetNull)
 
   @@index([guildId, status, createdAt])
   @@index([memberId, createdAt])
@@ -465,6 +469,7 @@ model GuildSettings {
   weeklyReportChannelId    String?
   // Opt-in: loot and EPGP belong to individual raid cores, never a shared guild pool.
   coreLootOnly             Boolean   @default(false)
+  characterSignups         Boolean   @default(false)
   // EPGP decay applied by itself after each weekly reset (the guild pool and every core's own pool).
   autoDecay                Boolean   @default(false)
   lastAutoDecayAt          DateTime?
@@ -631,14 +636,19 @@ model RaidSignup {
   id          String           @id @default(cuid())
   raidId      String
   memberId    String
+  characterId String?
+  characterName String?
+  characterRealm String?
   role        RaidRole         @default(DPS)
   status      RaidSignupStatus @default(SIGNED_UP)
   signedUpAt  DateTime         @default(now())
   cancelledAt DateTime?
   raid        Raid             @relation(fields: [raidId], references: [id], onDelete: Cascade)
   member      Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  character   Character?       @relation(fields: [characterId], references: [id], onDelete: SetNull)
 
   @@unique([raidId, memberId])
+  @@unique([raidId, characterId])
   @@index([raidId, status])
 }
 

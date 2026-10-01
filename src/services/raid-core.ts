@@ -6,6 +6,7 @@ import { asLootMode, LOOT_MODE_LABEL } from "./core-rules.js";
 import { asLang, tx, type Lang } from "../i18n.js";
 import { openAllCoreChannels, setupCoreDiscord, syncCoreRole } from "./core-channels.js";
 import { weeklyScheduleData } from "./core-weekly-time.js";
+import { CHARACTER_REQUIRED, ownedSignupCharacter } from "./signup-character.js";
 
 // A raid core is a named roster (e.g. "Tuesday MC core"). A guild can have
 // several. Core members get priority at signups for raids created for that
@@ -79,13 +80,21 @@ export function createRaidCoreService(database: Db) {
     // which character they bring to this core; left out, the one already set is kept.
     async addMember(guildId: string, value: string, memberId: string, role: RaidRole, bench = false, characterName?: string | null) {
       const core = await byIdOrName(guildId, value);
-      const characterId = characterName ? (await ownCharacter(memberId, characterName)).id : undefined;
+      const settings = await database.guildSettings?.findUnique({ where: { guildId }, select: { characterSignups: true } });
+      const existing = core.members.find(spot => spot.memberId === memberId);
+      const characterId = settings?.characterSignups
+        ? (await ownedSignupCharacter(database, guildId, memberId, characterName ?? existing?.characterId)).id
+        : characterName ? (await ownCharacter(memberId, characterName)).id : undefined;
       await database.raidCoreMember.upsert({
         where: { coreId_memberId: { coreId: core.id, memberId } },
         // Added or moved by an officer: a full member from now on (not on trial).
         create: { coreId: core.id, memberId, role, bench, ...(characterId ? { characterId } : {}) },
         update: { role, bench, trial: false, ...(characterId ? { characterId } : {}) }
       });
+      if (settings?.characterSignups && characterId) {
+        const spot = await database.raidCoreMember.findUniqueOrThrow({ where: { coreId_memberId: { coreId: core.id, memberId } } });
+        await database.raidCoreBackup.deleteMany({ where: { spotId: spot.id, characterId } });
+      }
       return core;
     },
 
@@ -94,11 +103,14 @@ export function createRaidCoreService(database: Db) {
     async setCharacter(guildId: string, value: string, memberId: string, characterName: string | null) {
       const core = await byIdOrName(guildId, value);
       if (!core.members.some((entry) => entry.memberId === memberId)) throw new Error(`That player is not in ${core.name}.`);
-      const character = characterName ? await ownCharacter(memberId, characterName) : null;
+      const settings = await database.guildSettings?.findUnique({ where: { guildId }, select: { characterSignups: true } });
+      if (settings?.characterSignups && !characterName) throw new Error(CHARACTER_REQUIRED);
+      const character = characterName ? settings?.characterSignups ? await ownedSignupCharacter(database, guildId, memberId, characterName) : await ownCharacter(memberId, characterName) : null;
       await database.raidCoreMember.update({
         where: { coreId_memberId: { coreId: core.id, memberId } },
         data: { characterId: character?.id ?? null }
       });
+      if (character && settings?.characterSignups) await database.raidCoreBackup.deleteMany({ where: { spotId: core.members.find(spot => spot.memberId === memberId)!.id, characterId: character.id } });
       return { core, character };
     },
 
@@ -108,7 +120,8 @@ export function createRaidCoreService(database: Db) {
       const core = await byIdOrName(guildId, value);
       const spot = core.members.find((entry) => entry.memberId === memberId);
       if (!spot) throw new Error(`That player is not in ${core.name}. Add them first.`);
-      const character = await ownCharacter(memberId, characterName);
+      const settings = await database.guildSettings?.findUnique({ where: { guildId }, select: { characterSignups: true } });
+      const character = settings?.characterSignups ? await ownedSignupCharacter(database, guildId, memberId, characterName) : await ownCharacter(memberId, characterName);
       if (spot.characterId === character.id) throw new Error(`${character.name} is already their character in ${core.name}.`);
       await database.raidCoreBackup.upsert({
         where: { spotId_characterId: { spotId: spot.id, characterId: character.id } },
@@ -121,7 +134,7 @@ export function createRaidCoreService(database: Db) {
     async removeBackup(guildId: string, value: string, memberId: string, characterName: string) {
       const core = await byIdOrName(guildId, value);
       const spot = core.members.find((entry) => entry.memberId === memberId);
-      const backup = spot?.backups.find((entry) => entry.character.name.toLowerCase() === characterName.trim().toLowerCase());
+      const backup = spot?.backups.find(entry => [entry.character.id, entry.character.name, `${entry.character.name}-${entry.character.realm}`].some(value => value.toLowerCase() === characterName.trim().toLowerCase()));
       if (!spot || !backup) throw new Error(`"${characterName.trim()}" is not a backup character of that player in ${core.name}.`);
       await database.raidCoreBackup.delete({ where: { id: backup.id } });
       return { core, character: backup.character };
@@ -163,14 +176,17 @@ export function createRaidCoreService(database: Db) {
         return removed.count > 0;
       }
       const trial = outcome === "TRIAL";
-      const character = characterName?.trim()
+      const core = await database.raidCore?.findUnique?.({ where: { id: coreId }, select: { guildId: true } });
+      const settings = core ? await database.guildSettings?.findUnique({ where: { guildId: core.guildId }, select: { characterSignups: true } }) : null;
+      const character = settings?.characterSignups && core ? await ownedSignupCharacter(database, core.guildId, memberId, characterName) : characterName?.trim()
         ? await database.character.findFirst({ where: { memberId, name: { equals: characterName.trim(), mode: "insensitive" } }, select: { id: true } })
         : null;
       const spot = await database.raidCoreMember.upsert({
         where: { coreId_memberId: { coreId, memberId } },
         create: { coreId, memberId, role: role ?? "DPS", trial, ...(character ? { characterId: character.id } : {}) },
-        update: { trial }
+        update: { trial, ...(settings?.characterSignups && character ? { characterId: character.id } : {}) }
       });
+      if (settings?.characterSignups && character) await database.raidCoreBackup.deleteMany({ where: { spotId: spot.id, characterId: character.id } });
       if (character && !spot.characterId) {
         await database.raidCoreMember.update({ where: { id: spot.id }, data: { characterId: character.id } });
       }

@@ -13,6 +13,8 @@ import { parseAddonSnapshot } from "../src/integrations/addon.js";
 import { queueWeeklyWowReport } from "../src/services/weekly-report-delivery.js";
 import { createEpgpService } from "../src/services/epgp.js";
 import { createLootService } from "../src/services/loot.js";
+import { createRaidCoreService } from "../src/services/raid-core.js";
+import { createApplicationService } from "../src/services/application.js";
 import assert from "node:assert/strict";
 import { PrismaClient } from "@prisma/client";
 import { createAddonImportService } from "../src/services/addon-import.js";
@@ -36,6 +38,9 @@ try {
     const restoredSettings = await database.guildSettings.findFirstOrThrow({ where: { guild: { discordId: "release-test-guild" } } });
     assert.equal(restoredSettings.coreLootOnly, true);
     assert.equal(restoredSettings.weeklyReportChannelId, "wow-reports");
+    assert.equal(restoredSettings.characterSignups, true);
+    const restoredSignup = await database.raidSignup.findFirstOrThrow({ where: { characterName: "ReleaseAlt" } });
+    assert.equal(restoredSignup.characterRealm, "ReleaseTest");
     assert.equal((await database.discordJob.findFirstOrThrow({ where: { key: { startsWith: "weekly-wow:" } } })).status, "PENDING");
     const final = await database.dungeonSeason.findFirstOrThrow({ where: { name: "Release season" } });
     assert.equal((final.finalStandings as { points: number }[])[0]?.points, 100);
@@ -209,5 +214,45 @@ try {
     assert.equal(await queueWeeklyWowReport(database, guild.id, reportEnd, reportAt, {}), false);
     await assert.rejects(queueWeeklyWowReport(brokenDatabase as never, guild.id, new Date("2026-10-13T15:00:00Z"), new Date("2026-10-14T16:00:00Z"), {}), /Forced job failure/);
     assert.equal((await database.guildSettings.findUniqueOrThrow({ where: { guildId: guild.id } })).weeklyReportLastAt!.toISOString(), reportAt.toISOString());
+    // A person has one primary plus backups per core, with independent character choices.
+    await database.guildSettings.update({ where: { guildId: guild.id }, data: { characterSignups: true } });
+    const alt = await database.character.create({ data: { memberId: member.id, name: "ReleaseAlt", realm: "ReleaseTest", className: "Mage" } });
+    const bob = await database.character.create({ data: { memberId: contender.id, name: "ReleaseBob", realm: "ReleaseTest", className: "Druid" } });
+    const charCores = createRaidCoreService(database);
+    await charCores.addMember(guild.id, core.id, member.id, "DPS", false, character.id);
+    await charCores.addMember(guild.id, otherCore.id, member.id, "DPS", false, character.id);
+    assert.equal(await database.raidCoreMember.count({ where: { memberId: member.id, characterId: character.id } }), 2);
+    await charCores.setCharacter(guild.id, otherCore.id, member.id, alt.id);
+    assert.equal((await database.raidCoreMember.findUniqueOrThrow({ where: { coreId_memberId: { coreId: core.id, memberId: member.id } } })).characterId, character.id);
+    await charCores.addBackup(guild.id, core.id, member.id, alt.id, "DPS");
+    const charRaid = await raids.create({ guildId: guild.id, coreId: core.id, title: "Character signup fixture A", scheduledAt: new Date(Date.now() + 86400000), createdBy: "character-test", dpsLimit: 1 });
+    const altRaid = await raids.create({ guildId: guild.id, coreId: otherCore.id, title: "Character signup fixture B", scheduledAt: new Date(Date.now() + 2 * 86400000), createdBy: "character-test", dpsLimit: 1 });
+    await assert.rejects(raids.signup(charRaid.id, guild.id, member.id, "DPS"), /Choisis ton personnage/);
+    await assert.rejects(raids.signup(charRaid.id, guild.id, member.id, "DPS", "AVAILABLE", bob.id), /Choisis ton personnage/);
+    await raids.signup(charRaid.id, guild.id, contender.id, "DPS", "AVAILABLE", bob.id);
+    const signed = await raids.signup(charRaid.id, guild.id, member.id, "DPS", "AVAILABLE", character.id);
+    assert.equal(signed.status, "SIGNED_UP");
+    assert.equal(signed.bumped?.memberId, contender.id);
+    await raids.signup(altRaid.id, guild.id, member.id, "DPS", "AVAILABLE", alt.id);
+    await charCores.setCharacter(guild.id, core.id, member.id, alt.id);
+    assert.equal((await database.raidSignup.findUniqueOrThrow({ where: { raidId_memberId: { raidId: charRaid.id, memberId: member.id } } })).characterId, character.id); // roster changes don't rewrite tonight
+    const changed = await raids.signup(charRaid.id, guild.id, member.id, "DPS", "AVAILABLE", alt.id);
+    assert.equal(changed.characterName, "ReleaseAlt");
+    assert.equal(await database.raidSignup.count({ where: { raidId: charRaid.id, memberId: member.id } }), 1);
+    await raids.cancelSignup(charRaid.id, guild.id, member.id);
+    assert.equal((await database.raidSignup.findUniqueOrThrow({ where: { id: changed.id } })).characterName, "ReleaseAlt"); // cancelled snapshot survives
+    const concurrentCharRaid = await raids.create({ guildId: guild.id, title: "Concurrent character signup", scheduledAt: new Date(Date.now() + 86400000), createdBy: "character-test", dpsLimit: 1 });
+    const charResults = await Promise.all([raids.signup(concurrentCharRaid.id, guild.id, member.id, "DPS", "AVAILABLE", alt.id), raids.signup(concurrentCharRaid.id, guild.id, contender.id, "DPS", "AVAILABLE", bob.id)]);
+    assert.equal(charResults.filter(row => row.status === "SIGNED_UP").length, 1);
+    assert.equal(charResults.filter(row => row.status === "WAITLISTED").length, 1);
+    assert.ok(charResults.every(row => row.characterId && row.characterRealm === "ReleaseTest"));
+    const applications = createApplicationService(database);
+    const applicationInput = { guildId: guild.id, memberId: member.id, coreId: core.id, character: "UntrustedName", characterId: alt.id, className: "Warrior", spec: "Frost", experience: "Experienced", availability: "Evenings" };
+    await assert.rejects(applications.create({ ...applicationInput, characterId: bob.id }), /Choisis ton personnage/);
+    const characterApplication = await applications.create(applicationInput);
+    assert.equal(characterApplication.characterId, alt.id);
+    assert.equal(characterApplication.character, "ReleaseAlt-ReleaseTest");
+    assert.equal(characterApplication.className, "Mage");
+    await applications.transition(guild.id, characterApplication.id, "APPROVED", "character-test");
   }
 } finally { await database.$disconnect(); }

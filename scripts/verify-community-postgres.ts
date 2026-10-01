@@ -73,12 +73,17 @@ export async function verifyCommunityPostgres(database: PrismaClient, guildId: s
 
   // Force outbox failure inside a real transaction: points and tickets both roll back.
   const rollbackDraw = await service.create(guildId, season.id, { kind: "LOTTERY", title: "Queue rollback test", rules: { ...lotteryRules, cost: 1 }, endsAt, actorId: "officer" }, now);
-  const broken = Object.create(database) as PrismaClient;
-  broken.$transaction = ((work: (tx: unknown) => Promise<unknown>) => database.$transaction(async tx => {
-    const wrapped = Object.create(tx);
-    wrapped.discordJob = { upsert: async () => { throw new Error("Forced outbox failure"); } };
-    return work(wrapped);
-  })) as typeof database.$transaction;
+  const broken = {
+    $transaction: (work: (tx: unknown) => Promise<unknown>) => database.$transaction(async tx => {
+      const wrapped = new Proxy(tx, {
+        get(target, property) {
+          if (property === "discordJob") return { upsert: async () => { throw new Error("Forced outbox failure"); } };
+          return Reflect.get(target, property);
+        },
+      });
+      return work(wrapped);
+    }),
+  } as unknown as PrismaClient;
   await assert.rejects(createCommunityService(broken).enterLottery(guildId, rollbackDraw.id, "player-a", 1, now), /Forced outbox failure/);
   assert.equal(await database.communityEntry.count({ where: { activityId: rollbackDraw.id } }), 0);
   assert.equal(await database.communityPoint.count({ where: { reference: `lottery:${rollbackDraw.id}:player-a` } }), 0);

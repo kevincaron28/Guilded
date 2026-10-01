@@ -149,7 +149,77 @@ model Guild {
   polls               Poll[]
   unclaimedCharacters UnclaimedCharacter[]
   characterPairings   CharacterPairing[]
+  communitySeasons    CommunitySeason[]
 }
+
+// Discord community activities have their own seasons and wallet, separate from raid loot.
+model CommunitySeason {
+  id             String @id @default(cuid())
+  guildId        String
+  game           String
+  name           String
+  channelId      String
+  audienceRoleId String?
+  status         String @default("ACTIVE")
+  createdBy      String
+  createdAt      DateTime @default(now())
+  endedAt        DateTime?
+  finalStandings Json?
+  guild          Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  activities     CommunityActivity[]
+  points         CommunityPoint[]
+  @@index([guildId, game, status])
+}
+
+model CommunityActivity {
+  id          String @id @default(cuid())
+  seasonId    String
+  kind        String
+  title       String
+  rules       Json
+  status      String @default("OPEN")
+  startsAt    DateTime?
+  endsAt      DateTime
+  createdBy   String
+  createdAt   DateTime @default(now())
+  messageId   String?
+  reminderAt  DateTime?
+  result      Json?
+  season      CommunitySeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  entries     CommunityEntry[]
+  @@index([status, endsAt])
+  @@index([seasonId, kind])
+}
+
+model CommunityEntry {
+  id          String @id @default(cuid())
+  activityId  String
+  userId      String
+  status      String
+  quantity    Int @default(1)
+  evidence    String?
+  reviewedBy  String?
+  reviewNote  String?
+  createdAt   DateTime @default(now())
+  activity    CommunityActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  @@unique([activityId, userId])
+}
+
+model CommunityPoint {
+  id        String @id @default(cuid())
+  seasonId  String
+  userId    String
+  amount    Int
+  kind      String
+  reference String
+  reason    String
+  actorId   String
+  createdAt DateTime @default(now())
+  season    CommunitySeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  @@unique([seasonId, reference])
+  @@index([seasonId, userId])
+}
+
 
 model Member {
   id                  String                       @id @default(cuid())

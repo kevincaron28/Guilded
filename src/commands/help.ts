@@ -23,7 +23,9 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/dungeon leaderboard` · `/dungeon records` · `/dungeon player` — dungeon challenge · `/dungeon group` — form a group with its own voice channel · `/dungeon alerts` — get pinged for groups you fit",
       "`/character readiness me` — your latest gear check from the addon",
       "`/apply` — apply to a raid core (or press **Apply** on that core's own roster post in the raid roster channel)",
-      "`/report bug` — report a bug or problem with the bot"
+      "`/report bug` — report a bug or problem with the bot",
+      "`/community seasons` · `/community leaderboard` · `/community wallet` · `/community dice` — game seasons, scores and daily dice",
+      "Lottery, gaming night, quiz and challenge posts have participation buttons"
     ],
     fr: [
       "`/character pair` — liez votre companion une fois pour que les prochains envois lient votre personnage automatiquement (à faire en premier)",
@@ -37,7 +39,9 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/dungeon leaderboard` · `/dungeon records` · `/dungeon player` — défi des donjons · `/dungeon group` — former un groupe avec son salon vocal · `/dungeon alerts` — être mentionné pour les groupes qui vous conviennent",
       "`/character readiness me` — votre dernière vérification d'équipement (addon)",
       "`/apply` — postuler à un core de raid (ou appuyez sur **Postuler** sur le message du core dans le salon des cores de raid)",
-      "`/report bug` — signaler un bug ou un problème avec le bot"
+      "`/report bug` — signaler un bug ou un problème avec le bot",
+      "`/community seasons` · `/community leaderboard` · `/community wallet` · `/community dice` — saisons, classements et dé quotidien",
+      "Les annonces de loterie, soirée gaming, quiz et défi ont des boutons pour participer"
     ]
   },
   raidLeader: {
@@ -68,7 +72,8 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/dungeon admin` — invalidate a run, award points, rules, target times, new season",
       "`/bank list` / `handle` · `/mod application list` · `/mod` · `/mod faq` — answer channel · `/tag set` · `/setup selfroles`",
       "`/raid wcl report url:` — pull a Warcraft Logs report into the raid history",
-      "`/report inactive` · `/report export` · `/report guild` · `/poll create` · `/loot award` (loot council)"
+      "`/report inactive` · `/report export` · `/report guild` · `/poll create` · `/loot award` (loot council)",
+      "`/community start-season` · `/community lottery create` · `/community gaming create` · `/community challenge create` · `/community quiz` — organize activities"
     ],
     fr: [
       "`/setup start` — configuration guidée et liste de vérification · `/setup config` — tous les réglages",
@@ -77,7 +82,8 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/dungeon admin` — annuler un donjon, donner des points, règles, temps cibles, nouvelle saison",
       "`/bank list` / `handle` · `/mod application list` · `/mod` · `/mod faq` — salon des réponses · `/tag set` · `/setup selfroles`",
       "`/raid wcl report url:` — importer un rapport Warcraft Logs dans l'historique des raids",
-      "`/report inactive` · `/report export` · `/report guild` · `/poll create` · `/loot award` (conseil de loot)"
+      "`/report inactive` · `/report export` · `/report guild` · `/poll create` · `/loot award` (conseil de loot)",
+      "`/community start-season` · `/community lottery create` · `/community gaming create` · `/community challenge create` · `/community quiz` — organiser les activités"
     ]
   }
 };

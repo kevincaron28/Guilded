@@ -153,7 +153,7 @@ export async function syncSignupEmbed(discordGuild: DiscordGuild, guildId: strin
     const coreLabel = new Map(core?.members.map((m) => [m.memberId, coreSpotLabel(m)]) ?? []);
     const embed = buildSignupEmbed({
       lang, raid, classEmojis: await loadClassEmojis(discordGuild),
-      signups: everyone.map((signup) => ({ memberId: signup.memberId, characterId: signup.characterId, character: signup.character?.memberId === signup.memberId && signup.member.guildId === guildId ? signup.character : null, displayName: signup.characterName ? `${signup.characterName} — ${signup.characterRealm} · ${signup.member.displayName}` : coreLabel.get(signup.memberId) ?? signup.member.displayName, role: signup.role, status: signup.status })),
+      signups: everyone.map((signup) => ({ memberId: signup.memberId, characterId: signup.characterId, character: signup.character?.memberId === signup.memberId && signup.member.guildId === guildId ? signup.character : null, displayName: signup.characterName ? `${signup.characterName} · ${signup.member.displayName}` : coreLabel.get(signup.memberId) ?? signup.member.displayName, role: signup.role, status: signup.status })),
       core: core ? { name: core.name, members: core.members.map((m) => ({ memberId: m.memberId, characterId: m.characterId, character: m.character?.memberId === m.memberId ? m.character : null, backupCharacterIds: m.backups.map(backup => backup.characterId), displayName: coreSpotLabel(m), role: m.role, bench: m.bench })) } : undefined
     });
 
@@ -352,7 +352,7 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
   }
   if (subcommand === "roster") {
     const roster = await raidService.roster(raidId, context.guildId);
-    await interaction.reply({ content: roster.length ? roster.map((signup) => `• ${signup.characterName ? `${signup.characterName} — ${signup.characterRealm}` : signup.member.displayName} (<@${signup.member.discordUserId}>) — ${roleLabel[signup.role]}`).join("\n") : "No members are signed up.", ephemeral: true });
+    await interaction.reply({ content: roster.length ? roster.map((signup) => `• ${signup.characterName ? signup.characterName : signup.member.displayName} (<@${signup.member.discordUserId}>) — ${roleLabel[signup.role]}`).join("\n") : "No members are signed up.", ephemeral: true });
     return;
   }
   if (subcommand === "edit") {

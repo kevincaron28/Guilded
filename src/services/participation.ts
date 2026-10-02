@@ -22,7 +22,7 @@ export function createParticipationService(database: PrismaClient) {
   return {
     async configure(guildId: string, seasonId: string, enabled: boolean, input: ParticipationRules) {
       const rules = participationRules.parse(input);
-      if (enabled && !rules.textChannels.length && !rules.voiceChannels.length && !rules.allVoice) fail("Choisis au moins un salon / Select at least one channel.");
+      if (enabled && !rules.textChannels.length && !rules.voiceChannels.length && !rules.allVoice && !rules.allText) fail("Choisis au moins un salon / Select at least one channel.");
       return locked(guildId, async tx => {
         const season = await tx.communitySeason.findFirst({ where: { id: seasonId, guildId, game: "DISCORD", status: "ACTIVE" } });
         if (!season) return fail("Saison Discord active requise / Active Discord season required.");
@@ -32,7 +32,7 @@ export function createParticipationService(database: PrismaClient) {
     async message(guildId: string, seasonId: string, input: { userId: string; channelId: string; messageId: string; hash: string | null; contentAvailable: boolean; at: Date; revision: number }) {
       return locked(guildId, async tx => {
         const cfg = await current(tx, guildId, seasonId, input.revision);
-        if (!cfg || !cfg.rules.textChannels.includes(input.channelId) || input.contentAvailable && !input.hash) return false;
+        if (!cfg || !cfg.rules.allText && !cfg.rules.textChannels.includes(input.channelId) || input.contentAvailable && !input.hash) return false;
         if (await tx.communityParticipationDeletion.findUnique({ where: { seasonId_messageId: { seasonId, messageId: input.messageId } } })) return false;
         const reference = `participation:message:${input.messageId}`;
         if (await exists(tx, seasonId, reference)) return false;
@@ -49,7 +49,7 @@ export function createParticipationService(database: PrismaClient) {
       if (input.userId === input.reactorId) return false;
       return locked(guildId, async tx => {
         const cfg = await current(tx, guildId, seasonId, input.revision);
-        if (!cfg || !cfg.rules.textChannels.includes(input.channelId)) return false;
+        if (!cfg || !cfg.rules.allText && !cfg.rules.textChannels.includes(input.channelId)) return false;
         if (await tx.communityParticipationDeletion.findUnique({ where: { seasonId_messageId: { seasonId, messageId: input.messageId } } })) return false;
         // Emoji is deliberately absent: several emojis or toggling cannot earn again.
         const reference = `participation:reaction:${input.messageId}:${input.reactorId}`;

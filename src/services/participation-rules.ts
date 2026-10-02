@@ -5,8 +5,10 @@ import { localParts, zonedTime } from "./raid-time.js";
 export const participationRules = z.object({
   textChannels: z.array(z.string().min(1)).max(20).default([]),
   voiceChannels: z.array(z.string().min(1)).max(20).default([]),
-  // Every voice channel counts (temporary group channels included), not only the listed ones.
-  allVoice: z.boolean().default(false),
+  // By default every text channel and every voice channel counts (temporary group channels
+  // included). Turned off, only the listed channels do.
+  allText: z.boolean().default(true),
+  allVoice: z.boolean().default(true),
   emojis: z.array(z.string().min(1).max(80)).max(10).default(["👍", "❤️", "🎉"]),
   messageDailyCap: z.number().int().min(0).max(50).default(10),
   reactionDailyCap: z.number().int().min(0).max(20).default(6),

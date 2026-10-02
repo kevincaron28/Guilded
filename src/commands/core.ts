@@ -27,12 +27,14 @@ export const coreCommand = new SlashCommandBuilder()
   .setDescription("Raid cores: named rosters whose members get priority at that core's raid signups.")
   .addSubcommand((sub) => sub.setName("setup").setDescription("Guided: name a raid core, pick its players from menus, choose its rules (Raid Leaders). Start here."))
   .addSubcommand((sub) => sub.setName("edit").setDescription("Change a core by clicking: add or move players, roles, the bench, remove, rename (Raid Leaders).")
-    .addStringOption(coreOption))
+    .addStringOption(coreOption)
+    .addStringOption((o) => o.setName("realm").setDescription("Set the realm this core plays on (\"none\" clears it)").setDescriptionLocalizations({ fr: "Définir le royaume de ce core (« none » l'efface)" }).setMaxLength(60)))
   .addSubcommand((sub) => sub.setName("create").setDescription("Create a raid core with a command (Raid Leaders). /core setup is easier.")
     .addStringOption((o) => o.setName("name").setDescription("e.g. Tuesday MC core").setMinLength(2).setMaxLength(50).setRequired(true))
     .addStringOption((o) => o.setName("description").setDescription("Optional: goals, progression").setMaxLength(300))
     .addStringOption((o) => o.setName("schedule").setDescription("Auto raids, next 6 days: mardi 20h; jeudi 20h (server timezone)")
-      .setDescriptionLocalizations({ fr: "Raids auto, 7 prochains jours : mardi 20h; jeudi 20h (heure du serveur)" }).setMaxLength(400)))
+      .setDescriptionLocalizations({ fr: "Raids auto, 6 prochains jours : mardi 20h; jeudi 20h (heure du serveur)" }).setMaxLength(400))
+    .addStringOption((o) => o.setName("realm").setDescription("The realm this core plays on").setDescriptionLocalizations({ fr: "Le royaume de ce core" }).setMaxLength(60)))
   .addSubcommand((sub) => sub.setName("add").setDescription("Add a player to a core (Raid Leaders).")
     .addStringOption(coreOption)
     .addUserOption((o) => o.setName("player").setDescription("Discord member").setRequired(true))
@@ -113,6 +115,13 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
     return;
   }
 
+  if (subcommand === "edit" && interaction.options.getString("realm")) {
+    const realm = interaction.options.getString("realm", true).trim();
+    const core = await coreService.setRealm(guildId, interaction.options.getString("core", true), /^(none|aucun)$/i.test(realm) ? null : realm);
+    await interaction.reply({ content: core.realm ? `**${core.name}** : royaume **${core.realm}**. Seuls les personnages de ce royaume peuvent s'y inscrire.` : `**${core.name}** : royaume effacé; celui que ses personnages partagent s'applique.`, ephemeral: true });
+    return;
+  }
+
   if (subcommand === "edit") {
     await runCoreEditor(interaction, guildId, interaction.options.getString("core", true));
     return;
@@ -124,8 +133,10 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
     // Discord work (a role, a category, four channels) can take longer than the 3 s reply window.
     await interaction.deferReply({ ephemeral: true });
     const settings = await guildService.getSettings(guildId);
-    const core = await coreService.create(guildId, interaction.options.getString("name", true), interaction.options.getString("description"), schedule,
+    const created0 = await coreService.create(guildId, interaction.options.getString("name", true), interaction.options.getString("description"), schedule,
       { timezone: settings?.timezone ?? "America/Toronto", createdBy: interaction.user.id });
+    const realm = interaction.options.getString("realm")?.trim();
+    const core = realm ? await coreService.setRealm(guildId, created0.id, realm) : created0;
     const discord = await ensureCoreDiscord(interaction.guild, prisma, guildId, core.id);
     const created = await fillCoreWeeklyRaids(prisma, guildId, core.id);
     const { runDiscordJobs } = await import("../services/discord-jobs.js");

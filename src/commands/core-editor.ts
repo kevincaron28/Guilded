@@ -124,7 +124,7 @@ export async function runCoreEditor(interaction: ChatInputCommandInteraction, gu
           await fillCoreWeeklyRaids(prisma, guildId, core.id);
           const { runDiscordJobs } = await import("../services/discord-jobs.js");
           await runDiscordJobs(interaction.client);
-          await refresh(`${saved.weeklySchedule ? `📅 ${saved.schedule} (${saved.weeklyTimezone}). Inscriptions des 7 prochains jours; la suite s'ajoute automatiquement.` : "Création automatique arrêtée."} Les raids déjà affichés et leurs inscriptions sont conservés. /raid cancel permet de sauter une soirée.`);
+          await refresh(`${saved.weeklySchedule ? `📅 ${saved.schedule} (${saved.weeklyTimezone}). Inscriptions des 6 prochains jours; la suite s'ajoute automatiquement.` : "Création automatique arrêtée."} Les raids déjà affichés et leurs inscriptions sont conservés. /raid cancel permet de sauter une soirée.`);
         } catch (error) {
           const content = error instanceof Error ? error.message : "Impossible d'enregistrer l'horaire.";
           if (submitted.deferred) await submitted.followUp({ content, ephemeral: true });

@@ -26,8 +26,6 @@
     "companion:build": "node companion-app/make-icon.mjs && node scripts/build-companion-web.mjs"
   },
   "dependencies": {
-    "@neon/config": "^1.7.3",
-    "@neon/env": "^1.4.4",
     "@prisma/client": "^6.16.2",
     "discord.js": "^14.22.1",
     "dotenv": "^17.2.2",
@@ -36,6 +34,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.5.2",
+    "esbuild": "^0.28.2",
     "eslint": "^9.36.0",
     "fengari": "^0.1.5",
     "fflate": "^0.8.3",
@@ -43,8 +42,7 @@
     "tsx": "^4.19.2",
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.44.0",
-    "vitest": "^4.1.11",
-    "esbuild": "^0.28.2"
+    "vitest": "^4.1.11"
   },
   "overrides": {
     "deepmerge-ts": "^8.0.0"

@@ -1,7 +1,7 @@
-> **5.0 delivery note:** Publishing from the cloud was blocked by GitHub write permissions.
-> If given Guilded-5.0-Stabilization.zip, follow the offline bundle import section in
-> docs/V5_0_RELEASE_HANDOFF.md, then publish from the owner's authenticated local setup.
-> PostgreSQL/Windows CI and real-client gates remain required.
+> **5.0 delivery note:** The stabilization bundle (Guilded-5.0-Stabilization.zip) was merged as
+> PR #4; ignore the offline bundle import section in docs/V5_0_RELEASE_HANDOFF.md. Work now goes
+> through pull requests on GitHub: both `Guilded quality` jobs must pass before a merge.
+> Real-client gates remain required.
 
 # Working on Guilded
 

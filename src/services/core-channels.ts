@@ -187,7 +187,8 @@ export async function createCoreChannels(guild: DiscordGuild, database: Db, core
     where: { id: core.id },
     data: { categoryId, rosterChannelId, signupChannelId, lootChannelId, raidLogChannelId, chatChannelId, voiceChannelId, ...(movingRoster ? { rosterMessageId: null } : {}) }
   });
-  await openCoreChannels(guild, database, core.guildId, [rosterChannelId, signupChannelId, lootChannelId, raidLogChannelId]);
+  await openCoreChannels(guild, database, core.guildId, [categoryId, rosterChannelId, signupChannelId]);
+  await syncCoreLogChannels(guild, { categoryId, lootChannelId, raidLogChannelId });
   return created;
 }
 
@@ -202,7 +203,7 @@ export async function openCoreChannels(guild: DiscordGuild, database: Db, guildI
     for (const id of channelIds) {
       if (!id) continue;
       const channel = await guild.channels.fetch(id).catch(() => null);
-      if (!channel || channel.type !== ChannelType.GuildText) continue;
+      if (!channel || (channel.type !== ChannelType.GuildText && channel.type !== ChannelType.GuildCategory)) continue;
       let touched = false;
       const leaders = new Set(guild.roles.cache.filter(role => LEADERSHIP.some(permission => isPermissionRoleName(permission, role.name))).map(role => role.id));
       for (const roleId of denied) {
@@ -242,10 +243,33 @@ export async function openCoreChannels(guild: DiscordGuild, database: Db, guildI
   return changed;
 }
 
-// Every core's roster and signups channels, readable by the guild (a new core's role included).
+// A core's loot log and raid reports follow its category exactly (Discord's "sync permissions"),
+// so who reads them is decided in one place: the core's category. A channel an officer moved
+// out of the category is left as it is. Never throws. Returns how many channels changed.
+export async function syncCoreLogChannels(guild: DiscordGuild, core: Pick<CoreLike, "categoryId" | "lootChannelId" | "raidLogChannelId">): Promise<number> {
+  let changed = 0;
+  if (!core.categoryId) return changed;
+  for (const id of [core.lootChannelId, core.raidLogChannelId]) {
+    if (!id) continue;
+    try {
+      const channel = await guild.channels.fetch(id);
+      if (!channel || channel.type !== ChannelType.GuildText || channel.parentId !== core.categoryId || channel.permissionsLocked) continue;
+      await channel.lockPermissions();
+      changed++;
+    } catch (error) {
+      console.error("Failed to sync a core log channel with its category", error);
+    }
+  }
+  return changed;
+}
+
+// Every core's category, roster and signups channels, readable by the guild (a new core's role
+// included); the loot log and raid reports then follow their category.
 export async function openAllCoreChannels(guild: DiscordGuild, database: Db, guildId: string): Promise<number> {
-  const cores = await database.raidCore.findMany({ where: { guildId }, select: { rosterChannelId: true, signupChannelId: true, lootChannelId: true, raidLogChannelId: true } });
-  return openCoreChannels(guild, database, guildId, cores.flatMap((core) => [core.rosterChannelId, core.signupChannelId, core.lootChannelId, core.raidLogChannelId]));
+  const cores = await database.raidCore.findMany({ where: { guildId }, select: { categoryId: true, rosterChannelId: true, signupChannelId: true, lootChannelId: true, raidLogChannelId: true } });
+  let changed = await openCoreChannels(guild, database, guildId, cores.flatMap((core) => [core.categoryId, core.rosterChannelId, core.signupChannelId]));
+  for (const core of cores) changed += await syncCoreLogChannels(guild, core);
+  return changed;
 }
 
 // After a rename: the role, the category and the channels follow the new name.

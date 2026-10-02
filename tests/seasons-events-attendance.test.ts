@@ -1,11 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Client } from "discord.js";
+import { ChannelType, type Client, type Guild } from "discord.js";
 import type { PrismaClient } from "@prisma/client";
 import { createCommunityService } from "../src/services/community.js";
 import { cleanupPastRaidPosts, pastRaidPostWhere, stalePlannedBefore } from "../src/services/raid-post-cleanup.js";
 import { buildRaidAttendance } from "../src/services/raid-report.js";
 import { raidAttendanceEmbed } from "../src/commands/raid-report.js";
 import { channelSpec } from "../src/setup-names.js";
+import { ALL_CHANNELS, RETIRED_CHANNELS } from "../src/commands/setup.js";
+import { configCommand } from "../src/commands/settings.js";
+import { syncCoreLogChannels } from "../src/services/core-channels.js";
 
 type Row = Record<string, unknown>;
 
@@ -98,6 +101,29 @@ describe("past raid signup posts", () => {
       { where: { id: "a" }, data: { signupMessageId: null, mirrorSignupMessageId: null } },
       { where: { id: "b" }, data: { signupMessageId: null } }
     ]);
+  });
+});
+
+describe("raid reports and loot logs live in each core's category", () => {
+  it("no longer creates or offers server-wide ones, but uninstall still finds old ones", () => {
+    expect(ALL_CHANNELS).not.toContain("raidLogChannelId");
+    expect(ALL_CHANNELS).not.toContain("lootChannelId");
+    expect(RETIRED_CHANNELS).toEqual(["raidLogChannelId", "lootChannelId"]);
+    expect(ALL_CHANNELS).toContain("attendanceChannelId");
+    const choices = JSON.stringify(configCommand.toJSON());
+    expect(choices).not.toContain("raid-log-channel");
+    expect(choices).not.toContain("loot-channel");
+  });
+
+  it("syncs a core's loot and report channels with its category, and leaves moved or synced ones alone", async () => {
+    const lock = vi.fn(async () => undefined);
+    const text = (parentId: string | null, permissionsLocked: boolean) => ({ type: ChannelType.GuildText, parentId, permissionsLocked, lockPermissions: lock });
+    const channels: Record<string, unknown> = { loot: text("category", false), reports: text("category", true), moved: text("elsewhere", false) };
+    const guild = { channels: { fetch: vi.fn(async (id: string) => channels[id] ?? null) } } as unknown as Guild;
+    expect(await syncCoreLogChannels(guild, { categoryId: "category", lootChannelId: "loot", raidLogChannelId: "reports" })).toBe(1);
+    expect(await syncCoreLogChannels(guild, { categoryId: "category", lootChannelId: "moved", raidLogChannelId: null })).toBe(0);
+    expect(await syncCoreLogChannels(guild, { categoryId: null, lootChannelId: "loot", raidLogChannelId: "reports" })).toBe(0);
+    expect(lock).toHaveBeenCalledTimes(1);
   });
 });
 

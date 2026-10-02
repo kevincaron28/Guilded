@@ -71,6 +71,30 @@ are converted using the companion computer's timezone; keep its clock/timezone
 correct. English engine messages are currently required. Unknown formats are
 ignored; a real localized-client test is required before claiming support.
 
+### Map instances, names and leagues (follow-up, 2 October 2026)
+
+- **Maps vs portal entries.** The area-generation line carries a seed; the same area
+  and seed is the same map instance. The companion hashes area/level/seed into
+  `instanceRef` (SHA-256) in memory; the seed itself is never written to the journal
+  or uploaded. The hash is not secret (seeds are small numbers), but a seed has no
+  meaning outside its map instance. Party members in the same map produce the same
+  `instanceRef`, which a later party feature can use. `/poe summary` now shows
+  **maps** (distinct instances) and **portal entries** (visits). Visits from older
+  companions have no `instanceRef` and each counts as its own map. Older saved
+  journals without it still load and upload.
+- **Readable names.** `/poe runs` and the companion's map history show
+  `MapHiddenGrotto` as "Hidden Grotto". This is derived from the area ID on display,
+  so it also applies to stored history and does not depend on the client language.
+  The stored key is still `areaId`.
+- **Leagues.** The `league` option in `/poe runs` and `/poe summary` autocompletes from
+  leagues already observed in the guild (most recently played first), and matching is
+  case-insensitive, so "dawn of the hunt" and "Dawn of the Hunt" are one league.
+
+Not yet verified against a real PoE2 log: that the seed stays the same for every
+re-entry into one map instance and differs between instances. Include this in the
+pilot (enter a map, return to hideout, re-enter: `/poe summary` should show 1 map,
+2 portal entries).
+
 ## Consent, authentication and recovery
 
 GGG permits independent tools to read logs when users understand how the data is

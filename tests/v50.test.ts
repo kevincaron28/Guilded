@@ -1,7 +1,7 @@
 import { ChannelType, Collection } from "discord.js";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { PermissionFlagsBits } from "discord.js";
-import { ARCHIVE_CATEGORY, archiveCoreDiscord, guildViewerRoleIds, openCoreChannels, setupCoreDiscord } from "../src/services/core-channels.js";
+import { deleteCoreDiscord, guildViewerRoleIds, openCoreChannels, setupCoreDiscord } from "../src/services/core-channels.js";
 import {
   activePollAnswer, aiMessages, applicationStatusAnswer, askAi, commandHelpAnswer, createAnswerLimiter, foldText, looksLikeActivePollQuestion,
   looksLikeApplicationStatusQuestion, looksLikeBankRequestQuestion, looksLikeBotHealthQuestion, looksLikeCommandHelpQuestion, looksLikeCraftRequestQuestion,
@@ -13,7 +13,7 @@ import { botHealthAnswer } from "../src/services/bot-messages.js";
 import { buildGuildedReference } from "../src/services/guilded-reference.js";
 import { alertRecipients, dungeonLevelsFromTitle, fitsGroup, parseLevelRange, rolesFromTitle, type AlertGroup } from "../src/services/group-alerts.js";
 
-// 5.0 on Discord: core channels made with the core and archived with it; group alerts; the answer channel.
+// 5.0 on Discord: core channels made and deleted with the core; group alerts; the answer channel.
 
 type FakeChannel = {
   id: string; name: string; type: ChannelType; parentId: string | null;
@@ -112,38 +112,67 @@ describe("core channels made with the core", () => {
   });
 });
 
-describe("core channels archived when the core is deleted", () => {
-  it("moves the text channels read-only to Archived cores, drops voice and category, renames the role", async () => {
+describe("core Discord deletion", () => {
+  it("deletes all six linked channels, additional category children, the category and role, leaving other cores alone", async () => {
     const { guild, channels, roles, makeChannel } = fakeGuild();
-    roles.set("role1", { id: "role1", name: "Tuesday MC", mentionable: true });
-    const category = makeChannel("⚔️ Tuesday MC", ChannelType.GuildCategory);
-    const roster = makeChannel("tuesday-mc-roster", ChannelType.GuildText, category.id, ["everyone", "bot"]);
-    const signups = makeChannel("tuesday-mc-signups", ChannelType.GuildText, category.id, ["everyone", "bot"]);
-    const chat = makeChannel("tuesday-mc-chat", ChannelType.GuildText, category.id, ["everyone", "role1", "bot"]);
-    const voice = makeChannel("🔊 Tuesday MC", ChannelType.GuildVoice, category.id);
-    const core = { ...baseCore, roleId: "role1", categoryId: category.id, rosterChannelId: roster.id, signupChannelId: signups.id, chatChannelId: chat.id, voiceChannelId: voice.id };
-
-    expect(await archiveCoreDiscord(guild as never, core)).toBe(3);
-    const archive = [...channels.values()].find((channel) => channel.name === ARCHIVE_CATEGORY)!;
-    expect(archive).toBeDefined();
-    for (const channel of [roster, signups, chat]) expect(channel.parentId).toBe(archive.id);
-    expect(chat.overwrites["role1"]).toEqual({ SendMessages: false });
-    expect(chat.overwrites["bot"]).toBeUndefined();
-    expect(channels.has(voice.id)).toBe(false);
-    expect(channels.has(category.id)).toBe(false);
-    expect(roles.get("role1")).toMatchObject({ name: "Tuesday MC (archived)", mentionable: false });
+    const database = fakeDatabase(baseCore);
+    await setupCoreDiscord(guild as never, database as never, "k1", async () => undefined);
+    const extra = makeChannel("core-plans", ChannelType.GuildText, database.row["categoryId"] as string);
+    // A linked channel moved outside the category must still be deleted.
+    channels.get(database.row["lootChannelId"] as string)!.parentId = null;
+    const other = makeChannel("other-core-chat", ChannelType.GuildText);
+    roles.set("other-role", { id: "other-role", name: "Other Core", mentionable: true });
+    expect(await deleteCoreDiscord(guild as never, database.row as never)).toEqual({ removed: 9, failed: [] });
+    expect(channels.has(extra.id)).toBe(false);
+    expect([...channels.keys()]).toEqual([other.id]);
+    expect([...roles.keys()]).toEqual(["other-role"]);
   });
 
-  it("opens a second archive category when the first is full", async () => {
-    const { guild, channels, makeChannel } = fakeGuild();
-    const full = makeChannel(ARCHIVE_CATEGORY, ChannelType.GuildCategory);
-    for (let i = 0; i < 49; i++) makeChannel(`old-${i}`, ChannelType.GuildText, full.id);
-    const chat = makeChannel("wed-chat", ChannelType.GuildText, null, ["everyone"]);
-    const signups = makeChannel("wed-signups", ChannelType.GuildText, null, ["everyone"]);
-    await archiveCoreDiscord(guild as never, { ...baseCore, chatChannelId: chat.id, signupChannelId: signups.id });
-    const second = [...channels.values()].find((channel) => channel.name === `${ARCHIVE_CATEGORY} 2`);
-    expect(second).toBeDefined();
-    expect(chat.parentId).toBe(second!.id);
+  it("keeps the category and role after a channel fails and succeeds on retry", async () => {
+    const { guild, channels, roles } = fakeGuild();
+    const database = fakeDatabase(baseCore);
+    await setupCoreDiscord(guild as never, database as never, "k1", async () => undefined);
+    const chat = channels.get(database.row["chatChannelId"] as string)!;
+    const remove = chat.delete;
+    chat.delete = vi.fn().mockRejectedValue(new Error("Missing Permissions"));
+    expect(await deleteCoreDiscord(guild as never, database.row as never)).toEqual({ removed: 5, failed: [`channel ${chat.id}`] });
+    expect(channels.has(database.row["categoryId"] as string)).toBe(true);
+    expect(roles.has(database.row["roleId"] as string)).toBe(true);
+    chat.delete = remove;
+    expect(await deleteCoreDiscord(guild as never, database.row as never)).toEqual({ removed: 3, failed: [] });
+    expect(channels.size).toBe(0);
+    expect(roles.size).toBe(0);
+  });
+
+  it("reports failed category discovery without losing any cleanup targets", async () => {
+    const { guild, channels } = fakeGuild();
+    const database = fakeDatabase(baseCore);
+    await setupCoreDiscord(guild as never, database as never, "k1", async () => undefined);
+    guild.channels.fetch = vi.fn().mockRejectedValue(new Error("Network unavailable"));
+    expect(await deleteCoreDiscord(guild as never, database.row as never)).toEqual({ removed: 0, failed: [`channels in category ${database.row["categoryId"]}`] });
+    expect(channels.size).toBe(7);
+  });
+
+  it("reports role permission failures and tolerates already deleted channels/roles", async () => {
+    const { guild, channels, roles, makeChannel } = fakeGuild();
+    const chat = makeChannel("old-chat", ChannelType.GuildText);
+    const core = { ...baseCore, roleId: "old-role", chatChannelId: chat.id, signupChannelId: "gone" };
+    guild.channels.fetch = vi.fn(async (id?: string) => {
+      if (id === "gone") throw { code: 10003 };
+      return (id ? channels.get(id) ?? null : channels) as never;
+    });
+    guild.roles.fetch = vi.fn().mockRejectedValue({ code: 50013 });
+    expect(await deleteCoreDiscord(guild as never, core)).toEqual({ removed: 1, failed: ["role old-role"] });
+    guild.roles.fetch = vi.fn().mockRejectedValue({ code: 10011 });
+    expect(await deleteCoreDiscord(guild as never, core)).toEqual({ removed: 0, failed: [] });
+    expect(channels.size).toBe(0);
+    expect(roles.size).toBe(0);
+  });
+
+  it("reports fetch failures for linked channels instead of treating them as deleted", async () => {
+    const { guild } = fakeGuild();
+    guild.channels.fetch = vi.fn().mockRejectedValue({ code: 50001 });
+    expect(await deleteCoreDiscord(guild as never, { ...baseCore, chatChannelId: "inaccessible" })).toEqual({ removed: 0, failed: ["channel inaccessible"] });
   });
 });
 

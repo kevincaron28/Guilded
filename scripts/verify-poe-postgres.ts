@@ -25,4 +25,18 @@ export async function verifyPoePostgres(database: PrismaClient, guildId: string)
   await database.guild.delete({ where: { id: peer.id } });
   assert.equal(await database.poeMapVisit.count({ where: { guildId: peer.id } }), 0);
   assert.equal(await database.poeMapVisit.count({ where: { guildId } }), 1);
+  // Real PostgreSQL must group portal entries while retaining legacy visits.
+  const instanceRef = "d".repeat(64);
+  const base = payload.visits[0]!;
+  await service.ingest(guildId, member.id, { ...payload, visits: [
+    { ...base, runRef: "e".repeat(64), instanceRef },
+    { ...base, runRef: "f".repeat(64), instanceRef, league: "release poe LEAGUE" }
+  ] }, now);
+  const summary = (await service.summary(guildId, "RELEASE POE LEAGUE", "STANDARD", 7, member.id, now))[0]!;
+  assert.equal(summary.maps, 2); // one legacy visit + one instance entered twice
+  assert.equal(summary.visits, 3);
+  assert.equal(summary.seconds, 900);
+  assert.equal((await service.recent(guildId, member.id, "release poe league")).length, 3);
+  assert.ok((await service.leagueChoices(guildId, "RELEASE POE")).some(choice => choice.value === base.league));
+  await assert.rejects(database.poeMapVisit.updateMany({ where: { guildId, memberId: member.id }, data: { instanceRef: "invalid-reference" } }));
 }

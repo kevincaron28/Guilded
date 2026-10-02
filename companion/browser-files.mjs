@@ -1,5 +1,5 @@
 import { parseAddonExportText } from "./lua-export-content.mjs";
-import { parsePoeRecord, consumePoeRecord } from "./poe-events.mjs";
+import { parsePoeRecord, consumePoeRecord, poeInstanceKey } from "./poe-events.mjs";
 
 export async function readBrowserAddon(file, realm) {
   if (file.size > 16_000_000) throw new Error("Choose a Guilded.lua file smaller than 16 MB.");
@@ -28,7 +28,8 @@ export async function readBrowserPoe(file, profile, now = Date.now()) {
     if (Date.parse(record.at) < now - 86_400_000 || Date.parse(record.at) > now + 300_000) continue;
     if (record.kind === "area") record.fingerprint = await sha256(line);
     const runRef = record.kind === "area" ? await sha256(JSON.stringify([profile.character, profile.league, profile.mode, record.fingerprint])) : null;
-    consumePoeRecord(journal, record, profile, runRef);
+    const instanceRef = record.kind === "area" ? await sha256(poeInstanceKey(record)) : null;
+    consumePoeRecord(journal, record, profile, runRef, instanceRef);
     if (journal.pending.length >= 1000) throw new Error("This log has too many recent visits. Use the installed companion for continuous tracking.");
   }
   return { visits: journal.pending, currentArea: journal.active?.areaId ?? null, truncated: offset > 0 };

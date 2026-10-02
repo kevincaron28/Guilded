@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createPoeMappingService, poeUploadSchema } from "../src/services/poe-mapping.js";
+import { createPoeMappingService, poeAreaName, poeUploadSchema } from "../src/services/poe-mapping.js";
 import { parsePoeLogLine, consumePoeEvent } from "../companion/poe-log.mjs";
 
 const visit = { runRef: "a".repeat(64), character: "MappingAnn", league: "Pilot", mode: "STANDARD", areaId: "MapLoftySummit", areaLevel: 80, startedAt: "2026-09-30T12:00:00Z", endedAt: "2026-09-30T12:05:00Z", endReason: "AREA_CHANGED" };
@@ -59,11 +59,41 @@ describe("PoE2 personal mapping observations", () => {
   it("scopes recent runs and summaries to the guild, league and mode", async () => {
     const { service, tx } = fixture();
     await service.recent("guild", "member", "Pilot");
-    expect(tx.poeMapVisit.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { guildId: "guild", memberId: "member", league: "Pilot" } }));
+    expect(tx.poeMapVisit.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { guildId: "guild", memberId: "member", league: { equals: "Pilot", mode: "insensitive" } } }));
     const groupBy = vi.fn(async () => []);
     const db = { poeMapVisit: { groupBy }, member: { findMany: vi.fn(async () => []) } };
     await createPoeMappingService(db as never).summary("guild", "Pilot", "HARDCORE", 7, "member", now);
-    expect(groupBy).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ guildId: "guild", memberId: "member", league: "Pilot", mode: "HARDCORE" }) }));
+    expect(groupBy).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ guildId: "guild", memberId: "member", league: { equals: "Pilot", mode: "insensitive" }, mode: "HARDCORE" }) }));
+  });
+  it("counts portal re-entries of one map instance as one map", async () => {
+    const groupBy = vi.fn(async () => [
+      { memberId: "ann", instanceRef: "c".repeat(64), _count: { _all: 3, durationSeconds: 3 }, _sum: { durationSeconds: 900 } },
+      { memberId: "ann", instanceRef: "d".repeat(64), _count: { _all: 1, durationSeconds: 0 }, _sum: { durationSeconds: null } },
+      { memberId: "bob", instanceRef: null, _count: { _all: 2, durationSeconds: 2 }, _sum: { durationSeconds: 600 } }
+    ]);
+    const db = { poeMapVisit: { groupBy }, member: { findMany: vi.fn(async () => [{ id: "ann", displayName: "Ann" }, { id: "bob", displayName: "Bob" }]) } };
+    expect(await createPoeMappingService(db as never).summary("guild", "pilot", "STANDARD", 7, undefined, now)).toEqual([
+      { memberId: "ann", name: "Ann", maps: 2, visits: 4, timedVisits: 3, seconds: 900 },
+      { memberId: "bob", name: "Bob", maps: 2, visits: 2, timedVisits: 2, seconds: 600 }
+    ]);
+    expect(groupBy).toHaveBeenCalledWith(expect.objectContaining({ by: ["memberId", "instanceRef"] }));
+  });
+  it("stores the optional instance reference and still accepts older companions", async () => {
+    const { service, records } = fixture();
+    await service.ingest("guild", "member", { ...payload, visits: [visit, { ...visit, runRef: "b".repeat(64), instanceRef: "c".repeat(64) }] }, now);
+    expect(records).toEqual([expect.objectContaining({ instanceRef: null }), expect.objectContaining({ instanceRef: "c".repeat(64) })]);
+    expect(() => poeUploadSchema.parse({ ...payload, visits: [{ ...visit, instanceRef: "seed 123" }] })).toThrow();
+  });
+  it("suggests the guild's observed leagues, most recent first", async () => {
+    const groupBy = vi.fn(async () => [{ league: "Dawn of the Hunt" }, { league: "Standard" }]);
+    expect(await createPoeMappingService({ poeMapVisit: { groupBy } } as never).leagueChoices("guild", " dawn ")).toEqual([{ name: "Dawn of the Hunt", value: "Dawn of the Hunt" }, { name: "Standard", value: "Standard" }]);
+    expect(groupBy).toHaveBeenCalledWith(expect.objectContaining({ where: { guildId: "guild", league: { contains: "dawn", mode: "insensitive" } }, take: 25 }));
+  });
+  it("turns internal area IDs into readable map names", () => {
+    expect(poeAreaName("MapHiddenGrotto")).toBe("Hidden Grotto");
+    expect(poeAreaName("MapAugury_NoBoss")).toBe("Augury No Boss");
+    expect(poeAreaName("MapUberBoss2")).toBe("Uber Boss 2");
+    expect(poeAreaName("MapQQ")).toBe("QQ");
   });
 });
 
@@ -88,6 +118,20 @@ describe("PoE2 log parser", () => {
     expect(journal.pending).toHaveLength(1);
     expect(journal.pending[0]).toMatchObject({ areaId: "MapSteppe", endReason: "AREA_CHANGED" });
     expect(journal.pending[0]).not.toHaveProperty("completed");
+  });
+  it("gives portal re-entries the same instance and never keeps the seed", () => {
+    const journal = { active: null, pending: [] as { runRef: string; instanceRef?: string }[] };
+    const enter = (time: string, area: string, seed: string) => consumePoeEvent(journal, parsePoeLogLine(line(time, `Generating level 80 area "${area}" with seed ${seed}`)), profile);
+    enter("12:00:00", "MapSteppe", "4242"); enter("12:05:00", "HideoutFelled", "1");
+    enter("12:06:00", "MapSteppe", "4242"); enter("12:09:00", "HideoutFelled", "1");
+    enter("12:10:00", "MapSteppe", "777"); enter("12:15:00", "HideoutFelled", "1");
+    expect(journal.pending).toHaveLength(3);
+    const [first, reentry, other] = journal.pending as [{ runRef: string; instanceRef?: string }, { runRef: string; instanceRef?: string }, { runRef: string; instanceRef?: string }];
+    expect(first.instanceRef).toMatch(/^[a-f0-9]{64}$/);
+    expect(reentry.instanceRef).toBe(first.instanceRef);
+    expect(reentry.runRef).not.toBe(first.runRef);
+    expect(other.instanceRef).not.toBe(first.instanceRef);
+    expect(JSON.stringify(journal)).not.toMatch(/4242|777|seed/);
   });
   it("marks process changes as interrupted and ignores out-of-order transitions", () => {
     const journal = { active: null, pending: [] };

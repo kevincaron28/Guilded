@@ -21,7 +21,7 @@ import { companionAccess, personalSnapshot } from "./services/companion-access.j
 import { readFileSync } from "node:fs";
 import { ZodError } from "zod";
 import type { PrismaClient } from "@prisma/client";
-import { createPoeMappingService, PoeMappingError } from "./services/poe-mapping.js";
+import { createPoeMappingService, poeAreaName, PoeMappingError } from "./services/poe-mapping.js";
 const BOT_VERSION = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version as string;
 
 const importService = createAddonImportService(prisma);
@@ -162,7 +162,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       }
       if (isPoeRecent) {
         const visits = await createPoeMappingService(prisma).recent(guild.id, access.memberId);
-        json(response, 200, { visits: visits.map(row => ({ character: row.character, league: row.league, mode: row.mode, areaId: row.areaId, areaLevel: row.areaLevel, startedAt: row.startedAt, endedAt: row.endedAt, durationSeconds: row.durationSeconds, endReason: row.endReason })), botVersion: BOT_VERSION }); return;
+        json(response, 200, { visits: visits.map(row => ({ character: row.character, league: row.league, mode: row.mode, areaId: row.areaId, areaName: poeAreaName(row.areaId), areaLevel: row.areaLevel, startedAt: row.startedAt, endedAt: row.endedAt, durationSeconds: row.durationSeconds, endReason: row.endReason })), botVersion: BOT_VERSION }); return;
       }
       if (isPoeStatus) {
         const settings = await prisma.guildSettings.findUnique({ where: { guildId: guild.id } });

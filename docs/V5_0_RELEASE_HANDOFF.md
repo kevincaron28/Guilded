@@ -4,6 +4,15 @@ role permissions and bot hierarchy. Preserve Exilé → Errant, remove only the
 owner-approved Errant permissions, and verify Guilded before disabling Carl.
 # Guilded 5.0 stabilization — local Claude update handoff
 
+Core deletion follow-up (2 Oct 2026): `/core delete` always removes the core's
+linked channels (roster, signups, loot, reports, chat and voice), any additional
+channels in its category, the category and its role. The former `channels` option
+and default archival behavior are removed. Discord cleanup failures keep the core
+record and report the failed resources so an officer can fix permissions and retry.
+Existing raids/signups and the separate-point-pool deletion guard remain. Refresh
+slash commands on deployment. No migration or version bump; real Discord verification
+is still required.
+
 Discord participation rewards: `docs/DISCORD_PARTICIPATION.md`. Opt-in per Discord
 community season/channel; capped messages and reactions, reviewed helper nominations,
 and shared voice time capped at **4 hours/day (32 points)**. Migration additive
@@ -33,6 +42,10 @@ Companion supports opt-in PoE2 `Client.txt` tracking and PoE2-only setups.
 Deploy additive migration `20261028090000_poe_mapping` after CI and backup, and
 rebuild the companion. Log observations never award automatic completion points.
 Real PoE2/Windows checks remain required; version stays 5.0.0.
+PoE2 map instances follow-up (2 Oct 2026): additive migration
+`20261031090000_poe_map_instances` adds the optional `instanceRef`; `/poe summary`
+counts maps vs portal entries, map names are readable and league options autocomplete.
+Deploy it with the PoE migration above and ship the rebuilt companion.
 Class/spec display: `docs/CLASS_AND_GEAR_SIGNUPS.md`. Signup posts and core
 rosters show two icons plus the selected character's localized specialization.
 Provision the application-owned spec emojis, refresh existing posts, and install

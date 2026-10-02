@@ -70,8 +70,9 @@ try {
     assert.equal(voiceDay.voicePoints, 32);
     assert.equal((await database.communityKudos.findFirstOrThrow({ where: { seasonId: participation.id } })).status, "REVERSED");
     assert.equal(await database.communityParticipationDeletion.count({ where: { seasonId: participation.id } }), 2);
-    assert.equal(await database.poeMapVisit.count({ where: { character: "ReleasePoeAnn" } }), 1);
-    assert.equal((await database.poeMapVisit.findFirstOrThrow({ where: { character: "ReleasePoeAnn" } })).durationSeconds, 300);
+    assert.equal(await database.poeMapVisit.count({ where: { character: "ReleasePoeAnn" } }), 3);
+    assert.equal((await database.poeMapVisit.findFirstOrThrow({ where: { character: "ReleasePoeAnn", instanceRef: null } })).durationSeconds, 300);
+    assert.equal(await database.poeMapVisit.count({ where: { character: "ReleasePoeAnn", instanceRef: "d".repeat(64) } }), 2);
   } else {
     await database.guild.deleteMany({ where: { discordId: { startsWith: "release-test-" } } });
     const guild = await database.guild.create({ data: { discordId: "release-test-guild", name: "Release fixture" } });

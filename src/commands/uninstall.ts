@@ -15,6 +15,7 @@ import {
   type MessageComponentInteraction
 } from "discord.js";
 import type { GuildSettings } from "@prisma/client";
+import { removeGuildScheduledEvents } from "../services/scheduled-events.js";
 import { prisma } from "../database.js";
 import { guildService } from "./context.js";
 import { BRAND } from "../brand.js";
@@ -139,6 +140,7 @@ function confirmEmbed(guild: DiscordGuild, impact: Impact, reset = false): Embed
   const c = impact.counts;
   const lines = [
     `**This permanently deletes everything ${BRAND.name} has for "${guild.name}". ${reset ? "The bot stays so you can restart setup. Companion pairings are revoked." : "The bot leaves this server."} This cannot be undone.**`,
+    "Discord events created and linked by Guilded are removed too. Other organizers' events are kept.",
     "",
     `**Database:** ${c.raids} raid(s), ${c.epgp} EPGP entr${c.epgp === 1 ? "y" : "ies"}, ${c.loot} loot award(s), ${c.imports} addon import(s), ` +
       `${c.dungeonRuns} dungeon run(s), ${c.characters} linked character(s) across ${c.members} member record(s) — all deleted.`,
@@ -184,6 +186,7 @@ async function deleteEmptyCategories(guild: DiscordGuild): Promise<string[]> {
 }
 
 export async function performUninstall(guild: DiscordGuild, guildId: string, impact: Impact, reset = false): Promise<string> {
+  await removeGuildScheduledEvents(guild, prisma, guildId);
   const deletedChannels: string[] = [];
   for (const { id, name } of impact.removableChannels) {
     const channel = await guild.channels.fetch(id).catch(() => null);
@@ -212,7 +215,7 @@ export async function performUninstall(guild: DiscordGuild, guildId: string, imp
     `**${BRAND.name} is ${reset ? "reset" : "uninstalled"} for "${guild.name}".**`,
     deletedChannels.length ? `Deleted channels: ${deletedChannels.map((n) => `#${n}`).join(", ")}.` : "No channels of mine matched to delete.",
     deletedCategories.length ? `Deleted empty categories: ${deletedCategories.join(", ")}.` : "",
-    "All of its data for this server — raids, EPGP, loot log, imports, characters, recipes, everything — is gone.",
+    "All of its data for this server — raids, EPGP, loot log, imports, characters, recipes, everything — is gone. Its linked Discord events were removed.",
     impact.keptChannels.length ? `Left alone: ${impact.keptChannels.join(", ")}.` : "",
     impact.roleNames.length ? `Roles left alone: ${impact.roleNames.join(", ")}.` : "",
     reset ? "Run `/setup start` to create fresh channels, then pair companions again." : "Leaving the server now."

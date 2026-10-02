@@ -1,5 +1,11 @@
 {
   "watchFile": "C:\\Games\\World of Warcraft\\WTF\\Account\\YOUR_ACCOUNT\\SavedVariables\\Guilded.lua",
+  "wowEnabled": true,
+  "poeEnabled": false,
+  "poeLogFile": "",
+  "poeCharacter": "",
+  "poeLeague": "",
+  "poeMode": "STANDARD",
   "realm": "WoW Forever",
   "wowGuild": "",
   "uploadUrl": "https://guildedqc.duckdns.org/api/v1/addon-imports",

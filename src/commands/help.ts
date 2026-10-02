@@ -25,7 +25,9 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/apply` — apply to a raid core (or press **Apply** on that core's own roster post in the raid roster channel)",
       "`/report bug` — report a bug or problem with the bot",
       "`/community seasons` · `/community leaderboard` · `/community wallet` · `/community dice` — game seasons, scores and daily dice",
-      "Lottery, gaming night, quiz and challenge posts have participation buttons"
+      "Lottery, gaming night, quiz and challenge posts have participation buttons",
+      "`/participation status` · `/participation nominate` · `/participation history` — capped Discord points, helper recognition and guild goals",
+      "`/poe status` · `/poe pair` · `/poe runs` · `/poe summary` — PoE2 companion mapping journal"
     ],
     fr: [
       "`/character pair` — liez votre companion une fois pour que les prochains envois lient votre personnage automatiquement (à faire en premier)",
@@ -41,7 +43,9 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/apply` — postuler à un core de raid (ou appuyez sur **Postuler** sur le message du core dans le salon des cores de raid)",
       "`/report bug` — signaler un bug ou un problème avec le bot",
       "`/community seasons` · `/community leaderboard` · `/community wallet` · `/community dice` — saisons, classements et dé quotidien",
-      "Les annonces de loterie, soirée gaming, quiz et défi ont des boutons pour participer"
+      "Les annonces de loterie, soirée gaming, quiz et défi ont des boutons pour participer",
+      "`/participation status` · `/participation nominate` · `/participation history` — points Discord plafonnés, entraide et objectifs de guilde",
+      "`/poe status` · `/poe pair` · `/poe runs` · `/poe summary` — journal de mapping PoE2 du compagnon"
     ]
   },
   raidLeader: {
@@ -73,7 +77,8 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/bank list` / `handle` · `/mod application list` · `/mod` · `/mod faq` — answer channel · `/tag set` · `/setup selfroles`",
       "`/raid wcl report url:` — pull a Warcraft Logs report into the raid history",
       "`/report inactive` · `/report export` · `/report guild` · `/poll create` · `/loot award` (loot council)",
-      "`/community start-season` · `/community lottery create` · `/community gaming create` · `/community challenge create` · `/community quiz` — organize activities"
+      "`/community start-season` · `/community lottery create` · `/community gaming create` · `/community challenge create` · `/community quiz` — organize activities",
+      "`/participation settings` · `/participation claims` · `/participation review` · `/participation reverse` — participation controls and helper approvals"
     ],
     fr: [
       "`/setup start` — configuration guidée et liste de vérification · `/setup config` — tous les réglages",
@@ -83,7 +88,8 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/bank list` / `handle` · `/mod application list` · `/mod` · `/mod faq` — salon des réponses · `/tag set` · `/setup selfroles`",
       "`/raid wcl report url:` — importer un rapport Warcraft Logs dans l'historique des raids",
       "`/report inactive` · `/report export` · `/report guild` · `/poll create` · `/loot award` (conseil de loot)",
-      "`/community start-season` · `/community lottery create` · `/community gaming create` · `/community challenge create` · `/community quiz` — organiser les activités"
+      "`/community start-season` · `/community lottery create` · `/community gaming create` · `/community challenge create` · `/community quiz` — organiser les activités",
+      "`/participation settings` · `/participation claims` · `/participation review` · `/participation reverse` — réglages de participation et validation d'entraide"
     ]
   }
 };

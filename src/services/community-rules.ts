@@ -16,7 +16,7 @@ export const lotteryRules = z.object({
   if (rules.mode !== "FREE" && rules.cost < 1) invalid("Prix requis / Ticket price required.");
   if (["WOW_GOLD", "POE_CURRENCY"].includes(rules.mode) && (!rules.currency || !rules.realm)) invalid("Précise monnaie et royaume/ligue / Currency and realm/league required.");
 });
-export const eventRules = z.object({ capacity: z.number().int().min(1).max(200), points: z.number().int().min(0).max(1000) });
+export const eventRules = z.object({ capacity: z.number().int().min(1).max(200), points: z.number().int().min(0).max(1000), voiceChannelId: z.string().min(1).optional() });
 export const challengeRules = z.object({ instructions: z.string().trim().min(1).max(1500), points: z.number().int().min(1).max(1000) });
 export const quizRules = z.object({ choices: z.array(z.string().trim().min(1).max(80)).length(4), correct: z.number().int().min(0).max(3), points: z.number().int().min(1).max(1000) });
 export type LotteryRules = z.infer<typeof lotteryRules>;

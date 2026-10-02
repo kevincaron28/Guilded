@@ -38,6 +38,8 @@ import { communityCommand, lotteryCommand, gamingCommand, challengeCommand, exec
 
 import { MergedCommand, type AnyCommand } from "./router.js";
 import { BRAND } from "../brand.js";
+import { poeCommand } from "./poe.js";
+import { participationCommand } from "./participation.js";
 
 // One parent per area, with the smaller commands mounted under it (see router.ts).
 const setup = new MergedCommand("setup", `${BRAND.name} setup and settings.`, [
@@ -94,7 +96,7 @@ const community = new MergedCommand("community", "Gaming nights, lotteries, chal
 export const commands: AnyCommand[] = [
   setup, helpCommand, profileCommand, character, raid, epgpCommand, lootCommand, dungeon, craftCommand,
   bankCommand, applyCommand, pollCommand, report, mod, coreCommand, tagCommand, importer, uninstallCommand, systemCommand,
-  community
+  community, poeCommand, participationCommand
 ];
 
 const commandNames = commands.map((command) => command.name);

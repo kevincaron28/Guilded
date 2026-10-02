@@ -35,6 +35,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run prisma:generate
+      - run: npm run companion:build
       - run: npm run build
       - run: npm test
       - run: npm run lint

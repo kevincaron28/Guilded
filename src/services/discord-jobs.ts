@@ -4,7 +4,7 @@ import { EmbedBuilder, type Client, type Guild, type MessageCreateOptions } from
 import { prisma } from "../database.js";
 
 type Db = Pick<PrismaClient, "discordJob">;
-export type JobKind = "DUNGEON_BOARD" | "PROFESSIONS" | "RAID_POST" | "CORE_ROSTER" | "CALENDAR" | "MESSAGE" | "COMMUNITY_POST";
+export type JobKind = "DUNGEON_BOARD" | "PROFESSIONS" | "RAID_POST" | "CORE_ROSTER" | "CALENDAR" | "MESSAGE" | "COMMUNITY_POST" | "SCHEDULED_EVENT";
 export async function enqueueDiscordJob(database: Db, guildId: string, key: string, kind: JobKind, payload: Prisma.InputJsonValue = {}) {
   return database.discordJob.upsert({ where: { guildId_key: { guildId, key } },
     create: { guildId, key, kind, payload },
@@ -57,6 +57,8 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
     if (!raid) return; // Deleted raid jobs have nothing left to publish.
     const { syncSignupEmbed } = await import("../commands/raid.js");
     await syncSignupEmbed(guild, job.guildId, raid.id, true);
+    const { queueScheduledEvent } = await import("./scheduled-events.js");
+    await queueScheduledEvent(prisma, job.guildId, "raid", raid.id);
   } else if (job.kind === "CALENDAR") {
     const { runCalendarPlan } = await import("./calendar-sync.js");
     const plan = payload["plan"] as unknown as import("./calendar-sync.js").CalendarPlan;
@@ -68,6 +70,13 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
   } else if (job.kind === "COMMUNITY_POST") {
     const { publishCommunityActivity } = await import("../commands/community.js");
     await publishCommunityActivity(guild, job.guildId, String(payload["activityId"] ?? ""));
+    const { queueScheduledEvent } = await import("./scheduled-events.js");
+    await queueScheduledEvent(prisma, job.guildId, "community", String(payload["activityId"] ?? ""));
+  } else if (job.kind === "SCHEDULED_EVENT") {
+    const type = payload["sourceType"];
+    if (type !== "raid" && type !== "community") throw new Error("Unknown scheduled event source");
+    const { syncScheduledEvent } = await import("./scheduled-events.js");
+    await syncScheduledEvent(guild, prisma, job.guildId, type, String(payload["sourceId"] ?? ""));
   } else if (job.kind === "MESSAGE") {
     let channelId = String(payload["channelId"]);
     const route = payload["route"];

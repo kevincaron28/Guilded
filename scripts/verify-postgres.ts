@@ -20,6 +20,9 @@ import assert from "node:assert/strict";
 import { PrismaClient } from "@prisma/client";
 import { createAddonImportService } from "../src/services/addon-import.js";
 import { verifyCommunityPostgres } from "./verify-community-postgres.js";
+import { verifyPoePostgres } from "./verify-poe-postgres.js";
+import { verifyScheduledEventsPostgres } from "./verify-scheduled-events-postgres.js";
+import { verifyParticipationPostgres } from "./verify-participation-postgres.js";
 const url = new URL(process.env["DATABASE_URL"] ?? "");
 if (!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) || url.pathname !== "/guilded_release_test") throw new Error("Disposable local test database required.");
 const database = new PrismaClient();
@@ -32,6 +35,9 @@ try {
     assert.equal(await database.professionSkill.count({ where: { characterId: character.id, profession: "Mining" } }), 1);
     const raid = await database.raid.findFirstOrThrow({ where: { title: "Release mirrored raid" } });
     assert.equal(raid.mirrorSignupMessageId, "core-message");
+    const nativeEvent = await database.discordEventLink.findFirstOrThrow({ where: { sourceType: "raid", discordId: "release-native-1" } });
+    assert.equal(nativeEvent.settled, true);
+    assert.ok(nativeEvent.signature);
     assert.equal((await database.raidCore.findUniqueOrThrow({ where: { id: raid.coreId! } })).lootChannelId, "core-loot");
     const weekly = await database.raidCore.findFirstOrThrow({ where: { name: "Weekly release fixture" } });
     assert.equal(weekly.weeklySchedule, null); // paused schedule survives restore
@@ -56,10 +62,23 @@ try {
     assert.ok(Array.isArray(community.finalStandings));
     const draw = await database.communityActivity.findFirstOrThrow({ where: { title: "Release community gold draw" } });
     assert.deepEqual((draw.result as { winners: string[] }).winners, ["player-a"]);
+    const participation = await database.communitySeason.findFirstOrThrow({ where: { name: "Release participation season" } });
+    assert.equal(participation.status, "ENDED");
+    assert.equal((await database.communityParticipationConfig.findUniqueOrThrow({ where: { seasonId: participation.id } })).enabled, true);
+    const voiceDay = await database.communityParticipationDay.findUniqueOrThrow({ where: { seasonId_userId_day: { seasonId: participation.id, userId: "voice-member", day: "2030-01-01" } } });
+    assert.equal(voiceDay.voiceMs, 14400000);
+    assert.equal(voiceDay.voicePoints, 32);
+    assert.equal((await database.communityKudos.findFirstOrThrow({ where: { seasonId: participation.id } })).status, "REVERSED");
+    assert.equal(await database.communityParticipationDeletion.count({ where: { seasonId: participation.id } }), 2);
+    assert.equal(await database.poeMapVisit.count({ where: { character: "ReleasePoeAnn" } }), 1);
+    assert.equal((await database.poeMapVisit.findFirstOrThrow({ where: { character: "ReleasePoeAnn" } })).durationSeconds, 300);
   } else {
     await database.guild.deleteMany({ where: { discordId: { startsWith: "release-test-" } } });
     const guild = await database.guild.create({ data: { discordId: "release-test-guild", name: "Release fixture" } });
+    await verifyScheduledEventsPostgres(database, guild.id);
     await verifyCommunityPostgres(database, guild.id);
+    await verifyParticipationPostgres(database, guild.id);
+    await verifyPoePostgres(database, guild.id);
     const member = await database.member.create({ data: { guildId: guild.id, discordUserId: "release-test-member", displayName: "Ann" } });
     const contender = await database.member.create({ data: { guildId: guild.id, discordUserId: "release-test-contender", displayName: "Bob" } });
     const job = await enqueueDiscordJob(database, guild.id, "release-test-board", "DUNGEON_BOARD");

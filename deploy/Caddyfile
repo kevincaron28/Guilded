@@ -15,6 +15,12 @@ YOUR_HOSTNAME {
 	handle /api/v1/* {
 		reverse_proxy 127.0.0.1:8787
 	}
+	handle /companion {
+		reverse_proxy 127.0.0.1:8787
+	}
+	handle /companion/* {
+		reverse_proxy 127.0.0.1:8787
+	}
 	handle {
 		respond "Not found" 404
 	}

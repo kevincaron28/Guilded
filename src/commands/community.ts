@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalBuilder, PermissionFlagsBits, SlashCommandBuilder, TextInputBuilder, TextInputStyle, type ButtonInteraction, type ChatInputCommandInteraction, type Guild, type GuildMember, type ModalSubmitInteraction, type SlashCommandSubcommandBuilder, type SlashCommandSubcommandsOnlyBuilder } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, ModalBuilder, PermissionFlagsBits, SlashCommandBuilder, TextInputBuilder, TextInputStyle, type ButtonInteraction, type ChatInputCommandInteraction, type Guild, type GuildMember, type ModalSubmitInteraction, type SlashCommandSubcommandBuilder, type SlashCommandSubcommandsOnlyBuilder } from "discord.js";
 import type { CommunityActivity, CommunitySeason } from "@prisma/client";
 import { prisma } from "../database.js";
 import { asLang, type Lang } from "../i18n.js";
@@ -7,6 +7,7 @@ import { guildService, requireGuildContext } from "./context.js";
 import { createCommunityService } from "../services/community.js";
 import { challengeRules, COMMUNITY_GAMES, eventRules, lotteryRules, quizRules } from "../services/community-rules.js";
 import { localParts, parseRaidTime } from "../services/raid-time.js";
+import { eventVenue } from "../services/scheduled-events.js";
 
 const service = createCommunityService(prisma);
 export const COMMUNITY_PREFIX = "community:";
@@ -42,7 +43,13 @@ export const lotteryCommand = viewCommands(new SlashCommandBuilder().setName("lo
 
 export const gamingCommand = viewCommands(new SlashCommandBuilder().setName("gaming").setDescription("Gaming nights, signups and attendance").setDescriptionLocalizations({ fr: "Soirées gaming" })
   .addSubcommand(sub => pointsOption(dateOption(dateOption(titleOption(seasonOption(sub.setName("create").setDescription("Create gaming night").setDescriptionLocalizations({ fr: "Créer une soirée" }))), "starts"), "ends"), true)
-    .addIntegerOption(o => o.setName("capacity").setDescription("Player limit").setDescriptionLocalizations({ fr: "Nombre de places" }).setRequired(true).setMinValue(1).setMaxValue(200)))
+    .addIntegerOption(o => o.setName("capacity").setDescription("Player limit").setDescriptionLocalizations({ fr: "Nombre de places" }).setRequired(true).setMinValue(1).setMaxValue(200))
+    .addChannelOption(o => o.setName("voice").setDescription("Existing voice channel for the Discord event").setDescriptionLocalizations({ fr: "Vocal existant pour l'événement Discord" }).addChannelTypes(ChannelType.GuildVoice)))
+  .addSubcommand(sub => ref(sub.setName("edit").setDescription("Edit an upcoming gaming night").setDescriptionLocalizations({ fr: "Modifier une soirée à venir" }))
+    .addStringOption(o => o.setName("title").setDescription("New title").setDescriptionLocalizations({ fr: "Nouveau titre" }).setMaxLength(200))
+    .addStringOption(o => o.setName("starts").setDescription("New start in guild time").setDescriptionLocalizations({ fr: "Nouveau début, heure du serveur" }))
+    .addStringOption(o => o.setName("ends").setDescription("New end in guild time").setDescriptionLocalizations({ fr: "Nouvelle fin, heure du serveur" }))
+    .addChannelOption(o => o.setName("voice").setDescription("Existing voice channel for the Discord event").setDescriptionLocalizations({ fr: "Vocal existant pour l'événement Discord" }).addChannelTypes(ChannelType.GuildVoice)))
   .addSubcommand(sub => ref(sub.setName("join").setDescription("Change signup").setDescriptionLocalizations({ fr: "Modifier l'inscription" }))
     .addStringOption(o => o.setName("choice").setDescription("Availability").setDescriptionLocalizations({ fr: "Disponibilité" }).setRequired(true).addChoices({ name: "Present / Présent", value: "JOINED" }, { name: "Maybe / Peut-être", value: "MAYBE" }, { name: "Absent", value: "ABSENT" })))
   .addSubcommand(sub => playerOption(ref(sub.setName("attendance").setDescription("Confirm actual attendance").setDescriptionLocalizations({ fr: "Confirmer la présence" })))));
@@ -118,7 +125,7 @@ export async function executeCommunity(interaction: ChatInputCommandInteraction)
   const kind = area === "lottery" ? "LOTTERY" : area === "gaming" ? "EVENT" : area === "challenge" ? "CHALLENGE" : "QUIZ";
   const seasonId = interaction.options.getString("season");
   const id = interaction.options.getString("id");
-  const organizer = ["create", "confirm", "payments", "attendance", "review", "claims", "close", "cancel", "start-season", "end-season", "quiz", "close-quiz"].includes(sub);
+  const organizer = ["create", "edit", "confirm", "payments", "attendance", "review", "claims", "close", "cancel", "start-season", "end-season", "quiz", "close-quiz"].includes(sub);
   const current = seasonId ? await getSeason(guild, context.guildId, seasonId, actor, organizer) : null;
   const row = id ? await getActivity(guild, context.guildId, id, actor, kind, organizer) : null;
   let content = "";
@@ -171,11 +178,34 @@ export async function executeCommunity(interaction: ChatInputCommandInteraction)
       const mode = interaction.options.getString("mode", true);
       if (mode === "FREE" && (interaction.options.getInteger("cost") || (interaction.options.getInteger("limit") ?? 1) !== 1)) throw new Error("Gratuit : un billet sans paiement / Free: one ticket, no payment.");
       rules = { mode, prize: interaction.options.getString("prize", true), cost: mode === "FREE" ? 0 : interaction.options.getInteger("cost") ?? 0, currency: mode === "POINTS" ? "points" : interaction.options.getString("currency") ?? "", realm: interaction.options.getString("realm") ?? "", winners: interaction.options.getInteger("winners") ?? 1, maxTickets: mode === "FREE" ? 1 : interaction.options.getInteger("limit") ?? 10 };
-    } else if (kind === "EVENT") rules = { capacity: interaction.options.getInteger("capacity", true), points: interaction.options.getInteger("points", true) };
+    } else if (kind === "EVENT") {
+      const voice = interaction.options.getChannel("voice");
+      if (voice) {
+        const channel = await guild.channels.fetch(voice.id);
+        const member = await guild.members.fetch(actor);
+        if (!channel?.permissionsFor(member)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect])) throw new Error("Vocal inaccessible / Voice channel inaccessible.");
+        await validateEventVenue(guild, current!.channelId, voice.id);
+      }
+      rules = { capacity: interaction.options.getInteger("capacity", true), points: interaction.options.getInteger("points", true), ...(voice ? { voiceChannelId: voice.id } : {}) };
+    }
     else if (kind === "CHALLENGE") rules = { instructions: interaction.options.getString("instructions", true), points: interaction.options.getInteger("points", true) };
     else rules = { choices: ["a", "b", "c", "d"].map(key => interaction.options.getString(key, true)), correct: interaction.options.getInteger("correct", true) - 1, points: interaction.options.getInteger("points", true) };
     const created = await service.create(context.guildId, current!.id, { kind, title: interaction.options.getString("title", true), rules, ...(startsAt ? { startsAt } : {}), endsAt, actorId: actor });
     content = `${say(lang, "Activity saved; its message will appear shortly.", "Activité enregistrée; son message apparaîtra sous peu.")}\n\`${created.id}\``;
+  } else if (sub === "edit" && kind === "EVENT") {
+    const title = interaction.options.getString("title");
+    const starts = interaction.options.getString("starts");
+    const ends = interaction.options.getString("ends");
+    const voice = interaction.options.getChannel("voice");
+    if (voice) {
+      const channel = await guild.channels.fetch(voice.id);
+      const member = await guild.members.fetch(actor);
+      if (!channel?.permissionsFor(member)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect])) throw new Error("Vocal inaccessible / Voice channel inaccessible.");
+      await validateEventVenue(guild, row!.season.channelId, voice.id);
+    }
+    await service.editEvent(context.guildId, id!, { ...(title === null ? {} : { title }), ...(starts === null ? {} : { startsAt: parseRaidTime(starts, timezone) }),
+      ...(ends === null ? {} : { endsAt: parseRaidTime(ends, timezone) }), ...(voice ? { voiceChannelId: voice.id } : {}) });
+    content = say(lang, "Gaming night updated. Its message and Discord event will refresh shortly.", "Soirée modifiée. Son annonce et l'événement Discord seront actualisés sous peu.");
   } else if (sub === "list") {
     const count = await prisma.communityActivity.count({ where: { seasonId: current!.id, kind } });
     const pages = Math.max(1, Math.ceil(count / 10));
@@ -231,6 +261,15 @@ export async function executeCommunity(interaction: ChatInputCommandInteraction)
   await interaction.editReply({ content: content.slice(0, 1950) || say(lang, "Done.", "Terminé."), allowedMentions: { parse: [] } });
 }
 
+async function validateEventVenue(guild: Guild, channelId: string, voiceId: string): Promise<void> {
+  try { await eventVenue(guild, channelId, voiceId); }
+  catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "event-voice-audience") {
+      throw new Error("Choisis un vocal avec la même visibilité que le salon de la saison / Choose a voice channel with the same visibility as the season channel.");
+    }
+    throw error;
+  }
+}
 function ticketReply(lang: Lang, row: CommunityActivity, entry: { status: string; quantity: number }) {
   const rules = lotteryRules.parse(row.rules);
   return entry.status === "PENDING"

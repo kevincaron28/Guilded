@@ -47,6 +47,7 @@ export function createCommunityService(database: PrismaClient) {
         if (row.status === "ENDED") return row;
         if (await tx.communityActivity.count({ where: { seasonId, status: "OPEN" } })) fail("Ferme les activités avant la saison / Close activities before ending the season.");
         if (await tx.communityEntry.count({ where: { activity: { seasonId, kind: "CHALLENGE", status: { not: "CANCELLED" } }, status: "PENDING" } })) fail("Traite les preuves en attente avant d'archiver / Review pending evidence before archiving.");
+        if (await tx.communityKudos.count({ where: { seasonId, status: "PENDING" } })) fail("Traite les nominations avant d'archiver / Review helper nominations before archiving.");
         const final = standings(await tx.communityPoint.findMany({ where: { seasonId } }));
         return tx.communitySeason.update({ where: { id: seasonId }, data: { status: "ENDED", endedAt: new Date(), finalStandings: json(final) } });
       });
@@ -69,6 +70,21 @@ export function createCommunityService(database: PrismaClient) {
         const row = await tx.communityActivity.create({ data: { seasonId, title: data.title.trim(), kind: data.kind, rules: json(rules), startsAt: data.startsAt ?? null, endsAt: data.endsAt, createdBy: data.actorId } });
         await queue(tx, row, guildId);
         return row;
+      });
+    },
+    async editEvent(guildId: string, id: string, input: { title?: string; startsAt?: Date; endsAt?: Date; voiceChannelId?: string }, now = new Date()) {
+      return locked(guildId, async tx => {
+        const row = await activity(tx, guildId, id, "EVENT");
+        if (row.status !== "OPEN" || row.season.status !== "ACTIVE" || !row.startsAt || row.startsAt <= now) fail("Seules les soirées à venir sont modifiables / Only upcoming gaming nights can be edited.");
+        const title = input.title?.trim() ?? row.title;
+        const startsAt = input.startsAt ?? row.startsAt!;
+        const endsAt = input.endsAt ?? row.endsAt;
+        if (!title || title.length > 200 || !Number.isFinite(startsAt.getTime()) || !Number.isFinite(endsAt.getTime()) || startsAt <= now || endsAt <= startsAt || endsAt.getTime() - now.getTime() > 366 * 86_400_000) fail("Titre ou date invalide / Invalid title or date.");
+        const rules = eventRules.parse({ ...eventRules.parse(row.rules), ...(input.voiceChannelId ? { voiceChannelId: input.voiceChannelId } : {}) });
+        const updated = await tx.communityActivity.update({ where: { id }, data: { title, startsAt, endsAt, rules: json(rules), ...(startsAt.getTime() !== row.startsAt!.getTime() ? { reminderAt: null } : {}) } });
+        if (startsAt.getTime() !== row.startsAt!.getTime()) await tx.discordJob.updateMany({ where: { guildId, key: `community-reminder:${id}`, status: "PENDING" }, data: { status: "DONE", deliveredAt: now } });
+        await queue(tx, updated, guildId);
+        return updated;
       });
     },
     async enterLottery(guildId: string, id: string, userId: string, quantity = 1, now = new Date()) {

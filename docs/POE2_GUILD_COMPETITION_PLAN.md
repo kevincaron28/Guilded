@@ -1,5 +1,12 @@
 # Path of Exile 2 guild competition
 
+Implementation update, 1 October 2026: the first mapping journal slice is in
+`docs/POE2_MAPPING.md`. `/poe` provides personal observations and league/mode
+activity summaries; the companion can capture filtered log events with consent.
+The existing `/community` module handles reviewed challenges and game seasons.
+The competition design below remains the roadmap for richer PoE-specific rules;
+log observations do not automatically verify completions or award points.
+
 Planning draft — 30 September 2026. Recommended direction: cooperative group achievements plus personal progression. This document proposes a new game module; the deployed WoW points, raid cores and loot rules stay separate.
 
 ## Problem and intended experience

@@ -2,92 +2,72 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' blob:; base-uri 'none'">
+  <meta name="theme-color" content="#101724">
+  <meta name="description" content="Your guild, connected. Sync World of Warcraft and keep a Path of Exile 2 mapping journal with Guilded.">
   <title>Guilded Companion</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="logo.png"><link rel="manifest" href="manifest.json"><link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <a href="#main" class="skip-link">Skip to content</a>
   <aside class="sidebar">
-    <div class="brand"><img src="../assets/icon.png" alt=""><div><strong>Guilded</strong><span>Companion</span></div></div>
-    <nav>
-      <button class="nav active" data-page="status">Status</button>
-      <button class="nav" data-page="settings">Settings <span id="setupBadge" class="badge" hidden>!</span></button>
-      <button class="nav" data-page="activity">Activity</button>
+    <div class="brand"><img src="logo.png" alt="Guilded"><div><strong>GUILDED</strong><span>YOUR GUILD, CONNECTED</span></div></div>
+    <div class="nav-label">COMPANION</div>
+    <nav aria-label="Main navigation">
+      <button class="nav active" data-page="status"><span aria-hidden="true">▦</span>Overview</button>
+      <button class="nav" data-page="wow"><span aria-hidden="true">◇</span>World of Warcraft</button>
+      <button class="nav" data-page="poe"><span aria-hidden="true">⌁</span>PoE2 mapping</button>
+      <div class="nav-divider"></div>
+      <button class="nav" data-page="settings"><span aria-hidden="true">⚙</span>Connection & setup <span id="setupBadge" class="badge" hidden>!</span></button>
+      <button class="nav" data-page="activity"><span aria-hidden="true">≡</span>Activity <span id="activityCount" class="nav-count">0</span></button>
+      <button class="nav" data-page="help"><span aria-hidden="true">?</span>Help & privacy</button>
     </nav>
-    <div class="side-foot"><span id="version"></span><br>Closing the window keeps it running in the tray.</div>
+    <div class="side-bottom"><div class="mode-chip"><span class="status-dot"></span><span id="appMode">Desktop companion</span></div><p id="sideNote">Keeps working in your tray.</p><span id="version">Version 5.0.0</span></div>
   </aside>
-
-  <main>
-    <section id="page-status" class="page">
-      <h1>Status</h1>
-      <div id="banner" class="banner"><span id="bannerDot" class="dot"></span><div><strong id="bannerTitle"></strong><div id="bannerText"></div></div></div>
-      <p id="versions" class="hint"></p>
-      <div class="tiles">
-        <div class="tile"><span class="label">Last upload to Discord</span><strong id="tileUpload">Nothing yet</strong><span id="tileUploadNote"></span></div>
-        <div class="tile"><span class="label">In-game standings</span><strong id="tileStandings">Not written yet</strong><span id="tileStandingsNote"></span></div>
-        <div class="tile"><span class="label">Uploads this session</span><strong id="tileCount">0</strong><span>Every /reload or logout in game</span></div>
-        <div class="tile wide"><span class="label">Watching</span><strong id="tileWatch" class="path">Nothing</strong></div>
-      </div>
-      <div class="actions">
-        <button id="btnUpload" class="primary">Send my data now</button>
-        <button id="btnStandings">Refresh in-game standings</button>
-        <button id="btnFolder">Show Standings.lua</button>
-      </div>
-      <div class="how">
-        <h2>How it works</h2>
-        <ol>
-          <li>In game, your addon saves its data when you <b>/reload</b> or log out (<b>/guilded sync</b> does it for you).</li>
-          <li>This app notices the change and sends it to the Discord bot within seconds.</li>
-          <li>The bot answers with the newest standings, and this app writes them where the addon reads them.</li>
-        </ol>
-      </div>
-    </section>
-
-    <section id="page-settings" class="page" hidden>
-      <h1>Settings</h1>
-      <p id="setupHint" class="hint" hidden>Enter the bot address and server ID, link with <b>/character pair</b>, then choose your saved-data file.</p>
-      <form id="form" autocomplete="off">
-        <label>Bot address
-          <input id="uploadUrl" placeholder="https://your-bot.duckdns.org/api/v1/addon-imports">
-          <small>Where the bot listens. On the officer's own PC this is http://127.0.0.1:8787/api/v1/addon-imports.</small>
-        </label>
-        <label>Discord server ID
-          <input id="guildDiscordId" placeholder="e.g. 123456789012345678">
-          <small>Discord: Settings, Advanced, turn on Developer Mode, then right-click your server and Copy Server ID.</small>
-        </label>
-        <label>Discord account pairing code
-          <div class="row"><input id="pairingCode" placeholder="Generate with /character pair in Discord"><button type="button" id="btnPair" class="small">Link Discord account</button></div>
-          <small>Generate a one-time code in Discord with /character pair, enter it here, then link. Your next upload links your own character automatically; Only an officer account can upload guild ledgers; other accounts upload personal character data.</small>
-        </label>
-        <label>Addon saved data file (Guilded.lua)
-          <div class="row"><input id="watchFile" placeholder="...\WTF\Account\YOURACCOUNT\SavedVariables\Guilded.lua"><button type="button" id="btnDetect" class="small">Find it</button><button type="button" id="btnBrowse" class="small">Browse...</button></div>
-          <small id="detectNote">Press Find it and the app looks in the usual game folders.</small>
-        </label>
-        <details>
-          <summary>Advanced</summary>
-          <label>Realm name <input id="realm"><small>Must match the realm the addon reports. Change it here if the realm changes.</small></label>
-          <label>Only send this WoW guild <input id="wowGuild" placeholder="(any)"><small>Stops an alt in another guild from sending data to this Discord.</small></label>
-          <label>Refresh standings every (minutes) <input id="standingsIntervalMinutes" type="number" min="1" max="60"></label>
-        </details>
-        <label class="check"><input id="autostart" type="checkbox"> Start with Windows (in the tray, no window)</label>
-        <div class="actions">
-          <button type="submit" class="primary">Save and start</button>
-          <button type="button" id="btnTest">Test connection</button>
-          <span id="formResult" class="result"></span>
+  <div class="workspace">
+    <header class="topbar"><span>Guilded <span class="slash">/</span> <span id="breadcrumb">Overview</span></span><div><span id="connectionPill" class="pill">Not connected</span><button id="btnTheme" class="icon-button" aria-label="Switch color theme" title="Switch color theme">◐</button></div></header>
+    <main id="main">
+      <section id="page-status" class="page">
+        <div class="page-heading"><div><p class="eyebrow">YOUR COMPANION</p><h1>Your guild. In sync.</h1><p class="subtitle">Less admin. More time in game.</p></div><button id="btnUpload" class="primary">↗ Sync now</button></div>
+        <div id="banner" class="banner setup" role="status"><span class="banner-symbol" aria-hidden="true">◉</span><div><strong id="bannerTitle">Let's get you connected</strong><p id="bannerText">Link your Discord account and choose the games you play.</p></div><button class="quiet" data-go="settings">Manage connection →</button></div>
+        <div class="hero"><div><span class="pill gold">ONE COMPANION. TWO WORLDS.</span><h2>Adventure together.<br>Keep everything connected.</h2><p>Your WoW guild data and PoE2 mapping journal,<br class="desktop-break"> brought together with your Discord community.</p><button class="text-button" data-go="settings">Set up your games <span aria-hidden="true">→</span></button></div><img class="hero-logo" src="logo.png" alt="Guilded gold crown and blue crest"></div>
+        <div class="section-title"><h2>Your games</h2><span id="versions" class="muted">Ready when you are</span></div>
+        <div class="game-grid">
+          <article class="game-card wow-card"><div class="game-heading"><span class="game-emblem" aria-hidden="true">W</span><span id="wowBadge" class="pill">Not configured</span></div><p class="eyebrow">GUILD & RAID SYNC</p><h2>World of Warcraft</h2><p class="muted">Characters, professions, readiness and guild standings.</p><div class="game-metric"><span>Last sync</span><strong id="tileUpload">Awaiting your first sync</strong></div><p id="tileUploadNote" class="micro">Save fresh addon data with /reload.</p><button class="game-link" data-go="wow">Open WoW companion <span aria-hidden="true">→</span></button></article>
+          <article class="game-card poe-card"><div class="game-heading"><span class="game-emblem" aria-hidden="true">II</span><span id="poeBadge" class="pill">Tracking off</span></div><p class="eyebrow">MAPPING JOURNAL</p><h2>Path of Exile 2</h2><p class="muted">Keep a personal record of your map area visits.</p><div class="game-metric"><span id="poeMetricLabel">Current area</span><strong id="poeCurrent">Waiting for your next map</strong></div><p id="poeStatus" class="micro">Enable map sharing in setup when you're ready.</p><button class="game-link" data-go="poe">Open mapping journal <span aria-hidden="true">→</span></button></article>
         </div>
-      </form>
-      <div class="danger">
-        <h2>Danger zone</h2>
-        <p>Stops the companion, turns off Start with Windows, and deletes the saved bot address, token and Discord link from this PC. Does not touch anything in World of Warcraft; set it up again any time by reopening Guilded Companion.</p>
-        <button type="button" id="btnRemoveData" class="danger-btn">Remove my data and quit</button>
-      </div>
-    </section>
-
-    <section id="page-activity" class="page" hidden>
-      <h1>Activity</h1>
-      <div id="log" class="log"></div>
-    </section>
-  </main>
-  <script src="app.js"></script>
+        <div class="bottom-strip"><div><span class="mini-icon" aria-hidden="true">✓</span><div><strong>Your account. Your choice.</strong><p>Personal Discord pairing. Game tracking stays opt-in.</p></div></div><button class="text-button" data-go="help">How syncing works →</button></div>
+      </section>
+      <section id="page-wow" class="page" hidden>
+        <div class="page-heading"><div><p class="eyebrow">GUILD & RAID SYNC</p><h1>World of Warcraft</h1><p class="subtitle">Your addon and Discord, working together.</p></div><button class="secondary" data-go="settings">Configure WoW</button></div>
+        <div class="tiles"><article class="tile"><span class="label">Uploads this session</span><strong id="tileCount">0</strong><p>Fresh saved data, sent to your guild</p></article><article class="tile"><span class="label">In-game standings</span><strong id="tileStandings">Awaiting first refresh</strong><p id="tileStandingsNote">Synced from the Discord bot</p></article></div>
+        <article class="panel"><div class="section-title"><h2>Your saved data</h2><span id="wowFileState" class="pill">Choose a file</span></div><p id="tileWatch" class="file-path">No saved-data file selected</p><div class="actions"><button class="primary" id="btnWowSelect">Choose Guilded.lua</button><button id="btnStandings">Refresh standings</button><button id="btnFolder">Show addon folder</button></div><p id="wowModeNote" class="micro">The installed companion watches for changes automatically.</p></article>
+        <article class="panel"><h2>From game to guild</h2><ol class="steps"><li><span>01</span><div><strong>Save your latest character data</strong><p>Use /guilded sync, /reload or log out with the Guilded addon enabled.</p></div></li><li><span>02</span><div><strong>Send it to your Discord community</strong><p id="wowStep2">The companion notices the saved-file change and sends your export.</p></div></li><li><span>03</span><div><strong>Bring fresh standings back in game</strong><p id="wowStep3">The companion updates Standings.lua. Use /reload to load the latest standings.</p></div></li></ol></article>
+      </section>
+      <section id="page-poe" class="page" hidden>
+        <div class="page-heading"><div><p class="eyebrow">PERSONAL MAPPING JOURNAL</p><h1>Path of Exile 2</h1><p class="subtitle">A record of where your mapping sessions take you.</p></div><button class="secondary" data-go="settings">Configure PoE2</button></div>
+        <div class="tiles"><article class="tile"><span class="label">Declared character</span><strong id="poeProfile">Not set</strong><p id="poeLeagueLabel">Choose a character, league and mode</p></article><article class="tile"><span class="label">Waiting to sync</span><strong id="poePending">0</strong><p id="poeSyncTime">No visits synced yet</p></article></div>
+        <article class="panel"><div class="section-title"><h2>Your map history</h2><button id="btnHistory" class="quiet">↻ Refresh history</button></div><p class="muted">Your 15 most recent observations saved by the bot.</p><div id="poeHistory" class="empty-state"><span aria-hidden="true">⌁</span><h3>Your next adventure starts here</h3><p>Connect Discord, enable PoE2 sharing and finish a map visit to see your journal.</p></div></article>
+        <article class="note-panel"><strong>Map visits are observations</strong><p>A log transition records an area visit. It doesn't prove a clear, death, loot drop or party participation, and it awards no automatic points. Your character and league are declared by you.</p><button id="btnPoeSelect" class="secondary">Choose Client.txt</button><p id="poeModeNote" class="micro">The installed companion starts with new entries and skips existing log history.</p></article>
+      </section>
+      <section id="page-settings" class="page" hidden>
+        <div class="page-heading"><div><p class="eyebrow">MAKE IT YOURS</p><h1>Connection & setup</h1><p class="subtitle">Connect once. Choose the games you want to share.</p></div><span id="pairBadge" class="pill">Discord not linked</span></div>
+        <form id="form" autocomplete="off">
+          <article class="panel"><div class="section-title"><h2><span class="step-number">1</span> Connect your Discord account</h2></div><p class="muted">In your server, use <code>/character pair</code> or <code>/poe pair</code> to get a private, one-time code.</p><div class="form-grid"><label>Discord server ID<input id="guildDiscordId" inputmode="numeric" placeholder="Your server's ID"><small>Enable Discord Developer Mode, then right-click your server → Copy Server ID.</small></label><label>One-time pairing code<div class="row"><input id="pairingCode" placeholder="12-character code" maxlength="12"><button type="button" id="btnPair" class="primary">Connect</button></div><small>Expires after 15 minutes. Pairing replaces your previous companion link.</small></label></div><p id="setupHint" class="micro">Link your own account. Officers keep their normal guild permissions.</p></article>
+          <article class="panel"><h2><span class="step-number">2</span> Choose your games</h2><div class="form-grid game-switches"><label class="switch-card"><div><strong>World of Warcraft</strong><small>Sync addon data and standings</small></div><input id="wowEnabled" type="checkbox" checked aria-label="Enable World of Warcraft sync"></label><label class="switch-card"><div><strong>Path of Exile 2</strong><small>Share my mapping observations</small></div><input id="poeEnabled" type="checkbox" aria-label="Read my PoE2 log and share map observations"></label></div>
+          <div id="wowSettings" class="game-settings"><h3>World of Warcraft</h3><label>Addon saved data<div class="row"><input id="watchFile" placeholder="Choose Guilded.lua" readonly><button type="button" id="btnDetect">Find it</button><button type="button" id="btnBrowse">Browse</button></div><small id="detectNote">WTF / Account / your account / SavedVariables / Guilded.lua</small></label></div>
+          <div id="poeSettings" class="game-settings" hidden><h3>Path of Exile 2</h3><p class="muted">I agree to share map area IDs, levels and visit times with this guild. Chat and raw log text stay on my device. An officer must enable <code>/poe setup</code>.</p><div class="form-grid"><label>Character name<input id="poeCharacter" maxlength="100" placeholder="Character you are playing"></label><label>League<input id="poeLeague" maxlength="100" placeholder="Exact league name"></label><label>Game mode<select id="poeMode"><option value="STANDARD">Trade / Standard</option><option value="HARDCORE">Hardcore</option><option value="SSF">Solo self-found</option><option value="SSF_HARDCORE">Solo self-found Hardcore</option></select></label><label>Game log<div class="row"><input id="poeLogFile" placeholder="Choose Client.txt" readonly><button type="button" id="btnPoeBrowse">Browse</button></div><small id="poeFileNote">Path of Exile 2 / logs / Client.txt</small></label></div></div></article>
+          <article class="panel"><h2><span class="step-number">3</span> Finish your setup</h2><label id="autostartLabel" class="check"><input id="autostart" type="checkbox"> Start with Windows and stay in the tray</label><details><summary>Advanced preferences</summary><label id="addressLabel">Bot address<input id="uploadUrl" type="url" placeholder="https://your-bot/api/v1/addon-imports"><small>Provided by your guild owner.</small></label><div class="form-grid"><label>WoW realm<input id="realm" placeholder="WoW Forever"></label><label>Only sync this WoW guild<input id="wowGuild" placeholder="Any guild"><small>Optional. Must match the addon's guild name and realm.</small></label><label id="standingsIntervalLabel">Standings refresh (minutes)<input id="standingsIntervalMinutes" type="number" min="1" max="60" value="2"></label></div></details><div class="actions"><button type="submit" id="btnSave" class="primary">Save & start syncing</button><button type="button" id="btnTest">Test connection</button><button type="button" id="btnPause">Pause tracking</button></div><p id="formResult" class="result" role="status"></p></article>
+        </form>
+        <article class="panel subtle-panel"><div class="section-title"><div><h2 id="removeTitle">Reset this companion</h2><p id="removeNote" class="muted">Remove this device's settings, Discord link and unsent observations. Your game files stay in place.</p></div><button type="button" id="btnRemoveData" class="danger-btn">Remove data & quit</button></div></article>
+      </section>
+      <section id="page-activity" class="page" hidden><div class="page-heading"><div><p class="eyebrow">A CLEAR VIEW OF YOUR SYNC</p><h1>Activity</h1><p class="subtitle">Recent actions, sync results and anything that needs your attention.</p></div><button id="btnDiagnostics">Download support summary</button></div><div class="activity-toolbar"><label class="search-label">Search activity<input id="logSearch" type="search" placeholder="Search messages…"></label><label>Show<select id="logFilter"><option value="all">All activity</option><option value="error">Errors</option><option value="warn">Warnings</option><option value="ok">Successful syncs</option></select></label><button id="btnClearLog" class="quiet">Clear view</button></div><div id="log" class="log"><div class="empty-state"><h3>You're all caught up</h3><p>Your sync activity will appear here.</p></div></div></section>
+      <section id="page-help" class="page" hidden><div class="page-heading"><div><p class="eyebrow">HERE WHEN YOU NEED IT</p><h1>Help & privacy</h1><p class="subtitle">Know what your companion does, and stay in control.</p></div><button id="btnOnline" class="secondary">Open online companion ↗</button></div><div class="help-grid"><article class="panel"><h2>Installed or online?</h2><p>The Windows companion watches selected game files, queues PoE2 observations offline and writes WoW standings back to your addon.</p><p>The online companion needs no companion installation. Select Guilded.lua to sync WoW, or Client.txt to preview and share PoE2 observations from the latest 24 hours. Select an updated file again after playing.</p><p>For WoW standings, download Standings.lua, put it in Interface / AddOns / Guilded, then /reload. The WoW addon is still required.</p></article><article class="panel"><h2>Your data, explained</h2><p>PoE2 sends map areas, levels, visit timestamps and the character, league and mode you declare. Raw logs, chat and file paths are not uploaded.</p><p>WoW sends the addon's structured export. The bot checks your current Discord membership and restricts personal accounts to their own characters. Officers keep existing review rules.</p><p>Browser files are read locally. Your link and unsent PoE2 queue are saved for this tab's session. Closing the tab ends access to selected files; keep it open until sync finishes.</p></article><article class="panel"><h2>Something isn't syncing?</h2><ul class="help-list"><li>Use Test connection in setup.</li><li>Generate a fresh pairing code if the link was revoked or replaced.</li><li>In WoW, /reload before syncing.</li><li>For PoE2, ask an officer to enable /poe setup.</li><li>Review Activity or share a support summary with your officer.</li></ul></article><article class="panel"><h2>Your Discord shortcuts</h2><dl class="shortcuts"><dt>/character pair</dt><dd>Connect your personal account</dd><dt>/poe runs</dt><dd>View your recent map observations</dd><dt>/poe summary</dt><dd>Summarize a league and mode</dd><dt>/help</dt><dd>Find your guild's bot commands</dd></dl></article></div><p class="micro">Guilded is an independent community tool, unaffiliated with Blizzard Entertainment or Grinding Gear Games.</p></section>
+    </main>
+    <footer><span>Built for your community.</span><span id="footerMode">Automatic sync · Personal pairing</span></footer>
+  </div>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script src="web-bundle.js"></script><script src="app.js"></script>
 </body>
 </html>

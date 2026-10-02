@@ -10,7 +10,7 @@ export const systemCommand = new SlashCommandBuilder().setName("system").setDesc
   .addSubcommand(sub => sub.setName("retry").setDescription("Retry pending Discord updates now"))
   .addSubcommand(sub => sub.setName("permissions").setDescription("Permissions needed without Administrator"));
 
-export const REQUIRED_BOT_PERMISSIONS = ["ViewChannel", "SendMessages", "EmbedLinks", "AttachFiles", "ReadMessageHistory", "ManageChannels", "ManageRoles", "ManageMessages", "PinMessages", "AddReactions", "CreatePublicThreads", "SendMessagesInThreads", "ManageThreads", "Connect", "Speak", "MoveMembers", "KickMembers", "BanMembers", "ModerateMembers"] as const;
+export const REQUIRED_BOT_PERMISSIONS = ["ViewChannel", "SendMessages", "EmbedLinks", "AttachFiles", "ReadMessageHistory", "ManageChannels", "ManageRoles", "ManageMessages", "PinMessages", "AddReactions", "CreatePublicThreads", "SendMessagesInThreads", "ManageThreads", "Connect", "Speak", "MoveMembers", "KickMembers", "BanMembers", "ModerateMembers", "CreateEvents"] as const;
 
 export async function executeSystem(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.guild) { await interaction.reply({ content: "Use this in your Discord server.", ephemeral: true }); return; }

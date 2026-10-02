@@ -2,7 +2,7 @@ import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["companion-app/**", "dist/**", "node_modules/**"] },
+  { ignores: ["companion-app/**", "dist/**", "node_modules/**", "backups/**"] },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -20,7 +20,9 @@ export default tseslint.config(
         process: "readonly",
         setInterval: "readonly",
         setTimeout: "readonly",
-        URL: "readonly"
+        URL: "readonly",
+        URLSearchParams: "readonly",
+        structuredClone: "readonly"
       }
     }
   }

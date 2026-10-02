@@ -4,6 +4,7 @@ import { basename, dirname } from "node:path";
 import { readAddonExport } from "./lua-export.mjs";
 import { writeStandings } from "./standings.mjs";
 import { credentialHeaders, checkUrl, requestJson } from "./request.mjs";
+import { createPoeEngine, validatePoeConfig } from "./poe-engine.mjs";
 
 // The companion's working parts, shared by the command-line watcher
 // (watcher.mjs) and the desktop app (companion-app/). It watches the addon's
@@ -13,21 +14,22 @@ import { credentialHeaders, checkUrl, requestJson } from "./request.mjs";
 //   onState(state)                    a snapshot after every change
 export function validateConfig(config) {
   const problems = [];
-  if (!config.watchFile) problems.push("The saved-data file (Guilded.lua) is not set.");
+  if (config.wowEnabled !== false && !config.watchFile) problems.push("The saved-data file (Guilded.lua) is not set.");
+  if (config.wowEnabled === false && !config.poeEnabled) problems.push("Enable WoW or PoE2 tracking before starting.");
   if (!config.uploadUrl) problems.push("The bot address is not set.");
   if (!config.guildDiscordId) problems.push("The Discord server ID is not set.");
-  if (typeof config.companionCredential !== "string" || config.companionCredential.length < 32) problems.push("Link this companion with /character pair before starting.");
+  if (typeof config.companionCredential !== "string" || config.companionCredential.length < 32) problems.push("Link this companion with /character pair or /poe pair before starting.");
   if (config.uploadUrl) { try { checkUrl(config.uploadUrl); } catch (error) { problems.push(error.message); } }
-  return problems;
+  return [...problems, ...validatePoeConfig(config)];
 }
 
 // Checks the bot address and token without changing anything.
 export async function testConnection(config) {
   try {
-    const url = new URL("/api/v1/standings", config.uploadUrl);
+    const url = new URL(config.wowEnabled === false ? "/api/v1/poe/status" : "/api/v1/standings", config.uploadUrl);
     url.searchParams.set("guild", config.guildDiscordId);
     const { response, body } = await requestJson(url, { headers: credentialHeaders(config) });
-    if (response.ok) return { ok: true, message: `Connected. The bot knows ${body.standings?.length ?? 0} character(s).` };
+    if (response.ok) return { ok: true, message: config.wowEnabled === false ? `Connected. PoE2 tracking is ${body.enabled ? "enabled" : "paused; an officer can enable /poe setup"}.` : `Connected. The bot knows ${body.standings?.length ?? 0} character(s).` };
     if (response.status === 401 || response.status === 403) return { ok: false, message: "The bot refused the pairing. Run /character pair and link this companion again." };
     return { ok: false, message: `The bot answered ${response.status}: ${describeApiError(response.status, body.error)}` };
   } catch (error) {
@@ -51,7 +53,7 @@ export async function pairAccount(config) {
     if (typeof body.companionCredential !== "string" || body.companionCredential.length < 32) {
       return { ok: false, message: "The bot response did not include a valid companion credential." };
     }
-    return { ok: true, message: "Discord account paired. The companion links your own character on its next upload; the guild import still follows its usual apply setting.", companionCredential: body.companionCredential };
+    return { ok: true, message: config.wowEnabled === false ? "Discord account paired. Your PoE2 observations will belong to this account; choose your PoE2 settings and Save and start." : "Discord account paired. The companion links your own character on its next upload; the guild import still follows its usual apply setting.", companionCredential: body.companionCredential };
   } catch (error) {
     return { ok: false, message: describeError(error) };
   }
@@ -79,6 +81,7 @@ function describeApiError(status, apiError) {
 export function createEngine(initialConfig, hooks = {}) {
   let config = initialConfig;
   let watcher;
+  let poe;
   let uploadTimer;
   let standingsTimer;
   let controller = new AbortController();
@@ -100,7 +103,8 @@ export function createEngine(initialConfig, hooks = {}) {
     retryAt: null,
     uploadError: null,
     standingsError: null,
-    uploads: 0
+    uploads: 0,
+    poe: null
   };
 
   const snapshot = () => JSON.parse(JSON.stringify(state));
@@ -115,7 +119,7 @@ export function createEngine(initialConfig, hooks = {}) {
   };
 
   async function upload() {
-    if (!state.running) return;
+    if (!state.running || config.wowEnabled === false) return;
     if (uploading) { queued = true; return; }
     uploading = true;
     queued = false;
@@ -197,7 +201,7 @@ export function createEngine(initialConfig, hooks = {}) {
   function track(promise) { active.add(promise); void promise.finally(() => active.delete(promise)); }
 
   async function refreshStandings() {
-    if (!state.running || refreshing) return;
+    if (!state.running || refreshing || config.wowEnabled === false) return;
     refreshing = true;
     const epoch = generation;
     try {
@@ -218,9 +222,22 @@ export function createEngine(initialConfig, hooks = {}) {
   async function startWatching() {
     const problems = validateConfig(config);
     if (problems.length > 0) { log("warn", `Not started: ${problems[0]}`); return false; }
+    if (config.poeEnabled) {
+      poe = createPoeEngine(config, {
+        onLog: ({ level, message }) => log(level, message),
+        onState: next => { state.poe = next; state.botVersion = next.botVersion ?? state.botVersion; hooks.onState?.(snapshot()); }
+      });
+      if (!await poe.start()) { log("error", poe.state().error || "PoE2 tracking could not start."); return false; }
+    }
+    if (config.wowEnabled === false) {
+      state.running = true; state.watching = config.poeLogFile;
+      log("info", "PoE2 tracking started. New map observations are shared with your guild; chat stays on this computer.");
+      return true;
+    }
     try {
       await access(dirname(config.watchFile));
     } catch {
+      await poe?.stop();
       log("error", `The folder ${dirname(config.watchFile)} does not exist. Check the saved-data file in Settings.`);
       return false;
     }
@@ -248,6 +265,7 @@ export function createEngine(initialConfig, hooks = {}) {
       watcher?.close(); watcher = undefined;
       generation++;
       controller.abort();
+      await poe?.stop(); poe = undefined; state.poe = null;
       clearTimeout(uploadTimer); clearInterval(standingsTimer);
       queued = false;
       await Promise.allSettled([...active]);
@@ -257,7 +275,7 @@ export function createEngine(initialConfig, hooks = {}) {
     },
     // Apply new settings and restart.
     async configure(next) { await this.stop(); config = next; return this.start(); },
-    uploadNow() { scheduleUpload(0); },
+    uploadNow() { if (config.wowEnabled !== false) scheduleUpload(0); if (poe) track(poe.pollNow()); },
     refreshStandings
   };
 }

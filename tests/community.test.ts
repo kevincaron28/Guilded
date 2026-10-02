@@ -24,7 +24,8 @@ function store(row = activity) {
     },
     communityEntry: { findUnique: vi.fn(async (): Promise<Record<string, unknown> | null> => null), findFirst: vi.fn(async (): Promise<Record<string, unknown> | null> => null), findMany: vi.fn(async () => [] as Record<string, unknown>[]), count: vi.fn(async () => 0), create: vi.fn(async ({ data }) => ({ id: "entry", ...data })), update: vi.fn(async ({ data }) => ({ id: "entry", ...data })), upsert: vi.fn(async ({ create }) => ({ id: "entry", ...create })) },
     communityPoint: { aggregate: vi.fn(async () => ({ _sum: { amount: 100 } })), create: vi.fn(async ({ data }) => data), findMany: vi.fn(async () => [] as Record<string, unknown>[]) },
-    discordJob: { upsert: vi.fn(async args => args.create) },
+    communityKudos: { count: vi.fn(async () => 0) },
+    discordJob: { upsert: vi.fn(async args => args.create), updateMany: vi.fn(async () => ({ count: 1 })) },
     guildSettings: { findUnique: vi.fn(async () => ({ language: "fr" })) }
   };
   const db = { ...tx, $transaction: vi.fn(async (work: (transaction: typeof tx) => Promise<unknown>) => work(tx)) };
@@ -130,6 +131,23 @@ describe("community state transitions", () => {
     await s.service.signup("guild", "activity", "member", "ABSENT", now);
     expect(s.tx.communityEntry.update).toHaveBeenCalledWith({ where: { id: "waiting" }, data: { status: "JOINED" } });
   });
+  it("edits a future gaming night without changing attendance or points and retires its old reminder", async () => {
+    const s = store({ ...activity, kind: "EVENT", startsAt: endsAt, endsAt: new Date("2026-10-02T15:00:00Z"), rules: { capacity: 8, points: 10 } });
+    const moved = new Date("2026-10-03T12:00:00Z");
+    const saved = await s.service.editEvent("guild", "activity", { title: "New night", startsAt: moved, endsAt: new Date("2026-10-03T15:00:00Z"), voiceChannelId: "voice" }, now);
+    expect(saved.title).toBe("New night");
+    expect(s.tx.communityActivity.update).toHaveBeenCalledWith({ where: { id: "activity" }, data: expect.objectContaining({ startsAt: moved, reminderAt: null, rules: { capacity: 8, points: 10, voiceChannelId: "voice" } }) });
+    expect(s.tx.discordJob.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { guildId: "guild", key: "community-reminder:activity", status: "PENDING" } }));
+    expect(s.tx.communityEntry.update).not.toHaveBeenCalled();
+    expect(s.tx.communityPoint.create).not.toHaveBeenCalled();
+    expect(s.tx.discordJob.upsert).toHaveBeenCalledWith(expect.objectContaining({ create: expect.objectContaining({ kind: "COMMUNITY_POST" }) }));
+  });
+  it("rejects gaming-night edits with invalid dates or once the night started", async () => {
+    const s = store({ ...activity, kind: "EVENT", startsAt: endsAt, endsAt: new Date("2026-10-02T15:00:00Z"), rules: { capacity: 8, points: 10 } });
+    await expect(s.service.editEvent("guild", "activity", { endsAt: now }, now)).rejects.toThrow(/date invalide/);
+    await expect(s.service.editEvent("guild", "activity", { title: "Changed" }, endsAt)).rejects.toThrow(/soirées à venir/);
+    expect(s.tx.communityActivity.update).not.toHaveBeenCalled();
+  });
   it("attendance awards require a real signup and another organizer", async () => {
     const s = store({ ...activity, kind: "EVENT", startsAt: now, rules: { capacity: 10, points: 10 } as never });
     await expect(s.service.attendance("guild", "activity", "member", "member", now)).rejects.toThrow(/autre organisateur/);
@@ -171,6 +189,9 @@ describe("community state transitions", () => {
     s.tx.communityActivity.count.mockResolvedValue(0);
     s.tx.communityEntry.count.mockResolvedValue(1);
     await expect(s.service.endSeason("guild", "season")).rejects.toThrow(/preuves en attente/);
+    s.tx.communityEntry.count.mockResolvedValue(0);
+    s.tx.communityKudos.count.mockResolvedValue(1);
+    await expect(s.service.endSeason("guild", "season")).rejects.toThrow(/nominations/);
     expect(s.tx.communitySeason.update).not.toHaveBeenCalled();
   });
 });

@@ -4,6 +4,35 @@ role permissions and bot hierarchy. Preserve Exilé → Errant, remove only the
 owner-approved Errant permissions, and verify Guilded before disabling Carl.
 # Guilded 5.0 stabilization — local Claude update handoff
 
+Discord participation rewards: `docs/DISCORD_PARTICIPATION.md`. Opt-in per Discord
+community season/channel; capped messages and reactions, reviewed helper nominations,
+and shared voice time capped at **4 hours/day (32 points)**. Migration additive
+`20261030090000_community_participation`; PostgreSQL rehearsal includes concurrency,
+rollback and restore checks. Deploy only after the usual CI and backup gates, then
+configure `/participation settings`. Message Content remains optional; no audio is
+recorded. Real Discord checks remain required. Product version stays 5.0.0.
+
+Branded desktop + no-install online companion: `docs/COMPANION_EXPERIENCE.md`.
+Shared screens now use the owner's Guilded logo, guided setup and individual
+WoW/PoE2 pages. `/companion/` supports local browser file parsing, manual sync,
+standings downloads and personal map history. Build with `npm run companion:build`;
+existing Oracle Caddy configurations need the new companion proxy paths during
+release. Desktop pairing and online pairing currently replace the previous link.
+No additional migration or version bump; real-client and release gates remain.
+
+Native Discord event syncing: `docs/DISCORD_EVENTS.md`. Raids, weekly core
+occurrences and gaming nights publish linked events with edit/cancel/start/end
+updates and durable recovery. Deploy additive migration
+`20261029090000_discord_scheduled_events` after CI and backup, grant Create Events
+(plus View Channel/Connect for voice events), then verify on real Discord.
+Private events use compatible existing voice channels. Version remains 5.0.0.
+
+PoE2 mapping journal implementation: `docs/POE2_MAPPING.md`. Disabled by default;
+`/poe` adds setup, pairing, personal visits and league/mode activity summaries.
+Companion supports opt-in PoE2 `Client.txt` tracking and PoE2-only setups.
+Deploy additive migration `20261028090000_poe_mapping` after CI and backup, and
+rebuild the companion. Log observations never award automatic completion points.
+Real PoE2/Windows checks remain required; version stays 5.0.0.
 Class/spec display: `docs/CLASS_AND_GEAR_SIGNUPS.md`. Signup posts and core
 rosters show two icons plus the selected character's localized specialization.
 Provision the application-owned spec emojis, refresh existing posts, and install
@@ -20,7 +49,6 @@ Carl-bot retirement and a real welcome/role-button check remain separate live ga
 WoW class icons and inspected gear in signups/rosters:
 `docs/CLASS_AND_GEAR_SIGNUPS.md`. No migration; preserve existing signup
 identities. Accepted inspections refresh active posts through durable jobs.
-
 Character signups and approved WoW layout: `docs/CHARACTER_SIGNUPS.md`.
 Deploy additive migration `20261026090000_character_signups`, enable Quebec
 Gold's character policy and route the weekly report to its managed WoW channel.

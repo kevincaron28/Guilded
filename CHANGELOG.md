@@ -2,6 +2,7 @@
 
 ## 5.0.0 stabilization (unreleased)
 
+- **`/setup` now builds the community section.** "Create the missing ones for me" (step 2), "Create missing channels" and the new "Set up community" button on the checklist make the Community category with the activities hub, the leaderboard and a chat, start a first Discord season and turn participation rewards on with the default rules (the chat channel plus every voice channel open to all members). An existing season and any participation settings an officer chose are kept as they are.
 - **Imports no longer stop on one bad entry.** An entry for an unlinked character, an award made with no raid core in a core-only guild, loot with no core raid yet, or a malformed row is kept back and the rest of the upload is imported. Held entries are listed with `/import held`, announced once in the officer log, and import by themselves once their cause is fixed. A failed automatic import is now told to the officers and shown in the companion instead of only reaching the server log.
 - **`/guilded void [player]`** takes back the newest EP/GP entry you made; Discord never imports it, or reverses it when it already had it.
 - **Officers in the same raid see each other's awards at once**: an award is shared with the group and counts toward priority until Discord has it.

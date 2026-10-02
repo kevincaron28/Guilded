@@ -29,6 +29,8 @@ export interface SetupFacts {
   extraChannels?: { field: string; fact: ChannelFact | null }[];
   // The bot's own messages in its channels (services/bot-messages.ts).
   messageContentIntent?: boolean;
+  // The community section: a Discord season open to everyone, and whether it earns points.
+  community?: { season: boolean; participation: boolean } | null;
   botMessages?: { kind: string; name?: string; state: "current" | "outdated" | "missing" }[];
 }
 
@@ -129,6 +131,14 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en"): SetupCheck[] 
     const label = CHANNEL_LABELS[entry.field];
     if (!label) continue;
     checks.push(channelCheck(lang, label, entry.fact, true, T("Optional: press \"Create missing channels\", or pick an existing channel with the menu below.")));
+  }
+  if (facts.community) {
+    checks.push({
+      label: T("Community season and participation rewards"), ok: facts.community.season && facts.community.participation, optional: true,
+      fix: facts.community.season
+        ? T("The season is active but participation rewards are off: press \"Set up community\", or run /participation settings.")
+        : T("Optional: press \"Set up community\" on this checklist.")
+    });
   }
   const answerFact = (facts.extraChannels ?? []).find((entry) => entry.field === "answerChannelId")?.fact;
   if (answerFact && facts.messageContentIntent === false) {

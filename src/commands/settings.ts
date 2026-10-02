@@ -61,8 +61,6 @@ export const configCommand = new SlashCommandBuilder()
     .addStringOption((o) => o.setName("which").setDescription("Which channel to set").setRequired(true).addChoices(
       { name: "Announcements (raids, bosses, loot, EPGP)", value: "notify-channel" },
       { name: "Raid signups and reminders", value: "raid-channel" },
-      { name: "Raid summaries / Warcraft Logs", value: "raid-log-channel" },
-      { name: "Loot and EP/GP log", value: "loot-channel" },
       { name: "Officer log (joins, leaves, moderation)", value: "log-channel" },
       { name: "Raid core rosters", value: "core-channel" },
       { name: "Raid readiness (private)", value: "readiness-channel" },
@@ -119,8 +117,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
         `Raid reminders: ${settings.raidReminderMinutes > 0 ? `${settings.raidReminderMinutes} min before start` : "off"}`,
         `Notifications: ${settings.notifyChannelId ? `<#${settings.notifyChannelId}>` : "disabled"}`,
         `Dungeon posts: ${settings.dungeonChannelId ? `<#${settings.dungeonChannelId}>` : "notify channel"}`,
-        `Raid logs: ${settings.raidLogChannelId ? `<#${settings.raidLogChannelId}>` : "notify channel"}`,
-        `Loot and EP log: ${settings.lootChannelId ? `<#${settings.lootChannelId}>` : "notify channel"}`,
+        "Raid reports and loot logs: each raid core's own channels",
         `Auto-apply addon uploads: ${settings.autoApplyImports ? "on" : "off (officers run /import apply)"}`,
         settings.coreLootOnly ? "Butin : chaque core choisit sa méthode; EP/GP et prix séparés (/core edit)." : `Loot system: ${LOOT_MODE_LABEL[asLootMode(settings.lootMode)]} (cores can differ: /core rules)`,
         `WoW weekly report: ${settings.weeklyReportChannelId ? `<#${settings.weeklyReportChannelId}>` : "notify channel"}`,
@@ -261,12 +258,10 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
     return;
   }
 
-  const channelSettings: Record<string, { field: "raidLogChannelId" | "dungeonLeaderboardChannelId" | "dungeonSignupChannelId" | "lootChannelId" | "craftChannelId" | "readinessChannelId" | "coreChannelId" | "applicationChannelId" | "guideChannelId"; label: string }> = {
+  const channelSettings: Record<string, { field: "dungeonLeaderboardChannelId" | "dungeonSignupChannelId" | "craftChannelId" | "readinessChannelId" | "coreChannelId" | "applicationChannelId" | "guideChannelId"; label: string }> = {
     "core-channel": { field: "coreChannelId", label: "Raid core rosters" },
     "readiness-channel": { field: "readinessChannelId", label: "Raid readiness" },
-    "loot-channel": { field: "lootChannelId", label: "Loot and EP/GP changes" },
     "craft-channel": { field: "craftChannelId", label: "Craft requests" },
-    "raid-log-channel": { field: "raidLogChannelId", label: "Raid summaries" },
     "dungeon-leaderboard-channel": { field: "dungeonLeaderboardChannelId", label: "The dungeon leaderboard" },
     "dungeon-signup-channel": { field: "dungeonSignupChannelId", label: "Dungeon signups" },
     "application-channel": { field: "applicationChannelId", label: "Applications" },

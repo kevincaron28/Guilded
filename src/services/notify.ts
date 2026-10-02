@@ -26,7 +26,8 @@ async function notifyAddress(discordGuild: DiscordGuild, kind: NotifyKind = "not
   }
   const core = coreId && (kind === "raidLog" || kind === "loot") ? await prisma.raidCore.findFirst({ where: { id: coreId, guildId: guild.id }, select: { lootChannelId: true, raidLogChannelId: true } }) : null;
   const coreChannelId = kind === "raidLog" ? core?.raidLogChannelId : kind === "loot" ? core?.lootChannelId : null;
-  const channelId = coreChannelId ?? (kind === "raidLog" ? settings?.raidLogChannelId : kind === "loot" ? settings?.lootChannelId : null) ?? settings?.notifyChannelId;
+  // Raid reports and loot go to the core's own channel; with no core, to announcements.
+  const channelId = coreChannelId ?? settings?.notifyChannelId;
   if (!settings || !channelId) return null;
   return { guildId: guild.id, channelId, lang: asLang(settings.language) };
 }

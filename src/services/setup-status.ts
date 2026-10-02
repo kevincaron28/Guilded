@@ -75,7 +75,6 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en"): SetupCheck[] 
     channelCheck(lang, T("Announcements channel"), facts.notifyChannel, false, T("Press \"Create missing channels\" on this checklist, or /config to pick an existing one.")),
     channelCheck(lang, T("Raid signups channel"), facts.raidChannel, false, T("Press \"Create missing channels\" on this checklist, or /config to pick an existing one.")),
     channelCheck(lang, T("Officer log channel"), facts.logChannel, false, T("Press \"Create missing channels\" on this checklist, or /config to pick an existing one.")),
-    channelCheck(lang, T("Raid logs channel"), facts.raidLogChannel ?? null, true, T("Optional: press \"Create missing channels\" on this checklist. Raid summaries use announcements until then.")),
     channelCheck(lang, T("Dungeon signups channel"), facts.dungeonSignupChannel ?? null, true, T("Optional: press \"Create missing channels\" on this checklist.")),
     {
       label: T("Pinned dungeon signup guide"),
@@ -123,7 +122,7 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en"): SetupCheck[] 
   ];
   // Every other channel setup can create: optional, each with how to get it.
   const CHANNEL_LABELS: Record<string, string> = {
-    coreChannelId: T("Raid roster channel"), readinessChannelId: T("Raid readiness channel"), lootChannelId: T("Loot log channel"),
+    coreChannelId: T("Raid roster channel"), readinessChannelId: T("Raid readiness channel"),
     craftChannelId: T("Craft board channel"), applicationChannelId: T("Applications channel"), attendanceChannelId: T("Raid attendance channel"), guideChannelId: T("Bot guide channel"), answerChannelId: T("Bot FAQ channel"),
     dungeonChannelId: T("Dungeon runs channel"), weeklyReportChannelId: T("WoW weekly report channel")
   };

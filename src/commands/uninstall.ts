@@ -22,7 +22,7 @@ import { BRAND } from "../brand.js";
 import { isPermissionRoleName, type Permission } from "../permissions.js";
 import { RESET_REQUIRED_CHANNELS, isSetupLeftover, categoryNames, channelNames, type CategoryKey } from "../setup-names.js";
 import { forgetAnswerSettings } from "./faq.js";
-import { ALL_CHANNELS } from "./setup.js";
+import { ALL_CHANNELS, RETIRED_CHANNELS } from "./setup.js";
 import { ARCHIVE_CATEGORY, coreChannelNames } from "../services/core-channels.js";
 
 // Permanently removes Guilded from a server: deletes the channels and (empty) categories it
@@ -61,7 +61,7 @@ interface Impact {
 export async function gatherImpact(guild: DiscordGuild, guildId: string, settings: GuildSettings): Promise<Impact> {
   const removableChannels: RemovableChannel[] = [];
   const keptChannels: string[] = [];
-  for (const field of ALL_CHANNELS) {
+  for (const field of [...ALL_CHANNELS, ...RETIRED_CHANNELS]) {
     const id = settings[field];
     if (!id) continue;
     const channel = await guild.channels.fetch(id).catch(() => null);
@@ -83,7 +83,7 @@ export async function gatherImpact(guild: DiscordGuild, guildId: string, setting
   for (const channel of guild.channels.cache.values()) {
     if (channel.type !== ChannelType.GuildText) continue;
     const parentName = channel.parentId ? guild.channels.cache.get(channel.parentId)?.name : undefined;
-    if (ALL_CHANNELS.some(field => isSetupLeftover(field, channel.name, parentName))
+    if ([...ALL_CHANNELS, ...RETIRED_CHANNELS].some(field => isSetupLeftover(field, channel.name, parentName))
       && !removableChannels.some(row => row.id === channel.id)) removableChannels.push({ id: channel.id, name: channel.name });
   }
   for (const category of guild.channels.cache.values()) {

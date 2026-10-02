@@ -2,6 +2,7 @@
 
 ## 5.0.0 stabilization (unreleased)
 
+- **Raid reports and loot logs live only in each raid core's category.** `/setup` no longer creates a server-wide raid-logs or loot-log channel, and `/config channel` no longer offers them. A core's loot log and raid reports follow its category's permissions exactly (Discord's "sync permissions"), applied to existing cores at startup. A raid or award with no core posts in announcements. `/setup uninstall` still finds server-wide channels made by an earlier version.
 - **Community seasons last one month by default.** When the month is over (server time), the season is archived with its final standings and the next one starts by itself with the same channels, audience and participation rules, and an announcement. A season with an open activity, pending evidence or a pending nomination waits until those are closed. `/community season-settings monthly:false` keeps a season running until an organizer ends it.
 - **Weekly raid signups open six days before the raid** instead of seven.
 - **Signup posts of past raids are removed 24 hours after the raid ended** (or was cancelled; a raid nobody started counts as over six hours after its start time). The raid, its signups, attendance and report are kept.

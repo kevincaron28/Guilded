@@ -74,11 +74,14 @@ const baseFacts: SetupFacts = {
 describe("setup checklist: every channel and every bot message", () => {
   it("lists the other channels as optional rows", () => {
     const checks = setupChecks({ ...baseFacts, extraChannels: [
+      { field: "attendanceChannelId", fact: null },
       { field: "lootChannelId", fact: null },
       { field: "guideChannelId", fact: { name: "bot-guide", exists: true, botCanPost: true } }
     ] });
-    const loot = checks.find((check) => check.label.startsWith("Loot log channel"))!;
-    expect(loot).toMatchObject({ ok: false, optional: true });
+    const attendance = checks.find((check) => check.label.startsWith("Raid attendance channel"))!;
+    expect(attendance).toMatchObject({ ok: false, optional: true });
+    // The server-wide loot log is retired: each raid core has its own.
+    expect(checks.some((check) => check.label.startsWith("Loot log channel"))).toBe(false);
     expect(checks.find((check) => check.label.startsWith("Bot guide channel"))?.ok).toBe(true);
     expect(setupComplete(checks)).toBe(true);
   });

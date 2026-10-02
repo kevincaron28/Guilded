@@ -136,7 +136,6 @@ async function gatherFacts(guild: DiscordGuild, guildId: string, settings: Guild
     notifyChannel: await channelFact(guild, settings.notifyChannelId),
     raidChannel: await channelFact(guild, settings.raidSignupChannelId),
     logChannel: await channelFact(guild, settings.logChannelId),
-    raidLogChannel: await channelFact(guild, settings.raidLogChannelId),
     dungeonSignupChannel: await channelFact(guild, settings.dungeonSignupChannelId),
     dungeonSignupGuide: signupGuide,
     dungeonSignupCanPin: signupCanPin,
@@ -149,7 +148,7 @@ async function gatherFacts(guild: DiscordGuild, guildId: string, settings: Guild
     companionPaired: (await prisma.companionCredential.count({ where: { revokedAt: null, member: { guildId, status: "ACTIVE" } } })) > 0,
     linkedCharacters: await prisma.character.count({ where: { member: { guildId, isTest: false } } }),
     dungeonSignupGuideOutdated: guideState === "outdated",
-    extraChannels: await Promise.all((["coreChannelId", "readinessChannelId", "lootChannelId", "craftChannelId", "applicationChannelId", "attendanceChannelId", "guideChannelId", "answerChannelId", "dungeonChannelId", "weeklyReportChannelId"] as const)
+    extraChannels: await Promise.all((["coreChannelId", "readinessChannelId", "craftChannelId", "applicationChannelId", "attendanceChannelId", "guideChannelId", "answerChannelId", "dungeonChannelId", "weeklyReportChannelId"] as const)
       .map(async (field) => ({ field, fact: await channelFact(guild, settings[field]) }))),
     messageContentIntent: config.MESSAGE_CONTENT_INTENT,
     community: await communitySetupState(prisma, guildId).catch(() => null),
@@ -253,7 +252,7 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       "",
       T("📢 **Announcements** — raid started, boss kills, loot, EP awards: {channel}", { channel: channelLabel(lang, settings.notifyChannelId) }),
       T("📅 **Raid signups** — signup posts that update live, and raid reminders: {channel}", { channel: channelLabel(lang, settings.raidSignupChannelId) }),
-      T("📜 **Raid logs** — the raid summary (report) posted after each raid: {channel}", { channel: same(lang, settings.raidLogChannelId, "same as announcements") }),
+      T("📜 **Raid reports and loot logs** — each raid core has its own, in the core's category (`/core setup` makes them). There is no server-wide one."),
       T("🔒 **Officer log** — joins/leaves, moderation, bank and craft requests: {channel}", { channel: channelLabel(lang, settings.logChannelId) }),
       T("📖 **Bot guide** — the getting-started guide, pinned; also where update notices post: {channel} (\"Create the missing ones for me\" makes this one too, or pick it later with `/config channel`)", { channel: channelLabel(lang, settings.guideChannelId) }),
       T("💬 **Bot FAQ** — members ask questions and the bot answers automatically: {channel}", { channel: channelLabel(lang, settings.answerChannelId) }),
@@ -265,7 +264,6 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
     components.push(
       select("ch-notify", T("📢 Pick the announcements channel")),
       select("ch-raid", T("📅 Pick the raid signups channel")),
-      select("ch-raidlog", T("📜 Pick the raid logs channel")),
       select("ch-log", T("🔒 Pick the officer log channel")),
       navRow(2, lang, [button("create-channels", T("Create the missing ones for me"), ButtonStyle.Success)])
     );
@@ -281,7 +279,6 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       "",
       T("⭐ **Raid roster** — one live message per raid core (`/core create`); core members get signup priority: {channel}", { channel: channelLabel(lang, settings.coreChannelId) }),
       T("🛡️ **Raid readiness** — private, officers and raid leaders only: who is ready for raid night: {channel}", { channel: channelLabel(lang, settings.readinessChannelId) }),
-      T("🎁 **Loot & EP log** — every loot award and EP/GP change: {channel}", { channel: same(lang, settings.lootChannelId, "same as announcements") }),
       T("🔨 **Craft board** — a forum where every craft request is its own post with tags and buttons (bank requests stay in the officer log): {channel}", { channel: same(lang, settings.craftChannelId, "the officer log") }),
       T("📋 **Applications** — private, officers only: a heads-up when someone applies with `/apply`: {channel}", { channel: same(lang, settings.applicationChannelId, "the officer log") }),
       T("🧾 **Raid attendance** — private, officers only: who was present, late, benched or absent, posted with each raid report: {channel}", { channel: same(lang, settings.attendanceChannelId, "the officer log") })
@@ -289,7 +286,7 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
     components.push(
       channelSelect("ch-core", T("⭐ Pick the raid roster channel")),
       channelSelect("ch-readiness", T("🛡️ Pick the raid readiness channel (keep it private)")),
-      channelSelect("ch-loot", T("🎁 Pick the loot & EP log channel")),
+      channelSelect("ch-attendance", T("🧾 Pick the raid attendance channel (keep it private)")),
       channelSelect("ch-craft", T("🔨 Pick the craft board channel")),
       navRow(3, lang, [button("create-raidteam-channels", T("Create the missing ones for me"), ButtonStyle.Success)])
     );
@@ -501,11 +498,14 @@ async function createMissingRoles(guild: DiscordGuild, lang: Lang): Promise<stri
   return created.length ? tx(lang, "Created roles: {roles}. Now give them to your officers.", { roles: created.join(", ") }) : tx(lang, "All roles already existed.");
 }
 
-const CORE_CHANNELS: ChannelField[] = ["notifyChannelId", "raidSignupChannelId", "raidLogChannelId", "logChannelId", "guideChannelId", "answerChannelId"];
-const RAIDTEAM_CHANNELS: ChannelField[] = ["coreChannelId", "readinessChannelId", "lootChannelId", "craftChannelId", "applicationChannelId", "attendanceChannelId", "weeklyReportChannelId"];
+const CORE_CHANNELS: ChannelField[] = ["notifyChannelId", "raidSignupChannelId", "logChannelId", "guideChannelId", "answerChannelId"];
+const RAIDTEAM_CHANNELS: ChannelField[] = ["coreChannelId", "readinessChannelId", "craftChannelId", "applicationChannelId", "attendanceChannelId", "weeklyReportChannelId"];
 const DUNGEON_CHANNELS: ChannelField[] = ["dungeonLeaderboardChannelId", "dungeonSignupChannelId", "dungeonChannelId"];
 // Every channel field /setup can create. Also used by /setup uninstall to find what to remove.
 export const ALL_CHANNELS: ChannelField[] = [...CORE_CHANNELS, ...RAIDTEAM_CHANNELS, ...DUNGEON_CHANNELS];
+// Server-wide raid log and loot log: no longer created or used (each core has its own). Kept
+// so /setup uninstall still finds the ones an earlier version made.
+export const RETIRED_CHANNELS: ChannelField[] = ["raidLogChannelId", "lootChannelId"];
 
 // The category for a group of channels; created once and reused (found by its English or French name).
 async function ensureCategory(guild: DiscordGuild, key: CategoryKey, lang: Lang) {
@@ -842,7 +842,7 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
           }
         } else if (i.isChannelSelectMenu()) {
           const channelId = i.values[0];
-          const field = { "ch-notify": "notifyChannelId", "ch-raid": "raidSignupChannelId", "ch-raidlog": "raidLogChannelId", "ch-log": "logChannelId", "ch-welcome": "welcomeChannelId", "ch-dungeon": "dungeonChannelId", "ch-dungeon-lb": "dungeonLeaderboardChannelId", "ch-dungeon-signup": "dungeonSignupChannelId", "ch-core": "coreChannelId", "ch-readiness": "readinessChannelId", "ch-loot": "lootChannelId", "ch-craft": "craftChannelId" }[action];
+          const field = { "ch-notify": "notifyChannelId", "ch-raid": "raidSignupChannelId", "ch-log": "logChannelId", "ch-welcome": "welcomeChannelId", "ch-dungeon": "dungeonChannelId", "ch-dungeon-lb": "dungeonLeaderboardChannelId", "ch-dungeon-signup": "dungeonSignupChannelId", "ch-core": "coreChannelId", "ch-readiness": "readinessChannelId", "ch-attendance": "attendanceChannelId", "ch-craft": "craftChannelId" }[action];
           if (channelId && field) {
             await guildService.updateSettings(guildId, { [field]: channelId });
             note = T("Saved <#{id}>.", { id: channelId });

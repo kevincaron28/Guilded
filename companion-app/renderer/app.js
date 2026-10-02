@@ -1,7 +1,7 @@
 const $ = id => document.getElementById(id);
 const api = window.companion;
 const fields = ['uploadUrl','guildDiscordId','pairingCode','watchFile','realm','wowGuild','standingsIntervalMinutes','poeLogFile','poeCharacter','poeLeague','poeMode'];
-const names = {status:'Overview',wow:'World of Warcraft',poe:'PoE2 mapping',settings:'Connection & setup',activity:'Activity',help:'Help & privacy'};
+const names = {status:'Overview',wishlist:'Wishlist',cores:'Cores & prices',wow:'World of Warcraft',poe:'PoE2 mapping',settings:'Connection & setup',activity:'Activity',help:'Help & privacy'};
 let lastSnapshot;
 let savedConfig = {};
 let entries = [];

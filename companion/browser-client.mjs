@@ -106,6 +106,9 @@ export function createBrowserCompanion(env = globalThis) {
     refreshStandings: async () => { const data = await request(`/api/v1/standings?${guildQuery()}`); download("Standings.lua", standingsToLua(data)); state.lastStandings = { at: new Date().toISOString(), message: "Downloaded. Place in Interface / AddOns / Guilded, then /reload." }; log("ok", state.lastStandings.message); },
     setAutostart: async () => false, openAddonFolder: async () => false,
     removeData: async () => { if (busy) throw new Error("Wait for sync to finish."); if (config.companionCredential) await request("/api/v1/companion/logout", { guildDiscordId: config.guildDiscordId }); sessionStorage.removeItem(key); location.reload(); },
+    // The Wishlist and Cores & prices pages: { ok, data | error }, like the desktop app.
+    manageView: async () => { try { return { ok: true, data: await request(`/api/v1/manage?${guildQuery()}`) }; } catch (error) { return { ok: false, error: error.message }; } },
+    manageEdit: async change => { try { return { ok: true, data: await request("/api/v1/manage", { guildDiscordId: config.guildDiscordId, change }) }; } catch (error) { return { ok: false, error: error.message }; } },
     onState: fn => listeners.state.push(fn), onLog: fn => listeners.log.push(fn)
   };
   if (visits.length) state.poe = { pending: visits.length, currentArea: null };

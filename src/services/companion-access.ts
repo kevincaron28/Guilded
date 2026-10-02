@@ -17,7 +17,7 @@ export async function companionAccess(database: PrismaClient, client: Client | u
   const guild = await client.guilds.fetch(discordId);
   const member = await guild.members.fetch({ user: credential.member.discordUserId, force: true }).catch(() => null);
   if (!member) return null;
-  return { memberId: credential.memberId, actorId: member.id, officer: hasPermission(member, "officer") };
+  return { memberId: credential.memberId, actorId: member.id, officer: hasPermission(member, "officer"), raidLeader: hasPermission(member, "raidLeader") };
 }
 
 // Personal companions cannot change the ledger, other players' readiness, prices,

@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 const assets: Record<string, string> = {
   "": "index.html", "index.html": "index.html", "style.css": "style.css",
-  "app.js": "app.js", "web-bundle.js": "web-bundle.js", "logo.png": "logo.png", "manifest.json": "manifest.json"
+  "app.js": "app.js", "manage.js": "manage.js", "web-bundle.js": "web-bundle.js", "logo.png": "logo.png", "manifest.json": "manifest.json"
 };
 const mime: Record<string, string> = { html: "text/html; charset=utf-8", css: "text/css; charset=utf-8", js: "text/javascript; charset=utf-8", png: "image/png", json: "application/manifest+json" };
 // Serve only public renderer assets, never configuration or Electron's preload.

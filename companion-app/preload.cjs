@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld("companion", {
   toggleTracking: () => ipcRenderer.invoke("toggle-tracking"),
   getPoeRuns: () => ipcRenderer.invoke("get-poe-runs"),
   openOnline: () => ipcRenderer.invoke("open-online"),
+  manageView: () => ipcRenderer.invoke("manage-view"),
+  manageEdit: (change) => ipcRenderer.invoke("manage-edit", change),
   onState: (callback) => ipcRenderer.on("state", (_event, state) => callback(state)),
   onLog: (callback) => ipcRenderer.on("log", (_event, entry) => callback(entry))
 });

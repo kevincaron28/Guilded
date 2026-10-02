@@ -21,7 +21,8 @@ export const participationCommand = new SlashCommandBuilder().setName("participa
     const settings = seasonOption(sub.setName("settings").setDescription("Officer settings").setDescriptionLocalizations({ fr: "Réglages officiers" }))
       .addBooleanOption(o => o.setName("enabled").setDescription("Enable earning").setDescriptionLocalizations({ fr: "Activer les gains" }))
       .addChannelOption(o => o.setName("channel").setDescription("Add an eligible channel").setDescriptionLocalizations({ fr: "Ajouter un salon admissible" }).addChannelTypes(ChannelType.GuildText, ChannelType.GuildVoice))
-      .addBooleanOption(o => o.setName("remove").setDescription("Remove this channel").setDescriptionLocalizations({ fr: "Retirer ce salon" }));
+      .addBooleanOption(o => o.setName("remove").setDescription("Remove this channel").setDescriptionLocalizations({ fr: "Retirer ce salon" }))
+      .addBooleanOption(o => o.setName("all-voice").setDescription("Count every voice channel").setDescriptionLocalizations({ fr: "Compter tous les salons vocaux" }));
     const descriptions = ["Daily message points cap", "Daily reaction points cap", "Daily voice minutes; maximum 240", "Minimum days in server", "Distinct weekly participants goal"];
     const french = ["Plafond quotidien de messages", "Plafond quotidien de réactions", "Minutes vocales par jour, maximum 240", "Ancienneté minimale sur le serveur", "Objectif hebdomadaire de membres"];
     limits.forEach(([name, , min, max], index) => settings.addIntegerOption(o => o.setName(name).setDescription(descriptions[index]!).setDescriptionLocalizations({ fr: french[index]! }).setMinValue(min).setMaxValue(max)));
@@ -69,9 +70,11 @@ export async function executeParticipation(interaction: ChatInputCommandInteract
     const emojis = interaction.options.getString("emojis");
     if (emojis !== null) rules.emojis = emojis.split(",").map(value => value.trim().replace(/^<a?:\w+:(\d+)>$/, "$1")).filter(Boolean);
     const enabled = interaction.options.getBoolean("enabled") ?? season.participation?.enabled ?? false;
-    if (selected || remove || emojis !== null || interaction.options.getBoolean("enabled") !== null || limits.some(([option]) => interaction.options.getInteger(option) !== null)) await service.configure(context.guildId, seasonId, enabled, rules);
+    const allVoice = interaction.options.getBoolean("all-voice");
+    if (allVoice !== null) rules.allVoice = allVoice;
+    if (selected || remove || emojis !== null || allVoice !== null || interaction.options.getBoolean("enabled") !== null || limits.some(([option]) => interaction.options.getInteger(option) !== null)) await service.configure(context.guildId, seasonId, enabled, rules);
     content = `${T("Earning", "Gains")} : ${enabled ? T("enabled", "activés") : T("paused", "en pause")}\n` +
-      `${T("Text channels", "Salons textuels")} : ${rules.textChannels.map(id => `<#${id}>`).join(", ") || "—"}\n${T("Voice channels", "Salons vocaux")} : ${rules.voiceChannels.map(id => `<#${id}>`).join(", ") || "—"}\n` +
+      `${T("Text channels", "Salons textuels")} : ${rules.textChannels.map(id => `<#${id}>`).join(", ") || "—"}\n${T("Voice channels", "Salons vocaux")} : ${rules.allVoice ? T("all voice channels (except AFK)", "tous les salons vocaux (sauf AFK)") : rules.voiceChannels.map(id => `<#${id}>`).join(", ") || "—"}\n` +
       `${T("Daily caps", "Plafonds quotidiens")} : ${rules.messageDailyCap} ${T("message points", "points de messages")} · ${rules.reactionDailyCap} ${T("reaction points", "points de réactions")} · ${rules.voiceDailyMinutes} min ${T("voice", "vocal")}\n` +
       T("1 message point / 5 min; 2 voice points / 15 min; 2 eligible humans together. Muted listeners count; deafened/AFK do not.", "1 point de message / 5 min; 2 points vocaux / 15 min; 2 humains admissibles ensemble. Les personnes muettes comptent; pas les personnes assourdies/AFK.") +
       `\n${T("Positive emojis", "Emojis positifs")} : ${rules.emojis.join(" ") || "—"}\n` +

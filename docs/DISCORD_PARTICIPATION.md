@@ -9,7 +9,9 @@ point de donjon, protocole de compagnon ou SavedVariables n'est modifié. Versio
 Depuis `/setup start`, « Créer ceux qui manquent » (étape 2) et « Configurer la communauté »
 (liste de vérification) font tout ceci automatiquement sur un nouveau serveur : catégorie
 Communauté, salons activités / leaderboard / chat, première saison Discord et participation
-activée avec les règles par défaut (le chat communautaire et les vocaux ouverts à tous).
+activée avec les règles par défaut (le chat communautaire et tous les salons vocaux).
+`/participation settings season:SAISON all-voice:true` compte tous les vocaux (sauf AFK), y compris
+les vocaux temporaires des groupes; `all-voice:false` revient à la liste de salons choisis.
 Une saison existante et des réglages déjà choisis ne sont jamais écrasés. Les commandes
 ci-dessous servent à ajuster ou à configurer à la main.
 

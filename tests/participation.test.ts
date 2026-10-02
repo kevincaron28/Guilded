@@ -98,6 +98,14 @@ describe("participation rules", () => {
     for (const change of [{ deaf: true }, { eligible: false }, { channelId: "other" }]) expect([...eligibleVoiceUsers([a, { ...a, id: "b", ...change }], ["voice"], null)]).toEqual([]);
     expect([...eligibleVoiceUsers([a, { ...a, id: "b" }], ["voice"], "voice")]).toEqual([]);
   });
+  it("counts every voice channel except AFK when all voice channels are on", () => {
+    const a = { id: "a", channelId: "temporary-group", eligible: true, deaf: false };
+    expect([...eligibleVoiceUsers([a, { ...a, id: "b" }], null, null)]).toEqual(["a", "b"]);
+    // Still two members in the same channel, and never the AFK channel.
+    expect([...eligibleVoiceUsers([a, { ...a, id: "b", channelId: "elsewhere" }], null, null)]).toEqual([]);
+    expect([...eligibleVoiceUsers([a, { ...a, id: "b" }], null, "temporary-group")]).toEqual([]);
+    expect(participationRules.parse({}).allVoice).toBe(false);
+  });
 });
 
 describe("persistent participation accounting", () => {

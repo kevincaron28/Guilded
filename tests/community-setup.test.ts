@@ -73,19 +73,20 @@ describe("community section of /setup", () => {
     expect(seasons[0]).toMatchObject({ game: "DISCORD", channelId: "board", audienceRoleId: null, announcementChannelId: hub.id, createdBy: "officer" });
     expect(configs).toHaveLength(1);
     expect(configs[0]).toMatchObject({ seasonId: "season-1", enabled: true });
-    expect(configs[0]!["rules"]).toMatchObject({ textChannels: [chat.id], voiceChannels: ["lobby"], messageDailyCap: 10, reactionDailyCap: 6, voiceDailyMinutes: 240, minimumMemberDays: 3, weeklyGoal: 10 });
+    expect(configs[0]!["rules"]).toMatchObject({ textChannels: [chat.id], voiceChannels: [], allVoice: true, messageDailyCap: 10, reactionDailyCap: 6, voiceDailyMinutes: 240, minimumMemberDays: 3, weeklyGoal: 10 });
     // Provision the podium first, then redraw it once the season and participation exist.
     expect(refresh.mock.calls.map(call => call[4])).toEqual([{ categoryId: category.id }, undefined]);
     expect(text).toContain("Première saison lancée");
   });
 
-  it("creates a voice channel only when no voice channel is open to everyone", async () => {
-    const { guild, cache, create } = fakeGuild([{ id: "wow-voice", type: ChannelType.GuildVoice, name: "WoW" }], false);
+  it("creates a voice channel only when the server has none", async () => {
+    const { guild, cache, create } = fakeGuild();
     const { database, configs } = fakeDatabase();
     await ensureCommunitySetup(guild, database, "guild", "en", "officer", refreshFor(cache) as never);
     const made = create.mock.calls.map(([options]) => options).find(options => options.type === ChannelType.GuildVoice)!;
     expect(made.name).toBe("Community voice");
-    expect((configs[0]!["rules"] as { voiceChannels: string[] }).voiceChannels).toEqual([cache.find(channel => channel.name === "Community voice")!.id]);
+    expect(cache.some(channel => channel.name === "Community voice")).toBe(true);
+    expect((configs[0]!["rules"] as { allVoice: boolean }).allVoice).toBe(true);
   });
 
   it("reuses what exists and never overwrites a season or settings an officer chose", async () => {

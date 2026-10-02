@@ -22,7 +22,7 @@ export function createParticipationService(database: PrismaClient) {
   return {
     async configure(guildId: string, seasonId: string, enabled: boolean, input: ParticipationRules) {
       const rules = participationRules.parse(input);
-      if (enabled && !rules.textChannels.length && !rules.voiceChannels.length) fail("Choisis au moins un salon / Select at least one channel.");
+      if (enabled && !rules.textChannels.length && !rules.voiceChannels.length && !rules.allVoice) fail("Choisis au moins un salon / Select at least one channel.");
       return locked(guildId, async tx => {
         const season = await tx.communitySeason.findFirst({ where: { id: seasonId, guildId, game: "DISCORD", status: "ACTIVE" } });
         if (!season) return fail("Saison Discord active requise / Active Discord season required.");

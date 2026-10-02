@@ -11,10 +11,11 @@ export function eligibleParticipationMember(member: GuildMember, season: { audie
 }
 
 export type VoiceParticipant = { id: string; channelId: string; eligible: boolean; deaf: boolean };
-export function eligibleVoiceUsers(states: VoiceParticipant[], channels: string[], afkId: string | null): Set<string> {
+// `channels` null means every voice channel counts.
+export function eligibleVoiceUsers(states: VoiceParticipant[], channels: string[] | null, afkId: string | null): Set<string> {
   const groups = new Map<string, string[]>();
   for (const state of states) {
-    if (!state.eligible || state.deaf || state.channelId === afkId || !channels.includes(state.channelId)) continue;
+    if (!state.eligible || state.deaf || state.channelId === afkId || channels && !channels.includes(state.channelId)) continue;
     const group = groups.get(state.channelId) ?? [];
     group.push(state.id); groups.set(state.channelId, group);
   }
@@ -91,7 +92,7 @@ export function createParticipationTracker(database: PrismaClient, contentAvaila
         if (!cfg) { voices.delete(guild.id); return; }
         const rules = participationRules.parse(cfg.rules);
         const users = eligibleVoiceUsers(states.filter(state => state.channelId).map(state => ({ id: state.id, channelId: state.channelId!, deaf: state.deaf,
-          eligible: state.connect && memberEligible({ bot: state.bot, createdAt: state.createdAt, joinedAt: state.joinedAt, audience: !cfg.season.audienceRoleId || state.roles.has(cfg.season.audienceRoleId) || state.officer, canView: state.visible.has(cfg.season.channelId) && state.visible.has(state.channelId!) }, rules, at) })), rules.voiceChannels, afkId);
+          eligible: state.connect && memberEligible({ bot: state.bot, createdAt: state.createdAt, joinedAt: state.joinedAt, audience: !cfg.season.audienceRoleId || state.roles.has(cfg.season.audienceRoleId) || state.officer, canView: state.visible.has(cfg.season.channelId) && state.visible.has(state.channelId!) }, rules, at) })), rules.allVoice ? null : rules.voiceChannels, afkId);
         const previous = voices.get(guild.id);
         // Start fresh after restarts, config changes, disconnects or long pauses.
         voices.set(guild.id, { at, seasonId: cfg.seasonId, revision: cfg.revision, users });

@@ -10,6 +10,7 @@ import { notifications, notify } from "../services/notify.js";
 import { showEpProposal } from "./ep-award.js";
 import { postRaidReport, raidReportEmbed } from "./raid-report.js";
 import { buildRaidReport } from "../services/raid-report.js";
+import { executeRaidHistory, executeRaidSeason } from "./raid-season.js";
 import { bossProgress } from "../services/progress.js";
 import { parseRaidTime } from "../services/raid-time.js";
 import { asLang, t, type Lang } from "../i18n.js";
@@ -40,6 +41,13 @@ export const raidCommand = new SlashCommandBuilder()
     .addIntegerOption((o) => o.setName("healers").setDescription("Healer slot cap").setMinValue(0))
     .addIntegerOption((o) => o.setName("dps").setDescription("DPS slot cap").setMinValue(0)))
   .addSubcommand((sub) => sub.setName("progress").setDescription("Guild boss progression: first kills, kill counts, latest kill."))
+  .addSubcommand((sub) => sub.setName("season").setDescription("Officers: start a raid attendance season, or list the seasons.")
+    .addStringOption((o) => o.setName("name").setDescription("Name of the season to start (the current one ends)").setMaxLength(60))
+    .addStringOption((o) => o.setName("start").setDescription("First day, YYYY-MM-DD (default: now)")))
+  .addSubcommand((sub) => sub.setName("history").setDescription("Officers: who attended each raid of a season, with a spreadsheet file.")
+    .addStringOption((o) => o.setName("season").setDescription("Season (default: the current one)").setAutocomplete(true))
+    .addStringOption((o) => o.setName("core").setDescription("Only this raid core").setAutocomplete(true))
+    .addUserOption((o) => o.setName("player").setDescription("Only this member's raids")))
   .addSubcommand((sub) => sub.setName("report").setDescription("Raid summary: duration, raiders, bosses, EP, loot. Posts it for everyone.")
     .addStringOption((o) => o.setName("raid").setDescription("Raid (start typing its name)").setAutocomplete(true).setRequired(true)))
   .addSubcommand((sub) => sub.setName("award-ep").setDescription("Propose EP for a raid from attendance and boss kills; approve with a button.")
@@ -283,6 +291,15 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     await interaction.reply({ embeds: [new EmbedBuilder().setTitle(`${BRAND.emoji} ${BRAND.name} progression`)
       .setDescription(text || "No boss kills recorded yet. Mark kills with /raid boss.")
       .setFooter({ text: `${progress.length} boss(es) killed` })] });
+    return;
+  }
+
+  if (subcommand === "season") {
+    await executeRaidSeason(interaction, context.guildId);
+    return;
+  }
+  if (subcommand === "history") {
+    await executeRaidHistory(interaction, context.guildId);
     return;
   }
 

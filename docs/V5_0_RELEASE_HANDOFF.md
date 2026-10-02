@@ -4,6 +4,13 @@ role permissions and bot hierarchy. Preserve Exilé → Errant, remove only the
 owner-approved Errant permissions, and verify Guilded before disabling Carl.
 # Guilded 5.0 stabilization — local Claude update handoff
 
+Raid attendance seasons (2 Oct 2026): `/raid season` and `/raid history` (officers) on a new
+`RaidSeason` table, a date range that raids fall into by date; a summary pinned in the attendance
+channel is edited after each raid report (`src/services/raid-season.ts`,
+`src/commands/raid-season.ts`). Additive migration `20261105090000_raid_seasons`; bot only, the
+slash commands must be re-registered, no client rebuild or version bump. Real Discord checks
+remain: start a season, pin and edit of the summary, the CSV file.
+
 Welcome onboarding (2 Oct 2026): the welcome message and a pinned "Start here" panel carry
 private-answer buttons (rules, game menu, WoW pairing, checklist), with optional rules gating and
 a one-time reminder, all in `src/services/onboarding.ts` and `/setup start` step 5. Additive

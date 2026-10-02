@@ -4,6 +4,7 @@ import { t, type Lang } from "../i18n.js";
 import { notifyEmbed } from "../services/notify.js";
 import { buildRaidAttendance, buildRaidReport, formatDuration, type RaidAttendanceList, type RaidReport } from "../services/raid-report.js";
 import { linkedReport } from "../services/wcl.js";
+import { refreshSeasonSummary } from "./raid-season.js";
 
 export function raidReportEmbed(report: RaidReport, lang: Lang = "en"): EmbedBuilder {
   const none = t(lang, "report.noneRecorded");
@@ -54,14 +55,16 @@ export function raidAttendanceEmbed(list: RaidAttendanceList, lang: Lang = "en")
 }
 
 // Posts the report to the raid-logs channel (or announcements), in the guild's language,
-// and the attendance list to the officers' attendance channel (or the officer log).
+// and the attendance list to the officers' attendance channel (or the officer log), where the
+// season's summary is brought up to date.
 // Returns false when no channel is configured.
 export async function postRaidReport(discordGuild: DiscordGuild | null, guildId: string, raidId: string): Promise<boolean> {
   const report = await buildRaidReport(prisma, guildId, raidId);
-  const raid = await prisma.raid.findFirst({ where: { guildId, id: raidId }, select: { coreId: true } });
+  const raid = await prisma.raid.findFirst({ where: { guildId, id: raidId }, select: { coreId: true, scheduledAt: true } });
   const wcl = await linkedReport(prisma, guildId, raidId).catch(() => null);
   const attendance = await buildRaidAttendance(prisma, guildId, raidId).catch(() => null);
   if (attendance) await notifyEmbed(discordGuild, (lang) => raidAttendanceEmbed(attendance, lang), "attendance");
+  if (raid) await refreshSeasonSummary(discordGuild, guildId, raid.scheduledAt);
   return notifyEmbed(discordGuild, (lang) => {
     const embed = raidReportEmbed(report, lang);
     if (wcl) embed.addFields({ name: "Warcraft Logs", value: `[${wcl.title}](${wcl.url})` });

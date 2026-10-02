@@ -383,6 +383,8 @@ After each import, completed runs and new records are posted once in the dungeon
 | `/raid award-ep <raid>` | Show the proposed EP again (e.g. after `/import apply` added attendance) |
 | `/raid boss <raid> <name> <Killed\|Pending>` | Boss status |
 | `/raid attendance <raid> <player> <status> [notes]` | Record attendance |
+| `/raid season [name] [start]` | Officers. With `name`, start a raid attendance season (the current one ends where it starts); `start:2026-09-01` begins it in the past, and the raids since then are included. Alone, list the seasons |
+| `/raid history [season] [core] [player]` | Officers, only you see it. Who attended each raid of the season: rate, count per status and last raids per member, plus a CSV grid (one line per member, one column per raid). `player` lists one member's raids. With no season it covers the last 90 days. The same summary is pinned in the raid attendance channel and updated after each raid report |
 | `/raid note <raid> <text> [boss]` | Officer note (general, per boss, what to improve); shown in `/raid status` to raid leaders |
 | `/character readiness raid` also shows a **Consumables** section (who has no flask/elixir or food) from the officer's last in-game `/guilded consumes` scan, if it is under 3 hours old |
 | `/character readiness member <player>` / `/character readiness raid` | Check other people's readiness (also Guild Master, Loot Leader, Class Leader). `/character readiness raid` posts the whole-guild board in the private **raid-readiness** channel when one is set (otherwise it replies only to you). The board is also refreshed after every `/import apply` that carries gear checks |

@@ -36,6 +36,7 @@ import { CATEGORY_NAMES, isSetupLeftover, categoryNames, channelNames, channelSp
 import { forgetAnswerSettings } from "./faq.js";
 import { BRAND } from "../brand.js";
 import { boardTagNames, postBoardGuide } from "./craft-board.js";
+import { communitySetupState, ensureCommunitySetup } from "../services/community-setup.js";
 
 // Guided first-time setup. One private message that walks an admin through
 // seven steps with buttons and dropdowns only (no IDs, no typing):
@@ -151,6 +152,7 @@ async function gatherFacts(guild: DiscordGuild, guildId: string, settings: Guild
     extraChannels: await Promise.all((["coreChannelId", "readinessChannelId", "lootChannelId", "craftChannelId", "applicationChannelId", "guideChannelId", "answerChannelId", "dungeonChannelId", "weeklyReportChannelId"] as const)
       .map(async (field) => ({ field, fact: await channelFact(guild, settings[field]) }))),
     messageContentIntent: config.MESSAGE_CONTENT_INTENT,
+    community: await communitySetupState(prisma, guildId).catch(() => null),
     botMessages: await botMessageFacts(guild, prisma, settings, lang, craftGuideText(lang)).catch(() => [])
   };
 }
@@ -254,7 +256,8 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       T("📜 **Raid logs** — the raid summary (report) posted after each raid: {channel}", { channel: same(lang, settings.raidLogChannelId, "same as announcements") }),
       T("🔒 **Officer log** — joins/leaves, moderation, bank and craft requests: {channel}", { channel: channelLabel(lang, settings.logChannelId) }),
       T("📖 **Bot guide** — the getting-started guide, pinned; also where update notices post: {channel} (\"Create the missing ones for me\" makes this one too, or pick it later with `/config channel`)", { channel: channelLabel(lang, settings.guideChannelId) }),
-      T("💬 **Bot FAQ** — members ask questions and the bot answers automatically: {channel}", { channel: channelLabel(lang, settings.answerChannelId) })
+      T("💬 **Bot FAQ** — members ask questions and the bot answers automatically: {channel}", { channel: channelLabel(lang, settings.answerChannelId) }),
+      T("🎉 **Community** — activities, leaderboard and chat, with a first season and participation rewards already on (\"Create the missing ones for me\" makes these too).")
     ].join("\n"));
     const select = (id: string, placeholder: string) => new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(
       new ChannelSelectMenuBuilder().setCustomId(`setup:${id}`).setPlaceholder(placeholder)
@@ -426,7 +429,8 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       button("update-messages", T("Update bot messages"), ButtonStyle.Success),
       button("lfg-roles", T("Create LFG ping roles")),
       button("post-guide", T("Post a getting-started message for members"), ButtonStyle.Secondary, !settings.notifyChannelId),
-      button("organize", T("Tidy my channels into categories"))
+      button("organize", T("Tidy my channels into categories")),
+      button("create-community", T("Set up community"))
     ));
     // Link an existing channel instead of creating one: pick which, then the channel.
     const pending = pendingField.get(guildId);
@@ -744,6 +748,11 @@ export async function executeSetup(interaction: ChatInputCommandInteraction): Pr
       note = "";
       const lang = await currentLang();
       const T = (english: string, vars: Record<string, string | number> = {}) => tx(lang, english, vars);
+      // The community section comes with the channels by default; a failure there never hides
+      // the channels that were created.
+      const withCommunity = async (channels: string) => `${channels}
+${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
+        .catch((error: unknown) => `⚠️ ${T("Community setup didn't finish: {error}", { error: error instanceof Error ? error.message : String(error) })}`)}`;
       if (action === "next") step = Math.min(SUMMARY_STEP, step + 1);
       else if (action === "back") step = Math.max(1, step - 1);
       else if (action === "jump-summary") step = SUMMARY_STEP;
@@ -763,10 +772,11 @@ export async function executeSetup(interaction: ChatInputCommandInteraction): Pr
             await member.roles.add(role, `${BRAND.name} /setup`);
             note = T("Gave you {role}.", { role: role.name });
           }
-        } else if (action === "create-channels") note = await createSectionChannels(guild, guildId, CORE_CHANNELS, lang);
+        } else if (action === "create-channels") note = await withCommunity(await createSectionChannels(guild, guildId, CORE_CHANNELS, lang));
         else if (action === "create-raidteam-channels") note = await createSectionChannels(guild, guildId, RAIDTEAM_CHANNELS, lang);
         else if (action === "create-dungeon-channels") note = await createSectionChannels(guild, guildId, DUNGEON_CHANNELS, lang);
-        else if (action === "create-all-channels") note = await createSectionChannels(guild, guildId, ALL_CHANNELS, lang);
+        else if (action === "create-all-channels") note = await withCommunity(await createSectionChannels(guild, guildId, ALL_CHANNELS, lang));
+        else if (action === "create-community") note = await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id);
         else if (action === "dungeon-guide") {
           const settings = await guildService.getSettings(guildId);
           const channel = settings?.dungeonSignupChannelId

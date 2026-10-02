@@ -63,6 +63,7 @@ import { createParticipationTracker } from "./services/participation-discord.js"
 import { handleMemberJoin, handleMemberRolesChange, handleMemberLeave, handleWelcomeRoleButton, WELCOME_ROLE_PREFIX } from "./services/housekeeping.js";
 import { createErrorReportService } from "./services/error-report.js";
 import { buildGuildedReference } from "./services/guilded-reference.js";
+import { runRetention } from "./services/retention.js";
 
 // GuildMembers is a privileged intent: it must also be enabled for this bot
 // application under "Server Members Intent" in the Discord Developer Portal,
@@ -79,8 +80,8 @@ const client = new Client({
 });
 const participationTracker = createParticipationTracker(prisma, config.MESSAGE_CONTENT_INTENT);
 const answerCommandList = buildGuildedReference(commands);
-startCompanionApi(client);
 const errorReportService = createErrorReportService(prisma);
+const companionApi = startCompanionApi(client);
 // Background jobs run unattended (no interaction to reply to), so this is
 // their only way to surface a failure beyond the console/journalctl.
 const reportJobError = (source: string) => (error: unknown) => {
@@ -93,10 +94,31 @@ const reportInteractionError = (source: string, interaction: { guildId: string |
   void errorReportService.report(client, error, { source, guildId: interaction.guildId, guildName: interaction.guild?.name, userId: interaction.user.id });
 };
 
-// A crashed process only shows up as a systemd restart today; capture the
-// actual cause before that happens (or before an unhandled rejection is
-// silently swallowed).
-process.on("uncaughtException", (error) => { void errorReportService.report(client, error, { source: "uncaughtException" }); });
+// Stops cleanly: no new companion requests, Discord and the database closed. systemd sends
+// SIGTERM on every redeploy; without this an import could be cut off mid-request.
+let stopping = false;
+async function shutdown(code: number): Promise<void> {
+  if (stopping) return;
+  stopping = true;
+  // Never hang on a stuck connection: systemd would wait, then kill it anyway.
+  setTimeout(() => process.exit(code), 10_000).unref();
+  await new Promise<void>((resolve) => companionApi.close(() => resolve()));
+  await client.destroy().catch(() => undefined);
+  await prisma.$disconnect().catch(() => undefined);
+  process.exit(code);
+}
+process.on("SIGTERM", () => { void shutdown(0); });
+process.on("SIGINT", () => { void shutdown(0); });
+
+// After an uncaught exception the process is in an unknown state (the companion API may not
+// even be listening). The cause is saved and reported first, then the process exits so systemd
+// starts a clean one; staying up half-broken is worse than a ten-second restart.
+process.on("uncaughtException", (error) => {
+  console.error("Uncaught exception, restarting", error);
+  const reported = errorReportService.report(client, error, { source: "uncaughtException" });
+  void Promise.race([reported, new Promise((resolve) => setTimeout(resolve, 5_000))]).finally(() => shutdown(1));
+});
+// A rejected promise nobody awaited is a bug in one handler, not a broken process: report it and carry on.
 process.on("unhandledRejection", (error) => { void errorReportService.report(client, error, { source: "unhandledRejection" }); });
 const handlers = new Collection<string, (interaction: ChatInputCommandInteraction) => Promise<void>>();
 handlers.set("profile", executeProfile);
@@ -182,6 +204,12 @@ client.once(Events.ClientReady, (readyClient) => {
     .catch(reportJobError("Database backup"));
   void backup();
   setInterval(() => void backup(), 60 * 60 * 1000);
+  // Old uploads, repeated gear checks and old error reports are pruned (services/retention.ts).
+  const retention = () => runRetention(prisma)
+    .then((removed) => { if (removed.imports || removed.snapshots || removed.errors) console.info(`Retention: removed ${removed.imports} old upload(s), ${removed.snapshots} old gear check(s), ${removed.errors} old error report(s).`); })
+    .catch(reportJobError("Data retention"));
+  setTimeout(() => void retention(), 5 * 60 * 1000);
+  setInterval(() => void retention(), 6 * 60 * 60 * 1000);
   // A free hosted database goes to sleep when idle and the first command after
   // that takes over Discord's 3 second limit ("Unknown interaction"). A tiny
   // query every 2 minutes keeps it awake.

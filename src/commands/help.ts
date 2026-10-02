@@ -71,7 +71,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
   officer: {
     en: [
       "`/setup start` — guided setup and checklist · `/setup config` — every setting",
-      "`/loot auction` · `/loot close` · `/import apply` (addon data)",
+      "`/loot auction` · `/loot close` · `/import apply` · `/import held` (addon data)",
       "`/setup testraid start` — fake raid to try everything, `/setup testraid cleanup` after",
       "`/dungeon admin` — invalidate a run, award points, rules, target times, new season",
       "`/bank list` / `handle` · `/mod application list` · `/mod` · `/mod faq` — answer channel · `/tag set` · `/setup selfroles`",
@@ -82,7 +82,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
     ],
     fr: [
       "`/setup start` — configuration guidée et liste de vérification · `/setup config` — tous les réglages",
-      "`/loot auction` · `/loot close` · `/import apply` (données de l'addon)",
+      "`/loot auction` · `/loot close` · `/import apply` · `/import held` (données de l'addon)",
       "`/setup testraid start` — faux raid pour tout essayer, puis `/setup testraid cleanup`",
       "`/dungeon admin` — annuler un donjon, donner des points, règles, temps cibles, nouvelle saison",
       "`/bank list` / `handle` · `/mod application list` · `/mod` · `/mod faq` — salon des réponses · `/tag set` · `/setup selfroles`",

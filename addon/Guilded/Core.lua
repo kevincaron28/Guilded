@@ -14,8 +14,14 @@ local MAX_EXPORT_MARKERS = 10
 local MAX_EPGP_AMOUNT = 100000
 -- Addon messages longer than 255 bytes are rejected by the client.
 local MAX_ADDON_MESSAGE = 255
+-- Another officer's award heard in the group counts toward priority until Discord has it, at
+-- most this long (their companion normally uploads it within minutes).
+local PEER_LEDGER_SECONDS = 12 * 60 * 60
+local MAX_PEER_LEDGER = 500
 local db
 local activeRaid
+
+local function L(text) return ns.L and ns.L(text) or text end
 
 local function now()
   return date("!%Y-%m-%dT%H:%M:%SZ")
@@ -104,6 +110,12 @@ local function ensureDb()
     db.dkp = nil
   end
   db.ledgerSeq = db.ledgerSeq or 0
+  -- Other officers' awards not in the Discord standings yet: [ledger id] = { name, ep, gp, coreId, by, at }.
+  db.peerLedger = db.peerLedger or {}
+  local peerCutoff = (GetServerTime and GetServerTime() or time()) - PEER_LEDGER_SECONDS
+  for id, peer in pairs(db.peerLedger) do
+    if type(peer) ~= "table" or (tonumber(peer.at) or 0) < peerCutoff then db.peerLedger[id] = nil end
+  end
   db.readiness = db.readiness or {}
   db.attunements = db.attunements or {}
   -- Diagnostics: blocked-action reports (ADDON_ACTION_BLOCKED/FORBIDDEN,
@@ -396,13 +408,33 @@ function ns.effectiveStanding(rawName, coreId)
     if sameAccount then
       for _, entry in ipairs(account.ledger or {}) do
         local samePool = (entry.coreId or "") == (coreId or "")
+        local ref = "addon:qg:" .. tostring(entry.id)
         local includedInLocalPublish = not coreId and s and s.localPublish == true and db.localPublishedRefs and db.localPublishedRefs[entry.id]
-        if samePool and (not baseline or (entry.pending and not accepted["addon:qg:" .. tostring(entry.id)] and not includedInLocalPublish)) then
+        if samePool and entry.voided then
+          -- Voided in game (/guilded void). One the standings already count is taken back out
+          -- until Discord's reversal arrives; one Discord never had simply does not count.
+          local counted = entry.wasCounted or accepted[ref] or includedInLocalPublish
+          if baseline and counted and not entry.voidAcked and not accepted["void:" .. ref] then
+            ep, gp = ep - (entry.epAmount or 0), gp - (entry.gpAmount or 0)
+          end
+        elseif samePool and (not baseline or (entry.pending and not accepted[ref] and not includedInLocalPublish)) then
           ep, gp = ep + (entry.epAmount or 0), gp + (entry.gpAmount or 0)
         end
       end
       -- Old standalone data can contain balances without a ledger.
       if not baseline and not coreId and #(account.ledger or {}) == 0 then ep, gp = ep + (account.ep or 0), gp + (account.gp or 0) end
+    end
+  end
+  -- Awards another officer made in this raid (heard in the group, see handlePeerLedger): two
+  -- officers handing out loot see each other's GP at once, not after both companions synced.
+  local nowSeconds = util.serverTime()
+  for id, peer in pairs(db and db.peerLedger or {}) do
+    if (peer.coreId or "") == (coreId or "") and not accepted["addon:qg:" .. tostring(id)]
+      and nowSeconds - (tonumber(peer.at) or 0) < PEER_LEDGER_SECONDS then
+      local other = players and players[peer.name]
+      if peer.name == name or (baseline and baseline.account and other and other.account == baseline.account) then
+        ep, gp = ep + (tonumber(peer.ep) or 0), gp + (tonumber(peer.gp) or 0)
+      end
     end
   end
   local denominator = gp + math.max(0, baseGp)
@@ -412,17 +444,26 @@ end
 local function changeEpgp(rawName, rawAmount, reason, kind, quiet)
   local spec = EPGP_KINDS[kind]
   local name = normalizeName(rawName)
+  -- Rounded before it is checked: 0.4 rounds to 0, and a zero entry is not a ledger entry
+  -- (Discord refuses one).
   local amount = tonumber(rawAmount)
+  if amount then amount = math.floor(amount + 0.5) end
   if not name or not amount or amount <= 0 or amount > MAX_EPGP_AMOUNT then
     message(string.format("Usage: /guilded %s <player> <amount 1-%d> [reason]", spec.command, MAX_EPGP_AMOUNT)); return
   end
-  amount = math.floor(amount + 0.5)
   -- The bot requires a reason of at least 3 characters on import.
   if not reason or string.len(reason) < 3 then reason = "Manual adjustment" .. (reason and reason ~= "" and (": " .. reason) or "") end
   db.epgp[name] = db.epgp[name] or { ep = 0, gp = 0, ledger = {} }
   local account = db.epgp[name]
   local core = ns.loot and ns.loot.core()
   local coreId = core and core.pool and core.id or nil
+  -- A guild that keeps points per raid core has no guild pool: Discord would hold this entry
+  -- back, so it is refused here, where the officer can still pick the core.
+  local lootRules = ns.getLootRules and ns.getLootRules()
+  if lootRules and lootRules.coreOnly and not coreId then
+    message(L("This guild keeps EP and GP per raid core. Pick the core first: /guilded core <name>."))
+    return
+  end
   local standing = ns.effectiveStanding(name, coreId)
   if spec.gp < 0 then
     -- GP never goes below zero: deduct at most what the player has.
@@ -434,17 +475,89 @@ local function changeEpgp(rawName, rawAmount, reason, kind, quiet)
     account.ep = account.ep + epAmount
     account.gp = account.gp + gpAmount
   end
+  local id = nextLedgerId()
   table.insert(account.ledger, {
-    id = nextLedgerId(), pending = true, coreId = coreId, epAmount = epAmount, gpAmount = gpAmount, type = spec.type or kind, reason = reason,
+    id = id, pending = true, coreId = coreId, epAmount = epAmount, gpAmount = gpAmount, type = spec.type or kind, reason = reason,
     at = now(), by = playerName(), raid = activeRaid and activeRaid.id
   })
   logEvent(spec.type or kind, { name = name, epAmount = epAmount, gpAmount = gpAmount, reason = reason })
-  send("EPGP|" .. name .. "|" .. epAmount .. "|" .. gpAmount .. "|" .. reason)
+  -- Other officers in the group count it at once (handlePeerLedger).
+  local channel = util.groupChannel()
+  if channel then comm.send(PREFIX, string.format("LEDGER|%s|%s|%d|%d|%s", id, name, epAmount, gpAmount, coreId or ""), channel) end
   if not quiet then
-    message(string.format("%s EP %d, GP %d (%s), PR %.3f.", name, account.ep, account.gp, reason,
-      account.gp > 0 and account.ep / account.gp or 0))
+    -- The totals of the pool the entry went to (a core's own pool, or the guild's).
+    local after = ns.effectiveStanding(name, coreId)
+    message(string.format("%s EP %d, GP %d (%s), PR %.3f.", name, after.ep, after.gp, reason, after.pr))
   end
   return true
+end
+
+local function describeEntry(name, entry)
+  local parts = {}
+  if (entry.epAmount or 0) ~= 0 then table.insert(parts, string.format("%+d EP", entry.epAmount)) end
+  if (entry.gpAmount or 0) ~= 0 then table.insert(parts, string.format("%+d GP", entry.gpAmount)) end
+  return string.format("%s %s (%s)", name, table.concat(parts, ", "), tostring(entry.reason or ""))
+end
+
+-- /guilded void [player | last]: takes back the newest entry you made (for that player, or of
+-- all). The ledger is never edited: the entry stays, marked voided. Discord never imports a
+-- voided entry it did not have yet, and reverses one it already had.
+local function voidEntry(target)
+  local wanted = target and target ~= "" and string.lower(target) ~= "last" and normalizeName(target) or nil
+  local function seq(entry) return tonumber(string.match(tostring(entry.id or ""), "%-(%d+)$")) or 0 end
+  local foundName, found
+  for name, account in pairs(db.epgp) do
+    if not wanted or name == wanted then
+      for _, entry in ipairs(account.ledger or {}) do
+        if entry.id and not entry.voided and (not found or seq(entry) > seq(found)) then foundName, found = name, entry end
+      end
+    end
+  end
+  if not found then
+    message(wanted and string.format("%s has no ledger entry to void.", wanted) or "There is no ledger entry to void.")
+    return
+  end
+  -- Already in Discord's standings (sent and accepted) or still only on this PC?
+  found.wasCounted = not found.pending
+  found.voided, found.voidedBy, found.pending = now(), playerName(), nil
+  if not found.coreId then
+    local account = db.epgp[foundName]
+    account.ep = (account.ep or 0) - (found.epAmount or 0)
+    account.gp = (account.gp or 0) - (found.gpAmount or 0)
+  end
+  logEvent("VOID", { name = foundName, id = found.id, epAmount = found.epAmount, gpAmount = found.gpAmount })
+  local channel = util.groupChannel()
+  if channel then comm.send(PREFIX, "LEDGERVOID|" .. found.id, channel) end
+  message(string.format("Voided: %s. Discord takes it back with the next upload.", describeEntry(foundName, found)))
+  return true
+end
+
+-- LEDGER|<id>|<player>|<ep>|<gp>|<core id> and LEDGERVOID|<id>, from an officer in your group.
+-- Only officers keep them (they decide loot), and only until Discord has the entry.
+local function handlePeerLedger(text, channel, sender)
+  if channel ~= "RAID" and channel ~= "PARTY" then return end
+  local author = normalizeName(sender)
+  if not author or not isOfficer() or not isOfficerName(author) or not util.inMyGroup(sender) then return end
+  local voidedId = string.match(text, "^LEDGERVOID|([^|]+)$")
+  if voidedId then
+    local peer = db.peerLedger[voidedId]
+    if peer and peer.by == author then db.peerLedger[voidedId] = nil end
+    if ns.onLootChange then pcall(ns.onLootChange) end
+    return
+  end
+  local id, name, ep, gp, coreId = string.match(text, "^LEDGER|([^|]+)|([^|]+)|(%-?%d+)|(%-?%d+)|([^|]*)$")
+  ep, gp, name = tonumber(ep), tonumber(gp), normalizeName(name)
+  if not id or not name or not ep or not gp or (ep == 0 and gp == 0) then return end
+  -- A ledger id starts with its author's name: nobody speaks for another officer's ledger.
+  if string.sub(id, 1, #author + 1) ~= author .. "-" then return end
+  if math.abs(ep) > MAX_EPGP_AMOUNT or math.abs(gp) > MAX_EPGP_AMOUNT then return end
+  if not db.peerLedger[id] then
+    local count = 0
+    for _ in pairs(db.peerLedger) do count = count + 1 end
+    if count >= MAX_PEER_LEDGER then return end
+  end
+  db.peerLedger[id] = { name = name, ep = ep, gp = gp, coreId = coreId ~= "" and coreId or nil, by = author, at = util.serverTime() }
+  if ns.onLootChange then pcall(ns.onLootChange) end
 end
 
 -- Everyone in your current raid or party, plus you, as normalized names.
@@ -894,6 +1007,10 @@ local function recordLoot(args)
   logEvent("LOOT", row)
   send("LOOT|" .. name .. "|" .. item .. "|" .. row.cost)
   message("Recorded loot: " .. item .. " -> " .. name .. ".")
+  local lootRules = ns.getLootRules and ns.getLootRules()
+  if lootRules and lootRules.coreOnly and not activeRaid then
+    message(L("No raid is running: Discord files loot under a raid core only once it belongs to a raid. Use /guilded start before the next item."))
+  end
   -- Someone else holding the item (personal or group loot)? Remind them to trade it (Loot.lua).
   if ns.loot and ns.loot.noteAward then pcall(ns.loot.noteAward, item, name) end
 end
@@ -987,6 +1104,7 @@ local function showHelp()
     message("Officer: /guilded start [title] | end | attendance <name>|group|seen [PRESENT|ABSENT|LATE] | boss <name>")
     message("Officer: /guilded award <name>|group <amount> [reason] | gp <name> <amount> [reason] | deduct <name> <amount> [reason] | gpdeduct <name> <amount> [reason]")
     message("Officer: /guilded loot <name> <item> [cost] | export | attune <player> <key> [clear] | officer list|add|remove|rank")
+    message("Officer: /guilded void [player] - take back the newest EP/GP entry you made (for that player); Discord reverses it")
   end
   for _, line in pairs(ns.commandHelp or {}) do
     local text = type(line) == "table" and line.text or line
@@ -1203,6 +1321,7 @@ local function command(text)
   elseif action == "deduct" then if requireOfficer() then changeEpgp(args[2], args[3], table.concat(args, " ", 4), "ADJUSTMENT") end
   elseif action == "gpdeduct" then if requireOfficer() then changeEpgp(args[2], args[3], table.concat(args, " ", 4), "GP_DEDUCT") end
   elseif action == "loot" then if requireOfficer() then recordLoot(args) end
+  elseif action == "void" then if requireOfficer() then voidEntry(args[2]) end
   elseif action == "attune" and ns.attunements and (function()
       local sub = string.lower(args[2] or "")
       return sub == "auto" or sub == "track" or sub == "untrack" or sub == "tracked"
@@ -1279,23 +1398,38 @@ local function handlePeerReadiness(text, sender, channel)
   -- The guild channel only carries guildmates; in a raid or party a pug's digest would end
   -- up in every officer's export (and the bot would "discover" them), so only members count.
   if channel ~= "GUILD" and not isGuildMember(name) then return end
+  -- The text comes from another player's client. Only well-formed pieces are kept: this ends
+  -- up in the officer's upload, and one odd value must not spoil it.
   local professions, flags, identity, professionsAt = "", "", nil, nil
   for index = 6, #parts do
-    if string.sub(parts[index], 1, 2) == "F:" then flags = string.sub(parts[index], 3)
+    if string.sub(parts[index], 1, 2) == "F:" then flags = string.sub(parts[index], 3, 120)
     elseif string.sub(parts[index], 1, 2) == "I:" then
       local class, race, level, spec = string.match(string.sub(parts[index], 3), "^([^,]*),([^,]*),(%d*),?(.*)$")
-      if class and class ~= "" then identity = { class = class, race = race, level = tonumber(level) or 0, spec = spec or "" } end
+      level = tonumber(level) or 0
+      if class and string.match(class, "^%u+$") and #class <= 20 then
+        identity = {
+          class = class, race = string.match(race or "", "^%a+$") and string.sub(race, 1, 30) or "",
+          level = (level >= 0 and level <= 100) and level or 0, spec = string.sub(spec or "", 1, 40)
+        }
+      end
     elseif string.sub(parts[index], 1, 2) == "P:" then professionsAt = tonumber(string.sub(parts[index], 3))
-    elseif professions == "" then professions = parts[index] end
+    elseif professions == "" then
+      local kept = {}
+      for profession, skill in string.gmatch(parts[index], "([^:,]+):(%d+)") do
+        if #kept < 10 and #profession <= 40 and #skill <= 4 then table.insert(kept, profession .. ":" .. skill) end
+      end
+      professions = table.concat(kept, ",")
+    end
   end
+  local STATUSES = { READY = true, PARTIAL = true, NOT_READY = true }
   local previous = db.peerRoster[name]
   if previous and previous.professionsAt and (not professionsAt or previous.professionsAt > professionsAt) then
     professions, professionsAt = previous.professions, previous.professionsAt
   end
   db.peerRoster[name] = {
-    status = parts[3] or "UNKNOWN",
-    missing = tonumber(parts[4]) or 0,
-    minDurability = tonumber(parts[5]) or 100,
+    status = STATUSES[parts[3] or ""] and parts[3] or "UNKNOWN",
+    missing = math.max(0, math.min(20, tonumber(parts[4]) or 0)),
+    minDurability = math.max(0, math.min(100, tonumber(parts[5]) or 100)),
     professions = professions,
     professionsComplete = professionsAt ~= nil,
     professionsAt = professionsAt,
@@ -1392,6 +1526,24 @@ local function resolveGuildData()
   return "switched"
 end
 
+-- Every character that logs in on this PC, per guild: a paired companion links them all to the
+-- same Discord member, so alts need no /character claim. Written only once the character's
+-- guild is known and is the guild the loaded data belongs to: at login the data of the guild
+-- played last is still loaded, and a character of another guild must not land in its list.
+local function noteMyCharacter(info)
+  if type(info) ~= "table" or not info.name or info.name == "Unknown" then return end
+  local key = currentGuildKey()
+  if not key or (db.guildKey and db.guildKey ~= key) then return end
+  db.myCharacters = db.myCharacters or {}
+  db.myCharacters[info.name] = info
+  local count, oldestName, oldestAt = 0, nil, nil
+  for name, entry in pairs(db.myCharacters) do
+    count = count + 1
+    if not oldestAt or (entry.capturedAt or "") < oldestAt then oldestName, oldestAt = name, entry.capturedAt or "" end
+  end
+  if count > 50 and oldestName and oldestName ~= info.name then db.myCharacters[oldestName] = nil end
+end
+
 local function onEvent(_, event, ...)
   if event == "PLAYER_LOGIN" then
     ensureDb()
@@ -1399,16 +1551,7 @@ local function onEvent(_, event, ...)
     local capturedOk, captured = pcall(collectCharacter)
     if capturedOk then
       db.character = captured
-      -- Every character that logs in on this PC (for this guild): a paired companion links
-      -- them all to the same Discord member, so alts need no /character claim.
-      db.myCharacters = db.myCharacters or {}
-      if type(captured) == "table" and captured.name and captured.name ~= "Unknown" then db.myCharacters[captured.name] = captured end
-      local count, oldestName, oldestAt = 0, nil, nil
-      for name, entry in pairs(db.myCharacters) do
-        count = count + 1
-        if not oldestAt or (entry.capturedAt or "") < oldestAt then oldestName, oldestAt = name, entry.capturedAt or "" end
-      end
-      if count > 50 and oldestName then db.myCharacters[oldestName] = nil end
+      noteMyCharacter(captured)
     end
     snapshotModules()
     registerPrefix()
@@ -1423,12 +1566,12 @@ local function onEvent(_, event, ...)
   if event == "PLAYER_ENTERING_WORLD" then
     resolveGuildData()
     db.character = collectCharacter()
-    db.myCharacters = db.myCharacters or {}; db.myCharacters[playerName()] = db.character
+    noteMyCharacter(db.character)
     maybeAutoSync(AUTO_SYNC_DEBOUNCE_SECONDS)
   elseif event == "SKILL_LINES_CHANGED" then
     if C_Timer and C_Timer.After then C_Timer.After(1, function()
       db.character = collectCharacter()
-      db.myCharacters = db.myCharacters or {}; db.myCharacters[playerName()] = db.character
+      noteMyCharacter(db.character)
       inspectReadiness(true, "GUILD")
       if ns.recipes and ns.recipes.pruneMine then ns.recipes.pruneMine() end
     end) end
@@ -1439,7 +1582,7 @@ local function onEvent(_, event, ...)
     local ok, captured = pcall(collectCharacter)
     if ok then
       db.character = captured
-      db.myCharacters = db.myCharacters or {}; db.myCharacters[playerName()] = captured
+      noteMyCharacter(captured)
       maybeAutoSync(AUTO_SYNC_DEBOUNCE_SECONDS)
     end
   elseif event == "GROUP_ROSTER_UPDATE" then
@@ -1447,7 +1590,7 @@ local function onEvent(_, event, ...)
     if inRaidGroup() then maybeAutoSync(AUTO_SYNC_RAID_INTERVAL_SECONDS) end
   elseif event == "GUILD_ROSTER_UPDATE" then
     -- Before anything is added to the roster: make sure it is the right guild's data.
-    resolveGuildData()
+    if resolveGuildData() then noteMyCharacter(db.character) end
     local count = GetNumGuildMembers and GetNumGuildMembers() or 0
     db.lastRosterUpdate = now()
     local inRoster = {}
@@ -1496,6 +1639,8 @@ local function onEvent(_, event, ...)
     elseif string.sub(text, 1, 11) == "ATTUNEMENT|" then
       -- Other players' own attunements (Modules/Attunements.lua keeps only self-reports).
       if ns.attunements and ns.attunements.handleMessage then pcall(ns.attunements.handleMessage, text, channel, sender) end
+    elseif string.sub(text, 1, 7) == "LEDGER|" or string.sub(text, 1, 11) == "LEDGERVOID|" then
+      handlePeerLedger(text, channel, sender)
     elseif string.sub(text, 1, 8) == "CONSUME|" then
       -- What a groupmate carries, sent by their own addon (Modules/Ready.lua checks who and where).
       if ns.ready and ns.ready.handleReport then pcall(ns.ready.handleReport, text, channel, sender) end

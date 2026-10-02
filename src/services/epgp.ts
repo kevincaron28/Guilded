@@ -120,35 +120,36 @@ export function createEpgpService(database: PrismaClient) {
       });
     },
 
-    // Decays one pool: the guild pool, or a core's own pool when `coreId` is given.
-    async applyDecay(guildId: string, percent: number, createdBy: string, coreId: string | null = null) {
+    // Decays one pool: the guild pool, or a core's own pool when `coreId` is given. Everyone
+    // decays together or nobody does: one transaction, behind the same per-guild lock as addon
+    // imports, so points cannot move while the amounts are worked out. With `ref` (automatic
+    // decay passes the week) a second run of the same decay adds nothing.
+    async applyDecay(guildId: string, percent: number, createdBy: string, coreId: string | null = null, ref?: string) {
       if (!Number.isFinite(percent) || percent < 0 || percent > 1) {
         throw new Error("Decay percent must be between 0 and 1");
       }
       await requireCorePool(database, guildId, coreId);
-      const members = await database.member.findMany({
-        where: { guildId, status: "ACTIVE" },
-        select: { id: true }
-      });
-      const transactions = [];
-      for (const member of members) {
-        const standing = await getStanding(member.id, 0, coreId);
-        const ep = -Math.floor(standing.ep * percent);
-        const gp = -Math.floor(standing.gp * percent);
-        if (ep !== 0 || gp !== 0) {
-          transactions.push(createTransaction({
-            guildId,
-            memberId: member.id,
-            epAmount: ep,
-            gpAmount: gp,
-            type: EpgpTransactionType.DECAY,
-            reason: `EPGP decay (${percent * 100}%)`,
-            createdBy,
-            coreId
-          }));
-        }
-      }
-      return Promise.all(transactions);
+      const reason = `EPGP decay (${Math.round(percent * 1000) / 10}%)`;
+      return database.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${guildId}, 0))`;
+        const [members, sums] = await Promise.all([
+          tx.member.findMany({ where: { guildId, status: "ACTIVE" }, select: { id: true } }),
+          tx.epgpTransaction.groupBy({ by: ["memberId"], where: { guildId, coreId }, _sum: { epAmount: true, gpAmount: true } })
+        ]);
+        const byMember = new Map(sums.map((row) => [row.memberId, row._sum]));
+        const rows = members.flatMap((member) => {
+          const sum = byMember.get(member.id);
+          const ep = -Math.floor((sum?.epAmount ?? 0) * percent) || 0;
+          const gp = -Math.floor((sum?.gpAmount ?? 0) * percent) || 0;
+          if (ep === 0 && gp === 0) return [];
+          return [{
+            guildId, memberId: member.id, epAmount: ep, gpAmount: gp, type: EpgpTransactionType.DECAY, reason, createdBy, coreId,
+            sourceRef: ref ? `${ref}:${member.id}` : null
+          }];
+        });
+        if (rows.length === 0) return [];
+        return tx.epgpTransaction.createManyAndReturn({ data: rows, skipDuplicates: true });
+      }, { timeout: 60_000, maxWait: 15_000 });
     },
 
     async reverseTransaction(transactionId: string, createdBy: string, reason: string, guildId?: string) {

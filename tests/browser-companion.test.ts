@@ -1,5 +1,6 @@
 import { File } from "node:buffer";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { readBrowserAddon, readBrowserPoe } from "../companion/browser-files.mjs";
 import { parsePoeLogLine, consumePoeEvent } from "../companion/poe-log.mjs";
@@ -10,6 +11,19 @@ const exit = '2026/01/01 12:05:00 456 def [DEBUG Client 42] Generating level 1 a
 const now = new Date(2026, 0, 1, 14).getTime();
 
 describe("browser companion local file processing", () => {
+  it("agrees with the shared parser on the synthetic localized lifecycle and CRLF", async () => {
+    const fixture = readFileSync(new URL('./fixtures/poe2/lifecycle.txt', import.meta.url), 'utf8');
+    const journal = { active: null, pending: [] };
+    for (const entry of fixture.split(/\r?\n/)) consumePoeEvent(journal, parsePoeLogLine(entry), profile);
+    const result = await readBrowserPoe(new File([fixture.replace(/\r?\n/g, '\r\n')], 'Client.txt'), profile, new Date(2026, 8, 30, 13).getTime());
+    expect(result.visits).toEqual(journal.pending); expect(result.visits).toHaveLength(2);
+    expect(JSON.stringify(result)).not.toMatch(/private fixture chat|slain|Vous/);
+  });
+  it("rejects UTF-16 and waits for a complete final transition", async () => {
+    await expect(readBrowserPoe(new File([Buffer.from('\ufeff' + line, 'utf16le')], 'Client.txt'), profile, now)).rejects.toThrow('UTF-16');
+    expect((await readBrowserPoe(new File([`${line}\n${exit}`], 'Client.txt'), profile, now)).visits).toEqual([]);
+    expect((await readBrowserPoe(new File([`${line}\n${exit}\r\n`], 'Client.txt'), profile, now)).visits).toHaveLength(1);
+  });
   it("uses the real addon parser without executing Lua", async () => {
     const file = new File(['GuildedDB = { addonVersion = "5.0.0", character = { name = "Ann", class = "Mage", level = 70 }, epgp = {} }'], "Guilded.lua");
     expect(await readBrowserAddon(file, "R")).toMatchObject({ addonVersion: "5.0.0", character: { name: "Ann", realm: "R", class: "Mage" }, epgpTransactions: [] });

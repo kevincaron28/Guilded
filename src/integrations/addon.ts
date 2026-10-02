@@ -21,7 +21,9 @@ export const addonEpgpTransactionSchema = z.object({
   gpAmount: z.number().int().default(0),
   type: z.enum(["EP_AWARD", "GP_AWARD", "ITEM_AWARD", "DEDUCTION", "ADJUSTMENT", "DECAY", "IMPORT", "REVERSAL"]),
   reason: z.string().min(3),
-  sourceRef: z.string().min(1).optional()
+  sourceRef: z.string().min(1).optional(),
+  // Voided in game (/guilded void): never imported, or reversed when it already was.
+  voided: z.boolean().optional()
 }).refine((transaction) => transaction.epAmount !== 0 || transaction.gpAmount !== 0, "must change EP or GP");
 
 const addonItemSchema = z.object({
@@ -210,6 +212,8 @@ export const addonItemPriceSchema = z.object({
   at: z.coerce.date()
 });
 
+const MAX_REJECTED = 200;
+
 export const addonSnapshotSchema = z.object({
   source: z.string().min(1),
   exportedAt: z.coerce.date(),
@@ -235,13 +239,49 @@ export const addonSnapshotSchema = z.object({
   loot: z.array(addonLootSchema).default([]),
   // Dungeon runs are validated one by one on apply (services/dungeon-rules),
   // so a single malformed run can't reject the whole import.
-  dungeonRuns: z.array(z.unknown()).max(500).default([])
+  dungeonRuns: z.array(z.unknown()).max(500).default([]),
+  // Rows left out because they were malformed (see parseAddonSnapshot); the rest still imports.
+  rejected: z.array(z.object({ section: z.string().max(40), label: z.string().max(120), reason: z.string().max(200) })).max(MAX_REJECTED).default([])
 });
 
 export type AddonSnapshot = z.infer<typeof addonSnapshotSchema>;
 
+// Every export carries the whole ledger and every guildmate's digest, so one malformed row
+// (a zero amount, a nameless profession a peer broadcast) must not reject the upload for good.
+// Each row of these lists is checked by itself; a bad one is left out and noted in `rejected`.
+const ROW_SCHEMAS = {
+  transactions: addonTransactionSchema, epgpTransactions: addonEpgpTransactionSchema, readiness: addonReadinessSchema,
+  attunements: addonAttunementSchema, raids: addonRaidSchema, loot: addonLootSchema, characters: addonCharacterSchema,
+  alts: addonCharacterSchema, itemPrices: addonItemPriceSchema, calendarEvents: addonCalendarEventSchema,
+  recipes: addonRecipeSetSchema, cooldowns: addonCooldownSetSchema
+} as const;
+
+function rowLabel(row: unknown, index: number): string {
+  const fields = row && typeof row === "object" ? row as Record<string, unknown> : {};
+  const name = [fields["character"], fields["name"], fields["ref"], fields["title"]].find((value) => typeof value === "string" && value !== "");
+  return String(name ?? `#${index + 1}`).slice(0, 120);
+}
+
 export function parseAddonSnapshot(payload: unknown): AddonSnapshot {
-  return addonSnapshotSchema.parse(payload);
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return addonSnapshotSchema.parse(payload);
+  const source = payload as Record<string, unknown>;
+  const cleaned: Record<string, unknown> = { ...source };
+  const rejected: { section: string; label: string; reason: string }[] = Array.isArray(source["rejected"]) ? [...source["rejected"]] as never : [];
+  for (const [section, schema] of Object.entries(ROW_SCHEMAS)) {
+    const rows = source[section];
+    if (!Array.isArray(rows)) continue;
+    cleaned[section] = rows.filter((row, index) => {
+      const result = schema.safeParse(row);
+      if (result.success) return true;
+      const issue = result.error.issues[0];
+      if (rejected.length < MAX_REJECTED) {
+        rejected.push({ section, label: rowLabel(row, index), reason: `${issue?.path.join(".") || "row"}: ${issue?.message ?? "invalid"}`.slice(0, 200) });
+      }
+      return false;
+    });
+  }
+  if (rejected.length) cleaned["rejected"] = rejected;
+  return addonSnapshotSchema.parse(cleaned);
 }
 
 export function normalizeAddonSnapshot(snapshot: AddonSnapshot): AddonSnapshot {

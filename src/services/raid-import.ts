@@ -1,7 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import type { AddonLoot, AddonRaid } from "../integrations/addon.js";
 import { findCharacter } from "./character-match.js";
-import { CORE_REQUIRED } from "./core-loot-policy.js";
 
 // A Discord raid within this long of the in-game /guilded start counts as the
 // same raid (people start late, or schedule "8pm" and pull at 8:40).
@@ -121,9 +120,10 @@ export async function applyAddonLoot(
   characters: LinkedCharacter[],
   raidIds: Map<string, string>,
   appliedBy: string,
-  coreLootOnly = false
-): Promise<{ recorded: number; skipped: number; unmatched: string[]; recordedIds?: string[] }> {
-  if (loot.length === 0) return { recorded: 0, skipped: 0, unmatched: [] };
+  coreLootOnly = false,
+  dismissed: ReadonlySet<string> = new Set()
+): Promise<{ recorded: number; skipped: number; unmatched: string[]; recordedIds?: string[]; recordedRefs: string[]; held: AddonLoot[] }> {
+  if (loot.length === 0) return { recorded: 0, skipped: 0, unmatched: [], recordedRefs: [], held: [] };
   const refs = loot.map((row) => row.ref);
   const existing = new Set((await tx.lootAward.findMany({
     where: { sourceRef: { in: refs } },
@@ -131,16 +131,20 @@ export async function applyAddonLoot(
   })).map((row) => row.sourceRef));
   let recorded = 0;
   const recordedIds: string[] = [];
+  const recordedRefs: string[] = [];
+  // Rows waiting for their core raid (still running in game, or never started): kept for the
+  // next upload instead of failing the whole import.
+  const held: AddonLoot[] = [];
   let skipped = 0;
   const unmatched: string[] = [];
   for (const row of loot) {
-    if (existing.has(row.ref)) { skipped++; continue; }
+    if (existing.has(row.ref) || dismissed.has(row.ref)) { skipped++; continue; }
     const character = findCharacter(characters, row.character, row.realm);
     if (!character) { unmatched.push(row.character); continue; }
     const raidId = row.raidRef ? raidIds.get(row.raidRef) ?? null : null;
     if (coreLootOnly) {
       const raid = raidId ? await tx.raid?.findFirst({ where: { id: raidId, guildId, core: { separatePool: true } }, select: { id: true } }) : null;
-      if (!raid) throw new Error(CORE_REQUIRED);
+      if (!raid) { held.push(row); continue; }
     }
     const award = await tx.lootAward.create({
       data: {
@@ -156,8 +160,9 @@ export async function applyAddonLoot(
       }
     });
     recordedIds.push(award.id);
+    recordedRefs.push(row.ref);
     existing.add(row.ref);
     recorded++;
   }
-  return { recorded, skipped, unmatched: [...new Set(unmatched)], ...(recordedIds.length ? { recordedIds } : {}) };
+  return { recorded, skipped, unmatched: [...new Set(unmatched)], ...(recordedIds.length ? { recordedIds } : {}), recordedRefs, held };
 }

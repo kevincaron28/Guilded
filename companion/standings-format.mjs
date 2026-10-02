@@ -19,6 +19,8 @@ function lootToLua(loot) {
   return [
     "GuildedLoot = {",
     `  default = ${luaString(loot.default)},`,
+    // Every EP/GP entry needs a raid core: the addon refuses an award with no core chosen.
+    `  coreOnly = ${loot.coreOnly ? "true" : "false"},`,
     `  minimumBid = ${Math.max(0, Math.trunc(loot.minimumBid ?? 10))},`,
     "  values = {",
     ...valuesToLua(loot.values, "    "),

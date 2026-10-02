@@ -146,14 +146,16 @@ export function createEngine(initialConfig, hooks = {}) {
     state.botVersion = body.botVersion ?? state.botVersion;
     state.addonVersion = exported.addonVersion ?? state.addonVersion;
     if (response.ok) {
-      const message = body.autoApplied
-        ? `Uploaded and applied automatically (${body.autoApplied.epgp} ledger entries, ${body.autoApplied.discovered} new characters).${pairingNote(body.pairedCharacterStatus)}`
+      const message = body.applyError
+        ? `Uploaded, but the bot could not apply it: ${body.applyError}`
+        : body.autoApplied
+        ? `Uploaded and applied automatically (${body.autoApplied.epgp} ledger entries, ${body.autoApplied.discovered} new characters).${heldNote(body.autoApplied)}${pairingNote(body.pairedCharacterStatus)}`
         : body.professionRelay
           ? `Professions and recipes synced. Guild ledger imports still await officer review.${pairingNote(body.pairedCharacterStatus)}`
           : `Uploaded ${body.transactionCount} ledger entries. Apply on Discord with: /import apply id:${body.importId}.${pairingNote(body.pairedCharacterStatus)}`;
       state.lastUpload = { at: new Date().toISOString(), message };
       state.uploads += 1;
-      log("ok", message);
+      log(body.applyError || body.autoApplied?.held ? "warn" : "ok", message);
       void refreshStandings();
     } else if (response.status === 409) {
       const message = body.status === "PREVIEWED"
@@ -183,6 +185,15 @@ export function createEngine(initialConfig, hooks = {}) {
       if (epoch === generation && state.running && queued) scheduleUpload(0);
       hooks.onState?.(snapshot());
     }
+  }
+
+  // Entries the bot kept back (unlinked character, no raid core...): the rest went through.
+  function heldNote(applied) {
+    const parts = [];
+    if (applied?.held) parts.push(`${applied.held} on hold: an officer can see why with /import held`);
+    if (applied?.voided) parts.push(`${applied.voided} voided in game and taken back`);
+    if (applied?.rejected) parts.push(`${applied.rejected} unreadable row(s) left out`);
+    return parts.length ? ` ${parts.join("; ")}.` : "";
   }
 
   function pairingNote(status) {

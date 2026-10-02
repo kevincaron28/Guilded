@@ -13,7 +13,7 @@ export function parsePoeRecord(line, fingerprint) {
     // The seed stays in memory: callers hash it into instanceRef and never store it.
     return { kind: "area", at, pid, areaId: area[2], areaLevel: Number(area[1]), seed: area[3], fingerprint };
   }
-  if (level === "INFO" && /^(?:Abnormal disconnect:|Async connecting to .*\.login\.pathofexile2\.com:)/.test(message)) return { kind: "interrupted", at, pid };
+  if (level === "INFO" && /^(?:Abnormal disconnect(?:\b)|Async connecting to .*\.login\.pathofexile2\.com:)/.test(message)) return { kind: "interrupted", at, pid };
   return null;
 }
 // The same area + seed is the same map instance, so portal re-entries (and

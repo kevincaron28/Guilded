@@ -17,18 +17,39 @@ describe("parseAddonSnapshot", () => {
     expect(snapshot.transactions).toHaveLength(1);
   });
 
-  it("rejects zero-value transactions", () => {
-    expect(() => parseAddonSnapshot({
+  // Every export carries the whole ledger: one bad row is left out, it does not refuse the rest.
+  it("leaves a zero-value transaction out and keeps the valid ones", () => {
+    const snapshot = parseAddonSnapshot({
       source: "ForeverLootManager",
       exportedAt: "2026-09-24T00:00:00.000Z",
-      transactions: [{
-        character: "Kevin",
-        realm: "WoW Forever",
-        amount: 0,
-        type: "AWARD",
-        reason: "Invalid"
-      }]
-    })).toThrow();
+      transactions: [
+        { character: "Kevin", realm: "WoW Forever", amount: 0, type: "AWARD", reason: "Invalid" },
+        { character: "Kevin", realm: "WoW Forever", amount: 5, type: "AWARD", reason: "Valid" }
+      ]
+    });
+    expect(snapshot.transactions.map((row) => row.amount)).toEqual([5]);
+    expect(snapshot.rejected).toEqual([expect.objectContaining({ section: "transactions", label: "Kevin" })]);
+  });
+
+  it("still refuses a file that is not an addon export at all", () => {
+    expect(() => parseAddonSnapshot({ exportedAt: "2026-09-24T00:00:00.000Z" })).toThrow();
+    expect(() => parseAddonSnapshot("nope")).toThrow();
+  });
+
+  it("leaves out a guildmate's malformed digest instead of refusing the officer's upload", () => {
+    const snapshot = parseAddonSnapshot({
+      source: "Guilded",
+      exportedAt: "2026-09-24T00:00:00.000Z",
+      epgpTransactions: [{ character: "Kevin", realm: "R", epAmount: 50, type: "EP_AWARD", reason: "Raid", sourceRef: "qg:a" }],
+      characters: [{ name: "Mallory", realm: "R", class: "WARRIOR", level: 999 }, { name: "Ann", realm: "R", class: "MAGE", level: 60 }],
+      readiness: [{ character: "Mallory", realm: "R", professions: [{ name: "", skillLevel: 300 }] }]
+    });
+    expect(snapshot.epgpTransactions).toHaveLength(1);
+    expect(snapshot.characters.map((row) => row.name)).toEqual(["Ann"]);
+    expect(snapshot.readiness).toEqual([]);
+    expect(snapshot.rejected.map((row) => row.section).sort()).toEqual(["characters", "readiness"]);
+    // The stored payload is parsed again when it is applied: the note survives, nothing is added twice.
+    expect(parseAddonSnapshot(JSON.parse(JSON.stringify(snapshot))).rejected).toHaveLength(2);
   });
 
   it("accepts an EPGP-shaped transaction separate from the DKP transactions", () => {
@@ -49,8 +70,8 @@ describe("parseAddonSnapshot", () => {
     expect(snapshot.transactions).toHaveLength(0);
   });
 
-  it("rejects an EPGP transaction that changes neither EP nor GP", () => {
-    expect(() => parseAddonSnapshot({
+  it("leaves out an EPGP transaction that changes neither EP nor GP", () => {
+    const snapshot = parseAddonSnapshot({
       source: "Guilded",
       exportedAt: "2026-09-24T00:00:00.000Z",
       epgpTransactions: [{
@@ -61,7 +82,9 @@ describe("parseAddonSnapshot", () => {
         type: "ADJUSTMENT",
         reason: "No-op"
       }]
-    })).toThrow();
+    });
+    expect(snapshot.epgpTransactions).toEqual([]);
+    expect(snapshot.rejected[0]).toMatchObject({ section: "epgpTransactions", reason: expect.stringContaining("must change EP or GP") });
   });
 
   it("accepts a readiness entry with no missing-slot findings", () => {

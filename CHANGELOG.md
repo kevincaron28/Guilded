@@ -2,6 +2,14 @@
 
 ## 5.0.0 stabilization (unreleased)
 
+- **Imports no longer stop on one bad entry.** An entry for an unlinked character, an award made with no raid core in a core-only guild, loot with no core raid yet, or a malformed row is kept back and the rest of the upload is imported. Held entries are listed with `/import held`, announced once in the officer log, and import by themselves once their cause is fixed. A failed automatic import is now told to the officers and shown in the companion instead of only reaching the server log.
+- **`/guilded void [player]`** takes back the newest EP/GP entry you made; Discord never imports it, or reverses it when it already had it.
+- **Officers in the same raid see each other's awards at once**: an award is shared with the group and counts toward priority until Discord has it.
+- The addon refuses an amount that rounds to zero and, in a guild that keeps points per raid core, an award with no core chosen; it prints the totals of the pool the award went to; GP bid ties use the running core's pool; a character of another WoW guild is no longer listed as an alt.
+- Decay is applied to everyone in one transaction; the automatic weekly decay retries safely after a failure.
+- The bot restarts after an uncaught error instead of running half-broken, and stops cleanly on redeploy.
+- Old uploads, repeated gear checks and old error reports are pruned; the standings file lists only the ledger references a PC needs. New table `AddonHeldEntry` (migration `20261101090000_addon_held_entries`, additive).
+
 - Export Discord scheduled Events as well as bot raids into the companion calendar feed; add a click-to-import next missing guild event action with duplicate checks.
 - Remove recurring save/sync banners; keep the Home status and manual save button.
 - Add a compact movable raid-marker palette, independent of the main window, with saved position and visibility. Shift-click the minimap coin or use `/guilded rt`.

@@ -1,4 +1,4 @@
-import {
+﻿import {
   ActionRowBuilder, ChannelType, ModalBuilder, SlashCommandBuilder, TextInputBuilder, TextInputStyle,
   type ChatInputCommandInteraction, type GuildMember, type Message, type ModalSubmitInteraction
 } from "discord.js";
@@ -18,6 +18,7 @@ import { botHealthAnswer } from "../services/bot-messages.js";
 import { guideText as craftGuideText } from "./craft-board.js";
 import { BRAND } from "../brand.js";
 import { guildService, requireGuildContext } from "./context.js";
+import { looksLikePoe2Question, poe2Answer, looksLikePairingQuestion, pairingAnswer, looksLikeSyncQuestion, syncAnswer, newDefaultEntries, importedText, listUnanswered, unansweredHeader, recordUnanswered, suggestFaq, suggestionText } from "../services/faq-extras.js";
 import { asLang, tx, type Lang } from "../i18n.js";
 import { categoryNames } from "../setup-names.js";
 
@@ -32,7 +33,8 @@ export const faqCommand = new SlashCommandBuilder()
     .addStringOption((o) => o.setName("entry").setDescription("The answer (start typing a trigger)").setAutocomplete(true).setRequired(true)))
   .addSubcommand((sub) => sub.setName("remove").setDescription("Delete an answer")
     .addStringOption((o) => o.setName("entry").setDescription("The answer (start typing a trigger)").setAutocomplete(true).setRequired(true)))
-  .addSubcommand((sub) => sub.setName("list").setDescription("Every answer and how often it was used"))
+  .addSubcommand((sub) => sub.setName("list").setDescription("Every answer and how often it was used")
+    .addBooleanOption((o) => o.setName("defaults").setDescription("Add the ready-made answers")))
   .addSubcommand((sub) => sub.setName("channel").setDescription("Set the channel the bot answers in (empty: turn off)")
     .addChannelOption((o) => o.setName("channel").setDescription("Text channel").addChannelTypes(ChannelType.GuildText)))
   .addSubcommand((sub) => sub.setName("ai").setDescription("AI answers when no officer answer matches (needs a free AI key on the server)")
@@ -88,10 +90,19 @@ export async function executeFaq(interaction: ChatInputCommandInteraction): Prom
     return;
   }
   if (sub === "list") {
+    let importedNote = "";
+    if (interaction.options.getBoolean("defaults")) {
+      const existing = await prisma.faqEntry.findMany({ where: { guildId }, select: { triggers: true } });
+      const fresh = newDefaultEntries(existing, lang);
+      if (fresh.length) await prisma.faqEntry.createMany({ data: fresh.map((e) => ({ guildId, triggers: e.triggers, answer: e.answer, createdBy: interaction.user.id })) });
+      importedNote = importedText(fresh.length, lang);
+    }
     const entries = await prisma.faqEntry.findMany({ where: { guildId }, orderBy: { uses: "desc" } });
     const where = settings?.answerChannelId ? T("Answer channel: <#{id}>.", { id: settings.answerChannelId }) : T("No answer channel yet: /mod faq channel.");
     const lines = entries.map((entry) => `• **${entry.triggers.join(" / ")}** (${entry.uses}×): ${entry.answer.replace(/\s+/g, " ").slice(0, 90)}`);
-    await interaction.reply({ content: [where, ...(lines.length ? lines : [T("No answers yet: /mod faq add.")])].join("\n").slice(0, 1900), ephemeral: true });
+    const open = listUnanswered(guildId);
+    const tail = open.length ? ["", unansweredHeader(lang), ...open.map((q) => `• ${q}`)] : [];
+    await interaction.reply({ content: [...(importedNote ? [importedNote] : []), where, ...(lines.length ? lines : [T("No answers yet: /mod faq add.")]), ...tail].join("\n").slice(0, 1900), ephemeral: true });
     return;
   }
   if (sub === "channel") {
@@ -222,6 +233,9 @@ export async function answerMessage(message: Message, productReference: string):
   };
   if (looksLikeInstallationQuestion(text) && await tryAnswer(installationAnswer(lang))) return;
   if (looksLikeCommandHelpQuestion(text) && await tryAnswer(commandHelpAnswer(await isOfficerAsker(), lang))) return;
+  if (looksLikePoe2Question(text) && await tryAnswer(poe2Answer(lang))) return;
+  if (looksLikePairingQuestion(text) && await tryAnswer(pairingAnswer(lang))) return;
+  if (looksLikeSyncQuestion(text) && await tryAnswer(syncAnswer(lang))) return;
   if (!sharedSupport) {
     // Raid-timing questions ("raid night?") get a free, deterministic answer straight from the
     // database (core schedules and next planned raids).
@@ -255,7 +269,14 @@ export async function answerMessage(message: Message, productReference: string):
       if (await tryAnswer(await botHealthAnswer(message.guild, prisma, settings, lang, craftGuideText(lang)))) return;
     }
   }
-  if (!where.ai || !config.AI_BASE_URL || !config.AI_MODEL) return;
+  if (!where.ai || !config.AI_BASE_URL || !config.AI_MODEL) {
+    if (looksLikeQuestion(text, message.mentions.users.has(message.client.user.id))) {
+      const near = suggestFaq(entries, text);
+      if (near && limiter.allowUser(userKey)) await reply(suggestionText(near.triggers, lang));
+      else if (!near) recordUnanswered(where.guildId, text.slice(0, 120));
+    }
+    return;
+  }
   const botId = message.client.user.id;
   if (!looksLikeQuestion(text, message.mentions.users.has(botId))) return;
   if (!limiter.canAnswerUser(userKey) || !limiter.canUseAi(where.guildId, config.AI_DAILY_LIMIT)) return;
@@ -286,3 +307,4 @@ export async function answerMessage(message: Message, productReference: string):
 export function forgetAnswerSettings(discordGuildId: string): void {
   channelCache.delete(discordGuildId);
 }
+

@@ -84,6 +84,9 @@ export async function executeImportApply(interaction: ChatInputCommandInteractio
       + `${result.skipped} ledger entr${result.skipped === 1 ? "y was" : "ies were"} already imported and skipped.`
       + (result.loot.recorded ? ` ${result.loot.recorded} in-game loot award(s) added to /loot history.` : "")
       + (result.loot.unmatched.length ? ` Loot for unlinked characters skipped: ${result.loot.unmatched.join(", ")}.` : "")
+      + (result.voided ? ` ${result.voided} entr${result.voided === 1 ? "y" : "ies"} voided in game reversed.` : "")
+      + (result.held.rows.length ? ` **${result.held.rows.length} entr${result.held.rows.length === 1 ? "y is" : "ies are"} on hold** (see \`/import held\`).` : "")
+      + (result.rejected.length ? ` ${result.rejected.length} malformed row(s) were left out.` : "")
       + raidReport(result.raids)
       + (calendar && describeCalendar(calendar) ? `\n\n**Calendar**\n${describeCalendar(calendar)}` : "")
       + dungeonReport(result.dungeons),

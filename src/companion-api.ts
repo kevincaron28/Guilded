@@ -22,6 +22,7 @@ import { readFileSync } from "node:fs";
 import { ZodError } from "zod";
 import type { PrismaClient } from "@prisma/client";
 import { createPoeMappingService, poeAreaName, PoeMappingError } from "./services/poe-mapping.js";
+import { notify } from "./services/notify.js";
 const BOT_VERSION = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version as string;
 
 const importService = createAddonImportService(prisma);
@@ -90,6 +91,42 @@ async function readBody(request: IncomingMessage): Promise<unknown> {
 }
 
 const auditService = createAuditService(prisma);
+
+// A failed automatic import is told to the officers once an hour per cause, not on every upload.
+const APPLY_FAILURE_REPEAT_MS = 60 * 60_000;
+const applyFailureTold = new Map<string, number>();
+export function shouldTellApplyFailure(key: string, now = Date.now()): boolean {
+  const last = applyFailureTold.get(key);
+  if (last !== undefined && now - last < APPLY_FAILURE_REPEAT_MS) return false;
+  if (applyFailureTold.size > 500) applyFailureTold.clear();
+  applyFailureTold.set(key, now);
+  return true;
+}
+
+// The references the addon needs back: its own ledger entries the bot has stored (so they stop
+// counting as "not sent yet"), everyone's recent ones (other officers' awards shared in game)
+// and `void:<ref>` for entries reversed after a /guilded void. Not the whole guild's history.
+const RECENT_REF_DAYS = 30;
+const MAX_REFS = 5_000;
+export async function ledgerRefsFor(database: Pick<PrismaClient, "epgpTransaction" | "character">, guildId: string, memberId: string, now = new Date()): Promise<string[]> {
+  const mine = await database.character.findMany({ where: { memberId }, select: { name: true } });
+  const rows = await database.epgpTransaction.findMany({
+    where: { guildId, OR: [
+      { sourceRef: { startsWith: "addon:" }, createdAt: { gte: new Date(now.getTime() - RECENT_REF_DAYS * 86_400_000) } },
+      ...mine.map((character) => ({ sourceRef: { startsWith: `addon:qg:${character.name}-` } }))
+    ] },
+    select: { sourceRef: true }, orderBy: { createdAt: "desc" }, take: MAX_REFS
+  });
+  const reversals = await database.epgpTransaction.findMany({
+    where: { guildId, type: "REVERSAL", sourceRef: { startsWith: "reversal:" } },
+    select: { sourceRef: true }, orderBy: { createdAt: "desc" }, take: 1_000
+  });
+  const reversedIds = reversals.flatMap((row) => row.sourceRef ? [row.sourceRef.slice("reversal:".length)] : []);
+  const voided = reversedIds.length ? await database.epgpTransaction.findMany({
+    where: { guildId, id: { in: reversedIds }, sourceRef: { startsWith: "addon:" } }, select: { sourceRef: true }
+  }) : [];
+  return [...rows.flatMap((row) => row.sourceRef ? [row.sourceRef] : []), ...voided.map((row) => `void:${row.sourceRef}`)];
+}
 
 // `client` lets an upload be applied and announced by the bot itself (auto-apply).
 export function startCompanionApi(client?: Client): ReturnType<typeof createServer> {
@@ -201,7 +238,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           (await epgp.getGuildStandings(guild.id, coreBaseGp, coreId)).map((row) => ({ character: row.character, main: row.main, ep: row.ep, gp: row.gp })));
         const raids = mergeCalendarEvents(await upcomingRaidsForAddon(database, guild.id), scheduledEvents);
         const accounts = Object.fromEntries((await database.character.findMany({ where: { member: { guildId: guild.id } }, select: { name: true, memberId: true } })).map((c) => [c.name, c.memberId]));
-        const acceptedLedgerRefs = (await database.epgpTransaction.findMany({ where: { guildId: guild.id, sourceRef: { startsWith: "addon:" } }, select: { sourceRef: true } })).map((row) => row.sourceRef);
+        const acceptedLedgerRefs = await ledgerRefsFor(database, guild.id, access.memberId);
         return { protocolVersion: 2, botVersion: BOT_VERSION, updatedAt: new Date().toISOString(), accounts, acceptedLedgerRefs, baseGp, acceptedRunRefs, dungeonBoard, nextRaid, raids, items, loot: loot ? { ...loot, cores: loot.cores.map((core) => ({ ...core, accounts })) } : null, standings: await epgp.getGuildStandings(guild.id, baseGp) };
         }, { isolationLevel: "RepeatableRead", timeout: 60_000, maxWait: 15_000 });
         json(response, 200, data);
@@ -240,25 +277,38 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       }
       const record = await importService.record(guild.id, preview.snapshot, preview.checksum, createdBy, pairedMemberId);
       // Auto-apply (a guild opt-in: /setup config auto-import): apply now and follow up, no /import apply.
-      let autoApplied: { epgp: number; discovered: number } | null = null;
+      let autoApplied: { epgp: number; discovered: number; held: number; voided: number; rejected: number } | null = null;
+      let applyError: string | null = null;
       if (!access.officer || settings?.autoApplyImports) {
+        let applied = false;
         try {
           const result = await importService.apply(guild.id, record.id, createdBy);
-          autoApplied = { epgp: result.epgpTransactions.length, discovered: result.discovery.discovered };
+          applied = true;
+          autoApplied = { epgp: result.epgpTransactions.length, discovered: result.discovery.discovered, held: result.held.rows.length, voided: result.voided, rejected: result.rejected.length };
           await auditService.record({
             guildId: guild.id, actorId: createdBy, action: "IMPORT_APPLIED", entityId: record.id,
             metadata: { auto: true, epgpTransactionCount: result.epgpTransactions.length, readinessSnapshotCount: result.readinessSnapshots.length, discovered: result.discovery.discovered }
           });
           const discordGuild = client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null;
           await followUpImport(discordGuild, guild.id, result);
-          autoApplied = { epgp: result.epgpTransactions.length, discovered: result.discovery.discovered };
         } catch (error) {
           // Application and notification are distinct: a committed import stays APPLIED even if follow-up fails.
           console.error("Auto-apply of an addon import failed", error);
+          if (!applied) {
+            // Nothing was imported: say so to the uploader and, for a guild upload, to the officers,
+            // instead of leaving it in the server log only. Short messages are ours; anything else
+            // (a database error) is not shown.
+            applyError = error instanceof Error && error.message.length < 200 ? error.message : "The bot could not apply this upload (see the server log).";
+            if (access.officer && shouldTellApplyFailure(`${guild.id}:${applyError}`)) {
+              const discordGuild = client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null;
+              await notify(discordGuild, `⚠️ **Addon import not applied** (upload by <@${createdBy}>): ${applyError}\nNothing from it was imported. Fix the cause, or apply it by hand: \`/import apply id:${record.id}\`.`, "officer");
+            }
+          }
         }
       }
       json(response, 201, {
         autoApplied,
+        applyError,
         professionRelay,
         importId: record.id,
         checksum: preview.checksum,

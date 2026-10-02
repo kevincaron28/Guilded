@@ -28,6 +28,7 @@ export interface SetupFacts {
   // Every other channel setup can create (field name -> state), shown as optional rows.
   extraChannels?: { field: string; fact: ChannelFact | null }[];
   // The bot's own messages in its channels (services/bot-messages.ts).
+  messageContentIntent?: boolean;
   botMessages?: { kind: string; name?: string; state: "current" | "outdated" | "missing" }[];
 }
 
@@ -128,6 +129,13 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en"): SetupCheck[] 
     const label = CHANNEL_LABELS[entry.field];
     if (!label) continue;
     checks.push(channelCheck(lang, label, entry.fact, true, T("Optional: press \"Create missing channels\", or pick an existing channel with the menu below.")));
+  }
+  const answerFact = (facts.extraChannels ?? []).find((entry) => entry.field === "answerChannelId")?.fact;
+  if (answerFact && facts.messageContentIntent === false) {
+    checks.push({
+      label: T("Bot FAQ can read messages"), ok: false, optional: true, warn: true,
+      fix: T("Turn on MESSAGE_CONTENT_INTENT=true in the bot's .env and the Message Content switch in the Discord Developer Portal.")
+    });
   }
   // The bot's messages: missing (❌-style, optional) or out of date (⚠️), fixed by one button.
   const MESSAGE_LABELS: Record<string, string> = {

@@ -73,6 +73,7 @@ Hover a page name for what it is for. The **Player** box (target someone, or **M
 | `/guilded award group <amount> [reason]` | Give EP to everyone in the group |
 | `/guilded gp <player> <amount> [reason]` | Charge GP for an item |
 | `/guilded gpdeduct <player> <amount> [reason]` | Take GP back (a mistaken charge, a returned item); never below 0. **Deduct GP** on the EPGP page |
+| `/guilded void [player]` | Take back the newest EP/GP entry you made (for that player, or of all). The entry stays in the ledger, marked voided: Discord never imports it, or reverses it if it already had it |
 | `/guilded deduct <player> <amount> [reason]` | Remove EP |
 | `/guilded loot <player> <item> [cost]` | Record who got an item (shift-click links work) |
 | `/guilded attune <player> <key> [clear]` | Set someone else's attunement, e.g. `/guilded attune Bob "Onyxia Key"` |
@@ -296,7 +297,7 @@ There are 17 commands, not 34: small ones sit under a parent, so typing `/` show
 | `/epgp` | EPGP points (the old DKP commands are hidden) |
 | `/dungeon` | the challenge, plus `admin` (officer tools) |
 | `/mod` | moderation, plus `application` (handle guild applications) |
-| `/import` | `upload` (preview an addon file), `apply` (apply it) |
+| `/import` | `upload` (preview an addon file), `apply` (apply it), `held` (entries waiting, and why) |
 | `/report` | `stats`, `inactive`, `guild` (health), `export`, `ping` (is the bot online) |
 | `/help` `/profile` `/loot` `/craft` `/bank` `/apply` `/poll` `/core` `/tag` | unchanged |
 
@@ -420,6 +421,7 @@ Approve, and a raid can never be paid twice.
 | `/setup testraid cleanup` | Delete every test raid, test dungeon run and fake raider with their EPGP, points and loot. Real data is untouched |
 | `/loot auction <item> <minimum> <increment> <duration> [boss] [raid]` / `/loot close <auction>` | Run a GP auction (boss/raid show up in loot history) |
 | `/import upload <file>` then `/import apply <id>` | Preview then apply an addon export. Entries already imported are skipped; in-game raids fill Discord attendance and list no-shows and walk-ins |
+| `/import held [dismiss] [restore]` | Addon entries the bot could not place yet (unlinked character, no raid core chosen, loot with no core raid) and why. Everything else in the upload is imported; a held entry imports by itself on a later sync once its cause is fixed. `dismiss:<code>` drops one for good, `restore:<code>` undoes that |
 | `/dungeon admin invalidate <run> <reason>` | A run stops counting and its points are taken back (records update by themselves) |
 | `/dungeon admin award <amount> <reason> [member | character]` | Give dungeon points by hand; a negative amount takes them away |
 | `/dungeon admin audit [member | character | run]` | Point history: what, why, automatic or which officer |

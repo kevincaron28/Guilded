@@ -204,7 +204,9 @@ try {
     await assert.rejects(database.epgpTransaction.create({ data: { guildId: guild.id, memberId: member.id, type: "EP_AWARD", epAmount: 10, reason: "duplicate", createdBy: "release-test", sourceRef: existing.sourceRef } }));
     const invalid = await service.preview(guild.id, { ...payload, epgpTransactions: [{ ...payload.epgpTransactions[0], sourceRef: "bad-pool", coreId: "other-guild-pool" }] }, "release-test");
     const bad = await service.record(guild.id, invalid.snapshot, "bad", "release-test");
-    await assert.rejects(service.apply(guild.id, bad.id, "release-test"), /core point pool/);
+    // An entry for an unknown pool is held for review, never applied or fatal to the upload.
+    await service.apply(guild.id, bad.id, "release-test");
+    assert.equal(await database.addonHeldEntry.count({ where: { guildId: guild.id, kind: "EPGP", reason: "UNKNOWN_POOL" } }), 1);
     assert.equal(await database.epgpTransaction.count({ where: { guildId: guild.id } }), 2);
 
     // Profession-only relays must remove dropped data without applying included points.
@@ -230,9 +232,9 @@ try {
     await assert.rejects(createLootService(database).awardDirect({ guildId: guild.id, memberId: member.id, itemName: "Unscoped council loot", gp: 0, awardedBy: "policy-test" }), /Choisis un core/);
     const missingCore = await service.preview(guild.id, { ...payload, epgpTransactions: [{ ...payload.epgpTransactions[0], sourceRef: "missing-core", coreId: undefined }] }, "policy-test");
     const unscoped = await service.record(guild.id, missingCore.snapshot, "unscoped", "policy-test");
-    await assert.rejects(service.apply(guild.id, unscoped.id, "policy-test"), /propres EP\/GP/);
-    assert.equal((await database.addonImport.findUniqueOrThrow({ where: { id: unscoped.id } })).status, unscoped.status);
-    assert.notEqual(unscoped.status, "APPLIED");
+    // The entry with no core is held for review; the rest of the upload is not blocked.
+    await service.apply(guild.id, unscoped.id, "policy-test");
+    assert.equal(await database.addonHeldEntry.count({ where: { guildId: guild.id, kind: "EPGP", reason: "NO_CORE" } }), 1);
     assert.equal(await database.epgpTransaction.count({ where: { guildId: guild.id } }), 2);
 
     // Concurrent ticks queue one report. Failed delivery retries without resetting its week.

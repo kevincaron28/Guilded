@@ -24,6 +24,7 @@ import { CLASSES } from "../wow-data.js";
 import { formatChecks, setupChecks, setupComplete, type ChannelFact, type SetupFacts } from "../services/setup-status.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { sendWelcome, welcomeDelivery } from "../services/housekeeping.js";
+import { ensureWelcomePanel, MAX_ONBOARDING_ROLES, rulesGateActive } from "../services/onboarding.js";
 import { isValidTimeZone } from "../services/raid-time.js";
 import { updateDungeonLeaderboard } from "../services/dungeon-leaderboard.js";
 import { ensureDungeonSignupGuide } from "../services/dungeon-guide.js";
@@ -171,6 +172,14 @@ function navRow(step: number, lang: Lang, extra: ButtonBuilder[] = []) {
   return row;
 }
 
+// The pinned onboarding panel follows the welcome settings: called after each change to them.
+async function refreshWelcomePanel(guild: DiscordGuild, guildId: string, lang: Lang): Promise<void> {
+  const settings = await guildService.getSettings(guildId);
+  if (!settings?.welcomeChannelId) return;
+  const channel = await guild.channels.fetch(settings.welcomeChannelId).catch(() => null);
+  if (channel?.isTextBased() && "messages" in channel) await ensureWelcomePanel(channel, settings, lang).catch(() => undefined);
+}
+
 const channelLabel = (lang: Lang, id: string | null) => id ? `<#${id}>` : tx(lang, "*not set*");
 const roleLabel = (lang: Lang, id: string | null) => id ? `<@&${id}>` : tx(lang, "*not set*");
 const same = (lang: Lang, id: string | null | undefined, fallback: string) => id ? `<#${id}>` : tx(lang, fallback);
@@ -314,14 +323,20 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
   if (step === 5) {
     const delivery = welcomeDelivery(settings);
     const offered = settings.welcomeRoleIds.map((id) => `<@&${id}>`).join(", ");
+    const onOff = (value: boolean) => (value ? T("on") : T("off"));
     embed.setDescription([
       T("**Optional.** Skip with **Next** if you don't want a welcome message."),
       "",
       T("📨 **Sent to:** {where}", { where: delivery === "DM" ? T("a private message (DM)") : delivery === "BOTH" ? T("a private message and the welcome channel") : T("the welcome channel") }),
       T("👋 **Welcome channel:** {channel}{extra}", { channel: channelLabel(lang, settings.welcomeChannelId), extra: delivery === "DM" ? T(" (not needed for DM only; used if their DMs are closed)") : "" }),
-      T("🎮 **Role buttons in the message:** {roles}", { roles: offered || T("*none*") }),
+      T("🎮 **Game roles:** {roles}", { roles: offered || T("*none*") }),
+      T("📜 **Rules channel:** {channel}", { channel: channelLabel(lang, settings.rulesChannelId) }),
+      T("🔒 **Rules required first:** {state}", { state: onOff(rulesGateActive(settings)) }),
+      T("⏰ **One reminder after a day:** {state}", { state: onOff(settings.onboardingNudge) }),
       "",
-      T("Role buttons let new people pick what they're here for — for example one role per game, so they only see those channels. They can pick several, and click again to remove one. Pick up to 5 roles in the second menu (create the roles first in Server Settings → Roles)."),
+      T("The welcome message and a pinned **Start here** panel in the welcome channel carry the same buttons: rules, game menu, WoW character pairing and a personal checklist. Every answer is private. Game roles (up to 25, create them first in Server Settings → Roles) let people see only the games they picked."),
+      "",
+      T("**Rules required first:** nobody picks a game or pairs before accepting the rules, and the applicant role (step 6) is given on acceptance instead of on join."),
       "",
       T("Press **Send me a preview** to see exactly what new people get.")
     ].join("\n"));
@@ -330,14 +345,20 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(new ChannelSelectMenuBuilder().setCustomId("setup:ch-welcome")
         .setPlaceholder(T("👋 Pick the welcome channel")).setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement).setMinValues(1).setMaxValues(1)),
       new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(new RoleSelectMenuBuilder().setCustomId("setup:welcome-roles")
-        .setPlaceholder(T("🎮 Roles people can pick (up to 5; pick none to remove)")).setMinValues(0).setMaxValues(5)),
+        .setPlaceholder(T("🎮 Game roles people can pick (up to 25; pick none to remove)")).setMinValues(0).setMaxValues(MAX_ONBOARDING_ROLES)),
+      new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(new ChannelSelectMenuBuilder().setCustomId("setup:ch-rules")
+        .setPlaceholder(T("📜 Pick the rules channel")).setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement).setMinValues(1).setMaxValues(1)),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         deliveryButton("CHANNEL", T("Post in channel")),
         deliveryButton("DM", T("Private message")),
         deliveryButton("BOTH", T("Both")),
         button("welcome-preview", T("Send me a preview"), ButtonStyle.Primary)
       ),
-      navRow(5, lang, [button("welcome-off", T("Turn welcome off"))])
+      navRow(5, lang, [
+        button("rules-gate", T("Rules required"), rulesGateActive(settings) ? ButtonStyle.Success : ButtonStyle.Secondary),
+        button("welcome-nudge", T("Reminder"), settings.onboardingNudge ? ButtonStyle.Success : ButtonStyle.Secondary),
+        button("welcome-off", T("Turn welcome off"))
+      ])
     );
   }
 
@@ -842,7 +863,7 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
           }
         } else if (i.isChannelSelectMenu()) {
           const channelId = i.values[0];
-          const field = { "ch-notify": "notifyChannelId", "ch-raid": "raidSignupChannelId", "ch-log": "logChannelId", "ch-welcome": "welcomeChannelId", "ch-dungeon": "dungeonChannelId", "ch-dungeon-lb": "dungeonLeaderboardChannelId", "ch-dungeon-signup": "dungeonSignupChannelId", "ch-core": "coreChannelId", "ch-readiness": "readinessChannelId", "ch-attendance": "attendanceChannelId", "ch-craft": "craftChannelId" }[action];
+          const field = { "ch-notify": "notifyChannelId", "ch-raid": "raidSignupChannelId", "ch-log": "logChannelId", "ch-welcome": "welcomeChannelId", "ch-rules": "rulesChannelId", "ch-dungeon": "dungeonChannelId", "ch-dungeon-lb": "dungeonLeaderboardChannelId", "ch-dungeon-signup": "dungeonSignupChannelId", "ch-core": "coreChannelId", "ch-readiness": "readinessChannelId", "ch-attendance": "attendanceChannelId", "ch-craft": "craftChannelId" }[action];
           if (channelId && field) {
             await guildService.updateSettings(guildId, { [field]: channelId });
             note = T("Saved <#{id}>.", { id: channelId });
@@ -855,13 +876,15 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
               const channel = await guild.channels.fetch(channelId);
               if (channel?.isTextBased() && "send" in channel) await ensureDungeonSignupGuide(channel, lang);
             }
+            if (field === "welcomeChannelId" || field === "rulesChannelId") await refreshWelcomePanel(guild, guildId, lang);
           }
         } else if (i.isRoleSelectMenu() && action === "welcome-roles") {
-          await guildService.updateSettings(guildId, { welcomeRoleIds: i.values.slice(0, 5) });
+          await guildService.updateSettings(guildId, { welcomeRoleIds: i.values.slice(0, MAX_ONBOARDING_ROLES) });
+          await refreshWelcomePanel(guild, guildId, lang);
           const blocked = i.values.map((id) => botCanAssign(guild, id)).filter((role) => role && !role.botCanAssign).map((role) => role?.name);
           note = i.values.length
-            ? `${T("Welcome buttons: {roles}.", { roles: i.values.map((id) => `<@&${id}>`).join(", ") })}${blocked.length ? ` ${T("**My role is below {roles}**, so I can't hand those out yet: Server Settings → Roles, drag my role above them.", { roles: blocked.join(", ") })}` : ""}`
-            : T("Removed the role buttons from the welcome message.");
+            ? `${T("Game roles: {roles}.", { roles: i.values.map((id) => `<@&${id}>`).join(", ") })}${blocked.length ? ` ${T("**My role is below {roles}**, so I can't hand those out yet: Server Settings → Roles, drag my role above them.", { roles: blocked.join(", ") })}` : ""}`
+            : T("Removed the game roles from the welcome.");
         } else if (i.isStringSelectMenu() && action === "tz") {
           const timezone = i.values[0];
           if (timezone && isValidTimeZone(timezone)) {
@@ -897,8 +920,24 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
             note = check?.botCanAssign ? T("Saved <@&{id}>.", { id: roleId }) : T("Saved <@&{id}>, but **my role is below it** so I can't hand it out yet: Server Settings → Roles, drag my role above it.", { id: roleId });
           }
         } else if (action === "welcome-off") {
-          await guildService.updateSettings(guildId, { welcomeChannelId: null, welcomeDelivery: "CHANNEL", welcomeRoleIds: [] });
+          await guildService.updateSettings(guildId, { welcomeChannelId: null, welcomeDelivery: "CHANNEL", welcomeRoleIds: [], rulesChannelId: null, rulesGate: false, onboardingNudge: false });
           note = T("Welcome message is off.");
+        } else if (action === "rules-gate") {
+          const current = await guildService.getSettings(guildId);
+          if (!current?.rulesChannelId) {
+            note = T("Pick the rules channel first (third menu).");
+          } else {
+            await guildService.updateSettings(guildId, { rulesGate: !current.rulesGate });
+            note = current.rulesGate
+              ? T("Rules are no longer required first. The applicant role is given on join again.")
+              : T("Rules are required first: nobody picks a game or pairs before accepting them, and the applicant role is given on acceptance.");
+          }
+        } else if (action === "welcome-nudge") {
+          const current = await guildService.getSettings(guildId);
+          await guildService.updateSettings(guildId, { onboardingNudge: !current?.onboardingNudge });
+          note = current?.onboardingNudge
+            ? T("Reminder off.")
+            : T("Reminder on: someone who has not finished a day after joining gets one private message, once.");
         } else if (action === "epgp-recommended") {
           await guildService.updateSettings(guildId, RECOMMENDED_EPGP);
           note = T("Recommended EPGP values saved.");

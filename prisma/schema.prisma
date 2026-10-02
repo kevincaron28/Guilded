@@ -155,6 +155,20 @@ model Guild {
   communitySeasons    CommunitySeason[]
   communitySeasonCounters CommunitySeasonCounter[]
   poeMapVisits        PoeMapVisit[]
+  memberOnboardings   MemberOnboarding[]
+}
+
+// Onboarding progress of one Discord user in one server. Kept apart from Member so that reading
+// the rules or being reminded never creates a roster entry.
+model MemberOnboarding {
+  guildId         String
+  discordUserId   String
+  rulesAcceptedAt DateTime?
+  nudgedAt        DateTime?
+  createdAt       DateTime  @default(now())
+  guild           Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@id([guildId, discordUserId])
 }
 
 // Discord community activities have their own seasons and wallet, separate from raid loot.
@@ -658,6 +672,12 @@ model GuildSettings {
   welcomeRoleIds           String[]  @default([])
   // Text above those buttons, e.g. "Which game are you here for?"
   welcomeRolePrompt        String?
+  // Onboarding (welcome panel): where the server rules are, whether accepting them is required
+  // before picking game roles or pairing (the applicant role is then given on acceptance, not on
+  // join), and whether one private reminder goes out a day after joining.
+  rulesChannelId           String?
+  rulesGate                Boolean   @default(false)
+  onboardingNudge          Boolean   @default(false)
   // Dungeon Challenge: announcements channel and point rules (JSON; missing
   // keys use the built-in defaults).
   dungeonChannelId         String?

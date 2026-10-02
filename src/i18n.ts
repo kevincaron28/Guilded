@@ -113,15 +113,65 @@ const STRINGS = {
 
   // Welcome
   "welcome.default": {
-    en: "Welcome to {guild}, {mention}! Run `/apply` to submit a recruitment application, or `/character add` to link a character if you're already a member. Get the addon: https://www.curseforge.com/wow/addons/guilded",
-    fr: "Bienvenue sur {guild}, {mention} ! Utilisez `/apply` pour postuler, ou `/character add` pour lier votre personnage si vous êtes déjà membre. Obtenez l'addon : https://www.curseforge.com/wow/addons/guilded"
-  },
-  "welcome.rolePrompt": {
-    en: "Pick what you're here for (you can pick more than one, click again to remove):",
-    fr: "Choisissez ce qui vous intéresse (plusieurs choix possibles, cliquez de nouveau pour retirer) :"
+    en: "Welcome to {guild}, {mention}! Use the buttons below to get started: they answer privately, only you see the replies.",
+    fr: "Bienvenue sur {guild}, {mention} ! Sers-toi des boutons ci-dessous pour bien commencer : les réponses sont privées, toi seul les vois."
   },
   "welcome.added": { en: "Added **{role}**. You can pick more, or click again to remove it.", fr: "**{role}** ajouté. Vous pouvez en choisir d'autres, ou recliquer pour le retirer." },
   "welcome.removed": { en: "Removed **{role}**. Click again to get it back.", fr: "**{role}** retiré. Recliquez pour le récupérer." },
+
+  // Onboarding (services/onboarding.ts): the welcome buttons, the pinned panel and their private answers.
+  "onboard.button.rules": { en: "📜 Rules", fr: "📜 Règles" },
+  "onboard.button.games": { en: "🎮 Pick my games", fr: "🎮 Choisir mes jeux" },
+  "onboard.button.pair": { en: "🔗 Link my WoW character", fr: "🔗 Lier mon personnage WoW" },
+  "onboard.button.steps": { en: "✅ First steps", fr: "✅ Premiers pas" },
+  "onboard.button.accept": { en: "I have read and accept the rules", fr: "J'ai lu et j'accepte les règles" },
+  "onboard.panel.title": { en: "👋 Start here", fr: "👋 Commence ici" },
+  "onboard.panel.intro": {
+    en: "Welcome to **{guild}**! These buttons answer privately: only you see the replies.",
+    fr: "Bienvenue sur **{guild}** ! Ces boutons répondent en privé : toi seul vois les réponses."
+  },
+  "onboard.panel.rules": { en: "📜 **Rules** — read {channel}, then confirm.", fr: "📜 **Règles** — lis {channel}, puis confirme." },
+  "onboard.panel.games": { en: "🎮 **Pick my games** — each game you pick opens its channels.", fr: "🎮 **Choisir mes jeux** — chaque jeu choisi ouvre ses salons." },
+  "onboard.panel.pair": { en: "🔗 **Link my WoW character** — get your pairing code for the Guilded Companion.", fr: "🔗 **Lier mon personnage WoW** — obtiens ton code de pairage pour Guilded Companion." },
+  "onboard.panel.steps": { en: "✅ **First steps** — your personal checklist.", fr: "✅ **Premiers pas** — ta liste personnelle." },
+  "onboard.steps.title": { en: "**Your first steps on {guild}**", fr: "**Tes premiers pas sur {guild}**" },
+  "onboard.steps.rules": { en: "Read and accept the rules", fr: "Lire et accepter les règles" },
+  "onboard.steps.games": { en: "Pick your games", fr: "Choisir tes jeux" },
+  "onboard.steps.character": { en: "Link your WoW character", fr: "Lier ton personnage WoW" },
+  "onboard.steps.characterOptional": { en: "Link your WoW character (only if you play WoW)", fr: "Lier ton personnage WoW (seulement si tu joues à WoW)" },
+  "onboard.steps.next": { en: "Use the buttons below for what is left.", fr: "Sers-toi des boutons ci-dessous pour ce qu'il reste." },
+  "onboard.steps.done": { en: "You're all set! `/help` lists the commands you can use.", fr: "Tout est fait ! `/help` montre les commandes auxquelles tu as accès." },
+  "onboard.rules.prompt": {
+    en: "Read the rules in {channel}, then press the button below.",
+    fr: "Lis les règles dans {channel}, puis appuie sur le bouton ci-dessous."
+  },
+  "onboard.rules.first": { en: "One thing first: the rules.", fr: "Une chose d'abord : les règles." },
+  "onboard.rules.thanks": { en: "Thanks, your acceptance of the rules is recorded.", fr: "Merci, ton acceptation des règles est enregistrée." },
+  "onboard.rules.already": { en: "You already accepted the rules. They stay in {channel}.", fr: "Tu as déjà accepté les règles. Elles restent dans {channel}." },
+  "onboard.roleFailed": {
+    en: "I couldn't give you your role: an officer needs to move my role above it (Server Settings > Roles).",
+    fr: "Je n'ai pas pu te donner ton rôle : un officier doit placer mon rôle au-dessus (Paramètres du serveur > Rôles)."
+  },
+  "onboard.games.prompt": {
+    en: "Pick what you play (several choices are fine). Untick a game to leave its channels.",
+    fr: "Choisis ce à quoi tu joues (plusieurs choix possibles). Décoche un jeu pour quitter ses salons."
+  },
+  "onboard.games.placeholder": { en: "Your games", fr: "Tes jeux" },
+  "onboard.games.saved": { en: "Saved: {roles}.", fr: "Enregistré : {roles}." },
+  "onboard.games.none": { en: "You have no game selected.", fr: "Tu n'as aucun jeu sélectionné." },
+  "onboard.games.failed": {
+    en: "I couldn't change {roles}: an officer needs to move my role above them (Server Settings > Roles).",
+    fr: "Je n'ai pas pu modifier {roles} : un officier doit placer mon rôle au-dessus (Paramètres du serveur > Rôles)."
+  },
+  "onboard.gone": { en: "That isn't offered here anymore. Ask an officer.", fr: "Ce n'est plus offert ici. Demande à un officier." },
+  "onboard.pair": {
+    en: "**Link your WoW character**\n1. Install the Guilded addon and the Guilded Companion (your officers supply both; published versions: https://www.curseforge.com/wow/addons/guilded).\n2. In Companion Settings, enter **{code}** under **Discord account pairing code**, then choose **Link Discord account**.\n3. Log in to WoW on your character, then `/reload` or log out so the game saves the data.\n\nThis code expires {expires}, works once, and is yours alone: keep it private. Need another one later? Press the button again or use `/character pair`.",
+    fr: "**Lier ton personnage WoW**\n1. Installe l'addon Guilded et Guilded Companion (fournis par les responsables; versions publiées : https://www.curseforge.com/wow/addons/guilded).\n2. Dans les paramètres du compagnon, entre **{code}** sous **Discord account pairing code**, puis choisis **Link Discord account**.\n3. Connecte-toi à WoW sur ton personnage, puis fais `/reload` ou déconnecte-toi pour que le jeu enregistre les données.\n\nCe code expire {expires}, sert une seule fois et n'appartient qu'à toi : garde-le pour toi. Besoin d'un autre plus tard ? Rappuie sur le bouton ou utilise `/character pair`."
+  },
+  "onboard.nudge": {
+    en: "Hi! You joined **{guild}** yesterday and a step or two is still open. This is the only reminder you will get.",
+    fr: "Salut ! Tu as rejoint **{guild}** hier et il te reste une étape ou deux. C'est le seul rappel que tu recevras."
+  },
 
   // Getting started guide
   "guide.title": { en: "⚜️ Getting started with Guilded", fr: "⚜️ Bien commencer avec Guilded" },

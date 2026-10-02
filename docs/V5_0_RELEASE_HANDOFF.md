@@ -11,6 +11,15 @@ channel is edited after each raid report (`src/services/raid-season.ts`,
 slash commands must be re-registered, no client rebuild or version bump. Real Discord checks
 remain: start a season, pin and edit of the summary, the CSV file.
 
+Welcome onboarding (2 Oct 2026): the welcome message and a pinned "Start here" panel carry
+private-answer buttons (rules, game menu, WoW pairing, checklist), with optional rules gating and
+a one-time reminder, all in `src/services/onboarding.ts` and `/setup start` step 5. Additive
+migration `20261105090000_welcome_onboarding` (`GuildSettings.rulesChannelId`, `rulesGate`,
+`onboardingNudge`; table `MemberOnboarding`); bot only, no client rebuild or version bump. After
+deploy: `/setup start` step 5 to pick the rules channel and turn on **Rules required**, then
+**Update bot messages** to pin the panel. With the gate on, the applicant role is given when the
+rules are accepted, not on join. Real Discord checks remain (`RELEASE_CHECKLIST.md`).
+
 Seasons, raid posts and attendance (2 Oct 2026): community seasons rotate monthly by default
 (`CommunitySeason.monthly`), weekly raid signups open six days ahead, signup posts of past raids
 are removed after 24 hours, and `/setup` gains an officers-only raid attendance channel

@@ -99,6 +99,8 @@ end
 -- ---------------------------------------------------------------------
 
 local function prFor(name)
+  -- In the pool the running core uses (its own, or the guild's): see Modules/Loot.lua.
+  if ns.loot and ns.loot.prFor then return ns.loot.prFor(name) or 0 end
   local standing = ns.getStanding and ns.getStanding(name)
   return standing and standing.pr or 0
 end

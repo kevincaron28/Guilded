@@ -16,6 +16,8 @@ local PREFIX = "GuildedSync"
 local CHUNK_BYTES = 220
 local STARTUP_DELAY_SECONDS = 20
 local SHARE_COOLDOWN_SECONDS = 60
+-- Chunks follow each other about a second apart; a sender silent this long has stopped.
+local STALLED_SECONDS = 30
 
 local myVersion = "0"
 local warnedNewer = false
@@ -172,8 +174,13 @@ local function receiveItemChunk(text, sender)
   if not incomingItems or incomingItems.updatedAt ~= updatedAt then
     incomingItems = { updatedAt = updatedAt, total = total, sender = sender, parts = {}, received = 0 }
   elseif incomingItems.total ~= total or incomingItems.sender ~= sender then
-    return -- inconsistent chunk for an in-progress snapshot; ignore rather than corrupt it
+    -- A chunk that does not fit the snapshot in progress is ignored rather than mixed in. But
+    -- a sender who stopped mid-way (logged off) must not block the same data from another
+    -- officer for the rest of the session: after a pause, start over with the new sender.
+    if time() - (incomingItems.lastAt or 0) < STALLED_SECONDS then return end
+    incomingItems = { updatedAt = updatedAt, total = total, sender = sender, parts = {}, received = 0 }
   end
+  incomingItems.lastAt = time()
   if not incomingItems.parts[index] then
     incomingItems.parts[index] = payload
     incomingItems.received = incomingItems.received + 1
@@ -195,8 +202,11 @@ local function receiveChunk(text, sender)
   if not incoming or incoming.updatedAt ~= updatedAt then
     incoming = { updatedAt = updatedAt, baseGp = baseGp, total = total, sender = sender, parts = {}, received = 0 }
   elseif incoming.total ~= total or incoming.sender ~= sender or incoming.baseGp ~= baseGp then
-    return -- inconsistent chunk for an in-progress snapshot; ignore rather than corrupt it
+    -- Same rule as the item chunks above: ignore a mismatch, unless the first sender went quiet.
+    if time() - (incoming.lastAt or 0) < STALLED_SECONDS then return end
+    incoming = { updatedAt = updatedAt, baseGp = baseGp, total = total, sender = sender, parts = {}, received = 0 }
   end
+  incoming.lastAt = time()
   if not incoming.parts[index] then
     incoming.parts[index] = payload
     incoming.received = incoming.received + 1
@@ -214,7 +224,15 @@ local function receiveChunk(text, sender)
   for _, account in pairs(d and d.epgp or {}) do
     for _, entry in ipairs(account.ledger or {}) do if entry.pending then pending = true end end
   end
-  if d and not pending then d.standings = { updatedAt = updatedAt, baseGp = incoming.baseGp, players = players, from = sender } end
+  if d and not pending then
+    d.standings = { updatedAt = updatedAt, baseGp = incoming.baseGp, players = players, from = sender }
+    -- Shared standings carry no list of what Discord has. Another officer's award made before
+    -- this snapshot is taken as included: counting it twice would be worse than a late update.
+    local at = ns.util.isoEpoch(updatedAt)
+    for id, peer in pairs(d.peerLedger or {}) do
+      if not at or (tonumber(peer.at) or 0) <= at then d.peerLedger[id] = nil end
+    end
+  end
   incoming = nil
 end
 
@@ -232,6 +250,8 @@ end
 local function adoptLootRules(file, updatedAt)
   local rules = {
     updatedAt = updatedAt, default = tostring(file.default or "EPGP"), minimumBid = tonumber(file.minimumBid) or 10,
+    -- The guild keeps points per raid core only: an award needs a core (Core.lua refuses one without).
+    coreOnly = file.coreOnly == true,
     values = cleanValues(file.values), cores = {}
   }
   for _, core in ipairs(file.cores or {}) do
@@ -285,11 +305,26 @@ local function adoptFileStandings()
       players[name] = { ep = ep, gp = gp, pr = priority(ep, gp, baseGp), account = row.account ~= "" and row.account or nil }
     end
   end
-  d.acceptedLedgerRefs = type(GuildedLedgerAccepted) == "table" and GuildedLedgerAccepted or {}
+  -- What Discord has stored. Only the references this PC's own ledger needs are kept in the
+  -- saved data (the file lists other officers' recent entries too).
+  local fileRefs = type(GuildedLedgerAccepted) == "table" and GuildedLedgerAccepted or {}
+  local kept = {}
   for _, account in pairs(d.epgp or {}) do
     for _, entry in ipairs(account.ledger or {}) do
-      if entry.id and d.acceptedLedgerRefs["addon:qg:" .. entry.id] then entry.pending = nil end
+      if entry.id then
+        local ref = "addon:qg:" .. entry.id
+        if fileRefs[ref] then kept[ref] = true; entry.pending = nil end
+        -- A voided entry Discord reversed: both sides agree again.
+        if entry.voided and fileRefs["void:" .. ref] then kept["void:" .. ref] = true; entry.voidAcked = true end
+      end
     end
+  end
+  d.acceptedLedgerRefs = kept
+  -- Other officers' awards heard in the group: dropped once Discord has them (they are in the
+  -- standings below from now on), or when they are too old to still be on their way.
+  local nowSeconds = ns.util.serverTime()
+  for id, peer in pairs(d.peerLedger or {}) do
+    if fileRefs["addon:qg:" .. tostring(id)] or nowSeconds - (tonumber(peer.at) or 0) > 12 * 60 * 60 then d.peerLedger[id] = nil end
   end
   d.standings = { updatedAt = file.updatedAt, baseGp = baseGp, players = players, from = "companion" }
   -- Item tooltip data written next to the standings (none when nobody wishlisted anything yet).
@@ -368,7 +403,7 @@ function ns.publishLocalStandings()
   if count == 0 then return false, "Nothing to share: the ledger on this PC is empty." end
   d.localPublishedRefs = {}
   for _, account in pairs(d.epgp or {}) do
-    for _, entry in ipairs(account.ledger or {}) do if entry.id then d.localPublishedRefs[entry.id] = true end end
+    for _, entry in ipairs(account.ledger or {}) do if entry.id and not entry.voided then d.localPublishedRefs[entry.id] = true end end
   end
   d.standings = { updatedAt = date("!%Y-%m-%dT%H:%M:%S.000Z", ns.util.serverTime()), baseGp = baseGp, players = players, localPublish = true, from = ns.playerName() .. " (in game)" }
   lastShareAt = 0

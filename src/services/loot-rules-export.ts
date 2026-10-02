@@ -8,6 +8,8 @@ import { createItemValueService, type ValueRow } from "./item-values.js";
 
 export interface LootRulesForAddon {
   default: LootMode;
+  /** Every EP/GP entry needs a raid core (the guild pool is not used). */
+  coreOnly: boolean;
   minimumBid: number;
   /** Prices for raids that belong to no core. */
   values: { key: string; id: number | null; gp: number }[];
@@ -75,6 +77,7 @@ export async function lootRulesForAddon(
   const values = createItemValueService(database);
   const out: LootRulesForAddon = {
     default: asLootMode(settings?.lootMode),
+    coreOnly: settings?.coreLootOnly === true,
     minimumBid: settings?.minimumBid ?? 10,
     values: slim(await values.effective(guildId, null)),
     cores: []

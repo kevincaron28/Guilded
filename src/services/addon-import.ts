@@ -16,6 +16,12 @@ import { excludeHistoryBeforeReset } from "./import-reset.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 import { queueCharacterDisplayRefresh } from "./character-display-refresh.js";
 
+// Why a row is waiting (see AddonHeldEntry). Every reason clears by itself once the cause is
+// fixed, because each upload carries the whole ledger again; a dismissed row is never imported.
+export type HeldReason = "UNLINKED" | "NO_CORE" | "UNKNOWN_POOL" | "NO_CORE_RAID";
+export interface HeldRow { kind: "EPGP" | "DKP" | "LOOT"; sourceRef: string; character: string; reason: HeldReason; detail: string }
+const signed = (value: number) => `${value >= 0 ? "+" : ""}${value}`;
+
 export function createAddonImportService(database: PrismaClient) {
   return {
     parse(payload: unknown): AddonSnapshot {
@@ -93,14 +99,21 @@ export function createAddonImportService(database: PrismaClient) {
         ]);
         const alreadyImported = new Set([...existingDkp, ...existingEpgp].map((row) => row.sourceRef));
         let skipped = 0;
+        const held: HeldRow[] = [];
+        const importedRefs: string[] = [];
+        const heldStore = (tx as Partial<Pick<typeof tx, "addonHeldEntry">>).addonHeldEntry;
+        const knownHeld = heldStore ? await heldStore.findMany({ where: { guildId }, select: { kind: true, sourceRef: true, dismissedAt: true } }) : [];
+        const dismissed = (kind: HeldRow["kind"]) => new Set(knownHeld.filter((row) => row.kind === kind && row.dismissedAt).map((row) => row.sourceRef));
+        const dismissedDkp = dismissed("DKP"), dismissedEpgp = dismissed("EPGP");
 
         const transactions = [];
         for (const item of snapshot.transactions) {
           const sourceRef = ledgerRef(item);
-          if (alreadyImported.has(sourceRef)) { skipped++; continue; }
-          alreadyImported.add(sourceRef);
+          if (alreadyImported.has(sourceRef) || dismissedDkp.has(sourceRef)) { skipped++; continue; }
           const character = findCharacter(characters, item.character, item.realm);
-          if (!character) throw new Error(`No linked character found for ${item.character} (${item.realm}).`);
+          if (!character) { held.push({ kind: "DKP", sourceRef, character: item.character, reason: "UNLINKED", detail: `${signed(item.amount)} DKP - ${item.reason}` }); continue; }
+          alreadyImported.add(sourceRef);
+          importedRefs.push(sourceRef);
           transactions.push(await tx.dkpTransaction.create({
             data: {
               guildId,
@@ -116,14 +129,41 @@ export function createAddonImportService(database: PrismaClient) {
         const epgpTransactions = [];
         const poolIds = [...new Set(snapshot.epgpTransactions.flatMap((item) => item.coreId ? [item.coreId] : []))];
         const validPools = poolIds.length ? await tx.raidCore.findMany({ where: { guildId, id: { in: poolIds }, separatePool: true }, select: { id: true } }) : [];
-        if (poolIds.some((id) => !validPools.some((pool) => pool.id === id))) throw new Error("Unknown or inactive core point pool. Ask an officer to review this import.");
+        const validPoolIds = new Set(validPools.map((pool) => pool.id));
+        // Entries voided in game (/guilded void): one not imported yet never is; one already in
+        // the ledger gets a reversal, once (the same guard /epgp reverse uses).
+        const voidedRefs = snapshot.epgpTransactions.filter((item) => item.voided && item.sourceRef).map(ledgerRef);
+        let voided = 0;
+        if (voidedRefs.length) {
+          const originals = await tx.epgpTransaction.findMany({ where: { guildId, sourceRef: { in: voidedRefs } } });
+          const reversed = new Set((originals.length ? await tx.epgpTransaction.findMany({
+            where: { guildId, sourceRef: { in: originals.map((row) => `reversal:${row.id}`) } }, select: { sourceRef: true }
+          }) : []).map((row) => row.sourceRef));
+          for (const original of originals) {
+            if (reversed.has(`reversal:${original.id}`)) continue;
+            await tx.epgpTransaction.create({
+              data: {
+                guildId, memberId: original.memberId, coreId: original.coreId ?? null,
+                epAmount: -original.epAmount || 0, gpAmount: -original.gpAmount || 0,
+                type: "REVERSAL", reason: `Voided in game: ${original.reason}`.slice(0, 200),
+                sourceRef: `reversal:${original.id}`, createdBy: appliedBy
+              }
+            });
+            voided++;
+          }
+        }
         for (const item of snapshot.epgpTransactions) {
           const sourceRef = ledgerRef(item);
-          if (alreadyImported.has(sourceRef)) { skipped++; continue; }
-          if (settings?.coreLootOnly && !item.coreId) throw new Error("Chaque core garde ses propres EP/GP. Choisis le core dans l'addon avant d'attribuer des points; cet import reste en attente pour révision.");
-          alreadyImported.add(sourceRef);
+          if (item.voided) { if (item.sourceRef) importedRefs.push(sourceRef); continue; }
+          if (alreadyImported.has(sourceRef) || dismissedEpgp.has(sourceRef)) { skipped++; continue; }
+          const detail = `${[item.epAmount ? `${signed(item.epAmount)} EP` : "", item.gpAmount ? `${signed(item.gpAmount)} GP` : ""].filter(Boolean).join(", ")} - ${item.reason}`;
+          const hold = (reason: HeldReason) => held.push({ kind: "EPGP", sourceRef, character: item.character, reason, detail });
+          if (item.coreId && !validPoolIds.has(item.coreId)) { hold("UNKNOWN_POOL"); continue; }
+          if (settings?.coreLootOnly && !item.coreId) { hold("NO_CORE"); continue; }
           const character = findCharacter(characters, item.character, item.realm);
-          if (!character) throw new Error(`No linked character found for ${item.character} (${item.realm}).`);
+          if (!character) { hold("UNLINKED"); continue; }
+          alreadyImported.add(sourceRef);
+          importedRefs.push(sourceRef);
           epgpTransactions.push(await tx.epgpTransaction.create({
             data: {
               guildId,
@@ -154,6 +194,11 @@ export function createAddonImportService(database: PrismaClient) {
           await touchLastSeen(tx, character.id, entry.inspectedAt ?? new Date(snapshot.exportedAt));
 
           await syncProfessionSnapshot(tx, guildId, character, entry.professions, entry.professionsComplete === true, entry.professionsAt ?? entry.inspectedAt ?? new Date(snapshot.exportedAt));
+
+          // An officer's export repeats every guildmate's last digest on each upload: the same
+          // check (same character, same moment) is stored once, not once per upload.
+          if (entry.inspectedAt && typeof tx.inspectedCharacterSnapshot.findFirst === "function"
+            && await tx.inspectedCharacterSnapshot.findFirst({ where: { characterId: character.id, inspectedAt: entry.inspectedAt, source: snapshot.source }, select: { id: true } })) continue;
 
           readinessSnapshots.push(await tx.inspectedCharacterSnapshot.create({
             data: {
@@ -250,7 +295,25 @@ export function createAddonImportService(database: PrismaClient) {
         // readiness: an unmatched raid or character doesn't block the import).
         const raids = await applyRaidAttendance(tx, guildId, snapshot.raids, characters, appliedBy);
         const raidIds = new Map(raids.filter((raid) => raid.matchedRaidId).map((raid) => [raid.ref, raid.matchedRaidId as string]));
-        const loot = await applyAddonLoot(tx, guildId, snapshot.loot, characters, raidIds, appliedBy, settings?.coreLootOnly ?? false);
+        const loot = await applyAddonLoot(tx, guildId, snapshot.loot, characters, raidIds, appliedBy, settings?.coreLootOnly ?? false, dismissed("LOOT"));
+        for (const row of loot.held) held.push({ kind: "LOOT", sourceRef: row.ref, character: row.character, reason: "NO_CORE_RAID", detail: `${row.item}${row.gp ? ` (${row.gp} GP)` : ""}`.slice(0, 200) });
+
+        // What is waiting is remembered (and shown with /import held); what went through, or was
+        // voided, leaves the list.
+        const known = new Set(knownHeld.map((row) => `${row.kind}:${row.sourceRef}`));
+        const newlyHeld = held.filter((row) => !known.has(`${row.kind}:${row.sourceRef}`));
+        if (heldStore) {
+          const now = new Date();
+          for (const row of held) {
+            const data = { character: row.character.slice(0, 100), reason: row.reason, detail: row.detail.slice(0, 200), lastSeenAt: now };
+            await heldStore.upsert({
+              where: { guildId_kind_sourceRef: { guildId, kind: row.kind, sourceRef: row.sourceRef } },
+              create: { guildId, kind: row.kind, sourceRef: row.sourceRef, ...data }, update: data
+            });
+          }
+          const cleared = [...importedRefs, ...loot.recordedRefs].filter((ref) => knownHeld.some((row) => row.sourceRef === ref && !row.dismissedAt));
+          if (cleared.length) await heldStore.deleteMany({ where: { guildId, dismissedAt: null, sourceRef: { in: cleared } } });
+        }
         const dungeons = await importDungeonRuns(tx, guildId, snapshot.dungeonRuns,
           characters.map((character) => ({ name: character.name, realm: character.realm, memberId: character.memberId })), appliedBy, importId);
 
@@ -271,7 +334,10 @@ export function createAddonImportService(database: PrismaClient) {
           await queueCharacterDisplayRefresh(tx, guildId, [...ids]);
         }
         if (calendarPlan.matches.length) await enqueueDiscordJob(tx, guildId, `calendar:${imported.id}`, "CALENDAR", { plan: JSON.parse(JSON.stringify(calendarPlan)) });
-        return { import: imported, transactions, epgpTransactions, readinessSnapshots, attunements, consumables, reserves, itemPrices, crafting, calendarPlan, discovery, raids, loot, dungeons, skipped };
+        return {
+          import: imported, transactions, epgpTransactions, readinessSnapshots, attunements, consumables, reserves, itemPrices, crafting, calendarPlan, discovery, raids, loot, dungeons, skipped,
+          voided, held: { rows: held, fresh: newlyHeld.length }, rejected: snapshot.rejected
+        };
       }, { timeout: 60_000, maxWait: 15_000 });
     }
   };

@@ -8,6 +8,8 @@ local addonName, ns = ...
 ns = ns or {}
 
 local FR = {
+  ["This guild keeps EP and GP per raid core. Pick the core first: /guilded core <name>."] = "Cette guilde garde les EP et GP par core de raid. Choisis d'abord le core : /guilded core <nom>.",
+  ["No raid is running: Discord files loot under a raid core only once it belongs to a raid. Use /guilded start before the next item."] = "Aucun raid en cours : Discord classe le butin sous un core seulement s'il appartient \195\160 un raid. Utilise /guilded start avant le prochain objet.",
   ["Open raid markers"] = "Ouvrir les marqueurs de raid",
   ["Sync next missing event"] = "Importer le prochain evenement",
   ["Open or close raid markers before combat."] = "Ouvrez ou fermez les marqueurs avant le combat.",

@@ -136,7 +136,7 @@ describe("in-game loot import", () => {
       { ref: "qg-loot:new", character: "bob", realm: "Forever", item: "[Helm]", gp: 30, raidRef: "1-Kev", boss: "Ragnaros" },
       { ref: "qg-loot:pug", character: "Stranger", realm: "Forever", item: "Cloak", gp: 5 }
     ], characters, new Map([["1-Kev", "r1"]]), "officer");
-    expect(result).toEqual({ recorded: 1, skipped: 1, unmatched: ["Stranger"], recordedIds: ["award"] });
+    expect(result).toEqual({ recorded: 1, skipped: 1, unmatched: ["Stranger"], recordedIds: ["award"], recordedRefs: ["qg-loot:new"], held: [] });
     expect(created[0]).toMatchObject({ memberId: "m-bob", itemName: "[Helm]", amount: 30, raidId: "r1", bossName: "Ragnaros", sourceRef: "qg-loot:new" });
   });
 });

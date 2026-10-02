@@ -2,6 +2,18 @@ import luaparse from "luaparse";
 
 const iso = (epoch) => new Date(Number(epoch) * 1000).toISOString();
 
+// "Alchemy:300,Mining:275" from a peer's digest. A part with no name or no number is dropped:
+// the text came from another player's addon and one bad part must not spoil the upload.
+function digestProfessions(text) {
+  return String(text ?? "").split(",").filter(Boolean).flatMap((part) => {
+    const [name, skill] = part.split(":");
+    const skillLevel = Math.trunc(Number(skill));
+    if (!name || !name.trim() || !Number.isFinite(skillLevel) || skillLevel < 0) return [];
+    return [{ name: name.trim().slice(0, 40), skillLevel }];
+  }).slice(0, 10);
+}
+const digestLevel = (value) => { const level = Math.trunc(Number(value)) || 0; return level >= 0 && level <= 100 ? level : 0; };
+
 function evaluate(node) {
   if (!node) return null;
   if (node.type === "StringLiteral") {
@@ -70,6 +82,8 @@ export function parseAddonExportText(text, realm) {
       const sourceRef = entry.id
         ? `qg:${entry.id}`
         : `qg:${character}:${entry.at ?? "unknown"}:${entry.by ?? "unknown"}:${index}`;
+      // An entry that changes nothing (older addons could write one) is not a ledger entry.
+      if (usingEpgpLedger && !Number(entry.epAmount ?? 0) && !Number(entry.gpAmount ?? 0)) continue;
       let reason = String(entry.reason ?? "").trim();
       if (reason.length < 3) reason = `Guilded addon ledger${reason ? `: ${reason}` : ""}`;
       if (usingEpgpLedger) {
@@ -82,7 +96,9 @@ export function parseAddonExportText(text, realm) {
           gpAmount: Number(entry.gpAmount ?? 0),
           type: entry.type ?? "ADJUSTMENT",
           reason,
-          sourceRef
+          sourceRef,
+          // /guilded void: the bot never imports it, or reverses it when it already did.
+          ...(entry.voided ? { voided: true } : {})
         });
       } else {
         transactions.push({
@@ -111,13 +127,7 @@ export function parseAddonExportText(text, realm) {
   // instead of real gear data — this is what lets one officer's export
   // carry a readiness picture for the whole online guild, not just themselves.
   const peerReadiness = Object.entries(database.peerRoster ?? {}).map(([character, entry]) => {
-    const professions = String(entry.professions ?? "")
-      .split(",")
-      .filter(Boolean)
-      .map((part) => {
-        const [name, skillLevel] = part.split(":");
-        return { name, skillLevel: Number(skillLevel) || 0 };
-      });
+    const professions = digestProfessions(entry.professions);
     const findings = [];
     if ((entry.missing ?? 0) > 0) {
       findings.push({
@@ -159,14 +169,11 @@ export function parseAddonExportText(text, realm) {
       realm,
       class: String(entry.identity.class),
       race: String(entry.identity.race ?? ""),
-      level: Number(entry.identity.level) || 0,
+      level: digestLevel(entry.identity.level),
       spec: String(entry.identity.spec ?? ""),
       professionsComplete: entry.professionsComplete === true,
       ...(entry.professionsAt ? { professionsAt: iso(entry.professionsAt) } : {}),
-      professions: String(entry.professions ?? "").split(",").filter(Boolean).map((part) => {
-        const [professionName, skill] = part.split(":");
-        return { name: professionName, skillLevel: Number(skill) || 0 };
-      })
+      professions: digestProfessions(entry.professions)
     }));
 
   // Finished in-game raids: explicit attendance marks plus everyone the addon
@@ -332,7 +339,7 @@ function exportCharacter(entry, realm) {
     realm: String(entry.realm || realm),
     class: String(entry.class ?? ""),
     race: String(entry.race ?? ""),
-    level: Number(entry.level) || 0,
+    level: digestLevel(entry.level),
     spec: String(entry.spec ?? ""),
     professions: Array.isArray(entry.professions) ? entry.professions : Object.values(entry.professions ?? {}),
     professionsComplete: entry.professionsComplete === true,

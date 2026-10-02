@@ -4,10 +4,24 @@ role permissions and bot hierarchy. Preserve Exilé → Errant, remove only the
 owner-approved Errant permissions, and verify Guilded before disabling Carl.
 # Guilded 5.0 stabilization — local Claude update handoff
 
-Clickable community hub and numbered seasons: `docs/COMMUNITY_EXPERIENCE.md`.
-Additive migration `20261102090000_community_experience`; deploy handlers before
-refreshing existing panels. Version remains 5.0.0. PoE2 integration analysis:
-`docs/POE2_DISCORD_INTEGRATION.md`.
+Clickable community hub and numbered seasons (2 Oct 2026): `docs/COMMUNITY_EXPERIENCE.md`.
+Additive migration `20261102090000_community_experience`, bot/command deployment and
+then the REST maintenance script refresh the existing panels without recreating the
+season or touching points. Handlers must be live before publishing buttons. No version
+bump. PoE2 role/channel/statistics integration proposal: `docs/POE2_DISCORD_INTEGRATION.md`.
+
+PoE2 reader reliability and live view (2 Oct 2026): `docs/POE2_RELIABILITY.md`.
+Rebuild the companion for bounded catch-up, cautious rotation recovery, file
+diagnostics and local daily/current-map metrics. No migration or version bump.
+Existing journals remain readable; preserve them if rolling back to an older
+build. Current-patch English/French logs and Windows/PostgreSQL gates remain required.
+
+Audit hardening (2 Oct 2026, branch `fix/audit-hardening`): `docs/AUDIT_HARDENING.md`.
+Imports hold entries they cannot place instead of failing (`/import held`), `/guilded void`,
+awards shared between officers in a raid, transactional decay, restart on uncaught errors and
+data retention. Additive migration `20261101090000_addon_held_entries`; rebuild the addon ZIP
+and the companion (both changed). Version stays 5.0.0, protocol stays 2. PostgreSQL CI and
+real-client checks remain required.
 
 Community leaderboard follow-up (2 Oct 2026): `docs/COMMUNITY_LEADERBOARD.md`.
 The existing Community rankings channel is reused as `🏆・leaderboard`; the bot

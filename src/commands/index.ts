@@ -8,6 +8,7 @@ import { importCommand, executeImport } from "./import.js";
 import { lootCommand } from "./loot.js";
 import { applicationCommand, applyCommand, executeApplication } from "./application.js";
 import { importApplyCommand, executeImportApply } from "./import-apply.js";
+import { importHeldCommand, executeImportHeld } from "./import-held.js";
 import { epgpCommand } from "./epgp.js";
 import { readinessCommand, executeReadiness } from "./readiness.js";
 import { attunementCommand, executeAttunement } from "./attunement.js";
@@ -74,7 +75,8 @@ const mod = new MergedCommand("mod", "Moderation, guild applications and the ans
 
 const importer = new MergedCommand("import", "Bring addon data into Discord: preview a file, then apply it (officers).", [
   { command: importCommand, handler: executeImport, as: "upload" },
-  { command: importApplyCommand, handler: executeImportApply, as: "apply" }
+  { command: importApplyCommand, handler: executeImportApply, as: "apply" },
+  { command: importHeldCommand, handler: executeImportHeld, as: "held" }
 ]);
 
 const report = new MergedCommand("report", "Guild reports: activity, inactive members, health, exports, bot status and bug reports.", [

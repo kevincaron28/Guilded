@@ -122,6 +122,7 @@ model Guild {
   epgpTransactions    EpgpTransaction[]
   auditLogs           AuditLog[]
   imports             AddonImport[]
+  heldEntries         AddonHeldEntry[]
   settings            GuildSettings?
   raids               Raid[]
   auctions            Auction[]
@@ -572,6 +573,27 @@ model AddonImport {
 
   @@index([guildId, createdAt])
   @@index([pairedMemberId])
+}
+
+// A ledger or loot row from an addon export that could not be imported yet (unlinked character,
+// no raid core chosen...). The rest of the export still imports; this row is retried on every
+// later upload and leaves the list once it imports. A dismissed row is never imported.
+model AddonHeldEntry {
+  id          String    @id @default(cuid())
+  guildId     String
+  kind        String
+  sourceRef   String
+  character   String
+  reason      String
+  detail      String
+  firstSeenAt DateTime  @default(now())
+  lastSeenAt  DateTime  @default(now())
+  dismissedAt DateTime?
+  dismissedBy String?
+  guild       Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, kind, sourceRef])
+  @@index([guildId, dismissedAt, lastSeenAt])
 }
 
 model GuildSettings {

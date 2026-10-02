@@ -52,26 +52,28 @@ describe("loot belongs to each core", () => {
     await expect(service.awardDirect({ guildId: "g", memberId: "m", itemName: "Helm", gp: 0, awardedBy: "officer" })).rejects.toThrow(/Choisis un core/);
     expect(create).not.toHaveBeenCalled();
   });
-  it("requires addon loot to match a core raid, while preserving already imported history", async () => {
+  it("holds addon loot until it matches a core raid, while preserving already imported history", async () => {
     const create = vi.fn().mockResolvedValue({ id: "award" });
     const findMany = vi.fn().mockResolvedValue([]);
     const tx = { lootAward: { create, findMany }, raid: { findFirst: vi.fn().mockResolvedValue({ id: "raid" }) } };
     const row = { ref: "loot-ref", character: "Ann", realm: "Test", item: "Helm", gp: 0 };
     const players = [{ id: "char", name: "Ann", realm: "Test", memberId: "m" }];
-    await expect(applyAddonLoot(tx as never, "g", [row], players, new Map(), "officer", true)).rejects.toThrow(/Choisis un core/);
+    // Not fatal any more: the row waits for its raid and the rest of the import goes on.
+    expect(await applyAddonLoot(tx as never, "g", [row], players, new Map(), "officer", true)).toMatchObject({ recorded: 0, held: [row] });
     expect(create).not.toHaveBeenCalled();
+    expect(await applyAddonLoot(tx as never, "g", [row], players, new Map(), "officer", true, new Set([row.ref]))).toMatchObject({ skipped: 1, held: [] });
     await applyAddonLoot(tx as never, "g", [{ ...row, raidRef: "game-raid" }], players, new Map([["game-raid", "raid"]]), "officer", true);
     expect(create).toHaveBeenCalledWith({ data: expect.objectContaining({ raidId: "raid" }) });
     findMany.mockResolvedValue([{ sourceRef: row.ref }]);
     expect(await applyAddonLoot(tx as never, "g", [row], players, new Map(), "officer", true)).toMatchObject({ skipped: 1, recorded: 0 });
   });
-  it("refuses new addon prices without a core but leaves old imported prices alone", async () => {
+  it("leaves out new addon prices without a core and leaves old imported prices alone", async () => {
     const upsert = vi.fn();
     const findUnique = vi.fn().mockResolvedValue(null);
     const database = { raidCore: { findMany: vi.fn().mockResolvedValue([{ id: "a" }]) }, coreItemValue: { upsert, findUnique } };
     const price = { name: "Helm", gp: 100, at: new Date("2026-10-01") };
-    await expect(applyAddonItemPrices(database as never, "g", [price], true)).rejects.toThrow(/Choisis un core/);
-    await expect(applyAddonItemPrices(database as never, "g", [{ ...price, coreId: "foreign" }], true)).rejects.toThrow(/Choisis un core/);
+    expect(await applyAddonItemPrices(database as never, "g", [price], true)).toBe(0);
+    expect(await applyAddonItemPrices(database as never, "g", [{ ...price, coreId: "foreign" }], true)).toBe(0);
     expect(upsert).not.toHaveBeenCalled();
     findUnique.mockResolvedValue({ updatedAt: new Date("2026-10-02") });
     expect(await applyAddonItemPrices(database as never, "g", [price], true)).toBe(0);

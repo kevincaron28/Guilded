@@ -182,7 +182,8 @@ export async function applyAddonItemPrices(
     const key = keyOf({ name: price.name, id: null });
     const existing = await database.coreItemValue.findUnique({ where: { guildId_coreId_itemKey: { guildId, coreId: coreId ?? GUILD_DEFAULT, itemKey: key } } });
     if (existing && existing.updatedAt >= price.at) continue;
-    if (coreLootOnly && !coreId) throw new Error("Choisis un core : chaque core garde ses propres prix de butin.");
+    // A price set in game with no core chosen has no list to go to here: left out, not fatal.
+    if (coreLootOnly && !coreId) continue;
     saved += await service.setMany(guildId, coreId, [{ name: price.name, id: price.id ?? null, gp: price.gp }]);
   }
   return saved;

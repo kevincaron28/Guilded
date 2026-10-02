@@ -7,7 +7,7 @@ import { runCoreEditor } from "./core-editor.js";
 import { describeRules, effectiveRules, LOOT_MODE_LABEL, LOOT_MODES } from "../services/core-rules.js";
 import { executeCoreItems } from "./core-items.js";
 import { coreSpotLabel, createRaidCoreService, ensureCoreDiscord, removeCoreRosterMessage, syncCoreRoster } from "../services/raid-core.js";
-import { archiveCoreDiscord, deleteCoreDiscord, renameCoreDiscord } from "../services/core-channels.js";
+import { deleteCoreDiscord, renameCoreDiscord } from "../services/core-channels.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { fillCoreWeeklyRaids, saveCoreWeeklySchedule } from "../services/core-weekly-raids.js";
 import { parseWeeklySchedule } from "../services/core-weekly-time.js";
@@ -84,9 +84,9 @@ export const coreCommand = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName("rename").setDescription("Rename a core (Raid Leaders). Its raids, prices and roster follow.")
     .addStringOption(coreOption)
     .addStringOption((o) => o.setName("name").setDescription("New name").setMinLength(2).setMaxLength(50).setRequired(true)))
-  .addSubcommand((sub) => sub.setName("delete").setDescription("Delete a core (Raid Leaders). Raids created for it keep their signups.")
-    .addStringOption(coreOption)
-    .addBooleanOption((o) => o.setName("channels").setDescription("Delete its channels and role instead of archiving them read-only (default: archive)")));
+  .addSubcommand((sub) => sub.setName("delete").setDescription("Delete a core, its channels and role (Raid Leaders). Raid records and signups are kept.")
+    .setDescriptionLocalizations({ fr: "Supprimer un core, ses salons et son rôle (RL). Les raids et inscriptions sont conservés." })
+    .addStringOption(coreOption));
 
 function requireRaidLeader(interaction: ChatInputCommandInteraction): void {
   if (!interaction.member || !hasPermission(interaction.member as GuildMember, "raidLeader")) {
@@ -298,20 +298,20 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
     return;
   }
 
+  await interaction.deferReply({ ephemeral: true });
   const toDelete = await coreService.byIdOrName(guildId, interaction.options.getString("core", true));
   const pooled = toDelete.separatePool ? await prisma.epgpTransaction.count({ where: { guildId, coreId: toDelete.id } }) : 0;
   if (pooled > 0) throw new Error(`${toDelete.name} has ${pooled} entries in its own point pool. Deleting it would orphan them, so it can't be deleted while it keeps its own points.`);
+  const hasDiscord = [toDelete.roleId, toDelete.categoryId, toDelete.rosterChannelId, toDelete.signupChannelId,
+    toDelete.lootChannelId, toDelete.raidLogChannelId, toDelete.chatChannelId, toDelete.voiceChannelId].some(Boolean);
+  if (hasDiscord && !interaction.guild) throw new Error("I could not access this Discord server. The core was kept; retry /core delete in the server.");
+  const cleanup = hasDiscord && interaction.guild ? await deleteCoreDiscord(interaction.guild, toDelete) : { removed: 0, failed: [] };
+  if (cleanup.failed.length > 0) {
+    await interaction.editReply({ content: `Could not finish deleting **${toDelete.name}**. The core was kept so you can retry \`/core delete\`. Give the bot Manage Channels and Manage Roles, and place its role above the core role. Could not remove: ${cleanup.failed.join(", ")}.`.slice(0, 1990) });
+    return;
+  }
   const core = await coreService.remove(guildId, toDelete.id);
   await removeCoreRosterMessage(interaction.guild, prisma, guildId, core.rosterMessageId, core.rosterChannelId);
-  // Its channels are archived (read-only, history kept) unless the officer asks to delete them.
-  const deleteChannels = interaction.options.getBoolean("channels") === true;
-  const hasDiscord = !!(core.roleId || core.categoryId);
-  if (hasDiscord) await interaction.deferReply({ ephemeral: true });
-  const removed = deleteChannels && hasDiscord && interaction.guild ? await deleteCoreDiscord(interaction.guild, core) : 0;
-  const archived = !deleteChannels && hasDiscord && interaction.guild ? await archiveCoreDiscord(interaction.guild, core) : 0;
-  const content = `Deleted raid core **${core.name}**.`
-    + (removed ? ` Removed ${removed} channel(s)/role.` : "")
-    + (archived ? ` Its ${archived} text channel(s) moved, read-only, to the Archived cores category; delete them there when you no longer need them.` : "");
-  if (hasDiscord) await interaction.editReply({ content });
-  else await interaction.reply({ content, ephemeral: true });
+  await interaction.editReply({ content: `Deleted raid core **${core.name}**.`
+    + (cleanup.removed ? ` Removed ${cleanup.removed} Discord channels/categories/roles.` : "") });
 }

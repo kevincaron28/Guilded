@@ -20,9 +20,8 @@ import { BRAND } from "../brand.js";
 //   #<core>-signups  the core's raid signup posts visible to the guild, only the bot posts
 //   #<core>-chat     the core's own chat          core role + leadership only
 //   🔊 <core>        voice                        core role + leadership only
-// When the core is deleted they are archived (archiveCoreDiscord): the text channels move to a
-// read-only "Archived cores" category so the history stays, the voice channel and the empty
-// category go, and the role is renamed "<core> (archived)" so former members can still read.
+// Deleting the core removes its linked channels, all children of its category, and its role.
+// Failed cleanup keeps the core record so the officer can fix permissions and retry.
 // If the bot lacks Manage Roles / Manage Channels the core still works with the shared channels.
 //
 // Public core channels follow the configured general raid signup channel's audience, so
@@ -288,65 +287,54 @@ export async function setupCoreDiscord(
   }
 }
 
+// Retained so uninstall can recognize archives left by older bot versions.
 export const ARCHIVE_CATEGORY = "🗄️ Archived cores";
-// Discord allows 50 channels in a category.
-const CATEGORY_LIMIT = 50;
 
-// When a core is deleted: its text channels are kept, read-only, in an "Archived cores"
-// category (a new one when the last is full); the voice channel and the core's category go;
-// the role stays, renamed, so the people who were in the core can still read their chat.
-// Returns how many channels were archived.
-export async function archiveCoreDiscord(guild: DiscordGuild, core: CoreLike): Promise<number> {
-  await guild.channels.fetch();
-  const textIds = [core.rosterChannelId, core.signupChannelId, core.lootChannelId, core.raidLogChannelId, core.chatChannelId].filter((id): id is string => !!id && guild.channels.cache.has(id));
-  let archived = 0;
-  if (textIds.length > 0) {
-    const categories = guild.channels.cache.filter((channel) => channel.type === ChannelType.GuildCategory && channel.name.startsWith(ARCHIVE_CATEGORY));
-    const childCount = (id: string) => guild.channels.cache.filter((channel) => "parentId" in channel && channel.parentId === id).size;
-    let archive = categories.find((category) => childCount(category.id) + textIds.length <= CATEGORY_LIMIT) ?? null;
-    if (!archive) {
-      const name = categories.size === 0 ? ARCHIVE_CATEGORY : `${ARCHIVE_CATEGORY} ${categories.size + 1}`;
-      archive = await guild.channels.create({
-        name, type: ChannelType.GuildCategory, reason: `${BRAND.name}: archived raid core channels`,
-        permissionOverwrites: [{ id: guild.roles.everyone.id, deny: [PermissionFlagsBits.SendMessages] }]
-      }).catch(() => null);
-    }
-    for (const id of textIds) {
-      const channel = guild.channels.cache.get(id);
-      if (!channel || channel.type !== ChannelType.GuildText) continue;
-      const moved = await channel.edit({ parent: archive?.id ?? null, lockPermissions: false, reason: `${BRAND.name}: raid core deleted, channel archived` }).then(() => true, () => false);
-      if (!moved) continue;
-      archived++;
-      // Read-only for everyone who could see it (the core role, leadership); the bot still can.
-      for (const overwrite of channel.permissionOverwrites.cache.values()) {
-        if (overwrite.id === guild.members.me?.id) continue;
-        await channel.permissionOverwrites.edit(overwrite.id, { SendMessages: false }).catch(() => undefined);
+// Remove children before the category: Discord leaves them behind when only the category goes.
+// Keep the category and role on channel failures, preserving both discovery and access for retry.
+export async function deleteCoreDiscord(guild: DiscordGuild, core: CoreLike): Promise<{ removed: number; failed: string[] }> {
+  const result = { removed: 0, failed: [] as string[] };
+  const channelIds = new Set([core.rosterChannelId, core.signupChannelId, core.lootChannelId,
+    core.raidLogChannelId, core.chatChannelId, core.voiceChannelId].filter((id): id is string => !!id));
+  if (core.categoryId) {
+    try {
+      const channels = await guild.channels.fetch();
+      for (const channel of channels.values()) {
+        if (channel && "parentId" in channel && channel.parentId === core.categoryId) channelIds.add(channel.id);
       }
+    } catch {
+      // Without a fresh inventory we cannot safely declare the category fully cleaned up.
+      result.failed.push(`channels in category ${core.categoryId}`);
+      return result;
     }
   }
-  for (const id of [core.voiceChannelId, core.categoryId]) {
-    if (!id) continue;
-    const channel = await guild.channels.fetch(id).catch(() => null);
-    await channel?.delete(`${BRAND.name}: raid core deleted`).catch(() => undefined);
-  }
+  const isGone = (error: unknown, code: number) => typeof error === "object" && error !== null && "code" in error && error.code === code;
+  const reason = `${BRAND.name}: raid core deleted`;
+  const removeChannel = async (id: string) => {
+    try {
+      const channel = await guild.channels.fetch(id);
+      if (channel) {
+        await channel.delete(reason);
+        result.removed++;
+      }
+    } catch (error) {
+      if (!isGone(error, 10003)) result.failed.push(`channel ${id}`); // Unknown Channel means already deleted.
+    }
+  };
+  for (const id of channelIds) await removeChannel(id);
+  if (result.failed.length > 0) return result;
+  if (core.categoryId) await removeChannel(core.categoryId);
+  if (result.failed.length > 0) return result;
   if (core.roleId) {
-    const role = await guild.roles.fetch(core.roleId).catch(() => null);
-    await role?.edit({ name: `${core.name} (archived)`.slice(0, 100), mentionable: false, reason: `${BRAND.name}: raid core deleted` }).catch(() => undefined);
+    try {
+      const role = await guild.roles.fetch(core.roleId);
+      if (role) {
+        await role.delete(reason);
+        result.removed++;
+      }
+    } catch (error) {
+      if (!isGone(error, 10011)) result.failed.push(`role ${core.roleId}`); // Unknown Role means already deleted.
+    }
   }
-  return archived;
-}
-
-// When a core is deleted with its channels: the four channels, the category and the role go.
-export async function deleteCoreDiscord(guild: DiscordGuild, core: CoreLike): Promise<number> {
-  let removed = 0;
-  for (const id of [core.rosterChannelId, core.signupChannelId, core.lootChannelId, core.raidLogChannelId, core.chatChannelId, core.voiceChannelId, core.categoryId]) {
-    if (!id) continue;
-    const channel = await guild.channels.fetch(id).catch(() => null);
-    if (channel && await channel.delete(`${BRAND.name}: raid core deleted`).then(() => true, () => false)) removed++;
-  }
-  if (core.roleId) {
-    const role = await guild.roles.fetch(core.roleId).catch(() => null);
-    if (role && await role.delete(`${BRAND.name}: raid core deleted`).then(() => true, () => false)) removed++;
-  }
-  return removed;
+  return result;
 }

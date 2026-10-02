@@ -53,6 +53,16 @@ function fixture() {
 }
 
 describe("community board maintenance", () => {
+  it("upgrades the existing activity guide in place without a duplicate pinned hub", async () => {
+    const { rest, database, category, channel, message } = fixture();
+    const hub = { ...channel, id: "activities", name: "activites" };
+    const guide = { ...message, id: "guide", embeds: [{ footer: { text: "Guilded 5.0 setup activities" } }] };
+    rest.get.mockResolvedValueOnce([category, channel, hub]).mockResolvedValueOnce({ items: [{ message }] } as never).mockResolvedValueOnce({ items: [{ message: guide }] } as never);
+    await updateCommunityLeaderboard(rest as never, database as never, "guild", "bot");
+    expect(rest.post).not.toHaveBeenCalled();
+    expect(rest.put).not.toHaveBeenCalled();
+    expect(rest.patch).toHaveBeenCalledWith("/channels/activities/messages/guide", expect.objectContaining({ body: expect.objectContaining({ components: expect.any(Array) }) }));
+  });
   it("updates the existing pinned board and confines scores to unrestricted Discord seasons in this channel", async () => {
     const { rest, database } = fixture();
     await updateCommunityLeaderboard(rest as never, database as never, "guild", "bot");

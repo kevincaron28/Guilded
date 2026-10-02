@@ -17,6 +17,7 @@ import { guildService } from "./context.js";
 import { faqChoices } from "./faq.js";
 import { commands } from "./index.js";
 import { resolveCommand } from "./router.js";
+import { communityChoices } from "../services/community-choices.js";
 
 // Routes every autocomplete request (see setAutocomplete(true) on ID
 // options) to the right list. Must answer within 3 seconds, so any error
@@ -36,7 +37,9 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
     const timeZone = settings?.timezone ?? "America/Toronto";
     const language = settings?.language ?? "en";
 
-    if (command === "poe" && focused.name === "league") {
+    if (["community", "lottery", "gaming", "challenge", "participation"].includes(command) && (focused.name === "season" || focused.name === "id" && command !== "participation")) {
+      choices = await communityChoices(prisma, interaction.guild, guild.id, interaction.user.id, command, subcommand, focused.name, query, language === "fr" ? "fr" : "en");
+    } else if (command === "poe" && focused.name === "league") {
       choices = await createPoeMappingService(prisma).leagueChoices(guild.id, query);
     } else if (command === "dungeon" && focused.name === "season") {
       const seasons = await prisma.dungeonSeason.findMany({ where: { guildId: guild.id, name: { contains: query, mode: "insensitive" } }, orderBy: { startsAt: "desc" }, take: 25 });

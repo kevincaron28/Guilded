@@ -4,13 +4,15 @@ import { BRAND } from "../brand.js";
 import { asLang, type Lang } from "../i18n.js";
 import { COMMUNITY_CHANNEL_SPECS } from "../setup-names.js";
 import { standings, type Standing } from "./community-rules.js";
+import { communitySeasonLabel } from "./community-display.js";
+import { communityHubButton, communityHubCard, COMMUNITY_HUB_MARKER } from "./community-panels.js";
 
 export const COMMUNITY_BOARD_MARKER = "Guilded · Community podium";
 export const COMMUNITY_BOARD_NAMES = ["🏆・leaderboard", "🏆-leaderboard", "leaderboard", "community-standings", "classement"];
 const say = (lang: Lang, en: string, fr: string) => lang === "fr" ? fr : en;
 
 export function communityLeaderboardCard(input: {
-  lang: Lang; discordId: string; season: { id: string; name: string; status: string } | null;
+  lang: Lang; discordId: string; season: { id: string; name: string; number?: number; status: string } | null;
   board: Standing[]; activitiesId?: string | undefined; chatId?: string | undefined;
 }) {
   const { lang, season, board } = input;
@@ -23,7 +25,7 @@ export function communityLeaderboardCard(input: {
     .setDescription(say(lang,
       "Every game night, helping hand and challenge makes this community stronger. **Your next point starts here.**",
       "Une soirée, un coup de main, un défi : c’est la gang qui fait vivre la communauté. **Ta prochaine place au classement commence ici !**"))
-    .addFields({ name: season ? `${active ? "🟢" : "🏁"} ${escapeMarkdown(season.name)}` : say(lang, "✨ The next season is coming", "✨ La prochaine saison s’en vient"),
+    .addFields({ name: season ? `${active ? "🟢" : "🏁"} ${escapeMarkdown(communitySeasonLabel(season, lang))}` : say(lang, "✨ The next season is coming", "✨ La prochaine saison s’en vient"),
       value: top.map(row => {
         const rank = 1 + ranked.filter(other => other.points > row.points).length;
         return `${["🥇", "🥈", "🥉"][rank - 1] ?? `**${rank}.**`} <@${row.userId}> — **${points(row.points)} pts**`;
@@ -36,19 +38,42 @@ export function communityLeaderboardCard(input: {
     .setTitle(say(lang, "✨ TAKE YOUR PLACE", "✨ À TOI DE JOUER"))
     .setDescription(say(lang, "You can join halfway through a season. Pick one activity and make your first move.", "Même si la saison est commencée, tu peux embarquer. Choisis une activité et lance-toi !"))
     .addFields({ name: say(lang, "🎲 A little luck, every day", "🎲 Ta chance du jour"),
-      value: active ? `\`/community dice season:${season!.id}\`\n${say(lang, "One roll per day: **+5 pts**, or **+15 pts** on a roll of 90–100.", "Un lancer par jour : **+5 pts**, ou **+15 pts** si tu fais 90–100.")}` : say(lang, "Daily dice return with the next active Discord season.", "Les dés quotidiens reviennent avec la prochaine saison Discord.") })
+      value: active ? say(lang, "Click Roll the dice below. One roll per day: **+5 pts**, or **+15 pts** on 90–100.", "Clique sur Lancer le dé ci-dessous. Un lancer par jour : **+5 pts**, ou **+15 pts** sur 90–100.") : say(lang, "Daily dice return with the next active Discord season.", "Les dés quotidiens reviennent avec la prochaine saison Discord.") })
     .addFields({ name: say(lang, "🎮 Play, help, celebrate", "🎮 Joue, aide, participe"), value: say(lang,
       "Join gaming nights, answer quizzes and complete challenges. Attendance and challenge evidence are confirmed by organizers.\nChat, reactions and shared voice time earn points only when participation rewards are enabled; check `/participation status`.",
       "Rejoins les soirées, réponds aux quiz et relève les défis. Un organisateur confirme les présences et les preuves des défis.\nLes messages, réactions et moments en vocal rapportent des points quand les récompenses de participation sont activées : `/participation status`.") })
     .addFields({ name: say(lang, "📊 Your next step", "📊 Suis ta progression"), value: season
-      ? `\`/community wallet season:${season.id}\`\n\`/community leaderboard season:${season.id}\`\n${say(lang, "These commands show your current points and the full rankings. Spending points in a lottery keeps your earned score intact.", "Ces commandes affichent tes points actuels et le classement complet. Dépenser des points dans une loterie ne diminue pas ton score gagné.")}`
+      ? say(lang, "My points shows your score, available balance and participation progress privately. Spending lottery points keeps your earned score intact.", "Mes points affiche ton score, ton solde et ta participation en privé. Dépenser des points dans une loterie ne diminue pas ton score gagné.")
       : say(lang, "An organizer starts the season with `/community start-season`. No points or prizes are awarded until activities are configured.", "Un organisateur lance la saison avec `/community start-season`. Les activités annoncent leurs points et leurs récompenses.") })
     .setFooter({ text: say(lang, "Good company beats spam. Every genuine contribution counts. Guilded ⚜️", "Du bon temps, pas du spam. Chaque vraie contribution compte. Guilded ⚜️") });
   const links = new ActionRowBuilder<ButtonBuilder>();
   for (const [id, label] of [[input.activitiesId, say(lang, "🎮 Join an activity", "🎮 Voir les activités")], [input.chatId, say(lang, "💬 Meet the community", "💬 Rejoindre la gang")]]) {
     if (id) links.addComponents(new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel(label!).setURL(`https://discord.com/channels/${input.discordId}/${id}`));
   }
-  return { content: "", embeds: [podium.toJSON(), guide.toJSON()], components: links.components.length ? [links.toJSON()] : [], allowed_mentions: { parse: [] as string[] } };
+  const actions = season ? [new ActionRowBuilder<ButtonBuilder>().addComponents(
+    communityHubButton("dice", season.id, say(lang, "🎲 Roll the dice", "🎲 Lancer le dé"), true).setDisabled(!active),
+    communityHubButton("wallet", season.id, say(lang, "📊 My points", "📊 Mes points")),
+    communityHubButton("board", season.id, say(lang, "🏆 Full rankings", "🏆 Classement complet")),
+    communityHubButton("archives", season.id, say(lang, "📚 Seasons", "📚 Saisons"))).toJSON()] : [];
+  return { content: "", embeds: [podium.toJSON(), guide.toJSON()], components: [...actions, ...(links.components.length ? [links.toJSON()] : [])], allowed_mentions: { parse: [] as string[] } };
+}
+
+export function communityAudience(channel: { permission_overwrites?: { id: string; type: number; allow: string; deny: string }[] }, botId: string): string {
+  return (channel.permission_overwrites ?? []).filter(o => o.id !== botId).map(o => `${o.type}:${o.id}:${BigInt(o.allow) & PermissionFlagsBits.ViewChannel}:${BigInt(o.deny) & PermissionFlagsBits.ViewChannel}`).filter(s => !s.endsWith(":0:0")).sort().join("|");
+}
+
+async function updateHubMessage(rest: REST, channelId: string, botId: string, body: ReturnType<typeof communityHubCard>) {
+  const pins = await rest.get(Routes.channelMessagesPins(channelId)) as { items: { message: APIMessage }[] };
+  const matches = (m: APIMessage) => m.author.id === botId && m.embeds.some(e => e.footer?.text === COMMUNITY_HUB_MARKER || e.footer?.text === "Guilded 5.0 setup activities");
+  let message = pins.items.map(i => i.message).find(matches);
+  if (!message) {
+    const recent = await rest.get(Routes.channelMessages(channelId), { query: new URLSearchParams({ limit: "100" }) }) as APIMessage[];
+    message = recent.find(matches);
+  }
+  if (message) {
+    if (JSON.stringify({ embeds: message.embeds, components: message.components }) !== JSON.stringify({ embeds: body.embeds, components: body.components })) await rest.patch(Routes.channelMessage(channelId, message.id), { body });
+  } else message = await rest.post(Routes.channelMessages(channelId), { body: { ...body, nonce: `ch:${channelId}`, enforce_nonce: true } }) as APIMessage;
+  if (!pins.items.some(i => i.message.id === message!.id)) await rest.put(Routes.channelMessagesPin(channelId, message.id));
 }
 
 // REST maintenance shares the exact rendering used by the existing live bot.
@@ -85,8 +110,10 @@ export async function updateCommunityLeaderboard(rest: REST, database: PrismaCli
       : await rest.post(Routes.guildChannels(discordId), { body: { ...body, type: ChannelType.GuildText, parent_id: category.id } }) as APIGuildTextChannel<ChannelType.GuildText>;
   }
   if (!channel) return null;
-  // Never publish a role-restricted or differently visible season into this board.
-  const season = await database.communitySeason.findFirst({ where: { guildId: record.id, channelId: channel.id, game: "DISCORD", audienceRoleId: null }, orderBy: [{ status: "asc" }, { createdAt: "desc" }, { id: "desc" }] });
+  const activityChannels = channels.filter((c): c is APIGuildTextChannel<ChannelType.GuildText> => c.type === ChannelType.GuildText && c.parent_id === category.id && [COMMUNITY_CHANNEL_SPECS.en.activities.name, COMMUNITY_CHANNEL_SPECS.fr.activities.name].includes(c.name));
+  const hub = activityChannels.length === 1 && communityAudience(activityChannels[0]!, botId) === communityAudience(channel, botId) ? activityChannels[0] : undefined;
+  // A hub-hosted season is eligible only when its visibility matches the podium.
+  const season = await database.communitySeason.findFirst({ where: { guildId: record.id, channelId: hub ? { in: [channel.id, hub.id] } : channel.id, game: "DISCORD", audienceRoleId: null }, orderBy: [{ status: "asc" }, { createdAt: "desc" }, { id: "desc" }] });
   const board = season ? season.status === "ENDED" ? (season.finalStandings ?? []) as unknown as Standing[]
     : standings(await database.communityPoint.findMany({ where: { seasonId: season.id } })) : [];
   const sibling = (key: "activities" | "chat") => channels.find(c => c.type === ChannelType.GuildText && c.parent_id === category.id && [COMMUNITY_CHANNEL_SPECS.en[key].name, COMMUNITY_CHANNEL_SPECS.fr[key].name].includes(c.name ?? ""))?.id;
@@ -108,6 +135,10 @@ export async function updateCommunityLeaderboard(rest: REST, database: PrismaCli
         await rest.delete(Routes.channelMessagesPin(channel.id, item.message.id));
       }
     }
+  }
+  if (hub) {
+    const participation = season ? await database.communityParticipationConfig.findUnique({ where: { seasonId: season.id } }) : null;
+    await updateHubMessage(rest, hub.id, botId, communityHubCard(season, lang, season?.status === "ACTIVE" && !!participation?.enabled));
   }
   return { channelId: channel.id, messageId: message.id };
 }

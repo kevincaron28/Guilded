@@ -52,6 +52,14 @@ function fixture() {
 }
 
 describe("native Discord events", () => {
+  it("refreshes the gaming card after its native event link is created", async () => {
+    const s = fixture();
+    await s.sync("community", "night");
+    expect(s.tx.discordJob.upsert).toHaveBeenCalledWith(expect.objectContaining({ create: expect.objectContaining({ kind: "COMMUNITY_POST", key: "community:night" }) }));
+    s.tx.discordJob.upsert.mockClear();
+    await s.sync("community", "night");
+    expect(s.tx.discordJob.upsert).not.toHaveBeenCalled();
+  });
   it("publishes one event with a signup link and reuses it after edits/restarts", async () => {
     const s = fixture();
     await s.sync();

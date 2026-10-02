@@ -7,7 +7,7 @@ vi.mock("../src/services/calendar-sync.js", () => ({ runCalendarPlan: mocks.cale
 import { dispatchDiscordJob } from "../src/services/discord-jobs.js";
 
 beforeEach(() => vi.resetAllMocks());
-const job = (payload: unknown) => ({ id: "delivery", guildId: "guild", kind: "MESSAGE", payload });
+const job = (payload: unknown) => ({ id: "delivery", key: "notification:test", guildId: "guild", kind: "MESSAGE", payload });
 function discord() {
   const send = vi.fn();
   const fetch = vi.fn(async () => ({ isTextBased: () => true, messages: { fetch: async () => new Collection() }, send }));

@@ -7,6 +7,8 @@ import {
 } from "discord.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 import { eventRules } from "./community-rules.js";
+import { communityActivityChannel, communitySeasonLabel } from "./community-display.js";
+import { assertCommunityChannelAudience } from "./community-access.js";
 
 export type EventSourceType = "raid" | "community";
 export interface EventSource {
@@ -14,6 +16,7 @@ export interface EventSource {
   startsAt: Date; endsAt: Date; state: "scheduled" | "active" | "completed" | "cancelled";
   channelId: string | null; messageId: string | null;
   audienceChannelId: string | null; voiceChannelId: string | null; language: string;
+  scopeChannelId?: string;
 }
 type Db = Pick<PrismaClient, "raid" | "communityActivity" | "guildSettings" | "discordEventLink" | "discordJob">;
 const key = (type: EventSourceType, id: string) => `scheduled-event:${type}:${id}`;
@@ -36,9 +39,9 @@ async function readSource(database: Db, guildId: string, type: EventSourceType, 
   }
   const row = await database.communityActivity.findFirst({ where: { id, kind: "EVENT", season: { guildId } }, include: { season: true } });
   if (!row?.startsAt) return null;
-  return { type, id, title: row.title, description: row.season.name, startsAt: row.startsAt, endsAt: row.endsAt,
+  return { type, id, title: row.title, description: communitySeasonLabel(row.season, settings?.language === "fr" ? "fr" : "en"), startsAt: row.startsAt, endsAt: row.endsAt,
     state: row.status === "CANCELLED" ? "cancelled" : row.status === "CLOSED" || now >= row.endsAt ? "completed" : now >= row.startsAt ? "active" : "scheduled",
-    channelId: row.season.channelId, messageId: row.messageId, audienceChannelId: row.season.channelId,
+    channelId: communityActivityChannel(row), messageId: row.messageId, audienceChannelId: communityActivityChannel(row), scopeChannelId: row.season.channelId,
     voiceChannelId: eventRules.parse(row.rules).voiceChannelId ?? null, language: settings?.language ?? "en" };
 }
 
@@ -134,6 +137,7 @@ export async function syncScheduledEvent(guild: Guild, database: PrismaClient, g
       if (event?.status === GuildScheduledEventStatus.Scheduled) await guild.scheduledEvents.edit(event.id, { status: GuildScheduledEventStatus.Canceled });
       else if (event?.status === GuildScheduledEventStatus.Active) await guild.scheduledEvents.edit(event.id, { status: GuildScheduledEventStatus.Completed });
     } else {
+      if (source.scopeChannelId && source.channelId) await assertCommunityChannelAudience(guild, source.scopeChannelId, source.channelId);
       if (event?.status === GuildScheduledEventStatus.Active && source.state === "scheduled") {
         await guild.scheduledEvents.edit(event.id, { status: GuildScheduledEventStatus.Completed });
         event = null; // Moving an already-active native event requires a replacement.
@@ -159,6 +163,9 @@ export async function syncScheduledEvent(guild: Guild, database: PrismaClient, g
     }
     await tx.discordEventLink.upsert({ where, create: { guildId, sourceType: type, sourceId: id, discordId: event?.id ?? null, signature: signature(source), settled: terminal },
       update: { discordId: event?.id ?? null, signature: signature(source), settled: terminal } });
+    if (type === "community" && source?.messageId && link?.discordId !== event?.id) {
+      await enqueueDiscordJob(tx, guildId, `community:${id}`, "COMMUNITY_POST", { activityId: id });
+    }
   }, { timeout: 60_000, maxWait: 15_000 });
 }
 

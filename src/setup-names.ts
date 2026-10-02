@@ -27,12 +27,12 @@ export const COMMUNITY_CATEGORY_NAMES: Record<Lang, string> = { en: "Community",
 export const COMMUNITY_CHANNEL_SPECS: Record<Lang, Record<"activities" | "standings" | "chat", Pick<ChannelSpec, "name" | "topic" | "access">>> = {
   en: {
     activities: { name: "activities", topic: "Guilded gaming nights, lotteries, quizzes and challenges. Join using the buttons on each activity.", access: "readonly" },
-    standings: { name: "community-standings", topic: "Community season standings and participation points: /community leaderboard, /community wallet and /participation status.", access: "readonly" },
+    standings: { name: "🏆・leaderboard", topic: "The community podium: earn points, celebrate the helpers and join the next activity. Your score: /community wallet. Live rankings: /community leaderboard.", access: "readonly" },
     chat: { name: "community-chat", topic: "Community chat for everyone, across all games.", access: "open" }
   },
   fr: {
     activities: { name: "activites", topic: "Soirées gaming, loteries, quiz et défis Guilded. Participez avec les boutons de chaque activité.", access: "readonly" },
-    standings: { name: "classement", topic: "Classements des saisons et points de participation : /community leaderboard, /community wallet et /participation status.", access: "readonly" },
+    standings: { name: "🏆・leaderboard", topic: "Le podium de la gang : gagne des points, célèbre l’entraide et rejoins la prochaine activité ! Tes points : /community wallet. Classement à jour : /community leaderboard.", access: "readonly" },
     chat: { name: "chat-communaute", topic: "Chat communautaire pour tout le monde, tous jeux confondus.", access: "open" }
   }
 };

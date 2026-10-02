@@ -51,6 +51,7 @@ import { runRaidReminders } from "./services/reminders.js";
 import { runCooldownPings } from "./services/recipes.js";
 import { DUNGEON_SEASON_SELECT, handleDungeonSeasonSelect, updateDungeonLeaderboard } from "./services/dungeon-leaderboard.js";
 import { runBackup } from "./services/backup.js";
+import { updateCommunityLeaderboard } from "./services/community-leaderboard.js";
 import { runWclDiscovery } from "./services/wcl-check.js";
 import { config } from "./config.js";
 import { startCompanionApi } from "./companion-api.js";
@@ -131,6 +132,19 @@ client.once(Events.ClientReady, (readyClient) => {
   setInterval(() => void voice().catch(reportJobError("Participation voice checkpoint")), 30_000);
   void runCommunityActivities(readyClient.guilds.cache.values()).catch(reportJobError("Community activities"));
   setInterval(() => void runCommunityActivities(readyClient.guilds.cache.values()).catch(reportJobError("Community activities")), 60_000);
+  const communityRest = new REST({ version: "10" }).setToken(config.DISCORD_TOKEN);
+  let refreshingCommunityBoards = false;
+  const refreshCommunityBoards = async () => {
+    if (refreshingCommunityBoards) return;
+    refreshingCommunityBoards = true;
+    try {
+      for (const guild of readyClient.guilds.cache.values()) {
+        await updateCommunityLeaderboard(communityRest, prisma, guild.id, readyClient.user.id).catch(reportJobError("Community leaderboard"));
+      }
+    } finally { refreshingCommunityBoards = false; }
+  };
+  void refreshCommunityBoards();
+  setInterval(() => void refreshCommunityBoards(), 5 * 60_000);
   void runDiscordJobs(readyClient).catch(reportJobError("Discord delivery queue"));
   setInterval(() => void runDiscordJobs(readyClient).catch(reportJobError("Discord delivery queue")), 60_000);
   // Repair missing event jobs after a restart and advance game nights at their times.

@@ -4,6 +4,13 @@ role permissions and bot hierarchy. Preserve Exilé → Errant, remove only the
 owner-approved Errant permissions, and verify Guilded before disabling Carl.
 # Guilded 5.0 stabilization — local Claude update handoff
 
+Community leaderboard follow-up (2 Oct 2026): `docs/COMMUNITY_LEADERBOARD.md`.
+The existing Community rankings channel is reused as `🏆・leaderboard`; the bot
+refreshes its pinned bilingual podium on startup and every five minutes. Existing
+seasons and points stay intact. Only unrestricted Discord seasons hosted in that
+channel are published. No migration, client rebuild or version bump is required;
+deploy after the usual checks, CI and verified backup gates.
+
 Core deletion follow-up (2 Oct 2026): `/core delete` always removes the core's
 linked channels (roster, signups, loot, reports, chat and voice), any additional
 channels in its category, the category and its role. The former `channels` option

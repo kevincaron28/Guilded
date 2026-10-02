@@ -23,6 +23,20 @@ export const CATEGORY_NAMES: Record<Lang, Record<CategoryKey, string>> = {
 
 export interface ChannelSpec { name: string; topic: string; access: Access; category: CategoryKey; forum?: boolean }
 
+export const COMMUNITY_CATEGORY_NAMES: Record<Lang, string> = { en: "Community", fr: "Communauté" };
+export const COMMUNITY_CHANNEL_SPECS: Record<Lang, Record<"activities" | "standings" | "chat", Pick<ChannelSpec, "name" | "topic" | "access">>> = {
+  en: {
+    activities: { name: "activities", topic: "Guilded gaming nights, lotteries, quizzes and challenges. Join using the buttons on each activity.", access: "readonly" },
+    standings: { name: "community-standings", topic: "Community season standings and participation points: /community leaderboard, /community wallet and /participation status.", access: "readonly" },
+    chat: { name: "community-chat", topic: "Community chat for everyone, across all games.", access: "open" }
+  },
+  fr: {
+    activities: { name: "activites", topic: "Soirées gaming, loteries, quiz et défis Guilded. Participez avec les boutons de chaque activité.", access: "readonly" },
+    standings: { name: "classement", topic: "Classements des saisons et points de participation : /community leaderboard, /community wallet et /participation status.", access: "readonly" },
+    chat: { name: "chat-communaute", topic: "Chat communautaire pour tout le monde, tous jeux confondus.", access: "open" }
+  }
+};
+
 const ACCESS: Record<ChannelField, { access: Access; category: CategoryKey; forum?: boolean }> = {
   notifyChannelId: { access: "readonly", category: "raid" },
   weeklyReportChannelId: { access: "readonly", category: "raid" },

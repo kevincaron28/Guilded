@@ -15,6 +15,7 @@ import { createEpgpService } from "../src/services/epgp.js";
 import { createLootService } from "../src/services/loot.js";
 import { createRaidCoreService } from "../src/services/raid-core.js";
 import { createApplicationService } from "../src/services/application.js";
+import { queueCharacterDisplayRefresh } from "../src/services/character-display-refresh.js";
 import assert from "node:assert/strict";
 import { PrismaClient } from "@prisma/client";
 import { createAddonImportService } from "../src/services/addon-import.js";
@@ -48,6 +49,11 @@ try {
     assert.equal(restoredSettings.characterSignups, true);
     const restoredSignup = await database.raidSignup.findFirstOrThrow({ where: { characterName: "ReleaseAlt" } });
     assert.equal(restoredSignup.characterRealm, "ReleaseTest");
+    const restoredAlt = await database.character.findFirstOrThrow({ where: { name: "ReleaseAlt" }, include: { readinessSnapshots: { orderBy: { inspectedAt: "desc" }, take: 1 } } });
+    assert.equal(restoredAlt.readinessSnapshots[0]!.itemLevel, 42.5);
+    assert.equal(restoredAlt.spec, "Fire");
+    assert.equal(restoredAlt.readinessSnapshots[0]!.inspectedAt.toISOString(), "2026-10-01T12:00:00.000Z");
+    assert.ok(await database.discordJob.count({ where: { kind: "CORE_ROSTER" } }));
     assert.equal((await database.discordJob.findFirstOrThrow({ where: { key: { startsWith: "weekly-wow:" } } })).status, "PENDING");
     const final = await database.dungeonSeason.findFirstOrThrow({ where: { name: "Release season" } });
     assert.equal((final.finalStandings as { points: number }[])[0]?.points, 100);
@@ -280,5 +286,25 @@ try {
     assert.equal(characterApplication.character, "ReleaseAlt-ReleaseTest");
     assert.equal(characterApplication.className, "Mage");
     await applications.transition(guild.id, characterApplication.id, "APPROVED", "character-test");
+    // Gear is selected by character, not the player's primary in another core.
+    // A later upload of an older inspection must not replace a newer inspection.
+    const gearPayload = { source: "Guilded", exportedAt: new Date(), character: { name: alt.name, realm: alt.realm, class: "Mage", spec: "Fire", level: 60 },
+      readiness: [{ character: alt.name, realm: alt.realm, itemLevel: 42.5, inspectedAt: new Date("2026-10-01T12:00:00Z") }] };
+    const gearPreview = await service.preview(guild.id, gearPayload, "gear-test");
+    const gearImport = await service.record(guild.id, gearPreview.snapshot, "gear-fixture", "gear-test");
+    await service.apply(guild.id, gearImport.id, "gear-test");
+    assert.ok(await database.discordJob.count({ where: { guildId: guild.id, kind: "CORE_ROSTER" } }));
+    const olderPreview = await service.preview(guild.id, { source: "Guilded", exportedAt: new Date(),
+      readiness: [{ character: alt.name, realm: alt.realm, itemLevel: 12.3, inspectedAt: new Date("2026-09-30T12:00:00Z") }] }, "gear-test");
+    const olderImport = await service.record(guild.id, olderPreview.snapshot, "old-gear-fixture", "gear-test");
+    await service.apply(guild.id, olderImport.id, "gear-test");
+    const selectedAlt = (await raids.signups(concurrentCharRaid.id, guild.id)).find(row => row.memberId === member.id)!;
+    assert.equal(selectedAlt.character?.className, "Mage");
+    assert.equal(selectedAlt.character?.spec, "Fire");
+    assert.equal(selectedAlt.character?.level, 60);
+    assert.equal(selectedAlt.character?.readinessSnapshots.length, 1);
+    assert.equal(selectedAlt.character?.readinessSnapshots[0]!.itemLevel, 42.5);
+    assert.equal(selectedAlt.character?.readinessSnapshots[0]!.inspectedAt.toISOString(), "2026-10-01T12:00:00.000Z");
+    assert.deepEqual(await queueCharacterDisplayRefresh(database, guild.id, ["foreign-character"]), []);
   }
 } finally { await database.$disconnect(); }

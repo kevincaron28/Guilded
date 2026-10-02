@@ -3,7 +3,6 @@
 Récompenses automatiques et entraide : voir [DISCORD_PARTICIPATION.md](DISCORD_PARTICIPATION.md).
 `/participation` utilise ces mêmes saisons/portefeuilles Discord; le vocal est plafonné
 à **4 heures par jour**, et les nouvelles sources restent à activer par un officier.
-
 Demandé le 1er octobre 2026 : Guilded doit reprendre les rôles de jeux et l'accueil,
 puis permettre les soirées gaming, petits jeux Discord, défis dans les jeux et
 classements. Loteries gratuites, avec points d'activité, avec or WoW ou monnaie
@@ -120,7 +119,6 @@ il doit avoir la même visibilité que son salon d'annonce. `/community gaming e
 modifie le titre, le début, la fin ou le vocal d'une soirée à venir. Les boutons
 Guilded restent la liste d'inscription officielle; « Intéressé » sert aux
 notifications Discord et n'accorde aucun point de présence.
-
 ## Défis dans les jeux
 
 ```text

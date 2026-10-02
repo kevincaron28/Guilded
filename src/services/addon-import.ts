@@ -14,6 +14,7 @@ import { planCalendarSync } from "./calendar-sync.js";
 import { createSelfCharacter } from "./character-pairing.js";
 import { excludeHistoryBeforeReset } from "./import-reset.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
+import { queueCharacterDisplayRefresh } from "./character-display-refresh.js";
 
 export function createAddonImportService(database: PrismaClient) {
   return {
@@ -58,7 +59,7 @@ export function createAddonImportService(database: PrismaClient) {
         const imported = await tx.addonImport.findFirst({ where: { id: importId, guildId } });
         if (!imported) throw new Error("Addon import not found.");
         if (imported.status === "APPLIED") throw new Error("Addon import has already been applied.");
-        const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { dataResetAt: true, dungeonLeaderboardChannelId: true, craftChannelId: true, coreLootOnly: true } });
+        const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { dataResetAt: true, dungeonLeaderboardChannelId: true, craftChannelId: true, coreLootOnly: true, characterSignups: true } });
         const resetAt = settings?.dataResetAt ?? null;
         const snapshot = excludeHistoryBeforeReset(parseAddonSnapshot(imported.payload), resetAt);
         const characters = await tx.character.findMany({
@@ -159,6 +160,7 @@ export function createAddonImportService(database: PrismaClient) {
               characterId: character.id,
               memberId: character.memberId,
               source: snapshot.source,
+              inspectedAt: entry.inspectedAt ?? new Date(snapshot.exportedAt),
               status: deriveReadinessStatus(entry.findings),
               itemLevel: entry.itemLevel ?? null,
               rawPayload: JSON.parse(JSON.stringify(entry)),
@@ -260,6 +262,14 @@ export function createAddonImportService(database: PrismaClient) {
         // between commit and followUpImport cannot leave the display stale forever.
         if (settings?.dungeonLeaderboardChannelId) await enqueueDiscordJob(tx, guildId, "dungeon-board", "DUNGEON_BOARD");
         if (settings?.craftChannelId) await enqueueDiscordJob(tx, guildId, "professions", "PROFESSIONS");
+        if (settings?.characterSignups && (readinessSnapshots.length || discovery.refreshed)) {
+          const ids = new Set(readinessSnapshots.map(row => row.characterId));
+          for (const entry of [...(snapshot.character ? [snapshot.character] : []), ...snapshot.alts, ...snapshot.characters]) {
+            const character = findCharacter(characters, entry.name, entry.realm);
+            if (character) ids.add(character.id);
+          }
+          await queueCharacterDisplayRefresh(tx, guildId, [...ids]);
+        }
         if (calendarPlan.matches.length) await enqueueDiscordJob(tx, guildId, `calendar:${imported.id}`, "CALENDAR", { plan: JSON.parse(JSON.stringify(calendarPlan)) });
         return { import: imported, transactions, epgpTransactions, readinessSnapshots, attunements, consumables, reserves, itemPrices, crafting, calendarPlan, discovery, raids, loot, dungeons, skipped };
       }, { timeout: 60_000, maxWait: 15_000 });

@@ -1,3 +1,7 @@
+Rules acceptance and final Carl-bot transition: `docs/RULES_ACCEPTANCE.md`.
+Self-role panels can require an existing role; clicks recheck live membership,
+role permissions and bot hierarchy. Preserve Exilé → Errant, remove only the
+owner-approved Errant permissions, and verify Guilded before disabling Carl.
 # Guilded 5.0 stabilization — local Claude update handoff
 
 Discord participation rewards: `docs/DISCORD_PARTICIPATION.md`. Opt-in per Discord
@@ -29,6 +33,11 @@ Companion supports opt-in PoE2 `Client.txt` tracking and PoE2-only setups.
 Deploy additive migration `20261028090000_poe_mapping` after CI and backup, and
 rebuild the companion. Log observations never award automatic completion points.
 Real PoE2/Windows checks remain required; version stays 5.0.0.
+Class/spec display: `docs/CLASS_AND_GEAR_SIGNUPS.md`. Signup posts and core
+rosters show two icons plus the selected character's localized specialization.
+Provision the application-owned spec emojis, refresh existing posts, and install
+the rebuilt addon for Classic talent-tree detection. No migration, version bump
+or inferred character specialization is required. Real-client checks stay separate.
 
 Community activities and Carl-bot transition: `docs/COMMUNITY_ACTIVITIES.md`.
 New `/community` menus cover free/points/WoW gold/PoE currency lotteries,
@@ -37,6 +46,9 @@ Deploy additive migration `20261027090000_community_activities` after CI and bac
 In-game payments require organizer confirmation. Existing game roles are reused;
 Carl-bot retirement and a real welcome/role-button check remain separate live gates.
 
+WoW class icons and inspected gear in signups/rosters:
+`docs/CLASS_AND_GEAR_SIGNUPS.md`. No migration; preserve existing signup
+identities. Accepted inspections refresh active posts through durable jobs.
 Character signups and approved WoW layout: `docs/CHARACTER_SIGNUPS.md`.
 Deploy additive migration `20261026090000_character_signups`, enable Quebec
 Gold's character policy and route the weekly report to its managed WoW channel.

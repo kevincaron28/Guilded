@@ -277,6 +277,8 @@ model CommunityParticipationDeletion {
   @@id([seasonId, messageId])
 }
 
+
+
 model Member {
   id                  String                       @id @default(cuid())
   guildId             String

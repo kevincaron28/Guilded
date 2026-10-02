@@ -4,7 +4,7 @@ import { EmbedBuilder, type Client, type Guild, type MessageCreateOptions } from
 import { prisma } from "../database.js";
 
 type Db = Pick<PrismaClient, "discordJob">;
-export type JobKind = "DUNGEON_BOARD" | "PROFESSIONS" | "RAID_POST" | "CALENDAR" | "MESSAGE" | "COMMUNITY_POST" | "SCHEDULED_EVENT";
+export type JobKind = "DUNGEON_BOARD" | "PROFESSIONS" | "RAID_POST" | "CORE_ROSTER" | "CALENDAR" | "MESSAGE" | "COMMUNITY_POST" | "SCHEDULED_EVENT";
 export async function enqueueDiscordJob(database: Db, guildId: string, key: string, kind: JobKind, payload: Prisma.InputJsonValue = {}) {
   return database.discordJob.upsert({ where: { guildId_key: { guildId, key } },
     create: { guildId, key, kind, payload },
@@ -43,6 +43,14 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
   } else if (job.kind === "PROFESSIONS") {
     const { updateProfessionDirectory } = await import("./profession-directory.js");
     if (!await updateProfessionDirectory(guild, true)) throw new Error("Directory unavailable");
+  } else if (job.kind === "CORE_ROSTER") {
+    const coreId = String(payload["coreId"] ?? "");
+    const core = await prisma.raidCore.findFirst({ where: { id: coreId, guildId: job.guildId }, select: { id: true, rosterChannelId: true } });
+    if (!core) return;
+    const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { coreChannelId: true } });
+    if (!core.rosterChannelId && !settings?.coreChannelId) return;
+    const { syncCoreRoster } = await import("./raid-core.js");
+    if (!await syncCoreRoster(guild, prisma, job.guildId, core.id)) throw new Error("Core roster unavailable");
   } else if (job.kind === "RAID_POST") {
     const raidId = String(payload["raidId"] ?? "");
     const raid = await prisma.raid.findFirst({ where: { id: raidId, guildId: job.guildId }, select: { id: true } });

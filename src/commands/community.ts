@@ -270,7 +270,6 @@ async function validateEventVenue(guild: Guild, channelId: string, voiceId: stri
     throw error;
   }
 }
-
 function ticketReply(lang: Lang, row: CommunityActivity, entry: { status: string; quantity: number }) {
   const rules = lotteryRules.parse(row.rules);
   return entry.status === "PENDING"

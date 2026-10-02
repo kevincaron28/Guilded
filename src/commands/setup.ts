@@ -149,7 +149,7 @@ async function gatherFacts(guild: DiscordGuild, guildId: string, settings: Guild
     companionPaired: (await prisma.companionCredential.count({ where: { revokedAt: null, member: { guildId, status: "ACTIVE" } } })) > 0,
     linkedCharacters: await prisma.character.count({ where: { member: { guildId, isTest: false } } }),
     dungeonSignupGuideOutdated: guideState === "outdated",
-    extraChannels: await Promise.all((["coreChannelId", "readinessChannelId", "lootChannelId", "craftChannelId", "applicationChannelId", "guideChannelId", "answerChannelId", "dungeonChannelId", "weeklyReportChannelId"] as const)
+    extraChannels: await Promise.all((["coreChannelId", "readinessChannelId", "lootChannelId", "craftChannelId", "applicationChannelId", "attendanceChannelId", "guideChannelId", "answerChannelId", "dungeonChannelId", "weeklyReportChannelId"] as const)
       .map(async (field) => ({ field, fact: await channelFact(guild, settings[field]) }))),
     messageContentIntent: config.MESSAGE_CONTENT_INTENT,
     community: await communitySetupState(prisma, guildId).catch(() => null),
@@ -283,7 +283,8 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       T("🛡️ **Raid readiness** — private, officers and raid leaders only: who is ready for raid night: {channel}", { channel: channelLabel(lang, settings.readinessChannelId) }),
       T("🎁 **Loot & EP log** — every loot award and EP/GP change: {channel}", { channel: same(lang, settings.lootChannelId, "same as announcements") }),
       T("🔨 **Craft board** — a forum where every craft request is its own post with tags and buttons (bank requests stay in the officer log): {channel}", { channel: same(lang, settings.craftChannelId, "the officer log") }),
-      T("📋 **Applications** — private, officers only: a heads-up when someone applies with `/apply`: {channel}", { channel: same(lang, settings.applicationChannelId, "the officer log") })
+      T("📋 **Applications** — private, officers only: a heads-up when someone applies with `/apply`: {channel}", { channel: same(lang, settings.applicationChannelId, "the officer log") }),
+      T("🧾 **Raid attendance** — private, officers only: who was present, late, benched or absent, posted with each raid report: {channel}", { channel: same(lang, settings.attendanceChannelId, "the officer log") })
     ].join("\n"));
     components.push(
       channelSelect("ch-core", T("⭐ Pick the raid roster channel")),
@@ -501,7 +502,7 @@ async function createMissingRoles(guild: DiscordGuild, lang: Lang): Promise<stri
 }
 
 const CORE_CHANNELS: ChannelField[] = ["notifyChannelId", "raidSignupChannelId", "raidLogChannelId", "logChannelId", "guideChannelId", "answerChannelId"];
-const RAIDTEAM_CHANNELS: ChannelField[] = ["coreChannelId", "readinessChannelId", "lootChannelId", "craftChannelId", "applicationChannelId", "weeklyReportChannelId"];
+const RAIDTEAM_CHANNELS: ChannelField[] = ["coreChannelId", "readinessChannelId", "lootChannelId", "craftChannelId", "applicationChannelId", "attendanceChannelId", "weeklyReportChannelId"];
 const DUNGEON_CHANNELS: ChannelField[] = ["dungeonLeaderboardChannelId", "dungeonSignupChannelId", "dungeonChannelId"];
 // Every channel field /setup can create. Also used by /setup uninstall to find what to remove.
 export const ALL_CHANNELS: ChannelField[] = [...CORE_CHANNELS, ...RAIDTEAM_CHANNELS, ...DUNGEON_CHANNELS];

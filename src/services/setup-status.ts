@@ -124,7 +124,7 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en"): SetupCheck[] 
   // Every other channel setup can create: optional, each with how to get it.
   const CHANNEL_LABELS: Record<string, string> = {
     coreChannelId: T("Raid roster channel"), readinessChannelId: T("Raid readiness channel"), lootChannelId: T("Loot log channel"),
-    craftChannelId: T("Craft board channel"), applicationChannelId: T("Applications channel"), guideChannelId: T("Bot guide channel"), answerChannelId: T("Bot FAQ channel"),
+    craftChannelId: T("Craft board channel"), applicationChannelId: T("Applications channel"), attendanceChannelId: T("Raid attendance channel"), guideChannelId: T("Bot guide channel"), answerChannelId: T("Bot FAQ channel"),
     dungeonChannelId: T("Dungeon runs channel"), weeklyReportChannelId: T("WoW weekly report channel")
   };
   for (const entry of facts.extraChannels ?? []) {

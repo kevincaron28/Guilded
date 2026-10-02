@@ -15,12 +15,15 @@ describe("weekly core times", () => {
   it.each(["Tue/Thu 8-11pm EST", "mardi 8", "mardi 24h", "mardi 0am", "mardi 13pm", "mardi 20h60", "demain 20h", "2026-10-01 20h"])("rejects ambiguous or invalid schedule %s", input => {
     expect(() => parseWeeklySchedule(input)).toThrow();
   });
-  it("opens only the next seven local days and advances without an end-raid command", () => {
+  it("opens only the next six local days and advances without an end-raid command", () => {
     expect(times("mardi 20h; jeudi 20h", "2026-10-01T12:00:00Z")).toEqual(["2026-10-02T00:00:00.000Z", "2026-10-07T00:00:00.000Z"]);
-    expect(times("mardi 20h; jeudi 20h", "2026-10-02T00:01:00Z")).toEqual(["2026-10-07T00:00:00.000Z", "2026-10-09T00:00:00.000Z"]);
+    // Thursday's raid just started: next Thursday is seven days away and not open yet.
+    expect(times("mardi 20h; jeudi 20h", "2026-10-02T00:01:00Z")).toEqual(["2026-10-07T00:00:00.000Z"]);
   });
-  it("includes the next week's same start after this week's has passed", () => {
-    expect(times("jeudi 20h", "2026-10-02T00:00:00Z")).toEqual(["2026-10-09T00:00:00.000Z"]);
+  it("opens next week's raid six days before it, not right after this week's", () => {
+    expect(times("jeudi 20h", "2026-10-02T00:00:00Z")).toEqual([]);
+    expect(times("jeudi 20h", "2026-10-02T23:59:00Z")).toEqual([]);
+    expect(times("jeudi 20h", "2026-10-03T00:00:00Z")).toEqual(["2026-10-09T00:00:00.000Z"]);
   });
   it("keeps 20h across the spring and fall clock changes", () => {
     expect(times("dimanche 20h", "2026-03-07T12:00:00Z")).toEqual(["2026-03-09T00:00:00.000Z"]);

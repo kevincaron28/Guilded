@@ -11,15 +11,16 @@ const guildService = createGuildService(prisma);
 // Text that's rendered in the guild's language when it's posted.
 export type Localized<T = string> = (lang: Lang) => T;
 
-// "officer" and "application" are private (officer log / applications
-// channel) only: no fallback to a public channel.
-type NotifyKind = "notify" | "raidLog" | "loot" | "officer" | "application";
+// "officer", "application" and "attendance" are private (officer log, applications
+// or attendance channel) only: no fallback to a public channel.
+type NotifyKind = "notify" | "raidLog" | "loot" | "officer" | "application" | "attendance";
 
 async function notifyAddress(discordGuild: DiscordGuild, kind: NotifyKind = "notify", coreId: string | null = null) {
   const guild = await guildService.ensureGuild(discordGuild.id, discordGuild.name);
   const settings = await guildService.getSettings(guild.id);
-  if (kind === "officer" || kind === "application") {
-    const channelId = kind === "application" ? (settings?.applicationChannelId ?? settings?.logChannelId) : settings?.logChannelId;
+  if (kind === "officer" || kind === "application" || kind === "attendance") {
+    const channelId = kind === "application" ? (settings?.applicationChannelId ?? settings?.logChannelId)
+      : kind === "attendance" ? (settings?.attendanceChannelId ?? settings?.logChannelId) : settings?.logChannelId;
     if (!channelId) return null;
     return { guildId: guild.id, channelId, lang: asLang(settings?.language) };
   }

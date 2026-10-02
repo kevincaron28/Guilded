@@ -54,6 +54,7 @@ import { runCooldownPings } from "./services/recipes.js";
 import { DUNGEON_SEASON_SELECT, handleDungeonSeasonSelect, updateDungeonLeaderboard } from "./services/dungeon-leaderboard.js";
 import { runBackup } from "./services/backup.js";
 import { updateCommunityLeaderboard } from "./services/community-leaderboard.js";
+import { cleanupPastRaidPosts, stalePlannedBefore } from "./services/raid-post-cleanup.js";
 import { runWclDiscovery } from "./services/wcl-check.js";
 import { config } from "./config.js";
 import { startCompanionApi } from "./companion-api.js";
@@ -144,7 +145,8 @@ async function repairCoreRaids(guild: import("discord.js").Guild, provision = fa
   }
   await fillGuildWeeklyRaids(prisma, record.id, reportJobError("Core weekly raid schedule"));
   const raids = await prisma.raid.findMany({ where: { guildId: record.id, coreId: { not: null }, OR: [
-    { status: { in: ["PLANNED", "ACTIVE"] }, ...(provision ? {} : { OR: [{ signupMessageId: null }, { mirrorSignupMessageId: null }] }) },
+    // A planned raid long past its start is over: its removed post is not put back.
+    { status: { in: ["PLANNED", "ACTIVE"] }, NOT: { status: "PLANNED", scheduledAt: { lte: stalePlannedBefore(new Date()) } }, ...(provision ? {} : { OR: [{ signupMessageId: null }, { mirrorSignupMessageId: null }] }) },
     { id: { in: pendingSignupRaidIds(record.id) } }
   ] }, select: { id: true } });
   for (const raid of raids) await syncSignupEmbed(guild, record.id, raid.id);
@@ -227,6 +229,10 @@ client.once(Events.ClientReady, (readyClient) => {
   setInterval(() => {
     runWclDiscovery(readyClient, prisma).catch(reportJobError("Warcraft Logs check"));
   }, 10 * 60 * 1000);
+  // Signup posts of raids that ended more than a day ago are removed (the raid itself is kept).
+  setInterval(() => {
+    cleanupPastRaidPosts(readyClient, prisma).catch(reportJobError("Past raid signup posts"));
+  }, 15 * 60 * 1000);
   // Dungeon group voice channels: deleted after a few empty minutes.
   setInterval(() => {
     cleanupDungeonGroups(readyClient).catch(reportJobError("Dungeon group cleanup"));

@@ -52,7 +52,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
     en: [
       "`/raid create` (times like `friday 8pm`) · `/raid edit` · `/raid start` · `/raid end` (shows the EP to approve)",
       "`/raid attendance` · `/raid boss` · `/raid note` · `/raid award-ep`",
-      "`/core setup` raid nights: `Tuesday 8pm; Thursday 8pm` — creates only the next 7 days automatically; change or pause in `/core edit` → 📅",
+      "`/core setup` raid nights: `Tuesday 8pm; Thursday 8pm` — creates only the next 6 days automatically; change or pause in `/core edit` → 📅",
       "`/core setup` — guided raid core (name, players, rules) · `/core add` · `/core remove` · `/core character` (the character or backup characters a player brings; one player can be in several cores) · members join with the roster's Apply button · `/raid create core:` (priority signups)",
       "`/character readiness raid` — who's ready for tonight"
     ],

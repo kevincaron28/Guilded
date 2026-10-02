@@ -1,7 +1,8 @@
 import { isValidTimeZone, localParts, zonedTime } from "./raid-time.js";
 
 export interface WeeklySlot { weekday: number; hour: number; minute: number }
-export const CORE_SCHEDULE_DAYS = 7;
+// Signups open six days before each raid night.
+export const CORE_SCHEDULE_DAYS = 6;
 const DAYS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
 const ALIASES = ["sunday sun dimanche dim", "monday mon lundi lun", "tuesday tue tues mardi mar",
   "wednesday wed mercredi mer", "thursday thu thurs jeudi jeu", "friday fri vendredi ven", "saturday sat samedi sam"];
@@ -44,7 +45,7 @@ export function weeklyScheduleData(input: string | null | undefined, timezone: s
   return { schedule, weeklySchedule: schedule, weeklyTimezone: schedule ? timezone : null, weeklyCreatedBy: schedule ? createdBy : null };
 }
 
-// Seven local calendar days, rather than 168 UTC hours (DST weeks are shorter/longer).
+// Local calendar days, rather than 24-hour multiples (DST days are shorter/longer).
 // Nonexistent spring-forward times are skipped. Ambiguous fall-back times occur once.
 export function weeklyOccurrences(slots: WeeklySlot[], timezone: string, now = new Date()) {
   if (!isValidTimeZone(timezone)) throw new Error("Invalid weekly schedule timezone.");

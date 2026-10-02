@@ -72,7 +72,7 @@ describe("setup wizard screens", () => {
   it("the checklist step offers to create every missing channel and role in one click", async () => {
     const screen = await renderStep(8, guild as never, "g1", "");
     const labels = screen.components.flatMap((row) => row.toJSON().components.map((c) => (c as { label?: string }).label));
-    expect(labels).toContain("Create missing channels (14)");
+    expect(labels).toContain("Create missing channels (15)");
     expect(labels).toContain("Create missing roles (3)");
   });
 

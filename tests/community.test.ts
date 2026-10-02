@@ -9,7 +9,7 @@ import { assertLotteryGame, drawWinners, evidenceReference, lotteryRules, standi
 const now = new Date("2026-10-01T12:00:00Z");
 const endsAt = new Date("2026-10-02T12:00:00Z");
 const rules = { mode: "POINTS", cost: 10, prize: "A cosmetic prize", currency: "points", realm: "", winners: 2, maxTickets: 10 };
-const season = { id: "season", guildId: "guild", game: "DISCORD", name: "October", number: 1, announcementChannelId: null, status: "ACTIVE", channelId: "channel", audienceRoleId: null, createdBy: "officer", createdAt: now, endedAt: null, finalStandings: null };
+const season = { id: "season", guildId: "guild", game: "DISCORD", name: "October", number: 1, announcementChannelId: null, monthly: true, status: "ACTIVE", channelId: "channel", audienceRoleId: null, createdBy: "officer", createdAt: now, endedAt: null, finalStandings: null };
 const activity: CommunityActivity & { season: CommunitySeason } = { id: "activity", seasonId: season.id, season, kind: "LOTTERY", title: "Draw", rules, status: "OPEN", startsAt: null, endsAt, createdBy: "officer", createdAt: now, messageId: null, postedChannelId: null, reminderAt: null, result: null };
 const member = (roles: string[], officer = false, bot = false) => ({ user: { bot }, roles: { cache: new Collection(roles.map(id => [id, { id, name: id }])) }, permissions: { has: (permission: unknown) => officer && permission === "Administrator", bitfield: officer ? PermissionFlagsBits.Administrator : 0n } }) as unknown as GuildMember;
 

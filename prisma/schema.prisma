@@ -166,6 +166,8 @@ model CommunitySeason {
   channelId      String
   announcementChannelId String?
   audienceRoleId String?
+  // Ends with its calendar month (guild time) and is followed by the next season.
+  monthly        Boolean @default(true)
   status         String @default("ACTIVE")
   createdBy      String
   createdAt      DateTime @default(now())
@@ -675,6 +677,7 @@ model GuildSettings {
   coreChannelId            String?
   // Private channel where new applications are posted; falls back to the officer log.
   applicationChannelId     String?
+  attendanceChannelId      String?
   // Public channel with the pinned getting-started guide; also where a short
   // notice posts when the bot/addon version changes (they share one version).
   guideChannelId           String?

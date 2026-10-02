@@ -99,9 +99,9 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
       if (!current) throw new Error("Configure WoW weekly reports first");
       channelId = current;
     } else if (route !== undefined) {
-      if (!["notify", "raidLog", "loot", "officer", "application"].includes(String(route))) throw new Error("Unknown notification route");
+      if (!["notify", "raidLog", "loot", "officer", "application", "attendance"].includes(String(route))) throw new Error("Unknown notification route");
       const { resolveNotifyAddress } = await import("./notify.js");
-      const address = await resolveNotifyAddress(guild, route as "notify" | "raidLog" | "loot" | "officer" | "application", typeof payload["coreId"] === "string" ? payload["coreId"] : null);
+      const address = await resolveNotifyAddress(guild, route as "notify" | "raidLog" | "loot" | "officer" | "application" | "attendance", typeof payload["coreId"] === "string" ? payload["coreId"] : null);
       if (!address) throw new Error("Configure the notification channel first");
       if (address.guildId !== job.guildId) return; // A reset retired this guild identity.
       channelId = address.channelId;

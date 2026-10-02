@@ -4,6 +4,16 @@ role permissions and bot hierarchy. Preserve Exilé → Errant, remove only the
 owner-approved Errant permissions, and verify Guilded before disabling Carl.
 # Guilded 5.0 stabilization — local Claude update handoff
 
+Companion editing (2 Oct 2026): **Wishlist** and **Cores & prices** pages in the companion
+(`companion-app/renderer/manage.js`) on a new `GET/POST /api/v1/manage` route
+(`src/services/companion-manage.ts`). Members edit their own wishlists; Raid Leaders (and above)
+edit prices, core rules and rosters. Permissions come from the member's Discord roles on every
+request (`companionAccess` now also returns `raidLeader`); edits are audited as `CONFIG_UPDATED`
+with `via: companion` and rate-limited per member. No migration, no addon change, no version
+bump. The online companion updates with the bot deploy; the desktop companion needs a rebuilt
+installer. Real checks remain: as a member and as a Raid Leader, edit each kind and confirm
+Discord (roster message, `/core show`, `/wishlist list`) and the game (standings refresh).
+
 Raid attendance seasons (2 Oct 2026): `/raid season` and `/raid history` (officers) on a new
 `RaidSeason` table, a date range that raids fall into by date; a summary pinned in the attendance
 channel is edited after each raid report (`src/services/raid-season.ts`,

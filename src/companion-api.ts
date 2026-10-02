@@ -23,6 +23,8 @@ import { ZodError } from "zod";
 import type { PrismaClient } from "@prisma/client";
 import { createPoeMappingService, poeAreaName, PoeMappingError } from "./services/poe-mapping.js";
 import { notify } from "./services/notify.js";
+import { allowManageWrite, createCompanionManage, ManageError } from "./services/companion-manage.js";
+import { syncCoreRoster } from "./services/raid-core.js";
 const BOT_VERSION = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version as string;
 
 const importService = createAddonImportService(prisma);
@@ -91,6 +93,7 @@ async function readBody(request: IncomingMessage): Promise<unknown> {
 }
 
 const auditService = createAuditService(prisma);
+const manage = createCompanionManage(prisma);
 
 // A failed automatic import is told to the officers once an hour per cause, not on every upload.
 const APPLY_FAILURE_REPEAT_MS = 60 * 60_000;
@@ -147,7 +150,10 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const isPoeStatus = request.method === "GET" && url.pathname === "/api/v1/poe/status";
       const isPoeRecent = request.method === "GET" && url.pathname === "/api/v1/poe/visits";
       const isLogout = request.method === "POST" && url.pathname === "/api/v1/companion/logout";
-      if (!isImport && !isPairing && !isStandings && !isPoeUpload && !isPoeStatus && !isPoeRecent && !isLogout) {
+      // The companion's own pages: wishlists for members; prices, core rules and rosters for Raid Leaders.
+      const isManageView = request.method === "GET" && url.pathname === "/api/v1/manage";
+      const isManageEdit = request.method === "POST" && url.pathname === "/api/v1/manage";
+      if (!isImport && !isPairing && !isStandings && !isPoeUpload && !isPoeStatus && !isPoeRecent && !isLogout && !isManageView && !isManageEdit) {
         json(response, 404, { error: "Not found" });
         return;
       }
@@ -181,9 +187,9 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         json(response, 200, result);
         return;
       }
-      const payload = isImport || isPoeUpload || isLogout ? await readBody(request) : null;
+      const payload = isImport || isPoeUpload || isLogout || isManageEdit ? await readBody(request) : null;
       const requestPayload = payload as { guildDiscordId?: unknown; export?: unknown } | null;
-      const guildDiscordId = isStandings || isPoeStatus || isPoeRecent ? url.searchParams.get("guild") : requestPayload?.guildDiscordId;
+      const guildDiscordId = isStandings || isPoeStatus || isPoeRecent || isManageView ? url.searchParams.get("guild") : requestPayload?.guildDiscordId;
       if (typeof guildDiscordId !== "string") { json(response, 400, { error: "guildDiscordId is required" }); return; }
       const guild = await prisma.guild.findUnique({ where: { discordId: guildDiscordId } });
       if (!guild) { json(response, 404, { error: "Guild is not initialized" }); return; }
@@ -196,6 +202,29 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (isLogout) {
         await prisma.companionCredential.updateMany({ where: { memberId: access.memberId, tokenHash: hashCompanionSecret(header as string), revokedAt: null }, data: { revokedAt: new Date() } });
         json(response, 200, { ok: true }); return;
+      }
+      if (isManageView) {
+        json(response, 200, { ...await manage.view(guild.id, access), botVersion: BOT_VERSION });
+        return;
+      }
+      if (isManageEdit) {
+        if (!allowManageWrite(access.memberId)) { json(response, 429, { error: "Too many changes in a short time. Try again in a few minutes." }); return; }
+        let result;
+        try { result = await manage.apply(guild.id, access, (payload as { change?: unknown }).change); }
+        catch (error) {
+          if (error instanceof ManageError) { json(response, error.status, { error: error.message }); return; }
+          // The services' own short messages ("not in this core", a realm mismatch) are shown; a database error is not.
+          if (error instanceof Error && !(error instanceof ZodError) && !error.constructor.name.startsWith("Prisma") && error.message.length < 300) { json(response, 400, { error: error.message }); return; }
+          throw error;
+        }
+        if (result.audit) await auditService.record({ guildId: guild.id, actorId: access.actorId, action: "CONFIG_UPDATED", ...(result.rosterCoreId ? { entityId: result.rosterCoreId } : {}), metadata: { via: "companion", ...result.audit } });
+        if (result.rosterCoreId) {
+          // The roster message and the core's role follow the change, as after /core add (never throws).
+          const discordGuild = client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null;
+          await syncCoreRoster(discordGuild, prisma, guild.id, result.rosterCoreId);
+        }
+        json(response, 200, { ok: true, message: result.message, botVersion: BOT_VERSION });
+        return;
       }
       if (isPoeRecent) {
         const visits = await createPoeMappingService(prisma).recent(guild.id, access.memberId);

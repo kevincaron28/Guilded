@@ -18,6 +18,8 @@
       <button class="nav active" data-page="status"><span aria-hidden="true">▦</span>Overview</button>
       <button class="nav" data-page="wow"><span aria-hidden="true">◇</span>World of Warcraft</button>
       <button class="nav" data-page="poe"><span aria-hidden="true">⌁</span>PoE2 mapping</button>
+      <button class="nav" data-page="wishlist"><span aria-hidden="true">★</span>Wishlist</button>
+      <button class="nav" data-page="cores"><span aria-hidden="true">⚑</span>Cores & prices</button>
       <div class="nav-divider"></div>
       <button class="nav" data-page="settings"><span aria-hidden="true">⚙</span>Connection & setup <span id="setupBadge" class="badge" hidden>!</span></button>
       <button class="nav" data-page="activity"><span aria-hidden="true">≡</span>Activity <span id="activityCount" class="nav-count">0</span></button>
@@ -52,6 +54,27 @@
         <article class="panel"><div class="section-title"><h2>Your map history</h2><button id="btnHistory" class="quiet">↻ Refresh history</button></div><p class="muted">Your 15 most recent observations saved by the bot.</p><div id="poeHistory" class="empty-state"><span aria-hidden="true">⌁</span><h3>Your next adventure starts here</h3><p>Connect Discord, enable PoE2 sharing and finish a map visit to see your journal.</p></div></article>
         <article class="note-panel"><strong>Map visits are observations</strong><p>A log transition records an area visit. It doesn't prove a clear, death, loot drop or party participation, and it awards no automatic points. Your character and league are declared by you.</p><button id="btnPoeSelect" class="secondary">Choose Client.txt</button><p id="poeModeNote" class="micro">The installed companion starts with new entries and skips existing log history.</p></article>
       </section>
+      <section id="page-wishlist" class="page" hidden>
+        <div class="page-heading"><div><p class="eyebrow">WHAT YOU ARE HOPING FOR</p><h1>Wishlist</h1><p class="subtitle">The items your characters want. Your guild sees them on item tooltips in game.</p></div><button class="secondary" id="btnWishReload">Reload</button></div>
+        <p id="wishNotice" class="result" hidden></p>
+        <article class="panel" id="wishPanel" hidden><div class="section-title"><h2>Your characters</h2><select id="wishCharacter" aria-label="Character"></select></div><div id="wishList" class="edit-list"></div>
+          <form id="wishAdd" class="edit-row add-row" autocomplete="off"><input id="wishItem" list="manageItems" placeholder="Item name" maxlength="100" aria-label="Item name" required><select id="wishPriority" class="narrow" aria-label="Priority"><option value="1">High</option><option value="2" selected>Medium</option><option value="3">Low</option></select><button class="primary" id="btnWishAdd">Add</button></form>
+          <p class="micro">Same list as <code>/wishlist</code> in Discord. Changes reach the game with the next standings refresh.</p></article>
+      </section>
+      <section id="page-cores" class="page" hidden>
+        <div class="page-heading"><div><p class="eyebrow">RAID LEADERSHIP</p><h1>Cores & prices</h1><p class="subtitle">Item prices, loot rules and rosters. Everyone can look; Raid Leaders and officers can change them.</p></div><button class="secondary" id="btnCoreReload">Reload</button></div>
+        <p id="coreNotice" class="result" hidden></p>
+        <div id="corePanels" hidden>
+          <article class="panel"><div class="section-title"><h2>Core</h2><select id="coreSelect" aria-label="Core"></select></div><p id="coreSummary" class="micro"></p></article>
+          <article class="panel"><div class="section-title"><h2>Item prices</h2><span id="priceCount" class="pill"></span></div><div id="priceList" class="edit-list"></div>
+            <div id="priceEdit"><form id="priceAdd" class="edit-row add-row" autocomplete="off"><input id="priceItem" list="manageItems" placeholder="Item name or id" maxlength="100" aria-label="Item name or id" required><input id="priceGp" class="number" type="number" min="0" max="100000" placeholder="GP" aria-label="Price in GP" required><button class="primary">Set price</button></form>
+            <details><summary>Paste a whole list</summary><textarea id="priceText" rows="8" placeholder="One item per line, price last:&#10;Sulfuras, Hand of Ragnaros = 250&#10;19019 = 120" aria-label="Price list"></textarea><div class="actions"><button id="btnPriceText">Save list</button></div></details></div></article>
+          <article class="panel" id="rulesPanel"><div class="section-title"><h2>Rules</h2></div><form id="rulesForm" autocomplete="off"><div class="form-grid" id="rulesGrid"></div><div class="actions" id="rulesActions"><button class="primary">Save rules</button></div></form><p class="micro">Leave a value empty to follow the guild default shown in grey. The schedule, the point pool, creating, renaming and deleting a core stay in Discord (<code>/core</code>).</p></article>
+          <article class="panel" id="rosterPanel"><div class="section-title"><h2>Roster</h2><span id="rosterCount" class="pill"></span></div><div id="rosterList" class="edit-list"></div>
+            <form id="rosterAdd" class="edit-row add-row" autocomplete="off"><select id="rosterMember" aria-label="Player" required></select><select id="rosterCharacter" aria-label="Character"></select><select id="rosterRole" class="narrow" aria-label="Role"><option value="TANK">Tank</option><option value="HEALER">Healer</option><option value="DPS" selected>DPS</option></select><label class="check"><input id="rosterBench" type="checkbox"> Bench</label><button class="primary">Add player</button></form></article>
+        </div>
+        <datalist id="manageItems"></datalist>
+      </section>
       <section id="page-settings" class="page" hidden>
         <div class="page-heading"><div><p class="eyebrow">MAKE IT YOURS</p><h1>Connection & setup</h1><p class="subtitle">Connect once. Choose the games you want to share.</p></div><span id="pairBadge" class="pill">Discord not linked</span></div>
         <form id="form" autocomplete="off">
@@ -69,6 +92,6 @@
     <footer><span>Built for your community.</span><span id="footerMode">Automatic sync · Personal pairing</span></footer>
   </div>
   <div id="toast" class="toast" role="status" hidden></div>
-  <script src="web-bundle.js"></script><script src="app.js"></script>
+  <script src="web-bundle.js"></script><script src="app.js"></script><script src="manage.js"></script>
 </body>
 </html>

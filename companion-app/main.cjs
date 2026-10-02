@@ -303,6 +303,22 @@ ipcMain.handle("get-poe-runs", async () => {
   if (!response.ok) throw new Error(body.error || "Could not load your map history.");
   return body.visits;
 });
+// The Wishlist and Cores & prices pages: read what this member may see, send one change.
+// Answers { ok, data | error } so the page shows the bot's own message, not Electron's wrapper.
+async function manageRequest(change) {
+  try {
+    const url = new URL("/api/v1/manage", config.uploadUrl);
+    if (!change) url.searchParams.set("guild", config.guildDiscordId);
+    const headers = engineModules.credentialHeaders(config);
+    const { response, body } = await engineModules.requestJson(url, change
+      ? { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify({ guildDiscordId: config.guildDiscordId, change }) }
+      : { headers });
+    if (!response.ok) return { ok: false, error: response.status === 404 && body.error === "Not found" ? "This bot does not support editing from the companion yet. Ask the owner to update it." : body.error || `The bot answered ${response.status}.` };
+    return { ok: true, data: body };
+  } catch (error) { return { ok: false, error: engineModules.describeError(error) }; }
+}
+ipcMain.handle("manage-view", () => manageRequest(null));
+ipcMain.handle("manage-edit", (_event, change) => manageRequest(change));
 ipcMain.handle("open-online", () => {
   engineModules.checkUrl(config.uploadUrl);
   const url = new URL("/companion/", config.uploadUrl);

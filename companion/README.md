@@ -61,6 +61,15 @@ differently, add `"standingsFile": "<full path to Standings.lua>"` to
 `companion.config.json`. The game reads it on login or `/reload`, and the
 officer's client then shares it with online guildmates.
 
+## Wishlist, prices and cores
+
+Once linked, the **Wishlist** page edits your own characters' wishlists (the same list as
+`/wishlist`). **Cores & prices** shows each raid core's item prices, rules and roster; Raid
+Leaders, officers and Guild Masters can change them there instead of with `/core items`,
+`/core rules`, `/core add` and `/core character`. The bot checks your Discord roles on every
+change, so a companion cannot grant itself more than Discord does. Schedules, the point pool and
+creating or deleting a core stay in Discord.
+
 ## Optional Path of Exile 2 mapping
 
 The desktop app can track PoE2 independently or alongside WoW. Enable it in

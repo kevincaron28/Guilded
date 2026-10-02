@@ -18,6 +18,7 @@ import {
 } from "discord.js";
 import type { GuildSettings } from "@prisma/client";
 import { prisma } from "../database.js";
+import { config } from "../config.js";
 import { classLeaderRoleName, hasPermission, isPermissionRoleName, permissionRoleNames, roleNamesFor, type Permission } from "../permissions.js";
 import { CLASSES } from "../wow-data.js";
 import { formatChecks, setupChecks, setupComplete, type ChannelFact, type SetupFacts } from "../services/setup-status.js";
@@ -149,6 +150,7 @@ async function gatherFacts(guild: DiscordGuild, guildId: string, settings: Guild
     dungeonSignupGuideOutdated: guideState === "outdated",
     extraChannels: await Promise.all((["coreChannelId", "readinessChannelId", "lootChannelId", "craftChannelId", "applicationChannelId", "guideChannelId", "answerChannelId", "dungeonChannelId", "weeklyReportChannelId"] as const)
       .map(async (field) => ({ field, fact: await channelFact(guild, settings[field]) }))),
+    messageContentIntent: config.MESSAGE_CONTENT_INTENT,
     botMessages: await botMessageFacts(guild, prisma, settings, lang, craftGuideText(lang)).catch(() => [])
   };
 }

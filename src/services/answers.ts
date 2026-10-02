@@ -42,24 +42,44 @@ export interface FaqLike { id: string; triggers: string[]; answer: string }
 
 // The entry whose trigger fits the message best, or null. A trigger fits when each of its words
 // is a word of the message; more words = more specific = better.
+// A message word fits a trigger word when equal, or when one is the other plus up to two letters
+// (plural, "installing"/"install"); 4+ letters so short words never match loosely.
+export function wordFits(messageWord: string, triggerWord: string): number {
+  if (messageWord === triggerWord) return 2;
+  const [short, long] = messageWord.length <= triggerWord.length ? [messageWord, triggerWord] : [triggerWord, messageWord];
+  return short.length >= 4 && long.length - short.length <= 2 && long.startsWith(short) ? 1 : 0;
+}
+
 export function matchFaq<T extends FaqLike>(entries: T[], message: string): T | null {
-  const words = new Set(foldText(message).split(" ").filter(Boolean));
-  if (words.size === 0) return null;
+  const words = [...new Set(foldText(message).split(" ").filter(Boolean))];
+  if (words.length === 0) return null;
   let best: { entry: T; score: number } | null = null;
   for (const entry of entries) {
     for (const trigger of entry.triggers) {
       const needed = foldText(trigger).split(" ").filter(Boolean);
-      if (needed.length === 0 || !needed.every((word) => words.has(word))) continue;
-      const score = needed.length * 100 + needed.join("").length;
+      if (needed.length === 0) continue;
+      let exact = 0;
+      let fits = true;
+      for (const word of needed) {
+        const quality = Math.max(0, ...words.map((w) => wordFits(w, word)));
+        if (quality === 0) { fits = false; break; }
+        if (quality === 2) exact++;
+      }
+      if (!fits) continue;
+      const score = needed.length * 100 + needed.join("").length + exact;
       if (!best || score > best.score) best = { entry, score };
     }
   }
   return best?.entry ?? null;
 }
 
+// Topic words that make a plain statement ("poe2 companion not working") worth answering.
+const TOPIC_WORDS = /\b(poe2?|poe 2|path of exile|attunement|attunements|wcl|warcraft logs|wishlist|dkp|epgp|pairing|pairage|sync|synchronisation|profession|professions|metier|metiers|companion|compagnon|addon)\b/;
+
 export function looksLikeQuestion(text: string, mentionsBot: boolean): boolean {
   if (mentionsBot || text.includes("?")) return true;
   const folded = foldText(text);
+  if (TOPIC_WORDS.test(folded)) return true;
   return /^(what|when|where|who|why|how|which|can|could|would|do|does|is|are|comment|quand|ou|qui|pourquoi|quel|quelle|quels|quelles|est ce que|peux tu|pouvez vous)\b/.test(folded)
     || /\b(help|aide|explain|explique|how do i|how can i|can you|could you|comment faire|comment utiliser)\b/.test(folded);
 }

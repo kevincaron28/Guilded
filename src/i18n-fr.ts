@@ -43,6 +43,8 @@ export const FR_TEXT: Record<string, string> = {
   "Configured {channels}. Existing Guilded channels were reused; missing ones were created.": "Salons configurés : {channels}. Les salons Guilded existants ont été réutilisés; les salons manquants ont été créés.",
   "Your signup was saved, but voice access could not be updated. Ask an officer.": "Votre inscription a été enregistrée, mais l’accès vocal n’a pas pu être mis à jour. Demandez à un officier.",
   "Bot FAQ channel": "Salon FAQ du bot",
+  "Bot FAQ can read messages": "La FAQ du bot peut lire les messages",
+  "Turn on MESSAGE_CONTENT_INTENT=true in the bot's .env and the Message Content switch in the Discord Developer Portal.": "Activez MESSAGE_CONTENT_INTENT=true dans le .env du bot et l'interrupteur Message Content dans le portail développeur Discord.",
   "💬 **Bot FAQ** — members ask questions and the bot answers automatically: {channel}": "💬 **FAQ du bot** — les membres posent des questions et le bot répond automatiquement : {channel}",
   "Bot guide channel": "Salon du guide du bot",
   "Dungeon runs channel": "Salon des donjons terminés",

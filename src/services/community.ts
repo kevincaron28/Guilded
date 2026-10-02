@@ -2,6 +2,7 @@ import { randomInt } from "node:crypto";
 import type { CommunityActivity, CommunitySeason, Prisma, PrismaClient } from "@prisma/client";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 import { assertLotteryGame, challengeRules, COMMUNITY_GAMES, drawWinners, eventRules, evidenceReference, lotteryRules, quizRules, standings } from "./community-rules.js";
+import { communityActivityChannel } from "./community-display.js";
 
 type Tx = Prisma.TransactionClient;
 const fail = (message: string): never => { throw new Error(message); };
@@ -38,7 +39,21 @@ export function createCommunityService(database: PrismaClient) {
       if (data.game !== "DISCORD" && !data.audienceRoleId) fail("Choisis le rôle du jeu / Choose the game's role.");
       return locked(guildId, async tx => {
         if (await tx.communitySeason.findFirst({ where: { guildId, game: data.game, status: "ACTIVE" } })) fail("Une saison est déjà active pour ce jeu / A season is already active for this game.");
-        return tx.communitySeason.create({ data: { guildId, name: data.name.trim(), game: data.game, channelId: data.channelId, audienceRoleId: data.audienceRoleId, createdBy: data.actorId } });
+        const counter = await tx.communitySeasonCounter.upsert({ where: { guildId_game: { guildId, game: data.game } }, create: { guildId, game: data.game, nextNumber: 2 }, update: { nextNumber: { increment: 1 } } });
+        return tx.communitySeason.create({ data: { guildId, name: data.name.trim(), number: counter.nextNumber - 1, game: data.game, channelId: data.channelId, audienceRoleId: data.audienceRoleId, createdBy: data.actorId } });
+      });
+    },
+    async configureSeason(guildId: string, seasonId: string, actorId: string, input: { name?: string; announcementChannelId?: string }) {
+      if (input.name !== undefined && (!input.name.trim() || input.name.length > 80)) fail("Nom invalide / Invalid name.");
+      return locked(guildId, async tx => {
+        const row = await season(tx, guildId, seasonId, false);
+        const updated = await tx.communitySeason.update({ where: { id: row.id }, data: { ...(input.name === undefined ? {} : { name: input.name.trim() }), ...(input.announcementChannelId === undefined ? {} : { announcementChannelId: input.announcementChannelId }) } });
+        await tx.auditLog.create({ data: { guildId, actorId, action: "CONFIG_UPDATED", entityId: row.id, metadata: { area: "community-season", before: { name: row.name, announcementChannelId: row.announcementChannelId }, after: { name: updated.name, announcementChannelId: updated.announcementChannelId } } } });
+        if (updated.name !== row.name) {
+          const posts = await tx.communityActivity.findMany({ where: { seasonId: row.id, messageId: { not: null }, kind: { not: "DICE" } } });
+          for (const post of posts) await queue(tx, post, guildId);
+        }
+        return updated;
       });
     },
     async endSeason(guildId: string, seasonId: string) {
@@ -67,7 +82,7 @@ export function createCommunityService(database: PrismaClient) {
         const current = await season(tx, guildId, seasonId);
         if (data.kind === "LOTTERY") assertLotteryGame(current.game, lotteryRules.parse(rules).mode);
         if (data.kind === "QUIZ" && current.game !== "DISCORD") fail("Les quiz utilisent une saison Discord / Quizzes use a Discord season.");
-        const row = await tx.communityActivity.create({ data: { seasonId, title: data.title.trim(), kind: data.kind, rules: json(rules), startsAt: data.startsAt ?? null, endsAt: data.endsAt, createdBy: data.actorId } });
+        const row = await tx.communityActivity.create({ data: { seasonId, postedChannelId: current.announcementChannelId ?? current.channelId, title: data.title.trim(), kind: data.kind, rules: json(rules), startsAt: data.startsAt ?? null, endsAt: data.endsAt, createdBy: data.actorId } });
         await queue(tx, row, guildId);
         return row;
       });
@@ -250,7 +265,8 @@ export function createCommunityService(database: PrismaClient) {
         const reminders = await tx.communityActivity.findMany({ where: { season: { guildId, status: "ACTIVE" }, kind: "EVENT", status: "OPEN", reminderAt: null, startsAt: { gt: now, lte: new Date(now.getTime() + 60 * 60_000) } }, include: { season: true }, take: 25 });
         for (const row of reminders) {
           const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { language: true } });
-          await enqueueDiscordJob(tx, guildId, `community-reminder:${row.id}`, "MESSAGE", { channelId: row.season.channelId, message: { content: `${settings?.language === "fr" ? "🎮 La soirée commence bientôt" : "🎮 Gaming night starts soon"} : **${row.title}** <t:${Math.floor(row.startsAt!.getTime() / 1000)}:R>\n${row.messageId ? `https://discord.com/channels/${(await tx.guild.findUniqueOrThrow({ where: { id: guildId } })).discordId}/${row.season.channelId}/${row.messageId}` : row.id}`, allowedMentions: { parse: [] } } });
+          const channelId = communityActivityChannel(row);
+          await enqueueDiscordJob(tx, guildId, `community-reminder:${row.id}`, "MESSAGE", { channelId, message: { content: `${settings?.language === "fr" ? "🎮 La soirée commence bientôt" : "🎮 Gaming night starts soon"} : **${row.title}** <t:${Math.floor(row.startsAt!.getTime() / 1000)}:R>\n${row.messageId ? `https://discord.com/channels/${(await tx.guild.findUniqueOrThrow({ where: { id: guildId } })).discordId}/${channelId}/${row.messageId}` : row.id}`, allowedMentions: { parse: [] } } });
           await tx.communityActivity.update({ where: { id: row.id }, data: { reminderAt: now } });
         }
       });

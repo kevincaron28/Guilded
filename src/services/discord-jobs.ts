@@ -79,6 +79,14 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
     await syncScheduledEvent(guild, prisma, job.guildId, type, String(payload["sourceId"] ?? ""));
   } else if (job.kind === "MESSAGE") {
     let channelId = String(payload["channelId"]);
+    if (job.key.startsWith("community-reminder:")) {
+      const activity = await prisma.communityActivity.findFirst({ where: { id: job.key.slice("community-reminder:".length), season: { guildId: job.guildId } }, include: { season: true } });
+      if (!activity || activity.status !== "OPEN" || activity.season.status !== "ACTIVE") return;
+      const { communityActivityChannel } = await import("./community-display.js");
+      const { assertCommunityChannelAudience } = await import("./community-access.js");
+      channelId = communityActivityChannel(activity);
+      await assertCommunityChannelAudience(guild, activity.season.channelId, channelId);
+    }
     const route = payload["route"];
     if (route === "dungeon") {
       const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { dungeonChannelId: true, notifyChannelId: true } });

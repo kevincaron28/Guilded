@@ -9,13 +9,15 @@ import { assertLotteryGame, drawWinners, evidenceReference, lotteryRules, standi
 const now = new Date("2026-10-01T12:00:00Z");
 const endsAt = new Date("2026-10-02T12:00:00Z");
 const rules = { mode: "POINTS", cost: 10, prize: "A cosmetic prize", currency: "points", realm: "", winners: 2, maxTickets: 10 };
-const season = { id: "season", guildId: "guild", game: "DISCORD", name: "October", status: "ACTIVE", channelId: "channel", audienceRoleId: null, createdBy: "officer", createdAt: now, endedAt: null, finalStandings: null };
-const activity: CommunityActivity & { season: CommunitySeason } = { id: "activity", seasonId: season.id, season, kind: "LOTTERY", title: "Draw", rules, status: "OPEN", startsAt: null, endsAt, createdBy: "officer", createdAt: now, messageId: null, reminderAt: null, result: null };
+const season = { id: "season", guildId: "guild", game: "DISCORD", name: "October", number: 1, announcementChannelId: null, status: "ACTIVE", channelId: "channel", audienceRoleId: null, createdBy: "officer", createdAt: now, endedAt: null, finalStandings: null };
+const activity: CommunityActivity & { season: CommunitySeason } = { id: "activity", seasonId: season.id, season, kind: "LOTTERY", title: "Draw", rules, status: "OPEN", startsAt: null, endsAt, createdBy: "officer", createdAt: now, messageId: null, postedChannelId: null, reminderAt: null, result: null };
 const member = (roles: string[], officer = false, bot = false) => ({ user: { bot }, roles: { cache: new Collection(roles.map(id => [id, { id, name: id }])) }, permissions: { has: (permission: unknown) => officer && permission === "Administrator", bitfield: officer ? PermissionFlagsBits.Administrator : 0n } }) as unknown as GuildMember;
 
 function store(row = activity) {
   const tx = {
     $executeRaw: vi.fn(async () => 1),
+    communitySeasonCounter: { upsert: vi.fn(async () => ({ nextNumber: 2 })) },
+    auditLog: { create: vi.fn(async args => args.data) },
     communitySeason: { findFirst: vi.fn(async () => season), update: vi.fn(async ({ data }) => ({ ...season, ...data })), create: vi.fn(async ({ data }) => ({ ...season, ...data })) },
     communityActivity: {
       findFirst: vi.fn(async ({ where }) => where.season?.guildId && where.season.guildId !== season.guildId ? null : row),
@@ -66,6 +68,15 @@ describe("community accounting and lottery rules", () => {
 });
 
 describe("community state transitions", () => {
+  it("renames a season without changing its identity and refreshes existing activity posts", async () => {
+    const s = store();
+    s.tx.communityActivity.findMany.mockResolvedValue([activity] as never);
+    const updated = await s.service.configureSeason("guild", "season", "officer", { name: "Automne", announcementChannelId: "activities" });
+    expect(updated).toMatchObject({ id: "season", number: 1, name: "Automne", channelId: "channel", announcementChannelId: "activities" });
+    expect(s.tx.communityPoint.create).not.toHaveBeenCalled();
+    expect(s.tx.auditLog.create).toHaveBeenCalledOnce();
+    expect(s.tx.discordJob.upsert).toHaveBeenCalledWith(expect.objectContaining({ create: expect.objectContaining({ kind: "COMMUNITY_POST" }) }));
+  });
   it("debits points once and queues publication with the same transaction", async () => {
     const s = store();
     const entry = await s.service.enterLottery("guild", "activity", "member", 3, now);

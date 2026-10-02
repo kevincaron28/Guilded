@@ -8,9 +8,11 @@ import { canAccessCommunity } from "./community.js";
 import { createParticipationService } from "../services/participation.js";
 import { eligibleParticipationMember } from "../services/participation-discord.js";
 import { participationBadge, participationRules } from "../services/participation-rules.js";
+import { resolveCommunitySeason } from "../services/community-access.js";
+import { communitySeasonLabel } from "../services/community-display.js";
 
 const service = createParticipationService(prisma);
-const seasonOption = (sub: SlashCommandSubcommandBuilder) => sub.addStringOption(o => o.setName("season").setDescription("Discord season ID").setDescriptionLocalizations({ fr: "Saison Discord" }).setRequired(true));
+const seasonOption = (sub: SlashCommandSubcommandBuilder, required = true) => sub.addStringOption(o => o.setName("season").setDescription("Discord season").setDescriptionLocalizations({ fr: "Saison Discord" }).setRequired(required).setAutocomplete(true));
 const idOption = (sub: SlashCommandSubcommandBuilder) => sub.addStringOption(o => o.setName("id").setDescription("Record ID").setDescriptionLocalizations({ fr: "Identifiant" }).setRequired(true));
 const reasonOption = (sub: SlashCommandSubcommandBuilder) => sub.addStringOption(o => o.setName("reason").setDescription("Reason").setDescriptionLocalizations({ fr: "Motif" }).setRequired(true).setMaxLength(300));
 const limits = [["messages", "messageDailyCap", 0, 50], ["reactions", "reactionDailyCap", 0, 20], ["voice-minutes", "voiceDailyMinutes", 0, 240], ["member-days", "minimumMemberDays", 0, 30], ["weekly-goal", "weeklyGoal", 2, 500]] as const;
@@ -25,7 +27,7 @@ export const participationCommand = new SlashCommandBuilder().setName("participa
     limits.forEach(([name, , min, max], index) => settings.addIntegerOption(o => o.setName(name).setDescription(descriptions[index]!).setDescriptionLocalizations({ fr: french[index]! }).setMinValue(min).setMaxValue(max)));
     return settings.addStringOption(o => o.setName("emojis").setDescription("Positive emojis or custom IDs, comma-separated").setDescriptionLocalizations({ fr: "Emojis positifs ou identifiants, séparés par virgules" }).setMaxLength(300));
   })
-  .addSubcommand(sub => seasonOption(sub.setName("status").setDescription("Your progress and guild goal").setDescriptionLocalizations({ fr: "Vos progrès et objectif de guilde" })))
+  .addSubcommand(sub => seasonOption(sub.setName("status").setDescription("Your progress and guild goal").setDescriptionLocalizations({ fr: "Vos progrès et objectif de guilde" }), false))
   .addSubcommand(sub => reasonOption(seasonOption(sub.setName("nominate").setDescription("Recognize a helper").setDescriptionLocalizations({ fr: "Reconnaître l'entraide" }))
     .addUserOption(o => o.setName("player").setDescription("Helpful member").setDescriptionLocalizations({ fr: "Membre à remercier" }).setRequired(true))))
   .addSubcommand(sub => seasonOption(sub.setName("claims").setDescription("Officer nomination inbox").setDescriptionLocalizations({ fr: "Nominations à valider" })).addIntegerOption(o => o.setName("page").setDescription("Page").setMinValue(1)))
@@ -43,7 +45,7 @@ export async function executeParticipation(interaction: ChatInputCommandInteract
   const guild = interaction.guild, actor = interaction.user.id, sub = interaction.options.getSubcommand();
   const lang = asLang((await guildService.getSettings(context.guildId))?.language);
   const T = (en: string, fr: string) => lang === "fr" ? fr : en;
-  const seasonId = interaction.options.getString("season", true);
+  const seasonId = (await resolveCommunitySeason(prisma, guild, context.guildId, actor, interaction.options.getString("season"), ["settings", "claims", "review", "reverse"].includes(sub))).id;
   const season = await prisma.communitySeason.findFirst({ where: { id: seasonId, guildId: context.guildId, game: "DISCORD" }, include: { participation: true } });
   if (!season) throw new Error("Saison Discord introuvable / Discord season not found.");
   const member = await guild.members.fetch({ user: actor, force: true });
@@ -77,7 +79,7 @@ export async function executeParticipation(interaction: ChatInputCommandInteract
       `\n${config.MESSAGE_CONTENT_INTENT ? T("Duplicate/short-text filtering enabled.", "Filtrage des textes courts/répétés activé.") : T("Text access is off: timing and caps apply; repeated text cannot be detected.", "Accès au texte désactivé : délais et plafonds actifs; les textes répétés ne peuvent pas être détectés.")}`;
   } else if (sub === "status") {
     const summary = await service.summary(context.guildId, seasonId, actor);
-    content = `🏅 **${season.name}** · ${season.status}\n${T("Earning", "Gains")} : ${season.status === "ACTIVE" && season.participation?.enabled ? T("enabled", "activés") : T("paused", "en pause")}\n` +
+    content = `🏅 **${communitySeasonLabel(season, lang)}** · ${season.status}\n${T("Earning", "Gains")} : ${season.status === "ACTIVE" && season.participation?.enabled ? T("enabled", "activés") : T("paused", "en pause")}\n` +
       `${T("Today", "Aujourd'hui")} : ${summary.today?.messages ?? 0}/${rules.messageDailyCap} ${T("message points", "points de messages")} · ${summary.today?.reactions ?? 0}/${rules.reactionDailyCap} ${T("reaction points", "points de réactions")}\n` +
       `${T("Voice", "Vocal")} : ${Math.floor((summary.today?.voiceMs ?? 0) / 60_000)}/${rules.voiceDailyMinutes} min · ${summary.today?.voicePoints ?? 0} points\n` +
       `${T("Season score", "Score de saison")} : ${summary.points} · ${T("Milestone", "Palier")} : ${participationBadge(summary.points)} (50 / 150 / 300)\n` +

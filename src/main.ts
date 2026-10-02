@@ -2,6 +2,8 @@ import { ensureCoreDiscord } from "./services/raid-core.js";
 import { fillGuildWeeklyRaids } from "./services/core-weekly-raids.js";
 import { guildService } from "./commands/context.js";
 import { COMMUNITY_PREFIX, executeCommunity, handleCommunityButton, handleCommunityModal, runCommunityActivities } from "./commands/community.js";
+import { handleCommunityHub } from "./commands/community-hub.js";
+import { COMMUNITY_HUB_PREFIX } from "./services/community-panels.js";
 import { pendingSignupRaidIds, syncSignupEmbed } from "./commands/raid.js";
 import { runDiscordJobs } from "./services/discord-jobs.js";
 import { queueGuildScheduledEvents } from "./services/scheduled-events.js";
@@ -282,10 +284,11 @@ if (config.MESSAGE_CONTENT_INTENT) {
 }
 
 client.on(Events.InteractionCreate, async (interaction) => {
-  if ((interaction.isButton() || interaction.isModalSubmit()) && interaction.customId.startsWith(COMMUNITY_PREFIX)) {
+  if ((interaction.isButton() || interaction.isModalSubmit() || interaction.isUserSelectMenu() || interaction.isStringSelectMenu()) && interaction.customId.startsWith(COMMUNITY_PREFIX)) {
     try {
-      if (interaction.isButton()) await handleCommunityButton(interaction);
-      else await handleCommunityModal(interaction);
+      if (interaction.customId.startsWith(COMMUNITY_HUB_PREFIX)) await handleCommunityHub(interaction);
+      else if (interaction.isButton()) await handleCommunityButton(interaction);
+      else if (interaction.isModalSubmit()) await handleCommunityModal(interaction);
     } catch (error) {
       reportInteractionError("Community interaction", interaction, error);
       const content = error instanceof Error && error.message.length < 200 ? error.message : "Impossible de traiter cette demande / Could not process this request.";

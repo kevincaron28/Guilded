@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, ModalBuilder, PermissionFlagsBits, SlashCommandBuilder, TextInputBuilder, TextInputStyle, type ButtonInteraction, type ChatInputCommandInteraction, type Guild, type GuildMember, type ModalSubmitInteraction, type SlashCommandSubcommandBuilder, type SlashCommandSubcommandsOnlyBuilder } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, ModalBuilder, PermissionFlagsBits, SlashCommandBuilder, TextInputBuilder, TextInputStyle, type ButtonInteraction, type ChatInputCommandInteraction, type Guild, type ModalSubmitInteraction, type SlashCommandSubcommandBuilder, type SlashCommandSubcommandsOnlyBuilder } from "discord.js";
 import type { CommunityActivity, CommunitySeason } from "@prisma/client";
 import { prisma } from "../database.js";
 import { asLang, type Lang } from "../i18n.js";
@@ -6,14 +6,18 @@ import { hasPermission } from "../permissions.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { createCommunityService } from "../services/community.js";
 import { challengeRules, COMMUNITY_GAMES, eventRules, lotteryRules, quizRules } from "../services/community-rules.js";
-import { localParts, parseRaidTime } from "../services/raid-time.js";
+import { parseRaidTime } from "../services/raid-time.js";
 import { eventVenue } from "../services/scheduled-events.js";
+import { accessibleCommunityActivities, assertCommunityChannelAudience, communityAccess as access, resolveCommunitySeason, canAccessCommunity } from "../services/community-access.js";
+import { communityActivityChannel, communityMonthName, communitySeasonLabel, communityStatusLabel } from "../services/community-display.js";
+import { communityHubReply, diceReply, validateCommunityDestination } from "./community-hub.js";
+export { canAccessCommunity };
 
 const service = createCommunityService(prisma);
 export const COMMUNITY_PREFIX = "community:";
 const say = (lang: Lang, en: string, fr: string) => lang === "fr" ? fr : en;
-const ref = (sub: SlashCommandSubcommandBuilder) => sub.addStringOption(o => o.setName("id").setDescription("Activity ID").setDescriptionLocalizations({ fr: "Identifiant" }).setRequired(true));
-const seasonOption = (sub: SlashCommandSubcommandBuilder) => sub.addStringOption(o => o.setName("season").setDescription("Season ID").setDescriptionLocalizations({ fr: "Saison" }).setRequired(true));
+const ref = (sub: SlashCommandSubcommandBuilder) => sub.addStringOption(o => o.setName("id").setDescription("Activity").setDescriptionLocalizations({ fr: "Activité" }).setRequired(true).setAutocomplete(true));
+const seasonOption = (sub: SlashCommandSubcommandBuilder, required = true) => sub.addStringOption(o => o.setName("season").setDescription("Season").setDescriptionLocalizations({ fr: "Saison" }).setRequired(required).setAutocomplete(true));
 const titleOption = (sub: SlashCommandSubcommandBuilder) => sub.addStringOption(o => o.setName("title").setDescription("Title").setDescriptionLocalizations({ fr: "Titre" }).setRequired(true).setMaxLength(200));
 const dateOption = (sub: SlashCommandSubcommandBuilder, name: string) => sub.addStringOption(o => o.setName(name).setDescription("Guild time, e.g. vendredi 20h").setDescriptionLocalizations({ fr: "Heure du serveur" }).setRequired(true));
 const playerOption = (sub: SlashCommandSubcommandBuilder) => sub.addUserOption(o => o.setName("player").setDescription("Member").setDescriptionLocalizations({ fr: "Membre" }).setRequired(true));
@@ -67,16 +71,20 @@ export const challengeCommand = viewCommands(new SlashCommandBuilder().setName("
 
 export const communityCommand = new SlashCommandBuilder().setName("community").setDescription("Seasons, leaderboards, dice and quizzes").setDescriptionLocalizations({ fr: "Saisons et jeux" })
   .addSubcommand(sub => sub.setName("start-season").setDescription("Start a season").setDescriptionLocalizations({ fr: "Démarrer une saison" })
-    .addStringOption(o => o.setName("name").setDescription("Season name").setDescriptionLocalizations({ fr: "Nom de la saison" }).setRequired(true).setMaxLength(80))
     .addStringOption(o => o.setName("game").setDescription("Game").setDescriptionLocalizations({ fr: "Jeu" }).setRequired(true).addChoices(...COMMUNITY_GAMES.map(value => ({ name: value, value }))))
+    .addStringOption(o => o.setName("name").setDescription("Theme; defaults to month").setDescriptionLocalizations({ fr: "Thème; mois par défaut" }).setMaxLength(80))
     .addRoleOption(o => o.setName("role").setDescription("Game role; required outside Discord").setDescriptionLocalizations({ fr: "Rôle du jeu" })))
+  .addSubcommand(sub => seasonOption(sub.setName("season-settings").setDescription("Rename or route announcements").setDescriptionLocalizations({ fr: "Nom et salon des annonces" }))
+    .addStringOption(o => o.setName("name").setDescription("Theme").setDescriptionLocalizations({ fr: "Thème" }).setMaxLength(80))
+    .addChannelOption(o => o.setName("channel").setDescription("Announcements").setDescriptionLocalizations({ fr: "Annonces" }).addChannelTypes(ChannelType.GuildText)))
+  .addSubcommand(sub => seasonOption(sub.setName("hub").setDescription("Activities and organizer templates").setDescriptionLocalizations({ fr: "Activités et modèles" }), false))
   .addSubcommand(sub => seasonOption(sub.setName("end-season").setDescription("Freeze final standings").setDescriptionLocalizations({ fr: "Archiver le classement" })))
   .addSubcommand(sub => sub.setName("seasons").setDescription("Accessible season history").setDescriptionLocalizations({ fr: "Historique des saisons" })
     .addIntegerOption(o => o.setName("page").setDescription("Page").setMinValue(1)))
-  .addSubcommand(sub => seasonOption(sub.setName("leaderboard").setDescription("Season rankings").setDescriptionLocalizations({ fr: "Classement de la saison" }))
+  .addSubcommand(sub => seasonOption(sub.setName("leaderboard").setDescription("Season rankings").setDescriptionLocalizations({ fr: "Classement de la saison" }), false)
     .addIntegerOption(o => o.setName("page").setDescription("Page").setMinValue(1)))
-  .addSubcommand(sub => seasonOption(sub.setName("wallet").setDescription("Your points and history").setDescriptionLocalizations({ fr: "Tes points et leur historique" })))
-  .addSubcommand(sub => seasonOption(sub.setName("dice").setDescription("Daily d100: 5 points, +10 at 90+").setDescriptionLocalizations({ fr: "Dé quotidien" })))
+  .addSubcommand(sub => seasonOption(sub.setName("wallet").setDescription("Your points and history").setDescriptionLocalizations({ fr: "Tes points et leur historique" }), false))
+  .addSubcommand(sub => seasonOption(sub.setName("dice").setDescription("Daily d100: 5 points, +10 at 90+").setDescriptionLocalizations({ fr: "Dé quotidien" }), false))
   .addSubcommand(sub => pointsOption(dateOption(titleOption(seasonOption(sub.setName("quiz").setDescription("Create a four-answer quiz").setDescriptionLocalizations({ fr: "Créer un quiz" }))), "ends"))
     .addStringOption(o => o.setName("a").setDescription("Answer A").setDescriptionLocalizations({ fr: "Réponse A" }).setRequired(true).setMaxLength(80))
     .addStringOption(o => o.setName("b").setDescription("Answer B").setDescriptionLocalizations({ fr: "Réponse B" }).setRequired(true).setMaxLength(80))
@@ -85,28 +93,10 @@ export const communityCommand = new SlashCommandBuilder().setName("community").s
     .addIntegerOption(o => o.setName("correct").setDescription("Correct answer: 1=A, 2=B, 3=C, 4=D").setDescriptionLocalizations({ fr: "Bonne réponse" }).setRequired(true).setMinValue(1).setMaxValue(4)))
   .addSubcommand(sub => ref(sub.setName("close-quiz").setDescription("Close a quiz").setDescriptionLocalizations({ fr: "Fermer un quiz" })));
 
-export function canAccessCommunity(member: GuildMember, season: Pick<CommunitySeason, "audienceRoleId">, canView: boolean): boolean {
-  return !member.user.bot && canView && (!season.audienceRoleId || member.roles.cache.has(season.audienceRoleId) || hasPermission(member, "officer"));
-}
-
-async function access(guild: Guild, userId: string, current: CommunitySeason, organizer = false) {
-  const member = await guild.members.fetch({ user: userId, force: true });
-  const channel = await guild.channels.fetch(current.channelId);
-  const view = !!channel?.permissionsFor(member)?.has(PermissionFlagsBits.ViewChannel);
-  if (!canAccessCommunity(member, current, view) || organizer && !hasPermission(member, "officer")) throw new Error("Accès refusé / Access denied.");
-  return member;
-}
-
-async function getSeason(guild: Guild, guildId: string, id: string, userId: string, organizer = false) {
-  const current = await prisma.communitySeason.findFirst({ where: { id, guildId } });
-  if (!current) throw new Error("Saison introuvable / Season not found.");
-  await access(guild, userId, current, organizer);
-  return current;
-}
 async function getActivity(guild: Guild, guildId: string, id: string, userId: string, kind?: string, organizer = false) {
   const row = await prisma.communityActivity.findFirst({ where: { id, season: { guildId }, ...(kind ? { kind } : {}) }, include: { season: true } });
   if (!row) throw new Error("Activité introuvable / Activity not found.");
-  await access(guild, userId, row.season, organizer);
+  await access(guild, userId, row.season, organizer, communityActivityChannel(row));
   return row;
 }
 
@@ -125,8 +115,8 @@ export async function executeCommunity(interaction: ChatInputCommandInteraction)
   const kind = area === "lottery" ? "LOTTERY" : area === "gaming" ? "EVENT" : area === "challenge" ? "CHALLENGE" : "QUIZ";
   const seasonId = interaction.options.getString("season");
   const id = interaction.options.getString("id");
-  const organizer = ["create", "edit", "confirm", "payments", "attendance", "review", "claims", "close", "cancel", "start-season", "end-season", "quiz", "close-quiz"].includes(sub);
-  const current = seasonId ? await getSeason(guild, context.guildId, seasonId, actor, organizer) : null;
+  const organizer = ["create", "edit", "confirm", "payments", "attendance", "review", "claims", "close", "cancel", "start-season", "end-season", "season-settings", "quiz", "close-quiz"].includes(sub);
+  const current = seasonId || ["dice", "wallet", "leaderboard", "hub"].includes(sub) ? await resolveCommunitySeason(prisma, guild, context.guildId, actor, seasonId, organizer) : null;
   const row = id ? await getActivity(guild, context.guildId, id, actor, kind, organizer) : null;
   let content = "";
   if (sub === "start-season") {
@@ -136,8 +126,16 @@ export async function executeCommunity(interaction: ChatInputCommandInteraction)
     if (!channel?.isTextBased() || channel.isDMBased() || !channel.permissionsFor(member)?.has(PermissionFlagsBits.ViewChannel) || !channel.permissionsFor(guild.members.me!)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ReadMessageHistory])) throw new Error("Choisis un salon accessible au bot / Choose a channel the bot can use.");
     const role = interaction.options.getRole("role");
     if (role?.id === guild.id || role?.managed) throw new Error("Choisis un rôle de jeu / Choose a game role.");
-    const created = await service.startSeason(context.guildId, { name: interaction.options.getString("name", true), game: interaction.options.getString("game", true), channelId: channel.id, audienceRoleId: role?.id ?? null, actorId: actor });
-    content = `${say(lang, "Season created", "Saison créée")} : **${created.name}** (${created.game})\n${say(lang, "Use this season ID", "Identifiant de saison à utiliser")} : \`${created.id}\``;
+    const created = await service.startSeason(context.guildId, { name: interaction.options.getString("name") ?? communityMonthName(new Date(), timezone, lang), game: interaction.options.getString("game", true), channelId: channel.id, audienceRoleId: role?.id ?? null, actorId: actor });
+    content = `${say(lang, "Season created", "Saison créée")} : **${communitySeasonLabel(created, lang)}** (${created.game})\n/community hub`;
+  } else if (sub === "season-settings") {
+    const name = interaction.options.getString("name"), channel = interaction.options.getChannel("channel");
+    if (channel) await validateCommunityDestination(guild, current!, channel.id, actor);
+    const updated = await service.configureSeason(context.guildId, current!.id, actor, { ...(name === null ? {} : { name }), ...(channel ? { announcementChannelId: channel.id } : {}) });
+    content = `**${communitySeasonLabel(updated, lang)}** · <#${updated.announcementChannelId ?? updated.channelId}>`;
+  } else if (sub === "hub") {
+    await interaction.editReply(await communityHubReply(guild, context.guildId, actor, current!, lang));
+    return;
   } else if (sub === "seasons") {
     const member = await guild.members.fetch({ user: actor, force: true });
     const channels = await guild.channels.fetch();
@@ -146,7 +144,7 @@ export async function executeCommunity(interaction: ChatInputCommandInteraction)
     const count = await prisma.communitySeason.count({ where });
     const page = Math.min(interaction.options.getInteger("page") ?? 1, Math.max(1, Math.ceil(count / 10)));
     const seasons = await prisma.communitySeason.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 10, skip: (page - 1) * 10 });
-    content = seasons.map(season => `**${season.name}** · ${season.game} · ${season.status}\n\`${season.id}\``).join("\n\n") || say(lang, "No seasons yet.", "Aucune saison pour le moment.");
+    content = seasons.map(season => `**${communitySeasonLabel(season, lang)}** · ${season.game} · ${season.status === "ACTIVE" ? say(lang, "Active", "En cours") : say(lang, "Archived", "Archivée")}`).join("\n\n") || say(lang, "No seasons yet.", "Aucune saison pour le moment.");
     content += `\nPage ${page}/${Math.max(1, Math.ceil(count / 10))}`;
   } else if (sub === "end-season") {
     await service.endSeason(context.guildId, current!.id);
@@ -157,20 +155,17 @@ export async function executeCommunity(interaction: ChatInputCommandInteraction)
       const pages = Math.max(1, Math.ceil(board.length / 10));
       const page = Math.min(interaction.options.getInteger("page") ?? 1, pages);
       const top = board.slice((page - 1) * 10, page * 10);
-      content = `🏆 **${current!.name}** · ${current!.game}\n` + (top.map(item => `${1 + board.filter(other => other.points > item.points).length}. <@${item.userId}> · ${item.points} points`).join("\n") || say(lang, "No points yet.", "Aucun point pour le moment.")) + `\nPage ${page}/${pages}`;
+      content = `🏆 **${communitySeasonLabel(current!, lang)}** · ${current!.game}\n` + (top.map(item => `${1 + board.filter(other => other.points > item.points).length}. <@${item.userId}> · ${item.points} points`).join("\n") || say(lang, "No points yet.", "Aucun point pour le moment.")) + `\nPage ${page}/${pages}`;
     } else {
       const mine = board.find(item => item.userId === actor);
       const history = await prisma.communityPoint.findMany({ where: { seasonId: current!.id, userId: actor }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 10 });
-      content = `${say(lang, "Earned score", "Score gagné")} : ${mine?.points ?? 0}\n${say(lang, "Spendable balance", "Solde disponible")} : ${mine?.balance ?? 0}\n` + history.map(entry => `${entry.amount > 0 ? "+" : ""}${entry.amount} · ${entry.reason.slice(0, 100)} · ${entry.kind}`).join("\n");
+      content = `**${communitySeasonLabel(current!, lang)}**\n${say(lang, "Earned score", "Score gagné")} : ${mine?.points ?? 0}\n${say(lang, "Spendable balance", "Solde disponible")} : ${mine?.balance ?? 0}\n` + history.map(entry => `${entry.amount > 0 ? "+" : ""}${entry.amount} · ${entry.reason.slice(0, 100)} · ${entry.kind}`).join("\n");
     }
   } else if (sub === "dice") {
-    const now = new Date();
-    const parts = localParts(now, timezone);
-    const day = `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
-    const entry = await service.dice(context.guildId, current!.id, actor, day, now);
-    content = `🎲 ${entry.evidence}/100 · ${Number(entry.evidence) >= 90 ? 15 : 5} points. ${say(lang, "One roll per day; use /community wallet to see your balance.", "Un lancer par jour; /community wallet affiche ton solde.")}`;
+    content = await diceReply(context.guildId, current!, actor, timezone, lang);
   } else if (sub === "create" || sub === "quiz") {
-    if (interaction.channelId !== current!.channelId) throw new Error("Crée l'activité dans le salon de la saison / Create this in the season's channel.");
+    if (interaction.channelId !== (current!.announcementChannelId ?? current!.channelId)) throw new Error("Crée l'activité dans le salon des annonces / Create this in the announcements channel.");
+    await validateCommunityDestination(guild, current!, interaction.channelId, actor);
     const startsAt = kind === "EVENT" ? parseRaidTime(interaction.options.getString("starts", true), timezone) : undefined;
     const endsAt = parseRaidTime(interaction.options.getString("ends", true), timezone);
     let rules: unknown;
@@ -184,14 +179,14 @@ export async function executeCommunity(interaction: ChatInputCommandInteraction)
         const channel = await guild.channels.fetch(voice.id);
         const member = await guild.members.fetch(actor);
         if (!channel?.permissionsFor(member)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect])) throw new Error("Vocal inaccessible / Voice channel inaccessible.");
-        await validateEventVenue(guild, current!.channelId, voice.id);
+        await validateEventVenue(guild, current!.announcementChannelId ?? current!.channelId, voice.id);
       }
       rules = { capacity: interaction.options.getInteger("capacity", true), points: interaction.options.getInteger("points", true), ...(voice ? { voiceChannelId: voice.id } : {}) };
     }
     else if (kind === "CHALLENGE") rules = { instructions: interaction.options.getString("instructions", true), points: interaction.options.getInteger("points", true) };
     else rules = { choices: ["a", "b", "c", "d"].map(key => interaction.options.getString(key, true)), correct: interaction.options.getInteger("correct", true) - 1, points: interaction.options.getInteger("points", true) };
     const created = await service.create(context.guildId, current!.id, { kind, title: interaction.options.getString("title", true), rules, ...(startsAt ? { startsAt } : {}), endsAt, actorId: actor });
-    content = `${say(lang, "Activity saved; its message will appear shortly.", "Activité enregistrée; son message apparaîtra sous peu.")}\n\`${created.id}\``;
+    content = `${say(lang, "Activity saved; its message will appear shortly.", "Activité enregistrée; son message apparaîtra sous peu.")} **${created.title}**`;
   } else if (sub === "edit" && kind === "EVENT") {
     const title = interaction.options.getString("title");
     const starts = interaction.options.getString("starts");
@@ -201,18 +196,18 @@ export async function executeCommunity(interaction: ChatInputCommandInteraction)
       const channel = await guild.channels.fetch(voice.id);
       const member = await guild.members.fetch(actor);
       if (!channel?.permissionsFor(member)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect])) throw new Error("Vocal inaccessible / Voice channel inaccessible.");
-      await validateEventVenue(guild, row!.season.channelId, voice.id);
+      await validateEventVenue(guild, communityActivityChannel(row!), voice.id);
     }
     await service.editEvent(context.guildId, id!, { ...(title === null ? {} : { title }), ...(starts === null ? {} : { startsAt: parseRaidTime(starts, timezone) }),
       ...(ends === null ? {} : { endsAt: parseRaidTime(ends, timezone) }), ...(voice ? { voiceChannelId: voice.id } : {}) });
     content = say(lang, "Gaming night updated. Its message and Discord event will refresh shortly.", "Soirée modifiée. Son annonce et l'événement Discord seront actualisés sous peu.");
   } else if (sub === "list") {
-    const count = await prisma.communityActivity.count({ where: { seasonId: current!.id, kind } });
-    const pages = Math.max(1, Math.ceil(count / 10));
+    const available = (await accessibleCommunityActivities(prisma, guild, context.guildId, actor, current!.id)).filter(item => item.kind === kind).reverse();
+    const pages = Math.max(1, Math.ceil(available.length / 10));
     const page = Math.min(interaction.options.getInteger("page") ?? 1, pages);
-    const items = await prisma.communityActivity.findMany({ where: { seasonId: current!.id, kind }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 10, skip: (page - 1) * 10 });
-    content = items.map(item => `**${item.title}** · ${item.status}\n\`${item.id}\``).join("\n\n") || say(lang, "No activities.", "Aucune activité.");
-    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle(current!.name).setDescription(content).setFooter({ text: `Page ${page}/${pages}` })], allowedMentions: { parse: [] } });
+    const items = available.slice((page - 1) * 10, page * 10);
+    content = items.map(item => `**${item.title}** · ${item.status}${item.messageId ? `\nhttps://discord.com/channels/${guild.id}/${communityActivityChannel({ ...item, season: current! })}/${item.messageId}` : ""}`).join("\n\n") || say(lang, "No activities.", "Aucune activité.");
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle(communitySeasonLabel(current!, lang)).setDescription(content.slice(0, 4000)).setFooter({ text: `Page ${page}/${pages}` })], allowedMentions: { parse: [] } });
     return;
   } else if (sub === "show") {
     const entries = await prisma.communityEntry.findMany({ where: { activityId: row!.id }, orderBy: { createdAt: "asc" } });
@@ -221,7 +216,9 @@ export async function executeCommunity(interaction: ChatInputCommandInteraction)
     return;
   } else if (sub === "join") {
     if (kind === "LOTTERY") {
-      const entry = await service.enterLottery(context.guildId, row!.id, actor, interaction.options.getInteger("quantity") ?? 1);
+      const quantity = interaction.options.getInteger("quantity") ?? 1;
+      if (lotteryRules.parse(row!.rules).mode === "POINTS") { await interaction.editReply(lotteryConfirmation(row!, quantity, actor, lang)); return; }
+      const entry = await service.enterLottery(context.guildId, row!.id, actor, quantity);
       content = ticketReply(lang, row!, entry);
     } else {
       const entry = await service.signup(context.guildId, row!.id, actor, interaction.options.getString("choice", true));
@@ -280,8 +277,16 @@ function signupReply(lang: Lang, status: string) {
   return say(lang, `Signup saved: ${status === "WAITLISTED" ? "waitlist; promotion is automatic if a spot opens" : status === "JOINED" ? "present" : status === "MAYBE" ? "maybe" : "absent"}.`, `Inscription enregistrée : ${status === "WAITLISTED" ? "liste d'attente; passage automatique si une place se libère" : status === "JOINED" ? "présent" : status === "MAYBE" ? "peut-être" : "absent"}.`);
 }
 
+export function lotteryConfirmation(row: CommunityActivity, quantity: number, userId: string, lang: Lang) {
+  const rules = lotteryRules.parse(row.rules);
+  if (rules.mode !== "POINTS" || !Number.isSafeInteger(quantity) || quantity < 1 || quantity > rules.maxTickets) throw new Error("Nombre de billets invalide / Invalid ticket quantity.");
+  const total = quantity * rules.cost;
+  return { content: say(lang, `${quantity} ticket(s) for **${row.title}**: **${total} points**. Your earned ranking stays unchanged. Confirm this purchase?`, `${quantity} billet(s) pour **${row.title}** : **${total} points**. Ton score au classement reste intact. Confirmer l'achat ?`),
+    components: [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`${COMMUNITY_PREFIX}buy:${row.id}:${quantity}:${total}:${userId}`).setLabel(say(lang, "Confirm purchase", "Confirmer l'achat")).setStyle(ButtonStyle.Primary))], allowedMentions: { parse: [] as [] } };
+}
+
 export function communityCard(row: CommunityActivity & { season: CommunitySeason }, entries: { userId: string; quantity: number; status: string }[], lang: Lang) {
-  const embed = new EmbedBuilder().setColor(0xd4af37).setTitle(row.title).setFooter({ text: `${row.season.name} · ${row.season.game} · ID: ${row.id}` });
+  const embed = new EmbedBuilder().setColor(0xd4af37).setTitle(row.title).setFooter({ text: `${communitySeasonLabel(row.season, lang)} · ${row.season.game}` });
   const components: ActionRowBuilder<ButtonBuilder>[] = [];
   const buttons = new ActionRowBuilder<ButtonBuilder>();
   const closed = row.status !== "OPEN" || row.endsAt <= new Date();
@@ -299,15 +304,16 @@ export function communityCard(row: CommunityActivity & { season: CommunitySeason
     if (row.status === "CLOSED") description += `🏆 ${say(lang, "Winners", "Gagnants")} : ${result?.winners?.map(id => `<@${id}>`).join(", ") || say(lang, "No eligible entries", "Aucune participation admissible")}\n`;
     if (row.status === "CANCELLED") description += say(lang, "Cancelled. Activity points refunded automatically. In-game refunds must be handled by organizers.\n", "Annulée. Points d'activité remboursés automatiquement. Les remboursements en jeu sont à faire par les organisateurs.\n");
     if (result?.externalRefundsRequired?.length) description += `${say(lang, "In-game refunds", "Remboursements en jeu")} : ${result.externalRefundsRequired.length}\n`;
-    addButton("tickets", say(lang, "Participate", "Participer"));
+    addButton(rules.mode === "FREE" ? "free" : "tickets", rules.mode === "FREE" ? say(lang, "Enter for free", "Participer gratuitement") : say(lang, "Choose tickets", "Choisir mes billets"));
   } else if (row.kind === "EVENT") {
     const rules = eventRules.parse(row.rules);
     description += `🎮 <t:${Math.floor(row.startsAt!.getTime() / 1000)}:F>\n${rules.points} ${say(lang, "points for organizer-confirmed attendance", "points pour une présence confirmée par un organisateur")}\n`;
+    description += `${Math.max(0, rules.capacity - entries.filter(e => ["JOINED", "PRESENT"].includes(e.status)).length)} ${say(lang, "places available", "places disponibles")}\n`;
     for (const [status, label] of [["JOINED", say(lang, "Present", "Présent")], ["PRESENT", say(lang, "Attendance confirmed", "Présence confirmée")], ["MAYBE", say(lang, "Maybe", "Peut-être")], ["WAITLISTED", say(lang, "Waitlist", "Attente")]]) {
       const people = entries.filter(entry => entry.status === status);
       description += `**${label} (${people.length}${status === "JOINED" ? `/${rules.capacity}` : ""})** : ${people.slice(0, 15).map(entry => `<@${entry.userId}>`).join(", ") || "—"}${people.length > 15 ? " …" : ""}\n`;
     }
-    addButton("present", say(lang, "Present", "Présent"));
+    addButton("present", say(lang, "Join", "Je participe"));
     addButton("maybe", say(lang, "Maybe", "Peut-être"), ButtonStyle.Secondary);
     addButton("absent", "Absent", ButtonStyle.Secondary);
     if (row.startsAt! <= new Date()) for (const button of buttons.components) button.setDisabled(true);
@@ -315,6 +321,7 @@ export function communityCard(row: CommunityActivity & { season: CommunitySeason
     const rules = challengeRules.parse(row.rules);
     description += `${rules.instructions}\n🏆 ${rules.points} ${say(lang, "points after evidence review; once per member", "points après validation de la preuve; une fois par membre")}\n`;
     addButton("proof", say(lang, "Submit evidence", "Soumettre une preuve"));
+    buttons.addComponents(new ButtonBuilder().setCustomId(`${COMMUNITY_PREFIX}claim-status:${row.id}`).setLabel(say(lang, "My submission", "Ma soumission")).setStyle(ButtonStyle.Secondary));
   } else if (row.kind === "QUIZ") {
     const rules = quizRules.parse(row.rules);
     description += `${rules.points} ${say(lang, "points for a correct answer. One attempt; the author cannot play.", "points pour une bonne réponse. Un essai; l'auteur ne participe pas.")}\n`;
@@ -330,7 +337,7 @@ export function communityCard(row: CommunityActivity & { season: CommunitySeason
 
 export async function handleCommunityButton(interaction: ButtonInteraction): Promise<void> {
   if (!interaction.guild) return;
-  const [action, id] = interaction.customId.slice(COMMUNITY_PREFIX.length).split(":");
+  const [action, id, quantityText, totalText, ownerId] = interaction.customId.slice(COMMUNITY_PREFIX.length).split(":");
   if (!action || !id) throw new Error("Bouton invalide / Invalid button.");
   // Fetches and permission checks occur after acknowledgement; opening a modal
   // is the first response so its initial lookup must be bounded by Discord.
@@ -345,10 +352,19 @@ export async function handleCommunityButton(interaction: ButtonInteraction): Pro
   await interaction.deferReply({ ephemeral: true });
   const record = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
   const lang = asLang((await guildService.getSettings(record.id))?.language);
-  const row = await getActivity(interaction.guild, record.id, id, interaction.user.id, action.startsWith("answer") ? "QUIZ" : "EVENT");
-  if (row.season.channelId !== interaction.channelId) throw new Error("Mauvais salon / Wrong channel.");
+  const kind = action.startsWith("answer") ? "QUIZ" : ["free", "buy"].includes(action) ? "LOTTERY" : action === "claim-status" ? "CHALLENGE" : "EVENT";
+  const row = await getActivity(interaction.guild, record.id, id, interaction.user.id, kind);
+  if (action !== "buy" && communityActivityChannel(row) !== interaction.channelId) throw new Error("Mauvais salon / Wrong channel.");
   let content: string;
-  if (/^answer[0-3]$/.test(action)) {
+  if (action === "free" || action === "buy") {
+    const rules = lotteryRules.parse(row.rules);
+    const quantity = action === "free" ? 1 : Number(quantityText);
+    if (action === "free" && rules.mode !== "FREE" || action === "buy" && (ownerId !== interaction.user.id || rules.mode !== "POINTS" || !Number.isSafeInteger(quantity) || quantity < 1 || quantity > rules.maxTickets || Number(totalText) !== quantity * rules.cost)) throw new Error("Confirmation invalide / Invalid confirmation.");
+    content = ticketReply(lang, row, await service.enterLottery(record.id, id, interaction.user.id, quantity));
+  } else if (action === "claim-status") {
+    const entry = await prisma.communityEntry.findUnique({ where: { activityId_userId: { activityId: id, userId: interaction.user.id } } });
+    content = entry ? `${communityStatusLabel(entry.status, lang)}\n${entry.evidence ?? ""}\n${entry.reviewNote ?? ""}` : say(lang, "No submission yet. Use Submit evidence.", "Aucune soumission. Utilise Soumettre une preuve.");
+  } else if (/^answer[0-3]$/.test(action)) {
     const entry = await service.answerQuiz(record.id, id, interaction.user.id, Number(action.slice(-1)));
     content = entry.status === "CORRECT" ? say(lang, "Correct! Points saved.", "Bonne réponse! Points enregistrés.") : say(lang, "Answer saved. Try the next quiz!", "Réponse enregistrée. Réessaie au prochain quiz!");
   } else {
@@ -366,7 +382,7 @@ export async function handleCommunityModal(interaction: ModalSubmitInteraction):
   if (!id || !["proof", "tickets"].includes(action ?? "")) throw new Error("Formulaire invalide / Invalid form.");
   const record = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
   const row = await getActivity(interaction.guild, record.id, id, interaction.user.id, action === "proof" ? "CHALLENGE" : "LOTTERY");
-  if (row.season.channelId !== interaction.channelId) throw new Error("Mauvais salon / Wrong channel.");
+  if (communityActivityChannel(row) !== interaction.channelId) throw new Error("Mauvais salon / Wrong channel.");
   const lang = asLang((await guildService.getSettings(record.id))?.language);
   const value = interaction.fields.getTextInputValue("value").trim();
   let content: string;
@@ -375,6 +391,7 @@ export async function handleCommunityModal(interaction: ModalSubmitInteraction):
     content = say(lang, "Evidence sent to organizers.", "Preuve envoyée aux organisateurs.");
   } else {
     if (!/^\d{1,4}$/.test(value)) throw new Error("Nombre de billets invalide / Invalid ticket quantity.");
+    if (lotteryRules.parse(row.rules).mode === "POINTS") { await interaction.editReply(lotteryConfirmation(row, Number(value), interaction.user.id, lang)); return; }
     content = ticketReply(lang, row, await service.enterLottery(record.id, id, interaction.user.id, Number(value)));
   }
   await interaction.editReply({ content, allowedMentions: { parse: [] } });
@@ -383,21 +400,26 @@ export async function handleCommunityModal(interaction: ModalSubmitInteraction):
 export async function publishCommunityActivity(guild: Guild, guildId: string, id: string): Promise<void> {
   const row = await prisma.communityActivity.findFirst({ where: { id, season: { guildId } }, include: { season: true, entries: true } });
   if (!row) return;
-  const channel = await guild.channels.fetch(row.season.channelId);
+  await assertCommunityChannelAudience(guild, row.season.channelId, communityActivityChannel(row));
+  const channel = await guild.channels.fetch(communityActivityChannel(row));
   if (!channel?.isTextBased()) throw new Error("Community channel unavailable");
   const lang = asLang((await guildService.getSettings(guildId))?.language);
   const card = communityCard(row, row.entries, lang);
+  if (row.kind === "EVENT") {
+    const event = await prisma.discordEventLink.findFirst({ where: { guildId, sourceType: "community", sourceId: row.id } });
+    if (event?.discordId) card.components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel(lang === "fr" ? "Événement et rappel Discord" : "Discord event and reminder").setURL(`https://discord.com/events/${guild.id}/${event.discordId}`)));
+  }
   let message = row.messageId ? await channel.messages.fetch(row.messageId).catch((error: unknown) => {
     if ((error as { code?: number }).code === 10008) return null;
     throw error;
   }) : null;
   if (!message) {
     const recent = await channel.messages.fetch({ limit: 100 });
-    message = recent.find(item => item.author.id === guild.client.user!.id && item.embeds.some(embed => embed.footer?.text.endsWith(`ID: ${id}`))) ?? null;
+    message = recent.find(item => item.author.id === guild.client.user!.id && (item.embeds.some(embed => embed.footer?.text.endsWith(`ID: ${id}`)) || JSON.stringify(item.components).includes(`:${id}"`))) ?? null;
   }
   if (message) await message.edit(card);
   else message = await channel.send({ ...card, nonce: id.slice(-25), enforceNonce: true });
-  if (message.id !== row.messageId) await prisma.communityActivity.update({ where: { id }, data: { messageId: message.id } });
+  if (message.id !== row.messageId || !row.postedChannelId) await prisma.communityActivity.update({ where: { id }, data: { messageId: message.id, postedChannelId: channel.id } });
 }
 
 let ticking = false;

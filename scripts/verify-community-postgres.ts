@@ -8,8 +8,13 @@ export async function verifyCommunityPostgres(database: PrismaClient, guildId: s
   const now = new Date("2030-01-01T12:00:00Z");
   const endsAt = new Date("2030-01-02T12:00:00Z");
   const season = await service.startSeason(guildId, { name: "Release community season", game: "DISCORD", channelId: "community-channel", audienceRoleId: null, actorId: "officer" });
+  assert.equal(season.number, 1);
+  await service.configureSeason(guildId, season.id, "officer", { announcementChannelId: "community-activities" });
   await assert.rejects(service.startSeason(guildId, { name: "Duplicate", game: "DISCORD", channelId: "community-channel", audienceRoleId: null, actorId: "officer" }));
   const challenge = await service.create(guildId, season.id, { kind: "CHALLENGE", title: "Release community challenge", rules: { instructions: "Complete and submit evidence", points: 100 }, endsAt, actorId: "officer" }, now);
+  assert.equal(challenge.postedChannelId, "community-activities");
+  await service.configureSeason(guildId, season.id, "officer", { announcementChannelId: "next-community-activities" });
+  assert.equal((await database.communityActivity.findUniqueOrThrow({ where: { id: challenge.id } })).postedChannelId, "community-activities");
   await service.submit(guildId, challenge.id, "player-a", "https://example.com/proof-a", now);
   await assert.rejects(service.review(guildId, challenge.id, "player-a", "player-a", "APPROVE", "Self review"));
   await Promise.all([1, 2, 3].map(() => service.review(guildId, challenge.id, "player-a", "officer", "APPROVE", "Reviewed")));
@@ -68,6 +73,12 @@ export async function verifyCommunityPostgres(database: PrismaClient, guildId: s
   await assert.rejects(service.board(peer.id, season.id));
   await assert.rejects(service.endSeason(peer.id, season.id));
   const peerSeason = await service.startSeason(peer.id, { name: "Peer season", game: "DISCORD", channelId: "peer-channel", audienceRoleId: null, actorId: "peer-officer" });
+  assert.equal(peerSeason.number, 1);
+  // A deleted highest season must not allow its number to be reused.
+  const numbered = await service.startSeason(peer.id, { name: "Temporary", game: "OTHER", channelId: "peer-channel", audienceRoleId: "peer-role", actorId: "peer-officer" });
+  await database.communitySeason.delete({ where: { id: numbered.id } });
+  const nextNumbered = await service.startSeason(peer.id, { name: "Replacement", game: "OTHER", channelId: "peer-channel", audienceRoleId: "peer-role", actorId: "peer-officer" });
+  assert.equal(nextNumbered.number, numbered.number + 1);
   const peerDraw = await service.create(peer.id, peerSeason.id, { kind: "LOTTERY", title: "Peer draw", rules: { ...lotteryRules, mode: "FREE", cost: 0, maxTickets: 1 }, endsAt, actorId: "peer-officer" }, now);
   await service.enterLottery(peer.id, peerDraw.id, "peer-player", 1, now);
 

@@ -151,6 +151,7 @@ model Guild {
   unclaimedCharacters UnclaimedCharacter[]
   characterPairings   CharacterPairing[]
   communitySeasons    CommunitySeason[]
+  communitySeasonCounters CommunitySeasonCounter[]
   poeMapVisits        PoeMapVisit[]
 }
 
@@ -160,7 +161,9 @@ model CommunitySeason {
   guildId        String
   game           String
   name           String
+  number         Int @default(1)
   channelId      String
+  announcementChannelId String?
   audienceRoleId String?
   status         String @default("ACTIVE")
   createdBy      String
@@ -175,6 +178,16 @@ model CommunitySeason {
   participationDeletions CommunityParticipationDeletion[]
   kudos          CommunityKudos[]
   @@index([guildId, game, status])
+  @@unique([guildId, game, number])
+}
+
+// Monotonic allocation survives deletion of a season; one counter per game/guild.
+model CommunitySeasonCounter {
+  guildId String
+  game String
+  nextNumber Int @default(1)
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  @@id([guildId, game])
 }
 
 model CommunityActivity {
@@ -189,6 +202,7 @@ model CommunityActivity {
   createdBy   String
   createdAt   DateTime @default(now())
   messageId   String?
+  postedChannelId String?
   reminderAt  DateTime?
   result      Json?
   season      CommunitySeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)

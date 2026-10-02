@@ -4,6 +4,11 @@ role permissions and bot hierarchy. Preserve Exilé → Errant, remove only the
 owner-approved Errant permissions, and verify Guilded before disabling Carl.
 # Guilded 5.0 stabilization — local Claude update handoff
 
+Clickable community hub and numbered seasons: `docs/COMMUNITY_EXPERIENCE.md`.
+Additive migration `20261102090000_community_experience`; deploy handlers before
+refreshing existing panels. Version remains 5.0.0. PoE2 integration analysis:
+`docs/POE2_DISCORD_INTEGRATION.md`.
+
 Community leaderboard follow-up (2 Oct 2026): `docs/COMMUNITY_LEADERBOARD.md`.
 The existing Community rankings channel is reused as `🏆・leaderboard`; the bot
 refreshes its pinned bilingual podium on startup and every five minutes. Existing

@@ -100,6 +100,15 @@ describe("PoE2 personal mapping observations", () => {
 const line = (time: string, message: string, pid = "123") => `2026/09/30 ${time} 123456 2caa1afc [DEBUG Client ${pid}] ${message}`;
 const profile = { character: "Ann", league: "Pilot", mode: "STANDARD" };
 describe("PoE2 log parser", () => {
+  it.each(['MapHiddenGrotto', 'MapAugury_NoBoss', 'MapUberBoss2'])("accepts the ID grammar %s without claiming current-patch coverage", areaId => {
+    expect(parsePoeLogLine(line('12:00:00', `Generating level 80 area "${areaId}" with seed 123`))).toMatchObject({ kind: 'area', areaId });
+  });
+  it.each(['Abnormal disconnect', 'Abnormal disconnect: connection lost', 'Abnormal disconnect - connection lost'])("detects interruption independently of a login host: %s", message => {
+    expect(parsePoeLogLine(line('12:00:00', message).replace('[DEBUG Client', '[INFO Client'))).toMatchObject({ kind: 'interrupted' });
+  });
+  it("does not treat chat quoting an interruption as an engine event", () => {
+    expect(parsePoeLogLine(line('12:00:00', ': Name: Abnormal disconnect').replace('[DEBUG Client', '[INFO Client'))).toBeNull();
+  });
   it("accepts observed PoE2 map engine messages and ignores chat, campaign and PoE1 maps", () => {
     const journal = { active: null, pending: [] };
     for (const area of ["G1_2", "HideoutFelled", "MapWorldsDesert"]) consumePoeEvent(journal, parsePoeLogLine(line("12:00:00", `Generating level 80 area "${area}" with seed 1`)), profile);

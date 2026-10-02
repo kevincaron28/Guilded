@@ -60,8 +60,15 @@ function renderState(snapshot) {
   pill('wowBadge',savedConfig.wowEnabled === false ? 'Sync off' : state.uploadError ? 'Needs attention' : state.lastUpload ? 'Synced' : state.watching ? 'Watching' : 'Not configured',state.uploadError ? 'error' : state.lastUpload || state.watching ? 'ok' : '');
   const poe = state.poe;
   pill('poeBadge',!savedConfig.poeEnabled ? 'Tracking off' : poe?.error ? 'Needs attention' : poe?.pending ? 'Ready to sync' : api.browser ? 'Manual sharing' : poe?.running ? 'Watching' : 'Set up tracking',poe?.error ? 'error' : poe?.running ? 'ok' : poe?.pending ? 'gold' : '');
-  $('poeCurrent').textContent = poe?.currentArea || 'Waiting for your next map';
-  $('poeStatus').textContent = poe?.error || (poe ? `${poe.pending || 0} observations waiting${poe.lastSync ? ` · synced ${ago(poe.lastSync).toLowerCase()}` : ''}` : 'Enable map sharing in setup when you are ready.');
+  const areaName = poe?.currentArea?.replace(/^Map/, '').replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Za-z])(\d)/g, '$1 $2');
+  $('poeCurrent').textContent = areaName || 'Waiting for your next map';
+  $('poeStatus').textContent = poe?.error || poe?.warning || (poe ? `${poe.pending || 0} observations waiting${poe.lastSync ? ` · synced ${ago(poe.lastSync).toLowerCase()}` : ''}` : 'Enable map sharing in setup when you are ready.');
+  $('poeLiveArea').textContent = areaName || 'Waiting for your next map';
+  const elapsed = poe?.running && poe.currentStartedAt ? Math.floor((Date.now() - Date.parse(poe.currentStartedAt)) / 1000) : null;
+  $('poeElapsed').textContent = elapsed === null ? 'No open map visit' : elapsed < 0 || elapsed > 21600 ? 'Elapsed time unknown — check game activity and clock' : `${Math.floor(elapsed / 60)}m ${elapsed % 60}s elapsed since generation`;
+  $('poeToday').textContent = String(poe?.todayMaps || 0);
+  $('poeLastActivity').textContent = ago(poe?.lastActivity);
+  $('poeCaptureNote').textContent = poe?.error || poe?.warning || (poe?.catchingUp ? 'Catching up with recent log activity…' : poe?.running ? 'Watching for supported area and disconnect events.' : 'Tracking paused or not configured.');
   $('poeProfile').textContent = savedConfig.poeCharacter || 'Not set';
   $('poeLeagueLabel').textContent = savedConfig.poeLeague ? `${savedConfig.poeLeague} · ${(savedConfig.poeMode || 'STANDARD').replaceAll('_',' ')}` : 'Choose a character, league and mode';
   $('poePending').textContent = String(poe?.pending || 0);
@@ -114,7 +121,7 @@ async function init() {
   if (api.browser) {
     $('appMode').textContent = 'Online companion'; $('footerMode').textContent = 'Manual file sync · Personal pairing'; $('sideNote').textContent = 'No installation needed.';
     $('poeMetricLabel').textContent = 'Latest log area';
-    ['autostartLabel','btnDetect','btnFolder','btnPause','addressLabel','standingsIntervalLabel','btnOnline'].forEach(id => $(id).hidden = true);
+    ['autostartLabel','btnDetect','btnFolder','btnPause','addressLabel','standingsIntervalLabel','btnOnline','poeLive'].forEach(id => $(id).hidden = true);
     $('btnSave').textContent = 'Save preferences'; $('btnStandings').textContent = 'Download standings'; $('btnRemoveData').textContent = 'Disconnect this session'; $('removeTitle').textContent = 'End your online session'; $('removeNote').textContent = 'Revokes this Discord link and clears this tab’s settings and queued observations. Sync pending visits first.';
     $('wowModeNote').textContent = 'Browser files are snapshots. After /reload, choose Guilded.lua again and use Sync now.';
     $('wowStep2').textContent = 'Select Guilded.lua and choose Sync now. Your raw Lua file is parsed on your device.';
@@ -125,6 +132,6 @@ async function init() {
   gameFields(); entries = all.logs.slice(-300); renderLogs(); renderState({state:all.state,health:all.health});
   showPage(new URLSearchParams(location.search).get('tab') || 'status');
   api.onState(renderState); api.onLog(addLog);
-  setInterval(() => { if (lastSnapshot) renderState(lastSnapshot); },15000);
+  setInterval(() => { if (lastSnapshot) renderState(lastSnapshot); },1000);
 }
 init().catch(error => toast(error.message,true));

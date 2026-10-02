@@ -1,0 +1,10 @@
+2026/09/30 12:00:00 100 abc [DEBUG Client 123] Generating level 10 area "G1_2" with seed 1
+2026/09/30 12:01:00 200 abc [DEBUG Client 123] Generating level 60 area "HideoutFelled" with seed 2
+2026/09/30 12:02:00 300 abc [DEBUG Client 123] Generating level 80 area "MapLoftySummit" with seed 42
+2026/09/30 12:02:01 301 abc [INFO Client 123] : You have entered Lofty Summit.
+2026/09/30 12:02:02 302 abc [INFO Client 123] : Vous êtes entré dans Sommet élevé.
+2026/09/30 12:03:00 400 abc [INFO Client 123] : @From Example: private fixture chat
+2026/09/30 12:05:00 500 abc [DEBUG Client 123] Generating level 60 area "HideoutFelled" with seed 2
+2026/09/30 12:06:00 600 abc [DEBUG Client 123] Generating level 80 area "MapLoftySummit" with seed 42
+2026/09/30 12:07:00 700 abc [INFO Client 123] : Example has been slain.
+2026/09/30 12:08:00 800 abc [INFO Client 123] Abnormal disconnect: An unexpected disconnection occurred.

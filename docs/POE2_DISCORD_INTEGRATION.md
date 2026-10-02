@@ -76,10 +76,11 @@ matching server-side checks on queries/autocomplete, not only hidden channels.
 Keep personal history available to its owner according to existing account policy;
 role loss must stop access to other members' shared PoE2 statistics.
 
-Separate companion work in the owner’s development checkout adds local daily/current-map
-displays and recovery diagnostics; it is not included in this bot release. Discord
-currently receives ended observations. See [POE2_MAPPING.md](POE2_MAPPING.md). A Discord
-board must not claim it shows each member’s current map or online status.
+Recent companion work adds local daily/current-map displays, bounded log reading
+and recovery diagnostics. Those live local values are not continuously uploaded:
+Discord currently receives ended observations. See [POE2_RELIABILITY.md](POE2_RELIABILITY.md)
+and [POE2_MAPPING.md](POE2_MAPPING.md). A Discord board must not claim it is showing
+each member's current map or current online status.
 
 ## Statistics to show
 

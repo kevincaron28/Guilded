@@ -5,6 +5,11 @@ opt-in journal of client-log observations, not an official account integration
 or a competitive completion feed. Bot deployment, migration/restore rehearsal,
 installed companion upgrade and a real PoE2 session remain release gates.
 
+Reader reliability and live-view follow-up (2 October 2026):
+[POE2_RELIABILITY.md](POE2_RELIABILITY.md). This adds bounded catch-up, cautious
+rotation recovery, encoding/access diagnostics and local daily map counts. The
+shared synthetic fixtures do not replace the required current-patch pilot.
+
 Local validation: the full suite passed **933 tests in 125 files**, along with
 TypeScript, ESLint, addon validation and both dependency audits (zero reported
 vulnerabilities). `release:prepare` built the addon ZIP and Windows installer;
@@ -133,8 +138,10 @@ One poll/upload is in flight. Transient failures retry with 5-second to 5-minute
 backoff while capture continues. Authentication/disabled-feature/validation
 errors retain the queue and stop automatic upload retries until restart or
 reconfiguration. Stop aborts network requests. Corrupt journals are preserved
-and stop tracking. Log replacement/truncation skips replacement history and
-resumes with new events. Pending data is not discarded when capture fails;
+and stop tracking. Log replacement/truncation recovers only a small, recently
+modified replacement's events newer than the saved checkpoint and within five
+minutes of the current clock; otherwise replacement history is skipped.
+Pending data is not discarded when capture fails;
 the queue stops accepting new capture at approximately 10,000 pending visits.
 Time while the companion was stopped is not promised as continuous tracking.
 

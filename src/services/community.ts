@@ -2,7 +2,9 @@ import { randomInt } from "node:crypto";
 import type { CommunityActivity, CommunitySeason, Prisma, PrismaClient } from "@prisma/client";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 import { assertLotteryGame, challengeRules, COMMUNITY_GAMES, drawWinners, eventRules, evidenceReference, lotteryRules, quizRules, standings } from "./community-rules.js";
-import { communityActivityChannel } from "./community-display.js";
+import { communityActivityChannel, communityMonthName, communitySeasonLabel } from "./community-display.js";
+import { asLang } from "../i18n.js";
+import { localParts } from "./raid-time.js";
 
 type Tx = Prisma.TransactionClient;
 const fail = (message: string): never => { throw new Error(message); };
@@ -43,17 +45,48 @@ export function createCommunityService(database: PrismaClient) {
         return tx.communitySeason.create({ data: { guildId, name: data.name.trim(), number: counter.nextNumber - 1, game: data.game, channelId: data.channelId, audienceRoleId: data.audienceRoleId, createdBy: data.actorId } });
       });
     },
-    async configureSeason(guildId: string, seasonId: string, actorId: string, input: { name?: string; announcementChannelId?: string }) {
+    async configureSeason(guildId: string, seasonId: string, actorId: string, input: { name?: string; announcementChannelId?: string; monthly?: boolean }) {
       if (input.name !== undefined && (!input.name.trim() || input.name.length > 80)) fail("Nom invalide / Invalid name.");
       return locked(guildId, async tx => {
         const row = await season(tx, guildId, seasonId, false);
-        const updated = await tx.communitySeason.update({ where: { id: row.id }, data: { ...(input.name === undefined ? {} : { name: input.name.trim() }), ...(input.announcementChannelId === undefined ? {} : { announcementChannelId: input.announcementChannelId }) } });
+        const updated = await tx.communitySeason.update({ where: { id: row.id }, data: { ...(input.name === undefined ? {} : { name: input.name.trim() }), ...(input.announcementChannelId === undefined ? {} : { announcementChannelId: input.announcementChannelId }), ...(input.monthly === undefined ? {} : { monthly: input.monthly }) } });
         await tx.auditLog.create({ data: { guildId, actorId, action: "CONFIG_UPDATED", entityId: row.id, metadata: { area: "community-season", before: { name: row.name, announcementChannelId: row.announcementChannelId }, after: { name: updated.name, announcementChannelId: updated.announcementChannelId } } } });
         if (updated.name !== row.name) {
           const posts = await tx.communityActivity.findMany({ where: { seasonId: row.id, messageId: { not: null }, kind: { not: "DICE" } } });
           for (const post of posts) await queue(tx, post, guildId);
         }
         return updated;
+      });
+    },
+    // A monthly season whose calendar month (guild time) is over is archived and followed by the
+    // next one: same game, channels, audience and participation rules. One that still has an open
+    // activity, pending evidence or a pending nomination waits; the next check tries again.
+    async rotateMonthly(guildId: string, now = new Date()) {
+      return locked(guildId, async tx => {
+        const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { timezone: true, language: true } });
+        const timezone = settings?.timezone ?? "America/Toronto", lang = asLang(settings?.language);
+        const month = (date: Date) => { const parts = localParts(date, timezone); return parts.year * 12 + parts.month; };
+        const rotated: { ended: CommunitySeason; started: CommunitySeason }[] = [];
+        for (const row of await tx.communitySeason.findMany({ where: { guildId, status: "ACTIVE", monthly: true }, include: { participation: true } })) {
+          if (month(row.createdAt) >= month(now)) continue;
+          if (await tx.communityActivity.count({ where: { seasonId: row.id, status: "OPEN" } })
+            || await tx.communityEntry.count({ where: { activity: { seasonId: row.id, kind: "CHALLENGE", status: { not: "CANCELLED" } }, status: "PENDING" } })
+            || await tx.communityKudos.count({ where: { seasonId: row.id, status: "PENDING" } })) continue;
+          const final = standings(await tx.communityPoint.findMany({ where: { seasonId: row.id } }));
+          const ended = await tx.communitySeason.update({ where: { id: row.id }, data: { status: "ENDED", endedAt: now, finalStandings: json(final) } });
+          const counter = await tx.communitySeasonCounter.upsert({ where: { guildId_game: { guildId, game: row.game } }, create: { guildId, game: row.game, nextNumber: 2 }, update: { nextNumber: { increment: 1 } } });
+          const started = await tx.communitySeason.create({ data: { guildId, name: communityMonthName(now, timezone, lang), number: counter.nextNumber - 1, game: row.game, channelId: row.channelId,
+            announcementChannelId: row.announcementChannelId, audienceRoleId: row.audienceRoleId, monthly: true, createdBy: "Guilded" } });
+          if (row.participation) await tx.communityParticipationConfig.create({ data: { seasonId: started.id, enabled: row.participation.enabled, rules: json(row.participation.rules) } });
+          const text = lang === "fr"
+            ? `🏁 **${communitySeasonLabel(ended, lang)}** est terminée : le classement final est archivé.
+🟢 **${communitySeasonLabel(started, lang)}** commence, tout le monde repart à zéro !`
+            : `🏁 **${communitySeasonLabel(ended, lang)}** is over: the final standings are archived.
+🟢 **${communitySeasonLabel(started, lang)}** starts now, and everyone starts from zero!`;
+          await enqueueDiscordJob(tx, guildId, `community-season:${started.id}`, "MESSAGE", { channelId: started.announcementChannelId ?? started.channelId, message: { content: text, allowedMentions: { parse: [] } } });
+          rotated.push({ ended, started });
+        }
+        return rotated;
       });
     },
     async endSeason(guildId: string, seasonId: string) {

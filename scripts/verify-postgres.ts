@@ -130,7 +130,7 @@ try {
     await database.raid.update({ where: { id: weeklyRaids[1]!.id }, data: { scheduledAt: new Date("2026-10-08T00:00:00Z") } });
     assert.deepEqual(await fillCoreWeeklyRaids(database, guild.id, weekly.id, weeklyNow), []); // cancelled/moved never respawn
     await assert.rejects(database.raid.create({ data: { guildId: guild.id, coreId: weekly.id, title: "Duplicate occurrence", createdBy: "release-test", scheduledAt: weeklyNow, weeklyOccurrence: weeklyRaids[0]!.weeklyOccurrence } }));
-    assert.equal((await fillCoreWeeklyRaids(database, guild.id, weekly.id, new Date("2026-10-09T12:00:00Z"))).length, 2); // missed days never backfilled
+    assert.equal((await fillCoreWeeklyRaids(database, guild.id, weekly.id, new Date("2026-10-10T12:00:00Z"))).length, 2); // missed days never backfilled; six-day window
     await saveCoreWeeklySchedule(database, guild.id, weekly.id, "off", "release-test");
     assert.deepEqual(await fillCoreWeeklyRaids(database, guild.id, weekly.id, new Date("2026-10-16T12:00:00Z")), []);
     assert.equal(await database.raid.count({ where: { coreId: weekly.id } }), 4); // pausing preserves signups/history

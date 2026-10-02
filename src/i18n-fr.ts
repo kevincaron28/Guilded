@@ -40,6 +40,8 @@ export const FR_TEXT: Record<string, string> = {
   "Loot log channel": "Salon du butin",
   "Craft board channel": "Salon du tableau d'artisanat",
   "Applications channel": "Salon des candidatures",
+  "Raid attendance channel": "Salon des présences de raid",
+  "🧾 **Raid attendance** — private, officers only: who was present, late, benched or absent, posted with each raid report: {channel}": "🧾 **Présences de raid** — privé, officiers seulement : présents, retards, banc et absents, publié avec chaque rapport de raid : {channel}",
   "Configured {channels}. Existing Guilded channels were reused; missing ones were created.": "Salons configurés : {channels}. Les salons Guilded existants ont été réutilisés; les salons manquants ont été créés.",
   "Your signup was saved, but voice access could not be updated. Ask an officer.": "Votre inscription a été enregistrée, mais l’accès vocal n’a pas pu être mis à jour. Demandez à un officier.",
   "Bot FAQ channel": "Salon FAQ du bot",

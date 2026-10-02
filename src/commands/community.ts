@@ -76,7 +76,8 @@ export const communityCommand = new SlashCommandBuilder().setName("community").s
     .addRoleOption(o => o.setName("role").setDescription("Game role; required outside Discord").setDescriptionLocalizations({ fr: "Rôle du jeu" })))
   .addSubcommand(sub => seasonOption(sub.setName("season-settings").setDescription("Rename or route announcements").setDescriptionLocalizations({ fr: "Nom et salon des annonces" }))
     .addStringOption(o => o.setName("name").setDescription("Theme").setDescriptionLocalizations({ fr: "Thème" }).setMaxLength(80))
-    .addChannelOption(o => o.setName("channel").setDescription("Announcements").setDescriptionLocalizations({ fr: "Annonces" }).addChannelTypes(ChannelType.GuildText)))
+    .addChannelOption(o => o.setName("channel").setDescription("Announcements").setDescriptionLocalizations({ fr: "Annonces" }).addChannelTypes(ChannelType.GuildText))
+    .addBooleanOption(o => o.setName("monthly").setDescription("New season every month").setDescriptionLocalizations({ fr: "Nouvelle saison chaque mois" })))
   .addSubcommand(sub => seasonOption(sub.setName("hub").setDescription("Activities and organizer templates").setDescriptionLocalizations({ fr: "Activités et modèles" }), false))
   .addSubcommand(sub => seasonOption(sub.setName("end-season").setDescription("Freeze final standings").setDescriptionLocalizations({ fr: "Archiver le classement" })))
   .addSubcommand(sub => sub.setName("seasons").setDescription("Accessible season history").setDescriptionLocalizations({ fr: "Historique des saisons" })
@@ -129,10 +130,10 @@ export async function executeCommunity(interaction: ChatInputCommandInteraction)
     const created = await service.startSeason(context.guildId, { name: interaction.options.getString("name") ?? communityMonthName(new Date(), timezone, lang), game: interaction.options.getString("game", true), channelId: channel.id, audienceRoleId: role?.id ?? null, actorId: actor });
     content = `${say(lang, "Season created", "Saison créée")} : **${communitySeasonLabel(created, lang)}** (${created.game})\n/community hub`;
   } else if (sub === "season-settings") {
-    const name = interaction.options.getString("name"), channel = interaction.options.getChannel("channel");
+    const name = interaction.options.getString("name"), channel = interaction.options.getChannel("channel"), monthly = interaction.options.getBoolean("monthly");
     if (channel) await validateCommunityDestination(guild, current!, channel.id, actor);
-    const updated = await service.configureSeason(context.guildId, current!.id, actor, { ...(name === null ? {} : { name }), ...(channel ? { announcementChannelId: channel.id } : {}) });
-    content = `**${communitySeasonLabel(updated, lang)}** · <#${updated.announcementChannelId ?? updated.channelId}>`;
+    const updated = await service.configureSeason(context.guildId, current!.id, actor, { ...(name === null ? {} : { name }), ...(channel ? { announcementChannelId: channel.id } : {}), ...(monthly === null ? {} : { monthly }) });
+    content = `**${communitySeasonLabel(updated, lang)}** · <#${updated.announcementChannelId ?? updated.channelId}> · ${updated.monthly ? say(lang, "a new season starts every month", "une nouvelle saison commence chaque mois") : say(lang, "runs until an organizer ends it", "dure jusqu'à ce qu'un organisateur la termine")}`;
   } else if (sub === "hub") {
     await interaction.editReply(await communityHubReply(guild, context.guildId, actor, current!, lang));
     return;
@@ -429,7 +430,7 @@ export async function runCommunityActivities(guilds: Iterable<Guild>): Promise<v
   try {
     for (const guild of guilds) {
       const record = await prisma.guild.findUnique({ where: { discordId: guild.id } });
-      if (record) await service.tick(record.id);
+      if (record) { await service.tick(record.id); await service.rotateMonthly(record.id); }
     }
   } finally { ticking = false; }
 }

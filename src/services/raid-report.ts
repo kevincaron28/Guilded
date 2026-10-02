@@ -64,6 +64,22 @@ export async function buildRaidReport(database: Db, guildId: string, raidId: str
   };
 }
 
+export interface RaidAttendanceList { title: string; present: string[]; late: string[]; benched: string[]; absent: string[]; unrecorded: string[] }
+
+// Who was where, by Discord user id, for the officers. "unrecorded" signed up and has no
+// attendance entry at all.
+export async function buildRaidAttendance(database: Db, guildId: string, raidId: string): Promise<RaidAttendanceList> {
+  const raid = await database.raid.findFirst({
+    where: { id: raidId, guildId },
+    include: { attendance: { include: { member: true } }, signups: { where: { status: { not: "CANCELLED" } }, include: { member: true } } }
+  });
+  if (!raid) throw new Error("Raid not found in this guild.");
+  const of = (status: string) => raid.attendance.filter((row) => row.status === status).map((row) => row.member.discordUserId);
+  const recorded = new Set(raid.attendance.map((row) => row.memberId));
+  return { title: raid.title, present: of("PRESENT"), late: of("LATE"), benched: of("BENCHED"), absent: of("ABSENT"),
+    unrecorded: [...new Set(raid.signups.filter((row) => !recorded.has(row.memberId)).map((row) => row.member.discordUserId))] };
+}
+
 export function formatDuration(minutes: number | null): string {
   if (minutes === null) return "unknown";
   const hours = Math.floor(minutes / 60);

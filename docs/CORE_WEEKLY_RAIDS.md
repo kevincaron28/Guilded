@@ -1,13 +1,13 @@
 # Core weekly signup schedule — 5.0.0
 
-Owner preference: one week ahead. In `/core setup`, enter start times such as
+Owner preference: signups open six days before each raid night (changed from seven on 2 Oct 2026). In `/core setup`, enter start times such as
 `mardi 20h; jeudi 20h30` in the optional schedule field. `/core create schedule:`
 accepts the same format. Shared-day syntax `Tue/Thu 8pm` also works. Times use
 the server's configured IANA timezone (Québec Gold: America/Toronto).
 
 The bot prepares ordinary Guilded raid signup posts in the general raid channel
 and the core's channel. This does not create separate Discord native Scheduled
-Events. Only starts within the next seven local calendar days are generated.
+Events. Only starts within the next six local calendar days are generated.
 At startup and every five minutes it fills that rolling window, independently
 of `/raid end`. DST preserves the local hour; a nonexistent spring clock time
 is skipped, and a repeated fall time creates one raid.

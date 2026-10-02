@@ -102,7 +102,7 @@ function nameModal() {
   return new ModalBuilder().setCustomId("corewiz:name-modal").setTitle("New raid core").addComponents(
     new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("name").setLabel("Name").setPlaceholder("Tuesday Molten Core").setStyle(TextInputStyle.Short).setMinLength(2).setMaxLength(50).setRequired(true)),
     new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("description").setLabel("Description (optional)").setPlaceholder("Progression, achievement runs").setStyle(TextInputStyle.Short).setMaxLength(300).setRequired(false)),
-    new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("schedule").setLabel("Horaire auto : 7 jours (optionnel)").setPlaceholder("mardi 20h; jeudi 20h30 — heure du serveur").setStyle(TextInputStyle.Paragraph).setMaxLength(400).setRequired(false))
+    new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("schedule").setLabel("Horaire auto : 6 jours (optionnel)").setPlaceholder("mardi 20h; jeudi 20h30 — heure du serveur").setStyle(TextInputStyle.Paragraph).setMaxLength(400).setRequired(false))
   );
 }
 

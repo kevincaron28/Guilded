@@ -177,7 +177,7 @@ export async function runCoreWizard(interaction: ChatInputCommandInteraction): P
           const { runDiscordJobs } = await import("../services/discord-jobs.js");
           await runDiscordJobs(interaction.client);
           const note = (discord.error ? `Created **${core.name}**. Its channels could not be made: ${discord.error}` : `Created **${core.name}** and its channels.`)
-            + (core.weeklySchedule ? `\n📅 ${core.schedule} (${core.weeklyTimezone}). Les raids des 7 prochains jours sont préparés; la suite s'ajoute automatiquement. Ajuste l'horaire dans /core edit.` : "");
+            + (core.weeklySchedule ? `\n📅 ${core.schedule} (${core.weeklyTimezone}). Les raids des 6 prochains jours sont préparés; la suite s'ajoute automatiquement. Ajuste l'horaire dans /core edit.` : "");
           await show(await rosterStep(core, guildId, note, mode));
         } catch (error) {
           const content = error instanceof Error ? error.message : "Could not create the core.";

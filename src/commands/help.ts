@@ -59,7 +59,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
     fr: [
       "`/raid create` (heures comme `vendredi 20h`) · `/raid edit` · `/raid start` · `/raid end` (propose les EP à approuver)",
       "`/raid attendance` · `/raid boss` · `/raid note` · `/raid award-ep`",
-      "`/core setup`, horaire : `mardi 20h; jeudi 20h` — raids automatiques pour les 7 prochains jours; ajuste ou arrête dans `/core edit` → 📅",
+      "`/core setup`, horaire : `mardi 20h; jeudi 20h` — raids automatiques pour les 6 prochains jours; ajuste ou arrête dans `/core edit` → 📅",
       "`/core setup` — noyau de raid guidé (nom, joueurs, règles) · `/core add` · `/core remove` · `/core character` (le personnage ou les personnages de secours d'un joueur ; plusieurs noyaux possibles) · les membres postulent avec le bouton du roster · `/raid create core:` (inscription prioritaire)",
       "`/character readiness raid` — qui est prêt pour ce soir"
     ]

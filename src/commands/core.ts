@@ -144,7 +144,7 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
     const made = await prisma.raidCore.findUnique({ where: { id: core.id } });
     await interaction.editReply({
       content: `Core **${core.name}** créé. Ajoute tes joueurs avec \`/core add\`.`
-        + (core.weeklySchedule ? `\n📅 ${created.length} raid(s) préparé(s) pour les 7 prochains jours. Horaire : **${core.schedule}** (${core.weeklyTimezone}). La prochaine semaine s'ajoute automatiquement. Modifie l'horaire avec \`/core edit\`.` : "")
+        + (core.weeklySchedule ? `\n📅 ${created.length} raid(s) préparé(s) pour les 6 prochains jours. Horaire : **${core.schedule}** (${core.weeklyTimezone}). La prochaine semaine s'ajoute automatiquement. Modifie l'horaire avec \`/core edit\`.` : "")
         + (!core.weeklySchedule ? ` Configure l'horaire automatique dans \`/core edit\`, ou crée un raid avec \`/raid create core:${core.name}\`.` : "")
         + (made?.categoryId ? ` Its channels are ready${made.chatChannelId ? ` (<#${made.chatChannelId}>)` : ""}.` : "")
         + (discord.error ? ` Its channels could not be made: ${discord.error} It uses the shared channels until then (\`/core edit\` > Create channels & role).` : "")
@@ -258,7 +258,7 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
       ? "\nFrom now on this core's raids pay EP and GP into its own pool (`/epgp balance core:...`). Points already in the guild pool stay there."
       : "";
     const content = describeRules(effectiveRules(settings, updated), core.name) + note + (schedule !== null
-      ? `\n📅 ${updated.weeklySchedule ? `${updated.schedule} (${updated.weeklyTimezone}) — inscriptions des 7 prochains jours, renouvelées automatiquement.` : "Création automatique arrêtée."} Les raids déjà affichés gardent leurs inscriptions; annule-les avec /raid cancel au besoin.` : "");
+      ? `\n📅 ${updated.weeklySchedule ? `${updated.schedule} (${updated.weeklyTimezone}) — inscriptions des 6 prochains jours, renouvelées automatiquement.` : "Création automatique arrêtée."} Les raids déjà affichés gardent leurs inscriptions; annule-les avec /raid cancel au besoin.` : "");
     if (interaction.deferred) await interaction.editReply({ content });
     else await interaction.reply({ content, ephemeral: true });
     return;

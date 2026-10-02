@@ -145,6 +145,7 @@ model Guild {
   professionCooldowns ProfessionCooldown[]
   itemReserves        ItemReserve[]
   raidCores           RaidCore[]
+  raidSeasons         RaidSeason[]
   dungeonGroups       DungeonGroup[]
   groupAlerts         GroupAlert[]
   faqEntries          FaqEntry[]
@@ -861,6 +862,26 @@ model RaidAttendance {
 
   @@unique([raidId, memberId])
   @@index([raidId, status])
+}
+
+// A raid attendance season: a date range. A raid belongs to it by its date (no link on Raid),
+// so raids from before the season was created are covered too.
+model RaidSeason {
+  id               String    @id @default(cuid())
+  guildId          String
+  name             String
+  startsAt         DateTime
+  // Empty: still running. Set when the next season starts.
+  endsAt           DateTime?
+  // The live summary in the officers' attendance channel, edited after each raid report.
+  summaryChannelId String?
+  summaryMessageId String?
+  createdBy        String
+  createdAt        DateTime  @default(now())
+  guild            Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, name])
+  @@index([guildId, startsAt])
 }
 
 model RaidBoss {

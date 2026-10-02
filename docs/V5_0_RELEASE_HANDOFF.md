@@ -4,6 +4,13 @@ role permissions and bot hierarchy. Preserve Exilé → Errant, remove only the
 owner-approved Errant permissions, and verify Guilded before disabling Carl.
 # Guilded 5.0 stabilization — local Claude update handoff
 
+Raid attendance seasons (2 Oct 2026): `/raid season` and `/raid history` (officers) on a new
+`RaidSeason` table, a date range that raids fall into by date; a summary pinned in the attendance
+channel is edited after each raid report (`src/services/raid-season.ts`,
+`src/commands/raid-season.ts`). Additive migration `20261105090000_raid_seasons`; bot only, the
+slash commands must be re-registered, no client rebuild or version bump. Real Discord checks
+remain: start a season, pin and edit of the summary, the CSV file.
+
 Seasons, raid posts and attendance (2 Oct 2026): community seasons rotate monthly by default
 (`CommunitySeason.monthly`), weekly raid signups open six days ahead, signup posts of past raids
 are removed after 24 hours, and `/setup` gains an officers-only raid attendance channel

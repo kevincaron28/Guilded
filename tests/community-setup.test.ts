@@ -73,7 +73,7 @@ describe("community section of /setup", () => {
     expect(seasons[0]).toMatchObject({ game: "DISCORD", channelId: "board", audienceRoleId: null, announcementChannelId: hub.id, createdBy: "officer" });
     expect(configs).toHaveLength(1);
     expect(configs[0]).toMatchObject({ seasonId: "season-1", enabled: true });
-    expect(configs[0]!["rules"]).toMatchObject({ textChannels: [chat.id], voiceChannels: [], allVoice: true, messageDailyCap: 10, reactionDailyCap: 6, voiceDailyMinutes: 240, minimumMemberDays: 3, weeklyGoal: 10 });
+    expect(configs[0]!["rules"]).toMatchObject({ textChannels: [], voiceChannels: [], allText: true, allVoice: true, messageDailyCap: 10, reactionDailyCap: 6, voiceDailyMinutes: 240, minimumMemberDays: 3, weeklyGoal: 10 });
     // Provision the podium first, then redraw it once the season and participation exist.
     expect(refresh.mock.calls.map(call => call[4])).toEqual([{ categoryId: category.id }, undefined]);
     expect(text).toContain("Première saison lancée");
@@ -112,7 +112,7 @@ describe("community section of /setup", () => {
     await ensureCommunitySetup(guild, database, "guild", "en", "officer", refreshFor(cache) as never);
     expect(tx.communitySeason.create).not.toHaveBeenCalled();
     expect(configs[0]).toMatchObject({ seasonId: "live", enabled: true });
-    expect((configs[0]!["rules"] as { textChannels: string[] }).textChannels).toEqual(["chat"]);
+    expect(configs[0]!["rules"]).toMatchObject({ allText: true, allVoice: true });
   });
 
   it("leaves a role-restricted season alone and refuses several community categories", async () => {

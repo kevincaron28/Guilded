@@ -8,6 +8,7 @@ import type {
   RaidRole
 } from "@prisma/client";
 import { ownedSignupCharacter } from "./signup-character.js";
+import { assertRealm, requiredRealm } from "./realm-check.js";
 import { CHARACTER_DISPLAY_SELECT } from "./character-display.js";
 
 const activeSignupStatuses: RaidSignupStatus[] = ["SIGNED_UP"];
@@ -38,7 +39,7 @@ export interface CreateRaidInput {
 
 export type SignupAvailability = "AVAILABLE" | "MAYBE";
 
-type RaidDb = Pick<PrismaClient, "raid" | "raidSignup" | "raidCoreMember">;
+type RaidDb = Pick<PrismaClient, "raid" | "raidSignup" | "raidCoreMember"> & Partial<Pick<PrismaClient, "raidCore">>;
 
 export function createRaidService(database: PrismaClient) {
   async function locked<T>(raidId: string, work: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
@@ -51,6 +52,17 @@ export function createRaidService(database: PrismaClient) {
     const raid = await tx.raid.findFirst({ where: { id: raidId, guildId } });
     if (!raid) throw new Error("Raid not found in this guild.");
     return raid;
+  }
+
+  // The realm a raid is played on: its core's (set by an officer, else the one the core's
+  // characters share); with no core, the one the characters already signed up share.
+  async function raidRealm(raid: { id: string; coreId: string | null }, memberId: string, tx: RaidDb = database): Promise<string | null> {
+    if (raid.coreId) {
+      const core = await tx.raidCore?.findUnique({ where: { id: raid.coreId }, select: { realm: true, members: { where: { memberId: { not: memberId } }, select: { character: { select: { realm: true } } } } } });
+      return core ? requiredRealm(core.realm, core.members.map(spot => spot.character?.realm)) : null;
+    }
+    const signups = await tx.raidSignup.findMany({ where: { raidId: raid.id, memberId: { not: memberId }, status: { not: "CANCELLED" }, characterRealm: { not: null } }, select: { characterRealm: true } });
+    return requiredRealm(null, signups.map(signup => signup.characterRealm));
   }
 
   async function coreMemberIds(coreId: string, tx: RaidDb = database, byCharacter = false): Promise<Set<string>> {
@@ -210,6 +222,7 @@ export function createRaidService(database: PrismaClient) {
         if (character && await tx.raidSignup.findFirst({ where: { raidId, characterId: character.id, memberId: { not: memberId }, status: { not: "CANCELLED" } } })) {
           throw new Error("Ce personnage est déjà inscrit à ce raid. Une inscription par personnage et une place par personne.");
         }
+        if (character) assertRealm(character, await raidRealm(raid, memberId, tx), raid.title);
         const identity = byCharacter ? `${memberId}:${character?.id}` : memberId;
         let status: RaidSignupStatus = availability === "MAYBE" ? "MAYBE" : "SIGNED_UP";
         const cap = raid[roleCapField[role]];

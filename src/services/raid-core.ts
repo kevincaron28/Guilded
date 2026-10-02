@@ -5,6 +5,7 @@ import { applyToCoreButtonRow } from "./application.js";
 import { asLootMode, LOOT_MODE_LABEL } from "./core-rules.js";
 import { asLang, tx, type Lang } from "../i18n.js";
 import { openAllCoreChannels, setupCoreDiscord, syncCoreRole } from "./core-channels.js";
+import { assertRealm, requiredRealm } from "./realm-check.js";
 import { weeklyScheduleData } from "./core-weekly-time.js";
 import { CHARACTER_REQUIRED, ownedSignupCharacter } from "./signup-character.js";
 import { CHARACTER_DISPLAY_SELECT, characterDisplayLine, hasStaleGear, loadClassEmojis, staleGearNote, type ClassEmojis, type DisplayCharacter } from "./character-display.js";
@@ -48,6 +49,13 @@ export function createRaidCoreService(database: Db) {
     return character;
   }
 
+  // A character joining a core must be on the core's realm: the one an officer set, else the
+  // one the other members' characters share.
+  function checkCoreRealm(core: Awaited<ReturnType<typeof byIdOrName>>, memberId: string, character: { name: string; realm: string }) {
+    const others = core.members.filter(spot => spot.memberId !== memberId);
+    assertRealm(character, requiredRealm(core.realm, others.flatMap(spot => [spot.character?.realm, ...spot.backups.map(backup => backup.character.realm)])), core.name);
+  }
+
   return {
     byIdOrName,
 
@@ -69,6 +77,12 @@ export function createRaidCoreService(database: Db) {
       });
     },
 
+    // The realm this core plays on; null goes back to the realm its characters share.
+    async setRealm(guildId: string, value: string, realm: string | null) {
+      const core = await byIdOrName(guildId, value);
+      return database.raidCore.update({ where: { id: core.id }, data: { realm: realm?.trim().slice(0, 60) || null } });
+    },
+
     async remove(guildId: string, value: string) {
       const core = await byIdOrName(guildId, value);
       await database.raidCore.delete({ where: { id: core.id } });
@@ -84,9 +98,11 @@ export function createRaidCoreService(database: Db) {
       const core = await byIdOrName(guildId, value);
       const settings = await database.guildSettings?.findUnique({ where: { guildId }, select: { characterSignups: true } });
       const existing = core.members.find(spot => spot.memberId === memberId);
-      const characterId = settings?.characterSignups
-        ? (await ownedSignupCharacter(database, guildId, memberId, characterName ?? existing?.characterId)).id
-        : characterName ? (await ownCharacter(memberId, characterName)).id : undefined;
+      const character = settings?.characterSignups
+        ? await ownedSignupCharacter(database, guildId, memberId, characterName ?? existing?.characterId)
+        : characterName ? await ownCharacter(memberId, characterName) : undefined;
+      const characterId = character?.id;
+      if (character && character.id !== existing?.characterId) checkCoreRealm(core, memberId, character);
       await database.raidCoreMember.upsert({
         where: { coreId_memberId: { coreId: core.id, memberId } },
         // Added or moved by an officer: a full member from now on (not on trial).
@@ -108,6 +124,7 @@ export function createRaidCoreService(database: Db) {
       const settings = await database.guildSettings?.findUnique({ where: { guildId }, select: { characterSignups: true } });
       if (settings?.characterSignups && !characterName) throw new Error(CHARACTER_REQUIRED);
       const character = characterName ? settings?.characterSignups ? await ownedSignupCharacter(database, guildId, memberId, characterName) : await ownCharacter(memberId, characterName) : null;
+      if (character) checkCoreRealm(core, memberId, character);
       await database.raidCoreMember.update({
         where: { coreId_memberId: { coreId: core.id, memberId } },
         data: { characterId: character?.id ?? null }
@@ -125,6 +142,7 @@ export function createRaidCoreService(database: Db) {
       const settings = await database.guildSettings?.findUnique({ where: { guildId }, select: { characterSignups: true } });
       const character = settings?.characterSignups ? await ownedSignupCharacter(database, guildId, memberId, characterName) : await ownCharacter(memberId, characterName);
       if (spot.characterId === character.id) throw new Error(`${character.name} is already their character in ${core.name}.`);
+      checkCoreRealm(core, memberId, character);
       await database.raidCoreBackup.upsert({
         where: { spotId_characterId: { spotId: spot.id, characterId: character.id } },
         create: { spotId: spot.id, characterId: character.id, role },

@@ -42,7 +42,8 @@ export function createParticipationTracker(database: PrismaClient, contentAvaila
       const cfg = await load(guild);
       if (!cfg) return;
       const rules = participationRules.parse(cfg.rules);
-      if (!rules.textChannels.includes(message.channelId) || rules.messageDailyCap === 0) return;
+      // With every text channel on, ordinary text channels only: no threads, forums or voice chat.
+      if (!(rules.allText ? message.channel.type === ChannelType.GuildText : rules.textChannels.includes(message.channelId)) || rules.messageDailyCap === 0) return;
       const member = await guild.members.fetch({ user: message.author.id, force: true });
       if (!eligibleParticipationMember(member, cfg.season, rules, now) || !message.channel.permissionsFor(member)?.has(PermissionFlagsBits.ViewChannel)) return;
       await service.message(cfg.season.guildId, cfg.seasonId, { userId: member.id, channelId: message.channelId, messageId: message.id, hash: contentAvailable ? messageFingerprint(message.content) : null, contentAvailable, at: message.createdAt, revision: cfg.revision });
@@ -53,7 +54,7 @@ export function createParticipationTracker(database: PrismaClient, contentAvaila
       const cfg = await load(guild);
       if (!cfg) return;
       const rules = participationRules.parse(cfg.rules);
-      if (!rules.textChannels.includes(reaction.message.channelId) || rules.reactionDailyCap === 0 || !rules.emojis.some(emoji => normalizeEmoji(emoji) === normalizeEmoji(reaction.emoji.id ?? reaction.emoji.name ?? ""))) return;
+      if (!(rules.allText ? reaction.message.channel.type === ChannelType.GuildText : rules.textChannels.includes(reaction.message.channelId)) || rules.reactionDailyCap === 0 || !rules.emojis.some(emoji => normalizeEmoji(emoji) === normalizeEmoji(reaction.emoji.id ?? reaction.emoji.name ?? ""))) return;
       const message = reaction.message.partial ? await reaction.message.fetch() : reaction.message;
       if (!message.inGuild()) return;
       const now = new Date(), age = now.getTime() - message.createdTimestamp;
@@ -67,8 +68,8 @@ export function createParticipationTracker(database: PrismaClient, contentAvaila
       if (!message.guild) return;
       const season = await database.communitySeason.findFirst({ where: { guild: { discordId: message.guild.id }, game: "DISCORD", status: "ACTIVE" }, include: { participation: true } });
       if (!season?.participation) return;
-      const channels = participationRules.parse(season.participation.rules).textChannels;
-      if (!channels.includes(message.channelId) && !await database.communityPoint.findFirst({ where: { seasonId: season.id, kind: "AWARD", OR: [{ reference: `participation:message:${message.id}` }, { reference: { startsWith: `participation:reaction:${message.id}:` } }] } })) return;
+      const rules = participationRules.parse(season.participation.rules);
+      if (!rules.allText && !rules.textChannels.includes(message.channelId) && !await database.communityPoint.findFirst({ where: { seasonId: season.id, kind: "AWARD", OR: [{ reference: `participation:message:${message.id}` }, { reference: { startsWith: `participation:reaction:${message.id}:` } }] } })) return;
       await service.deleteMessage(season.guildId, season.id, message.id);
     },
     // Capture gateway state immediately, then serialize checkpoints for this guild.

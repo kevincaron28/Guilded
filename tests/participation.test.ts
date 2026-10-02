@@ -7,7 +7,7 @@ import { memberEligible, messageFingerprint, participationDay, participationRule
 import { commands } from "../src/commands/index.js";
 
 const at = new Date("2026-10-01T16:00:00Z");
-const rules = participationRules.parse({ textChannels: ["text"], voiceChannels: ["voice"] });
+const rules = participationRules.parse({ textChannels: ["text"], voiceChannels: ["voice"], allText: false, allVoice: false });
 const later = (minutes: number) => new Date(at.getTime() + minutes * 60_000);
 function store() {
   const season = { id: "season", guildId: "guild", game: "DISCORD", status: "ACTIVE", audienceRoleId: null, channelId: "text", guild: { settings: { timezone: "America/Toronto" } } };
@@ -104,7 +104,14 @@ describe("participation rules", () => {
     // Still two members in the same channel, and never the AFK channel.
     expect([...eligibleVoiceUsers([a, { ...a, id: "b", channelId: "elsewhere" }], null, null)]).toEqual([]);
     expect([...eligibleVoiceUsers([a, { ...a, id: "b" }], null, "temporary-group")]).toEqual([]);
-    expect(participationRules.parse({}).allVoice).toBe(false);
+    // Every text and voice channel counts unless an officer turns that off.
+    expect(participationRules.parse({})).toMatchObject({ allText: true, allVoice: true });
+  });
+  it("counts a message in any text channel when all text channels are on, and only listed ones when off", async () => {
+    const s = store();
+    expect(await s.service.message("guild", "season", { ...input("listed-only"), channelId: "private" })).toBe(false);
+    s.cfg.rules = participationRules.parse({});
+    expect(await s.service.message("guild", "season", { ...input("anywhere"), channelId: "private" })).toBe(true);
   });
 });
 

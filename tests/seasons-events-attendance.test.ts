@@ -9,6 +9,7 @@ import { channelSpec } from "../src/setup-names.js";
 import { ALL_CHANNELS, RETIRED_CHANNELS } from "../src/commands/setup.js";
 import { configCommand } from "../src/commands/settings.js";
 import { syncCoreLogChannels } from "../src/services/core-channels.js";
+import { assertRealm, requiredRealm, sameRealm } from "../src/services/realm-check.js";
 
 type Row = Record<string, unknown>;
 
@@ -124,6 +125,29 @@ describe("raid reports and loot logs live in each core's category", () => {
     expect(await syncCoreLogChannels(guild, { categoryId: "category", lootChannelId: "moved", raidLogChannelId: null })).toBe(0);
     expect(await syncCoreLogChannels(guild, { categoryId: null, lootChannelId: "loot", raidLogChannelId: "reports" })).toBe(0);
     expect(lock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("one realm per core and per raid", () => {
+  it("uses the realm an officer set, else the one the characters already share", () => {
+    expect(requiredRealm("Thunderstrike", ["Spineshatter"])).toBe("Thunderstrike");
+    expect(requiredRealm(null, ["Thunderstrike", "thunderstrike", null])).toBe("Thunderstrike");
+    expect(requiredRealm(null, ["Thunderstrike", "Spineshatter"])).toBeNull();
+    expect(requiredRealm(null, [])).toBeNull();
+    expect(requiredRealm("  ", [undefined])).toBeNull();
+  });
+
+  it("compares realms without caring about case, spaces, accents or apostrophes", () => {
+    expect(sameRealm("Mal'Ganis", "malganis")).toBe(true);
+    expect(sameRealm("Living Flame", "LivingFlame")).toBe(true);
+    expect(sameRealm("Thunderstrike", "Spineshatter")).toBe(false);
+  });
+
+  it("refuses a character from another realm with both names, and accepts when nothing is required", () => {
+    const character = { name: "Thrall", realm: "Spineshatter" };
+    expect(() => assertRealm(character, "Thunderstrike", "Core A")).toThrow(/Thrall .*Spineshatter.*Core A.*Thunderstrike/);
+    expect(() => assertRealm(character, "spineshatter", "Core A")).not.toThrow();
+    expect(() => assertRealm(character, null, "Core A")).not.toThrow();
   });
 });
 

@@ -6,6 +6,10 @@ point de donjon, protocole de compagnon ou SavedVariables n'est modifié. Versio
 
 ## Activer sur les salons choisis
 
+**Par défaut, tous les salons textuels ordinaires et tous les salons vocaux comptent** (sauf les fils,
+forums, le clavardage des vocaux et le salon AFK). `all-text:false` ou `all-voice:false` dans
+`/participation settings` revient à une liste de salons choisis.
+
 Depuis `/setup start`, « Créer ceux qui manquent » (étape 2) et « Configurer la communauté »
 (liste de vérification) font tout ceci automatiquement sur un nouveau serveur : catégorie
 Communauté, salons activités / leaderboard / chat, première saison Discord et participation

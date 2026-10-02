@@ -1264,6 +1264,8 @@ model RaidCore {
   guildId         String
   name            String
   description     String?
+  // The realm this core plays on. Empty: the realm its characters already share.
+  realm           String?
   // Recurring raid nights, e.g. "Tue/Thu 8-11pm EST"; shown on the roster message.
   schedule        String?
   // Explicitly enabled only by a leader. Old free-text schedules remain display-only.

@@ -3,15 +3,15 @@ import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 import { requireGuildContext } from "./context.js";
 import { issueCharacterPairingCode } from "../services/character-pairing.js";
-import { createPoeMappingService, POE_MODES } from "../services/poe-mapping.js";
+import { createPoeMappingService, poeAreaName, POE_MODES } from "../services/poe-mapping.js";
 
 export const poeCommand = new SlashCommandBuilder().setName("poe").setDescription("PoE2 mapping journal and companion")
   .addSubcommand(sub => sub.setName("setup").setDescription("Enable or pause PoE2 tracking (officers)").addBooleanOption(option => option.setName("enabled").setDescription("Accept personal mapping journals").setRequired(true)))
   .addSubcommand(sub => sub.setName("pair").setDescription("Pair your companion with this Discord account"))
   .addSubcommand(sub => sub.setName("status").setDescription("How to track maps and check guild settings"))
-  .addSubcommand(sub => sub.setName("runs").setDescription("Your last 15 observed map visits").addStringOption(option => option.setName("league").setDescription("Filter by declared league").setMaxLength(100)))
+  .addSubcommand(sub => sub.setName("runs").setDescription("Your last 15 observed map visits").addStringOption(option => option.setName("league").setDescription("Filter by declared league").setMaxLength(100).setAutocomplete(true)))
   .addSubcommand(sub => sub.setName("summary").setDescription("Mapping activity for one league and mode")
-    .addStringOption(option => option.setName("league").setDescription("Declared league name").setRequired(true).setMaxLength(100))
+    .addStringOption(option => option.setName("league").setDescription("Declared league name").setRequired(true).setMaxLength(100).setAutocomplete(true))
     .addStringOption(option => option.setName("mode").setDescription("League mode").setRequired(true).addChoices(...POE_MODES.map(value => ({ name: value, value }))))
     .addIntegerOption(option => option.setName("days").setDescription("Last 1–90 days (default 7)").setMinValue(1).setMaxValue(90))
     .addBooleanOption(option => option.setName("guild").setDescription("Show guild activity instead of only yours")));
@@ -48,7 +48,7 @@ export async function executePoe(interaction: ChatInputCommandInteraction): Prom
   if (sub === "runs") {
     const rows = await service.recent(guildId, memberId, interaction.options.getString("league")?.trim());
     embed.setTitle(T("PoE2 — Your map visits", "PoE2 — Vos visites de cartes")).setDescription(rows.map(row =>
-      `**${escapeMarkdown(row.areaId)}** · ${T("area level", "niveau de zone")} ${row.areaLevel} · ${row.durationSeconds === null ? T("time unknown", "durée inconnue") : `${Math.round(row.durationSeconds / 60)} min`}\n${escapeMarkdown(row.character)} · ${escapeMarkdown(row.league)} · ${row.mode} · <t:${Math.floor(row.startedAt.getTime() / 1000)}:f>`
+      `**${escapeMarkdown(poeAreaName(row.areaId))}** · ${T("area level", "niveau de zone")} ${row.areaLevel} · ${row.durationSeconds === null ? T("time unknown", "durée inconnue") : `${Math.round(row.durationSeconds / 60)} min`}\n${escapeMarkdown(row.character)} · ${escapeMarkdown(row.league)} · ${row.mode} · <t:${Math.floor(row.startedAt.getTime() / 1000)}:f>`
     ).join("\n\n").slice(0, 4000) || T("No visits yet. /poe status", "Aucune visite. /poe status"));
   } else if (sub === "summary") {
     const league = interaction.options.getString("league", true).trim();
@@ -56,7 +56,7 @@ export async function executePoe(interaction: ChatInputCommandInteraction): Prom
     const days = interaction.options.getInteger("days") ?? 7;
     const rows = await service.summary(guildId, league, mode, days, interaction.options.getBoolean("guild") ? undefined : memberId);
     embed.setTitle(T("PoE2 — Mapping activity", "PoE2 — Activité de mapping")).setDescription(`${escapeMarkdown(league)} · ${mode} · ${days} ${T("days", "jours")}\n\n` + (rows.map(row =>
-      `**${escapeMarkdown(row.name)}**: ${row.visits} ${T("visits", "visites")} · ${Math.round(row.seconds / 60)} min (${row.timedVisits} ${T("timed", "chronométrées")})`
+      `**${escapeMarkdown(row.name)}**: ${row.maps} ${T("maps", "cartes")} (${row.visits} ${T("portal entries", "entrées par portail")}) · ${Math.round(row.seconds / 60)} min (${row.timedVisits} ${T("timed", "chronométrées")})`
     ).join("\n").slice(0, 3500) || T("No observations for this league/mode.", "Aucune observation pour cette ligue/mode.")));
   } else {
     embed.setTitle("PoE2 — Companion").setDescription(T(

@@ -11,6 +11,7 @@ import {
 } from "../services/option-suggestions.js";
 import { dungeonChoices } from "../services/dungeon-stats.js";
 import { recipeNameSuggestions } from "../services/recipes.js";
+import { createPoeMappingService } from "../services/poe-mapping.js";
 import { runChoices } from "../services/dungeon-admin.js";
 import { guildService } from "./context.js";
 import { faqChoices } from "./faq.js";
@@ -35,7 +36,9 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
     const timeZone = settings?.timezone ?? "America/Toronto";
     const language = settings?.language ?? "en";
 
-    if (command === "dungeon" && focused.name === "season") {
+    if (command === "poe" && focused.name === "league") {
+      choices = await createPoeMappingService(prisma).leagueChoices(guild.id, query);
+    } else if (command === "dungeon" && focused.name === "season") {
       const seasons = await prisma.dungeonSeason.findMany({ where: { guildId: guild.id, name: { contains: query, mode: "insensitive" } }, orderBy: { startsAt: "desc" }, take: 25 });
       choices = seasons.map((season) => ({ name: `${season.name} (${season.status === "ACTIVE" ? "current" : "past"})`.slice(0, 100), value: season.id }));
     } else if (command === "faq" && focused.name === "entry") {

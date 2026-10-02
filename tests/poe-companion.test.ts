@@ -49,6 +49,16 @@ describe("PoE2 companion capture and recovery", () => {
     const fetchMock = successfulFetch(); const second = createPoeEngine(config);
     try { await second.start(); expect(second.state().pending).toBe(0); expect(JSON.parse(fetchMock.mock.calls[0]![1].body).visits[0].runRef).toBe(queuedRef); } finally { await second.stop(); }
   });
+  it("still uploads a queue saved before map instances were recorded", async () => {
+    const config = fixture(); vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")));
+    const first = createPoeEngine(config);
+    await first.start(); appendFileSync(config.poeLogFile, map + hideout); await first.pollNow(); await first.stop();
+    const file = poeJournalPath(config); const saved = JSON.parse(readFileSync(file, "utf8"));
+    expect(saved.pending[0].instanceRef).toMatch(/^[a-f0-9]{64}$/);
+    delete saved.pending[0].instanceRef; writeFileSync(file, JSON.stringify(saved));
+    const fetchMock = successfulFetch(); const second = createPoeEngine(config);
+    try { await second.start(); expect(second.state().pending).toBe(0); expect(JSON.parse(fetchMock.mock.calls[0]![1].body).visits[0]).not.toHaveProperty("instanceRef"); } finally { await second.stop(); }
+  });
   it("stops retries for revoked credentials while retaining observations", async () => {
     const config = fixture(); const fetchMock = vi.fn(async () => ({ ok: false, status: 401, json: async () => ({}) })); vi.stubGlobal("fetch", fetchMock);
     const engine = createPoeEngine(config);

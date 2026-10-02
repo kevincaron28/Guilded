@@ -661,6 +661,7 @@ model PoeMapVisit {
   guildId         String
   memberId        String
   runRef          String
+  instanceRef     String?
   character       String
   league          String
   mode            String

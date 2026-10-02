@@ -46,7 +46,9 @@ export function createPoeEngine(config, hooks = {}) {
   function validVisit(row, current = false) {
     if (!row || typeof row !== "object") return false;
     const keys = ["character", "league", "mode", "runRef", "areaId", "areaLevel", "startedAt", ...(current ? ["pid", "fingerprint"] : ["endedAt", "endReason"])];
-    return Object.keys(row).every(key => keys.includes(key)) && keys.every(key => key in row)
+    // instanceRef is optional: journals written before it existed stay valid.
+    return Object.keys(row).every(key => keys.includes(key) || key === "instanceRef") && keys.every(key => key in row)
+      && (!("instanceRef" in row) || /^[a-f0-9]{64}$/.test(row.instanceRef))
       && row.character === profile.character && row.league === profile.league && row.mode === profile.mode
       && /^[a-f0-9]{64}$/.test(row.runRef) && isPoeMap(row.areaId)
       && Number.isInteger(row.areaLevel) && row.areaLevel >= 1 && row.areaLevel <= 100

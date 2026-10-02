@@ -33,6 +33,10 @@ Companion supports opt-in PoE2 `Client.txt` tracking and PoE2-only setups.
 Deploy additive migration `20261028090000_poe_mapping` after CI and backup, and
 rebuild the companion. Log observations never award automatic completion points.
 Real PoE2/Windows checks remain required; version stays 5.0.0.
+PoE2 map instances follow-up (2 Oct 2026): additive migration
+`20261031090000_poe_map_instances` adds the optional `instanceRef`; `/poe summary`
+counts maps vs portal entries, map names are readable and league options autocomplete.
+Deploy it with the PoE migration above and ship the rebuilt companion.
 Class/spec display: `docs/CLASS_AND_GEAR_SIGNUPS.md`. Signup posts and core
 rosters show two icons plus the selected character's localized specialization.
 Provision the application-owned spec emojis, refresh existing posts, and install

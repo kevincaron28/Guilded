@@ -2,18 +2,20 @@ import { ChannelType, EmbedBuilder, type Guild as DiscordGuild, type GuildTextBa
 import type { GuildSettings, PrismaClient } from "@prisma/client";
 import { t, tx, type Lang } from "../i18n.js";
 import { dungeonGuideState, ensureDungeonSignupGuide } from "./dungeon-guide.js";
+import { ensureWelcomePanel, welcomePanelState } from "./onboarding.js";
 
 // The messages the bot keeps in its channels, for the /setup checklist: is each one there, and is
 // it the current text? "Update bot messages" puts every one back or brings it up to date.
 //   botGuide     pinned getting-started guide in the bot guide channel
 //   groupFinder  pinned group finder menu (was the dungeon signup guide)
 //   craftGuide   pinned "Start here" post of the craft board forum
+//   welcomePanel pinned onboarding panel of the welcome channel (rules, games, pairing, first steps)
 //   leaderboard  the dungeon leaderboard message (kept current by the bot)
 //   roster       each raid core's roster message (kept current by the bot; outdated while the
 //                core has no channels of its own)
 
 export type BotMessageState = "current" | "outdated" | "missing";
-export interface BotMessageFact { kind: "botGuide" | "groupFinder" | "craftGuide" | "leaderboard" | "roster"; name?: string; state: BotMessageState }
+export interface BotMessageFact { kind: "botGuide" | "groupFinder" | "craftGuide" | "welcomePanel" | "leaderboard" | "roster"; name?: string; state: BotMessageState }
 
 export const ADDON_URL = "https://www.curseforge.com/wow/addons/guilded";
 
@@ -76,6 +78,8 @@ export async function botMessageFacts(
     const forum = await guild.channels.fetch(settings.craftChannelId).catch(() => null);
     if (forum?.type === ChannelType.GuildForum) facts.push({ kind: "craftGuide", state: await craftGuideState(forum, craftGuideText) });
   }
+  const welcome = await textChannel(guild, settings.welcomeChannelId);
+  if (welcome) facts.push({ kind: "welcomePanel", state: await welcomePanelState(welcome, settings, lang) });
   const board = await textChannel(guild, settings.dungeonLeaderboardChannelId);
   if (board) {
     const message = settings.dungeonLeaderboardMessageId ? await board.messages.fetch(settings.dungeonLeaderboardMessageId).catch(() => null) : null;
@@ -105,6 +109,8 @@ export async function updateBotMessages(
   const finder = await textChannel(guild, settings.dungeonSignupChannelId);
   if (finder) { await ensureDungeonSignupGuide(finder, lang); done.push(tx(lang, "group finder menu")); }
   if (extra.craftGuide) { await extra.craftGuide(); done.push(tx(lang, "craft board guide")); }
+  const welcome = await textChannel(guild, settings.welcomeChannelId);
+  if (welcome) { await ensureWelcomePanel(welcome, settings, lang); done.push(tx(lang, "welcome panel")); }
   if (extra.leaderboard && settings.dungeonLeaderboardChannelId) { await extra.leaderboard(); done.push(tx(lang, "dungeon leaderboard")); }
   if (extra.rosters) { await extra.rosters(); done.push(tx(lang, "core rosters")); }
   return done.length ? tx(lang, "Updated: {list}.", { list: done.join(", ") }) : tx(lang, "No bot message channel is set yet.");
@@ -112,7 +118,7 @@ export async function updateBotMessages(
 
 // The label used for each kind in /setup's checklist (roster gets its own name-based label there).
 const HEALTH_LABELS: Record<Exclude<BotMessageFact["kind"], "roster">, string> = {
-  botGuide: "Pinned bot guide", groupFinder: "Pinned group finder menu", craftGuide: "Pinned craft board guide", leaderboard: "Dungeon leaderboard message"
+  botGuide: "Pinned bot guide", groupFinder: "Pinned group finder menu", craftGuide: "Pinned craft board guide", welcomePanel: "Pinned welcome panel", leaderboard: "Dungeon leaderboard message"
 };
 
 // An answer-channel summary of botMessageFacts, for an officer asking if anything is outdated or

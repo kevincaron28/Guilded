@@ -105,6 +105,9 @@ export function createGuildService(database: PrismaClient) {
       welcomeRolePrompt?: string | null;
       welcomeChannelId?: string | null;
       welcomeMessageTemplate?: string | null;
+      rulesChannelId?: string | null;
+      rulesGate?: boolean;
+      onboardingNudge?: boolean;
       farewellChannelId?: string | null;
       farewellMessageTemplate?: string | null;
       applicantRoleId?: string | null;

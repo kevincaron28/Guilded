@@ -46,7 +46,7 @@ export const configCommand = new SlashCommandBuilder()
     .addStringOption((o) => o.setName("message").setDescription("Template. Variables: {mention} {username} {guild} {membercount}").setMaxLength(1000))
     .addStringOption((o) => o.setName("send_to").setDescription("Where new members get it")
       .addChoices({ name: "Channel", value: "CHANNEL" }, { name: "Private message (DM)", value: "DM" }, { name: "Both", value: "BOTH" }))
-    .addStringOption((o) => o.setName("role_prompt").setDescription("Text above the role buttons, e.g. Which game are you here for?").setMaxLength(300))
+    .addStringOption((o) => o.setName("role_prompt").setDescription("Text above the game menu, e.g. Which game are you here for?").setMaxLength(300))
     .addBooleanOption((o) => o.setName("preview").setDescription("Send me the welcome exactly as a new member gets it"))
     .addBooleanOption((o) => o.setName("disable").setDescription("Turn off welcome messages")))
   .addSubcommand((sub) => sub.setName("farewell").setDescription("Configure the farewell message for departing members.")
@@ -178,7 +178,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
     const where = welcomeDelivery(updated) === "DM" ? "by private message"
       : welcomeDelivery(updated) === "BOTH" ? `by private message and in ${updated.welcomeChannelId ? `<#${updated.welcomeChannelId}>` : "(no channel set yet)"}`
         : updated.welcomeChannelId ? `in <#${updated.welcomeChannelId}>` : "nowhere yet (pick a channel or send_to: DM)";
-    await interaction.reply({ content: `Welcome messages go ${where}. Role buttons: ${updated.welcomeRoleIds.length ? updated.welcomeRoleIds.map((id) => `<@&${id}>`).join(", ") : "none (pick them in /setup step 3)"}. Try \`/setup config welcome preview:true\`.`, ephemeral: true });
+    await interaction.reply({ content: `Welcome messages go ${where}. Game roles: ${updated.welcomeRoleIds.length ? updated.welcomeRoleIds.map((id) => `<@&${id}>`).join(", ") : "none (pick them in /setup start, step 5)"}. Try \`/setup config welcome preview:true\`.`, ephemeral: true });
     return;
   }
 

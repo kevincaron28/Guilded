@@ -61,6 +61,7 @@ import { startCompanionApi } from "./companion-api.js";
 import { executePoe } from "./commands/poe.js";
 import { executeParticipation } from "./commands/participation.js";
 import { createParticipationTracker } from "./services/participation-discord.js";
+import { handleOnboardingInteraction, ONBOARD_PREFIX, runOnboardingNudges } from "./services/onboarding.js";
 import { handleMemberJoin, handleMemberRolesChange, handleMemberLeave, handleWelcomeRoleButton, WELCOME_ROLE_PREFIX } from "./services/housekeeping.js";
 import { createErrorReportService } from "./services/error-report.js";
 import { buildGuildedReference } from "./services/guilded-reference.js";
@@ -256,6 +257,8 @@ client.once(Events.ClientReady, (readyClient) => {
     runWeeklyReports(readyClient).catch(reportJobError("Weekly report check"));
     // Automatic EPGP decay after each weekly reset (guilds that turned it on).
     runAutoDecay(prisma).catch(reportJobError("Automatic decay"));
+    // One private reminder to new members who have not finished onboarding (guilds that turned it on).
+    runOnboardingNudges(readyClient).catch(reportJobError("Onboarding reminders"));
   }, 60 * 60 * 1000);
 });
 
@@ -342,6 +345,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
   if (interaction.isButton() && interaction.customId.startsWith(WELCOME_ROLE_PREFIX)) {
     await handleWelcomeRoleButton(interaction).catch(async (error: unknown) => {
       reportInteractionError("Welcome role button", interaction, error);
+      if (!interaction.replied) await interaction.reply({ content: "That didn't work, try again or ask an officer.", ephemeral: true }).catch(() => undefined);
+    });
+    return;
+  }
+  if ((interaction.isButton() || interaction.isStringSelectMenu()) && interaction.customId.startsWith(ONBOARD_PREFIX)) {
+    await handleOnboardingInteraction(interaction).catch(async (error: unknown) => {
+      reportInteractionError("Onboarding", interaction, error);
       if (!interaction.replied) await interaction.reply({ content: "That didn't work, try again or ask an officer.", ephemeral: true }).catch(() => undefined);
     });
     return;

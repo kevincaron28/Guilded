@@ -1,12 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildWelcomeMessage, handleWelcomeRoleButton, welcomeDelivery, welcomeEnabled } from "../src/services/housekeeping.js";
 
-const roles = new Map([
-  ["wow", { id: "wow", name: "World of Warcraft" }],
-  ["other", { id: "other", name: "Other Game" }]
-]);
-const guild = { id: "g1", name: "Guilded", memberCount: 42, roles: { cache: roles } };
-const base = { welcomeMessageTemplate: null, welcomeRoleIds: [] as string[], welcomeRolePrompt: null };
+const guild = { id: "g1", name: "Guilded", memberCount: 42 };
+const base = { welcomeMessageTemplate: null, welcomeRoleIds: [] as string[], rulesChannelId: null as string | null };
+const ids = (message: ReturnType<typeof buildWelcomeMessage>) =>
+  (message.components[0]!.toJSON().components as { custom_id: string }[]).map((button) => button.custom_id);
 
 describe("welcome message", () => {
   it("is on with a channel, or with DM delivery even without one", () => {
@@ -16,21 +14,20 @@ describe("welcome message", () => {
     expect(welcomeDelivery({ welcomeDelivery: "nonsense" })).toBe("CHANNEL");
   });
 
-  it("has no buttons when no roles are offered", () => {
+  it("always offers pairing and the checklist, with the server id so the buttons work in a DM", () => {
     const message = buildWelcomeMessage(base, guild as never, { id: "u1", username: "Kev" });
-    expect(message.components).toEqual([]);
+    expect(ids(message)).toEqual(["onboard:pair:g1", "onboard:steps:g1"]);
     expect(message.content).toContain("<@u1>");
   });
 
-  it("adds one button per offered role that still exists, carrying the server id", () => {
-    const message = buildWelcomeMessage({ ...base, welcomeRoleIds: ["wow", "gone", "other"], welcomeRolePrompt: "Which game?" },
-      guild as never, { id: "u1", username: "Kev" });
-    const buttons = message.components[0]!.toJSON().components as { custom_id: string; label: string }[];
-    expect(buttons.map((b) => [b.label, b.custom_id])).toEqual([
-      ["World of Warcraft", "welcomerole:g1:wow"],
-      ["Other Game", "welcomerole:g1:other"]
-    ]);
-    expect(message.embeds?.[0]?.toJSON().description).toBe("Which game?");
+  it("adds the rules and game buttons only when the server uses them", () => {
+    const message = buildWelcomeMessage({ ...base, welcomeRoleIds: ["wow"], rulesChannelId: "rules" }, guild as never, { id: "u1", username: "Kev" });
+    expect(ids(message)).toEqual(["onboard:rules:g1", "onboard:games:g1", "onboard:pair:g1", "onboard:steps:g1"]);
+  });
+
+  it("keeps a custom template", () => {
+    const message = buildWelcomeMessage({ ...base, welcomeMessageTemplate: "Salut {username}, {membercount}e membre de {guild}" }, guild as never, { id: "u1", username: "Kev" });
+    expect(message.content).toBe("Salut Kev, 42e membre de Guilded");
   });
 
   it("refuses roles that are no longer offered", async () => {

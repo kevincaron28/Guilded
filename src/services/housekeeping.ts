@@ -1,12 +1,10 @@
-import {
-  ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder,
-  type ButtonInteraction, type Guild as DiscordGuild, type GuildMember, type PartialGuildMember
-} from "discord.js";
+import { type ButtonInteraction, type Guild as DiscordGuild, type GuildMember, type PartialGuildMember } from "discord.js";
 import type { GuildSettings } from "@prisma/client";
 import { prisma } from "../database.js";
 import { createGuildService } from "./guild.js";
 import { isPermissionRoleName, type Permission } from "../permissions.js";
 import { asLang, t } from "../i18n.js";
+import { onboardingButtons, rulesGateActive, rulesPending, rulesPrompt } from "./onboarding.js";
 
 const guildService = createGuildService(prisma);
 // Exported so tests can stub settings lookups.
@@ -82,7 +80,8 @@ export async function handleMemberJoin(discordGuild: DiscordGuild, member: Guild
   if (!settings) return;
   // Not logged here: a new arrival has no guild role yet (see guildRoleOf).
 
-  if (settings.applicantRoleId) {
+  // With the rules gate on, the applicant role waits until the rules are accepted (onboarding.ts).
+  if (settings.applicantRoleId && !rulesGateActive(settings)) {
     await member.roles.add(settings.applicantRoleId).catch((error: unknown) => {
       console.error(`Failed to assign applicant role to ${member.id}`, error);
     });
@@ -93,7 +92,6 @@ export async function handleMemberJoin(discordGuild: DiscordGuild, member: Guild
 
 export type WelcomeDelivery = "CHANNEL" | "DM" | "BOTH";
 export const WELCOME_ROLE_PREFIX = "welcomerole:";
-export const DEFAULT_WELCOME_ROLE_PROMPT = "Pick what you're here for (you can pick more than one, click again to remove):";
 
 export function welcomeDelivery(settings: Pick<GuildSettings, "welcomeDelivery">): WelcomeDelivery {
   return settings.welcomeDelivery === "DM" || settings.welcomeDelivery === "BOTH" ? settings.welcomeDelivery : "CHANNEL";
@@ -105,11 +103,11 @@ export function welcomeEnabled(settings: Pick<GuildSettings, "welcomeDelivery" |
   return delivery !== "CHANNEL" || !!settings.welcomeChannelId;
 }
 
-// The welcome message: text plus up to 5 role buttons ("which game are you
-// here for?"). Button ids carry the server id so they also work in DMs.
+// The welcome message: text plus the onboarding buttons (rules, games, pairing, first steps).
+// Button ids carry the server id so they also work in DMs.
 export function buildWelcomeMessage(
-  settings: Pick<GuildSettings, "welcomeMessageTemplate" | "welcomeRoleIds" | "welcomeRolePrompt"> & { language?: string | null },
-  discordGuild: Pick<DiscordGuild, "id" | "name" | "memberCount" | "roles">,
+  settings: Pick<GuildSettings, "welcomeMessageTemplate" | "welcomeRoleIds" | "rulesChannelId"> & { language?: string | null },
+  discordGuild: Pick<DiscordGuild, "id" | "name" | "memberCount">,
   member: { id: string; username: string }
 ) {
   const lang = asLang(settings.language);
@@ -119,21 +117,7 @@ export function buildWelcomeMessage(
     guildName: discordGuild.name,
     memberCount: discordGuild.memberCount
   });
-  const roles = settings.welcomeRoleIds
-    .map((id) => discordGuild.roles.cache.get(id))
-    .filter((role): role is NonNullable<typeof role> => !!role)
-    .slice(0, 5);
-  if (roles.length === 0) return { content: text, components: [] };
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(roles.map((role) =>
-    new ButtonBuilder()
-      .setCustomId(`${WELCOME_ROLE_PREFIX}${discordGuild.id}:${role.id}`)
-      .setLabel(role.name.slice(0, 80))
-      .setStyle(ButtonStyle.Primary)));
-  return {
-    content: text,
-    embeds: [new EmbedBuilder().setColor(0xd4af37).setDescription(settings.welcomeRolePrompt ?? t(lang, "welcome.rolePrompt"))],
-    components: [row]
-  };
+  return { content: text, components: [onboardingButtons(settings, discordGuild.id, lang)] };
 }
 
 // Sends the welcome to the channel, the member's DMs, or both. A closed DM
@@ -157,7 +141,7 @@ export async function sendWelcome(discordGuild: DiscordGuild, member: GuildMembe
   return result;
 }
 
-// Clicks on the welcome message's role buttons: toggles that role for
+// Clicks on the role buttons of a welcome message sent before the game menu existed: toggles that role for
 // whoever clicked. Only roles still listed in the welcome settings are
 // honoured, so an old message can't hand out a role that was removed.
 export async function handleWelcomeRoleButton(interaction: ButtonInteraction): Promise<void> {
@@ -178,6 +162,10 @@ export async function handleWelcomeRoleButton(interaction: ButtonInteraction): P
   const member = await discordGuild.members.fetch(interaction.user.id).catch(() => null);
   if (!member) {
     await interaction.reply({ content: `You're not in ${discordGuild.name} anymore.`, ephemeral: true });
+    return;
+  }
+  if (await rulesPending(guild.id, settings, member.id)) {
+    await interaction.reply({ ...rulesPrompt(settings, discordGuild.id, asLang(settings.language), true), ephemeral: true });
     return;
   }
   const had = member.roles.cache.has(role.id);

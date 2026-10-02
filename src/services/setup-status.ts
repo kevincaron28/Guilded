@@ -148,7 +148,7 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en"): SetupCheck[] 
   }
   // The bot's messages: missing (❌-style, optional) or out of date (⚠️), fixed by one button.
   const MESSAGE_LABELS: Record<string, string> = {
-    botGuide: T("Pinned bot guide"), craftGuide: T("Pinned craft board guide"), leaderboard: T("Dungeon leaderboard message")
+    botGuide: T("Pinned bot guide"), craftGuide: T("Pinned craft board guide"), welcomePanel: T("Pinned welcome panel"), leaderboard: T("Dungeon leaderboard message")
   };
   for (const message of facts.botMessages ?? []) {
     const label = message.kind === "roster" ? T("Roster message: {name}", { name: message.name ?? "?" }) : MESSAGE_LABELS[message.kind];

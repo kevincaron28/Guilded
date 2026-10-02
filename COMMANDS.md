@@ -441,7 +441,7 @@ Approve, and a raid can never be paid twice.
 | `/setup config channel` | Where raid started/ended, boss kills, loot awards, EPGP changes, and raid reports are announced |
 | `/setup config weekly-report <true\|false>` | Post `/report stats` for the week in the notify channel every 7 days |
 | `/bank list [status]` / `/bank handle <id> <Approve\|Fulfilled\|Deny> [reply]` | Guild bank queue (new requests also appear in the log channel) |
-| `/setup config welcome [channel] [message] [send_to] [role_prompt] [preview]` | Welcome message: in a channel, by DM, or both; role buttons are picked in `/setup start` step 3. `preview:true` sends it to you |
+| `/setup config welcome [channel] [message] [send_to] [role_prompt] [preview]` | Welcome message: in a channel, by DM, or both. The game roles, the rules channel, "rules required first" and the one-time reminder are set in `/setup start` step 5. `preview:true` sends it to you |
 | `/setup config farewell` | Leave message |
 | `/setup config timezone <zone>` | Timezone for typed raid times (also in `/setup start`) |
 | `/setup config roles` | Auto-assigned applicant/member roles |

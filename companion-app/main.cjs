@@ -17,7 +17,7 @@ const DEFAULTS = {
   poeMode: "STANDARD",
   realm: "WoW Forever",
   wowGuild: "",
-  uploadUrl: "https://guildedqc.duckdns.org/api/v1/addon-imports",
+  uploadUrl: "",
   guildDiscordId: "",
   uploadToken: "",
   pairingCode: "",

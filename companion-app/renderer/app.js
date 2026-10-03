@@ -130,7 +130,7 @@ async function init() {
     $('poeFileNote').textContent = 'Latest 24 hours only. Review your declared character and league before syncing.';
   } else { $('watchFile').removeAttribute('readonly'); $('poeLogFile').removeAttribute('readonly'); }
   gameFields(); entries = all.logs.slice(-300); renderLogs(); renderState({state:all.state,health:all.health});
-  showPage(new URLSearchParams(location.search).get('tab') || 'status');
+  showPage(new URLSearchParams(location.search).get('tab') || (savedConfig.companionCredential ? 'status' : 'settings'));
   api.onState(renderState); api.onLog(addLog);
   setInterval(() => { if (lastSnapshot) renderState(lastSnapshot); },1000);
 }

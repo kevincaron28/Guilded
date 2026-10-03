@@ -15,9 +15,9 @@ echo "== Packages"
 apt-get update -y
 apt-get install -y curl git ca-certificates gnupg debian-keyring debian-archive-keyring apt-transport-https
 
-if ! command -v node >/dev/null || [ "$(node -p 'process.versions.node.split(".")[0]')" -lt 22 ]; then
-  echo "== Node 22"
-  curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+if ! command -v node >/dev/null || [ "$(node -p 'process.versions.node.split(".")[0]')" -lt 24 ]; then
+  echo "== Node 24"
+  curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
   apt-get install -y nodejs
 fi
 

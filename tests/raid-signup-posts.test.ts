@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { serializeRaidPosts, syncRaidPosts } from "../src/services/raid-signup-posts.js";
 
 function fixture(legacy = false) {
-  const row = { id: "raid", guildId: "guild", signupChannelId: legacy ? "core" : null, signupMessageId: legacy ? "old" : null, mirrorSignupChannelId: null as string | null, mirrorSignupMessageId: null as string | null };
+  const row = { status: "PLANNED" as "PLANNED" | "ACTIVE" | "COMPLETED" | "CANCELLED", scheduledAt: new Date(Date.now() + 86400000), id: "raid", guildId: "guild", signupChannelId: legacy ? "core" : null, signupMessageId: legacy ? "old" : null, mirrorSignupChannelId: null as string | null, mirrorSignupMessageId: null as string | null };
   const copies = new Map<string, Map<string, { id: string; edit: (body: unknown) => Promise<void> }>>();
   const payloads: unknown[] = [];
   let sends = 0;
@@ -29,10 +29,40 @@ function fixture(legacy = false) {
   } } };
   const payload = { embeds: [], components: [], allowedMentions: { parse: [] as never[] } };
   const sync = (general: string | null = "general", core: string | null = "core") => syncRaidPosts(guild as never, database as never, { ...row }, general, core, payload);
-  return { row, sync, payloads, payload, sends: () => sends, forbid: () => { forbidden = true; }, allow: () => { forbidden = false; } };
+  return { row, copies, sync, payloads, payload, sends: () => sends, forbid: () => { forbidden = true; }, allow: () => { forbidden = false; } };
 }
 
 describe("one raid roster with two Discord posts", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it.each(["PLANNED", "ACTIVE", "COMPLETED", "CANCELLED"] as const)("does not repost an October 1 raid left %s on October 3", async status => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-03T16:00:00Z"));
+    const f = fixture();
+    f.row.status = status;
+    f.row.scheduledAt = new Date("2026-10-02T00:00:00Z"); // October 1, 8pm Toronto
+    await f.sync(); await f.sync();
+    expect(f.sends()).toBe(0);
+  });
+
+  it("does not replace deleted posts when a delayed retry runs after the start", async () => {
+    vi.useFakeTimers();
+    const f = fixture();
+    await f.sync();
+    f.copies.clear();
+    vi.setSystemTime(f.row.scheduledAt);
+    await f.sync();
+    expect(f.sends()).toBe(2);
+  });
+
+  it("edits existing completed posts without creating a missing mirror", async () => {
+    const f = fixture(true);
+    f.row.status = "COMPLETED";
+    await f.sync();
+    expect(f.sends()).toBe(0);
+    expect(f.payloads).toEqual([f.payload]);
+  });
+
   it("posts the same buttons and roster in both channels; later updates edit both", async () => {
     const f = fixture(); await f.sync(); await f.sync();
     expect(f.sends()).toBe(2);

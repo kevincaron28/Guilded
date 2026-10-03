@@ -4,6 +4,14 @@ role permissions and bot hierarchy. Preserve Exilé → Errant, remove only the
 owner-approved Errant permissions, and verify Guilded before disabling Carl.
 # Guilded 5.0 stabilization — local Claude update handoff
 
+Past signup repost fix (3 Oct 2026): post delivery now creates/replaces messages only for
+future PLANNED raids, in both the shared and core signup channels. Existing posts can still
+be edited to show completion. This also covers durable retries and hourly character-display
+refreshes, which bypass the startup repair filter. Startup repair now selects only upcoming
+planned raids. Regression coverage includes October 1 raids retried on October 3 and deleted
+posts with retained message IDs. Bot only; no migration or version bump. Deploy through the
+usual CI/backup gates; live Discord verification remains required.
+
 Companion editing (2 Oct 2026): **Wishlist** and **Cores & prices** pages in the companion
 (`companion-app/renderer/manage.js`) on a new `GET/POST /api/v1/manage` route
 (`src/services/companion-manage.ts`). Members edit their own wishlists; Raid Leaders (and above)

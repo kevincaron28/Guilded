@@ -10,7 +10,8 @@ Release is not yet verified or published. Follow the deployment and backup gates
 - Owner's client: **WoW Forever beta** (confirmed 3 October 2026).
 - Screenshot: character Ray; realm Classic Beta PvP; normalized realm ClassicBetaPvP.
 - Addon reports saved data belongs to Quebec Gold-Classic Beta PvP.
-- Owner confirms installed addon reports 5.0.0. Client build number is not yet captured.
+- Owner confirms installed addon reports 5.0.0. The automatic check reports client
+  version 1.60.1; the separate numeric client build has not yet been captured.
 - Active executable verified locally: `_classic_beta_/WowB.exe`. Companion watches
   that same installation's account SavedVariables (not a different WoW client).
 
@@ -117,6 +118,162 @@ tests, ESLint, addon static validation and the verified 38-file addon ZIP. New
 tests distinguish client refusal, throttling, rejected/protected incoming messages,
 valid peer positions and delayed guild membership. These simulated results do
 not establish the cause of the live failure.
+
+Diagnostic source commit `81409aa17e3eb2ba4bbfc4987c48f1682b9c82fb` passed both
+`checks` (including PostgreSQL) and `windows-package` in
+[CI run 37132183801](https://github.com/kevincaron28/Guilded/actions/runs/37132183801).
+Installed and hash-verified Util.lua, Locale.lua and Modules/GuildMap.lua in the
+owner's `_classic_beta_` addon folder. The prior three files were backed up and
+verified under `backups/map-diagnostics-2-2026-10-03-111005/`. SavedVariables and
+Standings.lua were not changed. A reload is required to use the new files.
+
+`dist/Guilded-map-diagnostics-2-patch.zip` contains only those three addon files
+and installation/rollback instructions; it is for the existing updated Guilded
+installation on the second PC. Its SHA-256 is
+`da74a94185a034370f3974c38d96b7d1377935ffe68b3063493623371032a01f`.
+Next live check: apply the patch on the second PC, reload both, remain outdoors
+and out of combat for 35 seconds, then capture the complete `/guilded map check`
+output from both. The "Map diagnostics 2" line confirms the diagnostic build.
+The next screenshot (codex-clipboard-7a813d27-9b83-4de1-99bd-f60afb1b0536.png)
+shows the diagnostic build running, with module/sharing/dots on and **peers 1**:
+
+- Own map Tirisfal Glades (1420); in guild; out of combat; prefix registered.
+- Position queued 16 seconds ago; last tick 0 seconds ago.
+- Client send results: accepted 2, refused 0, errors 0, throttled 0, queued 0;
+  last result sent, code 0.
+- Incoming map messages 1, positions 1, ignored 0; last outcome position.
+
+The owner explicitly confirmed that this screenshot is from the **second
+computer**. It proves that the second computer received and retained a usable
+peer position, not that reception on the main computer recovered. Its two
+outgoing updates were accepted by the client API; that alone does not establish
+delivery to the main computer. The main computer's fresh "Map diagnostics 2"
+output is still required after a reload and 35 seconds outdoors/out of combat.
+The previously reported one-way failure remains unresolved. Full map acceptance
+remains pending, including continent and nearby minimap views, movement, hover
+information and sharing-off behavior.
+
+The next screenshot from the main computer
+(codex-clipboard-3067762a-8ba4-4650-b0fe-8b3b6d044472.png) still shows peers 0.
+Module/sharing/dots are on; own map is Tirisfal Glades (1420); guild yes, combat
+off and prefix registered. Position queued 4 seconds ago, last tick 0 seconds
+ago. Client accepted 4 sends with zero refusals/errors/throttles/queued messages.
+Incoming messages 4, positions 0, ignored 4, **last outcome self**. The last
+outcome applies only to the most recent message; it does not prove that every
+ignored message had that reason. This can represent normal echoes of this
+client's own sends and does not yet prove a collision with another character.
+Asked for the second character's exact name to check the identity comparison.
+
+The owner identifies the second character as **Seria Cuthbridge**. Current name
+normalization produces Seria, distinct from the main character Ray. The reported
+names therefore do not support a collision in the self-name comparison. Next
+check requested: Seria sends an ordinary guild-chat test and runs `/guilded map`;
+confirm that Ray receives the chat and that Seria's stored map peer is Ray. This
+distinguishes the guild-chat path from addon-specific delivery and confirms the
+identity of the dot on the second computer before changing transport behavior.
+
+Owner confirms **Ray does not see Seria's ordinary guild-chat test, and Seria's
+map list shows Ray**. This establishes the identity of Seria's peer and a missing
+ordinary-chat symptom on Ray in addition to missing addon positions. It does not
+by itself distinguish game/server filtering from a local chat-display filter.
+Asked the owner to check Ray's in-game Ignore list for Seria/Seria Cuthbridge or
+the second account. Do not change addon identity or transport speculatively, and
+do not mark the root cause confirmed until that check produces evidence.
+
+Owner reports the Forever beta has no visible Ignore list. The standard-WoW
+Social > Ignore instructions did not match this client's UI and must not be
+repeated as verified beta instructions. Owner also confirms Seria sees the
+ordinary `/g` test in her own chat without an error. That does not prove delivery
+to Ray or rule out a local display filter on Ray.
+
+Prepared a read-only, 204-character `/run` probe on Ray for the optional
+`C_FriendList.IsIgnored` (legacy fallback `IsIgnored`) using Seria's short, spaced
+and hyphenated names. The command uses `pcall` and prints `unavailable` if the
+function is missing or fails; it does not alter ignore settings. Validated Lua
+syntax and results against available/missing/throwing/legacy mocked APIs. Its
+result on the actual beta client remains pending. The live API documentation
+lists this function, but that is not confirmation that this beta exposes it.
+
+### Temporary local automatic check (owner requested direct assistance)
+
+Windows computer use found the exact running beta executable and window, but
+capture failed with `FrameArrived timed out` / `window capture timed out` after
+refreshing the window handle and retrying. Owner confirms WoW is already
+windowed. No blind game input was sent. Ray's saved chat-cache enables GUILD in
+General, Guild and Guilded windows; Guilded is the only installed addon.
+
+Installed a **temporary local-only support probe** appended to the installed
+Modules/GuildMap.lua, leaving repository addon source and distributable ZIPs
+unchanged. It runs once for Ray for 35 seconds after PLAYER_LOGIN and writes
+`GuildedDB.mapSupportProbe` (ID `ray-seria-20261003-1`). It reads optional ignore
+APIs for Seria's name forms and matching roster entry, current guild/identity,
+guild-chat capability and chat-window subscriptions. It counts incoming guild
+chat and GuildedMap events and retains at most 12 sender/channel metadata rows;
+no chat bodies or position payloads are retained. It sends no messages and
+changes no ignore, guild, pairing, ledger or map settings.
+
+Probe source, build/test/reader scripts are under gitignored `backups/`:
+`map-support-probe.lua`, `test-map-support-probe.ts`,
+`build-map-support-probe.mjs`, `read-map-support-probe.mjs`.
+Lua 5.1 parsing and four mocked API scenarios passed, including missing/throwing
+APIs, bounded metadata and one-shot completion. Required repository checks also
+passed again (148 files / 1,211 tests, TypeScript, ESLint and addon validation).
+This local support code has not been represented as a public release or map fix.
+
+Installed combined module SHA-256:
+`b7ee684bb33cbe5e3f24ae9e0c1c248baa7dbd74a2cbbbcffb263f63afeb8b41`.
+Verified rollback copy:
+`backups/automatic-map-check-2026-10-03-113950/GuildMap.lua`.
+Next: owner reloads Ray, waits for the completion message (35 seconds), then
+reloads again to save. Run `node backups/read-map-support-probe.mjs` to read only
+that report from SavedVariables without executing Lua; it also writes
+`backups/map-support-result.json`. Inspect the evidence, restore the temporary
+module from its verified rollback copy, then choose the fix. Report is pending.
+
+**First automatic report received and preserved** as
+`backups/map-support-result-1.json` (SavedVariables modified at
+2026-10-03T15:41:59Z). Ray has ignoreCount 0; all three Seria name forms and the
+roster GUID ignore query returned false. Seria Cuthbridge is online in Quebec
+Gold at rank Initiate; Ray is Officer and CanSpeakInGuildChat returned true.
+Live General, Guild and Guilded chat windows subscribe to GUILD. The 35-second
+trace contains eight GuildedMap messages, all raw sender `Ray Pissjug`, normalized
+Ray, channel GUILD. No Seria addon message reached the observer. All eight own
+sends were accepted. Both snapshots report
+`C_ChatInfo.AreOutgoingAddonChatMessagesRestricted()` true, which is a realm
+policy flag in the published API docs; it does not alone explain the asymmetric
+delivery reported on this beta, and must not be used to claim a proven cause.
+Reference: [Blizzard-generated ChatInfo API documentation](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_APIDocumentationGenerated/ChatInfoDocumentation.lua).
+
+Restored and hash-verified the original module after preserving that report.
+Then installed a second read-only local check (ID `ray-seria-20261003-2`, five
+seconds) that additionally captures named guild ranks' listen/speak flags via
+`C_GuildInfo.GuildControlGetRankFlags`, the beta's corresponding option labels,
+Seria's roster rank index, chat-lockdown and current-account trial flags. It
+does not call the protected rank-selection/edit APIs. Lua 5.1 parsing and the
+temporary tests passed, including distinguishable listen=true / speak=false
+rank results. This check's combined module hash is
+`0a1b71336d4f1e5494165437bcacdaa2bd79875356e152d871005c4e473d7552`.
+The original rollback copy remains unchanged. Await two reloads with the
+five-second completion message between them, then read the same report path and
+restore the module again. No permissions have been changed and map remains failed.
+
+**Second automatic report received** (SavedVariables modified
+2026-10-03T15:46:08Z), preserved as `backups/map-support-result-2.json`. Client
+version 1.60.1; Ray is not a trial/veteran-trial account; chat lockdown false;
+the separate addon realm-policy restriction flag remains true. Every named rank
+(Guild Master, Officer, Veteran, Member, Initiate) has Guildchat Listen and
+Guildchat Speak true, using the client's own option labels. Seria is now listed
+as Member (rank index 3), not Initiate as in the first report; the assistant did
+not change any rank. Seria is online and not ignored. The five-second trace
+contains only two own-message echoes and zero peer positions. This rules out
+the checked rank permissions and Ray's ignore list; it does not establish why
+Seria's messages are absent or establish Seria's account flags.
+
+Restored and hash-verified the normal module again (source commit 81409aa).
+Both temporary probes are complete and no longer installed. Their reports remain
+in SavedVariables and local backups for evidence. Next requested test: reconnect
+Seria through logout/login, leave both outdoors for 35 seconds, then check
+whether Ray sees her dot. Do not call an addon UI reload a game-session reconnect.
 
 ## Installation documentation prepared locally
 

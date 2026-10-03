@@ -80,6 +80,7 @@ For standings, download `Standings.lua`, place it in
 | Cannot reach bot | Use Test connection. Ask the owner whether the bot and its HTTPS address are online. |
 | Guild is not initialized / 404 | Re-copy the server ID and confirm this bot is in that server. The owner runs `/setup start`. |
 | Upload says it is awaiting review | An officer reviews/applies it with `/import apply`; ordinary members cannot apply guild ledgers. |
+| Upload applied entries but some are on hold | An officer runs `/import held` to see each reason. Do not award again: applied GP and a held loot record can belong to the same award. For an unlinked character, the officer uses `/character link` to select that character and its actual Discord owner; the next upload retries the existing entry. A missing core raid needs officer review of the raid recording/match. |
 | Upload works but standings look old | Check the companion's separate standings status; refresh standings, wait for success, then `/reload`. |
 | Profession list seems empty | Open the profession window and let it finish loading. If still empty, send the profession name and current diagnostic output. |
 | No tray icon | Check the hidden-icons arrow beside the Windows clock, then open Guilded Companion from Start. |

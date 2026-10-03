@@ -65,8 +65,8 @@ path passes for this installation and existing character.
 
 The owner also confirmed that recipes appear automatically on Guilded's Crafting
 page after opening a learned profession, without running a scan command.
-Cross-player recipe sharing, additional professions and cooldown behavior remain
-separate checks.
+Cross-player recipe sharing was subsequently confirmed below. Additional
+professions and cooldown behavior remain separate checks.
 
 The owner confirmed that window position and size persist after reload. Sidebar
 accessibility and absence of new Lua errors were not explicitly reported in that
@@ -286,9 +286,142 @@ ranks allowed guild chat in the API results. Recovery after reconnect suggests
 a beta game-session delivery problem, but does not establish the exact server
 or client defect. Do not claim an addon transport change fixed it.
 
-Next acceptance check requested: both players see the other on zone and continent
-maps and on the minimap when close, with the correct name on hover. Movement,
-sharing-off, instance removal and rotating-minimap checks remain pending.
+**Map views and hover names confirmed by owner:** the owner answered "yes all
+work now" to the check that both players see the other on zone and continent
+maps and on the minimap when close, with the correct name on hover. This passes
+those specific views and hover names on both computers. Movement, class colours,
+level/zone tooltips, instance removal and rotating-minimap checks remain pending.
+
+**Sharing toggle confirmed by owner:** on Seria, `/guilded map share off`
+removed her dot on Ray; `/guilded map share on` restored it within the requested
+10-second window. The owner answered "yes that works". Sharing was left on.
+
+### Two-player bidding
+
+**Popup, bid receipt and cancellation confirmed by owner:** Ray and Seria joined
+the same party; Ray started `/guilded bid start 10 Guilded Test Item 120`;
+Seria received the popup and bid 15 GP; Ray saw her bid with
+`/guilded bid status`; `/guilded bid cancel` closed Seria's popup. The owner
+answered "yes" to all three outcomes. Award was excluded from this test because
+it creates real ledger entries. This does not yet verify awarding or importing.
+
+**Ordinary-whisper bidding confirmed by owner:** after opening another test
+auction, Seria whispered Ray `30`. The owner answered "yes" when asked whether
+Ray's `/guilded bid status` showed Seria at 30 GP. The instructions ended with
+cancellation and excluded Award; this still does not verify awarding/importing.
+
+**Auction recovery and post-reload delivery confirmed by owner:** in a
+180-second test auction, Seria bid 15 GP; Ray reloaded and still saw that bid.
+Seria then raised it to 20 GP, which Ray received. The owner answered "yes to
+all" to the test ending with cancellation and excluding Award.
+
+**Member page visibility and bidding permission confirmed by owner:** on Seria
+(Member), Raid, EPGP and Loot pages are hidden, and
+`/guilded bid start 10 Guilded Permission Test 30` is refused with
+"Only officers can run loot bidding." The owner answered "yes to all".
+Other officer commands and Discord permissions remain separate checks.
+
+**Council popup, responses and cancellation confirmed by owner:** Ray started
+`/guilded council start Guilded Test Item 180`; Seria answered Upgrade in the
+popup and Ray saw Upgrade in council status. Seria then whispered `bis` and
+Ray saw her response change to BiS. Ray cancelled and Seria's popup closed.
+The owner answered "yes to all". No Award was requested; council awarding,
+officer voting and ledger import remain separate unverified checks.
+
+**Automatic cross-player recipe lookup confirmed by owner:** Ray opened a
+learned crafting profession normally while Seria was online. After the requested
+15-second wait, Seria searched for one of Ray's known crafted items in Guilded's
+Crafting page using Who can craft it. The owner answered "yes" that Ray appeared
+without a scan or share command. This covers automatic sharing and lookup for
+the tested recipe, not all professions, filters or cooldowns.
+
+### Two-player soft reserves
+
+The owner reports `/guilded reserve list` says "No reserve list is open" on
+Ray before testing. Ray then opened `/guilded reserve open 1 Guilded Test`;
+Seria reserved a real item using its shift-clicked item link. The owner answered
+"yes" that `/guilded reserve list` shows Seria's reservation on both computers.
+Creation and shared visibility pass. No roll or award was requested.
+
+**Lock enforcement, removal and cleanup confirmed by owner:** Ray locked the
+test list; Seria's removal was refused and her reservation remained. After Ray
+unlocked it, Seria removed the item and both computers showed it gone. Ray then
+cleared the empty list. The owner answered "yes to all". No item was awarded;
+whisper reservations, restricted rolls, tooltip display and SR+ remain unverified.
+
+**Core selection observed before award testing:** the owner's screenshot of
+`/guilded core` shows "Loot system: GP bids - the guild's default" and lists only
+Les Dix-Fonctionnels (EPGP priority / set prices). It also shows "Reserves cleared."
+No separate test core is visible in the addon's current rules snapshot.
+
+**Separate test core configured:** the owner confirms creating Guilded Test
+with no schedule and setting Its own pool / GP bids in Discord. A read of the
+installed companion-generated Standings.lua confirms Guilded Test is already
+downloaded with id `cmuslrc4702j3ntsexaxz9807`, mode `EPGP` (GP bids) and
+`pool = true`. The owner then confirmed Ray reloaded, selected
+`/guilded core Guilded Test`, and saw "Loot system: GP bids - Guilded Test".
+Core.lua's changeEpgp uses the selected core's id when its pool flag is true.
+A simulated raid alone must not be assumed to isolate real characters' ledger
+entries. Once a separate core has point history, the existing deletion guard
+retains that history.
+
+Next requested live award: keep Guilded Test selected; Ray opens
+`/guilded bid start 10 Guilded Test Award 120`; Seria bids 15; Ray verifies
+Seria at 15 with bid status, awards once, then reloads to save/upload. This
+intentionally adds 15 GP to Seria in the separate test pool. Verify the winner
+message and companion application result, then inspect the saved entry and
+Discord pool before testing duplicate-upload handling.
+
+**Award saved, import held for unlinked Seria:** the owner's 12:29 companion
+message reports 0 applied ledger entries and 1 on hold. Read-only parsing of
+SavedVariables confirms one +15 GP entry for Seria, reason `Bid: Guilded Test
+Award`, source `qg:Ray-1791044969-12`, in test core
+`cmuslrc4702j3ntsexaxz9807`. The separate loot row is
+`qg-loot:Ray-1791044969-11` and has no raid reference. At 12:30 the companion
+wrote standings for two characters; that alone does not confirm this award.
+The owner ran `/import held`: code LOS7JT is the +15 GP entry, held because
+Seria is not linked to a Discord member (UNLINKED). Next: link the discovered
+Seria character to its actual owner's Discord account, then reload Ray to retry
+the existing entry. Do not award again or dismiss the held entry. GP application,
+loot-record application and winner-popup confirmation remain unverified at that stage.
+
+**GP application and isolated return standings verified at 12:33:** after the
+linking step, the owner reports 1 applied ledger entry and 1 remaining hold.
+The downloaded standings acknowledge `addon:qg:Ray-1791044969-12` and show
+Seria with 15 GP in Guilded Test, 0 GP in the guild pool and 0 GP in
+Les Dix-Fonctionnels. This confirms the GP entry applied to the intended test
+pool and returned to the companion. It does not yet confirm in-game display
+after reload or repeated-upload deduplication.
+
+The saved loot row has no raid reference and the downloaded rules have
+`coreOnly = true`. The importer holds linked loot without a matching separate-pool
+raid as NO_CORE_RAID; this is the expected remaining hold, pending confirmation
+from `/import held`. The test instructions omitted a matching raid and must be
+corrected before claiming complete loot-record import coverage. Do not re-award
+the item or charge the 15 GP again. Winner-popup confirmation also remains pending.
+
+**Remaining hold confirmed:** `/import held` shows RRLKWG, Seria,
+Guilded Test Award (15 GP), NO_CORE_RAID. This is the separate loot row, not the
+already accepted GP entry. Because the row has no raid reference, ending a new
+raid cannot retroactively associate it. Next requested cleanup: dismiss only
+RRLKWG, reload Ray to repeat the upload, and verify 0 new ledger entries and
+Seria still at 15 GP in the Guilded Test Discord leaderboard. Dismissal is for
+this artificial unassociated loot record only; it does not reverse its GP.
+A fresh award during a correctly matched recorded test raid remains required
+for complete loot-history acceptance.
+
+### EPGP Discord command routing defect
+
+During the duplicate-upload check, the owner reported `/epgp leaderboard
+core:Guilded Test` returned "That command is not available." Source inspection
+found epgpCommand was published but executeEpgp was absent from main.ts's fallback
+handler map. Added its import and handler registration without changing the
+version, schema or point data. A regression check walks every published command
+route through the real resolver and checks main.ts's fallback registrations
+without importing main.ts or starting a bot. Before the fix it failed for all
+seven EPGP subcommands. Validation and deployment are in progress; do not ask
+the owner to retry until the live handler has been updated. Dismissal and
+duplicate-upload results from the preceding instructions remain unconfirmed.
 
 ## Installation documentation prepared locally
 
@@ -334,6 +467,26 @@ deployment or public release confirmation.
 - [x] Recipes appear automatically after opening a learned profession
   (owner confirmed; no manual scan command).
 - [x] Window position and size persist after reload (owner confirmed).
+- [x] Both players see the other on zone/continent maps and the nearby minimap,
+  with correct hover names, after Seria's game-session reconnect (owner confirmed).
+- [x] Seria's sharing toggle removes her dot on Ray and restores it when enabled
+  again (owner confirmed; sharing left on).
+- [x] Seria receives the bidding popup, Ray receives her 15 GP popup bid, and
+  cancellation closes her popup (owner confirmed; no award requested).
+- [x] Seria's ordinary whisper of 30 is recorded as a 30 GP bid on Ray
+  (owner confirmed).
+- [x] Ray's reload preserves Seria's 15 GP bid; her subsequent 20 GP bid arrives
+  and the test auction is cancelled (owner confirmed).
+- [x] Seria's Member rank hides Raid, EPGP and Loot pages and refuses starting
+  a bid auction (owner confirmed).
+- [x] Council popup Upgrade response, ordinary-whisper BiS update and popup
+  closure on cancellation work between Ray and Seria (owner confirmed).
+- [x] Seria finds Ray as a crafter after Ray opens his profession normally,
+  without a manual scan or share command (owner confirmed).
+- [x] Ray opens a test soft-reserve list and Seria's linked-item reservation
+  appears on both computers (owner confirmed).
+- [x] Locked reserves refuse Seria's removal; unlocking allows removal on both
+  computers, followed by clearing the empty test list (owner confirmed).
 - [ ] Solo client checks: UI, professions, saved data, reload and personal sync.
 - [ ] Two-player checks: map, loot, ledger deduplication, core pools and permissions.
 - [ ] Fresh guild setup with its own bot/database and an ordinary member account.

@@ -29,6 +29,9 @@ local PIN_TEXTURE = "Interface\\WorldMap\\WorldMapPartyIcon"
 
 local map = { members = {}, worldPins = {}, minimapPins = {} }
 ns.guildMap = map
+-- Session-only counters: diagnose a one-way connection without saving chat or coordinates.
+local received = { messages = 0, positions = 0, ignored = 0, last = "none" }
+local lastTickAt, lastPositionQueuedAt
 
 local function active() return not ns.moduleActive or ns.moduleActive("guildmap") end
 local function secret(value) return ns.isSecret and ns.isSecret(value) end
@@ -143,8 +146,8 @@ local lastSent = { at = -1000 }
 local lastRequest, lastReply = -1000, -1000
 
 local function send(text)
-  if not (IsInGuild and IsInGuild()) then return end
-  ns.comm.send(PREFIX, text, "GUILD")
+  if not (IsInGuild and IsInGuild()) then return false end
+  return ns.comm.send(PREFIX, text, "GUILD")
 end
 
 local function sayGone()
@@ -154,6 +157,7 @@ end
 
 -- Called every second: send when you moved (at most every 5 s) or every 30 s.
 function map.tick()
+  lastTickAt = clock()
   if not active() then return end
   local s = settings()
   if not s or not s.mapShare or (ns.compat and ns.compat.inCombat()) then return end
@@ -166,8 +170,10 @@ function map.tick()
   local class
   if UnitClass then class = select(2, UnitClass("player")) end
   local level = UnitLevel and UnitLevel("player") or 0
-  send(string.format("P|%d|%d|%d|%s|%d", mapId, math.floor(x * 10000 + 0.5), math.floor(y * 10000 + 0.5), tostring(class or ""), tonumber(level) or 0))
-  lastSent = { at = now, mapId = mapId, x = x, y = y }
+  if send(string.format("P|%d|%d|%d|%s|%d", mapId, math.floor(x * 10000 + 0.5), math.floor(y * 10000 + 0.5), tostring(class or ""), tonumber(level) or 0)) then
+    lastSent = { at = now, mapId = mapId, x = x, y = y }
+    lastPositionQueuedAt = now
+  end
 end
 
 function map.requestPositions()
@@ -179,23 +185,26 @@ function map.requestPositions()
 end
 
 function map.receive(text, sender)
-  if not active() then return end
+  if not active() then return "module off" end
   local name = ns.normalizeName and ns.normalizeName(sender)
-  if not name or name == (ns.playerName and ns.playerName()) then return end
+  if not name then return "sender unavailable" end
+  if name == (ns.playerName and ns.playerName()) then return "self" end
+  if type(text) ~= "string" then return "invalid payload" end
   if text == "Q" then
     if clock() - lastReply >= 10 then
       lastReply = clock()
       lastSent.at = -1000
       map.tick()
     end
-    return
+    return "request"
   end
-  if text == "G" then map.members[name] = nil; map.refresh(); return end
+  if text == "G" then map.members[name] = nil; map.refresh(); return "gone" end
   local mapId, x, y, class, level = string.match(text, "^P|(%d+)|(%d+)|(%d+)|(%u*)|(%d+)")
-  if not mapId then return end
+  if not mapId then return "invalid payload" end
   x, y = tonumber(x) / 10000, tonumber(y) / 10000
-  if x > 1 or y > 1 then return end
+  if x > 1 or y > 1 then return "invalid coordinates" end
   map.members[name] = { mapId = tonumber(mapId), x = x, y = y, class = class ~= "" and class or nil, level = tonumber(level), at = clock() }
+  return "position"
 end
 
 local function forgetOld()
@@ -356,13 +365,36 @@ function map.statusText()
   local count = 0
   forgetOld()
   for _ in pairs(map.members) do count = count + 1 end
+  local prefixStatus = "unknown"
+  local prefixCheck = C_ChatInfo and C_ChatInfo.IsAddonMessagePrefixRegistered or IsAddonMessagePrefixRegistered
+  if type(prefixCheck) == "function" then
+    local ok, registered = pcall(prefixCheck, PREFIX)
+    if ok and not secret(registered) and type(registered) == "boolean" then prefixStatus = registered and "registered" or "not registered" end
+  end
+  local transport = ns.comm.status and ns.comm.status(PREFIX) or {}
+  local function age(at)
+    return at and string.format(L("%ds ago"), math.max(0, math.floor(clock() - at))) or L("never")
+  end
+  local inGuild = IsInGuild and IsInGuild()
+  local combat = ns.compat and ns.compat.inCombat and ns.compat.inCombat()
   local lines = {
     string.format(L("Guild map: module %s, sharing %s, dots %s, peers %d."),
       active() and L("on") or L("off"), s.mapShare and L("on") or L("off"), s.mapShow and L("on") or L("off"), count),
     mapId and string.format(L("Your map: %s (%d)."), zoneName(mapId), mapId) or L("Your position is unavailable here (instances or unsupported map API)."),
-    L("Both players need Guilded and map sharing enabled. Minimap dots show nearby players only."),
-    L("Use /guilded modules on guildmap, /guilded map share on and /guilded map show on.")
+    string.format(L("Map diagnostics 2: guild %s, combat %s, prefix %s."),
+      inGuild and L("yes") or L("no"), combat and L("on") or L("off"), L(prefixStatus)),
+    string.format(L("Position queued: %s; last tick: %s."), age(lastPositionQueuedAt), age(lastTickAt)),
+    string.format(L("Client send results: accepted %d, refused %d, errors %d, throttled %d, queued %d; last %s, code %s."),
+      transport.sent or 0, transport.refused or 0, transport.errors or 0, transport.throttled or 0, transport.queued or 0,
+      L(transport.lastResult or "none"), tostring(transport.lastCode or "-")),
+    string.format(L("Incoming map messages: %d, positions %d, ignored %d; last %s."),
+      received.messages, received.positions, received.ignored, L(received.last)),
+    L("Counts are since /reload. Client acceptance does not confirm delivery to another player."),
+    L("Both players need Guilded and map sharing enabled. Minimap dots show nearby players only.")
   }
+  if not active() or not s.mapShare or not s.mapShow then
+    table.insert(lines, L("Use /guilded modules on guildmap, /guilded map share on and /guilded map show on."))
+  end
   return table.concat(lines, "\n")
 end
 
@@ -452,8 +484,15 @@ frame:SetScript("OnEvent", function(_, event, ...)
       map.requestPositions()
     elseif event == "CHAT_MSG_ADDON" then
       local prefix, text, channel, sender = args[1], args[2], args[3], args[4]
-      if secret(prefix) or secret(text) or secret(sender) or prefix ~= PREFIX or channel ~= "GUILD" then return end
-      map.receive(text, sender)
+      if secret(prefix) or prefix ~= PREFIX then return end
+      received.messages = received.messages + 1
+      local result
+      if secret(text) or secret(sender) or secret(channel) then result = "restricted message"
+      elseif channel ~= "GUILD" then result = "other channel"
+      else result = map.receive(text, sender) end
+      received.last = result or "invalid payload"
+      if result == "position" then received.positions = received.positions + 1
+      elseif result ~= "request" and result ~= "gone" then received.ignored = received.ignored + 1 end
     end
   end)
   if not ok and ns.logDiagnostic then ns.logDiagnostic("LUA_ERROR", "guild map: " .. tostring(err)) end

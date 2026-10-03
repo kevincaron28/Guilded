@@ -14,10 +14,14 @@ What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 
 ## Quick start
 
-- **Just the addon:** download from [CurseForge](https://www.curseforge.com/wow/addons/guilded), unzip
-  `Guilded-v<version>.zip` into `World of Warcraft\_forever_\Interface\AddOns\` (a folder named `Guilded`),
-  restart the game, type `/guilded` or click the gold coin.
-- **The whole system (bot, addon, companion):** follow [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).
+- **Guildmates or addon-only players:** follow [the member install guide](docs/MEMBER_INSTALL.md).
+  Install into the client you actually play (Forever beta uses `_classic_beta_` in the tested
+  installation), then connect with your guild's bot address and your own pairing code if needed.
+- **Run your own guild's bot:** follow [the owner setup guide](docs/GUILD_OWNER_SETUP.md).
+- **Want an AI to guide you:** copy a [setup or troubleshooting prompt](docs/AI_SETUP_HELP.md).
+
+**6.0 is in preparation, not yet verified or published.** Use matching artifacts from an
+available release or your officer's test build. [Current test record](docs/V6_0_RELEASE_TESTING.md).
 
 For the 5.0 update, read [the local Claude handoff](docs/V5_0_RELEASE_HANDOFF.md).
 
@@ -25,7 +29,10 @@ For the 5.0 update, read [the local Claude handoff](docs/V5_0_RELEASE_HANDOFF.md
 
 | Document | For |
 | --- | --- |
-| [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) | Officers setting up the bot for a guild |
+| [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) | Choose the right setup path |
+| [docs/MEMBER_INSTALL.md](docs/MEMBER_INSTALL.md) | Guildmates installing and connecting; includes French quick start |
+| [docs/GUILD_OWNER_SETUP.md](docs/GUILD_OWNER_SETUP.md) | Owners hosting an independent bot for their guild |
+| [docs/AI_SETUP_HELP.md](docs/AI_SETUP_HELP.md) | Copyable prompts for guided installation and troubleshooting |
 | [COMMANDS.md](COMMANDS.md) | Every command and its permissions |
 | [addon/Guilded/README.md](addon/Guilded/README.md) | The addon in detail |
 | [companion/README.md](companion/README.md) | The command-line companion and the upload format |

@@ -194,8 +194,8 @@ local function rawSend(prefix, text, channel, target)
   end)
   if not ok then return "error" end
   if type(result) == "number" then
-    if result == 0 then return "sent" end
-    return THROTTLED[result] and "throttled" or "refused"
+    if result == 0 then return "sent", result end
+    return THROTTLED[result] and "throttled" or "refused", result
   end
   if result == false then return "refused" end
   return "sent"
@@ -205,7 +205,7 @@ local function bucket(prefix)
   local b = buckets[prefix]
   local t = nowSeconds()
   if not b then
-    b = { tokens = BURST, at = t, queue = {} }
+    b = { tokens = BURST, at = t, queue = {}, results = { sent = 0, refused = 0, error = 0, throttled = 0 } }
     buckets[prefix] = b
   end
   b.tokens = math.min(BURST, b.tokens + math.max(0, t - b.at) * PER_SECOND)
@@ -224,7 +224,9 @@ pump = function(prefix)
   local b = bucket(prefix)
   while b.queue[1] and b.tokens >= 1 do
     local item = b.queue[1]
-    local status = rawSend(prefix, item.text, item.channel, item.target)
+    local status, code = rawSend(prefix, item.text, item.channel, item.target)
+    b.results[status] = b.results[status] + 1
+    b.lastResult, b.lastCode = status, code
     if status == "throttled" then
       b.tokens = 0
       item.tries = (item.tries or 0) + 1
@@ -259,6 +261,18 @@ end
 function comm.pending(prefix)
   local b = buckets[prefix]
   return b and #b.queue or 0
+end
+
+-- Client API results, not delivery receipts. No payloads or destinations are retained.
+-- Return a copy so diagnostics cannot change the queue or its counters.
+function comm.status(prefix)
+  local b = buckets[prefix]
+  return {
+    sent = b and b.results.sent or 0, refused = b and b.results.refused or 0,
+    errors = b and b.results.error or 0, throttled = b and b.results.throttled or 0,
+    queued = b and #b.queue or 0, lastResult = b and b.lastResult or nil,
+    lastCode = b and b.lastCode or nil
+  }
 end
 
 -- Registers an addon message prefix with whichever API this client has.

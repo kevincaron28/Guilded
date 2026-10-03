@@ -94,7 +94,7 @@ cd guilded
 sudo bash deploy/setup-server.sh qcgold.duckdns.org
 ```
 
-The script installs Node 22, Caddy, creates a `guilded` user, installs the
+The script installs Node 24 when the existing runtime is missing or older, installs Caddy, creates a `guilded` user, installs the
 systemd service and the Caddy config, opens ports 80/443 in the Ubuntu firewall,
 and adds 1 GB swap on small machines. It stops and tells you what to do next:
 

@@ -26,6 +26,7 @@ import { executeProfile } from "./commands/profile.js";
 import { replyWithCommandError } from "./commands/context.js";
 import { handleRaidSignupButton, RAID_SIGNUP_PREFIX } from "./commands/raid.js";
 import { executeLoot } from "./commands/loot.js";
+import { executeEpgp } from "./commands/epgp.js";
 import { APPLY_PREFIX, executeApply, handleApplyButton, handleApplyModal } from "./commands/application.js";
 import { executeTag } from "./commands/tag.js";
 import { handleSelfRoleButton, SELF_ROLE_PREFIX } from "./commands/selfroles.js";
@@ -126,6 +127,7 @@ process.on("unhandledRejection", (error) => { void errorReportService.report(cli
 const handlers = new Collection<string, (interaction: ChatInputCommandInteraction) => Promise<void>>();
 handlers.set("profile", executeProfile);
 handlers.set("loot", executeLoot);
+handlers.set("epgp", executeEpgp);
 handlers.set("apply", executeApply);
 handlers.set("tag", executeTag);
 handlers.set("core", executeCore);

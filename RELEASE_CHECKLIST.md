@@ -39,7 +39,7 @@ Say "untested" on the listing until these pass.
 - [ ] Loot council on a second character: open an item in the Council tab, answer from the popup, then a whisper answer (`bis`); the officer sees both ranked and awards one.
 - [ ] `/guilded games duel <player>` with a friend (and `/guilded casino` only says it was removed).
 - [ ] `/guilded invite missing` and `/guilded invite raid` as officer in a party, after creating a raid you and a friend signed up for.
-- [ ] A non-officer alt sees fewer pages (no Raid, EPGP, Loot).
+- [x] A non-officer alt sees fewer pages (no Raid, EPGP, Loot). Confirmed on Seria (Member), WoW Forever beta, 3 October 2026; starting a bid auction is also refused. See `docs/V6_0_RELEASE_TESTING.md`.
 - [ ] A second officer's companion uploads and the guild digest carries other online players.
 
 ## 5.0: to check in game and on Discord

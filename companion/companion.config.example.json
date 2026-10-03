@@ -8,7 +8,7 @@
   "poeMode": "STANDARD",
   "realm": "WoW Forever",
   "wowGuild": "",
-  "uploadUrl": "https://guildedqc.duckdns.org/api/v1/addon-imports",
+  "uploadUrl": "",
   "guildDiscordId": "YOUR_DISCORD_GUILD_ID",
   "pairingCode": "",
   "companionCredential": ""

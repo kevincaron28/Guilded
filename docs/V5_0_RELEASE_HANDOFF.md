@@ -4,6 +4,23 @@ role permissions and bot hierarchy. Preserve Exilé → Errant, remove only the
 owner-approved Errant permissions, and verify Guilded before disabling Carl.
 # Guilded 5.0 stabilization — local Claude update handoff
 
+End-of-day handoff (3 Oct 2026): owner will test loot feedback later.
+Branch `codex/v6-client-acceptance` records today's acceptance evidence and the
+loot-response feedback fix. All 1,215 tests, TypeScript, lint and addon validation
+passed. Ray's installed addon has the fix; Seria still needs the three-file
+`dist/Guilded-loot-feedback-patch.zip` and both clients need `/reload` before the
+two-player retest. See `docs/V6_0_RELEASE_TESTING.md` for exact pending gates.
+Do not mark the feedback or off-spec GP test passed, bump to 6.0.0, or publish
+on the strength of offline tests. Production bot remains at 7d8152c / 5.0.0.
+
+EPGP routing fix (3 Oct 2026): registered `/epgp` had no runtime handler.
+Added executeEpgp dispatch and full published-route coverage; all 1,212 tests
+and PostgreSQL/Windows CI passed. PR #37 merged and Oracle deployed commit
+7d8152c with healthy Discord/API on Node 24.21.0; product stays 5.0.0.
+Current Forever beta acceptance evidence and remaining 6.0 gates are in
+`docs/V6_0_RELEASE_TESTING.md`. The owner confirmed the live `/epgp leaderboard`
+retry: Guilded Test shows claudyazes at 15 GP and kevmister28 at 0 GP.
+
 Channel cleanup and podium names (3 Oct 2026): the community podium renders live nicknames
 or saved display names instead of cache-dependent Discord mentions. Name lookups are cached
 for six hours. Raid cleanup runs at startup and every six hours (free-tier request budget):

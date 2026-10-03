@@ -18,7 +18,12 @@ export function pastRaidPostWhere(now: Date): Prisma.RaidWhereInput {
       { OR: [
         { status: "COMPLETED", endedAt: { lte: day } },
         { status: "CANCELLED", updatedAt: { lte: day } },
-        { status: "PLANNED", scheduledAt: { lte: stalePlannedBefore(now) } }
+        { status: "PLANNED", scheduledAt: { lte: stalePlannedBefore(now) } },
+        // A forgotten /raid end must not leave signup channels cluttered forever.
+        { status: "ACTIVE", OR: [
+          { startedAt: { lte: stalePlannedBefore(now) } },
+          { startedAt: null, scheduledAt: { lte: stalePlannedBefore(now) } }
+        ] }
       ] }
     ]
   };
@@ -28,6 +33,7 @@ export function pastRaidPostWhere(now: Date): Prisma.RaidWhereInput {
 const alreadyGone = (error: unknown) => [10003, 10008].includes((error as { code?: number }).code ?? 0);
 
 export async function cleanupPastRaidPosts(client: Client, database: PrismaClient, now = new Date()): Promise<number> {
+  if (!client.user) return 0;
   const raids = await database.raid.findMany({ where: pastRaidPostWhere(now), take: 50, orderBy: { scheduledAt: "asc" }, include: { guild: { select: { discordId: true } } } });
   let removed = 0;
   for (const raid of raids) {
@@ -38,7 +44,11 @@ export async function cleanupPastRaidPosts(client: Client, database: PrismaClien
       if (!messageId) continue;
       try {
         const channel = channelId ? await guild.channels.fetch(channelId) : null;
-        if (channel?.isTextBased()) await channel.messages.delete(messageId);
+        if (channel?.isTextBased()) {
+          const message = await channel.messages.fetch(messageId);
+          if (message.author.id !== client.user.id || message.pinned) continue;
+          await message.delete();
+        }
         data[field] = null;
       } catch (error) {
         // Gone already: forget it. Anything else (a missing permission) is tried again later.

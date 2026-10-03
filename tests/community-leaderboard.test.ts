@@ -6,13 +6,14 @@ const season = { id: "season", name: "Season 1", status: "ACTIVE" };
 
 describe("community podium", () => {
   it("shares medal ranks for ties and keeps spending separate from earned score", () => {
-    const card = communityLeaderboardCard({ lang: "fr", discordId: "guild", season, board: [
+    const card = communityLeaderboardCard({ lang: "fr", discordId: "guild", season, names: new Map([["c", "Kevin"]]), board: [
       { userId: "a", points: 100, balance: 20 }, { userId: "b", points: 100, balance: 100 },
       { userId: "c", points: 50, balance: 50 }, { userId: "zero", points: 0, balance: 0 }
     ] });
     const top = card.embeds[0]!.fields![0]!.value;
     expect(top.match(/🥇/g)).toHaveLength(2);
-    expect(top).toContain("🥉 <@c>");
+    expect(top).toContain("🥉 **Kevin**");
+    expect(top).not.toContain("<@");
     expect(top).toContain("**100 pts**");
     expect(top).not.toContain("zero");
     expect(card.embeds[0]!.fields![1]!.value).toContain("**250 pts**");
@@ -53,6 +54,31 @@ function fixture() {
 }
 
 describe("community board maintenance", () => {
+  it("renders live nicknames and saved names when Discord cannot resolve a member", async () => {
+    const f = fixture();
+    f.database.communitySeason.findFirst.mockResolvedValue(season as never);
+    f.database.communityPoint.findMany.mockResolvedValue([
+      { userId: "one", amount: 44, kind: "AWARD" }, { userId: "two", amount: 32, kind: "AWARD" }
+    ] as never);
+    const database = { ...f.database, member: { findMany: vi.fn(async () => [
+      { discordUserId: "one", displayName: "Old name" }, { discordUserId: "two", displayName: "Saved *name*" }
+    ]) } };
+    const originalGet = f.rest.get.getMockImplementation()!;
+    f.rest.get.mockImplementation(async route => {
+      if (route === "/guilds/guild/members/one") return { nick: "Live nickname", user: { username: "Account" } } as never;
+      if (route.includes("/members/") || route.startsWith("/users/")) throw new Error("Unavailable");
+      return originalGet(route);
+    });
+    await updateCommunityLeaderboard(f.rest as never, database as never, "guild", "bot");
+    const body = (f.rest.patch.mock.calls[0]![1] as { body: { embeds: { fields: { value: string }[] }[] } }).body;
+    expect(body.embeds[0]!.fields[0]!.value).toContain("Live nickname");
+    expect(body.embeds[0]!.fields[0]!.value).toContain("Saved \\*name\\*");
+    expect(body.embeds[0]!.fields[0]!.value).not.toContain("<@");
+    await updateCommunityLeaderboard(f.rest as never, database as never, "guild", "bot");
+    expect(database.member.findMany).toHaveBeenCalledTimes(1);
+    expect(f.rest.get.mock.calls.filter(([route]) => route.includes("/members/"))).toHaveLength(2);
+  });
+
   it("upgrades the existing activity guide in place without a duplicate pinned hub", async () => {
     const { rest, database, category, channel, message } = fixture();
     const hub = { ...channel, id: "activities", name: "activites" };

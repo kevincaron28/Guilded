@@ -77,24 +77,28 @@ describe("past raid signup posts", () => {
     expect(where.AND[1].OR).toEqual([
       { status: "COMPLETED", endedAt: { lte: new Date("2026-10-09T12:00:00Z") } },
       { status: "CANCELLED", updatedAt: { lte: new Date("2026-10-09T12:00:00Z") } },
-      { status: "PLANNED", scheduledAt: { lte: new Date("2026-10-09T06:00:00Z") } }
+      { status: "PLANNED", scheduledAt: { lte: new Date("2026-10-09T06:00:00Z") } },
+      { status: "ACTIVE", OR: [
+        { startedAt: { lte: new Date("2026-10-09T06:00:00Z") } },
+        { startedAt: null, scheduledAt: { lte: new Date("2026-10-09T06:00:00Z") } }
+      ] }
     ]);
     expect(stalePlannedBefore(now)).toEqual(new Date("2026-10-09T06:00:00Z"));
   });
 
   it("deletes both posts, forgets a post that is already gone and retries one it could not delete", async () => {
     const deleted: string[] = [];
-    const channel = (id: string) => ({ isTextBased: () => true, messages: { delete: vi.fn(async (message: string) => {
+    const channel = (id: string) => ({ isTextBased: () => true, messages: { fetch: vi.fn(async (message: string) => {
       if (message === "gone") throw Object.assign(new Error("Unknown Message"), { code: 10008 });
       if (message === "locked") throw Object.assign(new Error("Missing Permissions"), { code: 50013 });
-      deleted.push(`${id}:${message}`);
+      return { author: { id: message === "member" ? "member" : "bot" }, pinned: message === "pinned", delete: async () => { deleted.push(`${id}:${message}`); } };
     }) } });
     const guild = { channels: { fetch: vi.fn(async (id: string) => channel(id)) } };
-    const client = { guilds: { cache: new Map([["discord", guild]]) } } as unknown as Client;
+    const client = { user: { id: "bot" }, guilds: { cache: new Map([["discord", guild]]) } } as unknown as Client;
     const raid = (id: string, signupMessageId: string | null, mirrorSignupMessageId: string | null) => ({ id, guild: { discordId: "discord" }, signupChannelId: "general", signupMessageId, mirrorSignupChannelId: "core", mirrorSignupMessageId });
     const updates: Row[] = [];
     const update = vi.fn(async (args: Row) => { updates.push(args); return {}; });
-    const database = { raid: { findMany: vi.fn(async () => [raid("a", "one", "two"), raid("b", "gone", null), raid("c", "locked", null)]), update } } as unknown as PrismaClient;
+    const database = { raid: { findMany: vi.fn(async () => [raid("a", "one", "two"), raid("b", "gone", null), raid("c", "locked", null), raid("d", "pinned", "member")]), update } } as unknown as PrismaClient;
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
     expect(await cleanupPastRaidPosts(client, database, now)).toBe(2);
     expect(deleted).toEqual(["general:one", "core:two"]);

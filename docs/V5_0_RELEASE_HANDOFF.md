@@ -4,6 +4,21 @@ role permissions and bot hierarchy. Preserve Exilé → Errant, remove only the
 owner-approved Errant permissions, and verify Guilded before disabling Carl.
 # Guilded 5.0 stabilization — local Claude update handoff
 
+Channel cleanup and podium names (3 Oct 2026): the community podium renders live nicknames
+or saved display names instead of cache-dependent Discord mentions. Name lookups are cached
+for six hours. Raid cleanup runs at startup and every six hours (free-tier request budget):
+known signup posts plus narrowly recognized, unpinned Guilded raid reminders, recruitment
+calls and start/end notices. Notices stay at least 24 hours; reminders/calls also wait until
+30 hours after raid start. Scan at most 100 messages per configured announcement/signup
+channel per pass and delete at most 25 alerts. Older history is paged across runs. Member
+messages, attachments, interactive panels and reports are preserved. Forgotten ACTIVE raids
+lose signup posts after 30 hours from actual start (scheduled start if absent), without
+changing raid/attendance data. No migration or version change. Verify on live Discord.
+
+Windows audit gate: override build-time `@electron/get` to `^5.1.0`, removing the vulnerable
+`got`/`http-cache-semantics` chain used by electron-builder. Keep Node 24 for builds and
+require the Windows installer CI gate before merging; product version remains 5.0.0.
+
 Past signup repost fix (3 Oct 2026): post delivery now creates/replaces messages only for
 future PLANNED raids, in both the shared and core signup channels. Existing posts can still
 be edited to show completion. This also covers durable retries and hourly character-display

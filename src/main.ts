@@ -55,6 +55,7 @@ import { DUNGEON_SEASON_SELECT, handleDungeonSeasonSelect, updateDungeonLeaderbo
 import { runBackup } from "./services/backup.js";
 import { updateCommunityLeaderboard } from "./services/community-leaderboard.js";
 import { cleanupPastRaidPosts } from "./services/raid-post-cleanup.js";
+import { cleanupRaidAlerts } from "./services/raid-alert-cleanup.js";
 import { runWclDiscovery } from "./services/wcl-check.js";
 import { config } from "./config.js";
 import { startCompanionApi } from "./companion-api.js";
@@ -231,9 +232,12 @@ client.once(Events.ClientReady, (readyClient) => {
     runWclDiscovery(readyClient, prisma).catch(reportJobError("Warcraft Logs check"));
   }, 10 * 60 * 1000);
   // Signup posts of raids that ended more than a day ago are removed (the raid itself is kept).
-  setInterval(() => {
-    cleanupPastRaidPosts(readyClient, prisma).catch(reportJobError("Past raid signup posts"));
-  }, 15 * 60 * 1000);
+  const cleanupRaids = async () => {
+    await cleanupPastRaidPosts(readyClient, prisma).catch(reportJobError("Past raid signup posts"));
+    await cleanupRaidAlerts(readyClient, prisma).catch(reportJobError("Past raid alerts"));
+  };
+  void cleanupRaids();
+  setInterval(() => void cleanupRaids(), 6 * 60 * 60 * 1000);
   // Dungeon group voice channels: deleted after a few empty minutes.
   setInterval(() => {
     cleanupDungeonGroups(readyClient).catch(reportJobError("Dungeon group cleanup"));

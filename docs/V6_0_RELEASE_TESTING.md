@@ -75,11 +75,13 @@ answer and remain separate observations.
 The owner expects a second guildmate for map and loot tests. Start outdoors in
 the same zone, on matching updated addon files, and check both map views.
 
-### Open failure: asymmetric guild map dots
+### Guild map: asymmetric delivery recovered after a game reconnect
 
-Owner reports that the second account sees a dot on the map, but this PC does
-not. **Map acceptance has not passed.** The observations below identify an
-asymmetric connection; its cause remains unconfirmed.
+Owner initially reported that the second account saw a dot on the map, but this
+PC did not. After the checks below, logging Seria out and back into the game
+restored Ray's view of Seria's dot (owner confirmed). **The one-way symptom has
+recovered; full map acceptance has not yet passed.** The exact underlying cause
+is unconfirmed. The observations below preserve the investigation evidence.
 
 Checked this PC's SavedVariables saved at 2026-10-03 14:48:20 UTC: `mapShare`
 and `mapShow` are both true, no personal guildmap module override exists, and
@@ -274,6 +276,19 @@ Both temporary probes are complete and no longer installed. Their reports remain
 in SavedVariables and local backups for evidence. Next requested test: reconnect
 Seria through logout/login, leave both outdoors for 35 seconds, then check
 whether Ray sees her dot. Do not call an addon UI reload a game-session reconnect.
+
+**Reconnect recovery confirmed by owner:** after Seria logged out and back into
+the game and both remained outdoors for 35 seconds, the owner answered:
+"Yes, Ray now sees Seria." This confirms recovery of the missing dot on Ray's
+computer. The assistant changed no ignore or guild permission settings; Seria's
+rank change noted above was outside the assistant's actions, and both old/new
+ranks allowed guild chat in the API results. Recovery after reconnect suggests
+a beta game-session delivery problem, but does not establish the exact server
+or client defect. Do not claim an addon transport change fixed it.
+
+Next acceptance check requested: both players see the other on zone and continent
+maps and on the minimap when close, with the correct name on hover. Movement,
+sharing-off, instance removal and rotating-minimap checks remain pending.
 
 ## Installation documentation prepared locally
 

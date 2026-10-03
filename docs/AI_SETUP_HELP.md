@@ -77,6 +77,11 @@ Separate addon collection, file saving, companion upload, server authorization
 and standings download. Old diagnostic entries are not proof of a new error.
 Zero imported ledger entries or new characters can be a normal successful sync.
 Check the actual installed files/build when several builds share a version.
+For missing guild-map dots, collect /guilded map check from both players and
+distinguish zero received peers from a drawing problem. Client send acceptance
+does not prove delivery; self echoes are normal. Use the Forever-beta recovery
+steps in MEMBER_INSTALL.md and verify actual client menus instead of assuming
+standard WoW UI. Record confirmed results so we do not repeat passed checks.
 Do not delete SavedVariables, remove pending transactions, reset my database,
 disable authorization, or start another copy of a live bot. Never request
 credentials. Explain what each check proves and what remains unknown.

@@ -84,11 +84,38 @@ For standings, download `Standings.lua`, place it in
 | Profession list seems empty | Open the profession window and let it finish loading. If still empty, send the profession name and current diagnostic output. |
 | No tray icon | Check the hidden-icons arrow beside the Windows clock, then open Guilded Companion from Start. |
 | Lua error | Capture the error and `/guilded diag`; note the timestamp. Saved diagnostic history can include older notices. |
+| One computer sees a guildmate's map dot but the other does not | Follow the map check below. A full character logout/login restored delivery in the tested Forever beta case. |
 
 For help, use **Activity → Download support summary**, or copy the exact error,
 the addon/companion versions, client build and time of failure. Review attachments
 before sharing; do not upload config.json, credentials, bot tokens or pairing codes.
 The [AI help prompts](AI_SETUP_HELP.md) include a member troubleshooting prompt.
+
+### Guild map: a dot is missing
+
+Map sharing and map dots start enabled. Both players need Guilded, membership in
+the same in-game guild, and an available outdoor position. Stay out of combat
+while testing. The minimap only shows players who are nearby.
+
+Run `/guilded map check` on both computers. Check the module, sharing and dots
+settings and whether your own position is available. **Peers 0** means no usable
+guildmate position is currently stored; changing map zoom cannot repair that.
+Send counters marked **accepted** mean the client accepted an outgoing update,
+not that another player received it. A last outcome of **self** can be a normal
+echo of your own message; it does not prove another character was misidentified.
+
+If reception works in one direction, check whether an ordinary guild-chat message
+from the missing character reaches the other player. Verify guild-chat permissions
+and any ignore/block settings that the actual client exposes. Do not assume the
+beta has the same menus as another WoW version.
+
+During testing on Forever beta 1.60.1, both map settings, guild permissions and
+the receiving player's ignore status were correct, but the other player's messages
+did not reach the receiver. **Logging the missing character out and back into the
+game**, then waiting 35 seconds outdoors, restored the dot. `/reload` alone had
+not resolved it. This is a verified recovery step for that case, not a guarantee
+for every missing dot. If it persists, provide both map-check outputs and say
+whether ordinary guild chat arrives.
 
 ## Mise en route rapide en français
 

@@ -101,6 +101,26 @@ describe("paced addon messages (ns.comm)", () => {
     expect(s.run("local d = GuildedDB.diagnostics; return d[#d].kind")).toBe("SEND");
     expect(s.chat().join("\n")).not.toContain("[Diagnostic] SEND");
   });
+
+  it("distinguishes client acceptance, refusal and errors without retaining payloads", () => {
+    const s = loggedIn([]);
+    s.run(`
+      C_ChatInfo.SendAddonMessage = function() return 0 end
+      NS.comm.send("QStatus", "private contents", "GUILD")
+      C_ChatInfo.SendAddonMessage = function() return 2 end
+      NS.comm.send("QStatus", "private contents", "GUILD")
+      C_ChatInfo.SendAddonMessage = function() error("client failure") end
+      NS.comm.send("QStatus", "private contents", "GUILD")
+    `);
+    expect(s.run(`local d = NS.comm.status("QStatus"); return d.sent..":"..d.refused..":"..d.errors..":"..d.queued..":"..d.lastResult`)).toBe("1:1:1:0:error");
+    s.run(`local d = NS.comm.status("QStatus"); d.sent = 999`);
+    expect(s.run(`return tostring(NS.comm.status("QStatus").sent)`)).toBe("1");
+    expect(s.run(`return tostring(NS.comm.status("Unused").sent)`)).toBe("0");
+    s.run(`C_ChatInfo.SendAddonMessage = function() return 8 end; NS.comm.send("QStatus", "private contents", "GUILD")`);
+    expect(s.run(`local d = NS.comm.status("QStatus"); return d.throttled..":"..d.queued..":"..d.lastCode`)).toBe("1:1:8");
+    expect(s.run(`local out={}; for k,v in pairs(NS.comm.status("QStatus")) do out[#out+1]=tostring(v) end; return table.concat(out,",")`)).not.toContain("private contents");
+    expect(s.run(`return tostring(NS.comm.status("Guilded").refused)`)).toBe("0");
+  });
 });
 
 describe("whispered bids and answers only count from the group", () => {

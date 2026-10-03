@@ -67,9 +67,56 @@ page after opening a learned profession, without running a scan command.
 Cross-player recipe sharing, additional professions and cooldown behavior remain
 separate checks.
 
-The owner expects a second guildmate in about 15 minutes. While waiting, the
-next solo check is window position/size persistence and sidebar access after reload.
-Then test map sharing and loot with the second updated player.
+The owner confirmed that window position and size persist after reload. Sidebar
+accessibility and absence of new Lua errors were not explicitly reported in that
+answer and remain separate observations.
+
+The owner expects a second guildmate for map and loot tests. Start outdoors in
+the same zone, on matching updated addon files, and check both map views.
+
+### Open failure: asymmetric guild map dots
+
+Owner reports that the second account sees a dot on the map, but this PC does
+not. **Map acceptance has not passed.** The observations below identify an
+asymmetric connection; its cause remains unconfirmed.
+
+Checked this PC's SavedVariables saved at 2026-10-03 14:48:20 UTC: `mapShare`
+and `mapShow` are both true, no personal guildmap module override exists, and
+guildModules.off does not disable it. Current source defaults missing share/show
+settings to true and enables the module unless explicitly disabled. The latest
+five stored diagnostics contain only the previously reported profession-event
+notices; they do not establish whether the current map renderer succeeds.
+
+Requested `/guilded map check` output from both accounts to distinguish no peer
+position received from a drawing failure. Do not treat repeated enable commands
+as a fix or override a member's explicit privacy choice. Cause remains unconfirmed.
+
+Owner's screenshot from this PC confirms: module on, sharing on, dots on,
+**peers 0**, with an available position in **Tirisfal Glades (1420)**. Therefore
+no usable peer position is present here; changing pin placement cannot resolve
+this observed state. The owner also confirms all three enable commands were run
+on both computers. The second account's own position availability and current guild
+membership still need to be captured before choosing a fix.
+
+The owner then reports **peers 1 on the second computer**, with all settings on.
+The current transport is therefore asymmetric; the second account's own position
+availability, client send results and this PC's raw receive/reject counts have
+not yet been captured. A diagnostic build adds session-only, payload-free client
+send counters and map receive outcomes to `/guilded map check` (identified by
+"Map diagnostics 2"). It also reports guild membership, combat, prefix
+registration, last position queued and tick age. API acceptance is explicitly
+not a delivery receipt. Enabled users no longer receive redundant enable-command
+advice. The cause is still unconfirmed and map acceptance remains failed.
+
+The diagnostic change also avoids advancing the position-send clock when no
+guild channel exists, allowing the first update as soon as guild membership is
+available. No change to map privacy defaults, protocol, saved data or ledgers.
+
+Local diagnostic-build validation passed: TypeScript, all 148 test files / 1,211
+tests, ESLint, addon static validation and the verified 38-file addon ZIP. New
+tests distinguish client refusal, throttling, rejected/protected incoming messages,
+valid peer positions and delayed guild membership. These simulated results do
+not establish the cause of the live failure.
 
 ## Installation documentation prepared locally
 
@@ -96,7 +143,12 @@ addon ZIP, web build and Windows installer). The server script passes `bash -n`.
 All local documentation links in the new setup paths resolve. A browser preview
 with a fresh desktop configuration opens Connection & setup and shows an empty
 guild bot address above pairing; this is a UI fixture check, not a fresh-PC install.
-Fresh CI and real first-time owner/member installation remain required.
+[PR #37](https://github.com/kevincaron28/Guilded/pull/37) is a draft. Both
+`checks` (including PostgreSQL) and `windows-package` passed for candidate commit
+`4ee66489abf1a2500a191b507f40912575972d73` in
+[CI run 37122892433](https://github.com/kevincaron28/Guilded/actions/runs/37122892433).
+Real first-time owner/member installation remains required. This is not a merge,
+deployment or public release confirmation.
 
 ## Remaining release gates
 
@@ -109,6 +161,7 @@ Fresh CI and real first-time owner/member installation remain required.
   (owner confirmed both values and core).
 - [x] Recipes appear automatically after opening a learned profession
   (owner confirmed; no manual scan command).
+- [x] Window position and size persist after reload (owner confirmed).
 - [ ] Solo client checks: UI, professions, saved data, reload and personal sync.
 - [ ] Two-player checks: map, loot, ledger deduplication, core pools and permissions.
 - [ ] Fresh guild setup with its own bot/database and an ordinary member account.

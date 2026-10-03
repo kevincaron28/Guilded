@@ -248,6 +248,54 @@ describe("guild map", () => {
     expect(s.run(`return NS.guildMap.statusText()`)).toContain("Both players need Guilded");
   });
 
+  it("diagnoses missing reception separately from rejected payloads and valid positions", () => {
+    const s = withMap();
+    s.run(`C_ChatInfo.IsAddonMessagePrefixRegistered = function() return false end`);
+    expect(s.run(`return NS.guildMap.statusText()`)).toContain("prefix not registered");
+    expect(s.run(`return NS.guildMap.statusText()`)).toContain("messages: 0, positions 0, ignored 0; last none");
+    s.run(`fire_event("CHAT_MSG_ADDON", "GuildedMap", "P|1429|4100|6000|MAGE|60", "WHISPER", "Ann")`);
+    expect(s.run(`return NS.guildMap.statusText()`)).toContain("messages: 1, positions 0, ignored 1; last other channel");
+    s.run(`fire_event("CHAT_MSG_ADDON", "GuildedMap", "bad payload", "GUILD", "Ann")`);
+    expect(s.run(`return NS.guildMap.statusText()`)).toContain("messages: 2, positions 0, ignored 2; last invalid payload");
+    s.run(`fire_event("CHAT_MSG_ADDON", "GuildedMap", "P|1429|4100|6000|MAGE|60", "GUILD", "Ann")`);
+    expect(s.run(`return NS.guildMap.statusText()`)).toContain("peers 1");
+    expect(s.run(`return NS.guildMap.statusText()`)).toContain("messages: 3, positions 1, ignored 2; last position");
+    s.run(`fire_event("CHAT_MSG_ADDON", "GuildedMap", "P|1429|4100|6000|MAGE|60", "GUILD", "Me")`);
+    expect(s.run(`return NS.guildMap.statusText()`)).toContain("positions 1, ignored 3; last self");
+    s.run(`fire_event("CHAT_MSG_ADDON", "GuildedMap", "G", "GUILD", "Ann")`);
+    expect(s.run(`return NS.guildMap.statusText()`)).toContain("peers 0");
+    expect(s.run(`return NS.guildMap.statusText()`)).toContain("last gone");
+  });
+
+  it("shows send refusal and combat without describing either as peer delivery", () => {
+    const s = withMap();
+    s.run(`C_ChatInfo.SendAddonMessage = function() return 2 end; NS.guildMap.tick()`);
+    expect(s.run(`return NS.guildMap.statusText()`)).toContain("accepted 0, refused 1, errors 0");
+    expect(s.run(`return NS.guildMap.statusText()`)).toContain("last refused, code 2");
+    expect(s.run(`return NS.guildMap.statusText()`)).toContain("does not confirm delivery");
+    s.run(`ADVANCE(30); NS.compat.inCombat = function() return true end; NS.guildMap.tick()`);
+    expect(s.run(`return NS.guildMap.statusText()`)).toContain("combat on");
+    expect(s.run(`return NS.guildMap.statusText()`)).toContain("Position queued: 30s ago; last tick: 0s ago");
+  });
+
+  it("does not mark a position queued without guild membership and starts once membership arrives", () => {
+    const s = withMap();
+    s.run(`IsInGuild = function() return false end; NS.guildMap.tick()`);
+    expect(sentText(s)).toBe("");
+    expect(s.run(`return NS.guildMap.statusText()`)).toContain("guild no");
+    expect(s.run(`return NS.guildMap.statusText()`)).toContain("Position queued: never");
+    s.run(`IsInGuild = function() return true end; ADVANCE(1); NS.guildMap.tick()`);
+    expect(sentText(s)).toContain("GuildedMap:P|1429");
+    expect(s.run(`return NS.guildMap.statusText()`)).toContain("Position queued: 0s ago");
+  });
+
+  it("labels restricted map events without comparing protected message fields", () => {
+    const s = withMap();
+    s.run(`local protected = {}; NS.isSecret = function(v) return v == protected end
+      fire_event("CHAT_MSG_ADDON", "GuildedMap", protected, "GUILD", "Ann")`);
+    expect(s.run(`return NS.guildMap.statusText()`)).toContain("positions 0, ignored 1; last restricted message");
+  });
+
 });
 
 function withStandalone(level = 58): LuaSession {

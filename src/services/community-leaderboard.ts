@@ -1,4 +1,4 @@
-import { REST, Routes, ChannelType, PermissionFlagsBits, EmbedBuilder, escapeMarkdown, ButtonBuilder, ButtonStyle, ActionRowBuilder, type APIChannel, type APIGuildCategoryChannel, type APIGuildTextChannel, type APIMessage } from "discord.js";
+import { REST, Routes, ChannelType, PermissionFlagsBits, EmbedBuilder, escapeMarkdown, ButtonBuilder, ButtonStyle, ActionRowBuilder, type APIChannel, type APIGuildCategoryChannel, type APIGuildTextChannel, type APIMessage, type APIGuildMember, type APIUser } from "discord.js";
 import type { PrismaClient } from "@prisma/client";
 import { BRAND } from "../brand.js";
 import { asLang, type Lang } from "../i18n.js";
@@ -10,10 +10,12 @@ import { communityHubButton, communityHubCard, COMMUNITY_HUB_MARKER } from "./co
 export const COMMUNITY_BOARD_MARKER = "Guilded · Community podium";
 export const COMMUNITY_BOARD_NAMES = ["🏆・leaderboard", "🏆-leaderboard", "leaderboard", "community-standings", "classement"];
 const say = (lang: Lang, en: string, fr: string) => lang === "fr" ? fr : en;
+const nameCache = new Map<string, { name: string; expiresAt: number }>();
+const NAME_CACHE_MS = 6 * 60 * 60_000;
 
 export function communityLeaderboardCard(input: {
   lang: Lang; discordId: string; season: { id: string; name: string; number?: number; status: string } | null;
-  board: Standing[]; activitiesId?: string | undefined; chatId?: string | undefined;
+  board: Standing[]; names?: ReadonlyMap<string, string>; activitiesId?: string | undefined; chatId?: string | undefined;
 }) {
   const { lang, season, board } = input;
   const active = season?.status === "ACTIVE";
@@ -28,7 +30,8 @@ export function communityLeaderboardCard(input: {
     .addFields({ name: season ? `${active ? "🟢" : "🏁"} ${escapeMarkdown(communitySeasonLabel(season, lang))}` : say(lang, "✨ The next season is coming", "✨ La prochaine saison s’en vient"),
       value: top.map(row => {
         const rank = 1 + ranked.filter(other => other.points > row.points).length;
-        return `${["🥇", "🥈", "🥉"][rank - 1] ?? `**${rank}.**`} <@${row.userId}> — **${points(row.points)} pts**`;
+        const name = input.names?.get(row.userId) || say(lang, `Member …${row.userId.slice(-4)}`, `Membre …${row.userId.slice(-4)}`);
+        return `${["🥇", "🥈", "🥉"][rank - 1] ?? `**${rank}.**`} **${escapeMarkdown(name.replace(/[\r\n]/g, " ").slice(0, 32))}** — **${points(row.points)} pts**`;
       }).join("\n") || say(lang, "The podium is open. Be the first to earn points!", "Le podium est libre. Qui va ouvrir le bal ?"), inline: false })
     .addFields({ name: say(lang, "🤝 Together, we’ve earned", "🤝 Les efforts de la gang"),
       value: `${points(ranked.length)} ${say(lang, "participants", "participants")} · **${points(ranked.reduce((total, row) => total + row.points, 0))} pts**`, inline: false })
@@ -116,8 +119,29 @@ export async function updateCommunityLeaderboard(rest: REST, database: PrismaCli
   const season = await database.communitySeason.findFirst({ where: { guildId: record.id, channelId: hub ? { in: [channel.id, hub.id] } : channel.id, game: "DISCORD", audienceRoleId: null }, orderBy: [{ status: "asc" }, { createdAt: "desc" }, { id: "desc" }] });
   const board = season ? season.status === "ENDED" ? (season.finalStandings ?? []) as unknown as Standing[]
     : standings(await database.communityPoint.findMany({ where: { seasonId: season.id } })) : [];
+  // Embed mentions depend on each reader's client cache. Render actual names so
+  // uncached and departed members remain readable, without pinging anyone.
+  const names = new Map<string, string>();
+  const topIds = board.filter(row => row.points > 0).slice(0, 10).map(row => row.userId);
+  const missing = topIds.filter(id => {
+    const cached = nameCache.get(`${discordId}:${id}`);
+    if (cached && cached.expiresAt > Date.now()) { names.set(id, cached.name); return false; }
+    return true;
+  });
+  if (missing.length) {
+    const saved = await database.member.findMany({ where: { guildId: record.id, discordUserId: { in: missing } }, select: { discordUserId: true, displayName: true } });
+    for (const member of saved) names.set(member.discordUserId, member.displayName);
+    for (const id of missing) {
+      const member = await rest.get(Routes.guildMember(discordId, id)).catch(() => null) as APIGuildMember | null;
+      const user = member?.user ?? (await rest.get(Routes.user(id)).catch(() => null) as APIUser | null);
+      const name = member?.nick || user?.global_name || user?.username;
+      if (name) names.set(id, name);
+      if (nameCache.size >= 1000) nameCache.delete(nameCache.keys().next().value!);
+      nameCache.set(`${discordId}:${id}`, { name: names.get(id) ?? "", expiresAt: Date.now() + NAME_CACHE_MS });
+    }
+  }
   const sibling = (key: "activities" | "chat") => channels.find(c => c.type === ChannelType.GuildText && c.parent_id === category.id && [COMMUNITY_CHANNEL_SPECS.en[key].name, COMMUNITY_CHANNEL_SPECS.fr[key].name].includes(c.name ?? ""))?.id;
-  const body = communityLeaderboardCard({ lang, discordId, season, board, activitiesId: sibling("activities"), chatId: sibling("chat") });
+  const body = communityLeaderboardCard({ lang, discordId, season, board, names, activitiesId: sibling("activities"), chatId: sibling("chat") });
   const pins = await rest.get(Routes.channelMessagesPins(channel.id)) as { items: { message: APIMessage }[] };
   let message = pins.items.map(item => item.message).find(m => m.author.id === botId && m.embeds.some(e => e.footer?.text.startsWith(COMMUNITY_BOARD_MARKER)));
   if (!message) {

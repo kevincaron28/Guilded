@@ -1,5 +1,20 @@
 # Changelog
 
+## 6.0.0 Beta — 4 October 2026
+
+This is a testing beta, not a stable release. Back up SavedVariables before upgrading.
+
+- Loot responses show pending/confirmed feedback for raiders and visible responses for officers.
+- Includes the tested off-spec pricing, GP import/reversal, personal pairing and standings workflows from the 5.0 beta stabilization work.
+- Removes Raid tools entirely: target/floor markers, tank marking and boss plans will be developed later as an optional standalone addon. Saved plans and settings are preserved.
+- Includes guild map diagnostics, automatic recipe sharing, and clearer member/owner setup guides.
+- Bot, addon and companion source versions are aligned at 6.0.0; synchronization protocol remains 2.
+
+Remaining live acceptance includes fresh Alliance guild setup, Windows clean install/upgrade and recovery on a non-developer PC, competing/consecutive awards, concurrent officer uploads, permission revocation and a full real raid. Calendar and other game APIs depend on client support. Do not treat these pending checks as passes.
+
+Install the complete Guilded folder, including Guilded.toc. Do not delete your saved data. For addon-only testing, keep WoW companion syncing paused. Discord integration needs the guild owner's configured bot and personal pairing; no database or Discord reset is part of this beta package.
+
+
 ## 5.0.0 stabilization (unreleased)
 
 - **Wishlists, item prices and cores from the companion.** The desktop and online companion get two pages. **Wishlist**: each member adds, reprioritizes and removes items on their own characters (same list as `/wishlist`). **Cores & prices**: everyone sees each core's prices, rules and roster; Raid Leaders, officers and Guild Masters can set or remove prices one by one or paste a whole list (per core or guild-wide), change a core's description, realm, loot system and EP/GP rules (empty = guild default), and add, move, bench or remove players with their character and backup characters. The bot checks the member's Discord roles on every change, records it in the audit log, refuses an edit over a value someone else changed meanwhile, and refreshes the core's roster message. Schedules, the point pool and creating, renaming or deleting a core stay in Discord. New API `/api/v1/manage`; no database change.

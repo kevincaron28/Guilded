@@ -1,9 +1,16 @@
 # Guilded 6.0 release testing
 
-Target: 6.0 public release. Current repository version: 5.0.0.
+Target: 6.0 public release. Current repository version: 6.0.0 (Beta).
 Release is not yet verified or published. Follow the deployment and backup gates in
 [V5_0_RELEASE_HANDOFF.md](V5_0_RELEASE_HANDOFF.md); use
 [RELEASE_CHECKLIST.md](../RELEASE_CHECKLIST.md) for the full feature coverage.
+
+On 4 October the owner requested a 6.0.0 Beta package for CurseForge and
+second-PC testing before stable acceptance. This intentional version change
+does not close the pending live gates. See `V6_0_BETA_NOTES.md` for upload notes.
+The local clean addon-only installation was prepared with 5.0.0 source after
+Raid tools extraction; it has not yet been upgraded to the 6.0.0 package.
+WoW companion sync remains paused; Community and PoE2 have not been reset.
 
 ## Confirmed test environment
 

@@ -4,6 +4,14 @@ role permissions and bot hierarchy. Preserve Exilé → Errant, remove only the
 owner-approved Errant permissions, and verify Guilded before disabling Carl.
 # Guilded 5.0 stabilization — local Claude update handoff
 
+6.0 beta preparation (4 Oct 2026): owner explicitly requested version 6.0.0
+as a Beta for CurseForge distribution and second-PC acceptance. Product source
+versions are intentionally bumped together; protocol remains 2. Use
+`docs/V6_0_BETA_NOTES.md` and the updated CurseForge sheet. Older instructions
+to keep 5.0.0 are historical. This does not mark live tests passed or authorize
+the pending WoW Discord reset. Production deployment still needs its gates and
+will trigger the normal version announcement.
+
 V6 scope freeze (4 Oct 2026): the owner removed the entire Raid tools feature
 from Guilded: target/floor markers, tank marking and boss plans. Archived source
 and extraction notes are in `docs/archive/raid-tools/README.md`; a standalone

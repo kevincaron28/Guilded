@@ -83,7 +83,7 @@ local function ensureDb()
   GuildedDB = GuildedDB or {}
   db = GuildedDB
   db.version = DB_VERSION
-  db.addonVersion = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(addonName, "Version")) or (GetAddOnMetadata and GetAddOnMetadata(addonName, "Version")) or "5.0.0"
+  db.addonVersion = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(addonName, "Version")) or (GetAddOnMetadata and GetAddOnMetadata(addonName, "Version")) or "6.0.0"
   -- Fill in any setting missing from an older saved file instead of only
   -- creating settings when the whole table is absent.
   db.settings = db.settings or {}

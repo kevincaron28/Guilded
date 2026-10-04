@@ -1,7 +1,7 @@
 {
   "name": "guilded-companion",
   "productName": "Guilded Companion",
-  "version": "5.0.0",
+  "version": "6.0.0",
   "description": "Your guild, connected. World of Warcraft sync and Path of Exile 2 mapping.",
   "main": "main.cjs",
   "private": true,

@@ -70,7 +70,7 @@ export function createBrowserCompanion(env = globalThis) {
   }
   const api = {
     browser: true,
-    getAll: async () => ({ config, logs, ...snapshot(), autostart: false, version: "5.0.0" }),
+    getAll: async () => ({ config, logs, ...snapshot(), autostart: false, version: "6.0.0" }),
     saveConfig: async next => {
       if (busy) return { ok: false, message: "Wait for the current sync to finish before changing settings." };
       if (visits.length && ["poeCharacter", "poeLeague", "poeMode", "guildDiscordId"].some(field => next[field] !== config[field])) return { ok: false, message: "Sync your queued visits before changing character, league, mode or server." };

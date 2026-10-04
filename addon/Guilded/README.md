@@ -36,7 +36,6 @@ switched off:
 | `sim` | Test raid / dungeon run for officers |
 | `guildmap` | Guildmates on your world map and minimap (`/guilded map`) |
 | `scores` | A dungeon score per player from recorded runs, on player tooltips (`/guilded score`) |
-| `raidtools` | Raid target icons, mark the tanks, world markers, boss plans (`/guilded rt`) |
 
 Raids, attendance, EPGP, loot, the gear check, standings and the version
 check are the core and always run.
@@ -222,5 +221,4 @@ presence, loot, and dungeon runs. An officer reviews and applies it with
 
 - **Guild map** (module `guildmap`): guildmates who run Guilded show as class-coloured dots on the world map and minimap (name, level and zone on hover). Each client shares only its own position, never inside an instance or in combat; `/guilded map share off` stops sharing, `/guilded map show off` hides the dots.
 - **Dungeon scores** (module `scores`): each dungeon counts once with a player's best completed run (dungeon level x 2, x speed against the guild record, minus 5% per death). On player tooltips, the **Scores** page and `/guilded score [player|top]`. Works without Discord.
-- **Raid tools** (module `raidtools`, **Raid tools** page for leaders): target icons, **Mark tanks**, world marker buttons, and boss plans shown on every raider's screen (`/guilded rt plan share <boss>`) or posted in raid chat.
 - **Deduct GP** on the EPGP page (`/guilded gpdeduct`), **explain the roll games** in chat (Games page, `/guilded games explain`), and `/guilded standings publish` for guilds without the bot.

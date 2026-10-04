@@ -46,17 +46,17 @@ API, and the release notes say which parts are untested.
 
 ## v5: Raid tools module (built in 5.0, drawings left)
 
-`Modules/RaidTools.lua` (switch `raidtools`): raid target icons and "mark the tanks", world marker buttons
-(secure `/wm` macros), boss plans shared before the pull and shown on every raider's screen, or posted in
-raid chat, and `/guilded rt check`. **Left:** arrows, circles and numbered spots drawn on the world map or a
-boss room picture (the guild map's pin code in `Modules/GuildMap.lua` is the starting point), officers
-editing plans in Discord through the companion.
+**Removed from Guilded's v6 scope on 4 October 2026 at the owner's request.**
+Markers, tank marking and boss plans are preserved in
+[the extraction archive](docs/archive/raid-tools/README.md) for a future optional
+standalone leader addon. It is not yet installable. Drawings and Discord plan
+editing remain future work. Older feature descriptions above describe v5 history.
 
 ## Raid tools polish and standalone addon
 
 - Compact independent marker window: keep it visible during raids without opening the main Guilded window.
 - Polish layout, icon tooltips, scaling, saved position, locking, combat behavior and leader permissions in real raids.
-- Package a standalone raid-tools addon after the module is polished; reuse the marker and plan logic without requiring the bot or companion.
+- Package a standalone raid-tools addon after the archived module is extracted and polished; it must work without Guilded, the bot or companion. Leader-only plans should use raid chat; custom popups require a receiver on each member's client.
 
 ## Dungeon season history and Hall of Fame
 

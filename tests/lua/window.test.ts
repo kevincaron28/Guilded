@@ -45,7 +45,7 @@ function openWindow(rank: number, extraLua = ""): LuaSession {
     function GetGuildInfo() return "Alpha", "Rank", ${rank} end
     ${extraLua}
   `);
-  for (const file of ["Core.lua", "Compat.lua", "Modules/Sync.lua", "Modules/SyncNow.lua", "Modules/Games.lua", "Modules/ConsumableData.lua", "Modules/Consumables.lua", "Modules/Ready.lua", "Modules/RaidTools.lua", "Modules/Minimap.lua"]) session.load(file);
+  for (const file of ["Core.lua", "Compat.lua", "Modules/Sync.lua", "Modules/SyncNow.lua", "Modules/Games.lua", "Modules/ConsumableData.lua", "Modules/Consumables.lua", "Modules/Ready.lua", "Modules/Minimap.lua"]) session.load(file);
   session.run(`fire_event("PLAYER_LOGIN"); fire_event("PLAYER_ENTERING_WORLD"); NS.commandHandlers["menu"]()`);
   return session;
 }
@@ -77,7 +77,7 @@ describe("the tools window (sidebar and Home page)", () => {
     expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`)).toBe("Home");
   });
 
-  it("opens raid tools directly and routes the minimap shortcuts", () => {
+  it("keeps the map shortcut and does not restore retired marker controls", () => {
     const s = openWindow(1, `
       local original = CreateFrame
       function CreateFrame(kind, name, ...)
@@ -86,30 +86,26 @@ describe("the tools window (sidebar and Home page)", () => {
         return frame
       end
     `);
-    s.run(`NS.commandHandlers["menu"]({"raidtools"})`);
-    expect(s.run(`return tostring(NS.raidTools.markerFrame:IsShown())`)).toBe("true");
-    expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`)).toBe("Home");
-    s.run(`NS.commandHandlers["menu"]({"raidtools"})`);
-    expect(s.run(`return tostring(NS.raidTools.markerFrame:IsShown())`)).toBe("false");
-    expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`)).toBe("Home");
     s.run(`
-      function IsShiftKeyDown() return true end
-      GuildedMinimapButton.scripts.OnClick(GuildedMinimapButton, "LeftButton")
-    `);
-    expect(s.run(`return tostring(NS.raidTools.markerFrame:IsShown())`)).toBe("true");
-    expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`)).toBe("Home");
-    s.run(`
-      function IsShiftKeyDown() return false end
+      local db = NS.getDb()
+      db.raidPlans = { test = { boss = "Test", lines = { "Keep this" } } }
+      db.markersShown = true
+      db.markerWindow = { point = "CENTER", x = 12 }
+      fire_event("PLAYER_LOGIN")
       function IsAltKeyDown() return true end
       NS.commandHandlers["map"] = function(args) MAP_ACTION = args[1] end
       GuildedMinimapButton.scripts.OnClick(GuildedMinimapButton, "LeftButton")
     `);
-    expect(s.run(`return MAP_ACTION`)).toBe("open");
+    expect(s.run("return MAP_ACTION")).toBe("open");
+    expect(s.run("return tostring(NS.raidTools)")).toBe("nil");
+    expect(s.run('return tostring(NS.commandHandlers["rt"])')).toBe("nil");
+    expect(s.run('return NS.getDb().raidPlans.test.lines[1]')).toBe("Keep this");
+    expect(s.run('return NS.getDb().markerWindow.x')).toBe("12");
     expect(s.chat().join("\n")).not.toContain("failed");
   });
 
   it("officers see every group in order; members only what they can use", () => {
-    expect(visibleTabs(openWindow(1))).toBe("Home,Me,Standings,Ready,Reserves,Calendar,Raid,EPGP,Loot,Raid tools,Council,Dungeons,Season,Scores,Games,Crafting,Tools");
+    expect(visibleTabs(openWindow(1))).toBe("Home,Me,Standings,Ready,Reserves,Calendar,Raid,EPGP,Loot,Council,Dungeons,Season,Scores,Games,Crafting,Tools");
     session?.close();
     expect(visibleTabs(openWindow(5))).toBe("Home,Me,Standings,Reserves,Dungeons,Season,Scores,Games,Crafting,Tools");
   });

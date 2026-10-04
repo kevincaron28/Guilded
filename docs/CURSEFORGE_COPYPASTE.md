@@ -41,7 +41,7 @@ Everything an officer needs to run a raid, inside the game, with no setup. Add t
 free Discord bot when you want signups and reports outside the game too.
 
 ## In game
-- **Raid tools:** start and end a raid, attendance with bench credit, boss kills, notes.
+- **Raid tracking:** start and end a raid, attendance with bench credit, boss kills, notes.
 - **EPGP and loot:** award EP and GP, standings with priority (PR), and **four loot systems**
   you choose per raid core: GP bidding, loot council (BiS / upgrade / off-spec answers),
   soft reserves (reservers roll, with an SR+ bonus for reserves that went unwon) and EPGP
@@ -62,8 +62,6 @@ free Discord bot when you want signups and reports outside the game too.
 - **Roll games:** high roll, deathroll, 1v1 duels, with a button that explains each game in chat. No gold, no wagers, no debts.
 - **Guild map:** see guildmates on your world map and minimap.
 - **Dungeon scores:** a score per player from recorded runs, on tooltips and the Scores page. No Discord needed.
-- **Raid tools for leaders:** raid target icons, mark the tanks, world markers and boss plans shown on every
-  raider's screen.
 - **Mass invite:** `/guilded invite raid` invites everyone who signed up on Discord.
 - **A friendly window:** click the gold coin on the minimap. The Home page shows your
   standing, what is going on, and whether your data reached Discord.
@@ -96,7 +94,6 @@ PolyForm Noncommercial license. Not affiliated with or endorsed by Blizzard Ente
 **New in 5.0**
 - **Guild map:** guildmates as dots on your world map and minimap (never shared in instances or combat).
 - **Dungeon scores:** a Raider.IO-style score from the dungeon runs Guilded records, on player tooltips.
-- **Raid tools:** raid target icons, mark the tanks, world marker buttons, and boss plans on every raider's screen.
 - **Deduct GP**, **explain the roll games in chat**, and **standings without the bot** (an officer shares their ledger).
 - Discord bot (optional): each raid core's channels are made and archived by themselves, group alerts matched to your level and roles, and an answer channel with officer-written answers (optional free AI answers).
 

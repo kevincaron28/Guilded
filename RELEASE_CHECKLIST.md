@@ -1,6 +1,12 @@
-# Release checklist: Guilded 5.0.0
+# Release checklist: Guilded 6.0.0 Beta
 
 **Read `docs/V5_0_RELEASE_HANDOFF.md` first for the current update order and stabilization gates.**
+
+The owner requested a 6.0.0 Beta on 4 October 2026 for second-PC testing.
+Use `dist/Guilded-v6.0.0.zip` and the matching 6.0.0 companion installer.
+Older 5.0 build names below are historical. Raid tools is excluded. Beta
+publication does not close the remaining live acceptance gates or promote
+the package to stable Release. Current upload text: `docs/V6_0_BETA_NOTES.md`.
 
 GitHub published [5.0.0 Beta 1](https://github.com/kevincaron28/Guilded/releases/tag/v5.0.0-beta.1) on 2 October 2026. Stable 5.0.0 and the planned 6.0 release remain unpublished. For current acceptance evidence, read `docs/V6_0_RELEASE_TESTING.md`; older unchecked items below must be reconciled with that evidence. Feature history: `docs/V5_0_HANDOFF.md`, `docs/V4_6_HANDOFF.md`, `docs/V4_5_HANDOFF.md`.
 

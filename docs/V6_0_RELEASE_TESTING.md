@@ -423,6 +423,107 @@ seven EPGP subcommands. Validation and deployment are in progress; do not ask
 the owner to retry until the live handler has been updated. Dismissal and
 duplicate-upload results from the preceding instructions remain unconfirmed.
 
+**EPGP handler fix validated and deployed, 3 October 2026:** all 149 test files /
+1,212 tests, TypeScript, ESLint and addon validation passed. Full
+`npm run release:prepare` also passed, including audits and Windows packaging.
+Both PostgreSQL checks and Windows packaging passed for source commit 03257f4
+([CI](https://github.com/kevincaron28/Guilded/actions/runs/37138135828)) and
+merged main commit `7d8152c6bf2f75c7e4c19c0dbe6d21dbf8517b63`
+([CI](https://github.com/kevincaron28/Guilded/actions/runs/37138358110)).
+PR #37 is now merged; its earlier draft/pending statements above are historical.
+
+Production ledger preflight passed. A custom PostgreSQL dump was verified with
+pg_restore --list, and the application was archived under
+`/home/ubuntu/guilded-recovery/2026-10-03T16-48-13-667Z` (private files).
+Oracle Node was updated from 22.23.3 to 24.21.0 using the existing signed
+NodeSource repository; the old package and repository configuration were saved.
+The deployment script copied main and restarted the existing service. Its first
+migration precheck timed out acquiring the advisory lock; systemd's automatic
+retry succeeded, with no pending migrations. Verified deployed commit 7d8152c,
+service active, Discord logged in and local /health returning ok true, version
+5.0.0, protocol 2. No second bot was started. Desktop companion installation was
+not changed in this deployment; rebuilt artifacts are local, not a 6.0 release.
+
+**Live EPGP retry passed:** the owner supplied the Discord response to
+`/epgp leaderboard core:Guilded Test`: Guilded Test pool lists claudyazes with
+EP 0 / GP 15 and kevmister28 with EP 0 / GP 0. The leaderboard displays Discord
+member names; this matches the previously verified Seria 15 GP test-pool entry.
+This confirms the live handler repair and Discord pool display. Next check:
+reload Ray once more, wait for the companion upload, and verify it applies zero
+new ledger entries and the same leaderboard remains at 15 GP. Repeated-upload
+deduplication was subsequently verified below.
+
+**Repeat upload passed at 12:58:** the owner reports an automatic upload with
+0 ledger entries / 0 new characters and no remaining hold warning. Read-only
+inspection of returned standings timestamped 16:58:34Z confirms the same accepted
+ledger reference and Seria still at 15 GP in Guilded Test, 0 in the guild pool
+and 0 in the existing raid core. The repeated upload did not duplicate GP.
+
+**Matching Discord raid created:** the owner supplied the Guilded Test Raid
+signup card at 13:01: Planned, 3 October 2026 at 13:15, core Guilded Test,
+0 signups. Two copies of the card were pasted; this alone does not establish
+two database raids (shared/core channel posts are supported).
+
+Next requested in-game test, with Ray and Seria in the same party: Ray selects
+Guilded Test, starts recording Guilded Test Raid and confirms the start succeeded;
+opens a 120-second bid for Guilded Raid Test Award, Seria bids 10, Ray verifies
+and awards once, then ends the recorded raid and reloads. Expected test-pool GP
+for Seria is 25 (existing 15 plus 10), with one new GP entry and a raid-associated
+loot record. If another raid is already active, stop instead of awarding into
+it. Complete loot import and the winner message remain pending.
+
+**Recorded raid award imported at 13:06:** owner reports 1 applied ledger entry,
+0 new characters and no hold warning. SavedVariables show the +10 GP entry
+`qg:Ray-1791047136-14` in Guilded Test, and loot row
+`qg-loot:Ray-1791047136-13` with raidRef `1791047102-Ray`. The completed addon
+raid ran 17:05:03Z to 17:05:44Z and saw Ray and Seria. Returned standings
+acknowledge both test entries and show Seria 25 GP in Guilded Test, 0 in the
+guild pool and existing core.
+
+Read-only production verification confirms exactly one loot row for that source,
+amount 10, attached to Discord raid `cmusn307h006into7z62i6fo5`, which has two
+attendance records. Both GP source references exist once (15 and 10 GP).
+Complete recorded-raid loot import passes; winner-popup confirmation remains
+unreported. The second pasted signup card actually is a second database raid:
+`cmusn4gw80082nto7ksyv6lhs`, same title/time/core, with zero attendance/signups.
+Both are still PLANNED. Next cleanup: cancel only the empty duplicate, then
+start and end the matched test raid in Discord (end requires ACTIVE), declining
+the optional EP proposal. Preserve
+the test award/attendance audit trail. No claim is made about why the duplicate
+raid was created.
+
+**Test raid cleanup verified:** owner reports "EP award cancelled. Nothing was
+recorded." A subsequent read-only database check confirms matched test raid
+cmusn307h006into7z62i6fo5 is COMPLETED with two attendance records; empty duplicate
+cmusn4gw80082nto7ksyv6lhs is CANCELLED. The imported loot row remains attached to
+the completed raid and both GP entries (15 and 10) remain present. The cancelled
+proposal concerns new EP, not deletion of existing attendance/loot history.
+
+**Imported GP reversal passed:** after `/guilded void Seria` and reload, the
+owner's 13:11 companion message reports 0 new ledger entries and "1 voided in
+game and taken back." The 13:13 Discord Guilded Test leaderboard shows
+claudyazes at EP 0 / GP 15 and kevmister28 at EP 0 / GP 0. Both show attendance
+100%, reflecting the recorded test raid. This confirms the imported 10 GP award
+was reversed once; it does not imply removal of the separate loot-history record.
+
+**Priority configuration confirmed:** the owner answered "yes" after changing
+only Guilded Test to EPGP priority (set prices), refreshing standings, reloading
+Ray and confirming `/guilded core Guilded Test` reports that mode.
+
+**Fixed-price priority award passed:** after the requested recorded test raid
+segment, 20 GP price, Seria-only I want it response and timer-driven award, the
+owner reports one applied ledger entry at 13:21 and confirms 35 GP. Returned
+standings independently show Guilded Test in PRIORITY mode, its item price
+`guilded priority test = 20`, and Seria at 35 GP (other pools remain zero).
+This covers automatic fixed-price awarding with one interested player;
+highest-PR competition remains separate.
+
+Next: repeat the same 20 GP item in another recorded test segment with Seria
+choosing Off-spec and Ray passing. Verified returned rules have offspec = 50,
+so the automatic award should cost 10 GP and bring Seria to 45 GP after end/reload
+and import. The existing non-cancelled Discord test raid is still within the
+importer's four-hour matching window, which allows completed raids.
+
 ## Installation documentation prepared locally
 
 GETTING_STARTED.md now routes members and owners to separate guides.
@@ -457,6 +558,37 @@ deployment or public release confirmation.
 
 ## Remaining release gates
 
+### Owner confirmation, 4 October 2026
+
+The owner confirmed that Ray and Seria both reloaded the patched addon and
+passed the two-player loot-response feedback and off-spec GP retests. This
+closes those two pending checks from 3 October. The off-spec test described
+above expected a 10 GP charge for the 20 GP item at 50% off-spec pricing.
+This is owner-reported acceptance; no new database inspection was performed
+for this confirmation. Other unchecked release gates below remain pending.
+
+- [x] Patched two-player loot-response feedback after both clients reloaded.
+- [x] Off-spec GP retest (owner confirmed both retests passed).
+
+### Loot response feedback fix (3 October, 13:36 local)
+
+Owner reported that Seria's I want it / Off-spec clicks gave neither player
+visible feedback. Council responses now appear on Ray's Loot page as well as
+Council, with local chat for new or changed answers. Seria's popup shows a
+pending answer immediately and confirms it in local chat only after the host's
+ACK. Failed queue attempts report failure; unrelated and stale pending ACKs are
+ignored. English and French feedback included.
+
+Validation passed: 149 test files / 1,215 tests, TypeScript, ESLint and addon
+validator. Three changed Lua files installed and hash-verified on Ray's Forever
+beta client; originals saved under `backups/loot-feedback-2026-10-03-133610`.
+`dist/Guilded-loot-feedback-patch.zip` contains the same three files and install
+instructions for Seria. The full 5.0.0 addon ZIP was rebuilt; no version bump,
+bot deployment or public publication. Both clients need `/reload` after Seria
+installs the patch. Real two-client feedback verification remains pending;
+off-spec's expected GP amount is not yet marked passed. Cancel the feedback-only
+test before expiry to avoid another automatic award.
+
 - [x] Local release preparation for baseline commit 5ab7759 (rerun after changes).
 - [x] PostgreSQL migration/restore and Windows packaging CI for baseline 5ab7759
   (require new green CI for the final release commit).
@@ -487,6 +619,14 @@ deployment or public release confirmation.
   appears on both computers (owner confirmed).
 - [x] Locked reserves refuse Seria's removal; unlocking allows removal on both
   computers, followed by clearing the empty test list (owner confirmed).
+- [x] Test-pool GP awards import and return in standings (15 then 25 GP), while
+  the other pools remain at zero; repeat upload does not duplicate the first award.
+- [x] Recorded-raid loot award imports once with two attendance records; matched
+  test raid completed and empty duplicate cancelled (database verified).
+- [x] Voiding the imported 10 GP test award reverses one entry and returns the
+  test pool from 25 to 15 GP (companion and Discord confirmation).
+- [x] Priority mode automatically awards the 20 GP priced test item to Seria,
+  imports one entry and returns a 35 GP balance (owner and standings verified).
 - [ ] Solo client checks: UI, professions, saved data, reload and personal sync.
 - [ ] Two-player checks: map, loot, ledger deduplication, core pools and permissions.
 - [ ] Fresh guild setup with its own bot/database and an ordinary member account.

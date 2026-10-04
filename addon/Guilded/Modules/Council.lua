@@ -82,7 +82,7 @@ end
 
 local function sendAddon(text, channel, target)
   if channel == "TEST" then return end
-  ns.comm.send(PREFIX, text, channel, target)
+  return ns.comm.send(PREFIX, text, channel, target)
 end
 
 local function sendChat(text, channel, target)
@@ -342,7 +342,11 @@ end
 local function addResponse(name, tier, gear, replyTo, reply)
   local session = council.current
   if not session or not session.open or not name or not TIERS[tier] or not takes(session.kind, tier) then return end
+  local previous = session.responses[name]
   session.responses[name] = { tier = tier, at = clock(), gear = gear ~= "" and gear or nil }
+  if not previous or previous.tier ~= tier then
+    ns.message(string.format(L("%s answered %s for %s."), name, L(TIERS[tier].label), plainItem(session.item)))
+  end
   if reply == "addon" then sendAddon("ACK|" .. session.id .. "|" .. tier, "WHISPER", replyTo)
   elseif reply == "whisper" then
     sendChat("[Guilded] " .. string.format(L("Got it: %s for %s."), TIERS[tier].chat, plainItem(session.item)), "WHISPER", replyTo)
@@ -420,7 +424,7 @@ function council.restore()
 end
 
 -- Short description for the window.
-function council.statusText()
+function council.statusText(limit)
   local session = council.current
   if not session then return "No loot council running." end
   local ranked = rankedResponses(session)
@@ -428,7 +432,7 @@ function council.statusText()
   local lines = { string.format("%s%s - %s", plainItem(session.item),
     session.kind == "priority" and string.format(" (%d GP, priority)", session.price or 0) or "",
     session.open and (left .. "s left") or "closed, waiting for Award") }
-  for i = 1, math.min(10, #ranked) do
+  for i = 1, math.min(limit or 10, #ranked) do
     local r = ranked[i]
     local extra = {}
     if r.reserved then table.insert(extra, "reserved") end
@@ -495,17 +499,21 @@ local function updatePopup()
   popup.item:SetText(incoming.item)
   popup.info:SetText(string.format(L("%ds left"), left) .. (incoming.kind == "priority" and string.format(L("   -   costs %d GP"), incoming.price or 0) or ""))
   layoutButtons(incoming.kind)
-  popup.mine:SetText(incoming.mine and string.format(L("Your answer: %s"), L(TIERS[incoming.mine].label)) or "")
+  popup.mine:SetText(incoming.pending and string.format(L("Sending: %s (awaiting confirmation)"), L(TIERS[incoming.pending].label))
+    or (incoming.mine and string.format(L("Your answer: %s"), L(TIERS[incoming.mine].label)) or ""))
   if left <= 0 then hidePopup() end
 end
 
 local function respond(tier)
   local incoming = council.incoming
-  if not incoming or not TIERS[tier] then return end
+  if not incoming or not TIERS[tier] or not takes(incoming.kind, tier) or incoming.endsAt <= clock() then return end
   local gear = tier == "pass" and "" or equippedFor(incoming.item)
-  sendAddon(string.format("RESP|%s|%s|%s", incoming.id, tier, gear), "WHISPER", incoming.officer)
+  local queued = sendAddon(string.format("RESP|%s|%s|%s", incoming.id, tier, gear), "WHISPER", incoming.officer)
+  if queued == false then ns.message(L("Could not send your answer. Please try again.")); return end
+  incoming.pending = tier
+  updatePopup()
   -- Sent to the officer; the answer shows as accepted when the ACK comes back.
-  if tier == "pass" then incoming.mine = "pass"; updatePopup(); hidePopup() end
+  if tier == "pass" then hidePopup() end
 end
 
 local function buildPopup()
@@ -672,9 +680,14 @@ local function onEvent(_, event, ...)
     elseif kind == "ACK" then
       local id, tier = string.match(text, "^ACK|([^|]+)|(%a+)$")
       local incoming = council.incoming
-      if incoming and incoming.id == id and TIERS[tier] then
+      if incoming and incoming.id == id and TIERS[tier]
+        and name == ns.normalizeName(incoming.officer)
+        and (not incoming.pending or incoming.pending == tier) then
+        local changedAnswer = incoming.mine ~= tier or incoming.pending ~= nil
+        incoming.pending = nil
         incoming.mine = tier
         updatePopup()
+        if changedAnswer then ns.message(string.format(L("Answer confirmed: %s for %s."), L(TIERS[tier].label), plainItem(incoming.item))) end
       end
     elseif kind == "LIST" then
       -- The host's answers, for officers to vote on.

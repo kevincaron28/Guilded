@@ -54,6 +54,23 @@ const visibleTabs = (s: LuaSession) => s.run(`local n = {}; for _, t in ipairs(N
 const homeText = (s: LuaSession, field: string) => s.run(`return NS.windowState().${field}.text`);
 
 describe("the tools window (sidebar and Home page)", () => {
+  it("shows live priority answers on Loot as well as Council, with officer feedback", () => {
+    const s = openWindow(1);
+    s.load("Modules/Council.lua");
+    s.run(`
+      NS.getActiveRaid = function() return { test = true } end
+      NS.council.startPriority("Test Sword", 20, 60)
+      NS.council.addResponse("Seria", "os")
+    `);
+    expect(homeText(s, "bidStatus")).toContain("Seria  off-spec");
+    expect(homeText(s, "councilStatus")).toContain("Seria  off-spec");
+    expect(s.chat().join("\n")).toContain("Seria answered Off-spec for Test Sword.");
+    s.run(`NS.council.addResponse("Seria", "os")`);
+    expect(s.chat().filter(x => x.includes("answered Off-spec"))).toHaveLength(1);
+    s.run(`NS.council.addResponse("Seria", "want")`);
+    expect(homeText(s, "bidStatus")).toContain("Seria  wants it");
+  });
+
   it("opens without errors and starts on Home", () => {
     const s = openWindow(1);
     expect(s.chat().join("\n")).not.toContain("failed");

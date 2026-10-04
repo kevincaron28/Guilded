@@ -1376,7 +1376,10 @@ refresh = function()
         C_Timer.After(1, function() ui.councilTickPending = false; refresh() end)
       end
     end
-    ui.bidStatus:SetText(moduleOn("bidding") and ns.bidding and ns.bidding.statusText and ns.bidding.statusText() or "")
+    local activeCouncil = moduleOn("council") and ns.council and ns.council.current
+    ui.bidStatus:SetText(activeCouncil and ns.council.statusText(4)
+      or (moduleOn("bidding") and ns.bidding and ns.bidding.statusText and ns.bidding.statusText() or ""))
+    if activeCouncil or moduleOn("bidding") then ui.bidStatus:Show() else ui.bidStatus:Hide() end
     if ui.dropRows and ns.loot and ns.loot.drops then
       local drops = ns.loot.drops()
       for i, row in ipairs(ui.dropRows) do

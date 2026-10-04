@@ -172,6 +172,33 @@ describe("Council.lua officer side", () => {
 });
 
 describe("Council.lua raider side", () => {
+  it("shows pending priority answers until the host confirms, and ignores stale or foreign ACKs", () => {
+    const s = withCouncil("RAID", false);
+    addon(s, "Boss", "OPENP|55|60|20|Sword");
+    council(s, "want");
+    expect(s.run("return NS.council.incoming.pending")).toBe("want");
+    expect(s.run("return tostring(NS.council.incoming.mine)")).toBe("nil");
+    addon(s, "Rando", "ACK|55|want");
+    expect(s.run("return tostring(NS.council.incoming.mine)")).toBe("nil");
+    council(s, "os");
+    addon(s, "Boss", "ACK|55|want");
+    expect(s.run("return NS.council.incoming.pending")).toBe("os");
+    addon(s, "Boss", "ACK|55|os");
+    expect(s.run("return tostring(NS.council.incoming.pending)")).toBe("nil");
+    expect(s.chat()).toContain("Answer confirmed: Off-spec for Sword.");
+    addon(s, "Boss", "ACK|55|os");
+    expect(s.chat().filter(x => x.includes("Answer confirmed:"))).toHaveLength(1);
+  });
+
+  it("reports a failed queue attempt without claiming the answer was accepted", () => {
+    const s = withCouncil("RAID", false);
+    addon(s, "Boss", "OPENP|55|60|20|Sword");
+    s.run("NS.comm.send = function() return false end");
+    council(s, "want");
+    expect(s.chat()).toContain("Could not send your answer. Please try again.");
+    expect(s.run("return tostring(NS.council.incoming.pending)")).toBe("nil");
+  });
+
   it("shows the popup for an officer's session and ignores anyone else", () => {
     const s = withCouncil("RAID", false);
     addon(s, "Rando", "OPEN|55|60|Sword");

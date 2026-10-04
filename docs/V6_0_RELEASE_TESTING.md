@@ -558,6 +558,18 @@ deployment or public release confirmation.
 
 ## Remaining release gates
 
+### Owner confirmation, 4 October 2026
+
+The owner confirmed that Ray and Seria both reloaded the patched addon and
+passed the two-player loot-response feedback and off-spec GP retests. This
+closes those two pending checks from 3 October. The off-spec test described
+above expected a 10 GP charge for the 20 GP item at 50% off-spec pricing.
+This is owner-reported acceptance; no new database inspection was performed
+for this confirmation. Other unchecked release gates below remain pending.
+
+- [x] Patched two-player loot-response feedback after both clients reloaded.
+- [x] Off-spec GP retest (owner confirmed both retests passed).
+
 ### Loot response feedback fix (3 October, 13:36 local)
 
 Owner reported that Seria's I want it / Off-spec clicks gave neither player

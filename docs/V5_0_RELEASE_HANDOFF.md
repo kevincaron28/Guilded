@@ -4,6 +4,12 @@ role permissions and bot hierarchy. Preserve Exilé → Errant, remove only the
 owner-approved Errant permissions, and verify Guilded before disabling Carl.
 # Guilded 5.0 stabilization — local Claude update handoff
 
+Release follow-up (4 Oct 2026): owner confirmed both clients reloaded the
+patched addon and the loot-feedback/off-spec GP retests passed. These two
+checks are now recorded in `docs/V6_0_RELEASE_TESTING.md`; the pending-test
+statements in the 3 October handoff below are historical. Remaining release
+gates and final-commit CI still need verification before stable publication.
+
 End-of-day handoff (3 Oct 2026): owner will test loot feedback later.
 Branch `codex/v6-client-acceptance` records today's acceptance evidence and the
 loot-response feedback fix. All 1,215 tests, TypeScript, lint and addon validation

@@ -558,6 +558,17 @@ deployment or public release confirmation.
 
 ## Remaining release gates
 
+### Scope freeze, 4 October 2026
+
+The owner removed all Raid tools from the v6 candidate: target/floor markers,
+tank marking and boss-plan editing, chat posting and popup reception. These
+checks now belong to a future optional standalone addon, not Guilded v6.
+See `archive/raid-tools/README.md` for preserved source and migration boundaries.
+Raid attendance, loot, readiness and the guild map remain in scope.
+Install the complete rebuilt addon on both test PCs before the final smoke test;
+verify no Raid tools page or marker palette appears, including after reload
+with old saved marker preferences. Saved plans/settings must remain preserved.
+
 ### Owner confirmation, 4 October 2026
 
 The owner confirmed that Ray and Seria both reloaded the patched addon and

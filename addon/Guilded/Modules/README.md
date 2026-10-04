@@ -62,7 +62,6 @@ new `KIND`, never a changed one.
 | Sync.lua | always on | GuildedSync | Version check, standings, guild module switches |
 | GuildMap.lua | `guildmap` | GuildedMap | 5.0: guildmates as dots on the world map and minimap (`P\|map\|x\|y\|class\|level`, `G` = gone, `Q` = rate-limited position refresh); `/guilded map share\|show on\|off` |
 | Scores.lua | `scores` | GuildedScore | 5.0: a dungeon score per player from recorded runs (best run per dungeon), on tooltips; `S\|score\|dungeons`; `/guilded score [player\|top]` |
-| RaidTools.lua | `raidtools` | GuildedRT | 5.0: raid target icons, mark the tanks, world marker buttons (secure `/wm`), boss plans shown on raiders' screens (`PLAN\|id\|i\|n\|text`, line 0 = boss); `/guilded rt` |
 | Minimap.lua | always on | (none) | Minimap button and tools window |
 
 ## Games.lua
@@ -152,6 +151,6 @@ shown per rank and per module switch (re-checked each time the window
 opens and whenever a switch changes). The Tools tab lists every module
 with its switches.
 
-5.0 map shortcuts: Shift-click the minimap coin opens Raid tools; Alt-click opens the guild map.
+Alt-click the minimap coin opens the guild map.
 Use `/guilded map check` for sharing status, map availability and peer count. Guildmates must
 run Guilded and enable sharing; minimap dots are limited to nearby players outside instances.

@@ -1,0 +1,51 @@
+-- Raid tools (RaidTools.lua): target icons, world markers, boss plans.
+local function buildRaidToolsPage(page)
+  at(newButton(page, "Open raid markers", 180, function() if ns.raidTools then ns.raidTools.toggleMarkers(true) end end), page, 0, -4)
+  heading(page, L("Boss plan"), -118)
+  at(newLabel(page, "Boss", "GameFontNormalSmall"), page, 0, -140)
+  ui.rtBoss = at(newEdit(page, 200), page, 40, -136)
+  ui.rtLines = {}
+  for i = 1, 6 do
+    at(newLabel(page, tostring(i) .. ".", "GameFontNormalSmall"), page, 0, -140 - i * 26)
+    ui.rtLines[i] = at(newEdit(page, 420), page, 22, -136 - i * 26)
+  end
+  local function boss()
+    local name = ui.rtBoss:GetText() or ""
+    if name == "" then ns.message(L("Type the boss name first.")); return nil end
+    return name
+  end
+  local y = -136 - 7 * 26 - 4
+  at(newButton(page, "Save", 70, function()
+    local name = boss()
+    if not name then return end
+    local lines = {}
+    for i = 1, 6 do
+      local text = ui.rtLines[i]:GetText() or ""
+      if text ~= "" then lines[#lines + 1] = (string.gsub(text, ";", ",")) end
+    end
+    if #lines == 0 then ns.message(L("Write at least one line of the plan.")); return end
+    run("rt plan save " .. name .. " = " .. table.concat(lines, "; "))
+  end), page, 0, y)
+  at(newButton(page, "Load", 70, function()
+    local name = boss()
+    local plan = name and ns.raidTools and ns.raidTools.getPlan(name)
+    if not plan then if name then ns.message(string.format(L("No plan for %s. /guilded rt plan list"), name)) end; return end
+    for i = 1, 6 do ui.rtLines[i]:SetText(plan.lines[i] or "") end
+  end), page, 74, y)
+  tip(at(newButton(page, "Show to the raid", 130, function()
+    local name = boss()
+    if name then run("rt plan share " .. name) end
+  end), page, 148, y), "Opens the plan on the screen of every raider who runs Guilded. Do it before the pull.")
+  tip(at(newButton(page, "Post in raid chat", 130, function()
+    local name = boss()
+    if name then run("rt plan post " .. name) end
+  end), page, 282, y), "For raiders without the addon: one chat line per plan line.")
+  local delete = at(newButton(page, "Delete", 70), page, 416, y)
+  confirmClick(delete, "Delete", function()
+    local name = boss()
+    if name then run("rt plan delete " .. name) end
+  end)
+  ui.rtPlans = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, y - 32)
+  ui.rtPlans:SetWidth(PAGE_WIDTH)
+end
+

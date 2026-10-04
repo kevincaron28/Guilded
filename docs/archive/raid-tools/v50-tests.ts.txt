@@ -1,0 +1,80 @@
+function withRaidTools(opts: { leader?: boolean; officer?: boolean } = {}): LuaSession {
+  session = newLuaSession();
+  session.run(String.raw`
+    SENT = {}
+    CHAT = {}
+    MARKS = {}
+    DB = {}
+    MOCK_RAID = true
+    MOCK_GROUP_SIZE = 4
+    MOCK_UNITS = { raid1 = { name = "Me" }, raid2 = { name = "Tanky" }, raid3 = { name = "Offtank" }, raid4 = { name = "Lead" }, target = { name = "Boss" } }
+    ROLES = { raid2 = "TANK", raid3 = "TANK" }
+    function IsInGroup() return true end
+    function UnitGroupRolesAssigned(unit) return ROLES[unit] or "DAMAGER" end
+    function UnitIsGroupLeader(unit) if unit == "player" then return ${opts.leader ?? true} end return unit == "raid4" end
+    function UnitIsGroupAssistant() return false end
+    function SetRaidTarget(unit, index) MARKS[#MARKS + 1] = unit .. "=" .. index end
+    C_ChatInfo.SendChatMessage = function(text, channel) CHAT[#CHAT + 1] = channel .. ":" .. text end
+    NS = {
+      L = function(t) return t end,
+      getDb = function() return DB end,
+      isSecret = function() return false end,
+      isOfficer = function() return ${opts.officer ?? false} end,
+      isOfficerName = function() return false end,
+      normalizeName = function(n) return n and (string.gsub(n, "%-.*", "")) or nil end,
+      playerName = function() return "Me" end,
+      compat = { inCombat = function() return IN_COMBAT or false end },
+      message = function(text) CHAT_LOG = CHAT_LOG or {}; CHAT_LOG[#CHAT_LOG + 1] = text end,
+      commandHandlers = {}, commandHelp = {}
+    }
+  `);
+  session.load("Modules/RaidTools.lua");
+  return session;
+}
+const rt = (s: LuaSession, line: string) => s.run(`local a = {}; for w in string.gmatch(${JSON.stringify(line)}, "%S+") do a[#a + 1] = w end; NS.commandHandlers["rt"](a)`);
+
+describe("raid tools", () => {
+  it("marks the target, the tanks in kill order, and clears the group", () => {
+    const s = withRaidTools();
+    rt(s, "mark 8");
+    rt(s, "tanks");
+    expect(s.run(`return table.concat(MARKS, ",")`)).toBe("target=8,raid2=8,raid3=7");
+    expect(s.chat().join("\n")).toContain("Tanks marked: Skull Tanky, Cross Offtank");
+    s.run(`MARKS = {}`);
+    rt(s, "clear");
+    expect(s.run(`return table.concat(MARKS, ",")`)).toBe("raid1=0,raid2=0,raid3=0,raid4=0");
+  });
+
+  it("only the leader or an assistant marks", () => {
+    const s = withRaidTools({ leader: false });
+    rt(s, "mark 8");
+    expect(s.run(`return #MARKS`)).toBe("0");
+    expect(s.chat().join("\n")).toContain("Only the leader or an assistant can mark.");
+  });
+
+  it("saves a boss plan, sends it to the raid's screens, and posts it in raid chat", () => {
+    const s = withRaidTools();
+    rt(s, "plan save Onyxia = tanks left; healers middle ; dps behind | no");
+    expect(s.run(`local p = NS.raidTools.getPlan("onyxia"); return p.boss .. ":" .. table.concat(p.lines, "/")`)).toBe("Onyxia:tanks left/healers middle/dps behind   no");
+    rt(s, "plan share Onyxia");
+    expect(s.run(`local t = {}; for _, m in ipairs(SENT) do t[#t + 1] = m.text end; return table.concat(t, "\\n")`))
+      .toMatch(/^PLAN\|\d+\|0\|3\|Onyxia\nPLAN\|\d+\|1\|3\|tanks left\nPLAN\|\d+\|2\|3\|healers middle\nPLAN\|\d+\|3\|3\|dps behind {3}no$/);
+    rt(s, "plan post Onyxia");
+    expect(s.run(`return table.concat(CHAT, "\\n")`)).toBe("RAID:[Guilded] Onyxia:\nRAID:1. tanks left\nRAID:2. healers middle\nRAID:3. dps behind   no");
+    s.run(`IN_COMBAT = true; SENT = {}`);
+    rt(s, "plan share Onyxia");
+    expect(s.run(`return #SENT`)).toBe("0");
+    expect(s.chat().join("\n")).toContain("before the pull");
+  });
+
+  it("shows a plan sent by the raid leader, in any order, and ignores one from a raider", () => {
+    const s = withRaidTools({ leader: false });
+    s.run(`NS.raidTools.receive("PLAN|5|2|2|dps behind", "Lead-Realm")`);
+    s.run(`NS.raidTools.receive("PLAN|5|0|2|Onyxia", "Lead")`);
+    expect(s.run(`return tostring(NS.raidTools.shown)`)).toBe("nil");
+    s.run(`NS.raidTools.receive("PLAN|5|1|2|tanks left", "Lead")`);
+    expect(s.run(`local shown = NS.raidTools.shown; return shown.from .. ":" .. shown.plan.boss .. ":" .. table.concat(shown.plan.lines, "/")`)).toBe("Lead:Onyxia:tanks left/dps behind");
+    s.run(`NS.raidTools.shown = nil; NS.raidTools.receive("PLAN|6|0|1|Fake", "Tanky"); NS.raidTools.receive("PLAN|6|1|1|go", "Tanky")`);
+    expect(s.run(`return tostring(NS.raidTools.shown)`)).toBe("nil");
+  });
+});

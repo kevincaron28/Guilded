@@ -4,6 +4,13 @@ role permissions and bot hierarchy. Preserve Exilé → Errant, remove only the
 owner-approved Errant permissions, and verify Guilded before disabling Carl.
 # Guilded 5.0 stabilization — local Claude update handoff
 
+V6 scope freeze (4 Oct 2026): the owner removed the entire Raid tools feature
+from Guilded: target/floor markers, tank marking and boss plans. Archived source
+and extraction notes are in `docs/archive/raid-tools/README.md`; a standalone
+leader addon will be developed later. Ship the complete new TOC/package so an
+old RaidTools.lua is not loaded. Preserve all SavedVariables. Earlier Raid tools
+instructions below are historical and no longer apply to the v6 candidate.
+
 Release follow-up (4 Oct 2026): owner confirmed both clients reloaded the
 patched addon and the loot-feedback/off-spec GP retests passed. These two
 checks are now recorded in `docs/V6_0_RELEASE_TESTING.md`; the pending-test

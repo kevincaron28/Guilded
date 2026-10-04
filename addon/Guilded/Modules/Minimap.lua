@@ -23,7 +23,7 @@ local ICON = "Interface\\Icons\\INV_Misc_Coin_01"
 local DEFAULT_ANGLE = math.rad(220)
 local RADIUS_PAD = 5
 local PANEL_WIDTH = 790
--- 600 (5.0, was 540): room in the sidebar for the Scores and Raid tools pages.
+-- 600 (5.0, was 540): room for the Scores page and officer controls.
 local PANEL_HEIGHT = 600
 -- A sidebar of tabs on the left (grouped, like most modern addons), the page on the right.
 local SIDEBAR_WIDTH = 160
@@ -1041,57 +1041,6 @@ local function refreshSeason()
   ui.seasonRows:SetText(#lines > 0 and table.concat(lines, "\n") or "No points recorded for this season.")
 end
 
--- Raid tools (RaidTools.lua): target icons, world markers, boss plans.
-local function buildRaidToolsPage(page)
-  at(newButton(page, "Open raid markers", 180, function() if ns.raidTools then ns.raidTools.toggleMarkers(true) end end), page, 0, -4)
-  heading(page, L("Boss plan"), -118)
-  at(newLabel(page, "Boss", "GameFontNormalSmall"), page, 0, -140)
-  ui.rtBoss = at(newEdit(page, 200), page, 40, -136)
-  ui.rtLines = {}
-  for i = 1, 6 do
-    at(newLabel(page, tostring(i) .. ".", "GameFontNormalSmall"), page, 0, -140 - i * 26)
-    ui.rtLines[i] = at(newEdit(page, 420), page, 22, -136 - i * 26)
-  end
-  local function boss()
-    local name = ui.rtBoss:GetText() or ""
-    if name == "" then ns.message(L("Type the boss name first.")); return nil end
-    return name
-  end
-  local y = -136 - 7 * 26 - 4
-  at(newButton(page, "Save", 70, function()
-    local name = boss()
-    if not name then return end
-    local lines = {}
-    for i = 1, 6 do
-      local text = ui.rtLines[i]:GetText() or ""
-      if text ~= "" then lines[#lines + 1] = (string.gsub(text, ";", ",")) end
-    end
-    if #lines == 0 then ns.message(L("Write at least one line of the plan.")); return end
-    run("rt plan save " .. name .. " = " .. table.concat(lines, "; "))
-  end), page, 0, y)
-  at(newButton(page, "Load", 70, function()
-    local name = boss()
-    local plan = name and ns.raidTools and ns.raidTools.getPlan(name)
-    if not plan then if name then ns.message(string.format(L("No plan for %s. /guilded rt plan list"), name)) end; return end
-    for i = 1, 6 do ui.rtLines[i]:SetText(plan.lines[i] or "") end
-  end), page, 74, y)
-  tip(at(newButton(page, "Show to the raid", 130, function()
-    local name = boss()
-    if name then run("rt plan share " .. name) end
-  end), page, 148, y), "Opens the plan on the screen of every raider who runs Guilded. Do it before the pull.")
-  tip(at(newButton(page, "Post in raid chat", 130, function()
-    local name = boss()
-    if name then run("rt plan post " .. name) end
-  end), page, 282, y), "For raiders without the addon: one chat line per plan line.")
-  local delete = at(newButton(page, "Delete", 70), page, 416, y)
-  confirmClick(delete, "Delete", function()
-    local name = boss()
-    if name then run("rt plan delete " .. name) end
-  end)
-  ui.rtPlans = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, y - 32)
-  ui.rtPlans:SetWidth(PAGE_WIDTH)
-end
-
 -- Sidebar order: pages are grouped under these headings.
 local GROUPS = { "Overview", "Raid night", "Fun and runs", "System" }
 local TAB_DEFS = {
@@ -1104,7 +1053,6 @@ local TAB_DEFS = {
   { name = "Raid", hint = "run a raid: start, bosses, attendance", group = "Raid night", officer = true, usesPlayer = true, build = buildRaidPage },
   { name = "EPGP", hint = "award EP and GP", group = "Raid night", officer = true, usesPlayer = true, build = buildEpgpPage },
   { name = "Loot", hint = "bids and loot", group = "Raid night", officer = true, usesPlayer = true, build = buildLootPage },
-  { name = "Raid tools", hint = "target icons, world markers, boss plans", group = "Raid night", module = "raidtools", leader = true, build = buildRaidToolsPage },
   { name = "Council", hint = "loot council: BiS / upgrade / off-spec answers", group = "Raid night", module = "council", lootModes = { COUNCIL = true, PRIORITY = true }, officer = true, usesPlayer = true, build = buildCouncilPage },
   { name = "Dungeons", hint = "the run being recorded, points", group = "Fun and runs", module = "dungeon", build = buildDungeonPage },
   { name = "Season", hint = "official Discord standings and past seasons", group = "Fun and runs", module = "dungeon", build = buildSeasonPage },
@@ -1435,10 +1383,6 @@ refresh = function()
   refreshDungeons(db)
   refreshSeason()
   refreshReady()
-  if ui.rtPlans then
-    local names = ns.raidTools and ns.raidTools.planNames() or {}
-    ui.rtPlans:SetText(#names > 0 and (L("Saved plans: ") .. table.concat(names, ", ")) or L("No boss plans yet."))
-  end
   if ui.scoresMine then
     if moduleOn("scores") and ns.scores then
       ui.scoresMine:SetText(ns.scores.detailText(name or me))
@@ -1600,7 +1544,6 @@ local function buildPanel()
   ns.onReserveChange = function() refresh() end
   ns.onCalendarChange = function() refresh() end
   ns.onDungeonChange = function() refresh() end
-  ns.onRaidToolsChange = function() refresh() end
   ns.onModulesChange = function() refresh() end
   ns.onPeerReadiness = function() if readyTabOpen() then refresh() end end
 
@@ -1663,15 +1606,8 @@ local function togglePanel()
   if not ok then ns.message("Tools window failed to open: " .. tostring(err)) end
 end
 
--- Direct shortcuts always open the requested page, even if the window is already open.
-local function openRaidTools()
-  if ns.raidTools then ns.raidTools.toggleMarkers() end
-end
-ns.openRaidTools = openRaidTools
-
 local function minimapClick(mouseButton)
-  if IsShiftKeyDown and IsShiftKeyDown() then openRaidTools()
-  elseif IsAltKeyDown and IsAltKeyDown() then run("map open")
+  if IsAltKeyDown and IsAltKeyDown() then run("map open")
   elseif mouseButton == "RightButton" then run("inspect")
   else togglePanel() end
 end
@@ -1723,7 +1659,6 @@ local function buildButton()
     GameTooltip:AddLine("Guilded")
     GameTooltip:AddLine(L("Left-click: open the tools window"), 1, 1, 1)
     GameTooltip:AddLine(L("Right-click: check my gear"), 1, 1, 1)
-    GameTooltip:AddLine(L("Shift-click: raid tools"), 1, 1, 1)
     GameTooltip:AddLine(L("Alt-click: guild map"), 1, 1, 1)
     GameTooltip:AddLine(L("Drag: move this button"), 1, 1, 1)
     GameTooltip:Show()
@@ -1753,7 +1688,6 @@ end
 ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHandlers["menu"] = function(args)
   local action = string.lower(args and args[1] or "")
-  if action == "raidtools" then openRaidTools() return end
   if action ~= "scale" then togglePanel() return end
   local s = settings()
   if not s then return end

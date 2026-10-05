@@ -1,4 +1,8 @@
-# Release checklist: Guilded 6.0.0 Beta
+Owner release decision, 5 October 2026: **6.0.0 is the full Release; next is 6.1.0.**
+Use [current release notes](docs/V6_0_RELEASE_NOTES.md). Earlier beta-promotion requirements below are historical;
+unverified checks remain follow-up work, not passes.
+
+# Release follow-up checklist: Guilded 6.0.0
 
 Current summary (5 October): [the finalization checklist](docs/V6_0_FINALIZATION_CHECKLIST.md)
 reconciles the deployed 6.0 beta, current packages and CI with the real-client

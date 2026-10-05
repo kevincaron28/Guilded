@@ -1,3 +1,7 @@
+Owner release decision, 5 October 2026: **6.0.0 is the full Release; next is 6.1.0.**
+Use [current release notes](V6_0_RELEASE_NOTES.md). Earlier beta-promotion requirements below are historical;
+unverified checks remain follow-up work, not passes.
+
 Current finalization (5 October 2026): Oracle is deployed at 8dc1067 with
 6.0.0 / protocol 2, and the unified website/companion at
 https://guilded-wow.kcaron.workers.dev/ was deployed from ba150d1.

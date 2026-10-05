@@ -7,7 +7,7 @@ For an existing installation, use the release update guide instead.
 **Plan your time:** allow an unhurried first session for account verification and
 hosting. The 30-minute target starts once your server, database and hostname are
 ready. Oracle approval, capacity and DNS delays are outside Guilded's control.
-Guilded 6.0.0 is a Beta; a timed beginner walkthrough is still pending.
+Guilded 6.0.0 is the full Release; a timed beginner walkthrough is still pending.
 
 **Jump to a step:** [Discord bot](#1-create-the-discord-bot) ·
 [Invite](#2-invite-it-to-your-discord-server) ·

@@ -3,7 +3,7 @@
 Guilded connects a WoW Forever addon, your guild's Discord bot, and a companion
 that transfers saved game data. The addon also works without Discord.
 
-**6.0.0 is a testing Beta.** Start with the [quick setup checklist](QUICK_START.md).
+**6.0.0 is the full Release.** Start with the [quick setup checklist](QUICK_START.md).
 Use matching downloads from an actually
 published release or the test build your officer provides. Current release
 evidence is recorded in [V6_0_RELEASE_TESTING.md](V6_0_RELEASE_TESTING.md).

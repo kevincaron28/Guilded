@@ -1,4 +1,4 @@
-# CurseForge copy-paste sheet: Guilded 6.0.0 Beta
+# CurseForge copy-paste sheet: Guilded 6.0.0
 
 Each block below is one field. Copy the block, paste it in.
 
@@ -21,7 +21,7 @@ Raid & Instance (secondary: Guild, Miscellaneous)
 `docs/branding/guilded-logo-400.png` (400x400). Full size: `docs/branding/guilded-logo.png`.
 
 ## File to upload
-`dist/Guilded-v6.0.0.zip` (top folder inside is `Guilded`). Display name: **Guilded 6.0.0 Beta**. Release type: **Beta**. Keep it Beta until the remaining acceptance checks pass.
+`dist/Guilded-v6.0.0.zip` (top folder inside is `Guilded`). Display name: **Guilded 6.0.0**. Release type: **Release**, as explicitly directed by the owner on 5 October 2026.
 Game versions: retain the project's existing verified Forever-compatible selection. The addon declares interfaces 16001 and 20506; do not claim untested client compatibility.
 
 ## License
@@ -81,8 +81,8 @@ each `/reload`.
 2. Addon-only users can start playing. For Discord sync, members install the matching companion and use their own guild's bot address and personal pairing code.
 3. Guild owners: follow the [quick setup checklist](https://github.com/kevincaron28/Guilded/blob/main/docs/QUICK_START.md) and [owner guide](https://github.com/kevincaron28/Guilded/blob/main/docs/GUILD_OWNER_SETUP.md). The bot requires your own hosting and database; these are not bundled with the addon.
 
-## Beta status
-6.0.0 is for testing. Fresh guild setup, clean installation/recovery, concurrent awards and a full raid still need acceptance. Raid markers and boss plans are no longer included. Back up saved data before upgrading.
+## Release status
+6.0.0 is the full Release. The next planned update is 6.1.0. Fresh guild setup, clean installation/recovery, concurrent awards and a full raid still need acceptance. Raid markers and boss plans are no longer included. Back up saved data before upgrading.
 
 ## Good to know
 Made for WoW Forever (interface 16001 and 20506). Free for noncommercial use under the
@@ -91,9 +91,9 @@ PolyForm Noncommercial license. Not affiliated with or endorsed by Blizzard Ente
 
 ## Changelog (paste for the file upload)
 ```markdown
-## 6.0.0 Beta — 4 October 2026
+## 6.0.0 Release — 5 October 2026
 
-This is a testing beta, not a stable release. Back up SavedVariables before upgrading.
+The owner has promoted 6.0.0 to full Release. Back up SavedVariables before upgrading.
 
 - Loot responses show pending/confirmed feedback for raiders and visible responses for officers.
 - Includes the tested off-spec pricing, GP import/reversal, personal pairing and standings workflows from the 5.0 beta stabilization work.
@@ -104,5 +104,5 @@ This is a testing beta, not a stable release. Back up SavedVariables before upgr
 
 Remaining live acceptance includes fresh Alliance guild setup, Windows clean install/upgrade and recovery on a non-developer PC, competing/consecutive awards, concurrent officer uploads, permission revocation and a full real raid. Calendar and other game APIs depend on client support. Do not treat these pending checks as passes.
 
-Install the complete Guilded folder, including Guilded.toc. Do not delete your saved data. For addon-only testing, keep WoW companion syncing paused. Discord integration needs the guild owner's configured bot and personal pairing; no database or Discord reset is part of this beta package.
+Install the complete Guilded folder, including Guilded.toc. Do not delete your saved data. For addon-only testing, keep WoW companion syncing paused. Discord integration needs the guild owner's configured bot and personal pairing; no database or Discord reset is part of this release package.
 ```

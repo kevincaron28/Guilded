@@ -10,7 +10,7 @@ Discord server ID, and your guild's **bot address**. Use the matching addon and
 companion from the release they specify. Public releases belong on
 [GitHub Releases](https://github.com/kevincaron28/Guilded/releases) and
 [CurseForge](https://www.curseforge.com/wow/addons/guilded); only use a version
-actually listed there. The 6.0.0 beta is for acceptance testing; stable release checks remain pending.
+actually listed there. 6.0.0 is the full Release. Remaining unverified checks are tracked in the release testing record.
 
 ## 1. Install the addon
 

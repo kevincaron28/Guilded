@@ -5,7 +5,7 @@ for Discord and Oracle signup links, screenshots, commands and success checks.
 This page is the shorter technical reference.
 
 One owner hosts the Discord bot and database; members install the addon and,
-for automatic sync, the Windows companion. Guilded 6.0.0 is a testing Beta: use a
+for automatic sync, the Windows companion. Guilded 6.0.0 is the full Release: use a
 published release's matching downloads and source, and read its known limitations.
 Fresh-guild and non-developer-PC acceptance tests are still pending for 6.0.
 

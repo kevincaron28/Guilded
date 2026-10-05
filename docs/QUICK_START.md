@@ -1,4 +1,4 @@
-# Guilded 6.0.0 Beta: quick setup
+# Guilded 6.0.0: quick setup
 
 Choose your path first. The addon works alone; Discord synchronization adds a
 companion and a bot that one guild owner hosts.
@@ -12,7 +12,7 @@ for account links, Discord/Oracle screenshots and copyable commands.
 | Member of a configured guild | Addon + `Guilded Companion Setup 6.0.0.exe` | 10–15 minutes |
 | Owner setting up Discord sync | Matching bot source + addon + companion | About 30 minutes **after infrastructure is ready** |
 
-These are planning estimates, not measured acceptance results. Public beta
+These are planning estimates, not measured acceptance results. Public release
 downloads must actually be present on [GitHub Releases](https://github.com/kevincaron28/Guilded/releases)
 or [CurseForge](https://www.curseforge.com/wow/addons/guilded). A local build is not a published download.
 For a private test, use the matching files supplied by the maintainer.
@@ -58,7 +58,7 @@ Follow [Guild owner setup](GUILD_OWNER_SETUP.md) for Discord and configuration,
 and [Ubuntu hosting](DEPLOY_ORACLE.md) for the exact installation commands.
 Leave AI answers, Warcraft Logs and optional community features off until basic sync works.
 
-Before guild-wide rollout, also test an ordinary member's access. Before stable
-release, finish the fresh-PC, recovery and real-raid checks in the
+Before guild-wide rollout, also test an ordinary member's access. Continue the
+fresh-PC, recovery and real-raid follow-up checks in the
 [release testing record](V6_0_RELEASE_TESTING.md). Setup speed alone does not prove
 permissions, accounting or recovery work.

@@ -21,8 +21,8 @@ What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 - **Plan a quick installation:** use the [30-minute setup checklist](docs/QUICK_START.md), including what must be ready first.
 - **Want an AI to guide you:** copy a [setup or troubleshooting prompt](docs/AI_SETUP_HELP.md).
 
-**6.0.0 is a testing Beta; stable acceptance and public publication remain unverified.** Use matching artifacts from an
-available release or your officer's test build. [Current test record](docs/V6_0_RELEASE_TESTING.md).
+**6.0.0 is the full Release. The next planned version is 6.1.0.** Use matching addon, companion and bot source from the
+[6.0.0 release](https://github.com/kevincaron28/Guilded/releases/tag/v6.0.0). Remaining unverified checks are tracked as follow-up work. [Current test record](docs/V6_0_RELEASE_TESTING.md).
 
 For the 5.0 update, read [the local Claude handoff](docs/V5_0_RELEASE_HANDOFF.md).
 

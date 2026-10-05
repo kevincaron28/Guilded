@@ -1,13 +1,13 @@
 # Guilded 6.0 release testing
 
-Target: 6.0 public release. Current repository version: 6.0.0 (Beta).
-Stable release is not yet verified or published. Follow the deployment and backup gates in
+Target: 6.0 public release. Current repository version: 6.0.0 (Release). Next planned update: 6.1.0.
+The owner declared 6.0.0 the full Release on 5 October 2026. Unchecked tests remain post-release follow-up. Follow the deployment and backup gates in
 [V5_0_RELEASE_HANDOFF.md](V5_0_RELEASE_HANDOFF.md); use
 [RELEASE_CHECKLIST.md](../RELEASE_CHECKLIST.md) for the full feature coverage.
 
 ## Current deployment and finalization, 5 October 2026
 
-Stable release acceptance remains pending. Oracle is deployed at 8dc1067 with
+Full Release classification was authorized by the owner. Remaining unverified acceptance checks are retained below. Oracle is deployed at 8dc1067 with
 6.0.0 / protocol 2; the unified website and companion were deployed from ba150d1.
 Main CI passed PostgreSQL migration/restore and Windows packaging. The latest
 full local build passed 153 files / 1,233 tests, TypeScript, lint, addon validation,

@@ -14,7 +14,7 @@ for (const path of ["package-lock.json", "companion-app/package.json", "companio
 }
 const zipPath = `dist/Guilded-v${version}.zip`;
 const installerPath = `dist/companion/Guilded Companion Setup ${version}.exe`;
-const notesPath = `dist/Guilded-v${version}-Beta-Notes.md`;
+const notesPath = `dist/Guilded-v${version}-Release-Notes.md`;
 const files = unzipSync(readFileSync(zipPath));
 const toc = Buffer.from(files["Guilded/Guilded.toc"]).toString("utf8");
 assert.match(toc, new RegExp(`^## Version: ${version.replaceAll(".", "\\.")}$`, "m"));
@@ -36,7 +36,7 @@ const asar = "dist/companion/win-unpacked/resources/app.asar";
 assert.equal(JSON.parse(extractFile(asar, "package.json").toString()).version, version);
 const installer = readFileSync(installerPath);
 assert.equal(installer.subarray(0, 2).toString(), "MZ", "Installer is not a Windows executable");
-writeFileSync(notesPath, readFileSync("docs/V6_0_BETA_NOTES.md"));
+writeFileSync(notesPath, readFileSync("docs/V6_0_RELEASE_NOTES.md"));
 const artifacts = [zipPath, installerPath, notesPath].map(path => ({
   // GitHub normalizes spaces in uploaded asset names to periods.
   name: basename(path).replaceAll(" ", "."), localPath: path, bytes: readFileSync(path).length,
@@ -45,8 +45,8 @@ const artifacts = [zipPath, installerPath, notesPath].map(path => ({
 writeFileSync(`dist/Guilded-v${version}-SHA256SUMS.txt`, artifacts.map(file => `${file.sha256}  ${file.name}`).join("\n") + "\n");
 const sourceCommit = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 writeFileSync(`dist/Guilded-v${version}-Artifact-Verification.json`, JSON.stringify({
-  version, channel: "beta", sourceCommit, verifiedAt: new Date().toISOString(),
+  version, channel: "release", sourceCommit, verifiedAt: new Date().toISOString(),
   archiveFiles: Object.keys(files).length, artifacts,
-  limitations: ["Real-client acceptance remains pending", "Windows installer is unsigned", "Installer execution is not verified by this check"],
+  limitations: ["Unverified real-client follow-up is tracked separately", "Windows installer is unsigned", "Installer execution is not verified by this check"],
 }, null, 2) + "\n");
-console.log(`Verified ${version} beta addon (${Object.keys(files).length} files), packaged companion version and installer; regenerated notes and SHA-256 sums.`);
+console.log(`Verified ${version} release addon (${Object.keys(files).length} files), packaged companion version and installer; regenerated notes and SHA-256 sums.`);

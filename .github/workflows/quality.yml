@@ -77,6 +77,6 @@ jobs:
           path: |
             dist/companion/*.exe
             dist/Guilded-v*.zip
-            dist/Guilded-v*-Beta-Notes.md
+            dist/Guilded-v*-Release-Notes.md
             dist/Guilded-v*-SHA256SUMS.txt
             dist/Guilded-v*-Artifact-Verification.json

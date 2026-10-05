@@ -1,7 +1,8 @@
 # Guilded 6.0 finalization — 5 October 2026
 
-Status: deployed **6.0.0 Beta**, protocol **2**. Stable promotion requires the
-remaining real-client evidence. Keep the shared version at 6.0.0; changing it
+Status: **6.0.0 Release**, protocol **2**, promoted by the owner's explicit decision
+on 5 October 2026. The next planned version is **6.1.0**. The unchecked tests below
+remain unverified post-release follow-up; this decision does not turn them into passes. Keep the shared version at 6.0.0; changing it
 causes a guild-facing announcement. Preserve SavedVariables and personal pairing.
 
 ## Completed independently
@@ -34,7 +35,7 @@ causes a guild-facing announcement. Preserve SavedVariables and personal pairing
   [FRESH_INSTALL_REHEARSAL.md](FRESH_INSTALL_REHEARSAL.md). No second bot was started.
 - [x] Release packaging verification checks aligned manifests, packaged desktop
   version, TOC completeness, clean standings and exclusion of private/removed
-  files; regenerates beta notes and SHA-256 sums after each Windows release build.
+  files; regenerates release notes and SHA-256 sums after each Windows release build.
 - [x] Removed `git log | head` from the updater: with `pipefail`, truncating logs
   could stop an otherwise valid update. `git log -10` bounds output directly.
 
@@ -48,7 +49,7 @@ upload protection, recorded loot/attendance, GP reversal, fixed-price awards,
 loot response feedback and off-spec pricing. These are passes with the recorded
 scope, not proof of every edge case below.
 
-## Remaining release gates
+## Remaining post-release follow-up
 
 Record each result with date, tester, client/package version, expected vs actual
 result and safe evidence. Never store pairing codes, tokens or database URLs.
@@ -88,10 +89,10 @@ result and safe evidence. Never store pairing codes, tokens or database URLs.
   English/French PoE logs where enabled. Leave optional disabled integrations
   disabled; do not reset Community, PoE or guild roles to manufacture a test.
 - [ ] **One real raid night:** reconcile attendance, loot, EP/GP, uploads,
-  standings and reports with the officers' expected totals. Required for stable.
+  standings and reports with the officers' expected totals. Still unverified; owner accepted this as post-release follow-up.
 - [ ] **Distribution:** matching 6.0 addon, companion, source and checksums;
-  verify signed-out downloads and CurseForge listing/version. A beta publication
-  is allowed to retain explicit pending checks; stable publication is gated above.
+  verify signed-out downloads and CurseForge listing/version. The owner authorized full Release classification;
+  retain explicit limitations and remaining test evidence.
 - [ ] **Final evidence:** latest-source PostgreSQL/Windows CI green, every
   applicable live row passed or documented with its limitation, release notes
   match actual coverage, published download hashes match the prepared files.
@@ -102,9 +103,9 @@ Run `npm run release:prepare` on Windows. It builds, verifies and produces:
 
 - `dist/Guilded-v6.0.0.zip`
 - `dist/companion/Guilded Companion Setup 6.0.0.exe`
-- `dist/Guilded-v6.0.0-Beta-Notes.md`
+- `dist/Guilded-v6.0.0-Release-Notes.md`
 - `dist/Guilded-v6.0.0-SHA256SUMS.txt`
 - `dist/Guilded-v6.0.0-Artifact-Verification.json`
 
 The JSON records source commit, time, size, hash and limitations. Building an
-installer is not installation acceptance. Publishing a beta is not stable promotion.
+installer is not installation acceptance. Release classification is the owner's decision; test completion remains evidence-based.

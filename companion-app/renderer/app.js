@@ -122,7 +122,7 @@ async function init() {
     $('appMode').textContent = 'Online companion'; $('footerMode').textContent = 'Manual file sync · Personal pairing'; $('sideNote').textContent = 'No installation needed.';
     $('poeMetricLabel').textContent = 'Latest log area';
     ['autostartLabel','btnDetect','btnFolder','btnPause','addressLabel','standingsIntervalLabel','btnOnline','poeLive'].forEach(id => $(id).hidden = true);
-    $('btnSave').textContent = 'Save preferences'; $('btnStandings').textContent = 'Download standings'; $('btnRemoveData').textContent = 'Disconnect this session'; $('removeTitle').textContent = 'End your online session'; $('removeNote').textContent = 'Revokes this Discord link and clears this tab’s settings and queued observations. Sync pending visits first.';
+    $('btnSave').textContent = 'Save preferences'; $('btnStandings').textContent = 'Download standings'; $('btnRemoveData').textContent = 'Disconnect this device'; $('removeTitle').textContent = 'Disconnect this browser'; $('removeNote').textContent = 'Revokes this Discord link and clears this browser’s saved connection, folders and queued observations. Sync pending visits first.';
     $('wowModeNote').textContent = 'Browser files are snapshots. After /reload, choose Guilded.lua again and use Sync now.';
     $('wowStep2').textContent = 'Select Guilded.lua and choose Sync now. Your raw Lua file is parsed on your device.';
     $('wowStep3').textContent = 'Download Standings.lua, place it in Interface / AddOns / Guilded, then /reload.';
@@ -131,9 +131,9 @@ async function init() {
     if (api.folderAccess) {
       $('btnWowSelect').textContent = 'Choose SavedVariables folder'; $('btnBrowse').textContent = 'Choose folder';
       $('btnStandings').textContent = 'Save standings to addon';
-      $('wowModeNote').textContent = 'Choose your account’s SavedVariables folder once. After /reload, Sync now reads fresh data. Save standings writes only Standings.lua in your selected Guilded addon folder. Folder choices stay on this browser; access may need approval again. Nothing syncs after you close the page.';
+      $('wowModeNote').textContent = 'Choose SavedVariables and your Guilded addon folder once on this PC. After /reload, Sync now uploads fresh data and updates standings when addon folder access is allowed. Reload again to see the standings in WoW. This browser remembers your folders; use Save standings to addon if it needs permission again. Nothing syncs after you close the page.';
       $('wowStep2').textContent = 'After /reload, click Sync now to read the latest Guilded.lua from your chosen folder.';
-      $('wowStep3').textContent = 'Save standings to your Guilded addon folder, then /reload. No manual file copying needed.';
+      $('wowStep3').textContent = 'First time: Save standings to addon and choose Interface / AddOns / Guilded. Future Sync now clicks update standings too. Then /reload in WoW.';
       const forget = document.createElement('button'); forget.textContent = 'Forget selected folders';
       forget.addEventListener('click', () => action(forget, async () => { await api.forgetFiles(); $('watchFile').value = ''; savedConfig.watchFile = ''; renderState(lastSnapshot); toast('Saved folder choices cleared. Browser permission grants can also be removed in site settings.'); }));
       $('btnStandings').after(forget);

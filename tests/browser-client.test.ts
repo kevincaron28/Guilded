@@ -6,10 +6,12 @@ afterEach(() => vi.restoreAllMocks());
 const profile = { guildDiscordId: "123", wowEnabled: false, poeEnabled: true, poeCharacter: "Mapper", poeLeague: "Pilot", poeMode: "STANDARD", pairingCode: "ABC123DEF456" };
 function environment() {
   const storage = new Map<string, string>();
+  const session = new Map<string, string>();
   let file: File;
   const env = {
     location: { origin: "https://bot.test", search: "", reload: vi.fn() },
-    sessionStorage: { getItem: (key: string) => storage.get(key), setItem: (key: string, value: string) => storage.set(key, value), removeItem: (key: string) => storage.delete(key) },
+    localStorage: { getItem: (key: string) => storage.get(key), setItem: (key: string, value: string) => storage.set(key, value), removeItem: (key: string) => storage.delete(key) },
+    sessionStorage: { getItem: (key: string) => session.get(key), setItem: (key: string, value: string) => session.set(key, value), removeItem: (key: string) => session.delete(key) },
     document: { createElement: () => {
       const events = new Map<string, () => void>();
       return { files: [file], addEventListener: (name: string, run: () => void) => events.set(name, run), click: () => events.get("change")?.(), remove: vi.fn() };
@@ -19,7 +21,7 @@ function environment() {
       return { ok: true, status: 200, json: async () => url.endsWith("addon-pairings") ? { companionCredential: "c".repeat(43) } : url.endsWith("poe/visits") ? { acceptedRunRefs: body.visits.map((row: { runRef: string }) => row.runRef) } : { ok: true } };
     })
   };
-  return { env, storage, choose: (value: File) => { file = value; } };
+  return { env, storage, session, choose: (value: File) => { file = value; } };
 }
 const logFile = () => {
   const date = new Date(); const prefix = [date.getFullYear(),String(date.getMonth()+1).padStart(2,"0"),String(date.getDate()).padStart(2,"0")].join("/");
@@ -27,6 +29,31 @@ const logFile = () => {
 };
 
 describe("online companion session and queue", () => {
+  it("keeps pairing and pending observations after the original tab closes", async () => {
+    const { env, session, storage, choose } = environment();
+    const api = createBrowserCompanion(env as never);
+    await api.pairAccount(profile); choose(logFile()); await api.browsePoeLog(profile);
+    session.clear();
+    const reopened = createBrowserCompanion(env as never);
+    const all = await reopened.getAll();
+    expect(all.config.companionCredential).toBe("c".repeat(43));
+    expect(all.config.guildDiscordId).toBe("123");
+    expect(all.state.poe?.pending).toBe(1);
+    expect(JSON.stringify([...storage.values()])).not.toContain(profile.pairingCode);
+    await reopened.removeData();
+    expect(storage.size).toBe(0); expect(session.size).toBe(0);
+    expect((await createBrowserCompanion(env as never).getAll()).config.companionCredential).toBeUndefined();
+  });
+  it("migrates a tab pairing and warns when device storage cannot save", async () => {
+    const { env, session } = environment();
+    session.set("guilded.companion.session.v1", JSON.stringify({ config: { ...profile, pairingCode: "", companionCredential: "c".repeat(43) }, visits: [] }));
+    const migrated = createBrowserCompanion(env as never);
+    expect((await migrated.getAll()).config.companionCredential).toBe("c".repeat(43));
+    expect(session.size).toBe(0);
+    const restricted = createBrowserCompanion({ ...env, localStorage: { ...env.localStorage, setItem: () => { throw new Error("Storage blocked"); } } } as never);
+    expect((await restricted.getAll()).health).toMatchObject({ level: "warn", text: expect.stringContaining("cannot remember") });
+    expect((await restricted.getAll()).config.companionCredential).toBe("c".repeat(43));
+  });
   it("reads updated folder data on every upload and writes returned standings directly", async () => {
     const { env } = environment(); let character = "First";
     const input = { name: "SavedVariables", queryPermission: async () => "granted", getFileHandle: async () => ({ getFile: async () => new File([`GuildedDB = { addonVersion = "6.0.0", character = { name = "${character}", class = "Mage", level = 70 }, epgp = {} }`], "Guilded.lua") }) };
@@ -42,6 +69,19 @@ describe("online companion session and queue", () => {
     env.fetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ standings: [], updatedAt: "2026-10-05" }) } as never);
     await api.refreshStandings(); expect(writer.write).toHaveBeenCalledWith(expect.stringContaining("GuildedStandings"));
     expect((await api.getAll()).state.lastStandings).toMatchObject({ message: expect.stringContaining("saved") });
+    env.fetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ status: "APPLIED" }) } as never);
+    env.fetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ standings: [], updatedAt: "2026-10-06" }) } as never);
+    await api.uploadNow();
+    expect(writer.write).toHaveBeenCalledTimes(2);
+    expect(writer.write).toHaveBeenLastCalledWith(expect.stringContaining("2026-10-06"));
+    expect(picker).toHaveBeenCalledTimes(2); // No new folder dialog after setup.
+    env.fetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ status: "APPLIED" }) } as never);
+    env.fetch.mockResolvedValueOnce({ ok: false, status: 403, json: async () => ({ error: "Standings unavailable" }) } as never);
+    await api.uploadNow();
+    const failedReturn = await api.getAll();
+    expect(failedReturn.state.lastUpload).toMatchObject({ message: "Your saved data is synced." });
+    expect(failedReturn.health.level).toBe("error");
+    expect(writer.write).toHaveBeenCalledTimes(2); // Failed return cannot overwrite standings.
     await api.forgetFiles(); expect((await api.getAll()).state.watching).toBeNull();
   });
   it("checks server availability before pairing without requiring a guild or PoE2", async () => {

@@ -73,8 +73,12 @@ file; you do not need to select it each time. **Save standings to addon** asks f
 `/reload` again to load the returned standings. Do not select SavedVariables as
 the output folder.
 
-Folder choices are remembered locally by that browser, while pairing credentials
-remain scoped to the tab session. The browser may ask you to approve access again.
+Folder choices and the Discord connection are
+remembered locally on that browser/device. Closing the tab does not require a
+new pairing code. Disconnect clears the saved connection and folders; use it
+when finished on a shared computer. The browser may ask you to approve folder
+access again. If site storage is unavailable, the companion warns that it cannot
+remember connection/folder choices.
 **Forget selected folders** clears remembered choices; browser site settings let
 you revoke file permissions. Disconnect also clears the remembered folders.
 Nothing syncs after closing the page. This enhanced build is pending deployment

@@ -59,5 +59,30 @@ describe("browser folder access", () => {
     expect(f.rows.size).toBe(0); expect(f.api.hasInput()).toBe(false);
     f.store.set.mockRejectedValueOnce(new Error("storage disabled")); await f.api.chooseInput();
     expect(await f.api.readInput()).toBeTruthy();
+    expect(f.api.storageWarning()).toContain("could not remember");
+    await f.api.chooseInput(); expect(f.api.storageWarning()).toBeNull();
+  });
+  it("restores a working folder even when reading the other saved handle fails", async () => {
+    const f = fixture(); f.rows.set("output", f.output);
+    f.store.get.mockRejectedValueOnce(new Error("Input storage unavailable"));
+    const restored = createBrowserFolderAccess(f.env as never, f.store); await restored.ready;
+    expect(restored.hasOutput()).toBe(true); expect(restored.hasInput()).toBe(false);
+    expect(restored.storageWarning()).toContain("could not remember");
+  });
+  it("automatic returns never prompt for new folders or revoked permissions", async () => {
+    const f = fixture(); await f.api.ready;
+    const load = vi.fn(async () => "fresh standings");
+    await expect(f.api.saveStandings(load, { requestAccess: false })).rejects.toThrow("first");
+    expect(f.env.showDirectoryPicker).not.toHaveBeenCalled();
+    f.rows.set("output", f.output);
+    const restored = createBrowserFolderAccess(f.env as never, f.store); await restored.ready;
+    expect(restored.hasOutput()).toBe(true);
+    f.output.queryPermission.mockResolvedValue("prompt");
+    await expect(restored.saveStandings(load, { requestAccess: false })).rejects.toThrow("Allow folder access");
+    expect(f.output.requestPermission).not.toHaveBeenCalled();
+    expect(load).not.toHaveBeenCalled(); expect(f.writer.write).not.toHaveBeenCalled();
+    f.output.queryPermission.mockResolvedValue("granted");
+    await restored.saveStandings(load, { requestAccess: false });
+    expect(f.writer.write).toHaveBeenCalledWith("fresh standings");
   });
 });

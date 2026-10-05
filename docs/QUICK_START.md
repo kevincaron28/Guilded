@@ -30,6 +30,18 @@ For a private test, use the matching files supplied by the maintainer.
 Addon-only users stop after step 1. See [Member installation](MEMBER_INSTALL.md)
 for the detailed UI steps, the manual browser option, French steps and fixes.
 
+### Online companion folders
+
+The Windows companion remembers Guilded.lua and derives the addon folder from
+its WTF path. In the online companion, choose two folders once on each PC:
+`WTF/Account/<your account>/SavedVariables` for reading and
+`Interface/AddOns/Guilded` with **Save standings to addon** for writing.
+Supported browsers remember those choices locally. Once output access is allowed,
+**Sync now** uploads and saves returned standings together.
+Use `/reload` before syncing and again afterward to load the new standings.
+If the browser asks to renew access, use **Save standings to addon** again.
+No fixed drive or account path is assumed for other players.
+
 ## Owners: before starting the timer
 
 Have these ready:

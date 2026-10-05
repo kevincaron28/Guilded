@@ -1,5 +1,31 @@
 # Web companion and free website rollout
 
+## Continuation evidence, 5 October 2026
+
+The earlier owner/setup work is now committed in `22f6710`, merged with the
+owner's latest main in `95d540f`, and configuration duplicates resolved in
+`01f0ef7`. All are pushed on `codex/web-companion-folders`, covered by existing
+[PR #41](https://github.com/kevincaron28/Guilded/pull/41).
+[CI for 01f0ef7](https://github.com/kevincaron28/Guilded/actions/runs/37326957507)
+passed both checks (including PostgreSQL migration/restore) and Windows packaging.
+Local checks passed 152 files / 1,226 tests, TypeScript, lint, addon validation
+and both audits with zero vulnerabilities.
+
+Read-only Oracle inspection confirmed deployed commit
+`7d8152c6bf2f75c7e4c19c0dbe6d21dbf8517b63`, active service and healthy
+5.0.0 / protocol 2. The live ledger preflight found unique event references.
+No migration, backup or restart was performed in this continuation; a fresh
+verified backup and provider recovery check are still required before deployment.
+
+GitHub reports a successful `Workers Builds: guilded-wow` check on main commit
+`ad5b461`, with Worker version `197ee6b2-875c-4710-89b7-ee38e52703b0`.
+This is build-integration evidence, not a verified public website URL or content
+check. Main is connected to Cloudflare, so merging PR #41 may trigger deployment.
+The owner confirmed the saved Cloudflare permission block is still unresolved.
+Hold the merge and the Worker-configuration push until that restriction is removed;
+the prescribed Oracle updater also waits because it requires clean, published main.
+The GitHub connector still returns 403 for PR metadata writes; Git shell push works.
+
 ## Website
 
 Website source is isolated on `codex/public-website` (initial commit `ff17fc0`).

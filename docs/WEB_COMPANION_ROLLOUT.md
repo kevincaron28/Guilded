@@ -11,8 +11,17 @@ deploy `npx wrangler deploy`, and no runtime bindings. Do not change it back to
 the earlier proposed website branch. The prepared Worker configuration from
 `5599bdc` is integrated in the combined branch as `db6ff58`.
 
-Final deployment still requires green CI for the combined commit, a verified
-Oracle backup and confirmation of current provider recovery availability.
+Predeployment recovery gates passed: Oracle ledger references are unique;
+`/home/ubuntu/guilded-recovery/2026-10-05T14-53-08-925Z` contains the verified
+custom-format database dump (235,593 bytes), application archive and prior
+commit `7d8152c`. Files are mode 600 in a private recovery directory outside
+the checkout. Encrypted offsite copies under the owner's local Guilded Recovery
+directory passed authenticated-decryption and SHA-256 comparison. The signed-in
+Neon project dashboard confirms the production project's six-hour history window.
+
+Final deployment still requires green CI for the combined commit and the normal
+main-only updater. Record the deployed commit and live health in the completion
+report; the historical sections below are not current deployment evidence.
 Real paired-browser/game and Windows acceptance remain separate from deployment.
 
 ## Earlier continuation evidence, 5 October 2026 (historical)

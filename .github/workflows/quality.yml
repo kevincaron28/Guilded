@@ -1,7 +1,7 @@
 name: Guilded quality
 on:
   push:
-    branches: [main, 'fix/**']
+    branches: [main, 'fix/**', 'codex/**']
   pull_request:
   workflow_dispatch:
 permissions:
@@ -36,6 +36,7 @@ jobs:
       - run: npm ci
       - run: npm run prisma:generate
       - run: npm run companion:build
+      - run: npm run site:build
       - run: npm run build
       - run: npm test
       - run: npm run lint

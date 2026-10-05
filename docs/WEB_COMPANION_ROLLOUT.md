@@ -8,27 +8,35 @@ files / 1,211 tests, ESLint, addon validation and `npm run site:build`.
 The current working checkout includes additional companion/setup work and must
 not be confused with this static-site-only branch.
 
-Cloudflare Pages settings prepared on 5 October 2026:
+The owner selected a Cloudflare **Worker** on 5 October 2026, superseding
+the earlier Pages plan. Worker configuration is committed locally as `5599bdc`
+in the isolated website checkout; its 23-file deployment dry run passed.
+It has not been pushed or deployed. Intended Git build settings:
 
 | Setting | Value |
 | --- | --- |
 | Project name | `guilded-wow` (subject to availability) |
 | Repository | `kevincaron28/Guilded` |
 | Production branch | `codex/public-website` |
-| Framework | None |
 | Build command | `npm run site:build` |
-| Output directory | `dist/site` |
-| Node version | 24 if the platform default is older than 22 |
+| Deploy command | `npx wrangler deploy` |
+| Assets directory | `dist/site` (configured in `wrangler.jsonc`) |
+| Node version | 24 |
 | Secrets | None |
 
 Do not use the Workers form's default `npm run build`: that checks the bot and
-does not produce this website. The intended free route is Pages static hosting.
+does not produce this website. The Worker serves static assets only.
 Cloudflare browser access was blocked by a saved permission preference before
 the settings were entered or deployment submitted. No public URL is confirmed.
 The GitHub connector also returned 403 for PR creation; no PR was created.
 The owner explicitly renewed permission twice, but the browser still reported
 a saved block. Local preview access was also denied. Do not retry either through
 another browser/tool; the saved permission needs to be changed in the app.
+The owner reconfirmed in the continuation session that the block is still active
+or unresolved. Do not push the Worker branch or otherwise trigger Cloudflare
+deployment until that restriction is removed. Website source `ff17fc0` was
+separately merged by the owner in PR #42 (`ad5b461`); this does not establish
+website deployment.
 
 After deployment, check the public HTTPS URL in a signed-out browser: landing,
 owner guide, all images, command copy, CurseForge/releases links, and the

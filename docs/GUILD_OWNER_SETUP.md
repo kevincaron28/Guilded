@@ -1,9 +1,16 @@
 # Guilded: set up your own guild
 
+**First time hosting anything?** Use the [illustrated beginner walkthrough](OWNER_WALKTHROUGH.md)
+for Discord and Oracle signup links, screenshots, commands and success checks.
+This page is the shorter technical reference.
+
 One owner hosts the Discord bot and database; members install the addon and,
-for automatic sync, the Windows companion. Guilded 6.0 is being prepared: use a
+for automatic sync, the Windows companion. Guilded 6.0.0 is a testing Beta: use a
 published release's matching downloads and source, and read its known limitations.
 Fresh-guild and non-developer-PC acceptance tests are still pending for 6.0.
+
+Start with the [30-minute checklist](QUICK_START.md). That is a target with hosting,
+database and DNS ready, not a measured promise for a first-time cloud signup.
 
 Already running Guilded? Follow the backup and update gates in
 [V5_0_RELEASE_HANDOFF.md](V5_0_RELEASE_HANDOFF.md). This guide is for a new guild.
@@ -40,7 +47,7 @@ bot host. Members use their own pairing codes; they never need those host secret
    channel and can stay off during initial setup.
 3. Configure **Guild Install** with scopes `bot` and `applications.commands`,
    then open the generated installation link and select your server.
-   See [Discord's installation guide](https://github.com/discord/discord-api-docs/blob/main/developers/quick-start/getting-started.mdx).
+   See [Discord's installation guide](https://docs.discord.com/developers/quick-start/getting-started).
 4. Grant View Channels, Send Messages, Send Messages in Threads, Create Public
    Threads, Manage Threads, Embed Links, Attach Files, Read Message History,
    Manage Channels, Manage Roles and Create Events. Grant Manage Messages for
@@ -63,9 +70,15 @@ the database must be reachable by the host. You may use an existing PostgreSQL
 service or a provider such as Neon; check your provider's current limits and costs.
 
 Get the source for your selected release from
-[GitHub](https://github.com/kevincaron28/Guilded). Keep the source commit with your
+[GitHub Releases](https://github.com/kevincaron28/Guilded/releases), using the source ZIP
+attached to that release. If your officer supplies an unpublished beta, use its matching
+source commit and downloads; do not assume the latest default branch matches them. Keep the source commit with your
 installation record. Create `.env.local` from `.env.example` and fill these fields
 locally; do not paste secrets into chat or an issue:
+
+For the recommended Ubuntu installation, the server installer below copies the
+example for you. Edit `/opt/guilded/.env.local` there after installation; you do
+not need Node.js on your Windows PC or to fill two configuration files.
 
 | Setting | Meaning |
 | --- | --- |
@@ -82,6 +95,12 @@ For a new source installation, `npm ci` installs the locked dependencies,
 applies migrations and generates the database client. Existing databases need a
 verified backup and ledger preflight before an update. Never reset a database to
 get past a migration error.
+
+The Ubuntu installer performs dependency installation and the web build, and
+the service applies migrations on its first start. Do not repeat those commands
+on your Windows PC. Run `npm run setup:check` on the host after entering the four
+required values. Blank optional fields are supported. The check is offline: it
+does not validate credentials with Discord or connect to your database.
 
 ### Hosting for the whole guild
 

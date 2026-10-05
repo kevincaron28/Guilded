@@ -5,6 +5,14 @@ Release is not yet verified or published. Follow the deployment and backup gates
 [V5_0_RELEASE_HANDOFF.md](V5_0_RELEASE_HANDOFF.md); use
 [RELEASE_CHECKLIST.md](../RELEASE_CHECKLIST.md) for the full feature coverage.
 
+## Installation update, 5 October 2026
+
+The owner reports the 6.0.0 addon is installed on both PCs. This supersedes the
+older note below that the local addon had not yet been upgraded. Installation
+confirmation does not close the remaining gameplay or fresh-guild checks.
+The owner requested a **clean local rehearsal first** for independent guild setup.
+See [FRESH_INSTALL_REHEARSAL.md](FRESH_INSTALL_REHEARSAL.md) for its evidence and limits.
+
 On 4 October the owner requested a 6.0.0 Beta package for CurseForge and
 second-PC testing before stable acceptance. This intentional version change
 does not close the pending live gates. See `V6_0_BETA_NOTES.md` for upload notes.
@@ -652,7 +660,8 @@ test before expiry to avoid another automatic award.
 - [ ] Publish clear owner/member installation, troubleshooting and AI-help prompts.
 - [ ] Finish all applicable real-client checks in RELEASE_CHECKLIST.md.
 - [ ] Real raid night with accurate totals before promoting Beta to Release.
-- [ ] Set the shared release version to 6.0.0 intentionally, rebuild and rerun gates.
+- [x] Set the shared source version to 6.0.0 intentionally and prepare beta packages (4 October).
+- [ ] Verify final-commit CI and the complete release gates after the latest changes.
 - [ ] Publish matching addon and companion downloads and verified release notes.
 
 Unchecked items are pending, not passes. Record skips with their client limitation

@@ -13,14 +13,19 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Open work: read `docs/V5_0_RELEASE_HANDOFF.md` first**, then `docs/V5_0_HANDOFF.md` for feature history. Version 5.0.0 is the current version (4.5.0, 4.6.0 and
-5.0.0 are unpublished; 4.0.0 was never published): every 5.0 change with its files, the protocol /
-saved-data / database changes, and what is left (db:update, rebuild the addon zip and companion
-installer, redeploy, "Update bot messages" in `/setup`, the optional Message Content Intent for the
-answer channel, the in-game checks in `RELEASE_CHECKLIST.md`, the CurseForge upload). 4.6 is in
-`docs/V4_6_HANDOFF.md`, 4.5 in `docs/V4_5_HANDOFF.md`, the addon audit before it in
-`docs/ADDON_AUDIT_HANDOFF.md`. Left from the roadmap after 5.0: raid-tools map drawings (`ROADMAP.md`)
-and the standalone first-run path (`docs/STANDALONE_ADDON_ROADMAP.md`).
+**Current status (5 October 2026): source version 6.0.0 Beta, protocol 2.**
+Read `docs/V5_0_RELEASE_HANDOFF.md` first for deployment gates, then
+`docs/V6_0_RELEASE_TESTING.md` and `docs/V6_0_BETA_NOTES.md` for current acceptance.
+The owner reports the addon installed on both PCs. Fresh-guild setup is being
+rehearsed locally; see `docs/FRESH_INSTALL_REHEARSAL.md` and `docs/QUICK_START.md`.
+Use `npm run setup:check` to check a new owner's configuration without starting
+the bot. Live deployment, final-commit CI and stable publication remain separate gates.
+
+Raid tools were removed from Guilded v6 and archived in
+`docs/archive/raid-tools/README.md` for a future standalone addon. Preserve
+SavedVariables. The 5.0/4.6/4.5 handoffs describe feature history, not current
+version or release status. Standalone first-run work is tracked in
+`docs/STANDALONE_ADDON_ROADMAP.md`.
 
 This file is for whichever agent picks this repo up next — including a cloud
 session with no access to this machine's local state. If you're running

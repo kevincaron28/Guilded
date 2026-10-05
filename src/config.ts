@@ -19,15 +19,15 @@ const environmentSchema = z.object({
   // 127.0.0.1 = this computer only. On a server behind HTTPS (deploy/), use 0.0.0.0 or leave 127.0.0.1 with a reverse proxy.
   COMPANION_API_HOST: z.string().min(1).default("127.0.0.1"),
   // Warcraft Logs API v2 client (https://www.warcraftlogs.com/api/clients). Optional: /raid wcl stays off without it.
-  WCL_CLIENT_ID: z.string().min(1).optional(),
-  WCL_CLIENT_SECRET: z.string().min(1).optional(),
+  WCL_CLIENT_ID: blankAsUndefined(z.string().min(1).optional()),
+  WCL_CLIENT_SECRET: blankAsUndefined(z.string().min(1).optional()),
   // Site used when /raid wcl gets a bare report code instead of a full link.
   WCL_BASE_URL: z.string().url().default("https://www.warcraftlogs.com"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
   // Optional: a channel (any guild the bot is in) that gets a live feed of
   // captured command/job errors and /report bug submissions. Without it,
   // reports still save to the database, just without the live post.
-  ERROR_LOG_CHANNEL_ID: z.string().min(1).optional(),
+  ERROR_LOG_CHANNEL_ID: blankAsUndefined(z.string().min(1).optional()),
   // 5.0 answer channel. Reading what members write needs Discord's privileged "Message Content
   // Intent": turn it on for the bot in the Developer Portal FIRST, then set this to true (asking
   // for it without the portal switch makes Discord refuse the login).

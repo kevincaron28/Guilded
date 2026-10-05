@@ -17,10 +17,11 @@ What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 - **Guildmates or addon-only players:** follow [the member install guide](docs/MEMBER_INSTALL.md).
   Install into the client you actually play (Forever beta uses `_classic_beta_` in the tested
   installation), then connect with your guild's bot address and your own pairing code if needed.
-- **Run your own guild's bot:** follow [the owner setup guide](docs/GUILD_OWNER_SETUP.md).
+- **Run your own guild's bot:** follow [the illustrated beginner walkthrough](docs/OWNER_WALKTHROUGH.md), with Discord and Oracle account links, screenshots and success checks.
+- **Plan a quick installation:** use the [30-minute setup checklist](docs/QUICK_START.md), including what must be ready first.
 - **Want an AI to guide you:** copy a [setup or troubleshooting prompt](docs/AI_SETUP_HELP.md).
 
-**6.0 is in preparation, not yet verified or published.** Use matching artifacts from an
+**6.0.0 is a testing Beta; stable acceptance and public publication remain unverified.** Use matching artifacts from an
 available release or your officer's test build. [Current test record](docs/V6_0_RELEASE_TESTING.md).
 
 For the 5.0 update, read [the local Claude handoff](docs/V5_0_RELEASE_HANDOFF.md).
@@ -32,6 +33,9 @@ For the 5.0 update, read [the local Claude handoff](docs/V5_0_RELEASE_HANDOFF.md
 | [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) | Choose the right setup path |
 | [docs/MEMBER_INSTALL.md](docs/MEMBER_INSTALL.md) | Guildmates installing and connecting; includes French quick start |
 | [docs/GUILD_OWNER_SETUP.md](docs/GUILD_OWNER_SETUP.md) | Owners hosting an independent bot for their guild |
+| [docs/OWNER_WALKTHROUGH.md](docs/OWNER_WALKTHROUGH.md) | First-time owners: illustrated account-to-first-sync walkthrough |
+| [site/README.md](site/README.md) | Build, preview and publish the download/setup website |
+| [docs/ONLINE_COMPANION_CHECK.md](docs/ONLINE_COMPANION_CHECK.md) | Live companion findings and remaining sync acceptance |
 | [docs/AI_SETUP_HELP.md](docs/AI_SETUP_HELP.md) | Copyable prompts for guided installation and troubleshooting |
 | [COMMANDS.md](COMMANDS.md) | Every command and its permissions |
 | [addon/Guilded/README.md](addon/Guilded/README.md) | The addon in detail |
@@ -45,7 +49,7 @@ For the 5.0 update, read [the local Claude handoff](docs/V5_0_RELEASE_HANDOFF.md
 
 ## Requirements (bot)
 
-- Node.js 22+ and npm 10+
+- Node.js 24 (tested release/build baseline) and its included npm
 - PostgreSQL 16+ (a free [Neon](https://neon.tech) database works well)
 - A Discord application with a bot token and the `applications.commands` scope
 - **Server Members Intent** turned on for the bot (Developer Portal, Bot, Privileged Gateway Intents)
@@ -68,7 +72,8 @@ crashes. Never commit `.env*` or `companion/companion.config.json` (both are alr
 | Script | Purpose |
 | --- | --- |
 | `npm run dev` | Run the bot with tsx |
-| `npm test` | Run the tests (bot and addon, 778+) |
+| `npm test` | Run the bot and addon tests |
+| `npm run setup:check` | Check owner configuration offline without starting the bot |
 | `npm run build` | Type-check |
 | `npm run lint` | ESLint |
 | `npm run db:update` | Apply migrations and regenerate the Prisma client |
@@ -80,7 +85,7 @@ Addon check before a release: `node addon/Guilded/validate-addon.mjs`.
 ## How the parts fit
 
 ```text
-WoW addon --(saved file on logout or /reload)--> companion --(HTTP, local)--> bot --> Discord + database
+WoW addon --(saved file on logout or /reload)--> companion --(HTTPS)--> bot --> Discord + database
                                                     ^                          |
                                                     +---- standings file <-----+
 ```

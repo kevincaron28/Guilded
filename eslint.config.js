@@ -5,6 +5,7 @@ export default tseslint.config(
   { ignores: ["companion-app/**", "dist/**", "node_modules/**", "backups/**"] },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
+  { files: ["site/**/*.js"], languageOptions: { globals: { document: "readonly", navigator: "readonly", URL: "readonly" } } },
   {
     ignores: ["dist/**", "companion-app/**", "node_modules/**", "prisma/migrations/**"],
     languageOptions: {

@@ -38,6 +38,9 @@ I have observed its result.
 Help me set up a new, independent Guilded installation for my guild.
 Read GUILD_OWNER_SETUP.md, MEMBER_INSTALL.md, README.md and the deployment
 instructions from my selected release before proposing commands.
+Use QUICK_START.md to separate the hosting prerequisites from the 30-minute
+setup target. Run npm run setup:check before starting the service; this checks
+configuration offline, not live credentials or connectivity.
 My release version/source commit is [version/commit]. My host is [OS/provider].
 I [do/do not] already have a running bot, database and HTTPS hostname.
 

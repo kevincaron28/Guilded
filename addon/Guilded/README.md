@@ -10,12 +10,12 @@ event journal in the `GuildedDB` SavedVariables table.
 Copy the `Guilded` directory into WoW Forever's `Interface\AddOns` directory:
 
 ```text
-World of Warcraft\_forever_\Interface\AddOns\Guilded\
+<your actual WoW client>\Interface\AddOns\Guilded\Guilded.toc
 ```
 
-`_forever_` is the WoW Forever client folder; other client flavors (Classic, Retail, PTR, ...)
-use a different folder under `World of Warcraft\`, so copy into the one the client you actually
-launch reads from. Enable **Load out of date AddOns** if the client requests it. The addon does
+The tested Forever beta uses `_classic_beta_`, beside `WowB.exe`. Locate the executable
+you actually launch; do not assume `_forever_` or `_retail_`. The ZIP includes `INSTALL.md`
+with member setup and troubleshooting. Enable **Load out of date AddOns** if the client requests it. The addon does
 not require the Guilded Discord bot or any external library.
 
 ## Modules: use only what you want

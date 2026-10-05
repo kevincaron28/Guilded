@@ -1,19 +1,25 @@
 #!/usr/bin/env bash
 # One-time setup of an Ubuntu server for the Guilded bot.
 #   sudo bash deploy/setup-server.sh your-hostname.duckdns.org
-# Run it from inside the cloned repository. Safe to run again.
+# Run it from inside the selected release source on a dedicated Ubuntu host.
 set -euo pipefail
 
 HOST="${1:-}"
 if [ -z "$HOST" ]; then echo "Usage: sudo bash deploy/setup-server.sh <hostname>"; exit 1; fi
+if [[ ! "$HOST" =~ ^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$ ]] || [[ "$HOST" != *.* ]] || [[ "$HOST" == *..* ]]; then
+  echo "Use a DNS hostname only, without https://, a port or a path."; exit 1
+fi
 if [ "$(id -u)" -ne 0 ]; then echo "Run with sudo."; exit 1; fi
+if systemctl is-active --quiet guilded; then
+  echo "Guilded is already running. Use the documented backup/update procedure instead."; exit 1
+fi
 
 SRC="$(cd "$(dirname "$0")/.." && pwd)"
 APP=/opt/guilded
 
 echo "== Packages"
 apt-get update -y
-apt-get install -y curl git ca-certificates gnupg debian-keyring debian-archive-keyring apt-transport-https
+apt-get install -y curl git rsync ca-certificates gnupg debian-keyring debian-archive-keyring apt-transport-https
 
 if ! command -v node >/dev/null || [ "$(node -p 'process.versions.node.split(".")[0]')" -lt 24 ]; then
   echo "== Node 24"
@@ -39,8 +45,7 @@ echo "== Application user and files"
 id guilded >/dev/null 2>&1 || useradd --system --create-home --shell /usr/sbin/nologin guilded
 mkdir -p "$APP"
 if [ "$SRC" != "$APP" ]; then
-  rsync -a --delete --exclude node_modules --exclude .env.local --exclude backups --exclude dist "$SRC"/ "$APP"/ 2>/dev/null \
-    || { apt-get install -y rsync && rsync -a --delete --exclude node_modules --exclude .env.local --exclude backups --exclude dist "$SRC"/ "$APP"/; }
+  rsync -a --delete --exclude node_modules --exclude .env.local --exclude backups --exclude dist "$SRC"/ "$APP"/
 fi
 [ -f "$APP/.env.local" ] || { cp "$APP/.env.example" "$APP/.env.local"; echo "Created $APP/.env.local from the example."; }
 chown -R guilded:guilded "$APP"
@@ -68,8 +73,11 @@ cat <<EOF
 
 Done. Next:
   1. sudo nano $APP/.env.local      (paste your secrets; COMPANION_API_HOST=127.0.0.1)
-  2. sudo systemctl start guilded
-  3. sudo journalctl -u guilded -f
-  4. Open https://$HOST/health in a browser: it should say {"ok":true}
+  2. cd $APP && sudo -u guilded npm run setup:check
+  3. sudo systemctl start guilded   (only after the check passes)
+  4. sudo journalctl -u guilded -n 50 --no-pager
+  5. Open https://$HOST/health and https://$HOST/companion/ from another PC.
+  6. In Discord: /report ping, then /setup start.
+Member bot address: https://$HOST/api/v1/addon-imports
 Remember to close the bot on your PC first: two copies with one token answer twice.
 EOF

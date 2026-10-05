@@ -1,3 +1,9 @@
+Fresh installation follow-up (5 October 2026): owner confirms the 6.0 addon is
+installed on both PCs and requested a clean local rehearsal for other guilds.
+See `docs/FRESH_INSTALL_REHEARSAL.md` and `docs/QUICK_START.md`. Blank optional bot
+settings now load correctly; `npm run setup:check` validates owner configuration
+offline. This is not a production deployment or live fresh-guild acceptance.
+
 Rules acceptance and final Carl-bot transition: `docs/RULES_ACCEPTANCE.md`.
 Self-role panels can require an existing role; clicks recheck live membership,
 role permissions and bot hierarchy. Preserve Exilé → Errant, remove only the

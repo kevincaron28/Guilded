@@ -77,9 +77,9 @@ weekly reports. A small Windows companion app (tray icon) uploads your data afte
 each `/reload`.
 
 ## Getting started
-1. Install and log in. Type `/guilded` (or `/gd`) for the command list, or click the coin.
-2. Officers: open the Raid page and start a raid.
-3. Want Discord? Follow the bot guide on the project page.
+1. Extract Guilded into your actual client's `Interface/AddOns`, log in, and click the gold coin. The ZIP includes `INSTALL.md`.
+2. Addon-only users can start playing. For Discord sync, members install the matching companion and use their own guild's bot address and personal pairing code.
+3. Guild owners: follow the [quick setup checklist](https://github.com/kevincaron28/Guilded/blob/main/docs/QUICK_START.md) and [owner guide](https://github.com/kevincaron28/Guilded/blob/main/docs/GUILD_OWNER_SETUP.md). The bot requires your own hosting and database; these are not bundled with the addon.
 
 ## Beta status
 6.0.0 is for testing. Fresh guild setup, clean installation/recovery, concurrent awards and a full raid still need acceptance. Raid markers and boss plans are no longer included. Back up saved data before upgrading.
@@ -100,6 +100,7 @@ This is a testing beta, not a stable release. Back up SavedVariables before upgr
 - Removes Raid tools entirely: target/floor markers, tank marking and boss plans will be developed later as an optional standalone addon. Saved plans and settings are preserved.
 - Includes guild map diagnostics, automatic recipe sharing, and clearer member/owner setup guides.
 - Bot, addon and companion source versions are aligned at 6.0.0; synchronization protocol remains 2.
+- 5 October setup follow-up: fixes blank optional bot configuration fields, adds an offline owner setup check, refreshes the independent hosting/quick-start guides, and includes installation instructions in the addon ZIP. A clean local rehearsal is documented; live fresh-guild acceptance remains pending.
 
 Remaining live acceptance includes fresh Alliance guild setup, Windows clean install/upgrade and recovery on a non-developer PC, competing/consecutive awards, concurrent officer uploads, permission revocation and a full real raid. Calendar and other game APIs depend on client support. Do not treat these pending checks as passes.
 

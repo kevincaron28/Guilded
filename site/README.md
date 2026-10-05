@@ -20,6 +20,31 @@ The site build refuses missing relative guide/image targets.
 
 ## Publish
 
+### Cloudflare Worker (static assets)
+
+`wrangler.jsonc` defines the `guilded-wow` Worker with only `dist/site` as its
+public asset directory. No bot code, database bindings, secrets or proxy routes
+are included. Static asset requests use Cloudflare's free asset hosting.
+
+```text
+npm run worker:build
+```
+
+This builds the site and runs Wrangler's **dry run**; it does not publish.
+The future deployment command is `npm run worker:deploy` once Cloudflare access
+is available. In Workers Git builds use build `npm run site:build`, deploy
+`npx wrangler deploy`, and production branch `codex/public-website` after the
+Worker configuration has been published to that branch. Use Node 24. No bot
+environment variables belong in the Worker.
+
+The Worker configuration is currently local and deployment remains blocked by
+the saved Codex browser permission for Cloudflare. No Worker URL is confirmed.
+Do not treat the successful dry run as an online deployment.
+
+Reference: https://developers.cloudflare.com/workers/static-assets/get-started/
+
+### Other static hosts
+
 Publish **only the contents of `dist/site/`** to a static HTTPS host. For GitHub
 Pages, use a Pages artifact containing that directory, with build command
 `npm ci && npm run site:build`. This is independent of the Oracle bot service.

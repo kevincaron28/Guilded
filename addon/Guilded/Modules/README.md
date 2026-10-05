@@ -21,6 +21,11 @@ new `KIND`, never a changed one.
 
 ## Rules every module follows
 
+The opt-in officer relay has its own versioned `REQ|1|...` / `DATA|1|...`
+chunk envelope and bounded length-prefixed payload. See
+[the officer bridge guide](../../../docs/OFFICER_COMPANION_BRIDGE.md) for
+privacy boundaries and the two-client acceptance test.
+
 - **Own channel.** Each module has its own addon-message prefix (16
   characters max, checked by `validate-addon.mjs`) and its own event frame,
   with the handler wrapped in `pcall`. One module failing never stops
@@ -60,6 +65,7 @@ new `KIND`, never a changed one.
 | Ready.lua | always on | Guilded (`CONSUME\|`) | The Ready page and `/guilded ready`: runs on every ready check by itself, each addon reports what it carries |
 | Sim.lua | `sim` | (none) | Test raid / dungeon run for officers |
 | Sync.lua | always on | GuildedSync | Version check, standings, guild module switches |
+| OfficerBridge.lua | always on; officer opt-in | GuildedBridge | Core rules/pools/rosters and upcoming raids from an officer's companion; guild-bound cache and late-login requests |
 | GuildMap.lua | `guildmap` | GuildedMap | 5.0: guildmates as dots on the world map and minimap (`P\|map\|x\|y\|class\|level`, `G` = gone, `Q` = rate-limited position refresh); `/guilded map share\|show on\|off` |
 | Scores.lua | `scores` | GuildedScore | 5.0: a dungeon score per player from recorded runs (best run per dungeon), on tooltips; `S\|score\|dungeons`; `/guilded score [player\|top]` |
 | Minimap.lua | always on | (none) | Minimap button and tools window |

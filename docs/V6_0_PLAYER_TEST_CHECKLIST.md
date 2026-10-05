@@ -175,6 +175,11 @@ storage is available. Current browser behavior remains a real-client retest.
 
 ## Suggested order over the next weeks
 
+Officer-assisted member onboarding is prepared on the next-update branch.
+Follow [the officer bridge test](OFFICER_COMPANION_BRIDGE.md) for the private
+two-PC patch. Its real-client acceptance remains pending; the public 6.0
+release has not been replaced by this development patch.
+
 1. Connection/install tests, then two-player loot/accounting.
 2. Roles/cores, group workflows, addon recovery and French UI.
 3. Fresh-guild onboarding, scheduled/optional workflows and full real raid reconciliation.

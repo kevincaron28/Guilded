@@ -19,6 +19,7 @@ Locale.lua
 Standings.lua
 Modules\Games.lua
 Modules\Sync.lua
+Modules\OfficerBridge.lua
 Modules\Sim.lua
 Modules\Bidding.lua
 Modules\Council.lua

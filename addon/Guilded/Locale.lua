@@ -8,6 +8,13 @@ local addonName, ns = ...
 ns = ns or {}
 
 local FR = {
+  ["Save my addon data"] = "Enregistrer mes donnees",
+  ["Local changes"] = "Modifications locales",
+  ["Your addon shares supported data with online guildmates. An officer handles Discord sync; personal sync is optional."] = "Ton addon partage les donnees compatibles avec les membres en ligne. Un officier gere la synchro Discord ; ta synchro personnelle est facultative.",
+  ["Waiting for an online officer to share Discord guild data. Personal browser sync is optional."] = "En attente d'un officier en ligne pour les donnees Discord. La synchro personnelle dans le navigateur est facultative.",
+  ["Only an officer can enable the guild's Discord bridge."] = "Seul un officier peut activer le relais Discord de la guilde.",
+  ["Join your in-game guild before enabling the officer bridge."] = "Rejoins ta guilde en jeu avant d'activer le relais officier.",
+  ["Officer bridge data is too large to share. Use personal browser sync for now."] = "Les donnees du relais sont trop volumineuses. Utilise la synchro personnelle dans le navigateur pour le moment.",
   ["This guild keeps EP and GP per raid core. Pick the core first: /guilded core <name>."] = "Cette guilde garde les EP et GP par core de raid. Choisis d'abord le core : /guilded core <nom>.",
   ["No raid is running: Discord files loot under a raid core only once it belongs to a raid. Use /guilded start before the next item."] = "Aucun raid en cours : Discord classe le butin sous un core seulement s'il appartient \195\160 un raid. Utilise /guilded start avant le prochain objet.",
   ["Sync next missing event"] = "Importer le prochain evenement",

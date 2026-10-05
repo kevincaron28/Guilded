@@ -1,5 +1,10 @@
 # Release checklist: Guilded 6.0.0 Beta
 
+Current summary (5 October): [the finalization checklist](docs/V6_0_FINALIZATION_CHECKLIST.md)
+reconciles the deployed 6.0 beta, current packages and CI with the real-client
+passes recorded in `docs/V6_0_RELEASE_TESTING.md`. Historical unchecked rows below
+are not a declaration that the same feature remains completely untested.
+
 **Read `docs/V5_0_RELEASE_HANDOFF.md` first for the current update order and stabilization gates.**
 
 The owner requested a 6.0.0 Beta on 4 October 2026 for second-PC testing.

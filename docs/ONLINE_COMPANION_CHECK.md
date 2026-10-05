@@ -1,7 +1,16 @@
 # Online companion verification — 5 October 2026
 
-**Status: live page inspected; 6.0.0 fix verified locally. Authenticated live
-sync acceptance remains pending.**
+**Current status, 5 October: Oracle and the unified public companion now serve
+6.0.0 / protocol 2. The website-to-companion flow and unpaired connection check
+passed in the live browser. Authenticated upload and in-game return at the new
+origin remain pending.** See [the finalization checklist](V6_0_FINALIZATION_CHECKLIST.md).
+
+Read-only checks with the existing desktop credential now also pass for
+standings, management and PoE status through the unified origin (HTTP 200,
+no-store). Without credentials, these routes in the initialized guild return
+401, also no-store. No pairing or saved companion settings were changed.
+
+## Earlier predeployment findings (historical)
 
 The Quebec Gold companion at https://guildedqc.duckdns.org/companion/ loaded and
 reported **5.0.0**. Connection & setup and Help & privacy were usable. On an empty,

@@ -1,5 +1,19 @@
 # Web companion and free website rollout
 
+## Verified production state, 5 October 2026
+
+Oracle runs `8dc106789d6261dadb554fc5dfe284af36d462f1`, version 6.0.0 / protocol 2.
+Its service is active with zero automatic restarts, and read-only ledger preflight
+reports unique event references. Cloudflare deployed the unified Worker from
+`ba150d16a49a5cc5075f49511e172e5da424e0a5`; both quality jobs passed in
+[main CI](https://github.com/kevincaron28/Guilded/actions/runs/37332804668),
+including PostgreSQL migration/restore and Windows packaging. The public website,
+companion, health and unauthenticated access-denial checks passed. The backup and
+Neon recovery evidence below remains applicable. Earlier statements that deployment
+is pending or production is 5.0.0 are historical. Real paired sync is a separate gate.
+
+Current release work is tracked in [the finalization checklist](V6_0_FINALIZATION_CHECKLIST.md).
+
 ## Unified address follow-up, 5 October 2026
 
 The owner renamed the Cloudflare subdomain to `kcaron` and requested one address

@@ -1,3 +1,9 @@
+Current finalization (5 October 2026): Oracle is deployed at 8dc1067 with
+6.0.0 / protocol 2, and the unified website/companion at
+https://guilded-wow.kcaron.workers.dev/ was deployed from ba150d1.
+See docs/V6_0_FINALIZATION_CHECKLIST.md for current evidence and remaining
+real-client gates. Older deployment/version statements below are historical.
+
 Fresh installation follow-up (5 October 2026): owner confirms the 6.0 addon is
 installed on both PCs and requested a clean local rehearsal for other guilds.
 See `docs/FRESH_INSTALL_REHEARSAL.md` and `docs/QUICK_START.md`. Blank optional bot

@@ -68,7 +68,15 @@ jobs:
       - run: npm run dist --prefix companion-app
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - run: npm run addon:zip
+      - name: Verify matching release artifacts and checksums
+        run: node scripts/verify-release-artifacts.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: guilded-companion-windows
-          path: dist/companion/*.exe
+          path: |
+            dist/companion/*.exe
+            dist/Guilded-v*.zip
+            dist/Guilded-v*-Beta-Notes.md
+            dist/Guilded-v*-SHA256SUMS.txt
+            dist/Guilded-v*-Artifact-Verification.json

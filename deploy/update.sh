@@ -35,7 +35,7 @@ BEFORE="$(sudo -u "$WHO" git -C "$SRC" rev-parse --short HEAD)"
 sudo -u "$WHO" git -C "$SRC" fetch origin main:refs/remotes/origin/main
 sudo -u "$WHO" git -C "$SRC" merge --ff-only origin/main
 AFTER="$(sudo -u "$WHO" git -C "$SRC" rev-parse --short HEAD)"
-if [ "$BEFORE" = "$AFTER" ]; then echo "Already on the newest code ($AFTER)."; else echo "Updated $BEFORE -> $AFTER"; sudo -u "$WHO" git -C "$SRC" log --oneline "$BEFORE..$AFTER" | head -10; fi
+if [ "$BEFORE" = "$AFTER" ]; then echo "Already on the newest code ($AFTER)."; else echo "Updated $BEFORE -> $AFTER"; sudo -u "$WHO" git -C "$SRC" log -10 --oneline "$BEFORE..$AFTER"; fi
 
 say "Copying to $APP"
 OLD_LOCK="$(sha256sum "$APP/package-lock.json" 2>/dev/null | cut -d' ' -f1 || true)"

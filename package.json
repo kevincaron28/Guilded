@@ -23,7 +23,9 @@
     "test:postgres": "node scripts/test-postgres.mjs",
     "release:ledger-check": "node scripts/with-env.mjs node scripts/ledger-preflight.mjs",
     "release:prepare": "node scripts/release-prepare.mjs",
-    "companion:build": "node companion-app/make-icon.mjs && node scripts/build-companion-web.mjs"
+    "companion:build": "node companion-app/make-icon.mjs && node scripts/build-companion-web.mjs",
+    "site:build": "node scripts/build-site.mjs",
+    "site:preview": "node scripts/preview-site.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.16.2",
@@ -38,6 +40,7 @@
     "eslint": "^9.36.0",
     "fengari": "^0.1.5",
     "fflate": "^0.8.3",
+    "marked": "^18.0.14",
     "prisma": "^6.16.2",
     "tsx": "^4.19.2",
     "typescript": "^5.9.2",

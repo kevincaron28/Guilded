@@ -1,5 +1,14 @@
 # Guilded 6.0 finalization — 5 October 2026
 
+Delivery update: [6.0.0 full Release](https://github.com/kevincaron28/Guilded/releases/tag/v6.0.0)
+is public, with source commit `9fd7062`, five matching assets and signed-out
+downloads verified against local SHA-256 hashes. Both final-source quality jobs
+passed in [CI](https://github.com/kevincaron28/Guilded/actions/runs/37341094496),
+and the Worker deployment passed. The website and CurseForge description now
+say Release and identify 6.1.0 as the next planned update. The existing
+CurseForge 6.0 file remains Release; a matching refreshed package was submitted
+as Release under file ID `9070969` and was still processing at this check.
+
 Status: **6.0.0 Release**, protocol **2**, promoted by the owner's explicit decision
 on 5 October 2026. The next planned version is **6.1.0**. The unchecked tests below
 remain unverified post-release follow-up; this decision does not turn them into passes. Keep the shared version at 6.0.0; changing it

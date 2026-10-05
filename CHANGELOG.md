@@ -1,5 +1,18 @@
 # Changelog
 
+## 6.0.0 Release — 5 October 2026
+
+- Promoted to full Release at the owner's direction. The next planned version is 6.1.0.
+- Website, guides and Quebec Gold companion share https://guilded-wow.kcaron.workers.dev/.
+- Matching addon, Windows companion, source, release notes and verified SHA-256 sums:
+  [6.0.0 release](https://github.com/kevincaron28/Guilded/releases/tag/v6.0.0).
+- Complete local preparation passed 1,233 tests, TypeScript, ESLint, addon validation,
+  dependency audits and Windows packaging. Final release-source PostgreSQL/restore,
+  Windows packaging and Worker deployment checks passed.
+- Remaining real-client checks are tracked as post-release follow-up in
+  [the finalization checklist](docs/V6_0_FINALIZATION_CHECKLIST.md); they are not
+  marked passed by the release decision. The earlier beta notes below are history.
+
 ## 6.0.0 Beta — 4 October 2026
 
 This is a testing beta, not a stable release. Back up SavedVariables before upgrading.

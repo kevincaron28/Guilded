@@ -38,7 +38,8 @@ const installer = readFileSync(installerPath);
 assert.equal(installer.subarray(0, 2).toString(), "MZ", "Installer is not a Windows executable");
 writeFileSync(notesPath, readFileSync("docs/V6_0_BETA_NOTES.md"));
 const artifacts = [zipPath, installerPath, notesPath].map(path => ({
-  name: basename(path), bytes: readFileSync(path).length,
+  // GitHub normalizes spaces in uploaded asset names to periods.
+  name: basename(path).replaceAll(" ", "."), localPath: path, bytes: readFileSync(path).length,
   sha256: createHash("sha256").update(readFileSync(path)).digest("hex"),
 }));
 writeFileSync(`dist/Guilded-v${version}-SHA256SUMS.txt`, artifacts.map(file => `${file.sha256}  ${file.name}`).join("\n") + "\n");

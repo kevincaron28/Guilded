@@ -27,6 +27,46 @@ const logFile = () => {
 };
 
 describe("online companion session and queue", () => {
+  it("reads updated folder data on every upload and writes returned standings directly", async () => {
+    const { env } = environment(); let character = "First";
+    const input = { name: "SavedVariables", queryPermission: async () => "granted", getFileHandle: async () => ({ getFile: async () => new File([`GuildedDB = { addonVersion = "6.0.0", character = { name = "${character}", class = "Mage", level = 70 }, epgp = {} }`], "Guilded.lua") }) };
+    const writer = { write: vi.fn(async () => {}), close: vi.fn(async () => {}), abort: vi.fn(async () => {}) };
+    const output = { name: "Guilded", queryPermission: async () => "granted", getFileHandle: vi.fn(async () => ({ createWritable: async () => writer })) };
+    const picker = vi.fn(async () => input);
+    const api = createBrowserCompanion({ ...env, showDirectoryPicker: picker } as never);
+    await api.getAll(); await api.pairAccount({ ...profile, wowEnabled: true, poeEnabled: false }); await api.browseFile();
+    await api.uploadNow(); character = "Second"; await api.uploadNow();
+    const uploads = env.fetch.mock.calls.filter(call => call[0] === "/api/v1/addon-imports");
+    expect(uploads.map(call => JSON.parse(call[1].body!).export.character.name)).toEqual(["First", "Second"]);
+    picker.mockResolvedValue(output as never);
+    env.fetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ standings: [], updatedAt: "2026-10-05" }) } as never);
+    await api.refreshStandings(); expect(writer.write).toHaveBeenCalledWith(expect.stringContaining("GuildedStandings"));
+    expect((await api.getAll()).state.lastStandings).toMatchObject({ message: expect.stringContaining("saved") });
+    await api.forgetFiles(); expect((await api.getAll()).state.watching).toBeNull();
+  });
+  it("checks server availability before pairing without requiring a guild or PoE2", async () => {
+    const { env } = environment(); const api = createBrowserCompanion(env as never);
+    expect(await api.testConnection({ guildDiscordId: "", wowEnabled: true })).toMatchObject({ ok: true, message: expect.stringContaining("not linked yet") });
+    expect(env.fetch.mock.calls.map(call => call[0])).toEqual(["/health"]);
+    expect((await api.getAll()).state.running).toBe(false);
+  });
+  it("verifies WoW authorization after health and reports a revoked link as a failure", async () => {
+    const { env } = environment(); const api = createBrowserCompanion(env as never);
+    await api.pairAccount(profile); env.fetch.mockClear();
+    expect(await api.testConnection({ ...profile, wowEnabled: true })).toMatchObject({ ok: true });
+    expect(env.fetch.mock.calls.map(call => call[0])).toEqual(["/health", "/api/v1/standings?guild=123"]);
+    env.fetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ ok: true }) } as never);
+    env.fetch.mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({ error: "Pair this companion again." }) } as never);
+    expect(await api.testConnection({ ...profile, wowEnabled: true })).toMatchObject({ ok: false, message: "Pair this companion again." });
+  });
+  it("does not claim a connected account when health is unready or only a PoE profile is selected", async () => {
+    const { env } = environment(); const api = createBrowserCompanion(env as never);
+    env.fetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ ok: false }) } as never);
+    expect(await api.testConnection(profile)).toMatchObject({ ok: false });
+    await api.pairAccount(profile); env.fetch.mockClear();
+    await api.testConnection(profile);
+    expect(env.fetch.mock.calls.map(call => call[0])).toEqual(["/health", "/api/v1/poe/status?guild=123"]);
+  });
   it("pairs through the personal endpoint and keeps credentials out of activity", async () => {
     const { env, storage } = environment(); const api = createBrowserCompanion(env as never);
     expect(await api.pairAccount(profile)).toMatchObject({ ok: true });

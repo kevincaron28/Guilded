@@ -1,8 +1,10 @@
 import { readBrowserAddon, readBrowserPoe } from "./browser-files.mjs";
 import { standingsToLua } from "./standings-format.mjs";
+import { createBrowserFolderAccess } from "./browser-folders.mjs";
 
 export function createBrowserCompanion(env = globalThis) {
   const { location, sessionStorage, document, URL, Blob } = env;
+  const folders = createBrowserFolderAccess(env);
   const key = "guilded.companion.session.v1";
   let saved = {};
   try { saved = JSON.parse(sessionStorage.getItem(key) || "{}"); } catch { /* session storage can be unavailable */ }
@@ -15,7 +17,7 @@ export function createBrowserCompanion(env = globalThis) {
   let busy = false;
   const persist = () => { try { sessionStorage.setItem(key, JSON.stringify({ config: { ...config, pairingCode: "" }, visits })); } catch { /* the current session remains usable */ } };
   const health = () => !config.companionCredential ? { level: "setup", text: "Setup needed" }
-    : state.uploadError || state.poe?.error ? { level: "error", text: state.uploadError || state.poe.error }
+    : state.uploadError || state.standingsError || state.poe?.error ? { level: "error", text: state.uploadError || state.standingsError || state.poe.error }
     : { level: "ok", text: "Browser ready. Select files and sync when you want." };
   const snapshot = () => ({ state: structuredClone(state), health: health() });
   const emit = () => listeners.state.forEach(fn => fn(snapshot()));
@@ -42,8 +44,9 @@ export function createBrowserCompanion(env = globalThis) {
     if (busy) return; busy = true;
     try {
       if (!config.companionCredential) throw new Error("Connect your Discord account first.");
-      if (config.wowEnabled && wowFile) {
-        const exported = await readBrowserAddon(wowFile, config.realm);
+      const currentFile = config.wowEnabled && folders.hasInput() ? await folders.readInput() : wowFile;
+      if (config.wowEnabled && currentFile) {
+        const exported = await readBrowserAddon(currentFile, config.realm);
         if (config.wowGuild && exported.wowGuild && exported.wowGuild !== config.wowGuild) throw new Error("This saved data belongs to a different WoW guild.");
         const result = await request("/api/v1/addon-imports", { guildDiscordId: config.guildDiscordId, export: exported });
         state.lastUpload = { at: new Date().toISOString(), message: result.status === "APPLIED" || result.autoApplied ? "Your saved data is synced." : "Received by the bot. Guild ledger changes may await officer review." };
@@ -60,7 +63,7 @@ export function createBrowserCompanion(env = globalThis) {
         log("ok", "PoE2 map observations synced. Duplicate visits are skipped by the bot.");
       }
       state.uploadError = null;
-      if (!wowFile && !visits.length && !state.poe?.lastSync) log("info", "Choose a game file before syncing. In WoW, /reload first to save fresh data.");
+      if (!currentFile && !visits.length && !state.poe?.lastSync) log("info", "Choose a game file before syncing. In WoW, /reload first to save fresh data.");
     } catch (error) { state.uploadError = error.message; log("error", error.message); throw error; }
     finally { busy = false; emit(); }
   }
@@ -70,7 +73,8 @@ export function createBrowserCompanion(env = globalThis) {
   }
   const api = {
     browser: true,
-    getAll: async () => ({ config, logs, ...snapshot(), autostart: false, version: "6.0.0" }),
+    folderAccess: folders.available,
+    getAll: async () => { await folders.ready; if (folders.hasInput()) state.watching = "SavedVariables / Guilded.lua"; return { config, logs, ...snapshot(), autostart: false, version: "6.0.0" }; },
     saveConfig: async next => {
       if (busy) return { ok: false, message: "Wait for the current sync to finish before changing settings." };
       if (visits.length && ["poeCharacter", "poeLeague", "poeMode", "guildDiscordId"].some(field => next[field] !== config[field])) return { ok: false, message: "Sync your queued visits before changing character, league, mode or server." };
@@ -86,8 +90,32 @@ export function createBrowserCompanion(env = globalThis) {
         return { ok: true, message: "Discord connected. Choose your game files to start syncing." };
       } catch (error) { return { ok: false, message: error.message }; }
     },
-    testConnection: async next => { try { const data = await request(`/api/v1/poe/status?guild=${encodeURIComponent(next.guildDiscordId)}`); emit(); return { ok: true, message: `Connected. PoE2 sharing is ${data.enabled ? "enabled" : "off; ask an officer to enable /poe setup"}.` }; } catch (error) { return { ok: false, message: error.message }; } },
-    browseFile: async () => { const file = await pick(".lua"); if (!file) return null; await readBrowserAddon(file, config.realm); wowFile = file; state.watching = file.name; log("info", "WoW saved data selected. Choose Sync now to send it."); return file.name; },
+    testConnection: async next => {
+      try {
+        const health = await request("/health");
+        if (health.ok !== true) throw new Error("The server is reachable, but the Discord bot is not ready. Ask your guild owner to check the service.");
+        if (!config.companionCredential) {
+          emit();
+          return { ok: true, message: "Server is online. Enter your Discord server ID and personal pairing code, then Connect. Your account is not linked yet." };
+        }
+        if (!next.guildDiscordId?.trim()) return { ok: false, message: "Server is online. Enter your Discord server ID before checking your account connection." };
+        const path = next.wowEnabled === false ? "/api/v1/poe/status" : "/api/v1/standings";
+        const data = await request(`${path}?guild=${encodeURIComponent(next.guildDiscordId)}`);
+        emit();
+        return { ok: true, message: next.wowEnabled === false
+          ? `Account connected. PoE2 sharing is ${data.enabled ? "enabled" : "off; ask an officer to enable /poe setup"}.`
+          : "Account connected. WoW standings are available. Select your saved file and use Sync now." };
+      } catch (error) { return { ok: false, message: error.message }; }
+    },
+    browseFile: async () => {
+      if (busy) throw new Error("Wait for the current sync before changing files.");
+      if (folders.available) {
+        const name = await folders.chooseInput(); wowFile = undefined; state.watching = name;
+        log("info", "SavedVariables folder selected. After /reload, Sync now reads the latest Guilded.lua."); return name;
+      }
+      const file = await pick(".lua"); if (!file) return null; await readBrowserAddon(file, config.realm); wowFile = file; state.watching = file.name; log("info", "WoW saved data selected. Choose Sync now to send it."); return file.name;
+    },
+    forgetFiles: async () => { if (busy) throw new Error("Wait for the current sync to finish."); await folders.forget(); wowFile = undefined; state.watching = null; config.watchFile = ""; persist(); emit(); },
     browsePoeLog: async profile => {
       if (busy) throw new Error("Wait for your current sync to finish.");
       if (visits.length && ["poeCharacter", "poeLeague", "poeMode"].some(field => profile[field] !== config[field])) throw new Error("Sync queued observations before choosing a different character, league or mode.");
@@ -103,9 +131,21 @@ export function createBrowserCompanion(env = globalThis) {
     },
     detectWow: async () => [], uploadNow,
     getPoeRuns: async () => (await request(`/api/v1/poe/visits?${guildQuery()}`)).visits,
-    refreshStandings: async () => { const data = await request(`/api/v1/standings?${guildQuery()}`); download("Standings.lua", standingsToLua(data)); state.lastStandings = { at: new Date().toISOString(), message: "Downloaded. Place in Interface / AddOns / Guilded, then /reload." }; log("ok", state.lastStandings.message); },
+    refreshStandings: async () => {
+      if (!config.companionCredential) throw new Error("Connect your Discord account first.");
+      if (busy) throw new Error("Wait for the current sync to finish."); busy = true;
+      try {
+        const load = async () => standingsToLua(await request(`/api/v1/standings?${guildQuery()}`));
+        if (folders.available) await folders.saveStandings(load);
+        else download("Standings.lua", await load());
+        state.standingsError = null;
+        state.lastStandings = { at: new Date().toISOString(), message: folders.available ? "Standings saved in your Guilded addon folder. Use /reload in WoW." : "Downloaded. Place in Interface / AddOns / Guilded, then /reload." };
+        log("ok", state.lastStandings.message);
+      } catch (error) { state.standingsError = error.message; log("error", error.message); throw error; }
+      finally { busy = false; emit(); }
+    },
     setAutostart: async () => false, openAddonFolder: async () => false,
-    removeData: async () => { if (busy) throw new Error("Wait for sync to finish."); if (config.companionCredential) await request("/api/v1/companion/logout", { guildDiscordId: config.guildDiscordId }); sessionStorage.removeItem(key); location.reload(); },
+    removeData: async () => { if (busy) throw new Error("Wait for sync to finish."); if (config.companionCredential) await request("/api/v1/companion/logout", { guildDiscordId: config.guildDiscordId }); await folders.forget(); sessionStorage.removeItem(key); location.reload(); },
     // The Wishlist and Cores & prices pages: { ok, data | error }, like the desktop app.
     manageView: async () => { try { return { ok: true, data: await request(`/api/v1/manage?${guildQuery()}`) }; } catch (error) { return { ok: false, error: error.message }; } },
     manageEdit: async change => { try { return { ok: true, data: await request("/api/v1/manage", { guildDiscordId: config.guildDiscordId, change }) }; } catch (error) { return { ok: false, error: error.message }; } },

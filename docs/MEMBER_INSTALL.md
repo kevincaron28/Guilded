@@ -62,12 +62,28 @@ desktop and browser pairing unless you intend to reconnect the device you use.
 ## Online option
 
 Open the **online companion link supplied by your guild** (ending in `/companion/`).
-Connect with your server ID and a fresh personal pairing code. Select Guilded.lua
-after `/reload`, save preferences and choose **Sync now**. Reselect the updated
-file each time; the browser does not watch it in the background.
+Connect with your server ID and a fresh personal pairing code, then save preferences.
+The addon is still required. Pairing replaces your previous companion link.
 
-For standings, download `Standings.lua`, place it in
-`<client>\Interface\AddOns\Guilded`, then `/reload`. The addon is still required.
+**If you see Choose SavedVariables folder** (enhanced browser build on supported
+desktop Chrome/Edge): choose your account's `WTF/Account/<account>/SavedVariables`
+folder containing `Guilded.lua`. After `/reload`, **Sync now** rereads the latest
+file; you do not need to select it each time. **Save standings to addon** asks for
+`<client>/Interface/AddOns/Guilded` and writes only `Standings.lua` there. Then
+`/reload` again to load the returned standings. Do not select SavedVariables as
+the output folder.
+
+Folder choices are remembered locally by that browser, while pairing credentials
+remain scoped to the tab session. The browser may ask you to approve access again.
+**Forget selected folders** clears remembered choices; browser site settings let
+you revoke file permissions. Disconnect also clears the remembered folders.
+Nothing syncs after closing the page. This enhanced build is pending deployment
+and real Chrome/Edge file-permission acceptance as of 5 October 2026.
+
+**If you see Choose Guilded.lua / Download standings:** select `Guilded.lua` after
+each `/reload`, then **Sync now**. Download `Standings.lua`, place it in
+`<client>/Interface/AddOns/Guilded`, then `/reload`. This is the fallback for
+other browsers and older deployed companions.
 
 ## Quick fixes
 

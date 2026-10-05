@@ -57,7 +57,7 @@ function renderState(snapshot) {
   $('tileCount').textContent = String(state.uploads || 0);
   $('tileWatch').textContent = state.watching || savedConfig.watchFile || 'No saved-data file selected';
   pill('wowFileState',state.watching || savedConfig.watchFile ? 'File selected' : 'Choose a file',state.watching ? 'ok' : '');
-  pill('wowBadge',savedConfig.wowEnabled === false ? 'Sync off' : state.uploadError ? 'Needs attention' : state.lastUpload ? 'Synced' : state.watching ? 'Watching' : 'Not configured',state.uploadError ? 'error' : state.lastUpload || state.watching ? 'ok' : '');
+  pill('wowBadge',savedConfig.wowEnabled === false ? 'Sync off' : state.uploadError ? 'Needs attention' : state.lastUpload ? 'Synced' : state.watching ? api.browser ? 'Ready to sync' : 'Watching' : 'Not configured',state.uploadError ? 'error' : state.lastUpload || state.watching ? 'ok' : '');
   const poe = state.poe;
   pill('poeBadge',!savedConfig.poeEnabled ? 'Tracking off' : poe?.error ? 'Needs attention' : poe?.pending ? 'Ready to sync' : api.browser ? 'Manual sharing' : poe?.running ? 'Watching' : 'Set up tracking',poe?.error ? 'error' : poe?.running ? 'ok' : poe?.pending ? 'gold' : '');
   const areaName = poe?.currentArea?.replace(/^Map/, '').replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Za-z])(\d)/g, '$1 $2');
@@ -99,7 +99,7 @@ bind('btnPair',async () => { say('Connecting your Discord account…',true); con
 $('form').addEventListener('submit',event => { event.preventDefault(); action($('btnSave'),async () => { say('Saving your preferences…',true); const result = await api.saveConfig(readForm()); say(result.message,result.ok); savedConfig = (await api.getAll()).config; renderState(lastSnapshot); if (result.ok) { toast(result.message); showPage('status'); } }); });
 $('autostart').addEventListener('change',event => action(event.target,async () => { $('autostart').checked = await api.setAutostart(event.target.checked); }));
 bind('btnUpload',async () => { await api.uploadNow(); toast(api.browser ? 'Sync finished. Check Activity for the result.' : 'Sync requested. Follow its progress in Activity.'); });
-bind('btnStandings',async () => { await api.refreshStandings(); toast(api.browser ? 'Standings downloaded. Add the file to Interface / AddOns / Guilded.' : 'Standings refresh finished. Check Activity for the result.'); });
+bind('btnStandings',async () => { await api.refreshStandings(); toast(api.browser ? api.folderAccess ? 'Standings saved. Use /reload in WoW.' : 'Standings downloaded. Add the file to Interface / AddOns / Guilded.' : 'Standings refresh finished. Check Activity for the result.'); });
 bind('btnFolder',() => api.openAddonFolder()); bind('btnPause',async () => { await api.toggleTracking(); }); bind('btnOnline',() => api.openOnline());
 bind('btnRemoveData',() => api.removeData());
 bind('btnHistory',async () => {
@@ -128,6 +128,16 @@ async function init() {
     $('wowStep3').textContent = 'Download Standings.lua, place it in Interface / AddOns / Guilded, then /reload.';
     $('poeModeNote').textContent = 'Manual import previews completed transitions from the latest 24 hours in the last 8 MB of your log. Only select a log from the declared character and league. Choose the updated file again after playing.';
     $('poeFileNote').textContent = 'Latest 24 hours only. Review your declared character and league before syncing.';
+    if (api.folderAccess) {
+      $('btnWowSelect').textContent = 'Choose SavedVariables folder'; $('btnBrowse').textContent = 'Choose folder';
+      $('btnStandings').textContent = 'Save standings to addon';
+      $('wowModeNote').textContent = 'Choose your account’s SavedVariables folder once. After /reload, Sync now reads fresh data. Save standings writes only Standings.lua in your selected Guilded addon folder. Folder choices stay on this browser; access may need approval again. Nothing syncs after you close the page.';
+      $('wowStep2').textContent = 'After /reload, click Sync now to read the latest Guilded.lua from your chosen folder.';
+      $('wowStep3').textContent = 'Save standings to your Guilded addon folder, then /reload. No manual file copying needed.';
+      const forget = document.createElement('button'); forget.textContent = 'Forget selected folders';
+      forget.addEventListener('click', () => action(forget, async () => { await api.forgetFiles(); $('watchFile').value = ''; savedConfig.watchFile = ''; renderState(lastSnapshot); toast('Saved folder choices cleared. Browser permission grants can also be removed in site settings.'); }));
+      $('btnStandings').after(forget);
+    }
   } else { $('watchFile').removeAttribute('readonly'); $('poeLogFile').removeAttribute('readonly'); }
   gameFields(); entries = all.logs.slice(-300); renderLogs(); renderState({state:all.state,health:all.health});
   showPage(new URLSearchParams(location.search).get('tab') || (savedConfig.companionCredential ? 'status' : 'settings'));

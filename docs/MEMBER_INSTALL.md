@@ -5,9 +5,9 @@ Node.js, a database, or a Discord bot token. Your guild owner runs the bot.
 
 ## Get your guild's links
 
-Ask your officer for the addon download, the Windows companion download, your
-Discord server ID, and your guild's **bot address**. Use the matching addon and
-companion from the release they specify. Public releases belong on
+Ask your officer for the addon download, online companion link and Discord
+server ID. Start with the webpage; the Windows companion download is optional
+for automatic syncing. Use the matching release your officer specifies. Public releases belong on
 [GitHub Releases](https://github.com/kevincaron28/Guilded/releases) and
 [CurseForge](https://www.curseforge.com/wow/addons/guilded); only use a version
 actually listed there. 6.0.0 is the full Release. Remaining unverified checks are tracked in the release testing record.
@@ -26,7 +26,42 @@ actually listed there. 6.0.0 is the full Release. Remaining unverified checks ar
 **Success:** Home opens without a Lua error. If you only want the in-game addon,
 you can stop here. Discord sync needs the steps below.
 
-## 2. Connect the Windows companion
+## 2. Connect the online companion (default)
+
+Open the **online companion link supplied by your guild** (ending in `/companion/`).
+Connect with your server ID and a fresh personal pairing code, then save preferences.
+The addon is still required. Pairing replaces your previous companion link.
+
+**If you see Choose SavedVariables folder** (enhanced browser build on supported
+desktop Chrome/Edge): choose your account's `WTF/Account/<account>/SavedVariables`
+folder containing `Guilded.lua`. After `/reload`, **Sync now** rereads the latest
+file; you do not need to select it each time. **Save standings to addon** asks for
+`<client>/Interface/AddOns/Guilded` and writes only `Standings.lua` there. Then
+`/reload` again to load the returned standings. Do not select SavedVariables as
+the output folder.
+
+Folder choices and the Discord connection are
+remembered locally on that browser/device. Closing the tab does not require a
+new pairing code. Disconnect clears the saved connection and folders; use it
+when finished on a shared computer. The browser may ask you to approve folder
+access again. If site storage is unavailable, the companion warns that it cannot
+remember connection/folder choices.
+**Forget selected folders** clears remembered choices; browser site settings let
+you revoke file permissions. Disconnect also clears the remembered folders.
+Once the addon folder is configured and write access is allowed, **Sync now**
+uploads and saves standings together. Nothing syncs after closing the page.
+Connection and folder retention after reopening passed on the owner's browser
+on 5 October; permission recovery and other-browser tests remain pending.
+
+**If you see Choose Guilded.lua / Download standings:** select `Guilded.lua` after
+each `/reload`, then **Sync now**. Download `Standings.lua`, place it in
+`<client>/Interface/AddOns/Guilded`, then `/reload`. This is the fallback for
+other browsers and older deployed companions.
+
+The desktop app below is optional for automatic file watching, background sync
+and PoE2 log tracking, especially useful for leaders and officers.
+
+## Optional Windows companion: automatic sync
 
 1. Install `Guilded Companion Setup <version>.exe` from your guild's release link,
    then open Guilded Companion. The installed app does not need Node.js.
@@ -58,36 +93,6 @@ automatic; `/guilded recipes mine` is only a way to inspect the stored result.
 
 Pairing another companion replaces your previous link. Do not alternate between
 desktop and browser pairing unless you intend to reconnect the device you use.
-
-## Online option
-
-Open the **online companion link supplied by your guild** (ending in `/companion/`).
-Connect with your server ID and a fresh personal pairing code, then save preferences.
-The addon is still required. Pairing replaces your previous companion link.
-
-**If you see Choose SavedVariables folder** (enhanced browser build on supported
-desktop Chrome/Edge): choose your account's `WTF/Account/<account>/SavedVariables`
-folder containing `Guilded.lua`. After `/reload`, **Sync now** rereads the latest
-file; you do not need to select it each time. **Save standings to addon** asks for
-`<client>/Interface/AddOns/Guilded` and writes only `Standings.lua` there. Then
-`/reload` again to load the returned standings. Do not select SavedVariables as
-the output folder.
-
-Folder choices and the Discord connection are
-remembered locally on that browser/device. Closing the tab does not require a
-new pairing code. Disconnect clears the saved connection and folders; use it
-when finished on a shared computer. The browser may ask you to approve folder
-access again. If site storage is unavailable, the companion warns that it cannot
-remember connection/folder choices.
-**Forget selected folders** clears remembered choices; browser site settings let
-you revoke file permissions. Disconnect also clears the remembered folders.
-Nothing syncs after closing the page. This enhanced build is pending deployment
-and real Chrome/Edge file-permission acceptance as of 5 October 2026.
-
-**If you see Choose Guilded.lua / Download standings:** select `Guilded.lua` after
-each `/reload`, then **Sync now**. Download `Standings.lua`, place it in
-`<client>/Interface/AddOns/Guilded`, then `/reload`. This is the fallback for
-other browsers and older deployed companions.
 
 ## Quick fixes
 
@@ -145,14 +150,17 @@ whether ordinary guild chat arrives.
 2. Fermez WoW. Installez le dossier Guilded dans `Interface\AddOns` du bon client
    (Forever beta : `_classic_beta_` dans l'installation testée), puis relancez WoW.
 3. Ouvrez Guilded avec la pièce sur la minicarte. `/reload` enregistre les données.
-4. Installez le compagnon. Dans **Connection & setup**, entrez **Your guild's bot
-   address** avant d'utiliser `/character pair` sur Discord. Sur les anciens
-   compagnons 5.0, **Bot address** se trouve dans **Advanced preferences**.
+4. Ouvrez la page du compagnon en ligne fournie par votre guilde. C'est le choix
+   par défaut. Utilisez `/character pair` dans votre serveur Discord.
 5. Entrez l'identifiant du serveur et votre code privé, puis **Connect**.
-   **Find it** doit sélectionner le fichier de votre compte et du bon client.
-6. **Save & start syncing**, puis `/reload` en jeu. **Activity** doit afficher une
-   synchronisation réussie. Après réception du classement, un autre `/reload`
-   le charge en jeu. Les recettes sont détectées à l'ouverture de la profession.
+   Sélectionnez le dossier `SavedVariables` de votre compte et, avec
+   **Save standings to addon**, le dossier `Interface/AddOns/Guilded`.
+6. Après `/reload`, cliquez sur **Sync now**. Vérifiez l'envoi et le classement,
+   puis faites `/reload` pour charger le classement en jeu. Le navigateur garde
+   la connexion et les dossiers si le stockage est disponible.
+
+Le compagnon Windows reste facultatif pour la synchronisation automatique en
+arrière-plan et le suivi PoE2, particulièrement utile aux chefs et officiers.
 
 Vous n'avez pas besoin du jeton du bot. Ne partagez jamais votre code de liaison.
 `/guilded lang fr` sélectionne le français dans l'addon.

@@ -1,13 +1,15 @@
 # Guilded
 
 Raid and guild management for **WoW Forever** guilds: an in-game addon, a Discord bot and a small
-Windows companion app that connect the two. Free for noncommercial use ([license](LICENSE)).
+web companion that connects the two. An optional Windows app adds automatic syncing.
+Free for noncommercial use ([license](LICENSE)).
 
 | Part | What it does | Where |
 | --- | --- | --- |
 | **Addon** | Raids, attendance, EPGP, four loot systems (GP bids, loot council, soft reserves, EPGP priority), recipes and cooldowns, the guild calendar, gear and consumable checks, a live Ready page, roll games, a friendly window (gold coin on the minimap). Works alone, no Discord needed. | `addon/Guilded/` |
 | **Discord bot** (optional, self-hosted, free) | Raid signups with roles and waitlist, raid cores with a bench and their own loot system and item prices, weekly raids, EPGP standings, loot log, soft reserves, who can craft what, guild calendar sync, dungeon challenge, craft board, readiness board, polls, Warcraft Logs, applications, moderation helpers. | `src/` |
-| **Companion app** (optional) | Tray app that sends the addon's saved data to the bot after each `/reload` or logout and writes standings back into the game. | `companion-app/`, `companion/` |
+| **Online companion** (default for Discord sync) | Webpage that remembers your pairing/folders and uploads data and returns standings when you click Sync now. | `companion/`, `companion-app/renderer/` |
+| **Windows companion** (optional, useful for leaders/officers) | Tray app that sends the addon's saved data to the bot after each `/reload` or logout and writes standings back into the game. | `companion-app/`, `companion/` |
 
 Every in-game and Discord command, and who can run it, is in [COMMANDS.md](COMMANDS.md).
 What changed in each version: [CHANGELOG.md](CHANGELOG.md).
@@ -21,7 +23,7 @@ What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 - **Plan a quick installation:** use the [30-minute setup checklist](docs/QUICK_START.md), including what must be ready first.
 - **Want an AI to guide you:** copy a [setup or troubleshooting prompt](docs/AI_SETUP_HELP.md).
 
-**6.0.0 is the full Release. The next planned version is 6.1.0.** Use matching addon, companion and bot source from the
+**6.0.0 is the full Release. The next planned version is 6.1.0.** Use matching addon and bot source, plus the optional Windows companion if needed, from the
 [6.0.0 release](https://github.com/kevincaron28/Guilded/releases/tag/v6.0.0). Remaining unverified checks are tracked as follow-up work. [Current test record](docs/V6_0_RELEASE_TESTING.md).
 
 For the 5.0 update, read [the local Claude handoff](docs/V5_0_RELEASE_HANDOFF.md).

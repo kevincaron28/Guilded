@@ -33,7 +33,7 @@ Guilded 6.0.0 is the full Release; a timed beginner walkthrough is still pending
 **What these words mean:** a *server/VM* is the computer that keeps your bot online;
 *PostgreSQL* stores your guild's records; *DNS/hostname* is the web address members
 visit; *SSH* opens a secure command window on your server; an *SSH private key*
-unlocks that server. The Windows companion remains on each player's own PC.
+unlocks that server. If used, the optional Windows companion stays on each player's own PC.
 
 ## Keep a private setup note
 
@@ -49,7 +49,7 @@ AI chats, screenshots, GitHub issues or the landing page.
 | SSH private key | Download during instance creation | **No** |
 | Database connection string | Neon → Connect | **No** |
 | Bot hostname | Your DNS provider | Yes |
-| Addon + companion links | Matching release | Yes |
+| Addon + online companion links | Matching release; optional Windows app | Yes |
 
 ## 1. Create the Discord bot
 
@@ -322,8 +322,9 @@ alone does not prove member permissions are correct.
 ## 10. Connect your first player
 
 Follow [Member installation](MEMBER_INSTALL.md). Install the addon into the actual
-WoW client, open the game and `/reload`. For automatic syncing install the Windows
-companion. For manual syncing use your own `https://myguild.duckdns.org/companion/`.
+WoW client, open the game and `/reload`. Start with the online companion at your own
+`https://myguild.duckdns.org/companion/`. The Windows app is optional for automatic
+background syncing, especially useful for leaders and officers.
 
 ![Guilded online companion setup](images/owner-setup/companion-setup-6.jpg)
 
@@ -333,7 +334,9 @@ Each player runs `/character pair` in **your** Discord server and enters their o
 private code. Browser pairing replaces that player's previous companion link;
 choose one mode while testing. In the browser, select the account's saved
 `Guilded.lua`, save preferences and **Sync now**. Download standings into the
-addon's folder and `/reload` again. The Windows companion handles those files automatically.
+addon's folder and `/reload` again. On supported browsers, select both folders
+once; Sync now uploads and saves standings together. The webpage remembers your
+connection and folders. The optional Windows app handles syncing automatically.
 
 **Success check:** upload succeeds, the correct character is linked, and returned
 standings match Discord. Repeat with an ordinary member before inviting everyone.
@@ -346,7 +349,7 @@ Fill the placeholders, then pin this in your guild's Discord:
 ```text
 Guilded for our guild
 Addon: <matching addon download>
-Windows companion: <matching installer download>
+Optional Windows companion (automatic sync): <matching installer download>
 Guide: <member guide link>
 Discord server ID: <our server ID>
 Bot address: https://<our-hostname>/api/v1/addon-imports

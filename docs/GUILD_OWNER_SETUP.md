@@ -4,8 +4,9 @@
 for Discord and Oracle signup links, screenshots, commands and success checks.
 This page is the shorter technical reference.
 
-One owner hosts the Discord bot and database; members install the addon and,
-for automatic sync, the Windows companion. Guilded 6.0.0 is the full Release: use a
+One owner hosts the Discord bot and database; members install the addon and use
+the online companion by default. The Windows app is optional for automatic sync,
+especially useful for leaders and officers. Guilded 6.0.0 is the full Release: use a
 published release's matching downloads and source, and read its known limitations.
 Fresh-guild and non-developer-PC acceptance tests are still pending for 6.0.
 
@@ -32,7 +33,7 @@ Record these non-secret details as you go:
 | Bot host / service owner | |
 | Companion bot address (`https://your-host/api/v1/addon-imports`) | |
 | Online companion (`https://your-host/companion/`) | |
-| Addon and Windows companion download links | |
+| Addon download and online companion links; optional Windows download | |
 | Officer responsible for support / backups | |
 
 Keep the Discord bot token and database connection string in `.env.local` on the
@@ -174,13 +175,13 @@ Fill every placeholder before posting this in your own server:
 ```text
 Install Guilded for our guild
 Addon: <release download link>
-Windows companion: <matching installer download link>
+Optional Windows companion (automatic sync): <matching installer download link>
 Setup guide: <link to MEMBER_INSTALL.md for this release>
 Our Discord server ID: <copy exact ID>
 Our bot address: <https://our-host/api/v1/addon-imports>
-Online companion (manual sync): <https://our-host/companion/>
+Online companion (default): <https://our-host/companion/>
 Install the addon in your actual WoW client, log in, then /reload.
-In Companion setup, set our bot address before connecting.
+Open our online companion link; desktop users set our bot address before connecting.
 Use /character pair here in Discord to get your own private code.
 Need help? Contact <officer>; share the error or support summary, never your code.
 ```

@@ -9,7 +9,7 @@ for account links, Discord/Oracle screenshots and copyable commands.
 | You are | Download | Setup target |
 | --- | --- | --- |
 | Addon-only player | `Guilded-v6.0.0.zip` | 5–10 minutes |
-| Member of a configured guild | Addon + `Guilded Companion Setup 6.0.0.exe` | 10–15 minutes |
+| Member of a configured guild | Addon + online companion webpage (default) | 10–15 minutes |
 | Owner setting up Discord sync | Matching bot source + addon + companion | About 30 minutes **after infrastructure is ready** |
 
 These are planning estimates, not measured acceptance results. Public release
@@ -21,11 +21,14 @@ For a private test, use the matching files supplied by the maintainer.
 
 1. Close WoW and extract **Guilded** into your actual client's `Interface/AddOns`.
    Check `Guilded/Guilded.toc` exists. Open WoW, open Guilded, then `/reload`.
-2. Install the companion. In **Connection & setup**, enter your guild's bot address
-   and Discord server ID. Run `/character pair` in that server and enter your private code.
-3. Enable WoW, use **Find it** to select your account's saved `Guilded.lua`, and
-   **Save & start syncing**. `/reload`, wait for upload and standings success,
-   then `/reload` again.
+2. Open your guild's online companion link, ending in `/companion/`. Enter your
+   Discord server ID and private `/character pair` code from that server.
+3. Enable WoW and choose your account's SavedVariables folder. Use **Save standings
+   to addon** once to choose `Interface/AddOns/Guilded`. After `/reload`, click
+   **Sync now**, confirm upload and standings success, then `/reload` again.
+
+The Windows companion is optional for automatic file watching, background sync
+and PoE2 log tracking, especially useful for leaders and officers.
 
 Addon-only users stop after step 1. See [Member installation](MEMBER_INSTALL.md)
 for the detailed UI steps, the manual browser option, French steps and fixes.
@@ -51,7 +54,7 @@ Have these ready:
 - An empty PostgreSQL 16+ database and its connection string.
 - Your own DNS hostname pointing to the server, with TCP 80/443 allowed by its
   cloud firewall. The server needs outbound internet access for installation.
-- Matching release source, addon ZIP and companion installer.
+- Matching release source and addon ZIP; optional Windows companion installer.
 
 New cloud accounts, payment verification, available server capacity and DNS
 propagation can take longer than 30 minutes. There is currently no shared public

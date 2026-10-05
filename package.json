@@ -26,7 +26,9 @@
     "test:postgres": "node scripts/test-postgres.mjs",
     "release:ledger-check": "node scripts/with-env.mjs node scripts/ledger-preflight.mjs",
     "release:prepare": "node scripts/release-prepare.mjs",
-    "companion:build": "node companion-app/make-icon.mjs && node scripts/build-companion-web.mjs"
+    "companion:build": "node companion-app/make-icon.mjs && node scripts/build-companion-web.mjs",
+    "worker:build": "npm run site:build && wrangler deploy --dry-run",
+    "worker:deploy": "npm run site:build && wrangler deploy"
   },
   "dependencies": {
     "@prisma/client": "^6.16.2",
@@ -46,7 +48,8 @@
     "tsx": "^4.19.2",
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.44.0",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "wrangler": "4.147.0"
   },
   "overrides": {
     "deepmerge-ts": "^8.0.0"

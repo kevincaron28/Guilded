@@ -18,3 +18,5 @@ companion-app/renderer/web-bundle.js
 skills-lock.json
 Published Addons/
 *.code-workspace
+
+.wrangler/

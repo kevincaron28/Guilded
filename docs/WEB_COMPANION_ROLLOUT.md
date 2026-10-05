@@ -1,6 +1,21 @@
 # Web companion and free website rollout
 
-## Continuation evidence, 5 October 2026
+## Access restored, 5 October 2026
+
+The normal Codex in-app browser now successfully opens the authenticated
+Cloudflare dashboard. This supersedes the earlier saved-permission hold below.
+The existing assets-only Worker serves the public landing page at
+https://guilded-wow.kevincaron28.workers.dev/.
+Its dashboard confirms production branch `main`, build `npm run site:build`,
+deploy `npx wrangler deploy`, and no runtime bindings. Do not change it back to
+the earlier proposed website branch. The prepared Worker configuration from
+`5599bdc` is integrated in the combined branch as `db6ff58`.
+
+Final deployment still requires green CI for the combined commit, a verified
+Oracle backup and confirmation of current provider recovery availability.
+Real paired-browser/game and Windows acceptance remain separate from deployment.
+
+## Earlier continuation evidence, 5 October 2026 (historical)
 
 The earlier owner/setup work is now committed in `22f6710`, merged with the
 owner's latest main in `95d540f`, and configuration duplicates resolved in
@@ -26,7 +41,7 @@ Hold the merge and the Worker-configuration push until that restriction is remov
 the prescribed Oracle updater also waits because it requires clean, published main.
 The GitHub connector still returns 403 for PR metadata writes; Git shell push works.
 
-## Website
+## Earlier website preparation (historical; settings above supersede this)
 
 Website source is isolated on `codex/public-website` (initial commit `ff17fc0`).
 It is pushed to `kevincaron28/Guilded`. This branch passed TypeScript, 149 test

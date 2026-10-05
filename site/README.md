@@ -31,15 +31,15 @@ npm run worker:build
 ```
 
 This builds the site and runs Wrangler's **dry run**; it does not publish.
-The future deployment command is `npm run worker:deploy` once Cloudflare access
-is available. In Workers Git builds use build `npm run site:build`, deploy
-`npx wrangler deploy`, and production branch `codex/public-website` after the
-Worker configuration has been published to that branch. Use Node 24. No bot
+The manual deployment command is `npm run worker:deploy`. The existing Workers
+Git integration uses build `npm run site:build`, deploy `npx wrangler deploy`,
+and production branch `main`. Use Node 24. No bot
 environment variables belong in the Worker.
 
-The Worker configuration is currently local and deployment remains blocked by
-the saved Codex browser permission for Cloudflare. No Worker URL is confirmed.
-Do not treat the successful dry run as an online deployment.
+Cloudflare browser access was restored on 5 October 2026. The public landing page
+is verified at https://guilded-wow.kevincaron28.workers.dev/. Worker configuration
+is now integrated with the companion/setup release branch for publication on main.
+See `docs/WEB_COMPANION_ROLLOUT.md` for deployment and acceptance evidence.
 
 Reference: https://developers.cloudflare.com/workers/static-assets/get-started/
 

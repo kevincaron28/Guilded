@@ -2,7 +2,8 @@
 
 A static landing page with CurseForge/releases links, an illustrated owner guide,
 member installation and a link builder for each guild's own online companion.
-It has no login, credentials, analytics, database or shared bot service.
+The landing page has no login, credentials, analytics or database. Its companion
+link now uses the same website address; see `docs/UNIFIED_SITE.md`.
 
 ## Build and preview
 
@@ -20,11 +21,13 @@ The site build refuses missing relative guide/image targets.
 
 ## Publish
 
-### Cloudflare Worker (static assets)
+### Cloudflare Worker (website and companion routing)
 
-`wrangler.jsonc` defines the `guilded-wow` Worker with only `dist/site` as its
-public asset directory. No bot code, database bindings, secrets or proxy routes
-are included. Static asset requests use Cloudflare's free asset hosting.
+`wrangler.jsonc` defines the `guilded-wow` Worker with `dist/site` as its public
+asset directory. `worker/index.mjs` forwards companion and supported API requests
+to the existing Oracle bot. Personal pairing and guild authorization stay there.
+No bot token or database credentials are included. Static asset requests use
+Cloudflare's asset hosting; proxied requests execute the Worker.
 
 ```text
 npm run worker:build
@@ -37,7 +40,7 @@ and production branch `main`. Use Node 24. No bot
 environment variables belong in the Worker.
 
 Cloudflare browser access was restored on 5 October 2026. The public landing page
-is verified at https://guilded-wow.kevincaron28.workers.dev/. Worker configuration
+is now https://guilded-wow.kcaron.workers.dev/. Worker configuration
 is now integrated with the companion/setup release branch for publication on main.
 See `docs/WEB_COMPANION_ROLLOUT.md` for deployment and acceptance evidence.
 

@@ -1,5 +1,14 @@
 # Web companion and free website rollout
 
+## Unified address follow-up, 5 October 2026
+
+The owner renamed the Cloudflare subdomain to `kcaron` and requested one address
+for the website and companion. See [UNIFIED_SITE.md](UNIFIED_SITE.md) for the
+Worker's fixed-origin proxy, same-origin API routes, session migration and
+deployment checks. The current address is https://guilded-wow.kcaron.workers.dev/;
+the Quebec Gold companion is `/companion/`. Historical URLs and static-only
+descriptions below describe the earlier deployments.
+
 ## Access restored, 5 October 2026
 
 The normal Codex in-app browser now successfully opens the authenticated

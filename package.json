@@ -26,9 +26,7 @@
     "test:postgres": "node scripts/test-postgres.mjs",
     "release:ledger-check": "node scripts/with-env.mjs node scripts/ledger-preflight.mjs",
     "release:prepare": "node scripts/release-prepare.mjs",
-    "companion:build": "node companion-app/make-icon.mjs && node scripts/build-companion-web.mjs",
-    "site:build": "node scripts/build-site.mjs",
-    "site:preview": "node scripts/preview-site.mjs"
+    "companion:build": "node companion-app/make-icon.mjs && node scripts/build-companion-web.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.16.2",

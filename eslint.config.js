@@ -4,7 +4,6 @@ import tseslint from "typescript-eslint";
 export default tseslint.config(
   { ignores: ["companion-app/**", "dist/**", "node_modules/**", "backups/**"] },
   eslint.configs.recommended,
-  { files: ["site/**/*.js"], languageOptions: { globals: { document: "readonly", navigator: "readonly", URL: "readonly" } } },
   ...tseslint.configs.recommended,
   { files: ["site/**/*.js"], languageOptions: { globals: { document: "readonly", navigator: "readonly", URL: "readonly" } } },
   {

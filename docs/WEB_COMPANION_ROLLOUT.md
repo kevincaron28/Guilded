@@ -37,6 +37,14 @@ the guild bot's companion; it cannot serve the existing same-origin API itself.
 
 ## Enhanced companion
 
+Source is pushed on `codex/web-companion-folders` (initial implementation
+`532ed71`). The full local checkout passed `npm run release:prepare`: 152 test
+files / 1,226 tests, TypeScript, ESLint, addon validation, both audits with zero
+vulnerabilities, and addon/browser/Windows/site builds. The checkout also contains
+earlier setup improvements; this is not final-commit CI for either branch.
+The live bot and companion were not deployed. Installer and addon checksums in
+`dist/Guilded-v6.0.0-SHA256SUMS.txt` were refreshed.
+
 The local enhanced build uses user-selected folders on browsers supporting
 `showDirectoryPicker`. Input access is read-only to the account's SavedVariables;
 output access is limited by application logic to `Standings.lua` in a folder

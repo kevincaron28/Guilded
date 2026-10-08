@@ -30,7 +30,7 @@ export interface SetupFacts {
   // The bot's own messages in its channels (services/bot-messages.ts).
   messageContentIntent?: boolean;
   // The community section: a Discord season open to everyone, and whether it earns points.
-  community?: { season: boolean; participation: boolean } | null;
+  community?: { season: boolean; participation: boolean; honors?: boolean } | null;
   botMessages?: { kind: string; name?: string; state: "current" | "outdated" | "missing" }[];
 }
 
@@ -137,6 +137,10 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en"): SetupCheck[] 
       fix: facts.community.season
         ? T("The season is active but participation rewards are off: press \"Set up community\", or run /participation settings.")
         : T("Optional: press \"Set up community\" on this checklist.")
+    });
+    if (facts.community.honors !== undefined) checks.push({
+      label: T("Hall of fame: weekly MVP and monthly podium roles"), ok: facts.community.honors, optional: true,
+      fix: T("Optional: press \"Set up community\" on this checklist to add the hall-of-fame channel and its roles.")
     });
   }
   const answerFact = (facts.extraChannels ?? []).find((entry) => entry.field === "answerChannelId")?.fact;

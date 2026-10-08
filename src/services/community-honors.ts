@@ -6,14 +6,16 @@ import { COMMUNITY_CHANNEL_SPECS } from "../setup-names.js";
 import { standings, type Standing } from "./community-rules.js";
 import { communitySeasonLabel } from "./community-display.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
-import { dateAfter, dayStart, participationWeek } from "./participation-rules.js";
+import { dateAfter, dayStart, participationDay, participationWeek } from "./participation-rules.js";
+import { weekStart as resetWeekStart } from "./dungeon-rules.js";
 
 // Community recognition, on top of the public Discord seasons:
-// - every Monday (guild time), the weekly MVP role moves to whoever earned the most community
-//   points in the week that just ended, and the hall-of-fame channel gets the winner and a
-//   short recap of the guild's week;
+// - every week (Monday guild time, or the WoW reset), the weekly MVP role moves to whoever
+//   earned the most community points in the week that just ended, and the hall-of-fame channel
+//   gets the winner, the rookie of the week and a short recap of the guild's week;
 // - when a monthly season ends, its top 3 get the gold, silver and bronze roles until the next
 //   month ends, and the channel announces them.
+// Every award is kept (CommunityHonorAward) for "3rd time MVP" and /community honors.
 // /setup creates the channel and the roles; the community job only moves roles and posts.
 
 const say = (lang: Lang, en: string, fr: string) => lang === "fr" ? fr : en;
@@ -46,11 +48,29 @@ export function podiumPlaces(board: Standing[]): [string[], string[], string[]] 
   return places;
 }
 
-// The last complete Monday-to-Sunday week (guild time) still to announce, as its Monday, or null.
-export function honorsWeekDue(now: Date, timezone: string, lastWeek: string | null): string | null {
-  const week = dateAfter(participationWeek(now, timezone), -7);
+// "MONDAY": Monday to Sunday, guild time. "RESET": from one WoW weekly reset to the next
+// (Tuesday 15:00 UTC, as the dungeon and raid weeks).
+export type WeekMode = "MONDAY" | "RESET";
+export const weekMode = (value: string | null | undefined): WeekMode => value === "RESET" ? "RESET" : "MONDAY";
+
+// A week is named by its first day ("YYYY-MM-DD"): its Monday, or the date of its reset.
+export function honorsWeekOf(now: Date, timezone: string, mode: WeekMode = "MONDAY"): string {
+  return mode === "RESET" ? resetWeekStart(now).toISOString().slice(0, 10) : participationWeek(now, timezone);
+}
+
+export function honorsWindow(week: string, timezone: string, mode: WeekMode = "MONDAY"): { start: Date; end: Date } {
+  if (mode === "RESET") { const start = new Date(`${week}T15:00:00Z`); return { start, end: new Date(start.getTime() + 7 * 86_400_000) }; }
+  return { start: dayStart(week, timezone), end: dayStart(dateAfter(week, 7), timezone) };
+}
+
+// The last complete week still to announce, or null.
+export function honorsWeekDue(now: Date, timezone: string, lastWeek: string | null, mode: WeekMode = "MONDAY"): string | null {
+  const week = dateAfter(honorsWeekOf(now, timezone, mode), -7);
   return !lastWeek || lastWeek < week ? week : null;
 }
+
+// A rookie earned their first community point ever within this many days of the week's end.
+export const ROOKIE_DAYS = 28;
 
 export interface WeekRecap {
   points: number; members: number; messages: number; reactions: number; voiceHours: number;
@@ -69,20 +89,45 @@ export type Names = ReadonlyMap<string, string>;
 const who = (names: Names, id: string) => `**${escapeMarkdown((names.get(id) || `…${id.slice(-4)}`).replace(/[\r\n]/g, " ").slice(0, 32))}**`;
 const dayLabel = (lang: Lang, day: string) => new Intl.DateTimeFormat(lang === "fr" ? "fr-CA" : "en-CA", { timeZone: "UTC", month: "long", day: "numeric" }).format(new Date(`${day}T12:00:00Z`));
 
-export function weeklyHonorsMessage(lang: Lang, input: { week: string; board: Standing[]; mvps: string[]; recap: WeekRecap; names?: Names }) {
+// "2nd", "3rd"… / "2e", "3e"…
+const ordinal = (lang: Lang, value: number) => lang === "fr" ? `${value}e`
+  : `${value}${[11, 12, 13].includes(value % 100) ? "th" : ["th", "st", "nd", "rd"][value % 10] ?? "th"}`;
+
+export interface WeeklyMessageInput {
+  week: string; board: Standing[]; mvps: string[]; recap: WeekRecap; names?: Names;
+  rookie?: Standing | null;
+  // MVP titles won so far, this week included.
+  mvpCounts?: ReadonlyMap<string, number>;
+  // The MVP is notified: the text mentions them (the delivery allows exactly those users).
+  ping?: boolean;
+  mode?: WeekMode;
+  // Officer preview of the week in progress.
+  partial?: boolean;
+}
+
+export function weeklyHonorsMessage(lang: Lang, input: WeeklyMessageInput) {
   const names = input.names ?? new Map<string, string>();
   const n = (value: number) => value.toLocaleString(lang === "fr" ? "fr-CA" : "en-CA");
   const { recap, mvps } = input;
   const first = dayLabel(lang, input.week), last = dayLabel(lang, dateAfter(input.week, 6));
   const top = input.board.filter(row => row.points > 0).slice(0, 3);
+  const times = (id: string) => {
+    const count = input.mvpCounts?.get(id) ?? 1;
+    return count > 1 ? say(lang, ` (${ordinal(lang, count)} time!)`, ` (${ordinal(lang, count)} fois !)`) : "";
+  };
+  const until = input.mode === "RESET" ? say(lang, "the next weekly reset", "la prochaine réinitialisation") : say(lang, "next Monday", "lundi prochain");
+  const mvpList = mvps.map(id => `${who(names, id)}${times(id)}`).join(", ");
   const embed = new EmbedBuilder().setColor(ROLE_COLORS.weekly)
-    .setTitle(say(lang, `⭐ The week of ${first} to ${last}`, `⭐ La semaine du ${first} au ${last}`))
+    .setTitle(say(lang, `⭐ The week of ${first} to ${last}`, `⭐ La semaine du ${first} au ${last}`) + (input.partial ? say(lang, " (so far)", " (jusqu’ici)") : ""))
     .setDescription(mvps.length
-      ? say(lang, `**MVP of the week:** ${mvps.map(id => who(names, id)).join(", ")} with **${n(top[0]!.points)} pts**. The ${HONOR_ROLES.en.weekly} role is theirs until next Monday!`,
-        `**MVP de la semaine :** ${mvps.map(id => who(names, id)).join(", ")} avec **${n(top[0]!.points)} pts**. Le rôle ${HONOR_ROLES.fr.weekly} est à eux jusqu’à lundi prochain !`)
+      ? say(lang, `**MVP of the week:** ${mvpList} with **${n(top[0]!.points)} pts**. The ${HONOR_ROLES.en.weekly} role is theirs until ${until}!`,
+        `**MVP de la semaine :** ${mvpList} avec **${n(top[0]!.points)} pts**. Le rôle ${HONOR_ROLES.fr.weekly} est à eux jusqu’à ${until} !`)
       : say(lang, "Nobody earned community points this week, so the MVP role stays free. Next week is yours!", "Personne n’a gagné de points cette semaine : le rôle MVP reste libre. La semaine prochaine est à toi !"));
   if (top.length) embed.addFields({ name: say(lang, "🏆 Top of the week", "🏆 Le top de la semaine"),
     value: top.map((row, i) => `${MEDALS[i]} ${who(names, row.userId)} — **${n(row.points)} pts**`).join("\n") });
+  if (input.rookie) embed.addFields({ name: say(lang, "🌱 Rookie of the week", "🌱 Recrue de la semaine"),
+    value: say(lang, `${who(names, input.rookie.userId)} — **${n(input.rookie.points)} pts**, new to the community. Welcome!`,
+      `${who(names, input.rookie.userId)} — **${n(input.rookie.points)} pts**, nouveau dans la gang. Bienvenue !`) });
   const lines = [
     recap.points ? say(lang, `🎯 **${n(recap.points)} pts** earned by **${n(recap.members)}** members`, `🎯 **${n(recap.points)} pts** gagnés par **${n(recap.members)}** membres`) : "",
     recap.messages || recap.reactions ? say(lang, `💬 ${n(recap.messages)} messages · ${n(recap.reactions)} reactions`, `💬 ${n(recap.messages)} messages · ${n(recap.reactions)} réactions`) : "",
@@ -94,7 +139,8 @@ export function weeklyHonorsMessage(lang: Lang, input: { week: string; board: St
   ].filter(Boolean);
   if (lines.length) embed.addFields({ name: say(lang, "📊 The guild's week", "📊 La semaine de la guilde"), value: lines.join("\n") });
   embed.setFooter({ text: say(lang, "Guilded · Hall of fame", "Guilded · Palmarès") });
-  return { content: mvps.length ? say(lang, `⭐ Congratulations ${mvps.map(id => who(names, id)).join(", ")}!`, `⭐ Bravo ${mvps.map(id => who(names, id)).join(", ")} !`) : "", embeds: [embed.toJSON()] };
+  const winners = mvps.map(id => input.ping ? `${who(names, id)} (<@${id}>)` : who(names, id)).join(", ");
+  return { content: mvps.length && !input.partial ? say(lang, `⭐ Congratulations ${winners}!`, `⭐ Bravo ${winners} !`) : "", embeds: [embed.toJSON()] };
 }
 
 export function monthlyHonorsMessage(lang: Lang, season: { name: string; number: number }, board: Standing[], names: Names = new Map()) {
@@ -109,6 +155,30 @@ export function monthlyHonorsMessage(lang: Lang, season: { name: string; number:
       "Ils gardent leur rôle du podium jusqu’à la fin du mois prochain. Une nouvelle saison commence : tout le monde repart à zéro !") })
     .setFooter({ text: say(lang, "Guilded · Hall of fame", "Guilded · Palmarès") });
   return { content: say(lang, `🏆 Congratulations to the community's top 3: ${places.flat().map(id => who(names, id)).join(", ")}!`, `🏆 Bravo au top 3 de la gang : ${places.flat().map(id => who(names, id)).join(", ")} !`), embeds: [embed.toJSON()] };
+}
+
+export interface HonorsHistory {
+  recent: { kind: string; period: string; userId: string; points: number | null }[];
+  champions: { userId: string; wins: number }[];
+  podium: { place: number; userId: string; points: number | null }[];
+}
+
+// /community honors: recent weekly winners, the most MVP titles and the last monthly podium.
+export function honorsHistoryMessage(lang: Lang, history: HonorsHistory, names: Names = new Map()) {
+  const n = (value: number | null) => value === null ? "" : ` — **${value.toLocaleString(lang === "fr" ? "fr-CA" : "en-CA")} pts**`;
+  const embed = new EmbedBuilder().setColor(ROLE_COLORS.weekly).setTitle(say(lang, "🏅 Hall of fame", "🏅 Palmarès"));
+  const weeks = [...new Set(history.recent.map(row => row.period))].slice(0, 8);
+  embed.setDescription(weeks.map(week => {
+    const rows = history.recent.filter(row => row.period === week);
+    const mvp = rows.filter(row => row.kind === "WEEK").map(row => `⭐ ${who(names, row.userId)}${n(row.points)}`).join(", ");
+    const rookie = rows.filter(row => row.kind === "ROOKIE").map(row => `🌱 ${who(names, row.userId)}`).join(", ");
+    return `**${dayLabel(lang, week)}** · ${[mvp, rookie].filter(Boolean).join(" · ")}`;
+  }).join("\n") || say(lang, "No weekly MVP yet. The first one is announced after the first complete week.", "Pas encore de MVP. Le premier est annoncé après la première semaine complète."));
+  if (history.champions.length) embed.addFields({ name: say(lang, "👑 Most MVP titles", "👑 Le plus de titres MVP"),
+    value: history.champions.map(row => `${who(names, row.userId)} — ${row.wins}×`).join("\n") });
+  if (history.podium.length) embed.addFields({ name: say(lang, "🏆 Last monthly podium", "🏆 Dernier podium du mois"),
+    value: history.podium.map(row => `${MEDALS[row.place - 1] ?? ""} ${who(names, row.userId)}${n(row.points)}`).join("\n") });
+  return { embeds: [embed.toJSON()] };
 }
 
 // /setup: the hall-of-fame channel (in the Community category, read-only for members, same
@@ -167,27 +237,60 @@ export async function adoptCommunityHonors(guild: Guild, database: PrismaClient)
   return ensureCommunityHonors(guild, database, record.id, asLang(record.settings?.language), categories.first()!.id);
 }
 
-async function weekRecap(tx: Prisma.TransactionClient, guildId: string, week: string, timezone: string, board: Standing[]): Promise<WeekRecap> {
-  const window = { gte: dayStart(week, timezone), lt: dayStart(dateAfter(week, 7), timezone) };
+async function weekRecap(tx: Db, guildId: string, window: { start: Date; end: Date }, timezone: string, board: Standing[]): Promise<WeekRecap> {
+  const range = { gte: window.start, lt: window.end };
   const season = { guildId, ...PUBLIC_DISCORD };
-  const [days, activities, raids, dungeonRuns, newMembers] = await Promise.all([
-    tx.communityParticipationDay.findMany({ where: { season, day: { gte: week, lt: dateAfter(week, 7) } }, select: { messages: true, reactions: true, voiceMs: true } }),
-    tx.communityActivity.count({ where: { season, kind: { not: "DICE" }, status: { notIn: ["OPEN", "CANCELLED"] }, endsAt: window } }),
-    tx.raid.findMany({ where: { guildId, status: "COMPLETED", isTest: false, endedAt: window }, select: { bosses: { select: { status: true } } } }),
-    tx.dungeonRun.count({ where: { guildId, valid: true, createdAt: window } }),
-    tx.member.count({ where: { guildId, isTest: false, createdAt: window } })
+  // Participation is counted per guild-time day; a reset week takes the days it touches.
+  const days = { gte: participationDay(window.start, timezone), lt: participationDay(window.end, timezone) };
+  const [participation, activities, raids, dungeonRuns, newMembers] = await Promise.all([
+    tx.communityParticipationDay.findMany({ where: { season, day: days }, select: { messages: true, reactions: true, voiceMs: true } }),
+    tx.communityActivity.count({ where: { season, kind: { not: "DICE" }, status: { notIn: ["OPEN", "CANCELLED"] }, endsAt: range } }),
+    tx.raid.findMany({ where: { guildId, status: "COMPLETED", isTest: false, endedAt: range }, select: { bosses: { select: { status: true } } } }),
+    tx.dungeonRun.count({ where: { guildId, valid: true, createdAt: range } }),
+    tx.member.count({ where: { guildId, isTest: false, createdAt: range } })
   ]);
   const ranked = board.filter(row => row.points > 0);
   return {
     points: ranked.reduce((sum, row) => sum + row.points, 0), members: ranked.length,
-    messages: days.reduce((sum, d) => sum + d.messages, 0), reactions: days.reduce((sum, d) => sum + d.reactions, 0),
-    voiceHours: Math.round(days.reduce((sum, d) => sum + d.voiceMs, 0) / 3_600_000), activities,
+    messages: participation.reduce((sum, d) => sum + d.messages, 0), reactions: participation.reduce((sum, d) => sum + d.reactions, 0),
+    voiceHours: Math.round(participation.reduce((sum, d) => sum + d.voiceMs, 0) / 3_600_000), activities,
     raids: raids.length, bossKills: raids.reduce((sum, r) => sum + r.bosses.filter(b => b.status === "KILLED").length, 0), dungeonRuns, newMembers
   };
 }
 
+type Db = Prisma.TransactionClient;
+
+// The newcomer with the most points this week: their first community point ever is recent.
+// An MVP is not also the rookie; the next newcomer is.
+async function weekRookie(tx: Db, guildId: string, board: Standing[], mvps: string[], end: Date): Promise<Standing | null> {
+  const candidates = board.filter(row => row.points > 0 && !mvps.includes(row.userId));
+  if (!candidates.length) return null;
+  const firsts = await tx.communityPoint.groupBy({ by: ["userId"], where: { season: { guildId, ...PUBLIC_DISCORD }, userId: { in: candidates.map(row => row.userId) } }, _min: { createdAt: true } });
+  const since = end.getTime() - ROOKIE_DAYS * 86_400_000;
+  const fresh = new Set(firsts.filter(row => row._min.createdAt && row._min.createdAt.getTime() >= since).map(row => row.userId));
+  return candidates.find(row => fresh.has(row.userId)) ?? null;
+}
+
+// Everything a weekly post shows, for a finished week or (preview) the week so far.
+async function summarizeWeek(tx: Db, guildId: string, window: { start: Date; end: Date }, timezone: string) {
+  const rows = await tx.communityPoint.findMany({ where: { season: { guildId, ...PUBLIC_DISCORD }, createdAt: { gte: window.start, lt: window.end } }, select: { userId: true, kind: true, amount: true } });
+  const board = standings(rows);
+  const mvps = weeklyMvps(board);
+  return { board, mvps, rookie: await weekRookie(tx, guildId, board, mvps, window.end), recap: await weekRecap(tx, guildId, window, timezone, board) };
+}
+
+// MVP titles per member, including the current week when it is not saved yet.
+async function mvpCounts(tx: Db, guildId: string, mvps: string[], plusOne: boolean): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  for (const userId of mvps) counts.set(userId, await tx.communityHonorAward.count({ where: { guildId, kind: "WEEK", userId } }) + (plusOne ? 1 : 0));
+  return counts;
+}
+
+const names3 = (summary: { board: Standing[]; rookie: Standing | null }) =>
+  [...new Set([...summary.board.filter(row => row.points > 0).slice(0, 3).map(row => row.userId), ...(summary.rookie ? [summary.rookie.userId] : [])])];
+
 // Looking up a few names from Discord happens inside the transaction, hence the longer timeout.
-const locked = <T>(database: PrismaClient, guildId: string, work: (tx: Prisma.TransactionClient) => Promise<T>) => database.$transaction(async tx => {
+const locked = <T>(database: PrismaClient, guildId: string, work: (tx: Db) => Promise<T>) => database.$transaction(async tx => {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`community-honors:${guildId}`}))`;
   return work(tx);
 }, { timeout: 60_000 });
@@ -204,26 +307,39 @@ export const discordNames = (guild: Guild): NameLookup => async ids => {
   return names;
 };
 
-// Decides the new holders and queues the announcements. Each week and each season is handled
-// once: the decision and its message are saved together.
+const SNOWFLAKE = /^\d{17,20}$/;
+
+// Decides the new holders, records the awards and queues the announcements. Each week and each
+// season is handled once: the decision, the history and the message are saved together.
 export async function advanceCommunityHonors(database: PrismaClient, guildId: string, now = new Date(), lookup: NameLookup = async () => new Map()): Promise<{ week: string | null; seasonId: string | null }> {
   return locked(database, guildId, async tx => {
     const honors = await tx.communityHonors.findUnique({ where: { guildId } });
     if (!honors) return { week: null, seasonId: null };
     const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { timezone: true, language: true } });
     const timezone = settings?.timezone ?? "America/Toronto", lang = asLang(settings?.language);
+    const mode = weekMode(honors.weekStart);
     const result = { week: null as string | null, seasonId: null as string | null };
 
-    const week = honorsWeekDue(now, timezone, honors.week);
-    if (week) {
-      const rows = await tx.communityPoint.findMany({ where: { season: { guildId, ...PUBLIC_DISCORD }, createdAt: { gte: dayStart(week, timezone), lt: dayStart(dateAfter(week, 7), timezone) } }, select: { userId: true, kind: true, amount: true } });
-      const board = standings(rows);
-      const mvps = weeklyMvps(board);
-      const recap = await weekRecap(tx, guildId, week, timezone, board);
+    const week = honorsWeekDue(now, timezone, honors.week, mode);
+    if (week && honors.weeklyEnabled === false) {
+      // Turned off: the role is freed and nothing is announced or recorded.
+      await tx.communityHonors.update({ where: { guildId }, data: { week, weeklyHolderIds: [], rolesPending: true } });
+      result.week = week;
+    } else if (week) {
+      const summary = await summarizeWeek(tx, guildId, honorsWindow(week, timezone, mode), timezone);
+      const { board, mvps, rookie, recap } = summary;
+      const points = new Map(board.map(row => [row.userId, row.points]));
       await tx.communityHonors.update({ where: { guildId }, data: { week, weeklyHolderIds: mvps, rolesPending: true } });
+      await tx.communityHonorAward.createMany({ skipDuplicates: true, data: [
+        ...mvps.map(userId => ({ guildId, kind: "WEEK", period: week, userId, points: points.get(userId) ?? null })),
+        ...(rookie ? [{ guildId, kind: "ROOKIE", period: week, userId: rookie.userId, points: rookie.points }] : [])
+      ] });
       // A silent week only frees the role; there is nothing to announce.
       if (honors.channelId && Object.values(recap).some(Boolean)) {
-        await enqueueDiscordJob(tx, guildId, `community-week:${week}`, "MESSAGE", { channelId: honors.channelId, message: JSON.parse(JSON.stringify(weeklyHonorsMessage(lang, { week, board, mvps, recap, names: await lookup(board.filter(r => r.points > 0).slice(0, 3).map(r => r.userId)) }))) });
+        const ping = honors.pingMvp && mvps.length > 0;
+        const message = weeklyHonorsMessage(lang, { week, board, mvps, recap, rookie, mode, ping, mvpCounts: await mvpCounts(tx, guildId, mvps, false), names: await lookup(names3(summary)) });
+        await enqueueDiscordJob(tx, guildId, `community-week:${week}`, "MESSAGE", { channelId: honors.channelId, message: JSON.parse(JSON.stringify(message)),
+          ...(ping ? { mentionUsers: mvps.filter(id => SNOWFLAKE.test(id)) } : {}) });
       }
       result.week = week;
     }
@@ -232,13 +348,52 @@ export async function advanceCommunityHonors(database: PrismaClient, guildId: st
     if (ended && ended.id !== honors.monthSeasonId) {
       const board = (ended.finalStandings ?? []) as unknown as Standing[];
       const places = podiumPlaces(board);
+      const points = new Map(board.map(row => [row.userId, row.points]));
       await tx.communityHonors.update({ where: { guildId }, data: { monthSeasonId: ended.id, monthHolderIds: places, rolesPending: true } });
+      await tx.communityHonorAward.createMany({ skipDuplicates: true, data: places.flatMap((ids, i) => ids.map(userId => ({ guildId, kind: "MONTH", period: ended.id, place: i + 1, userId, points: points.get(userId) ?? null }))) });
       if (honors.channelId && places[0].length) {
         await enqueueDiscordJob(tx, guildId, `community-month:${ended.id}`, "MESSAGE", { channelId: honors.channelId, message: JSON.parse(JSON.stringify(monthlyHonorsMessage(lang, ended, board, await lookup(places.flat())))) });
       }
       result.seasonId = ended.id;
     }
     return result;
+  });
+}
+
+// Officer preview: the post as it would look if the week ended now. Nothing is saved.
+export async function previewCommunityHonors(database: PrismaClient, guildId: string, now = new Date(), lookup: NameLookup = async () => new Map()) {
+  const honors = await database.communityHonors.findUnique({ where: { guildId } });
+  if (!honors) return null;
+  const settings = await database.guildSettings.findUnique({ where: { guildId }, select: { timezone: true, language: true } });
+  const timezone = settings?.timezone ?? "America/Toronto", lang = asLang(settings?.language);
+  const mode = weekMode(honors.weekStart);
+  const week = honorsWeekOf(now, timezone, mode);
+  const summary = await summarizeWeek(database, guildId, { start: honorsWindow(week, timezone, mode).start, end: now }, timezone);
+  return weeklyHonorsMessage(lang, { week, ...summary, mode, partial: true, mvpCounts: await mvpCounts(database, guildId, summary.mvps, true), names: await lookup(names3(summary)) });
+}
+
+export async function communityHonorsHistory(database: PrismaClient, guildId: string): Promise<HonorsHistory> {
+  const recent = await database.communityHonorAward.findMany({ where: { guildId, kind: { in: ["WEEK", "ROOKIE"] } }, orderBy: [{ period: "desc" }, { kind: "desc" }], take: 24, select: { kind: true, period: true, userId: true, points: true } });
+  const wins = await database.communityHonorAward.groupBy({ by: ["userId"], where: { guildId, kind: "WEEK" }, _count: { _all: true } });
+  const lastMonth = await database.communityHonorAward.findFirst({ where: { guildId, kind: "MONTH" }, orderBy: { createdAt: "desc" }, select: { period: true } });
+  const podium = lastMonth ? await database.communityHonorAward.findMany({ where: { guildId, kind: "MONTH", period: lastMonth.period }, orderBy: [{ place: "asc" }, { userId: "asc" }], select: { place: true, userId: true, points: true } }) : [];
+  const champions = wins.map(row => ({ userId: row.userId, wins: row._count._all })).sort((a, b) => b.wins - a.wins || a.userId.localeCompare(b.userId)).slice(0, 5);
+  return { recent, champions, podium };
+}
+
+// /community honors-settings. Changing the week start marks the last complete week of the new
+// kind as already announced, so no week is announced twice or overlaps the previous one.
+export async function configureCommunityHonors(database: PrismaClient, guildId: string, input: { weeklyEnabled?: boolean; weekStart?: WeekMode; pingMvp?: boolean }, now = new Date()) {
+  return locked(database, guildId, async tx => {
+    const honors = await tx.communityHonors.findUnique({ where: { guildId } });
+    if (!honors) return null;
+    const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { timezone: true } });
+    const moved = input.weekStart !== undefined && input.weekStart !== weekMode(honors.weekStart);
+    return tx.communityHonors.update({ where: { guildId }, data: {
+      ...(input.weeklyEnabled === undefined ? {} : { weeklyEnabled: input.weeklyEnabled }),
+      ...(input.pingMvp === undefined ? {} : { pingMvp: input.pingMvp }),
+      ...(moved ? { weekStart: input.weekStart!, week: dateAfter(honorsWeekOf(now, settings?.timezone ?? "America/Toronto", input.weekStart!), -7) } : {})
+    } });
   });
 }
 

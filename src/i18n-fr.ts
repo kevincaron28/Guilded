@@ -118,6 +118,8 @@ export const FR_TEXT: Record<string, string> = {
   "Community season and participation rewards": "Saison communautaire et récompenses de participation",
   "The season is active but participation rewards are off: press \"Set up community\", or run /participation settings.": "La saison est active, mais les récompenses de participation sont désactivées : appuyez sur « Configurer la communauté », ou lancez /participation settings.",
   "Optional: press \"Set up community\" on this checklist.": "Facultatif : appuyez sur « Configurer la communauté » sur cette liste.",
+  "Hall of fame: weekly MVP and monthly podium roles": "Palmarès : MVP de la semaine et rôles du podium du mois",
+  "Optional: press \"Set up community\" on this checklist to add the hall-of-fame channel and its roles.": "Facultatif : appuyez sur « Configurer la communauté » sur cette liste pour ajouter le salon du palmarès et ses rôles.",
   "same as announcements": "comme les annonces",
   "Those channels were already set. Pick different ones from the menus if you want.": "Ces salons étaient déjà définis. Choisissez-en d'autres dans les menus si vous le voulez.",
   " (officers only)": " (officiers seulement)",

@@ -44,3 +44,11 @@ it("drops cancelled raids from a persisted calendar plan instead of retrying for
   expect(mocks.planned).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ guildId: "guild", status: "PLANNED", isTest: false }) }));
   expect(mocks.calendar.mock.calls[0]?.[2].matches).toEqual([]);
 });
+
+it("notifies nobody unless a job names its users, and only valid user IDs", async () => {
+  const d = discord();
+  await dispatchDiscordJob(d.guild as never, job({ channelId: "fame", message: { content: "⭐ Bravo" } }) as never);
+  expect(d.send.mock.calls[0]?.[0].allowedMentions).toEqual({ parse: [], users: [] });
+  await dispatchDiscordJob(d.guild as never, job({ channelId: "fame", mentionUsers: ["337035968668499981", "@everyone", 5], message: { content: "⭐ Bravo <@337035968668499981>" } }) as never);
+  expect(d.send.mock.calls[1]?.[0].allowedMentions).toEqual({ parse: [], users: ["337035968668499981"] });
+});

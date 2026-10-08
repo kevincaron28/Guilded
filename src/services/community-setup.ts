@@ -21,12 +21,14 @@ const COMMUNITY_CATEGORY = /community|communaut/i;
 const NO_POSTING = PermissionFlagsBits.SendMessages | PermissionFlagsBits.SendMessagesInThreads | PermissionFlagsBits.CreatePublicThreads | PermissionFlagsBits.CreatePrivateThreads;
 const BOT_HUB = PermissionFlagsBits.ViewChannel | PermissionFlagsBits.ReadMessageHistory | PermissionFlagsBits.SendMessages | PermissionFlagsBits.EmbedLinks | PermissionFlagsBits.PinMessages;
 
-export interface CommunitySetupState { season: boolean; participation: boolean }
+export interface CommunitySetupState { season: boolean; participation: boolean; honors: boolean }
 
-// For the /setup checklist: is there a Discord season open to everyone, and does it earn points?
+// For the /setup checklist: is there a Discord season open to everyone, does it earn points, and
+// is the hall of fame in place?
 export async function communitySetupState(database: PrismaClient, guildId: string): Promise<CommunitySetupState> {
   const season = await database.communitySeason.findFirst({ where: { guildId, game: "DISCORD", status: "ACTIVE", audienceRoleId: null }, include: { participation: true } });
-  return { season: !!season, participation: !!season?.participation?.enabled };
+  const honors = await database.communityHonors.findUnique({ where: { guildId }, select: { channelId: true, weeklyRoleId: true } });
+  return { season: !!season, participation: !!season?.participation?.enabled, honors: !!honors?.channelId && !!honors.weeklyRoleId };
 }
 
 type Refresh = typeof updateCommunityLeaderboard;

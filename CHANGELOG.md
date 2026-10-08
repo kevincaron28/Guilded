@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Community hall of fame (`docs/COMMUNITY_HALL_OF_FAME.md`): a weekly MVP role, a
+  rookie of the week, monthly podium roles and a `🏅・hall-of-fame` channel with a
+  weekly recap of the guild. `/community honors` shows the history ("3rd time MVP!");
+  officers get `/community honors-preview` and `/community honors-settings` (weekly
+  on/off, Monday or WoW-reset weeks, optional MVP ping). The `/setup` checklist shows it.
+- Database updates use `DIRECT_URL` when set (a direct, non-pooled connection), so a
+  failed update can no longer leave its lock on a pooled connection and keep the bot down.
 - `/config` is its own command again (it was `/setup config`). Same subcommands and
   options; `/setup` keeps `start`, `testraid`, `selfroles` and `reset`. This frees room
   under Discord's size limit for the merged `/setup` command.

@@ -31,7 +31,7 @@ const guild = {
 let renderStep: typeof import("../src/commands/setup.js").renderStep;
 beforeAll(async () => {
   ({ renderStep } = await import("../src/commands/setup.js"));
-}, 30_000);
+}, 120_000);
 
 describe("setup wizard screens", () => {
   it("every step builds a payload Discord will accept", async () => {

@@ -178,7 +178,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
     const where = welcomeDelivery(updated) === "DM" ? "by private message"
       : welcomeDelivery(updated) === "BOTH" ? `by private message and in ${updated.welcomeChannelId ? `<#${updated.welcomeChannelId}>` : "(no channel set yet)"}`
         : updated.welcomeChannelId ? `in <#${updated.welcomeChannelId}>` : "nowhere yet (pick a channel or send_to: DM)";
-    await interaction.reply({ content: `Welcome messages go ${where}. Game roles: ${updated.welcomeRoleIds.length ? updated.welcomeRoleIds.map((id) => `<@&${id}>`).join(", ") : "none (pick them in /setup start, step 5)"}. Try \`/setup config welcome preview:true\`.`, ephemeral: true });
+    await interaction.reply({ content: `Welcome messages go ${where}. Game roles: ${updated.welcomeRoleIds.length ? updated.welcomeRoleIds.map((id) => `<@&${id}>`).join(", ") : "none (pick them in /setup start, step 5)"}. Try \`/config welcome preview:true\`.`, ephemeral: true });
     return;
   }
 
@@ -225,7 +225,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
     await guildService.updateSettings(context.guildId, { weeklyReportEnabled: enabled });
     await interaction.reply({
       content: enabled
-        ? `Weekly report on. It posts in ${settings.notifyChannelId ? `<#${settings.notifyChannelId}>` : "the notify channel (set one with `/setup config channel` first)"} within the hour, then every 7 days.`
+        ? `Weekly report on. It posts in ${settings.notifyChannelId ? `<#${settings.notifyChannelId}>` : "the notify channel (set one with `/config channel` first)"} within the hour, then every 7 days.`
         : "Weekly report off.",
       ephemeral: true
     });
@@ -323,7 +323,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
       await interaction.reply({
         content: settings?.wclGuildId
           ? `Warcraft Logs guild #${settings.wclGuildId} is watched. New public reports are posted in the raid logs channel and checked against attendance (details go to the officer log). Turn it off with off:true.`
-          : "No Warcraft Logs guild is set. Open your guild's page on warcraftlogs.com and run `/setup config wcl-guild guild:<that link>`.",
+          : "No Warcraft Logs guild is set. Open your guild's page on warcraftlogs.com and run `/config wcl-guild guild:<that link>`.",
         ephemeral: true
       });
       return;

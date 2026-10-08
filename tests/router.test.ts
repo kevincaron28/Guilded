@@ -43,7 +43,7 @@ describe("merged commands", () => {
 describe("the real command list", () => {
   it("sends the moved commands to their old handlers", () => {
     const find = (command: string, group: string | null, sub: string | null) => resolveCommand(commands, { commandName: command, options: opts(group, sub).options });
-    expect(find("setup", "config", "view")).toMatchObject({ legacy: "config", sub: "view", merged: true });
+    expect(find("config", null, "view")).toMatchObject({ legacy: "config", sub: "view", merged: false });
     expect(find("setup", null, "start")).toMatchObject({ legacy: "setup", sub: null });
     expect(find("character", "profession", "set")).toMatchObject({ legacy: "profession", sub: "set" });
     expect(find("character", null, "who")).toMatchObject({ legacy: "who", sub: null });

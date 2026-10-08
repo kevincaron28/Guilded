@@ -1,7 +1,7 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 
 // Fewer top-level commands: several small commands are mounted under one
-// parent (`/character profession set`, `/setup config welcome`, ...). Each
+// parent (`/character profession set`, `/raid wcl check`, ...). Each
 // mounted command keeps its own builder and handler; the handler is given a
 // view of the interaction that looks exactly like the old, separate command
 // (same commandName, same subcommand), so none of them had to change.

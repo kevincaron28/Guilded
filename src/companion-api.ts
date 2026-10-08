@@ -305,7 +305,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         return;
       }
       const record = await importService.record(guild.id, preview.snapshot, preview.checksum, createdBy, pairedMemberId);
-      // Auto-apply (a guild opt-in: /setup config auto-import): apply now and follow up, no /import apply.
+      // Auto-apply (a guild opt-in: /config auto-import): apply now and follow up, no /import apply.
       let autoApplied: { epgp: number; discovered: number; held: number; voided: number; rejected: number } | null = null;
       let applyError: string | null = null;
       if (!access.officer || settings?.autoApplyImports) {

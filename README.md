@@ -94,7 +94,7 @@ WoW addon --(saved file on logout or /reload)--> companion --(HTTPS)--> bot --> 
 
 - The game only writes the addon's data file on `/reload` or logout, so a reload (or logging out) is what
   sends new data. Nothing reloads the game on its own unless a player opts in with `/guilded sync auto on`.
-- Uploads wait as a preview until an officer runs `/import apply`, unless `/setup config auto-import` is on.
+- Uploads wait as a preview until an officer runs `/import apply`, unless `/config auto-import` is on.
 - The API defaults to `127.0.0.1`; use HTTPS behind a reverse proxy remotely. Uploads and standings require a guild-scoped personal pairing credential.
 - Each WoW guild keeps its own saved data in the addon; a realm rename keeps the data.
 

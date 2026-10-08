@@ -2,7 +2,7 @@ import { healthCommand, executeHealth } from "./health.js";
 import { profileCommand } from "./profile.js";
 import { characterCommand, executeCharacter } from "./character.js";
 import { professionCommand, executeProfession } from "./profession.js";
-import { configCommand, executeConfig } from "./settings.js";
+import { configCommand } from "./settings.js";
 import { raidCommand, executeRaid } from "./raid.js";
 import { importCommand, executeImport } from "./import.js";
 import { lootCommand } from "./loot.js";
@@ -45,7 +45,6 @@ import { participationCommand } from "./participation.js";
 // One parent per area, with the smaller commands mounted under it (see router.ts).
 const setup = new MergedCommand("setup", `${BRAND.name} setup and settings.`, [
   { command: setupCommand, handler: executeSetup, as: "start" },
-  { command: configCommand, handler: executeConfig, as: "config" },
   { command: testRaidCommand, handler: executeTestRaid, as: "testraid" },
   { command: selfRolesCommand, handler: executeSelfRoles, as: "selfroles" },
   { command: resetCommand, handler: executeSetupReset, as: "reset" }
@@ -96,7 +95,7 @@ const community = new MergedCommand("community", "Gaming nights, lotteries, chal
 
 // Top level: the merged parents above, plus the commands main.ts handles itself.
 export const commands: AnyCommand[] = [
-  setup, helpCommand, profileCommand, character, raid, epgpCommand, lootCommand, dungeon, craftCommand,
+  setup, configCommand, helpCommand, profileCommand, character, raid, epgpCommand, lootCommand, dungeon, craftCommand,
   bankCommand, applyCommand, pollCommand, report, mod, coreCommand, tagCommand, importer, uninstallCommand, systemCommand,
   community, poeCommand, participationCommand
 ];

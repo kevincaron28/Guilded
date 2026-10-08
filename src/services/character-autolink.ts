@@ -97,7 +97,7 @@ export async function claimCharacter(database: Db, guildId: string, memberId: st
     const linked = await database.character.findFirst({ where: { member: { guildId }, name: { equals: wanted, mode: "insensitive" } }, include: { member: true } });
     if (linked) throw new Error(`${linked.name} is already linked${linked.memberId === memberId ? " to you" : ` to ${linked.member.displayName}`}. /character list shows what is linked.`);
   }
-  if (!row) throw new Error(`No unclaimed character called "${wanted}". Log in with it (the addon reports it), then an officer's companion uploads and an officer runs /import apply (or turns on /setup config auto-import). /character list shows what is linked.`);
+  if (!row) throw new Error(`No unclaimed character called "${wanted}". Log in with it (the addon reports it), then an officer's companion uploads and an officer runs /import apply (or turns on /config auto-import). /character list shows what is linked.`);
   const taken = await database.character.findFirst({ where: { member: { guildId }, name: { equals: row.name, mode: "insensitive" } } });
   if (taken) throw new Error(`${row.name} is already linked to someone.`);
   const outcome = await linkUnclaimed(database, memberId, row);

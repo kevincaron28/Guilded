@@ -6,6 +6,7 @@ import { isPermissionRoleName } from "../permissions.js";
 import { COMMUNITY_CATEGORY_NAMES, COMMUNITY_CHANNEL_SPECS } from "../setup-names.js";
 import { createCommunityService } from "./community.js";
 import { communityMonthName } from "./community-display.js";
+import { ensureCommunityHonors } from "./community-honors.js";
 import { COMMUNITY_BOARD_NAMES, updateCommunityLeaderboard } from "./community-leaderboard.js";
 import { createParticipationService } from "./participation.js";
 import { participationRules } from "./participation-rules.js";
@@ -80,6 +81,8 @@ export async function ensureCommunitySetup(guild: DiscordGuild, database: Prisma
   const board = await refresh(rest, database, guild.id, me.id, { categoryId: category.id });
   if (!board) throw new Error("Community leaderboard unavailable.");
   if (!hadBoard) done.push(`<#${board.channelId}>`);
+  // Hall of fame and the weekly/monthly recognition roles.
+  done.push(...await ensureCommunityHonors(guild, database, guildId, lang, category.id));
 
   const lines = [done.length ? say(lang, `Community: created ${done.join(", ")}.`, `Communauté : ${done.join(", ")} créé(s).`) : say(lang, "Community: the channels were already there.", "Communauté : les salons existaient déjà.")];
   const active = await database.communitySeason.findFirst({ where: { guildId, game: "DISCORD", status: "ACTIVE" }, include: { participation: true } });

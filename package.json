@@ -52,6 +52,7 @@
     "wrangler": "4.147.0"
   },
   "overrides": {
-    "deepmerge-ts": "^8.0.0"
+    "deepmerge-ts": "^8.0.0",
+    "sharp": "^0.35.5"
   }
 }

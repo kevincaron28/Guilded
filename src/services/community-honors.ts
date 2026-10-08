@@ -1,4 +1,4 @@
-import { ChannelType, EmbedBuilder, PermissionFlagsBits, type Guild, type OverwriteResolvable } from "discord.js";
+import { ChannelType, EmbedBuilder, PermissionFlagsBits, escapeMarkdown, type Guild, type OverwriteResolvable } from "discord.js";
 import type { CommunityHonors, Prisma, PrismaClient } from "@prisma/client";
 import { BRAND } from "../brand.js";
 import { asLang, type Lang } from "../i18n.js";
@@ -63,9 +63,15 @@ const ids = (value: Prisma.JsonValue, length: number): string[][] => {
 };
 const strings = (value: Prisma.JsonValue | undefined): string[] => Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : [];
 const mention = (id: string) => `<@${id}>`;
+// Embeds only show a mention as a name when the reader's app already knows that member, so
+// embeds show names (as the leaderboard does); the message text keeps the mentions, which
+// always render (they never ping: deliveries allow no mentions).
+export type Names = ReadonlyMap<string, string>;
+const who = (names: Names, id: string) => `**${escapeMarkdown((names.get(id) || `…${id.slice(-4)}`).replace(/[\r\n]/g, " ").slice(0, 32))}**`;
 const dayLabel = (lang: Lang, day: string) => new Intl.DateTimeFormat(lang === "fr" ? "fr-CA" : "en-CA", { timeZone: "UTC", month: "long", day: "numeric" }).format(new Date(`${day}T12:00:00Z`));
 
-export function weeklyHonorsMessage(lang: Lang, input: { week: string; board: Standing[]; mvps: string[]; recap: WeekRecap }) {
+export function weeklyHonorsMessage(lang: Lang, input: { week: string; board: Standing[]; mvps: string[]; recap: WeekRecap; names?: Names }) {
+  const names = input.names ?? new Map<string, string>();
   const n = (value: number) => value.toLocaleString(lang === "fr" ? "fr-CA" : "en-CA");
   const { recap, mvps } = input;
   const first = dayLabel(lang, input.week), last = dayLabel(lang, dateAfter(input.week, 6));
@@ -73,11 +79,11 @@ export function weeklyHonorsMessage(lang: Lang, input: { week: string; board: St
   const embed = new EmbedBuilder().setColor(ROLE_COLORS.weekly)
     .setTitle(say(lang, `⭐ The week of ${first} to ${last}`, `⭐ La semaine du ${first} au ${last}`))
     .setDescription(mvps.length
-      ? say(lang, `**MVP of the week:** ${mvps.map(mention).join(", ")} with **${n(top[0]!.points)} pts**. The ${HONOR_ROLES.en.weekly} role is theirs until next Monday!`,
-        `**MVP de la semaine :** ${mvps.map(mention).join(", ")} avec **${n(top[0]!.points)} pts**. Le rôle ${HONOR_ROLES.fr.weekly} est à eux jusqu’à lundi prochain !`)
+      ? say(lang, `**MVP of the week:** ${mvps.map(id => who(names, id)).join(", ")} with **${n(top[0]!.points)} pts**. The ${HONOR_ROLES.en.weekly} role is theirs until next Monday!`,
+        `**MVP de la semaine :** ${mvps.map(id => who(names, id)).join(", ")} avec **${n(top[0]!.points)} pts**. Le rôle ${HONOR_ROLES.fr.weekly} est à eux jusqu’à lundi prochain !`)
       : say(lang, "Nobody earned community points this week, so the MVP role stays free. Next week is yours!", "Personne n’a gagné de points cette semaine : le rôle MVP reste libre. La semaine prochaine est à toi !"));
   if (top.length) embed.addFields({ name: say(lang, "🏆 Top of the week", "🏆 Le top de la semaine"),
-    value: top.map((row, i) => `${MEDALS[i]} ${mention(row.userId)} — **${n(row.points)} pts**`).join("\n") });
+    value: top.map((row, i) => `${MEDALS[i]} ${who(names, row.userId)} — **${n(row.points)} pts**`).join("\n") });
   const lines = [
     recap.points ? say(lang, `🎯 **${n(recap.points)} pts** earned by **${n(recap.members)}** members`, `🎯 **${n(recap.points)} pts** gagnés par **${n(recap.members)}** membres`) : "",
     recap.messages || recap.reactions ? say(lang, `💬 ${n(recap.messages)} messages · ${n(recap.reactions)} reactions`, `💬 ${n(recap.messages)} messages · ${n(recap.reactions)} réactions`) : "",
@@ -92,13 +98,13 @@ export function weeklyHonorsMessage(lang: Lang, input: { week: string; board: St
   return { content: mvps.length ? say(lang, `⭐ Congratulations ${mvps.map(mention).join(", ")}!`, `⭐ Bravo ${mvps.map(mention).join(", ")} !`) : "", embeds: [embed.toJSON()] };
 }
 
-export function monthlyHonorsMessage(lang: Lang, season: { name: string; number: number }, board: Standing[]) {
+export function monthlyHonorsMessage(lang: Lang, season: { name: string; number: number }, board: Standing[], names: Names = new Map()) {
   const places = podiumPlaces(board);
   const points = new Map(board.map(row => [row.userId, row.points]));
   const n = (value: number) => value.toLocaleString(lang === "fr" ? "fr-CA" : "en-CA");
   const embed = new EmbedBuilder().setColor(ROLE_COLORS.month[0]!)
     .setTitle(say(lang, `🏆 Top 3 of ${communitySeasonLabel(season, lang)}`, `🏆 Le top 3 de la ${communitySeasonLabel(season, lang)}`))
-    .setDescription(places.map((winners, i) => winners.length ? `${MEDALS[i]} ${winners.map(mention).join(", ")} — **${n(points.get(winners[0]!) ?? 0)} pts** · ${HONOR_ROLES[lang].month[i]}` : "").filter(Boolean).join("\n"))
+    .setDescription(places.map((winners, i) => winners.length ? `${MEDALS[i]} ${winners.map(id => who(names, id)).join(", ")} — **${n(points.get(winners[0]!) ?? 0)} pts** · ${HONOR_ROLES[lang].month[i]}` : "").filter(Boolean).join("\n"))
     .addFields({ name: say(lang, "✨ Well played", "✨ Bien joué"), value: say(lang,
       "They keep their podium role until the end of next month. A new season has started: everyone is back at zero!",
       "Ils gardent leur rôle du podium jusqu’à la fin du mois prochain. Une nouvelle saison commence : tout le monde repart à zéro !") })
@@ -181,14 +187,27 @@ async function weekRecap(tx: Prisma.TransactionClient, guildId: string, week: st
   };
 }
 
+// Looking up a few names from Discord happens inside the transaction, hence the longer timeout.
 const locked = <T>(database: PrismaClient, guildId: string, work: (tx: Prisma.TransactionClient) => Promise<T>) => database.$transaction(async tx => {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`community-honors:${guildId}`}))`;
   return work(tx);
-});
+}, { timeout: 60_000 });
+
+export type NameLookup = (ids: string[]) => Promise<Names>;
+// Server nickname, else Discord display name, one REST call per member not already cached.
+export const discordNames = (guild: Guild): NameLookup => async ids => {
+  const names = new Map<string, string>();
+  for (const id of ids) {
+    const member = guild.members.cache.get(id) ?? await guild.members.fetch(id).catch(() => null);
+    const name = member?.displayName ?? (await guild.client.users.fetch(id).catch(() => null))?.displayName;
+    if (name) names.set(id, name);
+  }
+  return names;
+};
 
 // Decides the new holders and queues the announcements. Each week and each season is handled
 // once: the decision and its message are saved together.
-export async function advanceCommunityHonors(database: PrismaClient, guildId: string, now = new Date()): Promise<{ week: string | null; seasonId: string | null }> {
+export async function advanceCommunityHonors(database: PrismaClient, guildId: string, now = new Date(), lookup: NameLookup = async () => new Map()): Promise<{ week: string | null; seasonId: string | null }> {
   return locked(database, guildId, async tx => {
     const honors = await tx.communityHonors.findUnique({ where: { guildId } });
     if (!honors) return { week: null, seasonId: null };
@@ -205,7 +224,7 @@ export async function advanceCommunityHonors(database: PrismaClient, guildId: st
       await tx.communityHonors.update({ where: { guildId }, data: { week, weeklyHolderIds: mvps, rolesPending: true } });
       // A silent week only frees the role; there is nothing to announce.
       if (honors.channelId && Object.values(recap).some(Boolean)) {
-        await enqueueDiscordJob(tx, guildId, `community-week:${week}`, "MESSAGE", { channelId: honors.channelId, message: JSON.parse(JSON.stringify(weeklyHonorsMessage(lang, { week, board, mvps, recap }))) });
+        await enqueueDiscordJob(tx, guildId, `community-week:${week}`, "MESSAGE", { channelId: honors.channelId, message: JSON.parse(JSON.stringify(weeklyHonorsMessage(lang, { week, board, mvps, recap, names: await lookup(board.filter(r => r.points > 0).slice(0, 3).map(r => r.userId)) }))) });
       }
       result.week = week;
     }
@@ -216,7 +235,7 @@ export async function advanceCommunityHonors(database: PrismaClient, guildId: st
       const places = podiumPlaces(board);
       await tx.communityHonors.update({ where: { guildId }, data: { monthSeasonId: ended.id, monthHolderIds: places, rolesPending: true } });
       if (honors.channelId && places[0].length) {
-        await enqueueDiscordJob(tx, guildId, `community-month:${ended.id}`, "MESSAGE", { channelId: honors.channelId, message: JSON.parse(JSON.stringify(monthlyHonorsMessage(lang, ended, board))) });
+        await enqueueDiscordJob(tx, guildId, `community-month:${ended.id}`, "MESSAGE", { channelId: honors.channelId, message: JSON.parse(JSON.stringify(monthlyHonorsMessage(lang, ended, board, await lookup(places.flat())))) });
       }
       result.seasonId = ended.id;
     }
@@ -249,7 +268,7 @@ export async function syncCommunityHonorRoles(guild: Guild, database: PrismaClie
 // A role sync that keeps failing (missing Manage Roles, role above the bot) retries every 15 minutes.
 const lastSyncAttempt = new Map<string, number>();
 export async function runCommunityHonors(guild: Guild, database: PrismaClient, guildId: string, now = new Date()): Promise<void> {
-  await advanceCommunityHonors(database, guildId, now);
+  await advanceCommunityHonors(database, guildId, now, discordNames(guild));
   const honors = await database.communityHonors.findUnique({ where: { guildId } });
   if (!honors?.rolesPending || now.getTime() - (lastSyncAttempt.get(guildId) ?? 0) < 15 * 60_000) return;
   lastSyncAttempt.set(guildId, now.getTime());

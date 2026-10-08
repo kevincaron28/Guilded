@@ -70,6 +70,9 @@ Fill only `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_GUILD_ID` and
 `DATABASE_URL` to start. Keep `COMPANION_API_HOST=127.0.0.1`,
 `COMPANION_API_PORT=8787` and `MESSAGE_CONTENT_INTENT=false`.
 Optional Warcraft Logs, AI and error-report fields may stay blank.
+If `DATABASE_URL` is a pooled connection (Neon: the host contains `-pooler`), also set
+`DIRECT_URL` to the same string without `-pooler`. Database updates then use the direct
+connection, so a failed update can never leave its lock on a pooled connection.
 Use your own application's token and database, never another guild's settings.
 The file is restricted to the service owner; do not share it in support requests.
 

@@ -24,16 +24,18 @@ export const CATEGORY_NAMES: Record<Lang, Record<CategoryKey, string>> = {
 export interface ChannelSpec { name: string; topic: string; access: Access; category: CategoryKey; forum?: boolean }
 
 export const COMMUNITY_CATEGORY_NAMES: Record<Lang, string> = { en: "Community", fr: "Communauté" };
-export const COMMUNITY_CHANNEL_SPECS: Record<Lang, Record<"activities" | "standings" | "chat", Pick<ChannelSpec, "name" | "topic" | "access">>> = {
+export const COMMUNITY_CHANNEL_SPECS: Record<Lang, Record<"activities" | "standings" | "chat" | "honors", Pick<ChannelSpec, "name" | "topic" | "access">>> = {
   en: {
     activities: { name: "activities", topic: "Start here: daily dice, current activities, personal points and helper recognition. Use the pinned buttons. Organizer templates: /community hub.", access: "readonly" },
     standings: { name: "🏆・leaderboard", topic: "The community podium. Click for your points, daily dice, full rankings and previous seasons. Earned score and spendable balance are separate.", access: "readonly" },
-    chat: { name: "community-chat", topic: "Community chat for everyone, across all games.", access: "open" }
+    chat: { name: "community-chat", topic: "Community chat for everyone, across all games.", access: "open" },
+    honors: { name: "🏅・hall-of-fame", topic: "Every Monday: the MVP of the week and a recap of the guild's week. At each month's end: the top 3 of the community podium.", access: "readonly" }
   },
   fr: {
     activities: { name: "activites", topic: "À toi de jouer : dé quotidien, activités, points et entraide. Utilise les boutons du panneau épinglé. Modèles organisateurs : /community hub.", access: "readonly" },
     standings: { name: "🏆・leaderboard", topic: "Le podium de la gang. Clique pour tes points, ton dé, le classement complet et les anciennes saisons. Score gagné et solde disponible restent distincts.", access: "readonly" },
-    chat: { name: "chat-communaute", topic: "Chat communautaire pour tout le monde, tous jeux confondus.", access: "open" }
+    chat: { name: "chat-communaute", topic: "Chat communautaire pour tout le monde, tous jeux confondus.", access: "open" },
+    honors: { name: "🏅・palmares", topic: "Chaque lundi : le MVP de la semaine et le résumé de la semaine de la guilde. À la fin du mois : le top 3 du podium de la gang.", access: "readonly" }
   }
 };
 

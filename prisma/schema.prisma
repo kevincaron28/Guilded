@@ -156,6 +156,7 @@ model Guild {
   communitySeasonCounters CommunitySeasonCounter[]
   poeMapVisits        PoeMapVisit[]
   memberOnboardings   MemberOnboarding[]
+  communityHonors     CommunityHonors?
 }
 
 // Onboarding progress of one Discord user in one server. Kept apart from Member so that reading
@@ -200,6 +201,26 @@ model CommunitySeason {
 }
 
 // Monotonic allocation survives deletion of a season; one counter per game/guild.
+// Community recognition: the hall-of-fame channel, the weekly MVP role (most points earned in the
+// last Monday-to-Sunday week, guild time) and the three podium roles of the last ended monthly
+// season. Created by /setup; the community job moves the roles and posts the announcements.
+model CommunityHonors {
+  guildId         String   @id
+  channelId       String?
+  weeklyRoleId    String?
+  monthRoleIds    Json     @default("[]")
+  // Last week processed, as its Monday ("YYYY-MM-DD"), and who holds the weekly role.
+  week            String?
+  weeklyHolderIds Json     @default("[]")
+  // Last ended season awarded, and the holders of each podium role (gold, silver, bronze).
+  monthSeasonId   String?
+  monthHolderIds  Json     @default("[[],[],[]]")
+  // Set when holders change; cleared once Discord roles match them.
+  rolesPending    Boolean  @default(false)
+  updatedAt       DateTime @updatedAt
+  guild           Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+}
+
 model CommunitySeasonCounter {
   guildId String
   game String

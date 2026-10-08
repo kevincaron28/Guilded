@@ -32,7 +32,7 @@ describe("community honors rules", () => {
   it("writes the weekly post and the month's top 3 in both languages", () => {
     const recap = { points: 120, members: 3, messages: 80, reactions: 20, voiceHours: 5, activities: 2, raids: 1, bossKills: 9, dungeonRuns: 4, newMembers: 2 };
     const en = weeklyHonorsMessage("en", { week: "2026-09-28", board: [row("a", 70), row("b", 50)], mvps: ["a"], recap });
-    expect(en.content).toContain("<@a>");
+    expect(en.content).toContain("**…a**");
     expect(en.embeds[0]!.title).toContain("September 28");
     expect(JSON.stringify(en.embeds)).toContain("9 bosses down");
     const fr = weeklyHonorsMessage("fr", { week: "2026-09-28", board: [], mvps: [], recap: { ...recap, points: 0, members: 0 } });
@@ -41,12 +41,13 @@ describe("community honors rules", () => {
     const month = monthlyHonorsMessage("fr", { name: "Septembre 2026", number: 3 }, [row("a", 90), row("b", 60), row("c", 30)]);
     expect(month.embeds[0]!.description).toContain("🥇 **…a** — **90 pts** · 🥇 Champion du mois");
     expect(month.embeds[0]!.title).toContain("Saison 3");
-    // Embeds show names, which every reader can see; the text keeps the mentions.
+    expect(month.content).not.toContain("<@");
+    // Embed and text show names, which every reader can see; no mention anywhere.
     const named = weeklyHonorsMessage("en", { week: "2026-09-28", board: [row("123456789012345678", 70), row("b", 50)], mvps: ["123456789012345678"], recap, names: new Map([["123456789012345678", "Aria Gold"]]) });
     expect(named.embeds[0]!.description).toContain("**Aria Gold**");
     expect(named.embeds[0]!.description).not.toContain("<@");
     expect(named.embeds[0]!.fields![0]!.value).toContain("**…b**");
-    expect(named.content).toContain("<@123456789012345678>");
+    expect(named.content).toBe("⭐ Congratulations **Aria Gold**!");
   });
 });
 

@@ -83,7 +83,7 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en"): SetupCheck[] 
       ...(facts.dungeonSignupGuide === true && facts.dungeonSignupGuideOutdated ? { warn: true } : {}),
       fix: facts.dungeonSignupGuide === true && facts.dungeonSignupGuideOutdated
         ? T("It is the old dungeon-only button: press \"Update bot messages\" for the group finder menu (or run /dungeon guide).")
-        : T("Run /dungeon guide to post or repair the pinned signup guide. Set a channel first with /setup config channel.")
+        : T("Run /dungeon guide to post or repair the pinned signup guide. Set a channel first with /config channel.")
     },
     {
       label: T("Dungeon signup guide pin permission"),

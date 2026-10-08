@@ -100,7 +100,7 @@ one for the winner.
 ### Loot systems per raid core
 
 Each raid core decides how its loot is given out (a core that says nothing follows the guild's
-choice, `/setup config loot-mode`). Pick it in `/core setup` (step 3, the loot system menu) or with
+choice, `/config loot-mode`). Pick it in `/core setup` (step 3, the loot system menu) or with
 `/core rules core:<name> loot_mode:<system>`.
 
 | System | How it works |
@@ -371,7 +371,7 @@ points when a season ends). They show in the run post and on `/dungeon player`.
 | `/dungeon group <title>` | Form a dungeon group: a post in the dungeon signups channel with Tank / Healer / DPS / Leave buttons (1 tank, 1 healer, 3 DPS, extras waitlist). Members can also create these posts from the pinned guide button. At 5 players, or when the leader presses **Start now**, the bot creates a **private temporary voice channel** for the group (only its players, the leader and Officers can join). The channel is deleted after 5 empty minutes or when the group is closed; unfinished groups close after 24 hours. Needs the bot to have Manage Channels |
 | `/dungeon alerts` | Your group alerts (also **My group alerts** under the group finder menu): the kinds of group you want a ping for and the roles you play. You are pinged only for groups your linked characters' level fits and that still need one of your roles |
 
-After each import, completed runs and new records are posted once in the dungeon channel (`/setup config channel`, also in `/setup start`), or the notify channel if none is set.
+After each import, completed runs and new records are posted once in the dungeon channel (`/config channel`, also in `/setup start`), or the notify channel if none is set.
 
 ### Raid Leaders (and Officers)
 
@@ -390,7 +390,7 @@ After each import, completed runs and new records are posted once in the dungeon
 | `/character readiness member <player>` / `/character readiness raid` | Check other people's readiness (also Guild Master, Loot Leader, Class Leader). `/character readiness raid` posts the whole-guild board in the private **raid-readiness** channel when one is set (otherwise it replies only to you). The board is also refreshed after every `/import apply` that carries gear checks |
 
 Proposed EP = attendance EP (present or late) + boss kills × boss EP + a
-full-clear bonus, all from `/setup config set`. Only EPGP officers can press
+full-clear bonus, all from `/config set`. Only EPGP officers can press
 Approve, and a raid can never be paid twice.
 
 ### DKP Officers (and Officers)
@@ -412,9 +412,9 @@ Approve, and a raid can never be paid twice.
 | `/report guild` | Class / race / level mix, retention at 30 / 60 / 90 days, and what needs attention |
 | `/poll create <question> <option1> <option2> [option3-5] [closes]` / `/poll close <poll>` | Poll answered with buttons; one vote each, changeable; the result bars update live |
 | `/loot award <item> <player> [gp] [boss] [raid] [offspec]` | Give an item straight to a player (loot council or manual); GP is charged only if you give a price; `offspec:true` charges the core's off-spec share of it (50% by default); lands in `/loot history` |
-| `/setup config loot-mode <EPGP\|Council>` | Council mode turns `/loot auction` and `/loot bid` off; officers decide with `/loot award` |
+| `/config loot-mode <EPGP\|Council>` | Council mode turns `/loot auction` and `/loot bid` off; officers decide with `/loot award` |
 | `/character unclaimed` / `link <name> <player>` / `autolink` | Characters the addons reported that nobody has linked: list them, link one by hand, or link every one whose name matches a Discord member |
-| `/setup config auto-import <true/false>` | Apply what the companion uploads by itself (ledger, attendance, loot, dungeon runs, gear checks, discovered characters) with no `/import apply`. Also a button in `/setup start` step 7 |
+| `/config auto-import <true/false>` | Apply what the companion uploads by itself (ledger, attendance, loot, dungeon runs, gear checks, discovered characters) with no `/import apply`. Also a button in `/setup start` step 7 |
 | `/setup start` | **Start here.** Guided setup: roles, channels (core, dungeon, extras; one button makes the whole WoW section under a "Guilded" category), welcome, EPGP values. `/setup start status:true` shows the checklist |
 | `/raid wcl report <url> [raid] [post]` | Pull a Warcraft Logs report (link or code): zone, duration, boss kills and wipes, player list. Saved, posted to the raid logs channel, and linked to a Discord raid if you give its id. Needs `WCL_CLIENT_ID` / `WCL_CLIENT_SECRET` in `.env.local` |
 | `/setup testraid start [raiders] [starts_in] [realm]` | Fake `[TEST]` raid with fake raiders signed up (hits role caps, Maybe, waitlist) |
@@ -438,27 +438,27 @@ Approve, and a raid can never be paid twice.
 | `/mod faq test <question>` | Which answer a question would get |
 | `/tag set` / `/tag delete` | Manage saved answers |
 | `/setup selfroles <title> <role1> [role2..5]` | Post a role button panel |
-| `/setup config view` | Show settings |
-| `/setup config set <setting> <value>` | Attendance / late / boss-kill EP, auction defaults, decay %, **base GP**, raid reminder minutes, full-clear bonus |
-| `/setup config channel` | Where raid started/ended, boss kills, loot awards, EPGP changes, and raid reports are announced |
-| `/setup config weekly-report <true\|false>` | Post `/report stats` for the week in the notify channel every 7 days |
+| `/config view` | Show settings |
+| `/config set <setting> <value>` | Attendance / late / boss-kill EP, auction defaults, decay %, **base GP**, raid reminder minutes, full-clear bonus |
+| `/config channel` | Where raid started/ended, boss kills, loot awards, EPGP changes, and raid reports are announced |
+| `/config weekly-report <true\|false>` | Post `/report stats` for the week in the notify channel every 7 days |
 | `/bank list [status]` / `/bank handle <id> <Approve\|Fulfilled\|Deny> [reply]` | Guild bank queue (new requests also appear in the log channel) |
-| `/setup config welcome [channel] [message] [send_to] [role_prompt] [preview]` | Welcome message: in a channel, by DM, or both. The game roles, the rules channel, "rules required first" and the one-time reminder are set in `/setup start` step 5. `preview:true` sends it to you |
-| `/setup config farewell` | Leave message |
-| `/setup config timezone <zone>` | Timezone for typed raid times (also in `/setup start`) |
-| `/setup config roles` | Auto-assigned applicant/member roles |
-| `/setup config channel` | Where raid signup embeds and raid reminders go |
-| `/setup config channel` | Where join/leave/moderation logs go |
-| `/setup config wcl-guild [guild] [off]` | Set the guild's Warcraft Logs page link; from then on the bot finds new public reports by itself every 10 minutes (last 3 days), posts each in the raid logs channel, matches it to the raid by time and sends the officer check to the officer log |
-| `/setup config channel` | Where raid summaries (raid reports, Warcraft Logs) go; default: the notify channel |
-| `/setup config channel` | Where loot awards and EP/GP changes go; default: the notify channel |
-| `/setup config channel` | Channel showing each raid core's roster as one live message |
-| `/setup config channel` | Private channel (officers and raid leaders only) where the raid readiness board is posted. `/setup start` step 4 can create it with the right permissions |
-| `/setup config channel` | Where craft requests are posted so crafters see them; default: the officer log |
-| `/setup config channel` | Private channel (officers only) where new `/apply` applications are announced; default: the officer log. `/setup start` step 3 can create it with the right permissions |
-| `/setup config channel` | Channel with one auto-updated dungeon leaderboard message (refreshed after every dungeon import) |
-| `/setup config channel` | Channel for dungeon signups; setting it posts the pinned group-creation guide automatically. `/setup start status:true` checks the channel and guide; `/dungeon guide` repairs a missing guide |
-| `/setup config merit <true\|false>` | Rank the leaderboard by PR x attendance |
+| `/config welcome [channel] [message] [send_to] [role_prompt] [preview]` | Welcome message: in a channel, by DM, or both. The game roles, the rules channel, "rules required first" and the one-time reminder are set in `/setup start` step 5. `preview:true` sends it to you |
+| `/config farewell` | Leave message |
+| `/config timezone <zone>` | Timezone for typed raid times (also in `/setup start`) |
+| `/config roles` | Auto-assigned applicant/member roles |
+| `/config channel` | Where raid signup embeds and raid reminders go |
+| `/config channel` | Where join/leave/moderation logs go |
+| `/config wcl-guild [guild] [off]` | Set the guild's Warcraft Logs page link; from then on the bot finds new public reports by itself every 10 minutes (last 3 days), posts each in the raid logs channel, matches it to the raid by time and sends the officer check to the officer log |
+| `/config channel` | Where raid summaries (raid reports, Warcraft Logs) go; default: the notify channel |
+| `/config channel` | Where loot awards and EP/GP changes go; default: the notify channel |
+| `/config channel` | Channel showing each raid core's roster as one live message |
+| `/config channel` | Private channel (officers and raid leaders only) where the raid readiness board is posted. `/setup start` step 4 can create it with the right permissions |
+| `/config channel` | Where craft requests are posted so crafters see them; default: the officer log |
+| `/config channel` | Private channel (officers only) where new `/apply` applications are announced; default: the officer log. `/setup start` step 3 can create it with the right permissions |
+| `/config channel` | Channel with one auto-updated dungeon leaderboard message (refreshed after every dungeon import) |
+| `/config channel` | Channel for dungeon signups; setting it posts the pinned group-creation guide automatically. `/setup start status:true` checks the channel and guide; `/dungeon guide` repairs a missing guide |
+| `/config merit <true\|false>` | Rank the leaderboard by PR x attendance |
 
 **Base GP:** PR = EP / (GP + base GP). With base GP 100, someone with 50 EP
 and 0 GP has PR 0.5 instead of an undefined or huge number. The addon uses
@@ -484,7 +484,7 @@ export, so members don't need to export anything themselves.
 
 ## Raid cores
 
-A **raid core** is a named roster (e.g. "Tuesday MC core"); a guild can have several. Core members get **priority at signups for raids created for that core**: when a role is full and a core member signs up, they take the slot of the most recent non-core signup in that role, who moves to the front of the waitlist (and gets a DM). Core members are never bumped, and a raid without a core behaves as before. Signup posts mark core members with a star. Each core's roster is one live message in the roster channel (`/setup config channel` or `/setup start` step 3).
+A **raid core** is a named roster (e.g. "Tuesday MC core"); a guild can have several. Core members get **priority at signups for raids created for that core**: when a role is full and a core member signs up, they take the slot of the most recent non-core signup in that role, who moves to the front of the waitlist (and gets a DM). Core members are never bumped, and a raid without a core behaves as before. Signup posts mark core members with a star. Each core's roster is one live message in the roster channel (`/config channel` or `/setup start` step 3).
 
 | Command | What it does |
 | --- | --- |
@@ -493,7 +493,7 @@ A **raid core** is a named roster (e.g. "Tuesday MC core"); a guild can have sev
 | `/core edit <core>` | **Easiest way to change a core.** One message: pick how to add (Tank / Healer / DPS, main roster or **bench**), pick the players (players already in the core are moved to that role or spot), pick players to remove, rename. The roster message updates at once (Raid Leaders) |
 | `/core create <name> [description] [schedule]` | Create a core with a command instead (Raid Leaders). Its role, category and channels (`#<core>-roster`, `-signups`, `-chat`, voice) are made with it |
 | `/core add <core> <player> [role] [bench]` / `/core remove <core> <player>` | Manage its players (Raid Leaders); role Tank / Healer / DPS; `bench:true` makes them a replacement (shown with a chair, no signup priority) |
-| `/core rules <core> [attendance] [late] [boss] [clear] [base_gp] [decay] [loot_mode] [pool] [offspec_percent] [min_ep] [schedule] [reset]` | The core's point rules, plus its raid-nights schedule. **Every core follows the guild's settings** (`/setup config`, `/setup start`) **unless you change a value here**; with no options it shows the effective rules and which differ. `pool:separate` gives the core its own EP/GP pool (from now on), `loot_mode` can make one core loot council, `schedule` sets or clears the raid-nights text shown on the roster message, `offspec_percent` is the share of the price an off-spec win costs (default 50), `min_ep` the EP a player needs before priority loot counts them ahead of those below it (0 = off), `reset` goes back to the guild defaults (schedule and description are untouched by reset) |
+| `/core rules <core> [attendance] [late] [boss] [clear] [base_gp] [decay] [loot_mode] [pool] [offspec_percent] [min_ep] [schedule] [reset]` | The core's point rules, plus its raid-nights schedule. **Every core follows the guild's settings** (`/config`, `/setup start`) **unless you change a value here**; with no options it shows the effective rules and which differ. `pool:separate` gives the core its own EP/GP pool (from now on), `loot_mode` can make one core loot council, `schedule` sets or clears the raid-nights text shown on the roster message, `offspec_percent` is the share of the price an off-spec win costs (default 50), `min_ep` the EP a player needs before priority loot counts them ahead of those below it (0 = off), `reset` goes back to the guild defaults (schedule and description are untouched by reset) |
 | `/core show <core>` / `/core list` | See a roster / all cores (everyone) |
 | `/core post [core]` | Refresh the roster message(s) in the roster channel |
 | `/core delete <core> [channels]` | Delete a core; raids made for it keep their signups. Its text channels move read-only to **Archived cores** (history kept), its voice channel and category go, its role is renamed "(archived)". `channels:true` deletes them instead |
@@ -509,13 +509,13 @@ By default everyone has **one guild pool** of EP/GP, whatever raid core they rai
 2. The bot remembers new names as *unclaimed* characters and refreshes the linked ones.
 3. A member can pair their own Companion with `/character pair`; its one-time code establishes an account credential, and the uploader's own character is linked on its next upload. The first character becomes the main.
 4. Without pairing, a character may still be linked automatically when the Discord name matches (`Ray`, `[GOLD] Ray`, `Ray | Priest`; exactly one member must fit). Anyone left over can use `/character claim` or an officer can use `/character link`.
-5. With `/setup config auto-import true`, the guild-wide import (including the shared digest and ledger) is applied right after each upload. Otherwise an officer runs `/import apply`.
+5. With `/config auto-import true`, the guild-wide import (including the shared digest and ledger) is applied right after each upload. Otherwise an officer runs `/import apply`.
 
 The addon's `/guilded character` and `/guilded share` codes still work as a fallback. Linking trusts the Discord name or the person's own pick (small, trusted guild); officers can see and fix links with `/character unclaimed` and `/character link`. Discord does not let a bot see a member's Battle.net connection without a separate login page, and Blizzard has no character list for Forever, so "linked WoW account" cannot be used.
 
 ## Fewer things to type
 
-Where a value comes from a fixed list you pick it instead of typing: **class** and **profession** are dropdowns (`/character add`, `/apply`, `/character profession`, `/craft`). These offer suggestions as you type, and anything else still works: **spec** (for the class you chose), **race**, **your characters** (`/character profession set`, `/character attunement`, `/character wishlist`), **attunement names** already in use, **wishlist items** the guild has seen, **tag names**, **raid titles** you used before, **raid times** ("friday 8pm" shows the exact moment it means), **EP/GP reasons**, **auction length**. `/character add` no longer needs the realm (it uses your guild's). `/loot auction` only needs the item: minimum bid, increment and length come from `/setup config` unless you fill them in.
+Where a value comes from a fixed list you pick it instead of typing: **class** and **profession** are dropdowns (`/character add`, `/apply`, `/character profession`, `/craft`). These offer suggestions as you type, and anything else still works: **spec** (for the class you chose), **race**, **your characters** (`/character profession set`, `/character attunement`, `/character wishlist`), **attunement names** already in use, **wishlist items** the guild has seen, **tag names**, **raid titles** you used before, **raid times** ("friday 8pm" shows the exact moment it means), **EP/GP reasons**, **auction length**. `/character add` no longer needs the realm (it uses your guild's). `/loot auction` only needs the item: minimum bid, increment and length come from `/config` unless you fill them in.
 
 ## The craft board
 
@@ -525,4 +525,4 @@ Where a value comes from a fixed list you pick it instead of typing: **class** a
 - **Crafters:** filter the forum by your profession tag, open a post, press **I'll craft it**; **Mark done** when it is made (the requester gets a DM); **Give back** if you cannot.
 - **Cancel:** the requester (or an officer) presses **Cancel request**.
 - Finished and cancelled posts get their tag, close and lock by themselves. Members cannot post in the forum; only the bot and officers can, so it stays tidy.
-- If the craft channel is an ordinary text channel (older setups), requests are announced there as before. To switch to the forum: `/setup config channel disable:true`, then `/setup start` step 3 and "Create them for me".
+- If the craft channel is an ordinary text channel (older setups), requests are announced there as before. To switch to the forum: `/config channel disable:true`, then `/setup start` step 3 and "Create them for me".

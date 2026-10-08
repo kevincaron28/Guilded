@@ -138,7 +138,7 @@ whether points use the guild pool or a separate core pool. Give a priority core
 item prices before testing an award. `/core edit` changes the roster and rules.
 
 Choose whether officers review uploads with `/import apply`, or enable automatic
-guild import with `/setup config auto-import`. Personal member uploads remain
+guild import with `/config auto-import`. Personal member uploads remain
 restricted to their own characters; do not give everyone officer access for sync.
 
 **Checkpoint:** test with an ordinary member account: it sees the intended public

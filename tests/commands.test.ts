@@ -29,14 +29,14 @@ describe("command registration", () => {
   it("registers each top-level command exactly once", () => {
     const names = commands.map((command) => command.name);
     expect(new Set(names).size).toBe(names.length);
-    for (const name of ["setup", "import", "loot", "apply", "mod", "tag", "character", "report", "poe"]) expect(names).toContain(name);
+    for (const name of ["setup", "config", "import", "loot", "apply", "mod", "tag", "character", "report", "poe"]) expect(names).toContain(name);
   });
 
   it("keeps the command list short: old commands live under a parent", () => {
     // PoE2 and Discord participation have dedicated entry points; smaller WoW commands remain merged.
-    expect(commands.length).toBeLessThanOrEqual(22);
+    expect(commands.length).toBeLessThanOrEqual(23);
     const names = commands.map((command) => command.name);
-    for (const gone of ["config", "testraid", "selfroles", "who", "wcl", "dkp", "application", "import-apply", "readiness", "profession", "attunement", "wishlist", "dungeon-admin", "stats", "inactive", "export", "guildhealth", "health"]) {
+    for (const gone of ["testraid", "selfroles", "who", "wcl", "dkp", "application", "import-apply", "readiness", "profession", "attunement", "wishlist", "dungeon-admin", "stats", "inactive", "export", "guildhealth", "health"]) {
       expect(names).not.toContain(gone);
     }
   });

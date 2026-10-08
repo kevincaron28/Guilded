@@ -11,6 +11,7 @@ import { eventVenue } from "../services/scheduled-events.js";
 import { accessibleCommunityActivities, assertCommunityChannelAudience, communityAccess as access, resolveCommunitySeason, canAccessCommunity } from "../services/community-access.js";
 import { communityActivityChannel, communityMonthName, communitySeasonLabel, communityStatusLabel } from "../services/community-display.js";
 import { communityHubReply, diceReply, validateCommunityDestination } from "./community-hub.js";
+import { runCommunityHonors } from "../services/community-honors.js";
 export { canAccessCommunity };
 
 const service = createCommunityService(prisma);
@@ -424,13 +425,17 @@ export async function publishCommunityActivity(guild: Guild, guildId: string, id
 }
 
 let ticking = false;
-export async function runCommunityActivities(guilds: Iterable<Guild>): Promise<void> {
+export async function runCommunityActivities(guilds: Iterable<Guild>, onHonorsError: (error: unknown) => void = console.error): Promise<void> {
   if (ticking) return;
   ticking = true;
   try {
     for (const guild of guilds) {
       const record = await prisma.guild.findUnique({ where: { discordId: guild.id } });
-      if (record) { await service.tick(record.id); await service.rotateMonthly(record.id); }
+      if (!record) continue;
+      await service.tick(record.id);
+      await service.rotateMonthly(record.id);
+      // Weekly MVP and monthly podium roles; one server's failure never holds back the others.
+      await runCommunityHonors(guild, prisma, record.id).catch(onHonorsError);
     }
   } finally { ticking = false; }
 }

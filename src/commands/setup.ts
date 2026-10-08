@@ -76,7 +76,7 @@ const LAST_STEP = 7;
 const pendingField = new Map<string, ChannelField>();
 const SUMMARY_STEP = 8;
 
-// Common choices; anything else can be set with /setup config timezone.
+// Common choices; anything else can be set with /config timezone.
 const TIMEZONES: [string, string][] = [
   ["Eastern — Quebec, Ontario, New York", "America/Toronto"],
   ["Atlantic — Maritimes", "America/Halifax"],
@@ -389,7 +389,7 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       T("• Per boss killed: **{boss} EP**, full clear bonus: **{clear} EP**", { boss: settings.bossKillDkp, clear: settings.epCompletionBonus }),
       T("• Base GP: **{gp}** (stops new players with tiny GP from topping the list)", { gp: settings.baseGp }),
       T("• Weekly decay: **{percent}%**", { percent: Math.round(settings.epgpDecayPercent * 100) }),
-      T("**Recommended:** 10 attendance / 5 late / 5 per boss / 10 full clear / base GP 100 / 10% decay. Fine-tune later with `/setup config set`."),
+      T("**Recommended:** 10 attendance / 5 late / 5 per boss / 10 full clear / base GP 100 / 10% decay. Fine-tune later with `/config set`."),
       "",
       T("⏰ **Raid reminders:** {reminders}   📊 **Weekly report:** {weekly}   🤖 **Auto-apply uploads:** {auto}", {
         reminders: settings.raidReminderMinutes > 0 ? T("on ({minutes} min before start)", { minutes: settings.raidReminderMinutes }) : T("off"),
@@ -808,7 +808,7 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
             await ensureDungeonSignupGuide(channel, lang);
             note = T("Pinned dungeon signup guide is ready in <#{id}>.", { id: channel.id });
           } else {
-            note = T("Set a dungeon signups channel with /setup config channel, then run /dungeon guide again.");
+            note = T("Set a dungeon signups channel with /config channel, then run /dungeon guide again.");
           }
         }
         else if (action === "organize") note = await organizeChannels(guild, guildId, lang);

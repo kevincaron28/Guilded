@@ -19,10 +19,12 @@ function fakeGuild(existing: Partial<FakeChannel>[] = [], voiceOpen = true) {
   existing.forEach(add);
   const create = vi.fn(async (options: { name: string; type: ChannelType; parent?: string } & Row) => add({ name: options.name, type: options.type, parentId: options.parent ?? null, options }));
   const officer = { id: "officer-role", name: "Officer" };
+  const roles = new Collection<string, { id: string; name: string }>([[officer.id, officer]]);
+  const createRole = vi.fn(async (options: { name: string }) => { const role = { id: `role-${next++}`, name: options.name }; roles.set(role.id, role); return role; });
   const guild = { id: "discord", afkChannelId: null, client: { rest: {} }, members: { me: { id: "bot" } },
-    roles: { everyone: { id: "discord" }, cache: new Collection([[officer.id, officer]]), fetch: vi.fn(async () => undefined) },
+    roles: { everyone: { id: "discord" }, cache: roles, fetch: vi.fn(async () => undefined), create: createRole },
     channels: { cache, fetch: vi.fn(async () => undefined), create } };
-  return { guild: guild as unknown as Guild, cache, create };
+  return { guild: guild as unknown as Guild, cache, create, createRole };
 }
 
 function fakeDatabase(seasons: Row[] = [], configs: Row[] = []) {
@@ -43,8 +45,13 @@ function fakeDatabase(seasons: Row[] = [], configs: Row[] = []) {
     },
     communityParticipationConfig: { upsert: vi.fn(async ({ create }: { create: Row }) => { configs.push(create); return create; }) }
   };
-  const database = { ...tx, $transaction: <T>(work: (transaction: typeof tx) => Promise<T>) => work(tx) };
-  return { database: database as unknown as PrismaClient, tx, seasons, configs };
+  const honors: Row[] = [];
+  const communityHonors = {
+    findUnique: vi.fn(async () => honors[0] ?? null),
+    upsert: vi.fn(async ({ create, update }: { create: Row; update: Row }) => { if (honors[0]) Object.assign(honors[0], update); else honors.push(create); return honors[0]; })
+  };
+  const database = { ...tx, communityHonors, $transaction: <T>(work: (transaction: typeof tx) => Promise<T>) => work(tx) };
+  return { database: database as unknown as PrismaClient, tx, seasons, configs, honors };
 }
 
 const refreshFor = (cache: Collection<string, FakeChannel>) => vi.fn(async (_rest: unknown, _db: unknown, _guild: string, _bot: string, provision?: { categoryId: string }) => {
@@ -59,7 +66,7 @@ describe("community section of /setup", () => {
     const refresh = refreshFor(cache);
     const text = await ensureCommunitySetup(guild, database, "guild", "fr", "officer", refresh as never);
 
-    expect(create.mock.calls.map(([options]) => options.name)).toEqual(["Communauté", "activites", "chat-communaute"]);
+    expect(create.mock.calls.map(([options]) => options.name)).toEqual(["Communauté", "activites", "chat-communaute", "🏅・palmares"]);
     const category = cache.find(channel => channel.type === ChannelType.GuildCategory)!;
     const hub = cache.find(channel => channel.name === "activites")!, chat = cache.find(channel => channel.name === "chat-communaute")!;
     expect([hub.parentId, chat.parentId]).toEqual([category.id, category.id]);
@@ -79,6 +86,26 @@ describe("community section of /setup", () => {
     expect(text).toContain("Première saison lancée");
   });
 
+  it("adds a read-only hall of fame and the four recognition roles once", async () => {
+    const { guild, cache, createRole } = fakeGuild([{ id: "lobby", type: ChannelType.GuildVoice, name: "Lobby" }]);
+    const { database, honors } = fakeDatabase();
+    const text = await ensureCommunitySetup(guild, database, "guild", "en", "officer", refreshFor(cache) as never);
+    const fame = cache.find(channel => channel.name === "🏅・hall-of-fame")!;
+    expect(fame.parentId).toBe(cache.find(channel => channel.type === ChannelType.GuildCategory)!.id);
+    const overwrites = fame.options!["permissionOverwrites"] as { id: string; allow: bigint; deny: bigint }[];
+    expect(overwrites.find(o => o.id === "discord")!.deny & PermissionFlagsBits.SendMessages).toBe(PermissionFlagsBits.SendMessages);
+    expect(overwrites.find(o => o.id === "bot")!.allow & PermissionFlagsBits.SendMessages).toBe(PermissionFlagsBits.SendMessages);
+    expect(createRole.mock.calls.map(([options]) => options.name)).toEqual(["⭐ MVP of the week", "🥇 Champion of the month", "🥈 Runner-up of the month", "🥉 Third of the month"]);
+    expect(honors[0]).toMatchObject({ channelId: fame.id, weeklyRoleId: expect.any(String) });
+    expect(honors[0]!["monthRoleIds"]).toHaveLength(3);
+    expect(text).toContain(`<#${fame.id}>`);
+
+    // A second run, even in French, finds the same channel and roles.
+    await ensureCommunitySetup(guild, database, "guild", "fr", "officer", refreshFor(cache) as never);
+    expect(createRole).toHaveBeenCalledTimes(4);
+    expect(cache.filter(channel => channel.name.startsWith("🏅")).size).toBe(1);
+  });
+
   it("creates a voice channel only when the server has none", async () => {
     const { guild, cache, create } = fakeGuild();
     const { database, configs } = fakeDatabase();
@@ -92,7 +119,8 @@ describe("community section of /setup", () => {
   it("reuses what exists and never overwrites a season or settings an officer chose", async () => {
     const { guild, cache, create } = fakeGuild([
       { id: "cat", type: ChannelType.GuildCategory, name: "🎉 Communauté" }, { id: "hub", name: "activites", parentId: "cat" },
-      { id: "chat", name: "chat-communaute", parentId: "cat" }, { id: "board", name: "🏆・leaderboard", parentId: "cat" }, { id: "lobby", type: ChannelType.GuildVoice, name: "Lobby" }
+      { id: "chat", name: "chat-communaute", parentId: "cat" }, { id: "board", name: "🏆・leaderboard", parentId: "cat" }, { id: "lobby", type: ChannelType.GuildVoice, name: "Lobby" },
+      { id: "fame", name: "🏅・palmares", parentId: "cat" }
     ]);
     const { database, tx } = fakeDatabase([{ id: "live", game: "DISCORD", status: "ACTIVE", audienceRoleId: null, name: "Octobre 2026", channelId: "board" }], [{ seasonId: "live", enabled: false, rules: { textChannels: ["elsewhere"] } }]);
     const text = await ensureCommunitySetup(guild, database, "guild", "en", "officer", refreshFor(cache) as never);

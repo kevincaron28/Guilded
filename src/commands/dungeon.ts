@@ -106,7 +106,7 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
       ? await interaction.guild?.channels.fetch(settings.dungeonSignupChannelId).catch(() => null)
       : null;
     if (!channel?.isTextBased() || !("send" in channel)) {
-      throw new Error("Set a dungeon signups channel with /setup config channel, then run /dungeon guide again.");
+      throw new Error("Set a dungeon signups channel with /config channel, then run /dungeon guide again.");
     }
     await ensureDungeonSignupGuide(channel, lang);
     await interaction.reply({ content: tx(lang, "Pinned dungeon signup guide is ready in <#{id}>.", { id: channel.id }), ephemeral: true });

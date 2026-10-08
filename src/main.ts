@@ -1,6 +1,7 @@
 import { ensureCoreDiscord } from "./services/raid-core.js";
 import { fillGuildWeeklyRaids } from "./services/core-weekly-raids.js";
 import { guildService } from "./commands/context.js";
+import { adoptCommunityHonors } from "./services/community-honors.js";
 import { COMMUNITY_PREFIX, executeCommunity, handleCommunityButton, handleCommunityModal, runCommunityActivities } from "./commands/community.js";
 import { handleCommunityHub } from "./commands/community-hub.js";
 import { COMMUNITY_HUB_PREFIX } from "./services/community-panels.js";
@@ -9,6 +10,7 @@ import { runDiscordJobs } from "./services/discord-jobs.js";
 import { queueGuildScheduledEvents } from "./services/scheduled-events.js";
 import { queueCharacterDisplayRefresh } from "./services/character-display-refresh.js";
 import { executeSystem } from "./commands/system.js";
+import { executeConfig } from "./commands/settings.js";
 import { updateProfessionDirectory } from "./services/profession-directory.js";
 import {
   Client,
@@ -126,6 +128,7 @@ process.on("uncaughtException", (error) => {
 process.on("unhandledRejection", (error) => { void errorReportService.report(client, error, { source: "unhandledRejection" }); });
 const handlers = new Collection<string, (interaction: ChatInputCommandInteraction) => Promise<void>>();
 handlers.set("profile", executeProfile);
+handlers.set("config", executeConfig);
 handlers.set("loot", executeLoot);
 handlers.set("epgp", executeEpgp);
 handlers.set("apply", executeApply);
@@ -160,8 +163,14 @@ client.once(Events.ClientReady, (readyClient) => {
   const voice = async () => { for (const guild of readyClient.guilds.cache.values()) await participationTracker.sampleVoice(guild); };
   void voice().catch(reportJobError("Participation voice checkpoint"));
   setInterval(() => void voice().catch(reportJobError("Participation voice checkpoint")), 30_000);
-  void runCommunityActivities(readyClient.guilds.cache.values()).catch(reportJobError("Community activities"));
-  setInterval(() => void runCommunityActivities(readyClient.guilds.cache.values()).catch(reportJobError("Community activities")), 60_000);
+  const communityActivities = () => runCommunityActivities(readyClient.guilds.cache.values(), reportJobError("Community honors")).catch(reportJobError("Community activities"));
+  void (async () => {
+    for (const guild of readyClient.guilds.cache.values()) {
+      const created = await adoptCommunityHonors(guild, prisma).catch(reportJobError("Community honors setup"));
+      if (created?.length) console.info(`Community honors added in ${guild.name}: ${created.join(", ")}`);
+    }
+  })().finally(() => void communityActivities());
+  setInterval(() => void communityActivities(), 60_000);
   const communityRest = new REST({ version: "10" }).setToken(config.DISCORD_TOKEN);
   let refreshingCommunityBoards = false;
   const refreshCommunityBoards = async () => {
@@ -229,7 +238,7 @@ client.once(Events.ClientReady, (readyClient) => {
   setInterval(() => {
     runCooldownPings(readyClient, prisma).catch(reportJobError("Cooldown pings"));
   }, 10 * 60 * 1000);
-  // Warcraft Logs: new reports of the guild set with /setup config wcl-guild, every 10 minutes.
+  // Warcraft Logs: new reports of the guild set with /config wcl-guild, every 10 minutes.
   setInterval(() => {
     runWclDiscovery(readyClient, prisma).catch(reportJobError("Warcraft Logs check"));
   }, 10 * 60 * 1000);

@@ -157,6 +157,7 @@ model Guild {
   poeMapVisits        PoeMapVisit[]
   memberOnboardings   MemberOnboarding[]
   communityHonors     CommunityHonors?
+  communityHonorAwards CommunityHonorAward[]
 }
 
 // Onboarding progress of one Discord user in one server. Kept apart from Member so that reading
@@ -217,8 +218,30 @@ model CommunityHonors {
   monthHolderIds  Json     @default("[[],[],[]]")
   // Set when holders change; cleared once Discord roles match them.
   rolesPending    Boolean  @default(false)
+  // Officer settings (/community honors-settings). Off: no weekly MVP or post.
+  weeklyEnabled   Boolean  @default(true)
+  // "MONDAY" (Monday to Sunday, guild time) or "RESET" (WoW weekly reset, Tuesday 15:00 UTC).
+  weekStart       String   @default("MONDAY")
+  pingMvp         Boolean  @default(false)
   updatedAt       DateTime @updatedAt
   guild           Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+}
+
+// Every MVP, rookie of the week and monthly podium place, for "3rd time MVP" and /community honors.
+model CommunityHonorAward {
+  id        String   @id @default(cuid())
+  guildId   String
+  // "WEEK" (MVP), "ROOKIE" or "MONTH" (podium place 1-3).
+  kind      String
+  // The week's first day ("YYYY-MM-DD") or the ended season's id.
+  period    String
+  place     Int      @default(1)
+  userId    String
+  points    Int?
+  createdAt DateTime @default(now())
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  @@unique([guildId, kind, period, userId])
+  @@index([guildId, kind, createdAt])
 }
 
 model CommunitySeasonCounter {

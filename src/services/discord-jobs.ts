@@ -119,7 +119,9 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
     const last = embeds[embeds.length - 1]!;
     const footer = last.data.footer?.text;
     last.setFooter({ text: footer ? `${footer.slice(0, 1900)} · ${marker}` : marker });
-    await channel.send({ ...message, embeds, allowedMentions: { parse: [] }, nonce: job.id.slice(-25), enforceNonce: true });
+    // Nobody is notified, except the users a job names explicitly (the hall of fame's opt-in MVP ping).
+    const users = Array.isArray(payload["mentionUsers"]) ? payload["mentionUsers"].filter((id): id is string => typeof id === "string" && /^\d{17,20}$/.test(id)).slice(0, 10) : [];
+    await channel.send({ ...message, embeds, allowedMentions: { parse: [], users }, nonce: job.id.slice(-25), enforceNonce: true });
   } else throw new Error("Unknown job type");
 }
 

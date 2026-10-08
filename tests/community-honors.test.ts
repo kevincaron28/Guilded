@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { Collection, type Guild } from "discord.js";
 import type { CommunityHonors, PrismaClient } from "@prisma/client";
-import { adoptCommunityHonors, advanceCommunityHonors, honorsWeekDue, monthlyHonorsMessage, podiumPlaces, syncCommunityHonorRoles, weeklyHonorsMessage, weeklyMvps } from "../src/services/community-honors.js";
+import { adoptCommunityHonors, advanceCommunityHonors, configureCommunityHonors, honorsHistoryMessage, honorsWeekDue, honorsWeekOf, honorsWindow, monthlyHonorsMessage, podiumPlaces, previewCommunityHonors, syncCommunityHonorRoles, weeklyHonorsMessage, weeklyMvps } from "../src/services/community-honors.js";
 
 type Row = Record<string, unknown>;
 const row = (userId: string, points: number) => ({ userId, points, balance: points });
@@ -51,8 +51,10 @@ describe("community honors rules", () => {
   });
 });
 
-function fakeDatabase(honors: Row | null, data: { points?: Row[]; ended?: Row | null } = {}) {
+function fakeDatabase(honors: Row | null, data: { points?: Row[]; ended?: Row | null; firsts?: Record<string, string>; awards?: Row[] } = {}) {
   const jobs: Row[] = [];
+  const awards: Row[] = data.awards ?? [];
+  const match = (where: Row) => (row: Row) => Object.entries(where).every(([key, value]) => key === "guildId" || (value && typeof value === "object" && "in" in (value as Row) ? ((value as { in: unknown[] }).in).includes(row[key]) : row[key] === value));
   const tx = {
     $executeRaw: vi.fn(async () => 1),
     communityHonors: {
@@ -60,7 +62,15 @@ function fakeDatabase(honors: Row | null, data: { points?: Row[]; ended?: Row | 
       update: vi.fn(async ({ data: changes }: { data: Row }) => Object.assign(honors!, changes))
     },
     guildSettings: { findUnique: vi.fn(async () => ({ timezone: "America/Toronto", language: "en" })) },
-    communityPoint: { findMany: vi.fn(async () => data.points ?? []) },
+    communityPoint: {
+      findMany: vi.fn(async () => data.points ?? []),
+      // First community point ever per member (default: long ago, so nobody is a rookie).
+      groupBy: vi.fn(async ({ where }: { where: { userId: { in: string[] } } }) => where.userId.in.map(userId => ({ userId, _min: { createdAt: new Date(data.firsts?.[userId] ?? "2026-01-01T00:00:00Z") } })))
+    },
+    communityHonorAward: {
+      createMany: vi.fn(async ({ data: rows }: { data: Row[] }) => { awards.push(...rows); return { count: rows.length }; }),
+      count: vi.fn(async ({ where }: { where: Row }) => awards.filter(match(where)).length)
+    },
     communityParticipationDay: { findMany: vi.fn(async () => [{ messages: 30, reactions: 4, voiceMs: 7_200_000 }]) },
     communityActivity: { count: vi.fn(async () => 1) },
     raid: { findMany: vi.fn(async () => []) },
@@ -70,7 +80,7 @@ function fakeDatabase(honors: Row | null, data: { points?: Row[]; ended?: Row | 
     discordJob: { upsert: vi.fn(async (args: Row) => { jobs.push(args); return args; }) }
   };
   const database = { ...tx, $transaction: <T>(work: (t: typeof tx) => Promise<T>) => work(tx) };
-  return { database: database as unknown as PrismaClient, tx, jobs };
+  return { database: database as unknown as PrismaClient, tx, jobs, awards };
 }
 
 describe("advancing the honors", () => {
@@ -178,5 +188,106 @@ describe("adopting the honors on an existing server", () => {
     // members.me is null in this fake, so reaching provisioning shows up as its first check.
     const ready = setup({ id: "g", communityHonors: null, settings: { language: "fr" } }, { id: "s" }, ["Communauté"]);
     await expect(adoptCommunityHonors(ready.guild, ready.database)).rejects.toThrow("Bot member unavailable");
+  });
+});
+
+describe("hall of fame extras", () => {
+  const now = new Date("2026-10-06T12:00:00Z");
+  const points = [{ userId: "a", kind: "AWARD", amount: 30 }, { userId: "b", kind: "AWARD", amount: 50 }, { userId: "c", kind: "AWARD", amount: 20 }];
+
+  it("names a rookie of the week (first point within four weeks, never the MVP) and records every award", async () => {
+    const honors: Row = { guildId: "guild", channelId: "fame", week: "2026-09-21", weeklyEnabled: true, weekStart: "MONDAY", monthSeasonId: "sept" };
+    // b (the MVP) and c are both new; a has been around since January.
+    const { database, jobs, awards } = fakeDatabase(honors, { points, ended: { id: "sept" }, firsts: { b: "2026-09-30T00:00:00Z", c: "2026-10-01T00:00:00Z" } });
+    await advanceCommunityHonors(database, "guild", now);
+    expect(awards).toEqual([
+      { guildId: "guild", kind: "WEEK", period: "2026-09-28", userId: "b", points: 50 },
+      { guildId: "guild", kind: "ROOKIE", period: "2026-09-28", userId: "c", points: 20 }
+    ]);
+    const post = JSON.stringify(jobs[0]);
+    expect(post).toContain("Rookie of the week");
+    expect(post).toContain("**…c** — **20 pts**, new to the community");
+  });
+
+  it("counts repeat MVP titles", async () => {
+    const honors: Row = { guildId: "guild", channelId: "fame", week: "2026-09-21", weeklyEnabled: true, weekStart: "MONDAY", monthSeasonId: "sept" };
+    const { database, jobs } = fakeDatabase(honors, { points, ended: { id: "sept" }, awards: [{ guildId: "guild", kind: "WEEK", period: "2026-09-21", userId: "b" }] });
+    await advanceCommunityHonors(database, "guild", now);
+    expect(JSON.stringify(jobs[0])).toContain("(2nd time!)");
+  });
+
+  it("does nothing but free the role when the weekly MVP is turned off", async () => {
+    const honors: Row = { guildId: "guild", channelId: "fame", week: "2026-09-21", weeklyEnabled: false, weekStart: "MONDAY", weeklyHolderIds: ["old"], monthSeasonId: "sept" };
+    const { database, jobs, awards, tx } = fakeDatabase(honors, { points, ended: { id: "sept" } });
+    expect(await advanceCommunityHonors(database, "guild", now)).toEqual({ week: "2026-09-28", seasonId: null });
+    expect(honors).toMatchObject({ week: "2026-09-28", weeklyHolderIds: [], rolesPending: true });
+    expect(jobs).toHaveLength(0);
+    expect(awards).toHaveLength(0);
+    expect(tx.communityPoint.findMany).not.toHaveBeenCalled();
+  });
+
+  it("notifies the MVP only when the option is on", async () => {
+    const mvp = "337035968668499981";
+    const honors: Row = { guildId: "guild", channelId: "fame", week: "2026-09-21", weeklyEnabled: true, weekStart: "MONDAY", pingMvp: true, monthSeasonId: "sept" };
+    const { database, jobs } = fakeDatabase(honors, { points: [{ userId: mvp, kind: "AWARD", amount: 40 }], ended: { id: "sept" } });
+    await advanceCommunityHonors(database, "guild", now, async () => new Map([[mvp, "Bubble bubble"]]));
+    const payload = (jobs[0]!["create"] as { payload: { mentionUsers: string[]; message: { content: string } } }).payload;
+    expect(payload.mentionUsers).toEqual([mvp]);
+    expect(payload.message.content).toBe(`⭐ Congratulations **Bubble bubble** (<@${mvp}>)!`);
+
+    const quiet: Row = { ...honors, week: "2026-09-21", pingMvp: false };
+    const off = fakeDatabase(quiet, { points: [{ userId: mvp, kind: "AWARD", amount: 40 }], ended: { id: "sept" } });
+    await advanceCommunityHonors(off.database, "guild", now);
+    expect((off.jobs[0]!["create"] as { payload: Row }).payload).not.toHaveProperty("mentionUsers");
+  });
+
+  it("can follow the WoW weekly reset instead of Monday", async () => {
+    // Tuesday 6 October 12:00 UTC is before that day's reset (15:00 UTC).
+    expect(honorsWeekOf(now, "America/Toronto", "RESET")).toBe("2026-09-29");
+    expect(honorsWeekDue(now, "America/Toronto", null, "RESET")).toBe("2026-09-22");
+    expect(honorsWindow("2026-09-22", "America/Toronto", "RESET")).toEqual({ start: new Date("2026-09-22T15:00:00Z"), end: new Date("2026-09-29T15:00:00Z") });
+    const honors: Row = { guildId: "guild", channelId: "fame", week: "2026-09-15", weeklyEnabled: true, weekStart: "RESET", monthSeasonId: "sept" };
+    const { database, jobs, tx } = fakeDatabase(honors, { points, ended: { id: "sept" } });
+    expect(await advanceCommunityHonors(database, "guild", now)).toEqual({ week: "2026-09-22", seasonId: null });
+    expect(tx.communityPoint.findMany.mock.calls[0]).toMatchObject([{ where: { createdAt: { gte: new Date("2026-09-22T15:00:00Z"), lt: new Date("2026-09-29T15:00:00Z") } } }]);
+    expect(JSON.stringify(jobs[0])).toContain("until the next weekly reset");
+  });
+
+  it("changing the week start never announces a week twice", async () => {
+    const honors: Row = { guildId: "guild", week: "2026-09-28", weekStart: "MONDAY", weeklyEnabled: true, pingMvp: false };
+    const { database, tx } = fakeDatabase(honors);
+    await configureCommunityHonors(database, "guild", { weekStart: "RESET", pingMvp: true }, now);
+    expect(tx.communityHonors.update).toHaveBeenLastCalledWith({ where: { guildId: "guild" }, data: { pingMvp: true, weekStart: "RESET", week: "2026-09-22" } });
+    // The reset week of 22 September is marked done; the next one announced is the week of 29 September.
+    expect(honorsWeekDue(new Date("2026-10-06T16:00:00Z"), "America/Toronto", honors["week"] as string, "RESET")).toBe("2026-09-29");
+    await configureCommunityHonors(database, "guild", { weekStart: "RESET", weeklyEnabled: false }, now);
+    expect(tx.communityHonors.update).toHaveBeenLastCalledWith({ where: { guildId: "guild" }, data: { weeklyEnabled: false } });
+    expect(await configureCommunityHonors(fakeDatabase(null).database, "guild", { pingMvp: true }, now)).toBeNull();
+  });
+
+  it("previews the week so far without saving or posting anything", async () => {
+    const honors: Row = { guildId: "guild", channelId: "fame", week: "2026-09-28", weeklyEnabled: true, weekStart: "MONDAY" };
+    const { database, tx, jobs, awards } = fakeDatabase(honors, { points, awards: [{ guildId: "guild", kind: "WEEK", period: "2026-09-28", userId: "b" }] });
+    const preview = await previewCommunityHonors(database, "guild", new Date("2026-10-08T18:00:00Z"));
+    expect(preview!.embeds[0]!.title).toBe("⭐ The week of October 5 to October 11 (so far)");
+    expect(preview!.embeds[0]!.description).toContain("(2nd time!)");
+    expect(preview!.content).toBe("");
+    expect(tx.communityPoint.findMany.mock.calls[0]).toMatchObject([{ where: { createdAt: { lt: new Date("2026-10-08T18:00:00Z") } } }]);
+    expect(tx.communityHonors.update).not.toHaveBeenCalled();
+    expect([jobs.length, awards.length]).toEqual([0, 1]);
+    expect(await previewCommunityHonors(fakeDatabase(null).database, "guild")).toBeNull();
+  });
+
+  it("shows the history: recent weeks, most titles and the last podium", () => {
+    const message = honorsHistoryMessage("en", {
+      recent: [{ kind: "WEEK", period: "2026-10-05", userId: "b", points: 96 }, { kind: "ROOKIE", period: "2026-10-05", userId: "c", points: 20 }, { kind: "WEEK", period: "2026-09-28", userId: "b", points: null }],
+      champions: [{ userId: "b", wins: 2 }],
+      podium: [{ place: 1, userId: "a", points: 300 }, { place: 2, userId: "b", points: 250 }]
+    }, new Map([["b", "Bubble bubble"]]));
+    const embed = message.embeds[0]!;
+    expect(embed.description).toBe("**October 5** · ⭐ **Bubble bubble** — **96 pts** · 🌱 **…c**\n**September 28** · ⭐ **Bubble bubble**");
+    expect(embed.fields![0]).toEqual({ name: "👑 Most MVP titles", value: "**Bubble bubble** — 2×" });
+    expect(embed.fields![1]!.value).toContain("🥇 **…a** — **300 pts**");
+    expect(honorsHistoryMessage("fr", { recent: [], champions: [], podium: [] }).embeds[0]!.description).toContain("Pas encore de MVP");
   });
 });

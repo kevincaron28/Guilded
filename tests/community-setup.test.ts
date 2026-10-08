@@ -156,14 +156,21 @@ describe("community section of /setup", () => {
   });
 
   it("reports the section on the checklist as optional", async () => {
-    expect(await communitySetupState(fakeDatabase().database, "guild")).toEqual({ season: false, participation: false });
+    expect(await communitySetupState(fakeDatabase().database, "guild")).toEqual({ season: false, participation: false, honors: false });
     const live = fakeDatabase([{ id: "live", game: "DISCORD", status: "ACTIVE", audienceRoleId: null }], [{ seasonId: "live", enabled: true }]);
-    expect(await communitySetupState(live.database, "guild")).toEqual({ season: true, participation: true });
+    expect(await communitySetupState(live.database, "guild")).toEqual({ season: true, participation: true, honors: false });
+    live.honors.push({ guildId: "guild", channelId: "fame", weeklyRoleId: "mvp" });
+    expect((await communitySetupState(live.database, "guild")).honors).toBe(true);
     const facts: SetupFacts = { existingRoleNames: [], requiredRoleNames: [], notifyChannel: null, raidChannel: null, logChannel: null, welcomeChannel: null, autoRoles: [],
       epgpConfigured: true, remindersOn: true, weeklyReportOn: true, companionPaired: true, linkedCharacters: 1, community: { season: true, participation: false } };
     const check = setupChecks(facts, "en").find(row => row.label.startsWith("Community season"))!;
     expect(check).toMatchObject({ ok: false, optional: true });
     expect(check.fix).toContain("/participation settings");
     expect(setupChecks({ ...facts, community: { season: true, participation: true } }, "en").find(row => row.label.startsWith("Community season"))!.ok).toBe(true);
+    // The hall-of-fame line appears once the state is known, optional like the rest of the section.
+    expect(setupChecks(facts, "en").some(row => row.label.startsWith("Hall of fame"))).toBe(false);
+    const fame = setupChecks({ ...facts, community: { season: true, participation: true, honors: false } }, "fr").find(row => row.label.startsWith("Palmarès"))!;
+    expect(fame).toMatchObject({ ok: false, optional: true });
+    expect(fame.fix).toContain("Configurer la communauté");
   });
 });

@@ -25,6 +25,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/apply` — apply to a raid core (or press **Apply** on that core's own roster post in the raid roster channel)",
       "`/report bug` — report a bug or problem with the bot",
       "`/community seasons` · `/community leaderboard` · `/community wallet` · `/community dice` — game seasons, scores and daily dice",
+      "`/community honors` — hall of fame: weekly MVPs, rookies and monthly podiums",
       "Lottery, gaming night, quiz and challenge posts have participation buttons",
       "`/participation status` · `/participation nominate` · `/participation history` — capped Discord points, helper recognition and guild goals",
       "`/poe status` · `/poe pair` · `/poe runs` · `/poe summary` — PoE2 companion mapping journal"
@@ -43,6 +44,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/apply` — postuler à un core de raid (ou appuyez sur **Postuler** sur le message du core dans le salon des cores de raid)",
       "`/report bug` — signaler un bug ou un problème avec le bot",
       "`/community seasons` · `/community leaderboard` · `/community wallet` · `/community dice` — saisons, classements et dé quotidien",
+      "`/community honors` — palmarès : MVP de la semaine, recrues et podiums du mois",
       "Les annonces de loterie, soirée gaming, quiz et défi ont des boutons pour participer",
       "`/participation status` · `/participation nominate` · `/participation history` — points Discord plafonnés, entraide et objectifs de guilde",
       "`/poe status` · `/poe pair` · `/poe runs` · `/poe summary` — journal de mapping PoE2 du compagnon"
@@ -80,6 +82,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/raid wcl report url:` — pull a Warcraft Logs report into the raid history",
       "`/report inactive` · `/report export` · `/report guild` · `/poll create` · `/loot award` (loot council)",
       "`/community start-season` · `/community lottery create` · `/community gaming create` · `/community challenge create` · `/community quiz` — organize activities",
+      "`/community honors-preview` · `/community honors-settings` — preview the weekly MVP post; weekly on/off, week start, MVP ping",
       "`/participation settings` · `/participation claims` · `/participation review` · `/participation reverse` — participation controls and helper approvals"
     ],
     fr: [
@@ -91,6 +94,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/raid wcl report url:` — importer un rapport Warcraft Logs dans l'historique des raids",
       "`/report inactive` · `/report export` · `/report guild` · `/poll create` · `/loot award` (conseil de loot)",
       "`/community start-season` · `/community lottery create` · `/community gaming create` · `/community challenge create` · `/community quiz` — organiser les activités",
+      "`/community honors-preview` · `/community honors-settings` — aperçu du MVP de la semaine; activation, début de semaine, notification",
       "`/participation settings` · `/participation claims` · `/participation review` · `/participation reverse` — réglages de participation et validation d'entraide"
     ]
   }

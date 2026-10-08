@@ -11,7 +11,7 @@ import { eventVenue } from "../services/scheduled-events.js";
 import { accessibleCommunityActivities, assertCommunityChannelAudience, communityAccess as access, resolveCommunitySeason, canAccessCommunity } from "../services/community-access.js";
 import { communityActivityChannel, communityMonthName, communitySeasonLabel, communityStatusLabel } from "../services/community-display.js";
 import { communityHubReply, diceReply, validateCommunityDestination } from "./community-hub.js";
-import { runCommunityHonors } from "../services/community-honors.js";
+import { communityHonorsHistory, configureCommunityHonors, discordNames, honorsHistoryMessage, previewCommunityHonors, runCommunityHonors, weekMode } from "../services/community-honors.js";
 export { canAccessCommunity };
 
 const service = createCommunityService(prisma);
@@ -93,7 +93,13 @@ export const communityCommand = new SlashCommandBuilder().setName("community").s
     .addStringOption(o => o.setName("c").setDescription("Answer C").setDescriptionLocalizations({ fr: "Réponse C" }).setRequired(true).setMaxLength(80))
     .addStringOption(o => o.setName("d").setDescription("Answer D").setDescriptionLocalizations({ fr: "Réponse D" }).setRequired(true).setMaxLength(80))
     .addIntegerOption(o => o.setName("correct").setDescription("Correct answer: 1=A, 2=B, 3=C, 4=D").setDescriptionLocalizations({ fr: "Bonne réponse" }).setRequired(true).setMinValue(1).setMaxValue(4)))
-  .addSubcommand(sub => ref(sub.setName("close-quiz").setDescription("Close a quiz").setDescriptionLocalizations({ fr: "Fermer un quiz" })));
+  .addSubcommand(sub => ref(sub.setName("close-quiz").setDescription("Close a quiz").setDescriptionLocalizations({ fr: "Fermer un quiz" })))
+  .addSubcommand(sub => sub.setName("honors").setDescription("Hall of fame: MVPs and podiums").setDescriptionLocalizations({ fr: "Palmarès" }))
+  .addSubcommand(sub => sub.setName("honors-preview").setDescription("Preview the next weekly post").setDescriptionLocalizations({ fr: "Aperçu du prochain palmarès" }))
+  .addSubcommand(sub => sub.setName("honors-settings").setDescription("Weekly MVP options").setDescriptionLocalizations({ fr: "Options du MVP" })
+    .addBooleanOption(o => o.setName("weekly").setDescription("Weekly MVP and post").setDescriptionLocalizations({ fr: "MVP et annonce hebdo" }))
+    .addStringOption(o => o.setName("week-start").setDescription("When a week starts").setDescriptionLocalizations({ fr: "Début de semaine" }).addChoices({ name: "Monday / Lundi", value: "MONDAY" }, { name: "WoW reset", value: "RESET" }))
+    .addBooleanOption(o => o.setName("ping").setDescription("Notify the MVP").setDescriptionLocalizations({ fr: "Notifier le MVP" })));
 
 async function getActivity(guild: Guild, guildId: string, id: string, userId: string, kind?: string, organizer = false) {
   const row = await prisma.communityActivity.findFirst({ where: { id, season: { guildId }, ...(kind ? { kind } : {}) }, include: { season: true } });
@@ -121,6 +127,10 @@ export async function executeCommunity(interaction: ChatInputCommandInteraction)
   const current = seasonId || ["dice", "wallet", "leaderboard", "hub"].includes(sub) ? await resolveCommunitySeason(prisma, guild, context.guildId, actor, seasonId, organizer) : null;
   const row = id ? await getActivity(guild, context.guildId, id, actor, kind, organizer) : null;
   let content = "";
+  if (sub === "honors" || sub === "honors-preview" || sub === "honors-settings") {
+    await interaction.editReply(await honorsReply(guild, context.guildId, sub, actor, lang, interaction));
+    return;
+  }
   if (sub === "start-season") {
     const member = await guild.members.fetch({ user: actor, force: true });
     if (!hasPermission(member, "officer")) throw new Error("Organisateurs seulement / Organizers only.");
@@ -422,6 +432,33 @@ export async function publishCommunityActivity(guild: Guild, guildId: string, id
   if (message) await message.edit(card);
   else message = await channel.send({ ...card, nonce: id.slice(-25), enforceNonce: true });
   if (message.id !== row.messageId || !row.postedChannelId) await prisma.communityActivity.update({ where: { id }, data: { messageId: message.id, postedChannelId: channel.id } });
+}
+
+// The hall of fame: anyone sees the history; officers preview the next post and change options.
+async function honorsReply(guild: Guild, guildId: string, sub: string, actor: string, lang: Lang, interaction: ChatInputCommandInteraction) {
+  const names = discordNames(guild);
+  if (sub === "honors") {
+    const history = await communityHonorsHistory(prisma, guildId);
+    const ids = [...new Set([...history.recent.map(row => row.userId), ...history.champions.map(row => row.userId), ...history.podium.map(row => row.userId)])];
+    return { ...honorsHistoryMessage(lang, history, await names(ids)), allowedMentions: { parse: [] } };
+  }
+  const member = await guild.members.fetch({ user: actor, force: true });
+  if (!hasPermission(member, "officer")) throw new Error("Organisateurs seulement / Organizers only.");
+  const missing = say(lang, "The hall of fame isn't set up yet: press \"Set up community\" in `/setup start`.", "Le palmarès n'est pas encore en place : appuyez sur « Configurer la communauté » dans `/setup start`.");
+  if (sub === "honors-preview") {
+    const preview = await previewCommunityHonors(prisma, guildId, new Date(), names);
+    return preview ? { ...preview, allowedMentions: { parse: [] } } : { content: missing };
+  }
+  const weekly = interaction.options.getBoolean("weekly"), start = interaction.options.getString("week-start"), ping = interaction.options.getBoolean("ping");
+  const honors = await configureCommunityHonors(prisma, guildId, { ...(weekly === null ? {} : { weeklyEnabled: weekly }), ...(start === null ? {} : { weekStart: weekMode(start) }), ...(ping === null ? {} : { pingMvp: ping }) });
+  if (!honors) return { content: missing };
+  const on = (value: boolean) => value ? say(lang, "on", "activé") : say(lang, "off", "désactivé");
+  return { content: [
+    `${say(lang, "Weekly MVP and post", "MVP et annonce hebdo")} : **${on(honors.weeklyEnabled)}**`,
+    `${say(lang, "Week starts", "Début de semaine")} : **${weekMode(honors.weekStart) === "RESET" ? say(lang, "WoW weekly reset (Tuesday)", "réinitialisation WoW (mardi)") : say(lang, "Monday, server time", "lundi, heure du serveur")}**`,
+    `${say(lang, "MVP notified", "MVP notifié")} : **${on(honors.pingMvp)}**`,
+    honors.channelId ? `<#${honors.channelId}>` : ""
+  ].filter(Boolean).join("\n"), allowedMentions: { parse: [] } };
 }
 
 let ticking = false;

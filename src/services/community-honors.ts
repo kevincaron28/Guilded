@@ -62,10 +62,9 @@ const ids = (value: Prisma.JsonValue, length: number): string[][] => {
   return Array.from({ length }, (_, i) => Array.isArray(rows[i]) ? (rows[i] as unknown[]).filter((id): id is string => typeof id === "string") : []);
 };
 const strings = (value: Prisma.JsonValue | undefined): string[] => Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : [];
-const mention = (id: string) => `<@${id}>`;
-// Embeds only show a mention as a name when the reader's app already knows that member, so
-// embeds show names (as the leaderboard does); the message text keeps the mentions, which
-// always render (they never ping: deliveries allow no mentions).
+// Posts show names, never mentions (as the leaderboard does). Deliveries allow no mentions, so
+// Discord sends no member data with the message, and a reader whose app has not seen that
+// member yet would get "unknown user", in the text as in an embed.
 export type Names = ReadonlyMap<string, string>;
 const who = (names: Names, id: string) => `**${escapeMarkdown((names.get(id) || `…${id.slice(-4)}`).replace(/[\r\n]/g, " ").slice(0, 32))}**`;
 const dayLabel = (lang: Lang, day: string) => new Intl.DateTimeFormat(lang === "fr" ? "fr-CA" : "en-CA", { timeZone: "UTC", month: "long", day: "numeric" }).format(new Date(`${day}T12:00:00Z`));
@@ -95,7 +94,7 @@ export function weeklyHonorsMessage(lang: Lang, input: { week: string; board: St
   ].filter(Boolean);
   if (lines.length) embed.addFields({ name: say(lang, "📊 The guild's week", "📊 La semaine de la guilde"), value: lines.join("\n") });
   embed.setFooter({ text: say(lang, "Guilded · Hall of fame", "Guilded · Palmarès") });
-  return { content: mvps.length ? say(lang, `⭐ Congratulations ${mvps.map(mention).join(", ")}!`, `⭐ Bravo ${mvps.map(mention).join(", ")} !`) : "", embeds: [embed.toJSON()] };
+  return { content: mvps.length ? say(lang, `⭐ Congratulations ${mvps.map(id => who(names, id)).join(", ")}!`, `⭐ Bravo ${mvps.map(id => who(names, id)).join(", ")} !`) : "", embeds: [embed.toJSON()] };
 }
 
 export function monthlyHonorsMessage(lang: Lang, season: { name: string; number: number }, board: Standing[], names: Names = new Map()) {
@@ -109,7 +108,7 @@ export function monthlyHonorsMessage(lang: Lang, season: { name: string; number:
       "They keep their podium role until the end of next month. A new season has started: everyone is back at zero!",
       "Ils gardent leur rôle du podium jusqu’à la fin du mois prochain. Une nouvelle saison commence : tout le monde repart à zéro !") })
     .setFooter({ text: say(lang, "Guilded · Hall of fame", "Guilded · Palmarès") });
-  return { content: say(lang, `🏆 Congratulations to the community's top 3: ${places.flat().map(mention).join(", ")}!`, `🏆 Bravo au top 3 de la gang : ${places.flat().map(mention).join(", ")} !`), embeds: [embed.toJSON()] };
+  return { content: say(lang, `🏆 Congratulations to the community's top 3: ${places.flat().map(id => who(names, id)).join(", ")}!`, `🏆 Bravo au top 3 de la gang : ${places.flat().map(id => who(names, id)).join(", ")} !`), embeds: [embed.toJSON()] };
 }
 
 // /setup: the hall-of-fame channel (in the Community category, read-only for members, same

@@ -83,6 +83,10 @@ function module.tick() end
 
 -- One plain-language sentence for the Home page.
 function module.statusLine()
+  if ns.isOfficer and not ns.isOfficer() and IsInGuild and IsInGuild() then
+    local text = "Your addon shares supported data with online guildmates. An officer handles Discord sync; personal sync is optional."
+    return ns.L and ns.L(text) or text
+  end
   if dirtyAt then
     local minutes = math.floor((clock() - dirtyAt) / 60)
     return string.format("Changes are waiting (%s). Press Send to Discord (it reloads the UI), or they are sent when you log out.",

@@ -979,8 +979,8 @@ local function buildHomePage(page)
 
   at(newButton(page, L("Check my gear"), 170, function() run("inspect") end, 30), page, 0, -322)
   -- A secure button: the game only lets a click reload the UI (see Modules/SyncNow.lua).
-  at(ns.syncNow and ns.syncNow.reloadButton(page, L("Send to Discord now"), 190, 30)
-    or newButton(page, L("Send to Discord now"), 190, function() run("sync") end, 30), page, 178, -322)
+  at(ns.syncNow and ns.syncNow.reloadButton(page, L(ns.isOfficer() and "Send to Discord now" or "Save my addon data"), 190, 30)
+    or newButton(page, L(ns.isOfficer() and "Send to Discord now" or "Save my addon data"), 190, function() run("sync") end, 30), page, 178, -322)
   at(newButton(page, L("Standings"), 130, function() ui.selectTabByName("Standings") end, 30), page, 376, -322)
   officerOnly(at(newButton(page, L("Run a raid"), 170, function() ui.selectTabByName("Raid") end, 30), page, 0, -360))
   officerOnly(at(newButton(page, L("Give loot"), 190, function() ui.selectTabByName("Loot") end, 30), page, 178, -360))
@@ -1253,7 +1253,7 @@ local function refreshHome(db, officer, me)
   ui.homeSync:SetText(ns.syncNow and ns.syncNow.statusLine and ns.syncNow.statusLine()
     or L("Your data reaches Discord after you /reload or log out (an officer's companion sends it)."))
   if ui.sidebarSync then
-    ui.sidebarSync:SetText(ns.syncNow and ns.syncNow.isDirty and ns.syncNow.isDirty() and L("Unsent changes") or L("All saved"))
+    ui.sidebarSync:SetText(ns.syncNow and ns.syncNow.isDirty and ns.syncNow.isDirty() and L(ns.isOfficer() and "Unsent changes" or "Local changes") or L("All saved"))
   end
 end
 
@@ -1496,8 +1496,8 @@ local function buildPanel()
   -- Sidebar footer: one button that gets your data to Discord, and whether anything is waiting.
   ui.sidebarSync = newLabel(panel, "", "GameFontHighlightSmall")
   ui.sidebarSync:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 24, 70)
-  local sendButton = ns.syncNow and ns.syncNow.reloadButton(panel, L("Send to Discord"), 132, 26)
-    or newButton(panel, L("Send to Discord"), 132, function() run("sync") end, 26)
+  local sendButton = ns.syncNow and ns.syncNow.reloadButton(panel, L(ns.isOfficer() and "Send to Discord" or "Save my addon data"), 132, 26)
+    or newButton(panel, L(ns.isOfficer() and "Send to Discord" or "Save my addon data"), 132, function() run("sync") end, 26)
   sendButton:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 22, 40)
 
   -- Shared player field (shown only on pages that act on a player).

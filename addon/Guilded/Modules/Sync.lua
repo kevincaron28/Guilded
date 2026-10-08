@@ -290,6 +290,9 @@ local function adoptLootRules(file, updatedAt)
   return rules
 end
 
+-- Used by OfficerBridge only after its guild/officer/chunk validation.
+ns.adoptOfficerLootRules = adoptLootRules
+
 -- Adopt the companion-written Standings.lua if it is newer than the saved copy.
 local function adoptFileStandings()
   local file = GuildedStandings

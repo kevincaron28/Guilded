@@ -5,6 +5,11 @@ import { join, resolve } from "node:path";
 import { parse } from "dotenv";
 import { describe, expect, it } from "vitest";
 
+// Each run starts tsx in a fresh process. On a busy machine (the whole suite in
+// parallel) that can take well over the 5s default, so give it room; the test
+// still fails if the CLI hangs.
+const SPAWN_TIMEOUT = 120_000;
+
 function runPreflight(values: Record<string, string>) {
   const folder = mkdtempSync(join(tmpdir(), "guilded-setup-"));
   try {
@@ -15,7 +20,7 @@ function runPreflight(values: Record<string, string>) {
     writeFileSync(join(folder, ".env.local"), Object.entries({ ...example, ...values })
       .map(([key, value]) => `${key}=${value}`).join("\n"));
     return spawnSync(process.execPath, [resolve("node_modules/tsx/dist/cli.mjs"), resolve("scripts/check-setup.ts")],
-      { cwd: folder, env, encoding: "utf8", timeout: 30_000 });
+      { cwd: folder, env, encoding: "utf8", timeout: SPAWN_TIMEOUT });
   } finally {
     rmSync(folder, { recursive: true, force: true });
   }
@@ -27,7 +32,7 @@ const valid = {
   DATABASE_URL: "postgresql://test:private-test-password@localhost:5432/setup_test"
 };
 
-describe("owner setup preflight CLI", () => {
+describe("owner setup preflight CLI", { timeout: SPAWN_TIMEOUT + 10_000 }, () => {
   it("loads a fresh four-value configuration without printing its secrets", () => {
     const result = runPreflight(valid);
     expect(result.error).toBeUndefined();

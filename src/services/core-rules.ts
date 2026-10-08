@@ -1,7 +1,7 @@
 import type { GuildSettings, PrismaClient, RaidCore } from "@prisma/client";
 
 // Point rules per raid core. Every core follows the guild's settings (from
-// /setup config and /setup) unless it overrides a value with /core rules, so a
+// /config and /setup) unless it overrides a value with /core rules, so a
 // guild that never touches /core rules gets identical rules for all cores.
 // A core may also keep its own point pool (its EP/GP are separate from the
 // guild pool and from other cores').

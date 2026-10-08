@@ -102,7 +102,7 @@ async function processReport(
   return true;
 }
 
-// Looks at every guild that set a Warcraft Logs guild (/setup config wcl-guild). Called every few minutes.
+// Looks at every guild that set a Warcraft Logs guild (/config wcl-guild). Called every few minutes.
 export async function runWclDiscovery(discord: Client, database: Db): Promise<number> {
   if (!config.WCL_CLIENT_ID || !config.WCL_CLIENT_SECRET) return 0;
   const client = createWclClient({ clientId: config.WCL_CLIENT_ID, clientSecret: config.WCL_CLIENT_SECRET });

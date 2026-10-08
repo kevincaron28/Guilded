@@ -59,7 +59,7 @@ export async function executeLoot(interaction: ChatInputCommandInteraction): Pro
     await interaction.reply({ content: "Only officers, Guild Masters, or administrators can manage auctions.", ephemeral: true });
     return;
   }
-  // Loot council can be set for the whole guild (/setup config loot-mode) or for one
+  // Loot council can be set for the whole guild (/config loot-mode) or for one
   // core (/core rules); a raid made for a core follows that core's mode.
   const guildSettings = await guildService.getSettings(context.guildId);
   let raidForMode = subcommand === "auction" || subcommand === "award" || subcommand === "priority" ? interaction.options.getString("raid") : null;

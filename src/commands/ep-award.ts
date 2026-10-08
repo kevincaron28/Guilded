@@ -32,7 +32,7 @@ function proposalEmbed(proposal: EpProposal): EmbedBuilder {
   return new EmbedBuilder()
     .setTitle(`EP for ${proposal.title}`)
     .setDescription(lines || "Nobody is marked present or late yet.")
-    .setFooter({ text: `Attendance EP + ${breakdown}. ${proposal.coreName ? `Rules: ${proposal.coreName} core (/core rules; anything it doesn't change follows /setup config).` : "Amounts come from /setup config (attendance, late, boss kill, full-clear bonus)."}${proposal.poolCoreId ? ` Paid into the ${proposal.coreName} pool.` : ""}` });
+    .setFooter({ text: `Attendance EP + ${breakdown}. ${proposal.coreName ? `Rules: ${proposal.coreName} core (/core rules; anything it doesn't change follows /config).` : "Amounts come from /config (attendance, late, boss kill, full-clear bonus)."}${proposal.poolCoreId ? ` Paid into the ${proposal.coreName} pool.` : ""}` });
 }
 
 // Shows the proposed EP for a raid to the officer with Approve / Cancel

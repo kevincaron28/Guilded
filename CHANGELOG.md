@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- `/config` is its own command again (it was `/setup config`). Same subcommands and
+  options; `/setup` keeps `start`, `testraid`, `selfroles` and `reset`. This frees room
+  under Discord's size limit for the merged `/setup` command.
+- The setup preflight and setup wizard tests allow more time on a busy machine.
+
 ## 6.0.0 Release — 5 October 2026
 
 - Promoted to full Release at the owner's direction. The next planned version is 6.1.0.

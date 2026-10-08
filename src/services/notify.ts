@@ -52,7 +52,7 @@ async function durableMessage(guild: DiscordGuild, guildId: string, channelId: s
 export const resolveNotifyChannel = notifyTarget;
 export const resolveNotifyAddress = notifyAddress;
 
-// Dungeon challenge posts go to /setup config channel, or the normal
+// Dungeon challenge posts go to /config channel, or the normal
 // announcements channel when none is set.
 export async function notifyDungeon(discordGuild: DiscordGuild | null, embed: Localized<EmbedBuilder>): Promise<boolean> {
   if (!discordGuild) return false;
@@ -69,7 +69,7 @@ export async function notifyDungeon(discordGuild: DiscordGuild | null, embed: Lo
 }
 
 // Raid/boss/loot/EPGP announcements for the whole guild, posted to the
-// channel set with /setup config channel. One line per event (batched
+// channel set with /config channel. One line per event (batched
 // commands post one line, not one per player). Never pings anyone and never
 // throws: a failed announcement must not undo the action it describes.
 export async function notify(discordGuild: DiscordGuild | null, content: string | Localized, kind: NotifyKind = "notify", coreId: string | null = null): Promise<void> {

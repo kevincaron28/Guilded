@@ -10,6 +10,7 @@ import { runDiscordJobs } from "./services/discord-jobs.js";
 import { queueGuildScheduledEvents } from "./services/scheduled-events.js";
 import { queueCharacterDisplayRefresh } from "./services/character-display-refresh.js";
 import { executeSystem } from "./commands/system.js";
+import { executeConfig } from "./commands/settings.js";
 import { updateProfessionDirectory } from "./services/profession-directory.js";
 import {
   Client,
@@ -127,6 +128,7 @@ process.on("uncaughtException", (error) => {
 process.on("unhandledRejection", (error) => { void errorReportService.report(client, error, { source: "unhandledRejection" }); });
 const handlers = new Collection<string, (interaction: ChatInputCommandInteraction) => Promise<void>>();
 handlers.set("profile", executeProfile);
+handlers.set("config", executeConfig);
 handlers.set("loot", executeLoot);
 handlers.set("epgp", executeEpgp);
 handlers.set("apply", executeApply);
@@ -236,7 +238,7 @@ client.once(Events.ClientReady, (readyClient) => {
   setInterval(() => {
     runCooldownPings(readyClient, prisma).catch(reportJobError("Cooldown pings"));
   }, 10 * 60 * 1000);
-  // Warcraft Logs: new reports of the guild set with /setup config wcl-guild, every 10 minutes.
+  // Warcraft Logs: new reports of the guild set with /config wcl-guild, every 10 minutes.
   setInterval(() => {
     runWclDiscovery(readyClient, prisma).catch(reportJobError("Warcraft Logs check"));
   }, 10 * 60 * 1000);

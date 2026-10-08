@@ -39,8 +39,14 @@ describe("community honors rules", () => {
     expect(fr.content).toBe("");
     expect(fr.embeds[0]!.description).toContain("rôle MVP reste libre");
     const month = monthlyHonorsMessage("fr", { name: "Septembre 2026", number: 3 }, [row("a", 90), row("b", 60), row("c", 30)]);
-    expect(month.embeds[0]!.description).toContain("🥇 <@a> — **90 pts** · 🥇 Champion du mois");
+    expect(month.embeds[0]!.description).toContain("🥇 **…a** — **90 pts** · 🥇 Champion du mois");
     expect(month.embeds[0]!.title).toContain("Saison 3");
+    // Embeds show names, which every reader can see; the text keeps the mentions.
+    const named = weeklyHonorsMessage("en", { week: "2026-09-28", board: [row("123456789012345678", 70), row("b", 50)], mvps: ["123456789012345678"], recap, names: new Map([["123456789012345678", "Aria Gold"]]) });
+    expect(named.embeds[0]!.description).toContain("**Aria Gold**");
+    expect(named.embeds[0]!.description).not.toContain("<@");
+    expect(named.embeds[0]!.fields![0]!.value).toContain("**…b**");
+    expect(named.content).toContain("<@123456789012345678>");
   });
 });
 
@@ -79,13 +85,16 @@ describe("advancing the honors", () => {
   it("moves the weekly role to the week's top earner and posts once", async () => {
     const honors: Row = { guildId: "guild", channelId: "fame", week: "2026-09-21", weeklyHolderIds: ["old"], monthSeasonId: "sept" };
     const { database, tx, jobs } = fakeDatabase(honors, { points, ended: { id: "sept" } });
-    expect(await advanceCommunityHonors(database, "guild", now)).toEqual({ week: "2026-09-28", seasonId: null });
+    const lookup = vi.fn(async (ids: string[]) => new Map(ids.map(id => [id, `Name ${id}`])));
+    expect(await advanceCommunityHonors(database, "guild", now, lookup)).toEqual({ week: "2026-09-28", seasonId: null });
+    expect(lookup).toHaveBeenCalledWith(["b", "a"]);
     // Spending lottery points never lowers the earned score.
     expect(honors).toMatchObject({ week: "2026-09-28", weeklyHolderIds: ["b"], rolesPending: true });
     expect(tx.communityPoint.findMany.mock.calls[0]).toMatchObject([{ where: { season: { guildId: "guild", game: "DISCORD", audienceRoleId: null } } }]);
     expect(jobs).toHaveLength(1);
     expect(jobs[0]).toMatchObject({ where: { guildId_key: { guildId: "guild", key: "community-week:2026-09-28" } }, create: { kind: "MESSAGE", payload: { channelId: "fame" } } });
     expect(JSON.stringify(jobs[0])).toContain("2 h together in voice");
+    expect(JSON.stringify(jobs[0])).toContain("**Name b**");
 
     // The next minute finds the week already handled.
     expect(await advanceCommunityHonors(database, "guild", now)).toEqual({ week: null, seasonId: null });

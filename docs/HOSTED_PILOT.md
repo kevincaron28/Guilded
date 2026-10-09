@@ -7,10 +7,11 @@ small pilot, initially limited to five servers including the owner's server.
 
 ## Joining with your guild
 
-1. Ask the Guilded owner to approve your **Discord server ID**. In Discord's user
-   settings, enable Developer Mode, then right-click your server and copy its ID.
-2. Once approval is active, the owner sends you a server-specific invitation.
-   Open it as a server owner or someone allowed to manage that server.
+1. Ask the Guilded owner for the pilot request invitation. Open it as a server
+   owner or someone allowed to manage your server.
+2. Guilded waits with access disabled and sends its application owner a private
+   Discord message with **Approve** and **Block** buttons. Wait for approval.
+   The owner can also preapprove your server ID and send a server-specific invite.
 3. Run **`/setup start`** in your server. Choose English or French, your timezone,
    and the features/channels you want. Use `/setup start status:true` to check
    anything still missing. Move Guilded's bot role above roles it needs to assign.
@@ -22,7 +23,7 @@ small pilot, initially limited to five servers including the owner's server.
    optional; see the [member guide](MEMBER_INSTALL.md).
 
 An invitation is not an approval. Changing the server ID in a copied invite does
-not grant access. Unapproved servers are refused; old companion credentials also
+not grant access. Unapproved servers have no access; old companion credentials also
 stop working there. Reapproval does not erase saved guild data.
 
 ## FAQ and AI
@@ -40,6 +41,31 @@ If enabled, the provider receives the question and selected guild facts needed
 for the answer. Keep private officer information out of public FAQ entries.
 
 ## For the host owner
+
+### Approve from Discord
+
+`npm run pilot -- request-link` prints the invitation you can share with applicants.
+Inviting requests access; it never grants approval. New servers remain inactive
+until the Discord application's owner clicks **Approve** in the bot's DM.
+For team-owned applications, only the team's owner receives and can use these buttons.
+The DM shows the server name, ID, owner ID and member count. Names are unverified
+labels; verify the ID before admitting a server.
+
+Approval respects the five-server cap, saves to `.env.local`, updates access
+immediately and registers the setup commands without restarting. **Block** saves
+the decision, leaves the server and silently leaves on subsequent invitations.
+Only an explicit owner CLI approval overrides a block. Duplicate or old buttons
+cannot change a completed decision. Keep DMs from Guilded enabled; delivery
+failures retry hourly and after restart, with access still disabled.
+
+Pending/block decisions and delivered-message IDs live in
+`backups/pilot-requests.json` (private, preserved by deployment). Back up this
+file alongside `.env.local`. There are at most 100 pending requests; additional
+unapproved invites are left until that queue is reduced. Already-approved guilds
+do not generate approval DMs. A lost/deleted request DM can be recovered by the
+owner CLI using its server ID.
+
+### CLI fallback
 
 Deploy the pilot code and database migration through the normal release gates
 before enabling invitations. In the **live service directory**, use the owner CLI:
@@ -78,7 +104,7 @@ To withdraw approval:
 npm run pilot -- revoke DISCORD_SERVER_ID
 ```
 
-Restart the service to apply it. It leaves unapproved servers, blocks their
+Restart the service to apply CLI changes. It disables unapproved servers, blocks their
 commands and companion requests, and excludes their pending scheduled work.
 Guild records are retained so an accidental revocation is recoverable. This is
 not a data deletion command. Keep the current server environment when deploying;
@@ -93,7 +119,10 @@ usage older than 90 days is pruned. Questions and credentials are not stored the
 ## Hosting budget and launch checks
 
 This change skips database reads for empty/solo voice channels and removes a
-redundant keepalive. **Scheduled jobs still query the database every minute.**
+redundant keepalive. Completed delivery cleanup now runs with six-hour retention
+instead of every minute (four scheduled checks/day instead of 1,440). Leaderboards
+fetch only the three point fields they need. Admission decisions use local files,
+not database polling. **Scheduled jobs still query the database every minute.**
 Do not assume Neon can sleep or that a shared bot will fit a free compute tier.
 Before adding more guilds, measure database compute, storage, server memory and
 AI usage in the existing provider dashboards. Keep the pilot bounded until a full

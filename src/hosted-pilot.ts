@@ -6,3 +6,8 @@ export const hostedPilot = createPilotPolicy({ enabled: config.HOSTED_PILOT ?? f
 
 // Only apply extra predicates in hosted mode; independent installations retain their behavior.
 export const pilotGuildScope = hostedPilot.enabled ? { guild: { discordId: { in: hostedPilot.guildIds } } } : {};
+
+// Keep the shared array identity: all scheduled query scopes see approvals immediately.
+export function replacePilotApprovals(ids: string[]) {
+  hostedPilot.guildIds.splice(0, hostedPilot.guildIds.length, ...ids);
+}

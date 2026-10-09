@@ -113,9 +113,11 @@ export function createRaidService(database: PrismaClient) {
         }
       }
       const bosses = input.bosses?.map((name) => name.trim()).filter(Boolean) ?? [];
+      let coreLimits: { tankLimit?: number | null; healerLimit?: number | null; dpsLimit?: number | null } = {};
       if (input.coreId) {
-        const core = await database.raidCore.findFirst({ where: { id: input.coreId, guildId: input.guildId }, select: { id: true } });
+        const core = await database.raidCore.findFirst({ where: { id: input.coreId, guildId: input.guildId }, select: { id: true, tankLimit: true, healerLimit: true, dpsLimit: true } });
         if (!core) throw new Error("That raid core was not found in this guild.");
+        coreLimits = core;
       }
       return database.raid.create({
         data: {
@@ -126,9 +128,9 @@ export function createRaidService(database: PrismaClient) {
           createdBy: input.createdBy,
           description: input.description?.trim() || null,
           repeatWeekly: input.repeatWeekly ?? false,
-          tankLimit: input.tankLimit ?? null,
-          healerLimit: input.healerLimit ?? null,
-          dpsLimit: input.dpsLimit ?? null,
+          tankLimit: input.tankLimit ?? coreLimits.tankLimit ?? null,
+          healerLimit: input.healerLimit ?? coreLimits.healerLimit ?? null,
+          dpsLimit: input.dpsLimit ?? coreLimits.dpsLimit ?? null,
           ...(bosses.length > 0 ? {
             bosses: { create: bosses.map((name, sortOrder) => ({ name, sortOrder })) }
           } : {})

@@ -9,8 +9,7 @@ import { createItemValueService, parseItemValues, priceDraft } from "../services
 import { createCoreChannels, renameCoreDiscord } from "../services/core-channels.js";
 import { pricesModal } from "./core-wizard.js";
 import { guildService } from "./context.js";
-import { fillCoreWeeklyRaids, saveCoreWeeklySchedule } from "../services/core-weekly-raids.js";
-import { parseWeeklySchedule } from "../services/core-weekly-time.js";
+import { editCoreSchedule, editCoreComposition } from "./core-planning.js";
 import { asLootMode, effectiveRules, LOOT_MODES } from "../services/core-rules.js";
 import { pickSignupCharacter } from "./signup-character-picker.js";
 
@@ -64,6 +63,7 @@ async function screen(guildId: string, coreId: string, mode: EditMode, note: str
         new ButtonBuilder().setCustomId("coreedit:channels").setLabel("Create channels & role").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("coreedit:done").setLabel("Done ✔").setStyle(ButtonStyle.Success)),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId("coreedit:composition").setLabel("Taille et roles / Size & roles").setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId("coreedit:schedule").setLabel("📅 Horaire hebdomadaire").setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId("coreedit:lootmode").setLabel("🎲 Méthode de butin").setStyle(ButtonStyle.Primary))
     ]
@@ -106,30 +106,9 @@ export async function runCoreEditor(interaction: ChatInputCommandInteraction, gu
         await refresh(`Butin : ${CORE_LOOT_LABEL[lootMode]}.`);
         return;
       }
-      if (i.customId === "coreedit:schedule" && i.isButton()) {
-        const current = await prisma.raidCore.findUniqueOrThrow({ where: { id: core.id } });
-        const settings = await guildService.getSettings(guildId);
-        const field = new TextInputBuilder().setCustomId("schedule").setLabel("Jours + heures de début; vide = arrêter")
-          .setPlaceholder("mardi 20h; jeudi 20h30").setStyle(TextInputStyle.Paragraph).setMaxLength(400).setRequired(false);
-        if (current.weeklySchedule) field.setValue(current.weeklySchedule);
-        await i.showModal(new ModalBuilder().setCustomId("coreedit:schedule-modal").setTitle(`Horaire — ${settings?.timezone ?? "America/Toronto"}`.slice(0, 45))
-          .addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(field)));
-        const submitted = await i.awaitModalSubmit({ time: 5 * 60_000, filter: m => m.user.id === i.user.id && m.customId === "coreedit:schedule-modal" }).catch(() => null);
-        if (!submitted) return;
-        try {
-          const input = submitted.fields.getTextInputValue("schedule");
-          parseWeeklySchedule(input);
-          await submitted.deferUpdate();
-          const saved = await saveCoreWeeklySchedule(prisma, guildId, core.id, input, i.user.id);
-          await fillCoreWeeklyRaids(prisma, guildId, core.id);
-          const { runDiscordJobs } = await import("../services/discord-jobs.js");
-          await runDiscordJobs(interaction.client);
-          await refresh(`${saved.weeklySchedule ? `📅 ${saved.schedule} (${saved.weeklyTimezone}). Inscriptions des 6 prochains jours; la suite s'ajoute automatiquement.` : "Création automatique arrêtée."} Les raids déjà affichés et leurs inscriptions sont conservés. /raid cancel permet de sauter une soirée.`);
-        } catch (error) {
-          const content = error instanceof Error ? error.message : "Impossible d'enregistrer l'horaire.";
-          if (submitted.deferred) await submitted.followUp({ content, ephemeral: true });
-          else await submitted.reply({ content, ephemeral: true });
-        }
+      if (i.isButton() && ["coreedit:schedule", "coreedit:composition"].includes(i.customId)) {
+        const note = await (i.customId === "coreedit:schedule" ? editCoreSchedule : editCoreComposition)(i, guildId, core.id);
+        if (note) await refresh(note);
         return;
       }
       if (i.customId === "coreedit:mode" && i.isStringSelectMenu()) {

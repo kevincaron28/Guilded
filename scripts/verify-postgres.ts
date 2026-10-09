@@ -147,11 +147,21 @@ try {
     const otherCore = await database.raidCore.create({ data: { guildId: guild.id, name: "Independent weekly fixture" } });
     await saveCoreWeeklySchedule(database, guild.id, otherCore.id, "jeudi 20h", "release-test");
     assert.equal((await fillCoreWeeklyRaids(database, guild.id, otherCore.id, weeklyNow)).length, 1);
+    // Launch planning: create December now, keep each core's own role limits and dedupe concurrent ticks.
+    const launchCore = await database.raidCore.create({ data: { guildId: guild.id, name: "December 20", raidSize: 20, tankLimit: 2, healerLimit: 4, dpsLimit: 14 } });
+    await saveCoreWeeklySchedule(database, guild.id, launchCore.id, "vendredi 20h", "release-test", { start: "2026-12-04", days: "28" });
+    const launches = (await Promise.all([1, 2].map(() => fillCoreWeeklyRaids(database, guild.id, launchCore.id, weeklyNow)))).flat();
+    assert.equal(launches.length, 4);
+    const launchRaids = await database.raid.findMany({ where: { coreId: launchCore.id }, orderBy: { scheduledAt: "asc" } });
+    assert.equal(launchRaids[0]!.scheduledAt.toISOString(), "2026-12-05T01:00:00.000Z");
+    assert.ok(launchRaids.every(raid => raid.tankLimit === 2 && raid.healerLimit === 4 && raid.dpsLimit === 14));
+    assert.equal(await database.discordJob.count({ where: { guildId: guild.id, key: { in: launches.map(id => `raid:${id}`) } } }), 4);
+    await assert.rejects(database.raidCore.update({ where: { id: launchCore.id }, data: { raidSize: 10 } })); // sum constraint
     // Force a delivery-job failure inside a real transaction: its raid must roll back too.
     const brokenCore = await database.raidCore.create({ data: { guildId: guild.id, name: "Rollback weekly fixture" } });
     await saveCoreWeeklySchedule(database, guild.id, brokenCore.id, "jeudi 20h", "release-test");
     const brokenDatabase = { $transaction: (work: (tx: unknown) => Promise<unknown>) => database.$transaction(tx => work(new Proxy(tx, {
-      get(target, key) { return key === "discordJob" ? { upsert: async () => { throw new Error("Forced job failure"); } } : Reflect.get(target, key); }
+      get(target, key) { return key === "discordJob" ? { createMany: async () => { throw new Error("Forced job failure"); } } : Reflect.get(target, key); }
     }))) };
     await assert.rejects(fillCoreWeeklyRaids(brokenDatabase as never, guild.id, brokenCore.id, weeklyNow), /Forced job failure/);
     assert.equal(await database.raid.count({ where: { coreId: brokenCore.id } }), 0);

@@ -47,14 +47,22 @@ export function weeklyScheduleData(input: string | null | undefined, timezone: s
 
 // Local calendar days, rather than 24-hour multiples (DST days are shorter/longer).
 // Nonexistent spring-forward times are skipped. Ambiguous fall-back times occur once.
-export function weeklyOccurrences(slots: WeeklySlot[], timezone: string, now = new Date()) {
+export function weeklyOccurrences(slots: WeeklySlot[], timezone: string, now = new Date(), options: { weeklyStartDate?: string | null; weeklyHorizonDays?: number } = {}) {
   if (!isValidTimeZone(timezone)) throw new Error("Invalid weekly schedule timezone.");
-  const today = localParts(now, timezone);
-  const last = new Date(Date.UTC(today.year, today.month - 1, today.day + CORE_SCHEDULE_DAYS));
+  const days = options.weeklyHorizonDays ?? CORE_SCHEDULE_DAYS;
+  if (!Number.isInteger(days) || days < 1 || days > 90) throw new Error("Planning window must be 1–90 days.");
+  let anchor = now;
+  if (options.weeklyStartDate) {
+    const [y, m, d] = options.weeklyStartDate.split("-").map(Number);
+    const start = zonedTime(y!, m!, d!, 0, 0, timezone);
+    if (start > anchor) anchor = start;
+  }
+  const today = localParts(anchor, timezone);
+  const last = new Date(Date.UTC(today.year, today.month - 1, today.day + days));
   const until = new Date(zonedTime(last.getUTCFullYear(), last.getUTCMonth() + 1, last.getUTCDate(), today.hour, today.minute, timezone).getTime()
-    + now.getUTCSeconds() * 1000 + now.getUTCMilliseconds());
+    + anchor.getUTCSeconds() * 1000 + anchor.getUTCMilliseconds());
   const result: { scheduledAt: Date; key: string }[] = [];
-  for (let offset = 0; offset <= CORE_SCHEDULE_DAYS; offset++) {
+  for (let offset = 0; offset <= days; offset++) {
     const day = new Date(Date.UTC(today.year, today.month - 1, today.day + offset));
     for (const slot of slots.filter(slot => slot.weekday === day.getUTCDay())) {
       const at = zonedTime(day.getUTCFullYear(), day.getUTCMonth() + 1, day.getUTCDate(), slot.hour, slot.minute, timezone);

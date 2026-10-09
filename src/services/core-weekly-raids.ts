@@ -1,6 +1,6 @@
 import type { PrismaClient, Prisma } from "@prisma/client";
-import { enqueueDiscordJob } from "./discord-jobs.js";
 import { parseWeeklySchedule, weeklyOccurrences, weeklyScheduleData } from "./core-weekly-time.js";
+import { planningOptions } from "./core-planning.js";
 
 async function locked<T>(database: PrismaClient, coreId: string, work: (tx: Prisma.TransactionClient) => Promise<T>) {
   return database.$transaction(async tx => {
@@ -9,9 +9,9 @@ async function locked<T>(database: PrismaClient, coreId: string, work: (tx: Pris
   }, { timeout: 15_000, maxWait: 15_000 });
 }
 
-export async function saveCoreWeeklySchedule(database: PrismaClient, guildId: string, coreId: string, input: string, createdBy: string) {
+export async function saveCoreWeeklySchedule(database: PrismaClient, guildId: string, coreId: string, input: string, createdBy: string, options?: { start: string; days: string }) {
   const settings = await database.guildSettings.findUnique({ where: { guildId }, select: { timezone: true } });
-  const data = weeklyScheduleData(input, settings?.timezone ?? "America/Toronto", createdBy);
+  const data = { ...weeklyScheduleData(input, settings?.timezone ?? "America/Toronto", createdBy), ...(options ? planningOptions(options.start, options.days) : {}) };
   return locked(database, coreId, async tx => {
     const core = await tx.raidCore.findFirst({ where: { id: coreId, guildId } });
     if (!core) throw new Error("Raid core not found in this guild.");
@@ -25,25 +25,33 @@ export async function fillCoreWeeklyRaids(database: PrismaClient, guildId: strin
   return locked(database, coreId, async tx => {
     const core = await tx.raidCore.findFirst({ where: { id: coreId, guildId } });
     if (!core?.weeklySchedule || !core.weeklyTimezone || !core.weeklyCreatedBy) return [];
-    const created: string[] = [];
-    for (const occurrence of weeklyOccurrences(parseWeeklySchedule(core.weeklySchedule), core.weeklyTimezone, now)) {
+    const occurrences = weeklyOccurrences(parseWeeklySchedule(core.weeklySchedule), core.weeklyTimezone, now, core);
+    const existingRaids = await tx.raid.findMany({ where: { guildId, OR: [
+      { weeklyOccurrence: { in: occurrences.map(occurrence => `${core.id}:${occurrence.key}`) } },
+      { coreId, scheduledAt: { in: occurrences.map(occurrence => occurrence.scheduledAt) }, isTest: false }
+    ] }, orderBy: { createdAt: "asc" } });
+    const pending: Prisma.RaidCreateManyInput[] = [];
+    for (const occurrence of occurrences) {
       const weeklyOccurrence = `${core.id}:${occurrence.key}`;
-      if (await tx.raid.findUnique({ where: { weeklyOccurrence }, select: { id: true } })) continue;
+      if (existingRaids.some(raid => raid.weeklyOccurrence === weeklyOccurrence)) continue;
       // Reuse a manually-created raid at this core/time (including a cancelled one).
-      const existing = await tx.raid.findFirst({ where: { guildId, coreId, scheduledAt: occurrence.scheduledAt, isTest: false }, orderBy: { createdAt: "asc" } });
+      const existing = existingRaids.find(raid => raid.coreId === coreId && !raid.isTest && raid.scheduledAt.getTime() === occurrence.scheduledAt.getTime());
       if (existing) {
         // A moved occurrence already claimed another slot: leave its identity intact.
         if (!existing.weeklyOccurrence) await tx.raid.update({ where: { id: existing.id }, data: { weeklyOccurrence, repeatWeekly: false } });
         continue;
       }
-      const raid = await tx.raid.create({ data: {
+      pending.push({
         guildId, coreId, weeklyOccurrence, title: `Raid — ${core.name}`, description: core.description,
-        scheduledAt: occurrence.scheduledAt, createdBy: core.weeklyCreatedBy, repeatWeekly: false
-      } });
-      await enqueueDiscordJob(tx, guildId, `raid:${raid.id}`, "RAID_POST", { raidId: raid.id });
-      created.push(raid.id);
+        scheduledAt: occurrence.scheduledAt, createdBy: core.weeklyCreatedBy, repeatWeekly: false,
+        tankLimit: core.tankLimit, healerLimit: core.healerLimit, dpsLimit: core.dpsLimit
+      });
     }
-    return created;
+    if (!pending.length) return [];
+    // Bulk insert the launch window, keeping the posts atomic with their new raids.
+    const created = await tx.raid.createManyAndReturn({ data: pending, select: { id: true } });
+    await tx.discordJob.createMany({ data: created.map(raid => ({ guildId, key: `raid:${raid.id}`, kind: "RAID_POST", payload: { raidId: raid.id } })) });
+    return created.map(raid => raid.id);
   });
 }
 

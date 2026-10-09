@@ -1357,6 +1357,12 @@ model RaidCore {
   weeklySchedule  String?
   weeklyTimezone  String?
   weeklyCreatedBy String?
+  weeklyStartDate String?
+  weeklyHorizonDays Int @default(6)
+  raidSize        Int?
+  tankLimit       Int?
+  healerLimit     Int?
+  dpsLimit        Int?
   rosterMessageId String?
   // Per-core EP rules; empty means the guild's default from /config.
   attendanceEp    Int?

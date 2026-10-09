@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Core setup/edit now offers raid size and tank/healer/DPS targets, weekday selection,
+  a launch date and a 1–90 day planning window with preview before saving. Future
+  launch raids can be prepared immediately; new raids inherit core signup limits.
+  Existing raids remain unchanged. See `docs/CORE_PLANNING.md`.
+
 - Community hall of fame (`docs/COMMUNITY_HALL_OF_FAME.md`): a weekly MVP role, a
   rookie of the week, monthly podium roles and a `🏅・hall-of-fame` channel with a
   weekly recap of the guild. `/community honors` shows the history ("3rd time MVP!");

@@ -1,3 +1,4 @@
+import { verifyAiBudgetPostgres } from "./verify-ai-budget-postgres.js";
 import { createRaidService } from "../src/services/raid.js";
 import { createDungeonGroupService } from "../src/services/dungeon-group.js";
 import { runBackup } from "../src/services/backup.js";
@@ -28,7 +29,9 @@ const url = new URL(process.env["DATABASE_URL"] ?? "");
 if (!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) || url.pathname !== "/guilded_release_test") throw new Error("Disposable local test database required.");
 const database = new PrismaClient();
 try {
+  if (!process.argv.includes("--restored")) await verifyAiBudgetPostgres(database);
   if (process.argv.includes("--restored")) {
+    assert.equal((await database.aiDailyUsage.findUniqueOrThrow({ where: { day_scope: { day: "2099-01-01", scope: "global" } } })).attempts, 7);
     const sum = await database.epgpTransaction.aggregate({ where: { createdBy: "release-test" }, _sum: { epAmount: true } });
     assert.equal(sum._sum.epAmount, 20);
     const character = await database.character.findFirstOrThrow({ where: { name: "ReleaseAnn" } });

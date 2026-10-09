@@ -21,6 +21,7 @@
     "db:update": "node scripts/with-env.mjs prisma migrate deploy && node scripts/with-env.mjs prisma generate",
     "companion:setup": "node scripts/setup-companion.mjs",
     "setup:check": "tsx scripts/check-setup.ts",
+    "pilot": "tsx scripts/pilot.ts",
     "site:build": "node scripts/build-site.mjs",
     "site:preview": "node scripts/preview-site.mjs",
     "test:postgres": "node scripts/test-postgres.mjs",

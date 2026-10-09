@@ -1,3 +1,4 @@
+import { pilotGuildScope } from "../hosted-pilot.js";
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, ModalBuilder, PermissionFlagsBits, TextInputBuilder, TextInputStyle,
   type ButtonInteraction, type ChatInputCommandInteraction, type Client, type Guild as DiscordGuild, type GuildMember, type ModalSubmitInteraction,
@@ -392,7 +393,7 @@ async function handleDungeonGroupAction(interaction: ButtonInteraction): Promise
 // empty a while, and closes groups that were never finished.
 export async function cleanupDungeonGroups(client: Client): Promise<void> {
   const now = new Date();
-  const groups = await prisma.dungeonGroup.findMany({ where: { OR: [{ status: { in: ["OPEN", "STARTED"] } }, { status: "CLOSED", signupMessageId: { not: null } }] } });
+  const groups = await prisma.dungeonGroup.findMany({ where: { ...pilotGuildScope, OR: [{ status: { in: ["OPEN", "STARTED"] } }, { status: "CLOSED", signupMessageId: { not: null } }] } });
   for (const candidate of groups) {
     await serializeDungeonGroup(candidate.id, async () => {
       try {

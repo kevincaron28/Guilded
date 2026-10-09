@@ -1,4 +1,5 @@
-﻿import {
+import { reserveAiAttempt } from "../services/ai-budget.js";
+import {
   ActionRowBuilder, ChannelType, ModalBuilder, SlashCommandBuilder, TextInputBuilder, TextInputStyle,
   type ChatInputCommandInteraction, type GuildMember, type Message, type ModalSubmitInteraction
 } from "discord.js";
@@ -279,7 +280,9 @@ export async function answerMessage(message: Message, productReference: string):
   }
   const botId = message.client.user.id;
   if (!looksLikeQuestion(text, message.mentions.users.has(botId))) return;
-  if (!limiter.canAnswerUser(userKey) || !limiter.canUseAi(where.guildId, config.AI_DAILY_LIMIT)) return;
+  // Reserve the user cooldown synchronously, before the first await, then the durable host budget.
+  if (!limiter.allowUser(userKey)) return;
+  if (!await reserveAiAttempt(prisma, where.guildId, { global: config.AI_GLOBAL_DAILY_LIMIT, guild: config.AI_DAILY_LIMIT })) return;
   try {
     await message.channel.sendTyping();
   } catch (error) {
@@ -296,7 +299,6 @@ export async function answerMessage(message: Message, productReference: string):
   if (result.answer !== null) {
     await reply(result.answer);
     limiter.recordUserAnswer(userKey);
-    limiter.recordAiAnswer(where.guildId);
     return;
   }
   console.error("Answer channel AI request failed", { guildId: where.guildId, failure: result.failure });

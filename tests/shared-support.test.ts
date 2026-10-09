@@ -2,15 +2,17 @@ import { ChannelType } from "discord.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   settings: { answerChannelId: "faq", language: "fr", aiAnswers: true, timezone: "America/Toronto" },
+  budget: vi.fn(async () => true),
   faq: vi.fn(async () => []), member: vi.fn(), privateFacts: vi.fn(), schedule: vi.fn(),
   ai: vi.fn<(settings: unknown, messages: unknown[]) => Promise<{ answer: string }>>(async () => ({ answer: "Utilise /help pour commencer." }))
 }));
+vi.mock("../src/services/ai-budget.js", () => ({ reserveAiAttempt: mocks.budget }));
 vi.mock("../src/database.js", () => ({ prisma: { faqEntry: { findMany: mocks.faq }, member: { findFirst: mocks.member } } }));
 vi.mock("../src/commands/context.js", () => ({
   guildService: { ensureGuild: async () => ({ id: "record" }), getSettings: async () => mocks.settings },
   requireGuildContext: vi.fn()
 }));
-vi.mock("../src/config.js", () => ({ config: { AI_BASE_URL: "https://example.invalid", AI_MODEL: "test", AI_DAILY_LIMIT: 100 } }));
+vi.mock("../src/config.js", () => ({ config: { AI_BASE_URL: "https://example.invalid", AI_MODEL: "test", AI_DAILY_LIMIT: 100, AI_GLOBAL_DAILY_LIMIT: 100 } }));
 vi.mock("../src/commands/craft-board.js", () => ({ guideText: () => "Craft guide" }));
 vi.mock("../src/services/answers.js", async importOriginal => ({
   ...await importOriginal<typeof import("../src/services/answers.js")>(),
@@ -31,6 +33,7 @@ function message(content: string, user: string, parent: { name: string } | null 
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.budget.mockResolvedValue(true);
   forgetAnswerSettings("discord");
 });
 
@@ -55,6 +58,18 @@ describe("shared Guilded support", () => {
     await answerMessage(message("Quels sont les raids prévus ?", "unknown-parent", null) as never, "Product help");
     expect(mocks.privateFacts).not.toHaveBeenCalled();
     expect(mocks.schedule).not.toHaveBeenCalled();
+  });
+  it("does not call AI or select private facts when the shared budget is exhausted", async () => {
+    mocks.budget.mockResolvedValue(false);
+    await answerMessage(message("Can you explain raid strategy?", "budget-exhausted") as never, "Product help");
+    expect(mocks.budget).toHaveBeenCalledWith(expect.anything(), "record", { global: 100, guild: 100 });
+    expect(mocks.ai).not.toHaveBeenCalled();
+    expect(mocks.privateFacts).not.toHaveBeenCalled();
+  });
+  it("reserves the cooldown before simultaneous AI questions from the same user", async () => {
+    await Promise.all([1, 2].map(() => answerMessage(message("Can you explain raid strategy?", "parallel-user") as never, "Product help")));
+    expect(mocks.budget).toHaveBeenCalledTimes(1);
+    expect(mocks.ai).toHaveBeenCalledTimes(1);
   });
   it("keeps both language guides and complete installation replies within Discord limits", () => {
     for (const lang of ["en", "fr"] as const) {

@@ -725,11 +725,13 @@ export { ensureBotGuide };
 // ---------------------------------------------------------------------
 
 export async function executeSetup(interaction: ChatInputCommandInteraction): Promise<void> {
+  // A new guild's first database request may be cold; acknowledge before configuration reads.
+  if (interaction.guild && interaction.guildId && interaction.member) await interaction.deferReply({ ephemeral: true });
   const context = await requireGuildContext(interaction);
   if (!context || !interaction.guild) return;
   const startLang = asLang((await guildService.getSettings(context.guildId))?.language);
   if (!interaction.member || !hasPermission(interaction.member as GuildMember, "officer")) {
-    await interaction.reply({ content: tx(startLang, "Only server admins or Officers / Guild Masters can run setup. (The server owner always can.)"), ephemeral: true });
+    await interaction.editReply({ content: tx(startLang, "Only server admins or Officers / Guild Masters can run setup. (The server owner always can.)") });
     return;
   }
   const guild = interaction.guild;
@@ -742,7 +744,7 @@ export async function executeSetup(interaction: ChatInputCommandInteraction): Pr
   // walking back through every step.
   let step = interaction.options.getBoolean("status") ? SUMMARY_STEP : 0;
   let note = "";
-  await interaction.reply({ ...(await renderStep(step, guild, guildId, note)), ephemeral: true });
+  await interaction.editReply(await renderStep(step, guild, guildId, note));
   const message = await interaction.fetchReply();
   const collector = message.createMessageComponentCollector({
     time: 15 * 60_000,

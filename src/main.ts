@@ -1,3 +1,5 @@
+import { hostedPilot } from "./hosted-pilot.js";
+import { PILOT_DENIED } from "./services/pilot-policy.js";
 import { ensureCoreDiscord } from "./services/raid-core.js";
 import { fillGuildWeeklyRaids } from "./services/core-weekly-raids.js";
 import { guildService } from "./commands/context.js";
@@ -161,12 +163,15 @@ async function repairCoreRaids(guild: import("discord.js").Guild, provision = fa
 }
 
 client.once(Events.ClientReady, (readyClient) => {
-  const voice = async () => { for (const guild of readyClient.guilds.cache.values()) await participationTracker.sampleVoice(guild); };
+  for (const guild of readyClient.guilds.cache.values()) {
+    if (!hostedPilot.allows(guild.id)) void guild.leave().catch(reportJobError("Leaving unapproved guild"));
+  }
+  const voice = async () => { for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) await participationTracker.sampleVoice(guild); };
   void voice().catch(reportJobError("Participation voice checkpoint"));
   setInterval(() => void voice().catch(reportJobError("Participation voice checkpoint")), 30_000);
-  const communityActivities = () => runCommunityActivities(readyClient.guilds.cache.values(), reportJobError("Community honors")).catch(reportJobError("Community activities"));
+  const communityActivities = () => runCommunityActivities(readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values(), reportJobError("Community honors")).catch(reportJobError("Community activities"));
   void (async () => {
-    for (const guild of readyClient.guilds.cache.values()) {
+    for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) {
       const created = await adoptCommunityHonors(guild, prisma).catch(reportJobError("Community honors setup"));
       if (created?.length) console.info(`Community honors added in ${guild.name}: ${created.join(", ")}`);
     }
@@ -178,7 +183,7 @@ client.once(Events.ClientReady, (readyClient) => {
     if (refreshingCommunityBoards) return;
     refreshingCommunityBoards = true;
     try {
-      for (const guild of readyClient.guilds.cache.values()) {
+      for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) {
         await updateCommunityLeaderboard(communityRest, prisma, guild.id, readyClient.user.id).catch(reportJobError("Community leaderboard"));
       }
     } finally { refreshingCommunityBoards = false; }
@@ -193,7 +198,7 @@ client.once(Events.ClientReady, (readyClient) => {
     if (reconcilingEvents) return;
     reconcilingEvents = true;
     try {
-      for (const guild of readyClient.guilds.cache.values()) {
+      for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) {
         const record = await prisma.guild.findUnique({ where: { discordId: guild.id } });
         if (record) await queueGuildScheduledEvents(prisma, record.id);
       }
@@ -203,12 +208,12 @@ client.once(Events.ClientReady, (readyClient) => {
   setInterval(() => void reconcileEvents().catch(reportJobError("Discord scheduled events")), 60_000);
   registerCommandsEverywhere().catch(reportJobError("Command registration"));
   console.info(`Logged in as ${readyClient.user.tag}`);
-  for (const guild of readyClient.guilds.cache.values()) {
+  for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) {
     void updateDungeonLeaderboard(guild);
     void updateProfessionDirectory(guild);
     repairCoreRaids(guild, true).catch(reportJobError("Core channels and raid posts"));
   }
-  logSetupStatus(readyClient.guilds.cache.values()).catch(reportJobError("Setup status log"));
+  logSetupStatus(readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()).catch(reportJobError("Setup status log"));
   // One-shot: the running version only changes on a redeploy/restart, so a
   // per-ClientReady check is enough (safe on reconnect too: it marks each
   // guild before posting, so it won't repeat once it's caught up).
@@ -226,10 +231,6 @@ client.once(Events.ClientReady, (readyClient) => {
     .catch(reportJobError("Data retention"));
   setTimeout(() => void retention(), 5 * 60 * 1000);
   setInterval(() => void retention(), 6 * 60 * 60 * 1000);
-  // A free hosted database goes to sleep when idle and the first command after
-  // that takes over Discord's 3 second limit ("Unknown interaction"). A tiny
-  // query every 2 minutes keeps it awake.
-  setInterval(() => void prisma.$queryRaw`SELECT 1`.catch(reportJobError("Keep-awake query")), 2 * 60 * 1000);
   // Raid reminders: checked every 5 minutes so a "60 minutes before" ping
   // lands within a few minutes of that mark.
   setInterval(() => {
@@ -258,14 +259,14 @@ client.once(Events.ClientReady, (readyClient) => {
   setInterval(() => {
     if (repairing) return;
     repairing = true;
-    (async () => { for (const guild of readyClient.guilds.cache.values()) await repairCoreRaids(guild); })()
+    (async () => { for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) await repairCoreRaids(guild); })()
       .catch(reportJobError("Raid signup repair")).finally(() => { repairing = false; });
   }, 5 * 60 * 1000);
   // Weekly guild report (if enabled): checked hourly.
   setInterval(() => {
     // Re-evaluate snapshot age even when nobody clicks a signup or uploads new gear.
     (async () => {
-      for (const guild of readyClient.guilds.cache.values()) {
+      for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) {
         const record = await guildService.ensureGuild(guild.id, guild.name);
         await queueCharacterDisplayRefresh(prisma, record.id);
       }
@@ -280,11 +281,17 @@ client.once(Events.ClientReady, (readyClient) => {
 
 // Bot just added to a server: point whoever invited it at /setup.
 client.on(Events.GuildCreate, (guild) => {
+  if (!hostedPilot.allows(guild.id)) {
+    console.warn(`Hosted pilot: refusing unapproved server ${guild.id}`);
+    void guild.leave().catch(reportJobError("Leaving unapproved guild"));
+    return;
+  }
   registerCommands(guild.id).catch(reportJobError("Registering commands for new guild"));
   greetNewGuild(guild).catch((error: unknown) => { console.error("Greeting new guild failed", error); void errorReportService.report(client, error, { source: "Greeting new guild", guildId: guild.id, guildName: guild.name }); });
 });
 
 client.on(Events.GuildMemberAdd, async (member) => {
+  if (!hostedPilot.allows(member.guild.id)) return;
   try {
     const record = await prisma.guild.findUnique({ where: { discordId: member.guild.id }, select: { id: true } });
     if (record && member.joinedAt && !member.user.bot) await rememberRookieJoin(prisma, record.id, member.id, member.joinedAt);
@@ -297,6 +304,7 @@ client.on(Events.GuildMemberAdd, async (member) => {
 
 // Preserve tenure before a leave/rejoin, independently of character and roster resets.
 client.on(Events.GuildMemberRemove, async member => {
+  if (!hostedPilot.allows(member.guild.id)) return;
   try {
     const record = await prisma.guild.findUnique({ where: { discordId: member.guild.id }, select: { id: true } });
     if (record && member.joinedAt && !member.user.bot) await rememberRookieJoin(prisma, record.id, member.id, member.joinedAt);
@@ -305,6 +313,7 @@ client.on(Events.GuildMemberRemove, async member => {
 
 // The officer log's "joined the guild" line: someone got the Member role or a leadership role.
 client.on(Events.GuildMemberUpdate, async (before, after) => {
+  if (!hostedPilot.allows(after.guild.id)) return;
   try {
     await handleMemberRolesChange(after.guild, before, after);
   } catch (error) {
@@ -314,6 +323,7 @@ client.on(Events.GuildMemberUpdate, async (before, after) => {
 });
 
 client.on(Events.GuildMemberRemove, async (member) => {
+  if (!hostedPilot.allows(member.guild.id)) return;
   try {
     await handleMemberLeave(member.guild, member);
   } catch (error) {
@@ -322,16 +332,16 @@ client.on(Events.GuildMemberRemove, async (member) => {
   }
 });
 
-client.on(Events.MessageCreate, message => { void participationTracker.message(message).catch(reportJobError("Participation messages")); });
-client.on(Events.MessageReactionAdd, (reaction, user) => { void participationTracker.reaction(reaction, user).catch(reportJobError("Participation reactions")); });
-client.on(Events.MessageDelete, message => { void participationTracker.deleted(message).catch(reportJobError("Participation deleted message")); });
-client.on(Events.MessageBulkDelete, messages => { void (async () => { for (const message of messages.values()) await participationTracker.deleted(message); })().catch(reportJobError("Participation deleted messages")); });
-client.on(Events.VoiceStateUpdate, (_before, after) => { void participationTracker.sampleVoice(after.guild).catch(reportJobError("Participation voice change")); });
-client.on(Events.GuildMemberUpdate, (_before, after) => { void participationTracker.sampleVoice(after.guild).catch(reportJobError("Participation eligibility change")); });
-client.on(Events.GuildMemberRemove, member => { void participationTracker.sampleVoice(member.guild).catch(reportJobError("Participation member left")); });
-client.on(Events.GuildRoleUpdate, (_before, role) => { void participationTracker.sampleVoice(role.guild).catch(reportJobError("Participation role permissions")); });
-client.on(Events.ChannelUpdate, (_before, channel) => { if ("guild" in channel) void participationTracker.sampleVoice(channel.guild).catch(reportJobError("Participation channel permissions")); });
-client.on(Events.GuildUpdate, (_before, guild) => { void participationTracker.sampleVoice(guild).catch(reportJobError("Participation guild settings")); });
+client.on(Events.MessageCreate, message => { if (message.guildId && hostedPilot.allows(message.guildId)) void participationTracker.message(message).catch(reportJobError("Participation messages")); });
+client.on(Events.MessageReactionAdd, (reaction, user) => { if (reaction.message.guildId && hostedPilot.allows(reaction.message.guildId)) void participationTracker.reaction(reaction, user).catch(reportJobError("Participation reactions")); });
+client.on(Events.MessageDelete, message => { if (message.guildId && hostedPilot.allows(message.guildId)) void participationTracker.deleted(message).catch(reportJobError("Participation deleted message")); });
+client.on(Events.MessageBulkDelete, messages => { void (async () => { for (const message of messages.values()) if (message.guildId && hostedPilot.allows(message.guildId)) await participationTracker.deleted(message); })().catch(reportJobError("Participation deleted messages")); });
+client.on(Events.VoiceStateUpdate, (_before, after) => { if (hostedPilot.allows(after.guild.id)) void participationTracker.sampleVoice(after.guild).catch(reportJobError("Participation voice change")); });
+client.on(Events.GuildMemberUpdate, (_before, after) => { if (hostedPilot.allows(after.guild.id)) void participationTracker.sampleVoice(after.guild).catch(reportJobError("Participation eligibility change")); });
+client.on(Events.GuildMemberRemove, member => { if (hostedPilot.allows(member.guild.id)) void participationTracker.sampleVoice(member.guild).catch(reportJobError("Participation member left")); });
+client.on(Events.GuildRoleUpdate, (_before, role) => { if (hostedPilot.allows(role.guild.id)) void participationTracker.sampleVoice(role.guild).catch(reportJobError("Participation role permissions")); });
+client.on(Events.ChannelUpdate, (_before, channel) => { if ("guild" in channel && hostedPilot.allows(channel.guild.id)) void participationTracker.sampleVoice(channel.guild).catch(reportJobError("Participation channel permissions")); });
+client.on(Events.GuildUpdate, (_before, guild) => { if (hostedPilot.allows(guild.id)) void participationTracker.sampleVoice(guild).catch(reportJobError("Participation guild settings")); });
 client.on(Events.GuildUnavailable, guild => participationTracker.reset(guild.id));
 client.on(Events.ShardDisconnect, () => participationTracker.reset());
 client.on(Events.ShardReconnecting, () => participationTracker.reset());
@@ -339,6 +349,7 @@ client.on(Events.ShardResume, () => participationTracker.reset());
 // The answer channel (5.0): only when the bot may read message text.
 if (config.MESSAGE_CONTENT_INTENT) {
   client.on(Events.MessageCreate, (message) => {
+    if (!message.guildId || !hostedPilot.allows(message.guildId)) return;
     void answerMessage(message, answerCommandList).catch((error: unknown) => {
       console.warn("Answer channel failed", error);
       void errorReportService.report(client, error, { source: "Answer channel", guildId: message.guildId, guildName: message.guild?.name, userId: message.author.id });
@@ -347,6 +358,11 @@ if (config.MESSAGE_CONTENT_INTENT) {
 }
 
 client.on(Events.InteractionCreate, async (interaction) => {
+  if (interaction.guildId && !hostedPilot.allows(interaction.guildId)) {
+    if (interaction.isAutocomplete()) await interaction.respond([]).catch(() => undefined);
+    else if (interaction.isRepliable()) await interaction.reply({ content: PILOT_DENIED, ephemeral: true }).catch(() => undefined);
+    return;
+  }
   if ((interaction.isButton() || interaction.isModalSubmit() || interaction.isUserSelectMenu() || interaction.isStringSelectMenu()) && interaction.customId.startsWith(COMMUNITY_PREFIX)) {
     try {
       if (interaction.customId.startsWith(COMMUNITY_HUB_PREFIX)) await handleCommunityHub(interaction);
@@ -527,6 +543,7 @@ async function registerCommands(guildId: string): Promise<void> {
 async function registerCommandsEverywhere(): Promise<void> {
   const guildIds = new Set<string>([config.DISCORD_GUILD_ID, ...client.guilds.cache.keys()]);
   for (const guildId of guildIds) {
+    if (!hostedPilot.allows(guildId)) continue;
     await registerCommands(guildId).catch((error: unknown) => console.warn(`Command registration failed for guild ${guildId}`, error));
   }
 }

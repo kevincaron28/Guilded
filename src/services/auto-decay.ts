@@ -1,3 +1,4 @@
+import { pilotGuildScope } from "../hosted-pilot.js";
 import type { PrismaClient } from "@prisma/client";
 import { createEpgpService } from "./epgp.js";
 import { effectiveRules } from "./core-rules.js";
@@ -9,7 +10,7 @@ import { weekStart } from "./dungeon-rules.js";
 // that week, so a failed run is simply tried again next hour and can never decay twice.
 export async function runAutoDecay(database: PrismaClient, now = new Date()): Promise<number> {
   const reset = weekStart(now);
-  const due = await database.guildSettings.findMany({ where: { autoDecay: true } });
+  const due = await database.guildSettings.findMany({ where: { ...pilotGuildScope, autoDecay: true } });
   const epgp = createEpgpService(database);
   let decayed = 0;
   for (const settings of due) {

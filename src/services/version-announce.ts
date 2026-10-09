@@ -1,3 +1,4 @@
+import { pilotGuildScope } from "../hosted-pilot.js";
 import { readFileSync } from "node:fs";
 import type { Client } from "discord.js";
 import { prisma } from "../database.js";
@@ -17,7 +18,7 @@ const NOTICE = {
 // every reconnect (same pattern as runWeeklyReports in commands/stats.ts).
 export async function announceVersionUpdates(client: Client, currentVersion = CURRENT_VERSION): Promise<number> {
   const pending = await prisma.guildSettings.findMany({
-    where: { guideChannelId: { not: null }, lastAnnouncedVersion: { not: currentVersion } },
+    where: { ...pilotGuildScope, guideChannelId: { not: null }, lastAnnouncedVersion: { not: currentVersion } },
     include: { guild: true }
   });
   let posted = 0;

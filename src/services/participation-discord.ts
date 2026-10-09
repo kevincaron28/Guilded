@@ -88,6 +88,12 @@ export function createParticipationTracker(database: PrismaClient, contentAvaila
       const work = async () => {
         if (capturedGeneration !== generation || epoch !== (epochs.get(guild.id) ?? 0)) return;
         if (!available) { voices.delete(guild.id); return; }
+        // No potential pair and no interval left to settle: idle guilds need no database read.
+        // Keep the last occupied interval when a pair breaks up; settle it once below.
+        const possible = eligibleVoiceUsers(states.filter(state => state.channelId).map(state => ({
+          id: state.id, channelId: state.channelId!, deaf: state.deaf, eligible: !state.bot && state.connect
+        })), null, afkId);
+        if (!possible.size && !voices.get(guild.id)?.users.size) { voices.delete(guild.id); return; }
         const cfg = await load(guild);
         if (capturedGeneration !== generation || epoch !== (epochs.get(guild.id) ?? 0)) return;
         if (!cfg) { voices.delete(guild.id); return; }

@@ -1,3 +1,4 @@
+import { hostedPilot } from "../hosted-pilot.js";
 import type { Client } from "discord.js";
 import type { PrismaClient } from "@prisma/client";
 import { hasPermission } from "../permissions.js";
@@ -7,7 +8,7 @@ import { parseAddonSnapshot, type AddonSnapshot } from "../integrations/addon.js
 // A credential is revocable and scoped to one active Discord member in one guild.
 // Never accept the old server-wide upload token as member authorization.
 export async function companionAccess(database: PrismaClient, client: Client | undefined, guildId: string, discordId: string, secret: string) {
-  if (!client || secret.length < 32 || secret.length > 256) return null;
+  if (!hostedPilot.allows(discordId) || !client || secret.length < 32 || secret.length > 256) return null;
   const credential = await database.companionCredential.findFirst({
     where: { tokenHash: hashCompanionSecret(secret), revokedAt: null, member: { guildId, status: "ACTIVE" } },
     select: { memberId: true, member: { select: { discordUserId: true } } }

@@ -33,5 +33,6 @@ export async function runRetention(database: Db, now = new Date()): Promise<{ im
       AND EXISTS (SELECT 1 FROM "InspectedCharacterSnapshot" newer
                   WHERE newer."characterId" = old."characterId" AND newer."inspectedAt" > old."inspectedAt")`;
   const errors = await database.errorReport.deleteMany({ where: { createdAt: { lt: before(RETENTION.errorReportDays) } } });
+  await database.$executeRaw`DELETE FROM "AiDailyUsage" WHERE "day" < ${before(90).toISOString().slice(0, 10)}`;
   return { imports: imports.count, snapshots, errors: errors.count };
 }

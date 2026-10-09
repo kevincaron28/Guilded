@@ -1,3 +1,5 @@
+import { hostedPilot } from "../hosted-pilot.js";
+import { PILOT_DENIED } from "./pilot-policy.js";
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, StringSelectMenuBuilder,
   type ButtonInteraction, type Client, type Guild as DiscordGuild, type GuildMember, type GuildTextBasedChannel,
@@ -151,6 +153,7 @@ export function rulesPrompt(settings: Pick<GuildSettings, "rulesChannelId">, dis
 export async function handleOnboardingInteraction(interaction: ButtonInteraction | StringSelectMenuInteraction): Promise<void> {
   const [action, discordGuildId] = interaction.customId.slice(ONBOARD_PREFIX.length).split(":") as [Action, string | undefined];
   if (!discordGuildId) return;
+  if (!hostedPilot.allows(discordGuildId)) { await interaction.reply({ content: PILOT_DENIED, ephemeral: true }); return; }
   const discordGuild = interaction.guild?.id === discordGuildId
     ? interaction.guild
     : await interaction.client.guilds.fetch(discordGuildId).catch(() => null);
@@ -271,6 +274,7 @@ export async function handleOnboardingInteraction(interaction: ButtonInteraction
 export async function runOnboardingNudges(client: Client, now = new Date()): Promise<number> {
   let sent = 0;
   for (const discordGuild of client.guilds.cache.values()) {
+    if (!hostedPilot.allows(discordGuild.id)) continue;
     const guild = await guildService.ensureGuild(discordGuild.id, discordGuild.name);
     const settings = await guildService.getSettings(guild.id);
     if (!settings?.onboardingNudge) continue;

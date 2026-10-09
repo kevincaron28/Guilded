@@ -12,6 +12,8 @@ function check(ok: boolean, label: string, fix: string) {
 check(Number(process.versions.node.split(".")[0]) >= 24, "Node.js 24 or newer", "Install Node.js 24 (release baseline).");
 try {
   const { config } = await import("../src/config.js");
+  const { hostedPilot } = await import("../src/hosted-pilot.js");
+  if (hostedPilot.enabled) console.log(`PASS Hosted pilot approvals valid (${hostedPilot.guildIds.length}/${config.HOSTED_GUILD_LIMIT} servers)`);
   check(!/^(placeholder|your[_ -]|replace|changeme)/i.test(config.DISCORD_TOKEN), "Bot token supplied", "Enter your own application's token locally in .env.local.");
   for (const key of ["DISCORD_CLIENT_ID", "DISCORD_GUILD_ID"] as const) {
     check(/^\d{17,20}$/.test(config[key]), key, "Copy the numeric application/server ID from Discord.");

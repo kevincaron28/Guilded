@@ -1,3 +1,4 @@
+import { pilotGuildScope } from "../hosted-pilot.js";
 import type { Client } from "discord.js";
 import type { PrismaClient } from "@prisma/client";
 import { asLang, t } from "../i18n.js";
@@ -15,7 +16,7 @@ export function isReminderDue(input: { now: Date; scheduledAt: Date; minutes: nu
 // window passed while the bot was offline simply gets no reminder.
 export async function runRaidReminders(client: Client, database: PrismaClient, now = new Date()): Promise<number> {
   const raids = await database.raid.findMany({
-    where: { status: "PLANNED", reminderSentAt: null, scheduledAt: { gt: now, lte: new Date(now.getTime() + 24 * 3_600_000) } },
+    where: { ...pilotGuildScope, status: "PLANNED", reminderSentAt: null, scheduledAt: { gt: now, lte: new Date(now.getTime() + 24 * 3_600_000) } },
     include: {
       guild: { include: { settings: true } },
       signups: { where: { status: "SIGNED_UP" }, include: { member: true } }

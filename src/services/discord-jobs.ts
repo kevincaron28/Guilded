@@ -1,3 +1,4 @@
+import { pilotGuildScope } from "../hosted-pilot.js";
 import { randomUUID } from "node:crypto";
 import type { DiscordJob, Prisma, PrismaClient } from "@prisma/client";
 import { EmbedBuilder, type Client, type Guild, type MessageCreateOptions } from "discord.js";
@@ -131,7 +132,7 @@ export async function runDiscordJobs(client: Client): Promise<void> {
   running = true;
   try {
     const now = new Date();
-    const jobs = await prisma.discordJob.findMany({ where: available(now), orderBy: { nextAttemptAt: "asc" }, take: 25, include: { guild: { select: { discordId: true } } } });
+    const jobs = await prisma.discordJob.findMany({ where: { ...available(now), ...pilotGuildScope }, orderBy: { nextAttemptAt: "asc" }, take: 25, include: { guild: { select: { discordId: true } } } });
     for (const job of jobs) await deliverDiscordJob(prisma, job.id, async current => {
       const guild = await client.guilds.fetch(job.guild.discordId);
       await dispatchDiscordJob(guild, current);

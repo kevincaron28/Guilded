@@ -19,6 +19,7 @@ import { selfRolesCommand, executeSelfRoles } from "./selfroles.js";
 import { whoCommand, executeWho } from "./who.js";
 import { wclCommand, executeWcl } from "./wcl.js";
 import { coreCommand } from "./core.js";
+import { teamCommand } from "./team.js";
 import { inactiveCommand, executeInactive } from "./inactive.js";
 import { exportCommand, executeExport } from "./export.js";
 import { guildHealthCommand, executeGuildHealth } from "./guild-health.js";
@@ -97,7 +98,7 @@ const community = new MergedCommand("community", "Gaming nights, lotteries, chal
 export const commands: AnyCommand[] = [
   setup, configCommand, helpCommand, profileCommand, character, raid, epgpCommand, lootCommand, dungeon, craftCommand,
   bankCommand, applyCommand, pollCommand, report, mod, coreCommand, tagCommand, importer, uninstallCommand, systemCommand,
-  community, poeCommand, participationCommand
+  community, poeCommand, participationCommand, teamCommand
 ];
 
 const commandNames = commands.map((command) => command.name);

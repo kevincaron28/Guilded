@@ -22,6 +22,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/bank request` — ask the guild bank · `/craft request` — ask a crafter",
       "`/dungeon leaderboard` · `/dungeon records` · `/dungeon player` — dungeon challenge · `/dungeon group` — form a group with its own voice channel · `/dungeon alerts` — get pinged for groups you fit",
       "`/character readiness me` — your latest gear check from the addon",
+      "`/team list` · `/team sessions` · `/team respond` — weekly dungeon and PvP cores; confirm for each session",
       "`/apply` — apply to a raid core (or press **Apply** on that core's own roster post in the raid roster channel)",
       "`/report bug` — report a bug or problem with the bot",
       "`/community seasons` · `/community leaderboard` · `/community wallet` · `/community dice` — game seasons, scores and daily dice",
@@ -41,6 +42,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/bank request` — demander à la banque de guilde · `/craft request` — demander à un artisan",
       "`/dungeon leaderboard` · `/dungeon records` · `/dungeon player` — défi des donjons · `/dungeon group` — former un groupe avec son salon vocal · `/dungeon alerts` — être mentionné pour les groupes qui vous conviennent",
       "`/character readiness me` — votre dernière vérification d'équipement (addon)",
+      "`/team list` · `/team sessions` · `/team respond` — cores hebdomadaires de donjon et JcJ; confirmez chaque séance",
       "`/apply` — postuler à un core de raid (ou appuyez sur **Postuler** sur le message du core dans le salon des cores de raid)",
       "`/report bug` — signaler un bug ou un problème avec le bot",
       "`/community seasons` · `/community leaderboard` · `/community wallet` · `/community dice` — saisons, classements et dé quotidien",
@@ -57,7 +59,8 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/raid season` · `/raid history` — officers: attendance over a season, per raid and per player",
       "`/core setup` raid nights: `Tuesday 8pm; Thursday 8pm` — creates only the next 6 days automatically; change or pause in `/core edit` → 📅",
       "`/core setup` — guided raid core (name, players, rules) · `/core add` · `/core remove` · `/core character` (the character or backup characters a player brings; one player can be in several cores) · members join with the roster's Apply button · `/raid create core:` (priority signups)",
-      "`/character readiness raid` — who's ready for tonight"
+      "`/character readiness raid` — who's ready for tonight",
+      "`/team create` · `/team member` · `/team schedule` · `/team lineup` · `/team attendance` — manage weekly dungeon/PvP teams"
     ],
     fr: [
       "`/raid create` (heures comme `vendredi 20h`) · `/raid edit` · `/raid start` · `/raid end` (propose les EP à approuver)",
@@ -65,7 +68,8 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/raid season` · `/raid history` — officiers : présences sur une saison, par raid et par joueur",
       "`/core setup`, horaire : `mardi 20h; jeudi 20h` — raids automatiques pour les 6 prochains jours; ajuste ou arrête dans `/core edit` → 📅",
       "`/core setup` — noyau de raid guidé (nom, joueurs, règles) · `/core add` · `/core remove` · `/core character` (le personnage ou les personnages de secours d'un joueur ; plusieurs noyaux possibles) · les membres postulent avec le bouton du roster · `/raid create core:` (inscription prioritaire)",
-      "`/character readiness raid` — qui est prêt pour ce soir"
+      "`/character readiness raid` — qui est prêt pour ce soir",
+      "`/team create` · `/team member` · `/team schedule` · `/team lineup` · `/team attendance` — gérer les cores de donjon/JcJ"
     ]
   },
   dkpOfficer: {

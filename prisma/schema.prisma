@@ -120,6 +120,7 @@ enum ApplicationStatus {
 }
 
 model Guild {
+  activityCores       ActivityCore[]
   id                  String                    @id @default(cuid())
   discordId           String                    @unique
   name                String
@@ -376,6 +377,8 @@ model CommunityParticipationDeletion {
 
 
 model Member {
+  activityCoreSpots   ActivityCoreMember[]
+  activityResponses  ActivityResponse[]
   id                  String                       @id @default(cuid())
   guildId             String
   discordUserId       String
@@ -417,6 +420,8 @@ model Member {
 }
 
 model Character {
+  activityCoreSpots   ActivityCoreMember[]
+  activityResponses  ActivityResponse[]
   id                 String                       @id @default(cuid())
   memberId           String
   name               String
@@ -1609,4 +1614,79 @@ model CompanionCredential {
   member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@index([memberId, revokedAt])
+}
+
+// Weekly dungeon/PvP teams deliberately have no loot or point-pool relations.
+model ActivityCore {
+  id              String @id @default(cuid())
+  guildId         String
+  name            String
+  nameKey         String
+  kind            String
+  goal            String?
+  channelId       String
+  rosterMessageId String?
+  weeklySchedule  String?
+  timezone        String
+  durationMinutes Int @default(120)
+  tanks           Int
+  healers         Int
+  dps             Int
+  archived        Boolean @default(false)
+  createdAt       DateTime @default(now())
+  guild           Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  members         ActivityCoreMember[]
+  sessions        ActivitySession[]
+
+  @@unique([guildId, nameKey])
+  @@index([guildId, archived])
+}
+
+model ActivityCoreMember {
+  coreId      String
+  memberId    String
+  characterId String?
+  role        RaidRole
+  bench       Boolean @default(false)
+  core        ActivityCore @relation(fields: [coreId], references: [id], onDelete: Cascade)
+  member      Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  character   Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
+
+  @@id([coreId, memberId])
+}
+
+model ActivitySession {
+  id              String @id @default(cuid())
+  coreId          String
+  occurrence      String
+  scheduledAt     DateTime
+  endsAt          DateTime
+  status          RaidStatus @default(PLANNED)
+  openRecruitment Boolean @default(false)
+  messageId       String?
+  reminderQueued  Boolean @default(false)
+  result          String?
+  createdAt       DateTime @default(now())
+  core            ActivityCore @relation(fields: [coreId], references: [id], onDelete: Cascade)
+  responses       ActivityResponse[]
+
+  @@unique([coreId, occurrence])
+  @@index([status, scheduledAt])
+}
+
+model ActivityResponse {
+  sessionId   String
+  memberId    String
+  characterId String?
+  role        RaidRole
+  status      String
+  attendance  RaidAttendanceStatus?
+  lineupOverride String?
+  respondedAt DateTime @default(now())
+  session     ActivitySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  member      Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  character   Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
+
+  @@id([sessionId, memberId])
+  @@index([memberId, status])
 }

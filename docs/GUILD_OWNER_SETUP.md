@@ -1,5 +1,9 @@
 # Guilded: set up your own guild
 
+**Prefer to add the existing bot without hosting? [Join the hosted pilot](HOSTED_PILOT.md).**
+KCaron must approve your server before it works. After approval, start at
+`/setup start`; you do not need the infrastructure steps below.
+
 **First time hosting anything?** Use the [illustrated beginner walkthrough](OWNER_WALKTHROUGH.md)
 for Discord and Oracle signup links, screenshots, commands and success checks.
 This page is the shorter technical reference.

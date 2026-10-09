@@ -16,8 +16,9 @@ roles and request limits. No database binding, bot token or global upload creden
 is placed in Cloudflare. The Discord bot keeps running on Oracle.
 
 The landing page's Quebec Gold link is relative. The proxied companion adds a
-Website & guides link. Other guilds with independent bots continue using their
-own addresses; this change does not establish a public shared-bot pilot.
+Website & guides link. Approved hosted pilot guilds also use this companion with their own Discord
+server ID and personal pairing. KCaron must approve each server first; see
+[HOSTED_PILOT.md](HOSTED_PILOT.md). Independently hosted guilds use their own addresses.
 
 Browser sessions are stored per origin. Members opening this address for the
 first time need their own new `/character pair` or `/poe pair` code. Pairing a

@@ -1,5 +1,10 @@
 # Set up Guilded for your guild, from scratch
 
+**For the hosted bot, use [the approval-required pilot](HOSTED_PILOT.md) instead.**
+Invite Guilded, wait for KCaron's approval, then run `/setup start`. No hosting or
+database account is needed for approved pilot guilds. This walkthrough is for
+owners who choose to host independently.
+
 You do not need to write code. You will create a few accounts, choose settings,
 and paste commands into a server window. Keep this guide open on your Windows PC.
 For an existing installation, use the release update guide instead.

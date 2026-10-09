@@ -1,7 +1,12 @@
 # Guilded 6.0.0: quick setup
 
 Choose your path first. The addon works alone; Discord synchronization adds a
-companion and a bot that one guild owner hosts.
+companion and either the approved hosted bot or your independently hosted bot.
+
+**Want to add the existing Guilded bot? [Request hosted pilot access](HOSTED_PILOT.md).**
+KCaron must approve your Discord server first. Invite, wait for approval, then
+run `/setup start` and pair with the online companion. This free pilot accepts
+only a small number of guilds; no hosting accounts are needed for approved guilds.
 
 New to hosting? Open the [illustrated owner walkthrough](OWNER_WALKTHROUGH.md)
 for account links, Discord/Oracle screenshots and copyable commands.
@@ -10,6 +15,7 @@ for account links, Discord/Oracle screenshots and copyable commands.
 | --- | --- | --- |
 | Addon-only player | `Guilded-v6.0.0.zip` | 5–10 minutes |
 | Member of a configured guild | Addon + online companion webpage (default) | 10–15 minutes |
+| Owner joining the hosted pilot | Addon + hosted bot invitation + online companion | Owner approval first; setup time depends on your server |
 | Owner setting up Discord sync | Matching bot source + addon + companion | About 30 minutes **after infrastructure is ready** |
 
 These are planning estimates, not measured acceptance results. Public release

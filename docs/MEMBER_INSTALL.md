@@ -1,7 +1,20 @@
 # Guilded: install and connect
 
 For guildmates using **WoW Forever**, including the beta client. You do not need
-Node.js, a database, or a Discord bot token. Your guild owner runs the bot.
+Node.js, a database, or a Discord bot token.
+
+## Want the bot for your guild?
+
+**[Add Guilded — request owner approval](https://discord.com/oauth2/authorize?client_id=1552633893587394590&scope=bot+applications.commands&integration_type=0&permissions=2269718703631440)**
+
+KCaron is accepting a small number of guilds into the free hosted pilot.
+**Your Discord server needs KCaron's approval first.** Inviting the bot sends
+a request; it does not activate access. After approval, run `/setup start`, then
+open the [online companion](https://guilded-wow.kcaron.workers.dev/companion/)
+with your own Discord server ID and personal `/character pair` code.
+You do not need to host a bot or database for this path.
+See the [hosted pilot guide](HOSTED_PILOT.md). Independent hosting is also available.
+Any [financial support](SUPPORT_GUILDED.md) is optional and never buys approval.
 
 ## Get your guild's links
 
@@ -144,6 +157,11 @@ for every missing dot. If it persists, provide both map-check outputs and say
 whether ordinary guild chat arrives.
 
 ## Mise en route rapide en français
+
+Pour ajouter le bot à votre guilde, utilisez le lien **Add Guilded** ci-dessus.
+**L'approbation de KCaron est obligatoire avant l'activation du serveur.**
+Après son accord, lancez `/setup start`. Le pilote hébergé est gratuit; tout
+soutien financier est facultatif et ne donne aucune priorité.
 
 1. Demandez à un officier les liens de téléchargement, l'adresse du bot et
    l'identifiant du serveur Discord de **votre guilde**.

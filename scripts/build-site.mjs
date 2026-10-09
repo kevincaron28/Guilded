@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync, mkdirSync, copyFileSync, cpSync, existsSyn
 import { dirname, posix } from "node:path";
 import { marked } from "marked";
 
-const guides = ["HOSTED_PILOT", "OWNER_WALKTHROUGH", "QUICK_START", "MEMBER_INSTALL", "GUILD_OWNER_SETUP", "DEPLOY_ORACLE", "AI_SETUP_HELP", "ONLINE_COMPANION_CHECK"];
+const guides = ["HOSTED_PILOT", "SUPPORT_GUILDED", "OWNER_WALKTHROUGH", "QUICK_START", "MEMBER_INSTALL", "GUILD_OWNER_SETUP", "DEPLOY_ORACLE", "AI_SETUP_HELP", "ONLINE_COMPANION_CHECK"];
 const sources = new Set(guides.map(name => `docs/${name}.md`));
 const out = "dist/site";
 mkdirSync(`${out}/docs`, { recursive: true });
@@ -25,6 +25,6 @@ for (const source of sources) {
     const slug = content.replace(/<[^>]*>/g, "").toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, "").replace(/\s+/g, "-");
     return `<h${level} id="${slug}">${content}</h${level}>`;
   });
-  writeFileSync(`${out}/${source.replace(/\.md$/, ".html")}`, `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escape(title)} · Guilded</title><link rel="stylesheet" href="../style.css"><script src="../site.js" defer></script></head><body><a class="skip" href="#main">Skip to content</a><header><a class="brand" href="../index.html"><img src="../logo.png" alt="" width="44" height="44">GUILDED</a><nav aria-label="Main"><a href="../index.html#downloads">Downloads</a><a href="OWNER_WALKTHROUGH.html">Owner guide</a><a href="../index.html#online">Online companion</a></nav></header><main class="guide" id="main">${body}</main><footer><a href="../index.html">← Back to Guilded</a><span>Guide checked 5 October 2026 · Guilded 6.0.0 Release</span></footer></body></html>`);
+  writeFileSync(`${out}/${source.replace(/\.md$/, ".html")}`, `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escape(title)} · Guilded</title><link rel="stylesheet" href="../style.css"><script src="../site.js" defer></script></head><body><a class="skip" href="#main">Skip to content</a><header><a class="brand" href="../index.html"><img src="../logo.png" alt="" width="44" height="44">GUILDED</a><nav aria-label="Main"><a href="../index.html#downloads">Downloads</a><a href="HOSTED_PILOT.html">Add the bot</a><a href="SUPPORT_GUILDED.html">Support</a><a href="../index.html#online">Online companion</a></nav></header><main class="guide" id="main">${body}</main><footer><a href="../index.html">← Back to Guilded</a><span>Pilot setup updated 9 October 2026 · Guilded 6.0.0 Release</span></footer></body></html>`);
 }
 console.log(`Built ${out}: landing page and ${sources.size} illustrated guides. No deployment performed.`);

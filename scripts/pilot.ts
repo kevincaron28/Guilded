@@ -1,7 +1,7 @@
 // Owner-only local administration. Never starts a Discord client or prints credentials.
 import { readFile, writeFile, rename, rm, stat, chown } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import { editPilotApprovals, pilotFilePolicy, pilotInvite } from "../src/services/pilot-admin.js";
+import { editPilotApprovals, pilotFilePolicy, pilotInvite, pilotRequestInvite } from "../src/services/pilot-admin.js";
 
 const [action = "status", guildId] = process.argv.slice(2);
 const path = ".env.local";
@@ -20,10 +20,11 @@ try {
     } finally { await rm(temp, { force: true }); }
     source = next;
     console.log("Saved pilot approvals. Restart the existing server service before using an invite. Do not start a second bot.");
-  } else if (!["status", "invite"].includes(action)) throw new Error("Use: npm run pilot -- status | enable | approve SERVER_ID | revoke SERVER_ID | invite SERVER_ID");
+  } else if (!["status", "invite", "request-link"].includes(action)) throw new Error("Use: npm run pilot -- status | enable | approve SERVER_ID | revoke SERVER_ID | invite SERVER_ID | request-link");
   const policy = pilotFilePolicy(source);
   console.log(`Hosted pilot: ${policy.enabled ? "enabled" : "disabled"}. Approved servers: ${policy.guildIds.join(", ")}`);
   if (action === "invite") console.log(pilotInvite(source, guildId ?? ""));
+  if (action === "request-link") console.log(pilotRequestInvite(source));
 } catch (error) {
   console.error(error instanceof Error ? error.message : "Pilot configuration could not be updated.");
   process.exitCode = 1;

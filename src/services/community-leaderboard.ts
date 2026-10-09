@@ -118,7 +118,7 @@ export async function updateCommunityLeaderboard(rest: REST, database: PrismaCli
   // A hub-hosted season is eligible only when its visibility matches the podium.
   const season = await database.communitySeason.findFirst({ where: { guildId: record.id, channelId: hub ? { in: [channel.id, hub.id] } : channel.id, game: "DISCORD", audienceRoleId: null }, orderBy: [{ status: "asc" }, { createdAt: "desc" }, { id: "desc" }] });
   const board = season ? season.status === "ENDED" ? (season.finalStandings ?? []) as unknown as Standing[]
-    : standings(await database.communityPoint.findMany({ where: { seasonId: season.id } })) : [];
+    : standings(await database.communityPoint.findMany({ where: { seasonId: season.id }, select: { userId: true, kind: true, amount: true } })) : [];
   // Embed mentions depend on each reader's client cache. Render actual names so
   // uncached and departed members remain readable, without pinging anyone.
   const names = new Map<string, string>();

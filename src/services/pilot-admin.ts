@@ -29,8 +29,18 @@ export function editPilotApprovals(source: string, action: "enable" | "approve" 
 }
 
 export function pilotInvite(source: string, guildId: string): string {
-  const policy = pilotFilePolicy(source), appId = parse(source)["DISCORD_CLIENT_ID"] ?? "";
+  const policy = pilotFilePolicy(source);
   if (!policy.enabled || !policy.allows(guildId)) throw new Error("Approve this server before generating its invitation.");
+  return invitation(source, guildId);
+}
+
+export function pilotRequestInvite(source: string): string {
+  if (!pilotFilePolicy(source).enabled) throw new Error("Enable the hosted pilot first.");
+  return invitation(source);
+}
+
+function invitation(source: string, guildId?: string): string {
+  const appId = parse(source)["DISCORD_CLIENT_ID"] ?? "";
   if (!/^\d{17,20}$/.test(appId)) throw new Error("DISCORD_CLIENT_ID must be a Discord application ID.");
   const permissions = new PermissionsBitField([
     PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks,
@@ -41,6 +51,6 @@ export function pilotInvite(source: string, guildId: string): string {
   ]);
   const url = new URL("https://discord.com/oauth2/authorize");
   url.search = new URLSearchParams({ client_id: appId, scope: "bot applications.commands", integration_type: "0",
-    permissions: permissions.bitfield.toString(), guild_id: guildId, disable_guild_select: "true" }).toString();
+    permissions: permissions.bitfield.toString(), ...(guildId ? { guild_id: guildId, disable_guild_select: "true" } : {}) }).toString();
   return url.toString();
 }

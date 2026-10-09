@@ -5,9 +5,16 @@ does not need to download the bot, create a database, or keep a computer running
 Admission is by the Guilded owner's approval for each Discord server. This is a
 small pilot, initially limited to five servers including the owner's server.
 
+**[Add Guilded — request owner approval](https://discord.com/oauth2/authorize?client_id=1552633893587394590&scope=bot+applications.commands&integration_type=0&permissions=2269718703631440)**
+
+The pilot is open for a small number of guilds. **KCaron must approve your server
+before the hosted bot works there.** Adding the bot sends a request; it does not
+guarantee a place or immediate access. Please wait for approval before setup.
+The hosted pilot is free. Optional support never buys approval or priority.
+
 ## Joining with your guild
 
-1. Ask the Guilded owner for the pilot request invitation. Open it as a server
+1. Open the **Add Guilded — request owner approval** link above as a server
    owner or someone allowed to manage your server.
 2. Guilded waits with access disabled and sends its application owner a private
    Discord message with **Approve** and **Block** buttons. Wait for approval.
@@ -18,7 +25,7 @@ small pilot, initially limited to five servers including the owner's server.
 4. Members can use community activities and polls immediately; they do not need
    linked WoW characters for those features.
 5. For WoW features, install the addon. The owner provides the shared browser
-   companion address. Enter **your own Discord server ID**, then use your personal
+   [online companion](https://guilded-wow.kcaron.workers.dev/companion/). Enter **your own Discord server ID**, then use your personal
    `/character pair` code. Every member pairs separately. The desktop companion is
    optional; see the [member guide](MEMBER_INSTALL.md).
 
@@ -110,6 +117,16 @@ Guild records are retained so an accidental revocation is recoverable. This is
 not a data deletion command. Keep the current server environment when deploying;
 approval changes made only in a local checkout do not update Oracle.
 
+### Pilot rollout and optional support
+
+Start by approving only a couple of additional guilds. The five-server cap
+includes the owner's server and any approved test server; it is a safety ceiling,
+not a target that must be filled. Check each guild's setup, pairing and activity
+before approving the next one. No guild is approved automatically.
+
+[Support Guilded](SUPPORT_GUILDED.md) explains voluntary support. Donations do
+not unlock the addon, hosted approval, extra permissions or a guaranteed uptime.
+
 `AI_GLOBAL_DAILY_LIMIT` caps attempts across the whole host; `AI_DAILY_LIMIT`
 caps attempts per guild. Either can be zero to stop provider requests. These are
 request limits, not a currency guarantee: configure provider-side billing limits
@@ -123,7 +140,10 @@ redundant keepalive. Completed delivery cleanup now runs with six-hour retention
 instead of every minute (four scheduled checks/day instead of 1,440). Leaderboards
 fetch only the three point fields they need. Admission decisions use local files,
 not database polling. **Scheduled jobs still query the database every minute.**
-Do not assume Neon can sleep or that a shared bot will fit a free compute tier.
+Production moved from Neon to Aiven Free on 9 October 2026. See the
+[migration record](AIVEN_MIGRATION.md). Aiven avoids a monthly compute-hour budget,
+but its storage, memory and connection limits still require monitoring.
+Do not assume a shared bot can grow indefinitely on free hosting.
 Before adding more guilds, measure database compute, storage, server memory and
 AI usage in the existing provider dashboards. Keep the pilot bounded until a full
 activity cycle has been observed. Removing FAQ alone would not fix always-active

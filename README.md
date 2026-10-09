@@ -7,7 +7,7 @@ Free for noncommercial use ([license](LICENSE)).
 | Part | What it does | Where |
 | --- | --- | --- |
 | **Addon** | Raids, attendance, EPGP, four loot systems (GP bids, loot council, soft reserves, EPGP priority), recipes and cooldowns, the guild calendar, gear and consumable checks, a live Ready page, roll games, a friendly window (gold coin on the minimap). Works alone, no Discord needed. | `addon/Guilded/` |
-| **Discord bot** (optional, self-hosted, free) | Raid signups with roles and waitlist, raid cores with a bench and their own loot system and item prices, weekly raids, EPGP standings, loot log, soft reserves, who can craft what, guild calendar sync, dungeon challenge, craft board, readiness board, polls, Warcraft Logs, applications, moderation helpers. | `src/` |
+| **Discord bot** (optional, approval-required hosted pilot or independent hosting) | Raid signups with roles and waitlist, raid cores with a bench and their own loot system and item prices, weekly raids, EPGP standings, loot log, soft reserves, who can craft what, guild calendar sync, dungeon challenge, craft board, readiness board, polls, Warcraft Logs, applications, moderation helpers. | `src/` |
 | **Online companion** (default for Discord sync) | Webpage that remembers your pairing/folders and uploads data and returns standings when you click Sync now. | `companion/`, `companion-app/renderer/` |
 | **Windows companion** (optional, useful for leaders/officers) | Tray app that sends the addon's saved data to the bot after each `/reload` or logout and writes standings back into the game. | `companion-app/`, `companion/` |
 
@@ -19,6 +19,7 @@ What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 - **Guildmates or addon-only players:** follow [the member install guide](docs/MEMBER_INSTALL.md).
   Install into the client you actually play (Forever beta uses `_classic_beta_` in the tested
   installation), then connect with your guild's bot address and your own pairing code if needed.
+- **Add the hosted bot:** [request pilot access](docs/HOSTED_PILOT.md). KCaron must approve your Discord server first. Then run `/setup start`; no hosting or database account needed. Optional [support](docs/SUPPORT_GUILDED.md) never buys approval.
 - **Run your own guild's bot:** follow [the illustrated beginner walkthrough](docs/OWNER_WALKTHROUGH.md), with Discord and Oracle account links, screenshots and success checks.
 - **Plan a quick installation:** use the [30-minute setup checklist](docs/QUICK_START.md), including what must be ready first.
 - **Want an AI to guide you:** copy a [setup or troubleshooting prompt](docs/AI_SETUP_HELP.md).
@@ -42,7 +43,7 @@ For the 5.0 update, read [the local Claude handoff](docs/V5_0_RELEASE_HANDOFF.md
 | [COMMANDS.md](COMMANDS.md) | Every command and its permissions |
 | [addon/Guilded/README.md](addon/Guilded/README.md) | The addon in detail |
 | [companion/README.md](companion/README.md) | The command-line companion and the upload format |
-| [docs/DEPLOY_ORACLE.md](docs/DEPLOY_ORACLE.md) | Running the bot 24/7 in the cloud (free) |
+| [docs/DEPLOY_ORACLE.md](docs/DEPLOY_ORACLE.md) | Running your own bot in the cloud (provider costs vary) |
 | [docs/RELEASE_CURSEFORGE.md](docs/RELEASE_CURSEFORGE.md), [docs/CURSEFORGE_COPYPASTE.md](docs/CURSEFORGE_COPYPASTE.md) | Publishing the addon |
 | [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) | What is done and left before a release |
 | [ROADMAP.md](ROADMAP.md) | Where the project stands and what could come next |
@@ -52,7 +53,7 @@ For the 5.0 update, read [the local Claude handoff](docs/V5_0_RELEASE_HANDOFF.md
 ## Requirements (bot)
 
 - Node.js 24 (tested release/build baseline) and its included npm
-- PostgreSQL 16+ (a free [Neon](https://neon.tech) database works well)
+- PostgreSQL 16+ (check provider limits against an always-running bot; the hosted pilot uses Aiven Free)
 - A Discord application with a bot token and the `applications.commands` scope
 - **Server Members Intent** turned on for the bot (Developer Portal, Bot, Privileged Gateway Intents)
 - The bot's own role must sit above your applicant and member roles, or role assignment silently fails

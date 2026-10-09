@@ -12,6 +12,7 @@ evidence is recorded in [V6_0_RELEASE_TESTING.md](V6_0_RELEASE_TESTING.md).
 | --- | --- |
 | Join a guild already using Guilded | [Member installation](MEMBER_INSTALL.md) — addon, online companion by default, personal pairing and quick fixes |
 | Use only the in-game addon | [Install the addon](MEMBER_INSTALL.md#1-install-the-addon), then stop; no bot or companion required |
+| Add the hosted bot to your guild | [Request pilot access](HOSTED_PILOT.md) — KCaron's approval is required first; no personal server or database needed |
 | Run a bot for your own guild | [Guild owner setup](GUILD_OWNER_SETUP.md) — application, hosting, database, Discord wizard and member rollout |
 | Ask an AI to walk you through setup or a problem | [Copyable AI help prompts](AI_SETUP_HELP.md), including French |
 | Update an existing installation | [Release handoff](V5_0_RELEASE_HANDOFF.md) — CI, backups, migration and client updates |

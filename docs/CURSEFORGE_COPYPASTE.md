@@ -11,7 +11,7 @@ Guilded
 
 ## Summary (one line)
 ```
-Raid attendance, EPGP, four loot systems, soft reserves, recipes, guild calendar, gear checks and roll games for WoW Forever guilds, with an optional Discord bot.
+Raid attendance, EPGP, loot and guild tools for WoW Forever, with an optional hosted Discord bot. Small free pilot; KCaron's approval is required for each server.
 ```
 
 ## Category
@@ -21,7 +21,11 @@ Raid & Instance (secondary: Guild, Miscellaneous)
 `docs/branding/guilded-logo-400.png` (400x400). Full size: `docs/branding/guilded-logo.png`.
 
 ## File to upload
-`dist/Guilded-v6.0.0.zip` (top folder inside is `Guilded`). Display name: **Guilded 6.0.0**. Release type: **Release**, as explicitly directed by the owner on 5 October 2026.
+For the 9 October setup-only refresh: `dist/Guilded-v6.0.0-hosted-pilot.zip`
+(top folder inside is `Guilded`). Display name: **Guilded 6.0.0 - Hosted pilot setup**.
+Release type: **Release**, as explicitly directed by the owner on 5 October 2026.
+Preserve the approved published game code; update only bundled `INSTALL.md`.
+See [RELEASE_CURSEFORGE.md](RELEASE_CURSEFORGE.md) before building from newer main.
 Game versions: retain the project's existing verified Forever-compatible selection. The addon declares interfaces 16001 and 20506; do not claim untested client compatibility.
 
 ## License
@@ -35,58 +39,119 @@ https://polyformproject.org/licenses/noncommercial/1.0.0
 
 ## Description (Markdown)
 ```markdown
-# Guilded: the raid toolkit for WoW Forever guilds
+# Guilded — Raid & Guild Management for WoW Forever
 
-Guild attendance, loot and shared guild information inside the game. The Discord bot and companion are optional.
+**Organize raid nights, manage loot, and keep your guild connected—all from one in-game window.**
 
-## In game
-- **Raid tracking:** start and end a raid, attendance with bench credit, boss kills, notes.
-- **EPGP and loot:** award EP and GP, standings with priority (PR), and **four loot systems**
-  you choose per raid core: GP bidding, loot council (BiS / upgrade / off-spec answers),
-  soft reserves (reservers roll, with an SR+ bonus for reserves that went unwon) and EPGP
-  priority (every item has a set GP price and goes to the highest PR of the players who want it;
-  off-spec answers pay a share). One command, `/guilded drop <item>`, runs the
-  right one. Raiders get a popup; whispers work for people without the addon.
-- **Soft reserves** built in, with no website: reserve with an item link, the list is shared
-  with the guild and shows on item tooltips.
-- **Recipes and cooldowns:** open your professions once and the guild can ask who can craft
-  what (`/guilded recipes who <item>`), see transmute and other cooldowns, and make a materials
-  shopping list.
-- **Guild calendar, both ways with Discord:** in-game event answers fill in Discord raid
-  signups, and your Discord raids become in-game events with one click (if the game client
-  offers the calendar to addons).
-- **Ready page** (officers and raid leaders): see at a glance who in your raid is ready and who is not, and why (flask, food, enchants, gear, durability), with a one-click ready check.
-- **Gear check before the raid:** empty slots, missing enchants, flasks, food and
-  attunements, with a one-line readiness status for every raider.
-- **Roll games:** high roll, deathroll, 1v1 duels, with a button that explains each game in chat. No gold, no wagers, no debts.
-- **Guild map:** see guildmates on your world map and minimap.
-- **Dungeon scores:** a score per player from recorded runs, on tooltips and the Scores page. No Discord needed.
-- **Mass invite:** `/guilded invite raid` invites everyone who signed up on Discord.
-- **A friendly window:** click the gold coin on the minimap. The Home page shows your
-  standing, what is going on, and whether your data reached Discord.
-- **Item tooltips:** who wishlisted an item, what it usually costs in GP and your priority, right on the tooltip.
-- **A Guilded chat tab** (optional) keeps the addon's messages out of raid chat.
-- **Safe by design:** backups, per-guild saved data, French translation, and every
-  module can be switched off.
+Guilded brings raid tracking, EPGP, four loot systems, readiness checks, and everyday guild tools together. Use the addon on its own, or connect your guild’s optional Discord bot for signups, shared standings, and reports.
 
-## Optional Discord bot (self-hosted, free)
-Signups with roles and waitlist, raid cores with their own loot system and item prices,
-weekly raids, soft reserves and who-can-craft-what in Discord, calendar sync, dungeon
-challenge and leaderboard, craft board, readiness board, polls, Warcraft Logs and
-weekly reports. A small Windows companion app (tray icon) uploads your data after
-each `/reload`.
+**Currently available as 6.0.0 Release.**
 
-## Getting started
-1. Extract Guilded into your actual client's `Interface/AddOns`, log in, and click the gold coin. The ZIP includes `INSTALL.md`.
-2. Addon-only users can start playing. For Discord sync, members install the matching companion and use their own guild's bot address and personal pairing code.
-3. Guild owners: follow the [quick setup checklist](https://github.com/kevincaron28/Guilded/blob/main/docs/QUICK_START.md) and [owner guide](https://github.com/kevincaron28/Guilded/blob/main/docs/GUILD_OWNER_SETUP.md). The bot requires your own hosting and database; these are not bundled with the addon.
+## Add the Discord bot — KCaron's approval required
 
-## Release status
-6.0.0 is the full Release. The next planned update is 6.1.0. Fresh guild setup, clean installation/recovery, concurrent awards and a full raid still need acceptance. Raid markers and boss plans are no longer included. Back up saved data before upgrading.
+**[Add Guilded — request owner approval](https://discord.com/oauth2/authorize?client_id=1552633893587394590&scope=bot+applications.commands&integration_type=0&permissions=2269718703631440)**
 
-## Good to know
-Made for WoW Forever (interface 16001 and 20506). Free for noncommercial use under the
-PolyForm Noncommercial license. Not affiliated with or endorsed by Blizzard Entertainment.
+A small number of guilds can join the free hosted pilot. **KCaron must approve your Discord server before the bot works there.** Adding Guilded sends a request; it does not guarantee a place or immediate access. After approval, run **`/setup start`** in your server. You do not need your own hosting or database.
+
+[Hosted pilot guide](https://guilded-wow.kcaron.workers.dev/docs/HOSTED_PILOT/) · [Online companion](https://guilded-wow.kcaron.workers.dev/companion/) · [Member installation](https://guilded-wow.kcaron.workers.dev/docs/MEMBER_INSTALL/)
+
+Use your own Discord server ID and personal `/character pair` code. Independent hosting remains available.
+
+
+***
+
+## Raid Management & Readiness
+
+*   **Raid journal:** Start and end raids, record attendance and bench credit, mark boss kills, and keep raid notes.
+*   **Readiness dashboard:** Officers and group leaders can review available gear, enchant, durability, flask, and food information, request refreshed checks, and run a ready check.
+*   **Personal gear checks:** Spot empty equipment slots, missing enchants, and other preparation issues.
+*   **Attunement tracking:** Record completed attunements for yourself or, with officer permissions, your raiders.
+*   **Persistent records:** Keep your active raid and saved records through reloads and disconnects.
+
+## Four Loot Systems
+
+Choose the approach that fits your raid:
+
+*   **GP Bidding** — Let players bid GP on an item.
+*   **Loot Council** — Collect BiS, upgrade, and off-spec responses to help your council decide.
+*   **Soft Reserves** — Roll between reservers, with SR+ support for reserves that went unwon.
+*   **EPGP Priority** — Award priced items to the interested player with the highest priority, with configurable off-spec pricing.
+
+Start a loot session with **`/guilded drop <item>`**. Addon users receive a response popup; whisper responses support players without Guilded.
+
+**EPGP management** includes EP and GP awards, deductions, loot records, and priority standings. Officers can publish in-game standings without Discord; connected guilds can use bot-managed raid cores, rules, and item prices.
+
+## Soft Reserves & Item Information
+
+*   **In-game reservations:** Reserve linked items without visiting a website.
+*   **Shared reserve lists:** Share reservations with online Guilded users and see them on item tooltips.
+*   **Officer controls:** Open, lock, and manage the reserve list.
+*   **Loot tooltips:** Display available wishlist, historical GP cost, and priority information when supplied through the optional Discord integration.
+
+## Professions & Guild Tools
+
+*   **Recipe sharing:** Open your professions to share known recipes with online Guilded users.
+*   **Crafter lookup:** Find who can make an item with `/guilded recipes who <item>`.
+*   **Profession cooldowns:** Share supported cooldown information, including transmutes.
+*   **Materials lists:** Build a shopping list for your crafting plans.
+*   **Guild map:** See participating Guilded users on the world map and minimap, with controls to stop sharing or hide markers.
+*   **Dungeon tracking & scores:** Record runs and view scores on player tooltips and the Scores page—no Discord required.
+*   **Roll games:** Play high roll, deathroll, and 1v1 duels, with built-in explanations. No wagers or debts.
+
+## One Convenient Window
+
+Click the **gold coin on your minimap** to open Guilded.
+
+*   A Home page for your standings, activity, and available sync status.
+*   Pages organized around raid night, guild activities, and settings.
+*   Optional modules you can switch off.
+*   A dedicated Guilded chat tab for addon messages.
+*   English and French localization.
+*   Separate saved data for each guild, with backup, restore, and restore undo.
+
+***
+
+## Optional Discord Integration
+
+Extend Guilded beyond the game with a **free hosted pilot (owner approval first), or an independently hosted Discord bot**:
+
+*   **Raid planning:** Role-based signups, waitlists, recurring raids, and core rosters.
+*   **Loot management:** Core-specific loot systems, item prices, wishlists, and soft reserves.
+*   **Guild coordination:** Crafting requests, crafter searches, readiness boards, and polls.
+*   **Reports:** Attendance history, raid seasons, Warcraft Logs integration, and weekly reports.
+*   **Dungeon activities:** Challenges and leaderboards.
+*   **Calendar sync:** Connect Discord raids and in-game events where the client supports the required calendar APIs.
+*   **Raid invitations:** Invite players from synced Discord signups with `/guilded invite raid`.
+
+Use the **Windows companion** to upload saved data after a reload or logout, or the **browser companion** for manual syncing. Discord integration requires your guild’s configured bot and personal pairing.
+
+**The addon works independently.** Approved hosted-pilot guilds do not need to run their own bot or database. Independent hosting requires your own infrastructure.
+
+***
+
+## Getting Started
+
+1.  Extract the **Guilded** folder into your WoW client’s `Interface/AddOns` folder.
+2.  Log in and click the **gold minimap coin**. Type `/guilded` or `/gd` for commands.
+3.  Officers can open the **Raid** page to begin tracking a raid.
+4.  For Discord integration, use the hosted invitation above, wait for KCaron’s approval, then run `/setup start`. See the [hosted pilot guide](https://guilded-wow.kcaron.workers.dev/docs/HOSTED_PILOT/).
+
+## Compatibility & Release Status
+
+Designed for **WoW Forever**. Declared interface versions: **16001 and 20506**. Feature availability depends on the game client and its addon APIs.
+
+**6.0.0 is the full release. The next planned version is 6.1.0.** Fresh-guild setup, Windows installation and recovery, concurrent award workflows, and full raid acceptance testing remain in progress. Back up SavedVariables before upgrading.
+
+Guild map and shared information depend on participating addon users and available data. Raid markers, tank marking, and boss plans are not included in v6.
+
+Free for noncommercial use under the **PolyForm Noncommercial 1.0.0** license. Not affiliated with or endorsed by Blizzard Entertainment.
+
+## Optional support
+
+The addon and approved hosted pilot are free. Voluntary support helps with hosting, maintenance and future capacity. It never buys approval, priority or extra permissions. The official payment link is not available yet; [Support Guilded](https://guilded-wow.kcaron.workers.dev/docs/SUPPORT_GUILDED/) will carry it when ready. No payment is required to request access.
+
+**Français :** ajoutez Guilded pour demander l’accès au pilote gratuit. **KCaron doit approuver votre serveur Discord avant son activation.** Après son accord, lancez `/setup start`. Le soutien financier est facultatif et ne donne aucune priorité.
+
 ```
 
 ## Changelog (paste for the file upload)

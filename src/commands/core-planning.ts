@@ -1,6 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle, type ButtonInteraction } from "discord.js";
 import { prisma } from "../database.js";
-import { coreComposition, planningOptions } from "../services/core-planning.js";
+import { CORE_RAID_SIZES, coreComposition, planningOptions } from "../services/core-planning.js";
 import { parseWeeklySchedule, weeklyOccurrences, weeklyScheduleText } from "../services/core-weekly-time.js";
 import { fillCoreWeeklyRaids, saveCoreWeeklySchedule } from "../services/core-weekly-raids.js";
 
@@ -12,18 +12,29 @@ const field = (id: string, label: string, value: string, placeholder: string, re
 const DAYS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
 
 export async function editCoreComposition(i: ButtonInteraction, guildId: string, coreId: string): Promise<string | null> {
+  await i.deferReply({ ephemeral: true });
   const core = await prisma.raidCore.findFirstOrThrow({ where: { id: coreId, guildId } });
+  const pickerId = `size:${i.id}`;
+  await i.editReply({ content: "Taille du raid / Raid size", components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+    new StringSelectMenuBuilder().setCustomId(pickerId).setPlaceholder("10 / 20 / 40 joueurs").setMinValues(1).setMaxValues(1)
+      .addOptions(CORE_RAID_SIZES.map(size => ({ label: `${size} joueurs / players`, value: String(size), default: core.raidSize === size })))
+  )] });
+  const message = await i.fetchReply();
+  const choice = await message.awaitMessageComponent({ time: 300_000, filter: c => c.user.id === i.user.id && c.customId === pickerId }).catch(() => null);
+  if (!choice?.isStringSelectMenu()) { await i.editReply({ content: "Taille inchangée (expiré).", components: [] }); return null; }
+  const size = choice.values[0]!;
+  const keepRoles = core.raidSize === Number(size);
   const id = `composition:${i.id}`;
-  await i.showModal(new ModalBuilder().setCustomId(id).setTitle("Taille et rôles / Size and roles").addComponents(
-    field("size", "Joueurs / Players (1–40)", core.raidSize?.toString() ?? "", "10 ou 20"),
-    field("tanks", "Tanks", core.tankLimit?.toString() ?? "", "2"),
-    field("healers", "Soigneurs / Healers", core.healerLimit?.toString() ?? "", "2"),
-    field("dps", "DPS", core.dpsLimit?.toString() ?? "", "6")
+  await choice.showModal(new ModalBuilder().setCustomId(id).setTitle(`${size} joueurs — Rôles / Roles`).addComponents(
+    field("tanks", "Tanks", keepRoles ? core.tankLimit?.toString() ?? "" : "", "Nombre de tanks"),
+    field("healers", "Soigneurs / Healers", keepRoles ? core.healerLimit?.toString() ?? "" : "", "Nombre de soigneurs"),
+    field("dps", "DPS", keepRoles ? core.dpsLimit?.toString() ?? "" : "", "Nombre de DPS")
   ));
-  const submitted = await i.awaitModalSubmit({ time: 300_000, filter: m => m.user.id === i.user.id && m.customId === id }).catch(() => null);
+  const submitted = await choice.awaitModalSubmit({ time: 300_000, filter: m => m.user.id === i.user.id && m.customId === id }).catch(() => null);
+  await i.editReply({ components: [] });
   if (!submitted) return null;
   try {
-    const data = coreComposition(...["size", "tanks", "healers", "dps"].map(key => submitted.fields.getTextInputValue(key)) as [string, string, string, string]);
+    const data = coreComposition(size, ...["tanks", "healers", "dps"].map(key => submitted.fields.getTextInputValue(key)) as [string, string, string]);
     await submitted.deferReply({ ephemeral: true });
     await prisma.raidCore.update({ where: { id: core.id }, data });
     const note = `${data.raidSize} joueurs : ${data.tankLimit} tanks / ${data.healerLimit} soigneurs / ${data.dpsLimit} DPS. Appliqué aux nouveaux raids; les raids publiés restent inchangés.`;

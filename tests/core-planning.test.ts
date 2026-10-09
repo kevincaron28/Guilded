@@ -8,6 +8,8 @@ describe("core composition and launch planning", () => {
   it("supports independent ten- and twenty-player compositions including zero slots", () => {
     expect(coreComposition("10", "2", "2", "6")).toEqual({ raidSize: 10, tankLimit: 2, healerLimit: 2, dpsLimit: 6 });
     expect(coreComposition("20", "2", "4", "14").raidSize).toBe(20);
+    expect(coreComposition("40", "4", "8", "28").raidSize).toBe(40);
+    expect(() => coreComposition("15", "2", "3", "10")).toThrow();
     expect(coreComposition("10", "0", "2", "8").tankLimit).toBe(0);
     for (const size of ["0", "41", "10.5", "-1", ""]) expect(() => coreComposition(size, "2", "2", "6")).toThrow();
     expect(() => coreComposition("20", "2", "2", "6")).toThrow();

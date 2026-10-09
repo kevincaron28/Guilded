@@ -12,11 +12,13 @@ beforeEach(() => {
 describe("core planning forms", () => {
   it("saves a validated composition scoped to the current guild", async () => {
     const submitted = { fields: { getTextInputValue: (key: string) => ({ size: "20", tanks: "2", healers: "4", dps: "14" })[key] }, deferReply: vi.fn(), editReply: vi.fn() };
-    const i = { id: "click", user: { id: "leader" }, showModal: vi.fn(async modal => modal.toJSON()), awaitModalSubmit: vi.fn(async () => submitted) };
+    const choice = { isStringSelectMenu: () => true, values: ["20"], showModal: vi.fn(async modal => modal.toJSON()), awaitModalSubmit: vi.fn(async () => submitted) };
+    const i = { id: "click", user: { id: "leader" }, deferReply: vi.fn(), editReply: vi.fn(), fetchReply: vi.fn(async () => ({ awaitMessageComponent: async () => choice })) };
     expect(await editCoreComposition(i as never, "guild", "core")).toContain("20 joueurs");
     expect(mocks.core).toHaveBeenCalledWith({ where: { id: "core", guildId: "guild" } });
     expect(mocks.update).toHaveBeenCalledWith({ where: { id: "core" }, data: { raidSize: 20, tankLimit: 2, healerLimit: 4, dpsLimit: 14 } });
-    expect(i.showModal.mock.calls[0]![0].toJSON().components).toHaveLength(4);
+    expect(choice.showModal.mock.calls[0]![0].toJSON().components).toHaveLength(3);
+    expect(i.editReply.mock.calls[0]![0].components[0].toJSON().components[0].options.map((option: { value: string }) => option.value)).toEqual(["10", "20", "40"]);
   });
   it("does not save a schedule unless the officer confirms its dated preview", async () => {
     const submitted = { fields: { getTextInputValue: (key: string) => ({ time: "20:00", start: "2026-12-04", days: "28", custom: "" })[key] },

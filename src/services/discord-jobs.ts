@@ -137,6 +137,5 @@ export async function runDiscordJobs(client: Client): Promise<void> {
       const guild = await client.guilds.fetch(job.guild.discordId);
       await dispatchDiscordJob(guild, current);
     });
-    await prisma.discordJob.deleteMany({ where: { status: "DONE", deliveredAt: { lt: new Date(Date.now() - 30 * 86_400_000) } } });
   } finally { running = false; }
 }

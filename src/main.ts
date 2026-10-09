@@ -1,4 +1,5 @@
-import { hostedPilot } from "./hosted-pilot.js";
+import { hostedPilot, replacePilotApprovals } from "./hosted-pilot.js";
+import { createPilotRequests, PILOT_REQUEST_PREFIX } from "./services/pilot-requests.js";
 import { PILOT_DENIED } from "./services/pilot-policy.js";
 import { ensureCoreDiscord } from "./services/raid-core.js";
 import { fillGuildWeeklyRaids } from "./services/core-weekly-raids.js";
@@ -164,7 +165,7 @@ async function repairCoreRaids(guild: import("discord.js").Guild, provision = fa
 
 client.once(Events.ClientReady, (readyClient) => {
   for (const guild of readyClient.guilds.cache.values()) {
-    if (!hostedPilot.allows(guild.id)) void guild.leave().catch(reportJobError("Leaving unapproved guild"));
+    if (!hostedPilot.allows(guild.id)) void pilotRequests.request(guild).catch(reportJobError("Pilot approval DM"));
   }
   const voice = async () => { for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) await participationTracker.sampleVoice(guild); };
   void voice().catch(reportJobError("Participation voice checkpoint"));
@@ -199,7 +200,7 @@ client.once(Events.ClientReady, (readyClient) => {
     reconcilingEvents = true;
     try {
       for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) {
-        const record = await prisma.guild.findUnique({ where: { discordId: guild.id } });
+        const record = await prisma.guild.findUnique({ where: { discordId: guild.id }, select: { id: true } });
         if (record) await queueGuildScheduledEvents(prisma, record.id);
       }
     } finally { reconcilingEvents = false; }
@@ -264,6 +265,10 @@ client.once(Events.ClientReady, (readyClient) => {
   }, 5 * 60 * 1000);
   // Weekly guild report (if enabled): checked hourly.
   setInterval(() => {
+    // Retry failed approval DMs without querying Postgres or resending delivered requests.
+    for (const guild of readyClient.guilds.cache.values()) {
+      if (!hostedPilot.allows(guild.id)) void pilotRequests.request(guild).catch(reportJobError("Pilot approval DM"));
+    }
     // Re-evaluate snapshot age even when nobody clicks a signup or uploads new gear.
     (async () => {
       for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) {
@@ -282,8 +287,7 @@ client.once(Events.ClientReady, (readyClient) => {
 // Bot just added to a server: point whoever invited it at /setup.
 client.on(Events.GuildCreate, (guild) => {
   if (!hostedPilot.allows(guild.id)) {
-    console.warn(`Hosted pilot: refusing unapproved server ${guild.id}`);
-    void guild.leave().catch(reportJobError("Leaving unapproved guild"));
+    void pilotRequests.request(guild).catch(reportJobError("Pilot approval DM"));
     return;
   }
   registerCommands(guild.id).catch(reportJobError("Registering commands for new guild"));
@@ -358,6 +362,16 @@ if (config.MESSAGE_CONTENT_INTENT) {
 }
 
 client.on(Events.InteractionCreate, async (interaction) => {
+  if (interaction.isButton() && interaction.customId.startsWith(PILOT_REQUEST_PREFIX)) {
+    try { await pilotRequests.handle(interaction); }
+    catch (error) {
+      reportInteractionError("Pilot approval", interaction, error);
+      const content = "Unable to apply this decision. Check the pilot capacity and host configuration, then retry. / Décision impossible : vérifiez la limite du pilote et la configuration, puis réessayez.";
+      if (interaction.deferred) await interaction.editReply(content).catch(() => undefined);
+      else if (!interaction.replied) await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
+    }
+    return;
+  }
   if (interaction.guildId && !hostedPilot.allows(interaction.guildId)) {
     if (interaction.isAutocomplete()) await interaction.respond([]).catch(() => undefined);
     else if (interaction.isRepliable()) await interaction.reply({ content: PILOT_DENIED, ephemeral: true }).catch(() => undefined);
@@ -548,4 +562,6 @@ async function registerCommandsEverywhere(): Promise<void> {
   }
 }
 
+const pilotRequests = createPilotRequests(client, { enabled: hostedPilot.enabled, allows: hostedPilot.allows, replace: replacePilotApprovals,
+  activate: async guild => { await registerCommands(guild.id); await greetNewGuild(guild); } });
 await client.login(config.DISCORD_TOKEN);

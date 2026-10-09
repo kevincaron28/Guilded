@@ -34,5 +34,7 @@ export async function runRetention(database: Db, now = new Date()): Promise<{ im
                   WHERE newer."characterId" = old."characterId" AND newer."inspectedAt" > old."inspectedAt")`;
   const errors = await database.errorReport.deleteMany({ where: { createdAt: { lt: before(RETENTION.errorReportDays) } } });
   await database.$executeRaw`DELETE FROM "AiDailyUsage" WHERE "day" < ${before(90).toISOString().slice(0, 10)}`;
+  // Completed deliveries need cleanup every few hours, not a DELETE every minute.
+  await database.$executeRaw`DELETE FROM "DiscordJob" WHERE "status" = 'DONE' AND "deliveredAt" < ${before(30)}`;
   return { imports: imports.count, snapshots, errors: errors.count };
 }

@@ -5,7 +5,7 @@ import { asLang, type Lang } from "../i18n.js";
 import { hasPermission } from "../permissions.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { createCommunityService } from "../services/community.js";
-import { challengeRules, COMMUNITY_GAMES, eventRules, lotteryRules, quizRules } from "../services/community-rules.js";
+import { challengeRules, COMMUNITY_GAMES, COMMUNITY_REWARDS, eventRules, lotteryRules, quizRules } from "../services/community-rules.js";
 import { parseRaidTime } from "../services/raid-time.js";
 import { eventVenue } from "../services/scheduled-events.js";
 import { accessibleCommunityActivities, assertCommunityChannelAudience, communityAccess as access, resolveCommunitySeason, canAccessCommunity } from "../services/community-access.js";
@@ -22,7 +22,7 @@ const seasonOption = (sub: SlashCommandSubcommandBuilder, required = true) => su
 const titleOption = (sub: SlashCommandSubcommandBuilder) => sub.addStringOption(o => o.setName("title").setDescription("Title").setDescriptionLocalizations({ fr: "Titre" }).setRequired(true).setMaxLength(200));
 const dateOption = (sub: SlashCommandSubcommandBuilder, name: string) => sub.addStringOption(o => o.setName(name).setDescription("Guild time, e.g. vendredi 20h").setDescriptionLocalizations({ fr: "Heure du serveur" }).setRequired(true));
 const playerOption = (sub: SlashCommandSubcommandBuilder) => sub.addUserOption(o => o.setName("player").setDescription("Member").setDescriptionLocalizations({ fr: "Membre" }).setRequired(true));
-const pointsOption = (sub: SlashCommandSubcommandBuilder, zero = false) => sub.addIntegerOption(o => o.setName("points").setDescription("Points awarded").setDescriptionLocalizations({ fr: "Points gagnés" }).setRequired(true).setMinValue(zero ? 0 : 1).setMaxValue(1000));
+const pointsOption = (sub: SlashCommandSubcommandBuilder, zero = false, required = true) => sub.addIntegerOption(o => o.setName("points").setDescription("Points awarded").setDescriptionLocalizations({ fr: "Points gagnés" }).setRequired(required).setMinValue(zero ? 0 : 1).setMaxValue(1000));
 const viewCommands = (builder: SlashCommandSubcommandsOnlyBuilder) => builder
   .addSubcommand(sub => ref(sub.setName("show").setDescription("View activity").setDescriptionLocalizations({ fr: "Voir l'activité" })))
   .addSubcommand(sub => seasonOption(sub.setName("list").setDescription("Activities").setDescriptionLocalizations({ fr: "Activités" }))
@@ -47,8 +47,8 @@ export const lotteryCommand = viewCommands(new SlashCommandBuilder().setName("lo
     .addIntegerOption(o => o.setName("page").setDescription("Page").setMinValue(1))));
 
 export const gamingCommand = viewCommands(new SlashCommandBuilder().setName("gaming").setDescription("Gaming nights, signups and attendance").setDescriptionLocalizations({ fr: "Soirées gaming" })
-  .addSubcommand(sub => pointsOption(dateOption(dateOption(titleOption(seasonOption(sub.setName("create").setDescription("Create gaming night").setDescriptionLocalizations({ fr: "Créer une soirée" }))), "starts"), "ends"), true)
-    .addIntegerOption(o => o.setName("capacity").setDescription("Player limit").setDescriptionLocalizations({ fr: "Nombre de places" }).setRequired(true).setMinValue(1).setMaxValue(200))
+  .addSubcommand(sub => pointsOption(dateOption(dateOption(titleOption(seasonOption(sub.setName("create").setDescription("Create gaming night").setDescriptionLocalizations({ fr: "Créer une soirée" }))), "starts"), "ends")
+    .addIntegerOption(o => o.setName("capacity").setDescription("Player limit").setDescriptionLocalizations({ fr: "Nombre de places" }).setRequired(true).setMinValue(1).setMaxValue(200)), true, false)
     .addChannelOption(o => o.setName("voice").setDescription("Existing voice channel for the Discord event").setDescriptionLocalizations({ fr: "Vocal existant pour l'événement Discord" }).addChannelTypes(ChannelType.GuildVoice)))
   .addSubcommand(sub => ref(sub.setName("edit").setDescription("Edit an upcoming gaming night").setDescriptionLocalizations({ fr: "Modifier une soirée à venir" }))
     .addStringOption(o => o.setName("title").setDescription("New title").setDescriptionLocalizations({ fr: "Nouveau titre" }).setMaxLength(200))
@@ -60,8 +60,8 @@ export const gamingCommand = viewCommands(new SlashCommandBuilder().setName("gam
   .addSubcommand(sub => playerOption(ref(sub.setName("attendance").setDescription("Confirm actual attendance").setDescriptionLocalizations({ fr: "Confirmer la présence" })))));
 
 export const challengeCommand = viewCommands(new SlashCommandBuilder().setName("challenge").setDescription("Game challenges and reviewed results").setDescriptionLocalizations({ fr: "Défis et résultats" })
-  .addSubcommand(sub => pointsOption(dateOption(titleOption(seasonOption(sub.setName("create").setDescription("Create challenge").setDescriptionLocalizations({ fr: "Créer un défi" }))), "ends"))
-    .addStringOption(o => o.setName("instructions").setDescription("Objective and proof required").setDescriptionLocalizations({ fr: "Objectif et preuve" }).setRequired(true).setMaxLength(1500)))
+  .addSubcommand(sub => pointsOption(dateOption(titleOption(seasonOption(sub.setName("create").setDescription("Create challenge").setDescriptionLocalizations({ fr: "Créer un défi" }))), "ends")
+    .addStringOption(o => o.setName("instructions").setDescription("Objective and proof required").setDescriptionLocalizations({ fr: "Objectif et preuve" }).setRequired(true).setMaxLength(1500)), false, false))
   .addSubcommand(sub => ref(sub.setName("submit").setDescription("Submit evidence").setDescriptionLocalizations({ fr: "Soumettre une preuve" }))
     .addStringOption(o => o.setName("proof").setDescription("HTTPS screenshot/video link").setDescriptionLocalizations({ fr: "Lien de preuve" }).setRequired(true).setMaxLength(800)))
   .addSubcommand(sub => playerOption(ref(sub.setName("review").setDescription("Review or reverse award").setDescriptionLocalizations({ fr: "Valider ou corriger" })))
@@ -86,7 +86,7 @@ export const communityCommand = new SlashCommandBuilder().setName("community").s
   .addSubcommand(sub => seasonOption(sub.setName("leaderboard").setDescription("Season rankings").setDescriptionLocalizations({ fr: "Classement de la saison" }), false)
     .addIntegerOption(o => o.setName("page").setDescription("Page").setMinValue(1)))
   .addSubcommand(sub => seasonOption(sub.setName("wallet").setDescription("Your points and history").setDescriptionLocalizations({ fr: "Tes points et leur historique" }), false))
-  .addSubcommand(sub => seasonOption(sub.setName("dice").setDescription("Daily d100: 5 points, +10 at 90+").setDescriptionLocalizations({ fr: "Dé quotidien" }), false))
+  .addSubcommand(sub => seasonOption(sub.setName("dice").setDescription("Daily d100: 2 points, +3 at 90+").setDescriptionLocalizations({ fr: "Dé quotidien" }), false))
   .addSubcommand(sub => pointsOption(dateOption(titleOption(seasonOption(sub.setName("quiz").setDescription("Create a four-answer quiz").setDescriptionLocalizations({ fr: "Créer un quiz" }))), "ends"))
     .addStringOption(o => o.setName("a").setDescription("Answer A").setDescriptionLocalizations({ fr: "Réponse A" }).setRequired(true).setMaxLength(80))
     .addStringOption(o => o.setName("b").setDescription("Answer B").setDescriptionLocalizations({ fr: "Réponse B" }).setRequired(true).setMaxLength(80))
@@ -193,9 +193,9 @@ export async function executeCommunity(interaction: ChatInputCommandInteraction)
         if (!channel?.permissionsFor(member)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect])) throw new Error("Vocal inaccessible / Voice channel inaccessible.");
         await validateEventVenue(guild, current!.announcementChannelId ?? current!.channelId, voice.id);
       }
-      rules = { capacity: interaction.options.getInteger("capacity", true), points: interaction.options.getInteger("points", true), ...(voice ? { voiceChannelId: voice.id } : {}) };
+      rules = { capacity: interaction.options.getInteger("capacity", true), points: interaction.options.getInteger("points") ?? COMMUNITY_REWARDS.attendance, ...(voice ? { voiceChannelId: voice.id } : {}) };
     }
-    else if (kind === "CHALLENGE") rules = { instructions: interaction.options.getString("instructions", true), points: interaction.options.getInteger("points", true) };
+    else if (kind === "CHALLENGE") rules = { instructions: interaction.options.getString("instructions", true), points: interaction.options.getInteger("points") ?? COMMUNITY_REWARDS.challenge };
     else rules = { choices: ["a", "b", "c", "d"].map(key => interaction.options.getString(key, true)), correct: interaction.options.getInteger("correct", true) - 1, points: interaction.options.getInteger("points", true) };
     const created = await service.create(context.guildId, current!.id, { kind, title: interaction.options.getString("title", true), rules, ...(startsAt ? { startsAt } : {}), endsAt, actorId: actor });
     content = `${say(lang, "Activity saved; its message will appear shortly.", "Activité enregistrée; son message apparaîtra sous peu.")} **${created.title}**`;

@@ -2,6 +2,12 @@ import { randomInt } from "node:crypto";
 import { z } from "zod";
 
 export const COMMUNITY_GAMES = ["DISCORD", "WOW", "POE2", "DIABLO4", "OTHER"] as const;
+export const COMMUNITY_REWARDS = { attendance: 25, challenge: 30, dice: { participation: 2, bonus: 3, threshold: 90 } } as const;
+const diceRules = z.object({ participation: z.number().int().nonnegative(), bonus: z.number().int().nonnegative(), threshold: z.number().int().min(1).max(100) });
+export function dicePoints(roll: number, savedRules: unknown): number {
+  const rules = diceRules.parse(savedRules);
+  return rules.participation + (roll >= rules.threshold ? rules.bonus : 0);
+}
 export const lotteryRules = z.object({
   mode: z.enum(["FREE", "POINTS", "WOW_GOLD", "POE_CURRENCY"]),
   prize: z.string().trim().min(1).max(250),
@@ -16,8 +22,8 @@ export const lotteryRules = z.object({
   if (rules.mode !== "FREE" && rules.cost < 1) invalid("Prix requis / Ticket price required.");
   if (["WOW_GOLD", "POE_CURRENCY"].includes(rules.mode) && (!rules.currency || !rules.realm)) invalid("Précise monnaie et royaume/ligue / Currency and realm/league required.");
 });
-export const eventRules = z.object({ capacity: z.number().int().min(1).max(200), points: z.number().int().min(0).max(1000), voiceChannelId: z.string().min(1).optional() });
-export const challengeRules = z.object({ instructions: z.string().trim().min(1).max(1500), points: z.number().int().min(1).max(1000) });
+export const eventRules = z.object({ capacity: z.number().int().min(1).max(200), points: z.number().int().min(0).max(1000).default(COMMUNITY_REWARDS.attendance), voiceChannelId: z.string().min(1).optional() });
+export const challengeRules = z.object({ instructions: z.string().trim().min(1).max(1500), points: z.number().int().min(1).max(1000).default(COMMUNITY_REWARDS.challenge) });
 export const quizRules = z.object({ choices: z.array(z.string().trim().min(1).max(80)).length(4), correct: z.number().int().min(0).max(3), points: z.number().int().min(1).max(1000) });
 export type LotteryRules = z.infer<typeof lotteryRules>;
 export type Standing = { userId: string; points: number; balance: number };

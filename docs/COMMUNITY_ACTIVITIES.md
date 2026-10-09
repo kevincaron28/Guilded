@@ -99,8 +99,12 @@ des orbes. L'attribution effective du lot est également faite par les organisat
 ## Soirées gaming
 
 ```text
-/community gaming create season:SAISON title:Soirée coop starts:vendredi 20h ends:vendredi 23h capacity:8 points:10
+/community gaming create season:SAISON title:Soirée coop starts:vendredi 20h ends:vendredi 23h capacity:8 points:25
 ```
+
+Les nouvelles soirées proposent 25 points par défaut (option `points` facultative);
+les nouveaux défis proposent 30. Un organisateur peut choisir un autre montant.
+Les activités existantes conservent leurs récompenses enregistrées.
 
 Boutons **Présent**, **Peut-être**, **Absent**. Une soirée pleine met les prochains
 inscrits en liste d'attente; une place libérée promeut automatiquement le premier.
@@ -122,7 +126,7 @@ notifications Discord et n'accorde aucun point de présence.
 ## Défis dans les jeux
 
 ```text
-/community challenge create season:SAISON_WOW title:Objectif coop ends:dimanche 22h points:20 instructions:Objectif et capture requise
+/community challenge create season:SAISON_WOW title:Objectif coop ends:dimanche 22h points:30 instructions:Objectif et capture requise
 ```
 
 Un membre soumet un lien HTTPS de capture ou de vidéo avec le bouton
@@ -145,8 +149,9 @@ existant et ses saisons demeurent indépendants.
 ## Petits jeux Discord
 
 - `/community dice season:SAISON_DISCORD` : un d100 par membre et par jour dans
-  le fuseau du serveur, 5 points de participation, bonus de 10 à partir de 90.
+  le fuseau du serveur, 2 points de participation, bonus de 3 à partir de 90.
   Les nouvelles tentatives retournent le lancer initial, même après redémarrage.
+  Une ronde déjà commencée conserve son barème enregistré, y compris après déploiement.
 - `/community quiz season:SAISON_DISCORD title:QUESTION ends:demain 20h points:10 a:REPONSE b:REPONSE c:REPONSE d:REPONSE correct:3`
   crée un quiz à quatre choix; `correct` va de 1 à 4. Un essai par membre,
   points seulement pour la bonne réponse, auteur exclu. La bonne réponse reste

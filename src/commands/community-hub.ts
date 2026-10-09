@@ -7,6 +7,7 @@ import { guildService } from "./context.js";
 import { accessibleCommunityActivities, accessibleCommunityPolls, accessibleCommunitySeasons, assertCommunityChannelAudience, communityAccess, resolveCommunitySeason } from "../services/community-access.js";
 import { communityActivityChannel, communityDiceDay, communitySeasonLabel, communityStatusLabel, communityKindLabel } from "../services/community-display.js";
 import { communityHubButton, communityHubCard, communityHubComponents, COMMUNITY_HUB_PREFIX } from "../services/community-panels.js";
+import { COMMUNITY_REWARDS } from "../services/community-rules.js";
 import { createCommunityService } from "../services/community.js";
 import { createParticipationService } from "../services/participation.js";
 import { participationBadge, participationRules } from "../services/participation-rules.js";
@@ -29,7 +30,7 @@ export async function diceReply(guildId: string, season: CommunitySeason, actor:
   const { day, reset } = communityDiceDay(now, timezone);
   const prior = await prisma.communityEntry.findFirst({ where: { userId: actor, activity: { seasonId: season.id, kind: "DICE", title: day } } });
   const entry = await service.dice(guildId, season.id, actor, day, now);
-  return `🎲 **${entry.evidence}/100** · **${Number(entry.evidence) >= 90 ? 15 : 5} points**\n` +
+  return `🎲 **${entry.evidence}/100** · **${entry.awardedPoints} points**\n` +
     (prior ? say(lang, "Already played today; these points were already saved.", "Déjà joué aujourd’hui; ces points sont déjà enregistrés.") : say(lang, "Today's result saved once.", "Résultat du jour enregistré une seule fois.")) +
     `\n${say(lang, "Next roll", "Prochain lancer")} : <t:${Math.floor(reset.getTime() / 1000)}:R>`;
 }
@@ -58,11 +59,11 @@ function templateModal(kind: string, seasonId: string) {
     field("starts", "Début / Start", "vendredi 20h", false, 80);
     field("ends", "Fin / End", "vendredi 23h", false, 80);
     field("capacity", "Places / Capacity", "8", false, 3);
-    field("points", "Points de présence / Attendance points", "10", false, 4);
+    field("points", "Points de présence / Attendance points", String(COMMUNITY_REWARDS.attendance), false, 4);
   } else {
     field("instructions", "Objectif et preuve / Objective and proof", "", true, 1500);
     field("ends", "Fermeture / Closing time", "dimanche 22h", false, 80);
-    field("points", "Points après validation / Reviewed points", "20", false, 4);
+    field("points", "Points après validation / Reviewed points", String(COMMUNITY_REWARDS.challenge), false, 4);
   }
   return modal;
 }

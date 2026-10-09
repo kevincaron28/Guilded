@@ -3,6 +3,9 @@ import { createPilotRequests, PILOT_REQUEST_PREFIX } from "./services/pilot-requ
 import { PILOT_DENIED } from "./services/pilot-policy.js";
 import { ensureCoreDiscord } from "./services/raid-core.js";
 import { fillGuildWeeklyRaids } from "./services/core-weekly-raids.js";
+import { runTeamSchedules } from "./services/activity-core.js";
+import { autocompleteTeam, executeTeam, handleTeamButton } from "./commands/team.js";
+import { TEAM_BUTTON_PREFIX } from "./services/activity-core-discord.js";
 import { guildService } from "./commands/context.js";
 import { adoptCommunityHonors } from "./services/community-honors.js";
 import { rememberRookieJoin } from "./services/monthly-rookie.js";
@@ -138,6 +141,7 @@ handlers.set("epgp", executeEpgp);
 handlers.set("apply", executeApply);
 handlers.set("tag", executeTag);
 handlers.set("core", executeCore);
+handlers.set("team", executeTeam);
 handlers.set("poll", executePoll);
 handlers.set("bank", executeBank);
 handlers.set("craft", executeCraft);
@@ -155,6 +159,7 @@ async function repairCoreRaids(guild: import("discord.js").Guild, provision = fa
     for (const core of cores) await ensureCoreDiscord(guild, prisma, record.id, core.id);
   }
   await fillGuildWeeklyRaids(prisma, record.id, reportJobError("Core weekly raid schedule"));
+  await runTeamSchedules(prisma, record.id, reportJobError("Weekly dungeon/PvP teams"));
   const raids = await prisma.raid.findMany({ where: { guildId: record.id, coreId: { not: null }, OR: [
     // Only upcoming raids need missing signup posts recreated.
     { status: "PLANNED", scheduledAt: { gt: new Date() }, ...(provision ? {} : { OR: [{ signupMessageId: null }, { mirrorSignupMessageId: null }] }) },
@@ -375,6 +380,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
   if (interaction.guildId && !hostedPilot.allows(interaction.guildId)) {
     if (interaction.isAutocomplete()) await interaction.respond([]).catch(() => undefined);
     else if (interaction.isRepliable()) await interaction.reply({ content: PILOT_DENIED, ephemeral: true }).catch(() => undefined);
+    return;
+  }
+  if (interaction.isAutocomplete() && interaction.commandName === "team") {
+    await autocompleteTeam(interaction).catch(async () => { if (!interaction.responded) await interaction.respond([]).catch(() => undefined); });
+    return;
+  }
+  if (interaction.isButton() && interaction.customId.startsWith(TEAM_BUTTON_PREFIX)) {
+    try { await handleTeamButton(interaction); }
+    catch (error) {
+      reportInteractionError("Team interaction", interaction, error);
+      const content = error instanceof Error && error.message.length < 250 ? error.message : "Could not update the session / Impossible de modifier la séance.";
+      if (interaction.deferred || interaction.replied) await interaction.editReply({ content }).catch(() => undefined);
+      else await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
+    }
     return;
   }
   if ((interaction.isButton() || interaction.isModalSubmit() || interaction.isUserSelectMenu() || interaction.isStringSelectMenu()) && interaction.customId.startsWith(COMMUNITY_PREFIX)) {

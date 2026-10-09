@@ -71,6 +71,9 @@ const reaction = (messageId: string, reactorId: string) => ({ userId: "member", 
 describe("participation rules", () => {
   it("caps voice at four hours and uses the guild's local day and week", () => {
     expect(rules.voiceDailyMinutes).toBe(240);
+    expect(rules.voiceBlockPoints).toBe(2);
+    expect(participationRules.safeParse({ voiceBlockPoints: 0 }).success).toBe(false);
+    expect(participationRules.safeParse({ voiceBlockPoints: 5 }).success).toBe(false);
     expect(participationRules.safeParse({ voiceDailyMinutes: 241 }).success).toBe(false);
     expect(participationDay(new Date("2026-10-02T02:00Z"), "America/Toronto")).toBe("2026-10-01");
     expect(participationWeek(at, "America/Toronto")).toBe("2026-09-28");
@@ -167,6 +170,35 @@ describe("persistent participation accounting", () => {
     expect(await s.service.voice("guild", "season", "member", later(14), later(15), 1)).toBe(0);
     expect(await s.service.voice("guild", "season", "member", later(242), later(244), 1)).toBe(0);
   });
+  it("awards 32 points over two hours at four points per block, including retries and restarts", async () => {
+    const s = store();
+    s.cfg.rules = participationRules.parse({ ...rules, voiceDailyMinutes: 120, voiceBlockPoints: 4 });
+    for (let i = 0; i < 121; i++) {
+      const service = createParticipationService(s.database as never);
+      await Promise.all([1, 2].map(() => service.voice("guild", "season", "member", later(i), later(i + 1), 1)));
+    }
+    expect(s.days[0]!.voiceMs).toBe(120 * 60_000);
+    expect(s.days[0]!.voicePoints).toBe(32);
+    expect(s.points.map(row => row.amount)).toEqual(Array(8).fill(4));
+  });
+  it("changes the voice rate without repricing completed blocks or resetting consumed time", async () => {
+    const s = store();
+    for (let i = 0; i < 60; i++) await s.service.voice("guild", "season", "member", later(i), later(i + 1), 1);
+    expect(s.days[0]!.voicePoints).toBe(8);
+    s.cfg.rules = participationRules.parse({ ...rules, voiceDailyMinutes: 120, voiceBlockPoints: 4 });
+    for (let i = 60; i < 121; i++) await s.service.voice("guild", "season", "member", later(i), later(i + 1), 1);
+    expect(s.days[0]!.voiceMs).toBe(120 * 60_000);
+    expect(s.days[0]!.voicePoints).toBe(24);
+    expect(s.points.map(row => row.amount)).toEqual([2, 2, 2, 2, 4, 4, 4, 4]);
+  });
+  it("preserves points and stops earning when the new voice cap is already consumed", async () => {
+    const s = store();
+    for (let i = 0; i < 180; i++) await s.service.voice("guild", "season", "member", later(i), later(i + 1), 1);
+    s.cfg.rules = participationRules.parse({ ...rules, voiceDailyMinutes: 120, voiceBlockPoints: 4 });
+    expect(await s.service.voice("guild", "season", "member", later(180), later(181), 1)).toBe(0);
+    expect(s.days[0]!.voiceMs).toBe(180 * 60_000);
+    expect(s.days[0]!.voicePoints).toBe(24);
+  });
   it("counts reactions in the full local day when handlers complete out of timestamp order", async () => {
     const s = store();
     expect(await s.service.reaction("guild", "season", { ...reaction("late", "a"), at: later(3) })).toBe(true);
@@ -203,10 +235,10 @@ describe("persistent participation accounting", () => {
     await s.service.review("guild", "season", claim.id, "officer", true, "Verified", at);
     for (const nominator of ["b", "c", "d"]) {
       const next = await s.service.nominate("guild", "season", "helper", nominator, "Helped", at);
-      if (nominator === "d") await expect(s.service.review("guild", "season", next.id, "officer", true, "Verified", at)).rejects.toThrow(/15 points/);
+      if (nominator === "d") await expect(s.service.review("guild", "season", next.id, "officer", true, "Verified", at)).rejects.toThrow(/45 points/);
       else await s.service.review("guild", "season", next.id, "officer", true, "Verified", at);
     }
-    expect(s.points.reduce((sum, row) => sum + row.amount, 0)).toBe(15);
+    expect(s.points.reduce((sum, row) => sum + row.amount, 0)).toBe(45);
     await s.service.nominate("guild", "season", "other-1", "nominator", "Helped", at);
     await s.service.nominate("guild", "season", "other-2", "nominator", "Helped", at);
     await expect(s.service.nominate("guild", "season", "other-3", "nominator", "Helped", at)).rejects.toThrow(/trois/);
@@ -223,14 +255,27 @@ describe("persistent participation accounting", () => {
     expect(await s.service.message("guild", "season", input("late", later(10), "late"))).toBe(false);
     expect(s.days[0]!.messages).toBe(1);
   });
+  it("reverses the new helper amount once without reopening the weekly allowance", async () => {
+    const s = store();
+    for (let i = 0; i < 3; i++) {
+      const claim = await s.service.nominate("guild", "season", "helper", `nominator-${i}`, "Helped", at);
+      await s.service.review("guild", "season", claim.id, "officer", true, "Verified", at);
+    }
+    const original = s.points[0]!;
+    await s.service.reverse("guild", "season", original.id, "officer", "Correction", at);
+    await s.service.reverse("guild", "season", original.id, "officer", "Correction", at);
+    expect(s.points.map(row => row.amount)).toEqual([15, 15, 15, -15]);
+    const extra = await s.service.nominate("guild", "season", "helper", "another", "Helped", at);
+    await expect(s.service.review("guild", "season", extra.id, "officer", true, "Verified", at)).rejects.toThrow(/45 points/);
+  });
   it("preserves the weekly helper cap when approvals complete out of timestamp order", async () => {
     const s = store();
     for (let i = 0; i < 4; i++) {
       const claim = await s.service.nominate("guild", "season", "helper", `nominator-${i}`, "Helped", at);
       const review = s.service.review("guild", "season", claim.id, "officer", true, "Verified", later(4 - i));
-      if (i === 3) await expect(review).rejects.toThrow(/15 points/); else await review;
+      if (i === 3) await expect(review).rejects.toThrow(/45 points/); else await review;
     }
-    expect(s.points.reduce((sum, row) => sum + row.amount, 0)).toBe(15);
+    expect(s.points.reduce((sum, row) => sum + row.amount, 0)).toBe(45);
   });
   it("allows officers to reject pending nominations while earning is paused", async () => {
     const s = store();

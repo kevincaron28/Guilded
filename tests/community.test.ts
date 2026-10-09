@@ -4,7 +4,7 @@ import { canAccessCommunity, communityCard } from "../src/commands/community.js"
 import { createCommunityService } from "../src/services/community.js";
 import type { CommunityActivity, CommunitySeason } from "@prisma/client";
 import { commands } from "../src/commands/index.js";
-import { assertLotteryGame, drawWinners, evidenceReference, lotteryRules, standings } from "../src/services/community-rules.js";
+import { assertLotteryGame, dicePoints, drawWinners, evidenceReference, lotteryRules, standings } from "../src/services/community-rules.js";
 
 const now = new Date("2026-10-01T12:00:00Z");
 const endsAt = new Date("2026-10-02T12:00:00Z");
@@ -68,6 +68,31 @@ describe("community accounting and lottery rules", () => {
 });
 
 describe("community state transitions", () => {
+  it.each([
+    ["EVENT", { capacity: 8 }, 25],
+    ["CHALLENGE", { instructions: "Help the group; provide proof" }, 30]
+  ])("saves the new %s reward default when creating an activity", async (kind, rules, expected) => {
+    const s = store();
+    const created = await s.service.create("guild", "season", { kind, title: "Cooperative activity", rules, startsAt: new Date(now.getTime() + 60_000), endsAt, actorId: "officer" }, now);
+    expect(created.rules).toMatchObject({ points: expected });
+  });
+  it("awards the new dice rate once and freezes the round's rules", async () => {
+    const s = store();
+    s.tx.communityActivity.findFirst.mockResolvedValueOnce(null);
+    const entry = await s.service.dice("guild", "season", "member", "2026-10-01", now);
+    const expected = Number(entry.evidence) >= 90 ? 5 : 2;
+    expect(entry.awardedPoints).toBe(expected);
+    expect(s.tx.communityPoint.create).toHaveBeenCalledWith({ data: expect.objectContaining({ amount: expected }) });
+    expect(s.tx.communityActivity.create).toHaveBeenCalledWith({ data: expect.objectContaining({ rules: { participation: 2, bonus: 3, threshold: 90 } }) });
+  });
+  it("keeps legacy dice rewards for later players in an existing round", async () => {
+    const s = store({ ...activity, kind: "DICE", rules: { participation: 5, bonus: 10, threshold: 90 } });
+    const entry = await s.service.dice("guild", "season", "member", "2026-10-01", now);
+    expect(entry.awardedPoints).toBe(Number(entry.evidence) >= 90 ? 15 : 5);
+    expect(s.tx.communityPoint.create).toHaveBeenCalledWith({ data: expect.objectContaining({ amount: entry.awardedPoints }) });
+    expect(dicePoints(89, { participation: 2, bonus: 3, threshold: 90 })).toBe(2);
+    expect(dicePoints(90, { participation: 2, bonus: 3, threshold: 90 })).toBe(5);
+  });
   it("renames a season without changing its identity and refreshes existing activity posts", async () => {
     const s = store();
     s.tx.communityActivity.findMany.mockResolvedValue([activity] as never);
@@ -188,9 +213,9 @@ describe("community state transitions", () => {
     expect(s.tx.communityPoint.create).toHaveBeenCalledTimes(1);
   });
   it("returns a previous daily roll rather than rewarding a second click", async () => {
-    const s = store({ ...activity, kind: "DICE" });
+    const s = store({ ...activity, kind: "DICE", rules: { participation: 5, bonus: 10, threshold: 90 } });
     s.tx.communityEntry.findUnique.mockResolvedValue({ id: "entry", status: "PLAYED", evidence: "95" });
-    expect((await s.service.dice("guild", "season", "member", "2026-10-01", now)).evidence).toBe("95");
+    expect(await s.service.dice("guild", "season", "member", "2026-10-01", now)).toMatchObject({ evidence: "95", awardedPoints: 15 });
     expect(s.tx.communityPoint.create).not.toHaveBeenCalled();
   });
   it("will not archive open activities or pending evidence", async () => {

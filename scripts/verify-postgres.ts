@@ -1,4 +1,5 @@
 import { verifyAiBudgetPostgres } from "./verify-ai-budget-postgres.js";
+import { verifyActivityCoresPostgres, verifyActivityCoresRestored } from "./verify-activity-cores-postgres.js";
 import { createRaidService } from "../src/services/raid.js";
 import { createDungeonGroupService } from "../src/services/dungeon-group.js";
 import { runBackup } from "../src/services/backup.js";
@@ -31,6 +32,7 @@ const database = new PrismaClient();
 try {
   if (!process.argv.includes("--restored")) await verifyAiBudgetPostgres(database);
   if (process.argv.includes("--restored")) {
+    await verifyActivityCoresRestored(database);
     assert.equal((await database.aiDailyUsage.findUniqueOrThrow({ where: { day_scope: { day: "2099-01-01", scope: "global" } } })).attempts, 7);
     const sum = await database.epgpTransaction.aggregate({ where: { createdBy: "release-test" }, _sum: { epAmount: true } });
     assert.equal(sum._sum.epAmount, 20);
@@ -80,6 +82,7 @@ try {
   } else {
     await database.guild.deleteMany({ where: { discordId: { startsWith: "release-test-" } } });
     const guild = await database.guild.create({ data: { discordId: "release-test-guild", name: "Release fixture" } });
+    await verifyActivityCoresPostgres(database, guild.id);
     await verifyScheduledEventsPostgres(database, guild.id);
     await verifyCommunityPostgres(database, guild.id);
     await verifyParticipationPostgres(database, guild.id);

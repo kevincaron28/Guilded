@@ -1,3 +1,4 @@
+import { pilotGuildScope } from "../hosted-pilot.js";
 import { coreContext } from "../services/core-context.js";
 import { EmbedBuilder, SlashCommandBuilder, type ChatInputCommandInteraction, type Client } from "discord.js";
 import { prisma } from "../database.js";
@@ -98,7 +99,7 @@ export function weeklyReportEmbeds(report: WeeklyReport, lang: Lang = "en"): Emb
 // prevents concurrent ticks from queuing the same week twice.
 export async function runWeeklyReports(client: Client, now = new Date()): Promise<number> {
   const configured = await prisma.guildSettings.findMany({
-    where: { weeklyReportEnabled: true, OR: [{ weeklyReportChannelId: { not: null } }, { notifyChannelId: { not: null } }] },
+    where: { ...pilotGuildScope, weeklyReportEnabled: true, OR: [{ weeklyReportChannelId: { not: null } }, { notifyChannelId: { not: null } }] },
     include: { guild: true }
   });
   let posted = 0;

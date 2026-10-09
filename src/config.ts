@@ -14,6 +14,9 @@ const environmentSchema = z.object({
   DISCORD_TOKEN: z.string().min(1),
   DISCORD_CLIENT_ID: z.string().min(1),
   DISCORD_GUILD_ID: z.string().min(1),
+  HOSTED_PILOT: z.enum(["true", "false", "1", "0"]).default("false").transform(value => value === "true" || value === "1"),
+  HOSTED_GUILD_IDS: z.string().default(""),
+  HOSTED_GUILD_LIMIT: z.coerce.number().int().min(1).max(100).default(5),
   DATABASE_URL: z.string().url(),
   COMPANION_API_PORT: z.coerce.number().int().min(1).max(65535).default(8787),
   // 127.0.0.1 = this computer only. On a server behind HTTPS (deploy/), use 0.0.0.0 or leave 127.0.0.1 with a reverse proxy.
@@ -38,8 +41,9 @@ const environmentSchema = z.object({
   AI_BASE_URL: blankAsUndefined(z.string().url().optional()),
   AI_MODEL: blankAsUndefined(z.string().min(1).optional()),
   AI_API_KEY: blankAsUndefined(z.string().min(1).optional()),
-  // AI answers per guild per day (keeps a free tier free).
-  AI_DAILY_LIMIT: z.coerce.number().int().min(0).max(10_000).default(100)
+  // Provider attempts per guild per UTC day; the host-wide cap applies as well.
+  AI_DAILY_LIMIT: z.coerce.number().int().min(0).max(10_000).default(100),
+  AI_GLOBAL_DAILY_LIMIT: z.coerce.number().int().min(0).max(10_000).default(100)
 });
 
 export const config = environmentSchema.parse(process.env);

@@ -423,7 +423,7 @@ export async function guildFacts(
   }
   lines.push(raids.length ? "Next raids:" : "No raid is scheduled right now.");
   for (const raid of raids) lines.push(`- ${raid.title}${raid.core ? ` [${raid.core.name}]` : ""}: ${when(raid.scheduledAt)} (${raid.status.toLowerCase()})`);
-  if (memberId) {
+  if (memberId && await database.member.findFirst({ where: { id: memberId, guildId }, select: { id: true } })) {
     const characters = await database.character.findMany({ where: { memberId }, select: { name: true, className: true, level: true, isMain: true } });
     if (characters.length) lines.push(`The asker's characters: ${characters.map((c) => `${c.name} (${c.level ?? "?"} ${c.className}${c.isMain ? ", main" : ""})`).join(", ")}.`);
     const standing = await createEpgpService(database).getStanding(memberId, settings?.baseGp ?? 0);

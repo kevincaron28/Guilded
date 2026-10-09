@@ -258,6 +258,14 @@ describe("Discord voice checkpoints", () => {
     const guild = { id: "discord", available: true, afkChannelId: null, channels: { cache: new Collection([["voice", channel], ["text", { ...channel, id: "text" }]]) }, voiceStates: { cache: new Collection(["a", "b"].map(id => [id, { id, channelId: "voice", channel, deaf: false, member: member(id) }])) } };
     return guild;
   }
+  it("does not read the database for empty or solo voice channels", async () => {
+    const s = store(), guild = guildFixture(), tracker = createParticipationTracker(s.database as never, false);
+    guild.voiceStates.cache.delete("b");
+    await tracker.sampleVoice(guild as unknown as Guild, at);
+    guild.voiceStates.cache.clear();
+    await tracker.sampleVoice(guild as unknown as Guild, later(1));
+    expect(s.tx.communityParticipationConfig.findFirst).not.toHaveBeenCalled();
+  });
   it("credits the shared interval on departure and starts a fresh baseline on reconnect or a long pause", async () => {
     const s = store(), guild = guildFixture();
     const tracker = createParticipationTracker(s.database as never, false);

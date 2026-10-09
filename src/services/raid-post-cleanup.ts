@@ -1,3 +1,4 @@
+import { pilotGuildScope } from "../hosted-pilot.js";
 import type { Client } from "discord.js";
 import type { Prisma, PrismaClient } from "@prisma/client";
 
@@ -34,7 +35,7 @@ const alreadyGone = (error: unknown) => [10003, 10008].includes((error as { code
 
 export async function cleanupPastRaidPosts(client: Client, database: PrismaClient, now = new Date()): Promise<number> {
   if (!client.user) return 0;
-  const raids = await database.raid.findMany({ where: pastRaidPostWhere(now), take: 50, orderBy: { scheduledAt: "asc" }, include: { guild: { select: { discordId: true } } } });
+  const raids = await database.raid.findMany({ where: { ...pastRaidPostWhere(now), ...pilotGuildScope }, take: 50, orderBy: { scheduledAt: "asc" }, include: { guild: { select: { discordId: true } } } });
   let removed = 0;
   for (const raid of raids) {
     const guild = client.guilds.cache.get(raid.guild.discordId);

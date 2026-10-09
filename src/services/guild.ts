@@ -1,8 +1,11 @@
 import type { PrismaClient } from "@prisma/client";
+import { hostedPilot } from "../hosted-pilot.js";
+import { PILOT_DENIED } from "./pilot-policy.js";
 
 export function createGuildService(database: PrismaClient) {
   return {
     ensureGuild(discordId: string, name: string) {
+      if (!hostedPilot.allows(discordId)) throw new Error(PILOT_DENIED);
       return database.guild.upsert({
         where: { discordId },
         create: {

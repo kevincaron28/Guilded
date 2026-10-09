@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync, mkdirSync, copyFileSync, cpSync, existsSyn
 import { dirname, posix } from "node:path";
 import { marked } from "marked";
 
-const guides = ["OWNER_WALKTHROUGH", "QUICK_START", "MEMBER_INSTALL", "GUILD_OWNER_SETUP", "DEPLOY_ORACLE", "AI_SETUP_HELP", "ONLINE_COMPANION_CHECK"];
+const guides = ["HOSTED_PILOT", "OWNER_WALKTHROUGH", "QUICK_START", "MEMBER_INSTALL", "GUILD_OWNER_SETUP", "DEPLOY_ORACLE", "AI_SETUP_HELP", "ONLINE_COMPANION_CHECK"];
 const sources = new Set(guides.map(name => `docs/${name}.md`));
 const out = "dist/site";
 mkdirSync(`${out}/docs`, { recursive: true });

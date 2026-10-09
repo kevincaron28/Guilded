@@ -1,3 +1,5 @@
+import { hostedPilot } from "../hosted-pilot.js";
+import { PILOT_DENIED } from "./pilot-policy.js";
 import { type ButtonInteraction, type Guild as DiscordGuild, type GuildMember, type PartialGuildMember } from "discord.js";
 import type { GuildSettings } from "@prisma/client";
 import { prisma } from "../database.js";
@@ -147,6 +149,7 @@ export async function sendWelcome(discordGuild: DiscordGuild, member: GuildMembe
 export async function handleWelcomeRoleButton(interaction: ButtonInteraction): Promise<void> {
   const [discordGuildId, roleId] = interaction.customId.slice(WELCOME_ROLE_PREFIX.length).split(":");
   if (!discordGuildId || !roleId) return;
+  if (!hostedPilot.allows(discordGuildId)) { await interaction.reply({ content: PILOT_DENIED, ephemeral: true }); return; }
   const discordGuild = await interaction.client.guilds.fetch(discordGuildId).catch(() => null);
   if (!discordGuild) {
     await interaction.reply({ content: "I'm no longer in that server.", ephemeral: true });

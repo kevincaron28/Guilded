@@ -46,7 +46,9 @@ export async function replyWithCommandError(
   const content = error instanceof Error && error.message.length < 200
     ? error.message
     : "The command could not be completed. Please try again or contact an officer.";
-  if (interaction.replied || interaction.deferred) {
+  if (interaction.deferred && !interaction.replied) {
+    await interaction.editReply({ content });
+  } else if (interaction.replied) {
     await interaction.followUp({ content, ephemeral: true });
   } else {
     await interaction.reply({ content, ephemeral: true });

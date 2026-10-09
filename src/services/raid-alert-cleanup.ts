@@ -1,3 +1,4 @@
+import { hostedPilot } from "../hosted-pilot.js";
 import type { Client, Message } from "discord.js";
 import type { PrismaClient } from "@prisma/client";
 import { PAST_RAID_POST_MS, UNENDED_RAID_MS } from "./raid-post-cleanup.js";
@@ -35,6 +36,7 @@ export async function cleanupRaidAlerts(client: Client, database: PrismaClient, 
       raidCores: { select: { signupChannelId: true } }
     } });
     for (const record of records) {
+      if (!hostedPilot.allows(record.discordId)) continue;
       const guild = client.guilds.cache.get(record.discordId);
       if (!guild) continue;
       const ids = new Set([record.settings?.notifyChannelId, record.settings?.raidSignupChannelId, ...record.raidCores.map(core => core.signupChannelId)]);

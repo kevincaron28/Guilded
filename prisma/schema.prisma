@@ -1,3 +1,11 @@
+model AiDailyUsage {
+  day      String
+  scope    String
+  attempts Int    @default(0)
+
+  @@id([day, scope])
+}
+
 generator client {
   provider = "prisma-client-js"
 }

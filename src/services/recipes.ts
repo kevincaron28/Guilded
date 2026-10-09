@@ -1,3 +1,4 @@
+import { pilotGuildScope } from "../hosted-pilot.js";
 import type { Client } from "discord.js";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import type { AddonCooldownSet, AddonRecipeSet } from "../integrations/addon.js";
@@ -178,7 +179,7 @@ export async function describeCooldowns(database: Db, guildId: string, options: 
 // once when a cooldown of theirs becomes ready. Cooldowns that were ready long ago are skipped.
 export async function runCooldownPings(client: Client, database: PrismaClient, now = new Date()): Promise<number> {
   const due = await database.professionCooldown.findMany({
-    where: { notifiedAt: null, readyAt: { lte: now, gt: new Date(now.getTime() - 24 * 3_600_000) } },
+    where: { ...pilotGuildScope, notifiedAt: null, readyAt: { lte: now, gt: new Date(now.getTime() - 24 * 3_600_000) } },
     include: { guild: true }
   });
   if (due.length === 0) return 0;

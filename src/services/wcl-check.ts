@@ -1,3 +1,4 @@
+import { pilotGuildScope } from "../hosted-pilot.js";
 import type { Client, Guild as DiscordGuild } from "discord.js";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { config } from "../config.js";
@@ -106,7 +107,7 @@ async function processReport(
 export async function runWclDiscovery(discord: Client, database: Db): Promise<number> {
   if (!config.WCL_CLIENT_ID || !config.WCL_CLIENT_SECRET) return 0;
   const client = createWclClient({ clientId: config.WCL_CLIENT_ID, clientSecret: config.WCL_CLIENT_SECRET });
-  const settings = await database.guildSettings.findMany({ where: { wclGuildId: { not: null } }, select: { guildId: true, wclGuildId: true, wclBaseUrl: true } });
+  const settings = await database.guildSettings.findMany({ where: { ...pilotGuildScope, wclGuildId: { not: null } }, select: { guildId: true, wclGuildId: true, wclBaseUrl: true } });
   let found = 0;
   for (const row of settings) {
     if (!row.wclGuildId) continue;

@@ -1,3 +1,4 @@
+import { hostedPilot } from "./hosted-pilot.js";
 import { relayProfessions } from "./services/profession-relay.js";
 import { autoLinkUnclaimed } from "./services/character-autolink.js";
 import { updateProfessionDirectory } from "./services/profession-directory.js";
@@ -173,6 +174,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           json(response, 400, { error: "guildDiscordId and code must be strings" });
           return;
         }
+        if (!hostedPilot.allows(pairingPayload.guildDiscordId)) { json(response, 403, { error: "Server not approved for hosted pilot" }); return; }
         const guild = await prisma.guild.findUnique({ where: { discordId: pairingPayload.guildDiscordId }, select: { id: true } });
         if (!guild) {
           json(response, 404, { error: "Guild is not initialized" });
@@ -191,6 +193,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const requestPayload = payload as { guildDiscordId?: unknown; export?: unknown } | null;
       const guildDiscordId = isStandings || isPoeStatus || isPoeRecent || isManageView ? url.searchParams.get("guild") : requestPayload?.guildDiscordId;
       if (typeof guildDiscordId !== "string") { json(response, 400, { error: "guildDiscordId is required" }); return; }
+      if (!hostedPilot.allows(guildDiscordId)) { json(response, 403, { error: "Server not approved for hosted pilot" }); return; }
       const guild = await prisma.guild.findUnique({ where: { discordId: guildDiscordId } });
       if (!guild) { json(response, 404, { error: "Guild is not initialized" }); return; }
       const header = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");

@@ -6,7 +6,7 @@ for (const file of ["companion-app/package.json", "package-lock.json", "companio
   if (JSON.parse(readFileSync(file, "utf8")).version !== version) throw new Error(`Version mismatch: ${file}`);
 }
 if (!readFileSync("addon/Guilded/Guilded.toc", "utf8").includes(`## Version: ${version}`)) throw new Error("Addon version mismatch.");
-const env = { ...process.env, DISCORD_TOKEN: "placeholder", DISCORD_CLIENT_ID: "123", DISCORD_GUILD_ID: "456", DATABASE_URL: "postgresql://u:p@localhost:5432/guilded_release_test" };
+const env = { ...process.env, HOSTED_PILOT: "false", HOSTED_GUILD_IDS: "", DISCORD_TOKEN: "placeholder", DISCORD_CLIENT_ID: "123", DISCORD_GUILD_ID: "456", DATABASE_URL: "postgresql://u:p@localhost:5432/guilded_release_test" };
 function run(command, args) {
   const r = spawnSync(command, args, { env, stdio: "inherit", shell: process.platform === "win32" });
   if (r.error || r.status !== 0) process.exit(r.status || 1);

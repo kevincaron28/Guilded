@@ -68,6 +68,7 @@ function fakeDatabase(honors: Row | null, data: { points?: Row[]; ended?: Row | 
       groupBy: vi.fn(async ({ where }: { where: { userId: { in: string[] } } }) => where.userId.in.map(userId => ({ userId, _min: { createdAt: new Date(data.firsts?.[userId] ?? "2026-01-01T00:00:00Z") } })))
     },
     communityHonorAward: {
+      findMany: vi.fn(async () => [] as { userId: string }[]),
       createMany: vi.fn(async ({ data: rows }: { data: Row[] }) => { awards.push(...rows); return { count: rows.length }; }),
       count: vi.fn(async ({ where }: { where: Row }) => awards.filter(match(where)).length)
     },
@@ -75,7 +76,11 @@ function fakeDatabase(honors: Row | null, data: { points?: Row[]; ended?: Row | 
     communityActivity: { count: vi.fn(async () => 1) },
     raid: { findMany: vi.fn(async () => []) },
     dungeonRun: { count: vi.fn(async () => 0) },
-    member: { count: vi.fn(async () => 0) },
+    member: { count: vi.fn(async () => 0), findMany: vi.fn(async () => []) },
+    communityRookieMembership: {
+      upsert: vi.fn(async () => ({})), updateMany: vi.fn(async () => ({ count: 1 })),
+      findUniqueOrThrow: vi.fn(async () => ({ joinedAt: new Date("2026-09-15T12:00:00Z") }))
+    },
     communitySeason: { findFirst: vi.fn(async () => data.ended ?? null) },
     discordJob: { upsert: vi.fn(async (args: Row) => { jobs.push(args); return args; }) }
   };
@@ -122,6 +127,33 @@ describe("advancing the honors", () => {
     expect(jobs).toHaveLength(0);
   });
 
+  it("records the monthly rookie with the podium and announcement exactly once", async () => {
+    const honors: Row = { guildId: "guild", channelId: "fame", week: "2026-09-28", monthSeasonId: "aug", rookieHolderId: "old" };
+    const ended = { id: "sept", name: "September", number: 1, createdAt: new Date("2026-09-01T04:00:00Z"), endedAt: new Date("2026-10-01T04:00:00Z"), finalStandings: [row("a", 90)] };
+    const { database, tx, jobs, awards } = fakeDatabase(honors, { ended });
+    tx.communityPoint.findMany.mockResolvedValue([16, 17, 18].map(day => ({ userId: "a", kind: "AWARD", amount: 30, createdAt: new Date(`2026-09-${day}T12:00:00Z`) })));
+    tx.communityParticipationDay.findMany.mockResolvedValue([]);
+    const lookup = vi.fn(async () => new Date("2026-09-15T12:00:00Z"));
+    await advanceCommunityHonors(database, "guild", now, async () => new Map([["a", "Alice"]]), lookup);
+    expect(honors["rookieHolderId"]).toBe("a");
+    expect(awards).toContainEqual({ guildId: "guild", kind: "MONTH_ROOKIE", period: "sept", userId: "a", points: 90 });
+    expect(JSON.stringify(jobs)).toContain("Rookie of the month");
+    expect(JSON.stringify(jobs)).toContain("Alice");
+    await advanceCommunityHonors(database, "guild", now, undefined, lookup);
+    expect(jobs).toHaveLength(1);
+    expect(awards).toHaveLength(2);
+  });
+
+  it("frees the previous rookie role when the next month has no qualifying newcomer", async () => {
+    const honors: Row = { guildId: "guild", channelId: "fame", week: "2026-09-28", monthSeasonId: "aug", rookieHolderId: "old" };
+    const ended = { id: "sept", name: "September", number: 1, createdAt: new Date("2026-09-01T04:00:00Z"), endedAt: new Date("2026-10-01T04:00:00Z"), finalStandings: [] };
+    const { database, jobs, awards } = fakeDatabase(honors, { ended });
+    await advanceCommunityHonors(database, "guild", now);
+    expect(honors).toMatchObject({ rookieHolderId: null, rolesPending: true });
+    expect(awards).toHaveLength(0);
+    expect(jobs).toHaveLength(0);
+  });
+
   it("hands the podium roles to the top 3 of the season that just ended", async () => {
     const honors: Row = { guildId: "guild", channelId: "fame", week: "2026-09-28", monthSeasonId: "aug" };
     const ended = { id: "sept", name: "Septembre 2026", number: 2, finalStandings: [row("a", 90), row("b", 60), row("c", 60), row("d", 10)] };
@@ -145,7 +177,7 @@ describe("syncing the roles", () => {
       members.set(id, self);
       return self;
     };
-    for (const id of ["mvp", "gold", "silver", "bronze"]) roles.set(id, { id, members: new Collection() });
+    for (const id of ["mvp", "gold", "silver", "bronze", "rookie"]) roles.set(id, { id, members: new Collection() });
     for (const id of ["old", "new", "a", "b"]) member(id);
     for (const [roleId, ids] of Object.entries(holders)) for (const id of ids) { members.get(id)!.roles.cache.set(roleId, roles.get(roleId)); roles.get(roleId)!.members.set(id, members.get(id)!); }
     const guild = { members: { fetch: vi.fn(async () => members), cache: members }, roles: { cache: roles, fetch: vi.fn(async () => null) } };
@@ -153,9 +185,9 @@ describe("syncing the roles", () => {
   }
 
   it("takes the role from last week's MVP and gives it to the new one", async () => {
-    const { guild, members, roles } = fakeGuild({ mvp: ["old"], gold: ["a"] });
+    const { guild, members, roles } = fakeGuild({ mvp: ["old"], gold: ["a"], rookie: ["a"] });
     const updateMany = vi.fn(async () => ({ count: 1 }));
-    const honors = { guildId: "guild", weeklyRoleId: "mvp", weeklyHolderIds: ["new"], monthRoleIds: ["gold", "silver", "bronze"], monthHolderIds: [["a"], ["b"], ["gone"]], updatedAt: new Date(0) } as unknown as CommunityHonors;
+    const honors = { guildId: "guild", weeklyRoleId: "mvp", weeklyHolderIds: ["new"], rookieRoleId: "rookie", rookieHolderId: "b", monthRoleIds: ["gold", "silver", "bronze"], monthHolderIds: [["a"], ["b"], ["gone"]], updatedAt: new Date(0) } as unknown as CommunityHonors;
     await syncCommunityHonorRoles(guild, { communityHonors: { updateMany } } as unknown as PrismaClient, honors);
     expect([...roles.get("mvp")!.members.keys()]).toEqual(["new"]);
     expect(members.get("old")!.roles.remove).toHaveBeenCalledOnce();
@@ -163,6 +195,7 @@ describe("syncing the roles", () => {
     expect(members.get("a")!.roles.add).not.toHaveBeenCalled();
     expect([...roles.get("silver")!.members.keys()]).toEqual(["b"]);
     expect(roles.get("bronze")!.members.size).toBe(0);
+    expect([...roles.get("rookie")!.members.keys()]).toEqual(["b"]);
     expect(updateMany).toHaveBeenCalledWith({ where: { guildId: "guild", updatedAt: new Date(0) }, data: { rolesPending: false } });
   });
 });
@@ -195,18 +228,16 @@ describe("hall of fame extras", () => {
   const now = new Date("2026-10-06T12:00:00Z");
   const points = [{ userId: "a", kind: "AWARD", amount: 30 }, { userId: "b", kind: "AWARD", amount: 50 }, { userId: "c", kind: "AWARD", amount: 20 }];
 
-  it("names a rookie of the week (first point within four weeks, never the MVP) and records every award", async () => {
+  it("no longer issues weekly rookie awards; monthly recognition replaces them", async () => {
     const honors: Row = { guildId: "guild", channelId: "fame", week: "2026-09-21", weeklyEnabled: true, weekStart: "MONDAY", monthSeasonId: "sept" };
     // b (the MVP) and c are both new; a has been around since January.
     const { database, jobs, awards } = fakeDatabase(honors, { points, ended: { id: "sept" }, firsts: { b: "2026-09-30T00:00:00Z", c: "2026-10-01T00:00:00Z" } });
     await advanceCommunityHonors(database, "guild", now);
     expect(awards).toEqual([
-      { guildId: "guild", kind: "WEEK", period: "2026-09-28", userId: "b", points: 50 },
-      { guildId: "guild", kind: "ROOKIE", period: "2026-09-28", userId: "c", points: 20 }
+      { guildId: "guild", kind: "WEEK", period: "2026-09-28", userId: "b", points: 50 }
     ]);
     const post = JSON.stringify(jobs[0]);
-    expect(post).toContain("Rookie of the week");
-    expect(post).toContain("**…c** — **20 pts**, new to the community");
+    expect(post).not.toContain("Rookie of the week");
   });
 
   it("counts repeat MVP titles", async () => {

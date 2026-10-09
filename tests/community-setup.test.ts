@@ -86,7 +86,7 @@ describe("community section of /setup", () => {
     expect(text).toContain("Première saison lancée");
   });
 
-  it("adds a read-only hall of fame and the four recognition roles once", async () => {
+  it("adds a read-only hall of fame and the five recognition roles once", async () => {
     const { guild, cache, createRole } = fakeGuild([{ id: "lobby", type: ChannelType.GuildVoice, name: "Lobby" }]);
     const { database, honors } = fakeDatabase();
     const text = await ensureCommunitySetup(guild, database, "guild", "en", "officer", refreshFor(cache) as never);
@@ -95,14 +95,14 @@ describe("community section of /setup", () => {
     const overwrites = fame.options!["permissionOverwrites"] as { id: string; allow: bigint; deny: bigint }[];
     expect(overwrites.find(o => o.id === "discord")!.deny & PermissionFlagsBits.SendMessages).toBe(PermissionFlagsBits.SendMessages);
     expect(overwrites.find(o => o.id === "bot")!.allow & PermissionFlagsBits.SendMessages).toBe(PermissionFlagsBits.SendMessages);
-    expect(createRole.mock.calls.map(([options]) => options.name)).toEqual(["⭐ MVP of the week", "🥇 Champion of the month", "🥈 Runner-up of the month", "🥉 Third of the month"]);
+    expect(createRole.mock.calls.map(([options]) => options.name)).toEqual(["⭐ MVP of the week", "🥇 Champion of the month", "🥈 Runner-up of the month", "🥉 Third of the month", "🐣 Rookie of the month"]);
     expect(honors[0]).toMatchObject({ channelId: fame.id, weeklyRoleId: expect.any(String) });
     expect(honors[0]!["monthRoleIds"]).toHaveLength(3);
     expect(text).toContain(`<#${fame.id}>`);
 
     // A second run, even in French, finds the same channel and roles.
     await ensureCommunitySetup(guild, database, "guild", "fr", "officer", refreshFor(cache) as never);
-    expect(createRole).toHaveBeenCalledTimes(4);
+    expect(createRole).toHaveBeenCalledTimes(5);
     expect(cache.filter(channel => channel.name.startsWith("🏅")).size).toBe(1);
   });
 

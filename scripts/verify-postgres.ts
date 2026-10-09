@@ -23,6 +23,7 @@ import { verifyCommunityPostgres } from "./verify-community-postgres.js";
 import { verifyPoePostgres } from "./verify-poe-postgres.js";
 import { verifyScheduledEventsPostgres } from "./verify-scheduled-events-postgres.js";
 import { verifyParticipationPostgres } from "./verify-participation-postgres.js";
+import { verifyMonthlyRookiePostgres } from "./verify-monthly-rookie-postgres.js";
 const url = new URL(process.env["DATABASE_URL"] ?? "");
 if (!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) || url.pathname !== "/guilded_release_test") throw new Error("Disposable local test database required.");
 const database = new PrismaClient();
@@ -79,6 +80,7 @@ try {
     await verifyScheduledEventsPostgres(database, guild.id);
     await verifyCommunityPostgres(database, guild.id);
     await verifyParticipationPostgres(database, guild.id);
+    await verifyMonthlyRookiePostgres(database);
     await verifyPoePostgres(database, guild.id);
     const member = await database.member.create({ data: { guildId: guild.id, discordUserId: "release-test-member", displayName: "Ann" } });
     const contender = await database.member.create({ data: { guildId: guild.id, discordUserId: "release-test-contender", displayName: "Bob" } });

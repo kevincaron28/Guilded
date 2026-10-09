@@ -2,6 +2,7 @@ import { ensureCoreDiscord } from "./services/raid-core.js";
 import { fillGuildWeeklyRaids } from "./services/core-weekly-raids.js";
 import { guildService } from "./commands/context.js";
 import { adoptCommunityHonors } from "./services/community-honors.js";
+import { rememberRookieJoin } from "./services/monthly-rookie.js";
 import { COMMUNITY_PREFIX, executeCommunity, handleCommunityButton, handleCommunityModal, runCommunityActivities } from "./commands/community.js";
 import { handleCommunityHub } from "./commands/community-hub.js";
 import { COMMUNITY_HUB_PREFIX } from "./services/community-panels.js";
@@ -285,11 +286,21 @@ client.on(Events.GuildCreate, (guild) => {
 
 client.on(Events.GuildMemberAdd, async (member) => {
   try {
+    const record = await prisma.guild.findUnique({ where: { discordId: member.guild.id }, select: { id: true } });
+    if (record && member.joinedAt && !member.user.bot) await rememberRookieJoin(prisma, record.id, member.id, member.joinedAt);
     await handleMemberJoin(member.guild, member);
   } catch (error) {
     console.error("GuildMemberAdd handling failed", error);
     void errorReportService.report(client, error, { source: "GuildMemberAdd", guildId: member.guild.id, guildName: member.guild.name, userId: member.id });
   }
+});
+
+// Preserve tenure before a leave/rejoin, independently of character and roster resets.
+client.on(Events.GuildMemberRemove, async member => {
+  try {
+    const record = await prisma.guild.findUnique({ where: { discordId: member.guild.id }, select: { id: true } });
+    if (record && member.joinedAt && !member.user.bot) await rememberRookieJoin(prisma, record.id, member.id, member.joinedAt);
+  } catch (error) { console.error("Rookie membership history failed", error); }
 });
 
 // The officer log's "joined the guild" line: someone got the Member role or a leadership role.

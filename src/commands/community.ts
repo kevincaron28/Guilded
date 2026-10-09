@@ -439,7 +439,7 @@ async function honorsReply(guild: Guild, guildId: string, sub: string, actor: st
   const names = discordNames(guild);
   if (sub === "honors") {
     const history = await communityHonorsHistory(prisma, guildId);
-    const ids = [...new Set([...history.recent.map(row => row.userId), ...history.champions.map(row => row.userId), ...history.podium.map(row => row.userId)])];
+    const ids = [...new Set([...history.recent.map(row => row.userId), ...history.champions.map(row => row.userId), ...history.podium.map(row => row.userId), ...(history.monthlyRookie ? [history.monthlyRookie.userId] : [])])];
     return { ...honorsHistoryMessage(lang, history, await names(ids)), allowedMentions: { parse: [] } };
   }
   const member = await guild.members.fetch({ user: actor, force: true });

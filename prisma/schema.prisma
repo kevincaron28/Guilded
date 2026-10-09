@@ -158,6 +158,7 @@ model Guild {
   memberOnboardings   MemberOnboarding[]
   communityHonors     CommunityHonors?
   communityHonorAwards CommunityHonorAward[]
+  rookieMemberships CommunityRookieMembership[]
 }
 
 // Onboarding progress of one Discord user in one server. Kept apart from Member so that reading
@@ -216,6 +217,8 @@ model CommunityHonors {
   // Last ended season awarded, and the holders of each podium role (gold, silver, bronze).
   monthSeasonId   String?
   monthHolderIds  Json     @default("[[],[],[]]")
+  rookieRoleId    String?
+  rookieHolderId  String?
   // Set when holders change; cleared once Discord roles match them.
   rolesPending    Boolean  @default(false)
   // Officer settings (/community honors-settings). Off: no weekly MVP or post.
@@ -225,6 +228,15 @@ model CommunityHonors {
   pingMvp         Boolean  @default(false)
   updatedAt       DateTime @updatedAt
   guild           Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+}
+
+// Independent of characters and Member records: relinking cannot reset eligibility.
+model CommunityRookieMembership {
+  guildId String
+  userId String
+  joinedAt DateTime
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  @@id([guildId, userId])
 }
 
 // Every MVP, rookie of the week and monthly podium place, for "3rd time MVP" and /community honors.

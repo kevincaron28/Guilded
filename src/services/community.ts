@@ -1,7 +1,7 @@
 import { randomInt } from "node:crypto";
 import type { CommunityActivity, CommunitySeason, Prisma, PrismaClient } from "@prisma/client";
 import { enqueueDiscordJob } from "./discord-jobs.js";
-import { assertLotteryGame, challengeRules, COMMUNITY_GAMES, drawWinners, eventRules, evidenceReference, lotteryRules, quizRules, standings } from "./community-rules.js";
+import { assertLotteryGame, challengeRules, COMMUNITY_GAMES, COMMUNITY_REWARDS, dicePoints, drawWinners, eventRules, evidenceReference, lotteryRules, quizRules, standings } from "./community-rules.js";
 import { communityActivityChannel, communityMonthName, communitySeasonLabel } from "./community-display.js";
 import { asLang } from "../i18n.js";
 import { localParts } from "./raid-time.js";
@@ -259,12 +259,14 @@ export function createCommunityService(database: PrismaClient) {
         const current = await season(tx, guildId, seasonId);
         if (current.game !== "DISCORD") fail("Les dés utilisent une saison Discord / Dice use a Discord season.");
         let round = await tx.communityActivity.findFirst({ where: { seasonId, kind: "DICE", title: day } });
-        if (!round) round = await tx.communityActivity.create({ data: { seasonId, kind: "DICE", title: day, rules: { participation: 5, bonus: 10, threshold: 90 }, status: "CLOSED", endsAt: now, createdBy: "Guilded" } });
+        if (!round) round = await tx.communityActivity.create({ data: { seasonId, kind: "DICE", title: day, rules: COMMUNITY_REWARDS.dice, status: "CLOSED", endsAt: now, createdBy: "Guilded" } });
         const existing = await tx.communityEntry.findUnique({ where: { activityId_userId: { activityId: round.id, userId } } });
-        if (existing) return existing;
+        if (existing) return { ...existing, awardedPoints: dicePoints(Number(existing.evidence), round.rules) };
         const roll = randomInt(1, 101);
-        await point(tx, seasonId, userId, 5 + (roll >= 90 ? 10 : 0), "AWARD", `dice:${day}:${userId}`, `Dice / Dés ${day}: ${roll}`, userId);
-        return tx.communityEntry.create({ data: { activityId: round.id, userId, status: "PLAYED", evidence: String(roll) } });
+        const awardedPoints = dicePoints(roll, round.rules);
+        await point(tx, seasonId, userId, awardedPoints, "AWARD", `dice:${day}:${userId}`, `Dice / Dés ${day}: ${roll}`, userId);
+        const entry = await tx.communityEntry.create({ data: { activityId: round.id, userId, status: "PLAYED", evidence: String(roll) } });
+        return { ...entry, awardedPoints };
       });
     },
     async close(guildId: string, id: string, cancel = false, now = new Date()) {

@@ -37,13 +37,34 @@ Le suivi reste désactivé tant qu'un officier ne l'active pas avec au moins un 
 
 ## Règles par défaut
 
+### Profil vocal de deux heures (9 octobre 2026)
+
+État : implémentation et vérifications locales terminées; CI PostgreSQL/Windows,
+déploiement et activation en production restent à faire.
+
+Le taux est maintenant configurable avec `voice-points` (1 à 4 points par
+tranche de 15 minutes). Le profil demandé par le propriétaire est
+`voice-minutes:120 voice-points:4` : **32 points en deux heures par jour**.
+Les saisons sans taux explicite conservent 2 points par tranche et leur plafond
+existant. Déployer le bot et réenregistrer les commandes avant d'appliquer :
+
+```text
+/participation settings season:SAISON voice-minutes:120 voice-points:4
+```
+
+Le nouveau taux s'applique uniquement aux tranches nouvellement terminées. Les
+points déjà attribués et le temps consommé aujourd'hui restent inchangés; le
+jour du changement peut donc rapporter moins de 32 points. Aucun rattrapage ni
+retrait rétroactif. Le statut et les réglages affichent le taux sélectionné.
+La rotation mensuelle reprend ces réglages. Le rééquilibrage associé est décrit dans `COMMUNITY_REWARDS_HANDOFF.md`.
+
 | Source | Points | Protection |
 | --- | --- | --- |
 | Messages | 1 toutes les 5 minutes, maximum 10/jour | Délai partagé entre salons et au changement de jour; bots, webhooks et messages système exclus. |
 | Vocal | 2 par tranche de 15 minutes, maximum **240 minutes/jour = 32 points** | Deux humains admissibles dans le même vocal; aucun temps AFK, assourdi, seul ou hors des salons choisis. Les personnes muettes peuvent écouter et comptent. |
 | Réactions reçues | 1 par personne distincte, maximum 3/message et 6/jour | 👍 ❤️ 🎉 par défaut; aucun bot ou auto-réaction. Maximum 2 points du même donneur au même destinataire/jour. Plusieurs emojis ou retraits/ajouts ne récompensent pas à nouveau. |
-| Entraide validée | 5 par contribution, maximum 15/semaine | Nomination expliquée, validation par un officier qui n'est ni auteur ni bénéficiaire de la nomination. |
-| Soirées et défis | Points définis par l'organisateur; 10 suggérés pour une soirée | Réutilise la présence confirmée et la revue de preuves `/community`; une inscription seule ne donne aucun point. |
+| Entraide validée | 15 par contribution, maximum 45/semaine | Nomination expliquée, validation par un officier qui n'est ni auteur ni bénéficiaire de la nomination. |
+| Soirées et défis | 25 par soirée et 30 par défi par défaut; montant ajustable par l'organisateur | Réutilise la présence confirmée et la revue de preuves `/community`; une inscription seule ne donne aucun point. |
 
 Les limites journalières suivent le fuseau du serveur (America/Toronto par défaut),
 et la semaine commence le lundi. Comptes Discord âgés d'au moins 7 jours et présence

@@ -32,11 +32,24 @@ export async function verifyParticipationPostgres(database: PrismaClient, guildI
   assert.equal(day.voicePoints, 32);
   assert.equal(await service.voice(guildId, season.id, "voice-member", end, new Date(end.getTime() + 60_000), cfg.revision), 0);
   assert.equal((await database.communityPoint.aggregate({ where: { seasonId: season.id, userId: "voice-member" }, _sum: { amount: true } }))._sum.amount, 32);
+  // The owner's two-hour profile keeps the same 32-point maximum. Concurrent
+  // checkpoints at its last block must award exactly once at the selected rate.
+  const fast = await service.configure(guildId, season.id, true, participationRules.parse({ ...participationRules.parse(cfg.rules), voiceDailyMinutes: 120, voiceBlockPoints: 4 }));
+  await database.communityParticipationDay.create({ data: { seasonId: season.id, userId: "fast-voice", day: "2030-01-01", voiceMs: 119 * 60_000 + 30_000, voicePoints: 28 } });
+  const fastAwards = await Promise.all([1, 2, 3].map(() => service.voice(guildId, season.id, "fast-voice", at, end, fast.revision)));
+  assert.equal(fastAwards.reduce((sum, value) => sum + value, 0), 4);
+  const fastDay = await database.communityParticipationDay.findUniqueOrThrow({ where: { seasonId_userId_day: { seasonId: season.id, userId: "fast-voice", day: "2030-01-01" } } });
+  assert.equal(fastDay.voiceMs, 120 * 60_000);
+  assert.equal(fastDay.voicePoints, 32);
+  assert.equal(await service.voice(guildId, season.id, "fast-voice", end, new Date(end.getTime() + 60_000), fast.revision), 0);
+  // Restore the fixture's rules and revision for the remaining stale-settings checks.
+  await database.communityParticipationConfig.update({ where: { seasonId: season.id }, data: { rules: participationRules.parse(cfg.rules), revision: cfg.revision } });
   const nomination = await service.nominate(guildId, season.id, "helper", "nominator", "Release helper fixture", at);
   await assert.rejects(service.review(guildId, season.id, nomination.id, "nominator", true, "Self review", at));
   await assert.rejects(community.endSeason(guildId, season.id), /nominations/);
   await Promise.all([1, 2, 3].map(() => service.review(guildId, season.id, nomination.id, "officer", true, "Verified", at)));
   const helper = await database.communityPoint.findFirstOrThrow({ where: { seasonId: season.id, reference: `participation:helper:${nomination.id}` } });
+  assert.equal(helper.amount, 15);
   await Promise.all([1, 2].map(() => service.reverse(guildId, season.id, helper.id, "officer", "Correction", at)));
   assert.equal((await database.communityPoint.aggregate({ where: { seasonId: season.id, userId: "helper" }, _sum: { amount: true } }))._sum.amount, 0);
   await Promise.all([1, 2].map(() => service.deleteMessage(guildId, season.id, "social-one", at)));

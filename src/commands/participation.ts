@@ -7,7 +7,7 @@ import { guildService, requireGuildContext } from "./context.js";
 import { canAccessCommunity } from "./community.js";
 import { createParticipationService } from "../services/participation.js";
 import { eligibleParticipationMember } from "../services/participation-discord.js";
-import { participationBadge, participationRules } from "../services/participation-rules.js";
+import { HELPER_POINTS, HELPER_WEEKLY_POINTS, participationBadge, participationRules } from "../services/participation-rules.js";
 import { resolveCommunitySeason } from "../services/community-access.js";
 import { communitySeasonLabel } from "../services/community-display.js";
 
@@ -15,7 +15,7 @@ const service = createParticipationService(prisma);
 const seasonOption = (sub: SlashCommandSubcommandBuilder, required = true) => sub.addStringOption(o => o.setName("season").setDescription("Discord season").setDescriptionLocalizations({ fr: "Saison Discord" }).setRequired(required).setAutocomplete(true));
 const idOption = (sub: SlashCommandSubcommandBuilder) => sub.addStringOption(o => o.setName("id").setDescription("Record ID").setDescriptionLocalizations({ fr: "Identifiant" }).setRequired(true));
 const reasonOption = (sub: SlashCommandSubcommandBuilder) => sub.addStringOption(o => o.setName("reason").setDescription("Reason").setDescriptionLocalizations({ fr: "Motif" }).setRequired(true).setMaxLength(300));
-const limits = [["messages", "messageDailyCap", 0, 50], ["reactions", "reactionDailyCap", 0, 20], ["voice-minutes", "voiceDailyMinutes", 0, 240], ["member-days", "minimumMemberDays", 0, 30], ["weekly-goal", "weeklyGoal", 2, 500]] as const;
+const limits = [["messages", "messageDailyCap", 0, 50], ["reactions", "reactionDailyCap", 0, 20], ["voice-minutes", "voiceDailyMinutes", 0, 240], ["member-days", "minimumMemberDays", 0, 30], ["weekly-goal", "weeklyGoal", 2, 500], ["voice-points", "voiceBlockPoints", 1, 4]] as const;
 export const participationCommand = new SlashCommandBuilder().setName("participation").setDescription("Discord participation and helper recognition").setDescriptionLocalizations({ fr: "Participation Discord et entraide" })
   .addSubcommand(sub => {
     const settings = seasonOption(sub.setName("settings").setDescription("Officer settings").setDescriptionLocalizations({ fr: "Réglages officiers" }))
@@ -24,8 +24,8 @@ export const participationCommand = new SlashCommandBuilder().setName("participa
       .addBooleanOption(o => o.setName("remove").setDescription("Remove this channel").setDescriptionLocalizations({ fr: "Retirer ce salon" }))
       .addBooleanOption(o => o.setName("all-voice").setDescription("Count every voice channel").setDescriptionLocalizations({ fr: "Compter tous les salons vocaux" }))
       .addBooleanOption(o => o.setName("all-text").setDescription("Count every text channel").setDescriptionLocalizations({ fr: "Compter tous les salons textuels" }));
-    const descriptions = ["Daily message points cap", "Daily reaction points cap", "Daily voice minutes; maximum 240", "Minimum days in server", "Distinct weekly participants goal"];
-    const french = ["Plafond quotidien de messages", "Plafond quotidien de réactions", "Minutes vocales par jour, maximum 240", "Ancienneté minimale sur le serveur", "Objectif hebdomadaire de membres"];
+    const descriptions = ["Daily message points cap", "Daily reaction points cap", "Daily voice minutes; maximum 240", "Minimum days in server", "Distinct weekly participants goal", "Points per 15 voice minutes"];
+    const french = ["Plafond quotidien de messages", "Plafond quotidien de réactions", "Minutes vocales par jour, maximum 240", "Ancienneté minimale sur le serveur", "Objectif hebdomadaire de membres", "Points par tranche de 15 minutes vocales"];
     limits.forEach(([name, , min, max], index) => settings.addIntegerOption(o => o.setName(name).setDescription(descriptions[index]!).setDescriptionLocalizations({ fr: french[index]! }).setMinValue(min).setMaxValue(max)));
     return settings.addStringOption(o => o.setName("emojis").setDescription("Positive emojis or custom IDs, comma-separated").setDescriptionLocalizations({ fr: "Emojis positifs ou identifiants, séparés par virgules" }).setMaxLength(300));
   })
@@ -78,15 +78,15 @@ export async function executeParticipation(interaction: ChatInputCommandInteract
     content = `${T("Earning", "Gains")} : ${enabled ? T("enabled", "activés") : T("paused", "en pause")}\n` +
       `${T("Text channels", "Salons textuels")} : ${rules.allText ? T("all text channels", "tous les salons textuels") : rules.textChannels.map(id => `<#${id}>`).join(", ") || "—"}\n${T("Voice channels", "Salons vocaux")} : ${rules.allVoice ? T("all voice channels (except AFK)", "tous les salons vocaux (sauf AFK)") : rules.voiceChannels.map(id => `<#${id}>`).join(", ") || "—"}\n` +
       `${T("Daily caps", "Plafonds quotidiens")} : ${rules.messageDailyCap} ${T("message points", "points de messages")} · ${rules.reactionDailyCap} ${T("reaction points", "points de réactions")} · ${rules.voiceDailyMinutes} min ${T("voice", "vocal")}\n` +
-      T("1 message point / 5 min; 2 voice points / 15 min; 2 eligible humans together. Muted listeners count; deafened/AFK do not.", "1 point de message / 5 min; 2 points vocaux / 15 min; 2 humains admissibles ensemble. Les personnes muettes comptent; pas les personnes assourdies/AFK.") +
+      T(`1 message point / 5 min; ${rules.voiceBlockPoints} voice points / 15 min; 2 eligible humans together. Muted listeners count; deafened/AFK do not.`, `1 point de message / 5 min; ${rules.voiceBlockPoints} points vocaux / 15 min; 2 humains admissibles ensemble. Les personnes muettes comptent; pas les personnes assourdies/AFK.`) +
       `\n${T("Positive emojis", "Emojis positifs")} : ${rules.emojis.join(" ") || "—"}\n` +
-      T(`Account age: 7 days. Server membership: ${rules.minimumMemberDays} days. Weekly goal: ${rules.weeklyGoal} members. Helpers: 5 points, max 15/week after independent review.`, `Comptes : 7 jours. Présence sur le serveur : ${rules.minimumMemberDays} jours. Objectif : ${rules.weeklyGoal} membres/semaine. Entraide : 5 points, max 15/semaine après validation indépendante.`) +
+      T(`Account age: 7 days. Server membership: ${rules.minimumMemberDays} days. Weekly goal: ${rules.weeklyGoal} members. Helpers: ${HELPER_POINTS} points, max ${HELPER_WEEKLY_POINTS}/week after independent review.`, `Comptes : 7 jours. Présence sur le serveur : ${rules.minimumMemberDays} jours. Objectif : ${rules.weeklyGoal} membres/semaine. Entraide : ${HELPER_POINTS} points, max ${HELPER_WEEKLY_POINTS}/semaine après validation indépendante.`) +
       `\n${config.MESSAGE_CONTENT_INTENT ? T("Duplicate/short-text filtering enabled.", "Filtrage des textes courts/répétés activé.") : T("Text access is off: timing and caps apply; repeated text cannot be detected.", "Accès au texte désactivé : délais et plafonds actifs; les textes répétés ne peuvent pas être détectés.")}`;
   } else if (sub === "status") {
     const summary = await service.summary(context.guildId, seasonId, actor);
     content = `🏅 **${communitySeasonLabel(season, lang)}** · ${season.status}\n${T("Earning", "Gains")} : ${season.status === "ACTIVE" && season.participation?.enabled ? T("enabled", "activés") : T("paused", "en pause")}\n` +
       `${T("Today", "Aujourd'hui")} : ${summary.today?.messages ?? 0}/${rules.messageDailyCap} ${T("message points", "points de messages")} · ${summary.today?.reactions ?? 0}/${rules.reactionDailyCap} ${T("reaction points", "points de réactions")}\n` +
-      `${T("Voice", "Vocal")} : ${Math.floor((summary.today?.voiceMs ?? 0) / 60_000)}/${rules.voiceDailyMinutes} min · ${summary.today?.voicePoints ?? 0} points\n` +
+      `${T("Voice", "Vocal")} : ${Math.floor((summary.today?.voiceMs ?? 0) / 60_000)}/${rules.voiceDailyMinutes} min · ${summary.today?.voicePoints ?? 0} points · ${rules.voiceBlockPoints} pts / 15 min\n` +
       `${T("Season score", "Score de saison")} : ${summary.points} · ${T("Milestone", "Palier")} : ${participationBadge(summary.points)} (50 / 150 / 300)\n` +
       `${T("Weekly guild goal", "Objectif hebdomadaire de guilde")} : ${summary.participants}/${rules.weeklyGoal} ${T("different members", "membres différents")} ${summary.participants >= rules.weeklyGoal ? "🎉" : ""}\n` +
       `${T("Weekly helpers", "Entraide de la semaine")} : ${summary.helpers.map(([id, points]) => `<@${id}> (${points})`).join(", ") || "—"}\n` +

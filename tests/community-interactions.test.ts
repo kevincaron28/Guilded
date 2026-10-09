@@ -4,14 +4,15 @@ import { Collection, PermissionFlagsBits } from "discord.js";
 const mocks = vi.hoisted(() => ({
   enterLottery: vi.fn(async () => ({ quantity: 3, status: "CONFIRMED" })), create: vi.fn(),
   activity: vi.fn(), season: vi.fn(), ensureGuild: vi.fn(async () => ({ id: "guild" })),
-  settings: vi.fn(async () => ({ language: "fr", timezone: "America/Toronto" }))
+  settings: vi.fn(async () => ({ language: "fr", timezone: "America/Toronto" })),
+  dice: vi.fn(), priorDice: vi.fn()
 }));
-vi.mock("../src/database.js", () => ({ prisma: { communityActivity: { findFirst: mocks.activity }, communitySeason: { findFirst: mocks.season } } }));
+vi.mock("../src/database.js", () => ({ prisma: { communityActivity: { findFirst: mocks.activity }, communitySeason: { findFirst: mocks.season }, communityEntry: { findFirst: mocks.priorDice } } }));
 vi.mock("../src/commands/context.js", () => ({ guildService: { ensureGuild: mocks.ensureGuild, getSettings: mocks.settings }, requireGuildContext: vi.fn() }));
-vi.mock("../src/services/community.js", () => ({ createCommunityService: () => ({ enterLottery: mocks.enterLottery, create: mocks.create }) }));
+vi.mock("../src/services/community.js", () => ({ createCommunityService: () => ({ enterLottery: mocks.enterLottery, create: mocks.create, dice: mocks.dice }) }));
 
 import { handleCommunityButton, handleCommunityModal } from "../src/commands/community.js";
-import { handleCommunityHub } from "../src/commands/community-hub.js";
+import { diceReply, handleCommunityHub } from "../src/commands/community-hub.js";
 import { dispatchDiscordJob } from "../src/services/discord-jobs.js";
 
 const season = { id: "season", guildId: "guild", game: "DISCORD", status: "ACTIVE", channelId: "board", announcementChannelId: "activities", audienceRoleId: null };
@@ -30,6 +31,20 @@ function interaction(customId: string) {
 beforeEach(() => { vi.clearAllMocks(); mocks.activity.mockResolvedValue(row); mocks.season.mockResolvedValue(season); });
 
 describe("persistent community interactions", () => {
+  it.each([2, 5, 15])("displays the actual saved dice reward (%i), including legacy rounds", async points => {
+    mocks.priorDice.mockResolvedValue({ id: "entry" });
+    mocks.dice.mockResolvedValue({ evidence: points === 2 ? "10" : "95", awardedPoints: points });
+    const reply = await diceReply("guild", season as never, "member", "America/Toronto", "en");
+    expect(reply).toContain(`**${points} points**`);
+    expect(reply).toContain("Already played today");
+  });
+  it.each([["gaming", "25"], ["challenge", "30"]])("prefills the %s organizer form with %s points", async (kind, points) => {
+    const button = interaction(`community:hub-template-${kind}:season`);
+    button.isButton = () => true;
+    await handleCommunityHub(button as never);
+    const modal = button.showModal.mock.calls[0]![0].toJSON();
+    expect(modal.components.flatMap((row: { components: { custom_id: string; value: string }[] }) => row.components).find((field: { custom_id: string }) => field.custom_id === "points").value).toBe(points);
+  });
   it("blocks a queued reminder if its destination becomes more public", async () => {
     mocks.activity.mockResolvedValue({ ...row, status: "OPEN" });
     const source = { permissionOverwrites: { cache: new Collection([["everyone", { id: "everyone", type: 0, allow: { bitfield: 0n }, deny: { bitfield: PermissionFlagsBits.ViewChannel } }]]) } };

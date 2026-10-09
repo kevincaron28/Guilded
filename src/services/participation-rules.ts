@@ -13,6 +13,8 @@ export const participationRules = z.object({
   messageDailyCap: z.number().int().min(0).max(50).default(10),
   reactionDailyCap: z.number().int().min(0).max(20).default(6),
   voiceDailyMinutes: z.number().int().min(0).max(240).default(240),
+  // Preserve legacy seasons until an officer explicitly selects the faster rate.
+  voiceBlockPoints: z.number().int().min(1).max(4).default(2),
   minimumMemberDays: z.number().int().min(0).max(30).default(3),
   weeklyGoal: z.number().int().min(2).max(500).default(10)
 });
@@ -20,6 +22,9 @@ export type ParticipationRules = z.infer<typeof participationRules>;
 export const VOICE_BLOCK_MS = 15 * 60_000;
 export const MAX_VOICE_GAP_MS = 90_000;
 export const MESSAGE_COOLDOWN_MS = 5 * 60_000;
+export const HELPER_POINTS = 15;
+export const HELPER_WEEKLY_APPROVALS = 3;
+export const HELPER_WEEKLY_POINTS = HELPER_POINTS * HELPER_WEEKLY_APPROVALS;
 export const normalizeEmoji = (value: string) => value.replace(/\uFE0F/g, "");
 
 export function participationDay(now: Date, timezone: string): string {

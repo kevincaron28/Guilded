@@ -1,5 +1,5 @@
 import type { CommunityParticipationDay, Prisma, PrismaClient } from "@prisma/client";
-import { dateAfter, dayStart, MESSAGE_COOLDOWN_MS, participationDay, participationRules, participationWeek, VOICE_BLOCK_MS, voiceSegments, type ParticipationRules } from "./participation-rules.js";
+import { dateAfter, dayStart, HELPER_POINTS, HELPER_WEEKLY_APPROVALS, HELPER_WEEKLY_POINTS, MESSAGE_COOLDOWN_MS, participationDay, participationRules, participationWeek, VOICE_BLOCK_MS, voiceSegments, type ParticipationRules } from "./participation-rules.js";
 
 type Tx = Prisma.TransactionClient;
 const fail = (text: string): never => { throw new Error(text); };
@@ -75,7 +75,10 @@ export function createParticipationService(database: PrismaClient) {
           const elapsed = Math.max(0, segment.end.getTime() - from);
           if (!elapsed) continue;
           const voiceMs = Math.max(today.voiceMs, Math.min(cfg.rules.voiceDailyMinutes * 60_000, today.voiceMs + elapsed));
-          const points = Math.max(today.voicePoints, Math.floor(voiceMs / VOICE_BLOCK_MS) * 2);
+          // Price only newly completed blocks. A rate change must not reprice time
+          // already rewarded earlier today or remove previously earned points.
+          const blocks = Math.floor(voiceMs / VOICE_BLOCK_MS) - Math.floor(today.voiceMs / VOICE_BLOCK_MS);
+          const points = today.voicePoints + blocks * cfg.rules.voiceBlockPoints;
           if (points > today.voicePoints) {
             await award(tx, seasonId, userId, points - today.voicePoints, `participation:voice:${userId}:${segment.day}:${points}`, "Vocal partagé / Shared voice time", "Guilded", new Date(segment.end.getTime() - 1));
             earned += points - today.voicePoints;
@@ -123,8 +126,8 @@ export function createParticipationService(database: PrismaClient) {
           // Count original approvals, including reversals, so corrections never refill caps.
           const week = participationWeek(now, cfg.timezone);
           const count = await tx.communityPoint.count({ where: { seasonId, userId: row.userId, kind: "AWARD", reference: { startsWith: "participation:helper:" }, createdAt: { gte: dayStart(week, cfg.timezone), lt: dayStart(dateAfter(week, 7), cfg.timezone) } } });
-          if (count >= 3) fail("Maximum 15 points d'entraide par semaine / Maximum 15 helper points per week.");
-          await award(tx, seasonId, row.userId, 5, `participation:helper:${id}`, row.reason, actorId, now);
+          if (count >= HELPER_WEEKLY_APPROVALS) fail(`Maximum ${HELPER_WEEKLY_POINTS} points d'entraide par semaine / Maximum ${HELPER_WEEKLY_POINTS} helper points per week.`);
+          await award(tx, seasonId, row.userId, HELPER_POINTS, `participation:helper:${id}`, row.reason, actorId, now);
         }
         return tx.communityKudos.update({ where: { id }, data: { status: approve ? "APPROVED" : "REJECTED", reviewedBy: actorId, reviewNote: note.trim() } });
       });

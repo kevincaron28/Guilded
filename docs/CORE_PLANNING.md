@@ -5,7 +5,9 @@ the player step includes **Size & roles** and **Raid days & launch date**.
 
 Set size and role counts first. For example, a 10-player core could have 2 tanks,
 2 healers and 6 DPS; a 20-player core could have 2 tanks, 4 healers and 14 DPS.
-These are examples, not forced compositions. Counts must sum to the size (1–40).
+These are examples, not forced compositions. The size picker offers 10, 20 and 40
+players. Counts must sum to the selected size. These formats remain available
+indefinitely; changing them later requires a code/database update.
 The roster displays current main members against each role target; bench and trial
 members remain listed separately. Targets do not remove members or restrict the
 size of the bench. New raids inherit these signup limits, using the existing

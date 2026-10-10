@@ -1,3 +1,9 @@
+Maintenance update, 9 October 2026: Oracle runs application commit `d4d34e5`,
+6.0.0 / protocol 2, with system updates and kernel reboot complete. The owner's
+desktop companion is now 6.0.0. Caddy's unavailable Cloudsmith source is disabled;
+use official GitHub packages until that signed source recovers. See
+[maintenance evidence and remaining acceptance](MAINTENANCE_2026-10-09.md).
+
 Owner release decision, 5 October 2026: **6.0.0 is the full Release; next is 6.1.0.**
 Use [current release notes](V6_0_RELEASE_NOTES.md). Earlier beta-promotion requirements below are historical;
 unverified checks remain follow-up work, not passes.

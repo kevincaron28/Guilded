@@ -303,7 +303,7 @@ function withStandalone(level = 58): LuaSession {
   session.run(String.raw`
     SENT = {}
     SETTINGS = {}
-    DB = {}
+    DB = { roster = { Me = { inGuild = true }, Ann = { inGuild = true }, Bob = { inGuild = true }, Late = { inGuild = true } } }
     function UnitLevel() return ${level} end
     NS = {
       L = function(t) return t end,

@@ -51,6 +51,16 @@ scores.DUNGEONS = DUNGEONS
 local function active() return not ns.moduleActive or ns.moduleActive("scores") end
 local function L(text) return ns.L and ns.L(text) or text end
 
+-- Unlike the general attendance roster, legacy entries without membership
+-- evidence must not qualify for a guild leaderboard. Keep their saved history.
+function scores.isMember(name)
+  name = ns.normalizeName and ns.normalizeName(name)
+  if not name or not (IsInGuild and IsInGuild()) then return false end
+  if name == (ns.playerName and ns.playerName()) then return true end
+  local db = ns.getDb and ns.getDb()
+  return db and db.roster and db.roster[name] and db.roster[name].inGuild == true or false
+end
+
 local function store()
   local db = ns.getDb and ns.getDb()
   if not db then return nil end
@@ -89,7 +99,7 @@ function scores.learn(run)
   local changed = false
   for name, player in pairs(run.players or {}) do
     -- Only people who were really there (a few seconds in the group is not a clear).
-    if (player.presentSec or 0) >= sec * 0.5 or player.presentSec == nil then
+    if scores.isMember(name) and ((player.presentSec or 0) >= sec * 0.5 or player.presentSec == nil) then
       s.bests[name] = s.bests[name] or {}
       local entry = { sec = sec, deaths = tonumber(player.deaths) or 0, at = run.endedAt or run.detectedAt, name = dungeon.name }
       local current = s.bests[name][dungeon.key]
@@ -105,9 +115,11 @@ end
 -- The guild record (fastest known time) of each dungeon.
 local function records(s)
   local fastest = {}
-  for _, dungeons in pairs(s.bests) do
-    for key, entry in pairs(dungeons) do
-      if not fastest[key] or entry.sec < fastest[key] then fastest[key] = entry.sec end
+  for name, dungeons in pairs(s.bests) do
+    if scores.isMember(name) then
+      for key, entry in pairs(dungeons) do
+        if not fastest[key] or entry.sec < fastest[key] then fastest[key] = entry.sec end
+      end
     end
   end
   return fastest
@@ -128,6 +140,7 @@ end
 
 -- A player's score from the runs this client knows: total, dungeons counted, and each line.
 function scores.compute(name)
+  if not scores.isMember(name) then return 0, 0, {} end
   local s = store()
   local mine = s and s.bests[name]
   if not mine then return 0, 0, {} end
@@ -146,7 +159,7 @@ end
 -- higher (they may have runs this client never saw).
 function scores.scoreOf(name)
   local s = store()
-  if not s or not name then return nil end
+  if not s or not scores.isMember(name) then return nil end
   local total, count = scores.compute(name)
   local shared = s.board[name]
   if shared and (shared.score or 0) > total then return shared.score, shared.n or count end
@@ -179,8 +192,8 @@ end
 function scores.receive(text, sender)
   local s = store()
   local name = ns.normalizeName and ns.normalizeName(sender)
-  if not s or not name or name == (ns.playerName and ns.playerName()) then return end
-  local total, count = string.match(text, "^S|(%d+)|(%d+)")
+  if not s or not scores.isMember(name) or name == (ns.playerName and ns.playerName()) then return end
+  local total, count = string.match(text, "^S|(%d+)|(%d+)$")
   total, count = tonumber(total), tonumber(count)
   -- 19 dungeons at most ~150 points each: anything far above is not a real score.
   if not total or total > 5000 or count > 60 then return end
@@ -193,7 +206,7 @@ function scores.ranking()
   local seen, rows = {}, {}
   if not s then return rows end
   local function add(name)
-    if seen[name] then return end
+    if seen[name] or not scores.isMember(name) then return end
     seen[name] = true
     local total, count = scores.scoreOf(name)
     if total then table.insert(rows, { name = name, score = total, n = count }) end
@@ -292,6 +305,7 @@ local function register(event)
 end
 register("PLAYER_LOGIN")
 register("CHAT_MSG_ADDON")
+register("GUILD_ROSTER_UPDATE")
 
 frame:SetScript("OnEvent", function(_, event, ...)
   local args = { ... }
@@ -304,6 +318,10 @@ frame:SetScript("OnEvent", function(_, event, ...)
       for _, run in pairs(db and db.dungeon and db.dungeon.runs or {}) do scores.learn(run) end
       hookTooltips()
       if C_Timer and C_Timer.After then C_Timer.After(LOGIN_DELAY_SECONDS, function() pcall(scores.share, true) end) end
+    elseif event == "GUILD_ROSTER_UPDATE" then
+      if not active() then return end
+      local db = ns.getDb and ns.getDb()
+      for _, run in pairs(db and db.dungeon and db.dungeon.runs or {}) do scores.learn(run) end
     elseif event == "CHAT_MSG_ADDON" then
       local prefix, text, channel, sender = args[1], args[2], args[3], args[4]
       if ns.isSecret and (ns.isSecret(prefix) or ns.isSecret(text) or ns.isSecret(sender)) then return end

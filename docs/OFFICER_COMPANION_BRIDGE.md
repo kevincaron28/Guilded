@@ -11,8 +11,8 @@ too: it adds automatic/background file synchronization.
 
 ## Private patch test
 
-1. Install the current addon on both PCs and reload. The default-on follow-up
-   changes the officer sender; the existing member receiver remains compatible.
+1. Install the current addon on both PCs and reload. The server-segment fix
+   must reach the receiver as well as the default-on officer sender.
 2. Use an officer and member in the same in-game guild and realm. Highpriest,
    previously tested outside the guild, cannot receive this guild broadcast.
 3. On the officer PC, connect the companion to the corresponding Discord guild,
@@ -75,6 +75,15 @@ shares pairing credentials or grants members ledger-write authority.
 Record results in [the player test checklist](V6_0_PLAYER_TEST_CHECKLIST.md).
 On 13 October the owner confirmed both PCs updated/connected, but the member's
 status remained waiting for an online officer. Reception is not yet a pass.
+Screenshots then showed the same guild, with the leader on `Classic Beta PvP`
+and the receiver on `Classic Beta PvP 2`; the receiver's fourth `GetGuildInfo`
+value was `ClassicBetaPvP`. The bridge now compares the reported guild home,
+normalizing spaces in the server label, instead of requiring both characters'
+local server labels to match. This preserves saved guild keys and still rejects
+different guild names or different guild homes. New snapshots include the guild
+home; older broadcasts from the home server remain accepted. Both directions
+and cached reloads have regression coverage. The receiver needs this update;
+successful in-game reception remains unverified.
 Automated Lua tests cover parsing, authorization, caching, cancellation and
 privacy boundaries; they do not replace this two-client check.
 

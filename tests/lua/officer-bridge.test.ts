@@ -40,6 +40,33 @@ function deliver(s: LuaSession, messages: string[], sender = "Officer", channel 
 }
 
 describe("officer companion bridge", () => {
+  it("accepts the guild home across Forever server segments, including older senders", () => {
+    const officer = client(true); snapshot(officer);
+    officer.run('GetRealmName = function() return "Classic Beta PvP" end; DB.guildKey = "Test Guild-Classic Beta PvP"; NS.commandHandlers.bridge({"on"})');
+    const member = client();
+    member.run('GetRealmName = function() return "Classic Beta PvP 2" end; GetGuildInfo = function() return GUILD, "Officer", 1, "ClassicBetaPvP" end; DB.guildKey = "Test Guild-Classic Beta PvP 2"');
+    deliver(member, packets(officer));
+    expect(member.run('return GuildedNextRaid.id')).toBe("raid1");
+    member.run('GuildedNextRaid = nil; fire_event("PLAYER_ENTERING_WORLD"); NS.commandHandlers.bridge({"status"})');
+    expect(member.run('return GuildedNextRaid.id')).toBe("raid1");
+    expect(member.run('return CHAT_LOG[#CHAT_LOG]')).toContain("Guild data from Officer");
+    // Existing cached broadcasts have no explicit guildHome field.
+    officer.run('DB.officerBridge.snapshot.guildHome = nil; SENT = {}; NOW = NOW + 100; NS.commandHandlers.bridge({"on"})');
+    const legacyReceiver = client();
+    legacyReceiver.run('GetRealmName = function() return "Classic Beta PvP 2" end; GetGuildInfo = function() return GUILD, "Officer", 1, "ClassicBetaPvP" end; DB.guildKey = "Test Guild-Classic Beta PvP 2"');
+    deliver(legacyReceiver, packets(officer));
+    expect(legacyReceiver.run('return GuildedNextRaid.id')).toBe("raid1");
+  });
+  it("shares from a secondary segment but rejects a same-named guild on another home", () => {
+    const officer = client(true); snapshot(officer);
+    officer.run('GetRealmName = function() return "Classic Beta PvP 2" end; GetGuildInfo = function() return GUILD, "Guild Master", 0, "ClassicBetaPvP" end; DB.guildKey = "Test Guild-Classic Beta PvP 2"; NS.commandHandlers.bridge({"on"})');
+    const member = client(); member.run('GetRealmName = function() return "Classic Beta PvP" end; DB.guildKey = "Test Guild-Classic Beta PvP"');
+    deliver(member, packets(officer));
+    expect(member.run('return GuildedNextRaid.id')).toBe("raid1");
+    const outsider = client(); outsider.run('GetRealmName = function() return "Classic Beta PvE" end; DB.guildKey = "Test Guild-Classic Beta PvE"');
+    deliver(outsider, packets(officer));
+    expect(outsider.run('return tostring(DB.officerBridge)')).toBe("nil");
+  });
   it("automatically shares officer core pools, rosters and upcoming raids without opt-in", () => {
     const officer = client(true); snapshot(officer);
     officer.run('fire_event("PLAYER_ENTERING_WORLD"); fire_event("CHAT_MSG_ADDON", "GuildedBridge", "REQ|1|0", "GUILD", "Member")');

@@ -59,11 +59,14 @@ shares pairing credentials or grants members ledger-write authority.
 
 ## Real-client acceptance
 
+- [x] 13 October: patched Naomine client reports "Guild data from Highpriest" across the two Forever server labels (owner-reported reception; both characters are WoW officers).
+- [x] 13 October: owner reports Naomine retains the sender status and core information after reload with Highpriest logged out, following the prescribed test.
+- [x] 13 October: owner confirms core names, loot methods and the compared character's EP/GP match between both PCs and Discord. GP item prices and core rosters are not yet verified.
 - [ ] Officer and ordinary member have the patch in the same WoW guild.
 - [ ] Officer sharing starts by default with the correct companion guild mapping.
 - [ ] Member receives current standings without a personal companion connection.
 - [ ] Core selection, loot method, GP prices and core roster match Discord.
-- [ ] Upcoming Guilded raid details match Discord.
+- [x] 13 October: owner confirmed the requested upcoming Guilded calendar comparison was already completed.
 - [ ] Native Discord private events remain on the officer's own PC.
 - [ ] Member logs in later and can request the officer's snapshot.
 - [ ] Member reload preserves received core/calendar data.
@@ -74,7 +77,7 @@ shares pairing credentials or grants members ledger-write authority.
 
 Record results in [the player test checklist](V6_0_PLAYER_TEST_CHECKLIST.md).
 On 13 October the owner confirmed both PCs updated/connected, but the member's
-status remained waiting for an online officer. Reception is not yet a pass.
+status initially remained waiting for an online officer.
 Screenshots then showed the same guild, with the leader on `Classic Beta PvP`
 and the receiver on `Classic Beta PvP 2`; the receiver's fourth `GetGuildInfo`
 value was `ClassicBetaPvP`. The bridge now compares the reported guild home,
@@ -83,7 +86,9 @@ local server labels to match. This preserves saved guild keys and still rejects
 different guild names or different guild homes. New snapshots include the guild
 home; older broadcasts from the home server remain accepted. Both directions
 and cached reloads have regression coverage. The receiver needs this update;
-successful in-game reception remains unverified.
+the owner subsequently confirmed Naomine reports "Guild data from Highpriest"
+after installing the patch and reloading. This proves reception, not current
+standings, content correctness, reload persistence, or ordinary-member permissions.
 Automated Lua tests cover parsing, authorization, caching, cancellation and
 privacy boundaries; they do not replace this two-client check.
 

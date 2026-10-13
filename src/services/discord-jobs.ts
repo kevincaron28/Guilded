@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { DiscordJob, Prisma, PrismaClient } from "@prisma/client";
 import { EmbedBuilder, type Client, type Guild, type MessageCreateOptions } from "discord.js";
 import { prisma } from "../database.js";
+import { participationDay } from "./participation-rules.js";
 
 type Db = Pick<PrismaClient, "discordJob">;
 export type JobKind = "DUNGEON_BOARD" | "PROFESSIONS" | "RAID_POST" | "CORE_ROSTER" | "CALENDAR" | "MESSAGE" | "COMMUNITY_POST" | "SCHEDULED_EVENT" | "TEAM_ROSTER" | "TEAM_SESSION" | "TEAM_REMINDER";
@@ -102,6 +103,13 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
       const current = settings?.weeklyReportChannelId ?? settings?.notifyChannelId;
       if (!current) throw new Error("Configure WoW weekly reports first");
       channelId = current;
+    } else if (route === "readiness") {
+      // Don't deliver yesterday's failed summary alongside today's message.
+      const timezone = typeof payload["timezone"] === "string" ? payload["timezone"] : "America/Toronto";
+      if (payload["day"] !== participationDay(new Date(), timezone)) return;
+      const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { readinessChannelId: true } });
+      if (!settings?.readinessChannelId) return;
+      channelId = settings.readinessChannelId;
     } else if (route !== undefined) {
       if (!["notify", "raidLog", "loot", "officer", "application", "attendance"].includes(String(route))) throw new Error("Unknown notification route");
       const { resolveNotifyAddress } = await import("./notify.js");

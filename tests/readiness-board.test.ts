@@ -1,7 +1,49 @@
-import { describe, expect, it } from "vitest";
-import { buildReadinessLines, chunkLines } from "../src/services/readiness-board.js";
+import { describe, expect, it, vi } from "vitest";
+import { buildReadinessLines, chunkLines, queueDailyReadiness } from "../src/services/readiness-board.js";
+import { dispatchDiscordJob } from "../src/services/discord-jobs.js";
+import type { DiscordJob } from "@prisma/client";
 
 describe("readiness board", () => {
+  it("keeps one durable summary per guild-local day without resetting delivered jobs", async () => {
+    const rows = new Map<string, Record<string, unknown>>();
+    const upsert = vi.fn(async ({ create, update }: { create: Record<string, unknown>; update: Record<string, unknown> }) => {
+      const key = `${create["guildId"]}:${create["key"]}`;
+      const row = rows.get(key);
+      if (row) { Object.assign(row, update); return row; }
+      const fresh = { ...create, id: key, status: "PENDING" }; rows.set(key, fresh); return fresh;
+    });
+    const db = { discordJob: { upsert } } as never;
+    const first = await queueDailyReadiness(db, "guild", "America/Toronto", ["First report"], new Date("2026-10-14T02:00:00Z"));
+    expect(first.key).toBe("readiness:2026-10-13");
+    first.status = "DONE";
+    const repeated = await queueDailyReadiness(db, "guild", "America/Toronto", ["New import"], new Date("2026-10-14T03:59:59Z"));
+    expect(repeated.status).toBe("DONE");
+    expect(JSON.stringify(repeated.payload)).toContain("First report");
+    await queueDailyReadiness(db, "guild", "America/Toronto", ["Next day"], new Date("2026-10-14T04:00:00Z"));
+    await queueDailyReadiness(db, "other", "America/Toronto", ["Other guild"], new Date("2026-10-14T04:00:00Z"));
+    expect(rows.size).toBe(3);
+  });
+
+  it("fits a large automatic board into one message and points to the full private report", async () => {
+    const upsert = vi.fn(async (args: unknown) => args);
+    await queueDailyReadiness({ discordJob: { upsert } } as never, "guild", "America/Toronto", Array(100).fill("x".repeat(100)));
+    const args = upsert.mock.calls[0]![0] as { create: { payload: { message: { embeds: { description: string }[] } } } };
+    expect(args.create.payload.message.embeds).toHaveLength(1);
+    const text = args.create.payload.message.embeds[0]!.description;
+    expect(text.length).toBeLessThan(4096);
+    expect(text).toContain("/readiness raid");
+  });
+
+  it("discards yesterday's delayed summary instead of sending it alongside today's", async () => {
+    const fetch = vi.fn();
+    await dispatchDiscordJob({ channels: { fetch } } as never, {
+      id: "job", guildId: "guild", status: "PENDING", revision: 1, attempts: 0,
+      createdAt: new Date(0), updatedAt: new Date(0), nextAttemptAt: new Date(0),
+      leaseToken: null, lockedUntil: null, lastError: null, deliveredAt: null,
+      key: "readiness:2000-01-01", kind: "MESSAGE", payload: { route: "readiness", day: "2000-01-01", timezone: "America/Toronto" }
+    } satisfies DiscordJob);
+    expect(fetch).not.toHaveBeenCalled();
+  });
   it("one line for ready players, problems listed for the rest, unknown for no check", async () => {
     const snapshots: Record<string, unknown> = {
       m1: { status: "READY", itemLevel: 62, character: { name: "Bob" }, findings: [{ severity: "INFO", message: "Required gear slots are populated." }] },

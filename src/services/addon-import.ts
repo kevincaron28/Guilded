@@ -315,7 +315,7 @@ export function createAddonImportService(database: PrismaClient) {
           if (cleared.length) await heldStore.deleteMany({ where: { guildId, dismissedAt: null, sourceRef: { in: cleared } } });
         }
         const dungeons = await importDungeonRuns(tx, guildId, snapshot.dungeonRuns,
-          characters.map((character) => ({ name: character.name, realm: character.realm, memberId: character.memberId })), appliedBy, importId);
+          characters.map((character) => ({ name: character.name, realm: character.realm, memberId: character.memberId, spec: character.spec })), appliedBy, importId);
 
         await tx.addonImport.update({
           where: { id: imported.id },

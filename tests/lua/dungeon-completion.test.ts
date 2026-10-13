@@ -36,6 +36,32 @@ function activeRun() {
 }
 
 describe("dungeon final-boss completion without the Encounter Journal", () => {
+  it("times wipes and kills, deduplicates both kill events, and survives module reload", () => {
+    const s = activeRun();
+    s.run('fire_event("ENCOUNTER_START", 3493, "First boss"); STAMP = STAMP + 30; fire_event("ENCOUNTER_END", 3493, "First boss", 1, 5, 0)');
+    s.run('STAMP = STAMP + 15; fire_event("ENCOUNTER_START", 3493, "First boss"); STAMP = STAMP + 45');
+    // WoW restores current and activeEncounter from SavedVariables across /reload.
+    s.run('FRAMES = {}'); s.load("Modules/Dungeon.lua");
+    s.run('fire_event("BOSS_KILL", 3493, "First boss"); fire_event("ENCOUNTER_END", 3493, "First boss", 1, 5, 1)');
+    expect(s.run('return #GuildedDB.dungeon.current.encounters')).toBe("2");
+    expect(s.run('local e=GuildedDB.dungeon.current.encounters; return (e[1].at-e[1].startedAt)..","..(e[2].at-e[2].startedAt)')).toBe("30,45");
+    s.run('STAMP=STAMP+20; fire_event("BOSS_KILL",3496,"Durgen Dirgehammer")');
+    expect(s.run('return tostring(GuildedDB.dungeon.runs[RUN_ID].encounters[3].startedAt)')).toBe("nil");
+    s.run('local r=GuildedDB.dungeon.runs[RUN_ID]; r.players.Tester={class="PRIEST",role="HEALER",spec="Discipline"}; ROUNDTRIP=NS.dungeon.deserialize(RUN_ID,NS.dungeon.serialize(r))');
+    expect(s.run('return ROUNDTRIP.encounters[2].at-ROUNDTRIP.encounters[2].startedAt')).toBe("45");
+    expect(s.run('return ROUNDTRIP.players.Tester.spec')).toBe("Discipline");
+  });
+
+  it("bounds peer summaries while keeping full saved encounters and accepts legacy summaries", () => {
+    const s = activeRun();
+    s.run(`local r=GuildedDB.dungeon.current
+      for i=1,100 do r.encounters[i]={id=i,name=string.rep("x",100),success=true,at=STAMP+i} end
+      SERIALIZED=NS.dungeon.serialize(r)
+      LEGACY=NS.dungeon.deserialize("old","v=1;st=COMPLETED;i=3065;s=1800000000;e=1800001000;enc=3496;p=Tester:PRIEST:HEALER:0:1000:1")`);
+    expect(Number(s.run('return #SERIALIZED'))).toBeLessThanOrEqual(4000);
+    expect(s.run('return #GuildedDB.dungeon.current.encounters')).toBe("100");
+    expect(s.run('return LEGACY.encounters[1].id')).toBe("3496");
+  });
   it.each(["ENCOUNTER_END", "BOSS_KILL"])("finishes Hall of Thanes on %s", (event) => {
     const s = activeRun();
     s.run(`fire_event("${event}", 3496, "Durgen Dirgehammer", 1, 5, 1)`);

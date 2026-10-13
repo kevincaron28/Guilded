@@ -5,7 +5,11 @@ import type { Lang } from "../i18n.js";
 import { WOW_SPECIALIZATIONS, canonicalSpecialization, type SpecEmojiKey } from "../wow-specializations.js";
 
 type WowClass = typeof CLASSES[number];
-export type ClassEmojis = Partial<Record<WowClass | SpecEmojiKey, string>>;
+export type RoleEmojiKey = "ROLE:TANK" | "ROLE:HEALER" | "ROLE:DPS";
+export type ClassEmojis = Partial<Record<WowClass | SpecEmojiKey | RoleEmojiKey, string>>;
+export const ROLE_EMOJI_NAMES: Record<RoleEmojiKey, string> = {
+  "ROLE:TANK": "wow_role_tank", "ROLE:HEALER": "wow_role_healer", "ROLE:DPS": "wow_role_dps"
+};
 export const CLASS_EMOJI_NAMES: Record<WowClass, string> = {
   Warrior: "wow_guerrier", Paladin: "wow_paladin", Hunter: "wow_chasseur", Rogue: "wow_voleur",
   Priest: "wow_pretre", Shaman: "wow_chaman", Mage: "wow_mage", Warlock: "wow_demoniste", Druid: "wow_druide",
@@ -36,6 +40,9 @@ export function classEmojiMap(emojis: Iterable<{ id: string; name: string | null
     if (name) result[name] = `<${emoji.animated ? "a" : ""}:${emoji.name}:${emoji.id}>`;
     const spec = WOW_SPECIALIZATIONS.find(value => value.emojiName === emoji.name);
     if (spec) result[spec.key] = `<${emoji.animated ? "a" : ""}:${emoji.name}:${emoji.id}>`;
+    for (const [key, roleName] of Object.entries(ROLE_EMOJI_NAMES)) {
+      if (roleName === emoji.name) result[key as RoleEmojiKey] = `<${emoji.animated ? "a" : ""}:${emoji.name}:${emoji.id}>`;
+    }
   }
   return result;
 }

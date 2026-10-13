@@ -4,6 +4,10 @@ import { achievementName } from "./dungeon-achievements.js";
 import type { DungeonImportSummary } from "./dungeon-import.js";
 import { formatDuration } from "./dungeon-rules.js";
 import { difficultyName } from "./dungeon-stats.js";
+import { canonicalClass, type ClassEmojis } from "./character-display.js";
+import { canonicalSpecialization } from "../wow-specializations.js";
+import { CLASS_NAMES_FR } from "../permissions.js";
+import { dungeonTimeline } from "./dungeon-timeline.js";
 
 const MAX_RUNS = 12;
 
@@ -16,7 +20,7 @@ function guildPlayers(run: DungeonImportSummary["results"][number]): Set<string>
 // One post per import (roadmap D6): the completed runs, then the records
 // they set. Abandoned and rejected runs stay out of the channel (officers
 // see them in the /import apply reply). Null when there is nothing to show.
-export function dungeonAnnouncement(summary: DungeonImportSummary, lang: Lang): EmbedBuilder | null {
+export function dungeonAnnouncement(summary: DungeonImportSummary, lang: Lang, emojis: ClassEmojis = {}): EmbedBuilder | null {
   const done = summary.results.filter((run) => run.valid && run.state === "COMPLETED" && run.durationSec !== null && guildPlayers(run).size > 0);
   if (done.length === 0) return null;
   const label = (run: { runRef: string; dungeonName: string; difficultyId: number }) => {
@@ -42,11 +46,19 @@ export function dungeonAnnouncement(summary: DungeonImportSummary, lang: Lang): 
     if (details) {
       const roles: Record<string, string> = { TANK: "Tank", HEALER: fr ? "Soigneur" : "Healer", DPS: "DPS", DAMAGER: "DPS" };
       for (const player of details.slice(0, 8)) {
-        const info = [player.class, player.role ? roles[player.role] ?? player.role : undefined].filter(Boolean).join(" / ");
+        const className = canonicalClass(player.class);
+        const spec = canonicalSpecialization(className, player.spec);
+        const role = player.role === "DAMAGER" ? "DPS" : player.role;
+        const roleIcon = role === "TANK" ? emojis["ROLE:TANK"] ?? "🛡️" : role === "HEALER" ? emojis["ROLE:HEALER"] ?? "💚" : role === "DPS" ? emojis["ROLE:DPS"] ?? "⚔️" : "";
+        const icons = [className && emojis[className], spec && emojis[spec.key], roleIcon].filter(Boolean).join(" ");
+        const info = [className ? (fr ? CLASS_NAMES_FR[className] ?? className : className) : player.class,
+          spec ? (fr ? spec.french : spec.name) + (player.specSource === "profile" ? "*" : "") : undefined,
+          role ? roles[role] : undefined].filter(Boolean).join(" / ");
         const deathText = player.deaths === null ? (fr ? "morts non suivies" : "deaths untracked") : t(lang, "dungeon.deaths", { count: player.deaths });
-        lines.push(`• **${escapeMarkdown(player.character)}**${info ? ` — ${escapeMarkdown(info)}` : ""} · ${deathText} · ${player.points} pts`);
+        lines.push(`${icons || "•"} **${escapeMarkdown(player.character)}**${info ? ` — ${escapeMarkdown(info)}` : ""}\n  ${deathText} · **${player.points} pts**`);
       }
       if (details.length > 8) lines.push(t(lang, "dungeon.post.more", { count: details.length - 8 }));
+      if (details.some(player => player.specSource === "profile")) lines.push(fr ? "* Spé du profil lié; non relevée pendant ce donjon." : "* Spec from linked profile; not captured during this run.");
     } else lines.push(`  ${[...members].map((name) => escapeMarkdown(name)).join(", ")}`);
     return lines.join("\n");
   });
@@ -79,6 +91,12 @@ export function dungeonAnnouncement(summary: DungeonImportSummary, lang: Lang): 
   }
   if (earned.size) {
     embed.addFields({ name: t(lang, "dungeon.post.achievements"), value: [...earned].map(([name, who]) => `${name}: ${[...new Set(who)].join(", ")}`).join("\n").slice(0, 1024) });
+  }
+  // Keep the full embed under Discord's 6,000-character limit, even for batches.
+  for (const run of done.slice(0, 3)) {
+    const timeline = dungeonTimeline(run, lang);
+    const name = `⏱️ ${lang === "fr" ? "Chronologie" : "Timeline"} · ${label(run)}`.slice(0, 256);
+    if (timeline && embed.length + name.length + timeline.length <= 5900) embed.addFields({ name, value: timeline });
   }
   return embed;
 }

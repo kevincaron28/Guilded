@@ -10,6 +10,7 @@ import type { createAddonImportService } from "./addon-import.js";
 import { describeCalendar, runCalendarPlan, type CalendarSummary } from "./calendar-sync.js";
 import type { HeldRow } from "./addon-import.js";
 import type { Lang } from "../i18n.js";
+import { loadClassEmojis } from "./character-display.js";
 
 type ImportResult = Awaited<ReturnType<ReturnType<typeof createAddonImportService>["apply"]>>;
 
@@ -58,7 +59,8 @@ export async function followUpImport(discordGuild: DiscordGuild | null, guildId:
   }
   const dungeonPost = dungeonAnnouncement(result.dungeons, "en");
   if (dungeonPost) {
-    await notifyDungeon(discordGuild, (lang) => dungeonAnnouncement(result.dungeons, lang) ?? dungeonPost);
+    const emojis = discordGuild ? await loadClassEmojis(discordGuild).catch(() => ({})) : {};
+    await notifyDungeon(discordGuild, (lang) => dungeonAnnouncement(result.dungeons, lang, emojis) ?? dungeonPost);
     await updateDungeonLeaderboard(discordGuild);
   }
   if (result.readinessSnapshots.length > 0 || result.consumables > 0) await postReadinessBoard(discordGuild, guildId, "updated after an addon import");

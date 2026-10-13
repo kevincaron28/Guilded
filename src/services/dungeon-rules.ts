@@ -25,11 +25,17 @@ export const dungeonRunSchema = z.object({
   reporters: z.number().int().nonnegative().default(1),
   // Characters whose addon reported the run (newer companions only).
   reporterNames: z.array(z.string().min(1).max(40)).max(10).optional(),
+  // Optional presentation metadata must never invalidate otherwise valid awards.
+  encounters: z.array(z.object({
+    id: z.number().int().positive(), name: z.string().max(100).optional(), success: z.boolean(),
+    at: z.number().int().positive().optional(), startedAt: z.number().int().positive().optional()
+  })).max(100).optional().catch(undefined),
   players: z.array(z.object({
     character: z.string().min(1).max(40),
     realm: z.string().min(1).max(60),
     class: z.string().max(20).optional(),
     role: z.string().max(10).optional(),
+    spec: z.string().max(40).optional().catch(undefined),
     deaths: z.number().int().nonnegative().max(500).nullable().optional(),
     presentSec: z.number().int().nonnegative().default(0),
     inGuild: z.boolean().default(false)

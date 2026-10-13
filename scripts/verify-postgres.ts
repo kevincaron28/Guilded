@@ -1,4 +1,5 @@
 import { verifyAiBudgetPostgres } from "./verify-ai-budget-postgres.js";
+import { verifyDungeonRatingPostgres, verifyDungeonRatingRestored } from "./verify-dungeon-rating-postgres.js";
 import { verifyActivityCoresPostgres, verifyActivityCoresRestored } from "./verify-activity-cores-postgres.js";
 import { createRaidService } from "../src/services/raid.js";
 import { createDungeonGroupService } from "../src/services/dungeon-group.js";
@@ -32,6 +33,7 @@ const database = new PrismaClient();
 try {
   if (!process.argv.includes("--restored")) await verifyAiBudgetPostgres(database);
   if (process.argv.includes("--restored")) {
+    await verifyDungeonRatingRestored(database);
     await verifyActivityCoresRestored(database);
     assert.equal((await database.aiDailyUsage.findUniqueOrThrow({ where: { day_scope: { day: "2099-01-01", scope: "global" } } })).attempts, 7);
     const sum = await database.epgpTransaction.aggregate({ where: { createdBy: "release-test" }, _sum: { epAmount: true } });
@@ -107,6 +109,7 @@ try {
     assert.equal((closed.finalStandings as unknown[]).length, 2);
     assert.ok(closed.rulesSnapshot);
     assert.equal(await database.dungeonAchievement.count({ where: { seasonId: season.id } }), 2);
+    await verifyDungeonRatingPostgres(database, guild.id, member.id);
     const groups = createDungeonGroupService(database);
     const group = await groups.create({ guildId: guild.id, title: "Concurrent dungeon", leaderId: member.id, channelId: null });
     const contenders = await Promise.all([groups.join(group.id, guild.id, member.id, "TANK"), groups.join(group.id, guild.id, contender.id, "TANK")]);

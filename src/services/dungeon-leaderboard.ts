@@ -7,6 +7,7 @@ import { createGuildService } from "./guild.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
 import { seasonRows } from "./season-archive.js";
 import { bestRunsEmbed, seasonBestRuns } from "./dungeon-best-runs.js";
+import { dungeonRating, hasDungeonRating, ratingEmbed } from "./dungeon-rating.js";
 
 const guildService = createGuildService(prisma);
 export const DUNGEON_SEASON_SELECT = "dseason:choose";
@@ -20,6 +21,10 @@ export async function handleDungeonSeasonSelect(interaction: StringSelectMenuInt
   const selected = await prisma.dungeonSeason.findFirst({ where: { guildId: guild.id, id: selectedId } });
   if (!selected) { await interaction.editReply("That season is no longer available."); return; }
   const lang = asLang((await guildService.getSettings(guild.id))?.language);
+  if (hasDungeonRating(selected.ratingRules)) {
+    await interaction.editReply({ embeds: [ratingEmbed(await dungeonRating(prisma, guild.id, selected), selected.name, lang)], allowedMentions: { parse: [] } });
+    return;
+  }
   const rows = await seasonRows(prisma, guild.id, selected);
   await interaction.editReply({ embeds: [new EmbedBuilder().setColor(0xd4a017).setTitle(selected.name)
     .setDescription(rows.length ? formatLeaderboard(rows) : t(lang, "dungeon.board.empty"))
@@ -68,9 +73,12 @@ export async function updateDungeonLeaderboard(discordGuild: DiscordGuild | null
       .setCustomId(DUNGEON_SEASON_SELECT).setPlaceholder(lang === "fr" ? "Voir une saison" : "Browse a season")
       .addOptions(seasons.map((row) => ({ label: `${row.name} (${row.status === "ACTIVE" ? lang === "fr" ? "actuelle" : "current" : lang === "fr" ? "passée" : "past"})`.slice(0, 100), value: row.id }))))] : [];
     const best = bestRunsEmbed(await seasonBestRuns(prisma, guild.id, season.id), lang);
+    const rating = hasDungeonRating(season.ratingRules) ? ratingEmbed(await dungeonRating(prisma, guild.id, season), season.name, lang) : null;
+    if (rating) embed.setTitle(lang === "fr" ? "🤝 Points de participation" : "🤝 Participation points");
     // Discord applies the 6,000-character budget across all embeds in a message.
-    if (embed.length + best.length > 5900) embed.setFields([]);
-    const payload = { embeds: [embed, best], components, allowedMentions: { parse: [] as never[] } };
+    if (embed.length + best.length + (rating?.length ?? 0) > 5900) embed.setFields([]);
+    if (embed.length + best.length + (rating?.length ?? 0) > 5900) embed.setDescription("/dungeon leaderboard metric:participation");
+    const payload = { embeds: rating ? [rating, best, embed] : [embed, best], components, allowedMentions: { parse: [] as never[] } };
 
     const existing = settings.dungeonLeaderboardMessageId
       ? await channel.messages.fetch(settings.dungeonLeaderboardMessageId).catch(() => null)

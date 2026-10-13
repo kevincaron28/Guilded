@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import { activeSeason } from "./dungeon-import.js";
 import { leaderboard } from "./dungeon-stats.js";
 import { DEFAULT_DUNGEON_CONFIG, dungeonConfig, formatDuration, type DungeonConfig } from "./dungeon-rules.js";
+import { DUNGEON_RATING_RULES, dungeonRating, hasDungeonRating } from "./dungeon-rating.js";
 
 // Officer corrections for the dungeon challenge (roadmap D7). Points are
 // never edited or deleted: every change is a new DungeonPointTransaction,
@@ -15,6 +16,7 @@ export type PointRule = typeof POINT_RULES[number];
 // Marks a run as not counted and takes back every point it gave.
 export async function invalidateRun(database: Db, guildId: string, runRef: string, reason: string, actor: string) {
   return database.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${guildId}, 0))`;
     const run = await tx.dungeonRun.findUnique({ where: { guildId_runRef: { guildId, runRef } } });
     if (!run) throw new Error("Run not found. Pick it from the list.");
     if (!run.valid) throw new Error(`That run is already not counted (${run.invalidReason ?? "invalid"}).`);
@@ -119,16 +121,20 @@ export function describeConfig(config: DungeonConfig, dungeonNames: Map<number, 
 }
 
 // Ends the current season (kept for history), crowns its Season Champion
-// (most points; a tie crowns everyone tied), and starts a new one.
-export async function startSeason(database: Db, guildId: string, name: string) {
+// (highest rating, or legacy participation; ties share the crown).
+// An optional expected ID makes one-time migration retries safe.
+export async function startSeason(database: Db, guildId: string, name: string, expectedSeasonId?: string) {
   const trimmed = name.trim();
   if (trimmed.length < 2 || trimmed.length > 60) throw new Error("Season name must be 2 to 60 characters.");
   return database.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${guildId}, 0))`;
     const ending = await tx.dungeonSeason.findFirst({ where: { guildId, status: "ACTIVE" }, orderBy: { startsAt: "desc" } });
+    if (expectedSeasonId !== undefined && ending?.id !== expectedSeasonId) throw new Error("The active season changed; no season was rotated.");
     const count = ending ? await tx.member.count({ where: { guildId } }) : 0;
     const top = ending ? await leaderboard(tx, guildId, "season", null, Math.max(count, 1)) : [];
-    const champions = top.filter((row) => row.points === top[0]?.points);
+    const rated = ending && hasDungeonRating(ending.ratingRules) ? await dungeonRating(tx, guildId, ending) : null;
+    const competition = rated ?? top;
+    const champions = competition.filter((row) => row.points > 0 && row.points === competition[0]?.points);
     const ended = await tx.dungeonSeason.findMany({ where: { guildId, status: "ACTIVE" } });
     if (ending) {
       for (const champion of champions) {
@@ -146,13 +152,15 @@ export async function startSeason(database: Db, guildId: string, name: string) {
     const rules = await tx.guildSettings.findUnique({ where: { guildId }, select: { dungeonConfig: true } });
     for (const past of ended) {
       const standings = past.id === ending?.id ? top : await leaderboard(tx, guildId, "season", null, Math.max(count, 1), now, past.id);
+      const rating = hasDungeonRating(past.ratingRules) ? (past.id === ending?.id ? rated : await dungeonRating(tx, guildId, past)) : null;
       await tx.dungeonSeason.update({ where: { id: past.id }, data: {
         finalStandings: standings as unknown as Prisma.InputJsonValue,
+        ...(rating ? { finalRating: rating as unknown as Prisma.InputJsonValue } : {}),
         rulesSnapshot: dungeonConfig(rules?.dungeonConfig) as unknown as Prisma.InputJsonValue
       } });
     }
     await tx.dungeonSeason.updateMany({ where: { guildId, status: "ACTIVE" }, data: { status: "ENDED", endsAt: now } });
-    const season = await tx.dungeonSeason.create({ data: { guildId, name: trimmed, startsAt: now } });
+    const season = await tx.dungeonSeason.create({ data: { guildId, name: trimmed, startsAt: now, ratingRules: DUNGEON_RATING_RULES } });
     return { season, ended: ended.map((row) => row.name), champions: champions.map((row) => row.name) };
   });
 }

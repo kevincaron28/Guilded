@@ -1105,6 +1105,9 @@ model DungeonSeason {
   // Published final standings. Later ledger corrections do not rewrite the award ceremony.
   finalStandings Json?
   rulesSnapshot Json?
+  // Frozen at season creation. Null preserves legacy participation seasons.
+  ratingRules   Json?
+  finalRating   Json?
   createdAt    DateTime                  @default(now())
   guild        Guild                     @relation(fields: [guildId], references: [id], onDelete: Cascade)
   runs         DungeonRun[]

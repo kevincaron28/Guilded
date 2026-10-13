@@ -1,6 +1,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { weekStart } from "./dungeon-rules.js";
 import { finalRows } from "./season-snapshot.js";
+import { hasDungeonRating, dungeonRating } from "./dungeon-rating.js";
 
 // Read-only views of the dungeon challenge (roadmap D5): leaderboards,
 // records, a player's page, recent runs and the season. Invalidated runs
@@ -162,11 +163,13 @@ export async function addonDungeonBoard(database: Db & Pick<PrismaClient, "chara
   ]);
   const selected = [...(active ? [active] : []), ...past];
   if (!selected.length) return null;
+  const ratingRows = new Map(await Promise.all(selected.filter(season => hasDungeonRating(season.ratingRules))
+    .map(async season => [season.id, await dungeonRating(database, guildId, season)] as const)));
   // Aggregate all requested seasons together: no leaderboard query per season.
   const totals = await database.dungeonPointTransaction.groupBy({
-    by: ["seasonId", "memberId"], where: { guildId, seasonId: { in: selected.filter(season => finalRows(season.finalStandings) === null).map(season => season.id) } }, _sum: { amount: true }
+    by: ["seasonId", "memberId"], where: { guildId, seasonId: { in: selected.filter(season => !ratingRows.has(season.id) && finalRows(season.finalStandings) === null).map(season => season.id) } }, _sum: { amount: true }
   });
-  const ids = [...new Set([...totals.map(row => row.memberId), ...selected.flatMap(season => finalRows(season.finalStandings)?.map(row => row.memberId) ?? [])])];
+  const ids = [...new Set([...totals.map(row => row.memberId), ...selected.flatMap(season => (ratingRows.get(season.id) ?? finalRows(season.finalStandings))?.map(row => row.memberId) ?? [])])];
   const [members, characters] = await Promise.all([
     database.member.findMany({ where: { guildId, id: { in: ids } }, select: { id: true, displayName: true } }),
     database.character.findMany({ where: { member: { guildId }, memberId: { in: ids } },
@@ -177,7 +180,7 @@ export async function addonDungeonBoard(database: Db & Pick<PrismaClient, "chara
   for (const character of characters) if (!mainName.has(character.memberId)) mainName.set(character.memberId, character.name);
   const boards = selected.map(season => ({
     id: season.id, season: season.name, status: season.status,
-    rows: (finalRows(season.finalStandings)?.map(row => ({ name: mainName.get(row.memberId) ?? row.name, points: row.points })) ?? totals.filter(row => row.seasonId === season.id && (row._sum.amount ?? 0) > 0)
+    rows: ((ratingRows.get(season.id) ?? finalRows(season.finalStandings))?.map(row => ({ name: mainName.get(row.memberId) ?? row.name, points: row.points })) ?? totals.filter(row => row.seasonId === season.id && (row._sum.amount ?? 0) > 0)
       .map(row => ({ name: mainName.get(row.memberId) ?? names.get(row.memberId) ?? "?", points: row._sum.amount ?? 0 }))
     ).sort((a, b) => b.points - a.points || a.name.localeCompare(b.name)).slice(0, 50)
   }));

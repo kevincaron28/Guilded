@@ -42,7 +42,7 @@ export function dungeonAnnouncement(summary: DungeonImportSummary, lang: Lang, e
     if (run.endedAt) lines.push(`${fr ? "Terminé" : "Finished"} <t:${run.endedAt}:f> · ${run.completedBy === "manual"
       ? (fr ? "fin manuelle" : "manually completed") : run.completedBy === "final boss"
         ? (fr ? "boss final vaincu" : "final boss defeated") : (fr ? "donjon terminé" : "completed")}`);
-    lines.push(`${members.size} ${fr ? "membre(s) de guilde" : "guild member(s)"} · ${run.points} ${fr ? "points attribués au total" : "total points awarded"}`);
+    lines.push(`${members.size} ${fr ? "membre(s) de guilde" : "guild member(s)"} · ${run.points} ${run.ratingEnabled ? (fr ? "points de participation" : "participation points") : (fr ? "points attribués au total" : "total points awarded")}`);
     if (details) {
       const roles: Record<string, string> = { TANK: "Tank", HEALER: fr ? "Soigneur" : "Healer", DPS: "DPS", DAMAGER: "DPS" };
       for (const player of details.slice(0, 8)) {
@@ -56,10 +56,12 @@ export function dungeonAnnouncement(summary: DungeonImportSummary, lang: Lang, e
           role ? roles[role] : undefined].filter(Boolean).join(" / ");
         const deathText = player.deaths === null ? (fr ? "morts non suivies" : "deaths untracked") : t(lang, "dungeon.deaths", { count: player.deaths });
         lines.push(`${icons || "•"} **${escapeMarkdown(player.character)}**${info ? ` — ${escapeMarkdown(info)}` : ""}\n  ${deathText} · **${player.points} pts**`);
+        if (player.ratingTotal !== undefined) lines.push(`  🏅 ${fr ? "Exploration" : "Exploration rating"}: **${player.ratingTotal}** (+${player.ratingGain ?? 0})`);
       }
       if (details.length > 8) lines.push(t(lang, "dungeon.post.more", { count: details.length - 8 }));
       if (details.some(player => player.specSource === "profile")) lines.push(fr ? "* Spé du profil lié; non relevée pendant ce donjon." : "* Spec from linked profile; not captured during this run.");
     } else lines.push(`  ${[...members].map((name) => escapeMarkdown(name)).join(", ")}`);
+    if (run.ratingEnabled) lines.push(fr ? "100 par donjon distinct admissible; répétitions, alts et difficultés ne s’additionnent pas." : "100 per eligible distinct dungeon; repeats, alts and difficulties do not stack.");
     return lines.join("\n");
   });
   if (done.length > MAX_RUNS) lines.push(t(lang, "dungeon.post.more", { count: done.length - MAX_RUNS }));

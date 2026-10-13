@@ -14,6 +14,11 @@ describe("run validation", () => {
   it("accepts a normal completed run", () => {
     expect(validateRun(run(), now)).toEqual({ ok: true });
   });
+  it("accepts replacement-player history without requiring guildmates", () => {
+    const players = Array.from({ length: 6 }, (_, i) => ({ character: `P${i}`, realm: "R", deaths: i === 0 ? 0 : null, presentSec: 1000, inGuild: false }));
+    expect(validateRun(run({ players, recorder: "P0", reporterNames: ["P0"] }), now)).toEqual({ ok: true });
+    expect(validateRun(run({ players: Array.from({ length: 41 }, (_, i) => ({ ...players[0]!, character: `P${i}` })) }), now).ok).toBe(false);
+  });
   it("rejects impossible runs with a reason", () => {
     expect(validateRun(run({ protocolVersion: 9 }), now).reason).toContain("protocol");
     expect(validateRun(run({ endedAt: nowSec - 1750 }), now).reason).toContain("too short");

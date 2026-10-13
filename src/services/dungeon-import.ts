@@ -31,6 +31,9 @@ export interface DungeonImportResult {
   players: string[];
   // Sum of tracked deaths; null when no player's deaths were tracked.
   deaths: number | null;
+  endedAt?: number;
+  completedBy?: string;
+  playerDetails?: { character: string; class?: string; role?: string; deaths: number | null; presentSec: number; points: number }[];
   unlinked: string[];
   achievements: { character: string; key: AchievementKey }[];
 }
@@ -169,6 +172,7 @@ export async function importDungeonRuns(
     });
 
     let points = 0;
+    const playerPoints = new Map<string, number>();
     let achievements: DungeonImportResult["achievements"] = [];
     if (earnsPoints) {
       const fullGuildGroup = run.players.length >= 5 && run.players.every((player) => player.inGuild);
@@ -195,6 +199,7 @@ export async function importDungeonRuns(
           }
         });
         points += award.amount;
+        playerPoints.set(award.character, (playerPoints.get(award.character) ?? 0) + award.amount);
       }
     }
 
@@ -207,6 +212,13 @@ export async function importDungeonRuns(
       ...(check.ok ? {} : { invalidReason: check.reason ?? "invalid" }),
       durationSec,
       points,
+      ...(run.endedAt ? { endedAt: run.endedAt } : {}),
+      ...(run.completedBy ? { completedBy: run.completedBy } : {}),
+      playerDetails: run.players.map((player) => ({
+        character: player.character, ...(player.class ? { class: player.class } : {}), ...(player.role ? { role: player.role } : {}),
+        deaths: player.deaths ?? null, presentSec: player.presentSec,
+        points: playerPoints.get(player.character) ?? 0
+      })),
       guildRecord,
       previousGuildBest,
       personalRecords,

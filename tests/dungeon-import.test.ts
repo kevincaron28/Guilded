@@ -70,6 +70,19 @@ const total = (points: { memberId: string; amount: number }[], memberId: string)
   points.filter((row) => row.memberId === memberId).reduce((sum, row) => sum + row.amount, 0);
 
 describe("importDungeonRuns", () => {
+  it("imports replacement players and includes per-player details without inventing deaths", async () => {
+    const { tx, points } = fakeTx();
+    const players = Array.from({ length: 6 }, (_, i) => ({
+      character: i === 0 ? "Kev" : `Guest${i}`, realm: "Forever", class: "PRIEST", role: "HEALER",
+      deaths: i === 0 ? 0 : null, presentSec: 1200, inGuild: false
+    }));
+    const summary = await importDungeonRuns(tx, "g1", [run("replacement", { players, completedBy: "final boss" })], characters, "officer", "imp1", now);
+    expect(summary.results[0]).toMatchObject({ valid: true, endedAt: start + 1500, completedBy: "final boss", points: 100 });
+    expect(summary.results[0]?.playerDetails?.[0]).toMatchObject({ character: "Kev", role: "HEALER", deaths: 0, points: 100 });
+    expect(summary.results[0]?.playerDetails?.[1]).toMatchObject({ deaths: null, points: 0 });
+    expect(points.every((point) => point.memberId === "m-kev")).toBe(true);
+    expect(summary.results[0]?.achievements.some((a) => a.key === "noOneDies")).toBe(false);
+  });
   it("stores a completed run and awards points to every linked player", async () => {
     const { tx, runs, points } = fakeTx();
     const summary = await importDungeonRuns(tx, "g1", [run("run-a")], characters, "officer", "imp1", now);

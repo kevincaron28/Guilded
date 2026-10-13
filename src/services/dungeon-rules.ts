@@ -99,7 +99,9 @@ export interface Validation { ok: boolean; reason?: string }
 export function validateRun(run: DungeonRunInput, now = new Date()): Validation {
   if (!SUPPORTED_PROTOCOLS.includes(run.protocolVersion)) return { ok: false, reason: `unsupported protocol ${run.protocolVersion}` };
   if (!["COMPLETED", "ABANDONED", "INVALID"].includes(run.state)) return { ok: false, reason: `unexpected state ${run.state}` };
-  if (run.players.length < 1 || run.players.length > 5) return { ok: false, reason: `${run.players.length} players (dungeons are 1-5)` };
+  // This is the participant history, not the simultaneous party size. Keep
+  // replacements instead of rejecting an otherwise completed five-player run.
+  if (run.players.length < 1 || run.players.length > 40) return { ok: false, reason: `${run.players.length} players (participant history supports 1-40)` };
   const nowSec = Math.floor(now.getTime() / 1000);
   const earliest = Date.UTC(2024, 0, 1) / 1000;
   for (const stamp of [run.startedAt, run.endedAt]) {

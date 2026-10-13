@@ -23,6 +23,22 @@ downloads must actually be present on [GitHub Releases](https://github.com/kevin
 or [CurseForge](https://www.curseforge.com/wow/addons/guilded). A local build is not a published download.
 For a private test, use the matching files supplied by the maintainer.
 
+## Hosted guild owners: three steps
+
+1. [Request pilot access](HOSTED_PILOT.md) and wait for KCaron's approval.
+   An invite alone does not activate the bot.
+2. After approval, run `/setup start` in Discord. Choose your language and
+   features, place the bot role above roles it must assign, then run
+   `/setup start status:true` to find missing settings.
+3. For WoW sync, follow the member steps below with one player first. Confirm
+   that their character and standings match in Discord and in game, then share
+   [the member guide](MEMBER_INSTALL.md) with your guild. Use the
+   [hosted companion](https://guilded-wow.kcaron.workers.dev/companion/) and your
+   own Discord server ID.
+
+Community activities and polls need no WoW addon or character pairing. Hosted
+owners can stop here; the independent hosting sections below are optional.
+
 ## Members: three steps
 
 1. Close WoW and extract **Guilded** into your actual client's `Interface/AddOns`.
@@ -51,7 +67,7 @@ Use `/reload` before syncing and again afterward to load the new standings.
 If the browser asks to renew access, use **Save standings to addon** again.
 No fixed drive or account path is assumed for other players.
 
-## Owners: before starting the timer
+## Independent hosting only: before starting the timer
 
 Have these ready:
 
@@ -63,10 +79,10 @@ Have these ready:
 - Matching release source and addon ZIP; optional Windows companion installer.
 
 New cloud accounts, payment verification, available server capacity and DNS
-propagation can take longer than 30 minutes. There is currently no shared public
-Guilded bot or one-click managed hosting included in these downloads.
+propagation can take longer than 30 minutes. These infrastructure requirements apply only to independent hosting. Approved
+[hosted pilot](HOSTED_PILOT.md) guilds use the existing bot and skip these steps.
 
-## Owners: the 30-minute target
+## Independent hosting only: the 30-minute target
 
 | Target | Action | Visible success |
 | --- | --- | --- |

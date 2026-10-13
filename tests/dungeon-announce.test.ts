@@ -17,7 +17,7 @@ describe("dungeonAnnouncement", () => {
     expect(en.description).not.toContain("no deaths");
     expect(en.description).toContain("<t:1791901866:f>");
     expect(en.description).toContain("2 guild member(s)");
-    expect(en.description).toContain("PRIEST / Healer");
+    expect(en.description).toContain("Priest / Healer");
     expect(en.description).toContain("deaths untracked");
     expect(en.description).toContain("58 total points awarded");
     expect(en.description).toContain("**C**");
@@ -71,6 +71,16 @@ describe("dungeonAnnouncement", () => {
 });
 
 describe("test dungeon runs", () => {
+  it("uses the existing class/spec catalog and custom role emoji with safe fallbacks", () => {
+    const run=result({players:["Kev"],playerDetails:[{character:"Kev",class:"PRIEST",spec:"Discipline",specSource:"run",role:"HEALER",deaths:0,presentSec:1000,points:59}],
+      startedAt:1000,endedAt:1600,encounters:[{id:1,name:"Boss",startedAt:1500,at:1600,success:true}]});
+    const emojis={Priest:"<:wow_pretre:1550000000000000001>","Priest:Discipline":"<:wow_spec_priest_disc:1550000000000000002>","ROLE:HEALER":"<:wow_role_healer:1550000000000000003>"};
+    const embed=dungeonAnnouncement({results:[run],duplicates:0,malformed:0},"fr",emojis)!.toJSON();
+    for(const emoji of Object.values(emojis)) expect(embed.description).toContain(emoji);
+    expect(embed.description).toContain("Discipline / Soigneur");
+    expect(embed.fields?.some(field=>field.name.includes("Chronologie")&&field.value.includes("1:40"))).toBe(true);
+    expect(dungeonAnnouncement({results:[run],duplicates:0,malformed:0},"en")!.toJSON().description).toContain("💚");
+  });
   it("are marked [TEST] in the channel", () => {
     const embed = dungeonAnnouncement({ results: [result({ runRef: "SIM-1790000000-abcde", dungeonName: "Test Dungeon" })], duplicates: 0, malformed: 0 }, "en");
     expect(embed?.toJSON().description).toContain("**[TEST] Test Dungeon (Normal)**");

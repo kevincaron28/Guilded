@@ -14,7 +14,7 @@ import {
 
 type Tx = Pick<Prisma.TransactionClient, "dungeonRun" | "dungeonSeason" | "dungeonPointTransaction" | "guildSettings" | "dungeonAchievement">;
 
-interface LinkedCharacter { name: string; realm: string; memberId: string }
+interface LinkedCharacter { name: string; realm: string; memberId: string; spec?: string | null }
 
 export interface DungeonImportResult {
   runRef: string;
@@ -32,8 +32,10 @@ export interface DungeonImportResult {
   // Sum of tracked deaths; null when no player's deaths were tracked.
   deaths: number | null;
   endedAt?: number;
+  startedAt?: number;
+  encounters?: DungeonRunInput["encounters"];
   completedBy?: string;
-  playerDetails?: { character: string; class?: string; role?: string; deaths: number | null; presentSec: number; points: number }[];
+  playerDetails?: { character: string; class?: string; role?: string; spec?: string; specSource?: "run" | "profile"; deaths: number | null; presentSec: number; points: number }[];
   unlinked: string[];
   achievements: { character: string; key: AchievementKey }[];
 }
@@ -213,9 +215,13 @@ export async function importDungeonRuns(
       durationSec,
       points,
       ...(run.endedAt ? { endedAt: run.endedAt } : {}),
+      ...(run.startedAt ? { startedAt: run.startedAt } : {}),
+      ...(run.encounters ? { encounters: run.encounters } : {}),
       ...(run.completedBy ? { completedBy: run.completedBy } : {}),
-      playerDetails: run.players.map((player) => ({
+      playerDetails: linked.map(({ player, character }) => ({
         character: player.character, ...(player.class ? { class: player.class } : {}), ...(player.role ? { role: player.role } : {}),
+        ...(player.spec ? { spec: player.spec, specSource: "run" as const }
+          : character?.spec ? { spec: character.spec, specSource: "profile" as const } : {}),
         deaths: player.deaths ?? null, presentSec: player.presentSec,
         points: playerPoints.get(player.character) ?? 0
       })),

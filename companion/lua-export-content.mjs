@@ -235,6 +235,13 @@ export function parseAddonExportText(text, realm) {
       ...(run.completedBy ? { completedBy: String(run.completedBy) } : {}),
       ...(run.endReason ? { endReason: String(run.endReason) } : {}),
       ...(run.recorder ? { recorder: String(run.recorder) } : {}),
+      encounters: Object.values(run.encounters ?? {}).slice(0, 100).flatMap(encounter => {
+        if (!encounter || !Number.isInteger(encounter.id) || encounter.id <= 0 || typeof encounter.success !== "boolean") return [];
+        return [{ id: encounter.id, success: encounter.success,
+          ...(typeof encounter.name === "string" ? { name: encounter.name.slice(0, 100) } : {}),
+          ...(Number.isInteger(encounter.at) && encounter.at > 0 ? { at: encounter.at } : {}),
+          ...(Number.isInteger(encounter.startedAt) && encounter.startedAt > 0 ? { startedAt: encounter.startedAt } : {}) }];
+      }),
       reporters: Object.keys(run.reporters ?? {}).length || 1,
       // Who reported it, so the bot can check at least one of them was in the run.
       ...(run.reporters && Object.keys(run.reporters).length ? { reporterNames: Object.keys(run.reporters).slice(0, 10) } : {}),
@@ -243,6 +250,7 @@ export function parseAddonExportText(text, realm) {
         realm,
         ...(player.class ? { class: String(player.class) } : {}),
         ...(player.role ? { role: String(player.role) } : {}),
+        ...(player.spec ? { spec: String(player.spec).slice(0, 40) } : {}),
         deaths: typeof player.deaths === "number" ? player.deaths : null,
         presentSec: Math.max(0, Math.trunc(Number(player.presentSec) || 0)),
         inGuild: player.inGuild === true

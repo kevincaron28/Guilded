@@ -112,6 +112,10 @@ local function updatePlayers(run)
     player.role = member.role or player.role
     player.guid = member.guid or player.guid
     player.inGuild = member.inGuild or player.inGuild
+    if member.name == me() then
+      local identity = ns.getDb().character
+      if identity and type(identity.spec) == "string" and identity.spec ~= "" then player.spec = identity.spec end
+    end
     if dungeon.addonUsers[member.name] or member.name == me() then
       player.addon = true
       player.deaths = player.deaths or 0
@@ -283,13 +287,31 @@ serialize = function(run)
   for _, encounter in ipairs(run.encounters) do
     if encounter.success and encounter.id then table.insert(encounters, tostring(encounter.id)) end
   end
-  return table.concat({
+  local summary = table.concat({
     "v=" .. PROTOCOL_VERSION, "av=" .. clean(run.addonVersion), "st=" .. run.state,
     "i=" .. tostring(run.instanceId or 0), "n=" .. clean(run.name), "d=" .. tostring(run.difficultyId or 0),
     "s=" .. tostring(run.startedAt or 0), "e=" .. tostring(run.endedAt or 0),
     "cb=" .. clean(run.completedBy or run.endReason or ""), "r=" .. clean(run.recorder),
     "enc=" .. table.concat(encounters, ","), "p=" .. table.concat(players, ",")
   }, ";")
+  -- Optional fields keep older peers compatible and respect the 20-chunk limit.
+  local specs, timeline = {}, {}
+  for name, player in pairs(run.players) do
+    if player.spec then specs[#specs + 1] = clean(name) .. ":" .. clean(player.spec) end
+  end
+  local extra = ";sp=" .. table.concat(specs, ",")
+  if #summary + #extra <= CHUNK_BYTES * 20 then summary = summary .. extra end
+  for _, encounter in ipairs(run.encounters or {}) do
+    if encounter.id and encounter.at then
+      local row = table.concat({ encounter.id, clean(string.sub(encounter.name or "", 1, 100)), encounter.success and "1" or "0",
+        encounter.at, encounter.startedAt or "" }, ":")
+      local candidate = table.concat(timeline, ",") .. (#timeline > 0 and "," or "") .. row
+      if #summary + #candidate + 4 > CHUNK_BYTES * 20 then break end
+      timeline[#timeline + 1] = row
+    end
+  end
+  if #timeline > 0 then summary = summary .. ";tl=" .. table.concat(timeline, ",") end
+  return summary
 end
 
 local function deserialize(id, text)
@@ -318,6 +340,22 @@ local function deserialize(id, text)
       }
     end
   end
+  if fields.tl and fields.tl ~= "" then
+    local timeline = {}
+    for entry in string.gmatch(fields.tl, "[^,]+") do
+      local bossId, name, success, at, startedAt = string.match(entry, "^(%d+):([^:]*):([01]):(%d+):(%d*)$")
+      if bossId and #timeline < 100 then
+        timeline[#timeline + 1] = { id = tonumber(bossId), name = name ~= "" and name or nil,
+          success = success == "1", at = tonumber(at), startedAt = tonumber(startedAt) }
+      end
+    end
+    if #timeline > 0 then run.encounters = timeline end
+  end
+  for entry in string.gmatch(fields.sp or "", "[^,]+") do
+    local name, spec = string.match(entry, "^([^:]+):([^:]+)$")
+    name = name and ns.normalizeName(name)
+    if name and run.players[name] then run.players[name].spec = string.sub(spec, 1, 40) end
+  end
   return run
 end
 dungeon.serialize = serialize
@@ -337,8 +375,16 @@ local function storePeerRun(run, sender)
   end
   existing.reporters = existing.reporters or {}
   existing.reporters[sender] = true
+  -- An officer may first receive an old client's summary with IDs only.
+  local function coverage(encounters)
+    local count = 0
+    for _, boss in ipairs(encounters or {}) do if boss.at then count = count + 1 end end
+    return count
+  end
+  if coverage(run.encounters) > coverage(existing.encounters) then existing.encounters = run.encounters end
   for name, player in pairs(run.players) do
     local mine = existing.players[name]
+    if mine and not mine.spec and player.spec then mine.spec = player.spec end
     if not mine then existing.players[name] = player
     elseif player.deaths and (not mine.deaths or player.deaths > mine.deaths) then mine.deaths = player.deaths; mine.addon = true end
   end
@@ -438,6 +484,25 @@ local function onAddonMessage(text, sender)
   end
 end
 
+local function recordEncounter(run, encounterId, name, success)
+  local stamp = now()
+  local active = run.activeEncounter
+  -- Clients can emit both END and BOSS_KILL for the same kill, in either order.
+  for index = #run.encounters, 1, -1 do
+    local previous = run.encounters[index]
+    if success and previous.success and previous.id == encounterId and previous.at and math.abs(stamp - previous.at) <= 10 then
+      run.activeEncounter = nil
+      return
+    end
+  end
+  if #run.encounters < 100 then
+    table.insert(run.encounters, { id = encounterId, name = name, success = success, at = stamp,
+      startedAt = active and active.id == encounterId and active.startedAt or nil })
+  end
+  run.activeEncounter = nil
+  save(run)
+end
+
 local function onEvent(_, event, ...)
   local d = db()
   if event == "PLAYER_LOGIN" then
@@ -467,6 +532,16 @@ local function onEvent(_, event, ...)
     if run and run.state == "STARTING" and run.inside then activate() end
   elseif event == "PLAYER_REGEN_ENABLED" then
     flush()
+  elseif event == "ENCOUNTER_START" then
+    local encounterId, name = ...
+    local run, instance = d.current, compat.instance()
+    if not run or TERMINAL[run.state] or not instance or instance.type ~= "party"
+      or instance.id ~= run.instanceId or ns.isSecret(encounterId) or not tonumber(encounterId) then return end
+    if run.state == "STARTING" then activate() end
+    if not run.activeEncounter or run.activeEncounter.id ~= tonumber(encounterId) then
+      run.activeEncounter = { id = tonumber(encounterId), startedAt = now(), name = not ns.isSecret(name) and name or nil }
+      save(run)
+    end
   elseif event == "ENCOUNTER_END" then
     local encounterId, name, _, _, success = ...
     local run = d.current
@@ -474,8 +549,8 @@ local function onEvent(_, event, ...)
     if not run or TERMINAL[run.state] or not instance or instance.type ~= "party"
       or instance.id ~= run.instanceId or ns.isSecret(encounterId) or ns.isSecret(success) then return end
     if run.state == "STARTING" then activate() end
-    table.insert(run.encounters, { id = tonumber(encounterId), name = (not ns.isSecret(name)) and name or nil, success = success == 1, at = now() })
-    save(run)
+    if not tonumber(encounterId) then return end
+    recordEncounter(run, tonumber(encounterId), (not ns.isSecret(name)) and name or nil, success == 1)
     if success == 1 and ((run.finalEncounterId and tonumber(encounterId) == run.finalEncounterId)
       or compat.isDungeonFinalBoss(run.instanceId, encounterId)) then
       finish("COMPLETED", "final boss")
@@ -487,9 +562,10 @@ local function onEvent(_, event, ...)
     if ns.isSecret(encounterId) or ns.isSecret(name) then return end
     local instance = compat.instance()
     if not instance or instance.type ~= "party" or instance.id ~= run.instanceId then return end
+    if not tonumber(encounterId) then return end
+    recordEncounter(run, tonumber(encounterId), name, true)
     if (run.finalEncounterId and tonumber(encounterId) == run.finalEncounterId)
       or compat.isDungeonFinalBoss(run.instanceId, encounterId) then
-      table.insert(run.encounters, { id = tonumber(encounterId), name = name, success = true, at = now() })
       finish("COMPLETED", "final boss")
     end
   elseif event == "PLAYER_DEAD" then
@@ -635,6 +711,7 @@ end
 -- Do not probe restricted combat-log events: even pcall(RegisterEvent) can
 -- raise Blizzard's blocked-action popup during addon loading.
 compat.registerEvent(frame, "BOSS_KILL", true)
+compat.registerEvent(frame, "ENCOUNTER_START", true)
 frame:SetScript("OnEvent", function(...)
   if ns.moduleActive and not ns.moduleActive("dungeon") then return end -- /guilded modules
   local ok, err = pcall(onEvent, ...)

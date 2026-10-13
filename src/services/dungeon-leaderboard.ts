@@ -6,6 +6,7 @@ import { activeSeason } from "./dungeon-import.js";
 import { createGuildService } from "./guild.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
 import { seasonRows } from "./season-archive.js";
+import { bestRunsEmbed, seasonBestRuns } from "./dungeon-best-runs.js";
 
 const guildService = createGuildService(prisma);
 export const DUNGEON_SEASON_SELECT = "dseason:choose";
@@ -66,7 +67,10 @@ export async function updateDungeonLeaderboard(discordGuild: DiscordGuild | null
     const components = seasons.length ? [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder()
       .setCustomId(DUNGEON_SEASON_SELECT).setPlaceholder(lang === "fr" ? "Voir une saison" : "Browse a season")
       .addOptions(seasons.map((row) => ({ label: `${row.name} (${row.status === "ACTIVE" ? lang === "fr" ? "actuelle" : "current" : lang === "fr" ? "passée" : "past"})`.slice(0, 100), value: row.id }))))] : [];
-    const payload = { embeds: [embed], components, allowedMentions: { parse: [] as never[] } };
+    const best = bestRunsEmbed(await seasonBestRuns(prisma, guild.id, season.id), lang);
+    // Discord applies the 6,000-character budget across all embeds in a message.
+    if (embed.length + best.length > 5900) embed.setFields([]);
+    const payload = { embeds: [embed, best], components, allowedMentions: { parse: [] as never[] } };
 
     const existing = settings.dungeonLeaderboardMessageId
       ? await channel.messages.fetch(settings.dungeonLeaderboardMessageId).catch(() => null)

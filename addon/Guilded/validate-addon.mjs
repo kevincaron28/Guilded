@@ -41,7 +41,7 @@ if (!utilSource.includes("SendAddonMessage")) throw new Error("Util.lua must sen
 // available to the Blizzard UI" popup on load.
 for (const file of ["Core.lua", "Modules/Games.lua"]) {
   const source = readFileSync(new URL(file, root), "utf8");
-  if (/RegisterEvent\(\s*"COMBAT_LOG_EVENT/.test(source)) {
+  if (/["']COMBAT_LOG_EVENT(?:_UNFILTERED)?["']/.test(source)) {
     throw new Error(`${file} registers a combat log event, which addons are blocked from doing`);
   }
 }
@@ -62,7 +62,9 @@ const addonFiles = toc.split(/\r?\n/).map((line) => line.trim()).filter((line) =
 if (addonFiles.length < 20) throw new Error("Guilded.toc lists too few Lua files; is it complete?");
 for (const file of addonFiles) {
   const source = readFileSync(new URL(file, root), "utf8");
-  if (/RegisterEvent\(\s*"COMBAT_LOG_EVENT/.test(source)) {
+  // Reject event-name literals too: registration through compat.registerEvent
+  // or a table-driven loop is just as restricted as a direct RegisterEvent call.
+  if (/["']COMBAT_LOG_EVENT(?:_UNFILTERED)?["']/.test(source)) {
     throw new Error(`${file} registers a combat log event, which addons are blocked from doing`);
   }
 }

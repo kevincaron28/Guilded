@@ -145,6 +145,19 @@ end
 
 local bossCache = {}
 
+-- Forever's new dungeon may not be exposed through the Encounter Journal.
+-- Instance/encounter IDs confirmed in the owner's 13 Oct 2026 saved run.
+-- Numeric identities work independently of the client's locale.
+local finalBossFallbacks = {
+  [3065] = 3496
+}
+
+function compat.isDungeonFinalBoss(instanceId, encounterId)
+  local boss = finalBossFallbacks[instanceId]
+  if not boss then return false end
+  return not secret(encounterId) and tonumber(encounterId) == boss
+end
+
 -- List of { id = dungeonEncounterId, name } for the current instance, in
 -- journal order, or nil if the journal isn't available. Not called in
 -- combat (the journal is shared with Blizzard's UI).

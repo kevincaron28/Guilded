@@ -149,7 +149,7 @@ local function newRun(instance)
     inside = true
   }
   local bosses = compat.dungeonBosses(instance.id)
-  if bosses then
+  if bosses and #bosses > 0 then
     run.bossCount = #bosses
     run.finalEncounterId = bosses[#bosses].id
   end
@@ -180,6 +180,8 @@ local function finalize(run)
   run.lastTick = nil
   d.runs[run.id] = run
   d.current = nil
+  -- Stay finished across zone notifications and /reload inside the same clear.
+  if run.state == "COMPLETED" then d.completedInstanceId = run.instanceId end
   local summary = serialize(run)
   local chunks = {}
   for index = 1, #summary, CHUNK_BYTES do table.insert(chunks, string.sub(summary, index, index + CHUNK_BYTES - 1)) end
@@ -227,6 +229,7 @@ local function evaluate()
   local instance = compat.instance()
   local run = d.current
   local inDungeon = instance and instance.type == "party" and instance.id
+  if not inDungeon or instance.id ~= d.completedInstanceId then d.completedInstanceId = nil end
 
   if run and not TERMINAL[run.state] then
     if inDungeon and instance.id == run.instanceId then
@@ -250,7 +253,7 @@ local function evaluate()
     return
   end
 
-  if inDungeon then
+  if inDungeon and instance.id ~= d.completedInstanceId then
     local fresh = newRun(instance)
     save(fresh)
     if fresh.recorder == me() then send(string.format("START|%s|%d", fresh.id, fresh.instanceId)) end
@@ -278,7 +281,7 @@ serialize = function(run)
   end
   local encounters = {}
   for _, encounter in ipairs(run.encounters) do
-    if encounter.success then table.insert(encounters, tostring(encounter.id)) end
+    if encounter.success and encounter.id then table.insert(encounters, tostring(encounter.id)) end
   end
   return table.concat({
     "v=" .. PROTOCOL_VERSION, "av=" .. clean(run.addonVersion), "st=" .. run.state,
@@ -467,11 +470,26 @@ local function onEvent(_, event, ...)
   elseif event == "ENCOUNTER_END" then
     local encounterId, name, _, _, success = ...
     local run = d.current
-    if not run or TERMINAL[run.state] or ns.isSecret(encounterId) then return end
+    local instance = compat.instance()
+    if not run or TERMINAL[run.state] or not instance or instance.type ~= "party"
+      or instance.id ~= run.instanceId or ns.isSecret(encounterId) or ns.isSecret(success) then return end
     if run.state == "STARTING" then activate() end
     table.insert(run.encounters, { id = tonumber(encounterId), name = (not ns.isSecret(name)) and name or nil, success = success == 1, at = now() })
     save(run)
-    if success == 1 and run.finalEncounterId and tonumber(encounterId) == run.finalEncounterId then
+    if success == 1 and ((run.finalEncounterId and tonumber(encounterId) == run.finalEncounterId)
+      or compat.isDungeonFinalBoss(run.instanceId, encounterId)) then
+      finish("COMPLETED", "final boss")
+    end
+  elseif event == "BOSS_KILL" then
+    local run = d.current
+    if not run or run.state ~= "ACTIVE" then return end
+    local encounterId, name = ...
+    if ns.isSecret(encounterId) or ns.isSecret(name) then return end
+    local instance = compat.instance()
+    if not instance or instance.type ~= "party" or instance.id ~= run.instanceId then return end
+    if (run.finalEncounterId and tonumber(encounterId) == run.finalEncounterId)
+      or compat.isDungeonFinalBoss(run.instanceId, encounterId) then
+      table.insert(run.encounters, { id = tonumber(encounterId), name = name, success = true, at = now() })
       finish("COMPLETED", "final boss")
     end
   elseif event == "PLAYER_DEAD" then
@@ -584,6 +602,13 @@ ns.commandHandlers["dungeon"] = function(args)
   local d = db()
   if not d then return end
   if action == "status" then status()
+  elseif action == "results" then
+    local latest
+    for _, run in pairs(d.runs) do
+      if run.players and run.players[me()] and (not latest or (run.endedAt or 0) > (latest.endedAt or 0)) then latest = run end
+    end
+    if latest and ns.onDungeonSummary then ns.onDungeonSummary(latest)
+    else ns.message(ns.L and ns.L("No saved dungeon result yet.") or "No saved dungeon result yet.") end
   elseif action == "check" then check()
   elseif action == "start" then
     if not d.current then ns.message("Not in a tracked dungeon run.") return end
@@ -596,17 +621,20 @@ ns.commandHandlers["dungeon"] = function(args)
     if not canControl() then ns.message("Only the group leader or an officer can do that.") return end
     finish("ABANDONED", "manual")
   else
-    ns.message("/guilded dungeon status | start | complete | abandon | check")
+    ns.message("/guilded dungeon status | results | start | complete | abandon | check")
   end
 end
 ns.commandHelp = ns.commandHelp or {}
-table.insert(ns.commandHelp, "/guilded dungeon status | start | complete | abandon | check - dungeon runs")
+table.insert(ns.commandHelp, "/guilded dungeon status | results | start | complete | abandon | check - dungeon runs")
 
 local frame = CreateFrame("Frame")
 for _, event in ipairs({ "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "GROUP_ROSTER_UPDATE",
   "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "ENCOUNTER_END", "PLAYER_DEAD", "CHAT_MSG_ADDON" }) do
   compat.registerEvent(frame, event)
 end
+-- Do not probe restricted combat-log events: even pcall(RegisterEvent) can
+-- raise Blizzard's blocked-action popup during addon loading.
+compat.registerEvent(frame, "BOSS_KILL", true)
 frame:SetScript("OnEvent", function(...)
   if ns.moduleActive and not ns.moduleActive("dungeon") then return end -- /guilded modules
   local ok, err = pcall(onEvent, ...)

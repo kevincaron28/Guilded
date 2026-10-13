@@ -8,6 +8,13 @@ local addonName, ns = ...
 ns = ns or {}
 
 local FR = {
+  ["No saved dungeon result yet."] = "Aucun resultat de donjon enregistre.",
+  ["RUN COMPLETE"] = "DONJON TERMINE",
+  ["Bosses"] = "Boss",
+  ["%d deaths"] = "%d mort(s)",
+  ["deaths unknown"] = "morts non suivies",
+  ["Received by Discord. See Season for official points."] = "Recu par Discord. Voir Saison pour les points officiels.",
+  ["Saved in game. Type /reload or log out to let your companion upload it. Discord validates the run and awards points."] = "Enregistre en jeu. Tapez /reload ou deconnectez-vous pour permettre l'envoi par le compagnon. Discord valide les points.",
   ["Save my addon data"] = "Enregistrer mes donnees",
   ["Local changes"] = "Modifications locales",
   ["Your addon shares supported data with online guildmates. An officer handles Discord sync; personal sync is optional."] = "Ton addon partage les donnees compatibles avec les membres en ligne. Un officier gere la synchro Discord ; ta synchro personnelle est facultative.",

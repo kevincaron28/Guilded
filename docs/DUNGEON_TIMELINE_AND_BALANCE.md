@@ -2,6 +2,27 @@
 
 ## Delivered behavior
 
+### Addon boss timing follow-up (13 October 2026, local source)
+
+The addon shows a movable live boss timer near the top of the screen, including
+while its main window is closed. The Dungeons page also shows the current fight
+time. Both use the recorded encounter start; the overlay hides between attempts,
+outside the dungeon, after the run ends, or when the dungeon module is disabled.
+The results popup's scrollable area lists each boss attempt with its kill/failure
+and duration. `/guilded dungeon results` reopens the latest saved result. Missing
+or invalid timestamps display "Fight not timed", including on older saved runs.
+English and French labels are included; no version or protocol change is needed.
+
+In-game acceptance remains pending: check the overlay during a pull with the
+main window closed, wipe and retry, then finish the run and scroll the results.
+Verify both languages, long boss names, dragging, and client encounter-start
+delivery. This source change does not establish installation or live acceptance.
+
+Local validation: TypeScript, ESLint, addon validation, all 169 test files /
+1,384 tests (Vitest with two thread workers), and the 39-file addon ZIP build
+passed. Focused Lua coverage checks overlay updates/visibility and localized
+attempt durations in the actual result rendering.
+
 Run posts reuse Guilded's existing class and specialization emojis, with new
 application emoji for healer, tank and DPS. Unicode role icons remain available
 if an emoji cannot be loaded. Only linked guild members appear in player results.

@@ -12,7 +12,12 @@ function run(command, args) {
   if (r.error || r.status !== 0) process.exit(r.status || 1);
 }
 run("npm", ["run", "prisma:generate"]);
-for (const task of ["build", "test", "lint"]) run("npm", ["run", task]);
+for (const task of ["build", "test", "lint"]) {
+  // Windows process workers can stall in local agent sessions; the thread pool
+  // runs the same suite with bounded memory and no child-process startup issue.
+  const testArgs = task === "test" && process.platform === "win32" ? ["--", "--pool=threads", "--maxWorkers=2"] : [];
+  run("npm", ["run", task, ...testArgs]);
+}
 run("node", ["addon/Guilded/validate-addon.mjs"]);
 run("npm", ["audit", "--audit-level=high"]);
 run("npm", ["audit", "--prefix", "companion-app", "--audit-level=high"]);

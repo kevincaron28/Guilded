@@ -30,6 +30,43 @@ describe("end of dungeon run summary", () => {
     expect(rendered).toContain("Type /reload or log out");
     expect(session.run("return RELOADS")).toBe("0");
   });
+  it("queues results until combat ends and keeps the compact corner window out of later fights", () => {
+    session = newLuaSession();
+    session.run(`NS = {}; COMBAT = true; LOCKED = false; SHOWS = 0; VISIBLE = false
+      InCombatLockdown = function() return LOCKED end
+      UnitAffectingCombat = function() return COMBAT end
+      local original = CreateFrame
+      CreateFrame = function(kind, name, ...)
+        local frame = original(kind, name, ...)
+        frame.CreateFontString = function()
+          return setmetatable({GetStringHeight=function() return 100 end}, {__index=function() return function() end end})
+        end
+        if name == "GuildedRunResults" then
+          RESULT_FRAME = frame
+          frame.SetSize = function(_, w, h) WIDTH = w; HEIGHT = h end
+          frame.SetPoint = function(_, point) ANCHOR = point end
+          frame.Show = function() SHOWS = SHOWS + 1; VISIBLE = true end
+          frame.Hide = function() VISIBLE = false end
+          frame.IsShown = function() return VISIBLE end
+        end
+        return frame
+      end`);
+    session.load("Modules/RunResults.lua");
+    session.run('NS.runResults.show({name="First",players={}}); NS.runResults.show({name="Latest",players={}})');
+    expect(session.run("return tostring(RESULT_FRAME == nil)")).toBe("true");
+    session.run('COMBAT = false; LOCKED = true; fire_event("PLAYER_REGEN_ENABLED")');
+    expect(session.run("return SHOWS")).toBe("0");
+    session.run('LOCKED = false; fire_event("PLAYER_REGEN_ENABLED"); fire_event("PLAYER_REGEN_ENABLED")');
+    expect(session.run("return SHOWS")).toBe("1");
+    expect(session.run("return NS.runResults.last.name")).toBe("Latest");
+    expect(session.run("return WIDTH .. 'x' .. HEIGHT .. ':' .. ANCHOR")).toBe("320x280:BOTTOMRIGHT");
+    session.run('COMBAT = true; fire_event("PLAYER_REGEN_DISABLED")');
+    expect(session.run("return tostring(VISIBLE)")).toBe("false");
+    session.run('COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")');
+    expect(session.run("return SHOWS")).toBe("2");
+    session.run('RESULT_FRAME:Hide(); fire_event("PLAYER_REGEN_DISABLED"); fire_event("PLAYER_REGEN_ENABLED")');
+    expect(session.run("return SHOWS")).toBe("2");
+  });
   it("explains pending sync without claiming an upload has happened", () => {
     session = newLuaSession(); session.run("NS = {}"); session.load("Locale.lua"); session.load("Modules/RunResults.lua");
     expect(session.run('return NS.runResults.syncText({})')).toContain("Type /reload or log out");

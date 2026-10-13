@@ -8,18 +8,21 @@ const result = (overrides: Partial<DungeonImportResult>): DungeonImportResult =>
 });
 
 describe("dungeonAnnouncement", () => {
-  it("shows completion, points, roles, replacements and partial death coverage", () => {
+  it("shows only guild members, including zero-point members, and their death coverage", () => {
     const players = ["Kev", "Guest", "A", "B", "C", "Replacement"];
-    const run = result({ players, endedAt: 1791901866, completedBy: "final boss", points: 58,
-      playerDetails: players.map((character, i) => ({ character, class: "PRIEST", role: "HEALER", deaths: i === 0 ? 0 : null, presentSec: 1000, points: i === 0 ? 58 : 0 })) });
+    const run = result({ players, unlinked: ["Guest", "A", "B", "Replacement"], endedAt: 1791901866, completedBy: "final boss", points: 58,
+      playerDetails: players.map((character, i) => ({ character, class: "PRIEST", role: "HEALER", deaths: i === 0 ? 0 : i === 1 ? 9 : null, presentSec: 1000, points: i === 0 ? 58 : 0 })) });
     const en = dungeonAnnouncement({ results: [run], duplicates: 0, malformed: 0 }, "en")!.toJSON();
-    expect(en.description).toContain("0 recorded death(s) (1/6 tracked)");
+    expect(en.description).toContain("guild deaths: 0 (1/2 tracked)");
     expect(en.description).not.toContain("no deaths");
     expect(en.description).toContain("<t:1791901866:f>");
-    expect(en.description).toContain("6 participants (including replacements)");
+    expect(en.description).toContain("2 guild member(s)");
     expect(en.description).toContain("PRIEST / Healer");
     expect(en.description).toContain("deaths untracked");
     expect(en.description).toContain("58 total points awarded");
+    expect(en.description).toContain("**C**");
+    expect(en.description).toContain("0 pts");
+    for (const outsider of run.unlinked) expect(en.description).not.toContain(`**${outsider}**`);
     const fr = dungeonAnnouncement({ results: [run], duplicates: 0, malformed: 0 }, "fr")!.toJSON();
     expect(fr.description).toContain("Soigneur");
     expect(fr.description).toContain("morts non suivies");
@@ -27,13 +30,23 @@ describe("dungeonAnnouncement", () => {
 
   it("posts a solo completion and stays within Discord's embed budget for large imports", () => {
     const single = result({ players: ["Kev"] });
-    expect(dungeonAnnouncement({ results: [single], duplicates: 0, malformed: 0 }, "en")!.toJSON().description).toContain("Solo");
+    expect(dungeonAnnouncement({ results: [single], duplicates: 0, malformed: 0 }, "en")!.toJSON().description).toContain("1 guild member(s)");
     const many = Array.from({ length: 20 }, (_, i) => result({ runRef: `QG-${i}`, dungeonName: "D".repeat(100),
       playerDetails: Array.from({ length: 40 }, (_, j) => ({ character: `Player${j}`, role: "DPS", deaths: null, points: 0, presentSec: 1000 })) }));
     const embed = dungeonAnnouncement({ results: many, duplicates: 0, malformed: 0 }, "en")!;
     expect(embed.length).toBeLessThanOrEqual(6000);
     expect(embed.toJSON().description!.length).toBeLessThanOrEqual(4096);
   });
+  it("filters legacy rosters, records and achievements and omits runs without guild members", () => {
+    const run = result({ unlinked: ["Bob"], deaths: 9,
+      personalRecords: [{ character: "Bob", previous: 1500, now: 1300 }],
+      achievements: [{ character: "Bob", key: "firstBlood" }] });
+    const embed = dungeonAnnouncement({ results: [run], duplicates: 0, malformed: 0 }, "en")!.toJSON();
+    expect(JSON.stringify(embed)).not.toContain("Bob");
+    expect(embed.description).not.toContain("guild deaths: 9");
+    expect(dungeonAnnouncement({ results: [result({ unlinked: ["Kev", "Bob"] })], duplicates: 0, malformed: 0 }, "en")).toBeNull();
+  });
+
   it("posts nothing when no run was completed and valid", () => {
     const summary = { results: [result({ state: "ABANDONED" }), result({ valid: false, invalidReason: "too short" })], duplicates: 3, malformed: 0 };
     expect(dungeonAnnouncement(summary, "en")).toBeNull();
@@ -49,7 +62,7 @@ describe("dungeonAnnouncement", () => {
       duplicates: 0, malformed: 0
     };
     const embed = dungeonAnnouncement(summary, "fr")?.toJSON();
-    expect(embed?.description).toContain("✅ **Deadmines (Normal)** 21:40 · aucune mort");
+    expect(embed?.description).toContain("✅ **Deadmines (Normal)** 21:40 · morts de guilde: 0");
     expect(embed?.description).toContain("✅ **Shadowfang Keep** 21:40\n");
     expect(embed?.description?.match(/✅/g)).toHaveLength(2);
     expect(embed?.fields?.[0]?.value).toContain("Nouveau record de guilde dans **Deadmines (Normal)** : 25:00 → **21:40**");

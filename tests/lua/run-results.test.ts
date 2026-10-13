@@ -5,9 +5,9 @@ afterEach(() => session?.close());
 describe("end of dungeon run summary", () => {
   it("updates the boss overlay and hides it between fights or when the module is disabled", () => {
     session = newLuaSession();
-    session.run(`STAMP=100; ENABLED=true; VISIBLE=false; LABEL=""
+    session.run(`STAMP=100; ENABLED=true; VISIBLE=false; LABEL=""; SETTINGS={}
       CURRENT={state="ACTIVE",inside=true,activeEncounter={id=1,name="First boss",startedAt=100}}
-      NS={getDb=function() return {dungeon={current=CURRENT}} end,
+      NS={getDb=function() return {settings=SETTINGS,dungeon={current=CURRENT}} end,
         compat={serverTime=function() return STAMP end},moduleActive=function() return ENABLED end}
       local original=CreateFrame
       CreateFrame=function(kind,name,...)
@@ -29,6 +29,16 @@ describe("end of dungeon run summary", () => {
     session.run("STAMP=165; tick()");
     expect(session.run("return LABEL")).toContain("1:05");
     expect(session.run("return tostring(VISIBLE)")).toBe("true");
+    session.run("NS.runResults.setTimerEnabled(false); tick()");
+    expect(session.run("return tostring(VISIBLE)")).toBe("false");
+    expect(session.run("return CURRENT.activeEncounter.startedAt")).toBe("100");
+    // Saved settings survive loading the module again, as they do after /reload.
+    session.run("FRAMES={}"); session.load("Modules/RunResults.lua");
+    session.run("tick()");
+    expect(session.run("return tostring(VISIBLE)")).toBe("false");
+    session.run("NS.runResults.setTimerEnabled(true); tick()");
+    expect(session.run("return tostring(VISIBLE)")).toBe("true");
+    expect(session.run("return LABEL")).toContain("1:05");
     session.run("ENABLED=false; tick()");
     expect(session.run("return tostring(VISIBLE)")).toBe("false");
     session.run("ENABLED=true; CURRENT.inside=false; tick()");

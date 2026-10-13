@@ -10,6 +10,18 @@ end
 
 local function L(text) return ns.L and ns.L(text) or text end
 
+function results.timerEnabled()
+  local db = ns.getDb and ns.getDb()
+  return not (db and db.settings and db.settings.hideBossTimer)
+end
+
+function results.setTimerEnabled(enabled)
+  local db = ns.getDb and ns.getDb()
+  if not db then return end
+  db.settings = db.settings or {}
+  db.settings.hideBossTimer = not enabled
+end
+
 local function clock(seconds)
   seconds = math.max(0, math.floor(seconds))
   return string.format("%d:%02d", math.floor(seconds / 60), seconds % 60)
@@ -160,7 +172,7 @@ if CreateFrame then
     elapsed = 0
     local db = ns.getDb and ns.getDb()
     local stamp = ns.compat and ns.compat.serverTime() or (GetServerTime and GetServerTime() or time())
-    local text = (not ns.moduleActive or ns.moduleActive("dungeon"))
+    local text = results.timerEnabled() and (not ns.moduleActive or ns.moduleActive("dungeon"))
       and results.liveText(db and db.dungeon and db.dungeon.current, stamp)
     if text then label:SetText(text); timer:Show() else timer:Hide() end
   end)

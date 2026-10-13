@@ -733,11 +733,17 @@ local function buildDungeonPage(page)
   confirmClick(abandon, L("Abandon"), function() run("dungeon abandon") end)
   at(newButton(page, L("Check"), 90, function() run("dungeon check") end), page, 376, -44)
 
-  at(newLabel(page, L("Recent runs"), "GameFontNormal"), page, 0, -108)
-  ui.dgnRuns = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -126)
+  ui.dgnTimerToggle = at(newCheck(page, "Show live boss timer"), page, 0, -98)
+  tip(ui.dgnTimerToggle, L("Hide the live timer without stopping fight recording or results."))
+  ui.dgnTimerToggle:SetScript("OnClick", function(self)
+    if ns.runResults then ns.runResults.setTimerEnabled(self:GetChecked() and true or false) end
+    refresh()
+  end)
+  at(newLabel(page, L("Recent runs"), "GameFontNormal"), page, 0, -136)
+  ui.dgnRuns = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -154)
   ui.dgnRuns:SetWidth(PAGE_WIDTH)
-  ui.dgnBoardTitle = at(newLabel(page, "", "GameFontNormal"), page, 0, -224)
-  ui.dgnBoard = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -242)
+  ui.dgnBoardTitle = at(newLabel(page, "", "GameFontNormal"), page, 0, -252)
+  ui.dgnBoard = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -270)
   ui.dgnBoard:SetWidth(PAGE_WIDTH)
 end
 
@@ -1089,9 +1095,11 @@ local function refreshDungeons(db)
   if not ui.dgnCurrent then return end
   local d = db.dungeon or {}
   local run = d.current
+  local timerEnabled = ns.runResults and ns.runResults.timerEnabled()
+  if ui.dgnTimerToggle then ui.dgnTimerToggle:SetChecked(timerEnabled) end
   if ui.dgnBoss then
     local stamp = ns.compat.serverTime()
-    ui.dgnBoss:SetText(ns.runResults and ns.runResults.liveText(run, stamp) or "")
+    ui.dgnBoss:SetText(timerEnabled and ns.runResults.liveText(run, stamp) or "")
   end
   if run then
     local kills, deaths, tracked = 0, 0, false

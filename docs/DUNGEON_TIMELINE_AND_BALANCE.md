@@ -8,6 +8,9 @@ The addon shows a movable live boss timer near the top of the screen, including
 while its main window is closed. The Dungeons page also shows the current fight
 time. Both use the recorded encounter start; the overlay hides between attempts,
 outside the dungeon, after the run ends, or when the dungeon module is disabled.
+The Dungeons page has a **Show live boss timer** checkbox, enabled by default.
+Its local saved preference hides both live displays while fight recording and
+result durations continue. The choice persists across reloads.
 The results popup's scrollable area lists each boss attempt with its kill/failure
 and duration. `/guilded dungeon results` reopens the latest saved result. Missing
 or invalid timestamps display "Fight not timed", including on older saved runs.

@@ -1470,7 +1470,7 @@ end
 -- swapped in place. The guild is only known once the client has loaded it,
 -- so this is tried on entering the world and on guild roster updates.
 -- ---------------------------------------------------------------------
-local KEEP_AT_ROOT = { version = true, guildKey = true, otherGuilds = true }
+local KEEP_AT_ROOT = { version = true, guildKey = true, otherGuilds = true, bridgeCompanionGuild = true }
 local guildResolved = false
 
 local function currentGuildKey()

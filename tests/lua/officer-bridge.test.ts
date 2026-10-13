@@ -40,11 +40,10 @@ function deliver(s: LuaSession, messages: string[], sender = "Officer", channel 
 }
 
 describe("officer companion bridge", () => {
-  it("requires explicit officer opt-in and shares core pools, rosters and upcoming raids", () => {
+  it("automatically shares officer core pools, rosters and upcoming raids without opt-in", () => {
     const officer = client(true); snapshot(officer);
     officer.run('fire_event("PLAYER_ENTERING_WORLD"); fire_event("CHAT_MSG_ADDON", "GuildedBridge", "REQ|1|0", "GUILD", "Member")');
-    expect(packets(officer)).toHaveLength(0);
-    officer.run('NS.commandHandlers.bridge({"on"})');
+    expect(officer.run('return tostring(DB.settings.officerBridge.enabled)')).toBe("true");
     const messages = packets(officer); expect(messages.length).toBeGreaterThan(1);
     expect(messages.every(p => Buffer.byteLength(p) <= 255)).toBe(true);
     const member = client(); deliver(member, [...messages].reverse());
@@ -54,6 +53,28 @@ describe("officer companion bridge", () => {
     expect(member.run('return GuildedRaids[1].note')).toBe("Équipe: ; | :");
     member.run('GuildedNextRaid = nil; GuildedRaids = nil; fire_event("PLAYER_ENTERING_WORLD")');
     expect(member.run('return GuildedNextRaid.id')).toBe("raid1");
+  });
+  it("preserves explicit off through login and reports missing companion data", () => {
+    const officer = client(true);
+    officer.run('NS.commandHandlers.bridge({"status"})');
+    expect(officer.run('return CHAT_LOG[#CHAT_LOG]')).toContain("needs companion data");
+    snapshot(officer);
+    officer.run('NS.commandHandlers.bridge({"off"}); fire_event("PLAYER_ENTERING_WORLD"); fire_event("CHAT_MSG_ADDON", "GuildedBridge", "REQ|1|0", "GUILD", "Member"); NS.commandHandlers.bridge({"status"})');
+    expect(packets(officer)).toHaveLength(0);
+    expect(officer.run('return CHAT_LOG[#CHAT_LOG]')).toContain("OFF");
+  });
+  it("does not automatically rebind a companion snapshot to another guild", () => {
+    const officer = client(true); snapshot(officer);
+    officer.run('DB.bridgeCompanionGuild = "Other Guild-Realm"; fire_event("PLAYER_ENTERING_WORLD"); fire_event("CHAT_MSG_ADDON", "GuildedBridge", "REQ|1|0", "GUILD", "Member"); NS.commandHandlers.bridge({"status"})');
+    expect(packets(officer)).toHaveLength(0);
+    expect(officer.run('return CHAT_LOG[#CHAT_LOG]')).toContain("bound to another guild");
+  });
+  it("lets another WoW officer receive without a personal companion connection", () => {
+    const officer = client(true); snapshot(officer); officer.run('NS.commandHandlers.bridge({"on"})');
+    const receiver = client(true); receiver.run('NS.playerName = function() return "Second" end');
+    deliver(receiver, packets(officer)); receiver.run('NS.commandHandlers.bridge({"status"})');
+    expect(receiver.run('return CHAT_LOG[#CHAT_LOG]')).toContain("Guild data from Officer");
+    expect(receiver.run('return GuildedNextRaid.id')).toBe("raid1");
   });
   it("rejects outsiders, whispers, wrong guild data, incomplete and conflicting chunks", () => {
     const officer = client(true); snapshot(officer); officer.run('NS.commandHandlers.bridge({"on"})');

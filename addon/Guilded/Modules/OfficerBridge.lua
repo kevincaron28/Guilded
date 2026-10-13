@@ -133,9 +133,26 @@ local function publicLoot(value, depth)
   end
   return copy
 end
+local function bridgeSettings()
+  local d, key = db(), guildKey()
+  if not d or not key or d.guildKey ~= key or not ns.isOfficer() then return nil end
+  if d.bridgeCompanionGuild and d.bridgeCompanionGuild ~= key then return nil end
+  d.settings = d.settings or {}
+  local settings = d.settings.officerBridge
+  if not settings then
+    -- Keep the companion source bound across the Core.lua guild-data switch.
+    -- A deliberate /bridge on can rebind it after the companion is changed.
+    if type(GuildedStandings) ~= "table" or type(GuildedStandings.updatedAt) ~= "string" then return nil end
+    d.bridgeCompanionGuild = key
+    settings = { enabled = true, guild = key }
+    d.settings.officerBridge = settings
+  end
+  if settings.enabled and settings.guild == key then d.bridgeCompanionGuild = key end
+  return settings
+end
 local function capture()
   local d, key = db(), guildKey()
-  local settings = d and d.settings and d.settings.officerBridge
+  local settings = bridgeSettings()
   if not key or not settings or settings.guild ~= key or not settings.enabled or not ns.isOfficer() then return end
   local file = GuildedStandings
   if type(file) ~= "table" or type(file.updatedAt) ~= "string" then return end
@@ -149,7 +166,7 @@ local function capture()
     -- every guildmate's. Never relay those potentially private events.
     if type(raid.id) == "string" and not string.match(raid.id, "^discord:") then table.insert(raids, raid) end
   end
-  -- The officer explicitly binds their companion to this WoW guild with bridge on.
+  -- The companion is bound to the officer's guild; explicit off stays off.
   apply({ guild = key, loot = type(GuildedLoot) == "table" and publicLoot(GuildedLoot) or false,
     nextRaid = type(GuildedNextRaid) == "table" and type(GuildedNextRaid.id) == "string" and not string.match(GuildedNextRaid.id, "^discord:") and GuildedNextRaid or false,
     raids = raids }, file.updatedAt, ns.playerName())
@@ -157,7 +174,7 @@ end
 local function share()
   capture()
   local d, key = db(), guildKey()
-  local settings = d and d.settings and d.settings.officerBridge
+  local settings = bridgeSettings()
   local data = d and d.officerBridge
   if not key or not settings or not settings.enabled or settings.guild ~= key or not ns.isOfficer() or not data or data.snapshot.guild ~= key then return end
   if lastShare and clock() - lastShare < 90 then return end
@@ -202,10 +219,24 @@ ns.commandHandlers["bridge"] = function(args)
     if not ns.isOfficer() then ns.message("Only an officer can enable the guild's Discord bridge."); return end
     if not d or not key then ns.message("Join your in-game guild before enabling the officer bridge."); return end
     d.settings = d.settings or {}; d.settings.officerBridge = { enabled = mode == "on", guild = key }
+    if mode == "on" then d.bridgeCompanionGuild = key end
     if mode == "on" then capture(); share() end
   elseif mode == "refresh" then request()
   elseif mode ~= "status" then ns.message("/guilded bridge on | off | refresh | status"); return end
+  capture()
+  local settings = d and d.settings and d.settings.officerBridge
   local data = d and d.officerBridge
+  if ns.isOfficer() and key then
+    if settings and settings.guild == key and not settings.enabled then
+      ns.message("Officer bridge is OFF. /guilded bridge on enables sharing."); return
+    end
+    if d and d.bridgeCompanionGuild and d.bridgeCompanionGuild ~= key then
+      ns.message("Companion data is bound to another guild. Check the companion guild, save standings, /reload, then /guilded bridge on."); return
+    end
+    if (not data or data.snapshot.guild ~= key) and (type(GuildedStandings) ~= "table" or type(GuildedStandings.updatedAt) ~= "string") then
+      ns.message("Officer bridge needs companion data. Sync and save standings on this PC, then /reload."); return
+    end
+  end
   ns.message(data and data.snapshot.guild == key and ("Guild data from " .. tostring(data.from) .. " (" .. data.updatedAt .. ").") or "Waiting for an online officer to share Discord guild data. Personal browser sync is optional.")
 end
 table.insert(ns.commandHelp, "/guilded bridge status | refresh - request core and raid data from an online officer")

@@ -63,7 +63,7 @@ export async function followUpImport(discordGuild: DiscordGuild | null, guildId:
     await notifyDungeon(discordGuild, (lang) => dungeonAnnouncement(result.dungeons, lang, emojis) ?? dungeonPost);
     await updateDungeonLeaderboard(discordGuild);
   }
-  if (result.readinessSnapshots.length > 0 || result.consumables > 0) await postReadinessBoard(discordGuild, guildId, "updated after an addon import");
+  if (result.readinessSnapshots.length > 0 || result.consumables > 0) await postReadinessBoard(discordGuild, guildId);
   // In-game calendar answers fill in the signups of the matching Discord raids.
   let calendar: CalendarSummary | null = null;
   if (result.calendarPlan.matches.length > 0 || result.calendarPlan.unmatched.length > 0) {

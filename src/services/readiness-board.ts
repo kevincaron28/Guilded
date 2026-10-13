@@ -2,6 +2,8 @@ import type { Guild as DiscordGuild } from "discord.js";
 import type { PrismaClient } from "@prisma/client";
 import { prisma } from "../database.js";
 import { createGuildService } from "./guild.js";
+import { deliverDiscordJob, dispatchDiscordJob } from "./discord-jobs.js";
+import { participationDay } from "./participation-rules.js";
 
 const guildService = createGuildService(prisma);
 
@@ -86,20 +88,37 @@ export function chunkLines(lines: string[], limit = 1900): string[] {
   return chunks;
 }
 
-// Posts the board in the readiness channel. False when none is set. Never
+// One durable job per guild-local day. Imports never reset a completed job or
+// its retry lease, including concurrent imports and bot restarts.
+export async function queueDailyReadiness(database: Pick<PrismaClient, "discordJob">, guildId: string,
+  timezone: string, lines: string[], now = new Date()) {
+  const day = participationDay(now, timezone);
+  const description = chunkLines(lines.length ? lines : ["No guild members found."], 3600)[0]!;
+  return database.discordJob.upsert({
+    where: { guildId_key: { guildId, key: `readiness:${day}` } },
+    create: { guildId, key: `readiness:${day}`, kind: "MESSAGE", payload: {
+      route: "readiness", day, timezone,
+      message: { embeds: [{ title: "Raid readiness", description: `${description}\n\nFull current report: \`/readiness raid\`.` }] }
+    } },
+    update: {}
+  });
+}
+
+// Posts the daily board in the readiness channel. False when none is set. Never
 // throws: a failed post must not undo the import or command that triggered it.
-export async function postReadinessBoard(discordGuild: DiscordGuild | null, guildId: string, reason: string, options: BoardOptions = {}): Promise<boolean> {
+export async function postReadinessBoard(discordGuild: DiscordGuild | null, guildId: string, options: BoardOptions = {}): Promise<boolean> {
   if (!discordGuild) return false;
   try {
     const settings = await guildService.getSettings(guildId);
     if (!settings?.readinessChannelId) return false;
-    const channel = await discordGuild.channels.fetch(settings.readinessChannelId).catch(() => null);
-    if (!channel?.isTextBased()) return false;
+    const timezone = settings.timezone ?? "America/Toronto";
+    const now = new Date();
+    const key = `readiness:${participationDay(now, timezone)}`;
+    const existing = await prisma.discordJob.findUnique({ where: { guildId_key: { guildId, key } } });
+    if (existing) return true;
     const lines = [...await buildReadinessLines(prisma, guildId, options), ...await buildConsumableLines(prisma, guildId)];
-    const chunks = chunkLines(lines.length ? lines : ["No guild members found."], 1800);
-    for (const [index, chunk] of chunks.entries()) {
-      await channel.send({ content: index === 0 ? `**Raid readiness** — ${reason}\n${chunk}` : chunk, allowedMentions: { parse: [] } });
-    }
+    const job = await queueDailyReadiness(prisma, guildId, timezone, lines, now);
+    await deliverDiscordJob(prisma, job.id, current => dispatchDiscordJob(discordGuild, current));
     return true;
   } catch (error) {
     console.error("Failed to post readiness board", error);

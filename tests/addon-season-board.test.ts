@@ -1,7 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import { addonDungeonBoard } from "../src/services/dungeon-stats.js";
 import { standingsToLua } from "../companion/standings.mjs";
+import { DUNGEON_RATING_RULES } from "../src/services/dungeon-rating.js";
 describe("official season feed", () => {
+  it("uses frozen exploration rating for new seasons rather than participation points", async () => {
+    const database = {
+      dungeonSeason: { findFirst: async () => null, findMany: async () => [{ id: "rated", name: "Exploration", status: "ENDED",
+        ratingRules: DUNGEON_RATING_RULES, finalRating: [{ memberId: "a", name: "Ann", points: 200, dungeons: 2 }],
+        finalStandings: [{ memberId: "a", name: "Ann", points: 9999 }] }] },
+      dungeonPointTransaction: { groupBy: async () => [] }, member: { findMany: async () => [] }, character: { findMany: async () => [] }
+    };
+    expect((await addonDungeonBoard(database as never, "guild"))?.rows).toEqual([{ name: "Ann", points: 200 }]);
+  });
   it("aggregates current and archived seasons once, preserves reversals and uses main characters", async () => {
     const database = {
       dungeonSeason: { findFirst: async () => ({ id: "now", name: "Season 2", status: "ACTIVE" }), findMany: async () => [{ id: "old", name: "Season 1", status: "ENDED" }] },

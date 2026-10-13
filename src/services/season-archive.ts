@@ -1,9 +1,14 @@
 import type { PrismaClient } from "@prisma/client";
 import { leaderboard } from "./dungeon-stats.js";
 import { finalRows } from "./season-snapshot.js";
+import { dungeonRating, frozenRating, hasDungeonRating } from "./dungeon-rating.js";
 export { finalRows } from "./season-snapshot.js";
 
-export async function seasonRows(database: PrismaClient, guildId: string, season: { id: string; finalStandings: unknown }, limit = 10) {
+export async function seasonRows(database: PrismaClient, guildId: string, season: { id: string; finalStandings: unknown; ratingRules?: unknown; finalRating?: unknown; startsAt?: Date; endsAt?: Date | null; status?: string }, limit = 10) {
+  if (hasDungeonRating(season.ratingRules)) {
+    if (season.status === "ENDED") return (frozenRating(season.finalRating) ?? []).slice(0, limit);
+    if (season.startsAt && season.status) return (await dungeonRating(database, guildId, { ...season, startsAt: season.startsAt, status: season.status })).slice(0, limit);
+  }
   const final = finalRows(season.finalStandings);
   return final ? final.slice(0, limit) : leaderboard(database, guildId, "season", null, limit, new Date(), season.id);
 }
@@ -20,7 +25,7 @@ export async function seasonArchive(database: PrismaClient, guildId: string, pag
       entries.push(`**${season.name}** · ${season.status === "ACTIVE" ? "Current / Actuelle" : "Archived / Passée"} · <t:${Math.floor(season.startsAt.getTime() / 1000)}:d>\n\`/dungeon leaderboard season:${season.id}\``);
       continue;
     }
-    const final = finalRows(season.finalStandings);
+    const final = hasDungeonRating(season.ratingRules) ? frozenRating(season.finalRating) : finalRows(season.finalStandings);
     // Older seasons have existing awarded champions, never invent a published result.
     const awards = final === null ? await database.dungeonAchievement.findMany({ where: { guildId, seasonId: season.id, key: `seasonChampion:${season.id}` }, include: { member: { select: { displayName: true } } } }) : [];
     const winners = final ? final.filter(row => row.points > 0 && row.points === final[0]?.points).map(row => `${row.name} (${row.points})`) : awards.map(row => row.member.displayName);

@@ -8,6 +8,15 @@ const result = (overrides: Partial<DungeonImportResult>): DungeonImportResult =>
 });
 
 describe("dungeonAnnouncement", () => {
+  it("separates exploration gains from participation and shows zero for a repeat", () => {
+    const run = result({ ratingEnabled: true, points: 75, players: ["Kev"], playerDetails: [
+      { character: "Kev", deaths: 0, presentSec: 1300, points: 75, ratingGain: 0, ratingTotal: 200 }
+    ] });
+    const embed = dungeonAnnouncement({ results: [run], duplicates: 0, malformed: 0 }, "en")!.toJSON();
+    expect(embed.description).toContain("75 participation points");
+    expect(embed.description).toContain("Exploration rating: **200** (+0)");
+    expect(embed.description).toContain("do not stack");
+  });
   it("shows only guild members, including zero-point members, and their death coverage", () => {
     const players = ["Kev", "Guest", "A", "B", "C", "Replacement"];
     const run = result({ players, unlinked: ["Guest", "A", "B", "Replacement"], endedAt: 1791901866, completedBy: "final boss", points: 58,

@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { grantRunAchievements, type AchievementKey } from "./dungeon-achievements.js";
 import { findCharacter } from "./character-match.js";
+import { DUNGEON_RATING_RULES, dungeonRating, hasDungeonRating } from "./dungeon-rating.js";
 import {
   computeRunPoints, dungeonConfig, dungeonRunSchema, validateRun, weekStart,
   type DungeonRunInput, type PlayerContext
@@ -35,7 +36,8 @@ export interface DungeonImportResult {
   startedAt?: number;
   encounters?: DungeonRunInput["encounters"];
   completedBy?: string;
-  playerDetails?: { character: string; class?: string; role?: string; spec?: string; specSource?: "run" | "profile"; deaths: number | null; presentSec: number; points: number }[];
+  ratingEnabled?: boolean;
+  playerDetails?: { character: string; class?: string; role?: string; spec?: string; specSource?: "run" | "profile"; deaths: number | null; presentSec: number; points: number; ratingGain?: number; ratingTotal?: number }[];
   unlinked: string[];
   achievements: { character: string; key: AchievementKey }[];
 }
@@ -51,7 +53,7 @@ const NEAR_DUPLICATE_SECONDS = 120;
 export async function activeSeason(tx: Pick<Prisma.TransactionClient, "dungeonSeason">, guildId: string) {
   const current = await tx.dungeonSeason.findFirst({ where: { guildId, status: "ACTIVE" }, orderBy: { startsAt: "desc" } });
   if (current) return current;
-  return tx.dungeonSeason.create({ data: { guildId, name: "Season 1" } });
+  return tx.dungeonSeason.create({ data: { guildId, name: "Season 1", ratingRules: DUNGEON_RATING_RULES } });
 }
 
 async function isNearDuplicate(tx: Tx, guildId: string, run: DungeonRunInput): Promise<boolean> {
@@ -85,6 +87,8 @@ export async function importDungeonRuns(
   const settings = await tx.guildSettings.findUnique({ where: { guildId } });
   const config = dungeonConfig(settings?.dungeonConfig);
   const season = await activeSeason(tx, guildId);
+  const rated = hasDungeonRating(season.ratingRules);
+  let previousRating = rated ? await dungeonRating(tx, guildId, season) : [];
 
   // Oldest first, so records and "earlier this week" are judged in order.
   const parsed = rawRuns.map((raw) => dungeonRunSchema.safeParse(raw));
@@ -205,6 +209,7 @@ export async function importDungeonRuns(
       }
     }
 
+    const currentRating = rated ? await dungeonRating(tx, guildId, season) : [];
     summary.results.push({
       runRef: run.id,
       dungeonName: run.name,
@@ -214,6 +219,7 @@ export async function importDungeonRuns(
       ...(check.ok ? {} : { invalidReason: check.reason ?? "invalid" }),
       durationSec,
       points,
+      ...(rated ? { ratingEnabled: true } : {}),
       ...(run.endedAt ? { endedAt: run.endedAt } : {}),
       ...(run.startedAt ? { startedAt: run.startedAt } : {}),
       ...(run.encounters ? { encounters: run.encounters } : {}),
@@ -223,7 +229,12 @@ export async function importDungeonRuns(
         ...(player.spec ? { spec: player.spec, specSource: "run" as const }
           : character?.spec ? { spec: character.spec, specSource: "profile" as const } : {}),
         deaths: player.deaths ?? null, presentSec: player.presentSec,
-        points: playerPoints.get(player.character) ?? 0
+        points: playerPoints.get(player.character) ?? 0,
+        ...(rated && character ? {
+          ratingTotal: currentRating.find(row => row.memberId === character.memberId)?.points ?? 0,
+          ratingGain: (currentRating.find(row => row.memberId === character.memberId)?.points ?? 0)
+            - (previousRating.find(row => row.memberId === character.memberId)?.points ?? 0)
+        } : {})
       })),
       guildRecord,
       previousGuildBest,
@@ -234,6 +245,7 @@ export async function importDungeonRuns(
       unlinked: linked.filter((entry) => !entry.character).map((entry) => entry.player.character),
       achievements
     });
+    previousRating = currentRating;
   }
   return summary;
 }

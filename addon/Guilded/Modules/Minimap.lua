@@ -723,6 +723,8 @@ end
 local function buildDungeonPage(page)
   ui.dgnCurrent = at(newLabel(page, "", "GameFontHighlight"), page, 0, 0)
   ui.dgnCurrent:SetWidth(PAGE_WIDTH)
+  ui.dgnBoss = at(newLabel(page, "", "GameFontNormal"), page, 0, -74)
+  ui.dgnBoss:SetWidth(PAGE_WIDTH)
   at(newButton(page, L("Status"), 90, function() run("dungeon status") end), page, 0, -44)
   at(newButton(page, L("Start now"), 90, function() run("dungeon start") end), page, 94, -44)
   local complete = at(newButton(page, L("Complete"), 90), page, 188, -44)
@@ -731,11 +733,11 @@ local function buildDungeonPage(page)
   confirmClick(abandon, L("Abandon"), function() run("dungeon abandon") end)
   at(newButton(page, L("Check"), 90, function() run("dungeon check") end), page, 376, -44)
 
-  at(newLabel(page, L("Recent runs"), "GameFontNormal"), page, 0, -80)
-  ui.dgnRuns = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -98)
+  at(newLabel(page, L("Recent runs"), "GameFontNormal"), page, 0, -108)
+  ui.dgnRuns = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -126)
   ui.dgnRuns:SetWidth(PAGE_WIDTH)
-  ui.dgnBoardTitle = at(newLabel(page, "", "GameFontNormal"), page, 0, -196)
-  ui.dgnBoard = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -214)
+  ui.dgnBoardTitle = at(newLabel(page, "", "GameFontNormal"), page, 0, -224)
+  ui.dgnBoard = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -242)
   ui.dgnBoard:SetWidth(PAGE_WIDTH)
 end
 
@@ -1087,6 +1089,10 @@ local function refreshDungeons(db)
   if not ui.dgnCurrent then return end
   local d = db.dungeon or {}
   local run = d.current
+  if ui.dgnBoss then
+    local stamp = ns.compat.serverTime()
+    ui.dgnBoss:SetText(ns.runResults and ns.runResults.liveText(run, stamp) or "")
+  end
   if run then
     local kills, deaths, tracked = 0, 0, false
     for _, encounter in ipairs(run.encounters or {}) do if encounter.success then kills = kills + 1 end end

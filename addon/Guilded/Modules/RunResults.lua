@@ -10,6 +10,33 @@ end
 
 local function L(text) return ns.L and ns.L(text) or text end
 
+local function clock(seconds)
+  seconds = math.max(0, math.floor(seconds))
+  return string.format("%d:%02d", math.floor(seconds / 60), seconds % 60)
+end
+
+function results.liveText(run, stamp)
+  local boss = run and run.activeEncounter
+  if not run or run.state ~= "ACTIVE" or not run.inside or not boss
+    or type(boss.startedAt) ~= "number" or stamp < boss.startedAt then return nil end
+  return string.format(L("Boss fight: %s - %s"), boss.name or (L("Boss") .. " #" .. tostring(boss.id or "?")),
+    clock(stamp - boss.startedAt))
+end
+
+function results.fightText(run)
+  local lines = {}
+  for _, boss in ipairs(run.encounters or {}) do
+    local timed = type(boss.startedAt) == "number" and type(boss.at) == "number"
+      and boss.at >= boss.startedAt and (not run.startedAt or boss.startedAt >= run.startedAt)
+      and (not run.endedAt or boss.at <= run.endedAt)
+    lines[#lines + 1] = string.format("%s - %s - %s",
+      boss.name or (L("Boss") .. " #" .. tostring(boss.id or "?")),
+      boss.success and L("Defeated") or L("Failed attempt"),
+      timed and clock(boss.at - boss.startedAt) or L("Fight not timed"))
+  end
+  return #lines > 0 and (L("Boss fight times") .. "\n" .. table.concat(lines, "\n")) or ""
+end
+
 local function rosterText(run)
   local names, lines = {}, {}
   for name in pairs(run.players or {}) do names[#names + 1] = name end
@@ -37,6 +64,7 @@ function results.text(run)
   local kills = 0
   for _, boss in ipairs(run.encounters or {}) do if boss.success then kills = kills + 1 end end
   lines[#lines + 1] = "Bosses defeated: " .. kills .. (run.bossCount and ("/" .. run.bossCount) or "")
+  lines[#lines + 1] = results.fightText(run)
   local names = {}
   for name in pairs(run.players or {}) do names[#names + 1] = name end
   table.sort(names)
@@ -97,7 +125,8 @@ function results.show(run)
   window.status:SetTextColor(0.4, 0.85, 0.6)
   window.metrics:SetText(string.format("%d:%02d   |cffb0b8c4%s %d%s|r", math.floor(seconds / 60), seconds % 60,
     L("Bosses"), kills, run.bossCount and ("/" .. run.bossCount) or ""))
-  window.text:SetText(roster)
+  local fights = results.fightText(run)
+  window.text:SetText(fights ~= "" and (fights .. "\n\n" .. roster) or roster)
   window.content:SetHeight(math.max(1, window.text:GetStringHeight() + 12))
   window.scroll:SetVerticalScroll(0)
   window.footer:SetText(results.syncText(run))
@@ -108,6 +137,33 @@ end
 -- if another pull starts. Manually dismissed results stay dismissed.
 if CreateFrame then
   local events = CreateFrame("Frame")
+  -- A separate, small display stays visible while the main addon window is closed.
+  -- Create it before combat; it has no protected actions or combat-log dependency.
+  local timer = CreateFrame("Frame", "GuildedBossTimer", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+  timer:SetSize(300, 48)
+  timer:SetPoint("TOP", UIParent, "TOP", 0, -160)
+  timer:SetClampedToScreen(true)
+  timer:SetMovable(true); timer:EnableMouse(true); timer:RegisterForDrag("LeftButton")
+  timer:SetScript("OnDragStart", function(self) self:StartMoving() end)
+  timer:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+  if timer.SetBackdrop then
+    timer:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background" })
+    timer:SetBackdropColor(0.035, 0.045, 0.065, 0.9)
+  end
+  local label = timer:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+  label:SetPoint("TOPLEFT", 8, -6); label:SetPoint("BOTTOMRIGHT", -8, 6)
+  timer:Hide()
+  local elapsed = 0
+  events:SetScript("OnUpdate", function(_, delta)
+    elapsed = elapsed + delta
+    if elapsed < 0.2 then return end
+    elapsed = 0
+    local db = ns.getDb and ns.getDb()
+    local stamp = ns.compat and ns.compat.serverTime() or (GetServerTime and GetServerTime() or time())
+    local text = (not ns.moduleActive or ns.moduleActive("dungeon"))
+      and results.liveText(db and db.dungeon and db.dungeon.current, stamp)
+    if text then label:SetText(text); timer:Show() else timer:Hide() end
+  end)
   events:RegisterEvent("PLAYER_REGEN_ENABLED")
   events:RegisterEvent("PLAYER_REGEN_DISABLED")
   events:SetScript("OnEvent", function(_, event)

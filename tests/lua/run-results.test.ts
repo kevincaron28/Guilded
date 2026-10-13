@@ -3,6 +3,61 @@ import { newLuaSession, type LuaSession } from "./harness.js";
 let session: LuaSession | undefined;
 afterEach(() => session?.close());
 describe("end of dungeon run summary", () => {
+  it("updates the boss overlay and hides it between fights or when the module is disabled", () => {
+    session = newLuaSession();
+    session.run(`STAMP=100; ENABLED=true; VISIBLE=false; LABEL=""
+      CURRENT={state="ACTIVE",inside=true,activeEncounter={id=1,name="First boss",startedAt=100}}
+      NS={getDb=function() return {dungeon={current=CURRENT}} end,
+        compat={serverTime=function() return STAMP end},moduleActive=function() return ENABLED end}
+      local original=CreateFrame
+      CreateFrame=function(kind,name,...)
+        local frame=original(kind,name,...)
+        if name=="GuildedBossTimer" then
+          frame.Show=function() VISIBLE=true end
+          frame.Hide=function() VISIBLE=false end
+          frame.CreateFontString=function() return setmetatable({SetText=function(_,text) LABEL=text end},
+            {__index=function() return function() end end}) end
+        end
+        return frame
+      end
+      function tick()
+        for _,frame in ipairs(FRAMES) do if frame.scripts.OnUpdate then frame.scripts.OnUpdate(frame,1) end end
+      end`);
+    session.load("Modules/RunResults.lua");
+    session.run("tick()");
+    expect(session.run("return LABEL")).toBe("Boss fight: First boss - 0:00");
+    session.run("STAMP=165; tick()");
+    expect(session.run("return LABEL")).toContain("1:05");
+    expect(session.run("return tostring(VISIBLE)")).toBe("true");
+    session.run("ENABLED=false; tick()");
+    expect(session.run("return tostring(VISIBLE)")).toBe("false");
+    session.run("ENABLED=true; CURRENT.inside=false; tick()");
+    expect(session.run("return tostring(VISIBLE)")).toBe("false");
+    session.run("CURRENT.inside=true; CURRENT.activeEncounter=nil; tick()");
+    expect(session.run("return tostring(VISIBLE)")).toBe("false");
+    session.run('CURRENT.activeEncounter={id=1,startedAt=165}; STAMP=170; tick()');
+    expect(session.run("return LABEL")).toBe("Boss fight: Boss #1 - 0:05");
+    session.run("CURRENT=nil; tick()");
+    expect(session.run("return tostring(VISIBLE)")).toBe("false");
+  });
+  it("shows each attempt duration without inventing missing or invalid timings, in both languages", () => {
+    session = newLuaSession(); session.run("NS={}"); session.load("Locale.lua"); session.load("Modules/RunResults.lua");
+    session.run(`RUN={startedAt=100,endedAt=300,encounters={
+      {id=1,name="First boss",startedAt=100,at=130,success=false},
+      {id=1,name="First boss",startedAt=140,at=205,success=true},
+      {id=2,at=240,success=true},
+      {id=3,startedAt=260,at=250,success=true},
+      {id=4,startedAt=50,at=290,success=true}}}`);
+    const text = session.run("return NS.runResults.text(RUN)");
+    expect(text).toContain("First boss - Failed attempt - 0:30");
+    expect(text).toContain("First boss - Defeated - 1:05");
+    expect(text.match(/Fight not timed/g)).toHaveLength(3);
+    session.run('GetLocale=function() return "frFR" end');
+    const french = session.run("return NS.runResults.fightText(RUN)");
+    expect(french).toContain("Tentative manquée - 0:30");
+    expect(french).toContain("Vaincu - 1:05");
+    expect(french).toContain("Combat non chronométré");
+  });
   it("renders the roster, completion time, and sync footer without a reload action", () => {
     session = newLuaSession();
     session.run(`NS = {}; LABELS = {}; RELOADS = 0
@@ -20,12 +75,13 @@ describe("end of dungeon run summary", () => {
       end`);
     session.load("Modules/RunResults.lua");
     session.run(`NS.runResults.show({name="The Hall of Thanes",state="COMPLETED",durationSec=1345,
-      encounters={{success=true},{success=true},{success=true},{success=true}},
+      encounters={{name="First boss",startedAt=100,at=165,success=true},{success=true},{success=true},{success=true}},
       players={Highpriest={class="PRIEST",role="HEALER",deaths=0},Guest={class="HUNTER",role="DPS"}}})`);
     const rendered = session.run('return table.concat(LABELS, "\\n")');
     expect(rendered).toContain("RUN COMPLETE");
     expect(rendered).toContain("22:25");
     expect(rendered).toContain("PRIEST / Healer");
+    expect(rendered).toContain("First boss - Defeated - 1:05");
     expect(rendered).toContain("deaths unknown");
     expect(rendered).toContain("Type /reload or log out");
     expect(session.run("return RELOADS")).toBe("0");

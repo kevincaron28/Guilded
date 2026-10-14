@@ -1,0 +1,43 @@
+local _, ns = ...
+local FR = {
+  ["Team"] = "Equipe",
+  ["Duel: host and chosen opponent alternate rolls. First to roll 1 loses. No gold."] = "Duel : l'organisateur et l'adversaire jouent a tour de role. Le premier 1 perd. Sans or.",
+  ["Open the host window after combat."] = "Ouvrez la fenetre apres le combat.",
+  ["Finish Guilded's loot roll before hosting a game."] = "Terminez le jet de butin Guilded avant de lancer un jeu.",
+  high = "Grand jet", death = "Elimination", duel = "Duel", target = "Cible", trivia = "Quiz",
+  JOINING = "Inscriptions", READY = "Pret", ROLLING = "Jets en cours", ANSWERING = "Reponses",
+  out = "elimine", waiting = "en attente",
+  ["High roll"] = "Grand jet", ["Deathroll"] = "Elimination", ["Duel"] = "Duel",
+  ["Closest target"] = "Proche de la cible", ["Trivia"] = "Quiz", ["Team trivia"] = "Quiz en equipes",
+  ["Next round"] = "Manche suivante", ["Join myself"] = "Participer", ["Remove player"] = "Retirer le joueur",
+  ["Skip question"] = "Passer la question", ["Cancel"] = "Annuler", ["Confirm cancel"] = "Confirmer",
+  ["Rematch"] = "Rejouer", ["History"] = "Historique", ["Back"] = "Retour",
+  ["Player / duel opponent (name-realm)"] = "Joueur / adversaire (nom-royaume)",
+  ["Five rounds for Target and Trivia. Teams alternate A/B on joining."] = "Cinq manches pour Cible et Quiz. Equipes A/B attribuees en alternance.",
+  ["Choose a game or rematch. Only the host needs this addon."] = "Choisissez un jeu. Seul l'organisateur a besoin de cet addon.",
+  ["Finish or cancel the current game first."] = "Terminez ou annulez le jeu en cours.",
+  ["Join a party or raid first."] = "Rejoignez d'abord un groupe ou raid.",
+  ["Choose another player in your group."] = "Choisissez un autre joueur de votre groupe.",
+  ["Type 1 to join, out to leave. Only the host needs the addon. No gold."] = "Tapez 1 pour participer, out pour quitter. Seul l'organisateur a besoin de l'addon. Sans or.",
+  ["At least two players must join."] = "Il faut au moins deux joueurs.",
+  ["Winner: %s"] = "Victoire : %s",
+  ["Round complete. Host: Next round when ready."] = "Manche terminee. Organisateur : lancez la suivante quand le groupe est pret.",
+  ["Tie: only tied players roll again. See host for names."] = "Egalite : seuls les joueurs a egalite relancent. Noms annonces par l'organisateur.",
+  ["%s: /roll %d"] = "%s : /roll %d",
+  ["Eliminated: %s"] = "Elimine : %s", ["Point: %s"] = "Point : %s",
+  ["Round %d: %s"] = "Manche %d : %s",
+  ["One answer each in group chat. First correct answer scores. Host can skip."] = "Une reponse chacun dans le groupe. La premiere bonne reponse marque. L'organisateur peut passer.",
+  ["Round %d: target %d. Everyone /roll 100. Closest scores; ties share a point."] = "Manche %d : cible %d. Tous /roll 100. Le plus proche marque; egalite = un point chacun.",
+  ["Round %d: everyone /roll %d. %s"] = "Manche %d : tous /roll %d. %s",
+  ["Highest wins."] = "Le plus haut gagne.", ["Lowest is eliminated."] = "Le plus bas est elimine.",
+  ["Removed: %s. Current round abandoned; no point awarded."] = "Retrait : %s. Manche abandonnee; aucun point attribue.",
+  ["Correct: %s. Answer: %s"] = "Correct : %s. Reponse : %s",
+  ["Answer: %s. No point this round."] = "Reponse : %s. Aucun point cette manche.",
+  ["Game cancelled. No result saved."] = "Jeu annule. Aucun resultat enregistre.",
+  ["No completed matches yet."] = "Aucune partie terminee.",
+  ["Game error; cancel and restart."] = "Erreur du jeu; annulez et recommencez.",
+}
+function ns.language()
+  return GuildedGamesDB and GuildedGamesDB.language or (GetLocale and GetLocale() == "frFR" and "fr" or "en")
+end
+function ns.L(text) return ns.language() == "fr" and FR[text] or text end

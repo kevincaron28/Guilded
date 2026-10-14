@@ -1,7 +1,20 @@
 import { randomInt } from "node:crypto";
 import { z } from "zod";
 
-export const COMMUNITY_GAMES = ["DISCORD", "WOW", "POE2", "DIABLO4", "OTHER"] as const;
+// A game is a plain string in the database: adding one here (and a label below) needs no migration.
+export const COMMUNITY_GAMES = ["DISCORD", "WOW", "POE2", "DIABLO2", "DIABLO4", "OTHER"] as const;
+export type CommunityGame = (typeof COMMUNITY_GAMES)[number];
+export const COMMUNITY_GAME_LABELS: Record<CommunityGame, { en: string; fr: string }> = {
+  DISCORD: { en: "Discord", fr: "Discord" },
+  WOW: { en: "World of Warcraft", fr: "World of Warcraft" },
+  POE2: { en: "Path of Exile 2", fr: "Path of Exile 2" },
+  DIABLO2: { en: "Diablo II: Resurrected", fr: "Diablo II: Resurrected" },
+  DIABLO4: { en: "Diablo IV", fr: "Diablo IV" },
+  OTHER: { en: "Other game", fr: "Autre jeu" }
+};
+// Unknown codes (an old row, a removed game) still display as their raw code.
+export const communityGameLabel = (game: string, lang: "en" | "fr"): string =>
+  COMMUNITY_GAME_LABELS[game as CommunityGame]?.[lang] ?? game;
 export const COMMUNITY_REWARDS = { attendance: 25, challenge: 30, dice: { participation: 2, bonus: 3, threshold: 90 } } as const;
 const diceRules = z.object({ participation: z.number().int().nonnegative(), bonus: z.number().int().nonnegative(), threshold: z.number().int().min(1).max(100) });
 export function dicePoints(roll: number, savedRules: unknown): number {

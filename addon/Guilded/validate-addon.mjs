@@ -39,7 +39,7 @@ if (!utilSource.includes("SendAddonMessage")) throw new Error("Util.lua must sen
 // Since patch 12.0.0 (inherited by WoW Forever) addons cannot register the
 // combat log event; attempting it triggers a "blocked from an action only
 // available to the Blizzard UI" popup on load.
-for (const file of ["Core.lua", "Modules/Games.lua"]) {
+for (const file of ["Core.lua", "Modules/LootRoll.lua"]) {
   const source = readFileSync(new URL(file, root), "utf8");
   if (/["']COMBAT_LOG_EVENT(?:_UNFILTERED)?["']/.test(source)) {
     throw new Error(`${file} registers a combat log event, which addons are blocked from doing`);
@@ -49,12 +49,12 @@ if (!core.includes("GuildedDB")) {
   throw new Error("Core.lua does not reference its SavedVariables database");
 }
 
-const games = readFileSync(new URL("Modules/Games.lua", root), "utf8");
+const games = readFileSync(new URL("Modules/LootRoll.lua", root), "utf8");
 if (!games.includes("commandHandlers")) {
-  throw new Error("Games.lua does not register into Core.lua's command extension point");
+  throw new Error("LootRoll.lua does not register into Core.lua's command extension point");
 }
 if (/GuildedCasino|debt|ledger|wager/i.test(games.replace(/no ledger|no wagers|nothing owed/gi, ""))) {
-  throw new Error("Games.lua must stay free of gold, wagers and ledgers");
+  throw new Error("LootRoll.lua must stay free of gold, wagers and ledgers");
 }
 
 // Every Lua file the .toc loads (so a new module is checked without editing this list).

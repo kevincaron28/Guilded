@@ -13,9 +13,15 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (5 October 2026): source version 6.0.0 Beta, protocol 2.**
+**Current status (14 October 2026): published version 6.1.2 Release, protocol 2.**
+Production uses Aiven PostgreSQL; retained Neon configuration is historical.
+Standalone guild and optional Guilded Games work is next-version candidate
+source; do not overwrite the published 6.1.2 downloads or bump incidentally.
+Read `docs/UPDATE_ALL_2026-10-14.md`,
+`docs/DUNGEON_DEPLOYMENT_2026-10-14.md` and
+`docs/V6_2_STANDALONE_AND_GAMES.md` for current evidence and pending acceptance.
 Read `docs/V5_0_RELEASE_HANDOFF.md` first for deployment gates, then
-`docs/V6_0_RELEASE_TESTING.md` and `docs/V6_0_BETA_NOTES.md` for current acceptance.
+`docs/V6_1_RELEASE_NOTES.md` for the published client. The 6.0 records are historical.
 The owner reports the addon installed on both PCs. Fresh-guild setup is being
 rehearsed locally; see `docs/FRESH_INSTALL_REHEARSAL.md` and `docs/QUICK_START.md`.
 Use `npm run setup:check` to check a new owner's configuration without starting
@@ -72,10 +78,10 @@ Two failure modes only the test suite catches, not the type checker:
 
 ## No database or Discord access from here
 
-This sandbox (and likely yours) can't reach the production Neon database or
-the Discord API — there's no `.env.local` (it's gitignored; holds the bot
-token, `DATABASE_URL`, `COMPANION_UPLOAD_TOKEN`) and no live connection even
-when one is configured for local dev. Consequences:
+Cloud sandboxes may not reach production Aiven or Discord and may have no
+`.env.local` (gitignored; contains credentials). Check actual local access
+without printing secrets; retained Neon settings do not identify production.
+Consequences:
 
 - **Migrations are hand-written, not generated.** Don't run
   `prisma migrate dev` (needs a reachable database). Instead, add a field to

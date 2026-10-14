@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { newLuaSession, type LuaSession } from "./harness.js";
+import { addonSource, newLuaSession, type LuaSession } from "./harness.js";
 
 // Builds the real tools window (Modules/Minimap.lua) against frames that answer
 // with plausible values, to catch errors in the layout code and check who
@@ -57,13 +57,29 @@ function openWindow(rank: number, extraLua = ""): LuaSession {
     function GetGuildInfo() return "Alpha", "Rank", ${rank} end
     ${extraLua}
   `);
-  for (const file of ["Core.lua", "Compat.lua", "Modules/Sync.lua", "Modules/SyncNow.lua", "Modules/Games.lua", "Modules/ConsumableData.lua", "Modules/Consumables.lua", "Modules/Ready.lua", "Modules/Minimap.lua"]) session.load(file);
+  for (const file of ["Core.lua", "Compat.lua", "Modules/Sync.lua", "Modules/SyncNow.lua", "Modules/LootRoll.lua", "Modules/ConsumableData.lua", "Modules/Consumables.lua", "Modules/Ready.lua", "Modules/Minimap.lua"]) session.load(file);
   session.run(`fire_event("PLAYER_LOGIN"); fire_event("PLAYER_ENTERING_WORLD"); NS.commandHandlers["menu"]()`);
   return session;
 }
 
 const visibleTabs = (s: LuaSession) => s.run(`local n = {}; for _, t in ipairs(NS.windowState().tabs) do if t.visible then n[#n + 1] = t.name end end; return table.concat(n, ",")`);
 const homeText = (s: LuaSession, field: string) => s.run(`return NS.windowState().${field}.text`);
+
+describe("standalone games host window", () => {
+  it("builds without Guilded and starts a lobby through its actual button", () => {
+    session = newLuaSession(); const s = session;
+    s.run(RICH_FRAMES);
+    s.run(`NS={}; function IsInGroup() return true end`);
+    for (const file of ["Locale.lua", "Questions.lua", "Core.lua", "Window.lua"]) {
+      s.run(`loadaddon("GuildedGames", [====[${addonSource(`../GuildedGames/${file}`)}]====], NS)`);
+    }
+    s.run(`NS.open(); for _, f in ipairs(FRAMES) do if f.text=="High roll" then f.scripts.OnClick(f); break end end`);
+    expect(s.run(`return NS.state().game..":"..NS.state().phase`)).toBe("high:JOINING");
+    expect(s.run(`return tostring(NS.util)..":"..tostring(GuildedDB)`)).toBe("nil:nil");
+    s.run(`NS.cancel(); function InCombatLockdown() return true end; NS.open()`);
+    expect(s.chat().join("\n")).toContain("after combat");
+  });
+});
 
 describe("the tools window (sidebar and Home page)", () => {
   it("routes dungeon shortcuts to one pane and keeps calendar administration officer-only", () => {
@@ -85,7 +101,7 @@ describe("the tools window (sidebar and Home page)", () => {
   it("gives each officer feature a single menu scope", () => {
     const s = openWindow(1);
     s.run(`NS.openGuildPanel(nil, "guild", "Standings")`);
-    expect(visibleTabs(s)).toBe("Standings,Crafting,EPGP");
+    expect(visibleTabs(s)).toBe("Standings,Crafting,EPGP,Local guild");
     s.run(`NS.openGuildPanel(nil, "calendar", "Calendar")`);
     expect(visibleTabs(s)).toBe("Calendar");
   });
@@ -249,9 +265,9 @@ describe("the tools window (sidebar and Home page)", () => {
   });
 
   it("officers see every group in order; members only what they can use", () => {
-    expect(visibleTabs(openWindow(1))).toBe("Home,Me,Ready,Reserves,Raid,Loot,Council,Games,Tools");
+    expect(visibleTabs(openWindow(1))).toBe("Home,Me,Ready,Reserves,Raid,Loot,Council,Tools");
     session?.close();
-    expect(visibleTabs(openWindow(5))).toBe("Home,Me,Reserves,Games,Tools");
+    expect(visibleTabs(openWindow(5))).toBe("Home,Me,Reserves,Tools");
   });
 
   it("Home says who you are, what is running, and why there is no standing yet", () => {
@@ -293,7 +309,7 @@ describe("the tools window (sidebar and Home page)", () => {
         MOCK_UNITS = { player = { name = "Kev", buffs = {} } }
         function GetGuildInfo() return "Alpha", "Rank", ${rank} end
       `);
-      for (const file of ["Core.lua", "Compat.lua", "Modules/Sync.lua", "Modules/SyncNow.lua", "Modules/Games.lua", "Modules/ConsumableData.lua", "Modules/Consumables.lua", "Modules/Ready.lua", "Modules/Loot.lua", "Modules/Minimap.lua"]) s.load(file);
+      for (const file of ["Core.lua", "Compat.lua", "Modules/Sync.lua", "Modules/SyncNow.lua", "Modules/LootRoll.lua", "Modules/ConsumableData.lua", "Modules/Consumables.lua", "Modules/Ready.lua", "Modules/Loot.lua", "Modules/Minimap.lua"]) s.load(file);
       s.run(`fire_event("PLAYER_LOGIN"); fire_event("PLAYER_ENTERING_WORLD")`);
       if (lootMode) s.run(`NS.getSettings().lootMode = ${JSON.stringify(lootMode)}`);
       s.run(`NS.commandHandlers["menu"]()`);

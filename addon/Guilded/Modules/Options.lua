@@ -23,6 +23,13 @@ function module.chooseSetup(mode)
   if mode ~= "local" and mode ~= "connected" then return false end
   local s = settings()
   if not s then return false end
+  if s.setupMode ~= mode then
+    local previous = s.setupMode == "local" and "local" or "connected"
+    s.coreSelections = s.coreSelections or {}
+    s.coreSelections[previous] = { core = s.activeCore, mode = s.lootMode }
+    local selection = s.coreSelections[mode] or {}
+    s.activeCore, s.lootMode = selection.core, selection.mode
+  end
   s.setupMode = mode
   if setupPanel then setupPanel:Hide() end
   if ns.onSetupChange then ns.onSetupChange() end

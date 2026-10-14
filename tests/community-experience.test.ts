@@ -78,7 +78,7 @@ describe("community member navigation", () => {
     const dice = await communityChoices(database as never, guild as never, "guild", "actor", "community", "dice", "season", "", "fr");
     expect(dice.map(c => c.value)).toEqual(["current"]);
     const archive = await communityChoices(database as never, guild as never, "guild", "actor", "community", "wallet", "season", "archivée", "fr");
-    expect(archive).toEqual([{ name: "DISCORD · Saison 1 — Octobre 2026 · Archivée", value: "cmseason" }]);
+    expect(archive).toEqual([{ name: "Discord · Saison 1 — Octobre 2026 · Archivée", value: "cmseason" }]);
   });
   it("binds points purchase confirmation to the displayed total and the purchaser", () => {
     const row = { id: "draw", title: "Tirage", rules: { mode: "POINTS", cost: 10, prize: "Lot", currency: "points", realm: "", winners: 1, maxTickets: 5 } };

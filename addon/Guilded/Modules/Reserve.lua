@@ -410,24 +410,19 @@ local function rollFor(itemText)
     announce(string.format(L("%s: only %s reserved it."), itemName(id), found[1]))
     return
   end
-  local games = ns.commandHandlers and ns.commandHandlers["games"]
-  if not games or (ns.moduleActive and not ns.moduleActive("games")) then
-    ns.message(string.format(L("Roll between: %s (the Roll games module is off)."), table.concat(found, ", ")))
-    return
-  end
-  if ns.games and ns.games.session then ns.message(L("A roll game is already open. Finish or cancel it first.")); return end
+  if not ns.lootRoll then ns.message(L("Loot roll unavailable. Reload the complete Guilded addon.")); return end
+  if ns.lootRoll.session then ns.message(L("Finish the pending loot roll or use /guilded lootroll cancel.")); return end
   local shown = {}
   for _, name in ipairs(found) do
     local plus = reserve.plusFor(name, id)
     table.insert(shown, plus > 0 and string.format("%s (+%d)", name, plus) or name)
   end
   announce(string.format(L("%s: rolling between %s."), itemName(id), table.concat(shown, ", ")))
-  games({ "highroll" })
+  local bonuses = {}
   for _, name in ipairs(found) do
-    games({ "add", name })
-    if ns.games and ns.games.setBonus then ns.games.setBonus(name, reserve.plusFor(name, id)) end
+    bonuses[name] = reserve.plusFor(name, id)
   end
-  games({ "roll" })
+  if not ns.lootRoll.start(found, bonuses) then ns.message(L("Join a party or raid before starting a loot roll.")) end
 end
 
 local function awardTo(args)

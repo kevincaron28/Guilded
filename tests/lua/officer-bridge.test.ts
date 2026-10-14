@@ -38,13 +38,22 @@ function packets(s: LuaSession) {
 function deliver(s: LuaSession, messages: string[], sender = "Officer", channel = "GUILD") {
   for (const message of messages) s.run(`fire_event("CHAT_MSG_ADDON", "GuildedBridge", ${JSON.stringify(message)}, "${channel}", "${sender}")`);
 }
+const segmentRealms = [1, 2, 3, 4, 12, 100].map(number => `Classic Beta PvP ${number}`);
+function guildRealm(s: LuaSession, localRealm: string, home: string | null = null) {
+  s.run(`
+    GetRealmName = function() return ${JSON.stringify(localRealm)} end
+    GetGuildInfo = function() return GUILD, "Officer", 1, ${home === null ? "nil" : JSON.stringify(home)} end
+    DB.guildKey = GUILD .. "-" .. GetRealmName()
+  `);
+}
 
 describe("officer companion bridge", () => {
-  it("accepts the guild home across Forever server segments, including older senders", () => {
+  it.each(segmentRealms)("receives on %s from the home segment, including older senders and cached reloads", receiverRealm => {
     const officer = client(true); snapshot(officer);
-    officer.run('GetRealmName = function() return "Classic Beta PvP" end; DB.guildKey = "Test Guild-Classic Beta PvP"; NS.commandHandlers.bridge({"on"})');
+    guildRealm(officer, "Classic Beta PvP");
+    officer.run('NS.commandHandlers.bridge({"on"})');
     const member = client();
-    member.run('GetRealmName = function() return "Classic Beta PvP 2" end; GetGuildInfo = function() return GUILD, "Officer", 1, "ClassicBetaPvP" end; DB.guildKey = "Test Guild-Classic Beta PvP 2"');
+    guildRealm(member, receiverRealm, "ClassicBetaPvP");
     deliver(member, packets(officer));
     expect(member.run('return GuildedNextRaid.id')).toBe("raid1");
     member.run('GuildedNextRaid = nil; fire_event("PLAYER_ENTERING_WORLD"); NS.commandHandlers.bridge({"status"})');
@@ -53,19 +62,63 @@ describe("officer companion bridge", () => {
     // Existing cached broadcasts have no explicit guildHome field.
     officer.run('DB.officerBridge.snapshot.guildHome = nil; SENT = {}; NOW = NOW + 100; NS.commandHandlers.bridge({"on"})');
     const legacyReceiver = client();
-    legacyReceiver.run('GetRealmName = function() return "Classic Beta PvP 2" end; GetGuildInfo = function() return GUILD, "Officer", 1, "ClassicBetaPvP" end; DB.guildKey = "Test Guild-Classic Beta PvP 2"');
+    guildRealm(legacyReceiver, receiverRealm, "ClassicBetaPvP");
     deliver(legacyReceiver, packets(officer));
     expect(legacyReceiver.run('return GuildedNextRaid.id')).toBe("raid1");
   });
-  it("shares from a secondary segment but rejects a same-named guild on another home", () => {
+  it.each(segmentRealms)("shares from %s but rejects a same-named guild on another home", senderRealm => {
     const officer = client(true); snapshot(officer);
-    officer.run('GetRealmName = function() return "Classic Beta PvP 2" end; GetGuildInfo = function() return GUILD, "Guild Master", 0, "ClassicBetaPvP" end; DB.guildKey = "Test Guild-Classic Beta PvP 2"; NS.commandHandlers.bridge({"on"})');
-    const member = client(); member.run('GetRealmName = function() return "Classic Beta PvP" end; DB.guildKey = "Test Guild-Classic Beta PvP"');
+    guildRealm(officer, senderRealm, "ClassicBetaPvP");
+    officer.run('NS.commandHandlers.bridge({"on"})');
+    const member = client(); guildRealm(member, "Classic Beta PvP");
     deliver(member, packets(officer));
     expect(member.run('return GuildedNextRaid.id')).toBe("raid1");
     const outsider = client(); outsider.run('GetRealmName = function() return "Classic Beta PvE" end; DB.guildKey = "Test Guild-Classic Beta PvE"');
     deliver(outsider, packets(officer));
     expect(outsider.run('return tostring(DB.officerBridge)')).toBe("nil");
+  });
+  it.each([
+    ["Classic Beta PvP 3", "Classic Beta PvP 4"],
+    ["Classic Beta PvP 12", "Classic Beta PvP 100"]
+  ])("shares between numbered segments %s and %s using the reported guild home", (senderRealm, receiverRealm) => {
+    const officer = client(true); snapshot(officer);
+    guildRealm(officer, senderRealm, "Classic Beta PvP");
+    officer.run('NS.commandHandlers.bridge({"on"})');
+    const member = client(); guildRealm(member, receiverRealm, "ClassicBetaPvP");
+    deliver(member, packets(officer));
+    expect(member.run('return DB.lootRules.cores[1].players.Member.gp')).toBe("25");
+    expect(member.run('return GuildedNextRaid.id')).toBe("raid1");
+    member.run('GuildedNextRaid = nil; fire_event("PLAYER_ENTERING_WORLD")');
+    expect(member.run('return GuildedNextRaid.id')).toBe("raid1");
+  });
+  it("preserves meaningful numbers in guild homes instead of stripping realm suffixes", () => {
+    const officer = client(true); snapshot(officer);
+    guildRealm(officer, "Classic Beta PvP 3", "ClassicBetaPvP3");
+    officer.run('NS.commandHandlers.bridge({"on"})');
+    const messages = packets(officer);
+    const member = client(); guildRealm(member, "Classic Beta PvP 4", "Classic Beta PvP 3");
+    deliver(member, messages);
+    expect(member.run('return GuildedNextRaid.id')).toBe("raid1");
+    const outsider = client(); guildRealm(outsider, "Classic Beta PvP 3", "ClassicBetaPvP4");
+    deliver(outsider, messages);
+    expect(outsider.run('return tostring(DB.officerBridge)')).toBe("nil");
+    expect(outsider.run('return tostring(GuildedNextRaid)')).toBe("nil");
+  });
+  it.each([null, ""])("waits for guild-home information (%s) instead of guessing numbered realms are equivalent", home => {
+    const officer = client(true); snapshot(officer);
+    guildRealm(officer, "Classic Beta PvP", "ClassicBetaPvP");
+    officer.run('NS.commandHandlers.bridge({"on"})');
+    const messages = packets(officer);
+    const member = client(); guildRealm(member, "Classic Beta PvP 4", home);
+    deliver(member, messages);
+    expect(member.run('return tostring(DB.officerBridge)')).toBe("nil");
+    // A later roster refresh supplies the home; the member can request the same snapshot again.
+    guildRealm(member, "Classic Beta PvP 4", "ClassicBetaPvP");
+    member.run('NS.commandHandlers.bridge({"refresh"})');
+    expect(member.run('return SENT[#SENT]')).toBe("REQ|1|0");
+    officer.run('NOW = NOW + 100; SENT = {}; fire_event("CHAT_MSG_ADDON", "GuildedBridge", "REQ|1|0", "GUILD", "Member")');
+    deliver(member, packets(officer));
+    expect(member.run('return GuildedNextRaid.id')).toBe("raid1");
   });
   it("automatically shares officer core pools, rosters and upcoming raids without opt-in", () => {
     const officer = client(true); snapshot(officer);

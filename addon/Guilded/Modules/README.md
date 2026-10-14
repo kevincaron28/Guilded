@@ -47,7 +47,8 @@ privacy boundaries and the two-client acceptance test.
 
 | Module | Switch | Prefix | What it does |
 | --- | --- | --- | --- |
-| Games.lua | `games` | (none) | Fun roll games: high roll, deathroll, duel. No gold |
+| LootRoll.lua | always on | (none) | Soft-reserve roll-offs with SR+; optional party games are separate |
+| LocalGuild.lua | always on | (none) | Officer local core/rule/roster editing and backup handover |
 | Bidding.lua | `bidding` | GuildedBid | In-game GP bidding on loot |
 | Recipes.lua | `recipes` | GuildedRcp | Recipes and profession cooldowns: who can craft what, shared with the guild |
 | Reserve.lua | `reserve` | GuildedRes | Soft reserves: reserve items for a raid, shared list, roll between reservers |
@@ -70,9 +71,15 @@ privacy boundaries and the two-client acceptance test.
 | Scores.lua | `scores` | GuildedScore | 5.0: a dungeon score per player from recorded runs (best run per dungeon), on tooltips; `S\|score\|dungeons`; `/guilded score [player\|top]` |
 | Minimap.lua | always on | (none) | Minimap button and tools window |
 
-## Games.lua
+## Local guild and loot rolls
 
-Fun `/roll` games with no gold, no ledger and nothing owed: `/guilded games highroll|deathroll|duel`. Anyone can run one; the client is the referee, reading the group's rolls and posting short merged lines in party/raid chat. Players join a group game by typing `1`. There is no saved data and no addon-message prefix.
+LocalGuild.lua stores local cores separately from connected rules. Edits require
+an officer, in-game-only mode and no active recorded raid. All local cores use
+guild-wide EP/GP. Backup/restore moves a snapshot to another officer.
+
+LootRoll.lua handles soft-reserve rolls without GuildedGames. Ties roll again,
+SR+ is included, and awarding remains a separate officer action. Party games
+live in the optional GuildedGames addon; /guilded games is only a launcher.
 
 ## Bidding.lua
 

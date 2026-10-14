@@ -7,7 +7,7 @@ import { guildService } from "./context.js";
 import { accessibleCommunityActivities, accessibleCommunityPolls, accessibleCommunitySeasons, assertCommunityChannelAudience, communityAccess, resolveCommunitySeason } from "../services/community-access.js";
 import { communityActivityChannel, communityDiceDay, communitySeasonLabel, communityStatusLabel, communityKindLabel } from "../services/community-display.js";
 import { communityHubButton, communityHubCard, communityHubComponents, COMMUNITY_HUB_PREFIX } from "../services/community-panels.js";
-import { COMMUNITY_REWARDS } from "../services/community-rules.js";
+import { COMMUNITY_REWARDS, communityGameLabel } from "../services/community-rules.js";
 import { createCommunityService } from "../services/community.js";
 import { createParticipationService } from "../services/participation.js";
 import { participationBadge, participationRules } from "../services/participation-rules.js";
@@ -90,7 +90,7 @@ export async function handleCommunityHub(interaction: HubInteraction): Promise<v
     const seasons = await accessibleCommunitySeasons(prisma, guild, record.id, actor);
     const pages = Math.max(1, Math.ceil(seasons.length / 10)), currentPage = Math.min(page, pages - 1), items = seasons.slice(currentPage * 10, currentPage * 10 + 10);
     const select = new StringSelectMenuBuilder().setCustomId(`${COMMUNITY_HUB_PREFIX}select:none`).setPlaceholder(say(lang, "Choose a season", "Choisir une saison"));
-    items.forEach(s => select.addOptions({ label: `${communitySeasonLabel(s, lang)} · ${s.game}`.slice(0, 100), description: s.status === "ACTIVE" ? say(lang, "Active", "En cours") : say(lang, "Archived", "Archivée"), value: s.id }));
+    items.forEach(s => select.addOptions({ label: `${communitySeasonLabel(s, lang)} · ${communityGameLabel(s.game, lang)}`.slice(0, 100), description: s.status === "ACTIVE" ? say(lang, "Active", "En cours") : say(lang, "Archived", "Archivée"), value: s.id }));
     const nav = new ActionRowBuilder<ButtonBuilder>().addComponents(communityHubButton(`archives`, `none:${Math.max(0, currentPage - 1)}`, "←").setDisabled(currentPage === 0), communityHubButton("archives", `none:${currentPage + 1}`, "→").setDisabled(currentPage + 1 >= pages));
     await interaction.editReply({ content: items.length ? `${say(lang, "Seasons", "Saisons")} · ${currentPage + 1}/${pages}` : say(lang, "No accessible seasons yet.", "Aucune saison accessible pour le moment."), components: items.length ? [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select), nav] : [], allowedMentions: noMentions }); return;
   }

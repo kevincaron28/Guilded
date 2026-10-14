@@ -1,3 +1,9 @@
+Current delivery, 14 October 2026: published clients are 6.1.2 / protocol 2;
+production PostgreSQL is Aiven. See [combined update evidence](UPDATE_ALL_2026-10-14.md)
+and [dungeon deployment](DUNGEON_DEPLOYMENT_2026-10-14.md). Standalone guild/Games
+candidate source has separate preview and real-client gates. Older versions,
+Neon recovery claims and deployment hashes below are historical.
+
 Maintenance update, 9 October 2026: Oracle runs application commit `d4d34e5`,
 6.0.0 / protocol 2, with system updates and kernel reboot complete. The owner's
 desktop companion is now 6.0.0. Caddy's unavailable Cloudsmith source is disabled;

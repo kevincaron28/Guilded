@@ -1,7 +1,9 @@
 # Dungeon participation fairness — 14 October 2026
 
-Source change prepared locally. Deployment, player announcement and real-client
-acceptance are pending. No version change, season reset or historical award rewrite.
+Deployed to Oracle on 14 October 2026 at commit `2766436`; see
+[DUNGEON_DEPLOYMENT_2026-10-14.md](DUNGEON_DEPLOYMENT_2026-10-14.md) for final checks
+and recovery evidence. Player announcement and real-client acceptance remain
+pending. No version change, season reset or historical award rewrite.
 
 ## Future imports
 

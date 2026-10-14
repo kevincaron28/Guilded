@@ -1,5 +1,16 @@
 # Standalone Guilded Addon Roadmap
 
+## Current development - 14 October 2026
+
+6.1.1 shipped the in-game-only chooser; owner acceptance is recorded in
+[IN_GAME_SETUP_2026-10-14.md](IN_GAME_SETUP_2026-10-14.md).
+The next-version candidate adds local core/roster administration, clearer
+standings sources and backup-based officer handover. Party games are extracted
+into an optional addon; loot roll-offs stay in Guilded. Implementation, preview
+build commands and remaining live gates are in
+[V6_2_STANDALONE_AND_GAMES.md](V6_2_STANDALONE_AND_GAMES.md).
+Historical 5.0 status below is retained as context, not current feature status.
+
 ## Purpose
 
 Grow Guilded into a useful in-game toolkit for players and guilds that do not

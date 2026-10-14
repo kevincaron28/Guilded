@@ -67,7 +67,7 @@ function loot.coreName()
     local core = coreNamed(s.activeCore)
     return core and core.name or s.activeCore, true
   end
-  local nextRaid = GuildedNextRaid
+  local nextRaid = not (ns.isInGameOnly and ns.isInGameOnly()) and GuildedNextRaid
   if type(nextRaid) == "table" then
     local byId = type(nextRaid.coreId) == "string" and nextRaid.coreId ~= "" and coreNamed(nextRaid.coreId)
     if byId then return byId.name, false end
@@ -79,7 +79,7 @@ end
 function loot.core()
   local s = settings()
   if s and s.activeCore and s.activeCore ~= "" then return coreNamed(s.activeCore) end
-  local nextRaid = GuildedNextRaid
+  local nextRaid = not (ns.isInGameOnly and ns.isInGameOnly()) and GuildedNextRaid
   if type(nextRaid) == "table" and type(nextRaid.coreId) == "string" and nextRaid.coreId ~= "" then
     local byId = coreNamed(nextRaid.coreId)
     if byId then return byId end
@@ -501,7 +501,9 @@ local function describe()
   local where = name and string.format("%s%s", name, manual and "" or " (next raid)") or L("no raid core")
   local text = string.format(L("Loot system: %s - %s."), loot.label(mode),
     source == "override" and L("chosen by you") or source == "core" and where or L("the guild's default"))
-  if not rules() then text = text .. " " .. L("(No rules from Discord yet: the companion sends them with the standings.)") end
+  if ns.isInGameOnly and ns.isInGameOnly() then
+    text = text .. " " .. L("Local officer copy; Discord is optional.")
+  elseif not rules() then text = text .. " " .. L("(No rules from Discord yet: the companion sends them with the standings.)") end
   return text
 end
 loot.describe = describe
@@ -542,7 +544,9 @@ ns.commandHandlers["price"] = function(args)
   local item = table.concat(args, " ", 1, last - 1)
   local ok, name, coreName = loot.setPrice(item, gp)
   if not ok then ns.message(L("Type a price from 0 to 100000 GP.")) return end
-  ns.message(string.format(L("%s now costs %d GP in %s (sent to Discord with the next upload)."), name, math.floor(gp), coreName or L("every core")))
+  ns.message(string.format(L(ns.isInGameOnly and ns.isInGameOnly()
+    and "%s now costs %d GP in %s (saved on this PC)."
+    or "%s now costs %d GP in %s (sent to Discord with the next upload)."), name, math.floor(gp), coreName or L("every core")))
 end
 
 -- The running core's roster against your group (5.0.x): who of the core is here (and on which
@@ -586,7 +590,9 @@ end
 
 function loot.rosterText(core, names)
   if not core then return { L("No raid core is being run: pick one with /guilded core <name>.") } end
-  if #(core.roster or {}) == 0 then return { string.format(L("%s has no roster from Discord yet (it comes with the companion upload)."), core.name) } end
+  if #(core.roster or {}) == 0 then return { string.format(L(core.localOnly
+    and "%s has no local roster yet. Add players in Local guild."
+    or "%s has no roster from Discord yet (it comes with the companion upload)."), core.name) } end
   local check = loot.rosterCheck(core, names)
   local function list(rows)
     local out = {}

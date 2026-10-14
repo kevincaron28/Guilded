@@ -134,8 +134,8 @@ describe("the whole addon, loaded in .toc order", () => {
     expect(s.run(`return type(Guilded_OnAddonCompartmentClick) .. type(Guilded_OnAddonCompartmentEnter) .. type(Guilded_OnAddonCompartmentLeave)`)).toBe("functionfunctionfunction");
     expect(s.run(`return tostring(#NS.options.switches() == 3 + #NS.MODULES)`)).toBe("true");
     // A switch runs the same command you could type.
-    s.run(`for _, sw in ipairs(NS.options.switches()) do if sw.module == "games" then sw.set(false) end end`);
-    expect(s.run(`return tostring(GuildedDB.settings.modules.games)`)).toBe("false");
+    s.run(`for _, sw in ipairs(NS.options.switches()) do if sw.module == "bidding" then sw.set(false) end end`);
+    expect(s.run(`return tostring(GuildedDB.settings.modules.bidding)`)).toBe("false");
     s.run(`SlashCmdList["GUILDED"]("options")`);
     expect(problems(s)).toEqual([]);
   });

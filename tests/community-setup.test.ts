@@ -66,9 +66,9 @@ describe("community section of /setup", () => {
     const refresh = refreshFor(cache);
     const text = await ensureCommunitySetup(guild, database, "guild", "fr", "officer", refresh as never);
 
-    expect(create.mock.calls.map(([options]) => options.name)).toEqual(["Communauté", "activites", "chat-communaute", "🏅・palmares"]);
+    expect(create.mock.calls.map(([options]) => options.name)).toEqual(["Communauté", "activités", "chat-communauté", "🏅・palmarès"]);
     const category = cache.find(channel => channel.type === ChannelType.GuildCategory)!;
-    const hub = cache.find(channel => channel.name === "activites")!, chat = cache.find(channel => channel.name === "chat-communaute")!;
+    const hub = cache.find(channel => channel.name === "activités")!, chat = cache.find(channel => channel.name === "chat-communauté")!;
     expect([hub.parentId, chat.parentId]).toEqual([category.id, category.id]);
     // Members read the hub but cannot post; officers and the bot can.
     const overwrites = hub.options!["permissionOverwrites"] as { id: string; allow: bigint; deny: bigint }[];

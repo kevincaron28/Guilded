@@ -347,6 +347,7 @@ end
 -- The loot systems and item prices per raid core (nil until the companion has sent them).
 function ns.getLootRules()
   local d = db()
+  if ns.isInGameOnly and ns.isInGameOnly() and ns.localGuild then return ns.localGuild.rules() end
   return d and d.lootRules or nil
 end
 
@@ -384,7 +385,18 @@ local PROBLEM_TEXT = {
 function ns.standingProblemText(name)
   local problem = standingProblem(name)
   if not problem then return nil end
+  if ns.isInGameOnly and ns.isInGameOnly() then
+    local text = "No shared standing for %s. The record keeper can publish local standings; Discord is optional."
+    return string.format(ns.L and ns.L(text) or text, name or "?")
+  end
   return string.format(PROBLEM_TEXT[problem], name or "?")
+end
+
+function ns.standingsSource()
+  local s = standings()
+  if not s or not s.updatedAt then return ns.L and ns.L("Local ledger (this PC)") or "Local ledger (this PC)" end
+  if s.from == "companion" then return ns.L and ns.L("Connected snapshot") or "Connected snapshot" end
+  return tostring(s.from or "?")
 end
 
 -- Standalone guilds (no Discord bot): an officer shares the EPGP ledger kept on this PC as the
@@ -422,13 +434,26 @@ local function showStandings(args)
   end
   local s = standings()
   if not s or not s.updatedAt then
+    if ns.isInGameOnly and ns.isInGameOnly() then
+      ns.message(ns.standingsSource())
+      local d = db()
+      local requested = args[1] and ns.normalizeName(args[1])
+      local names = {}; for name in pairs(d and d.epgp or {}) do if not requested or name == requested then names[#names + 1] = name end end
+      table.sort(names)
+      for _, name in ipairs(names) do
+        local row = ns.effectiveStanding(name)
+        ns.message(string.format("%s: EP %d, GP %d, PR %.2f", name, row.ep, row.gp, row.pr))
+      end
+      if #names == 0 then ns.message(ns.standingProblemText(requested)) end
+      return
+    end
     ns.message(PROBLEM_TEXT.none)
     return
   end
   if args[1] then
     local row = lookup(args[1])
     if row then
-      local source = (s.from and string.find(s.from, "(in game)", 1, true)) and s.from or "Discord"
+      local source = ns.standingsSource()
       ns.message(string.format("%s: EP %d, GP %d, PR %.2f (%s, %s)", ns.normalizeName(args[1]), row.ep, row.gp, row.pr, source, s.updatedAt))
     else
       ns.message(ns.standingProblemText(ns.normalizeName(args[1])) or "No standing.")
@@ -438,7 +463,7 @@ local function showStandings(args)
   local rows = {}
   for name, row in pairs(s.players) do table.insert(rows, { name = name, row = row }) end
   table.sort(rows, function(a, b) return a.row.pr > b.row.pr end)
-  ns.message(string.format("EPGP standings from Discord (%s):", s.updatedAt))
+  ns.message(string.format("EPGP: %s (%s)", ns.standingsSource(), s.updatedAt))
   for i = 1, math.min(10, #rows) do
     local r = rows[i]
     ns.message(string.format("%d. %s  PR %.2f  (EP %d / GP %d)", i, r.name, r.row.pr, r.row.ep, r.row.gp))

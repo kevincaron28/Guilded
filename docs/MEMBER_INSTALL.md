@@ -35,7 +35,9 @@ server ID. Start with the webpage; the Windows companion download is optional
 for automatic syncing. Use the matching release your officer specifies. Public releases belong on
 [GitHub Releases](https://github.com/kevincaron28/Guilded/releases) and
 [CurseForge](https://www.curseforge.com/wow/addons/guilded); only use a version
-actually listed there. 6.0.0 is the full Release. Remaining unverified checks are tracked in the release testing record.
+actually listed there. 6.1.2 is the published Release. Next-version standalone
+guild and Guilded Games previews are separate candidates; their real-client
+checks remain pending in V6_2_STANDALONE_AND_GAMES.md.
 
 ## 1. Install the addon
 

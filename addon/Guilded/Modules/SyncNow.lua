@@ -59,7 +59,9 @@ function module.reloadButton(parent, text, width, height, onClick, macro)
     plain:SetText(text)
     plain:SetScript("OnClick", function()
       if onClick then pcall(onClick) end
-      ns.message("Type /reload to send your data to Discord (the button works when the window is opened out of combat).")
+      ns.message(ns.isInGameOnly and ns.isInGameOnly()
+        and (ns.L and ns.L("Save your local data with /reload or by logging out. Online sync is optional.") or "Save your local data with /reload or by logging out. Online sync is optional.")
+        or "Type /reload to send your data to Discord (the button works when the window is opened out of combat).")
     end)
     return plain
   end
@@ -83,6 +85,11 @@ function module.tick() end
 
 -- One plain-language sentence for the Home page.
 function module.statusLine()
+  if ns.isInGameOnly and ns.isInGameOnly() then
+    local text = dirtyAt and "Local changes are waiting. Save with /reload or log out. No companion is required."
+      or "Your data is saved on this PC. No Discord connection is required. Keep a backup of SavedVariables."
+    return ns.L and ns.L(text) or text
+  end
   if ns.isOfficer and not ns.isOfficer() and IsInGuild and IsInGuild() then
     local text = "Your addon shares supported data with online guildmates. An officer handles Discord sync; personal sync is optional."
     return ns.L and ns.L(text) or text
@@ -97,6 +104,10 @@ end
 
 ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHandlers["sync"] = function(args)
+  if ns.isInGameOnly and ns.isInGameOnly() then
+    ns.message(ns.L("Save your local data with /reload or by logging out. Online sync is optional."))
+    return
+  end
   if ns.moduleActive and not ns.moduleActive("syncnow") then return end
   local action = string.lower(args[1] or "")
   if action == "auto" then

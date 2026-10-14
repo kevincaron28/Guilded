@@ -54,6 +54,40 @@ const visibleTabs = (s: LuaSession) => s.run(`local n = {}; for _, t in ipairs(N
 const homeText = (s: LuaSession, field: string) => s.run(`return NS.windowState().${field}.text`);
 
 describe("the tools window (sidebar and Home page)", () => {
+  it("filters core rosters, uses each pool, and never changes the loot selection", () => {
+    const s = openWindow(1, `
+      GuildedStandings = { updatedAt = "2026-10-14", baseGp = 0, players = {
+        { name = "Kev", ep = 100, gp = 10 }, { name = "Outsider", ep = 900, gp = 10 }
+      } }
+      GuildedLoot = { cores = {
+        { id = "a", name = "Alpha", pool = true, baseGp = 10,
+          players = { { name = "Kev", ep = 80, gp = 10 }, { name = "Outsider", ep = 900, gp = 10 } },
+          roster = { { name = "Kev" }, { name = "Backup", backup = true } } },
+        { id = "b", name = "Beta", pool = false, roster = { { name = "Outsider" } } }
+      } }
+    `);
+    s.run(`NS.windowState().playerBox:SetText("Kev"); NS.windowState().selectTabByName("Standings")`);
+    expect(homeText(s, "standingsView")).toBe("Core: Alpha");
+    expect(homeText(s, "standingsList")).toContain("Kev");
+    expect(homeText(s, "standingsList")).toContain("Backup");
+    expect(homeText(s, "standingsList")).not.toContain("Outsider");
+    expect(homeText(s, "standingsPlayer")).toContain("EP 80   GP 10   PR 4.00");
+    s.run(`NS.getSettings().activeCore = "a"; NS.windowState().standingsView.scripts.OnClick()`);
+    expect(homeText(s, "standingsView")).toBe("Core: Beta");
+    expect(homeText(s, "standingsList")).toContain("Outsider");
+    expect(homeText(s, "standingsList")).not.toContain("Kev");
+    expect(homeText(s, "standingsScope")).toContain("shared guild");
+    expect(homeText(s, "standingsPlayer")).toContain("not in this core");
+    expect(s.run(`return NS.getSettings().activeCore`)).toBe("a");
+    s.run(`NS.windowState().standingsView.scripts.OnClick()`);
+    expect(homeText(s, "standingsView")).toBe("Guild-wide standings");
+    expect(homeText(s, "standingsList")).toContain("Outsider");
+    expect(homeText(s, "standingsPlayer")).toContain("EP 100");
+    s.run(`NS.windowState().standingsView.scripts.OnClick(); NS.getDb().lootRules.cores[1].roster = {}; NS.windowState().selectTabByName("Standings")`);
+    expect(homeText(s, "standingsList")).toContain("No characters in this view.");
+    expect(homeText(s, "standingsList")).not.toContain("Outsider");
+  });
+
   it("shows live priority answers on Loot as well as Council, with officer feedback", () => {
     const s = openWindow(1);
     s.load("Modules/Council.lua");

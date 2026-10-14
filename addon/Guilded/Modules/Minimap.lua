@@ -19,7 +19,7 @@
 local addonName, ns = ...
 ns = ns or {}
 
-local ICON = "Interface\\Icons\\INV_Misc_Coin_01"
+local ICON = "Interface\\AddOns\\Guilded\\Media\\GuildedLogo"
 local DEFAULT_ANGLE = math.rad(220)
 local RADIUS_PAD = 5
 local PANEL_WIDTH = 790
@@ -605,10 +605,46 @@ local function buildMePage(page)
   ui.attuneInfo:SetWidth(PAGE_WIDTH)
 end
 
+local function standingsCores()
+  local rules = ns.getLootRules and ns.getLootRules()
+  return rules and rules.cores or {}
+end
+
+local function standingsCore()
+  if ui.standingsCoreId == nil then
+    local active = ns.loot and ns.loot.core and ns.loot.core()
+    ui.standingsCoreId = active and active.id or ""
+    if not active then
+      local found
+      for _, core in ipairs(standingsCores()) do
+        for _, member in ipairs(core.roster or {}) do
+          if member.name == ns.playerName() then
+            if found and found ~= core.id then return nil end
+            found = core.id
+          end
+        end
+      end
+      ui.standingsCoreId = found or ""
+    end
+  end
+  for _, core in ipairs(standingsCores()) do
+    if core.id == ui.standingsCoreId then return core end
+  end
+  ui.standingsCoreId = ""
+end
+
 local function buildStandingsPage(page)
-  ui.standingsPlayer = at(newLabel(page, "", "GameFontHighlight"), page, 0, 0)
+  ui.standingsView = at(newButton(page, "Guild-wide standings", PAGE_WIDTH, function()
+    local cores, index = standingsCores(), 0
+    for i, core in ipairs(cores) do if core.id == ui.standingsCoreId then index = i end end
+    ui.standingsCoreId = cores[index + 1] and cores[index + 1].id or ""
+    refresh()
+  end), page, 0, 0)
+  tip(ui.standingsView, "Click to switch between guild-wide standings and each core's roster. This does not change the loot core.")
+  ui.standingsScope = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -28)
+  ui.standingsPlayer = at(newLabel(page, "", "GameFontHighlight"), page, 0, -52)
   ui.standingsPlayer:SetWidth(PAGE_WIDTH)
-  ui.standingsList = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -28)
+  ui.standingsList = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -80)
   ui.standingsList:SetWidth(PAGE_WIDTH)
   -- Standalone guilds (no Discord bot): the officer's own ledger becomes everyone's standings.
   local publish = officerOnly(at(newButton(page, "Share my ledger as standings", 230), page, 0, -420))
@@ -973,7 +1009,7 @@ local function buildHomePage(page)
   ui.homeNow = at(newLabel(page, "", "GameFontHighlight"), page, 0, -54)
   ui.homeNow:SetWidth(PAGE_WIDTH)
 
-  heading(page, L("Your standing (from Discord)"), -112)
+  ui.homeStandingHeading = heading(page, L("Your standing (from Discord)"), -112)
   ui.homeStanding = at(newLabel(page, "", "GameFontHighlight"), page, 0, -130)
   ui.homeStanding:SetWidth(PAGE_WIDTH)
 
@@ -981,18 +1017,18 @@ local function buildHomePage(page)
   ui.homeGear = at(newLabel(page, "", "GameFontHighlight"), page, 0, -202)
   ui.homeGear:SetWidth(PAGE_WIDTH)
 
-  heading(page, L("Sending your data to Discord"), -260)
+  ui.homeSyncHeading = heading(page, L("Sending your data to Discord"), -260)
   ui.homeSync = at(newLabel(page, "", "GameFontHighlight"), page, 0, -278)
   ui.homeSync:SetWidth(PAGE_WIDTH)
 
   at(newButton(page, L("Check my gear"), 170, function() run("inspect") end, 30), page, 0, -322)
   -- A secure button: the game only lets a click reload the UI (see Modules/SyncNow.lua).
-  at(ns.syncNow and ns.syncNow.reloadButton(page, L(ns.isOfficer() and "Send to Discord now" or "Save my addon data"), 190, 30)
+  ui.homeSave = at(ns.syncNow and ns.syncNow.reloadButton(page, L(ns.isOfficer() and "Send to Discord now" or "Save my addon data"), 190, 30)
     or newButton(page, L(ns.isOfficer() and "Send to Discord now" or "Save my addon data"), 190, function() run("sync") end, 30), page, 178, -322)
   at(newButton(page, L("Standings"), 130, function() ui.selectTabByName("Standings") end, 30), page, 376, -322)
   officerOnly(at(newButton(page, L("Run a raid"), 170, function() ui.selectTabByName("Raid") end, 30), page, 0, -360))
   officerOnly(at(newButton(page, L("Give loot"), 190, function() ui.selectTabByName("Loot") end, 30), page, 178, -360))
-  at(newLabel(page, L("Everything here is also a chat command: /guilded help lists them."), "GameFontDisableSmall"), page, 0, -402)
+  at(newButton(page, "Guilded setup", 170, function() run("setup") end), page, 0, -402)
 end
 
 -- Recorded dungeon scores; group finding uses the game or Discord.
@@ -1077,13 +1113,25 @@ local TAB_DEFS = {
 -- Refresh: rank-based visibility plus current state in the labels
 -- ---------------------------------------------------------------------
 
-local function standingsRows()
+local function standingsRows(core)
   local db = ns.getDb and ns.getDb()
-  local rows = {}
-  for name, row in pairs(db and db.standings and db.standings.players or {}) do
+  local rows, names = {}, {}
+  if core then
+    for _, member in ipairs(core.roster or {}) do names[member.name] = true end
+  else
+    for name in pairs(db and db.standings and db.standings.players or {}) do names[name] = true end
+    if ns.isInGameOnly and ns.isInGameOnly() then
+      for name in pairs(db and db.epgp or {}) do names[name] = true end
+    end
+  end
+  for name in pairs(names) do
+    local row = ns.effectiveStanding(name, core and core.pool and core.id or nil)
     table.insert(rows, { name = name, row = row })
   end
-  table.sort(rows, function(a, b) return a.row.pr > b.row.pr end)
+  table.sort(rows, function(a, b)
+    if a.row.pr ~= b.row.pr then return a.row.pr > b.row.pr end
+    return a.name < b.name
+  end)
   return rows
 end
 
@@ -1236,6 +1284,11 @@ end
 -- Home page text: plain-language state, and the Discord-sync line.
 local function refreshHome(db, officer, me)
   if not ui.homeGreeting then return end
+  local localOnly = ns.isInGameOnly and ns.isInGameOnly()
+  ui.homeStandingHeading:SetText(L(localOnly and "Your standing" or "Your standing (from Discord)"))
+  ui.homeSyncHeading:SetText(L(localOnly and "Saving on this PC" or "Sending your data to Discord"))
+  ui.homeSave:SetText(L(localOnly and "Save my addon data" or (officer and "Send to Discord now" or "Save my addon data")))
+  if ui.sidebarSave then ui.sidebarSave:SetText(L(localOnly and "Save my addon data" or (officer and "Send to Discord" or "Save my addon data"))) end
   ui.homeGreeting:SetText(string.format("%s   |cff999999%s|r", me, officer and L("Officer") or L("Member")))
 
   local now = {}
@@ -1255,6 +1308,7 @@ local function refreshHome(db, officer, me)
 
   local row = ns.getStanding and ns.getStanding(me)
   ui.homeStanding:SetText(row and string.format("EP %d    GP %d    PR %.2f", row.ep, row.gp, row.pr)
+    or (localOnly and L("No shared standings yet. Officers can publish their local ledger on the Standings page."))
     or (ns.standingProblemText and ns.standingProblemText(me)) or L("No standing yet."))
 
   local snapshot = db.readiness and db.readiness[me]
@@ -1270,7 +1324,7 @@ local function refreshHome(db, officer, me)
   ui.homeSync:SetText(ns.syncNow and ns.syncNow.statusLine and ns.syncNow.statusLine()
     or L("Your data reaches Discord after you /reload or log out (an officer's companion sends it)."))
   if ui.sidebarSync then
-    ui.sidebarSync:SetText(ns.syncNow and ns.syncNow.isDirty and ns.syncNow.isDirty() and L(ns.isOfficer() and "Unsent changes" or "Local changes") or L("All saved"))
+    ui.sidebarSync:SetText(ns.syncNow and ns.syncNow.isDirty and ns.syncNow.isDirty() and L(not localOnly and ns.isOfficer() and "Unsent changes" or "Local changes") or L("All saved"))
   end
 end
 
@@ -1401,7 +1455,10 @@ refresh = function()
   refreshSeason()
   refreshReady()
   if ui.scoresMine then
-    if moduleOn("scores") and ns.scores then
+    if ns.isInGameOnly and ns.isInGameOnly() then
+      ui.scoresMine:SetText(L("Dungeon runs are recorded locally. Verified seasonal scores require the optional connection."))
+      ui.scoresTop:SetText("")
+    elseif moduleOn("scores") and ns.scores then
       ui.scoresMine:SetText(ns.scores.detailText(name or me))
       ui.scoresTop:SetText(L("Guild best") .. "\n" .. ns.scores.topText(10))
     else
@@ -1418,16 +1475,23 @@ refresh = function()
   end
 
   local updatedAt = ns.getStandingsUpdatedAt and ns.getStandingsUpdatedAt()
-  if not updatedAt then
+  local core = standingsCore()
+  ui.standingsView:SetText(core and (L("Core") .. ": " .. core.name) or L("Guild-wide standings"))
+  ui.standingsScope:SetText(core and (core.pool and L("Core roster - separate point pool") or L("Core roster - shared guild point pool")) or L("All linked guild characters"))
+  local localOnly = ns.isInGameOnly and ns.isInGameOnly()
+  if not updatedAt and not localOnly then
     ui.standingsPlayer:SetText(L("No standings yet."))
-    ui.standingsList:SetText(L("They come from the Discord bot through an officer's addon. Check back after the next raid."))
+    ui.standingsList:SetText(L(ns.isInGameOnly and ns.isInGameOnly() and "No shared standings yet. Officers can publish their local ledger on the Standings page." or "They come from the Discord bot through an officer's addon. Check back after the next raid."))
   else
-    local row = name and ns.getStanding and ns.getStanding(name)
-    ui.standingsPlayer:SetText(row and string.format("%s:  EP %d   GP %d   PR %.2f", name, row.ep, row.gp, row.pr)
+    local rows = standingsRows(core)
+    local row
+    for _, entry in ipairs(rows) do if entry.name == name then row = entry.row; break end end
+    ui.standingsPlayer:SetText(core and not row and string.format(L("%s is not in this core's roster."), name or "?")
+      or row and string.format("%s:  EP %d   GP %d   PR %.2f", name, row.ep, row.gp, row.pr)
       or (ns.standingProblemText and ns.standingProblemText(name))
       or string.format(L("%s: no standings (character not linked on Discord?)"), name or "?"))
-    local lines = { string.format(L("Top by PR (from Discord, %s):"), updatedAt) }
-    local rows = standingsRows()
+    local lines = { updatedAt and string.format(L("Top by PR (snapshot, %s):"), updatedAt) or L("Local ledger (this PC)") }
+    if #rows == 0 then table.insert(lines, L("No characters in this view.")) end
     for i = 1, math.min(15, #rows) do
       local r = rows[i]
       table.insert(lines, string.format("%2d. %-14s PR %.2f   EP %d / GP %d", i, r.name, r.row.pr, r.row.ep, r.row.gp))
@@ -1516,6 +1580,7 @@ local function buildPanel()
   local sendButton = ns.syncNow and ns.syncNow.reloadButton(panel, L(ns.isOfficer() and "Send to Discord" or "Save my addon data"), 132, 26)
     or newButton(panel, L(ns.isOfficer() and "Send to Discord" or "Save my addon data"), 132, function() run("sync") end, 26)
   sendButton:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 22, 40)
+  ui.sidebarSave = sendButton
 
   -- Shared player field (shown only on pages that act on a player).
   ui.playerRow = {}
@@ -1553,6 +1618,7 @@ local function buildPanel()
   ns.onMessage = function(text)
     if ui.status then ui.status:SetText(text) end
   end
+  ns.onSetupChange = function() refresh() end
   ns.onGamesChange = function() refresh() end
   ns.onBiddingChange = function() refresh() end
   ns.onCouncilChange = function() refresh() end

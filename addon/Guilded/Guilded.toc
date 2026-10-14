@@ -3,8 +3,8 @@
 ## Notes: Raid attendance, EPGP and four loot systems, soft reserves, recipes, guild calendar, gear checks, guild map, dungeon scores and roll games for WoW Forever
 ## Notes-frFR: Presences de raid, EPGP et quatre systemes de butin, reserves, recettes, calendrier de guilde, verification d'equipement, carte de guilde, scores de donjon et jeux de des pour WoW Forever
 ## Author: Kevin Caron
-## Version: 6.1.0
-## IconTexture: Interface\Icons\INV_Misc_Coin_01
+## Version: 6.1.1
+## IconTexture: Interface\AddOns\Guilded\Media\GuildedLogo
 ## Category: Raid
 ## AddonCompartmentFunc: Guilded_OnAddonCompartmentClick
 ## AddonCompartmentFuncOnEnter: Guilded_OnAddonCompartmentEnter

@@ -125,3 +125,27 @@ it("round-trips wider ratings, separate boss records and unranked reasons", () =
   expect(s.run(`return NS.seasonDetails.parse(${JSON.stringify(unranked)}).profile.details[1].unrankedReason`)).toBe("Overlevel carry");
   expect(s.run(`return tostring((NS.seasonDetails.parse(${JSON.stringify(packet.replace(";235;0;1020", ";400;0;1020"))})))`)).toBe("nil");
 });
+
+it("keeps a paced large response alive through UI retries and more than sixty seconds", () => {
+  const member = setup();
+  member.run('DB.dungeonBoard={season="Current",status="ACTIVE",updatedAt="stamp",rows={}}; NS.seasonDetails.request(1)');
+  const nonce = member.run('return string.match(SENT[#SENT].text,"([^|]+)$")');
+  const payload = ['S;current;3;0;1', ...Array.from({length:80}, (_,i)=>`C;${i+1};${'Dungeon'.repeat(20)};1200`) ].join('\n');
+  const chunks = payload.match(/[\s\S]{1,180}/g)!;
+  expect(chunks.length).toBeGreaterThan(60);
+  for(let i=0;i<chunks.length;i++) {
+    member.run(`CLOCK=${101+i}; fire_event("CHAT_MSG_ADDON","GuildedRating",${JSON.stringify(`D|${nonce}|${i+1}|${chunks.length}|${chunks[i]}`)},"WHISPER","Officer")`);
+    if(i%16===0) member.run('NS.seasonDetails.request(1)');
+  }
+  expect(member.run('return #NS.seasonDetails.get(1,"Tester").catalog')).toBe('80');
+  expect(member.run('return #SENT')).toBe('1');
+});
+it("preserves the request sender's routable name for cross-segment whispers", () => {
+  const officer=setup(true);
+  officer.run('NS.playerName=function() return "Officer" end');
+  officer.run(standingsToLua(data));
+  officer.run('DB.dungeonBoard=GuildedDungeonBoard; NS.comm.send=function(_,_,channel,target) REPLY_CHANNEL=channel; REPLY_TARGET=target end');
+  officer.run('fire_event("CHAT_MSG_ADDON","GuildedRating","Q|2026-10-13T18:00:00Z|1|1-100","GUILD","Tester-ClassicBetaPvP2")');
+  expect(officer.run('return REPLY_TARGET')).toBe('Tester-ClassicBetaPvP2');
+  expect(officer.run('return REPLY_CHANNEL')).toBe('WHISPER');
+});

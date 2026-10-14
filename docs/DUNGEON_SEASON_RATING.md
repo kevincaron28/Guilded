@@ -114,7 +114,7 @@ max_level and difficulty together; these copy into the next season's rules.
 Target/range edits do not retroactively move the goalposts in the current season.
 
 Deployment requires the migration, bot, rebuilt companion and addon together.
-Keep product version 6.0.0. Offline checks do not prove real-client UI layout,
+The combined release now intentionally uses product version 6.1.0. Offline checks do not prove real-client UI layout,
 level availability, encounter events or two-PC delivery. PostgreSQL migration/
 restore CI, Windows packaging and real-client checks remain separate gates.
 

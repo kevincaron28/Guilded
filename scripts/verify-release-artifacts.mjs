@@ -36,7 +36,7 @@ const asar = "dist/companion/win-unpacked/resources/app.asar";
 assert.equal(JSON.parse(extractFile(asar, "package.json").toString()).version, version);
 const installer = readFileSync(installerPath);
 assert.equal(installer.subarray(0, 2).toString(), "MZ", "Installer is not a Windows executable");
-writeFileSync(notesPath, readFileSync("docs/V6_0_RELEASE_NOTES.md"));
+writeFileSync(notesPath, readFileSync("docs/V6_1_RELEASE_NOTES.md"));
 const artifacts = [zipPath, installerPath, notesPath].map(path => ({
   // GitHub normalizes spaces in uploaded asset names to periods.
   name: basename(path).replaceAll(" ", "."), localPath: path, bytes: readFileSync(path).length,

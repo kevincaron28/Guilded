@@ -8,7 +8,7 @@ still in progress, and remember the version announcement side effect.
 
 ## Dependency and integration
 
-- Active dungeon chat: **Add guild-only dungeon scores**, local thread
+- Completed dungeon chat: **Add guild-only dungeon scores**, local thread
   `01a13781-10b7-7343-90f8-44a0673d0147`.
 - It is editing an isolated worktree at
   `C:\Users\Kev\.codex\worktrees\guild-dungeon-scores\Quebec Gold Bot`.
@@ -22,9 +22,11 @@ still in progress, and remember the version announcement side effect.
   protocol 2. The bridge follow-up is locally installed and provided to Naomine
   as a two-file patch; it has not yet been published as a full updated release.
 - Dungeon scope approved in the other chat: guild-only rankings; a Dungeon
-  Group Finder score tab; 100 per distinct dungeon plus up to 20 speed bonus;
+  Group Finder score tab; 200 points at target time, bounded to 50–400;
   current and archived per-dungeon breakdowns with frozen seasonal rules.
-  Its final implementation and tests are the source of truth for integration.
+  Final commit `acfb6a2` was merged into `codex/release-6-1`. The owner approved
+  provisional targets for 16 dungeons/wings through October 22; see
+  DUNGEON_BETA_PRESET_2026-10.md. No live season reset has occurred.
 
 ## Evidence and remaining checks
 
@@ -67,3 +69,15 @@ Do not invent targets or rewrite earned scores when integrating the rating work.
 No authorization to message the other chat has been given; inspect it read-only.
 The owner's explicit Discord permission covered sending the patch to claudyazes,
 not general release announcements. Do not send extra announcements by DM.
+
+## Combined candidate — 13 October 2026
+
+Shared version is intentionally 6.1.0, protocol remains 2. Integration fixes
+prevent seasonal-detail UI retries from restarting a paced transfer and preserve
+the client-provided whisper address across server labels. Regression tests cover
+more than 60 paced chunks and a server-suffixed recipient.
+
+The new Dungeon Group Finder layout, seasonal-detail delivery to the second PC,
+and real eligible/carry run evidence remain unverified. Existing bridge
+acceptance above does not cover these new paths. Do not publish a stable release
+or claim completion until the required real-client gates are resolved.

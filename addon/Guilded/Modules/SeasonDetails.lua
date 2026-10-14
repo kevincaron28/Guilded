@@ -4,6 +4,7 @@ local addonName, ns = ...
 local detail = {}
 ns.seasonDetails = detail
 local PREFIX, CHUNK, MAX_PARTS = "GuildedRating", 180, 128
+local TRANSFER_TIMEOUT = MAX_PARTS + 30 -- Queue sends about one packet per second.
 local pending, serial, lastRequest = nil, 0, -100
 local retryScheduled, attempts = false, {}
 local lastResponse, served = -100, {}
@@ -53,6 +54,8 @@ function detail.request(index)
     end)
   end
   if clock() - lastRequest < 15 then return end
+  if pending and pending.index == index and pending.stamp == board.updatedAt
+    and pending.count > 0 and clock() - pending.at <= TRANSFER_TIMEOUT then return end
   for old in pairs(attempts) do if string.sub(old, 1, #board.updatedAt) ~= board.updatedAt then attempts[old] = nil end end
   attempts[key] = (attempts[key] or 0) + 1
   serial = serial + 1
@@ -60,7 +63,7 @@ function detail.request(index)
   lastRequest = clock()
   ns.comm.send(PREFIX, "Q|" .. board.updatedAt .. "|" .. index .. "|" .. pending.nonce, "GUILD")
 end
-local function respond(text, sender)
+local function respond(text, sender, replyTo)
   if not ns.isOfficer() or clock() - lastResponse < 2 or (served[sender] and clock() - served[sender] < 15) then return end
   if ns.comm.pending(PREFIX) > 0 then return end
   local stamp, index, nonce = string.match(text, "^Q|([^|]+)|(%d+)|([%d%-]+)$")
@@ -90,7 +93,7 @@ local function respond(text, sender)
   lastResponse, served[sender] = clock(), clock()
   for name, at in pairs(served) do if clock() - at > 60 then served[name] = nil end end
   for part = 1, count do
-    ns.comm.send(PREFIX, "D|" .. nonce .. "|" .. part .. "|" .. count .. "|" .. string.sub(payload, (part - 1) * CHUNK + 1, part * CHUNK), "WHISPER", sender)
+    ns.comm.send(PREFIX, "D|" .. nonce .. "|" .. part .. "|" .. count .. "|" .. string.sub(payload, (part - 1) * CHUNK + 1, part * CHUNK), "WHISPER", replyTo)
   end
 end
 local function number(value, min, max)
@@ -159,7 +162,7 @@ local function parse(payload)
 end
 detail.parse = parse
 local function receive(text, sender)
-  if not pending or clock() - pending.at > 60 or not ns.isOfficerName(sender) then return end
+  if not pending or clock() - pending.at > TRANSFER_TIMEOUT or not ns.isOfficerName(sender) then return end
   local nonce, part, total, payload = string.match(text, "^D|([^|]+)|(%d+)|(%d+)|(.*)$")
   part, total = tonumber(part), tonumber(total)
   if nonce ~= pending.nonce or not part or not total or total < 1 or total > MAX_PARTS or part < 1 or part > total or #payload > CHUNK then return end
@@ -185,10 +188,11 @@ frame:SetScript("OnEvent", function(_, event, prefix, text, channel, sender)
   if event == "PLAYER_LOGIN" then ns.comm.register(PREFIX); return end
   if prefix ~= PREFIX or type(text) ~= "string" or ns.isSecret(text) or ns.isSecret(sender) then return end
   if ns.moduleActive and not ns.moduleActive("scores") then return end
+  local replyTo = sender -- Preserve the client's routable name/server suffix.
   sender = ns.normalizeName(sender)
   if not ns.scores.isMember(sender) or sender == ns.playerName() then return end
   local ok, err = pcall(function()
-    if channel == "GUILD" then respond(text, sender)
+    if channel == "GUILD" then respond(text, sender, replyTo)
     elseif channel == "WHISPER" then receive(text, sender) end
   end)
   if not ok and ns.logDiagnostic then ns.logDiagnostic("LUA_ERROR", "season details: " .. tostring(err)) end

@@ -3,6 +3,18 @@
 For guildmates using **WoW Forever**, including the beta client. You do not need
 Node.js, a database, or a Discord bot token.
 
+## Use it in game only
+
+Install the addon, then choose **In-game only** in the first-run setup. Reopen
+the choice with `/guilded setup` or **Home > Guilded setup**. Gear checks,
+dungeon recording, raid attendance and loot tools work without Discord or core
+signups. Officers can publish local standings to online guildmates. Save with
+`/reload` or logout and back up SavedVariables.
+
+Discord/companion setup below is optional. Verified seasonal scores and online
+rosters/signups need the connection. Choosing in-game only preserves existing
+points and rosters and does not stop an already-running companion.
+
 ## Want the bot for your guild?
 
 **[Add Guilded — request owner approval](https://discord.com/oauth2/authorize?client_id=1552633893587394590&scope=bot+applications.commands&integration_type=0&permissions=2269718703631440)**

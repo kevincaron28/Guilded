@@ -1722,6 +1722,8 @@ ns.isOfficerName = isOfficerName
 ns.isGuildMember = isGuildMember
 ns.runCommand = command
 ns.getSettings = function() return db and db.settings end
+-- A setup preference, not a permission or a replacement for existing guild data.
+ns.isInGameOnly = function() return db and db.settings and db.settings.setupMode == "local" end
 -- Read-only views for the tools panel (Modules/Minimap.lua).
 ns.getDb = function() return db end
 ns.logDiagnostic = logDiagnostic

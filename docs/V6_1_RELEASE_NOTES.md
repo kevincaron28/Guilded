@@ -1,32 +1,28 @@
-# Guilded 6.1.0 — Dungeon seasons and guild sharing
+# Guilded 6.1.1 — In-game setup and character standings
 
-Combined release candidate, 13 October 2026. Publication and the fresh beta
-season launch remain pending until the release gates in V6_1_RELEASE_HANDOFF.md.
+14 October 2026. Patch release preparation; publication is subject to final
+CI, package verification and the real-client setup check.
 
-- Dungeon Group Finder score overview with guild-only rankings, current and past
-  per-dungeon results, and separate boss records.
-- New seasonal rating: 200 points at the target time, bounded to 50–400. Only
-  your best eligible result per dungeon or wing counts; linked alts share it.
-- The October beta preset offers 16 dungeon/wing targets, explicitly provisional
-  and frozen through October 22. All party members must meet the level band;
-  overlevel carries and runs without level evidence are unranked. Past results
-  stay archived; the new season starts at zero when launched.
-- Live boss timer with a saved visibility toggle and encounter fight times in
-  dungeon results. Boss kill records do not add extra seasonal rating points.
-- Officer bridge enabled by default with companion data; explicit off is kept.
-  Guild-home matching supports Forever's PvP/PvP 2 server labels. Members can
-  receive core/calendar data and personal seasonal breakdowns from an officer.
-- Automatic Discord raid-readiness summaries are limited to one per guild day;
-  `/readiness raid` returns the current full report privately.
+- New first-run choice: In-game only or Optional Discord connection. Reopen
+  it with `/guilded setup`, Home > Guilded setup, or the addon options page.
+- In-game-only setup explains local gear checks, dungeon recording, raid
+  attendance and loot tools without Discord signups. Save prompts point to
+  `/reload` or logout and explain SavedVariables backups.
+- Existing connected installations keep their setup. Changing the preference
+  preserves points, guild permissions, pairing and rosters; it does not stop
+  a running companion. Manual local core editing is not part of this patch.
+- Verified seasonal dungeon ratings are per character, including best runs,
+  boss records and import gains. Archived season results remain unchanged.
+  Online seasonal scores require the optional connection; local run recording
+  does not create a verified seasonal ranking.
+- Dungeon finder scores gain a visible side tab, level ordering and subtle
+  dungeon artwork, with dark overlays for readable text.
+- Standings can be viewed guild-wide or per core roster. Core views use the
+  configured shared or separate pool and do not change the active loot core.
+  An empty core roster stays empty instead of showing unrelated characters.
+- English/French setup and standings labels. No database migration; protocol 2.
 
-Install matching addon and companion versions. SavedVariables, pairing and old
-season history are preserved. Older clients keep their legacy data but cannot
-provide all new level evidence and seasonal detail fields. Product protocol
-remains 2; additive data and a separate versioned rating format carry the update.
-
-Confirmed two-PC bridge checks include reception, core data surviving reload
-with the sender offline, matching core/loot methods and EP/GP, and calendar
-comparison. The owner also confirmed that the new Dungeon Group Finder screen
-and current/past views work. Two-PC seasonal-detail delivery and eligible/carry
-run scoring still need real-client verification. Final-boss detection across all 16 targets
-is not claimed as tested. The Windows installer remains unsigned.
+Addon, bot and companion versions are aligned at 6.1.1. SavedVariables and
+personal pairing must be preserved during updates. The Windows installer is
+unsigned. Prior unverified gameplay/second-PC acceptance remains follow-up;
+passing automated tests does not prove rendered in-game behavior.

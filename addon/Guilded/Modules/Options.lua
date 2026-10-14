@@ -18,6 +18,41 @@ local function run(line)
   if ns.runCommand then ns.runCommand(line) end
 end
 
+local setupPanel
+function module.chooseSetup(mode)
+  if mode ~= "local" and mode ~= "connected" then return false end
+  local s = settings()
+  if not s then return false end
+  s.setupMode = mode
+  if setupPanel then setupPanel:Hide() end
+  if ns.onSetupChange then ns.onSetupChange() end
+  ns.message(L(mode == "local" and "In-game only selected. Your saved data and guild permissions are preserved." or "Connected setup selected. Pair the companion when you are ready; your saved data is preserved."))
+  return true
+end
+
+function module.openSetup()
+  if InCombatLockdown and InCombatLockdown() then ns.message(L("Open setup after combat.")); return end
+  if not setupPanel then
+    setupPanel = CreateFrame("Frame", "GuildedSetupPanel", UIParent, "BasicFrameTemplateWithInset")
+    setupPanel:SetSize(520, 300)
+    setupPanel:SetPoint("CENTER")
+    setupPanel:SetFrameStrata("DIALOG")
+    local title = setupPanel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    title:SetPoint("TOP", 0, -6); title:SetText(L("Guilded setup"))
+    local text = setupPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    text:SetPoint("TOPLEFT", 20, -42); text:SetWidth(480); text:SetJustifyH("LEFT")
+    text:SetText(L("In-game only: gear checks, dungeon recording, raid attendance and loot tools work without Discord or signups. Officers can share local standings with online guildmates.\n\nConnected: optional companion sync adds Discord rosters, signups and verified season scores.\n\nData stays in SavedVariables. Keep backups. This choice preserves existing rosters and points; it does not stop a running companion. Change it any time with /guilded setup."))
+    for i, choice in ipairs({ { "local", "In-game only" }, { "connected", "Optional Discord connection" } }) do
+      local b = CreateFrame("Button", nil, setupPanel, "UIPanelButtonTemplate")
+      b:SetSize(230, 28); b:SetPoint("BOTTOMLEFT", 20 + (i - 1) * 245, 24)
+      b:SetText(L(choice[2])); local mode = choice[1]
+      b:SetScript("OnClick", function() module.chooseSetup(mode) end)
+    end
+    if UISpecialFrames then table.insert(UISpecialFrames, "GuildedSetupPanel") end
+  end
+  setupPanel:Show()
+end
+
 -- What each switch shows and does: `get` reads the current state, `set(on)` changes it.
 function module.switches()
   local list = {
@@ -79,6 +114,9 @@ local function build()
   open:SetPoint("TOPLEFT", hint, "BOTTOMLEFT", 0, -10)
   open:SetText(L("Open the tools window"))
   open:SetScript("OnClick", function() run("menu") end)
+  local setup = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+  setup:SetSize(180, 22); setup:SetPoint("LEFT", open, "RIGHT", 10, 0)
+  setup:SetText(L("Guilded setup")); setup:SetScript("OnClick", module.openSetup)
 
   boxes = {}
   local y = -100
@@ -135,8 +173,12 @@ end
 ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHandlers["options"] = function() module.open() end
 ns.commandHandlers["settings"] = ns.commandHandlers["options"]
+ns.commandHandlers["setup"] = function(args)
+  if not module.chooseSetup(string.lower(args[1] or "")) then module.openSetup() end
+end
 ns.commandHelp = ns.commandHelp or {}
 table.insert(ns.commandHelp, "/guilded options - Guilded's page in the game's options (minimap button, chat tab, modules)")
+table.insert(ns.commandHelp, "/guilded setup - choose in-game only or optional Discord connection")
 
 -- Built once saved settings exist (after Core.lua's PLAYER_LOGIN).
 local frame = CreateFrame("Frame")
@@ -145,4 +187,23 @@ frame:SetScript("OnEvent", function()
   if panel then return end
   local ok, err = pcall(build)
   if not ok and ns.logDiagnostic then ns.logDiagnostic("LUA_ERROR", "options: " .. tostring(err)) end
+end)
+
+function module.checkFirstRun()
+  local s, d = settings(), db()
+  if not s or s.setupMode then return end
+  -- Existing connected installations retain their experience without a popup.
+  if (d and d.standings and d.standings.updatedAt and not d.standings.localPublish)
+    or (type(GuildedStandings) == "table" and GuildedStandings.updatedAt) then
+    s.setupMode = "connected"
+    return
+  end
+  if C_Timer and C_Timer.After then C_Timer.After(2, module.openSetup) else module.openSetup() end
+end
+local firstRun = CreateFrame("Frame")
+firstRun:RegisterEvent("PLAYER_ENTERING_WORLD")
+firstRun:SetScript("OnEvent", function(_, event)
+  if event ~= "PLAYER_ENTERING_WORLD" then return end
+  firstRun:UnregisterEvent("PLAYER_ENTERING_WORLD")
+  module.checkFirstRun()
 end)

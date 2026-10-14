@@ -70,6 +70,49 @@ const problems = (s: LuaSession) => s.chat().filter((line) => /(^|\s)(error|fail
 const diagnostics = (s: LuaSession) => s.run(`local n = 0; for _, d in ipairs((NS.getDb() or {}).diagnostics or {}) do if d.kind == "LUA_ERROR" then n = n + 1 end end; return tostring(n)`);
 
 describe("the whole addon, loaded in .toc order", () => {
+  it("prompts fresh users once per login and preserves existing connected setup", () => {
+    const s = fullAddon(1);
+    s.run(`
+      PROMPTS = 0
+      C_Timer.After = function(_, fn) PROMPTS = PROMPTS + 1 end
+      NS.options.checkFirstRun()
+    `);
+    expect(s.run(`return PROMPTS`)).toBe("1");
+    s.run(`NS.options.chooseSetup("local"); NS.options.checkFirstRun()`);
+    expect(s.run(`return PROMPTS`)).toBe("1");
+    s.run(`NS.getSettings().setupMode = nil; GuildedStandings.updatedAt = "2026-10-14"; NS.options.checkFirstRun()`);
+    expect(s.run(`return NS.getSettings().setupMode`)).toBe("connected");
+    expect(s.run(`return PROMPTS`)).toBe("1");
+  });
+
+  it("offers standalone setup without changing saved guild data or permissions", () => {
+    const s = fullAddon(5);
+    s.run(`
+      NS.options.openSetup()
+      NS.getDb().epgp.Kev = { ep = 50, gp = 10, ledger = {} }
+      NS.getDb().lootRules = { coreOnly = true, cores = { { id = "kept", name = "Kept" } } }
+      NS.options.chooseSetup("local")
+      NS.windowState().selectTabByName("Home")
+    `);
+    expect(s.run(`return tostring(NS.isInGameOnly())`)).toBe("true");
+    expect(s.run(`return NS.windowState().homeSave.text`)).toBe("Save my addon data");
+    expect(s.run(`return NS.windowState().homeSync.text`)).toMatch(/No (Discord connection|companion) is required/);
+    expect(s.run(`return NS.getDb().epgp.Kev.ep`)).toBe("50");
+    expect(s.run(`return NS.getDb().lootRules.cores[1].id`)).toBe("kept");
+    expect(s.run(`return tostring(NS.isOfficer())`)).toBe("false");
+    s.run(`NS.syncNow.mark(); NS.windowState().selectTabByName("Home")`);
+    expect(s.run(`return NS.windowState().homeSync.text`)).toContain("Local changes");
+    s.run(`NS.windowState().selectTabByName("Standings")`);
+    expect(s.run(`return NS.windowState().standingsList.text`)).toContain("Kev");
+    expect(s.run(`return NS.windowState().standingsList.text`)).toContain("Local ledger");
+    s.run(`NS.commandHandlers.setup({"connected"}); NS.windowState().selectTabByName("Home")`);
+    expect(s.run(`return tostring(NS.isInGameOnly())`)).toBe("false");
+    expect(s.run(`return NS.getDb().epgp.Kev.ep`)).toBe("50");
+    expect(s.run(`return tostring(NS.options.chooseSetup("invalid"))`)).toBe("false");
+    expect(problems(s)).toEqual([]);
+    expect(diagnostics(s)).toBe("0");
+  });
+
   it("lists the files it is about to load", () => {
     expect(FILES.length).toBeGreaterThan(20);
     expect(FILES[0]).toBe("Util.lua");

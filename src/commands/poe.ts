@@ -3,6 +3,7 @@ import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 import { requireGuildContext } from "./context.js";
 import { issueCharacterPairingCode } from "../services/character-pairing.js";
+import { companionLinkText } from "../services/companion-links.js";
 import { createPoeMappingService, poeAreaName, POE_MODES } from "../services/poe-mapping.js";
 
 export const poeCommand = new SlashCommandBuilder().setName("poe").setDescription("PoE2 mapping journal and companion")
@@ -41,7 +42,11 @@ export async function executePoe(interaction: ChatInputCommandInteraction): Prom
   }
   if (sub === "pair") {
     const pair = await issueCharacterPairingCode(prisma, guildId, memberId);
-    await interaction.editReply(T(`Companion code: **${pair.code}** (15 minutes). Enter it in Settings → Link Discord account. Existing paired companions can use the same link for WoW and PoE2.`, `Code du compagnon : **${pair.code}** (15 minutes). Entrez-le dans Settings → Link Discord account. Un compagnon déjà jumelé utilise le même lien pour WoW et PoE2.`));
+    const companion = companionLinkText(fr ? "fr" : "en", interaction.guild.id);
+    await interaction.editReply(T(
+      `${companion}\nIn **Connection & setup**, check **Discord server ID**: \`${interaction.guild.id}\`. Enter code **${pair.code}**, then **Connect** (one use, expires <t:${Math.floor(pair.expiresAt.getTime() / 1000)}:R>; keep it private).\nAlready connected for WoW? Enable PoE2 in the same companion; no new code needed. Using a code replaces your previous companion connection.`,
+      `${companion}\nDans **Connection & setup**, vérifiez **Discord server ID** : \`${interaction.guild.id}\`. Entrez le code **${pair.code}**, puis **Connect** (usage unique, expire <t:${Math.floor(pair.expiresAt.getTime() / 1000)}:R>; gardez-le privé).\nDéjà connecté pour WoW ? Activez PoE2 dans le même compagnon; aucun nouveau code nécessaire. Utiliser un code remplace votre connexion compagnon précédente.`
+    ));
     return;
   }
   const embed = new EmbedBuilder().setColor(0xbb9145).setFooter({ text: notice });

@@ -427,7 +427,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
   if ((interaction.isButton() || interaction.isStringSelectMenu()) && interaction.customId.startsWith(ONBOARD_PREFIX)) {
     await handleOnboardingInteraction(interaction).catch(async (error: unknown) => {
       reportInteractionError("Onboarding", interaction, error);
-      if (!interaction.replied) await interaction.reply({ content: "That didn't work, try again or ask an officer.", ephemeral: true }).catch(() => undefined);
+      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";
+      if (interaction.deferred && !interaction.replied) await interaction.editReply({ content, components: [], embeds: [] }).catch(() => undefined);
+      else if (!interaction.replied) await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
     });
     return;
   }

@@ -70,6 +70,10 @@ Fill only `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_GUILD_ID` and
 `DATABASE_URL` to start. Keep `COMPANION_API_HOST=127.0.0.1`,
 `COMPANION_API_PORT=8787` and `MESSAGE_CONTENT_INTENT=false`.
 Optional Warcraft Logs, AI and error-report fields may stay blank.
+Set `COMPANION_WEB_URL=https://your-hostname/companion/` to include your own online
+companion button in Discord's private character setup and pinned guide. The
+official hosted bot defaults to its hosted companion; independent bots without
+this setting ask members for their officer's link.
 If `DATABASE_URL` is a pooled connection (Neon: the host contains `-pooler`), also set
 `DIRECT_URL` to the same string without `-pooler`. Database updates then use the direct
 connection, so a failed update can never leave its lock on a pooled connection.

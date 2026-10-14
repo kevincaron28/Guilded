@@ -8,7 +8,7 @@ import {
 import type { GuildSettings } from "@prisma/client";
 import { prisma } from "../database.js";
 import { createGuildService } from "./guild.js";
-import { issueCharacterPairingCode } from "./character-pairing.js";
+import { characterLinkPrompt } from "./character-link-prompt.js";
 import { selfRoleProblem } from "./selfrole.js";
 import { asLang, t, type Lang } from "../i18n.js";
 
@@ -154,16 +154,20 @@ export async function handleOnboardingInteraction(interaction: ButtonInteraction
   const [action, discordGuildId] = interaction.customId.slice(ONBOARD_PREFIX.length).split(":") as [Action, string | undefined];
   if (!discordGuildId) return;
   if (!hostedPilot.allows(discordGuildId)) { await interaction.reply({ content: PILOT_DENIED, ephemeral: true }); return; }
+  // Every button answers privately; the selection updates its already-private menu.
+  // Acknowledge before Discord/DB calls so a slow connection cannot expire the click.
+  if (action === "pick" && interaction.isStringSelectMenu()) await interaction.deferUpdate();
+  else await interaction.deferReply({ ephemeral: true });
   const discordGuild = interaction.guild?.id === discordGuildId
     ? interaction.guild
     : await interaction.client.guilds.fetch(discordGuildId).catch(() => null);
   if (!discordGuild) {
-    await interaction.reply({ content: "I'm no longer in that server.", ephemeral: true });
+    await interaction.editReply({ content: "I'm no longer in that server." });
     return;
   }
   const member = await discordGuild.members.fetch(interaction.user.id).catch(() => null);
   if (!member) {
-    await interaction.reply({ content: `You're not in ${discordGuild.name} anymore.`, ephemeral: true });
+    await interaction.editReply({ content: `You're not in ${discordGuild.name} anymore.` });
     return;
   }
   const guild = await guildService.ensureGuild(discordGuild.id, discordGuild.name);
@@ -175,17 +179,17 @@ export async function handleOnboardingInteraction(interaction: ButtonInteraction
     checklistText(progress ?? await loadProgress(guild.id, settings, member), lang, discordGuild.name);
 
   if (action === "steps") {
-    await interaction.reply({ content: await checklist(), components: [buttons()], ephemeral: true });
+    await interaction.editReply({ content: await checklist(), components: [buttons()] });
     return;
   }
 
   if (action === "rules") {
     if (!settings.rulesChannelId) {
-      await interaction.reply({ content: t(lang, "onboard.gone"), ephemeral: true });
+      await interaction.editReply({ content: t(lang, "onboard.gone") });
     } else if (await rulesAccepted(guild.id, member.id)) {
-      await interaction.reply({ content: `${t(lang, "onboard.rules.already", { channel: `<#${settings.rulesChannelId}>` })}\n\n${await checklist()}`, components: [buttons()], ephemeral: true });
+      await interaction.editReply({ content: `${t(lang, "onboard.rules.already", { channel: `<#${settings.rulesChannelId}>` })}\n\n${await checklist()}`, components: [buttons()] });
     } else {
-      await interaction.reply({ ...rulesPrompt(settings, discordGuild.id, lang), ephemeral: true });
+      await interaction.editReply(rulesPrompt(settings, discordGuild.id, lang));
     }
     return;
   }
@@ -211,28 +215,27 @@ export async function handleOnboardingInteraction(interaction: ButtonInteraction
       });
     }
     const progress = { ...await loadProgress(guild.id, settings, member), rules: true };
-    await interaction.reply({ content: `${t(lang, "onboard.rules.thanks")}${roleNote}\n\n${await checklist(progress)}`, components: [buttons()], ephemeral: true });
+    await interaction.editReply({ content: `${t(lang, "onboard.rules.thanks")}${roleNote}\n\n${await checklist(progress)}`, components: [buttons()] });
     return;
   }
 
   if (await rulesPending(guild.id, settings, member.id)) {
-    await interaction.reply({ ...rulesPrompt(settings, discordGuild.id, lang, true), ephemeral: true });
+    await interaction.editReply(rulesPrompt(settings, discordGuild.id, lang, true));
     return;
   }
 
   if (action === "games") {
     const roles = offeredRoles(settings, discordGuild);
     if (roles.length === 0) {
-      await interaction.reply({ content: t(lang, "onboard.gone"), ephemeral: true });
+      await interaction.editReply({ content: t(lang, "onboard.gone") });
       return;
     }
     const menu = new StringSelectMenuBuilder().setCustomId(customId("pick", discordGuild.id))
       .setPlaceholder(t(lang, "onboard.games.placeholder")).setMinValues(0).setMaxValues(roles.length)
       .addOptions(roles.map((role) => ({ label: role.name.slice(0, 100), value: role.id, default: member.roles.cache.has(role.id) })));
-    await interaction.reply({
+    await interaction.editReply({
       content: settings.welcomeRolePrompt ?? t(lang, "onboard.games.prompt"),
-      components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)],
-      ephemeral: true
+      components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)]
     });
     return;
   }
@@ -240,6 +243,7 @@ export async function handleOnboardingInteraction(interaction: ButtonInteraction
   if (action === "pick" && interaction.isStringSelectMenu()) {
     const roles = offeredRoles(settings, discordGuild);
     const wanted = new Set(interaction.values);
+    const held = new Set(roles.filter((role) => member.roles.cache.has(role.id)).map((role) => role.id));
     const failed: string[] = [];
     for (const role of roles) {
       const had = member.roles.cache.has(role.id);
@@ -247,25 +251,24 @@ export async function handleOnboardingInteraction(interaction: ButtonInteraction
       try {
         if (had) await member.roles.remove(role, "Onboarding game menu");
         else await member.roles.add(role, "Onboarding game menu");
+        if (had) held.delete(role.id);
+        else held.add(role.id);
       } catch {
         failed.push(role.name);
       }
     }
-    const picked = roles.filter((role) => wanted.has(role.id) && !failed.includes(role.name));
+    // Discord's role methods return a clone; the original cache can lag behind the REST result.
+    const picked = roles.filter((role) => held.has(role.id));
     const progress = { ...await loadProgress(guild.id, settings, member), games: picked.length > 0 };
     const lines = [picked.length ? t(lang, "onboard.games.saved", { roles: picked.map((role) => `**${role.name}**`).join(", ") }) : t(lang, "onboard.games.none")];
     if (failed.length) lines.push(t(lang, "onboard.games.failed", { roles: failed.join(", ") }));
-    await interaction.update({ content: `${lines.join("\n")}\n\n${await checklist(progress)}`, components: [buttons()] });
+    await interaction.editReply({ content: `${lines.join("\n")}\n\n${await checklist(progress)}`, components: [buttons()] });
     return;
   }
 
   if (action === "pair") {
     const record = await guildService.ensureMember(guild.id, member.id, member.user.username);
-    const pairing = await issueCharacterPairingCode(prisma, guild.id, record.id);
-    await interaction.reply({
-      content: t(lang, "onboard.pair", { code: pairing.code, expires: `<t:${Math.floor(pairing.expiresAt.getTime() / 1000)}:R>` }),
-      ephemeral: true
-    });
+    await interaction.editReply(await characterLinkPrompt(prisma, guild.id, record.id, discordGuild.id, lang));
   }
 }
 

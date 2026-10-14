@@ -93,8 +93,7 @@ export function looksLikeInstallationQuestion(text: string): boolean {
 
 export function installationAnswer(lang: Lang): string {
   const body = gettingStartedPost(lang).data.description ?? "";
-  // Reuse the two installation sections of the pinned guide, without its
-  // welcome and game-activity sections.
+  // Reuse the WoW setup steps and existing-connection tips from the pinned guide.
   return body.split("\n\n").slice(1, 3).join("\n\n").slice(0, MAX_ANSWER_LENGTH);
 }
 

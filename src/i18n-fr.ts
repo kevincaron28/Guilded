@@ -179,6 +179,7 @@ export const FR_TEXT: Record<string, string> = {
   // --- step 6
   "**Optional.** Skip with **Next** if you don't use these.": "**Facultatif.** Passez avec **Suivant** si vous ne les utilisez pas.",
   "🆕 **Applicant role** — given automatically when someone joins: {role}": "🆕 **Rôle de candidat** — donné automatiquement quand quelqu'un arrive : {role}",
+  "🆕 **Applicant role** — given after accepting the rules: {role}": "🆕 **Rôle de candidat** — donné après l'acceptation des règles : {role}",
   "🛡️ **Member role** — given when an application is approved (`/mod application approve`): {role}": "🛡️ **Rôle de membre** — donné quand une candidature est approuvée (`/mod application approve`) : {role}",
   "**My role must be above these roles** (Server Settings → Roles, drag me higher). The final checklist tells you if it isn't.": "**Mon rôle doit être au-dessus de ces rôles** (Paramètres du serveur → Rôles, glissez-moi plus haut). La liste finale vous dit si ce n'est pas le cas.",
   "🆕 Pick the applicant role": "🆕 Choisir le rôle de candidat",
@@ -228,8 +229,8 @@ export const FR_TEXT: Record<string, string> = {
   "**Everything required is set up.** 🎉": "**Tout le nécessaire est configuré.** 🎉",
   "**Almost there** — fix the ❌ items (each says how).": "**Presque terminé** — corrigez les éléments ❌ (chacun explique comment).",
   "**Next steps**": "**Prochaines étapes**",
-  "1. Everyone: `/character pair` to link their companion (or `/character add` to link a character by hand).": "1. Tout le monde : `/character pair` pour lier son companion (ou `/character add` pour lier un personnage manuellement).",
-  "2. Officers: install the WoW addon — {url}": "2. Officiers : installez l'addon WoW — {url}",
+  "1. Members: use the welcome buttons to accept the rules and pick their games. WoW linking is only for WoW players.": "1. Membres : utilisez les boutons d'accueil pour accepter les règles et choisir vos jeux. Le lien WoW concerne seulement les joueurs WoW.",
+  "2. WoW players: install the addon ({url}), then use `/character pair` for linked characters, the online companion and 3 setup steps. The Windows app is optional.": "2. Joueurs WoW : installez l'addon ({url}), puis utilisez `/character pair` pour vos personnages liés, le compagnon en ligne et 3 étapes de configuration. L'appli Windows est facultative.",
   "3. Raid leaders: `/core setup` builds a raid core (name, players, rules) with menus; then `/raid create core:<name>`.": "3. Chefs de raid : `/core setup` crée un core de raid (nom, joueurs, règles) avec des menus ; ensuite `/raid create core:<nom>`.",
   "4. Try everything safely: `/setup testraid start` (fake raid, removed with `/setup testraid cleanup`).": "4. Tout essayer sans risque : `/setup testraid start` (faux raid, supprimé avec `/setup testraid cleanup`).",
   "5. `/help` lists every command by role.": "5. `/help` liste toutes les commandes par rôle.",
@@ -276,7 +277,10 @@ export const FR_TEXT: Record<string, string> = {
   "Companion link to the WoW addon": "Lien du compagnon avec l'addon WoW",
   "Needed only to sync the addon: run /character pair and link the code in Companion Settings.": "Pour synchroniser l'addon : lancez /character pair et entrez le code dans les paramètres du compagnon.",
   "Characters linked": "Personnages liés",
-  "Everyone runs /character pair once (or /character add) so addon data and EPGP match them.": "Chacun lance /character pair une fois (ou /character add) pour que les données de l'addon et l'EPGP leur correspondent.",
+  "At least one companion account connected": "Au moins un compte connecté au compagnon",
+  "At least one WoW character linked": "Au moins un personnage WoW lié",
+  "Optional for WoW sync: /character pair gives the online companion link and a private code. Enter it in Connection & setup, then Connect.": "Facultatif pour la synchro WoW : /character pair donne le lien du compagnon en ligne et un code privé. Entrez-le dans Connection & setup, puis Connect.",
+  "WoW players only: /character pair shows existing characters and how to link them. Already connected? Sync alts with the same companion.": "Pour les joueurs WoW seulement : /character pair montre vos personnages liés et comment les lier. Déjà connecté ? Synchronisez vos alts avec le même compagnon.",
 
   // --- craft board
   "Status": "Statut",

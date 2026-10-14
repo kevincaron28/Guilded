@@ -43,14 +43,21 @@ owners can stop here; the independent hosting sections below are optional.
 
 1. Close WoW and extract **Guilded** into your actual client's `Interface/AddOns`.
    Check `Guilded/Guilded.toc` exists. Open WoW, open Guilded, then `/reload`.
-2. Open your guild's online companion link, ending in `/companion/`. Enter your
-   Discord server ID and private `/character pair` code from that server.
+2. Press **Link my WoW character / Lier mon personnage WoW** in your Discord welcome
+   panel, or run `/character pair`. Check your linked characters in the private
+   reply and open its online companion button. The link prefills the server ID
+   on a first visit. Check it, enter your private code, then **Connect**.
 3. Enable WoW and choose your account's SavedVariables folder. Use **Save standings
    to addon** once to choose `Interface/AddOns/Guilded`. After `/reload`, click
    **Sync now**, confirm upload and standings success, then `/reload` again.
 
 The Windows companion is optional for automatic file watching, background sync
 and PoE2 log tracking, especially useful for leaders and officers.
+
+**Already connected with a main?** Log in on an alt, `/reload`, then **Sync now**
+with the same companion. Your main stays linked; no new code needed. A new code
+is for connecting or reconnecting a companion, and using it replaces the previous
+companion connection. `/character list` shows the result after syncing.
 
 Addon-only users stop after step 1. See [Member installation](MEMBER_INSTALL.md)
 for the detailed UI steps, the manual browser option, French steps and fixes.

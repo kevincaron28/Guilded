@@ -41,6 +41,10 @@ jobs:
       - run: npm test
       - run: npm run lint
       - run: node addon/Guilded/validate-addon.mjs
+      - name: Validate and package next-version addon previews
+        run: |
+          node scripts/build-addon-zip.mjs --preview
+          node scripts/build-games-addon.mjs
       - name: PostgreSQL integration and restore rehearsal
         run: |
           sudo apt-get update -qq
@@ -52,6 +56,10 @@ jobs:
         with:
           name: guilded-addon
           path: dist/Guilded-v*.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: guilded-preview-addons
+          path: dist/preview/*.zip
   windows-package:
     runs-on: windows-latest
     timeout-minutes: 20

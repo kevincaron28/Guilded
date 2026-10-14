@@ -199,8 +199,9 @@ end)
 function module.checkFirstRun()
   local s, d = settings(), db()
   if not s or s.setupMode then return end
-  -- Existing connected installations retain their experience without a popup.
-  if (d and d.standings and d.standings.updatedAt and not d.standings.localPublish)
+  -- Only a companion source proves a connection. Officer-shared snapshots may
+  -- come from an addon-only guild and do not carry the localPublish flag.
+  if (d and d.standings and d.standings.updatedAt and d.standings.from == "companion" and not d.standings.localPublish)
     or (type(GuildedStandings) == "table" and GuildedStandings.updatedAt) then
     s.setupMode = "connected"
     return

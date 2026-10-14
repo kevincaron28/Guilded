@@ -1,5 +1,18 @@
 # Combined Guilded update — 14 October 2026
 
+Later follow-ups: PR #72 made addon-only the default member setup path and was
+deployed at `5929360`; final main CI 38621117961 passed PostgreSQL restore and
+Windows packaging. Local evidence is
+`backups/addon-first-onboarding-deployment-evidence.json`. The standalone setup
+follow-up now requires positive companion evidence before selecting Connected,
+so cached in-game officer standings do not hide local tools. See
+[the setup notes](IN_GAME_SETUP_2026-10-14.md) for existing-choice recovery.
+Diablo has also launched after owner approval; see
+[the current Discord audit](DISCORD_AUDIT_2026-10-14.md).
+The combined-update record below describes the earlier delivery. Published
+clients remain 6.1.2, and the expanded standalone client still needs its
+documented real-game checks before stable publication.
+
 The owner asked to finish Claude's work and both active Codex chats, update the
 product together and push all completed changes. All three implementation turns
 have explicit completion evidence. This follow-up preserves the published

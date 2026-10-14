@@ -24,6 +24,10 @@ release preparation. Guilded Games has its own preview version, 0.1.0.
   are remembered separately. Local mode ignores the connected next-raid core.
 - Standings and officer accounting identify the data source. Standalone help
   no longer sends a new unlinked character to Discord to see local records.
+- Fresh installations default to addon-only setup. First-run detection requires
+  positive companion evidence before selecting Connected; receiving an in-game
+  officer snapshot does not hide the local core tools. Existing mode choices
+  are retained, and `/guilded setup` can change them.
 - Standalone backup codes include the accounting snapshot paired with their
   ledger. Restore previews local core/roster counts, replaces that baseline
   rather than combining it with the receiving PC's old snapshot, and supports undo.

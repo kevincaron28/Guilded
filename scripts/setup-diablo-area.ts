@@ -1,14 +1,18 @@
 // Diablo category for the owner's server. REST only, never starts a second bot session.
 //   npx tsx scripts/setup-diablo-area.ts            dry run: prints what exists and what would change
 //   npx tsx scripts/setup-diablo-area.ts --apply    creates missing roles/channels, visible to the owner and the bot only
-//   npx tsx scripts/setup-diablo-area.ts --publish  after owner approval: opens the area to the Diablo roles
+//   npx tsx scripts/setup-diablo-area.ts --publish  after owner approval: opens the area to @Diablo and makes
+//                                                   Diablo the third game of the welcome picker
 // Idempotent: existing channels are matched by name inside the category and left in place.
 // Members with Administrator (and the server owner) always see every channel; Discord has no way around that.
-import { REST, Routes, ChannelType, PermissionFlagsBits as P, OverwriteType, type APIChannel, type APIRole, type APIGuild, type RESTAPIGuildChannelResolvable } from "discord.js";
+import { REST, Routes, ChannelType, PermissionFlagsBits as P, OverwriteType, type APIChannel, type APIRole, type APIGuild, type RESTAPIGuildChannelResolvable, type APIMessage } from "discord.js";
 import { config } from "../src/config.js";
+import { prisma } from "../src/database.js";
 
 const CATEGORY = "━━ 😈 DIABLO 😈 ━━";
-const ROLES = ["Diablo II", "Diablo IV"] as const;
+// One game role for the whole series (D2R, D4, later D5): the welcome picker shows role names.
+const ROLES = ["Diablo"] as const;
+const PICKER_CHANNEL = "🎮choix-de-jeu";
 const MODERATOR_ROLE = "Chef de Guerre";
 const BOT_ROLE = "Guilded bot permissions";
 const REASON = "Guilded: Diablo area";
@@ -39,13 +43,13 @@ const roleNamed = (name: string) => roles.find(r => r.name === name);
 const bits = (...flags: bigint[]) => flags.reduce((a, b) => a | b, 0n).toString();
 const BOT_ALLOW = bits(P.ViewChannel, P.SendMessages, P.SendMessagesInThreads, P.EmbedLinks, P.AttachFiles, P.ReadMessageHistory, P.AddReactions, P.ManageMessages, P.PinMessages, P.Connect);
 
-// 1. Game roles: reuse Diablo IV, add Diablo II beside it. Same look as the other game roles.
+// 1. Game role, same look as the other game roles.
 for (const name of ROLES) {
   if (roleNamed(name)) { log(`role @${name} exists`); continue; }
   log(`create role @${name} (no colour, not hoisted, not mentionable, no permissions)`);
   if (!write) continue;
   const created = await rest.post(Routes.guildRoles(gid), { body: { name, permissions: "0", hoist: false, mentionable: false }, reason: REASON }) as APIRole;
-  const anchor = roleNamed("Diablo IV") ?? roleNamed("World of Warcraft");
+  const anchor = roleNamed("World of Warcraft");
   if (anchor) await rest.patch(Routes.guildRoles(gid), { body: [{ id: created.id, position: anchor.position }], reason: REASON });
   roles = await rest.get(Routes.guildRoles(gid)) as APIRole[];
 }
@@ -90,14 +94,35 @@ for (const room of ROOMS) {
   else await rest.post(Routes.guildChannels(gid), { body: { name: room.name, type: room.type, parent_id: category.id, ...body }, reason: REASON });
 }
 
-// 4. On publish, move the category up next to the other games (just above World of Warcraft).
+// 4. On publish, Diablo is the very last category: after PoE 2, WoW and the WoW officers' category.
 if (mode === "publish" && category) {
   channels = await rest.get(Routes.guildChannels(gid)) as APIChannel[];
-  const wow = channels.find(c => c.type === ChannelType.GuildCategory && "name" in c && /WORLD OF WARCRAFT/.test(c.name ?? ""));
-  if (wow && "position" in wow) {
-    await rest.patch(Routes.guildChannels(gid), { body: [{ id: category.id, position: wow.position }] satisfies RESTAPIGuildChannelResolvable[], reason: REASON });
-    log("moved the Diablo category above World of Warcraft");
-  }
-  console.log("\nLast step for the owner: add @Diablo II and @Diablo IV to the welcome game picker (/setup start, step 5), so members can pick them.");
+  const last = Math.max(...channels.filter(c => c.type === ChannelType.GuildCategory && c.id !== category!.id).map(c => ("position" in c ? c.position : 0)));
+  await rest.patch(Routes.guildChannels(gid), { body: [{ id: category.id, position: last + 1 }] satisfies RESTAPIGuildChannelResolvable[], reason: REASON });
+  log("placed the Diablo category last, after the WoW officers' category");
 }
+
+// 5. On publish, Diablo becomes the third game: welcome picker setting, welcome text and the older button panel.
+if (mode === "publish") {
+  const diablo = roleNamed("Diablo");
+  const settings = await prisma.guildSettings.findFirst({ where: { guild: { discordId: gid } }, select: { id: true, welcomeRoleIds: true, welcomeMessageTemplate: true } });
+  if (!diablo || !settings) throw new Error("Diablo role or guild settings missing");
+  const template = settings.welcomeMessageTemplate?.replace("Tu peux choisir WoW et Path of Exile 2.", "Tu peux choisir WoW, Path of Exile 2 et Diablo.");
+  const others = settings.welcomeRoleIds.filter(id => id !== diablo.id);
+  await prisma.guildSettings.update({ where: { id: settings.id }, data: { welcomeRoleIds: [...others, diablo.id], ...(template ? { welcomeMessageTemplate: template } : {}) } });
+  log("welcome picker now offers Diablo as the third game");
+
+  const picker = channels.find(c => "name" in c && c.name === PICKER_CHANNEL);
+  const messages = picker ? await rest.get(Routes.channelMessages(picker.id), { query: new URLSearchParams({ limit: "20" }) }) as APIMessage[] : [];
+  const panel = messages.find(m => m.author.id === config.DISCORD_CLIENT_ID && JSON.stringify(m.components).includes("welcomerole:"));
+  if (picker && panel) {
+    const button = (roleId: string, label: string) => ({ type: 2, style: 1, label, custom_id: `welcomerole:${gid}:${roleId}` });
+    await rest.patch(Routes.channelMessage(picker.id, panel.id), { body: {
+      content: "🎮 **Choisis tes jeux !**\n\nClique sur les boutons pour recevoir les rôles **World of Warcraft**, **Path of Exile 2** et **Diablo**. Tu peux en choisir plusieurs. Clique de nouveau pour retirer un rôle.",
+      components: [{ type: 1, components: [...others.map(id => button(id, roles.find(r => r.id === id)?.name ?? id)), button(diablo.id, "Diablo")] }]
+    } });
+    log(`added the Diablo button in #${PICKER_CHANNEL}`);
+  }
+}
+await prisma.$disconnect();
 console.log(`\nDone (${mode}).`);

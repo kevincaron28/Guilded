@@ -1201,6 +1201,7 @@ end
 
 -- Officer tabs are for officers; leader tabs also for the leader or an assistant of the group.
 local function tabAllowed(tab, officer)
+  if ui.guildHost and not ({ Standings = true, Crafting = true, Calendar = true, EPGP = true, Season = true })[tab.name] then return false end
   if officer then return true end
   if tab.leader then return ns.ready ~= nil and ns.ready.canView() end
   return not tab.officer
@@ -1221,6 +1222,11 @@ local function layoutTabs(officer)
   local firstVisible
   ui.groupLabels = ui.groupLabels or {}
   for _, label in pairs(ui.groupLabels) do label:Hide() end
+  for _, tab in ipairs(ui.tabs) do
+    tab.visible = false
+    tab.button:Hide()
+    tab.page:Hide()
+  end
   for _, group in ipairs(GROUPS) do
     local any = false
     for _, tab in ipairs(ui.tabs) do
@@ -1255,7 +1261,7 @@ local function layoutTabs(officer)
     end
   end
   local current = ui.tabs[ui.currentTab or 0]
-  if not current or not current.visible then selectTab(firstVisible) end
+  if not current or not current.visible then selectTab(firstVisible) else current.page:Show() end
 end
 
 local function moduleSignature()
@@ -1646,6 +1652,22 @@ local function buildPanel()
     end
     refresh()
   end)
+  panel:HookScript("OnHide", function()
+    if not ui.guildHost then return end
+    ui.guildHost = nil
+    panel:SetParent(UIParent)
+    panel:ClearAllPoints()
+    local s = settings() or {}
+    local saved = s.panelPoint
+    if type(saved) == "table" and saved[1] then
+      panel:SetPoint(saved[1], UIParent, saved[2] or saved[1], tonumber(saved[3]) or 0, tonumber(saved[4]) or 0)
+    else panel:SetPoint("CENTER", UIParent, "CENTER") end
+    panel:SetScale(tonumber(s.panelScale) or 1)
+    panel:SetMovable(true)
+    if ui.guildBackground then ui.guildBackground:Hide() end
+    if ns.guildPanel and ns.guildPanel.tab then ns.guildPanel.tab:SetChecked(false) end
+    ui.lastOfficer = nil
+  end)
 
   -- Shift-clicking an item normally inserts its link into chat; also put it
   -- in our Item box when that box is selected. hooksecurefunc runs after the
@@ -1674,6 +1696,35 @@ function ui.selectTabByName(name)
   for i, tab in ipairs(ui.tabs) do
     if tab.name == name and tab.visible then selectTab(i) return end
   end
+end
+
+-- Reuse the actual pages and their permission checks inside the guild window.
+-- Only Guilded's own frame is reparented; Blizzard's display mode is untouched.
+function ns.openGuildPanel(host)
+  if not host or (InCombatLockdown and InCombatLockdown()) then return end
+  if not panel then buildPanel() end
+  panel:Hide()
+  ui.guildHost = host
+  panel:SetParent(host)
+  panel:ClearAllPoints()
+  panel:SetPoint("TOPLEFT", host, "TOPLEFT", 0, 0)
+  panel:SetScale(math.min(host:GetWidth() / PANEL_WIDTH, host:GetHeight() / PANEL_HEIGHT))
+  panel:SetFrameLevel(host:GetFrameLevel() + 20)
+  panel:SetMovable(false)
+  if not ui.guildBackground then
+    ui.guildBackground = panel:CreateTexture(nil, "BACKGROUND", nil, -8)
+    ui.guildBackground:SetAllPoints()
+    ui.guildBackground:SetColorTexture(0.025, 0.035, 0.045, 1)
+  end
+  ui.guildBackground:Show()
+  ui.lastOfficer = nil
+  panel:Show()
+  refresh()
+  ui.selectTabByName("Standings")
+end
+
+function ns.closeGuildPanel()
+  if ui.guildHost and panel then panel:Hide() end
 end
 
 local function togglePanel()

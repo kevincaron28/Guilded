@@ -54,6 +54,50 @@ const visibleTabs = (s: LuaSession) => s.run(`local n = {}; for _, t in ipairs(N
 const homeText = (s: LuaSession, field: string) => s.run(`return NS.windowState().${field}.text`);
 
 describe("the tools window (sidebar and Home page)", () => {
+  it("docks guild pages with the same permissions and restores the full menu", () => {
+    const s = openWindow(5);
+    s.run(`
+      HOST = CreateFrame()
+      HOST.GetWidth = function() return 800 end
+      HOST.GetHeight = function() return 600 end
+      NS.openGuildPanel(HOST)
+    `);
+    expect(visibleTabs(s)).toBe("Standings,Season,Crafting");
+    expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`)).toBe("Standings");
+    expect(s.run(`return tostring(NS.windowState().guildHost == HOST)`)).toBe("true");
+    s.run(`
+      for _, f in ipairs(FRAMES) do if f.scripts.OnHide and f.scripts.OnShow then f.scripts.OnHide(f) end end
+      NS.commandHandlers["menu"]()
+      NS.commandHandlers["menu"]()
+      for _, f in ipairs(FRAMES) do if f.scripts.OnShow then f.scripts.OnShow(f) end end
+    `);
+    expect(s.run(`return tostring(NS.windowState().guildHost == nil)`)).toBe("true");
+    expect(visibleTabs(s)).toContain("Home");
+    expect(visibleTabs(s)).toContain("Me");
+    expect(visibleTabs(s)).not.toContain("EPGP");
+  });
+
+  it("defers the guild tab in combat and does not replace native handlers", () => {
+    const s = openWindow(1);
+    s.run(`
+      CommunitiesFrame = CreateFrame()
+      CommunitiesFrame.ChatTab = false
+      CommunitiesFrame.RosterTab = false
+      CommunitiesFrame.GuildBenefitsTab = false
+      CommunitiesFrame.SetDisplayMode = false
+      CommunitiesFrame.GuildInfoTab = CreateFrame()
+      CommunitiesFrame.GuildInfoTab:SetScript("OnClick", function() nativeClicked = true end)
+      nativeHandler = CommunitiesFrame.GuildInfoTab:GetScript("OnClick")
+      function InCombatLockdown() return true end
+    `);
+    s.load("Modules/GuildPanel.lua");
+    s.run(`NS.guildPanel.attach()`);
+    expect(s.run(`return tostring(NS.guildPanel.tab == nil)`)).toBe("true");
+    s.run(`function InCombatLockdown() return false end; NS.guildPanel.attach(); firstTab = NS.guildPanel.tab; NS.guildPanel.attach()`);
+    expect(s.run(`return tostring(firstTab == NS.guildPanel.tab)`)).toBe("true");
+    expect(s.run(`return tostring(CommunitiesFrame.GuildInfoTab:GetScript("OnClick") == nativeHandler)`)).toBe("true");
+  });
+
   it("filters core rosters, uses each pool, and never changes the loot selection", () => {
     const s = openWindow(1, `
       GuildedStandings = { updatedAt = "2026-10-14", baseGp = 0, players = {

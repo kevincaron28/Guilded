@@ -125,7 +125,8 @@ export function describeConfig(config: DungeonConfig, dungeonNames: Map<number, 
 // Ends the current season (kept for history), crowns its Season Champion
 // (highest rating, or legacy participation; ties share the crown).
 // An optional expected ID makes one-time migration retries safe.
-export async function startSeason(database: Db, guildId: string, name: string, expectedSeasonId?: string, endsAt?: Date) {
+export async function startSeason(database: Db, guildId: string, name: string, expectedSeasonId?: string, endsAt?: Date, presetRules?: ReturnType<typeof createDungeonRatingRules>) {
+  if (presetRules && !hasDungeonRating(presetRules)) throw new Error("Invalid season preset.");
   if (endsAt && (!Number.isFinite(endsAt.getTime()) || endsAt.getTime() <= Date.now())) throw new Error("Season end must be a future date with a time zone.");
   const trimmed = name.trim();
   if (trimmed.length < 2 || trimmed.length > 60) throw new Error("Season name must be 2 to 60 characters.");
@@ -167,7 +168,7 @@ export async function startSeason(database: Db, guildId: string, name: string, e
       await tx.dungeonSeason.update({ where: { id: past.id }, data: { endsAt: past.endsAt } });
     }
     const season = await tx.dungeonSeason.create({ data: { guildId, name: trimmed, startsAt: now, ...(endsAt ? { endsAt } : {}),
-      ratingRules: createDungeonRatingRules(dungeonConfig(rules?.dungeonConfig).targets, 3, dungeonConfig(rules?.dungeonConfig).levelBands) } });
+      ratingRules: presetRules ?? createDungeonRatingRules(dungeonConfig(rules?.dungeonConfig).targets, 3, dungeonConfig(rules?.dungeonConfig).levelBands) } });
     return { season, ended: ended.map((row) => row.name), champions: champions.map((row) => row.name) };
   });
 }

@@ -12,12 +12,30 @@ export function validLevelBand(value: unknown): value is LevelBand {
   return Number.isInteger(b.min) && Number.isInteger(b.max) && b.min >= 1 && b.max <= 100 && b.min <= b.max
     && Number.isInteger(b.difficultyId) && b.difficultyId >= 0;
 }
+export function validDungeonKey(key: string): boolean {
+  return /^[1-9]\d*$/.test(key) || /^189:(graveyard|library|armory|cathedral)$/.test(key);
+}
+// Match successful boss evidence, never a player's freely entered dungeon label.
+// Unsupported locales/ambiguous mixed-wing runs remain unranked.
+export function ratingDungeonKey(run: RatingRun): string {
+  if (run.instanceId !== 189) return String(run.instanceId);
+  const encounters = (run.competitionData as { encounters?: { name?: string; success?: boolean }[] } | null)?.encounters;
+  const names = new Set((Array.isArray(encounters) ? encounters : []).filter(e => e?.success === true).map(e => e.name?.toLowerCase()));
+  const wings = [
+    ["graveyard", ["bloodmage thalnos", "mage de sang thalnos"]],
+    ["library", ["arcanist doan", "arcaniste doan"]],
+    ["armory", ["herod", "hérode"]],
+    ["cathedral", ["high inquisitor whitemane", "grande inquisitrice blanchetête"]]
+  ] as const;
+  const matches = wings.filter(([, bosses]) => bosses.some(name => names.has(name)));
+  return matches.length === 1 ? `189:${matches[0]![0]}` : "189";
+}
 export function createDungeonRatingRules(targets: Record<string, number> = {}, version: 2 | 3 = 3, bands: Record<string, LevelBand> = {}) {
   const frozen: Record<string, number> = {};
   for (const [id, seconds] of Object.entries(targets)) {
-    if (/^[1-9]\d*$/.test(id) && Number.isFinite(seconds) && seconds >= 1 && seconds <= 14400) frozen[id] = Math.round(seconds);
+    if (validDungeonKey(id) && Number.isFinite(seconds) && seconds >= 1 && seconds <= 14400) frozen[id] = Math.round(seconds);
   }
-  const levelBands = Object.fromEntries(Object.entries(bands).filter(([id, band]) => /^[1-9]\d*$/.test(id) && validLevelBand(band)).map(([id, b]) => [id, { ...b }]));
+  const levelBands = Object.fromEntries(Object.entries(bands).filter(([id, band]) => validDungeonKey(id) && validLevelBand(band)).map(([id, b]) => [id, { ...b }]));
   return version === 2
     ? { ...DUNGEON_RATING_RULES, version: 2, speedBonus: 20, fullBonusFasterFraction: 0.3, targets: frozen }
     : { ...DUNGEON_RATING_RULES, version: 3, pointsPerDungeon: 200, speedBonus: 0, minimumScore: 50, maximumScore: 400, targets: frozen, levelBands };
@@ -26,20 +44,20 @@ export function hasDungeonRating(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
   const rule = value as Record<string, unknown>;
   const validTargets = !!rule["targets"] && typeof rule["targets"] === "object" && !Array.isArray(rule["targets"])
-    && Object.entries(rule["targets"]).every(([id, seconds]) => /^[1-9]\d*$/.test(id)
+    && Object.entries(rule["targets"]).every(([id, seconds]) => validDungeonKey(id)
       && typeof seconds === "number" && Number.isInteger(seconds) && seconds >= 1 && seconds <= 14400);
   const version = rule["version"] === 1 && rule["speedBonus"] === 0 && rule["pointsPerDungeon"] === 100
     || rule["version"] === 2 && rule["pointsPerDungeon"] === 100 && rule["speedBonus"] === 20 && rule["fullBonusFasterFraction"] === 0.3 && validTargets
     || rule["version"] === 3 && rule["pointsPerDungeon"] === 200 && rule["speedBonus"] === 0
       && !!rule["levelBands"] && typeof rule["levelBands"] === "object" && !Array.isArray(rule["levelBands"])
-      && Object.entries(rule["levelBands"]).every(([id, b]) => /^[1-9]\d*$/.test(id) && validLevelBand(b))
+      && Object.entries(rule["levelBands"]).every(([id, b]) => validDungeonKey(id) && validLevelBand(b))
       && rule["minimumScore"] === 50 && rule["maximumScore"] === 400 && validTargets;
   return version && rule["model"] === "distinct-dungeons"
     && rule["minimumPresence"] === 0.8 && rule["automaticCompletionOnly"] === true;
 }
 export interface DungeonRatingDetail {
   instanceId: number; name: string; points: number; speedBonus: number; durationSec: number;
-  targetSec: number | null; runRef: string; ratingVersion?: 3; unrankedReason?: string; bosses?: BossRecord[];
+  targetSec: number | null; runRef: string; dungeonKey?: string; ratingVersion?: 3; unrankedReason?: string; bosses?: BossRecord[];
 }
 export interface RatingRow { memberId: string; name: string; points: number; dungeons: number; details?: DungeonRatingDetail[] }
 export interface BossRecord { id: number; name: string; durationSec: number; runRef: string }
@@ -85,26 +103,27 @@ export function calculateDungeonRating(runs: RatingRun[], rules?: unknown): Rati
   const version = (rules as { version?: number } | undefined)?.version;
   const targets = version === 2 || version === 3
     ? (rules as ReturnType<typeof createDungeonRatingRules>).targets : {};
-  const members = new Map<string, { name: string; bests: Map<number, DungeonRatingDetail> }>();
+  const members = new Map<string, { name: string; bests: Map<string, DungeonRatingDetail> }>();
   for (const run of runs) {
     if (!run.durationSec || !Number.isFinite(run.durationSec) || run.durationSec <= 0) continue;
-    const reason = version === 3 ? competitionReason(run, (rules as { levelBands?: Record<string, LevelBand> }).levelBands?.[String(run.instanceId)]) : undefined;
+    const key = version === 3 ? ratingDungeonKey(run) : String(run.instanceId);
+    const reason = version === 3 && key === "189" ? "Dungeon route unknown" : version === 3 ? competitionReason(run, (rules as { levelBands?: Record<string, LevelBand> }).levelBands?.[key]) : undefined;
     const bosses = version === 3 && !reason ? bossRecords(run) : [];
     for (const player of run.players) {
       if (!player.memberId || !player.member || !Number.isFinite(player.presentSec) || player.presentSec < run.durationSec * 0.8) continue;
-      const member = members.get(player.memberId) ?? { name: player.member.displayName, bests: new Map<number, DungeonRatingDetail>() };
-      const targetSec = targets[String(run.instanceId)] ?? null;
+      const member = members.get(player.memberId) ?? { name: player.member.displayName, bests: new Map<string, DungeonRatingDetail>() };
+      const targetSec = targets[key] ?? null;
       const speedBonus = version === 3 ? 0 : speedPoints(run.durationSec, targetSec);
-      const detail: DungeonRatingDetail = { ...(version === 3 ? { ratingVersion: 3 as const, ...(reason || !targetSec ? { unrankedReason: reason ?? "Target not calibrated" } : {}), bosses: [] } : {}), instanceId: run.instanceId, name: run.dungeonName ?? `#${run.instanceId}`, points: version === 3 ? reason ? 0 : timeRating(run.durationSec, targetSec) : 100 + speedBonus,
+      const detail: DungeonRatingDetail = { ...(version === 3 ? { ratingVersion: 3 as const, dungeonKey: key, ...(reason || !targetSec ? { unrankedReason: reason ?? "Target not calibrated" } : {}), bosses: [] } : {}), instanceId: run.instanceId, name: key.startsWith("189:") ? `Scarlet Monastery: ${key.split(":")[1]}` : run.dungeonName ?? `#${run.instanceId}`, points: version === 3 ? reason ? 0 : timeRating(run.durationSec, targetSec) : 100 + speedBonus,
         speedBonus, durationSec: run.durationSec, targetSec, runRef: run.runRef ?? "" };
-      const previous = member.bests.get(run.instanceId);
+      const previous = member.bests.get(key);
       const bossBests = new Map((previous?.bosses ?? []).map(b => [b.id, b]));
       for (const boss of bosses) if (!bossBests.has(boss.id) || boss.durationSec < bossBests.get(boss.id)!.durationSec) bossBests.set(boss.id, boss);
       if (version === 3) detail.bosses = [...bossBests.values()].sort((a, b) => a.id - b.id);
       if (previous && version === 3) previous.bosses = detail.bosses ?? [];
       if (!previous || detail.points > previous.points || detail.points === previous.points
         && (detail.durationSec < previous.durationSec || detail.durationSec === previous.durationSec && detail.runRef < previous.runRef)) {
-        member.bests.set(run.instanceId, detail);
+        member.bests.set(key, detail);
       }
       members.set(player.memberId, member);
     }
@@ -116,23 +135,24 @@ export function calculateDungeonRating(runs: RatingRun[], rules?: unknown): Rati
 }
 function validDetails(row: RatingRow): boolean {
   if (!Array.isArray(row.details) || row.details.length !== row.dungeons) return false;
-  const ids = new Set<number>();
+  const ids = new Set<string>();
   let total = 0;
   for (const detail of row.details) {
-    if (!detail || !Number.isInteger(detail.instanceId) || detail.instanceId <= 0 || ids.has(detail.instanceId)
+    const key = detail?.dungeonKey ?? String(detail?.instanceId);
+    if (!detail || !Number.isInteger(detail.instanceId) || detail.instanceId <= 0 || ids.has(key) || !validDungeonKey(key) || Number(key.split(":")[0]) !== detail.instanceId
       || typeof detail.name !== "string" || typeof detail.runRef !== "string" || !Number.isFinite(detail.durationSec) || detail.durationSec <= 0
       || !Number.isInteger(detail.speedBonus) || detail.speedBonus < 0 || detail.speedBonus > 20
       || detail.targetSec !== null && (!Number.isInteger(detail.targetSec) || detail.targetSec < 1 || detail.targetSec > 14400)) return false;
     if (detail.ratingVersion === 3) {
       if (detail.speedBonus !== 0 || detail.points !== (detail.unrankedReason ? 0 : timeRating(detail.durationSec, detail.targetSec))) return false;
-      if (detail.unrankedReason !== undefined && !["Level range not configured", "Different difficulty", "Party levels unknown", "Overlevel carry", "Below level range", "Target not calibrated"].includes(detail.unrankedReason)) return false;
+      if (detail.unrankedReason !== undefined && !["Level range not configured", "Different difficulty", "Party levels unknown", "Overlevel carry", "Below level range", "Target not calibrated", "Dungeon route unknown"].includes(detail.unrankedReason)) return false;
       if (detail.bosses !== undefined && (!Array.isArray(detail.bosses) || detail.bosses.length > 100
         || new Set(detail.bosses.map(b => b.id)).size !== detail.bosses.length
         || detail.bosses.some(b => !Number.isInteger(b.id) || b.id <= 0 || !Number.isInteger(b.durationSec) || b.durationSec <= 0
           || b.durationSec > 14400 || typeof b.name !== "string" || typeof b.runRef !== "string"))) return false;
     } else if (detail.ratingVersion !== undefined || detail.points !== 100 + detail.speedBonus
       || detail.speedBonus !== speedPoints(detail.durationSec, detail.targetSec)) return false;
-    ids.add(detail.instanceId); total += detail.points;
+    ids.add(key); total += detail.points;
   }
   return total === row.points;
 }
@@ -150,8 +170,8 @@ export async function dungeonRating(database: Pick<PrismaClient, "dungeonRun">, 
     if (instanceId === null) return rows;
     if (rows.some(row => row.details === undefined)) throw new Error("Archived per-dungeon details were not recorded for this season.");
     return rows.flatMap(row => {
-      const detail = row.details?.find(item => item.instanceId === instanceId);
-      return detail ? [{ ...row, points: detail.points, dungeons: 1, details: [detail] }] : [];
+      const details = row.details?.filter(item => item.instanceId === instanceId) ?? [];
+      return details.length ? [{ ...row, points: details.reduce((sum, d) => sum + d.points, 0), dungeons: details.length, details }] : [];
     }).sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
   }
   const timed = (season.ratingRules as { version: number }).version === 3;
@@ -187,4 +207,25 @@ export function ratingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, r
   return new EmbedBuilder().setColor(0x8b5cf6).setTitle(`${fr ? "🏅 Exploration" : "🏅 Exploration rating"} · ${seasonName}`.slice(0, 256))
     .setDescription(lines.join("\n\n"))
     .setFooter({ text: fr ? "Boss final détecté + présence ≥ 80 %. Points de participation séparés." : "Detected final boss + ≥80% presence. Participation points are separate." });
+}
+
+export interface DungeonCatalogEntry {
+  dungeonKey: string; instanceId: number; name: string; targetSec: number | null;
+  minLevel?: number; maxLevel?: number; provisional?: boolean;
+}
+export function seasonDungeonCatalog(rules: unknown, rows: RatingRow[]): DungeonCatalogEntry[] {
+  const result = new Map<string, DungeonCatalogEntry>();
+  const catalog = (rules as { catalog?: unknown[] } | null)?.catalog;
+  for (const raw of Array.isArray(catalog) ? catalog.slice(0, 100) : []) {
+    const d = raw as DungeonCatalogEntry;
+    if (!d || typeof d.dungeonKey !== "string" || !validDungeonKey(d.dungeonKey) || Number(d.dungeonKey.split(":")[0]) !== d.instanceId
+      || typeof d.name !== "string" || !Number.isInteger(d.targetSec) || d.targetSec! <= 0 || d.targetSec! > 14400) continue;
+    result.set(d.dungeonKey, { ...d });
+  }
+  for (const row of rows) for (const detail of row.details ?? []) {
+    const key = detail.dungeonKey ?? String(detail.instanceId);
+    result.set(key, { dungeonKey: key, instanceId: detail.instanceId, name: detail.name, targetSec: detail.targetSec,
+      ...result.get(key) });
+  }
+  return [...result.values()];
 }

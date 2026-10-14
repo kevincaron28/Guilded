@@ -53,11 +53,11 @@ function lootToLua(loot) {
 function seasonFields(board) {
   if (board.detailsAvailable === undefined) return "";
   const details = (board.profiles ?? []).map(profile => {
-    const runs = (profile.details ?? []).map(d => `{ instanceId = ${Math.trunc(d.instanceId)}, name = ${luaString(d.name)}, points = ${Math.trunc(d.points)}, speedBonus = ${Math.trunc(d.speedBonus)}, durationSec = ${Math.trunc(d.durationSec)}, targetSec = ${d.targetSec == null ? "nil" : Math.trunc(d.targetSec)}, runRef = ${luaString(d.runRef)}, unrankedReason = ${d.unrankedReason ? luaString(d.unrankedReason) : "nil"}, bosses = { ${(d.bosses ?? []).map(b => `{ id = ${Math.trunc(b.id)}, name = ${luaString(b.name)}, durationSec = ${Math.trunc(b.durationSec)}, runRef = ${luaString(b.runRef)} }`).join(", ")} } }`);
+    const runs = (profile.details ?? []).map(d => `{ dungeonKey = ${luaString(d.dungeonKey ?? String(d.instanceId))}, instanceId = ${Math.trunc(d.instanceId)}, name = ${luaString(d.name)}, points = ${Math.trunc(d.points)}, speedBonus = ${Math.trunc(d.speedBonus)}, durationSec = ${Math.trunc(d.durationSec)}, targetSec = ${d.targetSec == null ? "nil" : Math.trunc(d.targetSec)}, runRef = ${luaString(d.runRef)}, unrankedReason = ${d.unrankedReason ? luaString(d.unrankedReason) : "nil"}, bosses = { ${(d.bosses ?? []).map(b => `{ id = ${Math.trunc(b.id)}, name = ${luaString(b.name)}, durationSec = ${Math.trunc(b.durationSec)}, runRef = ${luaString(b.runRef)} }`).join(", ")} } }`);
     return `{ name = ${luaString(profile.name)}, points = ${Math.trunc(profile.points)}, characters = { ${(profile.characters ?? []).map(luaString).join(", ")} }, details = { ${runs.join(", ")} } }`;
   });
-  const catalog = (board.catalog ?? []).map(d => `{ instanceId = ${Math.trunc(d.instanceId)}, name = ${luaString(d.name)}, targetSec = ${d.targetSec == null ? "nil" : Math.trunc(d.targetSec)} }`);
-  return `id = ${luaString(board.id ?? "")}, ratingVersion = ${Math.trunc(board.ratingVersion ?? 0)}, detailsAvailable = ${board.detailsAvailable === true ? "true" : "false"}, profiles = { ${details.join(", ")} }, catalog = { ${catalog.join(", ")} }, `;
+  const catalog = (board.catalog ?? []).map(d => `{ dungeonKey = ${luaString(d.dungeonKey ?? String(d.instanceId))}, instanceId = ${Math.trunc(d.instanceId)}, name = ${luaString(d.name)}, targetSec = ${d.targetSec == null ? "nil" : Math.trunc(d.targetSec)}, minLevel = ${d.minLevel ?? "nil"}, maxLevel = ${d.maxLevel ?? "nil"}, provisional = ${d.provisional === true ? "true" : "false"} }`);
+  return `provisionalTargets = ${board.provisionalTargets === true ? "true" : "false"}, id = ${luaString(board.id ?? "")}, ratingVersion = ${Math.trunc(board.ratingVersion ?? 0)}, detailsAvailable = ${board.detailsAvailable === true ? "true" : "false"}, profiles = { ${details.join(", ")} }, catalog = { ${catalog.join(", ")} }, `;
 }
 
 export function standingsToLua(data) {

@@ -30,22 +30,22 @@ function view.model(name, seasonIndex)
   local available = snapshot and snapshot.available
   local profile = available and snapshot.profile
   local byId, known, cards = {}, {}, {}
-  for _, d in ipairs(profile and profile.details or {}) do byId[d.instanceId] = d end
+  for _, d in ipairs(profile and profile.details or {}) do byId[d.dungeonKey or tostring(d.instanceId)] = d end
   for _, dungeon in ipairs(snapshot and snapshot.catalog or {}) do
-    local best = byId[dungeon.instanceId]
-    cards[#cards + 1] = { name = dungeon.name, points = available and (best and best.points or 0) or nil,
+    local best = byId[dungeon.dungeonKey or tostring(dungeon.instanceId)]
+    cards[#cards + 1] = { name = dungeon.name, minLevel = dungeon.minLevel, maxLevel = dungeon.maxLevel, points = available and (best and best.points or 0) or nil,
       reason = best and best.unrankedReason, bosses = best and best.bosses, sec = best and best.durationSec, speedBonus = best and best.speedBonus, targetSec = dungeon.targetSec }
     local mapped = score.dungeonFor(dungeon.name)
     if mapped then known[mapped.key] = true end
   end
   -- Keep known unvisited Classic dungeons visible without merging actual instance IDs.
-  for _, dungeon in ipairs(score.DUNGEONS) do
-    if not known[dungeon.key] then cards[#cards + 1] = { name = dungeon.name, points = available and 0 or nil } end
+  for _, dungeon in ipairs(snapshot and snapshot.provisional and {} or score.DUNGEONS) do
+    if not known[dungeon.key] then cards[#cards + 1] = { name = dungeon.name, minLevel = dungeon.minLevel, maxLevel = dungeon.maxLevel, points = available and 0 or nil } end
   end
   table.sort(cards, function(a, b) return a.name < b.name end)
   return { total = profile and profile.points or own, count = profile and #profile.details or nil,
     cards = cards, seasons = seasons, seasonIndex = seasonIndex, season = selected, rows = rows,
-    own = profile and profile.points or own, available = available, version = snapshot and snapshot.version }
+    own = profile and profile.points or own, available = available, version = snapshot and snapshot.version, provisional = snapshot and snapshot.provisional }
 
 end
 
@@ -114,15 +114,17 @@ function view.build(parent)
     self.note:SetText(model.available and (model.version == 3 and L("200 at target. Best run per dungeon. Hover for boss records.") or model.version == 2 and L("100 per dungeon + up to 20 speed. Only your best run counts.")
       or L("Historical rules: 100 per distinct dungeon, no speed bonus."))
       or L("Per-dungeon breakdown unavailable in this snapshot."))
+    if model.provisional then self.note:SetText(L("Provisional targets, fixed for this season. Hover for boss records.")) end
     if not model.available and ns.seasonDetails then ns.seasonDetails.request(model.seasonIndex) end
     for i, card in ipairs(self.cards) do
       local row = model.cards[(self.page - 1) * 8 + i]
       if row then
         card.row = row
-        card:Show(); card.name:SetText(row.name)
+        card:Show(); card.name:SetText(row.name .. (row.minLevel and (" (" .. row.minLevel .. "-" .. row.maxLevel .. ")") or ""))
         card.value:SetText(row.sec and ("|cffefca68" .. (row.reason and L("Unranked") or tostring(row.points)) .. (model.version == 2 and " (+" .. row.speedBonus .. ")" or "") .. "|r  " .. duration(row.sec)
           .. " / " .. (row.targetSec and duration(row.targetSec) or L("No target")))
-          or ("|cff8993a4" .. (model.available and L("Not completed this season") or L("Breakdown unavailable")) .. "|r"))
+          or ("|cff8993a4" .. (model.available and L("Not completed this season") or L("Breakdown unavailable")) .. "|r"
+            .. (row.targetSec and (" / " .. duration(row.targetSec)) or "")))
         card.bar:SetWidth(math.max(1, 287 * (row.points or 0) / (model.version == 3 and 400 or 120)))
         if (row.points or 0) > 0 then card.bar:Show() else card.bar:Hide() end
       else card:Hide() end

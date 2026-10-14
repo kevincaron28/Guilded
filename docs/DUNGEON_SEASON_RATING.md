@@ -75,6 +75,11 @@ keystone difficulty. Its retail score scale is not a direct fit for this beta:
 - https://support.raider.io/kb/frequently-asked-questions/how-do-you-rank-characters-for-mythic-plus
 - https://support.raider.io/kb/frequently-asked-questions/what-is-the-base-score-value-for-each-level-keystone
 
+Update: the owner approved explicitly provisional targets for the short beta.
+See [the researched preset and launch handoff](DUNGEON_BETA_PRESET_2026-10.md).
+Its fixed design targets supersede the wait-for-calibration guidance below for
+this season only.
+
 The search found dungeon metadata but no verified, comparable full-run baseline
 set for the current Forever beta. Do not ship invented Classic-to-Forever timers.
 Suggested calibration policy: use a documented route/difficulty reference where

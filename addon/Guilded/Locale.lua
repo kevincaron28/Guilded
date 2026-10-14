@@ -597,3 +597,6 @@ FR["Party levels unknown"] = "Niveaux du groupe inconnus"
 FR["Overlevel carry"] = "Aide d'un joueur de trop haut niveau"
 FR["Below level range"] = "Niveau trop bas"
 FR["Target not calibrated"] = "Cible non calibree"
+
+FR["Dungeon route unknown"] = "Aile du donjon inconnue"
+FR["Provisional targets, fixed for this season. Hover for boss records."] = "Cibles provisoires fixes pour la saison. Survolez pour les boss."

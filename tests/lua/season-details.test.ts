@@ -1,8 +1,34 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { standingsToLua } from "../../companion/standings-format.mjs";
+import { betaSeasonRules } from "../../src/services/dungeon-beta-preset.js";
 import { newLuaSession, type LuaSession } from "./harness.js";
 const sessions: LuaSession[] = [];
 afterEach(() => { for (const s of sessions) s.close(); sessions.length = 0; });
+
+it("shows the complete beta catalogue before any runs and relays separate Scarlet wings", () => {
+  const officer = setup(true), member = setup();
+  officer.run('NS.playerName=function() return "Officer" end');
+  const preset = betaSeasonRules();
+  const details = ["graveyard", "library"].map((wing, i) => ({ instanceId: 189, dungeonKey: `189:${wing}`, name: wing,
+    points: 200, speedBonus: 0, durationSec: i ? 1500 : 900, targetSec: i ? 1500 : 900, runRef: wing,
+    bosses: [{ id: 1, name: wing, durationSec: 60, runRef: wing }] }));
+  officer.run(standingsToLua({ updatedAt: "stamp", standings: [], dungeonBoard: { id: "beta", season: "Beta", status: "ACTIVE",
+    ratingVersion: 3, detailsAvailable: true, provisionalTargets: true, rows: [], catalog: preset.catalog,
+    profiles: [{ name: "Tester", characters: [], points: 400, details }] } }));
+  officer.run("DB.dungeonBoard=GuildedDungeonBoard");
+  expect(officer.run('return #NS.dungeonScorePanel.model("Officer",1).cards')).toBe("16");
+  expect(officer.run('return NS.dungeonScorePanel.model("Officer",1).total')).toBe("0");
+  member.run('DB.dungeonBoard={updatedAt="stamp",season="Beta",status="ACTIVE",rows={}}; NS.seasonDetails.request(1)');
+  officer.run(`fire_event("CHAT_MSG_ADDON","GuildedRating",${JSON.stringify(member.run("return SENT[#SENT].text"))},"GUILD","Tester")`);
+  for (let i = 1; i <= Number(officer.run("return #SENT")); i++) {
+    member.run(`fire_event("CHAT_MSG_ADDON","GuildedRating",${JSON.stringify(officer.run(`return SENT[${i}].text`))},"WHISPER","Officer")`);
+  }
+  expect(member.run('return #NS.dungeonScorePanel.model("Tester",1).cards')).toBe("16");
+  expect(member.run('return NS.dungeonScorePanel.model("Tester",1).total')).toBe("400");
+  expect(member.run('return NS.seasonDetails.get(1,"Tester").profile.details[2].bosses[1].runRef')).toBe("library");
+  expect(member.run('return tostring(NS.seasonDetails.get(1,"Tester").provisional)')).toBe("true");
+  expect(member.run('return NS.seasonDetails.get(1,"Tester").catalog[1].minLevel')).toBe("13");
+});
 const best = { instanceId: 36, name: 'Deadmines; "West"', points: 110, speedBonus: 10, durationSec: 1020, targetSec: 1200, runRef: "run;one" };
 const current = { id: "current", season: "Current", status: "ACTIVE", ratingVersion: 2, detailsAvailable: true,
   rows: [{ name: "Main", points: 110 }],

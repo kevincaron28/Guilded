@@ -1,8 +1,11 @@
 # In-game-only setup — 14 October 2026
 
 Default-mode follow-up: new source selects **In-game only** automatically for
-fresh/unconnected installations and does not force a chooser on login. Existing
-connected snapshots and explicit choices are retained. `/guilded setup` still
+fresh/unconnected installations and does not force a chooser on login. A saved
+snapshot marked as coming from the companion, or a companion standings file,
+retains connected setup. In-game officer snapshots and legacy snapshots without
+a known source keep addon-only setup; a timestamp alone does not prove a Discord
+connection. Explicit choices are retained. `/guilded setup` still
 offers both modes. Character linking in Discord is optional and works with
 `/guilded character` → `/character import` without a companion; companion codes
 are issued only when that separate connection is requested. Fresh-profile
@@ -23,8 +26,14 @@ Fresh installations can use local gear checks, dungeon recording, raid
 attendance, loot and officer ledger publication without Discord or core
 signups. Scores clearly distinguishes recording from verified online seasonal
 rankings. Local ledger characters are visible before an officer publishes.
-Manual local core/roster management remains future work; no roster is inferred
-from the guild or filled with sample players.
+The published 6.1.2 client does not include local core/roster administration.
+That feature is implemented in the next-version preview described in
+[the standalone candidate notes](V6_2_STANDALONE_AND_GAMES.md); no roster is
+inferred from the guild or filled with sample players.
+
+If an older build already chose Connected from an in-game officer snapshot,
+select `/guilded setup local` once. The fix preserves explicit saved choices
+instead of guessing which existing Connected choices were unintended.
 
 Real-client acceptance required: /guilded setup opens out of combat; both
 choices fit the frame; In-game only changes Home/sidebar saving labels;

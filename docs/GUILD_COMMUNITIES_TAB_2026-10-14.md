@@ -29,4 +29,12 @@ Owner reported no tab visible on the first candidate. The integration now loads
 inside the existing Minimap.lua TOC entry, avoiding reliance on the client
 discovering a new Lua file on reload. Its icon is anchored at the lower right
 edge of the guild window rather than below GuildInfoTab, keeping it away from
-the extra upper side tab visible in the owner's screenshot. Retest pending.
+the extra upper side tab visible in the owner's screenshot.
+
+Owner then confirmed the tab appears, but screenshots showed a shrunken panel
+with native chat and roster drawing over it. The guild view now uses scale 1
+and opposite-corner anchors inside the native title/borders. Every Guilded child
+frame is raised with the panel; the regular 790x600 window size and saved scale
+are restored on exit. A translucent selected texture keeps the logo visible.
+Lua tests now model frame children and assert fitted anchors, scale, child
+levels and restored window dimensions. Updated layout acceptance is pending.

@@ -9,8 +9,9 @@ afterEach(() => { session?.close(); session = undefined; });
 
 const RICH_FRAMES = String.raw`
   local numbers = { GetWidth = 100, GetHeight = 100, GetEffectiveScale = 1, GetFrameLevel = 1, GetLeft = 0, GetTop = 0, GetRight = 100, GetBottom = 0, GetStringWidth = 50 }
-  function CreateFrame()
-    local f = { scripts = {}, shown = false, text = "" }
+  function CreateFrame(_, frameName, parent)
+    local f = { scripts = {}, shown = false, text = "", children = {}, points = {}, frameName = frameName }
+    if parent and type(parent.children) == "table" then table.insert(parent.children, f) end
     setmetatable(f, { __index = function(_, k)
       if numbers[k] then return function() return numbers[k] end end
       if k == "GetText" then return function(self) return self.text end end
@@ -26,6 +27,12 @@ const RICH_FRAMES = String.raw`
     f.SetScript = function(self, name, fn) self.scripts[name] = fn end
     f.GetScript = function(self, name) return self.scripts[name] end
     f.HookScript = function(self, name, fn) self.scripts[name] = self.scripts[name] or fn end
+    f.GetChildren = function(self) return unpack(self.children) end
+    f.SetFrameLevel = function(self, level) self.level = level end
+    f.SetScale = function(self, scale) self.scale = scale end
+    f.ClearAllPoints = function(self) self.points = {} end
+    f.SetPoint = function(self, ...) table.insert(self.points, {...}) end
+    f.SetSize = function(self, width, height) self.width = width; self.height = height end
     FRAMES[#FRAMES + 1] = f
     return f
   end
@@ -65,6 +72,14 @@ describe("the tools window (sidebar and Home page)", () => {
     expect(visibleTabs(s)).toBe("Standings,Season,Crafting");
     expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`)).toBe("Standings");
     expect(s.run(`return tostring(NS.windowState().guildHost == HOST)`)).toBe("true");
+    expect(s.run(`
+      for _, f in ipairs(FRAMES) do
+        if f.frameName == "GuildedPanel" then
+          return tostring(f.scale == 1 and #f.points == 2 and f.points[1][1] == "TOPLEFT" and f.points[2][1] == "BOTTOMRIGHT")
+        end
+      end
+    `)).toBe("true");
+    expect(s.run(`return tostring(NS.windowState().tabs[1].page.level > 1000)`)).toBe("true");
     s.run(`
       for _, f in ipairs(FRAMES) do if f.scripts.OnHide and f.scripts.OnShow then f.scripts.OnHide(f) end end
       NS.commandHandlers["menu"]()
@@ -72,6 +87,9 @@ describe("the tools window (sidebar and Home page)", () => {
       for _, f in ipairs(FRAMES) do if f.scripts.OnShow then f.scripts.OnShow(f) end end
     `);
     expect(s.run(`return tostring(NS.windowState().guildHost == nil)`)).toBe("true");
+    expect(s.run(`
+      for _, f in ipairs(FRAMES) do if f.frameName == "GuildedPanel" then return tostring(f.width == 790 and f.height == 600) end end
+    `)).toBe("true");
     expect(visibleTabs(s)).toContain("Home");
     expect(visibleTabs(s)).toContain("Me");
     expect(visibleTabs(s)).not.toContain("EPGP");

@@ -1529,6 +1529,17 @@ end
 -- Window
 -- ---------------------------------------------------------------------
 
+local function raiseWindow(frame, level, seen)
+  seen = seen or {}
+  if seen[frame] then return end
+  seen[frame] = true
+  frame:SetFrameStrata("DIALOG")
+  frame:SetFrameLevel(level)
+  for _, child in ipairs({ frame:GetChildren() }) do
+    if type(child) == "table" or type(child) == "userdata" then raiseWindow(child, level + 1, seen) end
+  end
+end
+
 local function buildPanel()
   panel = CreateFrame("Frame", "GuildedPanel", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
   panel:SetWidth(PANEL_WIDTH)
@@ -1663,6 +1674,8 @@ local function buildPanel()
       panel:SetPoint(saved[1], UIParent, saved[2] or saved[1], tonumber(saved[3]) or 0, tonumber(saved[4]) or 0)
     else panel:SetPoint("CENTER", UIParent, "CENTER") end
     panel:SetScale(tonumber(s.panelScale) or 1)
+    panel:SetSize(PANEL_WIDTH, PANEL_HEIGHT)
+    raiseWindow(panel, ui.undockedLevel or 10)
     panel:SetMovable(true)
     if ui.guildBackground then ui.guildBackground:Hide() end
     if ns.guildPanel and ns.guildPanel.tab then ns.guildPanel.tab:SetChecked(false) end
@@ -1705,11 +1718,15 @@ function ns.openGuildPanel(host)
   if not panel then buildPanel() end
   panel:Hide()
   ui.guildHost = host
+  ui.undockedLevel = panel:GetFrameLevel()
   panel:SetParent(host)
   panel:ClearAllPoints()
-  panel:SetPoint("TOPLEFT", host, "TOPLEFT", 0, 0)
-  panel:SetScale(math.min(host:GetWidth() / PANEL_WIDTH, host:GetHeight() / PANEL_HEIGHT))
-  panel:SetFrameLevel(host:GetFrameLevel() + 20)
+  panel:SetScale(1)
+  panel:SetPoint("TOPLEFT", host, "TOPLEFT", 8, -30)
+  panel:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", -8, 8)
+  -- Raise the whole Guilded subtree, including previously built pages and
+  -- controls. Reparenting the outer frame alone leaves native children above it.
+  raiseWindow(panel, host:GetFrameLevel() + 1000)
   panel:SetMovable(false)
   if not ui.guildBackground then
     ui.guildBackground = panel:CreateTexture(nil, "BACKGROUND", nil, -8)
@@ -1911,7 +1928,10 @@ function view.attach()
   tab:SetPoint("BOTTOMLEFT", host, "BOTTOMRIGHT", 0, 16)
   tab:SetNormalTexture("Interface\\AddOns\\Guilded\\Media\\GuildedLogo")
   tab:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
-  tab:SetCheckedTexture("Interface\\Buttons\\CheckButtonHilight", "ADD")
+  local selected = tab:CreateTexture(nil, "OVERLAY")
+  selected:SetAllPoints()
+  selected:SetColorTexture(1, 0.8, 0.15, 0.25)
+  tab:SetCheckedTexture(selected)
   tab:SetScript("OnClick", function(self)
     if InCombatLockdown and InCombatLockdown() then self:SetChecked(false); return end
     if ns.windowState and ns.windowState().guildHost then

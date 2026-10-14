@@ -96,12 +96,12 @@ describe("the whole addon, loaded in .toc order", () => {
     `);
     expect(s.run(`return tostring(NS.isInGameOnly())`)).toBe("true");
     expect(s.run(`return NS.windowState().homeSave.text`)).toBe("Save my addon data");
-    expect(s.run(`return NS.windowState().homeSync.text`)).toMatch(/No (Discord connection|companion) is required/);
+    expect(s.run(`return NS.windowState().syncStatus`)).toMatch(/No (Discord connection|companion) is required/);
     expect(s.run(`return NS.getDb().epgp.Kev.ep`)).toBe("50");
     expect(s.run(`return NS.getDb().lootRules.cores[1].id`)).toBe("kept");
     expect(s.run(`return tostring(NS.isOfficer())`)).toBe("false");
     s.run(`NS.syncNow.mark(); NS.windowState().selectTabByName("Home")`);
-    expect(s.run(`return NS.windowState().homeSync.text`)).toContain("Local changes");
+    expect(s.run(`return NS.windowState().syncStatus`)).toContain("Local changes");
     s.run(`NS.windowState().selectTabByName("Standings")`);
     expect(s.run(`return NS.windowState().standingsList.text`)).toContain("Kev");
     expect(s.run(`return NS.windowState().standingsList.text`)).toContain("Local ledger");

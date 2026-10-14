@@ -1,11 +1,13 @@
 # Guilds & Communities tab
 
-Local candidate following the published 6.1.1 release; not in the 6.1.1 ZIP.
+6.1.2 candidate following the published 6.1.1 release; not in the 6.1.1 ZIP.
 
-The Guilded logo below the native guild tabs embeds the existing Standings,
-Crafting, Season, Calendar and EPGP pages. Officer and module visibility rules
-are reused. Native roster/chat remain their own tabs. Dungeon runs and personal
-scores remain available through the dungeon finder and full Guilded menu.
+The Guilded logo below the native guild tabs embeds Standings, Crafting and
+Administration (EPGP). Officer and module visibility rules are reused. Native
+roster/chat remain their own tabs. Dungeon runs and season progress/rankings
+have one location in the dungeon finder. Calendar administration opens beside
+the native calendar; members see only their native calendar. Home shortcuts
+route to these locations instead of duplicating pages.
 
 Only Guilded's own window is reparented. Native display-mode tables and click
 handlers are not replaced. Switching native tabs or closing the host restores
@@ -23,7 +25,8 @@ result is recorded in the delivery evidence after completion.
 Installed on the owner's local client with original files backed up under
 backups/guild-tab-20261014. SavedVariables untouched. Real-client layout,
 native-tab switching and minimap restoration remain pending owner acceptance.
-No version bump, public package replacement or live server change for this tab.
+The owner authorized publication and a coordinated 6.1.2 update. Publication
+requires the final candidate checks; earlier layout acceptance is retained below.
 
 Owner reported no tab visible on the first candidate. The integration now loads
 inside the existing Minimap.lua TOC entry, avoiding reliance on the client
@@ -43,3 +46,20 @@ button below the shorter host window. Guild pages now use a bounded scroll
 viewport, preserving their original content height without rendering controls
 outside the guild window. Standalone pages restore their original anchors.
 This last scrolling adjustment is installed locally; visual retest pending.
+
+The final menu reorganization uses Blizzard's marble background and native
+CommunitiesFrameTabTemplate border (with a classic texture fallback). It removes
+the nested dialog border from the guild page. Home has one shared save action;
+setup is in Settings. Lua regression coverage checks the single menu scopes,
+officer-only calendar routing, per-character recent runs, and Run/Season reuse.
+Owner screenshots then exposed clamped marble textures, unnecessary scrolling,
+and a blank calendar page after reselecting it. Textures now use REPEAT wrapping;
+content height follows the selected page, short pages have no scroll range,
+mouse wheel movement is bounded to 24 pixels, and scroll children are explicitly
+anchored after every selection. The ledger share action follows the standings
+text instead of sitting at a fixed off-screen offset.
+
+Final owner acceptance on 14 October: after reload, the guild/dungeon backgrounds
+are correct, Administration no longer needlessly scrolls, and Calendar controls
+are visible. Owner answered: "Yes, these corrections work." Previous evidence
+also confirms native-tab switching and restoration of the minimap menu.

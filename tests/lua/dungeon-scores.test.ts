@@ -23,6 +23,15 @@ function setup() {
 }
 
 describe("guild-only dungeon scores", () => {
+  it("shows only this character's recent runs without deleting another character's history", () => {
+    const s = setup();
+    s.run(`DB.dungeon={runs={a={name="Old",endedAt=10,players={Tester={}}},
+      b={name="Other character",endedAt=30,players={Alt={}}},
+      c={name="New",endedAt=20,players={["Tester-Realm"]={}}}}}
+      M=NS.dungeonScorePanel.runModel()`);
+    expect(s.run('return #M.recent..":"..M.recent[1].name..":"..M.recent[2].name')).toBe("2:New:Old");
+    expect(s.run('return DB.dungeon.runs.b.name')).toBe("Other character");
+  });
   it("orders dungeon cards by minimum level, maximum level, then name, with unknown levels last", () => {
     const s = setup();
     s.run(`DB.dungeonBoard.detailsAvailable=true; DB.dungeonBoard.provisionalTargets=true
@@ -73,6 +82,11 @@ describe("guild-only dungeon scores", () => {
     s.run('COMBAT=false; CLICK(); LFGParentFrame:UpdateTabs()');
     expect(s.run('return tostring(PANE:IsShown() and TAB.checked and not LFGParentFrame.ListingTab.checked and not LFGListingFrame:IsShown())')).toBe("true");
     expect(s.run('return PANE.width..":"..#PANE.cards')).toBe("440:4");
+    s.run('NS.dungeonScorePanel.open("run"); PANE:GetScript("OnUpdate")(PANE, 1)');
+    expect(s.run('return tostring(PANE.runView:IsShown() and PANE==NS.dungeonScorePanel.pane)')).toBe("true");
+    s.run('NS.dungeonScorePanel.open("season"); PANE.rankingToggle:GetScript("OnClick")()');
+    expect(s.run('return tostring(PANE.guildRanking and PANE.rankings:IsShown() and not PANE.runView:IsShown())')).toBe("true");
+    expect(s.run('return PANE.rankings.text')).toContain("Tester - 100");
     s.run('LFGBrowseFrame:Show()');
     expect(s.run('return tostring(not PANE:IsShown() and not TAB.checked and not LFGListingFrame:IsShown() and LFGBrowseFrame:IsShown())')).toBe("true");
     expect(s.run('return NATIVE_SHOWS')).toBe("1");
@@ -143,6 +157,7 @@ describe("guild-only dungeon scores", () => {
         f.SetText=function(self,text) self.text=text end
         f.ClearAllPoints=function(self) self.point=nil end
         f.SetPoint=function(self,...) self.point={...} end
+        f.GetFrameLevel=function() return 1 end
         f.SetFrameStrata=function(self,value) self.strata=value end
         f.SetClampedToScreen=function(self,value) self.clamped=value end
         f.IsShown=function(self) return self.shown or false end

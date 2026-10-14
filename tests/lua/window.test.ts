@@ -35,6 +35,9 @@ const RICH_FRAMES = String.raw`
     f.ClearAllPoints = function(self) self.points = {} end
     f.SetPoint = function(self, ...) table.insert(self.points, {...}) end
     f.SetSize = function(self, width, height) self.width = width; self.height = height end
+    f.SetVerticalScroll = function(self, value) self.verticalScroll = value end
+    f.GetVerticalScroll = function(self) return rawget(self, "verticalScroll") or 0 end
+    f.ScrollBar = { Show = function(self) self.shown = true end, Hide = function(self) self.shown = false end }
     FRAMES[#FRAMES + 1] = f
     return f
   end
@@ -63,6 +66,44 @@ const visibleTabs = (s: LuaSession) => s.run(`local n = {}; for _, t in ipairs(N
 const homeText = (s: LuaSession, field: string) => s.run(`return NS.windowState().${field}.text`);
 
 describe("the tools window (sidebar and Home page)", () => {
+  it("routes dungeon shortcuts to one pane and keeps calendar administration officer-only", () => {
+    const s = openWindow(5);
+    s.run(`NS.dungeonScorePanel = { open = function(mode) openedMode = mode end }
+      NS.windowState().selectTabByName("Scores")`);
+    expect(s.run("return openedMode")).toBe("season");
+    s.run(`NS.windowState().selectTabByName("Dungeons")`);
+    expect(s.run("return openedMode")).toBe("run");
+    s.run(`CalendarFrame = CreateFrame(); NS.windowState().selectTabByName("Calendar")`);
+    expect(s.run('return NS.windowState().scope')).toBe("main");
+    expect(s.run('return tostring(CalendarFrame.shown)')).toBe("true");
+    s.run(`NS.openGuildPanel(CalendarFrame, "calendar", "Calendar")`);
+    expect(s.run('return NS.windowState().scope')).toBe("main");
+    expect(s.run(`local n = {}; for _, t in ipairs(NS.windowState().tabs) do n[#n+1]=t.name end; return table.concat(n,",")`)).not.toMatch(/Dungeons|Season|Scores/);
+    expect(s.run('return tostring(NS.windowState().homeSave == NS.windowState().sidebarSave)')).toBe("true");
+  });
+
+  it("gives each officer feature a single menu scope", () => {
+    const s = openWindow(1);
+    s.run(`NS.openGuildPanel(nil, "guild", "Standings")`);
+    expect(visibleTabs(s)).toBe("Standings,Crafting,EPGP");
+    s.run(`NS.openGuildPanel(nil, "calendar", "Calendar")`);
+    expect(visibleTabs(s)).toBe("Calendar");
+  });
+
+  it("keeps short guild pages stationary and anchors repeated calendar selections", () => {
+    const s = openWindow(1);
+    s.run(`HOST = CreateFrame(); NS.openGuildPanel(HOST, "guild", "EPGP")
+      UI=NS.windowState(); UI.guildScroll.GetHeight=function() return 300 end
+      UI.selectTabByName("EPGP")
+      UI.guildScroll:GetScript("OnMouseWheel")(UI.guildScroll, -1)`);
+    expect(s.run('return UI.guildScrollRange..":"..UI.guildScroll:GetVerticalScroll()')).toBe("0:0");
+    expect(s.run('return tostring(UI.guildScroll.ScrollBar.shown)')).toBe("false");
+    s.run(`NS.openGuildPanel(HOST,"calendar","Calendar"); UI.selectTabByName("Calendar"); UI.selectTabByName("Calendar")`);
+    expect(s.run(`local p=UI.tabs[UI.currentTab].page; return tostring(#p.points==1 and p.points[1][1]=="TOPLEFT" and p.points[1][2]==UI.guildScroll)`)).toBe("true");
+    s.run(`UI.guildScroll.GetHeight=function() return 100 end; NS.openGuildPanel(HOST,"guild","EPGP"); UI.guildScroll:GetScript("OnMouseWheel")(UI.guildScroll,-1)`);
+    expect(s.run('return UI.guildScroll:GetVerticalScroll()')).toBe("24");
+  });
+
   it("docks guild pages with the same permissions and restores the full menu", () => {
     const s = openWindow(5);
     s.run(`
@@ -71,7 +112,7 @@ describe("the tools window (sidebar and Home page)", () => {
       HOST.GetHeight = function() return 600 end
       NS.openGuildPanel(HOST)
     `);
-    expect(visibleTabs(s)).toBe("Standings,Season,Crafting");
+    expect(visibleTabs(s)).toBe("Standings,Crafting");
     expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`)).toBe("Standings");
     expect(s.run(`return tostring(NS.windowState().guildHost == HOST)`)).toBe("true");
     expect(s.run(`
@@ -208,9 +249,9 @@ describe("the tools window (sidebar and Home page)", () => {
   });
 
   it("officers see every group in order; members only what they can use", () => {
-    expect(visibleTabs(openWindow(1))).toBe("Home,Me,Standings,Ready,Reserves,Calendar,Raid,EPGP,Loot,Council,Dungeons,Season,Scores,Games,Crafting,Tools");
+    expect(visibleTabs(openWindow(1))).toBe("Home,Me,Ready,Reserves,Raid,Loot,Council,Games,Tools");
     session?.close();
-    expect(visibleTabs(openWindow(5))).toBe("Home,Me,Standings,Reserves,Dungeons,Season,Scores,Games,Crafting,Tools");
+    expect(visibleTabs(openWindow(5))).toBe("Home,Me,Reserves,Games,Tools");
   });
 
   it("Home says who you are, what is running, and why there is no standing yet", () => {
@@ -218,9 +259,8 @@ describe("the tools window (sidebar and Home page)", () => {
     expect(homeText(s, "homeGreeting")).toContain("Kev");
     expect(homeText(s, "homeGreeting")).toContain("Officer");
     expect(homeText(s, "homeNow")).toContain("No raid is running");
-    expect(homeText(s, "homeStanding")).toContain("have not arrived yet");
     expect(homeText(s, "homeGear")).toContain("No gear check yet");
-    expect(homeText(s, "homeSync")).toContain("Everything is saved");
+    expect(s.run(`return NS.windowState().syncStatus`)).toContain("Everything is saved");
   });
 
   it("Home shows the standing when Discord has sent it, and unsent changes when something happened", () => {
@@ -230,8 +270,7 @@ describe("the tools window (sidebar and Home page)", () => {
       NS.syncNow.mark()
       SlashCmdList["GUILDED"]("menu"); SlashCmdList["GUILDED"]("menu")
     `);
-    expect(homeText(s, "homeStanding")).toBe("EP 120    GP 40    PR 3.00");
-    expect(homeText(s, "homeSync")).toContain("Changes are waiting");
+    expect(s.run(`return NS.windowState().syncStatus`)).toContain("Changes are waiting");
     expect(s.run(`return NS.windowState().sidebarSync.text`)).toBe("Unsent changes");
   });
 

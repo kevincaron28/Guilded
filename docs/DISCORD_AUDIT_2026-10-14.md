@@ -51,7 +51,15 @@ board and member acceptance immediately.
 | Info | Bot application is **public** (anyone can invite it) | Intended for the hosted pilot; otherwise turn off in the Developer Portal |
 | Info | Portal has all three privileged intents on; config requests Message Content off | Fine, matches CLAUDE.md |
 
-## Diablo: built 14 October (private preview)
+## Diablo: launched 14 October as the server's third game
+
+**Launched** after owner approval. There is one `@Diablo` role for the whole series (the former, empty
+`@Diablo IV`, renamed). The category is the very last one, after PoE 2, WoW and the WoW-only 🔒 Officiers.
+Diablo is offered in the welcome text, the game menu and the 🎮choix-de-jeu buttons. The empty
+`@Diablo II` role created earlier is unused and can be deleted by hand.
+History of the build follows.
+
+### Build notes
 
 **Code.** `DIABLO2` joins `COMMUNITY_GAMES` beside `DIABLO4`. Every game now has an
 EN/FR label (`COMMUNITY_GAME_LABELS`, `communityGameLabel`), so `/community start-season`

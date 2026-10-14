@@ -17,7 +17,7 @@ function fakeTx(season: { id: string; startsAt?: Date; endsAt?: Date; status?: s
     (where.instanceId === undefined || run.instanceId === where.instanceId) && (where.valid === undefined || run.valid === where.valid)
     && (where.state === undefined || run.state === where.state);
   const tx = {
-    guildSettings: { findUnique: async () => null },
+    guildSettings: { findUnique: async () => ({ dungeonConfig: { levelBands: { "36": { min: 15, max: 25, difficultyId: 1 } } } }) },
     dungeonSeason: {
       findFirst: async () => null,
       create: async () => season
@@ -55,14 +55,14 @@ function fakeTx(season: { id: string; startsAt?: Date; endsAt?: Date; status?: s
 }
 
 const characters = ["Kev", "Bob", "Amy", "Zed", "Liz"].map((name) => ({ name, realm: "Forever", memberId: `m-${name.toLowerCase()}` }));
-const now = new Date("2026-09-25T20:00:00Z");
+const now = new Date("2026-09-25T23:00:00Z");
 const start = Math.floor(new Date("2026-09-25T18:00:00Z").getTime() / 1000);
 
 function run(id: string, overrides: Record<string, unknown> = {}) {
   return {
     id, protocolVersion: 1, state: "COMPLETED", instanceId: 36, name: "Deadmines", difficultyId: 1,
-    startedAt: start, endedAt: start + 1500, reporters: 1,
-    players: characters.map((character) => ({ character: character.name, realm: "Forever", deaths: 0, presentSec: 1500, inGuild: true })),
+    startedAt: start, endedAt: start + 1500, reporters: 1, completedBy: "final boss",
+    players: characters.map((character) => ({ character: character.name, realm: "Forever", deaths: 0, presentSec: 1500, inGuild: true, level: 20, minLevel: 20 })),
     ...overrides
   };
 }
@@ -71,6 +71,83 @@ const total = (points: { memberId: string; amount: number }[], memberId: string)
   points.filter((row) => row.memberId === memberId).reduce((sum, row) => sum + row.amount, 0);
 
 describe("importDungeonRuns", () => {
+  it("awards an account once when two of its alts participate, independent of roster order", async () => {
+    const alts = [{ name: "Kev", realm: "Forever", memberId: "m-kev" }, { name: "Alt", realm: "Forever", memberId: "m-kev" }];
+    const players = [run("alts").players[0]!, { ...run("alts").players[0]!, character: "Alt", presentSec: 1000 }];
+    for (const roster of [players, [...players].reverse()]) {
+      const { tx, points } = fakeTx();
+      const summary = await importDungeonRuns(tx, "g1", [run("alts", { players: roster })], alts, "officer", null, now);
+      expect(total(points, "m-kev")).toBe(100);
+      expect(summary.results[0]?.playerDetails?.find(p => p.character === "Alt")).toMatchObject({ points: 0, participationRecipient: "Kev" });
+      expect(summary.results[0]?.achievements.filter(a => a.key === "firstBlood")).toHaveLength(1);
+    }
+  });
+  it("requires half-run presence and gives manual completions no bonuses", async () => {
+    const { tx, points } = fakeTx();
+    const players = run("presence").players.map((p, i) => ({ ...p, presentSec: i === 0 ? 749 : i === 1 ? 750 : 1500 }));
+    const result = await importDungeonRuns(tx, "g1", [run("presence", { players, completedBy: "manual" })], characters, "officer", null, now);
+    expect(total(points, "m-kev")).toBe(0);
+    expect(total(points, "m-bob")).toBe(50);
+    expect(points.every(p => p.source === "rule:completion")).toBe(true);
+    expect(result.results[0]?.achievements).toEqual([]);
+  });
+
+  it("rewards helpers only alongside an eligible member and ignores old carry records", async () => {
+    const { tx, points } = fakeTx();
+    const carryPlayers = run("carry").players.map((p, i) => ({ ...p, level: i === 0 ? 30 : 20, minLevel: i === 0 ? 30 : 20 }));
+    const carry = await importDungeonRuns(tx, "g1", [run("carry", { players: carryPlayers, endedAt: start + 600 })], characters, "officer", null, now);
+    expect(carry.results[0]?.playerDetails?.[0]).toMatchObject({ participationMode: "helper", points: 50 });
+    expect(carry.results[0]?.guildRecord).toBe(false);
+    expect(points.every(p => p.source === "rule:completion")).toBe(true);
+    expect(points.find(p => p.memberId === "m-kev")).toMatchObject({ amount: 50 });
+    const later = start + 3600;
+    const fair = await importDungeonRuns(tx, "g1", [run("fair", { startedAt: later, endedAt: later + 1500 })], characters, "officer", null, now);
+    expect(fair.results[0]).toMatchObject({ previousGuildBest: null, guildRecord: false, personalRecords: [] });
+    const next = later + 3600;
+    const record = await importDungeonRuns(tx, "g1", [run("fair-record", { startedAt: next, endedAt: next + 1200 })], characters, "officer", null, now);
+    expect(record.results[0]).toMatchObject({ previousGuildBest: 1500, guildRecord: true });
+
+    const alone = fakeTx();
+    const overlevel = run("overlevel").players.map(p => ({ ...p, level: 30, minLevel: 30 }));
+    const result = await importDungeonRuns(alone.tx, "g1", [run("overlevel", { players: overlevel })], characters, "officer", null, now);
+    expect(result.results[0]?.points).toBe(0);
+    expect(alone.points).toHaveLength(0);
+  });
+
+  it("separates wing history, records and targets and uses frozen season settings", async () => {
+    const band = { min: 15, max: 25, difficultyId: 1 };
+    const ratingRules = ratingService.createDungeonRatingRules({ "189:graveyard": 1800, "189:library": 1800 }, 3,
+      { "189:graveyard": band, "189:library": band });
+    const rating = vi.spyOn(ratingService, "dungeonRating").mockResolvedValue([]);
+    try {
+      const { tx, points } = fakeTx({ id: "s", startsAt: new Date(0), status: "ACTIVE", ratingRules });
+      const wing = (id: string, boss: string, offset: number) => run(id, { instanceId: 189, startedAt: start + offset, endedAt: start + offset + 1500,
+        encounters: [{ id: 1, name: boss, success: true, startedAt: start + offset + 1400, at: start + offset + 1500 }] });
+      await importDungeonRuns(tx, "g1", [wing("graveyard", "Bloodmage Thalnos", 0)], characters, "officer", null, now);
+      const library = await importDungeonRuns(tx, "g1", [wing("library", "Arcanist Doan", 3600)], characters, "officer", null, now);
+      expect(library.results[0]).toMatchObject({ previousGuildBest: null, guildRecord: false, personalRecords: [] });
+      const secondWing = points.filter(p => p.runId === "run-2" && p.memberId === "m-kev");
+      expect(secondWing.find(p => p.source === "rule:firstCompletion")?.amount).toBe(25);
+      expect(secondWing.find(p => p.source === "rule:completion")?.amount).toBe(50);
+      expect(secondWing.find(p => p.source === "rule:underTarget")?.amount).toBe(20);
+      const repeat = await importDungeonRuns(tx, "g1", [wing("graveyard-repeat", "Bloodmage Thalnos", 7200)], characters, "officer", null, now);
+      expect(repeat.results[0]?.playerDetails?.[0]?.points).toBeLessThan(140);
+      expect(points.find(p => p.runId === "run-3" && p.memberId === "m-kev" && p.source === "rule:completion")?.amount).toBe(25);
+    } finally { rating.mockRestore(); }
+  });
+
+  it("explains the current run's unranked status even when the character already has a score", async () => {
+    const ratingRules = ratingService.createDungeonRatingRules({ "36": 1800 }, 3, { "36": { min: 15, max: 25, difficultyId: 1 } });
+    const rating = vi.spyOn(ratingService, "dungeonRating").mockResolvedValue([{ memberId: "m-kev", character: "Kev", name: "Kev", points: 240, dungeons: 1 }]);
+    try {
+      const { tx } = fakeTx({ id: "s", startsAt: new Date(0), status: "ACTIVE", ratingRules });
+      const players = run("short-presence").players.map((p, i) => ({ ...p, presentSec: i === 0 ? 1199 : 1500 }));
+      const result = await importDungeonRuns(tx, "g1", [run("short-presence", { players })], characters, "officer", null, now);
+      expect(result.results[0]?.playerDetails?.[0]).toMatchObject({ ratingTotal: 240, ratingGain: 0, unrankedReason: "Presence 79% / 80% required" });
+      expect(result.results[0]?.playerDetails?.[1]?.unrankedReason).toBeUndefined();
+    } finally { rating.mockRestore(); }
+  });
+
   it("reports an alt's own rating gain instead of the first score on their account", async () => {
     const main = { memberId: "m-kev", character: "Main", name: "Main", points: 200, dungeons: 2 };
     const alt = { memberId: "m-kev", character: "Kev", name: "Kev", points: 100, dungeons: 1 };
@@ -86,7 +163,7 @@ describe("importDungeonRuns", () => {
     const { tx, points } = fakeTx();
     const players = Array.from({ length: 6 }, (_, i) => ({
       character: i === 0 ? "Kev" : `Guest${i}`, realm: "Forever", class: "PRIEST", role: "HEALER",
-      deaths: i === 0 ? 0 : null, presentSec: 1200, inGuild: false
+      deaths: i === 0 ? 0 : null, presentSec: 1200, inGuild: false, level: 20, minLevel: 20
     }));
     const summary = await importDungeonRuns(tx, "g1", [run("replacement", { players, completedBy: "final boss" })], characters, "officer", "imp1", now);
     expect(summary.results[0]).toMatchObject({ valid: true, endedAt: start + 1500, completedBy: "final boss", points: 100 });
@@ -148,7 +225,7 @@ describe("importDungeonRuns", () => {
 
   it("records unlinked players without giving them points", async () => {
     const { tx, points } = fakeTx();
-    const players = [...run("run-a").players.slice(0, 4), { character: "Pugsy", realm: "Forever", deaths: 0, presentSec: 1500, inGuild: false }];
+    const players = [...run("run-a").players.slice(0, 4), { character: "Pugsy", realm: "Forever", deaths: 0, presentSec: 1500, inGuild: false, level: 20, minLevel: 20 }];
     const summary = await importDungeonRuns(tx, "g1", [run("run-a", { players })], characters, "officer", "imp1", now);
     expect(summary.results[0]?.unlinked).toEqual(["Pugsy"]);
     expect(points.some((row) => row.source === "rule:fullGuildGroup")).toBe(false);

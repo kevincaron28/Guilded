@@ -53,6 +53,13 @@ describe("points", () => {
   const base = { memberId: "m1", character: "Kev", earlierThisWeek: 0, firstEver: false, previousBest: null };
   const total = (awards: { amount: number }[]) => awards.reduce((sum, award) => sum + award.amount, 0);
 
+  it("rounds a combined repeat award once without inflating odd-valued bonuses", () => {
+    const awards = computeRunPoints({ instanceId: 36, durationSec: 1500, fullGuildGroup: true, guildRecord: true,
+      players: [{ ...base, deaths: 0, previousBest: 1800, earlierThisWeek: 1 }], config });
+    expect(total(awards)).toBe(Math.round((50 + 25 + 15 + 25 + 20 + 20) * 0.5));
+    expect(awards.every(a => Number.isInteger(a.amount) && a.amount > 0)).toBe(true);
+  });
+
   it("adds up the rules for a clean first run", () => {
     const awards = computeRunPoints({ instanceId: 36, durationSec: 1500, fullGuildGroup: true, guildRecord: true,
       players: [{ ...base, deaths: 0, firstEver: true }], config });

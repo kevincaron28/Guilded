@@ -1,6 +1,27 @@
 import { describe, expect, it, vi } from "vitest";
 import { recordLine, runLine } from "../src/commands/dungeon.js";
-import { difficultyName, formatLeaderboard, pointsFilter } from "../src/services/dungeon-stats.js";
+import { difficultyName, formatLeaderboard, playerSummary, pointsFilter, records } from "../src/services/dungeon-stats.js";
+import { createDungeonRatingRules } from "../src/services/dungeon-rating.js";
+
+it("uses eligible wing records for guild and personal views, filtering before taking the top times", async () => {
+  const band = { min: 15, max: 25, difficultyId: 1 };
+  const ratingRules = createDungeonRatingRules({ "189:graveyard": 1800, "189:library": 1800 }, 3,
+    { "189:graveyard": band, "189:library": band });
+  const row = (boss: string, durationSec: number, level = 20, presentSec = durationSec) => ({ instanceId: 189, dungeonName: "Scarlet Monastery",
+    difficultyId: 1, durationSec, endedAt: new Date(), completedBy: "final boss", competitionData: {
+      players: [{ name: "Kev", level, minLevel: level }], encounters: [{ id: 1, name: boss, success: true }] },
+    players: [{ character: "Kev", memberId: "m", presentSec, deaths: 0 }] });
+  const rows = [row("Bloodmage Thalnos", 300, 30), row("Bloodmage Thalnos", 400, 20, 100),
+    row("Bloodmage Thalnos", 900), row("Arcanist Doan", 1000)];
+  const findMany = vi.fn(async () => rows);
+  const db = { dungeonSeason: { findFirst: async () => ({ id: "s", ratingRules }) }, dungeonRun: { findMany },
+    dungeonPointTransaction: { aggregate: async () => ({ _sum: { amount: 0 } }) },
+    dungeonAchievement: { findMany: async () => [] } };
+  expect((await records(db as never, "g", null)).map(r => r.dungeonName)).toEqual(["Scarlet Monastery: graveyard", "Scarlet Monastery: library"]);
+  expect((await records(db as never, "g", 189, 1)).map(r => r.durationSec)).toEqual([900]);
+  const personal = await playerSummary(db as never, "g", "m");
+  expect(personal.bests.map(r => r.durationSec)).toEqual([900, 1000]);
+});
 
 describe("dungeon views", () => {
   it("formats the leaderboard with medals", () => {

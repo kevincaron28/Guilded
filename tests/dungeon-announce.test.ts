@@ -8,6 +8,18 @@ const result = (overrides: Partial<DungeonImportResult>): DungeonImportResult =>
 });
 
 describe("dungeonAnnouncement", () => {
+  it("explains an unranked run and helper award without displaying the prior rating as this run's result", () => {
+    const run = result({ ratingEnabled: true, ratingVersion: 3, points: 50, players: ["Kev"], playerDetails: [
+      { character: "Kev", deaths: 0, presentSec: 1300, points: 50, ratingGain: 0, ratingTotal: 400,
+        unrankedReason: "Overlevel carry", participationMode: "helper" }
+    ] });
+    const summary = { results: [run], duplicates: 0, malformed: 0 };
+    const en = dungeonAnnouncement(summary, "en")!.toJSON().description!;
+    expect(en).toContain("Unranked: Overlevel carry");
+    expect(en).toContain("Helper: completion points only");
+    expect(en).not.toContain("**400**");
+    expect(dungeonAnnouncement(summary, "fr")!.toJSON().description).toContain("Non classé: Aide au-dessus du niveau maximal");
+  });
   it("separates exploration gains from participation and shows zero for a repeat", () => {
     const run = result({ ratingEnabled: true, points: 75, players: ["Kev"], playerDetails: [
       { character: "Kev", deaths: 0, presentSec: 1300, points: 75, ratingGain: 0, ratingTotal: 200 }

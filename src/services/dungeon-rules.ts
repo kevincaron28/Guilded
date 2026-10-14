@@ -1,4 +1,4 @@
-import { validLevelBand, type LevelBand } from "./dungeon-rating.js";
+import { validDungeonKey, validLevelBand, type LevelBand } from "./dungeon-rating.js";
 import { z } from "zod";
 
 // Dungeon Challenge rules (roadmap D3/D4): what a valid run is, and how
@@ -96,7 +96,7 @@ export function dungeonConfig(stored: unknown): DungeonConfig {
     }
   }
   if (input["levelBands"] && typeof input["levelBands"] === "object") {
-    for (const [id, band] of Object.entries(input["levelBands"])) if (/^[1-9]\d*$/.test(id) && validLevelBand(band)) config.levelBands[id] = { ...band };
+    for (const [id, band] of Object.entries(input["levelBands"])) if (validDungeonKey(id) && validLevelBand(band)) config.levelBands[id] = { ...band };
   }
   if (Array.isArray(input["weeklyRepeat"]) && input["weeklyRepeat"].length > 0 && input["weeklyRepeat"].every((v) => typeof v === "number" && v >= 0 && v <= 1)) {
     config.weeklyRepeat = input["weeklyRepeat"] as number[];
@@ -157,6 +157,7 @@ export interface PlayerContext {
   firstEver: boolean;
   // Their best time before this run (null = none).
   previousBest: number | null;
+  participationMode?: "completion" | "helper" | "full";
 }
 
 export interface PointAward { memberId: string; character: string; rule: string; amount: number; reason: string }
@@ -170,6 +171,7 @@ export function formatDuration(seconds: number): string {
 // actually tracked for that player (never assume zero).
 export function computeRunPoints(input: {
   instanceId: number;
+  dungeonKey?: string;
   durationSec: number;
   fullGuildGroup: boolean;
   guildRecord: boolean;
@@ -178,15 +180,22 @@ export function computeRunPoints(input: {
 }): PointAward[] {
   const { config } = input;
   const awards: PointAward[] = [];
-  const target = input.config.targets[String(input.instanceId)];
+  const target = input.config.targets[input.dungeonKey ?? String(input.instanceId)];
   for (const player of input.players) {
     const share = config.weeklyRepeat[Math.min(player.earlierThisWeek, config.weeklyRepeat.length - 1)] ?? 0;
     const note = player.earlierThisWeek > 0 ? ` (run ${player.earlierThisWeek + 1} this week: ${Math.round(share * 100)}%)` : "";
+    let baseTotal = 0;
+    let roundedTotal = 0;
     const add = (rule: string, base: number, reason: string) => {
-      const amount = Math.round(base * share);
+      // Preserve itemized explanations while rounding the combined award once.
+      baseTotal += base;
+      const nextTotal = Math.round(baseTotal * share);
+      const amount = nextTotal - roundedTotal;
+      roundedTotal = nextTotal;
       if (amount > 0) awards.push({ memberId: player.memberId, character: player.character, rule, amount, reason: reason + note });
     };
-    add("completion", config.completion, "Dungeon completion");
+    add("completion", config.completion, player.participationMode === "helper" ? "Helper — dungeon completion" : "Dungeon completion");
+    if (player.participationMode === "completion" || player.participationMode === "helper") continue;
     if (player.deaths === 0) add("noDeaths", config.noDeaths, "No deaths");
     else if (player.deaths === 1) add("oneDeath", config.oneDeath, "1 death");
     else if (player.deaths === 2) add("twoDeaths", config.twoDeaths, "2 deaths");

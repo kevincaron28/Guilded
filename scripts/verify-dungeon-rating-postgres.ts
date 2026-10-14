@@ -3,6 +3,7 @@ import type { PrismaClient } from "@prisma/client";
 import { startSeason, invalidateRun } from "../src/services/dungeon-admin.js";
 import { dungeonRating, hasDungeonRating, DUNGEON_RATING_RULES } from "../src/services/dungeon-rating.js";
 import { importDungeonRuns } from "../src/services/dungeon-import.js";
+import { records } from "../src/services/dungeon-stats.js";
 
 export async function verifyDungeonRatingPostgres(db: PrismaClient, guildId: string, memberId: string) {
   const season = await db.dungeonSeason.findFirstOrThrow({ where: { guildId, status: "ACTIVE" } });
@@ -60,6 +61,37 @@ export async function verifyDungeonRatingPostgres(db: PrismaClient, guildId: str
   const frozen = await db.dungeonSeason.findUniqueOrThrow({ where: { id: speed.id } });
   await invalidateRun(db, guildId, "rating-speed", "after archive", "release-test");
   assert.equal((await dungeonRating(db, guildId, frozen, 36))[0]?.points, 235);
+
+  const band = { min: 15, max: 25, difficultyId: 1 };
+  await db.guildSettings.update({ where: { guildId }, data: { dungeonConfig: {
+    targets: { "189:graveyard": 1800, "189:library": 1800 },
+    levelBands: { "189:graveyard": band, "189:library": band }
+  } } });
+  const fair = (await startSeason(db, guildId, "Participation verification")).season;
+  const fairStart = Math.ceil(fair.startsAt.getTime() / 1000) + 1;
+  const fairInput = (id: string, boss: string, offset: number, level = 20) => input(id, 189, 0, {
+    startedAt: fairStart + offset, endedAt: fairStart + offset + 1000,
+    players: [
+      { character: "RatingMain", realm: "ReleaseTest", inGuild: true, presentSec: 1000, deaths: 0, minLevel: level, level },
+      { character: "RatingAlt", realm: "ReleaseTest", inGuild: true, presentSec: 700, deaths: 0, minLevel: 20, level: 20 }
+    ], encounters: [{ id: 1, name: boss, success: true, at: fairStart + offset + 1000 }]
+  });
+  const participation = await db.$transaction(async tx => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${guildId}, 0))`;
+    return importDungeonRuns(tx, guildId, [fairInput("fair-carry", "Bloodmage Thalnos", 0, 30),
+      fairInput("fair-graveyard", "Bloodmage Thalnos", 2000), fairInput("fair-library", "Arcanist Doan", 4000)],
+    characters, "release-test", null, new Date((fairStart + 6000) * 1000));
+  }, { timeout: 20000 });
+  assert.equal(participation.results[0]?.points, 50, "one account gets completion only for a carry");
+  assert.equal(participation.results[1]?.previousGuildBest, null, "the carry is not a record baseline");
+  assert.equal(participation.results[1]?.points, 48, "second clear rounds the combined 95-point award once");
+  assert.equal(participation.results[2]?.points, 120, "a separate wing has a fresh account counter");
+  assert.deepEqual((await records(db, guildId, null)).map(row => row.dungeonName),
+    ["Scarlet Monastery: graveyard", "Scarlet Monastery: library"]);
+  const before = await db.dungeonPointTransaction.count({ where: { seasonId: fair.id } });
+  await db.$transaction(tx => importDungeonRuns(tx, guildId, [fairInput("fair-library", "Arcanist Doan", 4000)],
+    characters, "release-test", null, new Date((fairStart + 6000) * 1000)));
+  assert.equal(await db.dungeonPointTransaction.count({ where: { seasonId: fair.id } }), before, "repeat upload is idempotent");
 }
 
 export async function verifyDungeonRatingRestored(db: PrismaClient) {

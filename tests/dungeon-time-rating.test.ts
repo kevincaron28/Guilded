@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateDungeonRating, createDungeonRatingRules, frozenRating, timeRating, type RatingRun } from "../src/services/dungeon-rating.js";
+import { calculateDungeonRating, createDungeonRatingRules, frozenRating, ratingEmbed, timeRating, type RatingRun } from "../src/services/dungeon-rating.js";
 
 const rules = createDungeonRatingRules({ "36": 1800 }, 3, { "36": { min: 15, max: 25, difficultyId: 1 } });
 function run(seconds = 1500, level: number | null = 20): RatingRun {
@@ -11,6 +11,13 @@ function run(seconds = 1500, level: number | null = 20): RatingRun {
       encounters: [{ id: 1, name: "Boss", success: true, startedAt: 1100, at: 1190 }] } };
 }
 describe("dungeon-time competition", () => {
+  it("displays scored coverage while preserving zero-point details and the archived wire format", () => {
+    const rows = calculateDungeonRating([run(), { ...run(), instanceId: 43 }], rules);
+    expect(rows[0]).toMatchObject({ points: 240, dungeons: 2 });
+    expect(ratingEmbed(rows, "Test", "en", rules).toJSON().description).toContain("1 ranked dungeon(s)");
+    expect(frozenRating(rows)).toEqual(rows);
+    expect(rows[0]?.details).toHaveLength(2);
+  });
   it("does not lend an alt the main's faster run or boss record", () => {
     const alt = run(1800); alt.runRef = "alt"; alt.players[0]!.character = "Alt";
     const data = alt.competitionData as { players: { name: string }[]; encounters: { at: number }[] };
@@ -47,6 +54,8 @@ describe("dungeon-time competition", () => {
   });
   it("does not invent a target, level band, or boss start timestamp", () => {
     expect(calculateDungeonRating([run()], createDungeonRatingRules())[0]?.points).toBe(0);
+    const uncalibrated = createDungeonRatingRules({}, 3, { "36": { min: 15, max: 25, difficultyId: 1 } });
+    expect(calculateDungeonRating([run()], uncalibrated)[0]?.details?.[0]).toMatchObject({ points: 0, unrankedReason: "Target not calibrated", bosses: [] });
     const missing = run(); missing.competitionData = { players: [{ name: "Member", level: 20, minLevel: 20 }, { name: "Guest", level: 20, minLevel: 20 }],
       encounters: [{ id: 1, success: true, at: 1190 }] };
     expect(calculateDungeonRating([missing], rules)[0]?.details?.[0]?.bosses).toEqual([]);

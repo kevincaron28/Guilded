@@ -114,7 +114,7 @@ export function calculateDungeonRating(runs: RatingRun[], rules?: unknown): Rati
     if (!run.durationSec || !Number.isFinite(run.durationSec) || run.durationSec <= 0) continue;
     const key = version === 3 ? ratingDungeonKey(run) : String(run.instanceId);
     const reason = version === 3 && key === "189" ? "Dungeon route unknown" : version === 3 ? competitionReason(run, (rules as { levelBands?: Record<string, LevelBand> }).levelBands?.[key]) : undefined;
-    const bosses = version === 3 && !reason ? bossRecords(run) : [];
+    const bosses = version === 3 && !reason && targets[key] ? bossRecords(run) : [];
     for (const player of run.players) {
       if (!player.memberId || !player.member || !player.character?.trim() || !Number.isFinite(player.presentSec) || player.presentSec < run.durationSec * 0.8) continue;
       const identity = ratingCharacterKey(player.memberId, player.character);
@@ -211,7 +211,9 @@ export function ratingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, r
     : "Targets are fixed for the season. 15% faster = +10; 30% = +20. No target: 100.");
   for (const row of rows.slice(0, 10)) {
     const rank = rows.findIndex(other => other.points === row.points) + 1;
-    lines.push(`${rank === 1 ? "🏅" : `${rank}.`} **${escapeMarkdown(row.name).slice(0, 100)}** · **${row.points}** · ${row.dungeons} ${fr ? "donjon(s)" : "dungeon(s)"}`);
+    const scoredDungeons = timed && row.details ? row.details.filter(d => d.points > 0).length : row.dungeons;
+    const dungeonLabel = timed ? (fr ? "donjon(s) classé(s)" : "ranked dungeon(s)") : (fr ? "donjon(s)" : "dungeon(s)");
+    lines.push(`${rank === 1 ? "🏅" : `${rank}.`} **${escapeMarkdown(row.name).slice(0, 100)}** · **${row.points}** · ${scoredDungeons} ${dungeonLabel}`);
   }
   if (!rows.length) lines.push(timed ? (fr ? "Terminez un donjon calibré pour établir votre score." : "Complete a calibrated dungeon to establish your score.") : fr ? "Le premier nouveau donjon admissible rapporte 100." : "Your first eligible new dungeon earns 100.");
   return new EmbedBuilder().setColor(0x8b5cf6).setTitle(`${fr ? "🏅 Exploration" : "🏅 Exploration rating"} · ${seasonName}`.slice(0, 256))

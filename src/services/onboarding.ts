@@ -16,7 +16,8 @@ import { asLang, t, type Lang } from "../i18n.js";
 // the welcome channel. Every answer is private (ephemeral), so nothing depends on open DMs:
 //   rules   where the rules are, and "I have read them" (recorded in MemberOnboarding)
 //   games   a menu of the roles picked in /setup (one role per game opens that game's section)
-//   pair    a companion pairing code, the same one /character pair gives
+//   pair    addon-first character instructions and current main/alts
+//   companion    optional companion code, explicitly requested by the member
 //   steps   a personal checklist of the three above
 // With the rules gate on, games and pairing wait until the rules are accepted, and the applicant
 // role is given at that moment instead of on join. Button ids carry the server id so the same
@@ -33,7 +34,7 @@ const NUDGE_AFTER_MS = 24 * 60 * 60 * 1000;
 const NUDGE_UNTIL_MS = 72 * 60 * 60 * 1000;
 const NUDGES_PER_RUN = 25;
 
-type Action = "rules" | "accept" | "games" | "pick" | "pair" | "steps";
+type Action = "rules" | "accept" | "games" | "pick" | "pair" | "companion" | "steps";
 const customId = (action: Action, discordGuildId: string) => `${ONBOARD_PREFIX}${action}:${discordGuildId}`;
 
 type StepSettings = Pick<GuildSettings, "welcomeRoleIds" | "rulesChannelId">;
@@ -45,10 +46,10 @@ export function rulesGateActive(settings: Pick<GuildSettings, "rulesGate" | "rul
   return settings.rulesGate && !!settings.rulesChannelId;
 }
 
-// A server with no game roles is a WoW guild: there, linking a character is the step to finish.
-// With game roles, the bot cannot tell who plays WoW, so the character step stays optional.
+// Addon-only members can finish Discord onboarding without linking a character or companion.
+// Specific raid signup policies still enforce their own character requirements.
 export function onboardingIncomplete(progress: OnboardingProgress): boolean {
-  return progress.rules === false || progress.games === false || (progress.games === null && !progress.character);
+  return progress.rules === false || progress.games === false;
 }
 
 export function onboardingButtons(settings: StepSettings, discordGuildId: string, lang: Lang): ActionRowBuilder<ButtonBuilder> {
@@ -67,7 +68,7 @@ export function checklistText(progress: OnboardingProgress, lang: Lang, guildNam
   const lines = [t(lang, "onboard.steps.title", { guild: guildName })];
   if (progress.rules !== null) lines.push(`${mark(progress.rules)} ${t(lang, "onboard.steps.rules")}`);
   if (progress.games !== null) lines.push(`${mark(progress.games)} ${t(lang, "onboard.steps.games")}`);
-  lines.push(`${mark(progress.character)} ${t(lang, progress.games === null ? "onboard.steps.character" : "onboard.steps.characterOptional")}`);
+  lines.push(`${mark(progress.character)} ${t(lang, "onboard.steps.characterOptional")}`);
   lines.push("", t(lang, onboardingIncomplete(progress) ? "onboard.steps.next" : "onboard.steps.done"));
   return lines.join("\n");
 }
@@ -266,9 +267,9 @@ export async function handleOnboardingInteraction(interaction: ButtonInteraction
     return;
   }
 
-  if (action === "pair") {
+  if (action === "pair" || action === "companion") {
     const record = await guildService.ensureMember(guild.id, member.id, member.user.username);
-    await interaction.editReply(await characterLinkPrompt(prisma, guild.id, record.id, discordGuild.id, lang));
+    await interaction.editReply(await characterLinkPrompt(prisma, guild.id, record.id, discordGuild.id, lang, action === "companion" ? "companion" : "addon"));
   }
 }
 

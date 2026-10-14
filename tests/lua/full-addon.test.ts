@@ -70,19 +70,24 @@ const problems = (s: LuaSession) => s.chat().filter((line) => /(^|\s)(error|fail
 const diagnostics = (s: LuaSession) => s.run(`local n = 0; for _, d in ipairs((NS.getDb() or {}).diagnostics or {}) do if d.kind == "LUA_ERROR" then n = n + 1 end end; return tostring(n)`);
 
 describe("the whole addon, loaded in .toc order", () => {
-  it("prompts fresh users once per login and preserves existing connected setup", () => {
+  it("defaults fresh users to addon-only without a forced chooser and preserves existing connected setup", () => {
     const s = fullAddon(1);
     s.run(`
       PROMPTS = 0
       C_Timer.After = function(_, fn) PROMPTS = PROMPTS + 1 end
+      NS.getSettings().setupMode = nil
+      NS.getSettings().activeCore = "local-roster"
+      NS.getSettings().lootMode = "RESERVES"
       NS.options.checkFirstRun()
     `);
-    expect(s.run(`return PROMPTS`)).toBe("1");
+    expect(s.run(`return PROMPTS`)).toBe("0");
+    expect(s.run(`return NS.getSettings().setupMode`)).toBe("local");
+    expect(s.run(`return NS.getSettings().activeCore..":"..NS.getSettings().lootMode`)).toBe("local-roster:RESERVES");
     s.run(`NS.options.chooseSetup("local"); NS.options.checkFirstRun()`);
-    expect(s.run(`return PROMPTS`)).toBe("1");
+    expect(s.run(`return PROMPTS`)).toBe("0");
     s.run(`NS.getSettings().setupMode = nil; GuildedStandings.updatedAt = "2026-10-14"; NS.options.checkFirstRun()`);
     expect(s.run(`return NS.getSettings().setupMode`)).toBe("connected");
-    expect(s.run(`return PROMPTS`)).toBe("1");
+    expect(s.run(`return PROMPTS`)).toBe("0");
   });
 
   it("offers standalone setup without changing saved guild data or permissions", () => {
@@ -162,6 +167,7 @@ describe("the whole addon, loaded in .toc order", () => {
   it("the loot commands work together: the core is picked, the system follows, a bid opens", () => {
     const s = fullAddon(1);
     s.run(`
+      NS.options.chooseSetup("connected")
       local db = NS.getDb()
       db.lootRules = { updatedAt = "x", default = "EPGP", minimumBid = 15, values = {}, cores = {
         { id = "c1", name = "Bid Raid", mode = "EPGP", pool = false, reserves = 1, baseGp = 0, values = {}, players = {} },

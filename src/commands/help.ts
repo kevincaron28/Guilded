@@ -12,7 +12,7 @@ export const helpCommand = new SlashCommandBuilder()
 const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record<Lang, string[]>> = {
   everyone: {
     en: [
-      "WoW: `/character pair` — your linked main/alts + online companion link; `/character list` — check your characters. Already connected? Sync alts with the same companion",
+      "WoW addon-only is the default. Optional Discord link: `/guilded character` in game → `/character import` here; `/character list` checks main/alts. `/character pair` connects the optional companion",
       "`/character add` — link a character by hand, or `/character import` — paste the line `/guilded character` shows, or the code from `/guilded share`",
       "Raid posts have buttons to sign up (or use `/raid signup`)",
       "`/epgp balance` · `/epgp leaderboard` · `/profile` · `/character who <name>`",
@@ -32,7 +32,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/poe status` · `/poe pair` · `/poe runs` · `/poe summary` — PoE2 companion mapping journal"
     ],
     fr: [
-      "WoW : `/character pair` — principal/alts liés + lien du compagnon en ligne; `/character list` — vos personnages. Déjà connecté ? Synchronisez vos alts avec le même compagnon",
+      "WoW : l'addon seul est le choix par défaut. Lien Discord facultatif : `/guilded character` en jeu → `/character import` ici; `/character list` montre principal/alts. `/character pair` connecte le compagnon facultatif",
       "`/character add` — liez un personnage manuellement, ou `/character import` — collez la ligne de `/guilded character`, ou le code de `/guilded share`",
       "Les annonces de raid ont des boutons pour s'inscrire (ou `/raid signup`)",
       "`/epgp balance` · `/epgp leaderboard` · `/profile` · `/character who <nom>`",

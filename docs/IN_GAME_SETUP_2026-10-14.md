@@ -1,5 +1,15 @@
 # In-game-only setup — 14 October 2026
 
+Default-mode follow-up: new source selects **In-game only** automatically for
+fresh/unconnected installations and does not force a chooser on login. Existing
+connected snapshots and explicit choices are retained. `/guilded setup` still
+offers both modes. Character linking in Discord is optional and works with
+`/guilded character` → `/character import` without a companion; companion codes
+are issued only when that separate connection is requested. Fresh-profile
+main/alt service tests and the real Lua harness cover these paths. A new-client
+install/reload test of this follow-up remains pending; the previously confirmed
+chooser acceptance below applies to the published 6.1.1/6.1.2 behavior.
+
 6.1.1 introduces a first-run chooser for installations without a connected
 standings snapshot. Existing connected users keep their experience. Open it
 again with /guilded setup or Home > Guilded setup. The explicit local and

@@ -1,6 +1,6 @@
-# Guilded 6.0.0: quick setup
+# Guilded: quick setup
 
-Choose your path first. The addon works alone; Discord synchronization adds a
+**Start with the addon only (default).** The addon works alone; optional Discord synchronization adds a
 companion and either the approved hosted bot or your independently hosted bot.
 
 **Want to add the existing Guilded bot? [Request hosted pilot access](HOSTED_PILOT.md).**
@@ -14,7 +14,7 @@ for account links, Discord/Oracle screenshots and copyable commands.
 | You are | Download | Setup target |
 | --- | --- | --- |
 | Addon-only player | `Guilded-v6.0.0.zip` | 5–10 minutes |
-| Member of a configured guild | Addon + online companion webpage (default) | 10–15 minutes |
+| Member of a configured guild | Addon; Discord linking and companion sync are optional | 5–10 minutes for the addon |
 | Owner joining the hosted pilot | Addon + hosted bot invitation + online companion | Owner approval first; setup time depends on your server |
 | Owner setting up Discord sync | Matching bot source + addon + companion | About 30 minutes **after infrastructure is ready** |
 
@@ -39,17 +39,32 @@ For a private test, use the matching files supplied by the maintainer.
 Community activities and polls need no WoW addon or character pairing. Hosted
 owners can stop here; the independent hosting sections below are optional.
 
-## Members: three steps
+## Members: addon only by default
 
 1. Close WoW and extract **Guilded** into your actual client's `Interface/AddOns`.
    Check `Guilded/Guilded.toc` exists. Open WoW, open Guilded, then `/reload`.
-2. Press **Link my WoW character / Lier mon personnage WoW** in your Discord welcome
-   panel, or run `/character pair`. Check your linked characters in the private
-   reply and open its online companion button. The link prefills the server ID
-   on a first visit. Check it, enter your private code, then **Connect**.
-3. Enable WoW and choose your account's SavedVariables folder. Use **Save standings
+2. Use **In-game only** in `/guilded setup` and start playing. You can stop here.
+   New candidate source selects this mode automatically; published builds may
+   show the chooser. No Discord character link or companion is required.
+
+### Optional: link a main and alts without a companion
+
+Press **Link my WoW character / Lier mon personnage WoW** in the welcome panel.
+Log in on your intended main and copy `/guilded character` into Discord's
+`/character import` → **code**, leaving **main** unset. The first character is
+your main. Repeat on each alt with **main** unset; your main stays the same.
+`/character list` confirms the result. Viewing the instructions does not generate
+a companion connection code.
+
+### Optional: connect the online companion
+
+1. Choose **Connect optional companion** in that private reply, or use
+   `/character pair`. Open its online companion button. The link prefills the
+   server ID on a first visit; check it, enter your private code, then **Connect**.
+2. Enable WoW and choose your account's SavedVariables folder. Use **Save standings
    to addon** once to choose `Interface/AddOns/Guilded`. After `/reload`, click
-   **Sync now**, confirm upload and standings success, then `/reload` again.
+   **Sync now** on your main first if none is linked. Choose
+   `/guilded setup connected` for Discord standings, then `/reload` again.
 
 The Windows companion is optional for automatic file watching, background sync
 and PoE2 log tracking, especially useful for leaders and officers.
@@ -59,7 +74,7 @@ with the same companion. Your main stays linked; no new code needed. A new code
 is for connecting or reconnecting a companion, and using it replaces the previous
 companion connection. `/character list` shows the result after syncing.
 
-Addon-only users stop after step 1. See [Member installation](MEMBER_INSTALL.md)
+See [Member installation](MEMBER_INSTALL.md)
 for the detailed UI steps, the manual browser option, French steps and fixes.
 
 ### Online companion folders

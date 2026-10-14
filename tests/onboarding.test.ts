@@ -13,6 +13,7 @@ import {
   checklistText, handleOnboardingInteraction, onboardingGuildService, onboardingIncomplete, runOnboardingNudges, welcomePanel
 } from "../src/services/onboarding.js";
 import { handleMemberJoin, welcomeGuildService } from "../src/services/housekeeping.js";
+import { issueCharacterPairingCode } from "../src/services/character-pairing.js";
 
 const HOUR = 60 * 60 * 1000;
 const role = (id: string, name: string, permissions = 0n, managed = false) => ({ id, name, managed, permissions: { bitfield: permissions } });
@@ -66,6 +67,7 @@ function useSettings(settings: Record<string, unknown>) {
 
 beforeEach(() => {
   vi.restoreAllMocks();
+  vi.mocked(issueCharacterPairingCode).mockClear();
   db.memberOnboarding.findUnique.mockReset().mockResolvedValue(null);
   db.memberOnboarding.upsert.mockReset().mockResolvedValue({});
   db.character.count.mockReset().mockResolvedValue(0);
@@ -79,8 +81,8 @@ describe("onboarding checklist", () => {
     expect(onboardingIncomplete({ rules: true, games: true, character: false })).toBe(false);
   });
 
-  it("requires a character only in a server with no game roles", () => {
-    expect(onboardingIncomplete({ rules: null, games: null, character: false })).toBe(true);
+  it("lets addon-only members finish without a character link, including servers with no game roles", () => {
+    expect(onboardingIncomplete({ rules: null, games: null, character: false })).toBe(false);
     expect(onboardingIncomplete({ rules: null, games: null, character: true })).toBe(false);
   });
 
@@ -88,7 +90,7 @@ describe("onboarding checklist", () => {
     const text = checklistText({ rules: true, games: false, character: false }, "fr", "Quebec Gold");
     expect(text).toContain("✅ Lire et accepter les règles");
     expect(text).toContain("⬜ Choisir tes jeux");
-    expect(text).toContain("seulement si tu joues à WoW");
+    expect(text).toContain("facultatif; l'addon fonctionne seul");
     expect(checklistText({ rules: null, games: null, character: true }, "en", "QG")).not.toContain("rules");
   });
 
@@ -119,7 +121,7 @@ describe("rules gate", () => {
     const member = fakeMember();
     const guild = fakeGuild(member);
     useSettings(baseSettings);
-    for (const action of ["games", "pair"]) {
+    for (const action of ["games", "pair", "companion"]) {
       const interaction = click(`onboard:${action}:g1`, guild);
       await handleOnboardingInteraction(interaction as never);
       const payload = interaction.editReply.mock.calls[0]![0];
@@ -177,14 +179,15 @@ describe("game menu and pairing", () => {
     expect(interaction.deferUpdate).toHaveBeenCalledOnce();
   });
 
-  it("gives a pairing code privately", async () => {
+  it("shows addon-first character instructions privately without issuing a companion code", async () => {
     accepted();
     const member = fakeMember();
     useSettings(baseSettings);
     const interaction = click("onboard:pair:g1", fakeGuild(member));
     await handleOnboardingInteraction(interaction as never);
     const payload = interaction.editReply.mock.calls[0]![0];
-    expect(payload.embeds[0].data.fields[0].value).toContain("**ABCD-1234**");
+    expect(payload.embeds[0].data.fields[0].value).toContain("/character import");
+    expect(issueCharacterPairingCode).not.toHaveBeenCalled();
     expect(interaction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
     expect(interaction.deferReply.mock.invocationCallOrder[0]).toBeLessThan(interaction.guild.members.fetch.mock.invocationCallOrder[0]!);
   });
@@ -202,8 +205,21 @@ describe("game menu and pairing", () => {
     const description = interaction.editReply.mock.calls[0]![0].embeds[0].data.description;
     expect(description).toContain("Personnage principal : **Ray**");
     expect(description).toContain("Alt : **Other**");
-    expect(description).toContain("Aucun nouveau code nécessaire");
-    expect(description).toContain("ton principal reste le même");
+    const instructions = interaction.editReply.mock.calls[0]![0].embeds[0].data.fields[0].value;
+    expect(instructions).toContain("Aucun nouveau code nécessaire");
+    expect(instructions).toContain("ton principal reste le même");
+  });
+
+  it("issues a companion code only after the optional connect button is clicked", async () => {
+    accepted();
+    const member = fakeMember();
+    useSettings(baseSettings);
+    const interaction = click("onboard:companion:g1", fakeGuild(member));
+    await handleOnboardingInteraction(interaction as never);
+    const payload = interaction.editReply.mock.calls[0]![0];
+    expect(payload.embeds[0].data.fields[1].value).toContain("**ABCD-1234**");
+    expect(issueCharacterPairingCode).toHaveBeenCalledOnce();
+    expect(interaction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
   });
 
   it("keeps a held game checked when removing its role fails", async () => {

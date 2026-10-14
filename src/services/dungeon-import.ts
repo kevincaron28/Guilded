@@ -1,7 +1,8 @@
 import type { Prisma } from "@prisma/client";
 import { grantRunAchievements, type AchievementKey } from "./dungeon-achievements.js";
 import { findCharacter } from "./character-match.js";
-import { createDungeonRatingRules, dungeonRating, hasDungeonRating, ratingCharacterKey, type LevelBand } from "./dungeon-rating.js";
+import { competitionReason, createDungeonRatingRules, dungeonRating, hasDungeonRating, ratingCharacterKey, type LevelBand } from "./dungeon-rating.js";
+import { participationDungeonKey, participationMode, participationRecordEligible, type ParticipationRun } from "./dungeon-participation.js";
 import {
   computeRunPoints, dungeonConfig, dungeonRunSchema, validateRun, weekStart,
   type DungeonRunInput, type PlayerContext
@@ -39,7 +40,7 @@ export interface DungeonImportResult {
   ratingEnabled?: boolean;
   ratingSpeedBonus?: number;
   ratingVersion?: number;
-  playerDetails?: { character: string; class?: string; role?: string; spec?: string; specSource?: "run" | "profile"; deaths: number | null; presentSec: number; points: number; ratingGain?: number; ratingTotal?: number }[];
+  playerDetails?: { character: string; class?: string; role?: string; spec?: string; specSource?: "run" | "profile"; deaths: number | null; presentSec: number; points: number; ratingGain?: number; ratingTotal?: number; unrankedReason?: string; participationRecipient?: string; participationMode?: "none" | "completion" | "helper" | "full" }[];
   unlinked: string[];
   achievements: { character: string; key: AchievementKey }[];
 }
@@ -90,6 +91,8 @@ export async function importDungeonRuns(
   const config = dungeonConfig(settings?.dungeonConfig);
   const season = await activeSeason(tx, guildId, config.targets, config.levelBands);
   const rated = hasDungeonRating(season.ratingRules);
+  const timed = rated && (season.ratingRules as { version: number }).version === 3;
+  const participationRules = timed ? season.ratingRules as unknown as { targets: Record<string, number>; levelBands: Record<string, LevelBand> } : config;
   let previousRating = rated ? await dungeonRating(tx, guildId, season) : [];
 
   // Oldest first, so records and "earlier this week" are judged in order.
@@ -110,6 +113,15 @@ export async function importDungeonRuns(
       player,
       character: findCharacter(characters, player.character, player.realm)
     }));
+    const evidence: ParticipationRun = {
+      instanceId: run.instanceId, difficultyId: run.difficultyId, durationSec,
+      completedBy: run.completedBy ?? run.endReason ?? null,
+      competitionData: { players: run.players.map(p => ({ name: p.character, level: p.level ?? null, minLevel: p.minLevel ?? null })), encounters: run.encounters ?? [] },
+      players: linked.map(({ player, character }) => ({ character: player.character, memberId: character?.memberId ?? null, presentSec: player.presentSec }))
+    };
+    const dungeonKey = participationDungeonKey(evidence);
+    const band = participationRules.levelBands[dungeonKey];
+    const recordEligible = participationRecordEligible(evidence, band);
     const inSeason = !!run.startedAt && run.startedAt * 1000 >= (season.startsAt?.getTime() ?? 0)
       && (!season.endsAt || !!run.endedAt && run.endedAt * 1000 < season.endsAt.getTime());
     const earnsPoints = check.ok && run.state === "COMPLETED" && durationSec !== null && inSeason;
@@ -120,28 +132,41 @@ export async function importDungeonRuns(
     const contexts: PlayerContext[] = [];
     const personalRecords: DungeonImportResult["personalRecords"] = [];
     if (earnsPoints) {
-      const best = await tx.dungeonRun.findFirst({
-        where: { guildId, instanceId: run.instanceId, difficultyId: run.difficultyId, valid: true, state: "COMPLETED", durationSec: { not: null } },
-        orderBy: { durationSec: "asc" }
+      // Filter old evidence too: a historical carry must not block a fair record.
+      const history = await tx.dungeonRun.findMany({
+        where: { guildId, instanceId: run.instanceId, valid: true, state: "COMPLETED", durationSec: { not: null } },
+        select: { instanceId: true, difficultyId: true, durationSec: true, completedBy: true, competitionData: true,
+          endedAt: true, players: { select: { character: true, memberId: true, presentSec: true } } }
       });
+      const sameRoute = history.filter(row => participationDungeonKey(row) === dungeonKey && row.endedAt
+        && row.endedAt.getTime() < (run.endedAt ?? 0) * 1000);
+      const recordHistory = sameRoute.filter(row => participationRecordEligible(row, band));
+      const best = recordEligible ? recordHistory.reduce<typeof recordHistory[number] | null>((best, row) =>
+        !best || row.durationSec! < best.durationSec! ? row : best, null) : null;
       previousGuildBest = best?.durationSec ?? null;
       guildRecord = previousGuildBest !== null && durationSec < previousGuildBest;
       const weekFrom = weekStart(new Date((run.endedAt ?? 0) * 1000));
-      for (const { player, character } of linked) {
+      // Guild Points belong to the account, even when multiple alts were recorded.
+      // Choose the longest-present eligible character; names break equal-presence ties.
+      const awardedAccounts = new Set<string>();
+      for (const { player, character } of [...linked].sort((a, b) => b.player.presentSec - a.player.presentSec
+        || a.player.character.localeCompare(b.player.character))) {
         if (!character) continue;
-        const history = await tx.dungeonRun.findMany({
-          where: { guildId, instanceId: run.instanceId, valid: true, state: "COMPLETED", players: { some: { memberId: character.memberId } } },
-          select: { durationSec: true, difficultyId: true, endedAt: true }
-        });
-        const sameDifficulty = history.filter((row) => row.difficultyId === run.difficultyId && row.durationSec !== null);
+        const mode = participationMode(evidence, player.character, band);
+        if (mode === "none" || awardedAccounts.has(character.memberId)) continue;
+        awardedAccounts.add(character.memberId);
+        const memberHistory = sameRoute.filter(row => row.players.some(p => p.memberId === character.memberId
+          && participationMode(row, p.character, band) !== "none"));
+        const sameDifficulty = mode === "full" ? recordHistory.filter(row => row.players.some(p => p.memberId === character.memberId
+          && participationMode(row, p.character, band) === "full")) : [];
         const previousBest = sameDifficulty.length ? Math.min(...sameDifficulty.map((row) => row.durationSec as number)) : null;
         contexts.push({
           memberId: character.memberId,
           character: player.character,
           deaths: player.deaths,
-          earlierThisWeek: history.filter((row) => row.endedAt && row.endedAt >= weekFrom).length,
-          firstEver: history.length === 0,
-          previousBest
+          earlierThisWeek: memberHistory.filter((row) => row.endedAt && row.endedAt >= weekFrom).length,
+          firstEver: memberHistory.length === 0,
+          previousBest, participationMode: mode
         });
         if (previousBest !== null && durationSec < previousBest) personalRecords.push({ character: player.character, previous: previousBest, now: durationSec });
       }
@@ -187,8 +212,8 @@ export async function importDungeonRuns(
     let achievements: DungeonImportResult["achievements"] = [];
     if (earnsPoints) {
       const fullGuildGroup = run.players.length >= 5 && run.players.every((player) => player.inGuild);
-      const target = config.targets[String(run.instanceId)];
-      achievements = await grantRunAchievements(tx, guildId, { id: stored.id, seasonId: season.id }, contexts, {
+      const target = participationRules.targets[dungeonKey];
+      achievements = await grantRunAchievements(tx, guildId, { id: stored.id, seasonId: season.id }, contexts.filter(p => p.participationMode === "full"), {
         guildRecord,
         fullGuildGroup,
         underTarget: target !== undefined && durationSec <= target,
@@ -196,11 +221,12 @@ export async function importDungeonRuns(
       }, config.dungeonMasterCount);
       const awards = computeRunPoints({
         instanceId: run.instanceId,
+        dungeonKey,
         durationSec,
         fullGuildGroup,
         guildRecord,
         players: contexts,
-        config
+        config: { ...config, targets: participationRules.targets }
       });
       for (const award of awards) {
         await tx.dungeonPointTransaction.create({
@@ -231,18 +257,32 @@ export async function importDungeonRuns(
       ...(run.startedAt ? { startedAt: run.startedAt } : {}),
       ...(run.encounters ? { encounters: run.encounters } : {}),
       ...(run.completedBy ? { completedBy: run.completedBy } : {}),
-      playerDetails: linked.map(({ player, character }) => ({
+      playerDetails: linked.map(({ player, character }) => {
+        const participationRecipient = contexts.find(p => p.memberId === character?.memberId)?.character;
+        const unrankedReason = timed ? !check.ok ? check.reason ?? "Invalid run"
+          : !inSeason ? "Outside season window"
+          : run.id.startsWith("SIM-") ? "Simulation run"
+          : evidence.completedBy !== "final boss" ? "Automatic final-boss completion required"
+          : dungeonKey === "189" ? "Dungeon route unknown"
+          : competitionReason({ ...evidence, players: evidence.players.map(p => ({ ...p, member: null })) }, band)
+            ?? (!participationRules.targets[dungeonKey] ? "Target not calibrated"
+              : player.presentSec < (durationSec ?? 0) * 0.8 ? `Presence ${Math.floor(100 * player.presentSec / (durationSec || 1))}% / 80% required` : undefined) : undefined;
+        return {
         character: player.character, ...(player.class ? { class: player.class } : {}), ...(player.role ? { role: player.role } : {}),
         ...(player.spec ? { spec: player.spec, specSource: "run" as const }
           : character?.spec ? { spec: character.spec, specSource: "profile" as const } : {}),
         deaths: player.deaths ?? null, presentSec: player.presentSec,
         points: playerPoints.get(player.character) ?? 0,
+        participationMode: participationMode(evidence, player.character, band),
+        ...(participationRecipient && participationRecipient !== player.character ? { participationRecipient } : {}),
+        ...(unrankedReason ? { unrankedReason } : {}),
         ...(rated && character ? {
           ratingTotal: ratingFor(currentRating, character.memberId, player.character),
           ratingGain: ratingFor(currentRating, character.memberId, player.character)
             - ratingFor(previousRating, character.memberId, player.character)
         } : {})
-      })),
+        };
+      }),
       guildRecord,
       previousGuildBest,
       personalRecords,

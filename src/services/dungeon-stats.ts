@@ -1,14 +1,15 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
-import { weekStart } from "./dungeon-rules.js";
+import { dungeonConfig, weekStart } from "./dungeon-rules.js";
 import { finalRows } from "./season-snapshot.js";
-import { hasDungeonRating, dungeonRating, seasonDungeonCatalog } from "./dungeon-rating.js";
+import { hasDungeonRating, dungeonRating, seasonDungeonCatalog, type LevelBand } from "./dungeon-rating.js";
+import { participationDungeonKey, participationMode, participationRecordEligible, type ParticipationRun } from "./dungeon-participation.js";
 
 // Read-only views of the dungeon challenge (roadmap D5): leaderboards,
 // records, a player's page, recent runs and the season. Invalidated runs
 // never show up (valid: false), and their points are reversed with
 // negative transactions, so point sums are always the true totals.
 
-type Db = Pick<PrismaClient, "dungeonPointTransaction" | "dungeonRun" | "dungeonSeason" | "member" | "dungeonAchievement">;
+type Db = Pick<PrismaClient, "dungeonPointTransaction" | "dungeonRun" | "dungeonSeason" | "member" | "dungeonAchievement" | "guildSettings">;
 export type Period = "week" | "season" | "all";
 
 export interface LeaderRow { memberId: string; name: string; points: number }
@@ -58,26 +59,41 @@ export async function leaderboard(database: Db, guildId: string, period: Period,
 }
 
 const recordSelect = {
-  instanceId: true, dungeonName: true, difficultyId: true, durationSec: true, endedAt: true,
-  players: { select: { character: true } }
+  instanceId: true, dungeonName: true, difficultyId: true, durationSec: true, endedAt: true, completedBy: true, competitionData: true,
+  players: { select: { character: true, memberId: true, presentSec: true } }
 } as const;
 
-// Fastest valid clear per dungeon + difficulty, or the top times of one dungeon.
+async function recordBands(database: Db, guildId: string): Promise<Record<string, LevelBand>> {
+  const season = await activeSeasonOrNull(database, guildId);
+  if (hasDungeonRating(season?.ratingRules) && (season!.ratingRules as { version: number }).version === 3) {
+    return (season!.ratingRules as unknown as { levelBands: Record<string, LevelBand> }).levelBands;
+  }
+  const settings = await database.guildSettings.findUnique({ where: { guildId } });
+  return dungeonConfig(settings?.dungeonConfig).levelBands;
+}
+
+function recordName(row: ParticipationRun & { dungeonName: string }): string {
+  const key = participationDungeonKey(row);
+  return key.startsWith("189:") ? `Scarlet Monastery: ${key.split(":")[1]}` : row.dungeonName;
+}
+
+// Fastest eligible clear per wing + difficulty, or the top eligible times of one instance.
 export async function records(database: Db, guildId: string, instanceId: number | null, limit = 5): Promise<RecordRow[]> {
+  const bands = await recordBands(database, guildId);
   const rows = await database.dungeonRun.findMany({
     where: { guildId, valid: true, state: "COMPLETED", durationSec: { not: null }, ...(instanceId !== null ? { instanceId } : {}) },
     orderBy: [{ durationSec: "asc" }, { endedAt: "asc" }],
-    select: recordSelect,
-    take: instanceId !== null ? limit : 1000
+    select: recordSelect
   });
+  const eligible = rows.filter(row => participationRecordEligible(row, bands[participationDungeonKey(row)]));
   const toRow = (row: typeof rows[number]): RecordRow => ({
-    instanceId: row.instanceId, dungeonName: row.dungeonName, difficultyId: row.difficultyId,
+    instanceId: row.instanceId, dungeonName: recordName(row), difficultyId: row.difficultyId,
     durationSec: row.durationSec as number, endedAt: row.endedAt, players: row.players.map((player) => player.character)
   });
-  if (instanceId !== null) return rows.map(toRow);
+  if (instanceId !== null) return eligible.slice(0, limit).map(toRow);
   const best = new Map<string, RecordRow>();
-  for (const row of rows) {
-    const key = `${row.instanceId}:${row.difficultyId}`;
+  for (const row of eligible) {
+    const key = `${participationDungeonKey(row)}:${row.difficultyId}`;
     if (!best.has(key)) best.set(key, toRow(row));
   }
   return [...best.values()].sort((a, b) => a.dungeonName.localeCompare(b.dungeonName) || a.difficultyId - b.difficultyId);
@@ -106,6 +122,7 @@ export interface PlayerSummary {
 }
 
 export async function playerSummary(database: Db, guildId: string, memberId: string, now = new Date()): Promise<PlayerSummary> {
+  const bands = await recordBands(database, guildId);
   const sum = async (period: Period) => {
     const where = await pointsFilter(database, guildId, period, now);
     const total = await database.dungeonPointTransaction.aggregate({ where: { ...where, memberId }, _sum: { amount: true } });
@@ -115,16 +132,20 @@ export async function playerSummary(database: Db, guildId: string, memberId: str
   const completedRuns = await database.dungeonRun.findMany({
     where: { guildId, valid: true, state: "COMPLETED", durationSec: { not: null }, players: { some: { memberId } } },
     orderBy: { durationSec: "asc" },
-    select: { ...recordSelect, players: { select: { character: true, memberId: true, deaths: true } } }
+    select: { ...recordSelect, players: { select: { character: true, memberId: true, deaths: true, presentSec: true } } }
   });
   const bests = new Map<string, RecordRow>();
   let deathlessRuns = 0;
   for (const row of completedRuns) {
     if (row.players.find((player) => player.memberId === memberId)?.deaths === 0) deathlessRuns++;
-    const key = `${row.instanceId}:${row.difficultyId}`;
+    const dungeonKey = participationDungeonKey(row);
+    const band = bands[dungeonKey];
+    if (!participationRecordEligible(row, band) || !row.players.some(player => player.memberId === memberId
+      && participationMode(row, player.character, band) === "full")) continue;
+    const key = `${dungeonKey}:${row.difficultyId}`;
     if (!bests.has(key)) {
       bests.set(key, {
-        instanceId: row.instanceId, dungeonName: row.dungeonName, difficultyId: row.difficultyId,
+        instanceId: row.instanceId, dungeonName: recordName(row), difficultyId: row.difficultyId,
         durationSec: row.durationSec as number, endedAt: row.endedAt, players: row.players.map((player) => player.character)
       });
     }

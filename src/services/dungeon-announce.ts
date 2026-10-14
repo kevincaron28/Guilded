@@ -11,6 +11,20 @@ import { dungeonTimeline } from "./dungeon-timeline.js";
 
 const MAX_RUNS = 12;
 
+function unrankedLabel(reason: string, lang: Lang): string {
+  if (lang !== "fr") return reason;
+  const labels: Record<string, string> = {
+    "Outside season window": "Hors de la période de saison", "Simulation run": "Simulation",
+    "Automatic final-boss completion required": "Victoire automatique sur le boss final requise",
+    "Dungeon route unknown": "Parcours inconnu", "Level range not configured": "Plage de niveaux non configurée",
+    "Different difficulty": "Difficulté différente", "Party levels unknown": "Niveaux du groupe inconnus",
+    "Overlevel carry": "Aide au-dessus du niveau maximal", "Below level range": "Sous le niveau minimal",
+    "Target not calibrated": "Cible non calibrée"
+  };
+  const presence = /^Presence (\d+)% \/ 80% required$/.exec(reason);
+  return presence ? `Présence ${presence[1]} % / 80 % requis` : labels[reason] ?? reason;
+}
+
 // The importer resolves characters against this guild's linked roster. Do not
 // infer membership from points (a guild member can legitimately earn zero).
 function guildPlayers(run: DungeonImportSummary["results"][number]): Set<string> {
@@ -56,7 +70,11 @@ export function dungeonAnnouncement(summary: DungeonImportSummary, lang: Lang, e
           role ? roles[role] : undefined].filter(Boolean).join(" / ");
         const deathText = player.deaths === null ? (fr ? "morts non suivies" : "deaths untracked") : t(lang, "dungeon.deaths", { count: player.deaths });
         lines.push(`${icons || "•"} **${escapeMarkdown(player.character)}**${info ? ` — ${escapeMarkdown(info)}` : ""}\n  ${deathText} · **${player.points} pts**`);
-        if (player.ratingTotal !== undefined) lines.push(`  🏅 ${fr ? "Exploration" : "Exploration rating"}: **${player.ratingTotal}** (+${player.ratingGain ?? 0})`);
+        if (player.participationMode === "helper") lines.push(fr ? "  Aide : points de complétion seulement." : "  Helper: completion points only.");
+        if (player.participationRecipient) lines.push(fr ? `  Points du compte attribués via ${escapeMarkdown(player.participationRecipient)}.` : `  Account points awarded through ${escapeMarkdown(player.participationRecipient)}.`);
+        if (player.participationMode === "none") lines.push(fr ? "  Aucun point de participation : présence insuffisante ou aide sans membre admissible." : "  No participation points: insufficient presence or no eligible member to help.");
+        if (player.unrankedReason) lines.push(`  ${fr ? "Non classé" : "Unranked"}: ${escapeMarkdown(unrankedLabel(player.unrankedReason, lang))}`);
+        else if (player.ratingTotal !== undefined) lines.push(`  🏅 ${run.ratingVersion === 3 ? (fr ? "Score de donjon" : "Dungeon Rating") : (fr ? "Exploration" : "Exploration rating")}: **${player.ratingTotal}** (+${player.ratingGain ?? 0})`);
       }
       if (details.length > 8) lines.push(t(lang, "dungeon.post.more", { count: details.length - 8 }));
       if (details.some(player => player.specSource === "profile")) lines.push(fr ? "* Spé du profil lié; non relevée pendant ce donjon." : "* Spec from linked profile; not captured during this run.");

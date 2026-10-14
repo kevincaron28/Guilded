@@ -1,3 +1,17 @@
+# Next-version preview: addon-only guilds
+
+Use /guilded setup local for an addon-only guild. Officers can open Guild tools >
+Local guild to create cores, set loot rules, and edit main/bench rosters.
+All local cores share guild EP/GP. Keep one officer as record keeper; Backup and
+Restore transfer a snapshot with its accounting baseline, not a live merge.
+The restore preview lists local cores/rosters and can be undone.
+
+Party games moved to the optional GuildedGames addon (/ggames). Only the host
+installs it. Guilded retains independent soft-reserve rolls, including SR+;
+/guilded lootroll cancel stops a pending roll without awarding an item.
+Preserve SavedVariables. Real-client acceptance is still required for this
+preview; the manifest remains the current 6.1.2 until release preparation.
+
 # Guilded WoW addon
 
 This is a self-contained, library-free addon for WoW Forever (interface
@@ -25,7 +39,6 @@ switched off:
 
 | Module | What it does |
 | --- | --- |
-| `games` | Fun /roll games (high roll, deathroll, duel): no gold |
 | `bidding` | In-game GP bidding on loot |
 | `council` | Loot council answers (BiS / upgrade / off-spec) and EPGP priority loot |
 | `reserve` | Soft reserves: reserve items for a raid, shared list, roll between reservers |
@@ -41,9 +54,9 @@ Raids, attendance, EPGP, loot, the gear check, standings and the version
 check are the core and always run.
 
 - `/guilded modules` lists them and whether each is on.
-- `/guilded modules off games` turns one off just for you;
-  `/guilded modules on games` turns it back on.
-- Officers: `/guilded modules guild off games` turns it off for the whole guild.
+- `/guilded modules off recipes` turns one off just for you;
+  `/guilded modules on recipes` turns it back on.
+- Officers: `/guilded modules guild off recipes` turns it off for the whole guild.
   It's shared with everyone online and with members when they next log in;
   a member can't turn a guild-off module back on.
 - The **Tools** tab of the window has the same switches.
@@ -64,8 +77,7 @@ online guildmates when solo) fill it on demand. Amounts and
 attunements have preset buttons; shift-click an item into the EPGP tab's
 Item box to award loot. Whole-group actions and ending a raid need a second
 click to confirm. Every button runs the same `/guilded` command you could type,
-so the permission checks are the same. Roll games run from the
-Games tab; players join from chat (see `Modules/README.md`). `/guilded menu` opens the window from chat, and
+so the permission checks are the same. Party games run in the optional GuildedGames addon. `/guilded menu` opens the window from chat, and
 `/guilded minimap show|hide|reset` controls the button. Guilded is also in the Addon
 Compartment (the addon list under the minimap), and `/guilded options` (or Esc > Options >
 AddOns > Guilded) has the minimap button, chat tab, digest and module switches.
@@ -209,7 +221,7 @@ presence, loot, and dungeon runs. An officer reviews and applies it with
 
 ## Version 2.4 changes
 
-- **The casino is gone.** No wagers, no house games, no debt ledger, no trade settlement. `/guilded games` has fun roll games only (high roll, deathroll, duel). Old casino saved data is ignored.
+- **The casino is gone.** No wagers, no house games, no debt ledger, no trade settlement. `/guilded games` opens the optional GuildedGames addon. Old casino saved data is ignored.
 - **Item tooltips** (module `tooltip`): hover an item that someone wishlisted in Discord (`/character wishlist`) or that was awarded before and you get up to three gold lines: who wants it, what it usually costs in GP, and your own PR and rank. The data comes from the bot with the standings and is shared with the guild the same way; items with no data show nothing. `/guilded modules off tooltip` turns it off.
 - **Ready page** (in the window, and `/guilded ready`; officers and group leaders only, meaning guild officers plus the leader or an assistant of the current raid or party): who in your raid or party is ready. Each player is Ready, Issues, Not ready or No data, worst first, with the reason. It uses what each player's addon shared (gear, enchants, durability, flask, food) plus a live look at their buffs, so a player without the addon still shows flask and food. `ready ask` asks every addon in the group to check itself again; `ready post` posts the result to raid or party chat. Flask and food count only in a raid group.
 - **Guilded chat tab** (module `chattab`): `/guilded chat tab` opens a chat window named Guilded and sends the addon's own lines there (bid results, sync status, answers to commands), so raid chat stays clean. `/guilded chat off` puts them back in the main chat. Raid, party and whisper messages are never moved.
@@ -221,4 +233,4 @@ presence, loot, and dungeon runs. An officer reviews and applies it with
 
 - **Guild map** (module `guildmap`): guildmates who run Guilded show as class-coloured dots on the world map and minimap (name, level and zone on hover). Each client shares only its own position, never inside an instance or in combat; `/guilded map share off` stops sharing, `/guilded map show off` hides the dots.
 - **Dungeon scores** (module `scores`): each dungeon counts once with a player's best completed run (dungeon level x 2, x speed against the guild record, minus 5% per death). On player tooltips, the **Scores** page and `/guilded score [player|top]`. Works without Discord.
-- **Deduct GP** on the EPGP page (`/guilded gpdeduct`), **explain the roll games** in chat (Games page, `/guilded games explain`), and `/guilded standings publish` for guilds without the bot.
+- **Deduct GP** on the EPGP page (`/guilded gpdeduct`), `/guilded standings publish` for guilds without the bot.

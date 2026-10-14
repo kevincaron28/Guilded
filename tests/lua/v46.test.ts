@@ -159,7 +159,7 @@ function withReserve(): LuaSession {
       message = function(text) CHAT_LOG = CHAT_LOG or {}; CHAT_LOG[#CHAT_LOG + 1] = text end,
       getDb = function() return DB end,
       runCommand = function(line) RAN[#RAN + 1] = line end,
-      games = { setBonus = function(name, n) BONUS[name] = n end },
+      lootRoll = { start = function(players, bonuses) BONUS = bonuses; return true end },
       commandHandlers = { games = function(args) GAMES[#GAMES + 1] = table.concat(args, " ") end },
       commandHelp = {}
     }
@@ -221,17 +221,12 @@ describe("the SR+ bonus in a high roll", () => {
         commandHandlers = {}, commandHelp = {}
       }
     `);
-    s.load("Modules/Games.lua");
-    const game = (line: string) => s.run(`${words(line)}; NS.commandHandlers["games"](a)`);
-    game("highroll");
-    game("add Ann");
-    game("add Bob");
-    expect(s.run("return tostring(NS.games.setBonus('Ann', 20))")).toBe("true");
-    expect(s.run("return tostring(NS.games.setBonus('Zed', 20))")).toBe("false");
-    game("roll");
+    s.run(`NS.isOfficer = function() return true end`);
+    s.load("Modules/LootRoll.lua");
+    s.run(`NS.lootRoll.start({"Ann","Bob"}, {Ann=20})`);
     s.run(`fire_event("CHAT_MSG_SYSTEM", "Bob rolls 90 (1-100)")`);
     s.run(`fire_event("CHAT_MSG_SYSTEM", "Ann rolls 75 (1-100)")`);
-    expect(s.chat().join("\n")).toContain("High Roll: Ann wins with 95 (75 + 20 SR+)!");
+    expect(s.chat().join("\n")).toContain("Roll winner: Ann (95 including SR+).");
   });
 });
 

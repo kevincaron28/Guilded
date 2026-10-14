@@ -1114,7 +1114,7 @@ local function showHelp()
       if type(line) ~= "table" or officer or not line.officer then message(text) end
     end
   end
-  message("/guilded modules - turn optional parts (games, bidding, dungeons...) on or off")
+  message("/guilded modules - turn optional parts (bidding, dungeons...) on or off")
 end
 
 -- Extension point for modules loaded after Core.lua (see Modules/Casino.lua):
@@ -1134,7 +1134,6 @@ ns.commandHelp = ns.commandHelp or {}
 -- and window tabs check ns.moduleActive(). Turning one off works at once;
 -- turning one back on needs a /reload (it has to set itself up at login).
 ns.MODULES = {
-  { key = "games", name = "Roll games", desc = "fun deathroll and high-roll games, no gold", commands = { "games", "casino" } },
   { key = "bidding", name = "GP bidding", desc = "in-game GP bids on loot", commands = { "bid" } },
   { key = "council", name = "Loot council", desc = "BiS / upgrade / off-spec answers for loot council guilds", commands = { "council", "lc" } },
   { key = "reserve", name = "Soft reserves", desc = "reserve items for a raid, see who reserved what", commands = { "reserve", "res" } },
@@ -1152,7 +1151,7 @@ ns.MODULES = {
   { key = "guildmap", name = "Guild map", desc = "guildmates on your world map and minimap", commands = { "map" } },
   { key = "scores", name = "Dungeon scores", desc = "a dungeon score per player from recorded runs, on tooltips", commands = { "score" } },
 }
-local MODULE_ALIASES = { map = "guildmap", score = "scores", casino = "games", game = "games", bid = "bidding", bids = "bidding", gp = "bidding", lc = "council", reserves = "reserve", recipe = "recipes", cooldown = "recipes", crafting = "recipes", softres = "reserve", sr = "reserve", lootcouncil = "council", dungeons = "dungeon", test = "sim", tests = "sim", consumable = "consumables", consumes = "consumables", flask = "consumables" }
+local MODULE_ALIASES = { map = "guildmap", score = "scores", bid = "bidding", bids = "bidding", gp = "bidding", lc = "council", reserves = "reserve", recipe = "recipes", cooldown = "recipes", crafting = "recipes", softres = "reserve", sr = "reserve", lootcouncil = "council", dungeons = "dungeon", test = "sim", tests = "sim", consumable = "consumables", consumes = "consumables", flask = "consumables" }
 local moduleByKey, commandModule, activeAtLogin = {}, {}, {}
 for _, module in ipairs(ns.MODULES) do
   moduleByKey[module.key] = module

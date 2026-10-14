@@ -46,5 +46,4 @@ Modules\Scores.lua
 Modules\SeasonDetails.lua
 Modules\DungeonScorePanel.lua
 Modules\Minimap.lua
-Modules\GuildPanel.lua
 Modules\Options.lua

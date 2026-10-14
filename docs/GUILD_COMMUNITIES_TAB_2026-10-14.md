@@ -24,3 +24,9 @@ Installed on the owner's local client with original files backed up under
 backups/guild-tab-20261014. SavedVariables untouched. Real-client layout,
 native-tab switching and minimap restoration remain pending owner acceptance.
 No version bump, public package replacement or live server change for this tab.
+
+Owner reported no tab visible on the first candidate. The integration now loads
+inside the existing Minimap.lua TOC entry, avoiding reliance on the client
+discovering a new Lua file on reload. Its icon is anchored at the lower right
+edge of the guild window rather than below GuildInfoTab, keeping it away from
+the extra upper side tab visible in the owner's screenshot. Retest pending.

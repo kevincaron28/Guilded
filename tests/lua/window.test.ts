@@ -90,7 +90,7 @@ describe("the tools window (sidebar and Home page)", () => {
       nativeHandler = CommunitiesFrame.GuildInfoTab:GetScript("OnClick")
       function InCombatLockdown() return true end
     `);
-    s.load("Modules/GuildPanel.lua");
+    // Guild integration loads with Minimap.lua, including on /reload.
     s.run(`NS.guildPanel.attach()`);
     expect(s.run(`return tostring(NS.guildPanel.tab == nil)`)).toBe("true");
     s.run(`function InCombatLockdown() return false end; NS.guildPanel.attach(); firstTab = NS.guildPanel.tab; NS.guildPanel.attach()`);

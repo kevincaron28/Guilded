@@ -26,6 +26,7 @@ remains 2; additive data and a separate versioned rating format carry the update
 
 Confirmed two-PC bridge checks include reception, core data surviving reload
 with the sender offline, matching core/loot methods and EP/GP, and calendar
-comparison. New Dungeon Group Finder layout and two-PC seasonal-detail delivery
-still need real-client verification. Final-boss detection across all 16 targets
+comparison. The owner also confirmed that the new Dungeon Group Finder screen
+and current/past views work. Two-PC seasonal-detail delivery and eligible/carry
+run scoring still need real-client verification. Final-boss detection across all 16 targets
 is not claimed as tested. The Windows installer remains unsigned.

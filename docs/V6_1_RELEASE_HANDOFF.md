@@ -77,7 +77,9 @@ prevent seasonal-detail UI retries from restarting a paced transfer and preserve
 the client-provided whisper address across server labels. Regression tests cover
 more than 60 paced chunks and a server-suffixed recipient.
 
-The new Dungeon Group Finder layout, seasonal-detail delivery to the second PC,
-and real eligible/carry run evidence remain unverified. Existing bridge
+The owner confirmed on October 13 that the new Dungeon Group Finder screen
+opens without Lua errors and both current/past season views work after restart.
+Seasonal-detail delivery to the second PC and real eligible/carry run evidence
+remain unverified. Existing bridge
 acceptance above does not cover these new paths. Do not publish a stable release
 or claim completion until the required real-client gates are resolved.

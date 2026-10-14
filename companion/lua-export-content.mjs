@@ -252,6 +252,8 @@ export function parseAddonExportText(text, realm) {
         ...(player.role ? { role: String(player.role) } : {}),
         ...(player.spec ? { spec: String(player.spec).slice(0, 40) } : {}),
         deaths: typeof player.deaths === "number" ? player.deaths : null,
+        ...(Number.isInteger(player.level) && player.level >= 1 && player.level <= 100 ? { level: player.level } : {}),
+        ...(Number.isInteger(player.minLevel) && player.minLevel >= 1 && player.minLevel <= 100 ? { minLevel: player.minLevel } : {}),
         presentSec: Math.max(0, Math.trunc(Number(player.presentSec) || 0)),
         inGuild: player.inGuild === true
       }))

@@ -47,9 +47,10 @@ describe("dungeon final-boss completion without the Encounter Journal", () => {
     expect(s.run('local e=GuildedDB.dungeon.current.encounters; return (e[1].at-e[1].startedAt)..","..(e[2].at-e[2].startedAt)')).toBe("30,45");
     s.run('STAMP=STAMP+20; fire_event("BOSS_KILL",3496,"Durgen Dirgehammer")');
     expect(s.run('return tostring(GuildedDB.dungeon.runs[RUN_ID].encounters[3].startedAt)')).toBe("nil");
-    s.run('local r=GuildedDB.dungeon.runs[RUN_ID]; r.players.Tester={class="PRIEST",role="HEALER",spec="Discipline"}; ROUNDTRIP=NS.dungeon.deserialize(RUN_ID,NS.dungeon.serialize(r))');
+    s.run('local r=GuildedDB.dungeon.runs[RUN_ID]; r.players.Tester={class="PRIEST",role="HEALER",spec="Discipline",minLevel=19,level=20}; ROUNDTRIP=NS.dungeon.deserialize(RUN_ID,NS.dungeon.serialize(r))');
     expect(s.run('return ROUNDTRIP.encounters[2].at-ROUNDTRIP.encounters[2].startedAt')).toBe("45");
     expect(s.run('return ROUNDTRIP.players.Tester.spec')).toBe("Discipline");
+    expect(s.run('return ROUNDTRIP.players.Tester.minLevel..","..ROUNDTRIP.players.Tester.level')).toBe("19,20");
   });
 
   it("bounds peer summaries while keeping full saved encounters and accepts legacy summaries", () => {

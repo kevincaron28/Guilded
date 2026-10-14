@@ -21,7 +21,8 @@ describe("dungeon admin", () => {
     const result = await startSeason(db as never, "g", "Next", "rated");
     expect(result.champions).toEqual(["Explorer"]);
     expect(tx.dungeonSeason.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
-      finalRating: [{ memberId: "explorer", name: "Explorer", points: 200, dungeons: 2 }],
+      finalRating: [expect.objectContaining({ memberId: "explorer", name: "Explorer", points: 200, dungeons: 2,
+        details: [expect.objectContaining({ instanceId: 33, points: 100 }), expect.objectContaining({ instanceId: 36, points: 100 })] })],
       finalStandings: [{ memberId: "grinder", name: "Grinder", points: 9999 }]
     }) }));
     await expect(startSeason(db as never, "g", "Retry", "wrong")).rejects.toThrow(/changed/);

@@ -93,9 +93,11 @@ local function unitInfo(unit)
   local guid = exists(UnitGUID) and try("unitGuid", UnitGUID, unit) or nil
   local role = exists(UnitGroupRolesAssigned) and try("groupRoles", UnitGroupRolesAssigned, unit) or nil
   local inGuild = exists(UnitIsInMyGuild) and try("inGuild", UnitIsInMyGuild, unit) or nil
+  local level = exists(UnitLevel) and try("unitLevel", UnitLevel, unit) or nil
+  if secret(level) or type(level) ~= "number" or level < 1 or level > 100 then level = nil end
   local online = not exists(UnitIsConnected) or try("online", UnitIsConnected, unit)
   return {
-    unit = unit,
+    unit = unit, level = level,
     name = ns.normalizeName(name),
     guid = (not secret(guid)) and guid or nil,
     class = (not secret(classFile)) and classFile or nil,

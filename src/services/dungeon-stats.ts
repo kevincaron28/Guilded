@@ -180,6 +180,14 @@ export async function addonDungeonBoard(database: Db & Pick<PrismaClient, "chara
   for (const character of characters) if (!mainName.has(character.memberId)) mainName.set(character.memberId, character.name);
   const boards = selected.map(season => ({
     id: season.id, season: season.name, status: season.status,
+    ratingVersion: hasDungeonRating(season.ratingRules) ? (season.ratingRules as { version: number }).version : 0,
+    detailsAvailable: ratingRows.has(season.id) && ratingRows.get(season.id)!.every(row => row.details !== undefined),
+    profiles: (ratingRows.get(season.id) ?? []).filter(row => row.details !== undefined).map(row => ({
+      name: mainName.get(row.memberId) ?? row.name, points: row.points, details: row.details!,
+      characters: characters.filter(character => character.memberId === row.memberId).map(character => character.name)
+    })),
+    catalog: [...new Map((ratingRows.get(season.id) ?? []).flatMap(row => row.details ?? [])
+      .map(detail => [detail.instanceId, { instanceId: detail.instanceId, name: detail.name, targetSec: detail.targetSec }])).values()],
     rows: ((ratingRows.get(season.id) ?? finalRows(season.finalStandings))?.map(row => ({ name: mainName.get(row.memberId) ?? row.name, points: row.points })) ?? totals.filter(row => row.seasonId === season.id && (row._sum.amount ?? 0) > 0)
       .map(row => ({ name: mainName.get(row.memberId) ?? names.get(row.memberId) ?? "?", points: row._sum.amount ?? 0 }))
     ).sort((a, b) => b.points - a.points || a.name.localeCompare(b.name)).slice(0, 50)

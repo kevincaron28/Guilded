@@ -1,3 +1,6 @@
+-- Legacy local records are retained for compatibility; player-facing scores now
+-- come exclusively from authoritative current-season snapshots.
+-- Historical implementation notes:
 -- Dungeon scores, the way Raider.IO shows a Mythic+ score in retail, built from the runs the
 -- Dungeon module records (no Discord bot needed):
 --
@@ -16,7 +19,6 @@ local addonName, ns = ...
 ns = ns or {}
 
 local PREFIX = "GuildedScore"
-local SHARE_EVERY_SECONDS = 30 * 60
 local LOGIN_DELAY_SECONDS = 30
 
 local scores = {}
@@ -155,39 +157,29 @@ function scores.compute(name)
   return total, count, lines
 end
 
--- The score shown for a player: what this client worked out, or what they sent, whichever is
--- higher (they may have runs this client never saw).
+-- Only the current authoritative season is presented as a player rating.
 function scores.scoreOf(name)
-  local s = store()
-  if not s or not scores.isMember(name) then return nil end
-  local total, count = scores.compute(name)
-  local shared = s.board[name]
-  if shared and (shared.score or 0) > total then return shared.score, shared.n or count end
-  if total == 0 then return nil end
-  return total, count
+  if not scores.isMember(name) then return nil end
+  local db = ns.getDb and ns.getDb()
+  local board = db and db.dungeonBoard
+  if not board or board.status ~= "ACTIVE" then return nil end
+  local snapshot = ns.seasonDetails and ns.seasonDetails.get(1, name)
+  if snapshot and snapshot.available and snapshot.profile then
+    return snapshot.profile.points, #snapshot.profile.details
+  end
+  for _, row in ipairs(board.rows or {}) do
+    if ns.normalizeName(row.name) == name then return row.points, nil end
+  end
+  return nil
 end
 
 -- ---------------------------------------------------------------------
 -- Sharing: S|<score>|<dungeons>
 -- ---------------------------------------------------------------------
 
-local lastShared = { at = -100000, score = -1 }
-local function clock()
-  local ok, value = pcall(GetTime)
-  if ok and type(value) == "number" then return value end
-  return time()
-end
-
-function scores.share(force)
-  if not active() or not (IsInGuild and IsInGuild()) then return false end
-  local me = ns.playerName and ns.playerName()
-  local total, count = scores.compute(me)
-  if total == 0 then return false end
-  if not force and total == lastShared.score and clock() - lastShared.at < SHARE_EVERY_SECONDS then return false end
-  ns.comm.send(PREFIX, string.format("S|%d|%d", total, count), "GUILD")
-  lastShared = { at = clock(), score = total }
-  return true
-end
+-- Old S messages cannot represent season IDs or fixed-target rules. Keep old
+-- stored data, but never publish it as an authoritative seasonal rating.
+function scores.share() return false end
 
 function scores.receive(text, sender)
   local s = store()
@@ -211,8 +203,21 @@ function scores.ranking()
     local total, count = scores.scoreOf(name)
     if total then table.insert(rows, { name = name, score = total, n = count }) end
   end
-  for name in pairs(s.bests) do add(name) end
-  for name in pairs(s.board) do add(name) end
+  local db = ns.getDb()
+  local board = db and db.dungeonBoard
+  if not board or board.status ~= "ACTIVE" then return rows end
+  if not board.detailsAvailable then
+    for _, row in ipairs(board.rows or {}) do add(ns.normalizeName(row.name)) end
+  end
+  for _, profile in ipairs(board and board.profiles or {}) do
+    local name = ns.normalizeName(profile.name)
+    if not scores.isMember(name) then
+      for _, alt in ipairs(profile.characters or {}) do
+        if scores.isMember(alt) then name = ns.normalizeName(alt); break end
+      end
+    end
+    add(name)
+  end
   table.sort(rows, function(a, b) if a.score ~= b.score then return a.score > b.score end return a.name < b.name end)
   return rows
 end
@@ -223,24 +228,25 @@ local function clockText(seconds)
 end
 
 function scores.detailText(name)
-  local total, count, lines = scores.compute(name)
-  local shown, shownCount = scores.scoreOf(name)
-  if not shown then return string.format(L("%s has no dungeon score yet (a completed run recorded by Guilded)."), name) end
-  local out = { string.format(L("%s: dungeon score %d (%d dungeons)"), name, shown, shownCount or count) }
-  for _, line in ipairs(lines) do
-    table.insert(out, string.format("  %s: %d  (%s, %d %s)%s", line.name or line.key, line.points, clockText(line.sec), line.deaths or 0,
-      L("deaths"), line.record and ("  " .. L("guild record")) or ""))
+  local total, count = scores.scoreOf(name)
+  if total == nil then return L("No current season score received yet.") end
+  local out = { name .. ": " .. L("Your season score") .. " " .. total }
+  local snapshot = ns.seasonDetails and ns.seasonDetails.get(1, name)
+  for _, line in ipairs(snapshot and snapshot.profile and snapshot.profile.details or {}) do
+    out[#out + 1] = string.format("  %s: %d (+%d)  %s", line.name, line.points, line.speedBonus, clockText(line.durationSec))
   end
-  if total < shown then table.insert(out, "  " .. L("(some of their runs were never seen by this client)")) end
+  if not count then out[#out + 1] = L("Per-dungeon breakdown unavailable in this snapshot.") end
   return table.concat(out, "\n")
 end
 
 function scores.topText(limit)
   local rows = scores.ranking()
-  if #rows == 0 then return L("No dungeon scores yet: complete a dungeon with Guilded running.") end
+  if #rows == 0 then return L("No current season score received yet.") end
   local out = {}
+  local rank = 1
   for i = 1, math.min(limit or 10, #rows) do
-    table.insert(out, string.format("%2d. %-14s %d  (%d)", i, rows[i].name, rows[i].score, rows[i].n or 0))
+    if i > 1 and rows[i].score ~= rows[i - 1].score then rank = i end
+    table.insert(out, string.format("%2d. %-14s %d", rank, rows[i].name, rows[i].score))
   end
   return table.concat(out, "\n")
 end
@@ -261,7 +267,7 @@ local function decorateUnit(tooltip)
   local name = ns.normalizeName and ns.normalizeName(unitName)
   local total, count = scores.scoreOf(name)
   if not total then return end
-  tooltip:AddLine(string.format(L("Guilded dungeon score: %d (%d dungeons)"), total, count or 0), GOLD_R, GOLD_G, GOLD_B)
+  tooltip:AddLine(string.format(L("Guilded season score: %d"), total), GOLD_R, GOLD_G, GOLD_B)
   if tooltip.Show then tooltip:Show() end
 end
 scores.decorateUnit = decorateUnit

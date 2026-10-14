@@ -61,7 +61,10 @@ export function dungeonAnnouncement(summary: DungeonImportSummary, lang: Lang, e
       if (details.length > 8) lines.push(t(lang, "dungeon.post.more", { count: details.length - 8 }));
       if (details.some(player => player.specSource === "profile")) lines.push(fr ? "* Spé du profil lié; non relevée pendant ce donjon." : "* Spec from linked profile; not captured during this run.");
     } else lines.push(`  ${[...members].map((name) => escapeMarkdown(name)).join(", ")}`);
-    if (run.ratingEnabled) lines.push(fr ? "100 par donjon distinct admissible; répétitions, alts et difficultés ne s’additionnent pas." : "100 per eligible distinct dungeon; repeats, alts and difficulties do not stack.");
+    if (run.ratingVersion === 3) lines.push(fr ? "Score de vitesse : meilleure tentative par donjon, 200 à la cible. Sans cible : calibration." : "Dungeon-time rating: best run per dungeon, 200 at target. No target: calibrating.");
+    if (run.ratingEnabled && run.ratingVersion !== 3) lines.push(fr ? "100 par donjon distinct admissible; répétitions, alts et difficultés ne s’additionnent pas." : "100 per eligible distinct dungeon; repeats, alts and difficulties do not stack.");
+    if (run.ratingSpeedBonus === 20) lines.push(fr ? "Jusqu’à +20 de vitesse par donjon, selon la cible figée de la saison. Seule la meilleure tentative compte."
+      : "Up to +20 speed per dungeon against the season's fixed target. Only the best result counts.");
     return lines.join("\n");
   });
   if (done.length > MAX_RUNS) lines.push(t(lang, "dungeon.post.more", { count: done.length - MAX_RUNS }));

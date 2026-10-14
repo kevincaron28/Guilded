@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { grantRunAchievements, type AchievementKey } from "./dungeon-achievements.js";
 import { findCharacter } from "./character-match.js";
-import { DUNGEON_RATING_RULES, dungeonRating, hasDungeonRating } from "./dungeon-rating.js";
+import { createDungeonRatingRules, dungeonRating, hasDungeonRating, type LevelBand } from "./dungeon-rating.js";
 import {
   computeRunPoints, dungeonConfig, dungeonRunSchema, validateRun, weekStart,
   type DungeonRunInput, type PlayerContext
@@ -37,6 +37,8 @@ export interface DungeonImportResult {
   encounters?: DungeonRunInput["encounters"];
   completedBy?: string;
   ratingEnabled?: boolean;
+  ratingSpeedBonus?: number;
+  ratingVersion?: number;
   playerDetails?: { character: string; class?: string; role?: string; spec?: string; specSource?: "run" | "profile"; deaths: number | null; presentSec: number; points: number; ratingGain?: number; ratingTotal?: number }[];
   unlinked: string[];
   achievements: { character: string; key: AchievementKey }[];
@@ -50,10 +52,10 @@ export interface DungeonImportSummary {
 
 const NEAR_DUPLICATE_SECONDS = 120;
 
-export async function activeSeason(tx: Pick<Prisma.TransactionClient, "dungeonSeason">, guildId: string) {
+export async function activeSeason(tx: Pick<Prisma.TransactionClient, "dungeonSeason">, guildId: string, targets: Record<string, number> = {}, bands: Record<string, LevelBand> = {}) {
   const current = await tx.dungeonSeason.findFirst({ where: { guildId, status: "ACTIVE" }, orderBy: { startsAt: "desc" } });
   if (current) return current;
-  return tx.dungeonSeason.create({ data: { guildId, name: "Season 1", ratingRules: DUNGEON_RATING_RULES } });
+  return tx.dungeonSeason.create({ data: { guildId, name: "Season 1", ratingRules: createDungeonRatingRules(targets, 3, bands) } });
 }
 
 async function isNearDuplicate(tx: Tx, guildId: string, run: DungeonRunInput): Promise<boolean> {
@@ -86,7 +88,7 @@ export async function importDungeonRuns(
   if (rawRuns.length === 0) return summary;
   const settings = await tx.guildSettings.findUnique({ where: { guildId } });
   const config = dungeonConfig(settings?.dungeonConfig);
-  const season = await activeSeason(tx, guildId);
+  const season = await activeSeason(tx, guildId, config.targets, config.levelBands);
   const rated = hasDungeonRating(season.ratingRules);
   let previousRating = rated ? await dungeonRating(tx, guildId, season) : [];
 
@@ -108,7 +110,9 @@ export async function importDungeonRuns(
       player,
       character: findCharacter(characters, player.character, player.realm)
     }));
-    const earnsPoints = check.ok && run.state === "COMPLETED" && durationSec !== null;
+    const inSeason = !!run.startedAt && run.startedAt * 1000 >= (season.startsAt?.getTime() ?? 0)
+      && (!season.endsAt || !!run.endedAt && run.endedAt * 1000 < season.endsAt.getTime());
+    const earnsPoints = check.ok && run.state === "COMPLETED" && durationSec !== null && inSeason;
 
     // Records and history are judged BEFORE this run is saved.
     let guildRecord = false;
@@ -158,6 +162,7 @@ export async function importDungeonRuns(
         durationSec,
         completedBy: run.completedBy ?? run.endReason ?? null,
         recorder: run.recorder ?? null,
+        competitionData: { players: run.players.map(p => ({ name: p.character, level: p.level ?? null, minLevel: p.minLevel ?? null })), encounters: run.encounters ?? [] },
         reporters: run.reporters,
         protocolVersion: run.protocolVersion,
         addonVersion: run.addonVersion ?? null,
@@ -219,7 +224,7 @@ export async function importDungeonRuns(
       ...(check.ok ? {} : { invalidReason: check.reason ?? "invalid" }),
       durationSec,
       points,
-      ...(rated ? { ratingEnabled: true } : {}),
+      ...(rated ? { ratingEnabled: true, ratingVersion: (season.ratingRules as { version: number }).version, ratingSpeedBonus: (season.ratingRules as { speedBonus: number }).speedBonus } : {}),
       ...(run.endedAt ? { endedAt: run.endedAt } : {}),
       ...(run.startedAt ? { startedAt: run.startedAt } : {}),
       ...(run.encounters ? { encounters: run.encounters } : {}),

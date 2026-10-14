@@ -8,7 +8,7 @@ interface StoredRun {
   invalidReason: string | null; startedAt: Date | null; endedAt: Date | null; durationSec: number | null; players: StoredPlayer[];
 }
 
-function fakeTx() {
+function fakeTx(season: { id: string; startsAt?: Date; endsAt?: Date } = { id: "season-1", startsAt: new Date(0) }) {
   const runs: StoredRun[] = [];
   const points: { memberId: string; amount: number; source: string; runId: string }[] = [];
   const achievements: { memberId: string; key: string; runId: string }[] = [];
@@ -19,7 +19,7 @@ function fakeTx() {
     guildSettings: { findUnique: async () => null },
     dungeonSeason: {
       findFirst: async () => null,
-      create: async () => ({ id: "season-1" })
+      create: async () => season
     },
     dungeonRun: {
       findUnique: async ({ where }: { where: { guildId_runRef: { runRef: string } } }) =>
@@ -164,3 +164,13 @@ describe("dungeon achievements", () => {
     expect(summary.results[0]?.achievements.some((a) => a.key === "noOneDies")).toBe(false);
   });
 });
+
+ it("retains a late finish without giving post-cutoff participation points", async () => {
+  const cutoff = new Date((start + 1000) * 1000);
+  const { tx, runs, points } = fakeTx({ id: "ended-window", startsAt: new Date((start - 1) * 1000), endsAt: cutoff });
+  const result = await importDungeonRuns(tx, "g", [{ id: "cutoff-run", protocolVersion: 1, instanceId: 36, name: "Test", state: "COMPLETED",
+    startedAt: start, endedAt: start + 1000, completedBy: "final boss", players: [{ character: "Kev", realm: "Forever", presentSec: 1000, inGuild: true }] }], characters, "test", null, now);
+  expect(runs).toHaveLength(1);
+  expect(result.results[0]?.points).toBe(0);
+  expect(points).toHaveLength(0);
+ });

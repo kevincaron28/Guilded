@@ -134,8 +134,7 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
     if (metric === "rating" && period !== "season") throw new Error(lang === "fr" ? "La cote se consulte par saison." : "Rating is season-based; choose the season period.");
     if (metric === "rating" && !hasDungeonRating(season?.ratingRules)) throw new Error(lang === "fr" ? "Cette saison utilise les anciens points de participation." : "This season uses legacy participation points.");
     if (season && hasDungeonRating(season.ratingRules) && metric !== "participation") {
-      if (season.status === "ENDED" && instanceId !== null) throw new Error(lang === "fr" ? "Consultez le classement final complet de cette saison." : "View the complete frozen standings for an archived season.");
-      await interaction.reply({ embeds: [ratingEmbed(await dungeonRating(prisma, context.guildId, season, instanceId), season.name, lang)], allowedMentions: { parse: [] } });
+      await interaction.reply({ embeds: [ratingEmbed(await dungeonRating(prisma, context.guildId, season, instanceId), season.name, lang, season.ratingRules)], allowedMentions: { parse: [] } });
       return;
     }
     const rows = season?.status === "ENDED" && instanceId === null ? await seasonRows(prisma, context.guildId, { ...season, ratingRules: null }) : await leaderboard(prisma, context.guildId, period, instanceId, 10, new Date(), seasonId);
@@ -193,7 +192,7 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
       embed.setDescription(t(lang, "dungeon.season.none"));
     } else {
       if (hasDungeonRating(season.ratingRules)) {
-        await interaction.reply({ embeds: [ratingEmbed(await dungeonRating(prisma, context.guildId, season), season.name, lang)], allowedMentions: { parse: [] } });
+        await interaction.reply({ embeds: [ratingEmbed(await dungeonRating(prisma, context.guildId, season), season.name, lang, season.ratingRules)], allowedMentions: { parse: [] } });
         return;
       }
       const runs = await prisma.dungeonRun.count({ where: { guildId: context.guildId, seasonId: season.id, valid: true, state: "COMPLETED" } });

@@ -43,6 +43,7 @@ Modules\Attunements.lua
 Modules\Ready.lua
 Modules\GuildMap.lua
 Modules\Scores.lua
+Modules\SeasonDetails.lua
 Modules\DungeonScorePanel.lua
 Modules\Minimap.lua
 Modules\Options.lua

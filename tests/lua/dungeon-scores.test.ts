@@ -8,9 +8,11 @@ function setup() {
   session.run(`NS = {}; GuildedDB = nil`);
   session.load("Core.lua");
   session.load("Modules/Scores.lua");
+  session.load("Modules/SeasonDetails.lua");
   session.load("Modules/DungeonScorePanel.lua");
   session.run(`fire_event("PLAYER_LOGIN")
     DB = NS.getDb()
+    DB.dungeonBoard={season="Current",status="ACTIVE",rows={{name="Tester",points=100},{name="Friend",points=100}}}
     DB.roster.Friend = { inGuild = true }
     DB.roster.Guest = { inGuild = false }
     DB.roster.Legacy = {}
@@ -47,7 +49,7 @@ describe("guild-only dungeon scores", () => {
       NS.scores.receive("S|400|4garbage", "Friend-Realm")`);
     expect(s.run('return tostring(DB.scores.board.Guest)..tostring(DB.scores.board.Friend)')).toBe("nilnil");
     s.run('NS.scores.receive("S|400|4", "Friend-Realm")');
-    expect(s.run('return NS.scores.scoreOf("Friend")')).toBe("400");
+    expect(s.run('return NS.scores.scoreOf("Friend")')).toBe("100"); // Old self-reported scores cannot override the season.
   });
   it("relearns saved runs after the guild roster becomes available", () => {
     const s = setup();
@@ -59,7 +61,9 @@ describe("guild-only dungeon scores", () => {
   it("shows unrun and custom dungeons and filters current/past snapshots without changing them", () => {
     const s = setup();
     s.run(`RUN.name="Hall of Thanes"; NS.scores.learn(RUN)
-      DB.dungeonBoard={season="Autumn",status="ACTIVE",rows={{name="Guest",points=900},{name="Tester",points=200}},
+      DB.dungeonBoard={season="Autumn",status="ACTIVE",detailsAvailable=true,ratingVersion=2,
+        profiles={{name="Tester",points=200,details={{instanceId=3065,name="Hall of Thanes",points=100,speedBonus=0,durationSec=1800},{instanceId=329,name="Stratholme",points=100,speedBonus=0,durationSec=1800}}}},
+        catalog={{instanceId=3065,name="Hall of Thanes"},{instanceId=329,name="Stratholme"}},rows={{name="Guest",points=900},{name="Tester",points=200}},
         history={{season="Summer",status="ENDED",rows={{name="Friend",points=100},{name="Guest",points=500}}}}}
       M=NS.dungeonScorePanel.model("Tester",1)`);
     expect(s.run('return #M.cards')).toBe("20");
@@ -91,7 +95,7 @@ describe("guild-only dungeon scores", () => {
     s.run('COMBAT=false; fire_event("PLAYER_REGEN_ENABLED"); TAB=NS.dungeonScorePanel.tab; fire_event("ADDON_LOADED")');
     expect(s.run('return tostring(TAB==NS.dungeonScorePanel.tab and PVEFrame:GetScript("OnShow")==NATIVE)')).toBe("true");
     s.run('TAB:GetScript("OnClick")()');
-    expect(s.run('return NS.dungeonScorePanel.pane.summary.text')).toContain("120 recorded points");
+    expect(s.run('return NS.dungeonScorePanel.pane.summary.text')).toContain("Your season score: 100");
     s.run('TAB:GetScript("OnClick")()');
     expect(s.run('return tostring(NS.dungeonScorePanel.pane:IsShown())')).toBe("false");
   });

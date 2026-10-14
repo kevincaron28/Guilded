@@ -37,4 +37,9 @@ and opposite-corner anchors inside the native title/borders. Every Guilded child
 frame is raised with the panel; the regular 790x600 window size and saved scale
 are restored on exit. A translucent selected texture keeps the logo visible.
 Lua tests now model frame children and assert fitted anchors, scale, child
-levels and restored window dimensions. Updated layout acceptance is pending.
+levels and restored window dimensions. Owner confirmed the main layout is now
+correct. Their next screenshot exposed the fixed-position ledger publishing
+button below the shorter host window. Guild pages now use a bounded scroll
+viewport, preserving their original content height without rendering controls
+outside the guild window. Standalone pages restore their original anchors.
+This last scrolling adjustment is installed locally; visual retest pending.

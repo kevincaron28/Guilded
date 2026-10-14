@@ -29,6 +29,8 @@ const RICH_FRAMES = String.raw`
     f.HookScript = function(self, name, fn) self.scripts[name] = self.scripts[name] or fn end
     f.GetChildren = function(self) return unpack(self.children) end
     f.SetFrameLevel = function(self, level) self.level = level end
+    f.GetFrameLevel = function(self) return rawget(self, "level") or 1 end
+    f.SetScrollChild = function(self, child) self.scrollChild = child end
     f.SetScale = function(self, scale) self.scale = scale end
     f.ClearAllPoints = function(self) self.points = {} end
     f.SetPoint = function(self, ...) table.insert(self.points, {...}) end
@@ -80,6 +82,10 @@ describe("the tools window (sidebar and Home page)", () => {
       end
     `)).toBe("true");
     expect(s.run(`return tostring(NS.windowState().tabs[1].page.level > 1000)`)).toBe("true");
+    expect(s.run(`
+      local ui = NS.windowState()
+      return tostring(ui.guildScroll.scrollChild == ui.tabs[ui.currentTab].page and ui.guildScroll.shown)
+    `)).toBe("true");
     s.run(`
       for _, f in ipairs(FRAMES) do if f.scripts.OnHide and f.scripts.OnShow then f.scripts.OnHide(f) end end
       NS.commandHandlers["menu"]()
@@ -87,6 +93,7 @@ describe("the tools window (sidebar and Home page)", () => {
       for _, f in ipairs(FRAMES) do if f.scripts.OnShow then f.scripts.OnShow(f) end end
     `);
     expect(s.run(`return tostring(NS.windowState().guildHost == nil)`)).toBe("true");
+    expect(s.run(`return tostring(NS.windowState().guildScroll.shown)`)).toBe("false");
     expect(s.run(`
       for _, f in ipairs(FRAMES) do if f.frameName == "GuildedPanel" then return tostring(f.width == 790 and f.height == 600) end end
     `)).toBe("true");

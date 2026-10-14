@@ -1506,8 +1506,28 @@ refresh = function()
   end
 end
 
+local function raiseWindow(frame, level, seen)
+  seen = seen or {}
+  if seen[frame] then return end
+  seen[frame] = true
+  frame:SetFrameStrata("DIALOG")
+  frame:SetFrameLevel(level)
+  for _, child in ipairs({ frame:GetChildren() }) do
+    if type(child) == "table" or type(child) == "userdata" then raiseWindow(child, level + 1, seen) end
+  end
+end
+
 selectTab = function(index)
   if not index or not ui.tabs[index] then return end
+  if ui.guildHost and ui.guildScroll then
+    local page = ui.tabs[index].page
+    page:SetParent(ui.guildScroll)
+    page:ClearAllPoints()
+    page:SetSize(PAGE_WIDTH, PANEL_HEIGHT - 110)
+    ui.guildScroll:SetScrollChild(page)
+    ui.guildScroll:SetVerticalScroll(0)
+    raiseWindow(page, ui.guildScroll:GetFrameLevel() + 1)
+  end
   ui.currentTab = index
   for i, tab in ipairs(ui.tabs) do
     if i == index then tab.page:Show(); tab.button:LockHighlight() else tab.page:Hide(); tab.button:UnlockHighlight() end
@@ -1528,17 +1548,6 @@ end
 -- ---------------------------------------------------------------------
 -- Window
 -- ---------------------------------------------------------------------
-
-local function raiseWindow(frame, level, seen)
-  seen = seen or {}
-  if seen[frame] then return end
-  seen[frame] = true
-  frame:SetFrameStrata("DIALOG")
-  frame:SetFrameLevel(level)
-  for _, child in ipairs({ frame:GetChildren() }) do
-    if type(child) == "table" or type(child) == "userdata" then raiseWindow(child, level + 1, seen) end
-  end
-end
 
 local function buildPanel()
   panel = CreateFrame("Frame", "GuildedPanel", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
@@ -1675,6 +1684,15 @@ local function buildPanel()
     else panel:SetPoint("CENTER", UIParent, "CENTER") end
     panel:SetScale(tonumber(s.panelScale) or 1)
     panel:SetSize(PANEL_WIDTH, PANEL_HEIGHT)
+    if ui.guildScroll then
+      ui.guildScroll:Hide()
+      for _, tab in ipairs(ui.tabs) do
+        tab.page:SetParent(panel)
+        tab.page:ClearAllPoints()
+        tab.page:SetPoint("TOPLEFT", panel, "TOPLEFT", CONTENT_X, -66)
+        tab.page:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -22, 44)
+      end
+    end
     raiseWindow(panel, ui.undockedLevel or 10)
     panel:SetMovable(true)
     if ui.guildBackground then ui.guildBackground:Hide() end
@@ -1724,6 +1742,12 @@ function ns.openGuildPanel(host)
   panel:SetScale(1)
   panel:SetPoint("TOPLEFT", host, "TOPLEFT", 8, -30)
   panel:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", -8, 8)
+  if not ui.guildScroll then
+    ui.guildScroll = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
+    ui.guildScroll:SetPoint("TOPLEFT", panel, "TOPLEFT", CONTENT_X, -66)
+    ui.guildScroll:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -30, 44)
+  end
+  ui.guildScroll:Show()
   -- Raise the whole Guilded subtree, including previously built pages and
   -- controls. Reparenting the outer frame alone leaves native children above it.
   raiseWindow(panel, host:GetFrameLevel() + 1000)

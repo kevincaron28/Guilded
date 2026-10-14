@@ -4,7 +4,8 @@ const settings = {
   notifyChannelId: "c1", raidSignupChannelId: null, logChannelId: null, welcomeChannelId: null,
   applicantRoleId: null, memberRoleId: null, attendanceDkp: 10, lateAttendanceDkp: 5, bossKillDkp: 5,
   epCompletionBonus: 0, baseGp: 0, epgpDecayPercent: 0.1, raidReminderMinutes: 60, weeklyReportEnabled: false,
-  timezone: "America/Toronto", language: "en", welcomeDelivery: "DM", welcomeRoleIds: ["r1"], welcomeRolePrompt: null
+  timezone: "America/Toronto", language: "en", welcomeDelivery: "DM", welcomeRoleIds: ["r1"], welcomeRolePrompt: null,
+  rulesGate: false, rulesChannelId: null as string | null
 };
 vi.mock("../src/commands/context.js", () => ({
   guildService: { getSettings: vi.fn(async () => settings), updateSettings: vi.fn() },
@@ -80,6 +81,29 @@ describe("setup wizard screens", () => {
     const screen = await renderStep(4, guild as never, "g1", "");
     const labels = screen.components.flatMap((row) => row.toJSON().components.map((c) => (c as { label?: string }).label));
     expect(labels).toContain("Post/repair signup guide");
+  });
+
+  it("explains that WoW setup is for WoW players and that the Windows app is optional", async () => {
+    const text = (await renderStep(8, guild as never, "g1", "")).embeds[0]!.data.description!;
+    expect(text).toContain("WoW linking is only for WoW players");
+    expect(text).toContain("The Windows app is optional");
+  });
+
+  it("explains the actual applicant-role timing when rules are required", async () => {
+    settings.rulesGate = true;
+    settings.rulesChannelId = "rules";
+    try {
+      const text = (await renderStep(6, guild as never, "g1", "")).embeds[0]!.data.description!;
+      expect(text).toContain("given after accepting the rules");
+      expect(text).not.toContain("given automatically when someone joins");
+      settings.language = "fr";
+      const french = (await renderStep(6, guild as never, "g1", "")).embeds[0]!.data.description!;
+      expect(french).toContain("après l'acceptation des règles");
+    } finally {
+      settings.rulesGate = false;
+      settings.rulesChannelId = null;
+      settings.language = "en";
+    }
   });
 });
 

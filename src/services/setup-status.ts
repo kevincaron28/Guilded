@@ -108,16 +108,16 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en"): SetupCheck[] 
     { label: T("Raid reminders"), ok: facts.remindersOn, optional: true, fix: T("Optional: turn them on in /setup step 7.") },
     { label: T("Weekly guild report"), ok: facts.weeklyReportOn, optional: true, fix: T("Optional: turn it on in /setup step 7.") },
     {
-      label: T("Companion link to the WoW addon"),
+      label: T("At least one companion account connected"),
       ok: facts.companionPaired,
       optional: true,
-      fix: T("Needed only to sync the addon: run /character pair and link the code in Companion Settings.")
+      fix: T("Optional for WoW sync: /character pair gives the online companion link and a private code. Enter it in Connection & setup, then Connect.")
     },
     {
-      label: T("Characters linked"),
+      label: T("At least one WoW character linked"),
       ok: facts.linkedCharacters > 0,
       optional: true,
-      fix: T("Everyone runs /character pair once (or /character add) so addon data and EPGP match them.")
+      fix: T("WoW players only: /character pair shows existing characters and how to link them. Already connected? Sync alts with the same companion.")
     }
   ];
   // Every other channel setup can create: optional, each with how to get it.

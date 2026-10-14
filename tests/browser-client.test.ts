@@ -29,6 +29,13 @@ const logFile = () => {
 };
 
 describe("online companion session and queue", () => {
+  it("prefills a new browser from the Discord link while preserving an existing device connection", async () => {
+    const { env } = environment();
+    env.location.search = "?guild=123456789012345678";
+    expect((await createBrowserCompanion(env as never).getAll()).config.guildDiscordId).toBe("123456789012345678");
+    await createBrowserCompanion(env as never).pairAccount(profile);
+    expect((await createBrowserCompanion(env as never).getAll()).config.guildDiscordId).toBe("123");
+  });
   it("keeps pairing and pending observations after the original tab closes", async () => {
     const { env, session, storage, choose } = environment();
     const api = createBrowserCompanion(env as never);

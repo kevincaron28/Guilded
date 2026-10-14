@@ -366,7 +366,9 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
     embed.setDescription([
       T("**Optional.** Skip with **Next** if you don't use these."),
       "",
-      T("🆕 **Applicant role** — given automatically when someone joins: {role}", { role: roleLabel(lang, settings.applicantRoleId) }),
+      T(rulesGateActive(settings)
+        ? "🆕 **Applicant role** — given after accepting the rules: {role}"
+        : "🆕 **Applicant role** — given automatically when someone joins: {role}", { role: roleLabel(lang, settings.applicantRoleId) }),
       T("🛡️ **Member role** — given when an application is approved (`/mod application approve`): {role}", { role: roleLabel(lang, settings.memberRoleId) }),
       "",
       T("**My role must be above these roles** (Server Settings → Roles, drag me higher). The final checklist tells you if it isn't.")
@@ -430,8 +432,8 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       formatChecks(checks),
       "",
       T("**Next steps**"),
-      T("1. Everyone: `/character pair` to link their companion (or `/character add` to link a character by hand)."),
-      T("2. Officers: install the WoW addon — {url}", { url: ADDON_URL }),
+      T("1. Members: use the welcome buttons to accept the rules and pick their games. WoW linking is only for WoW players."),
+      T("2. WoW players: install the addon ({url}), then use `/character pair` for linked characters, the online companion and 3 setup steps. The Windows app is optional.", { url: ADDON_URL }),
       T("3. Raid leaders: `/core setup` builds a raid core (name, players, rules) with menus; then `/raid create core:<name>`."),
       T("4. Try everything safely: `/setup testraid start` (fake raid, removed with `/setup testraid cleanup`)."),
       T("5. `/help` lists every command by role.")

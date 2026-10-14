@@ -21,6 +21,13 @@ describe("fresh owner configuration", () => {
     expect(config.ERROR_LOG_CHANNEL_ID).toBeUndefined();
     expect(config.MESSAGE_CONTENT_INTENT).toBe(false);
     expect(config.COMPANION_API_HOST).toBe("127.0.0.1");
+    expect(config.COMPANION_WEB_URL).toBeUndefined();
+  });
+
+  it("accepts an independent host's public companion address", async () => {
+    useExample();
+    vi.stubEnv("COMPANION_WEB_URL", "https://own-bot.example/companion/");
+    expect((await import("../src/config.js")).config.COMPANION_WEB_URL).toBe("https://own-bot.example/companion/");
   });
 
   it("still refuses a missing required bot token", async () => {

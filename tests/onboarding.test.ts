@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({
   memberOnboarding: { findUnique: vi.fn(), upsert: vi.fn() },
-  character: { count: vi.fn() }
+  character: { count: vi.fn(), findMany: vi.fn() }
 }));
 vi.mock("../src/database.js", () => ({ prisma: db }));
 vi.mock("../src/services/character-pairing.js", () => ({
@@ -49,7 +49,7 @@ function click(customId: string, guild: ReturnType<typeof fakeGuild>, values?: s
   return {
     customId, guild, user: { id: "u1" }, client: { guilds: { fetch: vi.fn().mockResolvedValue(guild) } },
     values: values ?? [], isStringSelectMenu: () => values !== undefined,
-    reply: vi.fn(), update: vi.fn()
+    deferReply: vi.fn(), deferUpdate: vi.fn(), editReply: vi.fn()
   };
 }
 
@@ -69,6 +69,7 @@ beforeEach(() => {
   db.memberOnboarding.findUnique.mockReset().mockResolvedValue(null);
   db.memberOnboarding.upsert.mockReset().mockResolvedValue({});
   db.character.count.mockReset().mockResolvedValue(0);
+  db.character.findMany.mockReset().mockResolvedValue([]);
 });
 
 describe("onboarding checklist", () => {
@@ -121,7 +122,7 @@ describe("rules gate", () => {
     for (const action of ["games", "pair"]) {
       const interaction = click(`onboard:${action}:g1`, guild);
       await handleOnboardingInteraction(interaction as never);
-      const payload = interaction.reply.mock.calls[0]![0];
+      const payload = interaction.editReply.mock.calls[0]![0];
       expect(payload.content).toContain("<#rules>");
       expect(customIds(payload)).toEqual(["onboard:accept:g1"]);
     }
@@ -138,7 +139,7 @@ describe("rules gate", () => {
     await handleOnboardingInteraction(interaction as never);
     expect(db.memberOnboarding.upsert).toHaveBeenCalledTimes(1);
     expect(member.roles.add).toHaveBeenCalledWith("applicant", "Rules accepted");
-    expect(interaction.reply.mock.calls[0]![0].content).toContain("✅ Read and accept the rules");
+    expect(interaction.editReply.mock.calls[0]![0].content).toContain("✅ Read and accept the rules");
   });
 
   it("does not turn a guild member back into an applicant", async () => {
@@ -159,7 +160,7 @@ describe("game menu and pairing", () => {
     useSettings({ ...baseSettings, welcomeRoleIds: ["wow", "poe", "admin", "gone"] });
     const interaction = click("onboard:games:g1", guild);
     await handleOnboardingInteraction(interaction as never);
-    const menu = interaction.reply.mock.calls[0]![0].components[0].toJSON().components[0];
+    const menu = interaction.editReply.mock.calls[0]![0].components[0].toJSON().components[0];
     expect(menu.options.map((option: { value: string; default?: boolean }) => [option.value, !!option.default])).toEqual([["wow", false], ["poe", true]]);
   });
 
@@ -172,7 +173,8 @@ describe("game menu and pairing", () => {
     await handleOnboardingInteraction(interaction as never);
     expect(member.roles.add.mock.calls.map((call) => (call[0] as { id: string }).id)).toEqual(["wow"]);
     expect(member.roles.remove.mock.calls.map((call) => (call[0] as { id: string }).id)).toEqual(["poe"]);
-    expect(interaction.update.mock.calls[0]![0].content).toContain("**World of Warcraft**");
+    expect(interaction.editReply.mock.calls[0]![0].content).toContain("**World of Warcraft**");
+    expect(interaction.deferUpdate).toHaveBeenCalledOnce();
   });
 
   it("gives a pairing code privately", async () => {
@@ -181,9 +183,51 @@ describe("game menu and pairing", () => {
     useSettings(baseSettings);
     const interaction = click("onboard:pair:g1", fakeGuild(member));
     await handleOnboardingInteraction(interaction as never);
-    const payload = interaction.reply.mock.calls[0]![0];
-    expect(payload.content).toContain("**ABCD-1234**");
-    expect(payload.ephemeral).toBe(true);
+    const payload = interaction.editReply.mock.calls[0]![0];
+    expect(payload.embeds[0].data.fields[0].value).toContain("**ABCD-1234**");
+    expect(interaction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
+    expect(interaction.deferReply.mock.invocationCallOrder[0]).toBeLessThan(interaction.guild.members.fetch.mock.invocationCallOrder[0]!);
+  });
+
+  it("shows a French member their existing main and alts before the code", async () => {
+    accepted();
+    const member = fakeMember();
+    useSettings({ ...baseSettings, language: "fr" });
+    db.character.findMany.mockResolvedValue([
+      { name: "Ray", realm: "Forever", isMain: true },
+      { name: "Other", realm: "Forever", isMain: false }
+    ]);
+    const interaction = click("onboard:pair:g1", fakeGuild(member));
+    await handleOnboardingInteraction(interaction as never);
+    const description = interaction.editReply.mock.calls[0]![0].embeds[0].data.description;
+    expect(description).toContain("Personnage principal : **Ray**");
+    expect(description).toContain("Alt : **Other**");
+    expect(description).toContain("Aucun nouveau code nécessaire");
+    expect(description).toContain("ton principal reste le même");
+  });
+
+  it("keeps a held game checked when removing its role fails", async () => {
+    accepted();
+    const member = fakeMember(["poe"]);
+    member.roles.remove.mockRejectedValue(new Error("Missing permissions"));
+    useSettings(baseSettings);
+    const interaction = click("onboard:pick:g1", fakeGuild(member), []);
+    await handleOnboardingInteraction(interaction as never);
+    const text = interaction.editReply.mock.calls[0]![0].content;
+    expect(text).toContain("**Path of Exile 2**");
+    expect(text).toContain("✅ Pick your games");
+    expect(text).toContain("I couldn't change");
+  });
+
+  it("reports successful role changes even before Discord updates the original cache", async () => {
+    accepted();
+    const member = fakeMember();
+    member.roles.add.mockResolvedValue(undefined);
+    useSettings(baseSettings);
+    const interaction = click("onboard:pick:g1", fakeGuild(member), ["wow"]);
+    await handleOnboardingInteraction(interaction as never);
+    expect(member.roles.cache.has("wow")).toBe(false);
+    expect(interaction.editReply.mock.calls[0]![0].content).toContain("✅ Pick your games");
   });
 });
 

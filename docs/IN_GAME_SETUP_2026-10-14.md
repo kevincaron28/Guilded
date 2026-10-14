@@ -21,3 +21,5 @@ choices fit the frame; In-game only changes Home/sidebar saving labels;
 standings shows the expected local/core/guild view; Connected restores the
 connected prompts; /reload retains the choice and existing guild records.
 Do not mark this check passed from Lua mocks.
+
+Owner acceptance, 14 October 2026: confirmed /reload, setup opens, both choices work, Home save prompts change and restore, and existing data remains intact. This does not claim unrelated two-PC or gameplay follow-up passed.

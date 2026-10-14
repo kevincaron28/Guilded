@@ -1,7 +1,7 @@
 # Guilded 6.1.1 — In-game setup and character standings
 
-14 October 2026. Patch release preparation; publication is subject to final
-CI, package verification and the real-client setup check.
+14 October 2026. Patch release. The owner confirmed both setup choices work
+in WoW, the save prompts switch correctly, and existing data remains intact.
 
 - New first-run choice: In-game only or Optional Discord connection. Reopen
   it with `/guilded setup`, Home > Guilded setup, or the addon options page.

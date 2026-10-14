@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { grantRunAchievements, type AchievementKey } from "./dungeon-achievements.js";
 import { findCharacter } from "./character-match.js";
-import { createDungeonRatingRules, dungeonRating, hasDungeonRating, type LevelBand } from "./dungeon-rating.js";
+import { createDungeonRatingRules, dungeonRating, hasDungeonRating, ratingCharacterKey, type LevelBand } from "./dungeon-rating.js";
 import {
   computeRunPoints, dungeonConfig, dungeonRunSchema, validateRun, weekStart,
   type DungeonRunInput, type PlayerContext
@@ -215,6 +215,8 @@ export async function importDungeonRuns(
     }
 
     const currentRating = rated ? await dungeonRating(tx, guildId, season) : [];
+    const ratingFor = (rows: typeof currentRating, memberId: string, name: string) => rows.find(row => row.character
+      && ratingCharacterKey(row.memberId, row.character) === ratingCharacterKey(memberId, name))?.points ?? 0;
     summary.results.push({
       runRef: run.id,
       dungeonName: run.name,
@@ -236,9 +238,9 @@ export async function importDungeonRuns(
         deaths: player.deaths ?? null, presentSec: player.presentSec,
         points: playerPoints.get(player.character) ?? 0,
         ...(rated && character ? {
-          ratingTotal: currentRating.find(row => row.memberId === character.memberId)?.points ?? 0,
-          ratingGain: (currentRating.find(row => row.memberId === character.memberId)?.points ?? 0)
-            - (previousRating.find(row => row.memberId === character.memberId)?.points ?? 0)
+          ratingTotal: ratingFor(currentRating, character.memberId, player.character),
+          ratingGain: ratingFor(currentRating, character.memberId, player.character)
+            - ratingFor(previousRating, character.memberId, player.character)
         } : {})
       })),
       guildRecord,

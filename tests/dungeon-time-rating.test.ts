@@ -11,6 +11,18 @@ function run(seconds = 1500, level: number | null = 20): RatingRun {
       encounters: [{ id: 1, name: "Boss", success: true, startedAt: 1100, at: 1190 }] } };
 }
 describe("dungeon-time competition", () => {
+  it("does not lend an alt the main's faster run or boss record", () => {
+    const alt = run(1800); alt.runRef = "alt"; alt.players[0]!.character = "Alt";
+    const data = alt.competitionData as { players: { name: string }[]; encounters: { at: number }[] };
+    data.players[0]!.name = "Alt"; data.encounters[0]!.at = 1220;
+    const rows = calculateDungeonRating([run(1500), alt], rules);
+    expect(rows).toHaveLength(2);
+    expect(rows.find(row => row.character === "Member")).toMatchObject({ points: 240,
+      details: [expect.objectContaining({ bosses: [expect.objectContaining({ durationSec: 90 })] })] });
+    expect(rows.find(row => row.character === "Alt")).toMatchObject({ points: 200,
+      details: [expect.objectContaining({ durationSec: 1800, bosses: [expect.objectContaining({ durationSec: 120, runRef: "alt" })] })] });
+    expect(frozenRating(rows)).toEqual(rows);
+  });
   it.each([[2400, 150], [1800, 200], [1500, 240], [1200, 300], [900, 400], [600, 400], [14400, 50]])("rates %i seconds as %i", (seconds, points) => {
     expect(timeRating(seconds, 1800)).toBe(points);
     expect(calculateDungeonRating([run(seconds)], rules)[0]?.points).toBe(points);

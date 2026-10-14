@@ -3,6 +3,23 @@ import { addonDungeonBoard } from "../src/services/dungeon-stats.js";
 import { standingsToLua } from "../companion/standings.mjs";
 import { DUNGEON_RATING_RULES } from "../src/services/dungeon-rating.js";
 describe("official season feed", () => {
+  it("exports two separate character profiles for one owner without rewriting either as the main", async () => {
+    const database = {
+      dungeonSeason: { findFirst: async () => ({ id: "current", name: "Current", status: "ACTIVE", startsAt: new Date(0), ratingRules: DUNGEON_RATING_RULES }), findMany: async () => [] },
+      dungeonRun: { findMany: async () => [
+        { instanceId: 36, durationSec: 1000, players: [{ character: "Main", memberId: "a", presentSec: 1000, member: { displayName: "Discord" } }] },
+        { instanceId: 33, durationSec: 1000, players: [{ character: "Alt", memberId: "a", presentSec: 1000, member: { displayName: "Discord" } }] }
+      ] },
+      dungeonPointTransaction: { groupBy: async () => [] }, member: { findMany: async () => [{ id: "a", displayName: "Discord" }] },
+      character: { findMany: async () => [{ memberId: "a", name: "Main" }, { memberId: "a", name: "Alt" }] }
+    };
+    const board = await addonDungeonBoard(database as never, "guild");
+    expect(board?.rows).toEqual([{ name: "Alt", points: 100 }, { name: "Main", points: 100 }]);
+    expect(board?.profiles).toEqual([
+      expect.objectContaining({ name: "Alt", points: 100, characters: [], details: [expect.objectContaining({ instanceId: 33 })] }),
+      expect.objectContaining({ name: "Main", points: 100, characters: [], details: [expect.objectContaining({ instanceId: 36 })] })
+    ]);
+  });
   it("uses frozen exploration rating for new seasons rather than participation points", async () => {
     const database = {
       dungeonSeason: { findFirst: async () => null, findMany: async () => [{ id: "rated", name: "Exploration", status: "ENDED",

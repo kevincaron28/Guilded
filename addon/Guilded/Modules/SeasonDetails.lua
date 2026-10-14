@@ -23,7 +23,8 @@ end
 function detail.profile(season, name)
   for _, profile in ipairs(season.profiles or {}) do
     if ns.normalizeName(profile.name) == name then return profile end
-    for _, character in ipairs(profile.characters or {}) do
+    -- Only frozen legacy seasons may share an account's result with its alts.
+    for _, character in ipairs(season.status == "ENDED" and profile.characters or {}) do
       if ns.normalizeName(character) == name then return profile end
     end
   end

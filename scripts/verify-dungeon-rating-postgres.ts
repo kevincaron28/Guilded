@@ -27,7 +27,8 @@ export async function verifyDungeonRatingPostgres(db: PrismaClient, guildId: str
       players: [{ character: "RatingMain", realm: "ReleaseTest", inGuild: true, presentSec: 799, deaths: 0 }]
     }), input("rating-old", 38, -2000)], characters, "release-test", null, new Date((start + 12000) * 1000));
   }, { timeout: 20000 });
-  assert.deepEqual(summary.results.map(run => run.playerDetails?.[0]?.ratingGain), [0, 100, 0, 100, 0, 0, 0]);
+  assert.deepEqual(summary.results.map(run => run.playerDetails?.[0]?.ratingGain), [0, 100, 100, 100, 0, 0, 0]);
+  assert.deepEqual((await dungeonRating(db, guildId, season)).map(row => [row.character, row.points]), [["RatingMain", 200], ["RatingAlt", 100]]);
   assert.equal((await dungeonRating(db, guildId, season))[0]?.points, 200);
   await invalidateRun(db, guildId, "rating-second", "fixture", "release-test");
   assert.equal((await dungeonRating(db, guildId, season))[0]?.points, 100);

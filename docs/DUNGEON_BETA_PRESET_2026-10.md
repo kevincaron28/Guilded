@@ -33,7 +33,9 @@ members, including outsiders and replacements, must remain inside the band;
 missing level evidence makes the run unranked. These are competitive eligibility
 bands, not claims that the game prevents entry outside them. Characters leveling
 above a dungeon's upper bound retain earlier earned scores but cannot improve
-that dungeon with an overlevel run. Alts share the linked member's best result.
+that dungeon with an overlevel run. The 14 October source update gives each
+character its own best result; alts no longer share competitive ratings. See
+[rollout notes](DUNGEON_CHARACTER_RATING_2026-10-14.md); existing archives remain frozen.
 
 The baseline scale gives short wings 15–25 minutes, medium routes 30–35, and long
 routes 40–50. This is a starting balance decision. Local Hall exports contained

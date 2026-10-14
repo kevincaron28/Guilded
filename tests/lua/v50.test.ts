@@ -303,7 +303,7 @@ function withStandalone(level = 58): LuaSession {
   session.run(String.raw`
     SENT = {}
     SETTINGS = {}
-    DB = {}
+    DB = { roster = { Me = { inGuild = true }, Ann = { inGuild = true }, Bob = { inGuild = true }, Late = { inGuild = true } }, dungeonBoard = { status = "ACTIVE", rows = {{name="Me",points=120},{name="Ann",points=300}} } }
     function UnitLevel() return ${level} end
     NS = {
       L = function(t) return t end,
@@ -340,7 +340,7 @@ describe("dungeon scores (no bot needed)", () => {
     // A faster Stratholme by someone else lowers Me's speed share: 0.75 + 0.25 x 1200/1800.
     s.run(`NS.scores.learn(${run({ Bob: {} }, "Stratholme", 1200, "d")})`);
     expect(s.run(`return (NS.scores.compute("Me"))`)).toBe(String(Math.round(120 * (0.75 + 0.25 * 1200 / 1800)) + 52));
-    expect(s.run(`return NS.scores.detailText("Me")`)).toContain("Me: dungeon score");
+    expect(s.run(`return NS.scores.detailText("Me")`)).toContain("Me: Your season score");
   });
 
   it("ignores unfinished runs and players who were only there briefly", () => {
@@ -351,13 +351,13 @@ describe("dungeon scores (no bot needed)", () => {
     expect(s.run(`return tostring(NS.scores.scoreOf("Me"))`)).toBe("120");
   });
 
-  it("shares your score with the guild, keeps others' shared scores, and ranks everyone", () => {
+  it("does not publish legacy scores and ranks authoritative guild season totals", () => {
     const s = withStandalone();
     s.run(`NS.scores.learn(${run({ Me: {} }, "Scholomance", 1500)})`);
     s.run(`NS.scores.share(true)`);
-    expect(s.run(`return SENT[#SENT].prefix .. ":" .. SENT[#SENT].text`)).toBe("GuildedScore:S|120|1");
+    expect(s.run(`return #SENT`)).toBe("0");
     s.run(`NS.scores.receive("S|300|4", "Ann-Realm"); NS.scores.receive("S|999999|4", "Cheat")`);
-    expect(s.run(`return NS.scores.topText(5)`)).toBe(" 1. Ann            300  (4)\n 2. Me             120  (1)");
+    expect(s.run(`return NS.scores.topText(5)`)).toBe(" 1. Ann            300\n 2. Me             120");
   });
 
   it("adds the score to a player's tooltip", () => {
@@ -366,7 +366,7 @@ describe("dungeon scores (no bot needed)", () => {
     s.run(`LINES = {}; local tip = { GetUnit = function() return "Ann", "mouseover" end, AddLine = function(_, t) LINES[#LINES + 1] = t end }
       function UnitIsPlayer() return true end; function UnitName() return "Ann" end
       NS.scores.decorateUnit(tip)`);
-    expect(s.run(`return LINES[1]`)).toBe("Guilded dungeon score: 300 (4 dungeons)");
+    expect(s.run(`return LINES[1]`)).toBe("Guilded season score: 300");
   });
 });
 

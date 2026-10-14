@@ -36,6 +36,13 @@ function activeRun() {
 }
 
 describe("dungeon final-boss completion without the Encounter Journal", () => {
+  it.each(["Bloodmage Thalnos", "Arcanist Doan", "Mage de sang Thalnos", "Arcaniste Doan"])("completes the Scarlet wing on %s without guessing encounter IDs", (boss) => {
+    const s = activeRun();
+    s.run(`INSTANCE.id=189; GuildedDB.dungeon.current.instanceId=189
+      fire_event("BOSS_KILL",987,${JSON.stringify(boss)})`);
+    expect(s.run("return GuildedDB.dungeon.runs[RUN_ID].state")).toBe("COMPLETED");
+    expect(s.run("return GuildedDB.dungeon.runs[RUN_ID].encounters[1].name")).toBe(boss);
+  });
   it("times wipes and kills, deduplicates both kill events, and survives module reload", () => {
     const s = activeRun();
     s.run('fire_event("ENCOUNTER_START", 3493, "First boss"); STAMP = STAMP + 30; fire_event("ENCOUNTER_END", 3493, "First boss", 1, 5, 0)');
@@ -47,9 +54,10 @@ describe("dungeon final-boss completion without the Encounter Journal", () => {
     expect(s.run('local e=GuildedDB.dungeon.current.encounters; return (e[1].at-e[1].startedAt)..","..(e[2].at-e[2].startedAt)')).toBe("30,45");
     s.run('STAMP=STAMP+20; fire_event("BOSS_KILL",3496,"Durgen Dirgehammer")');
     expect(s.run('return tostring(GuildedDB.dungeon.runs[RUN_ID].encounters[3].startedAt)')).toBe("nil");
-    s.run('local r=GuildedDB.dungeon.runs[RUN_ID]; r.players.Tester={class="PRIEST",role="HEALER",spec="Discipline"}; ROUNDTRIP=NS.dungeon.deserialize(RUN_ID,NS.dungeon.serialize(r))');
+    s.run('local r=GuildedDB.dungeon.runs[RUN_ID]; r.players.Tester={class="PRIEST",role="HEALER",spec="Discipline",minLevel=19,level=20}; ROUNDTRIP=NS.dungeon.deserialize(RUN_ID,NS.dungeon.serialize(r))');
     expect(s.run('return ROUNDTRIP.encounters[2].at-ROUNDTRIP.encounters[2].startedAt')).toBe("45");
     expect(s.run('return ROUNDTRIP.players.Tester.spec')).toBe("Discipline");
+    expect(s.run('return ROUNDTRIP.players.Tester.minLevel..","..ROUNDTRIP.players.Tester.level')).toBe("19,20");
   });
 
   it("bounds peer summaries while keeping full saved encounters and accepts legacy summaries", () => {

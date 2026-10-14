@@ -2,10 +2,27 @@ import { describe, expect, it, vi } from "vitest";
 import { adjustPoints, describeConfig, setWeeklyRepeat, startSeason } from "../src/services/dungeon-admin.js";
 import { dungeonConfig } from "../src/services/dungeon-rules.js";
 import { DUNGEON_RATING_RULES } from "../src/services/dungeon-rating.js";
+import { betaSeasonRules, BETA_SEASON_END } from "../src/services/dungeon-beta-preset.js";
 
 const noDb = {} as Parameters<typeof adjustPoints>[0];
 
 describe("dungeon admin", () => {
+  it("starts the exact beta preset under the expected-season guard without carrying old points forward", async () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date("2026-10-13T18:00:00Z"));
+    try {
+      const old = { id: "old", name: "Old", status: "ACTIVE", startsAt: new Date(0), ratingRules: DUNGEON_RATING_RULES };
+      const tx = { $executeRaw: vi.fn(),
+        dungeonSeason: { findFirst: async () => old, findMany: async () => [old], update: vi.fn(), updateMany: vi.fn(), create: vi.fn(async () => ({ id: "beta" })) },
+        dungeonRun: { findMany: async () => [] }, dungeonPointTransaction: { groupBy: async () => [], create: vi.fn() },
+        member: { count: async () => 0, findMany: async () => [] }, guildSettings: { findUnique: async () => null }, dungeonAchievement: { upsert: vi.fn() } };
+      const db = { ...tx, $transaction: async (fn: (client: typeof tx) => Promise<unknown>) => fn(tx) };
+      await startSeason(db as never, "g", "Beta", "old", new Date(BETA_SEASON_END), betaSeasonRules());
+      expect(tx.dungeonSeason.create).toHaveBeenCalledWith({ data: expect.objectContaining({ guildId: "g", name: "Beta", ratingRules: betaSeasonRules(), endsAt: new Date(BETA_SEASON_END) }) });
+      expect(tx.dungeonPointTransaction.create).not.toHaveBeenCalled();
+      await expect(startSeason(db as never, "g", "Beta", "stale", new Date(BETA_SEASON_END), betaSeasonRules())).rejects.toThrow(/changed/);
+      expect(tx.dungeonSeason.create).toHaveBeenCalledOnce();
+    } finally { vi.useRealTimers(); }
+  });
   it("crowns exploration leaders rather than participation grinders and freezes both results", async () => {
     const season = { id: "rated", name: "Exploration", status: "ACTIVE", startsAt: new Date(0), ratingRules: DUNGEON_RATING_RULES };
     const tx = {
@@ -21,7 +38,8 @@ describe("dungeon admin", () => {
     const result = await startSeason(db as never, "g", "Next", "rated");
     expect(result.champions).toEqual(["Explorer"]);
     expect(tx.dungeonSeason.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
-      finalRating: [{ memberId: "explorer", name: "Explorer", points: 200, dungeons: 2 }],
+      finalRating: [expect.objectContaining({ memberId: "explorer", name: "Explorer", points: 200, dungeons: 2,
+        details: [expect.objectContaining({ instanceId: 33, points: 100 }), expect.objectContaining({ instanceId: 36, points: 100 })] })],
       finalStandings: [{ memberId: "grinder", name: "Grinder", points: 9999 }]
     }) }));
     await expect(startSeason(db as never, "g", "Retry", "wrong")).rejects.toThrow(/changed/);

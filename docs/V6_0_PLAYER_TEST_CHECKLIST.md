@@ -175,6 +175,16 @@ storage is available. Current browser behavior remains a real-client retest.
 
 ## Suggested order over the next weeks
 
+13 October bridge retest: owner reports PASS for snapshot reception on Naomine's
+PC: "Guild data from Highpriest" after installing the guild-home patch and
+reloading. Both characters are WoW officers in Quebec Gold (accented in game).
+The sender reports Classic Beta PvP; receiver reports Classic Beta PvP 2 with
+guild home ClassicBetaPvP. Owner then confirmed sender status and core data
+survived Naomine's reload with Highpriest logged out, and core names, loot methods
+and compared EP/GP matched both PCs and Discord. Ordinary-member permissions,
+GP item prices, rosters, calendar and fresh snapshot changes remain pending.
+See the bridge checklist; these results do not establish every acceptance item.
+
 Officer-assisted member onboarding is prepared on the next-update branch.
 Follow [the officer bridge test](OFFICER_COMPANION_BRIDGE.md) for the private
 two-PC patch. Its real-client acceptance remains pending; the public 6.0

@@ -1,7 +1,8 @@
 # Officer-assisted WoW synchronization
 
-Prepared for the next update (6.1); public 6.0 stays unchanged until the
-two-player checks below pass. This is a private development patch.
+The bridge shipped in the owner's 13 October 6.0.0 CurseForge update for
+two-player testing. Acceptance remains incomplete. The owner then requested
+default-on officer sharing after the member reported waiting for an officer.
 
 Members use the addon and Discord. An officer uses either the online companion
 or the optional desktop companion to bring Discord guild data into WoW, then
@@ -10,15 +11,19 @@ too: it adds automatic/background file synchronization.
 
 ## Private patch test
 
-1. Close WoW on both test PCs. Overlay `Guilded-officer-bridge-test.zip` onto
-   the existing 6.0 addon in `Interface/AddOns`. The archive contains only changed
-   addon code; it excludes Standings.lua and SavedVariables.
+1. Install the current addon on both PCs and reload. The server-segment fix
+   must reach the receiver as well as the default-on officer sender.
 2. Use an officer and member in the same in-game guild and realm. Highpriest,
    previously tested outside the guild, cannot receive this guild broadcast.
 3. On the officer PC, connect the companion to the corresponding Discord guild,
    sync and save standings to that WoW installation, then log in or `/reload`.
-4. The officer runs `/guilded bridge on`. This permission is bound to the current
-   in-game guild. Run it only after checking the companion's Discord guild matches.
+4. Sharing starts automatically for a recognized officer with loaded companion
+   data. Check that the companion's Discord guild matches the current WoW guild.
+   An explicit `/guilded bridge off` persists; `/guilded bridge on` re-enables it.
+   The companion source binding survives switching the addon's guild data. After
+   intentionally changing the companion guild, save new standings and reload,
+   then use `/guilded bridge on` to rebind. Legacy standings do not contain a WoW
+   guild identifier, so the initial binding uses the officer's current guild.
 5. The member runs `/guilded bridge refresh`, then `/guilded bridge status`.
    Check standings, core rules/pools/rosters and upcoming Guilded raids without
    opening a browser companion or desktop app on the member PC.
@@ -54,11 +59,14 @@ shares pairing credentials or grants members ledger-write authority.
 
 ## Real-client acceptance
 
+- [x] 13 October: patched Naomine client reports "Guild data from Highpriest" across the two Forever server labels (owner-reported reception; both characters are WoW officers).
+- [x] 13 October: owner reports Naomine retains the sender status and core information after reload with Highpriest logged out, following the prescribed test.
+- [x] 13 October: owner confirms core names, loot methods and the compared character's EP/GP match between both PCs and Discord. GP item prices and core rosters are not yet verified.
 - [ ] Officer and ordinary member have the patch in the same WoW guild.
-- [ ] Officer explicitly enables the bridge after checking Discord guild mapping.
+- [ ] Officer sharing starts by default with the correct companion guild mapping.
 - [ ] Member receives current standings without a personal companion connection.
 - [ ] Core selection, loot method, GP prices and core roster match Discord.
-- [ ] Upcoming Guilded raid details match Discord.
+- [x] 13 October: owner confirmed the requested upcoming Guilded calendar comparison was already completed.
 - [ ] Native Discord private events remain on the officer's own PC.
 - [ ] Member logs in later and can request the officer's snapshot.
 - [ ] Member reload preserves received core/calendar data.
@@ -68,6 +76,19 @@ shares pairing credentials or grants members ledger-write authority.
 - [ ] Changing/leaving guild does not display the previous guild's raid cache.
 
 Record results in [the player test checklist](V6_0_PLAYER_TEST_CHECKLIST.md).
+On 13 October the owner confirmed both PCs updated/connected, but the member's
+status initially remained waiting for an online officer.
+Screenshots then showed the same guild, with the leader on `Classic Beta PvP`
+and the receiver on `Classic Beta PvP 2`; the receiver's fourth `GetGuildInfo`
+value was `ClassicBetaPvP`. The bridge now compares the reported guild home,
+normalizing spaces in the server label, instead of requiring both characters'
+local server labels to match. This preserves saved guild keys and still rejects
+different guild names or different guild homes. New snapshots include the guild
+home; older broadcasts from the home server remain accepted. Both directions
+and cached reloads have regression coverage. The receiver needs this update;
+the owner subsequently confirmed Naomine reports "Guild data from Highpriest"
+after installing the patch and reloading. This proves reception, not current
+standings, content correctness, reload persistence, or ordinary-member permissions.
 Automated Lua tests cover parsing, authorization, caching, cancellation and
 privacy boundaries; they do not replace this two-client check.
 

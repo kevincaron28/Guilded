@@ -8,6 +8,33 @@ local addonName, ns = ...
 ns = ns or {}
 
 local FR = {
+  ["Guild members only. Best time / fixed target. Past seasons keep their original rules."] = "Guilde uniquement. Meilleur temps / cible fixe. Chaque saison garde ses regles.",
+  ["100 per dungeon + up to 20 speed. Only your best run counts."] = "100 par donjon + jusqu'a 20 de vitesse. Meilleure tentative uniquement.",
+  ["Historical rules: 100 per distinct dungeon, no speed bonus."] = "Anciennes regles : 100 par donjon distinct, sans bonus de vitesse.",
+  ["Per-dungeon breakdown unavailable in this snapshot."] = "Details par donjon indisponibles dans ce classement.",
+  ["Breakdown unavailable"] = "Details indisponibles",
+  ["Not completed this season"] = "Non termine cette saison",
+  ["No target"] = "Sans cible",
+  ["No current season score received yet."] = "Aucun score de la saison actuelle recu.",
+  ["Guilded season score: %d"] = "Score saisonnier Guilded : %d",
+  ["Previous"] = "Precedent",
+  ["Next"] = "Suivant",
+  ["Close"] = "Fermer",
+  ["Dungeon overview"] = "Vue des donjons",
+  ["Guilded scores"] = "Scores Guilded",
+  ["Recorded bests - all time. Season standings are separate below."] = "Records locaux - toutes saisons. Classements saisonniers ci-dessous.",
+  ["Guild members only. Local records and shared snapshots may be incomplete."] = "Guilde uniquement. Les records locaux et classements peuvent etre incomplets.",
+  ["%s: %d recorded points / %d dungeons"] = "%s : %d points enregistres / %d donjons",
+  ["Not recorded"] = "Non enregistre",
+  ["Dungeons %d / %d"] = "Donjons %d / %d",
+  ["Past season"] = "Saison passee",
+  ["Current season"] = "Saison actuelle",
+  ["No season snapshot yet"] = "Aucun classement saisonnier recu",
+  ["Your season score"] = "Votre score saisonnier",
+  ["Not in this snapshot"] = "Absent de ce classement",
+  ["Season scores arrive through your companion or a guild officer."] = "Les scores arrivent via le compagnon ou un officier de guilde.",
+  ["Newer season"] = "Saison suivante",
+  ["Older season"] = "Saison precedente",
   ["No saved dungeon result yet."] = "Aucun resultat de donjon enregistre.",
   ["RUN COMPLETE"] = "DONJON TERMINE",
   ["Bosses"] = "Boss",
@@ -558,3 +585,18 @@ ns.commandHandlers["lang"] = function(args)
 end
 ns.commandHelp = ns.commandHelp or {}
 table.insert(ns.commandHelp, "/guilded lang en|fr|auto - language / langue")
+
+-- Dungeon competition: ASCII-safe French text.
+FR["200 at target. Best run per dungeon. Hover for boss records."] = "200 a la cible. Meilleur essai par donjon. Survolez pour les boss."
+FR["Competitive boss records"] = "Records de boss competitifs"
+FR["No eligible timed boss kills recorded."] = "Aucun boss admissible chronometre."
+FR["Unranked"] = "Non classe"
+FR["Level range not configured"] = "Niveaux non configures"
+FR["Different difficulty"] = "Difficulte differente"
+FR["Party levels unknown"] = "Niveaux du groupe inconnus"
+FR["Overlevel carry"] = "Aide d'un joueur de trop haut niveau"
+FR["Below level range"] = "Niveau trop bas"
+FR["Target not calibrated"] = "Cible non calibree"
+
+FR["Dungeon route unknown"] = "Aile du donjon inconnue"
+FR["Provisional targets, fixed for this season. Hover for boss records."] = "Cibles provisoires fixes pour la saison. Survolez pour les boss."

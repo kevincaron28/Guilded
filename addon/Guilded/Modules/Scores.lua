@@ -1,3 +1,6 @@
+-- Legacy local records are retained for compatibility; player-facing scores now
+-- come exclusively from authoritative current-season snapshots.
+-- Historical implementation notes:
 -- Dungeon scores, the way Raider.IO shows a Mythic+ score in retail, built from the runs the
 -- Dungeon module records (no Discord bot needed):
 --
@@ -16,7 +19,6 @@ local addonName, ns = ...
 ns = ns or {}
 
 local PREFIX = "GuildedScore"
-local SHARE_EVERY_SECONDS = 30 * 60
 local LOGIN_DELAY_SECONDS = 30
 
 local scores = {}
@@ -50,6 +52,16 @@ scores.DUNGEONS = DUNGEONS
 
 local function active() return not ns.moduleActive or ns.moduleActive("scores") end
 local function L(text) return ns.L and ns.L(text) or text end
+
+-- Unlike the general attendance roster, legacy entries without membership
+-- evidence must not qualify for a guild leaderboard. Keep their saved history.
+function scores.isMember(name)
+  name = ns.normalizeName and ns.normalizeName(name)
+  if not name or not (IsInGuild and IsInGuild()) then return false end
+  if name == (ns.playerName and ns.playerName()) then return true end
+  local db = ns.getDb and ns.getDb()
+  return db and db.roster and db.roster[name] and db.roster[name].inGuild == true or false
+end
 
 local function store()
   local db = ns.getDb and ns.getDb()
@@ -89,7 +101,7 @@ function scores.learn(run)
   local changed = false
   for name, player in pairs(run.players or {}) do
     -- Only people who were really there (a few seconds in the group is not a clear).
-    if (player.presentSec or 0) >= sec * 0.5 or player.presentSec == nil then
+    if scores.isMember(name) and ((player.presentSec or 0) >= sec * 0.5 or player.presentSec == nil) then
       s.bests[name] = s.bests[name] or {}
       local entry = { sec = sec, deaths = tonumber(player.deaths) or 0, at = run.endedAt or run.detectedAt, name = dungeon.name }
       local current = s.bests[name][dungeon.key]
@@ -105,9 +117,11 @@ end
 -- The guild record (fastest known time) of each dungeon.
 local function records(s)
   local fastest = {}
-  for _, dungeons in pairs(s.bests) do
-    for key, entry in pairs(dungeons) do
-      if not fastest[key] or entry.sec < fastest[key] then fastest[key] = entry.sec end
+  for name, dungeons in pairs(s.bests) do
+    if scores.isMember(name) then
+      for key, entry in pairs(dungeons) do
+        if not fastest[key] or entry.sec < fastest[key] then fastest[key] = entry.sec end
+      end
     end
   end
   return fastest
@@ -128,6 +142,7 @@ end
 
 -- A player's score from the runs this client knows: total, dungeons counted, and each line.
 function scores.compute(name)
+  if not scores.isMember(name) then return 0, 0, {} end
   local s = store()
   local mine = s and s.bests[name]
   if not mine then return 0, 0, {} end
@@ -142,45 +157,35 @@ function scores.compute(name)
   return total, count, lines
 end
 
--- The score shown for a player: what this client worked out, or what they sent, whichever is
--- higher (they may have runs this client never saw).
+-- Only the current authoritative season is presented as a player rating.
 function scores.scoreOf(name)
-  local s = store()
-  if not s or not name then return nil end
-  local total, count = scores.compute(name)
-  local shared = s.board[name]
-  if shared and (shared.score or 0) > total then return shared.score, shared.n or count end
-  if total == 0 then return nil end
-  return total, count
+  if not scores.isMember(name) then return nil end
+  local db = ns.getDb and ns.getDb()
+  local board = db and db.dungeonBoard
+  if not board or board.status ~= "ACTIVE" then return nil end
+  local snapshot = ns.seasonDetails and ns.seasonDetails.get(1, name)
+  if snapshot and snapshot.available and snapshot.profile then
+    return snapshot.profile.points, #snapshot.profile.details
+  end
+  for _, row in ipairs(board.rows or {}) do
+    if ns.normalizeName(row.name) == name then return row.points, nil end
+  end
+  return nil
 end
 
 -- ---------------------------------------------------------------------
 -- Sharing: S|<score>|<dungeons>
 -- ---------------------------------------------------------------------
 
-local lastShared = { at = -100000, score = -1 }
-local function clock()
-  local ok, value = pcall(GetTime)
-  if ok and type(value) == "number" then return value end
-  return time()
-end
-
-function scores.share(force)
-  if not active() or not (IsInGuild and IsInGuild()) then return false end
-  local me = ns.playerName and ns.playerName()
-  local total, count = scores.compute(me)
-  if total == 0 then return false end
-  if not force and total == lastShared.score and clock() - lastShared.at < SHARE_EVERY_SECONDS then return false end
-  ns.comm.send(PREFIX, string.format("S|%d|%d", total, count), "GUILD")
-  lastShared = { at = clock(), score = total }
-  return true
-end
+-- Old S messages cannot represent season IDs or fixed-target rules. Keep old
+-- stored data, but never publish it as an authoritative seasonal rating.
+function scores.share() return false end
 
 function scores.receive(text, sender)
   local s = store()
   local name = ns.normalizeName and ns.normalizeName(sender)
-  if not s or not name or name == (ns.playerName and ns.playerName()) then return end
-  local total, count = string.match(text, "^S|(%d+)|(%d+)")
+  if not s or not scores.isMember(name) or name == (ns.playerName and ns.playerName()) then return end
+  local total, count = string.match(text, "^S|(%d+)|(%d+)$")
   total, count = tonumber(total), tonumber(count)
   -- 19 dungeons at most ~150 points each: anything far above is not a real score.
   if not total or total > 5000 or count > 60 then return end
@@ -193,13 +198,26 @@ function scores.ranking()
   local seen, rows = {}, {}
   if not s then return rows end
   local function add(name)
-    if seen[name] then return end
+    if seen[name] or not scores.isMember(name) then return end
     seen[name] = true
     local total, count = scores.scoreOf(name)
     if total then table.insert(rows, { name = name, score = total, n = count }) end
   end
-  for name in pairs(s.bests) do add(name) end
-  for name in pairs(s.board) do add(name) end
+  local db = ns.getDb()
+  local board = db and db.dungeonBoard
+  if not board or board.status ~= "ACTIVE" then return rows end
+  if not board.detailsAvailable then
+    for _, row in ipairs(board.rows or {}) do add(ns.normalizeName(row.name)) end
+  end
+  for _, profile in ipairs(board and board.profiles or {}) do
+    local name = ns.normalizeName(profile.name)
+    if not scores.isMember(name) then
+      for _, alt in ipairs(profile.characters or {}) do
+        if scores.isMember(alt) then name = ns.normalizeName(alt); break end
+      end
+    end
+    add(name)
+  end
   table.sort(rows, function(a, b) if a.score ~= b.score then return a.score > b.score end return a.name < b.name end)
   return rows
 end
@@ -210,24 +228,25 @@ local function clockText(seconds)
 end
 
 function scores.detailText(name)
-  local total, count, lines = scores.compute(name)
-  local shown, shownCount = scores.scoreOf(name)
-  if not shown then return string.format(L("%s has no dungeon score yet (a completed run recorded by Guilded)."), name) end
-  local out = { string.format(L("%s: dungeon score %d (%d dungeons)"), name, shown, shownCount or count) }
-  for _, line in ipairs(lines) do
-    table.insert(out, string.format("  %s: %d  (%s, %d %s)%s", line.name or line.key, line.points, clockText(line.sec), line.deaths or 0,
-      L("deaths"), line.record and ("  " .. L("guild record")) or ""))
+  local total, count = scores.scoreOf(name)
+  if total == nil then return L("No current season score received yet.") end
+  local out = { name .. ": " .. L("Your season score") .. " " .. total }
+  local snapshot = ns.seasonDetails and ns.seasonDetails.get(1, name)
+  for _, line in ipairs(snapshot and snapshot.profile and snapshot.profile.details or {}) do
+    out[#out + 1] = string.format("  %s: %d (+%d)  %s", line.name, line.points, line.speedBonus, clockText(line.durationSec))
   end
-  if total < shown then table.insert(out, "  " .. L("(some of their runs were never seen by this client)")) end
+  if not count then out[#out + 1] = L("Per-dungeon breakdown unavailable in this snapshot.") end
   return table.concat(out, "\n")
 end
 
 function scores.topText(limit)
   local rows = scores.ranking()
-  if #rows == 0 then return L("No dungeon scores yet: complete a dungeon with Guilded running.") end
+  if #rows == 0 then return L("No current season score received yet.") end
   local out = {}
+  local rank = 1
   for i = 1, math.min(limit or 10, #rows) do
-    table.insert(out, string.format("%2d. %-14s %d  (%d)", i, rows[i].name, rows[i].score, rows[i].n or 0))
+    if i > 1 and rows[i].score ~= rows[i - 1].score then rank = i end
+    table.insert(out, string.format("%2d. %-14s %d", rank, rows[i].name, rows[i].score))
   end
   return table.concat(out, "\n")
 end
@@ -248,7 +267,7 @@ local function decorateUnit(tooltip)
   local name = ns.normalizeName and ns.normalizeName(unitName)
   local total, count = scores.scoreOf(name)
   if not total then return end
-  tooltip:AddLine(string.format(L("Guilded dungeon score: %d (%d dungeons)"), total, count or 0), GOLD_R, GOLD_G, GOLD_B)
+  tooltip:AddLine(string.format(L("Guilded season score: %d"), total), GOLD_R, GOLD_G, GOLD_B)
   if tooltip.Show then tooltip:Show() end
 end
 scores.decorateUnit = decorateUnit
@@ -292,6 +311,7 @@ local function register(event)
 end
 register("PLAYER_LOGIN")
 register("CHAT_MSG_ADDON")
+register("GUILD_ROSTER_UPDATE")
 
 frame:SetScript("OnEvent", function(_, event, ...)
   local args = { ... }
@@ -304,6 +324,10 @@ frame:SetScript("OnEvent", function(_, event, ...)
       for _, run in pairs(db and db.dungeon and db.dungeon.runs or {}) do scores.learn(run) end
       hookTooltips()
       if C_Timer and C_Timer.After then C_Timer.After(LOGIN_DELAY_SECONDS, function() pcall(scores.share, true) end) end
+    elseif event == "GUILD_ROSTER_UPDATE" then
+      if not active() then return end
+      local db = ns.getDb and ns.getDb()
+      for _, run in pairs(db and db.dungeon and db.dungeon.runs or {}) do scores.learn(run) end
     elseif event == "CHAT_MSG_ADDON" then
       local prefix, text, channel, sender = args[1], args[2], args[3], args[4]
       if ns.isSecret and (ns.isSecret(prefix) or ns.isSecret(text) or ns.isSecret(sender)) then return end

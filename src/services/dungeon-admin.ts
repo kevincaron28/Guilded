@@ -2,7 +2,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import { activeSeason } from "./dungeon-import.js";
 import { leaderboard } from "./dungeon-stats.js";
 import { DEFAULT_DUNGEON_CONFIG, dungeonConfig, formatDuration, type DungeonConfig } from "./dungeon-rules.js";
-import { DUNGEON_RATING_RULES, dungeonRating, hasDungeonRating } from "./dungeon-rating.js";
+import { createDungeonRatingRules, dungeonRating, hasDungeonRating, validLevelBand, type LevelBand } from "./dungeon-rating.js";
 
 // Officer corrections for the dungeon challenge (roadmap D7). Points are
 // never edited or deleted: every change is a new DungeonPointTransaction,
@@ -39,7 +39,7 @@ export async function invalidateRun(database: Db, guildId: string, runRef: strin
 // Manual points (negative takes points away). Counts for the current season.
 export async function adjustPoints(database: Db, guildId: string, memberId: string, amount: number, reason: string, actor: string) {
   if (!Number.isInteger(amount) || amount === 0 || Math.abs(amount) > 10_000) throw new Error("Amount must be a whole number between -10000 and 10000, not 0.");
-  const season = await activeSeason(database, guildId);
+  const season = await activeSeason(database, guildId, (await readConfig(database, guildId)).targets);
   return database.dungeonPointTransaction.create({
     data: { guildId, memberId, seasonId: season.id, amount, reason, source: amount > 0 ? "admin:award" : "admin:remove", createdBy: actor }
   });
@@ -75,10 +75,12 @@ export async function setRulePoints(database: Db, guildId: string, rule: PointRu
 }
 
 // Target time for the "under target" bonus; 0 minutes removes it.
-export async function setTarget(database: Db, guildId: string, instanceId: number, minutes: number) {
+export async function setTarget(database: Db, guildId: string, instanceId: number, minutes: number, band?: LevelBand) {
   if (!Number.isFinite(minutes) || minutes < 0 || minutes > 240) throw new Error("Minutes must be from 0 to 240.");
   const config = await readConfig(database, guildId);
+  if (band !== undefined && !validLevelBand(band)) throw new Error("Invalid level range or difficulty.");
   const key = String(instanceId);
+  if (band) config.levelBands[key] = { ...band };
   if (minutes === 0) delete config.targets[key];
   else config.targets[key] = Math.round(minutes * 60);
   await saveConfig(database, guildId, config);
@@ -123,7 +125,9 @@ export function describeConfig(config: DungeonConfig, dungeonNames: Map<number, 
 // Ends the current season (kept for history), crowns its Season Champion
 // (highest rating, or legacy participation; ties share the crown).
 // An optional expected ID makes one-time migration retries safe.
-export async function startSeason(database: Db, guildId: string, name: string, expectedSeasonId?: string) {
+export async function startSeason(database: Db, guildId: string, name: string, expectedSeasonId?: string, endsAt?: Date, presetRules?: ReturnType<typeof createDungeonRatingRules>) {
+  if (presetRules && !hasDungeonRating(presetRules)) throw new Error("Invalid season preset.");
+  if (endsAt && (!Number.isFinite(endsAt.getTime()) || endsAt.getTime() <= Date.now())) throw new Error("Season end must be a future date with a time zone.");
   const trimmed = name.trim();
   if (trimmed.length < 2 || trimmed.length > 60) throw new Error("Season name must be 2 to 60 characters.");
   return database.$transaction(async (tx) => {
@@ -160,7 +164,11 @@ export async function startSeason(database: Db, guildId: string, name: string, e
       } });
     }
     await tx.dungeonSeason.updateMany({ where: { guildId, status: "ACTIVE" }, data: { status: "ENDED", endsAt: now } });
-    const season = await tx.dungeonSeason.create({ data: { guildId, name: trimmed, startsAt: now, ratingRules: DUNGEON_RATING_RULES } });
+    for (const past of ended) if (past.endsAt && past.endsAt < now) {
+      await tx.dungeonSeason.update({ where: { id: past.id }, data: { endsAt: past.endsAt } });
+    }
+    const season = await tx.dungeonSeason.create({ data: { guildId, name: trimmed, startsAt: now, ...(endsAt ? { endsAt } : {}),
+      ratingRules: presetRules ?? createDungeonRatingRules(dungeonConfig(rules?.dungeonConfig).targets, 3, dungeonConfig(rules?.dungeonConfig).levelBands) } });
     return { season, ended: ended.map((row) => row.name), champions: champions.map((row) => row.name) };
   });
 }

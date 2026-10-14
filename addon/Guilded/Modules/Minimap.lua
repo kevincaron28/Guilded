@@ -998,6 +998,9 @@ end
 -- Recorded dungeon scores; group finding uses the game or Discord.
 local function buildScoresPage(page)
   heading(page, L("Dungeon scores"), -4)
+  at(newButton(page, L("Dungeon overview"), 170, function()
+    if ns.dungeonScorePanel then ns.dungeonScorePanel.open() end
+  end), page, 390, -2)
   ui.scoresMine = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -28)
   ui.scoresMine:SetWidth(PAGE_WIDTH / 2 - 10)
   if ui.scoresMine.SetJustifyV then ui.scoresMine:SetJustifyV("TOP") end

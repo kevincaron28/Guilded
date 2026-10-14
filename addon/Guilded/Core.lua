@@ -83,7 +83,7 @@ local function ensureDb()
   GuildedDB = GuildedDB or {}
   db = GuildedDB
   db.version = DB_VERSION
-  db.addonVersion = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(addonName, "Version")) or (GetAddOnMetadata and GetAddOnMetadata(addonName, "Version")) or "6.0.0"
+  db.addonVersion = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(addonName, "Version")) or (GetAddOnMetadata and GetAddOnMetadata(addonName, "Version")) or "6.1.0"
   -- Fill in any setting missing from an older saved file instead of only
   -- creating settings when the whole table is absent.
   db.settings = db.settings or {}
@@ -1470,7 +1470,7 @@ end
 -- swapped in place. The guild is only known once the client has loaded it,
 -- so this is tried on entering the world and on guild roster updates.
 -- ---------------------------------------------------------------------
-local KEEP_AT_ROOT = { version = true, guildKey = true, otherGuilds = true }
+local KEEP_AT_ROOT = { version = true, guildKey = true, otherGuilds = true, bridgeCompanionGuild = true }
 local guildResolved = false
 
 local function currentGuildKey()

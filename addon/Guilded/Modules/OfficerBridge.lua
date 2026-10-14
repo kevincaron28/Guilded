@@ -9,6 +9,28 @@ local function guildKey()
   if type(name) ~= "string" or name == "" or (ns.isSecret and ns.isSecret(name)) then return nil end
   return name .. "-" .. ((GetRealmName and GetRealmName()) or "")
 end
+-- GetRealmName can be a different Forever server segment on each PC. The
+-- fourth GetGuildInfo result identifies the guild's home when it differs.
+local function guildHome()
+  if not (IsInGuild and IsInGuild()) or not GetGuildInfo then return nil end
+  local name, _, _, home = GetGuildInfo("player")
+  if type(name) ~= "string" or name == "" or (ns.isSecret and ns.isSecret(name)) then return nil end
+  if type(home) ~= "string" or (ns.isSecret and ns.isSecret(home)) or home == "" then
+    home = (GetRealmName and GetRealmName()) or ""
+  end
+  if type(home) ~= "string" or (ns.isSecret and ns.isSecret(home)) then return nil end
+  return name .. "-" .. string.gsub(home, "%s+", ""), name .. "-"
+end
+local function sameGuild(snapshot)
+  if type(snapshot) ~= "table" then return false end
+  local home, prefix = guildHome()
+  if not home then return false end
+  if snapshot.guildHome ~= nil then return snapshot.guildHome == home end
+  -- Accept older senders without changing their packet format or saved keys.
+  local key = snapshot.guild
+  if type(key) ~= "string" or string.sub(key, 1, #prefix) ~= prefix then return false end
+  return prefix .. string.gsub(string.sub(key, #prefix + 1), "%s+", "") == home
+end
 local function clock() return ns.util.serverTime() end
 local function after(seconds, fn) if C_Timer and C_Timer.After then C_Timer.After(seconds, fn) end end
 
@@ -102,7 +124,7 @@ local function validRaid(raid)
 end
 local function apply(snapshot, stamp, sender)
   local d, key = db(), guildKey()
-  if not d or not key or snapshot.guild ~= key or (d.guildKey and d.guildKey ~= key) then return false end
+  if not d or not key or not sameGuild(snapshot) or (d.guildKey and d.guildKey ~= key) then return false end
   if type(snapshot.raids) ~= "table" or not validRaid(snapshot.nextRaid) then return false end
   for _, raid in pairs(snapshot.raids) do if not validRaid(raid) or raid == false then return false end end
   local rules
@@ -133,13 +155,30 @@ local function publicLoot(value, depth)
   end
   return copy
 end
+local function bridgeSettings()
+  local d, key = db(), guildKey()
+  if not d or not key or d.guildKey ~= key or not ns.isOfficer() then return nil end
+  if d.bridgeCompanionGuild and d.bridgeCompanionGuild ~= key then return nil end
+  d.settings = d.settings or {}
+  local settings = d.settings.officerBridge
+  if not settings then
+    -- Keep the companion source bound across the Core.lua guild-data switch.
+    -- A deliberate /bridge on can rebind it after the companion is changed.
+    if type(GuildedStandings) ~= "table" or type(GuildedStandings.updatedAt) ~= "string" then return nil end
+    d.bridgeCompanionGuild = key
+    settings = { enabled = true, guild = key }
+    d.settings.officerBridge = settings
+  end
+  if settings.enabled and settings.guild == key then d.bridgeCompanionGuild = key end
+  return settings
+end
 local function capture()
   local d, key = db(), guildKey()
-  local settings = d and d.settings and d.settings.officerBridge
+  local settings = bridgeSettings()
   if not key or not settings or settings.guild ~= key or not settings.enabled or not ns.isOfficer() then return end
   local file = GuildedStandings
   if type(file) ~= "table" or type(file.updatedAt) ~= "string" then return end
-  if d.officerBridge and d.officerBridge.updatedAt >= file.updatedAt then return end
+  if d.officerBridge and sameGuild(d.officerBridge.snapshot) and d.officerBridge.updatedAt >= file.updatedAt then return end
   if type(GuildedLoot) == "table" and (not d.lootRules or not d.lootRules.updatedAt or d.lootRules.updatedAt < file.updatedAt) then
     d.lootRules = ns.adoptOfficerLootRules(GuildedLoot, file.updatedAt)
   end
@@ -149,17 +188,17 @@ local function capture()
     -- every guildmate's. Never relay those potentially private events.
     if type(raid.id) == "string" and not string.match(raid.id, "^discord:") then table.insert(raids, raid) end
   end
-  -- The officer explicitly binds their companion to this WoW guild with bridge on.
-  apply({ guild = key, loot = type(GuildedLoot) == "table" and publicLoot(GuildedLoot) or false,
+  -- The companion is bound to the officer's guild; explicit off stays off.
+  apply({ guild = key, guildHome = guildHome(), loot = type(GuildedLoot) == "table" and publicLoot(GuildedLoot) or false,
     nextRaid = type(GuildedNextRaid) == "table" and type(GuildedNextRaid.id) == "string" and not string.match(GuildedNextRaid.id, "^discord:") and GuildedNextRaid or false,
     raids = raids }, file.updatedAt, ns.playerName())
 end
 local function share()
   capture()
   local d, key = db(), guildKey()
-  local settings = d and d.settings and d.settings.officerBridge
+  local settings = bridgeSettings()
   local data = d and d.officerBridge
-  if not key or not settings or not settings.enabled or settings.guild ~= key or not ns.isOfficer() or not data or data.snapshot.guild ~= key then return end
+  if not key or not settings or not settings.enabled or settings.guild ~= key or not ns.isOfficer() or not data or not sameGuild(data.snapshot) then return end
   if lastShare and clock() - lastShare < 90 then return end
   local okay, payload = pcall(encode, data.snapshot)
   if not okay or #payload * 2 > MAX_BYTES then ns.message("Officer bridge data is too large to share. Use personal browser sync for now."); return end
@@ -174,7 +213,7 @@ end
 local function request()
   local d, key = db(), guildKey()
   if not d or not key then return end
-  ns.comm.send(PREFIX, "REQ|1|" .. (d.officerBridge and d.officerBridge.snapshot.guild == key and d.officerBridge.updatedAt or "0"), "GUILD")
+  ns.comm.send(PREFIX, "REQ|1|" .. (d.officerBridge and sameGuild(d.officerBridge.snapshot) and d.officerBridge.updatedAt or "0"), "GUILD")
 end
 local function receive(text, sender)
   if not ns.isOfficerName(sender) then return end
@@ -183,7 +222,7 @@ local function receive(text, sender)
   if not stamp or #stamp > 32 or not string.match(stamp, "^%d%d%d%d%-%d%d%-%d%dT") or ns.util.tooFarAhead(stamp) then return end
   if not index or not total or total < 1 or total > MAX_PARTS or index < 1 or index > total or #payload > CHUNK or #payload % 2 ~= 0 or not string.match(payload, "^%x+$") then return end
   local d, key = db(), guildKey()
-  if not d or not key or (d.officerBridge and d.officerBridge.snapshot.guild == key and d.officerBridge.updatedAt >= stamp) then return end
+  if not d or not key or (d.officerBridge and sameGuild(d.officerBridge.snapshot) and d.officerBridge.updatedAt >= stamp) then return end
   if pending and clock() - pending.at > 600 then pending = nil end
   -- Keep one bounded assembly. Never combine chunks from competing officers.
   if pending and (pending.sender ~= sender or pending.stamp ~= stamp) then return end
@@ -202,11 +241,25 @@ ns.commandHandlers["bridge"] = function(args)
     if not ns.isOfficer() then ns.message("Only an officer can enable the guild's Discord bridge."); return end
     if not d or not key then ns.message("Join your in-game guild before enabling the officer bridge."); return end
     d.settings = d.settings or {}; d.settings.officerBridge = { enabled = mode == "on", guild = key }
+    if mode == "on" then d.bridgeCompanionGuild = key end
     if mode == "on" then capture(); share() end
   elseif mode == "refresh" then request()
   elseif mode ~= "status" then ns.message("/guilded bridge on | off | refresh | status"); return end
+  capture()
+  local settings = d and d.settings and d.settings.officerBridge
   local data = d and d.officerBridge
-  ns.message(data and data.snapshot.guild == key and ("Guild data from " .. tostring(data.from) .. " (" .. data.updatedAt .. ").") or "Waiting for an online officer to share Discord guild data. Personal browser sync is optional.")
+  if ns.isOfficer() and key then
+    if settings and settings.guild == key and not settings.enabled then
+      ns.message("Officer bridge is OFF. /guilded bridge on enables sharing."); return
+    end
+    if d and d.bridgeCompanionGuild and d.bridgeCompanionGuild ~= key then
+      ns.message("Companion data is bound to another guild. Check the companion guild, save standings, /reload, then /guilded bridge on."); return
+    end
+    if (not data or not sameGuild(data.snapshot)) and (type(GuildedStandings) ~= "table" or type(GuildedStandings.updatedAt) ~= "string") then
+      ns.message("Officer bridge needs companion data. Sync and save standings on this PC, then /reload."); return
+    end
+  end
+  ns.message(data and sameGuild(data.snapshot) and ("Guild data from " .. tostring(data.from) .. " (" .. data.updatedAt .. ").") or "Waiting for an online officer to share Discord guild data. Personal browser sync is optional.")
 end
 table.insert(ns.commandHelp, "/guilded bridge status | refresh - request core and raid data from an online officer")
 table.insert(ns.commandHelp, { officer = true, text = "/guilded bridge on | off - bridge your companion's data to this WoW guild" })
@@ -219,7 +272,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
       if started then return end; started = true; ns.comm.register(PREFIX)
       lastGuild = guildKey()
       local d = db()
-      if d and d.officerBridge and d.officerBridge.snapshot.guild == guildKey() then
+      if d and d.officerBridge and sameGuild(d.officerBridge.snapshot) then
         apply(d.officerBridge.snapshot, d.officerBridge.updatedAt, d.officerBridge.from)
       end
       capture()
@@ -230,7 +283,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
       if lastGuild ~= key then pending, lastShare = nil, nil end
       if lastGuild and lastGuild ~= key then GuildedNextRaid, GuildedRaids = nil, nil end
       lastGuild = key
-      if d and d.officerBridge and d.officerBridge.snapshot.guild == key then
+      if d and d.officerBridge and sameGuild(d.officerBridge.snapshot) then
         apply(d.officerBridge.snapshot, d.officerBridge.updatedAt, d.officerBridge.from)
       end
       capture()

@@ -1,3 +1,4 @@
+import { validLevelBand, type LevelBand } from "./dungeon-rating.js";
 import { z } from "zod";
 
 // Dungeon Challenge rules (roadmap D3/D4): what a valid run is, and how
@@ -35,6 +36,8 @@ export const dungeonRunSchema = z.object({
     realm: z.string().min(1).max(60),
     class: z.string().max(20).optional(),
     role: z.string().max(10).optional(),
+    level: z.number().int().min(1).max(100).optional().catch(undefined),
+    minLevel: z.number().int().min(1).max(100).optional().catch(undefined),
     spec: z.string().max(40).optional().catch(undefined),
     deaths: z.number().int().nonnegative().max(500).nullable().optional(),
     presentSec: z.number().int().nonnegative().default(0),
@@ -55,6 +58,7 @@ export interface DungeonConfig {
   underTarget: number;
   // Target times per instance id, in seconds (for the "under target" bonus).
   targets: Record<string, number>;
+  levelBands: Record<string, LevelBand>;
   // Share of points for a player's 1st, 2nd, 3rd... completion of the same
   // dungeon in one week; runs past the end of the list use the last value.
   weeklyRepeat: number[];
@@ -72,14 +76,14 @@ export const DEFAULT_DUNGEON_CONFIG: DungeonConfig = {
   firstCompletion: 25,
   fullGuildGroup: 20,
   underTarget: 20,
-  targets: {},
+  targets: {}, levelBands: {},
   weeklyRepeat: [1, 0.5, 0],
   dungeonMasterCount: 10
 };
 
 // Guild settings JSON on top of the defaults; bad values fall back.
 export function dungeonConfig(stored: unknown): DungeonConfig {
-  const config: DungeonConfig = { ...DEFAULT_DUNGEON_CONFIG, targets: {}, weeklyRepeat: [...DEFAULT_DUNGEON_CONFIG.weeklyRepeat] };
+  const config: DungeonConfig = { ...DEFAULT_DUNGEON_CONFIG, targets: {}, levelBands: {}, weeklyRepeat: [...DEFAULT_DUNGEON_CONFIG.weeklyRepeat] };
   if (!stored || typeof stored !== "object") return config;
   const input = stored as Record<string, unknown>;
   for (const key of ["completion", "noDeaths", "oneDeath", "twoDeaths", "personalRecord", "guildRecord", "firstCompletion", "fullGuildGroup", "underTarget"] as const) {
@@ -90,6 +94,9 @@ export function dungeonConfig(stored: unknown): DungeonConfig {
     for (const [id, seconds] of Object.entries(input["targets"] as Record<string, unknown>)) {
       if (typeof seconds === "number" && seconds > 0) config.targets[id] = Math.round(seconds);
     }
+  }
+  if (input["levelBands"] && typeof input["levelBands"] === "object") {
+    for (const [id, band] of Object.entries(input["levelBands"])) if (/^[1-9]\d*$/.test(id) && validLevelBand(band)) config.levelBands[id] = { ...band };
   }
   if (Array.isArray(input["weeklyRepeat"]) && input["weeklyRepeat"].length > 0 && input["weeklyRepeat"].every((v) => typeof v === "number" && v >= 0 && v <= 1)) {
     config.weeklyRepeat = input["weeklyRepeat"] as number[];

@@ -38,9 +38,13 @@ export const dungeonAdminCommand = new SlashCommandBuilder()
     .addIntegerOption((o) => o.setName("dungeon_master").setDescription("Different dungeons needed for the Dungeon Master achievement").setMinValue(1).setMaxValue(100)))
   .addSubcommand((sub) => sub.setName("target").setDescription("Target time for a dungeon (bonus when beaten); 0 removes it")
     .addStringOption((o) => o.setName("dungeon").setDescription("Dungeon (pick from the list)").setAutocomplete(true).setRequired(true))
-    .addNumberOption((o) => o.setName("minutes").setDescription("e.g. 25").setRequired(true).setMinValue(0).setMaxValue(240)))
+    .addNumberOption((o) => o.setName("minutes").setDescription("e.g. 25").setRequired(true).setMinValue(0).setMaxValue(240))
+    .addIntegerOption(o => o.setName("min_level").setDescription("Minimum party level next season").setMinValue(1).setMaxValue(100))
+    .addIntegerOption(o => o.setName("max_level").setDescription("Maximum party level next season").setMinValue(1).setMaxValue(100))
+    .addIntegerOption(o => o.setName("difficulty").setDescription("Competitive difficulty ID next season").setMinValue(0)))
   .addSubcommand((sub) => sub.setName("season-start").setDescription("End the current season (kept in history) and start a new one")
-    .addStringOption((o) => o.setName("name").setDescription("e.g. Season 2").setRequired(true).setMaxLength(60)));
+    .addStringOption((o) => o.setName("name").setDescription("e.g. Season 2").setRequired(true).setMaxLength(60))
+    .addStringOption(o => o.setName("ends_at").setDescription("End time with zone, e.g. 2026-10-23T00:00:00-04:00")));
 
 async function memberFromOptions(interaction: ChatInputCommandInteraction, guildId: string) {
   const character = interaction.options.getString("character");
@@ -123,13 +127,19 @@ export async function executeDungeonAdmin(interaction: ChatInputCommandInteracti
     const instanceId = Number(interaction.options.getString("dungeon", true));
     if (!Number.isInteger(instanceId) || instanceId <= 0) throw new Error("Pick the dungeon from the list.");
     const minutes = interaction.options.getNumber("minutes", true);
-    const seconds = await setTarget(prisma, context.guildId, instanceId, minutes);
+    const min = interaction.options.getInteger("min_level"), max = interaction.options.getInteger("max_level"), difficultyId = interaction.options.getInteger("difficulty");
+    const hasBand = min !== null || max !== null || difficultyId !== null;
+    if (hasBand && (min === null || max === null || difficultyId === null)) throw new Error("Supply min_level, max_level and difficulty together.");
+    const seconds = await setTarget(prisma, context.guildId, instanceId, minutes, hasBand ? { min: min!, max: max!, difficultyId: difficultyId! } : undefined);
     const run = await prisma.dungeonRun.findFirst({ where: { guildId: context.guildId, instanceId }, select: { dungeonName: true } });
     const name = run?.dungeonName ?? `dungeon #${instanceId}`;
-    reply = seconds === null ? `Removed the target time for ${name}.` : `Target time for ${name}: ${formatDuration(seconds)}. Clears at or under it earn the underTarget bonus.`;
+    reply = (seconds === null ? `Removed the target time for ${name}.` : `Target time for ${name}: ${formatDuration(seconds)}. Clears at or under it earn the participation underTarget bonus.`)
+      + " Rating targets are frozen when a season starts; this change applies to the next rating season.";
     await log(reply, { instanceId, minutes });
   } else {
-    const result = await startSeason(prisma, context.guildId, interaction.options.getString("name", true));
+    const end = interaction.options.getString("ends_at");
+    if (end && !/T.*(?:Z|[+-]\d{2}:\d{2})$/.test(end)) throw new Error("Include a time and timezone in ends_at.");
+    const result = await startSeason(prisma, context.guildId, interaction.options.getString("name", true), undefined, end ? new Date(end) : undefined);
     reply = `${result.ended.length ? `Ended ${result.ended.join(", ")} (still viewable). ` : ""}`
       + `${result.champions.length ? `👑 Season Champion: ${result.champions.join(", ")}. ` : ""}`
       + `**${result.season.name}** has started; season leaderboards start from zero.`;

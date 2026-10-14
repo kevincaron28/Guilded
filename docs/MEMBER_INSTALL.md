@@ -54,8 +54,21 @@ you can stop here. Discord sync needs the steps below.
 ## 2. Connect the online companion (default)
 
 Open the **online companion link supplied by your guild** (ending in `/companion/`).
-Connect with your server ID and a fresh personal pairing code, then save preferences.
+In Discord, press **Link my WoW character / Lier mon personnage WoW** in the welcome
+panel, or run `/character pair`. The private reply shows your linked main and alts,
+your Discord server ID, a connection code and an **Open online companion** button.
+That link fills the server ID on a first visit; check it before pressing **Connect**.
+Connect with the code, then save preferences. Use the labels **Connection & setup**,
+**Connect** and **Save preferences** on the webpage; the Windows app is optional.
 The addon is still required. Pairing replaces your previous companion link.
+
+**Main already linked?** You can use the code to connect a companion for uploading
+alts, or to reconnect a device. If your companion already works, keep that
+connection: log in on an alt, `/reload`, then **Sync now**. It links as an alt
+without changing your main. No new code is needed for each alt. Run
+`/character list` after syncing to check the result. Opening the private code
+reply keeps existing character links; using the code replaces the companion
+connection. Community-only members can skip WoW setup entirely.
 
 **If you see Choose SavedVariables folder** (enhanced browser build on supported
 desktop Chrome/Edge): choose your account's `WTF/Account/<account>/SavedVariables`
@@ -180,9 +193,11 @@ soutien financier est facultatif et ne donne aucune priorité.
 2. Fermez WoW. Installez le dossier Guilded dans `Interface\AddOns` du bon client
    (Forever beta : `_classic_beta_` dans l'installation testée), puis relancez WoW.
 3. Ouvrez Guilded avec la pièce sur la minicarte. `/reload` enregistre les données.
-4. Ouvrez la page du compagnon en ligne fournie par votre guilde. C'est le choix
-   par défaut. Utilisez `/character pair` dans votre serveur Discord.
-5. Entrez l'identifiant du serveur et votre code privé, puis **Connect**.
+4. Appuyez sur **Lier mon personnage WoW** dans l'accueil Discord ou utilisez
+   `/character pair`. La réponse privée montre votre principal et vos alts déjà
+   liés. Ouvrez son bouton **Ouvrir le compagnon en ligne**.
+5. Vérifiez l'identifiant du serveur, rempli à la première visite, et entrez
+   votre code privé dans **Connection & setup**, puis **Connect**.
    Sélectionnez le dossier `SavedVariables` de votre compte et, avec
    **Save standings to addon**, le dossier `Interface/AddOns/Guilded`.
 6. Après `/reload`, cliquez sur **Sync now**. Vérifiez l'envoi et le classement,
@@ -191,6 +206,12 @@ soutien financier est facultatif et ne donne aucune priorité.
 
 Le compagnon Windows reste facultatif pour la synchronisation automatique en
 arrière-plan et le suivi PoE2, particulièrement utile aux chefs et officiers.
+
+**Principal déjà lié et compagnon connecté ?** Connectez-vous sur un alt,
+faites `/reload`, puis **Sync now** dans le même compagnon. Votre principal reste
+le même; aucun nouveau code nécessaire pour chaque alt. Le code sert à connecter
+ou reconnecter un compagnon; l'utiliser remplace la connexion compagnon
+précédente. `/character list` montre le résultat après la synchro.
 
 Vous n'avez pas besoin du jeton du bot. Ne partagez jamais votre code de liaison.
 `/guilded lang fr` sélectionne le français dans l'addon.

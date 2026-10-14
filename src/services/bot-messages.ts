@@ -3,6 +3,7 @@ import type { GuildSettings, PrismaClient } from "@prisma/client";
 import { t, tx, type Lang } from "../i18n.js";
 import { dungeonGuideState, ensureDungeonSignupGuide } from "./dungeon-guide.js";
 import { ensureWelcomePanel, welcomePanelState } from "./onboarding.js";
+import { companionLinkText } from "./companion-links.js";
 
 // The messages the bot keeps in its channels, for the /setup checklist: is each one there, and is
 // it the current text? "Update bot messages" puts every one back or brings it up to date.
@@ -23,7 +24,7 @@ export function gettingStartedPost(lang: Lang): EmbedBuilder {
   return new EmbedBuilder()
     .setTitle(t(lang, "guide.title"))
     .setColor(0xd4af37)
-    .setDescription(t(lang, "guide.body", { url: ADDON_URL }));
+    .setDescription(t(lang, "guide.body", { url: ADDON_URL, companion: companionLinkText(lang) }));
 }
 
 // The pinned guide in the bot guide channel: missing, the current text, or an older text.

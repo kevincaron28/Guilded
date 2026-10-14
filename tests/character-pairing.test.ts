@@ -113,6 +113,38 @@ describe("character pairing", () => {
     expect(tx.unclaimedCharacter.deleteMany).toHaveBeenCalledWith({ where: { guildId: "guild", nameKey: "ray" } });
   });
 
+  it("links a later upload as an alt when the member already has a main", async () => {
+    const tx = {
+      character: {
+        findMany: vi.fn(async () => [{ id: "main", memberId: "member", name: "Ray", realm: "Forever", isMain: true }]),
+        count: vi.fn(async () => 1),
+        create: vi.fn(async () => ({ id: "alt" }))
+      },
+      professionSkill: { upsert: vi.fn() },
+      unclaimedCharacter: { deleteMany: vi.fn(async () => ({ count: 0 })) }
+    };
+    const database = { $transaction: async (callback: (client: typeof tx) => unknown) => callback(tx) };
+    await expect(linkPairedCharacter(database as never, "guild", "member", {
+      name: "AltRay", realm: "Forever", class: "MAGE", race: "", level: 60, spec: "", professions: []
+    })).resolves.toBe("linked");
+    expect(tx.character.create).toHaveBeenCalledWith({ data: expect.objectContaining({ name: "AltRay", isMain: false }) });
+  });
+
+  it("refreshes an existing character without changing its main/alt status", async () => {
+    const tx = {
+      character: {
+        findMany: vi.fn(async () => [{ id: "main", memberId: "member", name: "Ray", realm: "Forever", isMain: true }]),
+        update: vi.fn(), create: vi.fn()
+      }
+    };
+    const database = { $transaction: async (callback: (client: typeof tx) => unknown) => callback(tx) };
+    await expect(linkPairedCharacter(database as never, "guild", "member", {
+      name: "Ray", realm: "Forever", class: "PRIEST", race: "", level: 60, spec: "", professions: []
+    })).resolves.toBe("already-linked");
+    expect(tx.character.update.mock.calls[0]![0]).toEqual({ where: { id: "main" }, data: expect.not.objectContaining({ isMain: expect.anything() }) });
+    expect(tx.character.create).not.toHaveBeenCalled();
+  });
+
   it("revokes only the target member's active credentials, e.g. after an officer unlinks their character", async () => {
     const database = { companionCredential: { updateMany: vi.fn(async () => ({ count: 2 })) } };
     await revokeCompanionCredentials(database as never, "member");

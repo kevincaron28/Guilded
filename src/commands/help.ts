@@ -12,7 +12,7 @@ export const helpCommand = new SlashCommandBuilder()
 const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record<Lang, string[]>> = {
   everyone: {
     en: [
-      "`/character pair` — link your companion once so future uploads link your character automatically (do this first)",
+      "WoW: `/character pair` — your linked main/alts + online companion link; `/character list` — check your characters. Already connected? Sync alts with the same companion",
       "`/character add` — link a character by hand, or `/character import` — paste the line `/guilded character` shows, or the code from `/guilded share`",
       "Raid posts have buttons to sign up (or use `/raid signup`)",
       "`/epgp balance` · `/epgp leaderboard` · `/profile` · `/character who <name>`",
@@ -32,7 +32,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/poe status` · `/poe pair` · `/poe runs` · `/poe summary` — PoE2 companion mapping journal"
     ],
     fr: [
-      "`/character pair` — liez votre companion une fois pour que les prochains envois lient votre personnage automatiquement (à faire en premier)",
+      "WoW : `/character pair` — principal/alts liés + lien du compagnon en ligne; `/character list` — vos personnages. Déjà connecté ? Synchronisez vos alts avec le même compagnon",
       "`/character add` — liez un personnage manuellement, ou `/character import` — collez la ligne de `/guilded character`, ou le code de `/guilded share`",
       "Les annonces de raid ont des boutons pour s'inscrire (ou `/raid signup`)",
       "`/epgp balance` · `/epgp leaderboard` · `/profile` · `/character who <nom>`",

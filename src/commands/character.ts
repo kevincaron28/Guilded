@@ -7,14 +7,16 @@ import { postToLogChannel } from "../services/housekeeping.js";
 import { hasPermission } from "../permissions.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { CLASSES } from "../wow-data.js";
-import { issueCharacterPairingCode, revokeCompanionCredentials } from "../services/character-pairing.js";
+import { revokeCompanionCredentials } from "../services/character-pairing.js";
+import { characterLinkPrompt } from "../services/character-link-prompt.js";
+import { asLang } from "../i18n.js";
 
 export const characterCommand = new SlashCommandBuilder()
   .setName("character")
   .setDescription("Manage your WoW Forever characters.")
   .addSubcommand((subcommand) => subcommand
     .setName("pair")
-    .setDescription("Link your companion to Discord once so your own character links automatically."))
+    .setDescription("See your linked characters and connect the online companion for your main and alts."))
   .addSubcommand((subcommand) => subcommand
     .setName("add")
     .setDescription("Link a character to your profile.")
@@ -63,15 +65,14 @@ async function defaultRealm(guildId: string): Promise<string> {
 }
 
 export async function executeCharacter(interaction: ChatInputCommandInteraction): Promise<void> {
+  const subcommand = interaction.options.getSubcommand();
+  // Acknowledge before database lookups, especially when the hosted database is waking up.
+  if (subcommand === "pair" && interaction.guild && interaction.guildId && interaction.member) await interaction.deferReply({ ephemeral: true });
   const context = await requireGuildContext(interaction);
   if (!context) return;
-  const subcommand = interaction.options.getSubcommand();
   if (subcommand === "pair") {
-    const pairing = await issueCharacterPairingCode(prisma, context.guildId, context.memberId);
-    await interaction.reply({
-      content: `In Companion Settings, enter **${pairing.code}** under **Discord account pairing code**, then choose **Link Discord account**. This code expires <t:${Math.floor(pairing.expiresAt.getTime() / 1000)}:R> and can be used once.`,
-      ephemeral: true
-    });
+    const settings = await guildService.getSettings(context.guildId);
+    await interaction.editReply(await characterLinkPrompt(prisma, context.guildId, context.memberId, interaction.guildId!, asLang(settings?.language)));
     return;
   }
   if (subcommand === "list") {

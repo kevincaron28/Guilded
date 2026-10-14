@@ -1171,6 +1171,8 @@ model DungeonRun {
   durationSec     Int?
   completedBy     String?
   recorder        String?
+  // Observed party levels and encounter timestamps; absent in old runs.
+  competitionData Json?
   reporters       Int                       @default(1)
   protocolVersion Int
   addonVersion    String?

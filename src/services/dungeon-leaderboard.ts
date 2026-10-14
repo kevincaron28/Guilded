@@ -22,7 +22,7 @@ export async function handleDungeonSeasonSelect(interaction: StringSelectMenuInt
   if (!selected) { await interaction.editReply("That season is no longer available."); return; }
   const lang = asLang((await guildService.getSettings(guild.id))?.language);
   if (hasDungeonRating(selected.ratingRules)) {
-    await interaction.editReply({ embeds: [ratingEmbed(await dungeonRating(prisma, guild.id, selected), selected.name, lang)], allowedMentions: { parse: [] } });
+    await interaction.editReply({ embeds: [ratingEmbed(await dungeonRating(prisma, guild.id, selected), selected.name, lang, selected.ratingRules)], allowedMentions: { parse: [] } });
     return;
   }
   const rows = await seasonRows(prisma, guild.id, selected);
@@ -73,7 +73,7 @@ export async function updateDungeonLeaderboard(discordGuild: DiscordGuild | null
       .setCustomId(DUNGEON_SEASON_SELECT).setPlaceholder(lang === "fr" ? "Voir une saison" : "Browse a season")
       .addOptions(seasons.map((row) => ({ label: `${row.name} (${row.status === "ACTIVE" ? lang === "fr" ? "actuelle" : "current" : lang === "fr" ? "passée" : "past"})`.slice(0, 100), value: row.id }))))] : [];
     const best = bestRunsEmbed(await seasonBestRuns(prisma, guild.id, season.id), lang);
-    const rating = hasDungeonRating(season.ratingRules) ? ratingEmbed(await dungeonRating(prisma, guild.id, season), season.name, lang) : null;
+    const rating = hasDungeonRating(season.ratingRules) ? ratingEmbed(await dungeonRating(prisma, guild.id, season), season.name, lang, season.ratingRules) : null;
     if (rating) embed.setTitle(lang === "fr" ? "🤝 Points de participation" : "🤝 Participation points");
     // Discord applies the 6,000-character budget across all embeds in a message.
     if (embed.length + best.length + (rating?.length ?? 0) > 5900) embed.setFields([]);

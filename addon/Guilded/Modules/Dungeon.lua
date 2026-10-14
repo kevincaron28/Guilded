@@ -107,6 +107,10 @@ local function updatePlayers(run)
       player = { firstSeen = stamp, presentSec = 0 }
       run.players[member.name] = player
     end
+    if member.level then
+      player.level = math.max(player.level or member.level, member.level)
+      player.minLevel = math.min(player.minLevel or member.level, member.level)
+    end
     player.lastSeen = stamp
     player.class = member.class or player.class
     player.role = member.role or player.role
@@ -299,6 +303,12 @@ serialize = function(run)
   for name, player in pairs(run.players) do
     if player.spec then specs[#specs + 1] = clean(name) .. ":" .. clean(player.spec) end
   end
+  local levels = {}
+  for name, player in pairs(run.players or {}) do
+    if player.level and player.minLevel then levels[#levels + 1] = clean(name) .. ":" .. player.minLevel .. ":" .. player.level end
+  end
+  local levelData = ";lv=" .. table.concat(levels, ",")
+  if #summary + #levelData <= CHUNK_BYTES * 20 then summary = summary .. levelData end
   local extra = ";sp=" .. table.concat(specs, ",")
   if #summary + #extra <= CHUNK_BYTES * 20 then summary = summary .. extra end
   for _, encounter in ipairs(run.encounters or {}) do
@@ -351,6 +361,13 @@ local function deserialize(id, text)
     end
     if #timeline > 0 then run.encounters = timeline end
   end
+  for entry in string.gmatch(fields.lv or "", "[^,]+") do
+    local name, low, high = string.match(entry, "^([^:]+):(%d+):(%d+)$")
+    name, low, high = name and ns.normalizeName(name), tonumber(low), tonumber(high)
+    if name and run.players[name] and low and high and low >= 1 and high <= 100 and low <= high then
+      run.players[name].minLevel, run.players[name].level = low, high
+    end
+  end
   for entry in string.gmatch(fields.sp or "", "[^,]+") do
     local name, spec = string.match(entry, "^([^:]+):([^:]+)$")
     name = name and ns.normalizeName(name)
@@ -384,6 +401,8 @@ local function storePeerRun(run, sender)
   if coverage(run.encounters) > coverage(existing.encounters) then existing.encounters = run.encounters end
   for name, player in pairs(run.players) do
     local mine = existing.players[name]
+    if mine and player.level then mine.level = math.max(mine.level or player.level, player.level) end
+    if mine and player.minLevel then mine.minLevel = math.min(mine.minLevel or player.minLevel, player.minLevel) end
     if mine and not mine.spec and player.spec then mine.spec = player.spec end
     if not mine then existing.players[name] = player
     elseif player.deaths and (not mine.deaths or player.deaths > mine.deaths) then mine.deaths = player.deaths; mine.addon = true end
@@ -552,7 +571,7 @@ local function onEvent(_, event, ...)
     if not tonumber(encounterId) then return end
     recordEncounter(run, tonumber(encounterId), (not ns.isSecret(name)) and name or nil, success == 1)
     if success == 1 and ((run.finalEncounterId and tonumber(encounterId) == run.finalEncounterId)
-      or compat.isDungeonFinalBoss(run.instanceId, encounterId)) then
+      or compat.isDungeonFinalBoss(run.instanceId, encounterId, name)) then
       finish("COMPLETED", "final boss")
     end
   elseif event == "BOSS_KILL" then
@@ -565,7 +584,7 @@ local function onEvent(_, event, ...)
     if not tonumber(encounterId) then return end
     recordEncounter(run, tonumber(encounterId), name, true)
     if (run.finalEncounterId and tonumber(encounterId) == run.finalEncounterId)
-      or compat.isDungeonFinalBoss(run.instanceId, encounterId) then
+      or compat.isDungeonFinalBoss(run.instanceId, encounterId, name) then
       finish("COMPLETED", "final boss")
     end
   elseif event == "PLAYER_DEAD" then

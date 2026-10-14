@@ -93,9 +93,11 @@ local function unitInfo(unit)
   local guid = exists(UnitGUID) and try("unitGuid", UnitGUID, unit) or nil
   local role = exists(UnitGroupRolesAssigned) and try("groupRoles", UnitGroupRolesAssigned, unit) or nil
   local inGuild = exists(UnitIsInMyGuild) and try("inGuild", UnitIsInMyGuild, unit) or nil
+  local level = exists(UnitLevel) and try("unitLevel", UnitLevel, unit) or nil
+  if secret(level) or type(level) ~= "number" or level < 1 or level > 100 then level = nil end
   local online = not exists(UnitIsConnected) or try("online", UnitIsConnected, unit)
   return {
-    unit = unit,
+    unit = unit, level = level,
     name = ns.normalizeName(name),
     guid = (not secret(guid)) and guid or nil,
     class = (not secret(classFile)) and classFile or nil,
@@ -152,7 +154,14 @@ local finalBossFallbacks = {
   [3065] = 3496
 }
 
-function compat.isDungeonFinalBoss(instanceId, encounterId)
+function compat.isDungeonFinalBoss(instanceId, encounterId, name)
+  -- Scarlet wings share map 189. English/French event names identify their endpoints;
+  -- unknown names still use the native journal when available.
+  if instanceId == 189 and not secret(name) and type(name) == "string" then
+    local bosses = { ["Bloodmage Thalnos"]=true, ["Mage de sang Thalnos"]=true,
+      ["Arcanist Doan"]=true, ["Arcaniste Doan"]=true }
+    if bosses[name] then return true end
+  end
   local boss = finalBossFallbacks[instanceId]
   if not boss then return false end
   return not secret(encounterId) and tonumber(encounterId) == boss

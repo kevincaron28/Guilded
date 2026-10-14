@@ -13,7 +13,7 @@ for account links, Discord/Oracle screenshots and copyable commands.
 
 | You are | Download | Setup target |
 | --- | --- | --- |
-| Addon-only player | `Guilded-v6.0.0.zip` | 5–10 minutes |
+| Addon-only player | Matching published Guilded addon ZIP | 5–10 minutes |
 | Member of a configured guild | Addon; Discord linking and companion sync are optional | 5–10 minutes for the addon |
 | Owner joining the hosted pilot | Addon + hosted bot invitation + online companion | Owner approval first; setup time depends on your server |
 | Owner setting up Discord sync | Matching bot source + addon + companion | About 30 minutes **after infrastructure is ready** |

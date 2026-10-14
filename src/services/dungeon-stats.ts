@@ -154,8 +154,8 @@ export async function dungeonChoices(database: Pick<PrismaClient, "dungeonRun">,
     .map((row) => ({ name: row.dungeonName.slice(0, 100), value: String(row.instanceId) }));
 }
 
-// Season top 10 by in-game name (main character) for the addon's Dungeons
-// tab; the companion writes it into Standings.lua.
+// Competitive scores retain each run character. Legacy participation/archive
+// rows still use main names; the companion writes this into Standings.lua.
 export async function addonDungeonBoard(database: Db & Pick<PrismaClient, "character">, guildId: string) {
   const [active, past] = await Promise.all([
     activeSeasonOrNull(database, guildId),
@@ -184,11 +184,11 @@ export async function addonDungeonBoard(database: Db & Pick<PrismaClient, "chara
     ratingVersion: hasDungeonRating(season.ratingRules) ? (season.ratingRules as { version: number }).version : 0,
     detailsAvailable: ratingRows.has(season.id) && ratingRows.get(season.id)!.every(row => row.details !== undefined),
     profiles: (ratingRows.get(season.id) ?? []).filter(row => row.details !== undefined).map(row => ({
-      name: mainName.get(row.memberId) ?? row.name, points: row.points, details: row.details!,
-      characters: characters.filter(character => character.memberId === row.memberId).map(character => character.name)
+      name: row.character ?? mainName.get(row.memberId) ?? row.name, points: row.points, details: row.details!,
+      characters: row.character ? [] : characters.filter(character => character.memberId === row.memberId).map(character => character.name)
     })),
     catalog: seasonDungeonCatalog(season.ratingRules, ratingRows.get(season.id) ?? []),
-    rows: ((ratingRows.get(season.id) ?? finalRows(season.finalStandings))?.map(row => ({ name: mainName.get(row.memberId) ?? row.name, points: row.points })) ?? totals.filter(row => row.seasonId === season.id && (row._sum.amount ?? 0) > 0)
+    rows: ((ratingRows.get(season.id) ?? finalRows(season.finalStandings))?.map(row => ({ name: ("character" in row && typeof row.character === "string" ? row.character : undefined) ?? mainName.get(row.memberId) ?? row.name, points: row.points })) ?? totals.filter(row => row.seasonId === season.id && (row._sum.amount ?? 0) > 0)
       .map(row => ({ name: mainName.get(row.memberId) ?? names.get(row.memberId) ?? "?", points: row._sum.amount ?? 0 }))
     ).sort((a, b) => b.points - a.points || a.name.localeCompare(b.name)).slice(0, 50)
   }));

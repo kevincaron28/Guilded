@@ -23,6 +23,64 @@ function setup() {
 }
 
 describe("guild-only dungeon scores", () => {
+  it("orders dungeon cards by minimum level, maximum level, then name, with unknown levels last", () => {
+    const s = setup();
+    s.run(`DB.dungeonBoard.detailsAvailable=true; DB.dungeonBoard.provisionalTargets=true
+      DB.dungeonBoard.catalog={
+        {name="Unknown"},{name="Alpha high",minLevel=30,maxLevel=40},
+        {name="Zulu low",minLevel=10,maxLevel=20},{name="Beta low",minLevel=10,maxLevel=20},
+        {name="Early",minLevel=10,maxLevel=15}}
+      M=NS.dungeonScorePanel.model("Tester")`);
+    expect(s.run('local names={}; for _,c in ipairs(M.cards) do names[#names+1]=c.name end; return table.concat(names,",")'))
+      .toBe("Early,Beta low,Zulu low,Alpha high,Unknown");
+  });
+  it("adds a fourth Forever side page and restores native pages when switching or closing", () => {
+    const s = setup();
+    s.run(`local oldCreate=CreateFrame
+      function CreateFrame(kind,name,parent,template)
+        local f=oldCreate(); f.parent=parent; f.template=template
+        f.CreateFontString=function() return CreateFrame() end
+        f.CreateTexture=function() return CreateFrame() end
+        f.SetText=function(self,text) self.text=text end
+        f.SetSize=function(self,w,h) self.width=w; self.height=h end
+        f.SetPoint=function(self,...) self.point={...} end
+        f.GetFrameLevel=function() return 1 end
+        f.SetChecked=function(self,value) self.checked=value end
+        f.SetCustomOnMouseUpHandler=function(self,fn) self.click=fn end
+        f.IsShown=function(self) return self.shown or false end
+        f.Show=function(self) if self.shown then return end; self.shown=true; if self.scripts.OnShow then self.scripts.OnShow(self) end end
+        f.Hide=function(self) if not self.shown then return end; self.shown=false; if self.scripts.OnHide then self.scripts.OnHide(self) end end
+        f.HookScript=function(self,event,fn) local original=self.scripts[event]; self.scripts[event]=function(...) if original then original(...) end; fn(...) end end
+        if template=="LFGVanillaRightTabTemplate" then f.Icon=CreateFrame() end
+        return f
+      end
+      function hooksecurefunc(object,key,fn) local original=object[key]; object[key]=function(...) original(...); fn(...) end end
+      LFGParentFrameRightTabMixin={}
+      PVEFrame=CreateFrame(); LFGParentFrame=CreateFrame()
+      LFGParentFrame.ListingTab=CreateFrame(); LFGParentFrame.BrowsingTab=CreateFrame(); LFGParentFrame.WhoListingTab=CreateFrame()
+      LFGParentFrame.UpdateTabs=function(self) self.ListingTab:SetChecked(true) end
+      LFGListingFrame=CreateFrame(); LFGBrowseFrame=CreateFrame(); LFGWhoListFrame=CreateFrame()
+      NATIVE_SHOWS=0; LFGBrowseFrame:SetScript("OnShow",function() NATIVE_SHOWS=NATIVE_SHOWS+1 end)
+      LFGParentFrame:Show(); LFGListingFrame:Show()
+      COMBAT=false; function InCombatLockdown() return COMBAT end
+      fire_event("ADDON_LOADED")
+      TAB=NS.dungeonScorePanel.tab; PANE=NS.dungeonScorePanel.pane
+      function CLICK() TAB.click(TAB,"LeftButton",true) end`);
+    expect(s.run('return TAB.template')).toBe("LFGVanillaRightTabTemplate");
+    expect(s.run('return tostring(TAB.point[2]==LFGParentFrame.WhoListingTab and TAB.point[3]=="BOTTOMLEFT")')).toBe("true");
+    s.run('COMBAT=true; CLICK()');
+    expect(s.run('return tostring(PANE:IsShown())')).toBe("false");
+    s.run('COMBAT=false; CLICK(); LFGParentFrame:UpdateTabs()');
+    expect(s.run('return tostring(PANE:IsShown() and TAB.checked and not LFGParentFrame.ListingTab.checked and not LFGListingFrame:IsShown())')).toBe("true");
+    expect(s.run('return PANE.width..":"..#PANE.cards')).toBe("440:4");
+    s.run('LFGBrowseFrame:Show()');
+    expect(s.run('return tostring(not PANE:IsShown() and not TAB.checked and not LFGListingFrame:IsShown() and LFGBrowseFrame:IsShown())')).toBe("true");
+    expect(s.run('return NATIVE_SHOWS')).toBe("1");
+    s.run('CLICK(); PANE:Hide()');
+    expect(s.run('return tostring(LFGBrowseFrame:IsShown() and not NS.dungeonScorePanel.chrome:IsShown())')).toBe("true");
+    s.run('CLICK(); LFGParentFrame:Hide(); LFGParentFrame:Show(); fire_event("ADDON_LOADED")');
+    expect(s.run('return tostring(not PANE:IsShown() and LFGBrowseFrame:IsShown() and TAB==NS.dungeonScorePanel.tab)')).toBe("true");
+  });
   it("does not learn outsiders or unconfirmed legacy roster entries", () => {
     const s = setup();
     expect(s.run("return #NS.scores.ranking()")).toBe("2");
@@ -74,7 +132,7 @@ describe("guild-only dungeon scores", () => {
     s.run('DB.dungeonBoard=nil');
     expect(s.run('return tostring(NS.dungeonScorePanel.model("Tester").season)')).toBe("nil");
   });
-  it("attaches once after load-on-demand, defers in combat, and leaves native handlers intact", () => {
+  it.each(["PVEFrame", "LFGParentFrame", "LFGFrame"])("attaches visibly to %s after load-on-demand without changing native handlers", (finderName) => {
     const s = setup();
     // Rich enough frame values to exercise the actual rendering and clicks.
     s.run(`local oldCreate=CreateFrame
@@ -83,19 +141,25 @@ describe("guild-only dungeon scores", () => {
         f.CreateFontString=function() return CreateFrame() end
         f.CreateTexture=function() return CreateFrame() end
         f.SetText=function(self,text) self.text=text end
+        f.ClearAllPoints=function(self) self.point=nil end
+        f.SetPoint=function(self,...) self.point={...} end
+        f.SetFrameStrata=function(self,value) self.strata=value end
+        f.SetClampedToScreen=function(self,value) self.clamped=value end
         f.IsShown=function(self) return self.shown or false end
         f.Show=function(self) self.shown=true; if self.scripts.OnShow then self.scripts.OnShow(self) end end
         f.Hide=function(self) self.shown=false end
         return f
       end
-      PVEFrame=CreateFrame(); NATIVE=function() end; PVEFrame:SetScript("OnShow",NATIVE)
+      FINDER=CreateFrame(); ${finderName}=FINDER; NATIVE=function() end; FINDER:SetScript("OnShow",NATIVE)
       COMBAT=true; function InCombatLockdown() return COMBAT end
       fire_event("ADDON_LOADED")`);
     expect(s.run('return tostring(NS.dungeonScorePanel.tab)')).toBe("nil");
     s.run('COMBAT=false; fire_event("PLAYER_REGEN_ENABLED"); TAB=NS.dungeonScorePanel.tab; fire_event("ADDON_LOADED")');
-    expect(s.run('return tostring(TAB==NS.dungeonScorePanel.tab and PVEFrame:GetScript("OnShow")==NATIVE)')).toBe("true");
+    expect(s.run('return tostring(TAB==NS.dungeonScorePanel.tab and FINDER:GetScript("OnShow")==NATIVE and TAB.point[2]==FINDER)')).toBe("true");
+    expect(s.run('return TAB.point[1]..":"..TAB.point[3]..":"..TAB.point[5]')).toBe("BOTTOM:BOTTOM:8");
     s.run('TAB:GetScript("OnClick")()');
     expect(s.run('return NS.dungeonScorePanel.pane.summary.text')).toContain("Your season score: 100");
+    expect(s.run('local p=NS.dungeonScorePanel.pane; return tostring(p.point[1]=="CENTER" and p.point[2]==UIParent and p.strata=="DIALOG" and p.clamped)')).toBe("true");
     s.run('TAB:GetScript("OnClick")()');
     expect(s.run('return tostring(NS.dungeonScorePanel.pane:IsShown())')).toBe("false");
   });

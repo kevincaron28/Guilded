@@ -4,7 +4,7 @@ import { startSeason } from "../src/services/dungeon-admin.js";
 const rules = createDungeonRatingRules({ "36": 1200 }, 2);
 const run = (seconds: number, ref = String(seconds), instanceId = 36) => ({
   instanceId, dungeonName: "Deadmines", runRef: ref, durationSec: seconds,
-  players: [{ memberId: "m", member: { displayName: "Member" }, presentSec: seconds }]
+  players: [{ memberId: "m", character: "Member", member: { displayName: "Member" }, presentSec: seconds }]
 });
 describe("seasonal completion plus speed", () => {
   it.each([[1500, 100], [1200, 100], [1020, 110], [840, 120], [600, 120]])("scores %i seconds as %i", (seconds, points) => {
@@ -12,7 +12,7 @@ describe("seasonal completion plus speed", () => {
     expect(rows[0]?.points).toBe(points);
     expect(rows[0]?.details?.[0]).toMatchObject({ points, targetSec: 1200, durationSec: seconds, runRef: String(seconds) });
   });
-  it("uses the highest result once, merges alts, and cannot lose score on a slower run", () => {
+  it("uses one character's highest result once and cannot lose score on a slower run", () => {
     const rows = calculateDungeonRating([run(1020), run(1500), run(840), run(2000), run(1000, "other", 33)], rules);
     expect(rows[0]).toMatchObject({ points: 220, dungeons: 2 });
     expect(rows[0]?.details?.find(d => d.instanceId === 36)).toMatchObject({ runRef: "840", points: 120 });

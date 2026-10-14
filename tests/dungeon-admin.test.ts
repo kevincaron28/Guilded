@@ -29,7 +29,7 @@ describe("dungeon admin", () => {
       $executeRaw: vi.fn(),
       dungeonSeason: { findFirst: async () => season, findMany: async () => [season], update: vi.fn(), updateMany: vi.fn(), create: vi.fn(async () => ({ id: "next" })) },
       dungeonRun: { findMany: async () => [36, 33].map(instanceId => ({ instanceId, durationSec: 1000,
-        players: [{ memberId: "explorer", member: { displayName: "Explorer" }, presentSec: 1000 }] })) },
+        players: [{ memberId: "explorer", character: "Explorer", member: { displayName: "Explorer" }, presentSec: 1000 }] })) },
       dungeonPointTransaction: { groupBy: async () => [{ memberId: "grinder", _sum: { amount: 9999 } }] },
       member: { count: async () => 2, findMany: async () => [{ id: "grinder", displayName: "Grinder" }] },
       guildSettings: { findUnique: async () => null }, dungeonAchievement: { upsert: vi.fn() }

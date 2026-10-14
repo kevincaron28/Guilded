@@ -31,8 +31,8 @@ it("shows the complete beta catalogue before any runs and relays separate Scarle
 });
 const best = { instanceId: 36, name: 'Deadmines; "West"', points: 110, speedBonus: 10, durationSec: 1020, targetSec: 1200, runRef: "run;one" };
 const current = { id: "current", season: "Current", status: "ACTIVE", ratingVersion: 2, detailsAvailable: true,
-  rows: [{ name: "Main", points: 110 }],
-  profiles: [{ name: "Main", points: 110, characters: ["Main", "Tester"], details: [best] }],
+  rows: [{ name: "Tester", points: 110 }],
+  profiles: [{ name: "Tester", points: 110, characters: [], details: [best] }],
   catalog: [{ instanceId: 36, name: best.name, targetSec: 1200 }] };
 const data = { updatedAt: "2026-10-13T18:00:00Z", standings: [], dungeonBoard: { ...current,
   history: [{ ...current, id: "past", season: "Past", status: "ENDED", profiles: [{ name: "Main", points: 120, characters: ["Tester"],
@@ -48,7 +48,21 @@ function setup(officer = false) {
   return s;
 }
 describe("per-dungeon seasonal snapshot and independent relay", () => {
-  it("round-trips companion data, matches alts, and renders different current/past bests", () => {
+  it("keeps current alt scores and tooltips separate, including stale account aliases", () => {
+    const s = setup();
+    s.run(standingsToLua({ ...data, dungeonBoard: { ...current, profiles: [
+      { name: "Main", points: 120, characters: ["Tester"], details: [{ ...best, points: 120, speedBonus: 20, durationSec: 840 }] },
+      { name: "Tester", points: 110, characters: [], details: [best] }
+    ] } }));
+    s.run('DB.dungeonBoard=GuildedDungeonBoard; DB.roster.Main={inGuild=true}');
+    expect(s.run('return NS.scores.scoreOf("Tester")')).toBe("110");
+    expect(s.run('return NS.scores.scoreOf("Main")')).toBe("120");
+    expect(s.run('return #NS.scores.ranking()')).toBe("2");
+    s.run('DB.dungeonBoard.profiles[2]=nil');
+    expect(s.run('return NS.scores.scoreOf("Tester")')).toBe("0");
+    expect(s.run('return NS.seasonDetails.profile(DB.dungeonBoard,"Tester").name')).toBe("Tester");
+  });
+  it("round-trips character scores and retains legacy archived account results", () => {
     const s = setup();
     s.run(standingsToLua(data));
     s.run("DB.dungeonBoard=GuildedDungeonBoard");
@@ -58,7 +72,7 @@ describe("per-dungeon seasonal snapshot and independent relay", () => {
     expect(s.run('return NS.seasonDetails.get(1,"Tester").profile.details[1].name')).toBe(best.name);
     expect(s.run('return NS.seasonDetails.get(1,"Tester").profile.details[1].runRef')).toBe("run;one");
     s.run('DB.roster.Main={inGuild=true}');
-    expect(s.run('return #NS.scores.ranking()')).toBe("1"); // Main and alt share one slot.
+    expect(s.run('return #NS.scores.ranking()')).toBe("1"); // Only the character with a recorded score is ranked.
     expect(s.run('return NS.scores.scoreOf("Tester")')).toBe("110");
   });
   it("relays only the requesting player's selected season and rejects mixed senders", () => {

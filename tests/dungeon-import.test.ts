@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { importDungeonRuns } from "../src/services/dungeon-import.js";
+import * as ratingService from "../src/services/dungeon-rating.js";
 
 // In-memory stand-in for the few Prisma queries importDungeonRuns makes.
 interface StoredPlayer { character: string; memberId: string | null; deaths: number | null }
@@ -8,7 +9,7 @@ interface StoredRun {
   invalidReason: string | null; startedAt: Date | null; endedAt: Date | null; durationSec: number | null; players: StoredPlayer[];
 }
 
-function fakeTx(season: { id: string; startsAt?: Date; endsAt?: Date } = { id: "season-1", startsAt: new Date(0) }) {
+function fakeTx(season: { id: string; startsAt?: Date; endsAt?: Date; status?: string; ratingRules?: unknown } = { id: "season-1", startsAt: new Date(0) }) {
   const runs: StoredRun[] = [];
   const points: { memberId: string; amount: number; source: string; runId: string }[] = [];
   const achievements: { memberId: string; key: string; runId: string }[] = [];
@@ -70,6 +71,17 @@ const total = (points: { memberId: string; amount: number }[], memberId: string)
   points.filter((row) => row.memberId === memberId).reduce((sum, row) => sum + row.amount, 0);
 
 describe("importDungeonRuns", () => {
+  it("reports an alt's own rating gain instead of the first score on their account", async () => {
+    const main = { memberId: "m-kev", character: "Main", name: "Main", points: 200, dungeons: 2 };
+    const alt = { memberId: "m-kev", character: "Kev", name: "Kev", points: 100, dungeons: 1 };
+    const rating = vi.spyOn(ratingService, "dungeonRating")
+      .mockResolvedValueOnce([main, alt]).mockResolvedValueOnce([main, { ...alt, points: 200, dungeons: 2 }]);
+    try {
+      const { tx } = fakeTx({ id: "s", status: "ACTIVE", startsAt: new Date(0), ratingRules: ratingService.DUNGEON_RATING_RULES });
+      const result = await importDungeonRuns(tx, "g1", [run("alt-score")], characters, "officer", "imp", now);
+      expect(result.results[0]?.playerDetails?.find(p => p.character === "Kev")).toMatchObject({ ratingTotal: 200, ratingGain: 100 });
+    } finally { rating.mockRestore(); }
+  });
   it("imports replacement players and includes per-player details without inventing deaths", async () => {
     const { tx, points } = fakeTx();
     const players = Array.from({ length: 6 }, (_, i) => ({

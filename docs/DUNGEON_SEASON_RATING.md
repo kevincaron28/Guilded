@@ -1,5 +1,9 @@
 # Dungeon-time rating and separate boss records
 
+14 October source update: scores and boss bests now belong to each character,
+not the combined account. See [identity and rollout notes](DUNGEON_CHARACTER_RATING_2026-10-14.md).
+The deployment statements below describe the original 13 October candidate.
+
 Candidate on `codex/guild-dungeon-scores`, 13 October 2026. This supersedes the
 100 + 20 proposal after the owner chose a wider dungeon-time rating and separate
 boss records. No live reset, installation or deployment has happened. The bridge
@@ -13,8 +17,9 @@ For an eligible run with benchmark T and duration t (seconds):
 `score = clamp(round(200 * T / t), 50, 400)`
 
 200 is the score at the dungeon benchmark, not an award for every completion.
-The season total sums each member's best score per distinct instance ID. Linked
-alts and repetitions share that slot. Slower repeats cannot reduce the total.
+The season total sums each character's best score per distinct dungeon/wing.
+Alts have separate slots; repetitions on the same character share that slot.
+Slower repeats cannot reduce the total. Already archived account totals stay frozen.
 Boss times award no extra points: they have their own records, avoiding counting
 the same time saving twice.
 
@@ -53,7 +58,7 @@ The importer now persists observed levels and encounter timestamps in nullable
 DungeonRun.competitionData. A forward-only migration adds this JSONB field; old
 runs have no evidence. Only successful encounters with a real start/end inside
 an eligible run produce boss records. Kill-to-kill intervals are never fight times.
-A member's fastest eligible boss kill can come from a different run than their
+A character's fastest eligible boss kill can come from a different run than their
 best full-dungeon score. Season finalRating freezes both when archived.
 
 The game group finder has a Guilded scores button and addon-owned score pane with

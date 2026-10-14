@@ -59,7 +59,13 @@ export interface DungeonRatingDetail {
   instanceId: number; name: string; points: number; speedBonus: number; durationSec: number;
   targetSec: number | null; runRef: string; dungeonKey?: string; ratingVersion?: 3; unrankedReason?: string; bosses?: BossRecord[];
 }
-export interface RatingRow { memberId: string; name: string; points: number; dungeons: number; details?: DungeonRatingDetail[] }
+export interface RatingRow { memberId: string; character?: string; name: string; points: number; dungeons: number; details?: DungeonRatingDetail[] }
+// Runs retain the actual character name. Keep the owner for membership and
+// permissions, but never use their account alone as the competitive identity.
+// Scoped to one guild by dungeonRating; Forever realm labels are not stable.
+export function ratingCharacterKey(memberId: string, character: string): string {
+  return JSON.stringify([memberId, character.trim().toLowerCase()]);
+}
 export interface BossRecord { id: number; name: string; durationSec: number; runRef: string }
 export interface RatingRun {
   competitionData?: unknown; difficultyId?: number; startedAt?: Date | null; endedAt?: Date | null;
@@ -103,15 +109,16 @@ export function calculateDungeonRating(runs: RatingRun[], rules?: unknown): Rati
   const version = (rules as { version?: number } | undefined)?.version;
   const targets = version === 2 || version === 3
     ? (rules as ReturnType<typeof createDungeonRatingRules>).targets : {};
-  const members = new Map<string, { name: string; bests: Map<string, DungeonRatingDetail> }>();
+  const members = new Map<string, { memberId: string; name: string; bests: Map<string, DungeonRatingDetail> }>();
   for (const run of runs) {
     if (!run.durationSec || !Number.isFinite(run.durationSec) || run.durationSec <= 0) continue;
     const key = version === 3 ? ratingDungeonKey(run) : String(run.instanceId);
     const reason = version === 3 && key === "189" ? "Dungeon route unknown" : version === 3 ? competitionReason(run, (rules as { levelBands?: Record<string, LevelBand> }).levelBands?.[key]) : undefined;
     const bosses = version === 3 && !reason ? bossRecords(run) : [];
     for (const player of run.players) {
-      if (!player.memberId || !player.member || !Number.isFinite(player.presentSec) || player.presentSec < run.durationSec * 0.8) continue;
-      const member = members.get(player.memberId) ?? { name: player.member.displayName, bests: new Map<string, DungeonRatingDetail>() };
+      if (!player.memberId || !player.member || !player.character?.trim() || !Number.isFinite(player.presentSec) || player.presentSec < run.durationSec * 0.8) continue;
+      const identity = ratingCharacterKey(player.memberId, player.character);
+      const member = members.get(identity) ?? { memberId: player.memberId, name: player.character.trim(), bests: new Map<string, DungeonRatingDetail>() };
       const targetSec = targets[key] ?? null;
       const speedBonus = version === 3 ? 0 : speedPoints(run.durationSec, targetSec);
       const detail: DungeonRatingDetail = { ...(version === 3 ? { ratingVersion: 3 as const, dungeonKey: key, ...(reason || !targetSec ? { unrankedReason: reason ?? "Target not calibrated" } : {}), bosses: [] } : {}), instanceId: run.instanceId, name: key.startsWith("189:") ? `Scarlet Monastery: ${key.split(":")[1]}` : run.dungeonName ?? `#${run.instanceId}`, points: version === 3 ? reason ? 0 : timeRating(run.durationSec, targetSec) : 100 + speedBonus,
@@ -125,10 +132,10 @@ export function calculateDungeonRating(runs: RatingRun[], rules?: unknown): Rati
         && (detail.durationSec < previous.durationSec || detail.durationSec === previous.durationSec && detail.runRef < previous.runRef)) {
         member.bests.set(key, detail);
       }
-      members.set(player.memberId, member);
+      members.set(identity, member);
     }
   }
-  return [...members].map(([memberId, member]) => ({ memberId, name: member.name,
+  return [...members.values()].map(member => ({ memberId: member.memberId, character: member.name, name: member.name,
     points: [...member.bests.values()].reduce((sum, best) => sum + best.points, 0), dungeons: member.bests.size,
     ...(rules !== undefined ? { details: [...member.bests.values()].sort((a, b) => a.instanceId - b.instanceId) } : {}) }))
     .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name) || a.memberId.localeCompare(b.memberId));
@@ -158,6 +165,7 @@ function validDetails(row: RatingRow): boolean {
 }
 export function frozenRating(value: unknown): RatingRow[] | null {
   if (!Array.isArray(value) || value.some(row => !row || typeof row.memberId !== "string" || typeof row.name !== "string"
+    || (row.character !== undefined && (typeof row.character !== "string" || !row.character.trim() || row.name !== row.character))
     || !Number.isInteger(row.points) || row.points < 0 || !Number.isInteger(row.dungeons) || row.dungeons < 0
     || (row.details === undefined ? row.points !== row.dungeons * 100 : !validDetails(row)))) return null;
   return value as RatingRow[];
@@ -193,8 +201,10 @@ export function ratingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, r
   const timed = hasDungeonRating(rules) && (rules as { version: number }).version === 3;
   const lines = [timed ? (fr ? "**Score de vitesse · meilleure tentative par donjon**" : "**Dungeon-time rating · best result per dungeon**") : speed ? (fr ? "**100 par donjon distinct + 0–20 de vitesse · meilleure tentative seulement**" : "**100 per distinct dungeon + 0–20 speed · best result only**")
     : fr ? "**100 par donjon distinct · aucun bonus de vitesse**" : "**100 per distinct dungeon · no speed bonus**",
-    fr ? "Alts, difficultés et répétitions partagent le même résultat. Les égalités partagent le rang."
-      : "Alts, difficulties and repeat clears share one result. Equal ratings share a rank."];
+    rows.some(row => row.character === undefined)
+      ? (fr ? "Archive par compte : les alts partagent le résultat enregistré." : "Account-based archive: alts share the recorded result.")
+      : (fr ? "Score par personnage : chaque alt a ses propres meilleurs parcours. Les égalités partagent le rang."
+        : "Per-character rating: each alt has its own best runs. Equal ratings share a rank.")];
   if (timed) lines.push(fr ? "200 à la cible, 50–400 par donjon. Cibles figées. Sans cible : calibration, 0 point."
     : "200 at target, 50–400 per dungeon. Fixed targets. No target: calibrating, 0 points.");
   if (speed) lines.push(fr ? "Cibles figées pour la saison. 15 % plus rapide = +10 ; 30 % = +20. Sans cible : 100."

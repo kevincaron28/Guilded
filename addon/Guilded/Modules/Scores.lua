@@ -211,11 +211,6 @@ function scores.ranking()
   end
   for _, profile in ipairs(board and board.profiles or {}) do
     local name = ns.normalizeName(profile.name)
-    if not scores.isMember(name) then
-      for _, alt in ipairs(profile.characters or {}) do
-        if scores.isMember(alt) then name = ns.normalizeName(alt); break end
-      end
-    end
     add(name)
   end
   table.sort(rows, function(a, b) if a.score ~= b.score then return a.score > b.score end return a.name < b.name end)

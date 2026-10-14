@@ -1,4 +1,4 @@
-import { EmbedBuilder, SlashCommandBuilder, type ChatInputCommandInteraction } from "discord.js";
+import { EmbedBuilder, SlashCommandBuilder, escapeMarkdown, type ChatInputCommandInteraction } from "discord.js";
 import { prisma } from "../database.js";
 import { asLang, t, tx, type Lang } from "../i18n.js";
 import { achievementName } from "../services/dungeon-achievements.js";
@@ -168,8 +168,9 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
       );
       const currentSeason = await activeSeasonOrNull(prisma, context.guildId);
       if (currentSeason && hasDungeonRating(currentSeason.ratingRules)) {
-        const rating = (await dungeonRating(prisma, context.guildId, currentSeason)).find(row => row.memberId === member.id);
-        embed.addFields({ name: lang === "fr" ? "Cote d’exploration" : "Exploration rating", value: `${rating?.points ?? 0} · ${rating?.dungeons ?? 0} ${lang === "fr" ? "donjon(s) distinct(s)" : "distinct dungeon(s)"}` });
+        const ratings = (await dungeonRating(prisma, context.guildId, currentSeason)).filter(row => row.memberId === member.id);
+        embed.addFields({ name: lang === "fr" ? "Score par personnage" : "Per-character rating",
+          value: ratings.length ? ratings.map(row => `${escapeMarkdown(row.name)} · ${row.points} · ${row.dungeons} ${lang === "fr" ? "donjon(s)" : "dungeon(s)"}`).join("\n").slice(0, 1024) : "0" });
       }
       if (summary.bests.length) {
         embed.addFields({ name: t(lang, "dungeon.player.bests"), value: summary.bests.map((row) => `• ${label(row)} — ${formatDuration(row.durationSec)}`).join("\n").slice(0, 1024) });

@@ -4,7 +4,7 @@ import { canAccessCommunity, communityCard } from "../src/commands/community.js"
 import { createCommunityService } from "../src/services/community.js";
 import type { CommunityActivity, CommunitySeason } from "@prisma/client";
 import { commands } from "../src/commands/index.js";
-import { assertLotteryGame, dicePoints, drawWinners, evidenceReference, lotteryRules, standings } from "../src/services/community-rules.js";
+import { assertLotteryGame, COMMUNITY_GAMES, COMMUNITY_GAME_LABELS, communityGameLabel, dicePoints, drawWinners, evidenceReference, lotteryRules, standings } from "../src/services/community-rules.js";
 
 const now = new Date("2026-10-01T12:00:00Z");
 const endsAt = new Date("2026-10-02T12:00:00Z");
@@ -59,6 +59,14 @@ describe("community accounting and lottery rules", () => {
     expect(lotteryRules.safeParse({ ...rules, mode: "FREE", cost: 0 }).success).toBe(false);
     expect(() => assertLotteryGame("POE2", "WOW_GOLD")).toThrow();
     expect(() => assertLotteryGame("WOW", "POE_CURRENCY")).toThrow();
+  });
+  it("offers Diablo II and IV seasons with readable labels in both languages", () => {
+    expect(COMMUNITY_GAMES).toEqual(expect.arrayContaining(["DIABLO2", "DIABLO4"]));
+    for (const game of COMMUNITY_GAMES) expect(COMMUNITY_GAME_LABELS[game].en && COMMUNITY_GAME_LABELS[game].fr).toBeTruthy();
+    expect(communityGameLabel("DIABLO2", "en")).toBe("Diablo II: Resurrected");
+    expect(communityGameLabel("OTHER", "fr")).toBe("Autre jeu");
+    expect(communityGameLabel("RETIRED_GAME", "fr")).toBe("RETIRED_GAME");
+    expect(() => assertLotteryGame("DIABLO2", "POE_CURRENCY")).toThrow();
   });
   it("records HTTPS references without fetching untrusted evidence", () => {
     expect(evidenceReference("https://example.com/proof.png")).toBe("https://example.com/proof.png");

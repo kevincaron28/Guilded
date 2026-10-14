@@ -3,6 +3,7 @@ import type { PrismaClient } from "@prisma/client";
 import type { Lang } from "../i18n.js";
 import { accessibleCommunityActivities, accessibleCommunitySeasons } from "./community-access.js";
 import { communitySeasonLabel } from "./community-display.js";
+import { communityGameLabel } from "./community-rules.js";
 
 export async function communityChoices(database: PrismaClient, guild: Guild, guildId: string, actor: string, command: string, sub: string | null, option: string, query: string, lang: Lang) {
   const needle = query.trim().toLocaleLowerCase();
@@ -10,7 +11,7 @@ export async function communityChoices(database: PrismaClient, guild: Guild, gui
     const all = await accessibleCommunitySeasons(database, guild, guildId, actor);
     const history = ["leaderboard", "wallet", "hub", "status", "history", "list", "season-settings", "claims", "review", "settings"].includes(sub ?? "");
     return all.filter(s => (history || s.status === "ACTIVE") && (command !== "participation" && !["dice", "quiz"].includes(sub ?? "") || s.game === "DISCORD"))
-      .map(s => ({ name: `${s.game} · ${communitySeasonLabel(s, lang)} · ${s.status === "ACTIVE" ? lang === "fr" ? "En cours" : "Active" : lang === "fr" ? "Archivée" : "Archived"}`.slice(0, 100), value: s.id }))
+      .map(s => ({ name: `${communityGameLabel(s.game, lang)} · ${communitySeasonLabel(s, lang)} · ${s.status === "ACTIVE" ? lang === "fr" ? "En cours" : "Active" : lang === "fr" ? "Archivée" : "Archived"}`.slice(0, 100), value: s.id }))
       .filter(c => `${c.name} ${c.value}`.toLocaleLowerCase().includes(needle)).slice(0, 25);
   }
   const kind = { lottery: "LOTTERY", gaming: "EVENT", challenge: "CHALLENGE", community: "QUIZ" }[command];

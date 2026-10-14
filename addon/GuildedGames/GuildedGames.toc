@@ -1,0 +1,14 @@
+## Interface: 16001, 20506
+## Title: Guilded Games
+## Notes: Host party games. Players join through chat; only the host needs this addon.
+## Notes-frFR: Jeux de groupe. Seul l'organisateur a besoin de cet addon.
+## Author: Kevin Caron
+## Version: 0.1.0
+## IconTexture: Interface\AddOns\GuildedGames\Media\Logo
+## SavedVariables: GuildedGamesDB
+## X-License: PolyForm-Noncommercial-1.0.0
+
+Locale.lua
+Questions.lua
+Core.lua
+Window.lua

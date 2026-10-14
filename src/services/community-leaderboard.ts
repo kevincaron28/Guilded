@@ -2,7 +2,7 @@ import { REST, Routes, ChannelType, PermissionFlagsBits, EmbedBuilder, escapeMar
 import type { PrismaClient } from "@prisma/client";
 import { BRAND } from "../brand.js";
 import { asLang, type Lang } from "../i18n.js";
-import { COMMUNITY_CHANNEL_SPECS } from "../setup-names.js";
+import { COMMUNITY_CHANNEL_SPECS, communityChannelNames } from "../setup-names.js";
 import { standings, type Standing } from "./community-rules.js";
 import { communitySeasonLabel } from "./community-display.js";
 import { communityHubButton, communityHubCard, COMMUNITY_HUB_MARKER } from "./community-panels.js";
@@ -113,7 +113,7 @@ export async function updateCommunityLeaderboard(rest: REST, database: PrismaCli
       : await rest.post(Routes.guildChannels(discordId), { body: { ...body, type: ChannelType.GuildText, parent_id: category.id } }) as APIGuildTextChannel<ChannelType.GuildText>;
   }
   if (!channel) return null;
-  const activityChannels = channels.filter((c): c is APIGuildTextChannel<ChannelType.GuildText> => c.type === ChannelType.GuildText && c.parent_id === category.id && [COMMUNITY_CHANNEL_SPECS.en.activities.name, COMMUNITY_CHANNEL_SPECS.fr.activities.name].includes(c.name));
+  const activityChannels = channels.filter((c): c is APIGuildTextChannel<ChannelType.GuildText> => c.type === ChannelType.GuildText && c.parent_id === category.id && communityChannelNames("activities").includes(c.name));
   const hub = activityChannels.length === 1 && communityAudience(activityChannels[0]!, botId) === communityAudience(channel, botId) ? activityChannels[0] : undefined;
   // A hub-hosted season is eligible only when its visibility matches the podium.
   const season = await database.communitySeason.findFirst({ where: { guildId: record.id, channelId: hub ? { in: [channel.id, hub.id] } : channel.id, game: "DISCORD", audienceRoleId: null }, orderBy: [{ status: "asc" }, { createdAt: "desc" }, { id: "desc" }] });
@@ -140,7 +140,7 @@ export async function updateCommunityLeaderboard(rest: REST, database: PrismaCli
       nameCache.set(`${discordId}:${id}`, { name: names.get(id) ?? "", expiresAt: Date.now() + NAME_CACHE_MS });
     }
   }
-  const sibling = (key: "activities" | "chat") => channels.find(c => c.type === ChannelType.GuildText && c.parent_id === category.id && [COMMUNITY_CHANNEL_SPECS.en[key].name, COMMUNITY_CHANNEL_SPECS.fr[key].name].includes(c.name ?? ""))?.id;
+  const sibling = (key: "activities" | "chat") => channels.find(c => c.type === ChannelType.GuildText && c.parent_id === category.id && communityChannelNames(key).includes(c.name ?? ""))?.id;
   const body = communityLeaderboardCard({ lang, discordId, season, board, names, activitiesId: sibling("activities"), chatId: sibling("chat") });
   const pins = await rest.get(Routes.channelMessagesPins(channel.id)) as { items: { message: APIMessage }[] };
   let message = pins.items.map(item => item.message).find(m => m.author.id === botId && m.embeds.some(e => e.footer?.text.startsWith(COMMUNITY_BOARD_MARKER)));

@@ -1,7 +1,7 @@
 -- Minimap button and the Guilded tools window.
 --
 -- Each rank sees only what it can use:
---   officers: Raid, EPGP, Loot, Games, Me, Standings, Dungeons, Tools
+--   officers: Raid, EPGP, Loot, Me, Standings, Dungeons, Tools
 --   members:  Me, Standings, Tools (officer-only tools hidden)
 -- Rank is re-checked every time the window opens, so a promotion shows up
 -- without a reload.
@@ -541,36 +541,51 @@ local function buildCouncilPage(page)
   at(newLabel(page, "Members without the addon whisper you: bis, upgrade, os or pass.", "GameFontDisableSmall"), page, 0, -300)
 end
 
-local function buildGamesPage(page)
-  at(newLabel(page, "Fun roll games. No gold, nothing owed. Players type 1 in party/raid chat to join, then /roll.", "GameFontNormalSmall"), page, 0, -4)
-  at(newButton(page, "High roll", 100, function() run("games highroll") end), page, 0, -28)
-  at(newButton(page, "Deathroll", 100, function() run("games deathroll") end), page, 104, -28)
-  at(newButton(page, "Call the roll", 110, function() run("games roll") end), page, 208, -28)
-  at(newButton(page, "Remind", 76, function() run("games remind") end), page, 0, -56)
-  at(newButton(page, "Add player", 96, function()
-    local name = needPlayer()
-    if name then run("games add " .. name) end
-  end), page, 80, -56)
-  local cancelGame = at(newButton(page, "Cancel game", 100), page, 180, -56)
-  confirmClick(cancelGame, "Cancel game", function() run("games cancel") end)
-
-  at(newLabel(page, "Duel: you and the selected Player, classic deathroll (roll the last number, first to roll 1 loses)", "GameFontNormalSmall"), page, 0, -92)
-  at(newButton(page, "Start duel", 100, function()
-    local name = needPlayer()
-    if name then run("games duel " .. name) end
-  end), page, 0, -112)
-
-  -- Rules in chat, so players new to a game can join in.
-  at(newLabel(page, "Explain a game in chat (party/raid, or /say when not grouped)", "GameFontNormalSmall"), page, 0, -148)
-  tip(at(newButton(page, "Explain High roll", 150, function() run("games explain highroll") end), page, 0, -168),
-    "Posts how High Roll works in chat.")
-  tip(at(newButton(page, "Explain Deathroll", 150, function() run("games explain deathroll") end), page, 156, -168),
-    "Posts how Deathroll works in chat.")
-  tip(at(newButton(page, "Explain Duel", 150, function() run("games explain duel") end), page, 312, -168),
-    "Posts how a deathroll duel works in chat.")
-
-  ui.gamesStatus = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -206)
-  ui.gamesStatus:SetWidth(PAGE_WIDTH)
+local function buildLocalGuildPage(page)
+  at(newLabel(page, "In-game only: local cores and rosters. All local cores share guild EP/GP.", "GameFontNormalSmall"), page, 0, -4)
+  local coreBox = at(newEdit(page, 240), page, 6, -30)
+  at(newButton(page, "Create core", 130, function()
+    if ns.localGuild then ns.localGuild.create(coreBox:GetText()) end
+  end), page, 270, -30)
+  at(newButton(page, "Next core", 130, function()
+    local cores = ns.localGuild and ns.localGuild.rules().cores or {}
+    local current = ns.loot and ns.loot.core()
+    local index = 0; for i, core in ipairs(cores) do if current and core.id == current.id then index = i end end
+    local nextCore = cores[index + 1] or cores[1]
+    if nextCore then run("core " .. nextCore.id) end
+  end), page, 410, -30)
+  local modes, mode, limit = { "EPGP", "COUNCIL", "RESERVE", "PRIORITY" }, 1, 1
+  local modeButton, limitButton
+  modeButton = at(newButton(page, "EPGP", 130, function()
+    mode = mode % #modes + 1; modeButton:SetText(modes[mode])
+  end), page, 0, -64)
+  limitButton = at(newButton(page, "SR: 1", 130, function()
+    limit = limit % 10 + 1; limitButton:SetText("SR: " .. limit)
+  end), page, 140, -64)
+  at(newButton(page, "Save loot rules", 160, function()
+    local core = ns.loot and ns.loot.core()
+    if ns.localGuild then ns.localGuild.configure(core and core.id, modes[mode], limit) end
+  end), page, 280, -64)
+  at(newLabel(page, "Character name", "GameFontNormalSmall"), page, 0, -102)
+  local player = at(newEdit(page, 200), page, 6, -124)
+  local roles, role, spot = { "DPS", "TANK", "HEALER" }, 1, "main"
+  local roleButton, spotButton
+  roleButton = at(newButton(page, "DPS", 90, function() role = role % #roles + 1; roleButton:SetText(roles[role]) end), page, 220, -124)
+  spotButton = at(newButton(page, "Main", 90, function() spot = spot == "main" and "bench" or "main"; spotButton:SetText(L(spot == "main" and "Main" or "Bench")) end), page, 320, -124)
+  at(newButton(page, "Add / update", 130, function()
+    local core = ns.loot and ns.loot.core()
+    if ns.localGuild then ns.localGuild.member(core and core.id, player:GetText(), roles[role], spot) end
+  end), page, 420, -124)
+  local remove = at(newButton(page, "Remove player", 130), page, 0, -158)
+  confirmClick(remove, "Remove player", function()
+    local core = ns.loot and ns.loot.core()
+    if ns.localGuild then ns.localGuild.remove(core and core.id, player:GetText(), true) end
+  end)
+  at(newButton(page, "Backup", 130, function() run("backup") end), page, 140, -158)
+  at(newButton(page, "Restore preview", 130, function() run("restore") end), page, 280, -158)
+  at(newButton(page, "Publish standings", 130, function() run("standings publish") end), page, 420, -158)
+  ui.localGuildInfo = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -204)
+  ui.localGuildInfo:SetWidth(PAGE_WIDTH)
 end
 
 local function buildMePage(page)
@@ -666,13 +681,8 @@ local function buildToolsPage(page)
   at(newButton(page, L("Hide minimap button"), 180, function() run("minimap hide") end), page, 0, -64)
 
   officerOnly(at(newLabel(page, "Officer", "GameFontNormalSmall"), page, 0, -100))
-  -- Export and send: marks the export and reloads in one click (a secure button: the game lets a
-  -- click reload, not addon code). The companion then uploads it to Discord.
-  local exportSend = ns.syncNow and ns.syncNow.reloadButton(page, L("Export and send"), 136, 22, nil, "/guilded export\n/reload")
-    or newButton(page, "Export data", 136, function() run("export") end)
-  officerOnly(tip(at(exportSend, page, 0, -116), "Marks an export and reloads the game so it saves; the companion uploads it to Discord."))
+  officerOnly(at(newButton(page, "Backup", 136, function() run("backup") end), page, 0, -116))
   officerOnly(tip(at(newButton(page, "Officer setup", 136, function() run("officer list") end), page, 142, -116), "Who counts as an officer in this guild."))
-  forModule("games", at(newButton(page, "Games help", 136, function() run("games") end), page, 284, -116), true)
 
   -- Test tools (/guilded sim): a pretend raid with fake players, to learn the tools alone.
   forModule("sim", at(newLabel(page, "Test tools (fake players, nothing reaches Discord)", "GameFontNormalSmall"), page, 0, -146), true)
@@ -1009,9 +1019,9 @@ local TAB_DEFS = {
   { name = "Calendar", scope = "calendar", group = "Calendar", module = "calendar", officer = true, build = buildCalendarPage },
   { name = "Raid", hint = "run a raid: start, bosses, attendance", group = "Raid night", officer = true, usesPlayer = true, build = buildRaidPage },
   { name = "EPGP", label = "Administration", hint = "award EP and GP", scope = "guild", group = "Guild", officer = true, usesPlayer = true, build = buildEpgpPage },
+  { name = "Local guild", scope = "guild", group = "Guild", officer = true, build = buildLocalGuildPage },
   { name = "Loot", hint = "bids and loot", group = "Raid night", lootModes = { EPGP = true }, officer = true, usesPlayer = true, build = buildLootPage },
   { name = "Council", hint = "loot council: BiS / upgrade / off-spec answers", group = "Raid night", module = "council", lootModes = { COUNCIL = true, PRIORITY = true }, officer = true, usesPlayer = true, build = buildCouncilPage },
-  { name = "Games", hint = "fun roll games", group = "Fun and runs", module = "games", usesPlayer = true, build = buildGamesPage },
   { name = "Tools", label = "Settings", hint = "switch parts on or off, diagnostics", group = "System", build = buildToolsPage }
 }
 
@@ -1119,7 +1129,7 @@ local function moduleSignature()
   return table.concat(parts)
 end
 
--- Tools tab rows: "Roll games - on", your switch, and the guild switch.
+-- Tools tab rows: "Recipes - on", your switch, and the guild switch.
 local function refreshModuleRows()
   local s = ns.getSettings and ns.getSettings() or {}
   for _, row in ipairs(ui.moduleRows or {}) do
@@ -1149,8 +1159,6 @@ local function refreshHome(db, officer, me)
     or L("No raid is running."))
   local run = db.dungeon and db.dungeon.current
   if run then table.insert(now, string.format(L("Dungeon run: %s (%s)"), run.name or "?", string.lower(run.state or "?"))) end
-  local gameText = moduleOn("games") and ns.games and ns.games.statusText and ns.games.statusText() or ""
-  if gameText ~= "" and gameText ~= "No games running." then table.insert(now, gameText) end
   local bidText = moduleOn("bidding") and ns.bidding and ns.bidding.statusText and ns.bidding.statusText() or ""
   if bidText ~= "" then table.insert(now, bidText) end
   if ns.loot and ns.loot.describe and ns.getLootRules and ns.getLootRules() then table.insert(now, ns.loot.describe()) end
@@ -1176,6 +1184,7 @@ local function refreshHome(db, officer, me)
 end
 
 refresh = function()
+  if ui.localGuildInfo then ui.localGuildInfo:SetText(ns.localGuild and ns.localGuild.describe() or "") end
   if not panel or not panel:IsShown() then return end
   local db = ns.getDb and ns.getDb()
   if not db then return end
@@ -1219,13 +1228,17 @@ refresh = function()
       -- Discord = the bot's official totals; "this PC" = entries recorded
       -- here that may not have been imported yet.
       local lines = { name }
-      table.insert(lines, discord and string.format("Discord:  EP %d   GP %d   PR %.2f", discord.ep, discord.gp, discord.pr)
-        or "Discord:  no standings yet")
+      local source = ns.standingsSource and ns.standingsSource() or L("Connected snapshot")
+      if ns.isInGameOnly and ns.isInGameOnly() then
+        local row = ns.effectiveStanding(name)
+        table.insert(lines, string.format("%s: EP %d   GP %d   PR %.2f", source, row.ep, row.gp, row.pr))
+      else
+        table.insert(lines, discord and string.format("%s: EP %d   GP %d   PR %.2f", source, discord.ep, discord.gp, discord.pr) or L("No standings yet."))
+      end
       if account then table.insert(lines, string.format("Recorded on this PC:  EP %d   GP %d", account.ep, account.gp)) end
       ui.epgpInfo:SetText(table.concat(lines, "\n"))
     end
 
-    ui.gamesStatus:SetText(moduleOn("games") and ns.games and ns.games.statusText and ns.games.statusText() or "")
     if ui.councilStatus then
       local councilText = moduleOn("council") and ns.council and ns.council.statusText and ns.council.statusText() or ""
       local voting = moduleOn("council") and ns.council and ns.council.voting
@@ -1310,7 +1323,7 @@ refresh = function()
   local updatedAt = ns.getStandingsUpdatedAt and ns.getStandingsUpdatedAt()
   local core = standingsCore()
   ui.standingsView:SetText(core and (L("Core") .. ": " .. core.name) or L("Guild-wide standings"))
-  ui.standingsScope:SetText(core and (core.pool and L("Core roster - separate point pool") or L("Core roster - shared guild point pool")) or L("All linked guild characters"))
+  ui.standingsScope:SetText(core and (core.pool and L("Core roster - separate point pool") or L("Core roster - shared guild point pool")) or L(ns.isInGameOnly and ns.isInGameOnly() and "Known local and shared characters" or "All linked guild characters"))
   local localOnly = ns.isInGameOnly and ns.isInGameOnly()
   if not updatedAt and not localOnly then
     ui.standingsPlayer:SetText(L("No standings yet."))
@@ -1323,7 +1336,8 @@ refresh = function()
       or row and string.format("%s:  EP %d   GP %d   PR %.2f", name, row.ep, row.gp, row.pr)
       or (ns.standingProblemText and ns.standingProblemText(name))
       or string.format(L("%s: no standings (character not linked on Discord?)"), name or "?"))
-    local lines = { updatedAt and string.format(L("Top by PR (snapshot, %s):"), updatedAt) or L("Local ledger (this PC)") }
+    local lines = { ns.standingsSource and ns.standingsSource() or L("Local ledger (this PC)") }
+    if updatedAt then lines[#lines + 1] = string.format(L("Top by PR (snapshot, %s):"), updatedAt) end
     if #rows == 0 then table.insert(lines, L("No characters in this view.")) end
     for i = 1, math.min(15, #rows) do
       local r = rows[i]
@@ -1357,6 +1371,7 @@ updateGuildScroll = function()
   end
   local height = 220
   if tab.name == "Standings" then height = 80 + textHeight(ui.standingsList) + (ns.isOfficer() and 52 or 12)
+  elseif tab.name == "Local guild" then height = 220 + textHeight(ui.localGuildInfo)
   elseif tab.name == "Crafting" then height = 250 + textHeight(ui.craftCooldowns) + 12
   elseif tab.name == "Calendar" then height = 70 + textHeight(ui.calendarStatus) + 12 end
   local scroll = ui.guildScroll

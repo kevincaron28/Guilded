@@ -2,7 +2,7 @@ import { ChannelType, EmbedBuilder, PermissionFlagsBits, escapeMarkdown, type Gu
 import type { CommunityHonors, Prisma, PrismaClient } from "@prisma/client";
 import { BRAND } from "../brand.js";
 import { asLang, type Lang } from "../i18n.js";
-import { COMMUNITY_CHANNEL_SPECS } from "../setup-names.js";
+import { COMMUNITY_CHANNEL_SPECS, communityChannelNames } from "../setup-names.js";
 import { standings, type Standing } from "./community-rules.js";
 import { communitySeasonLabel } from "./community-display.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
@@ -193,7 +193,7 @@ export async function ensureCommunityHonors(guild: Guild, database: PrismaClient
   const reason = `${BRAND.name} /setup`;
   const created: string[] = [];
   const current = await database.communityHonors.findUnique({ where: { guildId } });
-  const names = [COMMUNITY_CHANNEL_SPECS.en.honors.name, COMMUNITY_CHANNEL_SPECS.fr.honors.name];
+  const names = communityChannelNames("honors");
   let channel = (current?.channelId ? guild.channels.cache.get(current.channelId) : undefined)
     ?? guild.channels.cache.find(c => c.type === ChannelType.GuildText && c.parentId === categoryId && names.includes(c.name));
   if (!channel) {

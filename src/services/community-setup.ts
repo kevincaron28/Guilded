@@ -3,7 +3,7 @@ import type { PrismaClient } from "@prisma/client";
 import { BRAND } from "../brand.js";
 import type { Lang } from "../i18n.js";
 import { isPermissionRoleName } from "../permissions.js";
-import { COMMUNITY_CATEGORY_NAMES, COMMUNITY_CHANNEL_SPECS } from "../setup-names.js";
+import { COMMUNITY_CATEGORY_NAMES, COMMUNITY_CHANNEL_SPECS, communityChannelNames } from "../setup-names.js";
 import { createCommunityService } from "./community.js";
 import { communityMonthName } from "./community-display.js";
 import { ensureCommunityHonors } from "./community-honors.js";
@@ -47,7 +47,7 @@ export async function ensureCommunitySetup(guild: DiscordGuild, database: Prisma
   const category = categories.first() ?? await guild.channels.create({ name: COMMUNITY_CATEGORY_NAMES[lang], type: ChannelType.GuildCategory, reason });
   if (category.type !== ChannelType.GuildCategory) throw new Error("Community category unavailable.");
   const inCategory = (names: string[]) => guild.channels.cache.find(channel => channel.type === ChannelType.GuildText && channel.parentId === category.id && names.includes(channel.name));
-  const names = (key: "activities" | "chat") => [COMMUNITY_CHANNEL_SPECS.en[key].name, COMMUNITY_CHANNEL_SPECS.fr[key].name];
+  const names = (key: "activities" | "chat") => communityChannelNames(key);
 
   // The hub must be seen by exactly the people who see the podium (which copies the category),
   // so it starts from the category's permissions and only takes posting away from members.

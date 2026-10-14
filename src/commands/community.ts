@@ -5,7 +5,7 @@ import { asLang, type Lang } from "../i18n.js";
 import { hasPermission } from "../permissions.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { createCommunityService } from "../services/community.js";
-import { challengeRules, COMMUNITY_GAMES, COMMUNITY_REWARDS, eventRules, lotteryRules, quizRules } from "../services/community-rules.js";
+import { challengeRules, COMMUNITY_GAME_LABELS, COMMUNITY_GAMES, COMMUNITY_REWARDS, communityGameLabel, eventRules, lotteryRules, quizRules } from "../services/community-rules.js";
 import { parseRaidTime } from "../services/raid-time.js";
 import { eventVenue } from "../services/scheduled-events.js";
 import { accessibleCommunityActivities, assertCommunityChannelAudience, communityAccess as access, resolveCommunitySeason, canAccessCommunity } from "../services/community-access.js";
@@ -72,7 +72,7 @@ export const challengeCommand = viewCommands(new SlashCommandBuilder().setName("
 
 export const communityCommand = new SlashCommandBuilder().setName("community").setDescription("Seasons, leaderboards, dice and quizzes").setDescriptionLocalizations({ fr: "Saisons et jeux" })
   .addSubcommand(sub => sub.setName("start-season").setDescription("Start a season").setDescriptionLocalizations({ fr: "Démarrer une saison" })
-    .addStringOption(o => o.setName("game").setDescription("Game").setDescriptionLocalizations({ fr: "Jeu" }).setRequired(true).addChoices(...COMMUNITY_GAMES.map(value => ({ name: value, value }))))
+    .addStringOption(o => o.setName("game").setDescription("Game").setDescriptionLocalizations({ fr: "Jeu" }).setRequired(true).addChoices(...COMMUNITY_GAMES.map(value => ({ name: COMMUNITY_GAME_LABELS[value].en, name_localizations: { fr: COMMUNITY_GAME_LABELS[value].fr }, value }))))
     .addStringOption(o => o.setName("name").setDescription("Theme; defaults to month").setDescriptionLocalizations({ fr: "Thème; mois par défaut" }).setMaxLength(80))
     .addRoleOption(o => o.setName("role").setDescription("Game role; required outside Discord").setDescriptionLocalizations({ fr: "Rôle du jeu" })))
   .addSubcommand(sub => seasonOption(sub.setName("season-settings").setDescription("Rename or route announcements").setDescriptionLocalizations({ fr: "Nom et salon des annonces" }))
@@ -139,7 +139,7 @@ export async function executeCommunity(interaction: ChatInputCommandInteraction)
     const role = interaction.options.getRole("role");
     if (role?.id === guild.id || role?.managed) throw new Error("Choisis un rôle de jeu / Choose a game role.");
     const created = await service.startSeason(context.guildId, { name: interaction.options.getString("name") ?? communityMonthName(new Date(), timezone, lang), game: interaction.options.getString("game", true), channelId: channel.id, audienceRoleId: role?.id ?? null, actorId: actor });
-    content = `${say(lang, "Season created", "Saison créée")} : **${communitySeasonLabel(created, lang)}** (${created.game})\n/community hub`;
+    content = `${say(lang, "Season created", "Saison créée")} : **${communitySeasonLabel(created, lang)}** (${communityGameLabel(created.game, lang)})\n/community hub`;
   } else if (sub === "season-settings") {
     const name = interaction.options.getString("name"), channel = interaction.options.getChannel("channel"), monthly = interaction.options.getBoolean("monthly");
     if (channel) await validateCommunityDestination(guild, current!, channel.id, actor);
@@ -156,7 +156,7 @@ export async function executeCommunity(interaction: ChatInputCommandInteraction)
     const count = await prisma.communitySeason.count({ where });
     const page = Math.min(interaction.options.getInteger("page") ?? 1, Math.max(1, Math.ceil(count / 10)));
     const seasons = await prisma.communitySeason.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 10, skip: (page - 1) * 10 });
-    content = seasons.map(season => `**${communitySeasonLabel(season, lang)}** · ${season.game} · ${season.status === "ACTIVE" ? say(lang, "Active", "En cours") : say(lang, "Archived", "Archivée")}`).join("\n\n") || say(lang, "No seasons yet.", "Aucune saison pour le moment.");
+    content = seasons.map(season => `**${communitySeasonLabel(season, lang)}** · ${communityGameLabel(season.game, lang)} · ${season.status === "ACTIVE" ? say(lang, "Active", "En cours") : say(lang, "Archived", "Archivée")}`).join("\n\n") || say(lang, "No seasons yet.", "Aucune saison pour le moment.");
     content += `\nPage ${page}/${Math.max(1, Math.ceil(count / 10))}`;
   } else if (sub === "end-season") {
     await service.endSeason(context.guildId, current!.id);
@@ -167,7 +167,7 @@ export async function executeCommunity(interaction: ChatInputCommandInteraction)
       const pages = Math.max(1, Math.ceil(board.length / 10));
       const page = Math.min(interaction.options.getInteger("page") ?? 1, pages);
       const top = board.slice((page - 1) * 10, page * 10);
-      content = `🏆 **${communitySeasonLabel(current!, lang)}** · ${current!.game}\n` + (top.map(item => `${1 + board.filter(other => other.points > item.points).length}. <@${item.userId}> · ${item.points} points`).join("\n") || say(lang, "No points yet.", "Aucun point pour le moment.")) + `\nPage ${page}/${pages}`;
+      content = `🏆 **${communitySeasonLabel(current!, lang)}** · ${communityGameLabel(current!.game, lang)}\n` + (top.map(item => `${1 + board.filter(other => other.points > item.points).length}. <@${item.userId}> · ${item.points} points`).join("\n") || say(lang, "No points yet.", "Aucun point pour le moment.")) + `\nPage ${page}/${pages}`;
     } else {
       const mine = board.find(item => item.userId === actor);
       const history = await prisma.communityPoint.findMany({ where: { seasonId: current!.id, userId: actor }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 10 });
@@ -298,7 +298,7 @@ export function lotteryConfirmation(row: CommunityActivity, quantity: number, us
 }
 
 export function communityCard(row: CommunityActivity & { season: CommunitySeason }, entries: { userId: string; quantity: number; status: string }[], lang: Lang) {
-  const embed = new EmbedBuilder().setColor(0xd4af37).setTitle(row.title).setFooter({ text: `${communitySeasonLabel(row.season, lang)} · ${row.season.game}` });
+  const embed = new EmbedBuilder().setColor(0xd4af37).setTitle(row.title).setFooter({ text: `${communitySeasonLabel(row.season, lang)} · ${communityGameLabel(row.season.game, lang)}` });
   const components: ActionRowBuilder<ButtonBuilder>[] = [];
   const buttons = new ActionRowBuilder<ButtonBuilder>();
   const closed = row.status !== "OPEN" || row.endsAt <= new Date();

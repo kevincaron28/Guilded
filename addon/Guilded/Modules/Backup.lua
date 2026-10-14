@@ -207,7 +207,13 @@ function module.build()
   for field, value in pairs(db) do
     if not KEEP[field] and not SKIP[field] then data[field] = value end
   end
-  local payload = encode({ v = 1, guildKey = db.guildKey or "", at = ns.now and ns.now() or "", by = ns.playerName and ns.playerName() or "", data = data })
+  -- A standalone handover needs the same accounting baseline as its ledger.
+  -- Otherwise the receiving PC's old snapshot can double-count the restored entries.
+  local standalone = db.settings and db.settings.setupMode == "local"
+  local standaloneStandings
+  if standalone then standaloneStandings = db.standings or false end
+  local payload = encode({ v = 1, guildKey = db.guildKey or "", at = ns.now and ns.now() or "", by = ns.playerName and ns.playerName() or "", data = data,
+    standaloneStandings = standaloneStandings })
   return FORMAT .. ":" .. checksum(payload) .. ":" .. b64encode(payload)
 end
 
@@ -236,7 +242,11 @@ function module.inspect(code)
   end
   local members = 0
   for _ in pairs(data.roster or {}) do members = members + 1 end
-  return { parsed = parsed, raids = count, ledger = ledger, members = members }
+  local cores, coreMembers = 0, 0
+  for _, core in ipairs(data.localGuild and data.localGuild.cores or {}) do
+    cores = cores + 1; coreMembers = coreMembers + #(core.roster or {})
+  end
+  return { parsed = parsed, raids = count, ledger = ledger, members = members, cores = cores, coreMembers = coreMembers }
 end
 
 -- Replaces the guild's saved data with the backup. The data that was there
@@ -251,7 +261,12 @@ function module.restore(code)
   end
   for field in pairs(before) do db[field] = nil end
   for field, value in pairs(info.parsed.data) do db[field] = value end
-  db.preRestore = { at = ns.now and ns.now() or "", data = before }
+  local oldStandings
+  if info.parsed.standaloneStandings ~= nil and info.parsed.data.settings and info.parsed.data.settings.setupMode == "local" then
+    oldStandings = db.standings or false
+    db.standings = type(info.parsed.standaloneStandings) == "table" and info.parsed.standaloneStandings or nil
+  end
+  db.preRestore = { at = ns.now and ns.now() or "", data = before, standaloneStandings = oldStandings }
   if ns.ensureDb then ns.ensureDb() end
   return info
 end
@@ -266,6 +281,7 @@ function module.undo()
   end
   for field in pairs(current) do db[field] = nil end
   for field, value in pairs(saved.data) do db[field] = value end
+  if saved.standaloneStandings ~= nil then db.standings = type(saved.standaloneStandings) == "table" and saved.standaloneStandings or nil end
   db.preRestore = nil
   if ns.ensureDb then ns.ensureDb() end
   return true
@@ -316,6 +332,8 @@ local function ensureFrame()
       previewed = #code
       ns.message(string.format("Backup from %s by %s: %d raid(s), %d ledger entries, %d known members. Press Restore again to replace your saved data (undo: /guilded restore undo).",
         info.parsed.at ~= "" and info.parsed.at or "?", info.parsed.by ~= "" and info.parsed.by or "?", info.raids, info.ledger, info.members))
+      local text = "Local guild: %d core(s), %d roster entries. Restore replaces this PC's copy; it does not merge officers' records."
+      ns.message(string.format(ns.L and ns.L(text) or text, info.cores, info.coreMembers))
       return
     end
     previewed = nil

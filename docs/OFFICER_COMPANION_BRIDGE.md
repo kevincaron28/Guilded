@@ -92,6 +92,35 @@ standings, content correctness, reload persistence, or ordinary-member permissio
 Automated Lua tests cover parsing, authorization, caching, cancellation and
 privacy boundaries; they do not replace this two-client check.
 
+## Preventing realm-label regressions
+
+The bridge does not special-case segment 2 or remove trailing numbers. Any local
+realm label works when both clients report the same guild name and guild home
+through `GetGuildInfo("player")`. Its fourth result is normalized for whitespace;
+numbers in the actual guild home remain meaningful. Never treat two realms as
+equivalent solely because removing their numeric suffix makes their names match.
+
+Offline regressions cover labels 1, 2, 3, 4, 12 and 100 as both sender and
+receiver, numbered-to-numbered transfers, legacy home-server broadcasts and
+cached reloads. These are simulated labels, not confirmation those segments
+exist. A same-named guild with a different home is rejected even when its local
+realm label matches the sender's. If the client has not supplied the guild home,
+the bridge falls back to the local realm and cannot yet prove a cross-segment
+match; it accepts a fresh broadcast once the home becomes available.
+
+Keep cross-PC guild identity separate from saved-data keys and character realms.
+The companion's `wowGuild` upload binding and Discord core/raid realm checks
+still compare local/configured labels. Extending the guild-home identity to
+those paths needs an explicit compatibility design and regression coverage;
+the bridge fix alone does not make those checks segment-aware. Preserve existing
+SavedVariables, companion bindings and distinct-realm separation when doing so.
+
+Local validation on 14 October 2026: all 178 test files / 1,503 tests passed,
+including 28 officer-bridge cases. TypeScript, ESLint and addon static validation
+also passed. Only regression tests and this guide changed for this follow-up;
+the existing bridge implementation already handles arbitrary segment labels.
+No additional real-client segment, installation or deployment is verified here.
+
 Local validation on 5 October 2026: TypeScript, ESLint and addon static checks
 passed; the full suite passed 154 files / 1,245 tests. All eight bridge tests
 also passed after extending the private-calendar test to the next-raid field.

@@ -40,6 +40,7 @@ function withReserve(me: string, officer: boolean): LuaSession {
       commandHandlers = {
         games = function(args) GAMES[#GAMES + 1] = table.concat(args, " ") end
       },
+      lootRoll = { start = function(players, bonus) GAMES[#GAMES + 1] = table.concat(players, ","); return true end },
       commandHelp = {}
     }
   `);
@@ -150,7 +151,7 @@ describe("Reserve.lua keeper side", () => {
     cmd(s, `who ${SWORD}`);
     expect(s.run("return CHAT_LOG[#CHAT_LOG]")).toBe("Ashkandi is reserved by: Ann, Bob");
     cmd(s, `roll ${SWORD}`);
-    expect(s.run("return table.concat(GAMES, '|')")).toBe("highroll|add Ann|add Bob|roll");
+    expect(s.run("return table.concat(GAMES, '|')")).toBe("Ann,Bob");
     s.run("GAMES = {}");
     cmd(s, `roll ${RING}`); // one reserver: no roll needed
     expect(s.run("return #GAMES")).toBe("0");

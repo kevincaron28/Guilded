@@ -26,6 +26,8 @@ for (const line of toc.split(/\r?\n/).map((v) => v.trim()).filter((v) => v.endsW
   if (!unpacked[`Guilded/${line.replace(/\\/g, "/")}`]) throw new Error(`Missing packaged file: ${line}`);
 }
 mkdirSync("dist", { recursive: true });
-const target = `dist/Guilded-v${version}.zip`;
+const preview = process.argv.includes("--preview");
+if (preview) mkdirSync("dist/preview", { recursive: true });
+const target = preview ? "dist/preview/Guilded-next-preview.zip" : `dist/Guilded-v${version}.zip`;
 writeFileSync(target, zip);
 console.log(`Built and verified ${target} (${Object.keys(unpacked).length} files).`);

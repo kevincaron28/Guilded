@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { resolve, sep, extname } from "node:path";
 const root = resolve("dist/site");
-const mime = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".jpg": "image/jpeg", ".png": "image/png" };
+const mime = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".jpg": "image/jpeg", ".png": "image/png", ".xml": "application/xml", ".txt": "text/plain; charset=utf-8" };
 createServer(async (request, response) => {
   try {
     if (request.method !== "GET" && request.method !== "HEAD") { response.writeHead(405); response.end(); return; }

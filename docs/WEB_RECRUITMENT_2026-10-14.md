@@ -7,6 +7,11 @@ source is unchanged. No bot or addon deployment, Git commit, push or branch swit
 
 ## Publication follow-up
 
+Later verification at 16:32 UTC, after the onboarding/dungeon main deployments,
+confirmed the unified `/health` returned ok=true, 6.1.2 / protocol 2. This
+finalization independently read the same healthy endpoint again. The DNS error
+below records the earlier incident; it is no longer evidence of a current outage.
+
 - Mobile layouts checked at 320 and 390 CSS pixels; no horizontal page overflow.
   Navigation touch targets increased to 44px. Core cards, rules table and feature
   page inspected visually; live core page verified in browser after deployment.
@@ -27,8 +32,8 @@ source is unchanged. No bot or addon deployment, Git commit, push or branch swit
   website works. Direct `https://guildedqc.duckdns.org/health` and companion app.js
   return 200; app.js confirms support for `?tab=` links. Added a direct companion
   fallback with a warning that pairing at another origin replaces the previous
-  companion link. DNS/Oracle configuration was not changed. Unified companion
-  routing still needs repair; do not report it healthy.
+  companion link. DNS/Oracle configuration was not changed by the website chat.
+  The later checks above supersede this incident's unresolved-health status.
 
 The sections below retain the initial preparation context where applicable.
 

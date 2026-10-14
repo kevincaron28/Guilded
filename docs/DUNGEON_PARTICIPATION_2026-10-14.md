@@ -88,7 +88,7 @@ Deferred with explicit reasons:
   awards rather than silently rewriting their accounting. Upload promptly; officers
   can use the existing audited adjustment command for confirmed discrepancies.
 
-## Proposed player notice (send before deployment)
+## Prepared player notice (not sent)
 
 Dungeon Rating keeps the same formula and your recorded best scores. Future
 Guild Points require at least half-run presence. Manual or unverifiable runs
@@ -105,14 +105,22 @@ points en aidant un membre admissible, sans bonus de vitesse ou de record.
 Les ailes du Monastère écarlate ont maintenant des historiques et records
 séparés. Les points déjà attribués sont conservés.
 
-## Offline validation
+## Release validation
 
-- Final full Vitest run: 178 files / 1,487 tests passed in the shared checkout.
-- Focused dungeon suite: 17 files / 124 tests passed, including presence
-  boundaries, manual completions, helper eligibility, historical carries,
-  wing histories/records, frozen targets, unranked announcements and archive format.
-- TypeScript, full ESLint, addon static validation and scoped diff checks passed.
-- Earlier broad-check failures in concurrently edited onboarding/configuration
-  files were resolved before the final full-suite and type-check passes.
-- No live bot, database rewrite, deployment, client installation or player
-  announcement was performed for this change. CI and real-client gates remain.
+- Isolated candidate `14f8b5f`: full `npm run release:prepare` passed, including
+  175 Vitest files / 1,465 tests, TypeScript, full ESLint, addon static validation,
+  dependency audit gates, website build, addon ZIP and Windows installer verification.
+- The first local attempt hit two slow-test timeouts; the complete unchanged suite
+  passed on retry. No checks or timeouts were weakened.
+- GitHub push and pull-request workflows passed both required jobs: PostgreSQL
+  integration/restore checks and Windows package validation (runs 38596035175 and
+  38596273366). Tests include presence boundaries, helpers, duplicate alts, rounding,
+  historical carries, wing records, frozen targets, archive format and reupload safety.
+- The release branch then incorporated the separately deployed `98c72b1` main
+  baseline. Combined-source and final-main checks must pass before Oracle deployment.
+- Ledger preflight passed. Verified database/application recovery files and an
+  encrypted offsite copy were prepared. Refresh the backup if the live baseline changes.
+- The extra Cloudflare branch-build check failed without a log accessible to the
+  CLI credentials. Dashboard authentication is pending; this is not a passing check.
+- No live dungeon upload/client acceptance or player announcement has been performed.
+  The prepared notice above still needs an explicitly authorized sender.

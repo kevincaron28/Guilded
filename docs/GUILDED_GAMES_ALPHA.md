@@ -2,6 +2,12 @@
 
 **Only the host needs the addon.**
 
+Published 14 October 2026 as a
+[GitHub prerelease](https://github.com/kevincaron28/Guilded/releases/tag/guilded-games-v0.1.0-alpha.1).
+The separate CurseForge project 1744752 received its first Alpha submission in
+the Games chat. Moderator approval/public availability was not independently
+confirmed by this finalization; do not submit a duplicate.
+
 Turn a raid break or a quiet party into a game night. Guilded Games is an
 independent WoW addon: players join through ordinary party/raid chat and use
 the game's own `/roll`. No Guilded installation, Discord bot, companion or

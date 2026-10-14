@@ -23,7 +23,9 @@ have explicit completion evidence. This follow-up preserves the published
 - Next-version addon candidate: local cores/rosters, local accounting backup
   handover and separate Guilded Games 0.1.0, retaining soft-reserve rolls in
   Guilded. Source and preview artifacts are included; stable acceptance is not
-  asserted. See V6_2_STANDALONE_AND_GAMES.md and GUILDED_GAMES_ALPHA.md.
+  asserted. Games was already published separately as a GitHub Alpha prerelease
+  and submitted to CurseForge project 1744752 by its completed chat; no duplicate
+  submission is made. See V6_2_STANDALONE_AND_GAMES.md and GUILDED_GAMES_ALPHA.md.
 - Officer bridge regression coverage for arbitrary realm segment labels;
   simulated cases do not establish additional real-client acceptance.
 
@@ -77,6 +79,8 @@ Local build, backup, final deployed commit and endpoint evidence are retained
 under `backups/finalize-oct14-*`; those files are intentionally not public source.
 The published GitHub v6.1.2 addon/installer assets were independently checked
 before finalization and are not replaced by these candidate builds.
+The installed companion executable is already 6.1.2.0. Its source is unchanged
+by this integration, so no reinstall or pairing change is needed.
 
 Production is Aiven PostgreSQL. The older Neon recovery settings are historical.
 Deployment requires a unique-ledger preflight, a readable custom database dump,

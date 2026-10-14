@@ -41,6 +41,43 @@ Guilded Games packaging, site/Worker build and final-commit PostgreSQL/Windows C
 must pass before merging/deploying. Concrete results, commit, preview hashes and
 backup/deployment evidence will be appended when observed.
 
+## Observed finalization evidence
+
+- [PR #71](https://github.com/kevincaron28/Guilded/pull/71) contains the combined
+  source, documentation and CI preview packaging. Initial source commit
+  `7647066` passed both quality jobs in
+  [run 38601267310](https://github.com/kevincaron28/Guilded/actions/runs/38601267310),
+  including PostgreSQL integration/restore and Windows packaging. A documentation
+  evidence commit follows; require its current checks before merge.
+- Full local `release:prepare` passed: 178 files / 1,505 tests, TypeScript,
+  ESLint, Guilded validator, addon/browser/site builds, Windows installer and
+  artifact verification. Explicit `tsc --noEmit -p .` also passed.
+- Both preview ZIPs passed Lua/package checks; all local links/assets across
+  15 generated HTML pages resolve. Worker dry-run build passed.
+- High-severity audit gates passed. Two existing moderate advisories remain in
+  test-only Fengari/sprintf-js, with no available fixed version reported;
+  the companion audit reported zero vulnerabilities.
+- Fresh production backup baseline: `2766436`,
+  `/home/ubuntu/guilded-recovery/2026-10-14T16-50-41-654Z`. Ledger references were
+  unique, `pg_restore --list` read the dump, and the application archive was saved.
+  Authenticated encrypted offsite copies and hashes verified in
+  `C:/Users/Kev/AppData/Local/Guilded Recovery/2026-10-14T16-50-41-654Z`.
+- Production health at this pre-deployment check: ok=true, 6.1.2 / protocol 2,
+  service active/running, NRestarts=0. The unified Workers endpoint also returned
+  healthy; the earlier website-chat DNS incident is historical.
+
+Preview packages (not replacement stable downloads):
+
+| Package | SHA-256 |
+| --- | --- |
+| Guilded-next-preview.zip | f512d8ebc29473ffb8018f23d5273097b1a5e348646736aef3a9258d0de83e47 |
+| GuildedGames-v0.1.0-preview.zip | 322a2c96f4bb6c59f6d312e99cae1f40d145aa3154129f6971bb2de9f69bf30e |
+
+Local build, backup, final deployed commit and endpoint evidence are retained
+under `backups/finalize-oct14-*`; those files are intentionally not public source.
+The published GitHub v6.1.2 addon/installer assets were independently checked
+before finalization and are not replaced by these candidate builds.
+
 Production is Aiven PostgreSQL. The older Neon recovery settings are historical.
 Deployment requires a unique-ledger preflight, a readable custom database dump,
 application archive and authenticated encrypted offsite verification. Never

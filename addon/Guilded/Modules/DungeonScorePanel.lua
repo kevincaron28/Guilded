@@ -218,7 +218,7 @@ function view.attach()
     view.pane:SetFrameLevel(finder:GetFrameLevel() + 20)
     view.tab = CreateFrame("Frame", nil, finder, "LFGVanillaRightTabTemplate")
     view.tab.tooltipText = L("Guilded scores")
-    view.tab.Icon:SetTexture("Interface\\Icons\\INV_Misc_Coin_01")
+    view.tab.Icon:SetTexture("Interface\\AddOns\\Guilded\\Media\\GuildedLogo")
     view.tab:SetPoint("TOPLEFT", finder.WhoListingTab, "BOTTOMLEFT", 0, -2)
     local nativePages, previousPages = {}, {}
     for _, name in ipairs({ "LFGListingFrame", "LFGBrowseFrame", "LFGWhoListFrame" }) do

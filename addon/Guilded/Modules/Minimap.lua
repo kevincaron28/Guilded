@@ -19,7 +19,7 @@
 local addonName, ns = ...
 ns = ns or {}
 
-local ICON = "Interface\\Icons\\INV_Misc_Coin_01"
+local ICON = "Interface\\AddOns\\Guilded\\Media\\GuildedLogo"
 local DEFAULT_ANGLE = math.rad(220)
 local RADIUS_PAD = 5
 local PANEL_WIDTH = 790

@@ -26,3 +26,5 @@ Addon, bot and companion versions are aligned at 6.1.1. SavedVariables and
 personal pairing must be preserved during updates. The Windows installer is
 unsigned. Prior unverified gameplay/second-PC acceptance remains follow-up;
 passing automated tests does not prove rendered in-game behavior.
+
+- Uses the existing Guilded logo for the minimap, addon listing and dungeon-score tab icons. The packaged texture is a 256x256 uncompressed 32-bit TGA.

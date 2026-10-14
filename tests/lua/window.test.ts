@@ -9,8 +9,9 @@ afterEach(() => { session?.close(); session = undefined; });
 
 const RICH_FRAMES = String.raw`
   local numbers = { GetWidth = 100, GetHeight = 100, GetEffectiveScale = 1, GetFrameLevel = 1, GetLeft = 0, GetTop = 0, GetRight = 100, GetBottom = 0, GetStringWidth = 50 }
-  function CreateFrame()
-    local f = { scripts = {}, shown = false, text = "" }
+  function CreateFrame(_, frameName, parent)
+    local f = { scripts = {}, shown = false, text = "", children = {}, points = {}, frameName = frameName }
+    if parent and type(parent.children) == "table" then table.insert(parent.children, f) end
     setmetatable(f, { __index = function(_, k)
       if numbers[k] then return function() return numbers[k] end end
       if k == "GetText" then return function(self) return self.text end end
@@ -26,6 +27,17 @@ const RICH_FRAMES = String.raw`
     f.SetScript = function(self, name, fn) self.scripts[name] = fn end
     f.GetScript = function(self, name) return self.scripts[name] end
     f.HookScript = function(self, name, fn) self.scripts[name] = self.scripts[name] or fn end
+    f.GetChildren = function(self) return unpack(self.children) end
+    f.SetFrameLevel = function(self, level) self.level = level end
+    f.GetFrameLevel = function(self) return rawget(self, "level") or 1 end
+    f.SetScrollChild = function(self, child) self.scrollChild = child end
+    f.SetScale = function(self, scale) self.scale = scale end
+    f.ClearAllPoints = function(self) self.points = {} end
+    f.SetPoint = function(self, ...) table.insert(self.points, {...}) end
+    f.SetSize = function(self, width, height) self.width = width; self.height = height end
+    f.SetVerticalScroll = function(self, value) self.verticalScroll = value end
+    f.GetVerticalScroll = function(self) return rawget(self, "verticalScroll") or 0 end
+    f.ScrollBar = { Show = function(self) self.shown = true end, Hide = function(self) self.shown = false end }
     FRAMES[#FRAMES + 1] = f
     return f
   end
@@ -54,6 +66,104 @@ const visibleTabs = (s: LuaSession) => s.run(`local n = {}; for _, t in ipairs(N
 const homeText = (s: LuaSession, field: string) => s.run(`return NS.windowState().${field}.text`);
 
 describe("the tools window (sidebar and Home page)", () => {
+  it("routes dungeon shortcuts to one pane and keeps calendar administration officer-only", () => {
+    const s = openWindow(5);
+    s.run(`NS.dungeonScorePanel = { open = function(mode) openedMode = mode end }
+      NS.windowState().selectTabByName("Scores")`);
+    expect(s.run("return openedMode")).toBe("season");
+    s.run(`NS.windowState().selectTabByName("Dungeons")`);
+    expect(s.run("return openedMode")).toBe("run");
+    s.run(`CalendarFrame = CreateFrame(); NS.windowState().selectTabByName("Calendar")`);
+    expect(s.run('return NS.windowState().scope')).toBe("main");
+    expect(s.run('return tostring(CalendarFrame.shown)')).toBe("true");
+    s.run(`NS.openGuildPanel(CalendarFrame, "calendar", "Calendar")`);
+    expect(s.run('return NS.windowState().scope')).toBe("main");
+    expect(s.run(`local n = {}; for _, t in ipairs(NS.windowState().tabs) do n[#n+1]=t.name end; return table.concat(n,",")`)).not.toMatch(/Dungeons|Season|Scores/);
+    expect(s.run('return tostring(NS.windowState().homeSave == NS.windowState().sidebarSave)')).toBe("true");
+  });
+
+  it("gives each officer feature a single menu scope", () => {
+    const s = openWindow(1);
+    s.run(`NS.openGuildPanel(nil, "guild", "Standings")`);
+    expect(visibleTabs(s)).toBe("Standings,Crafting,EPGP");
+    s.run(`NS.openGuildPanel(nil, "calendar", "Calendar")`);
+    expect(visibleTabs(s)).toBe("Calendar");
+  });
+
+  it("keeps short guild pages stationary and anchors repeated calendar selections", () => {
+    const s = openWindow(1);
+    s.run(`HOST = CreateFrame(); NS.openGuildPanel(HOST, "guild", "EPGP")
+      UI=NS.windowState(); UI.guildScroll.GetHeight=function() return 300 end
+      UI.selectTabByName("EPGP")
+      UI.guildScroll:GetScript("OnMouseWheel")(UI.guildScroll, -1)`);
+    expect(s.run('return UI.guildScrollRange..":"..UI.guildScroll:GetVerticalScroll()')).toBe("0:0");
+    expect(s.run('return tostring(UI.guildScroll.ScrollBar.shown)')).toBe("false");
+    s.run(`NS.openGuildPanel(HOST,"calendar","Calendar"); UI.selectTabByName("Calendar"); UI.selectTabByName("Calendar")`);
+    expect(s.run(`local p=UI.tabs[UI.currentTab].page; return tostring(#p.points==1 and p.points[1][1]=="TOPLEFT" and p.points[1][2]==UI.guildScroll)`)).toBe("true");
+    s.run(`UI.guildScroll.GetHeight=function() return 100 end; NS.openGuildPanel(HOST,"guild","EPGP"); UI.guildScroll:GetScript("OnMouseWheel")(UI.guildScroll,-1)`);
+    expect(s.run('return UI.guildScroll:GetVerticalScroll()')).toBe("24");
+  });
+
+  it("docks guild pages with the same permissions and restores the full menu", () => {
+    const s = openWindow(5);
+    s.run(`
+      HOST = CreateFrame()
+      HOST.GetWidth = function() return 800 end
+      HOST.GetHeight = function() return 600 end
+      NS.openGuildPanel(HOST)
+    `);
+    expect(visibleTabs(s)).toBe("Standings,Crafting");
+    expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`)).toBe("Standings");
+    expect(s.run(`return tostring(NS.windowState().guildHost == HOST)`)).toBe("true");
+    expect(s.run(`
+      for _, f in ipairs(FRAMES) do
+        if f.frameName == "GuildedPanel" then
+          return tostring(f.scale == 1 and #f.points == 2 and f.points[1][1] == "TOPLEFT" and f.points[2][1] == "BOTTOMRIGHT")
+        end
+      end
+    `)).toBe("true");
+    expect(s.run(`return tostring(NS.windowState().tabs[1].page.level > 1000)`)).toBe("true");
+    expect(s.run(`
+      local ui = NS.windowState()
+      return tostring(ui.guildScroll.scrollChild == ui.tabs[ui.currentTab].page and ui.guildScroll.shown)
+    `)).toBe("true");
+    s.run(`
+      for _, f in ipairs(FRAMES) do if f.scripts.OnHide and f.scripts.OnShow then f.scripts.OnHide(f) end end
+      NS.commandHandlers["menu"]()
+      NS.commandHandlers["menu"]()
+      for _, f in ipairs(FRAMES) do if f.scripts.OnShow then f.scripts.OnShow(f) end end
+    `);
+    expect(s.run(`return tostring(NS.windowState().guildHost == nil)`)).toBe("true");
+    expect(s.run(`return tostring(NS.windowState().guildScroll.shown)`)).toBe("false");
+    expect(s.run(`
+      for _, f in ipairs(FRAMES) do if f.frameName == "GuildedPanel" then return tostring(f.width == 790 and f.height == 600) end end
+    `)).toBe("true");
+    expect(visibleTabs(s)).toContain("Home");
+    expect(visibleTabs(s)).toContain("Me");
+    expect(visibleTabs(s)).not.toContain("EPGP");
+  });
+
+  it("defers the guild tab in combat and does not replace native handlers", () => {
+    const s = openWindow(1);
+    s.run(`
+      CommunitiesFrame = CreateFrame()
+      CommunitiesFrame.ChatTab = false
+      CommunitiesFrame.RosterTab = false
+      CommunitiesFrame.GuildBenefitsTab = false
+      CommunitiesFrame.SetDisplayMode = false
+      CommunitiesFrame.GuildInfoTab = CreateFrame()
+      CommunitiesFrame.GuildInfoTab:SetScript("OnClick", function() nativeClicked = true end)
+      nativeHandler = CommunitiesFrame.GuildInfoTab:GetScript("OnClick")
+      function InCombatLockdown() return true end
+    `);
+    // Guild integration loads with Minimap.lua, including on /reload.
+    s.run(`NS.guildPanel.attach()`);
+    expect(s.run(`return tostring(NS.guildPanel.tab == nil)`)).toBe("true");
+    s.run(`function InCombatLockdown() return false end; NS.guildPanel.attach(); firstTab = NS.guildPanel.tab; NS.guildPanel.attach()`);
+    expect(s.run(`return tostring(firstTab == NS.guildPanel.tab)`)).toBe("true");
+    expect(s.run(`return tostring(CommunitiesFrame.GuildInfoTab:GetScript("OnClick") == nativeHandler)`)).toBe("true");
+  });
+
   it("filters core rosters, uses each pool, and never changes the loot selection", () => {
     const s = openWindow(1, `
       GuildedStandings = { updatedAt = "2026-10-14", baseGp = 0, players = {
@@ -139,9 +249,9 @@ describe("the tools window (sidebar and Home page)", () => {
   });
 
   it("officers see every group in order; members only what they can use", () => {
-    expect(visibleTabs(openWindow(1))).toBe("Home,Me,Standings,Ready,Reserves,Calendar,Raid,EPGP,Loot,Council,Dungeons,Season,Scores,Games,Crafting,Tools");
+    expect(visibleTabs(openWindow(1))).toBe("Home,Me,Ready,Reserves,Raid,Loot,Council,Games,Tools");
     session?.close();
-    expect(visibleTabs(openWindow(5))).toBe("Home,Me,Standings,Reserves,Dungeons,Season,Scores,Games,Crafting,Tools");
+    expect(visibleTabs(openWindow(5))).toBe("Home,Me,Reserves,Games,Tools");
   });
 
   it("Home says who you are, what is running, and why there is no standing yet", () => {
@@ -149,9 +259,8 @@ describe("the tools window (sidebar and Home page)", () => {
     expect(homeText(s, "homeGreeting")).toContain("Kev");
     expect(homeText(s, "homeGreeting")).toContain("Officer");
     expect(homeText(s, "homeNow")).toContain("No raid is running");
-    expect(homeText(s, "homeStanding")).toContain("have not arrived yet");
     expect(homeText(s, "homeGear")).toContain("No gear check yet");
-    expect(homeText(s, "homeSync")).toContain("Everything is saved");
+    expect(s.run(`return NS.windowState().syncStatus`)).toContain("Everything is saved");
   });
 
   it("Home shows the standing when Discord has sent it, and unsent changes when something happened", () => {
@@ -161,8 +270,7 @@ describe("the tools window (sidebar and Home page)", () => {
       NS.syncNow.mark()
       SlashCmdList["GUILDED"]("menu"); SlashCmdList["GUILDED"]("menu")
     `);
-    expect(homeText(s, "homeStanding")).toBe("EP 120    GP 40    PR 3.00");
-    expect(homeText(s, "homeSync")).toContain("Changes are waiting");
+    expect(s.run(`return NS.windowState().syncStatus`)).toContain("Changes are waiting");
     expect(s.run(`return NS.windowState().sidebarSync.text`)).toBe("Unsent changes");
   });
 

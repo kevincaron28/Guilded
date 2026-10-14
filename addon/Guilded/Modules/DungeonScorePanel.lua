@@ -4,7 +4,8 @@ local addonName, ns = ...
 local view = {}
 ns.dungeonScorePanel = view
 local function L(text) return ns.L and ns.L(text) or text end
-local function enabled() return not ns.moduleActive or ns.moduleActive("scores") end
+local function active(key) return not ns.moduleActive or ns.moduleActive(key) end
+local function enabled() return active("scores") or active("dungeon") end
 local function duration(sec)
   return string.format("%d:%02d", math.floor(sec / 60), sec % 60)
 end
@@ -84,6 +85,87 @@ local function button(parent, text, x, y, width, action)
   return b
 end
 
+function view.runModel()
+  local db = ns.getDb and ns.getDb() or {}
+  local dungeon = db.dungeon or {}
+  local recent = {}
+  local me = ns.normalizeName(ns.playerName())
+  for _, run in pairs(dungeon.runs or {}) do
+    for name in pairs(run.players or {}) do
+      if ns.normalizeName(name) == me then recent[#recent + 1] = run; break end
+    end
+  end
+  table.sort(recent, function(a, b) return (a.endedAt or 0) > (b.endedAt or 0) end)
+  return { current = dungeon.current, recent = recent }
+end
+
+local function buildRun(pane, width)
+  local run = CreateFrame("Frame", nil, pane)
+  run:SetPoint("TOPLEFT", pane, "TOPLEFT", 0, -34)
+  run:SetPoint("BOTTOMRIGHT", pane, "BOTTOMRIGHT")
+  run:SetFrameLevel(pane:GetFrameLevel() + 40)
+  run:EnableMouse(true)
+  local bg = run:CreateTexture(nil, "BACKGROUND"); bg:SetAllPoints()
+  bg:SetTexture("Interface\\FrameGeneral\\UI-Background-Marble", "REPEAT", "REPEAT"); bg:SetHorizTile(true); bg:SetVertTile(true)
+  run.status = label(run, 16, -10, width - 32)
+  run.boss = label(run, 16, -82, width - 32)
+  run.recent = label(run, 16, -230, width - 32)
+  label(run, 16, -204, width - 32, "GameFontNormal"):SetText(L("Recent runs"))
+  local function action(key)
+    if not active("dungeon") then return end
+    local handler = ns.commandHandlers and ns.commandHandlers.dungeon
+    if handler then handler({ key }) end
+    pane.pendingAction = nil
+    pane:Refresh()
+  end
+  button(run, "Start now", 16, -125, 116, function() action("start") end)
+  run.complete = button(run, "Complete", 140, -125, 116, function(self)
+    if not active("dungeon") then return end
+    if pane.pendingAction ~= "complete" then pane.pendingAction = "complete"; run.abandon:SetText(L("Abandon")); self:SetText(L("Click again")); return end
+    self:SetText(L("Complete")); action("complete")
+  end)
+  run.abandon = button(run, "Abandon", 264, -125, 116, function(self)
+    if not active("dungeon") then return end
+    if pane.pendingAction ~= "abandon" then pane.pendingAction = "abandon"; run.complete:SetText(L("Complete")); self:SetText(L("Click again")); return end
+    self:SetText(L("Abandon")); action("abandon")
+  end)
+  button(run, "Last result", 16, -163, 116, function() action("results") end)
+  run.timer = button(run, "Live timer", 140, -163, 240, function()
+    if not active("dungeon") then return end
+    if ns.runResults then ns.runResults.setTimerEnabled(not ns.runResults.timerEnabled()) end
+    pane:Refresh()
+  end)
+  run:SetScript("OnHide", function()
+    pane.pendingAction = nil
+    run.complete:SetText(L("Complete")); run.abandon:SetText(L("Abandon"))
+  end)
+  function run:Refresh()
+    local model = view.runModel()
+    if not active("dungeon") then self.status:SetText(L("Dungeon recording is off in Settings.")); self.boss:SetText(""); self.recent:SetText(""); return end
+    local current = model.current
+    local lines = {}
+    if current then
+      local now = GetServerTime and GetServerTime() or time()
+      lines[1] = (current.name or "?") .. " - " .. L(current.state or "READY")
+      lines[2] = duration(math.max(0, current.durationSec or (current.startedAt and now - current.startedAt) or 0))
+      local kills = 0
+      for _, encounter in ipairs(current.encounters or {}) do if encounter.success then kills = kills + 1 end end
+      lines[3] = L("Bosses") .. ": " .. kills .. (current.bossCount and (" / " .. current.bossCount) or "")
+    else lines[1] = L("Enter a dungeon to start recording automatically.") end
+    self.status:SetText(table.concat(lines, "\n"))
+    self.boss:SetText(ns.runResults and ns.runResults.timerEnabled() and ns.runResults.liveText(current, GetServerTime and GetServerTime() or time()) or "")
+    lines = {}
+    for i = 1, math.min(5, #model.recent) do
+      local saved = model.recent[i]
+      lines[#lines + 1] = (saved.name or "?") .. " - " .. duration(saved.durationSec or 0) .. " - " .. L(saved.state or "")
+    end
+    self.recent:SetText(#lines > 0 and table.concat(lines, "\n\n") or L("No saved dungeon result yet."))
+    self.timer:SetText(L("Live timer") .. ": " .. L(ns.runResults and ns.runResults.timerEnabled() and "on" or "off"))
+  end
+  run:Hide()
+  return run
+end
+
 function view.build(parent, compact)
   local width, columns = compact and 440 or 620, compact and 1 or 2
   local perPage = columns * 4
@@ -93,9 +175,10 @@ function view.build(parent, compact)
   if not compact then pane:SetFrameStrata("DIALOG") end
   pane:SetClampedToScreen(true)
   local background = pane:CreateTexture(nil, "BACKGROUND")
-  background:SetAllPoints(); background:SetColorTexture(0.035, 0.045, 0.065, 1)
-  pane.title = label(pane, 16, -12, width - 100, "GameFontNormalLarge")
-  pane.title:SetText(L("Dungeon scores"))
+  background:SetAllPoints(); background:SetTexture("Interface\\FrameGeneral\\UI-Background-Marble", "REPEAT", "REPEAT")
+  background:SetHorizTile(true); background:SetVertTile(true)
+  pane.title = label(pane, 16, -12, 112, "GameFontNormalLarge")
+  pane.title:SetText(L("Dungeons"))
   pane.summary = label(pane, 16, -42, width - 32)
   pane.note = label(pane, 16, -64, width - 32)
   pane.note:SetText(L("100 per dungeon + up to 20 speed. Only your best run counts."))
@@ -132,7 +215,10 @@ function view.build(parent, compact)
     card:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
     pane.cards[i] = card
   end
-  pane.page, pane.seasonIndex = 1, 1
+  pane.page, pane.seasonIndex, pane.elapsed = 1, 1, 0
+  pane.mode, pane.guildRanking = active("scores") and "season" or "run", false
+  pane.rankings = label(pane, 16, -94, width - 32)
+  pane.rankings:Hide()
   pane.pageLabel = label(pane, 126, -305, width - 252)
   pane.seasonTitle = label(pane, 16, -334, width - 32, "GameFontNormal")
   pane.seasonRows = label(pane, 16, -368, width - 32)
@@ -140,10 +226,13 @@ function view.build(parent, compact)
   pane.footer:SetText(L("Guild members only. Best time / fixed target. Past seasons keep their original rules."))
   function pane:Refresh()
     if not enabled() then self.summary:SetText(L("Dungeon scores are off (Tools).")); self:Hide(); return end
+    if self.mode == "run" then self.runView:Show(); self.runView:Refresh(); return end
+    self.runView:Hide()
+    if not active("scores") then self.mode = "run"; self.runView:Show(); self.runView:Refresh(); return end
     local name = ns.playerName()
     local model = view.model(name, self.seasonIndex)
     self.seasonIndex = model.seasonIndex
-    local pages = math.max(1, math.ceil(#model.cards / perPage))
+    local pages = math.max(1, math.ceil(self.guildRanking and #model.rows / 12 or #model.cards / perPage))
     self.page = math.min(self.page, pages)
     self.summary:SetText(name .. " - " .. L("Your season score") .. ": " .. (model.total and tostring(model.total) or L("Not in this snapshot")))
     self.note:SetText(model.available and (model.version == 3 and L("200 at target. Best run per dungeon. Hover for boss records.") or model.version == 2 and L("100 per dungeon + up to 20 speed. Only your best run counts.")
@@ -153,7 +242,7 @@ function view.build(parent, compact)
     if not model.available and ns.seasonDetails then ns.seasonDetails.request(model.seasonIndex) end
     for i, card in ipairs(self.cards) do
       local row = model.cards[(self.page - 1) * perPage + i]
-      if row then
+      if row and not self.guildRanking then
         card.row = row
         card.art:Hide()
         if card.art:SetTexture(artwork(row)) then card.art:Show() end
@@ -166,38 +255,65 @@ function view.build(parent, compact)
         if (row.points or 0) > 0 then card.bar:Show() else card.bar:Hide() end
       else card.row = nil; card.art:SetTexture(nil); card.art:Hide(); card:Hide() end
     end
-    self.pageLabel:SetText(string.format(L("Dungeons %d / %d"), self.page, pages))
+    if self.guildRanking then
+      local ranked = {}
+      for i = (self.page - 1) * 12 + 1, math.min(#model.rows, self.page * 12) do
+        local row = model.rows[i]
+        ranked[#ranked + 1] = string.format("%d. %s - %d", i, row.name, row.points)
+      end
+      self.rankings:SetText(#ranked > 0 and table.concat(ranked, "\n") or L("No points recorded for this season."))
+      self.rankings:Show()
+    else self.rankings:Hide() end
+    self.rankingToggle:SetText(L(self.guildRanking and "My progress" or "Guild rankings"))
+    self.pageLabel:SetText(string.format(L("Page %d / %d"), self.page, pages))
     local season = model.season
     self.seasonTitle:SetText(season and ((season.status == "ENDED" and L("Past season") or L("Current season")) .. ": " .. season.season)
       or L("No season snapshot yet"))
     local lines = {}
     if season then
       lines[1] = L("Your season score") .. ": " .. (model.own and tostring(model.own) or L("Not in this snapshot"))
-      for i = 1, math.min(3, #model.rows) do
-        local row = model.rows[i]
-        lines[#lines + 1] = string.format("%s  %d", row.name, row.points)
-      end
     else lines[1] = L("Season scores arrive through your companion or a guild officer.") end
     self.seasonRows:SetText(table.concat(lines, "\n"))
   end
   button(pane, "Previous", 16, -299, 100, function() pane.page = math.max(1, pane.page - 1); pane:Refresh() end)
-  button(pane, "Next", width - 116, -299, 100, function() pane.page = math.min(math.max(1, math.ceil(#view.model(ns.playerName(), pane.seasonIndex).cards / perPage)), pane.page + 1); pane:Refresh() end)
+  button(pane, "Next", width - 116, -299, 100, function() pane.page = pane.page + 1; pane:Refresh() end)
+  pane.rankingToggle = button(pane, "Guild rankings", 16, -423, 110, function() pane.guildRanking = not pane.guildRanking; pane.page = 1; pane:Refresh() end)
   button(pane, "Newer season", width - 306, -423, 138, function() pane.seasonIndex = math.max(1, pane.seasonIndex - 1); pane.page = 1; pane:Refresh() end)
   button(pane, "Older season", width - 158, -423, 138, function() pane.seasonIndex = pane.seasonIndex + 1; pane.page = 1; pane:Refresh() end)
   button(pane, "Close", width - 78, -8, 62, function() pane:Hide() end)
+  pane.runView = buildRun(pane, width)
+  button(pane, "Run", width - 270, -8, 86, function() pane.mode = "run"; pane:Refresh() end)
+  button(pane, "Season", width - 178, -8, 92, function() pane.mode = "season"; pane:Refresh() end)
+  pane:SetScript("OnUpdate", function(self, elapsed)
+    if self.mode ~= "run" then return end
+    self.elapsed = (self.elapsed or 0) + elapsed
+    if self.elapsed >= 1 then self.elapsed = 0; self.runView:Refresh() end
+  end)
   pane:SetScript("OnShow", function() pane:Refresh() end)
   pane:Hide()
   return pane
 end
 
-function view.open()
+function view.open(mode)
   if not enabled() or (InCombatLockdown and InCombatLockdown()) then return end
+  view.attach()
+  if view.showAttached then
+    if view.window then view.window:Hide() end
+    local finder = LFGParentFrame or PVEFrame or LFGFrame
+    finder:Show()
+    if mode then view.pane.mode = mode end
+    view.showAttached()
+    view.pane:Refresh()
+    return
+  end
   if not view.window then
     view.window = view.build(UIParent)
     view.window:SetPoint("CENTER", UIParent, "CENTER")
     view.window:SetFrameStrata("DIALOG")
   end
+  if mode then view.window.mode = mode end
   view.window:Show()
+  view.window:Refresh()
 end
 
 -- Retry on load-on-demand UI loads; no polling or changes to queue behavior.
@@ -206,18 +322,19 @@ function view.attach()
   if view.tab then return end
   local finder = LFGParentFrame or PVEFrame or LFGFrame
   if not finder then return end
+  if view.window then view.window:Hide() end
   if finder.WhoListingTab and LFGParentFrameRightTabMixin then
     -- Forever's fourth page uses the same side-tab template as its three
     -- native pages. Keep Blizzard's selection and handlers untouched.
     view.chrome = CreateFrame("Frame", nil, finder, "PortraitFrameTemplateNoCloseButton")
     view.chrome:SetAllPoints(finder)
-    view.chrome:SetTitle(L("Guilded scores"))
+    view.chrome:SetTitle(L("Guilded dungeons"))
     view.chrome:Hide()
     view.pane = view.build(view.chrome, true)
     view.pane:SetPoint("TOPLEFT", finder, "TOPLEFT", 9, -30)
     view.pane:SetFrameLevel(finder:GetFrameLevel() + 20)
     view.tab = CreateFrame("Frame", nil, finder, "LFGVanillaRightTabTemplate")
-    view.tab.tooltipText = L("Guilded scores")
+    view.tab.tooltipText = L("Guilded dungeons")
     view.tab.Icon:SetTexture("Interface\\AddOns\\Guilded\\Media\\GuildedLogo")
     view.tab:SetPoint("TOPLEFT", finder.WhoListingTab, "BOTTOMLEFT", 0, -2)
     local nativePages, previousPages = {}, {}
@@ -254,7 +371,7 @@ function view.attach()
     end
     finder:HookScript("OnHide", function() view.pane:Hide() end)
     if hooksecurefunc then hooksecurefunc(finder, "UpdateTabs", updateChecks) end
-    view.tab:SetCustomOnMouseUpHandler(function(_, mouseButton, upInside)
+    local function showAttached(_, mouseButton, upInside)
       if mouseButton ~= "LeftButton" or not upInside or not enabled() or (InCombatLockdown and InCombatLockdown()) then return end
       if not view.pane:IsShown() then
         previousPages = {}
@@ -265,13 +382,16 @@ function view.attach()
         view.pane:Show()
       end
       updateChecks()
-    end)
+    end
+    view.showAttached = function() showAttached(nil, "LeftButton", true) end
+    view.tab:SetCustomOnMouseUpHandler(showAttached)
     view.tab:SetChecked(false)
     return
   end
   view.pane = view.build(finder)
+  view.showAttached = function() view.pane:Show() end
   view.pane:SetPoint("CENTER", UIParent, "CENTER")
-  view.tab = button(finder, "Guilded scores", 0, 0, 150, function()
+  view.tab = button(finder, "Guilded dungeons", 0, 0, 150, function()
     if InCombatLockdown and InCombatLockdown() then return end
     if view.pane:IsShown() then view.pane:Hide() else view.pane:Show() end
   end)

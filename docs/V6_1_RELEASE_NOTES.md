@@ -1,30 +1,13 @@
-# Guilded 6.1.1 — In-game setup and character standings
+# Guilded 6.1.2 — Clearer menus and native guild tabs
 
-14 October 2026. Patch release. The owner confirmed both setup choices work
-in WoW, the save prompts switch correctly, and existing data remains intact.
+14 October 2026. Patch update; protocol 2, no database migration.
 
-- New first-run choice: In-game only or Optional Discord connection. Reopen
-  it with `/guilded setup`, Home > Guilded setup, or the addon options page.
-- In-game-only setup explains local gear checks, dungeon recording, raid
-  attendance and loot tools without Discord signups. Save prompts point to
-  `/reload` or logout and explain SavedVariables backups.
-- Existing connected installations keep their setup. Changing the preference
-  preserves points, guild permissions, pairing and rosters; it does not stop
-  a running companion. Manual local core editing is not part of this patch.
-- Verified seasonal dungeon ratings are per character, including best runs,
-  boss records and import gains. Archived season results remain unchanged.
-  Online seasonal scores require the optional connection; local run recording
-  does not create a verified seasonal ranking.
-- Dungeon finder scores gain a visible side tab, level ordering and subtle
-  dungeon artwork, with dark overlays for readable text.
-- Standings can be viewed guild-wide or per core roster. Core views use the
-  configured shared or separate pool and do not change the active loot core.
-  An empty core roster stays empty instead of showing unrelated characters.
-- English/French setup and standings labels. No database migration; protocol 2.
+- Guilds & Communities gains a Guilded tab for Standings, Crafting and officer Administration (EPGP). It uses the native side-tab border and marble background. Pages scroll inside the window and preserve guild permissions.
+- Dungeon finder has one Guilded location with Run and Season views. Season switches between My progress and Guild rankings, including past seasons. Recent runs belong to the current character; saved history is preserved.
+- Home links to these locations instead of duplicating their pages. The main menu keeps My character, raid/group actions, Games and Settings. Setup lives in Settings and remains available through `/guilded setup`.
+- Calendar administration is beside the native calendar, with a standalone fallback where that client UI is unavailable. Member calendar shortcuts open the native calendar without exposing officer controls.
+- A shared save/sync button replaces the duplicate Home action. Its tooltip explains local saving or optional connected synchronization.
+- Native guild and dungeon tabs keep their original handlers. Closing Guilded restores the normal interface and the main menu's saved position and scale.
+- Includes 6.1.1's optional in-game-only setup, per-character seasonal scores, per-core standings, dungeon artwork and Guilded logo.
 
-Addon, bot and companion versions are aligned at 6.1.1. SavedVariables and
-personal pairing must be preserved during updates. The Windows installer is
-unsigned. Prior unverified gameplay/second-PC acceptance remains follow-up;
-passing automated tests does not prove rendered in-game behavior.
-
-- Uses the existing Guilded logo for the minimap, addon listing and dungeon-score tab icons. The packaged texture is a 256x256 uncompressed 32-bit TGA.
+Addon, bot and companion versions are aligned at 6.1.2. Install the complete addon folder and preserve SavedVariables and personal companion pairing. Verified online season ratings require the optional connection; local dungeon recording works without it. The Windows installer is unsigned. Prior unverified gameplay and second-PC checks remain follow-up, not automated-test passes.

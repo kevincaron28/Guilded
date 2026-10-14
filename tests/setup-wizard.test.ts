@@ -86,7 +86,7 @@ describe("setup wizard screens", () => {
   it("explains that WoW setup is for WoW players and that the Windows app is optional", async () => {
     const text = (await renderStep(8, guild as never, "g1", "")).embeds[0]!.data.description!;
     expect(text).toContain("WoW linking is only for WoW players");
-    expect(text).toContain("The Windows app is optional");
+    expect(text).toContain("Character linking and the companion are optional");
   });
 
   it("explains the actual applicant-role timing when rules are required", async () => {

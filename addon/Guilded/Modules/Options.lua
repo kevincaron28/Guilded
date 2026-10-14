@@ -49,7 +49,7 @@ function module.openSetup()
     local text = setupPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     text:SetPoint("TOPLEFT", 20, -42); text:SetWidth(480); text:SetJustifyH("LEFT")
     text:SetText(L("In-game only: gear checks, dungeon recording, raid attendance and loot tools work without Discord or signups. Officers can share local standings with online guildmates.\n\nConnected: optional companion sync adds Discord rosters, signups and verified season scores.\n\nData stays in SavedVariables. Keep backups. This choice preserves existing rosters and points; it does not stop a running companion. Change it any time with /guilded setup."))
-    for i, choice in ipairs({ { "local", "In-game only" }, { "connected", "Optional Discord connection" } }) do
+    for i, choice in ipairs({ { "local", "In-game only (default)" }, { "connected", "Optional Discord connection" } }) do
       local b = CreateFrame("Button", nil, setupPanel, "UIPanelButtonTemplate")
       b:SetSize(230, 28); b:SetPoint("BOTTOMLEFT", 20 + (i - 1) * 245, 24)
       b:SetText(L(choice[2])); local mode = choice[1]
@@ -205,7 +205,10 @@ function module.checkFirstRun()
     s.setupMode = "connected"
     return
   end
-  if C_Timer and C_Timer.After then C_Timer.After(2, module.openSetup) else module.openSetup() end
+  -- Fresh/unconnected installations start working immediately without a forced chooser.
+  -- Assign directly so existing local core selections and saved records remain intact.
+  s.setupMode = "local"
+  ns.message(L("Addon-only is ready. Discord linking and companion sync are optional; use /guilded setup later."))
 end
 local firstRun = CreateFrame("Frame")
 firstRun:RegisterEvent("PLAYER_ENTERING_WORLD")

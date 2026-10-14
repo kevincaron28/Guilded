@@ -132,15 +132,15 @@ const STRINGS = {
   },
   "onboard.panel.rules": { en: "📜 **Rules** — read {channel}, then confirm.", fr: "📜 **Règles** — lis {channel}, puis confirme." },
   "onboard.panel.games": { en: "🎮 **Pick my games** — each game you pick opens its channels.", fr: "🎮 **Choisir mes jeux** — chaque jeu choisi ouvre ses salons." },
-  "onboard.panel.pair": { en: "🔗 **Link my WoW character** — see your linked characters and open the online companion. Only for WoW players.", fr: "🔗 **Lier mon personnage WoW** — vois tes personnages liés et ouvre le compagnon en ligne. Seulement si tu joues à WoW." },
+  "onboard.panel.pair": { en: "🔗 **Link my WoW character** — optional: link your main/alts to Discord with the addon. The companion is optional too.", fr: "🔗 **Lier mon personnage WoW** — facultatif : lie ton principal et tes alts à Discord avec l'addon. Le compagnon est aussi facultatif." },
   "onboard.panel.steps": { en: "✅ **First steps** — your personal checklist.", fr: "✅ **Premiers pas** — ta liste personnelle." },
   "onboard.steps.title": { en: "**Your first steps on {guild}**", fr: "**Tes premiers pas sur {guild}**" },
   "onboard.steps.rules": { en: "Read and accept the rules", fr: "Lire et accepter les règles" },
   "onboard.steps.games": { en: "Pick your games", fr: "Choisir tes jeux" },
   "onboard.steps.character": { en: "Link your WoW character", fr: "Lier ton personnage WoW" },
-  "onboard.steps.characterOptional": { en: "Link your WoW character (only if you play WoW)", fr: "Lier ton personnage WoW (seulement si tu joues à WoW)" },
+  "onboard.steps.characterOptional": { en: "Link your WoW character (optional; the addon works on its own)", fr: "Lier ton personnage WoW (facultatif; l'addon fonctionne seul)" },
   "onboard.steps.next": { en: "Use the buttons below for what is left.", fr: "Sers-toi des boutons ci-dessous pour ce qu'il reste." },
-  "onboard.steps.done": { en: "Your Discord access is ready! WoW players can link their character with the button below. `/help` lists your commands.", fr: "Ton accès Discord est prêt ! Si tu joues à WoW, tu peux lier ton personnage avec le bouton ci-dessous. `/help` montre tes commandes." },
+  "onboard.steps.done": { en: "Your Discord access is ready! WoW character linking and the companion are optional. `/help` lists your commands.", fr: "Ton accès Discord est prêt ! Le lien du personnage WoW et le compagnon sont facultatifs. `/help` montre tes commandes." },
   "onboard.rules.prompt": {
     en: "Read the rules in {channel}, then press the button below.",
     fr: "Lis les règles dans {channel}, puis appuie sur le bouton ci-dessous."
@@ -170,15 +170,36 @@ const STRINGS = {
   "pair.alt": { en: "• Alt: **{name}** — {realm}", fr: "• Alt : **{name}** — {realm}" },
   "pair.more": { en: "`/character list` shows the rest.", fr: "`/character list` montre les autres." },
   "pair.none": { en: "No WoW character is linked to your Discord account on this server yet.", fr: "Aucun personnage WoW n'est encore lié à ton compte Discord sur ce serveur." },
+  "pair.addonDefault": {
+    en: "**Start with the addon only (default).** Install [Guilded](https://www.curseforge.com/wow/addons/guilded) or your officers' matching download. **In-game only** works without Discord linking or a companion. The choices below are optional.",
+    fr: "**Commence avec l'addon seul (par défaut).** Installe [Guilded](https://www.curseforge.com/wow/addons/guilded) ou la version de tes officiers. **En jeu uniquement** fonctionne sans lien Discord ni compagnon. Les choix ci-dessous sont facultatifs."
+  },
+  "pair.manualMainTitle": { en: "Optional: link your main to Discord, without a companion", fr: "Facultatif : lier ton principal à Discord, sans compagnon" },
+  "pair.manualMain": {
+    en: "1. Log in to WoW on the character you want as your **main**. Type `/guilded character` and copy the full character line.\n2. In this Discord server, use `/character import` and paste that line into **code**. Leave **main** unset: your first character becomes your main.\n3. Check `/character list`. To add an **alt**, repeat these steps on that alt and leave **main** unset. Your existing main stays the same.\nThis character line is different from a companion connection code.",
+    fr: "1. Connecte-toi à WoW sur le personnage que tu veux comme **principal**. Tape `/guilded character` et copie la ligne complète du personnage.\n2. Sur ce serveur Discord, utilise `/character import` et colle cette ligne dans **code**. Laisse **main** vide : ton premier personnage devient ton principal.\n3. Vérifie `/character list`. Pour ajouter un **alt**, répète ces étapes sur l'alt et laisse **main** vide. Ton principal reste le même.\nCette ligne de personnage est différente d'un code de connexion du compagnon."
+  },
+  "pair.manualAltTitle": { en: "Optional: add an alt, without a companion", fr: "Facultatif : ajouter un alt, sans compagnon" },
+  "pair.manualAlt": {
+    en: "**Your main is already linked.** Log in on your alt in WoW, type `/guilded character` and copy the character line. In Discord, use `/character import`, paste the line into **code**, and leave **main** unset. Check `/character list`: it links as an alt and your main stays the same.\n**Companion already connected?** Log in on the alt, `/reload`, then **Sync now** instead. No new code needed.",
+    fr: "**Ton principal est déjà lié.** Connecte-toi sur ton alt dans WoW, tape `/guilded character` et copie la ligne. Sur Discord, utilise `/character import`, colle la ligne dans **code** et laisse **main** vide. Vérifie `/character list` : il sera lié comme alt et ton principal reste le même.\n**Compagnon déjà connecté ?** Connecte-toi sur l'alt, fais `/reload`, puis **Sync now** à la place. Aucun nouveau code nécessaire."
+  },
+  "pair.optionalTitle": { en: "Optional: sync with the online companion", fr: "Facultatif : synchroniser avec le compagnon en ligne" },
+  "pair.optional": {
+    en: "Want to sync saved data and download standings? Press **Connect optional companion** for a private connection code and 3 steps. The online companion runs in your browser; the Windows app is optional. You can add it later and keep your linked characters.",
+    fr: "Tu veux synchroniser tes données et télécharger les classements ? Appuie sur **Connecter le compagnon (facultatif)** pour un code privé et 3 étapes. Le compagnon en ligne fonctionne dans ton navigateur; l'appli Windows est facultative. Tu peux l'ajouter plus tard en gardant tes personnages liés."
+  },
+  "pair.connectOptional": { en: "Connect optional companion", fr: "Connecter le compagnon (facultatif)" },
+  "pair.characterOrderTitle": { en: "Link your main first, then alts", fr: "Lier le principal d'abord, puis les alts" },
   "pair.firstMain": {
-    en: "Your next new character uploaded becomes your main; later characters become alts. Install the [Guilded addon](https://www.curseforge.com/wow/addons/guilded) first (or use your officers' download). The online companion needs no installation.",
-    fr: "Ton prochain nouveau personnage envoyé devient ton principal; les suivants deviennent des alts. Installe d'abord [l'addon Guilded](https://www.curseforge.com/wow/addons/guilded) (ou celui fourni par les officiers). Le compagnon en ligne ne demande aucune installation."
+    en: "For your first sync, log in on the character you want as your **main**, then `/reload` and **Sync now**. The first new character becomes your main. Once it appears in `/character list`, repeat on an alt: later characters link as alts with the same companion. No new code needed for each alt.",
+    fr: "Pour ta première synchro, connecte-toi sur le personnage que tu veux comme **principal**, puis fais `/reload` et **Sync now**. Le premier nouveau personnage devient ton principal. Une fois qu'il apparaît dans `/character list`, répète sur un alt : les suivants sont liés comme alts avec le même compagnon. Aucun nouveau code nécessaire pour chaque alt."
   },
   "pair.addAlts": {
     en: "**Your main is already linked.** The code below connects a companion so you can add alts. **Companion already working?** Log in on an alt, `/reload`, then **Sync now**: it links as an alt and your main stays the same. No new code needed.",
     fr: "**Ton principal est déjà lié.** Le code ci-dessous connecte un compagnon pour ajouter tes alts. **Ton compagnon fonctionne déjà ?** Connecte-toi sur un alt, fais `/reload`, puis **Sync now** : il sera lié comme alt et ton principal reste le même. Aucun nouveau code nécessaire."
   },
-  "pair.codeTitle": { en: "Connect or reconnect a companion", fr: "Connecter ou reconnecter un compagnon" },
+  "pair.codeTitle": { en: "Optional companion: connection code", fr: "Compagnon facultatif : code de connexion" },
   "pair.code": {
     en: "Code: **{code}** · expires {expires} · one use, keep it private. Use it only for a new connection or to reconnect a device. Using it replaces your previous companion connection. Viewing this code keeps your characters linked.",
     fr: "Code : **{code}** · expire {expires} · usage unique, garde-le privé. Utilise-le pour une première connexion ou pour reconnecter un appareil. L'utiliser remplace ta connexion compagnon précédente. Voir ce code conserve tes personnages liés."
@@ -188,13 +209,26 @@ const STRINGS = {
   "pair.askLink": { en: "Ask an officer for your guild's online companion link.", fr: "Demande à un officier le lien du compagnon en ligne de ta guilde." },
   "pair.syncTitle": { en: "First connection: 3 steps", fr: "Première connexion : 3 étapes" },
   "pair.sync": {
-    en: "1. {companion} In **Connection & setup**, check **Discord server ID**: `{server}`. Enter the code above and press **Connect**. The link prefills the ID on a first visit. The Windows app is optional.\n2. Enable **World of Warcraft**, choose your account's **SavedVariables** folder (or `Guilded.lua`), then **Save preferences**.\n3. Log in on your character in WoW, `/reload`, then press **Sync now** in the companion. Use **Save standings to addon** once to select `Interface/AddOns/Guilded` (or download `Standings.lua` there), then `/reload` again.",
-    fr: "1. {companion} Dans **Connection & setup**, vérifie **Discord server ID** : `{server}`. Entre le code ci-dessus et appuie sur **Connect**. Le lien remplit l'ID à la première visite. L'appli Windows est facultative.\n2. Active **World of Warcraft**, choisis le dossier **SavedVariables** de ton compte (ou `Guilded.lua`), puis **Save preferences**.\n3. Connecte-toi sur ton personnage WoW, fais `/reload`, puis **Sync now** dans le compagnon. Utilise **Save standings to addon** une fois pour choisir `Interface/AddOns/Guilded` (ou télécharge `Standings.lua` là), puis refais `/reload`."
+    en: "1. {companion} In **Connection & setup**, check **Discord server ID**: `{server}`. Enter the code above and press **Connect**. The link prefills the ID on a first visit.\n2. Enable **World of Warcraft**, choose your account's **SavedVariables** folder (or `Guilded.lua`), then **Save preferences**.\n3. Log in on your main first, `/reload`, then **Sync now**. Use **Save standings to addon** once to select `Interface/AddOns/Guilded` (or download `Standings.lua` there). To use Discord standings in game, choose `/guilded setup connected`, then `/reload` again.",
+    fr: "1. {companion} Dans **Connection & setup**, vérifie **Discord server ID** : `{server}`. Entre le code ci-dessus et appuie sur **Connect**. Le lien remplit l'ID à la première visite.\n2. Active **World of Warcraft**, choisis le dossier **SavedVariables** de ton compte (ou `Guilded.lua`), puis **Save preferences**.\n3. Connecte-toi sur ton principal d'abord, fais `/reload`, puis **Sync now**. Utilise **Save standings to addon** une fois pour choisir `Interface/AddOns/Guilded` (ou télécharge `Standings.lua` là). Pour utiliser les classements Discord en jeu, choisis `/guilded setup connected`, puis refais `/reload`."
   },
   "pair.checkTitle": { en: "Check the result", fr: "Vérifier le résultat" },
   "pair.check": {
     en: "After a successful sync, `/character list` shows your main and alts.\n**Without a companion:** in WoW, `/guilded character`; copy the line into Discord's `/character import` (once per character).",
     fr: "Après une synchro réussie, `/character list` montre ton principal et tes alts.\n**Sans compagnon :** dans WoW, `/guilded character`; copie la ligne dans `/character import` sur Discord (une fois par personnage)."
+  },
+  "character.created": { en: "Linked", fr: "Lié" },
+  "character.updated": { en: "Updated", fr: "Mis à jour" },
+  "character.mainKind": { en: "your main", fr: "ton principal" },
+  "character.altKind": { en: "an alt", fr: "un alt" },
+  "character.linkResult": { en: "✅ {action} **{name}** as {kind}.", fr: "✅ {action} **{name}** comme {kind}." },
+  "character.mainNext": {
+    en: "Check `/character list`. To add an alt, repeat `/guilded character` → `/character import` on that alt and leave **main** unset. The companion is optional.",
+    fr: "Vérifie `/character list`. Pour ajouter un alt, répète `/guilded character` → `/character import` sur l'alt et laisse **main** vide. Le compagnon est facultatif."
+  },
+  "character.altNext": {
+    en: "Your existing main stays the same. Check `/character list`. No companion is required for this link.",
+    fr: "Ton principal existant reste le même. Vérifie `/character list`. Aucun compagnon n'est requis pour ce lien."
   },
   "onboard.nudge": {
     en: "Hi! You joined **{guild}** yesterday and a step or two is still open. This is the only reminder you will get.",
@@ -203,9 +237,13 @@ const STRINGS = {
 
   // Getting started guide
   "guide.title": { en: "⚜️ Getting started with Guilded", fr: "⚜️ Bien commencer avec Guilded" },
+  "guide.companionShort": {
+    en: "**Optional companion:** `/character pair` supplies the online link, a private connection code and 3 steps. Sync your main first, then alts with the same connection. The addon and manual Discord links work without it.",
+    fr: "**Compagnon facultatif :** `/character pair` fournit le lien en ligne, un code privé et 3 étapes. Synchronise ton principal d'abord, puis tes alts avec la même connexion. L'addon et le lien Discord manuel fonctionnent sans lui."
+  },
   "guide.body": {
-    en: "**Start with Discord** — accept the rules and pick your games with the welcome buttons. Each game role opens its channels. Community activities and polls need no WoW character or addon. `/help` lists your commands; ask questions in `#bot-faq`.\n\n**Play WoW? Three steps**\n1. **Install the addon.** Close WoW and get your officers' matching ZIP or a published version from {url}. Extract `Guilded` into your client's `Interface\\AddOns`. Check `Interface\\AddOns\\Guilded\\Guilded.toc` exists, with no nested Guilded folder. Start WoW, enable Guilded, then `/reload`.\n2. **Connect once.** Use **Link my WoW character** or `/character pair`: the private reply shows your existing main/alts, your server ID, a code and the online companion link. {companion} No companion installation required; the Windows app is optional. Follow the 3 steps in that reply.\n3. **Check success.** After `/reload` and **Sync now**, `/character list` shows your character. Save returned standings into `Interface/AddOns/Guilded`, then `/reload` again.\n\n**Already connected?** Log in on an alt, `/reload`, then **Sync now**. Your main stays the same; no new pairing code needed. A code reconnects a companion and replaces its previous connection.\n\n**Without a companion:** in WoW, `/guilded character`; paste the line into Discord's `/character import` once per character.",
-    fr: "**Commence par Discord** — accepte les règles et choisis tes jeux avec les boutons d'accueil. Chaque rôle de jeu ouvre ses salons. Les activités communautaires et sondages ne demandent aucun personnage WoW ni addon. `/help` montre tes commandes; pose tes questions dans `#bot-faq`.\n\n**Tu joues à WoW ? Trois étapes**\n1. **Installe l'addon.** Ferme WoW et prends le ZIP de tes officiers ou une version publiée sur {url}. Décompresse `Guilded` dans `Interface\\AddOns` de ton client. Vérifie que `Interface\\AddOns\\Guilded\\Guilded.toc` existe, sans dossier Guilded imbriqué. Rouvre WoW, active Guilded, puis `/reload`.\n2. **Connecte une fois.** Utilise **Lier mon personnage WoW** ou `/character pair` : la réponse privée montre tes principaux/alts déjà liés, l'ID du serveur, un code et le lien du compagnon en ligne. {companion} Aucune installation du compagnon requise; l'appli Windows est facultative. Suis les 3 étapes de cette réponse.\n3. **Vérifie le résultat.** Après `/reload` et **Sync now**, `/character list` montre ton personnage. Enregistre les classements reçus dans `Interface/AddOns/Guilded`, puis refais `/reload`.\n\n**Déjà connecté ?** Connecte-toi sur un alt, fais `/reload`, puis **Sync now**. Ton principal reste le même; aucun nouveau code nécessaire. Un code reconnecte un compagnon et remplace sa connexion précédente.\n\n**Sans compagnon :** dans WoW, `/guilded character`; colle la ligne dans `/character import` sur Discord, une fois par personnage."
+    en: "**Start with Discord** — accept the rules and pick your games with the welcome buttons. Character linking is optional. `/help` lists your commands; ask questions in `#bot-faq`.\n\n**WoW: start with the addon only (default)**\nClose WoW. Get your officers' matching addon or a published download from {url}. Extract `Guilded` into `Interface\\AddOns` and check `Interface\\AddOns\\Guilded\\Guilded.toc` exists. Enable it in WoW and use **In-game only** in `/guilded setup`, then `/reload`. You can stop here: no character link or companion required.\n\n**Optional: link your main and alts to Discord**\nLog in on your **main** first. In WoW, `/guilded character`; copy the full line into Discord's `/character import` → **code**. Leave **main** unset. The first character becomes your main. Repeat on each alt with **main** unset; your main stays the same. Check `/character list`.\n\n**Optional: online companion**\nUse **Connect optional companion** in the welcome character reply, or `/character pair`, for a private code and 3 steps. {companion} The browser link prefills your server ID on a first visit. No Windows app required. Sync your main first, then alts; an already-connected companion needs no new code for each alt. Using a new code replaces its previous connection.",
+    fr: "**Commence par Discord** — accepte les règles et choisis tes jeux avec les boutons d'accueil. Le lien du personnage est facultatif. `/help` montre tes commandes; pose tes questions dans `#bot-faq`.\n\n**WoW : commence avec l'addon seul (par défaut)**\nFerme WoW. Prends l'addon de tes officiers ou une version publiée sur {url}. Décompresse `Guilded` dans `Interface\\AddOns` et vérifie que `Interface\\AddOns\\Guilded\\Guilded.toc` existe. Active-le dans WoW et utilise **En jeu uniquement** dans `/guilded setup`, puis `/reload`. Tu peux arrêter ici : aucun lien de personnage ni compagnon requis.\n\n**Facultatif : lier ton principal et tes alts à Discord**\nConnecte-toi sur ton **principal** d'abord. Dans WoW, `/guilded character`; copie la ligne complète dans `/character import` → **code** sur Discord. Laisse **main** vide. Le premier personnage devient ton principal. Répète sur chaque alt avec **main** vide; ton principal reste le même. Vérifie `/character list`.\n\n**Facultatif : compagnon en ligne**\nUtilise **Connecter le compagnon (facultatif)** dans la réponse du bouton de personnage, ou `/character pair`, pour un code privé et 3 étapes. {companion} Le lien remplit l'ID du serveur à la première visite. Aucune appli Windows requise. Synchronise ton principal d'abord, puis tes alts; un compagnon déjà connecté n'a pas besoin d'un nouveau code pour chaque alt. Un nouveau code remplace sa connexion précédente."
   },
 
   // Help

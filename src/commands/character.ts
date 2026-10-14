@@ -9,14 +9,14 @@ import { guildService, requireGuildContext } from "./context.js";
 import { CLASSES } from "../wow-data.js";
 import { revokeCompanionCredentials } from "../services/character-pairing.js";
 import { characterLinkPrompt } from "../services/character-link-prompt.js";
-import { asLang } from "../i18n.js";
+import { asLang, t } from "../i18n.js";
 
 export const characterCommand = new SlashCommandBuilder()
   .setName("character")
   .setDescription("Manage your WoW Forever characters.")
   .addSubcommand((subcommand) => subcommand
     .setName("pair")
-    .setDescription("See your linked characters and connect the online companion for your main and alts."))
+    .setDescription("Connect the optional online companion for your main and alts."))
   .addSubcommand((subcommand) => subcommand
     .setName("add")
     .setDescription("Link a character to your profile.")
@@ -67,12 +67,12 @@ async function defaultRealm(guildId: string): Promise<string> {
 export async function executeCharacter(interaction: ChatInputCommandInteraction): Promise<void> {
   const subcommand = interaction.options.getSubcommand();
   // Acknowledge before database lookups, especially when the hosted database is waking up.
-  if (subcommand === "pair" && interaction.guild && interaction.guildId && interaction.member) await interaction.deferReply({ ephemeral: true });
+  if (["pair", "import"].includes(subcommand) && interaction.guild && interaction.guildId && interaction.member) await interaction.deferReply({ ephemeral: true });
   const context = await requireGuildContext(interaction);
   if (!context) return;
   if (subcommand === "pair") {
     const settings = await guildService.getSettings(context.guildId);
-    await interaction.editReply(await characterLinkPrompt(prisma, context.guildId, context.memberId, interaction.guildId!, asLang(settings?.language)));
+    await interaction.editReply(await characterLinkPrompt(prisma, context.guildId, context.memberId, interaction.guildId!, asLang(settings?.language), "companion"));
     return;
   }
   if (subcommand === "list") {
@@ -150,27 +150,33 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
   }
 
   if (subcommand === "import") {
+    const settings = await guildService.getSettings(context.guildId);
+    const lang = asLang(settings?.language);
+    const linkedText = (outcome: { action: "created" | "updated"; name: string; isMain: boolean }) => t(lang, "character.linkResult", {
+      action: t(lang, outcome.action === "created" ? "character.created" : "character.updated"), name: outcome.name,
+      kind: t(lang, outcome.isMain ? "character.mainKind" : "character.altKind")
+    });
     const code = interaction.options.getString("code", true);
     if (code.trim().startsWith("QGEXP1:")) {
       const data = parseSelfExport(code);
       const outcome = await applySelfExport(prisma, context.memberId, data, interaction.options.getBoolean("main") ?? undefined);
       const problems = data.findings.filter((finding) => finding.severity !== "INFO").length;
-      await interaction.reply({
-        content: `${outcome.action === "created" ? "Linked" : "Updated"} **${outcome.name}**${outcome.isMain ? " (your main)" : ""}.`
+      await interaction.editReply({
+        content: linkedText(outcome)
           + (outcome.status ? ` Gear check: **${outcome.status}**${problems ? ` (${problems} issue${problems === 1 ? "" : "s"})` : ""}.` : " No gear check in that code (run /guilded inspect first).")
           + (data.consumables.length ? ` Consumables: ${data.consumables.map((row) => row.name).join(", ")}.` : "")
-          + (outcome.attunements ? ` ${outcome.attunements} attunement${outcome.attunements === 1 ? "" : "s"} recorded.` : ""),
-        ephemeral: true
+          + (outcome.attunements ? ` ${outcome.attunements} attunement${outcome.attunements === 1 ? "" : "s"} recorded.` : "")
+          + `\n${t(lang, outcome.isMain ? "character.mainNext" : "character.altNext")}`
       });
       return;
     }
     const parsed = parseCharacterString(code);
     const outcome = await importCharacter(prisma, context.memberId, parsed, interaction.options.getBoolean("main") ?? undefined);
     const details = [parsed.race, parsed.className, parsed.spec ? `(${parsed.spec})` : "", parsed.level ? `level ${parsed.level}` : ""].filter(Boolean).join(" ");
-    await interaction.reply({
-      content: `${outcome.action === "created" ? "Linked" : "Updated"} **${outcome.name}** (${parsed.realm}) as ${outcome.isMain ? "your main character" : "an alt"}: ${details}.`
-        + (parsed.professions.length ? `\nProfessions: ${parsed.professions.map((p) => `${p.name} ${p.skillLevel}`).join(", ")}.` : ""),
-      ephemeral: true
+    await interaction.editReply({
+      content: `${linkedText(outcome)} ${parsed.realm} · ${details}.`
+        + (parsed.professions.length ? `\nProfessions: ${parsed.professions.map((p) => `${p.name} ${p.skillLevel}`).join(", ")}.` : "")
+        + `\n${t(lang, outcome.isMain ? "character.mainNext" : "character.altNext")}`
     });
     return;
   }

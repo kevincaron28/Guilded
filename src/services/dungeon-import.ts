@@ -1,3 +1,4 @@
+import { resolveNovemberRoute, validNovemberRules } from "./dungeon-november-rules.js";
 import type { Prisma } from "@prisma/client";
 import { grantRunAchievements, type AchievementKey } from "./dungeon-achievements.js";
 import { findCharacter } from "./character-match.js";
@@ -92,7 +93,9 @@ export async function importDungeonRuns(
   const season = await activeSeason(tx, guildId, config.targets, config.levelBands);
   const rated = hasDungeonRating(season.ratingRules);
   const timed = rated && (season.ratingRules as { version: number }).version >= 3;
-  const bestEight = rated && (season.ratingRules as { version: number }).version === 4;
+  const november = validNovemberRules(season.ratingRules) ? season.ratingRules : undefined;
+  if ((season.ratingRules as { version?: number } | null)?.version === 5 && !november) throw new Error("Invalid November rules; import refused without awards");
+  const bestEight = rated && ((season.ratingRules as { version: number }).version === 4 || november !== undefined);
   const ratingRules = season.ratingRules as unknown as { targets: Record<string, number>; levelBands: Record<string, LevelBand>; participationLevelBands: Record<string, LevelBand> };
   const participationRules = bestEight ? { targets: {}, levelBands: ratingRules.participationLevelBands } : timed ? season.ratingRules as unknown as { targets: Record<string, number>; levelBands: Record<string, LevelBand> } : config;
   let previousRating = rated ? await dungeonRating(tx, guildId, season) : [];
@@ -117,13 +120,15 @@ export async function importDungeonRuns(
     }));
     const evidence: ParticipationRun = {
       instanceId: run.instanceId, difficultyId: run.difficultyId, durationSec,
+      startedAt: run.startedAt ? new Date(run.startedAt * 1000) : null, endedAt: run.endedAt ? new Date(run.endedAt * 1000) : null,
       completedBy: run.completedBy ?? run.endReason ?? null,
       competitionData: { players: run.players.map(p => ({ name: p.character, level: p.level ?? null, minLevel: p.minLevel ?? null })), encounters: run.encounters ?? [] },
       players: linked.map(({ player, character }) => ({ character: player.character, memberId: character?.memberId ?? null, presentSec: player.presentSec }))
     };
-    const dungeonKey = participationDungeonKey(evidence);
+    const dungeonKey = participationDungeonKey(evidence, november);
+    const novemberReason = november ? resolveNovemberRoute(evidence, november).reason : undefined;
     const band = participationRules.levelBands[dungeonKey];
-    const recordEligible = participationRecordEligible(evidence, band);
+    const recordEligible = participationRecordEligible(evidence, band, november);
     const inSeason = !!run.startedAt && run.startedAt * 1000 >= (season.startsAt?.getTime() ?? 0)
       && (!season.endsAt || !!run.endedAt && run.endedAt * 1000 < season.endsAt.getTime());
     const earnsPoints = (!bestEight || evidence.completedBy === "final boss" && !run.id.startsWith("SIM-")) && check.ok && run.state === "COMPLETED" && durationSec !== null && inSeason;
@@ -138,12 +143,12 @@ export async function importDungeonRuns(
       const history = await tx.dungeonRun.findMany({
         where: { guildId, instanceId: run.instanceId, valid: true, state: "COMPLETED", durationSec: { not: null }, ...(bestEight ? { NOT: { runRef: { startsWith: "SIM-" } } } : {}) },
         select: { instanceId: true, difficultyId: true, durationSec: true, completedBy: true, competitionData: true,
-          endedAt: true, players: { select: { character: true, memberId: true, presentSec: true } } }
+          startedAt: true, endedAt: true, players: { select: { character: true, memberId: true, presentSec: true } } }
       });
-      const routeHistory = history.filter(row => (!bestEight || row.completedBy === "final boss") && participationDungeonKey(row) === dungeonKey);
+      const routeHistory = history.filter(row => (!bestEight || row.completedBy === "final boss") && participationDungeonKey(row, november) === dungeonKey);
       const sameRoute = routeHistory.filter(row => row.endedAt
         && (bestEight ? row.endedAt.getTime() <= (run.endedAt ?? 0) * 1000 : row.endedAt.getTime() < (run.endedAt ?? 0) * 1000));
-      const recordHistory = sameRoute.filter(row => participationRecordEligible(row, band));
+      const recordHistory = sameRoute.filter(row => participationRecordEligible(row, band, november));
       const best = recordEligible ? recordHistory.reduce<typeof recordHistory[number] | null>((best, row) =>
         !best || row.durationSec! < best.durationSec! ? row : best, null) : null;
       previousGuildBest = best?.durationSec ?? null;
@@ -155,19 +160,19 @@ export async function importDungeonRuns(
       for (const { player, character } of [...linked].sort((a, b) => b.player.presentSec - a.player.presentSec
         || a.player.character.localeCompare(b.player.character))) {
         if (!character) continue;
-        const mode = participationMode(evidence, player.character, band);
+        const mode = participationMode(evidence, player.character, band, november);
         if (mode === "none" || awardedAccounts.has(character.memberId)) continue;
         awardedAccounts.add(character.memberId);
         const memberHistory = sameRoute.filter(row => row.players.some(p => p.memberId === character.memberId
-          && participationMode(row, p.character, band) !== "none"));
+          && participationMode(row, p.character, band, november) !== "none"));
         // Delayed uploads must consume the same weekly budget, even when newer
         // runs have already been imported. Legacy models retain their old order.
         const weeklyHistory = bestEight ? routeHistory.filter(row => row.endedAt && row.endedAt >= weekFrom
           && row.endedAt.getTime() < weekFrom.getTime() + 7 * 86400000
-          && row.players.some(p => p.memberId === character.memberId && participationMode(row, p.character, band) !== "none"))
+          && row.players.some(p => p.memberId === character.memberId && participationMode(row, p.character, band, november) !== "none"))
           : memberHistory.filter(row => row.endedAt && row.endedAt >= weekFrom);
         const sameDifficulty = mode === "full" ? recordHistory.filter(row => row.players.some(p => p.memberId === character.memberId
-          && participationMode(row, p.character, band) === "full")) : [];
+          && participationMode(row, p.character, band, november) === "full")) : [];
         const previousBest = sameDifficulty.length ? Math.min(...sameDifficulty.map((row) => row.durationSec as number)) : null;
         contexts.push({
           memberId: character.memberId,
@@ -272,7 +277,9 @@ export async function importDungeonRuns(
           : !inSeason ? "Outside season window"
           : run.id.startsWith("SIM-") ? "Simulation run"
           : evidence.completedBy !== "final boss" ? "Automatic final-boss completion required"
-          : dungeonKey === "189" ? "Dungeon route unknown"
+          : novemberReason ? novemberReason
+          : november && !ratingRules.targets[dungeonKey] ? "Participation-only route"
+          : !november && dungeonKey === "189" ? "Dungeon route unknown"
           : competitionReason({ ...evidence, players: evidence.players.map(p => ({ ...p, member: null })) }, ratingRules.levelBands[dungeonKey])
             ?? (!ratingRules.targets[dungeonKey] ? "Target not calibrated"
               : player.presentSec < (durationSec ?? 0) * 0.8 ? `Presence ${Math.floor(100 * player.presentSec / (durationSec || 1))}% / 80% required` : undefined) : undefined;
@@ -282,7 +289,7 @@ export async function importDungeonRuns(
           : character?.spec ? { spec: character.spec, specSource: "profile" as const } : {}),
         deaths: player.deaths ?? null, presentSec: player.presentSec,
         points: playerPoints.get(player.character) ?? 0,
-        participationMode: participationMode(evidence, player.character, band),
+        participationMode: participationMode(evidence, player.character, band, november),
         ...(participationRecipient && participationRecipient !== player.character ? { participationRecipient } : {}),
         ...(unrankedReason ? { unrankedReason } : {}),
         ...(rated && character ? {

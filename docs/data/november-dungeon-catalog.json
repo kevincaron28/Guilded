@@ -10,7 +10,8 @@
   "competitionProposal": {
     "level": 60,
     "bestCount": 8,
-    "status": "proposal-not-approved"
+    "status": "implemented-not-active",
+    "rulesVersion": 5
   },
   "ratedRoutes": [],
   "sources": {

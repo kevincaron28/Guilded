@@ -49,8 +49,8 @@ function detail.get(index, name)
   if not season then return nil end
   if season.detailsAvailable ~= nil then
     local profile = detail.profile(season, name)
-    -- Older companions omit the optional counted flag. Derive it from v4 rules.
-    if season.ratingVersion == 4 and profile then bestEightTotal(profile) end
+    -- Older companions omit the optional counted flag. Derive it for best-eight models.
+    if (season.ratingVersion == 4 or season.ratingVersion == 5) and profile then bestEightTotal(profile) end
     return { available = season.detailsAvailable, version = season.ratingVersion, provisional = season.provisionalTargets, profile = profile, catalog = season.catalog or {} }
   end
   local db = ns.getDb()
@@ -119,7 +119,11 @@ local function number(value, min, max)
   if not n or n ~= math.floor(n) or n < min or n > max then return nil end
   return n
 end
-local function validKey(key, id)
+local function validKey(key, id, version)
+  if version == 5 and #key <= 47 then
+    local map, wing = string.match(key, "^(%d+):([a-z][a-z0-9%-]*)$")
+    if map == tostring(id) and wing and #wing <= 40 then return true end
+  end
   if key == tostring(id) then return true end
   return id == 189 and (key == "189:graveyard" or key == "189:library" or key == "189:armory" or key == "189:cathedral")
 end
@@ -130,7 +134,7 @@ local function parse(payload)
     local fields = {}
     for field in string.gmatch(line .. ";", "([^;]*);") do fields[#fields + 1] = field end
     if fields[1] == "S" and not header and (#fields == 5 or #fields == 6) then
-      result.version = number(fields[3], 0, 4)
+      result.version = number(fields[3], 0, 5)
       result.profile.points = number(fields[4], 0, 40000)
       if not result.version or not result.profile.points or (fields[5] ~= "0" and fields[5] ~= "1") then return end
       if fields[6] and fields[6] ~= "0" and fields[6] ~= "1" then return end
@@ -141,19 +145,20 @@ local function parse(payload)
       local id, target = number(fields[2], 1, 1000000), number(fields[4], 0, 14400)
       local key = fields[5] or tostring(id)
       local low, high = number(fields[6] or "0", 0, 100), number(fields[7] or "0", 0, 100)
-      if not id or not validKey(key, id) or not low or not high or low > high or not target or catalogIds[key] or #result.catalog >= 100 or #fields[3] > 400 then return end
+      if not id or not validKey(key, id, result.version) or not low or not high or low > high or not target or catalogIds[key] or #result.catalog >= 100 or #fields[3] > 400 then return end
       catalogIds[key] = true
       result.catalog[#result.catalog + 1] = { dungeonKey = key, minLevel = low > 0 and low or nil, maxLevel = high > 0 and high or nil, instanceId = id, name = decode(fields[3]), targetSec = target > 0 and target or nil }
     elseif header and result.available and fields[1] == "R" and (#fields == 8 or #fields == 9 or #fields == 10) then
       local id, points, bonus = number(fields[2], 1, 1000000), number(fields[4], 0, 400), number(fields[5], 0, 20)
       local seconds, target = number(fields[6], 1, 14400), number(fields[7], 0, 14400)
       local key = fields[10] or tostring(id)
-      if not id or not validKey(key, id) or not points or not bonus or not seconds or not target or runIds[key] or not catalogIds[key]
+      if not id or not validKey(key, id, result.version) or not points or not bonus or not seconds or not target or runIds[key] or not catalogIds[key]
         or #result.profile.details >= 100 or #fields[3] > 400 or #fields[8] > 400 then return end
       local expected = target > 0 and math.floor(20 * math.max(0, math.min(1, (target - seconds) / (0.3 * target))) + 0.5) or 0
       local reason = fields[9] and decode(fields[9]) or ""
       local reasons = { ["Level range not configured"]=true, ["Different difficulty"]=true, ["Party levels unknown"]=true,
         ["Overlevel carry"]=true, ["Below level range"]=true, ["Target not calibrated"]=true, ["Dungeon route unknown"]=true }
+      if result.version == 5 then reasons["Required encounter evidence missing"] = true; reasons["Participation-only route"] = true end
       if result.version >= 3 then
         local rating = target > 0 and math.max(50, math.min(400, math.floor(200 * target / seconds + 0.5))) or 0
         if reason ~= "" and not reasons[reason] then return end
@@ -167,7 +172,7 @@ local function parse(payload)
       local id, bossId, seconds = number(fields[2], 1, 1000000), number(fields[3], 1, 1000000), number(fields[5], 1, 14400)
       if not id or not bossId or not seconds or #fields[4] > 400 or #fields[6] > 400 then return end
       local key = fields[7] or tostring(id)
-      if not validKey(key, id) then return end
+      if not validKey(key, id, result.version) then return end
       local owner
       for _, d in ipairs(result.profile.details) do if (d.dungeonKey or tostring(d.instanceId)) == key then owner = d end end
       if not owner or #owner.bosses >= 100 then return end
@@ -175,7 +180,7 @@ local function parse(payload)
       owner.bosses[#owner.bosses + 1] = { id = bossId, name = decode(fields[4]), durationSec = seconds, runRef = decode(fields[6]) }
     else return end
   end
-  if result.version == 4 then
+  if result.version == 4 or result.version == 5 then
     sum = bestEightTotal(result.profile)
   end
   if not header or (result.available and sum ~= result.profile.points) then return end

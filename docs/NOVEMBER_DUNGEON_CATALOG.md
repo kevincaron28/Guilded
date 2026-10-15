@@ -2,7 +2,7 @@
 
 Prepared October 15, 2026. A draft separate from season rules: 35 entries grouped into 28 instance families. This counts wings separately and is not a guaranteed official total. English names are catalog references, not boss-detection aliases.
 
-All 35 entries are planned for participation after verification. Ten are also proposed rating candidates; the other 25 are participation-only. No November rated route is activated. Competition proposal: level-60 characters, best eight routes. This remains a proposal and does not replace the level-30 beta Best 8. Targets, allowed bands and difficulty are unset. November 4 is the intended date, with no scheduled activation or UTC start time.
+All 35 entries are planned for participation after verification. Ten are also proposed rating candidates; the other 25 are participation-only. No November rated route is activated. Competition proposal: level-60 characters, best eight routes. Model 5 is implemented separately but not activated and does not replace the level-30 beta Best 8. Targets, allowed bands and difficulty are unset. November 4 is the intended date, with no scheduled activation or UTC start time.
 
 | Dungeon / wing | November plan | Presence evidence | Beta reference |
 | --- | --- | --- | --- |
@@ -46,12 +46,12 @@ All 35 entries are planned for participation after verification. Ten are also pr
 
 - Confirm access in the launch client and retain date, build and run evidence.
 - Record actual map ID, difficulty, observed levels and party size. JSON slugs are not game IDs; beta references do not prove launch compatibility.
-- Verify starts, presence, final boss and replacements. Distinguish wings using reliable evidence. Current rating code classifies Scarlet wings only; Dire Maul, Stratholme and Blackrock Spire require additional implementation. Never award two completions from one ambiguous route.
+- Verify starts, presence, final boss and replacements. Distinguish wings using reliable evidence. Model 5 supports frozen route evidence for Dire Maul, Stratholme, Blackrock Spire and Scarlet; November mappings remain empty pending in-game verification. See NOVEMBER_SCORING_IMPLEMENTATION.md. Never award two completions from one ambiguous route.
 - Define the required Blackrock Depths route and each wing. Partial visits, wings and full clears must not silently share a scoring standard.
 - Calibrate candidates with several comparable crews, then freeze new-season targets and bands. Do not automatically carry forward beta timers or temporary access levels.
 - Confirm the selection and exact start time, then use backed-up transactional season rotation. No script supplied here activates a season.
 
-The ten candidates propose fixed-level competition that late starters can join. Dire Maul and Stratholme have multiple wings: review their weight and independence before freezing the selection. Upper Blackrock Spire remains participation-only pending verification of party size and format. November participation awards, weekly counters, helper rules and level bands must be frozen separately.
+The ten candidates propose fixed-level competition that late starters can join. Dire Maul and Stratholme have multiple wings: review their weight and independence before freezing the selection. Upper Blackrock Spire remains participation-only pending verification of party size and format. Model 5 prepares weekly 75/25/0 account participation and 50/25/0 for eligible helpers; participation bands still require separate verification and freezing.
 
 ## Preservation and tools
 

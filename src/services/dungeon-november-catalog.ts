@@ -74,7 +74,7 @@ export function novemberDungeonCatalog() {
     id: "forever-november-2026-draft", researchedAt: "2026-10-15",
     intendedDate: "2026-11-04", timezone: "America/Toronto", startsAt: null,
     state: "draft-not-active" as const,
-    competitionProposal: { level: 60, bestCount: 8, status: "proposal-not-approved" },
+    competitionProposal: { level: 60, bestCount: 8, status: "implemented-not-active", rulesVersion: 5 },
     ratedRoutes: [] as string[], // Intentionally empty until launch evidence and calibration.
     sources, routes
   });
@@ -95,8 +95,8 @@ export function novemberCatalogEmbeds(lang: Lang): EmbedBuilder[] {
       { name: fr ? "Participation seulement · proposition" : "Participation only · proposal", value: names(participation) },
       { name: fr ? "Participation + candidats à la cote · non activés" : "Participation + rating candidates · not activated", value: names(candidates) },
       { name: fr ? "Avant activation" : "Before activation", value: fr
-        ? "Proposition : niveau 60, 8 meilleurs parcours. Niveaux admis, difficulté et temps cibles non définis. Vérifier accès, taille du groupe, identité des ailes et boss final; calibrer les temps puis figer une nouvelle saison. Aucun gain automatique de points par ajout au catalogue. /dungeon rules explique la phase active."
-        : "Proposal: level 60, best 8 routes. Allowed bands, difficulty and targets are unset. Verify access, party size, wing identity and final boss; calibrate times, then freeze a new season. Catalog inclusion awards no points automatically. /dungeon rules explains the active phase." },
+        ? "Modèle préparé : niveau 60, 8 meilleurs parcours. Niveaux admis, difficulté et temps cibles non définis. Vérifier accès, taille du groupe, identité des ailes et boss final; calibrer les temps puis figer une nouvelle saison. Aucun gain automatique de points par ajout au catalogue. /dungeon rules explique la phase active."
+        : "Prepared model: level 60, best 8 routes. Allowed bands, difficulty and targets are unset. Verify access, party size, wing identity and final boss; calibrate times, then freeze a new season. Catalog inclusion awards no points automatically. /dungeon rules explains the active phase." },
       { name: fr ? "Sources et limites" : "Sources and limits", value: fr
         ? `[Blizzard : nouveaux donjons](${sources.announcement.url}) · [bêta](${sources.beta.url}) · [Icy Veins : catalogue](${sources.roster.url}). Les ailes d’une même instance restent à distinguer en jeu; les niveaux d’accès bêta ne sont pas des règles de novembre.`
         : `[Blizzard: new dungeons](${sources.announcement.url}) · [beta](${sources.beta.url}) · [Icy Veins: roster](${sources.roster.url}). Shared-instance wings need in-game classification; beta access levels are not November rules.` }
@@ -114,8 +114,8 @@ export function novemberCatalogMarkdown(lang: Lang): string {
     ? "Préparé le 15 octobre 2026. Brouillon distinct des règles de saison : 35 entrées, regroupées en 28 familles d’instances. Ce comptage distingue les ailes et n’est pas un total officiel garanti. Les noms anglais servent de références; ce ne sont pas des noms de boss à utiliser pour la détection."
     : "Prepared October 15, 2026. A draft separate from season rules: 35 entries grouped into 28 instance families. This counts wings separately and is not a guaranteed official total. English names are catalog references, not boss-detection aliases.";
   const separation = fr
-    ? "Les 35 entrées sont prévues pour la participation après validation. Parmi elles, 10 sont proposées comme candidates à la cote, les 25 autres pour la participation seulement. Aucun parcours de novembre n’est activé. Proposition de compétition : personnages niveau 60, huit meilleurs parcours. Ce choix reste à valider; il ne remplace pas le Best 8 bêta niveau 30. Aucun temps cible, niveau admissible ou difficulté n’est configuré. Le 4 novembre est une date de préparation, sans heure UTC ni activation programmée."
-    : "All 35 entries are planned for participation after verification. Ten are also proposed rating candidates; the other 25 are participation-only. No November rated route is activated. Competition proposal: level-60 characters, best eight routes. This remains a proposal and does not replace the level-30 beta Best 8. Targets, allowed bands and difficulty are unset. November 4 is the intended date, with no scheduled activation or UTC start time.";
+    ? "Les 35 entrées sont prévues pour la participation après validation. Parmi elles, 10 sont proposées comme candidates à la cote, les 25 autres pour la participation seulement. Aucun parcours de novembre n’est activé. Proposition de compétition : personnages niveau 60, huit meilleurs parcours. Le modèle 5 est implémenté séparément, sans activation; il ne remplace pas le Best 8 bêta niveau 30. Aucun temps cible, niveau admissible ou difficulté n’est configuré. Le 4 novembre est une date de préparation, sans heure UTC ni activation programmée."
+    : "All 35 entries are planned for participation after verification. Ten are also proposed rating candidates; the other 25 are participation-only. No November rated route is activated. Competition proposal: level-60 characters, best eight routes. Model 5 is implemented separately but not activated and does not replace the level-30 beta Best 8. Targets, allowed bands and difficulty are unset. November 4 is the intended date, with no scheduled activation or UTC start time.";
   const header = fr ? "| Donjon / aile | Plan de novembre | Preuve de présence | Référence bêta |\n| --- | --- | --- | --- |" : "| Dungeon / wing | November plan | Presence evidence | Beta reference |\n| --- | --- | --- | --- |";
   const rows = catalog.routes.map(r => `| ${r.name} | ${r.rating === "participation-only" ? (fr ? "Participation" : "Participation") : (fr ? "Participation + candidat cote" : "Participation + rating candidate")} | ${evidence[r.evidence]} | ${r.betaScoringKey ?? "—"} |`).join("\n");
   const gates = fr
@@ -123,12 +123,12 @@ export function novemberCatalogMarkdown(lang: Lang): string {
 
 - Confirmer l’accès dans le client de lancement, avec date, build et preuve de run.
 - Relever le vrai map ID, la difficulté, les niveaux observés et la taille du groupe. Les slugs du JSON ne sont pas des identifiants de jeu. Les références bêta ne prouvent pas la compatibilité au lancement.
-- Valider départ, présence, boss final et remplacements. Distinguer chaque aile par des preuves fiables. Le code actuel ne distingue automatiquement que les ailes de Scarlet pour la cote; Dire Maul, Stratholme et Blackrock Spire nécessitent un travail spécifique. Ne jamais donner deux récompenses pour une seule fin ambiguë.
+- Valider départ, présence, boss final et remplacements. Distinguer chaque aile par des preuves fiables. Le modèle 5 accepte des preuves de parcours figées pour Dire Maul, Stratholme, Blackrock Spire et Scarlet; les mappings de novembre restent vides jusqu’à validation en jeu. Voir NOVEMBER_SCORING_IMPLEMENTATION.md. Ne jamais donner deux récompenses pour une seule fin ambiguë.
 - Définir le parcours complet de Blackrock Depths et de chaque aile. Ne pas comparer une aile, une visite partielle et un parcours complet comme un même run.
 - Mesurer les candidats avec plusieurs groupes comparables; fixer les cibles et niveaux pour la nouvelle saison seulement. Ne pas reprendre automatiquement les chronos ou accès temporaires de la bêta.
 - Confirmer la liste et l’heure de début, puis utiliser une rotation sauvegardée et transactionnelle. Aucun script de ce dossier n’active une saison.
 
-Les 10 candidats favorisent une compétition à niveau fixe accessible aux arrivants tardifs. Dire Maul et Stratholme ont plusieurs ailes : revoir leur poids et leur indépendance avant de figer la sélection. Upper Blackrock Spire reste en participation seulement en attendant la vérification de la taille du groupe et du format. Les points de participation, compteurs hebdomadaires, gestion des helpers et bandes de niveaux de novembre restent à figer séparément.
+Les 10 candidats favorisent une compétition à niveau fixe accessible aux arrivants tardifs. Dire Maul et Stratholme ont plusieurs ailes : revoir leur poids et leur indépendance avant de figer la sélection. Upper Blackrock Spire reste en participation seulement en attendant la vérification de la taille du groupe et du format. Le modèle 5 prépare 75/25/0 par compte et parcours, 50/25/0 pour les helpers admissibles; les bandes de participation restent à vérifier et figer séparément.
 
 ## Conservation et outils
 
@@ -146,12 +146,12 @@ La liste officielle annonce neuf nouveaux donjons; les notes bêta établissent 
 
 - Confirm access in the launch client and retain date, build and run evidence.
 - Record actual map ID, difficulty, observed levels and party size. JSON slugs are not game IDs; beta references do not prove launch compatibility.
-- Verify starts, presence, final boss and replacements. Distinguish wings using reliable evidence. Current rating code classifies Scarlet wings only; Dire Maul, Stratholme and Blackrock Spire require additional implementation. Never award two completions from one ambiguous route.
+- Verify starts, presence, final boss and replacements. Distinguish wings using reliable evidence. Model 5 supports frozen route evidence for Dire Maul, Stratholme, Blackrock Spire and Scarlet; November mappings remain empty pending in-game verification. See NOVEMBER_SCORING_IMPLEMENTATION.md. Never award two completions from one ambiguous route.
 - Define the required Blackrock Depths route and each wing. Partial visits, wings and full clears must not silently share a scoring standard.
 - Calibrate candidates with several comparable crews, then freeze new-season targets and bands. Do not automatically carry forward beta timers or temporary access levels.
 - Confirm the selection and exact start time, then use backed-up transactional season rotation. No script supplied here activates a season.
 
-The ten candidates propose fixed-level competition that late starters can join. Dire Maul and Stratholme have multiple wings: review their weight and independence before freezing the selection. Upper Blackrock Spire remains participation-only pending verification of party size and format. November participation awards, weekly counters, helper rules and level bands must be frozen separately.
+The ten candidates propose fixed-level competition that late starters can join. Dire Maul and Stratholme have multiple wings: review their weight and independence before freezing the selection. Upper Blackrock Spire remains participation-only pending verification of party size and format. Model 5 prepares weekly 75/25/0 account participation and 50/25/0 for eligible helpers; participation bands still require separate verification and freezing.
 
 ## Preservation and tools
 

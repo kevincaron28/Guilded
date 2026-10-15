@@ -3,10 +3,12 @@ import type { Lang } from "../i18n.js";
 import type { DungeonConfig } from "./dungeon-rules.js";
 import { hasDungeonRating, seasonDungeonCatalog } from "./dungeon-rating.js";
 import { BETA_DUNGEONS } from "./dungeon-beta-preset.js";
+import { validNovemberRules } from "./dungeon-november-rules.js";
 
 // Values come from guild configuration; this explains current imports, not archived rules.
 export function dungeonScoringGuide(config: DungeonConfig, lang: Lang, rules?: unknown): EmbedBuilder {
   const fr = lang === "fr";
+  if (validNovemberRules(rules)) return novemberGuide(fr);
   if (hasDungeonRating(rules) && (rules as { version: number }).version === 4) return bestEightGuide(rules, fr);
   const repeats = config.weeklyRepeat.map(value => `${Math.round(value * 100)}%`).join(" → ");
   return new EmbedBuilder().setColor(0x8b5cf6)
@@ -30,6 +32,27 @@ export function dungeonScoringGuide(config: DungeonConfig, lang: Lang, rules?: u
       { name: fr ? "Temps, saisons et historique" : "Timing, seasons and history", value: fr
         ? "Chronomètre automatique : premier combat observé → boss final détecté; voyage avant combat exclu. Le départ manuel existe. Aucun contrôle universel de tous les boss/trash. Les deux scores exigent le début dans la saison et la fin avant sa limite exclusive. Les points de participation s’accumulent et peuvent être ajustés par un officier. Les cibles de participation suivent celles de la saison pour le modèle 3. Les résultats historiques figés sont conservés."
         : "Automatic timer: first observed combat → detected final boss; travel before combat is excluded. Manual start exists. There is no universal all-boss/trash route check. Both scores require starting within the season and finishing before its exclusive cutoff. Participation points accumulate and officers can adjust them. Model 3 participation uses season targets. Frozen historical results are preserved." }
+    );
+}
+
+function novemberGuide(fr: boolean): EmbedBuilder {
+  return new EmbedBuilder().setColor(0x8b5cf6)
+    .setTitle(fr ? "Niveau 60 · comment les points fonctionnent" : "Level 60 · how points work")
+    .setDescription(fr ? "Cote par personnage; participation par compte. Les archives bêta gardent leurs résultats. Un résultat d’équipe ne mesure pas à lui seul le talent individuel."
+      : "Rating belongs to each character; participation belongs to the account. Beta archives keep their results. A team result alone does not measure individual skill.")
+    .addFields(
+      { name: fr ? "Cote · 8 meilleurs parcours" : "Rating · best 8 routes", value: fr
+        ? "Arrondi(200 × cible ÷ durée), limité à 50–400. Seuls vos 8 meilleurs donjons/ailes distincts comptent : 1 600 à la cible; maximum 3 200. Répéter n’accumule pas de cote. Un nouveau score de 240 remplaçant le 8e à 180 ajoute 60. Chaque alt commence sa propre cote. Arriver plus tard ne fait perdre aucun parcours de bas niveau obligatoire."
+        : "Round(200 × target ÷ duration), clamped to 50–400. Only your best 8 distinct dungeons/wings count: 1,600 at target; maximum 3,200. Repeats do not accumulate rating. A new 240 replacing your 8th score of 180 adds 60. Each alt starts its own rating. Late starters have no required low-level scoring routes to miss." },
+      { name: fr ? "Admissibilité et preuves" : "Eligibility and evidence", value: fr
+        ? "Tous les participants observés, invités et remplaçants inclus, doivent rester niveau 60. Personnage lié, présence ≥ 80 %, difficulté configurée, import valide, boss final détecté et tous les boss requis par le parcours figé. Preuves réussies horodatées dans le run seulement. Aile ambiguë ou preuve manquante : 0 cote. Parcours de participation seulement : 0 cote."
+        : "ALL observed participants, including guests and replacements, must remain level 60. Linked character, ≥80% presence, configured difficulty, valid import, detected final boss and every encounter required by the frozen route. Only timestamped successful evidence inside the run counts. Ambiguous wings or missing evidence: 0 rating. Participation-only routes: 0 rating." },
+      { name: fr ? "Participation · variété et entraide" : "Participation · variety and helping", value: fr
+        ? "Par compte et parcours chaque semaine : 75 pour la première fin admissible, 25 pour la deuxième, puis 0. Sans admissibilité aux bonus : 50 / 25 / 0. Présence ≥ 50 %, boss final et preuves de parcours requis. Les bandes de participation sont figées séparément. Helper hors niveau : 50 / 25 / 0 si un membre dans la plage est présent ≥ 50 %, sinon 0. Aucun bonus de vitesse, mort ou record."
+        : "Per account and route each week: 75 for the first eligible completion, 25 for the second, then 0. Without bonus eligibility: 50 / 25 / 0. ≥50% presence, detected final boss and route evidence required. Participation bands are frozen separately. Overlevel helper: 50 / 25 / 0 with an in-band member present ≥50%; otherwise 0. No speed, death or record bonuses." },
+      { name: fr ? "Limites et chronométrage" : "Limits and timing", value: fr
+        ? "Alts et difficultés partagent le compteur; les ailes vérifiées sont distinctes. Remise à zéro mardi 15 h UTC. Une attribution par compte/run; simulations et fins manuelles : 0. Premier combat observé → boss final; aucun contrôle du trash, du départ manuel ou de la puissance du groupe. Début dans la saison et fin avant la limite exclusive. Cibles et preuves figées; aucune réécriture des anciennes saisons."
+        : "Alts and difficulties share the counter; verified wings are separate. Resets Tuesday 15:00 UTC. One award per account/run; simulations and manual completions: 0. First observed combat → final boss; no trash, manual-start or group-power normalization. Start within the season and finish before its exclusive cutoff. Targets and evidence are frozen; older seasons are not rewritten." }
     );
 }
 

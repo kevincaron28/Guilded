@@ -1,9 +1,33 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { standingsToLua } from "../../companion/standings-format.mjs";
 import { betaSeasonRules } from "../../src/services/dungeon-beta-preset.js";
+import { novemberFixtures, novemberRulesFixture, novemberRun } from "../fixtures/november-routes.js";
+import { calculateDungeonRating, seasonDungeonCatalog } from "../../src/services/dungeon-rating.js";
 import { newLuaSession, type LuaSession } from "./harness.js";
 const sessions: LuaSession[] = [];
 afterEach(() => { for (const s of sessions) s.close(); sessions.length = 0; });
+
+it("round-trips v5 shared-map wings and best-eight totals through the companion and officer relay", () => {
+  const officer = setup(true), member = setup();
+  officer.run('NS.playerName=function() return "Officer" end');
+  const rules = novemberRulesFixture();
+  const rows = calculateDungeonRating(novemberFixtures().map((_, i) => novemberRun(i)), rules);
+  officer.run(standingsToLua({ updatedAt: "stamp", standings: [], dungeonBoard: { id: "nov", season: "November", status: "ACTIVE",
+    ratingVersion: 5, detailsAvailable: true, rows: [], catalog: seasonDungeonCatalog(rules, rows),
+    profiles: rows.map(r => ({ ...r, characters: [] })) } }));
+  officer.run("DB.dungeonBoard=GuildedDungeonBoard; QUEUE={}; C_Timer.After=function(_,fn) QUEUE[#QUEUE+1]=fn end");
+  member.run('DB.dungeonBoard={updatedAt="stamp",season="November",status="ACTIVE",rows={}}; NS.seasonDetails.request(1)');
+  officer.run(`fire_event("CHAT_MSG_ADDON","GuildedRating",${JSON.stringify(member.run("return SENT[#SENT].text"))},"GUILD","Tester")`);
+  officer.run("for i=1,128 do if #QUEUE==0 then break end; CLOCK=CLOCK+1; table.remove(QUEUE,1)() end");
+  for (let i = 1; i <= Number(officer.run("return #SENT")); i++) member.run(`fire_event("CHAT_MSG_ADDON","GuildedRating",${JSON.stringify(officer.run(`return SENT[${i}].text`))},"WHISPER","Officer")`);
+  expect(member.run('return NS.dungeonScorePanel.model("Tester",1).total')).toBe("1600");
+  expect(member.run('return #NS.dungeonScorePanel.model("Tester",1).cards')).toBe("11");
+  expect(member.run('return NS.seasonDetails.get(1,"Tester").version')).toBe("5");
+  expect(member.run('local n=0; for _,d in ipairs(NS.seasonDetails.get(1,"Tester").profile.details) do if d.counted then n=n+1 end end; return n')).toBe("8");
+  const payload = "S;test;5;200;1\nC;90001;East;1800;90001:east;60;60\nR;90001;East;200;0;1800;1800;r;;90001:east";
+  expect(member.run(`return tostring(NS.seasonDetails.parse(${JSON.stringify(payload)})~=nil)`)).toBe("true");
+  expect(member.run(`return tostring(NS.seasonDetails.parse(${JSON.stringify(payload.replace(";5;", ";4;"))})==nil)`)).toBe("true");
+});
 
 it("shows the complete beta catalogue before any runs and relays separate Scarlet wings", () => {
   const officer = setup(true), member = setup();

@@ -2,7 +2,7 @@
 
 Préparé le 15 octobre 2026. Brouillon distinct des règles de saison : 35 entrées, regroupées en 28 familles d’instances. Ce comptage distingue les ailes et n’est pas un total officiel garanti. Les noms anglais servent de références; ce ne sont pas des noms de boss à utiliser pour la détection.
 
-Les 35 entrées sont prévues pour la participation après validation. Parmi elles, 10 sont proposées comme candidates à la cote, les 25 autres pour la participation seulement. Aucun parcours de novembre n’est activé. Proposition de compétition : personnages niveau 60, huit meilleurs parcours. Ce choix reste à valider; il ne remplace pas le Best 8 bêta niveau 30. Aucun temps cible, niveau admissible ou difficulté n’est configuré. Le 4 novembre est une date de préparation, sans heure UTC ni activation programmée.
+Les 35 entrées sont prévues pour la participation après validation. Parmi elles, 10 sont proposées comme candidates à la cote, les 25 autres pour la participation seulement. Aucun parcours de novembre n’est activé. Proposition de compétition : personnages niveau 60, huit meilleurs parcours. Le modèle 5 est implémenté séparément, sans activation; il ne remplace pas le Best 8 bêta niveau 30. Aucun temps cible, niveau admissible ou difficulté n’est configuré. Le 4 novembre est une date de préparation, sans heure UTC ni activation programmée.
 
 | Donjon / aile | Plan de novembre | Preuve de présence | Référence bêta |
 | --- | --- | --- | --- |
@@ -46,12 +46,12 @@ Les 35 entrées sont prévues pour la participation après validation. Parmi ell
 
 - Confirmer l’accès dans le client de lancement, avec date, build et preuve de run.
 - Relever le vrai map ID, la difficulté, les niveaux observés et la taille du groupe. Les slugs du JSON ne sont pas des identifiants de jeu. Les références bêta ne prouvent pas la compatibilité au lancement.
-- Valider départ, présence, boss final et remplacements. Distinguer chaque aile par des preuves fiables. Le code actuel ne distingue automatiquement que les ailes de Scarlet pour la cote; Dire Maul, Stratholme et Blackrock Spire nécessitent un travail spécifique. Ne jamais donner deux récompenses pour une seule fin ambiguë.
+- Valider départ, présence, boss final et remplacements. Distinguer chaque aile par des preuves fiables. Le modèle 5 accepte des preuves de parcours figées pour Dire Maul, Stratholme, Blackrock Spire et Scarlet; les mappings de novembre restent vides jusqu’à validation en jeu. Voir NOVEMBER_SCORING_IMPLEMENTATION.md. Ne jamais donner deux récompenses pour une seule fin ambiguë.
 - Définir le parcours complet de Blackrock Depths et de chaque aile. Ne pas comparer une aile, une visite partielle et un parcours complet comme un même run.
 - Mesurer les candidats avec plusieurs groupes comparables; fixer les cibles et niveaux pour la nouvelle saison seulement. Ne pas reprendre automatiquement les chronos ou accès temporaires de la bêta.
 - Confirmer la liste et l’heure de début, puis utiliser une rotation sauvegardée et transactionnelle. Aucun script de ce dossier n’active une saison.
 
-Les 10 candidats favorisent une compétition à niveau fixe accessible aux arrivants tardifs. Dire Maul et Stratholme ont plusieurs ailes : revoir leur poids et leur indépendance avant de figer la sélection. Upper Blackrock Spire reste en participation seulement en attendant la vérification de la taille du groupe et du format. Les points de participation, compteurs hebdomadaires, gestion des helpers et bandes de niveaux de novembre restent à figer séparément.
+Les 10 candidats favorisent une compétition à niveau fixe accessible aux arrivants tardifs. Dire Maul et Stratholme ont plusieurs ailes : revoir leur poids et leur indépendance avant de figer la sélection. Upper Blackrock Spire reste en participation seulement en attendant la vérification de la taille du groupe et du format. Le modèle 5 prépare 75/25/0 par compte et parcours, 50/25/0 pour les helpers admissibles; les bandes de participation restent à vérifier et figer séparément.
 
 ## Conservation et outils
 

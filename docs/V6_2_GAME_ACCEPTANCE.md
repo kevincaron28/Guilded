@@ -54,8 +54,9 @@ Guilded Games remains its own Alpha. Testing every game with non-addon players,
 its complete French trivia pack and its publication status belongs to that
 separate release. Guilded 6.2 only requires independence/coexistence checks above.
 
-Before November 4 competition: verify candidate routes/encounter evidence,
-calibrate level-30 targets with diverse crews, decide the route/timer standard,
+Before November 4 competition: follow the separate
+[level-60 model and wing checklist](NOVEMBER_SCORING_IMPLEMENTATION.md), verify candidate routes/encounter evidence,
+calibrate level-60 targets with diverse crews, decide the route/timer standard,
 freeze official rules and choose an explicit start time. Do not alter the current
 beta or old archives as a shortcut. No official season is scheduled by this package.
 

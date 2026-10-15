@@ -1,4 +1,5 @@
 import { competitionReason, ratingDungeonKey, type LevelBand } from "./dungeon-rating.js";
+import { resolveNovemberRoute, type NovemberRules } from "./dungeon-november-rules.js";
 
 export interface ParticipationRun {
   instanceId: number;
@@ -6,22 +7,27 @@ export interface ParticipationRun {
   durationSec: number | null;
   completedBy: string | null;
   competitionData: unknown;
+  startedAt?: Date | null;
+  endedAt?: Date | null;
   players: { character: string; memberId: string | null; presentSec: number }[];
 }
 
-export function participationDungeonKey(run: ParticipationRun): string {
+export function participationDungeonKey(run: ParticipationRun, rules?: NovemberRules): string {
+  if (rules) return resolveNovemberRoute(run, rules).key;
   return ratingDungeonKey({ ...run, players: run.players.map(p => ({ ...p, member: null })) });
 }
 
-export function participationRecordEligible(run: ParticipationRun, band: LevelBand | undefined): boolean {
+export function participationRecordEligible(run: ParticipationRun, band: LevelBand | undefined, rules?: NovemberRules): boolean {
+  if (rules && resolveNovemberRoute(run, rules).reason) return false;
   return run.completedBy === "final boss" && !!run.durationSec && run.durationSec > 0
     && run.players.some(p => p.memberId && p.presentSec >= run.durationSec! * 0.5)
-    && participationDungeonKey(run) !== "189"
+    && (rules !== undefined || participationDungeonKey(run) !== "189")
     && competitionReason({ ...run, players: run.players.map(p => ({ ...p, member: null })) }, band) === undefined;
 }
 
 // Presence is observed for the whole run; a participant history is not a party-size check.
-export function participationMode(run: ParticipationRun, character: string, band: LevelBand | undefined): "none" | "completion" | "helper" | "full" {
+export function participationMode(run: ParticipationRun, character: string, band: LevelBand | undefined, rules?: NovemberRules): "none" | "completion" | "helper" | "full" {
+  if (rules && (run.completedBy !== "final boss" || resolveNovemberRoute(run, rules).reason)) return "none";
   const player = run.players.find(p => p.character === character);
   if (!player || !run.durationSec || run.durationSec <= 0 || !Number.isFinite(player.presentSec) || player.presentSec < run.durationSec * 0.5) return "none";
   const levels = (run.competitionData as { players?: { name: string; level: number | null; minLevel: number | null }[] } | null)?.players;
@@ -32,5 +38,5 @@ export function participationMode(run: ParticipationRun, character: string, band
       && l.minLevel! >= band.min && l.minLevel! <= l.level! && l.level! <= band.max));
     return helping ? "helper" : "none";
   }
-  return participationRecordEligible(run, band) ? "full" : "completion";
+  return participationRecordEligible(run, band, rules) ? "full" : "completion";
 }

@@ -1,5 +1,11 @@
 # Guilded 6.2.0 release candidate handoff
 
+November scoring follow-up: [version-5 level-60 model and pending wing tests](NOVEMBER_SCORING_IMPLEMENTATION.md).
+Separate opt-in rules, offline configuration compiler, route evidence checks and
+addon display/endpoint preparation are implemented. No November mappings are
+enabled or season activated. This follow-up changes addon source: rebuild and test
+the new candidate; the previously installed package does not contain these changes.
+
 November preparation: [full catalog](NOVEMBER_DUNGEON_CATALOG.md),
 [French version](NOVEMBER_DUNGEON_CATALOG_FR.md), and
 [planning JSON](data/november-dungeon-catalog.json). The candidate adds a read-only

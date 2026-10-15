@@ -17,6 +17,7 @@ function unrankedLabel(reason: string, lang: Lang): string {
     "Outside season window": "Hors de la période de saison", "Simulation run": "Simulation",
     "Automatic final-boss completion required": "Victoire automatique sur le boss final requise",
     "Dungeon route unknown": "Parcours inconnu", "Level range not configured": "Plage de niveaux non configurée",
+    "Required encounter evidence missing": "Preuves de boss requis manquantes", "Participation-only route": "Parcours de participation seulement",
     "Different difficulty": "Difficulté différente", "Party levels unknown": "Niveaux du groupe inconnus",
     "Overlevel carry": "Aide au-dessus du niveau maximal", "Below level range": "Sous le niveau minimal",
     "Target not calibrated": "Cible non calibrée"
@@ -72,7 +73,9 @@ export function dungeonAnnouncement(summary: DungeonImportSummary, lang: Lang, e
         lines.push(`${icons || "•"} **${escapeMarkdown(player.character)}**${info ? ` — ${escapeMarkdown(info)}` : ""}\n  ${deathText} · **${player.points} pts**`);
         if (player.participationMode === "helper") lines.push(fr ? "  Aide : points de complétion seulement." : "  Helper: completion points only.");
         if (player.participationRecipient) lines.push(fr ? `  Points du compte attribués via ${escapeMarkdown(player.participationRecipient)}.` : `  Account points awarded through ${escapeMarkdown(player.participationRecipient)}.`);
-        if (player.participationMode === "none") lines.push(fr ? "  Aucun point de participation : présence insuffisante ou aide sans membre admissible." : "  No participation points: insufficient presence or no eligible member to help.");
+        if (player.participationMode === "none") lines.push(run.ratingVersion === 5
+          ? fr ? "  Aucun point de participation : preuves de parcours, présence ou conditions d’entraide non remplies." : "  No participation points: route evidence, presence or helper requirements not met."
+          : fr ? "  Aucun point de participation : présence insuffisante ou aide sans membre admissible." : "  No participation points: insufficient presence or no eligible member to help.");
         if (player.unrankedReason) lines.push(`  ${fr ? "Non classé" : "Unranked"}: ${escapeMarkdown(unrankedLabel(player.unrankedReason, lang))}`);
         else if (player.ratingTotal !== undefined) lines.push(`  🏅 ${(run.ratingVersion ?? 0) >= 3 ? (fr ? "Score de donjon" : "Dungeon Rating") : (fr ? "Exploration" : "Exploration rating")}: **${player.ratingTotal}** (+${player.ratingGain ?? 0})`);
       }
@@ -82,6 +85,8 @@ export function dungeonAnnouncement(summary: DungeonImportSummary, lang: Lang, e
     if ((run.ratingVersion ?? 0) >= 3) lines.push(fr ? "Score de vitesse : meilleure tentative par donjon, 200 à la cible. Sans cible : calibration." : "Dungeon-time rating: best run per dungeon, 200 at target. No target: calibrating.");
     if (run.ratingVersion === 4) lines.push(fr ? "Bêta niveau 30 : seuls les 8 meilleurs donjons/ailes distincts comptent; maximum 3 200. `/dungeon rules`"
       : "Level-30 beta: only your best 8 distinct dungeons/wings count; maximum 3,200. `/dungeon rules`");
+    if (run.ratingVersion === 5) lines.push(fr ? "Niveau 60 : vos 8 meilleurs parcours vérifiés comptent; maximum 3 200. Participation par compte séparée. `/dungeon rules`"
+      : "Level 60: your best 8 verified routes count; maximum 3,200. Account participation is separate. `/dungeon rules`");
     if (run.ratingEnabled && (run.ratingVersion ?? 0) < 3) lines.push(fr ? "100 par donjon distinct admissible; répétitions, alts et difficultés ne s’additionnent pas." : "100 per eligible distinct dungeon; repeats, alts and difficulties do not stack.");
     if (run.ratingSpeedBonus === 20) lines.push(fr ? "Jusqu’à +20 de vitesse par donjon, selon la cible figée de la saison. Seule la meilleure tentative compte."
       : "Up to +20 speed per dungeon against the season's fixed target. Only the best result counts.");

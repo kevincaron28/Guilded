@@ -152,16 +152,15 @@ describe("the whole addon, loaded in .toc order", () => {
     }
   });
 
-  it("answers a command from each part, as an officer and as a member, without errors", () => {
-    for (const rank of [1, 5]) {
-      const s = fullAddon(rank);
-      for (const command of COMMANDS) {
-        s.run(`SlashCmdList["GUILDED"](${JSON.stringify(command)})`);
-      }
-      expect(problems(s), `rank ${rank}`).toEqual([]);
-      expect(diagnostics(s), `rank ${rank}`).toBe("0");
-      session?.close();
+  it.each([1, 5])("answers a command from each part without errors at guild rank %i", (rank) => {
+    // Each rank boots a complete Lua VM. Give each independent scenario its own
+    // test budget and let afterEach close it, including when an assertion fails.
+    const s = fullAddon(rank);
+    for (const command of COMMANDS) {
+      s.run(`SlashCmdList["GUILDED"](${JSON.stringify(command)})`);
     }
+    expect(problems(s), `rank ${rank}`).toEqual([]);
+    expect(diagnostics(s), `rank ${rank}`).toBe("0");
   });
 
   it("the loot commands work together: the core is picked, the system follows, a bid opens", () => {

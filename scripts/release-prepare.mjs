@@ -13,9 +13,8 @@ function run(command, args) {
 }
 run("npm", ["run", "prisma:generate"]);
 for (const task of ["build", "test", "lint"]) {
-  // Windows process workers can stall in local agent sessions; the thread pool
-  // runs the same suite with bounded memory and no child-process startup issue.
-  const testArgs = task === "test" && process.platform === "win32" ? ["--", "--pool=threads", "--maxWorkers=2"] : [];
+  // Match normal Windows tests: isolated fork workers with bounded memory.
+  const testArgs = task === "test" && process.platform === "win32" ? ["--", "--pool=forks", "--maxWorkers=2"] : [];
   run("npm", ["run", task, ...testArgs]);
 }
 run("node", ["addon/Guilded/validate-addon.mjs"]);

@@ -1,5 +1,11 @@
 # Guilded 6.2.0 release candidate handoff
 
+October 15 follow-up: [Cloudflare preview repair](CLOUDFLARE_PREVIEW_REPAIR_2026-10-15.md)
+and [Forever dungeon catalog audit](WOW_FOREVER_DUNGEON_AUDIT_2026-10-15.md).
+The latter corrects the guide's missing participation-only display without
+changing frozen beta rules. The existing installed candidate has no addon changes
+from this follow-up; final publication still requires a final-commit rebuild.
+
 Prepared October 15, 2026 at the owner's request. This is release preparation,
 not authorization to bypass the pending [in-game acceptance](V6_2_GAME_ACCEPTANCE.md).
 

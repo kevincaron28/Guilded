@@ -2,6 +2,7 @@ import { EmbedBuilder } from "discord.js";
 import type { Lang } from "../i18n.js";
 import type { DungeonConfig } from "./dungeon-rules.js";
 import { hasDungeonRating, seasonDungeonCatalog } from "./dungeon-rating.js";
+import { BETA_DUNGEONS } from "./dungeon-beta-preset.js";
 
 // Values come from guild configuration; this explains current imports, not archived rules.
 export function dungeonScoringGuide(config: DungeonConfig, lang: Lang, rules?: unknown): EmbedBuilder {
@@ -34,6 +35,9 @@ export function dungeonScoringGuide(config: DungeonConfig, lang: Lang, rules?: u
 
 function bestEightGuide(rules: unknown, fr: boolean): EmbedBuilder {
   const catalog = seasonDungeonCatalog(rules, []);
+  const bands = (rules as { participationLevelBands?: Record<string, unknown> }).participationLevelBands ?? {};
+  const ratedKeys = new Set(catalog.map(d => d.dungeonKey));
+  const leveling = BETA_DUNGEONS.filter(d => Object.hasOwn(bands, d.key) && !ratedKeys.has(d.key));
   return new EmbedBuilder().setColor(0x8b5cf6)
     .setTitle(fr ? "Bêta Best 8 · comment les points fonctionnent" : "Best 8 beta · how points work")
     .setDescription(fr ? "Phase de test avant la première saison officielle prévue le 4 novembre. L’ancienne bêta est archivée; les points de participation acquis sont conservés. Deux scores distincts : cote par personnage et participation par compte."
@@ -54,6 +58,12 @@ function bestEightGuide(rules: unknown, fr: boolean): EmbedBuilder {
       { name: fr ? "Chronométrage · limites de cette bêta" : "Timing · beta limitations", value: fr
         ? "Premier combat observé → boss final détecté. Voyage avant combat exclu; raccourcis de trash permis. Le départ manuel n’est pas distingué de façon fiable dans les données actuelles. Aucun contrôle universel de tous les boss : ce classement mesure ce parcours détecté, pas un full clear certifié. Cibles provisoires figées pour cette phase; les 11 parcours candidats restent à vérifier en jeu. Hors critères : non classé, raison affichée, 0 cote."
         : "First observed combat → detected final boss. Travel before combat excluded; trash skips allowed. Current data cannot reliably distinguish manual starts. No universal all-boss checklist: this ranks the detected route, not a certified full clear. Provisional targets are frozen for this phase; all 11 candidate routes still need in-game acceptance. Failed criteria: unranked with a reason and 0 rating." },
-      { name: fr ? "Parcours candidats · cibles provisoires" : "Candidate routes · provisional targets", value: catalog.map(d => `${d.name}: ${d.targetSec! / 60} min`).join("\n") }
+      { name: fr ? "Cote niveau 30 · cibles de guilde provisoires" : "Level-30 rating · provisional guild targets", value: catalog.map(d => `${d.name}: ${d.targetSec! / 60} min`).join("\n") },
+      ...(leveling.length ? [{ name: fr ? "Progression · participation seulement" : "Leveling · participation only", value: leveling.map(d => d.name).join("\n") + (fr
+        ? "\nCes donjons sont bien présents dans WoW Forever. Ils sont hors de la sélection Best 8 niveau 30, mais restent admissibles à la participation selon les règles ci-dessus."
+        : "\nThese dungeons are present in WoW Forever. They are outside the level-30 Best 8 selection, but remain eligible for participation under the rules above.") }] : []),
+      { name: fr ? "Bêta ≠ catalogue de lancement" : "Beta selection ≠ launch catalog", value: fr
+        ? "Cette liste décrit notre phase de test, pas tous les donjons du lancement. Les cibles sont des estimations de guilde, jamais des chronos officiels. L’accès bêta à Razorfen Downs (25+) et Uldaman (30+) ne fixe pas leurs niveaux au lancement. Les boss finaux et la classification des ailes restent à valider en jeu. Les règles de novembre seront définies séparément."
+        : "This list describes our test phase, not every launch dungeon. Targets are guild estimates, never official timers. Beta access to Razorfen Downs (25+) and Uldaman (30+) does not establish their launch levels. Final-boss detection and wing classification still need in-game validation. November rules will be defined separately." }
     );
 }

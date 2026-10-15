@@ -209,3 +209,16 @@ export function computeRunPoints(input: {
   }
   return awards;
 }
+
+// Frozen participation policy for model 4; mutable guild bonuses cannot change it.
+export function computeWeeklyVarietyPoints(input: Parameters<typeof computeRunPoints>[0]): PointAward[] {
+  return input.players.flatMap(player => {
+    if (player.earlierThisWeek >= 2) return [];
+    const share = player.earlierThisWeek === 0 ? 1 : 0.5;
+    const awards: PointAward[] = [{ memberId: player.memberId, character: player.character, rule: "completion",
+      amount: 50 * share, reason: player.participationMode === "helper" ? "Helper — dungeon completion" : "Dungeon completion" }];
+    if (player.participationMode === "full" && player.earlierThisWeek === 0) awards.push({
+      memberId: player.memberId, character: player.character, rule: "weeklyVariety", amount: 25, reason: "First eligible completion of this route this week" });
+    return awards;
+  });
+}

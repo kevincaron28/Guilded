@@ -4,6 +4,7 @@ import { startSeason, invalidateRun } from "../src/services/dungeon-admin.js";
 import { dungeonRating, hasDungeonRating, DUNGEON_RATING_RULES } from "../src/services/dungeon-rating.js";
 import { importDungeonRuns } from "../src/services/dungeon-import.js";
 import { records } from "../src/services/dungeon-stats.js";
+import { bestEightBetaRules } from "../src/services/dungeon-beta-preset.js";
 
 export async function verifyDungeonRatingPostgres(db: PrismaClient, guildId: string, memberId: string) {
   const season = await db.dungeonSeason.findFirstOrThrow({ where: { guildId, status: "ACTIVE" } });
@@ -92,6 +93,31 @@ export async function verifyDungeonRatingPostgres(db: PrismaClient, guildId: str
   await db.$transaction(tx => importDungeonRuns(tx, guildId, [fairInput("fair-library", "Arcanist Doan", 4000)],
     characters, "release-test", null, new Date((fairStart + 6000) * 1000)));
   assert.equal(await db.dungeonPointTransaction.count({ where: { seasonId: fair.id } }), before, "repeat upload is idempotent");
+
+  const originalLedger = await db.dungeonPointTransaction.findMany({ where: { guildId }, orderBy: { id: "asc" } });
+  const bestEight = (await startSeason(db, guildId, "Best eight verification", fair.id, undefined, bestEightBetaRules())).season;
+  assert.deepEqual(await db.dungeonPointTransaction.findMany({ where: { guildId }, orderBy: { id: "asc" } }), originalLedger,
+    "rotating the beta must not rewrite earned transactions");
+  const bestStart = Math.ceil(bestEight.startsAt.getTime() / 1000) + 1;
+  const catalog = bestEightBetaRules().catalog;
+  await db.$transaction(async tx => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${guildId}, 0))`;
+    await importDungeonRuns(tx, guildId, catalog.map((d, i) => input(`best8-${i}`, d.instanceId, 0, {
+      difficultyId: 0, startedAt: bestStart + i * 4000, endedAt: bestStart + i * 4000 + d.targetSec,
+      players: [{ character: "RatingMain", realm: "ReleaseTest", inGuild: true, presentSec: d.targetSec, level: 30, minLevel: 30 }],
+      encounters: [{ id: i + 1, success: true, name: d.dungeonKey === "189:graveyard" ? "Bloodmage Thalnos"
+        : d.dungeonKey === "189:library" ? "Arcanist Doan" : "Boss", startedAt: bestStart + i * 4000 + 1, at: bestStart + i * 4000 + 31 }]
+    })), characters, "release-test", null, new Date((bestStart + 50000) * 1000));
+  }, { timeout: 30000 });
+  const eightRows = await dungeonRating(db, guildId, bestEight);
+  assert.equal(eightRows[0]?.points, 1600);
+  assert.equal(eightRows[0]?.details?.length, 11);
+  assert.equal(eightRows[0]?.details?.filter(d => d.counted).length, 8);
+  await startSeason(db, guildId, "After best eight verification", bestEight.id);
+  const eightArchive = await db.dungeonSeason.findUniqueOrThrow({ where: { id: bestEight.id } });
+  assert.deepEqual(await dungeonRating(db, guildId, eightArchive), eightRows);
+  await invalidateRun(db, guildId, "best8-0", "archive must remain frozen", "release-test");
+  assert.deepEqual(await dungeonRating(db, guildId, eightArchive), eightRows);
 }
 
 export async function verifyDungeonRatingRestored(db: PrismaClient) {
@@ -102,4 +128,9 @@ export async function verifyDungeonRatingRestored(db: PrismaClient) {
   const speed = await db.dungeonSeason.findFirstOrThrow({ where: { name: "Speed rating verification" } });
   assert.equal((await dungeonRating(db, speed.guildId, speed, 36))[0]?.details?.[0]?.targetSec, 1200);
   assert.equal((await dungeonRating(db, speed.guildId, speed))[0]?.points, 235);
+  const eight = await db.dungeonSeason.findFirstOrThrow({ where: { name: "Best eight verification" } });
+  const restored = await dungeonRating(db, eight.guildId, eight);
+  assert.equal(restored[0]?.points, 1600);
+  assert.equal(restored[0]?.details?.length, 11);
+  assert.equal(restored[0]?.details?.filter(d => d.counted).length, 8);
 }

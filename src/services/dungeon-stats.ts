@@ -65,7 +65,7 @@ const recordSelect = {
 
 async function recordBands(database: Db, guildId: string): Promise<Record<string, LevelBand>> {
   const season = await activeSeasonOrNull(database, guildId);
-  if (hasDungeonRating(season?.ratingRules) && (season!.ratingRules as { version: number }).version === 3) {
+  if (hasDungeonRating(season?.ratingRules) && (season!.ratingRules as { version: number }).version >= 3) {
     return (season!.ratingRules as unknown as { levelBands: Record<string, LevelBand> }).levelBands;
   }
   const settings = await database.guildSettings.findUnique({ where: { guildId } });

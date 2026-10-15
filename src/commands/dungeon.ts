@@ -99,7 +99,8 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
   const subcommand = interaction.options.getSubcommand();
   if (subcommand === "rules") {
     const settings = await prisma.guildSettings.findUnique({ where: { guildId: context.guildId }, select: { dungeonConfig: true } });
-    await interaction.reply({ embeds: [dungeonScoringGuide(dungeonConfig(settings?.dungeonConfig), lang)], ephemeral: true });
+    const season = await prisma.dungeonSeason.findFirst({ where: { guildId: context.guildId, status: "ACTIVE" }, orderBy: { startsAt: "desc" } });
+    await interaction.reply({ embeds: [dungeonScoringGuide(dungeonConfig(settings?.dungeonConfig), lang, season?.ratingRules)], ephemeral: true });
     return;
   }
   if (subcommand === "archive" || subcommand === "hall-of-fame") {

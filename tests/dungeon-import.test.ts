@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { importDungeonRuns } from "../src/services/dungeon-import.js";
 import * as ratingService from "../src/services/dungeon-rating.js";
+import { bestEightBetaRules } from "../src/services/dungeon-beta-preset.js";
 
 // In-memory stand-in for the few Prisma queries importDungeonRuns makes.
 interface StoredPlayer { character: string; memberId: string | null; deaths: number | null }
@@ -71,6 +72,34 @@ const total = (points: { memberId: string; amount: number }[], memberId: string)
   points.filter((row) => row.memberId === memberId).reduce((sum, row) => sum + row.amount, 0);
 
 describe("importDungeonRuns", () => {
+  it("uses v4 frozen leveling participation, keeps weekly repeats across beta phases, and excludes manual runs", async () => {
+    const spy = vi.spyOn(ratingService, "dungeonRating").mockResolvedValue([]);
+    try {
+      const { tx, points, runs } = fakeTx({ id: "best8", startsAt: new Date(0), ratingRules: bestEightBetaRules() });
+      const first = await importDungeonRuns(tx, "g1", [run("v4-first", { difficultyId: 0 })], characters, "officer", null, now);
+      expect(first.results[0]?.playerDetails?.[0]).toMatchObject({ points: 75, participationMode: "full", unrankedReason: "Level range not configured" });
+      Object.assign(runs[0]!, { seasonId: "archived-beta" });
+      const again = start + 3600;
+      await importDungeonRuns(tx, "g1", [run("v4-second", { difficultyId: 0, startedAt: again, endedAt: again + 1500 })], characters, "officer", null, now);
+      expect(total(points, "m-kev")).toBe(100);
+      const third = again + 3600;
+      const manual = await importDungeonRuns(tx, "g1", [run("v4-manual", { completedBy: "manual", startedAt: third, endedAt: third + 1500 })], characters, "officer", null, now);
+      expect(manual.results[0]?.points).toBe(0);
+      await importDungeonRuns(tx, "g1", [run("v4-third", { difficultyId: 0, startedAt: third + 3600, endedAt: third + 5100 })], characters, "officer", null, now);
+      expect(total(points, "m-kev")).toBe(100);
+      expect(points.every(p => ["rule:completion", "rule:weeklyVariety"].includes(p.source))).toBe(true);
+    } finally { spy.mockRestore(); }
+  });
+  it("counts later uploads in the weekly v4 budget without rewriting already earned points", async () => {
+    const spy = vi.spyOn(ratingService, "dungeonRating").mockResolvedValue([]);
+    try {
+      const { tx, points } = fakeTx({ id: "best8", startsAt: new Date(0), ratingRules: bestEightBetaRules() });
+      for (const offset of [7200, 3600, 0]) await importDungeonRuns(tx, "g1", [run(`delayed-${offset}`, {
+        difficultyId: 0, startedAt: start + offset, endedAt: start + offset + 1500
+      })], characters, "officer", null, now);
+      expect(total(points, "m-kev")).toBe(100);
+    } finally { spy.mockRestore(); }
+  });
   it("awards an account once when two of its alts participate, independent of roster order", async () => {
     const alts = [{ name: "Kev", realm: "Forever", memberId: "m-kev" }, { name: "Alt", realm: "Forever", memberId: "m-kev" }];
     const players = [run("alts").players[0]!, { ...run("alts").players[0]!, character: "Alt", presentSec: 1000 }];

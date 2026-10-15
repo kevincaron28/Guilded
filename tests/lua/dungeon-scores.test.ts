@@ -23,6 +23,19 @@ function setup() {
 }
 
 describe("guild-only dungeon scores", () => {
+  it("validates model 4 totals from only the best eight routes while retaining coverage", () => {
+    const s = setup();
+    s.run(`PAYLOAD="S;beta;4;1600;1;1"
+      for i=1,9 do
+        PAYLOAD=PAYLOAD.."\\nC;"..i..";Dungeon;1800;"..i..";30;30"
+        PAYLOAD=PAYLOAD.."\\nR;"..i..";Dungeon;200;0;1800;1800;ref;;"..i
+      end
+      PARSED=NS.seasonDetails.parse(PAYLOAD)`);
+    expect(s.run("return #PARSED.profile.details")).toBe("9");
+    expect(s.run("return tostring(PARSED.profile.details[9].counted)")).toBe("false");
+    expect(s.run('return tostring(NS.seasonDetails.parse(string.gsub(PAYLOAD,"1600","1800",1)) == nil)')).toBe("true");
+    expect(s.run("return PARSED.profile.points")).toBe("1600");
+  });
   it("shows only this character's recent runs without deleting another character's history", () => {
     const s = setup();
     s.run(`DB.dungeon={runs={a={name="Old",endedAt=10,players={Tester={}}},

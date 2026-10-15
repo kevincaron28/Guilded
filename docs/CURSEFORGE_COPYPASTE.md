@@ -148,7 +148,7 @@ Free for noncommercial use under the **PolyForm Noncommercial 1.0.0** license. N
 
 ## Optional support
 
-The addon and approved hosted pilot are free. Voluntary support helps with hosting, maintenance and future capacity. It never buys approval, priority or extra permissions. The official payment link is not available yet; [Support Guilded](https://guilded-wow.kcaron.workers.dev/docs/SUPPORT_GUILDED/) will carry it when ready. No payment is required to request access.
+The addon and approved hosted pilot are free. Optional tips help fund bot hosting, the PostgreSQL database, backups and ongoing maintenance. [Support Guilded by KCaron on Ko-fi](https://ko-fi.com/wowguilded) in Canadian dollars (CAD), with one-time tips from C$5 and optional monthly support. Tips never buy approval, priority or extra permissions. No payment is required to download Guilded, request bot access or ask for help. [How your support helps](https://guilded-wow.kcaron.workers.dev/docs/SUPPORT_GUILDED/).
 
 **Français :** ajoutez Guilded pour demander l’accès au pilote gratuit. **KCaron doit approuver votre serveur Discord avant son activation.** Après son accord, lancez `/setup start`. Le soutien financier est facultatif et ne donne aucune priorité.
 

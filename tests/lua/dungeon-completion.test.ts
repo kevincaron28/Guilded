@@ -36,6 +36,27 @@ function activeRun() {
 }
 
 describe("dungeon final-boss completion without the Encounter Journal", () => {
+  it.each(["ENCOUNTER_END", "BOSS_KILL"])("finishes Deadmines on %s before the group disbands", (event) => {
+    const s = activeRun();
+    s.run(`INSTANCE.id=36; GuildedDB.dungeon.current.instanceId=36
+      fire_event("ENCOUNTER_END", 2747, "Edwin VanCleef", 1, 5, 0)
+      fire_event("BOSS_KILL", 2746, "Cookie")`);
+    expect(s.run("return GuildedDB.dungeon.current.state")).toBe("ACTIVE");
+    // The owner observed encounter 2747 in map 36. Completion must also work
+    // with a localized name, duplicate kill events, and the subsequent disband.
+    s.run(`fire_event("${event}", 2747, "Localized final boss", 1, 5, 1)
+      fire_event("BOSS_KILL", 2747, "Localized final boss")
+      INSTANCE = nil
+      fire_event("ZONE_CHANGED_NEW_AREA")
+      NS.compat.inGroup = function() return false end
+      fire_event("GROUP_ROSTER_UPDATE")`);
+    expect(s.run("return GuildedDB.dungeon.runs[RUN_ID].state")).toBe("COMPLETED");
+    expect(s.run("return GuildedDB.dungeon.runs[RUN_ID].completedBy")).toBe("final boss");
+    expect(s.run("return GuildedDB.dungeon.runs[RUN_ID].durationSec")).toBe("600");
+    expect(s.run("return #GuildedDB.dungeon.runs[RUN_ID].encounters")).toBe("3");
+    expect(s.run("return tostring(GuildedDB.dungeon.current)")).toBe("nil");
+  });
+
   it.each(["Bloodmage Thalnos", "Arcanist Doan", "Mage de sang Thalnos", "Arcaniste Doan"])("completes the Scarlet wing on %s without guessing encounter IDs", (boss) => {
     const s = activeRun();
     s.run(`INSTANCE.id=189; GuildedDB.dungeon.current.instanceId=189

@@ -147,10 +147,12 @@ end
 
 local bossCache = {}
 
--- Forever's new dungeon may not be exposed through the Encounter Journal.
--- Instance/encounter IDs confirmed in the owner's 13 Oct 2026 saved run.
+-- Forever dungeons may not be exposed through the Encounter Journal.
+-- IDs confirmed in the owner's saved runs: Hall of Thanes (13 Oct 2026)
+-- and Deadmines / Edwin VanCleef (14 Oct 2026).
 -- Numeric identities work independently of the client's locale.
 local finalBossFallbacks = {
+  [36] = 2747,
   [3065] = 3496
 }
 

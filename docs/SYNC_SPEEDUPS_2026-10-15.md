@@ -80,9 +80,9 @@ members, and backup-based handover still works.
 - **No per-section manifest for in-game sharing.** With the shared stamp, identical data is no
   longer rebroadcast, which was most of the waste. Separate stamps per section would mean a
   new message format for little gain.
-- **`SeasonSync.lua` (dungeon board relay) is unchanged** while the dungeon work is in
-  progress elsewhere. It already ignores data that is not newer, and it benefits from the
-  shared stamp.
+- **Dungeon-board reply coordination is now included** from Claude's follow-up
+  `a573152`. Requests wait 1–5 seconds; another officer's equal/newer BOARD heard
+  within 60 seconds suppresses a duplicate share. The wire format is unchanged.
 - **Shared stamps live in the bot's memory.** After a bot restart, the first answer gets a new
   stamp, so in-game clients rebroadcast once.
 

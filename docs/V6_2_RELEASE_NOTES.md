@@ -31,6 +31,8 @@ This release introduces no database migration.
 - Officer snapshots use a smaller wire format when peers support it. Standalone
   officers may opt into `/guilded ledgersync on`; entry IDs deduplicate exchanges
   and voids propagate. This remains off by default and needs two-client acceptance.
+- Dungeon-board requests also coordinate officer replies to reduce duplicate
+  broadcasts, retaining the existing board format and one-minute cooldown.
 - No beta scores, season rules or archived standings are rewritten by this update.
 
 ## Dungeon recording and season views

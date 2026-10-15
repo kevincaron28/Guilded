@@ -1,5 +1,11 @@
 # Guilded 6.2.0 release candidate handoff
 
+Claude's completed dungeon-board reply coordination (`a573152`) is now included.
+Officers delay request replies by 1–5 seconds and suppress duplicate replies when
+another officer is already sharing an equal/newer board. Wire format and the
+60-second cooldown are unchanged. Test simultaneous member requests with two
+officers during G12; rebuild before installing this follow-up.
+
 Companion integration follow-up: Claude's uncommitted sync work was preserved as
 `c405607`, then integrated with the November candidate and current main in the
 managed `finish-companion-sync` checkout. See

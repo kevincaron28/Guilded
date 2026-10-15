@@ -24,7 +24,7 @@ points and rosters and does not stop an already-running companion.
 KCaron is accepting a small number of guilds into the free hosted pilot.
 **Your Discord server needs KCaron's approval first.** Inviting the bot sends
 a request; it does not activate access. After approval, run `/setup start`, then
-open the [online companion](https://guilded-wow.kcaron.workers.dev/companion/)
+open the [online companion](https://guilded.kcaron.top/companion/)
 with your own Discord server ID and personal `/character pair` code.
 You do not need to host a bot or database for this path.
 See the [hosted pilot guide](HOSTED_PILOT.md). Independent hosting is also available.

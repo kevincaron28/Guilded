@@ -25,7 +25,7 @@ The hosted pilot is free. Optional support never buys approval or priority.
 4. Members can use community activities and polls immediately; they do not need
    linked WoW characters for those features.
 5. For WoW features, install the addon. The owner provides the shared browser
-   [online companion](https://guilded-wow.kcaron.workers.dev/companion/). Enter **your own Discord server ID**, then use your personal
+   [online companion](https://guilded.kcaron.top/companion/). Enter **your own Discord server ID**, then use your personal
    `/character pair` code. Every member pairs separately. The desktop companion is
    optional; see the [member guide](MEMBER_INSTALL.md).
 

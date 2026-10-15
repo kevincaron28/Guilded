@@ -28,6 +28,18 @@ describe("unified website and companion", () => {
     }
   });
 
+  it("keeps each site's robots and sitemap on the matching hostname", async () => {
+    const creatorAsset = vi.fn<(request: Request) => Promise<Response>>(async () => new Response("creator index"));
+    for (const path of ["/robots.txt", "/sitemap.xml"]) {
+      await worker.fetch(new Request(`https://kcaron.top${path}`), { ASSETS: { fetch: creatorAsset } });
+      expect(creatorAsset.mock.calls.at(-1)![0].url).toBe(`https://kcaron.top/creator${path}`);
+      const guildAsset = vi.fn<(request: Request) => Promise<Response>>(async () => new Response("guilded index"));
+      const request = new Request(`https://guilded.kcaron.top${path}`);
+      await worker.fetch(request, { ASSETS: { fetch: guildAsset } });
+      expect(guildAsset).toHaveBeenCalledWith(request);
+    }
+  });
+
   it("keeps creator HEAD requests bodyless and rejects writes before serving assets", async () => {
     const asset = vi.fn<(request: Request) => Promise<Response>>(async () => new Response(null));
     await worker.fetch(new Request("https://kcaron.top/", { method: "HEAD" }), { ASSETS: { fetch: asset } });

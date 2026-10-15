@@ -41,9 +41,10 @@ export default {
       if (!["GET", "HEAD"].includes(request.method)) return failure(405, "Method not allowed");
       return Response.redirect("https://ko-fi.com/wowguilded", 302);
     }
-    if (creator && url.pathname === "/") {
+    const creatorAssets = { "/": "/creator/", "/robots.txt": "/creator/robots.txt", "/sitemap.xml": "/creator/sitemap.xml" };
+    if (creator && Object.hasOwn(creatorAssets, url.pathname)) {
       if (!["GET", "HEAD"].includes(request.method)) return failure(405, "Method not allowed");
-      return env.ASSETS.fetch(new Request(new URL("/creator/", url), { method: request.method }));
+      return env.ASSETS.fetch(new Request(new URL(creatorAssets[url.pathname], url), { method: request.method }));
     }
     const companion = url.pathname === "/companion" || url.pathname.startsWith("/companion/");
     const api = apiMethods.has(url.pathname);

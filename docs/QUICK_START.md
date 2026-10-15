@@ -33,7 +33,7 @@ For a private test, use the matching files supplied by the maintainer.
 3. For WoW sync, follow the member steps below with one player first. Confirm
    that their character and standings match in Discord and in game, then share
    [the member guide](MEMBER_INSTALL.md) with your guild. Use the
-   [hosted companion](https://guilded-wow.kcaron.workers.dev/companion/) and your
+   [hosted companion](https://guilded.kcaron.top/companion/) and your
    own Discord server ID.
 
 Community activities and polls need no WoW addon or character pairing. Hosted

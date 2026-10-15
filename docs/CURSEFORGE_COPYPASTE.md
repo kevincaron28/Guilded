@@ -53,7 +53,7 @@ Guilded brings raid tracking, EPGP, four loot systems, readiness checks, and eve
 
 A small number of guilds can join the free hosted pilot. **KCaron must approve your Discord server before the bot works there.** Adding Guilded sends a request; it does not guarantee a place or immediate access. After approval, run **`/setup start`** in your server. You do not need your own hosting or database.
 
-[Hosted pilot guide](https://guilded-wow.kcaron.workers.dev/docs/HOSTED_PILOT/) · [Online companion](https://guilded-wow.kcaron.workers.dev/companion/) · [Member installation](https://guilded-wow.kcaron.workers.dev/docs/MEMBER_INSTALL/)
+[Hosted pilot guide](https://guilded.kcaron.top/docs/HOSTED_PILOT/) · [Online companion](https://guilded.kcaron.top/companion/) · [Member installation](https://guilded.kcaron.top/docs/MEMBER_INSTALL/)
 
 Use your own Discord server ID and personal `/character pair` code. Independent hosting remains available.
 
@@ -134,7 +134,7 @@ Use the **Windows companion** to upload saved data after a reload or logout, or 
 1.  Extract the **Guilded** folder into your WoW client’s `Interface/AddOns` folder.
 2.  Log in and click the **gold minimap coin**. Type `/guilded` or `/gd` for commands.
 3.  Officers can open the **Raid** page to begin tracking a raid.
-4.  For Discord integration, use the hosted invitation above, wait for KCaron’s approval, then run `/setup start`. See the [hosted pilot guide](https://guilded-wow.kcaron.workers.dev/docs/HOSTED_PILOT/).
+4.  For Discord integration, use the hosted invitation above, wait for KCaron’s approval, then run `/setup start`. See the [hosted pilot guide](https://guilded.kcaron.top/docs/HOSTED_PILOT/).
 
 ## Compatibility & Release Status
 
@@ -148,7 +148,7 @@ Free for noncommercial use under the **PolyForm Noncommercial 1.0.0** license. N
 
 ## Optional support
 
-The addon and approved hosted pilot are free. Optional tips help fund bot hosting, the PostgreSQL database, backups and ongoing maintenance. [Support Guilded by KCaron on Ko-fi](https://ko-fi.com/wowguilded) in Canadian dollars (CAD), with one-time tips from C$5 and optional monthly support. Tips never buy approval, priority or extra permissions. No payment is required to download Guilded, request bot access or ask for help. [How your support helps](https://guilded-wow.kcaron.workers.dev/docs/SUPPORT_GUILDED/).
+The addon and approved hosted pilot are free. Optional tips help fund bot hosting, the PostgreSQL database, backups and ongoing maintenance. [Support Guilded by KCaron on Ko-fi](https://ko-fi.com/wowguilded) in Canadian dollars (CAD), with one-time tips from C$5 and optional monthly support. Tips never buy approval, priority or extra permissions. No payment is required to download Guilded, request bot access or ask for help. [How your support helps](https://guilded.kcaron.top/docs/SUPPORT_GUILDED/).
 
 **Français :** ajoutez Guilded pour demander l’accès au pilote gratuit. **KCaron doit approuver votre serveur Discord avant son activation.** Après son accord, lancez `/setup start`. Le soutien financier est facultatif et ne donne aucune priorité.
 

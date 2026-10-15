@@ -10,7 +10,8 @@ import { dungeonSignupGuideText, DUNGEON_GUIDE_CREATE_ID } from "../src/services
 const marker = "Guilded · dungeon-scoring-rules-v1";
 try {
   const rest = new REST({ version: "10", timeout: 15000, retries: 1 }).setToken(config.DISCORD_TOKEN);
-  const settings = await prisma.guildSettings.findUniqueOrThrow({ where: { guildId: config.DISCORD_GUILD_ID } });
+  const guild = await prisma.guild.findUniqueOrThrow({ where: { discordId: config.DISCORD_GUILD_ID } });
+  const settings = await prisma.guildSettings.findUniqueOrThrow({ where: { guildId: guild.id } });
   const lang = asLang(settings.language);
   const channelId = settings.dungeonLeaderboardChannelId ?? settings.dungeonChannelId;
   if (!channelId) throw new Error("No configured dungeon results channel");
@@ -18,18 +19,18 @@ try {
   const dungeon = commands.find(command => command.name === "dungeon");
   if (!dungeon?.options?.some(option => option.name === "rules")) throw new Error("Deploy and register /dungeon rules first");
   const embed = dungeonScoringGuide(dungeonConfig(settings.dungeonConfig), lang).setFooter({ text: marker }).toJSON();
-  const pins = await rest.get(Routes.channelPins(channelId)) as APIMessage[];
+  const pins = await rest.get(Routes.channelMessagesPins(channelId)) as { items: { message: APIMessage }[] };
   const recent = await rest.get(Routes.channelMessages(channelId), { query: new URLSearchParams({ limit: "100" }) }) as APIMessage[];
-  const existing = [...pins, ...recent].find(message => message.author.id === config.DISCORD_CLIENT_ID
+  const existing = [...pins.items.map(item => item.message), ...recent].find(message => message.author.id === config.DISCORD_CLIENT_ID
     && message.embeds.some(value => value.footer?.text === marker));
   const body = { embeds: [embed], allowed_mentions: { parse: [] } };
   const message = existing
     ? await rest.patch(Routes.channelMessage(channelId, existing.id), { body }) as APIMessage
     : await rest.post(Routes.channelMessages(channelId), { body }) as APIMessage;
-  if (!message.pinned) await rest.put(Routes.channelPin(channelId, message.id));
+  if (!message.pinned) await rest.put(Routes.channelMessagePin(channelId, message.id));
   if (settings.dungeonSignupChannelId) {
-    const guides = await rest.get(Routes.channelPins(settings.dungeonSignupChannelId)) as APIMessage[];
-    const guide = guides.find(value => value.author.id === config.DISCORD_CLIENT_ID
+    const guides = await rest.get(Routes.channelMessagesPins(settings.dungeonSignupChannelId)) as { items: { message: APIMessage }[] };
+    const guide = guides.items.map(item => item.message).find(value => value.author.id === config.DISCORD_CLIENT_ID
       && JSON.stringify(value.components).includes(DUNGEON_GUIDE_CREATE_ID));
     if (guide) await rest.patch(Routes.channelMessage(settings.dungeonSignupChannelId, guide.id), {
       body: { content: dungeonSignupGuideText(lang), allowed_mentions: { parse: [] } }

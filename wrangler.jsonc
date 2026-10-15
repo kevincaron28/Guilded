@@ -4,10 +4,15 @@
   "main": "worker/index.mjs",
   "compatibility_date": "2026-10-05",
   "workers_dev": true,
+  "routes": [
+    { "pattern": "kcaron.top", "custom_domain": true },
+    { "pattern": "www.kcaron.top", "custom_domain": true },
+    { "pattern": "guilded.kcaron.top", "custom_domain": true }
+  ],
   "assets": {
     "directory": "./dist/site",
     "binding": "ASSETS",
-    "run_worker_first": ["/companion", "/companion/*", "/api/*", "/health"],
+    "run_worker_first": ["/", "/robots.txt", "/sitemap.xml", "/support", "/support/", "/companion", "/companion/*", "/api/*", "/health"],
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "none"
   }

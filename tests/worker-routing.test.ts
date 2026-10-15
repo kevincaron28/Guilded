@@ -6,6 +6,59 @@ const base = "https://guilded-wow.kcaron.workers.dev";
 const env = { ASSETS: { fetch: vi.fn(async () => new Response("website")) } };
 
 describe("unified website and companion", () => {
+  it("serves the creator page only at the selected creator domain root", async () => {
+    const upstream = vi.fn(); vi.stubGlobal("fetch", upstream);
+    for (const hostname of ["kcaron.top", "www.kcaron.top"]) {
+      const asset = vi.fn<(request: Request) => Promise<Response>>(async () => new Response("creator"));
+      const response = await worker.fetch(new Request(`https://${hostname}/`, { headers: { authorization: "Bearer private" } }), { ASSETS: { fetch: asset } });
+      expect(await response.text()).toBe("creator");
+      const request = asset.mock.calls[0]![0] as Request;
+      expect(request.url).toBe(`https://${hostname}/creator/`);
+      expect(request.headers.get("authorization")).toBeNull();
+    }
+    expect(upstream).not.toHaveBeenCalled();
+  });
+
+  it("keeps the Guilded homepage on the existing address and Guilded subdomain", async () => {
+    for (const hostname of ["guilded-wow.kcaron.workers.dev", "guilded.kcaron.top"]) {
+      const asset = vi.fn<(request: Request) => Promise<Response>>(async () => new Response("guilded"));
+      const request = new Request(`https://${hostname}/`);
+      expect(await (await worker.fetch(request, { ASSETS: { fetch: asset } })).text()).toBe("guilded");
+      expect(asset).toHaveBeenCalledWith(request);
+    }
+  });
+
+  it("keeps each site's robots and sitemap on the matching hostname", async () => {
+    const creatorAsset = vi.fn<(request: Request) => Promise<Response>>(async () => new Response("creator index"));
+    for (const path of ["/robots.txt", "/sitemap.xml"]) {
+      await worker.fetch(new Request(`https://kcaron.top${path}`), { ASSETS: { fetch: creatorAsset } });
+      expect(creatorAsset.mock.calls.at(-1)![0].url).toBe(`https://kcaron.top/creator${path}`);
+      const guildAsset = vi.fn<(request: Request) => Promise<Response>>(async () => new Response("guilded index"));
+      const request = new Request(`https://guilded.kcaron.top${path}`);
+      await worker.fetch(request, { ASSETS: { fetch: guildAsset } });
+      expect(guildAsset).toHaveBeenCalledWith(request);
+    }
+  });
+
+  it("keeps creator HEAD requests bodyless and rejects writes before serving assets", async () => {
+    const asset = vi.fn<(request: Request) => Promise<Response>>(async () => new Response(null));
+    await worker.fetch(new Request("https://kcaron.top/", { method: "HEAD" }), { ASSETS: { fetch: asset } });
+    expect((asset.mock.calls[0]![0] as Request).method).toBe("HEAD");
+    asset.mockClear();
+    expect((await worker.fetch(new Request("https://kcaron.top/", { method: "POST" }), { ASSETS: { fetch: asset } })).status).toBe(405);
+    expect(asset).not.toHaveBeenCalled();
+  });
+
+  it("redirects the creator support address to the verified Ko-fi page without query data", async () => {
+    const upstream = vi.fn(); vi.stubGlobal("fetch", upstream);
+    const asset = vi.fn();
+    const response = await worker.fetch(new Request("https://kcaron.top/support?private=example", { headers: { authorization: "Bearer private" } }), { ASSETS: { fetch: asset } });
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe("https://ko-fi.com/wowguilded");
+    expect(upstream).not.toHaveBeenCalled();
+    expect(asset).not.toHaveBeenCalled();
+  });
+
   it("serves the website locally without forwarding credentials", async () => {
     const upstream = vi.fn(); vi.stubGlobal("fetch", upstream);
     const response = await worker.fetch(new Request(base + "/docs/QUICK_START", { headers: { authorization: "Bearer private" } }), env);

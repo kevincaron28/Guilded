@@ -8,6 +8,7 @@ const sources = new Set(guides.map(name => `docs/${name}.md`));
 const out = "dist/site";
 mkdirSync(`${out}/docs`, { recursive: true });
 for (const name of ["index.html", "style.css", "site.js"]) copyFileSync(`site/${name}`, `${out}/${name}`);
+cpSync("site/creator", `${out}/creator`, { recursive: true });
 copyFileSync("docs/branding/guilded-logo-400.png", `${out}/logo.png`);
 cpSync("docs/images/owner-setup", `${out}/docs/images/owner-setup`, { recursive: true });
 const escape = text => text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");
@@ -28,7 +29,7 @@ for (const source of sources) {
   writeFileSync(`${out}/${source.replace(/\.md$/, ".html")}`, `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escape(title)} · Guilded</title><link rel="stylesheet" href="../style.css"><script src="../site.js" defer></script></head><body><a class="skip" href="#main">Skip to content</a><header><a class="brand" href="../index.html"><img src="../logo.png" alt="" width="44" height="44">GUILDED</a><nav aria-label="Main"><a href="../index.html#downloads">Downloads</a><a href="HOSTED_PILOT.html">Add the bot</a><a href="SUPPORT_GUILDED.html">Support</a><a href="../index.html#online">Online companion</a></nav></header><main class="guide" id="main">${body}</main><footer><a href="../index.html">← Back to Guilded</a><span>Guides updated 14 October 2026 · Guilded 6.1.2 Release</span></footer></body></html>`);
 }
 // Public content is explicitly curated; never import guild/database data here.
-const origin = "https://guilded-wow.kcaron.workers.dev";
+const origin = "https://guilded.kcaron.top";
 const pages = JSON.parse(readFileSync("site/pages.json", "utf8"));
 const publicUrls = ["/", ...guides.map(name => `/docs/${name}.html`)];
 for (const page of pages) {

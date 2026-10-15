@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://kcaron.top/sitemap.xml

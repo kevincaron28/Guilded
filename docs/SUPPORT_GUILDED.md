@@ -2,7 +2,7 @@
 
 ## Help keep Guilded free
 
-Guilded is an independent project by **KCaron**: a WoW addon, a Discord bot and a
+Guilded is an independent project by [**KCaron**](https://kcaron.top/): a WoW addon, a Discord bot and a
 companion that help guilds stay connected. The addon is free for noncommercial
 use, and approved guilds can use the small hosted bot pilot for free.
 
@@ -43,7 +43,7 @@ helping keep Guilded available to the community.
 
 ### Aidez-nous à garder Guilded gratuit
 
-Guilded est un projet indépendant de **KCaron** : un addon WoW, un bot Discord et
+Guilded est un projet indépendant de [**KCaron**](https://kcaron.top/) : un addon WoW, un bot Discord et
 un compagnon pour les guildes. Vos pourboires facultatifs aident à financer
 **l'hébergement du bot, la base de données PostgreSQL, les sauvegardes et la
 maintenance** afin de garder le projet gratuit et d'accueillir d'autres guildes

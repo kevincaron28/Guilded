@@ -34,6 +34,18 @@ async function limitedBody(request) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    // The selected creator domain shares this Worker with the existing Guilded
+    // website. DNS/custom-domain activation is a separate owner setup step.
+    const creator = ["kcaron.top", "www.kcaron.top"].includes(url.hostname);
+    if (creator && ["/support", "/support/"].includes(url.pathname)) {
+      if (!["GET", "HEAD"].includes(request.method)) return failure(405, "Method not allowed");
+      return Response.redirect("https://ko-fi.com/wowguilded", 302);
+    }
+    const creatorAssets = { "/": "/creator/", "/robots.txt": "/creator/robots.txt", "/sitemap.xml": "/creator/sitemap.xml" };
+    if (creator && Object.hasOwn(creatorAssets, url.pathname)) {
+      if (!["GET", "HEAD"].includes(request.method)) return failure(405, "Method not allowed");
+      return env.ASSETS.fetch(new Request(new URL(creatorAssets[url.pathname], url), { method: request.method }));
+    }
     const companion = url.pathname === "/companion" || url.pathname.startsWith("/companion/");
     const api = apiMethods.has(url.pathname);
     const health = url.pathname === "/health";

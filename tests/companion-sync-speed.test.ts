@@ -48,6 +48,15 @@ describe("companion delta uploads", () => {
     expect(pruneAcknowledged(exported, null).exported).toBe(exported);
     expect(pruneAcknowledged(exported, acknowledgements({})).exported.epgpTransactions).toHaveLength(4);
   });
+
+  it("negotiates ledger and loot deltas independently", () => {
+    const ack = acknowledgements({ acceptedLedgerRefs: ["addon:qg:Kev-1-1"], acceptedLootRefs: ["qg-loot:1"] });
+    const ledgerOnly = pruneAcknowledged(exported, ack, new Set(["ledger-delta"]));
+    expect(ledgerOnly.omitted).toEqual({ ledger: 1, loot: 0 });
+    const lootOnly = pruneAcknowledged(exported, ack, new Set(["loot-delta"]));
+    expect(lootOnly.omitted).toEqual({ ledger: 0, loot: 1 });
+    expect(pruneAcknowledged(exported, ack, new Set()).omitted).toEqual({ ledger: 0, loot: 0 });
+  });
 });
 
 describe("GuildedData, the companion's own addon folder", () => {
@@ -65,6 +74,21 @@ describe("GuildedData, the companion's own addon folder", () => {
     const game = gameFolder(false);
     expect(await writeDataAddon(game.standings, "x", "2026")).toBeNull();
     expect(existsSync(game.data)).toBe(false);
+  });
+
+  it("does not create recovery data after sync was cancelled", async () => {
+    const game = gameFolder();
+    const controller = new AbortController(); controller.abort();
+    await expect(writeDataAddon(game.standings, "x", "2026", controller.signal)).rejects.toThrow();
+    expect(existsSync(game.data)).toBe(false);
+  });
+
+  it("keeps the main file's personal data when the shared timestamp ties", () => {
+    const s = newLuaSession();
+    s.run('GuildedStandings = { updatedAt = "2026-10-15T10:00:00.000Z" }; GuildedLedgerAccepted = { fresh = true }');
+    s.run(guardedStandings('GuildedLedgerAccepted = { stale = true }', "2026-10-15T10:00:00.000Z"));
+    expect(s.run("return tostring(GuildedLedgerAccepted.fresh)")).toBe("true");
+    s.close();
   });
 
   it("never replaces newer data from Guilded's own Standings.lua", () => {
@@ -119,6 +143,27 @@ const savedFile = `GuildedDB = {
 }`;
 
 describe("companion engine with a newer bot", () => {
+  it("does not restart timers when stopped during its initial standings request", async () => {
+    const game = gameFolder();
+    writeFileSync(game.file, savedFile);
+    let requested = false;
+    vi.stubGlobal("fetch", vi.fn((_url: unknown, init: { signal: AbortSignal }) => {
+      requested = true;
+      return new Promise((_resolve, reject) => init.signal.addEventListener("abort", () => reject(init.signal.reason), { once: true }));
+    }));
+    const interval = vi.spyOn(globalThis, "setInterval");
+    const engine = createEngine({ watchFile: game.file, realm: "R", uploadUrl: "https://bot.test/api/v1/addon-imports", guildDiscordId: "1", companionCredential: "x".repeat(43) });
+    try {
+      const starting = engine.start();
+      await vi.waitFor(() => expect(requested).toBe(true));
+      interval.mockClear();
+      await engine.stop();
+      expect(await starting).toBe(false);
+      expect(interval).not.toHaveBeenCalled();
+      expect(engine.state()).toMatchObject({ running: false, standingsMode: null });
+    } finally { await engine.stop(); interval.mockRestore(); }
+  });
+
   it("compresses uploads, leaves out stored entries and follows changes live", async () => {
     const game = gameFolder();
     writeFileSync(game.file, savedFile);

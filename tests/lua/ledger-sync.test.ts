@@ -72,6 +72,14 @@ const advance = (clients: Client[], seconds: number) => { for (const c of client
 const summary = (c: Client) => c.s.run("local n, h = NS.ledgerSync.summary(); return n .. ':' .. h");
 
 describe("officer ledger sync (in-game-only guilds)", () => {
+  it("includes an award made immediately after a cached summary", () => {
+    const alice = client("Alice"); const bob = client("Bob");
+    summary(alice);
+    alice.s.run('award("Tank", 10, 0, 1); NS.commandHandlers.ledgersync({"now"})');
+    pump([alice, bob]);
+    expect(bob.s.run('return balance("Tank")')).toBe("10/0");
+  });
+
   it("merges two officers' ledgers into the same entries and balances", () => {
     const alice = client("Alice"); const bob = client("Bob");
     alice.s.run('award("Tank", 10, 0, 1); award("Healer", 5, 0, 2)');
@@ -149,6 +157,8 @@ describe("officer ledger sync (in-game-only guilds)", () => {
     bob.s.run('fire_event("CHAT_MSG_ADDON", "GuildedLedger", "E|1|Alice-1800000000-9|Tank|999999|0||EP_AWARD|0|x", "WHISPER", "Alice-Realm")');
     bob.s.run('fire_event("CHAT_MSG_ADDON", "GuildedLedger", "E|1|Alice-1900000000-9|Tank|5|0||EP_AWARD|0|x", "WHISPER", "Alice-Realm")');
     bob.s.run('fire_event("CHAT_MSG_ADDON", "GuildedLedger", "E|1|not-an-id|Tank|5|0||EP_AWARD|0|x", "WHISPER", "Alice-Realm")');
+    bob.s.run('fire_event("CHAT_MSG_ADDON", "GuildedLedger", "E|1|Alice-1800000000-2|Tank|1.5|0||EP_AWARD|0|x", "WHISPER", "Alice-Realm")');
+    bob.s.run('fire_event("CHAT_MSG_ADDON", "GuildedLedger", "E|1|Alice-1800000000-3|Tank|5|0||EP_AWARD|maybe|x", "WHISPER", "Alice-Realm")');
     expect(bob.s.run('return balance("Tank")')).toBe("none");
     // The same entry twice counts once.
     for (let i = 0; i < 2; i++) bob.s.run('fire_event("CHAT_MSG_ADDON", "GuildedLedger", "E|1|Alice-1800000000-1|Tank|10|0||EP_AWARD|0|Raid", "WHISPER", "Alice-Realm")');

@@ -16,10 +16,10 @@ export function acknowledgements(body) {
   };
 }
 
-export function pruneAcknowledged(exported, ack) {
+export function pruneAcknowledged(exported, ack, features = new Set(["ledger-delta", "loot-delta"])) {
   if (!ack || !exported) return { exported, omitted: { ledger: 0, loot: 0 } };
-  const ledger = ack.ledger ?? new Set();
-  const loot = ack.loot ?? new Set();
+  const ledger = features.has("ledger-delta") ? ack.ledger ?? new Set() : new Set();
+  const loot = features.has("loot-delta") ? ack.loot ?? new Set() : new Set();
   let ledgerOmitted = 0;
   let lootOmitted = 0;
   const epgpTransactions = (exported.epgpTransactions ?? []).filter((entry) => {

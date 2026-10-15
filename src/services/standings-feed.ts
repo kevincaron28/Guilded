@@ -75,14 +75,20 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
   async function build(key: string, guildId: string, compose: () => Promise<FeedParts>, header: Record<string, unknown>): Promise<Cached> {
     const running = inflight.get(key);
     if (running) return running;
-    const started = generation(guildId);
     const promise = (async () => {
-      const parts = await compose();
-      const updatedAt = sharedStamp(guildId, contentHash({ shared: parts.shared, stampOnly: parts.stampOnly ?? null }));
-      const body = JSON.stringify({ ...header, updatedAt, ...parts.shared, ...parts.personal });
-      const entry = { at: now(), generation: started, etag: `"${contentHash(body).slice(0, 32)}"`, body };
-      remember(key, entry);
-      return entry;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const started = generation(guildId);
+        const parts = await compose();
+        // A write during the read invalidates this snapshot. Never stamp old data as newer
+        // than another member's response; the addon trusts that timestamp when syncing.
+        if (started !== generation(guildId)) continue;
+        const updatedAt = sharedStamp(guildId, contentHash({ shared: parts.shared, stampOnly: parts.stampOnly ?? null }));
+        const body = JSON.stringify({ ...header, updatedAt, ...parts.shared, ...parts.personal });
+        const entry = { at: now(), generation: started, etag: `"${contentHash(body).slice(0, 32)}"`, body };
+        remember(key, entry);
+        return entry;
+      }
+      throw new Error("Standings changed during refresh; retry shortly.");
     })();
     inflight.set(key, promise);
     try { return await promise; } finally { inflight.delete(key); }

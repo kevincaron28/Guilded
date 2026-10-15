@@ -53,7 +53,7 @@ export async function writeStandings(config, signal, options = {}) {
   // is what older addons and setups rely on.
   let dataPath = null;
   if (config.dataAddon !== false) {
-    try { dataPath = await writeDataAddon(path, text, body.updatedAt); } catch { dataPath = null; }
+    try { dataPath = await writeDataAddon(path, text, body.updatedAt, signal); } catch { signal?.throwIfAborted(); dataPath = null; }
   }
   return { notModified: false, etag, body, path, dataPath, text, count: body.standings.length, unchanged, botVersion: body.botVersion };
 }

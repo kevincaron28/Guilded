@@ -9,6 +9,21 @@ function parts(standings: unknown[], personal: Record<string, unknown> = {}): Fe
 }
 
 describe("standings feed", () => {
+  it("discards a snapshot invalidated while another member receives the newer standings", async () => {
+    const feed = createStandingsFeed();
+    let release!: (value: FeedParts) => void;
+    const compose = vi.fn(async () => parts([{ ep: 20 }]));
+    compose.mockImplementationOnce(() => new Promise<FeedParts>(resolve => { release = resolve; }));
+    const slow = feed.get({ guildId: "g", memberKey: "a", header, compose });
+    feed.markChanged("g");
+    const newer = await feed.get({ guildId: "g", memberKey: "b", header, compose: async () => parts([{ ep: 20 }]) });
+    release(parts([{ ep: 10 }]));
+    const answer = await slow;
+    expect(JSON.parse(answer.body!)).toMatchObject({ standings: [{ ep: 20 }], updatedAt: JSON.parse(newer.body!).updatedAt });
+    expect(compose).toHaveBeenCalledTimes(2);
+    feed.clear();
+  });
+
   it("builds once, then answers from the cache and with 304 for the same ETag", async () => {
     const feed = createStandingsFeed();
     const compose = vi.fn(async () => parts([{ character: "Kev", ep: 10, gp: 5 }]));

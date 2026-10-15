@@ -79,7 +79,7 @@ export function createBrowserCompanion(env = globalThis) {
         const full = await readBrowserAddon(currentFile, config.realm);
         if (config.wowGuild && full.wowGuild && full.wowGuild !== config.wowGuild) throw new Error("This saved data belongs to a different WoW guild.");
         // Entries the bot already stored are left out (known from this tab's last standings answer).
-        const exported = botFeatures.has("ledger-delta") ? pruneAcknowledged(full, ack).exported : full;
+        const exported = pruneAcknowledged(full, ack, botFeatures).exported;
         const result = await request("/api/v1/addon-imports", { guildDiscordId: config.guildDiscordId, export: exported });
         state.lastUpload = { at: new Date().toISOString(), message: result.status === "APPLIED" || result.autoApplied ? "Your saved data is synced." : "Received by the bot. Guild ledger changes may await officer review." };
         state.addonVersion = exported.addonVersion; state.uploads++; state.uploadError = null; log("ok", state.lastUpload.message);
@@ -124,17 +124,23 @@ export function createBrowserCompanion(env = globalThis) {
     saveConfig: async next => {
       if (busy) return { ok: false, message: "Wait for the current sync to finish before changing settings." };
       if (visits.length && ["poeCharacter", "poeLeague", "poeMode", "guildDiscordId"].some(field => next[field] !== config[field])) return { ok: false, message: "Sync your queued visits before changing character, league, mode or server." };
+      if (["guildDiscordId", "companionCredential"].some(field => field in next && next[field] !== config[field])) {
+        botFeatures = new Set(); ack = null;
+      }
       config = { ...config, ...next, uploadUrl: `${location.origin}/api/v1/addon-imports` }; persist(); state.running = !!config.companionCredential; emit();
       return { ok: true, message: "Preferences saved on this browser/device. Choose a file and use Sync now." };
     },
     pairAccount: async next => {
       if (busy || visits.length) return { ok: false, message: "Finish syncing your queued visits before replacing this Discord link." };
+      busy = true;
       try {
         const result = await request("/api/v1/addon-pairings", { guildDiscordId: next.guildDiscordId, code: next.pairingCode });
         if (typeof result.companionCredential !== "string" || result.companionCredential.length < 32) throw new Error("The bot did not return a valid Discord link. Please try a fresh pairing code.");
+        botFeatures = new Set(); ack = null;
         config = { ...config, ...next, pairingCode: "", companionCredential: result.companionCredential, uploadUrl: `${location.origin}/api/v1/addon-imports` }; state.running = true; state.uploadError = null; persist(); emit();
         return { ok: true, message: "Discord connected. Choose your game files to start syncing." };
       } catch (error) { return { ok: false, message: error.message }; }
+      finally { busy = false; }
     },
     testConnection: async next => {
       try {

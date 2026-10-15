@@ -5,6 +5,15 @@ so the dungeon work in the main checkout was not touched. No version number chan
 change is backward compatible in both directions: an older companion or addon keeps working
 with the new bot, and a newer companion keeps working with an older bot.
 
+A review during the 6.2 candidate integration (`codex/finish-companion-sync`) added fixes that
+are included here, with regression tests: standings read while a write lands are never
+stamped as current; ledger and loot deltas are negotiated separately; a companion stopped
+during startup starts no timers; a cancelled sync writes no `GuildedData`; on a stamp tie
+Guilded's own `Standings.lua` wins (it keeps its personal data); `/guilded ledgersync now`
+counts entries made seconds earlier; received ledger entries must have whole amounts and a
+valid void flag; switching the browser companion's server or account forgets the old bot's
+acknowledgements; and an author can void their own entries recovered from another officer.
+
 The addon is still standalone. None of this is needed for an in-game-only guild, and the one
 new standalone feature (officer ledger sync) is off until an officer turns it on.
 
@@ -12,11 +21,11 @@ new standalone feature (officer ledger sync) is off until an officer turns it on
 
 | Area | Before | Now |
 | --- | --- | --- |
-| Standings to the companion | Rebuilt in full (about ten queries and a Discord API call) for every companion, every 2 minutes, even when nothing changed | Cached per guild and member, with an ETag: an unchanged answer is `304` with no database work. The companion waits for the next change (long poll, at most 15 s per request), so an award or import reaches the addon folder in seconds |
+| Standings to the companion | Rebuilt in full (about ten queries and a Discord API call) for every companion, every 2 minutes, even when nothing changed | Cached per guild and member, with an ETag: an unchanged answer is `304` without rebuilding standings (authorization still runs). The companion waits for the next change (long poll, at most 15 s per request), so an award or import reaches the addon folder in seconds |
 | Standings stamp | The time of the request, so two officers' companions stamped identical data differently and their addons rebroadcast it to each other | The time the guild's shared data last changed (standings, prices, cores, raids, dungeon board). The same data gets the same stamp on every PC |
 | Upload size | The whole ledger and loot history on every upload, growing toward the 1 MB limit | gzip-compressed (several times smaller), and entries the bot already stored are left out. Raids, digests and held entries are still sent every time |
 | Import apply | One database call per new ledger row; every guildmate's unchanged gear digest re-applied on every officer upload | New ledger rows inserted in one call. Digests, attunements, recipes and character details are skipped when identical to that uploader's previous applied upload, while nobody's links changed (up to 6 hours). Ledger, loot and raids are never skipped |
-| Addon updates | Replaced the companion's `Standings.lua` with the empty one the addon ships; standings disappeared until the next write and `/reload` | The companion also writes `Interface/AddOns/GuildedData` (its own tiny addon, not part of the download), which addon updates leave alone. It only replaces Guilded's own copy when it is at least as new. The companion also notices a replaced file and writes it again |
+| Addon updates | Replaced the companion's `Standings.lua` with the empty one the addon ships; standings disappeared until the next write and `/reload` | The companion also writes `Interface/AddOns/GuildedData` (its own tiny addon, not part of the download), which addon updates leave alone. It only replaces Guilded's own copy when the shared timestamp is newer; a tie keeps the main file and its personal data. The companion also notices a replaced file and writes it again |
 | Officer bridge in game | Every byte sent as two hex digits, so a large roster took minutes and data over ~23 KB was refused | `DATA|2`: printable text sent as is, about half the messages, up to ~46 KB of data |
 | Answers to requests in game | Every officer with the data answered every login request at once | Answers wait 1 to 5 seconds and an officer that hears another officer sending the same data stays quiet |
 | Companion file watch | A watch error stopped uploads until the companion was restarted; a missed save waited for the next one | The watch restarts by itself, and a 30-second check catches a missed save |
@@ -59,7 +68,7 @@ resolve. Officers announce a count and hash of their whole ledger (`SUM`) at log
 few minutes. When two differ, they compare per author (`AUTH`), then per day (`DAYS`), and
 whisper each other only the entries of the days that differ (`GET`, `E`). Received entries
 count like local ones: balances, standings, publishing and backups. Only an entry's author can
-void it (`/guilded void` skips received entries). Only officers' messages count, only in
+void it (`/guilded void` skips other authors' received entries but permits the author's recovered entries). Only officers' messages count, only in
 in-game-only mode with sync on.
 
 This is not a central database. An officer who is offline catches up the next time two

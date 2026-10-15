@@ -1,8 +1,9 @@
-<span class="eyebrow">QUEBEC GOLD · RAIDS ET EPGP</span>
-
-# Trouvez votre groupe de raid.
-
-Deux cores sur **WoW Forever**, côté **Horde**, royaume **PvP**. Nous jouons en français. Tous les horaires ci-dessous sont à l'heure de **Montréal (America/Toronto)**.
+<section class="community-hero" aria-labelledby="cores-title">
+<p class="eyebrow">QUEBEC GOLD · CORES, HORAIRES ET EPGP</p>
+<h1 id="cores-title">Deux cores.<br>Votre prochaine <em>équipe.</em></h1>
+<p>WoW Forever, côté Horde, royaume PvP. Retrouvez nos groupes, leurs horaires et les règles de butin avant de nous rejoindre en jeu.</p>
+<div class="community-facts"><span>Communauté francophone</span><span>Heure de Montréal · America/Toronto</span><span>Priorité EPGP · Prix fixes</span></div>
+</section>
 
 <div class="recruit-cards">
 <article><span class="number">20 JOUEURS · HYJAL SUMMIT</span><h2>Les Pulliticiens</h2><p><strong>Mercredi à 20 h</strong><br>Premier raid : 9 décembre 2026 à 20 h.</p><p>Mardi à confirmer. Heure de fin à confirmer.</p><a class="button" href="https://discord.gg/PCs8BeE8bg">Parler de ce core sur Discord →</a></article>

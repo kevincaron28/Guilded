@@ -1,10 +1,12 @@
-<span class="eyebrow">QUEBEC GOLD · PATH OF EXILE 2</span>
+<section class="community-hero" aria-labelledby="poe-title">
+<p class="eyebrow">QUEBEC GOLD · PATH OF EXILE 2</p>
+<h1 id="poe-title">Nouvelle ligue.<br>Même esprit <em>d'équipe.</em></h1>
+<p>Progression, cartes et entraide : retrouvez la communauté francophone Quebec Gold sur Path of Exile 2, à l'heure de Montréal.</p>
+<div class="actions"><a class="button" href="https://discord.gg/PCs8BeE8bg">Retrouvons-nous sur Discord <span aria-hidden="true">↗</span></a><a class="button secondary" href="../../features/">Le journal PoE2 de Guilded <span aria-hidden="true">→</span></a></div>
+<div class="community-facts"><span>Français</span><span>Montréal · America/Toronto</span><span>Ligue et mode à confirmer sur Discord</span></div>
+</section>
 
-# Trouver votre groupe sur PoE2.
-
-Retrouvez la communauté **francophone Quebec Gold** sur Path of Exile 2 à chaque nouvelle ligue. Nous utilisons l'heure de **Montréal (America/Toronto)**. Les personnages et les disponibilités peuvent changer d'une ligue à l'autre.
-
-<p><a class="button" href="https://discord.gg/PCs8BeE8bg">Retrouver Quebec Gold sur Discord →</a></p>
+Les personnages et les disponibilités peuvent changer d'une ligue à l'autre. Confirmez les activités du moment avec les joueurs sur Discord.
 
 ## Les détails à confirmer
 

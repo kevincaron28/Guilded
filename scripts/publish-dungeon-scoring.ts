@@ -27,7 +27,7 @@ try {
   const message = existing
     ? await rest.patch(Routes.channelMessage(channelId, existing.id), { body }) as APIMessage
     : await rest.post(Routes.channelMessages(channelId), { body }) as APIMessage;
-  if (!message.pinned) await rest.put(Routes.channelMessagePin(channelId, message.id));
+  if (!message.pinned) await rest.put(Routes.channelMessagesPin(channelId, message.id));
   if (settings.dungeonSignupChannelId) {
     const guides = await rest.get(Routes.channelMessagesPins(settings.dungeonSignupChannelId)) as { items: { message: APIMessage }[] };
     const guide = guides.items.map(item => item.message).find(value => value.author.id === config.DISCORD_CLIENT_ID
@@ -38,7 +38,7 @@ try {
   }
   const verified = await rest.get(Routes.channelMessage(channelId, message.id)) as APIMessage;
   if (!verified.pinned || verified.embeds[0]?.footer?.text !== marker) throw new Error("Posted guide verification failed");
-  console.log(JSON.stringify({ commandRegistered: true, pinned: verified.pinned,
+  console.log(JSON.stringify({ guild: guild.name, commandRegistered: true, pinned: verified.pinned,
     url: `https://discord.com/channels/${config.DISCORD_GUILD_ID}/${channelId}/${message.id}` }));
 } catch (error) {
   console.error(error instanceof Error ? error.message : "Scoring guide publication failed");

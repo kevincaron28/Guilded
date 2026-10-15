@@ -3,6 +3,7 @@ import { relayProfessions } from "./services/profession-relay.js";
 import { autoLinkUnclaimed } from "./services/character-autolink.js";
 import { updateProfessionDirectory } from "./services/profession-directory.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { gunzipSync } from "node:zlib";
 import { config } from "./config.js";
 import { prisma } from "./database.js";
 import { createAddonImportService } from "./services/addon-import.js";
@@ -26,6 +27,7 @@ import { createPoeMappingService, poeAreaName, PoeMappingError } from "./service
 import { notify } from "./services/notify.js";
 import { allowManageWrite, createCompanionManage, ManageError } from "./services/companion-manage.js";
 import { syncCoreRoster } from "./services/raid-core.js";
+import { COMPANION_FEATURES, markGuildChanged, standingsFeed, type FeedParts } from "./services/standings-feed.js";
 const BOT_VERSION = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version as string;
 
 const importService = createAddonImportService(prisma);
@@ -82,15 +84,33 @@ export function resetFailures(): void {
   failures.clear();
 }
 
-async function readBody(request: IncomingMessage): Promise<unknown> {
+// Uploads are at most 1 MB as sent. A gzip upload (newer companions) may unpack to 8 MB.
+const MAX_BODY_BYTES = 1_000_000;
+const MAX_UNPACKED_BYTES = 8_000_000;
+export class BodyTooLargeError extends Error {}
+
+export async function readBody(request: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of request) {
     size += Buffer.byteLength(chunk);
     chunks.push(Buffer.from(chunk));
-    if (size > 1_000_000) throw new Error("Request body is too large.");
+    if (size > MAX_BODY_BYTES) throw new BodyTooLargeError("Request body is too large.");
   }
-  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  let raw = Buffer.concat(chunks);
+  const encoding = String(request.headers["content-encoding"] ?? "").trim().toLowerCase();
+  // JSON never starts with the gzip magic bytes, so a proxy that drops the header changes nothing.
+  const gzipped = raw.length >= 2 && raw[0] === 0x1f && raw[1] === 0x8b;
+  if (encoding === "gzip" || (!encoding && gzipped)) {
+    try { raw = gunzipSync(raw, { maxOutputLength: MAX_UNPACKED_BYTES }); }
+    catch (error) {
+      if (error instanceof RangeError || (error as { code?: string }).code === "ERR_BUFFER_TOO_LARGE") throw new BodyTooLargeError("Request body is too large.");
+      throw new SyntaxError("The compressed upload could not be read.");
+    }
+  } else if (encoding && encoding !== "identity") {
+    throw new SyntaxError("Unsupported content encoding.");
+  }
+  return JSON.parse(raw.toString("utf8"));
 }
 
 const auditService = createAuditService(prisma);
@@ -132,6 +152,57 @@ export async function ledgerRefsFor(database: Pick<PrismaClient, "epgpTransactio
   return [...rows.flatMap((row) => row.sourceRef ? [row.sourceRef] : []), ...voided.map((row) => `void:${row.sourceRef}`)];
 }
 
+// Loot rows the bot has recorded from addon uploads, so the companion stops resending them.
+// A row not listed here (older, or held back) is simply sent again; the bot skips duplicates.
+export async function lootRefsFor(database: Pick<PrismaClient, "lootAward">, guildId: string): Promise<string[]> {
+  const rows = await database.lootAward.findMany({
+    where: { guildId, sourceRef: { startsWith: "qg-loot:" } },
+    select: { sourceRef: true }, orderBy: { awardedAt: "desc" }, take: MAX_REFS
+  });
+  return rows.flatMap((row) => row.sourceRef ? [row.sourceRef] : []);
+}
+
+// Read-only EP/GP/PR per linked character and what goes with it. The companion writes it
+// into the addon folder so /guilded standings shows the bot's numbers.
+async function standingsParts(guild: { id: string; discordId: string }, access: { memberId: string; actorId: string }, client?: Client): Promise<FeedParts> {
+  const scheduledEvents = await discordCalendarEvents(client, guild.discordId, access.actorId).catch(() => {
+    console.warn("Discord calendar events could not be fetched; exporting bot raids only.");
+    return [];
+  });
+  return prisma.$transaction(async (transaction) => {
+    const database = transaction as unknown as PrismaClient;
+    const epgp = createEpgpService(database);
+    const baseGp = (await database.guildSettings.findUnique({ where: { guildId: guild.id } }))?.baseGp ?? 0;
+    // Dungeon runs the bot has stored lately, so the addon can mark them
+    // as synced (roadmap D3).
+    const acceptedRunRefs = (await database.dungeonRun.findMany({
+      where: { guildId: guild.id, createdAt: { gte: new Date(Date.now() - 45 * 86_400_000) } },
+      select: { runRef: true },
+      orderBy: { createdAt: "desc" },
+      take: 500
+    })).map((row) => row.runRef);
+    const dungeonBoard = await addonDungeonBoard(database, guild.id);
+    const nextRaid = await nextRaidRoster(database, guild.id);
+    const items = await itemInsights(database, guild.id).catch(() => []);
+    // How each raid core decides loot, with its item prices and own-pool standings.
+    const loot = await lootRulesForAddon(database, guild.id, async (coreId, coreBaseGp) =>
+      (await epgp.getGuildStandings(guild.id, coreBaseGp, coreId)).map((row) => ({ character: row.character, main: row.main, ep: row.ep, gp: row.gp })));
+    const botRaids = await upcomingRaidsForAddon(database, guild.id);
+    const raids = mergeCalendarEvents(botRaids, scheduledEvents);
+    const accounts = Object.fromEntries((await database.character.findMany({ where: { member: { guildId: guild.id } }, select: { name: true, memberId: true } })).map((c) => [c.name, c.memberId]));
+    const acceptedLedgerRefs = await ledgerRefsFor(database, guild.id, access.memberId);
+    const acceptedLootRefs = await lootRefsFor(database, guild.id);
+    const standings = await epgp.getGuildStandings(guild.id, baseGp);
+    // Shared: the same for every member, so it sets the stamp. Discord events are filtered
+    // per member and dungeon/ledger acknowledgements do not change what the addon shows.
+    return {
+      shared: { accounts, baseGp, dungeonBoard, nextRaid, items, loot: loot ? { ...loot, cores: loot.cores.map((core) => ({ ...core, accounts })) } : null, standings },
+      personal: { acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, raids },
+      stampOnly: { botRaids }
+    };
+  }, { isolationLevel: "RepeatableRead", timeout: 60_000, maxWait: 15_000 });
+}
+
 // `client` lets an upload be applied and announced by the bot itself (auto-apply).
 export function startCompanionApi(client?: Client): ReturnType<typeof createServer> {
   const server = createServer(async (request, response) => {
@@ -139,7 +210,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       response.setHeader("cache-control", "no-store");
       response.setHeader("x-content-type-options", "nosniff");
       if (request.method === "GET" && request.url === "/health") {
-        json(response, client?.isReady() ? 200 : 503, { ok: client?.isReady() ?? false, botVersion: BOT_VERSION, protocolVersion: 2 });
+        json(response, client?.isReady() ? 200 : 503, { ok: client?.isReady() ?? false, botVersion: BOT_VERSION, protocolVersion: 2, features: COMPANION_FEATURES });
         return;
       }
       const url = new URL(request.url ?? "/", "http://localhost");
@@ -220,6 +291,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           if (error instanceof Error && !(error instanceof ZodError) && !error.constructor.name.startsWith("Prisma") && error.message.length < 300) { json(response, 400, { error: error.message }); return; }
           throw error;
         }
+        markGuildChanged(guild.id);
         if (result.audit) await auditService.record({ guildId: guild.id, actorId: access.actorId, action: "CONFIG_UPDATED", ...(result.rosterCoreId ? { entityId: result.rosterCoreId } : {}), metadata: { via: "companion", ...result.audit } });
         if (result.rosterCoreId) {
           // The roster message and the core's role follow the change, as after /core add (never throws).
@@ -244,36 +316,19 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         return;
       }
       if (isStandings) {
-        const scheduledEvents = await discordCalendarEvents(client, guild.discordId, access.actorId).catch(() => {
-          console.warn("Discord calendar events could not be fetched; exporting bot raids only.");
-          return [];
+        // A companion that has this answer already says so (header, or `since` because the
+        // website proxy forwards only a few headers); it may also wait for the next change.
+        const ifNoneMatch = (typeof request.headers["if-none-match"] === "string" ? request.headers["if-none-match"] : null) ?? url.searchParams.get("since");
+        const waitMs = Math.max(0, Math.min(15, Number(url.searchParams.get("wait")) || 0)) * 1000;
+        const answer = await standingsFeed.get({
+          guildId: guild.id, memberKey: `${access.memberId}:${access.actorId}:${access.officer ? 1 : 0}`, ifNoneMatch, waitMs,
+          header: { protocolVersion: 2, botVersion: BOT_VERSION, features: COMPANION_FEATURES },
+          compose: () => standingsParts(guild, access, client)
         });
-        // Read-only EP/GP/PR per linked character. The companion writes it
-        // into the addon folder so /guilded standings shows the bot's numbers.
-        const data = await prisma.$transaction(async (transaction) => {
-        const database = transaction as unknown as PrismaClient;
-        const epgp = createEpgpService(database);
-        const baseGp = (await database.guildSettings.findUnique({ where: { guildId: guild.id } }))?.baseGp ?? 0;
-        // Dungeon runs the bot has stored lately, so the addon can mark them
-        // as synced (roadmap D3).
-        const acceptedRunRefs = (await database.dungeonRun.findMany({
-          where: { guildId: guild.id, createdAt: { gte: new Date(Date.now() - 45 * 86_400_000) } },
-          select: { runRef: true },
-          orderBy: { createdAt: "desc" },
-          take: 500
-        })).map((row) => row.runRef);
-        const dungeonBoard = await addonDungeonBoard(database, guild.id);
-        const nextRaid = await nextRaidRoster(database, guild.id);
-        const items = await itemInsights(database, guild.id).catch(() => []);
-        // How each raid core decides loot, with its item prices and own-pool standings.
-        const loot = await lootRulesForAddon(database, guild.id, async (coreId, coreBaseGp) =>
-          (await epgp.getGuildStandings(guild.id, coreBaseGp, coreId)).map((row) => ({ character: row.character, main: row.main, ep: row.ep, gp: row.gp })));
-        const raids = mergeCalendarEvents(await upcomingRaidsForAddon(database, guild.id), scheduledEvents);
-        const accounts = Object.fromEntries((await database.character.findMany({ where: { member: { guildId: guild.id } }, select: { name: true, memberId: true } })).map((c) => [c.name, c.memberId]));
-        const acceptedLedgerRefs = await ledgerRefsFor(database, guild.id, access.memberId);
-        return { protocolVersion: 2, botVersion: BOT_VERSION, updatedAt: new Date().toISOString(), accounts, acceptedLedgerRefs, baseGp, acceptedRunRefs, dungeonBoard, nextRaid, raids, items, loot: loot ? { ...loot, cores: loot.cores.map((core) => ({ ...core, accounts })) } : null, standings: await epgp.getGuildStandings(guild.id, baseGp) };
-        }, { isolationLevel: "RepeatableRead", timeout: 60_000, maxWait: 15_000 });
-        json(response, 200, data);
+        response.setHeader("etag", answer.etag);
+        if (answer.status === 304) { response.writeHead(304); response.end(); return; }
+        response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        response.end(answer.body);
         return;
       }
       if (!requestPayload?.export) { json(response, 400, { error: "export is required" }); return; }
@@ -293,7 +348,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       }
       if (!access.officer) {
         const owned = await prisma.character.findMany({ where: { memberId: pairedMemberId }, select: { name: true, realm: true } });
-        preview = await importService.preview(guild.id, personalSnapshot(preview.snapshot, owned), createdBy);
+        preview = await importService.previewSnapshot(guild.id, personalSnapshot(preview.snapshot, owned), createdBy);
       }
       const settings = await prisma.guildSettings.findUnique({ where: { guildId: guild.id } });
       const professionRelay = access.officer && !settings?.autoApplyImports
@@ -316,6 +371,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         try {
           const result = await importService.apply(guild.id, record.id, createdBy);
           applied = true;
+          markGuildChanged(guild.id);
           autoApplied = { epgp: result.epgpTransactions.length, discovered: result.discovery.discovered, held: result.held.rows.length, voided: result.voided, rejected: result.rejected.length };
           await auditService.record({
             guildId: guild.id, actorId: createdBy, action: "IMPORT_APPLIED", entityId: record.id,
@@ -354,6 +410,10 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       });
     } catch (error) {
       if (error instanceof PoeMappingError) { json(response, error.status, { error: error.message }); return; }
+      if (error instanceof BodyTooLargeError) {
+        json(response, 413, { error: "This upload is larger than the bot accepts. Update the companion: newer versions compress uploads and send only entries the bot does not have yet." });
+        return;
+      }
       console.error("Companion API request failed", error);
       json(response, error instanceof ZodError || error instanceof SyntaxError ? 400 : 503, { error: "Request could not be processed. Check the export or ask an officer to inspect the server log." });
     }

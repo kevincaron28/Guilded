@@ -53,13 +53,28 @@ SavedVariables file does not reliably contain a realm identifier.
 
 ## EPGP standings written into the addon
 
-On start and every 15 minutes the watcher also asks the bot for EPGP
-standings (`GET /api/v1/standings`, same token) and writes them to
+On start the watcher also asks the bot for EPGP standings
+(`GET /api/v1/standings`, same token) and writes them to
 `Interface\AddOns\Guilded\Standings.lua`. The path is worked out from
 `watchFile` (the folder that contains `WTF`); if your install is laid out
 differently, add `"standingsFile": "<full path to Standings.lua>"` to
 `companion.config.json`. The game reads it on login or `/reload`, and the
 officer's client then shares it with online guildmates.
+
+With a bot that supports it (the bot lists `long-poll` in `features`), the companion then
+waits for changes instead of asking on a timer: the bot answers as soon as something changes
+(an award, an import, a core edit), or with "nothing new" after 15 seconds. Otherwise it asks
+every `standingsIntervalMinutes` (default 2). Set `"liveStandings": false` to always use the
+timer.
+
+The same file is also written to `Interface\AddOns\GuildedData\Standings.lua`, a small addon
+of its own (with a TOC matching Guilded's interface) that addon updates do not replace. It
+only takes effect when it is at least as new as Guilded's own `Standings.lua`. Set
+`"dataAddon": false` to skip it.
+
+Uploads are gzip-compressed and leave out ledger and loot entries the bot already stored,
+when the bot supports it (`gzip-upload`, `ledger-delta`). See
+[the sync speed-ups](../docs/SYNC_SPEEDUPS_2026-10-15.md).
 
 ## Wishlist, prices and cores
 

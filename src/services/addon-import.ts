@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { DkpTransactionType, type EpgpTransactionType, type Prisma, type PrismaClient } from "@prisma/client";
+import { DkpTransactionType, type DkpTransaction, type EpgpTransaction, type EpgpTransactionType, type Prisma, type PrismaClient } from "@prisma/client";
 import { normalizeAddonSnapshot, parseAddonSnapshot, type AddonSnapshot } from "../integrations/addon.js";
 import { deriveReadinessStatus } from "./readiness.js";
 import { applyAddonLoot, applyRaidAttendance, touchLastSeen } from "./raid-import.js";
@@ -22,6 +22,27 @@ export type HeldReason = "UNLINKED" | "NO_CORE" | "UNKNOWN_POOL" | "NO_CORE_RAID
 export interface HeldRow { kind: "EPGP" | "DKP" | "LOOT"; sourceRef: string; character: string; reason: HeldReason; detail: string }
 const signed = (value: number) => `${value >= 0 ? "+" : ""}${value}`;
 
+// Parts of an upload that only describe the present (gear digests, attunements, recipes, who is
+// who) are applied again only when they changed. An officer's upload repeats every guildmate's
+// digest each time, and re-applying an identical one costs hundreds of queries for nothing.
+// The key includes who is linked to whom, so a newly linked character is picked up at once;
+// after SECTION_MEMORY_MS everything is applied again anyway. Ledger, loot and raids are never
+// skipped: they are re-checked on every upload (held rows clear themselves that way).
+const SECTION_MEMORY_MS = 6 * 60 * 60_000;
+const MAX_SECTION_MEMORY = 2_000;
+const sectionMemory = new Map<string, { hash: string; at: number }>();
+const sectionHash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
+export function forgetAppliedSections(): void { sectionMemory.clear(); }
+
+// Prisma's createManyAndReturn, or one create per row where it is not available (test doubles).
+async function createRows<Row, Out>(store: { create: (args: { data: Row }) => Promise<Out>; createManyAndReturn?: (args: { data: Row[] }) => Promise<Out[]> }, rows: Row[]): Promise<Out[]> {
+  if (rows.length === 0) return [];
+  if (typeof store.createManyAndReturn === "function") return store.createManyAndReturn({ data: rows });
+  const created = [];
+  for (const data of rows) created.push(await store.create({ data }));
+  return created;
+}
+
 export function createAddonImportService(database: PrismaClient) {
   return {
     parse(payload: unknown): AddonSnapshot {
@@ -29,7 +50,11 @@ export function createAddonImportService(database: PrismaClient) {
     },
 
     async preview(guildId: string, payload: unknown, createdBy: string) {
-      const snapshot = this.parse(payload);
+      return this.previewSnapshot(guildId, this.parse(payload), createdBy);
+    },
+
+    // The same for a snapshot already parsed (a member's upload narrowed to their own characters).
+    async previewSnapshot(guildId: string, snapshot: AddonSnapshot, createdBy: string) {
       const checksum = createHash("sha256").update(JSON.stringify(snapshot)).digest("hex");
       const existing = await database.addonImport.findFirst({ where: { guildId, checksum } });
       return {
@@ -58,7 +83,9 @@ export function createAddonImportService(database: PrismaClient) {
     },
 
     async apply(guildId: string, importId: string, appliedBy: string) {
-      return database.$transaction(async (tx) => {
+      // Sections remembered as applied once the transaction has committed.
+      const applied: [string, string][] = [];
+      const result = await database.$transaction(async (tx) => {
         // All imports for one guild serialize, including different snapshots of the same
         // ledger. Transaction-scoped lock releases automatically on rollback/crash.
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${guildId}, 0))`;
@@ -84,6 +111,19 @@ export function createAddonImportService(database: PrismaClient) {
           characters.push({ ...linked, member: await tx.member.findUniqueOrThrow({ where: { id: linked.memberId } }) });
         }
 
+        // Who uploaded and who is linked to whom: an unchanged section is skipped only while both hold.
+        const uploader = imported.pairedMemberId ?? imported.createdBy;
+        const links = sectionHash([resetAt?.toISOString() ?? null, ...characters.map((character) => `${character.id}:${character.memberId}:${character.name}:${character.realm}`).sort()]);
+        const unchangedSections: string[] = [];
+        const changed = (section: string, value: unknown) => {
+          const key = `${guildId}|${uploader}|${section}`;
+          const hash = sectionHash([links, value]);
+          const last = sectionMemory.get(key);
+          if (last && last.hash === hash && Date.now() - last.at < SECTION_MEMORY_MS) { unchangedSections.push(section); return false; }
+          applied.push([key, hash]);
+          return true;
+        };
+
         // Each addon export carries the officer's WHOLE ledger, not just new
         // entries. Entries with a stable ref are keyed `addon:<ref>` and skipped
         // when already imported, so re-importing next week doesn't double
@@ -106,7 +146,7 @@ export function createAddonImportService(database: PrismaClient) {
         const dismissed = (kind: HeldRow["kind"]) => new Set(knownHeld.filter((row) => row.kind === kind && row.dismissedAt).map((row) => row.sourceRef));
         const dismissedDkp = dismissed("DKP"), dismissedEpgp = dismissed("EPGP");
 
-        const transactions = [];
+        const dkpRows: Prisma.DkpTransactionCreateManyInput[] = [];
         for (const item of snapshot.transactions) {
           const sourceRef = ledgerRef(item);
           if (alreadyImported.has(sourceRef) || dismissedDkp.has(sourceRef)) { skipped++; continue; }
@@ -114,18 +154,18 @@ export function createAddonImportService(database: PrismaClient) {
           if (!character) { held.push({ kind: "DKP", sourceRef, character: item.character, reason: "UNLINKED", detail: `${signed(item.amount)} DKP - ${item.reason}` }); continue; }
           alreadyImported.add(sourceRef);
           importedRefs.push(sourceRef);
-          transactions.push(await tx.dkpTransaction.create({
-            data: {
-              guildId,
-              memberId: character.memberId,
-              amount: item.amount,
-              type: DkpTransactionType.IMPORT,
-              reason: item.reason,
-              sourceRef,
-              createdBy: appliedBy
-            }
-          }));
+          dkpRows.push({
+            guildId,
+            memberId: character.memberId,
+            amount: item.amount,
+            type: DkpTransactionType.IMPORT,
+            reason: item.reason,
+            sourceRef,
+            createdBy: appliedBy
+          });
         }
+        // One insert for all new rows, not one per row.
+        const transactions = await createRows<Prisma.DkpTransactionCreateManyInput, DkpTransaction>(tx.dkpTransaction as never, dkpRows);
         const epgpTransactions = [];
         const poolIds = [...new Set(snapshot.epgpTransactions.flatMap((item) => item.coreId ? [item.coreId] : []))];
         const validPools = poolIds.length ? await tx.raidCore.findMany({ where: { guildId, id: { in: poolIds }, separatePool: true }, select: { id: true } }) : [];
@@ -152,6 +192,7 @@ export function createAddonImportService(database: PrismaClient) {
             voided++;
           }
         }
+        const epgpRows: Prisma.EpgpTransactionCreateManyInput[] = [];
         for (const item of snapshot.epgpTransactions) {
           const sourceRef = ledgerRef(item);
           if (item.voided) { if (item.sourceRef) importedRefs.push(sourceRef); continue; }
@@ -164,31 +205,40 @@ export function createAddonImportService(database: PrismaClient) {
           if (!character) { hold("UNLINKED"); continue; }
           alreadyImported.add(sourceRef);
           importedRefs.push(sourceRef);
-          epgpTransactions.push(await tx.epgpTransaction.create({
-            data: {
-              guildId,
-              memberId: character.memberId,
-              coreId: item.coreId ?? null,
-              epAmount: item.epAmount,
-              gpAmount: item.gpAmount,
-              type: item.type as EpgpTransactionType,
-              reason: item.reason,
-              sourceRef,
-              createdBy: appliedBy
-            }
-          }));
+          epgpRows.push({
+            guildId,
+            memberId: character.memberId,
+            coreId: item.coreId ?? null,
+            epAmount: item.epAmount,
+            gpAmount: item.gpAmount,
+            type: item.type as EpgpTransactionType,
+            reason: item.reason,
+            sourceRef,
+            createdBy: appliedBy
+          });
         }
+        epgpTransactions.push(...await createRows<Prisma.EpgpTransactionCreateManyInput, EpgpTransaction>(tx.epgpTransaction as never, epgpRows));
 
         // Everyone the addons have revealed (the exporter and every guildmate
         // whose digest reached them): linked characters are refreshed (class,
         // race, level, spec, professions), the rest are remembered as
         // unclaimed until they are linked. Never creates a linked character.
-        const discovery = await applyDiscoveredCharacters(tx, guildId, [...(snapshot.character ? [snapshot.character] : []), ...snapshot.alts, ...snapshot.characters], characters);
+        const discoveredEntries = [...(snapshot.character ? [snapshot.character] : []), ...snapshot.alts, ...snapshot.characters];
+        const discovery = changed("characters", discoveredEntries)
+          ? await applyDiscoveredCharacters(tx, guildId, discoveredEntries, characters)
+          : { refreshed: 0, discovered: 0 };
 
         // Readiness is best-effort: an unlinked character shouldn't block the
         // DKP/EPGP transactions in the same import from being applied.
         const readinessSnapshots = [];
-        for (const entry of snapshot.readiness) {
+        const readiness = changed("readiness", snapshot.readiness) ? snapshot.readiness : [];
+        // Which of these checks are stored already, in one query instead of one per entry.
+        const readinessIds = [...new Set(readiness.flatMap((entry) => { const character = findCharacter(characters, entry.character, entry.realm); return character && entry.inspectedAt ? [character.id] : []; }))];
+        const storedChecks = readinessIds.length && typeof tx.inspectedCharacterSnapshot.findMany === "function"
+          ? new Set((await tx.inspectedCharacterSnapshot.findMany({ where: { characterId: { in: readinessIds }, source: snapshot.source }, select: { characterId: true, inspectedAt: true } }) ?? [])
+            .map((row) => `${row.characterId}|${row.inspectedAt.toISOString()}`))
+          : null;
+        for (const entry of readiness) {
           const character = findCharacter(characters, entry.character, entry.realm);
           if (!character) continue;
           await touchLastSeen(tx, character.id, entry.inspectedAt ?? new Date(snapshot.exportedAt));
@@ -197,7 +247,8 @@ export function createAddonImportService(database: PrismaClient) {
 
           // An officer's export repeats every guildmate's last digest on each upload: the same
           // check (same character, same moment) is stored once, not once per upload.
-          if (entry.inspectedAt && typeof tx.inspectedCharacterSnapshot.findFirst === "function"
+          if (entry.inspectedAt && storedChecks?.has(`${character.id}|${entry.inspectedAt.toISOString()}`)) continue;
+          if (entry.inspectedAt && !storedChecks && typeof tx.inspectedCharacterSnapshot.findFirst === "function"
             && await tx.inspectedCharacterSnapshot.findFirst({ where: { characterId: character.id, inspectedAt: entry.inspectedAt, source: snapshot.source }, select: { id: true } })) continue;
 
           readinessSnapshots.push(await tx.inspectedCharacterSnapshot.create({
@@ -246,7 +297,7 @@ export function createAddonImportService(database: PrismaClient) {
         // Attunements are self- or officer-reported, not financial — same
         // best-effort matching as readiness.
         const attunements = [];
-        for (const entry of snapshot.attunements) {
+        for (const entry of changed("attunements", snapshot.attunements) ? snapshot.attunements : []) {
           const character = findCharacter(characters, entry.character, entry.realm);
           if (!character) continue;
           attunements.push(await tx.characterAttunement.upsert({
@@ -285,7 +336,10 @@ export function createAddonImportService(database: PrismaClient) {
         const itemPrices = await applyAddonItemPrices(tx, guildId, snapshot.itemPrices, settings?.coreLootOnly ?? false);
 
         // Who can craft what, and profession cooldowns.
-        const crafting = await applyRecipeData(tx, guildId, { recipes: snapshot.recipes, recipeNames: snapshot.recipeNames, cooldowns: snapshot.cooldowns });
+        const recipeInput = { recipes: snapshot.recipes, recipeNames: snapshot.recipeNames, cooldowns: snapshot.cooldowns };
+        const crafting = changed("recipes", recipeInput)
+          ? await applyRecipeData(tx, guildId, recipeInput)
+          : { recipeSets: 0, recipes: 0, cooldownSets: 0 };
 
         // In-game calendar events -> which Discord raid, who answered (the signups are made after this commits).
         const calendarPlan = await planCalendarSync(tx, guildId, snapshot.calendarEvents,
@@ -336,9 +390,20 @@ export function createAddonImportService(database: PrismaClient) {
         if (calendarPlan.matches.length) await enqueueDiscordJob(tx, guildId, `calendar:${imported.id}`, "CALENDAR", { plan: JSON.parse(JSON.stringify(calendarPlan)) });
         return {
           import: imported, transactions, epgpTransactions, readinessSnapshots, attunements, consumables, reserves, itemPrices, crafting, calendarPlan, discovery, raids, loot, dungeons, skipped,
-          voided, held: { rows: held, fresh: newlyHeld.length }, rejected: snapshot.rejected
+          voided, held: { rows: held, fresh: newlyHeld.length }, rejected: snapshot.rejected, unchangedSections
         };
       }, { timeout: 60_000, maxWait: 15_000 });
+      const now = Date.now();
+      for (const [key, hash] of applied) {
+        sectionMemory.delete(key);
+        sectionMemory.set(key, { hash, at: now });
+      }
+      while (sectionMemory.size > MAX_SECTION_MEMORY) {
+        const oldest = sectionMemory.keys().next().value;
+        if (oldest === undefined) break;
+        sectionMemory.delete(oldest);
+      }
+      return result;
     }
   };
 }

@@ -1,5 +1,6 @@
 import { EpgpTransactionType, type PrismaClient } from "@prisma/client";
 import { effectiveRules, poolFor } from "./core-rules.js";
+import { markGuildChanged } from "./standings-feed.js";
 
 // Proposed EP for one raid, built from recorded attendance and boss kills
 // using the guild's settings. Nothing is written until an officer approves.
@@ -96,5 +97,6 @@ export async function applyRaidEpProposal(database: Db, guildId: string, raidId:
     created += 1;
     total += row.ep;
   }
+  if (created) markGuildChanged(guildId);
   return { proposal, created, skipped: proposal.rows.length - created, total };
 }

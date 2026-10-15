@@ -4,7 +4,7 @@
 
 - Official public page: [Guilded by KCaron](https://ko-fi.com/wowguilded).
 - The owner-authorized profile update uses the existing Guilded logo, an English
-  and French project description, and the Guilded website link.
+  and French project description, and the creator website https://kcaron.top/.
 - Payment settings show **PayPal connected**. Stripe is not connected; do not
   advertise Stripe, Apple Pay or Google Pay as available.
 - Currency is **Canadian dollars (CAD)**. The existing minimum is **C$5**.
@@ -15,12 +15,15 @@
 - The public page visibly shows **Tip CA$5**. No money was sent and no paid
   transaction was performed. Actual receipt of a tip remains untested.
 - Public site links are maintained in [SUPPORT_GUILDED.md](SUPPORT_GUILDED.md)
-  and the landing page. [CurseForge copy](CURSEFORGE_COPYPASTE.md) is prepared
-  repository text; its external listing must be updated separately.
+  and the landing page. The external CurseForge listing now uses
+  https://guilded.kcaron.top/ for its Wiki, Ko-fi username `wowguilded` for its
+  Donate button, and https://kcaron.top/support in its description.
+  [CurseForge copy](CURSEFORGE_COPYPASTE.md) retains the corresponding listing text.
 
 Do not publish payment-account email addresses or payment credentials in the
-guides, source or deployment evidence. A custom domain is a separate setup step;
-keep the verified Ko-fi destination until the owner selects and registers one.
+guides, source or deployment evidence. The registered custom domain is active:
+https://kcaron.top/ (creator), https://guilded.kcaron.top/ (Guilded), and
+https://kcaron.top/support (fixed redirect to the verified Ko-fi page).
 
 ## Original setup guidance (9 October 2026)
 

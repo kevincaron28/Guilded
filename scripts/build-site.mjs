@@ -8,6 +8,7 @@ const sources = new Set(guides.map(name => `docs/${name}.md`));
 const out = "dist/site";
 mkdirSync(`${out}/docs`, { recursive: true });
 for (const name of ["index.html", "style.css", "site.js"]) copyFileSync(`site/${name}`, `${out}/${name}`);
+cpSync("site/creator", `${out}/creator`, { recursive: true });
 copyFileSync("docs/branding/guilded-logo-400.png", `${out}/logo.png`);
 cpSync("docs/images/owner-setup", `${out}/docs/images/owner-setup`, { recursive: true });
 const escape = text => text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");

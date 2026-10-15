@@ -207,6 +207,8 @@ export function ratingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, r
         : "Per-character rating: each alt has its own best runs. Equal ratings share a rank.")];
   if (timed) lines.push(fr ? "200 à la cible, 50–400 par donjon. Cibles figées. Sans cible : calibration, 0 point."
     : "200 at target, 50–400 per dungeon. Fixed targets. No target: calibrating, 0 points.");
+  if (timed) lines.push(fr ? "Arrondi(200 × cible ÷ durée). Somme des meilleurs scores seulement; répétitions non cumulées. Détails : `/dungeon rules`."
+    : "Round(200 × target ÷ duration). Sum of best scores only; repeats do not stack. Details: `/dungeon rules`.");
   if (speed) lines.push(fr ? "Cibles figées pour la saison. 15 % plus rapide = +10 ; 30 % = +20. Sans cible : 100."
     : "Targets are fixed for the season. 15% faster = +10; 30% = +20. No target: 100.");
   for (const row of rows.slice(0, 10)) {

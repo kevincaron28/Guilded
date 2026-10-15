@@ -3,7 +3,8 @@ import { prisma } from "../database.js";
 import { asLang, t, tx, type Lang } from "../i18n.js";
 import { achievementName } from "../services/dungeon-achievements.js";
 import { ensureDungeonSignupGuide } from "../services/dungeon-guide.js";
-import { formatDuration } from "../services/dungeon-rules.js";
+import { dungeonConfig, formatDuration } from "../services/dungeon-rules.js";
+import { dungeonScoringGuide } from "../services/dungeon-scoring-guide.js";
 import {
   activeSeasonOrNull, difficultyName, formatLeaderboard, leaderboard, playerSummary, recentRuns, records,
   type Period, type RecordRow, type RunRow
@@ -20,6 +21,8 @@ import { dungeonRating, hasDungeonRating, ratingEmbed } from "../services/dungeo
 export const dungeonCommand = new SlashCommandBuilder()
   .setName("dungeon")
   .setDescription("Dungeon challenge: points leaderboard, records, player stats, recent runs.")
+  .addSubcommand(sub => sub.setName("rules").setDescription("How dungeon rating and participation points are calculated")
+    .setDescriptionLocalizations({ fr: "Comment la cote et les points de participation sont calculés" }))
   .addSubcommand((sub) => sub.setName("leaderboard").setDescription("Season rating or participation points")
     .addStringOption(o => o.setName("metric").setDescription("Default: season rating; other periods use participation").addChoices({name:"Rating",value:"rating"},{name:"Participation",value:"participation"}))
     .addStringOption((o) => o.setName("period").setDescription("Default: this season").addChoices(
@@ -94,6 +97,11 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
   if (!context) return;
   const lang = asLang((await guildService.getSettings(context.guildId))?.language);
   const subcommand = interaction.options.getSubcommand();
+  if (subcommand === "rules") {
+    const settings = await prisma.guildSettings.findUnique({ where: { guildId: context.guildId }, select: { dungeonConfig: true } });
+    await interaction.reply({ embeds: [dungeonScoringGuide(dungeonConfig(settings?.dungeonConfig), lang)], ephemeral: true });
+    return;
+  }
   if (subcommand === "archive" || subcommand === "hall-of-fame") {
     await interaction.deferReply({ ephemeral: true });
     const archive = await seasonArchive(prisma, context.guildId, interaction.options.getInteger("page") ?? 1, subcommand === "hall-of-fame");

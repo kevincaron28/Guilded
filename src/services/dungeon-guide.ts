@@ -21,12 +21,14 @@ export function dungeonSignupGuideText(lang: Lang): string {
     "**Groupes de donjon**", "• Publiez un donjon avec le bouton ci-dessous : précisez le donjon, l'heure et les rôles recherchés.",
     "• 1 tank, 1 soigneur et 3 DPS. Les joueurs supplémentaires vont en liste d'attente.",
     "• Un salon vocal privé est créé au départ et supprimé quand il reste vide.",
-    "• Utilisez les salons PvP et leveling pour vos annonces libres. Les alertes du bot concernent uniquement les donjons."
+    "• Utilisez les salons PvP et leveling pour vos annonces libres. Les alertes du bot concernent uniquement les donjons.",
+    "• `/dungeon rules` explique la cote par personnage et les points de participation par compte, avec les bonus et limites configurés."
   ] : [
     "**Dungeon groups**", "• Post a dungeon below: say which dungeon, when, and which roles you need.",
     "• 1 tank, 1 healer and 3 DPS. Extra players join the waitlist.",
     "• A private voice channel opens when the group starts and is removed after it stays empty.",
-    "• Use the PvP and leveling channels for member posts. Bot alerts are for dungeons only."
+    "• Use the PvP and leveling channels for member posts. Bot alerts are for dungeons only.",
+    "• `/dungeon rules` explains character rating and account participation points, including configured bonuses and limits."
   ]).join("\n");
 
 }

@@ -12,7 +12,7 @@ local function L(text) return ns.L and ns.L(text) or text end
 
 function results.timerEnabled()
   local db = ns.getDb and ns.getDb()
-  return not (db and db.settings and db.settings.hideBossTimer)
+  return db and db.settings and db.settings.hideBossTimer == false or false
 end
 
 function results.setTimerEnabled(enabled)
@@ -149,33 +149,8 @@ end
 -- if another pull starts. Manually dismissed results stay dismissed.
 if CreateFrame then
   local events = CreateFrame("Frame")
-  -- A separate, small display stays visible while the main addon window is closed.
-  -- Create it before combat; it has no protected actions or combat-log dependency.
-  local timer = CreateFrame("Frame", "GuildedBossTimer", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
-  timer:SetSize(300, 48)
-  timer:SetPoint("TOP", UIParent, "TOP", 0, -160)
-  timer:SetClampedToScreen(true)
-  timer:SetMovable(true); timer:EnableMouse(true); timer:RegisterForDrag("LeftButton")
-  timer:SetScript("OnDragStart", function(self) self:StartMoving() end)
-  timer:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
-  if timer.SetBackdrop then
-    timer:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background" })
-    timer:SetBackdropColor(0.035, 0.045, 0.065, 0.9)
-  end
-  local label = timer:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-  label:SetPoint("TOPLEFT", 8, -6); label:SetPoint("BOTTOMRIGHT", -8, 6)
-  timer:Hide()
-  local elapsed = 0
-  events:SetScript("OnUpdate", function(_, delta)
-    elapsed = elapsed + delta
-    if elapsed < 0.2 then return end
-    elapsed = 0
-    local db = ns.getDb and ns.getDb()
-    local stamp = ns.compat and ns.compat.serverTime() or (GetServerTime and GetServerTime() or time())
-    local text = results.timerEnabled() and (not ns.moduleActive or ns.moduleActive("dungeon"))
-      and results.liveText(db and db.dungeon and db.dungeon.current, stamp)
-    if text then label:SetText(text); timer:Show() else timer:Hide() end
-  end)
+  -- Encounter timing stays active in Dungeon.lua. Never create a floating
+  -- boss overlay; optional live text belongs only inside the opened Run tab.
   events:RegisterEvent("PLAYER_REGEN_ENABLED")
   events:RegisterEvent("PLAYER_REGEN_DISABLED")
   events:SetScript("OnEvent", function(_, event)

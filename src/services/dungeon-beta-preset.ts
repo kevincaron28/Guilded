@@ -40,3 +40,22 @@ export function betaSeasonRules() {
   catalog: BETA_DUNGEONS.map(d => ({ dungeonKey: d.key, instanceId: d.instanceId, name: d.name, targetSec: d.minutes * 60,
     minLevel: d.min, maxLevel: d.max, provisional: true })) };
 }
+
+// Opt-in successor phase, never a mutation of the October v3 preset.
+// These eleven candidate routes need real-client acceptance during beta.
+export const BEST_EIGHT_PRESET_ID = "forever-beta-best-eight-v1";
+export const BEST_EIGHT_SEASON_NAME = "Quebec Gold - Beta Best 8";
+export function bestEightBetaRules() {
+  const candidates = BETA_DUNGEONS.filter(d => d.max === 30);
+  return { ...createDungeonRatingRules(
+    Object.fromEntries(candidates.map(d => [d.key, d.minutes * 60])), 3,
+    Object.fromEntries(candidates.map(d => [d.key, { min: 30, max: 30, difficultyId: 0 }]))),
+    version: 4, bestCount: 8, competitionLevel: 30,
+    participationModel: "weekly-variety-v1",
+    participationLevelBands: Object.fromEntries(BETA_DUNGEONS.map(d => [d.key, { min: d.min, max: d.max, difficultyId: 0 }])),
+    presetId: BEST_EIGHT_PRESET_ID, provisionalTargets: true,
+    routeStandard: "detected-final-boss", startEvidence: "legacy-unverified",
+    catalog: candidates.map(d => ({ dungeonKey: d.key, instanceId: d.instanceId, name: d.name,
+      targetSec: d.minutes * 60, minLevel: 30, maxLevel: 30, provisional: true }))
+  };
+}

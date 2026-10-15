@@ -18,7 +18,8 @@ try {
   const commands = await rest.get(Routes.applicationGuildCommands(config.DISCORD_CLIENT_ID, config.DISCORD_GUILD_ID)) as RESTGetAPIApplicationGuildCommandsResult;
   const dungeon = commands.find(command => command.name === "dungeon");
   if (!dungeon?.options?.some(option => option.name === "rules")) throw new Error("Deploy and register /dungeon rules first");
-  const embed = dungeonScoringGuide(dungeonConfig(settings.dungeonConfig), lang).setFooter({ text: marker }).toJSON();
+  const season = await prisma.dungeonSeason.findFirst({ where: { guildId: guild.id, status: "ACTIVE" }, orderBy: { startsAt: "desc" } });
+  const embed = dungeonScoringGuide(dungeonConfig(settings.dungeonConfig), lang, season?.ratingRules).setFooter({ text: marker }).toJSON();
   const pins = await rest.get(Routes.channelMessagesPins(channelId)) as { items: { message: APIMessage }[] };
   const recent = await rest.get(Routes.channelMessages(channelId), { query: new URLSearchParams({ limit: "100" }) }) as APIMessage[];
   const existing = [...pins.items.map(item => item.message), ...recent].find(message => message.author.id === config.DISCORD_CLIENT_ID

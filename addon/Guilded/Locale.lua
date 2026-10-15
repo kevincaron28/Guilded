@@ -682,3 +682,6 @@ FR["Connected snapshot"] = "Copie connectee"
 FR["Known local and shared characters"] = "Personnages locaux et partages connus"
 FR["Local guild: %d core(s), %d roster entries. Restore replaces this PC's copy; it does not merge officers' records."] = "Guilde locale : %d groupe(s), %d entrees d'effectif. La restauration remplace la copie de ce PC; elle ne fusionne pas les donnees des officiers."
 FR["Finish Guilded Games before starting a loot roll."] = "Terminez Guilded Games avant de lancer un jet de butin."
+
+FR["Beta: best 8 distinct routes. Level 30. Maximum 3200. Provisional targets."] = "Beta : 8 meilleurs parcours. Niveau 30. Maximum 3200. Cibles provisoires."
+FR["Not counted in best 8"] = "Hors des 8 meilleurs"

@@ -30,11 +30,28 @@ function detail.profile(season, name)
   end
   if season.detailsAvailable then return { name = name, points = 0, details = {} } end
 end
+local function bestEightTotal(profile)
+  local bests = {}
+  for _, d in ipairs(profile.details or {}) do bests[#bests + 1] = d; d.counted = false end
+  table.sort(bests, function(a, b)
+    if a.points ~= b.points then return a.points > b.points end
+    return a.dungeonKey < b.dungeonKey
+  end)
+  local sum = 0
+  for i, d in ipairs(bests) do
+    d.counted = i <= 8 and d.points > 0
+    if d.counted then sum = sum + d.points end
+  end
+  return sum
+end
 function detail.get(index, name)
   local board, season = boardAt(index)
   if not season then return nil end
   if season.detailsAvailable ~= nil then
-    return { available = season.detailsAvailable, version = season.ratingVersion, provisional = season.provisionalTargets, profile = detail.profile(season, name), catalog = season.catalog or {} }
+    local profile = detail.profile(season, name)
+    -- Older companions omit the optional counted flag. Derive it from v4 rules.
+    if season.ratingVersion == 4 and profile then bestEightTotal(profile) end
+    return { available = season.detailsAvailable, version = season.ratingVersion, provisional = season.provisionalTargets, profile = profile, catalog = season.catalog or {} }
   end
   local db = ns.getDb()
   local cache = db.dungeonScoreDetails
@@ -113,7 +130,7 @@ local function parse(payload)
     local fields = {}
     for field in string.gmatch(line .. ";", "([^;]*);") do fields[#fields + 1] = field end
     if fields[1] == "S" and not header and (#fields == 5 or #fields == 6) then
-      result.version = number(fields[3], 0, 3)
+      result.version = number(fields[3], 0, 4)
       result.profile.points = number(fields[4], 0, 40000)
       if not result.version or not result.profile.points or (fields[5] ~= "0" and fields[5] ~= "1") then return end
       if fields[6] and fields[6] ~= "0" and fields[6] ~= "1" then return end
@@ -137,7 +154,7 @@ local function parse(payload)
       local reason = fields[9] and decode(fields[9]) or ""
       local reasons = { ["Level range not configured"]=true, ["Different difficulty"]=true, ["Party levels unknown"]=true,
         ["Overlevel carry"]=true, ["Below level range"]=true, ["Target not calibrated"]=true, ["Dungeon route unknown"]=true }
-      if result.version == 3 then
+      if result.version >= 3 then
         local rating = target > 0 and math.max(50, math.min(400, math.floor(200 * target / seconds + 0.5))) or 0
         if reason ~= "" and not reasons[reason] then return end
         if bonus ~= 0 or points ~= (reason ~= "" and 0 or rating) then return end
@@ -146,7 +163,7 @@ local function parse(payload)
       result.profile.details[#result.profile.details + 1] = { dungeonKey = key, instanceId = id, name = decode(fields[3]), points = points,
         speedBonus = bonus, durationSec = seconds, targetSec = target > 0 and target or nil, runRef = decode(fields[8]),
         unrankedReason = reason ~= "" and reason or nil, bosses = {} }
-    elseif header and result.available and result.version == 3 and fields[1] == "B" and (#fields == 6 or #fields == 7) then
+    elseif header and result.available and result.version >= 3 and fields[1] == "B" and (#fields == 6 or #fields == 7) then
       local id, bossId, seconds = number(fields[2], 1, 1000000), number(fields[3], 1, 1000000), number(fields[5], 1, 14400)
       if not id or not bossId or not seconds or #fields[4] > 400 or #fields[6] > 400 then return end
       local key = fields[7] or tostring(id)
@@ -157,6 +174,9 @@ local function parse(payload)
       for _, b in ipairs(owner.bosses) do if b.id == bossId then return end end
       owner.bosses[#owner.bosses + 1] = { id = bossId, name = decode(fields[4]), durationSec = seconds, runRef = decode(fields[6]) }
     else return end
+  end
+  if result.version == 4 then
+    sum = bestEightTotal(result.profile)
   end
   if not header or (result.available and sum ~= result.profile.points) then return end
   return result

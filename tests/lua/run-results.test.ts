@@ -3,52 +3,24 @@ import { newLuaSession, type LuaSession } from "./harness.js";
 let session: LuaSession | undefined;
 afterEach(() => session?.close());
 describe("end of dungeon run summary", () => {
-  it("updates the boss overlay and hides it between fights or when the module is disabled", () => {
+  it("keeps boss timing available without a floating overlay, including saved opt-ins", () => {
     session = newLuaSession();
-    session.run(`STAMP=100; ENABLED=true; VISIBLE=false; LABEL=""; SETTINGS={}
-      CURRENT={state="ACTIVE",inside=true,activeEncounter={id=1,name="First boss",startedAt=100}}
-      NS={getDb=function() return {settings=SETTINGS,dungeon={current=CURRENT}} end,
-        compat={serverTime=function() return STAMP end},moduleActive=function() return ENABLED end}
+    session.run(`SETTINGS={}; POPUPS=0
+      CURRENT={state="ACTIVE",inside=true,activeEncounter={id=1,name="Boss",startedAt=100}}
+      NS={getDb=function() return {settings=SETTINGS,dungeon={current=CURRENT}} end}
       local original=CreateFrame
       CreateFrame=function(kind,name,...)
-        local frame=original(kind,name,...)
-        if name=="GuildedBossTimer" then
-          frame.Show=function() VISIBLE=true end
-          frame.Hide=function() VISIBLE=false end
-          frame.CreateFontString=function() return setmetatable({SetText=function(_,text) LABEL=text end},
-            {__index=function() return function() end end}) end
-        end
-        return frame
-      end
-      function tick()
-        for _,frame in ipairs(FRAMES) do if frame.scripts.OnUpdate then frame.scripts.OnUpdate(frame,1) end end
+        if name=="GuildedBossTimer" then POPUPS=POPUPS+1 end
+        return original(kind,name,...)
       end`);
     session.load("Modules/RunResults.lua");
-    session.run("tick()");
-    expect(session.run("return LABEL")).toBe("Boss fight: First boss - 0:00");
-    session.run("STAMP=165; tick()");
-    expect(session.run("return LABEL")).toContain("1:05");
-    expect(session.run("return tostring(VISIBLE)")).toBe("true");
-    session.run("NS.runResults.setTimerEnabled(false); tick()");
-    expect(session.run("return tostring(VISIBLE)")).toBe("false");
+    expect(session.run("return tostring(NS.runResults.timerEnabled())")).toBe("false");
+    expect(session.run("return NS.runResults.liveText(CURRENT,165)")).toBe("Boss fight: Boss - 1:05");
+    session.run("NS.runResults.setTimerEnabled(true)");
+    session.load("Modules/RunResults.lua");
+    expect(session.run("return POPUPS")).toBe("0");
     expect(session.run("return CURRENT.activeEncounter.startedAt")).toBe("100");
-    // Saved settings survive loading the module again, as they do after /reload.
-    session.run("FRAMES={}"); session.load("Modules/RunResults.lua");
-    session.run("tick()");
-    expect(session.run("return tostring(VISIBLE)")).toBe("false");
-    session.run("NS.runResults.setTimerEnabled(true); tick()");
-    expect(session.run("return tostring(VISIBLE)")).toBe("true");
-    expect(session.run("return LABEL")).toContain("1:05");
-    session.run("ENABLED=false; tick()");
-    expect(session.run("return tostring(VISIBLE)")).toBe("false");
-    session.run("ENABLED=true; CURRENT.inside=false; tick()");
-    expect(session.run("return tostring(VISIBLE)")).toBe("false");
-    session.run("CURRENT.inside=true; CURRENT.activeEncounter=nil; tick()");
-    expect(session.run("return tostring(VISIBLE)")).toBe("false");
-    session.run('CURRENT.activeEncounter={id=1,startedAt=165}; STAMP=170; tick()');
-    expect(session.run("return LABEL")).toBe("Boss fight: Boss #1 - 0:05");
-    session.run("CURRENT=nil; tick()");
-    expect(session.run("return tostring(VISIBLE)")).toBe("false");
+    expect(session.run("return tostring(NS.runResults.timerEnabled())")).toBe("true");
   });
   it("shows each attempt duration without inventing missing or invalid timings, in both languages", () => {
     session = newLuaSession(); session.run("NS={}"); session.load("Locale.lua"); session.load("Modules/RunResults.lua");

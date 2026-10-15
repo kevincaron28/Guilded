@@ -53,7 +53,7 @@ function view.model(name, seasonIndex)
   for _, dungeon in ipairs(snapshot and snapshot.catalog or {}) do
     local best = byId[dungeon.dungeonKey or tostring(dungeon.instanceId)]
     cards[#cards + 1] = { name = dungeon.name, instanceId = dungeon.instanceId, minLevel = dungeon.minLevel, maxLevel = dungeon.maxLevel, points = available and (best and best.points or 0) or nil,
-      reason = best and best.unrankedReason, bosses = best and best.bosses, sec = best and best.durationSec, speedBonus = best and best.speedBonus, targetSec = dungeon.targetSec }
+      counted = best and best.counted, reason = best and best.unrankedReason, bosses = best and best.bosses, sec = best and best.durationSec, speedBonus = best and best.speedBonus, targetSec = dungeon.targetSec }
     local mapped = score.dungeonFor(dungeon.name)
     if mapped then known[mapped.key] = true end
   end
@@ -235,10 +235,10 @@ function view.build(parent, compact)
     local pages = math.max(1, math.ceil(self.guildRanking and #model.rows / 12 or #model.cards / perPage))
     self.page = math.min(self.page, pages)
     self.summary:SetText(name .. " - " .. L("Your season score") .. ": " .. (model.total and tostring(model.total) or L("Not in this snapshot")))
-    self.note:SetText(model.available and (model.version == 3 and L("200 at target. Best run per dungeon. Hover for boss records.") or model.version == 2 and L("100 per dungeon + up to 20 speed. Only your best run counts.")
+    self.note:SetText(model.available and (model.version == 4 and L("Beta: best 8 distinct routes. Level 30. Maximum 3200. Provisional targets.") or model.version == 3 and L("200 at target. Best run per dungeon. Hover for boss records.") or model.version == 2 and L("100 per dungeon + up to 20 speed. Only your best run counts.")
       or L("Historical rules: 100 per distinct dungeon, no speed bonus."))
       or L("Per-dungeon breakdown unavailable in this snapshot."))
-    if model.provisional then self.note:SetText(L("Provisional targets, fixed for this season. Hover for boss records.")) end
+    if model.provisional and model.version ~= 4 then self.note:SetText(L("Provisional targets, fixed for this season. Hover for boss records.")) end
     if not model.available and ns.seasonDetails then ns.seasonDetails.request(model.seasonIndex) end
     for i, card in ipairs(self.cards) do
       local row = model.cards[(self.page - 1) * perPage + i]
@@ -247,11 +247,11 @@ function view.build(parent, compact)
         card.art:Hide()
         if card.art:SetTexture(artwork(row)) then card.art:Show() end
         card:Show(); card.name:SetText(row.name .. (row.minLevel and (" (" .. row.minLevel .. "-" .. row.maxLevel .. ")") or ""))
-        card.value:SetText(row.sec and ("|cffefca68" .. (row.reason and L("Unranked") or tostring(row.points)) .. (model.version == 2 and " (+" .. row.speedBonus .. ")" or "") .. "|r  " .. duration(row.sec)
+        card.value:SetText(row.sec and ("|cffefca68" .. (row.reason and L("Unranked") or tostring(row.points)) .. (model.version == 2 and " (+" .. row.speedBonus .. ")" or "") .. (model.version == 4 and row.counted == false and not row.reason and (" - " .. L("Not counted in best 8")) or "") .. "|r  " .. duration(row.sec)
           .. " / " .. (row.targetSec and duration(row.targetSec) or L("No target")))
           or ("|cff8993a4" .. (model.available and L("Not completed this season") or L("Breakdown unavailable")) .. "|r"
             .. (row.targetSec and (" / " .. duration(row.targetSec)) or "")))
-        card.bar:SetWidth(math.max(1, cardWidth * math.min(1, (row.points or 0) / (model.version == 3 and 400 or 120))))
+        card.bar:SetWidth(math.max(1, cardWidth * math.min(1, (row.points or 0) / ((model.version or 0) >= 3 and 400 or 120))))
         if (row.points or 0) > 0 then card.bar:Show() else card.bar:Hide() end
       else card.row = nil; card.art:SetTexture(nil); card.art:Hide(); card:Hide() end
     end

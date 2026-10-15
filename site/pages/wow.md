@@ -1,10 +1,10 @@
-<span class="eyebrow">QUEBEC GOLD · WORLD OF WARCRAFT</span>
-
-# Jouer à WoW avec Quebec Gold.
-
-**Quebec Gold recrute pour ses groupes de raid sur WoW Forever**, côté **Horde**, sur le royaume **PvP**. Notre communauté joue en **français**, à l'heure de **Montréal (America/Toronto)**.
-
-<p><a class="button" href="https://discord.gg/PCs8BeE8bg">Discuter du recrutement sur Discord →</a></p>
+<section class="community-hero" aria-labelledby="wow-title">
+<p class="eyebrow">QUEBEC GOLD · WORLD OF WARCRAFT</p>
+<h1 id="wow-title">Le prochain pull.<br>La bonne <em>équipe.</em></h1>
+<p>Quebec Gold recrute pour ses groupes de raid sur <strong>WoW Forever</strong>. Une communauté francophone, côté Horde, sur le royaume PvP.</p>
+<div class="actions"><a class="button" href="https://discord.gg/PCs8BeE8bg">Parlons recrutement <span aria-hidden="true">↗</span></a><a class="button secondary" href="../cores/">Nos cores et horaires <span aria-hidden="true">→</span></a></div>
+<div class="community-facts"><span>Horde · PvP</span><span>Français</span><span>Heure de Montréal · America/Toronto</span></div>
+</section>
 
 ## Nos cores et leurs horaires
 

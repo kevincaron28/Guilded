@@ -56,7 +56,8 @@ export default {
     const methods = api ? apiMethods.get(url.pathname) : ["GET", "HEAD"];
     if (!methods.includes(request.method)) return failure(405, "Method not allowed");
     const headers = new Headers();
-    for (const name of api ? ["content-type", "x-companion-credential", "authorization", "accept"] : ["accept"]) {
+    // content-encoding: compressed uploads; if-none-match: "nothing changed" standings answers.
+    for (const name of api ? ["content-type", "content-encoding", "x-companion-credential", "authorization", "accept", "if-none-match"] : ["accept"]) {
       const value = request.headers.get(name);
       if (value) headers.set(name, value);
     }

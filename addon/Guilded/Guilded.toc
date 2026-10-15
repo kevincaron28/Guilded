@@ -20,6 +20,7 @@ Standings.lua
 Modules\LootRoll.lua
 Modules\Sync.lua
 Modules\OfficerBridge.lua
+Modules\LedgerSync.lua
 Modules\Sim.lua
 Modules\Bidding.lua
 Modules\Council.lua

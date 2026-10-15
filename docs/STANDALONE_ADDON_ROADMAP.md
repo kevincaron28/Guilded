@@ -11,6 +11,12 @@ build commands and remaining live gates are in
 [V6_2_STANDALONE_AND_GAMES.md](V6_2_STANDALONE_AND_GAMES.md).
 Historical 5.0 status below is retained as context, not current feature status.
 
+15 October 2026: step 4's multi-officer question now has an opt-in answer for in-game-only
+guilds, officer ledger sync (`/guilded ledgersync on`). Ledger entries never change and carry
+permanent ids, so officers' ledgers merge as a union with "voided wins"; only an entry's author
+can void it. Design, limits and the live checks still owed are in
+[SYNC_SPEEDUPS_2026-10-15.md](SYNC_SPEEDUPS_2026-10-15.md).
+
 ## Purpose
 
 Grow Guilded into a useful in-game toolkit for players and guilds that do not

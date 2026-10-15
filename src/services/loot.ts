@@ -1,6 +1,7 @@
 import { AuctionStatus, EpgpTransactionType, type PrismaClient } from "@prisma/client";
 import { poolFor } from "./core-rules.js";
 import { requireCorePool } from "./core-loot-policy.js";
+import { markGuildChanged } from "./standings-feed.js";
 
 export interface CreateAuctionInput {
   guildId: string;
@@ -110,7 +111,7 @@ export function createLootService(database: PrismaClient) {
           include: { member: true }
         });
         return { auction: { ...auction, status: AuctionStatus.CLOSED }, award, transaction };
-      });
+      }).then((result) => { if (result.award) markGuildChanged(result.award.guildId); return result; });
     },
 
     // Loot council / direct award: no auction. GP is charged only when gp > 0
@@ -143,7 +144,7 @@ export function createLootService(database: PrismaClient) {
           },
           include: { member: true }
         });
-      });
+      }).then((award) => { markGuildChanged(input.guildId); return award; });
     },
 
     getActiveAuctions(guildId: string) {

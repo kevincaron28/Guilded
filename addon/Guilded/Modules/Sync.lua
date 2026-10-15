@@ -24,6 +24,11 @@ local warnedNewer = false
 local repliedTo = {}
 local lastShareAt = 0
 local incoming -- { updatedAt, total, parts = { [i] = text } }
+-- Answers to STANDREQ wait a few seconds, so several officers asked at once answer once: each
+-- one that hears another officer's STAND for the same (or newer) standings stays quiet.
+local REPLY_JITTER = 4
+local replyScheduled = false
+local heardStamp, heardAt = nil, 0
 local peerVersions = {} -- sender -> addon version they announced this session
 
 local function getMetadata(field)
@@ -96,6 +101,7 @@ local function shareStandings()
   local s = standings()
   if not s or not s.updatedAt then return end
   if time() - lastShareAt < SHARE_COOLDOWN_SECONDS then return end
+  if heardStamp and heardStamp >= s.updatedAt and time() - heardAt < SHARE_COOLDOWN_SECONDS then return end
   lastShareAt = time()
   local chunks, current = {}, ""
   for _, entry in ipairs(encodePlayers(s.players)) do
@@ -197,6 +203,8 @@ local function receiveChunk(text, sender)
   if index < 1 or index > total then return end
   if not ns.isOfficerName(sender) then return end
   if ns.util.tooFarAhead(updatedAt) then return end
+  if not heardStamp or updatedAt >= heardStamp then heardStamp = updatedAt end
+  heardAt = time()
   local s = standings()
   if s and s.updatedAt and s.updatedAt >= updatedAt then return end
   if not incoming or incoming.updatedAt ~= updatedAt then
@@ -293,25 +301,14 @@ end
 -- Used by OfficerBridge only after its guild/officer/chunk validation.
 ns.adoptOfficerLootRules = adoptLootRules
 
--- Adopt the companion-written Standings.lua if it is newer than the saved copy.
-local function adoptFileStandings()
-  local file = GuildedStandings
-  local d = db()
-  if not d or type(file) ~= "table" or type(file.updatedAt) ~= "string" then return false end
-  if d.standings and d.standings.updatedAt and d.standings.updatedAt >= file.updatedAt then return false end
-  local players = {}
-  local baseGp = tonumber(file.baseGp) or 0
-  for _, row in ipairs(file.players or {}) do
-    local name = ns.normalizeName(row.name)
-    if name then
-      local ep, gp = tonumber(row.ep) or 0, tonumber(row.gp) or 0
-      players[name] = { ep = ep, gp = gp, pr = priority(ep, gp, baseGp), account = row.account ~= "" and row.account or nil }
-    end
-  end
-  -- What Discord has stored. Only the references this PC's own ledger needs are kept in the
-  -- saved data (the file lists other officers' recent entries too).
+-- What Discord has stored, from the companion's file: this PC's own entries it lists stop
+-- counting as "not sent yet", and other officers' awards heard in game are dropped once they
+-- are in. `replace` (the file's standings were adopted) keeps only the file's list; otherwise
+-- (the saved standings are as new or newer: the bot's stamp only moves when the standings
+-- change) the file's list is added, so an entry accepted without changing them still clears.
+local function applyAcceptedRefs(d, replace)
   local fileRefs = type(GuildedLedgerAccepted) == "table" and GuildedLedgerAccepted or {}
-  local kept = {}
+  local kept = replace and {} or (d.acceptedLedgerRefs or {})
   for _, account in pairs(d.epgp or {}) do
     for _, entry in ipairs(account.ledger or {}) do
       if entry.id then
@@ -324,11 +321,34 @@ local function adoptFileStandings()
   end
   d.acceptedLedgerRefs = kept
   -- Other officers' awards heard in the group: dropped once Discord has them (they are in the
-  -- standings below from now on), or when they are too old to still be on their way.
+  -- standings from now on), or when they are too old to still be on their way.
   local nowSeconds = ns.util.serverTime()
   for id, peer in pairs(d.peerLedger or {}) do
     if fileRefs["addon:qg:" .. tostring(id)] or nowSeconds - (tonumber(peer.at) or 0) > 12 * 60 * 60 then d.peerLedger[id] = nil end
   end
+end
+
+-- Adopt the companion-written Standings.lua if it is newer than the saved copy.
+local function adoptFileStandings()
+  local file = GuildedStandings
+  local d = db()
+  if not d or type(file) ~= "table" or type(file.updatedAt) ~= "string" then return false end
+  if d.standings and d.standings.updatedAt and d.standings.updatedAt >= file.updatedAt then
+    if d.standings.updatedAt == file.updatedAt and type(GuildedLedgerAccepted) == "table" then applyAcceptedRefs(d, false) end
+    return false
+  end
+  local players = {}
+  local baseGp = tonumber(file.baseGp) or 0
+  for _, row in ipairs(file.players or {}) do
+    local name = ns.normalizeName(row.name)
+    if name then
+      local ep, gp = tonumber(row.ep) or 0, tonumber(row.gp) or 0
+      players[name] = { ep = ep, gp = gp, pr = priority(ep, gp, baseGp), account = row.account ~= "" and row.account or nil }
+    end
+  end
+  -- What Discord has stored. Only the references this PC's own ledger needs are kept in the
+  -- saved data (the file lists other officers' recent entries too).
+  applyAcceptedRefs(d, true)
   d.standings = { updatedAt = file.updatedAt, baseGp = baseGp, players = players, from = "companion" }
   -- Item tooltip data written next to the standings (none when nobody wishlisted anything yet).
   local items = {}
@@ -496,6 +516,8 @@ ns.commandHandlers["peers"] = function()
   ns.message(string.format("%d addon user(s) seen, you run %s, %d older: %s", #names, myVersion, behind, table.concat(parts, ", ")))
 end
 ns.peerVersions = function() return peerVersions end
+ns.versionNewer = versionNewer
+ns.addonVersion = function() return myVersion end
 ns.commandHelp = ns.commandHelp or {}
 table.insert(ns.commandHelp, "/guilded peers - which guildmates run which addon version (this session)")
 ns.getStanding = function(name)
@@ -595,7 +617,11 @@ local function onEvent(_, event, ...)
     elseif kind == "STANDREQ" then
       local theirs = string.match(text, "^STANDREQ|(.+)$") or "0"
       local s = standings()
-      if ns.isOfficer() and s and s.updatedAt and s.updatedAt > theirs then shareStandings() end
+      if ns.isOfficer() and s and s.updatedAt and s.updatedAt > theirs and not replyScheduled then
+        replyScheduled = true
+        local function reply() replyScheduled = false; shareStandings() end
+        if C_Timer and C_Timer.After then C_Timer.After(1 + math.random() * REPLY_JITTER, reply) else reply() end
+      end
     elseif kind == "STAND" then
       receiveChunk(text, sender)
     elseif kind == "ITEM" then

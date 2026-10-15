@@ -509,7 +509,8 @@ local function voidEntry(target)
   for name, account in pairs(db.epgp) do
     if not wanted or name == wanted then
       for _, entry in ipairs(account.ledger or {}) do
-        if entry.id and not entry.voided and (not found or seq(entry) > seq(found)) then foundName, found = name, entry end
+        -- Entries received from another officer (Modules/LedgerSync.lua) are theirs to void.
+        if entry.id and not entry.voided and not entry.fromPeer and (not found or seq(entry) > seq(found)) then foundName, found = name, entry end
       end
     end
   end

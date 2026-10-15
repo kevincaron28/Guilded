@@ -588,6 +588,16 @@ local FR = {
   ["World markers (click a number, then click the ground; leader or assistant)"] = "Marqueurs au sol (cliquez un num\195\169ro, puis le sol ; chef ou assistant)",
   ["no"] = "non",
   ["yes"] = "oui",
+  -- Officer ledger sync (Modules/LedgerSync.lua)
+  ["Ledger sync: %d EP/GP entries received from %s."] = "Synchro du registre : %d entr\195\169es EP/GP re\195\167ues de %s.",
+  ["Only an officer can change ledger sync."] = "Seul un officier peut changer la synchro du registre.",
+  ["Ledger sync is for in-game-only guilds. Choose In-game only with /guilded setup first."] = "La synchro du registre sert aux guildes en jeu uniquement. Choisissez En jeu uniquement avec /guilded setup d'abord.",
+  ["Ledger sync is on. Officers who turn it on share EP/GP entries in game; nothing is deleted."] = "Synchro du registre activ\195\169e. Les officiers qui l'activent partagent leurs entr\195\169es EP/GP en jeu ; rien n'est supprim\195\169.",
+  ["Ledger sync is off. Entries already received stay."] = "Synchro du registre d\195\169sactiv\195\169e. Les entr\195\169es d\195\169j\195\160 re\195\167ues restent.",
+  ["Ledger sync is off. An officer turns it on with /guilded ledgersync on."] = "Synchro du registre d\195\169sactiv\195\169e. Un officier l'active avec /guilded ledgersync on.",
+  ["Ledger sync: asked online officers to compare ledgers."] = "Synchro du registre : comparaison demand\195\169e aux officiers en ligne.",
+  ["Ledger sync is %s: %d entries here, %d of them from other officers."] = "Synchro du registre %s : %d entr\195\169es ici, dont %d d'autres officiers.",
+  ["Last exchange %d min ago."] = "Dernier \195\169change il y a %d min.",
 }
 
 local function language()

@@ -1,9 +1,10 @@
-import { readFile, access } from "node:fs/promises";
+import { readFile, access, stat } from "node:fs/promises";
 import { watch } from "node:fs";
 import { basename, dirname } from "node:path";
 import { readAddonExport } from "./lua-export.mjs";
-import { writeStandings } from "./standings.mjs";
-import { credentialHeaders, checkUrl, requestJson } from "./request.mjs";
+import { standingsFileHolds, writeStandings } from "./standings.mjs";
+import { credentialHeaders, checkUrl, requestJson, jsonBody, MAX_UPLOAD_BYTES } from "./request.mjs";
+import { acknowledgements, pruneAcknowledged } from "./delta.mjs";
 import { createPoeEngine, validatePoeConfig } from "./poe-engine.mjs";
 
 // The companion's working parts, shared by the command-line watcher
@@ -78,18 +79,36 @@ function describeApiError(status, apiError) {
   return apiError ?? "unknown error";
 }
 
+// How long the bot may hold a standings request open waiting for a change (long poll). The
+// website proxy in front of the bot gives up after 20 seconds, so stay well under that.
+const LONG_POLL_SECONDS = 15;
+// Two standings requests are never closer than this, whatever the bot answers.
+const MIN_POLL_GAP_MS = 2_000;
+// Safety net for the folder watch, which can miss a save on some Windows setups.
+const FILE_CHECK_MS = 30_000;
+
 export function createEngine(initialConfig, hooks = {}) {
   let config = initialConfig;
   let watcher;
   let poe;
   let uploadTimer;
   let standingsTimer;
+  let fileCheckTimer;
   let controller = new AbortController();
   let uploading = false;
   let refreshing = false;
   let queued = false;
   let generation = 0;
   let failures = 0;
+  // What the bot can do (features), what it already stored (ack) and which standings answer the
+  // addon folder holds now (etag). All three come from the standings answer.
+  let features = new Set();
+  let ack = null;
+  let etag = null;
+  let gzipOff = false;
+  let lastFile = null;
+  let lastText = null;
+  let watchRestarts = 0;
   const active = new Set();
   const state = {
     running: false,
@@ -104,6 +123,9 @@ export function createEngine(initialConfig, hooks = {}) {
     uploadError: null,
     standingsError: null,
     uploads: 0,
+    // "live" (the bot tells this companion about changes as they happen) or "interval".
+    standingsMode: null,
+    lastUploadBytes: null,
     poe: null
   };
 
@@ -118,6 +140,42 @@ export function createEngine(initialConfig, hooks = {}) {
     hooks.onState?.(snapshot());
   };
 
+  // A pause that ends early when the companion stops.
+  const sleep = (ms, epoch) => new Promise((resolve) => {
+    if (epoch !== generation) { resolve(); return; }
+    const signal = controller.signal;
+    const done = () => { clearTimeout(timer); signal.removeEventListener("abort", done); resolve(); };
+    const timer = setTimeout(done, ms);
+    signal.addEventListener("abort", done, { once: true });
+  });
+
+  async function fileStamp(path) {
+    try { const info = await stat(path); return `${info.mtimeMs}:${info.size}`; } catch { return null; }
+  }
+
+  async function send(current, exported, epoch) {
+    const gzip = features.has("gzip-upload") && !gzipOff;
+    const payload = jsonBody({ guildDiscordId: current.guildDiscordId, export: exported }, { gzip });
+    if (payload.bytes > MAX_UPLOAD_BYTES) {
+      const error = new Error(`This upload is ${Math.ceil(payload.bytes / 1000)} KB; the bot accepts at most ${MAX_UPLOAD_BYTES / 1000} KB. Update the bot so the companion can send only new entries, or ask an officer to check the saved data.`);
+      error.retryable = false;
+      throw error;
+    }
+    state.lastUploadBytes = payload.bytes;
+    const result = await requestJson(current.uploadUrl, {
+      method: "POST",
+      headers: { ...credentialHeaders(current), ...payload.headers },
+      body: payload.body
+    }, controller.signal);
+    // A compressed upload the bot (or something on the way) could not read: send it plain from now on.
+    if (gzip && epoch === generation && (result.response.status === 400 || result.response.status === 415)) {
+      gzipOff = true;
+      log("warn", "The bot could not read a compressed upload; sending uncompressed from now on.");
+      return send(current, exported, epoch);
+    }
+    return result;
+  }
+
   async function upload() {
     if (!state.running || config.wowEnabled === false) return;
     if (uploading) { queued = true; return; }
@@ -128,23 +186,24 @@ export function createEngine(initialConfig, hooks = {}) {
     state.pendingUpload = true;
     state.retryAt = null;
     try {
-    const exported = current.watchFile.toLowerCase().endsWith(".lua")
+    lastFile = await fileStamp(current.watchFile);
+    const full = current.watchFile.toLowerCase().endsWith(".lua")
       ? await readAddonExport(current.watchFile, current.realm)
       : JSON.parse(await readFile(current.watchFile, "utf8"));
     // The saved data belongs to one WoW guild; do not send an alt's other guild.
-    if (current.wowGuild && exported.wowGuild && exported.wowGuild !== current.wowGuild) {
+    if (current.wowGuild && full.wowGuild && full.wowGuild !== current.wowGuild) {
       state.pendingUpload = false;
-      log("warn", `Skipped: the saved data belongs to "${exported.wowGuild}", this companion is for "${current.wowGuild}".`);
+      log("warn", `Skipped: the saved data belongs to "${full.wowGuild}", this companion is for "${current.wowGuild}".`);
       return;
     }
-    const { response, body } = await requestJson(current.uploadUrl, {
-      method: "POST",
-      headers: { ...credentialHeaders(current), "content-type": "application/json" },
-      body: JSON.stringify({ guildDiscordId: current.guildDiscordId, export: exported })
-    }, controller.signal);
+    // Leave out what the bot already stored (it said so in the last standings answer).
+    const { exported, omitted } = features.has("ledger-delta") ? pruneAcknowledged(full, ack) : { exported: full, omitted: { ledger: 0, loot: 0 } };
+    const { response, body } = await send(current, exported, epoch);
     if (epoch !== generation) return;
     state.botVersion = body.botVersion ?? state.botVersion;
     state.addonVersion = exported.addonVersion ?? state.addonVersion;
+    const left = omitted.ledger + omitted.loot;
+    const leftNote = left > 0 ? ` ${left} entries the bot already has were not sent again.` : "";
     if (response.ok) {
       const message = body.applyError
         ? `Uploaded, but the bot could not apply it: ${body.applyError}`
@@ -155,8 +214,9 @@ export function createEngine(initialConfig, hooks = {}) {
           : `Uploaded ${body.transactionCount} ledger entries. Apply on Discord with: /import apply id:${body.importId}.${pairingNote(body.pairedCharacterStatus)}`;
       state.lastUpload = { at: new Date().toISOString(), message };
       state.uploads += 1;
-      log(body.applyError || body.autoApplied?.held ? "warn" : "ok", message);
-      void refreshStandings();
+      log(body.applyError || body.autoApplied?.held ? "warn" : "ok", message + leftNote);
+      // A live standings connection hears about the change by itself.
+      if (state.standingsMode !== "live") void refreshStandings();
     } else if (response.status === 409) {
       const message = body.status === "PREVIEWED"
         ? `Upload is waiting for officer review: /import apply id:${body.importId}.`
@@ -211,23 +271,101 @@ export function createEngine(initialConfig, hooks = {}) {
 
   function track(promise) { active.add(promise); void promise.finally(() => active.delete(promise)); }
 
-  async function refreshStandings() {
+  // One standings answer: written to the addon folder (unless unchanged), and what it says about
+  // the bot (features, stored entries) remembered. `waitSeconds` long-polls.
+  async function fetchStandings(epoch, options = {}) {
+    const result = await writeStandings({ ...config }, controller.signal, { etag: options.force ? null : etag, waitSeconds: options.waitSeconds });
+    if (epoch !== generation) return result;
+    state.standingsError = null;
+    if (result.notModified) {
+      // Nothing new, but the file may have been replaced since (an addon update): write it again.
+      if (lastText && !await standingsFileHolds(result.path, lastText)) return fetchStandings(epoch, { force: true });
+      hooks.onState?.(snapshot());
+      return result;
+    }
+    etag = result.etag;
+    lastText = result.text ?? null;
+    features = new Set(Array.isArray(result.body?.features) ? result.body.features : []);
+    ack = acknowledgements(result.body);
+    state.botVersion = result.botVersion ?? state.botVersion;
+    state.lastStandings = { at: new Date().toISOString(), message: result.unchanged ? `Standings already up to date (${result.count} characters).` : `Wrote standings for ${result.count} character(s).` };
+    if (!result.unchanged) log("ok", `Wrote EPGP standings for ${result.count} character(s) to ${result.path}.`);
+    else hooks.onState?.(snapshot());
+    return result;
+  }
+
+  async function refreshStandings(options = {}) {
     if (!state.running || refreshing || config.wowEnabled === false) return;
     refreshing = true;
     const epoch = generation;
     try {
-      const { path, count, unchanged, botVersion } = await writeStandings({ ...config }, controller.signal);
-      if (epoch !== generation) return;
-      state.botVersion = botVersion ?? state.botVersion;
-      state.standingsError = null;
-      state.lastStandings = { at: new Date().toISOString(), message: unchanged ? `Standings already up to date (${count} characters).` : `Wrote standings for ${count} character(s).` };
-      if (!unchanged) log("ok", `Wrote EPGP standings for ${count} character(s) to ${path}.`);
-      else hooks.onState?.(snapshot());
+      await fetchStandings(epoch, options);
     } catch (error) {
       if (epoch !== generation) return;
       state.standingsError = describeError(error);
       log("error", `Standings update failed: ${state.standingsError}`);
     } finally { refreshing = false; hooks.onState?.(snapshot()); }
+  }
+
+  function startInterval(epoch) {
+    if (epoch !== generation) return;
+    state.standingsMode = "interval";
+    clearInterval(standingsTimer);
+    const minutes = Math.max(1, Number(config.standingsIntervalMinutes) || 2);
+    standingsTimer = setInterval(() => track(refreshStandings()), minutes * 60 * 1000);
+    hooks.onState?.(snapshot());
+  }
+
+  // Live standings: the bot holds each request until something changes (or 15 seconds pass), so
+  // a change made on Discord or by an import reaches the addon folder within seconds.
+  async function liveStandings(epoch) {
+    let errors = 0;
+    let sameAnswers = 0;
+    while (state.running && epoch === generation) {
+      const startedAt = Date.now();
+      const sent = etag;
+      try {
+        const result = await fetchStandings(epoch, { waitSeconds: LONG_POLL_SECONDS });
+        if (epoch !== generation) return;
+        if (errors > 0) log("ok", "Standings connection restored.");
+        errors = 0;
+        // Answered at once with what we already had: something on the way ignores `since`.
+        // Do not spin; ask every few minutes instead.
+        sameAnswers = !result.notModified && sent && result.etag === sent ? sameAnswers + 1 : 0;
+        if (sameAnswers >= 3 || (!result.notModified && !result.etag)) { startInterval(epoch); return; }
+      } catch (error) {
+        if (epoch !== generation) return;
+        state.standingsError = describeError(error);
+        if (errors === 0) log("error", `Standings update failed: ${state.standingsError}`);
+        errors++;
+        await sleep(Math.min(300_000, 5_000 * 2 ** Math.min(errors - 1, 6)), epoch);
+        continue;
+      }
+      const elapsed = Date.now() - startedAt;
+      if (elapsed < MIN_POLL_GAP_MS) await sleep(MIN_POLL_GAP_MS - elapsed, epoch);
+    }
+  }
+
+  function watchFolder() {
+    const name = basename(config.watchFile).toLowerCase();
+    // Watch the folder, not the file: WoW replaces the file on save.
+    watcher = watch(dirname(config.watchFile), (_event, filename) => {
+      if (filename && filename.toString().toLowerCase() === name) scheduleUpload();
+    });
+    watcher.on("error", (error) => {
+      watcher?.close(); watcher = undefined;
+      if (!state.running) return;
+      // The periodic file check keeps uploads going meanwhile; try to watch again.
+      if (watchRestarts++ < 5) {
+        log("warn", `File watch stopped (${error.message}); starting it again.`);
+        setTimeout(() => {
+          if (!state.running || watcher) return;
+          try { watchFolder(); } catch (again) { log("error", `File watch could not restart: ${again.message}. Saves are still checked every 30 seconds.`); }
+        }, 5_000);
+      } else {
+        log("error", `File watch keeps stopping (${error.message}). Saves are still checked every 30 seconds; restart the companion if uploads stop.`);
+      }
+    });
   }
 
   async function startWatching() {
@@ -252,18 +390,27 @@ export function createEngine(initialConfig, hooks = {}) {
       log("error", `The folder ${dirname(config.watchFile)} does not exist. Check the saved-data file in Settings.`);
       return false;
     }
-    // Watch the folder, not the file: WoW replaces the file on save.
-    const name = basename(config.watchFile).toLowerCase();
-    watcher = watch(dirname(config.watchFile), (_event, filename) => {
-      if (filename && filename.toString().toLowerCase() === name) scheduleUpload();
-    });
-    watcher.on("error", (error) => { state.running = false; log("error", `File watch stopped: ${error.message}. Restart the companion.`); });
+    watchRestarts = 0;
+    watchFolder();
     state.running = true;
     state.watching = config.watchFile;
     log("info", `Watching ${config.watchFile}`);
+    const epoch = generation;
+    // Standings first: they say what the bot already has, which the first upload leaves out.
     await refreshStandings();
     scheduleUpload(0);
-    standingsTimer = setInterval(() => track(refreshStandings()), Math.max(1, Number(config.standingsIntervalMinutes) || 2) * 60 * 1000);
+    // Safety net for the folder watch: a save it missed is noticed within 30 seconds.
+    fileCheckTimer = setInterval(() => track((async () => {
+      if (!state.running || uploading || lastFile === null) return;
+      const now = await fileStamp(config.watchFile);
+      if (now && now !== lastFile) scheduleUpload(0);
+    })()), FILE_CHECK_MS);
+    if (features.has("long-poll") && etag && config.liveStandings !== false) {
+      state.standingsMode = "live";
+      track(liveStandings(epoch));
+    } else {
+      startInterval(epoch);
+    }
     return true;
   }
 
@@ -277,16 +424,17 @@ export function createEngine(initialConfig, hooks = {}) {
       generation++;
       controller.abort();
       await poe?.stop(); poe = undefined; state.poe = null;
-      clearTimeout(uploadTimer); clearInterval(standingsTimer);
+      clearTimeout(uploadTimer); clearInterval(standingsTimer); clearInterval(fileCheckTimer);
       queued = false;
       await Promise.allSettled([...active]);
-      state.pendingUpload = false; state.retryAt = null;
+      state.pendingUpload = false; state.retryAt = null; state.standingsMode = null;
       state.watching = null;
       if (was) log("info", "Stopped."); else hooks.onState?.(snapshot());
     },
     // Apply new settings and restart.
-    async configure(next) { await this.stop(); config = next; return this.start(); },
+    async configure(next) { await this.stop(); config = next; etag = null; ack = null; features = new Set(); gzipOff = false; lastFile = null; lastText = null; return this.start(); },
     uploadNow() { if (config.wowEnabled !== false) scheduleUpload(0); if (poe) track(poe.pollNow()); },
-    refreshStandings
+    // The tray's "Refresh in-game standings now" always fetches and writes the full answer.
+    refreshStandings: () => refreshStandings({ force: true })
   };
 }

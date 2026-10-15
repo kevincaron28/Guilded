@@ -216,3 +216,55 @@ describe("standings chunk reassembly", () => {
     expect(s.run(`return DB.items.list["other ring"].gp`)).toBe("20");
   });
 });
+
+describe("standings sharing between officers", () => {
+  const officer = () => {
+    const s = withSync();
+    s.run(`
+      NS.isOfficer = function() return true end
+      NS.isOfficerName = function() return true end
+      TIMERS = {}
+      C_Timer = { After = function(delay, fn) TIMERS[#TIMERS + 1] = { delay = delay, fn = fn } end }
+      function run_timers(max) local due = TIMERS; TIMERS = {}; for _, t in ipairs(due) do if t.delay <= max then t.fn() else TIMERS[#TIMERS + 1] = t end end end
+      SENT_STAND = 0
+      C_ChatInfo = { RegisterAddonMessagePrefix = function() end, SendAddonMessage = function(_, text) if string.find(text, "^STAND|") then SENT_STAND = SENT_STAND + 1 end end }
+      DB.standings = { updatedAt = "2026-09-26T00:00:00Z", baseGp = 0, players = { Amy = { ep = 10, gp = 5, pr = 2 } } }
+      fire_event("PLAYER_ENTERING_WORLD")
+    `);
+    return s;
+  };
+
+  it("answers a request a few seconds later, once, however many ask", () => {
+    const s = officer();
+    s.run(`
+      fire_event("CHAT_MSG_ADDON", "GuildedSync", "STANDREQ|0", "GUILD", "Amy-Realm")
+      fire_event("CHAT_MSG_ADDON", "GuildedSync", "STANDREQ|0", "GUILD", "Bob-Realm")
+    `);
+    expect(s.run("return SENT_STAND")).toBe("0");
+    s.run("run_timers(6)");
+    expect(s.run("return SENT_STAND")).toBe("1");
+  });
+
+  it("stays quiet when another officer is already sending the same standings", () => {
+    const s = officer();
+    s.run(`
+      fire_event("CHAT_MSG_ADDON", "GuildedSync", "STANDREQ|0", "GUILD", "Amy-Realm")
+      fire_event("CHAT_MSG_ADDON", "GuildedSync", "STAND|2026-09-26T00:00:00Z|0|1|2|Amy:10:5", "GUILD", "Other-Realm")
+      run_timers(6)
+    `);
+    expect(s.run("return SENT_STAND")).toBe("0");
+  });
+
+  it("clears entries Discord accepted even when the standings stamp did not move", () => {
+    const s = withSync();
+    s.run(`
+      DB.standings = { updatedAt = "2026-09-26T00:00:00Z", baseGp = 0, players = {}, from = "companion" }
+      DB.epgp = { Amy = { ep = 0, gp = 0, ledger = { { id = "Kev-1800000000-1", pending = true, epAmount = 10, gpAmount = 0 } } } }
+      GuildedStandings = { updatedAt = "2026-09-26T00:00:00Z", baseGp = 0, players = {} }
+      GuildedLedgerAccepted = { ["addon:qg:Kev-1800000000-1"] = true }
+      fire_event("PLAYER_ENTERING_WORLD")
+    `);
+    expect(s.run("return tostring(DB.epgp.Amy.ledger[1].pending)")).toBe("nil");
+    expect(s.run('return tostring(DB.acceptedLedgerRefs["addon:qg:Kev-1800000000-1"])')).toBe("true");
+  });
+});

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Faster, lighter sync (`docs/SYNC_SPEEDUPS_2026-10-15.md`). The bot caches each companion's
+  standings with an ETag and can hold the request until something changes, so awards and
+  imports reach the addon folder in seconds instead of up to two minutes. Uploads are
+  gzip-compressed and leave out ledger and loot entries the bot already stored, so they no
+  longer grow toward the 1 MB limit. Imports insert new ledger rows in one call and skip
+  unchanged gear digests, recipes and attunements. The companion also writes a `GuildedData`
+  addon folder that addon updates do not wipe, restarts its file watch by itself and checks
+  for missed saves. In game, the officer bridge sends about half the messages to newer addons,
+  and officers no longer all answer the same request. In-game-only guilds can turn on
+  `/guilded ledgersync` so officers share EP/GP entries with each other. Older addons and
+  companions keep working unchanged.
 - Community hall of fame (`docs/COMMUNITY_HALL_OF_FAME.md`): a weekly MVP role, a
   rookie of the week, monthly podium roles and a `🏅・hall-of-fame` channel with a
   weekly recap of the guild. `/community honors` shows the history ("3rd time MVP!");

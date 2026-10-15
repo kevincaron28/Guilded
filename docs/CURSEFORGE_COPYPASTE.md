@@ -1,4 +1,4 @@
-# CurseForge copy-paste sheet: Guilded 6.0.0
+# CurseForge listing copy: Guilded 6.1.2
 
 Each block below is one field. Copy the block, paste it in.
 
@@ -20,7 +20,11 @@ Raid & Instance (secondary: Guild, Miscellaneous)
 ## Logo
 `docs/branding/guilded-logo-400.png` (400x400). Full size: `docs/branding/guilded-logo.png`.
 
-## File to upload
+## Historical setup-only file (9 October 2026)
+
+The current published client is 6.1.2 Release. The domain/support metadata update
+does not require a new client upload. Preserve its published files. The following
+6.0.0 file instructions and changelog are retained as historical release records.
 For the 9 October setup-only refresh: `dist/Guilded-v6.0.0-hosted-pilot.zip`
 (top folder inside is `Guilded`). Display name: **Guilded 6.0.0 - Hosted pilot setup**.
 Release type: **Release**, as explicitly directed by the owner on 5 October 2026.
@@ -45,7 +49,7 @@ https://polyformproject.org/licenses/noncommercial/1.0.0
 
 Guilded brings raid tracking, EPGP, four loot systems, readiness checks, and everyday guild tools together. Use the addon on its own, or connect your guild’s optional Discord bot for signups, shared standings, and reports.
 
-**Currently available as 6.0.0 Release.**
+**Available now: 6.1.2 Release. The addon works without Discord.**
 
 ## Add the Discord bot — KCaron's approval required
 
@@ -140,7 +144,7 @@ Use the **Windows companion** to upload saved data after a reload or logout, or 
 
 Designed for **WoW Forever**. Declared interface versions: **16001 and 20506**. Feature availability depends on the game client and its addon APIs.
 
-**6.0.0 is the full release. The next planned version is 6.1.0.** Fresh-guild setup, Windows installation and recovery, concurrent award workflows, and full raid acceptance testing remain in progress. Back up SavedVariables before upgrading.
+**6.1.2 is available as a Release on CurseForge.** Fresh-guild setup, Windows installation and recovery, concurrent award workflows, and full raid acceptance testing remain in progress. Back up SavedVariables before upgrading.
 
 Guild map and shared information depend on participating addon users and available data. Raid markers, tank marking, and boss plans are not included in v6.
 
@@ -148,7 +152,11 @@ Free for noncommercial use under the **PolyForm Noncommercial 1.0.0** license. N
 
 ## Optional support
 
-The addon and approved hosted pilot are free. Optional tips help fund bot hosting, the PostgreSQL database, backups and ongoing maintenance. [Support Guilded by KCaron on Ko-fi](https://ko-fi.com/wowguilded) in Canadian dollars (CAD), with one-time tips from C$5 and optional monthly support. Tips never buy approval, priority or extra permissions. No payment is required to download Guilded, request bot access or ask for help. [How your support helps](https://guilded.kcaron.top/docs/SUPPORT_GUILDED/).
+Guilded is an independent project by [KCaron](https://kcaron.top/). The addon and approved hosted pilot are free. Optional tips help fund bot hosting, the PostgreSQL database, backups and ongoing maintenance.
+
+**[Support Guilded by KCaron](https://kcaron.top/support)** in Canadian dollars (CAD), with one-time tips from C$5 and optional monthly support. Tips do not buy approval, priority or extra permissions. No payment is required to download Guilded, request bot access or ask for help. [How your support helps](https://guilded.kcaron.top/docs/SUPPORT_GUILDED).
+
+[Guilded website](https://guilded.kcaron.top/) · [KCaron creator page](https://kcaron.top/)
 
 **Français :** ajoutez Guilded pour demander l’accès au pilote gratuit. **KCaron doit approuver votre serveur Discord avant son activation.** Après son accord, lancez `/setup start`. Le soutien financier est facultatif et ne donne aucune priorité.
 

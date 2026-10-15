@@ -67,3 +67,48 @@ it never requests or forwards pairing codes. Each other guild hosts its own bot.
 Screenshots and provenance: `docs/images/owner-setup/README.md`. Screenshots of
 vendor tutorial examples are labelled as such and must not be presented as a
 completed real-account install test.
+
+## Design refresh — 15 October 2026
+
+The product homepage, feature guide and four French community pages share a
+charcoal, warm gold and ivory palette, serif accents, a consistent navigation
+and responsive layouts. Public guides inherit the same shell. Content remains
+in `site/index.html`, `site/pages/*.md` and the existing guide Markdown sources.
+The creator homepage retains its previous base styles in `site/creator/base.css`
+so the shared product stylesheet does not change its appearance.
+
+The previous homepage gave setup details and competing links similar weight,
+introduced the community before explaining the toolkit, and relied on a logo
+to show the product. The revised page leads with the addon, offers a keyboard
+accessible feature tour, separates player/member/owner starting paths, and
+explains optional synchronization in three steps. The tour describes features;
+it does not display live guild data or pretend to be a product screenshot.
+
+Official competitor websites reviewed on 15 October 2026:
+
+| Reference | Useful pattern | Applied to Guilded |
+| --- | --- | --- |
+| [Raid-Helper](https://raid-helper.xyz/) | A visible product example and a direct getting-started action | Feature tour beside the primary addon action |
+| [wowaudit](https://wowaudit.com/) | Specific workflows and product previews explain a broad toolkit | Distinct in-game, dungeon, companion and Discord sections |
+| [That's My BIS](https://thatsmybis.com/) | A focused explanation of the player's problem | Benefit-led copy and clear player/member/owner paths |
+
+These are presentation references, not claims of equivalent client support,
+pricing, functionality or adoption. No testimonials, player statistics or
+compatibility claims were invented. Published-version wording remains 6.1.2;
+the 6.2 candidate acceptance and deployment gates still apply.
+
+The static preview does not proxy `/companion/` or call the live bot. Companion
+links intentionally keep the existing production route for eventual hosting.
+The guild-address form builds a link locally, requires HTTPS, rejects embedded
+credentials, and discards unrelated query parameters. Do not pair an account
+or upload game data as part of public website QA.
+
+Verification for this refresh: `site:build`, TypeScript, ESLint and addon
+validation passed; the full Vitest rerun passed 184 files / 1,548 tests with
+`--testTimeout=30000` after the initial slow run. The static audit checked 16
+HTML pages and 288 internal links/assets with no missing targets. Browser QA
+covered the desktop homepage, phone layouts down to a 320px viewport, all
+community pages, features and a setup guide, plus the tour's keyboard controls,
+mobile navigation and companion link validation. The static preview made no
+production pairing or upload requests. Local screenshots and detailed checks
+are retained in `backups/site-polish-20261015/` (not public build assets).

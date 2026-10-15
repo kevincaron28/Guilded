@@ -1,14 +1,25 @@
-<span class="eyebrow">GUILDED · IN GAME AND ON THE WEB</span>
+<section class="community-hero" aria-labelledby="features-title">
+<p class="eyebrow">THE GUILDED TOOLKIT · WOW FOREVER</p>
+<h1 id="features-title">Your guild tools.<br>Closer to the <em>game.</em></h1>
+<p>Start with the addon. Bring in the companion and Discord when your guild wants to connect. Choose the tools that fit the way you play.</p>
+<div class="actions"><a class="button" href="https://www.curseforge.com/wow/addons/guilded">Get the free addon <span aria-hidden="true">↗</span></a><a class="button secondary" href="../docs/MEMBER_INSTALL.html">Member setup guide <span aria-hidden="true">→</span></a></div>
+</section>
 
-# Your guild tools, within reach.
+<div class="feature-overview"><div><span class="number">01 / IN GAME</span><h2>Start where you play.</h2><p>Guild knowledge, standings and dungeon history in familiar WoW windows.</p></div><div><span class="number">02 / COMPANION</span><h2>Bridge the gap.</h2><p>Sync saved data and bring standings back. Browser first; Windows app optional.</p></div><div><span class="number">03 / DISCORD</span><h2>Keep the guild close.</h2><p>Signups, community activities and polls. Hosted pilot access requires approval.</p></div></div>
 
-Start with the WoW addon. Add the companion and Discord when you want to share data with your guild. Quebec Gold is a community using Guilded; Guilded is also available to other guilds.
+Quebec Gold is a community using Guilded. The addon is also available to other guilds, without joining Quebec Gold or connecting Discord.
 
 ## In game, without Discord
 
 Use the addon for guild recipes, the guild map, attendance and loot workflows. Availability depends on your game client and guild permissions. You can use the addon without connecting a Discord account or installing the companion.
 
 [Get Guilded on CurseForge](https://www.curseforge.com/wow/addons/guilded) · [Installation guide](../docs/MEMBER_INSTALL.html)
+
+## Your runs, progress and seasons
+
+The dungeon finder's Guilded tab brings together **Run** and **Season** views. Revisit your recent runs, switch between personal progress and guild rankings, and explore past seasons. Local dungeon recording works without a connection; verified online seasonal ratings need optional synchronization.
+
+The published 6.1.2 release also brings standings and crafting into the native guild window. Install the complete addon folder when upgrading and preserve your SavedVariables.
 
 ## WoW standings in your browser
 

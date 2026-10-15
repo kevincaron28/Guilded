@@ -1,3 +1,9 @@
+> 6.2 candidate integration (15 October 2026): Claude's sync work is preserved in
+> `c405607` and combined with November scoring in the `finish-companion-sync`
+> managed checkout / release candidate PR. Source versions are 6.2.0; published
+> clients remain 6.1.2. Follow `docs/V6_2_RELEASE_HANDOFF.md` and
+> `docs/V6_2_GAME_ACCEPTANCE.md`; real-client acceptance is still pending.
+>
 > **5.0 delivery note:** The stabilization bundle (Guilded-5.0-Stabilization.zip) was merged as
 > PR #4; ignore the offline bundle import section in docs/V5_0_RELEASE_HANDOFF.md. Work now goes
 > through pull requests on GitHub: both `Guilded quality` jobs must pass before a merge.

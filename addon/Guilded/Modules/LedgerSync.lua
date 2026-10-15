@@ -203,6 +203,7 @@ local function receiveEntry(fields, sender)
   local name = ns.normalizeName(player)
   ep, gp = tonumber(ep), tonumber(gp)
   if not author or not name or not ep or not gp or (ep == 0 and gp == 0) then return end
+  if ep ~= math.floor(ep) or gp ~= math.floor(gp) or (voided ~= "0" and voided ~= "1") then return end
   if math.abs(ep) > MAX_AMOUNT or math.abs(gp) > MAX_AMOUNT or ns.util.tooFarAhead(at) then return end
   local d = db()
   if not d then return end
@@ -358,6 +359,7 @@ ns.commandHandlers["ledgersync"] = function(args)
   end
   if action == "now" then
     if not active() then ns.message(L("Ledger sync is off. An officer turns it on with /guilded ledgersync on.")); return end
+    cache = nil -- Include awards/voids made since the last cached summary.
     sendSum(true)
     ns.message(L("Ledger sync: asked online officers to compare ledgers."))
     return

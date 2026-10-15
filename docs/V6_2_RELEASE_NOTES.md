@@ -15,7 +15,23 @@ This release introduces no database migration.
   guild EP/GP pool; this release does not add independent local point pools.
 - Standings identify their source. Backup/restore includes local cores, rosters
   and the accounting baseline, with a preview and undo for officer handover.
-  One officer remains the record keeper; snapshots are not multi-writer sync.
+  One officer remains the default record keeper. Standalone guilds can separately
+  opt into officer ledger exchange; snapshots alone do not merge ledgers.
+
+## Companion and officer sync
+
+- Compatible bots support compressed uploads and omit acknowledged ledger/loot
+  rows, while retaining unacknowledged awards and pending reversals for retry.
+- Cached standings and long polling reduce repeated downloads and can deliver
+  changes sooner. Older bots retain the timed refresh path.
+- The desktop companion creates an optional `GuildedData` recovery addon beside
+  Guilded, so an addon update need not erase downloaded standings. The main file
+  takes precedence when guild timestamps tie, preserving newer personal data.
+- Folder watching recovers after errors and checks for missed saves periodically.
+- Officer snapshots use a smaller wire format when peers support it. Standalone
+  officers may opt into `/guilded ledgersync on`; entry IDs deduplicate exchanges
+  and voids propagate. This remains off by default and needs two-client acceptance.
+- No beta scores, season rules or archived standings are rewritten by this update.
 
 ## Dungeon recording and season views
 

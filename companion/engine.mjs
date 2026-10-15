@@ -197,7 +197,7 @@ export function createEngine(initialConfig, hooks = {}) {
       return;
     }
     // Leave out what the bot already stored (it said so in the last standings answer).
-    const { exported, omitted } = features.has("ledger-delta") ? pruneAcknowledged(full, ack) : { exported: full, omitted: { ledger: 0, loot: 0 } };
+    const { exported, omitted } = pruneAcknowledged(full, ack, features);
     const { response, body } = await send(current, exported, epoch);
     if (epoch !== generation) return;
     state.botVersion = body.botVersion ?? state.botVersion;
@@ -369,6 +369,7 @@ export function createEngine(initialConfig, hooks = {}) {
   }
 
   async function startWatching() {
+    const epoch = generation;
     const problems = validateConfig(config);
     if (problems.length > 0) { log("warn", `Not started: ${problems[0]}`); return false; }
     if (config.poeEnabled) {
@@ -377,6 +378,7 @@ export function createEngine(initialConfig, hooks = {}) {
         onState: next => { state.poe = next; state.botVersion = next.botVersion ?? state.botVersion; hooks.onState?.(snapshot()); }
       });
       if (!await poe.start()) { log("error", poe.state().error || "PoE2 tracking could not start."); return false; }
+      if (epoch !== generation) return false;
     }
     if (config.wowEnabled === false) {
       state.running = true; state.watching = config.poeLogFile;
@@ -386,18 +388,20 @@ export function createEngine(initialConfig, hooks = {}) {
     try {
       await access(dirname(config.watchFile));
     } catch {
+      if (epoch !== generation) return false;
       await poe?.stop();
       log("error", `The folder ${dirname(config.watchFile)} does not exist. Check the saved-data file in Settings.`);
       return false;
     }
+    if (epoch !== generation) return false;
     watchRestarts = 0;
     watchFolder();
     state.running = true;
     state.watching = config.watchFile;
     log("info", `Watching ${config.watchFile}`);
-    const epoch = generation;
     // Standings first: they say what the bot already has, which the first upload leaves out.
     await refreshStandings();
+    if (epoch !== generation || !state.running) return false;
     scheduleUpload(0);
     // Safety net for the folder watch: a save it missed is noticed within 30 seconds.
     fileCheckTimer = setInterval(() => track((async () => {

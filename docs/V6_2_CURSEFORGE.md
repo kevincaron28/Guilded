@@ -21,13 +21,18 @@ Guilded 6.2.0 improves addon-only guild management and dungeon progress.
   when the encounter journal is unavailable.
 - Boss-fight timing continues in the background without a floating timer popup.
 - Seasonal views support Best 8 competitions while preserving older season history.
+- The updated companion supports lighter uploads, quicker standings refreshes and
+  a separate GuildedData recovery folder that survives addon updates.
+- Standalone officers can opt into ledger exchange; duplicate entries count once
+  and voids propagate. It stays off unless officers enable it.
 - Party games are an optional separate Guilded Games addon. Guilded retains
   independent soft-reserve rolls and SR+ support.
 
 Install the complete addon folder and preserve SavedVariables. Discord and the
 companion remain optional. Online seasonal ratings require a connected guild;
 installing the addon does not change your guild's season or scoring rules.
-Local cores share one guild EP/GP pool and use one officer as record keeper.
+Local cores share one guild EP/GP pool. Use one record keeper by default;
+optional officer ledger exchange requires coordinated setup and testing.
 The separate Guilded Games addon retains its own Alpha status.
 
 ## Listing update

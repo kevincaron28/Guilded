@@ -29,6 +29,8 @@ Use an actual ordinary member for permission checks; two officers are insufficie
 | G8 | Run Graveyard and Library separately, exiting/re-entering between wings. Test a party replacement or disconnect/rejoin during a recorded run. | Wings remain separate; participant history retains replacements and sensible presence. The server applies recorded eligibility, with no invented level/presence evidence. A replacement does not create duplicate awards. | Pending |
 | G9 | Without Guilded Games installed, run a two-player soft-reserve roll-off, including SR+ and a tied reroll, then award once. Install/enable both addons and test session exclusion, combat and reload. | Guilded's loot rolls work independently. A host cannot run overlapping Games/loot sessions. No blocked-action/Lua error; cancelled/reloaded sessions do not award twice. | Pending |
 | G10 | On English and French clients, open setup, Local guild, backup preview, Run/Season and loot-roll views; receive ordinary `/roll` messages. | Labels fit, translated controls work, roll messages are parsed, and no newly introduced Lua/locale errors appear. | Pending |
+| G11 | On two candidate clients in an isolated in-game-only test guild, enable ledger sync on both officers. Make distinct awards, sync, repeat sync, void an award, reload and sync again. Include recovery of an author's entry from the other PC. | Both ledgers/totals converge once per entry; voids converge; the author can void a recovered award. Ordinary members cannot send accepted ledger edits. Turning sync off stops exchange and retains history. | Pending |
+| G12 | Test officer snapshot sharing between candidate clients and between 6.1.2 and the candidate. Include an older client already online before the officer logs in, then request/relog. | Both wire formats arrive without Lua errors or repeated broadcast loops. Record any delayed older-client delivery; the known proactive-sharing limitation remains documented. | Pending |
 
 G3–G5 are the standalone accounting/permissions gate. G6–G8 are the dungeon
 acceptance gate. The arithmetic for best-eight replacement, all eleven routes,
@@ -47,6 +49,15 @@ Deadmines completion should not receive competitive rating in that phase.
 - [ ] On the second PC, verify a clean companion installation/pairing where
   applicable. Check restart with an unsent run and an offline/reconnected sync;
   no duplicate awards, no lost unsent run and no second bot process.
+- [ ] Verify `GuildedData` is discovered/enabled on the actual client and loads
+  after Guilded. Upgrade the addon in the test profile, reload, and confirm
+  standings survive. Check a newer browser-written file also takes precedence.
+- [ ] With an accepted test backend, compare direct and website-proxied sync:
+  one award, one reversal, repeated uploads, disconnect/reconnect, and stop/start.
+  Verify no duplicate accounting and record observed update latency/upload sizes.
+  New-server long polling cannot be accepted against the current older live bot.
+- [ ] Change pairing/server in a test companion, then sync. No acknowledgements
+  from the previous account/server may suppress uploads in the new connection.
 
 ## Outside the Guilded 6.2 upload gate
 

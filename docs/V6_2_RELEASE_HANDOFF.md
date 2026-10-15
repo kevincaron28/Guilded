@@ -1,5 +1,15 @@
 # Guilded 6.2.0 release candidate handoff
 
+Companion integration follow-up: Claude's uncommitted sync work was preserved as
+`c405607`, then integrated with the November candidate and current main in the
+managed `finish-companion-sync` checkout. See
+[sync implementation and remaining acceptance](SYNC_SPEEDUPS_2026-10-15.md).
+Review fixes cover account-scoped acknowledgements, independent feature
+negotiation, stopping during startup, stale concurrent standings, recovery-file
+precedence/cancellation and recovered ledger authorship. Rebuild the full addon
+and desktop installer; older candidate hashes do not contain these changes.
+G11/G12 and the expanded desktop checks are pending, alongside the existing gates.
+
 November scoring follow-up: [version-5 level-60 model and pending wing tests](NOVEMBER_SCORING_IMPLEMENTATION.md).
 Separate opt-in rules, offline configuration compiler, route evidence checks and
 addon display/endpoint preparation are implemented. No November mappings are
@@ -52,7 +62,7 @@ the actually published 6.1.2 release until promotion.
 3. Hand testers the exact `dist/Guilded-v6.2.0.zip`, matching optional Windows
    installer, release notes, artifact manifest and SHA-256 sums. Use a dedicated
    candidate folder so old 6.1.2 builds cannot be uploaded accidentally.
-4. Record G1–G10 plus desktop results against those hashes. Earlier passes and
+4. Record G1–G12 plus desktop results against those hashes. Earlier passes and
    automation do not substitute for unobserved client behavior.
 
 ## Promotion after acceptance

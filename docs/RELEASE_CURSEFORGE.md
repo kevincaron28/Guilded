@@ -1,3 +1,7 @@
+> 6.2 candidate preparation (15 October 2026): use [the release handoff](V6_2_RELEASE_HANDOFF.md) and [6.2 upload text](V6_2_CURSEFORGE.md).
+> Source/package version is 6.2.0 on the candidate branch; published/live version remains 6.1.2.
+> Older release instructions below are historical. Do not publish or deploy the candidate before acceptance.
+
 # Publishing Guilded 6.0.0 Release
 
 Use [CURSEFORGE_COPYPASTE.md](CURSEFORGE_COPYPASTE.md) for the current description

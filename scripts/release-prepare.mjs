@@ -1,7 +1,9 @@
 // Builds and checks only; never starts a bot or touches production.
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { releaseMetadata } from "./release-metadata.mjs";
 const version = JSON.parse(readFileSync("package.json", "utf8")).version;
+releaseMetadata();
 for (const file of ["companion-app/package.json", "package-lock.json", "companion-app/package-lock.json"]) {
   if (JSON.parse(readFileSync(file, "utf8")).version !== version) throw new Error(`Version mismatch: ${file}`);
 }

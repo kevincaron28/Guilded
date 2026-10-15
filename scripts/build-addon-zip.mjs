@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { zipSync, unzipSync } from "fflate";
+import { execFileSync } from "node:child_process";
 const addonDir = "addon/Guilded";
 const toc = readFileSync(join(addonDir, "Guilded.toc"), "utf8");
 const version = toc.match(/^## Version:\s*(\S+)/m)?.[1];
@@ -15,8 +16,9 @@ function collect(dir, relative = "") {
 }
 collect(addonDir);
 // Ship the current member instructions with every addon download.
+const sourceCommit = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 const installGuide = readFileSync("docs/MEMBER_INSTALL.md", "utf8")
-  .replace(/\]\((?!https?:|#)([^)]+)\)/g, "](" + "https://github.com/kevincaron28/Guilded/blob/main/docs/$1)");
+  .replace(/\]\((?!https?:|#)([^)]+)\)/g, "](" + `https://github.com/kevincaron28/Guilded/blob/${sourceCommit}/docs/$1)`);
 files["Guilded/INSTALL.md"] = new TextEncoder().encode(installGuide);
 // Never accidentally package an officer's locally generated data.
 files["Guilded/Standings.lua"] = new TextEncoder().encode("-- Replaced by your paired companion. No guild data is shipped.\nGuildedStandings = { updatedAt = nil, baseGp = 0, players = {} }\nGuildedLedgerAccepted = {}\nGuildedItems = nil\nGuildedLoot = nil\nGuildedNextRaid = nil\nGuildedRaids = nil\nGuildedDungeonAccepted = {}\nGuildedDungeonBoard = nil\n");

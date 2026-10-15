@@ -7,8 +7,10 @@ import { createRequire } from "node:module";
 import { basename } from "node:path";
 import { execFileSync } from "node:child_process";
 import { unzipSync } from "fflate";
+import { releaseMetadata } from "./release-metadata.mjs";
 
 const version = JSON.parse(readFileSync("package.json", "utf8")).version;
+const release = releaseMetadata();
 for (const path of ["package-lock.json", "companion-app/package.json", "companion-app/package-lock.json"]) {
   assert.equal(JSON.parse(readFileSync(path, "utf8")).version, version, `${path}: version mismatch`);
 }
@@ -36,7 +38,7 @@ const asar = "dist/companion/win-unpacked/resources/app.asar";
 assert.equal(JSON.parse(extractFile(asar, "package.json").toString()).version, version);
 const installer = readFileSync(installerPath);
 assert.equal(installer.subarray(0, 2).toString(), "MZ", "Installer is not a Windows executable");
-writeFileSync(notesPath, readFileSync("docs/V6_1_RELEASE_NOTES.md"));
+writeFileSync(notesPath, release.notesText);
 const artifacts = [zipPath, installerPath, notesPath].map(path => ({
   // GitHub normalizes spaces in uploaded asset names to periods.
   name: basename(path).replaceAll(" ", "."), localPath: path, bytes: readFileSync(path).length,
@@ -45,8 +47,8 @@ const artifacts = [zipPath, installerPath, notesPath].map(path => ({
 writeFileSync(`dist/Guilded-v${version}-SHA256SUMS.txt`, artifacts.map(file => `${file.sha256}  ${file.name}`).join("\n") + "\n");
 const sourceCommit = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 writeFileSync(`dist/Guilded-v${version}-Artifact-Verification.json`, JSON.stringify({
-  version, channel: "release", sourceCommit, verifiedAt: new Date().toISOString(),
+  version, channel: release.channel, acceptance: release.acceptance, sourceCommit, verifiedAt: new Date().toISOString(),
   archiveFiles: Object.keys(files).length, artifacts,
   limitations: ["Unverified real-client follow-up is tracked separately", "Windows installer is unsigned", "Installer execution is not verified by this check"],
 }, null, 2) + "\n");
-console.log(`Verified ${version} release addon (${Object.keys(files).length} files), packaged companion version and installer; regenerated notes and SHA-256 sums.`);
+console.log(`Verified ${version} ${release.channel} addon (${Object.keys(files).length} files), packaged companion version and installer; regenerated notes and SHA-256 sums.`);

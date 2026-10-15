@@ -1,4 +1,4 @@
-# Next-version preview: addon-only guilds
+# Guilded 6.2.0 candidate: addon-only guilds
 
 Use /guilded setup local for an addon-only guild. Officers can open Guild tools >
 Local guild to create cores, set loot rules, and edit main/bench rosters.
@@ -10,7 +10,7 @@ Party games moved to the optional GuildedGames addon (/ggames). Only the host
 installs it. Guilded retains independent soft-reserve rolls, including SR+;
 /guilded lootroll cancel stops a pending roll without awarding an item.
 Preserve SavedVariables. Real-client acceptance is still required for this
-preview; the manifest remains the current 6.1.2 until release preparation.
+candidate. Version 6.2.0 is prepared for testing, not yet published.
 
 # Guilded WoW addon
 

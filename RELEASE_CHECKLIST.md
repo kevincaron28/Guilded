@@ -1,3 +1,7 @@
+> 6.2 candidate preparation (15 October 2026): use [the release handoff](docs/V6_2_RELEASE_HANDOFF.md) and [game acceptance checklist](docs/V6_2_GAME_ACCEPTANCE.md).
+> Source/package version is 6.2.0 on the candidate branch; published/live version remains 6.1.2.
+> Older release instructions below are historical. Do not publish or deploy the candidate before acceptance.
+
 Owner release decision, 5 October 2026: **6.0.0 is the full Release; next is 6.1.0.**
 Use [current release notes](docs/V6_0_RELEASE_NOTES.md). Earlier beta-promotion requirements below are historical;
 unverified checks remain follow-up work, not passes.

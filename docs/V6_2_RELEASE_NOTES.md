@@ -1,0 +1,55 @@
+# Guilded 6.2.0 — Standalone guilds and clearer dungeon progress
+
+Release candidate prepared October 15, 2026. **Not yet published.** Real-client
+acceptance is tracked in [the 6.2 checklist](V6_2_GAME_ACCEPTANCE.md).
+Addon, bot source and Windows companion are aligned at 6.2.0; protocol remains 2.
+This release introduces no database migration.
+
+## Addon-only guild management
+
+- In-game-only setup is the default. Connected setup requires positive companion
+  evidence; receiving an officer's in-game snapshot does not hide local tools.
+- Officers can create local cores, configure loot rules/reserve counts, and
+  maintain main/bench rosters from Guild tools > Local guild.
+- Local and connected selections stay separate. Local cores share the existing
+  guild EP/GP pool; this release does not add independent local point pools.
+- Standings identify their source. Backup/restore includes local cores, rosters
+  and the accounting baseline, with a preview and undo for officer handover.
+  One officer remains the record keeper; snapshots are not multi-writer sync.
+
+## Dungeon recording and season views
+
+- Deadmines recognizes the final-boss encounter observed on the owner's Forever
+  client, including when the encounter journal is unavailable. Failed attempts,
+  other bosses and duplicate events cannot trigger a second completion.
+- The floating boss-fight timer is removed. Encounter timing continues in the
+  background; optional live text remains inside the opened Run tab.
+- Seasonal breakdowns support the optional Best 8 model, including uncounted
+  routes, separate character scores and independent boss records. Older seasons
+  retain their frozen results and original rules.
+- Discord's `/dungeon rules` explains the active model. Quebec Gold's current
+  beta uses eight best scores from eleven provisional level-30 routes, capped
+  at 3,200; participation remains separate and account-based. Other guilds do
+  not automatically adopt that preset when installing the addon.
+
+## Optional Guilded Games
+
+Party games are a separate addon. Guilded keeps its own soft-reserve roll-offs,
+SR+ bonuses, tied-player rerolls and manual award controls. Guilded Games is
+not bundled or required; its Alpha status and acceptance are independent.
+
+## Upgrade and known limits
+
+Install the complete Guilded folder from the tested package. Preserve
+SavedVariables, personal pairing and companion configuration. The optional
+Windows installer is unsigned. Use the same candidate on both PCs for acceptance.
+
+Verified online ratings need the optional connected service. Installing 6.2.0
+does not rotate seasons, recalculate earned points or change archived results.
+Quebec Gold's targets remain provisional: current telemetry does not reliably
+prove automatic timer starts or a universal all-boss route. The November 4
+official season is a separate launch decision, not an automatic addon update.
+
+Local-to-connected core migration is not automatic. Coordinate record-keeper
+handover and compare totals before the new officer records awards. No new game
+client compatibility is claimed from interface numbers alone.

@@ -5,6 +5,7 @@ import { achievementName } from "../services/dungeon-achievements.js";
 import { ensureDungeonSignupGuide } from "../services/dungeon-guide.js";
 import { dungeonConfig, formatDuration } from "../services/dungeon-rules.js";
 import { dungeonScoringGuide } from "../services/dungeon-scoring-guide.js";
+import { novemberCatalogEmbeds } from "../services/dungeon-november-catalog.js";
 import {
   activeSeasonOrNull, difficultyName, formatLeaderboard, leaderboard, playerSummary, recentRuns, records,
   type Period, type RecordRow, type RunRow
@@ -21,6 +22,8 @@ import { dungeonRating, hasDungeonRating, ratingEmbed } from "../services/dungeo
 export const dungeonCommand = new SlashCommandBuilder()
   .setName("dungeon")
   .setDescription("Dungeon challenge: points leaderboard, records, player stats, recent runs.")
+  .addSubcommand(sub => sub.setName("catalog").setDescription("November dungeon plan; separate from active season rules")
+    .setDescriptionLocalizations({ fr: "Catalogue prévu pour novembre; distinct des règles actives" }))
   .addSubcommand(sub => sub.setName("rules").setDescription("How dungeon rating and participation points are calculated")
     .setDescriptionLocalizations({ fr: "Comment la cote et les points de participation sont calculés" }))
   .addSubcommand((sub) => sub.setName("leaderboard").setDescription("Season rating or participation points")
@@ -97,6 +100,10 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
   if (!context) return;
   const lang = asLang((await guildService.getSettings(context.guildId))?.language);
   const subcommand = interaction.options.getSubcommand();
+  if (subcommand === "catalog") {
+    await interaction.reply({ embeds: novemberCatalogEmbeds(lang), ephemeral: true, allowedMentions: { parse: [] } });
+    return;
+  }
   if (subcommand === "rules") {
     const settings = await prisma.guildSettings.findUnique({ where: { guildId: context.guildId }, select: { dungeonConfig: true } });
     const season = await prisma.dungeonSeason.findFirst({ where: { guildId: context.guildId, status: "ACTIVE" }, orderBy: { startsAt: "desc" } });

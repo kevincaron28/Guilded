@@ -1,0 +1,622 @@
+{
+  "kind": "dungeon-planning-catalog",
+  "schemaVersion": 1,
+  "id": "forever-november-2026-draft",
+  "researchedAt": "2026-10-15",
+  "intendedDate": "2026-11-04",
+  "timezone": "America/Toronto",
+  "startsAt": null,
+  "state": "draft-not-active",
+  "competitionProposal": {
+    "level": 60,
+    "bestCount": 8,
+    "status": "proposal-not-approved"
+  },
+  "ratedRoutes": [],
+  "sources": {
+    "announcement": {
+      "label": "Blizzard: nine new dungeons (September 15)",
+      "url": "https://us.forums.blizzard.com/en/wow/t/krol%E2%80%99dok-stronghold/2349672",
+      "authority": "official"
+    },
+    "beta": {
+      "label": "Blizzard: beta updates (October 1 / October 8)",
+      "url": "https://us.forums.blizzard.com/en/wow/t/wow-forever-beta-development-notes-%E2%80%93-updated-october-8/2360696/1",
+      "authority": "official-beta"
+    },
+    "roster": {
+      "label": "Icy Veins: dungeon/wing roster (October 7)",
+      "url": "https://www.icy-veins.com/wow-forever/dungeons-overview/",
+      "authority": "community"
+    }
+  },
+  "routes": [
+    {
+      "id": "ragefire-chasm",
+      "name": "Ragefire Chasm",
+      "family": "ragefire-chasm",
+      "evidence": "beta-instance-listed",
+      "sources": [
+        "beta",
+        "roster"
+      ],
+      "betaScoringKey": "389",
+      "participation": "planned-pending-verification",
+      "rating": "participation-only",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "hall-of-thanes",
+      "name": "The Hall of Thanes",
+      "family": "hall-of-thanes",
+      "evidence": "beta-instance-listed",
+      "sources": [
+        "announcement",
+        "beta",
+        "roster"
+      ],
+      "betaScoringKey": "3065",
+      "participation": "planned-pending-verification",
+      "rating": "participation-only",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "ruins-of-lordaeron",
+      "name": "Ruins of Lordaeron",
+      "family": "ruins-of-lordaeron",
+      "evidence": "beta-instance-listed",
+      "sources": [
+        "announcement",
+        "beta",
+        "roster"
+      ],
+      "betaScoringKey": "2999",
+      "participation": "planned-pending-verification",
+      "rating": "participation-only",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "wailing-caverns",
+      "name": "Wailing Caverns",
+      "family": "wailing-caverns",
+      "evidence": "beta-instance-listed",
+      "sources": [
+        "beta",
+        "roster"
+      ],
+      "betaScoringKey": "43",
+      "participation": "planned-pending-verification",
+      "rating": "participation-only",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "deadmines",
+      "name": "The Deadmines",
+      "family": "deadmines",
+      "evidence": "beta-instance-listed",
+      "sources": [
+        "beta",
+        "roster"
+      ],
+      "betaScoringKey": "36",
+      "participation": "planned-pending-verification",
+      "rating": "participation-only",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "shadowfang-keep",
+      "name": "Shadowfang Keep",
+      "family": "shadowfang-keep",
+      "evidence": "beta-instance-listed",
+      "sources": [
+        "beta",
+        "roster"
+      ],
+      "betaScoringKey": "33",
+      "participation": "planned-pending-verification",
+      "rating": "participation-only",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "blackfathom-deeps",
+      "name": "Blackfathom Deeps",
+      "family": "blackfathom-deeps",
+      "evidence": "beta-instance-listed",
+      "sources": [
+        "beta",
+        "roster"
+      ],
+      "betaScoringKey": "48",
+      "participation": "planned-pending-verification",
+      "rating": "participation-only",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "stockade",
+      "name": "The Stockade",
+      "family": "stockade",
+      "evidence": "beta-instance-listed",
+      "sources": [
+        "beta",
+        "roster"
+      ],
+      "betaScoringKey": "34",
+      "participation": "planned-pending-verification",
+      "rating": "participation-only",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "excavation-wetlands",
+      "name": "Excavation Site: Wetlands",
+      "family": "excavation-wetlands",
+      "evidence": "beta-instance-listed",
+      "sources": [
+        "announcement",
+        "beta",
+        "roster"
+      ],
+      "betaScoringKey": "2998",
+      "participation": "planned-pending-verification",
+      "rating": "participation-only",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "city-of-dalaran",
+      "name": "City of Dalaran",
+      "family": "city-of-dalaran",
+      "evidence": "beta-instance-listed",
+      "sources": [
+        "announcement",
+        "beta",
+        "roster"
+      ],
+      "betaScoringKey": "2959",
+      "participation": "planned-pending-verification",
+      "rating": "participation-only",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "gnomeregan",
+      "name": "Gnomeregan",
+      "family": "gnomeregan",
+      "evidence": "beta-instance-listed",
+      "sources": [
+        "beta",
+        "roster"
+      ],
+      "betaScoringKey": "90",
+      "participation": "planned-pending-verification",
+      "rating": "participation-only",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "razorfen-kraul",
+      "name": "Razorfen Kraul",
+      "family": "razorfen-kraul",
+      "evidence": "beta-instance-listed",
+      "sources": [
+        "beta",
+        "roster"
+      ],
+      "betaScoringKey": "47",
+      "participation": "planned-pending-verification",
+      "rating": "participation-only",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "scarlet-graveyard",
+      "name": "Scarlet Monastery: Graveyard",
+      "family": "scarlet-monastery",
+      "evidence": "beta-instance-listed",
+      "sources": [
+        "beta",
+        "roster"
+      ],
+      "betaScoringKey": "189:graveyard",
+      "participation": "planned-pending-verification",
+      "rating": "participation-only",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "scarlet-library",
+      "name": "Scarlet Monastery: Library",
+      "family": "scarlet-monastery",
+      "evidence": "beta-instance-listed",
+      "sources": [
+        "beta",
+        "roster"
+      ],
+      "betaScoringKey": "189:library",
+      "participation": "planned-pending-verification",
+      "rating": "participation-only",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "drowned-city",
+      "name": "The Drowned City",
+      "family": "drowned-city",
+      "evidence": "announced-new",
+      "sources": [
+        "announcement",
+        "roster"
+      ],
+      "betaScoringKey": null,
+      "participation": "planned-pending-verification",
+      "rating": "participation-only",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "scarlet-armory",
+      "name": "Scarlet Monastery: Armory",
+      "family": "scarlet-monastery",
+      "evidence": "beta-instance-listed",
+      "sources": [
+        "beta",
+        "roster"
+      ],
+      "betaScoringKey": null,
+      "participation": "planned-pending-verification",
+      "rating": "participation-only",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "razorfen-downs",
+      "name": "Razorfen Downs",
+      "family": "razorfen-downs",
+      "evidence": "beta-instance-listed",
+      "sources": [
+        "beta",
+        "roster"
+      ],
+      "betaScoringKey": "129",
+      "participation": "planned-pending-verification",
+      "rating": "participation-only",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "scarlet-cathedral",
+      "name": "Scarlet Monastery: Cathedral",
+      "family": "scarlet-monastery",
+      "evidence": "beta-instance-listed",
+      "sources": [
+        "beta",
+        "roster"
+      ],
+      "betaScoringKey": null,
+      "participation": "planned-pending-verification",
+      "rating": "participation-only",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "kroldok-stronghold",
+      "name": "Krol'dok Stronghold",
+      "family": "kroldok-stronghold",
+      "evidence": "announced-new",
+      "sources": [
+        "announcement",
+        "roster"
+      ],
+      "betaScoringKey": null,
+      "participation": "planned-pending-verification",
+      "rating": "participation-only",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "uldaman",
+      "name": "Uldaman",
+      "family": "uldaman",
+      "evidence": "beta-instance-listed",
+      "sources": [
+        "beta",
+        "roster"
+      ],
+      "betaScoringKey": "70",
+      "participation": "planned-pending-verification",
+      "rating": "participation-only",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "zulfarrak",
+      "name": "Zul'Farrak",
+      "family": "zulfarrak",
+      "evidence": "community-listed",
+      "sources": [
+        "roster"
+      ],
+      "betaScoringKey": null,
+      "participation": "planned-pending-verification",
+      "rating": "participation-only",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "maraudon",
+      "name": "Maraudon",
+      "family": "maraudon",
+      "evidence": "community-listed",
+      "sources": [
+        "roster"
+      ],
+      "betaScoringKey": null,
+      "participation": "planned-pending-verification",
+      "rating": "participation-only",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "alcaz-prison",
+      "name": "Alcaz Prison",
+      "family": "alcaz-prison",
+      "evidence": "announced-new",
+      "sources": [
+        "announcement",
+        "roster"
+      ],
+      "betaScoringKey": null,
+      "participation": "planned-pending-verification",
+      "rating": "participation-only",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "sunken-temple",
+      "name": "Temple of Atal'Hakkar (Sunken Temple)",
+      "family": "sunken-temple",
+      "evidence": "community-listed",
+      "sources": [
+        "roster"
+      ],
+      "betaScoringKey": null,
+      "participation": "planned-pending-verification",
+      "rating": "participation-only",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "blackrock-depths",
+      "name": "Blackrock Depths",
+      "family": "blackrock-depths",
+      "evidence": "community-listed",
+      "sources": [
+        "roster"
+      ],
+      "betaScoringKey": null,
+      "participation": "planned-pending-verification",
+      "rating": "candidate-pending-verification",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "dire-maul-east",
+      "name": "Dire Maul: East",
+      "family": "dire-maul",
+      "evidence": "community-listed",
+      "sources": [
+        "roster"
+      ],
+      "betaScoringKey": null,
+      "participation": "planned-pending-verification",
+      "rating": "candidate-pending-verification",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "blackmaw-hold",
+      "name": "Blackmaw Hold",
+      "family": "blackmaw-hold",
+      "evidence": "announced-new",
+      "sources": [
+        "announcement",
+        "roster"
+      ],
+      "betaScoringKey": null,
+      "participation": "planned-pending-verification",
+      "rating": "candidate-pending-verification",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "lower-blackrock-spire",
+      "name": "Lower Blackrock Spire",
+      "family": "blackrock-spire",
+      "evidence": "community-listed",
+      "sources": [
+        "roster"
+      ],
+      "betaScoringKey": null,
+      "participation": "planned-pending-verification",
+      "rating": "candidate-pending-verification",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "dire-maul-north",
+      "name": "Dire Maul: North",
+      "family": "dire-maul",
+      "evidence": "community-listed",
+      "sources": [
+        "roster"
+      ],
+      "betaScoringKey": null,
+      "participation": "planned-pending-verification",
+      "rating": "candidate-pending-verification",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "dire-maul-west",
+      "name": "Dire Maul: West",
+      "family": "dire-maul",
+      "evidence": "community-listed",
+      "sources": [
+        "roster"
+      ],
+      "betaScoringKey": null,
+      "participation": "planned-pending-verification",
+      "rating": "candidate-pending-verification",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "scholomance",
+      "name": "Scholomance",
+      "family": "scholomance",
+      "evidence": "community-listed",
+      "sources": [
+        "roster"
+      ],
+      "betaScoringKey": null,
+      "participation": "planned-pending-verification",
+      "rating": "candidate-pending-verification",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "shapers-terrace",
+      "name": "Shaper's Terrace",
+      "family": "shapers-terrace",
+      "evidence": "announced-new",
+      "sources": [
+        "announcement",
+        "roster"
+      ],
+      "betaScoringKey": null,
+      "participation": "planned-pending-verification",
+      "rating": "candidate-pending-verification",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "stratholme-main",
+      "name": "Stratholme: Main Gate",
+      "family": "stratholme",
+      "evidence": "community-listed",
+      "sources": [
+        "roster"
+      ],
+      "betaScoringKey": null,
+      "participation": "planned-pending-verification",
+      "rating": "candidate-pending-verification",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "stratholme-service",
+      "name": "Stratholme: Service Gate",
+      "family": "stratholme",
+      "evidence": "community-listed",
+      "sources": [
+        "roster"
+      ],
+      "betaScoringKey": null,
+      "participation": "planned-pending-verification",
+      "rating": "candidate-pending-verification",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    },
+    {
+      "id": "upper-blackrock-spire",
+      "name": "Upper Blackrock Spire",
+      "family": "blackrock-spire",
+      "evidence": "community-listed",
+      "sources": [
+        "roster"
+      ],
+      "betaScoringKey": null,
+      "participation": "planned-pending-verification",
+      "rating": "participation-only",
+      "launchVerified": false,
+      "targetSec": null,
+      "difficultyId": null,
+      "allowedLevels": null
+    }
+  ]
+}

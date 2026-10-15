@@ -1,5 +1,13 @@
 # Guilded 6.2.0 release candidate handoff
 
+November preparation: [full catalog](NOVEMBER_DUNGEON_CATALOG.md),
+[French version](NOVEMBER_DUNGEON_CATALOG_FR.md), and
+[planning JSON](data/november-dungeon-catalog.json). The candidate adds a read-only
+`/dungeon catalog` view (deploy/register before use). This is not a season preset:
+35 participation entries are planned, 10 rated candidates are proposed, none are
+activated. Current beta rules and archives are unchanged. Launch verification,
+calibration and a separately frozen November selection remain required.
+
 October 15 follow-up: [Cloudflare preview repair](CLOUDFLARE_PREVIEW_REPAIR_2026-10-15.md)
 and [Forever dungeon catalog audit](WOW_FOREVER_DUNGEON_AUDIT_2026-10-15.md).
 The latter corrects the guide's missing participation-only display without

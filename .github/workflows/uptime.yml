@@ -1,0 +1,52 @@
+name: Guilded uptime
+# Every 10 minutes, checks that the bot, the website and a guild page answer. A failed run is
+# emailed by GitHub to the owner; if the repository secret UPTIME_DISCORD_WEBHOOK is set, a short
+# alert is also posted there (a webhook in a channel the owner watches, outside the bot itself,
+# since a down bot cannot report its own outage). Read-only: it never touches the bot or data.
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check the bot, website and guild page
+        id: check
+        shell: bash
+        run: |
+          failed=""
+          check() {
+            local name="$1" url="$2" expect="$3"
+            # Three tries over about a minute, so a restart or a network blip is not an outage.
+            for attempt in 1 2 3; do
+              body=$(curl -s --max-time 20 "$url" || true)
+              if [[ "$body" == *"$expect"* ]]; then echo "ok: $name"; return 0; fi
+              sleep 20
+            done
+            echo "DOWN: $name ($url)"
+            failed="$failed $name"
+          }
+          check "bot health" "https://guildedqc.duckdns.org/health" '"ok":true'
+          check "bot via website" "https://guilded.kcaron.top/health" '"ok":true'
+          check "website" "https://guilded.kcaron.top/" "Guilded"
+          check "creator page" "https://kcaron.top/" "KCaron"
+          check "guild page" "https://guilded.kcaron.top/g/quebec-gold/" "Quebec Gold"
+          echo "failed=${failed# }" >> "$GITHUB_OUTPUT"
+          [[ -z "$failed" ]]
+      - name: Alert on Discord
+        if: failure()
+        shell: bash
+        env:
+          WEBHOOK: ${{ secrets.UPTIME_DISCORD_WEBHOOK }}
+          FAILED: ${{ steps.check.outputs.failed }}
+        run: |
+          if [[ -z "$WEBHOOK" ]]; then echo "No UPTIME_DISCORD_WEBHOOK secret: GitHub's failure email is the alert."; exit 0; fi
+          text="⚠️ Guilded uptime check failed: ${FAILED:-unknown}. https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          curl -s --max-time 20 -H "content-type: application/json" -d "$(jq -n --arg c "$text" '{content: $c, allowed_mentions: {parse: []}}')" "$WEBHOOK" > /dev/null

@@ -177,6 +177,28 @@ describe("officer ledger sync (in-game-only guilds)", () => {
     member.s.run('NS.commandHandlers.ledgersync({"on"})');
     expect(member.s.run("return tostring(DB.settings.ledgerSync)")).toBe("false");
     officer.s.run('NS.commandHandlers.ledgersync({"status"})');
-    expect(officer.s.run("return CHAT_LOG[#CHAT_LOG]")).toContain("0 entries here");
+    expect(officer.s.run("return table.concat(CHAT_LOG, ' | ')")).toContain("0 entries here");
+  });
+});
+
+describe("ledger sync status", () => {
+  const status = (c: Client) => {
+    c.s.run('CHAT_LOG = {}; NS.commandHandlers.ledgersync({"status"})');
+    return Array.from({ length: Number(c.s.run("return #CHAT_LOG")) }, (_, i) => c.s.run(`return CHAT_LOG[${i + 1}]`)).join("\n");
+  };
+
+  it("says when no partner was seen, then remembers each officer across reloads and warns after a quiet week", () => {
+    const alice = client("Alice"), bob = client("Bob");
+    expect(status(alice)).toContain("No other officer with ledger sync on has been seen yet");
+    bob.s.run('award("Tank", 10, 0, 1)');
+    alice.s.run('NS.commandHandlers.ledgersync({"now"})');
+    pump([alice, bob]);
+    expect(status(alice)).toContain("Bob: last heard 0 min ago.");
+    // Saved in the SavedVariables settings, so a reload keeps it.
+    expect(alice.s.run("return DB.settings.ledgerSyncSeen.Bob")).toBe(alice.s.run("return NOW"));
+    advance([alice, bob], 8 * 86_400);
+    const later = status(alice);
+    expect(later).toContain("Bob: last heard 8 d ago.");
+    expect(later).toContain("Over a week without another officer");
   });
 });

@@ -179,6 +179,10 @@ const NOT_FOUND = `<!doctype html><html lang="en"><head><meta charset="utf-8"><m
 
 export interface PageResponse { status: number; headers: Record<string, string>; body: string }
 
+// Every page server in this process, so an officer's change (/guildpage) shows at once here.
+const pageServers = new Set<{ forget(slug?: string): void }>();
+export function forgetGuildPage(slug?: string): void { for (const server of pageServers) server.forget(slug); }
+
 // Answers /g/... requests from a small in-memory copy, so repeat visitors never reach Postgres.
 // Officer changes show within `ttlMs`.
 export function createGuildPageServer(load: (slug: string) => Promise<GuildPageView | null>, options: { ttlMs?: number; maxEntries?: number; now?: () => number } = {}) {
@@ -187,6 +191,8 @@ export function createGuildPageServer(load: (slug: string) => Promise<GuildPageV
   const now = options.now ?? Date.now;
   const cache = new Map<string, { at: number; html: string | null }>();
   const security = { "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'", "referrer-policy": "strict-origin-when-cross-origin", "x-content-type-options": "nosniff" };
+  const server = { forget(slug?: string) { if (slug) cache.delete(slug); else cache.clear(); } };
+  pageServers.add(server);
   const html = (status: number, body: string, maxAge: number): PageResponse => ({ status, body, headers: { ...security, "content-type": "text/html; charset=utf-8", "cache-control": `public, max-age=${maxAge}` } });
   return {
     async respond(method: string, pathname: string): Promise<PageResponse | null> {
@@ -206,7 +212,7 @@ export function createGuildPageServer(load: (slug: string) => Promise<GuildPageV
       }
       return entry.html ? html(200, entry.html, 300) : html(404, NOT_FOUND, 60);
     },
-    forget(slug?: string) { if (slug) cache.delete(slug); else cache.clear(); }
+    forget: server.forget
   };
 }
 

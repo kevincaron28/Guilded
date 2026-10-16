@@ -54,6 +54,29 @@ local function enabled()
   return s and s.ledgerSync == true or false
 end
 
+-- When each officer with sync on was last heard from (kept across reloads, newest 20), so the
+-- status can say whether sync is really happening: it needs two such officers online together.
+local SEEN_LIMIT = 20
+local function heard(sender)
+  local s = settings()
+  if not s or not sender then return end
+  s.ledgerSyncSeen = type(s.ledgerSyncSeen) == "table" and s.ledgerSyncSeen or {}
+  local seen = s.ledgerSyncSeen
+  seen[sender] = clock()
+  local names = {}
+  for name in pairs(seen) do names[#names + 1] = name end
+  if #names <= SEEN_LIMIT then return end
+  table.sort(names, function(a, b) return seen[a] > seen[b] end)
+  for i = SEEN_LIMIT + 1, #names do seen[names[i]] = nil end
+end
+
+local function ago(seconds)
+  seconds = math.max(0, seconds)
+  if seconds < 3600 then return string.format(L("%d min"), math.floor(seconds / 60)) end
+  if seconds < 172800 then return string.format(L("%d h"), math.floor(seconds / 3600)) end
+  return string.format(L("%d d"), math.floor(seconds / 86400))
+end
+
 -- Sync runs only for an officer, in this guild, in in-game-only mode, with sync on.
 local function active()
   return enabled() and ns.isInGameOnly and ns.isInGameOnly() and ns.isOfficer and ns.isOfficer()
@@ -306,6 +329,7 @@ local function onMessage(text, channel, rawSender)
   if not sender or sender == ns.playerName() or not ns.isOfficerName(sender) then return end
   if channel ~= "GUILD" and channel ~= "WHISPER" then return end
   local kind = string.match(text, "^(%u+)|1|")
+  if kind then heard(sender) end
   if kind == "SUM" and channel == "GUILD" then
     local count, hash = string.match(text, "^SUM|1|(%d+)|(%d+)$")
     if count then answerSum(rawSender, count, hash) end
@@ -369,6 +393,19 @@ ns.commandHandlers["ledgersync"] = function(args)
   for _, found in pairs(ix.byId) do if found.entry.fromPeer then peers = peers + 1 end end
   ns.message(string.format(L("Ledger sync is %s: %d entries here, %d of them from other officers."), active() and L("on") or L("off"), ix.count, peers))
   if lastExchange then ns.message(string.format(L("Last exchange %d min ago."), math.floor((clock() - lastExchange) / 60))) end
+  local s = settings()
+  local seen = s and type(s.ledgerSyncSeen) == "table" and s.ledgerSyncSeen or {}
+  local names = {}
+  for name in pairs(seen) do names[#names + 1] = name end
+  table.sort(names, function(a, b) return seen[a] > seen[b] end)
+  if #names == 0 then
+    ns.message(L("No other officer with ledger sync on has been seen yet. Sync needs two officers online at the same time."))
+    return
+  end
+  for i = 1, math.min(#names, 5) do ns.message(string.format(L("%s: last heard %s ago."), names[i], ago(clock() - seen[names[i]]))) end
+  if clock() - seen[names[1]] > 7 * 86400 then
+    ns.message(L("Over a week without another officer: entries sync only when two officers with sync on are online together."))
+  end
 end
 ns.commandHelp = ns.commandHelp or {}
 table.insert(ns.commandHelp, { officer = true, text = "/guilded ledgersync on | off | now | status - in-game-only guilds: officers share EP/GP entries with each other" })

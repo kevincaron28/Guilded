@@ -11,7 +11,7 @@ export const bugCommand = new SlashCommandBuilder()
 export async function executeBug(interaction: ChatInputCommandInteraction): Promise<void> {
   const description = interaction.options.getString("description", true);
   const screenshot = interaction.options.getAttachment("screenshot");
-  await errorReportService.report(interaction.client, description, {
+  const ref = await errorReportService.report(interaction.client, description, {
     source: "bug-report",
     guildId: interaction.guildId,
     guildName: interaction.guild?.name,
@@ -19,7 +19,11 @@ export async function executeBug(interaction: ChatInputCommandInteraction): Prom
     extra: screenshot?.url ?? null
   });
   if (interaction.guild) {
-    await notify(interaction.guild, `🐞 Bug report from <@${interaction.user.id}>: ${description}${screenshot ? `\n${screenshot.url}` : ""}`, "officer");
+    await notify(interaction.guild, `🐞 Bug report${ref ? ` \`${ref}\`` : ""} from <@${interaction.user.id}>: ${description}${screenshot ? `\n${screenshot.url}` : ""}`, "officer");
   }
-  await interaction.reply({ content: "Thanks, that's been reported. An officer or the developer will follow up.", ephemeral: true });
+  const fr = interaction.locale.startsWith("fr");
+  const content = fr
+    ? `Merci, c'est signalé au développeur${ref ? ` (référence \`${ref}\`)` : ""}. Un officier ou le développeur fera le suivi.`
+    : `Thanks, the developer has your report${ref ? ` (reference \`${ref}\`)` : ""}. An officer or the developer will follow up.`;
+  await interaction.reply({ content, ephemeral: true });
 }

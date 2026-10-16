@@ -648,6 +648,10 @@ model ErrorReport {
   message   String
   stack     String?
   context   String?
+  // The bot version that saw it, and when the developer marked it fixed (npm run bugs).
+  version    String?
+  resolvedAt DateTime?
+  resolution String?
   createdAt DateTime @default(now())
 
   @@index([source, createdAt])

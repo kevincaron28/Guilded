@@ -1,3 +1,4 @@
+> 6.2.1 (16 October 2026) patches 6.2.0: guild pages, bug inbox, sync fixes (docs/V6_2_1_RELEASE_NOTES.md).
 > 6.2.0 Release (16 October 2026): the owner released 6.2.0 (standalone guilds, November
 > scoring preparation, companion sync from PR #84) before its real-client checks. Those
 > checks in `docs/V6_2_GAME_ACCEPTANCE.md` are post-release follow-up. Release record:
@@ -18,7 +19,7 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (16 October 2026): published version 6.2.0 Release, protocol 2.**
+**Current status (16 October 2026): version 6.2.1 Release (patch on 6.2.0), protocol 2.**
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
 Standalone guild and optional Guilded Games work is next-version candidate
 source; do not overwrite the published 6.2.0 downloads or bump incidentally.
@@ -142,6 +143,15 @@ version differs from what that guild was last told (checked once per bot
 startup, in `src/main.ts`'s `ClientReady` handler). Don't bump the version
 number incidentally (e.g. as a side effect of a dependency update) — treat it
 as a real, user-facing announcement trigger, not a housekeeping field.
+
+## Bug reports ("fix the bugs")
+
+Members of every guild report with `/report bug` (optional screenshot) and get a short reference
+such as `K3X9QZ2A`; the bot's own failures are saved the same way. They reach the developer
+live in `ERROR_LOG_CHANNEL_ID` and are collected by `npm run bugs` (on the owner's PC, which
+has `.env.local`): it writes `bug-inbox.md` (gitignored, holds Discord IDs: never commit or
+paste it publicly) with open reports and errors grouped by cause. Work from that file, fix
+through a pull request, then `npm run bugs -- resolve REF [REF...] --note "what changed"`.
 
 ## Where things live (for a fresh session)
 

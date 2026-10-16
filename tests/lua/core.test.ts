@@ -321,3 +321,24 @@ describe("guild profession snapshots", () => {
     expect(s.run('local count = 0; for _, m in ipairs(SENT) do if m.target == "GUILD" and string.find(m.text, "P:1800000000", 1, true) then count = count + 1 end end; return count')).toBe("1");
   });
 });
+
+describe("diagnostics put Guilded's own problems first (6.3)", () => {
+  it("counts other addons' errors and lists them only with diag all", () => {
+    const s = loggedIn();
+    s.run(`GuildedDB.diagnostics = {
+      { at = "2026-10-03", kind = "ADDON_ACTION_BLOCKED", detail = "RXPGuides tried to call", foreign = true },
+      { at = "2026-10-06", kind = "LUA_ERROR", detail = "Details: no LibOpenRaid", foreign = true },
+      { at = "2026-10-07", kind = "LUA_ERROR", detail = "Guilded window nil", count = 2 } }`);
+    s.run(`SlashCmdList["GUILDED"]("diag")`);
+    let chat = s.chat().join("\n");
+    expect(chat).toContain("Last 1 Guilded problem(s):");
+    expect(chat).toContain("Guilded window nil");
+    expect(chat).toContain("2 problem(s) from other addons were also recorded");
+    expect(chat).not.toContain("RXPGuides");
+    s.run(`CHAT_LOG = {}; SlashCmdList["GUILDED"]("diag all")`);
+    chat = s.chat().join("\n");
+    expect(chat).toContain("RXPGuides tried to call");
+    s.run(`CHAT_LOG = {}; GuildedDB.diagnostics = {}; SlashCmdList["GUILDED"]("diag")`);
+    expect(s.chat().join("\n")).toContain("No Guilded problems recorded.");
+  });
+});

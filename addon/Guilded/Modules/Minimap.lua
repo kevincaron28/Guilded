@@ -1006,20 +1006,20 @@ local function buildHomePage(page)
   heading(page, L("Right now"), -36)
   ui.homeNow = at(newLabel(page, "", "GameFontHighlight"), page, 0, -54)
   ui.homeNow:SetWidth(PAGE_WIDTH)
-  heading(page, L("Your gear check"), -150)
-  ui.homeGear = at(newLabel(page, "", "GameFontHighlight"), page, 0, -174)
+  heading(page, L("Your gear check"), -180)
+  ui.homeGear = at(newLabel(page, "", "GameFontHighlight"), page, 0, -204)
   ui.homeGear:SetWidth(PAGE_WIDTH)
   ui.homeLinks = {}
   local function link(name, label, x, y, width)
     ui.homeLinks[name] = at(newButton(page, label, width, function() ui.selectTabByName(name) end, 30), page, x, y)
     return ui.homeLinks[name]
   end
-  link("Me", "My character", 0, -236, 170)
-  link("Dungeons", "Dungeons", 178, -236, 170)
-  link("Standings", "Guild tools", 356, -236, 170)
-  link("Calendar", "Calendar", 0, -278, 170)
-  officerOnly(link("Raid", "Run a raid", 178, -278, 170))
-  officerOnly(link("Loot", "Give loot", 356, -278, 170))
+  link("Me", "My character", 0, -266, 170)
+  link("Dungeons", "Dungeons", 178, -266, 170)
+  link("Standings", "Guild tools", 356, -266, 170)
+  link("Calendar", "Calendar", 0, -308, 170)
+  officerOnly(link("Raid", "Run a raid", 178, -308, 170))
+  officerOnly(link("Loot", "Give loot", 356, -308, 170))
 end
 
 -- Sidebar order: pages are grouped under these headings.
@@ -1179,6 +1179,25 @@ local function refreshHome(db, officer, me)
   if ns.loot and ns.loot.describe and ns.getLootRules and ns.getLootRules() then table.insert(now, ns.loot.describe()) end
   local councilText = moduleOn("council") and ns.council and ns.council.current and ns.council.statusText() or ""
   if councilText ~= "" then table.insert(now, councilText) end
+  -- How fresh the shared data is, in the player's own time.
+  -- (Not "x and f()": that keeps only the first of the two values.)
+  local source, madeAt
+  if ns.standingsFreshness then source, madeAt = ns.standingsFreshness() end
+  if source then
+    table.insert(now, string.format(L("Standings: %s, %s."), source, ns.util.whenText(madeAt) or madeAt))
+  elseif not localOnly then
+    table.insert(now, L("Standings: none received yet (they arrive with the next sync)."))
+  end
+  -- Officers' ledgers that still differ (in-game-only guilds with ledger sync on).
+  local waiting = officer and ns.ledgerSync and ns.ledgerSync.active and ns.ledgerSync.active() and ns.ledgerSync.waiting() or {}
+  if #waiting > 0 then
+    table.insert(now, string.format(L("Ledger sync: entries from %s are not merged yet; they merge while you are both online."), table.concat(waiting, ", ")))
+  end
+  local board = db.dungeonBoard
+  if board and board.updatedAt then
+    table.insert(now, string.format(L("Dungeon standings: %s%s."), ns.util.whenText(board.updatedAt) or board.updatedAt,
+      board.from and string.format(L(", shared by %s"), board.from) or ""))
+  end
   ui.homeNow:SetText(table.concat(now, "\n"))
 
   local snapshot = db.readiness and db.readiness[me]
@@ -1352,7 +1371,7 @@ refresh = function()
       or (ns.standingProblemText and ns.standingProblemText(name))
       or string.format(L("%s: no standings (character not linked on Discord?)"), name or "?"))
     local lines = { ns.standingsSource and ns.standingsSource() or L("Local ledger (this PC)") }
-    if updatedAt then lines[#lines + 1] = string.format(L("Top by PR (snapshot, %s):"), updatedAt) end
+    if updatedAt then lines[#lines + 1] = string.format(L("Top by PR (snapshot, %s):"), ns.util.whenText(updatedAt) or updatedAt) end
     if #rows == 0 then table.insert(lines, L("No characters in this view.")) end
     for i = 1, math.min(15, #rows) do
       local r = rows[i]
@@ -1470,6 +1489,13 @@ local function buildPanel()
       insets = { left = 11, right = 12, top = 12, bottom = 11 }
     })
   end
+  -- The dialog background is see-through: a window under the tools window (the guild window)
+  -- showed through it. A dark backing behind the free-floating window; hidden while docked.
+  ui.solidBack = panel:CreateTexture(nil, "BACKGROUND", nil, -7)
+  ui.solidBack:SetPoint("TOPLEFT", panel, "TOPLEFT", 11, -12)
+  ui.solidBack:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -12, 11)
+  if ui.solidBack.SetColorTexture then ui.solidBack:SetColorTexture(0.04, 0.04, 0.05, 0.92) end
+  ui.solidBack:Show()
 
   -- Which page this is, and what it is for.
   ui.pageTitle = newLabel(panel, "", "GameFontNormal")
@@ -1586,6 +1612,7 @@ local function buildPanel()
     raiseWindow(panel, ui.undockedLevel or 10)
     panel:SetMovable(true)
     if ui.guildBackground then ui.guildBackground:Hide() end
+    if ui.solidBack then ui.solidBack:Show() end
     if panel.SetBackdrop then panel:SetBackdrop({
       bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background", edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
       tile = true, tileSize = 32, edgeSize = 32, insets = { left = 11, right = 12, top = 12, bottom = 11 }
@@ -1698,6 +1725,7 @@ function ns.openGuildPanel(host, scope, initialName)
   end
   if panel.SetBackdrop then panel:SetBackdrop(nil) end
   ui.guildBackground:Show()
+  if ui.solidBack then ui.solidBack:Hide() end
   ui.lastOfficer = nil
   panel:Show()
   refresh()

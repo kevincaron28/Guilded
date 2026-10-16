@@ -109,7 +109,7 @@ describe("item tooltip data", () => {
     expect(member.run(`local i = DB.items.list["thunderfury blessed blade of the windseeker"]; return i.gp .. "/" .. i.n .. "/" .. i.wn .. "/" .. #i.wish`)).toBe("120/3/5/2");
   });
 
-  it("ignores item data from someone who is not an officer", () => {
+  it("ignores item data from someone outside the guild", () => {
     const s = withSync();
     s.run(`fire_event("PLAYER_ENTERING_WORLD"); fire_event("CHAT_MSG_ADDON", "GuildedSync", "ITEM|2026-09-26T00:00:00Z|1|1|some ring~~0~1~Cy:3", "GUILD", "Pug-Realm")`);
     expect(s.run(`return tostring(DB.items)`)).toBe("nil");
@@ -266,5 +266,37 @@ describe("standings sharing between officers", () => {
     `);
     expect(s.run("return tostring(DB.epgp.Amy.ledger[1].pending)")).toBe("nil");
     expect(s.run('return tostring(DB.acceptedLedgerRefs["addon:qg:Kev-1800000000-1"])')).toBe("true");
+  });
+});
+
+describe("store and forward of standings and item data (6.3)", () => {
+  const stand = (stamp: string, ep: number) => `STAND|${stamp}|0|1|1|Amy:${ep}:5`;
+  function member() {
+    const s = withSync();
+    s.run(`NS.isGuildMember = function(n) return n == "Bob" or n == "Cid" end
+      NS.isOfficerName = function(n) return n == "Boss" end
+      NS.util = { tooFarAhead = function() return false end, isoEpoch = function() return nil end }
+      fire_event("PLAYER_ENTERING_WORLD")`);
+    return s;
+  }
+  const hear = (s: LuaSession, from: string, text: string) => s.run(`fire_event("CHAT_MSG_ADDON", "GuildedSync", ${JSON.stringify(text)}, "GUILD", "${from}-Realm")`);
+
+  it("takes newer standings and item data from any guild member, not from outsiders", () => {
+    const s = member();
+    hear(s, "Pug", stand("2026-10-01T00:00:00Z", 10));
+    expect(s.run("return tostring(DB.standings)")).toBe("nil");
+    hear(s, "Bob", stand("2026-10-01T00:00:00Z", 10));
+    expect(s.run("return DB.standings.players.Amy.ep .. ':' .. tostring(DB.standings.fromOfficer)")).toBe("10:false");
+    hear(s, "Cid", "ITEM|2026-10-01T00:00:00Z|1|1|some ring~40~0~1~Cy:3");
+    expect(s.run(`return NS.getItemInsight("some ring").gp`)).toBe("40");
+  });
+
+  it("lets an officer correct a member's relay of the same snapshot, never the reverse", () => {
+    const s = member();
+    hear(s, "Bob", stand("2026-10-01T00:00:00Z", 999));
+    hear(s, "Boss", stand("2026-10-01T00:00:00Z", 10));
+    expect(s.run("return DB.standings.players.Amy.ep .. ':' .. tostring(DB.standings.fromOfficer)")).toBe("10:true");
+    hear(s, "Cid", stand("2026-10-01T00:00:00Z", 999));
+    expect(s.run("return DB.standings.players.Amy.ep")).toBe("10");
   });
 });

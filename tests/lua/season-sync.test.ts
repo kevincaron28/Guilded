@@ -5,7 +5,7 @@ afterEach(() => session?.close());
 function setup() {
   session = newLuaSession(); session.run("NS = {}; GuildedDB = nil");
   session.load("Core.lua"); session.load("Compat.lua"); session.load("Modules/SeasonSync.lua");
-  session.run(`fire_event("PLAYER_LOGIN"); NS.isGuildMember = function() return true end
+  session.run(`fire_event("PLAYER_LOGIN"); NS.isGuildMember = function(name) return name ~= "Stranger" end
     NS.isOfficerName = function(name) return name == "Officer" or name == "SecondOfficer" end
     NS.util.tooFarAhead = function() return false end`);
   return session;
@@ -88,11 +88,47 @@ describe("season board sharing between officers", () => {
     expect(s.run("return boards()")).toBe("1");
   });
 
-  it("answers at once without C_Timer, and members never answer", () => {
+  it("answers at once without C_Timer; a member holding the board answers after officers would", () => {
     const s = officer();
     s.run(`NS.isOfficer = function() return false end; ${request("Amy")}`);
-    expect(s.run("return #TIMERS .. boards()")).toBe("00");
-    s.run(`NS.isOfficer = function() return true end; C_Timer = nil; ${request("Amy")}`);
+    expect(s.run("return #TIMERS .. boards()")).toBe("10");
+    expect(Number(s.run("return TIMERS[1].delay"))).toBeGreaterThanOrEqual(6);
+    expect(Number(s.run("return TIMERS[1].delay"))).toBeLessThanOrEqual(15);
+    s.run("TIMERS[1].fn()");
     expect(s.run("return boards()")).toBe("1");
+    s.run(`NOW = NOW + 61; NS.isOfficer = function() return true end; C_Timer = nil; ${request("Amy")}`);
+    expect(s.run("return boards()")).toBe("2");
+  });
+});
+
+describe("store and forward between all guild members (6.3)", () => {
+  const board = (stamp: string, points: number) => `BOARD|${stamp}|1|1|S;Season 2;ACTIVE
+R;Ann;${points}`;
+  const send = (s: LuaSession, from: string, text: string) => s.run(`fire_event("CHAT_MSG_ADDON", "GuildedSeason", ${JSON.stringify(text)}, "GUILD", "${from}")`);
+
+  it("takes a newer board from any guildmate, never from outside the guild", () => {
+    const s = setup();
+    send(s, "Stranger", board("2026-10-01T10:00:00Z", 10));
+    expect(s.run("return tostring(GuildedDungeonBoard)")).toBe("nil");
+    send(s, "Amy", board("2026-10-01T10:00:00Z", 10));
+    expect(s.run("return GuildedDungeonBoard.rows[1].points .. ':' .. tostring(GuildedDungeonBoard.fromOfficer)")).toBe("10:false");
+    send(s, "Bob", board("2026-10-02T10:00:00Z", 20));
+    expect(s.run("return GuildedDungeonBoard.rows[1].points")).toBe("20");
+  });
+
+  it("lets an officer's copy replace a member's relay of the same stamp, never the reverse", () => {
+    const s = setup();
+    send(s, "Amy", board("2026-10-01T10:00:00Z", 999));
+    send(s, "Officer", board("2026-10-01T10:00:00Z", 10));
+    expect(s.run("return GuildedDungeonBoard.rows[1].points .. ':' .. tostring(GuildedDungeonBoard.fromOfficer)")).toBe("10:true");
+    send(s, "Bob", board("2026-10-01T10:00:00Z", 999));
+    expect(s.run("return GuildedDungeonBoard.rows[1].points")).toBe("10");
+  });
+
+  it("keeps a board saved before 6.3 (no relay marker) against a member's copy of the same stamp", () => {
+    const s = setup();
+    s.run(`NS.getDb().dungeonBoard = { season = "Season 2", status = "ACTIVE", updatedAt = "2026-10-01T10:00:00Z", rows = { { name = "Ann", points = 10 } } }`);
+    send(s, "Amy", board("2026-10-01T10:00:00Z", 999));
+    expect(s.run("return NS.getDb().dungeonBoard.rows[1].points")).toBe("10");
   });
 });

@@ -7,8 +7,12 @@
 --    Standings.lua (global GuildedStandings) into this addon folder. A
 --    client that has fresher standings than its saved copy adopts them and
 --    shares them with the guild in small chunks, so members who don't run
---    the companion still get /guilded standings. Only standings sent by an
---    officer are accepted.
+--    the companion still get /guilded standings. Since 6.3 any guild member
+--    who holds them passes them on (store and forward, like the dungeon board
+--    in SeasonSync.lua): officers answer first, members later and only if
+--    nobody did, and an officer's copy replaces a member's relay of the same
+--    snapshot. Item insights travel the same way. Module switches stay
+--    officer-only: they change what the addon does, not what it shows.
 local addonName, ns = ...
 ns = ns or {}
 
@@ -27,6 +31,8 @@ local incoming -- { updatedAt, total, parts = { [i] = text } }
 -- Answers to STANDREQ wait a few seconds, so several officers asked at once answer once: each
 -- one that hears another officer's STAND for the same (or newer) standings stays quiet.
 local REPLY_JITTER = 4
+-- Members holding a copy answer later than officers, and only if nobody answered first.
+local MEMBER_DELAY, MEMBER_JITTER = 6, 9
 local replyScheduled = false
 local heardStamp, heardAt = nil, 0
 local peerVersions = {} -- sender -> addon version they announced this session
@@ -167,16 +173,30 @@ end
 
 local incomingItems -- { updatedAt, total, parts, received }
 
+-- Store and forward: a newer copy is taken from any guild member; for the same snapshot only an
+-- officer's copy replaces one a member relayed. A copy without the marker (from the companion,
+-- or saved before 6.3) counts as an officer's.
+-- Shared data comes only from the guild: an officer, or a name on the guild roster (a whisper
+-- from outside the guild is ignored).
+local function fromGuild(sender)
+  return ns.isOfficerName(sender) or (ns.isGuildMember and ns.isGuildMember(sender)) or false
+end
+
+local function newerThanMine(mine, updatedAt, sender)
+  if mine.updatedAt < updatedAt then return true end
+  return mine.updatedAt == updatedAt and mine.fromOfficer == false and ns.isOfficerName(sender) and true or false
+end
+
 local function receiveItemChunk(text, sender)
   local updatedAt, index, total, payload = string.match(text, "^ITEM|([^|]+)|(%d+)|(%d+)|(.*)$")
   index, total = tonumber(index), tonumber(total)
   if not updatedAt or not index or not total or total < 1 or total > 60 then return end
   if index < 1 or index > total then return end
-  if not ns.isOfficerName(sender) then return end
+  if not fromGuild(sender) then return end
   -- A date in the future would make this copy "newest" forever.
   if ns.util.tooFarAhead(updatedAt) then return end
   local d = db()
-  if not d or (d.items and d.items.updatedAt and d.items.updatedAt >= updatedAt) then return end
+  if not d or (d.items and d.items.updatedAt and not newerThanMine(d.items, updatedAt, sender)) then return end
   if not incomingItems or incomingItems.updatedAt ~= updatedAt then
     incomingItems = { updatedAt = updatedAt, total = total, sender = sender, parts = {}, received = 0 }
   elseif incomingItems.total ~= total or incomingItems.sender ~= sender then
@@ -192,7 +212,7 @@ local function receiveItemChunk(text, sender)
     incomingItems.received = incomingItems.received + 1
   end
   if incomingItems.received < incomingItems.total then return end
-  d.items = { updatedAt = updatedAt, list = decodeItems(table.concat(incomingItems.parts, ";")), from = sender }
+  d.items = { updatedAt = updatedAt, list = decodeItems(table.concat(incomingItems.parts, ";")), from = sender, fromOfficer = ns.isOfficerName(sender) and true or false }
   incomingItems = nil
 end
 
@@ -201,12 +221,12 @@ local function receiveChunk(text, sender)
   index, total, baseGp = tonumber(index), tonumber(total), tonumber(baseGp)
   if not updatedAt or not index or not total or total < 1 or total > 50 then return end
   if index < 1 or index > total then return end
-  if not ns.isOfficerName(sender) then return end
+  if not fromGuild(sender) then return end
   if ns.util.tooFarAhead(updatedAt) then return end
   if not heardStamp or updatedAt >= heardStamp then heardStamp = updatedAt end
   heardAt = time()
   local s = standings()
-  if s and s.updatedAt and s.updatedAt >= updatedAt then return end
+  if s and s.updatedAt and not newerThanMine(s, updatedAt, sender) then return end
   if not incoming or incoming.updatedAt ~= updatedAt then
     incoming = { updatedAt = updatedAt, baseGp = baseGp, total = total, sender = sender, parts = {}, received = 0 }
   elseif incoming.total ~= total or incoming.sender ~= sender or incoming.baseGp ~= baseGp then
@@ -233,7 +253,7 @@ local function receiveChunk(text, sender)
     for _, entry in ipairs(account.ledger or {}) do if entry.pending then pending = true end end
   end
   if d and not pending then
-    d.standings = { updatedAt = updatedAt, baseGp = incoming.baseGp, players = players, from = sender }
+    d.standings = { updatedAt = updatedAt, baseGp = incoming.baseGp, players = players, from = sender, fromOfficer = ns.isOfficerName(sender) and true or false }
     -- Shared standings carry no list of what Discord has. Another officer's award made before
     -- this snapshot is taken as included: counting it twice would be worse than a late update.
     local at = ns.util.isoEpoch(updatedAt)
@@ -419,6 +439,14 @@ function ns.standingsSource()
   return tostring(s.from or "?")
 end
 
+-- Where the shared standings came from and when they were made, for the Home page; nil before
+-- any arrived.
+function ns.standingsFreshness()
+  local s = standings()
+  if not s or not s.updatedAt then return nil end
+  return ns.standingsSource(), s.updatedAt
+end
+
 -- Standalone guilds (no Discord bot): an officer shares the EPGP ledger kept on this PC as the
 -- guild's standings. They travel like the bot's (STAND chunks, officers only); a newer
 -- companion upload replaces them again.
@@ -595,7 +623,8 @@ local function onEvent(_, event, ...)
       send("STANDREQ|" .. ((s and s.updatedAt) or "0"), "GUILD")
       local g = guildModules()
       send("MODSREQ|" .. ((g and g.updatedAt) or 0), "GUILD")
-      if adopted and ns.isOfficer() then shareStandings() end
+      -- Fresh standings from the companion are shared by whoever brought them.
+      if adopted then shareStandings() end
     end)
   elseif event == "CHAT_MSG_ADDON" then
     local prefix, text, channel, sender = ...
@@ -617,10 +646,12 @@ local function onEvent(_, event, ...)
     elseif kind == "STANDREQ" then
       local theirs = string.match(text, "^STANDREQ|(.+)$") or "0"
       local s = standings()
-      if ns.isOfficer() and s and s.updatedAt and s.updatedAt > theirs and not replyScheduled then
+      if s and s.updatedAt and s.updatedAt > theirs and not replyScheduled then
         replyScheduled = true
         local function reply() replyScheduled = false; shareStandings() end
-        if C_Timer and C_Timer.After then C_Timer.After(1 + math.random() * REPLY_JITTER, reply) else reply() end
+        -- Officers answer within a few seconds; members only if nobody answered before them.
+        local delay = ns.isOfficer() and 1 + math.random() * REPLY_JITTER or MEMBER_DELAY + math.random() * MEMBER_JITTER
+        if C_Timer and C_Timer.After then C_Timer.After(delay, reply) else reply() end
       end
     elseif kind == "STAND" then
       receiveChunk(text, sender)

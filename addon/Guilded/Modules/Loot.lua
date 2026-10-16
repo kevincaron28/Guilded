@@ -495,11 +495,30 @@ end
 -- Commands
 -- ---------------------------------------------------------------------
 
+-- When no core is chosen but the guild's cores decide loot themselves, the guild default would
+-- mislead ("GP bids" while every core uses a priority list): describe the cores instead.
+local function coresSummary()
+  local r = rules()
+  local labels, list, kinds = {}, {}, 0
+  for _, core in ipairs(r and r.cores or {}) do
+    if MODES[core.mode or ""] then
+      if not labels[core.mode] then labels[core.mode] = true; kinds = kinds + 1 end
+      if #list < 4 then list[#list + 1] = string.format("%s: %s", core.name, loot.label(core.mode)) end
+    end
+  end
+  if kinds == 0 then return nil end
+  if kinds == 1 then
+    local only = next(labels)
+    return string.format(L("Loot system: %s - each raid core decides, and all of yours use it. Pick a core with /guilded core <name>."), loot.label(only))
+  end
+  return string.format(L("Loot system: each raid core decides (%s). Pick a core with /guilded core <name>."), table.concat(list, ", "))
+end
+
 local function describe()
   local mode, source = loot.mode()
   local name, manual = loot.coreName()
   local where = name and string.format("%s%s", name, manual and "" or " (next raid)") or L("no raid core")
-  local text = string.format(L("Loot system: %s - %s."), loot.label(mode),
+  local text = source == "guild" and coresSummary() or string.format(L("Loot system: %s - %s."), loot.label(mode),
     source == "override" and L("chosen by you") or source == "core" and where or L("the guild's default"))
   if ns.isInGameOnly and ns.isInGameOnly() then
     text = text .. " " .. L("Local officer copy; Discord is optional.")

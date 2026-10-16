@@ -168,6 +168,29 @@ model Guild {
   communityHonors     CommunityHonors?
   communityHonorAwards CommunityHonorAward[]
   rookieMemberships CommunityRookieMembership[]
+  page              GuildPage?
+}
+
+// The guild's public web page at /g/<slug>/ (docs/GUILD_PAGES_DESIGN.md). Nothing is public until
+// it is published, and each section stays hidden until it is listed in `sections`. The page shows
+// character names only, never Discord users.
+model GuildPage {
+  id          String    @id @default(cuid())
+  guildId     String    @unique
+  slug        String    @unique
+  published   Boolean   @default(false)
+  // Turned-on sections: "cores", "loot", "rosters", "rankings", "recruitment".
+  sections    String[]  @default([])
+  intro       String?
+  recruitment String?
+  // A discord.gg or discord.com/invite link shown with the recruitment text.
+  inviteUrl   String?
+  // false: the page asks search engines not to index it.
+  indexable   Boolean   @default(true)
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  guild       Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
 }
 
 // Onboarding progress of one Discord user in one server. Kept apart from Member so that reading

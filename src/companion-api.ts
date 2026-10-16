@@ -18,6 +18,7 @@ import { createAuditService } from "./services/audit.js";
 import { followUpImport } from "./services/import-followup.js";
 import { exchangeCharacterPairingCode, hashCompanionSecret, linkPairedCharacter } from "./services/character-pairing.js";
 import { serveCompanionWeb } from "./services/companion-web.js";
+import { createGuildPageServer, loadGuildPageView } from "./services/guild-page.js";
 import type { Client } from "discord.js";
 import { companionAccess, personalSnapshot } from "./services/companion-access.js";
 import { readFileSync } from "node:fs";
@@ -115,6 +116,8 @@ export async function readBody(request: IncomingMessage): Promise<unknown> {
 
 const auditService = createAuditService(prisma);
 const manage = createCompanionManage(prisma);
+// Public guild pages (/g/<slug>/): read-only HTML, no pairing needed.
+const guildPages = createGuildPageServer((slug) => loadGuildPageView(prisma, slug, (id) => hostedPilot.allows(id)));
 
 // A failed automatic import is told to the officers once an hour per cause, not on every upload.
 const APPLY_FAILURE_REPEAT_MS = 60 * 60_000;
@@ -215,6 +218,12 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       }
       const url = new URL(request.url ?? "/", "http://localhost");
       if (await serveCompanionWeb(request, response, url.pathname)) return;
+      const page = await guildPages.respond(request.method ?? "GET", url.pathname);
+      if (page) {
+        response.writeHead(page.status, page.headers);
+        response.end(request.method === "HEAD" ? undefined : page.body);
+        return;
+      }
       const isImport = request.method === "POST" && url.pathname === "/api/v1/addon-imports";
       const isPairing = request.method === "POST" && url.pathname === "/api/v1/addon-pairings";
       const isStandings = request.method === "GET" && url.pathname === "/api/v1/standings";

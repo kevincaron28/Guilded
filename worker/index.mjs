@@ -49,7 +49,9 @@ export default {
     const companion = url.pathname === "/companion" || url.pathname.startsWith("/companion/");
     const api = apiMethods.has(url.pathname);
     const health = url.pathname === "/health";
-    if (!companion && !api && !health) {
+    // Public guild pages, served by the bot (docs/GUILD_PAGES_DESIGN.md). Guilded host only.
+    const guildPage = !creator && /^\/g\/[a-z0-9-]{1,40}\/?$/.test(url.pathname);
+    if (!companion && !api && !health && !guildPage) {
       if (url.pathname.startsWith("/api/")) return failure(404, "Not found");
       return env.ASSETS.fetch(request);
     }
@@ -64,20 +66,22 @@ export default {
     // Build from the fixed origin and path, never a user-supplied destination.
     const target = new URL(origin);
     target.pathname = url.pathname;
-    target.search = health ? "" : url.search;
+    target.search = health || guildPage ? "" : url.search;
     try {
       const body = request.method === "POST" ? await limitedBody(request) : undefined;
       const upstream = await fetch(target.href, {
         method: request.method, headers, ...(body ? { body } : {}),
         redirect: "manual", signal: AbortSignal.timeout(20_000),
-        cf: { cacheTtl: 0, cacheEverything: false }
+        // A guild page is the same for every visitor: Cloudflare keeps it briefly so visits rarely reach the bot.
+        cf: guildPage ? { cacheEverything: true, cacheTtlByStatus: { "200-299": 300, "301": 3600, "404": 60, "500-599": 0 } } : { cacheTtl: 0, cacheEverything: false }
       });
       if (upstream.status >= 300 && upstream.status < 400) {
-        // Never follow a redirect with credentials. Only the companion's local
-        // canonical redirect may be returned to the browser.
+        // Never follow a redirect with credentials. Only the companion's and guild pages' local
+        // canonical redirects may be returned to the browser.
         const location = upstream.headers.get("location");
         const redirect = location ? new URL(location, target) : null;
-        if (!companion || !redirect || redirect.origin !== origin || !redirect.pathname.startsWith("/companion/")) {
+        const allowed = companion ? "/companion/" : guildPage ? "/g/" : null;
+        if (!allowed || !redirect || redirect.origin !== origin || !redirect.pathname.startsWith(allowed)) {
           return failure(502, "Unexpected server redirect");
         }
         return new Response(null, { status: upstream.status, headers: {
@@ -85,7 +89,7 @@ export default {
         } });
       }
       const responseHeaders = new Headers(upstream.headers);
-      responseHeaders.set("cache-control", "no-store");
+      if (!guildPage) responseHeaders.set("cache-control", "no-store");
       responseHeaders.delete("set-cookie");
       if (companion && request.method === "GET" && upstream.status === 200
         && upstream.headers.get("content-type")?.startsWith("text/html")) {

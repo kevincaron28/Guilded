@@ -1,6 +1,12 @@
 import type { Client } from "discord.js";
 import type { PrismaClient } from "@prisma/client";
+import { readFileSync } from "node:fs";
 import { config } from "../config.js";
+
+const BOT_VERSION = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version as string;
+
+// The short reference a reporter is given and the developer quotes back ("fix bug K3X9QZ2A").
+export const reportRef = (id: string): string => id.slice(-8).toUpperCase();
 
 // Captures command/job failures and /report bug submissions: always saved to
 // the ErrorReport table, and posted live to ERROR_LOG_CHANNEL_ID when set (a
@@ -32,30 +38,38 @@ function shouldPost(key: string): boolean {
 
 export function createErrorReportService(prisma: PrismaClient) {
   return {
-    async report(client: Client | null, error: unknown, context: ErrorReportContext): Promise<void> {
+    // Returns the report's short reference (see reportRef), or null when it could not be saved.
+    async report(client: Client | null, error: unknown, context: ErrorReportContext): Promise<string | null> {
       const message = error instanceof Error ? error.message : String(error);
       const stack = error instanceof Error ? (error.stack ?? null) : null;
+      let ref: string | null = null;
       try {
-        await prisma.errorReport.create({
+        const saved = await prisma.errorReport.create({
           data: {
             source: context.source,
             guildId: context.guildId ?? null,
             userId: context.userId ?? null,
             message: message.slice(0, 2000),
             stack: stack?.slice(0, 4000) ?? null,
-            context: context.extra?.slice(0, 500) ?? null
-          }
+            context: context.extra?.slice(0, 500) ?? null,
+            version: BOT_VERSION
+          },
+          select: { id: true }
         });
+        ref = reportRef(saved.id);
       } catch (dbError) {
         console.error("Failed to save error report", dbError);
       }
       const channelId = config.ERROR_LOG_CHANNEL_ID;
-      if (!client || !channelId || !shouldPost(`${context.source}:${message.slice(0, 200)}`)) return;
+      // A member's bug report always reaches the developer; repeated failures are de-duplicated.
+      const bug = context.source === "bug-report";
+      if (!client || !channelId || (!bug && !shouldPost(`${context.source}:${message.slice(0, 200)}`))) return ref;
       try {
         const channel = await client.channels.fetch(channelId).catch(() => null);
-        if (!channel || !channel.isTextBased() || !("send" in channel)) return;
+        if (!channel || !channel.isTextBased() || !("send" in channel)) return ref;
         const lines = [
-          `🐞 **${context.source}**${context.guildName ? ` — ${context.guildName}` : ""}${context.userId ? ` — <@${context.userId}>` : ""}`,
+          `🐞 **${context.source}**${context.guildName ? ` — ${context.guildName}` : ""}${context.guildId ? ` (${context.guildId})` : ""}${context.userId ? ` — <@${context.userId}>` : ""}`,
+          `Ref \`${ref ?? "not saved"}\` · v${BOT_VERSION}`,
           `\`\`\`${message.slice(0, 1500)}\`\`\``,
           ...(context.extra ? [`Context: ${context.extra.slice(0, 300)}`] : [])
         ];
@@ -63,6 +77,7 @@ export function createErrorReportService(prisma: PrismaClient) {
       } catch (postError) {
         console.error("Failed to post error report", postError);
       }
+      return ref;
     }
   };
 }

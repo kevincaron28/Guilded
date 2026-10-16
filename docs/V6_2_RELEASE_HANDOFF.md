@@ -7,8 +7,12 @@ remain open in [the checklist](V6_2_GAME_ACCEPTANCE.md) as post-release follow-u
 `release.json` is now channel `release`. Main was merged into the candidate first
 (sync speed-ups PR #84, already live on the bot as 6.1.2 at `58ae302`). Pre-deployment
 backup: `/home/ubuntu/guilded-recovery/2026-10-16T00-55-07-655Z`, with an authenticated
-encrypted offsite copy on the owner's PC. Release artifacts, their SHA-256 sums and the
-GitHub release are recorded below once built; CurseForge upload is done by the owner with
+encrypted offsite copy on the owner's PC. The release build (`npm run release:prepare`: 190 test files /
+1,616 tests, audits clean, artifacts verified) produced `Guilded-v6.2.0.zip`
+`0b848eaf3be135f2f0a79e6fe3e51494b35fcc13abf71d73eed94a1f93bf93fe` and
+`Guilded Companion Setup 6.2.0.exe`
+`e39d7c33283ec53e084e96324eaa2256de47147d99821bb05524f3d85c54e900`; rebuild if the
+merged commit differs. The GitHub release is created after the merge; CurseForge upload is done by the owner with
 [the upload text](V6_2_CURSEFORGE.md). Starting the 6.2.0 bot posts the version notice in
 every guild's bot-guide channel.
 

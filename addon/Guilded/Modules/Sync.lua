@@ -481,9 +481,14 @@ local function showStandings(args)
     return
   end
   local s = standings()
+  local inGameOnly = ns.isInGameOnly and ns.isInGameOnly()
+  -- In-game only: a snapshot the companion saved while the guild was connected is not this
+  -- guild's ledger any more (16 October: it showed EP 0 after a +100 award). Standings an
+  -- officer published in game still count.
+  if inGameOnly and s and s.from == "companion" and not s.localPublish then s = nil end
   if not s or not s.updatedAt then
-    if ns.isInGameOnly and ns.isInGameOnly() then
-      ns.message(ns.standingsSource())
+    if inGameOnly then
+      ns.message(ns.L and ns.L("Local ledger (this PC)") or "Local ledger (this PC)")
       local d = db()
       local requested = args[1] and ns.normalizeName(args[1])
       local names = {}; for name in pairs(d and d.epgp or {}) do if not requested or name == requested then names[#names + 1] = name end end

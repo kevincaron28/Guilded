@@ -72,6 +72,17 @@ describe("Backup.lua", () => {
     expect(s.run(`return DB.raids.r1.title`)).toBe('Molten "Core"\nnight');
   });
 
+  it("accepts the same guild seen under another realm text (WoW Forever segments)", () => {
+    const s = withBackup();
+    const code = s.run(`return NS.backup.build()`);
+    const check = (input: string) => s.run(`local info, err = NS.backup.inspect(${JSON.stringify(input)}); return tostring(info ~= nil) .. "|" .. tostring(err)`);
+    // 16 October: one PC said "Classic Beta PvP", the other "Classic Beta PvP 2" for one guild.
+    s.run(`DB.guildKey = "Alpha-Realm 2"`);
+    expect(check(code)).toBe("true|nil");
+    s.run(`DB.guildKey = "Beta-Realm 2"`);
+    expect(check(code)).toContain("from guild Alpha-Realm");
+  });
+
   it("keeps what was there so a restore can be undone", () => {
     const s = withBackup();
     const code = s.run(`return NS.backup.build()`);

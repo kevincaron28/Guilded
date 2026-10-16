@@ -21,6 +21,32 @@ describe("addon-only guild administration", () => {
     s.run(`NS.localGuild.remove("Tuesday raid","Amy",true)`);
     expect(s.run(`return #NS.loot.core().roster`)).toBe("1");
   });
+  it("accepts WoW Forever first+last names and files them under the first name", () => {
+    setup();
+    s.run(`NS.localGuild.create("Team")`);
+    expect(s.run(`return tostring(NS.localGuild.member("Team","Highpriest Cheech","HEALER","main"))`)).toBe("true");
+    expect(s.run(`return NS.loot.core().roster[1].name`)).toBe("Highpriest");
+    // The slash command keeps a quoted full name together.
+    s.run(`NS.runCommand('localcore add "Naomine Merriweather" DPS bench')`);
+    expect(s.run(`return #NS.loot.core().roster .. ":" .. NS.loot.core().roster[2].name .. ":" .. NS.loot.core().roster[2].spot`)).toBe("2:Naomine:bench");
+    expect(s.run(`return tostring(NS.localGuild.member("Team","Bad|Hname","DPS","main"))`)).toBe("false");
+  });
+  it("/guilded standings shows the local ledger in in-game-only mode, not an old companion snapshot", () => {
+    setup();
+    s.run(`GuildedDB.standings = { updatedAt = "2026-10-16T15:56:40Z", from = "companion", players = { Amy = { ep = 0, gp = 0, pr = 0 } } }
+      NS.runCommand("award Amy 100 Attendance"); NS.runCommand("gp Amy 40 Sword")`);
+    const before = s.chat().length;
+    s.run(`NS.runCommand("standings Amy")`);
+    const out = s.chat().slice(before).join("\\n");
+    expect(out).toContain("Local ledger (this PC)");
+    expect(out).toContain("Amy: EP 100, GP 40");
+    expect(out).not.toContain("Connected snapshot");
+    // Standings an officer published in game still show.
+    s.run(`GuildedDB.standings = { updatedAt = "2026-10-16T18:00:00Z", from = "Officer", players = { Amy = { ep = 7, gp = 1, pr = 7 } } }`);
+    const mark = s.chat().length;
+    s.run(`NS.runCommand("standings Amy")`);
+    expect(s.chat().slice(mark).join("\\n")).toContain("Amy: EP 7, GP 1");
+  });
   it("keeps connected rules and core choices intact when switching modes", () => {
     setup(); s.run(`NS.localGuild.create("Local team"); NS.options.chooseSetup("connected")
       GuildedDB.lootRules={cores={{id="online",name="Online",mode="PRIORITY",roster={}}}}

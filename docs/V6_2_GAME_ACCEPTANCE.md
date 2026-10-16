@@ -78,3 +78,30 @@ For each ID, record: PASS/FAIL, tester(s)/guild role(s), date, client build,
 candidate SHA-256, language, observations, and run reference or screenshot where
 useful. Record defects without publishing private SavedVariables. After a source
 fix, rebuild and repeat affected checks on the new hash before final publication.
+
+### 16 October 2026: two-client session (one PC, 6.3 main at 7e6691c)
+
+Testers: Highpriest Cheech (officer) and Halidor Galemorne (ordinary member, invited
+for the test), both in Quebec Gold (Alliance during testing), English client, WoW
+Forever beta. Both clients share one install, so both read the same companion
+`GuildedData` file. Data that comes from the companion therefore matches on both
+clients whether or not the in-game sync works.
+
+- **G5, partial PASS.** As a member, `/guilded standings publish` and
+  `/guilded award` are refused ("Officer or guild-master rank is required").
+  Guild tools shows only Standings and Crafting, and the connected snapshot
+  (11:56) displays without granting officer controls. Not run: local core edits
+  as a member.
+- **Defect, fixed in PR #99.** After accepting the guild invite,
+  `/guilded diag` showed "Saved data belongs to guild: (not known yet)" until
+  a `/reload`, even after the guild window was opened.
+- **Finding, open.** This guild keeps EP/GP per raid core, so an officer's
+  `/guilded award` needs a core first. `/guilded standings publish` only reads
+  the guild pool and has nothing to share for a per-core guild. No test award
+  was made.
+- **Not run:** G3, G4, G9, G11, G12, and the 6.3 member relay. Each needs
+  either two officers, two PCs (separate companion files), or a separate test
+  guild whose ledger may take test entries.
+- Full first+last names work for `/ginvite` and `/invite`. Guilded reports the
+  surname as the UnitName realm (`full=Halidor Galemorne`) and keys data on
+  the first name.

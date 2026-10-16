@@ -27,4 +27,4 @@ Le compagnon Guilded peut conserver vos observations de visites de zones depuis 
 
 L'addon WoW n'est pas nécessaire pour utiliser les outils PoE2. Votre journal reste derrière l'association personnelle du compagnon.
 
-[Découvrir les outils web](../../features/) · [Retour à Quebec Gold](../) · [Voir World of Warcraft](../wow/)
+[Découvrir les outils web](../../features/) · [Retour à Quebec Gold](../) · [Voir World of Warcraft](../../g/quebec-gold/)

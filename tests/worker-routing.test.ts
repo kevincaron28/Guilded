@@ -148,4 +148,16 @@ describe("unified website and companion", () => {
     upstream.mockImplementationOnce(async () => new Response(null, { status: 302, headers: { location: "https://guildedqc.duckdns.org/companion/" } }));
     expect((await worker.fetch(new Request(base + "/g/quebec-gold/"), env)).status).toBe(502);
   });
+  it("sends Quebec Gold's retired WoW pages to its live guild page", async () => {
+    const upstream = vi.fn(); vi.stubGlobal("fetch", upstream);
+    for (const path of ["/quebec-gold/cores/", "/quebec-gold/wow", "/quebec-gold/wow/"]) {
+      const response = await worker.fetch(new Request(`https://guilded.kcaron.top${path}`), env);
+      expect(response.status).toBe(301);
+      expect(response.headers.get("location")).toBe("/g/quebec-gold/");
+    }
+    const asset = vi.fn(async () => new Response("community"));
+    await worker.fetch(new Request("https://guilded.kcaron.top/quebec-gold/poe2/"), { ASSETS: { fetch: asset } });
+    expect(asset).toHaveBeenCalledTimes(1);
+    expect(upstream).not.toHaveBeenCalled();
+  });
 });

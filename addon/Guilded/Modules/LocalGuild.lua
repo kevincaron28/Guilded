@@ -60,7 +60,9 @@ end
 function localGuild.member(id, rawName, role, spot)
   if not allowed() then return false end
   local core = localGuild.find(id)
-  if type(rawName) ~= "string" or #rawName > 80 or rawName:find("[%s|%c]") then return false end
+  -- WoW Forever names have a first and a last name ("Highpriest Cheech"); normalizeName keeps
+  -- the first, as everywhere else. Chat markup and control characters are still refused.
+  if type(rawName) ~= "string" or #rawName > 80 or rawName:find("[|%c]") then return false end
   local name = ns.normalizeName(rawName)
   if not core or not name or name == "" or not ({ TANK = true, HEALER = true, DPS = true })[role]
     or not ({ main = true, bench = true })[spot] then return false end

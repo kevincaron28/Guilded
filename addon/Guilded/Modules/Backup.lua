@@ -230,7 +230,11 @@ function module.inspect(code)
   if checksum(payload) ~= sum then return nil, "The backup code is damaged (checksum does not match). Copy the whole code again." end
   local ok, parsed = pcall(decode, payload)
   if not ok or type(parsed) ~= "table" or type(parsed.data) ~= "table" then return nil, "The backup could not be read: " .. tostring(parsed) end
-  if db and db.guildKey and parsed.guildKey and parsed.guildKey ~= "" and parsed.guildKey ~= db.guildKey then
+  -- Keys are "<guild>-<realm>". On WoW Forever the same guild shows a different realm text on
+  -- each PC ("Classic Beta PvP" and "Classic Beta PvP 2" on 16 October), so only the guild name
+  -- must match, as Core.lua does when a realm is renamed.
+  local function guildPart(key) return (string.match(key, "^(.*)%-[^%-]*$")) or key end
+  if db and db.guildKey and parsed.guildKey and parsed.guildKey ~= "" and guildPart(parsed.guildKey) ~= guildPart(db.guildKey) then
     return nil, "This backup is from guild " .. parsed.guildKey .. ", but your saved data belongs to " .. db.guildKey .. ". Nothing was changed."
   end
   local data = parsed.data

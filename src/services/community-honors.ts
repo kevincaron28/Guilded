@@ -9,6 +9,7 @@ import { enqueueDiscordJob } from "./discord-jobs.js";
 import { dateAfter, dayStart, participationDay, participationWeek } from "./participation-rules.js";
 import { monthlyRookie, rookieMemberLookup, ROOKIE_ROLE, type MonthlyRookie, type RookieMemberLookup } from "./monthly-rookie.js";
 import { weekStart as resetWeekStart } from "./dungeon-rules.js";
+import { cacheAllMembers } from "./member-cache.js";
 
 // Community recognition, on top of the public Discord seasons:
 // - every week (Monday guild time, or the WoW reset), the weekly MVP role moves to whoever
@@ -401,7 +402,7 @@ export async function syncCommunityHonorRoles(guild: Guild, database: PrismaClie
   for (let i = 0; i < 3; i++) plan.push([roles[i] ?? null, holders[i]!]);
   plan.push([honors.rookieRoleId ?? null, honors.rookieHolderId ? [honors.rookieHolderId] : []]);
   const reason = `${BRAND.name}: community honors`;
-  await guild.members.fetch();
+  await cacheAllMembers(guild);
   for (const [roleId, wanted] of plan) {
     const role = roleId ? guild.roles.cache.get(roleId) ?? await guild.roles.fetch(roleId).catch(() => null) : null;
     if (!role) continue;

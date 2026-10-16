@@ -76,7 +76,7 @@ import { executeParticipation } from "./commands/participation.js";
 import { createParticipationTracker } from "./services/participation-discord.js";
 import { handleOnboardingInteraction, ONBOARD_PREFIX, runOnboardingNudges } from "./services/onboarding.js";
 import { handleMemberJoin, handleMemberRolesChange, handleMemberLeave, handleWelcomeRoleButton, WELCOME_ROLE_PREFIX } from "./services/housekeeping.js";
-import { createErrorReportService } from "./services/error-report.js";
+import { createErrorReportService, isMemberAnswer } from "./services/error-report.js";
 import { buildGuildedReference } from "./services/guilded-reference.js";
 import { runRetention } from "./services/retention.js";
 
@@ -106,7 +106,9 @@ const reportJobError = (source: string) => (error: unknown) => {
   void errorReportService.report(client, error, { source });
 };
 // Same idea for a button/select/modal handler, with the guild and user it happened to.
+// An answer to the member's own mistake (see isMemberAnswer) is logged, not reported.
 const reportInteractionError = (source: string, interaction: { guildId: string | null; guild: { name: string } | null; user: { id: string } }, error: unknown): void => {
+  if (isMemberAnswer(error)) { console.warn(`${source}: ${(error as Error).message}`); return; }
   console.error(`${source} failed`, error);
   void errorReportService.report(client, error, { source, guildId: interaction.guildId, guildName: interaction.guild?.name, userId: interaction.user.id });
 };

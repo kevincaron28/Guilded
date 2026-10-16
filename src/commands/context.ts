@@ -1,7 +1,7 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import { prisma } from "../database.js";
 import { createGuildService } from "../services/guild.js";
-import { createErrorReportService } from "../services/error-report.js";
+import { createErrorReportService, isMemberAnswer } from "../services/error-report.js";
 import { BRAND } from "../brand.js";
 
 export const guildService = createGuildService(prisma);
@@ -36,13 +36,17 @@ export async function replyWithCommandError(
     console.warn("Command answered too late; Discord already dropped it. Try again.");
     return;
   }
-  console.error("Command failed", error);
-  void errorReportService.report(interaction.client, error, {
-    source: interaction.commandName,
-    guildId: interaction.guildId,
-    guildName: interaction.guild?.name,
-    userId: interaction.user.id
-  });
+  if (isMemberAnswer(error)) {
+    console.warn(`/${interaction.commandName}: ${(error as Error).message}`);
+  } else {
+    console.error("Command failed", error);
+    void errorReportService.report(interaction.client, error, {
+      source: interaction.commandName,
+      guildId: interaction.guildId,
+      guildName: interaction.guild?.name,
+      userId: interaction.user.id
+    });
+  }
   const content = error instanceof Error && error.message.length < 200
     ? error.message
     : "The command could not be completed. Please try again or contact an officer.";

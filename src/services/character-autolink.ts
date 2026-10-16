@@ -2,6 +2,7 @@ import type { Guild as DiscordGuild } from "discord.js";
 import type { PrismaClient, UnclaimedCharacter } from "@prisma/client";
 import { createGuildService } from "./guild.js";
 import { nameKey } from "./roster-discovery.js";
+import { cacheAllMembers } from "./member-cache.js";
 
 // Linking discovered characters to Discord members without anyone typing:
 //   1. automatically, when a member's Discord name (nickname, display name or
@@ -66,7 +67,8 @@ export async function linkUnclaimed(database: Db, memberId: string, unclaimed: U
 export async function autoLinkUnclaimed(discordGuild: DiscordGuild, database: Db, guildId: string): Promise<{ character: string; member: string }[]> {
   const unclaimed = await database.unclaimedCharacter.findMany({ where: { guildId } });
   if (unclaimed.length === 0) return [];
-  const members = await discordGuild.members.fetch();
+  await cacheAllMembers(discordGuild);
+  const members = discordGuild.members.cache;
   const people: (DiscordPerson & { display: string; username: string })[] = [];
   for (const member of members.values()) {
     if (member.user.bot) continue;

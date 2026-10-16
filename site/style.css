@@ -417,3 +417,14 @@ form { margin: 22px 0 0; }
   html { scroll-behavior: auto; }
   *, *::before, *::after { transition: none !important; }
 }
+/* Simplified homepage: equal feature cards, a screenshot hero and a three-step row. */
+.feature-grid.even { grid-template-columns: repeat(3, 1fr); }
+.hero-art.companion-figure { padding: 0; overflow: hidden; }
+.hero-art.companion-figure img { border: 0; }
+.start-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin: 0; }
+.start-steps li { margin: 0; padding: 26px; border: 1px solid #353b32; border-radius: 8px; background: #171b18; }
+.start-steps a, .faq-items p a { color: var(--gold); }
+.faq-items form { padding: 0 0 18px; }
+@media (max-width: 980px) {
+  .feature-grid.even, .start-steps { grid-template-columns: 1fr; }
+}

@@ -14,6 +14,7 @@ import {
   type Guild as DiscordGuild,
   type GuildMember,
   type MessageComponentInteraction,
+  OverwriteType,
   type OverwriteResolvable
 } from "discord.js";
 import type { GuildSettings } from "@prisma/client";
@@ -600,6 +601,53 @@ function overwritesFor(guild: DiscordGuild, access: Access, sharedSupport = fals
   ] : undefined;
 }
 
+// The server's own layout, learned from channels setup already saved: the category a group of
+// channels lives in, and the game role WoW channels are limited to. A server that moved
+// Guilded's channels into its own categories, or hid them behind a game role, keeps that
+// layout when setup adds or tidies channels. A new server has neither, so the defaults apply.
+const GAME_CHANNELS: ChannelField[] = ["raidSignupChannelId", "notifyChannelId", "weeklyReportChannelId", "coreChannelId",
+  "dungeonSignupChannelId", "dungeonLeaderboardChannelId", "dungeonChannelId", "craftChannelId"];
+const SETUP_CATEGORY_NAMES = new Set((["guild", "raid", "dungeon", "craft", "officers"] as CategoryKey[]).flatMap((key) => categoryNames(key)));
+const LEADERSHIP: Permission[] =["guildMaster", "officer", "raidLeader", "dkpOfficer", "lootLeader", "classLeader"];
+
+type SavedChannels = Partial<Record<ChannelField, string | null>>;
+export function serverLayout(guild: DiscordGuild, saved: SavedChannels, key: CategoryKey, except?: ChannelField): { categoryId: string | null; gateRoleIds: string[] } {
+  const live = (field: ChannelField) => {
+    const id = field === except ? null : saved[field];
+    const channel = id ? guild.channels.cache.get(id) : undefined;
+    return channel && "permissionOverwrites" in channel ? channel : undefined;
+  };
+  const siblings = [...ALL_CHANNELS, ...RETIRED_CHANNELS].filter((field) => channelSpec(field, "en").category === key);
+  const home = siblings.map(live).find((channel) => channel?.parentId);
+  let gateRoleIds: string[] = [];
+  if (key === "raid" || key === "dungeon" || key === "craft") {
+    const leadership = (name: string) => LEADERSHIP.some((permission) => isPermissionRoleName(permission, name));
+    const gated = GAME_CHANNELS.map(live).find((channel) => channel?.permissionOverwrites.cache.get(guild.roles.everyone.id)?.deny.has(PermissionFlagsBits.ViewChannel));
+    gateRoleIds = gated ? [...gated.permissionOverwrites.cache.values()]
+      .filter((entry) => entry.type === OverwriteType.Role && entry.id !== guild.roles.everyone.id && entry.allow.has(PermissionFlagsBits.ViewChannel)
+        && !leadership(guild.roles.cache.get(entry.id)?.name ?? ""))
+      .map((entry) => entry.id) : [];
+  }
+  return { categoryId: home?.parentId ?? null, gateRoleIds };
+}
+
+// Limits a channel's overwrites to the server's game role(s): hidden from @everyone, visible to
+// the game role and to the roles the overwrites already let in (leadership, the bot).
+export function withGameGate(overwrites: OverwriteResolvable[], everyoneId: string, gateRoleIds: string[]): OverwriteResolvable[] {
+  const view = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory];
+  const entries: OverwriteResolvable[] = overwrites.map((entry) => {
+    const allow = new PermissionsBitField(entry.allow ?? []);
+    const deny = new PermissionsBitField(entry.deny ?? []);
+    if (entry.id === everyoneId) return { ...entry, allow: allow.remove(PermissionFlagsBits.ViewChannel).bitfield, deny: deny.add(PermissionFlagsBits.ViewChannel).bitfield };
+    return { ...entry, allow: allow.add(view).bitfield, deny: deny.remove(view).bitfield };
+  });
+  if (!entries.some((entry) => entry.id === everyoneId)) entries.unshift({ id: everyoneId, allow: 0n, deny: PermissionFlagsBits.ViewChannel });
+  for (const id of gateRoleIds) {
+    if (!entries.some((entry) => entry.id === id)) entries.push({ id, allow: new PermissionsBitField(view).bitfield, deny: 0n });
+  }
+  return entries;
+}
+
 // Puts the craft board's permissions right again (for a board made by an older version,
 // or one someone changed). Only the entries the board needs are touched.
 export async function repairCraftBoardPermissions(guild: DiscordGuild, channelId: string): Promise<boolean> {
@@ -651,9 +699,16 @@ export async function createSectionChannels(guild: DiscordGuild, guildId: string
       const writers = (overwrites ?? []).filter(entry => new PermissionsBitField(entry.allow).has(PermissionFlagsBits.SendMessages)).map(entry => entry.id as string);
       overwrites = reportChannelOverwrites(source.permissionOverwrites.cache.map(overwrite => ({ id: overwrite.id, type: overwrite.type, allow: overwrite.allow.bitfield, deny: overwrite.deny.bitfield })), guild.id, writers);
     }
+    // Follow the server's own layout: next to the group's other channels, behind its game role.
+    const layout = spec.category === "guild" ? null : serverLayout(guild, { ...settings, ...update }, spec.category, field);
+    if (layout?.gateRoleIds.length && overwrites && spec.access !== "officers" && spec.access !== "leaders") {
+      overwrites = withGameGate(overwrites, guild.roles.everyone.id, layout.gateRoleIds);
+    }
+    const ownCategory = layout?.categoryId ? guild.channels.cache.get(layout.categoryId) : undefined;
     const existing = guild.channels.cache.find(candidate => candidate.type === ChannelType.GuildText
       && isSetupLeftover(field, candidate.name, candidate.parentId ? guild.channels.cache.get(candidate.parentId)?.name : undefined));
-    const category = existing && spec.category !== "guild" ? null : await ensureCategory(guild, spec.category, lang);
+    const category = existing && spec.category !== "guild" ? null
+      : ownCategory?.type === ChannelType.GuildCategory ? ownCategory : await ensureCategory(guild, spec.category, lang);
     const channel = existing ?? (spec.forum
       ? await guild.channels.create({
         name: spec.name, type: ChannelType.GuildForum, topic: spec.topic, parent: category!.id,
@@ -707,7 +762,13 @@ export async function organizeChannels(guild: DiscordGuild, guildId: string, lan
     if (!channel || (channel.type !== ChannelType.GuildText && channel.type !== ChannelType.GuildForum)) continue;
     const spec = channelSpec(field, lang);
     if (!channelNames(field).includes(channel.name)) { skipped.push(`<#${channel.id}>`); continue; }
-    const category = await ensureCategory(guild, spec.category, lang);
+    // A category the server chose (not one of setup's own) is where the admin wants it: leave it there.
+    const parent = channel.parentId ? guild.channels.cache.get(channel.parentId) : undefined;
+    if (parent && !SETUP_CATEGORY_NAMES.has(parent.name)) { skipped.push(`<#${channel.id}>`); continue; }
+    // Otherwise join the group's other channels if the server keeps them elsewhere.
+    const home = spec.category === "guild" ? null : serverLayout(guild, settings, spec.category, field).categoryId;
+    const ownCategory = home ? guild.channels.cache.get(home) : undefined;
+    const category = ownCategory?.type === ChannelType.GuildCategory ? ownCategory : await ensureCategory(guild, spec.category, lang);
     const overwrites = spec.category === "guild" ? overwritesFor(guild, spec.access, true)
       : channel.permissionOverwrites.cache.map(overwrite => ({ id: overwrite.id, type: overwrite.type, allow: overwrite.allow.bitfield, deny: overwrite.deny.bitfield }));
     await channel.edit({ parent: category.id, permissionOverwrites: overwrites ?? [], reason: `${BRAND.name} /setup organize` });

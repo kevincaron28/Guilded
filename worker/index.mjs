@@ -46,6 +46,11 @@ export default {
       if (!["GET", "HEAD"].includes(request.method)) return failure(405, "Method not allowed");
       return env.ASSETS.fetch(new Request(new URL(creatorAssets[url.pathname], url), { method: request.method }));
     }
+    // Quebec Gold's hand-written WoW pages were replaced by its live guild page on 16 October 2026.
+    if (!creator && /^\/quebec-gold\/(cores|wow)\/?$/.test(url.pathname)) {
+      if (!["GET", "HEAD"].includes(request.method)) return failure(405, "Method not allowed");
+      return new Response(null, { status: 301, headers: { location: "/g/quebec-gold/", "cache-control": "public, max-age=86400" } });
+    }
     const companion = url.pathname === "/companion" || url.pathname.startsWith("/companion/");
     const api = apiMethods.has(url.pathname);
     const health = url.pathname === "/health";

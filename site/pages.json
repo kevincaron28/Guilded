@@ -1,7 +1,5 @@
 [
   {"source":"features.md","path":"features/","title":"Guilded features — addon, web companion and Discord","description":"Use Guilded in game, sync WoW standings from your browser, edit wishlists and explore your personal PoE2 mapping journal.","lang":"en","draft":false},
-  {"source":"cores.md","path":"quebec-gold/cores/","title":"Quebec Gold — cores, horaires de raid et EPGP sur WoW Forever","description":"Les Pulliticiens et Les Aggros Anonyme : horaires de raid à Montréal, règles EPGP et accès aux outils des membres de Quebec Gold.","lang":"fr","draft":false},
   {"source":"quebec-gold.md","path":"quebec-gold/","title":"Quebec Gold — communauté francophone WoW et PoE2","description":"Quebec Gold : WoW Forever et Path of Exile 2, en français à l'heure de Montréal. Découvrez la communauté et rejoignez notre Discord.","lang":"fr","draft":false},
-  {"source":"wow.md","path":"quebec-gold/wow/","title":"Guilde WoW Forever francophone — Quebec Gold · Horde PvP","description":"Quebec Gold recrute pour ses groupes de raid WoW Forever : Horde, royaume PvP, communauté francophone à l'heure de Montréal. Contact sur Discord.","lang":"fr","draft":false},
   {"source":"poe2.md","path":"quebec-gold/poe2/","title":"Quebec Gold — communauté francophone Path of Exile 2","description":"Retrouvez Quebec Gold sur Path of Exile 2 à chaque nouvelle ligue : communauté francophone, heure de Montréal et contact Discord.","lang":"fr","draft":false}
 ]

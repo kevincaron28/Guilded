@@ -13,7 +13,7 @@
   "assets": {
     "directory": "./dist/site",
     "binding": "ASSETS",
-    "run_worker_first": ["/", "/robots.txt", "/sitemap.xml", "/support", "/support/", "/companion", "/companion/*", "/api/*", "/health", "/g/*"],
+    "run_worker_first": ["/", "/robots.txt", "/sitemap.xml", "/support", "/support/", "/companion", "/companion/*", "/api/*", "/health", "/g/*", "/quebec-gold/cores", "/quebec-gold/cores/", "/quebec-gold/wow", "/quebec-gold/wow/"],
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "none"
   }

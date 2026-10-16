@@ -43,7 +43,7 @@ function client(name: string, options: { officer?: boolean; local?: boolean; syn
 }
 
 // Moves every queued message to its receivers until nobody has anything left to say.
-function pump(clients: Client[], rounds = 50) {
+function pump(clients: Client[], rounds = 50, lostGuild: string[] = []) {
   for (let round = 0; round < rounds; round++) {
     let moved = 0;
     for (const from of clients) {
@@ -57,6 +57,7 @@ function pump(clients: Client[], rounds = 50) {
         for (const to of clients) {
           if (to === from) continue;
           if (message.channel === "WHISPER" && message.target.replace(/-.*/, "") !== to.name) continue;
+          if (message.channel === "GUILD" && lostGuild.includes(from.name)) continue;
           to.s.run(`fire_event("CHAT_MSG_ADDON", "GuildedLedger", ${JSON.stringify(message.text)}, ${JSON.stringify(message.channel)}, "${from.name}-Realm")`);
           moved++;
         }
@@ -123,6 +124,46 @@ describe("officer ledger sync (in-game-only guilds)", () => {
     bob.s.run('NS.commandHandlers.ledgersync({"now"})');
     pump([alice, bob]);
     expect(bob.s.run('return balance("Tank")')).toBe("10/0");
+  });
+
+  it("still syncs when one officer's guild-channel messages never arrive (seen in game)", () => {
+    const alice = client("Alice"); const bob = client("Bob");
+    // Alice's award reaches Bob through Alice's SUM, as on 16 October.
+    alice.s.run('award("Tank", 1, 0, 1); NS.commandHandlers.ledgersync({"now"})');
+    pump([alice, bob], 50, ["Bob"]);
+    expect(bob.s.run('return balance("Tank")')).toBe("1/0");
+    // Then Bob awards and asks. Before the fix his SUM went only to the guild channel and
+    // Alice never heard it; it now also goes by whisper to the officers he exchanged with.
+    advance([alice, bob], 30);
+    bob.s.run('award("Healer", 1, 0, 1); NS.commandHandlers.ledgersync({"now"})');
+    pump([alice, bob], 50, ["Bob"]);
+    expect(alice.s.run('return balance("Healer")')).toBe("1/0");
+    // Bob voids it 30 seconds later: within the old one-minute answer cooldown, but a changed
+    // ledger is answered at once.
+    advance([alice, bob], 30);
+    bob.s.run(`
+      local e = DB.epgp.Healer.ledger[1]; e.voided = "now"; e.pending = nil
+      DB.epgp.Healer.ep = DB.epgp.Healer.ep - 1
+      NS.commandHandlers.ledgersync({"now"})`);
+    pump([alice, bob], 50, ["Bob"]);
+    expect(alice.s.run('return balance("Healer")')).toBe("0/0");
+    expect(summary(alice)).toBe(summary(bob));
+  });
+
+  it("answers the same SUM once when it comes by guild and by whisper", () => {
+    const alice = client("Alice"); const bob = client("Bob");
+    alice.s.run('award("Tank", 1, 0, 1); NS.commandHandlers.ledgersync({"now"})');
+    pump([alice, bob]);
+    advance([alice, bob], 30);
+    bob.s.run('award("Healer", 1, 0, 1); NS.commandHandlers.ledgersync({"now"})');
+    // Bob's SUM went out twice (guild and whisper); Alice answers it with one AUTH.
+    const sums = Number(bob.s.run('local n = 0; for _, m in ipairs(OUT) do if string.find(m.text, "^SUM") then n = n + 1 end end; return n'));
+    expect(sums).toBe(2);
+    // One delivery round only: Alice has answered but nobody has heard the answer yet.
+    expect(() => pump([alice, bob], 1)).toThrow("did not settle");
+    expect(Number(alice.s.run('local n = 0; for _, m in ipairs(OUT) do if string.find(m.text, "^AUTH") then n = n + 1 end end; return n'))).toBe(1);
+    pump([alice, bob]);
+    expect(summary(alice)).toBe(summary(bob));
   });
 
   it("brings a third officer up to date from either of the others", () => {

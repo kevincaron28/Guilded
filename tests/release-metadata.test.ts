@@ -24,6 +24,7 @@ describe("release metadata", () => {
     const metadata = releaseMetadata();
     expect(["candidate", "release"]).toContain(metadata.channel);
     expect(metadata.version).toBe(JSON.parse(readFileSync("package.json", "utf8")).version);
-    expect(metadata.notesText).toContain("Deadmines");
+    // The current notes point testers at this release's real-client checklist.
+    expect(metadata.notesText).toContain(metadata.acceptance.replace(/^docs\//, ""));
   });
 });

@@ -1558,6 +1558,20 @@ local function noteMyCharacter(info)
   if count > 50 and oldestName and oldestName ~= info.name then db.myCharacters[oldestName] = nil end
 end
 
+-- Joining a guild mid-session: GetGuildInfo stays empty for a few seconds after
+-- PLAYER_GUILD_UPDATE, and no roster update may follow until the guild window is opened, so
+-- the guild was only picked up after a /reload. Try again now and a few times after.
+local GUILD_RETRY_SECONDS = { 2, 5, 15 }
+local function resolveGuildSoon()
+  local function try()
+    if db and resolveGuildData() then noteMyCharacter(db.character) end
+  end
+  try()
+  if C_Timer and C_Timer.After then
+    for _, delay in ipairs(GUILD_RETRY_SECONDS) do C_Timer.After(delay, try) end
+  end
+end
+
 local function onEvent(_, event, ...)
   if event == "PLAYER_LOGIN" then
     ensureDb()
@@ -1602,6 +1616,8 @@ local function onEvent(_, event, ...)
   elseif event == "GROUP_ROSTER_UPDATE" then
     if activeRaid then recordPresence() end
     if inRaidGroup() then maybeAutoSync(AUTO_SYNC_RAID_INTERVAL_SECONDS) end
+  elseif event == "PLAYER_GUILD_UPDATE" then
+    resolveGuildSoon()
   elseif event == "GUILD_ROSTER_UPDATE" then
     -- Before anything is added to the roster: make sure it is the right guild's data.
     if resolveGuildData() then noteMyCharacter(db.character) end
@@ -1695,6 +1711,7 @@ for _, event in ipairs({ "PLAYER_TALENT_UPDATE", "CHARACTER_POINTS_CHANGED", "AC
 end
 frame:RegisterEvent("GROUP_ROSTER_UPDATE")
 frame:RegisterEvent("GUILD_ROSTER_UPDATE")
+frame:RegisterEvent("PLAYER_GUILD_UPDATE")
 frame:RegisterEvent("CHAT_MSG_LOOT")
 -- Deliberately NOT registering COMBAT_LOG_EVENT_UNFILTERED: since patch 12.0.0
 -- addons cannot register it, and WoW Forever inherits that restriction.

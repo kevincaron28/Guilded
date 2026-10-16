@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 6.2.0 Release — 16 October 2026
+
+- Released at the owner's direction; real-client checks continue as follow-up
+  ([checklist](docs/V6_2_GAME_ACCEPTANCE.md), [notes](docs/V6_2_RELEASE_NOTES.md)).
+- Addon-only guild management: local cores, rosters, record-keeper backup handover.
+- Faster, lighter companion sync, `GuildedData` recovery folder, compact officer bridge,
+  and optional officer ledger sharing for in-game-only guilds.
+- November dungeon scoring preparation (nothing activated) and Deadmines completion fix.
+- Party games moved to the separate Guilded Games addon; soft-reserve rolls stay in Guilded.
 - Faster, lighter sync (`docs/SYNC_SPEEDUPS_2026-10-15.md`). The bot caches each companion's
   standings with an ETag and can hold the request until something changes, so awards and
   imports reach the addon folder in seconds instead of up to two minutes. Uploads are

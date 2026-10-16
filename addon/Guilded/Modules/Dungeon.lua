@@ -571,7 +571,7 @@ local function onEvent(_, event, ...)
     if not tonumber(encounterId) then return end
     recordEncounter(run, tonumber(encounterId), (not ns.isSecret(name)) and name or nil, success == 1)
     if success == 1 and ((run.finalEncounterId and tonumber(encounterId) == run.finalEncounterId)
-      or compat.isDungeonFinalBoss(run.instanceId, encounterId, name)) then
+      or compat.isDungeonFinalBoss(run.instanceId, encounterId, name, run.difficultyId)) then
       finish("COMPLETED", "final boss")
     end
   elseif event == "BOSS_KILL" then
@@ -584,7 +584,7 @@ local function onEvent(_, event, ...)
     if not tonumber(encounterId) then return end
     recordEncounter(run, tonumber(encounterId), name, true)
     if (run.finalEncounterId and tonumber(encounterId) == run.finalEncounterId)
-      or compat.isDungeonFinalBoss(run.instanceId, encounterId, name) then
+      or compat.isDungeonFinalBoss(run.instanceId, encounterId, name, run.difficultyId) then
       finish("COMPLETED", "final boss")
     end
   elseif event == "PLAYER_DEAD" then

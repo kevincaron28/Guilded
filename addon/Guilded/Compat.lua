@@ -156,7 +156,9 @@ local finalBossFallbacks = {
   [3065] = 3496
 }
 
-function compat.isDungeonFinalBoss(instanceId, encounterId, name)
+function compat.isDungeonFinalBoss(instanceId, encounterId, name, difficultyId)
+  if ns.dungeonRoutes and not secret(encounterId) and not secret(name) and not secret(difficultyId)
+    and ns.dungeonRoutes.matchesFinal(ns.dungeonRoutes.verified, instanceId, difficultyId, tonumber(encounterId), name) then return true end
   -- Scarlet wings share map 189. English/French event names identify their endpoints;
   -- unknown names still use the native journal when available.
   if instanceId == 189 and not secret(name) and type(name) == "string" then

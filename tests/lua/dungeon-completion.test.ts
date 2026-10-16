@@ -8,6 +8,7 @@ function activeRun() {
   session = newLuaSession();
   session.run("NS = {}; GuildedDB = nil");
   session.load("Core.lua");
+  session.load("DungeonRoutes.lua");
   session.load("Compat.lua");
   session.run(`BLOCKED_REGISTRATIONS = 0
     local originalCreateFrame = CreateFrame
@@ -36,6 +37,30 @@ function activeRun() {
 }
 
 describe("dungeon final-boss completion without the Encounter Journal", () => {
+  it.each(["ENCOUNTER_END", "BOSS_KILL"])("supports future verified wing endpoints on %s without shipping guessed mappings", event => {
+    const s = activeRun();
+    expect(s.run("return #NS.dungeonRoutes.verified")).toBe("0");
+    s.run(`INSTANCE.id=90001; GuildedDB.dungeon.current.instanceId=90001
+      NS.dungeonRoutes.verified={{instanceId=90001, participationBand={difficultyId=1},
+        verification={build="SYNTHETIC",runRef="FIXTURE"}, completion={ids={9000},names={"Fictive endpoint","Boss final fictif"}}}}
+      fire_event("ENCOUNTER_END",9000,"Fictive endpoint",1,5,0)`);
+    expect(s.run("return GuildedDB.dungeon.current.state")).toBe("ACTIVE");
+    expect(s.run('return tostring(NS.compat.isDungeonFinalBoss(90001,9000,"Fictive endpoint",2))')).toBe("false");
+    expect(s.run('return tostring(NS.compat.isDungeonFinalBoss(90002,9000,"Fictive endpoint",1))')).toBe("false");
+    expect(s.run('return tostring(NS.compat.isDungeonFinalBoss(90001,9999,"Boss final fictif",1))')).toBe("true");
+    s.run(`fire_event("${event}",9000,"Localized endpoint",1,5,1)`);
+    expect(s.run("return GuildedDB.dungeon.runs[RUN_ID].completedBy")).toBe("final boss");
+  });
+  it("refuses conflicting wing endpoints and unverified configuration", () => {
+    const s = activeRun();
+    s.run(`local route={instanceId=90001,participationBand={difficultyId=1},completion={ids={9000},names={}}}
+      NS.dungeonRoutes.verified={route}
+      UNVERIFIED=NS.compat.isDungeonFinalBoss(90001,9000,"",1)
+      route.verification={build="SYNTHETIC",runRef="FIXTURE"}
+      NS.dungeonRoutes.verified={route,route}`);
+    expect(s.run("return tostring(UNVERIFIED)")).toBe("false");
+    expect(s.run('return tostring(NS.compat.isDungeonFinalBoss(90001,9000,"",1))')).toBe("false");
+  });
   it.each(["ENCOUNTER_END", "BOSS_KILL"])("finishes Deadmines on %s before the group disbands", (event) => {
     const s = activeRun();
     s.run(`INSTANCE.id=36; GuildedDB.dungeon.current.instanceId=36

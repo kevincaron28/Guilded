@@ -1,3 +1,8 @@
+> 6.2.0 Release (16 October 2026): the owner released 6.2.0 (standalone guilds, November
+> scoring preparation, companion sync from PR #84) before its real-client checks. Those
+> checks in `docs/V6_2_GAME_ACCEPTANCE.md` are post-release follow-up. Release record:
+> `docs/V6_2_RELEASE_HANDOFF.md`.
+>
 > **5.0 delivery note:** The stabilization bundle (Guilded-5.0-Stabilization.zip) was merged as
 > PR #4; ignore the offline bundle import section in docs/V5_0_RELEASE_HANDOFF.md. Work now goes
 > through pull requests on GitHub: both `Guilded quality` jobs must pass before a merge.
@@ -13,10 +18,10 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (14 October 2026): published version 6.1.2 Release, protocol 2.**
+**Current status (16 October 2026): published version 6.2.0 Release, protocol 2.**
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
 Standalone guild and optional Guilded Games work is next-version candidate
-source; do not overwrite the published 6.1.2 downloads or bump incidentally.
+source; do not overwrite the published 6.2.0 downloads or bump incidentally.
 Read `docs/UPDATE_ALL_2026-10-14.md`,
 `docs/DUNGEON_DEPLOYMENT_2026-10-14.md` and
 `docs/V6_2_STANDALONE_AND_GAMES.md` for current evidence and pending acceptance.

@@ -650,6 +650,9 @@ FR["Below level range"] = "Niveau trop bas"
 FR["Target not calibrated"] = "Cible non calibree"
 
 FR["Dungeon route unknown"] = "Aile du donjon inconnue"
+FR["Required encounter evidence missing"] = "Preuves de boss requis manquantes"
+FR["Participation-only route"] = "Parcours de participation seulement"
+FR["Level 60: best 8 distinct routes. Maximum 3200. Verified route evidence required."] = "Niveau 60 : 8 meilleurs parcours. Maximum 3200. Preuves de parcours requises."
 FR["Provisional targets, fixed for this season. Hover for boss records."] = "Cibles provisoires fixes pour la saison. Survolez pour les boss."
 
 -- Addon-only guilds and separate party games.

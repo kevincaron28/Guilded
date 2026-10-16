@@ -1,18 +1,19 @@
 # Faster, lighter sync: addon, companion and bot (15 October 2026)
 
-Branch `claude/sync-speedups`, cut from `main` (6.1.2, protocol 2). Built in its own worktree
-so the dungeon work in the main checkout was not touched. No version number changed. Every
-change is backward compatible in both directions: an older companion or addon keeps working
-with the new bot, and a newer companion keeps working with an older bot.
+Prepared on `claude/sync-speedups` from 6.1.2 / protocol 2 (commit `c405607`),
+merged to main as PR #84 and deployed on 16 October 2026 (`58ae302`, still 6.1.2), and
+shipped to players in 6.2.0 together with November scoring and the standalone guild work.
+Every change is backward compatible in both directions: an older companion or addon keeps
+working with the new bot, and a newer companion keeps working with an older bot.
 
-A review during the 6.2 candidate integration (`codex/finish-companion-sync`) added fixes that
-are included here, with regression tests: standings read while a write lands are never
-stamped as current; ledger and loot deltas are negotiated separately; a companion stopped
-during startup starts no timers; a cancelled sync writes no `GuildedData`; on a stamp tie
-Guilded's own `Standings.lua` wins (it keeps its personal data); `/guilded ledgersync now`
-counts entries made seconds earlier; received ledger entries must have whole amounts and a
-valid void flag; switching the browser companion's server or account forgets the old bot's
-acknowledgements; and an author can void their own entries recovered from another officer.
+A review during the 6.2 integration added fixes, each with a regression test: standings read
+while a write lands are never stamped as current; ledger and loot deltas are negotiated
+separately; a companion stopped during startup starts no timers; a cancelled sync writes no
+`GuildedData`; on a stamp tie Guilded's own `Standings.lua` wins (it keeps its personal data);
+`/guilded ledgersync now` counts entries made seconds earlier; received ledger entries must
+have whole amounts and a valid void flag; switching the browser companion's server or account
+forgets the old bot's acknowledgements; and an author can void their own entries recovered
+from another officer. This work does not activate a season or write to production data.
 
 The addon is still standalone. None of this is needed for an in-game-only guild, and the one
 new standalone feature (officer ledger sync) is off until an officer turns it on.
@@ -68,7 +69,8 @@ resolve. Officers announce a count and hash of their whole ledger (`SUM`) at log
 few minutes. When two differ, they compare per author (`AUTH`), then per day (`DAYS`), and
 whisper each other only the entries of the days that differ (`GET`, `E`). Received entries
 count like local ones: balances, standings, publishing and backups. Only an entry's author can
-void it (`/guilded void` skips other authors' received entries but permits the author's recovered entries). Only officers' messages count, only in
+void it (`/guilded void` skips other authors' received entries but permits the
+author's recovered entries). Only officers' messages count, only in
 in-game-only mode with sync on.
 
 This is not a central database. An officer who is offline catches up the next time two
@@ -82,9 +84,9 @@ members, and backup-based handover still works.
 - **No per-section manifest for in-game sharing.** With the shared stamp, identical data is no
   longer rebroadcast, which was most of the waste. Separate stamps per section would mean a
   new message format for little gain.
-- **`SeasonSync.lua` (dungeon board relay) is unchanged** while the dungeon work is in
-  progress elsewhere. It already ignores data that is not newer, and it benefits from the
-  shared stamp.
+- **Dungeon-board reply coordination is now included** from Claude's follow-up
+  `a573152`. Requests wait 1–5 seconds; another officer's equal/newer BOARD heard
+  within 60 seconds suppresses a duplicate share. The wire format is unchanged.
 - **Shared stamps live in the bot's memory.** After a bot restart, the first answer gets a new
   stamp, so in-game clients rebroadcast once.
 

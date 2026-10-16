@@ -1,6 +1,7 @@
 import { EmbedBuilder, escapeMarkdown } from "discord.js";
 import type { PrismaClient } from "@prisma/client";
 import type { Lang } from "../i18n.js";
+import { novemberDungeonKey, resolveNovemberRoute, validNovemberRules, type NovemberRules } from "./dungeon-november-rules.js";
 
 // Version 1 remains readable forever. New seasons use a frozen version 3 copy.
 export const DUNGEON_RATING_RULES = { version: 1, model: "distinct-dungeons", pointsPerDungeon: 100,
@@ -43,6 +44,7 @@ export function createDungeonRatingRules(targets: Record<string, number> = {}, v
 export function hasDungeonRating(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
   const rule = value as Record<string, unknown>;
+  if (rule["version"] === 5) return validNovemberRules(value);
   const validTargets = !!rule["targets"] && typeof rule["targets"] === "object" && !Array.isArray(rule["targets"])
     && Object.entries(rule["targets"]).every(([id, seconds]) => validDungeonKey(id)
       && typeof seconds === "number" && Number.isInteger(seconds) && seconds >= 1 && seconds <= 14400);
@@ -63,7 +65,7 @@ export function hasDungeonRating(value: unknown): boolean {
 }
 export interface DungeonRatingDetail {
   instanceId: number; name: string; points: number; speedBonus: number; durationSec: number;
-  targetSec: number | null; runRef: string; dungeonKey?: string; ratingVersion?: 3 | 4; counted?: boolean; unrankedReason?: string; bosses?: BossRecord[];
+  targetSec: number | null; runRef: string; dungeonKey?: string; ratingVersion?: 3 | 4 | 5; counted?: boolean; unrankedReason?: string; bosses?: BossRecord[];
 }
 export interface RatingRow { memberId: string; character?: string; name: string; points: number; dungeons: number; details?: DungeonRatingDetail[] }
 // Runs retain the actual character name. Keep the owner for membership and
@@ -113,14 +115,16 @@ function bossRecords(run: RatingRun): BossRecord[] {
 export function calculateDungeonRating(runs: RatingRun[], rules?: unknown): RatingRow[] {
   if (rules !== undefined && !hasDungeonRating(rules)) return [];
   const version = (rules as { version?: number } | undefined)?.version;
-  const timed = version === 3 || version === 4;
+  const timed = version === 3 || version === 4 || version === 5;
+  const bestEight = version === 4 || version === 5;
   const targets = version === 2 || timed
     ? (rules as ReturnType<typeof createDungeonRatingRules>).targets : {};
   const members = new Map<string, { memberId: string; name: string; bests: Map<string, DungeonRatingDetail> }>();
   for (const run of runs) {
     if (!run.durationSec || !Number.isFinite(run.durationSec) || run.durationSec <= 0) continue;
-    const key = timed ? ratingDungeonKey(run) : String(run.instanceId);
-    const reason = timed && key === "189" ? "Dungeon route unknown" : timed ? competitionReason(run, (rules as { levelBands?: Record<string, LevelBand> }).levelBands?.[key]) : undefined;
+    const route = version === 5 ? resolveNovemberRoute(run, rules as NovemberRules) : undefined;
+    const key = route?.key ?? (timed ? ratingDungeonKey(run) : String(run.instanceId));
+    const reason = route?.reason ?? (route && !targets[key] ? "Participation-only route" : !route && timed && key === "189" ? "Dungeon route unknown" : timed ? competitionReason(run, (rules as { levelBands?: Record<string, LevelBand> }).levelBands?.[key]) : undefined);
     const bosses = timed && !reason && targets[key] ? bossRecords(run) : [];
     for (const player of run.players) {
       if (!player.memberId || !player.member || !player.character?.trim() || !Number.isFinite(player.presentSec) || player.presentSec < run.durationSec * 0.8) continue;
@@ -128,7 +132,7 @@ export function calculateDungeonRating(runs: RatingRun[], rules?: unknown): Rati
       const member = members.get(identity) ?? { memberId: player.memberId, name: player.character.trim(), bests: new Map<string, DungeonRatingDetail>() };
       const targetSec = targets[key] ?? null;
       const speedBonus = timed ? 0 : speedPoints(run.durationSec, targetSec);
-      const detail: DungeonRatingDetail = { ...(timed ? { ratingVersion: version as 3 | 4, dungeonKey: key, ...(reason || !targetSec ? { unrankedReason: reason ?? "Target not calibrated" } : {}), bosses: [] } : {}), instanceId: run.instanceId, name: key.startsWith("189:") ? `Scarlet Monastery: ${key.split(":")[1]}` : run.dungeonName ?? `#${run.instanceId}`, points: timed ? reason ? 0 : timeRating(run.durationSec, targetSec) : 100 + speedBonus,
+      const detail: DungeonRatingDetail = { ...(timed ? { ratingVersion: version as 3 | 4 | 5, dungeonKey: key, ...(reason || !targetSec ? { unrankedReason: reason ?? "Target not calibrated" } : {}), bosses: [] } : {}), instanceId: run.instanceId, name: route?.route?.name ?? (key.startsWith("189:") ? `Scarlet Monastery: ${key.split(":")[1]}` : run.dungeonName ?? `#${run.instanceId}`), points: timed ? reason ? 0 : timeRating(run.durationSec, targetSec) : 100 + speedBonus,
         speedBonus, durationSec: run.durationSec, targetSec, runRef: run.runRef ?? "" };
       const previous = member.bests.get(key);
       const bossBests = new Map((previous?.bosses ?? []).map(b => [b.id, b]));
@@ -145,9 +149,9 @@ export function calculateDungeonRating(runs: RatingRun[], rules?: unknown): Rati
   return [...members.values()].map(member => {
     const details = [...member.bests.values()].sort((a, b) => a.instanceId - b.instanceId || (a.dungeonKey ?? "").localeCompare(b.dungeonKey ?? ""));
     const counted = bestEightKeys(details);
-    if (version === 4) for (const detail of details) detail.counted = counted.has(detail.dungeonKey!);
+    if (bestEight) for (const detail of details) detail.counted = counted.has(detail.dungeonKey!);
     return { memberId: member.memberId, character: member.name, name: member.name,
-      points: details.reduce((sum, best) => sum + (version === 4 && !best.counted ? 0 : best.points), 0), dungeons: details.length,
+      points: details.reduce((sum, best) => sum + (bestEight && !best.counted ? 0 : best.points), 0), dungeons: details.length,
       ...(rules !== undefined ? { details } : {}) };
   }).sort((a, b) => b.points - a.points || a.name.localeCompare(b.name) || a.memberId.localeCompare(b.memberId));
 }
@@ -159,20 +163,21 @@ function bestEightKeys(details: DungeonRatingDetail[]): Set<string> {
 
 function validDetails(row: RatingRow): boolean {
   if (!Array.isArray(row.details) || row.details.length !== row.dungeons) return false;
-  const bestEight = row.details.some(d => d?.ratingVersion === 4);
-  if (bestEight && row.details.some(d => d?.ratingVersion !== 4 || typeof d.dungeonKey !== "string" || !Number.isInteger(d.points))) return false;
+  const bestEightVersion = row.details.find(d => d?.ratingVersion === 4 || d?.ratingVersion === 5)?.ratingVersion;
+  const bestEight = bestEightVersion !== undefined;
+  if (bestEight && row.details.some(d => d?.ratingVersion !== bestEightVersion || typeof d.dungeonKey !== "string" || !Number.isInteger(d.points))) return false;
   const counted = bestEight ? bestEightKeys(row.details) : new Set<string>();
   const ids = new Set<string>();
   let total = 0;
   for (const detail of row.details) {
     const key = detail?.dungeonKey ?? String(detail?.instanceId);
-    if (!detail || !Number.isInteger(detail.instanceId) || detail.instanceId <= 0 || ids.has(key) || !validDungeonKey(key) || Number(key.split(":")[0]) !== detail.instanceId
+    if (!detail || !Number.isInteger(detail.instanceId) || detail.instanceId <= 0 || ids.has(key) || !(detail.ratingVersion === 5 ? novemberDungeonKey(key) : validDungeonKey(key)) || Number(key.split(":")[0]) !== detail.instanceId
       || typeof detail.name !== "string" || typeof detail.runRef !== "string" || !Number.isFinite(detail.durationSec) || detail.durationSec <= 0
       || !Number.isInteger(detail.speedBonus) || detail.speedBonus < 0 || detail.speedBonus > 20
       || detail.targetSec !== null && (!Number.isInteger(detail.targetSec) || detail.targetSec < 1 || detail.targetSec > 14400)) return false;
-    if (detail.ratingVersion === 3 || detail.ratingVersion === 4) {
+    if (detail.ratingVersion === 3 || detail.ratingVersion === 4 || detail.ratingVersion === 5) {
       if (detail.speedBonus !== 0 || detail.points !== (detail.unrankedReason ? 0 : timeRating(detail.durationSec, detail.targetSec))) return false;
-      if (detail.unrankedReason !== undefined && !["Level range not configured", "Different difficulty", "Party levels unknown", "Overlevel carry", "Below level range", "Target not calibrated", "Dungeon route unknown"].includes(detail.unrankedReason)) return false;
+      if (detail.unrankedReason !== undefined && !["Level range not configured", "Different difficulty", "Party levels unknown", "Overlevel carry", "Below level range", "Target not calibrated", "Dungeon route unknown", ...(detail.ratingVersion === 5 ? ["Required encounter evidence missing", "Participation-only route"] : [])].includes(detail.unrankedReason)) return false;
       if (detail.bosses !== undefined && (!Array.isArray(detail.bosses) || detail.bosses.length > 100
         || new Set(detail.bosses.map(b => b.id)).size !== detail.bosses.length
         || detail.bosses.some(b => !Number.isInteger(b.id) || b.id <= 0 || !Number.isInteger(b.durationSec) || b.durationSec <= 0
@@ -234,6 +239,9 @@ export function ratingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, r
   if (bestEight) lines.push(fr
     ? "**Bêta : les 8 meilleurs donjons/ailes distincts comptent.** Tous les participants doivent rester niveau 30. 1 600 à la cible; maximum 3 200. La couverture au-delà de 8 reste visible, sans points supplémentaires."
     : "**Beta: your best 8 distinct dungeons/wings count.** All participants must remain level 30. 1,600 at target; maximum 3,200. Coverage beyond 8 remains visible without extra points.");
+  if (timed && (rules as { version: number }).version === 5) lines.push(fr
+    ? "**Niveau 60 : vos 8 meilleurs parcours distincts comptent.** Tous les participants doivent rester niveau 60. 1 600 à la cible; maximum 3 200. Preuves de parcours requises; couverture supplémentaire visible sans inflation."
+    : "**Level 60: your best 8 distinct routes count.** All participants must remain level 60. 1,600 at target; maximum 3,200. Required route evidence must be recorded; extra coverage stays visible without inflation.");
   if (speed) lines.push(fr ? "Cibles figées pour la saison. 15 % plus rapide = +10 ; 30 % = +20. Sans cible : 100."
     : "Targets are fixed for the season. 15% faster = +10; 30% = +20. No target: 100.");
   for (const row of rows.slice(0, 10)) {
@@ -254,10 +262,11 @@ export interface DungeonCatalogEntry {
 }
 export function seasonDungeonCatalog(rules: unknown, rows: RatingRow[]): DungeonCatalogEntry[] {
   const result = new Map<string, DungeonCatalogEntry>();
-  const catalog = (rules as { catalog?: unknown[] } | null)?.catalog;
+  const november = validNovemberRules(rules);
+  const catalog = november ? rules.routes.filter(r => r.targetSec !== null).map(r => ({ dungeonKey: r.dungeonKey, instanceId: r.instanceId, name: r.name, targetSec: r.targetSec, minLevel: 60, maxLevel: 60 })) : (rules as { catalog?: unknown[] } | null)?.catalog;
   for (const raw of Array.isArray(catalog) ? catalog.slice(0, 100) : []) {
     const d = raw as DungeonCatalogEntry;
-    if (!d || typeof d.dungeonKey !== "string" || !validDungeonKey(d.dungeonKey) || Number(d.dungeonKey.split(":")[0]) !== d.instanceId
+    if (!d || typeof d.dungeonKey !== "string" || !(november ? novemberDungeonKey(d.dungeonKey) : validDungeonKey(d.dungeonKey)) || Number(d.dungeonKey.split(":")[0]) !== d.instanceId
       || typeof d.name !== "string" || !Number.isInteger(d.targetSec) || d.targetSec! <= 0 || d.targetSec! > 14400) continue;
     result.set(d.dungeonKey, { ...d });
   }

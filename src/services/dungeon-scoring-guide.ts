@@ -2,10 +2,13 @@ import { EmbedBuilder } from "discord.js";
 import type { Lang } from "../i18n.js";
 import type { DungeonConfig } from "./dungeon-rules.js";
 import { hasDungeonRating, seasonDungeonCatalog } from "./dungeon-rating.js";
+import { BETA_DUNGEONS } from "./dungeon-beta-preset.js";
+import { validNovemberRules } from "./dungeon-november-rules.js";
 
 // Values come from guild configuration; this explains current imports, not archived rules.
 export function dungeonScoringGuide(config: DungeonConfig, lang: Lang, rules?: unknown): EmbedBuilder {
   const fr = lang === "fr";
+  if (validNovemberRules(rules)) return novemberGuide(fr);
   if (hasDungeonRating(rules) && (rules as { version: number }).version === 4) return bestEightGuide(rules, fr);
   const repeats = config.weeklyRepeat.map(value => `${Math.round(value * 100)}%`).join(" → ");
   return new EmbedBuilder().setColor(0x8b5cf6)
@@ -32,8 +35,32 @@ export function dungeonScoringGuide(config: DungeonConfig, lang: Lang, rules?: u
     );
 }
 
+function novemberGuide(fr: boolean): EmbedBuilder {
+  return new EmbedBuilder().setColor(0x8b5cf6)
+    .setTitle(fr ? "Niveau 60 · comment les points fonctionnent" : "Level 60 · how points work")
+    .setDescription(fr ? "Cote par personnage; participation par compte. Les archives bêta gardent leurs résultats. Un résultat d’équipe ne mesure pas à lui seul le talent individuel."
+      : "Rating belongs to each character; participation belongs to the account. Beta archives keep their results. A team result alone does not measure individual skill.")
+    .addFields(
+      { name: fr ? "Cote · 8 meilleurs parcours" : "Rating · best 8 routes", value: fr
+        ? "Arrondi(200 × cible ÷ durée), limité à 50–400. Seuls vos 8 meilleurs donjons/ailes distincts comptent : 1 600 à la cible; maximum 3 200. Répéter n’accumule pas de cote. Un nouveau score de 240 remplaçant le 8e à 180 ajoute 60. Chaque alt commence sa propre cote. Arriver plus tard ne fait perdre aucun parcours de bas niveau obligatoire."
+        : "Round(200 × target ÷ duration), clamped to 50–400. Only your best 8 distinct dungeons/wings count: 1,600 at target; maximum 3,200. Repeats do not accumulate rating. A new 240 replacing your 8th score of 180 adds 60. Each alt starts its own rating. Late starters have no required low-level scoring routes to miss." },
+      { name: fr ? "Admissibilité et preuves" : "Eligibility and evidence", value: fr
+        ? "Tous les participants observés, invités et remplaçants inclus, doivent rester niveau 60. Personnage lié, présence ≥ 80 %, difficulté configurée, import valide, boss final détecté et tous les boss requis par le parcours figé. Preuves réussies horodatées dans le run seulement. Aile ambiguë ou preuve manquante : 0 cote. Parcours de participation seulement : 0 cote."
+        : "ALL observed participants, including guests and replacements, must remain level 60. Linked character, ≥80% presence, configured difficulty, valid import, detected final boss and every encounter required by the frozen route. Only timestamped successful evidence inside the run counts. Ambiguous wings or missing evidence: 0 rating. Participation-only routes: 0 rating." },
+      { name: fr ? "Participation · variété et entraide" : "Participation · variety and helping", value: fr
+        ? "Par compte et parcours chaque semaine : 75 pour la première fin admissible, 25 pour la deuxième, puis 0. Sans admissibilité aux bonus : 50 / 25 / 0. Présence ≥ 50 %, boss final et preuves de parcours requis. Les bandes de participation sont figées séparément. Helper hors niveau : 50 / 25 / 0 si un membre dans la plage est présent ≥ 50 %, sinon 0. Aucun bonus de vitesse, mort ou record."
+        : "Per account and route each week: 75 for the first eligible completion, 25 for the second, then 0. Without bonus eligibility: 50 / 25 / 0. ≥50% presence, detected final boss and route evidence required. Participation bands are frozen separately. Overlevel helper: 50 / 25 / 0 with an in-band member present ≥50%; otherwise 0. No speed, death or record bonuses." },
+      { name: fr ? "Limites et chronométrage" : "Limits and timing", value: fr
+        ? "Alts et difficultés partagent le compteur; les ailes vérifiées sont distinctes. Remise à zéro mardi 15 h UTC. Une attribution par compte/run; simulations et fins manuelles : 0. Premier combat observé → boss final; aucun contrôle du trash, du départ manuel ou de la puissance du groupe. Début dans la saison et fin avant la limite exclusive. Cibles et preuves figées; aucune réécriture des anciennes saisons."
+        : "Alts and difficulties share the counter; verified wings are separate. Resets Tuesday 15:00 UTC. One award per account/run; simulations and manual completions: 0. First observed combat → final boss; no trash, manual-start or group-power normalization. Start within the season and finish before its exclusive cutoff. Targets and evidence are frozen; older seasons are not rewritten." }
+    );
+}
+
 function bestEightGuide(rules: unknown, fr: boolean): EmbedBuilder {
   const catalog = seasonDungeonCatalog(rules, []);
+  const bands = (rules as { participationLevelBands?: Record<string, unknown> }).participationLevelBands ?? {};
+  const ratedKeys = new Set(catalog.map(d => d.dungeonKey));
+  const leveling = BETA_DUNGEONS.filter(d => Object.hasOwn(bands, d.key) && !ratedKeys.has(d.key));
   return new EmbedBuilder().setColor(0x8b5cf6)
     .setTitle(fr ? "Bêta Best 8 · comment les points fonctionnent" : "Best 8 beta · how points work")
     .setDescription(fr ? "Phase de test avant la première saison officielle prévue le 4 novembre. L’ancienne bêta est archivée; les points de participation acquis sont conservés. Deux scores distincts : cote par personnage et participation par compte."
@@ -54,6 +81,12 @@ function bestEightGuide(rules: unknown, fr: boolean): EmbedBuilder {
       { name: fr ? "Chronométrage · limites de cette bêta" : "Timing · beta limitations", value: fr
         ? "Premier combat observé → boss final détecté. Voyage avant combat exclu; raccourcis de trash permis. Le départ manuel n’est pas distingué de façon fiable dans les données actuelles. Aucun contrôle universel de tous les boss : ce classement mesure ce parcours détecté, pas un full clear certifié. Cibles provisoires figées pour cette phase; les 11 parcours candidats restent à vérifier en jeu. Hors critères : non classé, raison affichée, 0 cote."
         : "First observed combat → detected final boss. Travel before combat excluded; trash skips allowed. Current data cannot reliably distinguish manual starts. No universal all-boss checklist: this ranks the detected route, not a certified full clear. Provisional targets are frozen for this phase; all 11 candidate routes still need in-game acceptance. Failed criteria: unranked with a reason and 0 rating." },
-      { name: fr ? "Parcours candidats · cibles provisoires" : "Candidate routes · provisional targets", value: catalog.map(d => `${d.name}: ${d.targetSec! / 60} min`).join("\n") }
+      { name: fr ? "Cote niveau 30 · cibles de guilde provisoires" : "Level-30 rating · provisional guild targets", value: catalog.map(d => `${d.name}: ${d.targetSec! / 60} min`).join("\n") },
+      ...(leveling.length ? [{ name: fr ? "Progression · participation seulement" : "Leveling · participation only", value: leveling.map(d => d.name).join("\n") + (fr
+        ? "\nCes donjons sont bien présents dans WoW Forever. Ils sont hors de la sélection Best 8 niveau 30, mais restent admissibles à la participation selon les règles ci-dessus."
+        : "\nThese dungeons are present in WoW Forever. They are outside the level-30 Best 8 selection, but remain eligible for participation under the rules above.") }] : []),
+      { name: fr ? "Bêta ≠ catalogue de lancement" : "Beta selection ≠ launch catalog", value: fr
+        ? "Cette liste décrit notre phase de test, pas tous les donjons du lancement. Les cibles sont des estimations de guilde, jamais des chronos officiels. L’accès bêta à Razorfen Downs (25+) et Uldaman (30+) ne fixe pas leurs niveaux au lancement. Les boss finaux et la classification des ailes restent à valider en jeu. Les règles de novembre seront définies séparément."
+        : "This list describes our test phase, not every launch dungeon. Targets are guild estimates, never official timers. Beta access to Razorfen Downs (25+) and Uldaman (30+) does not establish their launch levels. Final-boss detection and wing classification still need in-game validation. November rules will be defined separately." }
     );
 }

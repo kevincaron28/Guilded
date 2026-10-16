@@ -3,6 +3,7 @@ import { dungeonScoringGuide } from "../src/services/dungeon-scoring-guide.js";
 import { dungeonConfig } from "../src/services/dungeon-rules.js";
 import { readFileSync } from "node:fs";
 import { Routes } from "discord.js";
+import { bestEightBetaRules } from "../src/services/dungeon-beta-preset.js";
 
 describe("dungeon scoring explanation", () => {
   it("uses available Discord REST route helpers in the publication script", () => {
@@ -14,6 +15,21 @@ describe("dungeon scoring explanation", () => {
     for (const helper of helpers) expect(typeof Routes[helper as keyof typeof Routes], helper).toBe("function");
   });
   for (const lang of ["en", "fr"] as const) {
+    it(`distinguishes leveling participation from rating without changing frozen rules (${lang})`, () => {
+      const rules = bestEightBetaRules();
+      const before = JSON.stringify(rules);
+      const embed = dungeonScoringGuide(dungeonConfig({}), lang, rules);
+      const fields = embed.toJSON().fields ?? [];
+      const leveling = fields.find(field => field.name.includes("participation only") || field.name.includes("participation seulement"));
+      expect(leveling?.value).toContain("The Hall of Thanes");
+      expect(leveling?.value).toContain("Ruins of Lordaeron");
+      expect(leveling?.value).toContain("The Deadmines");
+      expect(leveling?.value).not.toContain("City of Dalaran");
+      expect(JSON.stringify(rules)).toBe(before);
+      expect(rules.catalog).toHaveLength(11);
+      expect(embed.length).toBeLessThanOrEqual(6000);
+      for (const field of fields) expect(field.value.length).toBeLessThanOrEqual(1024);
+    });
     it(`uses configured awards and fits Discord embeds (${lang})`, () => {
       const config = dungeonConfig({ completion: 73, weeklyRepeat: [1, 0.25, 0] });
       const embed = dungeonScoringGuide(config, lang);

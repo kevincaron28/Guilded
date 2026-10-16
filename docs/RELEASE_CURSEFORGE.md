@@ -1,3 +1,7 @@
+> 6.2 candidate preparation (15 October 2026): use [the release handoff](V6_2_RELEASE_HANDOFF.md) and [6.2 upload text](V6_2_CURSEFORGE.md).
+> Guilded 6.2.0 Release (October 16, 2026). See docs/V6_2_RELEASE_HANDOFF.md for the release record.
+> Older release instructions below are historical. Do not publish or deploy the candidate before acceptance.
+
 # Publishing Guilded 6.0.0 Release
 
 Use [CURSEFORGE_COPYPASTE.md](CURSEFORGE_COPYPASTE.md) for the current description

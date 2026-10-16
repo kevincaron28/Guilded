@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { importDungeonRuns } from "../src/services/dungeon-import.js";
 import * as ratingService from "../src/services/dungeon-rating.js";
 import { bestEightBetaRules } from "../src/services/dungeon-beta-preset.js";
+import { novemberRulesFixture, novemberFixtures } from "./fixtures/november-routes.js";
 
 // In-memory stand-in for the few Prisma queries importDungeonRuns makes.
 interface StoredPlayer { character: string; memberId: string | null; deaths: number | null }
@@ -72,6 +73,41 @@ const total = (points: { memberId: string; amount: number }[], memberId: string)
   points.filter((row) => row.memberId === memberId).reduce((sum, row) => sum + row.amount, 0);
 
 describe("importDungeonRuns", () => {
+  it("refuses malformed v5 rules instead of falling back to legacy participation awards", async () => {
+    const { tx, points, runs } = fakeTx({ id: "invalid-november", ratingRules: { ...novemberRulesFixture(), competitionLevel: 30 } });
+    await expect(importDungeonRuns(tx, "g1", [run("malformed-rules")], characters, "officer", null, now)).rejects.toThrow(/Invalid November rules/);
+    expect(points).toEqual([]);
+    expect(runs).toEqual([]);
+  });
+  it("uses v5 route evidence and account weekly awards without changing beta history", async () => {
+    const spy = vi.spyOn(ratingService, "dungeonRating").mockResolvedValue([]);
+    try {
+      const rules = novemberRulesFixture();
+      const before = JSON.stringify(rules);
+      const { tx, points, runs } = fakeTx({ id: "november", startsAt: new Date(0), ratingRules: rules });
+      const routeRun = (id: string, routeIndex: number, offset: number) => {
+        const route = novemberFixtures()[routeIndex]!;
+        return run(id, { instanceId: route.instanceId, difficultyId: 7,
+          startedAt: start + offset, endedAt: start + offset + 1500,
+          players: characters.map(c => ({ character: c.name, realm: "Forever", deaths: 0, presentSec: 1500, inGuild: true, level: 60, minLevel: 60 })),
+          encounters: [route.requiredEncounters[0]!, route.completion].map(b => ({ id: b.ids[0], name: b.names[0], at: start + offset + 1400, success: true })) });
+      };
+      const first = await importDungeonRuns(tx, "g1", [routeRun("nov-first", 0, 0)], characters, "officer", null, now);
+      expect(first.results[0]?.playerDetails?.[0]).toMatchObject({ points: 75, participationMode: "full" });
+      expect(first.results[0]?.playerDetails?.[0]?.unrankedReason).toBeUndefined();
+      Object.assign(runs[0]!, { seasonId: "previous-phase" });
+      await importDungeonRuns(tx, "g1", [routeRun("nov-second", 0, 3600)], characters, "officer", null, now);
+      await importDungeonRuns(tx, "g1", [routeRun("nov-third", 0, 7200)], characters, "officer", null, now);
+      expect(total(points, "m-kev")).toBe(100);
+      await importDungeonRuns(tx, "g1", [routeRun("nov-north", 1, 10800)], characters, "officer", null, now);
+      expect(total(points, "m-kev")).toBe(175);
+      const missing = { ...routeRun("nov-missing", 2, 14400), encounters: [{ id: 9004, name: "Fixture final 2", at: start + 14400 + 1400, success: true }] };
+      const result = await importDungeonRuns(tx, "g1", [missing], characters, "officer", null, now);
+      expect(result.results[0]?.points).toBe(0);
+      expect(result.results[0]?.playerDetails?.[0]?.unrankedReason).toBe("Required encounter evidence missing");
+      expect(JSON.stringify(rules)).toBe(before);
+    } finally { spy.mockRestore(); }
+  });
   it("uses v4 frozen leveling participation, keeps weekly repeats across beta phases, and excludes manual runs", async () => {
     const spy = vi.spyOn(ratingService, "dungeonRating").mockResolvedValue([]);
     try {

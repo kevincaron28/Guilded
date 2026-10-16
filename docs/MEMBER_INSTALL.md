@@ -38,9 +38,10 @@ for your guild's online link and Discord server ID. Use the matching release
 your officer specifies. Public releases belong on
 [GitHub Releases](https://github.com/kevincaron28/Guilded/releases) and
 [CurseForge](https://www.curseforge.com/wow/addons/guilded); only use a version
-actually listed there. 6.1.2 is the published Release. Next-version standalone
-guild and Guilded Games previews are separate candidates; their real-client
-checks remain pending in V6_2_STANDALONE_AND_GAMES.md.
+actually listed there. 6.2.0 is the published Release, with addon-only guild
+management and faster companion sync. Install the complete addon folder and keep
+your SavedVariables; see the [6.2 release notes](V6_2_RELEASE_NOTES.md).
+Guilded Games remains a separate optional Alpha.
 
 ## 1. Install the addon
 

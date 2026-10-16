@@ -105,3 +105,30 @@ clients whether or not the in-game sync works.
 - Full first+last names work for `/ginvite` and `/invite`. Guilded reports the
   surname as the UnitName realm (`full=Halidor Galemorne`) and keys data on
   the first name.
+
+### 16 October 2026: G11 on Quebec Gold, temporarily (owner-approved)
+
+Both accounts' SavedVariables were backed up, the companion was paused, Halidor
+was promoted to Officer (rank 1), and both characters switched to In-game only
+with `/guilded ledgersync on`. Afterwards Halidor was demoted to Initiate, both
+logged out, the Guilded SavedVariables were restored (hashes match the backup)
+and the companion was resumed. The test-state files are kept next to the backup
+for debugging.
+
+- **G11, partial.** Award A (Highpriest → Halidor, 1 EP) reached Halidor as
+  soon as Halidor turned sync on. A repeated sync made no duplicates. Highpriest
+  voided A, and the void reached Halidor (EP back to 0). The officer pages
+  (Administration, Local guild) appeared on Halidor right after the promotion.
+- **Defect, open: sync works in only one direction.** Award B (Halidor →
+  Highpriest) and the void of B reached Highpriest only when Highpriest ran
+  `/guilded ledgersync now`. Halidor's own `now` (twice, including after a
+  reload) got no answer: status said "Highpriest: last heard N min ago. Ledgers
+  differed". Highpriest handles Halidor's whispers (AUTH/DAYS/E) but seems not
+  to answer Halidor's SUM on the guild channel. Suspects: the 60 s answer
+  cooldown, or the GUILD addon message from a newly promoted officer.
+  Investigate with the after-test SavedVariables.
+- **Finding:** in In-game only mode, `/guilded standings <player>` still shows
+  the old companion snapshot ("No shared standing for Halidor") instead of the
+  local ledger.
+- Not run: the void of B converging on Highpriest; turning sync off;
+  a member's ledger edit being refused.

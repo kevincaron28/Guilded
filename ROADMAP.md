@@ -32,6 +32,28 @@ full raid still have outstanding acceptance checks.
 3. Finish the real-client checklist and real raid, verify final-commit CI,
    then publish/promote matching packages as appropriate to the evidence.
 
+## Website — 16 October 2026
+
+Phase 1 (simpler guilded.kcaron.top and kcaron.top) is live from PR #86.
+
+1. **Phase 2 visuals.** Replace the homepage's companion setup screenshot with
+   real in-game screenshots (guild window standings, dungeon finder). The owner
+   supplies the screenshots.
+2. **A public page per guild.** When a guild sets up the bot, it gets a draft
+   page such as `guilded.kcaron.top/g/<guild-name>/`. Officers choose what is
+   public (raid times, cores, rosters, EPGP or loot rankings, recruitment) and
+   publish it; nothing is public by default. Quebec Gold's page is the first one
+   and replaces the hand-copied `/quebec-gold/cores/` snapshot with live data.
+   The bot serves these pages through the Worker; the static homepage stays as is.
+   - Earlier draft: the ChatGPT conversation "Portfolio Website Expansion"
+     (16 October) produced `KCaron-Portfolio-Guild-Pages.zip` and a
+     `LOCAL-AGENT-PROMPT.txt`. They were never pushed or downloaded to this PC,
+     were built on an older `main`, and include a 14-project portfolio that
+     conflicts with the simpler phase 1 design. Reuse ideas from it, not the files.
+   - Open questions: page address and slug rules, which data officers may
+     publish, French and English versions, search indexing on or off per guild,
+     and whether Discord-only guilds (no addon) get a page.
+
 ## Later
 
 - A standalone leader addon for markers, tank marking and boss plans. These

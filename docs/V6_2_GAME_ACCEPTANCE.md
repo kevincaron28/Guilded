@@ -132,3 +132,27 @@ for debugging.
   local ledger.
 - Not run: the void of B converging on Highpriest; turning sync off;
   a member's ledger edit being refused.
+
+### 16 October 2026 (evening): two PCs, release candidate (main 60ede25, then 653171f)
+
+Testers: Highpriest Cheech (guild master, main PC, realm text "Classic Beta PvP",
+companion paused) and Naomine Merriweather (officer, second PC, realm text "Classic
+Beta PvP 2", no companion and no GuildedData), both in Québec Gold, English clients.
+Both PCs backed up their SavedVariables first and restored the Guilded files afterwards.
+Each side was driven by its own Claude session; the two sessions coordinated by message.
+
+| ID | Result | Observations |
+| --- | --- | --- |
+| G11 | PASS | Naomine's award reached Highpriest without Highpriest asking (the direction that failed before PR #100); Highpriest's award and its void reached Naomine; Naomine's void converged ("Ledgers matched" on both). Repeated syncs added nothing; counts survived a reload. With sync off on Naomine, a new award from Highpriest did not arrive and her earlier entries stayed. Members cannot change sync (G5 e). |
+| G12 | PASS (candidate to candidate) | Naomine (no companion) shows "Guild data from Highpriest (2026-10-16T15:56:40.149Z)", the same stamp as the officer's companion file, despite the different realm texts. Not run: 6.1.2 against the candidate. |
+| G3 | PASS (accounting) | Local core G3Test (EPGP, 2 SR), Highpriest main healer, Naomine bench DPS; +100 EP / +40 GP applied once and still there after /reload. Not run: raid session, attendance and boss mark (raid tools left v6). Found: full names refused by `/guilded localcore add` (fixed in #101). |
+| G4 | PASS | Backup on Highpriest, restored on Naomine after the preview (accepted across the realm texts after #101); core, roster and Highpriest EP 100 / GP 40 matched; `/guilded restore undo` brought back Naomine's earlier state exactly. Found: the restore also copied the officer's per-PC settings (ledger sync on, sync partners, chat tab, window spot, characters); restore now keeps the receiving PC's own (this PR). |
+| G5 | PASS | As Member: local core edit, award, standings publish and ledger sync on are refused; Guild tools shows only Standings and Crafting; officer data still shows. |
+| G9 | Not run | The two characters are on different realm segments and far apart; a two-player roll-off needs a group. |
+| 6.3 relay | PASS | Naomine, without any companion data, shows standings and dungeon standings "shared by Highpriest". |
+
+Other fixes from this session: #100 (ledger sync whispered SUM; one officer's guild-channel
+messages never arrived), #101 (full names in local cores, backup across realm texts,
+`/guilded standings` showing the local ledger in In-game only mode), and the guild-join fix (#99).
+
+Minor, open: `/guilded chat off` moves Guilded's lines back to the main window but leaves the "Guilded" tab open; the player closes it by hand (right-click → Close Window).

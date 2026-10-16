@@ -62,6 +62,19 @@ function util.isoEpoch(text)
   return util.daysFromCivil(tonumber(y), tonumber(m), tonumber(d)) * 86400 + tonumber(hh) * 3600 + tonumber(mm) * 60 + tonumber(ss)
 end
 
+-- A bot timestamp (ISO UTC, or seconds) in the player's own time, short: "today 11:56",
+-- "yesterday 21:03" or "14/10 21:03". Shown instead of "2026-10-16T15:56:40.149Z".
+function util.whenText(stamp)
+  local seconds = type(stamp) == "number" and stamp or util.isoEpoch(stamp)
+  if not seconds then return nil end
+  local L = ns.L or function(text) return text end
+  local now = util.serverTime()
+  local day, clock = date("%Y-%m-%d", seconds), date("%H:%M", seconds)
+  if day == date("%Y-%m-%d", now) then return string.format(L("today %s"), clock) end
+  if day == date("%Y-%m-%d", now - 86400) then return string.format(L("yesterday %s"), clock) end
+  return date("%d/%m", seconds) .. " " .. clock
+end
+
 function util.serverTime()
   if GetServerTime then
     local ok, value = pcall(GetServerTime)

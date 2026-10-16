@@ -55,7 +55,8 @@ describe("Loot.lua: which system", () => {
     const s = withLoot();
     expect(s.run("return NS.loot.mode()")).toBe("EPGP");
     cmd(s, "core", "");
-    expect(s.run("return CHAT_LOG[#CHAT_LOG - 1]")).toContain("Loot system: GP bids - the guild's default.");
+    // Every core decides its own loot: quoting the guild default would mislead.
+    expect(s.run("return CHAT_LOG[#CHAT_LOG - 1]")).toContain("Loot system: each raid core decides (Tuesday MC: EPGP priority (set prices), Pool Raid: loot council, Res Raid: soft reserves, Bid Raid: GP bids).");
     expect(last(s)).toContain("Raid cores: Tuesday MC (EPGP priority (set prices))");
   });
 
@@ -240,5 +241,15 @@ describe("Loot.lua: core roster against the group (several cores per player)", (
     s.run(`SETTINGS.activeCore = "Pool Raid"`);
     cmd(s, "core", "roster");
     expect(last(s)).toContain("Pool Raid has no roster from Discord yet");
+  });
+});
+
+describe("Loot.lua: what Home says when every core decides the same way (6.3)", () => {
+  it("names the shared system instead of the guild default", () => {
+    const s = withLoot();
+    s.run(`RULES.cores = { { name = "Les Pulliticiens", mode = "PRIORITY", values = {}, players = {} }, { name = "Les Aggros Anonyme", mode = "PRIORITY", values = {}, players = {} } }`);
+    expect(s.run("return NS.loot.describe()")).toContain("Loot system: EPGP priority (set prices) - each raid core decides, and all of yours use it.");
+    s.run(`RULES.cores = {}`);
+    expect(s.run("return NS.loot.describe()")).toContain("the guild's default");
   });
 });

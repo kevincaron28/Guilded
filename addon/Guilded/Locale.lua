@@ -711,3 +711,13 @@ FR["System"] = "Syst\195\168me"
 FR["Guild"] = "Guilde"
 FR["Backup"] = "Sauvegarde"
 FR["No bidding running."] = "Aucune ench\195\168re en cours."
+
+-- 6.3: data freshness on Home and the loot system when each core decides.
+FR["today %s"] = "aujourd'hui %s"
+FR["yesterday %s"] = "hier %s"
+FR["Standings: %s, %s."] = "Classement : %s, %s."
+FR["Standings: none received yet (they arrive with the next sync)."] = "Classement : rien re\195\167u pour l'instant (il arrive avec la prochaine synchro)."
+FR["Dungeon standings: %s%s."] = "Classement des donjons : %s%s."
+FR[", shared by %s"] = ", partag\195\169 par %s"
+FR["Loot system: %s - each raid core decides, and all of yours use it. Pick a core with /guilded core <name>."] = "Syst\195\168me de butin : %s - chaque core de raid d\195\169cide, et tous les v\195\180tres l'utilisent. Choisissez un core avec /guilded core <nom>."
+FR["Loot system: each raid core decides (%s). Pick a core with /guilded core <name>."] = "Syst\195\168me de butin : chaque core de raid d\195\169cide (%s). Choisissez un core avec /guilded core <nom>."

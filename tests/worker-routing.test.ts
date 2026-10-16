@@ -85,6 +85,25 @@ describe("unified website and companion", () => {
     expect(response.headers.get("set-cookie")).toBeNull();
   });
 
+  it("passes Guilded's own headers through but never proxy or address headers", async () => {
+    const upstream = vi.fn(async () => Response.json({}));
+    vi.stubGlobal("fetch", upstream);
+    await worker.fetch(new Request(base + "/api/v1/standings?guild=123", { headers: {
+      "x-guilded-protocol": "2", "x-companion-version": "6.2.0", "x-forwarded-for": "spoofed", "x-real-ip": "spoofed",
+      "x-guilded-long": "y".repeat(600)
+    } }), env);
+    const sent = new Headers((upstream.mock.calls[0]! as unknown as [string, RequestInit])[1].headers);
+    expect(sent.get("x-guilded-protocol")).toBe("2");
+    expect(sent.get("x-companion-version")).toBe("6.2.0");
+    expect(sent.get("x-forwarded-for")).toBeNull();
+    expect(sent.get("x-real-ip")).toBeNull();
+    expect(sent.get("x-guilded-long")).toBeNull();
+    // Website pages never forward them.
+    upstream.mockClear();
+    await worker.fetch(new Request(base + "/companion/", { headers: { "x-guilded-protocol": "2" } }), env);
+    expect(new Headers((upstream.mock.calls[0]! as unknown as [string, RequestInit])[1].headers).get("x-guilded-protocol")).toBeNull();
+  });
+
   it("blocks unknown API paths, disallowed methods and oversized bodies before reaching the bot", async () => {
     const upstream = vi.fn(); vi.stubGlobal("fetch", upstream);
     expect((await worker.fetch(new Request(base + "/api/v1/admin"), env)).status).toBe(404);

@@ -180,7 +180,7 @@ describe("companion engine with a newer bot", () => {
       // The data addon is written next to Guilded's own file.
       expect(readFileSync(join(game.data, "Standings.lua"), "utf8")).toContain("ep = 10");
       // Long polls carry the ETag (also as `since`, for the website proxy).
-      await vi.waitFor(() => expect(bot.calls.some((call) => call.since === "\"v1\"" && call.wait === "15")).toBe(true));
+      await vi.waitFor(() => expect(bot.calls.some((call) => call.since === "\"v1\"" && call.wait === "12")).toBe(true));
       // A change on the bot reaches the addon folder without waiting minutes.
       bot.bump();
       await vi.waitFor(() => expect(readFileSync(game.standings, "utf8")).toContain("ep = 20"), { timeout: 6000 });

@@ -80,12 +80,17 @@ function describeApiError(status, apiError) {
 }
 
 // How long the bot may hold a standings request open waiting for a change (long poll). The
-// website proxy in front of the bot gives up after 20 seconds, so stay well under that.
-const LONG_POLL_SECONDS = 15;
+// website proxy in front of the bot gives up after 20 seconds; 12 leaves room for a slow
+// connection or a busy bot, so a quiet poll ends as "nothing new", not as a proxy error.
+const LONG_POLL_SECONDS = 12;
 // Two standings requests are never closer than this, whatever the bot answers.
 const MIN_POLL_GAP_MS = 2_000;
 // Safety net for the folder watch, which can miss a save on some Windows setups.
 const FILE_CHECK_MS = 30_000;
+// A folder watch that gave up (antivirus, backup software) is tried again this often, and one
+// that ran this long before failing counts as a fresh problem, not a repeat.
+const WATCH_RETRY_MS = 5 * 60_000;
+const WATCH_STABLE_MS = 10 * 60_000;
 
 export function createEngine(initialConfig, hooks = {}) {
   let config = initialConfig;
@@ -109,6 +114,8 @@ export function createEngine(initialConfig, hooks = {}) {
   let lastFile = null;
   let lastText = null;
   let watchRestarts = 0;
+  let watchStartedAt = 0;
+  let watchGaveUpAt = 0;
   const active = new Set();
   const state = {
     running: false,
@@ -125,6 +132,9 @@ export function createEngine(initialConfig, hooks = {}) {
     uploads: 0,
     // "live" (the bot tells this companion about changes as they happen) or "interval".
     standingsMode: null,
+    // "watching" (saves upload at once) or "checking" (the folder watch failed; saves are
+    // noticed within 30 seconds until it works again).
+    fileWatch: null,
     lastUploadBytes: null,
     poe: null
   };
@@ -349,12 +359,19 @@ export function createEngine(initialConfig, hooks = {}) {
   function watchFolder() {
     const name = basename(config.watchFile).toLowerCase();
     // Watch the folder, not the file: WoW replaces the file on save.
-    watcher = watch(dirname(config.watchFile), (_event, filename) => {
+    const current = watch(dirname(config.watchFile), (_event, filename) => {
       if (filename && filename.toString().toLowerCase() === name) scheduleUpload();
     });
-    watcher.on("error", (error) => {
-      watcher?.close(); watcher = undefined;
+    watcher = current;
+    watchStartedAt = Date.now();
+    state.fileWatch = "watching";
+    current.on("error", (error) => {
+      current.close();
+      if (watcher === current) watcher = undefined;
       if (!state.running) return;
+      state.fileWatch = "checking";
+      // A watch that ran fine for a long time before failing is a new problem, not a repeat.
+      if (Date.now() - watchStartedAt >= WATCH_STABLE_MS) watchRestarts = 0;
       // The periodic file check keeps uploads going meanwhile; try to watch again.
       if (watchRestarts++ < 5) {
         log("warn", `File watch stopped (${error.message}); starting it again.`);
@@ -363,9 +380,26 @@ export function createEngine(initialConfig, hooks = {}) {
           try { watchFolder(); } catch (again) { log("error", `File watch could not restart: ${again.message}. Saves are still checked every 30 seconds.`); }
         }, 5_000);
       } else {
-        log("error", `File watch keeps stopping (${error.message}). Saves are still checked every 30 seconds; restart the companion if uploads stop.`);
+        watchGaveUpAt = Date.now();
+        log("error", `File watch keeps stopping (${error.message}). Saves are still checked every 30 seconds, and the watch is tried again every 5 minutes.`);
       }
+      hooks.onState?.(snapshot());
     });
+  }
+
+  // Called by the 30-second check: a watch that gave up is tried again now and then, so a
+  // passing problem does not leave the companion on the slower check for the whole session.
+  function retryWatch() {
+    if (!state.running || watcher || !watchGaveUpAt || Date.now() - watchGaveUpAt < WATCH_RETRY_MS) return;
+    watchGaveUpAt = 0;
+    watchRestarts = 0;
+    try {
+      watchFolder();
+      log("ok", "File watch is working again; saves upload at once.");
+    } catch (error) {
+      watchGaveUpAt = Date.now();
+      log("warn", `File watch still unavailable (${error.message}). Saves are still checked every 30 seconds.`);
+    }
   }
 
   async function startWatching() {
@@ -395,6 +429,7 @@ export function createEngine(initialConfig, hooks = {}) {
     }
     if (epoch !== generation) return false;
     watchRestarts = 0;
+    watchGaveUpAt = 0;
     watchFolder();
     state.running = true;
     state.watching = config.watchFile;
@@ -405,6 +440,7 @@ export function createEngine(initialConfig, hooks = {}) {
     scheduleUpload(0);
     // Safety net for the folder watch: a save it missed is noticed within 30 seconds.
     fileCheckTimer = setInterval(() => track((async () => {
+      retryWatch();
       if (!state.running || uploading || lastFile === null) return;
       const now = await fileStamp(config.watchFile);
       if (now && now !== lastFile) scheduleUpload(0);
@@ -432,7 +468,7 @@ export function createEngine(initialConfig, hooks = {}) {
       queued = false;
       await Promise.allSettled([...active]);
       state.pendingUpload = false; state.retryAt = null; state.standingsMode = null;
-      state.watching = null;
+      state.watching = null; state.fileWatch = null; watchGaveUpAt = 0;
       if (was) log("info", "Stopped."); else hooks.onState?.(snapshot());
     },
     // Apply new settings and restart.

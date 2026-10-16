@@ -63,7 +63,7 @@ officer's client then shares it with online guildmates.
 
 With a bot that supports it (the bot lists `long-poll` in `features`), the companion then
 waits for changes instead of asking on a timer: the bot answers as soon as something changes
-(an award, an import, a core edit), or with "nothing new" after 15 seconds. Otherwise it asks
+(an award, an import, a core edit), or with "nothing new" after 12 seconds. Otherwise it asks
 every `standingsIntervalMinutes` (default 2). Set `"liveStandings": false` to always use the
 timer.
 

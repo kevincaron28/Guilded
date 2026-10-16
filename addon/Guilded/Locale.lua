@@ -721,3 +721,8 @@ FR["Dungeon standings: %s%s."] = "Classement des donjons : %s%s."
 FR[", shared by %s"] = ", partag\195\169 par %s"
 FR["Loot system: %s - each raid core decides, and all of yours use it. Pick a core with /guilded core <name>."] = "Syst\195\168me de butin : %s - chaque core de raid d\195\169cide, et tous les v\195\180tres l'utilisent. Choisissez un core avec /guilded core <nom>."
 FR["Loot system: each raid core decides (%s). Pick a core with /guilded core <name>."] = "Syst\195\168me de butin : chaque core de raid d\195\169cide (%s). Choisissez un core avec /guilded core <nom>."
+
+-- 6.3: ledger sync partners.
+FR[" Ledgers matched."] = " Registres identiques."
+FR[" Ledgers differed: entries merge while you are both online."] = " Registres diff\195\169rents : les entr\195\169es se fusionnent quand vous \195\170tes en ligne ensemble."
+FR["Ledger sync: entries from %s are not merged yet; they merge while you are both online."] = "Synchro du registre : les entr\195\169es de %s ne sont pas encore fusionn\195\169es; elles le seront quand vous serez en ligne ensemble."

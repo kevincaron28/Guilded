@@ -157,7 +157,9 @@ local function buildRun(pane, width)
     lines = {}
     for i = 1, math.min(5, #model.recent) do
       local saved = model.recent[i]
-      lines[#lines + 1] = (saved.name or "?") .. " - " .. duration(saved.durationSec or 0) .. " - " .. L(saved.state or "")
+      -- The date shows which runs are older than the current season (they still count in theirs).
+      local when = ns.util and ns.util.whenText and ns.util.whenText(saved.endedAt or saved.startedAt)
+      lines[#lines + 1] = (saved.name or "?") .. " - " .. duration(saved.durationSec or 0) .. " - " .. L(saved.state or "") .. (when and (" - " .. when) or "")
     end
     self.recent:SetText(#lines > 0 and table.concat(lines, "\n\n") or L("No saved dungeon result yet."))
     self.timer:SetText(L("Live timer") .. ": " .. L(ns.runResults and ns.runResults.timerEnabled() and "on" or "off"))

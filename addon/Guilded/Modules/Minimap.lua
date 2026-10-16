@@ -1180,11 +1180,18 @@ local function refreshHome(db, officer, me)
   local councilText = moduleOn("council") and ns.council and ns.council.current and ns.council.statusText() or ""
   if councilText ~= "" then table.insert(now, councilText) end
   -- How fresh the shared data is, in the player's own time.
-  local source, madeAt = ns.standingsFreshness and ns.standingsFreshness()
+  -- (Not "x and f()": that keeps only the first of the two values.)
+  local source, madeAt
+  if ns.standingsFreshness then source, madeAt = ns.standingsFreshness() end
   if source then
     table.insert(now, string.format(L("Standings: %s, %s."), source, ns.util.whenText(madeAt) or madeAt))
   elseif not localOnly then
     table.insert(now, L("Standings: none received yet (they arrive with the next sync)."))
+  end
+  -- Officers' ledgers that still differ (in-game-only guilds with ledger sync on).
+  local waiting = officer and ns.ledgerSync and ns.ledgerSync.active and ns.ledgerSync.active() and ns.ledgerSync.waiting() or {}
+  if #waiting > 0 then
+    table.insert(now, string.format(L("Ledger sync: entries from %s are not merged yet; they merge while you are both online."), table.concat(waiting, ", ")))
   end
   local board = db.dungeonBoard
   if board and board.updatedAt then
@@ -1482,6 +1489,13 @@ local function buildPanel()
       insets = { left = 11, right = 12, top = 12, bottom = 11 }
     })
   end
+  -- The dialog background is see-through: a window under the tools window (the guild window)
+  -- showed through it. A dark backing behind the free-floating window; hidden while docked.
+  ui.solidBack = panel:CreateTexture(nil, "BACKGROUND", nil, -7)
+  ui.solidBack:SetPoint("TOPLEFT", panel, "TOPLEFT", 11, -12)
+  ui.solidBack:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -12, 11)
+  if ui.solidBack.SetColorTexture then ui.solidBack:SetColorTexture(0.04, 0.04, 0.05, 0.92) end
+  ui.solidBack:Show()
 
   -- Which page this is, and what it is for.
   ui.pageTitle = newLabel(panel, "", "GameFontNormal")
@@ -1598,6 +1612,7 @@ local function buildPanel()
     raiseWindow(panel, ui.undockedLevel or 10)
     panel:SetMovable(true)
     if ui.guildBackground then ui.guildBackground:Hide() end
+    if ui.solidBack then ui.solidBack:Show() end
     if panel.SetBackdrop then panel:SetBackdrop({
       bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background", edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
       tile = true, tileSize = 32, edgeSize = 32, insets = { left = 11, right = 12, top = 12, bottom = 11 }
@@ -1710,6 +1725,7 @@ function ns.openGuildPanel(host, scope, initialName)
   end
   if panel.SetBackdrop then panel:SetBackdrop(nil) end
   ui.guildBackground:Show()
+  if ui.solidBack then ui.solidBack:Hide() end
   ui.lastOfficer = nil
   panel:Show()
   refresh()

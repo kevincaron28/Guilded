@@ -202,3 +202,23 @@ describe("ledger sync status", () => {
     expect(later).toContain("Over a week without another officer");
   });
 });
+
+describe("ledger sync partners on Home (6.3)", () => {
+  it("remembers whether each officer's ledger matched at the last comparison", () => {
+    const alice = client("Alice"), bob = client("Bob");
+    bob.s.run('award("Tank", 10, 0, 1)');
+    alice.s.run('NS.commandHandlers.ledgersync({"now"})');
+    // Bob compares Alice's summary with his own before the entries are exchanged.
+    pump([alice, bob]);
+    expect(bob.s.run("return tostring(DB.settings.ledgerSyncMatch.Alice)")).toBe("false");
+    expect(bob.s.run("return table.concat(NS.ledgerSync.waiting(), ',')")).toBe("Alice");
+    // After the merge the next comparison matches, and Alice leaves the waiting list.
+    advance([alice, bob], 120);
+    alice.s.run('NS.commandHandlers.ledgersync({"now"})');
+    pump([alice, bob]);
+    expect(bob.s.run("return tostring(DB.settings.ledgerSyncMatch.Alice)")).toBe("true");
+    expect(bob.s.run("return #NS.ledgerSync.waiting()")).toBe("0");
+    bob.s.run('CHAT_LOG = {}; NS.commandHandlers.ledgersync({"status"})');
+    expect(bob.s.run("return table.concat(CHAT_LOG, ' | ')")).toContain("Alice: last heard 0 min ago. Ledgers matched.");
+  });
+});

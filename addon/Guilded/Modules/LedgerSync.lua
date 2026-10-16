@@ -332,7 +332,15 @@ local function onMessage(text, channel, rawSender)
   if kind then heard(sender) end
   if kind == "SUM" and channel == "GUILD" then
     local count, hash = string.match(text, "^SUM|1|(%d+)|(%d+)$")
-    if count then answerSum(rawSender, count, hash) end
+    if count then
+      -- Whether this officer's ledger matched ours when last compared (status and Home).
+      local s, ix = settings(), index()
+      if s then
+        s.ledgerSyncMatch = type(s.ledgerSyncMatch) == "table" and s.ledgerSyncMatch or {}
+        s.ledgerSyncMatch[sender] = tonumber(count) == ix.count and tonumber(hash) == ix.hash
+      end
+      answerSum(rawSender, count, hash)
+    end
   elseif kind == "AUTH" and channel == "WHISPER" then
     local part, parts, list = string.match(text, "^AUTH|1|(%d+)|(%d+)|(.*)$")
     local whole = part and assemble("A:" .. sender, part, parts, list)
@@ -356,8 +364,20 @@ local function tick()
   after(SUM_EVERY, tick)
 end
 
+-- Officers whose ledger differed from ours at the last comparison (Home shows them).
+local function waiting()
+  local s = settings()
+  local out = {}
+  for name, matched in pairs(s and type(s.ledgerSyncMatch) == "table" and s.ledgerSyncMatch or {}) do
+    if matched == false then out[#out + 1] = name end
+  end
+  table.sort(out)
+  return out
+end
+
 ns.ledgerSync = {
   active = active,
+  waiting = waiting,
   summary = function() local ix = index(); return ix.count, ix.hash end,
   sendSum = sendSum
 }
@@ -402,7 +422,11 @@ ns.commandHandlers["ledgersync"] = function(args)
     ns.message(L("No other officer with ledger sync on has been seen yet. Sync needs two officers online at the same time."))
     return
   end
-  for i = 1, math.min(#names, 5) do ns.message(string.format(L("%s: last heard %s ago."), names[i], ago(clock() - seen[names[i]]))) end
+  local match = s and type(s.ledgerSyncMatch) == "table" and s.ledgerSyncMatch or {}
+  for i = 1, math.min(#names, 5) do
+    local state = match[names[i]] == true and L(" Ledgers matched.") or match[names[i]] == false and L(" Ledgers differed: entries merge while you are both online.") or ""
+    ns.message(string.format(L("%s: last heard %s ago."), names[i], ago(clock() - seen[names[i]])) .. state)
+  end
   if clock() - seen[names[1]] > 7 * 86400 then
     ns.message(L("Over a week without another officer: entries sync only when two officers with sync on are online together."))
   end

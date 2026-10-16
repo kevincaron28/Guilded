@@ -411,3 +411,20 @@ describe("the tools window in 4.6", () => {
     expect(s.chat().join("\n")).not.toContain("failed");
   });
 });
+
+describe("Home shows how fresh the shared data is (6.3)", () => {
+  it("dates the standings and dungeon standings, and keeps the floating window opaque", () => {
+    const s = openWindow(5, `
+      function GetServerTime() return 1800000000 end
+      GuildedDB = { settings = {}, standings = { updatedAt = "2027-01-15T08:00:00Z", players = {}, from = "companion" },
+        dungeonBoard = { season = "S1", updatedAt = "2027-01-15T07:00:00Z", rows = {}, from = "Amy" } }`);
+    s.run(`NS.windowState().selectTabByName("Home")`);
+    const now = homeText(s, "homeNow");
+    expect(now).toMatch(/Standings: Connected snapshot, (today|yesterday|\d\d\/\d\d) \d\d:\d\d\./);
+    expect(now).toMatch(/Dungeon standings: .*, shared by Amy\./);
+    expect(now).not.toContain("2027-01-15T");
+    expect(s.run("return tostring(NS.windowState().solidBack.shown)")).toBe("true");
+    s.run(`HOST = CreateFrame(); HOST.GetWidth = function() return 800 end; HOST.GetHeight = function() return 600 end; NS.openGuildPanel(HOST)`);
+    expect(s.run("return tostring(NS.windowState().solidBack.shown)")).toBe("false");
+  });
+});

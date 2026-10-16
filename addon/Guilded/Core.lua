@@ -1040,22 +1040,36 @@ local function showIdentity()
     tostring(raw.unitNameRealm), tostring(raw.fullName)))
 end
 
-local function showDiagnostics()
+-- Guilded's own problems come first; other addons' errors (often most of the list) are counted,
+-- and listed only with /guilded diag all, so a Guilded problem is not lost among them.
+local function showDiagnostics(args)
   showIdentity()
   if (ns.ignoredMessages or 0) > 0 then
     message(string.format("%d addon message(s) from other players were ignored this session (informational only).", ns.ignoredMessages))
   end
-  local entries = db.diagnostics or {}
-  if #entries == 0 then
-    message("No diagnostics recorded.")
-    return
+  local all = args and string.lower(args[1] or "") == "all"
+  local own, foreign = {}, {}
+  for _, entry in ipairs(db.diagnostics or {}) do table.insert(entry.foreign and foreign or own, entry) end
+  local function list(entries)
+    for i = math.max(1, #entries - 4), #entries do
+      local entry = entries[i]
+      local repeats = (entry.count or 1) > 1 and (" x" .. entry.count) or ""
+      local origin = entry.foreign and " (other addon)" or ""
+      message(entry.at .. " [" .. entry.kind .. "]" .. origin .. repeats .. " " .. entry.detail)
+    end
   end
-  message(string.format("Last %d diagnostic(s):", math.min(5, #entries)))
-  for i = math.max(1, #entries - 4), #entries do
-    local entry = entries[i]
-    local repeats = (entry.count or 1) > 1 and (" x" .. entry.count) or ""
-    local origin = entry.foreign and " (other addon)" or ""
-    message(entry.at .. " [" .. entry.kind .. "]" .. origin .. repeats .. " " .. entry.detail)
+  if #own == 0 then
+    message("No Guilded problems recorded.")
+  else
+    message(string.format("Last %d Guilded problem(s):", math.min(5, #own)))
+    list(own)
+  end
+  if #foreign == 0 then return end
+  if all then
+    message(string.format("Last %d from other addons:", math.min(5, #foreign)))
+    list(foreign)
+  else
+    message(string.format("%d problem(s) from other addons were also recorded; they are not Guilded's. /guilded diag all lists them.", #foreign))
   end
 end
 
@@ -1348,7 +1362,7 @@ local function command(text)
     setAttunement(target, key, completed)
   elseif action == "inspect" then inspectReadiness()
   elseif action == "export" then if requireOfficer() then exportData() end
-  elseif action == "diag" then showDiagnostics()
+  elseif action == "diag" then showDiagnostics({ args[2] })
   elseif action == "officer" then officerCommand(args)
   elseif action == "modules" or action == "module" then modulesCommand(args)
   elseif commandModule[action] and not ns.moduleActive(commandModule[action]) then

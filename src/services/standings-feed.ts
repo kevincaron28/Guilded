@@ -1,4 +1,6 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
 
 // What the companion's GET /api/v1/standings answers, without rebuilding it every time.
 //
@@ -23,7 +25,7 @@ export interface FeedParts {
 export interface FeedAnswer { status: 200 | 304; etag: string; body?: string }
 
 interface Cached { at: number; generation: number; etag: string; body: string }
-interface Stamp { hash: string; at: number }
+export interface Stamp { hash: string; at: number }
 
 export interface StandingsFeedOptions {
   ttlMs?: number;
@@ -32,6 +34,8 @@ export interface StandingsFeedOptions {
   wakeDelayMs?: number;
   maxEntries?: number;
   now?: () => number;
+  // Called when a guild's shared stamp moves, so it can be kept across restarts.
+  onStamp?: (guildId: string, stamp: Stamp) => void;
 }
 
 export function contentHash(value: unknown): string {
@@ -58,9 +62,12 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
     const last = stamps.get(guildId);
     if (last && last.hash === hash) return new Date(last.at).toISOString();
     const at = Math.max(now(), last ? last.at + 1 : 0);
-    stamps.set(guildId, { hash, at });
+    const stamp = { hash, at };
+    stamps.set(guildId, stamp);
+    try { stampListener?.(guildId, stamp); } catch { /* keeping the stamp is best effort */ }
     return new Date(at).toISOString();
   }
+  let stampListener = options.onStamp;
 
   function remember(key: string, entry: Cached) {
     cache.delete(key);
@@ -137,6 +144,19 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
 
     waiting(guildId: string) { return waiters.get(guildId)?.size ?? 0; },
 
+    // Stamps saved before a restart. Identical shared data then keeps its old stamp, so the
+    // first answer after a restart does not make every in-game client rebroadcast it. Only
+    // fills guilds this process has not stamped yet, and refuses stamps from the future.
+    restoreStamps(saved: Record<string, Stamp>) {
+      for (const [guildId, stamp] of Object.entries(saved)) {
+        if (stamps.has(guildId) || typeof stamp?.hash !== "string" || !/^[0-9a-f]{64}$/.test(stamp.hash)) continue;
+        if (!Number.isFinite(stamp.at) || stamp.at <= 0 || stamp.at > now() + 60_000) continue;
+        stamps.set(guildId, { hash: stamp.hash, at: stamp.at });
+      }
+    },
+    stamps(): Record<string, Stamp> { return Object.fromEntries(stamps); },
+    onStamp(listener: ((guildId: string, stamp: Stamp) => void) | undefined) { stampListener = listener; },
+
     clear() {
       cache.clear(); inflight.clear(); generations.clear(); stamps.clear();
       for (const timer of wakeTimers.values()) clearTimeout(timer);
@@ -152,6 +172,42 @@ export type StandingsFeed = ReturnType<typeof createStandingsFeed>;
 export const standingsFeed = createStandingsFeed();
 export function markGuildChanged(guildId: string): void {
   standingsFeed.markChanged(guildId);
+}
+
+// Keeps the feed's shared stamps in a small private file (like backups/pilot-requests.json),
+// so a restart does not wake Postgres or trigger an in-game rebroadcast of unchanged data.
+// Losing the file is harmless: the next answer simply gets a new stamp, as before.
+export async function keepStampsOnDisk(feed: StandingsFeed, path = "backups/standings-stamps.json", delayMs = 5_000) {
+  try {
+    const saved = JSON.parse(await readFile(path, "utf8")) as unknown;
+    if (saved && typeof saved === "object" && !Array.isArray(saved)) feed.restoreStamps(saved as Record<string, Stamp>);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") console.warn(`Standings stamps not restored (${(error as Error).message}); they start fresh.`);
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let writing = Promise.resolve();
+  const write = () => {
+    timer = undefined;
+    writing = writing.then(async () => {
+      const temp = `${path}.${randomUUID()}.tmp`;
+      try {
+        await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+        await writeFile(temp, JSON.stringify(feed.stamps()), { flag: "wx", mode: 0o600 });
+        await rename(temp, path);
+      } catch (error) {
+        console.warn(`Standings stamps not saved (${(error as Error).message}).`);
+      } finally { await rm(temp, { force: true }).catch(() => undefined); }
+    });
+  };
+  feed.onStamp(() => {
+    if (timer) return;
+    timer = setTimeout(write, delayMs);
+    timer.unref?.();
+  });
+  return {
+    // Writes a pending change now (shutdown, tests).
+    async flush() { if (timer) { clearTimeout(timer); write(); } await writing; }
+  };
 }
 
 // What this bot can do for a companion, so a newer companion only uses what is there.

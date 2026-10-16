@@ -63,6 +63,14 @@ export default {
       const value = request.headers.get(name);
       if (value) headers.set(name, value);
     }
+    // Guilded's own headers (x-guilded-*, x-companion-*) pass through, so a new bot feature does
+    // not wait for a Worker redeploy. Proxy/address headers (x-forwarded-for...) never do: the
+    // bot trusts those only from its own reverse proxy.
+    if (api) {
+      for (const [name, value] of request.headers) {
+        if (/^x-(guilded|companion)-[a-z0-9-]{1,40}$/.test(name) && value.length <= 512) headers.set(name, value);
+      }
+    }
     // Build from the fixed origin and path, never a user-supplied destination.
     const target = new URL(origin);
     target.pathname = url.pathname;

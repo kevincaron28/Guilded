@@ -88,7 +88,8 @@ Two sync sharp edges (see `docs/SYNC_SPEEDUPS_2026-10-15.md`):
   Keep such values small (LedgerSync.lua uses a 24-bit modulus).
 - **The website's Cloudflare Worker (`worker/index.mjs`) forwards only the request headers it
   lists and gives up after 20 seconds.** A new header the bot needs must be added there (and
-  the bot should cope without it until the Worker is redeployed); long polls stay at 15 s.
+  the bot should cope without it until the Worker is redeployed); long polls stay at 12 s.
+  Headers named `x-guilded-*` or `x-companion-*` pass through without a Worker change.
 
 ## No database or Discord access from here
 

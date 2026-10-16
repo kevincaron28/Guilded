@@ -1,5 +1,6 @@
 import { hostedPilot, replacePilotApprovals } from "./hosted-pilot.js";
 import { createPilotRequests, PILOT_REQUEST_PREFIX } from "./services/pilot-requests.js";
+import { welcomeApprovedOwner } from "./services/pilot-welcome.js";
 import { PILOT_DENIED } from "./services/pilot-policy.js";
 import { ensureCoreDiscord } from "./services/raid-core.js";
 import { fillGuildWeeklyRaids } from "./services/core-weekly-raids.js";
@@ -69,6 +70,7 @@ import { cleanupRaidAlerts } from "./services/raid-alert-cleanup.js";
 import { runWclDiscovery } from "./services/wcl-check.js";
 import { config } from "./config.js";
 import { startCompanionApi } from "./companion-api.js";
+import { keepStampsOnDisk, standingsFeed } from "./services/standings-feed.js";
 import { executePoe } from "./commands/poe.js";
 import { executeParticipation } from "./commands/participation.js";
 import { createParticipationTracker } from "./services/participation-discord.js";
@@ -94,6 +96,8 @@ const client = new Client({
 const participationTracker = createParticipationTracker(prisma, config.MESSAGE_CONTENT_INTENT);
 const answerCommandList = buildGuildedReference(commands);
 const errorReportService = createErrorReportService(prisma);
+// Before the companion API answers: unchanged standings keep their stamp across restarts.
+const standingsStamps = await keepStampsOnDisk(standingsFeed);
 const companionApi = startCompanionApi(client);
 // Background jobs run unattended (no interaction to reply to), so this is
 // their only way to surface a failure beyond the console/journalctl.
@@ -116,6 +120,7 @@ async function shutdown(code: number): Promise<void> {
   // Never hang on a stuck connection: systemd would wait, then kill it anyway.
   setTimeout(() => process.exit(code), 10_000).unref();
   await new Promise<void>((resolve) => companionApi.close(() => resolve()));
+  await standingsStamps.flush().catch(() => undefined);
   await client.destroy().catch(() => undefined);
   await prisma.$disconnect().catch(() => undefined);
   process.exit(code);
@@ -584,5 +589,6 @@ async function registerCommandsEverywhere(): Promise<void> {
 }
 
 const pilotRequests = createPilotRequests(client, { enabled: hostedPilot.enabled, allows: hostedPilot.allows, replace: replacePilotApprovals,
-  activate: async guild => { await registerCommands(guild.id); await greetNewGuild(guild); } });
+  activate: async guild => { await registerCommands(guild.id); await greetNewGuild(guild); },
+  welcome: guild => welcomeApprovedOwner(client, guild) });
 await client.login(config.DISCORD_TOKEN);

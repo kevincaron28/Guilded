@@ -61,6 +61,37 @@ describe("private hosted pilot decisions", () => {
     const f = await fixture(); await f.request(); const b = f.button("approve"); b.interaction.message.id = "forged";
     await b.handle(); expect(f.ids).not.toContain(guest); expect(f.activate).not.toHaveBeenCalled();
   });
+  it("welcomes the approved server's owner once, and a failed DM does not undo approval", async () => {
+    const f = await fixture(); const welcome = vi.fn(async () => true);
+    const manager = createPilotRequests(f.client as unknown as Client, { ...f.options, welcome });
+    await manager.request(f.guild as unknown as Guild);
+    const payload = f.send.mock.calls[0] as unknown as [{ components: { components: { data: { custom_id: string } }[] }[] }];
+    const click = () => ({ customId: payload[0].components[0]!.components[0]!.data.custom_id, guildId: null, user: { id: owner },
+      message: { id: "message", edit: vi.fn(async () => undefined) }, reply: vi.fn(async () => undefined),
+      deferReply: vi.fn(async () => undefined), editReply: vi.fn(async () => undefined) });
+    const first = click(), second = click();
+    await Promise.all([manager.handle(first as unknown as ButtonInteraction), manager.handle(second as unknown as ButtonInteraction)]);
+    expect(welcome).toHaveBeenCalledTimes(1); expect(welcome).toHaveBeenCalledWith(f.guild);
+    expect(first.editReply).toHaveBeenCalledWith(expect.stringContaining("welcome message"));
+
+    const g = await fixture(); const failing = vi.fn(async () => { throw new Error("DMs closed"); });
+    const other = createPilotRequests(g.client as unknown as Client, { ...g.options, welcome: failing });
+    await other.request(g.guild as unknown as Guild);
+    const b = g.button("approve"); await other.handle(b.interaction as unknown as ButtonInteraction);
+    expect(g.ids).toContain(guest); expect(g.activate).toHaveBeenCalledTimes(1);
+    expect(b.interaction.editReply).toHaveBeenCalledWith(expect.stringContaining("Could not DM the server owner"));
+  });
+  it("builds a bilingual owner welcome that points at /setup start", async () => {
+    const { approvalWelcome, welcomeApprovedOwner } = await import("../src/services/pilot-welcome.js");
+    const text = approvalWelcome("My *Guild*").toJSON().description ?? "";
+    expect(text).toContain("/setup start"); expect(text).toContain("approuvé"); expect(text).toContain("My \\*Guild\\*");
+    const dm = vi.fn(async () => undefined);
+    const client = { users: { fetch: vi.fn(async () => ({ bot: false, send: dm })) } };
+    expect(await welcomeApprovedOwner(client as unknown as Client, { ownerId: guest, name: "G" } as unknown as Guild)).toBe(true);
+    expect(client.users.fetch).toHaveBeenCalledWith(guest);
+    dm.mockRejectedValueOnce(new Error("Cannot send messages to this user"));
+    expect(await welcomeApprovedOwner(client as unknown as Client, { ownerId: guest, name: "G" } as unknown as Guild)).toBe(false);
+  });
   it("retries a failed DM without granting access", async () => {
     const f = await fixture(); f.send.mockRejectedValueOnce(new Error("DM closed"));
     await expect(f.request()).rejects.toThrow("DM closed"); await f.request();

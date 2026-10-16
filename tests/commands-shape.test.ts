@@ -43,6 +43,11 @@ describe("slash command definitions follow Discord's rules", () => {
     const tooBig = all.filter((command) => size(command as never) > 4000).map((command) => command.name);
     expect(tooBig).toEqual([]);
     for (const command of all) expect(command.options?.length ?? 0).toBeLessThanOrEqual(25);
+    // Stop 100 characters early, so a small wording change fails here, with the command and its
+    // size named, rather than at command registration on the live bot. Trim wording; do not
+    // raise this margin. (October 2026: /character is the largest, about 3,740.)
+    const crowded = all.map((command) => `${command.name}: ${size(command as never)}`).filter((row) => Number(row.split(": ")[1]) > 3900);
+    expect(crowded, "within 100 characters of Discord's 4000-character limit: trim wording").toEqual([]);
   });
 
   it("offers dropdowns for class and profession", () => {

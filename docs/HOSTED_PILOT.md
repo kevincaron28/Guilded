@@ -19,6 +19,9 @@ The hosted pilot is free. Optional support never buys approval or priority.
 2. Guilded waits with access disabled and sends its application owner a private
    Discord message with **Approve** and **Block** buttons. Wait for approval.
    The owner can also preapprove your server ID and send a server-specific invite.
+   When the server is approved from that message, Guilded sends **the server's owner**
+   a private welcome (English and French) with the next steps below. Keep DMs from
+   server members open to receive it; the server's system channel also gets a greeting.
 3. Run **`/setup start`** in your server. Choose English or French, your timezone,
    and the features/channels you want. Use `/setup start status:true` to check
    anything still missing. Move Guilded's bot role above roles it needs to assign.
@@ -59,7 +62,10 @@ The DM shows the server name, ID, owner ID and member count. Names are unverifie
 labels; verify the ID before admitting a server.
 
 Approval respects the five-server cap, saves to `.env.local`, updates access
-immediately and registers the setup commands without restarting. **Block** saves
+immediately and registers the setup commands without restarting. It then DMs the
+approved server's owner a bilingual welcome (`src/services/pilot-welcome.ts`); your
+confirmation says whether that DM was delivered. A closed DM never undoes the approval.
+CLI approvals (`npm run pilot -- approve`) do not send it. **Block** saves
 the decision, leaves the server and silently leaves on subsequent invitations.
 Only an explicit owner CLI approval overrides a block. Duplicate or old buttons
 cannot change a completed decision. Keep DMs from Guilded enabled; delivery

@@ -8,7 +8,9 @@ export const PILOT_REQUEST_PREFIX = "pilot-request:";
 type Request = { nonce: string; name: string; status: "pending" | "blocked" | "approved"; messageId?: string };
 type State = Record<string, Request>;
 type Options = { enabled: boolean; allows: (id: string) => boolean; replace: (ids: string[]) => void;
-  activate: (guild: Guild) => Promise<void>; envPath?: string; statePath?: string };
+  activate: (guild: Guild) => Promise<void>;
+  // Tells the approved server's owner (true when the message was delivered). Must not throw.
+  welcome?: (guild: Guild) => Promise<boolean>; envPath?: string; statePath?: string };
 
 // Local state avoids waking Postgres for admission checks and survives normal deploys.
 // Only this single bot process handles decisions; the CLI remains an emergency override.
@@ -91,7 +93,15 @@ export function createPilotRequests(client: Client, options: Options) {
             try { await options.activate(guild); }
             catch { await interaction.editReply("Approuvé. Configuration Discord à réessayer au redémarrage. / Approved; Discord setup will retry on restart."); return; }
           }
-          await interaction.editReply(guild ? "Approuvé ! Le serveur peut utiliser /setup start. / Approved! The server can use /setup start." : `Approuvé / Approved. Réinviter / Reinvite: ${pilotInvite(next, id)}`);
+          if (!guild) {
+            await interaction.editReply(`Approuvé / Approved. Réinviter / Reinvite: ${pilotInvite(next, id)}`);
+          } else {
+            const welcomed = options.welcome ? await options.welcome(guild).catch(() => false) : false;
+            const note = !options.welcome ? ""
+              : welcomed ? "\nLe propriétaire du serveur a reçu un message de bienvenue. / The server owner was sent a welcome message."
+              : "\nMessage privé au propriétaire impossible (MP fermés ?). / Could not DM the server owner (DMs closed?).";
+            await interaction.editReply(`Approuvé ! Le serveur peut utiliser /setup start. / Approved! The server can use /setup start.${note}`);
+          }
         } else {
           // Never let an old pending message revoke an explicit CLI approval.
           if (pilotFilePolicy(await readFile(envPath, "utf8")).allows(id)) {

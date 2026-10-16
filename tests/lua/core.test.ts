@@ -208,6 +208,18 @@ describe("one saved-data set per WoW guild", () => {
     expect(s.run(`return tostring(GuildedDB.guildKey)`)).toBe("nil");
   });
 
+  it("picks up a guild joined mid-session without a roster update or /reload", () => {
+    const s = loggedIn();
+    s.run(`TIMERS = {}; C_Timer.After = function(_, fn) TIMERS[#TIMERS + 1] = fn end`);
+    // Just invited: the client fires PLAYER_GUILD_UPDATE before GetGuildInfo knows the name.
+    s.run(`function GetGuildInfo() return nil end; fire_event("PLAYER_GUILD_UPDATE")`);
+    expect(s.run(`return tostring(GuildedDB.guildKey)`)).toBe("nil");
+    expect(s.run(`return #TIMERS`)).toBe("3");
+    inGuild(s, "Alpha");
+    s.run(`for _, fn in ipairs(TIMERS) do fn() end`);
+    expect(s.run(`return GuildedDB.guildKey`)).toBe("Alpha-TestRealm");
+  });
+
   it("/guilded diag shows which guild the data belongs to", () => {
     const s = loggedIn();
     inGuild(s, "Alpha");

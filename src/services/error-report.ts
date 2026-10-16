@@ -8,6 +8,14 @@ const BOT_VERSION = JSON.parse(readFileSync(new URL("../../package.json", import
 // The short reference a reporter is given and the developer quotes back ("fix bug K3X9QZ2A").
 export const reportRef = (id: string): string => id.slice(-8).toUpperCase();
 
+// Commands answer a member's mistake ("link a character first", "pick a core") by throwing a
+// plain Error whose short message is shown to them as is. That is the command working, not a
+// bug, so it is not reported. Discord, database, validation and programming errors use their
+// own error classes (or long messages) and are still reported.
+export function isMemberAnswer(error: unknown): boolean {
+  return error instanceof Error && error.constructor === Error && error.message.length > 0 && error.message.length < 200;
+}
+
 // Captures command/job failures and /report bug submissions: always saved to
 // the ErrorReport table, and posted live to ERROR_LOG_CHANNEL_ID when set (a
 // channel in any guild the bot is in, for the developer to watch after a

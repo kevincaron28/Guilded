@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { Collection, type Guild } from "discord.js";
+import { cacheAllMembers } from "../src/services/member-cache.js";
 import type { CommunityHonors, PrismaClient } from "@prisma/client";
 import { adoptCommunityHonors, advanceCommunityHonors, configureCommunityHonors, honorsHistoryMessage, honorsWeekDue, honorsWeekOf, honorsWindow, monthlyHonorsMessage, podiumPlaces, previewCommunityHonors, syncCommunityHonorRoles, weeklyHonorsMessage, weeklyMvps } from "../src/services/community-honors.js";
 
@@ -180,7 +181,7 @@ describe("syncing the roles", () => {
     for (const id of ["mvp", "gold", "silver", "bronze", "rookie"]) roles.set(id, { id, members: new Collection() });
     for (const id of ["old", "new", "a", "b"]) member(id);
     for (const [roleId, ids] of Object.entries(holders)) for (const id of ids) { members.get(id)!.roles.cache.set(roleId, roles.get(roleId)); roles.get(roleId)!.members.set(id, members.get(id)!); }
-    const guild = { members: { fetch: vi.fn(async () => members), cache: members }, roles: { cache: roles, fetch: vi.fn(async () => null) } };
+    const guild = { memberCount: members.size, members: { fetch: vi.fn(async () => members), list: vi.fn(), cache: members }, roles: { cache: roles, fetch: vi.fn(async () => null) } };
     return { guild: guild as unknown as Guild, members, roles };
   }
 
@@ -320,5 +321,17 @@ describe("hall of fame extras", () => {
     expect(embed.fields![0]).toEqual({ name: "👑 Most MVP titles", value: "**Bubble bubble** — 2×" });
     expect(embed.fields![1]!.value).toContain("🥇 **…a** — **300 pts**");
     expect(honorsHistoryMessage("fr", { recent: [], champions: [], podium: [] }).embeds[0]!.description).toContain("Pas encore de MVP");
+  });
+});
+
+describe("honors member loading", () => {
+  it("uses no Discord request when every member is cached, otherwise pages the REST member list", async () => {
+    const list = vi.fn();
+    await cacheAllMembers({ memberCount: 2, members: { cache: new Collection([["a", {}], ["b", {}]]), list } } as never);
+    expect(list).not.toHaveBeenCalled();
+    const page = (from: number, size: number) => new Collection(Array.from({ length: size }, (_, i) => [`m${from + i}`, {}] as [string, object]));
+    list.mockResolvedValueOnce(page(0, 1000)).mockResolvedValueOnce(page(1000, 200));
+    await cacheAllMembers({ memberCount: 1200, members: { cache: new Collection(), list } } as never);
+    expect(list.mock.calls.map(([options]) => options)).toEqual([{ limit: 1000, cache: true }, { limit: 1000, after: "m999", cache: true }]);
   });
 });

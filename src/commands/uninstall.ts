@@ -261,7 +261,17 @@ export async function executeUninstall(interaction: ChatInputCommandInteraction,
   const collector = message.createMessageComponentCollector({ time: 5 * 60_000, filter: (i) => i.user.id === interaction.user.id });
 
   let busy = false;
-  collector.on("collect", async (i: MessageComponentInteraction) => {
+  // A reset can delete the channel these messages live in, and a slow confirmation can outlive
+  // Discord's interaction window: those replies are dropped instead of becoming unhandled errors.
+  const gone = (error: unknown) => typeof error === "object" && error !== null && "code" in error
+    && [10003, 10008, 10062, 40060].includes(Number((error as { code: unknown }).code));
+  collector.on("collect", (i: MessageComponentInteraction) => {
+    handleCollect(i).catch((error: unknown) => {
+      busy = false;
+      if (!gone(error)) console.error("Uninstall confirmation failed", error);
+    });
+  });
+  const handleCollect = async (i: MessageComponentInteraction) => {
     if (i.customId === "uninstall:cancel") {
       await i.update({ content: "Cancelled. Nothing was changed.", embeds: [], components: [] });
       collector.stop("closed");
@@ -291,15 +301,15 @@ export async function executeUninstall(interaction: ChatInputCommandInteraction,
     try { result = await performUninstall(guild, guildId, impact, reset); }
     catch (error) {
       console.error("Guild reset/uninstall failed", error);
-      await submitted.editReply({ content: "Stopped because a channel or database operation failed. Some channels may already be gone. The bot remains here; check its logs before retrying." });
-      await interaction.editReply({ content: "Reset stopped; see the reply above.", embeds: [], components: [] });
+      await submitted.editReply({ content: "Stopped because a channel or database operation failed. Some channels may already be gone. The bot remains here; check its logs before retrying." }).catch(() => undefined);
+      await interaction.editReply({ content: "Reset stopped; see the reply above.", embeds: [], components: [] }).catch(() => undefined);
       return;
     }
-    await submitted.editReply({ content: result });
+    await submitted.editReply({ content: result }).catch(() => undefined);
     await interaction.editReply({ content: reset ? "Reset complete. Run `/setup start`." : "Uninstall complete — see the reply above. Leaving the server.", embeds: [], components: [] }).catch(() => undefined);
     collector.stop("done");
     if (!reset) await guild.leave().catch(() => undefined);
-  });
+  };
 
   collector.on("end", async (_collected, reason) => {
     if (reason === "closed" || reason === "done") return;

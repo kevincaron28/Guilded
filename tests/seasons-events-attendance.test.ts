@@ -113,7 +113,8 @@ describe("raid reports and loot logs live in each core's category", () => {
   it("no longer creates or offers server-wide ones, but uninstall still finds old ones", () => {
     expect(ALL_CHANNELS).not.toContain("raidLogChannelId");
     expect(ALL_CHANNELS).not.toContain("lootChannelId");
-    expect(RETIRED_CHANNELS).toEqual(["raidLogChannelId", "lootChannelId"]);
+    expect(ALL_CHANNELS).not.toContain("coreChannelId");
+    expect(RETIRED_CHANNELS).toEqual(["raidLogChannelId", "lootChannelId", "coreChannelId"]);
     expect(ALL_CHANNELS).toContain("attendanceChannelId");
     const choices = JSON.stringify(configCommand.toJSON());
     expect(choices).not.toContain("raid-log-channel");

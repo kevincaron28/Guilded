@@ -1438,6 +1438,8 @@ model RaidCore {
   raidLogChannelId String?
   chatChannelId   String?
   voiceChannelId  String?
+  // Officers-only: who was present, late, benched or absent at each of this core's raids.
+  attendanceChannelId String?
   createdAt       DateTime         @default(now())
   guild           Guild            @relation(fields: [guildId], references: [id], onDelete: Cascade)
   members         RaidCoreMember[]

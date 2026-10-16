@@ -87,19 +87,19 @@ function fakeDatabase(core: Record<string, unknown>) {
   };
 }
 
-const baseCore = { id: "k1", name: "Tuesday MC", roleId: null, categoryId: null, rosterChannelId: null, lootChannelId: null, raidLogChannelId: null, rosterMessageId: "m-old", signupChannelId: null, chatChannelId: null, voiceChannelId: null };
+const baseCore = { id: "k1", name: "Tuesday MC", roleId: null, categoryId: null, rosterChannelId: null, lootChannelId: null, raidLogChannelId: null, rosterMessageId: "m-old", signupChannelId: null, chatChannelId: null, voiceChannelId: null, attendanceChannelId: null };
 
 describe("core channels made with the core", () => {
-  it("creates the role, category and six channels, and removes the roster left in the shared channel", async () => {
+  it("creates the role, category and seven channels, and removes the roster left in the shared channel", async () => {
     const { guild, channels, roles } = fakeGuild();
     const database = fakeDatabase(baseCore);
     const removed: (string | null)[] = [];
     const result = await setupCoreDiscord(guild as never, database as never, "k1", async (messageId) => { removed.push(messageId); });
     expect(result.error).toBeUndefined();
-    expect(result.created).toEqual(["⚔️ Tuesday MC", "#tuesday-mc-roster", "#tuesday-mc-signups", "#tuesday-mc-butin", "#tuesday-mc-rapports", "#tuesday-mc-chat", "🔊 Tuesday MC"]);
+    expect(result.created).toEqual(["⚔️ Tuesday MC", "#tuesday-mc-roster", "#tuesday-mc-signups", "#tuesday-mc-butin", "#tuesday-mc-rapports", "#tuesday-mc-chat", "🔊 Tuesday MC", "#tuesday-mc-presences"]);
     expect([...roles.values()].map((role) => role.name)).toEqual(["Tuesday MC"]);
-    expect(channels.size).toBe(7);
-    expect(database.row).toMatchObject({ categoryId: expect.any(String), chatChannelId: expect.any(String), rosterMessageId: null });
+    expect(channels.size).toBe(8);
+    expect(database.row).toMatchObject({ categoryId: expect.any(String), chatChannelId: expect.any(String), attendanceChannelId: expect.any(String), rosterMessageId: null });
     expect(removed).toEqual(["m-old"]);
   });
 
@@ -113,7 +113,7 @@ describe("core channels made with the core", () => {
 });
 
 describe("core Discord deletion", () => {
-  it("deletes all six linked channels, additional category children, the category and role, leaving other cores alone", async () => {
+  it("deletes all seven linked channels, additional category children, the category and role, leaving other cores alone", async () => {
     const { guild, channels, roles, makeChannel } = fakeGuild();
     const database = fakeDatabase(baseCore);
     await setupCoreDiscord(guild as never, database as never, "k1", async () => undefined);
@@ -122,7 +122,7 @@ describe("core Discord deletion", () => {
     channels.get(database.row["lootChannelId"] as string)!.parentId = null;
     const other = makeChannel("other-core-chat", ChannelType.GuildText);
     roles.set("other-role", { id: "other-role", name: "Other Core", mentionable: true });
-    expect(await deleteCoreDiscord(guild as never, database.row as never)).toEqual({ removed: 9, failed: [] });
+    expect(await deleteCoreDiscord(guild as never, database.row as never)).toEqual({ removed: 10, failed: [] });
     expect(channels.has(extra.id)).toBe(false);
     expect([...channels.keys()]).toEqual([other.id]);
     expect([...roles.keys()]).toEqual(["other-role"]);
@@ -135,7 +135,7 @@ describe("core Discord deletion", () => {
     const chat = channels.get(database.row["chatChannelId"] as string)!;
     const remove = chat.delete;
     chat.delete = vi.fn().mockRejectedValue(new Error("Missing Permissions"));
-    expect(await deleteCoreDiscord(guild as never, database.row as never)).toEqual({ removed: 5, failed: [`channel ${chat.id}`] });
+    expect(await deleteCoreDiscord(guild as never, database.row as never)).toEqual({ removed: 6, failed: [`channel ${chat.id}`] });
     expect(channels.has(database.row["categoryId"] as string)).toBe(true);
     expect(roles.has(database.row["roleId"] as string)).toBe(true);
     chat.delete = remove;
@@ -150,7 +150,7 @@ describe("core Discord deletion", () => {
     await setupCoreDiscord(guild as never, database as never, "k1", async () => undefined);
     guild.channels.fetch = vi.fn().mockRejectedValue(new Error("Network unavailable"));
     expect(await deleteCoreDiscord(guild as never, database.row as never)).toEqual({ removed: 0, failed: [`channels in category ${database.row["categoryId"]}`] });
-    expect(channels.size).toBe(7);
+    expect(channels.size).toBe(8);
   });
 
   it("reports role permission failures and tolerates already deleted channels/roles", async () => {
@@ -663,6 +663,18 @@ describe("core roster and signups channels are readable by the whole guild", () 
     // The core's own chat stays private to the core and leadership.
     const chat = [...channels.values()].find((channel) => channel.name === "tuesday-mc-chat")!;
     expect(chat.created?.find((entry) => entry.id === "member")).toBeUndefined();
+  });
+
+  it("keeps the core's attendance channel to officers: not the core, raid leaders or @everyone", async () => {
+    const { guild, database, channels, roles } = withGuildRoles(true);
+    roles.set("leader", { id: "leader", name: "Raid Leader", mentionable: true });
+    await setupCoreDiscord(guild as never, database as never, "k1", async () => undefined);
+    const attendance = [...channels.values()].find((channel) => channel.name === "tuesday-mc-presences")!;
+    expect(database.row["attendanceChannelId"]).toBe(attendance.id);
+    expect(attendance.created?.find((entry) => entry.id === "everyone")?.deny).toContain(view);
+    expect(attendance.created?.find((entry) => entry.id === "officer")?.allow).toContain(view);
+    const coreRole = database.row["roleId"] as string;
+    for (const id of [coreRole, "leader", "member"]) expect(attendance.created?.find((entry) => entry.id === id)).toBeUndefined();
   });
 
   it("on an open server, @everyone reads them too", async () => {

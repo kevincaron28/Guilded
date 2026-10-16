@@ -12,15 +12,21 @@ const guildService = createGuildService(prisma);
 export type Localized<T = string> = (lang: Lang) => T;
 
 // "officer", "application" and "attendance" are private (officer log, applications
-// or attendance channel) only: no fallback to a public channel.
+// or attendance channel) only: no fallback to a public channel. A core raid's attendance goes to
+// that core's own officers-only channel first.
 type NotifyKind = "notify" | "raidLog" | "loot" | "officer" | "application" | "attendance";
+
+async function coreAttendanceChannel(guildId: string, coreId: string | null): Promise<string | null> {
+  if (!coreId) return null;
+  return (await prisma.raidCore.findFirst({ where: { id: coreId, guildId }, select: { attendanceChannelId: true } }))?.attendanceChannelId ?? null;
+}
 
 async function notifyAddress(discordGuild: DiscordGuild, kind: NotifyKind = "notify", coreId: string | null = null) {
   const guild = await guildService.ensureGuild(discordGuild.id, discordGuild.name);
   const settings = await guildService.getSettings(guild.id);
   if (kind === "officer" || kind === "application" || kind === "attendance") {
     const channelId = kind === "application" ? (settings?.applicationChannelId ?? settings?.logChannelId)
-      : kind === "attendance" ? (settings?.attendanceChannelId ?? settings?.logChannelId) : settings?.logChannelId;
+      : kind === "attendance" ? (await coreAttendanceChannel(guild.id, coreId) ?? settings?.attendanceChannelId ?? settings?.logChannelId) : settings?.logChannelId;
     if (!channelId) return null;
     return { guildId: guild.id, channelId, lang: asLang(settings?.language) };
   }

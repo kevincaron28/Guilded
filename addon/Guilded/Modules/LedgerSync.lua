@@ -6,7 +6,8 @@
 -- (/guilded ledgersync on, in-game-only mode) compare what they have and send each other only
 -- what is missing:
 --
---   SUM|1|<count>|<hash>                            all my entries in two numbers (GUILD)
+--   SUM|1|<count>|<hash>                            all my entries in two numbers (GUILD, and
+--                                                   WHISPER to officers heard this session)
 --   AUTH|1|<part>|<parts>|<author>=<count>.<hash>;...   per author, to an officer whose SUM differs
 --   DAYS|1|<author>|<part>|<parts>|<day>=<count>.<hash>;...   per day for one author that differs
 --   GET|1|<author>|<day>                            send me your entries of that day
@@ -32,8 +33,13 @@ local ASSEMBLY_SECONDS = 120
 local started = false
 local cache, cacheAt = nil, 0
 local lastSum, lastSumAt = nil, 0
-local answeredAt = {}
+local answered = {}
 local assemblies = {}
+-- The officers who spoke to us this session, by name, with the sender text to whisper back to.
+-- A guild-channel SUM does not always arrive (seen in game on 16 October: one officer's GUILD
+-- addon messages never reached the other, while its whispers did), so SUM also goes by whisper.
+local MAX_DIRECT = 5
+local partners = {}
 local received, receivedFrom, noticeScheduled = 0, {}, false
 local lastExchange = nil
 
@@ -178,6 +184,10 @@ local function sendSum(force)
   if not force and sum == lastSum and clock() - lastSumAt < SUM_ANYWAY then return end
   lastSum, lastSumAt = sum, clock()
   send("SUM|1|" .. sum, "GUILD")
+  local names = {}
+  for name in pairs(partners) do names[#names + 1] = name end
+  table.sort(names, function(a, b) return partners[a].at > partners[b].at end)
+  for i = 1, math.min(#names, MAX_DIRECT) do send("SUM|1|" .. sum, "WHISPER", partners[names[i]].address) end
 end
 
 local function sendEntry(id, target)
@@ -285,8 +295,11 @@ end
 local function answerSum(sender, count, hash)
   local ix = index()
   if tonumber(count) == ix.count and tonumber(hash) == ix.hash then return end
-  if answeredAt[sender] and clock() - answeredAt[sender] < ANSWER_COOLDOWN then return end
-  answeredAt[sender] = clock()
+  -- The same SUM again (it comes by guild and by whisper) waits; a changed ledger is news.
+  local theirs = count .. "|" .. hash
+  local last = answered[sender]
+  if last and last.sum == theirs and clock() - last.at < ANSWER_COOLDOWN then return end
+  answered[sender] = { at = clock(), sum = theirs }
   local items = {}
   for author, a in pairs(ix.authors) do items[#items + 1] = author .. "=" .. a.count .. "." .. a.hash end
   table.sort(items)
@@ -329,8 +342,11 @@ local function onMessage(text, channel, rawSender)
   if not sender or sender == ns.playerName() or not ns.isOfficerName(sender) then return end
   if channel ~= "GUILD" and channel ~= "WHISPER" then return end
   local kind = string.match(text, "^(%u+)|1|")
-  if kind then heard(sender) end
-  if kind == "SUM" and channel == "GUILD" then
+  if kind then
+    heard(sender)
+    partners[sender] = { at = clock(), address = rawSender }
+  end
+  if kind == "SUM" then
     local count, hash = string.match(text, "^SUM|1|(%d+)|(%d+)$")
     if count then
       -- Whether this officer's ledger matched ours when last compared (status and Home).

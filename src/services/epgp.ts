@@ -1,5 +1,6 @@
 import { EpgpTransactionType, type PrismaClient } from "@prisma/client";
 import { requireCorePool } from "./core-loot-policy.js";
+import { markGuildChanged } from "./standings-feed.js";
 
 export interface CreateEpgpTransaction {
   guildId: string;
@@ -50,7 +51,7 @@ export function createEpgpService(database: PrismaClient) {
     if (input.type !== EpgpTransactionType.REVERSAL) await requireCorePool(database, input.guildId, input.coreId);
 
     // The ledger is append-only: corrections use reverseTransaction rather than updates/deletes.
-    return database.epgpTransaction.create({
+    const created = await database.epgpTransaction.create({
       data: {
         guildId: input.guildId,
         memberId: input.memberId,
@@ -63,6 +64,9 @@ export function createEpgpService(database: PrismaClient) {
         coreId: input.coreId ?? null
       }
     });
+    // Companions waiting for standings hear about it (see standings-feed).
+    markGuildChanged(input.guildId);
+    return created;
   };
 
   // `coreId` picks a core's own pool; the default (null) is the guild pool.
@@ -149,7 +153,7 @@ export function createEpgpService(database: PrismaClient) {
         });
         if (rows.length === 0) return [];
         return tx.epgpTransaction.createManyAndReturn({ data: rows, skipDuplicates: true });
-      }, { timeout: 60_000, maxWait: 15_000 });
+      }, { timeout: 60_000, maxWait: 15_000 }).then((rows) => { if (rows.length) markGuildChanged(guildId); return rows; });
     },
 
     async reverseTransaction(transactionId: string, createdBy: string, reason: string, guildId?: string) {

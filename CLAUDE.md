@@ -76,6 +76,15 @@ Two failure modes only the test suite catches, not the type checker:
   aren't checked (e.g. `src/commands/help.ts` keeps its own separate
   `en`/`fr` arrays, not `tx()`).
 
+Two sync sharp edges (see `docs/SYNC_SPEEDUPS_2026-10-15.md`):
+
+- **The Lua test harness (fengari) has 32-bit integers; WoW's Lua uses doubles.** Arithmetic
+  that passes 2^31 (hashes, sums of hashes) gives different answers in tests than in game.
+  Keep such values small (LedgerSync.lua uses a 24-bit modulus).
+- **The website's Cloudflare Worker (`worker/index.mjs`) forwards only the request headers it
+  lists and gives up after 20 seconds.** A new header the bot needs must be added there (and
+  the bot should cope without it until the Worker is redeployed); long polls stay at 15 s.
+
 ## No database or Discord access from here
 
 Cloud sandboxes may not reach production Aiven or Discord and may have no

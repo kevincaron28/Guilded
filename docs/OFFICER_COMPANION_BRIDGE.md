@@ -28,6 +28,11 @@ too: it adds automatic/background file synchronization.
    Check standings, core rules/pools/rosters and upcoming Guilded raids without
    opening a browser companion or desktop app on the member PC.
 
+Since the 15 October sync work, a newer addon sends `CAP|2` before `REQ|1` and receives the
+compact `DATA|2` (about half the messages); older addons keep getting `DATA|1`. Officers wait
+a few seconds before answering and stay quiet when another officer is already sending the same
+snapshot. See [the sync speed-ups](SYNC_SPEEDUPS_2026-10-15.md).
+
 The officer can run `/guilded bridge off` to stop the new core/calendar relay.
 Existing standings sharing remains available. Changes from Discord require the
 officer to save a fresh companion snapshot and `/reload` again.

@@ -21,6 +21,20 @@ function loggedIn(): LuaSession {
 }
 
 describe("Core.lua (real file, mocked game)", () => {
+  it("allows an author to void a recovered entry without voiding another officer's award", () => {
+    const s = loggedIn();
+    s.run(`
+      GuildedDB.epgp.Kev = { ep = 17, gp = 0, ledger = {
+        { id = "Kev-1800000000-1", by = "Kev", fromPeer = "Alice", epAmount = 10, gpAmount = 0, pending = true },
+        { id = "Alice-1800000000-2", by = "Alice", fromPeer = "Alice", epAmount = 7, gpAmount = 0, pending = true }
+      } }
+      SlashCmdList.GUILDED("void Kev")
+    `);
+    expect(s.run('return tostring(GuildedDB.epgp.Kev.ledger[1].voided ~= nil)')).toBe("true");
+    expect(s.run('return tostring(GuildedDB.epgp.Kev.ledger[2].voided == nil)')).toBe("true");
+    expect(s.run('return GuildedDB.epgp.Kev.ep')).toBe("7");
+  });
+
   it("loads, logs in, and registers /guilded", () => {
     const s = loggedIn();
     expect(s.run(`return tostring(SlashCmdList["GUILDED"] ~= nil)`)).toBe("true");

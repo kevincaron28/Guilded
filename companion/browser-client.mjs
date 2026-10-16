@@ -1,6 +1,7 @@
 import { readBrowserAddon, readBrowserPoe } from "./browser-files.mjs";
 import { standingsToLua } from "./standings-format.mjs";
 import { createBrowserFolderAccess } from "./browser-folders.mjs";
+import { acknowledgements, pruneAcknowledged } from "./delta.mjs";
 
 export function createBrowserCompanion(env = globalThis) {
   const { location, sessionStorage, document, URL, Blob } = env;
@@ -41,10 +42,23 @@ export function createBrowserCompanion(env = globalThis) {
     for (const secret of [config.companionCredential, config.pairingCode]) if (secret?.length >= 6) message = message.replaceAll(secret, "[redacted]");
     const entry = { time: new Date().toISOString(), level, message }; logs.push(entry); if (logs.length > 300) logs.shift(); listeners.log.forEach(fn => fn(entry)); emit();
   };
+  // What the bot can do and what it already stored, from the last standings answer (this tab only).
+  let botFeatures = new Set();
+  let ack = null;
+  const rememberStandings = body => { botFeatures = new Set(Array.isArray(body?.features) ? body.features : []); ack = acknowledgements(body); return body; };
+  // Uploads are gzip-compressed when the bot can read that and this browser can write it.
+  async function encodeBody(bodyText) {
+    if (!botFeatures.has("gzip-upload") || typeof env.CompressionStream !== "function" || typeof env.Response !== "function") {
+      return { body: bodyText, bytes: new TextEncoder().encode(bodyText).byteLength, headers: {} };
+    }
+    const stream = new Blob([bodyText]).stream().pipeThrough(new env.CompressionStream("gzip"));
+    const body = new Uint8Array(await new env.Response(stream).arrayBuffer());
+    return { body, bytes: body.byteLength, headers: { "content-encoding": "gzip" } };
+  }
   async function request(path, payload) {
-    const bodyText = payload ? JSON.stringify(payload) : null;
-    if (bodyText && new TextEncoder().encode(bodyText).byteLength > 1_000_000) throw new Error("This structured export exceeds the bot's 1 MB upload limit. Ask your guild officer for help.");
-    const response = await env.fetch(path, { method: payload ? "POST" : "GET", credentials: "omit", headers: { "x-companion-credential": config.companionCredential || "", ...(payload ? { "content-type": "application/json" } : {}) }, ...(payload ? { body: bodyText } : {}), signal: AbortSignal.timeout(20_000) });
+    const encoded = payload ? await encodeBody(JSON.stringify(payload)) : null;
+    if (encoded && encoded.bytes > 1_000_000) throw new Error("This structured export exceeds the bot's 1 MB upload limit. Ask your guild officer for help.");
+    const response = await env.fetch(path, { method: payload ? "POST" : "GET", credentials: "omit", headers: { "x-companion-credential": config.companionCredential || "", ...(payload ? { "content-type": "application/json", ...encoded.headers } : {}) }, ...(payload ? { body: encoded.body } : {}), signal: AbortSignal.timeout(20_000) });
     const body = await response.json();
     if (!response.ok && !(response.status === 409 && body.importId)) throw new Error(body.error || `The bot answered ${response.status}.`);
     state.botVersion = body.botVersion || state.botVersion;
@@ -62,8 +76,10 @@ export function createBrowserCompanion(env = globalThis) {
       if (!config.companionCredential) throw new Error("Connect your Discord account first.");
       const currentFile = config.wowEnabled && folders.hasInput() ? await folders.readInput() : wowFile;
       if (config.wowEnabled && currentFile) {
-        const exported = await readBrowserAddon(currentFile, config.realm);
-        if (config.wowGuild && exported.wowGuild && exported.wowGuild !== config.wowGuild) throw new Error("This saved data belongs to a different WoW guild.");
+        const full = await readBrowserAddon(currentFile, config.realm);
+        if (config.wowGuild && full.wowGuild && full.wowGuild !== config.wowGuild) throw new Error("This saved data belongs to a different WoW guild.");
+        // Entries the bot already stored are left out (known from this tab's last standings answer).
+        const exported = pruneAcknowledged(full, ack, botFeatures).exported;
         const result = await request("/api/v1/addon-imports", { guildDiscordId: config.guildDiscordId, export: exported });
         state.lastUpload = { at: new Date().toISOString(), message: result.status === "APPLIED" || result.autoApplied ? "Your saved data is synced." : "Received by the bot. Guild ledger changes may await officer review." };
         state.addonVersion = exported.addonVersion; state.uploads++; state.uploadError = null; log("ok", state.lastUpload.message);
@@ -94,7 +110,7 @@ export function createBrowserCompanion(env = globalThis) {
     const anchor = document.createElement("a"); anchor.href = url; anchor.download = name; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   async function saveBrowserStandings(requestAccess = true) {
-    const load = async () => standingsToLua(await request(`/api/v1/standings?${guildQuery()}`));
+    const load = async () => standingsToLua(rememberStandings(await request(`/api/v1/standings?${guildQuery()}`)));
     if (folders.available) await folders.saveStandings(load, { requestAccess });
     else download("Standings.lua", await load());
     state.standingsError = null;
@@ -108,17 +124,23 @@ export function createBrowserCompanion(env = globalThis) {
     saveConfig: async next => {
       if (busy) return { ok: false, message: "Wait for the current sync to finish before changing settings." };
       if (visits.length && ["poeCharacter", "poeLeague", "poeMode", "guildDiscordId"].some(field => next[field] !== config[field])) return { ok: false, message: "Sync your queued visits before changing character, league, mode or server." };
+      if (["guildDiscordId", "companionCredential"].some(field => field in next && next[field] !== config[field])) {
+        botFeatures = new Set(); ack = null;
+      }
       config = { ...config, ...next, uploadUrl: `${location.origin}/api/v1/addon-imports` }; persist(); state.running = !!config.companionCredential; emit();
       return { ok: true, message: "Preferences saved on this browser/device. Choose a file and use Sync now." };
     },
     pairAccount: async next => {
       if (busy || visits.length) return { ok: false, message: "Finish syncing your queued visits before replacing this Discord link." };
+      busy = true;
       try {
         const result = await request("/api/v1/addon-pairings", { guildDiscordId: next.guildDiscordId, code: next.pairingCode });
         if (typeof result.companionCredential !== "string" || result.companionCredential.length < 32) throw new Error("The bot did not return a valid Discord link. Please try a fresh pairing code.");
+        botFeatures = new Set(); ack = null;
         config = { ...config, ...next, pairingCode: "", companionCredential: result.companionCredential, uploadUrl: `${location.origin}/api/v1/addon-imports` }; state.running = true; state.uploadError = null; persist(); emit();
         return { ok: true, message: "Discord connected. Choose your game files to start syncing." };
       } catch (error) { return { ok: false, message: error.message }; }
+      finally { busy = false; }
     },
     testConnection: async next => {
       try {

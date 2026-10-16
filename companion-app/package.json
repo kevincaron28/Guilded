@@ -43,7 +43,9 @@
           "poe-log.mjs",
           "lua-export-content.mjs",
           "standings-format.mjs",
-          "poe-events.mjs"
+          "poe-events.mjs",
+          "delta.mjs",
+          "data-addon.mjs"
         ]
       },
       {

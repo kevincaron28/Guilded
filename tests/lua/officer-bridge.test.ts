@@ -7,6 +7,14 @@ function client(officer = false) {
   const s = newLuaSession(); sessions.push(s);
   s.run(`
     NOW = 1800000000; GUILD = "Test Guild"; DB = { guildKey = "Test Guild-Realm", settings = {} }; SENT = {}
+    -- Timers wait until a test runs them: replies to REQ are delayed by a few seconds.
+    TIMERS = {}
+    C_Timer = { After = function(delay, fn) TIMERS[#TIMERS + 1] = { delay = delay, fn = fn } end }
+    function run_replies()
+      local due = {}
+      for i = #TIMERS, 1, -1 do if TIMERS[i].delay <= 6 then table.insert(due, 1, table.remove(TIMERS, i)) end end
+      for _, timer in ipairs(due) do timer.fn() end
+    end
     IsInGuild = function() return GUILD ~= nil end
     GetGuildInfo = function() return GUILD end
     GetRealmName = function() return "Realm" end
@@ -116,13 +124,13 @@ describe("officer companion bridge", () => {
     guildRealm(member, "Classic Beta PvP 4", "ClassicBetaPvP");
     member.run('NS.commandHandlers.bridge({"refresh"})');
     expect(member.run('return SENT[#SENT]')).toBe("REQ|1|0");
-    officer.run('NOW = NOW + 100; SENT = {}; fire_event("CHAT_MSG_ADDON", "GuildedBridge", "REQ|1|0", "GUILD", "Member")');
+    officer.run('NOW = NOW + 100; SENT = {}; fire_event("CHAT_MSG_ADDON", "GuildedBridge", "REQ|1|0", "GUILD", "Member"); run_replies()');
     deliver(member, packets(officer));
     expect(member.run('return GuildedNextRaid.id')).toBe("raid1");
   });
   it("automatically shares officer core pools, rosters and upcoming raids without opt-in", () => {
     const officer = client(true); snapshot(officer);
-    officer.run('fire_event("PLAYER_ENTERING_WORLD"); fire_event("CHAT_MSG_ADDON", "GuildedBridge", "REQ|1|0", "GUILD", "Member")');
+    officer.run('fire_event("PLAYER_ENTERING_WORLD"); fire_event("CHAT_MSG_ADDON", "GuildedBridge", "REQ|1|0", "GUILD", "Member"); run_replies()');
     expect(officer.run('return tostring(DB.settings.officerBridge.enabled)')).toBe("true");
     const messages = packets(officer); expect(messages.length).toBeGreaterThan(1);
     expect(messages.every(p => Buffer.byteLength(p) <= 255)).toBe(true);
@@ -139,13 +147,13 @@ describe("officer companion bridge", () => {
     officer.run('NS.commandHandlers.bridge({"status"})');
     expect(officer.run('return CHAT_LOG[#CHAT_LOG]')).toContain("needs companion data");
     snapshot(officer);
-    officer.run('NS.commandHandlers.bridge({"off"}); fire_event("PLAYER_ENTERING_WORLD"); fire_event("CHAT_MSG_ADDON", "GuildedBridge", "REQ|1|0", "GUILD", "Member"); NS.commandHandlers.bridge({"status"})');
+    officer.run('NS.commandHandlers.bridge({"off"}); fire_event("PLAYER_ENTERING_WORLD"); fire_event("CHAT_MSG_ADDON", "GuildedBridge", "REQ|1|0", "GUILD", "Member"); run_replies(); NS.commandHandlers.bridge({"status"})');
     expect(packets(officer)).toHaveLength(0);
     expect(officer.run('return CHAT_LOG[#CHAT_LOG]')).toContain("OFF");
   });
   it("does not automatically rebind a companion snapshot to another guild", () => {
     const officer = client(true); snapshot(officer);
-    officer.run('DB.bridgeCompanionGuild = "Other Guild-Realm"; fire_event("PLAYER_ENTERING_WORLD"); fire_event("CHAT_MSG_ADDON", "GuildedBridge", "REQ|1|0", "GUILD", "Member"); NS.commandHandlers.bridge({"status"})');
+    officer.run('DB.bridgeCompanionGuild = "Other Guild-Realm"; fire_event("PLAYER_ENTERING_WORLD"); fire_event("CHAT_MSG_ADDON", "GuildedBridge", "REQ|1|0", "GUILD", "Member"); run_replies(); NS.commandHandlers.bridge({"status"})');
     expect(packets(officer)).toHaveLength(0);
     expect(officer.run('return CHAT_LOG[#CHAT_LOG]')).toContain("bound to another guild");
   });
@@ -183,13 +191,13 @@ describe("officer companion bridge", () => {
   });
   it("answers late members from cached data with a bounded guild broadcast and opt-out", () => {
     const officer = client(true); snapshot(officer); officer.run('NS.commandHandlers.bridge({"on"}); SENT = {}');
-    officer.run('fire_event("CHAT_MSG_ADDON", "GuildedBridge", "REQ|1|0", "GUILD", "Member")');
+    officer.run('fire_event("CHAT_MSG_ADDON", "GuildedBridge", "REQ|1|0", "GUILD", "Member"); run_replies()');
     expect(packets(officer)).toHaveLength(0);
-    officer.run('NOW = NOW + 100; fire_event("CHAT_MSG_ADDON", "GuildedBridge", "REQ|1|0", "GUILD", "Late")');
+    officer.run('NOW = NOW + 100; fire_event("CHAT_MSG_ADDON", "GuildedBridge", "REQ|1|0", "GUILD", "Late"); run_replies()');
     const count = packets(officer).length; expect(count).toBeGreaterThan(0);
-    officer.run('fire_event("CHAT_MSG_ADDON", "GuildedBridge", "REQ|1|0", "GUILD", "Other")');
+    officer.run('fire_event("CHAT_MSG_ADDON", "GuildedBridge", "REQ|1|0", "GUILD", "Other"); run_replies()');
     expect(packets(officer)).toHaveLength(count);
-    officer.run('NS.commandHandlers.bridge({"off"}); NOW = NOW + 100; SENT = {}; fire_event("CHAT_MSG_ADDON", "GuildedBridge", "REQ|1|0", "GUILD", "Late")');
+    officer.run('NS.commandHandlers.bridge({"off"}); NOW = NOW + 100; SENT = {}; fire_event("CHAT_MSG_ADDON", "GuildedBridge", "REQ|1|0", "GUILD", "Late"); run_replies()');
     expect(packets(officer)).toHaveLength(0);
   });
   it("members cannot enable the bridge and changing guild clears received raid globals", () => {
@@ -227,5 +235,55 @@ describe("officer companion bridge", () => {
     expect(member.run('return tostring(GuildedNextRaid)')).toBe("nil");
     expect(member.run('return tostring(DB.lootRules.cores[1].players.Member.account)')).toBe("nil");
     expect(JSON.stringify(packets(officer))).not.toContain(Buffer.from("private-owner-id").toString("hex"));
+  });
+});
+
+describe("officer bridge wire versions", () => {
+  it("sends the compact DATA|2 to addons that say they read it, and DATA|1 when an older addon asks", () => {
+    const officer = client(true); snapshot(officer);
+    officer.run('NS.commandHandlers.bridge({"on"})');
+    const compact = packets(officer);
+    expect(compact.every(p => p.startsWith("DATA|2|"))).toBe(true);
+    // The same snapshot in DATA|1 (hex) takes about twice the messages.
+    officer.run('NOW = NOW + 100; SENT = {}; fire_event("CHAT_MSG_ADDON", "GuildedBridge", "REQ|1|0", "GUILD", "Member"); run_replies()');
+    const legacy = packets(officer);
+    expect(legacy.length).toBeGreaterThan(0);
+    expect(legacy.every(p => p.startsWith("DATA|1|"))).toBe(true);
+    expect(compact.length).toBeLessThan(legacy.length * 0.7);
+    // Both arrive intact.
+    for (const messages of [compact, legacy]) {
+      const member = client(); deliver(member, messages);
+      expect(member.run('return GuildedRaids[1].note')).toBe("Équipe: ; | :");
+      expect(member.run('return DB.lootRules.cores[1].players.Member.gp')).toBe("25");
+    }
+  });
+  it("asks with CAP|2 first, and an officer answers that requester in DATA|2", () => {
+    const member = client(); member.run('NS.commandHandlers.bridge({"refresh"})');
+    expect(member.run('return SENT[#SENT - 1] .. " " .. SENT[#SENT]')).toBe("CAP|2 REQ|1|0");
+    const officer = client(true); snapshot(officer); officer.run('NS.commandHandlers.bridge({"on"}); NOW = NOW + 100; SENT = {}');
+    officer.run('fire_event("CHAT_MSG_ADDON", "GuildedBridge", "CAP|2", "GUILD", "Member"); fire_event("CHAT_MSG_ADDON", "GuildedBridge", "REQ|1|0", "GUILD", "Member"); run_replies()');
+    const answer = packets(officer);
+    expect(answer.length).toBeGreaterThan(0);
+    expect(answer.every(p => p.startsWith("DATA|2|"))).toBe(true);
+  });
+  it("does not repeat data another officer is already sending", () => {
+    const officer = client(true); snapshot(officer); officer.run('NS.commandHandlers.bridge({"on"})');
+    const first = packets(officer);
+    const second = client(true); second.run('NS.playerName = function() return "Second" end'); snapshot(second);
+    second.run('NS.commandHandlers.bridge({"on"}); NOW = NOW + 100; SENT = {}');
+    // Second's own copy is the same snapshot; hearing Officer's chunks, it does not answer.
+    deliver(second, first.slice(0, 1));
+    second.run('fire_event("CHAT_MSG_ADDON", "GuildedBridge", "CAP|2", "GUILD", "Member"); fire_event("CHAT_MSG_ADDON", "GuildedBridge", "REQ|1|0", "GUILD", "Member"); run_replies()');
+    expect(packets(second)).toHaveLength(0);
+  });
+  it("rejects malformed DATA|2 chunks", () => {
+    const member = client();
+    deliver(member, [
+      "DATA|2|2026-10-05T20:25:10.149Z|1|1|t1:" + String.fromCharCode(9),
+      "DATA|2|2026-10-05T20:25:10.149Z|1|1|",
+      "DATA|2|2026-10-05T20:25:10.149Z|1|1|" + "a".repeat(201),
+      "DATA|2|2026-10-05T20:25:10.149Z|1|1|os.execute(%22bad%22)"
+    ]);
+    expect(member.run('return tostring(DB.officerBridge)')).toBe("nil");
   });
 });

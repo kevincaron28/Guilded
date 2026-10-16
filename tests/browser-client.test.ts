@@ -29,6 +29,23 @@ const logFile = () => {
 };
 
 describe("online companion session and queue", () => {
+  it.each(["guild", "credential", "pairing"])("forgets old acknowledgements after changing %s", async change => {
+    const { env, choose } = environment();
+    const api = createBrowserCompanion(env as never);
+    await api.pairAccount({ ...profile, wowEnabled: true, poeEnabled: false });
+    choose(new File(['GuildedDB = { epgp = { Kev = { ep = 10, gp = 0, ledger = { { id = "Kev-1-1", epAmount = 10, gpAmount = 0, type = "EP_AWARD" } } } } }'], "Guilded.lua"));
+    await api.browseFile();
+    env.fetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ standings: [], features: ["ledger-delta"], acceptedLedgerRefs: ["addon:qg:Kev-1-1"] }) } as never);
+    await api.refreshStandings();
+    await api.uploadNow();
+    const payload = () => JSON.parse(env.fetch.mock.calls.filter(call => call[0] === "/api/v1/addon-imports").at(-1)![1].body!).export;
+    expect(payload().epgpTransactions).toHaveLength(0);
+    if (change === "pairing") await api.pairAccount({ ...profile, wowEnabled: true, poeEnabled: false });
+    else await api.saveConfig(change === "guild" ? { guildDiscordId: "456" } : { companionCredential: "d".repeat(43) });
+    await api.uploadNow();
+    expect(payload().epgpTransactions).toHaveLength(1);
+  });
+
   it("prefills a new browser from the Discord link while preserving an existing device connection", async () => {
     const { env } = environment();
     env.location.search = "?guild=123456789012345678";

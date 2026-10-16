@@ -509,7 +509,9 @@ local function voidEntry(target)
   for name, account in pairs(db.epgp) do
     if not wanted or name == wanted then
       for _, entry in ipairs(account.ledger or {}) do
-        if entry.id and not entry.voided and (not found or seq(entry) > seq(found)) then foundName, found = name, entry end
+        -- An author can recover their own entries from another officer and still void them.
+        local fromOtherAuthor = entry.fromPeer and entry.by ~= playerName()
+        if entry.id and not entry.voided and not fromOtherAuthor and (not found or seq(entry) > seq(found)) then foundName, found = name, entry end
       end
     end
   end

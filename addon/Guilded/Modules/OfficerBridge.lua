@@ -1,7 +1,16 @@
 -- Optional officer bridge: companion files -> online guildmates, never executable Lua.
 local _, ns = ...
 local PREFIX, CHUNK, MAX_BYTES, MAX_PARTS = "GuildedBridge", 180, 46080, 256
+-- Wire versions. DATA|1 sends every byte as two hex digits. DATA|2 keeps printable ASCII as is
+-- and writes only other bytes, "%" and "|" as %XX: the data is mostly plain text, so it takes
+-- about half the messages. A client that reads DATA|2 says so with CAP|2 before its REQ|1
+-- (older officers keep answering REQ|1 as before); a REQ|1 without CAP|2 means an older addon
+-- is online, and then this officer sends DATA|1 for a while so it is not left out.
+local CHUNK2, LEGACY_SECONDS, REPLY_JITTER = 200, 1800, 4
 local pending, lastShare, started, lastGuild = nil, nil, false, nil
+local capable, legacyUntil = {}, 0
+-- Another officer already sending the same (or newer) data: answering too would only repeat it.
+local othersStamp, othersAt, replyScheduled, replyLegacy = nil, 0, false, false
 local function db() return ns.getDb and ns.getDb() end
 local function guildKey()
   if not (IsInGuild and IsInGuild()) then return nil end
@@ -193,45 +202,93 @@ local function capture()
     nextRaid = type(GuildedNextRaid) == "table" and type(GuildedNextRaid.id) == "string" and not string.match(GuildedNextRaid.id, "^discord:") and GuildedNextRaid or false,
     raids = raids }, file.updatedAt, ns.playerName())
 end
-local function share()
+-- DATA|2 wire text: printable ASCII except "%" and "|" stays; every other byte becomes %XX.
+local function escape2(text)
+  return (string.gsub(text, "[^\32-\36\38-\123\125\126]", function(c) return string.format("%%%02X", string.byte(c)) end))
+end
+local function unescape2(text)
+  return (string.gsub(text, "%%(%x%x)", function(pair) return string.char(tonumber(pair, 16)) end))
+end
+-- Guildmates who announced an older Guilded this session may not read DATA|2.
+local function legacyOnline()
+  if legacyUntil > clock() then return true end
+  local versions = ns.peerVersions and ns.peerVersions()
+  local mine = ns.addonVersion and ns.addonVersion()
+  if type(versions) == "table" and mine and ns.versionNewer then
+    for _, theirs in pairs(versions) do if ns.versionNewer(mine, theirs) then return true end end
+  end
+  return false
+end
+local function share(forceV1)
   capture()
   local d, key = db(), guildKey()
   local settings = bridgeSettings()
   local data = d and d.officerBridge
   if not key or not settings or not settings.enabled or settings.guild ~= key or not ns.isOfficer() or not data or not sameGuild(data.snapshot) then return end
   if lastShare and clock() - lastShare < 90 then return end
+  -- Another officer is already sending this data (or newer): the guild has it coming.
+  if othersStamp and othersStamp >= data.updatedAt and clock() - othersAt < 60 then return end
   local okay, payload = pcall(encode, data.snapshot)
-  if not okay or #payload * 2 > MAX_BYTES then ns.message("Officer bridge data is too large to share. Use personal browser sync for now."); return end
-  -- ASCII wire data preserves accents/newlines without splitting UTF-8 or sending NUL bytes.
-  payload = string.gsub(payload, ".", function(byte) return string.format("%02x", string.byte(byte)) end)
-  lastShare = clock()
-  local total = math.ceil(#payload / CHUNK)
-  for index = 1, total do
-    ns.comm.send(PREFIX, "DATA|1|" .. data.updatedAt .. "|" .. index .. "|" .. total .. "|" .. string.sub(payload, (index - 1) * CHUNK + 1, index * CHUNK), "GUILD")
+  local v1 = forceV1 or legacyOnline()
+  local wire, size, kind
+  if okay and v1 and #payload * 2 <= MAX_BYTES then
+    -- ASCII wire data preserves accents/newlines without splitting UTF-8 or sending NUL bytes.
+    wire, size, kind = string.gsub(payload, ".", function(byte) return string.format("%02x", string.byte(byte)) end), CHUNK, "DATA|1|"
+  elseif okay and not v1 and #payload <= MAX_BYTES then
+    wire, size, kind = escape2(payload), CHUNK2, "DATA|2|"
   end
+  if not wire or math.ceil(#wire / size) > MAX_PARTS then ns.message("Officer bridge data is too large to share. Use personal browser sync for now."); return end
+  lastShare = clock()
+  local total = math.ceil(#wire / size)
+  for index = 1, total do
+    ns.comm.send(PREFIX, kind .. data.updatedAt .. "|" .. index .. "|" .. total .. "|" .. string.sub(wire, (index - 1) * size + 1, index * size), "GUILD")
+  end
+end
+-- Answers a request a few seconds later: several officers asked at once answer once between
+-- them (each one hears the first one's DATA and stays quiet).
+local function scheduleReply(legacy)
+  replyLegacy = replyLegacy or legacy
+  if replyScheduled then return end
+  replyScheduled = true
+  local function fire()
+    replyScheduled = false
+    local v1 = replyLegacy
+    replyLegacy = false
+    share(v1)
+  end
+  if C_Timer and C_Timer.After then C_Timer.After(1 + math.random() * REPLY_JITTER, fire) else fire() end
 end
 local function request()
   local d, key = db(), guildKey()
   if not d or not key then return end
+  ns.comm.send(PREFIX, "CAP|2", "GUILD")
   ns.comm.send(PREFIX, "REQ|1|" .. (d.officerBridge and sameGuild(d.officerBridge.snapshot) and d.officerBridge.updatedAt or "0"), "GUILD")
 end
 local function receive(text, sender)
   if not ns.isOfficerName(sender) then return end
-  local stamp, index, total, payload = string.match(text, "^DATA|1|([^|]+)|(%d+)|(%d+)|(.*)$")
+  local version, stamp, index, total, payload = string.match(text, "^DATA|([12])|([^|]+)|(%d+)|(%d+)|(.*)$")
   index, total = tonumber(index), tonumber(total)
   if not stamp or #stamp > 32 or not string.match(stamp, "^%d%d%d%d%-%d%d%-%d%dT") or ns.util.tooFarAhead(stamp) then return end
-  if not index or not total or total < 1 or total > MAX_PARTS or index < 1 or index > total or #payload > CHUNK or #payload % 2 ~= 0 or not string.match(payload, "^%x+$") then return end
+  if not index or not total or total < 1 or total > MAX_PARTS or index < 1 or index > total then return end
+  if version == "1" and (#payload > CHUNK or #payload % 2 ~= 0 or not string.match(payload, "^%x+$")) then return end
+  if version == "2" and (#payload > CHUNK2 or #payload == 0 or string.find(payload, "[^\32-\126]") or string.find(payload, "|", 1, true)) then return end
+  if not othersStamp or stamp >= othersStamp then othersStamp = stamp end
+  othersAt = clock()
   local d, key = db(), guildKey()
   if not d or not key or (d.officerBridge and sameGuild(d.officerBridge.snapshot) and d.officerBridge.updatedAt >= stamp) then return end
   if pending and clock() - pending.at > 600 then pending = nil end
-  -- Keep one bounded assembly. Never combine chunks from competing officers.
-  if pending and (pending.sender ~= sender or pending.stamp ~= stamp) then return end
-  if not pending then pending = { sender = sender, stamp = stamp, total = total, parts = {}, at = clock() } end
+  -- Keep one bounded assembly. Never combine chunks from competing officers or wire versions.
+  if pending and (pending.sender ~= sender or pending.stamp ~= stamp or pending.version ~= version) then return end
+  if not pending then pending = { sender = sender, stamp = stamp, version = version, total = total, parts = {}, at = clock() } end
   if pending.total ~= total or (pending.parts[index] and pending.parts[index] ~= payload) then pending = nil; return end
   pending.parts[index] = payload
   for part = 1, total do if not pending.parts[part] then return end end
   local assembled = table.concat(pending.parts); pending = nil
-  assembled = string.gsub(assembled, "%x%x", function(pair) return string.char(tonumber(pair, 16)) end)
+  if version == "1" then
+    assembled = string.gsub(assembled, "%x%x", function(pair) return string.char(tonumber(pair, 16)) end)
+  else
+    assembled = unescape2(assembled)
+  end
   local okay, snapshot = pcall(decode, assembled)
   if okay and type(snapshot) == "table" then apply(snapshot, stamp, sender) end
 end
@@ -280,7 +337,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
       after(130, request); after(310, request) -- Late guild roster / lost chunks / officer login.
     elseif event == "PLAYER_GUILD_UPDATE" then
       local key, d = guildKey(), db()
-      if lastGuild ~= key then pending, lastShare = nil, nil end
+      if lastGuild ~= key then pending, lastShare, othersStamp = nil, nil, nil end
       if lastGuild and lastGuild ~= key then GuildedNextRaid, GuildedRaids = nil, nil end
       lastGuild = key
       if d and d.officerBridge and sameGuild(d.officerBridge.snapshot) then
@@ -294,10 +351,15 @@ frame:SetScript("OnEvent", function(_, event, ...)
       if ns.isSecret(prefix) or ns.isSecret(text) or ns.isSecret(sender) then return end
       sender = ns.normalizeName(sender)
       if not sender or sender == ns.playerName() or #text > 255 then return end
-      if string.match(text, "^REQ|1|") then
+      if text == "CAP|2" then
+        capable[sender] = clock()
+      elseif string.match(text, "^REQ|1|") then
         local d = db(); capture()
         local their = string.match(text, "^REQ|1|([^|]+)$")
-        if their and d and d.officerBridge and d.officerBridge.updatedAt > their then share() end
+        -- A REQ without a CAP|2 just before it comes from an addon that only reads DATA|1.
+        local legacy = not capable[sender] or clock() - capable[sender] > 60
+        if legacy then legacyUntil = clock() + LEGACY_SECONDS end
+        if their and d and d.officerBridge and d.officerBridge.updatedAt > their then scheduleReply(legacy) end
       elseif string.match(text, "^DATA|") then receive(text, sender) end
     end
   end)

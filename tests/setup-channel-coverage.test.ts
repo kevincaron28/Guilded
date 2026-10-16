@@ -5,7 +5,7 @@ vi.mock("../src/database.js", () => ({ prisma: {
   raidCore: { findMany: mocks.cores }, ...Object.fromEntries(["member", "character", "raid", "epgpTransaction", "lootAward", "addonImport", "dungeonRun"].map(key => [key, { count: mocks.count }]))
 } }));
 import { gatherImpact } from "../src/commands/uninstall.js";
-import { ALL_CHANNELS, createSectionChannels, organizeChannels, repairCraftBoardPermissions } from "../src/commands/setup.js";
+import { ALL_CHANNELS, createSectionChannels, organizeChannels, repairCraftBoardPermissions, withGameGate } from "../src/commands/setup.js";
 import { guildService } from "../src/commands/context.js";
 import { channelSpec } from "../src/setup-names.js";
 const channel = (id: string, name: string, parentId: string | null = null, type = ChannelType.GuildText) => ({ id, name, parentId, type, isTextBased: () => false,
@@ -87,5 +87,65 @@ describe("setup and reset channel coverage", () => {
     expect(edits[0]?.[1]).toMatchObject({ SendMessages: false, SendMessagesInThreads: true });
     expect(edits[0]?.[1]).not.toHaveProperty("ViewChannel");
     expect(edits[0]?.[1]).not.toHaveProperty("ReadMessageHistory");
+  });
+});
+describe("setup follows the server's own layout", () => {
+  const view = PermissionFlagsBits.ViewChannel;
+  // Quebec Gold's shape: WoW channels in the server's own categories, hidden behind a "World of Warcraft" role.
+  function gatedServer() {
+    const chat = channel("chat", "💬 Chat WoW", null, ChannelType.GuildCategory);
+    const signup = channel("raid", "inscriptions-raid", "chat");
+    signup.permissionOverwrites.cache.set("everyone", { id: "everyone", type: 0, allow: new PermissionsBitField(), deny: new PermissionsBitField(view) });
+    signup.permissionOverwrites.cache.set("wow", { id: "wow", type: 0, allow: new PermissionsBitField(view), deny: new PermissionsBitField() });
+    signup.permissionOverwrites.cache.set("officer", { id: "officer", type: 0, allow: new PermissionsBitField([view, PermissionFlagsBits.SendMessages]), deny: new PermissionsBitField() });
+    const guild = fakeGuild([chat, signup]);
+    guild.roles.cache = new Collection([["wow", { id: "wow", name: "World of Warcraft" }], ["officer", { id: "officer", name: "Officier" }]]) as never;
+    return guild;
+  }
+
+  it("creates a missing raid channel next to the others, behind the same game role", async () => {
+    const guild = gatedServer();
+    guild.channels.create.mockResolvedValue(channel("roster", "cores-de-raid", "chat"));
+    vi.spyOn(guildService, "getSettings").mockResolvedValue({ raidSignupChannelId: "raid" } as never);
+    vi.spyOn(guildService, "updateSettings").mockResolvedValue({} as never);
+    await createSectionChannels(guild as never, "guild", ["coreChannelId"], "fr");
+    const created = guild.channels.create.mock.calls[0]?.[0] as { parent: string; permissionOverwrites: { id: string; allow?: bigint; deny?: bigint }[] };
+    expect(created.parent).toBe("chat");
+    const entry = (id: string) => created.permissionOverwrites.find((o) => o.id === id);
+    expect(new PermissionsBitField(entry("everyone")?.deny).has([view, PermissionFlagsBits.SendMessages])).toBe(true);
+    expect(new PermissionsBitField(entry("wow")?.allow).has(view)).toBe(true);
+    expect(new PermissionsBitField(entry("officer")?.allow).has([view, PermissionFlagsBits.SendMessages])).toBe(true);
+  });
+
+  it("keeps today's defaults on a new server", async () => {
+    const guild = fakeGuild([]);
+    guild.channels.create.mockResolvedValueOnce(channel("cat", "⚔️ Raids WoW", null, ChannelType.GuildCategory)).mockResolvedValueOnce(channel("roster", "cores-de-raid", "cat"));
+    vi.spyOn(guildService, "getSettings").mockResolvedValue({} as never);
+    vi.spyOn(guildService, "updateSettings").mockResolvedValue({} as never);
+    await createSectionChannels(guild as never, "guild", ["coreChannelId"], "fr");
+    expect(guild.channels.create.mock.calls[0]?.[0]).toMatchObject({ name: "⚔️ Raids WoW", type: ChannelType.GuildCategory });
+    const created = guild.channels.create.mock.calls[1]?.[0] as { parent: string; permissionOverwrites: { id: string; deny?: bigint[] }[] };
+    expect(created.parent).toBe("cat");
+    expect(new PermissionsBitField(created.permissionOverwrites.find((o) => o.id === "everyone")?.deny).has(view)).toBe(false);
+  });
+
+  it("organize leaves channels in categories the server chose and moves loose ones next to them", async () => {
+    const guild = gatedServer();
+    const loose = channel("notify", "guilded-annonces", null);
+    guild.channels.cache.set("notify", loose);
+    vi.spyOn(guildService, "getSettings").mockResolvedValue({ raidSignupChannelId: "raid", notifyChannelId: "notify" } as never);
+    const result = await organizeChannels(guild as never, "guild", "fr");
+    expect(guild.channels.cache.get("raid")?.edit).not.toHaveBeenCalled();
+    expect(loose.edit).toHaveBeenCalledWith(expect.objectContaining({ parent: "chat" }));
+    expect(guild.channels.create).not.toHaveBeenCalled();
+    expect(result).toContain("<#raid>");
+  });
+
+  it("game gate hides from everyone and lets the game role and existing roles see", () => {
+    const gated = withGameGate([{ id: "everyone", deny: [PermissionFlagsBits.SendMessages] }, { id: "officer", allow: [PermissionFlagsBits.SendMessages] }], "everyone", ["wow"]);
+    expect(new PermissionsBitField(gated[0]!.deny).has([view, PermissionFlagsBits.SendMessages])).toBe(true);
+    expect(new PermissionsBitField(gated[1]!.allow).has([view, PermissionFlagsBits.SendMessages])).toBe(true);
+    expect(gated[2]).toMatchObject({ id: "wow" });
+    expect(withGameGate([], "everyone", [])).toEqual([{ id: "everyone", allow: 0n, deny: view }]);
   });
 });

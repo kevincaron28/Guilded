@@ -49,6 +49,12 @@ function lootToLua(loot) {
   ];
 }
 
+// Season dates (ISO UTC) let the addon tag each recent run with its season.
+function seasonDates(board) {
+  const iso = (value) => typeof value === "string" && !Number.isNaN(Date.parse(value)) ? luaString(value) : "nil";
+  return `startsAt = ${iso(board.startsAt)}, endsAt = ${iso(board.endsAt)}, `;
+}
+
 // Serialize only known fields; all names go through the existing Lua string escaper.
 function seasonFields(board) {
   if (board.detailsAvailable === undefined) return "";
@@ -86,10 +92,10 @@ export function standingsToLua(data) {
     "",
     "-- Dungeon points this season (top 10), for the addon's Dungeons tab.",
     ...(data.dungeonBoard ? [
-      `GuildedDungeonBoard = { season = ${luaString(data.dungeonBoard.season)}, status = ${luaString(data.dungeonBoard.status ?? "ACTIVE")}, updatedAt = ${luaString(data.updatedAt)}, ${seasonFields(data.dungeonBoard)}rows = {`,
+      `GuildedDungeonBoard = { season = ${luaString(data.dungeonBoard.season)}, status = ${luaString(data.dungeonBoard.status ?? "ACTIVE")}, updatedAt = ${luaString(data.updatedAt)}, ${seasonDates(data.dungeonBoard)}${seasonFields(data.dungeonBoard)}rows = {`,
       ...data.dungeonBoard.rows.map((row) => `  { name = ${luaString(row.name)}, points = ${Math.trunc(row.points)} },`),
       "}, history = {",
-      ...(data.dungeonBoard.history ?? []).map(board => ` { season = ${luaString(board.season)}, status = ${luaString(board.status)}, ${seasonFields(board)}rows = { ${board.rows.map(row => `{ name = ${luaString(row.name)}, points = ${Math.trunc(row.points)} }`).join(", ")} } },`),
+      ...(data.dungeonBoard.history ?? []).map(board => ` { season = ${luaString(board.season)}, status = ${luaString(board.status)}, ${seasonDates(board)}${seasonFields(board)}rows = { ${board.rows.map(row => `{ name = ${luaString(row.name)}, points = ${Math.trunc(row.points)} }`).join(", ")} } },`),
       "} }"
     ] : ["GuildedDungeonBoard = nil"]),
     "",

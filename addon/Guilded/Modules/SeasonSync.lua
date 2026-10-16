@@ -7,6 +7,11 @@
 -- A relayed copy cannot be verified in game, so an officer's copy replaces a member-relayed
 -- copy with the same stamp, and a stamp too far ahead is refused: a tampered copy only lasts
 -- until the next real update.
+--
+-- Season dates (6.3) travel in their own DATES message after the BOARD parts, one
+-- "D;<index>;<startsAt>;<endsAt>" line per season (ISO UTC, empty when unknown). Clients
+-- before 6.3 refuse any unknown line inside BOARD, so the BOARD payload stays as it was and
+-- they simply ignore DATES.
 local addonName, ns = ...
 local PREFIX = "GuildedSeason"
 local COOLDOWN, REPLY_JITTER = 60, 4
@@ -26,16 +31,30 @@ end
 local function decode(value)
   return (string.gsub(value, "%%(%x%x)", function(hex) return string.char(tonumber(hex, 16)) end))
 end
+-- "2026-10-01T23:00:00.000Z" -> "2026-10-01T23:00:00Z"; nil for anything else.
+local function isoSecond(value)
+  local text = type(value) == "string" and string.match(value, "^(%d%d%d%d%-%d%d%-%d%dT%d%d:%d%d:%d%d)")
+  return text and (text .. "Z") or nil
+end
+local function sendParts(kind, stamp, payload)
+  local total = math.ceil(#payload / 190)
+  for part = 1, total do
+    ns.comm.send(PREFIX, string.format("%s|%s|%d|%d|%s", kind, stamp, part, total, string.sub(payload, (part - 1) * 190 + 1, part * 190)), "GUILD")
+  end
+end
 local function share()
   local board = current()
   if not board or time() - lastShare < COOLDOWN then return end
   if heardStamp and board.updatedAt and heardStamp >= board.updatedAt and time() - heardAt < COOLDOWN then return end
-  local lines = {}
+  local lines, dates, dated = {}, {}, false
   local seasons = { board }
   for _, past in ipairs(board.history or {}) do seasons[#seasons + 1] = past end
   for index = 1, math.min(11, #seasons) do
     local season = seasons[index]
     lines[#lines + 1] = "S;" .. encode(season.season) .. ";" .. (season.status == "ENDED" and "ENDED" or "ACTIVE")
+    local startsAt, endsAt = isoSecond(season.startsAt), isoSecond(season.endsAt)
+    if startsAt or endsAt then dated = true end
+    dates[#dates + 1] = "D;" .. index .. ";" .. (startsAt or "") .. ";" .. (endsAt or "")
     for rank = 1, math.min(index == 1 and 50 or 10, #(season.rows or {})) do
       local row = season.rows[rank]
       lines[#lines + 1] = "R;" .. encode(row.name) .. ";" .. math.floor(row.points or 0)
@@ -45,9 +64,8 @@ local function share()
   local total = math.ceil(#payload / 190)
   if total < 1 or total > 96 then return end
   lastShare = time()
-  for part = 1, total do
-    ns.comm.send(PREFIX, string.format("BOARD|%s|%d|%d|%s", board.updatedAt, part, total, string.sub(payload, (part - 1) * 190 + 1, part * 190)), "GUILD")
-  end
+  sendParts("BOARD", board.updatedAt, payload)
+  if dated then sendParts("DATES", board.updatedAt, table.concat(dates, "\n")) end
 end
 local function scheduleReply()
   if replyScheduled then return end
@@ -57,7 +75,37 @@ local function scheduleReply()
   local delay = ns.isOfficer() and 1 + math.random() * REPLY_JITTER or MEMBER_DELAY + math.random() * MEMBER_JITTER
   if C_Timer and C_Timer.After then C_Timer.After(delay, reply) else reply() end
 end
+-- Dates only from the guildmate whose board we kept: never onto the companion's own copy.
+local datesIncoming = nil
+local function receiveDates(text, sender)
+  local stamp, part, total, payload = string.match(text, "^DATES|([^|]+)|(%d+)|(%d+)|(.*)$")
+  part, total = tonumber(part), tonumber(total)
+  if not stamp or #stamp > 40 or not part or not total or total < 1 or total > 4 or part < 1 or part > total or #payload > 190 then return end
+  local board = current()
+  if not board or board.updatedAt ~= stamp then return end
+  if board.from ~= sender then return end
+  if not datesIncoming or datesIncoming.stamp ~= stamp or datesIncoming.sender ~= sender or datesIncoming.total ~= total or time() - datesIncoming.started > 60 then
+    datesIncoming = { stamp = stamp, sender = sender, total = total, started = time(), parts = {}, received = 0 }
+  end
+  if not datesIncoming.parts[part] then datesIncoming.parts[part] = payload; datesIncoming.received = datesIncoming.received + 1 end
+  if datesIncoming.received ~= total then return end
+  local whole = table.concat(datesIncoming.parts)
+  datesIncoming = nil
+  local seasons = { board }
+  for _, past in ipairs(board.history or {}) do seasons[#seasons + 1] = past end
+  local found = {}
+  for line in string.gmatch(whole .. "\n", "([^\n]*)\n") do
+    local index, startsAt, endsAt = string.match(line, "^D;(%d+);([^;]*);([^;]*)$")
+    index = tonumber(index)
+    if not index or not seasons[index] then return end
+    if (startsAt ~= "" and isoSecond(startsAt) ~= startsAt) or (endsAt ~= "" and isoSecond(endsAt) ~= endsAt) then return end
+    found[index] = { startsAt ~= "" and startsAt or nil, endsAt ~= "" and endsAt or nil }
+  end
+  for index, pair in pairs(found) do seasons[index].startsAt, seasons[index].endsAt = pair[1], pair[2] end
+  if ns.onDungeonChange then pcall(ns.onDungeonChange) end
+end
 local function receive(text, sender)
+  if string.sub(text, 1, 6) == "DATES|" then return receiveDates(text, sender) end
   local stamp, part, total, payload = string.match(text, "^BOARD|([^|]+)|(%d+)|(%d+)|(.*)$")
   part, total = tonumber(part), tonumber(total)
   if not stamp or #stamp > 40 or not part or not total or total < 1 or total > 96 or part < 1 or part > total or #payload > 190 then return end

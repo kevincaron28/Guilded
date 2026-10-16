@@ -31,7 +31,8 @@ describe("official season feed", () => {
   });
   it("aggregates current and archived seasons once, preserves reversals and uses main characters", async () => {
     const database = {
-      dungeonSeason: { findFirst: async () => ({ id: "now", name: "Season 2", status: "ACTIVE" }), findMany: async () => [{ id: "old", name: "Season 1", status: "ENDED" }] },
+      dungeonSeason: { findFirst: async () => ({ id: "now", name: "Season 2", status: "ACTIVE" }), findMany: async () => [{ id: "old", name: "Season 1", status: "ENDED",
+        startsAt: new Date("2026-09-01T00:00:00Z"), endsAt: new Date("2026-10-01T00:00:00Z") }] },
       dungeonPointTransaction: { groupBy: vi.fn(async () => [
         { seasonId: "now", memberId: "a", _sum: { amount: 20 } },
         { seasonId: "now", memberId: "b", _sum: { amount: 0 } },
@@ -46,6 +47,10 @@ describe("official season feed", () => {
     const lua = standingsToLua({ standings: [], updatedAt: "2026-09-30", dungeonBoard: board });
     expect(lua).toContain('season = "Season 1", status = "ENDED"');
     expect(lua).toContain('name = "Main", points = 80');
+    expect(board?.history[0]).toMatchObject({ startsAt: "2026-09-01T00:00:00.000Z", endsAt: "2026-10-01T00:00:00.000Z" });
+    expect(board).toMatchObject({ startsAt: null, endsAt: null });
+    expect(lua).toContain('status = "ENDED", startsAt = "2026-09-01T00:00:00.000Z", endsAt = "2026-10-01T00:00:00.000Z"');
+    expect(lua).toContain('startsAt = nil, endsAt = nil');
   });
   it("publishes the same archived points as Discord after later ledger corrections", async () => {
     const database = {

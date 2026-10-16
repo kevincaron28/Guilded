@@ -122,4 +122,30 @@ describe("unified website and companion", () => {
     expect(response.status).toBe(502);
     expect(await response.text()).not.toContain("private upstream detail");
   });
+  it("forwards guild pages without query or credentials and lets Cloudflare cache them briefly", async () => {
+    const upstream = vi.fn(async () => new Response("<h1>Quebec Gold</h1>", { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300" } }));
+    vi.stubGlobal("fetch", upstream);
+    const response = await worker.fetch(new Request("https://guilded.kcaron.top/g/quebec-gold/?utm=x", { headers: { authorization: "Bearer private", cookie: "a=1" } }), env);
+    const [url, options] = upstream.mock.calls[0]! as unknown as [string, RequestInit & { cf: { cacheEverything: boolean } }];
+    expect(url).toBe("https://guildedqc.duckdns.org/g/quebec-gold/");
+    expect(new Headers(options.headers).get("authorization")).toBeNull();
+    expect(new Headers(options.headers).get("cookie")).toBeNull();
+    expect(options.cf.cacheEverything).toBe(true);
+    expect(response.headers.get("cache-control")).toBe("public, max-age=300");
+    expect(await response.text()).toContain("Quebec Gold");
+  });
+
+  it("keeps guild pages on the Guilded host, read-only and within /g/", async () => {
+    const upstream = vi.fn(async () => new Response(null, { status: 301, headers: { location: "https://guildedqc.duckdns.org/g/quebec-gold/" } }));
+    vi.stubGlobal("fetch", upstream);
+    expect((await worker.fetch(new Request(base + "/g/quebec-gold"), env)).headers.get("location")).toBe("/g/quebec-gold/");
+    expect((await worker.fetch(new Request(base + "/g/quebec-gold/", { method: "POST", body: "x" }), env)).status).toBe(405);
+    const asset = vi.fn(async () => new Response("website"));
+    for (const path of ["https://kcaron.top/g/quebec-gold/", base + "/g/quebec-gold/admin", base + "/g/Quebec_Gold/"]) {
+      await worker.fetch(new Request(path), { ASSETS: { fetch: asset } });
+    }
+    expect(asset).toHaveBeenCalledTimes(3);
+    upstream.mockImplementationOnce(async () => new Response(null, { status: 302, headers: { location: "https://guildedqc.duckdns.org/companion/" } }));
+    expect((await worker.fetch(new Request(base + "/g/quebec-gold/"), env)).status).toBe(502);
+  });
 });

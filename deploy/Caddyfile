@@ -21,6 +21,10 @@ YOUR_HOSTNAME {
 	handle /companion/* {
 		reverse_proxy 127.0.0.1:8787
 	}
+	# Public guild pages (read-only).
+	handle /g/* {
+		reverse_proxy 127.0.0.1:8787
+	}
 	handle {
 		respond "Not found" 404
 	}

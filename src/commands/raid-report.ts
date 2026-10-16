@@ -55,15 +55,16 @@ export function raidAttendanceEmbed(list: RaidAttendanceList, lang: Lang = "en")
 }
 
 // Posts the report to the raid-logs channel (or announcements), in the guild's language,
-// and the attendance list to the officers' attendance channel (or the officer log), where the
-// season's summary is brought up to date.
+// and the attendance list to the core's attendance channel (else the officers' attendance channel,
+// else the officer log). The season's summary is brought up to date in the guild's attendance
+// channel (or the officer log).
 // Returns false when no channel is configured.
 export async function postRaidReport(discordGuild: DiscordGuild | null, guildId: string, raidId: string): Promise<boolean> {
   const report = await buildRaidReport(prisma, guildId, raidId);
   const raid = await prisma.raid.findFirst({ where: { guildId, id: raidId }, select: { coreId: true, scheduledAt: true } });
   const wcl = await linkedReport(prisma, guildId, raidId).catch(() => null);
   const attendance = await buildRaidAttendance(prisma, guildId, raidId).catch(() => null);
-  if (attendance) await notifyEmbed(discordGuild, (lang) => raidAttendanceEmbed(attendance, lang), "attendance");
+  if (attendance) await notifyEmbed(discordGuild, (lang) => raidAttendanceEmbed(attendance, lang), "attendance", raid?.coreId ?? null);
   if (raid) await refreshSeasonSummary(discordGuild, guildId, raid.scheduledAt);
   return notifyEmbed(discordGuild, (lang) => {
     const embed = raidReportEmbed(report, lang);

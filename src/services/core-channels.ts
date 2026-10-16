@@ -19,6 +19,7 @@ import { BRAND } from "../brand.js";
 //   #<core>-roster   the core's roster message    visible to the guild, only the bot posts
 //   #<core>-signups  the core's raid signup posts visible to the guild, only the bot posts
 //   #<core>-chat     the core's own chat          core role + leadership only
+//   #<core>-presences who came to each raid       officers only (Guild Master, Officer)
 //   🔊 <core>        voice                        core role + leadership only
 // Deleting the core removes its linked channels, all children of its category, and its role.
 // Failed cleanup keeps the core record so the officer can fix permissions and retry.
@@ -29,7 +30,7 @@ import { BRAND } from "../brand.js";
 // (member, applicant, welcome, leadership and core roles) provide the legacy audience.
 
 type Db = Pick<PrismaClient, "raidCore" | "raidCoreMember"> & Partial<Pick<PrismaClient, "guildSettings">>;
-type CoreLike = Pick<RaidCore, "id" | "name" | "roleId" | "categoryId" | "rosterChannelId" | "signupChannelId" | "lootChannelId" | "raidLogChannelId" | "chatChannelId" | "voiceChannelId">;
+type CoreLike = Pick<RaidCore, "id" | "name" | "roleId" | "categoryId" | "rosterChannelId" | "signupChannelId" | "lootChannelId" | "raidLogChannelId" | "chatChannelId" | "voiceChannelId" | "attendanceChannelId">;
 
 const LEADERSHIP: Permission[] = ["guildMaster", "officer", "raidLeader"];
 
@@ -42,7 +43,7 @@ export function coreSlug(name: string): string {
 
 export function coreChannelNames(name: string) {
   const slug = coreSlug(name);
-  return { category: `⚔️ ${name}`.slice(0, 100), roster: `${slug}-roster`, signups: `${slug}-signups`, loot: `${slug}-butin`, reports: `${slug}-rapports`, chat: `${slug}-chat`, voice: `🔊 ${name}`.slice(0, 100) };
+  return { category: `⚔️ ${name}`.slice(0, 100), roster: `${slug}-roster`, signups: `${slug}-signups`, loot: `${slug}-butin`, reports: `${slug}-rapports`, chat: `${slug}-chat`, attendance: `${slug}-presences`, voice: `🔊 ${name}`.slice(0, 100) };
 }
 
 // Creates the core's role when it has none (or it was deleted). Returns its id, or null when
@@ -120,8 +121,10 @@ export async function guildViewerRoleIds(guild: DiscordGuild, database: Db, guil
 // True when the server shows channels to @everyone by default (no role needed to read).
 const openServer = (guild: DiscordGuild) => guild.roles.everyone.permissions.has(PermissionFlagsBits.ViewChannel);
 
-function overwrites(guild: DiscordGuild, roleId: string, access: "public" | "private", viewers: string[] = [], restricted = false, denied: string[] = []): OverwriteResolvable[] {
-  const leaders = guild.roles.cache.filter((role) => LEADERSHIP.some((permission) => isPermissionRoleName(permission, role.name)));
+function overwrites(guild: DiscordGuild, roleId: string, access: "public" | "private" | "officers", viewers: string[] = [], restricted = false, denied: string[] = []): OverwriteResolvable[] {
+  // Officers-only channels leave out raid leaders and the core's own role.
+  const leadership: Permission[] = access === "officers" ? ["guildMaster", "officer"] : LEADERSHIP;
+  const leaders = guild.roles.cache.filter((role) => leadership.some((permission) => isPermissionRoleName(permission, role.name)));
   const me = guild.members.me;
   const list: OverwriteResolvable[] = [];
   if (access === "public") {
@@ -134,6 +137,8 @@ function overwrites(guild: DiscordGuild, roleId: string, access: "public" | "pri
       : { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.SendMessages] });
     for (const id of viewers) list.push({ id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory] });
     for (const id of denied) list.push({ id, deny: [PermissionFlagsBits.ViewChannel] });
+  } else if (access === "officers") {
+    list.push({ id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] });
   } else {
     list.push({ id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] });
     list.push({ id: roleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak] });
@@ -165,7 +170,7 @@ export async function createCoreChannels(guild: DiscordGuild, database: Db, core
     created.push(names.category);
   }
   const viewers = audience.viewers;
-  const make = async (current: string | null, name: string, type: ChannelType.GuildText | ChannelType.GuildVoice, access: "public" | "private") => {
+  const make = async (current: string | null, name: string, type: ChannelType.GuildText | ChannelType.GuildVoice, access: "public" | "private" | "officers") => {
     if (exists(current)) return current as string;
     const channel = await guild.channels.create({
       name, type, parent: categoryId as string, permissionOverwrites: overwrites(guild, roleId, access, viewers, audience.restricted, audience.denied), reason: `${BRAND.name}: raid core channels`
@@ -181,11 +186,12 @@ export async function createCoreChannels(guild: DiscordGuild, database: Db, core
   await database.raidCore.update({ where: { id: core.id }, data: { raidLogChannelId } });
   const chatChannelId = await make(core.chatChannelId, names.chat, ChannelType.GuildText, "private");
   const voiceChannelId = await make(core.voiceChannelId, names.voice, ChannelType.GuildVoice, "private");
+  const attendanceChannelId = await make(core.attendanceChannelId, names.attendance, ChannelType.GuildText, "officers");
   // The roster message moves to the core's own channel: the old one (shared channel) is removed.
   const movingRoster = core.rosterChannelId !== rosterChannelId;
   await database.raidCore.update({
     where: { id: core.id },
-    data: { categoryId, rosterChannelId, signupChannelId, lootChannelId, raidLogChannelId, chatChannelId, voiceChannelId, ...(movingRoster ? { rosterMessageId: null } : {}) }
+    data: { categoryId, rosterChannelId, signupChannelId, lootChannelId, raidLogChannelId, chatChannelId, voiceChannelId, attendanceChannelId, ...(movingRoster ? { rosterMessageId: null } : {}) }
   });
   await openCoreChannels(guild, database, core.guildId, [categoryId, rosterChannelId, signupChannelId]);
   await syncCoreLogChannels(guild, { categoryId, lootChannelId, raidLogChannelId });
@@ -291,6 +297,7 @@ export async function renameCoreDiscord(guild: DiscordGuild, core: CoreLike): Pr
   await rename(core.raidLogChannelId, names.reports);
   await rename(core.chatChannelId, names.chat);
   await rename(core.voiceChannelId, names.voice);
+  await rename(core.attendanceChannelId, names.attendance);
 }
 
 // Creates the channels of a new (or pre-5.0) core and moves its roster message there. Never
@@ -319,7 +326,7 @@ export const ARCHIVE_CATEGORY = "🗄️ Archived cores";
 export async function deleteCoreDiscord(guild: DiscordGuild, core: CoreLike): Promise<{ removed: number; failed: string[] }> {
   const result = { removed: 0, failed: [] as string[] };
   const channelIds = new Set([core.rosterChannelId, core.signupChannelId, core.lootChannelId,
-    core.raidLogChannelId, core.chatChannelId, core.voiceChannelId].filter((id): id is string => !!id));
+    core.raidLogChannelId, core.chatChannelId, core.voiceChannelId, core.attendanceChannelId].filter((id): id is string => !!id));
   if (core.categoryId) {
     try {
       const channels = await guild.channels.fetch();

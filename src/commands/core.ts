@@ -300,12 +300,10 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
 
   if (subcommand === "post") {
     const value = interaction.options.getString("core");
-    const settings = await guildService.getSettings(guildId);
-    if (!settings?.coreChannelId) throw new Error("No roster channel is set. Use /setup or /config channel first.");
     const cores = value ? [await coreService.byIdOrName(guildId, value)] : await coreService.list(guildId);
     let posted = 0;
     for (const core of cores) if (await syncCoreRoster(interaction.guild, prisma, guildId, core.id)) posted++;
-    await interaction.reply({ content: `Refreshed ${posted} roster message${posted === 1 ? "" : "s"} in <#${settings.coreChannelId}>.`, ephemeral: true });
+    await interaction.reply({ content: `Refreshed ${posted} roster message${posted === 1 ? "" : "s"} in each core's roster channel.`, ephemeral: true });
     return;
   }
 

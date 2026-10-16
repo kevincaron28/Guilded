@@ -275,12 +275,12 @@ export async function runCoreWizard(interaction: ChatInputCommandInteraction): P
       }
       if (action === "finish") {
         await syncCoreRoster(interaction.guild, prisma, guildId, coreId);
-        const settings = await guildService.getSettings(guildId);
+        const saved = await prisma.raidCore.findUnique({ where: { id: coreId }, select: { rosterChannelId: true } });
         await i.update({
           content: `✅ **${core.name}** is ready.\n`
             + `• Create its raids with \`/raid create core:${core.name}\` (its members get signup priority).\n`
             + `• Change the roster any time (roles, bench, add, remove): \`/core edit core:${core.name}\`; rules: \`/core rules\`.\n`
-            + (settings?.coreChannelId ? `• Its roster is posted in <#${settings.coreChannelId}>.` : "• Set a raid roster channel in `/setup start` step 3 to show the roster there."),
+            + (saved?.rosterChannelId ? `• Its roster is posted in <#${saved.rosterChannelId}>.` : `• Its roster gets its own channel with the core's channels: \`/core edit core:${core.name}\` → Create channels.`),
           embeds: [], components: []
         });
         collector.stop("closed");

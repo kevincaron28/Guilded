@@ -29,7 +29,7 @@ import { ensureWelcomePanel, MAX_ONBOARDING_ROLES, rulesGateActive } from "../se
 import { isValidTimeZone } from "../services/raid-time.js";
 import { updateDungeonLeaderboard } from "../services/dungeon-leaderboard.js";
 import { ensureDungeonSignupGuide } from "../services/dungeon-guide.js";
-import { ensureAllCoresDiscord, syncAllCoreRosters } from "../services/raid-core.js";
+import { ensureAllCoresDiscord } from "../services/raid-core.js";
 import { botMessageFacts, ensureBotGuide, gettingStartedPost, updateBotMessages } from "../services/bot-messages.js";
 import { dungeonGuideState, LFG_ROLE_NAMES } from "../services/dungeon-guide.js";
 import { guideText as craftGuideText } from "./craft-board.js";
@@ -150,7 +150,7 @@ async function gatherFacts(guild: DiscordGuild, guildId: string, settings: Guild
     companionPaired: (await prisma.companionCredential.count({ where: { revokedAt: null, member: { guildId, status: "ACTIVE" } } })) > 0,
     linkedCharacters: await prisma.character.count({ where: { member: { guildId, isTest: false } } }),
     dungeonSignupGuideOutdated: guideState === "outdated",
-    extraChannels: await Promise.all((["coreChannelId", "readinessChannelId", "craftChannelId", "applicationChannelId", "attendanceChannelId", "guideChannelId", "answerChannelId", "dungeonChannelId", "weeklyReportChannelId"] as const)
+    extraChannels: await Promise.all((["readinessChannelId", "craftChannelId", "applicationChannelId", "attendanceChannelId", "guideChannelId", "answerChannelId", "dungeonChannelId", "weeklyReportChannelId"] as const)
       .map(async (field) => ({ field, fact: await channelFact(guild, settings[field]) }))),
     messageContentIntent: config.MESSAGE_CONTENT_INTENT,
     community: await communitySetupState(prisma, guildId).catch(() => null),
@@ -287,14 +287,12 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
     embed.setDescription([
       T("**Optional.** Skip with **Next** if you don't want these. Already have channels for these? Pick them from the menus below. Otherwise press **\"Create the missing ones for me\"**."),
       "",
-      T("⭐ **Raid roster** — one live message per raid core (`/core create`); core members get signup priority: {channel}", { channel: channelLabel(lang, settings.coreChannelId) }),
       T("🛡️ **Raid readiness** — private, officers and raid leaders only: who is ready for raid night: {channel}", { channel: channelLabel(lang, settings.readinessChannelId) }),
       T("🔨 **Craft board** — a forum where every craft request is its own post with tags and buttons (bank requests stay in the officer log): {channel}", { channel: same(lang, settings.craftChannelId, "the officer log") }),
       T("📋 **Applications** — private, officers only: a heads-up when someone applies with `/apply`: {channel}", { channel: same(lang, settings.applicationChannelId, "the officer log") }),
       T("🧾 **Raid attendance** — private, officers only: who was present, late, benched or absent, posted with each raid report: {channel}", { channel: same(lang, settings.attendanceChannelId, "the officer log") })
     ].join("\n"));
     components.push(
-      channelSelect("ch-core", T("⭐ Pick the raid roster channel")),
       channelSelect("ch-readiness", T("🛡️ Pick the raid readiness channel (keep it private)")),
       channelSelect("ch-attendance", T("🧾 Pick the raid attendance channel (keep it private)")),
       channelSelect("ch-craft", T("🔨 Pick the craft board channel")),
@@ -523,13 +521,13 @@ async function createMissingRoles(guild: DiscordGuild, lang: Lang): Promise<stri
 }
 
 const CORE_CHANNELS: ChannelField[] = ["notifyChannelId", "raidSignupChannelId", "logChannelId", "guideChannelId", "answerChannelId"];
-const RAIDTEAM_CHANNELS: ChannelField[] = ["coreChannelId", "readinessChannelId", "craftChannelId", "applicationChannelId", "attendanceChannelId", "weeklyReportChannelId"];
+const RAIDTEAM_CHANNELS: ChannelField[] = ["readinessChannelId", "craftChannelId", "applicationChannelId", "attendanceChannelId", "weeklyReportChannelId"];
 const DUNGEON_CHANNELS: ChannelField[] = ["dungeonLeaderboardChannelId", "dungeonSignupChannelId", "dungeonChannelId"];
 // Every channel field /setup can create. Also used by /setup uninstall to find what to remove.
 export const ALL_CHANNELS: ChannelField[] = [...CORE_CHANNELS, ...RAIDTEAM_CHANNELS, ...DUNGEON_CHANNELS];
-// Server-wide raid log and loot log: no longer created or used (each core has its own). Kept
-// so /setup uninstall still finds the ones an earlier version made.
-export const RETIRED_CHANNELS: ChannelField[] = ["raidLogChannelId", "lootChannelId"];
+// Server-wide raid log, loot log and roster channel: no longer created or offered (each core has
+// its own). Kept so /setup uninstall still finds the ones an earlier version made.
+export const RETIRED_CHANNELS: ChannelField[] = ["raidLogChannelId", "lootChannelId", "coreChannelId"];
 
 // The category for a group of channels; created once and reused (found by its English or French name).
 async function ensureCategory(guild: DiscordGuild, key: CategoryKey, lang: Lang) {
@@ -740,7 +738,6 @@ export async function createSectionChannels(guild: DiscordGuild, guildId: string
     }
   }
   if (update.dungeonLeaderboardChannelId) await updateDungeonLeaderboard(guild).catch((error: unknown) => guidedFor(`<#${update.dungeonLeaderboardChannelId}>`, error));
-  if (update.coreChannelId) await syncAllCoreRosters(guild, prisma, guildId).catch((error: unknown) => guidedFor(`<#${update.coreChannelId}>`, error));
   const summary = tx(lang, "Configured {channels}. Existing Guilded channels were reused; missing ones were created.", { channels: made.join(", ") });
   return warnings.length ? `${summary}\n⚠️ ${warnings.join(" ")}` : summary;
 }
@@ -916,7 +913,6 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
             if (field === "answerChannelId") forgetAnswerSettings(guild.id);
             pendingField.delete(guildId);
             note = T("Saved <#{id}>.", { id: channelId });
-            if (field === "coreChannelId") await syncAllCoreRosters(guild, prisma, guildId);
             if (field === "guideChannelId") {
               const channel = await guild.channels.fetch(channelId).catch(() => null);
               if (channel?.isTextBased() && "messages" in channel) await ensureBotGuide(channel, lang);
@@ -928,11 +924,10 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
           }
         } else if (i.isChannelSelectMenu()) {
           const channelId = i.values[0];
-          const field = { "ch-notify": "notifyChannelId", "ch-raid": "raidSignupChannelId", "ch-log": "logChannelId", "ch-welcome": "welcomeChannelId", "ch-rules": "rulesChannelId", "ch-dungeon": "dungeonChannelId", "ch-dungeon-lb": "dungeonLeaderboardChannelId", "ch-dungeon-signup": "dungeonSignupChannelId", "ch-core": "coreChannelId", "ch-readiness": "readinessChannelId", "ch-attendance": "attendanceChannelId", "ch-craft": "craftChannelId" }[action];
+          const field = { "ch-notify": "notifyChannelId", "ch-raid": "raidSignupChannelId", "ch-log": "logChannelId", "ch-welcome": "welcomeChannelId", "ch-rules": "rulesChannelId", "ch-dungeon": "dungeonChannelId", "ch-dungeon-lb": "dungeonLeaderboardChannelId", "ch-dungeon-signup": "dungeonSignupChannelId", "ch-readiness": "readinessChannelId", "ch-attendance": "attendanceChannelId", "ch-craft": "craftChannelId" }[action];
           if (channelId && field) {
             await guildService.updateSettings(guildId, { [field]: channelId });
             note = T("Saved <#{id}>.", { id: channelId });
-            if (field === "coreChannelId") await syncAllCoreRosters(guild, prisma, guildId);
             if (field === "dungeonLeaderboardChannelId") {
               await guildService.updateSettings(guildId, { dungeonLeaderboardMessageId: null });
               await updateDungeonLeaderboard(guild);

@@ -1,5 +1,3 @@
-import { prisma } from "../database.js";
-import { syncAllCoreRosters } from "../services/raid-core.js";
 import { asLootMode, LOOT_MODE_HELP, LOOT_MODE_LABEL, LOOT_MODES } from "../services/core-rules.js";
 import { updateDungeonLeaderboard } from "../services/dungeon-leaderboard.js";
 import { ensureDungeonSignupGuide } from "../services/dungeon-guide.js";
@@ -62,7 +60,6 @@ export const configCommand = new SlashCommandBuilder()
       { name: "Announcements (raids, bosses, loot, EPGP)", value: "notify-channel" },
       { name: "Raid signups and reminders", value: "raid-channel" },
       { name: "Officer log (joins, leaves, moderation)", value: "log-channel" },
-      { name: "Raid core rosters", value: "core-channel" },
       { name: "Raid readiness (private)", value: "readiness-channel" },
       { name: "Craft board", value: "craft-channel" },
       { name: "Dungeon runs and records", value: "dungeon-channel" },
@@ -121,7 +118,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
         `Auto-apply addon uploads: ${settings.autoApplyImports ? "on" : "off (officers run /import apply)"}`,
         settings.coreLootOnly ? "Butin : chaque core choisit sa méthode; EP/GP et prix séparés (/core edit)." : `Loot system: ${LOOT_MODE_LABEL[asLootMode(settings.lootMode)]} (cores can differ: /core rules)`,
         `WoW weekly report: ${settings.weeklyReportChannelId ? `<#${settings.weeklyReportChannelId}>` : "notify channel"}`,
-        `Raid roster channel: ${settings.coreChannelId ? `<#${settings.coreChannelId}>` : "not set"}`,
+        "Raid rosters: each raid core's own channel",
         `Readiness channel: ${settings.readinessChannelId ? `<#${settings.readinessChannelId}>` : "not set"}`,
         `Applications channel: ${settings.applicationChannelId ? `<#${settings.applicationChannelId}>` : "officer log"}`,
         `Craft board: ${settings.craftChannelId ? `<#${settings.craftChannelId}>` : "officer log"}`,
@@ -258,8 +255,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
     return;
   }
 
-  const channelSettings: Record<string, { field: "dungeonLeaderboardChannelId" | "dungeonSignupChannelId" | "craftChannelId" | "readinessChannelId" | "coreChannelId" | "applicationChannelId" | "guideChannelId"; label: string }> = {
-    "core-channel": { field: "coreChannelId", label: "Raid core rosters" },
+  const channelSettings: Record<string, { field: "dungeonLeaderboardChannelId" | "dungeonSignupChannelId" | "craftChannelId" | "readinessChannelId" | "applicationChannelId" | "guideChannelId"; label: string }> = {
     "readiness-channel": { field: "readinessChannelId", label: "Raid readiness" },
     "craft-channel": { field: "craftChannelId", label: "Craft requests" },
     "dungeon-leaderboard-channel": { field: "dungeonLeaderboardChannelId", label: "The dungeon leaderboard" },
@@ -284,7 +280,6 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
       ...(channelSetting.field === "dungeonLeaderboardChannelId" ? { dungeonLeaderboardMessageId: null } : {})
     });
     if (channelSetting.field === "dungeonLeaderboardChannelId") await updateDungeonLeaderboard(interaction.guild);
-    if (channelSetting.field === "coreChannelId") await syncAllCoreRosters(interaction.guild, prisma, context.guildId);
     if (channelSetting.field === "guideChannelId") {
       const fetched = await interaction.guild?.channels.fetch(channel.id).catch(() => null);
       if (fetched?.isTextBased()) await ensureBotGuide(fetched, asLang((await guildService.getSettings(context.guildId))?.language));

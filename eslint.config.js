@@ -2,7 +2,7 @@ import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["companion-app/**", "dist/**", "node_modules/**", "backups/**"] },
+  { ignores: ["companion-app/**", "dist/**", "node_modules/**", "backups/**", ".claude/**"] },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   { files: ["worker/**/*.mjs"], languageOptions: { globals: { Request: "readonly", Response: "readonly", Headers: "readonly" } } },

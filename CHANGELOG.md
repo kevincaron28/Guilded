@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 6.3.0 Release — 16 October 2026
+
+- Guild-wide sync: any member relays newer standings, item data and dungeon boards; Home shows
+  how fresh they are ([notes](docs/V6_3_0_RELEASE_NOTES.md)).
+- Fixes from the first two-PC in-game check: ledger sync in both directions, guild join without
+  `/reload`, WoW Forever full names, backup and restore between PCs, in-game-only standings.
+- Recent dungeon runs show their date and season; French interface fixes.
+
 ## 6.2.1 Release — 16 October 2026
 
 - Guild web pages at `/g/<name>/`, managed by officers with `/mod page` ([notes](docs/V6_2_1_RELEASE_NOTES.md)).

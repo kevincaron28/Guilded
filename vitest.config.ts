@@ -8,6 +8,6 @@ export default defineConfig({
     // Admission tests explicitly mock a hosted configuration.
     env: { HOSTED_PILOT: "false", HOSTED_GUILD_IDS: "" },
     // Local recovery snapshots are incomplete historical copies, not test sources.
-    exclude: [...configDefaults.exclude, "backups/**"]
+    exclude: [...configDefaults.exclude, "backups/**", ".claude/**"]
   }
 });

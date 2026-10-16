@@ -715,6 +715,7 @@ FR["No bidding running."] = "Aucune ench\195\168re en cours."
 -- 6.3: data freshness on Home and the loot system when each core decides.
 FR["today %s"] = "aujourd'hui %s"
 FR["yesterday %s"] = "hier %s"
+FR["Season: %s"] = "Saison : %s"
 FR["Standings: %s, %s."] = "Classement : %s, %s."
 FR["Standings: none received yet (they arrive with the next sync)."] = "Classement : rien re\195\167u pour l'instant (il arrive avec la prochaine synchro)."
 FR["Dungeon standings: %s%s."] = "Classement des donjons : %s%s."

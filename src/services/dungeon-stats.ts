@@ -175,6 +175,10 @@ export async function dungeonChoices(database: Pick<PrismaClient, "dungeonRun">,
     .map((row) => ({ name: row.dungeonName.slice(0, 100), value: String(row.instanceId) }));
 }
 
+function isoOrNull(date: Date | null | undefined): string | null {
+  return date instanceof Date && !Number.isNaN(date.getTime()) ? date.toISOString() : null;
+}
+
 // Competitive scores retain each run character. Legacy participation/archive
 // rows still use main names; the companion writes this into Standings.lua.
 export async function addonDungeonBoard(database: Db & Pick<PrismaClient, "character">, guildId: string) {
@@ -201,6 +205,8 @@ export async function addonDungeonBoard(database: Db & Pick<PrismaClient, "chara
   for (const character of characters) if (!mainName.has(character.memberId)) mainName.set(character.memberId, character.name);
   const boards = selected.map(season => ({
     id: season.id, season: season.name, status: season.status,
+    // ISO UTC; the addon labels each recent run with the season whose dates contain it.
+    startsAt: isoOrNull(season.startsAt), endsAt: isoOrNull(season.endsAt),
     provisionalTargets: (season.ratingRules as { provisionalTargets?: boolean } | null)?.provisionalTargets === true,
     ratingVersion: hasDungeonRating(season.ratingRules) ? (season.ratingRules as { version: number }).version : 0,
     detailsAvailable: ratingRows.has(season.id) && ratingRows.get(season.id)!.every(row => row.details !== undefined),

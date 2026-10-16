@@ -85,6 +85,26 @@ local function button(parent, text, x, y, width, action)
   return b
 end
 
+-- The official season (current board or its history) whose dates contain this run's end,
+-- or nil. The bot sends dates in ISO UTC; boards from before 6.3 have none.
+function view.seasonFor(stamp)
+  local util = ns.util
+  local at = type(stamp) == "number" and stamp or (util and util.isoEpoch and util.isoEpoch(stamp))
+  local db = ns.getDb and ns.getDb()
+  local board = db and db.dungeonBoard
+  if not at or not util or not util.isoEpoch or type(board) ~= "table" then return nil end
+  local seasons = { board }
+  for _, past in ipairs(type(board.history) == "table" and board.history or {}) do seasons[#seasons + 1] = past end
+  for _, season in ipairs(seasons) do
+    local startsAt, endsAt = util.isoEpoch(season.startsAt), util.isoEpoch(season.endsAt)
+    if type(season.season) == "string" and startsAt and at >= startsAt
+      and ((endsAt and at < endsAt) or (not endsAt and season.status ~= "ENDED")) then
+      return season.season
+    end
+  end
+  return nil
+end
+
 function view.runModel()
   local db = ns.getDb and ns.getDb() or {}
   local dungeon = db.dungeon or {}
@@ -159,7 +179,9 @@ local function buildRun(pane, width)
       local saved = model.recent[i]
       -- The date shows which runs are older than the current season (they still count in theirs).
       local when = ns.util and ns.util.whenText and ns.util.whenText(saved.endedAt or saved.startedAt)
+      local season = view.seasonFor(saved.endedAt or saved.startedAt)
       lines[#lines + 1] = (saved.name or "?") .. " - " .. duration(saved.durationSec or 0) .. " - " .. L(saved.state or "") .. (when and (" - " .. when) or "")
+        .. (season and (" - " .. string.format(L("Season: %s"), season)) or "")
     end
     self.recent:SetText(#lines > 0 and table.concat(lines, "\n\n") or L("No saved dungeon result yet."))
     self.timer:SetText(L("Live timer") .. ": " .. L(ns.runResults and ns.runResults.timerEnabled() and "on" or "off"))

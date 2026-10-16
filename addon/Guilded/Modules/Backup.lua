@@ -32,6 +32,15 @@ local SKIP = {
 -- so it is dropped after this long (or at once with /guilded restore forget).
 local UNDO_KEEP_SECONDS = 7 * 86400
 local KEEP = { version = true, guildKey = true, otherGuilds = true }
+-- What belongs to the PC, not to the guild's records: a restore keeps the receiving PC's own
+-- values (16 October: a restore turned ledger sync on, listed the player as their own sync
+-- partner and opened a chat tab, all copied from the officer who made the backup).
+local PER_PC_FIELDS = { myCharacters = true, bridgeCompanionGuild = true }
+local PER_PC_SETTINGS = {
+  setupMode = true, ledgerSync = true, ledgerSyncSeen = true, ledgerSyncMatch = true, officerBridge = true,
+  chatTab = true, language = true, hideBossTimer = true, mapShare = true, mapShow = true,
+  minimapAngle = true, minimapHidden = true, panelPoint = true, panelScale = true, panelTab = true, windowState = true
+}
 
 local module = {}
 ns.backup = module
@@ -270,6 +279,11 @@ function module.restore(code)
     oldStandings = db.standings or false
     db.standings = type(info.parsed.standaloneStandings) == "table" and info.parsed.standaloneStandings or nil
   end
+  for field in pairs(PER_PC_FIELDS) do db[field] = before[field] end
+  local restored = type(db.settings) == "table" and db.settings or {}
+  local mine = type(before.settings) == "table" and before.settings or {}
+  for key in pairs(PER_PC_SETTINGS) do restored[key] = mine[key] end
+  db.settings = restored
   db.preRestore = { at = ns.now and ns.now() or "", data = before, standaloneStandings = oldStandings }
   if ns.ensureDb then ns.ensureDb() end
   return info

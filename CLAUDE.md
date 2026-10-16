@@ -1,3 +1,4 @@
+> 6.2.1 (16 October 2026) patches 6.2.0: guild pages, bug inbox, sync fixes (docs/V6_2_1_RELEASE_NOTES.md).
 > 6.2.0 Release (16 October 2026): the owner released 6.2.0 (standalone guilds, November
 > scoring preparation, companion sync from PR #84) before its real-client checks. Those
 > checks in `docs/V6_2_GAME_ACCEPTANCE.md` are post-release follow-up. Release record:
@@ -18,7 +19,7 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (16 October 2026): published version 6.2.0 Release, protocol 2.**
+**Current status (16 October 2026): version 6.2.1 Release (patch on 6.2.0), protocol 2.**
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
 Standalone guild and optional Guilded Games work is next-version candidate
 source; do not overwrite the published 6.2.0 downloads or bump incidentally.

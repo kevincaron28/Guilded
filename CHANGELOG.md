@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 6.2.1 Release — 16 October 2026
+
+- Guild web pages at `/g/<name>/`, managed by officers with `/mod page` ([notes](docs/V6_2_1_RELEASE_NOTES.md)).
+- Setup follows the server's own categories and game role; per-core officers-only attendance
+  channels; the shared raid roster channel is retired.
+- `/report bug` gives a reference and reaches the developer; `npm run bugs` writes the inbox.
+- Sync: stamps survive restarts, companion uploads skip raids older than 90 days, the folder
+  watch retries, and `/guilded ledgersync status` shows each officer partner.
+- Scheduled uptime check of the bot, website and a guild page.
+
 ## 6.2.0 Release — 16 October 2026
 
 - Released at the owner's direction; real-client checks continue as follow-up

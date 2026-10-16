@@ -117,7 +117,7 @@ local function build()
   hint:SetText(L("Switches for you only. Officers turn modules off for the whole guild with /guilded modules guild."))
 
   local open = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-  open:SetSize(180, 22)
+  open:SetSize(200, 22) -- room for the French label
   open:SetPoint("TOPLEFT", hint, "BOTTOMLEFT", 0, -10)
   open:SetText(L("Open the tools window"))
   open:SetScript("OnClick", function() run("menu") end)

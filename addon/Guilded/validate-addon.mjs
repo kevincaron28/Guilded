@@ -25,6 +25,9 @@ for (const file of walk(rootPath)) {
   if (file.endsWith(".lua") || file.endsWith(".toc") || file.endsWith(".md")) {
     const text = readFileSync(file, "utf8");
     if (/[^\x00-\x7F]/.test(text)) throw new Error(`Non-ASCII content in ${file}`);
+    // A script that wrote "\195\169" through an unescaped string leaves raw control bytes
+    // (octal escapes) that the game shows as garbage; only tab and line breaks belong here.
+    if (/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/.test(text)) throw new Error(`Control characters in ${file} (write accents as \\195\\169-style escapes)`);
   }
 }
 

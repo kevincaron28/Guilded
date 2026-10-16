@@ -54,13 +54,28 @@ local function at(widget, parent, x, y)
   return widget
 end
 
+-- Room around a button label (the button art has borders).
+local BUTTON_PADDING = 20
+
 local function newButton(parent, text, width, onClick, height)
   local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
   b:SetWidth(width or 110)
   b:SetHeight(height or 22)
   b:SetText(L(text))
+  -- A translation longer than the layout's width widens the button instead of being cut off
+  -- ("Partager mon registre comme classement" in French).
+  local label = b.GetFontString and b:GetFontString()
+  local needed = label and label.GetStringWidth and label:GetStringWidth()
+  if type(needed) == "number" and needed + BUTTON_PADDING > (width or 110) then b:SetWidth(needed + BUTTON_PADDING) end
   if onClick then b:SetScript("OnClick", onClick) end
   return b
+end
+
+-- string.upper leaves accented letters lowercase, so a French heading such as Systeme would keep a small accented e; French headings need their capitals.
+local ACCENT_CAPITALS = { ["\195\160"] = "\195\128", ["\195\162"] = "\195\130", ["\195\167"] = "\195\135", ["\195\168"] = "\195\136",
+  ["\195\169"] = "\195\137", ["\195\170"] = "\195\138", ["\195\174"] = "\195\142", ["\195\180"] = "\195\148", ["\195\187"] = "\195\155" }
+local function upperText(text)
+  return (string.gsub(string.upper(text), "\195[\160-\187]", function(letter) return ACCENT_CAPITALS[letter] or letter end))
 end
 
 -- A tick box with a label on its right.
@@ -1098,7 +1113,7 @@ local function layoutTabs(officer)
         label = newLabel(panel, "", "GameFontNormalSmall")
         ui.groupLabels[group] = label
       end
-      label:SetText(string.upper(L(group)))
+      label:SetText(upperText(L(group)))
       at(label, panel, 24, y)
       if ui.scope == "main" then label:Show(); y = y - 16 end
       for i, tab in ipairs(ui.tabs) do
@@ -1397,6 +1412,8 @@ selectTab = function(index)
     ui.guildScroll:SetVerticalScroll(0)
     raiseWindow(page, ui.guildScroll:GetFrameLevel() + 1)
   end
+  -- The status line answers what was just done on a page; another page starts without it.
+  if ui.currentTab ~= index and ui.status then ui.status:SetText("") end
   ui.currentTab = index
   for i, tab in ipairs(ui.tabs) do
     if i == index then tab.page:Show(); tab.button:LockHighlight() else tab.page:Hide(); tab.button:UnlockHighlight() end
@@ -1535,6 +1552,8 @@ local function buildPanel()
   end)
   panel:SetScript("OnShow", function()
     ui.lastOfficer = nil -- re-check rank and modules every time the window opens
+    -- Reopening the window does not show an old result (such as a diagnostics line).
+    if ui.status then ui.status:SetText("") end
     if UnitExists("target") and UnitIsPlayer("target") then
       setPlayer((UnitName("target")))
     elseif ui.playerBox:GetText() == "" then

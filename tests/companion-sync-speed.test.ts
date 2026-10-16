@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
-import { acknowledgements, pruneAcknowledged } from "../companion/delta.mjs";
+import { acknowledgements, pruneAcknowledged, pruneOldRaids } from "../companion/delta.mjs";
 import { guardedStandings, writeDataAddon } from "../companion/data-addon.mjs";
 import { standingsToLua } from "../companion/standings.mjs";
 import { createEngine } from "../companion/engine.mjs";
@@ -41,7 +41,7 @@ describe("companion delta uploads", () => {
     expect(pruned.epgpTransactions.map((row: { sourceRef: string }) => row.sourceRef)).toEqual(["qg:Kev-1-2", "qg:Kev-1-4"]);
     expect(pruned.loot.map((row: { ref: string }) => row.ref)).toEqual(["qg-loot:2"]);
     expect(pruned.raids).toEqual(exported.raids);
-    expect(omitted).toEqual({ ledger: 2, loot: 1 });
+    expect(omitted).toEqual({ ledger: 2, loot: 1, raids: 0 });
   });
 
   it("sends everything when nothing is acknowledged yet", () => {
@@ -52,10 +52,10 @@ describe("companion delta uploads", () => {
   it("negotiates ledger and loot deltas independently", () => {
     const ack = acknowledgements({ acceptedLedgerRefs: ["addon:qg:Kev-1-1"], acceptedLootRefs: ["qg-loot:1"] });
     const ledgerOnly = pruneAcknowledged(exported, ack, new Set(["ledger-delta"]));
-    expect(ledgerOnly.omitted).toEqual({ ledger: 1, loot: 0 });
+    expect(ledgerOnly.omitted).toEqual({ ledger: 1, loot: 0, raids: 0 });
     const lootOnly = pruneAcknowledged(exported, ack, new Set(["loot-delta"]));
-    expect(lootOnly.omitted).toEqual({ ledger: 0, loot: 1 });
-    expect(pruneAcknowledged(exported, ack, new Set()).omitted).toEqual({ ledger: 0, loot: 0 });
+    expect(lootOnly.omitted).toEqual({ ledger: 0, loot: 1, raids: 0 });
+    expect(pruneAcknowledged(exported, ack, new Set()).omitted).toEqual({ ledger: 0, loot: 0, raids: 0 });
   });
 });
 
@@ -206,5 +206,23 @@ describe("companion engine with a newer bot", () => {
       expect(first?.headers["content-encoding"]).toBeUndefined();
       expect(JSON.parse(first?.body ?? "{}").export.epgpTransactions).toHaveLength(2);
     } finally { await engine.stop(); }
+  });
+});
+
+describe("old raids in uploads", () => {
+  it("stops resending finished raids older than 90 days, in seconds, milliseconds or ISO dates", () => {
+    const now = Date.UTC(2026, 9, 16);
+    const day = 86_400;
+    const raids = [
+      { ref: "recent", endedAt: now / 1000 - 10 * day },
+      { ref: "old-seconds", endedAt: now / 1000 - 91 * day },
+      { ref: "old-ms", endedAt: now - 120 * day * 1000 },
+      { ref: "old-iso", endedAt: new Date(now - 200 * day * 1000).toISOString() },
+      { ref: "no-date" }
+    ];
+    const { exported, omitted } = pruneOldRaids({ raids, epgpTransactions: [] }, now);
+    expect(exported.raids.map((raid: { ref: string }) => raid.ref)).toEqual(["recent", "no-date"]);
+    expect(omitted).toBe(3);
+    expect(pruneAcknowledged({ raids }, null, undefined, now).omitted).toEqual({ ledger: 0, loot: 0, raids: 3 });
   });
 });

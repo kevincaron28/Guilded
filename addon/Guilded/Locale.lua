@@ -598,6 +598,10 @@ local FR = {
   ["Ledger sync: asked online officers to compare ledgers."] = "Synchro du registre : comparaison demand\195\169e aux officiers en ligne.",
   ["Ledger sync is %s: %d entries here, %d of them from other officers."] = "Synchro du registre %s : %d entr\195\169es ici, dont %d d'autres officiers.",
   ["Last exchange %d min ago."] = "Dernier \195\169change il y a %d min.",
+  ["%d d"] = "%d j",
+  ["%s: last heard %s ago."] = "%s : entendu il y a %s.",
+  ["No other officer with ledger sync on has been seen yet. Sync needs two officers online at the same time."] = "Aucun autre officier avec la synchro du registre n'a encore \195\169t\195\169 vu. La synchro demande deux officiers en ligne en m\195\170me temps.",
+  ["Over a week without another officer: entries sync only when two officers with sync on are online together."] = "Plus d'une semaine sans autre officier : les entr\195\169es se synchronisent seulement quand deux officiers avec la synchro sont en ligne ensemble.",
 }
 
 local function language()

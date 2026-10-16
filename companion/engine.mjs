@@ -212,7 +212,7 @@ export function createEngine(initialConfig, hooks = {}) {
     if (epoch !== generation) return;
     state.botVersion = body.botVersion ?? state.botVersion;
     state.addonVersion = exported.addonVersion ?? state.addonVersion;
-    const left = omitted.ledger + omitted.loot;
+    const left = omitted.ledger + omitted.loot + (omitted.raids ?? 0);
     const leftNote = left > 0 ? ` ${left} entries the bot already has were not sent again.` : "";
     if (response.ok) {
       const message = body.applyError

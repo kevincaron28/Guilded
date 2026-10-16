@@ -16,7 +16,7 @@ export function approvalWelcome(guildName: string) {
       "1. In your server, run **`/setup start`**: a 2-minute click-through guide. You pick English or Français on its first screen.",
       `2. Officers install the addon: ${ADDON_URL}`,
       "3. Optional: members link their character with `/character pair` and the companion.",
-      "4. Stuck? `/help`, or `/bug` to report a problem to the developer.",
+      "4. Stuck? `/help`, or `/report bug` to report a problem to the developer.",
       "",
       "─────────",
       "",
@@ -26,7 +26,7 @@ export function approvalWelcome(guildName: string) {
       "1. Dans votre serveur, lancez **`/setup start`** : un guide de 2 minutes avec des boutons. Vous choisirez English ou Français au premier écran.",
       `2. Les officiers installent l'addon : ${ADDON_URL}`,
       "3. Facultatif : les membres lient leur personnage avec `/character pair` et le compagnon.",
-      "4. Besoin d'aide ? `/help`, ou `/bug` pour signaler un problème au développeur."
+      "4. Besoin d'aide ? `/help`, ou `/report bug` pour signaler un problème au développeur."
     ].join("\n"))
     .setFooter({ text: "You receive this because you own the server. / Vous recevez ceci car vous êtes propriétaire du serveur." });
 }

@@ -145,7 +145,7 @@ as a real, user-facing announcement trigger, not a housekeeping field.
 
 ## Bug reports ("fix the bugs")
 
-Members of every guild report with `/bug` (optional screenshot) and get a short reference
+Members of every guild report with `/report bug` (optional screenshot) and get a short reference
 such as `K3X9QZ2A`; the bot's own failures are saved the same way. They reach the developer
 live in `ERROR_LOG_CHANNEL_ID` and are collected by `npm run bugs` (on the owner's PC, which
 has `.env.local`): it writes `bug-inbox.md` (gitignored, holds Discord IDs: never commit or

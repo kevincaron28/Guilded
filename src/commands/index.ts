@@ -30,6 +30,7 @@ import { testRaidCommand, executeTestRaid } from "./testraid.js";
 import { craftCommand } from "./craft.js";
 import { setupCommand, executeSetup } from "./setup.js";
 import { uninstallCommand, resetCommand, executeSetupReset } from "./uninstall.js";
+import { executeGuildPage, guildPageCommand } from "./guild-page.js";
 import { helpCommand } from "./help.js";
 import { dungeonCommand, executeDungeon } from "./dungeon.js";
 import { dungeonAdminCommand, executeDungeonAdmin } from "./dungeon-admin.js";
@@ -68,9 +69,10 @@ const dungeon = new MergedCommand("dungeon", "Dungeon challenge: leaderboard, re
   { command: dungeonAdminCommand, handler: executeDungeonAdmin, as: "admin" }
 ], { command: dungeonCommand, handler: executeDungeon });
 
-const mod = new MergedCommand("mod", "Moderation, guild applications and the answer channel (officers).", [
+const mod = new MergedCommand("mod", "Moderation, applications, the answer channel and the guild web page (officers).", [
   { command: applicationCommand, handler: executeApplication, as: "application" },
-  { command: faqCommand, handler: executeFaq, as: "faq" }
+  { command: faqCommand, handler: executeFaq, as: "faq" },
+  { command: guildPageCommand, handler: executeGuildPage, as: "page" }
 ], { command: moderationCommand, handler: executeModeration });
 
 const importer = new MergedCommand("import", "Bring addon data into Discord: preview a file, then apply it (officers).", [

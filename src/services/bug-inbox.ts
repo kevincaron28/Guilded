@@ -1,7 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { reportRef } from "./error-report.js";
 
-// The developer's bug inbox (npm run bugs): open /bug reports from every guild, and the bot's own
+// The developer's bug inbox (npm run bugs): open /report bug reports from every guild, and the bot's own
 // failures grouped by cause, written as one Markdown file a person or an agent can work from.
 // Fixed items are marked resolved and drop out of the next inbox.
 
@@ -63,7 +63,7 @@ export function renderInbox(inbox: Inbox): string {
     "Mark fixed ones with `npm run bugs -- resolve REF [REF...] --note \"what changed\"`.",
     "This file holds members' Discord IDs and messages: keep it private (it is not committed).",
     "",
-    "## Bug reports from members (/bug)",
+    "## Bug reports from members (/report bug)",
     ""
   ];
   if (!inbox.bugs.length) out.push("None open.", "");

@@ -1,16 +1,17 @@
 # Guilded 6.2.0 — Prepared CurseForge upload text
 
-**Hold until [acceptance](V6_2_GAME_ACCEPTANCE.md) is complete.** This is draft
-publication copy, not a claim that 6.2.0 is available. Existing 6.1.2 downloads
-remain the public release during testing.
+**Approved for upload by the owner on October 16, 2026**, before the
+[real-client checks](V6_2_GAME_ACCEPTANCE.md) were run; they continue as follow-up.
+Upload exactly the `Guilded-v6.2.0.zip` whose SHA-256 is in the release's
+`SHA256SUMS-v6.2.0.txt`.
 
 File: `Guilded-v6.2.0.zip` from the approved artifact manifest. Its only root
 folder is `Guilded`. Do not upload the companion installer or the whole dist folder.
-Display name: **Guilded 6.2.0**. Intended type after acceptance: **Release**.
-Keep the existing license and select only client versions verified in the test
-record. Interface declarations alone are not evidence of compatibility.
+Display name: **Guilded 6.2.0**. Release type: **Release**.
+Keep the existing license. Select the same verified client version as 6.1.2 (WoW Forever);
+do not add client versions nobody has played the addon on.
 
-## Changelog to paste after acceptance
+## Changelog to paste
 
 Guilded 6.2.0 improves addon-only guild management and dungeon progress.
 

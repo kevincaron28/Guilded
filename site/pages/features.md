@@ -19,7 +19,7 @@ Use the addon for guild recipes, the guild map, attendance and loot workflows. A
 
 The dungeon finder's Guilded tab brings together **Run** and **Season** views. Revisit your recent runs, switch between personal progress and guild rankings, and explore past seasons. Local dungeon recording works without a connection; verified online seasonal ratings need optional synchronization.
 
-The published 6.1.2 release also brings standings and crafting into the native guild window. Install the complete addon folder when upgrading and preserve your SavedVariables.
+Since 6.1.2, standings and crafting live in the native guild window, and 6.2.0 adds addon-only guild management. Install the complete addon folder when upgrading and preserve your SavedVariables.
 
 ## WoW standings in your browser
 

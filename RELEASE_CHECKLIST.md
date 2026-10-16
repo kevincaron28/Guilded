@@ -1,5 +1,5 @@
 > 6.2 candidate preparation (15 October 2026): use [the release handoff](docs/V6_2_RELEASE_HANDOFF.md) and [game acceptance checklist](docs/V6_2_GAME_ACCEPTANCE.md).
-> Source/package version is 6.2.0 on the candidate branch; published/live version remains 6.1.2.
+> Guilded 6.2.0 Release (October 16, 2026). See docs/V6_2_RELEASE_HANDOFF.md for the release record.
 > Older release instructions below are historical. Do not publish or deploy the candidate before acceptance.
 
 Owner release decision, 5 October 2026: **6.0.0 is the full Release; next is 6.1.0.**

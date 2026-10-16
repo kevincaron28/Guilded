@@ -1,5 +1,17 @@
 # Guilded 6.2.0 release candidate handoff
 
+## Promotion, October 16, 2026
+
+The owner directed release of 6.2.0 before the G1-G12 and desktop checks were run; they
+remain open in [the checklist](V6_2_GAME_ACCEPTANCE.md) as post-release follow-up.
+`release.json` is now channel `release`. Main was merged into the candidate first
+(sync speed-ups PR #84, already live on the bot as 6.1.2 at `58ae302`). Pre-deployment
+backup: `/home/ubuntu/guilded-recovery/2026-10-16T00-55-07-655Z`, with an authenticated
+encrypted offsite copy on the owner's PC. Release artifacts, their SHA-256 sums and the
+GitHub release are recorded below once built; CurseForge upload is done by the owner with
+[the upload text](V6_2_CURSEFORGE.md). Starting the 6.2.0 bot posts the version notice in
+every guild's bot-guide channel.
+
 Claude's completed dungeon-board reply coordination (`a573152`) is now included.
 Officers delay request replies by 1–5 seconds and suppress duplicate replies when
 another officer is already sharing an equal/newer board. Wire format and the

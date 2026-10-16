@@ -1,7 +1,8 @@
 # Guilded 6.2.0 — Standalone guilds and clearer dungeon progress
 
-Release candidate prepared October 15, 2026. **Not yet published.** Real-client
-acceptance is tracked in [the 6.2 checklist](V6_2_GAME_ACCEPTANCE.md).
+Released October 16, 2026 at the owner's direction, before the real-client checks in
+[the 6.2 checklist](V6_2_GAME_ACCEPTANCE.md) were run. Those checks continue as
+post-release follow-up; report problems and keep SavedVariables backups.
 Addon, bot source and Windows companion are aligned at 6.2.0; protocol remains 2.
 This release introduces no database migration.
 

@@ -1,8 +1,8 @@
 > 6.2 candidate preparation (15 October 2026): use [the release handoff](V6_2_RELEASE_HANDOFF.md) and [6.2 upload text](V6_2_CURSEFORGE.md).
-> Source/package version is 6.2.0 on the candidate branch; published/live version remains 6.1.2.
+> Guilded 6.2.0 Release, October 16, 2026. Upload text: [V6_2_CURSEFORGE.md](V6_2_CURSEFORGE.md).
 > Older release instructions below are historical. Do not publish or deploy the candidate before acceptance.
 
-# CurseForge listing copy: Guilded 6.1.2
+# CurseForge listing copy: Guilded 6.2.0
 
 Each block below is one field. Copy the block, paste it in.
 
@@ -26,7 +26,7 @@ Raid & Instance (secondary: Guild, Miscellaneous)
 
 ## Historical setup-only file (9 October 2026)
 
-The current published client is 6.1.2 Release. The domain/support metadata update
+The current published client is 6.2.0 Release. The domain/support metadata update
 does not require a new client upload. Preserve its published files. The following
 6.0.0 file instructions and changelog are retained as historical release records.
 For the 9 October setup-only refresh: `dist/Guilded-v6.0.0-hosted-pilot.zip`
@@ -53,7 +53,7 @@ https://polyformproject.org/licenses/noncommercial/1.0.0
 
 Guilded brings raid tracking, EPGP, four loot systems, readiness checks, and everyday guild tools together. Use the addon on its own, or connect your guild’s optional Discord bot for signups, shared standings, and reports.
 
-**Available now: 6.1.2 Release. The addon works without Discord.**
+**Available now: 6.2.0 Release. The addon works without Discord.**
 
 ## Add the Discord bot — KCaron's approval required
 
@@ -148,7 +148,7 @@ Use the **Windows companion** to upload saved data after a reload or logout, or 
 
 Designed for **WoW Forever**. Declared interface versions: **16001 and 20506**. Feature availability depends on the game client and its addon APIs.
 
-**6.1.2 is available as a Release on CurseForge.** Fresh-guild setup, Windows installation and recovery, concurrent award workflows, and full raid acceptance testing remain in progress. Back up SavedVariables before upgrading.
+**6.2.0 is available as a Release on CurseForge.** It adds addon-only guild management (local cores, rosters and record-keeper handover), lighter and faster companion sync, and optional officer ledger sharing. Real-client testing of the new 6.2 features continues after release. Back up SavedVariables before upgrading.
 
 Guild map and shared information depend on participating addon users and available data. Raid markers, tank marking, and boss plans are not included in v6.
 

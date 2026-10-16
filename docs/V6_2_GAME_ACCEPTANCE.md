@@ -1,6 +1,7 @@
 # Guilded 6.2.0 — Exact pre-upload acceptance checklist
 
-Status: **pending real-client checks**, October 15, 2026. Use the exact 6.2.0
+Status: **released October 16, 2026 at the owner's direction with these checks still
+pending**; they are now post-release follow-up. Original status: pending real-client checks, October 15, 2026. Use the exact 6.2.0
 candidate whose commit/checksums are in the accompanying artifact manifest.
 Record tester, date, client build, language, package hash and result for each row.
 An automated test pass is not a pass in this table. Do not upload to CurseForge

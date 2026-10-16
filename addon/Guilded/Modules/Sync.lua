@@ -634,6 +634,9 @@ local function onEvent(_, event, ...)
   elseif event == "CHAT_MSG_ADDON" then
     local prefix, text, channel, sender = ...
     if ns.isSecret(prefix) or ns.isSecret(text) or ns.isSecret(sender) or prefix ~= PREFIX then return end
+    -- Whispers go back to the sender exactly as the game gave it: on WoW Forever the first
+    -- name alone is not a player ("No player named 'Naomine'", 16 October).
+    local replyTo = sender
     sender = ns.normalizeName(sender)
     if not sender or sender == ns.playerName() then return end
     local kind = string.match(text, "^(%u+)|")
@@ -646,7 +649,7 @@ local function onEvent(_, event, ...)
       elseif versionNewer(myVersion, theirs) and channel == "GUILD" and not repliedTo[sender] then
         -- Tell the outdated player directly, once per session.
         repliedTo[sender] = true
-        send("VERSION|" .. myVersion, "WHISPER", sender)
+        send("VERSION|" .. myVersion, "WHISPER", replyTo)
       end
     elseif kind == "STANDREQ" then
       local theirs = string.match(text, "^STANDREQ|(.+)$") or "0"
@@ -670,7 +673,7 @@ local function onEvent(_, event, ...)
       local nowTime = time()
       if modsAnsweredAt[sender] and nowTime - modsAnsweredAt[sender] < MODS_REPLY_COOLDOWN_SECONDS then return end
       if ns.isOfficer() and g and (g.updatedAt or 0) > theirs then modsAnsweredAt[sender] = nowTime end
-      if ns.isOfficer() and g and (g.updatedAt or 0) > theirs then shareModules("WHISPER", sender) end
+      if ns.isOfficer() and g and (g.updatedAt or 0) > theirs then shareModules("WHISPER", replyTo) end
     elseif kind == "MODS" then
       receiveModules(text, sender)
     end

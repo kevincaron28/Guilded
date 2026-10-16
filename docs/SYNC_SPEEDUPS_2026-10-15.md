@@ -1,15 +1,19 @@
 # Faster, lighter sync: addon, companion and bot (15 October 2026)
 
-Originally prepared on `claude/sync-speedups` from 6.1.2 / protocol 2 and preserved
-in commit `c405607`. Now integrated into the 6.2.0 candidate with November scoring
-and current website changes. Production and published clients remain 6.1.2.
-Compatibility paths support older bots/companions and both officer wire formats;
-the remaining real-client limitations and checks are listed below.
+Prepared on `claude/sync-speedups` from 6.1.2 / protocol 2 (commit `c405607`),
+merged to main as PR #84 and deployed on 16 October 2026 (`58ae302`, still 6.1.2), and
+shipped to players in 6.2.0 together with November scoring and the standalone guild work.
+Every change is backward compatible in both directions: an older companion or addon keeps
+working with the new bot, and a newer companion keeps working with an older bot.
 
-Integration review added regressions for account switching, independent ledger
-and loot feature negotiation, stop during startup, concurrent stale standings,
-recovery-file precedence/cancellation, and the author's recovered ledger entries.
-This work does not activate a season or write to production data.
+A review during the 6.2 integration added fixes, each with a regression test: standings read
+while a write lands are never stamped as current; ledger and loot deltas are negotiated
+separately; a companion stopped during startup starts no timers; a cancelled sync writes no
+`GuildedData`; on a stamp tie Guilded's own `Standings.lua` wins (it keeps its personal data);
+`/guilded ledgersync now` counts entries made seconds earlier; received ledger entries must
+have whole amounts and a valid void flag; switching the browser companion's server or account
+forgets the old bot's acknowledgements; and an author can void their own entries recovered
+from another officer. This work does not activate a season or write to production data.
 
 The addon is still standalone. None of this is needed for an in-game-only guild, and the one
 new standalone feature (officer ledger sync) is off until an officer turns it on.

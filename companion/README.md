@@ -69,7 +69,7 @@ timer.
 
 The same file is also written to `Interface\AddOns\GuildedData\Standings.lua`, a small addon
 of its own (with a TOC matching Guilded's interface) that addon updates do not replace. It
-only takes effect when it is at least as new as Guilded's own `Standings.lua`. Set
+only takes effect when it is newer than Guilded's own `Standings.lua`. Set
 `"dataAddon": false` to skip it.
 
 Uploads are gzip-compressed and leave out ledger and loot entries the bot already stored,

@@ -244,7 +244,7 @@ end
 -- Short description for the tools window.
 function bidding.statusText()
   local auction = bidding.current
-  if not auction then return "No bidding running." end
+  if not auction then return L("No bidding running.") end
   local ranked = rankedBids(auction)
   local lines = {}
   local left = math.max(0, math.floor(auction.endsAt - clock()))

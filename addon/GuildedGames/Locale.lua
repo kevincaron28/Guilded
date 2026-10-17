@@ -40,4 +40,10 @@ local FR = {
 function ns.language()
   return GuildedGamesDB and GuildedGamesDB.language or (GetLocale and GetLocale() == "frFR" and "fr" or "en")
 end
-function ns.L(text) return ns.language() == "fr" and FR[text] or text end
+-- Internal keys shown in the window (game and phase) get readable English names too: the
+-- lobby used to read "high - JOINING - 0/5".
+local EN = {
+  high = "High roll", death = "Deathroll", duel = "Duel", target = "Closest target", trivia = "Trivia",
+  JOINING = "Joining", READY = "Ready", ROLLING = "Rolling", ANSWERING = "Answering",
+}
+function ns.L(text) return ns.language() == "fr" and FR[text] or EN[text] or text end

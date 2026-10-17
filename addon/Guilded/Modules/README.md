@@ -58,6 +58,7 @@ privacy boundaries and the two-client acceptance test.
 | Calendar.lua | `calendar` | (none) | `/guilded calendar check` |
 | AutoInvite.lua | `autoinvite` | (none) | Officers: `/guilded autoinvite on [phrase]`, guild invite for whoever whispers the phrase (rate limited) |
 | SyncNow.lua | `syncnow` | (none) | `/guilded sync`, `/guilded sync auto`: save now / auto-save at safe moments so the companion uploads sooner |
+| History.lua | always on | `GuildedHist` | `/guilded history`: a member's EP/GP and loot history; one officer whose PC has the records whispers it back (`REQ`/`DONE` on GUILD, `ROW` by whisper) |
 | Backup.lua | `backup` | (none) | `/guilded backup` and `/guilded restore [undo]`: this guild's saved data as one `QGBKP1:` code |
 | API.lua | always on | (none) | `GuildedAPI` read-only v1 for other addons and WeakAuras (see the file header) |
 | Digest.lua | `digest` | (none) | Login digest: "since your last login" from saved data; `/guilded digest [on/off]` |

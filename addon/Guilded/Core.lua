@@ -127,6 +127,8 @@ local function ensureDb()
   -- whole online guild's readiness picture, not just their own.
   db.peerRoster = db.peerRoster or {}
   db.loot = db.loot or {}
+  -- Raid templates: name -> { title, coreId } (/guilded template).
+  db.raidTemplates = db.raidTemplates or {}
   -- Who was actually in the raid group during each raid: [raidId][name] =
   -- { firstSeen, lastSeen }. Filled automatically while a raid is active.
   db.presence = db.presence or {}
@@ -319,6 +321,12 @@ local function raidStart(title)
     return
   end
   if not title or title == "" then title = "Raid" end
+  -- A saved template ("/guilded start Tuesday MC") brings its title and selects its raid core.
+  local template = db.raidTemplates and db.raidTemplates[string.lower(title)]
+  if template then
+    title = template.title or title
+    if template.coreId and ns.loot and ns.loot.core and ns.runCommand then pcall(ns.runCommand, "core " .. template.coreId) end
+  end
   activeRaid = {
     -- Server clock, so ids and times from different officers' clients agree.
     id = tostring(util.serverTime()) .. "-" .. playerName(),
@@ -618,6 +626,88 @@ local function seenAttendance()
   message(string.format("Marked %d more player(s) PRESENT from who was in the raid group.", count))
 end
 
+-- /guilded attendance roster: the selected raid core's roster against who is in the group:
+-- PRESENT for its players here, ABSENT for its mains who are not (bench players are left as
+-- they are). Anything already recorded stays.
+local function rosterAttendance()
+  if not activeRaid then message("Start a raid first."); return end
+  local core = ns.loot and ns.loot.core and ns.loot.core()
+  if not (core and core.roster and #core.roster > 0 and ns.loot.rosterCheck) then
+    message("Choose a raid core with a roster first (/guilded core <name>; Local guild step 3)."); return
+  end
+  recordPresence()
+  local check = ns.loot.rosterCheck(core, groupMembers())
+  local recorded = db.attendance[activeRaid.id] or {}
+  local present, absent = 0, 0
+  for _, row in ipairs(check.present) do
+    if not recorded[row.name] and setAttendance(row.name, "PRESENT", true) then present = present + 1 end
+    recorded = db.attendance[activeRaid.id] or {}
+  end
+  for _, row in ipairs(check.missing) do
+    if not recorded[row.name] and setAttendance(row.name, "ABSENT", true) then absent = absent + 1 end
+    recorded = db.attendance[activeRaid.id] or {}
+  end
+  message(string.format("%s roster: %d marked PRESENT, %d mains marked ABSENT, %d on the bench, %d fill-ins not on the roster.",
+    core.name or "Core", present, absent, #check.bench, #check.fillIns))
+end
+
+-- /guilded note <text>: a note on the running raid (shown in its summary).
+local function raidNote(text)
+  if not activeRaid then message("Start a raid first."); return end
+  text = string.gsub(text or "", "[|%c]", "")
+  if text == "" then message("Usage: /guilded note <text>"); return end
+  activeRaid.notes = activeRaid.notes or {}
+  table.insert(activeRaid.notes, { at = now(), by = playerName(), text = string.sub(text, 1, 200) })
+  logEvent("RAID_NOTE", { raid = activeRaid.id, text = text })
+  message("Note added to " .. activeRaid.title .. ".")
+end
+
+-- /guilded template save <name> [title] | list | remove <name>
+local function raidTemplate(args)
+  local sub = string.lower(args[2] or "")
+  if sub == "save" and args[3] then
+    local name = string.lower(args[3])
+    local title = table.concat(args, " ", 4)
+    if title == "" then title = activeRaid and activeRaid.title or args[3] end
+    local core = ns.loot and ns.loot.core and ns.loot.core()
+    db.raidTemplates[name] = { title = title, coreId = core and core.id or nil }
+    message(string.format("Template %s saved: %s%s. Start it with /guilded start %s.", args[3], title,
+      core and (" (core " .. (core.name or core.id) .. ")") or "", args[3]))
+  elseif sub == "remove" and args[3] then
+    db.raidTemplates[string.lower(args[3])] = nil
+    message("Template " .. args[3] .. " removed.")
+  else
+    local names = {}
+    for name, t in pairs(db.raidTemplates) do table.insert(names, name .. " (" .. (t.title or name) .. ")") end
+    table.sort(names)
+    message(#names > 0 and ("Raid templates: " .. table.concat(names, ", ")) or "No raid templates yet: /guilded template save <name> [title] (uses the selected raid core).")
+  end
+end
+
+-- /guilded raid discard: drops a raid started by mistake, only while nothing was recorded in it.
+local function discardRaid()
+  if not activeRaid then message("No active raid."); return end
+  local id = activeRaid.id
+  local function has(t) return t and next(t) ~= nil end
+  local entries = 0
+  for _, account in pairs(db.epgp or {}) do
+    for _, entry in ipairs(account.ledger or {}) do if entry.raid == id and not entry.voided then entries = entries + 1 end end
+  end
+  local loot = 0
+  for _, row in ipairs(db.loot or {}) do if row.raid == id then loot = loot + 1 end end
+  if has(db.attendance[id]) or has(db.bosses[id]) or entries > 0 or loot > 0 then
+    message("This raid already has attendance, bosses, EP/GP or loot: end it with /guilded end instead.")
+    return
+  end
+  for i = #db.raids, 1, -1 do if db.raids[i].id == id then table.remove(db.raids, i) end end
+  db.presence[id] = nil
+  logEvent("RAID_DISCARD", { id = id })
+  send("RAID_END|" .. id)
+  message("Discarded the raid " .. activeRaid.title .. " (nothing was recorded in it).")
+  activeRaid = nil
+  db.activeRaidId = nil
+end
+
 local function groupAttendance(status)
   if not activeRaid then message("Start a raid first."); return end
   local count = 0
@@ -850,8 +940,32 @@ raidSummaryLines = function(raid)
     end
   end
   table.insert(lines, #loot > 0 and ("Loot (" .. #loot .. "): " .. table.concat(loot, "; ")) or "Loot: none recorded.")
+  for _, note in ipairs(raid.notes or {}) do table.insert(lines, "Note: " .. note.text) end
   return lines
 end
+
+-- /guilded raids [n]: one line per recent raid, newest first, to read or copy.
+local function raidHistoryLines(count)
+  count = math.max(1, math.min(20, tonumber(count) or 5))
+  local lines = {}
+  for i = #db.raids, math.max(1, #db.raids - count + 1), -1 do
+    local raid = db.raids[i]
+    local present = 0
+    for _, row in pairs(db.attendance[raid.id] or {}) do if row.status ~= "ABSENT" then present = present + 1 end end
+    local bosses = #(db.bosses[raid.id] or {})
+    local ep, loot = 0, 0
+    for _, account in pairs(db.epgp or {}) do
+      for _, entry in ipairs(account.ledger or {}) do if entry.raid == raid.id and not entry.voided then ep = ep + (entry.epAmount or 0) end end
+    end
+    for _, row in ipairs(db.loot or {}) do if row.raid == raid.id then loot = loot + 1 end end
+    local when = util.whenText and util.whenText(raid.startedAt) or raid.startedAt
+    table.insert(lines, string.format("%s - %s: %d attended, %d boss(es), %+d EP, %d loot%s", tostring(when or "?"), raid.title or "Raid",
+      present, bosses, ep, loot, raid.endedAt and "" or " (running)"))
+  end
+  if #lines == 0 then lines[1] = "No raids recorded on this PC yet." end
+  return lines
+end
+ns.raidHistoryLines = raidHistoryLines
 
 local READINESS_SLOTS = {
   { 1, "Head" }, { 3, "Shoulder" }, { 5, "Chest" }, { 6, "Waist" },
@@ -1213,6 +1327,8 @@ local function showHelp()
   message("/guilded character - copy a line to link this character in Discord (/character import)")
   if officer then
     message("Officer: /guilded start [title] | end | attendance <name>|group|seen [PRESENT|ABSENT|LATE] | boss <name> | summary (what the raid recorded, to copy)")
+    message("Officer: /guilded note <text> | template save <name> [title] | template list | attendance roster | raid discard | undo (takes back your last award)")
+    message("/guilded raids [n] - recent raids, one line each, to copy")
     message("Officer: /guilded award <name>|group <amount> [reason] | gp <name> <amount> [reason] | deduct <name> <amount> [reason] | gpdeduct <name> <amount> [reason]")
     message("Officer: /guilded loot <name> <item> [cost] | export | attune <player> <key> [clear] | officer list|add|remove|rank")
     message("Officer: /guilded void [player] - take back the newest EP/GP entry you made (for that player); Discord reverses it")
@@ -1442,6 +1558,16 @@ local function command(text)
     if requireOfficer() then groupAttendance(args[3]) end
   elseif action == "attendance" and string.lower(args[2] or "") == "seen" then
     if requireOfficer() then seenAttendance() end
+  elseif action == "attendance" and string.lower(args[2] or "") == "roster" then
+    if requireOfficer() then rosterAttendance() end
+  elseif action == "note" then if requireOfficer() then raidNote(table.concat(args, " ", 2)) end
+  elseif action == "template" or action == "templates" then if requireOfficer() then raidTemplate(args) end
+  elseif action == "raid" and string.lower(args[2] or "") == "discard" then if requireOfficer() then discardRaid() end
+  elseif action == "undo" then if requireOfficer() then voidEntry("last") end
+  elseif action == "raids" then
+    local lines = raidHistoryLines(args[2])
+    for _, line in ipairs(lines) do message(line) end
+    if #db.raids > 0 then showCharacterExport(table.concat(lines, "\n"), "Guilded - raid history: copy it (Ctrl+C) into Discord or a forum") end
   elseif action == "award" and string.lower(args[2] or "") == "group" then
     if requireOfficer() then groupAward(args[3], table.concat(args, " ", 4)) end
   elseif action == "attendance" then if requireOfficer() then setAttendance(args[2], args[3]) end

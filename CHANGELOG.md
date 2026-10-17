@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 6.3.2 Release — 17 October 2026
+
+- Addon polish from a full in-game pass ([notes](docs/V6_3_2_RELEASE_NOTES.md)): the login gear
+  check no longer shares "10 empty slots", the chat tab closes and reopens properly, members see
+  SR+, Escape and Close work on the game windows Guilded opens, and `/guilded` opens the window.
+- Local guild page as three numbered steps with explanations and feedback for new officers.
+- The automatic gear check tells the guild only when something changed (10-minute check-in).
+
 ## 6.3.1 Release — 16 October 2026
 
 - WoW Forever: whispers use the name the game gave, so the version notice, the guild's module

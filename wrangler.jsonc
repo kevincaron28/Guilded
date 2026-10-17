@@ -5,6 +5,10 @@
   "compatibility_date": "2026-10-05",
   "workers_dev": true,
   "previews": {},
+  "keep_vars": true,
+  "kv_namespaces": [
+    { "binding": "OWNER_RESOURCES", "id": "ce3898387649485cbc95087cc4e98493" }
+  ],
   "routes": [
     { "pattern": "kcaron.top", "custom_domain": true },
     { "pattern": "www.kcaron.top", "custom_domain": true },
@@ -13,7 +17,7 @@
   "assets": {
     "directory": "./dist/site",
     "binding": "ASSETS",
-    "run_worker_first": ["/", "/robots.txt", "/sitemap.xml", "/support", "/support/", "/companion", "/companion/*", "/api/*", "/health", "/g/*", "/quebec-gold/cores", "/quebec-gold/cores/", "/quebec-gold/wow", "/quebec-gold/wow/"],
+    "run_worker_first": ["/", "/robots.txt", "/sitemap.xml", "/support", "/support/", "/owner", "/owner/*", "/companion", "/companion/*", "/api/*", "/health", "/g/*", "/quebec-gold/cores", "/quebec-gold/cores/", "/quebec-gold/wow", "/quebec-gold/wow/"],
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "none"
   }

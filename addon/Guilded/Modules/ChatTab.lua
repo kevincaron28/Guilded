@@ -17,12 +17,23 @@ local function settings()
   return ns.getSettings and ns.getSettings()
 end
 
--- The chat window named Guilded, or nil.
+-- A closed chat window keeps its name, so the name alone does not mean it is open: a docked
+-- window shows its tab, an undocked one shows its frame. (GetChatWindowInfo's "shown" is false
+-- for docked windows, even General.)
+local function isOpen(i, frame)
+  if not (frame and frame.IsShown) then return frame ~= nil end
+  if frame:IsShown() then return true end
+  local tab = _G["ChatFrame" .. i .. "Tab"]
+  return tab and tab.IsShown and tab:IsShown() and true or false
+end
+
+-- The open chat window named Guilded, or nil.
 local function findFrame()
   local count = NUM_CHAT_WINDOWS or 10
   for i = 1, count do
     local name = GetChatWindowInfo and GetChatWindowInfo(i)
-    if name == TAB_NAME then return _G["ChatFrame" .. i] end
+    local frame = _G["ChatFrame" .. i]
+    if name == TAB_NAME and isOpen(i, frame) then return frame end
   end
   return nil
 end

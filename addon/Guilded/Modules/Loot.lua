@@ -509,7 +509,7 @@ local function coresSummary()
   if kinds == 0 then return nil end
   if kinds == 1 then
     local only = next(labels)
-    return string.format(L("Loot system: %s - each raid core decides, and all of yours use it. Pick a core with /guilded core <name>."), loot.label(only))
+    return string.format(L("Loot system: %s (all your raid cores use it). Pick a core with /guilded core <name>."), loot.label(only))
   end
   return string.format(L("Loot system: each raid core decides (%s). Pick a core with /guilded core <name>."), table.concat(list, ", "))
 end

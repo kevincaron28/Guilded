@@ -273,7 +273,7 @@ describe("the tools window (sidebar and Home page)", () => {
   it("Home says who you are, what is running, and why there is no standing yet", () => {
     const s = openWindow(1);
     expect(homeText(s, "homeGreeting")).toContain("Kev");
-    expect(homeText(s, "homeGreeting")).toContain("Officer");
+    expect(homeText(s, "homeGreeting")).toContain("Rank");   // the game's own rank name (mocked as "Rank")
     expect(homeText(s, "homeNow")).toContain("No raid is running");
     expect(homeText(s, "homeGear")).toContain("No gear check yet");
     expect(s.run(`return NS.windowState().syncStatus`)).toContain("Everything is saved");

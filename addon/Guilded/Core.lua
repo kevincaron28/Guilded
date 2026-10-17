@@ -808,7 +808,23 @@ local READINESS_SLOTS = {
 local ENCHANTABLE = { Chest = true, Legs = true, Feet = true, Wrist = true, Hands = true, MainHand = true }
 local DEFAULT_ENCHANT_MIN_LEVEL = 60
 
-local function inspectReadiness(silent, target)
+-- `tries` is set only by the automatic checks (login, gear and talent changes): right after
+-- login WoW Forever can report every slot empty for a few seconds, and such a check used to
+-- record and share "NOT_READY, 10 empty slots" with the guild. Those checks wait instead.
+local GEAR_WAIT_SECONDS, GEAR_WAIT_TRIES = 5, 4
+local inspectReadiness
+local function noGearVisible()
+  for _, slot in ipairs(READINESS_SLOTS) do
+    if GetInventoryItemLink("player", slot[1]) or (GetInventoryItemID and GetInventoryItemID("player", slot[1])) then return false end
+  end
+  return true
+end
+
+inspectReadiness = function(silent, target, tries)
+  if tries and tries < GEAR_WAIT_TRIES and noGearVisible() and C_Timer and C_Timer.After then
+    C_Timer.After(GEAR_WAIT_SECONDS, function() inspectReadiness(silent, target, tries + 1) end)
+    return
+  end
   local professions, complete = collectProfessions()
   local snapshot = { character = playerName(), inspectedAt = now(), items = {}, consumables = {}, professions = professions, professionsComplete = complete, professionsAt = now(), findings = {} }
   local missing = 0
@@ -985,7 +1001,7 @@ local function maybeAutoSync(minInterval)
   local nowTime = time()
   if (nowTime - lastAutoSyncAt) < minInterval then return end
   lastAutoSyncAt = nowTime
-  inspectReadiness(true, "GUILD")
+  inspectReadiness(true, "GUILD", 0)
 end
 
 -- /guilded loot <player> <item, may contain spaces or be a shift-clicked link> [cost]
@@ -1279,6 +1295,11 @@ ns.commandModuleOf = function(name) return name and commandModule[string.lower(n
 local function command(text)
   if not db then message("Still loading, try again in a moment."); return end
   local args = split(text)
+  -- A bare /guilded opens the window (the help is long); /guilded help lists every command.
+  if not args[1] and ns.commandHandlers and ns.commandHandlers["menu"] then
+    ns.commandHandlers["menu"]({})
+    return
+  end
   local action = string.lower(args[1] or "help")
   if action == "help" then showHelp()
   elseif action == "status" then
@@ -1600,7 +1621,7 @@ local function onEvent(_, event, ...)
     if C_Timer and C_Timer.After then C_Timer.After(1, function()
       db.character = collectCharacter()
       noteMyCharacter(db.character)
-      inspectReadiness(true, "GUILD")
+      inspectReadiness(true, "GUILD", 0)
       if ns.recipes and ns.recipes.pruneMine then ns.recipes.pruneMine() end
     end) end
   elseif event == "UNIT_INVENTORY_CHANGED" then

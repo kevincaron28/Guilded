@@ -457,7 +457,8 @@ function calendar.statusText()
   elseif scan then
     local answers = 0
     for _, event in ipairs(scan.events or {}) do answers = answers + #event.invites end
-    table.insert(lines, string.format(L("Last scan: %d guild event(s), %d answer(s) (%s)."), #(scan.events or {}), answers, tostring(scan.scannedAt or "?")))
+    table.insert(lines, string.format(L("Last scan: %d guild event(s), %d answer(s) (%s)."), #(scan.events or {}), answers,
+      (ns.util and ns.util.whenText and ns.util.whenText(scan.scannedAt)) or tostring(scan.scannedAt or "?")))
   else
     table.insert(lines, L("The calendar has not been read yet: press Scan."))
   end

@@ -448,7 +448,10 @@ end
 -- Guild calendar, both ways with Discord (Modules/Calendar.lua). Creating an event is done from
 -- a button here because some clients need a real click for it.
 local function buildCalendarPage(page)
-  at(newLabel(page, "Read the in-game guild calendar so the answers reach Discord, and make in-game events for your Discord raids.", "GameFontNormalSmall"), page, 0, 0)
+  -- Inside the game's calendar the page is narrower than PAGE_WIDTH; updateGuildScroll narrows
+  -- these two labels to what is visible so they wrap instead of being cut off.
+  ui.calendarIntro = at(newLabel(page, "Read the in-game guild calendar so the answers reach Discord, and make in-game events for your Discord raids.", "GameFontNormalSmall"), page, 0, 0)
+  ui.calendarIntro:SetWidth(PAGE_WIDTH)
   ui.calendarStatus = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -70)
   ui.calendarStatus:SetWidth(PAGE_WIDTH)
   at(newButton(page, "Scan the calendar", 150, function()
@@ -1166,7 +1169,11 @@ local function refreshHome(db, officer, me)
   if not ui.homeGreeting then return end
   local localOnly = ns.isInGameOnly and ns.isInGameOnly()
   if ui.sidebarSave then ui.sidebarSave:SetText(L(localOnly and "Save my addon data" or (officer and "Send to Discord" or "Save my addon data"))) end
-  ui.homeGreeting:SetText(string.format("%s   |cff999999%s|r", me, officer and L("Officer") or L("Member")))
+  -- The guild rank name as the game shows it ("Guild Master", custom ranks), else Officer/Member.
+  local rankName
+  if GetGuildInfo then local _; _, rankName = GetGuildInfo("player") end
+  if type(rankName) ~= "string" or rankName == "" then rankName = officer and L("Officer") or L("Member") end
+  ui.homeGreeting:SetText(string.format("%s   |cff999999%s|r", me, rankName))
 
   local now = {}
   local raid = ns.getActiveRaid and ns.getActiveRaid()
@@ -1411,6 +1418,14 @@ updateGuildScroll = function()
   local scroll = ui.guildScroll
   local viewport = math.max(1, scroll:GetHeight())
   tab.page:SetHeight(math.max(viewport, height))
+  -- A narrower host (the game's calendar) shows less than PAGE_WIDTH: size the page to what
+  -- is visible so text anchored to its right edge wraps instead of being cut off.
+  local visible = scroll:GetWidth()
+  if type(visible) == "number" and visible > 100 then
+    local width = math.min(PAGE_WIDTH, visible)
+    tab.page:SetWidth(width)
+    for _, label in ipairs({ ui.calendarIntro, ui.calendarStatus }) do label:SetWidth(width - 8) end
+  end
   local range = math.max(0, height - viewport)
   ui.guildScrollRange = range
   scroll:SetVerticalScroll(math.min(scroll:GetVerticalScroll() or 0, range))

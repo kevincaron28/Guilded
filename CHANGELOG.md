@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 6.3.1 Release — 16 October 2026
+
+- WoW Forever: whispers use the name the game gave, so the version notice, the guild's module
+  settings for members and the loot council list arrive ([notes](docs/V6_3_1_RELEASE_NOTES.md)).
+- In game: soft-reserve roll-off (G9) and the guild map pass on two PCs.
+
 ## 6.3.0 Release — 16 October 2026
 
 - Guild-wide sync: any member relays newer standings, item data and dungeon boards; Home shows

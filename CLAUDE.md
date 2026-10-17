@@ -1,6 +1,8 @@
+> 6.3.1 (16 October 2026): Forever whisper fix; G9 and the guild map pass (docs/V6_3_1_RELEASE_NOTES.md).
+> G1 and G2 pass (night run). Not run in game: G6-G8 (dungeon runs), G10 (French client), the 6.1.2 part of G12.
+> On WoW Forever never whisper a bare first name: use the sender text or `ns.util.address(name)`.
 > 6.3.0 (16 October 2026): guild-wide sync and the fixes from the first two-PC in-game check
-> (docs/V6_3_0_RELEASE_NOTES.md; results in docs/V6_2_GAME_ACCEPTANCE.md). G9 and the 6.1.2 part
-> of G12 were not run.
+> (docs/V6_3_0_RELEASE_NOTES.md; results in docs/V6_2_GAME_ACCEPTANCE.md).
 > 6.2.1 (16 October 2026) patches 6.2.0: guild pages, bug inbox, sync fixes (docs/V6_2_1_RELEASE_NOTES.md).
 > 6.2.0 Release (16 October 2026): the owner released 6.2.0 (standalone guilds, November
 > scoring preparation, companion sync from PR #84) before its real-client checks. Those
@@ -22,7 +24,7 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (16 October 2026): version 6.3.0 Release, protocol 2.**
+**Current status (16 October 2026): version 6.3.1 Release, protocol 2.**
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
 Standalone guild and optional Guilded Games work is next-version candidate
 source; do not overwrite the published 6.2.0 downloads or bump incidentally.

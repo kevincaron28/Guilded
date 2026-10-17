@@ -172,7 +172,11 @@ try {
     const brokenCore = await database.raidCore.create({ data: { guildId: guild.id, name: "Rollback weekly fixture" } });
     await saveCoreWeeklySchedule(database, guild.id, brokenCore.id, "jeudi 20h", "release-test");
     const brokenDatabase = { $transaction: (work: (tx: unknown) => Promise<unknown>) => database.$transaction(tx => work(new Proxy(tx, {
-      get(target, key) { return key === "discordJob" ? { createMany: async () => { throw new Error("Forced job failure"); } } : Reflect.get(target, key); }
+      // Weekly raids queue their posts with createMany, the weekly report with upsert: both must fail.
+      get(target, key) {
+        const fail = async () => { throw new Error("Forced job failure"); };
+        return key === "discordJob" ? { createMany: fail, upsert: fail } : Reflect.get(target, key);
+      }
     }))) };
     await assert.rejects(fillCoreWeeklyRaids(brokenDatabase as never, guild.id, brokenCore.id, weeklyNow), /Forced job failure/);
     assert.equal(await database.raid.count({ where: { coreId: brokenCore.id } }), 0);

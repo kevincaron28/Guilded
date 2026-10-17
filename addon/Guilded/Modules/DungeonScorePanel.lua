@@ -297,7 +297,16 @@ function view.build(parent, compact)
       or L("No season snapshot yet"))
     local lines = {}
     -- The score itself is already on the summary line at the top.
-    if not season then lines[1] = L("Season scores arrive through your companion or a guild officer.") end
+    if not season then lines[1] = L("Season scores arrive through your companion or a guild officer.")
+    else
+      -- How fresh these scores are, and whose copy (companion or an officer's share).
+      local d = ns.getDb and ns.getDb()
+      local board = d and d.dungeonBoard
+      local when = board and board.updatedAt and ns.util and ns.util.whenText and ns.util.whenText(board.updatedAt)
+      if when then
+        lines[1] = string.format(L("Updated %s%s."), when, board.from and string.format(L(", shared by %s"), board.from) or "")
+      end
+    end
     self.seasonRows:SetText(table.concat(lines, "\n"))
   end
   button(pane, "Previous", 16, -299, 100, function() pane.page = math.max(1, pane.page - 1); pane:Refresh() end)

@@ -1,3 +1,4 @@
+import { pinnedMessages } from "./pins.js";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, type GuildTextBasedChannel, type Message } from "discord.js";
 import { tx, type Lang } from "../i18n.js";
 import { type GroupKind } from "./dungeon-group.js";
@@ -63,20 +64,20 @@ export function isCurrentGuide(message: Message): boolean {
 }
 
 export async function hasDungeonSignupGuide(channel: GuildTextBasedChannel): Promise<boolean> {
-  const pins = await channel.messages.fetchPinned();
+  const pins = await pinnedMessages(channel);
   return pins.some(isDungeonGuide);
 }
 
 // "missing", "outdated" (the pre-4.6 button) or "current".
 export async function dungeonGuideState(channel: GuildTextBasedChannel): Promise<"missing" | "outdated" | "current"> {
-  const pins = await channel.messages.fetchPinned();
+  const pins = await pinnedMessages(channel);
   const guide = pins.find(isDungeonGuide);
   if (!guide) return "missing";
   return isCurrentGuide(guide) ? "current" : "outdated";
 }
 
 export async function ensureDungeonSignupGuide(channel: GuildTextBasedChannel, lang: Lang): Promise<void> {
-  const pins = await channel.messages.fetchPinned();
+  const pins = await pinnedMessages(channel);
   let message = pins.find(isDungeonGuide);
   if (!message) {
     const recent = await channel.messages.fetch({ limit: 100 });

@@ -37,11 +37,23 @@ function module.chooseSetup(mode)
   return true
 end
 
+-- In-game only, then the Local guild page (create a raid core, loot rules, raiders).
+function module.guildSetup()
+  if not (ns.isOfficer and ns.isOfficer()) then
+    ns.message(L("Only a guild officer sets up raid cores. Ask an officer, or use the tools as a member."))
+    return
+  end
+  local s = settings()
+  if s and s.setupMode ~= "local" then module.chooseSetup("local") end
+  if setupPanel then setupPanel:Hide() end
+  if ns.openToolsPage then ns.openToolsPage("Local guild") end
+end
+
 function module.openSetup()
   if InCombatLockdown and InCombatLockdown() then ns.message(L("Open setup after combat.")); return end
   if not setupPanel then
     setupPanel = CreateFrame("Frame", "GuildedSetupPanel", UIParent, "BasicFrameTemplateWithInset")
-    setupPanel:SetSize(520, 300)
+    setupPanel:SetSize(520, 330)
     setupPanel:SetPoint("CENTER")
     setupPanel:SetFrameStrata("DIALOG")
     local title = setupPanel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -51,10 +63,15 @@ function module.openSetup()
     text:SetText(L("In-game only: gear checks, dungeon recording, raid attendance and loot tools work without Discord or signups. Officers can share local standings with online guildmates.\n\nConnected: optional companion sync adds Discord rosters, signups and verified season scores.\n\nData stays in SavedVariables. Keep backups. This choice preserves existing rosters and points; it does not stop a running companion. Change it any time with /guilded setup."))
     for i, choice in ipairs({ { "local", "In-game only (default)" }, { "connected", "Optional Discord connection" } }) do
       local b = CreateFrame("Button", nil, setupPanel, "UIPanelButtonTemplate")
-      b:SetSize(230, 28); b:SetPoint("BOTTOMLEFT", 20 + (i - 1) * 245, 24)
+      b:SetSize(230, 28); b:SetPoint("BOTTOMLEFT", 20 + (i - 1) * 245, 58)
       b:SetText(L(choice[2])); local mode = choice[1]
       b:SetScript("OnClick", function() module.chooseSetup(mode) end)
     end
+    -- New guilds: straight to the three-step Local guild page.
+    local guide = CreateFrame("Button", nil, setupPanel, "UIPanelButtonTemplate")
+    guide:SetSize(475, 28); guide:SetPoint("BOTTOMLEFT", 20, 22)
+    guide:SetText(L("Officers: set up my guild in game, step by step"))
+    guide:SetScript("OnClick", function() module.guildSetup() end)
     if UISpecialFrames then table.insert(UISpecialFrames, "GuildedSetupPanel") end
   end
   setupPanel:Show()
@@ -181,11 +198,13 @@ ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHandlers["options"] = function() module.open() end
 ns.commandHandlers["settings"] = ns.commandHandlers["options"]
 ns.commandHandlers["setup"] = function(args)
-  if not module.chooseSetup(string.lower(args[1] or "")) then module.openSetup() end
+  local choice = string.lower(args[1] or "")
+  if choice == "guild" then module.guildSetup() return end
+  if not module.chooseSetup(choice) then module.openSetup() end
 end
 ns.commandHelp = ns.commandHelp or {}
 table.insert(ns.commandHelp, "/guilded options - Guilded's page in the game's options (minimap button, chat tab, modules)")
-table.insert(ns.commandHelp, "/guilded setup - choose in-game only or optional Discord connection")
+table.insert(ns.commandHelp, "/guilded setup - choose in-game only or optional Discord connection; /guilded setup guild - set up raid cores step by step (officers)")
 
 -- Built once saved settings exist (after Core.lua's PLAYER_LOGIN).
 local frame = CreateFrame("Frame")
@@ -210,6 +229,9 @@ function module.checkFirstRun()
   -- Assign directly so existing local core selections and saved records remain intact.
   s.setupMode = "local"
   ns.message(L("Addon-only is ready. Discord linking and companion sync are optional; use /guilded setup later."))
+  if ns.isOfficer and ns.isOfficer() then
+    ns.message(L("Officers: /guilded setup guild walks you through creating your raid team, loot rules and roster."))
+  end
 end
 local firstRun = CreateFrame("Frame")
 firstRun:RegisterEvent("PLAYER_ENTERING_WORLD")

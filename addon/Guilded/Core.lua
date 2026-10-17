@@ -310,6 +310,8 @@ end
 
 -- Assigned below groupMembers(); declared here so raid start/end can use it.
 local recordPresence
+-- Assigned below (needs the export box); raidEnd prints it.
+local raidSummaryLines
 
 local function raidStart(title)
   if activeRaid then
@@ -340,8 +342,14 @@ local function raidEnd()
   logEvent("RAID_END", { id = activeRaid.id })
   send("RAID_END|" .. activeRaid.id)
   message("Ended raid: " .. activeRaid.title)
+  local ended = activeRaid
   activeRaid = nil
   db.activeRaidId = nil
+  -- What was recorded, so the officer can check it before logging out (/guilded summary to copy).
+  if raidSummaryLines then
+    for _, line in ipairs(raidSummaryLines(ended)) do message(line) end
+    message("/guilded summary opens it to copy into Discord or a forum.")
+  end
 end
 
 local function setAttendance(name, status, quiet)
@@ -791,10 +799,57 @@ local function showCharacterExport(text, title)
     close:SetScript("OnClick", function() exportFrame:Hide() end)
     exportFrame.box = box
   end
+  -- A share code is one line; a raid summary has several, so the box grows for those.
+  local lines = 1
+  for _ in string.gmatch(text or "", "\n") do lines = lines + 1 end
+  local multi = lines > 1
+  if exportFrame.box.SetMultiLine then exportFrame.box:SetMultiLine(multi) end
+  exportFrame.box:SetSize(490, multi and math.min(240, lines * 16 + 8) or 24)
+  exportFrame:SetSize(520, multi and math.min(320, lines * 16 + 90) or 110)
   exportFrame.box:SetText(text)
   exportFrame:Show()
   exportFrame.box:SetFocus()
   exportFrame.box:HighlightText()
+end
+
+-- End-of-raid summary from what this client recorded. Boss kills and attendance are marked by
+-- officers (the game does not report them to addons), so the summary says so.
+raidSummaryLines = function(raid)
+  if not raid then return { "No raid recorded yet." } end
+  local lines = { string.format("%s - %s to %s", raid.title or "Raid", tostring(raid.startedAt or "?"), tostring(raid.endedAt or "still running")) }
+  local counts, marked = { PRESENT = 0, LATE = 0, ABSENT = 0 }, {}
+  for name, row in pairs(db.attendance[raid.id] or {}) do
+    counts[row.status] = (counts[row.status] or 0) + 1
+    marked[name] = true
+  end
+  local unmarked = {}
+  for name in pairs(db.presence[raid.id] or {}) do if not marked[name] then table.insert(unmarked, name) end end
+  table.sort(unmarked)
+  table.insert(lines, string.format("Attendance (marked by officers): %d present, %d late, %d absent.", counts.PRESENT, counts.LATE, counts.ABSENT))
+  if #unmarked > 0 then
+    table.insert(lines, string.format("Seen in the group but not marked (%d): %s", #unmarked, table.concat(unmarked, ", ")))
+  end
+  local bosses = {}
+  for _, boss in ipairs(db.bosses[raid.id] or {}) do table.insert(bosses, boss.name) end
+  table.insert(lines, #bosses > 0 and ("Bosses (marked by hand): " .. table.concat(bosses, ", ")) or "Bosses: none marked.")
+  local ep, gp, entries = 0, 0, 0
+  for _, account in pairs(db.epgp or {}) do
+    for _, entry in ipairs(account.ledger or {}) do
+      if entry.raid == raid.id and not entry.voided then
+        entries = entries + 1
+        ep, gp = ep + (entry.epAmount or 0), gp + (entry.gpAmount or 0)
+      end
+    end
+  end
+  table.insert(lines, string.format("EP/GP: %d entries, %+d EP, %+d GP.", entries, ep, gp))
+  local loot = {}
+  for _, row in ipairs(db.loot or {}) do
+    if row.raid == raid.id then
+      table.insert(loot, row.item .. " -> " .. row.player .. ((row.cost or 0) > 0 and (" (" .. row.cost .. " GP)") or ""))
+    end
+  end
+  table.insert(lines, #loot > 0 and ("Loot (" .. #loot .. "): " .. table.concat(loot, "; ")) or "Loot: none recorded.")
+  return lines
 end
 
 local READINESS_SLOTS = {
@@ -807,6 +862,9 @@ local READINESS_SLOTS = {
 -- turn the check off or set the level it starts at with /guilded enchants.
 local ENCHANTABLE = { Chest = true, Legs = true, Feet = true, Wrist = true, Hands = true, MainHand = true }
 local DEFAULT_ENCHANT_MIN_LEVEL = 60
+-- Below this level an empty head or shoulder slot is normal (levelling gear), so empty slots are
+-- only a note there, not "Not ready". /guilded slots level <n> changes it (1 = always count).
+local DEFAULT_SLOT_MIN_LEVEL = 60
 
 -- `tries` is set only by the automatic checks (login, gear and talent changes): right after
 -- login WoW Forever can report every slot empty for a few seconds, and such a check used to
@@ -833,6 +891,8 @@ inspectReadiness = function(silent, target, tries)
   local missingSlots = {}
   local unenchanted = {}
   local minDurability = 100
+  local slotsCount = (UnitLevel("player") or 0) >= (db.settings.slotMinLevel or DEFAULT_SLOT_MIN_LEVEL)
+  local lowLevelEmpty = {}
   for _, slot in ipairs(READINESS_SLOTS) do
     local link = GetInventoryItemLink("player", slot[1])
     -- Right after login the link can still be loading while the item id is
@@ -863,11 +923,17 @@ inspectReadiness = function(silent, target, tries)
       -- that can't be told apart from "forgot to equip" without deeper
       -- tooltip parsing, so treat it as a soft warning, not a hard failure.
       table.insert(snapshot.findings, { code = "MISSING_OFFHAND", severity = "WARNING", message = "No off-hand item equipped (expected when using a two-handed weapon)." })
+    elseif not slotsCount then
+      table.insert(lowLevelEmpty, slot[2])
     else
       missing = missing + 1
       table.insert(missingSlots, slot[2])
       table.insert(snapshot.findings, { code = "MISSING_" .. string.upper(slot[2]), severity = "ERROR", message = "Missing " .. slot[2] .. " equipment." })
     end
+  end
+  if #lowLevelEmpty > 0 then
+    table.insert(snapshot.findings, { code = "EMPTY_SLOTS_LOW_LEVEL", severity = "INFO",
+      message = "Empty slots (normal while levelling): " .. table.concat(lowLevelEmpty, ", ") .. "." })
   end
   -- Consumables: always recorded; only a missing flask/food counts against
   -- readiness while you are in a raid group (idle in town is fine).
@@ -1141,10 +1207,11 @@ local function showHelp()
   message("/guilded attune <key> [clear] - mark your own attunement")
   message("/guilded snapshot [label] | list - record who is in the group right now (officers)")
   message("/guilded enchants - show or change the missing-enchant check (on/off, starting level)")
+  message("/guilded slots level <n> - from which level empty gear slots count as not ready (default 60)")
   message("/guilded share - one paste with your character, gear check, consumables and attunements (Discord: /character import)")
   message("/guilded character - copy a line to link this character in Discord (/character import)")
   if officer then
-    message("Officer: /guilded start [title] | end | attendance <name>|group|seen [PRESENT|ABSENT|LATE] | boss <name>")
+    message("Officer: /guilded start [title] | end | attendance <name>|group|seen [PRESENT|ABSENT|LATE] | boss <name> | summary (what the raid recorded, to copy)")
     message("Officer: /guilded award <name>|group <amount> [reason] | gp <name> <amount> [reason] | deduct <name> <amount> [reason] | gpdeduct <name> <amount> [reason]")
     message("Officer: /guilded loot <name> <item> [cost] | export | attune <player> <key> [clear] | officer list|add|remove|rank")
     message("Officer: /guilded void [player] - take back the newest EP/GP entry you made (for that player); Discord reverses it")
@@ -1337,6 +1404,16 @@ local function command(text)
       message(string.format("Enchant check is %s, from level %d. /guilded enchants on|off|level <n>.",
         db.settings.enchantCheck ~= false and "on" or "off", db.settings.enchantMinLevel or DEFAULT_ENCHANT_MIN_LEVEL))
     end
+  elseif action == "slots" then
+    local sub = string.lower(args[2] or "")
+    if sub == "level" and tonumber(args[3]) then
+      db.settings.slotMinLevel = math.max(1, math.floor(tonumber(args[3])))
+      message("Empty gear slots count as not ready from level " .. db.settings.slotMinLevel .. ".")
+      inspectReadiness(true, "GUILD")
+    else
+      message(string.format("Empty gear slots count as not ready from level %d. /guilded slots level <n> (1 = always).",
+        db.settings.slotMinLevel or DEFAULT_SLOT_MIN_LEVEL))
+    end
   elseif action == "share" then
     -- Refresh the gear check, then export everything about YOU in one paste.
     inspectReadiness(true, "GUILD")
@@ -1354,6 +1431,12 @@ local function command(text)
     showCharacterExport(line)
   elseif action == "start" then if requireOfficer() then raidStart(table.concat(args, " ", 2)) end
   elseif action == "end" then if requireOfficer() then raidEnd() end
+  elseif action == "summary" then
+    -- The running raid, else the last one recorded.
+    local raid = activeRaid or db.raids[#db.raids]
+    local text = table.concat(raidSummaryLines(raid), "\n")
+    for _, line in ipairs(raidSummaryLines(raid)) do message(line) end
+    if raid then showCharacterExport(text, "Guilded - raid summary: copy it (Ctrl+C) into Discord or a forum") end
   elseif action == "attendance" and string.lower(args[2] or "") == "group" then
     if requireOfficer() then groupAttendance(args[3]) end
   elseif action == "attendance" and string.lower(args[2] or "") == "seen" then

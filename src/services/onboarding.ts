@@ -1,3 +1,4 @@
+import { pinnedMessages } from "./pins.js";
 import { hostedPilot } from "../hosted-pilot.js";
 import { PILOT_DENIED } from "./pilot-policy.js";
 import {
@@ -96,7 +97,7 @@ function panelIsCurrent(message: PanelMessage, panel: ReturnType<typeof welcomeP
 }
 
 export async function welcomePanelState(channel: GuildTextBasedChannel, settings: StepSettings, lang: Lang): Promise<"current" | "outdated" | "missing"> {
-  const pins = await channel.messages.fetchPinned().catch(() => null);
+  const pins = await pinnedMessages(channel).catch(() => null);
   const existing = pins?.find((message) => isPanel(message));
   if (!existing) return "missing";
   return panelIsCurrent(existing, welcomePanel(settings, channel.guild, lang)) ? "current" : "outdated";
@@ -105,7 +106,7 @@ export async function welcomePanelState(channel: GuildTextBasedChannel, settings
 // Pins the panel, or brings the pinned one up to date. Safe to call again.
 export async function ensureWelcomePanel(channel: GuildTextBasedChannel, settings: StepSettings, lang: Lang): Promise<void> {
   const panel = welcomePanel(settings, channel.guild, lang);
-  const pins = await channel.messages.fetchPinned().catch(() => null);
+  const pins = await pinnedMessages(channel).catch(() => null);
   const existing = pins?.find((message) => isPanel(message));
   if (existing) {
     if (existing.editable && !panelIsCurrent(existing, panel)) await existing.edit(panel);

@@ -21,6 +21,14 @@ describe("addon-only guild administration", () => {
     s.run(`NS.localGuild.remove("Tuesday raid","Amy",true)`);
     expect(s.run(`return #NS.loot.core().roster`)).toBe("1");
   });
+  it("/guilded setup guild picks In-game only and opens the Local guild page", () => {
+    setup();
+    s.run(`NS.options.chooseSetup("connected"); OPENED = nil; NS.openToolsPage = function(name) OPENED = name end`);
+    s.run(`NS.runCommand("setup guild")`);
+    expect(s.run(`return GuildedDB.settings.setupMode`)).toBe("local");
+    expect(s.run(`return tostring(OPENED)`)).toBe("Local guild");
+  });
+
   it("the status text guides a new officer step by step", () => {
     setup();
     expect(s.run(`return NS.localGuild.describe()`)).toContain("start with step 1");

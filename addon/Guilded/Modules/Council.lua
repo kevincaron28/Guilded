@@ -285,7 +285,7 @@ function council.sendList(session, ranked)
   local sent = 0
   for _, name in ipairs(ns.groupMembers()) do
     if name ~= ns.playerName() and ns.isOfficerName and ns.isOfficerName(name) then
-      sendAddon(head .. table.concat(parts, ";"), "WHISPER", name)
+      sendAddon(head .. table.concat(parts, ";"), "WHISPER", ns.util.address(name))
       sent = sent + 1
     end
   end

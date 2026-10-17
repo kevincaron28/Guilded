@@ -71,13 +71,15 @@ describe("module requests are rate limited", () => {
     s.run(`
       NS.isOfficer = function() return true end
       NS.getSettings = function() return { guildModules = { updatedAt = 50, by = "Kev", off = {} } } end
-      SENT = 0
-      C_ChatInfo = { RegisterAddonMessagePrefix = function() end, SendAddonMessage = function(_, text) if string.find(text, "^MODS|") then SENT = SENT + 1 end end }
+      SENT = 0; TARGETS = {}
+      C_ChatInfo = { RegisterAddonMessagePrefix = function() end, SendAddonMessage = function(_, text, _, target) if string.find(text, "^MODS|") then SENT = SENT + 1; TARGETS[#TARGETS + 1] = tostring(target) end end }
       fire_event("PLAYER_ENTERING_WORLD")
       for _ = 1, 4 do fire_event("CHAT_MSG_ADDON", "GuildedSync", "MODSREQ|0", "GUILD", "Amy-Realm") end
       fire_event("CHAT_MSG_ADDON", "GuildedSync", "MODSREQ|0", "GUILD", "Bob-Realm")
     `);
     expect(s.run(`return SENT`)).toBe("2");
+    // The whisper goes to the sender as the game gave it (WoW Forever: never the bare first name).
+    expect(s.run(`return table.concat(TARGETS, ",")`)).toBe("Amy-Realm,Bob-Realm");
   });
 });
 

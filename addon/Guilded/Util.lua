@@ -127,6 +127,29 @@ function util.inMyGroup(name)
   return false
 end
 
+-- The sender text the game last gave for each player in a Guilded addon message. A whisper
+-- to a name from the roster or the group must use it: on WoW Forever the first name alone
+-- is not a player ("No player named 'Naomine'", 16 October).
+local addresses = {}
+function util.rememberAddress(raw)
+  if type(raw) ~= "string" or isSecret(raw) then return end
+  local name = normalizeName(raw)
+  if name then addresses[name] = raw end
+end
+function util.address(name)
+  local key = normalizeName(name)
+  return key and addresses[key] or name
+end
+if CreateFrame then
+  local addressFrame = CreateFrame("Frame")
+  addressFrame:RegisterEvent("CHAT_MSG_ADDON")
+  addressFrame:SetScript("OnEvent", function(_, _, prefix, _, _, sender)
+    if type(prefix) == "string" and not isSecret(prefix) and string.sub(prefix, 1, 7) == "Guilded" then
+      util.rememberAddress(sender)
+    end
+  end)
+end
+
 -- Plain base64 (RFC 4648), so a pasted string survives chat, edit boxes and Discord.
 local B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 local B64_INDEX = {}

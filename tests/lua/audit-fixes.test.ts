@@ -40,6 +40,18 @@ const RAID = String.raw`
 const slash = (s: LuaSession, line: string) => s.run(`SlashCmdList["GUILDED"](${JSON.stringify(line)})`);
 const sentCount = (s: LuaSession) => Number(s.run("return #SENT"));
 
+describe("whisper addresses (WoW Forever)", () => {
+  it("whispers a player by the sender text the game gave, not the bare first name", () => {
+    const s = loggedIn(["Locale.lua", "Modules/Council.lua"], RAID);
+    expect(s.run(`return NS.util.address("Ann")`)).toBe("Ann");
+    s.run(`fire_event("CHAT_MSG_ADDON", "GuildedSync", "VERSION|6.3.0", "GUILD", "Ann-Merriweather")`);
+    expect(s.run(`return NS.util.address("Ann")`)).toBe("Ann-Merriweather");
+    // Another addon's messages do not count.
+    s.run(`fire_event("CHAT_MSG_ADDON", "OtherAddon", "x", "GUILD", "Ann-Elsewhere")`);
+    expect(s.run(`return NS.util.address("Ann")`)).toBe("Ann-Merriweather");
+  });
+});
+
 describe("Util.lua helpers", () => {
   it("cuts text without splitting a UTF-8 character", () => {
     const s = loggedIn([]);

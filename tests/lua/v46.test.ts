@@ -184,6 +184,7 @@ describe("SR+ (soft reserve bonus)", () => {
     expect(s.run("return NS.reserve.plusFor('Ann', 19364) .. ':' .. NS.reserve.plusFor('Bob', 19364) .. ':' .. NS.reserve.plusFor('Cy', 19364)")).toBe("20:0:10");
     reserve(s, `add Ann ${SWORD}`);
     reserve(s, `add Cy ${SWORD}`);
+    s.run("function IsInGroup() return true end"); // a roll-off needs a group
     reserve(s, `roll ${SWORD}`);
     expect(s.run("return BONUS.Ann .. ':' .. BONUS.Cy")).toBe("20:10");
     expect(s.run("return CHAT_LOG[#CHAT_LOG]")).toContain("Ann (+20), Cy (+10)");

@@ -46,6 +46,6 @@ describe("soft-reserve roll-off (G9)", () => {
     roll("Naomine Merriweather", 70);
     expect(said(mark)).not.toContain("Roll winner");
     roll("Highpriest Cheech", 20);
-    expect(said(mark)).toContain("Roll winner: Naomine (70 including SR+)");
+    expect(said(mark)).toContain("Roll winner: Naomine (70). Award the item separately.");
   });
 });

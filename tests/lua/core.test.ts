@@ -147,6 +147,16 @@ describe("gear check: enchants, consumables and the peer digest", () => {
     expect(s.run(`return OPENED`)).toBe("1");
   });
 
+  it("roster attendance says why it cannot run: no core, an empty local core, or a Discord core without a roster", () => {
+    const s = loggedIn();
+    s.run(`SlashCmdList["GUILDED"]("start Test"); CHAT_LOG = {}; NS.loot = { core = function() return nil end, rosterCheck = function() end }; SlashCmdList["GUILDED"]("attendance roster")`);
+    expect(s.run(`return CHAT_LOG[#CHAT_LOG]`)).toContain("Choose a raid core first");
+    s.run(`NS.loot.core = function() return { name = "Team", localOnly = true, roster = {} } end; SlashCmdList["GUILDED"]("attendance roster")`);
+    expect(s.run(`return CHAT_LOG[#CHAT_LOG]`)).toContain("Team has no raiders yet");
+    s.run(`NS.loot.core = function() return { name = "Les Aggros", roster = {} } end; SlashCmdList["GUILDED"]("attendance roster")`);
+    expect(s.run(`return CHAT_LOG[#CHAT_LOG]`)).toContain("Les Aggros has no roster from Discord yet");
+  });
+
   it("raid templates, notes, roster attendance, undo, discard and the raid history", () => {
     const s = loggedIn();
     s.run(`

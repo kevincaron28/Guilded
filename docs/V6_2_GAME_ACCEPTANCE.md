@@ -216,3 +216,15 @@ installed. Both PCs backed up their Guilded SavedVariables first and restored th
 
 Afterwards both PCs restored their Guilded SavedVariables (hashes match), removed Guilded Games and its
 saved files; the main PC went back to the released 6.3.2 addon and resumed companion tracking.
+
+### 17 October 2026 (evening): raid-night tools (#119), main PC
+
+Highpriest Cheech, connected setup, companion tracking paused, saved data restored afterwards (hashes
+match). `/guilded template save` and `/guilded start tue` started "Test Night"; `/guilded note` appeared
+in the end-of-raid summary; `/guilded award` then `/guilded undo` voided the entry ("Voided: Highpriest
++1 EP"), and the summary counted 0 entries; `/guilded raid discard` dropped an empty raid; `/guilded
+raids 3` opened the copy box. `/guilded attendance roster` refused correctly (the selected Discord core
+has no roster yet) but pointed to the Local guild page; the message now says the roster comes from
+Discord. `/guilded history` asked the guild and timed out cleanly (no other officer online); the
+member/officer exchange is covered by tests/lua/history.test.ts. The Guilded Games label needs a party
+and was checked by test only.

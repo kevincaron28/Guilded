@@ -633,7 +633,11 @@ local function rosterAttendance()
   if not activeRaid then message("Start a raid first."); return end
   local core = ns.loot and ns.loot.core and ns.loot.core()
   if not (core and core.roster and #core.roster > 0 and ns.loot.rosterCheck) then
-    message("Choose a raid core with a roster first (/guilded core <name>; Local guild step 3)."); return
+    -- Seen in game: a Discord core with no roster yet was told to use the Local guild page.
+    if not core then message("Choose a raid core first: /guilded core <name>.")
+    elseif core.localOnly then message((core.name or "This core") .. " has no raiders yet: add them on the Local guild page (step 3).")
+    else message((core.name or "This core") .. " has no roster from Discord yet; it comes with the companion upload.") end
+    return
   end
   recordPresence()
   local check = ns.loot.rosterCheck(core, groupMembers())

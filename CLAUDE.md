@@ -1,5 +1,5 @@
 > 6.3.1 (16 October 2026): Forever whisper fix; G9 and the guild map pass (docs/V6_3_1_RELEASE_NOTES.md).
-> Not run in game: G1, G2, G6-G8 (dungeon runs), G10 (French client), the 6.1.2 part of G12.
+> G1 and G2 pass (night run). Not run in game: G6-G8 (dungeon runs), G10 (French client), the 6.1.2 part of G12.
 > On WoW Forever never whisper a bare first name: use the sender text or `ns.util.address(name)`.
 > 6.3.0 (16 October 2026): guild-wide sync and the fixes from the first two-PC in-game check
 > (docs/V6_3_0_RELEASE_NOTES.md; results in docs/V6_2_GAME_ACCEPTANCE.md).

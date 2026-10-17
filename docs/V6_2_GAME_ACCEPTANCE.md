@@ -44,14 +44,19 @@ Deadmines completion should not receive competitive rating in that phase.
 
 ## Required desktop check alongside the in-game session
 
-- [ ] Quit the old companion and upgrade with the 6.2.0 installer. Existing
+- [x] Quit the old companion and upgrade with the 6.2.0 installer. Existing
   configuration/pairing survives; one tray instance opens, finds the correct
   SavedVariables, uploads G6 once, and downloads the active/frozen season views.
+  **17 October, main PC, 6.3.1 -> 6.3.2 (installer SHA-256 18dbddb0...):** the installer asked
+  to close the running companion (OK), exited 0; 6.3.2 runs as one app; config.json byte-identical
+  (pairing kept); it watches the right Guilded.lua and uploaded on start and on Sync now
+  ("0 ledger entries, 0 new characters": nothing counted twice). No new G6 run existed to upload.
 - [ ] On the second PC, verify a clean companion installation/pairing where
   applicable. Check restart with an unsent run and an offline/reconnected sync;
   no duplicate awards, no lost unsent run and no second bot process.
 - [ ] Verify `GuildedData` is discovered/enabled on the actual client and loads
-  after Guilded. Upgrade the addon in the test profile, reload, and confirm
+  after Guilded. (17 October: its TOC declares `Dependencies: Guilded`, so it always loads after;
+  Highpriest showed its standings in game. The rest of this item is still open.) Upgrade the addon in the test profile, reload, and confirm
   standings survive. Check a newer browser-written file also takes precedence.
 - [ ] With an accepted test backend, compare direct and website-proxied sync:
   one award, one reversal, repeated uploads, disconnect/reconnect, and stop/start.

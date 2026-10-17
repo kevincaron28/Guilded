@@ -190,16 +190,10 @@ local function changed()
   notify()
 end
 
--- The keeper shares the whole list: settings, then "VER|<stamp>|<chunks>", then the entries
--- in short chunks. A receiver only swaps in the new list once every chunk has arrived, so a
--- lost message leaves the previous list in place instead of a half list.
-local function shareNow()
-  local s = state()
-  if not (s and isHost()) then return end
-  local channel = shareChannel()
+-- "a;b;c" pieces packed into messages of at most CHUNK characters.
+local function pack(pieces)
   local chunks, buffer = {}, ""
-  for _, name in ipairs(sortedPlayers(s)) do
-    local piece = name .. "=" .. table.concat(s.entries[name], ",")
+  for _, piece in ipairs(pieces) do
     if buffer ~= "" and string.len(buffer) + 1 + string.len(piece) > CHUNK then
       table.insert(chunks, buffer)
       buffer = ""
@@ -207,9 +201,34 @@ local function shareNow()
     buffer = buffer == "" and piece or (buffer .. ";" .. piece)
   end
   if buffer ~= "" then table.insert(chunks, buffer) end
+  return chunks
+end
+
+-- The keeper shares the whole list: settings, then "VER|<stamp>|<chunks>", the SR+ weeks of the
+-- reserves on the list ("P|", always at least one so an empty one clears old bonuses), then the
+-- entries in short chunks. A receiver only swaps in the new list once every entry chunk has
+-- arrived, so a lost message leaves the previous list in place instead of a half list. Older
+-- clients ignore "P|" and simply show no SR+.
+local function shareNow()
+  local s = state()
+  if not (s and isHost()) then return end
+  local channel = shareChannel()
+  local entries, bonuses = {}, {}
+  for _, name in ipairs(sortedPlayers(s)) do
+    table.insert(entries, name .. "=" .. table.concat(s.entries[name], ","))
+    local weeks = {}
+    for _, id in ipairs(s.entries[name]) do
+      local count = s.plus[name .. ":" .. tostring(id)]
+      if count and count > 0 then table.insert(weeks, id .. ":" .. count) end
+    end
+    if #weeks > 0 then table.insert(bonuses, name .. "=" .. table.concat(weeks, ",")) end
+  end
+  local chunks, plusChunks = pack(entries), pack(bonuses)
+  if #plusChunks == 0 then plusChunks = { "" } end
   sendAddon(string.format("STATE|%d|%d|%s", s.open and 1 or 0, s.limit, s.title or ""), channel)
   sendAddon("CLR", channel)
   sendAddon(string.format("VER|%s|%d", s.updatedAt or (ns.now and ns.now()) or "", #chunks), channel)
+  for _, chunk in ipairs(plusChunks) do sendAddon("P|" .. chunk, channel) end
   for _, chunk in ipairs(chunks) do sendAddon("L|" .. chunk, channel) end
 end
 reserve.share = shareNow
@@ -601,11 +620,25 @@ local function onEvent(_, event, ...)
           end
         end
         incoming.received = incoming.received + 1
+      elseif kind == "P" then
+        local incoming = reserve.incoming
+        if s.host ~= name or not incoming or incoming.from ~= name then return end
+        incoming.plus = incoming.plus or {}
+        for entry in string.gmatch(string.match(text, "^P|(.*)$") or "", "[^;]+") do
+          local player, list = string.match(entry, "^([^=]+)=([%d:,]+)$")
+          if player then
+            for id, weeks in string.gmatch(list, "(%d+):(%d+)") do
+              incoming.plus[player .. ":" .. id] = math.min(tonumber(weeks), 52)
+            end
+          end
+        end
       end
       -- The whole list arrived: swap it in at once, with the keeper's stamp.
       local incoming = reserve.incoming
       if incoming and incoming.total and incoming.received >= incoming.total then
         s.entries = incoming.entries
+        -- An older keeper sends no "P|": keep what was there.
+        if incoming.plus then s.plus = incoming.plus end
         if incoming.stamp and incoming.stamp ~= "" and not ns.util.tooFarAhead(incoming.stamp) then s.updatedAt = incoming.stamp end
         reserve.incoming = nil
       end

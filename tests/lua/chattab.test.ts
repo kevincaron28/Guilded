@@ -43,6 +43,22 @@ describe("ChatTab.lua", () => {
     expect(s.run(`return tostring(SETTINGS.chatTab)`)).toBe("false");
   });
 
+  it("/guilded chat off closes the Guilded tab instead of leaving it empty", () => {
+    const s = withChatTab();
+    s.run(`CLOSED = nil; FCF_Close = function(frame) CLOSED = frame; WINDOW_NAMES[3] = nil end`);
+    chat(s, "tab");
+    chat(s, "off");
+    expect(s.run(`return tostring(CLOSED == ChatFrame3)`)).toBe("true");
+    expect(s.run(`return tostring(WINDOW_NAMES[3])`)).toBe("nil");
+  });
+
+  it("/guilded chat off never closes the main chat window", () => {
+    const s = withChatTab();
+    s.run(`CLOSED = nil; FCF_Close = function(frame) CLOSED = frame end; WINDOW_NAMES[1] = "Guilded"`);
+    chat(s, "off");
+    expect(s.run(`return tostring(CLOSED)`)).toBe("nil");
+  });
+
   it("uses an existing tab named Guilded instead of opening another", () => {
     const s = withChatTab();
     s.run(`WINDOW_NAMES[3] = "Guilded"; OPENED = 0; FCF_OpenNewWindow = function() OPENED = OPENED + 1 end`);

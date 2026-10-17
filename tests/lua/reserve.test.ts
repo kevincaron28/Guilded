@@ -295,3 +295,60 @@ describe("Reserve.lua member side", () => {
     expect(s.run("return DB.reserves.updatedAt")).toBe("2026-09-20T10:00:00Z");
   });
 });
+
+describe("Reserve.lua SR+ on members' lists", () => {
+  it("the keeper shares the SR+ weeks of the reserves on the list", () => {
+    const s = withReserve("Boss", true);
+    cmd(s, "open");
+    addon(s, "Ann", "ADD|19364");
+    addon(s, "Bob", "ADD|17063");
+    s.run(`DB.reserves.plus = { ["Ann:19364"] = 2, ["Bob:999"] = 4 }`); // Bob's 999 is not on the list
+    s.run("SENT = {}; NS.reserve.share()");
+    expect(sent(s, "^ADDON:GUILD:nil:P|Ann=19364:2$")).toBe("1");
+  });
+
+  it("an empty P| is sent when nobody has SR+, so old bonuses clear", () => {
+    const s = withReserve("Boss", true);
+    cmd(s, "open");
+    addon(s, "Ann", "ADD|19364");
+    s.run("SENT = {}; NS.reserve.share()");
+    expect(sent(s, "^ADDON:GUILD:nil:P|$")).toBe("1");
+  });
+
+  it("a member shows the keeper's SR+ on the list", () => {
+    const s = withReserve("Ray", false);
+    addon(s, "Boss", "STATE|1|1|");
+    addon(s, "Boss", "CLR");
+    addon(s, "Boss", "VER|2026-10-17T10:00:00Z|1");
+    addon(s, "Boss", "P|Ann=19364:2");
+    addon(s, "Boss", "L|Ann=19364;Bob=17063");
+    expect(s.run("return NS.reserve.plusFor('Ann', 19364)")).toBe("20");
+    expect(s.run("return NS.reserve.statusText()")).toContain("(SR+20)");
+    // The next list without bonuses clears it.
+    addon(s, "Boss", "CLR");
+    addon(s, "Boss", "VER|2026-10-17T11:00:00Z|1");
+    addon(s, "Boss", "P|");
+    addon(s, "Boss", "L|Ann=19364");
+    expect(s.run("return NS.reserve.plusFor('Ann', 19364)")).toBe("0");
+  });
+
+  it("a list from an older keeper (no P|) keeps the bonuses already known", () => {
+    const s = withReserve("Ray", false);
+    s.run(`DB.reserves = { entries = {}, names = {}, limit = 1, plus = { ["Ann:19364"] = 1 } }`);
+    addon(s, "Boss", "STATE|1|1|");
+    addon(s, "Boss", "CLR");
+    addon(s, "Boss", "VER|2026-10-17T10:00:00Z|1");
+    addon(s, "Boss", "L|Ann=19364");
+    expect(s.run("return NS.reserve.plusFor('Ann', 19364)")).toBe("10");
+  });
+
+  it("ignores SR+ from anyone but the keeper", () => {
+    const s = withReserve("Ray", false);
+    addon(s, "Boss", "STATE|1|1|");
+    addon(s, "Boss", "CLR");
+    addon(s, "Kay", "P|Ann=19364:5");
+    addon(s, "Boss", "VER|2026-10-17T10:00:00Z|1");
+    addon(s, "Boss", "L|Ann=19364");
+    expect(s.run("return NS.reserve.plusFor('Ann', 19364)")).toBe("0");
+  });
+});

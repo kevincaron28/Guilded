@@ -71,6 +71,12 @@ ns.commandHandlers["chat"] = function(args)
     if frame.AddMessage then frame:AddMessage("|cffd4af37[Guilded]|r This tab shows Guilded's messages.") end
   elseif action == "off" then
     s.chatTab = false
+    -- Close the tab too, so the player is not left with an empty window. The first two chat
+    -- windows (General, Combat Log) cannot be closed and are never named Guilded by us.
+    local tab = findFrame()
+    if tab and tab ~= DEFAULT_CHAT_FRAME and tab ~= ChatFrame1 and tab ~= ChatFrame2 and FCF_Close then
+      pcall(FCF_Close, tab)
+    end
     say("Guilded's lines are back in the main chat window.")
   else
     say(module.enabled() and "Guilded's own lines go to the Guilded chat tab. /guilded chat off to go back."

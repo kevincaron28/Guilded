@@ -812,6 +812,8 @@ local DEFAULT_ENCHANT_MIN_LEVEL = 60
 -- login WoW Forever can report every slot empty for a few seconds, and such a check used to
 -- record and share "NOT_READY, 10 empty slots" with the guild. Those checks wait instead.
 local GEAR_WAIT_SECONDS, GEAR_WAIT_TRIES = 5, 4
+local AUTO_DIGEST_HEARTBEAT = 600
+local lastAutoDigest, lastAutoDigestAt = nil, 0
 local inspectReadiness
 local function noGearVisible()
   for _, slot in ipairs(READINESS_SLOTS) do
@@ -949,6 +951,14 @@ inspectReadiness = function(silent, target, tries)
   if #flags > 0 and #digest + 3 + #flagText <= MAX_ADDON_MESSAGE then
     digest = digest .. "|F:" .. flagText
   end
+  -- Automatic checks run on every bag or gear change (looting!) and every skill-up. Tell the guild
+  -- only when something changed, plus a heartbeat every 10 minutes; requests always get an answer.
+  local sameAs = (string.gsub(digest, "|P:%d+", ""))
+  local nowTime = time()
+  if tries and (target or "GUILD") == "GUILD" and sameAs == lastAutoDigest and nowTime - lastAutoDigestAt < AUTO_DIGEST_HEARTBEAT then
+    return
+  end
+  if tries then lastAutoDigest, lastAutoDigestAt = sameAs, nowTime end
   send(digest, target or "GUILD")
   if not silent then
     local detail = ""
@@ -988,6 +998,7 @@ ns.canonicalKey = canonicalKey
 -- requiring everyone to run /guilded inspect manually. Deliberately event-driven
 -- only (no OnUpdate ticker).
 local lastAutoSyncAt = 0
+local skillCheckPending = false
 local AUTO_SYNC_DEBOUNCE_SECONDS = 5
 local AUTO_SYNC_RAID_INTERVAL_SECONDS = 600
 
@@ -1618,7 +1629,10 @@ local function onEvent(_, event, ...)
     noteMyCharacter(db.character)
     maybeAutoSync(AUTO_SYNC_DEBOUNCE_SECONDS)
   elseif event == "SKILL_LINES_CHANGED" then
-    if C_Timer and C_Timer.After then C_Timer.After(1, function()
+    -- Fires on every skill-up (skinning, weapon skills): one check per burst is enough.
+    if skillCheckPending then return end
+    if C_Timer and C_Timer.After then skillCheckPending = true; C_Timer.After(1, function()
+      skillCheckPending = false
       db.character = collectCharacter()
       noteMyCharacter(db.character)
       inspectReadiness(true, "GUILD", 0)

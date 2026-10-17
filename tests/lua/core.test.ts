@@ -115,6 +115,27 @@ describe("gear check: enchants, consumables and the peer digest", () => {
     expect(s.run(`return GuildedDB.readiness["Kev"].status`)).not.toBe("NOT_READY");
   });
 
+  it("automatic gear checks tell the guild only when something changed (plus a 10-minute heartbeat)", () => {
+    const s = loggedIn();
+    withGear(s);
+    s.run(`
+      T = os.time() + 100000; time = function() return T end
+      SENT = {}
+      function digests() local n = 0; for _, m in ipairs(SENT) do if string.find(m.text, "^READINESS|") then n = n + 1 end end; return n end
+      fire_event("UNIT_INVENTORY_CHANGED", "player")          -- first check: sent
+      T = T + 30; fire_event("UNIT_INVENTORY_CHANGED", "player") -- looting, nothing changed: not sent
+      T = T + 30; fire_event("UNIT_INVENTORY_CHANGED", "player")
+    `);
+    expect(s.run(`return digests()`)).toBe("1");
+    s.run(`LINKS[1] = nil; T = T + 30; fire_event("UNIT_INVENTORY_CHANGED", "player")`); // took the helm off: sent
+    expect(s.run(`return digests()`)).toBe("2");
+    s.run(`T = T + 601; fire_event("UNIT_INVENTORY_CHANGED", "player")`);                // heartbeat
+    expect(s.run(`return digests()`)).toBe("3");
+    // An officer's request is always answered, even with nothing new.
+    s.load("Modules/Ready.lua"); s.run(`function UnitIsGroupLeader(unit) return unit == "Amy" end; GetServerTime = function() return 9000 end; fire_event("CHAT_MSG_ADDON", "Guilded", "READYREQ|1", "RAID", "Amy-Realm")`);
+    expect(s.run(`local n = 0; for _, m in ipairs(SENT) do if string.find(m.text, "^READINESS|") and m.target == "RAID" then n = n + 1 end end; return n`)).toBe("1");
+  });
+
   it("a bare /guilded opens the window; /guilded help still lists the commands", () => {
     const s = loggedIn();
     s.run(`OPENED = 0; NS.commandHandlers["menu"] = function() OPENED = OPENED + 1 end; CHAT_LOG = {}`);

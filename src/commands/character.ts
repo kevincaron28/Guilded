@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, type ChatInputCommandInteraction } from "discord.js";
+import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { importCharacter, parseCharacterString } from "../services/character-import.js";
 import { applySelfExport, parseSelfExport } from "../services/self-export.js";
@@ -67,7 +67,7 @@ async function defaultRealm(guildId: string): Promise<string> {
 export async function executeCharacter(interaction: ChatInputCommandInteraction): Promise<void> {
   const subcommand = interaction.options.getSubcommand();
   // Acknowledge before database lookups, especially when the hosted database is waking up.
-  if (["pair", "import"].includes(subcommand) && interaction.guild && interaction.guildId && interaction.member) await interaction.deferReply({ ephemeral: true });
+  if (["pair", "import"].includes(subcommand) && interaction.guild && interaction.guildId && interaction.member) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const context = await requireGuildContext(interaction);
   if (!context) return;
   if (subcommand === "pair") {
@@ -81,14 +81,14 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
       content: characters.length === 0
         ? "You have no linked characters."
         : characters.map((character) => `${character.isMain ? "⭐" : "•"} ${character.name} — ${character.race ? `${character.race} ` : ""}${character.className}${character.spec ? ` (${character.spec})` : ""}${character.lastSeenAt ? ` · last seen <t:${Math.floor(character.lastSeenAt.getTime() / 1000)}:R>` : ""}`).join("\n"),
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
 
   if (subcommand === "claim") {
     const result = await claimCharacter(prisma, context.guildId, context.memberId, interaction.options.getString("name", true));
-    await interaction.reply({ content: `Linked **${result.row.name}** (${result.row.className}${result.row.level ? `, level ${result.row.level}` : ""}) as ${result.isMain ? "your main" : "an alt"}. Its gear and consumables now show up by themselves.`, ephemeral: true });
+    await interaction.reply({ content: `Linked **${result.row.name}** (${result.row.className}${result.row.level ? `, level ${result.row.level}` : ""}) as ${result.isMain ? "your main" : "an alt"}. Its gear and consumables now show up by themselves.`, flags: MessageFlags.Ephemeral });
     return;
   }
   if (subcommand === "unlink") {
@@ -114,13 +114,13 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
     }
     await interaction.reply({
       content: `Unlinked **${character.name}**${isOwn ? "" : ` from ${character.member.displayName}. Their companion pairing was revoked, so a re-upload won't relink it automatically`}. If the addon reports it again, it will show up as unclaimed until it's linked again.`,
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
   if (["unclaimed", "link", "autolink"].includes(subcommand)) {
     if (!interaction.member || !hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "officer")) {
-      await interaction.reply({ content: "Only Officers and Guild Masters can do that.", ephemeral: true });
+      await interaction.reply({ content: "Only Officers and Guild Masters can do that.", flags: MessageFlags.Ephemeral });
       return;
     }
     if (subcommand === "unclaimed") {
@@ -129,12 +129,12 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
         content: rows.length
           ? `**${rows.length} unclaimed:** ${rows.map((row) => `${row.name} (${row.className}${row.level ? ` ${row.level}` : ""})`).join(", ")}\nOwners: \`/character claim\`. Officers: \`/character link\` or \`/character autolink\`.`.slice(0, 1950)
           : "Every character the addons reported is linked.",
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
       return;
     }
     if (subcommand === "autolink") {
-      await interaction.deferReply({ ephemeral: true });
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const linked = await autoLinkUnclaimed(interaction.guild!, prisma, context.guildId);
       await interaction.editReply({ content: linked.length ? `Linked ${linked.map((row) => `${row.character} to ${row.member}`).join(", ")}.` : "Nothing matched by name (a Discord nickname must be the character's name, e.g. \"Ray\" or \"[GOLD] Ray\"). Use /character link for the rest." });
       return;
@@ -145,7 +145,7 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
     const user = interaction.options.getUser("player", true);
     const target = await guildService.ensureMember(context.guildId, user.id, user.username);
     const outcome = await linkUnclaimed(prisma, target.id, row);
-    await interaction.reply({ content: `Linked **${row.name}** to ${user.username} as ${outcome.isMain ? "their main" : "an alt"}.`, ephemeral: true });
+    await interaction.reply({ content: `Linked **${row.name}** to ${user.username} as ${outcome.isMain ? "their main" : "an alt"}.`, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -197,5 +197,5 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
     ...(level === null ? {} : { level }),
     ...(race === null ? {} : { race })
   });
-  await interaction.reply({ content: `Linked ${character.name} as ${character.isMain ? "your main character" : "an alt"}.`, ephemeral: true });
+  await interaction.reply({ content: `Linked ${character.name} as ${character.isMain ? "your main character" : "an alt"}.`, flags: MessageFlags.Ephemeral });
 }

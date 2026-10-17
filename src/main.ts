@@ -28,7 +28,8 @@ import {
   Partials,
   REST,
   Routes,
-  type ChatInputCommandInteraction
+  type ChatInputCommandInteraction,
+  MessageFlags,
 } from "discord.js";
 import { commands } from "./commands/index.js";
 import { legacyView, resolveCommand } from "./commands/router.js";
@@ -380,13 +381,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
       reportInteractionError("Pilot approval", interaction, error);
       const content = "Unable to apply this decision. Check the pilot capacity and host configuration, then retry. / Décision impossible : vérifiez la limite du pilote et la configuration, puis réessayez.";
       if (interaction.deferred) await interaction.editReply(content).catch(() => undefined);
-      else if (!interaction.replied) await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
+      else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
     return;
   }
   if (interaction.guildId && !hostedPilot.allows(interaction.guildId)) {
     if (interaction.isAutocomplete()) await interaction.respond([]).catch(() => undefined);
-    else if (interaction.isRepliable()) await interaction.reply({ content: PILOT_DENIED, ephemeral: true }).catch(() => undefined);
+    else if (interaction.isRepliable()) await interaction.reply({ content: PILOT_DENIED, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     return;
   }
   if (interaction.isAutocomplete() && interaction.commandName === "team") {
@@ -399,7 +400,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       reportInteractionError("Team interaction", interaction, error);
       const content = error instanceof Error && error.message.length < 250 ? error.message : "Could not update the session / Impossible de modifier la séance.";
       if (interaction.deferred || interaction.replied) await interaction.editReply({ content }).catch(() => undefined);
-      else await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
+      else await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
     return;
   }
@@ -412,7 +413,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       reportInteractionError("Community interaction", interaction, error);
       const content = error instanceof Error && error.message.length < 200 ? error.message : "Impossible de traiter cette demande / Could not process this request.";
       if (interaction.deferred) await interaction.editReply({ content }).catch(() => undefined);
-      else if (!interaction.replied) await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
+      else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
     return;
   }
@@ -427,7 +428,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   if (interaction.isButton() && interaction.customId.startsWith(WELCOME_ROLE_PREFIX)) {
     await handleWelcomeRoleButton(interaction).catch(async (error: unknown) => {
       reportInteractionError("Welcome role button", interaction, error);
-      if (!interaction.replied) await interaction.reply({ content: "That didn't work, try again or ask an officer.", ephemeral: true }).catch(() => undefined);
+      if (!interaction.replied) await interaction.reply({ content: "That didn't work, try again or ask an officer.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
     return;
   }
@@ -436,14 +437,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
       reportInteractionError("Onboarding", interaction, error);
       const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";
       if (interaction.deferred && !interaction.replied) await interaction.editReply({ content, components: [], embeds: [] }).catch(() => undefined);
-      else if (!interaction.replied) await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
+      else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
     return;
   }
   if (interaction.isModalSubmit() && interaction.customId.startsWith(FAQ_MODAL_PREFIX)) {
     await handleFaqModal(interaction).catch((error: unknown) => {
       if (!(error instanceof Error && error.message.length < 200)) reportInteractionError("Answer form", interaction, error);
-      if (!interaction.replied) void interaction.reply({ content: error instanceof Error ? error.message : "Could not save the answer.", ephemeral: true }).catch(() => undefined);
+      if (!interaction.replied) void interaction.reply({ content: error instanceof Error ? error.message : "Could not save the answer.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
     return;
   }
@@ -457,7 +458,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (interaction.deferred) {
         void interaction.editReply({ content: error instanceof Error ? error.message : "Could not post the dungeon group." }).catch(() => undefined);
       } else if (!interaction.replied) {
-        void interaction.reply({ content: error instanceof Error ? error.message : "Could not post the dungeon group.", ephemeral: true }).catch(() => undefined);
+        void interaction.reply({ content: error instanceof Error ? error.message : "Could not post the dungeon group.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
       }
     });
     return;
@@ -473,21 +474,21 @@ client.on(Events.InteractionCreate, async (interaction) => {
   if (interaction.isStringSelectMenu() && interaction.customId === `${DUNGEON_GUIDE_PREFIX}kind`) {
     await handleDungeonGuideSelect(interaction).catch((error: unknown) => {
       reportInteractionError("Group finder menu", interaction, error);
-      if (!interaction.replied) void interaction.reply({ content: "Could not open the group form.", ephemeral: true }).catch(() => undefined);
+      if (!interaction.replied) void interaction.reply({ content: "Could not open the group form.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
     return;
   }
   if (interaction.isButton() && interaction.customId === GROUP_ALERT_OPEN_ID) {
     await openGroupAlerts(interaction).catch((error: unknown) => {
       reportInteractionError("Group alerts button", interaction, error);
-      if (!interaction.replied) void interaction.reply({ content: "Could not open your group alerts.", ephemeral: true }).catch(() => undefined);
+      if (!interaction.replied) void interaction.reply({ content: "Could not open your group alerts.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
     return;
   }
   if ((interaction.isButton() || interaction.isStringSelectMenu()) && interaction.customId.startsWith(GROUP_ALERT_PREFIX)) {
     await handleGroupAlertComponent(interaction).catch((error: unknown) => {
       reportInteractionError("Group alerts", interaction, error);
-      if (!interaction.replied) void interaction.reply({ content: "Could not save your group alerts.", ephemeral: true }).catch(() => undefined);
+      if (!interaction.replied) void interaction.reply({ content: "Could not save your group alerts.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
     return;
   }
@@ -495,7 +496,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     await handleDungeonGuideButton(interaction).catch((error: unknown) => {
       reportInteractionError("Dungeon signup guide button", interaction, error);
       if (!interaction.replied) {
-        void interaction.reply({ content: "Could not open the dungeon group form.", ephemeral: true }).catch(() => undefined);
+        void interaction.reply({ content: "Could not open the dungeon group form.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
       }
     });
     return;
@@ -506,7 +507,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     } catch (error) {
       reportInteractionError("Dungeon group button", interaction, error);
       const content = error instanceof Error && error.message.length < 200 ? error.message : "Could not update the group.";
-      if (!interaction.replied) await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
+      if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
     return;
   }
@@ -517,7 +518,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       reportInteractionError("Raid signup button", interaction, error);
       const content = error instanceof Error ? error.message : "Could not update your signup.";
       if (interaction.replied || interaction.deferred) await interaction.editReply({ content, components: [] }).catch(() => undefined);
-      else await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
+      else await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
     return;
   }
@@ -527,7 +528,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     } catch (error) {
       reportInteractionError("EP award button", interaction, error);
       const content = error instanceof Error ? error.message : "Could not record the EP award.";
-      if (!interaction.replied) await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
+      if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
     return;
   }
@@ -540,7 +541,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       reportInteractionError("Application button", interaction, error);
       const content = error instanceof Error ? error.message : "Impossible d'ouvrir ta candidature.";
       if (interaction.replied || interaction.deferred) await interaction.editReply({ content, components: [] }).catch(() => undefined);
-      else await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
+      else await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
     return;
   }
@@ -553,7 +554,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         if (interaction.deferred) {
           await interaction.editReply({ content: "Could not update that role. Please try again or contact an officer." }).catch(() => undefined);
         } else {
-          await interaction.reply({ content: "Could not update that role. Please try again or contact an officer.", ephemeral: true }).catch(() => undefined);
+          await interaction.reply({ content: "Could not update that role. Please try again or contact an officer.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
         }
       }
     }
@@ -563,7 +564,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   const found = resolveCommand(commands, interaction);
   const handler = found.handler ?? handlers.get(found.legacy);
   if (!handler) {
-    await interaction.reply({ content: "That command is not available.", ephemeral: true });
+    await interaction.reply({ content: "That command is not available.", flags: MessageFlags.Ephemeral });
     return;
   }
   try {

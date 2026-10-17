@@ -1,6 +1,7 @@
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle, UserSelectMenuBuilder,
-  type ChatInputCommandInteraction, type Message, type MessageComponentInteraction
+  type ChatInputCommandInteraction, type Message, type MessageComponentInteraction,
+  MessageFlags,
 } from "discord.js";
 import type { RaidRole } from "@prisma/client";
 import { prisma } from "../database.js";
@@ -73,7 +74,7 @@ async function screen(guildId: string, coreId: string, mode: EditMode, note: str
 export async function runCoreEditor(interaction: ChatInputCommandInteraction, guildId: string, coreValue: string): Promise<void> {
   const core = await coreService.byIdOrName(guildId, coreValue);
   let mode: EditMode = { role: "DPS", bench: false };
-  await interaction.reply({ ...(await screen(guildId, core.id, mode, "")), ephemeral: true });
+  await interaction.reply({ ...(await screen(guildId, core.id, mode, "")), flags: MessageFlags.Ephemeral });
   const message: Message = await interaction.fetchReply();
   const collector = message.createMessageComponentCollector({ time: 20 * 60_000, filter: (i) => i.user.id === interaction.user.id });
 
@@ -91,7 +92,7 @@ export async function runCoreEditor(interaction: ChatInputCommandInteraction, gu
         const picker = new StringSelectMenuBuilder().setCustomId(`coreloot:${core.id}`).setPlaceholder("Le butin de ce core")
           .addOptions(LOOT_MODES.map(value => ({ value, label: CORE_LOOT_LABEL[value], default: value === selected })));
         await i.reply({ content: `**${current.name}** : choisis sa méthode de butin. Les autres cores gardent leurs propres règles.`,
-          components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(picker)], ephemeral: true });
+          components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(picker)], flags: MessageFlags.Ephemeral });
         const message = await i.fetchReply();
         const choice = await message.awaitMessageComponent({ time: 5 * 60_000,
           filter: value => value.user.id === i.user.id && value.customId === `coreloot:${core.id}` }).catch(() => null);
@@ -127,8 +128,8 @@ export async function runCoreEditor(interaction: ChatInputCommandInteraction, gu
           await refresh(`${saved.weeklySchedule ? `📅 ${saved.schedule} (${saved.weeklyTimezone}). Inscriptions des 6 prochains jours; la suite s'ajoute automatiquement.` : "Création automatique arrêtée."} Les raids déjà affichés et leurs inscriptions sont conservés. /raid cancel permet de sauter une soirée.`);
         } catch (error) {
           const content = error instanceof Error ? error.message : "Impossible d'enregistrer l'horaire.";
-          if (submitted.deferred) await submitted.followUp({ content, ephemeral: true });
-          else await submitted.reply({ content, ephemeral: true });
+          if (submitted.deferred) await submitted.followUp({ content, flags: MessageFlags.Ephemeral });
+          else await submitted.reply({ content, flags: MessageFlags.Ephemeral });
         }
         return;
       }
@@ -201,7 +202,7 @@ export async function runCoreEditor(interaction: ChatInputCommandInteraction, gu
           await submitted.deferUpdate();
           await refresh(`Saved ${saved} price(s).${parsed.problems.length ? ` Skipped: ${parsed.problems.slice(0, 2).join("; ")}` : ""}`);
         } catch (error) {
-          await submitted.reply({ content: error instanceof Error ? error.message : "Could not save the prices.", ephemeral: true });
+          await submitted.reply({ content: error instanceof Error ? error.message : "Could not save the prices.", flags: MessageFlags.Ephemeral });
         }
         return;
       }
@@ -223,7 +224,7 @@ export async function runCoreEditor(interaction: ChatInputCommandInteraction, gu
           await submitted.deferUpdate();
           await refresh(`Renamed to ${name}.`);
         } catch (error) {
-          await submitted.reply({ content: error instanceof Error ? error.message : "Could not rename.", ephemeral: true });
+          await submitted.reply({ content: error instanceof Error ? error.message : "Could not rename.", flags: MessageFlags.Ephemeral });
         }
         return;
       }
@@ -234,8 +235,8 @@ export async function runCoreEditor(interaction: ChatInputCommandInteraction, gu
     } catch (error) {
       console.error("Core editor step failed", error);
       const text = error instanceof Error ? error.message : String(error);
-      if (!i.replied && !i.deferred) await i.reply({ content: `That didn't work: ${text}`, ephemeral: true }).catch(() => undefined);
-      else await i.followUp({ content: `That didn't work: ${text}`, ephemeral: true }).catch(() => undefined);
+      if (!i.replied && !i.deferred) await i.reply({ content: `That didn't work: ${text}`, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+      else await i.followUp({ content: `That didn't work: ${text}`, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
   });
   collector.on("end", async (_c, reason) => {
@@ -281,7 +282,7 @@ async function characterScreen(guildId: string, coreId: string, memberId: string
 
 async function runCharacterPicker(button: MessageComponentInteraction, guildId: string, coreId: string, backupRole: RaidRole, refresh: () => Promise<void>): Promise<void> {
   let memberId: string | null = null;
-  await button.reply({ ...(await characterScreen(guildId, coreId, null, backupRole, "")), ephemeral: true });
+  await button.reply({ ...(await characterScreen(guildId, coreId, null, backupRole, "")), flags: MessageFlags.Ephemeral });
   const message = await button.fetchReply();
   const collector = message.createMessageComponentCollector({ time: 10 * 60_000, filter: (i) => i.user.id === button.user.id });
   collector.on("collect", async (i: MessageComponentInteraction) => {
@@ -314,7 +315,7 @@ async function runCharacterPicker(button: MessageComponentInteraction, guildId: 
       if (note && memberId) await refresh();
       await i.editReply(await characterScreen(guildId, coreId, memberId, backupRole, note));
     } catch (error) {
-      await i.followUp({ content: `That didn't work: ${error instanceof Error ? error.message : String(error)}`, ephemeral: true }).catch(() => undefined);
+      await i.followUp({ content: `That didn't work: ${error instanceof Error ? error.message : String(error)}`, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
   });
 }

@@ -1,4 +1,4 @@
-import type { ChatInputCommandInteraction } from "discord.js";
+import { MessageFlags, type ChatInputCommandInteraction } from "discord.js";
 import { prisma } from "../database.js";
 import { createItemValueService, describeValues, parseItemValues } from "../services/item-values.js";
 import { createRaidCoreService } from "../services/raid-core.js";
@@ -22,7 +22,7 @@ export async function executeCoreItems(interaction: ChatInputCommandInteraction,
   if (action === "list") {
     // A core shows what it actually uses: the guild-wide prices with its own on top.
     const rows = core ? await values.effective(guildId, core.id) : await values.list(guildId, null);
-    await interaction.reply({ content: describeValues(core ? `${core.name} prices${settings?.coreLootOnly ? "" : " (guild-wide ones included)"}` : "Guild-wide prices", rows), ephemeral: true });
+    await interaction.reply({ content: describeValues(core ? `${core.name} prices${settings?.coreLootOnly ? "" : " (guild-wide ones included)"}` : "Guild-wide prices", rows), flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -33,7 +33,7 @@ export async function executeCoreItems(interaction: ChatInputCommandInteraction,
       const parsed = parseItemValues(`${item} = 0`).values[0];
       if (!parsed) throw new Error("That does not look like an item name.");
       const removed = await values.remove(guildId, coreId, parsed);
-      await interaction.reply({ content: removed ? `Removed the price of ${item} for ${scope}.` : `${item} had no price set for ${scope}.`, ephemeral: true });
+      await interaction.reply({ content: removed ? `Removed the price of ${item} for ${scope}.` : `${item} had no price set for ${scope}.`, flags: MessageFlags.Ephemeral });
       return;
     }
     const gp = interaction.options.getInteger("gp");
@@ -41,13 +41,13 @@ export async function executeCoreItems(interaction: ChatInputCommandInteraction,
     const parsed = parseItemValues(`${item} = ${gp}`);
     if (parsed.values.length === 0) throw new Error(parsed.problems[0] ?? "That does not look like an item name.");
     await values.setMany(guildId, coreId, parsed.values);
-    await interaction.reply({ content: `${item} costs **${gp} GP** for ${scope}.`, ephemeral: true });
+    await interaction.reply({ content: `${item} costs **${gp} GP** for ${scope}.`, flags: MessageFlags.Ephemeral });
     return;
   }
 
   if (action === "clear") {
     const removed = await values.clear(guildId, coreId);
-    await interaction.reply({ content: `Removed ${removed} price(s) for ${scope}.`, ephemeral: true });
+    await interaction.reply({ content: `Removed ${removed} price(s) for ${scope}.`, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -55,7 +55,7 @@ export async function executeCoreItems(interaction: ChatInputCommandInteraction,
     const file = interaction.options.getAttachment("file");
     if (!file) throw new Error("Attach a text or CSV file with one \"item = price\" per line.");
     if (file.size > MAX_BYTES) throw new Error("That file is too big for a price list.");
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const response = await fetch(file.url);
     if (!response.ok) throw new Error(`Could not download the file (${response.status}).`);
     const parsed = parseItemValues(await response.text());

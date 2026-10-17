@@ -6,6 +6,7 @@ import { companionAccess } from "../src/services/companion-access.js";
 import { handleOnboardingInteraction } from "../src/services/onboarding.js";
 import { handleWelcomeRoleButton } from "../src/services/housekeeping.js";
 import { runAutoDecay } from "../src/services/auto-decay.js";
+import { MessageFlags } from "discord.js";
 
 const db = vi.hoisted(() => ({ guild: { findUnique: vi.fn(), upsert: vi.fn() }, companionCredential: { findFirst: vi.fn() } }));
 vi.mock("../src/database.js", () => ({ prisma: db }));
@@ -69,7 +70,7 @@ describe("hosted pilot runtime admission", () => {
     ] as const) {
       const reply = vi.fn();
       await handler({ customId, client, guild: null, reply } as never);
-      expect(reply).toHaveBeenCalledWith(expect.objectContaining({ ephemeral: true, content: expect.stringContaining("approval") }));
+      expect(reply).toHaveBeenCalledWith(expect.objectContaining({ flags: MessageFlags.Ephemeral, content: expect.stringContaining("approval") }));
     }
     expect(client.guilds.fetch).not.toHaveBeenCalled();
   });

@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, rm, stat, writeFile, chown } from "node:fs/promises";
 import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, escapeMarkdown, type ButtonInteraction, type Client, type Guild } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, escapeMarkdown, type ButtonInteraction, type Client, type Guild, MessageFlags } from "discord.js";
 import { editPilotApprovals, pilotFilePolicy, pilotInvite } from "./pilot-admin.js";
 
 export const PILOT_REQUEST_PREFIX = "pilot-request:";
@@ -60,7 +60,7 @@ export function createPilotRequests(client: Client, options: Options) {
     async handle(interaction: ButtonInteraction) {
       if (!interaction.customId.startsWith(PILOT_REQUEST_PREFIX)) return false;
       if (!options.enabled || interaction.guildId || interaction.user.id !== await owner()) {
-        await interaction.reply({ content: "Owner only / Réservé au propriétaire.", ephemeral: true }); return true;
+        await interaction.reply({ content: "Owner only / Réservé au propriétaire.", flags: MessageFlags.Ephemeral }); return true;
       }
       await interaction.deferReply();
       await serial(async () => {

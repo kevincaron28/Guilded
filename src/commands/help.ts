@@ -1,4 +1,4 @@
-import { EmbedBuilder, SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember } from "discord.js";
+import { EmbedBuilder, SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember, MessageFlags } from "discord.js";
 import { asLang, t, type Lang } from "../i18n.js";
 import { hasPermission } from "../permissions.js";
 import { guildService } from "./context.js";
@@ -140,5 +140,5 @@ export async function executeHelp(interaction: ChatInputCommandInteraction): Pro
   if (can("dkpOfficer")) addSection(embed, t(lang, "help.epgpOfficers"), LINES.dkpOfficer[lang]);
   if (can("officer")) addSection(embed, t(lang, "help.officers"), LINES.officer[lang]);
   embed.setFooter({ text: t(lang, "help.footer") });
-  await interaction.reply({ embeds: [embed], ephemeral: true });
+  await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
 }

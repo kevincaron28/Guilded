@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ChannelType, ModalBuilder, PermissionFlagsBits, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle, UserSelectMenuBuilder, escapeMarkdown, type ButtonInteraction, type Guild, type ModalSubmitInteraction, type StringSelectMenuInteraction, type UserSelectMenuInteraction } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ChannelType, ModalBuilder, PermissionFlagsBits, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle, UserSelectMenuBuilder, escapeMarkdown, type ButtonInteraction, type Guild, type ModalSubmitInteraction, type StringSelectMenuInteraction, type UserSelectMenuInteraction, MessageFlags } from "discord.js";
 import type { CommunitySeason } from "@prisma/client";
 import { prisma } from "../database.js";
 import { asLang, type Lang } from "../i18n.js";
@@ -81,7 +81,7 @@ export async function handleCommunityHub(interaction: HubInteraction): Promise<v
     await interaction.showModal(new ModalBuilder().setCustomId(`${COMMUNITY_HUB_PREFIX}nominate:${rawId}:${target}`).setTitle("Remercier / Thank a member")
       .addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("reason").setLabel("Coup de main / How did they help?").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(300)))); return;
   }
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const guild = interaction.guild, actor = interaction.user.id;
   const record = await guildService.ensureGuild(guild.id, guild.name);
   const settings = await guildService.getSettings(record.id), lang = asLang(settings?.language), timezone = settings?.timezone ?? "America/Toronto";

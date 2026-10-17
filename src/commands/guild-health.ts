@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember } from "discord.js";
+import { SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 import { formatHealth, guildHealth } from "../services/guild-health.js";
@@ -12,9 +12,9 @@ export async function executeGuildHealth(interaction: ChatInputCommandInteractio
   const context = await requireGuildContext(interaction);
   if (!context) return;
   if (!interaction.member || !hasPermission(interaction.member as GuildMember, "officer")) {
-    await interaction.reply({ content: "Only Officers and Guild Masters can see the guild health report.", ephemeral: true });
+    await interaction.reply({ content: "Only Officers and Guild Masters can see the guild health report.", flags: MessageFlags.Ephemeral });
     return;
   }
   const health = await guildHealth(prisma, context.guildId);
-  await interaction.reply({ content: formatHealth(health).slice(0, 1990), ephemeral: true, allowedMentions: { parse: [] } });
+  await interaction.reply({ content: formatHealth(health).slice(0, 1990), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
 }

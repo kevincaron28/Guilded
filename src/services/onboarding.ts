@@ -4,7 +4,8 @@ import { PILOT_DENIED } from "./pilot-policy.js";
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, StringSelectMenuBuilder,
   type ButtonInteraction, type Client, type Guild as DiscordGuild, type GuildMember, type GuildTextBasedChannel,
-  type Role, type StringSelectMenuInteraction
+  type Role, type StringSelectMenuInteraction,
+  MessageFlags,
 } from "discord.js";
 import type { GuildSettings } from "@prisma/client";
 import { prisma } from "../database.js";
@@ -155,11 +156,11 @@ export function rulesPrompt(settings: Pick<GuildSettings, "rulesChannelId">, dis
 export async function handleOnboardingInteraction(interaction: ButtonInteraction | StringSelectMenuInteraction): Promise<void> {
   const [action, discordGuildId] = interaction.customId.slice(ONBOARD_PREFIX.length).split(":") as [Action, string | undefined];
   if (!discordGuildId) return;
-  if (!hostedPilot.allows(discordGuildId)) { await interaction.reply({ content: PILOT_DENIED, ephemeral: true }); return; }
+  if (!hostedPilot.allows(discordGuildId)) { await interaction.reply({ content: PILOT_DENIED, flags: MessageFlags.Ephemeral }); return; }
   // Every button answers privately; the selection updates its already-private menu.
   // Acknowledge before Discord/DB calls so a slow connection cannot expire the click.
   if (action === "pick" && interaction.isStringSelectMenu()) await interaction.deferUpdate();
-  else await interaction.deferReply({ ephemeral: true });
+  else await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const discordGuild = interaction.guild?.id === discordGuildId
     ? interaction.guild
     : await interaction.client.guilds.fetch(discordGuildId).catch(() => null);

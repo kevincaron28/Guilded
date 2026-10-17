@@ -1,4 +1,4 @@
-import { AttachmentBuilder, EmbedBuilder, type ChatInputCommandInteraction, type Guild as DiscordGuild, type GuildMember } from "discord.js";
+import { AttachmentBuilder, EmbedBuilder, type ChatInputCommandInteraction, type Guild as DiscordGuild, type GuildMember, MessageFlags } from "discord.js";
 import type { RaidSeason } from "@prisma/client";
 import { prisma } from "../database.js";
 import { asLang, type Lang } from "../i18n.js";
@@ -126,11 +126,11 @@ export async function executeRaidSeason(interaction: ChatInputCommandInteraction
       content: seasons.length
         ? seasons.map((season) => `• **${season.name}** — ${stamp(season.startsAt)} → ${season.endsAt ? stamp(season.endsAt) : say("now", "maintenant")}`).join("\n")
         : say("No raid season yet. Start one with `/raid season name:<name>` (add `start:2026-09-01` to begin it in the past).", "Aucune saison de raid. Commencez-en une avec `/raid season name:<nom>` (ajoutez `start:2026-09-01` pour la faire débuter dans le passé)."),
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const season = await startSeason(prisma, {
     guildId, name, createdBy: interaction.user.id,
     startsAt: start ? parseSeasonStart(start, settings?.timezone ?? "America/Toronto") : new Date()
@@ -147,7 +147,7 @@ export async function executeRaidSeason(interaction: ChatInputCommandInteraction
 // file; or one player's raids. Only the officer who asked sees it.
 export async function executeRaidHistory(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   requireOfficer(interaction);
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const settings = await guildService.getSettings(guildId);
   const lang = asLang(settings?.language);
   const wanted = interaction.options.getString("season");

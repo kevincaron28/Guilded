@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, type ChatInputCommandInteraction } from "discord.js";
+import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { createAddonImportService } from "../services/addon-import.js";
 import { createAuditService } from "../services/audit.js";
 import { followUpImport } from "../services/import-followup.js";
@@ -54,7 +54,7 @@ export async function executeImportApply(interaction: ChatInputCommandInteractio
   const context = await requireGuildContext(interaction);
   if (!context) return;
   if (!interaction.member || !hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "officer")) {
-    await interaction.reply({ content: "Only officers can apply addon imports.", ephemeral: true });
+    await interaction.reply({ content: "Only officers can apply addon imports.", flags: MessageFlags.Ephemeral });
     return;
   }
   const importId = interaction.options.getString("id", true);
@@ -90,6 +90,6 @@ export async function executeImportApply(interaction: ChatInputCommandInteractio
       + raidReport(result.raids)
       + (calendar && describeCalendar(calendar) ? `\n\n**Calendar**\n${describeCalendar(calendar)}` : "")
       + dungeonReport(result.dungeons),
-    ephemeral: true
+    flags: MessageFlags.Ephemeral
   });
 }

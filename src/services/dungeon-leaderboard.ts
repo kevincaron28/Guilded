@@ -1,4 +1,4 @@
-import { ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder, type StringSelectMenuInteraction, type Guild as DiscordGuild } from "discord.js";
+import { ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder, type StringSelectMenuInteraction, type Guild as DiscordGuild, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { asLang, t } from "../i18n.js";
 import { formatLeaderboard, leaderboard } from "./dungeon-stats.js";
@@ -14,7 +14,7 @@ export const DUNGEON_SEASON_SELECT = "dseason:choose";
 
 export async function handleDungeonSeasonSelect(interaction: StringSelectMenuInteraction): Promise<void> {
   if (!interaction.guild) return;
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
   const selectedId = interaction.values[0];
   if (!selectedId) { await interaction.editReply("Choose a season first."); return; }

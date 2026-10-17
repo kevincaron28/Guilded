@@ -1430,9 +1430,15 @@ refresh = function()
     for _, finding in ipairs(snapshot.findings or {}) do
       if finding.severity ~= "INFO" then table.insert(problems, finding.message) end
     end
+    -- Notes that are not problems (empty slots while levelling) are shown greyed below.
+    local notes = {}
+    for _, finding in ipairs(snapshot.findings or {}) do
+      if finding.code == "EMPTY_SLOTS_LOW_LEVEL" then table.insert(notes, "|cff999999" .. finding.message .. "|r") end
+    end
     ui.gearInfo:SetText(string.format(L("Last check: %s%s\n%s"), snapshot.status or "?",
       snapshot.itemLevel and string.format(L("   Item level %s"), snapshot.itemLevel) or "",
-      #problems > 0 and table.concat(problems, "\n") or L("Nothing missing.")))
+      (#problems > 0 and table.concat(problems, "\n") or L("Nothing missing."))
+        .. (#notes > 0 and ("\n" .. table.concat(notes, "\n")) or "")))
   else
     ui.gearInfo:SetText(L("No gear check yet."))
   end

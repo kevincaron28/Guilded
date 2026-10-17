@@ -816,7 +816,8 @@ end
 -- officers (the game does not report them to addons), so the summary says so.
 raidSummaryLines = function(raid)
   if not raid then return { "No raid recorded yet." } end
-  local lines = { string.format("%s - %s to %s", raid.title or "Raid", tostring(raid.startedAt or "?"), tostring(raid.endedAt or "still running")) }
+  local function when(stamp) return stamp and (util.whenText and util.whenText(stamp) or stamp) or nil end
+  local lines = { string.format("%s - %s to %s", raid.title or "Raid", when(raid.startedAt) or "?", when(raid.endedAt) or "still running") }
   local counts, marked = { PRESENT = 0, LATE = 0, ABSENT = 0 }, {}
   for name, row in pairs(db.attendance[raid.id] or {}) do
     counts[row.status] = (counts[row.status] or 0) + 1

@@ -150,11 +150,28 @@ describe("Reserve.lua keeper side", () => {
     addon(s, "Cy", "ADD|17063");
     cmd(s, `who ${SWORD}`);
     expect(s.run("return CHAT_LOG[#CHAT_LOG]")).toBe("Ashkandi is reserved by: Ann, Bob");
+    s.run("function IsInGroup() return true end"); // a roll-off needs a group
     cmd(s, `roll ${SWORD}`);
     expect(s.run("return table.concat(GAMES, '|')")).toBe("Ann,Bob");
     s.run("GAMES = {}");
     cmd(s, `roll ${RING}`); // one reserver: no roll needed
     expect(s.run("return #GAMES")).toBe("0");
+  });
+
+  it("does not tell the group a roll-off started when Guilded Games or no group blocks it", () => {
+    const s = withReserve("Boss", true);
+    cmd(s, "open");
+    addon(s, "Ann", "ADD|19364");
+    addon(s, "Bob", "ADD|19364");
+    s.run("SENT = {}; CHAT_LOG = {}");
+    cmd(s, `roll ${SWORD}`); // no group
+    expect(sent(s, "rolling between")).toBe("0");
+    expect(s.run("return CHAT_LOG[#CHAT_LOG]")).toBe("Join a party or raid before starting a loot roll.");
+    s.run("function IsInGroup() return true end; GuildedGames = { state = function() return { kind = 'high' } end }; CHAT_LOG = {}");
+    cmd(s, `roll ${SWORD}`); // a Games match is running
+    expect(sent(s, "rolling between")).toBe("0");
+    expect(s.run("return #GAMES")).toBe("0");
+    expect(s.run("return table.concat(CHAT_LOG, '|')")).toBe("Finish Guilded Games before starting a loot roll.");
   });
 
   it("awards through the loot command and uses up that reserve", () => {

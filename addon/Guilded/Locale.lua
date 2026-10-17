@@ -682,6 +682,7 @@ FR["Local core unchanged. Check the selected core, values and officer permission
 FR["Soft-reserve roll: eligible players /roll 100. Highest total wins; ties roll again."] = "R\195\169serve : joueurs admissibles, /roll 100. Le plus haut total gagne; relance en cas d'\195\169galit\195\169."
 FR["Tie at %d: %s. Only these players /roll 100 again."] = "\195\137galit\195\169 \195\160 %d : %s. Seuls ces joueurs relancent /roll 100."
 FR["Roll winner: %s (%d including SR+). Award the item separately."] = "Gagnant du jet : %s (%d avec SR+). Attribuez l'objet s\195\169par\195\169ment."
+FR["Roll winner: %s (%d). Award the item separately."] = "Gagnant du jet : %s (%d). Attribuez l'objet s\195\169par\195\169ment."
 FR["Loot roll cancelled."] = "Jet de butin annul\195\169."
 FR["Waiting for rolls:"] = "Jets attendus :"
 FR["Party games moved to the optional Guilded Games addon. Install it and use /ggames. Loot rolls stay in Guilded."] = "Les jeux sont dans l'addon facultatif Guilded Games. Installez-le et utilisez /ggames. Les jets de butin restent dans Guilded."

@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle, type ButtonInteraction } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle, type ButtonInteraction, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { CORE_RAID_SIZES, coreComposition, planningOptions } from "../services/core-planning.js";
 import { parseWeeklySchedule, weeklyOccurrences, weeklyScheduleText } from "../services/core-weekly-time.js";
@@ -12,7 +12,7 @@ const field = (id: string, label: string, value: string, placeholder: string, re
 const DAYS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
 
 export async function editCoreComposition(i: ButtonInteraction, guildId: string, coreId: string): Promise<string | null> {
-  await i.deferReply({ ephemeral: true });
+  await i.deferReply({ flags: MessageFlags.Ephemeral });
   const core = await prisma.raidCore.findFirstOrThrow({ where: { id: coreId, guildId } });
   const pickerId = `size:${i.id}`;
   await i.editReply({ content: "Taille du raid / Raid size", components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
@@ -35,14 +35,14 @@ export async function editCoreComposition(i: ButtonInteraction, guildId: string,
   if (!submitted) return null;
   try {
     const data = coreComposition(size, ...["tanks", "healers", "dps"].map(key => submitted.fields.getTextInputValue(key)) as [string, string, string]);
-    await submitted.deferReply({ ephemeral: true });
+    await submitted.deferReply({ flags: MessageFlags.Ephemeral });
     await prisma.raidCore.update({ where: { id: core.id }, data });
     const note = `${data.raidSize} joueurs : ${data.tankLimit} tanks / ${data.healerLimit} soigneurs / ${data.dpsLimit} DPS. Appliqué aux nouveaux raids; les raids publiés restent inchangés.`;
     await submitted.editReply(note);
     return note;
   } catch (error) {
     const content = error instanceof Error ? error.message : "Impossible d'enregistrer.";
-    if (submitted.deferred) await submitted.editReply(content); else await submitted.reply({ content, ephemeral: true });
+    if (submitted.deferred) await submitted.editReply(content); else await submitted.reply({ content, flags: MessageFlags.Ephemeral });
     return null;
   }
 }
@@ -53,7 +53,7 @@ export async function editCoreSchedule(i: ButtonInteraction, guildId: string, co
   const timezone = settings?.timezone ?? "America/Toronto";
   const slots = parseWeeklySchedule(core.weeklySchedule ?? "");
   const pickerId = `days:${i.id}`;
-  await i.reply({ content: `📅 **${core.name}** — choisis les jours de raid (${timezone}).`, ephemeral: true,
+  await i.reply({ content: `📅 **${core.name}** — choisis les jours de raid (${timezone}).`, flags: MessageFlags.Ephemeral,
     components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId(pickerId)
       .setPlaceholder("Jours de raid / Raid days").setMinValues(1).setMaxValues(7)
       .addOptions(DAYS.map((label, day) => ({ label, value: String(day), default: slots.some(slot => slot.weekday === day) })))
@@ -89,7 +89,7 @@ export async function editCoreSchedule(i: ButtonInteraction, guildId: string, co
     if (!parsed.length) throw new Error("Choisis au moins un départ de raid.");
     const occurrences = weeklyOccurrences(parsed, timezone, new Date(), planning);
     const confirmId = `confirm:${i.id}`;
-    await submitted.reply({ content: `**${weeklyScheduleText(parsed)}** (${timezone})\nDébut : ${planning.weeklyStartDate ?? "maintenant"} · fenêtre : ${planning.weeklyHorizonDays} jours.\n${occurrences.length} dates à préparer dès maintenant (les dates existantes sont réutilisées).\n${occurrences.slice(0, 6).map(row => `<t:${Math.floor(row.scheduledAt.getTime() / 1000)}:F>`).join("\n")}\nLes raids déjà publiés restent inchangés.`, ephemeral: true,
+    await submitted.reply({ content: `**${weeklyScheduleText(parsed)}** (${timezone})\nDébut : ${planning.weeklyStartDate ?? "maintenant"} · fenêtre : ${planning.weeklyHorizonDays} jours.\n${occurrences.length} dates à préparer dès maintenant (les dates existantes sont réutilisées).\n${occurrences.slice(0, 6).map(row => `<t:${Math.floor(row.scheduledAt.getTime() / 1000)}:F>`).join("\n")}\nLes raids déjà publiés restent inchangés.`, flags: MessageFlags.Ephemeral,
       components: [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(confirmId).setLabel("Enregistrer et préparer les raids").setStyle(ButtonStyle.Success))] });
     const preview = await submitted.fetchReply();
     const confirm = await preview.awaitMessageComponent({ time: 300_000, filter: c => c.user.id === i.user.id && c.customId === confirmId }).catch(() => null);
@@ -97,12 +97,15 @@ export async function editCoreSchedule(i: ButtonInteraction, guildId: string, co
     await confirm.deferUpdate();
     await saveCoreWeeklySchedule(prisma, guildId, coreId, input, i.user.id, { start, days });
     const created = await fillCoreWeeklyRaids(prisma, guildId, coreId);
+    // Publish the prepared raids now, as the old inline schedule editor did.
+    const { runDiscordJobs } = await import("../services/discord-jobs.js");
+    await runDiscordJobs(i.client);
     const note = `📅 ${weeklyScheduleText(parsed)} · ${timezone} · début ${planning.weeklyStartDate ?? "maintenant"} · ${created.length} nouveaux raids préparés. Publication automatique en cours.`;
     await submitted.editReply({ content: note, components: [] });
     return note;
   } catch (error) {
     const content = error instanceof Error ? error.message : "Impossible d'enregistrer l'horaire.";
-    if (submitted.replied || submitted.deferred) await submitted.editReply({ content, components: [] }); else await submitted.reply({ content, ephemeral: true });
+    if (submitted.replied || submitted.deferred) await submitted.editReply({ content, components: [] }); else await submitted.reply({ content, flags: MessageFlags.Ephemeral });
     return null;
   }
 }

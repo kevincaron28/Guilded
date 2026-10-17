@@ -270,7 +270,9 @@ function view.build(parent, compact)
         card.row = row
         card.art:Hide()
         if card.art:SetTexture(artwork(row)) then card.art:Show() end
-        card:Show(); card.name:SetText(row.name .. (row.minLevel and (" (" .. row.minLevel .. "-" .. row.maxLevel .. ")") or ""))
+        -- One level shows as "(30)", not "(30-30)".
+        local levels = row.minLevel and ((row.maxLevel and row.maxLevel ~= row.minLevel) and (row.minLevel .. "-" .. row.maxLevel) or tostring(row.minLevel))
+        card:Show(); card.name:SetText(row.name .. (levels and (" (" .. levels .. ")") or ""))
         card.value:SetText(row.sec and ("|cffefca68" .. (row.reason and L("Unranked") or tostring(row.points)) .. (model.version == 2 and " (+" .. row.speedBonus .. ")" or "") .. ((model.version == 4 or model.version == 5) and row.counted == false and not row.reason and (" - " .. L("Not counted in best 8")) or "") .. "|r  " .. duration(row.sec)
           .. " / " .. (row.targetSec and duration(row.targetSec) or L("No target")))
           or ("|cff8993a4" .. (model.available and L("Not completed this season") or L("Breakdown unavailable")) .. "|r"
@@ -294,9 +296,8 @@ function view.build(parent, compact)
     self.seasonTitle:SetText(season and ((season.status == "ENDED" and L("Past season") or L("Current season")) .. ": " .. season.season)
       or L("No season snapshot yet"))
     local lines = {}
-    if season then
-      lines[1] = L("Your season score") .. ": " .. (model.own and tostring(model.own) or L("Not in this snapshot"))
-    else lines[1] = L("Season scores arrive through your companion or a guild officer.") end
+    -- The score itself is already on the summary line at the top.
+    if not season then lines[1] = L("Season scores arrive through your companion or a guild officer.") end
     self.seasonRows:SetText(table.concat(lines, "\n"))
   end
   button(pane, "Previous", 16, -299, 100, function() pane.page = math.max(1, pane.page - 1); pane:Refresh() end)

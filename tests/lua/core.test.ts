@@ -93,6 +93,45 @@ describe("gear check: enchants, consumables and the peer digest", () => {
     GetInventoryItemDurability = function() return 90, 100 end
   `);
 
+  it("an automatic check right after login waits for the gear instead of recording empty slots", () => {
+    const s = loggedIn();
+    // As on WoW Forever right after login: no slot reports anything yet.
+    s.run(`
+      TIMERS = {}
+      C_Timer = { After = function(_, fn) TIMERS[#TIMERS + 1] = fn end }
+      LINKS = {}
+      GetInventoryItemLink = function(_, slot) return LINKS[slot] end
+      GetInventoryItemID = function(_, slot) return LINKS[slot] and tonumber(string.match(LINKS[slot], "item:(%d+)")) end
+      GetInventoryItemDurability = function() return 90, 100 end
+      GuildedDB.readiness["Kev"] = nil
+      SENT = {}
+      fire_event("SKILL_LINES_CHANGED")
+      TIMERS[#TIMERS]()   -- the 1 s delay after the skill event: gear still empty, so it waits
+    `);
+    expect(s.run(`return tostring(GuildedDB.readiness["Kev"])`)).toBe("nil");
+    expect(s.run(`local n = 0; for _, m in ipairs(SENT) do if string.find(m.text, "^READINESS|") then n = n + 1 end end; return n`)).toBe("0");
+    withGear(s);
+    s.run(`TIMERS[#TIMERS]()`);   // 5 s later the gear is there
+    expect(s.run(`return GuildedDB.readiness["Kev"].status`)).not.toBe("NOT_READY");
+  });
+
+  it("a bare /guilded opens the window; /guilded help still lists the commands", () => {
+    const s = loggedIn();
+    s.run(`OPENED = 0; NS.commandHandlers["menu"] = function() OPENED = OPENED + 1 end; CHAT_LOG = {}`);
+    s.run(`SlashCmdList["GUILDED"]("")`);
+    expect(s.run(`return OPENED`)).toBe("1");
+    expect(s.run(`return #CHAT_LOG`)).toBe("0");
+    s.run(`SlashCmdList["GUILDED"]("help")`);
+    expect(Number(s.run(`return #CHAT_LOG`))).toBeGreaterThan(5);
+    expect(s.run(`return OPENED`)).toBe("1");
+  });
+
+  it("a manual check still records a character with no gear at once", () => {
+    const s = loggedIn();
+    s.run(`GetInventoryItemLink = function() return nil end; GetInventoryItemID = function() return nil end; SlashCmdList["GUILDED"]("inspect")`);
+    expect(s.run(`return GuildedDB.readiness["Kev"].status`)).toBe("NOT_READY");
+  });
+
   it("finds equipped slots without an enchant and reports them", () => {
     const s = loggedIn();
     withGear(s);

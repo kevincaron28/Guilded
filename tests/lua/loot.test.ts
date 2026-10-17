@@ -248,7 +248,7 @@ describe("Loot.lua: what Home says when every core decides the same way (6.3)", 
   it("names the shared system instead of the guild default", () => {
     const s = withLoot();
     s.run(`RULES.cores = { { name = "Les Pulliticiens", mode = "PRIORITY", values = {}, players = {} }, { name = "Les Aggros Anonyme", mode = "PRIORITY", values = {}, players = {} } }`);
-    expect(s.run("return NS.loot.describe()")).toContain("Loot system: EPGP priority (set prices) - each raid core decides, and all of yours use it.");
+    expect(s.run("return NS.loot.describe()")).toContain("Loot system: EPGP priority (set prices) (all your raid cores use it).");
     s.run(`RULES.cores = {}`);
     expect(s.run("return NS.loot.describe()")).toContain("the guild's default");
   });

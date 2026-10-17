@@ -84,8 +84,8 @@ function localGuild.remove(id, rawName, confirmed)
   return false
 end
 function localGuild.describe()
-  local lines = { L("Local officer copy. All local cores share guild EP/GP; rosters do not create separate balances."),
-    L("Choose one record keeper. Use Backup, preview Restore on the receiving officer's PC, then hand over. This is not live sync.") }
+  local lines = { L("Rosters do not create separate balances."),
+    L("Officers share awards with /guilded ledgersync on. To hand the whole copy to another officer: Backup, then Restore preview on their PC.") }
   local core = ns.loot and ns.loot.core()
   if core and core.localOnly then
     lines[#lines + 1] = core.name .. " - " .. core.mode .. " - " .. core.reserves .. " SR"

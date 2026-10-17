@@ -1,5 +1,5 @@
 // Compile only repository-owned public guides. This does not publish or start a bot.
-import { readFileSync, writeFileSync, mkdirSync, copyFileSync, cpSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync, cpSync, existsSync, readdirSync } from "node:fs";
 import { dirname, posix } from "node:path";
 import { marked } from "marked";
 
@@ -9,6 +9,18 @@ const out = "dist/site";
 mkdirSync(`${out}/docs`, { recursive: true });
 for (const name of ["index.html", "style.css", "site.js"]) copyFileSync(`site/${name}`, `${out}/${name}`);
 cpSync("site/creator", `${out}/creator`, { recursive: true });
+// Google's public ownership files are curated separately from other local files.
+// They are served on both sites by the existing static asset binding.
+if (existsSync("site/verification")) {
+  for (const name of readdirSync("site/verification")) {
+    if (!/^google[a-f0-9]{8,64}\.html$/.test(name)) continue;
+    const source = `site/verification/${name}`;
+    if (readFileSync(source, "utf8").trim() !== `google-site-verification: ${name}`) {
+      throw new Error(`Unexpected Google verification content: ${source}`);
+    }
+    copyFileSync(source, `${out}/${name}`);
+  }
+}
 copyFileSync("docs/branding/guilded-logo-400.png", `${out}/logo.png`);
 cpSync("docs/images/owner-setup", `${out}/docs/images/owner-setup`, { recursive: true });
 const escape = text => text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");

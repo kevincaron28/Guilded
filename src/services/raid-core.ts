@@ -243,6 +243,13 @@ export function createRaidCoreService(database: Db) {
 }
 
 type CoreForEmbed = {
+  raidSize?: number | null;
+  tankLimit?: number | null;
+  healerLimit?: number | null;
+  dpsLimit?: number | null;
+  weeklyStartDate?: string | null;
+  weeklyHorizonDays?: number;
+  weeklyTimezone?: string | null;
   name: string;
   description: string | null;
   schedule?: string | null;
@@ -270,6 +277,8 @@ export function coreRosterEmbed(core: CoreForEmbed, guildLootMode?: string | nul
   const embed = new EmbedBuilder().setColor(0xd4af37).setTitle(`⚜️ ${core.name}`);
   if (core.description) embed.setDescription(core.description);
   if (core.schedule) embed.addFields({ name: `📅 ${tx(lang, "Schedule")}`, value: core.schedule, inline: true });
+  if (core.weeklyStartDate) embed.addFields({ name: lang === "fr" ? "Début des raids" : "Raids start", value: `${core.weeklyStartDate} · ${core.weeklyTimezone ?? ""}`, inline: true });
+  if (core.raidSize) embed.addFields({ name: lang === "fr" ? "Taille du raid" : "Raid size", value: String(core.raidSize), inline: true });
   const mode = asLootMode(core.lootMode ?? guildLootMode);
   const reserves = mode === "RESERVE" && core.reservesPerPlayer
     ? ` (${core.reservesPerPlayer === 1 ? tx(lang, "{n} reserve/player", { n: core.reservesPerPlayer }) : tx(lang, "{n} reserves/player", { n: core.reservesPerPlayer })})`
@@ -281,7 +290,8 @@ export function coreRosterEmbed(core: CoreForEmbed, guildLootMode?: string | nul
   }
   for (const role of ROLE_ORDER) {
     const names = core.members.filter((entry) => entry.role === role && !entry.bench && !entry.trial).map(label).sort((a, b) => a.localeCompare(b));
-    embed.addFields({ name: `${ROLE_LABEL[role]} (${names.length})`, value: clipRosterLines(names), inline: true });
+    const target = { TANK: core.tankLimit, HEALER: core.healerLimit, DPS: core.dpsLimit }[role];
+    embed.addFields({ name: `${ROLE_LABEL[role]} (${names.length}${target == null ? "" : `/${target}`})`, value: clipRosterLines(names), inline: true });
   }
   // Trial members (an application moved to Trial) are listed apart until they are approved.
   const trial = core.members.filter((entry) => entry.trial && !entry.bench)

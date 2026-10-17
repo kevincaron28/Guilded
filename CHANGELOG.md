@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Core setup/edit now offers raid size and tank/healer/DPS targets, weekday selection,
+  a launch date and a 1–90 day planning window with preview before saving. Future
+  launch raids can be prepared immediately; new raids inherit core signup limits.
+  Existing raids remain unchanged. See `docs/CORE_PLANNING.md`.
+
 ## 6.4.0 Release — 17 October 2026
 
 - Guided in-game guild setup (`/guilded setup guild`), end-of-raid summary (`/guilded summary`),

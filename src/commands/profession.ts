@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, type ChatInputCommandInteraction } from "discord.js";
+import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { findProfessionHolders, professionCoverage } from "../services/profession-search.js";
 import { professionDirectoryText } from "../services/profession-directory.js";
@@ -66,7 +66,7 @@ export async function executeProfession(interaction: ChatInputCommandInteraction
       `**${holder.character}**${holder.isMain ? "" : " (alt)"} - ${holder.profession} ${holder.skillLevel} (${holder.member})`);
     await interaction.reply({
       content: holders.length ? fit(lines, `Characters with **${query}**:`) : `Nobody has ${query} recorded yet.`,
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -76,7 +76,7 @@ export async function executeProfession(interaction: ChatInputCommandInteraction
       `**${row.profession}**: ${row.characters} character(s), top ${row.topSkill} (${row.topCharacter})`);
     await interaction.reply({
       content: coverage.length ? fit(lines, "Guild profession coverage:") : "No professions recorded yet.",
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -87,7 +87,7 @@ export async function executeProfession(interaction: ChatInputCommandInteraction
     const own = await guildService.listCharacters(context.memberId);
     const mine = interaction.options.getBoolean("mine") ?? false;
     const list = await describeCooldowns(prisma, context.guildId, mine ? { characters: own.map((character) => character.name) } : {});
-    await interaction.reply({ content: `${notify === null ? "" : `${notify ? "I will DM you when a cooldown of yours is ready." : "No more cooldown DMs."}\n\n`}${list}`.slice(0, 1990), ephemeral: true });
+    await interaction.reply({ content: `${notify === null ? "" : `${notify ? "I will DM you when a cooldown of yours is ready." : "No more cooldown DMs."}\n\n`}${list}`.slice(0, 1990), flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -96,7 +96,7 @@ export async function executeProfession(interaction: ChatInputCommandInteraction
     const lines = characters.flatMap((character) =>
       character.professions.map((skill) => `${character.name}: ${skill.profession} ${skill.skillLevel}`)
     );
-    await interaction.reply({ content: lines.length ? lines.join("\n") : "No professions recorded.", ephemeral: true });
+    await interaction.reply({ content: lines.length ? lines.join("\n") : "No professions recorded.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -106,5 +106,5 @@ export async function executeProfession(interaction: ChatInputCommandInteraction
   const profession = interaction.options.getString("profession", true).trim();
   const skill = interaction.options.getInteger("skill", true);
   await guildService.setProfession(character.id, profession, skill);
-  await interaction.reply({ content: `Recorded ${profession} ${skill} for ${character.name}.`, ephemeral: true });
+  await interaction.reply({ content: `Recorded ${profession} ${skill} for ${character.name}.`, flags: MessageFlags.Ephemeral });
 }

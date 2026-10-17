@@ -1,4 +1,4 @@
-import { ChannelType, PermissionFlagsBits, SlashCommandBuilder, type ChatInputCommandInteraction, type SlashCommandSubcommandBuilder } from "discord.js";
+import { ChannelType, PermissionFlagsBits, SlashCommandBuilder, type ChatInputCommandInteraction, type SlashCommandSubcommandBuilder, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { config } from "../config.js";
 import { asLang } from "../i18n.js";
@@ -40,8 +40,8 @@ export const participationCommand = new SlashCommandBuilder().setName("participa
   .addSubcommand(sub => reasonOption(idOption(seasonOption(sub.setName("reverse").setDescription("Officer: reverse an award").setDescriptionLocalizations({ fr: "Officiers : annuler un gain" })))));
 
 export async function executeParticipation(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!interaction.guild) { await interaction.reply({ content: "Serveur requis / Server required.", ephemeral: true }); return; }
-  await interaction.deferReply({ ephemeral: true });
+  if (!interaction.guild) { await interaction.reply({ content: "Serveur requis / Server required.", flags: MessageFlags.Ephemeral }); return; }
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const context = await requireGuildContext(interaction);
   if (!context) return;
   const guild = interaction.guild, actor = interaction.user.id, sub = interaction.options.getSubcommand();
@@ -129,5 +129,5 @@ export async function executeParticipation(interaction: ChatInputCommandInteract
   }
   chunks.push(content);
   await interaction.editReply({ content: chunks[0]!, allowedMentions: { parse: [] } });
-  for (const chunk of chunks.slice(1)) await interaction.followUp({ content: chunk, ephemeral: true, allowedMentions: { parse: [] } });
+  for (const chunk of chunks.slice(1)) await interaction.followUp({ content: chunk, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
 }

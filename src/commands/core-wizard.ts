@@ -1,6 +1,7 @@
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle,
-  UserSelectMenuBuilder, type ChatInputCommandInteraction, type Message, type MessageComponentInteraction
+  UserSelectMenuBuilder, type ChatInputCommandInteraction, type Message, type MessageComponentInteraction,
+  MessageFlags,
 } from "discord.js";
 import type { RaidCore, RaidRole } from "@prisma/client";
 import { prisma } from "../database.js";
@@ -139,7 +140,7 @@ export function parseEpField(text: string): number | null {
 
 export async function runCoreWizard(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = (await guildService.ensureGuild(interaction.guildId ?? "", interaction.guild?.name ?? "")).id;
-  await interaction.reply({ ...nameStep(), ephemeral: true });
+  await interaction.reply({ ...nameStep(), flags: MessageFlags.Ephemeral });
   const message: Message = await interaction.fetchReply();
   const collector = message.createMessageComponentCollector({ time: 20 * 60_000, filter: (i) => i.user.id === interaction.user.id });
   let coreId: string | null = null;
@@ -181,8 +182,8 @@ export async function runCoreWizard(interaction: ChatInputCommandInteraction): P
           await show(await rosterStep(core, guildId, note, mode));
         } catch (error) {
           const content = error instanceof Error ? error.message : "Could not create the core.";
-          if (submitted.deferred) await submitted.followUp({ content, ephemeral: true });
-          else await submitted.reply({ content, ephemeral: true });
+          if (submitted.deferred) await submitted.followUp({ content, flags: MessageFlags.Ephemeral });
+          else await submitted.reply({ content, flags: MessageFlags.Ephemeral });
         }
         return;
       }
@@ -250,7 +251,7 @@ export async function runCoreWizard(interaction: ChatInputCommandInteraction): P
           await submitted.deferUpdate();
           await interaction.editReply(await rulesStep(coreId, guildId, `Saved ${saved} price(s).${parsed.problems.length ? ` Skipped: ${parsed.problems.slice(0, 2).join("; ")}` : ""}`));
         } catch (error) {
-          await submitted.reply({ content: error instanceof Error ? error.message : "Could not save the prices.", ephemeral: true });
+          await submitted.reply({ content: error instanceof Error ? error.message : "Could not save the prices.", flags: MessageFlags.Ephemeral });
         }
         return;
       }
@@ -269,7 +270,7 @@ export async function runCoreWizard(interaction: ChatInputCommandInteraction): P
           await submitted.deferUpdate();
           await interaction.editReply(await rulesStep(coreId, guildId, "EP values saved."));
         } catch (error) {
-          await submitted.reply({ content: error instanceof Error ? error.message : "Could not save.", ephemeral: true });
+          await submitted.reply({ content: error instanceof Error ? error.message : "Could not save.", flags: MessageFlags.Ephemeral });
         }
         return;
       }
@@ -288,8 +289,8 @@ export async function runCoreWizard(interaction: ChatInputCommandInteraction): P
     } catch (error) {
       console.error("Core wizard step failed", error);
       const text = error instanceof Error ? error.message : String(error);
-      if (!i.replied && !i.deferred) await i.reply({ content: `That didn't work: ${text}`, ephemeral: true }).catch(() => undefined);
-      else await i.followUp({ content: `That didn't work: ${text}`, ephemeral: true }).catch(() => undefined);
+      if (!i.replied && !i.deferred) await i.reply({ content: `That didn't work: ${text}`, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+      else await i.followUp({ content: `That didn't work: ${text}`, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
   });
   collector.on("end", async (_c, reason) => {

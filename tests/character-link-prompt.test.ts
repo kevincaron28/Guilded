@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MessageFlags } from "discord.js";
 
 const mocks = vi.hoisted(() => ({
   config: { DISCORD_CLIENT_ID: "1552633893587394590", COMPANION_WEB_URL: undefined as string | undefined },
@@ -111,7 +112,7 @@ describe("private character connection instructions", () => {
       options: { getSubcommand: () => "pair" }, deferReply: vi.fn(), editReply: vi.fn()
     };
     mocks.context.mockImplementation(async () => {
-      expect(interaction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
+      expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
       return { guildId: "guild1", memberId: "member1" };
     });
     await executeCharacter(interaction as never);
@@ -126,7 +127,7 @@ describe("private character connection instructions", () => {
       deferReply: vi.fn(), editReply: vi.fn()
     };
     mocks.context.mockImplementation(async () => {
-      expect(interaction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
+      expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
       return { guildId: "guild1", memberId: "member1" };
     });
     mocks.importCharacter.mockResolvedValue({ action: "created", name: "NewCharacter", isMain });

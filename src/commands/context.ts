@@ -1,4 +1,4 @@
-import type { ChatInputCommandInteraction } from "discord.js";
+import { MessageFlags, type ChatInputCommandInteraction } from "discord.js";
 import { prisma } from "../database.js";
 import { createGuildService } from "../services/guild.js";
 import { createErrorReportService, isMemberAnswer } from "../services/error-report.js";
@@ -13,7 +13,7 @@ export async function requireGuildContext(
   if (!interaction.guild || !interaction.guildId || !interaction.member) {
     await interaction.reply({
       content: `This command can only be used inside the ${BRAND.name} Discord server.`,
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return null;
   }
@@ -53,8 +53,8 @@ export async function replyWithCommandError(
   if (interaction.deferred && !interaction.replied) {
     await interaction.editReply({ content });
   } else if (interaction.replied) {
-    await interaction.followUp({ content, ephemeral: true });
+    await interaction.followUp({ content, flags: MessageFlags.Ephemeral });
   } else {
-    await interaction.reply({ content, ephemeral: true });
+    await interaction.reply({ content, flags: MessageFlags.Ephemeral });
   }
 }

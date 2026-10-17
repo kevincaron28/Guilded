@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MessageFlags } from "discord.js";
 
 const mocks = vi.hoisted(() => ({
   byIdOrName: vi.fn(), remove: vi.fn(), cleanup: vi.fn(), removeRoster: vi.fn(), count: vi.fn()
@@ -43,7 +44,7 @@ describe("/core delete", () => {
   it("automatically removes Discord resources before deleting the core record", async () => {
     const command = interaction();
     await executeCore(command as never);
-    expect(command.deferReply).toHaveBeenCalledWith({ ephemeral: true });
+    expect(command.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
     expect(mocks.cleanup).toHaveBeenCalledWith(command.guild, core);
     expect(mocks.cleanup.mock.invocationCallOrder[0]!).toBeLessThan(mocks.remove.mock.invocationCallOrder[0]!);
     expect(mocks.remove).toHaveBeenCalledWith("g", "c");

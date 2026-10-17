@@ -1,4 +1,4 @@
-import { EmbedBuilder, SlashCommandBuilder, type ChatInputCommandInteraction } from "discord.js";
+import { EmbedBuilder, SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { createAuditService } from "../services/audit.js";
 import { createEpgpService } from "../services/epgp.js";
@@ -67,7 +67,7 @@ export async function executeEpgp(interaction: ChatInputCommandInteraction): Pro
         const own = await epgpService.getStanding(context.memberId, effectiveRules(settings, core).baseGp, core.id);
         return `**${core.name}** — EP ${own.ep} | GP ${own.gp} | PR ${own.pr.toFixed(3)}`;
       }));
-      await interaction.reply({ content: lines.join("\n").slice(0, 1900) || "Aucun core configuré. Commence avec /core setup.", ephemeral: true });
+      await interaction.reply({ content: lines.join("\n").slice(0, 1900) || "Aucun core configuré. Commence avec /core setup.", flags: MessageFlags.Ephemeral });
       return;
     } else throw new Error(CORE_REQUIRED);
   }
@@ -88,7 +88,7 @@ export async function executeEpgp(interaction: ChatInputCommandInteraction): Pro
         lines.push(`**${core.name} pool** — EP: **${other.ep}** | GP: **${other.gp}** | PR: **${other.pr.toFixed(3)}**`);
       }
     }
-    await interaction.reply({ content: lines.join("\n"), ephemeral: true });
+    await interaction.reply({ content: lines.join("\n"), flags: MessageFlags.Ephemeral });
     return;
   }
   if (subcommand === "history") {
@@ -97,7 +97,7 @@ export async function executeEpgp(interaction: ChatInputCommandInteraction): Pro
     let shown = standing;
     if (other && other.id !== interaction.user.id) {
       if (!officer(interaction)) {
-        await interaction.reply({ content: "Only EPGP officers can view someone else's history.", ephemeral: true });
+        await interaction.reply({ content: "Only EPGP officers can view someone else's history.", flags: MessageFlags.Ephemeral });
         return;
       }
       memberId = (await guildService.ensureMember(context.guildId, other.id, other.username)).id;
@@ -108,7 +108,7 @@ export async function executeEpgp(interaction: ChatInputCommandInteraction): Pro
     await interaction.reply({
       content: [`${other ? `**${other.username}** - ` : ""}EP: **${shown.ep}** | GP: **${shown.gp}** | PR: **${shown.pr.toFixed(3)}**`,
         ...history.map((row) => `EP ${row.epAmount >= 0 ? "+" : ""}${row.epAmount}, GP ${row.gpAmount >= 0 ? "+" : ""}${row.gpAmount} — ${row.reason} \`${row.id}\``)].join("\n"),
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -130,7 +130,7 @@ export async function executeEpgp(interaction: ChatInputCommandInteraction): Pro
     return;
   }
   if (!officer(interaction)) {
-    await interaction.reply({ content: "Only EPGP officers, Officers, Guild Masters, or administrators can change EPGP.", ephemeral: true });
+    await interaction.reply({ content: "Only EPGP officers, Officers, Guild Masters, or administrators can change EPGP.", flags: MessageFlags.Ephemeral });
     return;
   }
   if (subcommand === "decay") {
@@ -141,7 +141,7 @@ export async function executeEpgp(interaction: ChatInputCommandInteraction): Pro
       await prisma.guildSettings.update({ where: { guildId: context.guildId }, data: { autoDecay: weekly, ...(weekly ? { lastAutoDecayAt: new Date() } : {}) } });
       await interaction.reply({ content: weekly
         ? "Automatic decay is **on**: after every weekly reset (Tuesday 15:00 UTC) each point pool decays by its own percent (`/core rules decay` for a core's own pool). Nothing was decayed now."
-        : "Automatic decay is **off**. Run `/epgp decay` when you want one.", ephemeral: true });
+        : "Automatic decay is **off**. Run `/epgp decay` when you want one.", flags: MessageFlags.Ephemeral });
       return;
     }
     const transactions = await epgpService.applyDecay(context.guildId, pool.decay, interaction.user.id, pool.id);
@@ -153,7 +153,7 @@ export async function executeEpgp(interaction: ChatInputCommandInteraction): Pro
     });
     await interaction.reply({
       content: `Applied ${(pool.decay * 100).toFixed(0)}% EPGP decay to ${transactions.length} member(s) in the ${pool.name}.`,
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     await notify(interaction.guild, notifications.decayApplied(Math.round(pool.decay * 100), transactions.length));
     return;
@@ -171,7 +171,7 @@ export async function executeEpgp(interaction: ChatInputCommandInteraction): Pro
     });
     await interaction.reply({
       content: `Reversed \`${entryId}\`: EP ${reversal.epAmount >= 0 ? "+" : ""}${reversal.epAmount}, GP ${reversal.gpAmount >= 0 ? "+" : ""}${reversal.gpAmount}. Both entries stay in the history.`,
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     const reversedMember = await prisma.member.findUnique({ where: { id: reversal.memberId }, select: { displayName: true } });
     await notify(interaction.guild, notifications.epgpChanged(reversedMember?.displayName ?? "member", reversal.epAmount, reversal.gpAmount, `correction: ${reason}`), "loot");
@@ -185,6 +185,6 @@ export async function executeEpgp(interaction: ChatInputCommandInteraction): Pro
     ? await epgpService.awardEP({ guildId: context.guildId, memberId: targetMember.id, amount, reason, createdBy: interaction.user.id, coreId: pool.id })
     : await epgpService.awardItem({ guildId: context.guildId, memberId: targetMember.id, gp: amount, reason, createdBy: interaction.user.id, coreId: pool.id });
   await auditService.record({ guildId: context.guildId, actorId: interaction.user.id, action: "EPGP_TRANSACTION_CREATED", entityId: transaction.id, metadata: { memberId: targetMember.id, epAmount: transaction.epAmount, gpAmount: transaction.gpAmount, reason } });
-  await interaction.reply({ content: `Recorded ${transaction.epAmount ? `${transaction.epAmount} EP` : `${transaction.gpAmount} GP`} for ${target.username}.`, ephemeral: true });
+  await interaction.reply({ content: `Recorded ${transaction.epAmount ? `${transaction.epAmount} EP` : `${transaction.gpAmount} GP`} for ${target.username}.`, flags: MessageFlags.Ephemeral });
   await notify(interaction.guild, notifications.epgpChanged(targetMember.displayName, transaction.epAmount, transaction.gpAmount, reason), "loot");
 }

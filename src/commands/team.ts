@@ -1,4 +1,4 @@
-import { ChannelType, PermissionFlagsBits, SlashCommandBuilder, type AutocompleteInteraction, type ButtonInteraction, type ChatInputCommandInteraction, type SlashCommandStringOption } from "discord.js";
+import { ChannelType, PermissionFlagsBits, SlashCommandBuilder, type AutocompleteInteraction, type ButtonInteraction, type ChatInputCommandInteraction, type SlashCommandStringOption, MessageFlags } from "discord.js";
 import type { RaidAttendanceStatus, RaidRole } from "@prisma/client";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
@@ -74,8 +74,8 @@ function responseMessage(fr: boolean, result: Awaited<ReturnType<typeof respondT
 
 export async function executeTeam(i: ChatInputCommandInteraction) {
   // Defer before database/network work, including context creation.
-  if (!i.guild) { await i.reply({ content: "Server only / Serveur seulement.", ephemeral: true }); return; }
-  await i.deferReply({ ephemeral: true });
+  if (!i.guild) { await i.reply({ content: "Server only / Serveur seulement.", flags: MessageFlags.Ephemeral }); return; }
+  await i.deferReply({ flags: MessageFlags.Ephemeral });
   const ctx = await requireGuildContext(i);
   if (!ctx) return;
   const member = await actor(i);
@@ -152,7 +152,7 @@ export async function executeTeam(i: ChatInputCommandInteraction) {
 
 export async function handleTeamButton(i: ButtonInteraction) {
   if (!i.guild) return;
-  await i.deferReply({ ephemeral: true });
+  await i.deferReply({ flags: MessageFlags.Ephemeral });
   const [id, action] = i.customId.slice(TEAM_BUTTON_PREFIX.length).split(":");
   if (!id || !action || ![...TEAM_ROLES, "ABSENT", "TENTATIVE"].includes(action)) throw new Error("Invalid team button.");
   const guild = await guildService.ensureGuild(i.guild.id, i.guild.name);

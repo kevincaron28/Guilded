@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember } from "discord.js";
+import { SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 import { createTagService } from "../services/tags.js";
@@ -32,20 +32,20 @@ export async function executeTag(interaction: ChatInputCommandInteraction): Prom
   }
   if (subcommand === "list") {
     const tags = await tagService.list(context.guildId);
-    await interaction.reply({ content: tags.length ? tags.map((tag) => `\`${tag.name}\``).join(", ") : "No tags saved yet.", ephemeral: true });
+    await interaction.reply({ content: tags.length ? tags.map((tag) => `\`${tag.name}\``).join(", ") : "No tags saved yet.", flags: MessageFlags.Ephemeral });
     return;
   }
 
   if (!interaction.member || !hasPermission(interaction.member as GuildMember, "officer")) {
-    await interaction.reply({ content: "Only Officers, Guild Masters, or administrators can change tags.", ephemeral: true });
+    await interaction.reply({ content: "Only Officers, Guild Masters, or administrators can change tags.", flags: MessageFlags.Ephemeral });
     return;
   }
   const name = interaction.options.getString("name", true);
   if (subcommand === "set") {
     const saved = await tagService.set(context.guildId, name, interaction.options.getString("content", true), interaction.user.id);
-    await interaction.reply({ content: `Saved tag \`${saved.name}\`.`, ephemeral: true });
+    await interaction.reply({ content: `Saved tag \`${saved.name}\`.`, flags: MessageFlags.Ephemeral });
     return;
   }
   await tagService.remove(context.guildId, name);
-  await interaction.reply({ content: `Deleted tag \`${name.trim().toLowerCase()}\`.`, ephemeral: true });
+  await interaction.reply({ content: `Deleted tag \`${name.trim().toLowerCase()}\`.`, flags: MessageFlags.Ephemeral });
 }

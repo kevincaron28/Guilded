@@ -1,6 +1,7 @@
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, SlashCommandBuilder,
-  type ButtonInteraction, type ChatInputCommandInteraction, type Guild as DiscordGuild, type GuildMember
+  type ButtonInteraction, type ChatInputCommandInteraction, type Guild as DiscordGuild, type GuildMember,
+  MessageFlags,
 } from "discord.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
@@ -68,7 +69,7 @@ export async function executePoll(interaction: ChatInputCommandInteraction): Pro
   const context = await requireGuildContext(interaction);
   if (!context || !interaction.guild) return;
   if (!interaction.member || !hasPermission(interaction.member as GuildMember, "officer")) {
-    await interaction.reply({ content: "Only Officers and Guild Masters can create or close polls.", ephemeral: true });
+    await interaction.reply({ content: "Only Officers and Guild Masters can create or close polls.", flags: MessageFlags.Ephemeral });
     return;
   }
   const subcommand = interaction.options.getSubcommand();
@@ -78,7 +79,7 @@ export async function executePoll(interaction: ChatInputCommandInteraction): Pro
     const { counts, total } = await service.results(poll.id);
     await interaction.reply({
       content: `Closed **${poll.question}** — ${total} vote${total === 1 ? "" : "s"}: ${poll.options.map((option, index) => `${option} ${counts[index] ?? 0}`).join(" · ")}`,
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -91,7 +92,7 @@ export async function executePoll(interaction: ChatInputCommandInteraction): Pro
   if (!channel?.isTextBased() || !("send" in channel)) throw new Error("I can't post in this channel.");
   const message = await channel.send({ embeds: [await pollEmbed(poll.id)], components: pollButtons(poll.id, poll.options, false) });
   await service.setMessage(poll.id, channel.id, message.id);
-  await interaction.reply({ content: `Poll posted. Close it with \`/poll close poll:${poll.id}\`.`, ephemeral: true });
+  await interaction.reply({ content: `Poll posted. Close it with \`/poll close poll:${poll.id}\`.`, flags: MessageFlags.Ephemeral });
 }
 
 export async function handlePollButton(interaction: ButtonInteraction): Promise<void> {
@@ -102,9 +103,9 @@ export async function handlePollButton(interaction: ButtonInteraction): Promise<
   try {
     const poll = await service.vote(pollId, guild.id, member.id, Number(optionText));
     const lang: Lang = asLang((await guildService.getSettings(guild.id))?.language);
-    await interaction.reply({ content: tx(lang, "Your vote for **{option}** is recorded. Click another option to change it.", { option: poll.options[Number(optionText)] ?? "" }), ephemeral: true });
+    await interaction.reply({ content: tx(lang, "Your vote for **{option}** is recorded. Click another option to change it.", { option: poll.options[Number(optionText)] ?? "" }), flags: MessageFlags.Ephemeral });
     await syncPoll(interaction.guild, pollId);
   } catch (error) {
-    await interaction.reply({ content: error instanceof Error ? error.message : "Could not record your vote.", ephemeral: true }).catch(() => undefined);
+    await interaction.reply({ content: error instanceof Error ? error.message : "Could not record your vote.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
   }
 }

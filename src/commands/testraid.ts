@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember } from "discord.js";
+import { SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 import { dungeonAnnouncement } from "../services/dungeon-announce.js";
@@ -36,7 +36,7 @@ export async function executeTestRaid(interaction: ChatInputCommandInteraction):
   const context = await requireGuildContext(interaction);
   if (!context) return;
   if (!interaction.member || !hasPermission(interaction.member as GuildMember, "officer")) {
-    await interaction.reply({ content: "Only officers can run test raids.", ephemeral: true });
+    await interaction.reply({ content: "Only officers can run test raids.", flags: MessageFlags.Ephemeral });
     return;
   }
   const subcommand = interaction.options.getSubcommand();
@@ -45,7 +45,7 @@ export async function executeTestRaid(interaction: ChatInputCommandInteraction):
     const removed = await cleanupTestRaids(prisma, context.guildId);
     await interaction.reply({
       content: `Removed ${removed.raids} test raid(s), ${removed.dungeonRuns} test dungeon run(s), ${removed.members} fake raider(s) with their EPGP, points and loot, ${removed.auctions} test auction(s), and ${removed.imports} simulated import(s). Real data was not touched. (Delete any old test signup embeds by hand.)`,
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -68,7 +68,7 @@ export async function executeTestRaid(interaction: ChatInputCommandInteraction):
 `
         + `${posted ? "The run was announced in the dungeon channel (marked [TEST])." : "No dungeon or notify channel is set, so nothing was announced."} `
         + "Try `/dungeon leaderboard`, `/dungeon records`, `/dungeon admin invalidate`. Run it again for the weekly repeat share; `/setup testraid cleanup` removes it all.",
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -92,7 +92,7 @@ export async function executeTestRaid(interaction: ChatInputCommandInteraction):
         `When ready: \`/setup testraid finish raid:${result.raid.id}\` (add \`via_addon:true\` to test the import path). Clean up with \`/setup testraid cleanup\`.`,
         `In game, \`/guilded sim\` uses the same fake names (${SIM_CHARACTERS.slice(0, 3).join(", ")}...) so an addon export matches.`
       ].join("\n"),
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -114,7 +114,7 @@ export async function executeTestRaid(interaction: ChatInputCommandInteraction):
   if (result.importId) {
     await interaction.reply({
       content: `${summary}\nAttendance was sent as an addon import. Apply it with \`/import apply id:${result.importId}\` (you should see the no-show and the walk-in), then \`/raid award-ep raid:${result.raid.id}\`.`,
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }

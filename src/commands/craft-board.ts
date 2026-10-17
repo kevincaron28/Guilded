@@ -1,6 +1,7 @@
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle,
-  type ButtonInteraction, type ForumChannel, type Guild as DiscordGuild, type GuildMember, type ModalSubmitInteraction, type ThreadChannel
+  type ButtonInteraction, type ForumChannel, type Guild as DiscordGuild, type GuildMember, type ModalSubmitInteraction, type ThreadChannel,
+  MessageFlags,
 } from "discord.js";
 import type { CraftRequestStatus } from "@prisma/client";
 import { prisma } from "../database.js";
@@ -230,7 +231,7 @@ export async function handleCraftButton(interaction: ButtonInteraction): Promise
   }
   const [requestId, action] = rest.split(":");
   if (!requestId || !action) return;
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
   const lang = await boardLang(guild.id);
   const T = (english: string, vars: Record<string, string | number> = {}) => tx(lang, english, vars);
@@ -276,7 +277,7 @@ function requestModal(lang: Lang) {
 // The "Request a craft" form: creates the request and its post.
 export async function handleCraftModal(interaction: ModalSubmitInteraction): Promise<void> {
   if (!interaction.guild) return;
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   try {
     const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
     const member = await guildService.ensureMember(guild.id, interaction.user.id, (interaction.member as GuildMember | null)?.displayName ?? interaction.user.username);

@@ -2,7 +2,8 @@ import { serializeRaidPosts, syncRaidPosts } from "../services/raid-signup-posts
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "../services/discord-jobs.js";
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, SlashCommandBuilder,
-  type ButtonInteraction, type ChatInputCommandInteraction, type Guild as DiscordGuild, type GuildMember
+  type ButtonInteraction, type ChatInputCommandInteraction, type Guild as DiscordGuild, type GuildMember,
+  MessageFlags,
 } from "discord.js";
 import { RaidAttendanceStatus, RaidBossStatus, RaidRole } from "@prisma/client";
 import { prisma } from "../database.js";
@@ -274,7 +275,7 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     const coreNote = core
       ? ` for the **${core.name}** core (its ${core.members.length} members get signup priority)${coreGuessed ? " — guessed from your other raids/cores, pass core: to change it" : ""}`
       : "";
-    await interaction.reply({ content: `Created raid **${raid.title}** for <t:${when}:F> (<t:${when}:R>)${coreNote}. If that time looks wrong, fix it with \`/raid edit\`.`, ephemeral: true });
+    await interaction.reply({ content: `Created raid **${raid.title}** for <t:${when}:F> (<t:${when}:R>)${coreNote}. If that time looks wrong, fix it with \`/raid edit\`.`, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -310,7 +311,7 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     const settings = await guildService.getSettings(context.guildId);
     const character = settings?.characterSignups ? await pickSignupCharacter(interaction, context.guildId, context.memberId) : null;
     if (settings?.characterSignups && !character) return;
-    if (!interaction.replied && !interaction.deferred) await interaction.deferReply({ ephemeral: true });
+    if (!interaction.replied && !interaction.deferred) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const signup = await raidService.signup(raidId, context.guildId, context.memberId, role, availability, character?.id);
     await tellBumped(interaction.client, signup.bumped);
     if (interaction.guild) await syncSignupEmbed(interaction.guild, context.guildId, raidId);
@@ -331,7 +332,7 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     const { promoted } = await raidService.cancelSignup(raidId, context.guildId, context.memberId);
     if (interaction.guild) await syncSignupEmbed(interaction.guild, context.guildId, raidId);
     await tellPromoted(interaction, promoted);
-    await interaction.reply({ content: "Your raid signup was cancelled.", ephemeral: true });
+    await interaction.reply({ content: "Your raid signup was cancelled.", flags: MessageFlags.Ephemeral });
     return;
   }
   if (subcommand === "report") {
@@ -339,7 +340,7 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     const lang = asLang((await guildService.getSettings(context.guildId))?.language);
     const raid = await prisma.raid.findFirst({ where: { id: raidId, guildId: context.guildId }, select: { coreId: true } });
     if (raid?.coreId) {
-      await interaction.deferReply({ ephemeral: true });
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const posted = await postRaidReport(interaction.guild, context.guildId, raidId);
       await interaction.editReply({ content: posted ? "Posted in this core's raid reports channel." : "No report channel is configured for this core." });
     } else await interaction.reply({ embeds: [raidReportEmbed(report, lang)], allowedMentions: { parse: [] } });
@@ -352,7 +353,7 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
   if (subcommand === "note") {
     const note = await raidService.addNote(raidId, context.guildId, interaction.options.getString("text", true), interaction.user.id,
       interaction.options.getString("boss") ?? undefined);
-    await interaction.reply({ content: `Note added${note.bossName ? ` for **${note.bossName}**` : ""}. It shows in \`/raid status\`.`, ephemeral: true });
+    await interaction.reply({ content: `Note added${note.bossName ? ` for **${note.bossName}**` : ""}. It shows in \`/raid status\`.`, flags: MessageFlags.Ephemeral });
     return;
   }
   if (subcommand === "status") {
@@ -364,12 +365,12 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
       ? `\n\n**Notes**\n${raid.notes.map((note) => `• ${note.bossName ? `[${note.bossName}] ` : ""}${note.body}`).join("\n")}`
       : "";
     const text = `**${raid.title}** — ${raid.status}\nStart: <t:${Math.floor(raid.scheduledAt.getTime() / 1000)}:F>\nSignups: ${raid._count.signups}\nAttendance records: ${raid._count.attendance}\n${bosses}${notes}`;
-    await interaction.reply({ content: text.length > 1950 ? `${text.slice(0, 1940)}…` : text, ephemeral: true });
+    await interaction.reply({ content: text.length > 1950 ? `${text.slice(0, 1940)}…` : text, flags: MessageFlags.Ephemeral });
     return;
   }
   if (subcommand === "roster") {
     const roster = await raidService.roster(raidId, context.guildId);
-    await interaction.reply({ content: roster.length ? roster.map((signup) => `• ${signup.characterName ? signup.characterName : signup.member.displayName} (<@${signup.member.discordUserId}>) — ${roleLabel[signup.role]}`).join("\n") : "No members are signed up.", ephemeral: true });
+    await interaction.reply({ content: roster.length ? roster.map((signup) => `• ${signup.characterName ? signup.characterName : signup.member.displayName} (<@${signup.member.discordUserId}>) — ${roleLabel[signup.role]}`).join("\n") : "No members are signed up.", flags: MessageFlags.Ephemeral });
     return;
   }
   if (subcommand === "edit") {
@@ -391,14 +392,14 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     await tellPromoted(interaction, raid.promoted);
     await interaction.reply({
       content: `Updated raid **${raid.title}**.${raid.promoted.length ? ` Moved ${raid.promoted.length} player(s) off the waitlist.` : ""}`,
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
   if (subcommand === "cancel") {
     const raid = await raidService.cancel(raidId, context.guildId);
     if (interaction.guild) await syncSignupEmbed(interaction.guild, context.guildId, raidId);
-    await interaction.reply({ content: `Cancelled raid **${raid.title}**.`, ephemeral: true });
+    await interaction.reply({ content: `Cancelled raid **${raid.title}**.`, flags: MessageFlags.Ephemeral });
     return;
   }
   if (subcommand === "start" || subcommand === "end") {
@@ -410,14 +411,14 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
       // Ending a raid shows the proposed EP with Approve / Cancel buttons.
       await showEpProposal(interaction, context.guildId, raidId, `Ended raid **${raid.title}**.`);
     } else {
-      await interaction.reply({ content: `Started raid **${raid.title}**.`, ephemeral: true });
+      await interaction.reply({ content: `Started raid **${raid.title}**.`, flags: MessageFlags.Ephemeral });
     }
     await notify(interaction.guild, subcommand === "start" ? notifications.raidStarted(raid.title) : notifications.raidEnded(raid.title));
     if (subcommand === "end") {
       const next = await raidService.createNextRepeat(raidId, context.guildId);
       if (next) {
         if (interaction.guild) await syncSignupEmbed(interaction.guild, context.guildId, next.id);
-        await interaction.followUp({ content: `Weekly raid: the next **${next.title}** is set for <t:${Math.floor(next.scheduledAt.getTime() / 1000)}:F>. Cancel it with /raid cancel if you skip a week.`, ephemeral: true }).catch(() => undefined);
+        await interaction.followUp({ content: `Weekly raid: the next **${next.title}** is set for <t:${Math.floor(next.scheduledAt.getTime() / 1000)}:F>. Cancel it with /raid cancel if you skip a week.`, flags: MessageFlags.Ephemeral }).catch(() => undefined);
       }
     }
     return;
@@ -428,7 +429,7 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     const boss = await prisma.raidBoss.findFirst({ where: { raidId, name: { equals: bossName, mode: "insensitive" } } });
     if (!boss) throw new Error(`Boss "${bossName}" was not found for this raid.`);
     const updated = await raidService.setBossStatus(raidId, context.guildId, boss.id, status);
-    await interaction.reply({ content: `Marked **${updated.name}** as ${updated.status}.`, ephemeral: true });
+    await interaction.reply({ content: `Marked **${updated.name}** as ${updated.status}.`, flags: MessageFlags.Ephemeral });
     if (updated.status === "KILLED") {
       const raid = await prisma.raid.findUnique({ where: { id: raidId }, select: { title: true } });
       await notify(interaction.guild, notifications.bossKilled(updated.name, raid?.title ?? "raid"));
@@ -445,7 +446,7 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     recordedBy: interaction.user.id,
     ...(interaction.options.getString("notes") === null ? {} : { notes: interaction.options.getString("notes", true) })
   });
-  await interaction.reply({ content: `Recorded **${attendance.status}** attendance for ${player.username}.`, ephemeral: true });
+  await interaction.reply({ content: `Recorded **${attendance.status}** attendance for ${player.username}.`, flags: MessageFlags.Ephemeral });
 }
 
 // /raid fill: a call for players in the guild's shared raid signup channel (everyone reads it),
@@ -488,7 +489,7 @@ async function postFillCall(interaction: ChatInputCommandInteraction, guildId: s
   const channel = target?.isTextBased() ? target : interaction.channel;
   if (!channel?.isSendable()) throw new Error("I can't post in the raid signup channel. Check my permissions there.");
   await channel.send({ content: lines.join("\n").slice(0, 1900), allowedMentions: { users: bench.slice(0, 40), parse: [] } });
-  await interaction.reply({ content: `Posted the call for players in <#${channel.id}>${bench.length ? ` and pinged ${bench.length} bench player(s)` : ""}.`, ephemeral: true });
+  await interaction.reply({ content: `Posted the call for players in <#${channel.id}>${bench.length ? ` and pinged ${bench.length} bench player(s)` : ""}.`, flags: MessageFlags.Ephemeral });
 }
 
 // A warning added to a signup reply when the member is also down for another raid at about the
@@ -523,7 +524,7 @@ export async function handleRaidSignupButton(interaction: ButtonInteraction): Pr
     const role = (action === "MAYBE" ? existing?.role ?? "DPS" : action) as RaidRole;
     const character = settings?.characterSignups ? await pickSignupCharacter(interaction, guild.id, member.id) : null;
     if (settings?.characterSignups && !character) return;
-    if (!interaction.replied && !interaction.deferred) await interaction.deferReply({ ephemeral: true });
+    if (!interaction.replied && !interaction.deferred) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const signup = await raidService.signup(raidId, guild.id, member.id, role, action === "MAYBE" ? "MAYBE" : "AVAILABLE", character?.id);
     await tellBumped(interaction.client, signup.bumped);
     const roleText = t(lang, `role.${role}` as const);
@@ -535,6 +536,6 @@ export async function handleRaidSignupButton(interaction: ButtonInteraction): Pr
     content = (character ? `**${character.name} — ${character.realm}** : ` : "") + (replies[signup.status] ?? "Signup saved.") + await clashNote(raidId, guild.id, member.id, lang);
   }
   if (interaction.replied || interaction.deferred) await interaction.editReply({ content, components: [] });
-  else await interaction.reply({ content, ephemeral: true });
+  else await interaction.reply({ content, flags: MessageFlags.Ephemeral });
   await syncSignupEmbed(interaction.guild, guild.id, raidId);
 }

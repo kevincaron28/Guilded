@@ -12,7 +12,8 @@ import {
   type ChatInputCommandInteraction,
   type Guild as DiscordGuild,
   type GuildMember,
-  type MessageComponentInteraction
+  type MessageComponentInteraction,
+  MessageFlags,
 } from "discord.js";
 import type { GuildSettings } from "@prisma/client";
 import { removeGuildScheduledEvents } from "../services/scheduled-events.js";
@@ -224,15 +225,15 @@ export async function performUninstall(guild: DiscordGuild, guildId: string, imp
 
 export async function executeUninstall(interaction: ChatInputCommandInteraction, reset = false): Promise<void> {
   if (!interaction.guild || !interaction.guildId) {
-    await interaction.reply({ content: `This command can only be used inside the ${BRAND.name} Discord server.`, ephemeral: true });
+    await interaction.reply({ content: `This command can only be used inside the ${BRAND.name} Discord server.`, flags: MessageFlags.Ephemeral });
     return;
   }
   if (!canUninstall(interaction)) {
-    await interaction.reply({ content: "Only the server owner, or someone with the Administrator permission, can uninstall the bot.", ephemeral: true });
+    await interaction.reply({ content: "Only the server owner, or someone with the Administrator permission, can uninstall the bot.", flags: MessageFlags.Ephemeral });
     return;
   }
   const guild = interaction.guild;
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const record = await guildService.ensureGuild(guild.id, guild.name);
   const guildId = record.id;
   const settings = await guildService.getSettings(guildId);
@@ -282,14 +283,14 @@ export async function executeUninstall(interaction: ChatInputCommandInteraction,
     await i.showModal(confirmModal(guild, reset));
     const submitted = await i.awaitModalSubmit({ time: 5 * 60_000, filter: (m) => m.user.id === i.user.id && m.customId === "uninstall:confirm-modal" }).catch(() => null);
     if (!submitted) { busy = false; return; }
-    if (collector.ended) { await submitted.reply({ content: "Confirmation expired or was cancelled. Run the command again.", ephemeral: true }); return; }
+    if (collector.ended) { await submitted.reply({ content: "Confirmation expired or was cancelled. Run the command again.", flags: MessageFlags.Ephemeral }); return; }
     const typed = submitted.fields.getTextInputValue("name").trim();
     if (typed.toLowerCase() !== guild.name.trim().toLowerCase()) {
-      await submitted.reply({ content: `That didn't match "${guild.name}" exactly. Press Continue to try again.`, ephemeral: true });
+      await submitted.reply({ content: `That didn't match "${guild.name}" exactly. Press Continue to try again.`, flags: MessageFlags.Ephemeral });
       busy = false;
       return;
     }
-    await submitted.deferReply({ ephemeral: true });
+    await submitted.deferReply({ flags: MessageFlags.Ephemeral });
     const administrator = await guild.members.fetch(i.user.id);
     if (guild.ownerId !== i.user.id && !administrator.permissions.has(PermissionFlagsBits.Administrator)) {
       await submitted.editReply({ content: "Administrator permission is required to confirm." });

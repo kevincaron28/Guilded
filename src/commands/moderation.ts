@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember } from "discord.js";
+import { SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 import { createAuditService } from "../services/audit.js";
@@ -34,7 +34,7 @@ export async function executeModeration(interaction: ChatInputCommandInteraction
   const context = await requireGuildContext(interaction);
   if (!context || !interaction.guild) return;
   if (!interaction.member || !hasPermission(interaction.member as GuildMember, "officer")) {
-    await interaction.reply({ content: "Only Officers, Guild Masters, or administrators can use moderation tools.", ephemeral: true });
+    await interaction.reply({ content: "Only Officers, Guild Masters, or administrators can use moderation tools.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -58,7 +58,7 @@ export async function executeModeration(interaction: ChatInputCommandInteraction
           return `${entry.createdAt.toISOString().slice(0, 10)} ${entry.action.replace("MODERATION_", "")} by <@${entry.actorId}> - ${meta.reason ?? "no reason"}`;
         })].join("\n")
         : `No moderation history for ${user.tag}.`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
       allowedMentions: { parse: [] }
     });
     return;
@@ -111,5 +111,5 @@ export async function executeModeration(interaction: ChatInputCommandInteraction
 
   await auditService.record({ guildId: context.guildId, actorId: interaction.user.id, action, entityId: user.id, metadata });
   await postToLogChannel(guild, `${summary} By ${interaction.user.tag}. Reason: ${reason}`);
-  await interaction.reply({ content: summary, ephemeral: true });
+  await interaction.reply({ content: summary, flags: MessageFlags.Ephemeral });
 }

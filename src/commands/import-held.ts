@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, type ChatInputCommandInteraction } from "discord.js";
+import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { createAuditService } from "../services/audit.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
@@ -29,7 +29,7 @@ export async function executeImportHeld(interaction: ChatInputCommandInteraction
   const context = await requireGuildContext(interaction);
   if (!context) return;
   if (!interaction.member || !hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "officer")) {
-    await interaction.reply({ content: "Only officers can review held addon entries.", ephemeral: true });
+    await interaction.reply({ content: "Only officers can review held addon entries.", flags: MessageFlags.Ephemeral });
     return;
   }
   const fr = (await guildService.getSettings(context.guildId))?.language === "fr";
@@ -56,7 +56,7 @@ export async function executeImportHeld(interaction: ChatInputCommandInteraction
           : `Dismissed: **${row.character}** ${row.detail}. It will never be imported (\`/import held restore:${wanted}\` to undo).`)
         : (fr ? `Entrée rétablie : **${row.character}** ${row.detail}. La prochaine synchronisation la réessaie.`
           : `Restored: **${row.character}** ${row.detail}. The next sync tries it again.`),
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -67,7 +67,7 @@ export async function executeImportHeld(interaction: ChatInputCommandInteraction
     await interaction.reply({
       content: (fr ? "Aucune entrée de l'addon en attente : tout ce qui a été envoyé est importé." : "No addon entries are on hold: everything uploaded was imported.")
         + (dismissed ? (fr ? ` (${dismissed} retirée(s).)` : ` (${dismissed} dismissed.)`) : ""),
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -77,5 +77,5 @@ export async function executeImportHeld(interaction: ChatInputCommandInteraction
     ? `**${waiting.length} entrée(s) de l'addon en attente.** Elles s'importent seules dès que la cause est réglée; \`/import held dismiss:<code>\` en retire une pour de bon.`
     : `**${waiting.length} addon entr${waiting.length === 1 ? "y is" : "ies are"} on hold.** Each imports by itself once its cause is fixed; \`/import held dismiss:<code>\` drops one for good.`;
   const more = waiting.length > MAX_SHOWN ? (fr ? `\n…et ${waiting.length - MAX_SHOWN} de plus.` : `\n…and ${waiting.length - MAX_SHOWN} more.`) : "";
-  await interaction.reply({ content: `${head}\n${lines.join("\n")}${more}`.slice(0, 1950), ephemeral: true });
+  await interaction.reply({ content: `${head}\n${lines.join("\n")}${more}`.slice(0, 1950), flags: MessageFlags.Ephemeral });
 }

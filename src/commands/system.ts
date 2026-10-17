@@ -1,4 +1,4 @@
-import { EmbedBuilder, PermissionFlagsBits, SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember } from "discord.js";
+import { EmbedBuilder, PermissionFlagsBits, SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 import { ALL_CHANNELS } from "./setup.js";
@@ -13,10 +13,10 @@ export const systemCommand = new SlashCommandBuilder().setName("system").setDesc
 export const REQUIRED_BOT_PERMISSIONS = ["ViewChannel", "SendMessages", "EmbedLinks", "AttachFiles", "ReadMessageHistory", "ManageChannels", "ManageRoles", "ManageMessages", "PinMessages", "AddReactions", "CreatePublicThreads", "SendMessagesInThreads", "ManageThreads", "Connect", "Speak", "MoveMembers", "KickMembers", "BanMembers", "ModerateMembers", "CreateEvents"] as const;
 
 export async function executeSystem(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!interaction.guild) { await interaction.reply({ content: "Use this in your Discord server.", ephemeral: true }); return; }
+  if (!interaction.guild) { await interaction.reply({ content: "Use this in your Discord server.", flags: MessageFlags.Ephemeral }); return; }
   const officer = await interaction.guild.members.fetch(interaction.user.id);
-  if (!hasPermission(officer as GuildMember, "officer")) { await interaction.reply({ content: "Officers only / Officiers seulement.", ephemeral: true }); return; }
-  await interaction.deferReply({ ephemeral: true });
+  if (!hasPermission(officer as GuildMember, "officer")) { await interaction.reply({ content: "Officers only / Officiers seulement.", flags: MessageFlags.Ephemeral }); return; }
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
   const sub = interaction.options.getSubcommand();
   if (sub === "retry") {

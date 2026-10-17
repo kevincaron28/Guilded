@@ -1,4 +1,4 @@
-import { EmbedBuilder, SlashCommandBuilder, escapeMarkdown, type ChatInputCommandInteraction } from "discord.js";
+import { EmbedBuilder, SlashCommandBuilder, escapeMarkdown, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 import { requireGuildContext } from "./context.js";
@@ -18,8 +18,8 @@ export const poeCommand = new SlashCommandBuilder().setName("poe").setDescriptio
     .addBooleanOption(option => option.setName("guild").setDescription("Show guild activity instead of only yours")));
 
 export async function executePoe(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!interaction.guild) { await interaction.reply({ content: "Use this in your server / À utiliser dans votre serveur.", ephemeral: true }); return; }
-  await interaction.deferReply({ ephemeral: true });
+  if (!interaction.guild) { await interaction.reply({ content: "Use this in your server / À utiliser dans votre serveur.", flags: MessageFlags.Ephemeral }); return; }
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const context = await requireGuildContext(interaction);
   if (!context) return;
   const { guildId, memberId } = context;

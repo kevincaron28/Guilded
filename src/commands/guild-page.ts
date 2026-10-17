@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember } from "discord.js";
+import { SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 import { companionWebUrl } from "../services/companion-links.js";
@@ -36,14 +36,14 @@ export const guildPageCommand = new SlashCommandBuilder()
 
 export async function executeGuildPage(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.guildId || !interaction.member || !hasPermission(interaction.member as GuildMember, "officer")) {
-    await interaction.reply({ content: "Only Officers, Guild Masters and server administrators can manage the guild page.", ephemeral: true });
+    await interaction.reply({ content: "Only Officers, Guild Masters and server administrators can manage the guild page.", flags: MessageFlags.Ephemeral });
     return;
   }
   const sub = interaction.options.getSubcommand();
   const discordId = interaction.guildId;
   const page = await prisma.guildPage.findFirst({ where: { guild: { discordId } }, select: { slug: true, sections: true } });
   if (!page && sub !== "create" && sub !== "status") {
-    await interaction.reply({ content: "This server has no guild page yet: start with `/mod page create`.", ephemeral: true });
+    await interaction.reply({ content: "This server has no guild page yet: start with `/mod page create`.", flags: MessageFlags.Ephemeral });
     return;
   }
   let action = sub;
@@ -64,12 +64,12 @@ export async function executeGuildPage(interaction: ChatInputCommandInteraction)
   try {
     summary = await editGuildPage(prisma, action, discordId, value);
   } catch (error) {
-    await interaction.reply({ content: error instanceof Error ? error.message : "The guild page could not be updated.", ephemeral: true });
+    await interaction.reply({ content: error instanceof Error ? error.message : "The guild page could not be updated.", flags: MessageFlags.Ephemeral });
     return;
   }
   forgetGuildPage();
   const slug = /\/g\/([a-z0-9-]+)\//.exec(summary)?.[1];
   const base = companionWebUrl();
   const link = slug ? (base ? new URL(`/g/${slug}/`, base).href : `/g/${slug}/`) : null;
-  await interaction.reply({ content: `${summary}${link ? `\nAddress: ${link}` : ""}`, ephemeral: true, allowedMentions: { parse: [] } });
+  await interaction.reply({ content: `${summary}${link ? `\nAddress: ${link}` : ""}`, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
 }

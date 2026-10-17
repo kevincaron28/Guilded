@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, ModalBuilder, PermissionFlagsBits, SlashCommandBuilder, TextInputBuilder, TextInputStyle, type ButtonInteraction, type ChatInputCommandInteraction, type Guild, type ModalSubmitInteraction, type SlashCommandSubcommandBuilder, type SlashCommandSubcommandsOnlyBuilder } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, ModalBuilder, PermissionFlagsBits, SlashCommandBuilder, TextInputBuilder, TextInputStyle, type ButtonInteraction, type ChatInputCommandInteraction, type Guild, type ModalSubmitInteraction, type SlashCommandSubcommandBuilder, type SlashCommandSubcommandsOnlyBuilder, MessageFlags } from "discord.js";
 import type { CommunityActivity, CommunitySeason } from "@prisma/client";
 import { prisma } from "../database.js";
 import { asLang, type Lang } from "../i18n.js";
@@ -109,8 +109,8 @@ async function getActivity(guild: Guild, guildId: string, id: string, userId: st
 }
 
 export async function executeCommunity(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!interaction.guild) { await interaction.reply({ content: "Utilise cette commande sur le serveur / Use this command in the server.", ephemeral: true }); return; }
-  await interaction.deferReply({ ephemeral: true });
+  if (!interaction.guild) { await interaction.reply({ content: "Utilise cette commande sur le serveur / Use this command in the server.", flags: MessageFlags.Ephemeral }); return; }
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const context = await requireGuildContext(interaction);
   if (!context) return;
   const guild = interaction.guild;
@@ -361,7 +361,7 @@ export async function handleCommunityButton(interaction: ButtonInteraction): Pro
     await interaction.showModal(modal);
     return;
   }
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const record = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
   const lang = asLang((await guildService.getSettings(record.id))?.language);
   const kind = action.startsWith("answer") ? "QUIZ" : ["free", "buy"].includes(action) ? "LOTTERY" : action === "claim-status" ? "CHALLENGE" : "EVENT";
@@ -389,7 +389,7 @@ export async function handleCommunityButton(interaction: ButtonInteraction): Pro
 
 export async function handleCommunityModal(interaction: ModalSubmitInteraction): Promise<void> {
   if (!interaction.guild) return;
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const [action, id] = interaction.customId.slice(COMMUNITY_PREFIX.length).split(":");
   if (!id || !["proof", "tickets"].includes(action ?? "")) throw new Error("Formulaire invalide / Invalid form.");
   const record = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);

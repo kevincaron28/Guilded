@@ -15,7 +15,8 @@ import {
   type GuildMember,
   type MessageComponentInteraction,
   OverwriteType,
-  type OverwriteResolvable
+  type OverwriteResolvable,
+  MessageFlags,
 } from "discord.js";
 import type { GuildSettings } from "@prisma/client";
 import { prisma } from "../database.js";
@@ -786,7 +787,7 @@ export { ensureBotGuide };
 
 export async function executeSetup(interaction: ChatInputCommandInteraction): Promise<void> {
   // A new guild's first database request may be cold; acknowledge before configuration reads.
-  if (interaction.guild && interaction.guildId && interaction.member) await interaction.deferReply({ ephemeral: true });
+  if (interaction.guild && interaction.guildId && interaction.member) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const context = await requireGuildContext(interaction);
   if (!context || !interaction.guild) return;
   const startLang = asLang((await guildService.getSettings(context.guildId))?.language);

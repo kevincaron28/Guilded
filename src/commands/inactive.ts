@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember } from "discord.js";
+import { SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 import { findInactive, formatInactive } from "../services/inactive.js";
@@ -13,10 +13,10 @@ export async function executeInactive(interaction: ChatInputCommandInteraction):
   const context = await requireGuildContext(interaction);
   if (!context) return;
   if (!interaction.member || !hasPermission(interaction.member as GuildMember, "officer")) {
-    await interaction.reply({ content: "Only Officers and Guild Masters can see the inactivity report.", ephemeral: true });
+    await interaction.reply({ content: "Only Officers and Guild Masters can see the inactivity report.", flags: MessageFlags.Ephemeral });
     return;
   }
   const days = interaction.options.getInteger("days") ?? 30;
   const rows = await findInactive(prisma, context.guildId, days);
-  await interaction.reply({ content: formatInactive(rows, days).slice(0, 1990), ephemeral: true, allowedMentions: { parse: [] } });
+  await interaction.reply({ content: formatInactive(rows, days).slice(0, 1990), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
 }

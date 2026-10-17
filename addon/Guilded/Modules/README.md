@@ -80,7 +80,7 @@ guild-wide EP/GP. Backup/restore moves a snapshot to another officer.
 
 LootRoll.lua handles soft-reserve rolls without GuildedGames. Ties roll again,
 SR+ is included, and awarding remains a separate officer action. Party games
-live in the optional GuildedGames addon; /guilded games is only a launcher.
+live only in the separate Guilded Games addon (/ggames); Guilded has no games command.
 
 ## Bidding.lua
 

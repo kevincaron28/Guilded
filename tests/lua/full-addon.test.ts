@@ -63,7 +63,7 @@ function fullAddon(rank: number): LuaSession {
 const COMMANDS = [
   "help", "modules", "standings", "peers", "status",
   "calendar list", "reserve list", "recipes mine", "cooldowns", "council status", "core", "drop mode",
-  "bid status", "games status", "digest", "sync status"
+  "bid status", "digest", "sync status"
 ];
 
 const problems = (s: LuaSession) => s.chat().filter((line) => /(^|\s)(error|failed)|attempt to|stack traceback/i.test(line));
@@ -147,7 +147,7 @@ describe("the whole addon, loaded in .toc order", () => {
 
   it("every part registered its commands", () => {
     const s = fullAddon(1);
-    for (const name of ["council", "lc", "drop", "core", "reserve", "res", "recipes", "cooldowns", "calendar", "bid", "games", "menu"]) {
+    for (const name of ["council", "lc", "drop", "core", "reserve", "res", "recipes", "cooldowns", "calendar", "bid", "menu"]) {
       expect(s.run(`return type(NS.commandHandlers[${JSON.stringify(name)}])`), name).toBe("function");
     }
   });

@@ -179,3 +179,20 @@ backed-up baseline afterwards (hash verified) and GuildedData re-enabled.
 | --- | --- | --- |
 | G1 | PASS (one part not run) | Isolated profile: no Guilded saved data and the GuildedData folder hidden (an earlier attempt that only unticked Guilded Data still loaded companion standings, so it was discarded). First login: "Addon-only is ready. Discord linking and companion sync are optional"; `/guilded setup` labels In-game only as the default; no missing-Discord or Lua error. Home, Guild tools (Standings, Crafting, Administration, Local guild), the Local guild page and the dungeon window open and work. Reload and relog: "No Guilded problems recorded", mode kept. Not run: receiving an officer snapshot on the fresh profile (no other officer online). |
 | G2 | PASS (6.2.1/6.3.0 profile) | The real profile, last saved by 6.2.1/6.3.0, loaded by 6.3.1: version 6.3.1; saved standings, both raid cores, the window position, chat tab and connected setup kept; recent runs with dates; current season "Quebec Gold - Beta Best 8" and past season "Beta finale Oct 22" with the archived score 170 unchanged; reload without problems. A 6.1.2-era profile was not available. |
+
+### 17 October 2026 (morning): PR #106 fixes and G1's remainder, two PCs
+
+Highpriest Cheech (guild master, main PC, companion tracking paused) and Naomine Merriweather
+(officer, second PC, no companion, no GuildedData), English clients, 6.3.1 plus the PR #106
+branch (2e7fca2 for ChatTab.lua). Each PC was driven by its own Claude session; both backed up
+their Guilded SavedVariables first and restored them afterwards.
+
+| ID | Result | Observations |
+| --- | --- | --- |
+| Chat tab | PASS (after a fix) | `/guilded chat off` now closes the Guilded tab. First try found a second problem: turning the tab on again said "on" but nothing opened, because a closed chat window keeps its name and the addon wrote into the hidden window (fixed in 2e7fca2: a window counts only when its frame or tab is shown). Then on/off/on/off/on worked, reusing the same window, on Highpriest. Naomine (2e7fca2): on/off three times, the tab appeared and closed each time, General became active again on off; no Lua error, no problems recorded. |
+| SR+ for members | PASS | Highpriest opened a list, Naomine reserved item 2042; Highpriest cleared and reopened (carry-over SR+10), Naomine reserved again. Her `/guilded reserve list`: "Naomine: item 2042 (SR+10)". Her "Yours:" line had no SR+; it now shows it too (9a65ae0, offline test only). Her window has no Reserves tab because her loot system is GP bids (by design). |
+| G1 (rest) | PASS | Naomine with her Guilded SavedVariables moved aside and no GuildedData: "Addon-only is ready ..." on first login; about 30 s later `/guilded standings` showed "EPGP: Highpriest (2026-10-16T22:29:15.579Z)"; Home showed standings and dungeon standings "shared by Highpriest"; Guild tools showed the snapshot with officer controls only as her rank allows; Local guild opened. Mode stayed In-game only (`setupMode = "local"`), no Lua error, no problems recorded; the same after /reload and a full relog, without repeating the first-run message. |
+
+Afterwards both PCs restored their Guilded SavedVariables (hashes match the backups); the main
+PC went back to the 6.3.1 addon and resumed companion tracking. G6–G8, G10, the Guilded Games
+part of G9, the 6.1.2 parts of G2/G12 and the desktop companion checks are still not run.

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 6.4.0 Release — 17 October 2026
+
+- Guided in-game guild setup (`/guilded setup guild`), end-of-raid summary (`/guilded summary`),
+  level-aware gear checks (`/guilded slots level`) and season freshness ([notes](docs/V6_4_0_RELEASE_NOTES.md)).
+- Party games only in the Guilded Games addon; roll-off fixes found with both addons installed.
+- Bot: current discord.js pinned-message API (no startup warning).
+
 ## 6.3.2 Release — 17 October 2026
 
 - Addon polish from a full in-game pass ([notes](docs/V6_3_2_RELEASE_NOTES.md)): the login gear

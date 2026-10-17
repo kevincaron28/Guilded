@@ -1,5 +1,20 @@
 # Standalone Guilded Addon Roadmap
 
+## Status - 17 October 2026 (6.3.2 and the next candidate)
+
+| Step | State | Where it stands |
+| --- | --- | --- |
+| 0. Standalone baseline | Done | G1 passed in game on a fresh profile with no companion (V6_2_GAME_ACCEPTANCE.md). |
+| 1. In-game-only setup path | Done | In-game only is the default on first login; `/guilded setup` chooses; officers get `/guilded setup guild`, which opens the step-by-step Local guild page. |
+| 2. Raid-night workflow | Partly | Start/end, attendance (including "everyone seen"), manual boss marks, EP/GP and loot work in game. Ending a raid now prints a summary, and `/guilded summary` opens it to copy. Not done: raid templates and notes. |
+| 3. Backup, archive, transfer | Mostly | `/guilded backup` shows a code to copy out of the game, `/guilded restore` previews before loading, `restore undo` reverts; a restore keeps the receiving PC's own settings (G4 passed). Not done: a raid-history report beyond the summary. |
+| 4. Honest local EPGP model | Done | Local cores share guild EP/GP; standings say whose copy and how old; officers can merge ledgers with `/guilded ledgersync on` (G11 passed). |
+| 5. Standalone features | Ongoing | Gear/readiness (empty slots count only from level 60 by default, `/guilded slots level`), recipes, attunements, reserves with SR+ for everyone, bidding, council and roll-offs work without Discord. |
+
+The "multi-writer EPGP" non-goal below is superseded for EP/GP ledgers: ledger sync uses permanent
+entry ids, a union merge and "voided wins", with only an entry's author able to void it. Rosters
+and core rules still have a single record keeper.
+
 ## Current development - 14 October 2026
 
 6.1.1 shipped the in-game-only chooser; owner acceptance is recorded in
@@ -213,8 +228,8 @@ requirements.
 - Automatically reading the combat log or inferring attendance/boss kills when
   the client does not expose a supported API.
 - Building unrestricted file export from inside the addon.
-- Implementing multi-writer EPGP/roster synchronization before its conflict
-  model is designed and tested.
+- Implementing multi-writer roster or core-rule synchronization before its conflict
+  model is designed and tested (EP/GP ledgers already have one: ledger sync).
 
 ## Handoff note
 

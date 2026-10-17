@@ -147,6 +147,39 @@ describe("gear check: enchants, consumables and the peer digest", () => {
     expect(s.run(`return OPENED`)).toBe("1");
   });
 
+  it("ending a raid prints a summary of what was recorded; /guilded summary shows it again", () => {
+    const s = loggedIn();
+    s.run(`
+      SlashCmdList["GUILDED"]("start Molten Core")
+      SlashCmdList["GUILDED"]("attendance Amy PRESENT")
+      SlashCmdList["GUILDED"]("attendance Bob LATE")
+      SlashCmdList["GUILDED"]("boss Lucifron")
+      SlashCmdList["GUILDED"]("award Amy 10 On time")
+      SlashCmdList["GUILDED"]("loot Amy Felheart Gloves 40")
+      CHAT_LOG = {}
+      SlashCmdList["GUILDED"]("end")
+    `);
+    const out = s.run(`return table.concat(CHAT_LOG, "\\n")`);
+    expect(out).toContain("Attendance (marked by officers): 1 present, 1 late, 0 absent.");
+    expect(out).toContain("Bosses (marked by hand): Lucifron");
+    expect(out).toContain("+10 EP");
+    expect(out).toContain("Felheart Gloves -> Amy (40 GP)");
+    s.run(`CHAT_LOG = {}; SlashCmdList["GUILDED"]("summary")`);
+    expect(s.run(`return table.concat(CHAT_LOG, "\\n")`)).toContain("Molten Core");
+  });
+
+  it("below level 60 empty slots are a note, not 'Not ready'; /guilded slots level changes it", () => {
+    const s = loggedIn();
+    withGear(s);
+    s.run(`LINKS[1] = nil; LINKS[3] = nil; UnitLevel = function() return 18 end; SlashCmdList["GUILDED"]("inspect")`);
+    expect(s.run(`return GuildedDB.readiness["Kev"].status`)).not.toBe("NOT_READY");
+    const codes = () => s.run(`local f = {}; for _, x in ipairs(GuildedDB.readiness["Kev"].findings) do f[#f + 1] = x.code .. ":" .. x.severity end; return table.concat(f, ",")`);
+    expect(codes()).toContain("EMPTY_SLOTS_LOW_LEVEL:INFO");
+    s.run(`SlashCmdList["GUILDED"]("slots level 1"); SlashCmdList["GUILDED"]("inspect")`);
+    expect(s.run(`return GuildedDB.readiness["Kev"].status`)).toBe("NOT_READY");
+    expect(codes()).toContain("MISSING_HEAD:ERROR");
+  });
+
   it("a manual check still records a character with no gear at once", () => {
     const s = loggedIn();
     s.run(`GetInventoryItemLink = function() return nil end; GetInventoryItemID = function() return nil end; SlashCmdList["GUILDED"]("inspect")`);

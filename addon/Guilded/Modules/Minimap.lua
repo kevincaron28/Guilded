@@ -692,7 +692,7 @@ local function buildLocalGuildPage(page)
   heading("Share and keep safe")
   hint("Publish shows the EP/GP standings to every member. Backup saves a copy another officer can load with Restore. Officers can also share awards as they happen: /guilded ledgersync on.")
   tip(at(newButton(page, "Publish standings", 150, function() run("standings publish") end), page, 0, y), "Sends the current EP/GP standings to guild members.")
-  tip(at(newButton(page, "Backup", 130, function() run("backup") end), page, 160, y), "Saves a copy of this guild's data.")
+  tip(at(newButton(page, "Backup", 130, function() run("backup") end), page, 160, y), "Shows a code with this guild's data: copy it (Ctrl+C) somewhere safe, or give it to another officer.")
   tip(at(newButton(page, "Restore preview", 130, function() run("restore") end), page, 300, y), "Shows what a backup would change before you load it.")
   y = y - 40
 
@@ -1798,6 +1798,13 @@ end
 
 -- Reuse the actual pages and their permission checks inside the guild window.
 -- Only Guilded's own frame is reparented; Blizzard's display mode is untouched.
+-- Opens one page of the tools by name (the setup window's "Set up my guild" uses it).
+function ns.openToolsPage(name)
+  if InCombatLockdown and InCombatLockdown() then return end
+  if not panel then buildPanel() end
+  ui.selectTabByName(name)
+end
+
 function ns.openGuildPanel(host, scope, initialName)
   if InCombatLockdown and InCombatLockdown() then return end
   if scope == "calendar" and (not ns.isOfficer() or not moduleOn("calendar")) then return end

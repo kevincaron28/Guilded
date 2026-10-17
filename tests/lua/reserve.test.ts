@@ -323,7 +323,7 @@ describe("Reserve.lua SR+ on members' lists", () => {
     addon(s, "Boss", "P|Ann=19364:2");
     addon(s, "Boss", "L|Ann=19364;Bob=17063");
     expect(s.run("return NS.reserve.plusFor('Ann', 19364)")).toBe("20");
-    expect(s.run("return NS.reserve.statusText()")).toContain("(SR+20)");
+    expect(s.run("return NS.reserve.statusText()")).toContain("Ann: item 19364 (SR+20)");
     // The next list without bonuses clears it.
     addon(s, "Boss", "CLR");
     addon(s, "Boss", "VER|2026-10-17T11:00:00Z|1");
@@ -350,5 +350,17 @@ describe("Reserve.lua SR+ on members' lists", () => {
     addon(s, "Boss", "VER|2026-10-17T10:00:00Z|1");
     addon(s, "Boss", "L|Ann=19364");
     expect(s.run("return NS.reserve.plusFor('Ann', 19364)")).toBe("0");
+  });
+});
+
+describe("Reserve.lua SR+ on the player's own line", () => {
+  it("shows the player's own SR+ on the Yours line", () => {
+    const s = withReserve("Ray", false);
+    addon(s, "Boss", "STATE|1|1|");
+    addon(s, "Boss", "CLR");
+    addon(s, "Boss", "VER|2026-10-17T10:00:00Z|1");
+    addon(s, "Boss", "P|Ray=2042:1");
+    addon(s, "Boss", "L|Ray=2042");
+    expect(s.run("return NS.reserve.statusText()")).toContain("Yours: item 2042 (SR+10)");
   });
 });

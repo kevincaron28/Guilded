@@ -473,9 +473,13 @@ end
 
 function reserve.mine()
   local s = state()
-  local list = s and s.entries[ns.playerName() or ""] or {}
+  local me = ns.playerName() or ""
+  local list = s and s.entries[me] or {}
   local names = {}
-  for _, id in ipairs(list) do table.insert(names, itemName(id)) end
+  for _, id in ipairs(list) do
+    local plus = reserve.plusFor(me, id)
+    table.insert(names, itemName(id) .. (plus > 0 and string.format(" (SR+%d)", plus) or ""))
+  end
   return names
 end
 

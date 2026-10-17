@@ -325,6 +325,10 @@ local function buildRaidPage(page)
   -- raid (recorded automatically); players already marked keep their status.
   local seenButton = at(newButton(page, "Mark everyone seen present", 220), page, 0, -158)
   confirmClick(seenButton, "Mark everyone seen present", function() run("attendance seen") end)
+  -- The selected raid core's roster: its players here PRESENT, its missing mains ABSENT.
+  local rosterButton = tip(at(newButton(page, "From core roster", 160), page, 230, -158),
+    "Marks the selected raid core's players here PRESENT and its missing mains ABSENT. Click twice.")
+  confirmClick(rosterButton, "From core roster", function() run("attendance roster") end)
 end
 
 local function buildEpgpPage(page)
@@ -355,6 +359,10 @@ local function buildEpgpPage(page)
     local n = amount()
     if n then run("award group " .. n .. " " .. reasonText()) end
   end)
+
+  local undoButton = tip(at(newButton(page, "Undo my last award", 170), page, 230, -158),
+    "Takes back the last EP/GP entry you made (it stays in the ledger, marked voided). Click twice.")
+  confirmClick(undoButton, "Undo my last award", function() run("undo") end)
 
   at(newLabel(page, "Loot and GP bidding are on the Loot tab.", "GameFontDisableSmall"), page, 0, -198)
 end
@@ -703,6 +711,8 @@ end
 
 local function buildMePage(page)
   at(newButton(page, L("Check my gear"), 180, function() run("inspect") end), page, 0, 0)
+  tip(at(newButton(page, L("My EP/GP history"), 170, function() run("history") end), page, 190, 0),
+    "Your last EP/GP entries and loot, asked from an online officer (officers: from this PC).")
   ui.gearInfo = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -30)
   ui.gearInfo:SetWidth(PAGE_WIDTH)
 

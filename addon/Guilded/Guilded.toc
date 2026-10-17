@@ -35,6 +35,7 @@ Modules\Consumables.lua
 Modules\Digest.lua
 Modules\API.lua
 Modules\Backup.lua
+Modules\History.lua
 Modules\SyncNow.lua
 Modules\AutoInvite.lua
 Modules\Dungeon.lua

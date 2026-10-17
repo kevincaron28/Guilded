@@ -121,8 +121,16 @@ After login, an officer (guild rank 0 or 1 by default) can use:
 /guilded attune Onyxia Key
 /guilded attune Player "Onyxia Key"
 /guilded attune Player "Onyxia Key" clear
+/guilded template save tue Tuesday Molten Core
+/guilded start tue
+/guilded note Rag wipe at 10%
+/guilded attendance roster
+/guilded undo
+/guilded raid discard
 /guilded end
 /guilded summary
+/guilded raids 10
+/guilded history
 /guilded export
 ```
 

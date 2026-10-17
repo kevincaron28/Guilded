@@ -36,7 +36,7 @@ jobs:
           check "bot health" "https://guildedqc.duckdns.org/health" '"ok":true'
           check "bot via website" "https://guilded.kcaron.top/health" '"ok":true'
           check "website" "https://guilded.kcaron.top/" "Guilded"
-          check "creator page" "https://kcaron.top/" "KCaron"
+          check "creator page" "https://kcaron.top/" "K Caron Projects"
           check "guild page" "https://guilded.kcaron.top/g/quebec-gold/" "Quebec Gold"
           echo "failed=${failed# }" >> "$GITHUB_OUTPUT"
           [[ -z "$failed" ]]

@@ -156,3 +156,16 @@ messages never arrived), #101 (full names in local cores, backup across realm te
 `/guilded standings` showing the local ledger in In-game only mode), and the guild-join fix (#99).
 
 Minor, open: `/guilded chat off` moves Guilded's lines back to the main window but leaves the "Guilded" tab open; the player closes it by hand (right-click → Close Window).
+
+### 16 October 2026 (late): G9 and the guild map, two PCs on 6.3.0
+
+Same testers and backups as the evening session; both PCs on 6.3.0 (7bdce6e), this PC's
+companion paused, Guilded files restored afterwards.
+
+| ID | Result | Observations |
+| --- | --- | --- |
+| G9 | PASS | Highpriest invited Naomine across the two realm segments. Round 1: Naomine reserved item 2042 by whisper to the keeper; clearing the list carried it over as SR+10 (10 per week by design). Round 2: both reserved; `/guilded reserve roll 2042` announced "rolling between Highpriest, Naomine (+10)"; Highpriest rolled 58, Naomine 91; "Roll winner: Naomine (101 including SR+)"; the award recorded the loot once and used up her reserve. Full Forever names in `/roll` messages were read correctly. A real tie cannot be forced in game; the tie re-roll is covered by `tests/lua/loot-roll.test.ts`. Not run: Guilded Games installed alongside (not installed on either PC). Display gap: SR+ shows only on the keeper's list, not on members'. |
+| Guild map | PASS | With Naomine out of the party (so the game's own party dots do not count), Highpriest's world map showed her dot in Northshire, tooltip "Naomine — Level 1, Elwynn Forest"; `/guilded map` listed "Naomine (1): Elwynn Forest". The other direction too: Naomine saw "Highpriest / Level 18, Darkshore" on her map and "Highpriest (18): Darkshore" in `/guilded map`. |
+
+Found while setting up: whispers by first name fail on WoW Forever ("No player named
+'Naomine'"); fixed in 6.3.1 (version notice, guild module settings for members, loot council list).

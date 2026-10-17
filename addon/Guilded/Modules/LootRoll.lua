@@ -59,11 +59,6 @@ ns.commandHandlers.lootroll = function(args)
     table.sort(missing); ns.message(L("Waiting for rolls:") .. " " .. table.concat(missing, ", "))
   end
 end
-ns.commandHandlers.games = function()
-  if GuildedGames and GuildedGames.open then GuildedGames.open()
-  else ns.message(L("Party games moved to the optional Guilded Games addon. Install it and use /ggames. Loot rolls stay in Guilded.")) end
-end
-ns.commandHandlers.casino = ns.commandHandlers.games
 ns.commandHelp[#ns.commandHelp + 1] = { officer = true, text = "/guilded lootroll [cancel] - pending soft-reserve rolls; awards remain manual" }
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("CHAT_MSG_SYSTEM")

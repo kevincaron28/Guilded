@@ -169,3 +169,13 @@ companion paused, Guilded files restored afterwards.
 
 Found while setting up: whispers by first name fail on WoW Forever ("No player named
 'Naomine'"); fixed in 6.3.1 (version notice, guild module settings for members, loot council list).
+
+### 16 October 2026 (night): G1 and G2 on the main PC, 6.3.1 build
+
+Highpriest Cheech, English client, companion paused; the saved data was restored to the
+backed-up baseline afterwards (hash verified) and GuildedData re-enabled.
+
+| ID | Result | Observations |
+| --- | --- | --- |
+| G1 | PASS (one part not run) | Isolated profile: no Guilded saved data and the GuildedData folder hidden (an earlier attempt that only unticked Guilded Data still loaded companion standings, so it was discarded). First login: "Addon-only is ready. Discord linking and companion sync are optional"; `/guilded setup` labels In-game only as the default; no missing-Discord or Lua error. Home, Guild tools (Standings, Crafting, Administration, Local guild), the Local guild page and the dungeon window open and work. Reload and relog: "No Guilded problems recorded", mode kept. Not run: receiving an officer snapshot on the fresh profile (no other officer online). |
+| G2 | PASS (6.2.1/6.3.0 profile) | The real profile, last saved by 6.2.1/6.3.0, loaded by 6.3.1: version 6.3.1; saved standings, both raid cores, the window position, chat tab and connected setup kept; recent runs with dates; current season "Quebec Gold - Beta Best 8" and past season "Beta finale Oct 22" with the archived score 170 unchanged; reload without problems. A 6.1.2-era profile was not available. |

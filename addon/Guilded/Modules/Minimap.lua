@@ -559,51 +559,146 @@ local function buildCouncilPage(page)
   at(newLabel(page, "Members without the addon whisper you: bis, upgrade, os or pass.", "GameFontDisableSmall"), page, 0, -300)
 end
 
+-- Local guild: set up a guild's raid teams and loot without Discord, in three numbered steps, each
+-- with one line saying what it is for. Every button says what happened in chat.
+local LOOT_MODES = { "EPGP", "COUNCIL", "RESERVE", "PRIORITY" }
+local LOOT_MODE_HELP = {
+  EPGP = "GP bids: players earn EP for raiding and bid GP on each item; the highest bid wins and pays it.",
+  COUNCIL = "Loot council: raiders answer BiS, upgrade or off-spec, and officers decide who gets the item.",
+  RESERVE = "Soft reserves: players reserve items before the raid; when one drops, its reservers roll (SR = how many each).",
+  PRIORITY = "EPGP priority: every item has a set GP price; it goes to the highest PR (EP/GP) of those who want it.",
+}
 local function buildLocalGuildPage(page)
-  at(newLabel(page, "In-game only: local cores and rosters. All local cores share guild EP/GP.", "GameFontNormalSmall"), page, 0, -4)
-  local coreBox = at(newEdit(page, 240), page, 6, -30)
-  at(newButton(page, "Create core", 130, function()
-    if ns.localGuild then ns.localGuild.create(coreBox:GetText()) end
-  end), page, 270, -30)
-  at(newButton(page, "Next core", 130, function()
+  local y = 0
+  local function heading(text) at(newLabel(page, text, "GameFontNormal"), page, 0, y); y = y - 18 end
+  local function hint(text)
+    local label = at(newLabel(page, text, "GameFontDisableSmall"), page, 0, y)
+    label:SetWidth(PAGE_WIDTH - 8)
+    y = y - 28
+  end
+  local function selectedCore()
+    local core = ns.loot and ns.loot.core()
+    return core and core.localOnly and core or nil
+  end
+  local function needCore()
+    local core = selectedCore()
+    if not core then ns.message(L("Create a raid core first (step 1).")) end
+    return core
+  end
+
+  at(newLabel(page, "Run your guild's raid teams, loot and EP/GP right here: no Discord needed. Follow the steps in order.", "GameFontHighlightSmall"), page, 0, y):SetWidth(PAGE_WIDTH - 8)
+  y = y - 30
+
+  heading("1. Create a raid core")
+  hint("A core is one raid team, for example \"Tuesday MC\". Type its name and press Create. Next core switches between teams.")
+  local coreBox = at(newEdit(page, 220), page, 6, y)
+  tip(at(newButton(page, "Create core", 130, function()
+    if not ns.localGuild then return end
+    local name = (coreBox:GetText() or ""):match("^%s*(.-)%s*$")
+    if name == "" then ns.message(L("Type a name for the raid core first.")); return end
+    if ns.localGuild.create(name) then
+      coreBox:SetText("")
+      ns.message(string.format(L("Raid core %s created and selected. Next: choose its loot system (step 2)."), name))
+    end
+    refresh()
+  end), page, 240, y), "Creates the raid team and selects it.")
+  tip(at(newButton(page, "Next core", 130, function()
     local cores = ns.localGuild and ns.localGuild.rules().cores or {}
+    if #cores == 0 then ns.message(L("No raid core yet: create one first.")); return end
     local current = ns.loot and ns.loot.core()
     local index = 0; for i, core in ipairs(cores) do if current and core.id == current.id then index = i end end
     local nextCore = cores[index + 1] or cores[1]
-    if nextCore then run("core " .. nextCore.id) end
-  end), page, 410, -30)
-  local modes, mode, limit = { "EPGP", "COUNCIL", "RESERVE", "PRIORITY" }, 1, 1
+    run("core " .. nextCore.id)
+    refresh()
+  end), page, 380, y), "Selects the next raid core. Steps 2 and 3 apply to the selected core.")
+  y = y - 40
+
+  heading("2. Choose how loot is given")
+  hint("Click the first button to change the system, set how many soft reserves each player gets, then Save.")
+  local mode, limit = 1, 1
   local modeButton, limitButton
-  modeButton = at(newButton(page, "EPGP", 130, function()
-    mode = mode % #modes + 1; modeButton:SetText(modes[mode])
-  end), page, 0, -64)
-  limitButton = at(newButton(page, "SR: 1", 130, function()
-    limit = limit % 10 + 1; limitButton:SetText("SR: " .. limit)
-  end), page, 140, -64)
-  at(newButton(page, "Save loot rules", 160, function()
-    local core = ns.loot and ns.loot.core()
-    if ns.localGuild then ns.localGuild.configure(core and core.id, modes[mode], limit) end
-  end), page, 280, -64)
-  at(newLabel(page, "Character name", "GameFontNormalSmall"), page, 0, -102)
-  local player = at(newEdit(page, 200), page, 6, -124)
-  local roles, role, spot = { "DPS", "TANK", "HEALER" }, 1, "main"
-  local roleButton, spotButton
-  roleButton = at(newButton(page, "DPS", 90, function() role = role % #roles + 1; roleButton:SetText(roles[role]) end), page, 220, -124)
-  spotButton = at(newButton(page, "Main", 90, function() spot = spot == "main" and "bench" or "main"; spotButton:SetText(L(spot == "main" and "Main" or "Bench")) end), page, 320, -124)
-  at(newButton(page, "Add / update", 130, function()
-    local core = ns.loot and ns.loot.core()
-    if ns.localGuild then ns.localGuild.member(core and core.id, player:GetText(), roles[role], spot) end
-  end), page, 420, -124)
-  local remove = at(newButton(page, "Remove player", 130), page, 0, -158)
-  confirmClick(remove, "Remove player", function()
-    local core = ns.loot and ns.loot.core()
-    if ns.localGuild then ns.localGuild.remove(core and core.id, player:GetText(), true) end
+  local function showMode()
+    modeButton:SetText(ns.loot and ns.loot.label and ns.loot.label(LOOT_MODES[mode]) or LOOT_MODES[mode])
+    limitButton:SetText(string.format(L("SR: %d each"), limit))
+  end
+  modeButton = at(newButton(page, "EPGP", 170, function() mode = mode % #LOOT_MODES + 1; showMode() end), page, 0, y)
+  modeButton:HookScript("OnEnter", function(self)
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:AddLine(L(LOOT_MODE_HELP[LOOT_MODES[mode]]), 1, 1, 1, true)
+    GameTooltip:AddLine(L("Click to change."), 0.6, 0.6, 0.6, true)
+    GameTooltip:Show()
   end)
-  at(newButton(page, "Backup", 130, function() run("backup") end), page, 140, -158)
-  at(newButton(page, "Restore preview", 130, function() run("restore") end), page, 280, -158)
-  at(newButton(page, "Publish standings", 130, function() run("standings publish") end), page, 420, -158)
-  ui.localGuildInfo = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -204)
-  ui.localGuildInfo:SetWidth(PAGE_WIDTH)
+  modeButton:HookScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  limitButton = tip(at(newButton(page, "SR: 1 each", 120, function() limit = limit % 10 + 1; showMode() end), page, 180, y),
+    "Soft reserves per player (used by the soft-reserve system). Click to change.")
+  tip(at(newButton(page, "Save loot rules", 150, function()
+    local core = needCore()
+    if not (core and ns.localGuild) then return end
+    if ns.localGuild.configure(core.id, LOOT_MODES[mode], limit) then
+      ns.message(string.format(L("%s now uses %s. Next: add your raiders (step 3)."), core.name,
+        ns.loot and ns.loot.label and ns.loot.label(LOOT_MODES[mode]) or LOOT_MODES[mode]))
+    end
+    refresh()
+  end), page, 310, y), "Saves the loot system for the selected core.")
+  -- Show the selected core's own rules, not a default the player might save over them by mistake.
+  ui.localGuildSync = function()
+    local core = selectedCore()
+    if not core then return end
+    for i, value in ipairs(LOOT_MODES) do if value == core.mode then mode = i end end
+    limit = tonumber(core.reserves) or 1
+    showMode()
+  end
+  showMode()
+  y = y - 40
+
+  heading("3. Add your raiders")
+  hint("Type a character's name, pick their role and Main (plays every week) or Bench, then Add. Use Add again to change someone.")
+  local player = at(newEdit(page, 200), page, 6, y)
+  local roles, role, spot = { "DPS", "TANK", "HEALER" }, 1, "main"
+  local roleNames = { DPS = "DPS", TANK = "Tank", HEALER = "Healer" }
+  local roleButton, spotButton
+  roleButton = tip(at(newButton(page, "DPS", 90, function() role = role % #roles + 1; roleButton:SetText(L(roleNames[roles[role]])) end), page, 220, y), "Role. Click to change.")
+  spotButton = tip(at(newButton(page, "Main", 90, function() spot = spot == "main" and "bench" or "main"; spotButton:SetText(L(spot == "main" and "Main" or "Bench")) end), page, 320, y),
+    "Main raiders play every week; Bench is the backup list. Click to change.")
+  y = y - 32
+  local function typedName()
+    local name = (player:GetText() or ""):match("^%s*(.-)%s*$")
+    if name == "" then ns.message(L("Type the character's name first.")); return nil end
+    return name
+  end
+  tip(at(newButton(page, "Add / update", 130, function()
+    local core, name = needCore(), typedName()
+    if not (core and name and ns.localGuild) then return end
+    if ns.localGuild.member(core.id, name, roles[role], spot) then
+      player:SetText("")
+      ns.message(string.format(L("%s added to %s (%s, %s)."), name, core.name, L(roleNames[roles[role]]), L(spot == "main" and "Main" or "Bench")))
+    else ns.message(L("That name could not be added: check the spelling (no links), or the 80-player limit.")) end
+    refresh()
+  end), page, 0, y), "Adds the character to the selected core, or updates their role and spot.")
+  local remove = at(newButton(page, "Remove player", 130), page, 140, y)
+  tip(remove, "Takes the typed character off the selected core. Click twice to confirm.")
+  confirmClick(remove, "Remove player", function()
+    local core, name = needCore(), typedName()
+    if not (core and name and ns.localGuild) then return end
+    if ns.localGuild.remove(core.id, name, true) then
+      player:SetText("")
+      ns.message(string.format(L("%s removed from %s."), name, core.name))
+    else ns.message(string.format(L("%s is not on %s."), name, core.name)) end
+    refresh()
+  end)
+  y = y - 40
+
+  heading("Share and keep safe")
+  hint("Publish shows the EP/GP standings to every member. Backup saves a copy another officer can load with Restore. Officers can also share awards as they happen: /guilded ledgersync on.")
+  tip(at(newButton(page, "Publish standings", 150, function() run("standings publish") end), page, 0, y), "Sends the current EP/GP standings to guild members.")
+  tip(at(newButton(page, "Backup", 130, function() run("backup") end), page, 160, y), "Saves a copy of this guild's data.")
+  tip(at(newButton(page, "Restore preview", 130, function() run("restore") end), page, 300, y), "Shows what a backup would change before you load it.")
+  y = y - 40
+
+  ui.localGuildInfo = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, y)
+  ui.localGuildInfo:SetWidth(PAGE_WIDTH - 8)
+  ui.localGuildInfoTop = -y
 end
 
 local function buildMePage(page)
@@ -1226,6 +1321,7 @@ end
 
 refresh = function()
   if ui.localGuildInfo then ui.localGuildInfo:SetText(ns.localGuild and ns.localGuild.describe() or "") end
+  if ui.localGuildSync then pcall(ui.localGuildSync) end
   if not panel or not panel:IsShown() then return end
   local db = ns.getDb and ns.getDb()
   if not db then return end
@@ -1412,7 +1508,7 @@ updateGuildScroll = function()
   end
   local height = 220
   if tab.name == "Standings" then height = 80 + textHeight(ui.standingsList) + (ns.isOfficer() and 52 or 12)
-  elseif tab.name == "Local guild" then height = 220 + textHeight(ui.localGuildInfo)
+  elseif tab.name == "Local guild" then height = (ui.localGuildInfoTop or 220) + textHeight(ui.localGuildInfo) + 12
   elseif tab.name == "Crafting" then height = 250 + textHeight(ui.craftCooldowns) + 12
   elseif tab.name == "Calendar" then height = 70 + textHeight(ui.calendarStatus) + 12 end
   local scroll = ui.guildScroll
@@ -1526,6 +1622,7 @@ local function buildPanel()
   title:SetPoint("TOPLEFT", panel, "TOPLEFT", 24, -20)
   local close = CreateFrame("Button", nil, panel, "UIPanelCloseButton")
   close:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -4, -4)
+  ui.closeButton = close
 
   -- Sidebar footer: one button that gets your data to Discord, and whether anything is waiting.
   ui.sidebarSync = newLabel(panel, "", "GameFontHighlightSmall")
@@ -1606,6 +1703,7 @@ local function buildPanel()
     if ui.scope == "main" then return end
     ui.scope = "main"
     ui.guildHost = nil
+    if ui.closeButton then ui.closeButton:Show() end
     panel:SetParent(UIParent)
     panel:ClearAllPoints()
     local s = settings() or {}
@@ -1679,11 +1777,11 @@ function ui.selectTabByName(name)
         if scope == "guild" then
           if not CommunitiesFrame and ToggleGuildFrame then ToggleGuildFrame() end
           local host = CommunitiesFrame or GuildFrame
-          if host then host:Show() end
+          if host then ns.util.showWindow(host) end
           ns.openGuildPanel(host, scope, name)
         elseif scope == "calendar" then
           if not CalendarFrame and ToggleCalendar then ToggleCalendar() end
-          if CalendarFrame then CalendarFrame:Show() end
+          if CalendarFrame then ns.util.showWindow(CalendarFrame) end
           if not ns.isOfficer() or not moduleOn("calendar") then panel:Hide(); return end
           ns.openGuildPanel(CalendarFrame, scope, name)
         else
@@ -1727,6 +1825,8 @@ function ns.openGuildPanel(host, scope, initialName)
     ui.guildScroll:SetScript("OnSizeChanged", function() if updateGuildScroll then updateGuildScroll() end end)
   end
   if host then ui.guildScroll:Show() end
+  -- Inside a game window, that window's own X closes it; a second X just below looked broken.
+  if ui.closeButton then if host then ui.closeButton:Hide() else ui.closeButton:Show() end end
   -- Raise the whole Guilded subtree, including previously built pages and
   -- controls. Reparenting the outer frame alone leaves native children above it.
   raiseWindow(panel, host and host:GetFrameLevel() + 1000 or ui.undockedLevel)

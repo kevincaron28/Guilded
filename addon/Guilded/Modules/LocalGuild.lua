@@ -84,13 +84,19 @@ function localGuild.remove(id, rawName, confirmed)
   return false
 end
 function localGuild.describe()
-  local lines = { L("Rosters do not create separate balances."),
-    L("Officers share awards with /guilded ledgersync on. To hand the whole copy to another officer: Backup, then Restore preview on their PC.") }
   local core = ns.loot and ns.loot.core()
-  if core and core.localOnly then
-    lines[#lines + 1] = core.name .. " - " .. core.mode .. " - " .. core.reserves .. " SR"
-    for _, row in ipairs(core.roster) do lines[#lines + 1] = row.name .. " - " .. row.role .. " - " .. row.spot end
-  else lines[#lines + 1] = L("Create a local core or choose one with /guilded core <name>.") end
+  if not (core and core.localOnly) then return L("No raid core selected yet: start with step 1 (or /guilded core <name>).") end
+  local mains, bench = 0, 0
+  for _, row in ipairs(core.roster) do if row.spot == "bench" then bench = bench + 1 else mains = mains + 1 end end
+  local label = ns.loot and ns.loot.label and ns.loot.label(core.mode) or core.mode
+  local lines = { string.format(L("Selected core: %s. Loot: %s, %d soft reserve(s) each. Raiders: %d main, %d bench."),
+    core.name, label, core.reserves or 1, mains, bench) }
+  local roleNames = { DPS = "DPS", TANK = "Tank", HEALER = "Healer" }
+  for _, row in ipairs(core.roster) do
+    lines[#lines + 1] = "  " .. row.name .. " - " .. L(roleNames[row.role] or row.role) .. " - " .. L(row.spot == "bench" and "Bench" or "Main")
+  end
+  if #core.roster == 0 then lines[#lines + 1] = L("No raiders yet: add them in step 3.") end
+  lines[#lines + 1] = L("All raid cores share the guild's EP/GP; a roster does not create separate points.")
   return table.concat(lines, "\n")
 end
 ns.commandHandlers.localcore = function(args)

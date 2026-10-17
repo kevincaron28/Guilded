@@ -305,7 +305,12 @@ function view.build(parent, compact)
   pane.rankingToggle = button(pane, "Guild rankings", 16, -423, 110, function() pane.guildRanking = not pane.guildRanking; pane.page = 1; pane:Refresh() end)
   button(pane, "Newer season", width - 306, -423, 138, function() pane.seasonIndex = math.max(1, pane.seasonIndex - 1); pane.page = 1; pane:Refresh() end)
   button(pane, "Older season", width - 158, -423, 138, function() pane.seasonIndex = pane.seasonIndex + 1; pane.page = 1; pane:Refresh() end)
-  button(pane, "Close", width - 78, -8, 62, function() pane:Hide() end)
+  -- Inside the game's dungeon finder, Close closes the finder (not just this page).
+  button(pane, "Close", width - 78, -8, 62, function()
+    if view.chrome and view.chrome:IsShown() then
+      ns.util.hideWindow(LFGParentFrame or PVEFrame or LFGFrame)
+    else pane:Hide() end
+  end)
   pane.runView = buildRun(pane, width)
   button(pane, "Run", width - 270, -8, 86, function() pane.mode = "run"; pane:Refresh() end)
   button(pane, "Season", width - 178, -8, 92, function() pane.mode = "season"; pane:Refresh() end)
@@ -325,7 +330,7 @@ function view.open(mode)
   if view.showAttached then
     if view.window then view.window:Hide() end
     local finder = LFGParentFrame or PVEFrame or LFGFrame
-    finder:Show()
+    ns.util.showWindow(finder)
     if mode then view.pane.mode = mode end
     view.showAttached()
     view.pane:Refresh()

@@ -21,6 +21,18 @@ describe("addon-only guild administration", () => {
     s.run(`NS.localGuild.remove("Tuesday raid","Amy",true)`);
     expect(s.run(`return #NS.loot.core().roster`)).toBe("1");
   });
+  it("the status text guides a new officer step by step", () => {
+    setup();
+    expect(s.run(`return NS.localGuild.describe()`)).toContain("start with step 1");
+    s.run(`NS.localGuild.create("Tuesday raid")`);
+    expect(s.run(`return NS.localGuild.describe()`)).toContain("No raiders yet: add them in step 3.");
+    s.run(`NS.localGuild.configure("Tuesday raid","RESERVE",2); NS.localGuild.member("Tuesday raid","Amy","TANK","main"); NS.localGuild.member("Tuesday raid","Bob","HEALER","bench")`);
+    const text = s.run(`return NS.localGuild.describe()`);
+    expect(text).toContain("Selected core: Tuesday raid. Loot: soft reserves, 2 soft reserve(s) each. Raiders: 1 main, 1 bench.");
+    expect(text).toContain("Amy - Tank - Main");
+    expect(text).toContain("Bob - Healer - Bench");
+  });
+
   it("accepts WoW Forever first+last names and files them under the first name", () => {
     setup();
     s.run(`NS.localGuild.create("Team")`);

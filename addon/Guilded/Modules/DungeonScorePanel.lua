@@ -58,7 +58,7 @@ function view.model(name, seasonIndex, bracketKey)
     if not bracket or not dungeon.bracket or dungeon.bracket == bracket.key then
       local best = byId[dungeon.dungeonKey or tostring(dungeon.instanceId)]
       cards[#cards + 1] = { name = dungeon.name, instanceId = dungeon.instanceId, minLevel = dungeon.minLevel, maxLevel = dungeon.maxLevel, points = available and (best and best.points or 0) or nil,
-        counted = best and best.counted, reason = best and best.unrankedReason, bosses = best and best.bosses, sec = best and best.durationSec, speedBonus = best and best.speedBonus, targetSec = dungeon.targetSec }
+        counted = best and best.counted, reason = best and best.unrankedReason, penalty = best and best.penaltyPercent, bosses = best and best.bosses, sec = best and best.durationSec, speedBonus = best and best.speedBonus, targetSec = dungeon.targetSec }
       local mapped = score.dungeonFor(dungeon.name)
       if mapped then known[mapped.key] = true end
     end
@@ -238,6 +238,7 @@ function view.build(parent, compact)
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
       GameTooltip:AddLine(self.row.name)
       if self.row.reason then GameTooltip:AddLine(L(self.row.reason), 1, 0.6, 0.2) end
+      if self.row.penalty then GameTooltip:AddLine(string.format(L("Group above the level range: -%d%%"), self.row.penalty), 1, 0.6, 0.2) end
       GameTooltip:AddLine(L("Competitive boss records"), 0.83, 0.69, 0.22)
       if #(self.row.bosses or {}) == 0 then GameTooltip:AddLine(L("No eligible timed boss kills recorded.")) end
       for _, b in ipairs(self.row.bosses or {}) do GameTooltip:AddDoubleLine(b.name, duration(b.durationSec)) end
@@ -286,7 +287,7 @@ function view.build(parent, compact)
         -- One level shows as "(30)", not "(30-30)".
         local levels = row.minLevel and ((row.maxLevel and row.maxLevel ~= row.minLevel) and (row.minLevel .. "-" .. row.maxLevel) or tostring(row.minLevel))
         card:Show(); card.name:SetText(row.name .. (levels and (" (" .. levels .. ")") or ""))
-        card.value:SetText(row.sec and ("|cffefca68" .. (row.reason and L("Unranked") or tostring(row.points)) .. (model.version == 2 and " (+" .. row.speedBonus .. ")" or "") .. ((model.version == 4 or model.version == 5) and row.counted == false and not row.reason and (" - " .. L("Not counted in best 8")) or "")
+        card.value:SetText(row.sec and ("|cffefca68" .. (row.reason and L("Unranked") or tostring(row.points)) .. (row.penalty and (" (-" .. row.penalty .. "%)") or "") .. (model.version == 2 and " (+" .. row.speedBonus .. ")" or "") .. ((model.version == 4 or model.version == 5) and row.counted == false and not row.reason and (" - " .. L("Not counted in best 8")) or "")
           .. (model.version == 6 and model.bracket and row.counted == false and not row.reason and (" - " .. string.format(L("Not counted in best %d"), model.bracket.bestCount)) or "") .. "|r  " .. duration(row.sec)
           .. " / " .. (row.targetSec and duration(row.targetSec) or L("No target")))
           or ("|cff8993a4" .. (model.available and L("Not completed this season") or L("Breakdown unavailable")) .. "|r"

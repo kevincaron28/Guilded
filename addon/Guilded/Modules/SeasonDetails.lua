@@ -124,8 +124,11 @@ local function respond(text, sender, replyTo)
       lines[#lines + 1] = table.concat(c, ";")
     end
     for _, d in ipairs(profile.details or {}) do
-      lines[#lines + 1] = table.concat({ "R", d.instanceId, encode(d.name), d.points, d.speedBonus,
-        d.durationSec, d.targetSec or 0, encode(d.runRef), encode(d.unrankedReason), d.dungeonKey or tostring(d.instanceId) }, ";")
+      local r = { "R", d.instanceId, encode(d.name), d.points, d.speedBonus,
+        d.durationSec, d.targetSec or 0, encode(d.runRef), encode(d.unrankedReason), d.dungeonKey or tostring(d.instanceId) }
+      -- Version 6: the over-level penalty in percent (0 when none).
+      if season.ratingVersion == 6 then r[11] = d.penaltyPercent or 0 end
+      lines[#lines + 1] = table.concat(r, ";")
       for _, b in ipairs(d.bosses or {}) do
         lines[#lines + 1] = table.concat({ "B", d.instanceId, b.id, encode(b.name), b.durationSec, encode(b.runRef), d.dungeonKey or tostring(d.instanceId) }, ";")
       end
@@ -183,7 +186,7 @@ local function parse(payload)
       if fields[8] and #fields[8] > 20 then return end
       result.catalog[#result.catalog + 1] = { dungeonKey = key, minLevel = low > 0 and low or nil, maxLevel = high > 0 and high or nil, instanceId = id, name = decode(fields[3]), targetSec = target > 0 and target or nil,
         bracket = fields[8] and fields[8] ~= "" and fields[8] or nil }
-    elseif header and result.available and fields[1] == "R" and (#fields == 8 or #fields == 9 or #fields == 10) then
+    elseif header and result.available and fields[1] == "R" and (#fields == 8 or #fields == 9 or #fields == 10 or (#fields == 11 and result.version == 6)) then
       local id, points, bonus = number(fields[2], 1, 1000000), number(fields[4], 0, 400), number(fields[5], 0, 20)
       local seconds, target = number(fields[6], 1, 14400), number(fields[7], 0, 14400)
       local key = fields[10] or tostring(id)
@@ -194,15 +197,18 @@ local function parse(payload)
       local reasons = { ["Level range not configured"]=true, ["Different difficulty"]=true, ["Party levels unknown"]=true,
         ["Overlevel carry"]=true, ["Below level range"]=true, ["Target not calibrated"]=true, ["Dungeon route unknown"]=true }
       if result.version == 5 or result.version == 6 then reasons["Required encounter evidence missing"] = true; reasons["Participation-only route"] = true end
+      local penalty = fields[11] and number(fields[11], 0, 99)
+      if fields[11] and (not penalty or (penalty > 0 and reason ~= "")) then return end
       if result.version >= 3 then
         local rating = target > 0 and math.max(50, math.min(400, math.floor(200 * target / seconds + 0.5))) or 0
+        if penalty and penalty > 0 then rating = math.floor(rating * (100 - penalty) / 100 + 0.5) end
         if reason ~= "" and not reasons[reason] then return end
         if bonus ~= 0 or points ~= (reason ~= "" and 0 or rating) then return end
       elseif reason ~= "" or points ~= 100 + bonus or bonus ~= expected or (result.version == 1 and (bonus ~= 0 or target ~= 0)) then return end
       runIds[key], sum = true, sum + points
       result.profile.details[#result.profile.details + 1] = { dungeonKey = key, instanceId = id, name = decode(fields[3]), points = points,
         speedBonus = bonus, durationSec = seconds, targetSec = target > 0 and target or nil, runRef = decode(fields[8]),
-        unrankedReason = reason ~= "" and reason or nil, bosses = {} }
+        unrankedReason = reason ~= "" and reason or nil, penaltyPercent = penalty and penalty > 0 and penalty or nil, bosses = {} }
     elseif header and result.available and result.version >= 3 and fields[1] == "B" and (#fields == 6 or #fields == 7) then
       local id, bossId, seconds = number(fields[2], 1, 1000000), number(fields[3], 1, 1000000), number(fields[5], 1, 14400)
       if not id or not bossId or not seconds or #fields[4] > 400 or #fields[6] > 400 then return end

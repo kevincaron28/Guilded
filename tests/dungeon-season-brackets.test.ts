@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_DUNGEON_BRACKETS, createBracketedDungeonRules, validBracketedRules, validNovemberRules, validRouteRules
 } from "../src/services/dungeon-november-rules.js";
-import { calculateDungeonRating, defaultBracket, frozenRating, hasDungeonRating, ratingEmbed, seasonDungeonCatalog } from "../src/services/dungeon-rating.js";
+import { calculateDungeonRating, defaultBracket, frozenRating, hasDungeonRating, ratingEmbed, seasonDungeonCatalog, type RatingRun } from "../src/services/dungeon-rating.js";
+import { BRACKET_PLAN, bracketPlanEmbed, bracketPlanProblems } from "../src/services/dungeon-bracket-plan.js";
 import { dungeonScoringGuide } from "../src/services/dungeon-scoring-guide.js";
 import { dungeonConfig } from "../src/services/dungeon-rules.js";
 import { BRACKET_FIXTURE, bracketFixtureRoutes, novemberFixtures, novemberRulesFixture, novemberRun } from "./fixtures/november-routes.js";
@@ -60,6 +61,8 @@ describe("all-level season rules (version 6)", () => {
     ["target", (r: typeof rules) => { r.targets["90001:east"] = 999; }],
     ["band", (r: typeof rules) => { r.levelBands["90001:east"]!.max = 60; }],
     ["extra field", (r: typeof rules) => { (r as unknown as Record<string, unknown>)["competitionLevel"] = 60; }],
+    ["missing penalty", (r: typeof rules) => { delete (r as Partial<typeof rules>).overlevelPenalty; }],
+    ["penalty taking every point", (r: typeof rules) => { r.overlevelPenalty = { percentPerLevel: 25, maxLevels: 4 }; }],
     ["missing catalog", (r: typeof rules) => { r.catalog = []; }]
   ])("refuses stored rules with a changed %s", (_, mutate) => {
     const stored = structuredClone(rules); mutate(stored);
@@ -79,6 +82,39 @@ describe("per-bracket rating", () => {
     expect(lowRow.details!.every(d => d.ratingVersion === 6)).toBe(true);
     expect(frozenRating(rows)).toEqual(rows);
     expect(calculateDungeonRating([...high, ...low].toReversed(), rules)).toEqual(rows);
+  });
+  it("penalises a group a few levels above the band and scores an obvious carry 0", () => {
+    expect(rules.overlevelPenalty).toEqual({ percentPerLevel: 10, maxLevels: 3 });
+    // Tester is 25; a guest is 29 (in band), then 30, 32 and 33 against the 20-29 band.
+    const withGuest = (guest: number): RatingRun => {
+      const run = novemberRun(0, 1800, 25);
+      run.players.push({ memberId: null, character: "Guest", member: null, presentSec: 1800 });
+      (run.competitionData as { players: unknown[] }).players.push({ name: "Guest", level: guest, minLevel: guest });
+      return run;
+    };
+    const score = (guest: number) => calculateDungeonRating([withGuest(guest)], rules)[0]!;
+    expect(score(29)).toMatchObject({ bracket: "15-29", points: 200 });
+    expect(score(29).details![0]).not.toHaveProperty("penaltyPercent");
+    expect(score(30)).toMatchObject({ bracket: "15-29", points: 180 });
+    expect(score(30).details![0]).toMatchObject({ penaltyPercent: 10, counted: true });
+    expect(score(32)).toMatchObject({ points: 140 });
+    expect(score(33).details![0]).toMatchObject({ points: 0, unrankedReason: "Overlevel carry" });
+    // The player themself a couple of levels over still counts in the route's bracket.
+    expect(calculateDungeonRating([novemberRun(0, 1800, 31)], rules)[0]).toMatchObject({ bracket: "15-29", points: 160 });
+    const rows = calculateDungeonRating([withGuest(31)], rules);
+    expect(frozenRating(rows)).toEqual(rows);
+    for (const mutate of [(r: typeof rows) => { r[0]!.details![0]!.penaltyPercent = 10; },
+      (r: typeof rows) => { delete r[0]!.details![0]!.penaltyPercent; }]) {
+      const copy = structuredClone(rows); mutate(copy);
+      expect(frozenRating(copy)).toBeNull();
+    }
+    // Version 5 keeps the hard level-60 rule: no penalty field is accepted.
+    const v5 = calculateDungeonRating([novemberRun()], novemberRulesFixture());
+    v5[0]!.details![0]!.penaltyPercent = 10;
+    expect(frozenRating(v5)).toBeNull();
+    // A stricter season can turn the penalty off: one level over is then a carry.
+    const strict = createBracketedDungeonRules({ routes: bracketRoutes(), brackets: BRACKETS, overlevelPenalty: { percentPerLevel: 0, maxLevels: 0 } });
+    expect(calculateDungeonRating([withGuest(30)], strict)[0]!.details![0]!.unrankedReason).toBe("Overlevel carry");
   });
   it("never counts a level-60 run in a lower bracket", () => {
     const carry = novemberRun(0, 1800, 60);
@@ -118,5 +154,21 @@ describe("per-bracket rating", () => {
     const guide = dungeonScoringGuide(dungeonConfig(undefined), lang, rules);
     expect(guide.toJSON().fields![0]!.value).toContain(lang === "fr" ? "3 meilleurs sur 4 parcours" : "best 3 of 4 routes");
     expect(guide.length).toBeLessThan(6000);
+  });
+});
+
+describe("provisional all-level plan", () => {
+  it("fills every default bracket with routes inside it, from the catalog", () => {
+    expect(bracketPlanProblems()).toEqual([]);
+    expect(BRACKET_PLAN.filter(r => r.bracket === "45-59")).toHaveLength(4);
+    expect(bracketPlanProblems([...BRACKET_PLAN, { id: "made-up", bracket: "60", min: 58, max: 60, minutes: 30, source: "estimate" }]))
+      .toEqual(["made-up: not in the November catalog", "made-up: 58-60 is not inside bracket 60"]);
+  });
+  it.each(["en", "fr"] as const)("explains itself within Discord's limits (%s)", lang => {
+    const embed = bracketPlanEmbed(lang).toJSON();
+    expect(embed.fields).toHaveLength(4);
+    expect(embed.fields!.every(f => f.value.length <= 1024)).toBe(true);
+    expect(bracketPlanEmbed(lang).length).toBeLessThan(6000);
+    expect(embed.fields![0]!.value).toContain("Ragefire Chasm · 15–18 · 20 min");
   });
 });

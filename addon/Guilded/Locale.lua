@@ -682,6 +682,7 @@ FR["Levels %d-%d"] = "Niveaux %d-%d"
 FR["%s: best %d distinct routes. Verified route evidence required."] = "%s : %d meilleurs parcours. Preuves de parcours requises."
 FR["No scores yet."] = "Aucun score."
 FR["Bracket"] = "Tranche"
+FR["Group above the level range: -%d%%"] = "Groupe au-dessus de la plage de niveaux : -%d%%"
 
 -- Sidebar sections, bidding status and backup (6.3: these showed in English in French clients).
 FR["Overview"] = "Vue d'ensemble"

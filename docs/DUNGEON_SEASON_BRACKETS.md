@@ -26,9 +26,14 @@ and still validated by `validNovemberRules`.
 - A character's run goes into the bracket of **their own level during the run**
   (`competitionData.players[].level`). Rows are per character and bracket, with
   `bracket` and `bestCount` on each row, so an archive freezes each bracket.
-- Ranked runs still need every participant inside the route's competition
-  band, so a level-60 run on a 20-29 route is an unranked "Overlevel carry" and
-  shows up (at 0) in the player's 60 row, never in the lower bracket.
+- Over-level penalty (`overlevelPenalty`, default 10% per level, up to 3
+  levels): a group whose highest participant is 1-3 levels above the route's
+  band still scores, minus 10% per level of that participant (a 20-29 route with
+  a level-31 member scores 80%). It counts in the route's bracket, and the run's
+  `penaltyPercent` is kept in the archive. 4+ levels above is an unranked
+  "Overlevel carry" worth 0, shown in the player's own level bracket; a
+  level-60 run on a 20-29 route is always that. Anyone below the band still
+  makes the run unranked. Setting the penalty to 0/0 restores the strict rule.
 - A character below every bracket gets no rating row.
 - `/dungeon leaderboard` and `/dungeon season` have a `bracket` option
   (autocompleted from the season's rules). With no choice, the viewer's best
@@ -55,12 +60,18 @@ and still validated by `validNovemberRules`.
 - Fewer counted routes in the lower brackets (5, 5, 4; 8 at level 60).
 - The addon shows brackets.
 
+## Provisional plan (`src/services/dungeon-bracket-plan.ts`)
+
+At the owner's request, a starting plan until real launch timings exist: every
+catalog dungeon except Upper Blackrock Spire gets a bracket, a level range and a
+target time. 16 come from the Forever beta (client level ranges, clipped to the
+bracket, and the guild's beta design targets); the rest are estimates from the
+usual Classic ranges, or the catalog's order for new dungeons. `/dungeon
+catalog` shows it in a second message. `bracketPlanProblems()` checks it fits
+the default brackets. It has no map IDs, encounter evidence or difficulty, so
+it cannot become season rules by itself.
+
 ## Still open before a season can use it
 
-For every route that gives rating points, the owner must give:
-- the level range a group must stay inside (its competition band), for
-  example 20-29 for a low dungeon (every member above it makes the run
-  unranked), and the difficulty;
-- a target time, set from real timed runs on WoW Forever.
-
-The November catalog has neither yet, so no version 6 season can be created.
+- Real launch data: each route's map ID, required encounters and difficulty.
+- Real timed runs to replace the provisional level ranges and targets.

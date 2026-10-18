@@ -95,6 +95,7 @@ export async function importDungeonRuns(
   const timed = rated && (season.ratingRules as { version: number }).version >= 3;
   const november = validRouteRules(season.ratingRules) ? season.ratingRules : undefined;
   const brackets = validBracketedRules(season.ratingRules) ? season.ratingRules.brackets : undefined;
+  const overlevelAllowance = validBracketedRules(season.ratingRules) ? season.ratingRules.overlevelPenalty.maxLevels : 0;
   const ruleVersion = (season.ratingRules as { version?: number } | null)?.version;
   if ((ruleVersion === 5 || ruleVersion === 6) && !november) throw new Error("Invalid November rules; import refused without awards");
   const bestEight = rated && ((season.ratingRules as { version: number }).version === 4 || november !== undefined);
@@ -258,7 +259,8 @@ export async function importDungeonRuns(
 
     const currentRating = rated ? await dungeonRating(tx, guildId, season) : [];
     // Version 6: the total of the bracket this character played in, by their level in this run.
-    const runBracket = (name: string) => bracketForLevel(brackets ?? [], run.players.find(p => p.character === name)?.level)?.key;
+    const routeBracket = validBracketedRules(season.ratingRules) ? season.ratingRules.routeBracket[dungeonKey] : undefined;
+    const runBracket = (name: string) => routeBracket ?? bracketForLevel(brackets ?? [], run.players.find(p => p.character === name)?.level)?.key;
     const ratingFor = (rows: typeof currentRating, memberId: string, name: string) => rows.find(row => row.character
       && ratingCharacterKey(row.memberId, row.character) === ratingCharacterKey(memberId, name) && (!brackets || row.bracket === runBracket(name)))?.points ?? 0;
     summary.results.push({
@@ -284,7 +286,7 @@ export async function importDungeonRuns(
           : novemberReason ? novemberReason
           : november && !ratingRules.targets[dungeonKey] ? "Participation-only route"
           : !november && dungeonKey === "189" ? "Dungeon route unknown"
-          : competitionReason({ ...evidence, players: evidence.players.map(p => ({ ...p, member: null })) }, ratingRules.levelBands[dungeonKey])
+          : competitionReason({ ...evidence, players: evidence.players.map(p => ({ ...p, member: null })) }, ratingRules.levelBands[dungeonKey], overlevelAllowance)
             ?? (!ratingRules.targets[dungeonKey] ? "Target not calibrated"
               : player.presentSec < (durationSec ?? 0) * 0.8 ? `Presence ${Math.floor(100 * player.presentSec / (durationSec || 1))}% / 80% required` : undefined) : undefined;
         return {

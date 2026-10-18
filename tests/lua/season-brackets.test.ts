@@ -87,6 +87,10 @@ describe("level brackets in the addon", () => {
     expect(member.run('local m=NS.dungeonScorePanel.model("Tester",1); return m.total .. " " .. #m.cards')).toBe("800 4");
     // The relay held one bracket: the other is not in it.
     expect(member.run('return tostring(NS.seasonDetails.get(1,"Tester","60").profile)')).toBe("nil");
+    // An over-level penalty travels as an eleventh R field and must match the points.
+    const penalised = "S;x;6;180;1;0;15-29;3\nC;90001;E;1800;90001:east;20;29;15-29\nR;90001;E;180;0;1800;1800;r;;90001:east;10";
+    expect(member.run(`return NS.seasonDetails.parse(${JSON.stringify(penalised)}).profile.details[1].penaltyPercent`)).toBe("10");
+    expect(member.run(`return tostring(NS.seasonDetails.parse(${JSON.stringify(penalised.replace(";10", ";20"))})==nil)`)).toBe("true");
     // Version 6 headers must name a bracket; a version 5 header must not.
     const payload = "S;x;6;200;1;0;60;4\nC;90002;S;1800;90002:service;60;60;60\nR;90002;S;200;0;1800;1800;r;;90002:service";
     expect(member.run(`return tostring(NS.seasonDetails.parse(${JSON.stringify(payload)})~=nil)`)).toBe("true");

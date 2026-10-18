@@ -6,6 +6,7 @@ import { ensureDungeonSignupGuide } from "../services/dungeon-guide.js";
 import { dungeonConfig, formatDuration } from "../services/dungeon-rules.js";
 import { dungeonScoringGuide } from "../services/dungeon-scoring-guide.js";
 import { novemberCatalogEmbeds } from "../services/dungeon-november-catalog.js";
+import { bracketPlanEmbed } from "../services/dungeon-bracket-plan.js";
 import {
   activeSeasonOrNull, difficultyName, formatLeaderboard, leaderboard, playerSummary, recentRuns, records,
   type Period, type RecordRow, type RunRow
@@ -107,6 +108,8 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
   const subcommand = interaction.options.getSubcommand();
   if (subcommand === "catalog") {
     await interaction.reply({ embeds: novemberCatalogEmbeds(lang), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+    // Discord's 6,000-character budget is per message: the all-level plan goes in its own.
+    await interaction.followUp({ embeds: [bracketPlanEmbed(lang)], flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
     return;
   }
   if (subcommand === "rules") {

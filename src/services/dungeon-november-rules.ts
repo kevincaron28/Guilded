@@ -94,6 +94,12 @@ export const DEFAULT_DUNGEON_BRACKETS = [
 const bracketSchema = z.object({ key: z.string().regex(/^[a-z0-9][a-z0-9-]{0,19}$/), min: z.number().int().min(1).max(60),
   max: z.number().int().min(1).max(60), bestCount: z.number().int().min(1).max(20) }).refine(b => b.min <= b.max);
 export type DungeonBracket = z.infer<typeof bracketSchema>;
+// A group a few levels above a route's band still scores, minus a share per level
+// of the highest participant; beyond maxLevels it is a carry and scores 0.
+export const DEFAULT_OVERLEVEL_PENALTY = { percentPerLevel: 10, maxLevels: 3 } as const;
+const penaltySchema = z.object({ percentPerLevel: z.number().int().min(0).max(30), maxLevels: z.number().int().min(0).max(5) })
+  .refine(p => p.percentPerLevel * p.maxLevels < 100, "The penalty must leave some points");
+export type OverlevelPenalty = z.infer<typeof penaltySchema>;
 const bracketRouteSchema = routeSchema.extend({ competitionBand: bandSchema.nullable() })
   .refine(r => (r.targetSec === null) === (r.competitionBand === null), "Rated routes need a competition band; participation-only routes have none");
 export type BracketRoute = z.infer<typeof bracketRouteSchema>;
@@ -103,7 +109,8 @@ export function bracketForLevel(brackets: readonly DungeonBracket[], level: unkn
 }
 
 export function createBracketedDungeonRules(input: unknown) {
-  const parsed = z.object({ routes: z.array(bracketRouteSchema).min(1).max(100), brackets: z.array(bracketSchema).min(1).max(10) }).parse(input);
+  const parsed = z.object({ routes: z.array(bracketRouteSchema).min(1).max(100), brackets: z.array(bracketSchema).min(1).max(10),
+    overlevelPenalty: penaltySchema.default({ ...DEFAULT_OVERLEVEL_PENALTY }) }).parse(input);
   const routes = checkedRoutes(parsed.routes);
   const brackets = [...parsed.brackets].sort((a, b) => a.min - b.min);
   if (new Set(brackets.map(b => b.key)).size !== brackets.length || brackets.some((b, i) => i > 0 && b.min <= brackets[i - 1]!.max)) {
@@ -123,7 +130,7 @@ export function createBracketedDungeonRules(input: unknown) {
   return {
     version: 6, model: "distinct-dungeons", pointsPerDungeon: 200, speedBonus: 0,
     minimumPresence: 0.8, automaticCompletionOnly: true, minimumScore: 50, maximumScore: 400,
-    participationModel: "weekly-variety-v1", routeEvidenceVersion: 1, routes, brackets, routeBracket,
+    participationModel: "weekly-variety-v1", routeEvidenceVersion: 1, routes, brackets, routeBracket, overlevelPenalty: { ...parsed.overlevelPenalty },
     targets: Object.fromEntries(rated.map(r => [r.dungeonKey, r.targetSec!])),
     levelBands: Object.fromEntries(rated.map(r => [r.dungeonKey, { ...r.competitionBand! }])),
     participationLevelBands: Object.fromEntries(routes.map(r => [r.dungeonKey, { ...r.participationBand }])),
@@ -138,7 +145,7 @@ export function validBracketedRules(value: unknown): value is BracketedRules {
   if (!value || typeof value !== "object" || (value as { version?: unknown }).version !== 6) return false;
   const r = value as BracketedRules;
   try {
-    return sameJson(r, createBracketedDungeonRules({ routes: r.routes, brackets: r.brackets }));
+    return sameJson(r, createBracketedDungeonRules({ routes: r.routes, brackets: r.brackets, overlevelPenalty: r.overlevelPenalty ?? null }));
   } catch { return false; }
 }
 function sameJson(a: unknown, b: unknown): boolean {

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 6.5.2 Release — 18 October 2026
+
 - Update prompts: the Windows companion shows a **Download update** banner, a tray note and
   one Windows notification when a newer release (or a newer bot) is out. A self-hosted bot
   checks GitHub daily and tells each server's officer log once per new version

@@ -252,6 +252,7 @@ const STRINGS = {
   "help.raidLeaders": { en: "Raid Leaders", fr: "Chefs de raid" },
   "help.epgpOfficers": { en: "EPGP Officers", fr: "Officiers EPGP" },
   "help.officers": { en: "Officers", fr: "Officiers" },
+  "help.support": { en: "Guilded is free. A coffee helps pay for the bot's hosting and new features: [ko-fi.com/wowguilded](https://ko-fi.com/wowguilded)", fr: "Guilded est gratuit. Un café aide à payer l'hébergement du bot et les nouveautés : [ko-fi.com/wowguilded](https://ko-fi.com/wowguilded)" },
   "help.footer": { en: "In game: click the gold coin on the minimap, or type /guilded help. Get the addon: curseforge.com/wow/addons/guilded", fr: "En jeu : cliquez la pièce d'or près de la minicarte, ou tapez /guilded help. Obtenez l'addon : curseforge.com/wow/addons/guilded" },
 
   // Dungeon challenge

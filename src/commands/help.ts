@@ -139,6 +139,7 @@ export async function executeHelp(interaction: ChatInputCommandInteraction): Pro
   if (can("raidLeader")) addSection(embed, t(lang, "help.raidLeaders"), LINES.raidLeader[lang]);
   if (can("dkpOfficer")) addSection(embed, t(lang, "help.epgpOfficers"), LINES.dkpOfficer[lang]);
   if (can("officer")) addSection(embed, t(lang, "help.officers"), LINES.officer[lang]);
+  embed.setDescription(t(lang, "help.support"));
   embed.setFooter({ text: t(lang, "help.footer") });
   await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
 }

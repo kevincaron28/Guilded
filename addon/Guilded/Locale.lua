@@ -760,3 +760,12 @@ FR["Loot system: each raid core decides (%s). Pick a core with /guilded core <na
 FR[" Ledgers matched."] = " Registres identiques."
 FR[" Ledgers differed: entries merge while you are both online."] = " Registres diff\195\169rents : les entr\195\169es se fusionnent quand vous \195\170tes en ligne ensemble."
 FR["Ledger sync: entries from %s are not merged yet; they merge while you are both online."] = "Synchro du registre : les entr\195\169es de %s ne sont pas encore fusionn\195\169es; elles le seront quand vous serez en ligne ensemble."
+
+-- 6.6: spreadsheet copy (/guilded sheet) and the support link.
+FR["Usage: /guilded sheet"] = "Utilisation : /guilded sheet"
+FR["Nothing to export yet for %s."] = "Rien \195\160 exporter pour %s pour l'instant."
+FR["Only the first %d rows are in the box."] = "Seules les %d premi\195\168res lignes sont dans la bo\195\174te."
+FR["Guilded - Ctrl+C, then paste into Excel or Google Sheets"] = "Guilded - Ctrl+C, puis collez dans Excel ou Google Sheets"
+FR["Copy for Excel"] = "Copier pour Excel"
+FR["Shows the standings as a table to copy (Ctrl+C) and paste into Excel or Google Sheets. /guilded sheet loot|attendance|raids|dungeons for the others."] = "Affiche le classement en tableau \195\160 copier (Ctrl+C) et coller dans Excel ou Google Sheets. /guilded sheet loot|attendance|raids|dungeons pour les autres."
+FR["Guilded is free. A coffee helps pay for hosting: kcaron.top/support"] = "Guilded est gratuit. Un caf\195\169 aide \195\160 payer l'h\195\169bergement : kcaron.top/support"

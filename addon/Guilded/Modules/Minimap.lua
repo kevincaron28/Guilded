@@ -784,11 +784,15 @@ local function buildStandingsPage(page)
   ui.standingsPlayer:SetWidth(PAGE_WIDTH)
   ui.standingsList = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -80)
   ui.standingsList:SetWidth(PAGE_WIDTH)
+  local sheet = at(newButton(page, "Copy for Excel", 140, function() run("sheet standings") end), page, 0, -420)
+  sheet:ClearAllPoints()
+  sheet:SetPoint("TOPLEFT", ui.standingsList, "BOTTOMLEFT", 0, -16)
+  tip(sheet, "Shows the standings as a table to copy (Ctrl+C) and paste into Excel or Google Sheets. /guilded sheet loot|attendance|raids|dungeons for the others.")
   -- Standalone guilds (no Discord bot): the officer's own ledger becomes everyone's standings.
   local publish = officerOnly(at(newButton(page, "Share my ledger as standings", 230), page, 0, -420))
   ui.standingsPublish = publish
   publish:ClearAllPoints()
-  publish:SetPoint("TOPLEFT", ui.standingsList, "BOTTOMLEFT", 0, -16)
+  publish:SetPoint("TOPLEFT", sheet, "TOPRIGHT", 6, 0)
   confirmClick(publish, "Share my ledger as standings", function() run("standings publish") end)
   tip(publish, "For guilds without the Discord bot: sends the EP and GP recorded on this PC to the guild as the standings. A newer upload from the bot replaces them.")
 end
@@ -829,7 +833,8 @@ local function buildToolsPage(page)
   tip(at(newButton(page, "Reset", 60, function() run("menu scale reset") end), page, 158, -220), "Normal size, back in the middle of the screen")
 
   local help = at(newLabel(page,
-    L("Minimap button hidden? /guilded minimap show. Problem? Press Diagnostics and send a screenshot to an officer. A key can open this window: Options > Keybindings > Guilded."),
+    L("Minimap button hidden? /guilded minimap show. Problem? Press Diagnostics and send a screenshot to an officer. A key can open this window: Options > Keybindings > Guilded.")
+      .. " " .. L("Guilded is free. A coffee helps pay for hosting: kcaron.top/support"),
     "GameFontHighlightSmall"), page, 0, -250)
   help:SetWidth(PAGE_WIDTH)
 
@@ -1523,7 +1528,7 @@ updateGuildScroll = function()
     return type(height) == "number" and height or 16
   end
   local height = 220
-  if tab.name == "Standings" then height = 80 + textHeight(ui.standingsList) + (ns.isOfficer() and 52 or 12)
+  if tab.name == "Standings" then height = 80 + textHeight(ui.standingsList) + 52
   elseif tab.name == "Local guild" then height = (ui.localGuildInfoTop or 220) + textHeight(ui.localGuildInfo) + 12
   elseif tab.name == "Crafting" then height = 250 + textHeight(ui.craftCooldowns) + 12
   elseif tab.name == "Calendar" then height = 70 + textHeight(ui.calendarStatus) + 12 end

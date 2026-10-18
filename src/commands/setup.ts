@@ -23,6 +23,7 @@ import { prisma } from "../database.js";
 import { config } from "../config.js";
 import { classLeaderRoleName, hasPermission, isPermissionRoleName, permissionRoleNames, roleNamesFor, type Permission } from "../permissions.js";
 import { CLASSES } from "../wow-data.js";
+import { commandVisibility } from "../services/command-visibility.js";
 import { formatChecks, setupChecks, setupComplete, type ChannelFact, type SetupFacts } from "../services/setup-status.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { sendWelcome, welcomeDelivery } from "../services/housekeeping.js";
@@ -157,7 +158,8 @@ async function gatherFacts(guild: DiscordGuild, guildId: string, settings: Guild
       .map(async (field) => ({ field, fact: await channelFact(guild, settings[field]) }))),
     messageContentIntent: config.MESSAGE_CONTENT_INTENT,
     community: await communitySetupState(prisma, guildId).catch(() => null),
-    botMessages: await botMessageFacts(guild, prisma, settings, lang, craftGuideText(lang)).catch(() => [])
+    botMessages: await botMessageFacts(guild, prisma, settings, lang, craftGuideText(lang)).catch(() => []),
+    commandAccess: await commandVisibility(guild)
   };
 }
 
@@ -239,7 +241,9 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       T("• **{raidLeader}** — create and run raids, attendance, EP proposals.", { raidLeader: roleName("raidLeader") }),
       T("• **{dkp}** — award and correct EP/GP.", { dkp: roleName("dkpOfficer") }),
       "",
-      T("Press **Create missing roles**, then give them to your officers (right-click a member → Roles).")
+      T("Press **Create missing roles**, then give them to your officers (right-click a member → Roles)."),
+      "",
+      T("Discord hides /lead, /officer and /organize from roles without Manage Events or Manage Server. Give {raidLeader} \"Manage Events\", or allow {officer}, {gm} and {raidLeader} on those commands in Server Settings > Integrations > Guilded.", { raidLeader: roleName("raidLeader"), officer: roleName("officer"), gm: roleName("guildMaster") })
     ].join("\n"));
     const missing = REQUIRED_ROLES.filter((permission) => !has(permission));
     const missingOptional = OPTIONAL_ROLES.filter((permission) => !has(permission));

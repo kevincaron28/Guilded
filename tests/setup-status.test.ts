@@ -63,3 +63,30 @@ describe("setup checklist", () => {
     expect(setupComplete(checks)).toBe(false);
   });
 });
+
+describe("leader command visibility step", () => {
+  it("is left out when the server's commands weren't checked", () => {
+    expect(setupChecks(done).some((check) => check.label.startsWith("Leader commands"))).toBe(false);
+  });
+
+  it("passes when every officer role can see its commands", () => {
+    const step = setupChecks({ ...done, commandAccess: [] }).find((check) => check.label.startsWith("Leader commands"));
+    expect(step?.ok).toBe(true);
+  });
+
+  it("warns with the affected roles and both fixes, without blocking setup", () => {
+    const checks = setupChecks({ ...done, commandAccess: [{ role: "Raid Leader", command: "lead" }] });
+    const step = checks.find((check) => check.label.startsWith("Leader commands"));
+    expect(step?.warn).toBe(true);
+    expect(step?.fix).toContain("Raid Leader → /lead");
+    expect(step?.fix).toContain("Manage Events");
+    expect(step?.fix).toContain("Integrations");
+    expect(setupComplete(checks)).toBe(true);
+  });
+
+  it("asks for a one-time check when Discord refused the read, in French too", () => {
+    const step = setupChecks({ ...done, commandAccess: null }, "fr").find((check) => check.label.startsWith("Commandes de direction"));
+    expect(step?.ok).toBe(false);
+    expect(step?.fix).toContain("Gérer les événements");
+  });
+});

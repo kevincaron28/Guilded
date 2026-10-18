@@ -4,6 +4,7 @@ import { hasPermission } from "../permissions.js";
 import { ALL_CHANNELS } from "./setup.js";
 import { guildService } from "./context.js";
 import { runDiscordJobs } from "../services/discord-jobs.js";
+import { commandVisibility, formatBlocked } from "../services/command-visibility.js";
 
 export const systemCommand = new SlashCommandBuilder().setName("system").setDescription("Sync status, delivery retries and bot permissions (officers)")
   .addSubcommand(sub => sub.setName("status").setDescription("See pairing, imports, Discord updates and permissions"))
@@ -49,14 +50,21 @@ export async function executeSystem(interaction: ChatInputCommandInteraction): P
     const needed = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks];
     if (!permissions?.has(needed)) channelProblems.push(`${channel.name}: permission denied / accès refusé`);
   }
+  const blocked = await commandVisibility(interaction.guild);
+  const commandAccess = blocked === null
+    ? "Could not read Integrations settings / Réglages d'intégration illisibles"
+    : blocked.length
+      ? `Hidden from / Masquées pour : ${formatBlocked(blocked)}\nGive Raid Leader "Manage Events", or allow these roles in Server Settings > Integrations > Guilded. / Donnez « Gérer les événements » ou autorisez ces rôles dans Intégrations.`
+      : "Officer roles can see /lead and /officer / Les rôles d'officier voient /lead et /officer";
   const time = (date: Date | null | undefined) => date ? `<t:${Math.floor(date.getTime() / 1000)}:R>` : "none / aucune";
-  const embed = new EmbedBuilder().setColor(pending.length || channelProblems.length ? 0xe0a33a : 0x36a863).setTitle("Guilded — Sync / Synchronisation")
+  const embed = new EmbedBuilder().setColor(pending.length || channelProblems.length || blocked?.length ? 0xe0a33a : 0x36a863).setTitle("Guilded — Sync / Synchronisation")
     .setDescription("Companion activity is shown by uploads, not guessed from Discord online status. / L'activité du compagnon est mesurée par ses envois.")
     .addFields(
       { name: "Game → database / Jeu → base", value: `Active pairings / Jumelages: ${paired}\nLast upload / Dernier envoi: ${time(latest?.createdAt)} (${latest?.status ?? "none"})\nWaiting for approval / En attente: ${waiting}\nAuto-apply / Application auto: ${settings?.autoApplyImports ? "on" : "off"}\nAfter a reset, obtain a new /character pair code.` },
       { name: "Database → Discord / Base → Discord", value: `Last delivery / Dernière publication: ${time(delivered?.deliveredAt)}\n${pending.length ? pending.map(job => `${job.kind}: ${job.attempts} attempt(s), ${job.lastError ?? "queued"} · retry ${time(job.nextAttemptAt)}`).join("\n") : "No pending deliveries / Aucune publication en attente"}\n/system retry` },
       { name: "Channels / Salons", value: (channelProblems.join("\n") || "Configured channels accessible / Salons configurés accessibles").slice(0, 1024) },
-      { name: "Permissions", value: permissions.slice(0, 1024) }
+      { name: "Permissions", value: permissions.slice(0, 1024) },
+      { name: "Leader commands / Commandes de direction", value: commandAccess.slice(0, 1024) }
     );
   await interaction.editReply({ embeds: [embed], allowedMentions: { parse: [] } });
 }

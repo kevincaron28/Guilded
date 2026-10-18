@@ -9,9 +9,11 @@ Nothing here creates, activates or changes a season, and no targets are set.
 `src/services/dungeon-november-rules.ts`. Version 5 (level 60 only) is unchanged
 and still validated by `validNovemberRules`.
 
-- `brackets: [{ key, min, max, bestCount }]`. Proposed default
-  (`DEFAULT_DUNGEON_BRACKETS`): 15-29, 30-44, 45-59, 60, best 8 each. Brackets
-  may not overlap; keys are lowercase (`15-29`).
+- `brackets: [{ key, min, max, bestCount }]`. Default
+  (`DEFAULT_DUNGEON_BRACKETS`, owner's choice on 18 October 2026): 15-29 best 5,
+  30-44 best 5, 45-59 best 4, 60 best 8. The lower counts are estimates from the
+  usual level ranges of the catalog's dungeons; they can change before a season
+  opens. Brackets may not overlap; keys are lowercase (`15-29`).
 - Each route has `competitionBand` (`{ min, max, difficultyId }`) when it is
   rated, and `null` when it is participation-only. The band must fit inside one
   bracket; `routeBracket` freezes which.
@@ -33,10 +35,32 @@ and still validated by `validNovemberRules`.
   bracket is shown; with no rows, all brackets (top 5 each).
 - The hall of fame lists one champion per bracket.
 
-## Owner decisions before a season can use it
+## In the addon
 
-1. Bracket limits (15-29 / 30-44 / 45-59 / 60?) and best-N per bracket.
-2. Each rated route's competition band and difficulty.
-3. Real timed runs for every target (the November catalog's targets are unset).
-4. Whether the addon's season board should show brackets (it currently gets
-   one profile per character and bracket, with no bracket label).
+- The companion writes `brackets` on the board and `bracket` on each profile
+  and row (`companion/standings-format.mjs`).
+- The dungeon score panel opens on the bracket of the player's current level
+  and has a button that cycles brackets; cards, totals, the best-N note and the
+  guild ranking follow the chosen bracket.
+- Tooltips show the score for the target's level bracket, with its label.
+  `/guilded score top` lists the top five of every bracket;
+  `/guilded score top 60` lists one.
+- Guild sync (`SeasonSync.lua`) sends brackets in a separate `BRACKETS` message
+  after the board, like `DATES`, so clients before this change ignore it. The
+  officer relay (`SeasonDetails.lua`) sends one bracket: the member's best.
+
+## Decided (18 October 2026)
+
+- Bracket limits: 15-29, 30-44, 45-59, 60.
+- Fewer counted routes in the lower brackets (5, 5, 4; 8 at level 60).
+- The addon shows brackets.
+
+## Still open before a season can use it
+
+For every route that gives rating points, the owner must give:
+- the level range a group must stay inside (its competition band), for
+  example 20-29 for a low dungeon (every member above it makes the run
+  unranked), and the difficulty;
+- a target time, set from real timed runs on WoW Forever.
+
+The November catalog has neither yet, so no version 6 season can be created.

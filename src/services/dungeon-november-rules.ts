@@ -85,9 +85,11 @@ export function validNovemberRules(value: unknown): value is NovemberRules {
 
 // Version 6: one season for every level. Brackets are owner settings; this
 // module only freezes them. No default season, targets or activation.
+// Owner's choice (18 October 2026): these limits, and fewer counted routes below
+// 60, where each bracket has fewer dungeons (estimated from the usual level ranges).
 export const DEFAULT_DUNGEON_BRACKETS = [
-  { key: "15-29", min: 15, max: 29, bestCount: 8 }, { key: "30-44", min: 30, max: 44, bestCount: 8 },
-  { key: "45-59", min: 45, max: 59, bestCount: 8 }, { key: "60", min: 60, max: 60, bestCount: 8 }
+  { key: "15-29", min: 15, max: 29, bestCount: 5 }, { key: "30-44", min: 30, max: 44, bestCount: 5 },
+  { key: "45-59", min: 45, max: 59, bestCount: 4 }, { key: "60", min: 60, max: 60, bestCount: 8 }
 ] as const;
 const bracketSchema = z.object({ key: z.string().regex(/^[a-z0-9][a-z0-9-]{0,19}$/), min: z.number().int().min(1).max(60),
   max: z.number().int().min(1).max(60), bestCount: z.number().int().min(1).max(20) }).refine(b => b.min <= b.max);

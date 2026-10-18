@@ -157,18 +157,53 @@ function scores.compute(name)
   return total, count, lines
 end
 
--- Only the current authoritative season is presented as a player rating.
-function scores.scoreOf(name)
+-- All-level seasons (rules version 6) rank each character per level bracket.
+-- Older seasons have no brackets; every helper below then returns nil.
+function scores.bracketFor(season, level)
+  level = tonumber(level)
+  for _, b in ipairs(level and season and season.brackets or {}) do
+    if level >= b.min and level <= b.max then return b end
+  end
+  return nil
+end
+function scores.bracketByKey(season, key)
+  for _, b in ipairs(key and season and season.brackets or {}) do if b.key == key then return b end end
+  return nil
+end
+function scores.bracketLabel(b)
+  if not b then return "" end
+  if b.min == b.max then return string.format(L("Level %d"), b.min) end
+  return string.format(L("Levels %d-%d"), b.min, b.max)
+end
+-- The bracket a player sees first: their current level's, else their best score's, else the first.
+function scores.defaultBracket(season, name, level)
+  if not season or type(season.brackets) ~= "table" or #season.brackets == 0 then return nil end
+  local own = scores.bracketFor(season, level)
+  if own then return own.key end
+  for _, list in ipairs({ season.profiles or {}, season.rows or {} }) do
+    for _, row in ipairs(list) do
+      if ns.normalizeName(row.name) == name and scores.bracketByKey(season, row.bracket) then return row.bracket end
+    end
+  end
+  return season.brackets[1].key
+end
+
+-- Only the current authoritative season is presented as a player rating. With a
+-- level, an all-level season gives that level's bracket; without one, the best.
+function scores.scoreOf(name, level)
   if not scores.isMember(name) then return nil end
   local db = ns.getDb and ns.getDb()
   local board = db and db.dungeonBoard
   if not board or board.status ~= "ACTIVE" then return nil end
-  local snapshot = ns.seasonDetails and ns.seasonDetails.get(1, name)
-  if snapshot and snapshot.available and snapshot.profile then
-    return snapshot.profile.points, #snapshot.profile.details
+  local bracket = scores.bracketFor(board, level)
+  local key = bracket and bracket.key
+  local snapshot = ns.seasonDetails and ns.seasonDetails.get(1, name, key)
+  local profile = snapshot and snapshot.available and snapshot.profile
+  if profile and (not key or not profile.bracket or profile.bracket == key) then
+    return profile.points, #profile.details, profile.bracket
   end
   for _, row in ipairs(board.rows or {}) do
-    if ns.normalizeName(row.name) == name then return row.points, nil end
+    if ns.normalizeName(row.name) == name and (not key or row.bracket == key) then return row.points, nil, row.bracket end
   end
   return nil
 end
@@ -192,26 +227,29 @@ function scores.receive(text, sender)
   s.board[name] = { score = total, n = count, at = ns.util.serverTime() }
 end
 
--- Every player with a score, best first: { name, score, n }.
-function scores.ranking()
+-- Every player with a score, best first: { name, score, n }. An all-level
+-- season ranks one bracket (by key); the other brackets are left out.
+function scores.ranking(bracketKey)
   local s = store()
   local seen, rows = {}, {}
   if not s then return rows end
-  local function add(name)
-    if seen[name] or not scores.isMember(name) then return end
-    seen[name] = true
-    local total, count = scores.scoreOf(name)
-    if total then table.insert(rows, { name = name, score = total, n = count }) end
-  end
   local db = ns.getDb()
   local board = db and db.dungeonBoard
   if not board or board.status ~= "ACTIVE" then return rows end
+  local bracket = scores.bracketByKey(board, bracketKey)
+  local function add(name, entry)
+    if seen[name] or not scores.isMember(name) then return end
+    if bracket and entry.bracket ~= bracket.key then return end
+    seen[name] = true
+    local total, count = scores.scoreOf(name, bracket and bracket.min)
+    if total then table.insert(rows, { name = name, score = total, n = count }) end
+  end
   if not board.detailsAvailable then
-    for _, row in ipairs(board.rows or {}) do add(ns.normalizeName(row.name)) end
+    for _, row in ipairs(board.rows or {}) do add(ns.normalizeName(row.name), row) end
   end
   for _, profile in ipairs(board and board.profiles or {}) do
     local name = ns.normalizeName(profile.name)
-    add(name)
+    add(name, profile)
   end
   table.sort(rows, function(a, b) if a.score ~= b.score then return a.score > b.score end return a.name < b.name end)
   return rows
@@ -234,8 +272,20 @@ function scores.detailText(name)
   return table.concat(out, "\n")
 end
 
-function scores.topText(limit)
-  local rows = scores.ranking()
+function scores.topText(limit, bracketKey)
+  local db = ns.getDb and ns.getDb()
+  local board = db and db.dungeonBoard
+  -- All-level season with no bracket asked for: the top five of every bracket.
+  if board and type(board.brackets) == "table" and #board.brackets > 0 and not scores.bracketByKey(board, bracketKey) then
+    local out = {}
+    for _, b in ipairs(board.brackets) do
+      out[#out + 1] = scores.bracketLabel(b) .. " (" .. b.key .. "):"
+      local text = #scores.ranking(b.key) > 0 and scores.topText(5, b.key) or ("  " .. L("No scores yet."))
+      out[#out + 1] = text
+    end
+    return table.concat(out, "\n")
+  end
+  local rows = scores.ranking(bracketKey)
   if #rows == 0 then return L("No current season score received yet.") end
   local out = {}
   local rank = 1
@@ -260,9 +310,13 @@ local function decorateUnit(tooltip)
   local okName, unitName = pcall(UnitName, unit)
   if not okName or (ns.isSecret and ns.isSecret(unitName)) then return end
   local name = ns.normalizeName and ns.normalizeName(unitName)
-  local total, count = scores.scoreOf(name)
+  local okLevel, level = pcall(UnitLevel, unit)
+  if not okLevel or (ns.isSecret and ns.isSecret(level)) then level = nil end
+  local total, _, bracketKey = scores.scoreOf(name, level)
   if not total then return end
-  tooltip:AddLine(string.format(L("Guilded season score: %d"), total), GOLD_R, GOLD_G, GOLD_B)
+  local db = ns.getDb and ns.getDb()
+  local bracket = scores.bracketByKey(db and db.dungeonBoard, bracketKey)
+  tooltip:AddLine(string.format(L("Guilded season score: %d"), total) .. (bracket and (" (" .. scores.bracketLabel(bracket) .. ")") or ""), GOLD_R, GOLD_G, GOLD_B)
   if tooltip.Show then tooltip:Show() end
 end
 scores.decorateUnit = decorateUnit
@@ -284,14 +338,14 @@ ns.commandHandlers["score"] = function(args)
   local what = args[1]
   if what and string.lower(what) == "top" then
     ns.message(L("Guild dungeon scores:"))
-    for line in string.gmatch(scores.topText(15), "[^\n]+") do ns.message(line) end
+    for line in string.gmatch(scores.topText(15, args[2] and string.lower(args[2])), "[^\n]+") do ns.message(line) end
     return
   end
   local name = (what and ns.normalizeName and ns.normalizeName(what)) or (ns.playerName and ns.playerName())
   for line in string.gmatch(scores.detailText(name), "[^\n]+") do ns.message(line) end
 end
 ns.commandHelp = ns.commandHelp or {}
-table.insert(ns.commandHelp, "/guilded score [player|top] - dungeon scores from the runs Guilded recorded")
+table.insert(ns.commandHelp, "/guilded score [player|top [bracket]] - dungeon scores from the runs Guilded recorded")
 
 -- Every finished run the Dungeon module sees.
 ns.onDungeonRunFinished = function(run)

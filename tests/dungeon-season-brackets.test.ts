@@ -1,19 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_DUNGEON_BRACKETS, createBracketedDungeonRules, validBracketedRules, validNovemberRules, validRouteRules, type BracketRoute
+  DEFAULT_DUNGEON_BRACKETS, createBracketedDungeonRules, validBracketedRules, validNovemberRules, validRouteRules
 } from "../src/services/dungeon-november-rules.js";
 import { calculateDungeonRating, defaultBracket, frozenRating, hasDungeonRating, ratingEmbed, seasonDungeonCatalog } from "../src/services/dungeon-rating.js";
 import { dungeonScoringGuide } from "../src/services/dungeon-scoring-guide.js";
 import { dungeonConfig } from "../src/services/dungeon-rules.js";
-import { novemberFixtures, novemberRulesFixture, novemberRun } from "./fixtures/november-routes.js";
+import { BRACKET_FIXTURE, bracketFixtureRoutes, novemberFixtures, novemberRulesFixture, novemberRun } from "./fixtures/november-routes.js";
 
 // Synthetic routes only: indices 0-3 are a low (20-29) band, the other rated ones level 60.
 const LOW = [0, 1, 2, 3];
-const BRACKETS = [{ key: "15-29", min: 15, max: 29, bestCount: 3 }, { key: "60", min: 60, max: 60, bestCount: 4 }];
-function bracketRoutes(): BracketRoute[] {
-  return novemberFixtures().map((r, i) => ({ ...r, competitionBand: r.targetSec === null ? null
-    : LOW.includes(i) ? { min: 20, max: 29, difficultyId: 7 } : { min: 60, max: 60, difficultyId: 7 } }));
-}
+const BRACKETS = BRACKET_FIXTURE;
+const bracketRoutes = bracketFixtureRoutes;
 const rules = createBracketedDungeonRules({ routes: bracketRoutes(), brackets: BRACKETS });
 
 describe("all-level season rules (version 6)", () => {
@@ -36,10 +33,10 @@ describe("all-level season rules (version 6)", () => {
     expect(validBracketedRules(v5)).toBe(false);
     expect(Object.values(v5.levelBands).every(b => b.min === 60 && b.max === 60)).toBe(true);
   });
-  it("proposes 15-29, 30-44, 45-59 and 60 by default without making a season", () => {
-    expect(DEFAULT_DUNGEON_BRACKETS.map(b => b.key)).toEqual(["15-29", "30-44", "45-59", "60"]);
-    // The synthetic routes cannot fill eight per default bracket: creation refuses.
-    expect(() => createBracketedDungeonRules({ routes: bracketRoutes(), brackets: DEFAULT_DUNGEON_BRACKETS })).toThrow(/at least 8/);
+  it("defaults to 15-29, 30-44, 45-59 and 60, counting fewer routes below 60, without making a season", () => {
+    expect(DEFAULT_DUNGEON_BRACKETS.map(b => [b.key, b.bestCount])).toEqual([["15-29", 5], ["30-44", 5], ["45-59", 4], ["60", 8]]);
+    // The synthetic routes cannot fill every default bracket: creation refuses.
+    expect(() => createBracketedDungeonRules({ routes: bracketRoutes(), brackets: DEFAULT_DUNGEON_BRACKETS })).toThrow(/Bracket 15-29 needs at least 5/);
   });
   it.each([
     ["overlapping brackets", { brackets: [{ key: "15-29", min: 15, max: 30, bestCount: 3 }, { key: "30-60", min: 30, max: 60, bestCount: 4 }] }],

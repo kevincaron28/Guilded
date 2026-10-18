@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import { dungeonConfig, weekStart } from "./dungeon-rules.js";
 import { finalRows } from "./season-snapshot.js";
 import { hasDungeonRating, dungeonRating, seasonDungeonCatalog, type LevelBand } from "./dungeon-rating.js";
+import { validBracketedRules } from "./dungeon-november-rules.js";
 import { participationDungeonKey, participationMode, participationRecordEligible, type ParticipationRun } from "./dungeon-participation.js";
 
 // Read-only views of the dungeon challenge (roadmap D5): leaderboards,
@@ -210,12 +211,15 @@ export async function addonDungeonBoard(database: Db & Pick<PrismaClient, "chara
     provisionalTargets: (season.ratingRules as { provisionalTargets?: boolean } | null)?.provisionalTargets === true,
     ratingVersion: hasDungeonRating(season.ratingRules) ? (season.ratingRules as { version: number }).version : 0,
     detailsAvailable: ratingRows.has(season.id) && ratingRows.get(season.id)!.every(row => row.details !== undefined),
+    // All-level seasons: the brackets, and each profile/row's bracket.
+    ...(validBracketedRules(season.ratingRules) ? { brackets: season.ratingRules.brackets.map(b => ({ ...b })) } : {}),
     profiles: (ratingRows.get(season.id) ?? []).filter(row => row.details !== undefined).map(row => ({
-      name: row.character ?? mainName.get(row.memberId) ?? row.name, points: row.points, details: row.details!,
+      name: row.character ?? mainName.get(row.memberId) ?? row.name, points: row.points, details: row.details!, ...(row.bracket ? { bracket: row.bracket } : {}),
       characters: row.character ? [] : characters.filter(character => character.memberId === row.memberId).map(character => character.name)
     })),
     catalog: seasonDungeonCatalog(season.ratingRules, ratingRows.get(season.id) ?? []),
-    rows: ((ratingRows.get(season.id) ?? finalRows(season.finalStandings))?.map(row => ({ name: ("character" in row && typeof row.character === "string" ? row.character : undefined) ?? mainName.get(row.memberId) ?? row.name, points: row.points })) ?? totals.filter(row => row.seasonId === season.id && (row._sum.amount ?? 0) > 0)
+    rows: ((ratingRows.get(season.id) ?? finalRows(season.finalStandings))?.map(row => ({ name: ("character" in row && typeof row.character === "string" ? row.character : undefined) ?? mainName.get(row.memberId) ?? row.name, points: row.points,
+      ...("bracket" in row && typeof row.bracket === "string" ? { bracket: row.bracket } : {}) })) ?? totals.filter(row => row.seasonId === season.id && (row._sum.amount ?? 0) > 0)
       .map(row => ({ name: mainName.get(row.memberId) ?? names.get(row.memberId) ?? "?", points: row._sum.amount ?? 0 }))
     ).sort((a, b) => b.points - a.points || a.name.localeCompare(b.name)).slice(0, 50)
   }));

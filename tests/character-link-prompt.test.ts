@@ -79,7 +79,8 @@ describe("private character connection instructions", () => {
     expect(fields[0]!.value).toContain("character you want as your **main**");
     expect(fields[1]!.value).toContain("**ABC123DEF456**");
     expect(fields[1]!.value).toContain("replaces your previous companion connection");
-    expect(fields[2]!.value).toContain("`server1`");
+    expect(fields[2]!.value).toContain("paste the code above");
+    expect(fields[2]!.value).not.toContain("server ID");
     expect(fields[2]!.value).toContain("/guilded setup connected");
     expect(fields[3]!.value).toContain("/character list");
   });

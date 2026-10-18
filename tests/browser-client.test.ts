@@ -140,6 +140,14 @@ describe("online companion session and queue", () => {
     expect(Array.from(storage.values()).join()).not.toContain(profile.pairingCode);
     expect((await createBrowserCompanion(env as never).getAll()).state.running).toBe(true);
   });
+  it("pairs with the code alone and keeps the server the bot returns", async () => {
+    const { env } = environment(); const api = createBrowserCompanion(env as never);
+    env.fetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ companionCredential: "c".repeat(43), guildDiscordId: "999" }) } as never);
+    expect(await api.pairAccount({ ...profile, guildDiscordId: "" })).toMatchObject({ ok: true });
+    expect(JSON.parse(String(env.fetch.mock.calls[0]?.[1]?.body))).toEqual({ code: profile.pairingCode });
+    expect((await api.getAll()).config.guildDiscordId).toBe("999");
+    expect((await api.getAll()).version).toBe("dev");
+  });
   it("keeps a failed upload queue across reload and drains only acknowledged refs", async () => {
     const { env, storage, choose } = environment(); const api = createBrowserCompanion(env as never);
     await api.pairAccount(profile); choose(logFile()); await api.browsePoeLog(profile);

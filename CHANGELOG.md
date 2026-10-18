@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Companions (online and Windows): connecting needs only the `/character pair` code; the bot
+  finds the server from it and the server ID moved to Advanced preferences. The online
+  companion shows its real version (it always said 6.1.0) and hides Disconnect until linked.
+  `/character pair` and `/poe pair` no longer tell members to check the server ID.
+
 ## 6.5.0 Release — 17 October 2026
 
 - Raid-night tools: templates, notes, attendance from the core roster, undo, raid discard and

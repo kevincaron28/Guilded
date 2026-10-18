@@ -18,8 +18,9 @@ export function validateConfig(config) {
   if (config.wowEnabled !== false && !config.watchFile) problems.push("The saved-data file (Guilded.lua) is not set.");
   if (config.wowEnabled === false && !config.poeEnabled) problems.push("Enable WoW or PoE2 tracking before starting.");
   if (!config.uploadUrl) problems.push("The bot address is not set.");
-  if (!config.guildDiscordId) problems.push("The Discord server ID is not set.");
-  if (typeof config.companionCredential !== "string" || config.companionCredential.length < 32) problems.push("Link this companion with /character pair or /poe pair before starting.");
+  const linked = typeof config.companionCredential === "string" && config.companionCredential.length >= 32;
+  if (!linked) problems.push("Connect your Discord account first: enter the code from /character pair and press Connect.");
+  else if (!config.guildDiscordId) problems.push("The Discord server ID is not set.");
   if (config.uploadUrl) { try { checkUrl(config.uploadUrl); } catch (error) { problems.push(error.message); } }
   return [...problems, ...validatePoeConfig(config)];
 }
@@ -39,22 +40,23 @@ export async function testConnection(config) {
 }
 
 export async function pairAccount(config) {
-  if (!config.uploadUrl || !config.guildDiscordId || typeof config.pairingCode !== "string" || !config.pairingCode.trim()) {
-    return { ok: false, message: "Enter the bot address, Discord server ID and code from /character pair first." };
+  if (!config.uploadUrl || typeof config.pairingCode !== "string" || !config.pairingCode.trim()) {
+    return { ok: false, message: "Enter the bot address and the code from /character pair first." };
   }
   try {
     const url = new URL("/api/v1/addon-pairings", config.uploadUrl);
     const { response, body } = await requestJson(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ guildDiscordId: config.guildDiscordId, code: config.pairingCode }),
+      // The server ID is optional: the bot finds the server from the code (6.5.1).
+      body: JSON.stringify({ ...(config.guildDiscordId?.trim() ? { guildDiscordId: config.guildDiscordId.trim() } : {}), code: config.pairingCode.trim() }),
       signal: AbortSignal.timeout(10_000)
     });
     if (!response.ok) return { ok: false, message: `Pairing failed (${response.status}): ${describeApiError(response.status, body.error)}` };
     if (typeof body.companionCredential !== "string" || body.companionCredential.length < 32) {
       return { ok: false, message: "The bot response did not include a valid companion credential." };
     }
-    return { ok: true, message: config.wowEnabled === false ? "Discord account paired. Your PoE2 observations will belong to this account; choose your PoE2 settings and Save and start." : "Discord account paired. The companion links your own character on its next upload; the guild import still follows its usual apply setting.", companionCredential: body.companionCredential };
+    return { ok: true, message: config.wowEnabled === false ? "Discord account paired. Your PoE2 observations will belong to this account; choose your PoE2 settings and Save and start." : "Discord account paired. The companion links your own character on its next upload; the guild import still follows its usual apply setting.", companionCredential: body.companionCredential, guildDiscordId: typeof body.guildDiscordId === "string" ? body.guildDiscordId : config.guildDiscordId };
   } catch (error) {
     return { ok: false, message: describeError(error) };
   }

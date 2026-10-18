@@ -33,8 +33,8 @@ For a private test, use the matching files supplied by the maintainer.
 3. For WoW sync, follow the member steps below with one player first. Confirm
    that their character and standings match in Discord and in game, then share
    [the member guide](MEMBER_INSTALL.md) with your guild. Use the
-   [hosted companion](https://guilded.kcaron.top/companion/) and your
-   own Discord server ID.
+   [hosted companion](https://guilded.kcaron.top/companion/); the
+   `/character pair` code is all it asks for.
 
 Community activities and polls need no WoW addon or character pairing. Hosted
 owners can stop here; the independent hosting sections below are optional.
@@ -59,8 +59,8 @@ a companion connection code.
 ### Optional: connect the online companion
 
 1. Choose **Connect optional companion** in that private reply, or use
-   `/character pair`. Open its online companion button. The link prefills the
-   server ID on a first visit; check it, enter your private code, then **Connect**.
+   `/character pair`. Open its online companion button, paste your private code,
+   then **Connect**. Since 6.5.1 the code alone finds your server.
 2. Enable WoW and choose your account's SavedVariables folder. Use **Save standings
    to addon** once to choose `Interface/AddOns/Guilded`. After `/reload`, click
    **Sync now** on your main first if none is linked. Choose

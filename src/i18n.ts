@@ -196,13 +196,13 @@ const STRINGS = {
     fr: "Pour ta première synchro, connecte-toi sur le personnage que tu veux comme **principal**, puis fais `/reload` et **Sync now**. Le premier nouveau personnage devient ton principal. Une fois qu'il apparaît dans `/character list`, répète sur un alt : les suivants sont liés comme alts avec le même compagnon. Aucun nouveau code nécessaire pour chaque alt."
   },
   "pair.addAlts": {
-    en: "**Your main is already linked.** The code below connects a companion so you can add alts. **Companion already working?** Log in on an alt, `/reload`, then **Sync now**: it links as an alt and your main stays the same. No new code needed.",
-    fr: "**Ton principal est déjà lié.** Le code ci-dessous connecte un compagnon pour ajouter tes alts. **Ton compagnon fonctionne déjà ?** Connecte-toi sur un alt, fais `/reload`, puis **Sync now** : il sera lié comme alt et ton principal reste le même. Aucun nouveau code nécessaire."
+    en: "**Your main is already linked.** The code above connects a companion so you can add alts. **Companion already working?** Log in on an alt, `/reload`, then **Sync now**: it links as an alt and your main stays the same. No new code needed.",
+    fr: "**Ton principal est déjà lié.** Le code ci-dessus connecte un compagnon pour ajouter tes alts. **Ton compagnon fonctionne déjà ?** Connecte-toi sur un alt, fais `/reload`, puis **Sync now** : il sera lié comme alt et ton principal reste le même. Aucun nouveau code nécessaire."
   },
-  "pair.codeTitle": { en: "Optional companion: connection code", fr: "Compagnon facultatif : code de connexion" },
+  "pair.codeTitle": { en: "🔑 Your companion connection code", fr: "🔑 Ton code de connexion du compagnon" },
   "pair.code": {
-    en: "Code: **{code}** · expires {expires} · one use, keep it private. Use it only for a new connection or to reconnect a device. Using it replaces your previous companion connection. Viewing this code keeps your characters linked.",
-    fr: "Code : **{code}** · expire {expires} · usage unique, garde-le privé. Utilise-le pour une première connexion ou pour reconnecter un appareil. L'utiliser remplace ta connexion compagnon précédente. Voir ce code conserve tes personnages liés."
+    en: "```\n{code}\n```Paste it in the companion's **Connection & setup** and press **Connect**. Expires {expires} · one use · keep it private. It replaces your previous companion connection; your characters stay linked.",
+    fr: "```\n{code}\n```Colle-le dans **Connection & setup** du compagnon et appuie sur **Connect**. Expire {expires} · usage unique · garde-le privé. Il remplace ta connexion compagnon précédente; tes personnages restent liés."
   },
   "pair.online": { en: "Open online companion", fr: "Ouvrir le compagnon en ligne" },
   "pair.openOnline": { en: "Open the online companion with the button below.", fr: "Ouvre le compagnon en ligne avec le bouton ci-dessous." },

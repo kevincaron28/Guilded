@@ -7,6 +7,8 @@
   checks GitHub daily and tells each server's officer log once per new version
   (`UPDATE_CHECK=false` turns it off; the official hosted bot skips it). Migration
   `20261118090000_update_notice` adds `GuildSettings.lastUpdateNoticeVersion`.
+- `/character pair` and `/poe pair` show the connection code first, alone in a copyable box,
+  instead of in bold inside a sentence.
 
 ## 6.5.1 Release — 17 October 2026
 

@@ -971,6 +971,104 @@ local function raidHistoryLines(count)
 end
 ns.raidHistoryLines = raidHistoryLines
 
+-- /guilded sheet <table>: tab-separated rows with a header, for pasting into Excel or Google
+-- Sheets (each value lands in its own cell). Tabs and line breaks inside a value become
+-- spaces so a cell can't spill; the edit box gets slow with huge text, so rows stop at 1000.
+local SHEET_ROW_LIMIT = 1000
+local SHEET_TABLES = { "standings", "loot", "attendance", "raids", "dungeons" }
+local function sheetCell(value)
+  return (string.gsub(tostring(value == nil and "" or value), "[\t\r\n]", " "))
+end
+local function sheetTime(stamp)
+  if not stamp then return "" end
+  return (string.gsub(string.gsub(tostring(stamp), "T", " "), "Z$", ""))
+end
+local sheetBuilders = {
+  standings = function()
+    local names, rows = {}, {}
+    for name in pairs(db.standings and db.standings.players or {}) do names[name] = true end
+    for name in pairs(db.epgp or {}) do names[name] = true end
+    for name in pairs(names) do
+      local row = ns.effectiveStanding(name)
+      table.insert(rows, { name = name, ep = row.ep or 0, gp = row.gp or 0, pr = row.pr or 0 })
+    end
+    table.sort(rows, function(a, b) if a.pr ~= b.pr then return a.pr > b.pr end return a.name < b.name end)
+    local out = { { "Rank", "Name", "EP", "GP", "PR" } }
+    for i, r in ipairs(rows) do table.insert(out, { i, r.name, r.ep, r.gp, string.format("%.2f", r.pr) }) end
+    return out
+  end,
+  loot = function()
+    local titles = {}
+    for _, raid in ipairs(db.raids or {}) do titles[raid.id] = raid.title end
+    local out = { { "Date (UTC)", "Raid", "Item", "Player", "GP", "Boss" } }
+    for i = #(db.loot or {}), 1, -1 do
+      local row = db.loot[i]
+      table.insert(out, { sheetTime(row.at), row.raid and titles[row.raid] or "", row.item, row.player, row.cost or 0, row.boss or "" })
+    end
+    return out
+  end,
+  attendance = function()
+    local out = { { "Raid", "Date (UTC)", "Player", "Status" } }
+    for i = #(db.raids or {}), 1, -1 do
+      local raid = db.raids[i]
+      local names = {}
+      for name in pairs(db.attendance[raid.id] or {}) do table.insert(names, name) end
+      table.sort(names)
+      for _, name in ipairs(names) do
+        table.insert(out, { raid.title or "Raid", sheetTime(raid.startedAt), name, db.attendance[raid.id][name].status or "" })
+      end
+    end
+    return out
+  end,
+  raids = function()
+    local out = { { "Raid", "Started (UTC)", "Ended (UTC)", "Attended", "Bosses", "Loot" } }
+    for i = #(db.raids or {}), 1, -1 do
+      local raid = db.raids[i]
+      local present, loot = 0, 0
+      for _, row in pairs(db.attendance[raid.id] or {}) do if row.status ~= "ABSENT" then present = present + 1 end end
+      for _, row in ipairs(db.loot or {}) do if row.raid == raid.id then loot = loot + 1 end end
+      table.insert(out, { raid.title or "Raid", sheetTime(raid.startedAt), sheetTime(raid.endedAt), present, #(db.bosses[raid.id] or {}), loot })
+    end
+    return out
+  end,
+  dungeons = function()
+    local out = { { "Rank", "Name", "Score", "Dungeons" } }
+    for i, row in ipairs(ns.scores and ns.scores.ranking and ns.scores.ranking() or {}) do
+      table.insert(out, { i, row.name, row.score, row.n or "" })
+    end
+    return out
+  end
+}
+
+-- The text, the number of data rows in it (header not counted) and whether rows were cut;
+-- nil for an unknown table.
+local function sheetText(kind)
+  local build = sheetBuilders[kind]
+  if not build then return nil end
+  local rows, lines = build(), {}
+  local count = math.min(#rows - 1, SHEET_ROW_LIMIT)
+  for i = 1, count + 1 do
+    local cells = {}
+    for j, value in ipairs(rows[i]) do cells[j] = sheetCell(value) end
+    lines[i] = table.concat(cells, "\t")
+  end
+  return table.concat(lines, "\n"), count, #rows - 1 > SHEET_ROW_LIMIT
+end
+ns.sheetText = sheetText
+
+local function sheetCommand(kind)
+  kind = string.lower(kind or "standings")
+  local text, count, cut = sheetText(kind)
+  if not text then
+    message(L("Usage: /guilded sheet") .. " " .. table.concat(SHEET_TABLES, "|"))
+    return
+  end
+  if count == 0 then message(string.format(L("Nothing to export yet for %s."), kind)); return end
+  if cut then message(string.format(L("Only the first %d rows are in the box."), SHEET_ROW_LIMIT)) end
+  showCharacterExport(text, L("Guilded - Ctrl+C, then paste into Excel or Google Sheets"))
+end
+ns.showSheet = sheetCommand
+
 local READINESS_SLOTS = {
   { 1, "Head" }, { 3, "Shoulder" }, { 5, "Chest" }, { 6, "Waist" },
   { 7, "Legs" }, { 8, "Feet" }, { 9, "Wrist" }, { 10, "Hands" },
@@ -1329,6 +1427,7 @@ local function showHelp()
   message("/guilded slots level <n> - from which level empty gear slots count as not ready (default 60)")
   message("/guilded share - one paste with your character, gear check, consumables and attunements (Discord: /character import)")
   message("/guilded character - copy a line to link this character in Discord (/character import)")
+  message("/guilded sheet standings|loot|attendance|raids|dungeons - copy a table to paste into Excel or Google Sheets")
   if officer then
     message("Officer: /guilded start [title] | end | attendance <name>|group|seen [PRESENT|ABSENT|LATE] | boss <name> | summary (what the raid recorded, to copy)")
     message("Officer: /guilded note <text> | template save <name> [title] | template list | attendance roster | raid discard | undo (takes back your last award)")
@@ -1568,6 +1667,7 @@ local function command(text)
   elseif action == "template" or action == "templates" then if requireOfficer() then raidTemplate(args) end
   elseif action == "raid" and string.lower(args[2] or "") == "discard" then if requireOfficer() then discardRaid() end
   elseif action == "undo" then if requireOfficer() then voidEntry("last") end
+  elseif action == "sheet" or action == "spreadsheet" or action == "excel" then sheetCommand(args[2])
   elseif action == "raids" then
     local lines = raidHistoryLines(args[2])
     for _, line in ipairs(lines) do message(line) end

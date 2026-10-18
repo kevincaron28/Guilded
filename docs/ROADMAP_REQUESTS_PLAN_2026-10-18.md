@@ -23,7 +23,7 @@ Added on this branch:
 
 Never: features behind payment, popups, or a reminder that repeats.
 
-## 2. Spreadsheet export — in-game part built
+## 2. Spreadsheet export — built (game, companion, bot)
 
 **In game (built here):** `/guilded sheet [standings|loot|attendance|raids|dungeons]`
 (`/guilded export` was already taken: it marks data for the companion)
@@ -44,13 +44,16 @@ Tabs and line breaks inside a value are replaced with spaces so a cell can't
 spill. WoW's edit box gets slow with very long text, so each export stops at
 1000 rows and says so.
 
-**Companion (next):** an "Export to spreadsheet" button that writes CSV files
-from SavedVariables (it already parses them in `companion/engine.mjs`). Files
-use UTF-8 with a byte-order mark so Excel shows accents correctly.
+**Companion (built for 7.0):** "Export to spreadsheet" on the World of Warcraft page writes
+the same five tables as CSV files from Guilded.lua (`companion/sheet-export.mjs`, tests in
+`tests/sheet-export.test.ts`): all tables or one picked from a list. The desktop app saves them
+in a folder the player chooses; the online companion downloads them. UTF-8 with a byte-order
+mark so Excel shows accents, RFC 4180 quoting, CRLF rows, item links as plain names.
 
-**Bot (later):** `/export` for officers, sending a CSV attachment of the
-server-side EP/GP ledger, loot and attendance. Must stay within the merged
-command size limit if it lands under `/setup`, so it's better as its own command.
+**Bot (built for 7.0):** `/officer export table:<standings|ledger|loot|attendance|roster>`
+replies privately with a CSV file of that server's data (standings per point pool, EPGP
+ledger, loot, attendance, roster). It replaces `/report export`, which members could see;
+`/officer` is hidden from members and Lite servers don't get it. Tests: `tests/exports.test.ts`.
 
 ## 3. Dungeon season for all levels
 

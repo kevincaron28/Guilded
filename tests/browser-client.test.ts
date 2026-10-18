@@ -180,3 +180,34 @@ describe("online companion session and queue", () => {
     expect(storage.size).toBe(0); expect(env.location.reload).toHaveBeenCalledOnce();
   });
 });
+
+describe("online companion spreadsheet export", () => {
+  it("downloads one CSV per table (or the one picked) from the chosen Guilded.lua, without uploading", async () => {
+    const { env, choose } = environment();
+    const blobs: Blob[] = [];
+    const names: string[] = [];
+    env.URL = { createObjectURL: (blob: Blob) => { blobs.push(blob); return "blob:x"; }, revokeObjectURL: () => undefined } as never;
+    const createElement = env.document.createElement;
+    env.document.createElement = () => {
+      const element = createElement() as Record<string, unknown>;
+      Object.defineProperty(element, "download", { set: (name: string) => names.push(name) });
+      return element as never;
+    };
+    const api = createBrowserCompanion(env as never);
+    expect(await api.exportSheets()).toMatchObject({ ok: false });
+    await api.pairAccount({ ...profile, wowEnabled: true, poeEnabled: false });
+    choose(new File(['GuildedDB = { loot = { { at = "2026-10-14T21:00:00Z", item = "Épée, \\"rare\\"", player = "Kev", cost = 5 } } }'], "Guilded.lua"));
+    await api.browseFile();
+    const calls = env.fetch.mock.calls.length;
+    expect(await api.exportSheets()).toMatchObject({ ok: true });
+    expect(names).toEqual(["standings", "loot", "attendance", "raids", "dungeons"].map((table) => expect.stringMatching(new RegExp(`^guilded-${table}-[0-9]{4}-[0-9]{2}-[0-9]{2}[.]csv$`))));
+    const loot = new Uint8Array(await blobs[1]!.arrayBuffer());
+    expect([...loot.subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+    expect(new TextDecoder().decode(loot)).toContain('2026-10-14 21:00:00,,"Épée, ""rare""",Kev,5,\r\n');
+    expect(blobs[1]!.type).toBe("text/csv;charset=utf-8");
+    names.length = 0;
+    expect(await api.exportSheets("loot")).toMatchObject({ ok: true, files: [{ table: "loot", rows: 1 }] });
+    expect(names).toHaveLength(1);
+    expect(env.fetch.mock.calls.length).toBe(calls);
+  });
+});

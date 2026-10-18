@@ -72,7 +72,7 @@ describe("raid season attendance", () => {
   });
 
   it("exports a grid with one column per raid, dated in the guild's timezone", async () => {
-    const lines = seasonCsv((await load()).data, "America/Toronto").trim().split("\n");
+    const lines = seasonCsv((await load()).data, "America/Toronto").trim().split("\r\n");
     // Midnight UTC is still the evening before in Toronto.
     expect(lines[0]).toBe("member,rate_percent,present,late,benched,absent,unrecorded,2026-09-01 Karazhan,2026-09-08 Gruul,2026-09-09 Pug night");
     expect(lines[1]).toBe("Player A,75,1,1,0,0,1,P,L,?");

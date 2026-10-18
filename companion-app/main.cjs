@@ -66,8 +66,8 @@ function saveConfig() {
 async function loadEngineModules() {
   const dir = app.isPackaged ? path.join(process.resourcesPath, "engine") : path.join(__dirname, "..", "companion");
   const url = (file) => pathToFileURL(path.join(dir, file)).href;
-  const [engineModule, standingsModule, requestModule] = await Promise.all([import(url("engine.mjs")), import(url("standings.mjs")), import(url("request.mjs"))]);
-  return { ...engineModule, ...standingsModule, ...requestModule };
+  const [engineModule, standingsModule, requestModule, sheetModule] = await Promise.all([import(url("engine.mjs")), import(url("standings.mjs")), import(url("request.mjs")), import(url("sheet-export.mjs"))]);
+  return { ...engineModule, ...standingsModule, ...requestModule, sheetFiles: sheetModule.sheetFiles };
 }
 
 function pushLog(entry) {
@@ -313,6 +313,27 @@ ipcMain.handle("browse-poe-log", async () => {
     properties: ["openFile"], filters: [{ name: "Game log", extensions: ["txt"] }]
   });
   return result.canceled ? null : result.filePaths[0];
+});
+// Export to spreadsheet: one CSV file per table (all, or `table`) from Guilded.lua, into a
+// folder the player picks.
+ipcMain.handle("export-sheets", async (_event, table) => {
+  if (!config.watchFile) return { ok: false, message: "Choose your Guilded.lua file first (World of Warcraft page)." };
+  let files;
+  try { files = engineModules.sheetFiles(await fs.promises.readFile(config.watchFile, "utf8")).filter((file) => !table || file.table === table); }
+  catch (error) { return { ok: false, message: `Could not read ${path.basename(config.watchFile)}: ${error.message}` }; }
+  const result = await dialog.showOpenDialog(win, {
+    title: "Choose a folder for the spreadsheet files",
+    defaultPath: app.getPath("documents"),
+    properties: ["openDirectory", "createDirectory"]
+  });
+  if (result.canceled || !result.filePaths[0]) return { ok: false, canceled: true, message: "Export cancelled." };
+  const folder = result.filePaths[0];
+  try {
+    for (const file of files) await fs.promises.writeFile(path.join(folder, file.name), file.text, "utf8");
+  } catch (error) { return { ok: false, message: `Could not save the files: ${error.message}` }; }
+  pushLog({ time: new Date().toISOString(), level: "ok", message: `Exported ${files.length} spreadsheet files to ${folder}.` });
+  void shell.openPath(folder);
+  return { ok: true, message: `Saved ${files.map((file) => `${file.table} (${file.rows})`).join(", ")} to ${folder}.`, files: files.map(({ name, table, rows }) => ({ name, table, rows })) };
 });
 ipcMain.handle("upload-now", () => { engine.uploadNow(); return true; });
 ipcMain.handle("refresh-standings", async () => { await engine.refreshStandings(); return true; });

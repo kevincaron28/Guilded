@@ -297,11 +297,11 @@ Small commands sit under a parent, so typing `/` shows a short list. Members see
 | `/epgp` | your EPGP: `balance`, `history`, `leaderboard` |
 | `/dungeon` | the challenge: leaderboard, records, groups, alerts |
 | `/lead` | Raid Leaders: `create`, `edit`, `cancel`, `start`, `end`, `attendance`, `boss`, `note`, `award-ep`, `fill`, `season`, `history`, `wcl-report`, `readiness-member`, `readiness-raid` |
-| `/officer` | Officers: `epgp` (award-ep, award-gp, decay, reverse), `loot` (auction, award, close, priority), `dungeon` (the challenge's officer tools), `character` (unclaimed, link, autolink) |
+| `/officer` | Officers: `epgp` (award-ep, award-gp, decay, reverse), `loot` (auction, award, close, priority), `dungeon` (the challenge's officer tools), `character` (unclaimed, link, autolink), `export` (CSV files) |
 | `/organize` | Community organizers: seasons, quizzes, honors, and creating and running lotteries, gaming nights and challenges |
 | `/mod` | moderation, plus `application` (handle guild applications) |
 | `/import` | `upload` (preview an addon file), `apply` (apply it), `held` (entries waiting, and why) |
-| `/report` | `stats`, `inactive`, `guild` (health), `export`, `ping` (is the bot online) |
+| `/report` | `stats`, `inactive`, `guild` (health), `ping` (is the bot online), `bug` |
 | `/help` `/profile` `/loot` `/craft` `/bank` `/apply` `/poll` `/core` `/tag` | unchanged (`/loot` keeps `bid`, `history`, `reserves`) |
 
 ### Commands members don't see
@@ -426,7 +426,7 @@ Approve, and a raid can never be paid twice.
 | Command | What it does |
 | --- | --- |
 | `/report inactive [days]` | Members not seen in game for N days (default 30): a read-only report, nobody is changed |
-| `/report export <what>` | CSV file of the roster, raid attendance, loot history or the EPGP ledger (only you see it) |
+| `/officer export table:<standings\|ledger\|loot\|attendance\|roster>` | A CSV file of this server's data, only you see it: standings (EP, GP, PR per point pool), the EPGP ledger, loot history, raid attendance or the roster. UTF-8 with a byte-order mark, so Excel shows accents; opens in Google Sheets too. Was `/report export` before 7.0. The companion's *Export to spreadsheet* and `/guilded sheet` in game export the addon's own data |
 | `/report guild` | Class / race / level mix, retention at 30 / 60 / 90 days, and what needs attention |
 | `/poll create <question> <option1> <option2> [option3-5] [closes]` / `/poll close <poll>` | Poll answered with buttons; one vote each, changeable; the result bars update live |
 | `/officer loot award <item> <player> [gp] [boss] [raid] [offspec]` | Give an item straight to a player (loot council or manual); GP is charged only if you give a price; `offspec:true` charges the core's off-spec share of it (50% by default); lands in `/loot history` |

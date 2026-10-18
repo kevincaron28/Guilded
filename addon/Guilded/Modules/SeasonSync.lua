@@ -12,6 +12,10 @@
 -- "D;<index>;<startsAt>;<endsAt>" line per season (ISO UTC, empty when unknown). Clients
 -- before 6.3 refuse any unknown line inside BOARD, so the BOARD payload stays as it was and
 -- they simply ignore DATES.
+--
+-- Level brackets (all-level seasons, rules version 6) travel the same way in a BRACKETS
+-- message: "B;<index>;<key>;<min>;<max>;<bestCount>" per bracket and "K;<index>;<rank>;<key>"
+-- per ranked row. Older clients ignore it and show the rows without brackets.
 local addonName, ns = ...
 local PREFIX = "GuildedSeason"
 local COOLDOWN, REPLY_JITTER = 60, 4
@@ -46,7 +50,7 @@ local function share()
   local board = current()
   if not board or time() - lastShare < COOLDOWN then return end
   if heardStamp and board.updatedAt and heardStamp >= board.updatedAt and time() - heardAt < COOLDOWN then return end
-  local lines, dates, dated = {}, {}, false
+  local lines, dates, dated, brackets = {}, {}, false, {}
   local seasons = { board }
   for _, past in ipairs(board.history or {}) do seasons[#seasons + 1] = past end
   for index = 1, math.min(11, #seasons) do
@@ -55,9 +59,13 @@ local function share()
     local startsAt, endsAt = isoSecond(season.startsAt), isoSecond(season.endsAt)
     if startsAt or endsAt then dated = true end
     dates[#dates + 1] = "D;" .. index .. ";" .. (startsAt or "") .. ";" .. (endsAt or "")
+    for _, b in ipairs(type(season.brackets) == "table" and season.brackets or {}) do
+      brackets[#brackets + 1] = table.concat({ "B", index, b.key, b.min, b.max, b.bestCount }, ";")
+    end
     for rank = 1, math.min(index == 1 and 50 or 10, #(season.rows or {})) do
       local row = season.rows[rank]
       lines[#lines + 1] = "R;" .. encode(row.name) .. ";" .. math.floor(row.points or 0)
+      if season.brackets and row.bracket then brackets[#brackets + 1] = "K;" .. index .. ";" .. rank .. ";" .. row.bracket end
     end
   end
   local payload = table.concat(lines, "\n")
@@ -66,6 +74,8 @@ local function share()
   lastShare = time()
   sendParts("BOARD", board.updatedAt, payload)
   if dated then sendParts("DATES", board.updatedAt, table.concat(dates, "\n")) end
+  local bracketText = table.concat(brackets, "\n")
+  if #brackets > 0 and #bracketText <= 190 * 16 then sendParts("BRACKETS", board.updatedAt, bracketText) end
 end
 local function scheduleReply()
   if replyScheduled then return end
@@ -104,8 +114,51 @@ local function receiveDates(text, sender)
   for index, pair in pairs(found) do seasons[index].startsAt, seasons[index].endsAt = pair[1], pair[2] end
   if ns.onDungeonChange then pcall(ns.onDungeonChange) end
 end
+-- Brackets, like dates, only from the guildmate whose board we kept. All or nothing.
+local bracketsIncoming = nil
+local function receiveBrackets(text, sender)
+  local stamp, part, total, payload = string.match(text, "^BRACKETS|([^|]+)|(%d+)|(%d+)|(.*)$")
+  part, total = tonumber(part), tonumber(total)
+  if not stamp or #stamp > 40 or not part or not total or total < 1 or total > 16 or part < 1 or part > total or #payload > 190 then return end
+  local board = current()
+  if not board or board.updatedAt ~= stamp or board.from ~= sender then return end
+  if not bracketsIncoming or bracketsIncoming.stamp ~= stamp or bracketsIncoming.sender ~= sender or bracketsIncoming.total ~= total or time() - bracketsIncoming.started > 60 then
+    bracketsIncoming = { stamp = stamp, sender = sender, total = total, started = time(), parts = {}, received = 0 }
+  end
+  if not bracketsIncoming.parts[part] then bracketsIncoming.parts[part] = payload; bracketsIncoming.received = bracketsIncoming.received + 1 end
+  if bracketsIncoming.received ~= total then return end
+  local whole = table.concat(bracketsIncoming.parts)
+  bracketsIncoming = nil
+  local seasons = { board }
+  for _, past in ipairs(board.history or {}) do seasons[#seasons + 1] = past end
+  local lists, keys = {}, {}
+  for line in string.gmatch(whole .. "\n", "([^\n]*)\n") do
+    local index, key, low, high, best = string.match(line, "^B;(%d+);([a-z0-9][a-z0-9%-]*);(%d+);(%d+);(%d+)$")
+    index, low, high, best = tonumber(index), tonumber(low), tonumber(high), tonumber(best)
+    if index then
+      if not seasons[index] or #key > 20 or low < 1 or high > 100 or low > high or best < 1 or best > 20 then return end
+      lists[index] = lists[index] or {}
+      if #lists[index] >= 10 then return end
+      lists[index][#lists[index] + 1] = { key = key, min = low, max = high, bestCount = best }
+    else
+      local rowIndex, rank, rowKey = string.match(line, "^K;(%d+);(%d+);([a-z0-9][a-z0-9%-]*)$")
+      rowIndex, rank = tonumber(rowIndex), tonumber(rank)
+      if not rowIndex or not seasons[rowIndex] or not (seasons[rowIndex].rows or {})[rank] then return end
+      keys[#keys + 1] = { rowIndex, rank, rowKey }
+    end
+  end
+  for _, entry in ipairs(keys) do
+    local known = false
+    for _, b in ipairs(lists[entry[1]] or {}) do if b.key == entry[3] then known = true end end
+    if not known then return end
+  end
+  for index, list in pairs(lists) do seasons[index].brackets = list end
+  for _, entry in ipairs(keys) do seasons[entry[1]].rows[entry[2]].bracket = entry[3] end
+  if ns.onDungeonChange then pcall(ns.onDungeonChange) end
+end
 local function receive(text, sender)
   if string.sub(text, 1, 6) == "DATES|" then return receiveDates(text, sender) end
+  if string.sub(text, 1, 9) == "BRACKETS|" then return receiveBrackets(text, sender) end
   local stamp, part, total, payload = string.match(text, "^BOARD|([^|]+)|(%d+)|(%d+)|(.*)$")
   part, total = tonumber(part), tonumber(total)
   if not stamp or #stamp > 40 or not part or not total or total < 1 or total > 96 or part < 1 or part > total or #payload > 190 then return end

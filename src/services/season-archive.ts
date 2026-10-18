@@ -28,7 +28,10 @@ export async function seasonArchive(database: PrismaClient, guildId: string, pag
     const final = hasDungeonRating(season.ratingRules) ? frozenRating(season.finalRating) : finalRows(season.finalStandings);
     // Older seasons have existing awarded champions, never invent a published result.
     const awards = final === null ? await database.dungeonAchievement.findMany({ where: { guildId, seasonId: season.id, key: `seasonChampion:${season.id}` }, include: { member: { select: { displayName: true } } } }) : [];
-    const winners = final ? final.filter(row => row.points > 0 && row.points === final[0]?.points).map(row => `${row.name} (${row.points})`) : awards.map(row => row.member.displayName);
+    // An all-level season has one champion line per bracket, in the order first seen.
+    const groups = final ? [...new Set(final.map(row => (row as { bracket?: string }).bracket))].map(bracket => final.filter(row => (row as { bracket?: string }).bracket === bracket)) : [];
+    const winners = final ? groups.flatMap(rows => rows.filter(row => row.points > 0 && row.points === rows[0]?.points)
+      .map(row => `${row.name} (${row.points})${(row as { bracket?: string }).bracket ? ` · ${(row as { bracket?: string }).bracket}` : ""}`)) : awards.map(row => row.member.displayName);
     entries.push(`**${season.name}**\n${(winners.join(", ") || "No awarded champion / Aucun champion").slice(0, 280)}${final === null ? " · legacy awards / anciens prix" : ""}`);
   }
   return { current, pages, text: entries.join("\n\n") || "No seasons yet / Aucune saison." };

@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 6.6.0 Release — 18 October 2026
+
+- Guilded Lite: servers that add the hosted bot get setup, help, FAQ, bug reports, dungeon groups
+  and basic raid signups right away; approval unlocks everything without a reinvite
+  (`HOSTED_LITE_LIMIT`, default 50). Unused Lite servers are warned, then left.
+- Dungeon rules version 6 (prepared, not active): level brackets 15-29 / 30-44 / 45-59 / 60, an
+  over-level penalty, a `bracket` option on `/dungeon leaderboard` and `/dungeon season`, and
+  brackets in the addon's score panel and tooltips.
+- Addon: `/guilded sheet standings|loot|attendance|raids|dungeons` and a Copy for Excel button
+  copy tables to paste into Excel or Google Sheets.
+- Ko-fi support link in `/help`, the companion and the addon's Settings page; roadmap updated
+  ([notes](docs/V6_6_0_RELEASE_NOTES.md)).
+
 ## 6.5.2 Release — 18 October 2026
 
 - Update prompts: the Windows companion shows a **Download update** banner, a tray note and

@@ -3,12 +3,13 @@ import type { Lang } from "../i18n.js";
 import type { DungeonConfig } from "./dungeon-rules.js";
 import { hasDungeonRating, seasonDungeonCatalog } from "./dungeon-rating.js";
 import { BETA_DUNGEONS } from "./dungeon-beta-preset.js";
-import { validNovemberRules } from "./dungeon-november-rules.js";
+import { validBracketedRules, validNovemberRules, type BracketedRules } from "./dungeon-november-rules.js";
 
 // Values come from guild configuration; this explains current imports, not archived rules.
 export function dungeonScoringGuide(config: DungeonConfig, lang: Lang, rules?: unknown): EmbedBuilder {
   const fr = lang === "fr";
   if (validNovemberRules(rules)) return novemberGuide(fr);
+  if (validBracketedRules(rules)) return bracketGuide(rules, fr);
   if (hasDungeonRating(rules) && (rules as { version: number }).version === 4) return bestEightGuide(rules, fr);
   const repeats = config.weeklyRepeat.map(value => `${Math.round(value * 100)}%`).join(" → ");
   return new EmbedBuilder().setColor(0x8b5cf6)
@@ -53,6 +54,30 @@ function novemberGuide(fr: boolean): EmbedBuilder {
       { name: fr ? "Limites et chronométrage" : "Limits and timing", value: fr
         ? "Alts et difficultés partagent le compteur; les ailes vérifiées sont distinctes. Remise à zéro mardi 15 h UTC. Une attribution par compte/run; simulations et fins manuelles : 0. Premier combat observé → boss final; aucun contrôle du trash, du départ manuel ou de la puissance du groupe. Début dans la saison et fin avant la limite exclusive. Cibles et preuves figées; aucune réécriture des anciennes saisons."
         : "Alts and difficulties share the counter; verified wings are separate. Resets Tuesday 15:00 UTC. One award per account/run; simulations and manual completions: 0. First observed combat → final boss; no trash, manual-start or group-power normalization. Start within the season and finish before its exclusive cutoff. Targets and evidence are frozen; older seasons are not rewritten." }
+    );
+}
+
+function bracketGuide(rules: BracketedRules, fr: boolean): EmbedBuilder {
+  const brackets = rules.brackets.map(b => {
+    const routes = rules.catalog.filter(d => d.bracket === b.key);
+    const levels = b.min === b.max ? `${b.min}` : `${b.min}–${b.max}`;
+    return `**${fr ? "Niveaux" : "Levels"} ${levels}** · ${fr ? `${b.bestCount} meilleurs sur ${routes.length} parcours` : `best ${b.bestCount} of ${routes.length} routes`}`;
+  }).join("\n");
+  return new EmbedBuilder().setColor(0x8b5cf6)
+    .setTitle(fr ? "Tous niveaux · comment les points fonctionnent" : "All levels · how points work")
+    .setDescription(fr ? "Cote par personnage et par tranche de niveaux; participation par compte. Un résultat d’équipe ne mesure pas à lui seul le talent individuel."
+      : "Rating belongs to each character in each level bracket; participation belongs to the account. A team result alone does not measure individual skill.")
+    .addFields(
+      { name: fr ? "Tranches" : "Brackets", value: brackets.slice(0, 1024) },
+      { name: fr ? "Cote · meilleurs parcours par tranche" : "Rating · best routes per bracket", value: fr
+        ? "Arrondi(200 × cible ÷ durée), limité à 50–400. Chaque parcours classé appartient à une tranche. Votre personnage est classé dans la tranche de son niveau pendant le run; seuls ses meilleurs parcours distincts de cette tranche comptent. En montant de niveau, vos anciens scores restent dans leur tranche. Répéter n’accumule pas de cote; chaque alt a sa propre cote."
+        : "Round(200 × target ÷ duration), clamped to 50–400. Each rated route belongs to one bracket. Your character ranks in the bracket of their level during the run; only their best distinct routes in that bracket count. Scores stay in their bracket as you level up. Repeats do not accumulate rating; each alt has its own rating." },
+      { name: fr ? "Admissibilité et preuves" : "Eligibility and evidence", value: fr
+        ? `Tous les participants observés, invités et remplaçants inclus, comptent. Au-dessus de la plage du parcours : −${rules.overlevelPenalty.percentPerLevel} % par niveau du plus haut participant, jusqu’à ${rules.overlevelPenalty.maxLevels} niveaux; au-delà, c’est un transport et le run vaut 0. Sous la plage : 0. Personnage lié, présence ≥ 80 %, difficulté configurée, import valide, boss final détecté et tous les boss requis par le parcours figé.`
+        : `ALL observed participants count, including guests and replacements. Above the route's band: −${rules.overlevelPenalty.percentPerLevel}% per level of the highest participant, up to ${rules.overlevelPenalty.maxLevels} levels; beyond that it is a carry and the run scores 0. Below the band: 0. Linked character, ≥80% presence, configured difficulty, valid import, detected final boss and every encounter required by the frozen route.` },
+      { name: fr ? "Participation et historique" : "Participation and history", value: fr
+        ? "La participation suit les mêmes règles hebdomadaires que la saison niveau 60. Cibles, tranches et preuves sont figées pour la saison; les archives gardent chaque tranche séparément."
+        : "Participation follows the same weekly rules as the level-60 season. Targets, brackets and evidence are frozen for the season; archives keep each bracket separately." }
     );
 }
 

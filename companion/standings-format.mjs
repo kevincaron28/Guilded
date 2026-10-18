@@ -55,15 +55,22 @@ function seasonDates(board) {
   return `startsAt = ${iso(board.startsAt)}, endsAt = ${iso(board.endsAt)}, `;
 }
 
+// All-level seasons (rules version 6): the brackets, and each row's bracket key.
+const bracketField = row => typeof row.bracket === "string" ? `bracket = ${luaString(row.bracket)}, ` : "";
+function bracketList(board) {
+  if (!Array.isArray(board.brackets) || !board.brackets.length) return "";
+  return `brackets = { ${board.brackets.map(b => `{ key = ${luaString(b.key)}, min = ${Math.trunc(b.min)}, max = ${Math.trunc(b.max)}, bestCount = ${Math.trunc(b.bestCount)} }`).join(", ")} }, `;
+}
+
 // Serialize only known fields; all names go through the existing Lua string escaper.
 function seasonFields(board) {
   if (board.detailsAvailable === undefined) return "";
   const details = (board.profiles ?? []).map(profile => {
-    const runs = (profile.details ?? []).map(d => `{ dungeonKey = ${luaString(d.dungeonKey ?? String(d.instanceId))}, instanceId = ${Math.trunc(d.instanceId)}, name = ${luaString(d.name)}, points = ${Math.trunc(d.points)}, counted = ${typeof d.counted === "boolean" ? String(d.counted) : "nil"}, speedBonus = ${Math.trunc(d.speedBonus)}, durationSec = ${Math.trunc(d.durationSec)}, targetSec = ${d.targetSec == null ? "nil" : Math.trunc(d.targetSec)}, runRef = ${luaString(d.runRef)}, unrankedReason = ${d.unrankedReason ? luaString(d.unrankedReason) : "nil"}, bosses = { ${(d.bosses ?? []).map(b => `{ id = ${Math.trunc(b.id)}, name = ${luaString(b.name)}, durationSec = ${Math.trunc(b.durationSec)}, runRef = ${luaString(b.runRef)} }`).join(", ")} } }`);
-    return `{ name = ${luaString(profile.name)}, points = ${Math.trunc(profile.points)}, characters = { ${(profile.characters ?? []).map(luaString).join(", ")} }, details = { ${runs.join(", ")} } }`;
+    const runs = (profile.details ?? []).map(d => `{ dungeonKey = ${luaString(d.dungeonKey ?? String(d.instanceId))}, instanceId = ${Math.trunc(d.instanceId)}, name = ${luaString(d.name)}, points = ${Math.trunc(d.points)}, counted = ${typeof d.counted === "boolean" ? String(d.counted) : "nil"}, speedBonus = ${Math.trunc(d.speedBonus)}, durationSec = ${Math.trunc(d.durationSec)}, targetSec = ${d.targetSec == null ? "nil" : Math.trunc(d.targetSec)}, runRef = ${luaString(d.runRef)}, unrankedReason = ${d.unrankedReason ? luaString(d.unrankedReason) : "nil"}, ${Number.isInteger(d.penaltyPercent) ? `penaltyPercent = ${d.penaltyPercent}, ` : ""}bosses = { ${(d.bosses ?? []).map(b => `{ id = ${Math.trunc(b.id)}, name = ${luaString(b.name)}, durationSec = ${Math.trunc(b.durationSec)}, runRef = ${luaString(b.runRef)} }`).join(", ")} } }`);
+    return `{ name = ${luaString(profile.name)}, points = ${Math.trunc(profile.points)}, ${bracketField(profile)}characters = { ${(profile.characters ?? []).map(luaString).join(", ")} }, details = { ${runs.join(", ")} } }`;
   });
-  const catalog = (board.catalog ?? []).map(d => `{ dungeonKey = ${luaString(d.dungeonKey ?? String(d.instanceId))}, instanceId = ${Math.trunc(d.instanceId)}, name = ${luaString(d.name)}, targetSec = ${d.targetSec == null ? "nil" : Math.trunc(d.targetSec)}, minLevel = ${d.minLevel ?? "nil"}, maxLevel = ${d.maxLevel ?? "nil"}, provisional = ${d.provisional === true ? "true" : "false"} }`);
-  return `provisionalTargets = ${board.provisionalTargets === true ? "true" : "false"}, id = ${luaString(board.id ?? "")}, ratingVersion = ${Math.trunc(board.ratingVersion ?? 0)}, detailsAvailable = ${board.detailsAvailable === true ? "true" : "false"}, profiles = { ${details.join(", ")} }, catalog = { ${catalog.join(", ")} }, `;
+  const catalog = (board.catalog ?? []).map(d => `{ dungeonKey = ${luaString(d.dungeonKey ?? String(d.instanceId))}, instanceId = ${Math.trunc(d.instanceId)}, name = ${luaString(d.name)}, targetSec = ${d.targetSec == null ? "nil" : Math.trunc(d.targetSec)}, minLevel = ${d.minLevel ?? "nil"}, maxLevel = ${d.maxLevel ?? "nil"}, provisional = ${d.provisional === true ? "true" : "false"}${typeof d.bracket === "string" ? `, bracket = ${luaString(d.bracket)}` : ""} }`);
+  return `provisionalTargets = ${board.provisionalTargets === true ? "true" : "false"}, id = ${luaString(board.id ?? "")}, ratingVersion = ${Math.trunc(board.ratingVersion ?? 0)}, detailsAvailable = ${board.detailsAvailable === true ? "true" : "false"}, ${bracketList(board)}profiles = { ${details.join(", ")} }, catalog = { ${catalog.join(", ")} }, `;
 }
 
 export function standingsToLua(data) {
@@ -93,9 +100,9 @@ export function standingsToLua(data) {
     "-- Dungeon points this season (top 10), for the addon's Dungeons tab.",
     ...(data.dungeonBoard ? [
       `GuildedDungeonBoard = { season = ${luaString(data.dungeonBoard.season)}, status = ${luaString(data.dungeonBoard.status ?? "ACTIVE")}, updatedAt = ${luaString(data.updatedAt)}, ${seasonDates(data.dungeonBoard)}${seasonFields(data.dungeonBoard)}rows = {`,
-      ...data.dungeonBoard.rows.map((row) => `  { name = ${luaString(row.name)}, points = ${Math.trunc(row.points)} },`),
+      ...data.dungeonBoard.rows.map((row) => `  { name = ${luaString(row.name)}, ${bracketField(row)}points = ${Math.trunc(row.points)} },`),
       "}, history = {",
-      ...(data.dungeonBoard.history ?? []).map(board => ` { season = ${luaString(board.season)}, status = ${luaString(board.status)}, ${seasonDates(board)}${seasonFields(board)}rows = { ${board.rows.map(row => `{ name = ${luaString(row.name)}, points = ${Math.trunc(row.points)} }`).join(", ")} } },`),
+      ...(data.dungeonBoard.history ?? []).map(board => ` { season = ${luaString(board.season)}, status = ${luaString(board.status)}, ${seasonDates(board)}${seasonFields(board)}rows = { ${board.rows.map(row => `{ name = ${luaString(row.name)}, ${bracketField(row)}points = ${Math.trunc(row.points)} }`).join(", ")} } },`),
       "} }"
     ] : ["GuildedDungeonBoard = nil"]),
     "",

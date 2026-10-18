@@ -1,5 +1,8 @@
 import { competitionReason, ratingDungeonKey, type LevelBand } from "./dungeon-rating.js";
-import { resolveNovemberRoute, type NovemberRules } from "./dungeon-november-rules.js";
+import { resolveNovemberRoute, type NovemberRoute } from "./dungeon-november-rules.js";
+
+// Version 5 and 6 rules both freeze routes; only the routes matter here.
+type RouteRules = { routes: NovemberRoute[] };
 
 export interface ParticipationRun {
   instanceId: number;
@@ -12,12 +15,12 @@ export interface ParticipationRun {
   players: { character: string; memberId: string | null; presentSec: number }[];
 }
 
-export function participationDungeonKey(run: ParticipationRun, rules?: NovemberRules): string {
+export function participationDungeonKey(run: ParticipationRun, rules?: RouteRules): string {
   if (rules) return resolveNovemberRoute(run, rules).key;
   return ratingDungeonKey({ ...run, players: run.players.map(p => ({ ...p, member: null })) });
 }
 
-export function participationRecordEligible(run: ParticipationRun, band: LevelBand | undefined, rules?: NovemberRules): boolean {
+export function participationRecordEligible(run: ParticipationRun, band: LevelBand | undefined, rules?: RouteRules): boolean {
   if (rules && resolveNovemberRoute(run, rules).reason) return false;
   return run.completedBy === "final boss" && !!run.durationSec && run.durationSec > 0
     && run.players.some(p => p.memberId && p.presentSec >= run.durationSec! * 0.5)
@@ -26,7 +29,7 @@ export function participationRecordEligible(run: ParticipationRun, band: LevelBa
 }
 
 // Presence is observed for the whole run; a participant history is not a party-size check.
-export function participationMode(run: ParticipationRun, character: string, band: LevelBand | undefined, rules?: NovemberRules): "none" | "completion" | "helper" | "full" {
+export function participationMode(run: ParticipationRun, character: string, band: LevelBand | undefined, rules?: RouteRules): "none" | "completion" | "helper" | "full" {
   if (rules && (run.completedBy !== "final boss" || resolveNovemberRoute(run, rules).reason)) return "none";
   const player = run.players.find(p => p.character === character);
   if (!player || !run.durationSec || run.durationSec <= 0 || !Number.isFinite(player.presentSec) || player.presentSec < run.durationSec * 0.5) return "none";

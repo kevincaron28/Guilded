@@ -2,10 +2,17 @@
 
 ## Unreleased
 
+## 6.5.0 Release — 17 October 2026
+
+- Raid-night tools: templates, notes, attendance from the core roster, undo, raid discard and
+  `/guilded raids`; members see their EP/GP and loot history without Discord
+  ([notes](docs/V6_5_0_RELEASE_NOTES.md)).
 - Core setup/edit now offers raid size and tank/healer/DPS targets, weekday selection,
   a launch date and a 1–90 day planning window with preview before saving. Future
   launch raids can be prepared immediately; new raids inherit core signup limits.
   Existing raids remain unchanged. See `docs/CORE_PLANNING.md`.
+- Bot: replies use the current ephemeral flag (no deprecation warnings).
+- `/setup start` shows a "Working on it" line while it creates channels and roles.
 
 ## 6.4.0 Release — 17 October 2026
 

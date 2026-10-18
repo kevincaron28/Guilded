@@ -248,6 +248,7 @@ export const FR_TEXT: Record<string, string> = {
   "Only server admins or Officers / Guild Masters can run setup. (The server owner always can.)": "Seuls les administrateurs du serveur ou les Officiers / Maîtres de guilde peuvent lancer la configuration. (Le propriétaire du serveur le peut toujours.)",
   "Setup closed. Run `/setup start` any time to come back, or `/setup start status:true` for the checklist.": "Configuration fermée. Relancez `/setup start` en tout temps pour revenir, ou `/setup start status:true` pour la liste de vérification.",
   "Setup timed out after 15 minutes — your choices are saved. Run `/setup start` to continue.": "La configuration a expiré après 15 minutes — vos choix sont enregistrés. Relancez `/setup start` pour continuer.",
+  "Working on it: creating everything can take up to 30 seconds...": "Je m'en occupe : tout créer peut prendre jusqu'à 30 secondes...",
   "That didn't work: {error}": "Ça n'a pas fonctionné : {error}",
   "I need the Manage Roles / Manage Channels permissions (or Administrator).": "Il me faut les permissions Gérer les rôles / Gérer les salons (ou Administrateur).",
 

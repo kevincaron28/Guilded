@@ -835,6 +835,11 @@ export async function executeSetup(interaction: ChatInputCommandInteraction): Pr
       const T = (english: string, vars: Record<string, string | number> = {}) => tx(lang, english, vars);
       // The community section comes with the channels by default; a failure there never hides
       // the channels that were created.
+      // Creating channels, roles and the community takes Discord several seconds per item: say so
+      // before starting, or the screen looks stuck.
+      if (/^create-|^organize$|^lfg-roles$/.test(action)) {
+        await interaction.editReply(await renderStep(step, guild, guildId, `⏳ ${T("Working on it: creating everything can take up to 30 seconds...")}`)).catch(() => undefined);
+      }
       const withCommunity = async (channels: string) => `${channels}
 ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
         .catch((error: unknown) => `⚠️ ${T("Community setup didn't finish: {error}", { error: error instanceof Error ? error.message : String(error) })}`)}`;

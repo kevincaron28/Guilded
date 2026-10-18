@@ -25,7 +25,7 @@ KCaron is accepting a small number of guilds into the free hosted pilot.
 **Your Discord server needs KCaron's approval first.** Inviting the bot sends
 a request; it does not activate access. After approval, run `/setup start`, then
 open the [online companion](https://guilded.kcaron.top/companion/)
-with your own Discord server ID and personal `/character pair` code.
+with your personal `/character pair` code (since 6.5.1 the code alone finds your server).
 You do not need to host a bot or database for this path.
 See the [hosted pilot guide](HOSTED_PILOT.md). Independent hosting is also available.
 Any [financial support](SUPPORT_GUILDED.md) is optional and never buys approval.
@@ -34,7 +34,7 @@ Any [financial support](SUPPORT_GUILDED.md) is optional and never buys approval.
 
 Ask your officer for the addon download. Start with the addon; the online
 companion and Windows app are optional. If you want companion sync later, ask
-for your guild's online link and Discord server ID. Use the matching release
+for your guild's online link. Use the matching release
 your officer specifies. Public releases belong on
 [GitHub Releases](https://github.com/kevincaron28/Guilded/releases) and
 [CurseForge](https://www.curseforge.com/wow/addons/guilded); only use a version
@@ -79,10 +79,10 @@ Open the **online companion link supplied by your guild** (ending in `/companion
 In Discord, press **Link my WoW character / Lier mon personnage WoW** in the welcome
 panel, or run `/character pair`. The private reply shows your linked main and alts,
 and addon-only instructions. Choose **Connect optional companion / Connecter le
-compagnon (facultatif)** for your Discord server ID, a private connection code
+compagnon (facultatif)** for a private connection code
 and an **Open online companion** button. `/character pair` opens that optional
 connection directly.
-That link fills the server ID on a first visit; check it before pressing **Connect**.
+Paste the code and press **Connect**: the code identifies your server.
 Connect with the code, then save preferences. Sync your intended main first if
 no character is linked yet; subsequent characters become alts. Use the labels **Connection & setup**,
 **Connect** and **Save preferences** on the webpage; the Windows app is optional.
@@ -136,9 +136,9 @@ and PoE2 log tracking, especially useful for leaders and officers.
    officer, ending in `/api/v1/addon-imports`, **before pairing**. Older 5.0 builds
    put **Bot address** under **Finish your setup → Advanced preferences**. A
    prefilled Quebec Gold address is correct only if your officer gave you it.
-3. Paste your **Discord server ID**. In that same Discord server, run
-   `/character pair` from your own account. Paste the private code and press
-   **Connect**. It expires after 15 minutes and can be used once.
+3. In your Discord server, run `/character pair` from your own account. Paste
+   the private code and press **Connect** (the server ID under Advanced
+   preferences fills itself in; older 6.5.0 companions still ask for it). It expires after 15 minutes and can be used once.
 4. Enable **World of Warcraft**. Press **Find it**, then verify the selected
    `Guilded.lua` belongs to your current client and account. If several accounts
    are found, use **Browse** to select the right one:

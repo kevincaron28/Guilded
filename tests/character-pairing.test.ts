@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   exchangeCharacterPairingCode,
+  findPairingServer,
   hashCompanionSecret,
   issueCharacterPairingCode,
   linkPairedCharacter,
@@ -54,6 +55,24 @@ describe("character pairing", () => {
       data: { memberId: "member", tokenHash: hashCompanionSecret(result.companionCredential) }
     });
     expect(JSON.stringify(tx.companionCredential.create.mock.calls)).not.toContain(result.companionCredential);
+  });
+
+  it("finds the server from the code alone", async () => {
+    const now = new Date("2026-10-18T12:00:00Z");
+    const findMany = vi.fn(async () => [{ guild: { discordId: "server-1" } }]);
+    await expect(findPairingServer({ characterPairing: { findMany } } as never, " a1b2c3d4e5f6 ", now)).resolves.toBe("server-1");
+    expect(findMany).toHaveBeenCalledWith({
+      where: { codeHash: hashCompanionSecret("A1B2C3D4E5F6"), expiresAt: { gt: now }, consumedAt: null },
+      select: { guild: { select: { discordId: true } } },
+      take: 2
+    });
+  });
+
+  it("asks for the server when a code is unknown or matches two servers", async () => {
+    const none = { characterPairing: { findMany: vi.fn(async () => []) } };
+    const two = { characterPairing: { findMany: vi.fn(async () => [{ guild: { discordId: "a" } }, { guild: { discordId: "b" } }]) } };
+    await expect(findPairingServer(none as never, "NOPE")).resolves.toBeNull();
+    await expect(findPairingServer(two as never, "A1B2C3D4E5F6")).resolves.toBe("ambiguous");
   });
 
   it("rejects a code that is expired, used, or does not match the guild", async () => {

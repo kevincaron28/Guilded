@@ -3,6 +3,10 @@ import { standingsToLua } from "./standings-format.mjs";
 import { createBrowserFolderAccess } from "./browser-folders.mjs";
 import { acknowledgements, pruneAcknowledged } from "./delta.mjs";
 
+/* global __GUILDED_VERSION__ */
+// Filled in by scripts/build-companion-web.mjs from package.json.
+const VERSION = typeof __GUILDED_VERSION__ === "string" ? __GUILDED_VERSION__ : "dev";
+
 export function createBrowserCompanion(env = globalThis) {
   const { location, sessionStorage, document, URL, Blob } = env;
   const folders = createBrowserFolderAccess(env);
@@ -120,7 +124,7 @@ export function createBrowserCompanion(env = globalThis) {
   const api = {
     browser: true,
     folderAccess: folders.available,
-    getAll: async () => { await folders.ready; if (folders.hasInput()) state.watching = "SavedVariables / Guilded.lua"; return { config, logs, ...snapshot(), autostart: false, version: "6.1.0" }; },
+    getAll: async () => { await folders.ready; if (folders.hasInput()) state.watching = "SavedVariables / Guilded.lua"; return { config, logs, ...snapshot(), autostart: false, version: VERSION }; },
     saveConfig: async next => {
       if (busy) return { ok: false, message: "Wait for the current sync to finish before changing settings." };
       if (visits.length && ["poeCharacter", "poeLeague", "poeMode", "guildDiscordId"].some(field => next[field] !== config[field])) return { ok: false, message: "Sync your queued visits before changing character, league, mode or server." };
@@ -134,10 +138,11 @@ export function createBrowserCompanion(env = globalThis) {
       if (busy || visits.length) return { ok: false, message: "Finish syncing your queued visits before replacing this Discord link." };
       busy = true;
       try {
-        const result = await request("/api/v1/addon-pairings", { guildDiscordId: next.guildDiscordId, code: next.pairingCode });
+        const server = next.guildDiscordId?.trim();
+        const result = await request("/api/v1/addon-pairings", { ...(server ? { guildDiscordId: server } : {}), code: (next.pairingCode || "").trim() });
         if (typeof result.companionCredential !== "string" || result.companionCredential.length < 32) throw new Error("The bot did not return a valid Discord link. Please try a fresh pairing code.");
         botFeatures = new Set(); ack = null;
-        config = { ...config, ...next, pairingCode: "", companionCredential: result.companionCredential, uploadUrl: `${location.origin}/api/v1/addon-imports` }; state.running = true; state.uploadError = null; persist(); emit();
+        config = { ...config, ...next, guildDiscordId: typeof result.guildDiscordId === "string" ? result.guildDiscordId : server || config.guildDiscordId, pairingCode: "", companionCredential: result.companionCredential, uploadUrl: `${location.origin}/api/v1/addon-imports` }; state.running = true; state.uploadError = null; persist(); emit();
         return { ok: true, message: "Discord connected. Choose your game files to start syncing." };
       } catch (error) { return { ok: false, message: error.message }; }
       finally { busy = false; }
@@ -148,11 +153,12 @@ export function createBrowserCompanion(env = globalThis) {
         if (health.ok !== true) throw new Error("The server is reachable, but the Discord bot is not ready. Ask your guild owner to check the service.");
         if (!config.companionCredential) {
           emit();
-          return { ok: true, message: "Server is online. Enter your Discord server ID and personal pairing code, then Connect. Your account is not linked yet." };
+          return { ok: true, message: "Server is online. Enter the code from /character pair, then Connect. Your account is not linked yet." };
         }
-        if (!next.guildDiscordId?.trim()) return { ok: false, message: "Server is online. Enter your Discord server ID before checking your account connection." };
+        const server = next.guildDiscordId?.trim() || config.guildDiscordId;
+        if (!server) return { ok: false, message: "Server is online. Enter your Discord server ID (Advanced preferences) before checking your account connection." };
         const path = next.wowEnabled === false ? "/api/v1/poe/status" : "/api/v1/standings";
-        const data = await request(`${path}?guild=${encodeURIComponent(next.guildDiscordId)}`);
+        const data = await request(`${path}?guild=${encodeURIComponent(server)}`);
         emit();
         return { ok: true, message: next.wowEnabled === false
           ? `Account connected. PoE2 sharing is ${data.enabled ? "enabled" : "off; ask an officer to enable /poe setup"}.`

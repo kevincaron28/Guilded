@@ -16,7 +16,7 @@ import { upcomingRaidsForAddon } from "./services/calendar-sync.js";
 import { discordCalendarEvents, mergeCalendarEvents } from "./services/discord-calendar.js";
 import { createAuditService } from "./services/audit.js";
 import { followUpImport } from "./services/import-followup.js";
-import { exchangeCharacterPairingCode, hashCompanionSecret, linkPairedCharacter } from "./services/character-pairing.js";
+import { exchangeCharacterPairingCode, findPairingServer, hashCompanionSecret, linkPairedCharacter } from "./services/character-pairing.js";
 import { serveCompanionWeb } from "./services/companion-web.js";
 import { createGuildPageServer, loadGuildPageView } from "./services/guild-page.js";
 import type { Client } from "discord.js";
@@ -245,28 +245,36 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       }
       if (isPairing) {
         const payload = await readBody(request);
-        if (!payload || typeof payload !== "object" || !("guildDiscordId" in payload) || !("code" in payload)) {
-          json(response, 400, { error: "guildDiscordId and code are required" });
+        if (!payload || typeof payload !== "object" || !("code" in payload)) {
+          json(response, 400, { error: "code is required" });
           return;
         }
-        const pairingPayload = payload as { guildDiscordId: unknown; code: unknown };
-        if (typeof pairingPayload.guildDiscordId !== "string" || typeof pairingPayload.code !== "string") {
+        // The server ID is optional since 6.5.1: the code identifies the server on its own.
+        const pairingPayload = payload as { guildDiscordId?: unknown; code: unknown };
+        if ((pairingPayload.guildDiscordId !== undefined && typeof pairingPayload.guildDiscordId !== "string") || typeof pairingPayload.code !== "string") {
           json(response, 400, { error: "guildDiscordId and code must be strings" });
           return;
         }
-        if (!hostedPilot.allows(pairingPayload.guildDiscordId)) { json(response, 403, { error: "Server not approved for hosted pilot" }); return; }
-        const guild = await prisma.guild.findUnique({ where: { discordId: pairingPayload.guildDiscordId }, select: { id: true } });
+        let serverId: string = typeof pairingPayload.guildDiscordId === "string" ? pairingPayload.guildDiscordId.trim() : "";
+        if (!serverId) {
+          const found = await findPairingServer(prisma, pairingPayload.code);
+          if (found === "ambiguous") { json(response, 409, { error: "This code matches more than one server. Enter your Discord server ID too." }); return; }
+          if (!found) { recordFailure(address); json(response, 401, { error: "Pairing code is invalid, expired, or already used. Run /character pair again." }); return; }
+          serverId = found;
+        }
+        if (!hostedPilot.allows(serverId)) { json(response, 403, { error: "Server not approved for hosted pilot" }); return; }
+        const guild = await prisma.guild.findUnique({ where: { discordId: serverId }, select: { id: true } });
         if (!guild) {
           json(response, 404, { error: "Guild is not initialized" });
           return;
         }
         let result;
-        try { result = await exchangeCharacterPairingCode(prisma, pairingPayload.guildDiscordId, pairingPayload.code); }
+        try { result = await exchangeCharacterPairingCode(prisma, serverId, pairingPayload.code); }
         catch (error) {
           if (!(error instanceof Error) || !error.message.startsWith("Pairing code is invalid")) throw error;
           recordFailure(address); json(response, 401, { error: "Pairing code is invalid, expired, or already used. Run /character pair again." }); return;
         }
-        json(response, 200, result);
+        json(response, 200, { ...result, guildDiscordId: serverId });
         return;
       }
       const payload = isImport || isPoeUpload || isLogout || isManageEdit ? await readBody(request) : null;

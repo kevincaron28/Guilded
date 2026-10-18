@@ -254,7 +254,7 @@ ipcMain.handle("test-connection", (_event, next) => engineModules.testConnection
 ipcMain.handle("pair-account", async (_event, next) => {
   const result = await engineModules.pairAccount({ ...config, ...next });
   if (!result.ok) return result;
-  config = { ...config, ...next, pairingCode: "", companionCredential: result.companionCredential };
+  config = { ...config, ...next, pairingCode: "", companionCredential: result.companionCredential, guildDiscordId: result.guildDiscordId || next.guildDiscordId || config.guildDiscordId };
   saveConfig();
   const started = await engine.configure(config);
   return {

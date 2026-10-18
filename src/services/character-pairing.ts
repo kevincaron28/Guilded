@@ -90,6 +90,19 @@ export async function issueCharacterPairingCode(database: PrismaClient, guildId:
   return { code, expiresAt };
 }
 
+// Lets a member connect with the code alone: the server comes from the code. Codes are 48 random
+// bits and live 15 minutes, so two servers sharing one is unlikely; then the companion asks for the ID.
+export async function findPairingServer(database: PrismaClient, submittedCode: string, now = new Date()): Promise<string | "ambiguous" | null> {
+  const rows = await database.characterPairing.findMany({
+    where: { codeHash: hashCompanionSecret(submittedCode.trim().toUpperCase()), expiresAt: { gt: now }, consumedAt: null },
+    select: { guild: { select: { discordId: true } } },
+    take: 2
+  });
+  const servers = new Set(rows.map((row) => row.guild.discordId));
+  if (servers.size > 1) return "ambiguous";
+  return rows[0]?.guild.discordId ?? null;
+}
+
 export async function exchangeCharacterPairingCode(database: PrismaClient, guildDiscordId: string, submittedCode: string, now = new Date()) {
   const codeHash = hashCompanionSecret(submittedCode.trim().toUpperCase());
   const credential = randomBytes(32).toString("base64url");

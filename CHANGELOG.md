@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 6.5.1 Release — 17 October 2026
+
 - Companions (online and Windows): connecting needs only the `/character pair` code; the bot
   finds the server from it and the server ID moved to Advanced preferences. The online
   companion shows its real version (it always said 6.1.0) and hides Disconnect until linked.

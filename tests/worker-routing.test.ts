@@ -40,6 +40,39 @@ describe("unified website and companion", () => {
     }
   });
 
+  it("serves Google's exact verification URL on both hosts without a clean-URL redirect", async () => {
+    const upstream = vi.fn(); vi.stubGlobal("fetch", upstream);
+    for (const hostname of ["kcaron.top", "guilded.kcaron.top"]) {
+      for (const method of ["GET", "HEAD"]) {
+        const asset = vi.fn(async (request: Request) => {
+          if (new URL(request.url).pathname.endsWith(".html")) {
+            return new Response(null, { status: 307, headers: { location: "/googlefc463a9e1454c920" } });
+          }
+          return new Response(request.method === "HEAD" ? null : "google-site-verification: googlefc463a9e1454c920.html");
+        });
+        const response = await worker.fetch(new Request(`https://${hostname}/googlefc463a9e1454c920.html`, {
+          method, headers: { authorization: "Bearer private", cookie: "private=1" }
+        }), { ASSETS: { fetch: asset } });
+        expect(response.status).toBe(200);
+        expect(response.headers.get("location")).toBeNull();
+        expect(await response.text()).toBe(method === "HEAD" ? "" : "google-site-verification: googlefc463a9e1454c920.html");
+        expect(asset.mock.calls[0]![0].headers.get("authorization")).toBeNull();
+        expect(asset.mock.calls[0]![0].headers.get("cookie")).toBeNull();
+      }
+    }
+    expect(upstream).not.toHaveBeenCalled();
+  });
+
+  it("rejects writes to Google verification files before accessing assets", async () => {
+    const asset = vi.fn();
+    for (const method of ["POST", "PUT", "DELETE"]) {
+      expect((await worker.fetch(new Request("https://kcaron.top/googlefc463a9e1454c920.html", { method }), {
+        ASSETS: { fetch: asset }
+      })).status).toBe(405);
+    }
+    expect(asset).not.toHaveBeenCalled();
+  });
+
   it("keeps creator HEAD requests bodyless and rejects writes before serving assets", async () => {
     const asset = vi.fn<(request: Request) => Promise<Response>>(async () => new Response(null));
     await worker.fetch(new Request("https://kcaron.top/", { method: "HEAD" }), { ASSETS: { fetch: asset } });

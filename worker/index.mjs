@@ -1,4 +1,12 @@
 // One public address; personal pairing and guild authorization remain on the bot.
+import { createOwnerResources } from "./private-resources.mjs";
+
+const ownerResources = createOwnerResources({ resources: [
+  { filename: "approved-brand-kit-v2.zip", key: "brand/approved-v2/kit.zip", type: "application/zip", title: "Approved brand kit v2", description: "Original ribbon logo, transparent emblem, brand styles and usage guide." },
+  { filename: "discord-channel-copy.md", key: "discord/channel-copy.md", type: "text/markdown; charset=utf-8", title: "Discord channel copy — EN / FR", description: "Bilingual channel descriptions and reporting guidance." },
+  { filename: "discord-topics-pins.json", key: "discord/topics-pins.json", type: "application/json", title: "Discord topics and pins", description: "Structured copy for the community channels." },
+  { filename: "discord-research.md", key: "discord/research.md", type: "text/markdown; charset=utf-8", title: "Discord design research", description: "Public-source references behind the community structure." }
+] });
 const origin = "https://guildedqc.duckdns.org";
 const apiMethods = new Map([
   ["/api/v1/addon-imports", ["POST"]],
@@ -33,6 +41,9 @@ async function limitedBody(request) {
 
 export default {
   async fetch(request, env) {
+    // Guard every hostname, including workers.dev, before any static fallback.
+    const privateResponse = await ownerResources(request, env);
+    if (privateResponse) return privateResponse;
     const url = new URL(request.url);
     // Keep Google's exact verification filename at HTTP 200 despite clean HTML URLs.
     if (/^\/google[a-f0-9]{8,64}\.html$/.test(url.pathname)) {

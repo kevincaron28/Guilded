@@ -10,6 +10,7 @@ import {
   raidTitleSuggestions, reasonSuggestions, specSuggestions, tagSuggestions, timeSuggestions
 } from "../services/option-suggestions.js";
 import { dungeonChoices } from "../services/dungeon-stats.js";
+import { validBracketedRules } from "../services/dungeon-november-rules.js";
 import { recipeNameSuggestions } from "../services/recipes.js";
 import { createPoeMappingService } from "../services/poe-mapping.js";
 import { runChoices } from "../services/dungeon-admin.js";
@@ -44,6 +45,11 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
     } else if (command === "dungeon" && focused.name === "season") {
       const seasons = await prisma.dungeonSeason.findMany({ where: { guildId: guild.id, name: { contains: query, mode: "insensitive" } }, orderBy: { startsAt: "desc" }, take: 25 });
       choices = seasons.map((season) => ({ name: `${season.name} (${season.status === "ACTIVE" ? "current" : "past"})`.slice(0, 100), value: season.id }));
+    } else if (command === "dungeon" && focused.name === "bracket") {
+      const seasonId = interaction.options.getString("season");
+      const season = await prisma.dungeonSeason.findFirst({ where: { guildId: guild.id, ...(seasonId ? { id: seasonId } : { status: "ACTIVE" }) }, orderBy: { startsAt: "desc" } });
+      choices = validBracketedRules(season?.ratingRules) ? season.ratingRules.brackets.filter(b => b.key.includes(query.toLowerCase()))
+        .map(b => ({ name: b.min === b.max ? `${language === "fr" ? "Niveau" : "Level"} ${b.min}` : `${language === "fr" ? "Niveaux" : "Levels"} ${b.min}-${b.max}`, value: b.key })) : [];
     } else if (command === "raid" && focused.name === "season") {
       const seasons = await prisma.raidSeason.findMany({ where: { guildId: guild.id, name: { contains: query, mode: "insensitive" } }, orderBy: { startsAt: "desc" }, take: 25 });
       choices = seasons.map((season) => ({ name: `${season.name} (${season.endsAt ? "past" : "current"})`.slice(0, 100), value: season.id }));

@@ -28,7 +28,8 @@ local function artwork(row)
   return "Interface\\EncounterJournal\\UI-EJ-DungeonButton-" .. art
 end
 
-function view.model(name, seasonIndex)
+-- bracketKey: the level bracket to show in an all-level season (default: the player's own).
+function view.model(name, seasonIndex, bracketKey)
   local db = ns.getDb and ns.getDb() or {}
   local score = ns.scores
   local seasons = {}
@@ -38,27 +39,32 @@ function view.model(name, seasonIndex)
   end
   seasonIndex = math.max(1, math.min(seasonIndex or 1, math.max(1, #seasons)))
   local selected, rows = seasons[seasonIndex], {}
+  local okLevel, level = pcall(UnitLevel, "player")
+  local bracket = score.bracketByKey(selected, bracketKey)
+    or score.bracketByKey(selected, score.defaultBracket(selected, ns.normalizeName(name), okLevel and level or nil))
   for _, row in ipairs(selected and selected.rows or {}) do
-    if score.isMember(row.name) then rows[#rows + 1] = row end
+    if score.isMember(row.name) and (not bracket or row.bracket == bracket.key) then rows[#rows + 1] = row end
   end
   local own
   for _, row in ipairs(rows) do
     if ns.normalizeName(row.name) == ns.normalizeName(name) then own = row.points end
   end
-  local snapshot = ns.seasonDetails and ns.seasonDetails.get(seasonIndex, name)
+  local snapshot = ns.seasonDetails and ns.seasonDetails.get(seasonIndex, name, bracket and bracket.key)
   local available = snapshot and snapshot.available
   local profile = available and snapshot.profile
   local byId, known, cards = {}, {}, {}
   for _, d in ipairs(profile and profile.details or {}) do byId[d.dungeonKey or tostring(d.instanceId)] = d end
   for _, dungeon in ipairs(snapshot and snapshot.catalog or {}) do
-    local best = byId[dungeon.dungeonKey or tostring(dungeon.instanceId)]
-    cards[#cards + 1] = { name = dungeon.name, instanceId = dungeon.instanceId, minLevel = dungeon.minLevel, maxLevel = dungeon.maxLevel, points = available and (best and best.points or 0) or nil,
-      counted = best and best.counted, reason = best and best.unrankedReason, bosses = best and best.bosses, sec = best and best.durationSec, speedBonus = best and best.speedBonus, targetSec = dungeon.targetSec }
-    local mapped = score.dungeonFor(dungeon.name)
-    if mapped then known[mapped.key] = true end
+    if not bracket or not dungeon.bracket or dungeon.bracket == bracket.key then
+      local best = byId[dungeon.dungeonKey or tostring(dungeon.instanceId)]
+      cards[#cards + 1] = { name = dungeon.name, instanceId = dungeon.instanceId, minLevel = dungeon.minLevel, maxLevel = dungeon.maxLevel, points = available and (best and best.points or 0) or nil,
+        counted = best and best.counted, reason = best and best.unrankedReason, penalty = best and best.penaltyPercent, bosses = best and best.bosses, sec = best and best.durationSec, speedBonus = best and best.speedBonus, targetSec = dungeon.targetSec }
+      local mapped = score.dungeonFor(dungeon.name)
+      if mapped then known[mapped.key] = true end
+    end
   end
   -- Keep known unvisited Classic dungeons visible without merging actual instance IDs.
-  for _, dungeon in ipairs(snapshot and (snapshot.provisional or snapshot.version == 5) and {} or score.DUNGEONS) do
+  for _, dungeon in ipairs(snapshot and (snapshot.provisional or snapshot.version == 5 or snapshot.version == 6) and {} or score.DUNGEONS) do
     if not known[dungeon.key] then cards[#cards + 1] = { name = dungeon.name, minLevel = dungeon.minLevel, maxLevel = dungeon.maxLevel, points = available and 0 or nil } end
   end
   table.sort(cards, function(a, b)
@@ -68,7 +74,8 @@ function view.model(name, seasonIndex)
   end)
   return { total = profile and profile.points or own, count = profile and #profile.details or nil,
     cards = cards, seasons = seasons, seasonIndex = seasonIndex, season = selected, rows = rows,
-    own = profile and profile.points or own, available = available, version = snapshot and snapshot.version, provisional = snapshot and snapshot.provisional }
+    own = profile and profile.points or own, available = available, version = snapshot and snapshot.version, provisional = snapshot and snapshot.provisional,
+    bracket = bracket, brackets = selected and selected.brackets }
 
 end
 
@@ -231,6 +238,7 @@ function view.build(parent, compact)
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
       GameTooltip:AddLine(self.row.name)
       if self.row.reason then GameTooltip:AddLine(L(self.row.reason), 1, 0.6, 0.2) end
+      if self.row.penalty then GameTooltip:AddLine(string.format(L("Group above the level range: -%d%%"), self.row.penalty), 1, 0.6, 0.2) end
       GameTooltip:AddLine(L("Competitive boss records"), 0.83, 0.69, 0.22)
       if #(self.row.bosses or {}) == 0 then GameTooltip:AddLine(L("No eligible timed boss kills recorded.")) end
       for _, b in ipairs(self.row.bosses or {}) do GameTooltip:AddDoubleLine(b.name, duration(b.durationSec)) end
@@ -244,7 +252,7 @@ function view.build(parent, compact)
   pane.rankings = label(pane, 16, -94, width - 32)
   pane.rankings:Hide()
   pane.pageLabel = label(pane, 126, -305, width - 252)
-  pane.seasonTitle = label(pane, 16, -334, width - 32, "GameFontNormal")
+  pane.seasonTitle = label(pane, 16, -334, width - 160, "GameFontNormal")
   pane.seasonRows = label(pane, 16, -368, width - 32)
   pane.footer = label(pane, 16, -458, width - 32)
   pane.footer:SetText(L("Guild members only. Best time / fixed target. Past seasons keep their original rules."))
@@ -254,12 +262,18 @@ function view.build(parent, compact)
     self.runView:Hide()
     if not active("scores") then self.mode = "run"; self.runView:Show(); self.runView:Refresh(); return end
     local name = ns.playerName()
-    local model = view.model(name, self.seasonIndex)
+    local model = view.model(name, self.seasonIndex, self.bracket)
     self.seasonIndex = model.seasonIndex
+    self.bracket = model.bracket and model.bracket.key or nil
+    -- All-level seasons: one button cycles through the level brackets.
+    if model.bracket then
+      self.bracketButton:SetText(ns.scores.bracketLabel(model.bracket)); self.bracketButton:Show()
+    else self.bracketButton:Hide() end
     local pages = math.max(1, math.ceil(self.guildRanking and #model.rows / 12 or #model.cards / perPage))
     self.page = math.min(self.page, pages)
     self.summary:SetText(name .. " - " .. L("Your season score") .. ": " .. (model.total and tostring(model.total) or L("Not in this snapshot")))
-    self.note:SetText(model.available and (model.version == 5 and L("Level 60: best 8 distinct routes. Maximum 3200. Verified route evidence required.") or model.version == 4 and L("Beta: best 8 distinct routes. Level 30. Maximum 3200. Provisional targets.") or model.version == 3 and L("200 at target. Best run per dungeon. Hover for boss records.") or model.version == 2 and L("100 per dungeon + up to 20 speed. Only your best run counts.")
+    self.note:SetText(model.available and (model.version == 6 and model.bracket and string.format(L("%s: best %d distinct routes. Verified route evidence required."), ns.scores.bracketLabel(model.bracket), model.bracket.bestCount)
+      or model.version == 5 and L("Level 60: best 8 distinct routes. Maximum 3200. Verified route evidence required.") or model.version == 4 and L("Beta: best 8 distinct routes. Level 30. Maximum 3200. Provisional targets.") or model.version == 3 and L("200 at target. Best run per dungeon. Hover for boss records.") or model.version == 2 and L("100 per dungeon + up to 20 speed. Only your best run counts.")
       or L("Historical rules: 100 per distinct dungeon, no speed bonus."))
       or L("Per-dungeon breakdown unavailable in this snapshot."))
     if model.provisional and model.version ~= 4 and model.version ~= 5 then self.note:SetText(L("Provisional targets, fixed for this season. Hover for boss records.")) end
@@ -273,7 +287,8 @@ function view.build(parent, compact)
         -- One level shows as "(30)", not "(30-30)".
         local levels = row.minLevel and ((row.maxLevel and row.maxLevel ~= row.minLevel) and (row.minLevel .. "-" .. row.maxLevel) or tostring(row.minLevel))
         card:Show(); card.name:SetText(row.name .. (levels and (" (" .. levels .. ")") or ""))
-        card.value:SetText(row.sec and ("|cffefca68" .. (row.reason and L("Unranked") or tostring(row.points)) .. (model.version == 2 and " (+" .. row.speedBonus .. ")" or "") .. ((model.version == 4 or model.version == 5) and row.counted == false and not row.reason and (" - " .. L("Not counted in best 8")) or "") .. "|r  " .. duration(row.sec)
+        card.value:SetText(row.sec and ("|cffefca68" .. (row.reason and L("Unranked") or tostring(row.points)) .. (row.penalty and (" (-" .. row.penalty .. "%)") or "") .. (model.version == 2 and " (+" .. row.speedBonus .. ")" or "") .. ((model.version == 4 or model.version == 5) and row.counted == false and not row.reason and (" - " .. L("Not counted in best 8")) or "")
+          .. (model.version == 6 and model.bracket and row.counted == false and not row.reason and (" - " .. string.format(L("Not counted in best %d"), model.bracket.bestCount)) or "") .. "|r  " .. duration(row.sec)
           .. " / " .. (row.targetSec and duration(row.targetSec) or L("No target")))
           or ("|cff8993a4" .. (model.available and L("Not completed this season") or L("Breakdown unavailable")) .. "|r"
             .. (row.targetSec and (" / " .. duration(row.targetSec)) or "")))
@@ -312,8 +327,17 @@ function view.build(parent, compact)
   button(pane, "Previous", 16, -299, 100, function() pane.page = math.max(1, pane.page - 1); pane:Refresh() end)
   button(pane, "Next", width - 116, -299, 100, function() pane.page = pane.page + 1; pane:Refresh() end)
   pane.rankingToggle = button(pane, "Guild rankings", 16, -423, 110, function() pane.guildRanking = not pane.guildRanking; pane.page = 1; pane:Refresh() end)
-  button(pane, "Newer season", width - 306, -423, 138, function() pane.seasonIndex = math.max(1, pane.seasonIndex - 1); pane.page = 1; pane:Refresh() end)
-  button(pane, "Older season", width - 158, -423, 138, function() pane.seasonIndex = pane.seasonIndex + 1; pane.page = 1; pane:Refresh() end)
+  button(pane, "Newer season", width - 306, -423, 138, function() pane.seasonIndex = math.max(1, pane.seasonIndex - 1); pane.bracket = nil; pane.page = 1; pane:Refresh() end)
+  button(pane, "Older season", width - 158, -423, 138, function() pane.seasonIndex = pane.seasonIndex + 1; pane.bracket = nil; pane.page = 1; pane:Refresh() end)
+  pane.bracketButton = button(pane, "Bracket", width - 136, -330, 120, function()
+    local season = view.model(ns.playerName(), pane.seasonIndex, pane.bracket).season
+    local list = season and season.brackets or {}
+    for i, b in ipairs(list) do
+      if b.key == pane.bracket then pane.bracket = (list[i % #list + 1] or b).key; break end
+    end
+    pane.page = 1; pane:Refresh()
+  end)
+  pane.bracketButton:Hide()
   -- Inside the game's dungeon finder, Close closes the finder (not just this page).
   button(pane, "Close", width - 78, -8, 62, function()
     if view.chrome and view.chrome:IsShown() then

@@ -1,4 +1,4 @@
-import { createNovemberDungeonRules, type NovemberRoute } from "../../src/services/dungeon-november-rules.js";
+import { createBracketedDungeonRules, createNovemberDungeonRules, type BracketRoute, type NovemberRoute } from "../../src/services/dungeon-november-rules.js";
 import type { RatingRun } from "../../src/services/dungeon-rating.js";
 
 // Entirely synthetic IDs, names, difficulty and targets. Not game mappings.
@@ -24,3 +24,11 @@ export function novemberRun(index = 0, durationSec = 1800, level = 60): RatingRu
       { id: route.completion.ids[0], name: "Localized endpoint", success: true, startedAt: 1020, at: 1030 }
     ] } };
 }
+
+// All-level (version 6) fixture: routes 0-3 have a 20-29 band, the other rated ones 60.
+export const BRACKET_FIXTURE = [{ key: "15-29", min: 15, max: 29, bestCount: 3 }, { key: "60", min: 60, max: 60, bestCount: 4 }];
+export function bracketFixtureRoutes(): BracketRoute[] {
+  return novemberFixtures().map((r, i) => ({ ...r, competitionBand: r.targetSec === null ? null
+    : i < 4 ? { min: 20, max: 29, difficultyId: 7 } : { min: 60, max: 60, difficultyId: 7 } }));
+}
+export const bracketRulesFixture = () => createBracketedDungeonRules({ routes: bracketFixtureRoutes(), brackets: BRACKET_FIXTURE });

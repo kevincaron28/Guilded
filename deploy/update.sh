@@ -53,7 +53,7 @@ else
   echo "Dependencies unchanged."
 fi
 
-# A changed service file needs systemd to reload it. (The Caddy config is host specific: left alone.)
+# A changed service file needs systemd to reload it.
 say "Building the online companion"
 sudo -u guilded bash -c "cd $APP && npm run companion:build"
 
@@ -61,6 +61,46 @@ if ! cmp -s "$APP/deploy/guilded.service" /etc/systemd/system/guilded.service; t
   say "Service file changed"
   cp "$APP/deploy/guilded.service" /etc/systemd/system/guilded.service
   systemctl daemon-reload
+fi
+
+# The Caddy config is the repository's deploy/Caddyfile with this server's hostname filled in.
+# Only a file setup-server.sh installed (it keeps that line) with a single site is replaced;
+# anything else was edited by hand and is left alone. Validated first, the old one kept.
+CADDY=/etc/caddy/Caddyfile
+if command -v caddy >/dev/null && [ -f "$CADDY" ]; then
+  if ! grep -q 'installed by deploy/setup-server.sh' "$CADDY"; then
+    echo "$CADDY was edited by hand: left alone. Compare it with $APP/deploy/Caddyfile."
+  else
+    SITES="$(grep -cE '^[A-Za-z0-9][A-Za-z0-9.-]*\.[A-Za-z0-9.-]+ \{$' "$CADDY" || true)"
+    HOST="$(grep -m1 -E '^[A-Za-z0-9][A-Za-z0-9.-]*\.[A-Za-z0-9.-]+ \{$' "$CADDY" | cut -d' ' -f1 || true)"
+    if [ "$SITES" != "1" ] || [ -z "$HOST" ]; then
+      echo "$CADDY does not have exactly one site: left alone. Compare it with $APP/deploy/Caddyfile."
+    else
+      NEW_CADDY="$(mktemp)"
+      sed "s/YOUR_HOSTNAME/$HOST/" "$APP/deploy/Caddyfile" > "$NEW_CADDY"
+      if ! cmp -s "$NEW_CADDY" "$CADDY"; then
+        say "Caddy config changed ($HOST)"
+        diff -u "$CADDY" "$NEW_CADDY" || true
+        if caddy validate --adapter caddyfile --config "$NEW_CADDY" >/dev/null 2>&1; then
+          BACKUP="$CADDY.before-$AFTER"
+          cp -p "$CADDY" "$BACKUP"
+          cp "$NEW_CADDY" "$CADDY"
+          chmod 644 "$CADDY"
+          if systemctl reload caddy; then
+            echo "Caddy reloaded. The previous config is $BACKUP."
+          else
+            cp -p "$BACKUP" "$CADDY"
+            systemctl reload caddy || true
+            echo "Caddy refused the new config; the previous one is back. See: sudo journalctl -u caddy -n 30"
+          fi
+        else
+          echo "The new Caddy config does not validate: left the current one. Details:"
+          caddy validate --adapter caddyfile --config "$NEW_CADDY" 2>&1 | tail -5 || true
+        fi
+      fi
+      rm -f "$NEW_CADDY"
+    fi
+  fi
 fi
 
 say "Restarting the bot"

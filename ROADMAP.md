@@ -2,7 +2,7 @@
 
 ## Current stage — 18 October 2026
 
-Guilded **6.6.0 Release** (protocol 2). Real-client checks still owed:
+Guilded **6.7.0 Release** (protocol 2). Real-client checks still owed:
 G6-G8 (dungeon runs), G10 (French client) and the 6.1.2 parts of G2/G12; see
 [the 6.2 game acceptance record](docs/V6_2_GAME_ACCEPTANCE.md). The 6.0 testing
 record is historical.

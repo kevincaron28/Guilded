@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 6.7.0 Release — 18 October 2026
+
+- Members see only their commands: officer-only commands are hidden, and leader and officer
+  subcommands moved to `/lead`, `/officer` and `/organize` (for example `/raid create` →
+  `/lead create`, `/epgp decay` → `/officer epgp decay`). Leaders without Manage Events or
+  Manage Server need a one-time Integrations setting; `/setup` and `/system status` warn
+  when a role can't see them ([notes](docs/V6_7_0_RELEASE_NOTES.md)).
+
 ## 6.6.0 Release — 18 October 2026
 
 - Guilded Lite: servers that add the hosted bot get setup, help, FAQ, bug reports, dungeon groups

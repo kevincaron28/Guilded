@@ -104,7 +104,7 @@ export async function executeEpgp(interaction: ChatInputCommandInteraction): Pro
       shown = await epgpService.getStanding(memberId, baseGp, pool.id);
     }
     const history = await epgpService.getHistory(memberId, 10, pool.id);
-    // Entry IDs are shown so officers can pass one to /epgp reverse.
+    // Entry IDs are shown so officers can pass one to /officer epgp reverse.
     await interaction.reply({
       content: [`${other ? `**${other.username}** - ` : ""}EP: **${shown.ep}** | GP: **${shown.gp}** | PR: **${shown.pr.toFixed(3)}**`,
         ...history.map((row) => `EP ${row.epAmount >= 0 ? "+" : ""}${row.epAmount}, GP ${row.gpAmount >= 0 ? "+" : ""}${row.gpAmount} — ${row.reason} \`${row.id}\``)].join("\n"),
@@ -141,7 +141,7 @@ export async function executeEpgp(interaction: ChatInputCommandInteraction): Pro
       await prisma.guildSettings.update({ where: { guildId: context.guildId }, data: { autoDecay: weekly, ...(weekly ? { lastAutoDecayAt: new Date() } : {}) } });
       await interaction.reply({ content: weekly
         ? "Automatic decay is **on**: after every weekly reset (Tuesday 15:00 UTC) each point pool decays by its own percent (`/core rules decay` for a core's own pool). Nothing was decayed now."
-        : "Automatic decay is **off**. Run `/epgp decay` when you want one.", flags: MessageFlags.Ephemeral });
+        : "Automatic decay is **off**. Run `/officer epgp decay` when you want one.", flags: MessageFlags.Ephemeral });
       return;
     }
     const transactions = await epgpService.applyDecay(context.guildId, pool.decay, interaction.user.id, pool.id);

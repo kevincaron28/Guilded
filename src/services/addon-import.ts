@@ -171,7 +171,7 @@ export function createAddonImportService(database: PrismaClient) {
         const validPools = poolIds.length ? await tx.raidCore.findMany({ where: { guildId, id: { in: poolIds }, separatePool: true }, select: { id: true } }) : [];
         const validPoolIds = new Set(validPools.map((pool) => pool.id));
         // Entries voided in game (/guilded void): one not imported yet never is; one already in
-        // the ledger gets a reversal, once (the same guard /epgp reverse uses).
+        // the ledger gets a reversal, once (the same guard /officer epgp reverse uses).
         const voidedRefs = snapshot.epgpTransactions.filter((item) => item.voided && item.sourceRef).map(ledgerRef);
         let voided = 0;
         if (voidedRefs.length) {

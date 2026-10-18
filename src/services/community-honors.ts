@@ -378,7 +378,7 @@ export async function communityHonorsHistory(database: PrismaClient, guildId: st
   return { recent, champions, podium, monthlyRookie };
 }
 
-// /community honors-settings. Changing the week start marks the last complete week of the new
+// /organize honors-settings. Changing the week start marks the last complete week of the new
 // kind as already announced, so no week is announced twice or overlaps the previous one.
 export async function configureCommunityHonors(database: PrismaClient, guildId: string, input: { weeklyEnabled?: boolean; weekStart?: WeekMode; pingMvp?: boolean }, now = new Date()) {
   return locked(database, guildId, async tx => {

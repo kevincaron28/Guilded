@@ -113,9 +113,9 @@ export async function executeLoot(interaction: ChatInputCommandInteraction): Pro
   }
   if (lootMode !== "EPGP" && (subcommand === "auction" || subcommand === "bid")) {
     const how: Record<string, string> = {
-      COUNCIL: "officers decide. In game, officers open the loot council (answer BiS, Upgrade, Off-spec or Pass in the popup) and award with `/loot award` or in the Council tab; add the item to your `/character wishlist` to state interest.",
-      RESERVE: "players reserve items before the raid (`/guilded reserve` in game, `/loot reserves` here) and the reservers of a dropped item roll for it. Officers record the award with `/loot award`.",
-      PRIORITY: "every item has a set GP price and goes to the highest PR of the players who want it (wishlist here, the popup in game). `/loot priority` shows who is next; `/loot award` charges the set price."
+      COUNCIL: "officers decide. In game, officers open the loot council (answer BiS, Upgrade, Off-spec or Pass in the popup) and award with `/officer loot award` or in the Council tab; add the item to your `/character wishlist` to state interest.",
+      RESERVE: "players reserve items before the raid (`/guilded reserve` in game, `/loot reserves` here) and the reservers of a dropped item roll for it. Officers record the award with `/officer loot award`.",
+      PRIORITY: "every item has a set GP price and goes to the highest PR of the players who want it (wishlist here, the popup in game). `/officer loot priority` shows who is next; `/officer loot award` charges the set price."
     };
     await interaction.reply({ content: `This raid uses **${LOOT_MODE_LABEL[lootMode]}**: ${how[lootMode]}`, flags: MessageFlags.Ephemeral });
     return;

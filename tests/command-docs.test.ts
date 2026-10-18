@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 const COMMANDS = [
   "setup", "profile", "character", "raid", "epgp", "loot", "dungeon", "craft", "bank",
   "apply", "poll", "report", "mod", "core", "import", "system", "community", "poe", "participation",
+  "lead", "officer", "organize",
 ];
 // Intentionally undocumented in the member-facing help.
 const HELP_SKIP = new Set<string>(["system"]);

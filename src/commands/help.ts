@@ -54,53 +54,55 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
   },
   raidLeader: {
     en: [
-      "`/raid create` (times like `friday 8pm`) · `/raid edit` · `/raid start` · `/raid end` (shows the EP to approve)",
-      "`/raid attendance` · `/raid boss` · `/raid note` · `/raid award-ep`",
-      "`/raid season` · `/raid history` — officers: attendance over a season, per raid and per player",
+      "Raid Leader tools are under `/lead`. Discord shows it to people with Manage Events: give the Raid Leader role that permission, or allow the role on `/lead` in Server Settings → Integrations → Guilded",
+      "`/lead create` (times like `friday 8pm`) · `/lead edit` · `/lead start` · `/lead end` (shows the EP to approve)",
+      "`/lead attendance` · `/lead boss` · `/lead note` · `/lead award-ep`",
+      "`/lead season` · `/lead history` — officers: attendance over a season, per raid and per player",
       "`/core setup` raid nights: `Tuesday 8pm; Thursday 8pm` — creates only the next 6 days automatically; change or pause in `/core edit` → 📅",
-      "`/core setup` — guided raid core (name, players, rules) · `/core add` · `/core remove` · `/core character` (the character or backup characters a player brings; one player can be in several cores) · members join with the roster's Apply button · `/raid create core:` (priority signups)",
-      "`/character readiness raid` — who's ready for tonight",
+      "`/core setup` — guided raid core (name, players, rules) · `/core add` · `/core remove` · `/core character` (the character or backup characters a player brings; one player can be in several cores) · members join with the roster's Apply button · `/lead create core:` (priority signups)",
+      "`/lead readiness-raid` — who's ready for tonight",
       "`/team create` · `/team member` · `/team schedule` · `/team lineup` · `/team attendance` — manage weekly dungeon/PvP teams"
     ],
     fr: [
-      "`/raid create` (heures comme `vendredi 20h`) · `/raid edit` · `/raid start` · `/raid end` (propose les EP à approuver)",
-      "`/raid attendance` · `/raid boss` · `/raid note` · `/raid award-ep`",
-      "`/raid season` · `/raid history` — officiers : présences sur une saison, par raid et par joueur",
+      "Les outils des chefs de raid sont sous `/lead`. Discord le montre à qui a « Gérer les événements » : donnez cette permission au rôle Chef de raid, ou autorisez le rôle sur `/lead` dans Paramètres du serveur → Intégrations → Guilded",
+      "`/lead create` (heures comme `vendredi 20h`) · `/lead edit` · `/lead start` · `/lead end` (propose les EP à approuver)",
+      "`/lead attendance` · `/lead boss` · `/lead note` · `/lead award-ep`",
+      "`/lead season` · `/lead history` — officiers : présences sur une saison, par raid et par joueur",
       "`/core setup`, horaire : `mardi 20h; jeudi 20h` — raids automatiques pour les 6 prochains jours; ajuste ou arrête dans `/core edit` → 📅",
-      "`/core setup` — noyau de raid guidé (nom, joueurs, règles) · `/core add` · `/core remove` · `/core character` (le personnage ou les personnages de secours d'un joueur ; plusieurs noyaux possibles) · les membres postulent avec le bouton du roster · `/raid create core:` (inscription prioritaire)",
-      "`/character readiness raid` — qui est prêt pour ce soir",
+      "`/core setup` — noyau de raid guidé (nom, joueurs, règles) · `/core add` · `/core remove` · `/core character` (le personnage ou les personnages de secours d'un joueur ; plusieurs noyaux possibles) · les membres postulent avec le bouton du roster · `/lead create core:` (inscription prioritaire)",
+      "`/lead readiness-raid` — qui est prêt pour ce soir",
       "`/team create` · `/team member` · `/team schedule` · `/team lineup` · `/team attendance` — gérer les cores de donjon/JcJ"
     ]
   },
   dkpOfficer: {
-    en: ["`/epgp award-ep` · `/epgp award-gp` · `/epgp reverse` · `/epgp decay`", "`/epgp history player:` — anyone's history"],
-    fr: ["`/epgp award-ep` · `/epgp award-gp` · `/epgp reverse` · `/epgp decay`", "`/epgp history player:` — l'historique de n'importe qui"]
+    en: ["`/officer epgp award-ep` · `/officer epgp award-gp` · `/officer epgp reverse` · `/officer epgp decay`", "`/epgp history player:` — anyone's history"],
+    fr: ["`/officer epgp award-ep` · `/officer epgp award-gp` · `/officer epgp reverse` · `/officer epgp decay`", "`/epgp history player:` — l'historique de n'importe qui"]
   },
   officer: {
     en: [
       "`/setup start` — guided setup and checklist · `/config` — every setting",
-      "Members don't see `/setup`, `/config`, `/mod`, `/import`, `/poll`, `/system` or `/uninstall`. An Officer without Manage Server doesn't either: allow the Officer role in Server Settings → Integrations → Guilded",
-      "`/loot auction` · `/loot close` · `/import apply` · `/import held` (addon data)",
+      "Members don't see `/officer`, `/organize`, `/setup`, `/config`, `/mod`, `/import`, `/poll`, `/system` or `/uninstall`. An Officer without Manage Server doesn't either: allow the Officer role on them in Server Settings → Integrations → Guilded",
+      "`/officer loot auction` · `/officer loot close` · `/import apply` · `/import held` (addon data)",
       "`/setup testraid start` — fake raid to try everything, `/setup testraid cleanup` after",
-      "`/dungeon admin` — invalidate a run, award points, rules, target times, new season",
+      "`/officer dungeon` — invalidate a run, award points, rules, target times, new season",
       "`/bank list` / `handle` · `/mod application list` · `/mod` · `/mod faq` — answer channel · `/tag set` · `/setup selfroles`",
-      "`/raid wcl report url:` — pull a Warcraft Logs report into the raid history",
-      "`/report inactive` · `/report export` · `/report guild` · `/poll create` · `/loot award` (loot council)",
-      "`/community start-season` · `/community lottery create` · `/community gaming create` · `/community challenge create` · `/community quiz` — organize activities",
-      "`/community honors-preview` · `/community honors-settings` — preview the weekly MVP post; weekly on/off, week start, MVP ping",
+      "`/lead wcl-report url:` — pull a Warcraft Logs report into the raid history",
+      "`/report inactive` · `/report export` · `/report guild` · `/poll create` · `/officer loot award` (loot council)",
+      "`/organize start-season` · `/organize lottery create` · `/organize gaming create` · `/organize challenge create` · `/organize quiz` — organize activities",
+      "`/organize honors-preview` · `/organize honors-settings` — preview the weekly MVP post; weekly on/off, week start, MVP ping",
       "`/participation settings` · `/participation claims` · `/participation review` · `/participation reverse` — participation controls and helper approvals"
     ],
     fr: [
       "`/setup start` — configuration guidée et liste de vérification · `/config` — tous les réglages",
-      "Les membres ne voient pas `/setup`, `/config`, `/mod`, `/import`, `/poll`, `/system` ni `/uninstall`. Un officier sans « Gérer le serveur » non plus : autorisez le rôle Officier dans Paramètres du serveur → Intégrations → Guilded",
-      "`/loot auction` · `/loot close` · `/import apply` · `/import held` (données de l'addon)",
+      "Les membres ne voient pas `/officer`, `/organize`, `/setup`, `/config`, `/mod`, `/import`, `/poll`, `/system` ni `/uninstall`. Un officier sans « Gérer le serveur » non plus : autorisez-y le rôle Officier dans Paramètres du serveur → Intégrations → Guilded",
+      "`/officer loot auction` · `/officer loot close` · `/import apply` · `/import held` (données de l'addon)",
       "`/setup testraid start` — faux raid pour tout essayer, puis `/setup testraid cleanup`",
-      "`/dungeon admin` — annuler un donjon, donner des points, règles, temps cibles, nouvelle saison",
+      "`/officer dungeon` — annuler un donjon, donner des points, règles, temps cibles, nouvelle saison",
       "`/bank list` / `handle` · `/mod application list` · `/mod` · `/mod faq` — salon des réponses · `/tag set` · `/setup selfroles`",
-      "`/raid wcl report url:` — importer un rapport Warcraft Logs dans l'historique des raids",
-      "`/report inactive` · `/report export` · `/report guild` · `/poll create` · `/loot award` (conseil de loot)",
-      "`/community start-season` · `/community lottery create` · `/community gaming create` · `/community challenge create` · `/community quiz` — organiser les activités",
-      "`/community honors-preview` · `/community honors-settings` — aperçu du MVP de la semaine; activation, début de semaine, notification",
+      "`/lead wcl-report url:` — importer un rapport Warcraft Logs dans l'historique des raids",
+      "`/report inactive` · `/report export` · `/report guild` · `/poll create` · `/officer loot award` (conseil de loot)",
+      "`/organize start-season` · `/organize lottery create` · `/organize gaming create` · `/organize challenge create` · `/organize quiz` — organiser les activités",
+      "`/organize honors-preview` · `/organize honors-settings` — aperçu du MVP de la semaine; activation, début de semaine, notification",
       "`/participation settings` · `/participation claims` · `/participation review` · `/participation reverse` — réglages de participation et validation d'entraide"
     ]
   }

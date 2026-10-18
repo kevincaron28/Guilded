@@ -82,7 +82,7 @@ GP and history in both places. Members can inspect `/epgp balance` and
 - A regular member sees the correct standings and cannot award officer points.
 - Reloading preserves the records; connected guilds also check import status and returned standings.
 - For a mistake, review history first. Addon `/guilded undo` reverses your last
-  eligible EP/GP award; Discord `/epgp reverse` retains history with an opposite entry.
+  eligible EP/GP award; Discord `/officer epgp reverse` retains history with an opposite entry.
   These are correction actions, not a reason to delete SavedVariables or re-import blindly.
 
 If you need help, provide versions, client build, selected workflow, steps and the
@@ -163,7 +163,7 @@ historique. `/epgp balance` et `/epgp history` permettent la vérification côt�
 Vérifiez une attribution de présence et un butin enregistrés une seule fois,
 les permissions d'un membre ordinaire et la conservation après rechargement.
 Relisez l'historique avant toute correction. `/guilded undo` annule votre dernière
-attribution EP/GP admissible; `/epgp reverse` ajoute une écriture opposée sur
+attribution EP/GP admissible; `/officer epgp reverse` ajoute une écriture opposée sur
 Discord en conservant l'historique. Ne supprimez pas SavedVariables pour corriger un montant.
 
 Pour un signalement utile : versions, build du client, core, étapes et message

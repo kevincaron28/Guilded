@@ -48,7 +48,7 @@ export function seasonSummaryEmbeds(data: SeasonAttendance, window: Window, lang
       text += line;
       shown++;
     }
-    if (shown < rows.length) text += say(`… and ${rows.length - shown} more: see the file from /raid history.`, `… et ${rows.length - shown} de plus : voir le fichier de /raid history.`);
+    if (shown < rows.length) text += say(`… and ${rows.length - shown} more: see the file from /lead history.`, `… et ${rows.length - shown} de plus : voir le fichier de /lead history.`);
     return new EmbedBuilder().setTitle(title(parts.length > 1 || part.coreName ? part.coreName ?? say("No core", "Sans noyau") : null)).setColor(0xd4a017)
       .setDescription(text).setFooter({ text: say("% = recorded raids attended (late counts half, benched in full). ❓ = expected, nobody recorded it.", "% = raids notés où le joueur était là (retard = moitié, banc = complet). ❓ = attendu, personne ne l'a noté.") });
   });
@@ -111,7 +111,7 @@ export async function refreshSeasonSummary(discordGuild: DiscordGuild | null, gu
   }
 }
 
-// /raid season: with a name, starts a season (closing the one before); alone, lists them.
+// /lead season: with a name, starts a season (closing the one before); alone, lists them.
 export async function executeRaidSeason(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   requireOfficer(interaction);
   const settings = await guildService.getSettings(guildId);
@@ -125,7 +125,7 @@ export async function executeRaidSeason(interaction: ChatInputCommandInteraction
     await interaction.reply({
       content: seasons.length
         ? seasons.map((season) => `• **${season.name}** — ${stamp(season.startsAt)} → ${season.endsAt ? stamp(season.endsAt) : say("now", "maintenant")}`).join("\n")
-        : say("No raid season yet. Start one with `/raid season name:<name>` (add `start:2026-09-01` to begin it in the past).", "Aucune saison de raid. Commencez-en une avec `/raid season name:<nom>` (ajoutez `start:2026-09-01` pour la faire débuter dans le passé)."),
+        : say("No raid season yet. Start one with `/lead season name:<name>` (add `start:2026-09-01` to begin it in the past).", "Aucune saison de raid. Commencez-en une avec `/lead season name:<nom>` (ajoutez `start:2026-09-01` pour la faire débuter dans le passé)."),
       flags: MessageFlags.Ephemeral
     });
     return;
@@ -143,7 +143,7 @@ export async function executeRaidSeason(interaction: ChatInputCommandInteraction
   });
 }
 
-// /raid history: the season's attendance for officers, as a summary plus the full grid in a
+// /lead history: the season's attendance for officers, as a summary plus the full grid in a
 // file; or one player's raids. Only the officer who asked sees it.
 export async function executeRaidHistory(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   requireOfficer(interaction);
@@ -152,12 +152,12 @@ export async function executeRaidHistory(interaction: ChatInputCommandInteractio
   const lang = asLang(settings?.language);
   const wanted = interaction.options.getString("season");
   const season = wanted ? await findSeason(prisma, guildId, wanted) : await seasonAt(prisma, guildId);
-  if (wanted && !season) throw new Error(`No raid season "${wanted}". See /raid season.`);
+  if (wanted && !season) throw new Error(`No raid season "${wanted}". See /lead season.`);
   const coreName = interaction.options.getString("core");
   const core = coreName ? await createRaidCoreService(prisma).byIdOrName(guildId, coreName) : null;
   const window = windowOf(season, lang);
   const data = await seasonAttendance(prisma, guildId, { from: window.from, until: window.until, coreId: core?.id ?? null });
-  const note = season ? "" : lang === "fr" ? "Aucune saison de raid n'est en cours : voici les 90 derniers jours. `/raid season` en commence une." : "No raid season is running, so this covers the last 90 days. `/raid season` starts one.";
+  const note = season ? "" : lang === "fr" ? "Aucune saison de raid n'est en cours : voici les 90 derniers jours. `/lead season` en commence une." : "No raid season is running, so this covers the last 90 days. `/lead season` starts one.";
 
   const player = interaction.options.getUser("player");
   if (player) {

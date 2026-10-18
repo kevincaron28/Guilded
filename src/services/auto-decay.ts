@@ -4,7 +4,7 @@ import { createEpgpService } from "./epgp.js";
 import { effectiveRules } from "./core-rules.js";
 import { weekStart } from "./dungeon-rules.js";
 
-// Automatic EPGP decay (/epgp decay weekly:true): once after every weekly reset (Tuesday 15:00
+// Automatic EPGP decay (/officer epgp decay weekly:true): once after every weekly reset (Tuesday 15:00
 // UTC), the guild pool decays by the guild's percent and every core with its own pool by its
 // own. Called hourly from main.ts. Each pool decays in one transaction under a reference for
 // that week, so a failed run is simply tried again next hour and can never decay twice.

@@ -24,9 +24,9 @@ points). Code: `src/services/community-honors.ts`.
 
 ## Officers
 
-- `/community honors-preview`: privately, what the weekly post would say if
+- `/organize honors-preview`: privately, what the weekly post would say if
   the week ended now. Nothing is saved or posted.
-- `/community honors-settings`:
+- `/organize honors-settings`:
   - `weekly`: turn the weekly MVP and post off or on. Off frees the role and
     announces nothing.
   - `week-start`: Monday to Sunday in server time (default), or from one WoW

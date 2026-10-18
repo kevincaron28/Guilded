@@ -32,13 +32,14 @@ describe("Lite command set", () => {
   const subs = (name: string) => (byName.get(name)?.options ?? []).map((option) => option.name).sort();
 
   it("registers only setup, help, FAQ, bug reports, dungeon groups and basic signups", () => {
-    expect([...byName.keys()].sort()).toEqual(["dungeon", "help", "mod", "raid", "report", "setup"]);
+    expect([...byName.keys()].sort()).toEqual(["dungeon", "help", "lead", "mod", "raid", "report", "setup"]);
     expect(subs("setup")).toEqual(["start"]);
     expect(subs("report")).toEqual(["bug", "ping"]);
     expect(subs("mod")).toEqual(["faq"]);
     expect(subs("dungeon")).toEqual(["group"]);
-    expect(subs("raid")).toEqual(["cancel", "cancel-signup", "create", "edit", "roster", "signup", "status"]);
-    const create = byName.get("raid")!.options!.find((option) => option.name === "create")!;
+    expect(subs("raid")).toEqual(["cancel-signup", "roster", "signup", "status"]);
+    expect(subs("lead")).toEqual(["cancel", "create", "edit"]);
+    const create = byName.get("lead")!.options!.find((option) => option.name === "create")!;
     expect(create.options!.map((option) => option.name)).not.toContain("core");
     expect(create.options!.map((option) => option.name)).not.toContain("weekly");
     // FAQ keeps its own subcommands under /mod faq.
@@ -58,6 +59,8 @@ describe("Lite command set", () => {
     expect(allowsLite("dungeon", null, "group")).toBe(true);
     expect(allowsLite("dungeon", null, "leaderboard")).toBe(false);
     expect(allowsLite("raid", null, "signup")).toBe(true);
+    expect(allowsLite("lead", null, "create")).toBe(true);
+    expect(allowsLite("lead", null, "award-ep")).toBe(false);
     expect(allowsLite("raid", null, "award-ep")).toBe(false);
     expect(allowsLite("epgp", null, "standings")).toBe(false);
   });

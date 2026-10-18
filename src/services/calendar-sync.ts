@@ -128,7 +128,7 @@ export function describeCalendar(summary: CalendarSummary | null): string {
   }
   if (summary.unlinked.length > 0) parts.push(`Not linked to a Discord member (skipped): ${summary.unlinked.slice(0, 10).join(", ")}${summary.unlinked.length > 10 ? ", ..." : ""}.`);
   for (const event of summary.unmatched.slice(0, 5)) {
-    parts.push(`In-game event "${event.title}" (<t:${Math.floor(event.startsAt.getTime() / 1000)}:f>): ${event.reason ?? "no matching Discord raid; create one with /raid create."}`);
+    parts.push(`In-game event "${event.title}" (<t:${Math.floor(event.startsAt.getTime() / 1000)}:f>): ${event.reason ?? "no matching Discord raid; create one with /lead create."}`);
   }
   return parts.join("\n");
 }

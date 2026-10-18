@@ -89,12 +89,12 @@ export function formatOfficerCheck(input: { title: string; attendance: Attendanc
     if (attendance.inLogNotPresent.length) lines.push(`• In the log, not credited: ${cap(attendance.inLogNotPresent)}`);
     if (attendance.presentNotInLog.length) lines.push(`• Credited, not in the log: ${cap(attendance.presentNotInLog)}`);
     if (attendance.unlinked.length) lines.push(`• In the log but not linked to a Discord member (no credit possible): ${cap(attendance.unlinked)}`);
-    if (attendance.epMissing) lines.push("• No EP has been awarded for this raid yet (`/raid end`, then approve the EP).");
+    if (attendance.epMissing) lines.push("• No EP has been awarded for this raid yet (`/lead end`, then approve the EP).");
     if (!attendance.inLogNotPresent.length && !attendance.presentNotInLog.length && !attendance.unlinked.length && !attendance.epMissing) {
       lines.push(`• All ${attendance.presentCount} credited players match the log.`);
     }
   } else {
-    lines.push("Not linked to a raid, so attendance was not compared. Link it with `/raid wcl report raid:<id>`.");
+    lines.push("Not linked to a raid, so attendance was not compared. Link it with `/lead wcl-report raid:<id>`.");
   }
   if (details && details.pulls > 0) {
     const short = (pick: (p: PlayerCheck) => number) => details.players

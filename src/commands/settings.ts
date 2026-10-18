@@ -108,7 +108,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
         `Minimum bid: ${settings.minimumBid} DKP`,
         `Bid increment: ${settings.bidIncrement} DKP`,
         `Auction duration: ${settings.auctionDurationSec}s`,
-        `EPGP decay: ${(settings.epgpDecayPercent * 100).toFixed(0)}% (run \`/epgp decay\` to apply)`,
+        `EPGP decay: ${(settings.epgpDecayPercent * 100).toFixed(0)}% (run \`/officer epgp decay\` to apply)`,
         `EPGP base GP: ${settings.baseGp} (PR = EP / (GP + base))`,
         `Full-clear EP bonus: ${settings.epCompletionBonus}`,
         `Raid reminders: ${settings.raidReminderMinutes > 0 ? `${settings.raidReminderMinutes} min before start` : "off"}`,
@@ -213,7 +213,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
       throw new Error(`"${zone}" isn't a timezone I know. Use a name like America/Toronto, America/Vancouver, Europe/Paris (list: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones).`);
     }
     await guildService.updateSettings(context.guildId, { timezone: zone });
-    await interaction.reply({ content: `Timezone set to **${zone}**. "friday 8pm" in /raid create now means 8pm there.`, flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: `Timezone set to **${zone}**. "friday 8pm" in /lead create now means 8pm there.`, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -309,7 +309,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
   if (subcommand === "wcl-guild") {
     if (interaction.options.getBoolean("off")) {
       await guildService.updateSettings(context.guildId, { wclGuildId: null, wclBaseUrl: null });
-      await interaction.reply({ content: "Warcraft Logs: no longer looking for new reports. `/raid wcl report` still works by hand.", flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: "Warcraft Logs: no longer looking for new reports. `/lead wcl-report` still works by hand.", flags: MessageFlags.Ephemeral });
       return;
     }
     const input = interaction.options.getString("guild");
@@ -341,7 +341,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
     await guildService.updateSettings(context.guildId, { lootMode: mode });
     await interaction.reply({
       content: `Loot system for the guild: **${LOOT_MODE_LABEL[mode]}**. ${LOOT_MODE_HELP[mode]}`
-        + (mode === "EPGP" ? " `/loot auction` and `/loot bid` work." : " `/loot auction` and `/loot bid` are off; officers use `/loot award`.")
+        + (mode === "EPGP" ? " `/officer loot auction` and `/loot bid` work." : " `/officer loot auction` and `/loot bid` are off; officers use `/officer loot award`.")
         + (mode === "PRIORITY" ? " Set the prices with `/core items`." : "")
         + "\nA raid core can use another system: `/core rules` or `/core setup`.",
       flags: MessageFlags.Ephemeral

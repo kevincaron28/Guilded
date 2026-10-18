@@ -8,7 +8,7 @@ import { cacheAllMembers } from "./member-cache.js";
 //   1. automatically, when a member's Discord name (nickname, display name or
 //      username) is the character's name, e.g. "Ray", "[GOLD] Ray", "Ray | Priest";
 //   2. otherwise the owner runs /character claim (a pick from a list, no code);
-//   3. or an officer links it with /character link.
+//   3. or an officer links it with /officer character link.
 
 const strip = (text: string) => text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 

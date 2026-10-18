@@ -1,4 +1,4 @@
-# Command visibility: phase 1 done, phase 2 proposal (18 October 2026)
+# Command visibility: phases 1 and 2 (18 October 2026)
 
 Goal: members only see the slash commands they can use. Today the bot registers 24 top-level
 commands with 232 subcommands, and before this change none set `default_member_permissions`,
@@ -53,7 +53,7 @@ What the owner should do after deploying: in each server where an Officer lacks 
 allow the Officer and Guild Master roles on those six commands in Integrations. (Without that,
 those officers simply stop seeing them; nothing breaks for anyone with Manage Server.)
 
-## Inventory of the commands that stay visible
+## Inventory of the mixed commands (before phase 2)
 
 From each handler's checks (not the descriptions). M = member, RL = Raid Leader or higher,
 DKP = DKP Officer or higher, O = Officer or higher.
@@ -78,7 +78,7 @@ DKP = DKP Officer or higher, O = Officer or higher.
 
 Officer/leader subcommands still inside visible parents: about 85 of 232.
 
-## Phase 2 options for the mixed parents
+## Phase 2 options for the mixed parents (as proposed; B was chosen)
 
 Discord limits that shape this: one level of groups under a top-level command (parent → group →
 subcommand), at most 25 options per level, and **4000 characters** of names, descriptions and
@@ -132,23 +132,34 @@ overrides with `GET /applications/{app}/guilds/{guild}/commands/permissions`).
 one twin per mixed parent (29 top-level commands). Easiest to learn ("the admin version of the
 command you know") and no size pressure, but more names in an officer's `/` list.
 
-## Work either B or C needs (not done here)
+## Phase 2: what changed (Option B, chosen by the owner on 18 October 2026)
 
-- **Router:** `MergedCommand` mounts a whole builder. Moving some subcommands needs a filtered
-  mount (keep or drop named subcommands, rename one, e.g. `wcl report` → `wcl-report`) and
-  `legacyView` must still hand the handler the old command and subcommand name. Autocomplete
-  (`autocomplete.ts`) routes through the same resolver and must be checked for each moved option.
-- **Lite tier:** `LITE_COMMANDS` keeps `/raid create/edit/cancel`; those would move to `/lead`, so
-  the Lite list needs the new parent.
-- **French:** new parent and group descriptions need `setDescriptionLocalizations({ fr })`; any
-  new `tx()` text in `setup.ts`, `setup-status.ts`, `dungeon-group.ts`, `poll.ts`, `raid-core.ts`,
-  `wcl.ts`, `faq.ts` and the other files in `scripts/i18n-keys.mjs` `SOURCES` needs an entry in
-  `src/i18n-fr.ts`. `help.ts` keeps its own `en`/`fr` lists.
-- **Text that names old paths:** `/help` lines, `COMMANDS.md`, `LITE_SUMMARY`, setup checklist
-  text, button replies such as "Officers: `/raid wcl report url:`", the AI reference built by
-  `buildGuildedReference`, and website docs. `tests/command-docs.test.ts` checks that every
-  top-level command is mentioned in `/help`.
-- **Tests:** `tests/commands-shape.test.ts` (size, option paths such as `character add`),
-  `tests/command-visibility.test.ts` (extend `HIDDEN_FROM_MEMBERS`).
-- **Release:** renamed commands are a user-facing change for officers; it belongs in a version's
-  release notes, not an incidental update.
+Built in the same PR as phase 1. `src/commands/index.ts` lists the moved subcommands
+(`RAID_LEAD`, `EPGP_OFFICER`, `LOOT_OFFICER`, `CHARACTER_OFFICER`, `COMMUNITY_ORGANIZER` and
+the three activity lists) and builds `/lead`, `/officer` and `/organize` from them.
+
+- **Router:** a mount can keep `only` some subcommands, leave some out (`except`, also on the
+  base), or lift them onto the parent under new names (`flat`: `wcl report` → `/lead wcl-report`,
+  `readiness raid` → `/lead readiness-raid`). The handler still sees the old command and
+  subcommand (`legacyView`), so no handler changed; autocomplete resolves the same way.
+- **Permissions:** `/lead` Manage Events, `/officer` and `/organize` Manage Server. A server can
+  give its Raid Leader role Manage Events, or allow the role on `/lead` in Integrations.
+  `/setup start`'s checklist does not say this yet; `/help` does (follow-up below).
+- **Lite tier:** `/lead create` (without core and weekly), `edit` and `cancel`; `/raid` keeps
+  signup, cancel-signup, status and roster.
+- **Text:** every in-bot mention of a moved path (replies, setup text, the addon's unlinked-character
+  message, `src/i18n-fr.ts` keys and values together), `/help`, `COMMANDS.md`, and the current
+  feature guides in `docs/`. Release notes and handoffs keep the old paths: they are history.
+- **French:** the three new parents carry French descriptions (`MergedCommand.setDescriptionLocalizations`).
+  Moved subcommands keep their own builders' text and localizations.
+- **Tests:** `tests/command-visibility.test.ts` (what each parent holds and its permission),
+  `tests/router.test.ts` (partial and lifted mounts, real routes), `tests/guilded-lite.test.ts`,
+  `tests/command-docs.test.ts` (the new parents are in `/help`).
+
+Still open:
+
+- `/setup start`'s checklist could tell the admin to allow the Officer and Raid Leader roles on the
+  hidden commands, and `/system status` could flag a server where no Raid Leader can see `/lead`
+  (the bot can read, not write, those overrides).
+- Officers on live servers must learn the new paths; this belongs in the next version's release
+  notes. The bot announces a version only when `package.json` changes, and this PR does not bump it.

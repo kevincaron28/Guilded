@@ -67,7 +67,7 @@ export async function executeTestRaid(interaction: ChatInputCommandInteraction):
 
 `
         + `${posted ? "The run was announced in the dungeon channel (marked [TEST])." : "No dungeon or notify channel is set, so nothing was announced."} `
-        + "Try `/dungeon leaderboard`, `/dungeon records`, `/dungeon admin invalidate`. Run it again for the weekly repeat share; `/setup testraid cleanup` removes it all.",
+        + "Try `/dungeon leaderboard`, `/dungeon records`, `/officer dungeon invalidate`. Run it again for the weekly repeat share; `/setup testraid cleanup` removes it all.",
       flags: MessageFlags.Ephemeral
     });
     return;
@@ -87,7 +87,7 @@ export async function executeTestRaid(interaction: ChatInputCommandInteraction):
       content: [
         `Created **${result.raid.title}** \`${result.raid.id}\` with ${result.members} fake raiders (realm ${realm}):`,
         `${result.counts.SIGNED_UP} signed up, ${result.counts.MAYBE} maybe, ${result.counts.WAITLISTED} waitlisted.`,
-        "Try it: `/raid signup` yourself, `/raid cancel-signup`, `/raid edit` caps (waitlist moves up), `/raid roster`, `/raid note`.",
+        "Try it: `/raid signup` yourself, `/raid cancel-signup`, `/lead edit` caps (waitlist moves up), `/raid roster`, `/lead note`.",
         "The raid reminder fires 60 minutes before start (if a signup channel is set).",
         `When ready: \`/setup testraid finish raid:${result.raid.id}\` (add \`via_addon:true\` to test the import path). Clean up with \`/setup testraid cleanup\`.`,
         `In game, \`/guilded sim\` uses the same fake names (${SIM_CHARACTERS.slice(0, 3).join(", ")}...) so an addon export matches.`
@@ -113,7 +113,7 @@ export async function executeTestRaid(interaction: ChatInputCommandInteraction):
   ].join("\n");
   if (result.importId) {
     await interaction.reply({
-      content: `${summary}\nAttendance was sent as an addon import. Apply it with \`/import apply id:${result.importId}\` (you should see the no-show and the walk-in), then \`/raid award-ep raid:${result.raid.id}\`.`,
+      content: `${summary}\nAttendance was sent as an addon import. Apply it with \`/import apply id:${result.importId}\` (you should see the no-show and the walk-in), then \`/lead award-ep raid:${result.raid.id}\`.`,
       flags: MessageFlags.Ephemeral
     });
     return;

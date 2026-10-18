@@ -118,9 +118,9 @@ physical deletion is not necessary. Any removal of old displayed history must be
 scoped to this guild's dungeon competition, never other guild or product data.
 No live reset has been executed. The cutoff is prepared, not scheduled in production.
 
-Officer configuration: `/dungeon admin target` accepts minutes plus min_level,
+Officer configuration: `/officer dungeon target` accepts minutes plus min_level,
 max_level and difficulty together; these copy into the next season's rules.
-`/dungeon admin season-start` accepts name and ends_at with an explicit timezone.
+`/officer dungeon season-start` accepts name and ends_at with an explicit timezone.
 Target/range edits do not retroactively move the goalposts in the current season.
 
 Deployment requires the migration, bot, rebuilt companion and addon together.

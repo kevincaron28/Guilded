@@ -47,7 +47,7 @@ export function communityLeaderboardCard(input: {
       "Rejoins les soirées, réponds aux quiz et relève les défis. Un organisateur confirme les présences et les preuves des défis.\nLes messages, réactions et moments en vocal rapportent des points quand les récompenses de participation sont activées : `/participation status`.") })
     .addFields({ name: say(lang, "📊 Your next step", "📊 Suis ta progression"), value: season
       ? say(lang, "My points shows your score, available balance and participation progress privately. Spending lottery points keeps your earned score intact.", "Mes points affiche ton score, ton solde et ta participation en privé. Dépenser des points dans une loterie ne diminue pas ton score gagné.")
-      : say(lang, "An organizer starts the season with `/community start-season`. No points or prizes are awarded until activities are configured.", "Un organisateur lance la saison avec `/community start-season`. Les activités annoncent leurs points et leurs récompenses.") })
+      : say(lang, "An organizer starts the season with `/organize start-season`. No points or prizes are awarded until activities are configured.", "Un organisateur lance la saison avec `/organize start-season`. Les activités annoncent leurs points et leurs récompenses.") })
     .setFooter({ text: say(lang, "Good company beats spam. Every genuine contribution counts. Guilded ⚜️", "Du bon temps, pas du spam. Chaque vraie contribution compte. Guilded ⚜️") });
   const links = new ActionRowBuilder<ButtonBuilder>();
   for (const [id, label] of [[input.activitiesId, say(lang, "🎮 Join an activity", "🎮 Voir les activités")], [input.chatId, say(lang, "💬 Meet the community", "💬 Rejoindre la gang")]]) {

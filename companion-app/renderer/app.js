@@ -37,9 +37,16 @@ const say = (message, ok) => { $('formResult').textContent = message; $('formRes
 function gameFields() { $('wowSettings').hidden = !$('wowEnabled').checked; $('poeSettings').hidden = !$('poeEnabled').checked; }
 ['wowEnabled','poeEnabled'].forEach(id => $(id).addEventListener('change',gameFields));
 function pill(id, text, level) { $(id).textContent = text; $(id).className = `pill ${level || ''}`; }
+function renderUpdate(update) {
+  $('updateBanner').hidden = !update || !!api.browser;
+  if (!update) return;
+  $('updateTitle').textContent = `Guilded Companion ${update.version} is available`;
+  $('updateText').textContent = `You have ${$('version').textContent.replace(/^Version /, '')}. Download the new installer and run it: your settings and Discord link are kept.`;
+}
 function renderState(snapshot) {
   lastSnapshot = snapshot;
   const {state,health} = snapshot;
+  renderUpdate(snapshot.update);
   const linked = !!savedConfig.companionCredential;
   const paused = !api.browser && linked && !state.running && health.text === 'Not running';
   const setup = health.level === 'setup' && health.text === 'Setup needed';
@@ -103,6 +110,7 @@ bind('btnUpload',async () => { await api.uploadNow(); toast(api.browser ? 'Sync 
 bind('btnStandings',async () => { await api.refreshStandings(); toast(api.browser ? api.folderAccess ? 'Standings saved. Use /reload in WoW.' : 'Standings downloaded. Add the file to Interface / AddOns / Guilded.' : 'Standings refresh finished. Check Activity for the result.'); });
 bind('btnFolder',() => api.openAddonFolder()); bind('btnPause',async () => { await api.toggleTracking(); }); bind('btnOnline',() => api.openOnline());
 bind('btnRemoveData',() => api.removeData());
+bind('btnUpdate',() => api.openUpdate());
 bind('btnHistory',async () => {
   if (!savedConfig.companionCredential) { showPage('settings'); toast('Connect your Discord account first.'); return; }
   const visits = await api.getPoeRuns();
@@ -140,7 +148,7 @@ async function init() {
       $('btnStandings').after(forget);
     }
   } else { $('watchFile').removeAttribute('readonly'); $('poeLogFile').removeAttribute('readonly'); }
-  gameFields(); entries = all.logs.slice(-300); renderLogs(); renderState({state:all.state,health:all.health});
+  gameFields(); entries = all.logs.slice(-300); renderLogs(); renderState({state:all.state,health:all.health,update:all.update});
   showPage(new URLSearchParams(location.search).get('tab') || (savedConfig.companionCredential ? 'status' : 'settings'));
   api.onState(renderState); api.onLog(addLog);
   setInterval(() => { if (lastSnapshot) renderState(lastSnapshot); },1000);

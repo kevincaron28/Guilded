@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Update prompts: the Windows companion shows a **Download update** banner, a tray note and
+  one Windows notification when a newer release (or a newer bot) is out. A self-hosted bot
+  checks GitHub daily and tells each server's officer log once per new version
+  (`UPDATE_CHECK=false` turns it off; the official hosted bot skips it). Migration
+  `20261118090000_update_notice` adds `GuildSettings.lastUpdateNoticeVersion`.
 - `/character pair` and `/poe pair` show the connection code first, alone in a copyable box,
   instead of in bold inside a sentence.
 

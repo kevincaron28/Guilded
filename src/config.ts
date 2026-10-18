@@ -40,6 +40,8 @@ const environmentSchema = z.object({
   // Intent": turn it on for the bot in the Developer Portal FIRST, then set this to true (asking
   // for it without the portal switch makes Discord refuse the login).
   MESSAGE_CONTENT_INTENT: z.preprocess((value) => value === "true" || value === "1", z.boolean()).default(false),
+  // Daily check for a newer Guilded release; officers get one notice per version. On by default.
+  UPDATE_CHECK: z.preprocess((value) => !(value === "false" || value === "0"), z.boolean()).default(true),
   // Optional AI answers when no officer answer matches: any OpenAI-compatible chat endpoint.
   // Free options: a Google AI Studio key (https://generativelanguage.googleapis.com/v1beta/openai),
   // a Groq key (https://api.groq.com/openai/v1), or Ollama on the server (http://127.0.0.1:11434/v1, no key).

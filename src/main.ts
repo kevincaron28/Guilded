@@ -1,6 +1,6 @@
 import { hostedPilot, replacePilotApprovals, replacePilotLite } from "./hosted-pilot.js";
 import { createPilotRequests, PILOT_REQUEST_PREFIX } from "./services/pilot-requests.js";
-import { welcomeApprovedOwner } from "./services/pilot-welcome.js";
+import { warnIdleLite, welcomeApprovedOwner } from "./services/pilot-welcome.js";
 import { PILOT_DENIED, PILOT_LITE_DENIED } from "./services/pilot-policy.js";
 import { allowsLite, commandSetFor } from "./commands/lite.js";
 import { ensureCoreDiscord } from "./services/raid-core.js";
@@ -292,6 +292,8 @@ client.once(Events.ClientReady, (readyClient) => {
     for (const guild of readyClient.guilds.cache.values()) {
       if (!hostedPilot.allows(guild.id)) void pilotRequests.request(guild).catch(reportJobError("Pilot approval DM"));
     }
+    // Lite servers nobody used for 30 days are told, then left 7 days later.
+    pilotRequests.sweepIdle().catch(reportJobError("Idle Lite servers"));
     // Re-evaluate snapshot age even when nobody clicks a signup or uploads new gear.
     (async () => {
       for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) {
@@ -410,6 +412,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   // Lite: only the Lite slash commands (stale registrations included); its own buttons and modals pass.
   const liteBlocked = tier === "lite" && (interaction.isChatInputCommand() || interaction.isAutocomplete())
     && !allowsLite(interaction.commandName, interaction.options.getSubcommandGroup(false), interaction.options.getSubcommand(false));
+  if (tier === "lite") void pilotRequests.touch(interaction.guildId!).catch(reportJobError("Lite activity"));
   if (tier === "blocked" || liteBlocked) {
     if (interaction.isAutocomplete()) await interaction.respond([]).catch(() => undefined);
     else if (interaction.isRepliable()) await interaction.reply({ content: tier === "lite" ? PILOT_LITE_DENIED : PILOT_DENIED, flags: MessageFlags.Ephemeral }).catch(() => undefined);
@@ -618,5 +621,5 @@ async function registerCommandsEverywhere(): Promise<void> {
 const pilotRequests = createPilotRequests(client, { enabled: hostedPilot.enabled, allows: hostedPilot.allows, replace: replacePilotApprovals,
   liteLimit: config.HOSTED_LITE_LIMIT, replaceLite: replacePilotLite,
   activate: async guild => { await registerCommands(guild.id); await greetNewGuild(guild); },
-  welcome: guild => welcomeApprovedOwner(client, guild) });
+  welcome: guild => welcomeApprovedOwner(client, guild), warnIdle: guild => warnIdleLite(client, guild) });
 await client.login(config.DISCORD_TOKEN);

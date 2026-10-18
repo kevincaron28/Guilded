@@ -68,7 +68,7 @@ describe("Lite command set", () => {
 
 const dirs: string[] = [];
 afterEach(async () => { await Promise.all(dirs.splice(0).map(path => rm(path, { recursive: true, force: true }))); });
-async function fixture(liteLimit = 1) {
+async function fixture(liteLimit = 1, clock = { at: Date.UTC(2026, 9, 18) }) {
   const dir = await mkdtemp(join(tmpdir(), "guilded-lite-")); dirs.push(dir);
   const envPath = join(dir, ".env.local"), statePath = join(dir, "requests.json");
   await writeFile(envPath, `DISCORD_GUILD_ID=${primary}\nDISCORD_CLIENT_ID=${primary}\nHOSTED_PILOT=true\nHOSTED_GUILD_LIMIT=5\n`);
@@ -78,7 +78,8 @@ async function fixture(liteLimit = 1) {
   const guild = makeGuild(guest), other = makeGuild(second);
   const client = { application: { fetch: vi.fn(async () => ({ owner: { id: owner } })) }, users: { fetch: vi.fn(async () => ({ send })) },
     guilds: { cache: new Map([[guest, guild], [second, other]]) } };
-  const options = { enabled: true, allows: policy.allows, liteLimit, envPath, statePath, activate,
+  const warnIdle = vi.fn(async () => true);
+  const options = { enabled: true, allows: policy.allows, liteLimit, envPath, statePath, activate, warnIdle, now: () => clock.at,
     replace: (ids: string[]) => { policy.guildIds.splice(0, policy.guildIds.length, ...ids); },
     replaceLite: (ids: string[]) => { policy.liteIds.splice(0, policy.liteIds.length, ...ids); } };
   const manager = createPilotRequests(client as unknown as Client, options);
@@ -89,7 +90,7 @@ async function fixture(liteLimit = 1) {
       reply: vi.fn(async () => undefined), deferReply: vi.fn(async () => undefined), editReply: vi.fn(async () => undefined) };
     return manager.handle(interaction as unknown as ButtonInteraction).then(() => interaction);
   };
-  return { manager, client, options, policy, guild, other, send, activate, click, statePath };
+  return { manager, client, options, policy, guild, other, send, activate, click, statePath, warnIdle, clock };
 }
 
 describe("automatic Lite admission", () => {
@@ -143,5 +144,43 @@ describe("automatic Lite admission", () => {
     await f.manager.request(f.guild as unknown as Guild);
     expect(f.guild.leave).toHaveBeenCalledTimes(2);
     expect(f.policy.tier(guest)).toBe("blocked");
+  });
+});
+
+describe("idle Lite servers", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  it("warns after 30 idle days and leaves 7 days later, freeing the slot", async () => {
+    const f = await fixture();
+    await f.manager.request(f.guild as unknown as Guild);
+    f.clock.at += 29 * DAY; await f.manager.sweepIdle();
+    expect(f.warnIdle).not.toHaveBeenCalled();
+    f.clock.at += 1 * DAY; await f.manager.sweepIdle(); await f.manager.sweepIdle();
+    expect(f.warnIdle).toHaveBeenCalledTimes(1);
+    expect(f.guild.leave).not.toHaveBeenCalled();
+    f.clock.at += 7 * DAY; await f.manager.sweepIdle();
+    expect(f.guild.leave).toHaveBeenCalledTimes(1);
+    expect(f.policy.tier(guest)).toBe("blocked");
+    expect(JSON.parse(await readFile(f.statePath, "utf8"))[guest]).toBeUndefined();
+  });
+  it("cancels the warning when someone uses a command", async () => {
+    const f = await fixture();
+    await f.manager.request(f.guild as unknown as Guild);
+    f.clock.at += 30 * DAY; await f.manager.sweepIdle();
+    expect(f.warnIdle).toHaveBeenCalledTimes(1);
+    f.clock.at += 3 * DAY; await f.manager.touch(guest);
+    f.clock.at += 5 * DAY; await f.manager.sweepIdle();
+    expect(f.guild.leave).not.toHaveBeenCalled();
+    expect(JSON.parse(await readFile(f.statePath, "utf8"))[guest].warnedAt).toBeUndefined();
+  });
+  it("never sweeps approved or waiting-without-Lite servers, and starts old entries' 30 days now", async () => {
+    const f = await fixture(0);
+    await f.manager.request(f.guild as unknown as Guild);
+    f.clock.at += 60 * DAY; await f.manager.sweepIdle();
+    expect(f.warnIdle).not.toHaveBeenCalled(); expect(f.guild.leave).not.toHaveBeenCalled();
+    const g = await fixture();
+    await writeFile(g.statePath, JSON.stringify({ [guest]: { nonce: "n", name: "Old", status: "lite", messageId: "m" } }));
+    await g.manager.sweepIdle();
+    expect(JSON.parse(await readFile(g.statePath, "utf8"))[guest].activeAt).toBe(g.clock.at);
+    expect(g.warnIdle).not.toHaveBeenCalled();
   });
 });

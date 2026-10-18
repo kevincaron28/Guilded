@@ -30,6 +30,9 @@ While your server waits for approval (up to 50 servers at a time):
 
 When the server is approved, every command appears right away (no reinvite).
 If the 50 Lite places are taken, your server waits with no access, as before.
+A Lite server where nobody uses a command for 30 days gets a notice (system channel,
+or the server owner's DMs); if nobody uses one in the next 7 days, Guilded leaves
+to free the place. You can add it back later.
 The hosted pilot is free. Optional support never buys approval or priority.
 
 ## Joining with your guild
@@ -73,6 +76,8 @@ pour une guilde admise au pilote.
    `/dungeon group` et les inscriptions `/raid` simples (sans core ni répétition).
    L'approbation de KCaron débloque tout le reste : synchronisation de l'addon,
    EPGP, saisons, activités, page de guilde et tâches planifiées.
+   Un serveur Lite sans aucune commande pendant 30 jours reçoit un avis; sans
+   commande dans les 7 jours suivants, Guilded quitte le serveur pour libérer la place.
    Le plafond est de **cinq serveurs, celui du propriétaire inclus**; les places
    dépendent de la capacité disponible. Aucun délai d'admission n'est garanti.
 3. Après l'accord, lancez `/setup start`, choisissez la langue et les fonctions,
@@ -134,6 +139,10 @@ Only an explicit owner CLI approval overrides a block. Duplicate or old buttons
 cannot change a completed decision. Keep DMs from Guilded enabled; delivery
 failures retry hourly and after restart (Lite, if granted, stays on meanwhile).
 When the bot is removed from a waiting server, its entry is dropped and the Lite place freed.
+An hourly check warns Lite servers idle for 30 days (`warnIdleLite` in
+`src/services/pilot-welcome.ts`) and leaves them 7 days later if still unused; any
+command use resets the clock. Leaving for inactivity drops the entry (it is not a
+block), so a later invite sends you a new request.
 
 Pending, Lite and block decisions and delivered-message IDs live in
 `backups/pilot-requests.json` (private, preserved by deployment). Back up this

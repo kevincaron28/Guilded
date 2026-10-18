@@ -6,19 +6,29 @@ import { editPilotApprovals, pilotFilePolicy, pilotInvite } from "./pilot-admin.
 
 export const PILOT_REQUEST_PREFIX = "pilot-request:";
 // pending: waiting with no access; lite: waiting with the Lite command set (both await a decision).
-type Request = { nonce: string; name: string; status: "pending" | "lite" | "blocked" | "approved"; messageId?: string };
+// activeAt/warnedAt (ms): last command use on a Lite server, and when it was told it is idle.
+type Request = { nonce: string; name: string; status: "pending" | "lite" | "blocked" | "approved"; messageId?: string; activeAt?: number; warnedAt?: number };
+const DAY = 24 * 60 * 60 * 1000;
+export const LITE_IDLE_WARN_MS = 30 * DAY, LITE_IDLE_LEAVE_MS = 7 * DAY;
+// Command use is saved at most this often per server, so busy Lite servers don't rewrite the file.
+const TOUCH_SAVE_MS = 6 * 60 * 60 * 1000;
 type State = Record<string, Request>;
 type Options = { enabled: boolean; allows: (id: string) => boolean; replace: (ids: string[]) => void;
   // How many waiting servers get Guilded Lite (default 0: none), and where the running bot keeps that list.
   liteLimit?: number; replaceLite?: (ids: string[]) => void;
   activate: (guild: Guild) => Promise<void>;
   // Tells the approved server's owner (true when the message was delivered). Must not throw.
-  welcome?: (guild: Guild) => Promise<boolean>; envPath?: string; statePath?: string };
+  welcome?: (guild: Guild) => Promise<boolean>;
+  // Tells an idle Lite server it will be left (true when delivered). Must not throw.
+  warnIdle?: (guild: Guild) => Promise<boolean>;
+  envPath?: string; statePath?: string; now?: () => number };
 
 // Local state avoids waking Postgres for admission checks and survives normal deploys.
 // Only this single bot process handles decisions; the CLI remains an emergency override.
 export function createPilotRequests(client: Client, options: Options) {
   const envPath = options.envPath ?? ".env.local", statePath = options.statePath ?? "backups/pilot-requests.json";
+  const now = options.now ?? Date.now;
+  const touched = new Map<string, number>();
   let ownerId: string | undefined, queue = Promise.resolve();
   const serial = <T>(fn: () => Promise<T>): Promise<T> => {
     const task = queue.then(fn); queue = task.then(() => undefined, () => undefined); return task;
@@ -54,6 +64,39 @@ export function createPilotRequests(client: Client, options: Options) {
       if (!open(state[guildId])) return;
       delete state[guildId]; await save(state);
     }); },
+    /** A command was used on a Lite server: it is not idle. Cheap to call on every interaction. */
+    touch(guildId: string) {
+      const at = now();
+      if (!options.enabled || at - (touched.get(guildId) ?? 0) < TOUCH_SAVE_MS) return Promise.resolve();
+      touched.set(guildId, at);
+      return serial(async () => {
+        const state = await load(), request = state[guildId];
+        if (request?.status !== "lite") return;
+        request.activeAt = at; delete request.warnedAt; await save(state);
+      });
+    },
+    /** Hourly: warn Lite servers idle for 30 days, and leave those still idle 7 days after the warning. */
+    sweepIdle() { return serial(async () => {
+      if (!options.enabled) return;
+      const state = await load(), at = now();
+      let changed = false;
+      for (const [id, request] of Object.entries(state)) {
+        if (request.status !== "lite" || options.allows(id)) continue;
+        const guild = client.guilds.cache.get(id);
+        if (!guild) continue;
+        // Entries from before idle tracking start their 30 days now.
+        if (request.activeAt === undefined) { request.activeAt = at; changed = true; continue; }
+        if (request.warnedAt !== undefined && at - request.warnedAt >= LITE_IDLE_LEAVE_MS) {
+          // Dropped (not blocked) first, so GuildDelete has nothing to do and a later invite asks again.
+          delete state[id]; await save(state); changed = false;
+          await guild.leave();
+        } else if (request.warnedAt === undefined && at - request.activeAt >= LITE_IDLE_WARN_MS) {
+          await options.warnIdle?.(guild).catch(() => false);
+          request.warnedAt = at; changed = true;
+        }
+      }
+      if (changed) await save(state);
+    }); },
     request(guild: Guild) { return serial(async () => {
       if (!options.enabled || options.allows(guild.id)) return;
       const state = await load();
@@ -66,7 +109,7 @@ export function createPilotRequests(client: Client, options: Options) {
         // Lite is granted (and saved) before the owner DM, so a closed DM never holds it back.
         // A server approved from the CLI while on Lite no longer takes a Lite slot.
         const lite = Object.entries(state).filter(([id, row]) => row.status === "lite" && !options.allows(id)).length < (options.liteLimit ?? 0);
-        request = { nonce: randomUUID(), name: guild.name, status: lite ? "lite" : "pending" }; state[guild.id] = request;
+        request = { nonce: randomUUID(), name: guild.name, status: lite ? "lite" : "pending", ...(lite ? { activeAt: now() } : {}) }; state[guild.id] = request;
         await save(state);
       }
       const full = (options.liteLimit ?? 0) > 0;

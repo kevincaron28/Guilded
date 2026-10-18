@@ -32,6 +32,9 @@ export interface SetupFacts {
   // The community section: a Discord season open to everyone, and whether it earns points.
   community?: { season: boolean; participation: boolean; honors?: boolean } | null;
   botMessages?: { kind: string; name?: string; state: "current" | "outdated" | "missing" }[];
+  // Officer roles that can't see /lead, /officer or /organize ("Raid Leader → /lead");
+  // null when Discord refused the check (services/command-visibility.ts).
+  commandAccess?: { role: string; command: string }[] | null;
 }
 
 export interface ChannelFact {
@@ -141,6 +144,17 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en"): SetupCheck[] 
     if (facts.community.honors !== undefined) checks.push({
       label: T("Hall of fame: weekly MVP and monthly podium roles"), ok: facts.community.honors, optional: true,
       fix: T("Optional: press \"Set up community\" on this checklist to add the hall-of-fame channel and its roles.")
+    });
+  }
+  if (facts.commandAccess !== undefined) {
+    const blocked = facts.commandAccess;
+    const howTo = T("Give the Raid Leader role \"Manage Events\" (Server Settings > Roles), or in Server Settings > Integrations > Guilded allow the Officer, Guild Master and Raid Leader roles on /lead, /officer and /organize.");
+    checks.push({
+      label: T("Leader commands visible to your officer roles"), ok: blocked !== null && blocked.length === 0, optional: true,
+      ...(blocked?.length ? { warn: true } : {}),
+      fix: blocked === null
+        ? `${T("I couldn't read the command settings. Check it once:")} ${howTo}`
+        : `${T("Hidden from: {list}.", { list: blocked.map((entry) => `${entry.role} → /${entry.command}`).join(", ") })} ${howTo}`
     });
   }
   const answerFact = (facts.extraChannels ?? []).find((entry) => entry.field === "answerChannelId")?.fact;

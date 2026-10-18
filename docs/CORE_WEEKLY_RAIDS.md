@@ -9,12 +9,12 @@ The bot prepares ordinary Guilded raid signup posts in the general raid channel
 and the core's channel. This does not create separate Discord native Scheduled
 Events. Only starts within the next six local calendar days are generated.
 At startup and every five minutes it fills that rolling window, independently
-of `/raid end`. DST preserves the local hour; a nonexistent spring clock time
+of `/lead end`. DST preserves the local hour; a nonexistent spring clock time
 is skipped, and a repeated fall time creates one raid.
 
 `/core edit` → **📅 Horaire hebdomadaire** changes or pauses the schedule; blank
 stops generation. `/core rules schedule:off` also stops it. Existing raids and
-their signups remain untouched when the schedule changes. Use `/raid cancel`
+their signups remain untouched when the schedule changes. Use `/lead cancel`
 to skip a specific night; cancelled and moved raids retain their original
 occurrence identity and never respawn. Raid title, bosses, caps and individual
 details remain editable using existing `/raid` tools. Generated raids use the

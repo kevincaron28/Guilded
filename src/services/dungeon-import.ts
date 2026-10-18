@@ -1,4 +1,4 @@
-import { resolveNovemberRoute, validNovemberRules } from "./dungeon-november-rules.js";
+import { bracketForLevel, resolveNovemberRoute, validBracketedRules, validRouteRules } from "./dungeon-november-rules.js";
 import type { Prisma } from "@prisma/client";
 import { grantRunAchievements, type AchievementKey } from "./dungeon-achievements.js";
 import { findCharacter } from "./character-match.js";
@@ -93,8 +93,10 @@ export async function importDungeonRuns(
   const season = await activeSeason(tx, guildId, config.targets, config.levelBands);
   const rated = hasDungeonRating(season.ratingRules);
   const timed = rated && (season.ratingRules as { version: number }).version >= 3;
-  const november = validNovemberRules(season.ratingRules) ? season.ratingRules : undefined;
-  if ((season.ratingRules as { version?: number } | null)?.version === 5 && !november) throw new Error("Invalid November rules; import refused without awards");
+  const november = validRouteRules(season.ratingRules) ? season.ratingRules : undefined;
+  const brackets = validBracketedRules(season.ratingRules) ? season.ratingRules.brackets : undefined;
+  const ruleVersion = (season.ratingRules as { version?: number } | null)?.version;
+  if ((ruleVersion === 5 || ruleVersion === 6) && !november) throw new Error("Invalid November rules; import refused without awards");
   const bestEight = rated && ((season.ratingRules as { version: number }).version === 4 || november !== undefined);
   const ratingRules = season.ratingRules as unknown as { targets: Record<string, number>; levelBands: Record<string, LevelBand>; participationLevelBands: Record<string, LevelBand> };
   const participationRules = bestEight ? { targets: {}, levelBands: ratingRules.participationLevelBands } : timed ? season.ratingRules as unknown as { targets: Record<string, number>; levelBands: Record<string, LevelBand> } : config;
@@ -255,8 +257,10 @@ export async function importDungeonRuns(
     }
 
     const currentRating = rated ? await dungeonRating(tx, guildId, season) : [];
+    // Version 6: the total of the bracket this character played in, by their level in this run.
+    const runBracket = (name: string) => bracketForLevel(brackets ?? [], run.players.find(p => p.character === name)?.level)?.key;
     const ratingFor = (rows: typeof currentRating, memberId: string, name: string) => rows.find(row => row.character
-      && ratingCharacterKey(row.memberId, row.character) === ratingCharacterKey(memberId, name))?.points ?? 0;
+      && ratingCharacterKey(row.memberId, row.character) === ratingCharacterKey(memberId, name) && (!brackets || row.bracket === runBracket(name)))?.points ?? 0;
     summary.results.push({
       runRef: run.id,
       dungeonName: run.name,

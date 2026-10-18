@@ -15,7 +15,7 @@ import { executeDungeonGroup } from "./dungeon-group.js";
 import { openGroupAlerts } from "./group-alerts.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { seasonArchive, seasonRows } from "../services/season-archive.js";
-import { dungeonRating, hasDungeonRating, ratingEmbed } from "../services/dungeon-rating.js";
+import { defaultBracket, dungeonRating, hasDungeonRating, ratingEmbed, type RatingRow } from "../services/dungeon-rating.js";
 
 // Dungeon challenge views (roadmap D5). Points come from runs the addon
 // recorded and an officer imported (/import apply).
@@ -31,7 +31,8 @@ export const dungeonCommand = new SlashCommandBuilder()
     .addStringOption((o) => o.setName("period").setDescription("Default: this season").addChoices(
       { name: "This week", value: "week" }, { name: "This season", value: "season" }, { name: "All time", value: "all" }))
     .addStringOption((o) => o.setName("season").setDescription("Browse a past season (overrides period)").setAutocomplete(true))
-    .addStringOption((o) => o.setName("dungeon").setDescription("Only one dungeon (pick from the list)").setAutocomplete(true)))
+    .addStringOption((o) => o.setName("dungeon").setDescription("Only one dungeon (pick from the list)").setAutocomplete(true))
+    .addStringOption((o) => o.setName("bracket").setDescription("Level bracket, for all-level seasons (default: yours)").setAutocomplete(true)))
   .addSubcommand((sub) => sub.setName("records").setDescription("Fastest clears: every dungeon, or the top times of one")
     .addStringOption((o) => o.setName("dungeon").setDescription("One dungeon (pick from the list)").setAutocomplete(true)))
   .addSubcommand((sub) => sub.setName("player").setDescription("A player's points, best times and recent runs (default: you)")
@@ -39,7 +40,8 @@ export const dungeonCommand = new SlashCommandBuilder()
     .addStringOption((o) => o.setName("character").setDescription("Or a character name")))
   .addSubcommand((sub) => sub.setName("history").setDescription("The most recent dungeon runs")
     .addUserOption((o) => o.setName("member").setDescription("Only runs with this member")))
-  .addSubcommand((sub) => sub.setName("season").setDescription("The current season and its leaders"))
+  .addSubcommand((sub) => sub.setName("season").setDescription("The current season and its leaders")
+    .addStringOption((o) => o.setName("bracket").setDescription("Level bracket, for all-level seasons (default: yours)").setAutocomplete(true)))
   .addSubcommand(sub => sub.setName("archive").setDescription("All seasons, including older ones")
     .addIntegerOption(option => option.setName("page").setDescription("Page number").setMinValue(1).setMaxValue(100000)))
   .addSubcommand(sub => sub.setName("hall-of-fame").setDescription("Past season champions")
@@ -63,6 +65,9 @@ const label = (row: { dungeonName: string; difficultyId: number }) => {
   const difficulty = difficultyName(row.difficultyId);
   return difficulty ? `${row.dungeonName} (${difficulty})` : row.dungeonName;
 };
+// All-level seasons: the bracket asked for, else the viewer's own best one, else every bracket.
+const bracketChoice = (interaction: ChatInputCommandInteraction, rows: RatingRow[], memberId: string | null) =>
+  interaction.options.getString("bracket") ?? defaultBracket(rows, memberId);
 const when = (date: Date | null) => (date ? ` · <t:${Math.floor(date.getTime() / 1000)}:d>` : "");
 
 export function recordLine(row: RecordRow, index?: number): string {
@@ -150,7 +155,8 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
     if (metric === "rating" && period !== "season") throw new Error(lang === "fr" ? "La cote se consulte par saison." : "Rating is season-based; choose the season period.");
     if (metric === "rating" && !hasDungeonRating(season?.ratingRules)) throw new Error(lang === "fr" ? "Cette saison utilise les anciens points de participation." : "This season uses legacy participation points.");
     if (season && hasDungeonRating(season.ratingRules) && metric !== "participation") {
-      await interaction.reply({ embeds: [ratingEmbed(await dungeonRating(prisma, context.guildId, season, instanceId), season.name, lang, season.ratingRules)], allowedMentions: { parse: [] } });
+      const rows = await dungeonRating(prisma, context.guildId, season, instanceId);
+      await interaction.reply({ embeds: [ratingEmbed(rows, season.name, lang, season.ratingRules, bracketChoice(interaction, rows, context.memberId))], allowedMentions: { parse: [] } });
       return;
     }
     const rows = season?.status === "ENDED" && instanceId === null ? await seasonRows(prisma, context.guildId, { ...season, ratingRules: null }) : await leaderboard(prisma, context.guildId, period, instanceId, 10, new Date(), seasonId);
@@ -186,7 +192,7 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
       if (currentSeason && hasDungeonRating(currentSeason.ratingRules)) {
         const ratings = (await dungeonRating(prisma, context.guildId, currentSeason)).filter(row => row.memberId === member.id);
         embed.addFields({ name: lang === "fr" ? "Score par personnage" : "Per-character rating",
-          value: ratings.length ? ratings.map(row => `${escapeMarkdown(row.name)} · ${row.points} · ${row.dungeons} ${lang === "fr" ? "donjon(s)" : "dungeon(s)"}`).join("\n").slice(0, 1024) : "0" });
+          value: ratings.length ? ratings.map(row => `${escapeMarkdown(row.name)}${row.bracket ? ` (${row.bracket})` : ""} · ${row.points} · ${row.dungeons} ${lang === "fr" ? "donjon(s)" : "dungeon(s)"}`).join("\n").slice(0, 1024) : "0" });
       }
       if (summary.bests.length) {
         embed.addFields({ name: t(lang, "dungeon.player.bests"), value: summary.bests.map((row) => `• ${label(row)} — ${formatDuration(row.durationSec)}`).join("\n").slice(0, 1024) });
@@ -209,7 +215,8 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
       embed.setDescription(t(lang, "dungeon.season.none"));
     } else {
       if (hasDungeonRating(season.ratingRules)) {
-        await interaction.reply({ embeds: [ratingEmbed(await dungeonRating(prisma, context.guildId, season), season.name, lang, season.ratingRules)], allowedMentions: { parse: [] } });
+        const rows = await dungeonRating(prisma, context.guildId, season);
+        await interaction.reply({ embeds: [ratingEmbed(rows, season.name, lang, season.ratingRules, bracketChoice(interaction, rows, context.memberId))], allowedMentions: { parse: [] } });
         return;
       }
       const runs = await prisma.dungeonRun.count({ where: { guildId: context.guildId, seasonId: season.id, valid: true, state: "COMPLETED" } });

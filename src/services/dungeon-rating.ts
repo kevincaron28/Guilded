@@ -1,7 +1,8 @@
 import { EmbedBuilder, escapeMarkdown } from "discord.js";
 import type { PrismaClient } from "@prisma/client";
 import type { Lang } from "../i18n.js";
-import { novemberDungeonKey, resolveNovemberRoute, validNovemberRules, type NovemberRules } from "./dungeon-november-rules.js";
+import { bracketForLevel, novemberDungeonKey, resolveNovemberRoute, validBracketedRules, validNovemberRules,
+  type BracketedRules, type DungeonBracket, type NovemberRules } from "./dungeon-november-rules.js";
 
 // Version 1 remains readable forever. New seasons use a frozen version 3 copy.
 export const DUNGEON_RATING_RULES = { version: 1, model: "distinct-dungeons", pointsPerDungeon: 100,
@@ -45,6 +46,7 @@ export function hasDungeonRating(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
   const rule = value as Record<string, unknown>;
   if (rule["version"] === 5) return validNovemberRules(value);
+  if (rule["version"] === 6) return validBracketedRules(value);
   const validTargets = !!rule["targets"] && typeof rule["targets"] === "object" && !Array.isArray(rule["targets"])
     && Object.entries(rule["targets"]).every(([id, seconds]) => validDungeonKey(id)
       && typeof seconds === "number" && Number.isInteger(seconds) && seconds >= 1 && seconds <= 14400);
@@ -65,9 +67,10 @@ export function hasDungeonRating(value: unknown): boolean {
 }
 export interface DungeonRatingDetail {
   instanceId: number; name: string; points: number; speedBonus: number; durationSec: number;
-  targetSec: number | null; runRef: string; dungeonKey?: string; ratingVersion?: 3 | 4 | 5; counted?: boolean; unrankedReason?: string; bosses?: BossRecord[];
+  targetSec: number | null; runRef: string; dungeonKey?: string; ratingVersion?: 3 | 4 | 5 | 6; counted?: boolean; unrankedReason?: string; bosses?: BossRecord[];
 }
-export interface RatingRow { memberId: string; character?: string; name: string; points: number; dungeons: number; details?: DungeonRatingDetail[] }
+// Version 6 rows are per character AND bracket; each row freezes its bracket's best-N.
+export interface RatingRow { memberId: string; character?: string; name: string; points: number; dungeons: number; details?: DungeonRatingDetail[]; bracket?: string; bestCount?: number }
 // Runs retain the actual character name. Keep the owner for membership and
 // permissions, but never use their account alone as the competitive identity.
 // Scoped to one guild by dungeonRating; Forever realm labels are not stable.
@@ -115,24 +118,29 @@ function bossRecords(run: RatingRun): BossRecord[] {
 export function calculateDungeonRating(runs: RatingRun[], rules?: unknown): RatingRow[] {
   if (rules !== undefined && !hasDungeonRating(rules)) return [];
   const version = (rules as { version?: number } | undefined)?.version;
-  const timed = version === 3 || version === 4 || version === 5;
-  const bestEight = version === 4 || version === 5;
+  const timed = version === 3 || version === 4 || version === 5 || version === 6;
+  const bestEight = version === 4 || version === 5 || version === 6;
+  const brackets = version === 6 ? rules as BracketedRules : undefined;
   const targets = version === 2 || timed
     ? (rules as ReturnType<typeof createDungeonRatingRules>).targets : {};
-  const members = new Map<string, { memberId: string; name: string; bests: Map<string, DungeonRatingDetail> }>();
+  const members = new Map<string, { memberId: string; name: string; bracket?: DungeonBracket; bests: Map<string, DungeonRatingDetail> }>();
   for (const run of runs) {
     if (!run.durationSec || !Number.isFinite(run.durationSec) || run.durationSec <= 0) continue;
-    const route = version === 5 ? resolveNovemberRoute(run, rules as NovemberRules) : undefined;
+    const route = version === 5 || version === 6 ? resolveNovemberRoute(run, rules as NovemberRules | BracketedRules) : undefined;
     const key = route?.key ?? (timed ? ratingDungeonKey(run) : String(run.instanceId));
     const reason = route?.reason ?? (route && !targets[key] ? "Participation-only route" : !route && timed && key === "189" ? "Dungeon route unknown" : timed ? competitionReason(run, (rules as { levelBands?: Record<string, LevelBand> }).levelBands?.[key]) : undefined);
     const bosses = timed && !reason && targets[key] ? bossRecords(run) : [];
     for (const player of run.players) {
       if (!player.memberId || !player.member || !player.character?.trim() || !Number.isFinite(player.presentSec) || player.presentSec < run.durationSec * 0.8) continue;
-      const identity = ratingCharacterKey(player.memberId, player.character);
-      const member = members.get(identity) ?? { memberId: player.memberId, name: player.character.trim(), bests: new Map<string, DungeonRatingDetail>() };
+      // Version 6: the character's level during this run picks the bracket. A ranked
+      // run already kept every participant inside the route's band, so it agrees with the route.
+      const bracket = brackets ? runBracket(run, player.character, brackets, brackets.routeBracket[key]) : undefined;
+      if (brackets && !bracket) continue;
+      const identity = ratingCharacterKey(player.memberId, player.character) + (bracket ? `/${bracket.key}` : "");
+      const member = members.get(identity) ?? { memberId: player.memberId, name: player.character.trim(), ...(bracket ? { bracket } : {}), bests: new Map<string, DungeonRatingDetail>() };
       const targetSec = targets[key] ?? null;
       const speedBonus = timed ? 0 : speedPoints(run.durationSec, targetSec);
-      const detail: DungeonRatingDetail = { ...(timed ? { ratingVersion: version as 3 | 4 | 5, dungeonKey: key, ...(reason || !targetSec ? { unrankedReason: reason ?? "Target not calibrated" } : {}), bosses: [] } : {}), instanceId: run.instanceId, name: route?.route?.name ?? (key.startsWith("189:") ? `Scarlet Monastery: ${key.split(":")[1]}` : run.dungeonName ?? `#${run.instanceId}`), points: timed ? reason ? 0 : timeRating(run.durationSec, targetSec) : 100 + speedBonus,
+      const detail: DungeonRatingDetail = { ...(timed ? { ratingVersion: version as 3 | 4 | 5 | 6, dungeonKey: key, ...(reason || !targetSec ? { unrankedReason: reason ?? "Target not calibrated" } : {}), bosses: [] } : {}), instanceId: run.instanceId, name: route?.route?.name ?? (key.startsWith("189:") ? `Scarlet Monastery: ${key.split(":")[1]}` : run.dungeonName ?? `#${run.instanceId}`), points: timed ? reason ? 0 : timeRating(run.durationSec, targetSec) : 100 + speedBonus,
         speedBonus, durationSec: run.durationSec, targetSec, runRef: run.runRef ?? "" };
       const previous = member.bests.get(key);
       const bossBests = new Map((previous?.bosses ?? []).map(b => [b.id, b]));
@@ -148,36 +156,51 @@ export function calculateDungeonRating(runs: RatingRun[], rules?: unknown): Rati
   }
   return [...members.values()].map(member => {
     const details = [...member.bests.values()].sort((a, b) => a.instanceId - b.instanceId || (a.dungeonKey ?? "").localeCompare(b.dungeonKey ?? ""));
-    const counted = bestEightKeys(details);
+    const counted = bestEightKeys(details, member.bracket?.bestCount);
     if (bestEight) for (const detail of details) detail.counted = counted.has(detail.dungeonKey!);
     return { memberId: member.memberId, character: member.name, name: member.name,
       points: details.reduce((sum, best) => sum + (bestEight && !best.counted ? 0 : best.points), 0), dungeons: details.length,
-      ...(rules !== undefined ? { details } : {}) };
-  }).sort((a, b) => b.points - a.points || a.name.localeCompare(b.name) || a.memberId.localeCompare(b.memberId));
+      ...(rules !== undefined ? { details } : {}), ...(member.bracket ? { bracket: member.bracket.key, bestCount: member.bracket.bestCount } : {}) };
+  }).sort((a, b) => b.points - a.points || a.name.localeCompare(b.name) || a.memberId.localeCompare(b.memberId)
+    || (a.bracket ?? "").localeCompare(b.bracket ?? ""));
+}
+// The bracket of the character's own level in this run. Without a recorded
+// level, the run is placed in its route's bracket (where it is unranked anyway).
+function runBracket(run: RatingRun, character: string, rules: BracketedRules, routeBracket: string | undefined): DungeonBracket | undefined {
+  const players = (run.competitionData as { players?: { name?: string; level?: unknown }[] } | null)?.players;
+  const level = Array.isArray(players) ? players.find(p => p?.name === character)?.level : undefined;
+  return Number.isInteger(level) ? bracketForLevel(rules.brackets, level) : rules.brackets.find(b => b.key === routeBracket);
+}
+/** The bracket a viewer sees by default: their own best-rated character's. */
+export function defaultBracket(rows: RatingRow[], memberId: string | null | undefined): string | undefined {
+  return memberId ? rows.find(row => row.memberId === memberId && row.bracket)?.bracket : undefined;
 }
 // Equal contributions use a stable route key, not duration across unlike dungeons.
-function bestEightKeys(details: DungeonRatingDetail[]): Set<string> {
+function bestEightKeys(details: DungeonRatingDetail[], count = 8): Set<string> {
   return new Set([...details].filter(d => d.points > 0).sort((a, b) => b.points - a.points
-    || (a.dungeonKey! < b.dungeonKey! ? -1 : a.dungeonKey! > b.dungeonKey! ? 1 : 0)).slice(0, 8).map(d => d.dungeonKey!));
+    || (a.dungeonKey! < b.dungeonKey! ? -1 : a.dungeonKey! > b.dungeonKey! ? 1 : 0)).slice(0, count).map(d => d.dungeonKey!));
 }
 
 function validDetails(row: RatingRow): boolean {
   if (!Array.isArray(row.details) || row.details.length !== row.dungeons) return false;
-  const bestEightVersion = row.details.find(d => d?.ratingVersion === 4 || d?.ratingVersion === 5)?.ratingVersion;
+  const bestEightVersion = row.details.find(d => d?.ratingVersion === 4 || d?.ratingVersion === 5 || d?.ratingVersion === 6)?.ratingVersion;
   const bestEight = bestEightVersion !== undefined;
   if (bestEight && row.details.some(d => d?.ratingVersion !== bestEightVersion || typeof d.dungeonKey !== "string" || !Number.isInteger(d.points))) return false;
-  const counted = bestEight ? bestEightKeys(row.details) : new Set<string>();
+  // A bracket row carries its own key and best-N; other versions carry neither.
+  if (bestEightVersion === 6 ? typeof row.bracket !== "string" || !/^[a-z0-9][a-z0-9-]{0,19}$/.test(row.bracket)
+    || !Number.isInteger(row.bestCount) || row.bestCount! < 1 || row.bestCount! > 20 : row.bracket !== undefined || row.bestCount !== undefined) return false;
+  const counted = bestEight ? bestEightKeys(row.details, bestEightVersion === 6 ? row.bestCount : 8) : new Set<string>();
   const ids = new Set<string>();
   let total = 0;
   for (const detail of row.details) {
     const key = detail?.dungeonKey ?? String(detail?.instanceId);
-    if (!detail || !Number.isInteger(detail.instanceId) || detail.instanceId <= 0 || ids.has(key) || !(detail.ratingVersion === 5 ? novemberDungeonKey(key) : validDungeonKey(key)) || Number(key.split(":")[0]) !== detail.instanceId
+    if (!detail || !Number.isInteger(detail.instanceId) || detail.instanceId <= 0 || ids.has(key) || !(detail.ratingVersion === 5 || detail.ratingVersion === 6 ? novemberDungeonKey(key) : validDungeonKey(key)) || Number(key.split(":")[0]) !== detail.instanceId
       || typeof detail.name !== "string" || typeof detail.runRef !== "string" || !Number.isFinite(detail.durationSec) || detail.durationSec <= 0
       || !Number.isInteger(detail.speedBonus) || detail.speedBonus < 0 || detail.speedBonus > 20
       || detail.targetSec !== null && (!Number.isInteger(detail.targetSec) || detail.targetSec < 1 || detail.targetSec > 14400)) return false;
-    if (detail.ratingVersion === 3 || detail.ratingVersion === 4 || detail.ratingVersion === 5) {
+    if (detail.ratingVersion === 3 || detail.ratingVersion === 4 || detail.ratingVersion === 5 || detail.ratingVersion === 6) {
       if (detail.speedBonus !== 0 || detail.points !== (detail.unrankedReason ? 0 : timeRating(detail.durationSec, detail.targetSec))) return false;
-      if (detail.unrankedReason !== undefined && !["Level range not configured", "Different difficulty", "Party levels unknown", "Overlevel carry", "Below level range", "Target not calibrated", "Dungeon route unknown", ...(detail.ratingVersion === 5 ? ["Required encounter evidence missing", "Participation-only route"] : [])].includes(detail.unrankedReason)) return false;
+      if (detail.unrankedReason !== undefined && !["Level range not configured", "Different difficulty", "Party levels unknown", "Overlevel carry", "Below level range", "Target not calibrated", "Dungeon route unknown", ...(detail.ratingVersion === 5 || detail.ratingVersion === 6 ? ["Required encounter evidence missing", "Participation-only route"] : [])].includes(detail.unrankedReason)) return false;
       if (detail.bosses !== undefined && (!Array.isArray(detail.bosses) || detail.bosses.length > 100
         || new Set(detail.bosses.map(b => b.id)).size !== detail.bosses.length
         || detail.bosses.some(b => !Number.isInteger(b.id) || b.id <= 0 || !Number.isInteger(b.durationSec) || b.durationSec <= 0
@@ -193,7 +216,7 @@ export function frozenRating(value: unknown): RatingRow[] | null {
   if (!Array.isArray(value) || value.some(row => !row || typeof row.memberId !== "string" || typeof row.name !== "string"
     || (row.character !== undefined && (typeof row.character !== "string" || !row.character.trim() || row.name !== row.character))
     || !Number.isInteger(row.points) || row.points < 0 || !Number.isInteger(row.dungeons) || row.dungeons < 0
-    || (row.details === undefined ? row.points !== row.dungeons * 100 : !validDetails(row)))) return null;
+    || (row.details === undefined ? row.points !== row.dungeons * 100 || row.bracket !== undefined : !validDetails(row)))) return null;
   return value as RatingRow[];
 }
 export async function dungeonRating(database: Pick<PrismaClient, "dungeonRun">, guildId: string,
@@ -221,7 +244,8 @@ export async function dungeonRating(database: Pick<PrismaClient, "dungeonRun">, 
   return calculateDungeonRating(timed ? runs.map(run => ({ ...run, players: run.players.map(p => ({ ...p,
     member: p.member?.guildId === guildId ? p.member : null })) })) : runs, season.ratingRules);
 }
-export function ratingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, rules: unknown = DUNGEON_RATING_RULES): EmbedBuilder {
+export function ratingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, rules: unknown = DUNGEON_RATING_RULES, bracket?: string): EmbedBuilder {
+  if (validBracketedRules(rules)) return bracketRatingEmbed(rows, seasonName, lang, rules, bracket);
   const fr = lang === "fr";
   const speed = hasDungeonRating(rules) && (rules as { version: number }).version === 2;
   const timed = hasDungeonRating(rules) && (rules as { version: number }).version >= 3;
@@ -256,14 +280,45 @@ export function ratingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, r
     .setFooter({ text: fr ? "Boss final détecté + présence ≥ 80 %. Points de participation séparés." : "Detected final boss + ≥80% presence. Participation points are separate." });
 }
 
+const rankLine = (rows: RatingRow[], row: RatingRow, fr: boolean) => {
+  const rank = rows.findIndex(other => other.points === row.points) + 1;
+  const scored = row.details ? row.details.filter(d => d.points > 0).length : row.dungeons;
+  return `${rank === 1 ? "🏅" : `${rank}.`} **${escapeMarkdown(row.name).slice(0, 100)}** · **${row.points}** · ${scored} ${fr ? "parcours classé(s)" : "ranked route(s)"}`;
+};
+const bracketLabel = (b: DungeonBracket, fr: boolean) => b.min === b.max ? `${fr ? "Niveau" : "Level"} ${b.min}` : `${fr ? "Niveaux" : "Levels"} ${b.min}–${b.max}`;
+// One bracket in full, or (no bracket chosen) the top five of every bracket.
+function bracketRatingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, rules: BracketedRules, key?: string): EmbedBuilder {
+  const fr = lang === "fr";
+  const chosen = rules.brackets.find(b => b.key === key);
+  const lines = [fr ? "**Score de vitesse par tranche de niveaux · meilleure tentative par parcours**" : "**Dungeon-time rating by level bracket · best result per route**",
+    fr ? "Arrondi(200 × cible ÷ durée), 50–400 par parcours. Chaque personnage est classé dans la tranche de son niveau pendant le run; tous les participants doivent rester dans la plage du parcours. Détails : `/dungeon rules`."
+      : "Round(200 × target ÷ duration), 50–400 per route. Each character ranks in the bracket of their level during the run; every participant must stay inside the route's band. Details: `/dungeon rules`."];
+  const embed = new EmbedBuilder().setColor(0x8b5cf6).setFooter({ text: fr ? "Boss final détecté + présence ≥ 80 %. Points de participation séparés." : "Detected final boss + ≥80% presence. Participation points are separate." });
+  if (chosen) {
+    const own = rows.filter(row => row.bracket === chosen.key);
+    lines.push(fr ? `**${bracketLabel(chosen, true)} : vos ${chosen.bestCount} meilleurs parcours distincts comptent.**` : `**${bracketLabel(chosen, false)}: your best ${chosen.bestCount} distinct routes count.**`);
+    lines.push(...own.slice(0, 10).map(row => rankLine(own, row, fr)));
+    if (!own.length) lines.push(fr ? "Terminez un parcours calibré de cette tranche pour établir votre score." : "Complete a calibrated route in this bracket to establish your score.");
+    return embed.setTitle(`🏅 ${bracketLabel(chosen, fr)} · ${seasonName}`.slice(0, 256)).setDescription(lines.join("\n\n").slice(0, 4096));
+  }
+  for (const b of rules.brackets) {
+    const own = rows.filter(row => row.bracket === b.key);
+    embed.addFields({ name: `${bracketLabel(b, fr)} · ${fr ? `${b.bestCount} meilleurs` : `best ${b.bestCount}`}`,
+      value: (own.length ? own.slice(0, 5).map(row => rankLine(own, row, fr)).join("\n") : fr ? "Aucun score." : "No scores yet.").slice(0, 1024) });
+  }
+  lines.push(fr ? "Une tranche : `/dungeon leaderboard bracket:`." : "One bracket: `/dungeon leaderboard bracket:`.");
+  return embed.setTitle(`${fr ? "🏅 Exploration" : "🏅 Exploration rating"} · ${seasonName}`.slice(0, 256)).setDescription(lines.join("\n\n"));
+}
+
 export interface DungeonCatalogEntry {
   dungeonKey: string; instanceId: number; name: string; targetSec: number | null;
-  minLevel?: number; maxLevel?: number; provisional?: boolean;
+  minLevel?: number; maxLevel?: number; provisional?: boolean; bracket?: string;
 }
 export function seasonDungeonCatalog(rules: unknown, rows: RatingRow[]): DungeonCatalogEntry[] {
   const result = new Map<string, DungeonCatalogEntry>();
-  const november = validNovemberRules(rules);
-  const catalog = november ? rules.routes.filter(r => r.targetSec !== null).map(r => ({ dungeonKey: r.dungeonKey, instanceId: r.instanceId, name: r.name, targetSec: r.targetSec, minLevel: 60, maxLevel: 60 })) : (rules as { catalog?: unknown[] } | null)?.catalog;
+  const bracketed = validBracketedRules(rules);
+  const november = bracketed || validNovemberRules(rules);
+  const catalog = bracketed ? rules.catalog : november ? rules.routes.filter(r => r.targetSec !== null).map(r => ({ dungeonKey: r.dungeonKey, instanceId: r.instanceId, name: r.name, targetSec: r.targetSec, minLevel: 60, maxLevel: 60 })) : (rules as { catalog?: unknown[] } | null)?.catalog;
   for (const raw of Array.isArray(catalog) ? catalog.slice(0, 100) : []) {
     const d = raw as DungeonCatalogEntry;
     if (!d || typeof d.dungeonKey !== "string" || !(november ? novemberDungeonKey(d.dungeonKey) : validDungeonKey(d.dungeonKey)) || Number(d.dungeonKey.split(":")[0]) !== d.instanceId

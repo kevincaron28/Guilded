@@ -24,10 +24,10 @@ export async function characterLinkPrompt(database: PrismaClient, guildId: strin
   if (mode === "companion") {
     const pairing = await issueCharacterPairingCode(database, guildId, memberId);
     embed.addFields(
-      { name: t(lang, "pair.characterOrderTitle"), value: t(lang, hasMain ? "pair.addAlts" : "pair.firstMain") },
       { name: t(lang, "pair.codeTitle"), value: t(lang, "pair.code", {
         code: pairing.code, expires: `<t:${Math.floor(pairing.expiresAt.getTime() / 1000)}:R>`
       }) },
+      { name: t(lang, "pair.characterOrderTitle"), value: t(lang, hasMain ? "pair.addAlts" : "pair.firstMain") },
       { name: t(lang, "pair.syncTitle"), value: t(lang, "pair.sync", {
         companion: url ? t(lang, "pair.openOnline") : t(lang, "pair.askLink"), server: discordGuildId
       }) },

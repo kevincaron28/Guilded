@@ -218,7 +218,7 @@ describe("game menu and pairing", () => {
     const interaction = click("onboard:companion:g1", fakeGuild(member));
     await handleOnboardingInteraction(interaction as never);
     const payload = interaction.editReply.mock.calls[0]![0];
-    expect(payload.embeds[0].data.fields[1].value).toContain("**ABCD-1234**");
+    expect(payload.embeds[0].data.fields[0].value).toContain("```\nABCD-1234\n```");
     expect(issueCharacterPairingCode).toHaveBeenCalledOnce();
     expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
   });

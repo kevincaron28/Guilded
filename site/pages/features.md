@@ -41,6 +41,6 @@ A visit does not prove a completed map, a kill, a drop or party participation. O
 
 ## Organize together in Discord
 
-Guilded's bot provides raid signups, community activities and polls. The hosted pilot needs owner approval before setup works. Other guilds may host their own bot.
+Guilded's bot provides raid signups, community activities and polls. A server that adds the hosted bot starts on **Guilded Lite** right away: setup of roles and channels, help, the FAQ, bug reports, dungeon groups and basic raid signups. The owner's approval unlocks everything else (addon sync, EPGP, seasons, the guild page). Other guilds may host their own bot.
 
 [Hosted pilot setup](../docs/HOSTED_PILOT.html) · [Find Quebec Gold](../quebec-gold/)

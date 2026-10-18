@@ -10,17 +10,35 @@ capacity ceiling, not a count of open places or a promise of admission.
 
 **[Add Guilded — request owner approval](https://discord.com/oauth2/authorize?client_id=1552633893587394590&scope=bot+applications.commands&integration_type=0&permissions=2269718703631440)**
 
-The pilot is open for a small number of guilds. **KCaron must approve your server
-before the hosted bot works there.** Adding the bot sends a request; it does not
-guarantee a place or immediate access. Please wait for approval before setup.
+The pilot is open for a small number of guilds. Adding the bot puts your server on
+**Guilded Lite** straight away and sends KCaron a request. **Full Guilded needs
+KCaron's approval**; the request does not guarantee a place.
+
+## What Guilded Lite includes
+
+While your server waits for approval (up to 50 servers at a time):
+
+| Included in Lite | Unlocked by approval |
+| --- | --- |
+| `/setup start`: language, roles and channels (steps 1 to 4, then the checklist) | Welcome, auto-roles, EPGP and automation steps of `/setup start` |
+| `/help` | Addon and companion sync, `/character pair` |
+| `/mod faq` (saved answers) | EPGP, loot, raid cores, seasons, attendance |
+| `/report bug` and `/report ping` | Community activities, polls, participation points |
+| `/dungeon group` | Dungeon leaderboards and records |
+| Basic `/raid` signups: create (without core or weekly repeat), edit, cancel, signup, status, roster | Weekly reports, reminders and every scheduled job |
+| | The public guild page |
+
+When the server is approved, every command appears right away (no reinvite).
+If the 50 Lite places are taken, your server waits with no access, as before.
 The hosted pilot is free. Optional support never buys approval or priority.
 
 ## Joining with your guild
 
 1. Open the **Add Guilded — request owner approval** link above as a server
    owner or someone allowed to manage your server.
-2. Guilded waits with access disabled and sends its application owner a private
-   Discord message with **Approve** and **Block** buttons. Wait for approval.
+2. Guilded starts on Lite (see above) and sends its application owner a private
+   Discord message with **Approve** and **Block** buttons. You can run
+   `/setup start` for roles and channels now; the rest unlocks on approval.
    The owner can also preapprove your server ID and send a server-specific invite.
    When the server is approved from that message, Guilded sends **the server's owner**
    a private welcome (English and French) with the next steps below. Keep DMs from
@@ -37,8 +55,8 @@ The hosted pilot is free. Optional support never buys approval or priority.
    optional; see the [member guide](MEMBER_INSTALL.md).
 
 An invitation is not an approval. Changing the server ID in a copied invite does
-not grant access. Unapproved servers have no access; old companion credentials also
-stop working there. Reapproval does not erase saved guild data.
+not grant full access. Unapproved servers get Lite at most; companion credentials
+do not work there. Reapproval does not erase saved guild data.
 
 <section id="fr" lang="fr" aria-label="Pilote Discord en français">
 
@@ -50,7 +68,11 @@ l'accès au bot hébergé. Aucun hébergement ni base de données n'est à crée
 pour une guilde admise au pilote.
 
 1. Un propriétaire ou gestionnaire du serveur utilise **Add Guilded — request owner approval**.
-2. Attendez l'approbation de KCaron. L'invitation seule n'active pas le bot.
+2. Le serveur passe tout de suite en **Guilded Lite** (50 serveurs au plus) :
+   `/setup start` pour les rôles et les salons, `/help`, `/mod faq`, `/report bug`,
+   `/dungeon group` et les inscriptions `/raid` simples (sans core ni répétition).
+   L'approbation de KCaron débloque tout le reste : synchronisation de l'addon,
+   EPGP, saisons, activités, page de guilde et tâches planifiées.
    Le plafond est de **cinq serveurs, celui du propriétaire inclus**; les places
    dépendent de la capacité disponible. Aucun délai d'admission n'est garanti.
 3. Après l'accord, lancez `/setup start`, choisissez la langue et les fonctions,
@@ -90,8 +112,14 @@ for the answer. Keep private officer information out of public FAQ entries.
 ### Approve from Discord
 
 `npm run pilot -- request-link` prints the invitation you can share with applicants.
-Inviting requests access; it never grants approval. New servers remain inactive
-until the Discord application's owner clicks **Approve** in the bot's DM.
+Inviting requests access; it never grants approval. New servers start on Guilded Lite
+(see above) until the Discord application's owner clicks **Approve** in the bot's DM.
+`HOSTED_LITE_LIMIT` (default 50, separate from `HOSTED_GUILD_LIMIT`) caps how many
+waiting servers get Lite; `0` restores the old behaviour (no access until approved).
+Lite servers get only the Lite command list (`src/commands/lite.ts`); any other
+command is refused even if an old registration is still visible. Scheduled jobs,
+the companion API and guild pages check full approval only, so Lite servers get no
+sync, EPGP, seasons or public page.
 For team-owned applications, only the team's owner receives and can use these buttons.
 The DM shows the server name, ID, owner ID and member count. Names are unverified
 labels; verify the ID before admitting a server.
@@ -100,13 +128,14 @@ Approval respects the five-server cap, saves to `.env.local`, updates access
 immediately and registers the setup commands without restarting. It then DMs the
 approved server's owner a bilingual welcome (`src/services/pilot-welcome.ts`); your
 confirmation says whether that DM was delivered. A closed DM never undoes the approval.
-CLI approvals (`npm run pilot -- approve`) do not send it. **Block** saves
+CLI approvals (`npm run pilot -- approve`) do not send it. **Block** (also from Lite) saves
 the decision, leaves the server and silently leaves on subsequent invitations.
 Only an explicit owner CLI approval overrides a block. Duplicate or old buttons
 cannot change a completed decision. Keep DMs from Guilded enabled; delivery
-failures retry hourly and after restart, with access still disabled.
+failures retry hourly and after restart (Lite, if granted, stays on meanwhile).
+When the bot is removed from a waiting server, its entry is dropped and the Lite place freed.
 
-Pending/block decisions and delivered-message IDs live in
+Pending, Lite and block decisions and delivered-message IDs live in
 `backups/pilot-requests.json` (private, preserved by deployment). Back up this
 file alongside `.env.local`. There are at most 100 pending requests; additional
 unapproved invites are left until that queue is reduced. Already-approved guilds
@@ -163,7 +192,7 @@ approval changes made only in a local checkout do not update Oracle.
 Start by approving only a couple of additional guilds. The five-server cap
 includes the owner's server and any approved test server; it is a safety ceiling,
 not a target that must be filled. Check each guild's setup, pairing and activity
-before approving the next one. No guild is approved automatically.
+before approving the next one. No guild is approved automatically; Lite is not approval.
 
 [Support Guilded](SUPPORT_GUILDED.md) explains voluntary support. Donations do
 not unlock the addon, hosted approval, extra permissions or a guaranteed uptime.

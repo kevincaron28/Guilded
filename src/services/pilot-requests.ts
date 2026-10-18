@@ -5,9 +5,12 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, escapeMarkdown, type Butt
 import { editPilotApprovals, pilotFilePolicy, pilotInvite } from "./pilot-admin.js";
 
 export const PILOT_REQUEST_PREFIX = "pilot-request:";
-type Request = { nonce: string; name: string; status: "pending" | "blocked" | "approved"; messageId?: string };
+// pending: waiting with no access; lite: waiting with the Lite command set (both await a decision).
+type Request = { nonce: string; name: string; status: "pending" | "lite" | "blocked" | "approved"; messageId?: string };
 type State = Record<string, Request>;
 type Options = { enabled: boolean; allows: (id: string) => boolean; replace: (ids: string[]) => void;
+  // How many waiting servers get Guilded Lite (default 0: none), and where the running bot keeps that list.
+  liteLimit?: number; replaceLite?: (ids: string[]) => void;
   activate: (guild: Guild) => Promise<void>;
   // Tells the approved server's owner (true when the message was delivered). Must not throw.
   welcome?: (guild: Guild) => Promise<boolean>; envPath?: string; statePath?: string };
@@ -32,29 +35,48 @@ export function createPilotRequests(client: Client, options: Options) {
     try { return JSON.parse(await readFile(statePath, "utf8")) as State; }
     catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return {}; throw error; }
   };
+  const open = (request?: Request) => request?.status === "pending" || request?.status === "lite";
+  const syncLite = (state: State) => options.replaceLite?.(Object.entries(state).filter(([, row]) => row.status === "lite").map(([id]) => id));
   const save = async (state: State) => {
     await mkdir(dirname(statePath), { recursive: true, mode: 0o700 });
     const temp = `${statePath}.${randomUUID()}.tmp`;
     try { await writeFile(temp, JSON.stringify(state), { flag: "wx", mode: 0o600 }); await rename(temp, statePath); }
     finally { await rm(temp, { force: true }); }
+    syncLite(state);
   };
   return {
+    /** Loads the Lite list at startup, before commands are registered. */
+    restore() { return serial(async () => { if (options.enabled) syncLite(await load()); }); },
+    /** The bot left (or was removed from) a waiting server: free its slot; a rejoin asks again. */
+    forget(guildId: string) { return serial(async () => {
+      if (!options.enabled) return;
+      const state = await load();
+      if (!open(state[guildId])) return;
+      delete state[guildId]; await save(state);
+    }); },
     request(guild: Guild) { return serial(async () => {
       if (!options.enabled || options.allows(guild.id)) return;
       const state = await load();
       if (state[guild.id]?.status === "blocked") { await guild.leave(); return; }
       let request = state[guild.id];
-      if (request?.status === "pending" && request.messageId) return;
-      if (!request || request.status !== "pending") {
-        if (Object.values(state).filter(row => row.status === "pending").length >= 100) { await guild.leave(); return; }
-        request = { nonce: randomUUID(), name: guild.name, status: "pending" }; state[guild.id] = request;
+      if (open(request) && request?.messageId) return;
+      if (!request || !open(request)) {
+        const waiting = Object.values(state).filter(open);
+        if (waiting.length >= 100) { await guild.leave(); return; }
+        // Lite is granted (and saved) before the owner DM, so a closed DM never holds it back.
+        // A server approved from the CLI while on Lite no longer takes a Lite slot.
+        const lite = Object.entries(state).filter(([id, row]) => row.status === "lite" && !options.allows(id)).length < (options.liteLimit ?? 0);
+        request = { nonce: randomUUID(), name: guild.name, status: lite ? "lite" : "pending" }; state[guild.id] = request;
         await save(state);
       }
+      const full = (options.liteLimit ?? 0) > 0;
       const user = await client.users.fetch(await owner());
       const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId(`${PILOT_REQUEST_PREFIX}approve:${guild.id}:${request.nonce}`).setLabel("Approuver / Approve").setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId(`${PILOT_REQUEST_PREFIX}block:${guild.id}:${request.nonce}`).setLabel("Bloquer / Block").setStyle(ButtonStyle.Danger));
-      const message = await user.send({ content: `**Guilded — demande d’accès / access request**\nServeur / Server: **${escapeMarkdown(guild.name).slice(0,200)}**\nID: \`${guild.id}\`\nMembres / Members: ${guild.memberCount}\nPropriétaire / Owner ID: \`${guild.ownerId}\`\n\nAucun accès avant votre approbation. Bloquer fait quitter le serveur et empêche les nouvelles demandes.\nNo access until you approve. Block leaves the server and suppresses repeat requests.`, components: [row], allowedMentions: { parse: [] } });
+      const message = await user.send({ content: `**Guilded — demande d’accès / access request**\nServeur / Server: **${escapeMarkdown(guild.name).slice(0,200)}**\nID: \`${guild.id}\`\nMembres / Members: ${guild.memberCount}\nPropriétaire / Owner ID: \`${guild.ownerId}\`\n\n${request.status === "lite"
+        ? "Accès Lite accordé automatiquement (configuration, aide, FAQ, rapports de bugs, groupes de donjon, inscriptions simples). Approuver débloque tout. Bloquer fait quitter le serveur et empêche les nouvelles demandes.\nLite access granted automatically (setup, help, FAQ, bug reports, dungeon groups, basic signups). Approve unlocks everything. Block leaves the server and suppresses repeat requests."
+        : `Aucun accès avant votre approbation${full ? " (places Lite complètes)" : ""}. Bloquer fait quitter le serveur et empêche les nouvelles demandes.\nNo access until you approve${full ? " (Lite slots full)" : ""}. Block leaves the server and suppresses repeat requests.`}`, components: [row], allowedMentions: { parse: [] } });
       request.messageId = message.id; await save(state);
     }); },
     async handle(interaction: ButtonInteraction) {
@@ -66,7 +88,7 @@ export function createPilotRequests(client: Client, options: Options) {
       await serial(async () => {
         const [, action, id, nonce] = interaction.customId.split(":");
         const state = await load(), request = id ? state[id] : undefined;
-        if (!id || !["approve", "block"].includes(action ?? "") || !request || request.status !== "pending" || request.nonce !== nonce || request.messageId !== interaction.message.id) {
+        if (!id || !["approve", "block"].includes(action ?? "") || !request || !open(request) || request.nonce !== nonce || request.messageId !== interaction.message.id) {
           await interaction.editReply("Cette demande a déjà été traitée ou a expiré. / This request was already handled or is stale."); return;
         }
         if (action === "approve") {
@@ -75,7 +97,9 @@ export function createPilotRequests(client: Client, options: Options) {
           try { next = editPilotApprovals(source, "approve", id); }
           catch (error) {
             if (error instanceof Error && error.message.includes("HOSTED_GUILD_LIMIT")) {
-              await interaction.editReply("Le pilote est complet. Cette demande reste en attente. / The pilot is full. This request stays pending."); return;
+              await interaction.editReply(request.status === "lite"
+                ? "Le pilote est complet. Ce serveur reste en Lite. / The pilot is full. This server stays on Lite."
+                : "Le pilote est complet. Cette demande reste en attente. / The pilot is full. This request stays pending."); return;
             }
             throw error;
           }

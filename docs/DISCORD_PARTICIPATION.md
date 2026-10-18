@@ -22,7 +22,7 @@ ci-dessous servent à ajuster ou à configurer à la main.
 Un officier crée une saison Discord dans un salon communautaire accessible au bot :
 
 ```text
-/organize start-season name:Participation octobre game:DISCORD
+/community start-season name:Participation octobre game:DISCORD
 /participation settings season:SAISON channel:#discussion enabled:true
 /participation settings season:SAISON channel:Vocal
 /participation status season:SAISON
@@ -118,7 +118,7 @@ déduites. Ces badges sont affichés dans le statut et ne donnent aucun rôle ou
 Les défis coopératifs, quiz, loteries à points et soirées réutilisent `/community`.
 
 Créer une saison chaque mois permet un nouveau départ. Fermer ses activités et
-traiter les nominations/preuves en attente avant `/organize end-season`; les scores
+traiter les nominations/preuves en attente avant `/community end-season`; les scores
 finaux restent figés et consultables. Le passage mensuel se fait par un organisateur,
 après revue, et chaque nouvelle saison doit sélectionner ses propres salons.
 

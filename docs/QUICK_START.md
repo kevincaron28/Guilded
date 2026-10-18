@@ -1,5 +1,7 @@
 # Guilded: quick setup
 
+[Français](#fr) · [Install the addon](MEMBER_INSTALL.md) · [EPGP workflow](EPGP_GUIDE.md) · [Optional Discord](HOSTED_PILOT.md)
+
 **Start with the addon only (default).** The addon works alone; optional Discord synchronization adds a
 companion and either the approved hosted bot or your independently hosted bot.
 
@@ -44,8 +46,8 @@ owners can stop here; the independent hosting sections below are optional.
 1. Close WoW and extract **Guilded** into your actual client's `Interface/AddOns`.
    Check `Guilded/Guilded.toc` exists. Open WoW, open Guilded, then `/reload`.
 2. Use **In-game only** in `/guilded setup` and start playing. You can stop here.
-   New candidate source selects this mode automatically; published builds may
-   show the chooser. No Discord character link or companion is required.
+   Current releases select this mode automatically; older builds may show
+   the chooser. No Discord character link or companion is required.
 
 ### Optional: link a main and alts without a companion
 
@@ -121,3 +123,38 @@ Before guild-wide rollout, also test an ordinary member's access. Continue the
 fresh-PC, recovery and real-raid follow-up checks in the
 [release testing record](V6_0_RELEASE_TESTING.md). Setup speed alone does not prove
 permissions, accounting or recovery work.
+
+<section id="fr" lang="fr" aria-label="Démarrage rapide en français">
+
+## Démarrage rapide en français
+
+### Jouer avec l'addon seul
+
+1. Téléchargez un fichier Release depuis les liens officiels GitHub ou CurseForge.
+   Installez le dossier **Guilded** dans `Interface/AddOns` du client que vous utilisez.
+2. Ouvrez la pièce dorée sur la minicarte, puis faites `/reload` pour enregistrer.
+   Le mode **In-game only** est le choix par défaut. Vous pouvez rester ici.
+3. Consultez [le guide d'installation](MEMBER_INSTALL.md#fr) pour les chemins exacts,
+   les mises à jour et les solutions aux problèmes courants.
+
+### Organiser les points et le butin
+
+Commencez avec votre règlement : qui enregistre les points, quel core et quelle
+méthode de butin. Le [guide EPGP](EPGP_GUIDE.md#fr) explique la priorité, le suivi
+en jeu et la synchronisation facultative, sans mélanger les réserves, le conseil
+et les enchères GP.
+
+### Ajouter Discord plus tard
+
+Le pilote hébergé est gratuit et limité à **cinq serveurs au maximum, celui du
+propriétaire inclus**. Ce plafond ne signifie pas qu'une place est libre.
+KCaron doit approuver chaque serveur avant `/setup start`. Une invitation ou
+un café ne donne pas accès automatiquement. [Lire le guide du pilote](HOSTED_PILOT.md#fr).
+
+Après l'approbation et la configuration, chaque membre peut utiliser son propre
+`/character pair`. Avec le compagnon 6.5.1, collez le code privé, puis **Connect** :
+le serveur est retrouvé automatiquement. Le compagnon Windows est facultatif.
+Vérifiez une première synchronisation et les permissions d'un membre ordinaire
+avant de déployer à toute la guilde.
+
+</section>

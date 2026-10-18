@@ -1,9 +1,12 @@
 # Guilded hosted pilot
 
+[Français](#fr) · [Addon installation](MEMBER_INSTALL.md) · [EPGP workflow](EPGP_GUIDE.md)
+
 The hosted pilot lets approved guilds use the same running Guilded bot. Your guild
 does not need to download the bot, create a database, or keep a computer running.
 Admission is by the Guilded owner's approval for each Discord server. This is a
-small pilot, initially limited to five servers including the owner's server.
+small pilot, limited to five servers including the owner's server. This is a
+capacity ceiling, not a count of open places or a promise of admission.
 
 **[Add Guilded — request owner approval](https://discord.com/oauth2/authorize?client_id=1552633893587394590&scope=bot+applications.commands&integration_type=0&permissions=2269718703631440)**
 
@@ -28,13 +31,45 @@ The hosted pilot is free. Optional support never buys approval or priority.
 4. Members can use community activities and polls immediately; they do not need
    linked WoW characters for those features.
 5. For WoW features, install the addon. The owner provides the shared browser
-   [online companion](https://guilded.kcaron.top/companion/). Enter **your own Discord server ID**, then use your personal
-   `/character pair` code. Every member pairs separately. The desktop companion is
+   [online companion](https://guilded.kcaron.top/companion/). In companion 6.5.1,
+   paste your personal `/character pair` code and press **Connect**; the code
+   finds your server. Older companions may still request a server ID. Every member pairs separately. The desktop companion is
    optional; see the [member guide](MEMBER_INSTALL.md).
 
 An invitation is not an approval. Changing the server ID in a copied invite does
 not grant access. Unapproved servers have no access; old companion credentials also
 stop working there. Reapproval does not erase saved guild data.
+
+<section id="fr" lang="fr" aria-label="Pilote Discord en français">
+
+## Ajouter le bot : pilote gratuit et facultatif
+
+L'addon Guilded fonctionne sans Discord. Pour les inscriptions aux raids,
+les classements connectés et les activités Discord, votre guilde peut demander
+l'accès au bot hébergé. Aucun hébergement ni base de données n'est à créer
+pour une guilde admise au pilote.
+
+1. Un propriétaire ou gestionnaire du serveur utilise **Add Guilded — request owner approval**.
+2. Attendez l'approbation de KCaron. L'invitation seule n'active pas le bot.
+   Le plafond est de **cinq serveurs, celui du propriétaire inclus**; les places
+   dépendent de la capacité disponible. Aucun délai d'admission n'est garanti.
+3. Après l'accord, lancez `/setup start`, choisissez la langue et les fonctions,
+   puis contrôlez `/setup start status:true`. Placez le rôle du bot au-dessus
+   des rôles qu'il doit attribuer.
+4. Testez un membre ordinaire et un officier. Les sondages et activités communautaires
+   ne nécessitent ni addon WoW, ni personnage lié.
+5. Pour synchroniser WoW, installez l'addon. Chaque membre obtient son propre
+   code avec `/character pair`. Dans le compagnon **6.5.1**, le code suffit
+   à retrouver le serveur. Collez-le seulement dans le compagnon de votre guilde.
+   Faites `/reload`, synchronisez, vérifiez le bon personnage et rechargez les classements.
+
+Le pilote et l'addon restent gratuits. Le soutien Ko-fi est facultatif et ne
+donne ni approbation, ni priorité, ni permissions supplémentaires. L'hébergement
+indépendant reste possible pour les guildes qui disposent de leur infrastructure.
+
+[Installation et dépannage](MEMBER_INSTALL.md#fr) · [Fonctionnement EPGP](EPGP_GUIDE.md#fr)
+
+</section>
 
 ## FAQ and AI
 

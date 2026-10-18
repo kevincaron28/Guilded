@@ -20,9 +20,10 @@ const config = (file: string) => ({ watchFile: file, realm: "R", uploadUrl: "htt
 
 describe("companion engine", () => {
   it("lists what is missing from a config", () => {
-    expect(validateConfig({})).toHaveLength(4);
+    expect(validateConfig({})).toHaveLength(3);
     expect(validateConfig(config("a.lua"))).toEqual([]);
     expect(validateConfig({ ...config("a.lua"), companionCredential: "short" })[0]).toContain("pair");
+    expect(validateConfig({ ...config("a.lua"), guildDiscordId: "" })).toEqual(["The Discord server ID is not set."]);
   });
 
   it("explains a network failure in plain words", () => {
@@ -54,6 +55,16 @@ describe("companion engine", () => {
         body: JSON.stringify({ guildDiscordId: "123", code: "A1B2C3D4E5F6" })
       })
     );
+  });
+
+  it("pairs with the code alone and returns the server the bot found", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true, status: 200, json: async () => ({ companionCredential: "c".repeat(43), guildDiscordId: "999" })
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await pairAccount({ ...config("a.lua"), guildDiscordId: "", pairingCode: " A1B2C3D4E5F6 " });
+    expect(result).toMatchObject({ ok: true, guildDiscordId: "999" });
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ code: "A1B2C3D4E5F6" }));
   });
 
   it("writes standings when it starts and reports state and log lines", async () => {

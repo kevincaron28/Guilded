@@ -1,7 +1,8 @@
 import { reserveAiAttempt } from "../services/ai-budget.js";
 import {
   ActionRowBuilder, ChannelType, ModalBuilder, SlashCommandBuilder, TextInputBuilder, TextInputStyle,
-  type ChatInputCommandInteraction, type GuildMember, type Message, type ModalSubmitInteraction
+  type ChatInputCommandInteraction, type GuildMember, type Message, type ModalSubmitInteraction,
+  MessageFlags,
 } from "discord.js";
 import { prisma } from "../database.js";
 import { config } from "../config.js";
@@ -87,7 +88,7 @@ export async function executeFaq(interaction: ChatInputCommandInteraction): Prom
   if (sub === "remove") {
     const entry = await findEntry(guildId, interaction.options.getString("entry", true));
     await prisma.faqEntry.delete({ where: { id: entry.id } });
-    await interaction.reply({ content: T("Deleted the answer for: {triggers}", { triggers: entry.triggers.join(", ") }), ephemeral: true });
+    await interaction.reply({ content: T("Deleted the answer for: {triggers}", { triggers: entry.triggers.join(", ") }), flags: MessageFlags.Ephemeral });
     return;
   }
   if (sub === "list") {
@@ -103,7 +104,7 @@ export async function executeFaq(interaction: ChatInputCommandInteraction): Prom
     const lines = entries.map((entry) => `• **${entry.triggers.join(" / ")}** (${entry.uses}×): ${entry.answer.replace(/\s+/g, " ").slice(0, 90)}`);
     const open = listUnanswered(guildId);
     const tail = open.length ? ["", unansweredHeader(lang), ...open.map((q) => `• ${q}`)] : [];
-    await interaction.reply({ content: [...(importedNote ? [importedNote] : []), where, ...(lines.length ? lines : [T("No answers yet: /mod faq add.")]), ...tail].join("\n").slice(0, 1900), ephemeral: true });
+    await interaction.reply({ content: [...(importedNote ? [importedNote] : []), where, ...(lines.length ? lines : [T("No answers yet: /mod faq add.")]), ...tail].join("\n").slice(0, 1900), flags: MessageFlags.Ephemeral });
     return;
   }
   if (sub === "channel") {
@@ -111,7 +112,7 @@ export async function executeFaq(interaction: ChatInputCommandInteraction): Prom
     await guildService.updateSettings(guildId, { answerChannelId: channel?.id ?? null });
     forgetAnswerSettings(interaction.guild.id);
     const warning = config.MESSAGE_CONTENT_INTENT ? "" : " " + T("Note: the bot cannot read messages yet. The server admin must turn on \"Message Content Intent\" in the Discord Developer Portal and set MESSAGE_CONTENT_INTENT=true.");
-    await interaction.reply({ content: (channel ? T("I answer questions in <#{id}> now.", { id: channel.id }) : T("The answer channel is off.")) + warning, ephemeral: true });
+    await interaction.reply({ content: (channel ? T("I answer questions in <#{id}> now.", { id: channel.id }) : T("The answer channel is off.")) + warning, flags: MessageFlags.Ephemeral });
     return;
   }
   if (sub === "ai") {
@@ -123,7 +124,7 @@ export async function executeFaq(interaction: ChatInputCommandInteraction): Prom
       content: on
         ? (ready ? T("AI answers are on (up to {limit} a day) when no officer answer matches.", { limit: config.AI_DAILY_LIMIT }) : T("AI answers are on, but no AI service is set on the server yet (AI_BASE_URL and AI_MODEL). Until then only officer answers are used."))
         : T("AI answers are off: only officer answers are used."),
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -134,7 +135,7 @@ export async function executeFaq(interaction: ChatInputCommandInteraction): Prom
       content: match
         ? T("Matched **{triggers}**:\n{answer}", { triggers: match.triggers.join(" / "), answer: match.answer })
         : settings?.aiAnswers && config.AI_BASE_URL ? T("No officer answer matches: the AI would answer.") : T("No answer matches: the bot stays quiet."),
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
   }
 }
@@ -156,7 +157,7 @@ export async function handleFaqModal(interaction: ModalSubmitInteraction): Promi
   } else {
     await prisma.faqEntry.create({ data: { guildId: record.id, triggers, answer, createdBy: interaction.user.id } });
   }
-  await interaction.reply({ content: T("Saved. It answers messages containing: {triggers}", { triggers: triggers.join(", ") }), ephemeral: true });
+  await interaction.reply({ content: T("Saved. It answers messages containing: {triggers}", { triggers: triggers.join(", ") }), flags: MessageFlags.Ephemeral });
 }
 
 // Autocomplete for the entry option: triggers containing what was typed.

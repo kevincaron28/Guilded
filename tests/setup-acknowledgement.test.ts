@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MessageFlags } from "discord.js";
 
 const context = vi.hoisted(() => ({ require: vi.fn(), settings: vi.fn() }));
 vi.mock("../src/commands/context.js", () => ({
@@ -12,7 +13,7 @@ describe("setup first acknowledgement", () => {
   it("acknowledges the interaction before database access, including denied officer access", async () => {
     const deferReply = vi.fn(async () => undefined), editReply = vi.fn(async () => undefined);
     context.require.mockImplementation(async () => {
-      expect(deferReply).toHaveBeenCalledWith({ ephemeral: true });
+      expect(deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
       return { guildId: "g", memberId: "m" };
     });
     context.settings.mockResolvedValue({ language: "en" });

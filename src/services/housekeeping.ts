@@ -1,6 +1,6 @@
 import { hostedPilot } from "../hosted-pilot.js";
 import { PILOT_DENIED } from "./pilot-policy.js";
-import { type ButtonInteraction, type Guild as DiscordGuild, type GuildMember, type PartialGuildMember } from "discord.js";
+import { type ButtonInteraction, type Guild as DiscordGuild, type GuildMember, type PartialGuildMember, MessageFlags } from "discord.js";
 import type { GuildSettings } from "@prisma/client";
 import { prisma } from "../database.js";
 import { createGuildService } from "./guild.js";
@@ -149,26 +149,26 @@ export async function sendWelcome(discordGuild: DiscordGuild, member: GuildMembe
 export async function handleWelcomeRoleButton(interaction: ButtonInteraction): Promise<void> {
   const [discordGuildId, roleId] = interaction.customId.slice(WELCOME_ROLE_PREFIX.length).split(":");
   if (!discordGuildId || !roleId) return;
-  if (!hostedPilot.allows(discordGuildId)) { await interaction.reply({ content: PILOT_DENIED, ephemeral: true }); return; }
+  if (!hostedPilot.allows(discordGuildId)) { await interaction.reply({ content: PILOT_DENIED, flags: MessageFlags.Ephemeral }); return; }
   const discordGuild = await interaction.client.guilds.fetch(discordGuildId).catch(() => null);
   if (!discordGuild) {
-    await interaction.reply({ content: "I'm no longer in that server.", ephemeral: true });
+    await interaction.reply({ content: "I'm no longer in that server.", flags: MessageFlags.Ephemeral });
     return;
   }
   const guild = await guildService.ensureGuild(discordGuild.id, discordGuild.name);
   const settings = await guildService.getSettings(guild.id);
   const role = await discordGuild.roles.fetch(roleId).catch(() => null);
   if (!settings?.welcomeRoleIds.includes(roleId) || !role) {
-    await interaction.reply({ content: "That choice isn't offered anymore. Ask an officer.", ephemeral: true });
+    await interaction.reply({ content: "That choice isn't offered anymore. Ask an officer.", flags: MessageFlags.Ephemeral });
     return;
   }
   const member = await discordGuild.members.fetch(interaction.user.id).catch(() => null);
   if (!member) {
-    await interaction.reply({ content: `You're not in ${discordGuild.name} anymore.`, ephemeral: true });
+    await interaction.reply({ content: `You're not in ${discordGuild.name} anymore.`, flags: MessageFlags.Ephemeral });
     return;
   }
   if (await rulesPending(guild.id, settings, member.id)) {
-    await interaction.reply({ ...rulesPrompt(settings, discordGuild.id, asLang(settings.language), true), ephemeral: true });
+    await interaction.reply({ ...rulesPrompt(settings, discordGuild.id, asLang(settings.language), true), flags: MessageFlags.Ephemeral });
     return;
   }
   const had = member.roles.cache.has(role.id);
@@ -176,11 +176,11 @@ export async function handleWelcomeRoleButton(interaction: ButtonInteraction): P
     if (had) await member.roles.remove(role, "Welcome role button");
     else await member.roles.add(role, "Welcome role button");
   } catch {
-    await interaction.reply({ content: `I couldn't change "${role.name}". An officer needs to move my role above it (Server Settings > Roles).`, ephemeral: true });
+    await interaction.reply({ content: `I couldn't change "${role.name}". An officer needs to move my role above it (Server Settings > Roles).`, flags: MessageFlags.Ephemeral });
     return;
   }
   const lang = asLang(settings.language);
-  await interaction.reply({ content: t(lang, had ? "welcome.removed" : "welcome.added", { role: role.name }), ephemeral: true });
+  await interaction.reply({ content: t(lang, had ? "welcome.removed" : "welcome.added", { role: role.name }), flags: MessageFlags.Ephemeral });
 }
 
 export async function handleMemberLeave(discordGuild: DiscordGuild, member: GuildMember | PartialGuildMember): Promise<void> {

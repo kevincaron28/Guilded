@@ -1,4 +1,4 @@
-import { EmbedBuilder, SlashCommandBuilder, type ChatInputCommandInteraction } from "discord.js";
+import { EmbedBuilder, SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { createEpgpService } from "../services/epgp.js";
 import { createMeritService } from "../services/merit.js";
@@ -19,7 +19,7 @@ export async function executeWho(interaction: ChatInputCommandInteraction): Prom
   const query = interaction.options.getString("character", true);
   const found = await findPlayer(prisma, context.guildId, query);
   if (!found) {
-    await interaction.reply({ content: `No linked character matches "${query}".`, ephemeral: true });
+    await interaction.reply({ content: `No linked character matches "${query}".`, flags: MessageFlags.Ephemeral });
     return;
   }
   const settings = await guildService.getSettings(context.guildId);

@@ -2,6 +2,50 @@
 
 ## Unreleased
 
+## 6.5.2 Release — 18 October 2026
+
+- Update prompts: the Windows companion shows a **Download update** banner, a tray note and
+  one Windows notification when a newer release (or a newer bot) is out. A self-hosted bot
+  checks GitHub daily and tells each server's officer log once per new version
+  (`UPDATE_CHECK=false` turns it off; the official hosted bot skips it). Migration
+  `20261118090000_update_notice` adds `GuildSettings.lastUpdateNoticeVersion`.
+- `/character pair` and `/poe pair` show the connection code first, alone in a copyable box,
+  instead of in bold inside a sentence.
+
+## 6.5.1 Release — 17 October 2026
+
+- Companions (online and Windows): connecting needs only the `/character pair` code; the bot
+  finds the server from it and the server ID moved to Advanced preferences. The online
+  companion shows its real version (it always said 6.1.0) and hides Disconnect until linked.
+  `/character pair` and `/poe pair` no longer tell members to check the server ID.
+
+## 6.5.0 Release — 17 October 2026
+
+- Raid-night tools: templates, notes, attendance from the core roster, undo, raid discard and
+  `/guilded raids`; members see their EP/GP and loot history without Discord
+  ([notes](docs/V6_5_0_RELEASE_NOTES.md)).
+- Core setup/edit now offers raid size and tank/healer/DPS targets, weekday selection,
+  a launch date and a 1–90 day planning window with preview before saving. Future
+  launch raids can be prepared immediately; new raids inherit core signup limits.
+  Existing raids remain unchanged. See `docs/CORE_PLANNING.md`.
+- Bot: replies use the current ephemeral flag (no deprecation warnings).
+- `/setup start` shows a "Working on it" line while it creates channels and roles.
+
+## 6.4.0 Release — 17 October 2026
+
+- Guided in-game guild setup (`/guilded setup guild`), end-of-raid summary (`/guilded summary`),
+  level-aware gear checks (`/guilded slots level`) and season freshness ([notes](docs/V6_4_0_RELEASE_NOTES.md)).
+- Party games only in the Guilded Games addon; roll-off fixes found with both addons installed.
+- Bot: current discord.js pinned-message API (no startup warning).
+
+## 6.3.2 Release — 17 October 2026
+
+- Addon polish from a full in-game pass ([notes](docs/V6_3_2_RELEASE_NOTES.md)): the login gear
+  check no longer shares "10 empty slots", the chat tab closes and reopens properly, members see
+  SR+, Escape and Close work on the game windows Guilded opens, and `/guilded` opens the window.
+- Local guild page as three numbered steps with explanations and feedback for new officers.
+- The automatic gear check tells the guild only when something changed (10-minute check-in).
+
 ## 6.3.1 Release — 16 October 2026
 
 - WoW Forever: whispers use the name the game gave, so the version notice, the guild's module

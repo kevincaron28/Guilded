@@ -1,9 +1,11 @@
+import { pinnedMessages } from "./pins.js";
 import { hostedPilot } from "../hosted-pilot.js";
 import { PILOT_DENIED } from "./pilot-policy.js";
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, StringSelectMenuBuilder,
   type ButtonInteraction, type Client, type Guild as DiscordGuild, type GuildMember, type GuildTextBasedChannel,
-  type Role, type StringSelectMenuInteraction
+  type Role, type StringSelectMenuInteraction,
+  MessageFlags,
 } from "discord.js";
 import type { GuildSettings } from "@prisma/client";
 import { prisma } from "../database.js";
@@ -96,7 +98,7 @@ function panelIsCurrent(message: PanelMessage, panel: ReturnType<typeof welcomeP
 }
 
 export async function welcomePanelState(channel: GuildTextBasedChannel, settings: StepSettings, lang: Lang): Promise<"current" | "outdated" | "missing"> {
-  const pins = await channel.messages.fetchPinned().catch(() => null);
+  const pins = await pinnedMessages(channel).catch(() => null);
   const existing = pins?.find((message) => isPanel(message));
   if (!existing) return "missing";
   return panelIsCurrent(existing, welcomePanel(settings, channel.guild, lang)) ? "current" : "outdated";
@@ -105,7 +107,7 @@ export async function welcomePanelState(channel: GuildTextBasedChannel, settings
 // Pins the panel, or brings the pinned one up to date. Safe to call again.
 export async function ensureWelcomePanel(channel: GuildTextBasedChannel, settings: StepSettings, lang: Lang): Promise<void> {
   const panel = welcomePanel(settings, channel.guild, lang);
-  const pins = await channel.messages.fetchPinned().catch(() => null);
+  const pins = await pinnedMessages(channel).catch(() => null);
   const existing = pins?.find((message) => isPanel(message));
   if (existing) {
     if (existing.editable && !panelIsCurrent(existing, panel)) await existing.edit(panel);
@@ -154,11 +156,11 @@ export function rulesPrompt(settings: Pick<GuildSettings, "rulesChannelId">, dis
 export async function handleOnboardingInteraction(interaction: ButtonInteraction | StringSelectMenuInteraction): Promise<void> {
   const [action, discordGuildId] = interaction.customId.slice(ONBOARD_PREFIX.length).split(":") as [Action, string | undefined];
   if (!discordGuildId) return;
-  if (!hostedPilot.allows(discordGuildId)) { await interaction.reply({ content: PILOT_DENIED, ephemeral: true }); return; }
+  if (!hostedPilot.allows(discordGuildId)) { await interaction.reply({ content: PILOT_DENIED, flags: MessageFlags.Ephemeral }); return; }
   // Every button answers privately; the selection updates its already-private menu.
   // Acknowledge before Discord/DB calls so a slow connection cannot expire the click.
   if (action === "pick" && interaction.isStringSelectMenu()) await interaction.deferUpdate();
-  else await interaction.deferReply({ ephemeral: true });
+  else await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const discordGuild = interaction.guild?.id === discordGuildId
     ? interaction.guild
     : await interaction.client.guilds.fetch(discordGuildId).catch(() => null);

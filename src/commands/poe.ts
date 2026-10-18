@@ -1,4 +1,4 @@
-import { EmbedBuilder, SlashCommandBuilder, escapeMarkdown, type ChatInputCommandInteraction } from "discord.js";
+import { EmbedBuilder, SlashCommandBuilder, escapeMarkdown, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 import { requireGuildContext } from "./context.js";
@@ -18,8 +18,8 @@ export const poeCommand = new SlashCommandBuilder().setName("poe").setDescriptio
     .addBooleanOption(option => option.setName("guild").setDescription("Show guild activity instead of only yours")));
 
 export async function executePoe(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!interaction.guild) { await interaction.reply({ content: "Use this in your server / À utiliser dans votre serveur.", ephemeral: true }); return; }
-  await interaction.deferReply({ ephemeral: true });
+  if (!interaction.guild) { await interaction.reply({ content: "Use this in your server / À utiliser dans votre serveur.", flags: MessageFlags.Ephemeral }); return; }
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const context = await requireGuildContext(interaction);
   if (!context) return;
   const { guildId, memberId } = context;
@@ -43,9 +43,10 @@ export async function executePoe(interaction: ChatInputCommandInteraction): Prom
   if (sub === "pair") {
     const pair = await issueCharacterPairingCode(prisma, guildId, memberId);
     const companion = companionLinkText(fr ? "fr" : "en", interaction.guild.id);
+    const box = "```\n" + pair.code + "\n```";
     await interaction.editReply(T(
-      `${companion}\nIn **Connection & setup**, check **Discord server ID**: \`${interaction.guild.id}\`. Enter code **${pair.code}**, then **Connect** (one use, expires <t:${Math.floor(pair.expiresAt.getTime() / 1000)}:R>; keep it private).\nAlready connected for WoW? Enable PoE2 in the same companion; no new code needed. Using a code replaces your previous companion connection.`,
-      `${companion}\nDans **Connection & setup**, vérifiez **Discord server ID** : \`${interaction.guild.id}\`. Entrez le code **${pair.code}**, puis **Connect** (usage unique, expire <t:${Math.floor(pair.expiresAt.getTime() / 1000)}:R>; gardez-le privé).\nDéjà connecté pour WoW ? Activez PoE2 dans le même compagnon; aucun nouveau code nécessaire. Utiliser un code remplace votre connexion compagnon précédente.`
+      `${companion}\n${box}In **Connection & setup**, paste this code, then **Connect** (one use, expires <t:${Math.floor(pair.expiresAt.getTime() / 1000)}:R>; keep it private).\nAlready connected for WoW? Enable PoE2 in the same companion; no new code needed. Using a code replaces your previous companion connection.`,
+      `${companion}\n${box}Dans **Connection & setup**, collez ce code, puis **Connect** (usage unique, expire <t:${Math.floor(pair.expiresAt.getTime() / 1000)}:R>; gardez-le privé).\nDéjà connecté pour WoW ? Activez PoE2 dans le même compagnon; aucun nouveau code nécessaire. Utiliser un code remplace votre connexion compagnon précédente.`
     ));
     return;
   }

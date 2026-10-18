@@ -1,14 +1,41 @@
 // Compile only repository-owned public guides. This does not publish or start a bot.
-import { readFileSync, writeFileSync, mkdirSync, copyFileSync, cpSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync, cpSync, existsSync, readdirSync } from "node:fs";
 import { dirname, posix } from "node:path";
 import { marked } from "marked";
 
-const guides = ["HOSTED_PILOT", "SUPPORT_GUILDED", "OWNER_WALKTHROUGH", "QUICK_START", "MEMBER_INSTALL", "GUILD_OWNER_SETUP", "DEPLOY_ORACLE", "AI_SETUP_HELP", "ONLINE_COMPANION_CHECK"];
+const guides = ["HOSTED_PILOT", "SUPPORT_GUILDED", "OWNER_WALKTHROUGH", "QUICK_START", "MEMBER_INSTALL", "EPGP_GUIDE", "GUILD_OWNER_SETUP", "DEPLOY_ORACLE", "AI_SETUP_HELP", "ONLINE_COMPANION_CHECK"];
+const origin = "https://guilded.kcaron.top";
+const guideDescriptions = {
+  HOSTED_PILOT: "Optional Guilded Discord integration: owner approval, the five-server pilot cap, setup and personal pairing. English and French guide.",
+  SUPPORT_GUILDED: "Optional CA$3 coffee support for Guilded. Downloads and approved pilot access stay free. English and French information.",
+  OWNER_WALKTHROUGH: "Illustrated independent-hosting walkthrough for Guilded owners, with setup prerequisites and checks.",
+  QUICK_START: "Choose addon-only play, EPGP or optional Discord sync for Guilded on WoW Forever. English and French quick setup.",
+  MEMBER_INSTALL: "Install Guilded for WoW Forever 1.60.1, fix folder issues and connect the optional companion. English and French instructions.",
+  EPGP_GUIDE: "Use Guilded EP/GP, core pools, loot methods and standings, with or without Discord. Practical English and French raid workflow.",
+  GUILD_OWNER_SETUP: "Configure Guilded roles, permissions and optional Discord synchronization for your own guild.",
+  DEPLOY_ORACLE: "Independent Guilded hosting on Ubuntu: prerequisites, installation, maintenance and service checks.",
+  AI_SETUP_HELP: "Troubleshoot Guilded setup with safe diagnostic prompts and clear member and owner checks.",
+  ONLINE_COMPANION_CHECK: "Check Guilded companion connection, SavedVariables, returned standings and permissions without exposing private codes."
+};
 const sources = new Set(guides.map(name => `docs/${name}.md`));
 const out = "dist/site";
 mkdirSync(`${out}/docs`, { recursive: true });
 for (const name of ["index.html", "style.css", "site.js"]) copyFileSync(`site/${name}`, `${out}/${name}`);
 cpSync("site/creator", `${out}/creator`, { recursive: true });
+mkdirSync(`${out}/images/showcase`, { recursive: true });
+copyFileSync("site/images/showcase/guilded-overview.png", `${out}/images/showcase/guilded-overview.png`);
+// Google's public ownership files are curated separately from other local files.
+// They are served on both sites by the existing static asset binding.
+if (existsSync("site/verification")) {
+  for (const name of readdirSync("site/verification")) {
+    if (!/^google[a-f0-9]{8,64}\.html$/.test(name)) continue;
+    const source = `site/verification/${name}`;
+    if (readFileSync(source, "utf8").trim() !== `google-site-verification: ${name}`) {
+      throw new Error(`Unexpected Google verification content: ${source}`);
+    }
+    copyFileSync(source, `${out}/${name}`);
+  }
+}
 copyFileSync("docs/branding/guilded-logo-400.png", `${out}/logo.png`);
 cpSync("docs/images/owner-setup", `${out}/docs/images/owner-setup`, { recursive: true });
 const escape = text => text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");
@@ -16,6 +43,9 @@ const siteHeader = (prefix, french = false) => `<header class="site-header"><div
 for (const source of sources) {
   const md = readFileSync(source, "utf8");
   const title = md.match(/^# (.+)$/m)?.[1] || "Guilded guide";
+  const description = escape(guideDescriptions[source.slice(5, -3)]);
+  const canonical = `${origin}/${source.replace(/\.md$/, "")}`;
+  const relatedGuides = `<nav class="guide-nav" aria-label="Guilded guides"><a href="MEMBER_INSTALL.html">Install / <span lang="fr">Installer</span></a><a href="EPGP_GUIDE.html">EPGP / <span lang="fr">Points et butin</span></a><a href="HOSTED_PILOT.html">Optional Discord / <span lang="fr">Facultatif</span></a>${md.includes('id="fr"') ? '<a href="#fr" lang="fr">Lire en français ↓</a>' : ''}</nav>`;
   const body = marked.parse(md, { walkTokens(token) {
     if ((token.type !== "link" && token.type !== "image") || /^(https?:|#|mailto:)/.test(token.href)) return;
     const [path, fragment] = token.href.split("#");
@@ -27,12 +57,12 @@ for (const source of sources) {
     const slug = content.replace(/<[^>]*>/g, "").toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, "").replace(/\s+/g, "-");
     return `<h${level} id="${slug}">${content}</h${level}>`;
   });
-  writeFileSync(`${out}/${source.replace(/\.md$/, ".html")}`, `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#111312"><title>${escape(title)} · Guilded</title><link rel="icon" href="../logo.png" type="image/png"><link rel="stylesheet" href="../style.css"><script src="../site.js" defer></script></head><body class="site-page docs-page"><a class="skip" href="#main">Skip to content</a>${siteHeader('../')}<main class="guide" id="main">${body}</main><footer class="page-footer"><a href="../index.html">← Back to Guilded</a><span>Guides updated 16 October 2026 · Guilded 6.3.1 Release</span></footer></body></html>`);
+  writeFileSync(`${out}/${source.replace(/\.md$/, ".html")}`, `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#111312"><title>${escape(title)} · Guilded</title><meta name="description" content="${description}"><link rel="canonical" href="${canonical}"><meta property="og:title" content="${escape(title)}"><meta property="og:description" content="${description}"><meta property="og:type" content="article"><meta property="og:url" content="${canonical}"><meta property="og:image" content="${origin}/logo.png"><link rel="icon" href="../logo.png" type="image/png"><link rel="stylesheet" href="../style.css"><script src="../site.js" defer></script></head><body class="site-page docs-page"><a class="skip" href="#main">Skip to content</a>${siteHeader('../')}<main class="guide" id="main">${relatedGuides}${body}</main><footer class="page-footer"><a href="../index.html">← Back to Guilded</a><span>Guides reviewed 18 October 2026 · Check each store's listed release</span></footer></body></html>`);
 }
 // Public content is explicitly curated; never import guild/database data here.
-const origin = "https://guilded.kcaron.top";
+
 const pages = JSON.parse(readFileSync("site/pages.json", "utf8"));
-const publicUrls = ["/", ...guides.map(name => `/docs/${name}.html`)];
+const publicUrls = ["/", ...guides.map(name => `/docs/${name}`)];
 for (const page of pages) {
   const prefix = "../".repeat(page.path.split("/").filter(Boolean).length);
   const french = page.lang === "fr";

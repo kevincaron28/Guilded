@@ -2,7 +2,8 @@ import { pilotGuildScope } from "../hosted-pilot.js";
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, ModalBuilder, PermissionFlagsBits, TextInputBuilder, TextInputStyle,
   type ButtonInteraction, type ChatInputCommandInteraction, type Client, type Guild as DiscordGuild, type GuildMember, type ModalSubmitInteraction,
-  type GuildTextBasedChannel, type OverwriteResolvable, type StringSelectMenuInteraction
+  type GuildTextBasedChannel, type OverwriteResolvable, type StringSelectMenuInteraction,
+  MessageFlags,
 } from "discord.js";
 import type { DungeonGroup, RaidRole } from "@prisma/client";
 import { prisma } from "../database.js";
@@ -63,7 +64,7 @@ export async function handleDungeonGuideButton(interaction: ButtonInteraction): 
 export async function handleDungeonGuideSelect(interaction: StringSelectMenuInteraction): Promise<void> {
   if (interaction.customId !== DUNGEON_GUIDE_KIND_ID || !interaction.guild) return;
   if (interaction.values[0] !== "DUNGEON") {
-    await interaction.reply({ content: "The bot now forms dungeon groups only. Post PvP and leveling groups in their dedicated channels.", ephemeral: true });
+    await interaction.reply({ content: "The bot now forms dungeon groups only. Post PvP and leveling groups in their dedicated channels.", flags: MessageFlags.Ephemeral });
     return;
   }
   const record = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
@@ -120,11 +121,11 @@ export async function handleDungeonGuideModal(interaction: ModalSubmitInteractio
   const kind = asGroupKind(interaction.customId.slice(DUNGEON_GUIDE_CREATE_ID.length + 1));
   const requestedKind = interaction.customId.slice(DUNGEON_GUIDE_CREATE_ID.length + 1);
   if (requestedKind && requestedKind !== "DUNGEON") {
-    await interaction.reply({ content: "The bot now forms dungeon groups only. Use the dedicated channels for other groups.", ephemeral: true });
+    await interaction.reply({ content: "The bot now forms dungeon groups only. Use the dedicated channels for other groups.", flags: MessageFlags.Ephemeral });
     return;
   }
   const askedSize = GROUP_KINDS[kind].roles ? null : Number(interaction.fields.fields.has("size") ? interaction.fields.getTextInputValue("size") : "") || null;
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const guild = interaction.guild;
   const record = await guildService.ensureGuild(guild.id, guild.name);
   const member = await guildService.ensureMember(record.id, interaction.user.id,
@@ -310,7 +311,7 @@ export async function executeDungeonGroup(interaction: ChatInputCommandInteracti
     ...groupLevels("DUNGEON", title, "")
   });
   await postGroup(interaction.guild, channel as GuildTextBasedChannel, group, interaction.user.id, lang);
-  await interaction.reply({ content: tx(lang, "Posted your group in <#{id}>. You're the leader: pick your role with the buttons, and press **Start now** when ready (or it starts by itself at {size} players).", { id: channel.id, size: group.maxSize }), ephemeral: true });
+  await interaction.reply({ content: tx(lang, "Posted your group in <#{id}>. You're the leader: pick your role with the buttons, and press **Start now** when ready (or it starts by itself at {size} players).", { id: channel.id, size: group.maxSize }), flags: MessageFlags.Ephemeral });
 }
 
 const isLeadership = (member: GuildMember | null) => !!member && hasPermission(member, "raidLeader");
@@ -318,7 +319,7 @@ const isLeadership = (member: GuildMember | null) => !!member && hasPermission(m
 // Creating a voice channel can take longer than Discord's 3 second window,
 // so acknowledge first and answer with editReply; errors are shown to the clicker.
 export async function handleDungeonGroupButton(interaction: ButtonInteraction): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   try {
     const groupId = interaction.customId.slice(DUNGEON_GROUP_PREFIX.length).split(":")[0] ?? "";
     await serializeDungeonGroup(groupId, () => handleDungeonGroupAction(interaction));
@@ -385,7 +386,7 @@ async function handleDungeonGroupAction(interaction: ButtonInteraction): Promise
   // A full open group starts by itself.
   if ((action === "TANK" || action === "HEALER" || action === "DPS") && group.status === "OPEN" && (await service.isFull(groupId))) {
     await startGroup(guild, groupId);
-    await interaction.followUp({ content: T("The group is full: I created its voice channel. Check the post."), ephemeral: true }).catch(() => undefined);
+    await interaction.followUp({ content: T("The group is full: I created its voice channel. Check the post."), flags: MessageFlags.Ephemeral }).catch(() => undefined);
   }
 }
 

@@ -5,7 +5,8 @@ import {
   SlashCommandBuilder,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
-  type GuildMember
+  type GuildMember,
+  MessageFlags,
 } from "discord.js";
 import { hasPermission } from "../permissions.js";
 import { selfRoleProblem } from "../services/selfrole.js";
@@ -61,7 +62,7 @@ export const selfRolesCommand = new SlashCommandBuilder()
 
 export async function executeSelfRoles(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.guild || !interaction.member || !hasPermission(interaction.member as GuildMember, "officer")) {
-    await interaction.reply({ content: COPY.en.officers, ephemeral: true });
+    await interaction.reply({ content: COPY.en.officers, flags: MessageFlags.Ephemeral });
     return;
   }
   const guild = interaction.guild;
@@ -95,7 +96,7 @@ export async function executeSelfRoles(interaction: ChatInputCommandInteraction)
 export async function handleSelfRoleButton(interaction: ButtonInteraction): Promise<void> {
   const guild = interaction.guild;
   if (!guild) return;
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const copy = COPY[await panelLanguage(guild)];
   const parts = interaction.customId.slice(SELF_ROLE_PREFIX.length).split(":");
   const [roleId, requiredRoleId] = parts;

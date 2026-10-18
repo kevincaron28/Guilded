@@ -2,7 +2,8 @@ import { ApplicationStatus, type RaidRole } from "@prisma/client";
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalBuilder, SlashCommandBuilder, TextInputBuilder, TextInputStyle,
   type ButtonInteraction, type ChatInputCommandInteraction, type Guild as DiscordGuild, type GuildMember,
-  type ModalSubmitInteraction
+  type ModalSubmitInteraction,
+  MessageFlags,
 } from "discord.js";
 import { prisma } from "../database.js";
 import { APPLY_PREFIX, applicationDecisionRows, createApplicationService } from "../services/application.js";
@@ -160,14 +161,14 @@ export async function executeApply(interaction: ChatInputCommandInteraction): Pr
     ...(pickedRole ? { role: pickedRole } : {})
   });
   await announceApplication(interaction.guild, interaction.user.id, application);
-  await interaction.reply({ content: `Application submitted for **${core.name}**. Your application ID is \`${application.id}\`.`, ephemeral: true });
+  await interaction.reply({ content: `Application submitted for **${core.name}**. Your application ID is \`${application.id}\`.`, flags: MessageFlags.Ephemeral });
 }
 
 export async function executeApplication(interaction: ChatInputCommandInteraction): Promise<void> {
   const context = await requireGuildContext(interaction);
   if (!context) return;
   if (!isOfficer(interaction)) {
-    await interaction.reply({ content: "Only officers, Guild Masters, or administrators can view or review applications.", ephemeral: true });
+    await interaction.reply({ content: "Only officers, Guild Masters, or administrators can view or review applications.", flags: MessageFlags.Ephemeral });
     return;
   }
   const subcommand = interaction.options.getSubcommand();
@@ -234,7 +235,7 @@ function matchClass(typed: string): string {
 async function handleApplyDecision(interaction: ButtonInteraction, decision: string, id: string): Promise<void> {
   if (!interaction.guild) return;
   if (!interaction.member || !hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "officer")) {
-    await interaction.reply({ content: "Only officers, Guild Masters, or administrators can review applications.", ephemeral: true });
+    await interaction.reply({ content: "Only officers, Guild Masters, or administrators can review applications.", flags: MessageFlags.Ephemeral });
     return;
   }
   const status = ({ approve: ApplicationStatus.APPROVED, reject: ApplicationStatus.REJECTED, trial: ApplicationStatus.TRIAL } as const)[decision as "approve" | "reject" | "trial"];
@@ -242,7 +243,7 @@ async function handleApplyDecision(interaction: ButtonInteraction, decision: str
   const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
   const application = await applicationService.get(guild.id, id);
   if (!application) {
-    await interaction.reply({ content: "That application no longer exists.", ephemeral: true });
+    await interaction.reply({ content: "That application no longer exists.", flags: MessageFlags.Ephemeral });
     return;
   }
   try {
@@ -253,7 +254,7 @@ async function handleApplyDecision(interaction: ButtonInteraction, decision: str
     });
     await applyDecision(interaction.guild, guild.id, application, status);
   } catch (error) {
-    await interaction.reply({ content: error instanceof Error ? error.message : "Could not update the application.", ephemeral: true }).catch(() => undefined);
+    await interaction.reply({ content: error instanceof Error ? error.message : "Could not update the application.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
   }
 }
 
@@ -280,17 +281,17 @@ export async function handleApplyButton(interaction: ButtonInteraction): Promise
     const coreId = suffix.slice("roster:".length);
     const core = await prisma.raidCore.findUnique({ where: { id: coreId }, select: { id: true, name: true } });
     if (!core) {
-      await interaction.reply({ content: "That core no longer exists.", ephemeral: true });
+      await interaction.reply({ content: "That core no longer exists.", flags: MessageFlags.Ephemeral });
       return;
     }
-    await interaction.reply({ content: `Applying to **${core.name}**: which role do you play?`, components: [rolePickerRow(core.id)], ephemeral: true });
+    await interaction.reply({ content: `Applying to **${core.name}**: which role do you play?`, components: [rolePickerRow(core.id)], flags: MessageFlags.Ephemeral });
     return;
   }
   if (suffix.startsWith("role:")) {
     const [, coreId, rawRole] = suffix.split(":");
     const core = coreId ? await prisma.raidCore.findUnique({ where: { id: coreId }, select: { id: true, name: true } }) : null;
     if (!core) {
-      await interaction.reply({ content: "That core no longer exists.", ephemeral: true });
+      await interaction.reply({ content: "That core no longer exists.", flags: MessageFlags.Ephemeral });
       return;
     }
     const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
@@ -301,14 +302,14 @@ export async function handleApplyButton(interaction: ButtonInteraction): Promise
       const payload = { content: `**${character.name} — ${character.realm}** : continue ta candidature pour **${core.name}**.`,
         components: [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`${APPLY_PREFIX}character:${core.id}:${rawRole}:${character.id}`).setLabel("Continuer ma candidature").setStyle(ButtonStyle.Primary))] };
       if (interaction.replied || interaction.deferred) await interaction.editReply(payload);
-      else await interaction.reply({ ...payload, ephemeral: true });
+      else await interaction.reply({ ...payload, flags: MessageFlags.Ephemeral });
     } else await interaction.showModal(applicationModal(core, asRole(rawRole)));
   }
 }
 
 export async function handleApplyModal(interaction: ModalSubmitInteraction): Promise<void> {
   if (!interaction.guild) return;
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   try {
     const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
     const member = await guildService.ensureMember(guild.id, interaction.user.id, (interaction.member as GuildMember | null)?.displayName ?? interaction.user.username);

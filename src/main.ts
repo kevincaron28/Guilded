@@ -1,7 +1,8 @@
-import { hostedPilot, replacePilotApprovals } from "./hosted-pilot.js";
+import { hostedPilot, replacePilotApprovals, replacePilotLite } from "./hosted-pilot.js";
 import { createPilotRequests, PILOT_REQUEST_PREFIX } from "./services/pilot-requests.js";
-import { welcomeApprovedOwner } from "./services/pilot-welcome.js";
-import { PILOT_DENIED } from "./services/pilot-policy.js";
+import { warnIdleLite, welcomeApprovedOwner } from "./services/pilot-welcome.js";
+import { PILOT_DENIED, PILOT_LITE_DENIED } from "./services/pilot-policy.js";
+import { allowsLite, commandSetFor } from "./commands/lite.js";
 import { ensureCoreDiscord } from "./services/raid-core.js";
 import { fillGuildWeeklyRaids } from "./services/core-weekly-raids.js";
 import { runTeamSchedules } from "./services/activity-core.js";
@@ -28,7 +29,8 @@ import {
   Partials,
   REST,
   Routes,
-  type ChatInputCommandInteraction
+  type ChatInputCommandInteraction,
+  MessageFlags,
 } from "discord.js";
 import { commands } from "./commands/index.js";
 import { legacyView, resolveCommand } from "./commands/router.js";
@@ -56,6 +58,7 @@ import { executeBank } from "./commands/bank.js";
 import { executeCraft } from "./commands/craft.js";
 import { greetNewGuild, logSetupStatus } from "./commands/setup.js";
 import { announceVersionUpdates } from "./services/version-announce.js";
+import { announceAvailableUpdate } from "./services/update-check.js";
 import { executeUninstall } from "./commands/uninstall.js";
 import { executeHelp } from "./commands/help.js";
 import { handleAutocomplete } from "./commands/autocomplete.js";
@@ -176,9 +179,14 @@ async function repairCoreRaids(guild: import("discord.js").Guild, provision = fa
 }
 
 client.once(Events.ClientReady, (readyClient) => {
-  for (const guild of readyClient.guilds.cache.values()) {
-    if (!hostedPilot.allows(guild.id)) void pilotRequests.request(guild).catch(reportJobError("Pilot approval DM"));
-  }
+  // Lite list first, then servers that joined while offline, then commands (full or Lite per server).
+  void (async () => {
+    await pilotRequests.restore();
+    for (const guild of readyClient.guilds.cache.values()) {
+      if (!hostedPilot.allows(guild.id)) await pilotRequests.request(guild).catch(reportJobError("Pilot approval DM"));
+    }
+    await registerCommandsEverywhere();
+  })().catch(reportJobError("Command registration"));
   const voice = async () => { for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) await participationTracker.sampleVoice(guild); };
   void voice().catch(reportJobError("Participation voice checkpoint"));
   setInterval(() => void voice().catch(reportJobError("Participation voice checkpoint")), 30_000);
@@ -219,7 +227,6 @@ client.once(Events.ClientReady, (readyClient) => {
   };
   void reconcileEvents().catch(reportJobError("Discord scheduled events"));
   setInterval(() => void reconcileEvents().catch(reportJobError("Discord scheduled events")), 60_000);
-  registerCommandsEverywhere().catch(reportJobError("Command registration"));
   console.info(`Logged in as ${readyClient.user.tag}`);
   for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) {
     void updateDungeonLeaderboard(guild);
@@ -231,6 +238,10 @@ client.once(Events.ClientReady, (readyClient) => {
   // per-ClientReady check is enough (safe on reconnect too: it marks each
   // guild before posting, so it won't repeat once it's caught up).
   announceVersionUpdates(readyClient).catch(reportJobError("Version announcement"));
+  // A self-hosted bot learns about newer releases here (start, then daily).
+  const updateCheck = () => announceAvailableUpdate(readyClient).catch(reportJobError("Update check"));
+  void updateCheck();
+  setInterval(() => void updateCheck(), 24 * 60 * 60 * 1000);
   // Daily database backup to backups/ (keeps 14 days). Runs now if today's
   // file is missing, then checks hourly.
   const backup = () => runBackup(prisma)
@@ -281,6 +292,8 @@ client.once(Events.ClientReady, (readyClient) => {
     for (const guild of readyClient.guilds.cache.values()) {
       if (!hostedPilot.allows(guild.id)) void pilotRequests.request(guild).catch(reportJobError("Pilot approval DM"));
     }
+    // Lite servers nobody used for 30 days are told, then left 7 days later.
+    pilotRequests.sweepIdle().catch(reportJobError("Idle Lite servers"));
     // Re-evaluate snapshot age even when nobody clicks a signup or uploads new gear.
     (async () => {
       for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) {
@@ -299,11 +312,22 @@ client.once(Events.ClientReady, (readyClient) => {
 // Bot just added to a server: point whoever invited it at /setup.
 client.on(Events.GuildCreate, (guild) => {
   if (!hostedPilot.allows(guild.id)) {
-    void pilotRequests.request(guild).catch(reportJobError("Pilot approval DM"));
+    // Waiting for approval: Guilded Lite when a slot is free (recorded before the owner DM is sent).
+    void pilotRequests.request(guild).catch(reportJobError("Pilot approval DM")).then(async () => {
+      const lite = hostedPilot.tier(guild.id) === "lite" ? commandSetFor("lite", commands) : null;
+      if (!lite) return;
+      await registerCommands(guild.id, lite);
+      await greetNewGuild(guild, true);
+    }).catch(reportJobError("Registering Lite commands for new guild"));
     return;
   }
   registerCommands(guild.id).catch(reportJobError("Registering commands for new guild"));
   greetNewGuild(guild).catch((error: unknown) => { console.error("Greeting new guild failed", error); void errorReportService.report(client, error, { source: "Greeting new guild", guildId: guild.id, guildName: guild.name }); });
+});
+
+// Removed from a waiting server (an outage is GuildUnavailable instead): free its Lite slot.
+client.on(Events.GuildDelete, (guild) => {
+  if (!hostedPilot.allows(guild.id)) void pilotRequests.forget(guild.id).catch(reportJobError("Pilot request cleanup"));
 });
 
 client.on(Events.GuildMemberAdd, async (member) => {
@@ -380,13 +404,18 @@ client.on(Events.InteractionCreate, async (interaction) => {
       reportInteractionError("Pilot approval", interaction, error);
       const content = "Unable to apply this decision. Check the pilot capacity and host configuration, then retry. / Décision impossible : vérifiez la limite du pilote et la configuration, puis réessayez.";
       if (interaction.deferred) await interaction.editReply(content).catch(() => undefined);
-      else if (!interaction.replied) await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
+      else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
     return;
   }
-  if (interaction.guildId && !hostedPilot.allows(interaction.guildId)) {
+  const tier = interaction.guildId ? hostedPilot.tier(interaction.guildId) : "approved";
+  // Lite: only the Lite slash commands (stale registrations included); its own buttons and modals pass.
+  const liteBlocked = tier === "lite" && (interaction.isChatInputCommand() || interaction.isAutocomplete())
+    && !allowsLite(interaction.commandName, interaction.options.getSubcommandGroup(false), interaction.options.getSubcommand(false));
+  if (tier === "lite") void pilotRequests.touch(interaction.guildId!).catch(reportJobError("Lite activity"));
+  if (tier === "blocked" || liteBlocked) {
     if (interaction.isAutocomplete()) await interaction.respond([]).catch(() => undefined);
-    else if (interaction.isRepliable()) await interaction.reply({ content: PILOT_DENIED, ephemeral: true }).catch(() => undefined);
+    else if (interaction.isRepliable()) await interaction.reply({ content: tier === "lite" ? PILOT_LITE_DENIED : PILOT_DENIED, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     return;
   }
   if (interaction.isAutocomplete() && interaction.commandName === "team") {
@@ -399,7 +428,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       reportInteractionError("Team interaction", interaction, error);
       const content = error instanceof Error && error.message.length < 250 ? error.message : "Could not update the session / Impossible de modifier la séance.";
       if (interaction.deferred || interaction.replied) await interaction.editReply({ content }).catch(() => undefined);
-      else await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
+      else await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
     return;
   }
@@ -412,7 +441,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       reportInteractionError("Community interaction", interaction, error);
       const content = error instanceof Error && error.message.length < 200 ? error.message : "Impossible de traiter cette demande / Could not process this request.";
       if (interaction.deferred) await interaction.editReply({ content }).catch(() => undefined);
-      else if (!interaction.replied) await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
+      else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
     return;
   }
@@ -427,7 +456,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   if (interaction.isButton() && interaction.customId.startsWith(WELCOME_ROLE_PREFIX)) {
     await handleWelcomeRoleButton(interaction).catch(async (error: unknown) => {
       reportInteractionError("Welcome role button", interaction, error);
-      if (!interaction.replied) await interaction.reply({ content: "That didn't work, try again or ask an officer.", ephemeral: true }).catch(() => undefined);
+      if (!interaction.replied) await interaction.reply({ content: "That didn't work, try again or ask an officer.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
     return;
   }
@@ -436,14 +465,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
       reportInteractionError("Onboarding", interaction, error);
       const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";
       if (interaction.deferred && !interaction.replied) await interaction.editReply({ content, components: [], embeds: [] }).catch(() => undefined);
-      else if (!interaction.replied) await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
+      else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
     return;
   }
   if (interaction.isModalSubmit() && interaction.customId.startsWith(FAQ_MODAL_PREFIX)) {
     await handleFaqModal(interaction).catch((error: unknown) => {
       if (!(error instanceof Error && error.message.length < 200)) reportInteractionError("Answer form", interaction, error);
-      if (!interaction.replied) void interaction.reply({ content: error instanceof Error ? error.message : "Could not save the answer.", ephemeral: true }).catch(() => undefined);
+      if (!interaction.replied) void interaction.reply({ content: error instanceof Error ? error.message : "Could not save the answer.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
     return;
   }
@@ -457,7 +486,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (interaction.deferred) {
         void interaction.editReply({ content: error instanceof Error ? error.message : "Could not post the dungeon group." }).catch(() => undefined);
       } else if (!interaction.replied) {
-        void interaction.reply({ content: error instanceof Error ? error.message : "Could not post the dungeon group.", ephemeral: true }).catch(() => undefined);
+        void interaction.reply({ content: error instanceof Error ? error.message : "Could not post the dungeon group.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
       }
     });
     return;
@@ -473,21 +502,21 @@ client.on(Events.InteractionCreate, async (interaction) => {
   if (interaction.isStringSelectMenu() && interaction.customId === `${DUNGEON_GUIDE_PREFIX}kind`) {
     await handleDungeonGuideSelect(interaction).catch((error: unknown) => {
       reportInteractionError("Group finder menu", interaction, error);
-      if (!interaction.replied) void interaction.reply({ content: "Could not open the group form.", ephemeral: true }).catch(() => undefined);
+      if (!interaction.replied) void interaction.reply({ content: "Could not open the group form.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
     return;
   }
   if (interaction.isButton() && interaction.customId === GROUP_ALERT_OPEN_ID) {
     await openGroupAlerts(interaction).catch((error: unknown) => {
       reportInteractionError("Group alerts button", interaction, error);
-      if (!interaction.replied) void interaction.reply({ content: "Could not open your group alerts.", ephemeral: true }).catch(() => undefined);
+      if (!interaction.replied) void interaction.reply({ content: "Could not open your group alerts.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
     return;
   }
   if ((interaction.isButton() || interaction.isStringSelectMenu()) && interaction.customId.startsWith(GROUP_ALERT_PREFIX)) {
     await handleGroupAlertComponent(interaction).catch((error: unknown) => {
       reportInteractionError("Group alerts", interaction, error);
-      if (!interaction.replied) void interaction.reply({ content: "Could not save your group alerts.", ephemeral: true }).catch(() => undefined);
+      if (!interaction.replied) void interaction.reply({ content: "Could not save your group alerts.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
     return;
   }
@@ -495,7 +524,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     await handleDungeonGuideButton(interaction).catch((error: unknown) => {
       reportInteractionError("Dungeon signup guide button", interaction, error);
       if (!interaction.replied) {
-        void interaction.reply({ content: "Could not open the dungeon group form.", ephemeral: true }).catch(() => undefined);
+        void interaction.reply({ content: "Could not open the dungeon group form.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
       }
     });
     return;
@@ -506,7 +535,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     } catch (error) {
       reportInteractionError("Dungeon group button", interaction, error);
       const content = error instanceof Error && error.message.length < 200 ? error.message : "Could not update the group.";
-      if (!interaction.replied) await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
+      if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
     return;
   }
@@ -517,7 +546,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       reportInteractionError("Raid signup button", interaction, error);
       const content = error instanceof Error ? error.message : "Could not update your signup.";
       if (interaction.replied || interaction.deferred) await interaction.editReply({ content, components: [] }).catch(() => undefined);
-      else await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
+      else await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
     return;
   }
@@ -527,7 +556,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     } catch (error) {
       reportInteractionError("EP award button", interaction, error);
       const content = error instanceof Error ? error.message : "Could not record the EP award.";
-      if (!interaction.replied) await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
+      if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
     return;
   }
@@ -540,7 +569,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       reportInteractionError("Application button", interaction, error);
       const content = error instanceof Error ? error.message : "Impossible d'ouvrir ta candidature.";
       if (interaction.replied || interaction.deferred) await interaction.editReply({ content, components: [] }).catch(() => undefined);
-      else await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
+      else await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
     return;
   }
@@ -553,7 +582,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         if (interaction.deferred) {
           await interaction.editReply({ content: "Could not update that role. Please try again or contact an officer." }).catch(() => undefined);
         } else {
-          await interaction.reply({ content: "Could not update that role. Please try again or contact an officer.", ephemeral: true }).catch(() => undefined);
+          await interaction.reply({ content: "Could not update that role. Please try again or contact an officer.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
         }
       }
     }
@@ -563,7 +592,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   const found = resolveCommand(commands, interaction);
   const handler = found.handler ?? handlers.get(found.legacy);
   if (!handler) {
-    await interaction.reply({ content: "That command is not available.", ephemeral: true });
+    await interaction.reply({ content: "That command is not available.", flags: MessageFlags.Ephemeral });
     return;
   }
   try {
@@ -573,24 +602,24 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
-async function registerCommands(guildId: string): Promise<void> {
+// Replaces the server's whole command list: the full set, or Guilded Lite's (commands/lite.ts).
+async function registerCommands(guildId: string, body: unknown[] = commands.map((command) => command.toJSON())): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(config.DISCORD_TOKEN);
-  await rest.put(
-    Routes.applicationGuildCommands(config.DISCORD_CLIENT_ID, guildId),
-    { body: commands.map((command) => command.toJSON()) }
-  );
+  await rest.put(Routes.applicationGuildCommands(config.DISCORD_CLIENT_ID, guildId), { body });
 }
 
 // Commands are per-guild, so every server the bot is in needs them registered.
 async function registerCommandsEverywhere(): Promise<void> {
   const guildIds = new Set<string>([config.DISCORD_GUILD_ID, ...client.guilds.cache.keys()]);
   for (const guildId of guildIds) {
-    if (!hostedPilot.allows(guildId)) continue;
-    await registerCommands(guildId).catch((error: unknown) => console.warn(`Command registration failed for guild ${guildId}`, error));
+    const body = commandSetFor(hostedPilot.tier(guildId), commands);
+    if (!body) continue;
+    await registerCommands(guildId, body).catch((error: unknown) => console.warn(`Command registration failed for guild ${guildId}`, error));
   }
 }
 
 const pilotRequests = createPilotRequests(client, { enabled: hostedPilot.enabled, allows: hostedPilot.allows, replace: replacePilotApprovals,
+  liteLimit: config.HOSTED_LITE_LIMIT, replaceLite: replacePilotLite,
   activate: async guild => { await registerCommands(guild.id); await greetNewGuild(guild); },
-  welcome: guild => welcomeApprovedOwner(client, guild) });
+  welcome: guild => welcomeApprovedOwner(client, guild), warnIdle: guild => warnIdleLite(client, guild) });
 await client.login(config.DISCORD_TOKEN);

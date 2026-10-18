@@ -1,4 +1,4 @@
-import { AttachmentBuilder, SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember } from "discord.js";
+import { AttachmentBuilder, SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 import { buildExport, type ExportKind } from "../services/exports.js";
@@ -17,10 +17,10 @@ export async function executeExport(interaction: ChatInputCommandInteraction): P
   const context = await requireGuildContext(interaction);
   if (!context) return;
   if (!interaction.member || !hasPermission(interaction.member as GuildMember, "officer")) {
-    await interaction.reply({ content: "Only Officers and Guild Masters can export data.", ephemeral: true });
+    await interaction.reply({ content: "Only Officers and Guild Masters can export data.", flags: MessageFlags.Ephemeral });
     return;
   }
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const result = await buildExport(prisma, context.guildId, interaction.options.getString("what", true) as ExportKind);
   await interaction.editReply({
     content: `${result.rows} row${result.rows === 1 ? "" : "s"} exported. Only you can see this file.`,

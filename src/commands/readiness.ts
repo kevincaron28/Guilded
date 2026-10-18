@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, type ChatInputCommandInteraction } from "discord.js";
+import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 import { buildConsumableLines, buildReadinessLines, chunkLines } from "../services/readiness-board.js";
@@ -38,24 +38,24 @@ export async function executeReadiness(interaction: ChatInputCommandInteraction)
   if (!context) return;
   const subcommand = interaction.options.getSubcommand();
   if (subcommand !== "me" && !canReview(interaction)) {
-    await interaction.reply({ content: "Only Guild Masters, Officers, Raid Leaders, Loot Leaders, and Class Leaders can review other members.", ephemeral: true });
+    await interaction.reply({ content: "Only Guild Masters, Officers, Raid Leaders, Loot Leaders, and Class Leaders can review other members.", flags: MessageFlags.Ephemeral });
     return;
   }
   if (subcommand === "me") {
     const snapshot = await prisma.inspectedCharacterSnapshot.findFirst({ where: { memberId: context.memberId }, orderBy: { inspectedAt: "desc" }, include: { findings: true, character: true } });
-    await interaction.reply({ content: format(snapshot, snapshot?.character.name ?? interaction.user.username), ephemeral: true });
+    await interaction.reply({ content: format(snapshot, snapshot?.character.name ?? interaction.user.username), flags: MessageFlags.Ephemeral });
     return;
   }
   if (subcommand === "member") {
     const user = interaction.options.getUser("player", true);
     const member = await prisma.member.findUnique({ where: { guildId_discordUserId: { guildId: context.guildId, discordUserId: user.id } } });
     const snapshot = member ? await prisma.inspectedCharacterSnapshot.findFirst({ where: { memberId: member.id }, orderBy: { inspectedAt: "desc" }, include: { findings: true, character: true } }) : null;
-    await interaction.reply({ content: format(snapshot, user.username), ephemeral: true });
+    await interaction.reply({ content: format(snapshot, user.username), flags: MessageFlags.Ephemeral });
     return;
   }
   // On-demand reports stay private; automatic imports own the daily channel post.
   const attunement = interaction.options.getString("attunement") ?? undefined;
   const chunks = chunkLines([...await buildReadinessLines(prisma, context.guildId, { attunement }), ...await buildConsumableLines(prisma, context.guildId)], 1900);
-  await interaction.reply({ content: chunks[0] ?? "No guild members found.", ephemeral: true });
-  for (const chunk of chunks.slice(1)) await interaction.followUp({ content: chunk, ephemeral: true });
+  await interaction.reply({ content: chunks[0] ?? "No guild members found.", flags: MessageFlags.Ephemeral });
+  for (const chunk of chunks.slice(1)) await interaction.followUp({ content: chunk, flags: MessageFlags.Ephemeral });
 }

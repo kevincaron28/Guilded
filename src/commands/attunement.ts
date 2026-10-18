@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, type ChatInputCommandInteraction } from "discord.js";
+import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { createAttunementService } from "../services/attunement.js";
 import { guildService, requireGuildContext } from "./context.js";
@@ -34,7 +34,7 @@ export async function executeAttunement(interaction: ChatInputCommandInteraction
       content: attunements.length
         ? attunements.map((a) => `${a.completed ? "✅" : "❌"} ${a.name}`).join("\n")
         : "No attunements recorded for this character.",
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -42,5 +42,5 @@ export async function executeAttunement(interaction: ChatInputCommandInteraction
   const name = interaction.options.getString("name", true);
   const completed = interaction.options.getBoolean("completed") ?? true;
   await attunementService.set(character.id, name, completed, "discord");
-  await interaction.reply({ content: `Recorded ${name} as ${completed ? "completed" : "not completed"} for ${character.name}.`, ephemeral: true });
+  await interaction.reply({ content: `Recorded ${name} as ${completed ? "completed" : "not completed"} for ${character.name}.`, flags: MessageFlags.Ephemeral });
 }

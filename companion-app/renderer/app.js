@@ -37,9 +37,16 @@ const say = (message, ok) => { $('formResult').textContent = message; $('formRes
 function gameFields() { $('wowSettings').hidden = !$('wowEnabled').checked; $('poeSettings').hidden = !$('poeEnabled').checked; }
 ['wowEnabled','poeEnabled'].forEach(id => $(id).addEventListener('change',gameFields));
 function pill(id, text, level) { $(id).textContent = text; $(id).className = `pill ${level || ''}`; }
+function renderUpdate(update) {
+  $('updateBanner').hidden = !update || !!api.browser;
+  if (!update) return;
+  $('updateTitle').textContent = `Guilded Companion ${update.version} is available`;
+  $('updateText').textContent = `You have ${$('version').textContent.replace(/^Version /, '')}. Download the new installer and run it: your settings and Discord link are kept.`;
+}
 function renderState(snapshot) {
   lastSnapshot = snapshot;
   const {state,health} = snapshot;
+  renderUpdate(snapshot.update);
   const linked = !!savedConfig.companionCredential;
   const paused = !api.browser && linked && !state.running && health.text === 'Not running';
   const setup = health.level === 'setup' && health.text === 'Setup needed';
@@ -49,6 +56,7 @@ function renderState(snapshot) {
   $('setupBadge').hidden = !setup;
   pill('connectionPill', setup ? 'Setup needed' : paused ? 'Paused' : health.level === 'ok' ? 'Connected' : 'Needs attention',health.level === 'ok' ? 'ok' : health.level === 'error' ? 'error' : 'gold');
   pill('pairBadge', linked ? 'Discord linked' : 'Discord not linked',linked ? 'ok' : '');
+  $('removePanel').hidden = !!api.browser && !linked;
   $('versions').textContent = `Bot ${state.botVersion || 'not connected'}${savedConfig.wowEnabled !== false && state.addonVersion ? ` · Addon ${state.addonVersion}` : ''}`;
   $('tileUpload').textContent = state.lastUpload ? ago(state.lastUpload.at) : 'Awaiting your first sync';
   $('tileUploadNote').textContent = state.lastUpload?.message || 'Save fresh addon data with /reload.';
@@ -95,13 +103,14 @@ async function choosePoe() { const file = await api.browsePoeLog(readForm()); if
 ['btnBrowse','btnWowSelect'].forEach(id => bind(id,chooseWow)); ['btnPoeBrowse','btnPoeSelect'].forEach(id => bind(id,choosePoe));
 bind('btnDetect',async () => { $('detectNote').textContent = 'Looking for your addon data…'; const found = await api.detectWow(); if (found.length) { $('watchFile').value = found[0].path; $('detectNote').textContent = found.length > 1 ? `Found ${found.length} accounts. Check the selected file before saving.` : found[0].exists ? 'Found your addon data.' : 'Account found. Use /reload with the addon enabled to create Guilded.lua.'; } else $('detectNote').textContent = 'Choose Browse and select Guilded.lua in your account’s SavedVariables folder.'; });
 bind('btnTest',async () => { say('Checking your connection…',true); const result = await api.testConnection(readForm()); say(result.message,result.ok); });
-bind('btnPair',async () => { say('Connecting your Discord account…',true); const result = await api.pairAccount(readForm()); say(result.message,result.ok); if (result.ok) { $('pairingCode').value = ''; savedConfig = (await api.getAll()).config; renderState(lastSnapshot); toast('Discord account connected.'); } });
+bind('btnPair',async () => { if (!$('pairingCode').value.trim()) { say('Paste the code from /character pair first.',false); $('pairingCode').focus(); return; } say('Connecting your Discord account…',true); const result = await api.pairAccount(readForm()); say(result.message,result.ok); if (result.ok) { $('pairingCode').value = ''; savedConfig = (await api.getAll()).config; $('guildDiscordId').value = savedConfig.guildDiscordId || ''; renderState(lastSnapshot); toast('Discord account connected.'); } else if (/server ID/i.test(result.message)) { $('advanced').open = true; $('guildDiscordId').focus(); } });
 $('form').addEventListener('submit',event => { event.preventDefault(); action($('btnSave'),async () => { say('Saving your preferences…',true); const result = await api.saveConfig(readForm()); say(result.message,result.ok); savedConfig = (await api.getAll()).config; renderState(lastSnapshot); if (result.ok) { toast(result.message); showPage('status'); } }); });
 $('autostart').addEventListener('change',event => action(event.target,async () => { $('autostart').checked = await api.setAutostart(event.target.checked); }));
 bind('btnUpload',async () => { await api.uploadNow(); toast(api.browser ? 'Sync finished. Check Activity for the result.' : 'Sync requested. Follow its progress in Activity.'); });
 bind('btnStandings',async () => { await api.refreshStandings(); toast(api.browser ? api.folderAccess ? 'Standings saved. Use /reload in WoW.' : 'Standings downloaded. Add the file to Interface / AddOns / Guilded.' : 'Standings refresh finished. Check Activity for the result.'); });
 bind('btnFolder',() => api.openAddonFolder()); bind('btnPause',async () => { await api.toggleTracking(); }); bind('btnOnline',() => api.openOnline());
 bind('btnRemoveData',() => api.removeData());
+bind('btnUpdate',() => api.openUpdate());
 bind('btnHistory',async () => {
   if (!savedConfig.companionCredential) { showPage('settings'); toast('Connect your Discord account first.'); return; }
   const visits = await api.getPoeRuns();
@@ -139,7 +148,7 @@ async function init() {
       $('btnStandings').after(forget);
     }
   } else { $('watchFile').removeAttribute('readonly'); $('poeLogFile').removeAttribute('readonly'); }
-  gameFields(); entries = all.logs.slice(-300); renderLogs(); renderState({state:all.state,health:all.health});
+  gameFields(); entries = all.logs.slice(-300); renderLogs(); renderState({state:all.state,health:all.health,update:all.update});
   showPage(new URLSearchParams(location.search).get('tab') || (savedConfig.companionCredential ? 'status' : 'settings'));
   api.onState(renderState); api.onLog(addLog);
   setInterval(() => { if (lastSnapshot) renderState(lastSnapshot); },1000);

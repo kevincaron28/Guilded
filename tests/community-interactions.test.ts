@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Collection, PermissionFlagsBits } from "discord.js";
+import { Collection, PermissionFlagsBits, MessageFlags } from "discord.js";
 
 const mocks = vi.hoisted(() => ({
   enterLottery: vi.fn(async () => ({ quantity: 3, status: "CONFIRMED" })), create: vi.fn(),
@@ -61,7 +61,7 @@ describe("persistent community interactions", () => {
     const confirm = interaction("community:buy:draw:3:30:actor");
     await handleCommunityButton(confirm as never);
     expect(mocks.enterLottery).toHaveBeenCalledExactlyOnceWith("guild", "draw", "actor", 3);
-    expect(confirm.deferReply).toHaveBeenCalledWith({ ephemeral: true });
+    expect(confirm.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
   });
   it.each(["community:buy:draw:3:30:other", "community:buy:draw:3:10:actor", "community:buy:draw:0:0:actor"])("rejects altered confirmations: %s", async id => {
     await expect(handleCommunityButton(interaction(id) as never)).rejects.toThrow("Invalid confirmation");

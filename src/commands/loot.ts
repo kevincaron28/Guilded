@@ -1,5 +1,5 @@
 import { coreContext } from "../services/core-context.js";
-import { SlashCommandBuilder, type ChatInputCommandInteraction } from "discord.js";
+import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { createLootService } from "../services/loot.js";
 import { notifications, notify } from "../services/notify.js";
 import { createWishlistService } from "../services/wishlist.js";
@@ -52,11 +52,11 @@ export async function executeLoot(interaction: ChatInputCommandInteraction): Pro
   if (!context) return;
   const subcommand = interaction.options.getSubcommand();
   if (subcommand === "reserves") {
-    await interaction.reply({ content: await describeReserves(prisma, context.guildId, interaction.options.getString("item") ?? undefined), ephemeral: true });
+    await interaction.reply({ content: await describeReserves(prisma, context.guildId, interaction.options.getString("item") ?? undefined), flags: MessageFlags.Ephemeral });
     return;
   }
   if ((subcommand === "auction" || subcommand === "close" || subcommand === "award" || subcommand === "priority") && !officer(interaction)) {
-    await interaction.reply({ content: "Only officers, Guild Masters, or administrators can manage auctions.", ephemeral: true });
+    await interaction.reply({ content: "Only officers, Guild Masters, or administrators can manage auctions.", flags: MessageFlags.Ephemeral });
     return;
   }
   // Loot council can be set for the whole guild (/config loot-mode) or for one
@@ -85,7 +85,7 @@ export async function executeLoot(interaction: ChatInputCommandInteraction): Pro
   if (subcommand === "priority") {
     const itemName = interaction.options.getString("item", true);
     const result = await priorityFor(prisma, context.guildId, itemName, { coreId: raidCore?.id ?? null, separatePool: rules.separatePool, baseGp: rules.baseGp, minEp: rules.minEp });
-    await interaction.reply({ content: describePriority(itemName, raidCore?.name ?? null, result).slice(0, 1990), ephemeral: true });
+    await interaction.reply({ content: describePriority(itemName, raidCore?.name ?? null, result).slice(0, 1990), flags: MessageFlags.Ephemeral });
     return;
   }
   if (subcommand === "award") {
@@ -117,7 +117,7 @@ export async function executeLoot(interaction: ChatInputCommandInteraction): Pro
       RESERVE: "players reserve items before the raid (`/guilded reserve` in game, `/loot reserves` here) and the reservers of a dropped item roll for it. Officers record the award with `/loot award`.",
       PRIORITY: "every item has a set GP price and goes to the highest PR of the players who want it (wishlist here, the popup in game). `/loot priority` shows who is next; `/loot award` charges the set price."
     };
-    await interaction.reply({ content: `This raid uses **${LOOT_MODE_LABEL[lootMode]}**: ${how[lootMode]}`, ephemeral: true });
+    await interaction.reply({ content: `This raid uses **${LOOT_MODE_LABEL[lootMode]}**: ${how[lootMode]}`, flags: MessageFlags.Ephemeral });
     return;
   }
   if (subcommand === "auction") {
@@ -141,7 +141,7 @@ export async function executeLoot(interaction: ChatInputCommandInteraction): Pro
       memberId: context.memberId,
       amount: interaction.options.getInteger("amount", true)
     });
-    await interaction.reply({ content: `Bid of **${bid.amount} GP** placed.`, ephemeral: true });
+    await interaction.reply({ content: `Bid of **${bid.amount} GP** placed.`, flags: MessageFlags.Ephemeral });
     return;
   }
   if (subcommand === "close") {

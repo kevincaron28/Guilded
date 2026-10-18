@@ -75,6 +75,33 @@ function util.whenText(stamp)
   return date("%d/%m", seconds) .. " " .. clock
 end
 
+-- Opens one of the game's own windows (dungeon finder, calendar, guild) the way the game does, so
+-- Escape and the other windows treat it normally. A plain frame:Show() bypasses the game's window
+-- manager: Escape then opened the Game Menu and left the window open (seen on WoW Forever).
+local escapeNames = {}
+function util.showWindow(frame)
+  if not frame then return end
+  local name = frame.GetName and frame:GetName()
+  if name and UIPanelWindows and UIPanelWindows[name] and ShowUIPanel then
+    ShowUIPanel(frame)
+    return
+  end
+  frame:Show()
+  if name and UISpecialFrames and not escapeNames[name] then
+    escapeNames[name] = true
+    local listed = false
+    for _, existing in ipairs(UISpecialFrames) do if existing == name then listed = true break end end
+    if not listed then table.insert(UISpecialFrames, name) end
+  end
+end
+
+-- Closes such a window the same way.
+function util.hideWindow(frame)
+  if not frame then return end
+  local name = frame.GetName and frame:GetName()
+  if name and UIPanelWindows and UIPanelWindows[name] and HideUIPanel then HideUIPanel(frame) else frame:Hide() end
+end
+
 function util.serverTime()
   if GetServerTime then
     local ok, value = pcall(GetServerTime)

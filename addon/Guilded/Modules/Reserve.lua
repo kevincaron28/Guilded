@@ -431,6 +431,12 @@ local function rollFor(itemText)
   end
   if not ns.lootRoll then ns.message(L("Loot roll unavailable. Reload the complete Guilded addon.")); return end
   if ns.lootRoll.session then ns.message(L("Finish the pending loot roll or use /guilded lootroll cancel.")); return end
+  -- Check what would refuse the roll-off before telling the group it started (seen in game: the
+  -- group read "rolling between ..." while a Guilded Games match blocked it).
+  if GuildedGames and GuildedGames.state and GuildedGames.state() then
+    ns.message(L("Finish Guilded Games before starting a loot roll.")); return
+  end
+  if not ns.util.groupChannel() then ns.message(L("Join a party or raid before starting a loot roll.")); return end
   local shown = {}
   for _, name in ipairs(found) do
     local plus = reserve.plusFor(name, id)
@@ -441,7 +447,7 @@ local function rollFor(itemText)
   for _, name in ipairs(found) do
     bonuses[name] = reserve.plusFor(name, id)
   end
-  if not ns.lootRoll.start(found, bonuses) then ns.message(L("Join a party or raid before starting a loot roll.")) end
+  ns.lootRoll.start(found, bonuses)
 end
 
 local function awardTo(args)

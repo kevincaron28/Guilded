@@ -39,7 +39,15 @@ function roll.receive(name, value, low, high)
     for _, player in ipairs(winners) do s.players[player] = true end
     announce(string.format(L("Tie at %d: %s. Only these players /roll 100 again."), best, table.concat(winners, ", ")))
   else
-    announce(string.format(L("Roll winner: %s (%d including SR+). Award the item separately."), winners[1], best))
+    -- "including SR+" only when somebody in this roll-off has a bonus (seen in game: it was
+    -- printed for a plain 20 with no SR+ at all).
+    local anyBonus = false
+    for _, bonus in pairs(s.bonus) do if (bonus or 0) > 0 then anyBonus = true end end
+    if anyBonus then
+      announce(string.format(L("Roll winner: %s (%d including SR+). Award the item separately."), winners[1], best))
+    else
+      announce(string.format(L("Roll winner: %s (%d). Award the item separately."), winners[1], best))
+    end
     roll.session = nil
   end
 end
@@ -51,11 +59,6 @@ ns.commandHandlers.lootroll = function(args)
     table.sort(missing); ns.message(L("Waiting for rolls:") .. " " .. table.concat(missing, ", "))
   end
 end
-ns.commandHandlers.games = function()
-  if GuildedGames and GuildedGames.open then GuildedGames.open()
-  else ns.message(L("Party games moved to the optional Guilded Games addon. Install it and use /ggames. Loot rolls stay in Guilded.")) end
-end
-ns.commandHandlers.casino = ns.commandHandlers.games
 ns.commandHelp[#ns.commandHelp + 1] = { officer = true, text = "/guilded lootroll [cancel] - pending soft-reserve rolls; awards remain manual" }
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("CHAT_MSG_SYSTEM")

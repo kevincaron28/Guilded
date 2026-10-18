@@ -1,5 +1,5 @@
 import { updateDungeonLeaderboard } from "../services/dungeon-leaderboard.js";
-import { SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember } from "discord.js";
+import { SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 import { createAuditService } from "../services/audit.js";
@@ -64,7 +64,7 @@ export async function executeDungeonAdmin(interaction: ChatInputCommandInteracti
   const context = await requireGuildContext(interaction);
   if (!context) return;
   if (!interaction.member || !hasPermission(interaction.member as GuildMember, "officer")) {
-    await interaction.reply({ content: "Only officers can use /dungeon admin.", ephemeral: true });
+    await interaction.reply({ content: "Only officers can use /dungeon admin.", flags: MessageFlags.Ephemeral });
     return;
   }
   const subcommand = interaction.options.getSubcommand();
@@ -145,6 +145,6 @@ export async function executeDungeonAdmin(interaction: ChatInputCommandInteracti
       + `**${result.season.name}** has started; season leaderboards start from zero.`;
     await log(reply, { seasonId: result.season.id });
   }
-  await interaction.reply({ content: reply.slice(0, 1990), ephemeral: true, allowedMentions: { parse: [] } });
+  await interaction.reply({ content: reply.slice(0, 1990), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
   if (["season-start", "award", "invalidate"].includes(subcommand)) await updateDungeonLeaderboard(interaction.guild);
 }

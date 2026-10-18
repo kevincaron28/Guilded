@@ -17,7 +17,7 @@
   "assets": {
     "directory": "./dist/site",
     "binding": "ASSETS",
-    "run_worker_first": ["/", "/robots.txt", "/sitemap.xml", "/support", "/support/", "/owner", "/owner/*", "/companion", "/companion/*", "/api/*", "/health", "/g/*", "/quebec-gold/cores", "/quebec-gold/cores/", "/quebec-gold/wow", "/quebec-gold/wow/"],
+    "run_worker_first": ["/", "/robots.txt", "/sitemap.xml", "/googlefc463a9e1454c920.html", "/support", "/support/", "/owner", "/owner/*", "/companion", "/companion/*", "/api/*", "/health", "/g/*", "/quebec-gold/cores", "/quebec-gold/cores/", "/quebec-gold/wow", "/quebec-gold/wow/"],
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "none"
   }

@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember } from "discord.js";
+import { SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember, MessageFlags } from "discord.js";
 import type { RaidRole } from "@prisma/client";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
@@ -118,7 +118,7 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
   if (subcommand === "edit" && interaction.options.getString("realm")) {
     const realm = interaction.options.getString("realm", true).trim();
     const core = await coreService.setRealm(guildId, interaction.options.getString("core", true), /^(none|aucun)$/i.test(realm) ? null : realm);
-    await interaction.reply({ content: core.realm ? `**${core.name}** : royaume **${core.realm}**. Seuls les personnages de ce royaume peuvent s'y inscrire.` : `**${core.name}** : royaume effacé; celui que ses personnages partagent s'applique.`, ephemeral: true });
+    await interaction.reply({ content: core.realm ? `**${core.name}** : royaume **${core.realm}**. Seuls les personnages de ce royaume peuvent s'y inscrire.` : `**${core.name}** : royaume effacé; celui que ses personnages partagent s'applique.`, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -131,7 +131,7 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
     const schedule = interaction.options.getString("schedule");
     parseWeeklySchedule(schedule ?? "");
     // Discord work (a role, a category, four channels) can take longer than the 3 s reply window.
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const settings = await guildService.getSettings(guildId);
     const created0 = await coreService.create(guildId, interaction.options.getString("name", true), interaction.options.getString("description"), schedule,
       { timezone: settings?.timezone ?? "America/Toronto", createdBy: interaction.user.id });
@@ -157,7 +157,7 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
     const renamed = await coreService.rename(guildId, before.id, interaction.options.getString("name", true));
     if (interaction.guild) await renameCoreDiscord(interaction.guild, renamed);
     await syncCoreRoster(interaction.guild, prisma, guildId, renamed.id);
-    await interaction.reply({ content: `Renamed **${before.name}** to **${renamed.name}**. In game the new name arrives with the next companion upload.`, ephemeral: true });
+    await interaction.reply({ content: `Renamed **${before.name}** to **${renamed.name}**. In game the new name arrives with the next companion upload.`, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -176,7 +176,7 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
         ? `Added ${user.username} to **${core.name}**${character ? ` with ${character}` : ""}${interaction.options.getBoolean("bench") ? " (bench)" : ""}.`
           + (others.length ? ` Also in: ${others.map((spot) => `${spot.core.name}${spot.character ? ` (${spot.character.name})` : ""}`).join(", ")}.` : "")
         : `Removed ${user.username} from **${core.name}**.`,
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -207,7 +207,7 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
       coreId = core.id;
     }
     await syncCoreRoster(interaction.guild, prisma, guildId, coreId);
-    await interaction.reply({ content, ephemeral: true });
+    await interaction.reply({ content, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -245,7 +245,7 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
       if (stranded > 0) throw new Error(`${core.name} already has ${stranded} entries in its own pool. Those points would disappear from view, so it stays separate.`);
       data["separatePool"] = false;
     }
-    if (schedule !== null) await interaction.deferReply({ ephemeral: true });
+    if (schedule !== null) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     let updated = Object.keys(data).length ? await prisma.raidCore.update({ where: { id: core.id }, data }) : core;
     if (schedule !== null) {
       updated = { ...updated, ...await saveCoreWeeklySchedule(prisma, guildId, core.id, schedule, interaction.user.id) };
@@ -260,7 +260,7 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
     const content = describeRules(effectiveRules(settings, updated), core.name) + note + (schedule !== null
       ? `\n📅 ${updated.weeklySchedule ? `${updated.schedule} (${updated.weeklyTimezone}) — inscriptions des 6 prochains jours, renouvelées automatiquement.` : "Création automatique arrêtée."} Les raids déjà affichés gardent leurs inscriptions; annule-les avec /raid cancel au besoin.` : "");
     if (interaction.deferred) await interaction.editReply({ content });
-    else await interaction.reply({ content, ephemeral: true });
+    else await interaction.reply({ content, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -274,7 +274,7 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
       content: `${core.description ? `${core.description}\n` : ""}${rules}\n🛡️ Tanks: ${byRole("TANK")}\n💚 Healers: ${byRole("HEALER")}\n⚔️ DPS: ${byRole("DPS")}${benchNames ? `
 🪑 Bench: ${benchNames}` : ""}${backupNames ? `
 🔁 Backups: ${backupNames}` : ""}`,
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -293,7 +293,7 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
       content: cores.length
         ? cores.map((core) => `• **${core.name}** — ${core.members.length} player${core.members.length === 1 ? "" : "s"}, ${core._count.raids} raid${core._count.raids === 1 ? "" : "s"}${mine(core)}`).join("\n").slice(0, 1990)
         : "No raid cores yet. Create one with `/core create`.",
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -303,11 +303,11 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
     const cores = value ? [await coreService.byIdOrName(guildId, value)] : await coreService.list(guildId);
     let posted = 0;
     for (const core of cores) if (await syncCoreRoster(interaction.guild, prisma, guildId, core.id)) posted++;
-    await interaction.reply({ content: `Refreshed ${posted} roster message${posted === 1 ? "" : "s"} in each core's roster channel.`, ephemeral: true });
+    await interaction.reply({ content: `Refreshed ${posted} roster message${posted === 1 ? "" : "s"} in each core's roster channel.`, flags: MessageFlags.Ephemeral });
     return;
   }
 
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const toDelete = await coreService.byIdOrName(guildId, interaction.options.getString("core", true));
   const pooled = toDelete.separatePool ? await prisma.epgpTransaction.count({ where: { guildId, coreId: toDelete.id } }) : 0;
   if (pooled > 0) throw new Error(`${toDelete.name} has ${pooled} entries in its own point pool. Deleting it would orphan them, so it can't be deleted while it keeps its own points.`);

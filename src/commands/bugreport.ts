@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, type ChatInputCommandInteraction } from "discord.js";
+import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { notify } from "../services/notify.js";
 import { errorReportService } from "./context.js";
 
@@ -25,5 +25,5 @@ export async function executeBug(interaction: ChatInputCommandInteraction): Prom
   const content = fr
     ? `Merci, c'est signalé au développeur${ref ? ` (référence \`${ref}\`)` : ""}. Un officier ou le développeur fera le suivi.`
     : `Thanks, the developer has your report${ref ? ` (reference \`${ref}\`)` : ""}. An officer or the developer will follow up.`;
-  await interaction.reply({ content, ephemeral: true });
+  await interaction.reply({ content, flags: MessageFlags.Ephemeral });
 }

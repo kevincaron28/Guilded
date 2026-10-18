@@ -44,14 +44,19 @@ Deadmines completion should not receive competitive rating in that phase.
 
 ## Required desktop check alongside the in-game session
 
-- [ ] Quit the old companion and upgrade with the 6.2.0 installer. Existing
+- [x] Quit the old companion and upgrade with the 6.2.0 installer. Existing
   configuration/pairing survives; one tray instance opens, finds the correct
   SavedVariables, uploads G6 once, and downloads the active/frozen season views.
+  **17 October, main PC, 6.3.1 -> 6.3.2 (installer SHA-256 18dbddb0...):** the installer asked
+  to close the running companion (OK), exited 0; 6.3.2 runs as one app; config.json byte-identical
+  (pairing kept); it watches the right Guilded.lua and uploaded on start and on Sync now
+  ("0 ledger entries, 0 new characters": nothing counted twice). No new G6 run existed to upload.
 - [ ] On the second PC, verify a clean companion installation/pairing where
   applicable. Check restart with an unsent run and an offline/reconnected sync;
   no duplicate awards, no lost unsent run and no second bot process.
 - [ ] Verify `GuildedData` is discovered/enabled on the actual client and loads
-  after Guilded. Upgrade the addon in the test profile, reload, and confirm
+  after Guilded. (17 October: its TOC declares `Dependencies: Guilded`, so it always loads after;
+  Highpriest showed its standings in game. The rest of this item is still open.) Upgrade the addon in the test profile, reload, and confirm
   standings survive. Check a newer browser-written file also takes precedence.
 - [ ] With an accepted test backend, compare direct and website-proxied sync:
   one award, one reversal, repeated uploads, disconnect/reconnect, and stop/start.
@@ -196,3 +201,30 @@ their Guilded SavedVariables first and restored them afterwards.
 Afterwards both PCs restored their Guilded SavedVariables (hashes match the backups); the main
 PC went back to the 6.3.1 addon and resumed companion tracking. G6–G8, G10, the Guilded Games
 part of G9, the 6.1.2 parts of G2/G12 and the desktop companion checks are still not run.
+
+### 17 October 2026 (afternoon): G9 with Guilded Games, and #113 in game
+
+Highpriest Cheech (guild master, main PC, companion tracking paused) and Naomine Merriweather
+(officer, second PC), both on main after #113 (6.3.2 + standalone polish) with Guilded Games 0.1.0
+installed. Both PCs backed up their Guilded SavedVariables first and restored them afterwards.
+
+| ID | Result | Observations |
+| --- | --- | --- |
+| G9 (Games installed) | PASS (after a fix) | Both addons loaded. (a) With a High roll lobby open, `/guilded reserve roll` was refused ("Finish Guilded Games before starting a loot roll"). First try also told the party "rolling between ..." and printed a wrong second reason; fixed so nothing is announced when a roll-off is blocked. (b) With a roll-off pending, hosting a game was refused ("Finish Guilded's loot roll before hosting a game"). (c) `/reload` during a pending roll-off cleared it; a new roll-off ran (20 vs 18) and `/guilded reserve award` recorded the loot exactly once (one loot row). Not covered: combat during a roll-off. The winner line said "including SR+" with no bonus; it now says so only when someone has one. |
+| #113 on the main PC | PASS (two small fixes) | `/guilded slots` ("from level 60"); a level-18 gear check is PARTIAL, not Not ready, and My character now shows the grey "Empty slots (normal while levelling): Head, Shoulder" note (fixed: it was hidden). `/guilded setup` shows "Officers: set up my guild in game, step by step"; pressing it switched to In-game only and opened Local guild; create core, loot rules (soft reserves, 2) and add raider each confirmed in the window and in the status line. `/guilded end` printed the summary (seen-not-marked, boss by hand, EP/GP, loot); `/guilded summary` opened the copy box (fixed: times now "today 14:43", not ISO). |
+| #113 on the second PC | PASS | Naomine (officer): `/guilded` opens the window; Home's gear line "Partly ready: 2 thing(s)" (was "Not ready: 10" this morning); `/guilded slots` answers; `/guilded setup` shows the third button; the Season view shows "Updated yesterday 18:29, shared by Highpriest." The levelling note was recorded in her saved data but hidden on My character on that build (fixed in this PR, as on the main PC). |
+
+Afterwards both PCs restored their Guilded SavedVariables (hashes match), removed Guilded Games and its
+saved files; the main PC went back to the released 6.3.2 addon and resumed companion tracking.
+
+### 17 October 2026 (evening): raid-night tools (#119), main PC
+
+Highpriest Cheech, connected setup, companion tracking paused, saved data restored afterwards (hashes
+match). `/guilded template save` and `/guilded start tue` started "Test Night"; `/guilded note` appeared
+in the end-of-raid summary; `/guilded award` then `/guilded undo` voided the entry ("Voided: Highpriest
++1 EP"), and the summary counted 0 entries; `/guilded raid discard` dropped an empty raid; `/guilded
+raids 3` opened the copy box. `/guilded attendance roster` refused correctly (the selected Discord core
+has no roster yet) but pointed to the Local guild page; the message now says the roster comes from
+Discord. `/guilded history` asked the guild and timed out cleanly (no other officer online); the
+member/officer exchange is covered by tests/lua/history.test.ts. The Guilded Games label needs a party
+and was checked by test only.

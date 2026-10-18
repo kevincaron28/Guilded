@@ -287,8 +287,8 @@ function loot.drop(args)
     if #holders > 0 then
       call("reserve", { "roll", item })
     else
-      ns.message(string.format(L("Nobody reserved %s: free roll. Players type 1 to join, then /guilded games roll."), item))
-      if moduleOn("games") then call("games", { "highroll" }) end
+      -- No reservers: an ordinary free roll; the officer awards it with /guilded reserve award.
+      ns.message(string.format(L("Nobody reserved %s: free roll. Everyone who wants it types /roll, then award it with /guilded reserve award <player> <item>."), item))
     end
   else
     if not moduleOn("bidding") then ns.message(L("GP bidding is off (/guilded modules).")) return end

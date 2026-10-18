@@ -1,4 +1,4 @@
-import { EmbedBuilder, SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember } from "discord.js";
+import { EmbedBuilder, SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember, MessageFlags } from "discord.js";
 import { config } from "../config.js";
 import { prisma } from "../database.js";
 import { createWclClient, parseReportRef } from "../integrations/warcraftlogs.js";
@@ -51,24 +51,24 @@ export async function executeWcl(interaction: ChatInputCommandInteraction): Prom
       content: rows.length
         ? rows.map((row) => `• [${row.title}](${row.url}) — ${row.zone ?? "?"} · <t:${Math.floor(row.startedAt.getTime() / 1000)}:d>`).join("\n")
         : "No Warcraft Logs reports pulled in yet. Officers: `/raid wcl report url:<link>`.",
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
 
   if (!interaction.member || !hasPermission(interaction.member as GuildMember, "officer")) {
-    await interaction.reply({ content: "Only Officers and Guild Masters can pull Warcraft Logs reports.", ephemeral: true });
+    await interaction.reply({ content: "Only Officers and Guild Masters can pull Warcraft Logs reports.", flags: MessageFlags.Ephemeral });
     return;
   }
   if (!config.WCL_CLIENT_ID || !config.WCL_CLIENT_SECRET) {
     await interaction.reply({
       content: "Warcraft Logs isn't set up yet. Create an API client at https://www.warcraftlogs.com/api/clients, put `WCL_CLIENT_ID` and `WCL_CLIENT_SECRET` in `.env.local`, and restart the bot.",
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
 
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   if (subcommand === "check") {
     const raidArg = interaction.options.getString("raid");
     const urlArg = interaction.options.getString("url");

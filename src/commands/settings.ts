@@ -1,7 +1,7 @@
 import { asLootMode, LOOT_MODE_HELP, LOOT_MODE_LABEL, LOOT_MODES } from "../services/core-rules.js";
 import { updateDungeonLeaderboard } from "../services/dungeon-leaderboard.js";
 import { ensureDungeonSignupGuide } from "../services/dungeon-guide.js";
-import { ChannelType, SlashCommandBuilder, type ChatInputCommandInteraction } from "discord.js";
+import { ChannelType, SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { permissionRoles, hasPermission } from "../permissions.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { sendWelcome, welcomeDelivery } from "../services/housekeeping.js";
@@ -132,7 +132,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
         `Log channel: ${settings.logChannelId ? `<#${settings.logChannelId}>` : "disabled"}`,
         `Merit ranking: ${settings.meritEnabled ? "on" : "off"}`
       ].join("\n"),
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -140,7 +140,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
   if (!interaction.guild || !interaction.member || !hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "officer")) {
     await interaction.reply({
       content: `Only members with the ${permissionRoles.officer} role can change settings.`,
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -148,7 +148,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
   if (subcommand === "welcome") {
     if (interaction.options.getBoolean("disable")) {
       await guildService.updateSettings(context.guildId, { welcomeChannelId: null, welcomeMessageTemplate: null, welcomeDelivery: "CHANNEL" });
-      await interaction.reply({ content: "Welcome messages disabled.", ephemeral: true });
+      await interaction.reply({ content: "Welcome messages disabled.", flags: MessageFlags.Ephemeral });
       return;
     }
     const channel = interaction.options.getChannel("channel");
@@ -168,14 +168,14 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
         content: result.dm || result.channel
           ? `Preview sent${result.dm ? " to your DMs" : ""}${result.dm && result.channel ? " and" : ""}${result.channel ? ` in <#${updated.welcomeChannelId}>` : ""}.`
           : "Nothing was sent: pick a channel, or choose send_to: Private message (DM). If you chose DM, your DMs from server members may be closed.",
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
       return;
     }
     const where = welcomeDelivery(updated) === "DM" ? "by private message"
       : welcomeDelivery(updated) === "BOTH" ? `by private message and in ${updated.welcomeChannelId ? `<#${updated.welcomeChannelId}>` : "(no channel set yet)"}`
         : updated.welcomeChannelId ? `in <#${updated.welcomeChannelId}>` : "nowhere yet (pick a channel or send_to: DM)";
-    await interaction.reply({ content: `Welcome messages go ${where}. Game roles: ${updated.welcomeRoleIds.length ? updated.welcomeRoleIds.map((id) => `<@&${id}>`).join(", ") : "none (pick them in /setup start, step 5)"}. Try \`/config welcome preview:true\`.`, ephemeral: true });
+    await interaction.reply({ content: `Welcome messages go ${where}. Game roles: ${updated.welcomeRoleIds.length ? updated.welcomeRoleIds.map((id) => `<@&${id}>`).join(", ") : "none (pick them in /setup start, step 5)"}. Try \`/config welcome preview:true\`.`, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -183,27 +183,27 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
     const disable = interaction.options.getBoolean("disable");
     if (disable) {
       await guildService.updateSettings(context.guildId, { farewellChannelId: null, farewellMessageTemplate: null });
-      await interaction.reply({ content: "Farewell messages disabled.", ephemeral: true });
+      await interaction.reply({ content: "Farewell messages disabled.", flags: MessageFlags.Ephemeral });
       return;
     }
     const channel = interaction.options.getChannel("channel");
     const message = interaction.options.getString("message");
     if (!channel) throw new Error("Provide a channel, or use disable:true to turn messages off.");
     await guildService.updateSettings(context.guildId, { farewellChannelId: channel.id, ...(message === null ? {} : { farewellMessageTemplate: message }) });
-    await interaction.reply({ content: `Farewell messages will post in <#${channel.id}>.`, ephemeral: true });
+    await interaction.reply({ content: `Farewell messages will post in <#${channel.id}>.`, flags: MessageFlags.Ephemeral });
     return;
   }
 
   if (subcommand === "log-channel") {
     if (interaction.options.getBoolean("disable")) {
       await guildService.updateSettings(context.guildId, { logChannelId: null });
-      await interaction.reply({ content: "Logging disabled.", ephemeral: true });
+      await interaction.reply({ content: "Logging disabled.", flags: MessageFlags.Ephemeral });
       return;
     }
     const channel = interaction.options.getChannel("channel");
     if (!channel) throw new Error("Provide a channel, or use disable:true to turn logging off.");
     await guildService.updateSettings(context.guildId, { logChannelId: channel.id });
-    await interaction.reply({ content: `Logs will post in <#${channel.id}>.`, ephemeral: true });
+    await interaction.reply({ content: `Logs will post in <#${channel.id}>.`, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -213,7 +213,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
       throw new Error(`"${zone}" isn't a timezone I know. Use a name like America/Toronto, America/Vancouver, Europe/Paris (list: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones).`);
     }
     await guildService.updateSettings(context.guildId, { timezone: zone });
-    await interaction.reply({ content: `Timezone set to **${zone}**. "friday 8pm" in /raid create now means 8pm there.`, ephemeral: true });
+    await interaction.reply({ content: `Timezone set to **${zone}**. "friday 8pm" in /raid create now means 8pm there.`, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -224,7 +224,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
       content: enabled
         ? `Weekly report on. It posts in ${settings.notifyChannelId ? `<#${settings.notifyChannelId}>` : "the notify channel (set one with `/config channel` first)"} within the hour, then every 7 days.`
         : "Weekly report off.",
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -232,26 +232,26 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
   if (subcommand === "notify-channel") {
     if (interaction.options.getBoolean("disable")) {
       await guildService.updateSettings(context.guildId, { notifyChannelId: null });
-      await interaction.reply({ content: "Announcements disabled.", ephemeral: true });
+      await interaction.reply({ content: "Announcements disabled.", flags: MessageFlags.Ephemeral });
       return;
     }
     const channel = interaction.options.getChannel("channel");
     if (!channel) throw new Error("Provide a channel, or use disable:true to turn announcements off.");
     await guildService.updateSettings(context.guildId, { notifyChannelId: channel.id });
-    await interaction.reply({ content: `Raid, boss, loot, and EPGP announcements will post in <#${channel.id}>.`, ephemeral: true });
+    await interaction.reply({ content: `Raid, boss, loot, and EPGP announcements will post in <#${channel.id}>.`, flags: MessageFlags.Ephemeral });
     return;
   }
 
   if (subcommand === "dungeon-channel") {
     if (interaction.options.getBoolean("disable")) {
       await guildService.updateSettings(context.guildId, { dungeonChannelId: null });
-      await interaction.reply({ content: "Dungeon runs and records will post in the notify channel.", ephemeral: true });
+      await interaction.reply({ content: "Dungeon runs and records will post in the notify channel.", flags: MessageFlags.Ephemeral });
       return;
     }
     const channel = interaction.options.getChannel("channel");
     if (!channel) throw new Error("Provide a channel, or use disable:true to go back to the notify channel.");
     await guildService.updateSettings(context.guildId, { dungeonChannelId: channel.id });
-    await interaction.reply({ content: `Dungeon runs and records will post in <#${channel.id}>.`, ephemeral: true });
+    await interaction.reply({ content: `Dungeon runs and records will post in <#${channel.id}>.`, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -270,7 +270,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
         [channelSetting.field]: null,
         ...(channelSetting.field === "dungeonLeaderboardChannelId" ? { dungeonLeaderboardMessageId: null } : {})
       });
-      await interaction.reply({ content: `${channelSetting.label}: channel cleared.`, ephemeral: true });
+      await interaction.reply({ content: `${channelSetting.label}: channel cleared.`, flags: MessageFlags.Ephemeral });
       return;
     }
     const channel = interaction.options.getChannel("channel");
@@ -290,7 +290,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
         await ensureDungeonSignupGuide(fetched, asLang((await guildService.getSettings(context.guildId))?.language));
       }
     }
-    await interaction.reply({ content: `${channelSetting.label} will use <#${channel.id}>.`, ephemeral: true });
+    await interaction.reply({ content: `${channelSetting.label} will use <#${channel.id}>.`, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -301,7 +301,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
       content: enabled
         ? "Auto-apply is on: whatever the companion uploads (EPGP ledger, attendance, loot, dungeon runs, gear checks, discovered characters) is applied right away and announced. Duplicates are still skipped. Turn it off to review uploads with `/import apply` again."
         : "Auto-apply is off: uploads wait for an officer's `/import apply`.",
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -309,7 +309,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
   if (subcommand === "wcl-guild") {
     if (interaction.options.getBoolean("off")) {
       await guildService.updateSettings(context.guildId, { wclGuildId: null, wclBaseUrl: null });
-      await interaction.reply({ content: "Warcraft Logs: no longer looking for new reports. `/raid wcl report` still works by hand.", ephemeral: true });
+      await interaction.reply({ content: "Warcraft Logs: no longer looking for new reports. `/raid wcl report` still works by hand.", flags: MessageFlags.Ephemeral });
       return;
     }
     const input = interaction.options.getString("guild");
@@ -319,12 +319,12 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
         content: settings?.wclGuildId
           ? `Warcraft Logs guild #${settings.wclGuildId} is watched. New public reports are posted in the raid logs channel and checked against attendance (details go to the officer log). Turn it off with off:true.`
           : "No Warcraft Logs guild is set. Open your guild's page on warcraftlogs.com and run `/config wcl-guild guild:<that link>`.",
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
       return;
     }
     if (!config.WCL_CLIENT_ID || !config.WCL_CLIENT_SECRET) throw new Error("Warcraft Logs isn't set up: put WCL_CLIENT_ID and WCL_CLIENT_SECRET in .env.local and restart the bot.");
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const ref = parseGuildRef(input, config.WCL_BASE_URL);
     const found = await createWclClient({ clientId: config.WCL_CLIENT_ID, clientSecret: config.WCL_CLIENT_SECRET }).findGuild(ref);
     await guildService.updateSettings(context.guildId, { wclGuildId: found.id, wclBaseUrl: ref.baseUrl });
@@ -334,7 +334,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
 
   if (subcommand === "loot-mode") {
     if ((await guildService.getSettings(context.guildId))?.coreLootOnly) {
-      await interaction.reply({ content: "Chaque core choisit sa méthode de butin. Utilise /core edit → Méthode de butin, ou /core rules loot_mode:... pour le core voulu.", ephemeral: true });
+      await interaction.reply({ content: "Chaque core choisit sa méthode de butin. Utilise /core edit → Méthode de butin, ou /core rules loot_mode:... pour le core voulu.", flags: MessageFlags.Ephemeral });
       return;
     }
     const mode = asLootMode(interaction.options.getString("mode", true));
@@ -344,7 +344,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
         + (mode === "EPGP" ? " `/loot auction` and `/loot bid` work." : " `/loot auction` and `/loot bid` are off; officers use `/loot award`.")
         + (mode === "PRIORITY" ? " Set the prices with `/core items`." : "")
         + "\nA raid core can use another system: `/core rules` or `/core setup`.",
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -352,7 +352,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
   if (subcommand === "merit") {
     const enabled = interaction.options.getBoolean("enabled", true);
     await guildService.updateSettings(context.guildId, { meritEnabled: enabled });
-    await interaction.reply({ content: `Merit ranking ${enabled ? "enabled" : "disabled"}. This only changes how /epgp leaderboard is ordered; the EPGP ledger is never touched.`, ephemeral: true });
+    await interaction.reply({ content: `Merit ranking ${enabled ? "enabled" : "disabled"}. This only changes how /epgp leaderboard is ordered; the EPGP ledger is never touched.`, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -360,13 +360,13 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
     const disable = interaction.options.getBoolean("disable");
     if (disable) {
       await guildService.updateSettings(context.guildId, { raidSignupChannelId: null });
-      await interaction.reply({ content: "Raid signup embeds disabled.", ephemeral: true });
+      await interaction.reply({ content: "Raid signup embeds disabled.", flags: MessageFlags.Ephemeral });
       return;
     }
     const channel = interaction.options.getChannel("channel");
     if (!channel) throw new Error("Provide a channel, or use disable:true to turn raid signup embeds off.");
     await guildService.updateSettings(context.guildId, { raidSignupChannelId: channel.id });
-    await interaction.reply({ content: `Raid signup embeds will post in <#${channel.id}>.`, ephemeral: true });
+    await interaction.reply({ content: `Raid signup embeds will post in <#${channel.id}>.`, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -383,7 +383,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
         applicantRole ? `Applicant role set to <@&${applicantRole.id}>.` : null,
         memberRole ? `Member role set to <@&${memberRole.id}>.` : null
       ].filter(Boolean).join("\n"),
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -396,9 +396,9 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
   if (setting === "epgpDecayPercent") {
     if (value > 100) throw new Error("EPGP decay percent must be between 0 and 100.");
     await guildService.updateSettings(context.guildId, { epgpDecayPercent: value / 100 });
-    await interaction.reply({ content: `Updated EPGP decay to ${value}%.`, ephemeral: true });
+    await interaction.reply({ content: `Updated EPGP decay to ${value}%.`, flags: MessageFlags.Ephemeral });
     return;
   }
   await guildService.updateSettings(context.guildId, { [setting]: value });
-  await interaction.reply({ content: `Updated ${setting} to ${value}.`, ephemeral: true });
+  await interaction.reply({ content: `Updated ${setting} to ${value}.`, flags: MessageFlags.Ephemeral });
 }

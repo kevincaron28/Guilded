@@ -127,6 +127,8 @@ local function ensureDb()
   -- whole online guild's readiness picture, not just their own.
   db.peerRoster = db.peerRoster or {}
   db.loot = db.loot or {}
+  -- Raid templates: name -> { title, coreId } (/guilded template).
+  db.raidTemplates = db.raidTemplates or {}
   -- Who was actually in the raid group during each raid: [raidId][name] =
   -- { firstSeen, lastSeen }. Filled automatically while a raid is active.
   db.presence = db.presence or {}
@@ -310,6 +312,8 @@ end
 
 -- Assigned below groupMembers(); declared here so raid start/end can use it.
 local recordPresence
+-- Assigned below (needs the export box); raidEnd prints it.
+local raidSummaryLines
 
 local function raidStart(title)
   if activeRaid then
@@ -317,6 +321,12 @@ local function raidStart(title)
     return
   end
   if not title or title == "" then title = "Raid" end
+  -- A saved template ("/guilded start Tuesday MC") brings its title and selects its raid core.
+  local template = db.raidTemplates and db.raidTemplates[string.lower(title)]
+  if template then
+    title = template.title or title
+    if template.coreId and ns.loot and ns.loot.core and ns.runCommand then pcall(ns.runCommand, "core " .. template.coreId) end
+  end
   activeRaid = {
     -- Server clock, so ids and times from different officers' clients agree.
     id = tostring(util.serverTime()) .. "-" .. playerName(),
@@ -340,8 +350,14 @@ local function raidEnd()
   logEvent("RAID_END", { id = activeRaid.id })
   send("RAID_END|" .. activeRaid.id)
   message("Ended raid: " .. activeRaid.title)
+  local ended = activeRaid
   activeRaid = nil
   db.activeRaidId = nil
+  -- What was recorded, so the officer can check it before logging out (/guilded summary to copy).
+  if raidSummaryLines then
+    for _, line in ipairs(raidSummaryLines(ended)) do message(line) end
+    message("/guilded summary opens it to copy into Discord or a forum.")
+  end
 end
 
 local function setAttendance(name, status, quiet)
@@ -610,6 +626,92 @@ local function seenAttendance()
   message(string.format("Marked %d more player(s) PRESENT from who was in the raid group.", count))
 end
 
+-- /guilded attendance roster: the selected raid core's roster against who is in the group:
+-- PRESENT for its players here, ABSENT for its mains who are not (bench players are left as
+-- they are). Anything already recorded stays.
+local function rosterAttendance()
+  if not activeRaid then message("Start a raid first."); return end
+  local core = ns.loot and ns.loot.core and ns.loot.core()
+  if not (core and core.roster and #core.roster > 0 and ns.loot.rosterCheck) then
+    -- Seen in game: a Discord core with no roster yet was told to use the Local guild page.
+    if not core then message("Choose a raid core first: /guilded core <name>.")
+    elseif core.localOnly then message((core.name or "This core") .. " has no raiders yet: add them on the Local guild page (step 3).")
+    else message((core.name or "This core") .. " has no roster from Discord yet; it comes with the companion upload.") end
+    return
+  end
+  recordPresence()
+  local check = ns.loot.rosterCheck(core, groupMembers())
+  local recorded = db.attendance[activeRaid.id] or {}
+  local present, absent = 0, 0
+  for _, row in ipairs(check.present) do
+    if not recorded[row.name] and setAttendance(row.name, "PRESENT", true) then present = present + 1 end
+    recorded = db.attendance[activeRaid.id] or {}
+  end
+  for _, row in ipairs(check.missing) do
+    if not recorded[row.name] and setAttendance(row.name, "ABSENT", true) then absent = absent + 1 end
+    recorded = db.attendance[activeRaid.id] or {}
+  end
+  message(string.format("%s roster: %d marked PRESENT, %d mains marked ABSENT, %d on the bench, %d fill-ins not on the roster.",
+    core.name or "Core", present, absent, #check.bench, #check.fillIns))
+end
+
+-- /guilded note <text>: a note on the running raid (shown in its summary).
+local function raidNote(text)
+  if not activeRaid then message("Start a raid first."); return end
+  text = string.gsub(text or "", "[|%c]", "")
+  if text == "" then message("Usage: /guilded note <text>"); return end
+  activeRaid.notes = activeRaid.notes or {}
+  table.insert(activeRaid.notes, { at = now(), by = playerName(), text = string.sub(text, 1, 200) })
+  logEvent("RAID_NOTE", { raid = activeRaid.id, text = text })
+  message("Note added to " .. activeRaid.title .. ".")
+end
+
+-- /guilded template save <name> [title] | list | remove <name>
+local function raidTemplate(args)
+  local sub = string.lower(args[2] or "")
+  if sub == "save" and args[3] then
+    local name = string.lower(args[3])
+    local title = table.concat(args, " ", 4)
+    if title == "" then title = activeRaid and activeRaid.title or args[3] end
+    local core = ns.loot and ns.loot.core and ns.loot.core()
+    db.raidTemplates[name] = { title = title, coreId = core and core.id or nil }
+    message(string.format("Template %s saved: %s%s. Start it with /guilded start %s.", args[3], title,
+      core and (" (core " .. (core.name or core.id) .. ")") or "", args[3]))
+  elseif sub == "remove" and args[3] then
+    db.raidTemplates[string.lower(args[3])] = nil
+    message("Template " .. args[3] .. " removed.")
+  else
+    local names = {}
+    for name, t in pairs(db.raidTemplates) do table.insert(names, name .. " (" .. (t.title or name) .. ")") end
+    table.sort(names)
+    message(#names > 0 and ("Raid templates: " .. table.concat(names, ", ")) or "No raid templates yet: /guilded template save <name> [title] (uses the selected raid core).")
+  end
+end
+
+-- /guilded raid discard: drops a raid started by mistake, only while nothing was recorded in it.
+local function discardRaid()
+  if not activeRaid then message("No active raid."); return end
+  local id = activeRaid.id
+  local function has(t) return t and next(t) ~= nil end
+  local entries = 0
+  for _, account in pairs(db.epgp or {}) do
+    for _, entry in ipairs(account.ledger or {}) do if entry.raid == id and not entry.voided then entries = entries + 1 end end
+  end
+  local loot = 0
+  for _, row in ipairs(db.loot or {}) do if row.raid == id then loot = loot + 1 end end
+  if has(db.attendance[id]) or has(db.bosses[id]) or entries > 0 or loot > 0 then
+    message("This raid already has attendance, bosses, EP/GP or loot: end it with /guilded end instead.")
+    return
+  end
+  for i = #db.raids, 1, -1 do if db.raids[i].id == id then table.remove(db.raids, i) end end
+  db.presence[id] = nil
+  logEvent("RAID_DISCARD", { id = id })
+  send("RAID_END|" .. id)
+  message("Discarded the raid " .. activeRaid.title .. " (nothing was recorded in it).")
+  activeRaid = nil
+  db.activeRaidId = nil
+end
+
 local function groupAttendance(status)
   if not activeRaid then message("Start a raid first."); return end
   local count = 0
@@ -791,11 +893,181 @@ local function showCharacterExport(text, title)
     close:SetScript("OnClick", function() exportFrame:Hide() end)
     exportFrame.box = box
   end
+  -- A share code is one line; a raid summary has several, so the box grows for those.
+  local lines = 1
+  for _ in string.gmatch(text or "", "\n") do lines = lines + 1 end
+  local multi = lines > 1
+  if exportFrame.box.SetMultiLine then exportFrame.box:SetMultiLine(multi) end
+  exportFrame.box:SetSize(490, multi and math.min(240, lines * 16 + 8) or 24)
+  exportFrame:SetSize(520, multi and math.min(320, lines * 16 + 90) or 110)
   exportFrame.box:SetText(text)
   exportFrame:Show()
   exportFrame.box:SetFocus()
   exportFrame.box:HighlightText()
 end
+
+-- End-of-raid summary from what this client recorded. Boss kills and attendance are marked by
+-- officers (the game does not report them to addons), so the summary says so.
+raidSummaryLines = function(raid)
+  if not raid then return { "No raid recorded yet." } end
+  local function when(stamp) return stamp and (util.whenText and util.whenText(stamp) or stamp) or nil end
+  local lines = { string.format("%s - %s to %s", raid.title or "Raid", when(raid.startedAt) or "?", when(raid.endedAt) or "still running") }
+  local counts, marked = { PRESENT = 0, LATE = 0, ABSENT = 0 }, {}
+  for name, row in pairs(db.attendance[raid.id] or {}) do
+    counts[row.status] = (counts[row.status] or 0) + 1
+    marked[name] = true
+  end
+  local unmarked = {}
+  for name in pairs(db.presence[raid.id] or {}) do if not marked[name] then table.insert(unmarked, name) end end
+  table.sort(unmarked)
+  table.insert(lines, string.format("Attendance (marked by officers): %d present, %d late, %d absent.", counts.PRESENT, counts.LATE, counts.ABSENT))
+  if #unmarked > 0 then
+    table.insert(lines, string.format("Seen in the group but not marked (%d): %s", #unmarked, table.concat(unmarked, ", ")))
+  end
+  local bosses = {}
+  for _, boss in ipairs(db.bosses[raid.id] or {}) do table.insert(bosses, boss.name) end
+  table.insert(lines, #bosses > 0 and ("Bosses (marked by hand): " .. table.concat(bosses, ", ")) or "Bosses: none marked.")
+  local ep, gp, entries = 0, 0, 0
+  for _, account in pairs(db.epgp or {}) do
+    for _, entry in ipairs(account.ledger or {}) do
+      if entry.raid == raid.id and not entry.voided then
+        entries = entries + 1
+        ep, gp = ep + (entry.epAmount or 0), gp + (entry.gpAmount or 0)
+      end
+    end
+  end
+  table.insert(lines, string.format("EP/GP: %d entries, %+d EP, %+d GP.", entries, ep, gp))
+  local loot = {}
+  for _, row in ipairs(db.loot or {}) do
+    if row.raid == raid.id then
+      table.insert(loot, row.item .. " -> " .. row.player .. ((row.cost or 0) > 0 and (" (" .. row.cost .. " GP)") or ""))
+    end
+  end
+  table.insert(lines, #loot > 0 and ("Loot (" .. #loot .. "): " .. table.concat(loot, "; ")) or "Loot: none recorded.")
+  for _, note in ipairs(raid.notes or {}) do table.insert(lines, "Note: " .. note.text) end
+  return lines
+end
+
+-- /guilded raids [n]: one line per recent raid, newest first, to read or copy.
+local function raidHistoryLines(count)
+  count = math.max(1, math.min(20, tonumber(count) or 5))
+  local lines = {}
+  for i = #db.raids, math.max(1, #db.raids - count + 1), -1 do
+    local raid = db.raids[i]
+    local present = 0
+    for _, row in pairs(db.attendance[raid.id] or {}) do if row.status ~= "ABSENT" then present = present + 1 end end
+    local bosses = #(db.bosses[raid.id] or {})
+    local ep, loot = 0, 0
+    for _, account in pairs(db.epgp or {}) do
+      for _, entry in ipairs(account.ledger or {}) do if entry.raid == raid.id and not entry.voided then ep = ep + (entry.epAmount or 0) end end
+    end
+    for _, row in ipairs(db.loot or {}) do if row.raid == raid.id then loot = loot + 1 end end
+    local when = util.whenText and util.whenText(raid.startedAt) or raid.startedAt
+    table.insert(lines, string.format("%s - %s: %d attended, %d boss(es), %+d EP, %d loot%s", tostring(when or "?"), raid.title or "Raid",
+      present, bosses, ep, loot, raid.endedAt and "" or " (running)"))
+  end
+  if #lines == 0 then lines[1] = "No raids recorded on this PC yet." end
+  return lines
+end
+ns.raidHistoryLines = raidHistoryLines
+
+-- /guilded sheet <table>: tab-separated rows with a header, for pasting into Excel or Google
+-- Sheets (each value lands in its own cell). Tabs and line breaks inside a value become
+-- spaces so a cell can't spill; the edit box gets slow with huge text, so rows stop at 1000.
+local SHEET_ROW_LIMIT = 1000
+local SHEET_TABLES = { "standings", "loot", "attendance", "raids", "dungeons" }
+local function sheetCell(value)
+  return (string.gsub(tostring(value == nil and "" or value), "[\t\r\n]", " "))
+end
+local function sheetTime(stamp)
+  if not stamp then return "" end
+  return (string.gsub(string.gsub(tostring(stamp), "T", " "), "Z$", ""))
+end
+local sheetBuilders = {
+  standings = function()
+    local names, rows = {}, {}
+    for name in pairs(db.standings and db.standings.players or {}) do names[name] = true end
+    for name in pairs(db.epgp or {}) do names[name] = true end
+    for name in pairs(names) do
+      local row = ns.effectiveStanding(name)
+      table.insert(rows, { name = name, ep = row.ep or 0, gp = row.gp or 0, pr = row.pr or 0 })
+    end
+    table.sort(rows, function(a, b) if a.pr ~= b.pr then return a.pr > b.pr end return a.name < b.name end)
+    local out = { { "Rank", "Name", "EP", "GP", "PR" } }
+    for i, r in ipairs(rows) do table.insert(out, { i, r.name, r.ep, r.gp, string.format("%.2f", r.pr) }) end
+    return out
+  end,
+  loot = function()
+    local titles = {}
+    for _, raid in ipairs(db.raids or {}) do titles[raid.id] = raid.title end
+    local out = { { "Date (UTC)", "Raid", "Item", "Player", "GP", "Boss" } }
+    for i = #(db.loot or {}), 1, -1 do
+      local row = db.loot[i]
+      table.insert(out, { sheetTime(row.at), row.raid and titles[row.raid] or "", row.item, row.player, row.cost or 0, row.boss or "" })
+    end
+    return out
+  end,
+  attendance = function()
+    local out = { { "Raid", "Date (UTC)", "Player", "Status" } }
+    for i = #(db.raids or {}), 1, -1 do
+      local raid = db.raids[i]
+      local names = {}
+      for name in pairs(db.attendance[raid.id] or {}) do table.insert(names, name) end
+      table.sort(names)
+      for _, name in ipairs(names) do
+        table.insert(out, { raid.title or "Raid", sheetTime(raid.startedAt), name, db.attendance[raid.id][name].status or "" })
+      end
+    end
+    return out
+  end,
+  raids = function()
+    local out = { { "Raid", "Started (UTC)", "Ended (UTC)", "Attended", "Bosses", "Loot" } }
+    for i = #(db.raids or {}), 1, -1 do
+      local raid = db.raids[i]
+      local present, loot = 0, 0
+      for _, row in pairs(db.attendance[raid.id] or {}) do if row.status ~= "ABSENT" then present = present + 1 end end
+      for _, row in ipairs(db.loot or {}) do if row.raid == raid.id then loot = loot + 1 end end
+      table.insert(out, { raid.title or "Raid", sheetTime(raid.startedAt), sheetTime(raid.endedAt), present, #(db.bosses[raid.id] or {}), loot })
+    end
+    return out
+  end,
+  dungeons = function()
+    local out = { { "Rank", "Name", "Score", "Dungeons" } }
+    for i, row in ipairs(ns.scores and ns.scores.ranking and ns.scores.ranking() or {}) do
+      table.insert(out, { i, row.name, row.score, row.n or "" })
+    end
+    return out
+  end
+}
+
+-- The text, the number of data rows in it (header not counted) and whether rows were cut;
+-- nil for an unknown table.
+local function sheetText(kind)
+  local build = sheetBuilders[kind]
+  if not build then return nil end
+  local rows, lines = build(), {}
+  local count = math.min(#rows - 1, SHEET_ROW_LIMIT)
+  for i = 1, count + 1 do
+    local cells = {}
+    for j, value in ipairs(rows[i]) do cells[j] = sheetCell(value) end
+    lines[i] = table.concat(cells, "\t")
+  end
+  return table.concat(lines, "\n"), count, #rows - 1 > SHEET_ROW_LIMIT
+end
+ns.sheetText = sheetText
+
+local function sheetCommand(kind)
+  kind = string.lower(kind or "standings")
+  local text, count, cut = sheetText(kind)
+  if not text then
+    message(L("Usage: /guilded sheet") .. " " .. table.concat(SHEET_TABLES, "|"))
+    return
+  end
+  if count == 0 then message(string.format(L("Nothing to export yet for %s."), kind)); return end
+  if cut then message(string.format(L("Only the first %d rows are in the box."), SHEET_ROW_LIMIT)) end
+  showCharacterExport(text, L("Guilded - Ctrl+C, then paste into Excel or Google Sheets"))
+end
+ns.showSheet = sheetCommand
 
 local READINESS_SLOTS = {
   { 1, "Head" }, { 3, "Shoulder" }, { 5, "Chest" }, { 6, "Waist" },
@@ -807,11 +1079,16 @@ local READINESS_SLOTS = {
 -- turn the check off or set the level it starts at with /guilded enchants.
 local ENCHANTABLE = { Chest = true, Legs = true, Feet = true, Wrist = true, Hands = true, MainHand = true }
 local DEFAULT_ENCHANT_MIN_LEVEL = 60
+-- Below this level an empty head or shoulder slot is normal (levelling gear), so empty slots are
+-- only a note there, not "Not ready". /guilded slots level <n> changes it (1 = always count).
+local DEFAULT_SLOT_MIN_LEVEL = 60
 
 -- `tries` is set only by the automatic checks (login, gear and talent changes): right after
 -- login WoW Forever can report every slot empty for a few seconds, and such a check used to
 -- record and share "NOT_READY, 10 empty slots" with the guild. Those checks wait instead.
 local GEAR_WAIT_SECONDS, GEAR_WAIT_TRIES = 5, 4
+local AUTO_DIGEST_HEARTBEAT = 600
+local lastAutoDigest, lastAutoDigestAt = nil, 0
 local inspectReadiness
 local function noGearVisible()
   for _, slot in ipairs(READINESS_SLOTS) do
@@ -831,6 +1108,8 @@ inspectReadiness = function(silent, target, tries)
   local missingSlots = {}
   local unenchanted = {}
   local minDurability = 100
+  local slotsCount = (UnitLevel("player") or 0) >= (db.settings.slotMinLevel or DEFAULT_SLOT_MIN_LEVEL)
+  local lowLevelEmpty = {}
   for _, slot in ipairs(READINESS_SLOTS) do
     local link = GetInventoryItemLink("player", slot[1])
     -- Right after login the link can still be loading while the item id is
@@ -861,11 +1140,17 @@ inspectReadiness = function(silent, target, tries)
       -- that can't be told apart from "forgot to equip" without deeper
       -- tooltip parsing, so treat it as a soft warning, not a hard failure.
       table.insert(snapshot.findings, { code = "MISSING_OFFHAND", severity = "WARNING", message = "No off-hand item equipped (expected when using a two-handed weapon)." })
+    elseif not slotsCount then
+      table.insert(lowLevelEmpty, slot[2])
     else
       missing = missing + 1
       table.insert(missingSlots, slot[2])
       table.insert(snapshot.findings, { code = "MISSING_" .. string.upper(slot[2]), severity = "ERROR", message = "Missing " .. slot[2] .. " equipment." })
     end
+  end
+  if #lowLevelEmpty > 0 then
+    table.insert(snapshot.findings, { code = "EMPTY_SLOTS_LOW_LEVEL", severity = "INFO",
+      message = "Empty slots (normal while levelling): " .. table.concat(lowLevelEmpty, ", ") .. "." })
   end
   -- Consumables: always recorded; only a missing flask/food counts against
   -- readiness while you are in a raid group (idle in town is fine).
@@ -949,6 +1234,14 @@ inspectReadiness = function(silent, target, tries)
   if #flags > 0 and #digest + 3 + #flagText <= MAX_ADDON_MESSAGE then
     digest = digest .. "|F:" .. flagText
   end
+  -- Automatic checks run on every bag or gear change (looting!) and every skill-up. Tell the guild
+  -- only when something changed, plus a heartbeat every 10 minutes; requests always get an answer.
+  local sameAs = (string.gsub(digest, "|P:%d+", ""))
+  local nowTime = time()
+  if tries and (target or "GUILD") == "GUILD" and sameAs == lastAutoDigest and nowTime - lastAutoDigestAt < AUTO_DIGEST_HEARTBEAT then
+    return
+  end
+  if tries then lastAutoDigest, lastAutoDigestAt = sameAs, nowTime end
   send(digest, target or "GUILD")
   if not silent then
     local detail = ""
@@ -988,6 +1281,7 @@ ns.canonicalKey = canonicalKey
 -- requiring everyone to run /guilded inspect manually. Deliberately event-driven
 -- only (no OnUpdate ticker).
 local lastAutoSyncAt = 0
+local skillCheckPending = false
 local AUTO_SYNC_DEBOUNCE_SECONDS = 5
 local AUTO_SYNC_RAID_INTERVAL_SECONDS = 600
 
@@ -1130,10 +1424,14 @@ local function showHelp()
   message("/guilded attune <key> [clear] - mark your own attunement")
   message("/guilded snapshot [label] | list - record who is in the group right now (officers)")
   message("/guilded enchants - show or change the missing-enchant check (on/off, starting level)")
+  message("/guilded slots level <n> - from which level empty gear slots count as not ready (default 60)")
   message("/guilded share - one paste with your character, gear check, consumables and attunements (Discord: /character import)")
   message("/guilded character - copy a line to link this character in Discord (/character import)")
+  message("/guilded sheet standings|loot|attendance|raids|dungeons - copy a table to paste into Excel or Google Sheets")
   if officer then
-    message("Officer: /guilded start [title] | end | attendance <name>|group|seen [PRESENT|ABSENT|LATE] | boss <name>")
+    message("Officer: /guilded start [title] | end | attendance <name>|group|seen [PRESENT|ABSENT|LATE] | boss <name> | summary (what the raid recorded, to copy)")
+    message("Officer: /guilded note <text> | template save <name> [title] | template list | attendance roster | raid discard | undo (takes back your last award)")
+    message("/guilded raids [n] - recent raids, one line each, to copy")
     message("Officer: /guilded award <name>|group <amount> [reason] | gp <name> <amount> [reason] | deduct <name> <amount> [reason] | gpdeduct <name> <amount> [reason]")
     message("Officer: /guilded loot <name> <item> [cost] | export | attune <player> <key> [clear] | officer list|add|remove|rank")
     message("Officer: /guilded void [player] - take back the newest EP/GP entry you made (for that player); Discord reverses it")
@@ -1326,6 +1624,16 @@ local function command(text)
       message(string.format("Enchant check is %s, from level %d. /guilded enchants on|off|level <n>.",
         db.settings.enchantCheck ~= false and "on" or "off", db.settings.enchantMinLevel or DEFAULT_ENCHANT_MIN_LEVEL))
     end
+  elseif action == "slots" then
+    local sub = string.lower(args[2] or "")
+    if sub == "level" and tonumber(args[3]) then
+      db.settings.slotMinLevel = math.max(1, math.floor(tonumber(args[3])))
+      message("Empty gear slots count as not ready from level " .. db.settings.slotMinLevel .. ".")
+      inspectReadiness(true, "GUILD")
+    else
+      message(string.format("Empty gear slots count as not ready from level %d. /guilded slots level <n> (1 = always).",
+        db.settings.slotMinLevel or DEFAULT_SLOT_MIN_LEVEL))
+    end
   elseif action == "share" then
     -- Refresh the gear check, then export everything about YOU in one paste.
     inspectReadiness(true, "GUILD")
@@ -1343,10 +1651,27 @@ local function command(text)
     showCharacterExport(line)
   elseif action == "start" then if requireOfficer() then raidStart(table.concat(args, " ", 2)) end
   elseif action == "end" then if requireOfficer() then raidEnd() end
+  elseif action == "summary" then
+    -- The running raid, else the last one recorded.
+    local raid = activeRaid or db.raids[#db.raids]
+    local text = table.concat(raidSummaryLines(raid), "\n")
+    for _, line in ipairs(raidSummaryLines(raid)) do message(line) end
+    if raid then showCharacterExport(text, "Guilded - raid summary: copy it (Ctrl+C) into Discord or a forum") end
   elseif action == "attendance" and string.lower(args[2] or "") == "group" then
     if requireOfficer() then groupAttendance(args[3]) end
   elseif action == "attendance" and string.lower(args[2] or "") == "seen" then
     if requireOfficer() then seenAttendance() end
+  elseif action == "attendance" and string.lower(args[2] or "") == "roster" then
+    if requireOfficer() then rosterAttendance() end
+  elseif action == "note" then if requireOfficer() then raidNote(table.concat(args, " ", 2)) end
+  elseif action == "template" or action == "templates" then if requireOfficer() then raidTemplate(args) end
+  elseif action == "raid" and string.lower(args[2] or "") == "discard" then if requireOfficer() then discardRaid() end
+  elseif action == "undo" then if requireOfficer() then voidEntry("last") end
+  elseif action == "sheet" or action == "spreadsheet" or action == "excel" then sheetCommand(args[2])
+  elseif action == "raids" then
+    local lines = raidHistoryLines(args[2])
+    for _, line in ipairs(lines) do message(line) end
+    if #db.raids > 0 then showCharacterExport(table.concat(lines, "\n"), "Guilded - raid history: copy it (Ctrl+C) into Discord or a forum") end
   elseif action == "award" and string.lower(args[2] or "") == "group" then
     if requireOfficer() then groupAward(args[3], table.concat(args, " ", 4)) end
   elseif action == "attendance" then if requireOfficer() then setAttendance(args[2], args[3]) end
@@ -1618,7 +1943,10 @@ local function onEvent(_, event, ...)
     noteMyCharacter(db.character)
     maybeAutoSync(AUTO_SYNC_DEBOUNCE_SECONDS)
   elseif event == "SKILL_LINES_CHANGED" then
-    if C_Timer and C_Timer.After then C_Timer.After(1, function()
+    -- Fires on every skill-up (skinning, weapon skills): one check per burst is enough.
+    if skillCheckPending then return end
+    if C_Timer and C_Timer.After then skillCheckPending = true; C_Timer.After(1, function()
+      skillCheckPending = false
       db.character = collectCharacter()
       noteMyCharacter(db.character)
       inspectReadiness(true, "GUILD", 0)

@@ -1,5 +1,15 @@
+> 6.5.2 (18 October 2026): update prompts (companion banner, self-hosted bot notice; migration
+> 20261118090000_update_notice), pairing code shown first (docs/V6_5_2_RELEASE_NOTES.md).
+> 6.5.1 (17 October 2026): companions connect with the pairing code alone (docs/V6_5_1_RELEASE_NOTES.md).
+> 6.5.0 (17 October 2026): raid-night tools, member EP/GP history, core planning (bot; migration
+> 20261117090000_core_planning) (docs/V6_5_0_RELEASE_NOTES.md).
+> 6.4.0 (17 October 2026): guided guild setup, raid summary, level-aware gear check; party games only
+> in Guilded Games (docs/V6_4_0_RELEASE_NOTES.md). G9 with Games passed on two PCs; companion 6.3.1->6.3.2 upgrade passed.
+> 6.3.2 (17 October 2026): in-game polish pass, guided Local guild page, quieter readiness sync
+> (docs/V6_3_2_RELEASE_NOTES.md). Two-PC: chat tab, member SR+ and the rest of G1 pass.
+> Not run in game: G6-G8 (dungeon runs), G10 (French client), the 6.1.2 parts of G2/G12.
 > 6.3.1 (16 October 2026): Forever whisper fix; G9 and the guild map pass (docs/V6_3_1_RELEASE_NOTES.md).
-> G1 and G2 pass (night run). Not run in game: G6-G8 (dungeon runs), G10 (French client), the 6.1.2 part of G12.
+> G1 and G2 pass (night run).
 > On WoW Forever never whisper a bare first name: use the sender text or `ns.util.address(name)`.
 > 6.3.0 (16 October 2026): guild-wide sync and the fixes from the first two-PC in-game check
 > (docs/V6_3_0_RELEASE_NOTES.md; results in docs/V6_2_GAME_ACCEPTANCE.md).
@@ -24,7 +34,7 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (16 October 2026): version 6.3.1 Release, protocol 2.**
+**Current status (18 October 2026): version 6.5.2 Release, protocol 2.**
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
 Standalone guild and optional Guilded Games work is next-version candidate
 source; do not overwrite the published 6.2.0 downloads or bump incidentally.

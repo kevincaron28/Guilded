@@ -20,7 +20,10 @@ Allow outbound HTTPS and your database provider's connection port.
 
 The installer writes `/etc/caddy/Caddyfile`; use a dedicated machine. On a
 shared host, have its administrator integrate `deploy/Caddyfile` into the existing
-configuration instead of running this installer. Certificates require working
+configuration instead of running this installer (keep its global `log` block: it
+stops Caddy writing companion credentials into the journal). `deploy/update.sh`
+re-applies a changed `deploy/Caddyfile` to an installer-written copy, validating it
+first and keeping the old one beside it. Certificates require working
 DNS and public reachability; see [Caddy's HTTPS requirements](https://caddyserver.com/docs/automatic-https).
 
 ## 2. Get the matching source
@@ -130,6 +133,12 @@ backup. Read the [release handoff](V5_0_RELEASE_HANDOFF.md) before migration or
 updates. `redeploy-oracle.bat` targets the maintainer's machine and is **not an
 installer or updater for other guilds**. Follow your host's deployment procedure
 for the reviewed release. Do not use `prisma migrate reset` to fix an error.
+
+**Update notices.** Once a day a self-hosted bot asks GitHub for the latest stable release.
+When it is newer than the running bot, each server's officer log gets one notice per version
+with the release link. Set `UPDATE_CHECK=false` to turn this off. The Windows companion does
+the same on its own: it shows a **Download update** banner on Overview, a tray note and one
+Windows notification when GitHub or its bot has a newer version. Nothing installs by itself.
 
 Personal pairing controls uploads and standings; the old shared upload token is
 retired. Officer access is checked per request. Configure host security updates

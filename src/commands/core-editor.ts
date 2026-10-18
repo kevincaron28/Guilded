@@ -1,6 +1,7 @@
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle, UserSelectMenuBuilder,
-  type ChatInputCommandInteraction, type Message, type MessageComponentInteraction
+  type ChatInputCommandInteraction, type Message, type MessageComponentInteraction,
+  MessageFlags,
 } from "discord.js";
 import type { RaidRole } from "@prisma/client";
 import { prisma } from "../database.js";
@@ -9,8 +10,7 @@ import { createItemValueService, parseItemValues, priceDraft } from "../services
 import { createCoreChannels, renameCoreDiscord } from "../services/core-channels.js";
 import { pricesModal } from "./core-wizard.js";
 import { guildService } from "./context.js";
-import { fillCoreWeeklyRaids, saveCoreWeeklySchedule } from "../services/core-weekly-raids.js";
-import { parseWeeklySchedule } from "../services/core-weekly-time.js";
+import { editCoreSchedule, editCoreComposition } from "./core-planning.js";
 import { asLootMode, effectiveRules, LOOT_MODES } from "../services/core-rules.js";
 import { pickSignupCharacter } from "./signup-character-picker.js";
 
@@ -64,6 +64,7 @@ async function screen(guildId: string, coreId: string, mode: EditMode, note: str
         new ButtonBuilder().setCustomId("coreedit:channels").setLabel("Create channels & role").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("coreedit:done").setLabel("Done ✔").setStyle(ButtonStyle.Success)),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId("coreedit:composition").setLabel("Taille et roles / Size & roles").setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId("coreedit:schedule").setLabel("📅 Horaire hebdomadaire").setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId("coreedit:lootmode").setLabel("🎲 Méthode de butin").setStyle(ButtonStyle.Primary))
     ]
@@ -73,7 +74,7 @@ async function screen(guildId: string, coreId: string, mode: EditMode, note: str
 export async function runCoreEditor(interaction: ChatInputCommandInteraction, guildId: string, coreValue: string): Promise<void> {
   const core = await coreService.byIdOrName(guildId, coreValue);
   let mode: EditMode = { role: "DPS", bench: false };
-  await interaction.reply({ ...(await screen(guildId, core.id, mode, "")), ephemeral: true });
+  await interaction.reply({ ...(await screen(guildId, core.id, mode, "")), flags: MessageFlags.Ephemeral });
   const message: Message = await interaction.fetchReply();
   const collector = message.createMessageComponentCollector({ time: 20 * 60_000, filter: (i) => i.user.id === interaction.user.id });
 
@@ -91,7 +92,7 @@ export async function runCoreEditor(interaction: ChatInputCommandInteraction, gu
         const picker = new StringSelectMenuBuilder().setCustomId(`coreloot:${core.id}`).setPlaceholder("Le butin de ce core")
           .addOptions(LOOT_MODES.map(value => ({ value, label: CORE_LOOT_LABEL[value], default: value === selected })));
         await i.reply({ content: `**${current.name}** : choisis sa méthode de butin. Les autres cores gardent leurs propres règles.`,
-          components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(picker)], ephemeral: true });
+          components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(picker)], flags: MessageFlags.Ephemeral });
         const message = await i.fetchReply();
         const choice = await message.awaitMessageComponent({ time: 5 * 60_000,
           filter: value => value.user.id === i.user.id && value.customId === `coreloot:${core.id}` }).catch(() => null);
@@ -106,30 +107,9 @@ export async function runCoreEditor(interaction: ChatInputCommandInteraction, gu
         await refresh(`Butin : ${CORE_LOOT_LABEL[lootMode]}.`);
         return;
       }
-      if (i.customId === "coreedit:schedule" && i.isButton()) {
-        const current = await prisma.raidCore.findUniqueOrThrow({ where: { id: core.id } });
-        const settings = await guildService.getSettings(guildId);
-        const field = new TextInputBuilder().setCustomId("schedule").setLabel("Jours + heures de début; vide = arrêter")
-          .setPlaceholder("mardi 20h; jeudi 20h30").setStyle(TextInputStyle.Paragraph).setMaxLength(400).setRequired(false);
-        if (current.weeklySchedule) field.setValue(current.weeklySchedule);
-        await i.showModal(new ModalBuilder().setCustomId("coreedit:schedule-modal").setTitle(`Horaire — ${settings?.timezone ?? "America/Toronto"}`.slice(0, 45))
-          .addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(field)));
-        const submitted = await i.awaitModalSubmit({ time: 5 * 60_000, filter: m => m.user.id === i.user.id && m.customId === "coreedit:schedule-modal" }).catch(() => null);
-        if (!submitted) return;
-        try {
-          const input = submitted.fields.getTextInputValue("schedule");
-          parseWeeklySchedule(input);
-          await submitted.deferUpdate();
-          const saved = await saveCoreWeeklySchedule(prisma, guildId, core.id, input, i.user.id);
-          await fillCoreWeeklyRaids(prisma, guildId, core.id);
-          const { runDiscordJobs } = await import("../services/discord-jobs.js");
-          await runDiscordJobs(interaction.client);
-          await refresh(`${saved.weeklySchedule ? `📅 ${saved.schedule} (${saved.weeklyTimezone}). Inscriptions des 6 prochains jours; la suite s'ajoute automatiquement.` : "Création automatique arrêtée."} Les raids déjà affichés et leurs inscriptions sont conservés. /raid cancel permet de sauter une soirée.`);
-        } catch (error) {
-          const content = error instanceof Error ? error.message : "Impossible d'enregistrer l'horaire.";
-          if (submitted.deferred) await submitted.followUp({ content, ephemeral: true });
-          else await submitted.reply({ content, ephemeral: true });
-        }
+      if (i.isButton() && ["coreedit:schedule", "coreedit:composition"].includes(i.customId)) {
+        const note = await (i.customId === "coreedit:schedule" ? editCoreSchedule : editCoreComposition)(i, guildId, core.id);
+        if (note) await refresh(note);
         return;
       }
       if (i.customId === "coreedit:mode" && i.isStringSelectMenu()) {
@@ -201,7 +181,7 @@ export async function runCoreEditor(interaction: ChatInputCommandInteraction, gu
           await submitted.deferUpdate();
           await refresh(`Saved ${saved} price(s).${parsed.problems.length ? ` Skipped: ${parsed.problems.slice(0, 2).join("; ")}` : ""}`);
         } catch (error) {
-          await submitted.reply({ content: error instanceof Error ? error.message : "Could not save the prices.", ephemeral: true });
+          await submitted.reply({ content: error instanceof Error ? error.message : "Could not save the prices.", flags: MessageFlags.Ephemeral });
         }
         return;
       }
@@ -223,7 +203,7 @@ export async function runCoreEditor(interaction: ChatInputCommandInteraction, gu
           await submitted.deferUpdate();
           await refresh(`Renamed to ${name}.`);
         } catch (error) {
-          await submitted.reply({ content: error instanceof Error ? error.message : "Could not rename.", ephemeral: true });
+          await submitted.reply({ content: error instanceof Error ? error.message : "Could not rename.", flags: MessageFlags.Ephemeral });
         }
         return;
       }
@@ -234,8 +214,8 @@ export async function runCoreEditor(interaction: ChatInputCommandInteraction, gu
     } catch (error) {
       console.error("Core editor step failed", error);
       const text = error instanceof Error ? error.message : String(error);
-      if (!i.replied && !i.deferred) await i.reply({ content: `That didn't work: ${text}`, ephemeral: true }).catch(() => undefined);
-      else await i.followUp({ content: `That didn't work: ${text}`, ephemeral: true }).catch(() => undefined);
+      if (!i.replied && !i.deferred) await i.reply({ content: `That didn't work: ${text}`, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+      else await i.followUp({ content: `That didn't work: ${text}`, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
   });
   collector.on("end", async (_c, reason) => {
@@ -281,7 +261,7 @@ async function characterScreen(guildId: string, coreId: string, memberId: string
 
 async function runCharacterPicker(button: MessageComponentInteraction, guildId: string, coreId: string, backupRole: RaidRole, refresh: () => Promise<void>): Promise<void> {
   let memberId: string | null = null;
-  await button.reply({ ...(await characterScreen(guildId, coreId, null, backupRole, "")), ephemeral: true });
+  await button.reply({ ...(await characterScreen(guildId, coreId, null, backupRole, "")), flags: MessageFlags.Ephemeral });
   const message = await button.fetchReply();
   const collector = message.createMessageComponentCollector({ time: 10 * 60_000, filter: (i) => i.user.id === button.user.id });
   collector.on("collect", async (i: MessageComponentInteraction) => {
@@ -314,7 +294,7 @@ async function runCharacterPicker(button: MessageComponentInteraction, guildId: 
       if (note && memberId) await refresh();
       await i.editReply(await characterScreen(guildId, coreId, memberId, backupRole, note));
     } catch (error) {
-      await i.followUp({ content: `That didn't work: ${error instanceof Error ? error.message : String(error)}`, ephemeral: true }).catch(() => undefined);
+      await i.followUp({ content: `That didn't work: ${error instanceof Error ? error.message : String(error)}`, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
   });
 }

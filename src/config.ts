@@ -17,6 +17,8 @@ const environmentSchema = z.object({
   HOSTED_PILOT: z.enum(["true", "false", "1", "0"]).default("false").transform(value => value === "true" || value === "1"),
   HOSTED_GUILD_IDS: z.string().default(""),
   HOSTED_GUILD_LIMIT: z.coerce.number().int().min(1).max(100).default(5),
+  // Servers waiting for approval get Guilded Lite until this many are waiting (0: no access until approved).
+  HOSTED_LITE_LIMIT: z.coerce.number().int().min(0).max(100).default(50),
   DATABASE_URL: z.string().url(),
   COMPANION_API_PORT: z.coerce.number().int().min(1).max(65535).default(8787),
   // 127.0.0.1 = this computer only. On a server behind HTTPS (deploy/), use 0.0.0.0 or leave 127.0.0.1 with a reverse proxy.
@@ -40,6 +42,8 @@ const environmentSchema = z.object({
   // Intent": turn it on for the bot in the Developer Portal FIRST, then set this to true (asking
   // for it without the portal switch makes Discord refuse the login).
   MESSAGE_CONTENT_INTENT: z.preprocess((value) => value === "true" || value === "1", z.boolean()).default(false),
+  // Daily check for a newer Guilded release; officers get one notice per version. On by default.
+  UPDATE_CHECK: z.preprocess((value) => !(value === "false" || value === "0"), z.boolean()).default(true),
   // Optional AI answers when no officer answer matches: any OpenAI-compatible chat endpoint.
   // Free options: a Google AI Studio key (https://generativelanguage.googleapis.com/v1beta/openai),
   // a Groq key (https://api.groq.com/openai/v1), or Ollama on the server (http://127.0.0.1:11434/v1, no key).

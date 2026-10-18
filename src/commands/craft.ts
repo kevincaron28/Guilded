@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember } from "discord.js";
+import { SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 import { createCraftService } from "../services/craft.js";
@@ -51,7 +51,7 @@ export async function executeCraft(interaction: ChatInputCommandInteraction): Pr
 
   if (subcommand === "who") {
     const query = interaction.options.getString("item", true);
-    await interaction.reply({ content: describeCrafters(query, await findCrafters(prisma, context.guildId, query)), ephemeral: true });
+    await interaction.reply({ content: describeCrafters(query, await findCrafters(prisma, context.guildId, query)), flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -64,7 +64,7 @@ export async function executeCraft(interaction: ChatInputCommandInteraction): Pr
       content: fixed
         ? `Craft board permissions are set: everyone can read, talk inside a request's post and press its buttons. Only the bot (through /craft request and the pinned button) and leadership start posts.`
         : "The craft channel is not a forum, so nothing was changed. Create it with /setup.",
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -81,7 +81,7 @@ export async function executeCraft(interaction: ChatInputCommandInteraction): Pr
       materialsProvided: interaction.options.getBoolean("materials") ?? false
     });
     const crafters = profession ? (await findProfessionHolders(prisma, context.guildId, profession)).slice(0, 5) : [];
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const board = await postCraftRequest(interaction.guild, request.id);
     await interaction.editReply({
       content: (board.posted ? `Request posted on the craft board: <#${board.threadId}>.` : `Request posted: ${describe(request)}. ID \`${request.id}\`.`)
@@ -96,7 +96,7 @@ export async function executeCraft(interaction: ChatInputCommandInteraction): Pr
   if (subcommand === "list") {
     const requests = await craftService.list(context.guildId, interaction.options.getString("profession") ?? undefined);
     const text = requests.map((r) => `• ${describe(r)} for ${r.requester.displayName} <t:${Math.floor(r.createdAt.getTime() / 1000)}:R> \`${r.id}\``).join("\n");
-    await interaction.reply({ content: text.slice(0, 1900) || "No open craft requests.", ephemeral: true });
+    await interaction.reply({ content: text.slice(0, 1900) || "No open craft requests.", flags: MessageFlags.Ephemeral });
     return;
   }
   if (subcommand === "mine") {
@@ -104,7 +104,7 @@ export async function executeCraft(interaction: ChatInputCommandInteraction): Pr
     const text = requests.map((r) => r.requesterId === context.memberId
       ? `📝 ${describe(r)} — ${r.status === "CLAIMED" ? `being crafted by ${r.crafter?.displayName}` : "waiting for a crafter"} \`${r.id}\``
       : `🔨 ${describe(r)} for ${r.requester.displayName} (you claimed it) \`${r.id}\``).join("\n");
-    await interaction.reply({ content: text.slice(0, 1900) || "Nothing open.", ephemeral: true });
+    await interaction.reply({ content: text.slice(0, 1900) || "Nothing open.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -112,25 +112,25 @@ export async function executeCraft(interaction: ChatInputCommandInteraction): Pr
   if (subcommand === "claim") {
     const request = await craftService.claim(context.guildId, id, context.memberId);
     await syncCraftPost(interaction.guild, request.id);
-    await interaction.reply({ content: `You claimed ${describe(request)} for ${request.requester.displayName}. \`/craft done id:${request.id}\` when it's made.`, ephemeral: true });
+    await interaction.reply({ content: `You claimed ${describe(request)} for ${request.requester.displayName}. \`/craft done id:${request.id}\` when it's made.`, flags: MessageFlags.Ephemeral });
     await dm(request.requester.discordUserId, `🔨 ${request.crafter?.displayName ?? "A guild crafter"} is crafting your ${describe(request)}.`);
     return;
   }
   if (subcommand === "done") {
     const request = await craftService.complete(context.guildId, id, context.memberId, isOfficer);
     await syncCraftPost(interaction.guild, request.id);
-    await interaction.reply({ content: `Marked done: ${describe(request)}.`, ephemeral: true });
+    await interaction.reply({ content: `Marked done: ${describe(request)}.`, flags: MessageFlags.Ephemeral });
     await dm(request.requester.discordUserId, `✅ Your ${describe(request)} is crafted by ${request.crafter?.displayName ?? "a guild crafter"}. Check your mail or arrange a trade.`);
     return;
   }
   if (subcommand === "release") {
     const request = await craftService.release(context.guildId, id, context.memberId, isOfficer);
     await syncCraftPost(interaction.guild, request.id);
-    await interaction.reply({ content: `Released ${describe(request)} back to the list.`, ephemeral: true });
+    await interaction.reply({ content: `Released ${describe(request)} back to the list.`, flags: MessageFlags.Ephemeral });
     return;
   }
   const request = await craftService.cancel(context.guildId, id, context.memberId, isOfficer);
   await syncCraftPost(interaction.guild, request.id);
-  await interaction.reply({ content: `Cancelled ${describe(request)}.`, ephemeral: true });
+  await interaction.reply({ content: `Cancelled ${describe(request)}.`, flags: MessageFlags.Ephemeral });
   if (request.crafter) await dm(request.crafter.discordUserId, `The craft request for ${describe(request)} was cancelled.`);
 }

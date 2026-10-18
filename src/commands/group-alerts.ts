@@ -1,6 +1,7 @@
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder,
-  type ButtonInteraction, type ChatInputCommandInteraction, type GuildMember, type StringSelectMenuInteraction
+  type ButtonInteraction, type ChatInputCommandInteraction, type GuildMember, type StringSelectMenuInteraction,
+  MessageFlags,
 } from "discord.js";
 import type { GroupAlert, RaidRole } from "@prisma/client";
 import { prisma } from "../database.js";
@@ -71,7 +72,7 @@ async function context(interaction: ButtonInteraction | StringSelectMenuInteract
 // The pinned menu's "My group alerts" button, and /dungeon alerts.
 export async function openGroupAlerts(interaction: ButtonInteraction | ChatInputCommandInteraction): Promise<void> {
   const { lang, alert, characters } = await context(interaction);
-  await interaction.reply({ ...alertPanel(lang, alert, characters), ephemeral: true });
+  await interaction.reply({ ...alertPanel(lang, alert, characters), flags: MessageFlags.Ephemeral });
 }
 
 // A change in the panel: saved, then the panel is redrawn.

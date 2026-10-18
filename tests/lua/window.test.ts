@@ -75,6 +75,8 @@ describe("standalone games host window", () => {
     }
     s.run(`NS.open(); for _, f in ipairs(FRAMES) do if f.text=="High roll" then f.scripts.OnClick(f); break end end`);
     expect(s.run(`return NS.state().game..":"..NS.state().phase`)).toBe("high:JOINING");
+    // The window shows readable names, not the internal keys ("high - JOINING").
+    expect(s.run(`return NS.L("high") .. " - " .. NS.L("JOINING")`)).toBe("High roll - Joining");
     expect(s.run(`return tostring(NS.util)..":"..tostring(GuildedDB)`)).toBe("nil:nil");
     s.run(`NS.cancel(); function InCombatLockdown() return true end; NS.open()`);
     expect(s.chat().join("\n")).toContain("after combat");

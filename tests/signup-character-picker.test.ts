@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MessageFlags } from "discord.js";
 const { findMany } = vi.hoisted(() => ({ findMany: vi.fn() }));
 vi.mock("../src/database.js", () => ({ prisma: { character: { findMany } } }));
 import { pickSignupCharacter } from "../src/commands/signup-character-picker.js";
@@ -16,7 +17,7 @@ describe("private signup character selection", () => {
   }
   it("acknowledges before querying and selects a sole owned character", async () => {
     const i = interaction();
-    findMany.mockImplementation(async () => { expect(i.deferReply).toHaveBeenCalledWith({ ephemeral: true }); return [character(1)]; });
+    findMany.mockImplementation(async () => { expect(i.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral }); return [character(1)]; });
     expect(await pickSignupCharacter(i as never, "guild", "member")).toEqual(character(1));
     expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { memberId: "member", member: { guildId: "guild" } } }));
   });
@@ -27,7 +28,7 @@ describe("private signup character selection", () => {
     const i = interaction([next, selected], true);
     expect(await pickSignupCharacter(i as never, "guild", "member")).toEqual(character(26));
     expect(i.deferReply).not.toHaveBeenCalled();
-    expect(i.followUp).toHaveBeenCalledWith(expect.objectContaining({ ephemeral: true }));
+    expect(i.followUp).toHaveBeenCalledWith(expect.objectContaining({ flags: MessageFlags.Ephemeral }));
     const menu = next.update.mock.calls[0]![0].components[0].toJSON();
     expect(menu.components[0].options.map((o: { value: string }) => o.value)).toEqual(["25", "26"]);
     const filter = i.message.awaitMessageComponent.mock.calls[0]![0].filter;

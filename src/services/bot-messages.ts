@@ -1,3 +1,4 @@
+import { pinnedMessages } from "./pins.js";
 import { ChannelType, EmbedBuilder, type Guild as DiscordGuild, type GuildTextBasedChannel, type ForumChannel } from "discord.js";
 import type { GuildSettings, PrismaClient } from "@prisma/client";
 import { t, tx, type Lang } from "../i18n.js";
@@ -29,7 +30,7 @@ export function gettingStartedPost(lang: Lang): EmbedBuilder {
 
 // The pinned guide in the bot guide channel: missing, the current text, or an older text.
 export async function botGuideState(channel: GuildTextBasedChannel, lang: Lang): Promise<BotMessageState> {
-  const pins = await channel.messages.fetchPinned().catch(() => null);
+  const pins = await pinnedMessages(channel).catch(() => null);
   const guide = pins?.find((message) => message.embeds.some((embed) => embed.title === t(lang, "guide.title")));
   if (!guide) return "missing";
   return guide.embeds[0]?.description === gettingStartedPost(lang).data.description ? "current" : "outdated";
@@ -37,7 +38,7 @@ export async function botGuideState(channel: GuildTextBasedChannel, lang: Lang):
 
 // Pins the guide, or brings the pinned one up to date. Safe to call again.
 export async function ensureBotGuide(channel: GuildTextBasedChannel, lang: Lang): Promise<void> {
-  const pins = await channel.messages.fetchPinned().catch(() => null);
+  const pins = await pinnedMessages(channel).catch(() => null);
   const existing = pins?.find((message) => message.embeds.some((embed) => embed.title === t(lang, "guide.title")));
   if (existing) {
     if (existing.editable && existing.embeds[0]?.description !== gettingStartedPost(lang).data.description) {

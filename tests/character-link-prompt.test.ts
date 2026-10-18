@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MessageFlags } from "discord.js";
 
 const mocks = vi.hoisted(() => ({
   config: { DISCORD_CLIENT_ID: "1552633893587394590", COMPANION_WEB_URL: undefined as string | undefined },
@@ -75,10 +76,12 @@ describe("private character connection instructions", () => {
     const reply = await characterLinkPrompt(mocks.db as never, "guild1", "member1", "server1", "en", "companion");
     expect(mocks.issueCode).toHaveBeenCalledOnce();
     const fields = reply.embeds[0]!.data.fields!;
-    expect(fields[0]!.value).toContain("character you want as your **main**");
-    expect(fields[1]!.value).toContain("**ABC123DEF456**");
-    expect(fields[1]!.value).toContain("replaces your previous companion connection");
-    expect(fields[2]!.value).toContain("`server1`");
+    // The code comes first, alone on its line in a box, so it is easy to spot and copy.
+    expect(fields[0]!.value.startsWith("```\nABC123DEF456\n```")).toBe(true);
+    expect(fields[0]!.value).toContain("replaces your previous companion connection");
+    expect(fields[1]!.value).toContain("character you want as your **main**");
+    expect(fields[2]!.value).toContain("paste the code above");
+    expect(fields[2]!.value).not.toContain("server ID");
     expect(fields[2]!.value).toContain("/guilded setup connected");
     expect(fields[3]!.value).toContain("/character list");
   });
@@ -111,7 +114,7 @@ describe("private character connection instructions", () => {
       options: { getSubcommand: () => "pair" }, deferReply: vi.fn(), editReply: vi.fn()
     };
     mocks.context.mockImplementation(async () => {
-      expect(interaction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
+      expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
       return { guildId: "guild1", memberId: "member1" };
     });
     await executeCharacter(interaction as never);
@@ -126,7 +129,7 @@ describe("private character connection instructions", () => {
       deferReply: vi.fn(), editReply: vi.fn()
     };
     mocks.context.mockImplementation(async () => {
-      expect(interaction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
+      expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
       return { guildId: "guild1", memberId: "member1" };
     });
     mocks.importCharacter.mockResolvedValue({ action: "created", name: "NewCharacter", isMain });

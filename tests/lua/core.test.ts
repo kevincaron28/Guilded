@@ -115,6 +115,27 @@ describe("gear check: enchants, consumables and the peer digest", () => {
     expect(s.run(`return GuildedDB.readiness["Kev"].status`)).not.toBe("NOT_READY");
   });
 
+  it("automatic gear checks tell the guild only when something changed (plus a 10-minute heartbeat)", () => {
+    const s = loggedIn();
+    withGear(s);
+    s.run(`
+      T = os.time() + 100000; time = function() return T end
+      SENT = {}
+      function digests() local n = 0; for _, m in ipairs(SENT) do if string.find(m.text, "^READINESS|") then n = n + 1 end end; return n end
+      fire_event("UNIT_INVENTORY_CHANGED", "player")          -- first check: sent
+      T = T + 30; fire_event("UNIT_INVENTORY_CHANGED", "player") -- looting, nothing changed: not sent
+      T = T + 30; fire_event("UNIT_INVENTORY_CHANGED", "player")
+    `);
+    expect(s.run(`return digests()`)).toBe("1");
+    s.run(`LINKS[1] = nil; T = T + 30; fire_event("UNIT_INVENTORY_CHANGED", "player")`); // took the helm off: sent
+    expect(s.run(`return digests()`)).toBe("2");
+    s.run(`T = T + 601; fire_event("UNIT_INVENTORY_CHANGED", "player")`);                // heartbeat
+    expect(s.run(`return digests()`)).toBe("3");
+    // An officer's request is always answered, even with nothing new.
+    s.load("Modules/Ready.lua"); s.run(`function UnitIsGroupLeader(unit) return unit == "Amy" end; GetServerTime = function() return 9000 end; fire_event("CHAT_MSG_ADDON", "Guilded", "READYREQ|1", "RAID", "Amy-Realm")`);
+    expect(s.run(`local n = 0; for _, m in ipairs(SENT) do if string.find(m.text, "^READINESS|") and m.target == "RAID" then n = n + 1 end end; return n`)).toBe("1");
+  });
+
   it("a bare /guilded opens the window; /guilded help still lists the commands", () => {
     const s = loggedIn();
     s.run(`OPENED = 0; NS.commandHandlers["menu"] = function() OPENED = OPENED + 1 end; CHAT_LOG = {}`);
@@ -124,6 +145,80 @@ describe("gear check: enchants, consumables and the peer digest", () => {
     s.run(`SlashCmdList["GUILDED"]("help")`);
     expect(Number(s.run(`return #CHAT_LOG`))).toBeGreaterThan(5);
     expect(s.run(`return OPENED`)).toBe("1");
+  });
+
+  it("roster attendance says why it cannot run: no core, an empty local core, or a Discord core without a roster", () => {
+    const s = loggedIn();
+    s.run(`SlashCmdList["GUILDED"]("start Test"); CHAT_LOG = {}; NS.loot = { core = function() return nil end, rosterCheck = function() end }; SlashCmdList["GUILDED"]("attendance roster")`);
+    expect(s.run(`return CHAT_LOG[#CHAT_LOG]`)).toContain("Choose a raid core first");
+    s.run(`NS.loot.core = function() return { name = "Team", localOnly = true, roster = {} } end; SlashCmdList["GUILDED"]("attendance roster")`);
+    expect(s.run(`return CHAT_LOG[#CHAT_LOG]`)).toContain("Team has no raiders yet");
+    s.run(`NS.loot.core = function() return { name = "Les Aggros", roster = {} } end; SlashCmdList["GUILDED"]("attendance roster")`);
+    expect(s.run(`return CHAT_LOG[#CHAT_LOG]`)).toContain("Les Aggros has no roster from Discord yet");
+  });
+
+  it("raid templates, notes, roster attendance, undo, discard and the raid history", () => {
+    const s = loggedIn();
+    s.run(`
+      CORE_CMDS = {}
+      NS.runCommand = function(line) CORE_CMDS[#CORE_CMDS + 1] = line end
+      NS.loot = {
+        core = function() return { id = "local:1", name = "Tuesday MC", roster = { { name = "Amy" }, { name = "Bob" }, { name = "Cy" } } } end,
+        rosterCheck = function() return { present = { { name = "Kev" }, { name = "Amy" } }, missing = { { name = "Bob" } }, bench = { { name = "Cy" } }, fillIns = {} } end,
+      }
+      SlashCmdList["GUILDED"]("template save tue Tuesday Molten Core")
+    `);
+    expect(s.run(`return GuildedDB.raidTemplates.tue.title .. ":" .. GuildedDB.raidTemplates.tue.coreId`)).toBe("Tuesday Molten Core:local:1");
+    s.run(`SlashCmdList["GUILDED"]("start tue")`);
+    expect(s.run(`return GuildedDB.raids[#GuildedDB.raids].title`)).toBe("Tuesday Molten Core");
+    expect(s.run(`return CORE_CMDS[1]`)).toBe("core local:1");
+    // A raid with nothing in it can be discarded; one with attendance cannot.
+    s.run(`SlashCmdList["GUILDED"]("raid discard")`);
+    expect(s.run(`return #GuildedDB.raids`)).toBe("0");
+    s.run(`SlashCmdList["GUILDED"]("start tue"); SlashCmdList["GUILDED"]("attendance roster")`);
+    const id = s.run(`return GuildedDB.raids[#GuildedDB.raids].id`);
+    expect(s.run(`local a = GuildedDB.attendance["${id}"]; return a.Amy.status .. ":" .. a.Bob.status .. ":" .. tostring(a.Cy)`)).toBe("PRESENT:ABSENT:nil");
+    s.run(`SlashCmdList["GUILDED"]("raid discard")`);
+    expect(s.run(`return #GuildedDB.raids`)).toBe("1");
+    s.run(`SlashCmdList["GUILDED"]("note Rag wipe at 10%"); SlashCmdList["GUILDED"]("award Amy 10 On time"); SlashCmdList["GUILDED"]("undo")`);
+    expect(s.run(`return tostring(GuildedDB.epgp.Amy.ledger[1].voided ~= nil)`)).toBe("true");
+    s.run(`CHAT_LOG = {}; SlashCmdList["GUILDED"]("end")`);
+    expect(s.run(`return table.concat(CHAT_LOG, "\\n")`)).toContain("Note: Rag wipe at 10%");
+    s.run(`CHAT_LOG = {}; SlashCmdList["GUILDED"]("raids")`);
+    expect(s.run(`return table.concat(CHAT_LOG, "\\n")`)).toMatch(/Tuesday Molten Core: 2 attended, 0 boss\(es\), \+0 EP, 0 loot/); // Kev and Amy
+  });
+
+  it("ending a raid prints a summary of what was recorded; /guilded summary shows it again", () => {
+    const s = loggedIn();
+    s.run(`
+      SlashCmdList["GUILDED"]("start Molten Core")
+      SlashCmdList["GUILDED"]("attendance Amy PRESENT")
+      SlashCmdList["GUILDED"]("attendance Bob LATE")
+      SlashCmdList["GUILDED"]("boss Lucifron")
+      SlashCmdList["GUILDED"]("award Amy 10 On time")
+      SlashCmdList["GUILDED"]("loot Amy Felheart Gloves 40")
+      CHAT_LOG = {}
+      SlashCmdList["GUILDED"]("end")
+    `);
+    const out = s.run(`return table.concat(CHAT_LOG, "\\n")`);
+    expect(out).toContain("Attendance (marked by officers): 1 present, 1 late, 0 absent.");
+    expect(out).toContain("Bosses (marked by hand): Lucifron");
+    expect(out).toContain("+10 EP");
+    expect(out).toContain("Felheart Gloves -> Amy (40 GP)");
+    s.run(`CHAT_LOG = {}; SlashCmdList["GUILDED"]("summary")`);
+    expect(s.run(`return table.concat(CHAT_LOG, "\\n")`)).toContain("Molten Core");
+  });
+
+  it("below level 60 empty slots are a note, not 'Not ready'; /guilded slots level changes it", () => {
+    const s = loggedIn();
+    withGear(s);
+    s.run(`LINKS[1] = nil; LINKS[3] = nil; UnitLevel = function() return 18 end; SlashCmdList["GUILDED"]("inspect")`);
+    expect(s.run(`return GuildedDB.readiness["Kev"].status`)).not.toBe("NOT_READY");
+    const codes = () => s.run(`local f = {}; for _, x in ipairs(GuildedDB.readiness["Kev"].findings) do f[#f + 1] = x.code .. ":" .. x.severity end; return table.concat(f, ",")`);
+    expect(codes()).toContain("EMPTY_SLOTS_LOW_LEVEL:INFO");
+    s.run(`SlashCmdList["GUILDED"]("slots level 1"); SlashCmdList["GUILDED"]("inspect")`);
+    expect(s.run(`return GuildedDB.readiness["Kev"].status`)).toBe("NOT_READY");
+    expect(codes()).toContain("MISSING_HEAD:ERROR");
   });
 
   it("a manual check still records a character with no gear at once", () => {

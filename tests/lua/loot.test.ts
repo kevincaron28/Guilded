@@ -176,7 +176,7 @@ describe("Loot.lua: /guilded drop", () => {
     expect(calls(s)).toBe(`reserve:roll|${SWORD}`);
     s.run("CALLS = {}");
     s.run(`NS.commandHandlers.drop({ "|Hitem:777::|h[Other]|h" })`);
-    expect(calls(s)).toBe("games:highroll");
+    expect(calls(s)).toBe("");   // party games are only in the Guilded Games addon
     expect(last(s)).toContain("Nobody reserved");
     s.run("CALLS = {}");
     s.run(`NS.commandHandlers.drop({ "Plain Name" })`);

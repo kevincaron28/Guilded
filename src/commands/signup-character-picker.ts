@@ -1,11 +1,11 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, type ButtonInteraction, type ChatInputCommandInteraction, type MessageComponentInteraction } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, type ButtonInteraction, type ChatInputCommandInteraction, type MessageComponentInteraction, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { CHARACTER_REQUIRED } from "../services/signup-character.js";
 
 // A paginated private picker also supports owners with more than Discord's 25 menu options.
 export async function pickSignupCharacter(interaction: ButtonInteraction | ChatInputCommandInteraction | MessageComponentInteraction, guildId: string, memberId: string) {
   const wasAcknowledged = interaction.replied || interaction.deferred;
-  if (!wasAcknowledged) await interaction.deferReply({ ephemeral: true });
+  if (!wasAcknowledged) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const characters = await prisma.character.findMany({ where: { memberId, member: { guildId } }, orderBy: [{ name: "asc" }, { realm: "asc" }] });
   if (!characters.length) throw new Error(CHARACTER_REQUIRED);
   if (characters.length === 1) return characters[0]!;
@@ -17,7 +17,7 @@ export async function pickSignupCharacter(interaction: ButtonInteraction | ChatI
       new ButtonBuilder().setCustomId("signupchar:previous").setLabel("Précédents").setStyle(ButtonStyle.Secondary).setDisabled(page === 0),
       new ButtonBuilder().setCustomId("signupchar:next").setLabel("Suivants").setStyle(ButtonStyle.Secondary).setDisabled((page + 1) * 25 >= characters.length))] : [])
   ] });
-  const message = wasAcknowledged ? await interaction.followUp({ ...screen(), ephemeral: true, fetchReply: true })
+  const message = wasAcknowledged ? await interaction.followUp({ ...screen(), flags: MessageFlags.Ephemeral, fetchReply: true })
     : await interaction.editReply(screen());
   const expires = Date.now() + 5 * 60_000;
   while (Date.now() < expires) {

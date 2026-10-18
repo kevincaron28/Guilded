@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, type ChatInputCommandInteraction } from "discord.js";
+import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { createAddonImportService } from "../services/addon-import.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
@@ -15,7 +15,7 @@ export async function executeImport(interaction: ChatInputCommandInteraction): P
   const context = await requireGuildContext(interaction);
   if (!context) return;
   if (!interaction.member || !hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "officer")) {
-    await interaction.reply({ content: "Only officers can import addon data.", ephemeral: true });
+    await interaction.reply({ content: "Only officers can import addon data.", flags: MessageFlags.Ephemeral });
     return;
   }
   const attachment = interaction.options.getAttachment("file", true);
@@ -30,6 +30,6 @@ export async function executeImport(interaction: ChatInputCommandInteraction): P
   await importService.record(context.guildId, preview.snapshot, preview.checksum, interaction.user.id);
   await interaction.reply({
     content: `Validated ${preview.transactionCount} ${preview.snapshot.source} transactions. Import recorded for officer review; no DKP was changed.`,
-    ephemeral: true
+    flags: MessageFlags.Ephemeral
   });
 }

@@ -5,7 +5,8 @@ import {
   EmbedBuilder,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
-  type GuildMember
+  type GuildMember,
+  MessageFlags,
 } from "discord.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
@@ -42,7 +43,7 @@ export async function showEpProposal(interaction: ChatInputCommandInteraction, g
   if (proposal.rows.length === 0) {
     await interaction.reply({
       content: `${header}\nNo attendance recorded yet, so there's no EP to propose. Record attendance (or run \`/import apply\` after the addon export), then \`/raid award-ep raid:${raidId}\`.`,
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -50,14 +51,14 @@ export async function showEpProposal(interaction: ChatInputCommandInteraction, g
     new ButtonBuilder().setCustomId(`${EP_AWARD_PREFIX}approve:${raidId}`).setLabel(`Approve ${proposal.rows.length} awards`).setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId(`${EP_AWARD_PREFIX}cancel:${raidId}`).setLabel("Cancel").setStyle(ButtonStyle.Secondary)
   );
-  await interaction.reply({ content: header, embeds: [proposalEmbed(proposal)], components: [buttons], ephemeral: true });
+  await interaction.reply({ content: header, embeds: [proposalEmbed(proposal)], components: [buttons], flags: MessageFlags.Ephemeral });
 }
 
 export async function handleEpAwardButton(interaction: ButtonInteraction): Promise<void> {
   const [, action, raidId] = interaction.customId.split(":");
   if (!interaction.guild || !raidId) return;
   if (!interaction.member || !hasPermission(interaction.member as GuildMember, "dkpOfficer")) {
-    await interaction.reply({ content: "Only EPGP officers can approve EP awards.", ephemeral: true });
+    await interaction.reply({ content: "Only EPGP officers can approve EP awards.", flags: MessageFlags.Ephemeral });
     return;
   }
   if (action === "cancel") {

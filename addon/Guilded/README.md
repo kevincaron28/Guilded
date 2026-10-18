@@ -1,9 +1,10 @@
-# Guilded 6.2.0 candidate: addon-only guilds
+# Guilded: addon-only guilds
 
-Use /guilded setup local for an addon-only guild. Officers can open Guild tools >
-Local guild to create cores, set loot rules, and edit main/bench rosters.
-All local cores share guild EP/GP. Keep one officer as record keeper; Backup and
-Restore transfer a snapshot with its accounting baseline, not a live merge.
+In-game only is the default. Officers type `/guilded setup guild` (or press "Set up my guild"
+in `/guilded setup`) to open Guild tools > Local guild, which walks through three steps:
+create a raid core, choose how loot is given, add your raiders. All local cores share guild
+EP/GP. Officers can share awards as they happen with `/guilded ledgersync on`; Backup and
+Restore hand the whole copy to another officer.
 The restore preview lists local cores/rosters and can be undone.
 
 Party games moved to the optional GuildedGames addon (/ggames). Only the host
@@ -77,7 +78,7 @@ online guildmates when solo) fill it on demand. Amounts and
 attunements have preset buttons; shift-click an item into the EPGP tab's
 Item box to award loot. Whole-group actions and ending a raid need a second
 click to confirm. Every button runs the same `/guilded` command you could type,
-so the permission checks are the same. Party games run in the optional GuildedGames addon. `/guilded menu` opens the window from chat, and
+so the permission checks are the same. Party games run in the optional GuildedGames addon. `/guilded` (or `/guilded menu`) opens the window from chat, and
 `/guilded minimap show|hide|reset` controls the button. Guilded is also in the Addon
 Compartment (the addon list under the minimap), and `/guilded options` (or Esc > Options >
 AddOns > Guilded) has the minimap button, chat tab, digest and module switches.
@@ -113,13 +114,23 @@ After login, an officer (guild rank 0 or 1 by default) can use:
 /guilded consumes
 /guilded consumes me
 /guilded enchants
+/guilded slots level 60
 /guilded snapshot pre-pull
 /guilded digest
 /guilded peers
 /guilded attune Onyxia Key
 /guilded attune Player "Onyxia Key"
 /guilded attune Player "Onyxia Key" clear
+/guilded template save tue Tuesday Molten Core
+/guilded start tue
+/guilded note Rag wipe at 10%
+/guilded attendance roster
+/guilded undo
+/guilded raid discard
 /guilded end
+/guilded summary
+/guilded raids 10
+/guilded history
 /guilded export
 ```
 
@@ -137,11 +148,13 @@ and 1, the guild master can change it in game: `/guilded officer rank 2 on`, or
 `/guilded officer add <name>` for one person (`/guilded officer list` shows the current
 setup). SavedVariables are written on logout/reload.
 
-An active raid survives `/reload` and disconnects; `/guilded end` closes it.
+An active raid survives `/reload` and disconnects; `/guilded end` closes it and prints a summary
+(attendance, boss marks, EP/GP and loot); `/guilded summary` opens it again to copy.
 Player names are normalized ("bob", "Bob-Realm" -> "Bob"), so the same
 character never ends up with two ledgers. `/guilded inspect` reports READY, PARTIAL
 (e.g. no off-hand with a two-hander, or durability under 20%), or NOT_READY,
-and names the empty slots it counted.
+and names the empty slots it counted. Below level 60 empty slots are only a note (levelling
+gear); `/guilded slots level <n>` changes that level.
 
 Every EPGP ledger entry gets a permanent id. Each export carries the whole
 ledger, and the bot uses those ids to skip entries it already imported, so
@@ -167,8 +180,8 @@ durability, professions and skill levels - no item names, enchants, or
 consumables) is broadcast to the **guild** chat channel automatically:
 
 - On login/zoning in (`PLAYER_ENTERING_WORLD`)
-- On any gear change (`UNIT_INVENTORY_CHANGED`)
-- Every 10 minutes while in a raid group
+- On any gear change (`UNIT_INVENTORY_CHANGED`), but only when the result changed
+- At most every 10 minutes otherwise, as a check-in; a ready check is always answered
 
 This is self-reported data - the same trust level as running `/guilded inspect`
 yourself, just automatic - not something inferred about other players, so it
@@ -221,7 +234,7 @@ presence, loot, and dungeon runs. An officer reviews and applies it with
 
 ## Version 2.4 changes
 
-- **The casino is gone.** No wagers, no house games, no debt ledger, no trade settlement. `/guilded games` opens the optional GuildedGames addon. Old casino saved data is ignored.
+- **The casino is gone.** No wagers, no house games, no debt ledger, no trade settlement. Party games are only in the separate Guilded Games addon (/ggames). Old casino saved data is ignored.
 - **Item tooltips** (module `tooltip`): hover an item that someone wishlisted in Discord (`/character wishlist`) or that was awarded before and you get up to three gold lines: who wants it, what it usually costs in GP, and your own PR and rank. The data comes from the bot with the standings and is shared with the guild the same way; items with no data show nothing. `/guilded modules off tooltip` turns it off.
 - **Ready page** (in the window, and `/guilded ready`; officers and group leaders only, meaning guild officers plus the leader or an assistant of the current raid or party): who in your raid or party is ready. Each player is Ready, Issues, Not ready or No data, worst first, with the reason. It uses what each player's addon shared (gear, enchants, durability, flask, food) plus a live look at their buffs, so a player without the addon still shows flask and food. `ready ask` asks every addon in the group to check itself again; `ready post` posts the result to raid or party chat. Flask and food count only in a raid group.
 - **Guilded chat tab** (module `chattab`): `/guilded chat tab` opens a chat window named Guilded and sends the addon's own lines there (bid results, sync status, answers to commands), so raid chat stays clean. `/guilded chat off` puts them back in the main chat and closes the Guilded tab. Raid, party and whisper messages are never moved.

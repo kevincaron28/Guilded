@@ -1,4 +1,4 @@
-import { EmbedBuilder, SlashCommandBuilder, escapeMarkdown, type ChatInputCommandInteraction } from "discord.js";
+import { EmbedBuilder, SlashCommandBuilder, escapeMarkdown, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { asLang, t, tx, type Lang } from "../i18n.js";
 import { achievementName } from "../services/dungeon-achievements.js";
@@ -101,17 +101,17 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
   const lang = asLang((await guildService.getSettings(context.guildId))?.language);
   const subcommand = interaction.options.getSubcommand();
   if (subcommand === "catalog") {
-    await interaction.reply({ embeds: novemberCatalogEmbeds(lang), ephemeral: true, allowedMentions: { parse: [] } });
+    await interaction.reply({ embeds: novemberCatalogEmbeds(lang), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
     return;
   }
   if (subcommand === "rules") {
     const settings = await prisma.guildSettings.findUnique({ where: { guildId: context.guildId }, select: { dungeonConfig: true } });
     const season = await prisma.dungeonSeason.findFirst({ where: { guildId: context.guildId, status: "ACTIVE" }, orderBy: { startsAt: "desc" } });
-    await interaction.reply({ embeds: [dungeonScoringGuide(dungeonConfig(settings?.dungeonConfig), lang, season?.ratingRules)], ephemeral: true });
+    await interaction.reply({ embeds: [dungeonScoringGuide(dungeonConfig(settings?.dungeonConfig), lang, season?.ratingRules)], flags: MessageFlags.Ephemeral });
     return;
   }
   if (subcommand === "archive" || subcommand === "hall-of-fame") {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const archive = await seasonArchive(prisma, context.guildId, interaction.options.getInteger("page") ?? 1, subcommand === "hall-of-fame");
     await interaction.editReply({ embeds: [new EmbedBuilder().setColor(0xd4a017)
       .setTitle(subcommand === "archive" ? lang === "fr" ? "Saisons" : "Season archive" : lang === "fr" ? "Temple de la renommée" : "Hall of Fame")
@@ -127,7 +127,7 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
       throw new Error("Set a dungeon signups channel with /config channel, then run /dungeon guide again.");
     }
     await ensureDungeonSignupGuide(channel, lang);
-    await interaction.reply({ content: tx(lang, "Pinned dungeon signup guide is ready in <#{id}>.", { id: channel.id }), ephemeral: true });
+    await interaction.reply({ content: tx(lang, "Pinned dungeon signup guide is ready in <#{id}>.", { id: channel.id }), flags: MessageFlags.Ephemeral });
     return;
   }
   if (subcommand === "group") {

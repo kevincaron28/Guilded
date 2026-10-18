@@ -297,7 +297,16 @@ function view.build(parent, compact)
       or L("No season snapshot yet"))
     local lines = {}
     -- The score itself is already on the summary line at the top.
-    if not season then lines[1] = L("Season scores arrive through your companion or a guild officer.") end
+    if not season then lines[1] = L("Season scores arrive through your companion or a guild officer.")
+    else
+      -- How fresh these scores are, and whose copy (companion or an officer's share).
+      local d = ns.getDb and ns.getDb()
+      local board = d and d.dungeonBoard
+      local when = board and board.updatedAt and ns.util and ns.util.whenText and ns.util.whenText(board.updatedAt)
+      if when then
+        lines[1] = string.format(L("Updated %s%s."), when, board.from and string.format(L(", shared by %s"), board.from) or "")
+      end
+    end
     self.seasonRows:SetText(table.concat(lines, "\n"))
   end
   button(pane, "Previous", 16, -299, 100, function() pane.page = math.max(1, pane.page - 1); pane:Refresh() end)
@@ -305,7 +314,12 @@ function view.build(parent, compact)
   pane.rankingToggle = button(pane, "Guild rankings", 16, -423, 110, function() pane.guildRanking = not pane.guildRanking; pane.page = 1; pane:Refresh() end)
   button(pane, "Newer season", width - 306, -423, 138, function() pane.seasonIndex = math.max(1, pane.seasonIndex - 1); pane.page = 1; pane:Refresh() end)
   button(pane, "Older season", width - 158, -423, 138, function() pane.seasonIndex = pane.seasonIndex + 1; pane.page = 1; pane:Refresh() end)
-  button(pane, "Close", width - 78, -8, 62, function() pane:Hide() end)
+  -- Inside the game's dungeon finder, Close closes the finder (not just this page).
+  button(pane, "Close", width - 78, -8, 62, function()
+    if view.chrome and view.chrome:IsShown() then
+      ns.util.hideWindow(LFGParentFrame or PVEFrame or LFGFrame)
+    else pane:Hide() end
+  end)
   pane.runView = buildRun(pane, width)
   button(pane, "Run", width - 270, -8, 86, function() pane.mode = "run"; pane:Refresh() end)
   button(pane, "Season", width - 178, -8, 92, function() pane.mode = "season"; pane:Refresh() end)
@@ -325,7 +339,7 @@ function view.open(mode)
   if view.showAttached then
     if view.window then view.window:Hide() end
     local finder = LFGParentFrame or PVEFrame or LFGFrame
-    finder:Show()
+    ns.util.showWindow(finder)
     if mode then view.pane.mode = mode end
     view.showAttached()
     view.pane:Refresh()

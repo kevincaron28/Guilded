@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MessageFlags } from "discord.js";
 const mocks = vi.hoisted(() => ({ remove: vi.fn(), create: vi.fn(), transaction: vi.fn(), eventLinks: vi.fn(async () => []) }));
 vi.mock("../src/database.js", () => ({ prisma: { $transaction: mocks.transaction, discordEventLink: { findMany: mocks.eventLinks } } }));
 import { executeSetupReset, performUninstall } from "../src/commands/uninstall.js";
@@ -26,7 +27,7 @@ describe("destructive setup reset", () => {
   it("rejects nonadministrators before gathering or deleting anything", async () => {
     const reply = vi.fn();
     await executeSetupReset({ guild: { ownerId: "owner" }, guildId: "guild", user: { id: "member" }, member: { permissions: { has: () => false } }, reply } as never);
-    expect(reply).toHaveBeenCalledWith(expect.objectContaining({ ephemeral: true, content: expect.stringContaining("Administrator") }));
+    expect(reply).toHaveBeenCalledWith(expect.objectContaining({ flags: MessageFlags.Ephemeral, content: expect.stringContaining("Administrator") }));
     expect(mocks.transaction).not.toHaveBeenCalled();
   });
 });

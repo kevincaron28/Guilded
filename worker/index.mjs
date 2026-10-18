@@ -34,6 +34,13 @@ async function limitedBody(request) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    // Keep Google's exact verification filename at HTTP 200 despite clean HTML URLs.
+    if (/^\/google[a-f0-9]{8,64}\.html$/.test(url.pathname)) {
+      if (!["GET", "HEAD"].includes(request.method)) return failure(405, "Method not allowed");
+      const asset = new URL(url);
+      asset.pathname = asset.pathname.slice(0, -5);
+      return env.ASSETS.fetch(new Request(asset, { method: request.method }));
+    }
     // The selected creator domain shares this Worker with the existing Guilded
     // website. DNS/custom-domain activation is a separate owner setup step.
     const creator = ["kcaron.top", "www.kcaron.top"].includes(url.hostname);

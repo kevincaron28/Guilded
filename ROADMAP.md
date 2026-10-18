@@ -58,11 +58,12 @@ Phase 1 (simpler guilded.kcaron.top and kcaron.top) is live from PR #86.
 In suggested order: quick wins first, then things that build on each other.
 How each one gets built: [ROADMAP_REQUESTS_PLAN_2026-10-18.md](docs/ROADMAP_REQUESTS_PLAN_2026-10-18.md).
 
-1. **Ko-fi support links.** The Ko-fi page ([ko-fi.com/wowguilded](https://ko-fi.com/wowguilded)),
+1. **Done in 6.6.0. Ko-fi support links.** The Ko-fi page ([ko-fi.com/wowguilded](https://ko-fi.com/wowguilded)),
    the website footer and CurseForge's Donate button already exist. Add the link
    to the bot's `/help`, the companion app and the addon's Settings page, in
    English and French. It's a link only: no features behind a payment.
-2. **Spreadsheet export from the addon.** Recommendation: do both of these.
+2. **Partly done. Spreadsheet export from the addon.** The in-game part shipped in 6.6.0
+   (`/guilded sheet`, Copy for Excel); the companion CSV export and the bot `/export` remain.
    - *In game:* an "Export" button on the standings, roster and loot windows
      opens a copy box with tab-separated text. Ctrl+A, Ctrl+C, then paste
      straight into Excel or Google Sheets; each value lands in its own cell.
@@ -72,7 +73,9 @@ How each one gets built: [ROADMAP_REQUESTS_PLAN_2026-10-18.md](docs/ROADMAP_REQU
      with one sheet's worth per table: EP/GP, attendance, loot history,
      dungeon scores. A bot `/export` that sends a CSV of the guild's server-side
      data comes later, for officers only.
-3. **Next dungeon season covers all levels, not just 60.** The November draft
+3. **Built in 6.6.0, not active. Next dungeon season covers all levels, not just 60.**
+   Rules version 6 has brackets 15-29 / 30-44 / 45-59 / 60 and an over-level penalty; a season
+   still needs launch data and real timed runs for each bracket's targets. The November draft
    ([NOVEMBER_DUNGEON_CATALOG.md](docs/NOVEMBER_DUNGEON_CATALOG.md)) proposes a
    level-60, best-eight competition. Change it to level brackets (for example
    15-29, 30-44, 45-59 and 60) with each bracket's own dungeons, targets and
@@ -80,7 +83,7 @@ How each one gets built: [ROADMAP_REQUESTS_PLAN_2026-10-18.md](docs/ROADMAP_REQU
    real timed runs to set its targets before the season starts. Decide: the
    bracket boundaries, whether a character's run counts in the bracket of the
    level they were at the time, and whether to show one combined ranking.
-4. **Guilds join on their own, with a lite version until approved.** Any Discord
+4. **Done in 6.6.0 (idle Lite servers warned, then left). Guilds join on their own, with a lite version until approved.** Any Discord
    server that adds the hosted bot is accepted automatically and can run setup
    in a **lite** mode (setup, help, basic signups and dungeon groups). The owner
    approves a guild with a bot command, which unlocks everything (EPGP, loot,
@@ -88,14 +91,14 @@ How each one gets built: [ROADMAP_REQUESTS_PLAN_2026-10-18.md](docs/ROADMAP_REQU
    (lite/approved/blocked), a check on each command, an approval queue sent to
    the owner, and per-guild limits to protect hosting costs. This changes the
    "Later" item below about managed multi-guild hosting from "maybe" to planned.
-5. **Online core and guild recruitment on the website.** Builds on the public
+5. **Not started. Online core and guild recruitment on the website.** Builds on the public
    guild pages above. Guilds publish an opt-in recruitment listing (classes and
    roles wanted, raid times, language, faction, server); cores do the same for
    open spots. Players browse and filter on the website and apply; the
    application arrives in the guild's Discord as a message officers can accept
    or decline. Players can also post a "looking for guild" profile. Approved
    guilds only (item 4), with a report button against spam.
-6. **Standalone dungeon module and a public leaderboard (Raider.IO-style).**
+6. **Not started. Standalone dungeon module and a public leaderboard (Raider.IO-style).**
    A separate small addon, "Guilded Dungeons", for players with no guild or a
    guild without Guilded. It shares Guilded's dungeon code and timers so scores
    match exactly, and the two addons don't conflict when both are installed
@@ -106,6 +109,16 @@ How each one gets built: [ROADMAP_REQUESTS_PLAN_2026-10-18.md](docs/ROADMAP_REQU
    opt in. Needs: a way to sign in without a guild, cheat checks on uploaded
    runs (party members must agree, time limits), and a database change.
    Largest item on this list: do 3 and 4 first.
+
+## Commands — 18 October 2026
+
+1. **Done in 6.7.0.** Members see only their commands; leader and officer tools moved to
+   `/lead`, `/officer` and `/organize`, and `/setup` warns when a role can't see them.
+2. **Next.** Merge overlapping commands: `/config`, `/uninstall` and `/system` into `/setup`,
+   `/tag` into `/mod faq`, `/profile` into `/character`, `/team` into `/core`. Watch the merged
+   `/setup` 4000-character limit.
+3. **Then.** Drop slash commands that only repeat a button (for example `/raid signup`,
+   `/community lottery join`, `/craft claim`) once each button is confirmed to work.
 
 ## Later
 

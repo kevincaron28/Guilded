@@ -49,7 +49,7 @@ export function createOwnerResources({ resources, fetchCertificates = (url, opti
     let pending = pendingCertificates.get(issuer);
     if (!pending) {
       pending = (async () => {
-        const result = await fetchCertificates(issuer + '/cdn-cgi/access/certs', { redirect: 'error', signal: AbortSignal.timeout(5000) });
+        const result = await fetchCertificates(issuer + '/cdn-cgi/access/certs', { redirect: 'manual', signal: AbortSignal.timeout(5000) });
         if (!result.ok) throw new Error('Signing keys unavailable');
         const document = await result.json();
         if (!Array.isArray(document?.keys) || document.keys.length > 32) throw new Error('Invalid signing keys');

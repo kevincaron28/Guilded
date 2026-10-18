@@ -21,7 +21,7 @@ async function token(claims = {}, header = {}) {
 function fixture(options = {}) {
   const reads = [];
   const certificates = [];
-  const handler = createOwnerResources({ resources, now: () => time * 1000, fetchCertificates: async (url, init) => { certificates.push({url,init}); return Response.json({keys:[publicKey]}); }, ...options });
+  const handler = createOwnerResources({ resources, now: () => time * 1000, reportFailure: () => {}, fetchCertificates: async (url, init) => { certificates.push({url,init}); return Response.json({keys:[publicKey]}); }, ...options });
   const env = { OWNER_ACCESS_ISSUER: issuer, OWNER_ACCESS_AUD: audience, OWNER_EMAIL: 'owner@example.com', OWNER_RESOURCES: { get: async key => { reads.push(key); return new Uint8Array([1,2,3]).buffer; } } };
   const request = (path = '/owner/', jwt, method = 'GET', host = 'kcaron.top') => new Request(`https://${host}${path}`, { method, headers: jwt ? { 'cf-access-jwt-assertion': jwt } : {} });
   return {handler,env,reads,certificates,request};
@@ -72,6 +72,71 @@ test('Worker integration denies direct private files before any static or KV rea
 });
 test('private routes run before Cloudflare static assets and account vars survive deploys',()=>{const config=JSON.parse(readFileSync(new URL('../wrangler.jsonc',import.meta.url),'utf8'));assert.ok(config.assets.run_worker_first.includes('/owner'));assert.ok(config.assets.run_worker_first.includes('/owner/*'));assert.equal(config.keep_vars,true);});
 test('untrusted active content is excluded from the curated resource manifest',()=>{assert.throws(()=>createOwnerResources({resources:[{filename:'page.html',key:'private/html',type:'text/html',title:'bad'}]}),/Invalid curated/);});
+
+test('configuration diagnostics identify only the invalid category and retain generic 503 responses',async()=>{
+  const cases=[['OWNER_ACCESS_ISSUER','CONFIG_ISSUER_INVALID'],['OWNER_ACCESS_AUD','CONFIG_AUDIENCE_INVALID'],['OWNER_EMAIL','CONFIG_IDENTITY_INVALID'],['OWNER_RESOURCES','CONFIG_STORAGE_INVALID']];
+  for(const [key,category] of cases){
+    const reportFailure=vi.fn();const f=fixture({reportFailure});const env={...f.env};delete env[key];
+    const response=await f.handler(f.request('/owner/',await token()),env);
+    assert.equal(response.status,503);
+    assert.equal(await response.text(),'Owner resources are not configured or are temporarily unavailable.');
+    assert.deepEqual(reportFailure.mock.calls,[['owner-resources:'+category]]);
+    assert.equal(response.headers.get('cache-control'),'private, no-store, max-age=0');
+    assert.equal(f.reads.length,0);assert.equal(f.certificates.length,0);
+  }
+});
+
+test('signing-key diagnostics never include the caught error, token or identity',async()=>{
+  const reportFailure=vi.fn();
+  const f=fixture({reportFailure,fetchCertificates:async()=>{throw Error('sensitive-error-owner@example.com-token-contents');}});
+  const response=await f.handler(f.request('/owner/',await token()),f.env);
+  assert.equal(response.status,503);
+  assert.equal(await response.text(),'Owner resources are not configured or are temporarily unavailable.');
+  assert.deepEqual(reportFailure.mock.calls,[['owner-resources:SIGNING_KEYS_UNAVAILABLE']]);
+  assert.equal(f.reads.length,0);
+});
+
+test('successful and denied authorization and alternate origins do not emit failure diagnostics',async()=>{
+  const reportFailure=vi.fn();const f=fixture({reportFailure});
+  assert.equal((await f.handler(f.request('/owner/',await token()),f.env)).status,200);
+  assert.equal((await f.handler(f.request(),f.env)).status,401);
+  assert.equal((await f.handler(f.request('/owner/',await token({email:'someone@example.com'})),f.env)).status,401);
+  assert.equal((await f.handler(f.request('/owner/','bad'),f.env)).status,401);
+  assert.equal((await f.handler(f.request('/owner/',await token({},{kid:'unknown'})),f.env)).status,401);
+  assert.equal((await f.handler(f.request('/owner/',undefined,'GET','www.kcaron.top'),{})).status,404);
+  assert.equal(await f.handler(f.request('/'),{}),null);
+  assert.deepEqual(reportFailure.mock.calls,[]);
+});
+
+test('failure diagnostics are limited per category and resume only after a minute',async()=>{
+  let instant=time*1000;const reportFailure=vi.fn();const f=fixture({reportFailure,now:()=>instant});
+  const env={...f.env,OWNER_ACCESS_ISSUER:''};
+  for(let i=0;i<50;i++)assert.equal((await f.handler(f.request(),env)).status,503);
+  assert.deepEqual(reportFailure.mock.calls,[['owner-resources:CONFIG_ISSUER_INVALID']]);
+  instant+=59_999;assert.equal((await f.handler(f.request(),env)).status,503);
+  assert.equal(reportFailure.mock.calls.length,1);
+  instant++;assert.equal((await f.handler(f.request(),env)).status,503);
+  assert.equal(reportFailure.mock.calls.length,2);
+  assert.equal((await f.handler(f.request(),{...f.env,OWNER_ACCESS_AUD:''})).status,503);
+  assert.deepEqual(reportFailure.mock.calls.at(-1),['owner-resources:CONFIG_AUDIENCE_INVALID']);
+});
+
+test('logging failures cannot alter either fail-closed authorization response',async()=>{
+  const f=fixture({reportFailure:()=>{throw Error('logger failed');},fetchCertificates:async()=>{throw Error('offline');}});
+  assert.equal((await f.handler(f.request(),{...f.env,OWNER_ACCESS_AUD:''})).status,503);
+  assert.equal((await f.handler(f.request('/owner/',await token()),f.env)).status,503);
+  assert.equal(f.reads.length,0);
+});
+
+test('the default logger emits only a fixed category without error objects or extra arguments',async()=>{
+  const logger=vi.spyOn(console,'error').mockImplementation(()=>{});
+  try{
+    const handler=createOwnerResources();
+    const response=await handler(new Request('https://kcaron.top/owner'),{});
+    assert.equal(response.status,503);
+    assert.deepEqual(logger.mock.calls,[['owner-resources:CONFIG_ISSUER_INVALID']]);
+  }finally{logger.mockRestore();}
+});
 
 test('even a signed owner token cannot serve private bytes on alternate origins',async()=>{
   const f=fixture();const jwt=await token();

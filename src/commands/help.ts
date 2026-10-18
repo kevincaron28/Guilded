@@ -79,6 +79,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
   officer: {
     en: [
       "`/setup start` — guided setup and checklist · `/config` — every setting",
+      "Members don't see `/setup`, `/config`, `/mod`, `/import`, `/poll`, `/system` or `/uninstall`. An Officer without Manage Server doesn't either: allow the Officer role in Server Settings → Integrations → Guilded",
       "`/loot auction` · `/loot close` · `/import apply` · `/import held` (addon data)",
       "`/setup testraid start` — fake raid to try everything, `/setup testraid cleanup` after",
       "`/dungeon admin` — invalidate a run, award points, rules, target times, new season",
@@ -91,6 +92,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
     ],
     fr: [
       "`/setup start` — configuration guidée et liste de vérification · `/config` — tous les réglages",
+      "Les membres ne voient pas `/setup`, `/config`, `/mod`, `/import`, `/poll`, `/system` ni `/uninstall`. Un officier sans « Gérer le serveur » non plus : autorisez le rôle Officier dans Paramètres du serveur → Intégrations → Guilded",
       "`/loot auction` · `/loot close` · `/import apply` · `/import held` (données de l'addon)",
       "`/setup testraid start` — faux raid pour tout essayer, puis `/setup testraid cleanup`",
       "`/dungeon admin` — annuler un donjon, donner des points, règles, temps cibles, nouvelle saison",

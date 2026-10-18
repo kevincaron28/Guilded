@@ -25,6 +25,7 @@ export class MergedCommand {
   readonly routes = new Map<string, Route>();
   private readonly base: Buildable | null;
   private readonly baseHandler: Handler | null;
+  private defaultMemberPermissions: bigint | null = null;
   constructor(
     readonly name: string,
     private readonly description: string,
@@ -40,16 +41,25 @@ export class MergedCommand {
     }
   }
 
+  /** Same as SlashCommandBuilder's: Discord hides the parent from members without these permissions. */
+  setDefaultMemberPermissions(permissions: bigint): this {
+    this.defaultMemberPermissions = permissions;
+    return this;
+  }
+
   toJSON(): Json {
     const options: Json[] = [];
     if (this.base) options.push(...((this.base.toJSON() as unknown as Json).options ?? []));
     for (const mount of this.mounts) {
+      // Discord reads default_member_permissions on the top-level command only.
       const json = { ...(mount.command.toJSON() as unknown as Json) };
+      delete json["default_member_permissions"];
       const name = mount.as ?? mount.command.name;
       const grouped = (json.options ?? []).some((option) => option.type === 1);
       options.push({ ...json, name, type: grouped ? 2 : 1 });
     }
-    return { name: this.name, description: this.description, options, type: 1 } as Json;
+    const permissions = this.defaultMemberPermissions === null ? {} : { default_member_permissions: this.defaultMemberPermissions.toString() };
+    return { name: this.name, description: this.description, options, type: 1, ...permissions } as Json;
   }
 
   /** Which old command and subcommand an interaction on this parent means. */

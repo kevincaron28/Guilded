@@ -301,6 +301,19 @@ There are 17 commands, not 34: small ones sit under a parent, so typing `/` show
 | `/report` | `stats`, `inactive`, `guild` (health), `export`, `ping` (is the bot online) |
 | `/help` `/profile` `/loot` `/craft` `/bank` `/apply` `/poll` `/core` `/tag` | unchanged |
 
+### Commands members don't see
+
+`/setup`, `/config`, `/mod`, `/import`, `/poll` and `/system` are only for officers, so Discord
+shows them only to people with the **Manage Server** permission; `/uninstall` only to
+**Administrator**. The bot still checks the Officer / Guild Master role when one is run.
+
+The Officer role is a role name, not a Discord permission. An Officer without Manage Server
+does not see these commands until a server admin allows it: **Server Settings → Integrations →
+Guilded**, pick the command, **Add Roles or Members**, add the Officer (and Guild Master) role.
+`/help` reminds officers of this. Commands with member and officer parts (`/raid`, `/epgp`,
+`/loot`, `/dungeon`, `/community`, `/character`, `/core`, `/team`, `/report`, `/tag`, `/bank`)
+stay visible to everyone; see `docs/COMMAND_VISIBILITY_PROPOSAL.md` for splitting them.
+
 ### Everyone on Discord
 
 | Command | What it does |

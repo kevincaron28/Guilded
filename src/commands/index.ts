@@ -39,6 +39,7 @@ import { faqCommand, executeFaq } from "./faq.js";
 import { systemCommand } from "./system.js";
 import { communityCommand, lotteryCommand, gamingCommand, challengeCommand, executeCommunity } from "./community.js";
 
+import { PermissionFlagsBits } from "discord.js";
 import { MergedCommand, type AnyCommand } from "./router.js";
 import { BRAND } from "../brand.js";
 import { poeCommand } from "./poe.js";
@@ -102,6 +103,24 @@ export const commands: AnyCommand[] = [
   bankCommand, applyCommand, pollCommand, report, mod, coreCommand, tagCommand, importer, uninstallCommand, systemCommand,
   community, poeCommand, participationCommand, teamCommand
 ];
+
+// Commands whose every subcommand checks the Officer/Guild Master role (or, for /uninstall, the
+// server owner or Administrator). Discord hides them from members without these permissions;
+// a server admin can show one to the Officer role in Server Settings > Integrations > Guilded.
+// The Officer role is a role name, not a Discord permission, so the handlers keep their checks.
+export const HIDDEN_FROM_MEMBERS: Record<string, bigint> = {
+  setup: PermissionFlagsBits.ManageGuild,
+  config: PermissionFlagsBits.ManageGuild,
+  mod: PermissionFlagsBits.ManageGuild,
+  import: PermissionFlagsBits.ManageGuild,
+  system: PermissionFlagsBits.ManageGuild,
+  poll: PermissionFlagsBits.ManageGuild,
+  uninstall: PermissionFlagsBits.Administrator
+};
+for (const command of commands) {
+  const permissions = HIDDEN_FROM_MEMBERS[command.name];
+  if (permissions !== undefined) (command as { setDefaultMemberPermissions(value: bigint): unknown }).setDefaultMemberPermissions(permissions);
+}
 
 const commandNames = commands.map((command) => command.name);
 if (new Set(commandNames).size !== commandNames.length) {

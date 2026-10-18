@@ -25,7 +25,30 @@ export function createOwnerResources({ resources, fetchCertificates = (url, opti
     index.set(item.filename, Object.freeze({ ...item }));
   }
   const certificates = new Map();
+  const pendingCertificates = new Map();
   const reply = (request, status, text, extra = {}) => new Response(request.method === 'HEAD' ? null : text, { status, headers: { ...responseHeaders, 'content-type': 'text/plain; charset=utf-8', ...extra } });
+
+  async function signingKeys(issuer) {
+    const cached = certificates.get(issuer);
+    if (cached && cached.until > now()) return cached;
+    let pending = pendingCertificates.get(issuer);
+    if (!pending) {
+      pending = (async () => {
+        const result = await fetchCertificates(issuer + '/cdn-cgi/access/certs', { redirect: 'error', signal: AbortSignal.timeout(5000) });
+        if (!result.ok) throw new Error('Signing keys unavailable');
+        const document = await result.json();
+        if (!Array.isArray(document?.keys) || document.keys.length > 32) throw new Error('Invalid signing keys');
+        const publicKeys = document.keys.filter(key => key && typeof key === 'object' && typeof key.kid === 'string' && key.kid.length <= 256 && key.kty === 'RSA');
+        if (!publicKeys.length) throw new Error('No signing keys');
+        const keys = { until: now() + 300_000, keys: publicKeys };
+        certificates.set(issuer, keys);
+        return keys;
+      })();
+      pendingCertificates.set(issuer, pending);
+    }
+    try { return await pending; }
+    finally { if (pendingCertificates.get(issuer) === pending) pendingCertificates.delete(issuer); }
+  }
 
   async function authenticate(request, env) {
     const issuer = env.OWNER_ACCESS_ISSUER;
@@ -43,24 +66,13 @@ export function createOwnerResources({ resources, fetchCertificates = (url, opti
       if (!claims || typeof claims !== 'object' || Array.isArray(claims)) return 401;
       signature = decode(segments[2]);
       signed = encoder.encode(segments[0] + '.' + segments[1]);
-      if (header.alg !== 'RS256' || typeof header.kid !== 'string' || header.kid.length > 256) return 401;
+      if (header.alg !== 'RS256' || typeof header.kid !== 'string' || !header.kid || header.kid.length > 256 || header.crit !== undefined || (header.b64 !== undefined && header.b64 !== true)) return 401;
     } catch { return 401; }
     const seconds = Math.floor(now() / 1000);
     const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
     if (claims.iss !== issuer || !audiences.includes(audience) || typeof claims.email !== 'string' || claims.email.toLowerCase() !== email || !Number.isFinite(claims.exp) || claims.exp <= seconds || (claims.nbf !== undefined && (!Number.isFinite(claims.nbf) || claims.nbf > seconds)) || (claims.iat !== undefined && (!Number.isFinite(claims.iat) || claims.iat > seconds + 60))) return 401;
-    let keys = certificates.get(issuer);
-    if (!keys || keys.until <= now()) {
-      try {
-        const result = await fetchCertificates(issuer + '/cdn-cgi/access/certs', { redirect: 'error', signal: AbortSignal.timeout(5000) });
-        if (!result.ok) return 503;
-        const document = await result.json();
-        if (!Array.isArray(document.keys) || document.keys.length > 32) return 503;
-        const publicKeys = document.keys.filter(key => key && typeof key === 'object' && typeof key.kid === 'string' && key.kid.length <= 256 && key.kty === 'RSA');
-        if (!publicKeys.length) return 503;
-        keys = { until: now() + 300_000, keys: publicKeys };
-        certificates.set(issuer, keys);
-      } catch { return 503; }
-    }
+    let keys;
+    try { keys = await signingKeys(issuer); } catch { return 503; }
     const jwk = keys.keys.find(key => key.kid === header.kid && key.kty === 'RSA' && (!key.alg || key.alg === 'RS256') && (!key.use || key.use === 'sig'));
     if (!jwk) return 401;
     try {
@@ -72,6 +84,9 @@ export function createOwnerResources({ resources, fetchCertificates = (url, opti
   return async function ownerResources(request, env) {
     const url = new URL(request.url);
     if (url.pathname !== '/owner' && !url.pathname.startsWith('/owner/')) return null;
+    // Only the canonical owner application may serve private resources.
+    // Alternate hosts fail closed even if a valid owner token is replayed.
+    if (url.origin !== 'https://kcaron.top') return reply(request, 404, 'Resource not found.');
     if (!['GET', 'HEAD'].includes(request.method)) return reply(request, 405, 'Method not allowed.', { allow: 'GET, HEAD' });
     const authorized = await authenticate(request, env);
     if (authorized !== 200) return reply(request, authorized, authorized === 503 ? 'Owner resources are not configured or are temporarily unavailable.' : 'Sign in through the owner Access application.');

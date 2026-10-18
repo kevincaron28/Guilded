@@ -1,3 +1,4 @@
+> 6.5.1 (17 October 2026): companions connect with the pairing code alone (docs/V6_5_1_RELEASE_NOTES.md).
 > 6.5.0 (17 October 2026): raid-night tools, member EP/GP history, core planning (bot; migration
 > 20261117090000_core_planning) (docs/V6_5_0_RELEASE_NOTES.md).
 > 6.4.0 (17 October 2026): guided guild setup, raid summary, level-aware gear check; party games only
@@ -31,7 +32,7 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (17 October 2026): version 6.5.0 Release, protocol 2.**
+**Current status (17 October 2026): version 6.5.1 Release, protocol 2.**
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
 Standalone guild and optional Guilded Games work is next-version candidate
 source; do not overwrite the published 6.2.0 downloads or bump incidentally.

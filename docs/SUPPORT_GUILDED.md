@@ -6,17 +6,16 @@ Guilded is an independent project by [**KCaron**](https://kcaron.top/): a WoW ad
 companion that help guilds stay connected. The addon is free for noncommercial
 use, and approved guilds can use the small hosted bot pilot for free.
 
-Running the shared service takes resources. Optional tips help fund **bot hosting,
+Running the shared service takes resources. An optional coffee helps fund **bot hosting,
 the PostgreSQL database, backups and ongoing maintenance**, so we can keep offering
 Guilded at no cost to players and approved pilot guilds.
 
-<div class="actions"><a class="button" href="https://ko-fi.com/wowguilded">Support Guilded on Ko-fi · CAD →</a></div>
+<div class="actions"><a class="button" href="https://ko-fi.com/wowguilded">Buy me a coffee · CA$3 →</a></div>
 
 The official page is **[Guilded by KCaron on Ko-fi](https://ko-fi.com/wowguilded)**.
-It accepts tips in **Canadian dollars (CAD)** through the connected PayPal account.
-The current minimum tip is **C$5**. Choose **One time** for a single tip, or
-**Monthly** only if you want recurring support. Review the amount and frequency
-on Ko-fi before completing payment.
+The displayed coffee amount is **CA$3 (Canadian dollars)**. Support is entirely
+voluntary. Review the amount, currency and whether a payment repeats on Ko-fi
+before completing payment.
 
 ## What your support helps cover
 
@@ -39,26 +38,28 @@ You can also help by reporting clear bugs and sharing feedback through
 [GitHub issues](https://github.com/kevincaron28/Guilded/issues). Thank you for
 helping keep Guilded available to the community.
 
+<section id="fr" lang="fr" aria-label="Soutien facultatif en français">
+
 ## Français
 
 ### Aidez-nous à garder Guilded gratuit
 
 Guilded est un projet indépendant de [**KCaron**](https://kcaron.top/) : un addon WoW, un bot Discord et
-un compagnon pour les guildes. Vos pourboires facultatifs aident à financer
+un compagnon pour les guildes. Vos cafés facultatifs aident à financer
 **l'hébergement du bot, la base de données PostgreSQL, les sauvegardes et la
 maintenance** afin de garder le projet gratuit et d'accueillir d'autres guildes
 selon les ressources disponibles.
 
-**[Soutenir Guilded sur Ko-fi · dollars canadiens](https://ko-fi.com/wowguilded)**
+**[Offrez-moi un café · 3 $ CA](https://ko-fi.com/wowguilded)**
 
-La page officielle s'appelle **Guilded by KCaron**. Les pourboires sont en **CAD**,
-avec un minimum actuel de **5 $ CA**, et les paiements passent par le compte PayPal
-connecté. Choisissez **One time** pour un pourboire ponctuel, ou **Monthly**
-seulement si vous souhaitez un soutien mensuel. Vérifiez le montant et la fréquence
-avant de payer.
+Le montant affiché pour un café est de **3 $ CA (dollars canadiens)** sur la page
+officielle **Guilded by KCaron**. Le soutien est entièrement facultatif. Vérifiez
+le montant, la devise et si le paiement se répète avant de confirmer sur Ko-fi.
 
 Aucun paiement n'est requis pour télécharger l'addon, demander l'accès au bot ou
 obtenir de l'aide. Le soutien ne donne ni accès automatique, ni priorité, ni
 permissions supplémentaires, ni garantie de disponibilité. **KCaron doit approuver
 chaque serveur Discord avant son activation** dans le pilote gratuit.
 Les signalements de bugs et vos commentaires sont aussi précieux. Merci !
+
+</section>

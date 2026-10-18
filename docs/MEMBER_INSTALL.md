@@ -3,11 +3,12 @@
 For guildmates using **WoW Forever**, including the beta client. You do not need
 Node.js, a database, or a Discord bot token.
 
+[Français](#fr) · [Quick setup](QUICK_START.md) · [EPGP workflow](EPGP_GUIDE.md) · [Optional Discord pilot](HOSTED_PILOT.md)
+
 ## Use it in game only
 
 **The addon alone is the default path.** Install it and use **In-game only**.
-Builds with the first-run chooser offer it as the first choice; newer candidate
-source selects it automatically. Reopen
+Current releases start in this mode automatically. Older builds may show a chooser. Reopen
 the choice with `/guilded setup` or **Home > Guilded setup**. Gear checks,
 dungeon recording, raid attendance and loot tools work without Discord or core
 signups. Officers can publish local standings to online guildmates. Save with
@@ -38,9 +39,10 @@ for your guild's online link. Use the matching release
 your officer specifies. Public releases belong on
 [GitHub Releases](https://github.com/kevincaron28/Guilded/releases) and
 [CurseForge](https://www.curseforge.com/wow/addons/guilded); only use a version
-actually listed there. 6.2.0 is the published Release, with addon-only guild
-management and faster companion sync. Install the complete addon folder and keep
-your SavedVariables; see the [6.2 release notes](V6_2_RELEASE_NOTES.md).
+actually listed there. Checked on 18 October 2026: **GitHub Release 6.5.1** and
+**CurseForge Release 6.5.1** (approved file 9234938). Their listings can update separately; check the
+version on the actual download. Install the complete addon folder and keep
+your SavedVariables; see the [6.5.1 release notes](V6_5_1_RELEASE_NOTES.md).
 Guilded Games remains a separate optional Alpha.
 
 ## 1. Install the addon
@@ -166,10 +168,10 @@ desktop and browser pairing unless you intend to reconnect the device you use.
 | --- | --- |
 | Guilded missing from the AddOns list | Check the actual client folder and the exact Guilded.toc path above; restart WoW. |
 | Find it finds no Guilded.lua | Log in with Guilded enabled and `/reload`, then Browse to your account's SavedVariables. |
-| Pairing fails | Verify the bot address and server ID first; request a new code in that server. Keep codes private. |
+| Pairing fails | Check your guild's bot address, pilot approval and the code's age; request a new code in that server. Version 6.5.1 finds the server from the code; older companions may ask for its ID. Keep codes private. |
 | Link revoked or unauthorized | A newer pairing may have replaced this one. Ask an officer about membership/access, then pair this device again. |
 | Cannot reach bot | Use Test connection. Ask the owner whether the bot and its HTTPS address are online. |
-| Guild is not initialized / 404 | Re-copy the server ID and confirm this bot is in that server. The owner runs `/setup start`. |
+| Guild is not initialized / 404 | Confirm this bot is approved and set up in your server. The owner runs `/setup start`. Check the server ID only if an older companion or Advanced preferences asks for it. |
 | Upload says it is awaiting review | An officer reviews/applies it with `/import apply`; ordinary members cannot apply guild ledgers. |
 | Upload applied entries but some are on hold | An officer runs `/import held` to see each reason. Do not award again: applied GP and a held loot record can belong to the same award. For an unlinked character, the officer uses `/character link` to select that character and its actual Discord owner; the next upload retries the existing entry. A missing core raid needs officer review of the raid recording/match. |
 | Upload works but standings look old | Check the companion's separate standings status; refresh standings, wait for success, then `/reload`. |
@@ -209,15 +211,23 @@ not resolved it. This is a verified recovery step for that case, not a guarantee
 for every missing dot. If it persists, provide both map-check outputs and say
 whether ordinary guild chat arrives.
 
-## Mise en route rapide en français
+<section id="fr" lang="fr" aria-label="Installation en français">
+
+## Installation et connexion en français
+
+**L'addon fonctionne sans Discord.** Il ne faut ni compte d'hébergement, ni base
+de données, ni jeton de bot pour jouer. Client ciblé : **WoW Forever 1.60.1**.
+Au 18 octobre 2026, GitHub propose la Release **6.5.1** et CurseForge la Release
+**6.5.1** (fichier approuvé 9234938). Vérifiez toujours la version du fichier téléchargé; Guilded Games
+reste un addon Alpha séparé.
 
 Pour ajouter le bot à votre guilde, utilisez le lien **Add Guilded** ci-dessus.
 **L'approbation de KCaron est obligatoire avant l'activation du serveur.**
 Après son accord, lancez `/setup start`. Le pilote hébergé est gratuit; tout
 soutien financier est facultatif et ne donne aucune priorité.
 
-1. Demandez à un officier les liens de téléchargement, l'adresse du bot et
-   l'identifiant du serveur Discord de **votre guilde**.
+1. Téléchargez l'addon depuis GitHub Releases ou CurseForge, avec la version
+   choisie par votre guilde. Aucun passage par Discord n'est requis.
 2. Fermez WoW. Installez le dossier Guilded dans `Interface\AddOns` du bon client
    (Forever beta : `_classic_beta_` dans l'installation testée), puis relancez WoW.
 3. Ouvrez Guilded avec la pièce sur la minicarte. `/reload` enregistre les données.
@@ -228,8 +238,11 @@ soutien financier est facultatif et ne donne aucune priorité.
 5. **Compagnon facultatif :** dans **Lier mon personnage WoW**, choisissez
    **Connecter le compagnon (facultatif)**, ou utilisez `/character pair`.
    Ouvrez **Ouvrir le compagnon en ligne**.
-6. Vérifiez l'identifiant du serveur, rempli à la première visite, et entrez
-   votre code privé dans **Connection & setup**, puis **Connect**.
+6. Avec le compagnon **6.5.1**, collez seulement votre code privé dans
+   **Connection & setup**, puis **Connect**. Le code retrouve votre serveur.
+   Il expire après 15 minutes et ne sert qu'une fois. Les anciens compagnons
+   peuvent encore demander l'identifiant du serveur; le champ reste dans
+   **Advanced preferences** pour les cas où il est nécessaire.
    Sélectionnez le dossier `SavedVariables` de votre compte et, avec
    **Save standings to addon**, le dossier `Interface/AddOns/Guilded`.
 7. Après `/reload`, cliquez sur **Sync now**. Synchronisez votre principal d'abord
@@ -249,3 +262,16 @@ précédente. `/character list` montre le résultat après la synchro.
 
 Vous n'avez pas besoin du jeton du bot. Ne partagez jamais votre code de liaison.
 `/guilded lang fr` sélectionne le français dans l'addon.
+
+**Vérification :** la fenêtre s'ouvre sans erreur Lua. Si vous utilisez la
+synchronisation facultative, vérifiez l'envoi réussi, le bon personnage et les
+classements après `/reload`. Un envoi en attente de révision doit être examiné
+par un officier; ne recréez pas une attribution déjà importée.
+
+En cas de problème, joignez les versions de l'addon et du compagnon, le build
+du client, les étapes et l'heure du problème. Anonymisez les captures. Ne
+partagez jamais `config.json`, un jeton, un code de liaison ou vos données de compte.
+
+[Comprendre le fonctionnement EPGP](EPGP_GUIDE.md#fr) · [Pilote Discord facultatif](HOSTED_PILOT.md#fr)
+
+</section>

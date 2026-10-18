@@ -4,6 +4,25 @@
 # `handle` blocks are mutually exclusive and run in the order written, unlike bare top-level
 # directives (which Caddy reorders by its own built-in priority regardless of file order) -
 # needed here so the 404 fallback doesn't run before reverse_proxy gets a chance.
+#
+# deploy/update.sh re-applies this file (keeping the hostname) when it changes, as long as the
+# installed copy still has this file's first line. Delete that line before editing it by hand.
+
+# Caddy's error entries (a 502 while the bot restarts, for example) copy the request headers
+# into the system journal. Drop the ones that carry a credential from every log entry.
+{
+	log default {
+		format filter {
+			wrap json
+			fields {
+				request>headers>X-Companion-Credential delete
+				request>headers>Authorization delete
+				request>headers>Cookie delete
+			}
+		}
+	}
+}
+
 YOUR_HOSTNAME {
 	request_body {
 		max_size 2MB

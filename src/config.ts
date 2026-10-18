@@ -17,6 +17,8 @@ const environmentSchema = z.object({
   HOSTED_PILOT: z.enum(["true", "false", "1", "0"]).default("false").transform(value => value === "true" || value === "1"),
   HOSTED_GUILD_IDS: z.string().default(""),
   HOSTED_GUILD_LIMIT: z.coerce.number().int().min(1).max(100).default(5),
+  // Servers waiting for approval get Guilded Lite until this many are waiting (0: no access until approved).
+  HOSTED_LITE_LIMIT: z.coerce.number().int().min(0).max(100).default(50),
   DATABASE_URL: z.string().url(),
   COMPANION_API_PORT: z.coerce.number().int().min(1).max(65535).default(8787),
   // 127.0.0.1 = this computer only. On a server behind HTTPS (deploy/), use 0.0.0.0 or leave 127.0.0.1 with a reverse proxy.

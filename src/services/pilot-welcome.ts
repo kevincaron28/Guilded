@@ -44,3 +44,21 @@ export async function welcomeApprovedOwner(client: Client, guild: Guild): Promis
     return false;
   }
 }
+
+export const LITE_IDLE_NOTICE = `${BRAND.emoji} **${BRAND.name} Lite**: nobody has used ${BRAND.name} on this server for 30 days. `
+  + `It will leave in 7 days unless someone uses a command (for example \`/help\`). You can add it back any time.\n`
+  + `Personne n'a utilisé ${BRAND.name} sur ce serveur depuis 30 jours. Il quittera le serveur dans 7 jours, sauf si quelqu'un utilise une commande (par exemple \`/help\`). Vous pourrez le réinviter en tout temps.`;
+
+// Idle Lite server: the system channel, or the server owner's DMs when there is none.
+// Never throws; returns whether the notice was delivered.
+export async function warnIdleLite(client: Client, guild: Guild): Promise<boolean> {
+  try {
+    if (guild.systemChannel) { await guild.systemChannel.send({ content: LITE_IDLE_NOTICE, allowedMentions: { parse: [] } }); return true; }
+    const owner = await client.users.fetch(guild.ownerId);
+    if (owner.bot) return false;
+    await owner.send({ content: LITE_IDLE_NOTICE, allowedMentions: { parse: [] } });
+    return true;
+  } catch {
+    return false;
+  }
+}

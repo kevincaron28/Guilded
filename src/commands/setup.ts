@@ -38,6 +38,8 @@ import { asLang, tx, type Lang } from "../i18n.js";
 import { CATEGORY_NAMES, isSetupLeftover, categoryNames, channelNames, channelSpec, type Access, type CategoryKey, type ChannelField } from "../setup-names.js";
 import { forgetAnswerSettings } from "./faq.js";
 import { BRAND } from "../brand.js";
+import { hostedPilot } from "../hosted-pilot.js";
+import { LITE_SETUP_STEPS, LITE_SUMMARY } from "./lite.js";
 import { boardTagNames, postBoardGuide } from "./craft-board.js";
 import { communitySetupState, ensureCommunitySetup } from "../services/community-setup.js";
 
@@ -797,6 +799,8 @@ export async function executeSetup(interaction: ChatInputCommandInteraction): Pr
   }
   const guild = interaction.guild;
   const guildId = context.guildId;
+  // Guilded Lite (hosted, awaiting approval): roles and channels only.
+  const lite = hostedPilot.tier(guild.id) === "lite";
 
   // `status:true` used to reply once with no collector, so its buttons (Create
   // missing channels/roles, Tidy, etc.) were dead — a click did nothing. It
@@ -843,8 +847,8 @@ export async function executeSetup(interaction: ChatInputCommandInteraction): Pr
       const withCommunity = async (channels: string) => `${channels}
 ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
         .catch((error: unknown) => `⚠️ ${T("Community setup didn't finish: {error}", { error: error instanceof Error ? error.message : String(error) })}`)}`;
-      if (action === "next") step = Math.min(SUMMARY_STEP, step + 1);
-      else if (action === "back") step = Math.max(1, step - 1);
+      if (action === "next") step = lite ? LITE_SETUP_STEPS.find((s) => s > step) ?? SUMMARY_STEP : Math.min(SUMMARY_STEP, step + 1);
+      else if (action === "back") step = lite ? Math.max(1, ...LITE_SETUP_STEPS.filter((s) => s < step)) : Math.max(1, step - 1);
       else if (action === "jump-summary") step = SUMMARY_STEP;
       else if (action === "restart") step = 1;
       else {
@@ -1058,14 +1062,15 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
 
 // Posted in the server's system channel when the bot is added, so whoever
 // invited it knows the one command to run.
-export async function greetNewGuild(guild: DiscordGuild): Promise<void> {
+export async function greetNewGuild(guild: DiscordGuild, lite = false): Promise<void> {
   const channel = guild.systemChannel;
   if (!channel) return;
   await channel.send({
     embeds: [new EmbedBuilder().setTitle(`${BRAND.emoji} Thanks for adding ${BRAND.name}!`).setColor(BRAND.color)
       // The server's language is not chosen yet at this point, so both languages.
       .setDescription("A server admin should run **`/setup start`** now — it's a 2-minute, click-through guide (no typing). You pick English or Français on its first screen.\n\n"
-        + "Un administrateur devrait lancer **`/setup start`** maintenant — un guide de 2 minutes, avec des boutons (rien à écrire). Vous choisirez English ou Français sur le premier écran.\n\n`/help`")]
+        + "Un administrateur devrait lancer **`/setup start`** maintenant — un guide de 2 minutes, avec des boutons (rien à écrire). Vous choisirez English ou Français sur le premier écran.\n\n`/help`"
+        + (lite ? `\n\n**${BRAND.name} Lite**: ${LITE_SUMMARY.en}\n${LITE_SUMMARY.fr}` : ""))]
   }).catch(() => undefined);
 }
 

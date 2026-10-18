@@ -5,7 +5,8 @@ import { PILOT_DENIED } from "./pilot-policy.js";
 export function createGuildService(database: PrismaClient) {
   return {
     ensureGuild(discordId: string, name: string) {
-      if (!hostedPilot.allows(discordId)) throw new Error(PILOT_DENIED);
+      // Lite servers get a record for their setup and signups; scheduled jobs still skip them (pilotGuildScope).
+      if (hostedPilot.tier(discordId) === "blocked") throw new Error(PILOT_DENIED);
       return database.guild.upsert({
         where: { discordId },
         create: {

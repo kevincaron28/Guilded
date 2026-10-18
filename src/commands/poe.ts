@@ -43,9 +43,10 @@ export async function executePoe(interaction: ChatInputCommandInteraction): Prom
   if (sub === "pair") {
     const pair = await issueCharacterPairingCode(prisma, guildId, memberId);
     const companion = companionLinkText(fr ? "fr" : "en", interaction.guild.id);
+    const box = "```\n" + pair.code + "\n```";
     await interaction.editReply(T(
-      `${companion}\nIn **Connection & setup**, paste code **${pair.code}**, then **Connect** (one use, expires <t:${Math.floor(pair.expiresAt.getTime() / 1000)}:R>; keep it private).\nAlready connected for WoW? Enable PoE2 in the same companion; no new code needed. Using a code replaces your previous companion connection.`,
-      `${companion}\nDans **Connection & setup**, collez le code **${pair.code}**, puis **Connect** (usage unique, expire <t:${Math.floor(pair.expiresAt.getTime() / 1000)}:R>; gardez-le privé).\nDéjà connecté pour WoW ? Activez PoE2 dans le même compagnon; aucun nouveau code nécessaire. Utiliser un code remplace votre connexion compagnon précédente.`
+      `${companion}\n${box}In **Connection & setup**, paste this code, then **Connect** (one use, expires <t:${Math.floor(pair.expiresAt.getTime() / 1000)}:R>; keep it private).\nAlready connected for WoW? Enable PoE2 in the same companion; no new code needed. Using a code replaces your previous companion connection.`,
+      `${companion}\n${box}Dans **Connection & setup**, collez ce code, puis **Connect** (usage unique, expire <t:${Math.floor(pair.expiresAt.getTime() / 1000)}:R>; gardez-le privé).\nDéjà connecté pour WoW ? Activez PoE2 dans le même compagnon; aucun nouveau code nécessaire. Utiliser un code remplace votre connexion compagnon précédente.`
     ));
     return;
   }

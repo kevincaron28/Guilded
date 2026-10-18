@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `/character pair` and `/poe pair` show the connection code first, alone in a copyable box,
+  instead of in bold inside a sentence.
+
 ## 6.5.1 Release — 17 October 2026
 
 - Companions (online and Windows): connecting needs only the `/character pair` code; the bot

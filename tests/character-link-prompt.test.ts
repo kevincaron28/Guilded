@@ -76,9 +76,10 @@ describe("private character connection instructions", () => {
     const reply = await characterLinkPrompt(mocks.db as never, "guild1", "member1", "server1", "en", "companion");
     expect(mocks.issueCode).toHaveBeenCalledOnce();
     const fields = reply.embeds[0]!.data.fields!;
-    expect(fields[0]!.value).toContain("character you want as your **main**");
-    expect(fields[1]!.value).toContain("**ABC123DEF456**");
-    expect(fields[1]!.value).toContain("replaces your previous companion connection");
+    // The code comes first, alone on its line in a box, so it is easy to spot and copy.
+    expect(fields[0]!.value.startsWith("```\nABC123DEF456\n```")).toBe(true);
+    expect(fields[0]!.value).toContain("replaces your previous companion connection");
+    expect(fields[1]!.value).toContain("character you want as your **main**");
     expect(fields[2]!.value).toContain("paste the code above");
     expect(fields[2]!.value).not.toContain("server ID");
     expect(fields[2]!.value).toContain("/guilded setup connected");

@@ -2,10 +2,11 @@ import { z } from "zod";
 
 // Version 5 is opt-in. No default preset, database access or season activation.
 export const novemberDungeonKey = (key: string): boolean => /^[1-9]\d{0,5}(?::[a-z][a-z0-9-]{0,39})?$/.test(key);
-const identitySchema = z.object({
+const identityBase = z.object({
   ids: z.array(z.number().int().positive().max(1000000)).max(20),
   names: z.array(z.string().trim().min(1).max(100)).max(20)
-}).refine(b => b.ids.length + b.names.length > 0, "Encounter evidence is required");
+});
+const identitySchema = identityBase.refine(b => b.ids.length + b.names.length > 0, "Encounter evidence is required");
 const bandSchema = z.object({ min: z.number().int().min(1).max(60), max: z.number().int().min(1).max(60), difficultyId: z.number().int().min(0) })
   .refine(b => b.min <= b.max);
 const routeSchema = z.object({
@@ -100,18 +101,37 @@ export const DEFAULT_OVERLEVEL_PENALTY = { percentPerLevel: 10, maxLevels: 3 } a
 const penaltySchema = z.object({ percentPerLevel: z.number().int().min(0).max(30), maxLevels: z.number().int().min(0).max(5) })
   .refine(p => p.percentPerLevel * p.maxLevels < 100, "The penalty must leave some points");
 export type OverlevelPenalty = z.infer<typeof penaltySchema>;
-const bracketRouteSchema = routeSchema.extend({ competitionBand: bandSchema.nullable() })
-  .refine(r => (r.targetSec === null) === (r.competitionBand === null), "Rated routes need a competition band; participation-only routes have none");
+// completionModel "addon-final-boss" (provisional seasons): the route is its whole map, completed
+// when the addon detects the final boss from the Encounter Journal, as in the beta seasons. It has
+// no encounter evidence and may not share its map with another route.
+const bracketRouteSchema = routeSchema.extend({ competitionBand: bandSchema.nullable(), completion: identityBase,
+  completionModel: z.literal("addon-final-boss").optional() })
+  .refine(r => (r.targetSec === null) === (r.competitionBand === null), "Rated routes need a competition band; participation-only routes have none")
+  .refine(r => r.completionModel === "addon-final-boss"
+    ? r.completion.ids.length + r.completion.names.length === 0 && r.requiredEncounters.length === 0
+    : r.completion.ids.length + r.completion.names.length > 0, "Encounter evidence is required (addon-final-boss routes have none)");
 export type BracketRoute = z.infer<typeof bracketRouteSchema>;
 
 export function bracketForLevel(brackets: readonly DungeonBracket[], level: unknown): DungeonBracket | undefined {
   return Number.isInteger(level) ? brackets.find(b => b.min <= (level as number) && (level as number) <= b.max) : undefined;
 }
 
+// A provisional season (owner, 18 October 2026: "use provisional recommendations until real timed
+// runs exist") names its plan and the planned routes it could not include yet. An officer may later
+// replace a route's target from real runs: each change applies to runs that END at or after `from`,
+// so a score already earned keeps the target it was earned under.
+const provisionalSchema = z.object({ plan: z.string().trim().min(1).max(60),
+  waiting: z.array(z.object({ id: z.string().min(1).max(60), reason: z.string().min(1).max(120) })).max(60) });
+const recalibrationSchema = z.object({ dungeonKey: z.string().refine(novemberDungeonKey), targetSec: z.number().int().min(60).max(14400),
+  from: z.string().datetime(), runs: z.number().int().min(1).max(10000) });
+export type TargetRecalibration = z.infer<typeof recalibrationSchema>;
+
 export function createBracketedDungeonRules(input: unknown) {
   const parsed = z.object({ routes: z.array(bracketRouteSchema).min(1).max(100), brackets: z.array(bracketSchema).min(1).max(10),
-    overlevelPenalty: penaltySchema.default({ ...DEFAULT_OVERLEVEL_PENALTY }) }).parse(input);
+    overlevelPenalty: penaltySchema.default({ ...DEFAULT_OVERLEVEL_PENALTY }),
+    provisional: provisionalSchema.optional(), recalibrations: z.array(recalibrationSchema).max(200).optional() }).parse(input);
   const routes = checkedRoutes(parsed.routes);
+  for (const r of routes) if (r.completionModel && routes.some(o => o !== r && o.instanceId === r.instanceId)) throw new Error("A shared map needs encounter evidence for each route");
   const brackets = [...parsed.brackets].sort((a, b) => a.min - b.min);
   if (new Set(brackets.map(b => b.key)).size !== brackets.length || brackets.some((b, i) => i > 0 && b.min <= brackets[i - 1]!.max)) {
     throw new Error("Brackets must have distinct keys and must not overlap");
@@ -127,25 +147,47 @@ export function createBracketedDungeonRules(input: unknown) {
   for (const b of brackets) {
     if (rated.filter(r => routeBracket[r.dungeonKey] === b.key).length < b.bestCount) throw new Error(`Bracket ${b.key} needs at least ${b.bestCount} rated routes`);
   }
+  const recalibrations = parsed.recalibrations;
+  if (recalibrations && !parsed.provisional) throw new Error("Only a provisional season can recalibrate targets");
+  for (const [i, c] of (recalibrations ?? []).entries()) {
+    if (!rated.some(r => r.dungeonKey === c.dungeonKey)) throw new Error(`Route ${c.dungeonKey} is not rated`);
+    if (i > 0 && Date.parse(c.from) < Date.parse(recalibrations![i - 1]!.from)) throw new Error("Recalibrations must be in time order");
+  }
+  // Current target: the latest recalibration, else the route's starting target.
+  const current = (r: typeof rated[number]) => [...(recalibrations ?? [])].reverse().find(c => c.dungeonKey === r.dungeonKey)?.targetSec ?? r.targetSec!;
+  const provisionalRoute = (key: string) => !!parsed.provisional && !(recalibrations ?? []).some(c => c.dungeonKey === key);
   return {
     version: 6, model: "distinct-dungeons", pointsPerDungeon: 200, speedBonus: 0,
     minimumPresence: 0.8, automaticCompletionOnly: true, minimumScore: 50, maximumScore: 400,
     participationModel: "weekly-variety-v1", routeEvidenceVersion: 1, routes, brackets, routeBracket, overlevelPenalty: { ...parsed.overlevelPenalty },
-    targets: Object.fromEntries(rated.map(r => [r.dungeonKey, r.targetSec!])),
+    ...(parsed.provisional ? { provisional: parsed.provisional, provisionalTargets: rated.some(r => provisionalRoute(r.dungeonKey)) } : {}),
+    ...(recalibrations ? { recalibrations } : {}),
+    targets: Object.fromEntries(rated.map(r => [r.dungeonKey, current(r)])),
     levelBands: Object.fromEntries(rated.map(r => [r.dungeonKey, { ...r.competitionBand! }])),
     participationLevelBands: Object.fromEntries(routes.map(r => [r.dungeonKey, { ...r.participationBand }])),
-    catalog: rated.map(r => ({ dungeonKey: r.dungeonKey, instanceId: r.instanceId, name: r.name, targetSec: r.targetSec!,
-      minLevel: r.competitionBand!.min, maxLevel: r.competitionBand!.max, bracket: routeBracket[r.dungeonKey]! }))
+    catalog: rated.map(r => ({ dungeonKey: r.dungeonKey, instanceId: r.instanceId, name: r.name, targetSec: current(r),
+      minLevel: r.competitionBand!.min, maxLevel: r.competitionBand!.max, bracket: routeBracket[r.dungeonKey]!,
+      ...(parsed.provisional ? { provisional: provisionalRoute(r.dungeonKey) } : {}) }))
   };
 }
 export type BracketedRules = ReturnType<typeof createBracketedDungeonRules>;
+
+/** The target a run is rated against: the one in force when it ended (the starting target when unknown). */
+export function routeTargetAt(rules: BracketedRules, key: string, endedAt: Date | null | undefined): number | undefined {
+  const route = rules.routes.find(r => r.dungeonKey === key);
+  if (!route || route.targetSec === null) return undefined;
+  const at = endedAt?.getTime();
+  const change = at === undefined ? undefined : [...(rules.recalibrations ?? [])].reverse().find(c => c.dungeonKey === key && Date.parse(c.from) <= at);
+  return change?.targetSec ?? route.targetSec;
+}
 
 /** A stored version 6 rule set must equal what its own routes and brackets produce. */
 export function validBracketedRules(value: unknown): value is BracketedRules {
   if (!value || typeof value !== "object" || (value as { version?: unknown }).version !== 6) return false;
   const r = value as BracketedRules;
   try {
-    return sameJson(r, createBracketedDungeonRules({ routes: r.routes, brackets: r.brackets, overlevelPenalty: r.overlevelPenalty ?? null }));
+    return sameJson(r, createBracketedDungeonRules({ routes: r.routes, brackets: r.brackets, overlevelPenalty: r.overlevelPenalty ?? null,
+      ...(r.provisional !== undefined ? { provisional: r.provisional } : {}), ...(r.recalibrations !== undefined ? { recalibrations: r.recalibrations } : {}) }));
   } catch { return false; }
 }
 function sameJson(a: unknown, b: unknown): boolean {
@@ -160,7 +202,7 @@ export function validRouteRules(value: unknown): value is NovemberRules | Bracke
   return validNovemberRules(value) || validBracketedRules(value);
 }
 
-interface EvidenceRun { instanceId: number; startedAt?: Date | null; endedAt?: Date | null; competitionData?: unknown }
+interface EvidenceRun { instanceId: number; startedAt?: Date | null; endedAt?: Date | null; competitionData?: unknown; completedBy?: string | null }
 type Encounter = { id?: number; name?: string; at?: number; success?: boolean };
 function matches(b: EncounterIdentity, e: Encounter): boolean {
   return (typeof e.id === "number" && b.ids.includes(e.id)) || (typeof e.name === "string" && b.names.some(n => normalize(n) === normalize(e.name!)));
@@ -172,10 +214,12 @@ export function resolveNovemberRoute(run: EvidenceRun, rules: { routes: November
   if (!run.startedAt || !run.endedAt || !Array.isArray(all)) return unknown;
   const encounters = all.filter(e => e && e.success === true && Number.isInteger(e.at)
     && e.at! >= run.startedAt!.getTime() / 1000 && e.at! <= run.endedAt!.getTime() / 1000);
+  const finalBoss = (r: NovemberRoute) => (r as { completionModel?: string }).completionModel === "addon-final-boss";
   const candidates = rules.routes.filter(r => r.instanceId === run.instanceId
-    && [r.completion, ...r.requiredEncounters].some(b => encounters.some(e => matches(b, e))));
+    && (finalBoss(r) || [r.completion, ...r.requiredEncounters].some(b => encounters.some(e => matches(b, e)))));
   if (candidates.length !== 1) return unknown;
   const route = candidates[0]!;
+  if (finalBoss(route)) return run.completedBy === "final boss" ? { key: route.dungeonKey, route } : { key: route.dungeonKey, route, reason: "Required encounter evidence missing" };
   if (!encounters.some(e => matches(route.completion, e)) || route.requiredEncounters.some(b => !encounters.some(e => matches(b, e)))) {
     return { key: route.dungeonKey, route, reason: "Required encounter evidence missing" };
   }

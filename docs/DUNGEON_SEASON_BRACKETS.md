@@ -1,7 +1,8 @@
 # Dungeon season for all levels (rules version 6)
 
 Item 3 of `docs/ROADMAP_REQUESTS_PLAN_2026-10-18.md` (PR #134). Built 18 October 2026.
-Nothing here creates, activates or changes a season, and no targets are set.
+Nothing here creates, activates or changes a season by itself; an officer starts the provisional
+season below (7.0).
 
 ## What version 6 is
 
@@ -71,7 +72,43 @@ catalog` shows it in a second message. `bracketPlanProblems()` checks it fits
 the default brackets. It has no map IDs, encounter evidence or difficulty, so
 it cannot become season rules by itself.
 
-## Still open before a season can use it
+## Starting a provisional season (Guilded 7.0)
 
-- Real launch data: each route's map ID, required encounters and difficulty.
-- Real timed runs to replace the provisional level ranges and targets.
+The owner decided on 18 October 2026 to "use provisional recommendations until real timed runs
+exist". `src/services/dungeon-bracket-season.ts` turns the plan into version 6 rules using only
+what the addon observes today. Officers (hidden `/officer dungeon` tools):
+
+- `bracket-preview`: each bracket, its routes, level ranges, targets and best-N, all labelled
+  provisional, plus what is left out and why. Nothing starts.
+- `bracket-start name starts_at ends_at [rotate]`: explicit window with time zone. With a season
+  active it refuses unless `rotate:true`; then the normal `startSeason` rotation archives it in one
+  locked transaction (standings and rating frozen, runs and points kept). `starts_at` may be later
+  than now (runs before it do not count); it may not be in the past.
+- `recalibrate route [minutes]`: without minutes, the route's real ranked timed runs this season
+  (in-band groups only) and their median as a suggestion. With minutes, needs at least 3 such runs.
+  The change is stored as `recalibrations: [{ dungeonKey, targetSec, from, runs }]` and applies to
+  runs that **end** at or after `from`; an earlier run keeps the target it was earned under, so no
+  earned score changes (the best per route still compares those frozen points). Only a season with
+  a `provisional` block can recalibrate; any other season keeps fixed targets until the next one.
+
+### What is real and what is provisional
+
+| Part | Source | Status |
+| --- | --- | --- |
+| Map IDs | `BETA_DUNGEONS` keys, reported by real beta-client runs; Armory and Cathedral use map 189 like the other Scarlet wings | Observed |
+| Difficulty | 0, reported in real exported beta runs (`docs/DUNGEON_BETA_PRESET_2026-10.md`) | Observed (beta client) |
+| Completion | Addon's final-boss detection from the Encounter Journal (`completionModel: "addon-final-boss"`), as in the beta seasons; Scarlet wings by their last boss's English/French name (`SCARLET_WINGS`), which the addon now also uses for Armory and Cathedral | Observed rule; no encounter IDs |
+| Level ranges | Plan: beta client ranges clipped to the bracket, or estimates | **Provisional** |
+| Targets | Plan: beta design targets, or estimates | **Provisional** until recalibrated |
+| Brackets | 15-29 (best 5) and 30-44 (best 5) only | 45-59 and 60 have no route with an observed map ID, so they are left out: characters at 45+ get no rating row in this season |
+| Waiting | 16 planned dungeons with no observed map ID (new dungeons, 45+ dungeons) | Listed in `provisional.waiting`; their runs are kept but unrated ("Dungeon route unknown") |
+
+`provisionalTargets` is true while any rated route is still on its starting target. The leaderboard
+and `/dungeon season` (title and a note), `/dungeon rules` (a field, `*` on each provisional
+target) and the addon score panel (note, `*` after the target) show it.
+
+## Still open
+
+- Real launch data for the 45-59 and 60 brackets and the new dungeons: map IDs, then a new season.
+- Real timed runs to replace the provisional level ranges (targets can be recalibrated in-season).
+- In game: Armory and Cathedral final-boss detection, and difficulty 0 at launch.

@@ -1,7 +1,7 @@
 import { EmbedBuilder } from "discord.js";
 import type { Lang } from "../i18n.js";
 import type { DungeonConfig } from "./dungeon-rules.js";
-import { hasDungeonRating, seasonDungeonCatalog } from "./dungeon-rating.js";
+import { hasDungeonRating, provisionalNote, seasonDungeonCatalog } from "./dungeon-rating.js";
 import { BETA_DUNGEONS } from "./dungeon-beta-preset.js";
 import { validBracketedRules, validNovemberRules, type BracketedRules } from "./dungeon-november-rules.js";
 
@@ -75,10 +75,29 @@ function bracketGuide(rules: BracketedRules, fr: boolean): EmbedBuilder {
       { name: fr ? "Admissibilité et preuves" : "Eligibility and evidence", value: fr
         ? `Tous les participants observés, invités et remplaçants inclus, comptent. Au-dessus de la plage du parcours : −${rules.overlevelPenalty.percentPerLevel} % par niveau du plus haut participant, jusqu’à ${rules.overlevelPenalty.maxLevels} niveaux; au-delà, c’est un transport et le run vaut 0. Sous la plage : 0. Personnage lié, présence ≥ 80 %, difficulté configurée, import valide, boss final détecté et tous les boss requis par le parcours figé.`
         : `ALL observed participants count, including guests and replacements. Above the route's band: −${rules.overlevelPenalty.percentPerLevel}% per level of the highest participant, up to ${rules.overlevelPenalty.maxLevels} levels; beyond that it is a carry and the run scores 0. Below the band: 0. Linked character, ≥80% presence, configured difficulty, valid import, detected final boss and every encounter required by the frozen route.` },
-      { name: fr ? "Participation et historique" : "Participation and history", value: fr
-        ? "La participation suit les mêmes règles hebdomadaires que la saison niveau 60. Cibles, tranches et preuves sont figées pour la saison; les archives gardent chaque tranche séparément."
-        : "Participation follows the same weekly rules as the level-60 season. Targets, brackets and evidence are frozen for the season; archives keep each bracket separately." }
+      rules.provisional
+        ? { name: fr ? "Participation et historique" : "Participation and history", value: fr
+          ? "La participation suit les mêmes règles hebdomadaires que la saison niveau 60. Tranches et preuves sont figées pour la saison; une cible recalibrée ne vaut que pour les runs terminés après le changement. Les archives gardent chaque tranche séparément."
+          : "Participation follows the same weekly rules as the level-60 season. Brackets and evidence are frozen for the season; a recalibrated target applies only to runs that end after the change. Archives keep each bracket separately." }
+        : { name: fr ? "Participation et historique" : "Participation and history", value: fr
+          ? "La participation suit les mêmes règles hebdomadaires que la saison niveau 60. Cibles, tranches et preuves sont figées pour la saison; les archives gardent chaque tranche séparément."
+          : "Participation follows the same weekly rules as the level-60 season. Targets, brackets and evidence are frozen for the season; archives keep each bracket separately." },
+      ...(rules.provisional ? provisionalFields(rules, fr) : [])
     );
+}
+
+// Provisional all-level season: which targets are still recommendations, and what is not rated yet.
+function provisionalFields(rules: BracketedRules, fr: boolean) {
+  const waiting = rules.provisional!.waiting.length;
+  const note = { name: rules.provisionalTargets ? (fr ? "Cibles provisoires (*)" : "Provisional targets (*)") : (fr ? "Cibles recalibrées" : "Recalibrated targets"), value: [
+    ...(rules.provisionalTargets ? [provisionalNote(fr)] : []),
+    fr ? "Fin : boss final détecté par l’addon (ailes de Scarlet : leur dernier boss, par son nom)." : "Completion: final boss detected by the addon (Scarlet wings: their last boss, by name).",
+    ...(waiting ? [fr ? `${waiting} donjon(s) du plan attendent les données du lancement (aucun ID de carte observé) : pas de cote pour l’instant.`
+      : `${waiting} planned dungeon(s) wait for launch data (no map ID observed): not rated yet.`] : [])
+  ].join("\n") };
+  return [note, ...rules.brackets.map(b => ({ name: `${fr ? "Parcours" : "Routes"} ${b.key}`, value: rules.catalog.filter(d => d.bracket === b.key)
+    .map(d => `${d.name} · ${d.minLevel === d.maxLevel ? d.minLevel : `${d.minLevel}–${d.maxLevel}`} · ${Math.round(d.targetSec / 60)} min${d.provisional ? "*" : ""}`)
+    .join("\n").slice(0, 1024) || "—", inline: true }))];
 }
 
 function bestEightGuide(rules: unknown, fr: boolean): EmbedBuilder {

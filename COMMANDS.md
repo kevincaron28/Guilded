@@ -448,6 +448,9 @@ Approve, and a raid can never be paid twice.
 | `/officer dungeon config [rule] [points] [weekly] [dungeon_master]` | See the point rules, change one, the weekly repeat share (e.g. `100,50,0`), or how many dungeons Dungeon Master needs |
 | `/officer dungeon target <dungeon> <minutes>` | Target time; beating it earns the underTarget bonus. 0 removes it |
 | `/officer dungeon season-start <name>` | End the season (kept) and start a new one |
+| `/officer dungeon bracket-preview` | Preview the provisional all-level season (brackets, routes, levels, targets, best-N); nothing starts |
+| `/officer dungeon bracket-start <name> <starts_at> <ends_at> [rotate]` | Start that season; with a season active, needs `rotate:true` (the old one is archived, nothing deleted) |
+| `/officer dungeon recalibrate <route> [minutes]` | Without minutes: the route's real timed runs and a suggested target. With minutes (3+ runs needed): new target for runs ending from now; earned scores stay |
 | `/mod application list` / `view` / `approve` / `reject` / `trial` | Handle applications |
 | `/mod warn` / `timeout` / `kick` / `ban` / `history` | Moderation (logged) |
 | `/mod faq channel [#channel]` | The answer channel: members ask there and the bot replies (needs `MESSAGE_CONTENT_INTENT=true` on the server, after turning on Message Content Intent in the Discord Developer Portal). Empty = off |

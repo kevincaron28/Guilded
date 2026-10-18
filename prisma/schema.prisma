@@ -799,6 +799,8 @@ model GuildSettings {
   // notice posts when the bot/addon version changes (they share one version).
   guideChannelId           String?
   lastAnnouncedVersion     String?
+  // Newest release the officers were told is available (src/services/update-check.ts).
+  lastUpdateNoticeVersion  String?
   // "EPGP" (bids decide) or "COUNCIL" (officers decide with /loot award; bids are off).
   lootMode                 String    @default("EPGP")
   // true: an addon upload from the companion is applied right away, with no /import-apply.

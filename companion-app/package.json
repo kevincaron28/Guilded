@@ -26,6 +26,7 @@
       "main.cjs",
       "preload.cjs",
       "detect-wow.cjs",
+    "update-check.cjs",
       "renderer/**",
       "assets/**",
       "package.json"

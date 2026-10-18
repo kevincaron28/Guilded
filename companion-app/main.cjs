@@ -1,8 +1,9 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog, shell } = require("electron");
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog, shell, Notification } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const { detectSavedVariables } = require("./detect-wow.cjs");
+const updates = require("./update-check.cjs");
 
 // Guilded Companion: a tray app around companion/engine.mjs. The window is
 // for setup and a look at what is happening; day to day it lives in the tray.
@@ -87,18 +88,45 @@ function health(state) {
   return { level: "ok", text: "Running: watching for changes" };
 }
 
+// A newer Guilded release, shown on Overview, in the tray and once as a Windows notification.
+let update = null;
+let latestRelease = null;
+
+function refreshUpdate(state = engine?.state()) {
+  const next = updates.pickUpdate(app.getVersion(), latestRelease, state?.botVersion);
+  if (next?.version === update?.version) return;
+  update = next;
+  if (!update || config.updateNotifiedVersion === update.version) return;
+  config.updateNotifiedVersion = update.version;
+  saveConfig();
+  if (!Notification.isSupported()) return;
+  const notice = new Notification({
+    title: `Guilded Companion ${update.version} is available`,
+    body: `You have ${app.getVersion()}. Click to open the download page.`,
+    icon: asset("icon.png")
+  });
+  notice.on("click", () => void shell.openExternal(update.url));
+  notice.show();
+}
+
+async function checkForUpdate() {
+  latestRelease = await updates.fetchLatestRelease() ?? latestRelease;
+  if (engine) onState(engine.state());
+}
+
 function onState(state) {
+  refreshUpdate(state);
   const status = health(state);
-  win?.webContents.send("state", { state, health: status });
+  win?.webContents.send("state", { state, health: status, update });
   if (tray) {
     tray.setImage(nativeImage.createFromPath(asset(`tray-${status.level}.png`)).resize({ width: 32, height: 32 }));
-    tray.setToolTip(`Guilded Companion\n${status.text}`);
+    tray.setToolTip(`Guilded Companion\n${status.text}${update ? `\nUpdate available: ${update.version}` : ""}`);
   }
 }
 
 function currentState() {
   const state = engine.state();
-  return { state, health: health(state) };
+  return { state, health: health(state), update };
 }
 
 function showWindow() {
@@ -223,6 +251,9 @@ app.whenReady().then(async () => {
   }
   await engine.start();
   onState(engine.state());
+  // Look for a newer release shortly after start, then twice a day.
+  setTimeout(() => void checkForUpdate(), 20_000);
+  setInterval(() => void checkForUpdate(), 12 * 60 * 60 * 1000);
 
   if (screenshotPath) {
     win.webContents.once("did-finish-load", () => setTimeout(async () => {
@@ -248,6 +279,8 @@ ipcMain.handle("save-config", async (_event, next) => {
   const started = await engine.configure(config);
   return started ? { ok: true, message: "Saved. The companion is running." } : { ok: false, message: "Saved, but it could not start. See the Activity page." };
 });
+
+ipcMain.handle("open-update", () => shell.openExternal(update?.url || updates.RELEASES_PAGE));
 
 ipcMain.handle("test-connection", (_event, next) => engineModules.testConnection({ ...config, ...next }));
 

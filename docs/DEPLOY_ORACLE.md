@@ -134,6 +134,12 @@ updates. `redeploy-oracle.bat` targets the maintainer's machine and is **not an
 installer or updater for other guilds**. Follow your host's deployment procedure
 for the reviewed release. Do not use `prisma migrate reset` to fix an error.
 
+**Update notices.** Once a day a self-hosted bot asks GitHub for the latest stable release.
+When it is newer than the running bot, each server's officer log gets one notice per version
+with the release link. Set `UPDATE_CHECK=false` to turn this off. The Windows companion does
+the same on its own: it shows a **Download update** banner on Overview, a tray note and one
+Windows notification when GitHub or its bot has a newer version. Nothing installs by itself.
+
 Personal pairing controls uploads and standings; the old shared upload token is
 retired. Officer access is checked per request. Configure host security updates
 and monitor the public health endpoint using your preferred hosting tools.

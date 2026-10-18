@@ -57,6 +57,7 @@ import { executeBank } from "./commands/bank.js";
 import { executeCraft } from "./commands/craft.js";
 import { greetNewGuild, logSetupStatus } from "./commands/setup.js";
 import { announceVersionUpdates } from "./services/version-announce.js";
+import { announceAvailableUpdate } from "./services/update-check.js";
 import { executeUninstall } from "./commands/uninstall.js";
 import { executeHelp } from "./commands/help.js";
 import { handleAutocomplete } from "./commands/autocomplete.js";
@@ -232,6 +233,10 @@ client.once(Events.ClientReady, (readyClient) => {
   // per-ClientReady check is enough (safe on reconnect too: it marks each
   // guild before posting, so it won't repeat once it's caught up).
   announceVersionUpdates(readyClient).catch(reportJobError("Version announcement"));
+  // A self-hosted bot learns about newer releases here (start, then daily).
+  const updateCheck = () => announceAvailableUpdate(readyClient).catch(reportJobError("Update check"));
+  void updateCheck();
+  setInterval(() => void updateCheck(), 24 * 60 * 60 * 1000);
   // Daily database backup to backups/ (keeps 14 days). Runs now if today's
   // file is missing, then checks hourly.
   const backup = () => runBackup(prisma)

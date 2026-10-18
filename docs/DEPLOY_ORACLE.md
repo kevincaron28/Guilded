@@ -20,7 +20,10 @@ Allow outbound HTTPS and your database provider's connection port.
 
 The installer writes `/etc/caddy/Caddyfile`; use a dedicated machine. On a
 shared host, have its administrator integrate `deploy/Caddyfile` into the existing
-configuration instead of running this installer. Certificates require working
+configuration instead of running this installer (keep its global `log` block: it
+stops Caddy writing companion credentials into the journal). `deploy/update.sh`
+re-applies a changed `deploy/Caddyfile` to an installer-written copy, validating it
+first and keeping the old one beside it. Certificates require working
 DNS and public reachability; see [Caddy's HTTPS requirements](https://caddyserver.com/docs/automatic-https).
 
 ## 2. Get the matching source

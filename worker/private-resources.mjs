@@ -18,7 +18,7 @@ const responseHeaders = {
   'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
 };
 
-export function createOwnerResources({ resources, fetchCertificates = (url, options) => fetch(url, options), now = () => Date.now() } = {}) {
+export function createOwnerResources({ resources, fetchCertificates = (url, options) => fetch(url, options), now = () => Date.now(), reportFailure = category => console.error(category) } = {}) {
   const index = new Map();
   for (const item of resources ?? []) {
     if (!/^[a-z0-9][a-z0-9._-]{0,100}$/.test(item.filename) || !allowedTypes.has(item.type) || typeof item.key !== 'string' || !item.key || index.has(item.filename)) throw new Error('Invalid curated resource manifest');
@@ -26,7 +26,22 @@ export function createOwnerResources({ resources, fetchCertificates = (url, opti
   }
   const certificates = new Map();
   const pendingCertificates = new Map();
+  const lastFailureReport = new Map();
   const reply = (request, status, text, extra = {}) => new Response(request.method === 'HEAD' ? null : text, { status, headers: { ...responseHeaders, 'content-type': 'text/plain; charset=utf-8', ...extra } });
+
+  // Report only fixed categories, at most once per category/minute per instance.
+  // Never pass request data, configuration values or caught errors to the logger.
+  const unavailable = category => {
+    try {
+      const instant = now();
+      const previous = lastFailureReport.get(category);
+      if (previous === undefined || instant - previous >= 60_000) {
+        lastFailureReport.set(category, instant);
+        reportFailure('owner-resources:' + category);
+      }
+    } catch { /* Logging must never change the fail-closed response. */ }
+    return 503;
+  };
 
   async function signingKeys(issuer) {
     const cached = certificates.get(issuer);
@@ -54,7 +69,10 @@ export function createOwnerResources({ resources, fetchCertificates = (url, opti
     const issuer = env.OWNER_ACCESS_ISSUER;
     const audience = env.OWNER_ACCESS_AUD;
     const email = env.OWNER_EMAIL?.trim().toLowerCase();
-    if (!/^https:\/\/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.cloudflareaccess\.com$/.test(issuer ?? '') || !/^[A-Za-z0-9_-]{20,128}$/.test(audience ?? '') || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email ?? '') || !env.OWNER_RESOURCES?.get) return 503;
+    if (!/^https:\/\/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.cloudflareaccess\.com$/.test(issuer ?? '')) return unavailable('CONFIG_ISSUER_INVALID');
+    if (!/^[A-Za-z0-9_-]{20,128}$/.test(audience ?? '')) return unavailable('CONFIG_AUDIENCE_INVALID');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email ?? '')) return unavailable('CONFIG_IDENTITY_INVALID');
+    if (!env.OWNER_RESOURCES?.get) return unavailable('CONFIG_STORAGE_INVALID');
     const jwt = request.headers.get('cf-access-jwt-assertion');
     if (!jwt || jwt.length > 8192) return 401;
     let header, claims, signature, signed;
@@ -72,7 +90,7 @@ export function createOwnerResources({ resources, fetchCertificates = (url, opti
     const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
     if (claims.iss !== issuer || !audiences.includes(audience) || typeof claims.email !== 'string' || claims.email.toLowerCase() !== email || !Number.isFinite(claims.exp) || claims.exp <= seconds || (claims.nbf !== undefined && (!Number.isFinite(claims.nbf) || claims.nbf > seconds)) || (claims.iat !== undefined && (!Number.isFinite(claims.iat) || claims.iat > seconds + 60))) return 401;
     let keys;
-    try { keys = await signingKeys(issuer); } catch { return 503; }
+    try { keys = await signingKeys(issuer); } catch { return unavailable('SIGNING_KEYS_UNAVAILABLE'); }
     const jwk = keys.keys.find(key => key.kid === header.kid && key.kty === 'RSA' && (!key.alg || key.alg === 'RS256') && (!key.use || key.use === 'sig'));
     if (!jwk) return 401;
     try {

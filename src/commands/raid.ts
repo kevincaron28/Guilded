@@ -275,7 +275,7 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     const coreNote = core
       ? ` for the **${core.name}** core (its ${core.members.length} members get signup priority)${coreGuessed ? " — guessed from your other raids/cores, pass core: to change it" : ""}`
       : "";
-    await interaction.reply({ content: `Created raid **${raid.title}** for <t:${when}:F> (<t:${when}:R>)${coreNote}. If that time looks wrong, fix it with \`/raid edit\`.`, flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: `Created raid **${raid.title}** for <t:${when}:F> (<t:${when}:R>)${coreNote}. If that time looks wrong, fix it with \`/lead edit\`.`, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -290,7 +290,7 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
       text += `${line}\n`;
     }
     await interaction.reply({ embeds: [new EmbedBuilder().setTitle(`${BRAND.emoji} ${BRAND.name} progression`)
-      .setDescription(text || "No boss kills recorded yet. Mark kills with /raid boss.")
+      .setDescription(text || "No boss kills recorded yet. Mark kills with /lead boss.")
       .setFooter({ text: `${progress.length} boss(es) killed` })] });
     return;
   }
@@ -418,7 +418,7 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
       const next = await raidService.createNextRepeat(raidId, context.guildId);
       if (next) {
         if (interaction.guild) await syncSignupEmbed(interaction.guild, context.guildId, next.id);
-        await interaction.followUp({ content: `Weekly raid: the next **${next.title}** is set for <t:${Math.floor(next.scheduledAt.getTime() / 1000)}:F>. Cancel it with /raid cancel if you skip a week.`, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+        await interaction.followUp({ content: `Weekly raid: the next **${next.title}** is set for <t:${Math.floor(next.scheduledAt.getTime() / 1000)}:F>. Cancel it with /lead cancel if you skip a week.`, flags: MessageFlags.Ephemeral }).catch(() => undefined);
       }
     }
     return;
@@ -449,7 +449,7 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
   await interaction.reply({ content: `Recorded **${attendance.status}** attendance for ${player.username}.`, flags: MessageFlags.Ephemeral });
 }
 
-// /raid fill: a call for players in the guild's shared raid signup channel (everyone reads it),
+// /lead fill: a call for players in the guild's shared raid signup channel (everyone reads it),
 // with the free slots, the core members still missing and a link to the signup post. The core's
 // bench (its replacements) is pinged; nobody else is.
 async function postFillCall(interaction: ChatInputCommandInteraction, guildId: string, raidId: string): Promise<void> {

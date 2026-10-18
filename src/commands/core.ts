@@ -59,7 +59,7 @@ export const coreCommand = new SlashCommandBuilder()
     .addIntegerOption((o) => o.setName("boss").setDescription("EP per boss killed").setMinValue(0))
     .addIntegerOption((o) => o.setName("clear").setDescription("Bonus EP for a full clear").setMinValue(0))
     .addIntegerOption((o) => o.setName("base_gp").setDescription("Base GP for this core's PR").setMinValue(0))
-    .addIntegerOption((o) => o.setName("decay").setDescription("Decay percent for this core's /epgp decay").setMinValue(0).setMaxValue(100))
+    .addIntegerOption((o) => o.setName("decay").setDescription("Decay percent for this core's /officer epgp decay").setMinValue(0).setMaxValue(100))
     .addStringOption((o) => o.setName("loot_mode").setDescription("How this core's loot is decided").addChoices(
       { name: "Follow the guild", value: "DEFAULT" }, ...LOOT_MODES.map((mode) => ({ name: LOOT_MODE_LABEL[mode], value: mode }))))
     .addIntegerOption((o) => o.setName("reserves").setDescription("Soft reserves per player (soft reserves mode, 1 to 5)").setMinValue(1).setMaxValue(5))
@@ -145,7 +145,7 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
     await interaction.editReply({
       content: `Core **${core.name}** créé. Ajoute tes joueurs avec \`/core add\`.`
         + (core.weeklySchedule ? `\n📅 ${created.length} raid(s) préparé(s) pour les 6 prochains jours. Horaire : **${core.schedule}** (${core.weeklyTimezone}). La prochaine semaine s'ajoute automatiquement. Modifie l'horaire avec \`/core edit\`.` : "")
-        + (!core.weeklySchedule ? ` Configure l'horaire automatique dans \`/core edit\`, ou crée un raid avec \`/raid create core:${core.name}\`.` : "")
+        + (!core.weeklySchedule ? ` Configure l'horaire automatique dans \`/core edit\`, ou crée un raid avec \`/lead create core:${core.name}\`.` : "")
         + (made?.categoryId ? ` Its channels are ready${made.chatChannelId ? ` (<#${made.chatChannelId}>)` : ""}.` : "")
         + (discord.error ? ` Its channels could not be made: ${discord.error} It uses the shared channels until then (\`/core edit\` > Create channels & role).` : "")
     });
@@ -258,7 +258,7 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
       ? "\nFrom now on this core's raids pay EP and GP into its own pool (`/epgp balance core:...`). Points already in the guild pool stay there."
       : "";
     const content = describeRules(effectiveRules(settings, updated), core.name) + note + (schedule !== null
-      ? `\n📅 ${updated.weeklySchedule ? `${updated.schedule} (${updated.weeklyTimezone}) — inscriptions des 6 prochains jours, renouvelées automatiquement.` : "Création automatique arrêtée."} Les raids déjà affichés gardent leurs inscriptions; annule-les avec /raid cancel au besoin.` : "");
+      ? `\n📅 ${updated.weeklySchedule ? `${updated.schedule} (${updated.weeklyTimezone}) — inscriptions des 6 prochains jours, renouvelées automatiquement.` : "Création automatique arrêtée."} Les raids déjà affichés gardent leurs inscriptions; annule-les avec /lead cancel au besoin.` : "");
     if (interaction.deferred) await interaction.editReply({ content });
     else await interaction.reply({ content, flags: MessageFlags.Ephemeral });
     return;

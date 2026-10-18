@@ -40,6 +40,27 @@ describe("merged commands", () => {
   });
 });
 
+describe("partial and lifted mounts", () => {
+  const handler = vi.fn();
+  const source = fakeCommand("src", [{ type: 1, name: "a", description: "a" }, { type: 1, name: "b", description: "b" }, { type: 1, name: "c", description: "c" }]);
+  it("keeps only, leaves out, or lifts subcommands, and routes them under their old names", () => {
+    const parent = new MergedCommand("p", "P", [
+      { command: source, handler, as: "grp", only: ["a", "b"] },
+      { command: source, handler, flat: { c: "c-lifted" } }
+    ], { command: source, handler, except: ["a", "b"] });
+    const json = parent.toJSON();
+    expect(json.options?.map((option) => option.name)).toEqual(["c", "grp", "c-lifted"]);
+    expect(json.options?.[1]?.options?.map((option) => option.name)).toEqual(["a", "b"]);
+    expect(parent.resolve(opts(null, "c-lifted"))).toMatchObject({ legacy: "src", sub: "c" });
+    expect(parent.resolve(opts("grp", "b"))).toMatchObject({ legacy: "src", sub: "b" });
+    expect(parent.resolve(opts(null, "c"))).toMatchObject({ legacy: "src", sub: "c" });
+  });
+  it("refuses a missing or doubled subcommand", () => {
+    expect(() => new MergedCommand("p", "P", [{ command: source, handler, flat: { z: "z" } }])).toThrow(/no subcommand "z"/);
+    expect(() => new MergedCommand("p", "P", [{ command: source, handler, flat: { a: "x" } }, { command: source, handler, flat: { b: "x" } }])).toThrow(/twice/);
+  });
+});
+
 describe("the real command list", () => {
   it("sends the moved commands to their old handlers", () => {
     const find = (command: string, group: string | null, sub: string | null) => resolveCommand(commands, { commandName: command, options: opts(group, sub).options });
@@ -52,7 +73,17 @@ describe("the real command list", () => {
     expect(find("import", null, "apply")).toMatchObject({ legacy: "import-apply", sub: null });
     expect(find("report", null, "ping")).toMatchObject({ legacy: "health", sub: null });
     expect(find("mod", "application", "list")).toMatchObject({ legacy: "application", sub: "list" });
-    expect(find("dungeon", "admin", "audit")).toMatchObject({ legacy: "dungeon-admin", sub: "audit" });
-    expect(find("loot", null, "bid")).toMatchObject({ legacy: "loot", sub: "bid", merged: false });
+    expect(find("officer", "dungeon", "audit")).toMatchObject({ legacy: "dungeon-admin", sub: "audit" });
+    expect(find("lead", null, "create")).toMatchObject({ legacy: "raid", sub: "create" });
+    expect(find("lead", null, "wcl-report")).toMatchObject({ legacy: "wcl", sub: "report" });
+    expect(find("lead", null, "readiness-raid")).toMatchObject({ legacy: "readiness", sub: "raid" });
+    expect(find("officer", "epgp", "decay")).toMatchObject({ legacy: "epgp", sub: "decay" });
+    expect(find("officer", "loot", "auction")).toMatchObject({ legacy: "loot", sub: "auction" });
+    expect(find("officer", "character", "link")).toMatchObject({ legacy: "character", sub: "link" });
+    expect(find("organize", null, "start-season")).toMatchObject({ legacy: "community", sub: "start-season" });
+    expect(find("organize", "lottery", "create")).toMatchObject({ legacy: "lottery", sub: "create" });
+    expect(find("epgp", null, "balance")).toMatchObject({ legacy: "epgp", sub: "balance", merged: true });
+    expect(find("raid", null, "signup")).toMatchObject({ legacy: "raid", sub: "signup" });
+    expect(find("loot", null, "bid")).toMatchObject({ legacy: "loot", sub: "bid", merged: true });
   });
 });

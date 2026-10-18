@@ -84,7 +84,7 @@ async function rulesStep(coreId: string, guildId: string, note: string) {
     btn("ep", "Change EP values"),
     ...(settings?.coreLootOnly ? [] : [btn("pool", core.separatePool ? "Own point pool: ON" : "Own point pool: off", core.separatePool ? ButtonStyle.Success : ButtonStyle.Secondary)])
   ];
-  // Prices are used by EPGP priority loot and by /loot award when the GP is left out, so they
+  // Prices are used by EPGP priority loot and by /officer loot award when the GP is left out, so they
   // can be set whatever the loot system.
   buttons.push(btn("prices", "Item prices", rules.lootMode === "PRIORITY" ? ButtonStyle.Primary : ButtonStyle.Secondary));
   if (rules.lootMode === "RESERVE") buttons.push(btn("reserves", `Reserves per player: ${rules.reservesPerPlayer}`));
@@ -278,7 +278,7 @@ export async function runCoreWizard(interaction: ChatInputCommandInteraction): P
         const saved = await prisma.raidCore.findUnique({ where: { id: coreId }, select: { rosterChannelId: true } });
         await i.update({
           content: `✅ **${core.name}** is ready.\n`
-            + `• Create its raids with \`/raid create core:${core.name}\` (its members get signup priority).\n`
+            + `• Create its raids with \`/lead create core:${core.name}\` (its members get signup priority).\n`
             + `• Change the roster any time (roles, bench, add, remove): \`/core edit core:${core.name}\`; rules: \`/core rules\`.\n`
             + (saved?.rosterChannelId ? `• Its roster is posted in <#${saved.rosterChannelId}>.` : `• Its roster gets its own channel with the core's channels: \`/core edit core:${core.name}\` → Create channels.`),
           embeds: [], components: []

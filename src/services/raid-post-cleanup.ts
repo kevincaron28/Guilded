@@ -20,7 +20,7 @@ export function pastRaidPostWhere(now: Date): Prisma.RaidWhereInput {
         { status: "COMPLETED", endedAt: { lte: day } },
         { status: "CANCELLED", updatedAt: { lte: day } },
         { status: "PLANNED", scheduledAt: { lte: stalePlannedBefore(now) } },
-        // A forgotten /raid end must not leave signup channels cluttered forever.
+        // A forgotten /lead end must not leave signup channels cluttered forever.
         { status: "ACTIVE", OR: [
           { startedAt: { lte: stalePlannedBefore(now) } },
           { startedAt: null, scheduledAt: { lte: stalePlannedBefore(now) } }

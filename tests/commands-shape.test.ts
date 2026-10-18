@@ -57,8 +57,8 @@ describe("slash command definitions follow Discord's rules", () => {
     expect(find("character", "profession", "set", "profession")?.choices).toHaveLength(PROFESSIONS.length);
     expect(find("character", "add", "spec")?.autocomplete).toBe(true);
     expect(find("character", "add", "realm")?.required).toBeFalsy();
-    // /loot auction needs only the item.
-    const auction = all.find((entry) => entry.name === "loot")?.options?.find((entry) => entry.name === "auction");
+    // /officer loot auction needs only the item.
+    const auction = find("officer", "loot", "auction");
     expect(auction?.options?.filter((option) => option.required).map((option) => option.name)).toEqual(["item"]);
   });
 });

@@ -231,7 +231,7 @@ export const FR_TEXT: Record<string, string> = {
   "**Next steps**": "**Prochaines étapes**",
   "1. Members: use the welcome buttons to accept the rules and pick their games. WoW linking is only for WoW players.": "1. Membres : utilisez les boutons d'accueil pour accepter les règles et choisir vos jeux. Le lien WoW concerne seulement les joueurs WoW.",
   "2. WoW players: install the addon ({url}) and start in-game only. Character linking and the companion are optional; the welcome character button explains both.": "2. Joueurs WoW : installez l'addon ({url}) et commencez en jeu uniquement. Le lien du personnage et le compagnon sont facultatifs; le bouton d'accueil explique les deux.",
-  "3. Raid leaders: `/core setup` builds a raid core (name, players, rules) with menus; then `/raid create core:<name>`.": "3. Chefs de raid : `/core setup` crée un core de raid (nom, joueurs, règles) avec des menus ; ensuite `/raid create core:<nom>`.",
+  "3. Raid leaders: `/core setup` builds a raid core (name, players, rules) with menus; then `/lead create core:<name>`.": "3. Chefs de raid : `/core setup` crée un core de raid (nom, joueurs, règles) avec des menus ; ensuite `/lead create core:<nom>`.",
   "4. Try everything safely: `/setup testraid start` (fake raid, removed with `/setup testraid cleanup`).": "4. Tout essayer sans risque : `/setup testraid start` (faux raid, supprimé avec `/setup testraid cleanup`).",
   "5. `/help` lists every command by role.": "5. `/help` liste toutes les commandes par rôle.",
   "Post a getting-started message for members": "Publier un message de démarrage pour les membres",

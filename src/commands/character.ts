@@ -127,7 +127,7 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
       const rows = await prisma.unclaimedCharacter.findMany({ where: { guildId: context.guildId }, orderBy: { name: "asc" }, take: 60 });
       await interaction.reply({
         content: rows.length
-          ? `**${rows.length} unclaimed:** ${rows.map((row) => `${row.name} (${row.className}${row.level ? ` ${row.level}` : ""})`).join(", ")}\nOwners: \`/character claim\`. Officers: \`/character link\` or \`/character autolink\`.`.slice(0, 1950)
+          ? `**${rows.length} unclaimed:** ${rows.map((row) => `${row.name} (${row.className}${row.level ? ` ${row.level}` : ""})`).join(", ")}\nOwners: \`/character claim\`. Officers: \`/officer character link\` or \`/officer character autolink\`.`.slice(0, 1950)
           : "Every character the addons reported is linked.",
         flags: MessageFlags.Ephemeral
       });
@@ -136,7 +136,7 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
     if (subcommand === "autolink") {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const linked = await autoLinkUnclaimed(interaction.guild!, prisma, context.guildId);
-      await interaction.editReply({ content: linked.length ? `Linked ${linked.map((row) => `${row.character} to ${row.member}`).join(", ")}.` : "Nothing matched by name (a Discord nickname must be the character's name, e.g. \"Ray\" or \"[GOLD] Ray\"). Use /character link for the rest." });
+      await interaction.editReply({ content: linked.length ? `Linked ${linked.map((row) => `${row.character} to ${row.member}`).join(", ")}.` : "Nothing matched by name (a Discord nickname must be the character's name, e.g. \"Ray\" or \"[GOLD] Ray\"). Use /officer character link for the rest." });
       return;
     }
     const wanted = interaction.options.getString("name", true).trim();

@@ -22,7 +22,7 @@ export interface RaidReport {
 type Db = Pick<PrismaClient, "raid" | "epgpTransaction" | "lootAward">;
 
 // Summary of one raid from what the bot already knows: attendance, boss
-// kills, the EP approved for it, and loot tied to it (via /loot auction
+// kills, the EP approved for it, and loot tied to it (via /officer loot auction
 // raid:). Deliberately no per-player performance numbers.
 export async function buildRaidReport(database: Db, guildId: string, raidId: string): Promise<RaidReport> {
   const raid = await database.raid.findFirst({

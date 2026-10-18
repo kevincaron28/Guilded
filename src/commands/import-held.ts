@@ -19,7 +19,7 @@ export const importHeldCommand = new SlashCommandBuilder()
 const codeOf = (id: string) => id.slice(-6).toUpperCase();
 
 const WHY: Record<string, { en: string; fr: string }> = {
-  UNLINKED: { en: "character not linked to a member (`/character link`)", fr: "personnage non lié à un membre (`/character link`)" },
+  UNLINKED: { en: "character not linked to a member (`/officer character link`)", fr: "personnage non lié à un membre (`/officer character link`)" },
   NO_CORE: { en: "no raid core was chosen (`/guilded void` it, then award again after `/guilded core <name>`)", fr: "aucun core choisi (`/guilded void`, puis redonne après `/guilded core <nom>`)" },
   UNKNOWN_POOL: { en: "its raid core was deleted or has no point pool", fr: "son core a été supprimé ou n'a pas de pool de points" },
   NO_CORE_RAID: { en: "no core raid matched yet (imports after `/guilded end`)", fr: "aucun raid de core trouvé (s'importe après `/guilded end`)" }

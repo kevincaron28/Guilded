@@ -436,7 +436,7 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       T("**Next steps**"),
       T("1. Members: use the welcome buttons to accept the rules and pick their games. WoW linking is only for WoW players."),
       T("2. WoW players: install the addon ({url}) and start in-game only. Character linking and the companion are optional; the welcome character button explains both.", { url: ADDON_URL }),
-      T("3. Raid leaders: `/core setup` builds a raid core (name, players, rules) with menus; then `/raid create core:<name>`."),
+      T("3. Raid leaders: `/core setup` builds a raid core (name, players, rules) with menus; then `/lead create core:<name>`."),
       T("4. Try everything safely: `/setup testraid start` (fake raid, removed with `/setup testraid cleanup`)."),
       T("5. `/help` lists every command by role.")
     ].join("\n").slice(0, 4000));

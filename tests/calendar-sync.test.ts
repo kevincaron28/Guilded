@@ -208,7 +208,7 @@ describe("describeCalendar", () => {
     expect(text).toContain("1 in-game event(s) matched a Discord raid: 1 signed up, 1 maybe, 0 on the waitlist, 1 already answered on Discord (unchanged), 1 declined.");
     expect(text).toContain("Not linked to a Discord member (skipped): Stranger.");
     expect(text).toContain('In-game event "Orphan Event"');
-    expect(text).toContain("/raid create");
+    expect(text).toContain("/lead create");
   });
 
   it("is empty when there was nothing to sync", () => {

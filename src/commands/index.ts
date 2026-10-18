@@ -5,11 +5,11 @@ import { professionCommand, executeProfession } from "./profession.js";
 import { configCommand } from "./settings.js";
 import { raidCommand, executeRaid } from "./raid.js";
 import { importCommand, executeImport } from "./import.js";
-import { lootCommand } from "./loot.js";
+import { lootCommand, executeLoot } from "./loot.js";
 import { applicationCommand, applyCommand, executeApplication } from "./application.js";
 import { importApplyCommand, executeImportApply } from "./import-apply.js";
 import { importHeldCommand, executeImportHeld } from "./import-held.js";
-import { epgpCommand } from "./epgp.js";
+import { epgpCommand, executeEpgp } from "./epgp.js";
 import { readinessCommand, executeReadiness } from "./readiness.js";
 import { attunementCommand, executeAttunement } from "./attunement.js";
 import { moderationCommand, executeModeration } from "./moderation.js";
@@ -39,6 +39,7 @@ import { faqCommand, executeFaq } from "./faq.js";
 import { systemCommand } from "./system.js";
 import { communityCommand, lotteryCommand, gamingCommand, challengeCommand, executeCommunity } from "./community.js";
 
+import { PermissionFlagsBits } from "discord.js";
 import { MergedCommand, type AnyCommand } from "./router.js";
 import { BRAND } from "../brand.js";
 import { poeCommand } from "./poe.js";
@@ -52,22 +53,51 @@ const setup = new MergedCommand("setup", `${BRAND.name} setup and settings.`, [
   { command: resetCommand, handler: executeSetupReset, as: "reset" }
 ]);
 
+// Leader and officer subcommands live under /lead, /officer and /organize (below), which
+// Discord hides from members; the member parents keep only what members can run.
+const RAID_LEAD = ["create", "edit", "cancel", "start", "end", "attendance", "boss", "note", "award-ep", "fill", "season", "history"];
+const EPGP_OFFICER = ["award-ep", "award-gp", "decay", "reverse"];
+const LOOT_OFFICER = ["auction", "award", "close", "priority"];
+const CHARACTER_OFFICER = ["unclaimed", "link", "autolink"];
+const COMMUNITY_ORGANIZER = ["start-season", "season-settings", "end-season", "quiz", "close-quiz", "honors-preview", "honors-settings"];
+const LOTTERY_ORGANIZER = ["create", "confirm", "payments", "close", "cancel"];
+const GAMING_ORGANIZER = ["create", "edit", "attendance", "close", "cancel"];
+const CHALLENGE_ORGANIZER = ["create", "review", "claims", "close", "cancel"];
+const same = (names: string[]) => Object.fromEntries(names.map((name) => [name, name]));
+
 const character = new MergedCommand("character", "Your characters, professions, attunements, wishlist and readiness.", [
   { command: whoCommand, handler: executeWho, as: "who" },
   { command: professionCommand, handler: executeProfession, as: "profession" },
   { command: attunementCommand, handler: executeAttunement, as: "attunement" },
   { command: wishlistCommand, handler: executeWishlist, as: "wishlist" },
-  { command: readinessCommand, handler: executeReadiness, as: "readiness" }
-], { command: characterCommand, handler: executeCharacter });
+  { command: readinessCommand, handler: executeReadiness, as: "readiness", only: ["me"] }
+], { command: characterCommand, handler: executeCharacter, except: CHARACTER_OFFICER });
 
-const raid = new MergedCommand("raid", "Raids: signups, attendance, bosses, reports and Warcraft Logs.", [
-  { command: wclCommand, handler: executeWcl, as: "wcl" }
-], { command: raidCommand, handler: executeRaid });
+const raid = new MergedCommand("raid", "Raids: signups, progress, reports and Warcraft Logs.", [
+  { command: wclCommand, handler: executeWcl, as: "wcl", except: ["report"] }
+], { command: raidCommand, handler: executeRaid, except: RAID_LEAD });
 
+const epgp = new MergedCommand("epgp", "Your EPGP: balance, history and the leaderboard.", [],
+  { command: epgpCommand, handler: executeEpgp, except: EPGP_OFFICER });
 
-const dungeon = new MergedCommand("dungeon", "Dungeon challenge: leaderboard, records, groups and officer tools.", [
-  { command: dungeonAdminCommand, handler: executeDungeonAdmin, as: "admin" }
-], { command: dungeonCommand, handler: executeDungeon });
+const loot = new MergedCommand("loot", "Bid on loot, see loot history and soft reserves.", [],
+  { command: lootCommand, handler: executeLoot, except: LOOT_OFFICER });
+
+const dungeon = new MergedCommand("dungeon", "Dungeon challenge: leaderboard, records, groups and alerts.", [],
+  { command: dungeonCommand, handler: executeDungeon });
+
+const lead = new MergedCommand("lead", "Raid Leaders: run raids, seasons, logs and readiness.", [
+  { command: raidCommand, handler: executeRaid, flat: same(RAID_LEAD) },
+  { command: wclCommand, handler: executeWcl, flat: { report: "wcl-report" } },
+  { command: readinessCommand, handler: executeReadiness, flat: { member: "readiness-member", raid: "readiness-raid" } }
+]).setDescriptionLocalizations({ fr: "Chefs de raid : raids, saisons, journaux et préparation." });
+
+const officer = new MergedCommand("officer", "Officers: EPGP, loot, dungeon challenge and character links.", [
+  { command: epgpCommand, handler: executeEpgp, as: "epgp", only: EPGP_OFFICER },
+  { command: lootCommand, handler: executeLoot, as: "loot", only: LOOT_OFFICER },
+  { command: dungeonAdminCommand, handler: executeDungeonAdmin, as: "dungeon" },
+  { command: characterCommand, handler: executeCharacter, as: "character", only: CHARACTER_OFFICER }
+]).setDescriptionLocalizations({ fr: "Officiers : EPGP, butin, défi des donjons et liens de personnages." });
 
 const mod = new MergedCommand("mod", "Moderation, applications, the answer channel and the guild web page (officers).", [
   { command: applicationCommand, handler: executeApplication, as: "application" },
@@ -91,17 +121,46 @@ const report = new MergedCommand("report", "Guild reports: activity, inactive me
 ]);
 
 const community = new MergedCommand("community", "Gaming nights, lotteries, challenges, seasons and Discord games.", [
-  { command: lotteryCommand, handler: executeCommunity, as: "lottery" },
-  { command: gamingCommand, handler: executeCommunity, as: "gaming" },
-  { command: challengeCommand, handler: executeCommunity, as: "challenge" }
-], { command: communityCommand, handler: executeCommunity });
+  { command: lotteryCommand, handler: executeCommunity, as: "lottery", except: LOTTERY_ORGANIZER },
+  { command: gamingCommand, handler: executeCommunity, as: "gaming", except: GAMING_ORGANIZER },
+  { command: challengeCommand, handler: executeCommunity, as: "challenge", except: CHALLENGE_ORGANIZER }
+], { command: communityCommand, handler: executeCommunity, except: COMMUNITY_ORGANIZER });
+
+const organize = new MergedCommand("organize", "Organizers: community seasons, quizzes, honors and activities.", [
+  { command: communityCommand, handler: executeCommunity, flat: same(COMMUNITY_ORGANIZER) },
+  { command: lotteryCommand, handler: executeCommunity, as: "lottery", only: LOTTERY_ORGANIZER },
+  { command: gamingCommand, handler: executeCommunity, as: "gaming", only: GAMING_ORGANIZER },
+  { command: challengeCommand, handler: executeCommunity, as: "challenge", only: CHALLENGE_ORGANIZER }
+]).setDescriptionLocalizations({ fr: "Organisateurs : saisons, quiz, palmarès et activités." });
 
 // Top level: the merged parents above, plus the commands main.ts handles itself.
 export const commands: AnyCommand[] = [
-  setup, configCommand, helpCommand, profileCommand, character, raid, epgpCommand, lootCommand, dungeon, craftCommand,
+  setup, configCommand, helpCommand, profileCommand, character, raid, epgp, loot, dungeon, craftCommand,
   bankCommand, applyCommand, pollCommand, report, mod, coreCommand, tagCommand, importer, uninstallCommand, systemCommand,
-  community, poeCommand, participationCommand, teamCommand
+  community, poeCommand, participationCommand, teamCommand, lead, officer, organize
 ];
+
+// Commands whose every subcommand checks a leader role (Raid Leader for /lead, Officer or Guild
+// Master for the rest; /uninstall: the server owner or Administrator). Discord hides them from
+// members without these permissions; a server admin can show one to a role in Server Settings >
+// Integrations > Guilded. Those roles are role names, not Discord permissions, so the handlers
+// keep their checks. /lead uses Manage Events so a server can also just give that to Raid Leaders.
+export const HIDDEN_FROM_MEMBERS: Record<string, bigint> = {
+  setup: PermissionFlagsBits.ManageGuild,
+  config: PermissionFlagsBits.ManageGuild,
+  mod: PermissionFlagsBits.ManageGuild,
+  import: PermissionFlagsBits.ManageGuild,
+  system: PermissionFlagsBits.ManageGuild,
+  poll: PermissionFlagsBits.ManageGuild,
+  uninstall: PermissionFlagsBits.Administrator,
+  lead: PermissionFlagsBits.ManageEvents,
+  officer: PermissionFlagsBits.ManageGuild,
+  organize: PermissionFlagsBits.ManageGuild
+};
+for (const command of commands) {
+  const permissions = HIDDEN_FROM_MEMBERS[command.name];
+  if (permissions !== undefined) (command as { setDefaultMemberPermissions(value: bigint): unknown }).setDefaultMemberPermissions(permissions);
+}
 
 const commandNames = commands.map((command) => command.name);
 if (new Set(commandNames).size !== commandNames.length) {

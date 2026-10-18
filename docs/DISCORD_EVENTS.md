@@ -6,12 +6,12 @@ production deployment and a real Discord verification remain release gates.
 
 ## Behavior
 
-- `/raid create`, repeating raids and weekly core occurrences each get one native event.
-- `/raid edit`, `cancel`, `start` and `end` refresh that event. Weekly occurrences
+- `/lead create`, repeating raids and weekly core occurrences each get one native event.
+- `/lead edit`, `cancel`, `start` and `end` refresh that event. Weekly occurrences
   have separate IDs; no second recurrence engine competes with Guilded's schedule.
   Moving an event that Discord already started closes that event and creates a
   replacement for the future date, because Discord cannot change its active start.
-- `/community gaming create` publishes an event, and `edit`, `cancel` and `close`
+- `/organize gaming create` publishes an event, and `edit`, `cancel` and `close`
   update it. Gaming nights start at their configured time and close at their end.
 - Existing upcoming raids and gaming nights are reconciled on startup and every
   minute. Publication normally takes one or two queue ticks after the signup post.
@@ -19,7 +19,7 @@ production deployment and a real Discord verification remain release gates.
   Discord notifications; it does not create a signup, record attendance or award points.
 - Lotteries, quizzes, challenges and `/testraid` do not create calendar events.
 - Raid event end times are estimated at four hours after the scheduled start;
-  `/raid end` closes an active native event sooner. This estimate never ends the
+  `/lead end` closes an active native event sooner. This estimate never ends the
   Guilded raid itself. Gaming nights use their actual configured end time.
 - Missing events may be recreated while their start is still in the future.
   Past or finished events are not restarted. An event that never reached Discord
@@ -43,8 +43,8 @@ category with identical visibility overrides. No channels or roles are created.
 To select an existing gaming voice explicitly:
 
 ```text
-/community gaming create season:SEASON title:Co-op starts:vendredi 20h ends:vendredi 23h capacity:8 points:10 voice:VOICE
-/community gaming edit id:NIGHT title:New title starts:samedi 20h ends:samedi 23h voice:VOICE
+/organize gaming create season:SEASON title:Co-op starts:vendredi 20h ends:vendredi 23h capacity:8 points:10 voice:VOICE
+/organize gaming edit id:NIGHT title:New title starts:samedi 20h ends:samedi 23h voice:VOICE
 ```
 
 For a private season, the selected voice must have the same visibility overrides

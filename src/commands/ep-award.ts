@@ -37,12 +37,12 @@ function proposalEmbed(proposal: EpProposal): EmbedBuilder {
 }
 
 // Shows the proposed EP for a raid to the officer with Approve / Cancel
-// buttons. Used by /raid end and /raid award-ep. Nothing is written yet.
+// buttons. Used by /lead end and /lead award-ep. Nothing is written yet.
 export async function showEpProposal(interaction: ChatInputCommandInteraction, guildId: string, raidId: string, header: string): Promise<void> {
   const proposal = await computeRaidEpProposal(prisma, guildId, raidId);
   if (proposal.rows.length === 0) {
     await interaction.reply({
-      content: `${header}\nNo attendance recorded yet, so there's no EP to propose. Record attendance (or run \`/import apply\` after the addon export), then \`/raid award-ep raid:${raidId}\`.`,
+      content: `${header}\nNo attendance recorded yet, so there's no EP to propose. Record attendance (or run \`/import apply\` after the addon export), then \`/lead award-ep raid:${raidId}\`.`,
       flags: MessageFlags.Ephemeral
     });
     return;

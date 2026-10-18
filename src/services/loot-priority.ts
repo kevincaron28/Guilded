@@ -79,7 +79,7 @@ export function describePriority(itemName: string, coreName: string | null, resu
   return [
     head, ...lines,
     result.ranking.length > 10 ? `…and ${result.ranking.length - 10} more.` : "",
-    `Goes to **${winner.character}**${result.price === null ? "" : ` for ${result.price} GP`}: \`/loot award\` with that player${result.price === null ? " and a gp" : " charges the set price"}.`,
+    `Goes to **${winner.character}**${result.price === null ? "" : ` for ${result.price} GP`}: \`/officer loot award\` with that player${result.price === null ? " and a gp" : " charges the set price"}.`,
     result.outsideCore ? `(${result.outsideCore} wisher(s) are not in this core and were left out.)` : ""
   ].filter(Boolean).join("\n");
 }

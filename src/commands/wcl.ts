@@ -50,7 +50,7 @@ export async function executeWcl(interaction: ChatInputCommandInteraction): Prom
     await interaction.reply({
       content: rows.length
         ? rows.map((row) => `• [${row.title}](${row.url}) — ${row.zone ?? "?"} · <t:${Math.floor(row.startedAt.getTime() / 1000)}:d>`).join("\n")
-        : "No Warcraft Logs reports pulled in yet. Officers: `/raid wcl report url:<link>`.",
+        : "No Warcraft Logs reports pulled in yet. Officers: `/lead wcl-report url:<link>`.",
       flags: MessageFlags.Ephemeral
     });
     return;
@@ -74,7 +74,7 @@ export async function executeWcl(interaction: ChatInputCommandInteraction): Prom
     const urlArg = interaction.options.getString("url");
     if (!raidArg && !urlArg) throw new Error("Give a raid id or a report link.");
     const linked = raidArg ? await prisma.warcraftLogsReport.findFirst({ where: { guildId: context.guildId, raidId: raidArg }, orderBy: { startedAt: "desc" } }) : null;
-    if (raidArg && !linked && !urlArg) throw new Error("No Warcraft Logs report is linked to that raid yet. Use /raid wcl report url:<link> raid:<id> first.");
+    if (raidArg && !linked && !urlArg) throw new Error("No Warcraft Logs report is linked to that raid yet. Use /lead wcl-report url:<link> raid:<id> first.");
     const target = parseReportRef(urlArg ?? linked?.code ?? "", linked ? new URL(linked.url).origin : config.WCL_BASE_URL);
     const known = linked ?? await prisma.warcraftLogsReport.findUnique({ where: { guildId_code: { guildId: context.guildId, code: target.code } } });
     const checkClient = createWclClient({ clientId: config.WCL_CLIENT_ID, clientSecret: config.WCL_CLIENT_SECRET });

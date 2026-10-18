@@ -120,10 +120,10 @@ choice, `/config loot-mode`). Pick it in `/core setup` (step 3, the loot system 
 | **Item prices** button (`/core edit` or `/core setup`) | The easiest way: a list already filled in with the core's prices, then the items people wishlisted or were given before that have no price yet, with the average GP paid as a suggestion. Edit the numbers and save; lines left as `= ?` are skipped |
 | `/guilded price <item> <GP>` (in game, officers) | Set a price for the core you are running. `/guilded drop` also asks for a price when an item has none. Prices set in game reach Discord with the next companion upload (the newer price wins) |
 | **Item prices** button in `/core setup` | Paste a list into a form |
-| `/loot priority item:<item> [raid:<raid>]` (officers) | Who is next for an item: the wishlist members of the raid's core, highest PR first (that core's pool when it has its own), with the price |
-| `/loot award item player [gp]` | In priority raids, leaving out `gp` charges the item's set price |
+| `/officer loot priority item:<item> [raid:<raid>]` (officers) | Who is next for an item: the wishlist members of the raid's core, highest PR first (that core's pool when it has its own), with the price |
+| `/officer loot award item player [gp]` | In priority raids, leaving out `gp` charges the item's set price |
 
-`/loot auction` and `/loot bid` only work for GP bids cores; the other systems tell you how they work.
+`/officer loot auction` and `/loot bid` only work for GP bids cores; the other systems tell you how they work.
 
 **In game** the officer's addon knows each core's system, prices and own-pool standings from the
 companion (they arrive with the standings). Which core is being run: the raid the bot expects next,
@@ -287,19 +287,37 @@ messages follow the language chosen in `/setup start` (English or French).
 
 ### Where things live
 
-There are 17 commands, not 34: small ones sit under a parent, so typing `/` shows a short list.
+Small commands sit under a parent, so typing `/` shows a short list. Members see only what they can use: leader and officer tools are under `/lead`, `/officer` and `/organize`, which Discord hides from them.
 
 | Command | What is under it |
 | --- | --- |
 | `/setup` | `start` (the guided setup), `config` (every setting; `config channel` picks where each kind of post goes), `testraid`, `selfroles` |
 | `/character` | `add`, `list`, `claim`, `import`, ..., plus `who`, `profession`, `attunement`, `wishlist`, `readiness` |
-| `/raid` | the raid commands, plus `wcl` (Warcraft Logs) |
-| `/epgp` | EPGP points (the old DKP commands are hidden) |
-| `/dungeon` | the challenge, plus `admin` (officer tools) |
+| `/raid` | signups, progress, reports, plus `wcl check` / `wcl list` (Warcraft Logs) |
+| `/epgp` | your EPGP: `balance`, `history`, `leaderboard` |
+| `/dungeon` | the challenge: leaderboard, records, groups, alerts |
+| `/lead` | Raid Leaders: `create`, `edit`, `cancel`, `start`, `end`, `attendance`, `boss`, `note`, `award-ep`, `fill`, `season`, `history`, `wcl-report`, `readiness-member`, `readiness-raid` |
+| `/officer` | Officers: `epgp` (award-ep, award-gp, decay, reverse), `loot` (auction, award, close, priority), `dungeon` (the challenge's officer tools), `character` (unclaimed, link, autolink) |
+| `/organize` | Community organizers: seasons, quizzes, honors, and creating and running lotteries, gaming nights and challenges |
 | `/mod` | moderation, plus `application` (handle guild applications) |
 | `/import` | `upload` (preview an addon file), `apply` (apply it), `held` (entries waiting, and why) |
 | `/report` | `stats`, `inactive`, `guild` (health), `export`, `ping` (is the bot online) |
-| `/help` `/profile` `/loot` `/craft` `/bank` `/apply` `/poll` `/core` `/tag` | unchanged |
+| `/help` `/profile` `/loot` `/craft` `/bank` `/apply` `/poll` `/core` `/tag` | unchanged (`/loot` keeps `bid`, `history`, `reserves`) |
+
+### Commands members don't see
+
+`/officer`, `/organize`, `/setup`, `/config`, `/mod`, `/import`, `/poll` and `/system` are only for
+officers, so Discord shows them only to people with the **Manage Server** permission; `/lead`
+only to **Manage Events**; `/uninstall` only to **Administrator**. The bot still checks the
+Officer / Guild Master / Raid Leader role when one is run.
+
+Those roles are role names, not Discord permissions. An Officer without Manage Server, or a Raid
+Leader without Manage Events, does not see these commands until a server admin allows it:
+**Server Settings → Integrations → Guilded**, pick the command, **Add Roles or Members**, add the
+role (Officer and Guild Master; Raid Leader for `/lead`). Giving the Raid Leader role Manage Events
+also works. `/help` reminds leaders of this. `/core`, `/team`, `/report`, `/participation`, `/bank`,
+`/tag` and `/poe` still mix member and leader subcommands and stay visible to everyone
+(`docs/COMMAND_VISIBILITY_PROPOSAL.md`).
 
 ### Everyone on Discord
 
@@ -377,17 +395,17 @@ After each import, completed runs and new records are posted once in the dungeon
 
 | Command | What it does |
 | --- | --- |
-| `/raid create <title> <time> [description] [bosses] [core] [weekly] [tanks] [healers] [dps]` | Create a raid. Time like `friday 8pm`, `tonight 20:00`, `vendredi 20h`, `2026-10-03 20:00` (your server's timezone). `weekly:true` makes ending it create the next one a week later. Posts the signup message with Tank / Healer / DPS / Maybe / Can't come buttons |
-| `/raid edit` / `cancel` / `start` | Manage the raid (raising a cap moves waitlisted players in) |
-| `/raid end <raid>` | End the raid and see the **proposed EP** with Approve / Cancel buttons |
-| `/raid award-ep <raid>` | Show the proposed EP again (e.g. after `/import apply` added attendance) |
-| `/raid boss <raid> <name> <Killed\|Pending>` | Boss status |
-| `/raid attendance <raid> <player> <status> [notes]` | Record attendance |
-| `/raid season [name] [start]` | Officers. With `name`, start a raid attendance season (the current one ends where it starts); `start:2026-09-01` begins it in the past, and the raids since then are included. Alone, list the seasons |
-| `/raid history [season] [core] [player]` | Officers, only you see it. Who attended each raid of the season: rate, count per status and last raids per member, plus a CSV grid (one line per member, one column per raid). `player` lists one member's raids. With no season it covers the last 90 days. The same summary is pinned in the raid attendance channel and updated after each raid report |
-| `/raid note <raid> <text> [boss]` | Officer note (general, per boss, what to improve); shown in `/raid status` to raid leaders |
-| `/character readiness raid` also shows a **Consumables** section (who has no flask/elixir or food) from the officer's last in-game `/guilded consumes` scan, if it is under 3 hours old |
-| `/character readiness member <player>` / `/character readiness raid` | Check other people's readiness (also Guild Master, Loot Leader, Class Leader). `/character readiness raid` posts the whole-guild board in the private **raid-readiness** channel when one is set (otherwise it replies only to you). The board is also refreshed after every `/import apply` that carries gear checks |
+| `/lead create <title> <time> [description] [bosses] [core] [weekly] [tanks] [healers] [dps]` | Create a raid. Time like `friday 8pm`, `tonight 20:00`, `vendredi 20h`, `2026-10-03 20:00` (your server's timezone). `weekly:true` makes ending it create the next one a week later. Posts the signup message with Tank / Healer / DPS / Maybe / Can't come buttons |
+| `/lead edit` / `cancel` / `start` | Manage the raid (raising a cap moves waitlisted players in) |
+| `/lead end <raid>` | End the raid and see the **proposed EP** with Approve / Cancel buttons |
+| `/lead award-ep <raid>` | Show the proposed EP again (e.g. after `/import apply` added attendance) |
+| `/lead boss <raid> <name> <Killed\|Pending>` | Boss status |
+| `/lead attendance <raid> <player> <status> [notes]` | Record attendance |
+| `/lead season [name] [start]` | Officers. With `name`, start a raid attendance season (the current one ends where it starts); `start:2026-09-01` begins it in the past, and the raids since then are included. Alone, list the seasons |
+| `/lead history [season] [core] [player]` | Officers, only you see it. Who attended each raid of the season: rate, count per status and last raids per member, plus a CSV grid (one line per member, one column per raid). `player` lists one member's raids. With no season it covers the last 90 days. The same summary is pinned in the raid attendance channel and updated after each raid report |
+| `/lead note <raid> <text> [boss]` | Officer note (general, per boss, what to improve); shown in `/raid status` to raid leaders |
+| `/lead readiness-raid` also shows a **Consumables** section (who has no flask/elixir or food) from the officer's last in-game `/guilded consumes` scan, if it is under 3 hours old |
+| `/lead readiness-member <player>` / `/lead readiness-raid` | Check other people's readiness (also Guild Master, Loot Leader, Class Leader). `/lead readiness-raid` posts the whole-guild board in the private **raid-readiness** channel when one is set (otherwise it replies only to you). The board is also refreshed after every `/import apply` that carries gear checks |
 
 Proposed EP = attendance EP (present or late) + boss kills × boss EP + a
 full-clear bonus, all from `/config set`. Only EPGP officers can press
@@ -397,11 +415,11 @@ Approve, and a raid can never be paid twice.
 
 | Command | What it does |
 | --- | --- |
-| `/epgp award-ep <player> <amount> <reason>` | Give EP |
-| `/epgp award-gp <player> <amount> <reason>` | Charge GP |
+| `/officer epgp award-ep <player> <amount> <reason>` | Give EP |
+| `/officer epgp award-gp <player> <amount> <reason>` | Charge GP |
 | `/epgp history player:<member>` | Anyone's history, with entry IDs |
-| `/epgp reverse <entry> <reason>` | Undo a mistaken entry (adds the opposite entry; both stay in history) |
-| `/epgp decay [weekly:true\|false]` | Apply the EPGP decay now; `weekly:true` makes it automatic after every weekly reset (Tuesday 15:00 UTC), each pool by its own percent |
+| `/officer epgp reverse <entry> <reason>` | Undo a mistaken entry (adds the opposite entry; both stay in history) |
+| `/officer epgp decay [weekly:true\|false]` | Apply the EPGP decay now; `weekly:true` makes it automatic after every weekly reset (Tuesday 15:00 UTC), each pool by its own percent |
 
 ### Officers
 
@@ -411,25 +429,25 @@ Approve, and a raid can never be paid twice.
 | `/report export <what>` | CSV file of the roster, raid attendance, loot history or the EPGP ledger (only you see it) |
 | `/report guild` | Class / race / level mix, retention at 30 / 60 / 90 days, and what needs attention |
 | `/poll create <question> <option1> <option2> [option3-5] [closes]` / `/poll close <poll>` | Poll answered with buttons; one vote each, changeable; the result bars update live |
-| `/loot award <item> <player> [gp] [boss] [raid] [offspec]` | Give an item straight to a player (loot council or manual); GP is charged only if you give a price; `offspec:true` charges the core's off-spec share of it (50% by default); lands in `/loot history` |
-| `/config loot-mode <EPGP\|Council>` | Council mode turns `/loot auction` and `/loot bid` off; officers decide with `/loot award` |
-| `/character unclaimed` / `link <name> <player>` / `autolink` | Characters the addons reported that nobody has linked: list them, link one by hand, or link every one whose name matches a Discord member |
+| `/officer loot award <item> <player> [gp] [boss] [raid] [offspec]` | Give an item straight to a player (loot council or manual); GP is charged only if you give a price; `offspec:true` charges the core's off-spec share of it (50% by default); lands in `/loot history` |
+| `/config loot-mode <EPGP\|Council>` | Council mode turns `/officer loot auction` and `/loot bid` off; officers decide with `/officer loot award` |
+| `/officer character unclaimed` / `link <name> <player>` / `autolink` | Characters the addons reported that nobody has linked: list them, link one by hand, or link every one whose name matches a Discord member |
 | `/config auto-import <true/false>` | Apply what the companion uploads by itself (ledger, attendance, loot, dungeon runs, gear checks, discovered characters) with no `/import apply`. Also a button in `/setup start` step 7 |
 | `/setup start` | **Start here.** Guided setup: roles, channels (core, dungeon, extras; one button makes the whole WoW section under a "Guilded" category), welcome, EPGP values. `/setup start status:true` shows the checklist |
-| `/raid wcl report <url> [raid] [post]` | Pull a Warcraft Logs report (link or code): zone, duration, boss kills and wipes, player list. Saved, posted to the raid logs channel, and linked to a Discord raid if you give its id. Needs `WCL_CLIENT_ID` / `WCL_CLIENT_SECRET` in `.env.local` |
+| `/lead wcl-report <url> [raid] [post]` | Pull a Warcraft Logs report (link or code): zone, duration, boss kills and wipes, player list. Saved, posted to the raid logs channel, and linked to a Discord raid if you give its id. Needs `WCL_CLIENT_ID` / `WCL_CLIENT_SECRET` in `.env.local` |
 | `/setup testraid start [raiders] [starts_in] [realm]` | Fake `[TEST]` raid with fake raiders signed up (hits role caps, Maybe, waitlist) |
 | `/setup testraid finish <raid> [via_addon]` | Play it: attendance (late, no-show, walk-in), boss kills, loot, end, EP proposal. `via_addon` sends attendance through `/import apply` instead |
 | `/setup testraid dungeon [minutes] [deaths]` | Fake dungeon run by 5 test characters through the real import: points, records, `[TEST]` announcement. Run twice to see the weekly repeat share |
 | `/setup testraid cleanup` | Delete every test raid, test dungeon run and fake raider with their EPGP, points and loot. Real data is untouched |
-| `/loot auction <item> <minimum> <increment> <duration> [boss] [raid]` / `/loot close <auction>` | Run a GP auction (boss/raid show up in loot history) |
+| `/officer loot auction <item> <minimum> <increment> <duration> [boss] [raid]` / `/officer loot close <auction>` | Run a GP auction (boss/raid show up in loot history) |
 | `/import upload <file>` then `/import apply <id>` | Preview then apply an addon export. Entries already imported are skipped; in-game raids fill Discord attendance and list no-shows and walk-ins |
 | `/import held [dismiss] [restore]` | Addon entries the bot could not place yet (unlinked character, no raid core chosen, loot with no core raid) and why. Everything else in the upload is imported; a held entry imports by itself on a later sync once its cause is fixed. `dismiss:<code>` drops one for good, `restore:<code>` undoes that |
-| `/dungeon admin invalidate <run> <reason>` | A run stops counting and its points are taken back (records update by themselves) |
-| `/dungeon admin award <amount> <reason> [member | character]` | Give dungeon points by hand; a negative amount takes them away |
-| `/dungeon admin audit [member | character | run]` | Point history: what, why, automatic or which officer |
-| `/dungeon admin config [rule] [points] [weekly] [dungeon_master]` | See the point rules, change one, the weekly repeat share (e.g. `100,50,0`), or how many dungeons Dungeon Master needs |
-| `/dungeon admin target <dungeon> <minutes>` | Target time; beating it earns the underTarget bonus. 0 removes it |
-| `/dungeon admin season-start <name>` | End the season (kept) and start a new one |
+| `/officer dungeon invalidate <run> <reason>` | A run stops counting and its points are taken back (records update by themselves) |
+| `/officer dungeon award <amount> <reason> [member | character]` | Give dungeon points by hand; a negative amount takes them away |
+| `/officer dungeon audit [member | character | run]` | Point history: what, why, automatic or which officer |
+| `/officer dungeon config [rule] [points] [weekly] [dungeon_master]` | See the point rules, change one, the weekly repeat share (e.g. `100,50,0`), or how many dungeons Dungeon Master needs |
+| `/officer dungeon target <dungeon> <minutes>` | Target time; beating it earns the underTarget bonus. 0 removes it |
+| `/officer dungeon season-start <name>` | End the season (kept) and start a new one |
 | `/mod application list` / `view` / `approve` / `reject` / `trial` | Handle applications |
 | `/mod warn` / `timeout` / `kick` / `ban` / `history` | Moderation (logged) |
 | `/mod faq channel [#channel]` | The answer channel: members ask there and the bot replies (needs `MESSAGE_CONTENT_INTENT=true` on the server, after turning on Message Content Intent in the Discord Developer Portal). Empty = off |
@@ -497,25 +515,25 @@ A **raid core** is a named roster (e.g. "Tuesday MC core"); a guild can have sev
 | `/core show <core>` / `/core list` | See a roster / all cores (everyone) |
 | `/core post [core]` | Refresh the roster message(s) in the roster channel |
 | `/core delete <core> [channels]` | Delete a core; raids made for it keep their signups. Its text channels move read-only to **Archived cores** (history kept), its voice channel and category go, its role is renamed "(archived)". `channels:true` deletes them instead |
-| `/raid create ... core:<name>` | Create a raid whose signups give that core priority |
+| `/lead create ... core:<name>` | Create a raid whose signups give that core priority |
 
 ### Point pools
 
-By default everyone has **one guild pool** of EP/GP, whatever raid core they raid with. A core can opt into **its own pool** (`/core rules pool:separate`): from then on its raids pay attendance and boss EP into that pool, GP from its loot auctions and `/loot award` is charged to it, and its standings are separate. Use the `core:` option on `/epgp balance`, `history`, `leaderboard`, `award-ep`, `award-gp` and `decay` to work on a pool; without it you get the guild pool (`/epgp balance` also lists your standing in every separate pool). Decay uses the core's own percentage when set. The in-game standings (`/guilded standings`, Standings.lua) show the **guild pool** only. A core that has points in its own pool can't be deleted or switched back to the shared pool.
+By default everyone has **one guild pool** of EP/GP, whatever raid core they raid with. A core can opt into **its own pool** (`/core rules pool:separate`): from then on its raids pay attendance and boss EP into that pool, GP from its loot auctions and `/officer loot award` is charged to it, and its standings are separate. Use the `core:` option on `/epgp balance`, `history`, `leaderboard` and `/officer epgp award-ep`, `award-gp`, `decay` to work on a pool; without it you get the guild pool (`/epgp balance` also lists your standing in every separate pool). Decay uses the core's own percentage when set. The in-game standings (`/guilded standings`, Standings.lua) show the **guild pool** only. A core that has points in its own pool can't be deleted or switched back to the shared pool.
 
 ## Automatic character sync
 
 1. Every addon tells the guild who it is (name, class, race, level, spec, professions) in its normal gear digest, so an officer's upload (the companion) carries everyone who was online.
 2. The bot remembers new names as *unclaimed* characters and refreshes the linked ones.
 3. A member can pair their own Companion with `/character pair`; its one-time code establishes an account credential, and the uploader's own character is linked on its next upload. The first character becomes the main.
-4. Without pairing, a character may still be linked automatically when the Discord name matches (`Ray`, `[GOLD] Ray`, `Ray | Priest`; exactly one member must fit). Anyone left over can use `/character claim` or an officer can use `/character link`.
+4. Without pairing, a character may still be linked automatically when the Discord name matches (`Ray`, `[GOLD] Ray`, `Ray | Priest`; exactly one member must fit). Anyone left over can use `/character claim` or an officer can use `/officer character link`.
 5. With `/config auto-import true`, the guild-wide import (including the shared digest and ledger) is applied right after each upload. Otherwise an officer runs `/import apply`.
 
-The addon's `/guilded character` and `/guilded share` codes still work as a fallback. Linking trusts the Discord name or the person's own pick (small, trusted guild); officers can see and fix links with `/character unclaimed` and `/character link`. Discord does not let a bot see a member's Battle.net connection without a separate login page, and Blizzard has no character list for Forever, so "linked WoW account" cannot be used.
+The addon's `/guilded character` and `/guilded share` codes still work as a fallback. Linking trusts the Discord name or the person's own pick (small, trusted guild); officers can see and fix links with `/officer character unclaimed` and `/officer character link`. Discord does not let a bot see a member's Battle.net connection without a separate login page, and Blizzard has no character list for Forever, so "linked WoW account" cannot be used.
 
 ## Fewer things to type
 
-Where a value comes from a fixed list you pick it instead of typing: **class** and **profession** are dropdowns (`/character add`, `/apply`, `/character profession`, `/craft`). These offer suggestions as you type, and anything else still works: **spec** (for the class you chose), **race**, **your characters** (`/character profession set`, `/character attunement`, `/character wishlist`), **attunement names** already in use, **wishlist items** the guild has seen, **tag names**, **raid titles** you used before, **raid times** ("friday 8pm" shows the exact moment it means), **EP/GP reasons**, **auction length**. `/character add` no longer needs the realm (it uses your guild's). `/loot auction` only needs the item: minimum bid, increment and length come from `/config` unless you fill them in.
+Where a value comes from a fixed list you pick it instead of typing: **class** and **profession** are dropdowns (`/character add`, `/apply`, `/character profession`, `/craft`). These offer suggestions as you type, and anything else still works: **spec** (for the class you chose), **race**, **your characters** (`/character profession set`, `/character attunement`, `/character wishlist`), **attunement names** already in use, **wishlist items** the guild has seen, **tag names**, **raid titles** you used before, **raid times** ("friday 8pm" shows the exact moment it means), **EP/GP reasons**, **auction length**. `/character add` no longer needs the realm (it uses your guild's). `/officer loot auction` only needs the item: minimum bid, increment and length come from `/config` unless you fill them in.
 
 ## The craft board
 

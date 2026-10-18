@@ -24,7 +24,7 @@ PoE2 integration analysis: [POE2_DISCORD_INTEGRATION.md](POE2_DISCORD_INTEGRATIO
   Officers create polls through `/poll create`; the hub links the latest open polls
   in its visible activity destinations. Existing Discord events supply opt-in
   Interested reminders; their link is added when the native event is created.
-- `/organize season-settings` renames a season or changes its announcement channel.
+- `/community season-settings` renames a season or changes its announcement channel.
   Renaming refreshes existing cards; rerouting preserves their original location.
 
 No pilot activities, prizes, attendance or participation channels are invented.

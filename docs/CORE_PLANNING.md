@@ -11,7 +11,7 @@ indefinitely; changing them later requires a code/database update.
 The roster displays current main members against each role target; bench and trial
 members remain listed separately. Targets do not remove members or restrict the
 size of the bench. New raids inherit these signup limits, using the existing
-waitlist behavior. Manual `/lead create` limits can override the core defaults.
+waitlist behavior. Manual `/raid create` limits can override the core defaults.
 
 Select one or more weekdays, then enter:
 
@@ -32,7 +32,7 @@ delivered through the normal queue. After launch the window moves forward normal
 Local start times stay consistent through daylight-saving changes.
 
 Changes apply to newly generated raids. Already published raids and signups are
-preserved, including cancelled occurrences. Use `/lead edit` or `/lead cancel`
+preserved, including cancelled occurrences. Use `/raid edit` or `/raid cancel`
 to adjust those raids. Reducing the planning window does not delete existing raids.
 Two cores have independent capacities, schedules and launch dates.
 

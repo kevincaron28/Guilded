@@ -34,9 +34,9 @@ reste une dernière étape après vérification de ses autres fonctions éventue
 Dans le salon qui recevra les activités, un organisateur utilise :
 
 ```text
-/organize start-season name:Animation octobre game:DISCORD
-/organize start-season name:WoW octobre game:WOW role:@World of Warcraft
-/organize start-season name:Ligue PoE game:POE2 role:@Path of Exile 2
+/community start-season name:Animation octobre game:DISCORD
+/community start-season name:WoW octobre game:WOW role:@World of Warcraft
+/community start-season name:Ligue PoE game:POE2 role:@Path of Exile 2
 ```
 
 Le bot renvoie l'identifiant de saison utilisé ci-dessous à la place de `SAISON`.
@@ -58,10 +58,10 @@ avec les mêmes expressions françaises que les raids : `vendredi 20h`,
 ## Loteries
 
 ```text
-/organize lottery create season:SAISON title:Tirage de la semaine ends:vendredi 20h mode:FREE prize:Lot surprise
-/organize lottery create season:SAISON title:Tirage activité ends:vendredi 20h mode:POINTS cost:10 limit:10 prize:Lot surprise
-/organize lottery create season:SAISON_WOW title:Loterie WoW ends:vendredi 20h mode:WOW_GOLD cost:100 currency:gold realm:Royaume et faction prize:Lot en jeu
-/organize lottery create season:SAISON_POE title:Loterie PoE ends:vendredi 20h mode:POE_CURRENCY cost:1 currency:Divine Orb realm:Ligue et mode prize:Lot en jeu
+/community lottery create season:SAISON title:Tirage de la semaine ends:vendredi 20h mode:FREE prize:Lot surprise
+/community lottery create season:SAISON title:Tirage activité ends:vendredi 20h mode:POINTS cost:10 limit:10 prize:Lot surprise
+/community lottery create season:SAISON_WOW title:Loterie WoW ends:vendredi 20h mode:WOW_GOLD cost:100 currency:gold realm:Royaume et faction prize:Lot en jeu
+/community lottery create season:SAISON_POE title:Loterie PoE ends:vendredi 20h mode:POE_CURRENCY cost:1 currency:Divine Orb realm:Ligue et mode prize:Lot en jeu
 ```
 
 - Gratuit : exactement un billet par membre, sans paiement.
@@ -76,9 +76,9 @@ Le bouton **Participer** ouvre la demande de billets. Alternative :
 `/community lottery join id:LOTERIE quantity:3`.
 Pour les paiements en jeu, la demande reste **PENDING**. L'organisateur collecte
 le paiement en jeu, puis utilise
-`/organize lottery confirm id:LOTERIE player:@membre receipt:Détails du paiement`.
+`/community lottery confirm id:LOTERIE player:@membre receipt:Détails du paiement`.
 Un organisateur ne peut pas confirmer ses propres billets.
-`/organize lottery payments id:LOTERIE page:1` affiche les demandes, leur coût
+`/community lottery payments id:LOTERIE page:1` affiche les demandes, leur coût
 et les notes de paiement dans une réponse privée accessible aux organisateurs.
 
 À l'heure annoncée, le bot ferme la loterie et enregistre une seule fois le
@@ -87,10 +87,10 @@ comptent; chaque billet a la même probabilité. Une personne gagne au plus une
 fois. S'il manque des participants, le nombre de gagnants est réduit. Aucun
 participant admissible donne un résultat vide. Le tirage utilise le générateur
 cryptographique de Node. Les résultats persistent après redémarrage.
-Une fermeture manuelle avec `/organize lottery close` ne peut pas avancer
+Une fermeture manuelle avec `/community lottery close` ne peut pas avancer
 l'heure de tirage annoncée.
 
-`/organize lottery cancel` rembourse automatiquement les points dépensés une
+`/community lottery cancel` rembourse automatiquement les points dépensés une
 seule fois. Pour les monnaies de jeu, il conserve la liste et les montants à
 rembourser dans le résultat enregistré; les organisateurs effectuent ces
 remboursements dans le jeu. Le bot n'annonce jamais avoir remboursé du gold ou
@@ -99,7 +99,7 @@ des orbes. L'attribution effective du lot est également faite par les organisat
 ## Soirées gaming
 
 ```text
-/organize gaming create season:SAISON title:Soirée coop starts:vendredi 20h ends:vendredi 23h capacity:8 points:25
+/community gaming create season:SAISON title:Soirée coop starts:vendredi 20h ends:vendredi 23h capacity:8 points:25
 ```
 
 Les nouvelles soirées proposent 25 points par défaut (option `points` facultative);
@@ -111,7 +111,7 @@ inscrits en liste d'attente; une place libérée promeut automatiquement le prem
 L'annonce est actualisée et un rappel sans mention est publié dans l'heure
 précédant le début. Les inscriptions ferment au début; l'activité ferme à sa fin.
 
-Pendant la soirée, `/organize gaming attendance id:SOIREE player:@membre`
+Pendant la soirée, `/community gaming attendance id:SOIREE player:@membre`
 confirme la présence et donne les points une fois. Un autre organisateur doit
 valider la présence d'un organisateur. S'inscrire ne donne aucun point.
 `close`, `cancel`, `show` et `list season:` sont disponibles dans le sous-menu.
@@ -119,22 +119,22 @@ Cette première version réutilise les vocaux existants et n'en crée pas automa
 
 Les soirées sont aussi publiées dans les événements natifs Discord : voir
 `docs/DISCORD_EVENTS.md`. `voice:` choisit un vocal existant; pour une saison privée,
-il doit avoir la même visibilité que son salon d'annonce. `/organize gaming edit`
+il doit avoir la même visibilité que son salon d'annonce. `/community gaming edit`
 modifie le titre, le début, la fin ou le vocal d'une soirée à venir. Les boutons
 Guilded restent la liste d'inscription officielle; « Intéressé » sert aux
 notifications Discord et n'accorde aucun point de présence.
 ## Défis dans les jeux
 
 ```text
-/organize challenge create season:SAISON_WOW title:Objectif coop ends:dimanche 22h points:30 instructions:Objectif et capture requise
+/community challenge create season:SAISON_WOW title:Objectif coop ends:dimanche 22h points:30 instructions:Objectif et capture requise
 ```
 
 Un membre soumet un lien HTTPS de capture ou de vidéo avec le bouton
 **Soumettre une preuve**, ou `/community challenge submit id:DEFI proof:LIEN`.
 Le bot conserve la référence sans télécharger son contenu. Chaque membre a une
 soumission par défi; un défi réalisé en groupe demande une preuve par participant.
-L'organisateur consulte `/organize challenge claims id:DEFI page:1`, puis
-`/organize challenge review id:DEFI player:@membre decision:APPROVE reason:Vérifié`.
+L'organisateur consulte `/community challenge claims id:DEFI page:1`, puis
+`/community challenge review id:DEFI player:@membre decision:APPROVE reason:Vérifié`.
 Autres décisions : **REJECT**, **REVERSE**. L'auteur d'une preuve ne peut pas
 la valider lui-même. Une validation donne les points une seule fois; une correction
 ajoute une écriture inverse et garde l'historique. Si des points corrigés ont déjà
@@ -152,10 +152,10 @@ existant et ses saisons demeurent indépendants.
   le fuseau du serveur, 2 points de participation, bonus de 3 à partir de 90.
   Les nouvelles tentatives retournent le lancer initial, même après redémarrage.
   Une ronde déjà commencée conserve son barème enregistré, y compris après déploiement.
-- `/organize quiz season:SAISON_DISCORD title:QUESTION ends:demain 20h points:10 a:REPONSE b:REPONSE c:REPONSE d:REPONSE correct:3`
+- `/community quiz season:SAISON_DISCORD title:QUESTION ends:demain 20h points:10 a:REPONSE b:REPONSE c:REPONSE d:REPONSE correct:3`
   crée un quiz à quatre choix; `correct` va de 1 à 4. Un essai par membre,
   points seulement pour la bonne réponse, auteur exclu. La bonne réponse reste
-  cachée dans l'annonce jusqu'à la fermeture. `/organize close-quiz id:QUIZ`
+  cachée dans l'annonce jusqu'à la fermeture. `/community close-quiz id:QUIZ`
   ferme aussi un quiz manuellement.
 
 ## Classements et portefeuille
@@ -166,7 +166,7 @@ et ses dix dernières écritures. Chaque jeu a ses propres points; les GP/EP,
 points de donjons et monnaies réelles de jeu ne sont pas modifiés.
 
 Pour archiver : fermer les activités et traiter les preuves en attente, puis
-`/organize end-season season:SAISON`. Le classement final est figé, l'historique
+`/community end-season season:SAISON`. Le classement final est figé, l'historique
 reste consultable et une nouvelle saison démarre à zéro.
 
 ## Livraison et intégrité

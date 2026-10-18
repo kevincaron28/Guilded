@@ -1,3 +1,5 @@
+> 6.6.0 (18 October 2026): Guilded Lite for unapproved hosted servers, dungeon rules v6 with level
+> brackets (not active), `/guilded sheet` spreadsheet copy, Ko-fi links (docs/V6_6_0_RELEASE_NOTES.md).
 > 6.5.2 (18 October 2026): update prompts (companion banner, self-hosted bot notice; migration
 > 20261118090000_update_notice), pairing code shown first (docs/V6_5_2_RELEASE_NOTES.md).
 > 6.5.1 (17 October 2026): companions connect with the pairing code alone (docs/V6_5_1_RELEASE_NOTES.md).
@@ -34,7 +36,7 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (18 October 2026): version 6.5.2 Release, protocol 2.**
+**Current status (18 October 2026): version 6.6.0 Release, protocol 2.**
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
 Standalone guild and optional Guilded Games work is next-version candidate
 source; do not overwrite the published 6.2.0 downloads or bump incidentally.

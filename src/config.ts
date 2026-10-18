@@ -28,6 +28,12 @@ const environmentSchema = z.object({
     const url = new URL(value);
     return ["https:", "http:"].includes(url.protocol) && !url.username && !url.password;
   }, "Use a public HTTP(S) companion URL.").optional()),
+  // 7.0 website sign-in ("Sign in with Discord", identify scope). All three set: on; any missing: the
+  // recruitment and leaderboard pages say sign-in is off. The secret comes from the Developer Portal
+  // (OAuth2 > Client Secret); WEB_SESSION_SECRET is any random text of 32+ characters.
+  DISCORD_OAUTH_CLIENT_SECRET: blankAsUndefined(z.string().min(1).optional()),
+  PUBLIC_SITE_URL: blankAsUndefined(z.string().url().refine((value) => new URL(value).protocol === "https:", "Use the public https:// website address.").optional()),
+  WEB_SESSION_SECRET: blankAsUndefined(z.string().min(32).optional()),
   // Warcraft Logs API v2 client (https://www.warcraftlogs.com/api/clients). Optional: /raid wcl stays off without it.
   WCL_CLIENT_ID: blankAsUndefined(z.string().min(1).optional()),
   WCL_CLIENT_SECRET: blankAsUndefined(z.string().min(1).optional()),

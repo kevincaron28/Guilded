@@ -28,6 +28,10 @@ import { createPoeMappingService, poeAreaName, PoeMappingError } from "./service
 import { notify } from "./services/notify.js";
 import { allowManageWrite, createCompanionManage, ManageError } from "./services/companion-manage.js";
 import { syncCoreRoster } from "./services/raid-core.js";
+import { createWebApp, isWebPath, type WebRoute } from "./services/web-app.js";
+import { webAuthConfig } from "./services/web-auth.js";
+import { prismaWebStore } from "./services/web-store.js";
+import { postWebApplication } from "./services/recruitment-discord.js";
 import { COMPANION_FEATURES, markGuildChanged, standingsFeed, type FeedParts } from "./services/standings-feed.js";
 const BOT_VERSION = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version as string;
 
@@ -119,6 +123,31 @@ const manage = createCompanionManage(prisma);
 // Public guild pages (/g/<slug>/): read-only HTML, no pairing needed.
 const guildPages = createGuildPageServer((slug) => loadGuildPageView(prisma, slug, (id) => hostedPilot.allows(id)));
 
+// The website's signed-in pages (/auth/, /recruitment/, /me/, /leaderboards/), served through the Worker.
+const WEB_FORM_BYTES = 16_000;
+async function readForm(request: IncomingMessage): Promise<string> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of request) {
+    size += Buffer.byteLength(chunk);
+    if (size > WEB_FORM_BYTES) throw new BodyTooLargeError("Form is too large.");
+    chunks.push(Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+const headerOf = (request: IncomingMessage, name: string) => { const value = request.headers[name]; return Array.isArray(value) ? value[0] : value; };
+
+export function createSiteApp(client?: Client, routes: WebRoute[] = [], meSections: Parameters<typeof createWebApp>[0]["meSections"] = []) {
+  return createWebApp({
+    store: prismaWebStore(prisma), auth: webAuthConfig(config), allows: (id) => hostedPilot.allows(id), routes, meSections,
+    postApplication: (view) => postWebApplication(client, view),
+    tellOwner: async (text) => {
+      const channel = client && config.ERROR_LOG_CHANNEL_ID ? await client.channels.fetch(config.ERROR_LOG_CHANNEL_ID).catch(() => null) : null;
+      if (channel?.isSendable()) await channel.send({ content: text.slice(0, 1900), allowedMentions: { parse: [] } });
+    }
+  });
+}
+
 // A failed automatic import is told to the officers once an hour per cause, not on every upload.
 const APPLY_FAILURE_REPEAT_MS = 60 * 60_000;
 const applyFailureTold = new Map<string, number>();
@@ -208,6 +237,7 @@ async function standingsParts(guild: { id: string; discordId: string }, access: 
 
 // `client` lets an upload be applied and announced by the bot itself (auto-apply).
 export function startCompanionApi(client?: Client): ReturnType<typeof createServer> {
+  const site = createSiteApp(client);
   const server = createServer(async (request, response) => {
     try {
       response.setHeader("cache-control", "no-store");
@@ -218,6 +248,18 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       }
       const url = new URL(request.url ?? "/", "http://localhost");
       if (await serveCompanionWeb(request, response, url.pathname)) return;
+      if (isWebPath(url.pathname)) {
+        const answer = await site.respond({
+          method: request.method ?? "GET", path: url.pathname, query: url.searchParams,
+          headers: Object.fromEntries(["cookie", "origin", "referer", "accept-language", "content-type"].map((name) => [name, headerOf(request, name)])),
+          ...(request.method === "POST" ? { body: await readForm(request) } : {})
+        });
+        if (answer) {
+          response.writeHead(answer.status, answer.headers);
+          response.end(request.method === "HEAD" ? undefined : answer.body);
+          return;
+        }
+      }
       const page = await guildPages.respond(request.method ?? "GET", url.pathname);
       if (page) {
         response.writeHead(page.status, page.headers);

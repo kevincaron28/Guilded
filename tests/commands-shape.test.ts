@@ -30,6 +30,12 @@ describe("slash command definitions follow Discord's rules", () => {
   it("has valid names, descriptions, option order and choice counts", () => {
     const problems: string[] = [];
     for (const command of all) walk(command.options, command.name, problems);
+    // A top-level description over 100 characters (or a localized one) makes Discord refuse the
+    // whole command list at registration (7.0.0: /mod), so it is checked here too.
+    for (const command of all) {
+      const texts = [command.description, ...Object.values((command as { description_localizations?: Record<string, string> }).description_localizations ?? {})];
+      if (texts.some((text) => !text || text.length > 100)) problems.push(`${command.name}: description length`);
+    }
     expect(problems).toEqual([]);
     expect(new Set(all.map((command) => command.name)).size).toBe(all.length);
     expect(all.length).toBeLessThanOrEqual(100);

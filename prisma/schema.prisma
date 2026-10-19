@@ -1906,8 +1906,10 @@ model PublicRun {
   // Highest party level and its bracket (DEFAULT_DUNGEON_BRACKETS), when known.
   maxLevel      Int?
   bracket       String?
-  // Calendar quarter of the end time, e.g. "2026-Q4".
+  // Calendar quarter of the end time, e.g. "2026-Q4" (legacy; pages use the monthly seasons).
   season        String
+  // Rated route: the map id, or "189:<wing>" for Scarlet Monastery (public-score.ts).
+  routeKey      String?
   // ACCEPTED (shown) or DISPUTED (uploads disagree: hidden until the owner looks).
   status        String   @default("ACCEPTED")
   // Different uploaders (players or guilds) whose upload agreed with this run.

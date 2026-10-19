@@ -149,3 +149,22 @@ the season's own frozen rules, per bracket. The release week is clipped to the s
   This month / This week button next to the bracket switch (week shows the guild ranking for the
   chosen bracket). Guild sync sends it in a separate `WEEK` message that older clients ignore.
 - Owner decision still open: the weekly reset time (default Tuesday 15:00 UTC, the NA reset).
+
+## Website leaderboards (built 19 October 2026)
+
+Bot-rendered pages under `/leaderboards/` (no new Worker or Caddy route needed: both already pass
+`/leaderboards/*`). Layout inspired by Raider.IO; no text, logos or assets copied. Server-side, no
+scripts, the existing strict CSP, 60 s in-memory cache.
+
+- `/leaderboards/`: top runs this week, top characters per rated bracket (season or this week),
+  dungeon records, opted-in guilds. Filters: season (Season N · Month, Beta before 4 November, all
+  time), period (whole season / this week), bracket, dungeon, class, role, realm, confirmed by party.
+- `?dungeon=<id>`: one dungeon, fastest character first, with each run's score.
+- `/leaderboards/character/<Name-Realm>`: score per bracket this season, best run per dungeon,
+  recent runs, score history per season (CSS bars).
+- `/leaderboards/guild/<guildId>`: guilds with public runs on (`/mod leaderboard`), members ranked per bracket.
+- Score (`src/services/public-score.ts`): the release season's provisional all-level rules for every
+  public run: 200 × target ÷ time (50–400) per route, over-level penalty, best N routes per bracket.
+  Scarlet Monastery wings come from the boss kills (new `PublicRun.routeKey`, migration
+  `20261120090000_public_run_route`); runs stored before it show a time but no score for map 189.
+- Public seasons follow the default schedule (4 November 2026, then monthly), not a guild's own.

@@ -1,7 +1,7 @@
 import { EmbedBuilder, escapeMarkdown } from "discord.js";
 import type { PrismaClient } from "@prisma/client";
 import type { Lang } from "../i18n.js";
-import { bracketForLevel, novemberDungeonKey, resolveNovemberRoute, validBracketedRules, validNovemberRules,
+import { bracketForLevel, novemberDungeonKey, resolveNovemberRoute, routeTargetAt, validBracketedRules, validNovemberRules,
   type BracketedRules, type DungeonBracket, type NovemberRules } from "./dungeon-november-rules.js";
 
 // Version 1 remains readable forever. New seasons use a frozen version 3 copy.
@@ -23,15 +23,16 @@ export function ratingDungeonKey(run: RatingRun): string {
   if (run.instanceId !== 189) return String(run.instanceId);
   const encounters = (run.competitionData as { encounters?: { name?: string; success?: boolean }[] } | null)?.encounters;
   const names = new Set((Array.isArray(encounters) ? encounters : []).filter(e => e?.success === true).map(e => e.name?.toLowerCase()));
-  const wings = [
-    ["graveyard", ["bloodmage thalnos", "mage de sang thalnos"]],
-    ["library", ["arcanist doan", "arcaniste doan"]],
-    ["armory", ["herod", "hérode"]],
-    ["cathedral", ["high inquisitor whitemane", "grande inquisitrice blanchetête"]]
-  ] as const;
-  const matches = wings.filter(([, bosses]) => bosses.some(name => names.has(name)));
+  const matches = SCARLET_WINGS.filter(([, bosses]) => bosses.some(name => names.has(name)));
   return matches.length === 1 ? `189:${matches[0]![0]}` : "189";
 }
+// Scarlet Monastery shares map 189; each wing is told apart by its last boss (English, French).
+export const SCARLET_WINGS = [
+  ["graveyard", ["bloodmage thalnos", "mage de sang thalnos"]],
+  ["library", ["arcanist doan", "arcaniste doan"]],
+  ["armory", ["herod", "hérode"]],
+  ["cathedral", ["high inquisitor whitemane", "grande inquisitrice blanchetête"]]
+] as const;
 export function createDungeonRatingRules(targets: Record<string, number> = {}, version: 2 | 3 = 3, bands: Record<string, LevelBand> = {}) {
   const frozen: Record<string, number> = {};
   for (const [id, seconds] of Object.entries(targets)) {
@@ -79,7 +80,7 @@ export function ratingCharacterKey(memberId: string, character: string): string 
 }
 export interface BossRecord { id: number; name: string; durationSec: number; runRef: string }
 export interface RatingRun {
-  competitionData?: unknown; difficultyId?: number; startedAt?: Date | null; endedAt?: Date | null;
+  competitionData?: unknown; difficultyId?: number; startedAt?: Date | null; endedAt?: Date | null; completedBy?: string | null;
   instanceId: number; durationSec: number | null; dungeonName?: string; runRef?: string;
   players: { character?: string; memberId: string | null; presentSec: number; member: { displayName: string } | null }[];
 }
@@ -151,7 +152,7 @@ export function calculateDungeonRating(runs: RatingRun[], rules?: unknown): Rati
       if (brackets && !bracket) continue;
       const identity = ratingCharacterKey(player.memberId, player.character) + (bracket ? `/${bracket.key}` : "");
       const member = members.get(identity) ?? { memberId: player.memberId, name: player.character.trim(), ...(bracket ? { bracket } : {}), bests: new Map<string, DungeonRatingDetail>() };
-      const targetSec = targets[key] ?? null;
+      const targetSec = (brackets ? routeTargetAt(brackets, key, run.endedAt) : targets[key]) ?? null;
       const speedBonus = timed ? 0 : speedPoints(run.durationSec, targetSec);
       const detail: DungeonRatingDetail = { ...(timed ? { ratingVersion: version as 3 | 4 | 5 | 6, dungeonKey: key, ...(reason || !targetSec ? { unrankedReason: reason ?? "Target not calibrated" } : {}), bosses: [] } : {}), instanceId: run.instanceId, name: route?.route?.name ?? (key.startsWith("189:") ? `Scarlet Monastery: ${key.split(":")[1]}` : run.dungeonName ?? `#${run.instanceId}`), points: timed ? reason ? 0 : penalized(timeRating(run.durationSec, targetSec), targetSec ? penaltyPercent : 0) : 100 + speedBonus,
         ...(penaltyPercent && targetSec ? { penaltyPercent } : {}),
@@ -254,7 +255,7 @@ export async function dungeonRating(database: Pick<PrismaClient, "dungeonRun">, 
     durationSec: { gt: 0 }, NOT: { runRef: { startsWith: "SIM-" } },
     startedAt: { gte: season.startsAt }, ...(season.endsAt ? { endedAt: { lt: season.endsAt } } : {}),
     ...(instanceId !== null ? { instanceId } : {})
-  }, select: { competitionData: true, difficultyId: true, startedAt: true, endedAt: true, instanceId: true, dungeonName: true, runRef: true, durationSec: true, players: {
+  }, select: { competitionData: true, difficultyId: true, startedAt: true, endedAt: true, completedBy: true, instanceId: true, dungeonName: true, runRef: true, durationSec: true, players: {
     ...(!timed ? { where: { member: { guildId } } } : {}),
     select: { character: true, memberId: true, presentSec: true, member: { select: { displayName: true, guildId: true } } }
   } } });
@@ -302,6 +303,10 @@ const rankLine = (rows: RatingRow[], row: RatingRow, fr: boolean) => {
   const scored = row.details ? row.details.filter(d => d.points > 0).length : row.dungeons;
   return `${rank === 1 ? "🏅" : `${rank}.`} **${escapeMarkdown(row.name).slice(0, 100)}** · **${row.points}** · ${scored} ${fr ? "parcours classé(s)" : "ranked route(s)"}`;
 };
+/** Shown while a provisional all-level season still has a route on its starting target. */
+export const provisionalNote = (fr: boolean) => fr
+  ? "⚠️ **Cibles provisoires** : des recommandations en attendant de vrais chronos. Un officier peut recalibrer un parcours d’après de vrais runs; les scores déjà obtenus gardent leur cible."
+  : "⚠️ **Provisional targets**: recommendations until real timed runs exist. An officer may recalibrate a route from real runs; scores already earned keep their target.";
 const bracketLabel = (b: DungeonBracket, fr: boolean) => b.min === b.max ? `${fr ? "Niveau" : "Level"} ${b.min}` : `${fr ? "Niveaux" : "Levels"} ${b.min}–${b.max}`;
 // One bracket in full, or (no bracket chosen) the top five of every bracket.
 function bracketRatingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, rules: BracketedRules, key?: string): EmbedBuilder {
@@ -312,13 +317,14 @@ function bracketRatingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, r
       : "Round(200 × target ÷ duration), 50–400 per route. Each character ranks in the bracket of their level during the run; every participant must stay inside the route's band. Details: `/dungeon rules`.",
     fr ? `Groupe au-dessus de la plage : −${rules.overlevelPenalty.percentPerLevel} % par niveau du plus haut participant, jusqu’à ${rules.overlevelPenalty.maxLevels} niveaux; au-delà, transport : 0.`
       : `Group above the band: −${rules.overlevelPenalty.percentPerLevel}% per level of the highest participant, up to ${rules.overlevelPenalty.maxLevels} levels; beyond that it is a carry: 0.`];
+  if (rules.provisionalTargets) lines.unshift(provisionalNote(fr));
   const embed = new EmbedBuilder().setColor(0x8b5cf6).setFooter({ text: fr ? "Boss final détecté + présence ≥ 80 %. Points de participation séparés." : "Detected final boss + ≥80% presence. Participation points are separate." });
   if (chosen) {
     const own = rows.filter(row => row.bracket === chosen.key);
     lines.push(fr ? `**${bracketLabel(chosen, true)} : vos ${chosen.bestCount} meilleurs parcours distincts comptent.**` : `**${bracketLabel(chosen, false)}: your best ${chosen.bestCount} distinct routes count.**`);
     lines.push(...own.slice(0, 10).map(row => rankLine(own, row, fr)));
     if (!own.length) lines.push(fr ? "Terminez un parcours calibré de cette tranche pour établir votre score." : "Complete a calibrated route in this bracket to establish your score.");
-    return embed.setTitle(`🏅 ${bracketLabel(chosen, fr)} · ${seasonName}`.slice(0, 256)).setDescription(lines.join("\n\n").slice(0, 4096));
+    return embed.setTitle(`🏅 ${bracketLabel(chosen, fr)} · ${seasonName}${rules.provisionalTargets ? fr ? " · provisoire" : " · provisional" : ""}`.slice(0, 256)).setDescription(lines.join("\n\n").slice(0, 4096));
   }
   for (const b of rules.brackets) {
     const own = rows.filter(row => row.bracket === b.key);
@@ -326,7 +332,7 @@ function bracketRatingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, r
       value: (own.length ? own.slice(0, 5).map(row => rankLine(own, row, fr)).join("\n") : fr ? "Aucun score." : "No scores yet.").slice(0, 1024) });
   }
   lines.push(fr ? "Une tranche : `/dungeon leaderboard bracket:`." : "One bracket: `/dungeon leaderboard bracket:`.");
-  return embed.setTitle(`${fr ? "🏅 Exploration" : "🏅 Exploration rating"} · ${seasonName}`.slice(0, 256)).setDescription(lines.join("\n\n"));
+  return embed.setTitle(`${fr ? "🏅 Exploration" : "🏅 Exploration rating"} · ${seasonName}${rules.provisionalTargets ? fr ? " · provisoire" : " · provisional" : ""}`.slice(0, 256)).setDescription(lines.join("\n\n"));
 }
 
 export interface DungeonCatalogEntry {

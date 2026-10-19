@@ -8,6 +8,7 @@ import {
   setWeeklyRepeat, startSeason, type PointRule
 } from "../services/dungeon-admin.js";
 import { formatDuration } from "../services/dungeon-rules.js";
+import { describeEvidence, provisionalSeasonEmbed, recalibrateRoute, recalibrationEvidence, startProvisionalSeason } from "../services/dungeon-bracket-season.js";
 import { postToLogChannel } from "../services/housekeeping.js";
 import { findPlayer } from "../services/player-search.js";
 import { requireGuildContext } from "./context.js";
@@ -44,7 +45,21 @@ export const dungeonAdminCommand = new SlashCommandBuilder()
     .addIntegerOption(o => o.setName("difficulty").setDescription("Competitive difficulty ID next season").setMinValue(0)))
   .addSubcommand((sub) => sub.setName("season-start").setDescription("End the current season (kept in history) and start a new one")
     .addStringOption((o) => o.setName("name").setDescription("e.g. Season 2").setRequired(true).setMaxLength(60))
-    .addStringOption(o => o.setName("ends_at").setDescription("End time with zone, e.g. 2026-10-23T00:00:00-04:00")));
+    .addStringOption(o => o.setName("ends_at").setDescription("End time with zone, e.g. 2026-10-23T00:00:00-04:00")))
+  .addSubcommand(sub => sub.setName("bracket-preview").setDescription("Preview the provisional all-level season (nothing starts)"))
+  .addSubcommand(sub => sub.setName("bracket-start").setDescription("Start the provisional all-level season")
+    .addStringOption(o => o.setName("name").setDescription("e.g. All levels").setRequired(true).setMaxLength(60))
+    .addStringOption(o => o.setName("starts_at").setDescription("Start with zone, e.g. 2026-10-19T20:00:00-04:00").setRequired(true))
+    .addStringOption(o => o.setName("ends_at").setDescription("End with zone").setRequired(true))
+    .addBooleanOption(o => o.setName("rotate").setDescription("Archive the active season first (required if one is active)")))
+  .addSubcommand(sub => sub.setName("recalibrate").setDescription("Route target from real runs; earned scores stay")
+    .addStringOption(o => o.setName("route").setDescription("Route (pick from the list)").setAutocomplete(true).setRequired(true))
+    .addIntegerOption(o => o.setName("minutes").setDescription("New target; leave out to see the runs").setMinValue(5).setMaxValue(120)));
+
+const zoned = (value: string, option: string) => {
+  if (!/T.*(?:Z|[+-]\d{2}:\d{2})$/.test(value)) throw new Error(`Include a time and timezone in ${option}.`);
+  return new Date(value);
+};
 
 async function memberFromOptions(interaction: ChatInputCommandInteraction, guildId: string) {
   const character = interaction.options.getString("character");
@@ -136,15 +151,41 @@ export async function executeDungeonAdmin(interaction: ChatInputCommandInteracti
     reply = (seconds === null ? `Removed the target time for ${name}.` : `Target time for ${name}: ${formatDuration(seconds)}. Clears at or under it earn the participation underTarget bonus.`)
       + " Rating targets are frozen when a season starts; this change applies to the next rating season.";
     await log(reply, { instanceId, minutes });
+  } else if (subcommand === "bracket-preview") {
+    await interaction.reply({ embeds: [provisionalSeasonEmbed()], flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+    return;
+  } else if (subcommand === "bracket-start") {
+    const result = await startProvisionalSeason(prisma, context.guildId, { name: interaction.options.getString("name", true),
+      startsAt: zoned(interaction.options.getString("starts_at", true), "starts_at"), endsAt: zoned(interaction.options.getString("ends_at", true), "ends_at"),
+      rotate: interaction.options.getBoolean("rotate") === true });
+    const s = result.season;
+    reply = `${result.ended.length ? `Archived ${result.ended.join(", ")} (standings frozen, runs and points kept). ` : ""}`
+      + `${result.champions.length ? `👑 Season Champion: ${result.champions.join(", ")}. ` : ""}`
+      + `**${s.name}** (all levels, PROVISIONAL targets) counts runs from <t:${Math.floor(s.startsAt.getTime() / 1000)}:f> to <t:${Math.floor(s.endsAt!.getTime() / 1000)}:f>. `
+      + `Brackets: ${result.rules.brackets.map(b => b.key).join(", ")}; ${result.rules.catalog.length} rated routes, ${result.rules.provisional!.waiting.length} waiting for launch data. `
+      + "Recalibrate a route from real runs with `/officer dungeon recalibrate`.";
+    await log(reply, { seasonId: s.id, plan: result.rules.provisional!.plan });
+  } else if (subcommand === "recalibrate") {
+    const key = interaction.options.getString("route", true);
+    const minutes = interaction.options.getInteger("minutes");
+    if (minutes === null) reply = describeEvidence(await recalibrationEvidence(prisma, context.guildId, key));
+    else {
+      const result = await recalibrateRoute(prisma, context.guildId, key, minutes);
+      reply = `**${result.route.name}**: target ${formatDuration(result.beforeSec)} → ${formatDuration(result.afterSec)} for runs ending from <t:${Math.floor(result.from.getTime() / 1000)}:f>, `
+        + `from ${result.times.length} real timed run(s) (median ${formatDuration(result.median!)}). Runs that ended earlier keep their score.`
+        + (result.rules.provisionalTargets ? "" : " Every route is now recalibrated: the season is no longer marked provisional.");
+      await log(reply, { seasonId: result.season.id, route: key, beforeSec: result.beforeSec, afterSec: result.afterSec });
+    }
   } else {
     const end = interaction.options.getString("ends_at");
-    if (end && !/T.*(?:Z|[+-]\d{2}:\d{2})$/.test(end)) throw new Error("Include a time and timezone in ends_at.");
-    const result = await startSeason(prisma, context.guildId, interaction.options.getString("name", true), undefined, end ? new Date(end) : undefined);
+    const result = await startSeason(prisma, context.guildId, interaction.options.getString("name", true), undefined, end ? zoned(end, "ends_at") : undefined);
     reply = `${result.ended.length ? `Ended ${result.ended.join(", ")} (still viewable). ` : ""}`
       + `${result.champions.length ? `👑 Season Champion: ${result.champions.join(", ")}. ` : ""}`
       + `**${result.season.name}** has started; season leaderboards start from zero.`;
     await log(reply, { seasonId: result.season.id });
   }
   await interaction.reply({ content: reply.slice(0, 1990), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
-  if (["season-start", "award", "invalidate"].includes(subcommand)) await updateDungeonLeaderboard(interaction.guild);
+  if (["season-start", "bracket-start", "award", "invalidate"].includes(subcommand) || subcommand === "recalibrate" && interaction.options.getInteger("minutes") !== null) {
+    await updateDungeonLeaderboard(interaction.guild);
+  }
 }

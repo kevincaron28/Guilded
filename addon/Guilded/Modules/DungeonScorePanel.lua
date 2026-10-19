@@ -58,7 +58,9 @@ function view.model(name, seasonIndex, bracketKey)
     if not bracket or not dungeon.bracket or dungeon.bracket == bracket.key then
       local best = byId[dungeon.dungeonKey or tostring(dungeon.instanceId)]
       cards[#cards + 1] = { name = dungeon.name, instanceId = dungeon.instanceId, minLevel = dungeon.minLevel, maxLevel = dungeon.maxLevel, points = available and (best and best.points or 0) or nil,
-        counted = best and best.counted, reason = best and best.unrankedReason, penalty = best and best.penaltyPercent, bosses = best and best.bosses, sec = best and best.durationSec, speedBonus = best and best.speedBonus, targetSec = dungeon.targetSec }
+        counted = best and best.counted, reason = best and best.unrankedReason, penalty = best and best.penaltyPercent, bosses = best and best.bosses, sec = best and best.durationSec, speedBonus = best and best.speedBonus, targetSec = dungeon.targetSec,
+        -- The officer relay (SeasonDetails) carries only the season's flag, not each route's.
+        provisional = snapshot.version == 6 and (dungeon.provisional == true or dungeon.provisional == nil and snapshot.provisional == true) }
       local mapped = score.dungeonFor(dungeon.name)
       if mapped then known[mapped.key] = true end
     end
@@ -276,7 +278,11 @@ function view.build(parent, compact)
       or model.version == 5 and L("Level 60: best 8 distinct routes. Maximum 3200. Verified route evidence required.") or model.version == 4 and L("Beta: best 8 distinct routes. Level 30. Maximum 3200. Provisional targets.") or model.version == 3 and L("200 at target. Best run per dungeon. Hover for boss records.") or model.version == 2 and L("100 per dungeon + up to 20 speed. Only your best run counts.")
       or L("Historical rules: 100 per distinct dungeon, no speed bonus."))
       or L("Per-dungeon breakdown unavailable in this snapshot."))
-    if model.provisional and model.version ~= 4 and model.version ~= 5 then self.note:SetText(L("Provisional targets, fixed for this season. Hover for boss records.")) end
+    -- A provisional all-level season: officers may recalibrate a route's target from real runs.
+    if model.provisional and model.version == 6 and model.available and model.bracket then
+      self.note:SetText(string.format(L("%s: best %d distinct routes. * = provisional target; officers may recalibrate it from real runs."),
+        ns.scores.bracketLabel(model.bracket), model.bracket.bestCount))
+    elseif model.provisional and model.version ~= 4 and model.version ~= 5 and model.version ~= 6 then self.note:SetText(L("Provisional targets, fixed for this season. Hover for boss records.")) end
     if not model.available and ns.seasonDetails then ns.seasonDetails.request(model.seasonIndex) end
     for i, card in ipairs(self.cards) do
       local row = model.cards[(self.page - 1) * perPage + i]
@@ -289,9 +295,9 @@ function view.build(parent, compact)
         card:Show(); card.name:SetText(row.name .. (levels and (" (" .. levels .. ")") or ""))
         card.value:SetText(row.sec and ("|cffefca68" .. (row.reason and L("Unranked") or tostring(row.points)) .. (row.penalty and (" (-" .. row.penalty .. "%)") or "") .. (model.version == 2 and " (+" .. row.speedBonus .. ")" or "") .. ((model.version == 4 or model.version == 5) and row.counted == false and not row.reason and (" - " .. L("Not counted in best 8")) or "")
           .. (model.version == 6 and model.bracket and row.counted == false and not row.reason and (" - " .. string.format(L("Not counted in best %d"), model.bracket.bestCount)) or "") .. "|r  " .. duration(row.sec)
-          .. " / " .. (row.targetSec and duration(row.targetSec) or L("No target")))
+          .. " / " .. (row.targetSec and (duration(row.targetSec) .. (row.provisional and "*" or "")) or L("No target")))
           or ("|cff8993a4" .. (model.available and L("Not completed this season") or L("Breakdown unavailable")) .. "|r"
-            .. (row.targetSec and (" / " .. duration(row.targetSec)) or "")))
+            .. (row.targetSec and (" / " .. duration(row.targetSec) .. (row.provisional and "*" or "")) or "")))
         card.bar:SetWidth(math.max(1, cardWidth * math.min(1, (row.points or 0) / ((model.version or 0) >= 3 and 400 or 120))))
         if (row.points or 0) > 0 then card.bar:Show() else card.bar:Hide() end
       else card.row = nil; card.art:SetTexture(nil); card.art:Hide(); card:Hide() end

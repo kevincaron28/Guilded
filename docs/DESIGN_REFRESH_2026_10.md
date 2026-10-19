@@ -1,6 +1,6 @@
 # Approved visual refresh — 19 October 2026
 
-The owner approved the Ribbon Atelier public-site direction and compact Precision Desk companion after reviewing the design research and mockups. Work is isolated on `codex/ribbon-atelier`, initially based on origin/main `be43608`, then rebased over the concurrent 7.0.0 release and PR154. The primary checkout and Claude’s companion worktree are untouched.
+The owner approved the Ribbon Atelier public-site direction and compact Precision Desk companion after reviewing the design research and mockups. Implementation is isolated on `codex/ribbon-atelier`, initially based on origin/main `be43608`, then integrated with main through PR157. Concurrent primary/Claude application source was preserved; only append-only coordination notices were later added through the authorized CLAUDE.md/handoff route.
 
 ## Implementation scope
 
@@ -18,7 +18,7 @@ Website publication must not introduce unrelated new Worker/backend behavior. Co
 
 ## Evidence
 
-Visual QA, checks, final source hashes and publication/coordination status will be recorded here when complete. Historical screenshot captions remain explicit; no UI image is evidence of an unobserved successful sync or current-release game acceptance.
+Visual QA, checks, final source hashes and publication/coordination status are recorded below and in `WEBSITE_AND_COMPANION_HANDOFF_2026_10_19.md`. Historical screenshot captions remain explicit; no UI image is evidence of an unobserved successful sync or current-release game acceptance.
 
 ### Completed local validation
 
@@ -30,9 +30,9 @@ Public download labels are curated in `site/releases.json`, independently of can
 
 ### Publication and handoff
 
-Draft review: https://github.com/kevincaron28/Guilded/pull/156 (`codex/ribbon-atelier`, based on main through PR155). The active Worker backup and assets-only dry-run have identical SHA256 `4c64ee9194a6d3682a89c8d6014bc0f31df219a27eaa1927021a9d450cc1da01`; no current source Worker is substituted.
+Source PR: https://github.com/kevincaron28/Guilded/pull/156 (`codex/ribbon-atelier`, main through PR157). Published assets revision is `be58843bed2646f8fd7c58069c2d1037c008e734`. Production deployment `50b209a0-f520-42ad-9bc6-9c70d15ccdea` published the accepted public sites after explicit owner approval. The active Worker backup, assets-only deployment and normal repository Worker dry-run have identical SHA256 `4c64ee9194a6d3682a89c8d6014bc0f31df219a27eaa1927021a9d450cc1da01`; private owner boundaries and runtime/routing/binding metadata were preserved.
 
-The production assets deployment was rejected by automatic approval review before execution: the worker transcript did not contain explicit production-publishing authorization. No production change happened. The parent must forward the explicit authorization or obtain it before a retry. Companion source is ready for integration; installer/frontend/bot publication must be coordinated with Claude and no version was bumped by this refresh.
+The initial automatic-review rejection happened before execution and was resolved by forwarding explicit user publication authorization; one authorized retry succeeded. CI39240918571 passed, as did 39 live HTTP/asset/download checks, 19 local UI scenarios and eight live views. Companion source is ready for integration, but installer/frontend/bot release must be coordinated with Claude and no version was bumped by this refresh. Actual Cloudflare production settings were read: main builds `npm run site:build`, then `npx wrangler deploy`; GitHub packaging uses `--publish never`. See the durable handoff for source-sync and PR151 release dependencies.
 
 ### Fresh user screenshot integration
 
@@ -40,4 +40,4 @@ On 19 October, the user supplied 14 genuine Guilded game captures. The dedicated
 
 Both website heroes now show local guild setup with blank fields. Crafting and loot stories use fresh blank/idle captures, and an expandable gallery shows raid controls, solo readiness and not-completed season targets. Labels preserve the redactions and true empty states. Mobile uses the supplied detail crops with complete-image links. Captions and image descriptions have EN/FR text. The loaded addon version and client build are unknown; disk 6.3.2 metadata is separate evidence and is not promoted as the loaded version. No Catchkeeper/Trailmark images were supplied.
 
-The concurrent main change through PR157 was merged cleanly before integration. All repository checks passed on the combined source; the image/alt-text changes also pass the site build, targeted lint and static-reference checks. Fresh layout review and final CI are recorded in the task handoff. Explicit website publication approval has now been received. The assets-only deployment follows final screenshot QA and CI; companion release remains coordinated separately.
+The concurrent main change through PR157 was merged cleanly before integration. All repository checks passed on the combined source; the image/alt-text changes also pass the site build, targeted lint and static-reference checks. Fresh layout review and CI passed before the approved assets-only production deployment. All eight live sanitized screenshot hashes match their supplied derivatives; companion release remains coordinated separately.

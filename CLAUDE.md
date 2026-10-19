@@ -194,3 +194,15 @@ through a pull request, then `npm run bugs -- resolve REF [REF...] --note "what 
   fails a module that calls `SendAddonMessage` directly.
 - `addon/Guilded/` — the WoW Lua addon; `tests/lua/` runs the real `.lua`
   files against a mocked game client (fengari), not a JS reimplementation.
+
+## Published public redesign and pending companion release — 19 October 2026
+
+Read `docs/WEBSITE_AND_COMPANION_HANDOFF_2026_10_19.md` before the next deployment.
+Both public sites already use PR156 assets revision `be58843`; preserve the ribbon KC,
+fresh sanitized screenshots and completed private owner behavior. Integrate PR156 before
+building from an older checkout so the next deployment cannot revert the published design.
+The normal Worker build matches the active preserved module exactly. Main merges trigger
+Cloudflare site builds/deploys, but no installer or bot release. Companion source integration
+does not satisfy its real-client release gates. PR151 error-origin reporting remains a separate
+next-bot-release integration, not a prerequisite for the visual refresh. Never bump the shared
+product version incidentally or deploy unrelated unaccepted backend changes to ship styling.

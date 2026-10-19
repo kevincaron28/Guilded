@@ -33,3 +33,11 @@ Public download labels are curated in `site/releases.json`, independently of can
 Draft review: https://github.com/kevincaron28/Guilded/pull/156 (`codex/ribbon-atelier`, based on main through PR155). The active Worker backup and assets-only dry-run have identical SHA256 `4c64ee9194a6d3682a89c8d6014bc0f31df219a27eaa1927021a9d450cc1da01`; no current source Worker is substituted.
 
 The production assets deployment was rejected by automatic approval review before execution: the worker transcript did not contain explicit production-publishing authorization. No production change happened. The parent must forward the explicit authorization or obtain it before a retry. Companion source is ready for integration; installer/frontend/bot publication must be coordinated with Claude and no version was bumped by this refresh.
+
+### Fresh user screenshot integration
+
+On 19 October, the user supplied 14 genuine Guilded game captures. The dedicated capture task provided eight privacy-reviewed, deterministic PNG derivatives; all eight were imported byte-for-byte with matching SHA256 hashes. Only its sanitized folder was read/copied. No private original or private source inventory was imported. The filtered source manifest is `site/images/showcase/CAPTURE-MANIFEST-2026-10-19.json`.
+
+Both website heroes now show local guild setup with blank fields. Crafting and loot stories use fresh blank/idle captures, and an expandable gallery shows raid controls, solo readiness and not-completed season targets. Labels preserve the redactions and true empty states. Mobile uses the supplied detail crops with complete-image links. Captions and image descriptions have EN/FR text. The loaded addon version and client build are unknown; disk 6.3.2 metadata is separate evidence and is not promoted as the loaded version. No Catchkeeper/Trailmark images were supplied.
+
+The concurrent main change through PR157 was merged cleanly before integration. All repository checks passed on the combined source; the image/alt-text changes also pass the site build, targeted lint and static-reference checks. Fresh layout review and final CI are recorded in the task handoff. Explicit website publication approval has now been received. The assets-only deployment follows final screenshot QA and CI; companion release remains coordinated separately.

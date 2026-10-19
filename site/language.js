@@ -6,6 +6,7 @@
     document.documentElement.lang = language;
     for (const element of document.querySelectorAll('[data-en][data-fr]')) element.textContent = element.dataset[language];
     for (const element of document.querySelectorAll('[data-label-en][data-label-fr]')) element.setAttribute('aria-label', element.dataset[language === 'fr' ? 'labelFr' : 'labelEn']);
+    for (const element of document.querySelectorAll('[data-alt-en][data-alt-fr]')) element.alt = element.dataset[language === 'fr' ? 'altFr' : 'altEn'];
     for (const button of controls) button.setAttribute('aria-pressed', String(button.dataset.setLanguage === language));
     for (const block of document.querySelectorAll('[data-language-copy]')) block.hidden = block.dataset.languageCopy !== language;
     try { window.localStorage.setItem('kc.language', language); } catch { /* the selected language still works */ }

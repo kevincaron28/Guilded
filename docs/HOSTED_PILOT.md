@@ -1,7 +1,5 @@
 # Guilded hosted pilot
 
-[Français](#fr) · [Addon installation](MEMBER_INSTALL.md) · [EPGP workflow](EPGP_GUIDE.md)
-
 The hosted pilot lets approved guilds use the same running Guilded bot. Your guild
 does not need to download the bot, create a database, or keep a computer running.
 Admission is by the Guilded owner's approval for each Discord server. This is a

@@ -55,13 +55,13 @@ function evaluate(node) {
   return object;
 }
 
-function readDatabase(lua) {
+export function readDatabase(lua, name = "GuildedDB") {
   const ast = luaparse.parse(lua);
   const assignment = ast.body.find((statement) =>
     statement.type === "AssignmentStatement" &&
-    statement.variables.some((variable) => variable.type === "Identifier" && variable.name === "GuildedDB")
+    statement.variables.some((variable) => variable.type === "Identifier" && variable.name === name)
   );
-  if (!assignment) throw new Error("GuildedDB was not found in the SavedVariables file.");
+  if (!assignment) throw new Error(`${name} was not found in the SavedVariables file.`);
   return evaluate(assignment.init[0]);
 }
 
@@ -217,48 +217,7 @@ export function parseAddonExportText(text, realm) {
     });
   }
 
-  // Dungeon runs (addon Modules/Dungeon.lua). The bot validates each run and
-  // ignores ones it already has, so exporting all of them every time is safe.
-  const dungeonRuns = [];
-  for (const run of Object.values(database.dungeon?.runs ?? {})) {
-    if (!run?.id || !run.state || !run.instanceId) continue;
-    dungeonRuns.push({
-      id: String(run.id),
-      protocolVersion: Number(run.protocolVersion ?? 1),
-      ...(run.addonVersion ? { addonVersion: String(run.addonVersion) } : {}),
-      state: String(run.state),
-      instanceId: Number(run.instanceId),
-      name: String(run.name ?? "Unknown dungeon"),
-      difficultyId: Number(run.difficultyId ?? 0),
-      ...(run.startedAt ? { startedAt: Math.trunc(Number(run.startedAt)) } : {}),
-      ...(run.endedAt ? { endedAt: Math.trunc(Number(run.endedAt)) } : {}),
-      ...(run.completedBy ? { completedBy: String(run.completedBy) } : {}),
-      ...(run.endReason ? { endReason: String(run.endReason) } : {}),
-      ...(run.recorder ? { recorder: String(run.recorder) } : {}),
-      encounters: Object.values(run.encounters ?? {}).slice(0, 100).flatMap(encounter => {
-        if (!encounter || !Number.isInteger(encounter.id) || encounter.id <= 0 || typeof encounter.success !== "boolean") return [];
-        return [{ id: encounter.id, success: encounter.success,
-          ...(typeof encounter.name === "string" ? { name: encounter.name.slice(0, 100) } : {}),
-          ...(Number.isInteger(encounter.at) && encounter.at > 0 ? { at: encounter.at } : {}),
-          ...(Number.isInteger(encounter.startedAt) && encounter.startedAt > 0 ? { startedAt: encounter.startedAt } : {}) }];
-      }),
-      reporters: Object.keys(run.reporters ?? {}).length || 1,
-      // Who reported it, so the bot can check at least one of them was in the run.
-      ...(run.reporters && Object.keys(run.reporters).length ? { reporterNames: Object.keys(run.reporters).slice(0, 10) } : {}),
-      players: Object.entries(run.players ?? {}).map(([character, player]) => ({
-        character,
-        realm,
-        ...(player.class ? { class: String(player.class) } : {}),
-        ...(player.role ? { role: String(player.role) } : {}),
-        ...(player.spec ? { spec: String(player.spec).slice(0, 40) } : {}),
-        deaths: typeof player.deaths === "number" ? player.deaths : null,
-        ...(Number.isInteger(player.level) && player.level >= 1 && player.level <= 100 ? { level: player.level } : {}),
-        ...(Number.isInteger(player.minLevel) && player.minLevel >= 1 && player.minLevel <= 100 ? { minLevel: player.minLevel } : {}),
-        presentSec: Math.max(0, Math.trunc(Number(player.presentSec) || 0)),
-        inGuild: player.inGuild === true
-      }))
-    });
-  }
+  const dungeonRuns = exportDungeonRuns(database, realm);
 
   // Soft reserves (addon Modules/Reserve.lua): the whole list, replaced in Discord when newer.
   const reserves = buildReserves(database.reserves, realm);
@@ -415,4 +374,53 @@ function buildRecipes(saved, realm) {
   }
   out.cooldowns = out.cooldowns.slice(0, 300);
   return out;
+}
+
+// Dungeon runs (addon Modules/Dungeon.lua) in the bot's dungeonRunSchema shape. Shared by the
+// guild upload and the personal one (personal-runs.mjs, GuildedDungeonsDB has the same shape).
+export function exportDungeonRuns(database, realm, options = {}) {
+  const dungeonRuns = [];
+  // Dungeon runs (addon Modules/Dungeon.lua). The bot validates each run and
+  // ignores ones it already has, so exporting all of them every time is safe.
+  for (const run of Object.values(database.dungeon?.runs ?? {})) {
+    if (options.skipSynced && run?.synced) continue;
+    if (!run?.id || !run.state || !run.instanceId) continue;
+    dungeonRuns.push({
+      id: String(run.id),
+      protocolVersion: Number(run.protocolVersion ?? 1),
+      ...(run.addonVersion ? { addonVersion: String(run.addonVersion) } : {}),
+      state: String(run.state),
+      instanceId: Number(run.instanceId),
+      name: String(run.name ?? "Unknown dungeon"),
+      difficultyId: Number(run.difficultyId ?? 0),
+      ...(run.startedAt ? { startedAt: Math.trunc(Number(run.startedAt)) } : {}),
+      ...(run.endedAt ? { endedAt: Math.trunc(Number(run.endedAt)) } : {}),
+      ...(run.completedBy ? { completedBy: String(run.completedBy) } : {}),
+      ...(run.endReason ? { endReason: String(run.endReason) } : {}),
+      ...(run.recorder ? { recorder: String(run.recorder) } : {}),
+      encounters: Object.values(run.encounters ?? {}).slice(0, 100).flatMap(encounter => {
+        if (!encounter || !Number.isInteger(encounter.id) || encounter.id <= 0 || typeof encounter.success !== "boolean") return [];
+        return [{ id: encounter.id, success: encounter.success,
+          ...(typeof encounter.name === "string" ? { name: encounter.name.slice(0, 100) } : {}),
+          ...(Number.isInteger(encounter.at) && encounter.at > 0 ? { at: encounter.at } : {}),
+          ...(Number.isInteger(encounter.startedAt) && encounter.startedAt > 0 ? { startedAt: encounter.startedAt } : {}) }];
+      }),
+      reporters: Object.keys(run.reporters ?? {}).length || 1,
+      // Who reported it, so the bot can check at least one of them was in the run.
+      ...(run.reporters && Object.keys(run.reporters).length ? { reporterNames: Object.keys(run.reporters).slice(0, 10) } : {}),
+      players: Object.entries(run.players ?? {}).map(([character, player]) => ({
+        character,
+        realm,
+        ...(player.class ? { class: String(player.class) } : {}),
+        ...(player.role ? { role: String(player.role) } : {}),
+        ...(player.spec ? { spec: String(player.spec).slice(0, 40) } : {}),
+        deaths: typeof player.deaths === "number" ? player.deaths : null,
+        ...(Number.isInteger(player.level) && player.level >= 1 && player.level <= 100 ? { level: player.level } : {}),
+        ...(Number.isInteger(player.minLevel) && player.minLevel >= 1 && player.minLevel <= 100 ? { minLevel: player.minLevel } : {}),
+        presentSec: Math.max(0, Math.trunc(Number(player.presentSec) || 0)),
+        inGuild: player.inGuild === true
+      }))
+    });
+  }
+  return dungeonRuns;
 }

@@ -268,3 +268,16 @@ describe("signed-in website pages (7.0)", () => {
     expect(upstream).not.toHaveBeenCalled();
   });
 });
+
+describe("public dungeon run uploads (7.0)", () => {
+  it("forwards the personal companion's upload with its credential, POST only", async () => {
+    const upstream = vi.fn(async () => Response.json({ accepted: [] })); vi.stubGlobal("fetch", upstream);
+    await worker.fetch(new Request("https://guilded.kcaron.top/api/v1/public-runs", { method: "POST", body: "{}", headers: { "content-type": "application/json", "x-companion-credential": "personal", cookie: "a=1" } }), env);
+    const [url, options] = upstream.mock.calls[0]! as unknown as [string, RequestInit];
+    expect(url).toBe("https://guildedqc.duckdns.org/api/v1/public-runs");
+    const sent = new Headers(options.headers);
+    expect(sent.get("x-companion-credential")).toBe("personal");
+    expect(sent.get("cookie")).toBeNull();
+    expect((await worker.fetch(new Request("https://guilded.kcaron.top/api/v1/public-runs"), env)).status).toBe(405);
+  });
+});

@@ -75,6 +75,7 @@ import { config } from "./config.js";
 import { startCompanionApi } from "./companion-api.js";
 import { handleWebApplicationButton, WEB_APPLY_PREFIX } from "./services/recruitment-discord.js";
 import { prismaWebStore } from "./services/web-store.js";
+import { publishGuildRuns } from "./services/public-runs.js";
 import { keepStampsOnDisk, standingsFeed } from "./services/standings-feed.js";
 import { executePoe } from "./commands/poe.js";
 import { executeParticipation } from "./commands/participation.js";
@@ -257,6 +258,8 @@ client.once(Events.ClientReady, (readyClient) => {
     .catch(reportJobError("Data retention"));
   setTimeout(() => void retention(), 5 * 60 * 1000);
   setInterval(() => void retention(), 6 * 60 * 60 * 1000);
+  // Opted-in guilds' dungeon runs go to the public leaderboards (/officer leaderboard, 7.0).
+  setInterval(() => void publishGuildRuns(prisma).catch(reportJobError("Public dungeon runs")), 15 * 60 * 1000);
   // Raid reminders: checked every 5 minutes so a "60 minutes before" ping
   // lands within a few minutes of that mark.
   setInterval(() => {

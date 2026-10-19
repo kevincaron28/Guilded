@@ -297,7 +297,7 @@ Small commands sit under a parent, so typing `/` shows a short list. Members see
 | `/epgp` | your EPGP: `balance`, `history`, `leaderboard` |
 | `/dungeon` | the challenge: leaderboard, records, groups, alerts |
 | `/lead` | Raid Leaders: `create`, `edit`, `cancel`, `start`, `end`, `attendance`, `boss`, `note`, `award-ep`, `fill`, `season`, `history`, `wcl-report`, `readiness-member`, `readiness-raid` |
-| `/officer` | Officers: `epgp` (award-ep, award-gp, decay, reverse), `loot` (auction, award, close, priority), `dungeon` (the challenge's officer tools), `character` (unclaimed, link, autolink), `recruit` (set, status: the website's recruitment listing) |
+| `/officer` | Officers: `epgp` (award-ep, award-gp, decay, reverse), `loot` (auction, award, close, priority), `dungeon` (the challenge's officer tools), `character` (unclaimed, link, autolink), `recruit` (set, status: the website's recruitment listing), `leaderboard` (share runs on the public dungeon leaderboards) |
 | `/organize` | Community organizers: seasons, quizzes, honors, and creating and running lotteries, gaming nights and challenges |
 | `/mod` | moderation, plus `application` (handle guild applications) |
 | `/import` | `upload` (preview an addon file), `apply` (apply it), `held` (entries waiting, and why) |
@@ -433,6 +433,7 @@ Approve, and a raid can never be paid twice.
 | `/config loot-mode <EPGP\|Council>` | Council mode turns `/officer loot auction` and `/loot bid` off; officers decide with `/officer loot award` |
 | `/officer recruit set open:<true\|false> [core] [classes] [roles] [days] [times] [language] [faction] [realm] [note]` | The guild's listing on guilded.kcaron.top/recruitment/ (or one core's, with `core`). Empty options keep their value; `none` clears a text. Approved servers only. Website applications arrive in the applications channel (or the officer log) with Accept / Decline / Spam |
 | `/officer recruit status` | This server's listings and the public page |
+| `/officer leaderboard share:<true\|false>` | Copy this guild's valid completed dungeon runs to guilded.kcaron.top/leaderboards/ (checked like personal uploads; every 15 minutes) |
 | `/officer character unclaimed` / `link <name> <player>` / `autolink` | Characters the addons reported that nobody has linked: list them, link one by hand, or link every one whose name matches a Discord member |
 | `/config auto-import <true/false>` | Apply what the companion uploads by itself (ledger, attendance, loot, dungeon runs, gear checks, discovered characters) with no `/import apply`. Also a button in `/setup start` step 7 |
 | `/setup start` | **Start here.** Guided setup: roles, channels (core, dungeon, extras; one button makes the whole WoW section under a "Guilded" category), welcome, EPGP values. `/setup start status:true` shows the checklist |

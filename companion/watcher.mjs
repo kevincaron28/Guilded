@@ -13,6 +13,7 @@ if (config.pairingCode?.trim()) {
   const result = await pairAccount(config);
   if (!result.ok) throw new Error(result.message);
   config.companionCredential = result.companionCredential;
+  config.personal = result.personal === true;
   config.pairingCode = "";
   await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`);
   console.log(result.message);

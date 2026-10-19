@@ -22,8 +22,14 @@ Visual QA, checks, final source hashes and publication/coordination status will 
 
 ### Completed local validation
 
-The initial full suite passed 225 files / 1,928 tests. Checks are being repeated after rebasing on PR154. The 17 isolated browser scenarios cover desktop, 390px and 320px pages, English/French controls, all ten addons, stage filters, companion setup/connected/error/light states, and mobile keyboard navigation. No horizontal overflow or renderer exception was observed. Companion screenshots use visibly labelled local fixtures; no installed-app runtime or real sync is claimed.
+The initial full suite passed 225 files / 1,928 tests. After rebasing on PR154/155, all 225 files / 1,929 tests passed, along with TypeScript, ESLint, addon validation, both site/companion builds and the Worker dry-run. The 17 isolated browser scenarios cover desktop, 390px and 320px pages, English/French controls, all ten addons, stage filters, companion setup/connected/error/light states, and mobile keyboard navigation. No horizontal overflow or renderer exception was observed. Companion screenshots use visibly labelled local fixtures; no installed-app runtime or real sync is claimed.
 
 The ribbon emblem hash is unchanged: `b2f3bedb68a981468169c9b3d03cf062500faf366006fe73d115f69800902f39`. Key contrast ratios: ivory/background 16.24:1, muted/surface 7.87:1, gold/surface 8.53:1, control outline/surface 4.05:1. Light-mode focus uses a separate dark blue. This is targeted verification, not a full accessibility certification.
 
 Public download labels are curated in `site/releases.json`, independently of candidate package versions. A direct GitHub API check still returned v6.7.0; a fresh CurseForge primary-page check lists 6.7.0. Full companion translation and updated real-client workflow captures remain follow-ups. New public navigation/hero/catalog copy has EN/FR controls; existing bilingual disclosures and guides remain available.
+
+### Publication and handoff
+
+Draft review: https://github.com/kevincaron28/Guilded/pull/156 (`codex/ribbon-atelier`, based on main through PR155). The active Worker backup and assets-only dry-run have identical SHA256 `4c64ee9194a6d3682a89c8d6014bc0f31df219a27eaa1927021a9d450cc1da01`; no current source Worker is substituted.
+
+The production assets deployment was rejected by automatic approval review before execution: the worker transcript did not contain explicit production-publishing authorization. No production change happened. The parent must forward the explicit authorization or obtain it before a retry. Companion source is ready for integration; installer/frontend/bot publication must be coordinated with Claude and no version was bumped by this refresh.

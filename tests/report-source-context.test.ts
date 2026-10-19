@@ -1,12 +1,14 @@
 import type { Client } from "discord.js";
 import { MessageFlags } from "discord.js";
 import type { PrismaClient } from "@prisma/client";
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 vi.mock("../src/config.js", () => ({ config: { ERROR_LOG_CHANNEL_ID: "private-intake" } }));
 import { createErrorReportService } from "../src/services/error-report.js";
 import { decodeReportOrigin, encodeReportOrigin, interactionReportOrigin, reportSourceLink, ScopedReportError, withReportContext } from "../src/services/report-context.js";
 
 const guild = "111111111111111111", channel = "222222222222222222", message = "333333333333333333";
+const version = (JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string }).version;
 function fixture() {
   const save = vi.fn(async () => ({ id: "savedreport12345678" }));
   const send = vi.fn<(payload: { content: string; allowedMentions: unknown }) => Promise<void>>(async () => {});
@@ -24,7 +26,7 @@ describe("report source context", () => {
     const s = fixture();
     expect(await s.service.report(s.client, failure, { source: "Discord scheduled events" })).toBe("12345678");
     const stored = (s.save.mock.calls[0] as unknown as [{ data: Record<string, unknown> }])[0].data;
-    expect(stored).toMatchObject({ guildId: guild, message: original.message, stack: original.stack, version: "6.7.0" });
+    expect(stored).toMatchObject({ guildId: guild, message: original.message, stack: original.stack, version });
     expect(decodeReportOrigin(stored["context"] as string)).toMatchObject({ operation: "scheduled-events.reconcile", channelId: null, messageId: null });
     expect(s.send.mock.calls[0]![0].content).toContain(`Source guild: ${guild} · channel: not recorded`);
   });
@@ -45,7 +47,7 @@ describe("report source context", () => {
     expect(decodeReportOrigin(stored["context"] as string)).toEqual({ channelId: channel, messageId: message, operation: "/report bug", extra: "https://cdn.example/shot.png" });
     expect(s.send.mock.calls[0]![0]).toMatchObject({ allowedMentions: { parse: [] } });
     expect(s.send.mock.calls[0]![0].content).toContain(`Source message: https://discord.com/channels/${guild}/${channel}/${message}`);
-    expect(s.send.mock.calls[0]![0].content).toContain("Ref `12345678` · v6.7.0");
+    expect(s.send.mock.calls[0]![0].content).toContain(`Ref \`12345678\` · v${version}`);
   });
 
   it("keeps host-wide context unknown instead of assigning the developer inbox as the source", async () => {

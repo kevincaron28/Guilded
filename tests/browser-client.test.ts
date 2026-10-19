@@ -28,6 +28,28 @@ const logFile = () => {
   return new File([`${prefix} 00:01:00 1 abc [DEBUG Client 42] Generating level 80 area "MapSteppe" with seed 77\n${prefix} 00:02:00 2 def [DEBUG Client 42] Generating level 1 area "Hideout" with seed 88\n`], "Client.txt");
 };
 
+describe("online companion sign-in", () => {
+  it("signs in with Discord without a code and keeps the site's own address", async () => {
+    const { env } = environment();
+    env.fetch.mockImplementation((async (url: string) => ({ ok: true, status: 200, json: async () => url.endsWith("/sign-in")
+      ? { requestId: "r".repeat(43), confirm: "ABC-DEF", url: "https://bot.test/me/companion?request=x" }
+      : { companionCredential: "s".repeat(43), guildDiscordId: "777" } })) as never);
+    const api = createBrowserCompanion(env as never);
+    expect(await api.signInStart()).toMatchObject({ ok: true, confirm: "ABC-DEF" });
+    expect(await api.signInWait()).toMatchObject({ ok: true });
+    const { config } = await api.getAll();
+    expect(config).toMatchObject({ companionCredential: "s".repeat(43), guildDiscordId: "777", personal: false, uploadUrl: "https://bot.test/api/v1/addon-imports" });
+    expect(env.fetch.mock.calls.map(call => call[0])).toEqual(["/api/v1/companion/sign-in", "/api/v1/companion/sign-in/poll"]);
+    expect(await api.signInWait()).toMatchObject({ ok: false });
+  });
+
+  it("refuses a sign-in page on another site", async () => {
+    const { env } = environment();
+    env.fetch.mockImplementation((async () => ({ ok: true, status: 200, json: async () => ({ requestId: "r".repeat(43), confirm: "ABC-DEF", url: "https://evil.example/me/companion" }) })) as never);
+    expect(await createBrowserCompanion(env as never).signInStart()).toMatchObject({ ok: false });
+  });
+});
+
 describe("online companion session and queue", () => {
   it.each(["guild", "credential", "pairing"])("forgets old acknowledgements after changing %s", async change => {
     const { env, choose } = environment();

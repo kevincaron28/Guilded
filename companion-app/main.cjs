@@ -284,18 +284,39 @@ ipcMain.handle("open-update", () => shell.openExternal(update?.url || updates.RE
 
 ipcMain.handle("test-connection", (_event, next) => engineModules.testConnection({ ...config, ...next }));
 
-ipcMain.handle("pair-account", async (_event, next) => {
-  const result = await engineModules.pairAccount({ ...config, ...next });
+// A pairing code or a Discord sign-in: both end with the same credential and settings.
+async function applyPairing(next, result) {
   if (!result.ok) return result;
   // A code from guilded.kcaron.top/me/ pairs a personal account (public dungeon runs, no guild).
-  config = { ...config, ...next, pairingCode: "", companionCredential: result.companionCredential, personal: result.personal === true, guildDiscordId: result.personal ? "" : result.guildDiscordId || next.guildDiscordId || config.guildDiscordId };
+  config = { ...config, ...next, ...(result.uploadUrl ? { uploadUrl: result.uploadUrl } : {}), pairingCode: "", companionCredential: result.companionCredential, personal: result.personal === true, guildDiscordId: result.personal ? "" : result.guildDiscordId || next.guildDiscordId || config.guildDiscordId };
   saveConfig();
   const started = await engine.configure(config);
   return {
     ok: true,
     message: started ? result.message : `${result.message} Finish the remaining settings and choose Save and start.`
   };
+}
+
+ipcMain.handle("pair-account", async (_event, next) => applyPairing(next, await engineModules.pairAccount({ ...config, ...next })));
+
+// "Sign in with Discord" (7.2): the browser opens the website, the app waits for the approval.
+let signIn = null;
+ipcMain.handle("sign-in-start", async (_event, next) => {
+  signIn?.controller.abort();
+  const started = await engineModules.startSignIn({ ...config, ...next });
+  if (!started.ok) return started;
+  signIn = { controller: new AbortController(), started, next };
+  await shell.openExternal(started.url);
+  return { ok: true, confirm: started.confirm, url: started.url };
 });
+ipcMain.handle("sign-in-wait", async () => {
+  const current = signIn;
+  if (!current) return { ok: false, message: "Choose Sign in with Discord first." };
+  const result = await engineModules.waitForSignIn({ ...config, ...current.next, uploadUrl: current.started.uploadUrl }, current.started.requestId, { signal: current.controller.signal });
+  if (signIn === current) signIn = null;
+  return applyPairing(current.next, result);
+});
+ipcMain.handle("sign-in-cancel", () => { signIn?.controller.abort(); signIn = null; return { ok: true }; });
 
 ipcMain.handle("browse-file", async () => {
   const start = config.watchFile ? path.dirname(config.watchFile) : undefined;

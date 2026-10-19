@@ -36,7 +36,7 @@ describe("companion engine", () => {
     answer(200, { standings: [1, 2] });
     expect((await testConnection(config("a.lua"))).message).toContain("2 character");
     answer(401, { error: "no" });
-    expect((await testConnection(config("a.lua"))).message).toContain("refused the pairing");
+    expect((await testConnection(config("a.lua"))).message).toContain("refused this companion link");
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")));
     expect((await testConnection(config("a.lua"))).ok).toBe(false);
   });

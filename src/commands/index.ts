@@ -34,6 +34,7 @@ import { executeGuildPage, guildPageCommand } from "./guild-page.js";
 import { helpCommand } from "./help.js";
 import { dungeonCommand, executeDungeon } from "./dungeon.js";
 import { dungeonAdminCommand, executeDungeonAdmin } from "./dungeon-admin.js";
+import { dungeonScheduleCommand, executeDungeonSchedule } from "./dungeon-schedule.js";
 import { bugCommand, executeBug } from "./bugreport.js";
 import { faqCommand, executeFaq } from "./faq.js";
 import { systemCommand } from "./system.js";
@@ -134,7 +135,8 @@ const organize = new MergedCommand("organize", "Organizers: community seasons, q
   { command: communityCommand, handler: executeCommunity, flat: same(COMMUNITY_ORGANIZER) },
   { command: lotteryCommand, handler: executeCommunity, as: "lottery", only: LOTTERY_ORGANIZER },
   { command: gamingCommand, handler: executeCommunity, as: "gaming", only: GAMING_ORGANIZER },
-  { command: challengeCommand, handler: executeCommunity, as: "challenge", only: CHALLENGE_ORGANIZER }
+  { command: challengeCommand, handler: executeCommunity, as: "challenge", only: CHALLENGE_ORGANIZER },
+  { command: dungeonScheduleCommand, handler: executeDungeonSchedule, as: "dungeon-seasons" }
 ]).setDescriptionLocalizations({ fr: "Organisateurs : saisons, quiz, palmarès et activités." });
 
 // Top level: the merged parents above, plus the commands main.ts handles itself.

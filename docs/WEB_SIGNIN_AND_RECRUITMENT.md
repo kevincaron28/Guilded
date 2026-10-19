@@ -2,7 +2,7 @@
 
 Roadmap request 5 (`docs/ROADMAP_REQUESTS_PLAN_2026-10-18.md`). Players sign in on
 guilded.kcaron.top with Discord, browse `/recruitment/`, apply to a guild or a raid core, and post a
-"looking for guild" card. Officers set their listing with `/officer recruit set` and answer in
+"looking for guild" card. Officers set their listing with `/mod recruit set` and answer in
 Discord.
 
 ## How it works
@@ -55,9 +55,9 @@ sign-in is off: `/recruitment/` still lists guilds, and the pages say applying i
 ## Test script
 
 1. Open https://guilded.kcaron.top/recruitment/ — the page loads; with no listing it says so.
-2. In Quebec Gold: `/officer recruit set open:true classes:Priest, Mage roles:healer days:wed, sun
+2. In Quebec Gold: `/mod recruit set open:true classes:Priest, Mage roles:healer days:wed, sun
    times:20:00-23:00 ET language:Français faction:Alliance realm:Doomhowl`. Reload: the listing shows.
-   `/officer recruit set open:true core:<a core>` adds a core listing.
+   `/mod recruit set open:true core:<a core>` adds a core listing.
 3. Filters: class Rogue hides the Priest/Mage listing; `?lang=fr` shows French.
 4. **Sign in with Discord** → Discord asks only for your username/avatar ("identify") → you come
    back signed in.

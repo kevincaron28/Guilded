@@ -31,7 +31,7 @@ Roadmap request 6 (`docs/ROADMAP_REQUESTS_PLAN_2026-10-18.md`). Builds on the we
   end within 5 min, 60% same party) adds a confirmation; a disagreeing one marks the run DISPUTED
   and hides it. Same uploader again = duplicate. Limits: 50 runs per upload, 200 runs and 30
   uploads an hour per account.
-- **Guild opt-in**: `/officer leaderboard share:true` copies the guild's valid completed runs (last
+- **Guild opt-in**: `/mod leaderboard share:true` copies the guild's valid completed runs (last
   30 days, then every 15 minutes) through the same checks as uploader `guild:<id>`.
 
 ## Leaderboards
@@ -60,4 +60,4 @@ when the real-client checks below pass.
 4. A second player in the same run uploads too: the row shows ✔ 2.
 5. With Guilded and Guilded Dungeons both installed, `/gdg status` says Guilded records the run, and
    only Guilded's file gets the run.
-6. In Quebec Gold: `/officer leaderboard share:true`; within 15 minutes recent guild runs appear.
+6. In Quebec Gold: `/mod leaderboard share:true`; within 15 minutes recent guild runs appear.

@@ -11,14 +11,15 @@ import { novemberDungeonCatalog } from "./dungeon-november-catalog.js";
 // target (src/services/dungeon-beta-preset.ts), clipped to the bracket.
 // "estimate": the usual Classic range, or the catalog's order for new dungeons.
 export type PlanSource = "beta" | "estimate";
-export interface PlannedRoute { id: string; bracket: string; min: number; max: number; minutes: number; source: PlanSource }
+// mapKey: the map ID (and Scarlet wing) real beta-client runs reported; absent when none has been seen.
+export interface PlannedRoute { id: string; bracket: string; min: number; max: number; minutes: number; source: PlanSource; mapKey?: string }
 
 const beta = (id: string, key: string, bracket: string, min?: number, max?: number): PlannedRoute => {
   const d = BETA_DUNGEONS.find(b => b.key === key)!;
-  return { id, bracket, min: min ?? d.min, max: max ?? d.max, minutes: d.minutes, source: "beta" };
+  return { id, bracket, min: min ?? d.min, max: max ?? d.max, minutes: d.minutes, source: "beta", mapKey: d.key };
 };
-const guess = (id: string, bracket: string, min: number, max: number, minutes: number): PlannedRoute =>
-  ({ id, bracket, min, max, minutes, source: "estimate" });
+const guess = (id: string, bracket: string, min: number, max: number, minutes: number, mapKey?: string): PlannedRoute =>
+  ({ id, bracket, min, max, minutes, source: "estimate", ...(mapKey ? { mapKey } : {}) });
 
 export const BRACKET_PLAN: PlannedRoute[] = [
   beta("ragefire-chasm", "389", "15-29", 15),
@@ -35,9 +36,9 @@ export const BRACKET_PLAN: PlannedRoute[] = [
   beta("gnomeregan", "90", "30-44", 30, 38),
   beta("razorfen-kraul", "47", "30-44", 30, 38),
   beta("scarlet-library", "189:library", "30-44", 30, 36),
-  guess("scarlet-armory", "30-44", 32, 42, 25),
+  guess("scarlet-armory", "30-44", 32, 42, 25, "189:armory"),
   guess("drowned-city", "30-44", 34, 42, 35),
-  guess("scarlet-cathedral", "30-44", 35, 44, 25),
+  guess("scarlet-cathedral", "30-44", 35, 44, 25, "189:cathedral"),
   beta("razorfen-downs", "129", "30-44", 35, 44),
   guess("kroldok-stronghold", "30-44", 38, 44, 35),
   beta("uldaman", "70", "30-44", 38, 44),

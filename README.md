@@ -111,6 +111,11 @@ tests/             bot tests and addon tests (the real Lua runs against a mocked
 deploy/, docs/     server files and documentation
 ```
 
+## Support Guilded
+
+Guilded is free. If it helps your guild, a coffee helps pay for the hosted bot, the database
+and new features: [ko-fi.com/wowguilded](https://ko-fi.com/wowguilded). Nothing is behind a payment.
+
 ## License
 
 [PolyForm Noncommercial 1.0.0](LICENSE): free to use, study and modify for noncommercial purposes;

@@ -14,6 +14,7 @@ import { validBracketedRules } from "../services/dungeon-november-rules.js";
 import { recipeNameSuggestions } from "../services/recipes.js";
 import { createPoeMappingService } from "../services/poe-mapping.js";
 import { runChoices } from "../services/dungeon-admin.js";
+import { routeChoices } from "../services/dungeon-bracket-season.js";
 import { guildService } from "./context.js";
 import { faqChoices } from "./faq.js";
 import { commands } from "./index.js";
@@ -115,6 +116,8 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
       choices = await applicationChoices(prisma, guild.id, query);
     } else if (command === "dungeon-admin" && focused.name === "run") {
       choices = await runChoices(prisma, guild.id, query);
+    } else if (command === "dungeon-admin" && focused.name === "route") {
+      choices = await routeChoices(prisma, guild.id, query);
     } else if ((command === "dungeon" || command === "dungeon-admin") && focused.name === "dungeon") {
       choices = await dungeonChoices(prisma, guild.id, query);
     } else if (command === "character" && focused.name === "name" && (subcommand === "claim" || subcommand === "link")) {

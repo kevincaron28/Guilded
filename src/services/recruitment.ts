@@ -1,7 +1,7 @@
 import { CLASSES, WEEKDAYS } from "../wow-data.js";
 
 // Recruitment listings (7.0, roadmap request 5): the structured fields officers set with
-// /officer recruit, the filters on /recruitment/, and the rules for applications and player cards.
+// /mod recruit, the filters on /recruitment/, and the rules for applications and player cards.
 
 export const ROLES = ["TANK", "HEALER", "DPS"] as const;
 export const LANGUAGES = ["en", "fr", "both"] as const;

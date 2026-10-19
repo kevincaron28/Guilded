@@ -43,7 +43,7 @@ export const epgpCommand = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName("decay").setDescription("Apply EPGP decay to the selected point pool.")
     .addStringOption(poolOption)
     .addBooleanOption((o) => o.setName("weekly").setDescription("Turn automatic decay after every weekly reset on or off (instead of applying it now)")))
-  .addSubcommand((sub) => sub.setName("reverse").setDescription("Undo a mistaken EPGP entry (adds an opposite entry; history is kept).")
+  .addSubcommand((sub) => sub.setName("reverse").setDescription("Undo an EPGP entry (adds an opposite one; history kept).")
     .addStringOption((o) => o.setName("entry").setDescription("Entry (start typing a name or reason)").setAutocomplete(true).setRequired(true))
     .addStringOption((o) => o.setName("reason").setDescription("Why it is being reversed (pick or type)").setMinLength(3).setAutocomplete(true).setRequired(true)));
 

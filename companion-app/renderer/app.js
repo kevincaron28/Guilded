@@ -108,6 +108,7 @@ $('form').addEventListener('submit',event => { event.preventDefault(); action($(
 $('autostart').addEventListener('change',event => action(event.target,async () => { $('autostart').checked = await api.setAutostart(event.target.checked); }));
 bind('btnUpload',async () => { await api.uploadNow(); toast(api.browser ? 'Sync finished. Check Activity for the result.' : 'Sync requested. Follow its progress in Activity.'); });
 bind('btnStandings',async () => { await api.refreshStandings(); toast(api.browser ? api.folderAccess ? 'Standings saved. Use /reload in WoW.' : 'Standings downloaded. Add the file to Interface / AddOns / Guilded.' : 'Standings refresh finished. Check Activity for the result.'); });
+bind('btnSheets',async () => { const result = await api.exportSheets($('sheetTable').value || undefined); if (!result.canceled) toast(result.message,!result.ok); });
 bind('btnFolder',() => api.openAddonFolder()); bind('btnPause',async () => { await api.toggleTracking(); }); bind('btnOnline',() => api.openOnline());
 bind('btnRemoveData',() => api.removeData());
 bind('btnUpdate',() => api.openUpdate());
@@ -133,6 +134,7 @@ async function init() {
     ['autostartLabel','btnDetect','btnFolder','btnPause','addressLabel','standingsIntervalLabel','btnOnline','poeLive'].forEach(id => $(id).hidden = true);
     $('btnSave').textContent = 'Save preferences'; $('btnStandings').textContent = 'Download standings'; $('btnRemoveData').textContent = 'Disconnect this device'; $('removeTitle').textContent = 'Disconnect this browser'; $('removeNote').textContent = 'Revokes this Discord link and clears this browser’s saved connection, folders and queued observations. Sync pending visits first.';
     $('wowModeNote').textContent = 'Browser files are snapshots. After /reload, choose Guilded.lua again and use Sync now.';
+    $('sheetNote').textContent = 'Your browser downloads one CSV file per table. If it asks, allow multiple downloads.';
     $('wowStep2').textContent = 'Select Guilded.lua and choose Sync now. Your raw Lua file is parsed on your device.';
     $('wowStep3').textContent = 'Download Standings.lua, place it in Interface / AddOns / Guilded, then /reload.';
     $('poeModeNote').textContent = 'Manual import previews completed transitions from the latest 24 hours in the last 8 MB of your log. Only select a log from the declared character and league. Choose the updated file again after playing.';

@@ -258,7 +258,7 @@ client.once(Events.ClientReady, (readyClient) => {
     .catch(reportJobError("Data retention"));
   setTimeout(() => void retention(), 5 * 60 * 1000);
   setInterval(() => void retention(), 6 * 60 * 60 * 1000);
-  // Opted-in guilds' dungeon runs go to the public leaderboards (/officer leaderboard, 7.0).
+  // Opted-in guilds' dungeon runs go to the public leaderboards (/mod leaderboard, 7.0).
   setInterval(() => void publishGuildRuns(prisma).catch(reportJobError("Public dungeon runs")), 15 * 60 * 1000);
   // Raid reminders: checked every 5 minutes so a "60 minutes before" ping
   // lands within a few minutes of that mark.

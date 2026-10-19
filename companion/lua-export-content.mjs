@@ -55,8 +55,10 @@ function evaluate(node) {
   return object;
 }
 
+// A SavedVariables table (GuildedDB by default; GuildedDungeonsDB for personal-runs.mjs). The
+// spreadsheet export reads it too.
 export function readDatabase(lua, name = "GuildedDB") {
-  const ast = luaparse.parse(lua);
+  const ast = luaparse.parse(lua.replace(/^\uFEFF/, ""));
   const assignment = ast.body.find((statement) =>
     statement.type === "AssignmentStatement" &&
     statement.variables.some((variable) => variable.type === "Identifier" && variable.name === name)

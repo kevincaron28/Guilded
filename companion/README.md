@@ -76,6 +76,18 @@ Uploads are gzip-compressed and leave out ledger and loot entries the bot alread
 when the bot supports it (`gzip-upload`, `ledger-delta`). See
 [the sync speed-ups](../docs/SYNC_SPEEDUPS_2026-10-15.md).
 
+## Export to spreadsheet
+
+On the World of Warcraft page, **Export to spreadsheet** turns Guilded.lua into CSV files for
+Excel or Google Sheets, one per table (or one table picked from the list): standings (EP, GP,
+PR), loot history, attendance, raids and dungeon scores, with the same columns as
+`/guilded sheet` in game (`companion/sheet-export.mjs`). The desktop app asks for a folder and
+saves `guilded-<table>-<date>.csv` files there; the online companion downloads them (the browser
+may ask to allow multiple downloads). Files are UTF-8 with a byte-order mark so Excel shows
+accents, quoted as RFC 4180 says. Nothing is uploaded. `/reload` in WoW first so the file holds
+the latest data. Officers get Discord's own copy (standings, ledger, loot, attendance, roster)
+with `/officer export`.
+
 ## Wishlist, prices and cores
 
 Once linked, the **Wishlist** page edits your own characters' wishlists (the same list as
@@ -110,3 +122,7 @@ selected Guilded.lua and a standings download; the WoW addon is still needed.
 PoE2 manually imports recent log observations. Reselect updated files after
 playing. Personal pairing replaces the previous desktop/browser link.
 See [delivery modes, privacy and release steps](../docs/COMPANION_EXPERIENCE.md).
+
+## Support Guilded
+
+Guilded is free. A coffee helps pay for hosting and new features: [ko-fi.com/wowguilded](https://ko-fi.com/wowguilded).

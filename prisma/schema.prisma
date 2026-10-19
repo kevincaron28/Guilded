@@ -812,7 +812,7 @@ model GuildSettings {
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
   guild                    Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
-  // 7.0: copy this guild's valid completed dungeon runs to the public leaderboards (/officer leaderboard).
+  // 7.0: copy this guild's valid completed dungeon runs to the public leaderboards (/mod leaderboard).
   publicDungeonRuns        Boolean   @default(false)
 }
 
@@ -1768,7 +1768,7 @@ model WebSession {
 }
 
 // A guild's (coreId empty) or one core's recruitment listing on /recruitment/. Officers edit it with
-// /officer recruit. Listed only while open and while the server is approved (not Lite).
+// /mod recruit. Listed only while open and while the server is approved (not Lite).
 model RecruitmentListing {
   id        String    @id @default(cuid())
   guildId   String

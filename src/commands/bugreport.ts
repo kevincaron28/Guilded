@@ -16,6 +16,8 @@ export async function executeBug(interaction: ChatInputCommandInteraction): Prom
     guildId: interaction.guildId,
     guildName: interaction.guild?.name,
     userId: interaction.user.id,
+    channelId: interaction.channelId,
+    operation: "/report bug",
     extra: screenshot?.url ?? null
   });
   if (interaction.guild) {

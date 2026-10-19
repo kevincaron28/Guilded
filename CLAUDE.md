@@ -1,3 +1,5 @@
+> 7.1.0 (19 October 2026): monthly dungeon seasons (/organize dungeon-seasons), weekly/monthly boards,
+> Raider.IO-style leaderboards; weekly reset Tuesday 15:00 UTC (docs/V7_1_0_RELEASE_NOTES.md).
 > 7.0.0 (19 October 2026): web sign-in and recruitment (/mod recruit), public dungeon leaderboards
 > (/mod leaderboard), standalone Guilded Dungeons addon (addon/GuildedDungeons; after editing Guilded's
 > shared dungeon Lua run `npm run dungeons:sync`), companion personal mode and CSV export, /officer export,
@@ -43,7 +45,7 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (19 October 2026): version 7.0.0 Release, protocol 2.**
+**Current status (19 October 2026): version 7.1.0 Release, protocol 2.**
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
 Standalone guild and optional Guilded Games work is next-version candidate
 source; do not overwrite the published 6.2.0 downloads or bump incidentally.

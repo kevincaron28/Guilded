@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Website sign-in with Discord (identify only) on guilded.kcaron.top, and a public
+  **/recruitment/** page: officers list their guild or a raid core with `/mod recruit`, players
+  apply (Accept / Decline / Spam in the applications channel, answer by DM) or post a "looking
+  for guild" card ([notes](docs/WEB_SIGNIN_AND_RECRUITMENT.md)).
+- **Guilded Dungeons**: a small standalone dungeon addon built from Guilded's own dungeon
+  files; quiet when Guilded is installed. A personal companion code from `/me/` sends finished
+  runs to the public **/leaderboards/** (by dungeon, level bracket, class, role and season, plus
+  a page per character), after party-agreement and impossible-time checks. Guilds opt in with
+  `/mod leaderboard` ([notes](docs/PUBLIC_DUNGEON_LEADERBOARDS.md)).
+
 ## 6.7.0 Release — 18 October 2026
 
 - Members see only their commands: officer-only commands are hidden, and leader and officer

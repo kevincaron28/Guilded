@@ -52,25 +52,34 @@ export function createBrowserFolderAccess(env = globalThis, store = localHandleS
     if (await handle.queryPermission({ mode }) === "granted") return;
     if (await handle.requestPermission({ mode }) !== "granted") throw new Error("Folder access was not granted. Choose the folder again or allow access to continue.");
   }
+  async function firstFile(folder, names) {
+    for (const name of names) {
+      try { await folder.getFileHandle(name); return name; } catch { /* not in this folder */ }
+    }
+    return null;
+  }
   return {
     available, ready,
     hasInput: () => !!input,
     hasOutput: () => !!output,
     storageWarning: warning,
-    async chooseInput() {
+    // `names`: the saved files to look for, in order (personal mode prefers GuildedDungeons.lua).
+    async chooseInput(names = ["Guilded.lua"]) {
       // Called directly from a click, before any network request.
       const selected = await env.showDirectoryPicker({ id: "guilded-saved-data", mode: "read", ...(input ? { startIn: input } : {}) });
-      if (selected.name !== "SavedVariables") throw new Error("Choose your account's SavedVariables folder containing Guilded.lua.");
-      await selected.getFileHandle("Guilded.lua");
+      if (selected.name !== "SavedVariables") throw new Error(`Choose your account's SavedVariables folder containing ${names[0]}.`);
+      const name = await firstFile(selected, names);
+      if (!name) throw new Error(`This SavedVariables folder has no ${names.join(" or ")} yet. Log in with the addon once, then /reload.`);
       input = selected; await remember("input", input);
-      return "SavedVariables / Guilded.lua";
+      return `SavedVariables / ${name}`;
     },
-    async readInput() {
+    async readInput(names = ["Guilded.lua"]) {
       await ready;
       if (!input) return null;
       await permit(input, "read");
       // Re-resolve by name: WoW may replace the file on /reload or logout.
-      return (await input.getFileHandle("Guilded.lua")).getFile();
+      const name = await firstFile(input, names);
+      return name ? (await input.getFileHandle(name)).getFile() : null;
     },
     async saveStandings(loadText, { requestAccess = true } = {}) {
       // ready is already awaited by getAll before controls become usable.

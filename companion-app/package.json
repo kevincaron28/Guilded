@@ -48,6 +48,7 @@
           "delta.mjs",
           "data-addon.mjs",
           "personal-runs.mjs",
+          "personal-runs-content.mjs",
           "sheet-export.mjs"
         ]
       },

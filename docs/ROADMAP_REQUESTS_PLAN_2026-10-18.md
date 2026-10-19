@@ -101,7 +101,10 @@ Plan:
    new table, so no migration is needed.
 6. Update the website's pilot guide and `/setup` text to say what lite includes.
 
-## 5. Online core and guild recruitment
+## 5. Online core and guild recruitment — built (PR #148)
+
+Built as planned below, with sign-in shared with item 6; officers use `/mod recruit` (not `/recruit`:
+`/officer` and the top level are full). Design and owner setup: [WEB_SIGNIN_AND_RECRUITMENT.md](WEB_SIGNIN_AND_RECRUITMENT.md).
 
 Today: public guild pages exist (`src/services/guild-page.ts`, served through
 the Worker) with a free-text `recruitment` section and invite link, managed by
@@ -121,7 +124,10 @@ Plan:
 5. Players can post a "looking for guild" card (same sign-in), shown on the page.
 6. Only approved (full) guilds can list. Needs a migration and a Worker route.
 
-## 6. Standalone dungeon addon and public leaderboard
+## 6. Standalone dungeon addon and public leaderboard — built (PR #149)
+
+Built as planned below; guilds opt in with `/mod leaderboard`. Seasons are calendar quarters.
+Still owed: real-client checks and the CurseForge project. Design: [PUBLIC_DUNGEON_LEADERBOARDS.md](PUBLIC_DUNGEON_LEADERBOARDS.md).
 
 The biggest item; it depends on 3 (brackets) and on the sign-in from 5.
 

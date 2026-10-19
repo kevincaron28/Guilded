@@ -110,3 +110,7 @@ selected Guilded.lua and a standings download; the WoW addon is still needed.
 PoE2 manually imports recent log observations. Reselect updated files after
 playing. Personal pairing replaces the previous desktop/browser link.
 See [delivery modes, privacy and release steps](../docs/COMPANION_EXPERIENCE.md).
+
+## Support Guilded
+
+Guilded is free. A coffee helps pay for hosting and new features: [ko-fi.com/wowguilded](https://ko-fi.com/wowguilded).

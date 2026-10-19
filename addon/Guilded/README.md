@@ -247,3 +247,7 @@ presence, loot, and dungeon runs. An officer reviews and applies it with
 - **Guild map** (module `guildmap`): guildmates who run Guilded show as class-coloured dots on the world map and minimap (name, level and zone on hover). Each client shares only its own position, never inside an instance or in combat; `/guilded map share off` stops sharing, `/guilded map show off` hides the dots.
 - **Dungeon scores** (module `scores`): each dungeon counts once with a player's best completed run (dungeon level x 2, x speed against the guild record, minus 5% per death). On player tooltips, the **Scores** page and `/guilded score [player|top]`. Works without Discord.
 - **Deduct GP** on the EPGP page (`/guilded gpdeduct`), `/guilded standings publish` for guilds without the bot.
+
+## Support Guilded
+
+Guilded is free. A coffee helps pay for hosting and new features: [ko-fi.com/wowguilded](https://ko-fi.com/wowguilded).

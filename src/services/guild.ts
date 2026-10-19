@@ -6,13 +6,16 @@ export function createGuildService(database: PrismaClient) {
   return {
     ensureGuild(discordId: string, name: string) {
       // Lite servers get a record for their setup and signups; scheduled jobs still skip them (pilotGuildScope).
-      if (hostedPilot.tier(discordId) === "blocked") throw new Error(PILOT_DENIED);
+      const tier = hostedPilot.tier(discordId);
+      if (tier === "blocked") throw new Error(PILOT_DENIED);
       return database.guild.upsert({
         where: { discordId },
         create: {
           discordId,
           name,
-          settings: { create: {} }
+          // Only a genuinely new full Guild opts in automatically. Lite and
+          // existing/missing settings stay private; old imports stay private too.
+          settings: { create: tier === "approved" ? { publicDungeonRuns: true, publicDungeonRunsSince: new Date() } : {} }
         },
         update: { name }
       });
@@ -77,6 +80,7 @@ export function createGuildService(database: PrismaClient) {
     },
 
     updateSettings(guildId: string, data: {
+      publicDungeonRuns?: boolean;
       attendanceDkp?: number;
       lateAttendanceDkp?: number;
       bossKillDkp?: number;

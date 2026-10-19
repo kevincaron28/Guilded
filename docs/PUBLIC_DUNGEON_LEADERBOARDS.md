@@ -1,4 +1,4 @@
-# Guilded Dungeons and the public leaderboards (7.0)
+# Guilded Dungeons and the public leaderboards
 
 Roadmap request 6 (`docs/ROADMAP_REQUESTS_PLAN_2026-10-18.md`). Builds on the website sign-in
 (`docs/WEB_SIGNIN_AND_RECRUITMENT.md`).
@@ -32,8 +32,27 @@ Roadmap request 6 (`docs/ROADMAP_REQUESTS_PLAN_2026-10-18.md`). Builds on the we
   end within 5 min, 60% same party) adds a confirmation; a disagreeing one marks the run DISPUTED
   and hides it. Same uploader again = duplicate. Limits: 50 runs per upload, 200 runs and 30
   uploads an hour per account.
-- **Guild opt-in**: `/mod leaderboard share:true` copies the guild's valid completed runs (last
-  30 days, then every 15 minutes) through the same checks as uploader `guild:<id>`.
+- **New full Guilded setups** share eligible completed dungeon runs by default. Only a genuinely new
+  approved Guild record receives `publicDungeonRuns: true` and a `publicDungeonRunsSince` cutoff.
+  Runs must have started at or after that cutoff; importing older saved runs does not publish them.
+  Setup's welcome screen and checklist show the current state, public audience, cutoff and a
+  **Turn public sharing off** button. Officers can also use `/mod leaderboard share:false`.
+- **Existing guilds keep their saved choice.** Existing true/false values, missing settings,
+  resets, Lite admission records and other settings-creation paths are not automatically opted in.
+  Approving an existing Lite record does not override its choice. The database default
+  stays false. The additive nullable-column migration neither changes flags nor backfills data.
+  A null cutoff on an existing explicitly enabled guild retains its previous 30-day eligibility.
+- `/mod leaderboard share:true` explicitly enables sharing; on a guild with a setup cutoff it
+  preserves that cutoff. On a legacy guild with no cutoff it includes eligible saved runs from
+  the last 30 days. Re-enabling can publish eligible runs saved while sharing was off, within
+  the same cutoff/30-day window; the command response states that window.
+- The normal 15-minute publisher considers up to the newest 200 valid completed runs per guild
+  within the last 30 days, through the same checks as uploader `guild:<id>`. It publishes all
+  recorded party participants, including non-guild players: character names/realms, class, role,
+  level, times, deaths and scores are visible to anyone on the public website. Turning sharing
+  off stops new publication; it does not remove already public records or independent personal uploads.
+- This application default requires deploying the reviewed bot code after its additive migration;
+  a website-only update does not change it. Personal standalone uploads remain an explicit choice.
 
 ## Leaderboards
 

@@ -24,7 +24,7 @@ import { config } from "../config.js";
 import { classLeaderRoleName, hasPermission, isPermissionRoleName, permissionRoleNames, roleNamesFor, type Permission } from "../permissions.js";
 import { CLASSES } from "../wow-data.js";
 import { commandVisibility } from "../services/command-visibility.js";
-import { formatChecks, setupChecks, setupComplete, type ChannelFact, type SetupFacts } from "../services/setup-status.js";
+import { formatChecks, publicSharingNotice, setupChecks, setupComplete, type ChannelFact, type SetupFacts } from "../services/setup-status.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { sendWelcome, welcomeDelivery } from "../services/housekeeping.js";
 import { ensureWelcomePanel, MAX_ONBOARDING_ROLES, rulesGateActive } from "../services/onboarding.js";
@@ -205,6 +205,8 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       "",
       T("This takes about **2 minutes**. Every step is buttons and menus — nothing to type."),
       "",
+      publicSharingNotice(settings, lang),
+      "",
       T("**1. Roles** — who counts as Guild Master, Officer, Raid Leader, DKP Officer."),
       T("**2. Channels** — where announcements, raid signups, raid logs, and officer logs go."),
       T("**3. Raid team channels** — raid roster (cores), raid readiness (private), loot log, craft board (optional)."),
@@ -222,7 +224,8 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       ),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         button("next", T("Start ▶"), ButtonStyle.Primary),
-        button("jump-summary", T("Just show me the checklist"))
+        button("jump-summary", T("Just show me the checklist")),
+        button("public-sharing-off", T("Turn public sharing off"), ButtonStyle.Secondary, !settings.publicDungeonRuns)
       )
     );
   }
@@ -435,6 +438,8 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
     embed.setDescription([
       done ? T("**Everything required is set up.** 🎉") : T("**Almost there** — fix the ❌ items (each says how)."),
       "",
+      publicSharingNotice(settings, lang),
+      "",
       formatChecks(checks),
       "",
       T("**Next steps**"),
@@ -475,7 +480,8 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
     }
     components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
       button("restart", T("Go through setup again")),
-      button("close", T("Close"), ButtonStyle.Primary)
+      button("close", T("Close"), ButtonStyle.Primary),
+      button("public-sharing-off", T("Turn public sharing off"), ButtonStyle.Secondary, !settings.publicDungeonRuns)
     ));
   }
 
@@ -1020,6 +1026,9 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
           const on = (settings?.raidReminderMinutes ?? 0) > 0;
           await guildService.updateSettings(guildId, { raidReminderMinutes: on ? 0 : 60 });
           note = on ? T("Raid reminders off.") : T("Raid reminders on: signed-up players get pinged 60 minutes before start.");
+        } else if (action === "public-sharing-off") {
+          await guildService.updateSettings(guildId, { publicDungeonRuns: false });
+          note = T("Public sharing is off. New runs will not be published; runs already public stay public.");
         } else if (action === "auto-import") {
           const current = await guildService.getSettings(guildId);
           await guildService.updateSettings(guildId, { autoApplyImports: !current?.autoApplyImports });

@@ -3,6 +3,19 @@ import { tx, type Lang } from "../i18n.js";
 // The /setup checklist: what's configured, what's missing, and exactly how
 // to fix each missing thing. Pure (takes plain data) so it's easy to test.
 
+export function publicSharingNotice(settings: { publicDungeonRuns?: boolean; publicDungeonRunsSince?: Date | null }, lang: Lang = "en"): string {
+  const T = (english: string, vars: Record<string, string | number> = {}) => tx(lang, english, vars);
+  if (!settings.publicDungeonRuns) return T("**Public dungeon sharing: OFF.** Officers can enable it with `/mod leaderboard share:true`. Runs already public stay public.");
+  const window = settings.publicDungeonRunsSince
+    ? T("Only runs started since {since}; older imports stay private.", { since: `<t:${Math.ceil(settings.publicDungeonRunsSince.getTime() / 1000)}:f>` })
+    : T("Eligible saved runs from the last 30 days are included.");
+  return [
+    T("**Public dungeon sharing: ON.** Anyone can see eligible runs at https://guilded.kcaron.top/leaderboards/: all recorded party members' character names/realms, class, role, level, times, deaths and scores, including non-guild players."),
+    window,
+    T("Turn it off below or with `/mod leaderboard share:false`. This stops new publication; runs already public stay public.")
+  ].join("\n");
+}
+
 export interface SetupFacts {
   existingRoleNames: string[];
   // Each entry is one required role: a name, or the names (English and French) any of which counts.

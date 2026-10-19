@@ -1,11 +1,13 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
+import { guildService, requireGuildContext } from "../src/commands/context.js";
 
 const settings = {
   notifyChannelId: "c1", raidSignupChannelId: null, logChannelId: null, welcomeChannelId: null,
   applicantRoleId: null, memberRoleId: null, attendanceDkp: 10, lateAttendanceDkp: 5, bossKillDkp: 5,
   epCompletionBonus: 0, baseGp: 0, epgpDecayPercent: 0.1, raidReminderMinutes: 60, weeklyReportEnabled: false,
   timezone: "America/Toronto", language: "en", welcomeDelivery: "DM", welcomeRoleIds: ["r1"], welcomeRolePrompt: null,
-  rulesGate: false, rulesChannelId: null as string | null
+  rulesGate: false, rulesChannelId: null as string | null,
+  publicDungeonRuns: false, publicDungeonRunsSince: null as Date | null
 };
 vi.mock("../src/commands/context.js", () => ({
   guildService: { getSettings: vi.fn(async () => settings), updateSettings: vi.fn() },
@@ -30,11 +32,67 @@ const guild = {
 // Loading the command module (discord.js builders) can take a few seconds
 // on a busy machine; do it once, with room, so no single test times out.
 let renderStep: typeof import("../src/commands/setup.js").renderStep;
+let executeSetup: typeof import("../src/commands/setup.js").executeSetup;
 beforeAll(async () => {
-  ({ renderStep } = await import("../src/commands/setup.js"));
+  ({ renderStep, executeSetup } = await import("../src/commands/setup.js"));
 }, 120_000);
 
 describe("setup wizard screens", () => {
+  it("shows the public audience, cutoff and opt-out on the welcome screen and checklist in both languages", async () => {
+    settings.publicDungeonRuns = true;
+    settings.publicDungeonRunsSince = new Date("2026-11-10T12:00:00Z");
+    try {
+      for (const language of ["en", "fr"]) {
+        settings.language = language;
+        for (const step of [0, 8]) {
+          const screen = await renderStep(step, guild as never, "g1", "");
+          const description = screen.embeds[0]!.toJSON().description!;
+          expect(description).toContain("https://guilded.kcaron.top/leaderboards/");
+          expect(description).toContain("/mod leaderboard share:false");
+          expect(description).toContain("<t:1794312000:f>");
+          expect(description).toContain(language === "fr" ? "hors guilde" : "non-guild players");
+          expect(description).toContain(language === "fr" ? "anciens imports restent privés" : "older imports stay private");
+          const off = screen.components.flatMap(row => row.toJSON().components).find(c => "custom_id" in c && c.custom_id === "setup:public-sharing-off");
+          expect(off).toMatchObject({ disabled: false });
+        }
+      }
+      settings.publicDungeonRuns = false;
+      const screen = await renderStep(0, guild as never, "g1", "");
+      expect(screen.embeds[0]!.toJSON().description).toContain("DÉSACTIVÉ");
+      expect(screen.components.flatMap(row => row.toJSON().components).find(c => "custom_id" in c && c.custom_id === "setup:public-sharing-off")).toMatchObject({ disabled: true });
+    } finally {
+      settings.language = "en";
+      settings.publicDungeonRuns = false;
+      settings.publicDungeonRunsSince = null;
+    }
+  });
+
+  it("saves an opt-out when the setup button is clicked and redraws the private state", async () => {
+    settings.publicDungeonRuns = true;
+    const listeners = new Map<string, (...args: never[]) => void>();
+    const collector = { on: (event: string, handler: (...args: never[]) => void) => listeners.set(event, handler) };
+    vi.mocked(requireGuildContext).mockResolvedValue({ guildId: "g1", memberId: "m1" } as never);
+    vi.mocked(guildService.updateSettings).mockImplementation((_id, data) => {
+      settings.publicDungeonRuns = data.publicDungeonRuns!;
+      return Promise.resolve(settings) as never;
+    });
+    const editReply = vi.fn<(payload: { embeds: { data: { description: string } }[] }) => Promise<void>>(async () => undefined);
+    try {
+      await executeSetup({ guild, guildId: "discord", user: { id: "owner" }, member: { permissions: { has: () => true } },
+        options: { getBoolean: () => false }, deferReply: vi.fn(), editReply,
+        fetchReply: async () => ({ createMessageComponentCollector: () => collector }) } as never);
+      listeners.get("collect")!({ customId: "setup:public-sharing-off", user: { id: "owner" }, deferUpdate: async () => undefined,
+        isChannelSelectMenu: () => false, isRoleSelectMenu: () => false, isStringSelectMenu: () => false } as never);
+      await vi.waitFor(() => expect(editReply).toHaveBeenCalledTimes(2));
+      expect(guildService.updateSettings).toHaveBeenCalledWith("g1", { publicDungeonRuns: false });
+      expect(editReply.mock.calls[1]![0].embeds[0]!.data.description).toContain("sharing: OFF");
+    } finally {
+      settings.publicDungeonRuns = false;
+      vi.mocked(guildService.updateSettings).mockReset();
+      vi.mocked(requireGuildContext).mockReset();
+    }
+  });
+
   it("every step builds a payload Discord will accept", async () => {
     for (let step = 0; step <= 8; step++) {
       const screen = await renderStep(step, guild as never, "g1", step === 2 ? "Saved <#c1>." : "");

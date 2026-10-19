@@ -149,16 +149,20 @@ export function prismaPublicRunStore(database: PrismaClient): PublicRunStore {
   };
 }
 
-// Opted-in guilds (GuildSettings.publicDungeonRuns): their valid completed runs, as the bot
+// Sharing-enabled guilds (GuildSettings.publicDungeonRuns): their valid completed runs, as the bot
 // already stored and checked them, go through the same public checks under "guild:<id>".
 export async function publishGuildRuns(database: PrismaClient, store: PublicRunStore = prismaPublicRunStore(database), now = new Date()): Promise<number> {
-  const guilds = await database.guildSettings.findMany({ where: { publicDungeonRuns: true }, select: { guildId: true } });
+  const guilds = await database.guildSettings.findMany({ where: { publicDungeonRuns: true }, select: { guildId: true, publicDungeonRunsSince: true } });
   let published = 0;
-  for (const { guildId } of guilds) {
+  for (const { guildId, publicDungeonRunsSince } of guilds) {
     const uploaderKey = `guild:${guildId}`;
     const known = new Set(await store.storedRefs(uploaderKey));
     const rows = await database.dungeonRun.findMany({
-      where: { guildId, valid: true, state: "COMPLETED", endedAt: { gte: new Date(now.getTime() - PUBLIC_LIMITS.maxAgeDays * 86_400_000) } },
+      where: {
+        guildId, valid: true, state: "COMPLETED",
+        endedAt: { gte: new Date(now.getTime() - PUBLIC_LIMITS.maxAgeDays * 86_400_000) },
+        ...(publicDungeonRunsSince ? { startedAt: { gte: publicDungeonRunsSince } } : {})
+      },
       orderBy: { endedAt: "desc" }, take: 200,
       include: { players: { include: { member: { select: { characters: { select: { name: true, realm: true } } } } } } }
     });

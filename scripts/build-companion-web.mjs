@@ -1,6 +1,8 @@
 import { build } from "esbuild";
 import { fileURLToPath } from "node:url";
-import { readFileSync } from "node:fs";
+import { readFileSync, copyFileSync, cpSync } from "node:fs";
+copyFileSync("site/design-tokens.css", "companion-app/renderer/design-tokens.css");
+cpSync("site/fonts", "companion-app/renderer/fonts", { recursive: true });
 const { version } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 await build({
   entryPoints: [fileURLToPath(new URL("../companion-app/renderer/web-entry.js", import.meta.url))],

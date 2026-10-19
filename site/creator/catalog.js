@@ -7,6 +7,7 @@
     const filter = button.dataset.projectFilter;
     for (const choice of buttons) choice.setAttribute('aria-pressed', String(choice === button));
     for (const card of cards) card.hidden = filter !== 'all' && card.dataset.stage !== filter;
+    for (const link of document.querySelectorAll('.project-index a')) link.hidden = document.getElementById(link.hash.slice(1)).hidden;
     count.textContent = `${cards.filter(card => !card.hidden).length} / ${cards.length}`;
   });
 })();

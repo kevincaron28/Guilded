@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 7.1.0 Release — 19 October 2026
+
+- Monthly dungeon seasons from the 4 November release (`/organize dungeon-seasons`), weekly and
+  monthly leaderboards in Discord (`/dungeon leaderboard period:`) and in the addon (Week / Month
+  switch), and Raider.IO-style public leaderboards with character and guild pages
+  ([notes](docs/V7_1_0_RELEASE_NOTES.md)).
+
 ## 7.0.0 Release — 19 October 2026
 
 - Website: sign in with Discord, recruitment listings (`/mod recruit`) with applications that arrive

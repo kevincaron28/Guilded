@@ -1,6 +1,7 @@
 const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog, shell, Notification } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
+const { spawn } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
 const { detectSavedVariables } = require("./detect-wow.cjs");
 const updates = require("./update-check.cjs");
@@ -102,10 +103,10 @@ function refreshUpdate(state = engine?.state()) {
   if (!Notification.isSupported()) return;
   const notice = new Notification({
     title: `Guilded Companion ${update.version} is available`,
-    body: `You have ${app.getVersion()}. Click to open the download page.`,
+    body: update.installer ? `You have ${app.getVersion()}. Click, then choose Update now.` : `You have ${app.getVersion()}. Click to open the download page.`,
     icon: asset("icon.png")
   });
-  notice.on("click", () => void shell.openExternal(update.url));
+  notice.on("click", () => { if (update?.installer && win) { win.show(); win.focus(); } else void shell.openExternal(update?.url || updates.RELEASES_PAGE); });
   notice.show();
 }
 
@@ -281,6 +282,33 @@ ipcMain.handle("save-config", async (_event, next) => {
 });
 
 ipcMain.handle("open-update", () => shell.openExternal(update?.url || updates.RELEASES_PAGE));
+
+// "Update now" (7.2): download the checked installer, run it silently and quit; the installer
+// restarts the companion. Settings, the Discord link and the queue stay in the user data folder.
+let installing = false;
+ipcMain.handle("install-update", async () => {
+  if (installing) return { ok: false, message: "The update is already downloading." };
+  if (!update?.installer) { await shell.openExternal(update?.url || updates.RELEASES_PAGE); return { ok: true, message: "This update has no direct installer: the download page opened." }; }
+  installing = true;
+  try {
+    const target = path.join(app.getPath("temp"), update.installer.name);
+    let shown = -1;
+    await updates.downloadInstaller(update.installer, target, { onProgress: (share) => {
+      const percent = Math.floor(share * 100);
+      if (percent !== shown && percent % 5 === 0) { shown = percent; win?.webContents.send("update-progress", percent); }
+    } });
+    saveConfig();
+    // NSIS (electron-builder): /S silent, --updated keeps it an upgrade, --force-run starts the new version.
+    spawn(target, ["/S", "--updated", "--force-run"], { detached: true, stdio: "ignore" }).unref();
+    quitting = true;
+    setTimeout(() => app.quit(), 500);
+    return { ok: true, message: `Installing Guilded Companion ${update.version}. It restarts by itself in a moment.` };
+  } catch (error) {
+    return { ok: false, message: `The update could not be installed: ${error instanceof Error ? error.message : String(error)} Try again, or use the download page.` };
+  } finally {
+    installing = false;
+  }
+});
 
 ipcMain.handle("test-connection", (_event, next) => engineModules.testConnection({ ...config, ...next }));
 

@@ -47,8 +47,13 @@ describe("PoE2 HTTP authentication and personal scope", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
-    expect(await response.text()).toContain("Your guild. In sync.");
-    for (const file of ["preload.cjs", "../.env.local", "config.json", "..%2F..%2F.env.local"]) {
+    expect(await response.text()).toContain("Your connection, at a glance.");
+    for (const [file, type] of [["design-tokens.css", "text/css"], ["precision.css", "text/css"], ["kc-emblem.webp", "image/webp"], ["fonts/inter-latin.woff2", "font/woff2"], ["fonts/source-serif-latin.ttf", "font/ttf"]]) {
+      const asset = await fetch(`${address}/companion/${file}`);
+      expect(asset.status).toBe(200);
+      expect(asset.headers.get("content-type")).toContain(type);
+    }
+    for (const file of ["preload.cjs", "../.env.local", "config.json", "..%2F..%2F.env.local", "fonts/../../.env.local", "fonts/source.css"]) {
       expect((await fetch(`${address}/companion/${file}`)).status).toBe(404);
     }
     expect(db.companionCredential.findFirst).not.toHaveBeenCalled();

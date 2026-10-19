@@ -1,0 +1,43 @@
+# Approved visual refresh — 19 October 2026
+
+The owner approved the Ribbon Atelier public-site direction and compact Precision Desk companion after reviewing the design research and mockups. Implementation is isolated on `codex/ribbon-atelier`, initially based on origin/main `be43608`, then integrated with main through PR157. Concurrent primary/Claude application source was preserved; only append-only coordination notices were later added through the authorized CLAUDE.md/handoff route.
+
+## Implementation scope
+
+1. Share the approved charcoal `#111416`, gold `#D9B66F`, ivory `#F3F0E8` identity, type, focus and control rules. Preserve the ribbon KC and existing product icons.
+2. Put all ten existing addons before product-specific guides, retain exact Release/Beta/Alpha stages, limitations, provider links and French content, and introduce broader verified projects.
+3. Give Guilded a consistent publisher relationship, real screenshot stories and clear addon/browser/Windows choices. Keep donation optional and community links visible.
+4. Replace the companion's recurring marketing hero with useful connection/file/refresh status; preserve every existing control, ID, API, pairing flow and permission rule. Add accessible adaptive navigation.
+5. Validate static links, language controls, mobile layouts and companion readiness with offline tests and screenshot QA, plus all repository-required checks.
+
+## Coordination and publication
+
+Origin/main contains PRs 148/149/152/154/155. PR154 supersedes the earlier online-personal-mode exclusion; its browser client, file handling and pairing instructions are preserved. Recruitment and sharing commands are `/mod recruit` and `/mod leaderboard`. Their merge is not proof of production publication or runtime acceptance. This refresh does not change authentication, OAuth, migrations, bot APIs, private owner resources or feature enablement. It does not publish an installer or bump any product version. Companion packaging/release remains coordinated with Claude's active release work.
+
+Website publication must not introduce unrelated new Worker/backend behavior. Compare the deployed baseline before publication and preserve the active Worker/private-owner route contracts. No database or real bot is started for local visual QA. Use only explicitly labelled fixtures for companion state previews, never production pairing credentials or game files.
+
+## Evidence
+
+Visual QA, checks, final source hashes and publication/coordination status are recorded below and in `WEBSITE_AND_COMPANION_HANDOFF_2026_10_19.md`. Historical screenshot captions remain explicit; no UI image is evidence of an unobserved successful sync or current-release game acceptance.
+
+### Completed local validation
+
+The initial full suite passed 225 files / 1,928 tests. After rebasing on PR154/155, all 225 files / 1,929 tests passed, along with TypeScript, ESLint, addon validation, both site/companion builds and the Worker dry-run. The 17 isolated browser scenarios cover desktop, 390px and 320px pages, English/French controls, all ten addons, stage filters, companion setup/connected/error/light states, and mobile keyboard navigation. No horizontal overflow or renderer exception was observed. Companion screenshots use visibly labelled local fixtures; no installed-app runtime or real sync is claimed.
+
+The ribbon emblem hash is unchanged: `b2f3bedb68a981468169c9b3d03cf062500faf366006fe73d115f69800902f39`. Key contrast ratios: ivory/background 16.24:1, muted/surface 7.87:1, gold/surface 8.53:1, control outline/surface 4.05:1. Light-mode focus uses a separate dark blue. This is targeted verification, not a full accessibility certification.
+
+Public download labels are curated in `site/releases.json`, independently of candidate package versions. A direct GitHub API check still returned v6.7.0; a fresh CurseForge primary-page check lists 6.7.0. Full companion translation and updated real-client workflow captures remain follow-ups. New public navigation/hero/catalog copy has EN/FR controls; existing bilingual disclosures and guides remain available.
+
+### Publication and handoff
+
+Source PR: https://github.com/kevincaron28/Guilded/pull/156 (`codex/ribbon-atelier`, main through PR157). Published assets revision is `be58843bed2646f8fd7c58069c2d1037c008e734`. Production deployment `50b209a0-f520-42ad-9bc6-9c70d15ccdea` published the accepted public sites after explicit owner approval. The active Worker backup, assets-only deployment and normal repository Worker dry-run have identical SHA256 `4c64ee9194a6d3682a89c8d6014bc0f31df219a27eaa1927021a9d450cc1da01`; private owner boundaries and runtime/routing/binding metadata were preserved.
+
+The initial automatic-review rejection happened before execution and was resolved by forwarding explicit user publication authorization; one authorized retry succeeded. CI39240918571 passed, as did 39 live HTTP/asset/download checks, 19 local UI scenarios and eight live views. Companion source is ready for integration, but installer/frontend/bot release must be coordinated with Claude and no version was bumped by this refresh. Actual Cloudflare production settings were read: main builds `npm run site:build`, then `npx wrangler deploy`; GitHub packaging uses `--publish never`. See the durable handoff for source-sync and PR151 release dependencies.
+
+### Fresh user screenshot integration
+
+On 19 October, the user supplied 14 genuine Guilded game captures. The dedicated capture task provided eight privacy-reviewed, deterministic PNG derivatives; all eight were imported byte-for-byte with matching SHA256 hashes. Only its sanitized folder was read/copied. No private original or private source inventory was imported. The filtered source manifest is `site/images/showcase/CAPTURE-MANIFEST-2026-10-19.json`.
+
+Both website heroes now show local guild setup with blank fields. Crafting and loot stories use fresh blank/idle captures, and an expandable gallery shows raid controls, solo readiness and not-completed season targets. Labels preserve the redactions and true empty states. Mobile uses the supplied detail crops with complete-image links. Captions and image descriptions have EN/FR text. The loaded addon version and client build are unknown; disk 6.3.2 metadata is separate evidence and is not promoted as the loaded version. No Catchkeeper/Trailmark images were supplied.
+
+The concurrent main change through PR157 was merged cleanly before integration. All repository checks passed on the combined source; the image/alt-text changes also pass the site build, targeted lint and static-reference checks. Fresh layout review and CI passed before the approved assets-only production deployment. All eight live sanitized screenshot hashes match their supplied derivatives; companion release remains coordinated separately.

@@ -1,5 +1,18 @@
 const $ = id => document.getElementById(id);
 const api = window.companion;
+const desktopNavigation = matchMedia('(min-width:1001px)');
+function closeNavigation() { document.body.classList.remove('nav-open'); $('btnNav').setAttribute('aria-expanded','false'); $('navBackdrop').hidden = true; document.querySelector('.sidebar').inert = !desktopNavigation.matches; document.querySelector('.workspace').inert = false; }
+$('btnNav').addEventListener('click', () => { const open = $('btnNav').getAttribute('aria-expanded') !== 'true'; if (!open) { closeNavigation(); return; } document.body.classList.add('nav-open'); $('btnNav').setAttribute('aria-expanded','true'); $('navBackdrop').hidden = false; document.querySelector('.sidebar').inert = false; document.querySelector('.workspace').inert = true; document.querySelector('.nav.active').focus(); });
+$('navBackdrop').addEventListener('click',closeNavigation);
+document.addEventListener('keydown',event => {
+  if (event.key !== 'Tab' || !document.body.classList.contains('nav-open')) return;
+  const focusable = [...document.querySelectorAll('.sidebar button, .sidebar a[href]')].filter(element => !element.hidden);
+  const first = focusable[0], last = focusable.at(-1);
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+});
+document.addEventListener('keydown',event => { if (event.key === 'Escape' && document.body.classList.contains('nav-open')) { closeNavigation(); $('btnNav').focus(); } });
+desktopNavigation.addEventListener('change',closeNavigation);
 const fields = ['uploadUrl','guildDiscordId','pairingCode','watchFile','realm','wowGuild','standingsIntervalMinutes','poeLogFile','poeCharacter','poeLeague','poeMode'];
 const names = {status:'Overview',wishlist:'Wishlist',cores:'Cores & prices',wow:'World of Warcraft',poe:'PoE2 mapping',settings:'Connection & setup',activity:'Activity',help:'Help & privacy'};
 let lastSnapshot;
@@ -20,6 +33,9 @@ function showPage(name) {
   document.querySelectorAll('.nav').forEach(button => { const active = button.dataset.page === name; button.classList.toggle('active', active); if (active) button.setAttribute('aria-current','page'); else button.removeAttribute('aria-current'); });
   $('breadcrumb').textContent = names[name];
   document.title = `${names[name]} · Guilded Companion`;
+  closeNavigation();
+  const heading = document.querySelector('#page-' + name + ' h1');
+  if (heading) { heading.tabIndex = -1; heading.focus({preventScroll:true}); }
   window.scrollTo({top:0});
 }
 document.querySelectorAll('[data-page],[data-go]').forEach(button => button.addEventListener('click', () => showPage(button.dataset.page || button.dataset.go)));
@@ -27,9 +43,9 @@ function toast(message, error = false) {
   $('toast').textContent = message; $('toast').hidden = false; $('toast').classList.toggle('error',error); clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').hidden = true, 6000);
 }
 async function action(button, task) {
-  button.disabled = true;
+  button.disabled = true; button.dataset.busy = "true";
   try { return await task(); } catch (error) { toast(error.message || 'This action could not be completed.',true); }
-  finally { button.disabled = false; }
+  finally { button.disabled = false; delete button.dataset.busy; if (lastSnapshot) renderState(lastSnapshot); }
 }
 const bind = (id, task) => $(id).addEventListener('click', event => action(event.currentTarget, task));
 const readForm = () => ({...Object.fromEntries(fields.map(id => [id,$(id).value.trim()])), wowEnabled:$('wowEnabled').checked, poeEnabled:$('poeEnabled').checked});
@@ -47,6 +63,15 @@ function renderState(snapshot) {
   lastSnapshot = snapshot;
   const {state,health} = snapshot;
   renderUpdate(snapshot.update);
+  const overview = window.guildedOverview(savedConfig,state,!!api.browser);
+  $('overviewConnection').textContent = overview.connection;
+  $('overviewTracking').textContent = overview.tracking;
+  $('overviewFiles').textContent = overview.files;
+  $('overviewStandings').textContent = overview.standings;
+  $('overviewStandingsTime').textContent = state.lastStandings ? ago(state.lastStandings.at) : 'A connection is not a completed sync.';
+  $('overviewNext').firstChild.textContent = overview.nextAction + ' →';
+  $('btnUpload').hidden = !overview.linked;
+  $('btnUpload').disabled = !overview.canSync || $('btnUpload').dataset.busy === 'true';
   const linked = !!savedConfig.companionCredential;
   const paused = !api.browser && linked && !state.running && health.text === 'Not running';
   const setup = health.level === 'setup' && health.text === 'Setup needed';

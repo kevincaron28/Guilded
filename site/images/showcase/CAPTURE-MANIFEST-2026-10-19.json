@@ -1,0 +1,124 @@
+{
+  "captureDate": "2026-10-19",
+  "captureMethod": "User-created in-game screenshots; privacy-safe deterministic crops supplied by capture task.",
+  "loadedVersion": "Unknown; no version number is visible. Separately observed disk metadata 6.3.2 does not prove the loaded version.",
+  "limitations": "Setup, idle and not-completed states only. No inferred successful query, bid, raid, sync or public leaderboard. No original captures or private inventories are included.",
+  "assets": [
+    {
+      "id": "guilded-crafting-redacted",
+      "file": "guilded-crafting-redacted.png",
+      "width": 821,
+      "height": 462,
+      "sha256": "03e20022766fcb29d010b99cd333563aea7764204b2354fd2cc93dfb8937cad0",
+      "feature": "Crafting lookup and cooldown information",
+      "state": "Blank item/recipe lookup. Personal profession counts concealed. No profession cooldowns known in this capture.",
+      "loadedAddonVersion": null,
+      "clientBuild": null,
+      "redactions": [
+        "Personal profession data redacted"
+      ],
+      "edits": "Deterministic local 1:1 pixel crop; optional opaque labelled redactions; 26px editorial footer. No upscaling, generative edits, UI reconstruction or invented data."
+    },
+    {
+      "id": "guilded-crafting-lookup-detail",
+      "file": "guilded-crafting-lookup-detail.png",
+      "width": 592,
+      "height": 129,
+      "sha256": "9d8d1bc4dc30fe51a942e767767f6e4488a928030b641b4f003908dcd254de2b",
+      "feature": "Crafting item or recipe lookup",
+      "state": "Blank lookup field and Who can craft it control; no query submitted or results shown.",
+      "loadedAddonVersion": null,
+      "clientBuild": null,
+      "redactions": [],
+      "edits": "Deterministic local 1:1 pixel crop; optional opaque labelled redactions; 26px editorial footer. No upscaling, generative edits, UI reconstruction or invented data."
+    },
+    {
+      "id": "guilded-local-guild-setup",
+      "file": "guilded-local-guild-setup.png",
+      "width": 821,
+      "height": 462,
+      "sha256": "9641f500b3abafb4af537f6c77f743e2f352a139ee68a5ee4e59e5651913bf47",
+      "feature": "Local guild setup: raid core, loot rules and raider form",
+      "state": "Blank core and raider fields. Shows the existing setup flow and visible GP bids / SR: 1 each controls; no core or member created by this task.",
+      "loadedAddonVersion": null,
+      "clientBuild": null,
+      "redactions": [],
+      "edits": "Deterministic local 1:1 pixel crop; optional opaque labelled redactions; 26px editorial footer. No upscaling, generative edits, UI reconstruction or invented data."
+    },
+    {
+      "id": "guilded-raid-redacted",
+      "file": "guilded-raid-redacted.png",
+      "width": 786,
+      "height": 623,
+      "sha256": "4594beac5fe3d562c819878c6da5e3c41227ac60932359e9dbe7bf3846c2637b",
+      "feature": "Raid and attendance controls",
+      "state": "No active raid; blank raid and boss fields. Existing controls only; no attendance action taken.",
+      "loadedAddonVersion": null,
+      "clientBuild": null,
+      "redactions": [
+        "REDACTED"
+      ],
+      "edits": "Deterministic local 1:1 pixel crop; optional opaque labelled redactions; 26px editorial footer. No upscaling, generative edits, UI reconstruction or invented data."
+    },
+    {
+      "id": "guilded-loot-redacted",
+      "file": "guilded-loot-redacted.png",
+      "width": 786,
+      "height": 623,
+      "sha256": "7f8971be0db4d4c0c27b9ff2b5ddaaab2db5fd8544a98e0fbb3ba06e38b975fe",
+      "feature": "Loot bidding and direct award controls",
+      "state": "No bidding running, blank item field, no dropped items shown. The screenshot shows controls, not a completed bid or award.",
+      "loadedAddonVersion": null,
+      "clientBuild": null,
+      "redactions": [
+        "REDACTED"
+      ],
+      "edits": "Deterministic local 1:1 pixel crop; optional opaque labelled redactions; 26px editorial footer. No upscaling, generative edits, UI reconstruction or invented data."
+    },
+    {
+      "id": "guilded-readiness-redacted",
+      "file": "guilded-readiness-redacted.png",
+      "width": 786,
+      "height": 623,
+      "sha256": "fc07d840b887c28b3c4e13c1256930708762942eef658bc8110f0e34d53c73b7",
+      "feature": "Raid readiness controls",
+      "state": "Solo readiness screen. Summary and personal row concealed for privacy. Not evidence of a populated raid readiness table.",
+      "loadedAddonVersion": null,
+      "clientBuild": null,
+      "redactions": [
+        "Personal readiness summary redacted",
+        "Player identifier and readiness row redacted"
+      ],
+      "edits": "Deterministic local 1:1 pixel crop; optional opaque labelled redactions; 26px editorial footer. No upscaling, generative edits, UI reconstruction or invented data."
+    },
+    {
+      "id": "guilded-season-targets-redacted",
+      "file": "guilded-season-targets-redacted.png",
+      "width": 466,
+      "height": 573,
+      "sha256": "2f7aebadfeed42af28b59f57b525beca2c7d4eefa2f29949b6c0eb5ec9f7eeb3",
+      "feature": "Dungeon season target catalogue, page 1 of 4",
+      "state": "Actual season target page with four not-completed entries and fixed target times. Player score and private past-season title concealed. Not a leaderboard or public dungeon mode screenshot.",
+      "loadedAddonVersion": null,
+      "clientBuild": null,
+      "redactions": [
+        "Player and score redacted",
+        "Private season name redacted"
+      ],
+      "edits": "Deterministic local 1:1 pixel crop; optional opaque labelled redactions; 26px editorial footer. No upscaling, generative edits, UI reconstruction or invented data."
+    },
+    {
+      "id": "guilded-season-targets-detail",
+      "file": "guilded-season-targets-detail.png",
+      "width": 411,
+      "height": 260,
+      "sha256": "38e956ed4ee3adabba52a97f7b9c9ea8be20ac88038fa33e478d3a5c42366e30",
+      "feature": "Four existing dungeon target entries",
+      "state": "Four actual not-completed dungeon entries with fixed target times. No roster, character identifier, guild name or score included.",
+      "loadedAddonVersion": null,
+      "clientBuild": null,
+      "redactions": [],
+      "edits": "Deterministic local 1:1 pixel crop; optional opaque labelled redactions; 26px editorial footer. No upscaling, generative edits, UI reconstruction or invented data."
+    }
+  ]
+}

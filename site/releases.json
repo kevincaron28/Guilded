@@ -1,0 +1,7 @@
+{
+  "verifiedAt": "2026-10-19",
+  "guilded": {
+    "github": { "version": "6.7.0", "stage": "release", "url": "https://github.com/kevincaron28/Guilded/releases/tag/v6.7.0" },
+    "curseforge": { "version": "6.7.0", "stage": "release", "url": "https://www.curseforge.com/wow/addons/guilded" }
+  }
+}

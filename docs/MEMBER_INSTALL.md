@@ -39,10 +39,10 @@ for your guild's online link. Use the matching release
 your officer specifies. Public releases belong on
 [GitHub Releases](https://github.com/kevincaron28/Guilded/releases) and
 [CurseForge](https://www.curseforge.com/wow/addons/guilded); only use a version
-actually listed there. Checked on 18 October 2026: **GitHub Release 6.5.1** and
-**CurseForge Release 6.5.1** (approved file 9234938). Their listings can update separately; check the
-version on the actual download. Install the complete addon folder and keep
-your SavedVariables; see the [6.5.1 release notes](V6_5_1_RELEASE_NOTES.md).
+actually listed there. Checked on 19 October 2026: GitHub and CurseForge offer **Release 6.7.0**.
+Their listings can update separately; confirm the version on the selected download.
+Install the complete addon folder and keep your SavedVariables. See the
+[6.7.0 release notes](https://github.com/kevincaron28/Guilded/releases/tag/v6.7.0).
 Guilded Games remains a separate optional Alpha.
 
 ## 1. Install the addon
@@ -217,9 +217,11 @@ whether ordinary guild chat arrives.
 
 **L'addon fonctionne sans Discord.** Il ne faut ni compte d'hébergement, ni base
 de données, ni jeton de bot pour jouer. Client ciblé : **WoW Forever 1.60.1**.
-Au 18 octobre 2026, GitHub propose la Release **6.5.1** et CurseForge la Release
-**6.5.1** (fichier approuvé 9234938). Vérifiez toujours la version du fichier téléchargé; Guilded Games
-reste un addon Alpha séparé.
+Au 19 octobre 2026, GitHub et CurseForge proposent la **Release 6.7.0**.
+Les deux plateformes peuvent être mises à jour séparément : vérifiez la version du
+fichier choisi. Installez le dossier complet de l'addon et conservez vos SavedVariables.
+Consultez les [notes de version 6.7.0](https://github.com/kevincaron28/Guilded/releases/tag/v6.7.0).
+Guilded Games reste un addon Alpha séparé et facultatif.
 
 Pour ajouter le bot à votre guilde, utilisez le lien **Add Guilded** ci-dessus.
 **L'approbation de KCaron est obligatoire avant l'activation du serveur.**

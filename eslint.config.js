@@ -6,7 +6,7 @@ export default tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   { files: ["worker/**/*.mjs"], languageOptions: { globals: { Request: "readonly", Response: "readonly", Headers: "readonly" } } },
-  { files: ["site/**/*.js"], languageOptions: { globals: { document: "readonly", navigator: "readonly", URL: "readonly" } } },
+  { files: ["site/**/*.js"], languageOptions: { globals: { document: "readonly", window: "readonly", navigator: "readonly", URL: "readonly" } } },
   {
     ignores: ["dist/**", "companion-app/**", "node_modules/**", "prisma/migrations/**"],
     languageOptions: {

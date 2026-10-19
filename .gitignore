@@ -23,3 +23,7 @@ Published Addons/
 
 # Developer bug inbox (npm run bugs): holds members' Discord IDs and messages.
 bug-inbox.md
+
+# Shared presentation assets copied by companion:build
+companion-app/renderer/design-tokens.css
+companion-app/renderer/fonts/

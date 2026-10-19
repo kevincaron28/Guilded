@@ -66,7 +66,8 @@ import { prisma } from "./database.js";
 import { runRaidReminders } from "./services/reminders.js";
 import { runCooldownPings } from "./services/recipes.js";
 import { DUNGEON_SEASON_SELECT, handleDungeonSeasonSelect, updateDungeonLeaderboard } from "./services/dungeon-leaderboard.js";
-import { runBackup } from "./services/backup.js";
+import { BACKUP_DIR, runBackup } from "./services/backup.js";
+import { rotateScheduledSeasons, startScheduledSeason } from "./services/dungeon-season-schedule.js";
 import { updateCommunityLeaderboard } from "./services/community-leaderboard.js";
 import { cleanupPastRaidPosts } from "./services/raid-post-cleanup.js";
 import { cleanupRaidAlerts } from "./services/raid-alert-cleanup.js";
@@ -260,6 +261,25 @@ client.once(Events.ClientReady, (readyClient) => {
   setInterval(() => void retention(), 6 * 60 * 60 * 1000);
   // Opted-in guilds' dungeon runs go to the public leaderboards (/mod leaderboard, 7.0).
   setInterval(() => void publishGuildRuns(prisma).catch(reportJobError("Public dungeon runs")), 15 * 60 * 1000);
+  // Monthly dungeon seasons (opted-in guilds, /organize dungeon-seasons): rotated at each start, after
+  // a backup to backups/seasons (dungeon-season-schedule.ts). Idempotent across restarts.
+  let rotating = false;
+  const rotateSeasons = () => {
+    if (rotating) return;
+    rotating = true;
+    rotateScheduledSeasons(prisma, new Date(), () => runBackup(prisma, new Date(), `${BACKUP_DIR}/seasons`, 24), startScheduledSeason(prisma))
+      .then(async (rotated) => {
+        for (const row of rotated) {
+          console.info(`Dungeon season rotated: ${row.ended ?? "none"} -> ${row.season} (guild ${row.guildId}).`);
+          const guild = await prisma.guild.findUnique({ where: { id: row.guildId }, select: { discordId: true } });
+          const discordGuild = guild ? readyClient.guilds.cache.get(guild.discordId) ?? null : null;
+          await updateDungeonLeaderboard(discordGuild).catch(reportJobError("Dungeon leaderboard after season rotation"));
+        }
+      })
+      .catch(reportJobError("Monthly dungeon seasons")).finally(() => { rotating = false; });
+  };
+  setTimeout(rotateSeasons, 60_000);
+  setInterval(rotateSeasons, 5 * 60 * 1000);
   // Raid reminders: checked every 5 minutes so a "60 minutes before" ping
   // lands within a few minutes of that mark.
   setInterval(() => {

@@ -779,6 +779,8 @@ model GuildSettings {
   // keys use the built-in defaults).
   dungeonChannelId         String?
   dungeonConfig            Json?
+  // Monthly dungeon seasons (opt-in; src/services/dungeon-season-schedule.ts).
+  dungeonSeasonSchedule    Json?
   // Raid summaries (raid reports) post here; falls back to the notify channel.
   raidLogChannelId         String?
   // Dungeon challenge: an auto-updated leaderboard message, and a signups channel.

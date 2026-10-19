@@ -112,3 +112,26 @@ target) and the addon score panel (note, `*` after the target) show it.
 - Real launch data for the 45-59 and 60 brackets and the new dungeons: map IDs, then a new season.
 - Real timed runs to replace the provisional level ranges (targets can be recalibrated in-season).
 - In game: Armory and Cathedral final-boss detection, and difficulty 0 at launch.
+
+## Monthly seasons (built 19 October 2026)
+
+Owner, 19 October 2026: "a new season starting November 4th for release and then a season a month".
+`src/services/dungeon-season-schedule.ts`; officers use `/organize dungeon-seasons preview | on | off`.
+
+- Off by default: a guild opts in with `on` (options `first_start` YYYY-MM-DD, `hour` 0-23,
+  `time_zone`; defaults 2026-11-04, 0, America/Toronto). `off` stops rotation and keeps the current season.
+- Season 1 runs from the first start to the 1st of the next month at the same hour; then one season
+  per calendar month ("Season 2 · December 2026", ...). Daylight saving is handled per time zone.
+- A job in `src/main.ts` checks every 5 minutes. Before a season's start nothing changes: the current
+  (beta) season stays active and unarchived. At the start it takes a backup
+  (`backups/seasons/`, 24 kept), then rotates with the normal locked `startSeason` (standings, rating
+  and champions frozen; runs and points kept). The guild's leaderboard post is refreshed.
+- Idempotent: if the active season started inside the current window (this job, a restart, or an
+  officer by hand) nothing happens. A month the bot was entirely down for is skipped.
+- Rules carry over: an all-level (version 6) season passes its routes, brackets, provisional block
+  and recalibrations unchanged (a recalibration's `from` is before the new start, so it applies to
+  every run of the new month; recalibrating again needs 3 runs in the new month). Any other season is
+  followed by the provisional plan above.
+- `bracket-start` with a future `starts_at` still archives at once; use the schedule for a future start.
+
+Owner decisions still open: the start hour and time zone (default midnight Toronto).

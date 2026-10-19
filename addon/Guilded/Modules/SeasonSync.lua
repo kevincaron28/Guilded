@@ -16,6 +16,9 @@
 -- Level brackets (all-level seasons, rules version 6) travel the same way in a BRACKETS
 -- message: "B;<index>;<key>;<min>;<max>;<bestCount>" per bracket and "K;<index>;<rank>;<key>"
 -- per ranked row. Older clients ignore it and show the rows without brackets.
+--
+-- This week's board (since the weekly reset) travels in a WEEK message: "W;<startsAt>" then
+-- "R;<name>;<bracket>;<points>" per row (top 30). Older clients ignore it.
 local addonName, ns = ...
 local PREFIX = "GuildedSeason"
 local COOLDOWN, REPLY_JITTER = 60, 4
@@ -76,6 +79,17 @@ local function share()
   if dated then sendParts("DATES", board.updatedAt, table.concat(dates, "\n")) end
   local bracketText = table.concat(brackets, "\n")
   if #brackets > 0 and #bracketText <= 190 * 16 then sendParts("BRACKETS", board.updatedAt, bracketText) end
+  local week = type(board.week) == "table" and board.week
+  local weekStart = week and isoSecond(week.startsAt)
+  if weekStart and type(week.rows) == "table" then
+    local weekLines = { "W;" .. weekStart }
+    for rank = 1, math.min(30, #week.rows) do
+      local row = week.rows[rank]
+      weekLines[#weekLines + 1] = "R;" .. encode(row.name) .. ";" .. (row.bracket or "") .. ";" .. math.floor(row.points or 0)
+    end
+    local weekText = table.concat(weekLines, "\n")
+    if #weekText <= 190 * 8 then sendParts("WEEK", board.updatedAt, weekText) end
+  end
 end
 local function scheduleReply()
   if replyScheduled then return end
@@ -156,7 +170,40 @@ local function receiveBrackets(text, sender)
   for _, entry in ipairs(keys) do seasons[entry[1]].rows[entry[2]].bracket = entry[3] end
   if ns.onDungeonChange then pcall(ns.onDungeonChange) end
 end
+-- This week's board, like dates, only from the guildmate whose board we kept. All or nothing.
+local weekIncoming = nil
+local function receiveWeek(text, sender)
+  local stamp, part, total, payload = string.match(text, "^WEEK|([^|]+)|(%d+)|(%d+)|(.*)$")
+  part, total = tonumber(part), tonumber(total)
+  if not stamp or #stamp > 40 or not part or not total or total < 1 or total > 8 or part < 1 or part > total or #payload > 190 then return end
+  local board = current()
+  if not board or board.updatedAt ~= stamp or board.from ~= sender then return end
+  if not weekIncoming or weekIncoming.stamp ~= stamp or weekIncoming.sender ~= sender or weekIncoming.total ~= total or time() - weekIncoming.started > 60 then
+    weekIncoming = { stamp = stamp, sender = sender, total = total, started = time(), parts = {}, received = 0 }
+  end
+  if not weekIncoming.parts[part] then weekIncoming.parts[part] = payload; weekIncoming.received = weekIncoming.received + 1 end
+  if weekIncoming.received ~= total then return end
+  local whole = table.concat(weekIncoming.parts)
+  weekIncoming = nil
+  local week
+  for line in string.gmatch(whole .. "\n", "([^\n]*)\n") do
+    local startsAt = string.match(line, "^W;(.+)$")
+    if startsAt and not week then
+      if isoSecond(startsAt) ~= startsAt then return end
+      week = { startsAt = startsAt, rows = {} }
+    else
+      local name, key, points = string.match(line, "^R;([^;]*);([a-z0-9%-]*);(%d+)$")
+      points = tonumber(points)
+      if not week or not name or #week.rows >= 30 or #key > 20 or points > 1000000000 then return end
+      week.rows[#week.rows + 1] = { name = decode(name), points = points, bracket = key ~= "" and key or nil }
+    end
+  end
+  if not week then return end
+  board.week = week
+  if ns.onDungeonChange then pcall(ns.onDungeonChange) end
+end
 local function receive(text, sender)
+  if string.sub(text, 1, 5) == "WEEK|" then return receiveWeek(text, sender) end
   if string.sub(text, 1, 6) == "DATES|" then return receiveDates(text, sender) end
   if string.sub(text, 1, 9) == "BRACKETS|" then return receiveBrackets(text, sender) end
   local stamp, part, total, payload = string.match(text, "^BOARD|([^|]+)|(%d+)|(%d+)|(.*)$")

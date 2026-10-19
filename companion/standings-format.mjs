@@ -62,6 +62,13 @@ function bracketList(board) {
   return `brackets = { ${board.brackets.map(b => `{ key = ${luaString(b.key)}, min = ${Math.trunc(b.min)}, max = ${Math.trunc(b.max)}, bestCount = ${Math.trunc(b.bestCount)} }`).join(", ")} }, `;
 }
 
+// This week's board (since the weekly reset), for the addon's Week view. Older addons ignore it.
+function weekField(board) {
+  const week = board.week;
+  if (!week || !Array.isArray(week.rows) || typeof week.startsAt !== "string" || Number.isNaN(Date.parse(week.startsAt))) return "";
+  return `week = { startsAt = ${luaString(week.startsAt)}, rows = { ${week.rows.slice(0, 50).map(row => `{ name = ${luaString(row.name)}, ${bracketField(row)}points = ${Math.trunc(row.points)} }`).join(", ")} } }, `;
+}
+
 // Serialize only known fields; all names go through the existing Lua string escaper.
 function seasonFields(board) {
   if (board.detailsAvailable === undefined) return "";
@@ -99,7 +106,7 @@ export function standingsToLua(data) {
     "",
     "-- Dungeon points this season (top 10), for the addon's Dungeons tab.",
     ...(data.dungeonBoard ? [
-      `GuildedDungeonBoard = { season = ${luaString(data.dungeonBoard.season)}, status = ${luaString(data.dungeonBoard.status ?? "ACTIVE")}, updatedAt = ${luaString(data.updatedAt)}, ${seasonDates(data.dungeonBoard)}${seasonFields(data.dungeonBoard)}rows = {`,
+      `GuildedDungeonBoard = { season = ${luaString(data.dungeonBoard.season)}, status = ${luaString(data.dungeonBoard.status ?? "ACTIVE")}, updatedAt = ${luaString(data.updatedAt)}, ${seasonDates(data.dungeonBoard)}${seasonFields(data.dungeonBoard)}${weekField(data.dungeonBoard)}rows = {`,
       ...data.dungeonBoard.rows.map((row) => `  { name = ${luaString(row.name)}, ${bracketField(row)}points = ${Math.trunc(row.points)} },`),
       "}, history = {",
       ...(data.dungeonBoard.history ?? []).map(board => ` { season = ${luaString(board.season)}, status = ${luaString(board.status)}, ${seasonDates(board)}${seasonFields(board)}rows = { ${board.rows.map(row => `{ name = ${luaString(row.name)}, ${bracketField(row)}points = ${Math.trunc(row.points)} }`).join(", ")} } },`),

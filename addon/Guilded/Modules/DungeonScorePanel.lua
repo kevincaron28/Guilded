@@ -29,7 +29,8 @@ local function artwork(row)
 end
 
 -- bracketKey: the level bracket to show in an all-level season (default: the player's own).
-function view.model(name, seasonIndex, bracketKey)
+-- period "week": the current season's board since the weekly reset (when the bot sent one).
+function view.model(name, seasonIndex, bracketKey, period)
   local db = ns.getDb and ns.getDb() or {}
   local score = ns.scores
   local seasons = {}
@@ -42,7 +43,9 @@ function view.model(name, seasonIndex, bracketKey)
   local okLevel, level = pcall(UnitLevel, "player")
   local bracket = score.bracketByKey(selected, bracketKey)
     or score.bracketByKey(selected, score.defaultBracket(selected, ns.normalizeName(name), okLevel and level or nil))
-  for _, row in ipairs(selected and selected.rows or {}) do
+  local week = seasonIndex == 1 and selected and type(selected.week) == "table" and type(selected.week.rows) == "table" and selected.week or nil
+  if period ~= "week" or not week then period = "month" end
+  for _, row in ipairs(period == "week" and week.rows or selected and selected.rows or {}) do
     if score.isMember(row.name) and (not bracket or row.bracket == bracket.key) then rows[#rows + 1] = row end
   end
   local own
@@ -77,7 +80,7 @@ function view.model(name, seasonIndex, bracketKey)
   return { total = profile and profile.points or own, count = profile and #profile.details or nil,
     cards = cards, seasons = seasons, seasonIndex = seasonIndex, season = selected, rows = rows,
     own = profile and profile.points or own, available = available, version = snapshot and snapshot.version, provisional = snapshot and snapshot.provisional,
-    bracket = bracket, brackets = selected and selected.brackets }
+    bracket = bracket, brackets = selected and selected.brackets, period = period, hasWeek = week ~= nil, weekOwn = period == "week" and (own or 0) or nil }
 
 end
 
@@ -264,16 +267,22 @@ function view.build(parent, compact)
     self.runView:Hide()
     if not active("scores") then self.mode = "run"; self.runView:Show(); self.runView:Refresh(); return end
     local name = ns.playerName()
-    local model = view.model(name, self.seasonIndex, self.bracket)
-    self.seasonIndex = model.seasonIndex
+    local model = view.model(name, self.seasonIndex, self.bracket, self.period)
+    self.seasonIndex, self.period = model.seasonIndex, model.period
+    local ranking = self.guildRanking or model.period == "week"
+    -- The current season: one button switches between this month (the season) and this week.
+    if model.hasWeek then
+      self.periodButton:SetText(L(model.period == "week" and "This week" or "This month")); self.periodButton:Show()
+    else self.periodButton:Hide() end
     self.bracket = model.bracket and model.bracket.key or nil
     -- All-level seasons: one button cycles through the level brackets.
     if model.bracket then
       self.bracketButton:SetText(ns.scores.bracketLabel(model.bracket)); self.bracketButton:Show()
     else self.bracketButton:Hide() end
-    local pages = math.max(1, math.ceil(self.guildRanking and #model.rows / 12 or #model.cards / perPage))
+    local pages = math.max(1, math.ceil(ranking and #model.rows / 12 or #model.cards / perPage))
     self.page = math.min(self.page, pages)
-    self.summary:SetText(name .. " - " .. L("Your season score") .. ": " .. (model.total and tostring(model.total) or L("Not in this snapshot")))
+    self.summary:SetText(name .. " - " .. (model.period == "week" and (L("Your score this week") .. ": " .. model.weekOwn)
+      or (L("Your season score") .. ": " .. (model.total and tostring(model.total) or L("Not in this snapshot")))))
     self.note:SetText(model.available and (model.version == 6 and model.bracket and string.format(L("%s: best %d distinct routes. Verified route evidence required."), ns.scores.bracketLabel(model.bracket), model.bracket.bestCount)
       or model.version == 5 and L("Level 60: best 8 distinct routes. Maximum 3200. Verified route evidence required.") or model.version == 4 and L("Beta: best 8 distinct routes. Level 30. Maximum 3200. Provisional targets.") or model.version == 3 and L("200 at target. Best run per dungeon. Hover for boss records.") or model.version == 2 and L("100 per dungeon + up to 20 speed. Only your best run counts.")
       or L("Historical rules: 100 per distinct dungeon, no speed bonus."))
@@ -286,7 +295,7 @@ function view.build(parent, compact)
     if not model.available and ns.seasonDetails then ns.seasonDetails.request(model.seasonIndex) end
     for i, card in ipairs(self.cards) do
       local row = model.cards[(self.page - 1) * perPage + i]
-      if row and not self.guildRanking then
+      if row and not ranking then
         card.row = row
         card.art:Hide()
         if card.art:SetTexture(artwork(row)) then card.art:Show() end
@@ -302,13 +311,13 @@ function view.build(parent, compact)
         if (row.points or 0) > 0 then card.bar:Show() else card.bar:Hide() end
       else card.row = nil; card.art:SetTexture(nil); card.art:Hide(); card:Hide() end
     end
-    if self.guildRanking then
+    if ranking then
       local ranked = {}
       for i = (self.page - 1) * 12 + 1, math.min(#model.rows, self.page * 12) do
         local row = model.rows[i]
         ranked[#ranked + 1] = string.format("%d. %s - %d", i, row.name, row.points)
       end
-      self.rankings:SetText(#ranked > 0 and table.concat(ranked, "\n") or L("No points recorded for this season."))
+      self.rankings:SetText(#ranked > 0 and table.concat(ranked, "\n") or L(model.period == "week" and "No scores this week yet." or "No points recorded for this season."))
       self.rankings:Show()
     else self.rankings:Hide() end
     self.rankingToggle:SetText(L(self.guildRanking and "My progress" or "Guild rankings"))
@@ -344,6 +353,11 @@ function view.build(parent, compact)
     pane.page = 1; pane:Refresh()
   end)
   pane.bracketButton:Hide()
+  pane.period = "month"
+  pane.periodButton = button(pane, "This month", width - 262, -330, 120, function()
+    pane.period = pane.period == "week" and "month" or "week"; pane.page = 1; pane:Refresh()
+  end)
+  pane.periodButton:Hide()
   -- Inside the game's dungeon finder, Close closes the finder (not just this page).
   button(pane, "Close", width - 78, -8, 62, function()
     if view.chrome and view.chrome:IsShown() then

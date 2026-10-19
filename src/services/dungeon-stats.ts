@@ -3,6 +3,7 @@ import { dungeonConfig, weekStart } from "./dungeon-rules.js";
 import { finalRows } from "./season-snapshot.js";
 import { hasDungeonRating, dungeonRating, seasonDungeonCatalog, type LevelBand } from "./dungeon-rating.js";
 import { validBracketedRules } from "./dungeon-november-rules.js";
+import { weekSeason, weekWindow } from "./dungeon-periods.js";
 import { participationDungeonKey, participationMode, participationRecordEligible, type ParticipationRun } from "./dungeon-participation.js";
 
 // Read-only views of the dungeon challenge (roadmap D5): leaderboards,
@@ -182,7 +183,7 @@ function isoOrNull(date: Date | null | undefined): string | null {
 
 // Competitive scores retain each run character. Legacy participation/archive
 // rows still use main names; the companion writes this into Standings.lua.
-export async function addonDungeonBoard(database: Db & Pick<PrismaClient, "character">, guildId: string) {
+export async function addonDungeonBoard(database: Db & Pick<PrismaClient, "character">, guildId: string, now = new Date()) {
   const [active, past] = await Promise.all([
     activeSeasonOrNull(database, guildId),
     database.dungeonSeason.findMany({ where: { guildId, status: "ENDED" }, orderBy: { startsAt: "desc" }, take: 10 })
@@ -223,7 +224,13 @@ export async function addonDungeonBoard(database: Db & Pick<PrismaClient, "chara
       .map(row => ({ name: mainName.get(row.memberId) ?? names.get(row.memberId) ?? "?", points: row._sum.amount ?? 0 }))
     ).sort((a, b) => b.points - a.points || a.name.localeCompare(b.name)).slice(0, 50)
   }));
-  return { ...boards[0]!, history: boards.slice(1) };
+  // This week's board (since the weekly reset) for the active rated season: the addon's Week view.
+  const current = selected[0]!.status === "ACTIVE" && hasDungeonRating(selected[0]!.ratingRules) ? weekSeason(selected[0]!, now) : null;
+  const weekRows = current ? await dungeonRating(database, guildId, current) : null;
+  const week = weekRows ? { startsAt: weekWindow(now).start.toISOString(), endsAt: weekWindow(now).end.toISOString(),
+    rows: weekRows.filter(row => row.points > 0).map(row => ({ name: row.character ?? mainName.get(row.memberId) ?? row.name, points: row.points, ...(row.bracket ? { bracket: row.bracket } : {}) }))
+      .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name)).slice(0, 50) } : null;
+  return { ...boards[0]!, ...(week ? { week } : {}), history: boards.slice(1) };
 }
 
 // "1. Kev — 240" lines with medals for the top three.

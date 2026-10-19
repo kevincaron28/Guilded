@@ -16,6 +16,7 @@ import { executeDungeonGroup } from "./dungeon-group.js";
 import { openGroupAlerts } from "./group-alerts.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { seasonArchive, seasonRows } from "../services/season-archive.js";
+import { weekSeason, weekWindow } from "../services/dungeon-periods.js";
 import { defaultBracket, dungeonRating, hasDungeonRating, ratingEmbed, type RatingRow } from "../services/dungeon-rating.js";
 
 // Dungeon challenge views (roadmap D5). Points come from runs the addon
@@ -30,7 +31,7 @@ export const dungeonCommand = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName("leaderboard").setDescription("Season rating or participation points")
     .addStringOption(o => o.setName("metric").setDescription("Default: season rating; other periods use participation").addChoices({name:"Rating",value:"rating"},{name:"Participation",value:"participation"}))
     .addStringOption((o) => o.setName("period").setDescription("Default: this season").addChoices(
-      { name: "This week", value: "week" }, { name: "This season", value: "season" }, { name: "All time", value: "all" }))
+      { name: "This week", value: "week" }, { name: "This month", value: "month" }, { name: "This season", value: "season" }, { name: "All time", value: "all" }))
     .addStringOption((o) => o.setName("season").setDescription("Browse a past season (overrides period)").setAutocomplete(true))
     .addStringOption((o) => o.setName("dungeon").setDescription("Only one dungeon (pick from the list)").setAutocomplete(true))
     .addStringOption((o) => o.setName("bracket").setDescription("Level bracket, for all-level seasons (default: yours)").setAutocomplete(true)))
@@ -150,14 +151,25 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
 
   if (subcommand === "leaderboard") {
     const seasonId = interaction.options.getString("season") ?? undefined;
-    const period = (seasonId ? "season" : interaction.options.getString("period") ?? "season") as Period;
+    // Seasons are monthly: "month" is the season (dungeon-periods.ts).
+    const chosen = interaction.options.getString("period");
+    const period = (seasonId || chosen === "month" ? "season" : chosen ?? "season") as Period;
     const instanceId = dungeonOption(interaction);
-    const season = seasonId ? await prisma.dungeonSeason.findFirst({ where: { guildId: context.guildId, id: seasonId } }) : period === "season" ? await activeSeasonOrNull(prisma, context.guildId) : null;
+    const season = seasonId ? await prisma.dungeonSeason.findFirst({ where: { guildId: context.guildId, id: seasonId } }) : period !== "all" ? await activeSeasonOrNull(prisma, context.guildId) : null;
     if (seasonId && !season) throw new Error("That season does not belong to this guild.");
     const metric = interaction.options.getString("metric");
-    if (metric === "rating" && period !== "season") throw new Error(lang === "fr" ? "La cote se consulte par saison." : "Rating is season-based; choose the season period.");
+    if (metric === "rating" && period === "all") throw new Error(lang === "fr" ? "La cote se consulte par semaine ou par saison." : "Rating is weekly or per season; choose another period.");
+    // Weekly rating: the active season's runs since the weekly reset, with the season's rules.
+    if (period === "week" && season && hasDungeonRating(season.ratingRules) && metric !== "participation") {
+      const week = weekSeason(season);
+      const rows = week ? await dungeonRating(prisma, context.guildId, week, instanceId) : [];
+      const since = `<t:${Math.floor(weekWindow(new Date()).start.getTime() / 1000)}:f>`;
+      await interaction.reply({ content: lang === "fr" ? `Depuis la réinitialisation hebdomadaire (${since}).` : `Since the weekly reset (${since}).`,
+        embeds: [ratingEmbed(rows, `${season.name} · ${lang === "fr" ? "cette semaine" : "this week"}`, lang, season.ratingRules, bracketChoice(interaction, rows, context.memberId))], allowedMentions: { parse: [] } });
+      return;
+    }
     if (metric === "rating" && !hasDungeonRating(season?.ratingRules)) throw new Error(lang === "fr" ? "Cette saison utilise les anciens points de participation." : "This season uses legacy participation points.");
-    if (season && hasDungeonRating(season.ratingRules) && metric !== "participation") {
+    if (period === "season" && season && hasDungeonRating(season.ratingRules) && metric !== "participation") {
       const rows = await dungeonRating(prisma, context.guildId, season, instanceId);
       await interaction.reply({ embeds: [ratingEmbed(rows, season.name, lang, season.ratingRules, bracketChoice(interaction, rows, context.memberId))], allowedMentions: { parse: [] } });
       return;

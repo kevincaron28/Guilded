@@ -135,3 +135,17 @@ Owner, 19 October 2026: "a new season starting November 4th for release and then
 - `bracket-start` with a future `starts_at` still archives at once; use the schedule for a future start.
 
 Owner decisions still open: the start hour and time zone (default midnight Toronto).
+
+## Weekly and monthly boards (built 19 October 2026)
+
+`src/services/dungeon-periods.ts`. Monthly = the season (one per calendar month). Weekly = the active
+season's runs that started since the WoW weekly reset, **Tuesday 15:00 UTC** (the existing
+`weekStart` helper, also used by participation points, EPGP decay and community honors), scored with
+the season's own frozen rules, per bracket. The release week is clipped to the season start
+(Wednesday 4 November to Tuesday 10 November 15:00 UTC); the last week of a month ends with the season.
+
+- Discord: `/dungeon leaderboard period:` This week, This month (= this season), This season, All time.
+- Addon: the companion writes `week = { startsAt, rows }` on the current board; the score panel has a
+  This month / This week button next to the bracket switch (week shows the guild ranking for the
+  chosen bracket). Guild sync sends it in a separate `WEEK` message that older clients ignore.
+- Owner decision still open: the weekly reset time (default Tuesday 15:00 UTC, the NA reset).

@@ -77,7 +77,7 @@ function renderState(snapshot) {
   const setup = health.level === 'setup' && health.text === 'Setup needed';
   $('banner').className = `banner ${paused ? 'setup' : health.level}`;
   $('bannerTitle').textContent = paused ? 'Tracking paused' : setup ? "Let's get you connected" : health.level === 'ok' ? api.browser ? 'Ready to sync on your terms' : 'Connected and ready for adventure' : health.level === 'error' ? 'Your sync needs attention' : 'Waiting to sync';
-  $('bannerText').textContent = paused ? 'Resume tracking in Connection & setup when you are ready.' : setup ? 'Connect your Discord account, choose your games and select their files.' : health.text;
+  $('bannerText').textContent = paused ? 'Resume tracking in Connection & setup when you are ready.' : setup ? 'Addon-only guild? You don't need to connect. With the Guilded bot or for public leaderboards, connect your account and choose your games.' : health.text;
   $('setupBadge').hidden = !setup;
   pill('connectionPill', setup ? 'Setup needed' : paused ? 'Paused' : health.level === 'ok' ? 'Connected' : 'Needs attention',health.level === 'ok' ? 'ok' : health.level === 'error' ? 'error' : 'gold');
   pill('pairBadge', linked ? 'Discord linked' : 'Discord not linked',linked ? 'ok' : '');

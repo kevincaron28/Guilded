@@ -44,6 +44,29 @@ YOUR_HOSTNAME {
 	handle /g/* {
 		reverse_proxy 127.0.0.1:8787
 	}
+	# 7.0 website pages rendered by the bot (sign-in, recruitment, /me, public leaderboards).
+	# The Worker forwards only these, with a cookie for this host; keep both lists in sync.
+	handle /auth/* {
+		reverse_proxy 127.0.0.1:8787
+	}
+	handle /recruitment {
+		reverse_proxy 127.0.0.1:8787
+	}
+	handle /recruitment/* {
+		reverse_proxy 127.0.0.1:8787
+	}
+	handle /me {
+		reverse_proxy 127.0.0.1:8787
+	}
+	handle /me/* {
+		reverse_proxy 127.0.0.1:8787
+	}
+	handle /leaderboards {
+		reverse_proxy 127.0.0.1:8787
+	}
+	handle /leaderboards/* {
+		reverse_proxy 127.0.0.1:8787
+	}
 	handle {
 		respond "Not found" 404
 	}

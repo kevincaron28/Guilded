@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { reportRef } from "./error-report.js";
+import { decodeReportOrigin, reportSourceLink } from "./report-context.js";
 
 // The developer's bug inbox (npm run bugs): open /report bug reports from every guild, and the bot's own
 // failures grouped by cause, written as one Markdown file a person or an agent can work from.
@@ -8,8 +9,8 @@ import { reportRef } from "./error-report.js";
 type Db = Pick<PrismaClient, "errorReport" | "guild">;
 type Row = { id: string; source: string; guildId: string | null; userId: string | null; message: string; stack: string | null; context: string | null; version: string | null; createdAt: Date };
 
-export interface InboxBug { ref: string; at: Date; guild: string; version: string | null; userId: string | null; description: string; screenshot: string | null }
-export interface InboxError { ref: string; source: string; message: string; count: number; first: Date; last: Date; versions: string[]; guilds: string[]; stack: string | null }
+export interface InboxBug { ref: string; at: Date; guild: string; version: string | null; userId: string | null; description: string; screenshot: string | null; sourceLink: string | null }
+export interface InboxError { ref: string; source: string; message: string; count: number; first: Date; last: Date; versions: string[]; guilds: string[]; stack: string | null; origins: string[] }
 export interface Inbox { since: Date; bugs: InboxBug[]; errors: InboxError[] }
 
 const groupKey = (row: Pick<Row, "source" | "message">) => `${row.source}\u0000${row.message.slice(0, 200)}`;
@@ -26,27 +27,31 @@ export async function loadInbox(database: Db, options: { days?: number; now?: Da
   const ids = [...new Set(rows.map((row) => row.guildId).filter((id): id is string => !!id))];
   const names = new Map((ids.length ? await database.guild.findMany({ where: { discordId: { in: ids } }, select: { discordId: true, name: true } }) : [])
     .map((guild) => [guild.discordId, guild.name]));
-  const guildLabel = (id: string | null) => (id ? `${names.get(id) ?? "unknown server"} (${id})` : "no server");
+  const guildLabel = (id: string | null) => (id ? `${names.get(id) ?? "unknown server"} (${id})` : "unknown source server");
 
   const bugs = rows.filter((row) => row.source === "bug-report").map((row) => ({
     ref: reportRef(row.id), at: row.createdAt, guild: guildLabel(row.guildId), version: row.version,
-    userId: row.userId, description: row.message, screenshot: row.context
+    userId: row.userId, description: row.message, screenshot: decodeReportOrigin(row.context).extra,
+    sourceLink: reportSourceLink(row.guildId, decodeReportOrigin(row.context))
   }));
   const groups = new Map<string, InboxError>();
   for (const row of rows.filter((r) => r.source !== "bug-report")) {
     const key = groupKey(row);
+    const origin = decodeReportOrigin(row.context);
+    const label = `${origin.operation ?? row.source} · ${reportSourceLink(row.guildId, origin) ?? "source channel/message not recorded"}`;
     const group = groups.get(key);
     if (!group) {
       // Rows come newest first: the first one seen is the latest, so its stack is the freshest.
       groups.set(key, { ref: reportRef(row.id), source: row.source, message: row.message, count: 1, first: row.createdAt, last: row.createdAt,
-        versions: row.version ? [row.version] : [], guilds: [guildLabel(row.guildId)], stack: row.stack });
+        versions: row.version ? [row.version] : [], guilds: [guildLabel(row.guildId)], stack: row.stack, origins: [label] });
       continue;
     }
     group.count++;
     group.first = row.createdAt;
     if (row.version && !group.versions.includes(row.version)) group.versions.push(row.version);
-    const label = guildLabel(row.guildId);
-    if (!group.guilds.includes(label)) group.guilds.push(label);
+    const guild = guildLabel(row.guildId);
+    if (!group.guilds.includes(guild)) group.guilds.push(guild);
+    if (!group.origins.includes(label)) group.origins.push(label);
   }
   const errors = [...groups.values()].sort((a, b) => b.count - a.count || b.last.getTime() - a.last.getTime());
   return { since, bugs, errors };
@@ -70,6 +75,7 @@ export function renderInbox(inbox: Inbox): string {
   for (const bug of inbox.bugs) {
     out.push(`### ${bug.ref} · ${day(bug.at)}`, "", `- Server: ${bug.guild}`, `- Bot version: ${bug.version ?? "unknown"}`, `- Reporter: ${bug.userId ? `Discord user ${bug.userId}` : "unknown"}`);
     if (bug.screenshot) out.push(`- Screenshot: ${bug.screenshot}`);
+    if (bug.sourceLink) out.push(`- Source: ${bug.sourceLink}`);
     out.push("", quote(bug.description), "");
   }
   out.push("## Bot errors (grouped by cause, most frequent first)", "");
@@ -78,7 +84,7 @@ export function renderInbox(inbox: Inbox): string {
     out.push(`### ${error.ref} · ${error.source} · ${error.count}×`, "",
       `- First ${day(error.first)}, last ${day(error.last)}`,
       `- Versions: ${error.versions.join(", ") || "unknown"}`,
-      `- Servers: ${error.guilds.join("; ")}`, "", quote(error.message), "");
+      `- Servers: ${error.guilds.join("; ")}`, `- Origins: ${error.origins.join("; ")}`, "", quote(error.message), "");
     if (error.stack) out.push("```", error.stack.slice(0, 1500), "```", "");
   }
   return out.join("\n");

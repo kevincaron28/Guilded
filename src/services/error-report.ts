@@ -2,6 +2,7 @@ import type { Client } from "discord.js";
 import type { PrismaClient } from "@prisma/client";
 import { readFileSync } from "node:fs";
 import { config } from "../config.js";
+import { ScopedReportError, encodeReportOrigin, reportSourceLink, type ReportOrigin } from "./report-context.js";
 
 const BOT_VERSION = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version as string;
 
@@ -22,12 +23,11 @@ export function isMemberAnswer(error: unknown): boolean {
 // release without needing server SSH access). Never throws: reporting a
 // problem must never cause a second one.
 
-export interface ErrorReportContext {
+export interface ErrorReportContext extends ReportOrigin {
   source: string;
   guildId?: string | null;
   guildName?: string | null | undefined;
   userId?: string | null;
-  extra?: string | null;
 }
 
 // De-dupes identical failures (e.g. a background job failing the same way
@@ -48,6 +48,10 @@ export function createErrorReportService(prisma: PrismaClient) {
   return {
     // Returns the report's short reference (see reportRef), or null when it could not be saved.
     async report(client: Client | null, error: unknown, context: ErrorReportContext): Promise<string | null> {
+      if (error instanceof ScopedReportError) {
+        context = { ...context, ...error.origin };
+        error = error.original;
+      }
       const message = error instanceof Error ? error.message : String(error);
       const stack = error instanceof Error ? (error.stack ?? null) : null;
       let ref: string | null = null;
@@ -59,7 +63,7 @@ export function createErrorReportService(prisma: PrismaClient) {
             userId: context.userId ?? null,
             message: message.slice(0, 2000),
             stack: stack?.slice(0, 4000) ?? null,
-            context: context.extra?.slice(0, 500) ?? null,
+            context: encodeReportOrigin(context),
             version: BOT_VERSION
           },
           select: { id: true }
@@ -71,17 +75,22 @@ export function createErrorReportService(prisma: PrismaClient) {
       const channelId = config.ERROR_LOG_CHANNEL_ID;
       // A member's bug report always reaches the developer; repeated failures are de-duplicated.
       const bug = context.source === "bug-report";
-      if (!client || !channelId || (!bug && !shouldPost(`${context.source}:${message.slice(0, 200)}`))) return ref;
+      if (!client || !channelId || (!bug && !shouldPost(`${context.guildId ?? "global"}:${context.channelId ?? ""}:${context.operation ?? context.source}:${message.slice(0, 200)}`))) return ref;
       try {
         const channel = await client.channels.fetch(channelId).catch(() => null);
         if (!channel || !channel.isTextBased() || !("send" in channel)) return ref;
-        const lines = [
+        const sourceLink = reportSourceLink(context.guildId, context);
+        const metadata = [
           `🐞 **${context.source}**${context.guildName ? ` — ${context.guildName}` : ""}${context.guildId ? ` (${context.guildId})` : ""}${context.userId ? ` — <@${context.userId}>` : ""}`,
           `Ref \`${ref ?? "not saved"}\` · v${BOT_VERSION}`,
-          `\`\`\`${message.slice(0, 1500)}\`\`\``,
+          `Operation: ${(context.operation ?? context.source).slice(0, 150)}`,
+          `Source guild: ${context.guildId ?? "unknown"} · channel: ${context.channelId ?? "not recorded"}`,
+          sourceLink ? `${context.messageId ? "Source message" : "Source channel"}: ${sourceLink}` : "Source message: not recorded",
           ...(context.extra ? [`Context: ${context.extra.slice(0, 300)}`] : [])
-        ];
-        await channel.send({ content: lines.join("\n").slice(0, 1900), allowedMentions: { parse: [] } });
+        ].join("\n");
+        // Keep source/ref metadata and the closing fence even for long errors.
+        const detail = message.replaceAll("```", "'''").slice(0, Math.max(0, 1888 - metadata.length));
+        await channel.send({ content: `${metadata}\n\`\`\`\n${detail}\n\`\`\``, allowedMentions: { parse: [] } });
       } catch (postError) {
         console.error("Failed to post error report", postError);
       }

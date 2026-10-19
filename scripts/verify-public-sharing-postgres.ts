@@ -24,7 +24,8 @@ export async function verifyPublicSharingPostgres(database: PrismaClient): Promi
     assert.equal(await service.getSettings(missing.id), null);
 
     const addRun = (guildId: string, runRef: string, startOffsetMs: number) => database.dungeonRun.create({ data: {
-      guildId, runRef, instanceId: 389, dungeonName: "Ragefire Chasm", state: "COMPLETED", protocolVersion: 2,
+      // Dungeon wire records use protocol 1; the overall addon/companion protocol is separate.
+      guildId, runRef, instanceId: 389, dungeonName: "Ragefire Chasm", state: "COMPLETED", protocolVersion: 1,
       startedAt: new Date(cutoff.getTime() + startOffsetMs), endedAt: new Date(cutoff.getTime() + startOffsetMs + 1500_000),
       recorder: "SharingAnn", competitionData: { encounters: [], players: [{ name: "SharingAnn", level: 16 }] },
       players: { create: ["SharingAnn", "SharingBob", "SharingCam"].map(character => ({ character, inGuild: false, presentSec: 1500 })) }

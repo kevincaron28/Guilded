@@ -1,7 +1,5 @@
 # Guilded: quick setup
 
-[Français](#fr) · [Install the addon](MEMBER_INSTALL.md) · [EPGP workflow](EPGP_GUIDE.md) · [Optional Discord](HOSTED_PILOT.md)
-
 **Start with the addon only (default).** The addon works alone; optional Discord synchronization adds a
 companion and either the approved hosted bot or your independently hosted bot.
 

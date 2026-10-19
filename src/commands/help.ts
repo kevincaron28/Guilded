@@ -87,7 +87,8 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/officer dungeon` — invalidate a run, award points, rules, target times, new season",
       "`/bank list` / `handle` · `/mod application list` · `/mod` · `/mod faq` — answer channel · `/tag set` · `/setup selfroles`",
       "`/lead wcl-report url:` — pull a Warcraft Logs report into the raid history",
-      "`/report inactive` · `/report export` · `/report guild` · `/poll create` · `/officer loot award` (loot council)",
+      "`/report inactive` · `/report guild` · `/poll create` · `/officer loot award` (loot council)",
+      "`/officer export table:` — CSV for Excel or Google Sheets: standings, EPGP ledger, loot, attendance or roster (only you see it)",
       "`/organize start-season` · `/organize lottery create` · `/organize gaming create` · `/organize challenge create` · `/organize quiz` — organize activities",
       "`/organize honors-preview` · `/organize honors-settings` — preview the weekly MVP post; weekly on/off, week start, MVP ping",
       "`/participation settings` · `/participation claims` · `/participation review` · `/participation reverse` — participation controls and helper approvals"
@@ -100,7 +101,8 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/officer dungeon` — annuler un donjon, donner des points, règles, temps cibles, nouvelle saison",
       "`/bank list` / `handle` · `/mod application list` · `/mod` · `/mod faq` — salon des réponses · `/tag set` · `/setup selfroles`",
       "`/lead wcl-report url:` — importer un rapport Warcraft Logs dans l'historique des raids",
-      "`/report inactive` · `/report export` · `/report guild` · `/poll create` · `/officer loot award` (conseil de loot)",
+      "`/report inactive` · `/report guild` · `/poll create` · `/officer loot award` (conseil de loot)",
+      "`/officer export table:` — fichier CSV pour Excel ou Google Sheets : classement, registre EPGP, butin, présences ou effectif (vous seul le voyez)",
       "`/organize start-season` · `/organize lottery create` · `/organize gaming create` · `/organize challenge create` · `/organize quiz` — organiser les activités",
       "`/organize honors-preview` · `/organize honors-settings` — aperçu du MVP de la semaine; activation, début de semaine, notification",
       "`/participation settings` · `/participation claims` · `/participation review` · `/participation reverse` — réglages de participation et validation d'entraide"

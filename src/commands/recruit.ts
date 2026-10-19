@@ -5,7 +5,7 @@ import { hostedPilot } from "../hosted-pilot.js";
 import { hasPermission } from "../permissions.js";
 import { classLabel, dayLabel, factionLabel, languageLabel, parseClasses, parseDays, parseRoles, RecruitmentError, roleLabel, shortText, type ListingFields } from "../services/recruitment.js";
 
-// /officer recruit: the structured listing on guilded.kcaron.top/recruitment/ for the guild and
+// /mod recruit: the structured listing on guilded.kcaron.top/recruitment/ for the guild and
 // for each raid core (7.0, roadmap request 5). Officers and Guild Masters only.
 
 export const recruitCommand = new SlashCommandBuilder()
@@ -84,7 +84,7 @@ export async function executeRecruit(interaction: ChatInputCommandInteraction): 
   if (sub === "status") {
     const listings = await prisma.recruitmentListing.findMany({ where: { guildId: guild.id }, include: { core: { select: { name: true } } }, orderBy: { createdAt: "asc" } });
     const lines = listings.map((listing) => `**${listing.core ? listing.core.name : "Guild"}**: ${describeListing(listing)}`);
-    await interaction.reply({ content: [lines.length ? lines.join("\n") : "No listing yet: use `/officer recruit set` (add `core` for a raid core).", ...notes, `Public page: ${SITE}`].join("\n").slice(0, 1900), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+    await interaction.reply({ content: [lines.length ? lines.join("\n") : "No listing yet: use `/mod recruit set` (add `core` for a raid core).", ...notes, `Public page: ${SITE}`].join("\n").slice(0, 1900), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
     return;
   }
   let core: { id: string; name: string } | null = null;

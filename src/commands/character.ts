@@ -43,15 +43,15 @@ export const characterCommand = new SlashCommandBuilder()
     .addStringOption((option) => option.setName("name").setDescription("The character").setAutocomplete(true).setRequired(true)))
   .addSubcommand((subcommand) => subcommand
     .setName("unclaimed")
-    .setDescription("Officers: characters the addons reported that nobody has linked yet."))
+    .setDescription("Characters the addons reported that nobody has linked yet."))
   .addSubcommand((subcommand) => subcommand
     .setName("link")
-    .setDescription("Officers: link a reported character to a Discord member.")
+    .setDescription("Link a reported character to a Discord member.")
     .addStringOption((option) => option.setName("name").setDescription("The character").setAutocomplete(true).setRequired(true))
     .addUserOption((option) => option.setName("player").setDescription("Who it belongs to").setRequired(true)))
   .addSubcommand((subcommand) => subcommand
     .setName("autolink")
-    .setDescription("Officers: link reported characters whose name matches a Discord member's name."))
+    .setDescription("Link reported characters named like a Discord member."))
   .addSubcommand((subcommand) => subcommand
     .setName("list")
     .setDescription("List your linked characters."));

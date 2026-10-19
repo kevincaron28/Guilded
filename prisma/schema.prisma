@@ -1764,7 +1764,7 @@ model WebSession {
 }
 
 // A guild's (coreId empty) or one core's recruitment listing on /recruitment/. Officers edit it with
-// /officer recruit. Listed only while open and while the server is approved (not Lite).
+// /mod recruit. Listed only while open and while the server is approved (not Lite).
 model RecruitmentListing {
   id        String    @id @default(cuid())
   guildId   String

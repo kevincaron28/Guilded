@@ -3,6 +3,7 @@ import type { RaidSeason } from "@prisma/client";
 import { prisma } from "../database.js";
 import { asLang, type Lang } from "../i18n.js";
 import { hasPermission } from "../permissions.js";
+import { csvBuffer } from "../services/exports.js";
 import { resolveNotifyChannel } from "../services/notify.js";
 import { createRaidCoreService } from "../services/raid-core.js";
 import {
@@ -167,7 +168,7 @@ export async function executeRaidHistory(interaction: ChatInputCommandInteractio
     return;
   }
   const files = data.raids.length
-    ? [new AttachmentBuilder(Buffer.from(seasonCsv(data, settings?.timezone ?? "America/Toronto"), "utf8"), { name: "raid-attendance.csv" })]
+    ? [new AttachmentBuilder(csvBuffer(seasonCsv(data, settings?.timezone ?? "America/Toronto")), { name: "raid-attendance.csv" })]
     : [];
   await interaction.editReply({ content: note, embeds: seasonSummaryEmbeds(data, window, lang), files, allowedMentions: { parse: [] } });
 }

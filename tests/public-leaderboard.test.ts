@@ -8,7 +8,7 @@ const SITE = "https://guilded.kcaron.top";
 const NOW = new Date("2026-11-10T20:00:00Z");
 const player = (character: string, className: string, role: string, level = 16) => ({ character, realm: "Doomhowl", className, role, level });
 const leaderRun = (id: string, durationSec: number, players = [player("Kev", "Warrior", "TANK"), player("Amy", "Priest", "HEALER")], over: Partial<LeaderRun> = {}): LeaderRun => ({
-  runId: id, instanceId: 389, dungeonName: "Ragefire Chasm", durationSec, endedAt: new Date(NOW.getTime() - durationSec * 1000), deaths: 1, bracket: "15-29", season: "2026-Q4", confirmations: 1, players, ...over
+  runId: id, instanceId: 389, dungeonName: "Ragefire Chasm", durationSec, endedAt: new Date(NOW.getTime() - durationSec * 1000), deaths: 1, bracket: "15-29", season: "2026-Q4", confirmations: 1, routeKey: null, difficultyId: 0, players, ...over
 });
 
 describe("leaderboard ranking", () => {
@@ -24,9 +24,11 @@ describe("leaderboard ranking", () => {
     expect(rankCharacters(runs, { className: null, role: null, confirmed: true }).map((entry) => entry.player.character)).toEqual(["Kev", "Bob"]);
   });
 
-  it("reads filters, defaulting to the current season", () => {
-    expect(readLeaderFilters(new URLSearchParams("dungeon=389&bracket=60&class=prêtre&role=healer"), NOW)).toEqual({ instanceId: 389, season: "2026-Q4", bracket: "60", className: "Priest", role: "HEALER", confirmed: false });
-    expect(readLeaderFilters(new URLSearchParams("season=all&bracket=99&dungeon=x"), NOW)).toMatchObject({ instanceId: null, season: null, bracket: null });
+  it("reads filters, defaulting to the current monthly season (beta before 4 November)", () => {
+    expect(readLeaderFilters(new URLSearchParams("dungeon=389&bracket=60&class=prêtre&role=healer&realm=Doomhowl"), NOW)).toEqual({ instanceId: 389, season: "s1", week: false, bracket: "60", className: "Priest", role: "HEALER", realm: "Doomhowl", confirmed: false });
+    expect(readLeaderFilters(new URLSearchParams("season=all&bracket=99&dungeon=x&period=week"), NOW)).toMatchObject({ instanceId: null, season: "all", week: true, bracket: null });
+    expect(readLeaderFilters(new URLSearchParams("season=2026-Q4"), new Date("2026-10-20T00:00:00Z")).season).toBe("beta");
+    expect(readLeaderFilters(new URLSearchParams("season=s2"), NOW).season).toBe("s1");
   });
 });
 
@@ -66,11 +68,13 @@ describe("personal companion codes", () => {
 describe("leaderboard and personal pages", () => {
   function setup() {
     const runs = [leaderRun("a", 1500), leaderRun("b", 1300, [player("Kev", "Warrior", "TANK"), player("<b>Bad</b>", "Mage", "DPS")], { confirmations: 2 })];
+    const beta = leaderRun("old", 1000, [player("Kev", "Warrior", "TANK")], { endedAt: new Date("2026-10-30T00:00:00Z") });
+    const all = [...runs, beta];
     const store: LeaderboardStore = {
-      async dungeons() { return [{ instanceId: 389, dungeonName: "Ragefire Chasm", bestSec: 1300, runs: 2 }]; },
-      async runs(instanceId) { return instanceId === 389 ? runs : []; },
-      async characterRuns(character) { return runs.filter((run) => run.players.some((p) => p.character.toLowerCase() === character.toLowerCase())); },
-      async seasons() { return ["2026-Q4"]; }
+      async runs(query) { return all.filter((run) => (!query.from || run.endedAt >= query.from) && (!query.to || run.endedAt < query.to)); },
+      async characterRuns(character) { return all.filter((run) => run.players.some((p) => p.character.toLowerCase() === character.toLowerCase())); },
+      async guilds() { return [{ id: "g1", name: "Quebec Gold" }]; },
+      async guildRuns(guildId) { return guildId === "g1" ? runs : []; }
     };
     const personal = memoryPersonalStore();
     const pages = createLeaderboardPages({ store, personal: personal.store, now: () => NOW });
@@ -97,14 +101,40 @@ describe("leaderboard and personal pages", () => {
     expect(dungeon.body).toContain("Classements des donjons");
     expect(dungeon.body.indexOf(">Kev<")).toBeLessThan(dungeon.body.indexOf(">Amy<"));
     expect(dungeon.body).not.toContain("<b>Bad</b>");
-    expect(dungeon.body).toContain("✔ 2");
+    expect(dungeon.body).toContain("✔ Confirmé par le groupe · 2");
     const priests = await request("GET", "/leaderboards/?dungeon=389&class=Priest");
     expect(priests.body).toContain(">Amy<");
     expect(priests.body.match(/<tr><td>\d+<\/td>/g)).toHaveLength(1);
     const kev = await request("GET", "/leaderboards/character/Kev-Doomhowl");
     expect(kev.status).toBe(200);
-    expect(kev.body).toContain("Best time per dungeon");
+    expect(kev.body).toContain("Best run per dungeon");
     expect((await request("GET", "/leaderboards/character/Nobody")).status).toBe(404);
+  });
+
+  it("shows scores, top runs this week, class colours, confirmation badges and history", async () => {
+    const { request } = setup();
+    const home = await request("GET", "/leaderboards/");
+    expect(home.body).toContain("Top runs this week");
+    expect(home.body).toContain("Season 1 · November 2026");
+    // Ragefire Chasm: target 20:00 (provisional plan); 21:40 scores round(200 x 1200 / 1300) = 185.
+    expect(home.body).toContain('<td class="num score">185</td>');
+    expect(home.body).toContain('class="char c-warrior"');
+    expect(home.body).toContain("Confirmed by party");
+    expect(home.body).not.toContain("<script");
+    const beta = await request("GET", "/leaderboards/?season=beta&lang=fr");
+    expect(beta.body).toContain("Bêta (avant la saison 1)");
+    expect(beta.body).toContain('<td class="num score">240</td>');
+    const realm = await request("GET", "/leaderboards/?realm=Elsewhere");
+    expect(realm.body).not.toContain('class="char c-warrior"');
+    const kev = await request("GET", "/leaderboards/character/Kev-Doomhowl");
+    expect(kev.body).toContain("Score history");
+    expect(kev.body).toContain("Beta (before Season 1)");
+    expect(kev.body).toContain('class="meter"');
+    const guild = await request("GET", "/leaderboards/guild/g1?period=week");
+    expect(guild.status).toBe(200);
+    expect(guild.body).toContain("Quebec Gold");
+    expect(guild.body).toContain(">Kev<");
+    expect((await request("GET", "/leaderboards/guild/nope")).status).toBe(404);
   });
 
   it("gives a signed-in player a one-time companion code", async () => {

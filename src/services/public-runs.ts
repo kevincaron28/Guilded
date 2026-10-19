@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { dungeonRunSchema, validateRun, type DungeonRunInput } from "./dungeon-rules.js";
 import { bracketForLevel, DEFAULT_DUNGEON_BRACKETS } from "./dungeon-november-rules.js";
+import { publicRouteKey } from "./public-score.js";
 
 // Public dungeon runs (7.0, roadmap request 6). Personal companions and opted-in guilds send
 // finished runs; the bot checks each one before it reaches the public leaderboards:
@@ -45,7 +46,7 @@ export function checkPublicRun(run: DungeonRunInput, uploaderCharacter: string |
 
 export interface RunSummary {
   runKey: string; runRef: string; instanceId: number; dungeonName: string; difficultyId: number; startedAt: Date; endedAt: Date; durationSec: number;
-  deaths: number | null; maxLevel: number | null; bracket: string | null; season: string;
+  deaths: number | null; maxLevel: number | null; bracket: string | null; season: string; routeKey: string | null;
   players: { character: string; realm: string; className: string | null; role: string | null; level: number | null; deaths: number | null }[];
 }
 
@@ -57,7 +58,7 @@ export function summarize(run: DungeonRunInput): RunSummary {
   return {
     runKey: runKeyOf(run), runRef: run.id, instanceId: run.instanceId, dungeonName: run.name, difficultyId: run.difficultyId,
     startedAt: new Date(run.startedAt! * 1000), endedAt, durationSec: run.endedAt! - run.startedAt!, deaths, maxLevel,
-    bracket: maxLevel ? bracketForLevel(DEFAULT_DUNGEON_BRACKETS, maxLevel)?.key ?? null : null, season: seasonOf(endedAt),
+    bracket: maxLevel ? bracketForLevel(DEFAULT_DUNGEON_BRACKETS, maxLevel)?.key ?? null : null, season: seasonOf(endedAt), routeKey: publicRouteKey(run.instanceId, run.encounters ?? []),
     players: run.players.map((player) => ({ character: player.character, realm: player.realm === "-" ? "" : player.realm, className: player.class ?? null, role: player.role ?? null, level: player.level ?? null, deaths: player.deaths ?? null }))
   };
 }

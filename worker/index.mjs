@@ -16,6 +16,8 @@ const apiMethods = new Map([
   ["/api/v1/poe/visits", ["GET", "POST"]],
   ["/api/v1/poe/status", ["GET"]],
   ["/api/v1/companion/logout", ["POST"]],
+  ["/api/v1/companion/sign-in", ["POST"]],
+  ["/api/v1/companion/sign-in/poll", ["POST"]],
   ["/api/v1/manage", ["GET", "POST"]]
 ]);
 const failure = (status, error) => Response.json({ error }, { status, headers: { "cache-control": "no-store" } });

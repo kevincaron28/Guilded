@@ -62,7 +62,10 @@ for (const source of sources) {
   const title = md.match(/^# (.+)$/m)?.[1] || "Guilded guide";
   const description = escape(guideDescriptions[source.slice(5, -3)]);
   const canonical = `${origin}/${source.replace(/\.md$/, "")}`;
-  const relatedGuides = `<nav class="guide-nav" aria-label="Guilded guides"><a href="MEMBER_INSTALL.html">Install / <span lang="fr">Installer</span></a><a href="EPGP_GUIDE.html">EPGP / <span lang="fr">Points et butin</span></a><a href="HOSTED_PILOT.html">Optional Discord / <span lang="fr">Facultatif</span></a>${md.includes('id="fr"') ? '<a href="#fr" lang="fr">Lire en français ↓</a>' : ''}</nav>`;
+  // The four main guides, with this one marked; the guide sources no longer repeat these links.
+  const guideLinks = [["QUICK_START", "Quick start"], ["MEMBER_INSTALL", "Install"], ["EPGP_GUIDE", "EPGP"], ["HOSTED_PILOT", "Discord bot"]]
+    .map(([name, label]) => `<a href="${name}.html"${source === `docs/${name}.md` ? ' aria-current="page"' : ''}>${label}</a>`).join('');
+  const relatedGuides = `<nav class="guide-nav" aria-label="Guilded guides">${guideLinks}${md.includes('id="fr"') ? '<a class="guide-fr" href="#fr" lang="fr">Français ↓</a>' : ''}</nav>`;
   const body = marked.parse(md, { walkTokens(token) {
     if ((token.type !== "link" && token.type !== "image") || /^(https?:|#|mailto:)/.test(token.href)) return;
     const [path, fragment] = token.href.split("#");

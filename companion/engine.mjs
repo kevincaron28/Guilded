@@ -20,7 +20,7 @@ export function validateConfig(config) {
   if (config.wowEnabled === false && !config.poeEnabled) problems.push("Enable WoW or PoE2 tracking before starting.");
   if (!config.uploadUrl) problems.push("The bot address is not set.");
   const linked = typeof config.companionCredential === "string" && config.companionCredential.length >= 32;
-  if (!linked) problems.push("Connect your Discord account first: enter the code from /character pair and press Connect.");
+  if (!linked) problems.push("Connect your account first: choose Sign in with Discord (or enter a pairing code) in Connection & setup.");
   // Personal mode (a code from guilded.kcaron.top/me/) has no guild: only public dungeon runs.
   else if (!config.guildDiscordId && !config.personal) problems.push("The Discord server ID is not set.");
   if (config.uploadUrl) { try { checkUrl(config.uploadUrl); } catch (error) { problems.push(error.message); } }
@@ -34,7 +34,7 @@ export async function testConnection(config) {
     url.searchParams.set("guild", config.guildDiscordId);
     const { response, body } = await requestJson(url, { headers: credentialHeaders(config) });
     if (response.ok) return { ok: true, message: config.wowEnabled === false ? `Connected. PoE2 tracking is ${body.enabled ? "enabled" : "paused; an officer can enable /poe setup"}.` : `Connected. The bot knows ${body.standings?.length ?? 0} character(s).` };
-    if (response.status === 401 || response.status === 403) return { ok: false, message: "The bot refused the pairing. Run /character pair and link this companion again." };
+    if (response.status === 401 || response.status === 403) return { ok: false, message: "The bot refused this companion link. Choose Sign in with Discord again (or use a fresh /character pair code)." };
     return { ok: false, message: `The bot answered ${response.status}: ${describeApiError(response.status, body.error)}` };
   } catch (error) {
     return { ok: false, message: describeError(error) };
@@ -55,16 +55,59 @@ export async function pairAccount(config) {
       signal: AbortSignal.timeout(10_000)
     });
     if (!response.ok) return { ok: false, message: `Pairing failed (${response.status}): ${describeApiError(response.status, body.error)}` };
-    if (typeof body.companionCredential !== "string" || body.companionCredential.length < 32) {
-      return { ok: false, message: "The bot response did not include a valid companion credential." };
-    }
-    if (body.personal === true) {
-      return { ok: true, personal: true, companionCredential: body.companionCredential, guildDiscordId: "", message: "Website account connected. Your finished dungeon runs go to the public leaderboards (guilded.kcaron.top/leaderboards/). Choose GuildedDungeons.lua (or Guilded.lua) as the saved-data file, then Save and start." };
-    }
-    return { ok: true, personal: false, message: config.wowEnabled === false ? "Discord account paired. Your PoE2 observations will belong to this account; choose your PoE2 settings and Save and start." : "Discord account paired. The companion links your own character on its next upload; the guild import still follows its usual apply setting.", companionCredential: body.companionCredential, guildDiscordId: typeof body.guildDiscordId === "string" ? body.guildDiscordId : config.guildDiscordId };
+    return pairingResult(config, body);
   } catch (error) {
     return { ok: false, message: describeError(error) };
   }
+}
+
+// The bot's answer to a pairing code or a Discord sign-in: the same fields either way.
+function pairingResult(config, body) {
+  if (typeof body.companionCredential !== "string" || body.companionCredential.length < 32) {
+    return { ok: false, message: "The bot response did not include a valid companion credential." };
+  }
+  if (body.personal === true) {
+    return { ok: true, personal: true, companionCredential: body.companionCredential, guildDiscordId: "", message: "Website account connected. Your finished dungeon runs go to the public leaderboards (guilded.kcaron.top/leaderboards/). Choose GuildedDungeons.lua (or Guilded.lua) as the saved-data file, then Save and start." };
+  }
+  return { ok: true, personal: false, message: config.wowEnabled === false ? "Discord account paired. Your PoE2 observations will belong to this account; choose your PoE2 settings and Save and start." : "Discord account paired. The companion links your own character on its next upload; the guild import still follows its usual apply setting.", companionCredential: body.companionCredential, guildDiscordId: typeof body.guildDiscordId === "string" ? body.guildDiscordId : config.guildDiscordId };
+}
+
+// The hosted bot, used when no address was entered: Discord sign-in needs no other setting.
+export const HOSTED_UPLOAD_URL = "https://guilded.kcaron.top/api/v1/addon-imports";
+
+// "Sign in with Discord" (7.2): ask for a sign-in request, then open `url` in a browser.
+export async function startSignIn(config) {
+  const uploadUrl = config.uploadUrl?.trim() || HOSTED_UPLOAD_URL;
+  try {
+    const { response, body } = await requestJson(new URL("/api/v1/companion/sign-in", uploadUrl), { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }, undefined, 10_000);
+    if (response.status === 404) return { ok: false, message: "This bot does not offer Discord sign-in yet. Use a pairing code instead." };
+    if (!response.ok) return { ok: false, message: describeApiError(response.status, body.error) };
+    if (typeof body.requestId !== "string" || typeof body.url !== "string" || typeof body.confirm !== "string") return { ok: false, message: "The bot's sign-in answer was incomplete." };
+    const page = checkUrl(body.url);
+    return { ok: true, uploadUrl, requestId: body.requestId, confirm: body.confirm, url: page.href };
+  } catch (error) {
+    return { ok: false, message: describeError(error) };
+  }
+}
+
+// Asks every few seconds until the member approves in the browser (or 10 minutes pass).
+export async function waitForSignIn(config, requestId, { signal, intervalMs = 2_000, timeoutMs = 10 * 60_000, sleep = (ms) => new Promise((done) => setTimeout(done, ms)) } = {}) {
+  const uploadUrl = config.uploadUrl?.trim() || HOSTED_UPLOAD_URL;
+  const until = Date.now() + timeoutMs;
+  while (Date.now() < until) {
+    if (signal?.aborted) return { ok: false, message: "Sign-in cancelled." };
+    try {
+      const { response, body } = await requestJson(new URL("/api/v1/companion/sign-in/poll", uploadUrl), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId }) }, signal, 10_000);
+      if (response.status === 200) return { ...pairingResult(config, body), uploadUrl };
+      if (response.status !== 202) return { ok: false, message: describeApiError(response.status, body.error) };
+    } catch (error) {
+      if (signal?.aborted) return { ok: false, message: "Sign-in cancelled." };
+      // A dropped connection is retried until the time runs out.
+      if (Date.now() + intervalMs >= until) return { ok: false, message: describeError(error) };
+    }
+    await sleep(intervalMs);
+  }
+  return { ok: false, message: "Sign-in timed out. Choose Sign in with Discord again." };
 }
 
 // "fetch failed" tells nobody anything: say what to check.

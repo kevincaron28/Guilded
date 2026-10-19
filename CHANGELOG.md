@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 7.0.0 Release — 19 October 2026
+
+- Website: sign in with Discord, recruitment listings (`/mod recruit`) with applications that arrive
+  in Discord, "looking for a guild" cards, and public dungeon leaderboards (`/mod leaderboard`).
+  Migrations `20261119100000_web_recruitment` and `20261119110000_public_dungeons`.
+- New standalone addon Guilded Dungeons; the companion gets a personal mode for it and an
+  Export to spreadsheet button. `/report export` moved to `/officer export`.
+- A provisional all-level dungeon season can be previewed, started and recalibrated
+  (`/officer dungeon bracket-preview|bracket-start|recalibrate`). Ko-fi links everywhere
+  ([notes](docs/V7_0_0_RELEASE_NOTES.md)).
+
 ## 6.7.0 Release — 18 October 2026
 
 - Members see only their commands: officer-only commands are hidden, and leader and officer

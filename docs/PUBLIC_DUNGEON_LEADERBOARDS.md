@@ -51,7 +51,7 @@ when the real-client checks below pass.
 
 ## Test script
 
-1. Install only Guilded Dungeons (unzip `dist/GuildedDungeons-v6.7.0.zip` into AddOns). `/gdg check`, then
+1. Install only Guilded Dungeons (unzip `dist/GuildedDungeons-v7.0.0.zip` into AddOns). `/gdg check`, then
    run a dungeon: `/gdg status` shows the timer; after the last boss `/gdg results`.
 2. Sign in at https://guilded.kcaron.top/me/ → **Get a companion code** → in the companion paste it,
    choose `WTF\Account\<ACCOUNT>\SavedVariables\GuildedDungeons.lua`, Save and start. Activity says

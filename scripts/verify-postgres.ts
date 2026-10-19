@@ -1,4 +1,5 @@
 import { verifyAiBudgetPostgres } from "./verify-ai-budget-postgres.js";
+import { verifyPublicSharingPostgres } from "./verify-public-sharing-postgres.js";
 import { verifyDungeonRatingPostgres, verifyDungeonRatingRestored } from "./verify-dungeon-rating-postgres.js";
 import { verifyActivityCoresPostgres, verifyActivityCoresRestored } from "./verify-activity-cores-postgres.js";
 import { createRaidService } from "../src/services/raid.js";
@@ -84,6 +85,7 @@ try {
   } else {
     await database.guild.deleteMany({ where: { discordId: { startsWith: "release-test-" } } });
     const guild = await database.guild.create({ data: { discordId: "release-test-guild", name: "Release fixture" } });
+    await verifyPublicSharingPostgres(database);
     await verifyActivityCoresPostgres(database, guild.id);
     await verifyScheduledEventsPostgres(database, guild.id);
     await verifyCommunityPostgres(database, guild.id);

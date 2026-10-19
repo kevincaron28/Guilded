@@ -4,6 +4,13 @@
 // the /setup guide, its checklist and the craft board has an entry.
 
 export const FR_TEXT: Record<string, string> = {
+  "**Public dungeon sharing: OFF.** Officers can enable it with `/mod leaderboard share:true`. Runs already public stay public.": "**Partage public des donjons : DÉSACTIVÉ.** Les officiers peuvent l'activer avec `/mod leaderboard share:true`. Les parcours déjà publics le restent.",
+  "Only runs started since {since}; older imports stay private.": "Seulement les parcours commencés depuis {since} ; les anciens imports restent privés.",
+  "Eligible saved runs from the last 30 days are included.": "Les parcours admissibles enregistrés au cours des 30 derniers jours sont inclus.",
+  "**Public dungeon sharing: ON.** Anyone can see eligible runs at https://guilded.kcaron.top/leaderboards/: all recorded party members' character names/realms, class, role, level, times, deaths and scores, including non-guild players.": "**Partage public des donjons : ACTIVÉ.** Tout le monde peut voir les parcours admissibles sur https://guilded.kcaron.top/leaderboards/ : noms/royaumes des personnages, classe, rôle, niveau, temps, morts et scores de tous les participants enregistrés, y compris ceux hors guilde.",
+  "Turn it off below or with `/mod leaderboard share:false`. This stops new publication; runs already public stay public.": "Désactivez-le ci-dessous ou avec `/mod leaderboard share:false`. Cela arrête les nouvelles publications ; les parcours déjà publics le restent.",
+  "Turn public sharing off": "Désactiver le partage public",
+  "Public sharing is off. New runs will not be published; runs already public stay public.": "Le partage public est désactivé. Les nouveaux parcours ne seront pas publiés ; les parcours déjà publics le restent.",
   "WoW weekly report channel": "Salon du bilan hebdo WoW",
   // --- /setup: frame and navigation
   "{name} setup": "Configuration de {name}",

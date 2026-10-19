@@ -814,8 +814,10 @@ model GuildSettings {
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
   guild                    Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
-  // 7.0: copy this guild's valid completed dungeon runs to the public leaderboards (/officer leaderboard).
+  // Public sharing (/mod leaderboard). False remains the fallback for legacy/missing settings.
   publicDungeonRuns        Boolean   @default(false)
+  // New-guild automatic sharing only includes runs started at/after setup. Null preserves existing opt-ins.
+  publicDungeonRunsSince   DateTime?
 }
 
 // Personal, self-reported log observations; never completion evidence or loot points.

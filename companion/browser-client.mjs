@@ -2,6 +2,7 @@ import { readBrowserAddon, readBrowserPoe } from "./browser-files.mjs";
 import { standingsToLua } from "./standings-format.mjs";
 import { createBrowserFolderAccess } from "./browser-folders.mjs";
 import { acknowledgements, pruneAcknowledged } from "./delta.mjs";
+import { sheetFiles } from "./sheet-export.mjs";
 
 /* global __GUILDED_VERSION__ */
 // Filled in by scripts/build-companion-web.mjs from package.json.
@@ -109,8 +110,8 @@ export function createBrowserCompanion(env = globalThis) {
     } catch (error) { state.uploadError = error.message; log("error", error.message); throw error; }
     finally { busy = false; emit(); }
   }
-  function download(name, text) {
-    const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
+  function download(name, text, type = "text/plain;charset=utf-8") {
+    const url = URL.createObjectURL(new Blob([text], { type }));
     const anchor = document.createElement("a"); anchor.href = url; anchor.download = name; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   async function saveBrowserStandings(requestAccess = true) {
@@ -190,6 +191,18 @@ export function createBrowserCompanion(env = globalThis) {
       log("info", `${parsed.visits.length} completed observations found in the latest 24 hours${parsed.truncated ? " (last 8 MB of the file)" : ""}. Review the character and league, then Sync now.`); return file.name;
     },
     detectWow: async () => [], uploadNow,
+    // Export to spreadsheet: read locally, then one CSV download per table (all, or `table`).
+    exportSheets: async table => {
+      if (busy) return { ok: false, message: "Wait for the current sync to finish." };
+      const currentFile = folders.hasInput() ? await folders.readInput() : wowFile;
+      if (!currentFile) return { ok: false, message: "Choose Guilded.lua first (World of Warcraft page). In WoW, /reload so it holds your latest data." };
+      try {
+        const files = sheetFiles(await currentFile.text()).filter(file => !table || file.table === table);
+        for (const file of files) download(file.name, file.text, "text/csv;charset=utf-8");
+        log("ok", `Downloaded ${files.map(file => `${file.table} (${file.rows})`).join(", ")}.`);
+        return { ok: true, message: files.length > 1 ? "Spreadsheet files downloaded. If your browser asks, allow multiple downloads." : "Spreadsheet file downloaded.", files: files.map(({ name, table: kind, rows }) => ({ name, table: kind, rows })) };
+      } catch (error) { return { ok: false, message: `Could not read Guilded.lua: ${error.message}` }; }
+    },
     getPoeRuns: async () => (await request(`/api/v1/poe/visits?${guildQuery()}`)).visits,
     refreshStandings: async () => {
       if (!config.companionCredential) throw new Error("Connect your Discord account first.");

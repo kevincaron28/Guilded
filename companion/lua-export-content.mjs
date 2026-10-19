@@ -55,8 +55,9 @@ function evaluate(node) {
   return object;
 }
 
-function readDatabase(lua) {
-  const ast = luaparse.parse(lua);
+// The whole GuildedDB table from a SavedVariables file (the spreadsheet export reads it too).
+export function readDatabase(lua) {
+  const ast = luaparse.parse(lua.replace(/^\uFEFF/, ""));
   const assignment = ast.body.find((statement) =>
     statement.type === "AssignmentStatement" &&
     statement.variables.some((variable) => variable.type === "Identifier" && variable.name === "GuildedDB")

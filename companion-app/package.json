@@ -46,7 +46,8 @@
           "standings-format.mjs",
           "poe-events.mjs",
           "delta.mjs",
-          "data-addon.mjs"
+          "data-addon.mjs",
+          "sheet-export.mjs"
         ]
       },
       {

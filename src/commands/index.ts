@@ -92,12 +92,13 @@ const lead = new MergedCommand("lead", "Raid Leaders: run raids, seasons, logs a
   { command: readinessCommand, handler: executeReadiness, flat: { member: "readiness-member", raid: "readiness-raid" } }
 ]).setDescriptionLocalizations({ fr: "Chefs de raid : raids, saisons, journaux et préparation." });
 
-const officer = new MergedCommand("officer", "Officers: EPGP, loot, dungeon challenge and character links.", [
+const officer = new MergedCommand("officer", "Officers: EPGP, loot, dungeon challenge, character links and CSV exports.", [
   { command: epgpCommand, handler: executeEpgp, as: "epgp", only: EPGP_OFFICER },
   { command: lootCommand, handler: executeLoot, as: "loot", only: LOOT_OFFICER },
   { command: dungeonAdminCommand, handler: executeDungeonAdmin, as: "dungeon" },
-  { command: characterCommand, handler: executeCharacter, as: "character", only: CHARACTER_OFFICER }
-]).setDescriptionLocalizations({ fr: "Officiers : EPGP, butin, défi des donjons et liens de personnages." });
+  { command: characterCommand, handler: executeCharacter, as: "character", only: CHARACTER_OFFICER },
+  { command: exportCommand, handler: executeExport, as: "export" }
+]).setDescriptionLocalizations({ fr: "Officiers : EPGP, butin, défi des donjons, liens de personnages et exports." });
 
 const mod = new MergedCommand("mod", "Moderation, applications, the answer channel and the guild web page (officers).", [
   { command: applicationCommand, handler: executeApplication, as: "application" },
@@ -111,11 +112,10 @@ const importer = new MergedCommand("import", "Bring addon data into Discord: pre
   { command: importHeldCommand, handler: executeImportHeld, as: "held" }
 ]);
 
-const report = new MergedCommand("report", "Guild reports: activity, inactive members, health, exports, bot status and bug reports.", [
+const report = new MergedCommand("report", "Guild reports: activity, inactive members, health, bot status and bug reports.", [
   { command: statsCommand, handler: executeStats, as: "stats" },
   { command: inactiveCommand, handler: executeInactive, as: "inactive" },
   { command: guildHealthCommand, handler: executeGuildHealth, as: "guild" },
-  { command: exportCommand, handler: executeExport, as: "export" },
   { command: healthCommand, handler: executeHealth, as: "ping" },
   { command: bugCommand, handler: executeBug, as: "bug" }
 ]);

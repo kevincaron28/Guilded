@@ -299,7 +299,7 @@ Small commands sit under a parent, so typing `/` shows a short list. Members see
 | `/lead` | Raid Leaders: `create`, `edit`, `cancel`, `start`, `end`, `attendance`, `boss`, `note`, `award-ep`, `fill`, `season`, `history`, `wcl-report`, `readiness-member`, `readiness-raid` |
 | `/officer` | Officers: `epgp` (award-ep, award-gp, decay, reverse), `loot` (auction, award, close, priority), `dungeon` (the challenge's officer tools), `character` (unclaimed, link, autolink), `export` (CSV files) |
 | `/organize` | Community organizers: seasons, quizzes, honors, and creating and running lotteries, gaming nights and challenges |
-| `/mod` | moderation, plus `application` (handle guild applications) |
+| `/mod` | moderation, plus `application` (handle guild applications), `page` (the guild web page) and `recruit` (the website's recruitment listing) |
 | `/import` | `upload` (preview an addon file), `apply` (apply it), `held` (entries waiting, and why) |
 | `/report` | `stats`, `inactive`, `guild` (health), `ping` (is the bot online), `bug` |
 | `/help` `/profile` `/loot` `/craft` `/bank` `/apply` `/poll` `/core` `/tag` | unchanged (`/loot` keeps `bid`, `history`, `reserves`) |
@@ -457,6 +457,8 @@ Approve, and a raid can never be paid twice.
 | `/mod faq add` / `edit <entry>` / `remove <entry>` / `list` | Officer-written answers: trigger words (one per line) and the answer. A message containing every word of a trigger gets that answer; the most specific trigger wins |
 | `/mod faq ai on\|off` | AI answers when no officer answer matches (needs `AI_BASE_URL` and `AI_MODEL` on the server; a free Google AI Studio or Groq key, or a local Ollama). Capped at `AI_DAILY_LIMIT` a day |
 | `/mod faq test <question>` | Which answer a question would get |
+| `/mod recruit set open:<true\|false> [core] [classes] [roles] [days] [times] [language] [faction] [realm] [note]` | The guild's listing on guilded.kcaron.top/recruitment/ (or one core's, with `core`). Empty options keep their value; `none` clears a text. Approved servers only. Website applications arrive in the applications channel (or the officer log) with Accept / Decline / Spam |
+| `/mod recruit status` | This server's listings and the public page |
 | `/tag set` / `/tag delete` | Manage saved answers |
 | `/setup selfroles <title> <role1> [role2..5]` | Post a role button panel |
 | `/config view` | Show settings |

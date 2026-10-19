@@ -39,6 +39,17 @@ async function limitedBody(request) {
   return body;
 }
 
+// Only the bot's own website cookies (__Host-guilded_*) reach the browser, never anything else.
+function hostCookies(upstream) {
+  const all = typeof upstream.headers.getSetCookie === "function" ? upstream.headers.getSetCookie() : [];
+  return all.filter((cookie) => /^__Host-guilded_[a-z]{1,20}=[^;]*; Max-Age=\d+; Path=\/; HttpOnly; Secure; SameSite=Lax$/.test(cookie));
+}
+function withCookies(headers, upstream) {
+  const result = new Headers(headers);
+  for (const cookie of hostCookies(upstream)) result.append("set-cookie", cookie);
+  return result;
+}
+
 export default {
   async fetch(request, env) {
     // Guard every hostname, including workers.dev, before any static fallback.
@@ -74,15 +85,22 @@ export default {
     const health = url.pathname === "/health";
     // Public guild pages, served by the bot (docs/GUILD_PAGES_DESIGN.md). Guilded host only.
     const guildPage = !creator && /^\/g\/[a-z0-9-]{1,40}\/?$/.test(url.pathname);
-    if (!companion && !api && !health && !guildPage) {
+    // Signed-in website pages (7.0): Discord sign-in, recruitment, the player's page and the public
+    // dungeon leaderboards. Rendered by the bot; the session cookie is for this host only.
+    const web = !creator && url.pathname.length <= 200
+      && /^\/(?:auth\/(?:login|callback|logout)|recruitment(?:\/[A-Za-z0-9._~/-]*)?|me(?:\/[A-Za-z0-9._~/-]*)?|leaderboards(?:\/[A-Za-z0-9._~%/-]*)?)$/.test(url.pathname);
+    if (!companion && !api && !health && !guildPage && !web) {
       if (url.pathname.startsWith("/api/")) return failure(404, "Not found");
       return env.ASSETS.fetch(request);
     }
-    const methods = api ? apiMethods.get(url.pathname) : ["GET", "HEAD"];
+    const methods = api ? apiMethods.get(url.pathname) : web ? ["GET", "HEAD", "POST"] : ["GET", "HEAD"];
     if (!methods.includes(request.method)) return failure(405, "Method not allowed");
     const headers = new Headers();
     // content-encoding: compressed uploads; if-none-match: "nothing changed" standings answers.
-    for (const name of api ? ["content-type", "content-encoding", "x-companion-credential", "authorization", "accept", "if-none-match"] : ["accept"]) {
+    // Web pages: the session cookie, and Origin/Referer for the bot's CSRF check on form posts.
+    const forwarded = api ? ["content-type", "content-encoding", "x-companion-credential", "authorization", "accept", "if-none-match"]
+      : web ? ["accept", "accept-language", "content-type", "cookie", "origin", "referer"] : ["accept"];
+    for (const name of forwarded) {
       const value = request.headers.get(name);
       if (value) headers.set(name, value);
     }
@@ -98,6 +116,7 @@ export default {
     const target = new URL(origin);
     target.pathname = url.pathname;
     target.search = health || guildPage ? "" : url.search;
+    if (web && url.search.length > 2_000) return failure(414, "Address is too long");
     try {
       const body = request.method === "POST" ? await limitedBody(request) : undefined;
       const upstream = await fetch(target.href, {
@@ -111,17 +130,22 @@ export default {
         // canonical redirects may be returned to the browser.
         const location = upstream.headers.get("location");
         const redirect = location ? new URL(location, target) : null;
-        const allowed = companion ? "/companion/" : guildPage ? "/g/" : null;
-        if (!allowed || !redirect || redirect.origin !== origin || !redirect.pathname.startsWith(allowed)) {
+        // Web pages may also send the browser to Discord's sign-in page (and nowhere else).
+        if (web && redirect && redirect.origin === "https://discord.com" && redirect.pathname === "/oauth2/authorize" && url.pathname === "/auth/login") {
+          return new Response(null, { status: upstream.status, headers: withCookies({ location: redirect.href, "cache-control": "no-store" }, upstream) });
+        }
+        const allowed = companion ? ["/companion/"] : guildPage ? ["/g/"] : web ? ["/recruitment", "/me/", "/leaderboards", "/auth/"] : null;
+        if (!allowed || !redirect || redirect.origin !== origin || !allowed.some((prefix) => redirect.pathname.startsWith(prefix))) {
           return failure(502, "Unexpected server redirect");
         }
-        return new Response(null, { status: upstream.status, headers: {
-          location: redirect.pathname + redirect.search, "cache-control": "no-store"
-        } });
+        return new Response(null, { status: upstream.status, headers: web
+          ? withCookies({ location: redirect.pathname + redirect.search, "cache-control": "no-store" }, upstream)
+          : { location: redirect.pathname + redirect.search, "cache-control": "no-store" } });
       }
       const responseHeaders = new Headers(upstream.headers);
       if (!guildPage) responseHeaders.set("cache-control", "no-store");
       responseHeaders.delete("set-cookie");
+      if (web) for (const cookie of hostCookies(upstream)) responseHeaders.append("set-cookie", cookie);
       if (companion && request.method === "GET" && upstream.status === 200
         && upstream.headers.get("content-type")?.startsWith("text/html")) {
         const html = (await upstream.text()).replace('<nav aria-label="Main navigation">',

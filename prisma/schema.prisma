@@ -169,6 +169,7 @@ model Guild {
   communityHonorAwards CommunityHonorAward[]
   rookieMemberships CommunityRookieMembership[]
   page              GuildPage?
+  recruitmentListings RecruitmentListing[]
 }
 
 // The guild's public web page at /g/<slug>/ (docs/GUILD_PAGES_DESIGN.md). Nothing is public until
@@ -1457,6 +1458,7 @@ model RaidCore {
   members         RaidCoreMember[]
   raids           Raid[]
   applications    Application[]
+  recruitmentListing RecruitmentListing?
 
   @@unique([guildId, name])
 }
@@ -1731,4 +1733,128 @@ model ActivityResponse {
 
   @@id([sessionId, memberId])
   @@index([memberId, status])
+}
+
+// 7.0 website accounts: "Sign in with Discord" (identify scope only) on guilded.kcaron.top. Only the
+// Discord user ID and names are kept, never the OAuth access token.
+model WebAccount {
+  id            String   @id @default(cuid())
+  discordUserId String   @unique
+  username      String
+  displayName   String?
+  createdAt     DateTime @default(now())
+  lastSeenAt    DateTime @default(now())
+  sessions      WebSession[]
+  applications  RecruitmentApplication[]
+  card          PlayerCard?
+  reports       RecruitmentReport[]
+}
+
+// One signed-in browser. The cookie holds a random token; only its SHA-256 is stored here.
+model WebSession {
+  id        String     @id @default(cuid())
+  accountId String
+  tokenHash String     @unique
+  expiresAt DateTime
+  createdAt DateTime   @default(now())
+  account   WebAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([expiresAt])
+}
+
+// A guild's (coreId empty) or one core's recruitment listing on /recruitment/. Officers edit it with
+// /mod recruit. Listed only while open and while the server is approved (not Lite).
+model RecruitmentListing {
+  id        String    @id @default(cuid())
+  guildId   String
+  coreId    String?   @unique
+  // "guild:<guildId>" or "core:<coreId>": one listing per guild and one per core.
+  scopeKey  String    @unique
+  open      Boolean   @default(false)
+  // Class names (wow-data CLASSES) and TANK/HEALER/DPS; empty means any.
+  classes   String[]  @default([])
+  roles     String[]  @default([])
+  // monday..sunday
+  raidDays  String[]  @default([])
+  raidTimes String?
+  // "en", "fr" or "both"
+  language  String?
+  // "ALLIANCE" or "HORDE"
+  faction   String?
+  realm     String?
+  note      String?
+  updatedBy String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  guild     Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  core      RaidCore? @relation(fields: [coreId], references: [id], onDelete: Cascade)
+  applications RecruitmentApplication[]
+
+  @@index([open])
+  @@index([guildId])
+}
+
+// A signed-in player's application from the website. Posted to the guild's applications (or
+// officer log) channel with Accept / Decline / Spam buttons.
+model RecruitmentApplication {
+  id        String     @id @default(cuid())
+  listingId String
+  accountId String
+  character String
+  className String
+  role      String
+  message   String
+  // PENDING, ACCEPTED, DECLINED or SPAM (SPAM also blocks new applications to this guild).
+  status    String     @default("PENDING")
+  channelId String?
+  messageId String?
+  decidedBy String?
+  decidedAt DateTime?
+  createdAt DateTime   @default(now())
+  listing   RecruitmentListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  account   WebAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, createdAt])
+  @@index([listingId, status])
+}
+
+// "Looking for guild": one card per signed-in player, shown on /recruitment/ until it expires.
+model PlayerCard {
+  id          String     @id @default(cuid())
+  accountId   String     @unique
+  character   String
+  className   String
+  role        String
+  level       Int?
+  realm       String?
+  faction     String?
+  language    String?
+  raidDays    String[]   @default([])
+  note        String?
+  // Show the player's Discord username so guilds can contact them.
+  showDiscord Boolean    @default(false)
+  // Hidden after enough reports; the owner can clear it.
+  hidden      Boolean    @default(false)
+  expiresAt   DateTime
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  account     WebAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([hidden, expiresAt])
+}
+
+// A signed-in visitor's report of a listing or a player card. One per visitor and target.
+model RecruitmentReport {
+  id         String     @id @default(cuid())
+  accountId  String
+  // "listing" or "card"
+  targetType String
+  targetId   String
+  reason     String?
+  createdAt  DateTime   @default(now())
+  account    WebAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, targetType, targetId])
+  @@index([targetType, targetId])
 }

@@ -213,3 +213,58 @@ describe("unified website and companion", () => {
     expect(upstream).not.toHaveBeenCalled();
   });
 });
+
+describe("signed-in website pages (7.0)", () => {
+  const site = "https://guilded.kcaron.top";
+  const session = "__Host-guilded_session=abc.sig; Max-Age=2592000; Path=/; HttpOnly; Secure; SameSite=Lax";
+
+  it("forwards the session cookie, Origin and the form, and returns only Guilded's own cookies", async () => {
+    const upstream = vi.fn(async () => {
+      const headers = new Headers({ "content-type": "text/html; charset=utf-8" });
+      headers.append("set-cookie", session);
+      headers.append("set-cookie", "tracker=1; Path=/");
+      headers.append("set-cookie", "__Host-guilded_session=x; Domain=evil.example; Path=/");
+      return new Response("<h1>ok</h1>", { headers });
+    });
+    vi.stubGlobal("fetch", upstream);
+    const response = await worker.fetch(new Request(site + "/me/card", {
+      method: "POST", body: "csrf=t&character=Kev",
+      headers: { cookie: "__Host-guilded_session=abc.sig", origin: site, "content-type": "application/x-www-form-urlencoded", "x-forwarded-for": "spoofed", authorization: "Bearer x" }
+    }), env);
+    const [url, options] = upstream.mock.calls[0]! as unknown as [string, RequestInit];
+    expect(url).toBe("https://guildedqc.duckdns.org/me/card");
+    const sent = new Headers(options.headers);
+    expect(sent.get("cookie")).toBe("__Host-guilded_session=abc.sig");
+    expect(sent.get("origin")).toBe(site);
+    expect(sent.get("x-forwarded-for")).toBeNull();
+    expect(sent.get("authorization")).toBeNull();
+    expect(new TextDecoder().decode(options.body as Uint8Array)).toBe("csrf=t&character=Kev");
+    expect(response.headers.getSetCookie()).toEqual([session]);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("lets only /auth/login send the browser to Discord's sign-in page", async () => {
+    const discord = "https://discord.com/oauth2/authorize?client_id=1&scope=identify";
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 302, headers: { location: discord } })));
+    const login = await worker.fetch(new Request(site + "/auth/login?return=/recruitment/"), env);
+    expect(login.status).toBe(302);
+    expect(login.headers.get("location")).toBe(discord);
+    expect((await worker.fetch(new Request(site + "/recruitment/"), env)).status).toBe(502);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 302, headers: { location: "https://evil.example/oauth2/authorize" } })));
+    expect((await worker.fetch(new Request(site + "/auth/login"), env)).status).toBe(502);
+  });
+
+  it("returns local redirects with the new session cookie, and keeps other paths static", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { const headers = new Headers({ location: "/recruitment/" }); headers.append("set-cookie", session); return new Response(null, { status: 302, headers }); }));
+    const callback = await worker.fetch(new Request(site + "/auth/callback?code=a&state=b"), env);
+    expect(callback.headers.get("location")).toBe("/recruitment/");
+    expect(callback.headers.getSetCookie()).toEqual([session]);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 302, headers: { location: "/companion/" } })));
+    expect((await worker.fetch(new Request(site + "/me/"), env)).status).toBe(502);
+    const upstream = vi.fn(); vi.stubGlobal("fetch", upstream);
+    expect((await worker.fetch(new Request(site + "/recruitment/", { method: "DELETE" }), env)).status).toBe(405);
+    expect((await worker.fetch(new Request(site + "/auth/other"), env)).status).toBe(200);
+    expect((await worker.fetch(new Request("https://kcaron.top/recruitment/"), env)).status).toBe(200);
+    expect(upstream).not.toHaveBeenCalled();
+  });
+});

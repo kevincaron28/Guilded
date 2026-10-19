@@ -44,6 +44,7 @@ import { MergedCommand, type AnyCommand } from "./router.js";
 import { BRAND } from "../brand.js";
 import { poeCommand } from "./poe.js";
 import { participationCommand } from "./participation.js";
+import { executeRecruit, recruitCommand } from "./recruit.js";
 
 // One parent per area, with the smaller commands mounted under it (see router.ts).
 const setup = new MergedCommand("setup", `${BRAND.name} setup and settings.`, [
@@ -100,10 +101,11 @@ const officer = new MergedCommand("officer", "Officers: EPGP, loot, dungeon chal
   { command: exportCommand, handler: executeExport, as: "export" }
 ]).setDescriptionLocalizations({ fr: "Officiers : EPGP, butin, défi des donjons, liens de personnages et exports." });
 
-const mod = new MergedCommand("mod", "Moderation, applications, the answer channel and the guild web page (officers).", [
+const mod = new MergedCommand("mod", "Moderation, applications, the answer channel, the guild web page and recruitment (officers).", [
   { command: applicationCommand, handler: executeApplication, as: "application" },
   { command: faqCommand, handler: executeFaq, as: "faq" },
-  { command: guildPageCommand, handler: executeGuildPage, as: "page" }
+  { command: guildPageCommand, handler: executeGuildPage, as: "page" },
+  { command: recruitCommand, handler: executeRecruit, as: "recruit" }
 ], { command: moderationCommand, handler: executeModeration });
 
 const importer = new MergedCommand("import", "Bring addon data into Discord: preview a file, then apply it (officers).", [

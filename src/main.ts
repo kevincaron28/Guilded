@@ -73,6 +73,8 @@ import { cleanupRaidAlerts } from "./services/raid-alert-cleanup.js";
 import { runWclDiscovery } from "./services/wcl-check.js";
 import { config } from "./config.js";
 import { startCompanionApi } from "./companion-api.js";
+import { handleWebApplicationButton, WEB_APPLY_PREFIX } from "./services/recruitment-discord.js";
+import { prismaWebStore } from "./services/web-store.js";
 import { keepStampsOnDisk, standingsFeed } from "./services/standings-feed.js";
 import { executePoe } from "./commands/poe.js";
 import { executeParticipation } from "./commands/participation.js";
@@ -562,6 +564,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
   if (interaction.isModalSubmit() && interaction.customId.startsWith(APPLY_PREFIX)) {
     await handleApplyModal(interaction).catch((error: unknown) => reportInteractionError("Application form", interaction, error));
+    return;
+  }
+  if (interaction.isButton() && interaction.customId.startsWith(WEB_APPLY_PREFIX)) {
+    await handleWebApplicationButton(interaction, prismaWebStore(prisma)).catch(async (error: unknown) => {
+      reportInteractionError("Website application button", interaction, error);
+      if (!interaction.replied) await interaction.reply({ content: "Could not save this answer, try again. / Réponse non enregistrée, réessayez.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
+    });
     return;
   }
   if (interaction.isButton() && interaction.customId.startsWith(APPLY_PREFIX)) {

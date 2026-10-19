@@ -76,6 +76,15 @@ Uploads are gzip-compressed and leave out ledger and loot entries the bot alread
 when the bot supports it (`gzip-upload`, `ledger-delta`). See
 [the sync speed-ups](../docs/SYNC_SPEEDUPS_2026-10-15.md).
 
+## Personal mode: public dungeon leaderboards (7.0)
+
+No guild needed. Sign in at https://guilded.kcaron.top/me/, choose **Get a companion code** and
+paste it in the usual Connect box (a personal code starts with `P`). Choose
+`GuildedDungeons.lua` (or `Guilded.lua`) as the saved-data file. The companion then sends your
+finished dungeon runs to https://guilded.kcaron.top/leaderboards/ and writes
+`Interface/AddOns/GuildedDungeons/Accepted.lua` so the addon marks them as sent. No standings are
+fetched in this mode.
+
 ## Export to spreadsheet
 
 On the World of Warcraft page, **Export to spreadsheet** turns Guilded.lua into CSV files for

@@ -108,3 +108,5 @@ if (luaparse) {
 }
 
 console.log("Guilded addon static validation passed.");
+// The standalone dungeon addon is built from these files: check it with them.
+await import("../GuildedDungeons/validate-addon.mjs");

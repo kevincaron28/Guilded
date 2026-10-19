@@ -32,6 +32,9 @@ import { createWebApp, isWebPath, type WebRoute } from "./services/web-app.js";
 import { webAuthConfig } from "./services/web-auth.js";
 import { prismaWebStore } from "./services/web-store.js";
 import { postWebApplication } from "./services/recruitment-discord.js";
+import { createLeaderboardPages, prismaLeaderboardStore } from "./services/public-leaderboard.js";
+import { exchangePersonalCode, isPersonalCode, personalAccess, prismaPersonalStore } from "./services/personal-pairing.js";
+import { ingestPublicRuns, PUBLIC_LIMITS, prismaPublicRunStore, PublicUploadError } from "./services/public-runs.js";
 import { COMPANION_FEATURES, markGuildChanged, standingsFeed, type FeedParts } from "./services/standings-feed.js";
 const BOT_VERSION = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version as string;
 
@@ -137,7 +140,22 @@ async function readForm(request: IncomingMessage): Promise<string> {
 }
 const headerOf = (request: IncomingMessage, name: string) => { const value = request.headers[name]; return Array.isArray(value) ? value[0] : value; };
 
-export function createSiteApp(client?: Client, routes: WebRoute[] = [], meSections: Parameters<typeof createWebApp>[0]["meSections"] = []) {
+const personalStore = prismaPersonalStore(prisma);
+const publicRuns = prismaPublicRunStore(prisma);
+// Personal companions' public-run uploads, per account and hour (on top of the per-run limit).
+const publicUploads = new Map<string, number[]>();
+export function allowPublicUpload(accountId: string, now = Date.now()): boolean {
+  const recent = (publicUploads.get(accountId) ?? []).filter((at) => now - at < 3_600_000);
+  if (recent.length >= PUBLIC_LIMITS.requestsPerHour) { publicUploads.set(accountId, recent); return false; }
+  publicUploads.set(accountId, [...recent, now]);
+  if (publicUploads.size > 5_000) publicUploads.delete(publicUploads.keys().next().value!);
+  return true;
+}
+
+export function createSiteApp(client?: Client) {
+  const leaderboards = createLeaderboardPages({ store: prismaLeaderboardStore(prisma), personal: personalStore });
+  const routes: WebRoute[] = [leaderboards.route];
+  const meSections = [leaderboards.meSection];
   return createWebApp({
     store: prismaWebStore(prisma), auth: webAuthConfig(config), allows: (id) => hostedPilot.allows(id), routes, meSections,
     postApplication: (view) => postWebApplication(client, view),
@@ -270,13 +288,14 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const isPairing = request.method === "POST" && url.pathname === "/api/v1/addon-pairings";
       const isStandings = request.method === "GET" && url.pathname === "/api/v1/standings";
       const isPoeUpload = request.method === "POST" && url.pathname === "/api/v1/poe/visits";
+      const isPublicRuns = request.method === "POST" && url.pathname === "/api/v1/public-runs";
       const isPoeStatus = request.method === "GET" && url.pathname === "/api/v1/poe/status";
       const isPoeRecent = request.method === "GET" && url.pathname === "/api/v1/poe/visits";
       const isLogout = request.method === "POST" && url.pathname === "/api/v1/companion/logout";
       // The companion's own pages: wishlists for members; prices, core rules and rosters for Raid Leaders.
       const isManageView = request.method === "GET" && url.pathname === "/api/v1/manage";
       const isManageEdit = request.method === "POST" && url.pathname === "/api/v1/manage";
-      if (!isImport && !isPairing && !isStandings && !isPoeUpload && !isPoeStatus && !isPoeRecent && !isLogout && !isManageView && !isManageEdit) {
+      if (!isImport && !isPairing && !isPublicRuns && !isStandings && !isPoeUpload && !isPoeStatus && !isPoeRecent && !isLogout && !isManageView && !isManageEdit) {
         json(response, 404, { error: "Not found" });
         return;
       }
@@ -295,6 +314,13 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const pairingPayload = payload as { guildDiscordId?: unknown; code: unknown };
         if ((pairingPayload.guildDiscordId !== undefined && typeof pairingPayload.guildDiscordId !== "string") || typeof pairingPayload.code !== "string") {
           json(response, 400, { error: "guildDiscordId and code must be strings" });
+          return;
+        }
+        // A personal code from the website (7.0): no guild, public dungeon runs only.
+        if (isPersonalCode(pairingPayload.code)) {
+          const personal = await exchangePersonalCode(personalStore, pairingPayload.code);
+          if (!personal) { recordFailure(address); json(response, 401, { error: "This companion code is invalid, expired or already used. Get a new one on your Guilded page (guilded.kcaron.top/me/)." }); return; }
+          json(response, 200, { ...personal, personal: true });
           return;
         }
         let serverId: string = typeof pairingPayload.guildDiscordId === "string" ? pairingPayload.guildDiscordId.trim() : "";
@@ -317,6 +343,24 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           recordFailure(address); json(response, 401, { error: "Pairing code is invalid, expired, or already used. Run /character pair again." }); return;
         }
         json(response, 200, { ...result, guildDiscordId: serverId });
+        return;
+      }
+      if (isPublicRuns) {
+        // Personal companions (website accounts) send their own finished dungeon runs.
+        const secret = request.headers["x-companion-credential"];
+        const account = await personalAccess(personalStore, typeof secret === "string" ? secret : undefined);
+        if (!account) { recordFailure(address); json(response, 401, { error: "Connect this companion with a code from your Guilded page (guilded.kcaron.top/me/)." }); return; }
+        if (!allowPublicUpload(account.accountId)) { json(response, 429, { error: "Too many uploads in the last hour. Try again later." }); return; }
+        const body = await readBody(request) as { character?: { name?: unknown }; runs?: unknown } | null;
+        const character = typeof body?.character?.name === "string" ? body.character.name.slice(0, 40) : null;
+        if (!character) { json(response, 400, { error: "character.name is required" }); return; }
+        try {
+          const result = await ingestPublicRuns(publicRuns, { uploaderKey: `account:${account.accountId}`, character, source: "personal", runs: body?.runs });
+          json(response, 200, { ...result, botVersion: BOT_VERSION });
+        } catch (error) {
+          if (error instanceof PublicUploadError) { json(response, error.status, { error: error.message }); return; }
+          throw error;
+        }
         return;
       }
       const payload = isImport || isPoeUpload || isLogout || isManageEdit ? await readBody(request) : null;

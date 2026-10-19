@@ -1,0 +1,21 @@
+## Interface: 16001, 20506
+## Title: Guilded Dungeons
+## Notes: Dungeon run timer and personal records for WoW Forever, with optional public leaderboards. Works without a guild.
+## Notes-frFR: Chronometre de donjon et records personnels pour WoW Forever, avec classements publics facultatifs. Fonctionne sans guilde.
+## Author: Kevin Caron
+## Version: 6.7.0
+## Category: Dungeons
+## X-License: PolyForm-Noncommercial-1.0.0
+## OptionalDeps: Guilded
+## SavedVariables: GuildedDungeonsDB
+
+Shim.lua
+Shared\Util.lua
+Shared\Compat.lua
+Shared\Locale.lua
+Shared\DungeonRoutes.lua
+Shared\Dungeon.lua
+Shared\RunResults.lua
+Shared\Scores.lua
+Accepted.lua
+Main.lua

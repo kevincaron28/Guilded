@@ -287,7 +287,8 @@ ipcMain.handle("test-connection", (_event, next) => engineModules.testConnection
 ipcMain.handle("pair-account", async (_event, next) => {
   const result = await engineModules.pairAccount({ ...config, ...next });
   if (!result.ok) return result;
-  config = { ...config, ...next, pairingCode: "", companionCredential: result.companionCredential, guildDiscordId: result.guildDiscordId || next.guildDiscordId || config.guildDiscordId };
+  // A code from guilded.kcaron.top/me/ pairs a personal account (public dungeon runs, no guild).
+  config = { ...config, ...next, pairingCode: "", companionCredential: result.companionCredential, personal: result.personal === true, guildDiscordId: result.personal ? "" : result.guildDiscordId || next.guildDiscordId || config.guildDiscordId };
   saveConfig();
   const started = await engine.configure(config);
   return {

@@ -812,6 +812,8 @@ model GuildSettings {
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
   guild                    Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  // 7.0: copy this guild's valid completed dungeon runs to the public leaderboards (/officer leaderboard).
+  publicDungeonRuns        Boolean   @default(false)
 }
 
 // Personal, self-reported log observations; never completion evidence or loot points.
@@ -1748,6 +1750,8 @@ model WebAccount {
   applications  RecruitmentApplication[]
   card          PlayerCard?
   reports       RecruitmentReport[]
+  pairing       WebPairing?
+  companionCredentials WebCompanionCredential[]
 }
 
 // One signed-in browser. The cookie holds a random token; only its SHA-256 is stored here.
@@ -1857,4 +1861,91 @@ model RecruitmentReport {
 
   @@unique([accountId, targetType, targetId])
   @@index([targetType, targetId])
+}
+
+// A personal companion code from guilded.kcaron.top/me/ (7.0): pairs the companion with a
+// website account instead of a guild member. 15 minutes, one use.
+model WebPairing {
+  id         String     @id @default(cuid())
+  accountId  String     @unique
+  codeHash   String     @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime   @default(now())
+  account    WebAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+}
+
+// A personal companion's credential (one active per account). Only its SHA-256 is stored.
+model WebCompanionCredential {
+  id        String     @id @default(cuid())
+  accountId String
+  tokenHash String     @unique
+  createdAt DateTime   @default(now())
+  revokedAt DateTime?
+  account   WebAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, revokedAt])
+}
+
+// One dungeon run on the public leaderboards (7.0, roadmap request 6). Party members share the
+// addon's run id, so their uploads land on the same row and confirm each other.
+model PublicRun {
+  id            String   @id @default(cuid())
+  // instanceId + the addon's shared run id.
+  runKey        String   @unique
+  runRef        String
+  instanceId    Int
+  dungeonName   String
+  difficultyId  Int      @default(0)
+  startedAt     DateTime
+  endedAt       DateTime
+  durationSec   Int
+  deaths        Int?
+  // Highest party level and its bracket (DEFAULT_DUNGEON_BRACKETS), when known.
+  maxLevel      Int?
+  bracket       String?
+  // Calendar quarter of the end time, e.g. "2026-Q4".
+  season        String
+  // ACCEPTED (shown) or DISPUTED (uploads disagree: hidden until the owner looks).
+  status        String   @default("ACCEPTED")
+  // Different uploaders (players or guilds) whose upload agreed with this run.
+  confirmations Int      @default(1)
+  // "personal" or "guild"
+  source        String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  players       PublicRunPlayer[]
+  uploads       PublicRunUpload[]
+
+  @@index([instanceId, status, season, durationSec])
+  @@index([status, endedAt])
+}
+
+model PublicRunPlayer {
+  id        String    @id @default(cuid())
+  runId     String
+  character String
+  realm     String    @default("")
+  className String?
+  role      String?
+  level     Int?
+  deaths    Int?
+  run       PublicRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, character, realm])
+  @@index([character, realm])
+}
+
+// Who sent a public run: "account:<id>" or "guild:<guildId>". One row per uploader and run.
+model PublicRunUpload {
+  id          String    @id @default(cuid())
+  runId       String
+  uploaderKey String
+  durationSec Int
+  endedAt     DateTime
+  createdAt   DateTime  @default(now())
+  run         PublicRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, uploaderKey])
+  @@index([uploaderKey, createdAt])
 }

@@ -23,6 +23,7 @@ run("node", ["addon/Guilded/validate-addon.mjs"]);
 run("npm", ["audit", "--audit-level=high"]);
 run("npm", ["audit", "--prefix", "companion-app", "--audit-level=high"]);
 run("npm", ["run", "addon:zip"]);
+run("npm", ["run", "dungeons:zip"]);
 run("npm", ["run", "companion:build"]);
 run("npm", ["run", "site:build"]);
 if (process.platform === "win32") run("npm", ["run", "dist", "--prefix", "companion-app"]);

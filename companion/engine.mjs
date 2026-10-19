@@ -6,6 +6,7 @@ import { standingsFileHolds, writeStandings } from "./standings.mjs";
 import { credentialHeaders, checkUrl, requestJson, jsonBody, MAX_UPLOAD_BYTES } from "./request.mjs";
 import { acknowledgements, pruneAcknowledged } from "./delta.mjs";
 import { createPoeEngine, validatePoeConfig } from "./poe-engine.mjs";
+import { uploadPersonalRuns } from "./personal-runs.mjs";
 
 // The companion's working parts, shared by the command-line watcher
 // (watcher.mjs) and the desktop app (companion-app/). It watches the addon's
@@ -20,7 +21,8 @@ export function validateConfig(config) {
   if (!config.uploadUrl) problems.push("The bot address is not set.");
   const linked = typeof config.companionCredential === "string" && config.companionCredential.length >= 32;
   if (!linked) problems.push("Connect your Discord account first: enter the code from /character pair and press Connect.");
-  else if (!config.guildDiscordId) problems.push("The Discord server ID is not set.");
+  // Personal mode (a code from guilded.kcaron.top/me/) has no guild: only public dungeon runs.
+  else if (!config.guildDiscordId && !config.personal) problems.push("The Discord server ID is not set.");
   if (config.uploadUrl) { try { checkUrl(config.uploadUrl); } catch (error) { problems.push(error.message); } }
   return [...problems, ...validatePoeConfig(config)];
 }
@@ -56,7 +58,10 @@ export async function pairAccount(config) {
     if (typeof body.companionCredential !== "string" || body.companionCredential.length < 32) {
       return { ok: false, message: "The bot response did not include a valid companion credential." };
     }
-    return { ok: true, message: config.wowEnabled === false ? "Discord account paired. Your PoE2 observations will belong to this account; choose your PoE2 settings and Save and start." : "Discord account paired. The companion links your own character on its next upload; the guild import still follows its usual apply setting.", companionCredential: body.companionCredential, guildDiscordId: typeof body.guildDiscordId === "string" ? body.guildDiscordId : config.guildDiscordId };
+    if (body.personal === true) {
+      return { ok: true, personal: true, companionCredential: body.companionCredential, guildDiscordId: "", message: "Website account connected. Your finished dungeon runs go to the public leaderboards (guilded.kcaron.top/leaderboards/). Choose GuildedDungeons.lua (or Guilded.lua) as the saved-data file, then Save and start." };
+    }
+    return { ok: true, personal: false, message: config.wowEnabled === false ? "Discord account paired. Your PoE2 observations will belong to this account; choose your PoE2 settings and Save and start." : "Discord account paired. The companion links your own character on its next upload; the guild import still follows its usual apply setting.", companionCredential: body.companionCredential, guildDiscordId: typeof body.guildDiscordId === "string" ? body.guildDiscordId : config.guildDiscordId };
   } catch (error) {
     return { ok: false, message: describeError(error) };
   }
@@ -188,8 +193,44 @@ export function createEngine(initialConfig, hooks = {}) {
     return result;
   }
 
+  // Personal mode: finished dungeon runs to the public leaderboards (personal-runs.mjs).
+  async function personalUpload() {
+    if (uploading) { queued = true; return; }
+    uploading = true;
+    queued = false;
+    const epoch = generation;
+    const current = { ...config };
+    state.pendingUpload = true;
+    state.retryAt = null;
+    try {
+      lastFile = await fileStamp(current.watchFile);
+      const result = await uploadPersonalRuns(current, controller.signal);
+      if (epoch !== generation) return;
+      state.lastUpload = { at: new Date().toISOString(), message: result.message };
+      if (result.sent) state.uploads += 1;
+      state.uploadError = null;
+      failures = 0;
+      state.pendingUpload = false;
+      log(result.level, result.message);
+    } catch (error) {
+      if (epoch !== generation) return;
+      state.uploadError = describeError(error);
+      log("error", `Upload failed: ${state.uploadError}`);
+      if (error.retryable !== false && state.running) {
+        const delay = Math.min(300_000, 5_000 * 2 ** Math.min(failures++, 6));
+        state.retryAt = new Date(Date.now() + delay).toISOString();
+        scheduleUpload(delay);
+      }
+    } finally {
+      uploading = false;
+      if (epoch === generation && state.running && queued) scheduleUpload(0);
+      hooks.onState?.(snapshot());
+    }
+  }
+
   async function upload() {
     if (!state.running || config.wowEnabled === false) return;
+    if (config.personal) return personalUpload();
     if (uploading) { queued = true; return; }
     uploading = true;
     queued = false;
@@ -307,7 +348,7 @@ export function createEngine(initialConfig, hooks = {}) {
   }
 
   async function refreshStandings(options = {}) {
-    if (!state.running || refreshing || config.wowEnabled === false) return;
+    if (!state.running || refreshing || config.wowEnabled === false || config.personal) return;
     refreshing = true;
     const epoch = generation;
     try {
@@ -447,7 +488,9 @@ export function createEngine(initialConfig, hooks = {}) {
       const now = await fileStamp(config.watchFile);
       if (now && now !== lastFile) scheduleUpload(0);
     })()), FILE_CHECK_MS);
-    if (features.has("long-poll") && etag && config.liveStandings !== false) {
+    if (config.personal) {
+      // No guild standings in personal mode.
+    } else if (features.has("long-poll") && etag && config.liveStandings !== false) {
       state.standingsMode = "live";
       track(liveStandings(epoch));
     } else {

@@ -11,6 +11,7 @@ const origin = "https://guildedqc.duckdns.org";
 const apiMethods = new Map([
   ["/api/v1/addon-imports", ["POST"]],
   ["/api/v1/addon-pairings", ["POST"]],
+  ["/api/v1/public-runs", ["POST"]],
   ["/api/v1/standings", ["GET"]],
   ["/api/v1/poe/visits", ["GET", "POST"]],
   ["/api/v1/poe/status", ["GET"]],

@@ -15,6 +15,10 @@
 ;
 ; electron-builder's NSIS template calls this macro during uninstall; see
 ; https://www.electron.build/configuration/nsis#custom-nsis-script.
+; An upgrade (a newer installer, or "Update now" in the app) also runs this uninstaller,
+; with --updated: keep the entry then, or every update would turn Start with Windows off.
 !macro customUnInstall
-  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Guilded Companion"
+  ${ifNot} ${isUpdated}
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Guilded Companion"
+  ${endIf}
 !macroend

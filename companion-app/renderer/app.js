@@ -57,7 +57,7 @@ function renderUpdate(update) {
   $('updateBanner').hidden = !update || !!api.browser;
   if (!update) return;
   $('updateTitle').textContent = `Guilded Companion ${update.version} is available`;
-  $('updateText').textContent = `You have ${$('version').textContent.replace(/^Version /, '')}. Download the new installer and run it: your settings and Discord link are kept.`;
+  $('updateText').textContent = `You have ${$('version').textContent.replace(/^Version /, '')}. ${update.installer ? 'Update now installs it and restarts the companion' : 'Download the new installer and run it'}: your settings and Discord link are kept.`;
 }
 function renderState(snapshot) {
   lastSnapshot = snapshot;
@@ -139,7 +139,9 @@ bind('btnStandings',async () => { await api.refreshStandings(); toast(api.browse
 bind('btnSheets',async () => { const result = await api.exportSheets($('sheetTable').value || undefined); if (!result.canceled) toast(result.message,!result.ok); });
 bind('btnFolder',() => api.openAddonFolder()); bind('btnPause',async () => { await api.toggleTracking(); }); bind('btnOnline',() => api.openOnline());
 bind('btnRemoveData',() => api.removeData());
-bind('btnUpdate',() => api.openUpdate());
+// Update now (7.2): the desktop app downloads, checks and installs the new version itself.
+bind('btnUpdate',async () => { if (!api.installUpdate) return api.openUpdate(); $('btnUpdate').textContent = 'Downloading…'; const result = await api.installUpdate(); toast(result.message,!result.ok); $('btnUpdate').textContent = result.ok ? 'Installing…' : 'Update now'; });
+api.onUpdateProgress?.(percent => { $('btnUpdate').textContent = `Downloading ${percent}%`; });
 bind('btnHistory',async () => {
   if (!savedConfig.companionCredential) { showPage('settings'); toast('Connect your Discord account first.'); return; }
   const visits = await api.getPoeRuns();

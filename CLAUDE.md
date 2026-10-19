@@ -1,3 +1,8 @@
+> 7.0.0 (19 October 2026): web sign-in and recruitment (/mod recruit), public dungeon leaderboards
+> (/mod leaderboard), standalone Guilded Dungeons addon (addon/GuildedDungeons; after editing Guilded's
+> shared dungeon Lua run `npm run dungeons:sync`), companion personal mode and CSV export, /officer export,
+> startable provisional all-level season. /officer is ~3,780 of Discord's 4,000 characters: put new
+> officer subcommands elsewhere (docs/V7_0_0_RELEASE_NOTES.md).
 > 6.7.0 (18 October 2026): members see only their commands; leader and officer tools under /lead,
 > /officer, /organize; Integrations-visibility warning in /setup (docs/V6_7_0_RELEASE_NOTES.md).
 > 6.6.0 (18 October 2026): Guilded Lite for unapproved hosted servers, dungeon rules v6 with level
@@ -38,7 +43,7 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (18 October 2026): version 6.7.0 Release, protocol 2.**
+**Current status (19 October 2026): version 7.0.0 Release, protocol 2.**
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
 Standalone guild and optional Guilded Games work is next-version candidate
 source; do not overwrite the published 6.2.0 downloads or bump incidentally.

@@ -1,8 +1,8 @@
 # Guilded roadmap
 
-## Current stage — 18 October 2026
+## Current stage — 19 October 2026
 
-Guilded **6.7.0 Release** (protocol 2). Real-client checks still owed:
+Guilded **7.0.0 Release** (protocol 2). All six 18-October requests ship in 7.0.0. Real-client checks still owed:
 G6-G8 (dungeon runs), G10 (French client) and the 6.1.2 parts of G2/G12; see
 [the 6.2 game acceptance record](docs/V6_2_GAME_ACCEPTANCE.md). The 6.0 testing
 record is historical.
@@ -62,8 +62,8 @@ How each one gets built: [ROADMAP_REQUESTS_PLAN_2026-10-18.md](docs/ROADMAP_REQU
    the website footer and CurseForge's Donate button already exist. Add the link
    to the bot's `/help`, the companion app and the addon's Settings page, in
    English and French. It's a link only: no features behind a payment.
-2. **Partly done. Spreadsheet export from the addon.** The in-game part shipped in 6.6.0
-   (`/guilded sheet`, Copy for Excel); the companion CSV export and the bot `/export` remain.
+2. **Done in 7.0.0. Spreadsheet export from the addon.** The in-game part shipped in 6.6.0
+   (`/guilded sheet`, Copy for Excel); the companion CSV export and `/officer export` shipped in 7.0.0.
    - *In game:* an "Export" button on the standings, roster and loot windows
      opens a copy box with tab-separated text. Ctrl+A, Ctrl+C, then paste
      straight into Excel or Google Sheets; each value lands in its own cell.
@@ -73,7 +73,7 @@ How each one gets built: [ROADMAP_REQUESTS_PLAN_2026-10-18.md](docs/ROADMAP_REQU
      with one sheet's worth per table: EP/GP, attendance, loot history,
      dungeon scores. A bot `/export` that sends a CSV of the guild's server-side
      data comes later, for officers only.
-3. **Built in 6.6.0, not active. Next dungeon season covers all levels, not just 60.**
+3. **Done in 7.0.0 (provisional targets until real timed runs). Next dungeon season covers all levels, not just 60.**
    Rules version 6 has brackets 15-29 / 30-44 / 45-59 / 60 and an over-level penalty; a season
    still needs launch data and real timed runs for each bracket's targets. The November draft
    ([NOVEMBER_DUNGEON_CATALOG.md](docs/NOVEMBER_DUNGEON_CATALOG.md)) proposes a
@@ -91,14 +91,14 @@ How each one gets built: [ROADMAP_REQUESTS_PLAN_2026-10-18.md](docs/ROADMAP_REQU
    (lite/approved/blocked), a check on each command, an approval queue sent to
    the owner, and per-guild limits to protect hosting costs. This changes the
    "Later" item below about managed multi-guild hosting from "maybe" to planned.
-5. **Not started. Online core and guild recruitment on the website.** Builds on the public
+5. **Done in 7.0.0 (`/mod recruit`, guilded.kcaron.top/recruitment/). Online core and guild recruitment on the website.** Builds on the public
    guild pages above. Guilds publish an opt-in recruitment listing (classes and
    roles wanted, raid times, language, faction, server); cores do the same for
    open spots. Players browse and filter on the website and apply; the
    application arrives in the guild's Discord as a message officers can accept
    or decline. Players can also post a "looking for guild" profile. Approved
    guilds only (item 4), with a report button against spam.
-6. **Not started. Standalone dungeon module and a public leaderboard (Raider.IO-style).**
+6. **Done in 7.0.0 (Guilded Dungeons addon, guilded.kcaron.top/leaderboards/). Standalone dungeon module and a public leaderboard (Raider.IO-style).**
    A separate small addon, "Guilded Dungeons", for players with no guild or a
    guild without Guilded. It shares Guilded's dungeon code and timers so scores
    match exactly, and the two addons don't conflict when both are installed

@@ -37,11 +37,13 @@ In-game results are in the [checklist](V6_2_GAME_ACCEPTANCE.md).
 - With Guilded installed too, Guilded Dungeons stays silent and Guilded counts the run.
 - Download: `GuildedDungeons-v7.0.0.zip` on the GitHub release.
 
-## Windows companion
+## Companion (Windows and online)
 
 - **Personal mode:** sign in at guilded.kcaron.top/me/, choose **Get a companion code**, and paste
   it in the companion. It uploads your finished dungeon runs to the public leaderboards; no guild
   needed.
+  This works in the Windows companion and in the online companion at guilded.kcaron.top/companion/
+  (pick `GuildedDungeons.lua`, or `Guilded.lua`, then **Sync now**).
 - **Export to spreadsheet:** CSV files for standings, loot, attendance, raids and dungeon scores
   from your SavedVariables, into a folder you choose. They open in Excel with accents intact.
 

@@ -70,6 +70,15 @@ export function createBrowserCompanion(env = globalThis) {
     state.botVersion = body.botVersion || state.botVersion;
     return body;
   }
+  let signIn = null, signInRequest = null;
+  // A pairing code or a Discord sign-in: both end with the same credential and settings.
+  function applyPairing(next, result, server) {
+    if (typeof result.companionCredential !== "string" || result.companionCredential.length < 32) throw new Error("The bot did not return a valid Discord link. Please try again.");
+    botFeatures = new Set(); ack = null;
+    const personal = result.personal === true;
+    config = { ...config, ...next, personal, guildDiscordId: personal ? "" : typeof result.guildDiscordId === "string" ? result.guildDiscordId : server || config.guildDiscordId, pairingCode: "", companionCredential: result.companionCredential, uploadUrl: `${location.origin}/api/v1/addon-imports` }; state.running = true; state.uploadError = null; persist(); emit();
+    return { ok: true, message: personal ? "Website account connected. Choose your GuildedDungeons.lua (or Guilded.lua), then Sync now: your finished runs go to the public leaderboards." : "Discord connected. Choose your game files to start syncing." };
+  }
   const guildQuery = () => `guild=${encodeURIComponent(config.guildDiscordId)}`;
   // Personal mode (a code from guilded.kcaron.top/me/): GuildedDungeons.lua first, Guilded.lua otherwise.
   const savedNames = () => (config.personal ? ["GuildedDungeons.lua", "Guilded.lua"] : ["Guilded.lua"]);
@@ -153,21 +162,47 @@ export function createBrowserCompanion(env = globalThis) {
       try {
         const server = next.guildDiscordId?.trim();
         const result = await request("/api/v1/addon-pairings", { ...(server ? { guildDiscordId: server } : {}), code: (next.pairingCode || "").trim() });
-        if (typeof result.companionCredential !== "string" || result.companionCredential.length < 32) throw new Error("The bot did not return a valid Discord link. Please try a fresh pairing code.");
-        botFeatures = new Set(); ack = null;
-        const personal = result.personal === true;
-        config = { ...config, ...next, personal, guildDiscordId: personal ? "" : typeof result.guildDiscordId === "string" ? result.guildDiscordId : server || config.guildDiscordId, pairingCode: "", companionCredential: result.companionCredential, uploadUrl: `${location.origin}/api/v1/addon-imports` }; state.running = true; state.uploadError = null; persist(); emit();
-        return { ok: true, message: personal ? "Website account connected. Choose your GuildedDungeons.lua (or Guilded.lua), then Sync now: your finished runs go to the public leaderboards." : "Discord connected. Choose your game files to start syncing." };
+        return applyPairing(next, result, server);
       } catch (error) { return { ok: false, message: error.message }; }
       finally { busy = false; }
     },
+    // "Sign in with Discord" (7.2): the page opens /me/companion in a new tab; this waits for the approval.
+    signInStart: async () => {
+      if (busy || visits.length) return { ok: false, message: "Finish syncing your queued visits before replacing this Discord link." };
+      try {
+        signIn?.abort();
+        const started = await request("/api/v1/companion/sign-in", {});
+        if (typeof started.requestId !== "string" || typeof started.url !== "string" || new URL(started.url).origin !== location.origin) throw new Error("The bot's sign-in answer was incomplete.");
+        signIn = new AbortController();
+        signInRequest = started.requestId;
+        return { ok: true, confirm: started.confirm, url: started.url };
+      } catch (error) { return { ok: false, message: error.message }; }
+    },
+    signInWait: async () => {
+      const controller = signIn, requestId = signInRequest;
+      if (!controller || !requestId) return { ok: false, message: "Choose Sign in with Discord first." };
+      const until = Date.now() + 10 * 60_000;
+      try {
+        while (Date.now() < until && !controller.signal.aborted) {
+          const answer = await request("/api/v1/companion/sign-in/poll", { requestId });
+          if (answer.status !== "pending") {
+            if (busy || visits.length) return { ok: false, message: "Finish syncing your queued visits before replacing this Discord link." };
+            return applyPairing({}, answer, "");
+          }
+          await new Promise(done => setTimeout(done, 2_000));
+        }
+        return { ok: false, message: controller.signal.aborted ? "Sign-in cancelled." : "Sign-in timed out. Choose Sign in with Discord again." };
+      } catch (error) { return { ok: false, message: error.message }; }
+      finally { if (signIn === controller) { signIn = null; signInRequest = null; } }
+    },
+    signInCancel: async () => { signIn?.abort(); signIn = null; signInRequest = null; return { ok: true }; },
     testConnection: async next => {
       try {
         const health = await request("/health");
         if (health.ok !== true) throw new Error("The server is reachable, but the Discord bot is not ready. Ask your guild owner to check the service.");
         if (!config.companionCredential) {
           emit();
-          return { ok: true, message: "Server is online. Enter the code from /character pair, then Connect. Your account is not linked yet." };
+          return { ok: true, message: "Server is online. Your account is not linked yet: choose Sign in with Discord (or enter a pairing code)." };
         }
         if (config.personal) { emit(); return { ok: true, message: "Website account connected (public dungeon leaderboards). Select your saved file and use Sync now." }; }
         const server = next.guildDiscordId?.trim() || config.guildDiscordId;

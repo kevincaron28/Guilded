@@ -16,7 +16,7 @@ import { upcomingRaidsForAddon } from "./services/calendar-sync.js";
 import { discordCalendarEvents, mergeCalendarEvents } from "./services/discord-calendar.js";
 import { createAuditService } from "./services/audit.js";
 import { followUpImport } from "./services/import-followup.js";
-import { exchangeCharacterPairingCode, findPairingServer, hashCompanionSecret, linkPairedCharacter } from "./services/character-pairing.js";
+import { exchangeCharacterPairingCode, findPairingServer, hashCompanionSecret, issueMemberCredential, linkPairedCharacter } from "./services/character-pairing.js";
 import { serveCompanionWeb } from "./services/companion-web.js";
 import { createGuildPageServer, loadGuildPageView } from "./services/guild-page.js";
 import type { Client } from "discord.js";
@@ -33,7 +33,8 @@ import { webAuthConfig } from "./services/web-auth.js";
 import { prismaWebStore } from "./services/web-store.js";
 import { postWebApplication } from "./services/recruitment-discord.js";
 import { createLeaderboardPages, prismaLeaderboardStore } from "./services/public-leaderboard.js";
-import { exchangePersonalCode, isPersonalCode, personalAccess, prismaPersonalStore } from "./services/personal-pairing.js";
+import { exchangePersonalCode, isPersonalCode, issuePersonalCredential, personalAccess, prismaPersonalStore } from "./services/personal-pairing.js";
+import { companionSignInRoute, createCompanionSignIn } from "./services/companion-signin.js";
 import { ingestPublicRuns, PUBLIC_LIMITS, prismaPublicRunStore, PublicUploadError } from "./services/public-runs.js";
 import { COMPANION_FEATURES, markGuildChanged, standingsFeed, type FeedParts } from "./services/standings-feed.js";
 const BOT_VERSION = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version as string;
@@ -152,9 +153,54 @@ export function allowPublicUpload(accountId: string, now = Date.now()): boolean 
   return true;
 }
 
+// The companion's "Sign in with Discord" (7.2): pending requests, shared by the page and the API.
+const companionSignIn = createCompanionSignIn();
+const signInStarts = new Map<string, number[]>();
+export function allowSignInStart(address: string, now = Date.now()): boolean {
+  const recent = (signInStarts.get(address) ?? []).filter((at) => now - at < 3_600_000);
+  if (recent.length >= 30) { signInStarts.set(address, recent); return false; }
+  signInStarts.set(address, [...recent, now]);
+  if (signInStarts.size > 5_000) signInStarts.delete(signInStarts.keys().next().value!);
+  return true;
+}
+
+// Approved servers the bot is in, where this Discord user is a member right now.
+async function signInServers(client: Client | undefined, discordUserId: string) {
+  if (!client?.isReady()) return [];
+  const guilds = await prisma.guild.findMany({ select: { discordId: true, name: true } });
+  const found: { discordId: string; name: string }[] = [];
+  for (const guild of guilds) {
+    if (!hostedPilot.allows(guild.discordId)) continue;
+    const discordGuild = client.guilds.cache.get(guild.discordId);
+    const member = discordGuild ? await discordGuild.members.fetch({ user: discordUserId, force: true }).catch(() => null) : null;
+    if (member) found.push({ discordId: guild.discordId, name: discordGuild!.name || guild.name });
+  }
+  return found;
+}
+
+async function signInGuildCredential(client: Client | undefined, account: { discordUserId: string; username: string; displayName: string | null }, guildDiscordId: string) {
+  if (!(await signInServers(client, account.discordUserId)).some((server) => server.discordId === guildDiscordId)) return null;
+  const guild = await prisma.guild.findUnique({ where: { discordId: guildDiscordId }, select: { id: true } });
+  if (!guild) return null;
+  const member = await prisma.member.upsert({
+    where: { guildId_discordUserId: { guildId: guild.id, discordUserId: account.discordUserId } },
+    create: { guildId: guild.id, discordUserId: account.discordUserId, displayName: account.displayName ?? account.username },
+    update: {}
+  });
+  // Same rule as companionAccess: only active members get (and keep) companion access.
+  if (member.status !== "ACTIVE") return null;
+  return issueMemberCredential(prisma, member.id);
+}
+
 export function createSiteApp(client?: Client) {
   const leaderboards = createLeaderboardPages({ store: prismaLeaderboardStore(prisma), personal: personalStore });
-  const routes: WebRoute[] = [leaderboards.route];
+  const signInPage = companionSignInRoute({
+    signIn: companionSignIn,
+    servers: (discordUserId) => signInServers(client, discordUserId),
+    issueGuild: (account, guildDiscordId) => signInGuildCredential(client, account, guildDiscordId),
+    issuePersonal: async (accountId) => (await issuePersonalCredential(personalStore, accountId)).companionCredential
+  });
+  const routes: WebRoute[] = [signInPage, leaderboards.route];
   const meSections = [leaderboards.meSection];
   return createWebApp({
     store: prismaWebStore(prisma), auth: webAuthConfig(config), allows: (id) => hostedPilot.allows(id), routes, meSections,
@@ -292,16 +338,38 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const isPoeStatus = request.method === "GET" && url.pathname === "/api/v1/poe/status";
       const isPoeRecent = request.method === "GET" && url.pathname === "/api/v1/poe/visits";
       const isLogout = request.method === "POST" && url.pathname === "/api/v1/companion/logout";
+      const isSignInStart = request.method === "POST" && url.pathname === "/api/v1/companion/sign-in";
+      const isSignInPoll = request.method === "POST" && url.pathname === "/api/v1/companion/sign-in/poll";
       // The companion's own pages: wishlists for members; prices, core rules and rosters for Raid Leaders.
       const isManageView = request.method === "GET" && url.pathname === "/api/v1/manage";
       const isManageEdit = request.method === "POST" && url.pathname === "/api/v1/manage";
-      if (!isImport && !isPairing && !isPublicRuns && !isStandings && !isPoeUpload && !isPoeStatus && !isPoeRecent && !isLogout && !isManageView && !isManageEdit) {
+      if (!isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isStandings && !isPoeUpload && !isPoeStatus && !isPoeRecent && !isLogout && !isManageView && !isManageEdit) {
         json(response, 404, { error: "Not found" });
         return;
       }
       const address = clientAddress(request);
       if (isLockedOut(address)) {
         json(response, 429, { error: "Too many failed attempts. Try again in a few minutes." });
+        return;
+      }
+      if (isSignInStart) {
+        // Needs the website's Discord sign-in; a bot without it keeps pairing codes only.
+        const auth = webAuthConfig(config);
+        if (!auth) { json(response, 503, { error: "Sign-in with Discord is not set up on this bot. Use a pairing code instead." }); return; }
+        if (!allowSignInStart(address)) { json(response, 429, { error: "Too many sign-in attempts. Try again later." }); return; }
+        const started = companionSignIn.start();
+        if (!started) { json(response, 503, { error: "Too many sign-ins in progress. Try again in a few minutes." }); return; }
+        const page = new URL("/me/companion", auth.siteUrl);
+        page.searchParams.set("request", started.requestId);
+        json(response, 200, { requestId: started.requestId, confirm: started.confirm, expiresAt: started.expiresAt.toISOString(), url: page.href });
+        return;
+      }
+      if (isSignInPoll) {
+        const payload = await readBody(request) as { requestId?: unknown } | null;
+        const answer = companionSignIn.poll(payload?.requestId);
+        if (answer === "pending") { json(response, 202, { status: "pending" }); return; }
+        if (answer === "expired") { json(response, 410, { error: "This sign-in expired. Choose Sign in with Discord again." }); return; }
+        json(response, 200, answer);
         return;
       }
       if (isPairing) {

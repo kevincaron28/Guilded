@@ -79,6 +79,17 @@ export async function revokeCompanionCredentials(database: PrismaClient | Tx, me
   await database.companionCredential.updateMany({ where: { memberId, revokedAt: null }, data: { revokedAt: new Date() } });
 }
 
+// A fresh companion credential for this member, replacing any older one: the companion's
+// Discord sign-in (companion-signin.ts) uses it after checking the member is in the server.
+export async function issueMemberCredential(database: PrismaClient, memberId: string): Promise<string> {
+  const credential = randomBytes(32).toString("base64url");
+  await database.$transaction(async (tx) => {
+    await revokeCompanionCredentials(tx, memberId);
+    await tx.companionCredential.create({ data: { memberId, tokenHash: hashCompanionSecret(credential) } });
+  });
+  return credential;
+}
+
 export async function issueCharacterPairingCode(database: PrismaClient, guildId: string, memberId: string, now = new Date()) {
   const code = randomBytes(6).toString("hex").toUpperCase();
   const expiresAt = new Date(now.getTime() + PAIRING_CODE_LIFETIME_MS);

@@ -211,3 +211,29 @@ describe("online companion spreadsheet export", () => {
     expect(env.fetch.mock.calls.length).toBe(calls);
   });
 });
+
+describe("online companion in personal mode (7.0)", () => {
+  it("pairs with a website code and sends GuildedDungeons runs to the public leaderboards", async () => {
+    const { env, choose } = environment();
+    const end = Math.floor(Date.now() / 1000) - 600;
+    env.fetch.mockImplementation((async (url: string, options: { body?: string }) => {
+      if (url.endsWith("addon-pairings")) return { ok: true, status: 200, json: async () => ({ companionCredential: "p".repeat(43), personal: true }) };
+      if (url.endsWith("public-runs")) {
+        const body = JSON.parse(options.body!);
+        return { ok: true, status: 200, json: async () => ({ accepted: body.runs.map((run: { id: string }) => run.id), confirmed: [], duplicates: [], rejected: [] }) };
+      }
+      return { ok: true, status: 200, json: async () => ({}) };
+    }) as never);
+    const api = createBrowserCompanion(env as never);
+    const paired = await api.pairAccount({ wowEnabled: true, poeEnabled: false, pairingCode: "P0123456789A" });
+    expect(paired.message).toContain("public leaderboards");
+    choose(new File([`GuildedDungeonsDB = { ["character"] = { ["name"] = "Kev", ["realm"] = "Doomhowl" }, ["dungeon"] = { ["runs"] = { ["QG-1"] = { ["id"] = "QG-1", ["state"] = "COMPLETED", ["instanceId"] = 389, ["name"] = "Ragefire Chasm", ["startedAt"] = ${end - 1500}, ["endedAt"] = ${end}, ["players"] = { ["Kev"] = { ["presentSec"] = 1500 } } } } } }`], "GuildedDungeons.lua"));
+    await api.browseFile();
+    await api.uploadNow();
+    const sent = env.fetch.mock.calls.find((call) => call[0] === "/api/v1/public-runs")!;
+    expect(JSON.parse(sent[1].body!)).toMatchObject({ character: { name: "Kev", realm: "Doomhowl" }, runs: [{ id: "QG-1" }] });
+    expect(env.fetch.mock.calls.some((call) => call[0] === "/api/v1/addon-imports")).toBe(false);
+    await expect(api.refreshStandings()).rejects.toThrow("no guild standings");
+    expect(((await api.getAll()).state.lastUpload as unknown as { message: string }).message).toBe("Public leaderboards: 1 new, 0 confirmed, 0 already sent.");
+  });
+});

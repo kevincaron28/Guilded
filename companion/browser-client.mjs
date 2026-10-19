@@ -3,6 +3,7 @@ import { standingsToLua } from "./standings-format.mjs";
 import { createBrowserFolderAccess } from "./browser-folders.mjs";
 import { acknowledgements, pruneAcknowledged } from "./delta.mjs";
 import { sheetFiles } from "./sheet-export.mjs";
+import { personalPayload, personalResultMessage } from "./personal-runs-content.mjs";
 
 /* global __GUILDED_VERSION__ */
 // Filled in by scripts/build-companion-web.mjs from package.json.
@@ -70,6 +71,16 @@ export function createBrowserCompanion(env = globalThis) {
     return body;
   }
   const guildQuery = () => `guild=${encodeURIComponent(config.guildDiscordId)}`;
+  // Personal mode (a code from guilded.kcaron.top/me/): GuildedDungeons.lua first, Guilded.lua otherwise.
+  const savedNames = () => (config.personal ? ["GuildedDungeons.lua", "Guilded.lua"] : ["Guilded.lua"]);
+  async function uploadPersonal(currentFile) {
+    const { character, runs } = personalPayload(await currentFile.text(), config.realm);
+    if (!character) throw new Error("The saved file has no character yet. Log in once with Guilded Dungeons, then /reload.");
+    if (!runs.length) { log("info", "No finished dungeon run to send yet."); return; }
+    const result = personalResultMessage(await request("/api/v1/public-runs", { character, runs }));
+    state.lastUpload = { at: new Date().toISOString(), message: result.message }; state.uploads++; state.uploadError = null;
+    log(result.level, result.message);
+  }
   const pick = extension => new Promise(resolve => {
     const input = document.createElement("input"); input.type = "file"; input.accept = extension;
     input.addEventListener("change", () => { const file = input.files[0]; input.remove(); resolve(file || null); }, { once: true });
@@ -79,8 +90,9 @@ export function createBrowserCompanion(env = globalThis) {
     if (busy) return; busy = true;
     try {
       if (!config.companionCredential) throw new Error("Connect your Discord account first.");
-      const currentFile = config.wowEnabled && folders.hasInput() ? await folders.readInput() : wowFile;
-      if (config.wowEnabled && currentFile) {
+      const currentFile = config.wowEnabled && folders.hasInput() ? await folders.readInput(savedNames()) : wowFile;
+      if (config.personal && currentFile) await uploadPersonal(currentFile);
+      else if (config.wowEnabled && currentFile) {
         const full = await readBrowserAddon(currentFile, config.realm);
         if (config.wowGuild && full.wowGuild && full.wowGuild !== config.wowGuild) throw new Error("This saved data belongs to a different WoW guild.");
         // Entries the bot already stored are left out (known from this tab's last standings answer).
@@ -125,7 +137,7 @@ export function createBrowserCompanion(env = globalThis) {
   const api = {
     browser: true,
     folderAccess: folders.available,
-    getAll: async () => { await folders.ready; if (folders.hasInput()) state.watching = "SavedVariables / Guilded.lua"; return { config, logs, ...snapshot(), autostart: false, version: VERSION }; },
+    getAll: async () => { await folders.ready; if (folders.hasInput()) state.watching = `SavedVariables / ${savedNames()[0]}`; return { config, logs, ...snapshot(), autostart: false, version: VERSION }; },
     saveConfig: async next => {
       if (busy) return { ok: false, message: "Wait for the current sync to finish before changing settings." };
       if (visits.length && ["poeCharacter", "poeLeague", "poeMode", "guildDiscordId"].some(field => next[field] !== config[field])) return { ok: false, message: "Sync your queued visits before changing character, league, mode or server." };
@@ -143,8 +155,9 @@ export function createBrowserCompanion(env = globalThis) {
         const result = await request("/api/v1/addon-pairings", { ...(server ? { guildDiscordId: server } : {}), code: (next.pairingCode || "").trim() });
         if (typeof result.companionCredential !== "string" || result.companionCredential.length < 32) throw new Error("The bot did not return a valid Discord link. Please try a fresh pairing code.");
         botFeatures = new Set(); ack = null;
-        config = { ...config, ...next, guildDiscordId: typeof result.guildDiscordId === "string" ? result.guildDiscordId : server || config.guildDiscordId, pairingCode: "", companionCredential: result.companionCredential, uploadUrl: `${location.origin}/api/v1/addon-imports` }; state.running = true; state.uploadError = null; persist(); emit();
-        return { ok: true, message: "Discord connected. Choose your game files to start syncing." };
+        const personal = result.personal === true;
+        config = { ...config, ...next, personal, guildDiscordId: personal ? "" : typeof result.guildDiscordId === "string" ? result.guildDiscordId : server || config.guildDiscordId, pairingCode: "", companionCredential: result.companionCredential, uploadUrl: `${location.origin}/api/v1/addon-imports` }; state.running = true; state.uploadError = null; persist(); emit();
+        return { ok: true, message: personal ? "Website account connected. Choose your GuildedDungeons.lua (or Guilded.lua), then Sync now: your finished runs go to the public leaderboards." : "Discord connected. Choose your game files to start syncing." };
       } catch (error) { return { ok: false, message: error.message }; }
       finally { busy = false; }
     },
@@ -156,6 +169,7 @@ export function createBrowserCompanion(env = globalThis) {
           emit();
           return { ok: true, message: "Server is online. Enter the code from /character pair, then Connect. Your account is not linked yet." };
         }
+        if (config.personal) { emit(); return { ok: true, message: "Website account connected (public dungeon leaderboards). Select your saved file and use Sync now." }; }
         const server = next.guildDiscordId?.trim() || config.guildDiscordId;
         if (!server) return { ok: false, message: "Server is online. Enter your Discord server ID (Advanced preferences) before checking your account connection." };
         const path = next.wowEnabled === false ? "/api/v1/poe/status" : "/api/v1/standings";
@@ -169,12 +183,13 @@ export function createBrowserCompanion(env = globalThis) {
     browseFile: async () => {
       if (busy) throw new Error("Wait for the current sync before changing files.");
       if (folders.available) {
-        const name = await folders.chooseInput(); wowFile = undefined; state.watching = name;
+        const name = await folders.chooseInput(savedNames()); wowFile = undefined; state.watching = name;
         log("info", "SavedVariables folder selected. After /reload, Sync now reads the latest Guilded.lua.");
         if (folders.storageWarning()) log("warn", folders.storageWarning());
         return name;
       }
-      const file = await pick(".lua"); if (!file) return null; await readBrowserAddon(file, config.realm); wowFile = file; state.watching = file.name; log("info", "WoW saved data selected. Choose Sync now to send it."); return file.name;
+      const file = await pick(".lua"); if (!file) return null;
+      if (config.personal) personalPayload(await file.text(), config.realm); else await readBrowserAddon(file, config.realm); wowFile = file; state.watching = file.name; log("info", "WoW saved data selected. Choose Sync now to send it."); return file.name;
     },
     forgetFiles: async () => { if (busy) throw new Error("Wait for the current sync to finish."); await folders.forget(); wowFile = undefined; state.watching = null; config.watchFile = ""; persist(); emit(); },
     browsePoeLog: async profile => {
@@ -206,6 +221,7 @@ export function createBrowserCompanion(env = globalThis) {
     getPoeRuns: async () => (await request(`/api/v1/poe/visits?${guildQuery()}`)).visits,
     refreshStandings: async () => {
       if (!config.companionCredential) throw new Error("Connect your Discord account first.");
+      if (config.personal) throw new Error("A website (personal) connection has no guild standings: it only sends your dungeon runs to the public leaderboards.");
       if (busy) throw new Error("Wait for the current sync to finish."); busy = true;
       try {
         await saveBrowserStandings();
@@ -215,7 +231,8 @@ export function createBrowserCompanion(env = globalThis) {
     setAutostart: async () => false, openAddonFolder: async () => false,
     removeData: async () => {
       if (busy) throw new Error("Wait for sync to finish.");
-      if (config.companionCredential) await request("/api/v1/companion/logout", { guildDiscordId: config.guildDiscordId });
+      // A personal credential is disconnected from guilded.kcaron.top/me/; a guild one here.
+      if (config.companionCredential && !config.personal) await request("/api/v1/companion/logout", { guildDiscordId: config.guildDiscordId });
       try { await folders.forget(); }
       finally {
         config.companionCredential = ""; visits = []; state.running = false;

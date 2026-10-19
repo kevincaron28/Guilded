@@ -124,16 +124,18 @@ export function describeConfig(config: DungeonConfig, dungeonNames: Map<number, 
 
 // Ends the current season (kept for history), crowns its Season Champion
 // (highest rating, or legacy participation; ties share the crown).
-// An optional expected ID makes one-time migration retries safe.
-export async function startSeason(database: Db, guildId: string, name: string, expectedSeasonId?: string, endsAt?: Date, presetRules?: ReturnType<typeof createDungeonRatingRules>) {
+// An optional expected ID makes one-time migration retries safe; null expects no active season.
+// startsAt (default now) may be later than now: runs before it do not count for the new season.
+export async function startSeason(database: Db, guildId: string, name: string, expectedSeasonId?: string | null, endsAt?: Date, presetRules?: unknown, startsAt?: Date) {
   if (presetRules && !hasDungeonRating(presetRules)) throw new Error("Invalid season preset.");
   if (endsAt && (!Number.isFinite(endsAt.getTime()) || endsAt.getTime() <= Date.now())) throw new Error("Season end must be a future date with a time zone.");
+  if (startsAt && (!Number.isFinite(startsAt.getTime()) || endsAt && startsAt >= endsAt)) throw new Error("Season start must be a date before its end.");
   const trimmed = name.trim();
   if (trimmed.length < 2 || trimmed.length > 60) throw new Error("Season name must be 2 to 60 characters.");
   return database.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${guildId}, 0))`;
     const ending = await tx.dungeonSeason.findFirst({ where: { guildId, status: "ACTIVE" }, orderBy: { startsAt: "desc" } });
-    if (expectedSeasonId !== undefined && ending?.id !== expectedSeasonId) throw new Error("The active season changed; no season was rotated.");
+    if (expectedSeasonId !== undefined && (ending?.id ?? null) !== expectedSeasonId) throw new Error("The active season changed; no season was rotated.");
     const count = ending ? await tx.member.count({ where: { guildId } }) : 0;
     const top = ending ? await leaderboard(tx, guildId, "season", null, Math.max(count, 1)) : [];
     const rated = ending && hasDungeonRating(ending.ratingRules) ? await dungeonRating(tx, guildId, ending) : null;
@@ -167,8 +169,8 @@ export async function startSeason(database: Db, guildId: string, name: string, e
     for (const past of ended) if (past.endsAt && past.endsAt < now) {
       await tx.dungeonSeason.update({ where: { id: past.id }, data: { endsAt: past.endsAt } });
     }
-    const season = await tx.dungeonSeason.create({ data: { guildId, name: trimmed, startsAt: now, ...(endsAt ? { endsAt } : {}),
-      ratingRules: presetRules ?? createDungeonRatingRules(dungeonConfig(rules?.dungeonConfig).targets, 3, dungeonConfig(rules?.dungeonConfig).levelBands) } });
+    const season = await tx.dungeonSeason.create({ data: { guildId, name: trimmed, startsAt: startsAt ?? now, ...(endsAt ? { endsAt } : {}),
+      ratingRules: (presetRules as Prisma.InputJsonValue | undefined) ?? createDungeonRatingRules(dungeonConfig(rules?.dungeonConfig).targets, 3, dungeonConfig(rules?.dungeonConfig).levelBands) } });
     return { season, ended: ended.map((row) => row.name), champions: champions.map((row) => row.name) };
   });
 }

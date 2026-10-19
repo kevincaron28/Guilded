@@ -2,7 +2,7 @@ import { MessageFlags, SlashCommandBuilder, type ChatInputCommandInteraction, ty
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 
-// /officer leaderboard: include this guild's dungeon runs on guilded.kcaron.top/leaderboards/ (7.0).
+// /mod leaderboard: include this guild's dungeon runs on guilded.kcaron.top/leaderboards/ (7.0).
 // Only valid, completed runs, with character names, class, role, time and deaths.
 export const publicLeaderboardCommand = new SlashCommandBuilder()
   .setName("leaderboard")

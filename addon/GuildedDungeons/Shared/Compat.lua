@@ -160,11 +160,13 @@ local finalBossFallbacks = {
 function compat.isDungeonFinalBoss(instanceId, encounterId, name, difficultyId)
   if ns.dungeonRoutes and not secret(encounterId) and not secret(name) and not secret(difficultyId)
     and ns.dungeonRoutes.matchesFinal(ns.dungeonRoutes.verified, instanceId, difficultyId, tonumber(encounterId), name) then return true end
-  -- Scarlet wings share map 189. English/French event names identify their endpoints;
-  -- unknown names still use the native journal when available.
+  -- Scarlet wings share map 189. English/French event names identify their endpoints
+  -- (the same names the bot uses to tell the wings apart); unknown names still use the
+  -- native journal when available.
   if instanceId == 189 and not secret(name) and type(name) == "string" then
     local bosses = { ["Bloodmage Thalnos"]=true, ["Mage de sang Thalnos"]=true,
-      ["Arcanist Doan"]=true, ["Arcaniste Doan"]=true }
+      ["Arcanist Doan"]=true, ["Arcaniste Doan"]=true, ["Herod"]=true, ["H\195\169rode"]=true,
+      ["High Inquisitor Whitemane"]=true, ["Grande Inquisitrice Blanchet\195\170te"]=true }
     if bosses[name] then return true end
   end
   local boss = finalBossFallbacks[instanceId]

@@ -47,7 +47,8 @@
           "poe-events.mjs",
           "delta.mjs",
           "data-addon.mjs",
-          "personal-runs.mjs"
+          "personal-runs.mjs",
+          "sheet-export.mjs"
         ]
       },
       {

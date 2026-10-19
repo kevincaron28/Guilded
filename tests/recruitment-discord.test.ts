@@ -4,7 +4,7 @@ import { describeListing, listingPatch, saveListing } from "../src/commands/recr
 import { handleWebApplicationButton, webApplicationEmbed, webApplicationRows } from "../src/services/recruitment-discord.js";
 import { memoryWebStore } from "./helpers/memory-web-store.js";
 
-describe("/officer recruit", () => {
+describe("/mod recruit", () => {
   it("keeps saved fields for empty options and clears text with none", () => {
     expect(listingPatch({ open: true })).toEqual({ open: true });
     expect(listingPatch({ open: false, classes: "prêtre, chaman", roles: "heal", days: "mer dim", times: "20h-23h", language: "fr", faction: "ALLIANCE", realm: "Doomhowl", note: "none" }))

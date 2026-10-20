@@ -108,10 +108,38 @@ systemctl restart guilded
 
 PORT="$(grep -E '^COMPANION_API_PORT=' "$APP/.env.local" 2>/dev/null | tail -1 | cut -d= -f2 | tr -d '"' || true)"
 PORT="${PORT:-8787}"
+health_commands() {
+  curl -fsS "http://127.0.0.1:$PORT/health" 2>/dev/null \
+    | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(String(JSON.parse(s).commands??"unknown"))}catch{process.stdout.write("unknown")}})' \
+    || echo unknown
+}
+
 for i in $(seq 1 40); do
   if curl -fsS "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; then
     VERSION="$(node -p "require('$APP/package.json').version" 2>/dev/null || echo '?')"
     say "The bot is back (version $VERSION, $AFTER)"
+    # Discord refuses a server's whole command list when one entry is invalid, and the bot keeps
+    # running with the old commands. It says so on /health ("commands"); wait for its answer.
+    COMMANDS=pending
+    for j in $(seq 1 90); do
+      COMMANDS="$(health_commands)"
+      [ "$COMMANDS" = "pending" ] || break
+      sleep 1
+    done
+    case "$COMMANDS" in
+      ok) echo "Discord accepted the slash commands in every server." ;;
+      failed)
+        say "Discord refused the new slash commands"
+        echo "The bot is running, but members still see the previous commands."
+        journalctl -u guilded -n 300 --no-pager | grep -A4 'Command registration failed' | tail -20 || true
+        echo "Fix the command definition (the error above names it), then deploy again."
+        exit 2 ;;
+      pending)
+        say "Command registration did not finish within 90 seconds"
+        echo "Check: sudo journalctl -u guilded -n 200 | grep 'Command registration'"
+        exit 2 ;;
+      *) echo "This bot version does not report command registration on /health." ;;
+    esac
     echo "Check it in Discord with /report ping. Logs: sudo journalctl -u guilded -n 50"
     exit 0
   fi

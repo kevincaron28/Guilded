@@ -44,6 +44,8 @@ export async function replyWithCommandError(
       source: interaction.commandName,
       guildId: interaction.guildId,
       guildName: interaction.guild?.name,
+      channelId: interaction.channelId,
+      operation: `/${[interaction.commandName, interaction.options.getSubcommandGroup(false), interaction.options.getSubcommand(false)].filter(Boolean).join(" ")}`,
       userId: interaction.user.id
     });
   }

@@ -38,15 +38,17 @@ function candidateRoots() {
 
 // Returns [{ path, exists }]: the file itself when it exists, otherwise where
 // it will appear once the game has saved once (an account's SavedVariables).
-function detectSavedVariables() {
+// `names` in order of preference: leaderboards-only (personal) mode passes
+// GuildedDungeons.lua then Guilded.lua; the companion reads both from the folder.
+function detectSavedVariables(names = ["Guilded.lua"]) {
   const results = [];
   for (const root of candidateRoots()) {
     for (const wtf of findWtfFolders(root)) {
       for (const account of subdirs(path.join(wtf, "Account"))) {
         const folder = path.join(account, "SavedVariables");
         if (!fs.existsSync(folder)) continue;
-        const file = path.join(folder, "Guilded.lua");
-        results.push({ path: file, exists: fs.existsSync(file) });
+        const found = names.map((name) => path.join(folder, name)).find((file) => fs.existsSync(file));
+        results.push({ path: found ?? path.join(folder, names[0]), exists: !!found });
       }
     }
   }

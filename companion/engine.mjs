@@ -6,7 +6,7 @@ import { standingsFileHolds, writeStandings } from "./standings.mjs";
 import { credentialHeaders, checkUrl, requestJson, jsonBody, MAX_UPLOAD_BYTES } from "./request.mjs";
 import { acknowledgements, pruneAcknowledged } from "./delta.mjs";
 import { createPoeEngine, validatePoeConfig } from "./poe-engine.mjs";
-import { uploadPersonalRuns } from "./personal-runs.mjs";
+import { personalSavedFiles, uploadPersonalRuns } from "./personal-runs.mjs";
 
 // The companion's working parts, shared by the command-line watcher
 // (watcher.mjs) and the desktop app (companion-app/). It watches the addon's
@@ -16,12 +16,12 @@ import { uploadPersonalRuns } from "./personal-runs.mjs";
 //   onState(state)                    a snapshot after every change
 export function validateConfig(config) {
   const problems = [];
-  if (config.wowEnabled !== false && !config.watchFile) problems.push("The saved-data file (Guilded.lua) is not set.");
+  if (config.wowEnabled !== false && !config.watchFile) problems.push(config.personal ? "The saved-data file (GuildedDungeons.lua or Guilded.lua) is not set." : "The saved-data file (Guilded.lua) is not set.");
   if (config.wowEnabled === false && !config.poeEnabled) problems.push("Enable WoW or PoE2 tracking before starting.");
   if (!config.uploadUrl) problems.push("The bot address is not set.");
   const linked = typeof config.companionCredential === "string" && config.companionCredential.length >= 32;
   if (!linked) problems.push("Connect your account first: choose Sign in with Discord (or enter a pairing code) in Connection & setup.");
-  // Personal mode (a code from guilded.kcaron.top/me/) has no guild: only public dungeon runs.
+  // Personal mode (leaderboards only, from Sign in with Discord or a /me/ code) has no guild: only public dungeon runs.
   else if (!config.guildDiscordId && !config.personal) problems.push("The Discord server ID is not set.");
   if (config.uploadUrl) { try { checkUrl(config.uploadUrl); } catch (error) { problems.push(error.message); } }
   return [...problems, ...validatePoeConfig(config)];
@@ -67,7 +67,7 @@ function pairingResult(config, body) {
     return { ok: false, message: "The bot response did not include a valid companion credential." };
   }
   if (body.personal === true) {
-    return { ok: true, personal: true, companionCredential: body.companionCredential, guildDiscordId: "", message: "Website account connected. Your finished dungeon runs go to the public leaderboards (guilded.kcaron.top/leaderboards/). Choose GuildedDungeons.lua (or Guilded.lua) as the saved-data file, then Save and start." };
+    return { ok: true, personal: true, companionCredential: body.companionCredential, guildDiscordId: "", message: "Leaderboards account connected. Your finished dungeon runs go to the public leaderboards (guilded.kcaron.top/leaderboards/). In step 2, choose GuildedDungeons.lua or Guilded.lua (with both addons, both are read), then Save and start." };
   }
   return { ok: true, personal: false, message: config.wowEnabled === false ? "Discord account paired. Your PoE2 observations will belong to this account; choose your PoE2 settings and Save and start." : "Discord account paired. The companion links your own character on its next upload; the guild import still follows its usual apply setting.", companionCredential: body.companionCredential, guildDiscordId: typeof body.guildDiscordId === "string" ? body.guildDiscordId : config.guildDiscordId };
 }
@@ -212,6 +212,12 @@ export function createEngine(initialConfig, hooks = {}) {
   async function fileStamp(path) {
     try { const info = await stat(path); return `${info.mtimeMs}:${info.size}`; } catch { return null; }
   }
+  // Personal mode reads both addons' saved files from the folder (personal-runs.mjs).
+  const watchedFiles = (current = config) => (current.personal ? personalSavedFiles(current.watchFile) : [current.watchFile]);
+  async function savedStamp(current = config) {
+    const [first, ...rest] = await Promise.all(watchedFiles(current).map(fileStamp));
+    return first === null ? null : [first, ...rest].join("|");
+  }
 
   async function send(current, exported, epoch) {
     const gzip = features.has("gzip-upload") && !gzipOff;
@@ -246,7 +252,7 @@ export function createEngine(initialConfig, hooks = {}) {
     state.pendingUpload = true;
     state.retryAt = null;
     try {
-      lastFile = await fileStamp(current.watchFile);
+      lastFile = await savedStamp(current);
       const result = await uploadPersonalRuns(current, controller.signal);
       if (epoch !== generation) return;
       state.lastUpload = { at: new Date().toISOString(), message: result.message };
@@ -443,10 +449,10 @@ export function createEngine(initialConfig, hooks = {}) {
   }
 
   function watchFolder() {
-    const name = basename(config.watchFile).toLowerCase();
+    const names = watchedFiles().map((path) => basename(path).toLowerCase());
     // Watch the folder, not the file: WoW replaces the file on save.
     const current = watch(dirname(config.watchFile), (_event, filename) => {
-      if (filename && filename.toString().toLowerCase() === name) scheduleUpload();
+      if (filename && names.includes(filename.toString().toLowerCase())) scheduleUpload();
     });
     watcher = current;
     watchStartedAt = Date.now();
@@ -528,7 +534,7 @@ export function createEngine(initialConfig, hooks = {}) {
     fileCheckTimer = setInterval(() => track((async () => {
       retryWatch();
       if (!state.running || uploading || lastFile === null) return;
-      const now = await fileStamp(config.watchFile);
+      const now = await savedStamp();
       if (now && now !== lastFile) scheduleUpload(0);
     })()), FILE_CHECK_MS);
     if (config.personal) {

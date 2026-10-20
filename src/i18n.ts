@@ -186,31 +186,31 @@ const STRINGS = {
   },
   "pair.optionalTitle": { en: "Optional: sync with the online companion", fr: "Facultatif : synchroniser avec le compagnon en ligne" },
   "pair.optional": {
-    en: "Want to sync saved data and download standings? Press **Connect optional companion** for a private connection code and 3 steps. The online companion runs in your browser; the Windows app is optional. You can add it later and keep your linked characters.",
-    fr: "Tu veux synchroniser tes données et télécharger les classements ? Appuie sur **Connecter le compagnon (facultatif)** pour un code privé et 3 étapes. Le compagnon en ligne fonctionne dans ton navigateur; l'appli Windows est facultative. Tu peux l'ajouter plus tard en gardant tes personnages liés."
+    en: "Want to sync saved data and download standings? Press **Connect optional companion** for 3 steps: in the companion you choose **Sign in with Discord**, then this server. Nothing to type. The online companion runs in your browser; the Windows app is optional. You can add it later and keep your linked characters.",
+    fr: "Tu veux synchroniser tes données et télécharger les classements ? Appuie sur **Connecter le compagnon (facultatif)** pour 3 étapes : dans le compagnon, choisis **Connexion avec Discord**, puis ce serveur. Rien à taper. Le compagnon en ligne fonctionne dans ton navigateur; l'appli Windows est facultative. Tu peux l'ajouter plus tard en gardant tes personnages liés."
   },
   "pair.connectOptional": { en: "Connect optional companion", fr: "Connecter le compagnon (facultatif)" },
   "pair.characterOrderTitle": { en: "Link your main first, then alts", fr: "Lier le principal d'abord, puis les alts" },
   "pair.firstMain": {
-    en: "For your first sync, log in on the character you want as your **main**, then `/reload` and **Sync now**. The first new character becomes your main. Once it appears in `/character list`, repeat on an alt: later characters link as alts with the same companion. No new code needed for each alt.",
-    fr: "Pour ta première synchro, connecte-toi sur le personnage que tu veux comme **principal**, puis fais `/reload` et **Sync now**. Le premier nouveau personnage devient ton principal. Une fois qu'il apparaît dans `/character list`, répète sur un alt : les suivants sont liés comme alts avec le même compagnon. Aucun nouveau code nécessaire pour chaque alt."
+    en: "For your first sync, log in on the character you want as your **main**, then `/reload` and **Sync now**. The first new character becomes your main. Once it appears in `/character list`, repeat on an alt: later characters link as alts with the same companion. No new sign-in or code needed for each alt.",
+    fr: "Pour ta première synchro, connecte-toi sur le personnage que tu veux comme **principal**, puis fais `/reload` et **Sync now**. Le premier nouveau personnage devient ton principal. Une fois qu'il apparaît dans `/character list`, répète sur un alt : les suivants sont liés comme alts avec le même compagnon. Aucune nouvelle connexion ni code nécessaire pour chaque alt."
   },
   "pair.addAlts": {
-    en: "**Your main is already linked.** The code above connects a companion so you can add alts. **Companion already working?** Log in on an alt, `/reload`, then **Sync now**: it links as an alt and your main stays the same. No new code needed.",
-    fr: "**Ton principal est déjà lié.** Le code ci-dessus connecte un compagnon pour ajouter tes alts. **Ton compagnon fonctionne déjà ?** Connecte-toi sur un alt, fais `/reload`, puis **Sync now** : il sera lié comme alt et ton principal reste le même. Aucun nouveau code nécessaire."
+    en: "**Your main is already linked.** Connect a companion (steps above) to add alts. **Companion already working?** Log in on an alt, `/reload`, then **Sync now**: it links as an alt and your main stays the same. No new code needed.",
+    fr: "**Ton principal est déjà lié.** Connecte un compagnon (étapes ci-dessus) pour ajouter tes alts. **Ton compagnon fonctionne déjà ?** Connecte-toi sur un alt, fais `/reload`, puis **Sync now** : il sera lié comme alt et ton principal reste le même. Aucun nouveau code nécessaire."
   },
-  "pair.codeTitle": { en: "🔑 Your companion connection code", fr: "🔑 Ton code de connexion du compagnon" },
+  "pair.codeTitle": { en: "🔑 Companion older than 7.2? Use this code instead", fr: "🔑 Compagnon plus ancien que 7.2 ? Utilise plutôt ce code" },
   "pair.code": {
-    en: "```\n{code}\n```Paste it in the companion's **Connection & setup** and press **Connect**. Expires {expires} · one use · keep it private. It replaces your previous companion connection; your characters stay linked.",
-    fr: "```\n{code}\n```Colle-le dans **Connection & setup** du compagnon et appuie sur **Connect**. Expire {expires} · usage unique · garde-le privé. Il remplace ta connexion compagnon précédente; tes personnages restent liés."
+    en: "```\n{code}\n```Only if **Sign in with Discord** is missing or not possible: in **Connection & setup**, open **Older companions or your guild's own bot**, paste it and press **Connect**. Expires {expires} · one use · keep it private. It replaces your previous companion connection; your characters stay linked.",
+    fr: "```\n{code}\n```Seulement si **Sign in with Discord** manque ou n'est pas possible : dans **Connection & setup**, ouvre **Older companions or your guild's own bot**, colle-le et appuie sur **Connect**. Expire {expires} · usage unique · garde-le privé. Il remplace ta connexion compagnon précédente; tes personnages restent liés."
   },
   "pair.online": { en: "Open online companion", fr: "Ouvrir le compagnon en ligne" },
   "pair.openOnline": { en: "Open the online companion with the button below.", fr: "Ouvre le compagnon en ligne avec le bouton ci-dessous." },
   "pair.askLink": { en: "Ask an officer for your guild's online companion link.", fr: "Demande à un officier le lien du compagnon en ligne de ta guilde." },
-  "pair.syncTitle": { en: "First connection: 3 steps", fr: "Première connexion : 3 étapes" },
+  "pair.syncTitle": { en: "Connect the companion: 3 steps", fr: "Relier le compagnon : 3 étapes" },
   "pair.sync": {
-    en: "1. {companion} In **Connection & setup**, paste the code above and press **Connect**.\n2. Enable **World of Warcraft**, choose your account's **SavedVariables** folder (or `Guilded.lua`), then **Save preferences**.\n3. Log in on your main first, `/reload`, then **Sync now**. Use **Save standings to addon** once to select `Interface/AddOns/Guilded` (or download `Standings.lua` there). To use Discord standings in game, choose `/guilded setup connected`, then `/reload` again.",
-    fr: "1. {companion} Dans **Connection & setup**, colle le code ci-dessus et appuie sur **Connect**.\n2. Active **World of Warcraft**, choisis le dossier **SavedVariables** de ton compte (ou `Guilded.lua`), puis **Save preferences**.\n3. Connecte-toi sur ton principal d'abord, fais `/reload`, puis **Sync now**. Utilise **Save standings to addon** une fois pour choisir `Interface/AddOns/Guilded` (ou télécharge `Standings.lua` là). Pour utiliser les classements Discord en jeu, choisis `/guilded setup connected`, puis refais `/reload`."
+    en: "1. {companion} In **Connection & setup**, choose **Sign in with Discord**. Your browser opens: pick this server and press **Connect**. Nothing to type: the short code there only shows it is your companion.\n2. Enable **World of Warcraft**, choose your account's **SavedVariables** folder (or `Guilded.lua`), then **Save preferences**.\n3. Log in on your main first, `/reload`, then **Sync now**. Use **Save standings to addon** once to select `Interface/AddOns/Guilded` (or download `Standings.lua` there). To use Discord standings in game, choose `/guilded setup connected`, then `/reload` again.",
+    fr: "1. {companion} Dans **Connection & setup**, choisis **Sign in with Discord**. Ton navigateur s'ouvre : choisis ce serveur et appuie sur **Relier**. Rien à taper : le code court affiché montre seulement que c'est ton compagnon.\n2. Active **World of Warcraft**, choisis le dossier **SavedVariables** de ton compte (ou `Guilded.lua`), puis **Save preferences**.\n3. Connecte-toi sur ton principal d'abord, fais `/reload`, puis **Sync now**. Utilise **Save standings to addon** une fois pour choisir `Interface/AddOns/Guilded` (ou télécharge `Standings.lua` là). Pour utiliser les classements Discord en jeu, choisis `/guilded setup connected`, puis refais `/reload`."
   },
   "pair.checkTitle": { en: "Check the result", fr: "Vérifier le résultat" },
   "pair.check": {

@@ -34,10 +34,29 @@ export function acceptedToLua(refs) {
   return `-- Written by the Guilded companion: runs the public leaderboards hold.\nGuildedDungeonAccepted = GuildedDungeonAccepted or {}\nfor _, id in ipairs({ ${refs.slice(0, 500).map(luaString).join(", ")} }) do table.insert(GuildedDungeonAccepted, id) end\n`;
 }
 
-// The finished runs to send, newest first.
+// The two saved files personal mode reads, in the order it prefers them.
+export const PERSONAL_SAVED_FILES = ["GuildedDungeons.lua", "Guilded.lua"];
+
+// The finished runs to send, newest first, from one or both saved files. With both addons
+// installed Guilded records the runs and Guilded Dungeons stays silent, so its file can be
+// empty or older: runs from both are combined (same run ids, sent once), and the character is
+// the one from the file with the newest finished run.
+export function personalPayloadFrom(texts, fallbackRealm = "") {
+  const runs = new Map();
+  let character = null;
+  let newest = -1;
+  for (const text of texts.filter((value) => typeof value === "string")) {
+    const file = readPersonalRuns(text, fallbackRealm);
+    const finished = file.runs.filter((run) => run.state === "COMPLETED");
+    const latest = finished.reduce((max, run) => Math.max(max, run.endedAt ?? 0), -1);
+    if (file.character && (!character || latest > newest)) { character = file.character; newest = latest; }
+    for (const run of finished) if (!runs.has(run.id)) runs.set(run.id, run);
+  }
+  return { character, runs: [...runs.values()].sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0)).slice(0, MAX_PERSONAL_RUNS) };
+}
+
 export function personalPayload(text, fallbackRealm = "") {
-  const { character, runs } = readPersonalRuns(text, fallbackRealm);
-  return { character, runs: runs.filter((run) => run.state === "COMPLETED").sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0)).slice(0, MAX_PERSONAL_RUNS) };
+  return personalPayloadFrom([text], fallbackRealm);
 }
 
 // What the bot's answer means, in one line.

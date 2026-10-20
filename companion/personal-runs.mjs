@@ -1,13 +1,24 @@
 import { readFile, writeFile, rename, rm, mkdir } from "node:fs/promises";
-import { dirname, join, sep } from "node:path";
-import { acceptedToLua, personalPayload, personalResultMessage } from "./personal-runs-content.mjs";
+import { basename, dirname, join, sep } from "node:path";
+import { acceptedToLua, PERSONAL_SAVED_FILES, personalPayloadFrom, personalResultMessage } from "./personal-runs-content.mjs";
 import { credentialHeaders, jsonBody, requestJson } from "./request.mjs";
-export { acceptedToLua, personalPayload, personalResultMessage, readPersonalRuns } from "./personal-runs-content.mjs";
+export { acceptedToLua, personalPayload, personalPayloadFrom, personalResultMessage, readPersonalRuns } from "./personal-runs-content.mjs";
 
-// Personal mode (7.0): a companion paired with a code from guilded.kcaron.top/me/ (no guild).
-// It reads GuildedDungeons.lua (or Guilded.lua) and sends the player's finished dungeon runs to
-// the public leaderboards; the bot answers with the runs it holds, written to
-// AddOns/GuildedDungeons/Accepted.lua so the addon marks them as sent.
+// Personal mode (7.0): a companion linked to a website account ("Public dungeon leaderboards
+// only" in Sign in with Discord, or a code from guilded.kcaron.top/me/), no guild. It reads
+// GuildedDungeons.lua and Guilded.lua from the same SavedVariables folder (whichever addon the
+// player uses, or both) and sends the player's finished dungeon runs to the public leaderboards;
+// the bot answers with the runs it holds, written to AddOns/GuildedDungeons/Accepted.lua so the
+// addon marks them as sent.
+
+// The chosen saved file and its neighbour from the other addon, when that one exists too.
+export function personalSavedFiles(watchFile) {
+  const chosen = basename(String(watchFile ?? ""));
+  const other = PERSONAL_SAVED_FILES.find((name) => name.toLowerCase() !== chosen.toLowerCase());
+  return PERSONAL_SAVED_FILES.some((name) => name.toLowerCase() === chosen.toLowerCase()) && other
+    ? [watchFile, join(dirname(watchFile), other)]
+    : [watchFile];
+}
 
 export function resolveAcceptedPath(config) {
   if (config.acceptedFile) return config.acceptedFile;
@@ -30,9 +41,11 @@ async function writeAccepted(config, refs) {
 }
 
 export async function uploadPersonalRuns(config, signal) {
-  const { character, runs: finished } = personalPayload(await readFile(config.watchFile, "utf8"), config.realm);
+  const [chosen, ...others] = personalSavedFiles(config.watchFile);
+  const texts = [await readFile(chosen, "utf8"), ...await Promise.all(others.map((path) => readFile(path, "utf8").catch(() => null)))];
+  const { character, runs: finished } = personalPayloadFrom(texts, config.realm);
   if (!character) {
-    const error = new Error("The saved file has no character yet. Log in once with Guilded Dungeons, then /reload or log out.");
+    const error = new Error("The saved files have no character yet. Log in once with Guilded Dungeons (or Guilded), then /reload or log out.");
     error.retryable = false;
     throw error;
   }
@@ -43,7 +56,7 @@ export async function uploadPersonalRuns(config, signal) {
   }, signal);
   if (!response.ok) {
     const error = new Error(response.status === 401
-      ? "The website refused this companion. Get a new code on guilded.kcaron.top/me/ and connect again."
+      ? "The website refused this companion. Choose Sign in with Discord again in Connection & setup."
       : `Sending runs failed (${response.status}): ${body.error ?? "unknown error"}`);
     error.retryable = response.status === 429 || response.status >= 500;
     throw error;

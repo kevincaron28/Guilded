@@ -4,7 +4,8 @@ import { DEFAULT_DUNGEON_BRACKETS } from "./dungeon-november-rules.js";
 import { formatDuration } from "./dungeon-rules.js";
 import { issuePersonalCode, type PersonalStore } from "./personal-pairing.js";
 import { classLabel, className as classFromText, roleLabel, ROLES } from "./recruitment.js";
-import { characterId, characterScores, publicRules, publicSeasons, publicWeek, scoreRun, type PublicPeriod, type ScoreRow, type ScoreRun } from "./public-score.js";
+import type { OfficialWindow } from "./official-seasons.js";
+import { characterId, characterScores, DEFAULT_OFFICIAL, publicRules, publicSeasons, publicWeek, scoreRun, type PublicPeriod, type ScoreRow, type ScoreRun } from "./public-score.js";
 import { breadcrumbs } from "./site-header.js";
 import { escapeHtml, link, options } from "./web-layout.js";
 import type { WebContext, WebKit, WebResponse, WebRoute } from "./web-app.js";
@@ -59,15 +60,15 @@ export interface LeaderFilters {
 }
 const BRACKETS = DEFAULT_DUNGEON_BRACKETS.map((bracket) => bracket.key as string);
 
-export function readLeaderFilters(query: URLSearchParams, now = new Date()): LeaderFilters {
+export function readLeaderFilters(query: URLSearchParams, now = new Date(), periods: PublicPeriod[] = publicSeasons(now)): LeaderFilters {
   const dungeon = Number(query.get("dungeon"));
   const season = query.get("season") ?? "";
   const role = query.get("role")?.toUpperCase() ?? "";
   const realm = (query.get("realm") ?? "").trim().slice(0, 60);
-  const known = season === "all" || publicSeasons(now).some((p) => p.id === season);
+  const known = season === "all" || periods.some((p) => p.id === season);
   return {
     instanceId: Number.isInteger(dungeon) && dungeon > 0 ? dungeon : null,
-    season: known ? season : publicSeasons(now)[0]!.id,
+    season: known ? season : periods[0]!.id,
     week: query.get("period") === "week",
     bracket: BRACKETS.includes(query.get("bracket") ?? "") ? query.get("bracket") : null,
     className: query.get("class") ? classFromText(query.get("class")!) : null,
@@ -78,9 +79,9 @@ export function readLeaderFilters(query: URLSearchParams, now = new Date()): Lea
 }
 
 /** The time span the filters ask for: this week, one season, or all time. */
-export function filterPeriod(filters: Pick<LeaderFilters, "season" | "week">, now: Date): PublicPeriod {
+export function filterPeriod(filters: Pick<LeaderFilters, "season" | "week">, now: Date, periods: PublicPeriod[] = publicSeasons(now)): PublicPeriod {
   if (filters.week) return publicWeek(now);
-  return publicSeasons(now).find((p) => p.id === filters.season) ?? { id: "all", label: "All time", labelFr: "Depuis le début", from: null, to: null };
+  return periods.find((p) => p.id === filters.season) ?? { id: "all", label: "All time", labelFr: "Depuis le début", from: null, to: null };
 }
 
 type PlayerFilters = Pick<LeaderFilters, "className" | "role" | "confirmed"> & { realm?: string | null };
@@ -160,7 +161,9 @@ a.char{text-decoration:none;font-weight:600}.score{font-weight:700;color:var(--g
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px}.hero{display:flex;flex-wrap:wrap;gap:12px;align-items:baseline}.bar-cell{width:40%}.meter{height:8px;background:var(--gold);border-radius:4px}
 .tabs.views a{font-weight:700;padding:6px 16px}.guild-list{columns:2;padding-left:18px}.grid2 section h2{margin-top:24px}</style>`;
 
-export interface LeaderboardDeps { store: LeaderboardStore; personal: PersonalStore | null; now?: () => Date; cacheMs?: number }
+export interface LeaderboardDeps { store: LeaderboardStore; personal: PersonalStore | null; now?: () => Date; cacheMs?: number;
+  /** The owner's season calendar (official-seasons.ts); the seeded Season 1 when left out. */
+  calendar?: () => Promise<OfficialWindow[]> }
 
 export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute; meSection: (context: WebContext) => Promise<string> } {
   const now = deps.now ?? (() => new Date());
@@ -174,6 +177,13 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     if (cache.size > 500) cache.delete(cache.keys().next().value!);
     return value;
   }
+  // This request's seasons: the calendar, read at most once a minute.
+  const seasonsNow = async () => publicSeasons(now(), await cached("calendar", () => deps.calendar?.() ?? Promise.resolve(DEFAULT_OFFICIAL)));
+  const pageFilters = async (ctx: WebContext) => {
+    const periods = await seasonsNow();
+    const filters = readLeaderFilters(ctx.request.query, now(), periods);
+    return { periods, filters, period: filterPeriod(filters, now(), periods) };
+  };
   const periodRuns = (period: PublicPeriod) =>
     cached(`r:${period.id}:${period.from?.getTime() ?? ""}`, () => deps.store.runs({ from: period.from, to: period.to }));
 
@@ -190,10 +200,10 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
   const runScore = (run: LeaderRun) => scoreRun(run)?.points ?? null;
   const table = (head: string[], rows: string[], numeric: number[] = []) => `<div class="table-wrap"><table><thead><tr>${head.map((h, i) => `<th${numeric.includes(i) ? ' class="num"' : ""}>${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div>`;
 
-  function filterForm(ctx: WebContext, filters: LeaderFilters, dungeons: DungeonSummary[]): string {
+  function filterForm(ctx: WebContext, filters: LeaderFilters, dungeons: DungeonSummary[], periods: PublicPeriod[]): string {
     const { t, lang } = ctx;
     const any = { value: "", label: t("Any", "Tous") };
-    const seasons = publicSeasons(now()).map((p) => ({ value: p.id, label: periodName(ctx, p) }));
+    const seasons = periods.map((p) => ({ value: p.id, label: periodName(ctx, p) }));
     return `<form class="filters" method="get" action="/leaderboards/"><input type="hidden" name="lang" value="${lang}">`
       + `<div><label for="season">${t("Season", "Saison")}</label><select id="season" name="season">${options([...seasons, { value: "all", label: t("All time", "Depuis le début") }], filters.season)}</select></div>`
       + `<div><label for="period">${t("Period", "Période")}</label><select id="period" name="period">${options([{ value: "", label: t("Whole season", "Toute la saison") }, { value: "week", label: t("This week", "Cette semaine") }], filters.week ? "week" : "")}</select></div>`
@@ -251,8 +261,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
 
   async function guildsBoard(ctx: WebContext, kit: WebKit): Promise<WebResponse> {
     const { t, lang } = ctx;
-    const filters = readLeaderFilters(ctx.request.query, now());
-    const period = filterPeriod(filters, now());
+    const { filters, period } = await pageFilters(ctx);
     const ranks = await guildRanks(period);
     const guilds = await cached("guilds", () => deps.store.guilds());
     const base = "/leaderboards/guilds/";
@@ -269,8 +278,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
 
   async function board(ctx: WebContext, kit: WebKit): Promise<WebResponse> {
     const { t, lang } = ctx;
-    const filters = readLeaderFilters(ctx.request.query, now());
-    const period = filterPeriod(filters, now());
+    const { periods, filters, period } = await pageFilters(ctx);
     const all = await periodRuns(period);
     const dungeons = dungeonSummaries(all);
     let body: string;
@@ -301,7 +309,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
         + (ranks.length && !filters.className && !filters.role && !filters.realm && !filters.confirmed ? `<h2>${t("Top guilds", "Meilleures guildes")}</h2><div class="grid2">${brackets.map((b) => `<section><h3>${escapeHtml(bracketName(ctx, b.key))}</h3>${guildTable(ctx, ranks.filter((r) => r.bracket === b.key), 5)}</section>`).join("")}</div>`
           + `<p><a href="${link("/leaderboards/guilds/", lang, { season: filters.season, period: filters.week ? "week" : null })}">${t("All guild rankings →", "Tout le classement des guildes →")}</a></p>` : "");
     }
-    return kit.page(200, t("Dungeon leaderboards", "Classements des donjons"), PAGE_CSS + intro(ctx, period) + views(ctx, "characters", filters) + tabs(ctx, filters) + filterForm(ctx, filters, dungeons) + body,
+    return kit.page(200, t("Dungeon leaderboards", "Classements des donjons"), PAGE_CSS + intro(ctx, period) + views(ctx, "characters", filters) + tabs(ctx, filters) + filterForm(ctx, filters, dungeons, periods) + body,
       { description: t("WoW Forever dungeon scores and leaderboards by season, week, level bracket, dungeon, class, role and realm.", "Scores et classements des donjons WoW Forever par saison, semaine, niveaux, donjon, classe, rôle et royaume.") });
   }
 
@@ -317,7 +325,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const isMe = (player: LeaderPlayer) => player.character.toLowerCase() === name.toLowerCase() && (realm === null || player.realm.toLowerCase() === realm.toLowerCase());
     const me = runs.flatMap((run) => run.players.filter(isMe))[0];
     const title = `${me?.character ?? name}${realm ? `-${realm}` : ""}`;
-    const seasons = publicSeasons(now());
+    const seasons = await seasonsNow();
     const inPeriod = (p: PublicPeriod) => runs.filter((run) => (!p.from || run.endedAt >= p.from) && (!p.to || run.endedAt < p.to));
     const mine = (rows: ScoreRow[]) => rows.filter((row) => isMe(row.player));
     const current = mine(characterScores(inPeriod(seasons[0]!)));
@@ -346,8 +354,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const { t, lang } = ctx;
     const guild = (await cached("guilds", () => deps.store.guilds())).find((g) => g.id === id);
     if (!guild) return kit.page(404, t("Not found", "Introuvable"), PAGE_CSS + `<h1>${t("Guild not found", "Guilde introuvable")}</h1><p class="muted">${t("Only guilds that publish their runs have a page.", "Seules les guildes qui publient leurs essais ont une page.")}</p><p><a href="${link("/leaderboards/guilds/", lang)}">${t("Guild rankings", "Classement des guildes")}</a></p>`, { noindex: true });
-    const filters = readLeaderFilters(ctx.request.query, now());
-    const period = filterPeriod(filters, now());
+    const { filters, period } = await pageFilters(ctx);
     const runs = await guildRuns(id, period);
     const roster = new Set((await cached(`roster:${id}`, () => deps.store.guildRoster(id))).map((name) => name.toLowerCase()));
     // Members only: pickup players in the guild's runs keep their own character pages.

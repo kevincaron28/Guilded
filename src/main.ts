@@ -67,7 +67,8 @@ import { runRaidReminders } from "./services/reminders.js";
 import { runCooldownPings } from "./services/recipes.js";
 import { DUNGEON_SEASON_SELECT, handleDungeonSeasonSelect, updateDungeonLeaderboard } from "./services/dungeon-leaderboard.js";
 import { BACKUP_DIR, runBackup } from "./services/backup.js";
-import { rotateScheduledSeasons, startScheduledSeason } from "./services/dungeon-season-schedule.js";
+import { loadOfficialWindows, rotateOfficialSeasons, startOfficialSeason } from "./services/official-seasons.js";
+import { executeOwnerSeason, OWNER_SEASON_COMMAND, ownerSeasonCommand } from "./commands/owner-season.js";
 import { updateCommunityLeaderboard } from "./services/community-leaderboard.js";
 import { cleanupPastRaidPosts } from "./services/raid-post-cleanup.js";
 import { cleanupRaidAlerts } from "./services/raid-alert-cleanup.js";
@@ -261,13 +262,14 @@ client.once(Events.ClientReady, (readyClient) => {
   setInterval(() => void retention(), 6 * 60 * 60 * 1000);
   // Opted-in guilds' dungeon runs go to the public leaderboards (/mod leaderboard, 7.0).
   setInterval(() => void publishGuildRuns(prisma).catch(reportJobError("Public dungeon runs")), 15 * 60 * 1000);
-  // Monthly dungeon seasons (opted-in guilds, /organize dungeon-seasons): rotated at each start, after
-  // a backup to backups/seasons (dungeon-season-schedule.ts). Idempotent across restarts.
+  // Dungeon seasons follow the owner's calendar (/guilded-season, official-seasons.ts): every guild
+  // rotates at a season's start, after a backup to backups/seasons. Idempotent across restarts.
   let rotating = false;
   const rotateSeasons = () => {
     if (rotating) return;
     rotating = true;
-    rotateScheduledSeasons(prisma, new Date(), () => runBackup(prisma, new Date(), `${BACKUP_DIR}/seasons`, 24), startScheduledSeason(prisma))
+    loadOfficialWindows(prisma)
+      .then((windows) => rotateOfficialSeasons(prisma, windows, new Date(), (discordId) => hostedPilot.allows(discordId), () => runBackup(prisma, new Date(), `${BACKUP_DIR}/seasons`, 24), startOfficialSeason(prisma)))
       .then(async (rotated) => {
         for (const row of rotated) {
           console.info(`Dungeon season rotated: ${row.ended ?? "none"} -> ${row.season} (guild ${row.guildId}).`);
@@ -276,7 +278,7 @@ client.once(Events.ClientReady, (readyClient) => {
           await updateDungeonLeaderboard(discordGuild).catch(reportJobError("Dungeon leaderboard after season rotation"));
         }
       })
-      .catch(reportJobError("Monthly dungeon seasons")).finally(() => { rotating = false; });
+      .catch(reportJobError("Dungeon seasons")).finally(() => { rotating = false; });
   };
   setTimeout(rotateSeasons, 60_000);
   setInterval(rotateSeasons, 5 * 60 * 1000);
@@ -621,6 +623,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
   if (!interaction.isChatInputCommand()) return;
+  if (interaction.commandName === OWNER_SEASON_COMMAND) {
+    await executeOwnerSeason(interaction).catch((error: unknown) => replyWithCommandError(interaction, error));
+    return;
+  }
   const found = resolveCommand(commands, interaction);
   const handler = found.handler ?? handlers.get(found.legacy);
   if (!handler) {
@@ -635,9 +641,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
 });
 
 // Replaces the server's whole command list: the full set, or Guilded Lite's (commands/lite.ts).
+// The bot owner's /guilded-season exists only in the home server (DISCORD_GUILD_ID).
 async function registerCommands(guildId: string, body: unknown[] = commands.map((command) => command.toJSON())): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(config.DISCORD_TOKEN);
-  await rest.put(Routes.applicationGuildCommands(config.DISCORD_CLIENT_ID, guildId), { body });
+  const full = guildId === config.DISCORD_GUILD_ID ? [...body, ownerSeasonCommand.toJSON()] : body;
+  await rest.put(Routes.applicationGuildCommands(config.DISCORD_CLIENT_ID, guildId), { body: full });
 }
 
 // Commands are per-guild, so every server the bot is in needs them registered.

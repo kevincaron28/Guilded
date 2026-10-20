@@ -66,7 +66,7 @@ export function provisionalSeasonEmbed(): EmbedBuilder {
     .setDescription([
       "**Every target below is provisional**: a recommendation (plan of 18 October 2026) until real timed runs exist. During the season, `/officer dungeon recalibrate` replaces a route's target from at least 3 real timed runs; scores already earned keep their target.",
       `Map IDs and difficulty ${OBSERVED_DIFFICULTY} come from real beta-client runs. A run completes when the addon detects the final boss (Scarlet wings: their last boss by name). Above a route's levels: −${p.percentPerLevel}% per level, up to ${p.maxLevels}; beyond: 0.`,
-      "Start: `/officer dungeon bracket-start` with a name, start and end time. An active season is archived (frozen standings, runs and points kept) only with `rotate:true`."
+      "Start: seasons follow the Guilded owner's calendar (`/organize dungeon-seasons preview`); these rules start with Season 1 on 4 November."
     ].join("\n\n"));
   for (const b of rules.brackets) {
     const rows = plan.filter(r => r.bracket === b.key);

@@ -37,11 +37,12 @@ describe("public dungeon score", () => {
     expect(rows[0]!.routes.map(r => [r.key, r.points, r.counted])).toEqual([["389", 200, true]]);
   });
 
-  it("names public seasons from the monthly schedule, with Beta before 4 November", () => {
+  it("uses the seeded owner calendar by default: Beta before 4 November, then an open Season 1", () => {
     expect(publicSeasons(new Date("2026-10-20T00:00:00Z")).map(p => p.id)).toEqual(["beta"]);
     const december = publicSeasons(new Date("2026-12-15T00:00:00Z"));
-    expect(december.map(p => p.id)).toEqual(["s2", "s1", "beta"]);
-    expect(december[0]!.labelFr).toBe("Saison 2 · décembre 2026");
+    expect(december.map(p => p.id)).toEqual(["s1", "beta"]);
+    expect(december[0]!.labelFr).toBe("Saison 1");
+    expect(december[0]!.to).toBeNull();
     expect(publicWeek(new Date("2026-11-12T00:00:00Z")).from!.toISOString()).toBe("2026-11-10T15:00:00.000Z");
   });
 });

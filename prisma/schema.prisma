@@ -1130,6 +1130,18 @@ model CraftRequest {
 // addon.
 // ---------------------------------------------------------------------
 
+// The bot-wide dungeon season calendar (7.3): set only by the bot's owner with /guilded-season.
+// A season runs from its start to the next season's start; the last one has no end yet. Every
+// guild's dungeon season and the public leaderboards follow it (official-seasons.ts).
+model OfficialSeason {
+  id        String   @id @default(cuid())
+  number    Int      @unique
+  name      String
+  startsAt  DateTime @unique
+  createdBy String?
+  createdAt DateTime @default(now())
+}
+
 model DungeonSeason {
   id           String                    @id @default(cuid())
   guildId      String

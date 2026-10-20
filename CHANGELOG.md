@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Dungeon seasons follow one calendar set by the bot owner (`/guilded-season`, home server only):
+  Season 1 starts 4 November 2026 at 3 PM Pacific and runs until the owner starts the next one
+  (a big patch, or after 2-3 months). Every guild and the public leaderboards follow it; officers
+  can no longer start seasons (`/officer dungeon season-start` / `bracket-start` removed,
+  `/organize dungeon-seasons` is read-only). Migration `20261121090000_official_seasons`.
+
 ## 7.2.0 Release — 19 October 2026
 
 - Companion: Sign in with Discord replaces pairing codes (codes stay as a fallback), one-click

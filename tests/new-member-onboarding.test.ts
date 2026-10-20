@@ -60,7 +60,7 @@ describe("a new member's main and alt journey", () => {
     await characterLinkPrompt(member.database, "guild", "member", "server", "en");
     expect(member.db.characterPairing.upsert).not.toHaveBeenCalled();
     const reply = await characterLinkPrompt(member.database, "guild", "member", "server", "en", "companion");
-    const code = reply.embeds[0]!.data.fields![0]!.value.match(/```\n([A-F0-9]{12})\n```/)![1]!;
+    const code = reply.embeds[0]!.data.fields!.map(field => field.value).join(" ").match(/```\n([A-F0-9]{12})\n```/)![1]!;
     const connection = await exchangeCharacterPairingCode(member.database, "server", code);
     expect(connection.discordUserId).toBe("user");
     expect(await linkPairedCharacter(member.database, "guild", "member", self("NewMain"))).toBe("already-linked");
@@ -74,7 +74,7 @@ describe("a new member's main and alt journey", () => {
   it("links the first companion upload as main and the next character as alt with one connection", async () => {
     const member = newMember();
     const reply = await characterLinkPrompt(member.database, "guild", "member", "server", "en", "companion");
-    const code = reply.embeds[0]!.data.fields![0]!.value.match(/```\n([A-F0-9]{12})\n```/)![1]!;
+    const code = reply.embeds[0]!.data.fields!.map(field => field.value).join(" ").match(/```\n([A-F0-9]{12})\n```/)![1]!;
     await exchangeCharacterPairingCode(member.database, "server", code);
     await linkPairedCharacter(member.database, "guild", "member", self("NewMain"));
     await linkPairedCharacter(member.database, "guild", "member", self("NewAlt"));

@@ -22,6 +22,12 @@ describe("browser folder access", () => {
     expect(await (await restored.readInput())?.text()).toBe("fresh export");
     expect(f.read.getFileHandle.mock.calls.every(call => call[0] === "Guilded.lua")).toBe(true);
   });
+  it("reads every saved file a leaderboards-only connection uses, skipping the missing ones", async () => {
+    const f = fixture(); await f.api.ready; await f.api.chooseInput();
+    const files = await f.api.readInputs(["GuildedDungeons.lua", "Guilded.lua"]);
+    expect(await Promise.all(files.map(file => file.text()))).toEqual(["first export"]);
+    expect(f.read.getFileHandle.mock.calls.map(call => call[0])).toContain("GuildedDungeons.lua");
+  });
   it("refuses a revoked input permission without reading the file", async () => {
     const f = fixture(); await f.api.ready; await f.api.chooseInput(); f.read.getFileHandle.mockClear();
     f.read.queryPermission.mockResolvedValue("prompt");

@@ -1,3 +1,7 @@
+> 7.2.1 (20 October 2026): leaderboards-only companions read GuildedDungeons.lua AND Guilded.lua
+> (companion/personal-runs.mjs); pool of 8 DB connections (src/database.ts); /health "commands" and
+> deploy/update.sh stops when Discord refuses them; error reports carry their origin; official
+> seasons (/guilded-season) (docs/V7_2_1_RELEASE_NOTES.md).
 > 7.2.0 (19 October 2026): companion Sign in with Discord (/me/companion, src/services/companion-signin.ts),
 > one-click Update now (companion-app/update-check.cjs), one site menu in site/nav.mjs (docs/V7_2_0_RELEASE_NOTES.md).
 > 7.1.0 (19 October 2026): monthly dungeon seasons (/organize dungeon-seasons), weekly/monthly boards,
@@ -47,7 +51,7 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (19 October 2026): version 7.2.0 Release, protocol 2.**
+**Current status (20 October 2026): version 7.2.1 Release, protocol 2.**
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
 Standalone guild and optional Guilded Games work is next-version candidate
 source; do not overwrite the published 6.2.0 downloads or bump incidentally.
@@ -207,6 +211,8 @@ fresh sanitized screenshots and completed private owner behavior. Integrate PR15
 building from an older checkout so the next deployment cannot revert the published design.
 The normal Worker build matches the active preserved module exactly. Main merges trigger
 Cloudflare site builds/deploys, but no installer or bot release. Companion source integration
-does not satisfy its real-client release gates. PR151 error-origin reporting remains a separate
-next-bot-release integration, not a prerequisite for the visual refresh. Never bump the shared
+does not satisfy its real-client release gates. PR151 error-origin reporting was integrated in
+7.2.1 (`src/services/report-context.ts`). Never bump the shared
 product version incidentally or deploy unrelated unaccepted backend changes to ship styling.
+Codex's local coordination notes from 19 October (PR156/PR164 rollout records) are archived in
+`docs/archive/CODEX_COORDINATION_2026-10-19.md`.

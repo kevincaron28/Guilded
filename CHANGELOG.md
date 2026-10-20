@@ -1,7 +1,12 @@
 # Changelog
 
-## Unreleased
+## 7.2.1 Release — 20 October 2026
 
+- Leaderboards-only companions read both `GuildedDungeons.lua` and `Guilded.lua`, so runs reach
+  the public leaderboards with both addons installed; setup explains each connection and leads with
+  Sign in with Discord (nothing to type) on the companion, My page and Discord; 8 database
+  connections and a calmer startup; deploys stop when Discord refuses the commands; error reports
+  say where they happened ([notes](docs/V7_2_1_RELEASE_NOTES.md)).
 - Dungeon seasons follow one calendar set by the bot owner (`/guilded-season`, home server only):
   Season 1 starts 4 November 2026 at 3 PM Pacific and runs until the owner starts the next one
   (a big patch, or after 2-3 months). Every guild and the public leaderboards follow it; officers

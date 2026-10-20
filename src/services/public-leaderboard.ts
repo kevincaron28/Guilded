@@ -386,7 +386,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const body = `<p class="eyebrow">${t("Guilded companion", "Compagnon Guilded")}</p><h1>${t("Your companion code", "Votre code de compagnon")}</h1>`
       + `<p class="code">${escapeHtml(code)}</p><p class="muted">${t("Valid 15 minutes, once. Do not share it.", "Valable 15 minutes, une fois. Ne le partagez pas.")} (${expiresAt.toISOString().slice(11, 16)} UTC)</p>`
       + `<ol><li>${t("Install Guilded Dungeons (or Guilded) and play a dungeon once, so its saved file exists.", "Installez Guilded Dungeons (ou Guilded) et faites un donjon, pour que son fichier de sauvegarde existe.")}</li>`
-      + `<li>${t("In the Guilded companion, choose your <code>GuildedDungeons.lua</code> in <code>WTF\\Account\\…\\SavedVariables</code>, paste this code and press Connect.", "Dans le compagnon Guilded, choisissez votre <code>GuildedDungeons.lua</code> dans <code>WTF\\Account\\…\\SavedVariables</code>, collez ce code et appuyez sur Connecter.")}</li>`
+      + `<li>${t("In the Guilded companion, open Connection &amp; setup, then <em>Older companions or your guild's own bot</em>: paste this code and press Connect. Then choose your <code>GuildedDungeons.lua</code> or <code>Guilded.lua</code> in <code>WTF\\Account\\…\\SavedVariables</code>.", "Dans le compagnon Guilded, ouvrez Connexion et configuration, puis <em>Anciens compagnons ou bot de votre guilde</em> : collez ce code et appuyez sur Connecter. Choisissez ensuite votre <code>GuildedDungeons.lua</code> ou <code>Guilded.lua</code> dans <code>WTF\\Account\\…\\SavedVariables</code>.")}</li>`
       + `<li>${t("Your finished runs appear on the leaderboards after the next upload.", "Vos donjons terminés apparaissent dans les classements après le prochain envoi.")}</li></ol>`
       + `<p><a href="${link("/me/", lang)}">${t("Back to my page", "Retour à ma page")}</a></p>`;
     return kit.page(200, t("Companion code", "Code du compagnon"), body, { noindex: true });
@@ -413,12 +413,18 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const { t, lang } = ctx;
     const connected = await deps.personal.hasCredential(ctx.account.id);
     const csrf = `<input type="hidden" name="csrf" value="${escapeHtml(ctx.csrf ?? "")}"><input type="hidden" name="lang" value="${lang}">`;
+    // Sign in with Discord (7.2) is the way to connect; the code stays for companions older than 7.2.
     return `<h2>${t("Public dungeon leaderboards", "Classements publics des donjons")}</h2>`
       + `<p class="muted">${t("Connect the Guilded companion to your account (no guild needed) and it sends your finished dungeon runs to the", "Reliez le compagnon Guilded à votre compte (sans guilde) et il envoie vos donjons terminés aux")} <a href="${link("/leaderboards/", lang)}">${t("leaderboards", "classements")}</a>.</p>`
-      + `<p class="muted">${t("Easiest: in the companion, choose Sign in with Discord. A code below is only needed for older companions.", "Le plus simple : dans le compagnon, choisissez Connexion avec Discord. Le code ci-dessous ne sert qu'aux anciens compagnons.")}</p>`
       + (ctx.request.query.get("done") === "companion-off" ? `<p class="notice">${t("Companion disconnected.", "Compagnon déconnecté.")}</p>` : "")
       + (connected ? `<p>✔ ${t("A companion is connected.", "Un compagnon est connecté.")}</p><form method="post" action="/me/pair/revoke">${csrf}<button class="link" type="submit">${t("Disconnect it", "Le déconnecter")}</button></form>` : "")
-      + `<form method="post" action="/me/pair">${csrf}<p><button class="button" type="submit">${connected ? t("Get a new companion code", "Obtenir un nouveau code") : t("Get a companion code", "Obtenir un code de compagnon")}</button></p></form>`;
+      + `<ol><li>${t("Install Guilded Dungeons (or Guilded) and log in once, so its saved file exists.", "Installez Guilded Dungeons (ou Guilded) et connectez-vous une fois au jeu, pour que son fichier de sauvegarde existe.")}</li>`
+      + `<li>${t("Open the companion, go to Connection &amp; setup and choose <strong>Sign in with Discord</strong>, then <strong>Public dungeon leaderboards only</strong>. Nothing to type: the short code on that page only shows it is your companion.", "Ouvrez le compagnon, allez dans Connexion et configuration et choisissez <strong>Connexion avec Discord</strong>, puis <strong>Classements publics des donjons seulement</strong>. Rien à taper : le code court affiché sert seulement à reconnaître votre compagnon.")}</li>`
+      + `<li>${t("In step 2, choose your <code>WTF\\Account\\…\\SavedVariables</code> folder (or the file in it): the companion reads <code>GuildedDungeons.lua</code> and <code>Guilded.lua</code>, whichever addon you use.", "À l'étape 2, choisissez votre dossier <code>WTF\\Account\\…\\SavedVariables</code> (ou le fichier qu'il contient) : le compagnon lit <code>GuildedDungeons.lua</code> et <code>Guilded.lua</code>, selon l'addon que vous utilisez.")}</li>`
+      + `<li>${t("After a dungeon, /reload: the Windows companion sends your runs by itself; online, choose Sync now.", "Après un donjon, /reload : le compagnon Windows envoie vos donjons tout seul; en ligne, choisissez Synchroniser.")}</li></ol>`
+      + `<p><a class="button" href="/companion/?tab=settings">${t("Open the online companion", "Ouvrir le compagnon en ligne")}</a></p>`
+      + `<details><summary>${t("Companion older than 7.2? Use a code", "Compagnon plus ancien que 7.2 ? Utilisez un code")}</summary>`
+      + `<form method="post" action="/me/pair">${csrf}<p><button class="link" type="submit">${connected ? t("Get a new companion code", "Obtenir un nouveau code") : t("Get a companion code", "Obtenir un code de compagnon")}</button></p></form></details>`;
   }
 
   return { route, meSection };

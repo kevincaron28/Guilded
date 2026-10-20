@@ -349,14 +349,17 @@ ipcMain.handle("sign-in-cancel", () => { signIn?.controller.abort(); signIn = nu
 ipcMain.handle("browse-file", async () => {
   const start = config.watchFile ? path.dirname(config.watchFile) : undefined;
   const result = await dialog.showOpenDialog(win, {
-    title: "Pick Guilded.lua (inside WTF > Account > your account > SavedVariables)",
+    title: config.personal
+      ? "Pick GuildedDungeons.lua or Guilded.lua (inside WTF > Account > your account > SavedVariables)"
+      : "Pick Guilded.lua (inside WTF > Account > your account > SavedVariables)",
     ...(start ? { defaultPath: start } : {}),
     properties: ["openFile"], filters: [{ name: "Addon saved data", extensions: ["lua"] }]
   });
   return result.canceled ? null : result.filePaths[0];
 });
 
-ipcMain.handle("detect-wow", () => detectSavedVariables());
+// Leaderboards only: either addon's file; the engine then reads both from that folder.
+ipcMain.handle("detect-wow", () => detectSavedVariables(config.personal ? ["GuildedDungeons.lua", "Guilded.lua"] : ["Guilded.lua"]));
 ipcMain.handle("browse-poe-log", async () => {
   const result = await dialog.showOpenDialog(win, {
     title: "Choose Path of Exile 2 > logs > Client.txt",

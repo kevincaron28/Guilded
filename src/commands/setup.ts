@@ -541,6 +541,8 @@ export const ALL_CHANNELS: ChannelField[] = [...CORE_CHANNELS, ...RAIDTEAM_CHANN
 // Server-wide raid log, loot log and roster channel: no longer created or offered (each core has
 // its own). Kept so /setup uninstall still finds the ones an earlier version made.
 export const RETIRED_CHANNELS: ChannelField[] = ["raidLogChannelId", "lootChannelId", "coreChannelId"];
+// Managed when explicitly enabled, but not created or counted as missing by general setup.
+export const OPTIONAL_CHANNELS: ChannelField[] = ["pugChannelId"];
 
 // The category for a group of channels; created once and reused (found by its English or French name).
 async function ensureCategory(guild: DiscordGuild, key: CategoryKey, lang: Lang) {

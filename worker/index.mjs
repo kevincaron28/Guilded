@@ -91,7 +91,7 @@ export default {
     // Signed-in website pages (7.0): Discord sign-in, recruitment, the player's page and the public
     // dungeon leaderboards. Rendered by the bot; the session cookie is for this host only.
     const web = !creator && url.pathname.length <= 200
-      && /^\/(?:auth\/(?:login|callback|logout)|recruitment(?:\/[A-Za-z0-9._~/-]*)?|me(?:\/[A-Za-z0-9._~/-]*)?|leaderboards(?:\/[A-Za-z0-9._~%/-]*)?)$/.test(url.pathname);
+      && /^\/(?:auth\/(?:login|callback|logout)|recruitment(?:\/[A-Za-z0-9._~/-]*)?|me(?:\/[A-Za-z0-9._~/-]*)?|players(?:\/[A-Za-z0-9._~/-]*)?|leaderboards(?:\/[A-Za-z0-9._~%/-]*)?)$/.test(url.pathname);
     if (!companion && !api && !health && !guildPage && !web) {
       if (url.pathname.startsWith("/api/")) return failure(404, "Not found");
       return env.ASSETS.fetch(request);
@@ -137,7 +137,7 @@ export default {
         if (web && redirect && redirect.origin === "https://discord.com" && redirect.pathname === "/oauth2/authorize" && url.pathname === "/auth/login") {
           return new Response(null, { status: upstream.status, headers: withCookies({ location: redirect.href, "cache-control": "no-store" }, upstream) });
         }
-        const allowed = companion ? ["/companion/"] : guildPage ? ["/g/"] : web ? ["/recruitment", "/me/", "/leaderboards", "/auth/"] : null;
+        const allowed = companion ? ["/companion/"] : guildPage ? ["/g/"] : web ? ["/recruitment", "/me/", "/players", "/leaderboards", "/auth/"] : null;
         if (!allowed || !redirect || redirect.origin !== origin || !allowed.some((prefix) => redirect.pathname.startsWith(prefix))) {
           return failure(502, "Unexpected server redirect");
         }

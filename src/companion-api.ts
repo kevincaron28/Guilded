@@ -13,6 +13,8 @@ import { nextRaidRoster } from "./services/raid-roster.js";
 import { itemInsights } from "./services/item-insights.js";
 import { lootRulesForAddon } from "./services/loot-rules-export.js";
 import { upcomingRaidsForAddon } from "./services/calendar-sync.js";
+import { publicRaids } from "./services/public-raids.js";
+import { createPlayerProfiles, prismaProfileStore } from "./services/player-profiles.js";
 import { discordCalendarEvents, mergeCalendarEvents } from "./services/discord-calendar.js";
 import { createAuditService } from "./services/audit.js";
 import { followUpImport } from "./services/import-followup.js";
@@ -194,6 +196,7 @@ async function signInGuildCredential(client: Client | undefined, account: { disc
 }
 
 export function createSiteApp(client?: Client) {
+  const profiles = createPlayerProfiles(prismaProfileStore(prisma, hostedPilot.allows));
   const leaderboards = createLeaderboardPages({ store: prismaLeaderboardStore(prisma, (id) => hostedPilot.allows(id)), personal: personalStore, calendar: () => loadOfficialWindows(prisma) });
   const signInPage = companionSignInRoute({
     signIn: companionSignIn,
@@ -201,9 +204,10 @@ export function createSiteApp(client?: Client) {
     issueGuild: (account, guildDiscordId) => signInGuildCredential(client, account, guildDiscordId),
     issuePersonal: async (accountId) => (await issuePersonalCredential(personalStore, accountId)).companionCredential
   });
-  const routes: WebRoute[] = [signInPage, leaderboards.route];
-  const meSections = [leaderboards.meSection];
+  const routes: WebRoute[] = [signInPage, leaderboards.route, profiles.route];
+  const meSections = [profiles.meSection, leaderboards.meSection];
   return createWebApp({
+    publicRaids: now => publicRaids(prisma, hostedPilot.allows, now),
     store: prismaWebStore(prisma), auth: webAuthConfig(config), allows: (id) => hostedPilot.allows(id), routes, meSections,
     postApplication: (view) => postWebApplication(client, view),
     tellOwner: async (text) => {
@@ -294,7 +298,8 @@ async function standingsParts(guild: { id: string; discordId: string }, access: 
     // per member and dungeon/ledger acknowledgements do not change what the addon shows.
     return {
       shared: { accounts, baseGp, dungeonBoard, nextRaid, items, loot: loot ? { ...loot, cores: loot.cores.map((core) => ({ ...core, accounts })) } : null, standings },
-      personal: { acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, raids },
+      personal: { acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, raids,
+        publicRaids: { fetchedAt: new Date().toISOString(), raids: await publicRaids(database, hostedPilot.allows) } },
       stampOnly: { botRaids }
     };
   }, { isolationLevel: "RepeatableRead", timeout: 60_000, maxWait: 15_000 });
@@ -425,6 +430,19 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         if (!character) { json(response, 400, { error: "character.name is required" }); return; }
         try {
           const result = await ingestPublicRuns(publicRuns, { uploaderKey: `account:${account.accountId}`, character, source: "personal", runs: body?.runs });
+          const refs = [...result.accepted, ...result.confirmed, ...result.duplicates];
+          if (refs.length) {
+            // Link only this uploader's named character in a run accepted from this request.
+            // Party members are never claimed as the account's alts.
+            const players = await prisma.publicRunPlayer.findMany({
+              where: { character: { equals: character, mode: "insensitive" }, run: { runRef: { in: refs }, status: "ACCEPTED", uploads: { some: { uploaderKey: `account:${account.accountId}` } } } },
+              select: { character: true, realm: true }, distinct: ["character", "realm"]
+            });
+            for (const player of players) if (player.realm) await prisma.webCharacter.upsert({
+              where: { accountId_name_realm: { accountId: account.accountId, name: player.character, realm: player.realm } },
+              create: { accountId: account.accountId, name: player.character, realm: player.realm }, update: {}
+            });
+          }
           json(response, 200, { ...result, botVersion: BOT_VERSION });
         } catch (error) {
           if (error instanceof PublicUploadError) { json(response, error.status, { error: error.message }); return; }

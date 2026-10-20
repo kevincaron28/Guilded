@@ -4,9 +4,10 @@ import { dirname, posix } from "node:path";
 import { marked } from "marked";
 import { navLinks } from "../site/nav.mjs";
 
-const guides = ["HOSTED_PILOT", "SUPPORT_GUILDED", "OWNER_WALKTHROUGH", "QUICK_START", "MEMBER_INSTALL", "EPGP_GUIDE", "GUILD_OWNER_SETUP", "DEPLOY_ORACLE", "AI_SETUP_HELP", "ONLINE_COMPANION_CHECK"];
+const guides = ["HOSTED_PILOT", "SUPPORT_GUILDED", "OWNER_WALKTHROUGH", "QUICK_START", "MEMBER_INSTALL", "DUNGEONS_GUIDE", "EPGP_GUIDE", "GUILD_OWNER_SETUP", "DEPLOY_ORACLE", "AI_SETUP_HELP", "ONLINE_COMPANION_CHECK"];
 const origin = "https://guilded.kcaron.top";
 const guideDescriptions = {
+  DUNGEONS_GUIDE: "Set up Guilded Dungeons, sync runs with Discord sign-in, manage your player profile and find open raids. English and French.",
   HOSTED_PILOT: "Optional Guilded Discord integration: owner approval, the five-server pilot cap, setup and personal pairing. English and French guide.",
   SUPPORT_GUILDED: "Optional CA$3 coffee support for Guilded. Downloads and approved pilot access stay free. English and French information.",
   OWNER_WALKTHROUGH: "Illustrated independent-hosting walkthrough for Guilded owners, with setup prerequisites and checks.",
@@ -63,7 +64,7 @@ for (const source of sources) {
   const description = escape(guideDescriptions[source.slice(5, -3)]);
   const canonical = `${origin}/${source.replace(/\.md$/, "")}`;
   // The four main guides, with this one marked; the guide sources no longer repeat these links.
-  const guideLinks = [["QUICK_START", "Quick start"], ["MEMBER_INSTALL", "Install"], ["EPGP_GUIDE", "EPGP"], ["HOSTED_PILOT", "Discord bot"]]
+  const guideLinks = [["QUICK_START", "Quick start"], ["MEMBER_INSTALL", "Install"], ["DUNGEONS_GUIDE", "Dungeons"], ["EPGP_GUIDE", "EPGP"], ["HOSTED_PILOT", "Discord bot"]]
     .map(([name, label]) => `<a href="${name}.html"${source === `docs/${name}.md` ? ' aria-current="page"' : ''}>${label}</a>`).join('');
   const relatedGuides = `<nav class="guide-nav" aria-label="Guilded guides">${guideLinks}${md.includes('id="fr"') ? '<a class="guide-fr" href="#fr" lang="fr">Français ↓</a>' : ''}</nav>`;
   const body = marked.parse(md, { walkTokens(token) {

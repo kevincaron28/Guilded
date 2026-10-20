@@ -9,6 +9,7 @@ import {
 } from "./recruitment.js";
 import { escapeHtml, langFrom, layout, link, options, SECURITY_HEADERS, tr, type Lang } from "./web-layout.js";
 import type { CardFields, DecisionView, WebAccountView, WebStore } from "./web-store.js";
+import { publicRaidMatches, type PublicRaid } from "./public-raids.js";
 
 // The bot-served half of guilded.kcaron.top (7.0): Discord sign-in, /recruitment/ and /me/.
 // Requests arrive through the Cloudflare Worker (worker/index.mjs), which forwards cookies and
@@ -32,6 +33,7 @@ export interface WebKit {
 
 export interface WebAppDeps {
   store: WebStore;
+  publicRaids?: (now: Date) => Promise<PublicRaid[]>;
   auth: WebAuthConfig | null;
   /** Full (approved) servers only: Lite and blocked servers never list or receive applications. */
   allows(discordId: string): boolean;
@@ -46,7 +48,7 @@ export interface WebAppDeps {
   meSections?: ((context: WebContext) => Promise<string>)[];
 }
 
-const PATHS = /^\/(?:auth\/(?:login|callback|logout)|recruitment(?:\/.*)?|me(?:\/.*)?|leaderboards(?:\/.*)?)$/;
+const PATHS = /^\/(?:auth\/(?:login|callback|logout)|recruitment(?:\/.*)?|me(?:\/.*)?|players(?:\/.*)?|leaderboards(?:\/.*)?)$/;
 export const isWebPath = (path: string) => path.length <= 200 && PATHS.test(path);
 const ID = /^[a-z0-9]{20,40}$/;
 const MAX_FORM = 16_000;
@@ -158,6 +160,7 @@ export function createWebApp(deps: WebAppDeps) {
   async function recruitmentPage(ctx: WebContext, kit: WebKit): Promise<WebResponse> {
     const { t, lang } = ctx;
     const filters = readFilters(ctx.request.query);
+    const raids = (await deps.publicRaids?.(ctx.now) ?? []).filter(raid => deps.allows(raid.guildDiscordId) && publicRaidMatches(raid, filters));
     const listings = (await deps.store.openListings()).filter((listing) => deps.allows(listing.guildDiscordId) && listingMatches(listing, filters));
     const cards = deps.auth ? (await deps.store.visibleCards(ctx.now)).filter((card) => cardMatches(card, filters)) : [];
     const done = ctx.request.query.get("done");
@@ -168,9 +171,11 @@ export function createWebApp(deps: WebAppDeps) {
       flash ? `<p class="notice">${escapeHtml(flash)}</p>` : "",
       deps.auth ? "" : `<p class="notice">${t("Sign-in with Discord is not set up on this server yet, so applying and player cards are off.", "La connexion avec Discord n'est pas encore configurée : les candidatures et les fiches de joueurs sont désactivées.")}</p>`,
       filterForm(ctx, filters),
-      filters.kind === "players" ? "" : `<h2>${t("Recruiting now", "Recrutent en ce moment")} <span class="tag">(${listings.length})</span></h2>`
+      filters.kind === "all" || filters.kind === "raids" ? `<h2>${t("Open raid spots", "Places de raid disponibles")} (${raids.length})</h2><p>${t("One raid night, no guild commitment. Counts come from confirmed Discord signups. Join the host server, then use its signup post; a spot is not reserved until confirmed there.", "Une soirée de raid, sans engagement de guilde. Les places viennent des inscriptions Discord confirmées. Rejoignez le serveur hôte puis son annonce; la place doit y être confirmée.")}</p>`
+        + (raids.length ? `<div class="cards">${raids.map(raid => publicRaidCard(ctx, raid)).join("")}</div>` : `<p class="muted">${t("No open raids match. Guild officers can share a raid with /raid pug share.", "Aucun raid ouvert ne correspond. Les officiers peuvent partager un raid avec /raid pug share.")}</p>`) : "",
+      filters.kind === "players" || filters.kind === "raids" ? "" : `<h2>${t("Recruiting now", "Recrutent en ce moment")} <span class="tag">(${listings.length})</span></h2>`
         + (listings.length ? `<div class="cards">${listings.map((listing) => listingCard(ctx, listing)).join("")}</div>` : `<p class="muted">${t("No open listing matches these filters.", "Aucune annonce ouverte ne correspond à ces filtres.")}</p>`),
-      filters.kind === "guild" || filters.kind === "core" || !deps.auth ? "" : `<h2>${t("Players looking for a guild", "Joueurs qui cherchent une guilde")} <span class="tag">(${cards.length})</span></h2>`
+      filters.kind === "guild" || filters.kind === "core" || filters.kind === "raids" || !deps.auth ? "" : `<h2>${t("Players looking for a guild", "Joueurs qui cherchent une guilde")} <span class="tag">(${cards.length})</span></h2>`
         + `<p><a href="${link("/me/", lang)}">${t("Post or edit your own card", "Publier ou modifier votre fiche")}</a></p>`
         + (cards.length ? `<div class="cards">${cards.map((card) => playerCard(ctx, card)).join("")}</div>` : `<p class="muted">${t("No player card matches these filters.", "Aucune fiche ne correspond à ces filtres.")}</p>`)
     ].join("");
@@ -181,7 +186,7 @@ export function createWebApp(deps: WebAppDeps) {
     const { t, lang } = ctx;
     const any = { value: "", label: t("Any", "Tous") };
     return `<form class="filters" method="get" action="/recruitment/"><input type="hidden" name="lang" value="${lang}">`
-      + `<div><label for="kind">${t("Show", "Afficher")}</label><select id="kind" name="kind">${options([{ value: "all", label: t("Everything", "Tout") }, { value: "guild", label: t("Guilds", "Guildes") }, { value: "core", label: t("Raid cores", "Cores de raid") }, { value: "players", label: t("Players", "Joueurs") }], filters.kind)}</select></div>`
+      + `<div><label for="kind">${t("Show", "Afficher")}</label><select id="kind" name="kind">${options([{ value: "all", label: t("Everything", "Tout") }, { value: "guild", label: t("Guilds", "Guildes") }, { value: "core", label: t("Raid cores", "Cores de raid") }, { value: "raids", label: t("Open raid spots", "Places de raid") }, { value: "players", label: t("Players", "Joueurs") }], filters.kind)}</select></div>`
       + `<div><label for="class">${t("Class", "Classe")}</label><select id="class" name="class">${options([any, ...CLASSES.map((name) => ({ value: name, label: classLabel(name, lang) }))], filters.className)}</select></div>`
       + `<div><label for="role">${t("Role", "Rôle")}</label><select id="role" name="role">${options([any, ...ROLES.map((role) => ({ value: role, label: roleLabel(role, lang) }))], filters.role)}</select></div>`
       + `<div><label for="faction">${t("Faction", "Faction")}</label><select id="faction" name="faction">${options([any, ...FACTIONS.map((value) => ({ value, label: factionLabel(value, lang) }))], filters.faction)}</select></div>`
@@ -194,6 +199,15 @@ export function createWebApp(deps: WebAppDeps) {
     const shown = parts.filter((part): part is string => Boolean(part));
     return shown.length ? `<p class="tag">${shown.map(escapeHtml).join(" · ")}</p>` : "";
   };
+
+  function publicRaidCard(ctx: WebContext, raid: PublicRaid): string {
+    const { t, lang } = ctx;
+    const when = new Date(raid.scheduledAt).toLocaleString(lang === "fr" ? "fr-CA" : "en-CA", { timeZone: "UTC", dateStyle: "medium", timeStyle: "short" });
+    return `<article class="card"><h3>${escapeHtml(raid.title)}</h3><p>${escapeHtml([raid.guildName, raid.coreName].filter(Boolean).join(" · "))}</p>`
+      + tags(ctx, [raid.realm, factionLabel(raid.faction, lang), languageLabel(raid.language, lang), `${when} UTC`])
+      + `<p>${ROLES.filter(role => raid.spots[role] > 0).map(role => `${raid.spots[role]} ${roleLabel(role, lang)}`).join(" · ")}</p>`
+      + `<p><a class="button" href="${escapeHtml(raid.inviteUrl)}">${t("Join host Discord", "Rejoindre le Discord hôte")}</a> <a href="${escapeHtml(raid.signupUrl)}">${t("Raid signup", "Inscription au raid")}</a></p></article>`;
+  }
 
   function reportButton(ctx: WebContext, type: "listing" | "card", id: string): string {
     if (!ctx.account) return "";
@@ -307,9 +321,11 @@ export function createWebApp(deps: WebAppDeps) {
       : done === "card-deleted" ? t("Your card is removed.", "Votre fiche est retirée.") : null;
     const status: Record<string, string> = { PENDING: t("Waiting", "En attente"), ACCEPTED: t("Accepted", "Acceptée"), DECLINED: t("Declined", "Refusée"), SPAM: t("Declined", "Refusée") };
     const days = form ? form.getAll("days") : card?.raidDays ?? [];
+    const extra = await Promise.all((deps.meSections ?? []).map((section) => section(ctx)));
     const body = [
-      `<p class="eyebrow">Guilded</p><h1>${t("My page", "Ma page")}</h1>`,
+      `<p class="eyebrow">Guilded</p><h1>${t("My Guilded", "Mon Guilded")}</h1>`,
       flash ? `<p class="notice">${escapeHtml(flash)}</p>` : "",
+      extra.join(""),
       `<h2>${t("My applications", "Mes candidatures")}</h2>`,
       applications.length
         ? `<div class="table-wrap"><table><thead><tr><th>${t("Guild", "Guilde")}</th><th>${t("Character", "Personnage")}</th><th>${t("Sent", "Envoyée")}</th><th>${t("Answer", "Réponse")}</th></tr></thead><tbody>${applications.map((row) => `<tr><td>${escapeHtml(row.guildName)}${row.coreName ? ` · ${escapeHtml(row.coreName)}` : ""}</td><td>${escapeHtml(row.character)}</td><td>${row.createdAt.toISOString().slice(0, 10)}</td><td>${escapeHtml(status[row.status] ?? row.status)}</td></tr>`).join("")}</tbody></table></div>`
@@ -332,8 +348,7 @@ export function createWebApp(deps: WebAppDeps) {
         + `<p><button class="button" type="submit">${t("Save my card", "Enregistrer ma fiche")}</button></p></form>`,
       card ? `<form method="post" action="/me/card/delete"><input type="hidden" name="csrf" value="${escapeHtml(ctx.csrf ?? "")}"><input type="hidden" name="lang" value="${lang}"><button class="link" type="submit">${t("Remove my card", "Retirer ma fiche")}</button></form>` : ""
     ].join("");
-    const extra = await Promise.all((deps.meSections ?? []).map((section) => section(ctx)));
-    return kit.page(error ? 400 : 200, t("My page", "Ma page"), body + extra.join(""), { noindex: true });
+    return kit.page(error ? 400 : 200, t("My Guilded", "Mon Guilded"), body, { noindex: true });
   }
 
   async function saveCard(ctx: WebContext, kit: WebKit): Promise<WebResponse> {

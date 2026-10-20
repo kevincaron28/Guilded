@@ -40,13 +40,14 @@ describe("deploy/update.sh", () => {
   const script = update.match(/node -e '([^']+)'/)?.[1] ?? "";
   const read = (body: string) => execFileSync(process.execPath, ["-e", script], { input: body, encoding: "utf8" });
 
+  // Four short node processes: give them room when the whole suite runs in parallel on Windows.
   it("reads the commands state from /health, and copes with older bots and bad answers", () => {
     expect(script).not.toBe("");
     expect(read(JSON.stringify({ ok: true, botVersion: "7.2.1", commands: "failed" }))).toBe("failed");
     expect(read(JSON.stringify({ ok: true, botVersion: "7.2.1", commands: "ok" }))).toBe("ok");
     expect(read(JSON.stringify({ ok: true, botVersion: "7.2.0" }))).toBe("unknown");
     expect(read("<html>502</html>")).toBe("unknown");
-  });
+  }, 60_000);
 
   it("stops with an error when Discord refused the commands or never answered", () => {
     expect(update).toMatch(/failed\)[\s\S]*?exit 2 ;;/);

@@ -3,7 +3,7 @@ import { standingsToLua } from "./standings-format.mjs";
 import { createBrowserFolderAccess } from "./browser-folders.mjs";
 import { acknowledgements, pruneAcknowledged } from "./delta.mjs";
 import { sheetFiles } from "./sheet-export.mjs";
-import { personalPayload, personalResultMessage } from "./personal-runs-content.mjs";
+import { PERSONAL_SAVED_FILES, personalPayload, personalPayloadFrom, personalResultMessage } from "./personal-runs-content.mjs";
 
 /* global __GUILDED_VERSION__ */
 // Filled in by scripts/build-companion-web.mjs from package.json.
@@ -77,14 +77,14 @@ export function createBrowserCompanion(env = globalThis) {
     botFeatures = new Set(); ack = null;
     const personal = result.personal === true;
     config = { ...config, ...next, personal, guildDiscordId: personal ? "" : typeof result.guildDiscordId === "string" ? result.guildDiscordId : server || config.guildDiscordId, pairingCode: "", companionCredential: result.companionCredential, uploadUrl: `${location.origin}/api/v1/addon-imports` }; state.running = true; state.uploadError = null; persist(); emit();
-    return { ok: true, message: personal ? "Website account connected. Choose your GuildedDungeons.lua (or Guilded.lua), then Sync now: your finished runs go to the public leaderboards." : "Discord connected. Choose your game files to start syncing." };
+    return { ok: true, message: personal ? "Leaderboards account connected. Next: choose your saved data in step 2 (your SavedVariables folder), then Sync now. Your finished runs go to the public leaderboards." : "Discord connected. Next: choose your saved data in step 2 (your SavedVariables folder) to start syncing." };
   }
   const guildQuery = () => `guild=${encodeURIComponent(config.guildDiscordId)}`;
-  // Personal mode (a code from guilded.kcaron.top/me/): GuildedDungeons.lua first, Guilded.lua otherwise.
-  const savedNames = () => (config.personal ? ["GuildedDungeons.lua", "Guilded.lua"] : ["Guilded.lua"]);
-  async function uploadPersonal(currentFile) {
-    const { character, runs } = personalPayload(await currentFile.text(), config.realm);
-    if (!character) throw new Error("The saved file has no character yet. Log in once with Guilded Dungeons, then /reload.");
+  // Personal mode (leaderboards only): both GuildedDungeons.lua and Guilded.lua, whichever exist.
+  const savedNames = () => (config.personal ? PERSONAL_SAVED_FILES : ["Guilded.lua"]);
+  async function uploadPersonal(files) {
+    const { character, runs } = personalPayloadFrom(await Promise.all(files.map(file => file.text())), config.realm);
+    if (!character) throw new Error("The saved files have no character yet. Log in once with Guilded Dungeons (or Guilded), then /reload.");
     if (!runs.length) { log("info", "No finished dungeon run to send yet."); return; }
     const result = personalResultMessage(await request("/api/v1/public-runs", { character, runs }));
     state.lastUpload = { at: new Date().toISOString(), message: result.message }; state.uploads++; state.uploadError = null;
@@ -100,7 +100,7 @@ export function createBrowserCompanion(env = globalThis) {
     try {
       if (!config.companionCredential) throw new Error("Connect your Discord account first.");
       const currentFile = config.wowEnabled && folders.hasInput() ? await folders.readInput(savedNames()) : wowFile;
-      if (config.personal && currentFile) await uploadPersonal(currentFile);
+      if (config.personal && currentFile) await uploadPersonal(folders.hasInput() ? await folders.readInputs(savedNames()) : [currentFile]);
       else if (config.wowEnabled && currentFile) {
         const full = await readBrowserAddon(currentFile, config.realm);
         if (config.wowGuild && full.wowGuild && full.wowGuild !== config.wowGuild) throw new Error("This saved data belongs to a different WoW guild.");
@@ -204,7 +204,7 @@ export function createBrowserCompanion(env = globalThis) {
           emit();
           return { ok: true, message: "Server is online. Your account is not linked yet: choose Sign in with Discord (or enter a pairing code)." };
         }
-        if (config.personal) { emit(); return { ok: true, message: "Website account connected (public dungeon leaderboards). Select your saved file and use Sync now." }; }
+        if (config.personal) { emit(); return { ok: true, message: "Leaderboards account connected (public dungeon leaderboards, no guild). Choose your SavedVariables folder and use Sync now." }; }
         const server = next.guildDiscordId?.trim() || config.guildDiscordId;
         if (!server) return { ok: false, message: "Server is online. Enter your Discord server ID (Advanced preferences) before checking your account connection." };
         const path = next.wowEnabled === false ? "/api/v1/poe/status" : "/api/v1/standings";
@@ -219,7 +219,9 @@ export function createBrowserCompanion(env = globalThis) {
       if (busy) throw new Error("Wait for the current sync before changing files.");
       if (folders.available) {
         const name = await folders.chooseInput(savedNames()); wowFile = undefined; state.watching = name;
-        log("info", "SavedVariables folder selected. After /reload, Sync now reads the latest Guilded.lua.");
+        log("info", config.personal
+          ? "SavedVariables folder selected. After /reload, Sync now reads the latest GuildedDungeons.lua and Guilded.lua (whichever addon you use)."
+          : "SavedVariables folder selected. After /reload, Sync now reads the latest Guilded.lua.");
         if (folders.storageWarning()) log("warn", folders.storageWarning());
         return name;
       }

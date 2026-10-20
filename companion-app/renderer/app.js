@@ -107,6 +107,30 @@ function renderState(snapshot) {
   $('poePending').textContent = String(poe?.pending || 0);
   $('poeSyncTime').textContent = poe?.lastSync ? `Last synced ${ago(poe.lastSync).toLowerCase()}` : 'No visits synced yet';
   $('btnPause').textContent = state.running ? 'Pause tracking' : 'Resume tracking';
+  renderMode();
+}
+// Guild or leaderboards only (personal): what is connected, and which saved files the WoW steps mean.
+// The guild wording set by init() is kept the first time and restored when the mode changes back.
+const MODE_TEXT = ['watchFile:placeholder','detectNote','btnWowSelect','wowStep2','wowStep3'];
+let modeDefaults = null;
+function renderMode() {
+  const personal = savedConfig.personal === true, linked = !!savedConfig.companionCredential;
+  const read = key => { const [id, attribute] = key.split(':'); return attribute ? $(id)[attribute] : $(id).textContent; };
+  const write = (key, text) => { const [id, attribute] = key.split(':'); if (attribute) $(id)[attribute] = text; else $(id).textContent = text; };
+  modeDefaults ||= Object.fromEntries(MODE_TEXT.map(key => [key, read(key)]));
+  const leaderboard = {
+    'watchFile:placeholder': api.browser && api.folderAccess ? 'Choose your SavedVariables folder' : 'Choose GuildedDungeons.lua or Guilded.lua',
+    detectNote: 'World of Warcraft / WTF / Account / your account / SavedVariables: the companion reads GuildedDungeons.lua and Guilded.lua there, whichever addon you use.',
+    btnWowSelect: api.browser && api.folderAccess ? 'Choose SavedVariables folder' : 'Choose saved data',
+    wowStep2: api.browser ? 'After /reload, click Sync now: your finished dungeon runs go to the public leaderboards.' : 'The companion notices the saved-file change and sends your finished dungeon runs to the public leaderboards.',
+    wowStep3: 'No standings in this mode: find your runs on guilded.kcaron.top/leaderboards/.'
+  };
+  for (const key of MODE_TEXT) write(key, personal ? leaderboard[key] : modeDefaults[key]);
+  $('btnStandings').hidden = personal;
+  $('connectedAs').hidden = !linked;
+  $('connectedAs').textContent = !linked ? '' : personal
+    ? 'Connected: public dungeon leaderboards only. Your finished runs are sent; no guild data.'
+    : `Connected: your guild's Discord${savedConfig.guildDiscordId ? ` (server ${savedConfig.guildDiscordId})` : ''}. Your saved data is synced and standings come back to the addon.`;
 }
 function renderLogs() {
   $('log').replaceChildren();
@@ -126,7 +150,7 @@ $('logSearch').addEventListener('input',renderLogs); $('logFilter').addEventList
 async function chooseWow() { const file = await api.browseFile(); if (file) { $('watchFile').value = file; toast('WoW file selected. Save your setup to apply it.'); } }
 async function choosePoe() { const file = await api.browsePoeLog(readForm()); if (file) { $('poeLogFile').value = file; toast(api.browser ? 'Log preview ready. Review your profile and save your setup before syncing.' : 'PoE2 log selected. Save your setup to apply it.'); } }
 ['btnBrowse','btnWowSelect'].forEach(id => bind(id,chooseWow)); ['btnPoeBrowse','btnPoeSelect'].forEach(id => bind(id,choosePoe));
-bind('btnDetect',async () => { $('detectNote').textContent = 'Looking for your addon data…'; const found = await api.detectWow(); if (found.length) { $('watchFile').value = found[0].path; $('detectNote').textContent = found.length > 1 ? `Found ${found.length} accounts. Check the selected file before saving.` : found[0].exists ? 'Found your addon data.' : 'Account found. Use /reload with the addon enabled to create Guilded.lua.'; } else $('detectNote').textContent = 'Choose Browse and select Guilded.lua in your account’s SavedVariables folder.'; });
+bind('btnDetect',async () => { $('detectNote').textContent = 'Looking for your addon data…'; const found = await api.detectWow(); if (found.length) { $('watchFile').value = found[0].path; $('detectNote').textContent = found.length > 1 ? `Found ${found.length} accounts. Check the selected file before saving.` : found[0].exists ? 'Found your addon data.' : (savedConfig.personal ? 'Account found. Use /reload with Guilded Dungeons (or Guilded) enabled to create its saved file.' : 'Account found. Use /reload with the addon enabled to create Guilded.lua.'); } else $('detectNote').textContent = (savedConfig.personal ? 'Choose Browse and select GuildedDungeons.lua or Guilded.lua in your account’s SavedVariables folder.' : 'Choose Browse and select Guilded.lua in your account’s SavedVariables folder.'); });
 bind('btnTest',async () => { say('Checking your connection…',true); const result = await api.testConnection(readForm()); say(result.message,result.ok); });
 bind('btnPair',async () => { if (!$('pairingCode').value.trim()) { say('Paste the code from /character pair (or from guilded.kcaron.top/me/) first, or use Sign in with Discord.',false); $('pairingCode').focus(); return; } say('Connecting your Discord account…',true); const result = await api.pairAccount(readForm()); say(result.message,result.ok); if (result.ok) { $('pairingCode').value = ''; savedConfig = (await api.getAll()).config; $('guildDiscordId').value = savedConfig.guildDiscordId || ''; renderState(lastSnapshot); toast('Discord account connected.'); } else if (/server ID/i.test(result.message)) { $('advanced').open = true; $('guildDiscordId').focus(); } });
 // Sign in with Discord (7.2): the browser opens the website; the companion waits for the approval.

@@ -81,6 +81,17 @@ export function createBrowserFolderAccess(env = globalThis, store = localHandleS
       const name = await firstFile(input, names);
       return name ? (await input.getFileHandle(name)).getFile() : null;
     },
+    // Every one of `names` the folder holds, in that order (personal mode reads both addons' files).
+    async readInputs(names) {
+      await ready;
+      if (!input) return [];
+      await permit(input, "read");
+      const files = [];
+      for (const name of names) {
+        try { files.push(await (await input.getFileHandle(name)).getFile()); } catch { /* not in this folder */ }
+      }
+      return files;
+    },
     async saveStandings(loadText, { requestAccess = true } = {}) {
       // ready is already awaited by getAll before controls become usable.
       if (!output) {

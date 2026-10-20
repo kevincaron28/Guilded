@@ -218,7 +218,9 @@ describe("game menu and pairing", () => {
     const interaction = click("onboard:companion:g1", fakeGuild(member));
     await handleOnboardingInteraction(interaction as never);
     const payload = interaction.editReply.mock.calls[0]![0];
-    expect(payload.embeds[0].data.fields[0].value).toContain("```\nABCD-1234\n```");
+    // Sign in with Discord first; the code (for older companions) in its own field after it.
+    expect(payload.embeds[0].data.fields[0].value).toContain("**Sign in with Discord**");
+    expect(payload.embeds[0].data.fields[2].value).toContain("```\nABCD-1234\n```");
     expect(issueCharacterPairingCode).toHaveBeenCalledOnce();
     expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
   });

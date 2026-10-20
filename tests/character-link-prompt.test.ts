@@ -76,13 +76,16 @@ describe("private character connection instructions", () => {
     const reply = await characterLinkPrompt(mocks.db as never, "guild1", "member1", "server1", "en", "companion");
     expect(mocks.issueCode).toHaveBeenCalledOnce();
     const fields = reply.embeds[0]!.data.fields!;
-    // The code comes first, alone on its line in a box, so it is easy to spot and copy.
-    expect(fields[0]!.value.startsWith("```\nABC123DEF456\n```")).toBe(true);
-    expect(fields[0]!.value).toContain("replaces your previous companion connection");
+    // Sign in with Discord comes first (7.2): nothing to type.
+    expect(fields[0]!.value).toContain("**Sign in with Discord**");
+    expect(fields[0]!.value).toContain("Nothing to type");
+    expect(fields[0]!.value).not.toContain("server ID");
+    expect(fields[0]!.value).toContain("/guilded setup connected");
     expect(fields[1]!.value).toContain("character you want as your **main**");
-    expect(fields[2]!.value).toContain("paste the code above");
-    expect(fields[2]!.value).not.toContain("server ID");
-    expect(fields[2]!.value).toContain("/guilded setup connected");
+    // The code stays for older companions, alone on its line in a box, so it is easy to copy.
+    expect(fields[2]!.name).toContain("older than 7.2");
+    expect(fields[2]!.value.startsWith("```\nABC123DEF456\n```")).toBe(true);
+    expect(fields[2]!.value).toContain("replaces your previous companion connection");
     expect(fields[3]!.value).toContain("/character list");
   });
 
@@ -92,7 +95,7 @@ describe("private character connection instructions", () => {
     try {
       const reply = await characterLinkPrompt(mocks.db as never, "guild1", "member1", "server1", "fr", "companion");
       expect(reply.components).toEqual([]);
-      expect(reply.embeds[0]!.data.fields![2]!.value).toContain("Demande à un officier le lien");
+      expect(reply.embeds[0]!.data.fields![0]!.value).toContain("Demande à un officier le lien");
     } finally { mocks.config.DISCORD_CLIENT_ID = appId; }
   });
 

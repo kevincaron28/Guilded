@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createEngine } from "../companion/engine.mjs";
 import { checkUrl } from "../companion/request.mjs";
+import { resolveStandingsPath, writeStandings } from "../companion/standings.mjs";
 const folders: string[] = [];
 afterEach(() => { vi.unstubAllGlobals(); for (const dir of folders.splice(0)) rmSync(dir, { recursive: true, force: true }); });
 function fixture() {
@@ -16,6 +17,24 @@ function fixture() {
 const standings = { ok: true, status: 200, json: async () => ({ protocolVersion: 2, botVersion: "5.0.0", updatedAt: "now", standings: [] }) };
 const uploaded = { ok: true, status: 201, json: async () => ({ autoApplied: { epgp: 0, discovered: 0 }, botVersion: "5.0.0" }) };
 describe("companion recovery", () => {
+  it.each([
+    ["empty gateway response", 502, "", "The guild bot is temporarily unavailable. Standings will retry automatically."],
+    ["HTML gateway response", 502, "<html><body>Bad Gateway</body></html>", "The guild bot is temporarily unavailable. Standings will retry automatically."],
+    ["JSON without an error", 503, "{}", "The guild bot is temporarily unavailable. Standings will retry automatically."],
+    ["null JSON response", 502, "null", "The guild bot is temporarily unavailable. Standings will retry automatically."],
+    ["blank API error", 502, '{"error":"  "}', "The guild bot is temporarily unavailable. Standings will retry automatically."],
+    ["structured API error", 502, '{"error":{"message":"private upstream detail"}}', "The guild bot is temporarily unavailable. Standings will retry automatically."],
+    ["specific API error", 403, '{"error":"Pair this companion again"}', "Pair this companion again"],
+    ["empty client error", 404, "", "The server did not provide an error message."]
+  ])("explains a %s and keeps cached standings", async (_name, status, body, detail) => {
+    const config = fixture();
+    const path = resolveStandingsPath(config)!;
+    writeFileSync(path, "cached standings");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(body, { status })));
+    await expect(writeStandings(config)).rejects.toThrow(`Standings request failed (${status}): ${detail}`);
+    expect(readFileSync(path, "utf8")).toBe("cached standings");
+  });
+
   it("rejects remote HTTP and URL credentials", () => {
     expect(() => checkUrl("http://remote.test")).toThrow("HTTPS");
     expect(() => checkUrl("https://user:password@remote.test")).toThrow("credentials");

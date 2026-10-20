@@ -38,7 +38,13 @@ export async function writeStandings(config, signal, options = {}) {
   const { response, body } = await requestJson(url, { headers }, signal, options.waitSeconds ? (options.waitSeconds + 20) * 1000 : undefined);
   const etag = response.headers?.get?.("etag") ?? null;
   if (response.status === 304) return { notModified: true, etag: etag ?? options.etag ?? null, path };
-  if (!response.ok) throw new Error(`Standings request failed (${response.status}): ${body.error}`);
+  if (!response.ok) {
+    // A reverse proxy can return an empty or HTML error while the bot restarts.
+    const detail = typeof body?.error === "string" && body.error.trim() ? body.error
+      : response.status >= 500 ? "The guild bot is temporarily unavailable. Standings will retry automatically."
+      : "The server did not provide an error message.";
+    throw new Error(`Standings request failed (${response.status}): ${detail}`);
+  }
   if (body.protocolVersion !== 2) throw new Error("Update the bot before using this companion (sync protocol 2 required).");
   const text = standingsToLua(body);
   let unchanged = false;

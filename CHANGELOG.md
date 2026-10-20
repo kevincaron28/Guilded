@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 7.2.0 Release — 19 October 2026
+
+- Companion: Sign in with Discord replaces pairing codes (codes stay as a fallback), one-click
+  Update now in the Windows app, setup says addon-only guilds need nothing; website: one menu on
+  every page and a calmer home page ([notes](docs/V7_2_0_RELEASE_NOTES.md)).
+
 ## 7.1.0 Release — 19 October 2026
 
 - Monthly dungeon seasons from the 4 November release (`/organize dungeon-seasons`), weekly and

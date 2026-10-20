@@ -97,7 +97,7 @@ describe("end of dungeon run summary", () => {
     session.run('LOCKED = false; fire_event("PLAYER_REGEN_ENABLED"); fire_event("PLAYER_REGEN_ENABLED")');
     expect(session.run("return SHOWS")).toBe("1");
     expect(session.run("return NS.runResults.last.name")).toBe("Latest");
-    expect(session.run("return WIDTH .. 'x' .. HEIGHT .. ':' .. ANCHOR")).toBe("320x280:BOTTOMRIGHT");
+    expect(session.run("return WIDTH .. 'x' .. HEIGHT .. ':' .. ANCHOR")).toBe("354x276:BOTTOMRIGHT");
     session.run('COMBAT = true; fire_event("PLAYER_REGEN_DISABLED")');
     expect(session.run("return tostring(VISIBLE)")).toBe("false");
     session.run('COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")');
@@ -108,7 +108,7 @@ describe("end of dungeon run summary", () => {
   it("explains pending sync without claiming an upload has happened", () => {
     session = newLuaSession(); session.run("NS = {}"); session.load("Locale.lua"); session.load("Modules/RunResults.lua");
     expect(session.run('return NS.runResults.syncText({})')).toContain("Type /reload or log out");
-    expect(session.run('return NS.runResults.syncText({synced=true})')).toContain("Received by Discord");
+    expect(session.run('return NS.runResults.syncText({synced=true})')).toContain("Companion receipt recorded");
     session.run('GetLocale = function() return "frFR" end');
     expect(session.run('return NS.runResults.syncText({})')).toContain("Tapez /reload");
   });
@@ -118,7 +118,7 @@ describe("end of dungeon run summary", () => {
       bossCount = 2, encounters = {{success=true}}, players = { Kev = {deaths=0}, Ann = {} } })`);
     expect(text).toContain("Time: 2:05"); expect(text).toContain("Bosses defeated: 1/2");
     expect(text).toContain("Ann: deaths unknown"); expect(text).toContain("Kev: 0 deaths");
-    expect(text).toContain("Discord validates the run and awards points");
+    expect(text).toContain("Upload and public listing are not confirmed here");
   });
   it("replays recent own unsynced runs for a trusted officer, with a cooldown", () => {
     session = newLuaSession(); session.run("NS = {}; GuildedDB = nil");

@@ -1,7 +1,7 @@
 {
-  "verifiedAt": "2026-10-19",
+  "verifiedAt": "2026-10-20",
   "guilded": {
-    "github": { "version": "7.1.0", "stage": "release", "url": "https://github.com/kevincaron28/Guilded/releases/tag/v7.1.0" },
-    "curseforge": { "version": "7.1.0", "stage": "release", "url": "https://www.curseforge.com/wow/addons/guilded" }
+    "github": { "version": "7.2.0", "stage": "release", "url": "https://github.com/kevincaron28/Guilded/releases/tag/v7.2.0" },
+    "curseforge": { "version": "7.2.0", "stage": "release", "url": "https://www.curseforge.com/wow/addons/guilded" }
   }
 }

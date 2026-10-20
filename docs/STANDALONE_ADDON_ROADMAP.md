@@ -1,13 +1,13 @@
 # Standalone Guilded Addon Roadmap
 
-## Status - 17 October 2026 (6.3.2 and the next candidate)
+## Status - 20 October 2026 (7.2.1 and the next candidate)
 
 | Step | State | Where it stands |
 | --- | --- | --- |
 | 0. Standalone baseline | Done | G1 passed in game on a fresh profile with no companion (V6_2_GAME_ACCEPTANCE.md). |
 | 1. In-game-only setup path | Done | In-game only is the default on first login; `/guilded setup` chooses; officers get `/guilded setup guild`, which opens the step-by-step Local guild page. |
-| 2. Raid-night workflow | Partly | Start/end, attendance (including "everyone seen"), manual boss marks, EP/GP and loot work in game. Ending a raid now prints a summary, and `/guilded summary` opens it to copy. Not done: raid templates and notes. |
-| 3. Backup, archive, transfer | Mostly | `/guilded backup` shows a code to copy out of the game, `/guilded restore` previews before loading, `restore undo` reverts; a restore keeps the receiving PC's own settings (G4 passed). Not done: a raid-history report beyond the summary. |
+| 2. Raid-night workflow | Done | Start/end, attendance (including "everyone seen" and "from core roster"), manual boss marks, EP/GP and loot work in game. Ending a raid prints a summary (`/guilded summary` to copy). Templates (`/guilded template save`, then `/guilded start <name>`) keep a title and raid core; notes (`/guilded note`) show in the summary (6.5.0). The Raid page has the note box, Save as template and Templates (7.3.0). |
+| 3. Backup, archive, transfer | Done | `/guilded backup` shows a code to copy out of the game, `/guilded restore` previews before loading, `restore undo` reverts; a restore keeps the receiving PC's own settings (G4 passed). `/guilded raids [n]` lists recent raids (6.5.0) and `/guilded raids report [n]` gives each player's attendance, lates, loot and EP over them (7.3.0; Raid page: Raid history, Attendance report); `/guilded sheet raids` and `attendance` copy them for a spreadsheet. |
 | 4. Honest local EPGP model | Done | Local cores share guild EP/GP; standings say whose copy and how old; officers can merge ledgers with `/guilded ledgersync on` (G11 passed). |
 | 5. Standalone features | Ongoing | Gear/readiness (empty slots count only from level 60 by default, `/guilded slots level`), recipes, attunements, reserves with SR+ for everyone, bidding, council and roll-offs work without Discord. |
 

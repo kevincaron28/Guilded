@@ -781,3 +781,13 @@ FR["Guilded - Ctrl+C, then paste into Excel or Google Sheets"] = "Guilded - Ctrl
 FR["Copy for Excel"] = "Copier pour Excel"
 FR["Shows the standings as a table to copy (Ctrl+C) and paste into Excel or Google Sheets. /guilded sheet loot|attendance|raids|dungeons for the others."] = "Affiche le classement en tableau \195\160 copier (Ctrl+C) et coller dans Excel ou Google Sheets. /guilded sheet loot|attendance|raids|dungeons pour les autres."
 FR["Guilded is free. A coffee helps pay for hosting: kcaron.top/support"] = "Guilded est gratuit. Un caf\195\169 aide \195\160 payer l'h\195\169bergement : kcaron.top/support"
+
+-- 7.3: Raid page notes, templates and the attendance report (/guilded raids report).
+FR["Note"] = "Note"
+FR["Add note"] = "Ajouter la note"
+FR["Save as template"] = "Garder comme mod\195\168le"
+FR["Templates"] = "Mod\195\168les"
+FR["Raid history"] = "Historique des raids"
+FR["Attendance report"] = "Rapport de pr\195\169sence"
+FR["Saves the raid name with the selected raid core. Next time, type that name and Start raid."] = "Garde le nom du raid avec le core de raid choisi. La prochaine fois, tapez ce nom et D\195\169marrer le raid."
+FR["Each player's attendance, lates, loot and EP over the last 10 raids on this PC, to copy."] = "Pr\195\169sence, retards, butin et EP de chaque joueur sur les 10 derniers raids de ce PC, \195\160 copier."

@@ -329,6 +329,26 @@ local function buildRaidPage(page)
   local rosterButton = tip(at(newButton(page, "From core roster", 160), page, 230, -158),
     "Marks the selected raid core's players here PRESENT and its missing mains ABSENT. Click twice.")
   confirmClick(rosterButton, "From core roster", function() run("attendance roster") end)
+
+  -- A note on the running raid (it shows in the end-of-raid summary), templates, and the raid
+  -- records kept on this PC (the same as /guilded raids and /guilded raids report).
+  at(newLabel(page, "Note"), page, 0, -200)
+  ui.raidNote = at(newEdit(page, 260), page, 86, -196)
+  at(newButton(page, "Add note", 110, function()
+    local text = ui.raidNote:GetText()
+    if text == "" then ns.message("Type the note first."); return end
+    run("note " .. text)
+    ui.raidNote:SetText("")
+  end), page, 352, -196)
+  tip(at(newButton(page, "Save as template", 140, function()
+    local name = ui.raidName:GetText()
+    if name == "" then ns.message("Type the template's name in Raid name first."); return end
+    run("template save " .. string.gsub(string.lower(name), "%s+", "-") .. " " .. name)
+  end), page, 0, -234), "Saves the raid name with the selected raid core. Next time, type that name and Start raid.")
+  at(newButton(page, "Templates", 90, function() run("template list") end), page, 146, -234)
+  at(newButton(page, "Raid history", 140, function() run("raids 10") end), page, 242, -234)
+  tip(at(newButton(page, "Attendance report", 140, function() run("raids report 10") end), page, 388, -234),
+    "Each player's attendance, lates, loot and EP over the last 10 raids on this PC, to copy.")
 end
 
 local function buildEpgpPage(page)

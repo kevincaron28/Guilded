@@ -475,6 +475,67 @@ end
 
 -- Guild calendar, both ways with Discord (Modules/Calendar.lua). Creating an event is done from
 -- a button here because some clients need a real click for it.
+local function buildPublicRaidsPage(page)
+  ui.pugRole = nil
+  ui.pugPage = 1
+  local function update()
+    if not ns.publicRaids then return end
+    local rows, fresh = ns.publicRaids.rows(ui.pugRole, ui.pugRealm:GetText())
+    local count = math.max(1, math.ceil(#rows / 3))
+    ui.pugPage = math.max(1, math.min(ui.pugPage, count))
+    local text = ns.publicRaids.statusText(ui.pugRole, ui.pugRealm:GetText())
+    -- Summary and stale state are always visible. Rows have individual copy buttons.
+    ui.pugStatus:SetText(fresh and (L("Snapshot from:") .. " " .. tostring(GuildedPublicRaids.fetchedAt) .. "\n" ..
+      L("Counts may change. Join the host Discord and confirm there. Reload after companion sync.")) or text)
+    for i, entry in ipairs(ui.pugRows) do
+      local index = (ui.pugPage - 1) * 3 + i
+      local row = rows[index]
+      entry.index = index
+      if row then
+        local clean = function(value) return tostring(value or ""):gsub("|", ""):gsub("[%c]", " ") end
+        entry.label:SetText(clean(row.title) .. " - " .. clean(row.guildName) .. "\n" .. clean(row.at) .. " UTC\n"
+          .. clean(row.realm) .. " / " .. clean(row.faction) .. " / " .. clean(row.language) .. "\n"
+          .. string.format(L("Tank: %d | Healer: %d | DPS: %d"), row.tanks or 0, row.healers or 0, row.dps or 0))
+        entry.button:Show()
+      else
+        entry.label:SetText(i == 1 and fresh and L("No open raids match these filters.") or "")
+        entry.button:Hide()
+      end
+    end
+    ui.pugPages:SetText(ui.pugPage .. " / " .. count)
+  end
+  at(newLabel(page, "Realm"), page, 0, 0)
+  ui.pugRealm = at(newEdit(page, 210), page, 6, -20)
+  ui.pugRealm:SetScript("OnEnterPressed", function(self) self:ClearFocus(); ui.pugPage = 1; update() end)
+  at(newButton(page, "Filter", 80, function() ui.pugPage = 1; update() end), page, 230, -18)
+  local roles = { { "All roles", nil }, { "Tank", "tanks" }, { "Healer", "healers" }, { "DPS", "dps" } }
+  for i, choice in ipairs(roles) do
+    at(newButton(page, choice[1], 90, function() ui.pugRole = choice[2]; ui.pugPage = 1; update() end), page, (i - 1) * 96, -52)
+  end
+  ui.pugStatus = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -86)
+  ui.pugStatus:SetWidth(PAGE_WIDTH)
+  ui.pugRows = {}
+  for i = 1, 3 do
+    local entry = {}
+    entry.label = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -150 - (i - 1) * 92)
+    entry.label:SetWidth(PAGE_WIDTH - 120)
+    entry.button = at(newButton(page, "Copy Discord", 110, function()
+      ns.publicRaids.copy(entry.index, ui.pugRole, ui.pugRealm:GetText())
+    end), page, PAGE_WIDTH - 114, -150 - (i - 1) * 92)
+    ui.pugRows[i] = entry
+  end
+  at(newButton(page, "Previous", 90, function() ui.pugPage = ui.pugPage - 1; update() end), page, 0, -440)
+  at(newButton(page, "Next", 90, function() ui.pugPage = ui.pugPage + 1; update() end), page, 96, -440)
+  ui.pugPages = at(newLabel(page, ""), page, 200, -445)
+  at(newButton(page, "Website", 100, function() ns.publicRaids.copy() end), page, PAGE_WIDTH - 104, -440)
+  local elapsed = 0
+  page:SetScript("OnUpdate", function(_, dt)
+    elapsed = elapsed + dt
+    if elapsed >= 5 then elapsed = 0; update() end
+  end)
+  ui.refreshPugs = update
+end
+
 local function buildCalendarPage(page)
   -- Inside the game's calendar the page is narrower than PAGE_WIDTH; updateGuildScroll narrows
   -- these two labels to what is visible so they wrap instead of being cut off.
@@ -1160,6 +1221,7 @@ local GROUPS = { "Overview", "Raid night", "Fun and runs", "System" }
 local TAB_DEFS = {
   { name = "Home", hint = "what is going on, and your data", group = "Overview", build = buildHomePage },
   { name = "Me", label = "My character", hint = "your gear check and attunements", group = "Overview", usesPlayer = true, build = buildMePage },
+  { name = "Open raids", hint = "find a raid with room for you", group = "Overview", build = buildPublicRaidsPage },
   { name = "Standings", scope = "guild", group = "Guild", usesPlayer = true, build = buildStandingsPage },
   { name = "Crafting", scope = "guild", group = "Guild", module = "recipes", build = buildCraftingPage },
   { name = "Ready", hint = "who is ready for the raid", group = "Raid night", leader = true, build = buildReadyPage },
@@ -1380,6 +1442,7 @@ refresh = function()
   local me = ns.playerName()
   local name = selectedPlayer()
   refreshHome(db, officer, me)
+  if ui.refreshPugs then ui.refreshPugs() end
   if ui.calendarStatus then
     ui.calendarStatus:SetText(moduleOn("calendar") and ns.calendar and ns.calendar.statusText and ns.calendar.statusText() or "")
   end
@@ -1843,6 +1906,7 @@ end
 function ns.openToolsPage(name)
   if InCombatLockdown and InCombatLockdown() then return end
   if not panel then buildPanel() end
+  if name == "Open raids" then panel:Show(); ui.lastOfficer = nil; refresh() end
   ui.selectTabByName(name)
 end
 

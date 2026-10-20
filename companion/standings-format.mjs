@@ -128,6 +128,7 @@ export function standingsToLua(data) {
     ] : ["GuildedRaids = nil"]),
     "",
     "-- How each raid core decides loot: the system, set item prices, own-pool standings.",
+    ...publicRaidsToLua(data.publicRaids),
     ...lootToLua(data.loot),
     "",
     "-- The next raid's signed-up players (main characters), for /guilded invite raid.",
@@ -140,5 +141,16 @@ export function standingsToLua(data) {
     ] : ["GuildedNextRaid = nil"]),
     ""
   ].join("\n");
+}
+
+// Public summary only: never copy signups, character names or officer notes into this feed.
+export function publicRaidsToLua(snapshot) {
+  const count = n => Number.isInteger(n) && n > 0 ? Math.min(n, 1000) : 0;
+  return [
+    `GuildedPublicRaids = { fetchedAt = ${luaString(snapshot?.fetchedAt ?? "")}, raids = {`,
+    ...(Array.isArray(snapshot?.raids) ? snapshot.raids : []).slice(0, 100).map(raid =>
+      `  { id = ${luaString(raid.id)}, title = ${luaString(raid.title)}, guildName = ${luaString(raid.guildName)}, coreName = ${luaString(raid.coreName ?? "")}, at = ${luaString(raid.scheduledAt)}, realm = ${luaString(raid.realm)}, faction = ${luaString(raid.faction)}, language = ${luaString(raid.language)}, tanks = ${count(raid.spots?.TANK)}, healers = ${count(raid.spots?.HEALER)}, dps = ${count(raid.spots?.DPS)}, signupUrl = ${luaString(raid.signupUrl)}, inviteUrl = ${luaString(raid.inviteUrl)} },`),
+    "} }"
+  ];
 }
 

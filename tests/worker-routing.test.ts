@@ -270,6 +270,14 @@ describe("signed-in website pages (7.0)", () => {
 });
 
 describe("public dungeon run uploads (7.0)", () => {
+  it("proxies public player pages and the authenticated visibility form through the website boundary", async () => {
+    const upstream = vi.fn<(url: string) => Promise<Response>>(async () => new Response("profile")); vi.stubGlobal("fetch", upstream);
+    const result = await worker.fetch(new Request("https://guilded.kcaron.top/players/c111111111111111111111111?lang=fr"), env);
+    expect(await result.text()).toBe("profile");
+    expect(upstream.mock.calls[0]![0]).toBe("https://guildedqc.duckdns.org/players/c111111111111111111111111?lang=fr");
+    const post = await worker.fetch(new Request("https://guilded.kcaron.top/me/profile", { method: "POST", headers: { origin: "https://guilded.kcaron.top", "content-type": "application/x-www-form-urlencoded" }, body: "public=false" }), env);
+    expect(post.status).toBe(200);
+  });
   it("forwards the personal companion's upload with its credential, POST only", async () => {
     const upstream = vi.fn(async () => Response.json({ accepted: [] })); vi.stubGlobal("fetch", upstream);
     await worker.fetch(new Request("https://guilded.kcaron.top/api/v1/public-runs", { method: "POST", body: "{}", headers: { "content-type": "application/json", "x-companion-credential": "personal", cookie: "a=1" } }), env);

@@ -30,6 +30,7 @@ Modules\LocalGuild.lua
 Modules\Reserve.lua
 Modules\Recipes.lua
 Modules\Calendar.lua
+Modules\PublicRaids.lua
 Modules\ConsumableData.lua
 Modules\Consumables.lua
 Modules\Digest.lua

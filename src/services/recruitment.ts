@@ -99,7 +99,7 @@ export interface PublicCard {
   language: string | null; raidDays: string[]; note: string | null; discord: string | null; updatedAt: Date;
 }
 
-export interface Filters { kind: "all" | "guild" | "core" | "players"; className: string | null; role: Role | null; faction: string | null; language: string | null; realm: string | null }
+export interface Filters { kind: "all" | "guild" | "core" | "players" | "raids"; className: string | null; role: Role | null; faction: string | null; language: string | null; realm: string | null }
 
 export function readFilters(query: URLSearchParams): Filters {
   const kind = query.get("kind");
@@ -107,7 +107,7 @@ export function readFilters(query: URLSearchParams): Filters {
   const faction = query.get("faction")?.toUpperCase();
   const language = query.get("language");
   return {
-    kind: kind === "guild" || kind === "core" || kind === "players" ? kind : "all",
+    kind: kind === "guild" || kind === "core" || kind === "players" || kind === "raids" ? kind : "all",
     className: query.get("class") ? className(query.get("class")!) : null,
     role: (ROLES as readonly string[]).includes(role ?? "") ? role as Role : null,
     faction: (FACTIONS as readonly string[]).includes(faction ?? "") ? faction! : null,
@@ -120,7 +120,7 @@ const sameRealm = (wanted: string | null, realm: string | null) => !wanted || !r
 const speaks = (wanted: string | null, language: string | null) => !wanted || !language || language === "both" || language === wanted;
 
 export function listingMatches(listing: PublicListing, filters: Filters): boolean {
-  if (!listing.open || filters.kind === "players") return false;
+  if (!listing.open || filters.kind === "players" || filters.kind === "raids") return false;
   if (filters.kind === "guild" && listing.core) return false;
   if (filters.kind === "core" && !listing.core) return false;
   if (filters.className && listing.classes.length && !listing.classes.includes(filters.className)) return false;
@@ -130,7 +130,7 @@ export function listingMatches(listing: PublicListing, filters: Filters): boolea
 }
 
 export function cardMatches(card: PublicCard, filters: Filters): boolean {
-  if (filters.kind === "guild" || filters.kind === "core") return false;
+  if (filters.kind === "guild" || filters.kind === "core" || filters.kind === "raids") return false;
   if (filters.className && card.className !== filters.className) return false;
   if (filters.role && card.role !== filters.role) return false;
   if (filters.faction && card.faction && card.faction !== filters.faction) return false;

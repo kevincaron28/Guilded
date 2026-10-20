@@ -130,6 +130,7 @@ After login, an officer (guild rank 0 or 1 by default) can use:
 /guilded end
 /guilded summary
 /guilded raids 10
+/guilded raids report 10
 /guilded history
 /guilded export
 ```

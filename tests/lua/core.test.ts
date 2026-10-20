@@ -188,6 +188,47 @@ describe("gear check: enchants, consumables and the peer digest", () => {
     expect(s.run(`return table.concat(CHAT_LOG, "\\n")`)).toMatch(/Tuesday Molten Core: 2 attended, 0 boss\(es\), \+0 EP, 0 loot/); // Kev and Amy
   });
 
+  it("/guilded raids report: each player's attendance, lates, loot and EP over the last raids", () => {
+    const s = loggedIn();
+    s.run(`
+      SlashCmdList["GUILDED"]("start Molten Core")
+      SlashCmdList["GUILDED"]("attendance Amy PRESENT")
+      SlashCmdList["GUILDED"]("attendance Bob LATE")
+      SlashCmdList["GUILDED"]("award Amy 10 On time")
+      SlashCmdList["GUILDED"]("loot Amy Felheart Gloves 40")
+      SlashCmdList["GUILDED"]("end")
+      -- A week later (raid ids include the server time).
+      GetServerTime = function() return 1800000000 + 7 * 86400 end
+      SlashCmdList["GUILDED"]("start Onyxia")
+      SlashCmdList["GUILDED"]("attendance Amy PRESENT")
+      SlashCmdList["GUILDED"]("attendance Bob ABSENT")
+      SlashCmdList["GUILDED"]("end")
+      CHAT_LOG = {}
+      SlashCmdList["GUILDED"]("raids report")
+    `);
+    const out = s.run(`return table.concat(CHAT_LOG, "\\n")`);
+    expect(out).toContain("Attendance over the last 2 raid(s) on this PC");
+    expect(out).toContain("Amy: 2/2 (100%), 1 loot, +10 EP");
+    expect(out).toContain("Bob: 1/2 (50%), 1 late, 1 absent");
+    // Best attendance first; Kev (the officer, in the group) was seen but never marked.
+    expect(out.indexOf("Amy:")).toBeLessThan(out.indexOf("Bob:"));
+    expect(out).toMatch(/Kev: 0\/2 \(0%\), 2 seen, not marked/);
+    // Only the last raid when asked for 1.
+    s.run(`CHAT_LOG = {}; SlashCmdList["GUILDED"]("raids report 1")`);
+    expect(s.run(`return table.concat(CHAT_LOG, "\\n")`)).toContain("Bob: 0/1 (0%), 1 absent");
+  });
+
+  it("a template saved from the Raid page as tuesday-mc starts from its full name too", () => {
+    const s = loggedIn();
+    s.run(`
+      NS.loot = { core = function() return { id = "local:2", name = "Les Aggros", roster = {} } end }
+      NS.runCommand = function() end
+      SlashCmdList["GUILDED"]("template save tuesday-mc Tuesday MC")
+      SlashCmdList["GUILDED"]("start Tuesday MC")
+    `);
+    expect(s.run(`return GuildedDB.raids[#GuildedDB.raids].title .. ":" .. tostring(GuildedDB.raids[#GuildedDB.raids].coreId)`)).toBe("Tuesday MC:local:2");
+  });
+
   it("ending a raid prints a summary of what was recorded; /guilded summary shows it again", () => {
     const s = loggedIn();
     s.run(`

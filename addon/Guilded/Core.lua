@@ -322,7 +322,9 @@ local function raidStart(title)
   end
   if not title or title == "" then title = "Raid" end
   -- A saved template ("/guilded start Tuesday MC") brings its title and selects its raid core.
-  local template = db.raidTemplates and db.raidTemplates[string.lower(title)]
+  -- The Raid page saves "Tuesday MC" as tuesday-mc, so both spellings find it.
+  local key = string.lower(title)
+  local template = db.raidTemplates and (db.raidTemplates[key] or db.raidTemplates[(string.gsub(key, "%s+", "-"))])
   if template then
     title = template.title or title
     if template.coreId and ns.loot and ns.loot.core and ns.runCommand then pcall(ns.runCommand, "core " .. template.coreId) end
@@ -971,6 +973,75 @@ local function raidHistoryLines(count)
 end
 ns.raidHistoryLines = raidHistoryLines
 
+-- /guilded raids report [n]: each player's attendance over the last n raids recorded on this PC
+-- (default 10), with lates, absences, loot and EP from those raids. Officers mark attendance by
+-- hand, so "seen" counts players in the group who were never marked. Best attendance first.
+local REPORT_PLAYER_LIMIT = 80
+local function raidReportLines(count)
+  count = math.max(1, math.min(50, tonumber(count) or 10))
+  local raids, inWindow = {}, {}
+  for i = #db.raids, math.max(1, #db.raids - count + 1), -1 do
+    table.insert(raids, db.raids[i])
+    inWindow[db.raids[i].id] = true
+  end
+  if #raids == 0 then return { "No raids recorded on this PC yet." } end
+  local players = {}
+  local function row(name)
+    players[name] = players[name] or { name = name, attended = 0, late = 0, absent = 0, seen = 0, loot = 0, ep = 0 }
+    return players[name]
+  end
+  for _, raid in ipairs(raids) do
+    local marked = db.attendance[raid.id] or {}
+    for name, mark in pairs(marked) do
+      local player = row(name)
+      if mark.status == "ABSENT" then player.absent = player.absent + 1
+      else
+        player.attended = player.attended + 1
+        if mark.status == "LATE" then player.late = player.late + 1 end
+      end
+    end
+    for name in pairs(db.presence[raid.id] or {}) do
+      if not marked[name] then row(name).seen = row(name).seen + 1 end
+    end
+  end
+  for _, loot in ipairs(db.loot or {}) do
+    if loot.raid and inWindow[loot.raid] and loot.player then row(loot.player).loot = row(loot.player).loot + 1 end
+  end
+  for name, account in pairs(db.epgp or {}) do
+    for _, entry in ipairs(account.ledger or {}) do
+      if entry.raid and inWindow[entry.raid] and not entry.voided and (entry.epAmount or 0) ~= 0 then
+        row(name).ep = row(name).ep + entry.epAmount
+      end
+    end
+  end
+  local sorted = {}
+  for _, player in pairs(players) do table.insert(sorted, player) end
+  table.sort(sorted, function(a, b)
+    if a.attended ~= b.attended then return a.attended > b.attended end
+    return a.name < b.name
+  end)
+  local oldest = raids[#raids]
+  local lines = { string.format("Attendance over the last %d raid(s) on this PC, since %s (marked by officers):", #raids,
+    tostring(util.whenText and util.whenText(oldest.startedAt) or oldest.startedAt or "?")) }
+  for i, player in ipairs(sorted) do
+    if i > REPORT_PLAYER_LIMIT then
+      table.insert(lines, string.format("... and %d more.", #sorted - REPORT_PLAYER_LIMIT))
+      break
+    end
+    local extra = {}
+    if player.late > 0 then table.insert(extra, player.late .. " late") end
+    if player.absent > 0 then table.insert(extra, player.absent .. " absent") end
+    if player.seen > 0 then table.insert(extra, player.seen .. " seen, not marked") end
+    if player.loot > 0 then table.insert(extra, player.loot .. " loot") end
+    if player.ep ~= 0 then table.insert(extra, string.format("%+d EP", player.ep)) end
+    table.insert(lines, string.format("%s: %d/%d (%d%%)%s", player.name, player.attended, #raids,
+      math.floor(player.attended * 100 / #raids + 0.5), #extra > 0 and (", " .. table.concat(extra, ", ")) or ""))
+  end
+  if #sorted == 0 then table.insert(lines, "Nobody was marked or seen in these raids.") end
+  return lines
+end
+ns.raidReportLines = raidReportLines
+
 -- /guilded sheet <table>: tab-separated rows with a header, for pasting into Excel or Google
 -- Sheets (each value lands in its own cell). Tabs and line breaks inside a value become
 -- spaces so a cell can't spill; the edit box gets slow with huge text, so rows stop at 1000.
@@ -1431,7 +1502,7 @@ local function showHelp()
   if officer then
     message("Officer: /guilded start [title] | end | attendance <name>|group|seen [PRESENT|ABSENT|LATE] | boss <name> | summary (what the raid recorded, to copy)")
     message("Officer: /guilded note <text> | template save <name> [title] | template list | attendance roster | raid discard | undo (takes back your last award)")
-    message("/guilded raids [n] - recent raids, one line each, to copy")
+    message("/guilded raids [n] - recent raids, one line each, to copy | raids report [n] - each player's attendance, loot and EP")
     message("Officer: /guilded award <name>|group <amount> [reason] | gp <name> <amount> [reason] | deduct <name> <amount> [reason] | gpdeduct <name> <amount> [reason]")
     message("Officer: /guilded loot <name> <item> [cost] | export | attune <player> <key> [clear] | officer list|add|remove|rank")
     message("Officer: /guilded void [player] - take back the newest EP/GP entry you made (for that player); Discord reverses it")
@@ -1668,6 +1739,10 @@ local function command(text)
   elseif action == "raid" and string.lower(args[2] or "") == "discard" then if requireOfficer() then discardRaid() end
   elseif action == "undo" then if requireOfficer() then voidEntry("last") end
   elseif action == "sheet" or action == "spreadsheet" or action == "excel" then sheetCommand(args[2])
+  elseif action == "raids" and string.lower(args[2] or "") == "report" then
+    local lines = raidReportLines(args[3])
+    for _, line in ipairs(lines) do message(line) end
+    if #db.raids > 0 then showCharacterExport(table.concat(lines, "\n"), "Guilded - attendance report: copy it (Ctrl+C) into Discord or a forum") end
   elseif action == "raids" then
     local lines = raidHistoryLines(args[2])
     for _, line in ipairs(lines) do message(line) end

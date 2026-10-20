@@ -17,6 +17,7 @@ import { COMMUNITY_HUB_PREFIX } from "./services/community-panels.js";
 import { pendingSignupRaidIds, syncSignupEmbed } from "./commands/raid.js";
 import { runDiscordJobs } from "./services/discord-jobs.js";
 import { queueGuildScheduledEvents } from "./services/scheduled-events.js";
+import { commandRegistration } from "./services/command-registration.js";
 import { interactionReportOrigin, withReportContext, type InteractionReportInput, type ReportScope } from "./services/report-context.js";
 import { queueCharacterDisplayRefresh } from "./services/character-display-refresh.js";
 import { executeSystem } from "./commands/system.js";
@@ -192,7 +193,7 @@ client.once(Events.ClientReady, (readyClient) => {
       if (!hostedPilot.allows(guild.id)) await pilotRequests.request(guild).catch(reportJobError("Pilot approval DM"));
     }
     await registerCommandsEverywhere();
-  })().catch(reportJobError("Command registration"));
+  })().catch((error: unknown) => { commandRegistration.failed("startup", error); reportJobError("Command registration")(error); });
   const voice = async () => { for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) await participationTracker.sampleVoice(guild); };
   void voice().catch(reportJobError("Participation voice checkpoint"));
   setInterval(() => void voice().catch(reportJobError("Participation voice checkpoint")), 30_000);
@@ -236,11 +237,16 @@ client.once(Events.ClientReady, (readyClient) => {
   void reconcileEvents().catch(reportJobError("Discord scheduled events"));
   setInterval(() => void reconcileEvents().catch(reportJobError("Discord scheduled events")), 60_000);
   console.info(`Logged in as ${readyClient.user.tag}`);
-  for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) {
-    void updateDungeonLeaderboard(guild);
-    void updateProfessionDirectory(guild);
-    repairCoreRaids(guild, true).catch(reportJobError("Core channels and raid posts", { guildId: guild.id, guildName: guild.name }));
-  }
+  // One server at a time: starting every server's boards and raid repair at once, next to the
+  // other startup jobs, used up the database connection pool on 19 October 2026.
+  void (async () => {
+    for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) {
+      const origin = { guildId: guild.id, guildName: guild.name };
+      await updateDungeonLeaderboard(guild).catch(reportJobError("Dungeon leaderboard", origin));
+      await updateProfessionDirectory(guild).catch(reportJobError("Profession directory", origin));
+      await repairCoreRaids(guild, true).catch(reportJobError("Core channels and raid posts", origin));
+    }
+  })();
   logSetupStatus(readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()).catch(reportJobError("Setup status log"));
   // One-shot: the running version only changes on a redeploy/restart, so a
   // per-ClientReady check is enough (safe on reconnect too: it marks each
@@ -250,12 +256,12 @@ client.once(Events.ClientReady, (readyClient) => {
   const updateCheck = () => announceAvailableUpdate(readyClient).catch(reportJobError("Update check"));
   void updateCheck();
   setInterval(() => void updateCheck(), 24 * 60 * 60 * 1000);
-  // Daily database backup to backups/ (keeps 14 days). Runs now if today's
-  // file is missing, then checks hourly.
+  // Daily database backup to backups/ (keeps 14 days). Its one long transaction holds a
+  // connection, so the first check waits until the startup jobs above are done; then hourly.
   const backup = () => runBackup(prisma)
     .then((result) => { if (result) console.info(`Backup saved: backups/${result.file} (${result.rows} rows).`); })
     .catch(reportJobError("Database backup"));
-  void backup();
+  setTimeout(() => void backup(), 3 * 60 * 1000);
   setInterval(() => void backup(), 60 * 60 * 1000);
   // Old uploads, repeated gear checks and old error reports are pruned (services/retention.ts).
   const retention = () => runRetention(prisma)
@@ -654,13 +660,20 @@ async function registerCommands(guildId: string, body: unknown[] = commands.map(
 }
 
 // Commands are per-guild, so every server the bot is in needs them registered.
+// The outcome is shown on /health (commandRegistration) for deploy/update.sh.
 async function registerCommandsEverywhere(): Promise<void> {
+  commandRegistration.start();
   const guildIds = new Set<string>([config.DISCORD_GUILD_ID, ...client.guilds.cache.keys()]);
   for (const guildId of guildIds) {
     const body = commandSetFor(hostedPilot.tier(guildId), commands);
     if (!body) continue;
-    await registerCommands(guildId, body).catch((error: unknown) => console.warn(`Command registration failed for guild ${guildId}`, error));
+    await registerCommands(guildId, body).catch((error: unknown) => {
+      console.warn(`Command registration failed for guild ${guildId}`, error);
+      commandRegistration.failed(guildId, error);
+      void errorReportService.report(client, error, { source: "Command registration", guildId, guildName: client.guilds.cache.get(guildId)?.name, operation: "commands.register" });
+    });
   }
+  commandRegistration.finish();
 }
 
 const pilotRequests = createPilotRequests(client, { enabled: hostedPilot.enabled, allows: hostedPilot.allows, replace: replacePilotApprovals,

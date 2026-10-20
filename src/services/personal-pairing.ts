@@ -31,6 +31,11 @@ export async function exchangePersonalCode(store: PersonalStore, code: string, n
   if (!isPersonalCode(code)) return null;
   const accountId = await store.consumePairing(hashCompanionSecret(code.trim().toUpperCase()), now);
   if (!accountId) return null;
+  return issuePersonalCredential(store, accountId);
+}
+
+// Also used by the companion's Discord sign-in (companion-signin.ts), which needs no code.
+export async function issuePersonalCredential(store: PersonalStore, accountId: string): Promise<{ companionCredential: string }> {
   const companionCredential = randomBytes(32).toString("base64url");
   await store.replaceCredential(accountId, hashCompanionSecret(companionCredential));
   return { companionCredential };

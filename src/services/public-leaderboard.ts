@@ -328,6 +328,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const csrf = `<input type="hidden" name="csrf" value="${escapeHtml(ctx.csrf ?? "")}"><input type="hidden" name="lang" value="${lang}">`;
     return `<h2>${t("Public dungeon leaderboards", "Classements publics des donjons")}</h2>`
       + `<p class="muted">${t("Connect the Guilded companion to your account (no guild needed) and it sends your finished dungeon runs to the", "Reliez le compagnon Guilded à votre compte (sans guilde) et il envoie vos donjons terminés aux")} <a href="${link("/leaderboards/", lang)}">${t("leaderboards", "classements")}</a>.</p>`
+      + `<p class="muted">${t("Easiest: in the companion, choose Sign in with Discord. A code below is only needed for older companions.", "Le plus simple : dans le compagnon, choisissez Connexion avec Discord. Le code ci-dessous ne sert qu'aux anciens compagnons.")}</p>`
       + (ctx.request.query.get("done") === "companion-off" ? `<p class="notice">${t("Companion disconnected.", "Compagnon déconnecté.")}</p>` : "")
       + (connected ? `<p>✔ ${t("A companion is connected.", "Un compagnon est connecté.")}</p><form method="post" action="/me/pair/revoke">${csrf}<button class="link" type="submit">${t("Disconnect it", "Le déconnecter")}</button></form>` : "")
       + `<form method="post" action="/me/pair">${csrf}<p><button class="button" type="submit">${connected ? t("Get a new companion code", "Obtenir un nouveau code") : t("Get a companion code", "Obtenir un code de compagnon")}</button></p></form>`;

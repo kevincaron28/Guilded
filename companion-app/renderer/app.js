@@ -57,7 +57,7 @@ function renderUpdate(update) {
   $('updateBanner').hidden = !update || !!api.browser;
   if (!update) return;
   $('updateTitle').textContent = `Guilded Companion ${update.version} is available`;
-  $('updateText').textContent = `You have ${$('version').textContent.replace(/^Version /, '')}. Download the new installer and run it: your settings and Discord link are kept.`;
+  $('updateText').textContent = `You have ${$('version').textContent.replace(/^Version /, '')}. ${update.installer ? 'Update now installs it and restarts the companion' : 'Download the new installer and run it'}: your settings and Discord link are kept.`;
 }
 function renderState(snapshot) {
   lastSnapshot = snapshot;
@@ -128,7 +128,10 @@ async function choosePoe() { const file = await api.browsePoeLog(readForm()); if
 ['btnBrowse','btnWowSelect'].forEach(id => bind(id,chooseWow)); ['btnPoeBrowse','btnPoeSelect'].forEach(id => bind(id,choosePoe));
 bind('btnDetect',async () => { $('detectNote').textContent = 'Looking for your addon data…'; const found = await api.detectWow(); if (found.length) { $('watchFile').value = found[0].path; $('detectNote').textContent = found.length > 1 ? `Found ${found.length} accounts. Check the selected file before saving.` : found[0].exists ? 'Found your addon data.' : 'Account found. Use /reload with the addon enabled to create Guilded.lua.'; } else $('detectNote').textContent = 'Choose Browse and select Guilded.lua in your account’s SavedVariables folder.'; });
 bind('btnTest',async () => { say('Checking your connection…',true); const result = await api.testConnection(readForm()); say(result.message,result.ok); });
-bind('btnPair',async () => { if (!$('pairingCode').value.trim()) { say('Paste the code from /character pair (or from guilded.kcaron.top/me/) first.',false); $('pairingCode').focus(); return; } say('Connecting your Discord account…',true); const result = await api.pairAccount(readForm()); say(result.message,result.ok); if (result.ok) { $('pairingCode').value = ''; savedConfig = (await api.getAll()).config; $('guildDiscordId').value = savedConfig.guildDiscordId || ''; renderState(lastSnapshot); toast('Discord account connected.'); } else if (/server ID/i.test(result.message)) { $('advanced').open = true; $('guildDiscordId').focus(); } });
+bind('btnPair',async () => { if (!$('pairingCode').value.trim()) { say('Paste the code from /character pair (or from guilded.kcaron.top/me/) first, or use Sign in with Discord.',false); $('pairingCode').focus(); return; } say('Connecting your Discord account…',true); const result = await api.pairAccount(readForm()); say(result.message,result.ok); if (result.ok) { $('pairingCode').value = ''; savedConfig = (await api.getAll()).config; $('guildDiscordId').value = savedConfig.guildDiscordId || ''; renderState(lastSnapshot); toast('Discord account connected.'); } else if (/server ID/i.test(result.message)) { $('advanced').open = true; $('guildDiscordId').focus(); } });
+// Sign in with Discord (7.2): the browser opens the website; the companion waits for the approval.
+bind('btnSignIn',async () => { const popup = api.browser ? window.open('', '_blank') : null; say('Opening Discord sign-in…',true); const started = await api.signInStart(readForm()); if (!started.ok) { popup?.close(); say(started.message,false); return; } if (started.url) { $('signInLink').href = started.url; if (popup) { popup.opener = null; popup.location.href = started.url; } } $('signInCode').textContent = started.confirm; $('signInWaiting').hidden = false; say(`Your browser opened. Check that it shows ${started.confirm}.`,true); const result = await api.signInWait(); $('signInWaiting').hidden = true; say(result.message,result.ok); if (result.ok) { savedConfig = (await api.getAll()).config; $('guildDiscordId').value = savedConfig.guildDiscordId || ''; $('uploadUrl').value = savedConfig.uploadUrl || ''; renderState(lastSnapshot); toast('Discord account connected.'); } });
+bind('btnSignInCancel',async () => { await api.signInCancel(); $('signInWaiting').hidden = true; say('Sign-in cancelled.',false); });
 $('form').addEventListener('submit',event => { event.preventDefault(); action($('btnSave'),async () => { say('Saving your preferences…',true); const result = await api.saveConfig(readForm()); say(result.message,result.ok); savedConfig = (await api.getAll()).config; renderState(lastSnapshot); if (result.ok) { toast(result.message); showPage('status'); } }); });
 $('autostart').addEventListener('change',event => action(event.target,async () => { $('autostart').checked = await api.setAutostart(event.target.checked); }));
 bind('btnUpload',async () => { await api.uploadNow(); toast(api.browser ? 'Sync finished. Check Activity for the result.' : 'Sync requested. Follow its progress in Activity.'); });
@@ -136,7 +139,9 @@ bind('btnStandings',async () => { await api.refreshStandings(); toast(api.browse
 bind('btnSheets',async () => { const result = await api.exportSheets($('sheetTable').value || undefined); if (!result.canceled) toast(result.message,!result.ok); });
 bind('btnFolder',() => api.openAddonFolder()); bind('btnPause',async () => { await api.toggleTracking(); }); bind('btnOnline',() => api.openOnline());
 bind('btnRemoveData',() => api.removeData());
-bind('btnUpdate',() => api.openUpdate());
+// Update now (7.2): the desktop app downloads, checks and installs the new version itself.
+bind('btnUpdate',async () => { if (!api.installUpdate) return api.openUpdate(); $('btnUpdate').textContent = 'Downloading…'; const result = await api.installUpdate(); toast(result.message,!result.ok); $('btnUpdate').textContent = result.ok ? 'Installing…' : 'Update now'; });
+api.onUpdateProgress?.(percent => { $('btnUpdate').textContent = `Downloading ${percent}%`; });
 bind('btnHistory',async () => {
   if (!savedConfig.companionCredential) { showPage('settings'); toast('Connect your Discord account first.'); return; }
   const visits = await api.getPoeRuns();

@@ -1,7 +1,5 @@
 # Guilded: EPGP and loot workflow
 
-[Français](#fr) · [Install Guilded](MEMBER_INSTALL.md) · [Optional Discord](HOSTED_PILOT.md)
-
 Use this guide to agree on a point policy, record a raid, and check the result.
 Guilded's addon can manage points and publish standings **without Discord**.
 Optional Discord integration adds shared core rules, prices, history and import review.

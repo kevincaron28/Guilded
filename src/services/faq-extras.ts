@@ -15,8 +15,8 @@ const PAIRING_ANSWER: Bilingual = {
   fr: "**Jumelage** : utilise `/character pair` dans Discord pour obtenir un code à usage unique, puis entre-le dans le compagnon Guilded (ou l'addon). Chaque joueur a son jumelage personnel; il n'y a pas de jeton partagé. S'il ne marche plus, refais `/character pair` pour un nouveau code."
 };
 const SYNC_ANSWER: Bilingual = {
-  en: "**Data not syncing?** 1) Make sure the companion is running and paired (`/character pair`). 2) In WoW, `/reload` or log out so SavedVariables are written to disk. 3) Check the companion shows no error and your addon version matches the bot (`/help`). 4) Wait a minute and try `/profile`. Still stuck? Ask an officer to run `/system`.",
-  fr: "**Les données ne se synchronisent pas?** 1) Vérifie que le compagnon tourne et est jumelé (`/character pair`). 2) Dans WoW, fais `/reload` ou déconnecte-toi pour écrire les SavedVariables. 3) Vérifie que le compagnon n'affiche pas d'erreur et que la version de l'addon correspond au bot (`/help`). 4) Attends une minute et essaie `/profile`. Toujours bloqué? Demande à un officier de lancer `/system`."
+  en: "**Data not syncing?** 1) Make sure the companion is running and paired (`/character pair`). 2) In WoW, `/reload` or log out so SavedVariables are written to disk. 3) Check the companion shows no error and your addon version matches the bot (`/help`). 4) Wait a minute and try `/profile`. Still stuck? Ask an officer to run `/setup system`.",
+  fr: "**Les données ne se synchronisent pas?** 1) Vérifie que le compagnon tourne et est jumelé (`/character pair`). 2) Dans WoW, fais `/reload` ou déconnecte-toi pour écrire les SavedVariables. 3) Vérifie que le compagnon n'affiche pas d'erreur et que la version de l'addon correspond au bot (`/help`). 4) Attends une minute et essaie `/profile`. Toujours bloqué? Demande à un officier de lancer `/setup system`."
 };
 
 export function looksLikePoe2Question(text: string): boolean {

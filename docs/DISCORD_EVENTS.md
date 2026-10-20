@@ -51,7 +51,7 @@ For a private season, the selected voice must have the same visibility overrides
 as the season's announcement channel. The organizer must be able to see/connect
 to it. A missing compatible voice leaves the event job pending; the signup and
 activity still work. Use `gaming edit voice:` to choose a compatible channel,
-then `/system retry`. Reminders are reset when a future gaming night is moved.
+then `/setup system retry`. Reminders are reset when a future gaming night is moved.
 
 ## Delivery and permissions
 
@@ -60,8 +60,8 @@ voice channel too, together with **View Channel** and **Connect**. **Manage Even
 is not required for events the bot creates. No new gateway or privileged intent
 is requested, and the bot does not modify events owned by human organizers.
 
-`/system status` shows `SCHEDULED_EVENT` jobs and their last error code;
-`/system retry` retries pending deliveries. `50013` indicates missing permissions;
+`/setup system status` shows `SCHEDULED_EVENT` jobs and their last error code;
+`/setup system retry` retries pending deliveries. `50013` indicates missing permissions;
 `event-private-venue` means no matching private voice; `event-voice-audience`
 means mismatched visibility; `event-signup-message-missing` means the signup post
 has not been delivered. Discord's 100 scheduled/active-event limit also remains

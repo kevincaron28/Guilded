@@ -61,7 +61,7 @@ export async function executeSystem(interaction: ChatInputCommandInteraction): P
     .setDescription("Companion activity is shown by uploads, not guessed from Discord online status. / L'activité du compagnon est mesurée par ses envois.")
     .addFields(
       { name: "Game → database / Jeu → base", value: `Active pairings / Jumelages: ${paired}\nLast upload / Dernier envoi: ${time(latest?.createdAt)} (${latest?.status ?? "none"})\nWaiting for approval / En attente: ${waiting}\nAuto-apply / Application auto: ${settings?.autoApplyImports ? "on" : "off"}\nAfter a reset, obtain a new /character pair code.` },
-      { name: "Database → Discord / Base → Discord", value: `Last delivery / Dernière publication: ${time(delivered?.deliveredAt)}\n${pending.length ? pending.map(job => `${job.kind}: ${job.attempts} attempt(s), ${job.lastError ?? "queued"} · retry ${time(job.nextAttemptAt)}`).join("\n") : "No pending deliveries / Aucune publication en attente"}\n/system retry` },
+      { name: "Database → Discord / Base → Discord", value: `Last delivery / Dernière publication: ${time(delivered?.deliveredAt)}\n${pending.length ? pending.map(job => `${job.kind}: ${job.attempts} attempt(s), ${job.lastError ?? "queued"} · retry ${time(job.nextAttemptAt)}`).join("\n") : "No pending deliveries / Aucune publication en attente"}\n/setup system retry` },
       { name: "Channels / Salons", value: (channelProblems.join("\n") || "Configured channels accessible / Salons configurés accessibles").slice(0, 1024) },
       { name: "Permissions", value: permissions.slice(0, 1024) },
       { name: "Leader commands / Commandes de direction", value: commandAccess.slice(0, 1024) }

@@ -54,6 +54,15 @@ describe("guild page rendering", () => {
     expect(html).toContain('<meta name="robots" content="noindex">');
     expect(renderGuildPage(view())).not.toContain("noindex");
   });
+
+  it("carries the site menu, a way back to the guild list and the guild's dungeon scores", () => {
+    const html = renderGuildPage(view({ language: "fr", dungeonPage: "/leaderboards/guild/g1" }));
+    expect(html).toContain('<nav aria-label="Navigation principale">');
+    expect(html).toContain(">Classements</a>");
+    expect(html).toContain('href="/leaderboards/guilds/?lang=fr">Guildes</a>');
+    expect(html).toContain('href="/leaderboards/guild/g1?lang=fr">Scores de donjon</a>');
+    expect(renderGuildPage(view())).not.toContain("Dungeon scores");
+  });
 });
 
 describe("guild page server", () => {

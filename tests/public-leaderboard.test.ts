@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createLeaderboardPages, rankCharacters, readLeaderFilters, type LeaderboardStore, type LeaderRun } from "../src/services/public-leaderboard.js";
+import { createLeaderboardPages, GUILD_COUNT, rankCharacters, rankGuilds, readLeaderFilters, type LeaderboardStore, type LeaderRun } from "../src/services/public-leaderboard.js";
 import { exchangePersonalCode, isPersonalCode, issuePersonalCode, personalAccess, type PersonalStore } from "../src/services/personal-pairing.js";
 import { createWebApp, type WebRequest, type WebResponse } from "../src/services/web-app.js";
 import { memoryWebStore } from "./helpers/memory-web-store.js";
@@ -65,6 +65,31 @@ describe("personal companion codes", () => {
   });
 });
 
+describe("guild rankings", () => {
+  it("adds up each guild's best members per bracket and leaves pickup players out", () => {
+    const qg = { id: "g1", name: "Quebec Gold" }, other = { id: "g2", name: "Vanguard" };
+    const shared = leaderRun("s", 1200, [player("Kev", "Warrior", "TANK"), player("Zed", "Rogue", "DPS")]);
+    const ranks = rankGuilds([
+      { guild: qg, runs: [shared, leaderRun("q", 1500)], roster: ["Kev", "amy"] },
+      { guild: other, runs: [shared], roster: ["zed"] },
+      { guild: { id: "g3", name: "Empty" }, runs: [], roster: ["nobody"] }
+    ]);
+    expect(ranks.map((r) => `${r.guild.name}:${r.bracket}:${r.rated}`)).toEqual(["Quebec Gold:15-29:2", "Vanguard:15-29:1"]);
+    expect(ranks[0]!.best.player.character).toBe("Kev");
+    expect(ranks[0]!.points).toBeGreaterThan(ranks[0]!.best.points);
+    expect(ranks[1]!.best.player.character).toBe("Zed");
+  });
+
+  it("counts only the best GUILD_COUNT members", () => {
+    const names = ["A", "B", "C", "D", "E", "F", "G"];
+    const runs = names.map((name, i) => leaderRun(name, 1200 + i * 60, [player(name, "Mage", "DPS")]));
+    const [rank] = rankGuilds([{ guild: { id: "g", name: "Big" }, runs, roster: names }]);
+    expect(rank!.rated).toBe(7);
+    const single = names.map((name) => rankGuilds([{ guild: { id: name, name }, runs, roster: [name] }])[0]!.points).sort((a, b) => b - a);
+    expect(rank!.points).toBe(single.slice(0, GUILD_COUNT).reduce((sum, p) => sum + p, 0));
+  });
+});
+
 describe("leaderboard and personal pages", () => {
   function setup() {
     const runs = [leaderRun("a", 1500), leaderRun("b", 1300, [player("Kev", "Warrior", "TANK"), player("<b>Bad</b>", "Mage", "DPS")], { confirmations: 2 })];
@@ -73,8 +98,9 @@ describe("leaderboard and personal pages", () => {
     const store: LeaderboardStore = {
       async runs(query) { return all.filter((run) => (!query.from || run.endedAt >= query.from) && (!query.to || run.endedAt < query.to)); },
       async characterRuns(character) { return all.filter((run) => run.players.some((p) => p.character.toLowerCase() === character.toLowerCase())); },
-      async guilds() { return [{ id: "g1", name: "Quebec Gold" }]; },
-      async guildRuns(guildId) { return guildId === "g1" ? runs : []; }
+      async guilds() { return [{ id: "g1", name: "Quebec Gold", slug: "quebec-gold" }]; },
+      async guildRuns(guildId) { return guildId === "g1" ? runs : []; },
+      async guildRoster(guildId) { return guildId === "g1" ? ["kev", "amy"] : []; }
     };
     const personal = memoryPersonalStore();
     const pages = createLeaderboardPages({ store, personal: personal.store, now: () => NOW });
@@ -130,6 +156,18 @@ describe("leaderboard and personal pages", () => {
     expect(kev.body).toContain("Score history");
     expect(kev.body).toContain("Beta (before Season 1)");
     expect(kev.body).toContain('class="meter"');
+    expect(home.body).toContain("Top guilds");
+    expect(home.body).toContain('href="/leaderboards/guilds/?');
+    const guilds = await request("GET", "/leaderboards/guilds/?lang=fr");
+    expect(guilds.status).toBe(200);
+    expect(guilds.body).toContain("Classement des guildes");
+    expect(guilds.body).toMatch(/<td>1<\/td><td><a href="\/leaderboards\/guild\/g1\?lang=fr">Quebec Gold<\/a>/);
+    expect(guilds.body).toContain('href="/g/quebec-gold/"');
+    expect(guilds.body).toContain('class="crumbs"');
+    const season = await request("GET", "/leaderboards/guild/g1/");
+    expect(season.body).toContain("#1 / 1");
+    expect(season.body).toContain("Guild page →");
+    expect(season.body).not.toContain("<b>Bad</b>");
     const guild = await request("GET", "/leaderboards/guild/g1?period=week");
     expect(guild.status).toBe(200);
     expect(guild.body).toContain("Quebec Gold");

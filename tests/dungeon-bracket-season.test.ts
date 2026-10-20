@@ -50,7 +50,7 @@ describe("provisional all-level season: preview", () => {
     const embed = provisionalSeasonEmbed().toJSON();
     expect(embed.title).toContain("PROVISIONAL");
     expect(embed.description).toContain("provisional");
-    expect(embed.description).toContain("rotate:true");
+    expect(embed.description).toContain("Guilded owner's calendar");
     const fields = embed.fields!;
     const low = fields.find(f => f.name.startsWith("Levels 15–29"))!;
     expect(low.name).toBe("Levels 15–29 · best 5 of 10 · provisional");

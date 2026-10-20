@@ -141,7 +141,7 @@ describe("leaderboard and personal pages", () => {
     const { request } = setup();
     const home = await request("GET", "/leaderboards/");
     expect(home.body).toContain("Top runs this week");
-    expect(home.body).toContain("Season 1 · November 2026");
+    expect(home.body).toContain("Guilded · Season 1</p>");
     // Ragefire Chasm: target 20:00 (provisional plan); 21:40 scores round(200 x 1200 / 1300) = 185.
     expect(home.body).toContain('<td class="num score">185</td>');
     expect(home.body).toContain('class="char c-warrior"');

@@ -5,10 +5,10 @@ import { hasPermission } from "../permissions.js";
 import { createAuditService } from "../services/audit.js";
 import {
   adjustPoints, describeConfig, setDungeonMasterCount, invalidateRun, pointHistory, POINT_RULES, readConfig, setRulePoints, setTarget,
-  setWeeklyRepeat, startSeason, type PointRule
+  setWeeklyRepeat, type PointRule
 } from "../services/dungeon-admin.js";
 import { formatDuration } from "../services/dungeon-rules.js";
-import { describeEvidence, provisionalSeasonEmbed, recalibrateRoute, recalibrationEvidence, startProvisionalSeason } from "../services/dungeon-bracket-season.js";
+import { describeEvidence, provisionalSeasonEmbed, recalibrateRoute, recalibrationEvidence } from "../services/dungeon-bracket-season.js";
 import { postToLogChannel } from "../services/housekeeping.js";
 import { findPlayer } from "../services/player-search.js";
 import { requireGuildContext } from "./context.js";
@@ -19,7 +19,7 @@ const auditService = createAuditService(prisma);
 // written to the audit log and the officer log channel.
 export const dungeonAdminCommand = new SlashCommandBuilder()
   .setName("dungeon-admin")
-  .setDescription("Officers: fix dungeon runs and points, change the rules, start a season.")
+  .setDescription("Officers: fix dungeon runs and points, change the rules.")
   .addSubcommand((sub) => sub.setName("invalidate").setDescription("Stop a run from counting and take back its points")
     .addStringOption((o) => o.setName("run").setDescription("The run (pick from the list)").setAutocomplete(true).setRequired(true))
     .addStringOption((o) => o.setName("reason").setDescription("Why (shown in the history)").setRequired(true).setMaxLength(200)))
@@ -43,23 +43,10 @@ export const dungeonAdminCommand = new SlashCommandBuilder()
     .addIntegerOption(o => o.setName("min_level").setDescription("Minimum party level next season").setMinValue(1).setMaxValue(100))
     .addIntegerOption(o => o.setName("max_level").setDescription("Maximum party level next season").setMinValue(1).setMaxValue(100))
     .addIntegerOption(o => o.setName("difficulty").setDescription("Competitive difficulty ID next season").setMinValue(0)))
-  .addSubcommand((sub) => sub.setName("season-start").setDescription("End this season (kept in history) and start a new one")
-    .addStringOption((o) => o.setName("name").setDescription("e.g. Season 2").setRequired(true).setMaxLength(60))
-    .addStringOption(o => o.setName("ends_at").setDescription("End time with zone, e.g. 2026-10-23T00:00:00-04:00")))
   .addSubcommand(sub => sub.setName("bracket-preview").setDescription("Preview the provisional all-level season (nothing starts)"))
-  .addSubcommand(sub => sub.setName("bracket-start").setDescription("Start the provisional all-level season")
-    .addStringOption(o => o.setName("name").setDescription("e.g. All levels").setRequired(true).setMaxLength(60))
-    .addStringOption(o => o.setName("starts_at").setDescription("Start with zone, e.g. 2026-10-19T20:00:00-04:00").setRequired(true))
-    .addStringOption(o => o.setName("ends_at").setDescription("End with zone").setRequired(true))
-    .addBooleanOption(o => o.setName("rotate").setDescription("Archive the active season first (needed if one is active)")))
   .addSubcommand(sub => sub.setName("recalibrate").setDescription("Route target from real runs; earned scores stay")
     .addStringOption(o => o.setName("route").setDescription("Route (pick from the list)").setAutocomplete(true).setRequired(true))
     .addIntegerOption(o => o.setName("minutes").setDescription("New target; leave out to see the runs").setMinValue(5).setMaxValue(120)));
-
-const zoned = (value: string, option: string) => {
-  if (!/T.*(?:Z|[+-]\d{2}:\d{2})$/.test(value)) throw new Error(`Include a time and timezone in ${option}.`);
-  return new Date(value);
-};
 
 async function memberFromOptions(interaction: ChatInputCommandInteraction, guildId: string) {
   const character = interaction.options.getString("character");
@@ -154,17 +141,6 @@ export async function executeDungeonAdmin(interaction: ChatInputCommandInteracti
   } else if (subcommand === "bracket-preview") {
     await interaction.reply({ embeds: [provisionalSeasonEmbed()], flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
     return;
-  } else if (subcommand === "bracket-start") {
-    const result = await startProvisionalSeason(prisma, context.guildId, { name: interaction.options.getString("name", true),
-      startsAt: zoned(interaction.options.getString("starts_at", true), "starts_at"), endsAt: zoned(interaction.options.getString("ends_at", true), "ends_at"),
-      rotate: interaction.options.getBoolean("rotate") === true });
-    const s = result.season;
-    reply = `${result.ended.length ? `Archived ${result.ended.join(", ")} (standings frozen, runs and points kept). ` : ""}`
-      + `${result.champions.length ? `👑 Season Champion: ${result.champions.join(", ")}. ` : ""}`
-      + `**${s.name}** (all levels, PROVISIONAL targets) counts runs from <t:${Math.floor(s.startsAt.getTime() / 1000)}:f> to <t:${Math.floor(s.endsAt!.getTime() / 1000)}:f>. `
-      + `Brackets: ${result.rules.brackets.map(b => b.key).join(", ")}; ${result.rules.catalog.length} rated routes, ${result.rules.provisional!.waiting.length} waiting for launch data. `
-      + "Recalibrate a route from real runs with `/officer dungeon recalibrate`.";
-    await log(reply, { seasonId: s.id, plan: result.rules.provisional!.plan });
   } else if (subcommand === "recalibrate") {
     const key = interaction.options.getString("route", true);
     const minutes = interaction.options.getInteger("minutes");
@@ -177,15 +153,11 @@ export async function executeDungeonAdmin(interaction: ChatInputCommandInteracti
       await log(reply, { seasonId: result.season.id, route: key, beforeSec: result.beforeSec, afterSec: result.afterSec });
     }
   } else {
-    const end = interaction.options.getString("ends_at");
-    const result = await startSeason(prisma, context.guildId, interaction.options.getString("name", true), undefined, end ? zoned(end, "ends_at") : undefined);
-    reply = `${result.ended.length ? `Ended ${result.ended.join(", ")} (still viewable). ` : ""}`
-      + `${result.champions.length ? `👑 Season Champion: ${result.champions.join(", ")}. ` : ""}`
-      + `**${result.season.name}** has started; season leaderboards start from zero.`;
-    await log(reply, { seasonId: result.season.id });
+    // Seasons follow the bot owner's calendar (/guilded-season); officers no longer start them.
+    reply = "Dungeon seasons are set by the Guilded owner for every guild. See them with `/organize dungeon-seasons preview`.";
   }
   await interaction.reply({ content: reply.slice(0, 1990), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
-  if (["season-start", "bracket-start", "award", "invalidate"].includes(subcommand) || subcommand === "recalibrate" && interaction.options.getInteger("minutes") !== null) {
+  if (["award", "invalidate"].includes(subcommand) || subcommand === "recalibrate" && interaction.options.getInteger("minutes") !== null) {
     await updateDungeonLeaderboard(interaction.guild);
   }
 }

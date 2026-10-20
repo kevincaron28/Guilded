@@ -1,106 +1,101 @@
 import { describe, expect, it, vi } from "vitest";
+import { carriedRules, zonedInstant } from "../src/services/dungeon-season-schedule.js";
 import {
-  DEFAULT_SCHEDULE, carriedRules, readSchedule, rotateScheduledSeasons, seasonWindow, seasonWindowAt, upcomingWindows, zonedInstant, type SeasonSchedule
-} from "../src/services/dungeon-season-schedule.js";
+  cancelNextSeason, officialWindowAt, officialWindows, rotateOfficialSeasons, scheduledNext, scheduleNextSeason, type OfficialRow
+} from "../src/services/official-seasons.js";
 import { provisionalSeasonRules } from "../src/services/dungeon-bracket-season.js";
 import { createBracketedDungeonRules } from "../src/services/dungeon-november-rules.js";
 import { scheduleEmbed } from "../src/commands/dungeon-schedule.js";
+import { calendarEmbed } from "../src/commands/owner-season.js";
+import { publicSeasons } from "../src/services/public-score.js";
 
-const on: SeasonSchedule = { ...DEFAULT_SCHEDULE, enabled: true };
+const S1 = new Date("2026-11-04T23:00:00Z");
+const seeded: OfficialRow[] = [{ number: 1, name: "Season 1", startsAt: S1 }];
 
-describe("monthly season windows", () => {
-  it("starts season 1 on 4 November 2026 at midnight Toronto (EST) and then on the 1st of each month", () => {
-    const s1 = seasonWindow(on, 1);
-    expect(s1.start.toISOString()).toBe("2026-11-04T05:00:00.000Z");
-    expect(s1.end.toISOString()).toBe("2026-12-01T05:00:00.000Z");
-    expect(s1.name).toBe("Season 1 · November 2026");
-    const s2 = seasonWindow(on, 2);
-    expect([s2.start.toISOString(), s2.end.toISOString(), s2.name]).toEqual(["2026-12-01T05:00:00.000Z", "2027-01-01T05:00:00.000Z", "Season 2 · December 2026"]);
-    // Daylight saving: April starts at midnight EDT (04:00 UTC).
-    expect(seasonWindow(on, 6).start.toISOString()).toBe("2027-04-01T04:00:00.000Z");
-    expect(seasonWindow(on, 6).name).toBe("Season 6 · April 2027");
+describe("owner season calendar", () => {
+  it("starts Season 1 on 4 November 2026 at 3 PM Pacific, with no end until the owner sets one", () => {
+    expect(zonedInstant(2026, 10, 4, 15, "America/Los_Angeles")).toEqual(S1);
+    const windows = officialWindows(seeded);
+    expect(officialWindowAt(windows, new Date("2026-11-04T22:59:59Z"))).toBeNull();
+    expect(officialWindowAt(windows, S1)).toMatchObject({ number: 1, end: null });
+    expect(officialWindowAt(windows, new Date("2027-06-01T00:00:00Z"))?.name).toBe("Season 1");
   });
 
-  it("windows touch: each season ends exactly when the next starts", () => {
-    for (let i = 1; i < 30; i++) expect(seasonWindow(on, i).end.getTime()).toBe(seasonWindow(on, i + 1).start.getTime());
+  it("ends a season exactly when the next one starts", () => {
+    const s2 = new Date("2027-01-26T23:00:00Z");
+    const windows = officialWindows([{ number: 2, name: "Season 2", startsAt: s2 }, ...seeded]);
+    expect(windows.map((w) => [w.name, w.end])).toEqual([["Season 1", s2], ["Season 2", null]]);
+    expect(scheduledNext(windows, new Date("2026-12-01T00:00:00Z"))?.name).toBe("Season 2");
+    expect(officialWindowAt(windows, s2)?.name).toBe("Season 2");
   });
 
-  it("has no season before the release start", () => {
-    expect(seasonWindowAt(on, new Date("2026-11-04T04:59:59Z"))).toBeNull();
-    expect(seasonWindowAt(on, new Date("2026-11-04T05:00:00Z"))?.index).toBe(1);
-    expect(seasonWindowAt(on, new Date("2026-12-01T04:59:59Z"))?.index).toBe(1);
-    expect(seasonWindowAt(on, new Date("2026-12-01T05:00:00Z"))?.index).toBe(2);
-    expect(upcomingWindows(on, new Date("2026-10-19T12:00:00Z"), 2).map(w => w.index)).toEqual([1, 2]);
-  });
+  function fakeCalendar(rows: OfficialRow[]) {
+    return { rows, officialSeason: {
+      findMany: vi.fn(async () => rows),
+      deleteMany: vi.fn(async ({ where }: { where: { startsAt: { gt: Date } } }) => { for (let i = rows.length - 1; i >= 0; i--) if (rows[i]!.startsAt > where.startsAt.gt) rows.splice(i, 1); return { count: 0 }; }),
+      create: vi.fn(async ({ data }: { data: OfficialRow }) => { rows.push(data); return data; })
+    } };
+  }
 
-  it("honours a configured hour and time zone", () => {
-    const utc = { ...on, hour: 15, timeZone: "UTC" };
-    expect(seasonWindow(utc, 1).start.toISOString()).toBe("2026-11-04T15:00:00.000Z");
-    expect(zonedInstant(2026, 10, 4, 0, "Europe/Paris").toISOString()).toBe("2026-11-03T23:00:00.000Z");
-  });
-
-  it("rejects malformed stored schedules", () => {
-    expect(readSchedule(null)).toBeNull();
-    expect(readSchedule({ ...on, timeZone: "Mars/Olympus" })).toBeNull();
-    expect(readSchedule({ ...on, hour: 24 })).toBeNull();
-    expect(readSchedule({ ...on, firstStart: "Nov 4" })).toBeNull();
-    expect(readSchedule(on)).toEqual(on);
+  it("schedules the next season, replaces one that has not started, and cancels it", async () => {
+    const now = new Date("2026-12-10T00:00:00Z");
+    const db = fakeCalendar([...seeded]);
+    await expect(scheduleNextSeason(db as never, { startsAt: new Date("2026-12-01T00:00:00Z"), actorId: "owner" }, now)).rejects.toThrow("future");
+    expect(await scheduleNextSeason(db as never, { startsAt: new Date("2027-01-26T23:00:00Z"), actorId: "owner" }, now)).toMatchObject({ number: 2, name: "Season 2" });
+    expect(await scheduleNextSeason(db as never, { name: "Season 2 · Patch 1.7", startsAt: new Date("2027-02-02T23:00:00Z"), actorId: "owner" }, now)).toMatchObject({ number: 2 });
+    expect(db.rows.map((r) => r.name)).toEqual(["Season 1", "Season 2 · Patch 1.7"]);
+    expect((await cancelNextSeason(db as never, now))?.name).toBe("Season 2 · Patch 1.7");
+    expect(db.rows.map((r) => r.name)).toEqual(["Season 1"]);
+    expect(await cancelNextSeason(db as never, now)).toBeNull();
   });
 });
 
-function fakeDb(guilds: { guildId: string; dungeonSeasonSchedule: unknown }[], seasons: { guildId: string; id: string; name: string; startsAt: Date; ratingRules: unknown }[]) {
+function fakeDb(guilds: { guildId: string; discordId: string }[], seasons: { guildId: string; id: string; name: string; startsAt: Date; ratingRules: unknown }[]) {
   return {
-    guildSettings: { findMany: vi.fn(async () => guilds) },
+    guildSettings: { findMany: vi.fn(async () => guilds.map((g) => ({ guildId: g.guildId, guild: { discordId: g.discordId } }))) },
     dungeonSeason: { findFirst: vi.fn(async ({ where }: { where: { guildId: string } }) => seasons.find(s => s.guildId === where.guildId) ?? null) }
   };
 }
 
-describe("monthly rotation job", () => {
+describe("season rotation (every guild follows the owner's calendar)", () => {
   const beta = { guildId: "g1", id: "beta", name: "Beta", startsAt: new Date("2026-10-19T00:00:00Z"), ratingRules: provisionalSeasonRules().rules };
+  const windows = officialWindows(seeded);
+  const allowAll = () => true;
 
-  it("does not touch the beta season before 4 November", async () => {
-    const db = fakeDb([{ guildId: "g1", dungeonSeasonSchedule: on }], [beta]);
+  it("does not touch the beta season before Season 1 starts", async () => {
     const backup = vi.fn(async () => null), start = vi.fn(async () => null);
-    expect(await rotateScheduledSeasons(db as never, new Date("2026-11-04T04:55:00Z"), backup, start)).toEqual([]);
+    expect(await rotateOfficialSeasons(fakeDb([{ guildId: "g1", discordId: "d1" }], [beta]) as never, windows, new Date("2026-11-04T22:55:00Z"), allowAll, backup, start)).toEqual([]);
     expect(backup).not.toHaveBeenCalled();
     expect(start).not.toHaveBeenCalled();
   });
 
-  it("at the start: backs up once, then rotates with the expected season, window and carried rules", async () => {
-    const db = fakeDb([{ guildId: "g1", dungeonSeasonSchedule: on }, { guildId: "g2", dungeonSeasonSchedule: on }],
-      [beta, { ...beta, guildId: "g2", id: "b2" }]);
+  it("at the start: backs up once, then moves every allowed guild in, with no end date", async () => {
+    const db = fakeDb([{ guildId: "g1", discordId: "d1" }, { guildId: "g2", discordId: "d2" }, { guildId: "g3", discordId: "blocked" }], [beta, { ...beta, guildId: "g2", id: "b2" }]);
     const order: string[] = [];
     const backup = vi.fn(async () => { order.push("backup"); }), start = vi.fn(async (guildId: string) => { order.push(`start:${guildId}`); });
-    const result = await rotateScheduledSeasons(db as never, new Date("2026-11-04T05:01:00Z"), backup, start);
+    const result = await rotateOfficialSeasons(db as never, windows, new Date("2026-11-04T23:01:00Z"), (id) => id !== "blocked", backup, start);
     expect(order).toEqual(["backup", "start:g1", "start:g2"]);
-    expect(result).toEqual([{ guildId: "g1", season: "Season 1 · November 2026", ended: "Beta" }, { guildId: "g2", season: "Season 1 · November 2026", ended: "Beta" }]);
-    expect(start).toHaveBeenCalledWith("g1", "Season 1 · November 2026", "beta", new Date("2026-12-01T05:00:00Z"), beta.ratingRules, new Date("2026-11-04T05:00:00Z"));
+    expect(result).toEqual([{ guildId: "g1", season: "Season 1", ended: "Beta" }, { guildId: "g2", season: "Season 1", ended: "Beta" }]);
+    expect(start).toHaveBeenCalledWith("g1", "Season 1", "beta", undefined, beta.ratingRules, S1);
   });
 
-  it("is idempotent after a restart: a season already started in this window is left alone", async () => {
-    const started = { ...beta, id: "s1", name: "Season 1 · November 2026", startsAt: new Date("2026-11-04T05:00:00Z") };
-    const db = fakeDb([{ guildId: "g1", dungeonSeasonSchedule: on }], [started]);
+  it("is idempotent after a restart and rotates again when the owner's next season starts", async () => {
+    const started = { ...beta, id: "s1", name: "Season 1", startsAt: S1 };
+    const db = fakeDb([{ guildId: "g1", discordId: "d1" }], [started]);
     const backup = vi.fn(async () => null), start = vi.fn(async () => null);
-    expect(await rotateScheduledSeasons(db as never, new Date("2026-11-20T00:00:00Z"), backup, start)).toEqual([]);
-    expect(await rotateScheduledSeasons(db as never, new Date("2026-11-20T00:05:00Z"), backup, start)).toEqual([]);
+    expect(await rotateOfficialSeasons(db as never, windows, new Date("2026-12-20T00:00:00Z"), allowAll, backup, start)).toEqual([]);
     expect(backup).not.toHaveBeenCalled();
-    // An officer's own season started inside the window also counts.
-    const manual = fakeDb([{ guildId: "g1", dungeonSeasonSchedule: on }], [{ ...started, startsAt: new Date("2026-11-10T00:00:00Z") }]);
-    expect(await rotateScheduledSeasons(manual as never, new Date("2026-11-20T00:00:00Z"), backup, start)).toEqual([]);
-    // The next month rotates it.
-    expect((await rotateScheduledSeasons(db as never, new Date("2026-12-01T05:00:00Z"), backup, start))[0]?.season).toBe("Season 2 · December 2026");
+    const s2 = officialWindows([...seeded, { number: 2, name: "Season 2", startsAt: new Date("2027-01-26T23:00:00Z") }]);
+    expect((await rotateOfficialSeasons(db as never, s2, new Date("2027-01-26T23:03:00Z"), allowAll, backup, start))[0]?.season).toBe("Season 2");
   });
 
-  it("skips guilds that did not opt in or turned it off, and never rotates when the backup fails", async () => {
-    const db = fakeDb([{ guildId: "g1", dungeonSeasonSchedule: null }, { guildId: "g2", dungeonSeasonSchedule: { ...on, enabled: false } }], [beta]);
+  it("never rotates when the backup fails", async () => {
     const start = vi.fn(async () => null);
-    expect(await rotateScheduledSeasons(db as never, new Date("2026-11-05T00:00:00Z"), async () => null, start)).toEqual([]);
-    const opted = fakeDb([{ guildId: "g1", dungeonSeasonSchedule: on }], [beta]);
-    await expect(rotateScheduledSeasons(opted as never, new Date("2026-11-05T00:00:00Z"), async () => { throw new Error("disk full"); }, start)).rejects.toThrow("disk full");
+    await expect(rotateOfficialSeasons(fakeDb([{ guildId: "g1", discordId: "d1" }], [beta]) as never, windows, new Date("2026-11-05T00:00:00Z"), allowAll, async () => { throw new Error("disk full"); }, start)).rejects.toThrow("disk full");
     expect(start).not.toHaveBeenCalled();
   });
 
-  it("carries provisional targets and recalibrations to the next month; other rules get the provisional plan", () => {
+  it("carries provisional targets and recalibrations to the next season; other rules get the provisional plan", () => {
     const { rules } = provisionalSeasonRules();
     const key = rules.catalog[0]!.dungeonKey;
     const recal = createBracketedDungeonRules({ routes: rules.routes, brackets: rules.brackets, overlevelPenalty: rules.overlevelPenalty,
@@ -110,10 +105,28 @@ describe("monthly rotation job", () => {
     expect(carriedRules(null)).toEqual(rules);
   });
 
-  it("previews without changing anything and says the beta season stays until the start", () => {
-    const embed = scheduleEmbed(on, beta, false, new Date("2026-10-19T12:00:00Z")).toJSON();
-    expect(embed.description).toContain("Nothing changes before <t:1793768400:f>");
-    expect(embed.fields?.[0]?.value).toContain("Season 1 · November 2026");
-    expect(scheduleEmbed({ ...on, enabled: false }, null, true).toJSON().description).toContain("désactivée");
+  it("shows officers the owner's calendar read-only: beta before Season 1, then the official season", () => {
+    const before = scheduleEmbed(windows, beta, false, new Date("2026-10-19T12:00:00Z")).toJSON();
+    expect(before.description).toContain("set by the Guilded owner");
+    expect(before.description).toContain("count for the beta");
+    const during = scheduleEmbed(windows, null, true, new Date("2026-12-01T00:00:00Z")).toJSON();
+    expect(during.description).toContain("**Season 1**");
+    expect(during.description).toContain("sans date de fin");
+  });
+
+  it("shows the owner the current and next season", () => {
+    const s2 = officialWindows([...seeded, { number: 2, name: "Season 2", startsAt: new Date("2027-01-26T23:00:00Z") }]);
+    const embed = calendarEmbed(s2, new Date("2026-12-01T00:00:00Z")).toJSON();
+    expect(embed.description).toContain("Current: **Season 1**");
+    expect(embed.description).toContain("Next: **Season 2**");
+  });
+
+  it("gives the public leaderboards the same seasons", () => {
+    const s2 = officialWindows([...seeded, { number: 2, name: "Season 2", startsAt: new Date("2027-01-26T23:00:00Z") }]);
+    expect(publicSeasons(new Date("2026-10-20T00:00:00Z"), s2).map((p) => p.id)).toEqual(["beta"]);
+    const later = publicSeasons(new Date("2027-02-01T00:00:00Z"), s2);
+    expect(later.map((p) => [p.id, p.labelFr])).toEqual([["s2", "Saison 2"], ["s1", "Saison 1"], ["beta", "Bêta (avant la saison 1)"]]);
+    expect(later[1]!.to).toEqual(new Date("2027-01-26T23:00:00Z"));
+    expect(later[2]!.to).toEqual(S1);
   });
 });

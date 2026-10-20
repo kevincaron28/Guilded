@@ -1,7 +1,7 @@
 import { provisionalSeasonRules } from "./dungeon-bracket-season.js";
 import { routeTargetAt, type BracketedRules } from "./dungeon-november-rules.js";
 import { SCARLET_WINGS, penalized, timeRating } from "./dungeon-rating.js";
-import { DEFAULT_SCHEDULE, seasonWindow, seasonWindowAt, type SeasonSchedule } from "./dungeon-season-schedule.js";
+import type { OfficialWindow } from "./official-seasons.js";
 import { weekWindow } from "./dungeon-periods.js";
 
 // Public dungeon score (website, 7.1). The same time rating as guild seasons, with the release
@@ -9,8 +9,8 @@ import { weekWindow } from "./dungeon-periods.js";
 // penalty, and each character's best N routes of a bracket summed. Public runs have no guild
 // rules of their own, so the website uses this one rule set for everyone; 45-59 and 60 stay
 // unrated until launch map IDs exist (dungeon-bracket-season.ts).
-// Public seasons follow the monthly schedule (dungeon-season-schedule.ts, default start 4 November
-// 2026); runs before Season 1 are "Beta".
+// Public seasons follow the bot owner's calendar (official-seasons.ts, /guilded-season): Season 1
+// from 4 November 2026, then whenever the owner starts the next one; runs before Season 1 are "Beta".
 
 export interface ScorePlayer { character: string; realm: string; className: string | null; role: string | null; level: number | null }
 export interface ScoreRun {
@@ -78,19 +78,16 @@ export function characterScores(runs: ScoreRun[], rules: BracketedRules = public
 
 // Public seasons: "beta" (before Season 1), "s1", "s2", ...; a week is the current one only.
 export interface PublicPeriod { id: string; label: string; labelFr: string; from: Date | null; to: Date | null }
-const FR_MONTHS: Record<string, string> = { January: "janvier", February: "février", March: "mars", April: "avril", May: "mai", June: "juin", July: "juillet",
-  August: "août", September: "septembre", October: "octobre", November: "novembre", December: "décembre" };
+/** The calendar as the migration seeds it, for callers without a database (tests, previews). */
+export const DEFAULT_OFFICIAL: OfficialWindow[] = [{ number: 1, name: "Season 1", start: new Date("2026-11-04T23:00:00Z"), end: null }];
+const frenchName = (name: string) => name.replace(/^Season (\d+)/, "Saison $1");
 
-export function publicSeasons(now: Date, schedule: SeasonSchedule = DEFAULT_SCHEDULE): PublicPeriod[] {
-  const first = seasonWindow(schedule, 1);
-  const current = seasonWindowAt(schedule, now)?.index ?? 0;
-  const list: PublicPeriod[] = [];
-  for (let i = current; i >= 1; i--) {
-    const w = seasonWindow(schedule, i);
-    const [, month = "", year = ""] = /· (\w+) (\d+)$/.exec(w.name) ?? [];
-    list.push({ id: `s${i}`, label: w.name, labelFr: `Saison ${i} · ${FR_MONTHS[month] ?? month} ${year}`, from: w.start, to: w.end });
-  }
-  list.push({ id: "beta", label: "Beta (before Season 1)", labelFr: "Bêta (avant la saison 1)", from: null, to: first.start });
+/** Started seasons, newest first, then the beta (everything before the first season). */
+export function publicSeasons(now: Date, windows: OfficialWindow[] = DEFAULT_OFFICIAL): PublicPeriod[] {
+  const sorted = [...windows].sort((a, b) => a.start.getTime() - b.start.getTime());
+  const list: PublicPeriod[] = sorted.filter((w) => w.start <= now).reverse()
+    .map((w) => ({ id: `s${w.number}`, label: w.name, labelFr: frenchName(w.name), from: w.start, to: w.end }));
+  list.push({ id: "beta", label: "Beta (before Season 1)", labelFr: "Bêta (avant la saison 1)", from: null, to: sorted[0]?.start ?? null });
   return list;
 }
 

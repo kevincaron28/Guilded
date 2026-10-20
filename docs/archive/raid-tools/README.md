@@ -1,5 +1,10 @@
 # Raid tools extraction — 4 October 2026
 
+> **20 October 2026:** the standalone leader addon is **Pullscript** (owner's `Wow Addons`
+> workspace, install folder `AzerothRaidTools`, CurseForge project 1729283). It covers every
+> feature below (marks, tank marking, plans, raid-chat posting, world markers) and imports
+> `GuildedDB.raidPlans` read-only. Build new raid-leader features there, not from this archive.
+
 Removed from Guilded's v6 release scope at the owner's request. This directory
 preserves the former module, UI, French translations and tests for a future
 optional standalone leader addon. It is outside the Guilded ZIP's source tree.

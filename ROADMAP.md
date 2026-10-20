@@ -122,9 +122,12 @@ How each one gets built: [ROADMAP_REQUESTS_PLAN_2026-10-18.md](docs/ROADMAP_REQU
 
 ## Later
 
-- A standalone leader addon for markers, tank marking and boss plans. These
-  features were removed from Guilded v6 on 4 October; preserved source is in
-  [the extraction archive](docs/archive/raid-tools/README.md). It is not an installable addon yet.
+- The raid-leader addon is **Pullscript** (a separate project in the owner's `Wow Addons`
+  workspace, CurseForge project 1729283): target icons and world markers, tank marking, boss
+  plans shared to the group or posted in chat, pull timer and ready check, and a read-only import
+  of Guilded's old `raidPlans`. On 20 October 2026 it gained the last two features of Guilded's
+  [raid tools archive](docs/archive/raid-tools/README.md): clearing every group icon and marking a
+  target by command (local 0.1.0-beta.14; not yet released, real-client checks pending).
 - Additional standalone-first-run improvements described in
   [STANDALONE_ADDON_ROADMAP.md](docs/STANDALONE_ADDON_ROADMAP.md).
 - Managed multi-guild hosting is now planned through item 4 of "Requested"

@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { priority } from "./epgp.js";
+import { breadcrumbs, SITE_HEADER_STYLE, siteHeader } from "./site-header.js";
 
 // A guild's public page at /g/<slug>/ (docs/GUILD_PAGES_DESIGN.md). Read-only, no scripts, and
 // only what officers turned on. Names are character names, never Discord users or IDs.
@@ -45,6 +46,8 @@ export interface GuildPageView {
   slug: string; name: string; language: "en" | "fr"; indexable: boolean; intro: string | null;
   sections: PageSection[]; cores: PageCore[];
   recruitment: { text: string | null; inviteUrl: string | null } | null;
+  /** The guild's public dungeon page (/leaderboards/guild/<id>/), when it publishes its runs. */
+  dungeonPage?: string | null;
 }
 
 // The published page for `slug`, or null (unknown, unpublished, or its server is not allowed).
@@ -52,7 +55,7 @@ export async function loadGuildPageView(database: PrismaClient, slug: string, al
   if (!isPageSlug(slug)) return null;
   const page = await database.guildPage.findUnique({
     where: { slug },
-    include: { guild: { select: { id: true, name: true, discordId: true, settings: { select: { language: true, timezone: true, lootMode: true, baseGp: true, epgpDecayPercent: true } } } } }
+    include: { guild: { select: { id: true, name: true, discordId: true, settings: { select: { language: true, timezone: true, lootMode: true, baseGp: true, epgpDecayPercent: true, publicDungeonRuns: true } } } } }
   });
   if (!page?.published || !allows(page.guild.discordId)) return null;
   const sections = page.sections.filter((name): name is PageSection => (PAGE_SECTIONS as readonly string[]).includes(name));
@@ -104,7 +107,8 @@ export async function loadGuildPageView(database: PrismaClient, slug: string, al
   return {
     slug: page.slug, name: page.guild.name, language: settings?.language === "fr" ? "fr" : "en", indexable: page.indexable,
     intro: page.intro, sections, cores,
-    recruitment: on("recruitment") && (page.recruitment || page.inviteUrl) ? { text: page.recruitment, inviteUrl: page.inviteUrl } : null
+    recruitment: on("recruitment") && (page.recruitment || page.inviteUrl) ? { text: page.recruitment, inviteUrl: page.inviteUrl } : null,
+    dungeonPage: settings?.publicDungeonRuns ? `/leaderboards/guild/${encodeURIComponent(page.guild.id)}` : null
   };
 }
 
@@ -128,6 +132,7 @@ a{color:var(--gold)}.eyebrow{color:var(--gold);font-size:12px;font-weight:700;le
 table{width:100%;border-collapse:collapse;font-size:15px}th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}th{color:var(--muted);font-weight:600}
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}.table-wrap{overflow-x:auto}.tag{color:var(--muted);font-size:13px}
 .button{display:inline-block;background:var(--gold);color:#16130b;font-weight:700;padding:12px 20px;border-radius:6px;text-decoration:none}
+.button.ghost{background:transparent;color:var(--gold);border:1px solid var(--gold)}.actions{display:flex;flex-wrap:wrap;gap:12px}
 footer{border-top:1px solid var(--line);margin-top:64px;padding-top:20px;font-size:13px;color:var(--muted)}`;
 
 export function renderGuildPage(view: GuildPageView): string {
@@ -138,7 +143,12 @@ export function renderGuildPage(view: GuildPageView): string {
   const name = escapeHtml(view.name);
   const parts: string[] = [];
   parts.push(`<p class="eyebrow">${t("Guild", "Guilde")}</p><h1>${name}</h1>${view.intro ? paragraphs(view.intro) : ""}`);
-  if (view.recruitment?.inviteUrl) parts.push(`<p><a class="button" href="${escapeHtml(view.recruitment.inviteUrl)}" rel="nofollow noopener">${t("Join us on Discord", "Rejoignez-nous sur Discord")}</a></p>`);
+  // The guild's own actions first: join, then its dungeon scores and the recruitment board.
+  const actions = [
+    view.recruitment?.inviteUrl ? `<a class="button" href="${escapeHtml(view.recruitment.inviteUrl)}" rel="nofollow noopener">${t("Join us on Discord", "Rejoignez-nous sur Discord")}</a>` : "",
+    view.dungeonPage ? `<a class="button ghost" href="${escapeHtml(`${view.dungeonPage}?lang=${view.language}`)}">${t("Dungeon scores", "Scores de donjon")}</a>` : ""
+  ].filter(Boolean);
+  if (actions.length) parts.push(`<p class="actions">${actions.join("")}</p>`);
   if (on("cores") && view.cores.length) {
     parts.push(`<h2>${t("Raid cores and times", "Cores de raid et horaires")}</h2><div class="cards">${view.cores.map((core) => `<div class="card"><h3>${escapeHtml(core.name)}</h3>`
       + (core.schedule ? `<p>${escapeHtml(core.schedule)} <span class="tag">(${escapeHtml(core.timezone)})</span></p>` : `<p class="muted">${t("Schedule to be announced", "Horaire à venir")}</p>`)
@@ -171,11 +181,13 @@ export function renderGuildPage(view: GuildPageView): string {
   return `<!doctype html><html lang="${view.language}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`
     + `<title>${name} · Guilded</title><meta name="description" content="${description}">${view.indexable ? "" : '<meta name="robots" content="noindex">'}`
     + `<meta property="og:title" content="${name}"><meta property="og:description" content="${description}"><meta property="og:type" content="website">`
-    + `<style>${PAGE_STYLE}</style></head><body><main>${parts.join("")}`
+    + `<style>${PAGE_STYLE}
+${SITE_HEADER_STYLE}</style></head><body><main>${siteHeader(view.language, `/g/${view.slug}/`)}`
+    + breadcrumbs(view.language, [[t("Guilds", "Guildes"), `/leaderboards/guilds/?lang=${view.language}`], [view.name, null]], escapeHtml) + parts.join("")
     + `<footer>${t("Guild page made with", "Page de guilde créée avec")} <a href="https://guilded.kcaron.top/">Guilded</a>. ${t("Not affiliated with Blizzard Entertainment.", "Sans affiliation avec Blizzard Entertainment.")}</footer></main></body></html>`;
 }
 
-const NOT_FOUND = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Page not found · Guilded</title><style>${PAGE_STYLE}</style></head><body><main><h1>Page not found</h1><p class="muted">This guild page does not exist or is not published. / Cette page de guilde n'existe pas ou n'est pas publiée.</p><p><a href="https://guilded.kcaron.top/">Guilded</a></p></main></body></html>`;
+const NOT_FOUND = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Page not found · Guilded</title><style>${PAGE_STYLE}</style></head><body><main><h1>Page not found</h1><p class="muted">This guild page does not exist or is not published. / Cette page de guilde n'existe pas ou n'est pas publiée.</p><p><a href="/leaderboards/guilds/">Guilds / Guildes</a> · <a href="https://guilded.kcaron.top/">Guilded</a></p></main></body></html>`;
 
 export interface PageResponse { status: number; headers: Record<string, string>; body: string }
 

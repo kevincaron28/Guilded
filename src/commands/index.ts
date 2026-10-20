@@ -1,5 +1,5 @@
 import { healthCommand, executeHealth } from "./health.js";
-import { profileCommand } from "./profile.js";
+import { profileCommand, executeProfile } from "./profile.js";
 import { characterCommand, executeCharacter } from "./character.js";
 import { professionCommand, executeProfession } from "./profession.js";
 import { configCommand } from "./settings.js";
@@ -29,7 +29,7 @@ import { bankCommand } from "./bank.js";
 import { testRaidCommand, executeTestRaid } from "./testraid.js";
 import { craftCommand } from "./craft.js";
 import { setupCommand, executeSetup } from "./setup.js";
-import { uninstallCommand, resetCommand, executeSetupReset } from "./uninstall.js";
+import { uninstallCommand, resetCommand, executeSetupReset, executeUninstall } from "./uninstall.js";
 import { executeGuildPage, guildPageCommand } from "./guild-page.js";
 import { helpCommand } from "./help.js";
 import { dungeonCommand, executeDungeon } from "./dungeon.js";
@@ -37,7 +37,7 @@ import { dungeonAdminCommand, executeDungeonAdmin } from "./dungeon-admin.js";
 import { dungeonScheduleCommand, executeDungeonSchedule } from "./dungeon-schedule.js";
 import { bugCommand, executeBug } from "./bugreport.js";
 import { faqCommand, executeFaq } from "./faq.js";
-import { systemCommand } from "./system.js";
+import { systemCommand, executeSystem } from "./system.js";
 import { communityCommand, lotteryCommand, gamingCommand, challengeCommand, executeCommunity } from "./community.js";
 
 import { PermissionFlagsBits } from "discord.js";
@@ -49,11 +49,15 @@ import { executeRecruit, recruitCommand } from "./recruit.js";
 import { executePublicLeaderboard, publicLeaderboardCommand } from "./public-leaderboard.js";
 
 // One parent per area, with the smaller commands mounted under it (see router.ts).
-const setup = new MergedCommand("setup", `${BRAND.name} setup and settings.`, [
+// /config stays its own command: under /setup it came close to Discord's 4000-character limit
+// (moved out on 8 October 2026). /system and /uninstall moved here in 7.3.0.
+const setup = new MergedCommand("setup", `${BRAND.name} setup, sync status, reset and uninstall.`, [
   { command: setupCommand, handler: executeSetup, as: "start" },
   { command: testRaidCommand, handler: executeTestRaid, as: "testraid" },
   { command: selfRolesCommand, handler: executeSelfRoles, as: "selfroles" },
-  { command: resetCommand, handler: executeSetupReset, as: "reset" }
+  { command: systemCommand, handler: executeSystem, as: "system" },
+  { command: resetCommand, handler: executeSetupReset, as: "reset" },
+  { command: uninstallCommand, handler: executeUninstall, as: "uninstall" }
 ]);
 
 // Leader and officer subcommands live under /lead, /officer and /organize (below), which
@@ -68,7 +72,8 @@ const GAMING_ORGANIZER = ["create", "edit", "attendance", "close", "cancel"];
 const CHALLENGE_ORGANIZER = ["create", "review", "claims", "close", "cancel"];
 const same = (names: string[]) => Object.fromEntries(names.map((name) => [name, name]));
 
-const character = new MergedCommand("character", "Your characters, professions, attunements, wishlist and readiness.", [
+const character = new MergedCommand("character", "Your profile, characters, professions, attunements, wishlist and readiness.", [
+  { command: profileCommand, handler: executeProfile, as: "profile" },
   { command: whoCommand, handler: executeWho, as: "who" },
   { command: professionCommand, handler: executeProfession, as: "profession" },
   { command: attunementCommand, handler: executeAttunement, as: "attunement" },
@@ -141,13 +146,13 @@ const organize = new MergedCommand("organize", "Organizers: community seasons, q
 
 // Top level: the merged parents above, plus the commands main.ts handles itself.
 export const commands: AnyCommand[] = [
-  setup, configCommand, helpCommand, profileCommand, character, raid, epgp, loot, dungeon, craftCommand,
-  bankCommand, applyCommand, pollCommand, report, mod, coreCommand, tagCommand, importer, uninstallCommand, systemCommand,
+  setup, configCommand, helpCommand, character, raid, epgp, loot, dungeon, craftCommand,
+  bankCommand, applyCommand, pollCommand, report, mod, coreCommand, tagCommand, importer,
   community, poeCommand, participationCommand, teamCommand, lead, officer, organize
 ];
 
 // Commands whose every subcommand checks a leader role (Raid Leader for /lead, Officer or Guild
-// Master for the rest; /uninstall: the server owner or Administrator). Discord hides them from
+// Master for the rest; /setup uninstall and reset: the server owner or Administrator). Discord hides them from
 // members without these permissions; a server admin can show one to a role in Server Settings >
 // Integrations > Guilded. Those roles are role names, not Discord permissions, so the handlers
 // keep their checks. /lead uses Manage Events so a server can also just give that to Raid Leaders.
@@ -156,9 +161,7 @@ export const HIDDEN_FROM_MEMBERS: Record<string, bigint> = {
   config: PermissionFlagsBits.ManageGuild,
   mod: PermissionFlagsBits.ManageGuild,
   import: PermissionFlagsBits.ManageGuild,
-  system: PermissionFlagsBits.ManageGuild,
   poll: PermissionFlagsBits.ManageGuild,
-  uninstall: PermissionFlagsBits.Administrator,
   lead: PermissionFlagsBits.ManageEvents,
   officer: PermissionFlagsBits.ManageGuild,
   organize: PermissionFlagsBits.ManageGuild

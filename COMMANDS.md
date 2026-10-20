@@ -302,14 +302,16 @@ Small commands sit under a parent, so typing `/` shows a short list. Members see
 | `/mod` | moderation, plus `application` (handle guild applications), `page` (the guild web page), `recruit` (the website's recruitment listing) and `leaderboard` (share runs on the public leaderboards) |
 | `/import` | `upload` (preview an addon file), `apply` (apply it), `held` (entries waiting, and why) |
 | `/report` | `stats`, `inactive`, `guild` (health), `ping` (is the bot online), `bug` |
-| `/help` `/profile` `/loot` `/craft` `/bank` `/apply` `/poll` `/core` `/tag` | unchanged (`/loot` keeps `bid`, `history`, `reserves`) |
+| `/setup` | `start`, `testraid`, `selfroles`, `system` (sync status, delivery retries, permissions; was `/system`), `reset`, `uninstall` (was `/uninstall`) |
+| `/character profile` | your profile (was `/profile`) |
+| `/help` `/loot` `/craft` `/bank` `/apply` `/poll` `/core` `/tag` | unchanged (`/loot` keeps `bid`, `history`, `reserves`) |
 
 ### Commands members don't see
 
-`/officer`, `/organize`, `/setup`, `/config`, `/mod`, `/import`, `/poll` and `/system` are only for
+`/officer`, `/organize`, `/setup`, `/config`, `/mod`, `/import` and `/poll` are only for
 officers, so Discord shows them only to people with the **Manage Server** permission; `/lead`
-only to **Manage Events**; `/uninstall` only to **Administrator**. The bot still checks the
-Officer / Guild Master / Raid Leader role when one is run.
+only to **Manage Events**. The bot still checks the Officer / Guild Master / Raid Leader role
+when one is run; `/setup reset` and `/setup uninstall` also need the server owner or Administrator.
 
 Those roles are role names, not Discord permissions. An Officer without Manage Server, or a Raid
 Leader without Manage Events, does not see these commands until a server admin allows it:
@@ -326,7 +328,7 @@ also works. `/help` reminds leaders of this. `/core`, `/team`, `/report`, `/part
 | `/help` | The commands you can use (shows more for officers and leaders) |
 | `/report ping` | Is the bot online? |
 | `/report bug <description> [screenshot]` | Report a bug or problem. Also captured automatically whenever a command errors, for the developer to review |
-| `/profile` | Your profile: characters (race, class, professions, last seen), EP/GP/PR |
+| `/character profile` | Your profile: characters (race, class, professions, last seen), EP/GP/PR |
 | `/character who <character>` | Look anyone up: main and alts, professions, EP/GP/PR, 30-day attendance, last seen |
 | `/character pair` | Generate a one-time code to link your Companion to your Discord account; future uploads link your own character when applied |
 | `/character add <name> <realm> <class> <main> [spec] [level] [race]` / `/character list` | Link your WoW characters (needed before imports can match you) |

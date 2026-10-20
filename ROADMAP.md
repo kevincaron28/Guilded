@@ -117,11 +117,13 @@ How each one gets built: [ROADMAP_REQUESTS_PLAN_2026-10-18.md](docs/ROADMAP_REQU
 
 1. **Done in 6.7.0.** Members see only their commands; leader and officer tools moved to
    `/lead`, `/officer` and `/organize`, and `/setup` warns when a role can't see them.
-2. **Next.** Merge overlapping commands: `/config`, `/uninstall` and `/system` into `/setup`,
-   `/tag` into `/mod faq`, `/profile` into `/character`, `/team` into `/core`. Watch the merged
-   `/setup` 4000-character limit.
+2. **Done in 7.3.0 where Discord's limits allow.** `/system` and `/uninstall` are now
+   `/setup system` and `/setup uninstall`; `/profile` is `/character profile` (27 to 24 top-level
+   commands). Kept on purpose: `/config` (with it, `/setup` would be about 4,150 of Discord's 4,000
+   characters; it left `/setup` on 8 October for that reason), `/team` (with `/core` about 4,980),
+   and `/tag` (`/tag show` and `list` are for members, and `/mod` is hidden from members).
 3. **Then.** Drop slash commands that only repeat a button (for example `/raid signup`,
-   `/community lottery join`, `/craft claim`) once each button is confirmed to work.
+   `/community lottery join`, `/craft claim`) once each button is confirmed to work in Discord.
 
 ## Later
 

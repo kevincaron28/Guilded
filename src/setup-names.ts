@@ -5,7 +5,7 @@ import type { Lang } from "./i18n.js";
 // a French guild gets a French server. The bot recognizes both spellings (for example when
 // tidying channels it made earlier), so switching language later never strands a channel.
 
-export type ChannelField = "notifyChannelId" | "raidSignupChannelId" | "raidLogChannelId" | "logChannelId"
+export type ChannelField = "pugChannelId" | "notifyChannelId" | "raidSignupChannelId" | "raidLogChannelId" | "logChannelId"
   | "dungeonLeaderboardChannelId" | "dungeonSignupChannelId" | "dungeonChannelId"
   | "lootChannelId" | "craftChannelId" | "readinessChannelId" | "coreChannelId" | "applicationChannelId" | "attendanceChannelId" | "guideChannelId" | "answerChannelId" | "weeklyReportChannelId";
 
@@ -48,6 +48,7 @@ export const communityChannelNames = (key: keyof (typeof COMMUNITY_CHANNEL_SPECS
   [COMMUNITY_CHANNEL_SPECS.en[key].name, COMMUNITY_CHANNEL_SPECS.fr[key].name, ...LEGACY_COMMUNITY_CHANNEL_NAMES[key]];
 
 const ACCESS: Record<ChannelField, { access: Access; category: CategoryKey; forum?: boolean }> = {
+  pugChannelId: { access: "readonly", category: "raid" },
   notifyChannelId: { access: "readonly", category: "raid" },
   weeklyReportChannelId: { access: "readonly", category: "raid" },
   raidSignupChannelId: { access: "readonly", category: "raid" },
@@ -68,6 +69,7 @@ const ACCESS: Record<ChannelField, { access: Access; category: CategoryKey; foru
 
 const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> = {
   en: {
+    pugChannelId: { name: "open-raids", topic: "Open raid spots from other Guilded guilds. Join the host Discord and use its signup post. /raid pug board" },
     weeklyReportChannelId: { name: "wow-weekly-report", topic: "WoW weekly report: raids, loot and dungeons; each core keeps its own loot rules" },
     answerChannelId: { name: "bot-faq", topic: "Talk to Guilded: bot help, WoW addon installation and companion setup, for all members" },
     notifyChannelId: { name: `${BRAND.channelPrefix}-announcements`, topic: `WoW raid reminders and automatic announcements from ${BRAND.name}` },
@@ -86,6 +88,7 @@ const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> 
     guideChannelId: { name: `${BRAND.channelPrefix}-guide`, topic: "How Guilded works, and what's new when it updates" }
   },
   fr: {
+    pugChannelId: { name: "raids-ouverts", topic: "Places de raid des autres guildes Guilded. Rejoignez le Discord hôte et utilisez son inscription. /raid pug board" },
     weeklyReportChannelId: { name: "bilan-hebdo-wow", topic: "Bilan de la semaine WoW : raids, butin et donjons; chaque core garde ses propres règles de butin" },
     answerChannelId: { name: "bot-faq", topic: "Jase avec Guilded : aide du bot, installation de l’addon WoW et du compagnon, pour toute la gang" },
     notifyChannelId: { name: `${BRAND.channelPrefix}-annonces`, topic: `Rappels de raid et annonces automatiques WoW de ${BRAND.name}` },

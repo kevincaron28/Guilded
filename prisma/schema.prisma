@@ -711,6 +711,8 @@ model AddonHeldEntry {
 }
 
 model GuildSettings {
+  pugChannelId             String?
+  pugMessageId             String?
   poeTrackingEnabled Boolean @default(false)
   // Full setup reset excludes history that still exists on members' PCs.
   dataResetAt DateTime?
@@ -915,6 +917,12 @@ model ReadinessFinding {
 }
 
 model Raid {
+  // Explicit opt-in for this occurrence only; weekly successors start private.
+  publicPug       Boolean          @default(false)
+  pugRealm        String?
+  pugFaction      String?
+  pugLanguage     String?
+  pugInviteUrl    String?
   id              String           @id @default(cuid())
   guildId         String
   title           String
@@ -951,6 +959,7 @@ model Raid {
 
   @@index([guildId, scheduledAt])
   @@index([guildId, status])
+  @@index([publicPug, status, scheduledAt])
 }
 
 model RaidSignup {
@@ -1756,6 +1765,8 @@ model ActivityResponse {
 // 7.0 website accounts: "Sign in with Discord" (identify scope only) on guilded.kcaron.top. Only the
 // Discord user ID and names are kept, never the OAuth access token.
 model WebAccount {
+  publicProfile Boolean @default(true)
+  characters    WebCharacter[]
   id            String   @id @default(cuid())
   discordUserId String   @unique
   username      String
@@ -1768,6 +1779,17 @@ model WebAccount {
   reports       RecruitmentReport[]
   pairing       WebPairing?
   companionCredentials WebCompanionCredential[]
+}
+
+// Only the uploader's own character is linked, never every member of the uploaded party.
+model WebCharacter {
+  id        String @id @default(cuid())
+  accountId String
+  name      String
+  realm     String
+  account   WebAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, name, realm])
 }
 
 // One signed-in browser. The cookie holds a random token; only its SHA-256 is stored here.

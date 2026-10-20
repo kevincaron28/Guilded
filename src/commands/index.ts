@@ -47,6 +47,7 @@ import { poeCommand } from "./poe.js";
 import { participationCommand } from "./participation.js";
 import { executeRecruit, recruitCommand } from "./recruit.js";
 import { executePublicLeaderboard, publicLeaderboardCommand } from "./public-leaderboard.js";
+import { executePug, pugCommand } from "./pug.js";
 
 // One parent per area, with the smaller commands mounted under it (see router.ts).
 // /config stays its own command: under /setup it came close to Discord's 4000-character limit
@@ -82,6 +83,7 @@ const character = new MergedCommand("character", "Your profile, characters, prof
 ], { command: characterCommand, handler: executeCharacter, except: CHARACTER_OFFICER });
 
 const raid = new MergedCommand("raid", "Raids: signups, progress, reports and Warcraft Logs.", [
+  { command: pugCommand, handler: executePug, as: "pug" },
   { command: wclCommand, handler: executeWcl, as: "wcl", except: ["report"] }
 ], { command: raidCommand, handler: executeRaid, except: RAID_LEAD });
 

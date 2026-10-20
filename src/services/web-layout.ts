@@ -52,7 +52,7 @@ export function layout(input: LayoutInput): string {
     ? [`<span>${t("Signed in as", "Connecté :")} <strong>${escapeHtml(input.account.displayName ?? input.account.username)}</strong></span>`,
       `<a href="${link("/me/", input.lang)}">${t("My page", "Ma page")}</a>`,
       `<form class="inline" method="post" action="/auth/logout"><input type="hidden" name="csrf" value="${escapeHtml(input.csrf ?? "")}"><button class="link" type="submit">${t("Sign out", "Déconnexion")}</button></form>`]
-    : input.signInOn ? [`<a href="${link("/auth/login", input.lang, { return: input.path })}">${t("Sign in with Discord", "Connexion avec Discord")}</a>`] : [];
+    : input.signInOn ? [`<span>${t("Your player profile is public by default; you can hide it in My Guilded.", "Votre profil joueur est public par défaut; vous pouvez le masquer dans Ma page.")}</span><a href="${link("/auth/login", input.lang, { return: input.path })}">${t("Sign in with Discord", "Connexion avec Discord")}</a>`] : [];
   const language = `<a href="${link(input.path, other)}" hreflang="${other}">${other === "fr" ? "Français" : "English"}</a>`;
   const description = escapeHtml((input.description ?? input.title).slice(0, 160));
   return `<!doctype html><html lang="${input.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`

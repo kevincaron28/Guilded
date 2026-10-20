@@ -37,6 +37,20 @@ function activeRun() {
 }
 
 describe("dungeon final-boss completion without the Encounter Journal", () => {
+  it("queues one result on real finalization, preserves manual reopen, and never completes an early exit", () => {
+    const s = activeRun();
+    s.run(`QUEUED=0; SUMMARIES=0; MOCK_UNITS={player={name="Tester"}}
+      NS.onDungeonResultReady=function(run) QUEUED=QUEUED+1; QUEUED_STATE=run.state end
+      NS.onDungeonSummary=function() SUMMARIES=SUMMARIES+1 end
+      INSTANCE=nil; fire_event("ZONE_CHANGED_NEW_AREA")`);
+    expect(s.run("return GuildedDB.dungeon.current.state..':'..QUEUED")).toBe("ACTIVE:0");
+    s.run(`INSTANCE={id=36,type="party",difficultyId=1}; GuildedDB.dungeon.current.instanceId=36
+      fire_event("ZONE_CHANGED_NEW_AREA"); fire_event("BOSS_KILL",2747,"Edwin VanCleef")
+      fire_event("ENCOUNTER_END",2747,"Edwin VanCleef",1,5,1)`);
+    expect(s.run("return QUEUED..':'..QUEUED_STATE..':'..SUMMARIES")).toBe("1:COMPLETED:0");
+    s.run('NS.commandHandlers.dungeon({"results"})');
+    expect(s.run("return SUMMARIES")).toBe("1");
+  });
   it.each(["ENCOUNTER_END", "BOSS_KILL"])("supports future verified wing endpoints on %s without shipping guessed mappings", event => {
     const s = activeRun();
     expect(s.run("return #NS.dungeonRoutes.verified")).toBe("0");

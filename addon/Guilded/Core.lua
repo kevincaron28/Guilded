@@ -907,6 +907,7 @@ local function showCharacterExport(text, title)
   exportFrame.box:SetFocus()
   exportFrame.box:HighlightText()
 end
+ns.showCopyText = showCharacterExport
 
 -- End-of-raid summary from what this client recorded. Boss kills and attendance are marked by
 -- officers (the game does not report them to addons), so the summary says so.

@@ -17,6 +17,19 @@ Recipes, the guild map, attendance, loot and EP/GP standings, shared with your g
 
 The dungeon finder's **Guilded** tab shows your recent runs, personal progress, guild rankings and past seasons. Runs are recorded without a connection; the [public leaderboards](/leaderboards/) need the companion.
 
+Prefer just dungeons? **Guilded Dungeons** is the standalone tracker, with no guild
+required. Sign in with Discord to sync finished runs, see your public player profile,
+and manage your connection on [My Guilded](/me/).
+
+[Dungeon setup and troubleshooting](../docs/DUNGEONS_GUIDE.html) · [Player profiles](/players/)
+
+## Recruitment and open raids
+
+Find a permanent guild or raid core, or fill an open spot for one raid night.
+The [recruitment board](/recruitment/) lists vacancies from opt-in Discord raid
+signups. Host officers keep control of the roster. Other guilds can show the feed
+in an open-raids channel; full Guilded can browse a recent companion snapshot in game.
+
 ## The companion
 
 For taking your data online: connect your account, choose your saved addon data, then **Sync now** after playing. Export to spreadsheet works without connecting.

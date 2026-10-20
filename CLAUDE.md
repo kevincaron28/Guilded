@@ -1,3 +1,4 @@
+> 7.3.0 (20 October 2026): safe-exit dungeon result card in both addons, optional cross-guild raid vacancies and companion browser, public player profiles and dungeon setup guide. See docs/V7_3_0_RELEASE_NOTES.md for deployment and pending real-client acceptance.
 > 7.2.1 (20 October 2026): leaderboards-only companions read GuildedDungeons.lua AND Guilded.lua
 > (companion/personal-runs.mjs); pool of 8 DB connections (src/database.ts); /health "commands" and
 > deploy/update.sh stops when Discord refuses them; error reports carry their origin; official
@@ -51,7 +52,7 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (20 October 2026): version 7.2.1 Release, protocol 2.**
+**Current status (20 October 2026): version 7.3.0 Release source, protocol 2.**
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
 Standalone guild and optional Guilded Games work is next-version candidate
 source; do not overwrite the published 6.2.0 downloads or bump incidentally.

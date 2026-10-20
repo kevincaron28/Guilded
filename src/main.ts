@@ -78,6 +78,7 @@ import { runWclDiscovery } from "./services/wcl-check.js";
 import { config } from "./config.js";
 import { startCompanionApi } from "./companion-api.js";
 import { handleWebApplicationButton, WEB_APPLY_PREFIX } from "./services/recruitment-discord.js";
+import { refreshPugBoard } from "./services/pug-board.js";
 import { prismaWebStore } from "./services/web-store.js";
 import { publishGuildRuns } from "./services/public-runs.js";
 import { keepStampsOnDisk, standingsFeed } from "./services/standings-feed.js";
@@ -186,6 +187,18 @@ async function repairCoreRaids(guild: import("discord.js").Guild, provision = fa
 }
 
 client.once(Events.ClientReady, (readyClient) => {
+  let refreshingPugs = false;
+  const refreshPugs = async () => {
+    if (refreshingPugs) return;
+    refreshingPugs = true;
+    try {
+      for (const guild of readyClient.guilds.cache.values()) {
+        await refreshPugBoard(guild, prisma, hostedPilot.allows).catch(reportJobError("Open raid board"));
+      }
+    } finally { refreshingPugs = false; }
+  };
+  void refreshPugs();
+  setInterval(() => void refreshPugs(), 60_000);
   // Lite list first, then servers that joined while offline, then commands (full or Lite per server).
   void (async () => {
     await pilotRequests.restore();

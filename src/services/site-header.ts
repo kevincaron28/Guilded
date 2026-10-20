@@ -14,7 +14,7 @@ const withLang = (path: string, lang: Lang) => `${path}${path.includes("?") ? "&
 
 /** The current menu entry for a path, so the page is marked in the menu. */
 export function currentSection(path: string): string | null {
-  return /^\/(leaderboards|recruitment)\//.exec(path)?.[1] ?? null;
+  return /^\/(leaderboards|recruitment|players)\//.exec(path)?.[1] ?? null;
 }
 
 export function siteHeader(lang: Lang, path: string): string {

@@ -197,7 +197,8 @@ local function finalize(run)
   for index, chunk in ipairs(chunks) do send(string.format("SUM|%s|%d|%d|%s", run.id, index, #chunks, chunk), "GUILD") end
   -- Dungeon scores (Scores.lua) learn from every finished run.
   if ns.onDungeonRunFinished then pcall(ns.onDungeonRunFinished, run) end
-  if ns.onDungeonSummary then pcall(ns.onDungeonSummary, run) end
+  -- Automatic results wait for a safe exit. The summary hook remains the manual reopen action.
+  if ns.onDungeonResultReady then pcall(ns.onDungeonResultReady, run) end
   ns.message(string.format("Dungeon run %s: %s%s.", run.state, run.name or "?",
     run.durationSec and run.state == "COMPLETED" and string.format(" in %d:%02d", math.floor(run.durationSec / 60), run.durationSec % 60) or ""))
   if ns.onDungeonChange then pcall(ns.onDungeonChange) end

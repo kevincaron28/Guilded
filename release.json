@@ -1,6 +1,6 @@
 {
-  "version": "7.2.1",
+  "version": "7.3.0",
   "channel": "release",
-  "notes": "docs/V7_2_1_RELEASE_NOTES.md",
+  "notes": "docs/V7_3_0_RELEASE_NOTES.md",
   "acceptance": "docs/V6_2_GAME_ACCEPTANCE.md"
 }

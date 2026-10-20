@@ -267,9 +267,32 @@ describe("the tools window (sidebar and Home page)", () => {
   });
 
   it("officers see every group in order; members only what they can use", () => {
-    expect(visibleTabs(openWindow(1))).toBe("Home,Me,Ready,Reserves,Raid,Loot,Council,Tools");
+    expect(visibleTabs(openWindow(1))).toBe("Home,Me,Open raids,Ready,Reserves,Raid,Loot,Council,Tools");
     session?.close();
-    expect(visibleTabs(openWindow(5))).toBe("Home,Me,Reserves,Tools");
+    expect(visibleTabs(openWindow(5))).toBe("Home,Me,Open raids,Reserves,Tools");
+  });
+
+  it("lets ordinary members page through open raids, filter them and copy the matching host", () => {
+    const s = openWindow(5);
+    s.load("Modules/PublicRaids.lua");
+    s.run(`
+      function GetServerTime() return NS.util.isoEpoch("2026-10-20T18:00:00Z") end
+      GuildedPublicRaids = { fetchedAt = "2026-10-20T18:00:00Z", raids = {} }
+      for i = 1, 7 do GuildedPublicRaids.raids[i] = {
+        title = "Raid " .. i, guildName = "Host", at = "2026-10-21T18:00:00Z", realm = "Forever",
+        faction = "HORDE", language = "fr", tanks = 0, healers = 1, dps = 0, inviteUrl = "https://discord.gg/host" .. i
+      } end
+      NS.showCopyText = function(t) COPIED = t end
+      NS.commandHandlers.pug({})
+      NS.windowState().refreshPugs()
+    `);
+    expect(s.run("return NS.windowState().tabs[NS.windowState().currentTab].name")).toBe("Open raids");
+    expect(homeText(s, "pugPages")).toBe("1 / 3");
+    s.run("NS.windowState().pugPage = 2; NS.windowState().refreshPugs(); NS.windowState().pugRows[1].button.scripts.OnClick()");
+    expect(s.run("return COPIED")).toBe("https://discord.gg/host4");
+    s.run('NS.windowState().pugRealm:SetText("Other"); NS.windowState().refreshPugs()');
+    expect(s.run("return NS.windowState().pugRows[1].label.text")).toContain("No open raids");
+    expect(s.run("return tostring(NS.windowState().pugRows[1].button.shown)")).toBe("false");
   });
 
   it("Home says who you are, what is running, and why there is no standing yet", () => {

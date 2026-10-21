@@ -30,6 +30,8 @@ function newMember() {
       updateMany: vi.fn(async ({ data }) => { credentials.forEach(row => Object.assign(row, data)); return { count: credentials.length }; }),
       create: vi.fn(async ({ data }) => { const credential = { ...data, revokedAt: null }; credentials.push(credential); return credential; })
     },
+    characterVerifyCode: { upsert: vi.fn(async () => ({ code: "ABCDEFGH" })) },
+    guild: { findUnique: vi.fn(async () => ({ officerSyncAt: new Date() })) },
     professionSkill: { deleteMany: vi.fn(), upsert: vi.fn() },
     recipeKnown: { deleteMany: vi.fn() }, professionCooldown: { deleteMany: vi.fn() },
     unclaimedCharacter: { deleteMany: vi.fn() }, $executeRaw: vi.fn()

@@ -125,7 +125,9 @@ export const addonCharacterSchema = z.object({
   spec: z.string().default(""),
   professions: z.array(z.object({ name: z.string().min(1), skillLevel: z.number().int().nonnegative() })).default([]),
   professionsComplete: z.boolean().optional(),
-  professionsAt: z.coerce.date().optional()
+  professionsAt: z.coerce.date().optional(),
+  // The member's /guilded verify code this guildmate's digest carried (services/character-verify).
+  verify: z.string().max(40).optional()
 });
 
 // Result of the officer's last /guilded consumes group scan.

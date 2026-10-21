@@ -823,6 +823,18 @@ local function collectCharacter()
   }
 end
 
+-- /guilded verify: the member's code from Discord (/character pair), kept with this guild's saved
+-- data so every character of this WoW account repeats it in its digest ("V:"). An officer's upload
+-- then links each of them to that member. Eight letters, no I or O (the bot's alphabet).
+local function validVerifyCode(code)
+  if type(code) ~= "string" or #code ~= 8 or not string.match(code, "^%u+$") or string.find(code, "[IO]") then return nil end
+  return code
+end
+-- What people paste: lower case, a dash, a space in the middle.
+local function verifyCodeFrom(text)
+  return validVerifyCode(string.upper((string.gsub(text or "", "[^%a]", ""))))
+end
+
 -- One line the player pastes into Discord: /character import code:<line>
 local function characterString(info)
   local professions = {}
@@ -1302,6 +1314,9 @@ inspectReadiness = function(silent, target, tries)
       (string.gsub(identity.spec or "", "[|,;]", "")) }, ",")
     if #digest + 1 + #field <= MAX_ADDON_MESSAGE then digest = digest .. "|" .. field end
   end
+  -- The /guilded verify code, before the flags so it is the last thing left out of a long digest.
+  local verify = validVerifyCode(db.verifyCode)
+  if verify and #digest + 3 + #verify <= MAX_ADDON_MESSAGE then digest = digest .. "|V:" .. verify end
   local flagText = table.concat(flags, ",")
   if #flags > 0 and #digest + 3 + #flagText <= MAX_ADDON_MESSAGE then
     digest = digest .. "|F:" .. flagText
@@ -1498,6 +1513,7 @@ local function showHelp()
   message("/guilded enchants - show or change the missing-enchant check (on/off, starting level)")
   message("/guilded slots level <n> - from which level empty gear slots count as not ready (default 60)")
   message("/guilded share - one paste with your character, gear check, consumables and attunements (Discord: /character import)")
+  message(L("/guilded verify <code> - link all your characters to Discord at once (Discord: /character pair gives the line)"))
   message("/guilded character - copy a line to link this character in Discord (/character import)")
   message("/guilded sheet standings|loot|attendance|raids|dungeons - copy a table to paste into Excel or Google Sheets")
   if officer then
@@ -1721,6 +1737,26 @@ local function command(text)
     local line = characterString(info)
     message("Your character line (also shown in a box to copy): " .. line)
     showCharacterExport(line)
+  elseif action == "verify" then
+    local sub = string.lower(args[2] or "")
+    if sub == "off" then
+      db.verifyCode = nil
+      message(L("Your Discord link code was removed from this WoW account."))
+      inspectReadiness(true, "GUILD")
+    elseif args[2] then
+      local code = verifyCodeFrom(table.concat(args, "", 2))
+      if code then
+        db.verifyCode = code
+        message(L("Saved. All your characters on this WoW account will link to your Discord by themselves when an officer's Guilded syncs, and Discord will message you. Nothing else to do, also for your alts."))
+        inspectReadiness(true, "GUILD")
+      else
+        message(L("That code does not look right. In Discord, use /character pair and copy the whole /guilded verify line."))
+      end
+    elseif validVerifyCode(db.verifyCode) then
+      message(L("Your Discord link code is saved: your characters link by themselves. /guilded verify off removes it."))
+    else
+      message(L("In Discord, use /character pair, copy the /guilded verify line it shows and paste it here."))
+    end
   elseif action == "start" then if requireOfficer() then raidStart(table.concat(args, " ", 2)) end
   elseif action == "end" then if requireOfficer() then raidEnd() end
   elseif action == "summary" then
@@ -1836,9 +1872,11 @@ local function handlePeerReadiness(text, sender, channel)
   if channel ~= "GUILD" and not isGuildMember(name) then return end
   -- The text comes from another player's client. Only well-formed pieces are kept: this ends
   -- up in the officer's upload, and one odd value must not spoil it.
-  local professions, flags, identity, professionsAt = "", "", nil, nil
+  local professions, flags, identity, professionsAt, verify = "", "", nil, nil, nil
   for index = 6, #parts do
     if string.sub(parts[index], 1, 2) == "F:" then flags = string.sub(parts[index], 3, 120)
+    -- Kept under the sender's name only (checked above), which is what makes it proof.
+    elseif string.sub(parts[index], 1, 2) == "V:" then verify = validVerifyCode(string.sub(parts[index], 3))
     elseif string.sub(parts[index], 1, 2) == "I:" then
       local class, race, level, spec = string.match(string.sub(parts[index], 3), "^([^,]*),([^,]*),(%d*),?(.*)$")
       level = tonumber(level) or 0
@@ -1871,6 +1909,7 @@ local function handlePeerReadiness(text, sender, channel)
     professionsAt = professionsAt,
     flags = flags,
     identity = identity,
+    verify = verify,
     updatedAt = now(),
     -- When it arrived (seconds), so the Ready page can say how old it is.
     seenAt = (GetServerTime and GetServerTime()) or time(),

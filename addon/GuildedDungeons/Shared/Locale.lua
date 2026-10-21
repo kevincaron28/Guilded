@@ -9,6 +9,12 @@ local addonName, ns = ...
 ns = ns or {}
 
 local FR = {
+  ["Your Discord link code was removed from this WoW account."] = "Votre code de lien Discord a \195\169t\195\169 retir\195\169 de ce compte WoW.",
+  ["Saved. All your characters on this WoW account will link to your Discord by themselves when an officer's Guilded syncs, and Discord will message you. Nothing else to do, also for your alts."] = "Enregistr\195\169. Tous vos personnages de ce compte WoW se lieront tout seuls \195\160 votre Discord \195\160 la prochaine synchro Guilded d'un officier, et Discord vous enverra un message. Rien d'autre \195\160 faire, aussi pour vos alts.",
+  ["That code does not look right. In Discord, use /character pair and copy the whole /guilded verify line."] = "Ce code ne semble pas correct. Sur Discord, utilisez /character pair et copiez toute la ligne /guilded verify.",
+  ["Your Discord link code is saved: your characters link by themselves. /guilded verify off removes it."] = "Votre code de lien Discord est enregistr\195\169 : vos personnages se lient tout seuls. /guilded verify off le retire.",
+  ["In Discord, use /character pair, copy the /guilded verify line it shows and paste it here."] = "Sur Discord, utilisez /character pair, copiez la ligne /guilded verify affich\195\169e et collez-la ici.",
+  ["/guilded verify <code> - link all your characters to Discord at once (Discord: /character pair gives the line)"] = "/guilded verify <code> - lier tous vos personnages \195\160 Discord d'un coup (Discord : /character pair donne la ligne)",
   ["My character"] = "Mon personnage",
   ["Administration"] = "Administration",
   ["Settings"] = "Options",

@@ -3,7 +3,9 @@ import { MessageFlags } from "discord.js";
 
 const db = vi.hoisted(() => ({
   memberOnboarding: { findUnique: vi.fn(), upsert: vi.fn() },
-  character: { count: vi.fn(), findMany: vi.fn() }
+  character: { count: vi.fn(), findMany: vi.fn() },
+  characterVerifyCode: { upsert: vi.fn() },
+  guild: { findUnique: vi.fn() }
 }));
 vi.mock("../src/database.js", () => ({ prisma: db }));
 vi.mock("../src/services/character-pairing.js", () => ({
@@ -73,6 +75,8 @@ beforeEach(() => {
   db.memberOnboarding.upsert.mockReset().mockResolvedValue({});
   db.character.count.mockReset().mockResolvedValue(0);
   db.character.findMany.mockReset().mockResolvedValue([]);
+  db.characterVerifyCode.upsert.mockReset().mockResolvedValue({ code: "ABCDEFGH" });
+  db.guild.findUnique.mockReset().mockResolvedValue({ officerSyncAt: new Date() });
 });
 
 describe("onboarding checklist", () => {
@@ -187,7 +191,9 @@ describe("game menu and pairing", () => {
     const interaction = click("onboard:pair:g1", fakeGuild(member));
     await handleOnboardingInteraction(interaction as never);
     const payload = interaction.editReply.mock.calls[0]![0];
-    expect(payload.embeds[0].data.fields[0].value).toContain("/character import");
+    // One line to paste in game comes first; the companion is the optional second field.
+    expect(payload.embeds[0].data.fields[0].value).toContain("```\n/guilded verify ABCD-EFGH\n```");
+    expect(payload.embeds[0].data.fields[1].name).toContain("Optional");
     expect(issueCharacterPairingCode).not.toHaveBeenCalled();
     expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
     expect(interaction.deferReply.mock.invocationCallOrder[0]).toBeLessThan(interaction.guild.members.fetch.mock.invocationCallOrder[0]!);
@@ -207,8 +213,8 @@ describe("game menu and pairing", () => {
     expect(description).toContain("Personnage principal : **Ray**");
     expect(description).toContain("Alt : **Other**");
     const instructions = interaction.editReply.mock.calls[0]![0].embeds[0].data.fields[0].value;
-    expect(instructions).toContain("Aucun nouveau code nécessaire");
-    expect(instructions).toContain("ton principal reste le même");
+    expect(instructions).toContain("/guilded verify ABCD-EFGH");
+    expect(instructions).toContain("Une fois suffit, aussi pour les alts");
   });
 
   it("issues a companion code only after the optional connect button is clicked", async () => {
@@ -219,8 +225,9 @@ describe("game menu and pairing", () => {
     await handleOnboardingInteraction(interaction as never);
     const payload = interaction.editReply.mock.calls[0]![0];
     // Sign in with Discord first; the code (for older companions) in its own field after it.
-    expect(payload.embeds[0].data.fields[0].value).toContain("**Sign in with Discord**");
-    expect(payload.embeds[0].data.fields[2].value).toContain("```\nABCD-1234\n```");
+    expect(payload.embeds[0].data.fields[0].value).toContain("/guilded verify ABCD-EFGH");
+    expect(payload.embeds[0].data.fields[1].value).toContain("**Sign in with Discord**");
+    expect(payload.embeds[0].data.fields[3].value).toContain("```\nABCD-1234\n```");
     expect(issueCharacterPairingCode).toHaveBeenCalledOnce();
     expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
   });

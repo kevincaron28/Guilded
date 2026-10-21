@@ -175,7 +175,9 @@ export function parseAddonExportText(text, realm) {
       spec: String(entry.identity.spec ?? ""),
       professionsComplete: entry.professionsComplete === true,
       ...(entry.professionsAt ? { professionsAt: iso(entry.professionsAt) } : {}),
-      professions: digestProfessions(entry.professions)
+      professions: digestProfessions(entry.professions),
+      // Their /guilded verify code: the bot links this character to whoever owns the code.
+      ...(typeof entry.verify === "string" && /^[A-Z]{8}$/.test(entry.verify) ? { verify: entry.verify } : {})
     }));
 
   // Finished in-game raids: explicit attendance marks plus everyone the addon

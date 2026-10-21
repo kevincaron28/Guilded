@@ -2,7 +2,12 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, escapeMarkd
 import type { PrismaClient } from "@prisma/client";
 import { t, type Lang } from "../i18n.js";
 import { issueCharacterPairingCode } from "./character-pairing.js";
+import { formatVerifyCode, verifyCodeFor } from "./character-verify.js";
 import { companionWebUrl } from "./companion-links.js";
+
+// /guilded verify codes arrive with an officer's companion upload; after two weeks without one,
+// members also get the manual way so nobody waits for a sync that is not coming.
+const OFFICER_SYNC_DAYS = 14;
 
 // Shared by the welcome button and /character pair so the two entry points never drift.
 export async function characterLinkPrompt(database: PrismaClient, guildId: string, memberId: string, discordGuildId: string, lang: Lang, mode: "addon" | "companion" = "addon") {
@@ -21,6 +26,14 @@ export async function characterLinkPrompt(database: PrismaClient, guildId: strin
   const url = companionWebUrl(discordGuildId);
   const embed = new EmbedBuilder().setTitle(t(lang, "pair.title")).setColor(0xd4af37)
     .setDescription(`${status}\n\n${t(lang, "pair.addonDefault")}`);
+  // One line to paste in game, the same every time: the easiest way for everyone, so it comes first.
+  const code = formatVerifyCode(await verifyCodeFor(database, guildId, memberId));
+  const guild = await database.guild.findUnique({ where: { id: guildId }, select: { officerSyncAt: true } });
+  const officersSync = Boolean(guild?.officerSyncAt && Date.now() - guild.officerSyncAt.getTime() < OFFICER_SYNC_DAYS * 86_400_000);
+  embed.addFields({
+    name: t(lang, mode === "companion" ? "pair.verifyCompanionTitle" : "pair.verifyTitle"),
+    value: t(lang, "pair.verify", { code }) + (officersSync ? "" : `\n${t(lang, "pair.verifySlow")}`)
+  });
   if (mode === "companion") {
     // Sign in with Discord (7.2) first; the code is only for companions older than 7.2.
     const pairing = await issueCharacterPairingCode(database, guildId, memberId);
@@ -35,10 +48,7 @@ export async function characterLinkPrompt(database: PrismaClient, guildId: strin
       { name: t(lang, "pair.checkTitle"), value: t(lang, "pair.check") }
     );
   } else {
-    embed.addFields(
-      { name: t(lang, hasMain ? "pair.manualAltTitle" : "pair.manualMainTitle"), value: t(lang, hasMain ? "pair.manualAlt" : "pair.manualMain") },
-      { name: t(lang, "pair.optionalTitle"), value: t(lang, "pair.optional") }
-    );
+    embed.addFields({ name: t(lang, "pair.optionalTitle"), value: t(lang, "pair.optional") });
   }
   const row = new ActionRowBuilder<ButtonBuilder>();
   if (mode === "addon") row.addComponents(new ButtonBuilder().setStyle(ButtonStyle.Secondary)

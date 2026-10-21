@@ -127,6 +127,8 @@ model Guild {
   name                String
   createdAt           DateTime                  @default(now())
   updatedAt           DateTime                  @updatedAt
+  // Last upload from an officer's companion: /guilded verify codes only arrive that way.
+  officerSyncAt       DateTime?
   members             Member[]
   transactions        DkpTransaction[]
   epgpTransactions    EpgpTransaction[]
@@ -162,6 +164,8 @@ model Guild {
   polls               Poll[]
   unclaimedCharacters UnclaimedCharacter[]
   characterPairings   CharacterPairing[]
+  characterVerifyCodes  CharacterVerifyCode[]
+  characterVerifyClaims CharacterVerifyClaim[]
   communitySeasons    CommunitySeason[]
   communitySeasonCounters CommunitySeasonCounter[]
   poeMapVisits        PoeMapVisit[]
@@ -436,6 +440,8 @@ model Member {
   // DM me when a profession cooldown of one of my characters is ready.
   cooldownPings       Boolean                      @default(false)
   characterPairings   CharacterPairing[]
+  characterVerifyCodes  CharacterVerifyCode[]
+  characterVerifyClaims CharacterVerifyClaim[]
   companionCredentials CompanionCredential[]
   pairedImports       AddonImport[]
   poeMapVisits        PoeMapVisit[]
@@ -1675,6 +1681,36 @@ model CharacterPairing {
 
   @@unique([guildId, memberId])
   @@index([expiresAt])
+}
+
+// /guilded verify (7.3): one code per member, pasted once in game. Every character on that WoW
+// account then repeats it in the guild digest, and an officer's upload links it to the member.
+// Kept readable (not hashed): guildmates' addons see it anyway, and /character pair shows it again.
+model CharacterVerifyCode {
+  id        String   @id @default(cuid())
+  guildId   String
+  memberId  String
+  code      String   @unique
+  createdAt DateTime @default(now())
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, memberId])
+}
+
+// What a member's code already did for one character: LINKED (told them by DM), TAKEN (linked to
+// someone else; told once) or BLOCKED (unlinked since: the code never links it again).
+model CharacterVerifyClaim {
+  id        String   @id @default(cuid())
+  guildId   String
+  memberId  String
+  nameKey   String
+  status    String
+  updatedAt DateTime @updatedAt
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, memberId, nameKey])
 }
 
 model CompanionCredential {

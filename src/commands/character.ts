@@ -9,6 +9,7 @@ import { guildService, requireGuildContext } from "./context.js";
 import { CLASSES } from "../wow-data.js";
 import { revokeCompanionCredentials } from "../services/character-pairing.js";
 import { characterLinkPrompt } from "../services/character-link-prompt.js";
+import { blockVerifiedCharacter } from "../services/character-verify.js";
 import { asLang, t } from "../i18n.js";
 
 export const characterCommand = new SlashCommandBuilder()
@@ -16,7 +17,7 @@ export const characterCommand = new SlashCommandBuilder()
   .setDescription("Manage your WoW Forever characters.")
   .addSubcommand((subcommand) => subcommand
     .setName("pair")
-    .setDescription("Connect the optional online companion for your main and alts."))
+    .setDescription("Link your main and alts: one line to paste in WoW, or the optional companion."))
   .addSubcommand((subcommand) => subcommand
     .setName("add")
     .setDescription("Link a character to your profile.")
@@ -103,6 +104,8 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
       throw new Error(`${character.name} is linked to ${character.member.displayName}. Only Officers and Guild Masters can unlink someone else's character.`);
     }
     await prisma.character.delete({ where: { id: character.id } });
+    // The /guilded verify code that character keeps repeating in game must not link it back.
+    await blockVerifiedCharacter(prisma, context.guildId, character.memberId, character.name);
     // An officer unlinking someone else's character is a correction, not routine
     // cleanup: revoke their paired companion access too, or their next upload
     // would silently relink this character right back.

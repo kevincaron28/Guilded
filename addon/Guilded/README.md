@@ -109,6 +109,7 @@ After login, an officer (guild rank 0 or 1 by default) can use:
 /guilded deduct Player 5 Mistake
 /guilded loot Player [Tier Item] 25
 /guilded inspect
+/guilded verify ABCD-EFGH
 /guilded character
 /guilded share
 /guilded consumes
@@ -199,6 +200,15 @@ enchants, consumables) still only exists in the inspecting player's own
 Broadcasts use the `GUILD` channel (not `RAID`) so they reach everyone online,
 not just your current raid group. `/guilded inspect` run manually broadcasts the
 same way.
+
+**Linking to Discord without a companion.** `/character pair` in Discord shows a
+line such as `/guilded verify ABCD-EFGH`. Pasted once, the code is saved with the
+WoW account's data (for that guild), and every digest of every character on the
+account carries it as `V:ABCDEFGH`. A receiving client stores it in `peerRoster`
+only under the name the game gave for the sender, so the next upload from an
+officer's companion links each of those characters to that Discord member. The
+code is not a password (guildmates' addons see it), and backups never copy it to
+another PC.
 
 Exports are the SavedVariables file itself. The companion
 (`companion/lua-export.mjs` in the bot repository) reads it and sends the

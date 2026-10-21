@@ -13,6 +13,11 @@
   WoW sync.
 - Without a guild, `/guilded verify` says there is nothing to link and saves nothing; the rest of
   the addon keeps working with no guild and no Discord (checked by a full-addon test).
+- Companion **Update now** no longer fails without a word: the installer shows its progress (and
+  any error) instead of running hidden, the companion closes only once Windows has started it, and
+  an update that did not finish is remembered, so the next start (and a Windows notice) offers
+  **Run the installer**, reusing the downloaded file after checking it again. Companions from
+  7.2.0 to 7.3.0 still use the old button: install this release once by hand if theirs fails.
 
 ## 7.2.1 Release — 20 October 2026
 

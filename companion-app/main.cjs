@@ -1,7 +1,6 @@
 const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog, shell, Notification } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
-const { spawn } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
 const { detectSavedVariables } = require("./detect-wow.cjs");
 const updates = require("./update-check.cjs");
@@ -94,20 +93,34 @@ let update = null;
 let latestRelease = null;
 
 function refreshUpdate(state = engine?.state()) {
-  const next = updates.pickUpdate(app.getVersion(), latestRelease, state?.botVersion);
-  if (next?.version === update?.version) return;
+  // An update that did not finish comes first (config.pendingUpdate, saved by "Update now").
+  const next = updates.updateToShow(updates.pickUpdate(app.getVersion(), latestRelease, state?.botVersion), config.pendingUpdate, app.getVersion());
+  if (next?.version === update?.version && !!next?.unfinished === !!update?.unfinished) return;
   update = next;
-  if (!update || config.updateNotifiedVersion === update.version) return;
-  config.updateNotifiedVersion = update.version;
+  if (!update) return;
+  const noticeKey = update.unfinished ? `unfinished:${update.version}` : update.version;
+  if (config.updateNotifiedVersion === noticeKey) return;
+  config.updateNotifiedVersion = noticeKey;
   saveConfig();
   if (!Notification.isSupported()) return;
   const notice = new Notification({
-    title: `Guilded Companion ${update.version} is available`,
-    body: update.installer ? `You have ${app.getVersion()}. Click, then choose Update now.` : `You have ${app.getVersion()}. Click to open the download page.`,
+    title: update.unfinished ? `The update to Guilded Companion ${update.version} did not finish` : `Guilded Companion ${update.version} is available`,
+    body: update.unfinished ? `You still have ${app.getVersion()}. Click, then choose Run the installer.`
+      : update.installer ? `You have ${app.getVersion()}. Click, then choose Update now.` : `You have ${app.getVersion()}. Click to open the download page.`,
     icon: asset("icon.png")
   });
-  notice.on("click", () => { if (update?.installer && win) { win.show(); win.focus(); } else void shell.openExternal(update?.url || updates.RELEASES_PAGE); });
+  notice.on("click", () => { if ((update?.installer || update?.unfinished) && win) { win.show(); win.focus(); } else void shell.openExternal(update?.url || updates.RELEASES_PAGE); });
   notice.show();
+}
+
+// Started as the version an earlier "Update now" installed: its installer file and note go.
+function settleUpdate() {
+  const pending = config.pendingUpdate;
+  if (!pending || updates.unfinishedUpdate(pending, app.getVersion())) return;
+  const file = typeof pending.file === "string" ? path.resolve(pending.file) : "";
+  if (file && path.dirname(file) === path.resolve(app.getPath("temp")) && updates.INSTALLER_NAME.test(path.basename(file))) fs.rmSync(file, { force: true });
+  delete config.pendingUpdate;
+  saveConfig();
 }
 
 async function checkForUpdate() {
@@ -233,6 +246,7 @@ app.whenReady().then(async () => {
   try {
     engineModules = await loadEngineModules();
     loadConfig();
+    settleUpdate();
     config.poeJournalFile = path.join(app.getPath("userData"), "poe-journal.json");
     engine = engineModules.createEngine(config, {
       onLog: (entry) => pushLog(entry),
@@ -283,26 +297,37 @@ ipcMain.handle("save-config", async (_event, next) => {
 
 ipcMain.handle("open-update", () => shell.openExternal(update?.url || updates.RELEASES_PAGE));
 
-// "Update now" (7.2): download the checked installer, run it silently and quit; the installer
-// restarts the companion. Settings, the Discord link and the queue stay in the user data folder.
+// "Update now": download the checked installer (or reuse the one an unfinished update left), note it
+// in config.json, start it where people can see it and close once Windows has started it. The
+// installer restarts the companion; settings, the Discord link and the queue stay in the user data folder.
 let installing = false;
 ipcMain.handle("install-update", async () => {
-  if (installing) return { ok: false, message: "The update is already downloading." };
-  if (!update?.installer) { await shell.openExternal(update?.url || updates.RELEASES_PAGE); return { ok: true, message: "This update has no direct installer: the download page opened." }; }
+  if (installing) return { ok: false, message: "The update is already starting." };
+  const tempDir = app.getPath("temp");
   installing = true;
   try {
-    const target = path.join(app.getPath("temp"), update.installer.name);
-    let shown = -1;
-    await updates.downloadInstaller(update.installer, target, { onProgress: (share) => {
-      const percent = Math.floor(share * 100);
-      if (percent !== shown && percent % 5 === 0) { shown = percent; win?.webContents.send("update-progress", percent); }
-    } });
+    const pending = updates.unfinishedUpdate(config.pendingUpdate, app.getVersion());
+    let target = null;
+    let version = update?.version;
+    if (pending && (!update || pending.version === update.version) && await updates.checkInstaller(pending.file, pending, tempDir)) {
+      target = pending.file;
+      version = pending.version;
+    }
+    if (!target) {
+      if (!update?.installer) { await shell.openExternal(update?.url || updates.RELEASES_PAGE); return { ok: true, message: "This update has no direct installer: the download page opened." }; }
+      target = path.join(tempDir, update.installer.name);
+      let shown = -1;
+      await updates.downloadInstaller(update.installer, target, { onProgress: (share) => {
+        const percent = Math.floor(share * 100);
+        if (percent !== shown && percent % 5 === 0) { shown = percent; win?.webContents.send("update-progress", percent); }
+      } });
+      config.pendingUpdate = { version: update.version, file: target, size: update.installer.size, sha256: update.installer.sha256, from: app.getVersion(), at: new Date().toISOString() };
+    }
     saveConfig();
-    // NSIS (electron-builder): /S silent, --updated keeps it an upgrade, --force-run starts the new version.
-    spawn(target, ["/S", "--updated", "--force-run"], { detached: true, stdio: "ignore" }).unref();
+    await updates.launchInstaller(target);
     quitting = true;
     setTimeout(() => app.quit(), 500);
-    return { ok: true, message: `Installing Guilded Companion ${update.version}. It restarts by itself in a moment.` };
+    return { ok: true, message: `The installer for Guilded Companion ${version} is open. It closes the companion, updates it and starts it again.` };
   } catch (error) {
     return { ok: false, message: `The update could not be installed: ${error instanceof Error ? error.message : String(error)} Try again, or use the download page.` };
   } finally {

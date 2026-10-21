@@ -4,6 +4,9 @@
 // when GitHub cannot be reached). "Update now" (7.2) downloads the release's own
 // installer, checks its SHA-256 against GitHub's digest and runs it; without a
 // checked installer the companion only shows where to get the update.
+// The installer now runs where people can see it (a hidden one failed without a word), the app
+// waits for Windows to start it before closing, and an update that did not finish is remembered
+// so the next start offers to run the installer again.
 const RELEASES_API = "https://api.github.com/repos/kevincaron28/Guilded/releases/latest";
 const RELEASES_PAGE = "https://github.com/kevincaron28/Guilded/releases/latest";
 const DOWNLOAD_PREFIX = "https://github.com/kevincaron28/Guilded/releases/download/";
@@ -90,4 +93,55 @@ async function downloadInstaller(installer, target, { fetchImpl = globalThis.fet
   }
 }
 
-module.exports = { parseVersion, isNewer, pickUpdate, fetchLatestRelease, installerFrom, downloadInstaller, RELEASES_PAGE };
+// NSIS (electron-builder) without /S: its progress window shows, and so does any error. --updated keeps
+// it an upgrade (settings and Start with Windows stay), --force-run starts the new version afterwards.
+const INSTALLER_ARGS = ["--updated", "--force-run"];
+const INSTALLER_NAME = /^Guilded\.Companion\.Setup\.\d+\.\d+\.\d+\.exe$/;
+
+// Starts the installer and resolves once Windows has started it; rejects when it could not
+// (blocked, missing, refused) so the companion stays open and says so instead of quitting.
+function launchInstaller(file, { spawnImpl = require("node:child_process").spawn } = {}) {
+  return new Promise((resolve, reject) => {
+    let child;
+    try { child = spawnImpl(file, INSTALLER_ARGS, { detached: true, stdio: "ignore" }); } catch (error) { reject(error); return; }
+    child.once("error", reject);
+    child.once("spawn", () => { child.unref(); resolve(); });
+  });
+}
+
+// An installer kept from an earlier "Update now" that can run again: in the temp folder, named like
+// a release installer, and still the size and SHA-256 the release said. A changed file is removed.
+async function checkInstaller(file, expected, tempDir, { fs = require("node:fs"), path = require("node:path") } = {}) {
+  const { createHash } = require("node:crypto");
+  if (typeof file !== "string" || !expected?.sha256 || !Number.isInteger(expected.size)) return false;
+  const resolved = path.resolve(file);
+  if (path.dirname(resolved) !== path.resolve(tempDir) || !INSTALLER_NAME.test(path.basename(resolved))) return false;
+  try {
+    if (fs.statSync(resolved).size !== expected.size) throw new Error("size");
+    const hash = createHash("sha256");
+    for await (const chunk of fs.createReadStream(resolved)) hash.update(chunk);
+    if (hash.digest("hex") !== expected.sha256) throw new Error("checksum");
+    return true;
+  } catch {
+    fs.rmSync(resolved, { force: true });
+    return false;
+  }
+}
+
+// The update an earlier "Update now" started that did not finish (this is still an older version),
+// or null. Saved in config.json as { version, file, size, sha256 } before the installer runs.
+function unfinishedUpdate(pending, current) {
+  return pending && isNewer(pending.version, current) ? pending : null;
+}
+
+// What the Overview banner offers: an unfinished update first, unless GitHub has an even newer one.
+function updateToShow(next, pending, current) {
+  const unfinished = unfinishedUpdate(pending, current);
+  if (!unfinished || (next && isNewer(next.version, unfinished.version))) return next;
+  return { version: parseVersion(unfinished.version).join("."), url: next?.url ?? RELEASES_PAGE, ...(next?.installer ? { installer: next.installer } : {}), unfinished: true };
+}
+
+module.exports = {
+  parseVersion, isNewer, pickUpdate, fetchLatestRelease, installerFrom, downloadInstaller, RELEASES_PAGE,
+  INSTALLER_ARGS, INSTALLER_NAME, launchInstaller, checkInstaller, unfinishedUpdate, updateToShow
+};

@@ -53,11 +53,18 @@ const say = (message, ok) => { $('formResult').textContent = message; $('formRes
 function gameFields() { $('wowSettings').hidden = !$('wowEnabled').checked; $('poeSettings').hidden = !$('poeEnabled').checked; }
 ['wowEnabled','poeEnabled'].forEach(id => $(id).addEventListener('change',gameFields));
 function pill(id, text, level) { $(id).textContent = text; $(id).className = `pill ${level || ''}`; }
+let updateBusy = false;
+const updateButtonLabel = (update) => update?.unfinished ? 'Run the installer' : 'Update now';
 function renderUpdate(update) {
   $('updateBanner').hidden = !update || !!api.browser;
   if (!update) return;
-  $('updateTitle').textContent = `Guilded Companion ${update.version} is available`;
-  $('updateText').textContent = `You have ${$('version').textContent.replace(/^Version /, '')}. ${update.installer ? 'Update now installs it and restarts the companion' : 'Download the new installer and run it'}: your settings and Discord link are kept.`;
+  const current = $('version').textContent.replace(/^Version /, '');
+  // An update that did not finish (the installer was closed, blocked or failed) says so and offers it again.
+  $('updateTitle').textContent = update.unfinished ? `The update to ${update.version} did not finish` : `Guilded Companion ${update.version} is available`;
+  $('updateText').textContent = update.unfinished
+    ? `You still have ${current}. Run the installer to finish: it shows its progress, then starts the new version. Your settings and Discord link are kept.`
+    : `You have ${current}. ${update.installer ? 'Update now opens the installer, which updates and restarts the companion' : 'Download the new installer and run it'}: your settings and Discord link are kept.`;
+  if (!updateBusy) $('btnUpdate').textContent = updateButtonLabel(update);
 }
 function renderState(snapshot) {
   lastSnapshot = snapshot;
@@ -164,7 +171,16 @@ bind('btnSheets',async () => { const result = await api.exportSheets($('sheetTab
 bind('btnFolder',() => api.openAddonFolder()); bind('btnPause',async () => { await api.toggleTracking(); }); bind('btnOnline',() => api.openOnline());
 bind('btnRemoveData',() => api.removeData());
 // Update now (7.2): the desktop app downloads, checks and installs the new version itself.
-bind('btnUpdate',async () => { if (!api.installUpdate) return api.openUpdate(); $('btnUpdate').textContent = 'Downloading…'; const result = await api.installUpdate(); toast(result.message,!result.ok); $('btnUpdate').textContent = result.ok ? 'Installing…' : 'Update now'; });
+bind('btnUpdate',async () => {
+  if (!api.installUpdate) return api.openUpdate();
+  updateBusy = true;
+  $('btnUpdate').textContent = lastSnapshot?.update?.unfinished ? 'Starting…' : 'Downloading…';
+  const result = await api.installUpdate();
+  toast(result.message,!result.ok);
+  // Stays busy once the installer has started: the companion closes in a moment.
+  updateBusy = result.ok;
+  $('btnUpdate').textContent = result.ok ? 'Installing…' : updateButtonLabel(lastSnapshot?.update);
+});
 api.onUpdateProgress?.(percent => { $('btnUpdate').textContent = `Downloading ${percent}%`; });
 bind('btnHistory',async () => {
   if (!savedConfig.companionCredential) { showPage('settings'); toast('Connect your Discord account first.'); return; }

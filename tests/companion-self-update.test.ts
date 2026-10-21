@@ -1,16 +1,24 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { EventEmitter } from "node:events";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 type Installer = { name: string; url: string; size: number; sha256: string };
+type Shown = { version: string; installer?: Installer; unfinished?: boolean; url?: string } | null;
+type Pending = { version: string; file: string; size: number; sha256: string };
 const updates = createRequire(import.meta.url)("../companion-app/update-check.cjs") as {
   installerFrom: (assets: unknown, version: string) => Installer | null;
   fetchLatestRelease: (fetchImpl: unknown) => Promise<{ version: string; installer?: Installer } | null>;
   pickUpdate: (current: string, latest: unknown, bot?: string | null) => { version: string; installer?: Installer } | null;
   downloadInstaller: (installer: Installer, target: string, options: { fetchImpl: unknown }) => Promise<string>;
+  INSTALLER_ARGS: string[];
+  launchInstaller: (file: string, options: { spawnImpl: unknown }) => Promise<void>;
+  checkInstaller: (file: string, expected: { size: number; sha256: string }, tempDir: string) => Promise<boolean>;
+  unfinishedUpdate: (pending: Pending | undefined, current: string) => Pending | null;
+  updateToShow: (next: Shown, pending: Pending | undefined, current: string) => Shown;
 };
 
 const bytes = Buffer.from("MZ installer bytes");
@@ -50,5 +58,71 @@ describe("companion one-click update", () => {
 
   it("keeps Start with Windows when an upgrade runs the old uninstaller", () => {
     expect(readFileSync("companion-app/installer.nsh", "utf8")).toMatch(/\$\{ifNot\} \$\{isUpdated\}\s+DeleteRegValue/);
+  });
+});
+
+// October 2026: the hidden (/S) installer failed without a word and the app closed anyway, so
+// players stayed on 7.2.0 through 7.2.1 and 7.3.0.
+describe("starting the installer", () => {
+  const fakeSpawn = (event: "spawn" | "error") => {
+    const child = Object.assign(new EventEmitter(), { unref: vi.fn() });
+    const spawnImpl = vi.fn(() => { setTimeout(() => event === "spawn" ? child.emit("spawn") : child.emit("error", new Error("spawn UNKNOWN")), 0); return child; });
+    return { child, spawnImpl };
+  };
+
+  it("shows the installer (no /S) as an upgrade that starts the new version, and waits until Windows started it", async () => {
+    const { child, spawnImpl } = fakeSpawn("spawn");
+    await updates.launchInstaller("C:\\Temp\\Guilded.Companion.Setup.7.4.0.exe", { spawnImpl });
+    expect(spawnImpl).toHaveBeenCalledWith("C:\\Temp\\Guilded.Companion.Setup.7.4.0.exe", ["--updated", "--force-run"], { detached: true, stdio: "ignore" });
+    expect(updates.INSTALLER_ARGS).not.toContain("/S");
+    expect(child.unref).toHaveBeenCalledOnce();
+  });
+
+  it("reports a refused start instead of letting the companion close", async () => {
+    await expect(updates.launchInstaller("x.exe", { spawnImpl: fakeSpawn("error").spawnImpl })).rejects.toThrow("spawn UNKNOWN");
+    await expect(updates.launchInstaller("x.exe", { spawnImpl: () => { throw new Error("EACCES"); } })).rejects.toThrow("EACCES");
+  });
+
+  it("closes the app only after the installer started, and never runs it hidden", () => {
+    const main = readFileSync("companion-app/main.cjs", "utf8");
+    expect(main).not.toContain('"/S"');
+    expect(main).toMatch(/await updates\.launchInstaller\(target\);\s+quitting = true;\s+setTimeout\(\(\) => app\.quit\(\), 500\)/);
+    // The note is saved before the installer runs, so a failed install is remembered.
+    expect(main.indexOf("config.pendingUpdate = {")).toBeLessThan(main.indexOf("await updates.launchInstaller(target)"));
+  });
+});
+
+describe("an update that did not finish", () => {
+  const pending = (version: string, file = "C:\\Temp\\x.exe"): Pending => ({ version, file, size: bytes.length, sha256 });
+
+  it("is offered again until the new version runs", () => {
+    expect(updates.unfinishedUpdate(pending("7.4.0"), "7.3.0")?.version).toBe("7.4.0");
+    expect(updates.unfinishedUpdate(pending("7.4.0"), "7.4.0")).toBeNull();
+    expect(updates.unfinishedUpdate(undefined, "7.3.0")).toBeNull();
+    // The banner: the unfinished one first, with GitHub's fresh installer when it is the same version.
+    const github = updates.installerFrom([asset], "7.2.0")!;
+    expect(updates.updateToShow({ version: "7.4.0", installer: github }, pending("7.4.0"), "7.3.0")).toMatchObject({ version: "7.4.0", unfinished: true, installer: github });
+    expect(updates.updateToShow(null, pending("7.4.0"), "7.3.0")).toMatchObject({ version: "7.4.0", unfinished: true, url: "https://github.com/kevincaron28/Guilded/releases/latest" });
+    // A newer release replaces it; once updated, the normal banner (or none) is back.
+    expect(updates.updateToShow({ version: "7.5.0" }, pending("7.4.0"), "7.3.0")).toEqual({ version: "7.5.0" });
+    expect(updates.updateToShow(null, pending("7.4.0"), "7.4.0")).toBeNull();
+  });
+
+  it("reruns the kept installer only while it is in the temp folder and unchanged", async () => {
+    const dir = folder();
+    const file = join(dir, "Guilded.Companion.Setup.7.2.0.exe");
+    writeFileSync(file, bytes);
+    expect(await updates.checkInstaller(file, { size: bytes.length, sha256 }, dir)).toBe(true);
+    // Somewhere else, or not named like a release installer: refused, and left alone.
+    expect(await updates.checkInstaller(file, { size: bytes.length, sha256 }, folder())).toBe(false);
+    const other = join(dir, "setup.exe");
+    writeFileSync(other, bytes);
+    expect(await updates.checkInstaller(other, { size: bytes.length, sha256 }, dir)).toBe(false);
+    expect(existsSync(other)).toBe(true);
+    // Changed since the download: refused and removed, so the next try downloads it again.
+    writeFileSync(file, Buffer.from("MZ changed bytes!!"));
+    expect(await updates.checkInstaller(file, { size: bytes.length, sha256 }, dir)).toBe(false);
+    expect(existsSync(file)).toBe(false);
+    expect(await updates.checkInstaller(file, { size: bytes.length, sha256 }, dir)).toBe(false);
   });
 });

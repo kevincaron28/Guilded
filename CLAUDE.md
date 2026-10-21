@@ -10,7 +10,8 @@
 > 7.0.0 (19 October 2026): web sign-in and recruitment (/mod recruit), public dungeon leaderboards
 > (/mod leaderboard), standalone Guilded Dungeons addon (addon/GuildedDungeons; after editing Guilded's
 > shared dungeon Lua run `npm run dungeons:sync`), companion personal mode and CSV export, /officer export,
-> startable provisional all-level season. /officer is ~3,780 of Discord's 4,000 characters: put new
+> startable provisional all-level season. /officer is the largest command: 3,431 of Discord's 4,000
+> characters on 21 October 2026 (/character 3,346; the size test fails above 3,900). Put new
 > officer subcommands elsewhere (docs/V7_0_0_RELEASE_NOTES.md).
 > 6.7.0 (18 October 2026): members see only their commands; leader and officer tools under /lead,
 > /officer, /organize; Integrations-visibility warning in /setup (docs/V6_7_0_RELEASE_NOTES.md).

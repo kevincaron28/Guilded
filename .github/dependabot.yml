@@ -1,0 +1,30 @@
+# Weekly update PRs, so a dependency reaching end of life is noticed (ESLint 9 was not).
+# Minor and patch updates arrive as one grouped PR per folder; each major update gets its
+# own PR, since it may need code changes. Both `Guilded quality` jobs still gate every merge.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      # The bot runs on Node 24: its types follow the runtime, not the newest Node.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
+  - package-ecosystem: npm
+    directory: /companion-app
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]

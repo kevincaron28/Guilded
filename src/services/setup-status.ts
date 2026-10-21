@@ -1,4 +1,5 @@
 import { tx, type Lang } from "../i18n.js";
+import { officerSyncRecent } from "./officer-sync.js";
 
 // The /setup checklist: what's configured, what's missing, and exactly how
 // to fix each missing thing. Pure (takes plain data) so it's easy to test.
@@ -36,6 +37,8 @@ export interface SetupFacts {
   weeklyReportOn: boolean;
   companionPaired: boolean;
   linkedCharacters: number;
+  // Last upload from an officer's companion (Guild.officerSyncAt); omitted = not checked.
+  officerSyncAt?: Date | null;
   // The pinned group finder message is the pre-4.6 button, not the current menu.
   dungeonSignupGuideOutdated?: boolean;
   // Every other channel setup can create (field name -> state), shown as optional rows.
@@ -74,7 +77,7 @@ function channelCheck(lang: Lang, label: string, fact: ChannelFact | null, optio
   return { label: `${label} (#${fact.name})`, ok: true, optional, fix: "" };
 }
 
-export function setupChecks(facts: SetupFacts, lang: Lang = "en"): SetupCheck[] {
+export function setupChecks(facts: SetupFacts, lang: Lang = "en", now = new Date()): SetupCheck[] {
   const T = (english: string, vars: Record<string, string | number> = {}) => tx(lang, english, vars);
   const missingRoles = facts.requiredRoleNames
     .map((entry) => (Array.isArray(entry) ? entry : [entry]))
@@ -136,6 +139,19 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en"): SetupCheck[] 
       fix: T("WoW players only: /character pair shows existing characters and how to link them. Already connected? Sync alts with the same companion.")
     }
   ];
+  // Addon-only members (and their /guilded verify links) depend on an officer's companion. Only for
+  // guilds that use WoW sync at all, so a guild without WoW players never sees it.
+  if (facts.officerSyncAt !== undefined && (facts.companionPaired || facts.linkedCharacters > 0)) {
+    const recent = officerSyncRecent(facts.officerSyncAt, now);
+    const last = facts.officerSyncAt
+      ? T("Last officer sync: {when}.", { when: `<t:${Math.floor(facts.officerSyncAt.getTime() / 1000)}:R>` })
+      : T("No officer's companion has synced yet.");
+    checks.push({
+      label: T("An officer's companion synced in the last 2 weeks"), ok: recent, optional: true,
+      ...(recent ? {} : { warn: true }),
+      fix: `${last} ${T("Members who only use the addon (their /guilded verify links, gear, dungeon runs) reach Discord through an officer's companion. An officer: run /character pair, connect the companion with Sign in with Discord, then /reload in WoW and press Sync now.")}`
+    });
+  }
   // Every other channel setup can create: optional, each with how to get it.
   const CHANNEL_LABELS: Record<string, string> = {
     coreChannelId: T("Raid roster channel"), readinessChannelId: T("Raid readiness channel"),

@@ -30,6 +30,7 @@ Hover a page name for what it is for. The **Player** box (target someone, or **M
 | `/guilded diag` | Show recent addon errors / blocked actions (send this when reporting a bug) |
 | `/guilded menu` | Open the tools window |
 | `/guilded share` | One paste with your character, latest gear check, consumables and attunements (a box to copy). In Discord: `/character import` |
+| `/guilded verify <code>` | Link all your characters to Discord at once: paste the line `/character pair` shows. Saved for your whole WoW account, so alts link too. `/guilded verify` shows whether it is saved, `/guilded verify off` removes it |
 | `/guilded character` | One line with your character (name, class, race, level, spec, professions) for `/character import` |
 | `/guilded enchants [on/off/level <n>]` | Show or change the missing-enchant check (which slots, from what level) |
 | `/guilded ready` / `ready ask` / `ready post` | Officers and group leaders (raid leader or assistant): who in your raid or party is ready: a summary and everyone who is not. It runs by itself on every Blizzard ready check (each addon reports what it carries, and you get a summary when it ends). `ask` asks every addon to check again without a ready check; `post` tells the group who needs attention. The window's **Ready** page (officers and group leaders only) shows an icon per check |
@@ -330,7 +331,7 @@ also works. `/help` reminds leaders of this. `/core`, `/team`, `/report`, `/part
 | `/report bug <description> [screenshot]` | Report a bug or problem. Also captured automatically whenever a command errors, for the developer to review |
 | `/character profile` | Your profile: characters (race, class, professions, last seen), EP/GP/PR |
 | `/character who <character>` | Look anyone up: main and alts, professions, EP/GP/PR, 30-day attendance, last seen |
-| `/character pair` | Generate a one-time code to link your Companion to your Discord account; future uploads link your own character when applied |
+| `/character pair` | **Start here.** Shows your `/guilded verify` line to paste in WoW (links every character of your WoW account, no companion needed), then how to connect the optional Companion |
 | `/character add <name> <realm> <class> <main> [spec] [level] [race]` / `/character list` | Link your WoW characters (needed before imports can match you) |
 | `/character claim <name>` | Link a character your addon already reported (pick it from the list; nothing to type or paste). Most people never need it: characters whose name matches the Discord nickname are linked automatically |
 | `/character import <code> [main]` | Link or refresh a character: paste the line `/guilded character` shows (name, realm, class, race, level, spec, professions), or the code `/guilded share` shows (also records a gear check, consumables and attunements) — no typing |
@@ -533,11 +534,12 @@ By default everyone has **one guild pool** of EP/GP, whatever raid core they rai
 
 1. Every addon tells the guild who it is (name, class, race, level, spec, professions) in its normal gear digest, so an officer's upload (the companion) carries everyone who was online.
 2. The bot remembers new names as *unclaimed* characters and refreshes the linked ones.
-3. A member can pair their own Companion with `/character pair`; its one-time code establishes an account credential, and the uploader's own character is linked on its next upload. The first character becomes the main.
-4. Without pairing, a character may still be linked automatically when the Discord name matches (`Ray`, `[GOLD] Ray`, `Ray | Priest`; exactly one member must fit). Anyone left over can use `/character claim` or an officer can use `/officer character link`.
-5. With `/config auto-import true`, the guild-wide import (including the shared digest and ledger) is applied right after each upload. Otherwise an officer runs `/import apply`.
+3. **Without a companion (the easy way):** `/character pair` shows one line, `/guilded verify ABCD-EFGH`, that the member pastes in WoW chat once. The addon keeps the code with the WoW account's saved data, so every character they play repeats it in its digest. An officer's addon keeps a digest only under the name the game gave for the sender, and the next upload from an **officer's** companion links each of those characters to the member (the first becomes the main) and sends them a DM. Members' own uploads never link this way: their companion could pair any name with their code. Someone who repeats a guildmate's code can only hand their own character to that guildmate. A character linked to someone else is never taken (the member is told once), and one that is unlinked (`/character unlink`) is not linked again by the code. When no officer's companion has synced for 2 weeks, `/character pair` also shows the manual way.
+4. A member can pair their own Companion with `/character pair` (Sign in with Discord); the uploader's own character and every character that logged in on that PC are linked on upload. The first character becomes the main.
+5. Without either, a character may still be linked automatically when the Discord name matches (`Ray`, `[GOLD] Ray`, `Ray | Priest`; exactly one member must fit). Anyone left over can use `/character claim` or an officer can use `/officer character link`.
+6. With `/config auto-import true`, the guild-wide import (including the shared digest and ledger) is applied right after each upload. Otherwise an officer runs `/import apply`.
 
-The addon's `/guilded character` and `/guilded share` codes still work as a fallback. Linking trusts the Discord name or the person's own pick (small, trusted guild); officers can see and fix links with `/officer character unclaimed` and `/officer character link`. Discord does not let a bot see a member's Battle.net connection without a separate login page, and Blizzard has no character list for Forever, so "linked WoW account" cannot be used.
+The addon's `/guilded character` and `/guilded share` codes still work as a fallback. Name matching and `/character claim` trust the Discord name or the person's own pick (small, trusted guild); `/guilded verify` and companion pairing are proven by the game itself. Officers can see and fix links with `/officer character unclaimed` and `/officer character link`. Discord does not let a bot see a member's Battle.net connection without a separate login page, and Blizzard has no character list for Forever, so "linked WoW account" cannot be used.
 
 ## Fewer things to type
 

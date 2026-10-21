@@ -93,6 +93,11 @@ Without `.env.local` (cloud sandboxes), 9 bot test files fail to load on
 throwaway placeholders set in the shell only (never commit them):
 `DISCORD_TOKEN=placeholder DISCORD_CLIENT_ID=123 DISCORD_GUILD_ID=456 DATABASE_URL=postgresql://u:p@localhost:5432/x npx vitest run`.
 
+`tsc` is TypeScript 7 (installed as `@typescript/native`), but the `typescript` package is
+the 6.0 API (`@typescript/typescript6`, CLI `tsc6`): 7.0 ships no compiler API, and
+typescript-eslint and `tests/command-handler-coverage.test.ts` need one. Keep both
+aliases until typescript-eslint accepts TypeScript 7.
+
 Two failure modes only the test suite catches, not the type checker:
 
 - **`/setup` and `/config` are merged into one Discord command**

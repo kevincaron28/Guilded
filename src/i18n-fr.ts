@@ -292,6 +292,10 @@ export const FR_TEXT: Record<string, string> = {
   "Characters linked": "Personnages liés",
   "At least one companion account connected": "Au moins un compte connecté au compagnon",
   "At least one WoW character linked": "Au moins un personnage WoW lié",
+  "An officer's companion synced in the last 2 weeks": "Le compagnon d'un officier a synchronisé dans les 2 dernières semaines",
+  "Last officer sync: {when}.": "Dernière synchro d'un officier : {when}.",
+  "No officer's companion has synced yet.": "Aucun compagnon d'officier n'a encore synchronisé.",
+  "Members who only use the addon (their /guilded verify links, gear, dungeon runs) reach Discord through an officer's companion. An officer: run /character pair, connect the companion with Sign in with Discord, then /reload in WoW and press Sync now.": "Les membres qui n'utilisent que l'addon (leurs liens /guilded verify, leur équipement, leurs donjons) arrivent sur Discord par le compagnon d'un officier. Un officier : faites /character pair, connectez le compagnon avec Sign in with Discord, puis faites /reload dans WoW et appuyez sur Sync now.",
   "Optional for WoW sync: /character pair gives the online companion link and a private code. Enter it in Connection & setup, then Connect.": "Facultatif pour la synchro WoW : /character pair donne le lien du compagnon en ligne et un code privé. Entrez-le dans Connection & setup, puis Connect.",
   "WoW players only: /character pair shows existing characters and how to link them. Already connected? Sync alts with the same companion.": "Pour les joueurs WoW seulement : /character pair montre vos personnages liés et comment les lier. Déjà connecté ? Synchronisez vos alts avec le même compagnon.",
 

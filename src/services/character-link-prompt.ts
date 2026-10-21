@@ -4,10 +4,7 @@ import { t, type Lang } from "../i18n.js";
 import { issueCharacterPairingCode } from "./character-pairing.js";
 import { formatVerifyCode, verifyCodeFor } from "./character-verify.js";
 import { companionWebUrl } from "./companion-links.js";
-
-// /guilded verify codes arrive with an officer's companion upload; after two weeks without one,
-// members also get the manual way so nobody waits for a sync that is not coming.
-const OFFICER_SYNC_DAYS = 14;
+import { officerSyncRecent } from "./officer-sync.js";
 
 // Shared by the welcome button and /character pair so the two entry points never drift.
 export async function characterLinkPrompt(database: PrismaClient, guildId: string, memberId: string, discordGuildId: string, lang: Lang, mode: "addon" | "companion" = "addon") {
@@ -29,7 +26,8 @@ export async function characterLinkPrompt(database: PrismaClient, guildId: strin
   // One line to paste in game, the same every time: the easiest way for everyone, so it comes first.
   const code = formatVerifyCode(await verifyCodeFor(database, guildId, memberId));
   const guild = await database.guild.findUnique({ where: { id: guildId }, select: { officerSyncAt: true } });
-  const officersSync = Boolean(guild?.officerSyncAt && Date.now() - guild.officerSyncAt.getTime() < OFFICER_SYNC_DAYS * 86_400_000);
+  // Without a recent officer sync the code may wait a long time: the manual way is shown too.
+  const officersSync = officerSyncRecent(guild?.officerSyncAt);
   embed.addFields({
     name: t(lang, mode === "companion" ? "pair.verifyCompanionTitle" : "pair.verifyTitle"),
     value: t(lang, "pair.verify", { code }) + (officersSync ? "" : `\n${t(lang, "pair.verifySlow")}`)

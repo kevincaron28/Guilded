@@ -43,6 +43,15 @@ describe("/guilded verify", () => {
     expect(lastDigest(s)).not.toContain("|V:");
   });
 
+  it("still lets a player who left the guild remove the code", () => {
+    const s = loggedIn();
+    s.run(`SlashCmdList["GUILDED"]("verify ABCD-EFGH"); function IsInGuild() return false end`);
+    s.run(`SlashCmdList["GUILDED"]("verify KLMN-PQRS")`);
+    expect(s.run(`return GuildedDB.verifyCode`)).toBe("ABCDEFGH");
+    s.run(`SlashCmdList["GUILDED"]("verify off")`);
+    expect(s.run(`return tostring(GuildedDB.verifyCode)`)).toBe("nil");
+  });
+
   it("answers in French for a French player", () => {
     const s = loggedIn();
     s.load("Locale.lua");

@@ -1739,7 +1739,11 @@ local function command(text)
     showCharacterExport(line)
   elseif action == "verify" then
     local sub = string.lower(args[2] or "")
-    if sub == "off" then
+    -- Only guildmates' addons hear the code (guild chat). Without a guild there is nothing to link,
+    -- and nothing else in Guilded needs a guild or Discord.
+    if sub ~= "off" and not (IsInGuild and IsInGuild()) then
+      message(L("You are not in a guild, so there is nothing to link: /guilded verify connects guild members to their guild's Discord. Everything else in Guilded works without a guild or Discord."))
+    elseif sub == "off" then
       db.verifyCode = nil
       message(L("Your Discord link code was removed from this WoW account."))
       inspectReadiness(true, "GUILD")

@@ -125,6 +125,16 @@ Two sync sharp edges (see `docs/SYNC_SPEEDUPS_2026-10-15.md`):
   the bot should cope without it until the Worker is redeployed); long polls stay at 12 s.
   Headers named `x-guilded-*` or `x-companion-*` pass through without a Worker change.
 
+Prisma 7 (see `docs/PRISMA_7_UPGRADE.md`):
+
+- **The client is generated TypeScript in `src/generated/prisma/` (gitignored).** `npm install`
+  and `npm run db:update` regenerate it; if it is missing, run `npx prisma generate`. Import
+  from `src/generated/prisma/client.js`, never from `@prisma/client`.
+- **Create clients only with `createPrismaClient()` from `src/database.ts`.** Prisma 7 needs the
+  node-postgres adapter, and `poolSettings()` translates `DATABASE_URL`'s Prisma 6 parameters
+  (pool size, timeouts, the Aiven CA in `sslcert`) that node-postgres would misread. The CLI
+  reads the URL from `prisma.config.ts`.
+
 ## No database or Discord access from here
 
 Cloud sandboxes may not reach production Aiven or Discord and may have no

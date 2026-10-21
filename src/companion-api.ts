@@ -118,7 +118,7 @@ export async function readBody(request: IncomingMessage): Promise<unknown> {
     try { raw = gunzipSync(raw, { maxOutputLength: MAX_UNPACKED_BYTES }); }
     catch (error) {
       if (error instanceof RangeError || (error as { code?: string }).code === "ERR_BUFFER_TOO_LARGE") throw new BodyTooLargeError("Request body is too large.");
-      throw new SyntaxError("The compressed upload could not be read.");
+      throw new SyntaxError("The compressed upload could not be read.", { cause: error });
     }
   } else if (encoding && encoding !== "identity") {
     throw new SyntaxError("Unsupported content encoding.");

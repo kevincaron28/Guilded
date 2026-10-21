@@ -102,7 +102,7 @@ export async function handleCommunityHub(interaction: HubInteraction): Promise<v
     await interaction.editReply({ content: T("This season is archived. Choose an active season.", "Cette saison est archivée. Choisis une saison en cours."), components: [new ActionRowBuilder<ButtonBuilder>().addComponents(communityHubButton("archives", "none", T("Choose season", "Choisir une saison")))] }); return;
   }
   if (action === "select") { await interaction.editReply(await communityHubReply(guild, record.id, actor, season, lang)); return; }
-  let content = "";
+  let content: string;
   if (action === "dice") content = await diceReply(record.id, season, actor, timezone, lang);
   else if (action === "polls") {
     const polls = await accessibleCommunityPolls(prisma, guild, record.id, actor, season);

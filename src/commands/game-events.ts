@@ -56,7 +56,7 @@ export const ownerEventsCommand = new SlashCommandBuilder().setName(OWNER_EVENTS
 
 export async function executeGameEvents(interaction: ChatInputCommandInteraction): Promise<void> {
   const guild = interaction.guild;
-  if (!guild || !(await guild.members.fetch(interaction.user.id)).permissions.has(PermissionFlagsBits.ManageGuild)) {
+  if (!guild || !(await guild.members.fetch({ user: interaction.user.id, force: true })).permissions.has(PermissionFlagsBits.ManageGuild)) {
     await interaction.reply({ content: "Manage Server is required. / La permission Gérer le serveur est requise.", flags: MessageFlags.Ephemeral }); return;
   }
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });

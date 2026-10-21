@@ -8,8 +8,8 @@ export function missingDiscordMessage(error: unknown): boolean {
   return !!error && typeof error === "object" && "code" in error && error.code === 10008;
 }
 export async function eventChannel(guild: Guild, channelId: string): Promise<TextChannel> {
-  const channel = await guild.channels.fetch(channelId);
-  const me = await guild.members.fetchMe();
+  const channel = await guild.channels.fetch(channelId, { force: true });
+  const me = await guild.members.fetchMe({ force: true });
   if (channel?.type !== ChannelType.GuildText || !channel.permissionsFor(me)?.has([
     PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks,
     PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageMessages
@@ -17,7 +17,7 @@ export async function eventChannel(guild: Guild, channelId: string): Promise<Tex
   return channel;
 }
 export async function eventRole(guild: Guild, roleId: string, channel: TextChannel) {
-  const role = await guild.roles.fetch(roleId);
+  const role = await guild.roles.fetch(roleId, { force: true });
   if (!role || selfRoleProblem({ id: role.id, managed: role.managed, permissions: role.permissions.bitfield }, guild.id) ||
       !role.mentionable || !channel.permissionsFor(role)?.has(PermissionFlagsBits.ViewChannel)) {
     throw new Error("Choose a mentionable, non-privileged opt-in game role that can view the channel. / Choisissez un rôle de jeu volontaire, mentionnable, sans privilèges et ayant accès au salon.");
@@ -70,7 +70,7 @@ export async function deliverGameEvent(guild: Guild, database: PrismaClient, job
     const marker = `Guilded events ${board.id}`;
     let message: Message | null = null;
     if (board.messageId) {
-      try { message = await channel.messages.fetch(board.messageId); }
+      try { message = await channel.messages.fetch({ message: board.messageId, force: true }); }
       catch (error) { if (!missingDiscordMessage(error)) throw error; }
       if (message && (message.author.id !== guild.client.user?.id || !message.embeds.some(embed => embed.footer?.text === marker))) throw new Error("Event board identity mismatch");
     }

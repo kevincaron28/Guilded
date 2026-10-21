@@ -1,4 +1,6 @@
-import { hostedPilot, replacePilotApprovals, replacePilotLite } from "./hosted-pilot.js";
+import { executeGameEvents, executeOwnerEvents, OWNER_EVENTS_COMMAND, ownerEventsCommand } from "./commands/game-events.js";
+import { queueGameEvents } from "./services/game-events.js";
+import { hostedPilot, pilotGuildScope, replacePilotApprovals, replacePilotLite } from "./hosted-pilot.js";
 import { createPilotRequests, PILOT_REQUEST_PREFIX } from "./services/pilot-requests.js";
 import { warnIdleLite, welcomeApprovedOwner } from "./services/pilot-welcome.js";
 import { PILOT_DENIED, PILOT_LITE_DENIED } from "./services/pilot-policy.js";
@@ -152,6 +154,7 @@ process.on("uncaughtException", (error) => {
 // A rejected promise nobody awaited is a bug in one handler, not a broken process: report it and carry on.
 process.on("unhandledRejection", (error) => { void errorReportService.report(client, error, { source: "unhandledRejection" }); });
 const handlers = new Collection<string, (interaction: ChatInputCommandInteraction) => Promise<void>>();
+handlers.set("events", executeGameEvents);
 handlers.set("profile", executeProfile);
 handlers.set("config", executeConfig);
 handlers.set("loot", executeLoot);
@@ -232,6 +235,16 @@ client.once(Events.ClientReady, (readyClient) => {
   void refreshCommunityBoards();
   setInterval(() => void refreshCommunityBoards(), 5 * 60_000);
   void runDiscordJobs(readyClient).catch(reportJobError("Discord delivery queue"));
+  let eventsRunning = false;
+  const reconcileGameEvents = async () => {
+    if (eventsRunning) return;
+    eventsRunning = true;
+    try { await queueGameEvents(prisma, pilotGuildScope); }
+    catch (error) { reportJobError("Upcoming game events")(error); }
+    finally { eventsRunning = false; }
+  };
+  void reconcileGameEvents();
+  setInterval(() => void reconcileGameEvents(), 60_000);
   setInterval(() => void runDiscordJobs(readyClient).catch(reportJobError("Discord delivery queue")), 60_000);
   // Repair missing event jobs after a restart and advance game nights at their times.
   let reconcilingEvents = false;
@@ -647,6 +660,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
   if (!interaction.isChatInputCommand()) return;
+  if (interaction.commandName === OWNER_EVENTS_COMMAND) {
+    await executeOwnerEvents(interaction).catch((error: unknown) => replyWithCommandError(interaction, error));
+    return;
+  }
   if (interaction.commandName === OWNER_SEASON_COMMAND) {
     await executeOwnerSeason(interaction).catch((error: unknown) => replyWithCommandError(interaction, error));
     return;
@@ -668,7 +685,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 // The bot owner's /guilded-season exists only in the home server (DISCORD_GUILD_ID).
 async function registerCommands(guildId: string, body: unknown[] = commands.map((command) => command.toJSON())): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(config.DISCORD_TOKEN);
-  const full = guildId === config.DISCORD_GUILD_ID ? [...body, ownerSeasonCommand.toJSON()] : body;
+  const full = guildId === config.DISCORD_GUILD_ID ? [...body, ownerSeasonCommand.toJSON(), ownerEventsCommand.toJSON()] : body;
   await rest.put(Routes.applicationGuildCommands(config.DISCORD_CLIENT_ID, guildId), { body: full });
 }
 

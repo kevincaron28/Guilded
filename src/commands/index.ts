@@ -1,3 +1,4 @@
+import { gameEventsCommand } from "./game-events.js";
 import { healthCommand, executeHealth } from "./health.js";
 import { profileCommand, executeProfile } from "./profile.js";
 import { characterCommand, executeCharacter } from "./character.js";
@@ -148,7 +149,7 @@ const organize = new MergedCommand("organize", "Organizers: community seasons, q
 
 // Top level: the merged parents above, plus the commands main.ts handles itself.
 export const commands: AnyCommand[] = [
-  setup, configCommand, helpCommand, character, raid, epgp, loot, dungeon, craftCommand,
+  gameEventsCommand, setup, configCommand, helpCommand, character, raid, epgp, loot, dungeon, craftCommand,
   bankCommand, applyCommand, pollCommand, report, mod, coreCommand, tagCommand, importer,
   community, poeCommand, participationCommand, teamCommand, lead, officer, organize
 ];
@@ -159,6 +160,7 @@ export const commands: AnyCommand[] = [
 // Integrations > Guilded. Those roles are role names, not Discord permissions, so the handlers
 // keep their checks. /lead uses Manage Events so a server can also just give that to Raid Leaders.
 export const HIDDEN_FROM_MEMBERS: Record<string, bigint> = {
+  events: PermissionFlagsBits.ManageGuild,
   setup: PermissionFlagsBits.ManageGuild,
   config: PermissionFlagsBits.ManageGuild,
   mod: PermissionFlagsBits.ManageGuild,

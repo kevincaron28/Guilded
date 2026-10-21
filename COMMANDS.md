@@ -552,3 +552,15 @@ Where a value comes from a fixed list you pick it instead of typing: **class** a
 - **Cancel:** the requester (or an officer) presses **Cancel request**.
 - Finished and cancelled posts get their tag, close and lock by themselves. Members cannot post in the forum; only the bot and officers can, so it stays tidy.
 - If the craft channel is an ordinary text channel (older setups), requests are announced there as before. To switch to the forum: `/config channel disable:true`, then `/setup start` step 3 and "Create them for me".
+
+### Upcoming Events (server administrators)
+
+`/events board`, `/events status`, `/events refresh`, `/events reminders`, `/events disable`:
+Manage Server required. One pinned board per configured channel, separate WoW Forever/PoE2
+sections, regional game filters, and optional reminders for explicitly opted-in game roles.
+No channels or notifications are enabled by deployment. The bot owner's `/guilded-events`
+controls official dates centrally. [Guide and verified sources](docs/GAME_COUNTDOWNS.md).
+
+Événements à venir : `/events board`, `/events status`, `/events refresh`, `/events reminders`,
+`/events disable` (Gérer le serveur requis). Rappels volontaires par rôle de jeu ; aucune
+activation automatique. Seul le propriétaire du bot gère les dates officielles.

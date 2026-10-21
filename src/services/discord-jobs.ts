@@ -6,7 +6,7 @@ import { prisma } from "../database.js";
 import { participationDay } from "./participation-rules.js";
 
 type Db = Pick<PrismaClient, "discordJob">;
-export type JobKind = "DUNGEON_BOARD" | "PROFESSIONS" | "RAID_POST" | "CORE_ROSTER" | "CALENDAR" | "MESSAGE" | "COMMUNITY_POST" | "SCHEDULED_EVENT" | "TEAM_ROSTER" | "TEAM_SESSION" | "TEAM_REMINDER";
+export type JobKind = "GAME_EVENT_BOARD" | "GAME_EVENT_REMINDER" | "DUNGEON_BOARD" | "PROFESSIONS" | "RAID_POST" | "CORE_ROSTER" | "CALENDAR" | "MESSAGE" | "COMMUNITY_POST" | "SCHEDULED_EVENT" | "TEAM_ROSTER" | "TEAM_SESSION" | "TEAM_REMINDER";
 export async function enqueueDiscordJob(database: Db, guildId: string, key: string, kind: JobKind, payload: Prisma.InputJsonValue = {}) {
   return database.discordJob.upsert({ where: { guildId_key: { guildId, key } },
     create: { guildId, key, kind, payload },
@@ -39,7 +39,10 @@ export async function deliverDiscordJob(database: Db, id: string, send: (job: Di
 
 export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise<void> {
   const payload = job.payload as Record<string, unknown>;
-  if (["TEAM_ROSTER", "TEAM_SESSION", "TEAM_REMINDER"].includes(job.kind)) {
+  if (job.kind === "GAME_EVENT_BOARD" || job.kind === "GAME_EVENT_REMINDER") {
+    const { deliverGameEvent } = await import("./game-events-discord.js");
+    await deliverGameEvent(guild, prisma, job);
+  } else if (["TEAM_ROSTER", "TEAM_SESSION", "TEAM_REMINDER"].includes(job.kind)) {
     const { deliverTeamPost } = await import("./activity-core-discord.js");
     await deliverTeamPost(guild, prisma, job.guildId, job.kind, String(payload[job.kind === "TEAM_ROSTER" ? "coreId" : "sessionId"] ?? ""));
   } else if (job.kind === "DUNGEON_BOARD") {

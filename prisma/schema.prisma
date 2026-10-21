@@ -120,6 +120,7 @@ enum ApplicationStatus {
 }
 
 model Guild {
+  gameEventBoards GameEventBoard[]
   activityCores       ActivityCore[]
   id                  String                    @id @default(cuid())
   discordId           String                    @unique
@@ -1988,4 +1989,45 @@ model PublicRunUpload {
 
   @@unique([runId, uploaderKey])
   @@index([uploaderKey, createdAt])
+}
+
+// Owner-managed catalogue. A new schedule revision invalidates all pending reminders.
+model OfficialGameEvent {
+  id String @id
+  game String
+  region String @default("GLOBAL")
+  titleEn String
+  titleFr String
+  dateLabelEn String @default("")
+  dateLabelFr String @default("")
+  sourceUrl String
+  state String @default("TBA")
+  startsAt DateTime? @db.Timestamptz(3)
+  scheduleVersion Int @default(1)
+  archived Boolean @default(false)
+  updatedBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// No row is created by setup or migration: publication is explicitly opt-in.
+model GameEventBoard {
+  id String @id @default(cuid())
+  guildId String
+  channelId String
+  enabled Boolean @default(false)
+  games String[]
+  region String
+  messageId String?
+  contentHash String?
+  wowRoleId String?
+  poeRoleId String?
+  wowReminders Int[] @default([])
+  poeReminders Int[] @default([])
+  wowRemindersEnabledAt DateTime? @db.Timestamptz(3)
+  poeRemindersEnabledAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  @@unique([guildId, channelId])
 }

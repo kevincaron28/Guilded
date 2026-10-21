@@ -1,3 +1,4 @@
+import { verifyGameEventsPostgres, verifyGameEventsRestored } from "./verify-game-events-postgres.js";
 import { verifyAiBudgetPostgres } from "./verify-ai-budget-postgres.js";
 import { verifyPublicSharingPostgres } from "./verify-public-sharing-postgres.js";
 import { verifyDungeonRatingPostgres, verifyDungeonRatingRestored } from "./verify-dungeon-rating-postgres.js";
@@ -34,6 +35,7 @@ const database = new PrismaClient();
 try {
   if (!process.argv.includes("--restored")) await verifyAiBudgetPostgres(database);
   if (process.argv.includes("--restored")) {
+    await verifyGameEventsRestored(database);
     await verifyDungeonRatingRestored(database);
     await verifyActivityCoresRestored(database);
     assert.equal((await database.aiDailyUsage.findUniqueOrThrow({ where: { day_scope: { day: "2099-01-01", scope: "global" } } })).attempts, 7);
@@ -87,6 +89,7 @@ try {
     const guild = await database.guild.create({ data: { discordId: "release-test-guild", name: "Release fixture" } });
     await verifyPublicSharingPostgres(database);
     await verifyActivityCoresPostgres(database, guild.id);
+    await verifyGameEventsPostgres(database, guild.id);
     await verifyScheduledEventsPostgres(database, guild.id);
     await verifyCommunityPostgres(database, guild.id);
     await verifyParticipationPostgres(database, guild.id);

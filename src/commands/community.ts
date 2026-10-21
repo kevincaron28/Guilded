@@ -274,7 +274,7 @@ async function validateEventVenue(guild: Guild, channelId: string, voiceId: stri
   try { await eventVenue(guild, channelId, voiceId); }
   catch (error) {
     if (error && typeof error === "object" && "code" in error && error.code === "event-voice-audience") {
-      throw new Error("Choisis un vocal avec la même visibilité que le salon de la saison / Choose a voice channel with the same visibility as the season channel.");
+      throw new Error("Choisis un vocal avec la même visibilité que le salon de la saison / Choose a voice channel with the same visibility as the season channel.", { cause: error });
     }
     throw error;
   }

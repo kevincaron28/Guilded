@@ -208,7 +208,7 @@ export async function performUninstall(guild: DiscordGuild, guildId: string, imp
     });
   } catch (error) {
     console.error("Uninstall: could not delete the guild's database row", error);
-    throw new Error("Database wipe failed; the bot remains in this server.");
+    throw new Error("Database wipe failed; the bot remains in this server.", { cause: error });
   }
 
   forgetAnswerSettings(guild.id);

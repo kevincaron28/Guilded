@@ -102,7 +102,7 @@ if (luaparse) {
     try {
       luaparse.parse(readFileSync(new URL(file, root), "utf8"), { luaVersion: "5.1" });
     } catch (error) {
-      throw new Error(`${file}: Lua syntax error: ${error.message}`);
+      throw new Error(`${file}: Lua syntax error: ${error.message}`, { cause: error });
     }
   }
 }

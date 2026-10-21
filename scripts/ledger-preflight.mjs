@@ -1,6 +1,6 @@
 // Read-only. Uses the normal env wrapper; reports IDs/counts, never credentials.
-import { PrismaClient } from "@prisma/client";
-const db = new PrismaClient();
+import { createPrismaClient } from "../src/database.js";
+const db = createPrismaClient();
 try {
   let duplicates = 0;
   for (const name of ["epgpTransaction", "dkpTransaction"]) {

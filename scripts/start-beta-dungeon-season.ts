@@ -1,6 +1,6 @@
 import { parseArgs } from "node:util";
 import { stat } from "node:fs/promises";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "../src/database.js";
 import { startSeason } from "../src/services/dungeon-admin.js";
 import { betaSeasonRules, BETA_PRESET_ID, BETA_SEASON_END, BETA_SEASON_NAME } from "../src/services/dungeon-beta-preset.js";
 
@@ -11,7 +11,7 @@ const { values } = parseArgs({ options: {
   apply: { type: "boolean", default: false }
 } });
 if (!values["guild-id"] || !values["guild-name"]) throw new Error("Supply --guild-id <database guild ID> --guild-name <exact guild name>. Dry-run is the default.");
-const db = new PrismaClient();
+const db = createPrismaClient();
 try {
   const guild = await db.guild.findUniqueOrThrow({ where: { id: values["guild-id"] }, select: { id: true, name: true } });
   if (guild.name !== values["guild-name"]) throw new Error("Guild name does not match the selected database guild ID.");

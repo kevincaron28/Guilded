@@ -22,7 +22,7 @@ import { createRaidCoreService } from "../src/services/raid-core.js";
 import { createApplicationService } from "../src/services/application.js";
 import { queueCharacterDisplayRefresh } from "../src/services/character-display-refresh.js";
 import assert from "node:assert/strict";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "../src/database.js";
 import { createAddonImportService } from "../src/services/addon-import.js";
 import { verifyCommunityPostgres } from "./verify-community-postgres.js";
 import { verifyPoePostgres } from "./verify-poe-postgres.js";
@@ -31,7 +31,7 @@ import { verifyParticipationPostgres } from "./verify-participation-postgres.js"
 import { verifyMonthlyRookiePostgres } from "./verify-monthly-rookie-postgres.js";
 const url = new URL(process.env["DATABASE_URL"] ?? "");
 if (!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) || url.pathname !== "/guilded_release_test") throw new Error("Disposable local test database required.");
-const database = new PrismaClient();
+const database = createPrismaClient();
 try {
   if (!process.argv.includes("--restored")) await verifyAiBudgetPostgres(database);
   if (process.argv.includes("--restored")) {

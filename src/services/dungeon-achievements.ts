@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { Prisma } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
 
 // Dungeon achievements (roadmap D8). Permanent, one per member per key,

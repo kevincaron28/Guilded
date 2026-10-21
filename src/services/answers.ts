@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 import { createEpgpService } from "./epgp.js";
 import { t, tx, type Lang } from "../i18n.js";
 import { gettingStartedPost } from "./bot-messages.js";

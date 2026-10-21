@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 import { itemKey } from "./wishlist.js";
 
 // What the addon shows on an item's tooltip: who wishlisted it and what it usually costs in GP.

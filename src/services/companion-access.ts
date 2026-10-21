@@ -1,6 +1,6 @@
 import { hostedPilot } from "../hosted-pilot.js";
 import type { Client } from "discord.js";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 import { hasPermission } from "../permissions.js";
 import { hashCompanionSecret } from "./character-pairing.js";
 import { parseAddonSnapshot, type AddonSnapshot } from "../integrations/addon.js";

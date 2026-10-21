@@ -1,5 +1,5 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, escapeMarkdown, PermissionFlagsBits, type Guild, type GuildMember, type Message, type MessageCreateOptions } from "discord.js";
-import type { Prisma, PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { sessionInclude, teamInclude } from "./activity-core.js";
 
 export const TEAM_BUTTON_PREFIX = "team:";

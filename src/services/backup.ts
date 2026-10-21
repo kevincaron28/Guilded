@@ -2,7 +2,7 @@ import { chmod, mkdir, open, readFile, readdir, rename, rm } from "node:fs/promi
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { gzipSync, gunzipSync } from "node:zlib";
-import { Prisma, type PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
 
 // Daily safety copy of the whole database as gzipped JSON, one file per day
 // (backups/quebec-gold-YYYY-MM-DD.json.gz), keeping the newest `keep`.
@@ -43,11 +43,12 @@ export async function runBackup(database: PrismaClient, now = new Date(), dir = 
   const { tables, rows } = await database.$transaction(async transaction => {
     const tables: Record<string, unknown[]> = {};
     let rows = 0;
-    for (const model of Prisma.dmmf.datamodel.models) {
-      const delegate = (transaction as unknown as Record<string, { findMany: () => Promise<unknown[]> }>)[delegateName(model.name)];
+    // Every model in the schema (Prisma 7's generated client has no Prisma.dmmf).
+    for (const model of Object.values(Prisma.ModelName)) {
+      const delegate = (transaction as unknown as Record<string, { findMany: () => Promise<unknown[]> }>)[delegateName(model)];
       if (!delegate?.findMany) continue;
       const data = await delegate.findMany();
-      tables[model.name] = data;
+      tables[model] = data;
       rows += data.length;
     }
     return { tables, rows };

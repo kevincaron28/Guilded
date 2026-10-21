@@ -1,4 +1,4 @@
-import type { AuditAction, Prisma, PrismaClient } from "@prisma/client";
+import type { AuditAction, Prisma, PrismaClient } from "../generated/prisma/client.js";
 
 export interface AuditEntry {
   guildId: string;

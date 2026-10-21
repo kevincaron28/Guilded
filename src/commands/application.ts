@@ -1,4 +1,4 @@
-import { ApplicationStatus, type RaidRole } from "@prisma/client";
+import { ApplicationStatus, type RaidRole } from "../generated/prisma/client.js";
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalBuilder, SlashCommandBuilder, TextInputBuilder, TextInputStyle,
   type ButtonInteraction, type ChatInputCommandInteraction, type Guild as DiscordGuild, type GuildMember,

@@ -6,8 +6,10 @@ model AiDailyUsage {
   @@id([day, scope])
 }
 
+// Generated TypeScript, gitignored: `npm install` and `npm run db:update` regenerate it.
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {

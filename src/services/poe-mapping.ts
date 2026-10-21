@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 import { z } from "zod";
 
 export const POE_MODES = ["STANDARD", "HARDCORE", "SSF", "SSF_HARDCORE"] as const;

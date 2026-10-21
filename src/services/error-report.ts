@@ -1,5 +1,5 @@
 import type { Client } from "discord.js";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 import { readFileSync } from "node:fs";
 import { config } from "../config.js";
 import { ScopedReportError, encodeReportOrigin, reportSourceLink, type ReportOrigin } from "./report-context.js";

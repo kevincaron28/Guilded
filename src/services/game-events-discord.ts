@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { DiscordJob, PrismaClient } from "@prisma/client";
+import type { DiscordJob, PrismaClient } from "../generated/prisma/client.js";
 import { ChannelType, EmbedBuilder, PermissionFlagsBits, type Guild, type Message, type TextChannel } from "discord.js";
 import { eventBoardEmbeds, eventDetails, eventLock, eventText, reminderDue, reminderSettings } from "./game-events.js";
 import { selfRoleProblem } from "./selfrole.js";

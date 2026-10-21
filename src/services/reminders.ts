@@ -1,6 +1,6 @@
 import { pilotGuildScope } from "../hosted-pilot.js";
 import type { Client } from "discord.js";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, t } from "../i18n.js";
 
 // Due once the raid is within `minutes` of starting, until it starts, and

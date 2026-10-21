@@ -40,8 +40,10 @@ if [ "$BEFORE" = "$AFTER" ]; then echo "Already on the newest code ($AFTER)."; e
 say "Copying to $APP"
 OLD_LOCK="$(sha256sum "$APP/package-lock.json" 2>/dev/null | cut -d' ' -f1 || true)"
 if [ "$SRC" != "$APP" ]; then
+  # src/generated (the Prisma client) is not in git: the running bot still loads from it until
+  # the restart regenerates it (npm run db:update).
   command -v rsync >/dev/null || apt-get install -y rsync
-  rsync -a --delete --exclude node_modules --exclude .env.local --exclude backups --exclude dist "$SRC"/ "$APP"/
+  rsync -a --delete --exclude node_modules --exclude /src/generated --exclude .env.local --exclude backups --exclude dist "$SRC"/ "$APP"/
 fi
 chown -R guilded:guilded "$APP"
 NEW_LOCK="$(sha256sum "$APP/package-lock.json" | cut -d' ' -f1)"

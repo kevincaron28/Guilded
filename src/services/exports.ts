@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 import { priority } from "./epgp.js";
 
 // CSV exports for officers who live in spreadsheets (/officer export): standings, the EPGP

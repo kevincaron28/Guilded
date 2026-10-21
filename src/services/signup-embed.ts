@@ -1,5 +1,5 @@
 import { EmbedBuilder } from "discord.js";
-import type { RaidRole, RaidStatus } from "@prisma/client";
+import type { RaidRole, RaidStatus } from "../generated/prisma/client.js";
 import { t, type Lang } from "../i18n.js";
 import { characterDisplayLine, hasStaleGear, staleGearNote, type ClassEmojis, type DisplayCharacter } from "./character-display.js";
 import { boundRosterEmbed } from "./roster-embed-limits.js";

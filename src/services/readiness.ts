@@ -1,4 +1,4 @@
-import { ReadinessFindingSeverity, ReadinessStatus } from "@prisma/client";
+import { ReadinessFindingSeverity, ReadinessStatus } from "../generated/prisma/client.js";
 
 export interface ReadinessFindingInput {
   code: string;

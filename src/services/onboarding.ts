@@ -7,7 +7,7 @@ import {
   type Role, type StringSelectMenuInteraction,
   MessageFlags,
 } from "discord.js";
-import type { GuildSettings } from "@prisma/client";
+import type { GuildSettings } from "../generated/prisma/client.js";
 import { prisma } from "../database.js";
 import { createGuildService } from "./guild.js";
 import { characterLinkPrompt } from "./character-link-prompt.js";

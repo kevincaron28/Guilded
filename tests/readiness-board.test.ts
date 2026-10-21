@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildReadinessLines, chunkLines, queueDailyReadiness } from "../src/services/readiness-board.js";
 import { dispatchDiscordJob } from "../src/services/discord-jobs.js";
-import type { DiscordJob } from "@prisma/client";
+import type { DiscordJob } from "../src/generated/prisma/client.js";
 
 describe("readiness board", () => {
   it("keeps one durable summary per guild-local day without resetting delivered jobs", async () => {

@@ -37,7 +37,7 @@
     "worker:deploy": "npm run site:build && wrangler deploy"
   },
   "dependencies": {
-    "@prisma/client": "^6.16.2",
+    "@prisma/client": "^7.10.1",
     "discord.js": "^14.22.1",
     "dotenv": "^18.0.8",
     "luaparse": "^0.3.1",

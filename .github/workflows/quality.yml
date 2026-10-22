@@ -52,11 +52,11 @@ jobs:
           npm run test:postgres
       - run: npm audit --audit-level=high
       - run: npm run addon:zip
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: guilded-addon
           path: dist/Guilded-v*.zip
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: guilded-preview-addons
           path: dist/preview/*.zip
@@ -79,7 +79,7 @@ jobs:
       - run: npm run addon:zip
       - name: Verify matching release artifacts and checksums
         run: node scripts/verify-release-artifacts.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: guilded-companion-windows
           path: |

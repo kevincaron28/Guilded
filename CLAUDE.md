@@ -1,3 +1,6 @@
+> 7.3.1 (22 October 2026): raid readiness requires level 60 and flags old checks; companion Update now
+> repair (a companion on 7.2.0/7.3.0 needs one manual install). Live on the bot and GitHub; CurseForge
+> has 7.3.0. Pre-release audit and recommendations: docs/PRE_RELEASE_AUDIT_2026-10-22.md.
 > 7.3.0 (20 October 2026): safe-exit dungeon result card in both addons, optional cross-guild raid vacancies and companion browser, public player profiles and dungeon setup guide. See docs/V7_3_0_RELEASE_NOTES.md for deployment and pending real-client acceptance.
 > 7.2.1 (20 October 2026): leaderboards-only companions read GuildedDungeons.lua AND Guilded.lua
 > (companion/personal-runs.mjs); pool of 8 DB connections (src/database.ts); /health "commands" and
@@ -52,7 +55,8 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (20 October 2026): version 7.3.0 Release source, protocol 2.**
+**Current status (22 October 2026): version 7.3.1 Release, protocol 2.** WoW Forever launches
+4 November 2026 (beta closed 21 October); its first raids open 9 December.
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
 Standalone guild and optional Guilded Games work is next-version candidate
 source; do not overwrite the published 6.2.0 downloads or bump incidentally.

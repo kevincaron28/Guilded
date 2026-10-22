@@ -10,9 +10,10 @@ This page is the shorter technical reference.
 
 One owner hosts the Discord bot and database; members install the addon and use
 the online companion by default. The Windows app is optional for automatic sync,
-especially useful for leaders and officers. Guilded 6.0.0 is the full Release: use a
-published release's matching downloads and source, and read its known limitations.
-Fresh-guild and non-developer-PC acceptance tests are still pending for 6.0.
+especially useful for leaders and officers. Use the bot source, addon and companion from
+the same [published release](https://github.com/kevincaron28/Guilded/releases/latest) (7.3.1 on
+22 October 2026) and read its notes for known limitations. A timed fresh-guild rehearsal on a
+non-developer PC is still pending.
 
 Start with the [30-minute checklist](QUICK_START.md). That is a target with hosting,
 database and DNS ready, not a measured promise for a first-time cloud signup.

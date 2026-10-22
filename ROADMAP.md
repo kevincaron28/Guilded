@@ -1,14 +1,19 @@
 # Guilded roadmap
 
-## Current stage — 20 October 2026
+## Current stage — 22 October 2026
 
-Guilded **7.2.1 Release** (protocol 2). All six 18-October requests shipped in 7.0.0; 7.1.0 added
-monthly boards and Raider.IO-style leaderboards, 7.2.0 companion Sign in with Discord and one-click
-updates, 7.2.1 leaderboards with both addons installed and a steadier bot. Dungeon Season 1 starts
-4 November 2026 at 23:00 UTC on the owner's calendar (`/guilded-season`). Real-client checks still owed:
-G6-G8 (dungeon runs), G10 (French client) and the 6.1.2 parts of G2/G12; see
-[the 6.2 game acceptance record](docs/V6_2_GAME_ACCEPTANCE.md). The 6.0 testing
-record is historical.
+Guilded **7.3.1 Release** (protocol 2), live on the bot and GitHub; CurseForge has 7.3.0. All six
+18-October requests shipped in 7.0.0; 7.1.0 added monthly boards and Raider.IO-style leaderboards,
+7.2.0 companion Sign in with Discord and one-click updates, 7.2.1 a steadier bot, 7.3.0 the dungeon
+result card, raid vacancies and public player profiles, 7.3.1 level-aware raid readiness and the
+companion updater repair.
+
+WoW Forever launches **4 November 2026** at 3 PM Pacific; dungeon Season 1 starts at the same
+moment (23:00 UTC, `/guilded-season`). The beta closed on 21 October, so the real-client checks
+still owed — G6-G8 (dungeon runs), G10 (French client) and the 6.1.2 parts of G2/G12 — can only
+run on live servers; see [the 6.2 game acceptance record](docs/V6_2_GAME_ACCEPTANCE.md). Forever's
+first raids (Barrow Deeps, 10 players; Hyjal Summit, 20) open on 9 December. Launch-week priorities
+and the competitive review: [PRE_RELEASE_AUDIT_2026-10-22.md](docs/PRE_RELEASE_AUDIT_2026-10-22.md).
 
 ## Built
 

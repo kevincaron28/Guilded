@@ -1,3 +1,8 @@
+> **Current (22 October 2026): Guilded 7.3.1 Release** — notes in [V7_3_1_RELEASE_NOTES.md](docs/V7_3_1_RELEASE_NOTES.md),
+> real-client checks in [the acceptance checklist](docs/V6_2_GAME_ACCEPTANCE.md), launch-week list in
+> [PRE_RELEASE_AUDIT_2026-10-22.md](docs/PRE_RELEASE_AUDIT_2026-10-22.md). Everything below this box is a
+> historical record of the 4.0-6.2 releases, not the current state.
+>
 > 6.2 candidate preparation (15 October 2026): use [the release handoff](docs/V6_2_RELEASE_HANDOFF.md) and [game acceptance checklist](docs/V6_2_GAME_ACCEPTANCE.md).
 > Guilded 6.2.0 Release (October 16, 2026). See docs/V6_2_RELEASE_HANDOFF.md for the release record.
 > Older release instructions below are historical. Do not publish or deploy the candidate before acceptance.

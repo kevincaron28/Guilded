@@ -2,6 +2,7 @@ import { pilotGuildScope } from "../hosted-pilot.js";
 import { coreContext } from "../services/core-context.js";
 import { EmbedBuilder, SlashCommandBuilder, type ChatInputCommandInteraction, type Client } from "discord.js";
 import { prisma } from "../database.js";
+import { config } from "../config.js";
 import { guildStats, type GuildStats } from "../services/guild-stats.js";
 import { isWeeklyReportDueAfterReset, weeklyReport, type WeeklyReport } from "../services/weekly-report.js";
 import { formatDuration } from "../services/dungeon-rules.js";
@@ -56,7 +57,8 @@ export async function executeStats(interaction: ChatInputCommandInteraction): Pr
 
 // The weekly report as embeds: the guild's week (against the week before) with the players of
 // the week, then each raid core, then the dungeon week. Sections with nothing in them are left out.
-export function weeklyReportEmbeds(report: WeeklyReport, lang: Lang = "en"): EmbedBuilder[] {
+// leaderboardUrl: the guild's public leaderboard page, when it shares runs and the bot has a site.
+export function weeklyReportEmbeds(report: WeeklyReport, lang: Lang = "en", leaderboardUrl?: string): EmbedBuilder[] {
   const date = (d: Date) => `<t:${Math.floor(d.getTime() / 1000)}:D>`;
   const main = statsEmbed(report.guild, t(lang, "stats.titleWeekly"), lang, report.previous)
     .setDescription(t(lang, "weekly.week", { start: date(report.weekStart), end: date(report.weekEnd) }));
@@ -89,6 +91,7 @@ export function weeklyReportEmbeds(report: WeeklyReport, lang: Lang = "en"): Emb
     if (d.topPoints.length) dungeons.addFields({ name: t(lang, "weekly.topPoints"), value: d.topPoints.map((row, i) => `${["🥇", "🥈", "🥉"][i]} ${row.name}: ${row.points}`).join("\n") });
     if (d.records.length) dungeons.addFields({ name: t(lang, "weekly.records"), value: d.records.slice(0, 15).join("\n").slice(0, 1024) });
     if (d.firsts.length) dungeons.addFields({ name: t(lang, "weekly.firsts"), value: d.firsts.slice(0, 15).join("\n").slice(0, 1024) });
+    if (leaderboardUrl) dungeons.setURL(leaderboardUrl).addFields({ name: "​", value: t(lang, "weekly.leaderboard", { url: leaderboardUrl }) });
     embeds.push(dungeons);
   }
   if (report.guild.raids === 0 && d.runs === 0 && report.guild.lootCount === 0) main.addFields({ name: "\u200b", value: t(lang, "weekly.nothing") });
@@ -108,8 +111,10 @@ export async function runWeeklyReports(client: Client, now = new Date()): Promis
     try {
       const report = await weeklyReport(prisma, settings.guildId, now);
       const lang = asLang(settings.language);
+      const leaderboardUrl = settings.publicDungeonRuns && config.PUBLIC_SITE_URL
+        ? `${new URL(config.PUBLIC_SITE_URL).origin}/leaderboards/guild/${encodeURIComponent(settings.guildId)}?lang=${lang}` : undefined;
       const queued = await queueWeeklyWowReport(prisma, settings.guildId, report.weekEnd, now,
-        JSON.parse(JSON.stringify({ embeds: weeklyReportEmbeds(report, lang).map(embed => embed.toJSON()) })));
+        JSON.parse(JSON.stringify({ embeds: weeklyReportEmbeds(report, lang, leaderboardUrl).map(embed => embed.toJSON()) })));
       if (queued) posted += 1;
     } catch (error) {
       console.error(`Weekly report failed for guild ${settings.guild.discordId}`, error);

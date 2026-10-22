@@ -23,6 +23,9 @@ export function link(path: string, lang: Lang, params: Record<string, string | n
   return `${path}?${query.toString()}`;
 }
 
+// The Guilded logo the public site serves (scripts/build-site.mjs copies it to /logo.png).
+const SHARE_IMAGE = "https://guilded.kcaron.top/logo.png";
+
 export const SECURITY_HEADERS = {
   "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
   "referrer-policy": "strict-origin-when-cross-origin",
@@ -57,6 +60,10 @@ export function layout(input: LayoutInput): string {
   const description = escapeHtml((input.description ?? input.title).slice(0, 160));
   return `<!doctype html><html lang="${input.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`
     + `<title>${escapeHtml(input.title)} · Guilded</title><meta name="description" content="${description}">${input.noindex ? '<meta name="robots" content="noindex">' : ""}`
+    // Link previews (Discord, social sites): a pasted page shows its title, summary and the logo.
+    + `<meta property="og:site_name" content="Guilded"><meta property="og:type" content="website"><meta property="og:title" content="${escapeHtml(input.title)}">`
+    + `<meta property="og:description" content="${description}"><meta property="og:image" content="${SHARE_IMAGE}"><meta property="og:locale" content="${input.lang === "fr" ? "fr_CA" : "en_CA"}">`
+    + `<meta name="twitter:card" content="summary"><meta name="theme-color" content="#d4af37">`
     + `<style>${PAGE_STYLE}\n${FORM_STYLE}</style></head><body><main>${siteHeader(input.lang, input.path)}<div class="who">${[...who, language].join("")}</div>${input.body}`
     + `<footer>${t("Made with", "Créé avec")} <a href="https://guilded.kcaron.top/">Guilded</a>. ${t("Not affiliated with Blizzard Entertainment.", "Sans affiliation avec Blizzard Entertainment.")}</footer></main></body></html>`;
 }

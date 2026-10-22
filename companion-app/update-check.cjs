@@ -90,4 +90,14 @@ async function downloadInstaller(installer, target, { fetchImpl = globalThis.fet
   }
 }
 
-module.exports = { parseVersion, isNewer, pickUpdate, fetchLatestRelease, installerFrom, downloadInstaller, RELEASES_PAGE };
+// spawn errors are asynchronous (ENOENT/EACCES); a surrounding try/catch alone
+// cannot catch them. Only quit the app after Windows accepts the installer.
+function launchInstaller(target, spawn = require("node:child_process").spawn) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(target, ["/S", "--updated", "--force-run"], { detached: true, stdio: "ignore", windowsHide: true });
+    child.once("error", reject);
+    child.once("spawn", () => { child.unref(); resolve(); });
+  });
+}
+
+module.exports = { parseVersion, isNewer, pickUpdate, fetchLatestRelease, installerFrom, downloadInstaller, launchInstaller, RELEASES_PAGE };

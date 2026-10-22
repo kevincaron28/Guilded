@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 
 // LATE counts as half credit, BENCHED (asked to sit out) as full credit;
 // ABSENT (or no record) counts as none.

@@ -1,5 +1,5 @@
 import { ActionRowBuilder, ButtonBuilder, ChannelType, ModalBuilder, PermissionFlagsBits, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle, UserSelectMenuBuilder, escapeMarkdown, type ButtonInteraction, type Guild, type ModalSubmitInteraction, type StringSelectMenuInteraction, type UserSelectMenuInteraction, MessageFlags } from "discord.js";
-import type { CommunitySeason } from "@prisma/client";
+import type { CommunitySeason } from "../generated/prisma/client.js";
 import { prisma } from "../database.js";
 import { asLang, type Lang } from "../i18n.js";
 import { hasPermission } from "../permissions.js";

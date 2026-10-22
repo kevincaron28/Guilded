@@ -1,4 +1,4 @@
-import type { PrismaClient, RaidAttendanceStatus, RaidSeason } from "@prisma/client";
+import type { PrismaClient, RaidAttendanceStatus, RaidSeason } from "../generated/prisma/client.js";
 import { toCsv } from "./exports.js";
 import { attendanceRate } from "./merit.js";
 import { localParts, zonedTime } from "./raid-time.js";

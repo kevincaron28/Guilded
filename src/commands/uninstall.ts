@@ -15,7 +15,7 @@ import {
   type MessageComponentInteraction,
   MessageFlags,
 } from "discord.js";
-import type { GuildSettings } from "@prisma/client";
+import type { GuildSettings } from "../generated/prisma/client.js";
 import { removeGuildScheduledEvents } from "../services/scheduled-events.js";
 import { prisma } from "../database.js";
 import { guildService } from "./context.js";

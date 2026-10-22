@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember, MessageFlags } from "discord.js";
-import type { BankRequestStatus } from "@prisma/client";
+import type { BankRequestStatus } from "../generated/prisma/client.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 import { createBankService } from "../services/bank.js";

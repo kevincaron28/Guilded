@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 
 // Reserve before contacting the provider. Failed requests also consume a reservation:
 // retries, concurrent messages and restarts must not multiply the host's spending limit.

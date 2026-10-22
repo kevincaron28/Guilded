@@ -1,4 +1,4 @@
-import { ReadinessFindingSeverity, ReadinessStatus } from "@prisma/client";
+import { ReadinessFindingSeverity, ReadinessStatus } from "../generated/prisma/client.js";
 
 export const RAID_LEVEL = 60;
 export const RAID_CHECK_MAX_AGE_MS = 24 * 60 * 60_000;

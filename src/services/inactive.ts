@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 
 // Members nobody has seen in game for a while. Read-only: this only reports,
 // it never removes anyone (kicking stays a human decision).

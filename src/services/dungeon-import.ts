@@ -1,5 +1,5 @@
 import { bracketForLevel, resolveNovemberRoute, validBracketedRules, validRouteRules } from "./dungeon-november-rules.js";
-import type { Prisma } from "@prisma/client";
+import type { Prisma } from "../generated/prisma/client.js";
 import { grantRunAchievements, type AchievementKey } from "./dungeon-achievements.js";
 import { findCharacter } from "./character-match.js";
 import { competitionReason, completionReason, createDungeonRatingRules, dungeonRating, hasDungeonRating, ratingCharacterKey, type LevelBand } from "./dungeon-rating.js";

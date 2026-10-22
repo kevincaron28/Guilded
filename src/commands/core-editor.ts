@@ -3,7 +3,7 @@ import {
   type ChatInputCommandInteraction, type Message, type MessageComponentInteraction,
   MessageFlags,
 } from "discord.js";
-import type { RaidRole } from "@prisma/client";
+import type { RaidRole } from "../generated/prisma/client.js";
 import { prisma } from "../database.js";
 import { coreRosterEmbed, createRaidCoreService, removeCoreRosterMessage, syncCoreRoster } from "../services/raid-core.js";
 import { createItemValueService, parseItemValues, priceDraft } from "../services/item-values.js";

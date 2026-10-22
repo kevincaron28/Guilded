@@ -1,4 +1,4 @@
-import type { BankRequestStatus, PrismaClient } from "@prisma/client";
+import type { BankRequestStatus, PrismaClient } from "../generated/prisma/client.js";
 
 type Db = Pick<PrismaClient, "bankRequest">;
 

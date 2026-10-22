@@ -1,6 +1,6 @@
 import { pilotGuildScope } from "../hosted-pilot.js";
 import type { Client } from "discord.js";
-import type { Prisma, PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 
 // Signup posts of raids that are over are removed a day later, so the signup channels only show
 // what is coming. The raid, its signups, attendance and report stay in the database.

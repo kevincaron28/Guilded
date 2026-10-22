@@ -6,7 +6,7 @@ import type {
   RaidBossStatus,
   RaidStatus,
   RaidRole
-} from "@prisma/client";
+} from "../generated/prisma/client.js";
 import { ownedSignupCharacter } from "./signup-character.js";
 import { assertRealm, requiredRealm } from "./realm-check.js";
 import { CHARACTER_DISPLAY_SELECT } from "./character-display.js";

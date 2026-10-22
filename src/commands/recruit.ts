@@ -1,5 +1,5 @@
 import { MessageFlags, SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember } from "discord.js";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 import { prisma } from "../database.js";
 import { hostedPilot } from "../hosted-pilot.js";
 import { hasPermission } from "../permissions.js";

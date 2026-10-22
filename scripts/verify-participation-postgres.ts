@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../src/generated/prisma/client.js";
 import { createParticipationService } from "../src/services/participation.js";
 import { createCommunityService } from "../src/services/community.js";
 import { participationRules } from "../src/services/participation-rules.js";

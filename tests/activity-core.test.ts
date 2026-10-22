@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { PrismaClient, RaidRole } from "@prisma/client";
+import type { PrismaClient, RaidRole } from "../src/generated/prisma/client.js";
 import { allocateLineup, archiveTeam, composition, createTeam, fillTeamSessions, manageSession, recordTeamAttendance, respondToSession, runTeamSchedules, scheduleData, selectTeamLineup, setTeamMember, updateTeamSchedule } from "../src/services/activity-core.js";
 
 const now = new Date("2026-10-09T12:00:00Z");

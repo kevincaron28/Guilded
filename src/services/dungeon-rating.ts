@@ -1,5 +1,5 @@
 import { EmbedBuilder, escapeMarkdown } from "discord.js";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
 import { bracketForLevel, novemberDungeonKey, resolveNovemberRoute, routeTargetAt, validBracketedRules, validNovemberRules,
   type BracketedRules, type DungeonBracket, type NovemberRules } from "./dungeon-november-rules.js";

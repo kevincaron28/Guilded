@@ -1,5 +1,5 @@
 import type { Guild as DiscordGuild } from "discord.js";
-import type { PrismaClient, UnclaimedCharacter } from "@prisma/client";
+import type { PrismaClient, UnclaimedCharacter } from "../generated/prisma/client.js";
 import { createGuildService } from "./guild.js";
 import { nameKey } from "./roster-discovery.js";
 import { cacheAllMembers } from "./member-cache.js";

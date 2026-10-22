@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { activeSeason } from "./dungeon-import.js";
 import { leaderboard } from "./dungeon-stats.js";
 import { DEFAULT_DUNGEON_CONFIG, dungeonConfig, formatDuration, type DungeonConfig } from "./dungeon-rules.js";

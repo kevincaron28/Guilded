@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { Collection, type Guild } from "discord.js";
 import { cacheAllMembers } from "../src/services/member-cache.js";
-import type { CommunityHonors, PrismaClient } from "@prisma/client";
+import type { CommunityHonors, PrismaClient } from "../src/generated/prisma/client.js";
 import { adoptCommunityHonors, advanceCommunityHonors, configureCommunityHonors, honorsHistoryMessage, honorsWeekDue, honorsWeekOf, honorsWindow, monthlyHonorsMessage, podiumPlaces, previewCommunityHonors, syncCommunityHonorRoles, weeklyHonorsMessage, weeklyMvps } from "../src/services/community-honors.js";
 
 type Row = Record<string, unknown>;

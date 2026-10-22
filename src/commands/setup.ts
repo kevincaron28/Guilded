@@ -18,7 +18,7 @@ import {
   type OverwriteResolvable,
   MessageFlags,
 } from "discord.js";
-import type { GuildSettings } from "@prisma/client";
+import type { GuildSettings } from "../generated/prisma/client.js";
 import { prisma } from "../database.js";
 import { config } from "../config.js";
 import { classLeaderRoleName, hasPermission, isPermissionRoleName, permissionRoleNames, roleNamesFor, type Permission } from "../permissions.js";

@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { CLASSES } from "../wow-data.js";
 import { DEFAULT_DUNGEON_BRACKETS } from "./dungeon-november-rules.js";
 import { formatDuration } from "./dungeon-rules.js";

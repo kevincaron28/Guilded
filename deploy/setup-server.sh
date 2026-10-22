@@ -45,7 +45,7 @@ echo "== Application user and files"
 id guilded >/dev/null 2>&1 || useradd --system --create-home --shell /usr/sbin/nologin guilded
 mkdir -p "$APP"
 if [ "$SRC" != "$APP" ]; then
-  rsync -a --delete --exclude node_modules --exclude .env.local --exclude backups --exclude dist "$SRC"/ "$APP"/
+  rsync -a --delete --exclude node_modules --exclude /src/generated --exclude .env.local --exclude backups --exclude dist "$SRC"/ "$APP"/
 fi
 [ -f "$APP/.env.local" ] || { cp "$APP/.env.example" "$APP/.env.local"; echo "Created $APP/.env.local from the example."; }
 chown -R guilded:guilded "$APP"

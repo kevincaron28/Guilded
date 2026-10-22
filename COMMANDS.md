@@ -65,7 +65,7 @@ Hover a page name for what it is for. The **Player** box (target someone, or **M
 
 | Command | What it does |
 | --- | --- |
-| `/guilded start <title>` | Start a raid, e.g. `/guilded start Molten Core` (survives /reload) |
+| `/guilded start <title>` | Start a raid, e.g. `/guilded start Hyjal Summit` (survives /reload) |
 | `/guilded attendance <player> [PRESENT\|LATE\|ABSENT]` | Record attendance (default PRESENT) |
 | `/guilded attendance seen` | Mark PRESENT everyone who was in the raid group at any point since `/guilded start` (tracked automatically; keeps anything already marked) |
 | `/guilded attendance group [status]` | Mark everyone in the group right now |

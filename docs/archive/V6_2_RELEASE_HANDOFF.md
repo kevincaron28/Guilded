@@ -3,7 +3,7 @@
 ## Promotion, October 16, 2026
 
 The owner directed release of 6.2.0 before the G1-G12 and desktop checks were run; they
-remain open in [the checklist](V6_2_GAME_ACCEPTANCE.md) as post-release follow-up.
+remain open in [the checklist](../V6_2_GAME_ACCEPTANCE.md) as post-release follow-up.
 `release.json` is now channel `release`. Main was merged into the candidate first
 (sync speed-ups PR #84, already live on the bot as 6.1.2 at `58ae302`). Pre-deployment
 backup: `/home/ubuntu/guilded-recovery/2026-10-16T00-55-07-655Z`, with an authenticated
@@ -25,22 +25,22 @@ officers during G12; rebuild before installing this follow-up.
 Companion integration follow-up: Claude's uncommitted sync work was preserved as
 `c405607`, then integrated with the November candidate and current main in the
 managed `finish-companion-sync` checkout. See
-[sync implementation and remaining acceptance](SYNC_SPEEDUPS_2026-10-15.md).
+[sync implementation and remaining acceptance](../SYNC_SPEEDUPS_2026-10-15.md).
 Review fixes cover account-scoped acknowledgements, independent feature
 negotiation, stopping during startup, stale concurrent standings, recovery-file
 precedence/cancellation and recovered ledger authorship. Rebuild the full addon
 and desktop installer; older candidate hashes do not contain these changes.
 G11/G12 and the expanded desktop checks are pending, alongside the existing gates.
 
-November scoring follow-up: [version-5 level-60 model and pending wing tests](NOVEMBER_SCORING_IMPLEMENTATION.md).
+November scoring follow-up: [version-5 level-60 model and pending wing tests](../NOVEMBER_SCORING_IMPLEMENTATION.md).
 Separate opt-in rules, offline configuration compiler, route evidence checks and
 addon display/endpoint preparation are implemented. No November mappings are
 enabled or season activated. This follow-up changes addon source: rebuild and test
 the new candidate; the previously installed package does not contain these changes.
 
-November preparation: [full catalog](NOVEMBER_DUNGEON_CATALOG.md),
-[French version](NOVEMBER_DUNGEON_CATALOG_FR.md), and
-[planning JSON](data/november-dungeon-catalog.json). The candidate adds a read-only
+November preparation: [full catalog](../NOVEMBER_DUNGEON_CATALOG.md),
+[French version](../NOVEMBER_DUNGEON_CATALOG_FR.md), and
+[planning JSON](../data/november-dungeon-catalog.json). The candidate adds a read-only
 `/dungeon catalog` view (deploy/register before use). This is not a season preset:
 35 participation entries are planned, 10 rated candidates are proposed, none are
 activated. Current beta rules and archives are unchanged. Launch verification,
@@ -53,7 +53,7 @@ changing frozen beta rules. The existing installed candidate has no addon change
 from this follow-up; final publication still requires a final-commit rebuild.
 
 Prepared October 15, 2026 at the owner's request. This is release preparation,
-not authorization to bypass the pending [in-game acceptance](V6_2_GAME_ACCEPTANCE.md).
+not authorization to bypass the pending [in-game acceptance](../V6_2_GAME_ACCEPTANCE.md).
 
 The Deadmines final-boss fallback from local commit `9c36cff` is integrated through
 its own PR. The 6.2 candidate intentionally aligns bot/addon/companion versions,
@@ -63,7 +63,7 @@ bot triggers the existing version announcement; do not deploy merely to test a Z
 
 ## Candidate contents
 
-Read [release notes](V6_2_RELEASE_NOTES.md). The source includes standalone local
+Read [release notes](../V6_2_RELEASE_NOTES.md). The source includes standalone local
 cores and accounting handover, independent loot rolls, the separate Games path,
 Best 8 display support, hidden boss overlay and Deadmines completion fallback.
 The existing Best 8 beta is already active; release preparation must not rotate

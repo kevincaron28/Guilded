@@ -46,4 +46,4 @@ Your Discord permissions decide what you can see or change.
 
 The bot adds raid signups, activities and polls. A new server starts on **Guilded Lite** (setup, help, bug reports, dungeon groups, basic signups); approval unlocks addon sync, EP/GP, seasons and the guild page. You can also host your own bot.
 
-[Hosted pilot](../docs/HOSTED_PILOT.html) · [Quebec Gold, a guild using Guilded](../quebec-gold/)
+[Hosted bot](../docs/HOSTED_PILOT.html) · [Quebec Gold, a guild using Guilded](../quebec-gold/)

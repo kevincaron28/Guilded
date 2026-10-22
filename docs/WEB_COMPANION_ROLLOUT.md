@@ -12,7 +12,7 @@ companion, health and unauthenticated access-denial checks passed. The backup an
 Neon recovery evidence below remains applicable. Earlier statements that deployment
 is pending or production is 5.0.0 are historical. Real paired sync is a separate gate.
 
-Current release work is tracked in [the finalization checklist](V6_0_FINALIZATION_CHECKLIST.md).
+Current release work is tracked in [the finalization checklist](archive/V6_0_FINALIZATION_CHECKLIST.md).
 
 ## Unified address follow-up, 5 October 2026
 

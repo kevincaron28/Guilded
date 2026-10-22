@@ -72,10 +72,13 @@ local function newButton(parent, text, width, onClick, height)
 end
 
 -- string.upper leaves accented letters lowercase, so a French heading such as Systeme would keep a small accented e; French headings need their capitals.
+-- German (a o u umlauts) and Spanish (a e i o u acute, n tilde) headings too (7.4).
 local ACCENT_CAPITALS = { ["\195\160"] = "\195\128", ["\195\162"] = "\195\130", ["\195\167"] = "\195\135", ["\195\168"] = "\195\136",
-  ["\195\169"] = "\195\137", ["\195\170"] = "\195\138", ["\195\174"] = "\195\142", ["\195\180"] = "\195\148", ["\195\187"] = "\195\155" }
+  ["\195\169"] = "\195\137", ["\195\170"] = "\195\138", ["\195\174"] = "\195\142", ["\195\180"] = "\195\148", ["\195\187"] = "\195\155",
+  ["\195\164"] = "\195\132", ["\195\182"] = "\195\150", ["\195\188"] = "\195\156", ["\195\161"] = "\195\129", ["\195\173"] = "\195\141",
+  ["\195\179"] = "\195\147", ["\195\186"] = "\195\154", ["\195\177"] = "\195\145" }
 local function upperText(text)
-  return (string.gsub(string.upper(text), "\195[\160-\187]", function(letter) return ACCENT_CAPITALS[letter] or letter end))
+  return (string.gsub(string.upper(text), "\195[\160-\191]", function(letter) return ACCENT_CAPITALS[letter] or letter end))
 end
 
 -- A tick box with a label on its right.

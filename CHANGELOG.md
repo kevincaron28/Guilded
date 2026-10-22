@@ -11,6 +11,12 @@
   of the fastest 5,000. Migration `20261124090000_public_score_evidence`; deploy before Season 1
   starts on 4 November ([analysis](docs/RAIDER_IO_SCORING_ANALYSIS_2026-10-22.md),
   [leaderboards](docs/PUBLIC_DUNGEON_LEADERBOARDS.md)).
+- Public character pages show a best next improvement and role scores, in English and French. For
+  each route of the character's bracket: the target, the current best, whether it counts, the
+  slowest clear that would add at least 5 points to the season score with the exact gain, and
+  which counted route it would push out; a faster run outside the best routes is said to add
+  nothing yet. Times are labelled scenarios, not predictions. Tank, healer and DPS scores each use
+  that role's runs only and are never added together; runs with no recorded role stay unknown.
 - Hosted bot: optional automatic approval. With `HOSTED_AUTO_APPROVE_DAYS` set (off by default), a
   Lite server is approved by itself after that many days once it ran `/setup start`, has
   `HOSTED_AUTO_APPROVE_MEMBERS` members (default 5) and used a command in the last 7 days; the

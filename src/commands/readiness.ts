@@ -3,6 +3,7 @@ import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 import { buildConsumableLines, buildReadinessLines, chunkLines } from "../services/readiness-board.js";
 import { requireGuildContext } from "./context.js";
+import { assessRaidReadiness, type RaidReadinessSnapshot } from "../services/readiness.js";
 
 export const readinessCommand = new SlashCommandBuilder()
   .setName("readiness").setDescription("Review raid readiness.")
@@ -21,16 +22,16 @@ function canReview(interaction: ChatInputCommandInteraction): boolean {
   );
 }
 
-type ReadinessSummary = {
-  status: string;
+type ReadinessSummary = RaidReadinessSnapshot & {
   itemLevel: number | null;
   findings: Array<{ severity: string; message: string }>;
 };
 
 function format(snapshot: ReadinessSummary | null, name: string): string {
   if (!snapshot) return `${name}: UNKNOWN — no inspection has been uploaded.`;
+  const assessment = assessRaidReadiness(snapshot);
   const findings = snapshot.findings.map((finding) => `${finding.severity}: ${finding.message}`).join("\n");
-  return `${name}: **${snapshot.status}**${snapshot.itemLevel ? ` | item level ${snapshot.itemLevel}` : ""}${findings ? `\n${findings}` : ""}`;
+  return `${name}: **${assessment.status}** | level ${snapshot.character.level ?? "unknown"}/60${snapshot.itemLevel ? ` | item level ${snapshot.itemLevel}` : ""}${assessment.reason ? `\n${assessment.reason}` : ""}${findings ? `\nGear check findings:\n${findings}` : ""}`;
 }
 
 export async function executeReadiness(interaction: ChatInputCommandInteraction): Promise<void> {

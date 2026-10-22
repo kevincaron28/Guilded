@@ -164,7 +164,13 @@ bind('btnSheets',async () => { const result = await api.exportSheets($('sheetTab
 bind('btnFolder',() => api.openAddonFolder()); bind('btnPause',async () => { await api.toggleTracking(); }); bind('btnOnline',() => api.openOnline());
 bind('btnRemoveData',() => api.removeData());
 // Update now (7.2): the desktop app downloads, checks and installs the new version itself.
-bind('btnUpdate',async () => { if (!api.installUpdate) return api.openUpdate(); $('btnUpdate').textContent = 'Downloading…'; const result = await api.installUpdate(); toast(result.message,!result.ok); $('btnUpdate').textContent = result.ok ? 'Installing…' : 'Update now'; });
+bind('btnUpdate',async () => {
+  if (!api.installUpdate) return api.openUpdate();
+  $('btnUpdate').textContent = 'Checking update…';
+  let result;
+  try { result = await api.installUpdate(); toast(result.message,!result.ok); }
+  finally { $('btnUpdate').textContent = result?.ok && result.action === 'installing' ? 'Installing…' : 'Update now'; }
+});
 api.onUpdateProgress?.(percent => { $('btnUpdate').textContent = `Downloading ${percent}%`; });
 bind('btnHistory',async () => {
   if (!savedConfig.companionCredential) { showPage('settings'); toast('Connect your Discord account first.'); return; }

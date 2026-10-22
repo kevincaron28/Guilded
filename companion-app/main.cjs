@@ -95,7 +95,8 @@ let latestRelease = null;
 
 function refreshUpdate(state = engine?.state()) {
   const next = updates.pickUpdate(app.getVersion(), latestRelease, state?.botVersion);
-  if (next?.version === update?.version) return;
+  // The bot can announce the version before GitHub provides the installer.
+  // Refresh the metadata even for the same version; notification dedup is below.
   update = next;
   if (!update || config.updateNotifiedVersion === update.version) return;
   config.updateNotifiedVersion = update.version;
@@ -288,25 +289,38 @@ ipcMain.handle("open-update", () => shell.openExternal(update?.url || updates.RE
 let installing = false;
 ipcMain.handle("install-update", async () => {
   if (installing) return { ok: false, message: "The update is already downloading." };
-  if (!update?.installer) { await shell.openExternal(update?.url || updates.RELEASES_PAGE); return { ok: true, message: "This update has no direct installer: the download page opened." }; }
   installing = true;
+  let handedOff = false;
   try {
-    const target = path.join(app.getPath("temp"), update.installer.name);
+    // Retry metadata on click, including when the startup GitHub request failed.
+    await checkForUpdate();
+    const selected = update;
+    if (!selected) return { ok: true, action: "current", message: "Your companion is up to date." };
+    if (!selected.installer) {
+      await shell.openExternal(selected.url || updates.RELEASES_PAGE);
+      pushLog({ time: new Date().toISOString(), level: "info", message: "Update download page opened; run the installer from that page to finish updating." });
+      return { ok: true, action: "download-page", message: "The download page opened. Download and run the installer to finish updating." };
+    }
+    const target = path.join(app.getPath("temp"), selected.installer.name);
+    pushLog({ time: new Date().toISOString(), level: "info", message: `Downloading Guilded Companion ${selected.version} and verifying its checksum.` });
     let shown = -1;
-    await updates.downloadInstaller(update.installer, target, { onProgress: (share) => {
+    await updates.downloadInstaller(selected.installer, target, { onProgress: (share) => {
       const percent = Math.floor(share * 100);
       if (percent !== shown && percent % 5 === 0) { shown = percent; win?.webContents.send("update-progress", percent); }
     } });
     saveConfig();
     // NSIS (electron-builder): /S silent, --updated keeps it an upgrade, --force-run starts the new version.
-    spawn(target, ["/S", "--updated", "--force-run"], { detached: true, stdio: "ignore" }).unref();
+    await updates.launchInstaller(target, spawn);
+    pushLog({ time: new Date().toISOString(), level: "info", message: `Installer started for Guilded Companion ${selected.version}; restarting the companion.` });
+    handedOff = true;
     quitting = true;
     setTimeout(() => app.quit(), 500);
-    return { ok: true, message: `Installing Guilded Companion ${update.version}. It restarts by itself in a moment.` };
+    return { ok: true, action: "installing", message: `Installing Guilded Companion ${selected.version}. It restarts by itself in a moment.` };
   } catch (error) {
+    pushLog({ time: new Date().toISOString(), level: "error", message: `Update failed: ${error instanceof Error ? error.message : String(error)}` });
     return { ok: false, message: `The update could not be installed: ${error instanceof Error ? error.message : String(error)} Try again, or use the download page.` };
   } finally {
-    installing = false;
+    if (!handedOff) installing = false;
   }
 });
 

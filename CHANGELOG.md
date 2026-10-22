@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 7.3.1 Release — 22 October 2026
+
+- Raid reports require level 60, distinguish levelling from gear problems, flag checks older than 24 hours, and use the current command link.
+- Companion updates retain installer details arriving after the bot version, retry lookup on click, and distinguish a browser download from an installer handoff. Launch errors allow retry without closing the app.
+- See [release notes](docs/V7_3_1_RELEASE_NOTES.md).
 
 - Linking without a companion: `/character pair` and the welcome button show one line,
   `/guilded verify ABCD-EFGH`, to paste in WoW chat once. Every character on that WoW account

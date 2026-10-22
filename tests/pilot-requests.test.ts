@@ -48,7 +48,7 @@ describe("private hosted pilot decisions", () => {
   });
   it("enforces capacity without consuming the pending request", async () => {
     const f = await fixture(1); await f.request(); const b = f.button("approve"); await b.handle();
-    expect(b.interaction.editReply).toHaveBeenCalledWith(expect.stringContaining("pilot is full"));
+    expect(b.interaction.editReply).toHaveBeenCalledWith(expect.stringContaining("hosting limit is reached"));
     expect(f.ids).not.toContain(guest); expect(f.activate).not.toHaveBeenCalled();
     await f.button("block").handle(); expect(f.guild.leave).toHaveBeenCalledTimes(1);
   });
@@ -96,5 +96,45 @@ describe("private hosted pilot decisions", () => {
     const f = await fixture(); f.send.mockRejectedValueOnce(new Error("DM closed"));
     await expect(f.request()).rejects.toThrow("DM closed"); await f.request();
     expect(f.send).toHaveBeenCalledTimes(2); expect(f.ids).not.toContain(guest);
+  });
+});
+
+describe("automatic approval of Lite servers", () => {
+  const DAY = 86_400_000;
+  async function auto(ready = true, days = 3, members = 5) {
+    const f = await fixture(); let clock = Date.UTC(2026, 10, 4);
+    const isReady = vi.fn(async () => ready);
+    const manager = createPilotRequests(f.client as unknown as Client, { ...f.options, liteLimit: 5, now: () => clock,
+      autoApprove: { days, members, ready: isReady } });
+    await manager.request(f.guild as unknown as Guild);
+    return { ...f, manager, isReady, advance: (ms: number) => { clock += ms; } };
+  }
+  it("approves a set-up, active Lite server after the wait, activates it and tells the owner", async () => {
+    const a = await auto();
+    expect(a.send.mock.calls[0]).toEqual([expect.objectContaining({ content: expect.stringContaining("Approved automatically on 2026-11-07") })]);
+    a.advance(2 * DAY); await a.manager.sweepAutoApprove();
+    expect(a.ids).not.toContain(guest);
+    a.advance(DAY); await a.manager.sweepAutoApprove();
+    expect(a.ids).toContain(guest); expect(pilotFilePolicy(await readFile(a.envPath, "utf8")).allows(guest)).toBe(true);
+    expect(a.activate).toHaveBeenCalledTimes(1);
+    expect(a.send).toHaveBeenLastCalledWith(expect.objectContaining({ content: expect.stringContaining(`npm run pilot -- revoke ${guest}`) }));
+    // The original request's buttons are now stale.
+    const b = a.button("block"); await b.handle();
+    expect(a.guild.leave).not.toHaveBeenCalled(); expect(a.ids).toContain(guest);
+  });
+  it("waits while the server is not set up, too small or idle", async () => {
+    const notReady = await auto(false); notReady.advance(4 * DAY); await notReady.manager.sweepAutoApprove();
+    expect(notReady.ids).not.toContain(guest); expect(notReady.isReady).toHaveBeenCalled();
+    const small = await auto(true, 3, 50); small.advance(4 * DAY); await small.manager.sweepAutoApprove();
+    expect(small.ids).not.toContain(guest);
+    const idle = await auto(); idle.advance(8 * DAY); await idle.manager.sweepAutoApprove();
+    expect(idle.ids).not.toContain(guest);
+  });
+  it("stays manual when days is 0, and a blocked server is never approved", async () => {
+    const off = await auto(true, 0); off.advance(30 * DAY); await off.manager.sweepAutoApprove();
+    expect(off.ids).not.toContain(guest); expect(off.send).not.toHaveBeenCalledWith(expect.objectContaining({ content: expect.stringContaining("automatically on") }));
+    const blocked = await auto(); await blocked.button("block").handle(); blocked.advance(4 * DAY);
+    await blocked.manager.sweepAutoApprove();
+    expect(blocked.ids).not.toContain(guest); expect(blocked.activate).not.toHaveBeenCalled();
   });
 });

@@ -25,8 +25,8 @@ points and rosters and does not stop an already-running companion.
 KCaron is accepting a small number of guilds into the free hosted pilot.
 **Your Discord server needs KCaron's approval first.** Inviting the bot sends
 a request; it does not activate access. After approval, run `/setup start`, then
-open the [online companion](https://guilded.kcaron.top/companion/)
-with your personal `/character pair` code (since 6.5.1 the code alone finds your server).
+open the [online companion](https://guilded.kcaron.top/companion/) and choose
+**Sign in with Discord** (nothing to type).
 You do not need to host a bot or database for this path.
 See the [hosted pilot guide](HOSTED_PILOT.md). Independent hosting is also available.
 Any [financial support](SUPPORT_GUILDED.md) is optional and never buys approval.
@@ -39,10 +39,10 @@ for your guild's online link. Use the matching release
 your officer specifies. Public releases belong on
 [GitHub Releases](https://github.com/kevincaron28/Guilded/releases) and
 [CurseForge](https://www.curseforge.com/wow/addons/guilded); only use a version
-actually listed there. Checked on 19 October 2026: GitHub and CurseForge offer **Release 6.7.0**.
+actually listed there. Checked on 22 October 2026: GitHub and CurseForge offer **Release 7.3.0**.
 Their listings can update separately; confirm the version on the selected download.
 Install the complete addon folder and keep your SavedVariables. See the
-[6.7.0 release notes](https://github.com/kevincaron28/Guilded/releases/tag/v6.7.0).
+[latest release notes](https://github.com/kevincaron28/Guilded/releases/latest).
 Guilded Games remains a separate optional Alpha.
 
 ## 1. Install the addon
@@ -61,42 +61,42 @@ you can stop here. Discord sync needs the steps below.
 
 ## Optional: link your main and alts to Discord without a companion
 
-Press **Link my WoW character / Lier mon personnage WoW** in the welcome panel.
-It shows your existing characters and addon-only instructions; opening it does
-not create a companion code or change any connection.
+1. In Discord, press **Link my WoW character / Lier mon personnage WoW** in the
+   welcome panel, or run `/character pair`. The private reply starts with one
+   line in a box, such as `/guilded verify ABCD-EFGH`.
+2. Copy that line, paste it into WoW chat on any of your characters and press
+   Enter. That's all, also for your alts.
 
-1. Log in on the character you want as your **main**. In WoW, type
-   `/guilded character` and copy the full character line.
-2. In that guild's Discord, use `/character import` and paste the line into
-   **code**. Leave **main** unset: your first character becomes your main.
-3. Check `/character list`. To add an **alt**, repeat on the alt and leave
-   **main** unset. Your existing main stays the same.
+Every character you play on that WoW account then links itself, the first one as
+your main, the next time an officer's companion syncs (usually the same day). You
+get a Discord DM for each one; `/character list` shows the result. Not your
+character? `/character unlink` removes it, and the code will not link it again.
+The line is the same every time you run `/character pair`.
 
-The character line and a companion connection code are different. Manual linking
-needs only the addon. If you do not want Discord character linking, skip this.
+If no officer's companion has synced for two weeks, the reply also shows the
+manual way: in WoW type `/guilded character`, copy the line, then in Discord use
+`/character import` and paste it into **code** with **main** unset (once per
+character). Without a guild, `/guilded verify` has nothing to link: the addon
+works on its own. If you do not want Discord character linking, skip this.
 
 ## Optional: connect the online companion
 
-Open the **online companion link supplied by your guild** (ending in `/companion/`).
-In Discord, press **Link my WoW character / Lier mon personnage WoW** in the welcome
-panel, or run `/character pair`. The private reply shows your linked main and alts,
-and addon-only instructions. Choose **Connect optional companion / Connecter le
-compagnon (facultatif)** for a private connection code
-and an **Open online companion** button. `/character pair` opens that optional
-connection directly.
-Paste the code and press **Connect**: the code identifies your server.
-Connect with the code, then save preferences. Sync your intended main first if
-no character is linked yet; subsequent characters become alts. Use the labels **Connection & setup**,
-**Connect** and **Save preferences** on the webpage; the Windows app is optional.
-The addon is still required. Pairing replaces your previous companion link.
+Open the **online companion link supplied by your guild** (ending in `/companion/`),
+or press **Connect optional companion / Connecter le compagnon (facultatif)** in the
+`/character pair` reply and use its **Open online companion** button. In
+**Connection & setup**, choose **Sign in with Discord**: your browser opens, pick
+your server and press **Connect**. Nothing to type; the short code on that page
+only shows it is your companion. Then save preferences. Sync your intended main
+first if no character is linked yet; later characters become alts. The Windows app
+is optional and the addon is still required. Signing in again replaces your
+previous companion link.
 
-**Main already linked?** You can use the code to connect a companion for uploading
-alts, or to reconnect a device. If your companion already works, keep that
-connection: log in on an alt, `/reload`, then **Sync now**. It links as an alt
-without changing your main. No new code is needed for each alt. Run
-`/character list` after syncing to check the result. Opening the private code
-reply keeps existing character links; using the code replaces the companion
-connection. Community-only members can skip WoW setup entirely.
+**Main already linked?** Keep your working companion: log in on an alt, `/reload`,
+then **Sync now**. It links as an alt without changing your main; nothing new to
+type for each alt. Run `/character list` after syncing to check the result.
+Companions older than 7.2 have no **Sign in with Discord**: use the one-time code
+from `/character pair` under **Older companions or your guild's own bot**.
+Community-only members can skip WoW setup entirely.
 
 **If you see Choose SavedVariables folder** (enhanced browser build on supported
 desktop Chrome/Edge): choose your account's `WTF/Account/<account>/SavedVariables`
@@ -108,8 +108,8 @@ Choose `/guilded setup connected` when you want to use Discord standings, then
 the output folder.
 
 Folder choices and the Discord connection are
-remembered locally on that browser/device. Closing the tab does not require a
-new pairing code. Disconnect clears the saved connection and folders; use it
+remembered locally on that browser/device. Closing the tab does not require
+signing in again. Disconnect clears the saved connection and folders; use it
 when finished on a shared computer. The browser may ask you to approve folder
 access again. If site storage is unavailable, the companion warns that it cannot
 remember connection/folder choices.
@@ -133,14 +133,13 @@ and PoE2 log tracking, especially useful for leaders and officers.
 1. Install `Guilded Companion Setup <version>.exe` from your guild's release link,
    then open Guilded Companion. The installed app does not need Node.js.
    Current installers are unsigned; verify the download source before running one.
-2. Open **Connection & setup** (new installations open it automatically). Under
-   **Connect your Discord account**, paste **Your guild's bot address** from your
-   officer, ending in `/api/v1/addon-imports`, **before pairing**. Older 5.0 builds
-   put **Bot address** under **Finish your setup → Advanced preferences**. A
-   prefilled Quebec Gold address is correct only if your officer gave you it.
-3. In your Discord server, run `/character pair` from your own account. Paste
-   the private code and press **Connect** (the server ID under Advanced
-   preferences fills itself in; older 6.5.0 companions still ask for it). It expires after 15 minutes and can be used once.
+2. Open **Connection & setup** (new installations open it automatically) and
+   choose **Sign in with Discord**. Your browser opens: pick your server and press
+   **Connect**. Nothing to type.
+3. Guild with its own bot (not the hosted one)? First paste **Your guild's bot
+   address** from your officer, ending in `/api/v1/addon-imports`, under
+   **Older companions or your guild's own bot**. Companions older than 7.2 use the
+   one-time code from `/character pair` there instead (it expires after 15 minutes).
 4. Enable **World of Warcraft**. Press **Find it**, then verify the selected
    `Guilded.lua` belongs to your current client and account. If several accounts
    are found, use **Browse** to select the right one:
@@ -159,8 +158,11 @@ Leave the companion in the tray while playing. New game data reaches disk on
 `/reload` or logout. Open each crafting profession normally: recipe detection is
 automatic; `/guilded recipes mine` is only a way to inspect the stored result.
 
-Pairing another companion replaces your previous link. Do not alternate between
-desktop and browser pairing unless you intend to reconnect the device you use.
+Signing in on another companion replaces your previous link. Do not alternate
+between the desktop and browser companions unless you intend to reconnect the
+device you use. **Update now** on the Overview page opens the new version's
+installer, which shows its progress and restarts the companion; if an update does
+not finish, the next start offers **Run the installer**.
 
 ## Quick fixes
 
@@ -168,8 +170,9 @@ desktop and browser pairing unless you intend to reconnect the device you use.
 | --- | --- |
 | Guilded missing from the AddOns list | Check the actual client folder and the exact Guilded.toc path above; restart WoW. |
 | Find it finds no Guilded.lua | Log in with Guilded enabled and `/reload`, then Browse to your account's SavedVariables. |
-| Pairing fails | Check your guild's bot address, pilot approval and the code's age; request a new code in that server. Version 6.5.1 finds the server from the code; older companions may ask for its ID. Keep codes private. |
-| Link revoked or unauthorized | A newer pairing may have replaced this one. Ask an officer about membership/access, then pair this device again. |
+| Sign in with Discord fails | Check pilot approval and, for a guild with its own bot, its address; then choose **Sign in with Discord** again. Companions older than 7.2: use a new `/character pair` code (one use, 15 minutes) and keep it private. |
+| `/guilded verify` did not link yet | Linking happens on the next upload from an **officer's** companion: ask an officer to `/reload` and **Sync now**. `/guilded verify` in game says whether your code is saved. |
+| Link revoked or unauthorized | A newer sign-in may have replaced this one. Ask an officer about membership/access, then sign this device in again. |
 | Cannot reach bot | Use Test connection. Ask the owner whether the bot and its HTTPS address are online. |
 | Guild is not initialized / 404 | Confirm this bot is approved and set up in your server. The owner runs `/setup start`. Check the server ID only if an older companion or Advanced preferences asks for it. |
 | Upload says it is awaiting review | An officer reviews/applies it with `/import apply`; ordinary members cannot apply guild ledgers. |
@@ -217,10 +220,10 @@ whether ordinary guild chat arrives.
 
 **L'addon fonctionne sans Discord.** Il ne faut ni compte d'hébergement, ni base
 de données, ni jeton de bot pour jouer. Client ciblé : **WoW Forever 1.60.1**.
-Au 19 octobre 2026, GitHub et CurseForge proposent la **Release 6.7.0**.
+Au 22 octobre 2026, GitHub et CurseForge proposent la **Release 7.3.0**.
 Les deux plateformes peuvent être mises à jour séparément : vérifiez la version du
 fichier choisi. Installez le dossier complet de l'addon et conservez vos SavedVariables.
-Consultez les [notes de version 6.7.0](https://github.com/kevincaron28/Guilded/releases/tag/v6.7.0).
+Consultez les [dernières notes de version](https://github.com/kevincaron28/Guilded/releases/latest).
 Guilded Games reste un addon Alpha séparé et facultatif.
 
 Pour ajouter le bot à votre guilde, utilisez le lien **Add Guilded** ci-dessus.
@@ -233,18 +236,23 @@ soutien financier est facultatif et ne donne aucune priorité.
 2. Fermez WoW. Installez le dossier Guilded dans `Interface\AddOns` du bon client
    (Forever beta : `_classic_beta_` dans l'installation testée), puis relancez WoW.
 3. Ouvrez Guilded avec la pièce sur la minicarte. `/reload` enregistre les données.
-4. **L'addon seul est le choix par défaut. Vous pouvez arrêter ici.** Pour un lien
-   Discord facultatif sans compagnon : `/guilded character` sur votre principal,
-   puis `/character import` → **code** sur Discord, avec **main** vide. Répétez
-   sur les alts avec **main** vide. Vérifiez `/character list`.
+4. **L'addon seul est le choix par défaut. Vous pouvez arrêter ici.** Pour lier
+   vos personnages à Discord sans compagnon : appuyez sur **Lier mon personnage WoW**
+   ou lancez `/character pair`, copiez la ligne affichée (par exemple
+   `/guilded verify ABCD-EFGH`) et collez-la une seule fois dans le chat de WoW.
+   Tous vos personnages de ce compte WoW se lient tout seuls, le premier comme
+   principal, à la prochaine synchro du compagnon d'un officier (souvent le jour
+   même); vous recevez un message privé Discord. Vérifiez `/character list`.
+   Si aucun compagnon d'officier n'a synchronisé depuis 2 semaines, la réponse
+   montre aussi la méthode manuelle : `/guilded character` en jeu, puis
+   `/character import` → **code** sur Discord avec **main** vide.
 5. **Compagnon facultatif :** dans **Lier mon personnage WoW**, choisissez
    **Connecter le compagnon (facultatif)**, ou utilisez `/character pair`.
    Ouvrez **Ouvrir le compagnon en ligne**.
-6. Avec le compagnon **6.5.1**, collez seulement votre code privé dans
-   **Connection & setup**, puis **Connect**. Le code retrouve votre serveur.
-   Il expire après 15 minutes et ne sert qu'une fois. Les anciens compagnons
-   peuvent encore demander l'identifiant du serveur; le champ reste dans
-   **Advanced preferences** pour les cas où il est nécessaire.
+6. Dans **Connection & setup**, choisissez **Sign in with Discord** : le navigateur
+   s'ouvre, choisissez votre serveur et appuyez sur **Connect**. Rien à taper.
+   Les compagnons plus anciens que 7.2 utilisent plutôt le code à usage unique de
+   `/character pair` (15 minutes), sous **Older companions or your guild's own bot**.
    Sélectionnez le dossier `SavedVariables` de votre compte et, avec
    **Save standings to addon**, le dossier `Interface/AddOns/Guilded`.
 7. Après `/reload`, cliquez sur **Sync now**. Synchronisez votre principal d'abord
@@ -258,11 +266,14 @@ arrière-plan et le suivi PoE2, particulièrement utile aux chefs et officiers.
 
 **Principal déjà lié et compagnon connecté ?** Connectez-vous sur un alt,
 faites `/reload`, puis **Sync now** dans le même compagnon. Votre principal reste
-le même; aucun nouveau code nécessaire pour chaque alt. Le code sert à connecter
-ou reconnecter un compagnon; l'utiliser remplace la connexion compagnon
-précédente. `/character list` montre le résultat après la synchro.
+le même; rien à refaire pour chaque alt. Se reconnecter avec **Sign in with
+Discord** remplace la connexion compagnon précédente. `/character list` montre le
+résultat après la synchro. **Update now** ouvre l'installateur de la nouvelle
+version, qui montre sa progression et redémarre le compagnon; si une mise à jour
+ne se termine pas, le prochain démarrage propose **Run the installer**.
 
-Vous n'avez pas besoin du jeton du bot. Ne partagez jamais votre code de liaison.
+Vous n'avez pas besoin du jeton du bot. Ne partagez jamais un code à usage unique
+de `/character pair`.
 `/guilded lang fr` sélectionne le français dans l'addon.
 
 **Vérification :** la fenêtre s'ouvre sans erreur Lua. Si vous utilisez la

@@ -33,8 +33,9 @@ For a private test, use the matching files supplied by the maintainer.
 3. For WoW sync, follow the member steps below with one player first. Confirm
    that their character and standings match in Discord and in game, then share
    [the member guide](MEMBER_INSTALL.md) with your guild. Use the
-   [hosted companion](https://guilded.kcaron.top/companion/); the
-   `/character pair` code is all it asks for.
+   [hosted companion](https://guilded.kcaron.top/companion/) and choose
+   **Sign in with Discord**: nothing to type. At least one officer should run
+   the companion: members who only use the addon reach Discord through it.
 
 Community activities and polls need no WoW addon or character pairing. Hosted
 owners can stop here; the independent hosting sections below are optional.
@@ -47,20 +48,24 @@ owners can stop here; the independent hosting sections below are optional.
    Current releases select this mode automatically; older builds may show
    the chooser. No Discord character link or companion is required.
 
-### Optional: link a main and alts without a companion
+### Optional: link your main and alts without a companion
 
-Press **Link my WoW character / Lier mon personnage WoW** in the welcome panel.
-Log in on your intended main and copy `/guilded character` into Discord's
-`/character import` → **code**, leaving **main** unset. The first character is
-your main. Repeat on each alt with **main** unset; your main stays the same.
-`/character list` confirms the result. Viewing the instructions does not generate
-a companion connection code.
+Press **Link my WoW character / Lier mon personnage WoW** in the welcome panel,
+or run `/character pair`. Copy the line it shows, such as
+`/guilded verify ABCD-EFGH`, and paste it into WoW chat once, on any character.
+That's all: every character you play on that WoW account links itself, the first
+one as your main, the next time an officer's companion syncs (usually the same
+day), and you get a Discord DM. `/character list` confirms the result.
+
+If no officer's companion has synced for two weeks, `/character pair` also shows
+the manual way: `/guilded character` in game, pasted into Discord's
+`/character import` → **code** with **main** unset, once per character.
 
 ### Optional: connect the online companion
 
 1. Choose **Connect optional companion** in that private reply, or use
-   `/character pair`. Open its online companion button, paste your private code,
-   then **Connect**. Since 6.5.1 the code alone finds your server.
+   `/character pair`. Open its online companion button and choose
+   **Sign in with Discord**, then your server: nothing to type.
 2. Enable WoW and choose your account's SavedVariables folder. Use **Save standings
    to addon** once to choose `Interface/AddOns/Guilded`. After `/reload`, click
    **Sync now** on your main first if none is linked. Choose
@@ -150,8 +155,12 @@ KCaron doit approuver chaque serveur avant `/setup start`. Une invitation ou
 un café ne donne pas accès automatiquement. [Lire le guide du pilote](HOSTED_PILOT.md#fr).
 
 Après l'approbation et la configuration, chaque membre peut utiliser son propre
-`/character pair`. Avec le compagnon 6.5.1, collez le code privé, puis **Connect** :
-le serveur est retrouvé automatiquement. Le compagnon Windows est facultatif.
+`/character pair`. Sans compagnon, il copie la ligne affichée (par exemple
+`/guilded verify ABCD-EFGH`) et la colle une seule fois dans le chat de WoW : tous
+ses personnages de ce compte WoW se lient tout seuls à la prochaine synchro du
+compagnon d'un officier, et il reçoit un message privé Discord. Avec le compagnon,
+il choisit **Sign in with Discord**, puis le serveur : rien à taper. Au moins un
+officier devrait utiliser le compagnon. Le compagnon Windows est facultatif.
 Vérifiez une première synchronisation et les permissions d'un membre ordinaire
 avant de déployer à toute la guilde.
 

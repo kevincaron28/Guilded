@@ -204,15 +204,21 @@ Sources: Blizzard's [WoW Forever page](https://worldofwarcraft.blizzard.com/en-u
 
 ## Implementation progress (owner's picks, 22 October 2026)
 
-| Item | Status | Where |
+Every PR below has green CI (both `Guilded quality` jobs). All seven branches merged together in a
+throwaway branch pass `tsc`, ESLint, both addon validators and Vitest (255 files, 2,152 tests).
+
+| Item | Status | PR |
 | --- | --- | --- |
-| 1, 19 Companion live folder and status line | In progress, separate session | its own branch |
-| 4 PR housekeeping | #185 closed; #189 fixed (release line, live folder, Lite-first wording); hold notes on #187/#188; **#186 waits for the owner's merge** (merging is the owner's call) | GitHub |
+| 1, 19 Companion follows the live folder; status line | Done (separate session); Windows check before release | #197 |
+| 4 PR housekeeping | #185 closed; #189 fixed (release line, live folder, Lite-first wording); hold notes on #187/#188; **#186 waits for the owner** | GitHub |
 | 20 One version source | Done: `tests/current-version-docs.test.ts` | #191 |
-| 21 Docs tidy | Done: 32 docs to `docs/archive/`, links rewritten (no new broken links); `AGENTS.md` is a pointer (local file, old copy in `backups/`) | #191 |
-| 12 Launch posts | Drafts in `docs/LAUNCH_POSTS.md` (owner posts them) | #191 |
-| 14 Automatic approval, "free" not "pilot" | Done, off until `HOSTED_AUTO_APPROVE_DAYS` is set | #192 (+ wording in #189, #191) |
-| 13 Share cards and weekly top runs | Next | |
-| 18 Gear audit column | Pending | |
-| 17 Components V2 | Pending | |
-| 16 German and Spanish | Pending | |
+| 21 Docs tidy | Done: 32 docs to `docs/archive/`, no new broken links; `AGENTS.md` is a pointer (local file) | #191 |
+| 12 Launch posts | Drafts in `docs/LAUNCH_POSTS.md`; the owner posts them | #191 |
+| 14 Automatic approval, "free" not "pilot" | Done, off until `HOSTED_AUTO_APPROVE_DAYS` is set | #192 |
+| 13 Share cards, weekly report link | Done (logo as card image, no generated images) | #193 |
+| 18 Gear audit page | Done; in-game check owed | #194 |
+| 17 Components V2 | Done for `/dungeon leaderboard`; signup posts stay embeds until a Discord check | #195 |
+| 16 German and Spanish | 149 lines each plus the CSV kit; native review owed | #196 |
+
+Suggested merge order: #191, #186, #192, #193, #194, #195, #196, #197 (keep both CHANGELOG bullets
+when #197 meets #192), then #189 with the release. #187 and #188 after launch week.

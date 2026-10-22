@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { startSeason } from "./dungeon-admin.js";
 import type { BracketedRules } from "./dungeon-november-rules.js";
 import { carriedRules } from "./dungeon-season-schedule.js";

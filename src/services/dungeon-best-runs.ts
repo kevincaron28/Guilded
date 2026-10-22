@@ -1,5 +1,5 @@
 import { EmbedBuilder, escapeMarkdown } from "discord.js";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
 import { difficultyName, type RecordRow } from "./dungeon-stats.js";
 import { formatDuration } from "./dungeon-rules.js";

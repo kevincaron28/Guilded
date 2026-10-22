@@ -1,6 +1,6 @@
 import type { Client } from "discord.js";
 import { MessageFlags } from "discord.js";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../src/generated/prisma/client.js";
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 vi.mock("../src/config.js", () => ({ config: { ERROR_LOG_CHANNEL_ID: "private-intake" } }));

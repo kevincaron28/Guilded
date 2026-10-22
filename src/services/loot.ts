@@ -1,4 +1,4 @@
-import { AuctionStatus, EpgpTransactionType, type PrismaClient } from "@prisma/client";
+import { AuctionStatus, EpgpTransactionType, type PrismaClient } from "../generated/prisma/client.js";
 import { poolFor } from "./core-rules.js";
 import { requireCorePool } from "./core-loot-policy.js";
 import { markGuildChanged } from "./standings-feed.js";

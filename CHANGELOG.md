@@ -11,6 +11,15 @@
   of the fastest 5,000. Migration `20261124090000_public_score_evidence`; deploy before Season 1
   starts on 4 November ([analysis](docs/RAIDER_IO_SCORING_ANALYSIS_2026-10-22.md),
   [leaderboards](docs/PUBLIC_DUNGEON_LEADERBOARDS.md)).
+- Launch-day protection for the companion (WoW Forever goes live 4 November 2026): if the
+  watched `Guilded.lua` / `GuildedDungeons.lua` is in the beta folder and another game folder of
+  the same install has the file, or it has not changed for 3 days while another folder's copy is
+  newer, the Windows app's Overview offers **Switch to the live game folder** (in French when
+  Windows is), with one Windows notification. Same account folder first; beta folders and older
+  files are never offered; Keep this folder is not asked again for that file. The command-line
+  companion prints a warning. Shared check: `companion/live-folder.mjs`.
+- Overview shows the watched folder, last upload and when the saved file last changed, in amber
+  after 3 days without a change.
 - Hosted bot: optional automatic approval. With `HOSTED_AUTO_APPROVE_DAYS` set (off by default), a
   Lite server is approved by itself after that many days once it ran `/setup start`, has
   `HOSTED_AUTO_APPROVE_MEMBERS` members (default 5) and used a command in the last 7 days; the

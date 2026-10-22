@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../src/generated/prisma/client.js";
 import { createGuildService } from "../src/services/guild.js";
 import { publishGuildRuns, type PublicRunStore } from "../src/services/public-runs.js";
 

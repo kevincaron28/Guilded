@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../src/generated/prisma/client.js";
 import { advanceCommunityHonors } from "../src/services/community-honors.js";
 
 // Called only by the disposable-local-database release harness.

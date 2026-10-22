@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Prisma } from "@prisma/client";
+import type { Prisma } from "../src/generated/prisma/client.js";
 import { monthlyRookie, rememberRookieJoin, rookieMemberLookup } from "../src/services/monthly-rookie.js";
 import { monthlyHonorsMessage } from "../src/services/community-honors.js";
 import type { Guild } from "discord.js";

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../src/generated/prisma/client.js";
 import { startSeason, invalidateRun } from "../src/services/dungeon-admin.js";
 import { dungeonRating, hasDungeonRating, DUNGEON_RATING_RULES } from "../src/services/dungeon-rating.js";
 import { importDungeonRuns } from "../src/services/dungeon-import.js";

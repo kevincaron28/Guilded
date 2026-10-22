@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 import { clean } from "./item-insights.js";
 import { itemKey } from "./wishlist.js";
 

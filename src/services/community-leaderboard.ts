@@ -1,5 +1,5 @@
 import { REST, Routes, ChannelType, PermissionFlagsBits, EmbedBuilder, escapeMarkdown, ButtonBuilder, ButtonStyle, ActionRowBuilder, type APIChannel, type APIGuildCategoryChannel, type APIGuildTextChannel, type APIMessage, type APIGuildMember, type APIUser } from "discord.js";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 import { BRAND } from "../brand.js";
 import { asLang, type Lang } from "../i18n.js";
 import { COMMUNITY_CHANNEL_SPECS, communityChannelNames } from "../setup-names.js";

@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 import { AVAILABILITY, DURATIONS, EP_REASONS, GP_REASONS, PROFESSIONS, RACES, REVERSE_REASONS, SPECS, WEEKDAYS, pick } from "../wow-data.js";
 import { formatRaidTime, parseRaidTime } from "./raid-time.js";
 

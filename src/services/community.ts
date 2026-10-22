@@ -1,5 +1,5 @@
 import { randomInt } from "node:crypto";
-import type { CommunityActivity, CommunitySeason, Prisma, PrismaClient } from "@prisma/client";
+import type { CommunityActivity, CommunitySeason, Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 import { assertLotteryGame, challengeRules, COMMUNITY_GAMES, COMMUNITY_REWARDS, dicePoints, drawWinners, eventRules, evidenceReference, lotteryRules, quizRules, standings } from "./community-rules.js";
 import { communityActivityChannel, communityMonthName, communitySeasonLabel } from "./community-display.js";

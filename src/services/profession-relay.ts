@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 import type { AddonSnapshot } from "../integrations/addon.js";
 import { applyDiscoveredCharacters } from "./roster-discovery.js";
 import { findCharacter } from "./character-match.js";

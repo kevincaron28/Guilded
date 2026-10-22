@@ -1,5 +1,5 @@
 import { escapeMarkdown, type Guild as DiscordGuild } from "discord.js";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 import { prisma } from "../database.js";
 import { createGuildService } from "./guild.js";
 import { deliverDiscordJob, dispatchDiscordJob } from "./discord-jobs.js";

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../src/generated/prisma/client.js";
 import { reserveAiAttempt } from "../src/services/ai-budget.js";
 
 // Called only by the disposable PostgreSQL harness. Real transactions exercise the lock.

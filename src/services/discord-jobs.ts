@@ -1,6 +1,6 @@
 import { pilotGuildScope } from "../hosted-pilot.js";
 import { randomUUID } from "node:crypto";
-import type { DiscordJob, Prisma, PrismaClient } from "@prisma/client";
+import type { DiscordJob, Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { EmbedBuilder, type Client, type Guild, type MessageCreateOptions } from "discord.js";
 import { prisma } from "../database.js";
 import { participationDay } from "./participation-rules.js";

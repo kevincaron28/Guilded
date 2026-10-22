@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 import { hostedPilot } from "../hosted-pilot.js";
 import { PILOT_DENIED } from "./pilot-policy.js";
 

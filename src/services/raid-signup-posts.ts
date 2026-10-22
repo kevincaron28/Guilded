@@ -1,5 +1,5 @@
 import type { Guild, MessageCreateOptions } from "discord.js";
-import type { PrismaClient, Raid } from "@prisma/client";
+import type { PrismaClient, Raid } from "../generated/prisma/client.js";
 
 type References = Pick<Raid, "id" | "guildId" | "status" | "scheduledAt" | "signupChannelId" | "signupMessageId" | "mirrorSignupChannelId" | "mirrorSignupMessageId">;
 const pending = new Map<string, Promise<void>>();

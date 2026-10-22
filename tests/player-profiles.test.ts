@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../src/generated/prisma/client.js";
 import { createPlayerProfiles, prismaProfileStore, type PlayerProfile, type ProfileStore } from "../src/services/player-profiles.js";
 import { createWebApp } from "../src/services/web-app.js";
 import { csrfToken, hashToken, SESSION_COOKIE, sign } from "../src/services/web-auth.js";

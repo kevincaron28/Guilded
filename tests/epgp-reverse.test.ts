@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { EpgpTransactionType } from "@prisma/client";
+import { EpgpTransactionType } from "../src/generated/prisma/client.js";
 import { createEpgpService } from "../src/services/epgp.js";
 
 const original = { id: "t1", guildId: "g1", memberId: "m1", epAmount: 50, gpAmount: 0, type: EpgpTransactionType.EP_AWARD };

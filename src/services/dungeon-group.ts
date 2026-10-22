@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient, RaidRole } from "@prisma/client";
+import type { Prisma, PrismaClient, RaidRole } from "../generated/prisma/client.js";
 
 // The group finder: a signup post with a temporary voice channel once the group is ready.
 // A dungeon group is 5 players (1 tank, 1 healer, 3 DPS); the other kinds (leveling, PvP, world

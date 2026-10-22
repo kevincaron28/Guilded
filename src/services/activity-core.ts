@@ -1,4 +1,4 @@
-import type { ActivityCore, ActivityResponse, Prisma, PrismaClient, RaidAttendanceStatus, RaidRole } from "@prisma/client";
+import type { ActivityCore, ActivityResponse, Prisma, PrismaClient, RaidAttendanceStatus, RaidRole } from "../generated/prisma/client.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 import { parseWeeklySchedule, weeklyOccurrences, weeklyScheduleText } from "./core-weekly-time.js";
 import { isValidTimeZone } from "./raid-time.js";

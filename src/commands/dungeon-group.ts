@@ -5,7 +5,7 @@ import {
   type GuildTextBasedChannel, type OverwriteResolvable, type StringSelectMenuInteraction,
   MessageFlags,
 } from "discord.js";
-import type { DungeonGroup, RaidRole } from "@prisma/client";
+import type { DungeonGroup, RaidRole } from "../generated/prisma/client.js";
 import { prisma } from "../database.js";
 import { serializeDungeonGroup } from "../services/dungeon-group-queue.js";
 import { hasPermission, isPermissionRoleName } from "../permissions.js";

@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 
 type Db = Pick<PrismaClient, "guildSettings" | "character" | "raidCore" | "raid" | "discordJob">;

@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 export async function coreContext(database: Pick<PrismaClient, "raidCore">, guildId: string, channelId: string, value?: string | null) {
   if (value) {
     const core = await database.raidCore.findFirst({ where: { guildId, OR: [{ id: value }, { name: { equals: value, mode: "insensitive" } }] } });

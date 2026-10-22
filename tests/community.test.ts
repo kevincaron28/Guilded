@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Collection, PermissionFlagsBits, type GuildMember } from "discord.js";
 import { canAccessCommunity, communityCard } from "../src/commands/community.js";
 import { createCommunityService } from "../src/services/community.js";
-import type { CommunityActivity, CommunitySeason } from "@prisma/client";
+import type { CommunityActivity, CommunitySeason } from "../src/generated/prisma/client.js";
 import { commands } from "../src/commands/index.js";
 import { assertLotteryGame, COMMUNITY_GAMES, COMMUNITY_GAME_LABELS, communityGameLabel, dicePoints, drawWinners, evidenceReference, lotteryRules, standings } from "../src/services/community-rules.js";
 

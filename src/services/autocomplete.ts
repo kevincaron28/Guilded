@@ -1,4 +1,4 @@
-import type { PrismaClient, RaidStatus } from "@prisma/client";
+import type { PrismaClient, RaidStatus } from "../generated/prisma/client.js";
 import { formatRaidTime } from "./raid-time.js";
 
 // Suggestions for ID options: people type a name, pick from the list, and

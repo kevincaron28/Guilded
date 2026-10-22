@@ -1,4 +1,4 @@
-import { EpgpTransactionType, type PrismaClient } from "@prisma/client";
+import { EpgpTransactionType, type PrismaClient } from "../generated/prisma/client.js";
 import { requireCorePool } from "./core-loot-policy.js";
 import { markGuildChanged } from "./standings-feed.js";
 

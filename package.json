@@ -38,24 +38,25 @@
   "dependencies": {
     "@prisma/client": "^6.16.2",
     "discord.js": "^14.22.1",
-    "dotenv": "^17.2.2",
+    "dotenv": "^18.0.8",
     "luaparse": "^0.3.1",
-    "zod": "^4.1.8"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/node": "^24.5.2",
+    "@types/node": "^24.19.2",
+    "@typescript/native": "npm:typescript@^7.0.2",
     "esbuild": "^0.28.2",
     "eslint": "^10.13.0",
     "fengari": "^0.1.5",
     "fflate": "^0.8.3",
-    "marked": "^18.0.14",
+    "marked": "^18.1.1",
     "prisma": "^6.16.2",
     "tsx": "^4.19.2",
-    "typescript": "^5.9.2",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
     "typescript-eslint": "^8.72.0",
-    "vitest": "^4.1.11",
-    "wrangler": "4.147.0"
+    "vitest": "^5.0.5",
+    "wrangler": "4.151.3"
   },
   "overrides": {
     "deepmerge-ts": "^8.0.0",

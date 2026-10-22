@@ -145,3 +145,20 @@ volume; build the projection if a board's read becomes slow); comparing route, d
 when two uploads are checked for agreement; replacing a run's stored evidence when a later
 agreeing upload saw the final boss and the first did not (the first upload's evidence stays); and
 items 2 to 4.
+
+Item 2 (player guidance) was built on 22 October 2026 on branch `feat/player-guidance`, on top of
+item 1, for the public character page (`src/services/public-guidance.ts`):
+
+- Best next improvement for the running season, in the bracket of the character's level: per route,
+  the frozen target, the current best, whether it counts, the slowest clear adding at least 5 points
+  to the season score (a single point is rounding), the exact gain and the route pushed out of
+  best N. Each scenario recomputes the whole selection with `characterScores` on one hypothetical
+  run, so rounding, the 400 cap and the over-level penalty match real runs. Outside best N the page
+  says plainly that a faster run adds nothing until it beats the lowest counted route. Times are
+  labelled scenarios; the character's level is taken as the party's highest.
+- Tank, healer and DPS scores from each role's runs only, never summed; runs without a recorded role
+  are counted and left out of every role.
+
+Not done: the addon score panel and tooltips (they still show the overall score only), eligibility
+and trust status per scenario (a scenario assumes a ranked run), and previous-season context next
+to the role scores. Items 3 and 4 are not started.

@@ -75,6 +75,18 @@ Roadmap request 6 (`docs/ROADMAP_REQUESTS_PLAN_2026-10-18.md`). Builds on the we
   best run, filtered by season (calendar quarter, e.g. `2026-Q4`, default the current one),
   level bracket (rules v6 `DEFAULT_DUNGEON_BRACKETS`, by the party's highest level), class, role
   and "confirmed by the party". `/leaderboards/character/<Name-Realm>`: best per dungeon and recent runs.
+- Character pages (7.4, `src/services/public-guidance.ts`) also show:
+  - **Score by role**: tank, healer and DPS scores, each from the runs played in that role only.
+    They are never added together; runs with no recorded role count in the overall score only
+    (the page says how many).
+  - **Best next improvement** for the running season, in the bracket of the character's level
+    (highest level seen): per route, the season target, the current best, whether it counts in
+    best N, and the slowest clear that would add at least 5 points to the season score (or what
+    is left below 400), with the exact gain and the route it would push out. Each scenario adds
+    one hypothetical run and recomputes the whole best-N selection with `characterScores`, so it
+    uses the same rounding and over-level penalty as real runs; the character's level is taken as
+    the party's highest. A faster run on a route outside best N is said to add nothing until it
+    beats the lowest counted route. The page labels these times as scenarios, not predictions.
 - Migration `20261119110000_public_dungeons`: WebPairing, WebCompanionCredential, PublicRun,
   PublicRunPlayer, PublicRunUpload, `GuildSettings.publicDungeonRuns`.
 

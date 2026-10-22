@@ -28,7 +28,7 @@ signups. Scores clearly distinguishes recording from verified online seasonal
 rankings. Local ledger characters are visible before an officer publishes.
 The published 6.1.2 client does not include local core/roster administration.
 That feature is implemented in the next-version preview described in
-[the standalone candidate notes](V6_2_STANDALONE_AND_GAMES.md); no roster is
+[the standalone candidate notes](../V6_2_STANDALONE_AND_GAMES.md); no roster is
 inferred from the guild or filled with sample players.
 
 If an older build already chose Connected from an in-game officer snapshot,

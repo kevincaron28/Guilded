@@ -2,8 +2,8 @@
 
 Target: 6.0 public release. Current repository version: 6.0.0 (Release). Next planned update: 6.1.0.
 The owner declared 6.0.0 the full Release on 5 October 2026. Unchecked tests remain post-release follow-up. Follow the deployment and backup gates in
-[V5_0_RELEASE_HANDOFF.md](V5_0_RELEASE_HANDOFF.md); use
-[RELEASE_CHECKLIST.md](../RELEASE_CHECKLIST.md) for the full feature coverage.
+[V5_0_RELEASE_HANDOFF.md](../V5_0_RELEASE_HANDOFF.md); use
+[RELEASE_CHECKLIST.md](../../RELEASE_CHECKLIST.md) for the full feature coverage.
 
 ## Current deployment and finalization, 5 October 2026
 
@@ -22,7 +22,7 @@ The owner reports the 6.0.0 addon is installed on both PCs. This supersedes the
 older note below that the local addon had not yet been upgraded. Installation
 confirmation does not close the remaining gameplay or fresh-guild checks.
 The owner requested a **clean local rehearsal first** for independent guild setup.
-See [FRESH_INSTALL_REHEARSAL.md](FRESH_INSTALL_REHEARSAL.md) for its evidence and limits.
+See [FRESH_INSTALL_REHEARSAL.md](../FRESH_INSTALL_REHEARSAL.md) for its evidence and limits.
 
 On 4 October the owner requested a 6.0.0 Beta package for CurseForge and
 second-PC testing before stable acceptance. This intentional version change

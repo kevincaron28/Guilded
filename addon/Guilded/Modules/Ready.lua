@@ -151,6 +151,67 @@ local function peerEntry(name)
   }
 end
 
+-- ---------------------------------------------------------------------
+-- The officers' Gear page: every guildmate's last shared gear check
+-- ---------------------------------------------------------------------
+
+local GEAR_DAYS = 30
+
+-- One row per guildmate whose Guilded shared a gear check in the last 30 days (and you),
+-- best item level first. Item level comes from the digest's "IL:" flag (7.4); older clients
+-- leave it unknown.
+function module.gearRows(nowSeconds)
+  local d = db()
+  local now = nowSeconds or (GetServerTime and GetServerTime()) or time()
+  local rows, seen = {}, {}
+  local function add(name, entry)
+    local flags = entry.flags or ""
+    table.insert(rows, {
+      name = name, level = entry.level, itemLevel = tonumber(string.match(flags, "IL:(%d+)")),
+      missing = tonumber(entry.missing) or 0, durability = tonumber(entry.minDurability) or 100,
+      enchants = (string.gsub(string.match(flags, "ENCH:([^,]*)") or "", "%+", ", ")), at = entry.at
+    })
+    seen[name] = true
+  end
+  for name, peer in pairs(d and d.peerRoster or {}) do
+    local at = type(peer) == "table" and (peer.seenAt or module.epoch(peer.updatedAt)) or nil
+    if at and now - at <= GEAR_DAYS * 86400 then
+      add(name, { level = peer.identity and peer.identity.level, missing = peer.missing, minDurability = peer.minDurability, flags = peer.flags, at = at })
+    end
+  end
+  local me = ns.playerName and ns.playerName()
+  local snapshot = me and d and d.readiness and d.readiness[me]
+  if snapshot and not seen[me] then
+    local own = ownEntry() or {}
+    add(me, { level = UnitLevel and UnitLevel("player") or nil, missing = own.missing, minDurability = own.minDurability,
+      flags = (snapshot.itemLevel and ("IL:" .. math.floor(snapshot.itemLevel + 0.5) .. ",") or "") .. (own.flags or ""), at = own.at })
+  end
+  table.sort(rows, function(a, b)
+    if (a.itemLevel or -1) ~= (b.itemLevel or -1) then return (a.itemLevel or -1) > (b.itemLevel or -1) end
+    return a.name < b.name
+  end)
+  return rows
+end
+
+-- The page's text: one line per member, problems in red.
+function module.gearText(nowSeconds)
+  local L = ns.L or function(text) return text end
+  local now = nowSeconds or (GetServerTime and GetServerTime()) or time()
+  local lines = {}
+  for _, row in ipairs(module.gearRows(now)) do
+    local parts = {}
+    if row.level and row.level > 0 then table.insert(parts, string.format(L("level %d"), row.level)) end
+    table.insert(parts, string.format(L("item level %s"), row.itemLevel and tostring(row.itemLevel) or "?"))
+    if row.missing > 0 then table.insert(parts, "|cffff6060" .. string.format(L("%d missing"), row.missing) .. "|r") end
+    if row.enchants ~= "" then table.insert(parts, "|cffff6060" .. L("no enchant") .. ": " .. row.enchants .. "|r") end
+    if row.durability < 50 then table.insert(parts, "|cffff6060" .. string.format(L("durability %d%%"), row.durability) .. "|r") end
+    local days = row.at and math.floor((now - row.at) / 86400) or nil
+    if days then table.insert(parts, days < 1 and L("today") or string.format(L("%d d ago"), days)) end
+    table.insert(lines, "|cffffd100" .. row.name .. "|r  " .. table.concat(parts, " \194\183 "))
+  end
+  return #lines > 0 and table.concat(lines, "\n") or L("Nobody has shared a gear check yet. Each member's Guilded shares theirs after a gear change or /reload.")
+end
+
 -- What each groupmate's addon said about their own consumables: name -> { facts, at }.
 -- Only kept in memory: it is old within minutes and every ready check refreshes it.
 module.reports = {}

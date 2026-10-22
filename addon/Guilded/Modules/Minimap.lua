@@ -72,10 +72,13 @@ local function newButton(parent, text, width, onClick, height)
 end
 
 -- string.upper leaves accented letters lowercase, so a French heading such as Systeme would keep a small accented e; French headings need their capitals.
+-- German (a o u umlauts) and Spanish (a e i o u acute, n tilde) headings too (7.4).
 local ACCENT_CAPITALS = { ["\195\160"] = "\195\128", ["\195\162"] = "\195\130", ["\195\167"] = "\195\135", ["\195\168"] = "\195\136",
-  ["\195\169"] = "\195\137", ["\195\170"] = "\195\138", ["\195\174"] = "\195\142", ["\195\180"] = "\195\148", ["\195\187"] = "\195\155" }
+  ["\195\169"] = "\195\137", ["\195\170"] = "\195\138", ["\195\174"] = "\195\142", ["\195\180"] = "\195\148", ["\195\187"] = "\195\155",
+  ["\195\164"] = "\195\132", ["\195\182"] = "\195\150", ["\195\188"] = "\195\156", ["\195\161"] = "\195\129", ["\195\173"] = "\195\141",
+  ["\195\179"] = "\195\147", ["\195\186"] = "\195\154", ["\195\177"] = "\195\145" }
 local function upperText(text)
-  return (string.gsub(string.upper(text), "\195[\160-\187]", function(letter) return ACCENT_CAPITALS[letter] or letter end))
+  return (string.gsub(string.upper(text), "\195[\160-\191]", function(letter) return ACCENT_CAPITALS[letter] or letter end))
 end
 
 -- A tick box with a label on its right.
@@ -1020,6 +1023,14 @@ local function readyTooltip(anchor, entry)
   GameTooltip:Show()
 end
 
+-- Officers: every guildmate's last shared gear check (Ready.lua's gearText), best item level first.
+local function buildGearPage(page)
+  local intro = at(newLabel(page, "Each member's last gear check, shared by their own Guilded. Members without Guilded are not listed.", "GameFontHighlightSmall"), page, 0, 0)
+  intro:SetWidth(PAGE_WIDTH)
+  ui.gearList = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -40)
+  ui.gearList:SetWidth(PAGE_WIDTH)
+end
+
 local function buildReadyPage(page)
   ui.readySummary = at(newLabel(page, "", "GameFontNormal"), page, 0, 0)
   ui.readySummary:SetWidth(PAGE_WIDTH)
@@ -1224,6 +1235,7 @@ local TAB_DEFS = {
   { name = "Open raids", hint = "find a raid with room for you", group = "Overview", build = buildPublicRaidsPage },
   { name = "Standings", scope = "guild", group = "Guild", usesPlayer = true, build = buildStandingsPage },
   { name = "Crafting", scope = "guild", group = "Guild", module = "recipes", build = buildCraftingPage },
+  { name = "Gear", hint = "item level and missing enchants per member", scope = "guild", group = "Guild", officer = true, build = buildGearPage },
   { name = "Ready", hint = "who is ready for the raid", group = "Raid night", leader = true, build = buildReadyPage },
   { name = "Reserves", hint = "soft reserves for the raid", group = "Raid night", module = "reserve", lootModes = { RESERVE = true }, usesPlayer = true, build = buildReservePage },
   { name = "Calendar", scope = "calendar", group = "Calendar", module = "calendar", officer = true, build = buildCalendarPage },
@@ -1586,6 +1598,7 @@ refresh = function()
     end
     ui.standingsList:SetText(table.concat(lines, "\n"))
   end
+  if ui.gearList and ns.ready and ns.ready.gearText then ui.gearList:SetText(ns.ready.gearText()) end
   if updateGuildScroll then updateGuildScroll() end
 end
 
@@ -1614,6 +1627,7 @@ updateGuildScroll = function()
   if tab.name == "Standings" then height = 80 + textHeight(ui.standingsList) + 52
   elseif tab.name == "Local guild" then height = (ui.localGuildInfoTop or 220) + textHeight(ui.localGuildInfo) + 12
   elseif tab.name == "Crafting" then height = 250 + textHeight(ui.craftCooldowns) + 12
+  elseif tab.name == "Gear" then height = 40 + textHeight(ui.gearList) + 12
   elseif tab.name == "Calendar" then height = 70 + textHeight(ui.calendarStatus) + 12 end
   local scroll = ui.guildScroll
   local viewport = math.max(1, scroll:GetHeight())

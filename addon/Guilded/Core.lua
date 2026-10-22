@@ -1304,6 +1304,9 @@ inspectReadiness = function(silent, target, tries)
     elseif finding.code == "NO_FOOD" then table.insert(flags, "NOFOOD")
     elseif finding.code == "MISSING_ENCHANTS" then table.insert(flags, "ENCH:" .. table.concat(unenchanted, "+")) end
   end
+  -- Item level for the officers' Gear page ("IL:58"). Older clients and companions skip flags
+  -- they do not know, so this needs no protocol change.
+  if snapshot.itemLevel then table.insert(flags, 1, "IL:" .. math.floor(snapshot.itemLevel + 0.5)) end
   local digest = string.format("READINESS|%s|%s|%d|%d|%s", playerName(), snapshot.status, missing, minDurability, table.concat(profParts, ","))
   if complete and #digest + 16 <= MAX_ADDON_MESSAGE then digest = digest .. "|P:" .. tostring((GetServerTime and GetServerTime()) or time()) end
   -- Who this is (class, race, level, spec) so officers' exports can discover

@@ -94,8 +94,8 @@ Official competitor websites reviewed on 15 October 2026:
 
 These are presentation references, not claims of equivalent client support,
 pricing, functionality or adoption. No testimonials, player statistics or
-compatibility claims were invented. Published-version wording remains 6.1.2;
-the 6.2 candidate acceptance and deployment gates still apply.
+compatibility claims were invented. Published versions shown on the site come from
+`site/releases.json` (7.3.1 GitHub, 7.3.0 CurseForge on 22 October 2026); update it with each upload.
 
 The static preview does not proxy `/companion/` or call the live bot. Companion
 links intentionally keep the existing production route for eventual hosting.

@@ -125,8 +125,8 @@ not Guilded's release classification.
 - Managed one-click guild hosting is not provided; owners supply their bot/database hosting.
 - Raid templates, faster attendance correction, clearer close-out summary, and easier archive/transfer are roadmap proposals, not committed 6.1 scope.
 
-See [STANDALONE_ADDON_ROADMAP.md](STANDALONE_ADDON_ROADMAP.md) and
-[the raid-tools archive](archive/raid-tools/README.md).
+See [STANDALONE_ADDON_ROADMAP.md](../STANDALONE_ADDON_ROADMAP.md) and
+[the raid-tools archive](raid-tools/README.md).
 
 ## Results log
 
@@ -186,7 +186,7 @@ GP item prices, rosters, calendar and fresh snapshot changes remain pending.
 See the bridge checklist; these results do not establish every acceptance item.
 
 Officer-assisted member onboarding is prepared on the next-update branch.
-Follow [the officer bridge test](OFFICER_COMPANION_BRIDGE.md) for the private
+Follow [the officer bridge test](../OFFICER_COMPANION_BRIDGE.md) for the private
 two-PC patch. Its real-client acceptance remains pending; the public 6.0
 release has not been replaced by this development patch.
 

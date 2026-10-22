@@ -181,6 +181,7 @@ export function renderGuildPage(view: GuildPageView): string {
   return `<!doctype html><html lang="${view.language}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`
     + `<title>${name} · Guilded</title><meta name="description" content="${description}">${view.indexable ? "" : '<meta name="robots" content="noindex">'}`
     + `<meta property="og:title" content="${name}"><meta property="og:description" content="${description}"><meta property="og:type" content="website">`
+    + `<meta property="og:site_name" content="Guilded"><meta property="og:image" content="https://guilded.kcaron.top/logo.png"><meta name="twitter:card" content="summary"><meta name="theme-color" content="#d4af37">`
     + `<style>${PAGE_STYLE}
 ${SITE_HEADER_STYLE}</style></head><body><main>${siteHeader(view.language, `/g/${view.slug}/`)}`
     + breadcrumbs(view.language, [[t("Guilds", "Guildes"), `/leaderboards/guilds/?lang=${view.language}`], [view.name, null]], escapeHtml) + parts.join("")

@@ -1,5 +1,5 @@
 Owner release decision, 5 October 2026: **6.0.0 is the full Release; next is 6.1.0.**
-Use [current release notes](V6_0_RELEASE_NOTES.md). Earlier beta-promotion requirements below are historical;
+Use [current release notes](../V6_0_RELEASE_NOTES.md). Earlier beta-promotion requirements below are historical;
 unverified checks remain follow-up work, not passes.
 
 # Guilded 6.0.0 Beta — 5 October 2026
@@ -18,6 +18,6 @@ This is a testing beta, not a stable release. Back up SavedVariables before upgr
 
 Remaining live acceptance includes fresh Alliance guild setup, Windows clean install/upgrade and recovery on a non-developer PC, competing/consecutive awards, concurrent officer uploads, permission revocation and a full real raid. Calendar and other game APIs depend on client support. Do not treat these pending checks as passes.
 
-The Windows installer is unsigned. Packaging and CI do not establish a successful clean installation, upgrade or uninstall. Current evidence and the short remaining checklist are in `docs/V6_0_FINALIZATION_CHECKLIST.md`.
+The Windows installer is unsigned. Packaging and CI do not establish a successful clean installation, upgrade or uninstall. Current evidence and the short remaining checklist are in `docs/archive/V6_0_FINALIZATION_CHECKLIST.md`.
 
 Install the complete Guilded folder, including Guilded.toc. Do not delete your saved data. For addon-only testing, keep WoW companion syncing paused. Discord integration needs the guild owner's configured bot and personal pairing; no database or Discord reset is part of this beta package.

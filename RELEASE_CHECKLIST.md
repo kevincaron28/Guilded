@@ -1,5 +1,10 @@
-> 6.2 candidate preparation (15 October 2026): use [the release handoff](docs/V6_2_RELEASE_HANDOFF.md) and [game acceptance checklist](docs/V6_2_GAME_ACCEPTANCE.md).
-> Guilded 6.2.0 Release (October 16, 2026). See docs/V6_2_RELEASE_HANDOFF.md for the release record.
+> **Current (22 October 2026): Guilded 7.3.1 Release** — notes in [V7_3_1_RELEASE_NOTES.md](docs/V7_3_1_RELEASE_NOTES.md),
+> real-client checks in [the acceptance checklist](docs/V6_2_GAME_ACCEPTANCE.md), launch-week list in
+> [PRE_RELEASE_AUDIT_2026-10-22.md](docs/PRE_RELEASE_AUDIT_2026-10-22.md). Everything below this box is a
+> historical record of the 4.0-6.2 releases, not the current state.
+>
+> 6.2 candidate preparation (15 October 2026): use [the release handoff](docs/archive/V6_2_RELEASE_HANDOFF.md) and [game acceptance checklist](docs/V6_2_GAME_ACCEPTANCE.md).
+> Guilded 6.2.0 Release (October 16, 2026). See docs/archive/V6_2_RELEASE_HANDOFF.md for the release record.
 > Older release instructions below are historical. Do not publish or deploy the candidate before acceptance.
 
 Owner release decision, 5 October 2026: **6.0.0 is the full Release; next is 6.1.0.**
@@ -8,9 +13,9 @@ unverified checks remain follow-up work, not passes.
 
 # Release follow-up checklist: Guilded 6.0.0
 
-Current summary (5 October): [the finalization checklist](docs/V6_0_FINALIZATION_CHECKLIST.md)
+Current summary (5 October): [the finalization checklist](docs/archive/V6_0_FINALIZATION_CHECKLIST.md)
 reconciles the deployed 6.0 beta, current packages and CI with the real-client
-passes recorded in `docs/V6_0_RELEASE_TESTING.md`. Historical unchecked rows below
+passes recorded in `docs/archive/V6_0_RELEASE_TESTING.md`. Historical unchecked rows below
 are not a declaration that the same feature remains completely untested.
 
 **Read `docs/V5_0_RELEASE_HANDOFF.md` first for the current update order and stabilization gates.**
@@ -19,9 +24,9 @@ The owner requested a 6.0.0 Beta on 4 October 2026 for second-PC testing.
 Use `dist/Guilded-v6.0.0.zip` and the matching 6.0.0 companion installer.
 Older 5.0 build names below are historical. Raid tools is excluded. Beta
 publication does not close the remaining live acceptance gates or promote
-the package to stable Release. Current upload text: `docs/V6_0_BETA_NOTES.md`.
+the package to stable Release. Current upload text: `docs/archive/V6_0_BETA_NOTES.md`.
 
-GitHub published [5.0.0 Beta 1](https://github.com/kevincaron28/Guilded/releases/tag/v5.0.0-beta.1) on 2 October 2026. Stable 5.0.0 and the planned 6.0 release remain unpublished. For current acceptance evidence, read `docs/V6_0_RELEASE_TESTING.md`; older unchecked items below must be reconciled with that evidence. Feature history: `docs/V5_0_HANDOFF.md`, `docs/V4_6_HANDOFF.md`, `docs/V4_5_HANDOFF.md`.
+GitHub published [5.0.0 Beta 1](https://github.com/kevincaron28/Guilded/releases/tag/v5.0.0-beta.1) on 2 October 2026. Stable 5.0.0 and the planned 6.0 release remain unpublished. For current acceptance evidence, read `docs/archive/V6_0_RELEASE_TESTING.md`; older unchecked items below must be reconciled with that evidence. Feature history: `docs/archive/V5_0_HANDOFF.md`, `docs/archive/V4_6_HANDOFF.md`, `docs/archive/V4_5_HANDOFF.md`.
 
 `[x]` done, `[ ]` left. Anything that fails: send a screenshot or the `/guilded diag` output.
 
@@ -58,12 +63,12 @@ Say "untested" on the listing until these pass.
 - [ ] Loot council on a second character: open an item in the Council tab, answer from the popup, then a whisper answer (`bis`); the officer sees both ranked and awards one.
 - [ ] `/guilded games duel <player>` with a friend (and `/guilded casino` only says it was removed).
 - [ ] `/guilded invite missing` and `/guilded invite raid` as officer in a party, after creating a raid you and a friend signed up for.
-- [x] A non-officer alt sees fewer pages (no Raid, EPGP, Loot). Confirmed on Seria (Member), WoW Forever beta, 3 October 2026; starting a bid auction is also refused. See `docs/V6_0_RELEASE_TESTING.md`.
+- [x] A non-officer alt sees fewer pages (no Raid, EPGP, Loot). Confirmed on Seria (Member), WoW Forever beta, 3 October 2026; starting a bid auction is also refused. See `docs/archive/V6_0_RELEASE_TESTING.md`.
 - [ ] A second officer's companion uploads and the guild digest carries other online players.
 
 ## 5.0: to check in game and on Discord
 
-What changed and why: `docs/V5_0_HANDOFF.md`. Two players unless it says solo. Run `npm run db:update` first, then `/setup start` > **Update bot messages**.
+What changed and why: `docs/archive/V5_0_HANDOFF.md`. Two players unless it says solo. Run `npm run db:update` first, then `/setup start` > **Update bot messages**.
 
 **Raid cores: several per member, visibility, fill**
 - [ ] A member without a leadership role: `/core add`, `/core character`, `/core edit` are refused; the **Apply** button under a core's roster works.
@@ -92,7 +97,7 @@ What changed and why: `docs/V5_0_HANDOFF.md`. Two players unless it says solo. R
 
 ## 4.6: to check in game and on Discord
 
-What changed and why: `docs/V4_6_HANDOFF.md`. Two players unless it says solo. Run `npm run db:update` first.
+What changed and why: `docs/archive/V4_6_HANDOFF.md`. Two players unless it says solo. Run `npm run db:update` first.
 
 **Discord**
 - [ ] **Setup checklist (solo, admin).** `/setup start`: the summary lists every channel (optional rows with ➖) and every bot message. With an old dungeon signup post pinned, "Pinned dungeon signup guide" shows ⚠️; **Update bot messages** replaces it with the menu and the row turns ✅. Pick "Loot log channel" in **Use an existing channel for...**, then a channel in the second menu: the row turns ✅ without creating anything.
@@ -112,7 +117,7 @@ What changed and why: `docs/V4_6_HANDOFF.md`. Two players unless it says solo. R
 
 ## 4.5: to check in game and on Discord
 
-What changed and why: `docs/V4_5_HANDOFF.md`. Two players unless it says solo.
+What changed and why: `docs/archive/V4_5_HANDOFF.md`. Two players unless it says solo.
 
 - [ ] **Send to Discord (solo, the reported bug).** Open the window, press **Send to Discord**: the UI reloads with **no** "action blocked" popup. Same with the officers' banner (make a change, wait 2 minutes out of combat). `/guilded sync` tells you to type `/reload`.
 - [ ] **Price at the drop (officer).** Pick a core in EPGP priority mode (`/guilded core <name>`), `/guilded drop <item link>` for an item with no price: a box asks the price; type 120, Enter: the item starts at 120 GP. Drop it again: no box. `/guilded price <item> 90` changes it. After `/reload` and the companion upload, the price shows in `/core items action:list` on Discord.

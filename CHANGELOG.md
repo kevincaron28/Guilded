@@ -11,6 +11,11 @@
   companion prints a warning. Shared check: `companion/live-folder.mjs`.
 - Overview shows the watched folder, last upload and when the saved file last changed, in amber
   after 3 days without a change.
+- Hosted bot: optional automatic approval. With `HOSTED_AUTO_APPROVE_DAYS` set (off by default), a
+  Lite server is approved by itself after that many days once it ran `/setup start`, has
+  `HOSTED_AUTO_APPROVE_MEMBERS` members (default 5) and used a command in the last 7 days; the
+  owner's request DM shows the date and **Block** stays the veto. Messages say "free hosted bot"
+  instead of "pilot" ([guide](docs/HOSTED_PILOT.md)).
 
 ## 7.3.1 Release — 22 October 2026
 
@@ -198,7 +203,7 @@
   dependency audits and Windows packaging. Final release-source PostgreSQL/restore,
   Windows packaging and Worker deployment checks passed.
 - Remaining real-client checks are tracked as post-release follow-up in
-  [the finalization checklist](docs/V6_0_FINALIZATION_CHECKLIST.md); they are not
+  [the finalization checklist](docs/archive/V6_0_FINALIZATION_CHECKLIST.md); they are not
   marked passed by the release decision. The earlier beta notes below are history.
 
 ## 6.0.0 Beta — 4 October 2026

@@ -80,7 +80,7 @@ shares pairing credentials or grants members ledger-write authority.
 - [ ] A non-officer cannot enable it or inject accepted snapshots.
 - [ ] Changing/leaving guild does not display the previous guild's raid cache.
 
-Record results in [the player test checklist](V6_0_PLAYER_TEST_CHECKLIST.md).
+Record results in [the player test checklist](archive/V6_0_PLAYER_TEST_CHECKLIST.md).
 On 13 October the owner confirmed both PCs updated/connected, but the member's
 status initially remained waiting for an online officer.
 Screenshots then showed the same guild, with the leader on `Classic Beta PvP`

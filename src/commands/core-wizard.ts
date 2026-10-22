@@ -29,7 +29,7 @@ const btn = (id: string, label: string, style: ButtonStyle = ButtonStyle.Seconda
 function nameStep() {
   const embed = new EmbedBuilder().setColor(0xd4af37).setTitle("⚜️ New raid core — step 1 of 3: name it")
     .setDescription([
-      "A **raid core** is a named roster (for example *Tuesday Molten Core*). Its members get **priority at signups** for that core's raids, and its roster shows live in the raid roster channel.",
+      "A **raid core** is a named roster (for example *Tuesday Hyjal Summit*). Its members get **priority at signups** for that core's raids, and its roster shows live in the raid roster channel.",
       "You can make as many cores as you like.",
       "",
       "Press **Name your core** and type a name."
@@ -100,7 +100,7 @@ async function rulesStep(coreId: string, guildId: string, note: string) {
 
 function nameModal() {
   return new ModalBuilder().setCustomId("corewiz:name-modal").setTitle("New raid core").addComponents(
-    new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("name").setLabel("Name").setPlaceholder("Tuesday Molten Core").setStyle(TextInputStyle.Short).setMinLength(2).setMaxLength(50).setRequired(true)),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("name").setLabel("Name").setPlaceholder("Tuesday Hyjal Summit").setStyle(TextInputStyle.Short).setMinLength(2).setMaxLength(50).setRequired(true)),
     new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("description").setLabel("Description (optional)").setPlaceholder("Progression, achievement runs").setStyle(TextInputStyle.Short).setMaxLength(300).setRequired(false))
   );
 }

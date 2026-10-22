@@ -2,8 +2,8 @@
 
 Current delivery, 14 October: 6.1.0 was published and followed by 6.1.1/6.1.2.
 The current published client is 6.1.2 / protocol 2. Production uses Aiven.
-See [UPDATE_ALL_2026-10-14.md](UPDATE_ALL_2026-10-14.md) for the combined follow-up,
-and [DUNGEON_DEPLOYMENT_2026-10-14.md](DUNGEON_DEPLOYMENT_2026-10-14.md) for
+See [UPDATE_ALL_2026-10-14.md](../UPDATE_ALL_2026-10-14.md) for the combined follow-up,
+and [DUNGEON_DEPLOYMENT_2026-10-14.md](../DUNGEON_DEPLOYMENT_2026-10-14.md) for
 deployment evidence. Statements below about pre-publication 6.1.0 are history;
 do not repeat its season launch or upload the same release again.
 

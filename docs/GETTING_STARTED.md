@@ -31,8 +31,8 @@ companions or your guild's own bot**.
 
 ## What a working connection looks like
 
-1. Guilded opens in your actual WoW client. Forever beta uses `_classic_beta_`
-   in the tested installation; verify the folder rather than assuming its name.
+1. Guilded opens in your actual WoW client: the folder beside the game executable you launch.
+   The beta used `_classic_beta_`; check the live folder from 4 November rather than assuming its name.
 2. `/reload` or logout saves addon data. Click Sync now on the webpage; the optional Windows app detects changes automatically.
 3. A successful upload appears in Activity and your character is linked to your
    Discord account. Zero new characters or ledger entries can be normal.

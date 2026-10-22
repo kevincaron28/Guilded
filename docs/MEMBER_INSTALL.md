@@ -39,17 +39,17 @@ for your guild's online link. Use the matching release
 your officer specifies. Public releases belong on
 [GitHub Releases](https://github.com/kevincaron28/Guilded/releases) and
 [CurseForge](https://www.curseforge.com/wow/addons/guilded); only use a version
-actually listed there. Checked on 22 October 2026: GitHub and CurseForge offer **Release 7.3.0**.
-Their listings can update separately; confirm the version on the selected download.
+actually listed there. GitHub has the newest release first; CurseForge can trail it by a
+day, so confirm the version on the selected download.
 Install the complete addon folder and keep your SavedVariables. See the
 [latest release notes](https://github.com/kevincaron28/Guilded/releases/latest).
 Guilded Games remains a separate optional Alpha.
 
 ## 1. Install the addon
 
-1. Close WoW. Open the folder for the client you actually play. For Forever beta,
-   this is the `_classic_beta_` folder beside `WowB.exe` in the tested installation.
-   Other installations may use a different folder; find the game executable first.
+1. Close WoW. Open the folder for the client you actually play: the one beside the
+   game executable you launch. (The Forever beta used `_classic_beta_` beside `WowB.exe`;
+   from launch on 4 November 2026, find the live game executable first.)
 2. Extract the addon's **Guilded** folder into `Interface\AddOns` there. The result
    must be `Interface\AddOns\Guilded\Guilded.toc`, with no extra nested Guilded folder.
 3. Start WoW, enable Guilded in the AddOns list, and enter the game. Click the
@@ -220,9 +220,8 @@ whether ordinary guild chat arrives.
 
 **L'addon fonctionne sans Discord.** Il ne faut ni compte d'hébergement, ni base
 de données, ni jeton de bot pour jouer. Client ciblé : **WoW Forever 1.60.1**.
-Au 22 octobre 2026, GitHub et CurseForge proposent la **Release 7.3.0**.
-Les deux plateformes peuvent être mises à jour séparément : vérifiez la version du
-fichier choisi. Installez le dossier complet de l'addon et conservez vos SavedVariables.
+GitHub a toujours la version la plus récente; CurseForge peut avoir un jour de retard :
+vérifiez la version du fichier choisi. Installez le dossier complet de l'addon et conservez vos SavedVariables.
 Consultez les [dernières notes de version](https://github.com/kevincaron28/Guilded/releases/latest).
 Guilded Games reste un addon Alpha séparé et facultatif.
 
@@ -234,7 +233,8 @@ soutien financier est facultatif et ne donne aucune priorité.
 1. Téléchargez l'addon depuis GitHub Releases ou CurseForge, avec la version
    choisie par votre guilde. Aucun passage par Discord n'est requis.
 2. Fermez WoW. Installez le dossier Guilded dans `Interface\AddOns` du bon client
-   (Forever beta : `_classic_beta_` dans l'installation testée), puis relancez WoW.
+   (le dossier à côté de l'exécutable du jeu que vous lancez; la bêta utilisait `_classic_beta_`),
+   puis relancez WoW.
 3. Ouvrez Guilded avec la pièce sur la minicarte. `/reload` enregistre les données.
 4. **L'addon seul est le choix par défaut. Vous pouvez arrêter ici.** Pour lier
    vos personnages à Discord sans compagnon : appuyez sur **Lier mon personnage WoW**

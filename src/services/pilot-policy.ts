@@ -22,5 +22,5 @@ export function createPilotPolicy(options: PilotOptions) {
   };
 }
 
-export const PILOT_DENIED = "This server needs the Guilded owner's approval before using the hosted pilot. / Ce serveur doit être approuvé par le propriétaire de Guilded avant de participer au pilote hébergé.";
+export const PILOT_DENIED = "This server needs the Guilded owner's approval before using the free hosted Guilded bot. / Ce serveur doit être approuvé par le propriétaire de Guilded avant d'utiliser le bot Guilded hébergé gratuit.";
 export const PILOT_LITE_DENIED = "This server uses Guilded Lite until the Guilded owner approves it; this feature unlocks then. / Ce serveur utilise Guilded Lite jusqu'à son approbation par le propriétaire de Guilded; cette fonction sera alors disponible.";

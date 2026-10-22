@@ -1,16 +1,17 @@
-# Guilded hosted pilot
+# Guilded hosted bot (free)
 
-The hosted pilot lets approved guilds use the same running Guilded bot. Your guild
+The hosted bot lets guilds use the same running Guilded bot for free. Your guild
 does not need to download the bot, create a database, or keep a computer running.
-Admission is by the Guilded owner's approval for each Discord server. This is a
-small pilot, limited to five servers including the owner's server. This is a
-capacity ceiling, not a count of open places or a promise of admission.
+Every server starts on Guilded Lite right away; full Guilded needs the Guilded owner's
+approval for each Discord server, given by hand or automatically once a server is
+set up and active (see below). Hosting capacity is limited, so approval is not guaranteed.
 
-**[Add Guilded — request owner approval](https://discord.com/oauth2/authorize?client_id=1552633893587394590&scope=bot+applications.commands&integration_type=0&permissions=2269718703631440)**
+**[Add Guilded to your server](https://discord.com/oauth2/authorize?client_id=1552633893587394590&scope=bot+applications.commands&integration_type=0&permissions=2269718703631440)**
 
-The pilot is open for a small number of guilds. Adding the bot puts your server on
-**Guilded Lite** straight away and sends KCaron a request. **Full Guilded needs
-KCaron's approval**; the request does not guarantee a place.
+Adding the bot puts your server on **Guilded Lite** straight away and sends KCaron a
+request. **Full Guilded unlocks with KCaron's approval.** When the host has turned on
+automatic approval, it also unlocks by itself after a few days once you ran
+`/setup start`, your server has a few members and someone used Guilded that week.
 
 ## What Guilded Lite includes
 
@@ -31,11 +32,11 @@ If the 50 Lite places are taken, your server waits with no access, as before.
 A Lite server where nobody uses a command for 30 days gets a notice (system channel,
 or the server owner's DMs); if nobody uses one in the next 7 days, Guilded leaves
 to free the place. You can add it back later.
-The hosted pilot is free. Optional support never buys approval or priority.
+The hosted bot is free. Optional support never buys approval or priority.
 
 ## Joining with your guild
 
-1. Open the **Add Guilded — request owner approval** link above as a server
+1. Open the **Add Guilded to your server** link above as a server
    owner or someone allowed to manage your server.
 2. Guilded starts on Lite (see above) and sends its application owner a private
    Discord message with **Approve** and **Block** buttons. You can run
@@ -59,16 +60,18 @@ An invitation is not an approval. Changing the server ID in a copied invite does
 not grant full access. Unapproved servers get Lite at most; companion credentials
 do not work there. Reapproval does not erase saved guild data.
 
-<section id="fr" lang="fr" aria-label="Pilote Discord en français">
+<section id="fr" lang="fr" aria-label="Bot Discord en français">
 
-## Ajouter le bot : pilote gratuit et facultatif
+## Ajouter le bot : gratuit et facultatif
 
 L'addon Guilded fonctionne sans Discord. Pour les inscriptions aux raids,
 les classements connectés et les activités Discord, votre guilde peut demander
 l'accès au bot hébergé. Aucun hébergement ni base de données n'est à créer
-pour une guilde admise au pilote.
+pour une guilde approuvée. Le serveur commence en Guilded Lite tout de suite; tout
+Guilded se débloque avec l'approbation de KCaron, ou automatiquement après quelques
+jours si l'hôte l'a activé et que le serveur est configuré et actif.
 
-1. Un propriétaire ou gestionnaire du serveur utilise **Add Guilded — request owner approval**.
+1. Un propriétaire ou gestionnaire du serveur utilise **Add Guilded to your server**.
 2. Le serveur passe tout de suite en **Guilded Lite** (50 serveurs au plus) :
    `/setup start` pour les rôles et les salons, `/help`, `/mod faq`, `/report bug`,
    `/dungeon group` et les inscriptions `/raid` simples (sans core ni répétition).
@@ -88,7 +91,7 @@ pour une guilde admise au pilote.
    à retrouver le serveur. Collez-le seulement dans le compagnon de votre guilde.
    Faites `/reload`, synchronisez, vérifiez le bon personnage et rechargez les classements.
 
-Le pilote et l'addon restent gratuits. Le soutien Ko-fi est facultatif et ne
+Le bot hébergé et l'addon restent gratuits. Le soutien Ko-fi est facultatif et ne
 donne ni approbation, ni priorité, ni permissions supplémentaires. L'hébergement
 indépendant reste possible pour les guildes qui disposent de leur infrastructure.
 
@@ -141,6 +144,17 @@ An hourly check warns Lite servers idle for 30 days (`warnIdleLite` in
 `src/services/pilot-welcome.ts`) and leaves them 7 days later if still unused; any
 command use resets the clock. Leaving for inactivity drops the entry (it is not a
 block), so a later invite sends you a new request.
+
+### Automatic approval
+
+Off by default. Set `HOSTED_AUTO_APPROVE_DAYS` (1-60) in `.env.local` and the hourly check
+approves a Lite server by itself once it has been on Lite that many days, ran `/setup start`
+(its bot-guide channel exists), has at least `HOSTED_AUTO_APPROVE_MEMBERS` Discord members
+(default 5) and used a command in the last 7 days. Your request DM shows the date; **Block**
+before then is the veto. An automatic approval follows the same path as the button (saved to
+`.env.local`, commands registered, owner welcome) and sends you a DM with the server, its member
+count and `npm run pilot -- revoke ID`. It respects `HOSTED_GUILD_LIMIT` (raise it, up to 100,
+to leave room); when full, waiting servers stay on Lite. Restart the bot after editing these values.
 
 Pending, Lite and block decisions and delivered-message IDs live in
 `backups/pilot-requests.json` (private, preserved by deployment). Back up this

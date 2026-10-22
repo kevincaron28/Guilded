@@ -116,6 +116,24 @@ export function overlevelBy(run: RatingRun, band: LevelBand): number {
 export function penalized(points: number, percent: number): number {
   return Math.round(points * (100 - percent) / 100);
 }
+// One eligibility check for guild seasons and the public leaderboards (public-score.ts), so the
+// same run with the same evidence ranks the same way in both.
+/** Ranked runs end on the addon's automatic final-boss detection, never a manual stop. */
+export function completionReason(completedBy: string | null | undefined): string | undefined {
+  return completedBy === "final boss" ? undefined : "Automatic final-boss completion required";
+}
+/** A participant earns a ranked run only when inside it for 80% of its time. */
+export function presentEnough(presentSec: number, durationSec: number): boolean {
+  return Number.isFinite(presentSec) && presentSec >= durationSec * DUNGEON_RATING_RULES.minimumPresence;
+}
+/** Version 6: the run's route from boss evidence, why it is unranked (if it is), its over-level penalty and target. */
+export function bracketedVerdict(run: RatingRun, rules: BracketedRules): ReturnType<typeof resolveNovemberRoute> & { penaltyPercent: number; targetSec: number | null } {
+  const route = resolveNovemberRoute(run, rules);
+  const band = rules.levelBands[route.key];
+  const reason = route.reason ?? (!rules.targets[route.key] ? "Participation-only route" : competitionReason(run, band, rules.overlevelPenalty.maxLevels));
+  return { ...route, ...(reason ? { reason } : {}), penaltyPercent: !reason && band ? overlevelBy(run, band) * rules.overlevelPenalty.percentPerLevel : 0,
+    targetSec: routeTargetAt(rules, route.key, run.endedAt) ?? null };
+}
 function bossRecords(run: RatingRun): BossRecord[] {
   const data = run.competitionData as { encounters?: unknown[] } | null;
   if (!Array.isArray(data?.encounters) || !run.startedAt || !run.endedAt) return [];
@@ -137,14 +155,15 @@ export function calculateDungeonRating(runs: RatingRun[], rules?: unknown): Rati
   const members = new Map<string, { memberId: string; name: string; bracket?: DungeonBracket; bests: Map<string, DungeonRatingDetail> }>();
   for (const run of runs) {
     if (!run.durationSec || !Number.isFinite(run.durationSec) || run.durationSec <= 0) continue;
-    const route = version === 5 || version === 6 ? resolveNovemberRoute(run, rules as NovemberRules | BracketedRules) : undefined;
+    const verdict = brackets ? bracketedVerdict(run, brackets) : undefined;
+    const route = verdict ?? (version === 5 ? resolveNovemberRoute(run, rules as NovemberRules) : undefined);
     const key = route?.key ?? (timed ? ratingDungeonKey(run) : String(run.instanceId));
-    const band = (rules as { levelBands?: Record<string, LevelBand> } | undefined)?.levelBands?.[key];
-    const reason = route?.reason ?? (route && !targets[key] ? "Participation-only route" : !route && timed && key === "189" ? "Dungeon route unknown" : timed ? competitionReason(run, band, brackets?.overlevelPenalty.maxLevels ?? 0) : undefined);
-    const penaltyPercent = brackets && !reason && band ? overlevelBy(run, band) * brackets.overlevelPenalty.percentPerLevel : 0;
+    const reason = verdict ? verdict.reason : route?.reason ?? (route && !targets[key] ? "Participation-only route" : !route && timed && key === "189" ? "Dungeon route unknown"
+      : timed ? competitionReason(run, (rules as { levelBands?: Record<string, LevelBand> } | undefined)?.levelBands?.[key]) : undefined);
+    const penaltyPercent = verdict?.penaltyPercent ?? 0;
     const bosses = timed && !reason && targets[key] ? bossRecords(run) : [];
     for (const player of run.players) {
-      if (!player.memberId || !player.member || !player.character?.trim() || !Number.isFinite(player.presentSec) || player.presentSec < run.durationSec * 0.8) continue;
+      if (!player.memberId || !player.member || !player.character?.trim() || !presentEnough(player.presentSec, run.durationSec)) continue;
       // Version 6: the character's level during this run picks the bracket. A ranked
       // run already kept every participant inside the route's band, so it agrees with the route.
       // A ranked run (penalised or not) belongs to its route's bracket; anything else to the player's level.
@@ -152,7 +171,7 @@ export function calculateDungeonRating(runs: RatingRun[], rules?: unknown): Rati
       if (brackets && !bracket) continue;
       const identity = ratingCharacterKey(player.memberId, player.character) + (bracket ? `/${bracket.key}` : "");
       const member = members.get(identity) ?? { memberId: player.memberId, name: player.character.trim(), ...(bracket ? { bracket } : {}), bests: new Map<string, DungeonRatingDetail>() };
-      const targetSec = (brackets ? routeTargetAt(brackets, key, run.endedAt) : targets[key]) ?? null;
+      const targetSec = verdict ? verdict.targetSec : targets[key] ?? null;
       const speedBonus = timed ? 0 : speedPoints(run.durationSec, targetSec);
       const detail: DungeonRatingDetail = { ...(timed ? { ratingVersion: version as 3 | 4 | 5 | 6, dungeonKey: key, ...(reason || !targetSec ? { unrankedReason: reason ?? "Target not calibrated" } : {}), bosses: [] } : {}), instanceId: run.instanceId, name: route?.route?.name ?? (key.startsWith("189:") ? `Scarlet Monastery: ${key.split(":")[1]}` : run.dungeonName ?? `#${run.instanceId}`), points: timed ? reason ? 0 : penalized(timeRating(run.durationSec, targetSec), targetSec ? penaltyPercent : 0) : 100 + speedBonus,
         ...(penaltyPercent && targetSec ? { penaltyPercent } : {}),

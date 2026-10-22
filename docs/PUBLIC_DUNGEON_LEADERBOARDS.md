@@ -29,9 +29,24 @@ Roadmap request 6 (`docs/ROADMAP_REQUESTS_PLAN_2026-10-18.md`). Builds on the we
   no future times, recorder/reporter in the run, nobody twice); completed only; at most 30 days old;
   the uploader's character must be in the run; at least 45 s per boss killed, boss kills inside the
   run and 10 s apart. Party members share the addon's run id: an agreeing upload (time within 30 s,
-  end within 5 min, 60% same party) adds a confirmation; a disagreeing one marks the run DISPUTED
-  and hides it. Same uploader again = duplicate. Limits: 50 runs per upload, 200 runs and 30
-  uploads an hour per account.
+  end within 5 min, 60% same party) adds a confirmation when it carries another player's report
+  (`PublicRunUpload.reporters`: a personal upload is its character's report, a guild's copy its
+  reporters' and recorder's, so a guild copy plus the same member's own upload count once); a
+  disagreeing one marks the run DISPUTED and hides it. Same uploader again = duplicate. Limits: 50
+  runs per upload, 200 runs and 30 uploads an hour per account.
+- **Ranking (7.4)**: accepted runs show as activity; a run is ranked by the guild seasons' own check
+  (`dungeon-rating.ts` `bracketedVerdict`, through `public-score.ts` `rateRun`): automatic
+  final-boss completion, route from boss kills inside the run, difficulty, party levels at start
+  and end, and it counts for each player present 80% of it. Runs keep that evidence
+  (`PublicRun.evidenceVersion` 1, `completedBy`, `encounters`, `PublicRunPlayer.minLevel`,
+  `presentSec`). Rows uploaded before have `evidenceVersion` 0: the older route-and-levels check,
+  labelled "older check" on the pages. Unranked scores show "–" with the reason on hover.
+- **Season rules**: each official season freezes the public rules when it starts
+  (`OfficialSeason.rules`, written by the 5-minute season job, `official-seasons.ts`
+  `freezeSeasonRules`). Afterwards it only gains routes and brackets that did not exist (launch
+  map IDs); existing targets, levels, best-N and the penalty change at the next season. A season
+  that ended is never touched; the beta and "all time" use today's rules. Stores read every
+  matching run (pages of 5,000), so no personal best is cut off by a row limit.
 - **New full Guilded setups** share eligible completed dungeon runs by default. Only a genuinely new
   approved Guild record receives `publicDungeonRuns: true` and a `publicDungeonRunsSince` cutoff.
   Runs must have started at or after that cutoff; importing older saved runs does not publish them.

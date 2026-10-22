@@ -1,6 +1,8 @@
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { startSeason } from "./dungeon-admin.js";
+import type { BracketedRules } from "./dungeon-november-rules.js";
 import { carriedRules } from "./dungeon-season-schedule.js";
+import { addedRules, publicRules, readRuleSnapshot, snapshotRules, type PublicRuleSnapshot } from "./public-score.js";
 
 // The bot-wide dungeon season calendar (7.3, owner 20 October 2026: "only I control when a season
 // starts and ends ... the first real season starting November 4th, then we change season when a
@@ -12,14 +14,15 @@ import { carriedRules } from "./dungeon-season-schedule.js";
 //   (standings, rating and champions frozen; runs and points kept) and the new one starts, after
 //   one backup. Idempotent: a guild already in the current season is left alone.
 // - The public leaderboards (public-score.ts) use the same windows; before Season 1 is "Beta".
+//   Each season freezes its public rules when it starts (freezeSeasonRules).
 
-export interface OfficialWindow { number: number; name: string; start: Date; end: Date | null }
-export interface OfficialRow { number: number; name: string; startsAt: Date }
+export interface OfficialWindow { number: number; name: string; start: Date; end: Date | null; rules?: PublicRuleSnapshot | null }
+export interface OfficialRow { number: number; name: string; startsAt: Date; rules?: unknown }
 
 /** Calendar rows (any order) as windows, oldest first: each ends where the next one starts. */
 export function officialWindows(rows: OfficialRow[]): OfficialWindow[] {
   const sorted = [...rows].sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
-  return sorted.map((row, i) => ({ number: row.number, name: row.name, start: row.startsAt, end: sorted[i + 1]?.startsAt ?? null }));
+  return sorted.map((row, i) => ({ number: row.number, name: row.name, start: row.startsAt, end: sorted[i + 1]?.startsAt ?? null, rules: readRuleSnapshot(row.rules) }));
 }
 
 /** The season running at `now`, or null before the first one starts. */
@@ -36,7 +39,29 @@ export function scheduledNext(windows: OfficialWindow[], now: Date): OfficialWin
 type Db = Pick<PrismaClient, "officialSeason">;
 
 export async function loadOfficialWindows(database: Db): Promise<OfficialWindow[]> {
-  return officialWindows(await database.officialSeason.findMany({ select: { number: true, name: true, startsAt: true }, orderBy: { startsAt: "asc" } }));
+  return officialWindows(await database.officialSeason.findMany({ select: { number: true, name: true, startsAt: true, rules: true }, orderBy: { startsAt: "asc" } }));
+}
+
+/**
+ * Freezes the public leaderboard rules of the season running at `now`, once (later code changes
+ * cannot rewrite its scores). Afterwards it only adds routes and brackets that did not exist when
+ * it froze, e.g. level-60 routes once launch map IDs are known; existing targets, levels, best-N
+ * and the penalty keep their frozen values until the next season. Seasons that ended are never touched.
+ */
+export async function freezeSeasonRules(database: Db, now: Date, current: BracketedRules = publicRules()): Promise<{ season: string; frozen: boolean; routes: string[]; brackets: string[] } | null> {
+  const row = await database.officialSeason.findFirst({ where: { startsAt: { lte: now } }, orderBy: { startsAt: "desc" }, select: { id: true, name: true, rules: true } });
+  if (!row) return null;
+  const save = (snapshot: PublicRuleSnapshot) => database.officialSeason.update({ where: { id: row.id }, data: { rules: snapshot as unknown as Prisma.InputJsonValue } });
+  if (row.rules === null) {
+    await save(snapshotRules(current, now));
+    return { season: row.name, frozen: true, routes: [], brackets: [] };
+  }
+  // A stored value this code cannot read is left alone, never replaced.
+  const snapshot = readRuleSnapshot(row.rules);
+  const added = snapshot && addedRules(snapshot.rules, current);
+  if (!snapshot || !added) return null;
+  await save({ ...snapshot, rules: added.rules, additions: [...snapshot.additions, { at: now.toISOString(), routes: added.routes, brackets: added.brackets }] });
+  return { season: row.name, frozen: false, routes: added.routes, brackets: added.brackets };
 }
 
 export class SeasonCalendarError extends Error {}

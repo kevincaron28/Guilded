@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Public dungeon leaderboards rank runs by the guild seasons' own check: the addon must see the
+  final boss die (no manual stops), the route and levels come from the run's evidence, and a run
+  counts for each player there for 80% of it. Unranked runs still show, with the reason; rows
+  uploaded before this keep the older check and say so. Each official season freezes its rules
+  when it starts (later only new routes are added), confirmations count independent players'
+  reports (a guild copy and the member's own upload are one), and boards read every run instead
+  of the fastest 5,000. Migration `20261124090000_public_score_evidence`; deploy before Season 1
+  starts on 4 November ([analysis](docs/RAIDER_IO_SCORING_ANALYSIS_2026-10-22.md),
+  [leaderboards](docs/PUBLIC_DUNGEON_LEADERBOARDS.md)).
 - Hosted bot: optional automatic approval. With `HOSTED_AUTO_APPROVE_DAYS` set (off by default), a
   Lite server is approved by itself after that many days once it ran `/setup start`, has
   `HOSTED_AUTO_APPROVE_MEMBERS` members (default 5) and used a command in the last 7 days; the

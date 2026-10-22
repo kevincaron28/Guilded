@@ -2,7 +2,7 @@ import { bracketForLevel, resolveNovemberRoute, validBracketedRules, validRouteR
 import type { Prisma } from "@prisma/client";
 import { grantRunAchievements, type AchievementKey } from "./dungeon-achievements.js";
 import { findCharacter } from "./character-match.js";
-import { competitionReason, createDungeonRatingRules, dungeonRating, hasDungeonRating, ratingCharacterKey, type LevelBand } from "./dungeon-rating.js";
+import { competitionReason, completionReason, createDungeonRatingRules, dungeonRating, hasDungeonRating, ratingCharacterKey, type LevelBand } from "./dungeon-rating.js";
 import { participationDungeonKey, participationMode, participationRecordEligible, type ParticipationRun } from "./dungeon-participation.js";
 import {
   computeRunPoints, computeWeeklyVarietyPoints, dungeonConfig, dungeonRunSchema, validateRun, weekStart,
@@ -204,6 +204,7 @@ export async function importDungeonRuns(
         durationSec,
         completedBy: run.completedBy ?? run.endReason ?? null,
         recorder: run.recorder ?? null,
+        reporterNames: run.reporterNames ?? [],
         competitionData: { players: run.players.map(p => ({ name: p.character, level: p.level ?? null, minLevel: p.minLevel ?? null })), encounters: run.encounters ?? [] },
         reporters: run.reporters,
         protocolVersion: run.protocolVersion,
@@ -282,7 +283,7 @@ export async function importDungeonRuns(
         const unrankedReason = timed ? !check.ok ? check.reason ?? "Invalid run"
           : !inSeason ? "Outside season window"
           : run.id.startsWith("SIM-") ? "Simulation run"
-          : evidence.completedBy !== "final boss" ? "Automatic final-boss completion required"
+          : completionReason(evidence.completedBy) !== undefined ? completionReason(evidence.completedBy)
           : novemberReason ? novemberReason
           : november && !ratingRules.targets[dungeonKey] ? "Participation-only route"
           : !november && dungeonKey === "189" ? "Dungeon route unknown"

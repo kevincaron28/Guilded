@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Public dungeon leaderboards rank runs by the guild seasons' own check: the addon must see the
+  final boss die (no manual stops), the route and levels come from the run's evidence, and a run
+  counts for each player there for 80% of it. Unranked runs still show, with the reason; rows
+  uploaded before this keep the older check and say so. Each official season freezes its rules
+  when it starts (later only new routes are added), confirmations count independent players'
+  reports (a guild copy and the member's own upload are one), and boards read every run instead
+  of the fastest 5,000. Migration `20261124090000_public_score_evidence`; deploy before Season 1
+  starts on 4 November ([analysis](docs/RAIDER_IO_SCORING_ANALYSIS_2026-10-22.md),
+  [leaderboards](docs/PUBLIC_DUNGEON_LEADERBOARDS.md)).
 - Launch-day protection for the companion (WoW Forever goes live 4 November 2026): if the
   watched `Guilded.lua` / `GuildedDungeons.lua` is in the beta folder and another game folder of
   the same install has the file, or it has not changed for 3 days while another folder's copy is

@@ -1,5 +1,5 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
-import { characterPath, type LeaderRun } from "./public-leaderboard.js";
+import { characterPath, leaderRun, PUBLIC_RUN_SELECT, type LeaderRun } from "./public-leaderboard.js";
 import { scoreRun } from "./public-score.js";
 import { formatDuration } from "./dungeon-rules.js";
 import { escapeHtml, link } from "./web-layout.js";
@@ -41,13 +41,9 @@ export function prismaProfileStore(database: PrismaClient, allows: (id: string) 
         where: { status: "ACCEPTED", players: { some: { OR: characters.slice(0, 25).map(char => ({
           character: { equals: char.name, mode: "insensitive" as const }, realm: { equals: char.realm, mode: "insensitive" as const }
         })) } } },
-        orderBy: [{ endedAt: "desc" }, { id: "asc" }], take: 50,
-        select: { id: true, instanceId: true, routeKey: true, difficultyId: true, dungeonName: true, durationSec: true,
-          endedAt: true, deaths: true, bracket: true, season: true, confirmations: true,
-          players: { select: { character: true, realm: true, className: true, role: true, level: true } } }
+        orderBy: [{ endedAt: "desc" }, { id: "asc" }], take: 50, select: PUBLIC_RUN_SELECT
       }) : [];
-      return { id: account.id, name: account.displayName ?? account.username, public: account.publicProfile, characters,
-        runs: runs.map(({ id: runId, ...run }) => ({ runId, ...run })) };
+      return { id: account.id, name: account.displayName ?? account.username, public: account.publicProfile, characters, runs: runs.map(leaderRun) };
     },
     async visibility(id, visible) { await database.webAccount.update({ where: { id }, data: { publicProfile: visible } }); }
   };

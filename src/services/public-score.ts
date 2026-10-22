@@ -1,6 +1,6 @@
 import { provisionalSeasonRules } from "./dungeon-bracket-season.js";
-import { routeTargetAt, type BracketedRules } from "./dungeon-november-rules.js";
-import { SCARLET_WINGS, penalized, timeRating } from "./dungeon-rating.js";
+import { createBracketedDungeonRules, routeTargetAt, validBracketedRules, type BracketedRules } from "./dungeon-november-rules.js";
+import { SCARLET_WINGS, bracketedVerdict, completionReason, penalized, presentEnough, timeRating, type RatingRun } from "./dungeon-rating.js";
 import type { OfficialWindow } from "./official-seasons.js";
 import { weekWindow } from "./dungeon-periods.js";
 
@@ -11,16 +11,87 @@ import { weekWindow } from "./dungeon-periods.js";
 // unrated until launch map IDs exist (dungeon-bracket-season.ts).
 // Public seasons follow the bot owner's calendar (official-seasons.ts, /guilded-season): Season 1
 // from 4 November 2026, then whenever the owner starts the next one; runs before Season 1 are "Beta".
+// 7.4 (docs/RAIDER_IO_SCORING_ANALYSIS_2026-10-22.md):
+// - runs uploaded from 7.4 keep their evidence (completion method, boss kills, start levels,
+//   presence) and are ranked by the guild seasons' own check (dungeon-rating.ts bracketedVerdict):
+//   automatic final-boss completion, route from boss kills, party levels, 80% presence each.
+//   Older rows have no evidence; they keep the levels-and-route check and pages label them;
+// - each official season freezes its rules when it starts (OfficialSeason.rules), so a later code
+//   change cannot rewrite its scores. It only gains routes and brackets that did not exist yet.
 
-export interface ScorePlayer { character: string; realm: string; className: string | null; role: string | null; level: number | null }
+export interface ScorePlayer { character: string; realm: string; className: string | null; role: string | null; level: number | null;
+  minLevel?: number | null; presentSec?: number | null }
+export interface RunEvidence { startedAt: Date; completedBy: string | null; encounters: unknown[] }
 export interface ScoreRun {
   runId: string; instanceId: number; routeKey: string | null; difficultyId: number; dungeonName: string; durationSec: number;
   endedAt: Date; confirmations: number; players: ScorePlayer[];
+  /** Null on runs uploaded before 7.4. */
+  evidence?: RunEvidence | null;
 }
 export interface RunScore { key: string; bracket: string; points: number; penaltyPercent: number }
+/** A run's score, or why it is unranked (still shown as activity, with its time). */
+export interface RunVerdict { score: RunScore | null; reason?: string }
 
 let cachedRules: BracketedRules | null = null;
 export const publicRules = (): BracketedRules => (cachedRules ??= provisionalSeasonRules().rules);
+
+// A season's frozen public rules (OfficialSeason.rules).
+export interface PublicRuleSnapshot { format: 1; frozenAt: string; rules: BracketedRules; additions: { at: string; routes: string[]; brackets: string[] }[] }
+export const snapshotRules = (rules: BracketedRules, now: Date): PublicRuleSnapshot => ({ format: 1, frozenAt: now.toISOString(), rules, additions: [] });
+export function readRuleSnapshot(value: unknown): PublicRuleSnapshot | null {
+  const s = value as PublicRuleSnapshot | null;
+  return s && typeof s === "object" && s.format === 1 && typeof s.frozenAt === "string" && Array.isArray(s.additions) && validBracketedRules(s.rules) ? s : null;
+}
+/**
+ * The frozen rules plus what `current` adds that did not exist when they froze (a launch route,
+ * a new bracket), or null when nothing is new. Existing routes, targets, levels, best-N and the
+ * penalty always keep their frozen values.
+ */
+export function addedRules(frozen: BracketedRules, current: BracketedRules): { rules: BracketedRules; routes: string[]; brackets: string[] } | null {
+  const routes = current.routes.filter(r => !frozen.routes.some(f => f.dungeonKey === r.dungeonKey));
+  const brackets = current.brackets.filter(b => !frozen.brackets.some(f => f.key === b.key));
+  if (!routes.length && !brackets.length) return null;
+  try {
+    const rules = createBracketedDungeonRules({ routes: [...frozen.routes, ...routes], brackets: [...frozen.brackets, ...brackets], overlevelPenalty: frozen.overlevelPenalty,
+      ...(frozen.provisional ? { provisional: { plan: frozen.provisional.plan, waiting: current.provisional?.waiting ?? frozen.provisional.waiting } } : {}),
+      ...(frozen.recalibrations ? { recalibrations: frozen.recalibrations } : {}) });
+    return { rules, routes: routes.map(r => r.dungeonKey), brackets: brackets.map(b => b.key) };
+  } catch { return null; }
+}
+
+// The guild seasons' run shape, from a public run's evidence.
+function ratingRun(run: ScoreRun, evidence: RunEvidence): RatingRun {
+  return { instanceId: run.instanceId, difficultyId: run.difficultyId, durationSec: run.durationSec, startedAt: evidence.startedAt, endedAt: run.endedAt,
+    completedBy: evidence.completedBy, competitionData: { players: run.players.map(p => ({ name: p.character, level: p.level, minLevel: p.minLevel ?? null })), encounters: evidence.encounters },
+    players: run.players.map(p => ({ character: p.character, memberId: null, presentSec: p.presentSec ?? 0, member: null })) };
+}
+
+/** A run's score under `rules`; with `player`, whether that character earned it (80% presence). */
+export function rateRun(run: ScoreRun, rules: BracketedRules = publicRules(), player?: ScorePlayer): RunVerdict {
+  if (!rules.routes.some(r => r.instanceId === run.instanceId)) return { score: null, reason: "Route not rated yet" };
+  if (run.evidence) {
+    const reason = completionReason(run.evidence.completedBy);
+    if (reason) return { score: null, reason };
+    const verdict = bracketedVerdict(ratingRun(run, run.evidence), rules);
+    if (verdict.reason || !verdict.targetSec) return { score: null, reason: verdict.reason ?? "Target not calibrated" };
+    if (player && !presentEnough(player.presentSec ?? 0, run.durationSec)) return { score: null, reason: "Presence under 80%" };
+    return { score: { key: verdict.key, bracket: rules.routeBracket[verdict.key]!, points: penalized(timeRating(run.durationSec, verdict.targetSec), verdict.penaltyPercent), penaltyPercent: verdict.penaltyPercent } };
+  }
+  // Uploaded before 7.4: route, difficulty and party levels only.
+  const key = run.routeKey ?? (run.instanceId === 189 ? null : String(run.instanceId));
+  const band = key ? rules.levelBands[key] : undefined;
+  const target = key ? routeTargetAt(rules, key, run.endedAt) : undefined;
+  if (!key) return { score: null, reason: "Dungeon route unknown" };
+  if (!band || !target) return { score: null, reason: "Route not rated yet" };
+  if (run.difficultyId !== band.difficultyId) return { score: null, reason: "Different difficulty" };
+  const levels = run.players.map(p => p.level);
+  if (!levels.length || levels.some(l => l === null)) return { score: null, reason: "Party levels unknown" };
+  const over = Math.max(0, ...(levels as number[]).map(l => l - band.max));
+  if (over > rules.overlevelPenalty.maxLevels) return { score: null, reason: "Overlevel carry" };
+  if (Math.min(...(levels as number[])) < band.min) return { score: null, reason: "Below level range" };
+  const penaltyPercent = over * rules.overlevelPenalty.percentPerLevel;
+  return { score: { key, bracket: rules.routeBracket[key]!, points: penalized(timeRating(run.durationSec, target), penaltyPercent), penaltyPercent } };
+}
 
 /** Scarlet Monastery wing from the boss kills' names; the map id for every other dungeon. */
 export function publicRouteKey(instanceId: number, kills: { name?: string | undefined; success: boolean }[]): string | null {
@@ -30,18 +101,9 @@ export function publicRouteKey(instanceId: number, kills: { name?: string | unde
   return wings.length === 1 ? `189:${wings[0]![0]}` : null;
 }
 
-/** A run's rated score, or null when it is unrated (unknown route, levels unknown or out of range). */
+/** A run's rated score, or null when it is unrated (rateRun says why). */
 export function scoreRun(run: ScoreRun, rules: BracketedRules = publicRules()): RunScore | null {
-  const key = run.routeKey ?? (run.instanceId === 189 ? null : String(run.instanceId));
-  const band = key ? rules.levelBands[key] : undefined;
-  const target = key ? routeTargetAt(rules, key, run.endedAt) : undefined;
-  if (!key || !band || !target || run.difficultyId !== band.difficultyId || !run.players.length) return null;
-  const levels = run.players.map(p => p.level);
-  if (levels.some(l => l === null)) return null;
-  const over = Math.max(0, ...(levels as number[]).map(l => l - band.max));
-  if (Math.min(...(levels as number[])) < band.min || over > rules.overlevelPenalty.maxLevels) return null;
-  const penaltyPercent = over * rules.overlevelPenalty.percentPerLevel;
-  return { key, bracket: rules.routeBracket[key]!, points: penalized(timeRating(run.durationSec, target), penaltyPercent), penaltyPercent };
+  return rateRun(run, rules).score;
 }
 
 export interface ScoreRow { player: ScorePlayer; bracket: string; points: number; routes: { key: string; points: number; run: ScoreRun; counted: boolean }[] }
@@ -56,7 +118,7 @@ export function characterScores(runs: ScoreRun[], rules: BracketedRules = public
     const score = scoreRun(run, rules);
     if (!score) continue;
     for (const player of run.players) {
-      if (!keep(player, run)) continue;
+      if (!keep(player, run) || run.evidence && !presentEnough(player.presentSec ?? 0, run.durationSec)) continue;
       const id = `${characterId(player)}\0${score.bracket}`;
       const row = rows.get(id) ?? { player, bracket: score.bracket, points: 0, routes: [] };
       const current = row.routes.find(r => r.key === score.key);
@@ -77,7 +139,13 @@ export function characterScores(runs: ScoreRun[], rules: BracketedRules = public
 }
 
 // Public seasons: "beta" (before Season 1), "s1", "s2", ...; a week is the current one only.
-export interface PublicPeriod { id: string; label: string; labelFr: string; from: Date | null; to: Date | null }
+// A season that froze its rules carries them; every other period uses today's (publicRules).
+export interface PublicPeriod { id: string; label: string; labelFr: string; from: Date | null; to: Date | null; rules?: BracketedRules; frozenAt?: Date }
+export const periodRules = (period: PublicPeriod): BracketedRules => period.rules ?? publicRules();
+/** The rules a run ending at `date` is scored with: its season's frozen ones, else today's. */
+export function rulesAt(periods: PublicPeriod[], date: Date): BracketedRules {
+  return periods.find((p) => p.id !== "beta" && p.from && p.from <= date && (!p.to || date < p.to))?.rules ?? publicRules();
+}
 /** The calendar as the migration seeds it, for callers without a database (tests, previews). */
 export const DEFAULT_OFFICIAL: OfficialWindow[] = [{ number: 1, name: "Season 1", start: new Date("2026-11-04T23:00:00Z"), end: null }];
 const frenchName = (name: string) => name.replace(/^Season (\d+)/, "Saison $1");
@@ -86,7 +154,8 @@ const frenchName = (name: string) => name.replace(/^Season (\d+)/, "Saison $1");
 export function publicSeasons(now: Date, windows: OfficialWindow[] = DEFAULT_OFFICIAL): PublicPeriod[] {
   const sorted = [...windows].sort((a, b) => a.start.getTime() - b.start.getTime());
   const list: PublicPeriod[] = sorted.filter((w) => w.start <= now).reverse()
-    .map((w) => ({ id: `s${w.number}`, label: w.name, labelFr: frenchName(w.name), from: w.start, to: w.end }));
+    .map((w) => ({ id: `s${w.number}`, label: w.name, labelFr: frenchName(w.name), from: w.start, to: w.end,
+      ...(w.rules ? { rules: w.rules.rules, frozenAt: new Date(w.rules.frozenAt) } : {}) }));
   list.push({ id: "beta", label: "Beta (before Season 1)", labelFr: "Bêta (avant la saison 1)", from: null, to: sorted[0]?.start ?? null });
   return list;
 }

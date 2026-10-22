@@ -71,7 +71,7 @@ import { runRaidReminders } from "./services/reminders.js";
 import { runCooldownPings } from "./services/recipes.js";
 import { DUNGEON_SEASON_SELECT, handleDungeonSeasonSelect, updateDungeonLeaderboard } from "./services/dungeon-leaderboard.js";
 import { BACKUP_DIR, runBackup } from "./services/backup.js";
-import { loadOfficialWindows, rotateOfficialSeasons, startOfficialSeason } from "./services/official-seasons.js";
+import { freezeSeasonRules, loadOfficialWindows, rotateOfficialSeasons, startOfficialSeason } from "./services/official-seasons.js";
 import { executeOwnerSeason, OWNER_SEASON_COMMAND, ownerSeasonCommand } from "./commands/owner-season.js";
 import { updateCommunityLeaderboard } from "./services/community-leaderboard.js";
 import { cleanupPastRaidPosts } from "./services/raid-post-cleanup.js";
@@ -303,7 +303,14 @@ client.once(Events.ClientReady, (readyClient) => {
   const rotateSeasons = () => {
     if (rotating) return;
     rotating = true;
-    loadOfficialWindows(prisma)
+    // The public leaderboards' rules freeze when a season starts, then only gain new routes.
+    freezeSeasonRules(prisma, new Date())
+      .then((change) => {
+        if (change?.frozen) console.info(`Public dungeon rules frozen for ${change.season}.`);
+        else if (change) console.info(`Public dungeon rules for ${change.season} gained routes ${change.routes.join(", ") || "-"}, brackets ${change.brackets.join(", ") || "-"}.`);
+      })
+      .catch(reportJobError("Public season rules"))
+      .then(() => loadOfficialWindows(prisma))
       .then((windows) => rotateOfficialSeasons(prisma, windows, new Date(), (discordId) => hostedPilot.allows(discordId), () => runBackup(prisma, new Date(), `${BACKUP_DIR}/seasons`, 24), startOfficialSeason(prisma)))
       .then(async (rotated) => {
         for (const row of rotated) {

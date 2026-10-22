@@ -40,7 +40,7 @@ export async function verifyPublicSharingPostgres(database: PrismaClient): Promi
     const refs = new Map<string, string[]>();
     const store: PublicRunStore = {
       async findRun() { return null; },
-      async createRun(summary, uploaderKey) { refs.set(uploaderKey, [...(refs.get(uploaderKey) ?? []), summary.runRef]); },
+      async createRun(summary, uploader) { refs.set(uploader.key, [...(refs.get(uploader.key) ?? []), summary.runRef]); },
       async addUpload() { throw new Error("Unexpected duplicate in sharing rehearsal"); },
       async uploadsSince() { return 0; },
       async storedRefs(uploaderKey) { return refs.get(uploaderKey) ?? []; }

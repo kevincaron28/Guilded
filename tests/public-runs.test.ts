@@ -26,15 +26,17 @@ export function memoryRunStore() {
   let next = 0;
   const store: PublicRunStore = {
     async findRun(runKey) { return runs.get(runKey) ?? null; },
-    async createRun(summary, uploaderKey) {
-      runs.set(summary.runKey, { id: `r${++next}`, status: "ACCEPTED", durationSec: summary.durationSec, endedAt: summary.endedAt, players: summary.players.map((p) => p.character), uploaders: [uploaderKey], summary, confirmations: 1 });
-      uploads.push({ uploaderKey, runRef: summary.runRef, at: NOW });
+    async createRun(summary, uploader) {
+      runs.set(summary.runKey, { id: `r${++next}`, status: "ACCEPTED", durationSec: summary.durationSec, endedAt: summary.endedAt, players: summary.players.map((p) => p.character),
+        uploaders: [uploader.key], reporters: [...uploader.reporters], summary, confirmations: 1 });
+      uploads.push({ uploaderKey: uploader.key, runRef: summary.runRef, at: NOW });
     },
-    async addUpload(runId, uploaderKey, summary, agree) {
+    async addUpload(runId, uploader, summary, agree, confirm) {
       const row = [...runs.values()].find((entry) => entry.id === runId)!;
-      row.uploaders.push(uploaderKey);
-      if (agree) row.confirmations++; else row.status = "DISPUTED";
-      uploads.push({ uploaderKey, runRef: summary.runRef, at: NOW });
+      row.uploaders.push(uploader.key);
+      row.reporters.push(...uploader.reporters.filter((name) => !row.reporters.includes(name)));
+      if (!agree) row.status = "DISPUTED"; else if (confirm) row.confirmations++;
+      uploads.push({ uploaderKey: uploader.key, runRef: summary.runRef, at: NOW });
     },
     async uploadsSince(uploaderKey, since) { return uploads.filter((u) => u.uploaderKey === uploaderKey && u.at >= since).length; },
     async storedRefs(uploaderKey) { return uploads.filter((u) => u.uploaderKey === uploaderKey).map((u) => u.runRef); }
@@ -64,6 +66,15 @@ describe("public run checks", () => {
     expect(seasonOf(new Date("2027-01-01T00:00:00Z"))).toBe("2027-Q1");
   });
 
+  it("keeps the evidence a ranked run needs: completion, boss kills, start levels and presence", () => {
+    const summary = summarize(parse(run({ completedBy: "final boss", encounters: [{ id: 1, success: false, at: END - 950 }, { id: 2, name: "Bazzalan", success: true, at: END - 10, startedAt: END - 60 }],
+      players: [{ character: "Kev", realm: "Doomhowl", level: 17, minLevel: 16, presentSec: 1400, inGuild: false }] })));
+    expect(summary).toMatchObject({ evidenceVersion: 1, completedBy: "final boss", encounters: [{ id: 2, name: "Bazzalan", success: true, at: END - 10, startedAt: END - 60 }] });
+    expect(summary.players[0]).toMatchObject({ level: 17, minLevel: 16, presentSec: 1400 });
+    // Older addons say why the run ended instead.
+    expect(summarize(parse(run({ endReason: "manual" }))).completedBy).toBe("manual");
+  });
+
   it("decides when two uploads of one run agree", () => {
     const stored = { durationSec: 1500, endedAt: new Date(END * 1000), players: ["Kev", "Amy", "Bob"] };
     expect(agrees(stored, summarize(parse(run({ startedAt: END - 1520 }))))).toBe(true);
@@ -85,6 +96,19 @@ describe("public run uploads", () => {
     const bob = await ingestPublicRuns(memory.store, { uploaderKey: "account:bob", character: "Bob", source: "personal", runs: [run({ startedAt: END - 400, encounters: [] })] }, NOW);
     expect(bob.rejected[0]!.reason).toContain("held for review");
     expect([...memory.runs.values()][0]!.status).toBe("DISPUTED");
+  });
+
+  it("counts one report once when it arrives through the guild and the member's own companion", async () => {
+    const memory = memoryRunStore();
+    // The guild's copy carries Kev's and Amy's reports (reporter names and recorder).
+    await ingestPublicRuns(memory.store, { uploaderKey: "guild:g1", character: null, source: "guild", runs: [run()] }, NOW);
+    expect([...memory.runs.values()][0]!.reporters).toEqual(["kev", "amy"]);
+    const kev = await ingestPublicRuns(memory.store, { uploaderKey: "account:kev", character: "Kev", source: "personal", runs: [run()] }, NOW);
+    expect(kev.confirmed).toEqual(["QG-20261110-190000-Kev"]);
+    expect([...memory.runs.values()][0]!.confirmations).toBe(1);
+    // Bob's own report is a second, independent one.
+    await ingestPublicRuns(memory.store, { uploaderKey: "account:bob", character: "Bob", source: "personal", runs: [run()] }, NOW);
+    expect([...memory.runs.values()][0]!.confirmations).toBe(2);
   });
 
   it("rejects bad input and limits uploads", async () => {

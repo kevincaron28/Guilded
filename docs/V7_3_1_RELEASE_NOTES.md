@@ -45,3 +45,4 @@ download-page fallback, failed installer launch and retry. Final-commit quality,
 PostgreSQL restore and Windows packaging checks are required. The Windows installer
 is unsigned. A real update from this fixed version to a future release and existing
 uncompleted game checks remain acceptance follow-up; do not record them as passed.
+Track those game checks in the [acceptance checklist](V6_2_GAME_ACCEPTANCE.md).

@@ -30,6 +30,13 @@ describe("companion installer packaging", () => {
     }
   });
 
+  it("ships every engine module the app itself loads", () => {
+    const main = readFileSync("companion-app/main.cjs", "utf8");
+    const loaded = [...main.matchAll(/url\("([^"]+\.mjs)"\)/g)].map((match) => match[1]);
+    expect(loaded).toContain("live-folder.mjs");
+    for (const file of loaded) expect(shippedFiles).toContain(file);
+  });
+
   it("ships every package the engine imports into resources/engine/node_modules", () => {
     expect([...barePackages]).toContain("luaparse");
     for (const name of barePackages) {

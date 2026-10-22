@@ -1,6 +1,8 @@
 import { EmbedBuilder, SlashCommandBuilder, escapeMarkdown, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
+import { config } from "../config.js";
 import { asLang, t, tx, type Lang } from "../i18n.js";
+import { v2Reply, type V2Link } from "../services/components-v2.js";
 import { achievementName } from "../services/dungeon-achievements.js";
 import { ensureDungeonSignupGuide } from "../services/dungeon-guide.js";
 import { dungeonConfig, formatDuration } from "../services/dungeon-rules.js";
@@ -164,14 +166,14 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
       const week = weekSeason(season);
       const rows = week ? await dungeonRating(prisma, context.guildId, week, instanceId) : [];
       const since = `<t:${Math.floor(weekWindow(new Date()).start.getTime() / 1000)}:f>`;
-      await interaction.reply({ content: lang === "fr" ? `Depuis la réinitialisation hebdomadaire (${since}).` : `Since the weekly reset (${since}).`,
-        embeds: [ratingEmbed(rows, `${season.name} · ${lang === "fr" ? "cette semaine" : "this week"}`, lang, season.ratingRules, bracketChoice(interaction, rows, context.memberId))], allowedMentions: { parse: [] } });
+      await interaction.reply(v2Reply(ratingEmbed(rows, `${season.name} · ${lang === "fr" ? "cette semaine" : "this week"}`, lang, season.ratingRules, bracketChoice(interaction, rows, context.memberId)),
+        { lead: lang === "fr" ? `Depuis la réinitialisation hebdomadaire (${since}).` : `Since the weekly reset (${since}).`, link: await publicBoardLink(context.guildId, lang) }));
       return;
     }
     if (metric === "rating" && !hasDungeonRating(season?.ratingRules)) throw new Error(lang === "fr" ? "Cette saison utilise les anciens points de participation." : "This season uses legacy participation points.");
     if (period === "season" && season && hasDungeonRating(season.ratingRules) && metric !== "participation") {
       const rows = await dungeonRating(prisma, context.guildId, season, instanceId);
-      await interaction.reply({ embeds: [ratingEmbed(rows, season.name, lang, season.ratingRules, bracketChoice(interaction, rows, context.memberId))], allowedMentions: { parse: [] } });
+      await interaction.reply(v2Reply(ratingEmbed(rows, season.name, lang, season.ratingRules, bracketChoice(interaction, rows, context.memberId)), { link: await publicBoardLink(context.guildId, lang) }));
       return;
     }
     const rows = season?.status === "ENDED" && instanceId === null ? await seasonRows(prisma, context.guildId, { ...season, ratingRules: null }) : await leaderboard(prisma, context.guildId, period, instanceId, 10, new Date(), seasonId);
@@ -241,5 +243,17 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
       if (top.length) embed.addFields({ name: t(lang, "dungeon.season.top"), value: formatLeaderboard(top) });
     }
   }
-  await interaction.reply({ embeds: [embed], allowedMentions: { parse: [] } });
+  // Leaderboards use the V2 layout with a link to the public page; other replies stay embeds.
+  await interaction.reply(subcommand === "leaderboard"
+    ? v2Reply(embed, { link: await publicBoardLink(context.guildId, lang) })
+    : { embeds: [embed], allowedMentions: { parse: [] } });
+}
+
+// The guild's public leaderboard page, when it shares its runs and this bot has a website.
+async function publicBoardLink(guildId: string, lang: Lang): Promise<V2Link | undefined> {
+  if (!config.PUBLIC_SITE_URL) return undefined;
+  const settings = await prisma.guildSettings.findUnique({ where: { guildId }, select: { publicDungeonRuns: true } });
+  if (!settings?.publicDungeonRuns) return undefined;
+  return { label: lang === "fr" ? "Classements publics" : "Public leaderboards",
+    url: `${new URL(config.PUBLIC_SITE_URL).origin}/leaderboards/guild/${encodeURIComponent(guildId)}?lang=${lang}` };
 }

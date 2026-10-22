@@ -67,8 +67,8 @@ function saveConfig() {
 async function loadEngineModules() {
   const dir = app.isPackaged ? path.join(process.resourcesPath, "engine") : path.join(__dirname, "..", "companion");
   const url = (file) => pathToFileURL(path.join(dir, file)).href;
-  const [engineModule, standingsModule, requestModule, sheetModule] = await Promise.all([import(url("engine.mjs")), import(url("standings.mjs")), import(url("request.mjs")), import(url("sheet-export.mjs"))]);
-  return { ...engineModule, ...standingsModule, ...requestModule, sheetFiles: sheetModule.sheetFiles };
+  const [engineModule, standingsModule, requestModule, sheetModule, liveFolderModule] = await Promise.all([import(url("engine.mjs")), import(url("standings.mjs")), import(url("request.mjs")), import(url("sheet-export.mjs")), import(url("live-folder.mjs"))]);
+  return { ...engineModule, ...standingsModule, ...requestModule, sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile };
 }
 
 function pushLog(entry) {
@@ -95,7 +95,8 @@ let latestRelease = null;
 
 function refreshUpdate(state = engine?.state()) {
   const next = updates.pickUpdate(app.getVersion(), latestRelease, state?.botVersion);
-  if (next?.version === update?.version) return;
+  // The bot can announce the version before GitHub provides the installer.
+  // Refresh the metadata even for the same version; notification dedup is below.
   update = next;
   if (!update || config.updateNotifiedVersion === update.version) return;
   config.updateNotifiedVersion = update.version;
@@ -115,19 +116,58 @@ async function checkForUpdate() {
   if (engine) onState(engine.state());
 }
 
+// Launch-day check (companion/live-folder.mjs): when the watched file last changed, for the
+// Overview status line, and the live game's folder to offer when WoW saves somewhere else.
+// Checked at start, after each upload or setup change, and every hour.
+let savedFile = null;
+let savedFileCheck = 0;
+let lastUploadAt = null;
+const french = () => /^fr/i.test(app.getLocale());
+
+async function refreshSavedFile() {
+  const ticket = ++savedFileCheck;
+  let result = null;
+  if (config.wowEnabled !== false && config.watchFile) {
+    try { result = await engineModules.checkSavedFile(config.watchFile, { ignore: config.liveFolderDeclined ?? [] }); } catch { /* checked again within the hour */ }
+  }
+  if (ticket !== savedFileCheck) return;
+  savedFile = result;
+  const candidate = savedFile?.candidate;
+  // The app mostly lives in the tray: say it once per folder outside the window too.
+  if (candidate && config.liveFolderNotified !== candidate.path) {
+    config.liveFolderNotified = candidate.path;
+    saveConfig();
+    if (Notification.isSupported()) {
+      const notice = new Notification({
+        title: french() ? "Vos données WoW sont peut-être ailleurs" : "Your WoW saved data may have moved",
+        body: french() ? `${candidate.gameFolder} a un fichier plus récent. Cliquez pour changer de dossier.` : `${candidate.gameFolder} has a newer file. Click to switch folders.`,
+        icon: asset("icon.png")
+      });
+      notice.on("click", showWindow);
+      notice.show();
+    }
+  }
+  if (engine) onState(engine.state());
+}
+
 function onState(state) {
   refreshUpdate(state);
   const status = health(state);
-  win?.webContents.send("state", { state, health: status, update });
+  win?.webContents.send("state", { state, health: status, update, savedFile });
   if (tray) {
     tray.setImage(nativeImage.createFromPath(asset(`tray-${status.level}.png`)).resize({ width: 32, height: 32 }));
-    tray.setToolTip(`Guilded Companion\n${status.text}${update ? `\nUpdate available: ${update.version}` : ""}`);
+    tray.setToolTip(`Guilded Companion\n${status.text}${update ? `\nUpdate available: ${update.version}` : ""}${savedFile?.candidate ? "\nWoW data may have moved: open to check" : ""}`);
+  }
+  // An upload means the file changed: refresh its date for the status line.
+  if (state.lastUpload?.at && state.lastUpload.at !== lastUploadAt) {
+    lastUploadAt = state.lastUpload.at;
+    void refreshSavedFile();
   }
 }
 
 function currentState() {
   const state = engine.state();
-  return { state, health: health(state), update };
+  return { state, health: health(state), update, savedFile };
 }
 
 function showWindow() {
@@ -252,6 +292,8 @@ app.whenReady().then(async () => {
   }
   await engine.start();
   onState(engine.state());
+  void refreshSavedFile();
+  setInterval(() => void refreshSavedFile(), 60 * 60 * 1000);
   // Look for a newer release shortly after start, then twice a day.
   setTimeout(() => void checkForUpdate(), 20_000);
   setInterval(() => void checkForUpdate(), 12 * 60 * 60 * 1000);
@@ -276,9 +318,32 @@ ipcMain.handle("save-config", async (_event, next) => {
   config = { ...config, ...next, poeJournalFile: path.join(app.getPath("userData"), "poe-journal.json"), standingsIntervalMinutes: Math.max(1, Number(next.standingsIntervalMinutes) || 2) };
   const problems = engineModules.validateConfig(config);
   saveConfig();
+  void refreshSavedFile();
   if (problems.length > 0) { await engine.stop(); onState(engine.state()); return { ok: false, message: problems[0] }; }
   const started = await engine.configure(config);
   return started ? { ok: true, message: "Saved. The companion is running." } : { ok: false, message: "Saved, but it could not start. See the Activity page." };
+});
+
+// The Overview prompt: watch the live game's file instead (the page words the result), or keep
+// this folder and never be asked about that file again.
+ipcMain.handle("switch-live-folder", async () => {
+  const candidate = savedFile?.candidate;
+  if (!candidate) return { ok: false, path: null };
+  config = { ...config, watchFile: candidate.path };
+  saveConfig();
+  pushLog({ time: new Date().toISOString(), level: "info", message: `Saved-data file switched to ${candidate.path} (${candidate.reason === "beta" ? "the beta folder is no longer used" : "the previous file had not changed for 3 days"}).` });
+  const started = await engine.configure(config);
+  await refreshSavedFile();
+  return { ok: started, path: candidate.path };
+});
+ipcMain.handle("dismiss-live-folder", async () => {
+  const candidate = savedFile?.candidate;
+  if (candidate) {
+    config.liveFolderDeclined = [...(config.liveFolderDeclined ?? []), candidate.path].slice(-20);
+    saveConfig();
+  }
+  await refreshSavedFile();
+  return true;
 });
 
 ipcMain.handle("open-update", () => shell.openExternal(update?.url || updates.RELEASES_PAGE));
@@ -288,25 +353,38 @@ ipcMain.handle("open-update", () => shell.openExternal(update?.url || updates.RE
 let installing = false;
 ipcMain.handle("install-update", async () => {
   if (installing) return { ok: false, message: "The update is already downloading." };
-  if (!update?.installer) { await shell.openExternal(update?.url || updates.RELEASES_PAGE); return { ok: true, message: "This update has no direct installer: the download page opened." }; }
   installing = true;
+  let handedOff = false;
   try {
-    const target = path.join(app.getPath("temp"), update.installer.name);
+    // Retry metadata on click, including when the startup GitHub request failed.
+    await checkForUpdate();
+    const selected = update;
+    if (!selected) return { ok: true, action: "current", message: "Your companion is up to date." };
+    if (!selected.installer) {
+      await shell.openExternal(selected.url || updates.RELEASES_PAGE);
+      pushLog({ time: new Date().toISOString(), level: "info", message: "Update download page opened; run the installer from that page to finish updating." });
+      return { ok: true, action: "download-page", message: "The download page opened. Download and run the installer to finish updating." };
+    }
+    const target = path.join(app.getPath("temp"), selected.installer.name);
+    pushLog({ time: new Date().toISOString(), level: "info", message: `Downloading Guilded Companion ${selected.version} and verifying its checksum.` });
     let shown = -1;
-    await updates.downloadInstaller(update.installer, target, { onProgress: (share) => {
+    await updates.downloadInstaller(selected.installer, target, { onProgress: (share) => {
       const percent = Math.floor(share * 100);
       if (percent !== shown && percent % 5 === 0) { shown = percent; win?.webContents.send("update-progress", percent); }
     } });
     saveConfig();
     // NSIS (electron-builder): /S silent, --updated keeps it an upgrade, --force-run starts the new version.
-    spawn(target, ["/S", "--updated", "--force-run"], { detached: true, stdio: "ignore" }).unref();
+    await updates.launchInstaller(target, spawn);
+    pushLog({ time: new Date().toISOString(), level: "info", message: `Installer started for Guilded Companion ${selected.version}; restarting the companion.` });
+    handedOff = true;
     quitting = true;
     setTimeout(() => app.quit(), 500);
-    return { ok: true, message: `Installing Guilded Companion ${update.version}. It restarts by itself in a moment.` };
+    return { ok: true, action: "installing", message: `Installing Guilded Companion ${selected.version}. It restarts by itself in a moment.` };
   } catch (error) {
+    pushLog({ time: new Date().toISOString(), level: "error", message: `Update failed: ${error instanceof Error ? error.message : String(error)}` });
     return { ok: false, message: `The update could not be installed: ${error instanceof Error ? error.message : String(error)} Try again, or use the download page.` };
   } finally {
-    installing = false;
+    if (!handedOff) installing = false;
   }
 });
 

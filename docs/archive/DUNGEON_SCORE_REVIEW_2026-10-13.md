@@ -1,9 +1,9 @@
-Current direction: wider dungeon-time rating, carry protection and separate boss records. See [candidate design and rollout](DUNGEON_SEASON_RATING.md). Earlier 100 + 20 notes below are superseded.
+Current direction: wider dungeon-time rating, carry protection and separate boss records. See [candidate design and rollout](../DUNGEON_SEASON_RATING.md). Earlier 100 + 20 notes below are superseded.
 
 # Guild dungeon scores: review and candidate UI
 
 Follow-up: the owner approved the 100 + 20 system and seasonal breakdowns.
-See [implemented seasonal rating](DUNGEON_SEASON_RATING.md) for current behavior,
+See [implemented seasonal rating](../DUNGEON_SEASON_RATING.md) for current behavior,
 transport, compatibility and remaining gates. The proposal and data limitations
 below describe the earlier candidate and are retained as design history.
 

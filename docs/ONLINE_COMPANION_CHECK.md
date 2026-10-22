@@ -3,7 +3,7 @@
 **Current status, 5 October: Oracle and the unified public companion now serve
 6.0.0 / protocol 2. The website-to-companion flow and unpaired connection check
 passed in the live browser. Authenticated upload and in-game return at the new
-origin remain pending.** See [the finalization checklist](V6_0_FINALIZATION_CHECKLIST.md).
+origin remain pending.** See [the finalization checklist](archive/V6_0_FINALIZATION_CHECKLIST.md).
 
 Read-only checks with the existing desktop credential now also pass for
 standings, management and PoE status through the unified origin (HTTP 200,

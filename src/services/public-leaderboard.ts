@@ -347,7 +347,12 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
           ? table([t("Season", "Saison"), t("Levels", "Niveaux"), t("Score", "Score"), ""], history.flatMap((h) => h.rows.map((row) => `<tr><td>${escapeHtml(periodName(ctx, h.p))}</td><td>${escapeHtml(bracketName(ctx, row.bracket))}</td><td class="num score">${row.points}</td><td class="bar-cell"><div class="meter" style="width:${Math.round(100 * row.points / top)}%"></div></td></tr>`)), [2])
           : `<p class="muted">${t("No rated season yet.", "Aucune saison classée.")}</p>`)
         : `<p class="muted">${t("No public run for this character yet.", "Aucun essai public pour ce personnage.")}</p>`);
-    return kit.page(runs.length ? 200 : 404, title, body, { description: t(`${title}: dungeon score and times on Guilded's public leaderboards.`, `${title} : score et temps de donjon sur les classements publics de Guilded.`), ...(runs.length ? {} : { noindex: true }) });
+    // The link preview leads with this season's score per bracket, so a pasted link shows it.
+    const scoreLine = current.map((row) => `${row.points} (${bracketName(ctx, row.bracket)})`).join(", ");
+    const description = scoreLine
+      ? t(`${title}: dungeon score ${scoreLine} · ${periodName(ctx, seasons[0]!)} · Guilded leaderboards.`, `${title} : score de donjon ${scoreLine} · ${periodName(ctx, seasons[0]!)} · classements Guilded.`)
+      : t(`${title}: dungeon score and times on Guilded's public leaderboards.`, `${title} : score et temps de donjon sur les classements publics de Guilded.`);
+    return kit.page(runs.length ? 200 : 404, title, body, { description, ...(runs.length ? {} : { noindex: true }) });
   }
 
   async function guildPage(ctx: WebContext, kit: WebKit, id: string): Promise<WebResponse> {

@@ -19,6 +19,10 @@ const environmentSchema = z.object({
   HOSTED_GUILD_LIMIT: z.coerce.number().int().min(1).max(100).default(5),
   // Servers waiting for approval get Guilded Lite until this many are waiting (0: no access until approved).
   HOSTED_LITE_LIMIT: z.coerce.number().int().min(0).max(100).default(50),
+  // A Lite server is approved by itself after this many days once it ran /setup start, has
+  // HOSTED_AUTO_APPROVE_MEMBERS members and was used in the last 7 days (0: approvals stay manual).
+  HOSTED_AUTO_APPROVE_DAYS: z.coerce.number().int().min(0).max(60).default(0),
+  HOSTED_AUTO_APPROVE_MEMBERS: z.coerce.number().int().min(1).max(1000).default(5),
   DATABASE_URL: z.string().url(),
   COMPANION_API_PORT: z.coerce.number().int().min(1).max(65535).default(8787),
   // 127.0.0.1 = this computer only. On a server behind HTTPS (deploy/), use 0.0.0.0 or leave 127.0.0.1 with a reverse proxy.

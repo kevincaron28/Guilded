@@ -1,7 +1,7 @@
 {
   "name": "guilded-companion",
   "productName": "Guilded Companion",
-  "version": "7.3.0",
+  "version": "7.3.1",
   "description": "Your guild, connected. World of Warcraft sync and Path of Exile 2 mapping.",
   "main": "main.cjs",
   "private": true,
@@ -13,7 +13,7 @@
     "pack": "npm --prefix .. run companion:build && electron-builder --win dir --publish never"
   },
   "devDependencies": {
-    "electron": "^44.5.0",
+    "electron": "^45.0.0",
     "electron-builder": "^26.15.3"
   },
   "build": {
@@ -49,7 +49,8 @@
           "data-addon.mjs",
           "personal-runs.mjs",
           "personal-runs-content.mjs",
-          "sheet-export.mjs"
+          "sheet-export.mjs",
+          "live-folder.mjs"
         ]
       },
       {

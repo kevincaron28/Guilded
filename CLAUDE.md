@@ -1,3 +1,6 @@
+> 7.3.1 (22 October 2026): raid readiness requires level 60 and flags old checks; companion Update now
+> repair (a companion on 7.2.0/7.3.0 needs one manual install). Live on the bot and GitHub; CurseForge
+> has 7.3.0. Pre-release audit and recommendations: docs/PRE_RELEASE_AUDIT_2026-10-22.md.
 > 7.3.0 (20 October 2026): safe-exit dungeon result card in both addons, optional cross-guild raid vacancies and companion browser, public player profiles and dungeon setup guide. See docs/V7_3_0_RELEASE_NOTES.md for deployment and pending real-client acceptance.
 > 7.2.1 (20 October 2026): leaderboards-only companions read GuildedDungeons.lua AND Guilded.lua
 > (companion/personal-runs.mjs); pool of 8 DB connections (src/database.ts); /health "commands" and
@@ -10,7 +13,8 @@
 > 7.0.0 (19 October 2026): web sign-in and recruitment (/mod recruit), public dungeon leaderboards
 > (/mod leaderboard), standalone Guilded Dungeons addon (addon/GuildedDungeons; after editing Guilded's
 > shared dungeon Lua run `npm run dungeons:sync`), companion personal mode and CSV export, /officer export,
-> startable provisional all-level season. /officer is ~3,780 of Discord's 4,000 characters: put new
+> startable provisional all-level season. /officer is the largest command: 3,431 of Discord's 4,000
+> characters on 21 October 2026 (/character 3,346; the size test fails above 3,900). Put new
 > officer subcommands elsewhere (docs/V7_0_0_RELEASE_NOTES.md).
 > 6.7.0 (18 October 2026): members see only their commands; leader and officer tools under /lead,
 > /officer, /organize; Integrations-visibility warning in /setup (docs/V6_7_0_RELEASE_NOTES.md).
@@ -35,7 +39,7 @@
 > 6.2.0 Release (16 October 2026): the owner released 6.2.0 (standalone guilds, November
 > scoring preparation, companion sync from PR #84) before its real-client checks. Those
 > checks in `docs/V6_2_GAME_ACCEPTANCE.md` are post-release follow-up. Release record:
-> `docs/V6_2_RELEASE_HANDOFF.md`.
+> `docs/archive/V6_2_RELEASE_HANDOFF.md`.
 >
 > **5.0 delivery note:** The stabilization bundle (Guilded-5.0-Stabilization.zip) was merged as
 > PR #4; ignore the offline bundle import section in docs/V5_0_RELEASE_HANDOFF.md. Work now goes
@@ -52,7 +56,8 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (20 October 2026): version 7.3.0 Release source, protocol 2.**
+**Current status (22 October 2026): version 7.3.1 Release, protocol 2.** WoW Forever launches
+4 November 2026 (beta closed 21 October); its first raids open 9 December.
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
 Standalone guild and optional Guilded Games work is next-version candidate
 source; do not overwrite the published 6.2.0 downloads or bump incidentally.
@@ -93,6 +98,11 @@ Without `.env.local` (cloud sandboxes), 9 bot test files fail to load on
 throwaway placeholders set in the shell only (never commit them):
 `DISCORD_TOKEN=placeholder DISCORD_CLIENT_ID=123 DISCORD_GUILD_ID=456 DATABASE_URL=postgresql://u:p@localhost:5432/x npx vitest run`.
 
+`tsc` is TypeScript 7 (installed as `@typescript/native`), but the `typescript` package is
+the 6.0 API (`@typescript/typescript6`, CLI `tsc6`): 7.0 ships no compiler API, and
+typescript-eslint and `tests/command-handler-coverage.test.ts` need one. Keep both
+aliases until typescript-eslint accepts TypeScript 7.
+
 Two failure modes only the test suite catches, not the type checker:
 
 - **`/setup` and `/config` are merged into one Discord command**
@@ -114,6 +124,10 @@ Two failure modes only the test suite catches, not the type checker:
   (accents as `\195\169`-style escapes: the validator rejects non-ASCII). Other files
   aren't checked (e.g. `src/commands/help.ts` keeps its own separate
   `en`/`fr` arrays, not `tx()`).
+- **A version bump updates the "current" lines too.** `tests/current-version-docs.test.ts`
+  fails until `README.md` ("Current version"), this file (status line and top history line),
+  `ROADMAP.md` ("Current stage"), `CHANGELOG.md`, both addon `.toc` files and
+  `companion-app/package.json` match `package.json`. Guides link "latest release" instead.
 
 Two sync sharp edges (see `docs/SYNC_SPEEDUPS_2026-10-15.md`):
 

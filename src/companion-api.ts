@@ -407,7 +407,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           if (!found) { recordFailure(address); json(response, 401, { error: "Pairing code is invalid, expired, or already used. Run /character pair again." }); return; }
           serverId = found;
         }
-        if (!hostedPilot.allows(serverId)) { json(response, 403, { error: "Server not approved for hosted pilot" }); return; }
+        if (!hostedPilot.allows(serverId)) { json(response, 403, { error: "This server is on Guilded Lite: companion sync unlocks when the Guilded owner approves it." }); return; }
         const guild = await prisma.guild.findUnique({ where: { discordId: serverId }, select: { id: true } });
         if (!guild) {
           json(response, 404, { error: "Guild is not initialized" });
@@ -457,7 +457,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const requestPayload = payload as { guildDiscordId?: unknown; export?: unknown } | null;
       const guildDiscordId = isStandings || isPoeStatus || isPoeRecent || isManageView ? url.searchParams.get("guild") : requestPayload?.guildDiscordId;
       if (typeof guildDiscordId !== "string") { json(response, 400, { error: "guildDiscordId is required" }); return; }
-      if (!hostedPilot.allows(guildDiscordId)) { json(response, 403, { error: "Server not approved for hosted pilot" }); return; }
+      if (!hostedPilot.allows(guildDiscordId)) { json(response, 403, { error: "This server is on Guilded Lite: companion sync unlocks when the Guilded owner approves it." }); return; }
       const guild = await prisma.guild.findUnique({ where: { discordId: guildDiscordId } });
       if (!guild) { json(response, 404, { error: "Guild is not initialized" }); return; }
       const header = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");

@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld("companion", {
   browseFile: () => ipcRenderer.invoke("browse-file"),
   browsePoeLog: () => ipcRenderer.invoke("browse-poe-log"),
   detectWow: () => ipcRenderer.invoke("detect-wow"),
+  switchLiveFolder: () => ipcRenderer.invoke("switch-live-folder"),
+  dismissLiveFolder: () => ipcRenderer.invoke("dismiss-live-folder"),
   uploadNow: () => ipcRenderer.invoke("upload-now"),
   refreshStandings: () => ipcRenderer.invoke("refresh-standings"),
   exportSheets: (table) => ipcRenderer.invoke("export-sheets", table),

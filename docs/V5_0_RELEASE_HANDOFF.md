@@ -8,7 +8,7 @@ Maintenance update, 9 October 2026: Oracle runs application commit `d4d34e5`,
 6.0.0 / protocol 2, with system updates and kernel reboot complete. The owner's
 desktop companion is now 6.0.0. Caddy's unavailable Cloudsmith source is disabled;
 use official GitHub packages until that signed source recovers. See
-[maintenance evidence and remaining acceptance](MAINTENANCE_2026-10-09.md).
+[maintenance evidence and remaining acceptance](archive/MAINTENANCE_2026-10-09.md).
 
 Owner release decision, 5 October 2026: **6.0.0 is the full Release; next is 6.1.0.**
 Use [current release notes](V6_0_RELEASE_NOTES.md). Earlier beta-promotion requirements below are historical;
@@ -17,7 +17,7 @@ unverified checks remain follow-up work, not passes.
 Current finalization (5 October 2026): Oracle is deployed at 8dc1067 with
 6.0.0 / protocol 2, and the unified website/companion at
 https://guilded-wow.kcaron.workers.dev/ was deployed from ba150d1.
-See docs/V6_0_FINALIZATION_CHECKLIST.md for current evidence and remaining
+See docs/archive/V6_0_FINALIZATION_CHECKLIST.md for current evidence and remaining
 real-client gates. Older deployment/version statements below are historical.
 
 Fresh installation follow-up (5 October 2026): owner confirms the 6.0 addon is
@@ -35,7 +35,7 @@ owner-approved Errant permissions, and verify Guilded before disabling Carl.
 6.0 beta preparation (4 Oct 2026): owner explicitly requested version 6.0.0
 as a Beta for CurseForge distribution and second-PC acceptance. Product source
 versions are intentionally bumped together; protocol remains 2. Use
-`docs/V6_0_BETA_NOTES.md` and the updated CurseForge sheet. Older instructions
+`docs/archive/V6_0_BETA_NOTES.md` and the updated CurseForge sheet. Older instructions
 to keep 5.0.0 are historical. This does not mark live tests passed or authorize
 the pending WoW Discord reset. Production deployment still needs its gates and
 will trigger the normal version announcement.
@@ -49,7 +49,7 @@ instructions below are historical and no longer apply to the v6 candidate.
 
 Release follow-up (4 Oct 2026): owner confirmed both clients reloaded the
 patched addon and the loot-feedback/off-spec GP retests passed. These two
-checks are now recorded in `docs/V6_0_RELEASE_TESTING.md`; the pending-test
+checks are now recorded in `docs/archive/V6_0_RELEASE_TESTING.md`; the pending-test
 statements in the 3 October handoff below are historical. Remaining release
 gates and final-commit CI still need verification before stable publication.
 
@@ -58,7 +58,7 @@ Branch `codex/v6-client-acceptance` records today's acceptance evidence and the
 loot-response feedback fix. All 1,215 tests, TypeScript, lint and addon validation
 passed. Ray's installed addon has the fix; Seria still needs the three-file
 `dist/Guilded-loot-feedback-patch.zip` and both clients need `/reload` before the
-two-player retest. See `docs/V6_0_RELEASE_TESTING.md` for exact pending gates.
+two-player retest. See `docs/archive/V6_0_RELEASE_TESTING.md` for exact pending gates.
 Do not mark the feedback or off-spec GP test passed, bump to 6.0.0, or publish
 on the strength of offline tests. Production bot remains at 7d8152c / 5.0.0.
 
@@ -67,7 +67,7 @@ Added executeEpgp dispatch and full published-route coverage; all 1,212 tests
 and PostgreSQL/Windows CI passed. PR #37 merged and Oracle deployed commit
 7d8152c with healthy Discord/API on Node 24.21.0; product stays 5.0.0.
 Current Forever beta acceptance evidence and remaining 6.0 gates are in
-`docs/V6_0_RELEASE_TESTING.md`. The owner confirmed the live `/epgp leaderboard`
+`docs/archive/V6_0_RELEASE_TESTING.md`. The owner confirmed the live `/epgp leaderboard`
 retry: Guilded Test shows claudyazes at 15 GP and kevmister28 at 0 GP.
 
 Channel cleanup and podium names (3 Oct 2026): the community podium renders live nicknames
@@ -223,7 +223,7 @@ Weekly core scheduling: `docs/CORE_WEEKLY_RAIDS.md`. Owner chose a rolling **7-d
 signup window; deploy additive migration `20261024090000_core_weekly_schedule`.
 Existing display-only core schedules are not automatically enabled.
 
-Latest audit follow-up: `docs/SYSTEM_POLISH_2026-09-30.md` (database-backed Discord retries, officer sync dashboard, explicit calendar raid IDs, frozen season archives/Hall of Fame and encrypted offsite recovery). PoE 2 planning: `docs/POE2_GUILD_COMPETITION_PLAN.md`. Product stays 5.0.0/protocol 2; deploy migration `20260930180000_system_delivery_archive`, rebuild both client packages and reinstall while preserving pairing/SavedVariables. Real-client gates remain outstanding.
+Latest audit follow-up: `docs/archive/SYSTEM_POLISH_2026-09-30.md` (database-backed Discord retries, officer sync dashboard, explicit calendar raid IDs, frozen season archives/Hall of Fame and encrypted offsite recovery). PoE 2 planning: `docs/POE2_GUILD_COMPETITION_PLAN.md`. Product stays 5.0.0/protocol 2; deploy migration `20260930180000_system_delivery_archive`, rebuild both client packages and reinstall while preserving pairing/SavedVariables. Real-client gates remain outstanding.
 
 Latest core raid, full setup reset and dungeon results changes: `docs/CORE_RAIDS_AND_DUNGEON_RESULTS.md`.
 

@@ -18,7 +18,7 @@ and core rules still have a single record keeper.
 ## Current development - 14 October 2026
 
 6.1.1 shipped the in-game-only chooser; owner acceptance is recorded in
-[IN_GAME_SETUP_2026-10-14.md](IN_GAME_SETUP_2026-10-14.md).
+[IN_GAME_SETUP_2026-10-14.md](archive/IN_GAME_SETUP_2026-10-14.md).
 The next-version candidate adds local core/roster administration, clearer
 standings sources and backup-based officer handover. Party games are extracted
 into an optional addon; loot roll-offs stay in Guilded. Implementation, preview

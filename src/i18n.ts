@@ -109,6 +109,7 @@ const STRINGS = {
   "weekly.topPoints": { en: "Most points", fr: "Plus de points" },
   "weekly.firsts": { en: "First completions", fr: "Premières réussites" },
   "weekly.records": { en: "Records", fr: "Records" },
+  "weekly.leaderboard": { en: "🏆 Full rankings on the public leaderboards: {url}", fr: "🏆 Classement complet sur les classements publics : {url}" },
   "weekly.nothing": { en: "A quiet week: nothing recorded.", fr: "Semaine calme : rien d'enregistré." },
 
   // Welcome

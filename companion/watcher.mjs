@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { createEngine, pairAccount, validateConfig } from "./engine.mjs";
+import { checkSavedFile } from "./live-folder.mjs";
 
 // Command-line companion (start-companion.bat). The desktop app in
 // companion-app/ does the same job with a window and a tray icon.
@@ -20,6 +21,9 @@ if (config.pairingCode?.trim()) {
 }
 const problems = validateConfig(config);
 if (problems.length > 0) throw new Error(`companion.config.json: ${problems[0]}`);
+// Launch day: the live game may save this file in another game folder than the beta did.
+const { candidate } = config.wowEnabled === false ? {} : await checkSavedFile(config.watchFile);
+if (candidate) console.warn(`Your saved data may have moved to ${candidate.path}. Set watchFile in companion.config.json to it to keep uploading.`);
 
 const engine = createEngine(config, {
   onLog: ({ level, message }) => (level === "error" ? console.error : console.log)(message)

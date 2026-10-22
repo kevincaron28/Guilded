@@ -59,10 +59,59 @@ function renderUpdate(update) {
   $('updateTitle').textContent = `Guilded Companion ${update.version} is available`;
   $('updateText').textContent = `You have ${$('version').textContent.replace(/^Version /, '')}. ${update.installer ? 'Update now installs it and restarts the companion' : 'Download the new installer and run it'}: your settings and Discord link are kept.`;
 }
+// Launch day (companion/live-folder.mjs, installed app only): the watched folder with its last
+// upload and file change (amber after 3 days without a change), and the live game's folder to
+// switch to when WoW saves somewhere else. In French when Windows is.
+const french = /^fr\b/i.test(navigator.language);
+const LIVE = french ? {
+  status: (folder, upload, changed) => `Dossier surveillé : ${folder} · dernier envoi ${upload} · fichier modifié ${changed}`,
+  stale: ' · plus de 3 jours sans changement : WoW enregistre-t-il ailleurs ?',
+  missing: 'jamais (pas encore enregistré)',
+  betaTitle: 'Le compagnon surveille encore le dossier de la bêta',
+  staleTitle: days => `Votre fichier n’a pas changé depuis ${days} jours`,
+  text: (file, folder, account, changed) => `${file} dans ${folder} (compte ${account}) a été modifié ${changed}. Changez de dossier pour que vos envois continuent.`,
+  switchButton: 'Passer au dossier du jeu live',
+  keepButton: 'Garder ce dossier',
+  switched: path => `Dossier changé. Fichier surveillé : ${path}`,
+  notStarted: 'Dossier changé, mais le compagnon n’a pas pu démarrer. Voir la page Activity.',
+  kept: 'Dossier conservé. Cette question ne reviendra pas pour ce fichier.'
+} : {
+  status: (folder, upload, changed) => `Watching ${folder} · last upload ${upload} · file changed ${changed}`,
+  stale: ' · over 3 days without a change: is WoW saving somewhere else?',
+  missing: 'never (not saved yet)',
+  betaTitle: 'Your companion is still watching the beta folder',
+  staleTitle: days => `Your saved file has not changed in ${days} days`,
+  text: (file, folder, account, changed) => `${file} in ${folder} (account ${account}) changed ${changed}. Switch so your uploads keep going.`,
+  switchButton: 'Switch to the live game folder',
+  keepButton: 'Keep this folder',
+  switched: path => `Switched. Now watching ${path}`,
+  notStarted: 'Switched, but the companion could not start. See the Activity page.',
+  kept: 'Kept. You will not be asked about this file again.'
+};
+$('btnLiveSwitch').textContent = LIVE.switchButton; $('btnLiveKeep').textContent = LIVE.keepButton;
+if (french) { $('liveBanner').lang = 'fr'; $('watchStatus').lang = 'fr'; }
+function since(iso) {
+  if (!french) return ago(iso).toLowerCase();
+  if (!iso || !Number.isFinite(Date.parse(iso))) return 'pas encore';
+  const seconds = Math.max(0, (Date.now() - Date.parse(iso)) / 1000), days = Math.floor(seconds / 86400);
+  return seconds < 60 ? 'à l’instant' : seconds < 3600 ? `il y a ${Math.floor(seconds / 60)} min` : seconds < 86400 ? `il y a ${Math.floor(seconds / 3600)} h` : `il y a ${days} jour${days > 1 ? 's' : ''}`;
+}
+function renderSavedFile(snapshot) {
+  const file = snapshot.savedFile, candidate = file?.candidate, watched = snapshot.state.watching || savedConfig.watchFile;
+  const show = !api.browser && savedConfig.wowEnabled !== false && !!file && !!watched;
+  $('watchStatus').hidden = !show; $('liveBanner').hidden = !show || !candidate;
+  if (!show) return;
+  $('watchStatus').textContent = LIVE.status(watched.replace(/[\\/][^\\/]*$/, ''), since(snapshot.state.lastUpload?.at), file.changedAt ? since(file.changedAt) : LIVE.missing) + (file.stale ? LIVE.stale : '');
+  $('watchStatus').classList.toggle('stale', file.stale);
+  if (!candidate) return;
+  $('liveTitle').textContent = candidate.reason === 'beta' ? LIVE.betaTitle : LIVE.staleTitle(Math.floor((Date.now() - Date.parse(file.changedAt)) / 86400000));
+  $('liveText').textContent = LIVE.text(candidate.path.split(/[\\/]/).pop(), candidate.gameFolder, candidate.account, since(candidate.changedAt));
+}
 function renderState(snapshot) {
   lastSnapshot = snapshot;
   const {state,health} = snapshot;
   renderUpdate(snapshot.update);
+  renderSavedFile(snapshot);
   const overview = window.guildedOverview(savedConfig,state,!!api.browser);
   $('overviewConnection').textContent = overview.connection;
   $('overviewTracking').textContent = overview.tracking;
@@ -151,6 +200,8 @@ async function chooseWow() { const file = await api.browseFile(); if (file) { $(
 async function choosePoe() { const file = await api.browsePoeLog(readForm()); if (file) { $('poeLogFile').value = file; toast(api.browser ? 'Log preview ready. Review your profile and save your setup before syncing.' : 'PoE2 log selected. Save your setup to apply it.'); } }
 ['btnBrowse','btnWowSelect'].forEach(id => bind(id,chooseWow)); ['btnPoeBrowse','btnPoeSelect'].forEach(id => bind(id,choosePoe));
 bind('btnDetect',async () => { $('detectNote').textContent = 'Looking for your addon data…'; const found = await api.detectWow(); if (found.length) { $('watchFile').value = found[0].path; $('detectNote').textContent = found.length > 1 ? `Found ${found.length} accounts. Check the selected file before saving.` : found[0].exists ? 'Found your addon data.' : (savedConfig.personal ? 'Account found. Use /reload with Guilded Dungeons (or Guilded) enabled to create its saved file.' : 'Account found. Use /reload with the addon enabled to create Guilded.lua.'); } else $('detectNote').textContent = (savedConfig.personal ? 'Choose Browse and select GuildedDungeons.lua or Guilded.lua in your account’s SavedVariables folder.' : 'Choose Browse and select Guilded.lua in your account’s SavedVariables folder.'); });
+bind('btnLiveSwitch',async () => { const result = await api.switchLiveFolder(); if (!result.path) return; savedConfig = (await api.getAll()).config; $('watchFile').value = savedConfig.watchFile || ''; toast(result.ok ? LIVE.switched(result.path) : LIVE.notStarted,!result.ok); });
+bind('btnLiveKeep',async () => { await api.dismissLiveFolder(); toast(LIVE.kept); });
 bind('btnTest',async () => { say('Checking your connection…',true); const result = await api.testConnection(readForm()); say(result.message,result.ok); });
 bind('btnPair',async () => { if (!$('pairingCode').value.trim()) { say('Paste the code from /character pair (or from guilded.kcaron.top/me/) first, or use Sign in with Discord.',false); $('pairingCode').focus(); return; } say('Connecting your Discord account…',true); const result = await api.pairAccount(readForm()); say(result.message,result.ok); if (result.ok) { $('pairingCode').value = ''; savedConfig = (await api.getAll()).config; $('guildDiscordId').value = savedConfig.guildDiscordId || ''; renderState(lastSnapshot); toast('Discord account connected.'); } else if (/server ID/i.test(result.message)) { $('advanced').open = true; $('guildDiscordId').focus(); } });
 // Sign in with Discord (7.2): the browser opens the website; the companion waits for the approval.
@@ -164,7 +215,13 @@ bind('btnSheets',async () => { const result = await api.exportSheets($('sheetTab
 bind('btnFolder',() => api.openAddonFolder()); bind('btnPause',async () => { await api.toggleTracking(); }); bind('btnOnline',() => api.openOnline());
 bind('btnRemoveData',() => api.removeData());
 // Update now (7.2): the desktop app downloads, checks and installs the new version itself.
-bind('btnUpdate',async () => { if (!api.installUpdate) return api.openUpdate(); $('btnUpdate').textContent = 'Downloading…'; const result = await api.installUpdate(); toast(result.message,!result.ok); $('btnUpdate').textContent = result.ok ? 'Installing…' : 'Update now'; });
+bind('btnUpdate',async () => {
+  if (!api.installUpdate) return api.openUpdate();
+  $('btnUpdate').textContent = 'Checking update…';
+  let result;
+  try { result = await api.installUpdate(); toast(result.message,!result.ok); }
+  finally { $('btnUpdate').textContent = result?.ok && result.action === 'installing' ? 'Installing…' : 'Update now'; }
+});
 api.onUpdateProgress?.(percent => { $('btnUpdate').textContent = `Downloading ${percent}%`; });
 bind('btnHistory',async () => {
   if (!savedConfig.companionCredential) { showPage('settings'); toast('Connect your Discord account first.'); return; }
@@ -204,7 +261,7 @@ async function init() {
       $('btnStandings').after(forget);
     }
   } else { $('watchFile').removeAttribute('readonly'); $('poeLogFile').removeAttribute('readonly'); }
-  gameFields(); entries = all.logs.slice(-300); renderLogs(); renderState({state:all.state,health:all.health,update:all.update});
+  gameFields(); entries = all.logs.slice(-300); renderLogs(); renderState({state:all.state,health:all.health,update:all.update,savedFile:all.savedFile});
   showPage(new URLSearchParams(location.search).get('tab') || (savedConfig.companionCredential ? 'status' : 'settings'));
   api.onState(renderState); api.onLog(addLog);
   setInterval(() => { if (lastSnapshot) renderState(lastSnapshot); },1000);

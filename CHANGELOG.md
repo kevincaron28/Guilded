@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- Launch-day protection for the companion (WoW Forever goes live 4 November 2026): if the
+  watched `Guilded.lua` / `GuildedDungeons.lua` is in the beta folder and another game folder of
+  the same install has the file, or it has not changed for 3 days while another folder's copy is
+  newer, the Windows app's Overview offers **Switch to the live game folder** (in French when
+  Windows is), with one Windows notification. Same account folder first; beta folders and older
+  files are never offered; Keep this folder is not asked again for that file. The command-line
+  companion prints a warning. Shared check: `companion/live-folder.mjs`.
+- Overview shows the watched folder, last upload and when the saved file last changed, in amber
+  after 3 days without a change.
+- Hosted bot: optional automatic approval. With `HOSTED_AUTO_APPROVE_DAYS` set (off by default), a
+  Lite server is approved by itself after that many days once it ran `/setup start`, has
+  `HOSTED_AUTO_APPROVE_MEMBERS` members (default 5) and used a command in the last 7 days; the
+  owner's request DM shows the date and **Block** stays the veto. Messages say "free hosted bot"
+  instead of "pilot" ([guide](docs/HOSTED_PILOT.md)).
+
+## 7.3.1 Release — 22 October 2026
+
+- Raid reports require level 60, distinguish levelling from gear problems, flag checks older than 24 hours, and use the current command link.
+- Companion updates retain installer details arriving after the bot version, retry lookup on click, and distinguish a browser download from an installer handoff. Launch errors allow retry without closing the app.
+- See [release notes](docs/V7_3_1_RELEASE_NOTES.md).
+
 - Linking without a companion: `/character pair` and the welcome button show one line,
   `/guilded verify ABCD-EFGH`, to paste in WoW chat once. Every character on that WoW account
   then links itself (the first as main) on the next upload from an officer's companion, with a
@@ -182,7 +203,7 @@
   dependency audits and Windows packaging. Final release-source PostgreSQL/restore,
   Windows packaging and Worker deployment checks passed.
 - Remaining real-client checks are tracked as post-release follow-up in
-  [the finalization checklist](docs/V6_0_FINALIZATION_CHECKLIST.md); they are not
+  [the finalization checklist](docs/archive/V6_0_FINALIZATION_CHECKLIST.md); they are not
   marked passed by the release decision. The earlier beta notes below are history.
 
 ## 6.0.0 Beta — 4 October 2026

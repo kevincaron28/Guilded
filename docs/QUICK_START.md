@@ -119,7 +119,7 @@ Leave AI answers, Warcraft Logs and optional community features off until basic 
 
 Before guild-wide rollout, also test an ordinary member's access. Continue the
 fresh-PC, recovery and real-raid follow-up checks in the
-[release testing record](V6_0_RELEASE_TESTING.md). Setup speed alone does not prove
+[acceptance checklist](V6_2_GAME_ACCEPTANCE.md). Setup speed alone does not prove
 permissions, accounting or recovery work.
 
 <section id="fr" lang="fr" aria-label="Démarrage rapide en français">

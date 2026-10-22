@@ -17,17 +17,25 @@ What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 ## Quick start
 
 - **Guildmates or addon-only players:** follow [the member install guide](docs/MEMBER_INSTALL.md).
-  Install into the client you actually play (Forever beta uses `_classic_beta_` in the tested
-  installation), then connect with your guild's bot address and your own pairing code if needed.
-- **Add the hosted bot:** [request pilot access](docs/HOSTED_PILOT.md). KCaron must approve your Discord server first. Then run `/setup start`; no hosting or database account needed. Optional [support](docs/SUPPORT_GUILDED.md) never buys approval.
+  Install into the client you actually play: the folder beside the game's .exe (the beta used
+  `_classic_beta_`; check again on 4 November). To connect the companion, choose Sign in with Discord
+  (a `/character pair` code still works).
+- **Add the hosted bot:** [add it to your server](docs/HOSTED_PILOT.md) and run `/setup start`; no hosting or database account needed. Guilded Lite (setup, help, bug reports, dungeon groups, basic signups) works right away; KCaron's approval unlocks addon sync, EP/GP, seasons and the guild page. Optional [support](docs/SUPPORT_GUILDED.md) never buys approval.
 - **Run your own guild's bot:** follow [the illustrated beginner walkthrough](docs/OWNER_WALKTHROUGH.md), with Discord and Oracle account links, screenshots and success checks.
 - **Plan a quick installation:** use the [30-minute setup checklist](docs/QUICK_START.md), including what must be ready first.
 - **Want an AI to guide you:** copy a [setup or troubleshooting prompt](docs/AI_SETUP_HELP.md).
 
-**6.0.0 is the full Release. The next planned version is 6.1.0.** Use matching addon and bot source, plus the optional Windows companion if needed, from the
-[6.0.0 release](https://github.com/kevincaron28/Guilded/releases/tag/v6.0.0). Remaining unverified checks are tracked as follow-up work. [Current test record](docs/V6_0_RELEASE_TESTING.md).
+**Current version: 7.3.1 Release** (22 October 2026, protocol 2). Download the matching addon,
+Guilded Dungeons and Windows companion from the
+[latest GitHub release](https://github.com/kevincaron28/Guilded/releases/latest) or
+[CurseForge](https://www.curseforge.com/wow/addons/guilded). What changed: [release notes](docs/V7_3_1_RELEASE_NOTES.md).
+WoW Forever launches 4 November 2026; dungeon Season 1 starts the same day at 3 PM Pacific.
+Real-client checks still owed are tracked in [the acceptance checklist](docs/V6_2_GAME_ACCEPTANCE.md).
 
-For the 5.0 update, read [the local Claude handoff](docs/V5_0_RELEASE_HANDOFF.md).
+Also from this repository: **Guilded Dungeons** (`addon/GuildedDungeons/`), a standalone dungeon
+timer and score tracker with no guild needed, and the website's
+[public leaderboards](https://guilded.kcaron.top/leaderboards/), [player profiles](https://guilded.kcaron.top/players/)
+and [recruitment board](https://guilded.kcaron.top/recruitment/).
 
 ## Documentation
 

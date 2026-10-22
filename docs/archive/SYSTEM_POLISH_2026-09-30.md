@@ -37,4 +37,4 @@ Automated checks do not prove WoW hardware-event restrictions, combat UI or a ra
 
 ## PoE 2
 
-See [POE2_GUILD_COMPETITION_PLAN.md](POE2_GUILD_COMPETITION_PLAN.md). This task plans the module rather than enabling channels/scoring. GGG registration is currently unavailable, so the proposed first phase uses reviewed evidence and later adds official OAuth if available.
+See [POE2_GUILD_COMPETITION_PLAN.md](../POE2_GUILD_COMPETITION_PLAN.md). This task plans the module rather than enabling channels/scoring. GGG registration is currently unavailable, so the proposed first phase uses reviewed evidence and later adds official OAuth if available.

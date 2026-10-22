@@ -356,6 +356,8 @@ client.once(Events.ClientReady, (readyClient) => {
     }
     // Lite servers nobody used for 30 days are told, then left 7 days later.
     pilotRequests.sweepIdle().catch(reportJobError("Idle Lite servers"));
+    // Set-up, active Lite servers are approved by themselves when HOSTED_AUTO_APPROVE_DAYS is set.
+    pilotRequests.sweepAutoApprove().catch(reportJobError("Automatic Lite approval"));
     // Re-evaluate snapshot age even when nobody clicks a signup or uploads new gear.
     (async () => {
       for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) {
@@ -709,5 +711,8 @@ async function registerCommandsEverywhere(): Promise<void> {
 const pilotRequests = createPilotRequests(client, { enabled: hostedPilot.enabled, allows: hostedPilot.allows, replace: replacePilotApprovals,
   liteLimit: config.HOSTED_LITE_LIMIT, replaceLite: replacePilotLite,
   activate: async guild => { await registerCommands(guild.id); await greetNewGuild(guild); },
-  welcome: guild => welcomeApprovedOwner(client, guild), warnIdle: guild => warnIdleLite(client, guild) });
+  welcome: guild => welcomeApprovedOwner(client, guild), warnIdle: guild => warnIdleLite(client, guild),
+  autoApprove: { days: config.HOSTED_AUTO_APPROVE_DAYS, members: config.HOSTED_AUTO_APPROVE_MEMBERS,
+    // Settings exist after any command; the bot-guide channel only after /setup start.
+    ready: async id => Boolean(await prisma.guildSettings.findFirst({ where: { guild: { discordId: id }, guideChannelId: { not: null } }, select: { guildId: true } })) } });
 await client.login(config.DISCORD_TOKEN);

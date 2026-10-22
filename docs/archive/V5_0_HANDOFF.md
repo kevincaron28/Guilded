@@ -1,11 +1,11 @@
 # 5.0.0 feature handoff
 
-**Update/install instructions are superseded by [V5_0_RELEASE_HANDOFF.md](V5_0_RELEASE_HANDOFF.md).**
+**Update/install instructions are superseded by [V5_0_RELEASE_HANDOFF.md](../V5_0_RELEASE_HANDOFF.md).**
 
 What 5.0 changed, where, and what is left. Written for whoever picks this up next (you in
 VS Code, or another Claude session). Version is **5.0.0** everywhere (`package.json`,
 `package-lock.json`, `companion-app/package.json` + lock, `Guilded.toc`, the API.lua comment).
-4.6 is described in `docs/V4_6_HANDOFF.md`; 4.5, 4.6 and 5.0 are all unpublished.
+4.6 is described in `docs/archive/V4_6_HANDOFF.md`; 4.5, 4.6 and 5.0 are all unpublished.
 
 ## What is left, in order (maintainer's PC)
 

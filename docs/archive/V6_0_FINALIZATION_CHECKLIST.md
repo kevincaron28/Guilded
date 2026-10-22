@@ -41,7 +41,7 @@ causes a guild-facing announcement. Preserve SavedVariables and personal pairing
   dashboard confirmed a six-hour restore history window. This is not a real
   production restore; disposable PostgreSQL CI rehearses restore.
 - [x] Offline fresh-source rehearsal and owner configuration preflight; see
-  [FRESH_INSTALL_REHEARSAL.md](FRESH_INSTALL_REHEARSAL.md). No second bot was started.
+  [FRESH_INSTALL_REHEARSAL.md](../FRESH_INSTALL_REHEARSAL.md). No second bot was started.
 - [x] Release packaging verification checks aligned manifests, packaged desktop
   version, TOC completeness, clean standings and exclusion of private/removed
   files; regenerates release notes and SHA-256 sums after each Windows release build.
@@ -91,7 +91,7 @@ result and safe evidence. Never store pairing codes, tokens or database URLs.
   collapsed/filter restoration, competing priority, reserve roll/award/tooltip,
   multiple council votes, invites/readiness, dungeon authority, French text,
   combat/reload and backup restore. Use applicable detailed rows in
-  [RELEASE_CHECKLIST.md](../RELEASE_CHECKLIST.md). Document unsupported calendar
+  [RELEASE_CHECKLIST.md](../../RELEASE_CHECKLIST.md). Document unsupported calendar
   APIs explicitly; removed Raid tools are outside v6 scope.
 - [ ] **Enabled Discord/community/PoE workflows:** real role/member interactions,
   scheduled events/report/decay delivery, permission-failure recovery and current

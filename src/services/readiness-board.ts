@@ -1,9 +1,11 @@
-import type { Guild as DiscordGuild } from "discord.js";
+import { escapeMarkdown, type Guild as DiscordGuild } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { prisma } from "../database.js";
 import { createGuildService } from "./guild.js";
 import { deliverDiscordJob, dispatchDiscordJob } from "./discord-jobs.js";
 import { participationDay } from "./participation-rules.js";
+
+import { assessRaidReadiness, RAID_LEVEL, type RaidReadinessStatus } from "./readiness.js";
 
 const guildService = createGuildService(prisma);
 
@@ -12,48 +14,62 @@ type Db = Pick<PrismaClient, "member" | "inspectedCharacterSnapshot"> & Partial<
 // A scan older than this is stale (flasks last about two hours).
 export const CONSUMABLE_MAX_AGE_MS = 3 * 60 * 60 * 1000;
 
-const ICON: Record<string, string> = { READY: "✅", PARTIAL: "⚠️", NOT_READY: "❌" };
-// Most actionable first: not ready, then issues, then no data, then ready.
-const RANK: Record<string, number> = { NOT_READY: 0, PARTIAL: 1, NODATA: 2, READY: 3 };
-const NO_DATA_RANK = 2;
+const ICON: Record<RaidReadinessStatus, string> = { READY: "✅", PARTIAL: "⚠️", NOT_READY: "❌", LEVELLING: "🌱", UNKNOWN: "❔" };
+const LABEL: Record<RaidReadinessStatus, string> = { READY: "Gear ready", PARTIAL: "Needs attention", NOT_READY: "Not ready", LEVELLING: "Levelling", UNKNOWN: "Needs sync" };
+const safe = (text: string) => escapeMarkdown(text.replace(/[\r\n]/g, " ").slice(0, 160));
 
 export interface BoardOptions {
-  // Only for a target raid: flag members whose character lacks this attunement ("Onyxia Key").
   attunement?: string | undefined;
+  now?: Date;
 }
 
-// One block per active member: their latest gear check from the addon,
-// sorted most actionable first, under a one-line summary. Ready players get
-// a single line; anyone else lists what's wrong. With an attunement target,
-// a member without it is flagged (and counts as not ready).
+// Latest uploaded character per active member. Gear readiness is distinct
+// from level eligibility and from attunements/consumables not checked here.
 export async function buildReadinessLines(database: Db, guildId: string, options: BoardOptions = {}): Promise<string[]> {
   const members = await database.member.findMany({ where: { guildId, status: "ACTIVE", isTest: false }, orderBy: { displayName: "asc" } });
-  const rows: { rank: number; name: string; status: string; text: string }[] = [];
+  if (!members.length) return [];
+  const rows: { name: string; status: RaidReadinessStatus; text: string }[] = [];
+  const noData: string[] = [];
   for (const member of members) {
     const snapshot = await database.inspectedCharacterSnapshot.findFirst({
       where: { memberId: member.id }, orderBy: { inspectedAt: "desc" }, include: { findings: true, character: true }
     });
-    if (!snapshot) {
-      rows.push({ rank: NO_DATA_RANK, name: member.displayName, status: "NODATA", text: `❔ **${member.displayName}** — no gear check uploaded` });
-      continue;
-    }
-    const messages = snapshot.findings.filter((finding) => finding.severity !== "INFO").map((finding) => finding.message);
-    let status: string = snapshot.status;
-    if (options.attunement && database.characterAttunement) {
-      const attuned = await database.characterAttunement.findFirst({
+    if (!snapshot) { noData.push(safe(member.displayName)); continue; }
+    const assessment = assessRaidReadiness(snapshot, options.now);
+    let status = assessment.status;
+    const messages = assessment.reason ? [assessment.reason] : snapshot.findings.filter(f => f.severity !== "INFO").map(f => f.message);
+    if (options.attunement && status !== "LEVELLING" && status !== "UNKNOWN") {
+      const attuned = await database.characterAttunement?.findFirst({
         where: { characterId: snapshot.characterId, completed: true, name: { equals: options.attunement, mode: "insensitive" } }
       });
-      if (!attuned) { messages.unshift(`Not attuned: ${options.attunement}.`); status = "NOT_READY"; }
+      if (!database.characterAttunement) { messages.unshift("Attunement could not be verified."); status = "UNKNOWN"; }
+      else if (!attuned) { messages.unshift(`Not attuned: ${options.attunement}.`); status = "NOT_READY"; }
     }
-    const head = `${ICON[status] ?? "❔"} **${snapshot.character.name}** — ${status}${snapshot.itemLevel ? ` · ilvl ${snapshot.itemLevel}` : ""}`;
-    rows.push({ rank: RANK[status] ?? NO_DATA_RANK, name: snapshot.character.name, status, text: messages.length ? `${head}\n${messages.map((message) => `   • ${message}`).join("\n")}` : head });
+    const level = snapshot.character.level;
+    const details = status === "LEVELLING" ? "" : `${level ? ` · lvl ${level}` : ""}${snapshot.character.className ? ` ${safe(snapshot.character.className)}` : ""}`;
+    const ilvl = status !== "LEVELLING" && status !== "UNKNOWN" && snapshot.itemLevel && Number.isFinite(snapshot.itemLevel) ? ` · ilvl ${snapshot.itemLevel}` : "";
+    const checked = Number.isFinite(snapshot.inspectedAt.getTime()) ? ` · checked <t:${Math.floor(snapshot.inspectedAt.getTime() / 1000)}:R>` : "";
+    const head = `${ICON[status]} **${safe(snapshot.character.name)}** — ${LABEL[status]}${details}${ilvl}${checked}`;
+    const shown = messages.map(message => `  • ${safe(message)}`);
+    rows.push({ name: snapshot.character.name, status, text: [head, ...shown].join("\n") });
   }
-  rows.sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name));
-  if (rows.length === 0) return [];
-  const count = (status: string) => rows.filter((row) => row.status === status).length;
-  const target = options.attunement ? ` (target: ${options.attunement})` : "";
-  const summary = `**${count("READY")} ready · ${count("PARTIAL")} with issues · ${count("NOT_READY")} not ready · ${count("NODATA")} no data**${target}`;
-  return [summary, ...rows.map((row) => row.text)];
+  rows.sort((a, b) => a.name.localeCompare(b.name));
+  const count = (status: RaidReadinessStatus) => rows.filter(row => row.status === status).length;
+  const summary = `**${count("READY")} gear ready · ${count("PARTIAL") + count("NOT_READY")} need attention · ${count("LEVELLING")} levelling · ${count("UNKNOWN") + noData.length} need sync**`;
+  const lines = [summary, `Level ${RAID_LEVEL} required · latest uploaded character per member · gear checks valid for 24h.`,
+    options.attunement ? `Target attunement: **${safe(options.attunement)}**.` : "Attunements are not checked unless a target is selected; consumables are listed separately when scanned."];
+  for (const [title, statuses] of [
+    ["Raid candidates — action needed", ["NOT_READY", "PARTIAL"]],
+    ["Raid candidates — gear ready", ["READY"]],
+    ["Levelling — not raid eligible", ["LEVELLING"]],
+    ["Needs a fresh check", ["UNKNOWN"]]
+  ] as [string, RaidReadinessStatus[]][]) {
+    const group = rows.filter(row => statuses.includes(row.status));
+    if (group.length) lines.push(`\n**${title} (${group.length})**`, ...group.map(row => row.text));
+  }
+  if (noData.length) lines.push(`\n**No gear check uploaded (${noData.length})**`, noData.join(", "));
+  if (noData.length || count("UNKNOWN")) lines.push("Refresh: run `/guilded inspect`, then `/reload` in WoW with the companion running.");
+  return lines;
 }
 
 // "Consumables (scanned 12 min ago)": who lacks a flask/elixir or food in the
@@ -82,7 +98,9 @@ export function chunkLines(lines: string[], limit = 1900): string[] {
   let current = "";
   for (const line of lines) {
     if (current && current.length + line.length + 1 > limit) { chunks.push(current); current = ""; }
-    current = current ? `${current}\n${line}` : line.slice(0, limit);
+    let rest = line;
+    while (rest.length > limit) { chunks.push(rest.slice(0, limit)); rest = rest.slice(limit); }
+    current = current ? `${current}\n${rest}` : rest;
   }
   if (current) chunks.push(current);
   return chunks;
@@ -93,12 +111,13 @@ export function chunkLines(lines: string[], limit = 1900): string[] {
 export async function queueDailyReadiness(database: Pick<PrismaClient, "discordJob">, guildId: string,
   timezone: string, lines: string[], now = new Date()) {
   const day = participationDay(now, timezone);
-  const description = chunkLines(lines.length ? lines : ["No guild members found."], 3600)[0]!;
+  const chunks = chunkLines(lines.length ? lines : ["No guild members found."], 3600);
+  const description = `${chunks[0]!}${chunks.length > 1 ? "\n\n… More members in the full report." : ""}`;
   return database.discordJob.upsert({
     where: { guildId_key: { guildId, key: `readiness:${day}` } },
     create: { guildId, key: `readiness:${day}`, kind: "MESSAGE", payload: {
       route: "readiness", day, timezone,
-      message: { embeds: [{ title: "Raid readiness", description: `${description}\n\nFull current report: \`/readiness raid\`.` }] }
+      message: { embeds: [{ title: "Raid readiness · Level 60", color: 0xd4af37, description: `${description}\n\nFull current report: \`/lead readiness-raid\`.` }] }
     } },
     update: {}
   });

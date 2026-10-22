@@ -10,8 +10,8 @@ The restore preview lists local cores/rosters and can be undone.
 Party games moved to the optional GuildedGames addon (/ggames). Only the host
 installs it. Guilded retains independent soft-reserve rolls, including SR+;
 /guilded lootroll cancel stops a pending roll without awarding an item.
-Preserve SavedVariables. Real-client acceptance is still required for this
-candidate. Version 6.2.0 is prepared for testing, not yet published.
+Preserve SavedVariables. Current version: 7.3.1 Release (22 October 2026). Real-client
+checks still owed are listed in docs/V6_2_GAME_ACCEPTANCE.md.
 
 # Guilded WoW addon
 
@@ -28,8 +28,8 @@ Copy the `Guilded` directory into WoW Forever's `Interface\AddOns` directory:
 <your actual WoW client>\Interface\AddOns\Guilded\Guilded.toc
 ```
 
-The tested Forever beta uses `_classic_beta_`, beside `WowB.exe`. Locate the executable
-you actually launch; do not assume `_forever_` or `_retail_`. The ZIP includes `INSTALL.md`
+The Forever beta used `_classic_beta_`, beside `WowB.exe`. From launch (4 November 2026), locate the
+executable you actually launch and use the folder beside it; do not assume `_forever_` or `_retail_`. The ZIP includes `INSTALL.md`
 with member setup and troubleshooting. Enable **Load out of date AddOns** if the client requests it. The addon does
 not require the Guilded Discord bot or any external library.
 
@@ -101,7 +101,7 @@ AddOns > Guilded) has the minimap button, chat tab, digest and module switches.
 After login, an officer (guild rank 0 or 1 by default) can use:
 
 ```text
-/guilded start Molten Core
+/guilded start Hyjal Summit
 /guilded attendance Player PRESENT
 /guilded boss Ragnaros
 /guilded award Player 10 Raid attendance
@@ -122,7 +122,7 @@ After login, an officer (guild rank 0 or 1 by default) can use:
 /guilded attune Onyxia Key
 /guilded attune Player "Onyxia Key"
 /guilded attune Player "Onyxia Key" clear
-/guilded template save tue Tuesday Molten Core
+/guilded template save tue Tuesday Hyjal Summit
 /guilded start tue
 /guilded note Rag wipe at 10%
 /guilded attendance roster

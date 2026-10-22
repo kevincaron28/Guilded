@@ -211,6 +211,11 @@ describe("weekly report", () => {
     expect(embeds.join()).toContain("Ann");
     expect(embeds.join()).toContain("Deadmines");
     expect(weeklyReportEmbeds(report, "fr")[0]!.data.title).toContain("bilan hebdo WoW");
+    // A guild that shares its runs gets a link to its public leaderboard page; others do not.
+    expect(embeds.join()).not.toContain("public leaderboards");
+    const url = "https://guilded.kcaron.top/leaderboards/guild/g1?lang=en";
+    const dungeonWeek = weeklyReportEmbeds(report, "en", url).find((embed) => embed.data.url === url);
+    expect(JSON.stringify(dungeonWeek?.toJSON())).toContain(`Full rankings on the public leaderboards: ${url}`);
     expect(embeds.join()).not.toContain("New members");
     expect(embeds.join()).not.toContain("Applications");
   });

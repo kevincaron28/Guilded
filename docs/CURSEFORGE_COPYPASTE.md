@@ -1,10 +1,9 @@
-> 6.2 candidate preparation (15 October 2026): use [the release handoff](V6_2_RELEASE_HANDOFF.md) and [6.2 upload text](V6_2_CURSEFORGE.md).
-> Guilded 6.2.0 Release, October 16, 2026. Upload text: [V6_2_CURSEFORGE.md](V6_2_CURSEFORGE.md).
-> Older release instructions below are historical. Do not publish or deploy the candidate before acceptance.
+# CurseForge listing copy: Guilded 7.3.1
 
-# CurseForge listing copy: Guilded 6.2.0
-
-Each block below is one field. Copy the block, paste it in.
+Rewritten 22 October 2026 for the WoW Forever launch (4 November). The live listing still said
+7.1.0 and led with an approval gate that no longer applies to the addon or to Guilded Lite.
+Each block below is one field: copy the block, paste it in. Publishing steps:
+[RELEASE_CURSEFORGE.md](RELEASE_CURSEFORGE.md). Older 6.x listing text is in git history.
 
 ---
 
@@ -15,7 +14,7 @@ Guilded
 
 ## Summary (one line)
 ```
-Raid attendance, EPGP, loot and guild tools for WoW Forever, with an optional hosted Discord bot. Small free pilot; KCaron's approval is required for each server.
+Free guild tools for WoW Forever: EP/GP and four loot systems, attendance, crafters, and dungeon seasons with public leaderboards. Works in game without Discord.
 ```
 
 ## Category
@@ -24,17 +23,11 @@ Raid & Instance (secondary: Guild, Miscellaneous)
 ## Logo
 `docs/branding/guilded-logo-400.png` (400x400). Full size: `docs/branding/guilded-logo.png`.
 
-## Historical setup-only file (9 October 2026)
-
-The current published client is 6.2.0 Release. The domain/support metadata update
-does not require a new client upload. Preserve its published files. The following
-6.0.0 file instructions and changelog are retained as historical release records.
-For the 9 October setup-only refresh: `dist/Guilded-v6.0.0-hosted-pilot.zip`
-(top folder inside is `Guilded`). Display name: **Guilded 6.0.0 - Hosted pilot setup**.
-Release type: **Release**, as explicitly directed by the owner on 5 October 2026.
-Preserve the approved published game code; update only bundled `INSTALL.md`.
-See [RELEASE_CURSEFORGE.md](RELEASE_CURSEFORGE.md) before building from newer main.
-Game versions: retain the project's existing verified Forever-compatible selection. The addon declares interfaces 16001 and 20506; do not claim untested client compatibility.
+## Game version and files
+Game version **1.60.1 (Forever)**; the addon declares interfaces 16001 and 20506. Do not claim
+untested client compatibility. If the live client reports a newer interface number on 4 November,
+upload a re-tagged file the same day. Add **Guilded Dungeons** under Relations as an optional
+companion project, and Guilded under Guilded Dungeons' relations.
 
 ## License
 Select **Custom License**, name it:
@@ -47,139 +40,81 @@ https://polyformproject.org/licenses/noncommercial/1.0.0
 
 ## Description (Markdown)
 ```markdown
-# Guilded — Raid & Guild Management for WoW Forever
+# Guilded — guild tools and dungeon seasons for WoW Forever
 
-**Organize raid nights, manage loot, and keep your guild connected—all from one in-game window.**
+**Free. Works entirely in game. Discord and the website are optional.**
 
-Guilded brings raid tracking, EPGP, four loot systems, readiness checks, and everyday guild tools together. Use the addon on its own, or connect your guild’s optional Discord bot for signups, shared standings, and reports.
+Current release: **7.3.1** (22 October 2026), for WoW Forever 1.60.1. English and French.
 
-**Available now: 6.2.0 Release. The addon works without Discord.**
-
-## Add the Discord bot — KCaron's approval required
-
-**[Add Guilded — request owner approval](https://discord.com/oauth2/authorize?client_id=1552633893587394590&scope=bot+applications.commands&integration_type=0&permissions=2269718703631440)**
-
-A small number of guilds can join the free hosted pilot. **KCaron must approve your Discord server before the bot works there.** Adding Guilded sends a request; it does not guarantee a place or immediate access. After approval, run **`/setup start`** in your server. You do not need your own hosting or database.
-
-[Hosted pilot guide](https://guilded.kcaron.top/docs/HOSTED_PILOT/) · [Online companion](https://guilded.kcaron.top/companion/) · [Member installation](https://guilded.kcaron.top/docs/MEMBER_INSTALL/)
-
-Use your own Discord server ID and personal `/character pair` code. Independent hosting remains available.
-
+* **No setup to start.** Install, click the gold coin on your minimap, done. Officers share EP/GP with each other in game; no Discord, website or account needed.
+* **Dungeon Season 1 starts at launch**, 4 November 2026 at 3 PM Pacific: every finished run is timed and scored, with Raider.IO-style [public leaderboards](https://guilded.kcaron.top/leaderboards/).
+* **Nothing behind a payment.** Every feature is free; tips only help pay for hosting.
 
 ***
 
-## Raid Management & Readiness
+## Dungeon runs and seasons
 
-*   **Raid journal:** Start and end raids, record attendance and bench credit, mark boss kills, and keep raid notes.
-*   **Readiness dashboard:** Officers and group leaders can review available gear, enchant, durability, flask, and food information, request refreshed checks, and run a ready check.
-*   **Personal gear checks:** Spot empty equipment slots, missing enchants, and other preparation issues.
-*   **Attunement tracking:** Record completed attunements for yourself or, with officer permissions, your raiders.
-*   **Persistent records:** Keep your active raid and saved records through reloads and disconnects.
+* Runs are recorded automatically: total time, boss times and a short result card when you leave the dungeon.
+* Scores by level bracket on your tooltip and the dungeon finder's Guilded tab, with weekly and monthly boards (the week follows Tuesday's weekly reset).
+* Public [leaderboards](https://guilded.kcaron.top/leaderboards/) with character pages, guild rankings and runs confirmed by their party. Uploading needs the free companion (Sign in with Discord, nothing to type).
+* Only want dungeons? **[Guilded Dungeons](https://www.curseforge.com/wow/addons/guilded-dungeons)** is the standalone tracker, no guild needed. Both addons together count each run once.
 
-## Four Loot Systems
+## Raid nights and loot (Forever raids open 9 December)
 
-Choose the approach that fits your raid:
+* **Raid journal:** attendance, bench credit, boss kills and notes that survive reloads and disconnects.
+* **Readiness:** gear, enchants, durability and consumables; level-aware raid reports; attunement tracking with Barrow Deeps, Hyjal Summit and Onyxia's Lair presets.
+* **Four loot systems, per raid core:** GP bidding, loot council, soft reserves (with SR+) and EPGP priority. Start with `/guilded drop <item>`; players without the addon answer by whisper.
+* **EP/GP:** awards, priority standings and a full ledger (decay with the Discord bot). Officers publish standings in game; reserves and prices show on item tooltips.
 
-*   **GP Bidding** — Let players bid GP on an item.
-*   **Loot Council** — Collect BiS, upgrade, and off-spec responses to help your council decide.
-*   **Soft Reserves** — Roll between reservers, with SR+ support for reserves that went unwon.
-*   **EPGP Priority** — Award priced items to the interested player with the highest priority, with configurable off-spec pricing.
+## Guild life
 
-Start a loot session with **`/guilded drop <item>`**. Addon users receive a response popup; whisper responses support players without Guilded.
+* **Crafters:** recipes and cooldowns shared automatically; `/guilded recipes who <item>` finds who can make it.
+* **Guild map:** guildmates on your map and minimap, with a privacy switch.
+* **Copy for Excel:** `/guilded sheet` copies standings, loot, attendance, raids or dungeons to paste into a spreadsheet.
+* One window with a Home page, a Guilded chat tab, modules you can switch off, and backup, restore and undo per guild.
 
-**EPGP management** includes EP and GP awards, deductions, loot records, and priority standings. Officers can publish in-game standings without Discord; connected guilds can use bot-managed raid cores, rules, and item prices.
+## Optional: Discord bot and website
 
-## Soft Reserves & Item Information
-
-*   **In-game reservations:** Reserve linked items without visiting a website.
-*   **Shared reserve lists:** Share reservations with online Guilded users and see them on item tooltips.
-*   **Officer controls:** Open, lock, and manage the reserve list.
-*   **Loot tooltips:** Display available wishlist, historical GP cost, and priority information when supplied through the optional Discord integration.
-
-## Professions & Guild Tools
-
-*   **Recipe sharing:** Open your professions to share known recipes with online Guilded users.
-*   **Crafter lookup:** Find who can make an item with `/guilded recipes who <item>`.
-*   **Profession cooldowns:** Share supported cooldown information, including transmutes.
-*   **Materials lists:** Build a shopping list for your crafting plans.
-*   **Guild map:** See participating Guilded users on the world map and minimap, with controls to stop sharing or hide markers.
-*   **Dungeon tracking & scores:** Record runs and view scores on player tooltips and the Scores page—no Discord required.
-*   **Roll games:** Play high roll, deathroll, and 1v1 duels, with built-in explanations. No wagers or debts.
-
-## One Convenient Window
-
-Click the **gold coin on your minimap** to open Guilded.
-
-*   A Home page for your standings, activity, and available sync status.
-*   Pages organized around raid night, guild activities, and settings.
-*   Optional modules you can switch off.
-*   A dedicated Guilded chat tab for addon messages.
-*   English and French localization.
-*   Separate saved data for each guild, with backup, restore, and restore undo.
+* **Hosted Discord bot:** [add it](https://discord.com/oauth2/authorize?client_id=1552633893587394590&scope=bot+applications.commands&integration_type=0&permissions=2269718703631440) and run `/setup start`. Guilded Lite (setup, help, bug reports, dungeon groups, basic signups) works right away; KCaron's approval unlocks addon sync, EP/GP, seasons and the guild page. You can also host your own.
+* Raid signups with roles, waitlist and cores; standings, wishlists, polls, Warcraft Logs and weekly reports in Discord.
+* **Website:** a [recruitment board](https://guilded.kcaron.top/recruitment/) with applications that arrive in Discord, open raid spots from other guilds, and public [player profiles](https://guilded.kcaron.top/players/).
+* **Companion** (browser, or Windows for automatic sync): Sign in with Discord, Sync now, and Export to spreadsheet.
 
 ***
 
-## Optional Discord Integration
+## Getting started
 
-Extend Guilded beyond the game with a **free hosted pilot (owner approval first), or an independently hosted Discord bot**:
+1. Install with the CurseForge app, or extract the **Guilded** folder into `Interface/AddOns` of the Forever client you launch.
+2. Log in and click the **gold minimap coin**, or type `/guilded` (`/gd`).
+3. Optional: [the companion](https://guilded.kcaron.top/companion/) and [the Discord bot](https://guilded.kcaron.top/docs/HOSTED_PILOT/).
 
-*   **Raid planning:** Role-based signups, waitlists, recurring raids, and core rosters.
-*   **Loot management:** Core-specific loot systems, item prices, wishlists, and soft reserves.
-*   **Guild coordination:** Crafting requests, crafter searches, readiness boards, and polls.
-*   **Reports:** Attendance history, raid seasons, Warcraft Logs integration, and weekly reports.
-*   **Dungeon activities:** Challenges and leaderboards.
-*   **Calendar sync:** Connect Discord raids and in-game events where the client supports the required calendar APIs.
-*   **Raid invitations:** Invite players from synced Discord signups with `/guilded invite raid`.
+[Install guide](https://guilded.kcaron.top/docs/MEMBER_INSTALL/) · [Features](https://guilded.kcaron.top/features/) · [Website](https://guilded.kcaron.top/)
 
-Use the **Windows companion** to upload saved data after a reload or logout, or the **browser companion** for manual syncing. Discord integration requires your guild’s configured bot and personal pairing.
+## Compatibility
 
-**The addon works independently.** Approved hosted-pilot guilds do not need to run their own bot or database. Independent hosting requires your own infrastructure.
-
-***
-
-## Getting Started
-
-1.  Extract the **Guilded** folder into your WoW client’s `Interface/AddOns` folder.
-2.  Log in and click the **gold minimap coin**. Type `/guilded` or `/gd` for commands.
-3.  Officers can open the **Raid** page to begin tracking a raid.
-4.  For Discord integration, use the hosted invitation above, wait for KCaron’s approval, then run `/setup start`. See the [hosted pilot guide](https://guilded.kcaron.top/docs/HOSTED_PILOT/).
-
-## Compatibility & Release Status
-
-Designed for **WoW Forever**. Declared interface versions: **16001 and 20506**. Feature availability depends on the game client and its addon APIs.
-
-**6.2.0 is available as a Release on CurseForge.** It adds addon-only guild management (local cores, rosters and record-keeper handover), lighter and faster companion sync, and optional officer ledger sharing. Real-client testing of the new 6.2 features continues after release. Back up SavedVariables before upgrading.
-
-Guild map and shared information depend on participating addon users and available data. Raid markers, tank marking, and boss plans are not included in v6.
+Designed for **WoW Forever** (interface 16001). Shared features need guildmates running Guilded. Back up your SavedVariables before upgrading. Raid markers and boss plans are not included; they are coming in Pullscript, a separate addon now in beta.
 
 Free for noncommercial use under the **PolyForm Noncommercial 1.0.0** license. Not affiliated with or endorsed by Blizzard Entertainment.
 
-## Optional support
+## Support
 
-Guilded is an independent project by [KCaron](https://kcaron.top/). The addon and approved hosted pilot are free. Optional tips help fund bot hosting, the PostgreSQL database, backups and ongoing maintenance.
+Guilded is an independent project by [KCaron](https://kcaron.top/). If it helps your guild, [buy me a coffee on Ko-fi](https://ko-fi.com/wowguilded). Tips never buy approval, priority or features.
 
-**[Support Guilded by KCaron](https://kcaron.top/support)** in Canadian dollars (CAD), with one-time tips from C$5 and optional monthly support. Tips do not buy approval, priority or extra permissions. No payment is required to download Guilded, request bot access or ask for help. [How your support helps](https://guilded.kcaron.top/docs/SUPPORT_GUILDED).
-
-[Guilded website](https://guilded.kcaron.top/) · [KCaron creator page](https://kcaron.top/)
-
-**Français :** ajoutez Guilded pour demander l’accès au pilote gratuit. **KCaron doit approuver votre serveur Discord avant son activation.** Après son accord, lancez `/setup start`. Le soutien financier est facultatif et ne donne aucune priorité.
-
+**Français :** Guilded est gratuit et fonctionne entièrement en jeu, sans Discord. La saison 1 des donjons commence au lancement, le 4 novembre 2026 à 15 h (heure du Pacifique), avec des [classements publics](https://guilded.kcaron.top/leaderboards/?lang=fr). Le bot Discord hébergé fonctionne tout de suite en mode Guilded Lite; l'approbation de KCaron débloque le reste. Interface en français incluse.
 ```
 
 ## Changelog (paste for the file upload)
 ```markdown
-## 6.0.0 Release — 5 October 2026
+## 7.3.1 — 22 October 2026
 
-The owner has promoted 6.0.0 to full Release. Back up SavedVariables before upgrading.
+- Raid readiness counts only level-60 characters as gear ready, lists levelling characters separately and flags checks older than 24 hours.
+- Companion: Update now works again. Companions on 7.2.0 or 7.3.0 need this installer once; settings and pairing are kept.
+- Link characters without your own companion: paste `/guilded verify ABCD-EFGH` in WoW chat once (needs an officer with this release's addon and companion).
 
-- Loot responses show pending/confirmed feedback for raiders and visible responses for officers.
-- Includes the tested off-spec pricing, GP import/reversal, personal pairing and standings workflows from the 5.0 beta stabilization work.
-- Removes Raid tools entirely: target/floor markers, tank marking and boss plans will be developed later as an optional standalone addon. Saved plans and settings are preserved.
-- Includes guild map diagnostics, automatic recipe sharing, and clearer member/owner setup guides.
-- Bot, addon and companion source versions are aligned at 6.0.0; synchronization protocol remains 2.
-- 5 October setup follow-up: fixes blank optional bot configuration fields, adds an offline owner setup check, refreshes the independent hosting/quick-start guides, and includes installation instructions in the addon ZIP. A clean local rehearsal is documented; live fresh-guild acceptance remains pending.
+Back up your SavedVariables before upgrading. Full notes: https://github.com/kevincaron28/Guilded/releases/tag/v7.3.1
+```
 
-Remaining live acceptance includes fresh Alliance guild setup, Windows clean install/upgrade and recovery on a non-developer PC, competing/consecutive awards, concurrent officer uploads, permission revocation and a full real raid. Calendar and other game APIs depend on client support. Do not treat these pending checks as passes.
-
-Install the complete Guilded folder, including Guilded.toc. Do not delete your saved data. For addon-only testing, keep WoW companion syncing paused. Discord integration needs the guild owner's configured bot and personal pairing; no database or Discord reset is part of this release package.
+## Guilded Dungeons summary (one line, its own project)
+```
+Dungeon timer, run results and scores for WoW Forever, with public leaderboards. No guild needed.
 ```

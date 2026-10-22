@@ -7,9 +7,12 @@ import { editPilotApprovals, pilotFilePolicy, pilotInvite } from "./pilot-admin.
 export const PILOT_REQUEST_PREFIX = "pilot-request:";
 // pending: waiting with no access; lite: waiting with the Lite command set (both await a decision).
 // activeAt/warnedAt (ms): last command use on a Lite server, and when it was told it is idle.
-type Request = { nonce: string; name: string; status: "pending" | "lite" | "blocked" | "approved"; messageId?: string; activeAt?: number; warnedAt?: number };
+// since (ms): when the server got Lite, for automatic approval.
+type Request = { nonce: string; name: string; status: "pending" | "lite" | "blocked" | "approved"; messageId?: string; activeAt?: number; warnedAt?: number; since?: number };
 const DAY = 24 * 60 * 60 * 1000;
 export const LITE_IDLE_WARN_MS = 30 * DAY, LITE_IDLE_LEAVE_MS = 7 * DAY;
+// Automatic approval needs a command used this recently: a set-up but abandoned server waits.
+export const AUTO_APPROVE_ACTIVE_MS = 7 * DAY;
 // Command use is saved at most this often per server, so busy Lite servers don't rewrite the file.
 const TOUCH_SAVE_MS = 6 * 60 * 60 * 1000;
 type State = Record<string, Request>;
@@ -21,6 +24,10 @@ type Options = { enabled: boolean; allows: (id: string) => boolean; replace: (id
   welcome?: (guild: Guild) => Promise<boolean>;
   // Tells an idle Lite server it will be left (true when delivered). Must not throw.
   warnIdle?: (guild: Guild) => Promise<boolean>;
+  // Approves a Lite server by itself after `days` on Lite, once it has `members` Discord members,
+  // ran /setup start (`ready`) and used a command in the last 7 days. The owner's Block button
+  // stays the veto until then. days 0 (the default) keeps every approval manual.
+  autoApprove?: { days: number; members: number; ready: (guildId: string) => Promise<boolean> };
   envPath?: string; statePath?: string; now?: () => number };
 
 // Local state avoids waking Postgres for admission checks and survives normal deploys.
@@ -54,6 +61,34 @@ export function createPilotRequests(client: Client, options: Options) {
     finally { await rm(temp, { force: true }); }
     syncLite(state);
   };
+  // Writes the approval to the env file and activates the server. Run inside serial().
+  // "full": HOSTED_GUILD_LIMIT reached, nothing changed. The request is saved as approved.
+  const approve = async (id: string, state: State, request: Request): Promise<"full" | { guild?: Guild; activated: boolean; welcomed: boolean | null; source: string }> => {
+    const source = await readFile(envPath, "utf8");
+    let next: string;
+    try { next = editPilotApprovals(source, "approve", id); }
+    catch (error) {
+      if (error instanceof Error && error.message.includes("HOSTED_GUILD_LIMIT")) return "full";
+      throw error;
+    }
+    const info = await stat(envPath), temp = `${envPath}.${randomUUID()}.tmp`;
+    try {
+      await writeFile(temp, next, { flag: "wx", mode: info.mode & 0o777 });
+      if (process.platform !== "win32") await chown(temp, info.uid, info.gid);
+      if (await readFile(envPath, "utf8") !== source) throw new Error("Configuration changed; try again.");
+      await rename(temp, envPath);
+    } finally { await rm(temp, { force: true }); }
+    options.replace(pilotFilePolicy(next).guildIds);
+    request.status = "approved"; await save(state);
+    const guild = client.guilds.cache.get(id);
+    if (!guild) return { activated: false, welcomed: null, source: next };
+    try { await options.activate(guild); }
+    catch { return { guild, activated: false, welcomed: null, source: next }; }
+    const welcomed = options.welcome ? await options.welcome(guild).catch(() => false) : null;
+    return { guild, activated: true, welcomed, source: next };
+  };
+  const autoDate = (request: Request) => options.autoApprove && options.autoApprove.days > 0 && request.status === "lite"
+    ? new Date((request.since ?? now()) + options.autoApprove.days * DAY).toISOString().slice(0, 10) : null;
   return {
     /** Loads the Lite list at startup, before commands are registered. */
     restore() { return serial(async () => { if (options.enabled) syncLite(await load()); }); },
@@ -97,6 +132,28 @@ export function createPilotRequests(client: Client, options: Options) {
       }
       if (changed) await save(state);
     }); },
+    /** Hourly: approves Lite servers that meet autoApprove's conditions and tells the owner. */
+    sweepAutoApprove() { return serial(async () => {
+      const auto = options.autoApprove;
+      if (!options.enabled || !auto || auto.days <= 0) return;
+      const state = await load(), at = now();
+      let changed = false;
+      for (const [id, request] of Object.entries(state)) {
+        if (request.status !== "lite" || options.allows(id)) continue;
+        // Entries from before automatic approval start their wait now.
+        if (request.since === undefined) { request.since = at; changed = true; continue; }
+        const guild = client.guilds.cache.get(id);
+        if (!guild || at - request.since < auto.days * DAY || guild.memberCount < auto.members) continue;
+        if (at - (request.activeAt ?? 0) > AUTO_APPROVE_ACTIVE_MS || !await auto.ready(id)) continue;
+        const result = await approve(id, state, request);
+        // No room left: the others wait as well, until the owner raises HOSTED_GUILD_LIMIT.
+        if (result === "full") break;
+        changed = false;
+        const user = await client.users.fetch(await owner());
+        await user.send({ content: `**Guilded — approbation automatique / automatic approval**\nServeur / Server: **${escapeMarkdown(request.name).slice(0, 200)}**\nID: \`${id}\`\nMembres / Members: ${guild.memberCount}\n${result.activated ? "Activé. / Activated." : "Configuration Discord à réessayer au redémarrage. / Discord setup will retry on restart."}\nRetirer / Revoke: \`npm run pilot -- revoke ${id}\``, allowedMentions: { parse: [] } }).catch(() => undefined);
+      }
+      if (changed) await save(state);
+    }); },
     request(guild: Guild) { return serial(async () => {
       if (!options.enabled || options.allows(guild.id)) return;
       const state = await load();
@@ -109,17 +166,19 @@ export function createPilotRequests(client: Client, options: Options) {
         // Lite is granted (and saved) before the owner DM, so a closed DM never holds it back.
         // A server approved from the CLI while on Lite no longer takes a Lite slot.
         const lite = Object.entries(state).filter(([id, row]) => row.status === "lite" && !options.allows(id)).length < (options.liteLimit ?? 0);
-        request = { nonce: randomUUID(), name: guild.name, status: lite ? "lite" : "pending", ...(lite ? { activeAt: now() } : {}) }; state[guild.id] = request;
+        request = { nonce: randomUUID(), name: guild.name, status: lite ? "lite" : "pending", ...(lite ? { activeAt: now(), since: now() } : {}) }; state[guild.id] = request;
         await save(state);
       }
       const full = (options.liteLimit ?? 0) > 0;
+      const auto = autoDate(request);
+      const autoNote = auto ? `\n\nApprobation automatique le ${auto} si le serveur a lancé /setup start, compte au moins ${options.autoApprove!.members} membres et a servi dans les 7 derniers jours. Bloquez avant pour refuser.\nApproved automatically on ${auto} if the server ran /setup start, has at least ${options.autoApprove!.members} members and was used in the last 7 days. Block before then to refuse.` : "";
       const user = await client.users.fetch(await owner());
       const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId(`${PILOT_REQUEST_PREFIX}approve:${guild.id}:${request.nonce}`).setLabel("Approuver / Approve").setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId(`${PILOT_REQUEST_PREFIX}block:${guild.id}:${request.nonce}`).setLabel("Bloquer / Block").setStyle(ButtonStyle.Danger));
       const message = await user.send({ content: `**Guilded — demande d’accès / access request**\nServeur / Server: **${escapeMarkdown(guild.name).slice(0,200)}**\nID: \`${guild.id}\`\nMembres / Members: ${guild.memberCount}\nPropriétaire / Owner ID: \`${guild.ownerId}\`\n\n${request.status === "lite"
         ? "Accès Lite accordé automatiquement (configuration, aide, FAQ, rapports de bugs, groupes de donjon, inscriptions simples). Approuver débloque tout. Bloquer fait quitter le serveur et empêche les nouvelles demandes.\nLite access granted automatically (setup, help, FAQ, bug reports, dungeon groups, basic signups). Approve unlocks everything. Block leaves the server and suppresses repeat requests."
-        : `Aucun accès avant votre approbation${full ? " (places Lite complètes)" : ""}. Bloquer fait quitter le serveur et empêche les nouvelles demandes.\nNo access until you approve${full ? " (Lite slots full)" : ""}. Block leaves the server and suppresses repeat requests.`}`, components: [row], allowedMentions: { parse: [] } });
+        : `Aucun accès avant votre approbation${full ? " (places Lite complètes)" : ""}. Bloquer fait quitter le serveur et empêche les nouvelles demandes.\nNo access until you approve${full ? " (Lite slots full)" : ""}. Block leaves the server and suppresses repeat requests.`}${autoNote}`, components: [row], allowedMentions: { parse: [] } });
       request.messageId = message.id; await save(state);
     }); },
     async handle(interaction: ButtonInteraction) {
@@ -135,37 +194,19 @@ export function createPilotRequests(client: Client, options: Options) {
           await interaction.editReply("Cette demande a déjà été traitée ou a expiré. / This request was already handled or is stale."); return;
         }
         if (action === "approve") {
-          const source = await readFile(envPath, "utf8");
-          let next: string;
-          try { next = editPilotApprovals(source, "approve", id); }
-          catch (error) {
-            if (error instanceof Error && error.message.includes("HOSTED_GUILD_LIMIT")) {
-              await interaction.editReply(request.status === "lite"
-                ? "Le pilote est complet. Ce serveur reste en Lite. / The pilot is full. This server stays on Lite."
-                : "Le pilote est complet. Cette demande reste en attente. / The pilot is full. This request stays pending."); return;
-            }
-            throw error;
+          const result = await approve(id, state, request);
+          if (result === "full") {
+            await interaction.editReply(request.status === "lite"
+              ? "La limite d’hébergement est atteinte. Ce serveur reste en Lite. / The hosting limit is reached. This server stays on Lite."
+              : "La limite d’hébergement est atteinte. Cette demande reste en attente. / The hosting limit is reached. This request stays pending."); return;
           }
-          const info = await stat(envPath), temp = `${envPath}.${randomUUID()}.tmp`;
-          try {
-            await writeFile(temp, next, { flag: "wx", mode: info.mode & 0o777 });
-            if (process.platform !== "win32") await chown(temp, info.uid, info.gid);
-            if (await readFile(envPath, "utf8") !== source) throw new Error("Configuration changed; try again.");
-            await rename(temp, envPath);
-          } finally { await rm(temp, { force: true }); }
-          options.replace(pilotFilePolicy(next).guildIds);
-          request.status = "approved"; await save(state);
-          const guild = client.guilds.cache.get(id);
-          if (guild) {
-            try { await options.activate(guild); }
-            catch { await interaction.editReply("Approuvé. Configuration Discord à réessayer au redémarrage. / Approved; Discord setup will retry on restart."); return; }
-          }
-          if (!guild) {
-            await interaction.editReply(`Approuvé / Approved. Réinviter / Reinvite: ${pilotInvite(next, id)}`);
+          if (!result.guild) {
+            await interaction.editReply(`Approuvé / Approved. Réinviter / Reinvite: ${pilotInvite(result.source, id)}`);
+          } else if (!result.activated) {
+            await interaction.editReply("Approuvé. Configuration Discord à réessayer au redémarrage. / Approved; Discord setup will retry on restart."); return;
           } else {
-            const welcomed = options.welcome ? await options.welcome(guild).catch(() => false) : false;
-            const note = !options.welcome ? ""
-              : welcomed ? "\nLe propriétaire du serveur a reçu un message de bienvenue. / The server owner was sent a welcome message."
+            const note = result.welcomed === null ? ""
+              : result.welcomed ? "\nLe propriétaire du serveur a reçu un message de bienvenue. / The server owner was sent a welcome message."
               : "\nMessage privé au propriétaire impossible (MP fermés ?). / Could not DM the server owner (DMs closed?).";
             await interaction.editReply(`Approuvé ! Le serveur peut utiliser /setup start. / Approved! The server can use /setup start.${note}`);
           }

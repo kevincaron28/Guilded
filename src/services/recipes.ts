@@ -1,6 +1,6 @@
 import { pilotGuildScope } from "../hosted-pilot.js";
 import type { Client } from "discord.js";
-import type { Prisma, PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import type { AddonCooldownSet, AddonRecipeSet } from "../integrations/addon.js";
 import { findCharacter } from "./character-match.js";
 

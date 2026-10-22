@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 import { characterPath, type LeaderRun } from "./public-leaderboard.js";
 import { scoreRun } from "./public-score.js";
 import { formatDuration } from "./dungeon-rules.js";

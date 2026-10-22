@@ -1,6 +1,6 @@
 import { hostedPilot } from "../hosted-pilot.js";
 import type { Client, Message } from "discord.js";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 import { PAST_RAID_POST_MS, UNENDED_RAID_MS } from "./raid-post-cleanup.js";
 
 type Alert = Pick<Message, "author" | "pinned" | "createdTimestamp" | "content" | "embeds" | "components" | "attachments">;

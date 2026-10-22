@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 import { priority } from "./epgp.js";
 import { createItemValueService } from "./item-values.js";
 import { itemKey } from "./wishlist.js";

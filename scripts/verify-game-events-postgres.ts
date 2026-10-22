@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../src/generated/prisma/client.js";
 import { queueGameEvents, saveOfficialEvent } from "../src/services/game-events.js";
 import { deliverDiscordJob } from "../src/services/discord-jobs.js";
 

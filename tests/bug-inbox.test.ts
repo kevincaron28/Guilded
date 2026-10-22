@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../src/generated/prisma/client.js";
 import { describe, expect, it, vi } from "vitest";
 import { loadInbox, renderInbox, resolveReports } from "../src/services/bug-inbox.js";
 import { reportRef } from "../src/services/error-report.js";

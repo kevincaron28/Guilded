@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { EpgpTransactionType, ReadinessFindingSeverity, ReadinessStatus } from "@prisma/client";
+import { EpgpTransactionType, ReadinessFindingSeverity, ReadinessStatus } from "../src/generated/prisma/client.js";
 import { createEpgpService } from "../src/services/epgp.js";
 import { deriveReadinessStatus } from "../src/services/readiness.js";
 

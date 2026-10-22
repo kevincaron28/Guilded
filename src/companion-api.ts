@@ -27,7 +27,7 @@ import type { Client } from "discord.js";
 import { companionAccess, personalSnapshot } from "./services/companion-access.js";
 import { readFileSync } from "node:fs";
 import { ZodError } from "zod";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "./generated/prisma/client.js";
 import { createPoeMappingService, poeAreaName, PoeMappingError } from "./services/poe-mapping.js";
 import { notify } from "./services/notify.js";
 import { allowManageWrite, createCompanionManage, ManageError } from "./services/companion-manage.js";

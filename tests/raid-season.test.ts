@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../src/generated/prisma/client.js";
 import { parseSeasonStart, seasonAttendance, seasonCsv, seasonTotals, splitByCore, startSeason } from "../src/services/raid-season.js";
 import { playerHistoryEmbed, seasonSummaryEmbeds } from "../src/commands/raid-season.js";
 

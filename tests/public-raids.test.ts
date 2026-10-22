@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../src/generated/prisma/client.js";
 import { discordInvite, openRaidSpots, publicRaidMatches, publicRaids } from "../src/services/public-raids.js";
 import { readFilters } from "../src/services/recruitment.js";
 import { createWebApp } from "../src/services/web-app.js";

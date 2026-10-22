@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { DkpTransactionType, type DkpTransaction, type EpgpTransaction, type EpgpTransactionType, type Prisma, type PrismaClient } from "@prisma/client";
+import { DkpTransactionType, type DkpTransaction, type EpgpTransaction, type EpgpTransactionType, type Prisma, type PrismaClient } from "../generated/prisma/client.js";
 import { normalizeAddonSnapshot, parseAddonSnapshot, type AddonSnapshot } from "../integrations/addon.js";
 import { deriveReadinessStatus } from "./readiness.js";
 import { applyAddonLoot, applyRaidAttendance, touchLastSeen } from "./raid-import.js";

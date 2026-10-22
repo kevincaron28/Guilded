@@ -1,6 +1,6 @@
 import { randomInt } from "node:crypto";
 import { escapeMarkdown, type Client } from "discord.js";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 import type { AddonCharacter } from "../integrations/addon.js";
 import { t, type Lang } from "../i18n.js";
 import { findCharacter } from "./character-match.js";

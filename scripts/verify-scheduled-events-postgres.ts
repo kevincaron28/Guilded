@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../src/generated/prisma/client.js";
 import { ChannelType, Collection, GuildScheduledEventStatus, PermissionFlagsBits, PermissionsBitField } from "discord.js";
 import { syncScheduledEvent } from "../src/services/scheduled-events.js";
 

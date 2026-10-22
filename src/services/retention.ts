@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "../generated/prisma/client.js";
 
 // Housekeeping for data that only grows. Every companion upload stores the whole export, and an
 // officer's export repeats the guild's gear checks; left alone, both make the database and the

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Launch-day protection for the companion (WoW Forever goes live 4 November 2026): if the
+  watched `Guilded.lua` / `GuildedDungeons.lua` is in the beta folder and another game folder of
+  the same install has the file, or it has not changed for 3 days while another folder's copy is
+  newer, the Windows app's Overview offers **Switch to the live game folder** (in French when
+  Windows is), with one Windows notification. Same account folder first; beta folders and older
+  files are never offered; Keep this folder is not asked again for that file. The command-line
+  companion prints a warning. Shared check: `companion/live-folder.mjs`.
+- Overview shows the watched folder, last upload and when the saved file last changed, in amber
+  after 3 days without a change.
+
 ## 7.3.1 Release — 22 October 2026
 
 - Raid reports require level 60, distinguish levelling from gear problems, flag checks older than 24 hours, and use the current command link.

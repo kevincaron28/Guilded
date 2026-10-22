@@ -130,23 +130,28 @@ describe("standings feed", () => {
 
   it("keeps the stamp and ETag of unchanged data across a restart", async () => {
     const dir = await mkdtemp(join(tmpdir(), "guilded-stamps-")), path = join(dir, "stamps.json");
+    const kept: Awaited<ReturnType<typeof keepStampsOnDisk>>[] = [];
     try {
       let now = Date.parse("2026-10-15T10:00:00Z");
       const compose = async () => parts([{ character: "Kev", ep: 10, gp: 5 }]);
       const before = createStandingsFeed({ now: () => now });
-      const kept = await keepStampsOnDisk(before, path, 10);
+      kept.push(await keepStampsOnDisk(before, path, 10));
       const first = await before.get({ guildId: "g", memberKey: "m", header, compose });
-      await kept.flush();
+      await kept[0]!.flush();
       now += 3_600_000;
       const after = createStandingsFeed({ now: () => now });
-      await keepStampsOnDisk(after, path, 10);
+      kept.push(await keepStampsOnDisk(after, path, 10));
       const again = await after.get({ guildId: "g", memberKey: "m", header, compose, ifNoneMatch: first.etag });
       expect(again).toEqual({ status: 304, etag: first.etag });
       // Changed data after the restart still gets a newer stamp.
       after.markChanged("g");
       const changed = await after.get({ guildId: "g", memberKey: "m", header, compose: async () => parts([{ character: "Kev", ep: 30, gp: 5 }]) });
       expect(JSON.parse(changed.body!).updatedAt > JSON.parse(first.body!).updatedAt).toBe(true);
-    } finally { await rm(dir, { recursive: true, force: true }); }
+    } finally {
+      // A save still pending after the test would recreate the folder (it makes missing folders).
+      for (const disk of kept) await disk.flush();
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   it("ignores unreadable, malformed or future stamps", async () => {

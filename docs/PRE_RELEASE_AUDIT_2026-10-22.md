@@ -201,3 +201,18 @@ Sources: Blizzard's [WoW Forever page](https://worldofwarcraft.blizzard.com/en-u
 [CoGM](https://cogm.app/games/wow-forever), [Gargul](https://www.curseforge.com/wow/addons/gargul),
 [Icy Veins on Forever addons](https://www.icy-veins.com/wow-forever/news/addons-in-wow-forever-blizzard-devs-just-addressed-the-big-question/),
 [Forever addon folder guide](https://wowdee.com/articles/wow-forever-addons).
+
+## Implementation progress (owner's picks, 22 October 2026)
+
+| Item | Status | Where |
+| --- | --- | --- |
+| 1, 19 Companion live folder and status line | In progress, separate session | its own branch |
+| 4 PR housekeeping | #185 closed; #189 fixed (release line, live folder, Lite-first wording); hold notes on #187/#188; **#186 waits for the owner's merge** (merging is the owner's call) | GitHub |
+| 20 One version source | Done: `tests/current-version-docs.test.ts` | #191 |
+| 21 Docs tidy | Done: 32 docs to `docs/archive/`, links rewritten (no new broken links); `AGENTS.md` is a pointer (local file, old copy in `backups/`) | #191 |
+| 12 Launch posts | Drafts in `docs/LAUNCH_POSTS.md` (owner posts them) | #191 |
+| 14 Automatic approval, "free" not "pilot" | Done, off until `HOSTED_AUTO_APPROVE_DAYS` is set | #192 (+ wording in #189, #191) |
+| 13 Share cards and weekly top runs | Next | |
+| 18 Gear audit column | Pending | |
+| 17 Components V2 | Pending | |
+| 16 German and Spanish | Pending | |

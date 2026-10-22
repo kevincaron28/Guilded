@@ -47,7 +47,7 @@ export async function writeStandings(config, signal, options = {}) {
   }
   if (body.protocolVersion !== 2) throw new Error("Update the bot before using this companion (sync protocol 2 required).");
   const text = standingsToLua(body);
-  let unchanged = false;
+  let unchanged;
   try { unchanged = withoutStamps(await readFile(path, "utf8")) === withoutStamps(text); } catch { unchanged = false; }
   signal?.throwIfAborted();
   if (!unchanged) {

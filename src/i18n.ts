@@ -174,15 +174,23 @@ const STRINGS = {
     en: "**Start with the addon only (default).** Install [Guilded](https://www.curseforge.com/wow/addons/guilded) or your officers' matching download. **In-game only** works without Discord linking or a companion. The choices below are optional.",
     fr: "**Commence avec l'addon seul (par défaut).** Installe [Guilded](https://www.curseforge.com/wow/addons/guilded) ou la version de tes officiers. **En jeu uniquement** fonctionne sans lien Discord ni compagnon. Les choix ci-dessous sont facultatifs."
   },
-  "pair.manualMainTitle": { en: "Optional: link your main to Discord, without a companion", fr: "Facultatif : lier ton principal à Discord, sans compagnon" },
-  "pair.manualMain": {
-    en: "1. Log in to WoW on the character you want as your **main**. Type `/guilded character` and copy the full character line.\n2. In this Discord server, use `/character import` and paste that line into **code**. Leave **main** unset: your first character becomes your main.\n3. Check `/character list`. To add an **alt**, repeat these steps on that alt and leave **main** unset. Your existing main stays the same.\nThis character line is different from a companion connection code.",
-    fr: "1. Connecte-toi à WoW sur le personnage que tu veux comme **principal**. Tape `/guilded character` et copie la ligne complète du personnage.\n2. Sur ce serveur Discord, utilise `/character import` et colle cette ligne dans **code**. Laisse **main** vide : ton premier personnage devient ton principal.\n3. Vérifie `/character list`. Pour ajouter un **alt**, répète ces étapes sur l'alt et laisse **main** vide. Ton principal reste le même.\nCette ligne de personnage est différente d'un code de connexion du compagnon."
+  "pair.verifyTitle": { en: "🎮 Link your characters: 1 step", fr: "🎮 Lier tes personnages : 1 étape" },
+  "pair.verifyCompanionTitle": { en: "🎮 No companion? 1 step instead", fr: "🎮 Pas de compagnon ? 1 étape à la place" },
+  "pair.verify": {
+    en: "Copy this line, paste it in WoW chat on any of your characters and press Enter:\n```\n/guilded verify {code}\n```That's all. Every character you play on this WoW account links itself, the first one as your main. It happens the next time an officer's Guilded syncs (usually the same day) and I'll send you a DM. Once is enough, also for alts.",
+    fr: "Copie cette ligne, colle-la dans le chat de WoW sur n'importe lequel de tes personnages et appuie sur Entrée :\n```\n/guilded verify {code}\n```C'est tout. Chaque personnage que tu joues sur ce compte WoW se lie tout seul, le premier comme principal. Ça se fait à la prochaine synchro Guilded d'un officier (souvent le jour même) et je t'envoie un MP. Une fois suffit, aussi pour les alts."
   },
-  "pair.manualAltTitle": { en: "Optional: add an alt, without a companion", fr: "Facultatif : ajouter un alt, sans compagnon" },
-  "pair.manualAlt": {
-    en: "**Your main is already linked.** Log in on your alt in WoW, type `/guilded character` and copy the character line. In Discord, use `/character import`, paste the line into **code**, and leave **main** unset. Check `/character list`: it links as an alt and your main stays the same.\n**Companion already connected?** Log in on the alt, `/reload`, then **Sync now** instead. No new code needed.",
-    fr: "**Ton principal est déjà lié.** Connecte-toi sur ton alt dans WoW, tape `/guilded character` et copie la ligne. Sur Discord, utilise `/character import`, colle la ligne dans **code** et laisse **main** vide. Vérifie `/character list` : il sera lié comme alt et ton principal reste le même.\n**Compagnon déjà connecté ?** Connecte-toi sur l'alt, fais `/reload`, puis **Sync now** à la place. Aucun nouveau code nécessaire."
+  "pair.verifySlow": {
+    en: "⏳ No officer's companion has synced in 2 weeks, so this can take longer. Can't wait? In WoW type `/guilded character`, then paste that line into `/character import` here.",
+    fr: "⏳ Aucun compagnon d'officier n'a synchronisé depuis 2 semaines, ça peut donc prendre plus de temps. Pressé ? Dans WoW tape `/guilded character`, puis colle cette ligne dans `/character import` ici."
+  },
+  "verify.linked": {
+    en: "✅ **{name}** is now linked to your Discord account on **{server}** as {kind} (your `/guilded verify` code). Not your character? Use `/character unlink` there.",
+    fr: "✅ **{name}** est maintenant lié à ton compte Discord sur **{server}** comme {kind} (ton code `/guilded verify`). Ce n'est pas ton personnage ? Utilise `/character unlink` là-bas."
+  },
+  "verify.taken": {
+    en: "**{name}** sent your `/guilded verify` code, but it is already linked to someone else on **{server}**. Ask an officer to move it to you.",
+    fr: "**{name}** a envoyé ton code `/guilded verify`, mais il est déjà lié à quelqu'un d'autre sur **{server}**. Demande à un officier de te le transférer."
   },
   "pair.optionalTitle": { en: "Optional: sync with the online companion", fr: "Facultatif : synchroniser avec le compagnon en ligne" },
   "pair.optional": {
@@ -214,8 +222,8 @@ const STRINGS = {
   },
   "pair.checkTitle": { en: "Check the result", fr: "Vérifier le résultat" },
   "pair.check": {
-    en: "After a successful sync, `/character list` shows your main and alts.\n**Without a companion:** in WoW, `/guilded character`; copy the line into Discord's `/character import` (once per character).",
-    fr: "Après une synchro réussie, `/character list` montre ton principal et tes alts.\n**Sans compagnon :** dans WoW, `/guilded character`; copie la ligne dans `/character import` sur Discord (une fois par personnage)."
+    en: "After a successful sync, `/character list` shows your main and alts.\n**Without a companion:** paste the `/guilded verify` line above in WoW chat, once.",
+    fr: "Après une synchro réussie, `/character list` montre ton principal et tes alts.\n**Sans compagnon :** colle la ligne `/guilded verify` ci-dessus dans le chat de WoW, une fois."
   },
   "character.created": { en: "Linked", fr: "Lié" },
   "character.updated": { en: "Updated", fr: "Mis à jour" },

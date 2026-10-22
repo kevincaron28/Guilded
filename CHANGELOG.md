@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- Linking without a companion: `/character pair` and the welcome button show one line,
+  `/guilded verify ABCD-EFGH`, to paste in WoW chat once. Every character on that WoW account
+  then links itself (the first as main) on the next upload from an officer's companion, with a
+  DM to the member and a line in the log channel. Only officer uploads link this way; unlinked
+  characters stay unlinked. Needs the officer's addon and companion from this release.
+  Migration `20261123090000_character_verify`.
+- `/setup` status warns officers (⚠️, optional) when no officer's companion has synced in 2 weeks,
+  since addon-only members' data and links only arrive that way. Shown only in guilds that use
+  WoW sync.
+- Without a guild, `/guilded verify` says there is nothing to link and saves nothing; the rest of
+  the addon keeps working with no guild and no Discord (checked by a full-addon test).
+
 ## 7.2.1 Release — 20 October 2026
 
 - Leaderboards-only companions read both `GuildedDungeons.lua` and `Guilded.lua`, so runs reach

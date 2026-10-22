@@ -25,6 +25,24 @@ describe("setup checklist", () => {
     expect(setupComplete(setupChecks(done))).toBe(true);
   });
 
+  it("warns officers when no officer's companion synced in two weeks, only in guilds that use WoW sync", () => {
+    const now = new Date("2026-10-21T12:00:00Z");
+    const row = (facts: Partial<SetupFacts>, lang: "en" | "fr" = "en") => setupChecks({ ...done, ...facts }, lang, now)
+      .find((check) => check.label === "An officer's companion synced in the last 2 weeks" || check.label.startsWith("Le compagnon d'un officier"));
+    // A guild without WoW players never sees it; nor does a caller that does not check.
+    expect(row({ officerSyncAt: null })).toBeUndefined();
+    expect(row({ linkedCharacters: 3 })).toBeUndefined();
+    expect(row({ linkedCharacters: 3, officerSyncAt: new Date("2026-10-20T12:00:00Z") })).toMatchObject({ ok: true, optional: true });
+    const stale = row({ companionPaired: true, officerSyncAt: new Date("2026-10-01T12:00:00Z") })!;
+    expect(stale).toMatchObject({ ok: false, optional: true, warn: true });
+    expect(stale.fix).toContain(`Last officer sync: <t:${Math.floor(new Date("2026-10-01T12:00:00Z").getTime() / 1000)}:R>.`);
+    expect(stale.fix).toContain("/guilded verify");
+    expect(formatChecks([stale])).toMatch(/^⚠️ /);
+    expect(row({ linkedCharacters: 1, officerSyncAt: null }, "fr")!.fix).toContain("Aucun compagnon d'officier n'a encore synchronisé.");
+    // Optional: it never blocks "set up".
+    expect(setupComplete(setupChecks({ ...done, linkedCharacters: 1, officerSyncAt: null }, "en", now))).toBe(true);
+  });
+
   it("names the missing roles and how to fix them", () => {
     const checks = setupChecks({ ...done, existingRoleNames: ["Officer"] });
     expect(setupComplete(checks)).toBe(false);

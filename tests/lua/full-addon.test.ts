@@ -43,13 +43,14 @@ const FRAMES = String.raw`
   function UnitIsPlayer() return true end
 `;
 
-function fullAddon(rank: number): LuaSession {
+function fullAddon(rank: number, guildless = false): LuaSession {
   session = newLuaSession();
   session.run(FRAMES);
   session.run(String.raw`
     GuildedDB = nil; NS = {}
     MOCK_UNITS = { player = { name = "Kev", buffs = {} } }
-    function GetGuildInfo() return "Alpha", "Rank", ${rank} end
+    function GetGuildInfo() if ${guildless} then return nil end return "Alpha", "Rank", ${rank} end
+    if ${guildless} then function IsInGuild() return false end end
     -- What the game has and the test harness does not.
     function GetInventoryItemLink() return nil end
     function GetInventoryItemDurability() return nil end
@@ -161,6 +162,19 @@ describe("the whole addon, loaded in .toc order", () => {
     }
     expect(problems(s), `rank ${rank}`).toEqual([]);
     expect(diagnostics(s), `rank ${rank}`).toBe("0");
+  });
+
+  it("works for a player with no guild and no Discord", () => {
+    const s = fullAddon(1, true);
+    for (const command of [...COMMANDS, "inspect", "character", "share", "dungeon", "verify", "verify ABCD-EFGH"]) {
+      s.run(`SlashCmdList["GUILDED"](${JSON.stringify(command)})`);
+    }
+    expect(problems(s)).toEqual([]);
+    expect(diagnostics(s)).toBe("0");
+    expect(s.chat().join("\n")).toContain("Readiness captured");
+    // /guilded verify says it is not needed instead of saving a code nobody would hear.
+    expect(s.chat().join("\n")).toContain("You are not in a guild, so there is nothing to link");
+    expect(s.run(`return tostring(NS.getDb().verifyCode)`)).toBe("nil");
   });
 
   it("the loot commands work together: the core is picked, the system follows, a bid opens", () => {

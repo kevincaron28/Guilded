@@ -19,6 +19,8 @@ import { discordCalendarEvents, mergeCalendarEvents } from "./services/discord-c
 import { createAuditService } from "./services/audit.js";
 import { followUpImport } from "./services/import-followup.js";
 import { exchangeCharacterPairingCode, findPairingServer, hashCompanionSecret, issueMemberCredential, linkPairedCharacter } from "./services/character-pairing.js";
+import { linkVerifiedCharacters, tellVerified } from "./services/character-verify.js";
+import { asLang } from "./i18n.js";
 import { serveCompanionWeb } from "./services/companion-web.js";
 import { createGuildPageServer, loadGuildPageView } from "./services/guild-page.js";
 import type { Client } from "discord.js";
@@ -118,7 +120,7 @@ export async function readBody(request: IncomingMessage): Promise<unknown> {
     try { raw = gunzipSync(raw, { maxOutputLength: MAX_UNPACKED_BYTES }); }
     catch (error) {
       if (error instanceof RangeError || (error as { code?: string }).code === "ERR_BUFFER_TOO_LARGE") throw new BodyTooLargeError("Request body is too large.");
-      throw new SyntaxError("The compressed upload could not be read.");
+      throw new SyntaxError("The compressed upload could not be read.", { cause: error });
     }
   } else if (encoding && encoding !== "identity") {
     throw new SyntaxError("Unsupported content encoding.");
@@ -535,6 +537,16 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         for (const alt of preview.snapshot.alts) {
           if (preview.snapshot.character && alt.name === preview.snapshot.character.name) continue;
           await linkPairedCharacter(prisma, guild.id, pairedMemberId, alt).catch((error: unknown) => console.error("Linking an alt failed", error));
+        }
+      }
+      // Guildmates who pasted their /guilded verify code in game, as this officer's addon heard them.
+      if (access.officer) {
+        await prisma.guild.update({ where: { id: guild.id }, data: { officerSyncAt: new Date() } }).catch(() => undefined);
+        const verified = await linkVerifiedCharacters(prisma, guild.id, access, preview.snapshot.characters)
+          .catch((error: unknown) => { console.error("Linking verified characters failed", error); return []; });
+        if (verified.length && client) {
+          const language = await prisma.guildSettings.findUnique({ where: { guildId: guild.id }, select: { language: true } });
+          void tellVerified(client, guild.discordId, asLang(language?.language), verified).catch(() => undefined);
         }
       }
       if (!access.officer) {

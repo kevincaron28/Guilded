@@ -3,7 +3,7 @@ import { MessageFlags } from "discord.js";
 
 const mocks = vi.hoisted(() => ({
   config: { DISCORD_CLIENT_ID: "1552633893587394590", COMPANION_WEB_URL: undefined as string | undefined },
-  db: { character: { findMany: vi.fn() } },
+  db: { character: { findMany: vi.fn() }, characterVerifyCode: { upsert: vi.fn() }, guild: { findUnique: vi.fn() } },
   issueCode: vi.fn(),
   context: vi.fn(), settings: vi.fn(), importCharacter: vi.fn()
 }));
@@ -23,6 +23,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.config.COMPANION_WEB_URL = undefined;
   mocks.db.character.findMany.mockResolvedValue([]);
+  mocks.db.characterVerifyCode.upsert.mockResolvedValue({ code: "ABCDEFGH" });
+  mocks.db.guild.findUnique.mockResolvedValue({ officerSyncAt: new Date() });
   mocks.issueCode.mockResolvedValue({ code: "ABC123DEF456", expiresAt: new Date("2026-10-14T12:00:00Z") });
   mocks.context.mockResolvedValue({ guildId: "guild1", memberId: "member1" });
   mocks.settings.mockResolvedValue({ language: "fr" });
@@ -43,15 +45,18 @@ describe("companion links", () => {
 });
 
 describe("private character connection instructions", () => {
-  it("starts an unlinked member with addon-only instructions without generating a companion code", async () => {
+  it("starts an unlinked member with one line to paste in game, without generating a companion code", async () => {
     const reply = await characterLinkPrompt(mocks.db as never, "guild1", "member1", "server1", "en");
     const embed = reply.embeds[0]!.toJSON();
     expect(embed.description).toContain("No WoW character is linked");
     expect(embed.description).toContain("addon only (default)");
-    expect(embed.fields![0]!.value).toContain("your first character becomes your main");
-    expect(embed.fields![0]!.value).toContain("leave **main** unset");
-    expect(embed.fields![0]!.value).toContain("/character import");
+    expect(embed.fields![0]!.name).toContain("1 step");
+    // The command alone on its line in a box, so the whole line is copied.
+    expect(embed.fields![0]!.value).toContain("```\n/guilded verify ABCD-EFGH\n```");
+    expect(embed.fields![0]!.value).toContain("the first one as your main");
+    expect(embed.fields![0]!.value).not.toContain("/character import");
     expect(embed.fields![1]!.name).toContain("Optional");
+    expect(mocks.db.characterVerifyCode.upsert).toHaveBeenCalledWith(expect.objectContaining({ where: { guildId_memberId: { guildId: "guild1", memberId: "member1" } }, update: {} }));
     expect(mocks.issueCode).not.toHaveBeenCalled();
     const buttons = reply.components[0]!.toJSON().components;
     expect(buttons[0]).toMatchObject({ custom_id: "onboard:companion:server1" });
@@ -59,7 +64,7 @@ describe("private character connection instructions", () => {
     expect(mocks.db.character.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { memberId: "member1", member: { guildId: "guild1" } } }));
   });
 
-  it("distinguishes already linked main/alts and explains when an existing companion needs no code", async () => {
+  it("lists already linked main/alts and says the same line covers alts", async () => {
     mocks.db.character.findMany.mockResolvedValue([
       { name: "Ray", realm: "Forever", isMain: true }, { name: "AltRay", realm: "Other Realm", isMain: false }
     ]);
@@ -67,26 +72,37 @@ describe("private character connection instructions", () => {
     const text = reply.embeds[0]!.data.description!;
     expect(text).toContain("Main: **Ray** — Forever");
     expect(text).toContain("Alt: **AltRay** — Other Realm");
-    expect(reply.embeds[0]!.data.fields![0]!.value).toContain("your main stays the same");
-    expect(reply.embeds[0]!.data.fields![0]!.value).toContain("No new code needed");
+    expect(reply.embeds[0]!.data.fields![0]!.value).toContain("Once is enough, also for alts");
     expect(mocks.issueCode).not.toHaveBeenCalled();
+  });
+
+  it("adds the manual way only when no officer's companion synced in two weeks", async () => {
+    mocks.db.guild.findUnique.mockResolvedValue({ officerSyncAt: new Date(Date.now() - 15 * 86_400_000) });
+    const stale = await characterLinkPrompt(mocks.db as never, "guild1", "member1", "server1", "en");
+    expect(stale.embeds[0]!.data.fields![0]!.value).toContain("No officer's companion has synced in 2 weeks");
+    expect(stale.embeds[0]!.data.fields![0]!.value).toContain("/character import");
+    mocks.db.guild.findUnique.mockResolvedValue({ officerSyncAt: null });
+    const never = await characterLinkPrompt(mocks.db as never, "guild1", "member1", "server1", "fr");
+    expect(never.embeds[0]!.data.fields![0]!.value).toContain("Aucun compagnon d'officier");
   });
 
   it("generates a private code only for an explicit companion choice and says to sync the main first", async () => {
     const reply = await characterLinkPrompt(mocks.db as never, "guild1", "member1", "server1", "en", "companion");
     expect(mocks.issueCode).toHaveBeenCalledOnce();
     const fields = reply.embeds[0]!.data.fields!;
-    // Sign in with Discord comes first (7.2): nothing to type.
-    expect(fields[0]!.value).toContain("**Sign in with Discord**");
-    expect(fields[0]!.value).toContain("Nothing to type");
-    expect(fields[0]!.value).not.toContain("server ID");
-    expect(fields[0]!.value).toContain("/guilded setup connected");
-    expect(fields[1]!.value).toContain("character you want as your **main**");
+    // The in-game line first (no companion needed), then Sign in with Discord (7.2): nothing to type.
+    expect(fields[0]!.name).toContain("No companion?");
+    expect(fields[0]!.value).toContain("/guilded verify ABCD-EFGH");
+    expect(fields[1]!.value).toContain("**Sign in with Discord**");
+    expect(fields[1]!.value).toContain("Nothing to type");
+    expect(fields[1]!.value).not.toContain("server ID");
+    expect(fields[1]!.value).toContain("/guilded setup connected");
+    expect(fields[2]!.value).toContain("character you want as your **main**");
     // The code stays for older companions, alone on its line in a box, so it is easy to copy.
-    expect(fields[2]!.name).toContain("older than 7.2");
-    expect(fields[2]!.value.startsWith("```\nABC123DEF456\n```")).toBe(true);
-    expect(fields[2]!.value).toContain("replaces your previous companion connection");
-    expect(fields[3]!.value).toContain("/character list");
+    expect(fields[3]!.name).toContain("older than 7.2");
+    expect(fields[3]!.value.startsWith("```\nABC123DEF456\n```")).toBe(true);
+    expect(fields[3]!.value).toContain("replaces your previous companion connection");
+    expect(fields[4]!.value).toContain("/character list");
   });
 
   it("offers an officer-provided link when an independent host has not configured its public URL", async () => {
@@ -95,7 +111,7 @@ describe("private character connection instructions", () => {
     try {
       const reply = await characterLinkPrompt(mocks.db as never, "guild1", "member1", "server1", "fr", "companion");
       expect(reply.components).toEqual([]);
-      expect(reply.embeds[0]!.data.fields![0]!.value).toContain("Demande à un officier le lien");
+      expect(reply.embeds[0]!.data.fields![1]!.value).toContain("Demande à un officier le lien");
     } finally { mocks.config.DISCORD_CLIENT_ID = appId; }
   });
 

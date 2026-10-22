@@ -32,7 +32,7 @@ for (const file of files) {
   // Its own data only: never write Guilded's SavedVariables.
   if (file === "Shim.lua" || file === "Main.lua") { if (/GuildedDB\b/.test(source)) throw new Error(`GuildedDungeons/${file} touches GuildedDB`); }
   if (luaparse) {
-    try { luaparse.parse(source, { luaVersion: "5.1" }); } catch (error) { throw new Error(`GuildedDungeons/${file}: Lua syntax error: ${error.message}`); }
+    try { luaparse.parse(source, { luaVersion: "5.1" }); } catch (error) { throw new Error(`GuildedDungeons/${file}: Lua syntax error: ${error.message}`, { cause: error }); }
   }
 }
 console.log("Guilded Dungeons addon static validation passed.");

@@ -77,11 +77,11 @@ describe("Backup.lua", () => {
     // The officer who makes the backup: sync on, a chat tab, their own window spot and characters.
     s.run(`DB.settings.ledgerSync = true; DB.settings.ledgerSyncSeen = { Naomine = 1 }; DB.settings.chatTab = true
       DB.settings.panelPoint = { "CENTER" }; DB.settings.setupMode = "local"; DB.settings.activeCore = "local:1"
-      DB.myCharacters = { Kev = { name = "Kev" } }`);
+      DB.myCharacters = { Kev = { name = "Kev" } }; DB.verifyCode = "ABCDEFGH"`);
     const code = s.run(`return NS.backup.build()`);
     // The receiving PC.
     s.run(`DB.settings = { officers = {}, ledgerSync = false, chatTab = false, setupMode = "local", panelPoint = { "TOP" } }
-      DB.myCharacters = { Naomine = { name = "Naomine" } }`);
+      DB.myCharacters = { Naomine = { name = "Naomine" } }; DB.verifyCode = "KLMNPQRS"`);
     s.run(`NS.backup.restore(${JSON.stringify(code)})`);
     // Guild records come from the backup...
     expect(s.run(`return DB.settings.activeCore .. ":" .. tostring(DB.settings.officers.Kev)`)).toBe("local:1:true");
@@ -89,6 +89,8 @@ describe("Backup.lua", () => {
     // ...this PC's own settings stay.
     expect(s.run(`return tostring(DB.settings.ledgerSync) .. ":" .. tostring(DB.settings.ledgerSyncSeen) .. ":" .. tostring(DB.settings.chatTab) .. ":" .. DB.settings.panelPoint[1]`)).toBe("false:nil:false:TOP");
     expect(s.run(`return tostring(DB.myCharacters.Naomine ~= nil) .. ":" .. tostring(DB.myCharacters.Kev)`)).toBe("true:nil");
+    // The officer's /guilded verify code would hand this player's characters to the officer.
+    expect(s.run(`return DB.verifyCode`)).toBe("KLMNPQRS");
     s.run(`NS.backup.undo()`);
     expect(s.run(`return tostring(DB.settings.activeCore) .. ":" .. tostring(DB.settings.chatTab) .. ":" .. DB.settings.panelPoint[1]`)).toBe("nil:false:TOP");
   });

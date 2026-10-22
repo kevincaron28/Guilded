@@ -393,3 +393,30 @@ describe("Ready.lua: what the leader requires", () => {
     expect(cell(s, "Bob", "augment")).toBe("none");
   });
 });
+
+describe("officers' Gear page", () => {
+  it("lists each member's shared item level, missing gear and enchants, best first, and drops month-old checks", () => {
+    const s = withRaid();
+    s.run(`
+      DB.readiness.Kev.itemLevel = 60.5
+      DB.peerRoster.Amy.flags = "IL:62"
+      DB.peerRoster.Amy.identity = { class = "PRIEST", level = 60 }
+      DB.peerRoster.Bob.flags = "IL:55,NOFLASK,ENCH:Chest+Legs"
+      DB.peerRoster.Bob.missing = 1
+      DB.peerRoster.Cy.seenAt = NOW - 40 * 86400
+    `);
+    expect(s.run(`local n = {}; for _, r in ipairs(NS.ready.gearRows(NOW)) do n[#n + 1] = r.name .. ":" .. tostring(r.itemLevel) end; return table.concat(n, ",")`))
+      .toBe("Amy:62,Kev:61,Bob:55");
+    const text = s.run(`return NS.ready.gearText(NOW)`);
+    expect(text).toContain("Amy|r  level 60");
+    expect(text).toContain("item level 62");
+    expect(text).toMatch(/Bob\|r .*1 missing.*no enchant: Chest, Legs/);
+    expect(text).not.toContain("Cy");
+  });
+
+  it("explains an empty list", () => {
+    const s = withRaid();
+    s.run(`DB.peerRoster = {}; DB.readiness = {}`);
+    expect(s.run(`return NS.ready.gearText(NOW)`)).toContain("Nobody has shared a gear check yet");
+  });
+});

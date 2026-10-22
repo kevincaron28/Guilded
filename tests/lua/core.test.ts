@@ -300,6 +300,16 @@ describe("gear check: enchants, consumables and the peer digest", () => {
     expect(digest).toContain("|F:NOFLASK,NOFOOD,ENCH:Legs+Wrist+Hands+MainHand");
   });
 
+  it("shares the item level as the first flag, for the officers' Gear page", () => {
+    const s = loggedIn();
+    withGear(s);
+    s.run(`GetAverageItemLevel = function() return 58.4, 57.6 end; MOCK_RAID = true; MOCK_UNITS = { player = { name = "Kev", buffs = { "Blessing of Kings" } } }; SENT = {}; SlashCmdList["GUILDED"]("inspect")`);
+    expect(s.run(`return SENT[#SENT].text`)).toContain("|F:IL:58,NOFLASK,NOFOOD,ENCH:");
+    // A guildmate's IL flag is kept with the rest of their flags.
+    s.run(`fire_event("CHAT_MSG_ADDON", "Guilded", "READINESS|Amy|READY|0|100||F:IL:61", "GUILD", "Amy-Realm")`);
+    expect(s.run(`return GuildedDB.peerRoster["Amy"].flags`)).toBe("IL:61");
+  });
+
   it("reads a peer digest whose profession field is empty (flags must not shift)", () => {
     const s = loggedIn();
     s.run(`fire_event("CHAT_MSG_ADDON", "Guilded", "READINESS|Amy|PARTIAL|0|95||F:NOFOOD", "GUILD", "Amy-Realm")`);

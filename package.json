@@ -16,6 +16,7 @@
     "addon:zip": "node scripts/build-addon-zip.mjs",
     "dungeons:sync": "node scripts/build-dungeons-addon.mjs",
     "dungeons:zip": "node scripts/build-dungeons-addon.mjs --zip",
+    "locale": "node scripts/addon-locale.mjs",
     "lint": "eslint .",
     "test": "vitest run",
     "prisma:generate": "node scripts/with-env.mjs prisma generate",

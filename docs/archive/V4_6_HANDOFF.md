@@ -3,7 +3,7 @@
 What 4.6 changed, where, and what is left. Written for whoever picks this up next (you in
 VS Code, or another Claude session). Version is **4.6.0** everywhere (`package.json`,
 `package-lock.json`, `companion-app/package.json` + lock, `Guilded.toc`, the API.lua comment).
-4.5 is described in `docs/V4_5_HANDOFF.md`; 4.6 builds on it and neither has been published yet.
+4.5 is described in `docs/archive/V4_5_HANDOFF.md`; 4.6 builds on it and neither has been published yet.
 
 ## What is left, in order (maintainer's PC)
 

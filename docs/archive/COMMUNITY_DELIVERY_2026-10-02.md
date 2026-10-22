@@ -25,7 +25,7 @@ The live read-back verified both messages, all button labels, the season, migrat
 
 ## PoE2 analysis delivered
 
-See [POE2_DISCORD_INTEGRATION.md](POE2_DISCORD_INTEGRATION.md). Reuse the existing Path of Exile 2 role and categories; propose only `🧭・poe-compagnon` and `🗺️・mapping-stats`, with existing map-clearing/boss groups and voice rooms. The plan covers exact channel/role bindings, private pairing, opt-in named statistics, league/mode separation, permissions and staged verification. Log observations cannot verify map completion or boss kills.
+See [POE2_DISCORD_INTEGRATION.md](../POE2_DISCORD_INTEGRATION.md). Reuse the existing Path of Exile 2 role and categories; propose only `🧭・poe-compagnon` and `🗺️・mapping-stats`, with existing map-clearing/boss groups and voice rooms. The plan covers exact channel/role bindings, private pairing, opt-in named statistics, league/mode separation, permissions and staged verification. Log observations cannot verify map completion or boss kills.
 
 PoE2 provisioning was an analysis request: no PoE2 channels or settings were changed. Tracking was disabled and no observations or PoE2 seasons existed at inspection.
 

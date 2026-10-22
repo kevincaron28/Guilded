@@ -6,9 +6,9 @@ Windows packaging. Local evidence is
 `backups/addon-first-onboarding-deployment-evidence.json`. The standalone setup
 follow-up now requires positive companion evidence before selecting Connected,
 so cached in-game officer standings do not hide local tools. See
-[the setup notes](IN_GAME_SETUP_2026-10-14.md) for existing-choice recovery.
+[the setup notes](archive/IN_GAME_SETUP_2026-10-14.md) for existing-choice recovery.
 Diablo has also launched after owner approval; see
-[the current Discord audit](DISCORD_AUDIT_2026-10-14.md).
+[the current Discord audit](archive/DISCORD_AUDIT_2026-10-14.md).
 The combined-update record below describes the earlier delivery. Published
 clients remain 6.1.2, and the expanded standalone client still needs its
 documented real-game checks before stable publication.

@@ -1,7 +1,7 @@
 # Guilded 6.2.0 — Prepared CurseForge upload text
 
 **Approved for upload by the owner on October 16, 2026**, before the
-[real-client checks](V6_2_GAME_ACCEPTANCE.md) were run; they continue as follow-up.
+[real-client checks](../V6_2_GAME_ACCEPTANCE.md) were run; they continue as follow-up.
 Upload exactly the `Guilded-v6.2.0.zip` whose SHA-256 is in the release's
 `SHA256SUMS-v6.2.0.txt`.
 

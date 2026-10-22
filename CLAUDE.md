@@ -38,7 +38,7 @@
 > 6.2.0 Release (16 October 2026): the owner released 6.2.0 (standalone guilds, November
 > scoring preparation, companion sync from PR #84) before its real-client checks. Those
 > checks in `docs/V6_2_GAME_ACCEPTANCE.md` are post-release follow-up. Release record:
-> `docs/V6_2_RELEASE_HANDOFF.md`.
+> `docs/archive/V6_2_RELEASE_HANDOFF.md`.
 >
 > **5.0 delivery note:** The stabilization bundle (Guilded-5.0-Stabilization.zip) was merged as
 > PR #4; ignore the offline bundle import section in docs/V5_0_RELEASE_HANDOFF.md. Work now goes
@@ -118,6 +118,10 @@ Two failure modes only the test suite catches, not the type checker:
   (accents as `\195\169`-style escapes: the validator rejects non-ASCII). Other files
   aren't checked (e.g. `src/commands/help.ts` keeps its own separate
   `en`/`fr` arrays, not `tx()`).
+- **A version bump updates the "current" lines too.** `tests/current-version-docs.test.ts`
+  fails until `README.md` ("Current version"), this file (status line and top history line),
+  `ROADMAP.md` ("Current stage"), `CHANGELOG.md`, both addon `.toc` files and
+  `companion-app/package.json` match `package.json`. Guides link "latest release" instead.
 
 Two sync sharp edges (see `docs/SYNC_SPEEDUPS_2026-10-15.md`):
 

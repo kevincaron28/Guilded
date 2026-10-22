@@ -3,7 +3,7 @@
 What was changed in the addon audit, why, and exactly what is left to do. Written
 for whoever picks this up next (you in VS Code, or another Claude session). Commit:
 `05fefd8 Harden the addon: audit fixes and upgrades` on branch
-`claude/sleepy-pascal-cmmf3q`, merged to `main` (pull request #1). 4.5.0 followed: see `docs/V4_5_HANDOFF.md`.
+`claude/sleepy-pascal-cmmf3q`, merged to `main` (pull request #1). 4.5.0 followed: see `docs/archive/V4_5_HANDOFF.md`.
 
 ## Status at a glance
 

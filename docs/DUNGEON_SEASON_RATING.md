@@ -1,13 +1,13 @@
 # Dungeon-time rating and separate boss records
 
 14 October source update: scores and boss bests now belong to each character,
-not the combined account. See [identity and rollout notes](DUNGEON_CHARACTER_RATING_2026-10-14.md).
+not the combined account. See [identity and rollout notes](archive/DUNGEON_CHARACTER_RATING_2026-10-14.md).
 The deployment statements below describe the original 13 October candidate.
 
 14 October participation follow-up: presence checks, helper rewards, wing-specific
 activity history and eligible record views are prepared locally. Competitive
 scoring and frozen archives retain their rules. See
-[participation changes and proposed player notice](DUNGEON_PARTICIPATION_2026-10-14.md).
+[participation changes and proposed player notice](archive/DUNGEON_PARTICIPATION_2026-10-14.md).
 
 Candidate on `codex/guild-dungeon-scores`, 13 October 2026. This supersedes the
 100 + 20 proposal after the owner chose a wider dungeon-time rating and separate

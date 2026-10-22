@@ -186,7 +186,7 @@
   dependency audits and Windows packaging. Final release-source PostgreSQL/restore,
   Windows packaging and Worker deployment checks passed.
 - Remaining real-client checks are tracked as post-release follow-up in
-  [the finalization checklist](docs/V6_0_FINALIZATION_CHECKLIST.md); they are not
+  [the finalization checklist](docs/archive/V6_0_FINALIZATION_CHECKLIST.md); they are not
   marked passed by the release decision. The earlier beta notes below are history.
 
 ## 6.0.0 Beta — 4 October 2026

@@ -6,7 +6,7 @@ that transfers saved game data. The addon also works without Discord.
 Start with the [quick setup checklist](QUICK_START.md).
 Use matching downloads from an actually
 published release or the test build your officer provides. Current release
-evidence is recorded in [V6_0_RELEASE_TESTING.md](V6_0_RELEASE_TESTING.md).
+evidence is recorded in [the acceptance checklist](V6_2_GAME_ACCEPTANCE.md).
 
 | What you want to do | Start here |
 | --- | --- |

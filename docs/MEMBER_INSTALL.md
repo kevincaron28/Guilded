@@ -20,15 +20,15 @@ points and rosters and does not stop an already-running companion.
 
 ## Want the bot for your guild?
 
-**[Add Guilded — request owner approval](https://discord.com/oauth2/authorize?client_id=1552633893587394590&scope=bot+applications.commands&integration_type=0&permissions=2269718703631440)**
+**[Add Guilded to your server](https://discord.com/oauth2/authorize?client_id=1552633893587394590&scope=bot+applications.commands&integration_type=0&permissions=2269718703631440)**
 
-KCaron is accepting a small number of guilds into the free hosted pilot.
-**Your Discord server needs KCaron's approval first.** Inviting the bot sends
-a request; it does not activate access. After approval, run `/setup start`, then
+The hosted bot is free. Adding it puts your server on **Guilded Lite** right away
+(setup, help, bug reports, dungeon groups, basic signups); KCaron's approval unlocks
+addon sync, EP/GP, seasons and the guild page. Run `/setup start`, then, once approved,
 open the [online companion](https://guilded.kcaron.top/companion/) and choose
 **Sign in with Discord** (nothing to type).
 You do not need to host a bot or database for this path.
-See the [hosted pilot guide](HOSTED_PILOT.md). Independent hosting is also available.
+See the [hosted bot guide](HOSTED_PILOT.md). Independent hosting is also available.
 Any [financial support](SUPPORT_GUILDED.md) is optional and never buys approval.
 
 ## Get your guild's links
@@ -226,8 +226,8 @@ Consultez les [dernières notes de version](https://github.com/kevincaron28/Guil
 Guilded Games reste un addon Alpha séparé et facultatif.
 
 Pour ajouter le bot à votre guilde, utilisez le lien **Add Guilded** ci-dessus.
-**L'approbation de KCaron est obligatoire avant l'activation du serveur.**
-Après son accord, lancez `/setup start`. Le pilote hébergé est gratuit; tout
+Le serveur passe tout de suite en **Guilded Lite**; l'approbation de KCaron débloque
+la synchro de l'addon, l'EP/GP et les saisons. Lancez `/setup start`. Le bot hébergé est gratuit; tout
 soutien financier est facultatif et ne donne aucune priorité.
 
 1. Téléchargez l'addon depuis GitHub Releases ou CurseForge, avec la version

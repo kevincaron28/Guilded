@@ -3,10 +3,10 @@
 **Start with the addon only (default).** The addon works alone; optional Discord synchronization adds a
 companion and either the approved hosted bot or your independently hosted bot.
 
-**Want to add the existing Guilded bot? [Request hosted pilot access](HOSTED_PILOT.md).**
-KCaron must approve your Discord server first. Invite, wait for approval, then
-run `/setup start` and pair with the online companion. This free pilot accepts
-only a small number of guilds; no hosting accounts are needed for approved guilds.
+**Want to add the existing Guilded bot? [Add the free hosted bot](HOSTED_PILOT.md).**
+Your server gets Guilded Lite right away; run `/setup start`. KCaron's approval unlocks
+addon sync, EP/GP and seasons, then members connect the online companion. No hosting
+accounts are needed.
 
 New to hosting? Open the [illustrated owner walkthrough](OWNER_WALKTHROUGH.md)
 for account links, Discord/Oracle screenshots and copyable commands.
@@ -15,7 +15,7 @@ for account links, Discord/Oracle screenshots and copyable commands.
 | --- | --- | --- |
 | Addon-only player | Matching published Guilded addon ZIP | 5–10 minutes |
 | Member of a configured guild | Addon; Discord linking and companion sync are optional | 5–10 minutes for the addon |
-| Owner joining the hosted pilot | Addon + hosted bot invitation + online companion | Owner approval first; setup time depends on your server |
+| Owner adding the hosted bot | Addon + hosted bot invitation + online companion | Lite right away; full Guilded after approval |
 | Owner setting up Discord sync | Matching bot source + addon + companion | About 30 minutes **after infrastructure is ready** |
 
 These are planning estimates, not measured acceptance results. Public release
@@ -25,9 +25,9 @@ For a private test, use the matching files supplied by the maintainer.
 
 ## Hosted guild owners: three steps
 
-1. [Request pilot access](HOSTED_PILOT.md) and wait for KCaron's approval.
-   An invite alone does not activate the bot.
-2. After approval, run `/setup start` in Discord. Choose your language and
+1. [Add the free hosted bot](HOSTED_PILOT.md). Your server starts on Guilded Lite;
+   KCaron's approval unlocks the rest (no reinvite needed).
+2. Run `/setup start` in Discord. Choose your language and
    features, place the bot role above roles it must assign, then run
    `/setup start status:true` to find missing settings.
 3. For WoW sync, follow the member steps below with one player first. Confirm

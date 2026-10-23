@@ -27,7 +27,9 @@ const DEFAULTS = {
   standingsIntervalMinutes: 2
 };
 
-const args = process.argv.slice(2);
+// `electron .` includes the app path; an installed executable starts with its
+// first option immediately after argv[0]. Keep --hidden on Windows login.
+const args = process.argv.slice(process.defaultApp ? 2 : 1);
 const startHidden = args.includes("--hidden");
 const screenshotPath = (args.find((a) => a.startsWith("--screenshot=")) ?? "").slice("--screenshot=".length);
 const screenshotTab = (args.find((a) => a.startsWith("--tab=")) ?? "").slice("--tab=".length);

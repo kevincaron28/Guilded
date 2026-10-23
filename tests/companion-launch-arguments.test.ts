@@ -30,6 +30,33 @@ describe("companion launch arguments", () => {
 });
 
 describe("installed companion startup capture", () => {
+  it.each(["capture", "write"])("exits unsuccessfully when %s fails", async failure => {
+    const start = main.indexOf("  if (screenshotPath) {");
+    const block = main.slice(start, main.indexOf("}).catch(failStartup);", start));
+    let timer: (() => Promise<void>) | undefined;
+    const error = new Error("diagnostic failure");
+    const exit = vi.fn();
+    const quit = vi.fn();
+    const log = vi.fn();
+    const writeFileSync = vi.fn(() => { throw error; });
+    runInNewContext("let quitting = false;\n" + block, {
+      screenshotPath: "C:/test/window.png",
+      win: { show: vi.fn(), webContents: {
+        isLoading: () => false,
+        capturePage: async () => {
+          if (failure === "capture") throw error;
+          return { toPNG: () => Buffer.from("png") };
+        }
+      } },
+      fs: { writeFileSync }, app: { exit, quit }, console: { error: log },
+      setTimeout: (callback: () => Promise<void>) => { timer = callback; }
+    });
+    await expect(timer!()).resolves.toBeUndefined();
+    expect(exit).toHaveBeenCalledWith(1);
+    expect(quit).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith("Guilded Companion screenshot failed:", error);
+    expect(writeFileSync).toHaveBeenCalledTimes(failure === "write" ? 1 : 0);
+  });
   it.each([true, false])("finishes when the renderer isLoading=%s after startup", async loading => {
     const start = main.indexOf("  if (screenshotPath) {");
     const end = main.indexOf("}).catch(failStartup);", start);

@@ -302,10 +302,18 @@ app.whenReady().then(async () => {
 
   if (screenshotPath) {
     const capture = () => setTimeout(async () => {
-      const image = await win.webContents.capturePage();
-      fs.writeFileSync(screenshotPath, image.toPNG());
-      quitting = true;
-      app.quit();
+      try {
+        const image = await win.webContents.capturePage();
+        fs.writeFileSync(screenshotPath, image.toPNG());
+        quitting = true;
+        app.quit();
+      } catch (error) {
+        // This timer is outside the startup promise. A failed diagnostic must
+        // release the single-instance lock and report failure to its caller.
+        console.error("Guilded Companion screenshot failed:", error);
+        quitting = true;
+        app.exit(1);
+      }
     }, 3500);
     // Startup awaits can let the renderer finish before this point.
     if (win.webContents.isLoading()) win.webContents.once("did-finish-load", capture);

@@ -119,6 +119,26 @@ describe("public run checks", () => {
 });
 
 describe("public run uploads", () => {
+  it("rechecks a simultaneous first insert instead of failing the upload", async () => {
+    const memory = memoryRunStore();
+    const create = memory.store.createRun;
+    memory.store.createRun = async (summary, _uploader, source) => {
+      await create(summary, { key: "account:amy", reporters: ["amy"] }, source);
+      throw Object.assign(new Error("Unique constraint"), { code: "P2002" });
+    };
+    const result = await ingestPublicRuns(memory.store, { uploaderKey: "account:kev", character: "Kev", source: "personal", runs: [run()] }, NOW);
+    expect(result.confirmed).toEqual([run().id]);
+    expect([...memory.runs.values()][0]!.confirmations).toBe(2);
+  });
+
+  it("enriches missing eligibility fields but never drops recorded boss clocks", () => {
+    const full = summarize(parse(run({ completedBy: "final boss" })));
+    const partial = { ...full, players: full.players.map(p => ({ ...p, level: null, minLevel: null })) };
+    expect(evidenceUpgrade(partial, full)).toBe(true);
+    expect(evidenceUpgrade(partial, { ...full, encounters: full.encounters.map(e => ({ id: e.id, success: true })) })).toBe(false);
+    expect(evidenceUpgrade(full, full)).toBe(false);
+  });
+
   it("stores a run once, counts agreeing party members and holds disputed runs", async () => {
     const memory = memoryRunStore();
     const first = await ingestPublicRuns(memory.store, { uploaderKey: "account:kev", character: "Kev", source: "personal", runs: [run(), run({ state: "ABANDONED", id: "other" })] }, NOW);

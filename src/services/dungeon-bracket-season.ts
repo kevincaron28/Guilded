@@ -133,15 +133,18 @@ export async function recalibrationEvidence(database: EvidenceDb, guildId: strin
       startTrigger: typeof metadata?.startTrigger === "string" ? metadata.startTrigger : null };
   }));
   const { median } = sample;
+  const minutes = median === null ? null : Math.round(median / 60);
+  const suggestedMinutes = minutes !== null && minutes >= 5 && minutes <= 120 ? minutes : null;
   return { season, rules, route, currentSec: rules.targets[key]!, provisional: !(rules.recalibrations ?? []).some(c => c.dungeonKey === key),
-    ...sample, suggestedMinutes: median === null ? null : Math.min(120, Math.max(5, Math.round(median / 60))) };
+    ...sample, ready: sample.ready && suggestedMinutes !== null, suggestedMinutes };
 }
 
 export function describeEvidence(e: Awaited<ReturnType<typeof recalibrationEvidence>>): string {
   return [`**${e.route.name}** · target ${formatDuration(e.currentSec)}${e.provisional ? " (provisional)" : " (recalibrated)"}`,
     `${e.times.length} crew/day samples from ${e.comparableRuns} comparable runs, ${e.crews} crews, ${e.days} UTC days. Build: ${e.build ?? "unknown"}; first-combat starts only. ${e.excludedRuns} excluded (build/start/party metadata).`,
     e.times.length ? `Median ${formatDuration(e.median!)}; middle 50% ${formatDuration(e.p25!)}–${formatDuration(e.p75!)}. This spread is not a confidence interval.` : "No comparable sample yet.",
-    e.ready ? `Suggested target: **${e.suggestedMinutes} min** (crew/day median). Only this target can be applied with \`minutes:\`.`
+    e.median !== null && e.suggestedMinutes === null ? "The rounded median is outside the supported 5–120 minute target range. Nothing can be applied; review the route and sample."
+      : e.ready ? `Suggested target: **${e.suggestedMinutes} min** (crew/day median). Only this target can be applied with \`minutes:\`.`
       : `${MIN_RECALIBRATION_RUNS} are needed, with at least ${CALIBRATION_POLICY.crews} substantially different crews and ${CALIBRATION_POLICY.days} days; the target stays provisional.`].join("\n");
 }
 

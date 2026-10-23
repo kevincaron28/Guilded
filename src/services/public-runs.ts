@@ -117,7 +117,15 @@ export function evidenceUpgrade(stored: RunEvidence, incoming: RunSummary): bool
     && (old.level === null || p.level === old.level) && (old.minLevel === null || p.minLevel === old.minLevel)
     && (old.role === null || p.role === old.role) && (old.presentSec === null || p.presentSec === old.presentSec)))) return false;
   if (incoming.completedBy !== "final boss") return false;
-  return stored.evidenceVersion === 0 || stored.completedBy !== "final boss" || incoming.encounters.length > stored.encounters.length;
+  // Kill times/start times are retained evidence too. A longer checklist must not
+  // silently discard the observed clocks used by public checks and boss records.
+  if (stored.encounters.some(old => !incoming.encounters.some(e => e.id === old.id
+    && (old.at === undefined || e.at === old.at) && (old.startedAt === undefined || e.startedAt === old.startedAt)))) return false;
+  const richerPlayers = stored.players.some(old => incoming.players.some(p => playerKey(p) === playerKey(old)
+    && (["level", "minLevel", "role", "presentSec"] as const).some(field => old[field] === null && p[field] !== null)));
+  const richerKills = stored.encounters.some(old => incoming.encounters.some(e => e.id === old.id
+    && (old.at === undefined && e.at !== undefined || old.startedAt === undefined && e.startedAt !== undefined)));
+  return stored.evidenceVersion === 0 || stored.completedBy !== "final boss" || incoming.encounters.length > stored.encounters.length || richerPlayers || richerKills;
 }
 
 /** reporters: every character (lowercase) whose report an upload of this run carried. */
@@ -160,8 +168,20 @@ export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderK
     // A personal upload is its character's report; a guild's copy carries its reporters' and recorder's.
     const reporters = [...new Set((input.character ? [input.character] : [...run.reporterNames ?? [], ...run.recorder ? [run.recorder] : []]).map(key))];
     const uploader = { key: input.uploaderKey, reporters };
-    const stored = await store.findRun(summary.runKey);
-    if (!stored) { await store.createRun(summary, uploader, input.source); result.accepted.push(run.id); continue; }
+    let stored = await store.findRun(summary.runKey);
+    if (!stored) {
+      try {
+        await store.createRun(summary, uploader, input.source);
+        result.accepted.push(run.id); continue;
+      } catch (error) {
+        // Two companions can both observe "not found" before the first insert.
+        // The unique key chooses the winner; the other report still needs the
+        // same atomic agreement/deduplication path as every later upload.
+        if (!error || typeof error !== "object" || !("code" in error) || error.code !== "P2002") throw error;
+        stored = await store.findRun(summary.runKey);
+        if (!stored) throw error;
+      }
+    }
     if (stored.uploaders.includes(input.uploaderKey)) { result.duplicates.push(run.id); continue; }
     const { agree, duplicate } = await store.addUpload(stored.id, uploader, summary);
     if (duplicate) result.duplicates.push(run.id);

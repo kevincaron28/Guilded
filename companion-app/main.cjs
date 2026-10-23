@@ -27,7 +27,9 @@ const DEFAULTS = {
   standingsIntervalMinutes: 2
 };
 
-const args = process.argv.slice(2);
+// `electron .` includes the app path; an installed executable starts with its
+// first option immediately after argv[0]. Keep --hidden on Windows login.
+const args = process.argv.slice(process.defaultApp ? 2 : 1);
 const startHidden = args.includes("--hidden");
 const screenshotPath = (args.find((a) => a.startsWith("--screenshot=")) ?? "").slice("--screenshot=".length);
 const screenshotTab = (args.find((a) => a.startsWith("--tab=")) ?? "").slice("--tab=".length);
@@ -299,12 +301,23 @@ app.whenReady().then(async () => {
   setInterval(() => void checkForUpdate(), 12 * 60 * 60 * 1000);
 
   if (screenshotPath) {
-    win.webContents.once("did-finish-load", () => setTimeout(async () => {
-      const image = await win.webContents.capturePage();
-      fs.writeFileSync(screenshotPath, image.toPNG());
-      quitting = true;
-      app.quit();
-    }, 3500));
+    const capture = () => setTimeout(async () => {
+      try {
+        const image = await win.webContents.capturePage();
+        fs.writeFileSync(screenshotPath, image.toPNG());
+        quitting = true;
+        app.quit();
+      } catch (error) {
+        // This timer is outside the startup promise. A failed diagnostic must
+        // release the single-instance lock and report failure to its caller.
+        console.error("Guilded Companion screenshot failed:", error);
+        quitting = true;
+        app.exit(1);
+      }
+    }, 3500);
+    // Startup awaits can let the renderer finish before this point.
+    if (win.webContents.isLoading()) win.webContents.once("did-finish-load", capture);
+    else capture();
     win.show();
   }
 }).catch(failStartup);

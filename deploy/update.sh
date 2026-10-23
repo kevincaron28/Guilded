@@ -2,7 +2,7 @@
 # Update the Guilded bot on the server. Run it from inside the git clone you set the server up from:
 #   cd ~/guilded && sudo bash deploy/update.sh
 # What it does: pull the new code (with YOUR git login, so a private repository just works), copy it to
-# /opt/guilded, install dependencies only if they changed, restart the bot, and check that it came back.
+# /opt/guilded after a separate install/build succeeds, restart it, and check that it came back.
 # Database changes apply by themselves when the bot starts (the service runs npm run db:update first).
 # Safe to run again. If the new version does not start it tells you how to go back.
 set -euo pipefail
@@ -15,6 +15,12 @@ WHO="${SUDO_USER:-root}"
 say() { printf '\n== %s\n' "$1"; }
 
 if [ ! -d "$APP" ]; then echo "$APP does not exist. Run deploy/setup-server.sh first."; exit 1; fi
+if [ "$(readlink -f "$SRC")" = "$(readlink -f "$APP")" ]; then
+  echo "Use a separate source checkout: fetching into the running application is unsafe."
+  exit 1
+fi
+exec 9>"${APP}.update.lock"
+flock -n 9 || { echo "Another update or recovery is in progress."; exit 1; }
 
 say "Checking the server checkout"
 git config --global --add safe.directory "$SRC" >/dev/null 2>&1 || true
@@ -37,27 +43,25 @@ sudo -u "$WHO" git -C "$SRC" merge --ff-only origin/main
 AFTER="$(sudo -u "$WHO" git -C "$SRC" rev-parse --short HEAD)"
 if [ "$BEFORE" = "$AFTER" ]; then echo "Already on the newest code ($AFTER)."; else echo "Updated $BEFORE -> $AFTER"; sudo -u "$WHO" git -C "$SRC" log -10 --oneline "$BEFORE..$AFTER"; fi
 
-say "Copying to $APP"
-OLD_LOCK="$(sha256sum "$APP/package-lock.json" 2>/dev/null | cut -d' ' -f1 || true)"
-if [ "$SRC" != "$APP" ]; then
-  # src/generated (the Prisma client) is not in git: the running bot still loads from it until
-  # the restart regenerates it (npm run db:update).
-  command -v rsync >/dev/null || apt-get install -y rsync
-  rsync -a --delete --exclude node_modules --exclude /src/generated --exclude .env.local --exclude backups --exclude dist "$SRC"/ "$APP"/
+say "Preparing dependencies and online companion outside the running application"
+command -v rsync >/dev/null || apt-get install -y rsync
+source "$SRC/deploy/application-update.sh"
+if ! prepare_application "$SRC" "$APP" guilded; then
+  echo "Preparation failed; the running application was not replaced or stopped."
+  echo "Inspect the private staging directory: ${STAGED_APP:-not created}"
+  exit 1
 fi
-chown -R guilded:guilded "$APP"
-NEW_LOCK="$(sha256sum "$APP/package-lock.json" | cut -d' ' -f1)"
-
-if [ "$OLD_LOCK" != "$NEW_LOCK" ] || [ ! -d "$APP/node_modules" ]; then
-  say "Dependencies changed: npm ci"
-  sudo -u guilded bash -c "cd $APP && npm ci --no-audit --no-fund"
-else
-  echo "Dependencies unchanged."
+say "Stopping the bot and activating the prepared application"
+systemctl stop guilded
+if ! activate_application "$APP" "$STAGED_APP"; then
+  echo "Activation failed; service remains stopped. Inspect $APP and ${PREVIOUS_APP:-the staging directory}."
+  exit 1
 fi
+chmod 700 "$PREVIOUS_APP"
+cp -p /etc/systemd/system/guilded.service "$PREVIOUS_APP/.recovery-service"
+echo "Saved application for code recovery: $PREVIOUS_APP"
 
 # A changed service file needs systemd to reload it.
-say "Building the online companion"
-sudo -u guilded bash -c "cd $APP && npm run companion:build"
 
 if ! cmp -s "$APP/deploy/guilded.service" /etc/systemd/system/guilded.service; then
   say "Service file changed"

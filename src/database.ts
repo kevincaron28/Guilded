@@ -11,8 +11,9 @@ loadDotenv({ quiet: true });
 
 // Prisma 6's default pool was 2 x CPU cores + 1, which is 5 on the Oracle VM. The startup
 // burst (every server's jobs plus the daily backup's long transaction) ran out of it on
-// 19 October 2026. Aiven's plan allows 20 connections with 3 reserved, so 8 still leaves
-// room for an old and a new process during a restart, pg_dump and `npm run bugs`.
+// 19 October 2026. The recorded Aiven budget is 20 connections with 3 reserved. Two
+// full pools of 8 leave only ONE maintenance connection, not both pg_dump and bugs.
+// Account for every process separately; the existing production URL's limit of 5 wins.
 export const DEFAULT_CONNECTION_LIMIT = 8;
 
 // Neon suspended the database after a few idle minutes and needed several seconds to wake

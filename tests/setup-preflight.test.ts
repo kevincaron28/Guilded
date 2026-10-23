@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { parse } from "dotenv";
 import { describe, expect, it } from "vitest";
 
@@ -19,7 +20,7 @@ function runPreflight(values: Record<string, string>) {
     for (const key of Object.keys(example)) delete env[key];
     writeFileSync(join(folder, ".env.local"), Object.entries({ ...example, ...values })
       .map(([key, value]) => `${key}=${value}`).join("\n"));
-    return spawnSync(process.execPath, [resolve("node_modules/tsx/dist/cli.mjs"), resolve("scripts/check-setup.ts")],
+    return spawnSync(process.execPath, ["--import", pathToFileURL(resolve("node_modules/tsx/dist/loader.mjs")).href, resolve("scripts/check-setup.ts")],
       { cwd: folder, env, encoding: "utf8", timeout: SPAWN_TIMEOUT });
   } finally {
     rmSync(folder, { recursive: true, force: true });

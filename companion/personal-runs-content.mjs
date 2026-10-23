@@ -1,4 +1,5 @@
 import { exportDungeonRuns, parseAddonExportText, readDatabase } from "./lua-export-content.mjs";
+import { publicScoreToLua } from "./standings-format.mjs";
 
 // The browser-safe half of personal mode (no file system): shared by personal-runs.mjs (desktop
 // and command line) and browser-client.mjs (the website companion).
@@ -32,6 +33,10 @@ const luaString = (value) => `"${String(value).replace(/[\\"]/g, "\\$&").replace
 // addons are installed (they share the GuildedDungeonAccepted name).
 export function acceptedToLua(refs) {
   return `-- Written by the Guilded companion: runs the public leaderboards hold.\nGuildedDungeonAccepted = GuildedDungeonAccepted or {}\nfor _, id in ipairs({ ${refs.slice(0, 500).map(luaString).join(", ")} }) do table.insert(GuildedDungeonAccepted, id) end\n`;
+}
+
+export function personalResponseToLua(body) {
+  return acceptedToLua(Array.isArray(body.acceptedRunRefs) ? body.acceptedRunRefs : []) + publicScoreToLua(body.publicScore ?? null);
 }
 
 // The two saved files personal mode reads, in the order it prefers them.

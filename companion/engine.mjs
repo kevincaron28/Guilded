@@ -255,6 +255,10 @@ export function createEngine(initialConfig, hooks = {}) {
       lastFile = await savedStamp(current);
       const result = await uploadPersonalRuns(current, controller.signal);
       if (epoch !== generation) return;
+      if (result.scoreSaved) {
+        state.lastStandings = { at: new Date().toISOString(), message: "Public scores saved to Guilded Dungeons. Use /reload, then /gdungeons score." };
+        log("ok", state.lastStandings.message);
+      }
       state.lastUpload = { at: new Date().toISOString(), message: result.message };
       if (result.sent) state.uploads += 1;
       state.uploadError = null;
@@ -569,6 +573,6 @@ export function createEngine(initialConfig, hooks = {}) {
     async configure(next) { await this.stop(); config = next; etag = null; ack = null; features = new Set(); gzipOff = false; lastFile = null; lastText = null; return this.start(); },
     uploadNow() { if (config.wowEnabled !== false) scheduleUpload(0); if (poe) track(poe.pollNow()); },
     // The tray's "Refresh in-game standings now" always fetches and writes the full answer.
-    refreshStandings: () => refreshStandings({ force: true })
+    refreshStandings: () => config.personal ? personalUpload() : refreshStandings({ force: true })
   };
 }

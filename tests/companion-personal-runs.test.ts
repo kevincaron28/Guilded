@@ -20,6 +20,24 @@ const SAVED = `GuildedDungeonsDB = {
 `;
 
 describe("personal companion mode", () => {
+  it("refreshes the public score snapshot even when every run was already synced", async () => {
+    const root = mkdtempSync(join(tmpdir(), "gd-score-"));
+    try {
+      const watchFile = join(root, "GuildedDungeons.lua"), acceptedFile = join(root, "Accepted.lua");
+      writeFileSync(watchFile, 'GuildedDungeonsDB = { character = { name="Kev", realm="Doomhowl" }, dungeon = {runs={}} }');
+      const fetcher = vi.fn(async (_url: string | URL, init?: RequestInit) => {
+        expect(JSON.parse(String(init?.body))).toMatchObject({ runs: [], includeScore: true });
+        return Response.json({ acceptedRunRefs: [], publicScore: { character: "Kev", realm: "Doomhowl", season: "Public", status: "ACTIVE", updatedAt: "2026-10-23T12:00:00Z", rows: [] } });
+      });
+      vi.stubGlobal("fetch", fetcher);
+      await uploadPersonalRuns({ watchFile, acceptedFile, uploadUrl: "https://guilded.kcaron.top", companionCredential: "c".repeat(40) });
+      expect(readFileSync(acceptedFile, "utf8")).toContain('GuildedDungeonsPublicScore.character = "Kev"');
+      // A pre-upgrade server must clear any stale new-format snapshot safely.
+      vi.stubGlobal("fetch", vi.fn(async () => Response.json({ acceptedRunRefs: [] })));
+      await uploadPersonalRuns({ watchFile, acceptedFile, uploadUrl: "https://guilded.kcaron.top", companionCredential: "c".repeat(40) });
+      expect(readFileSync(acceptedFile, "utf8")).toContain("GuildedDungeonsPublicScore = nil");
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
   it("exports calibration metadata from saved runs", () => {
     const saved = SAVED.replace('["id"] = "QG-1",', '["id"] = "QG-1", gameBuild="12345", startTrigger="first combat",');
     expect(readPersonalRuns(saved).runs[0]).toMatchObject({ gameBuild: "12345", startTrigger: "first combat" });

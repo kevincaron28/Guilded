@@ -26,7 +26,7 @@ export function snapshotGuidance(row: Pick<RatingRow, "points" | "details" | "br
     };
     let next: ReturnType<typeof at> | null = null;
     const most = at(MIN_DURATION_SEC).gain;
-    if (fit !== "carry" && most > 0) {
+    if (fit === "ok" && most > 0) {
       const need = Math.min(5, most);
       if (at(MAX_DURATION_SEC).gain >= need) next = { ...at(MAX_DURATION_SEC), durationSec: null };
       else {

@@ -95,6 +95,22 @@ function seasonFields(board) {
   return `provisionalTargets = ${board.provisionalTargets === true ? "true" : "false"}, id = ${luaString(board.id ?? "")}, ratingVersion = ${Math.trunc(board.ratingVersion ?? 0)}, detailsAvailable = ${board.detailsAvailable === true ? "true" : "false"}, ${bracketList(board)}profiles = { ${details.join(", ")} }, catalog = { ${catalog.join(", ")} }, `;
 }
 
+export function dungeonBoardToLua(board, updatedAt, variable = "GuildedDungeonBoard") {
+  if (!board) return [`${variable} = nil`];
+  return [
+    `${variable} = { season = ${luaString(board.season)}, status = ${luaString(board.status ?? "ACTIVE")}, updatedAt = ${luaString(updatedAt)}, ${seasonDates(board)}${seasonFields(board)}${weekField(board)}rows = {`,
+    ...board.rows.map(row => `  { name = ${luaString(row.name)}, ${bracketField(row)}points = ${Math.trunc(row.points)} },`),
+    "}, history = {",
+    ...(board.history ?? []).map(past => ` { season = ${luaString(past.season)}, status = ${luaString(past.status)}, ${seasonDates(past)}${seasonFields(past)}rows = { ${past.rows.map(row => `{ name = ${luaString(row.name)}, ${bracketField(row)}points = ${Math.trunc(row.points)} }`).join(", ")} } },`),
+    "} }"
+  ];
+}
+
+export function publicScoreToLua(board) {
+  return [...dungeonBoardToLua(board, board?.updatedAt ?? "", "GuildedDungeonsPublicScore"),
+    ...(board ? [`GuildedDungeonsPublicScore.character = ${luaString(board.character)}`, `GuildedDungeonsPublicScore.realm = ${luaString(board.realm)}`] : [])].join("\n") + "\n";
+}
+
 export function standingsToLua(data) {
   const rows = data.standings.map((row) =>
     `    { name = ${luaString(row.character)}, ep = ${Math.trunc(row.ep)}, gp = ${Math.trunc(row.gp)}, main = ${row.main ? "true" : "false"}, account = ${luaString(data.accounts?.[row.character] ?? "")} },`
@@ -120,13 +136,7 @@ export function standingsToLua(data) {
     "}",
     "",
     "-- Dungeon points this season (top 10), for the addon's Dungeons tab.",
-    ...(data.dungeonBoard ? [
-      `GuildedDungeonBoard = { season = ${luaString(data.dungeonBoard.season)}, status = ${luaString(data.dungeonBoard.status ?? "ACTIVE")}, updatedAt = ${luaString(data.updatedAt)}, ${seasonDates(data.dungeonBoard)}${seasonFields(data.dungeonBoard)}${weekField(data.dungeonBoard)}rows = {`,
-      ...data.dungeonBoard.rows.map((row) => `  { name = ${luaString(row.name)}, ${bracketField(row)}points = ${Math.trunc(row.points)} },`),
-      "}, history = {",
-      ...(data.dungeonBoard.history ?? []).map(board => ` { season = ${luaString(board.season)}, status = ${luaString(board.status)}, ${seasonDates(board)}${seasonFields(board)}rows = { ${board.rows.map(row => `{ name = ${luaString(row.name)}, ${bracketField(row)}points = ${Math.trunc(row.points)} }`).join(", ")} } },`),
-      "} }"
-    ] : ["GuildedDungeonBoard = nil"]),
+    ...dungeonBoardToLua(data.dungeonBoard, data.updatedAt),
     "",
     "-- Item tooltips: who wishlisted an item and what it usually costs (key = lowercase item name).",
     ...((data.items ?? []).length ? [

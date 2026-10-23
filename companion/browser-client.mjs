@@ -3,7 +3,7 @@ import { standingsToLua } from "./standings-format.mjs";
 import { createBrowserFolderAccess } from "./browser-folders.mjs";
 import { acknowledgements, pruneAcknowledged } from "./delta.mjs";
 import { sheetFiles } from "./sheet-export.mjs";
-import { PERSONAL_SAVED_FILES, personalPayload, personalPayloadFrom, personalResultMessage } from "./personal-runs-content.mjs";
+import { PERSONAL_SAVED_FILES, personalPayload, personalPayloadFrom, personalResultMessage, personalResponseToLua } from "./personal-runs-content.mjs";
 
 /* global __GUILDED_VERSION__ */
 // Filled in by scripts/build-companion-web.mjs from package.json.
@@ -85,10 +85,14 @@ export function createBrowserCompanion(env = globalThis) {
   async function uploadPersonal(files) {
     const { character, runs } = personalPayloadFrom(await Promise.all(files.map(file => file.text())), config.realm);
     if (!character) throw new Error("The saved files have no character yet. Log in once with Guilded Dungeons (or Guilded), then /reload.");
-    if (!runs.length) { log("info", "No finished dungeon run to send yet."); return; }
-    const result = personalResultMessage(await request("/api/v1/public-runs", { character, runs }));
+    const body = await request("/api/v1/public-runs", { character, runs, includeScore: true });
+    const result = personalResultMessage(body);
     state.lastUpload = { at: new Date().toISOString(), message: result.message }; state.uploads++; state.uploadError = null;
     log(result.level, result.message);
+    if (folders.hasOutput()) {
+      try { await folders.saveStandings(async () => personalResponseToLua(body), { requestAccess: false, personal: true }); state.standingsError = null; }
+      catch (error) { state.standingsError = error.message; log("warn", `Runs received; public scores were not saved: ${error.message}`); }
+    }
   }
   const pick = extension => new Promise(resolve => {
     const input = document.createElement("input"); input.type = "file"; input.accept = extension;
@@ -136,6 +140,19 @@ export function createBrowserCompanion(env = globalThis) {
     const anchor = document.createElement("a"); anchor.href = url; anchor.download = name; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   async function saveBrowserStandings(requestAccess = true) {
+    if (config.personal) {
+      const load = async () => {
+        const files = folders.hasInput() ? await folders.readInputs(savedNames()) : wowFile ? [wowFile] : [];
+        const { character } = personalPayloadFrom(await Promise.all(files.map(f => f.text())), config.realm);
+        if (!character) throw new Error("Choose your saved data before refreshing public scores.");
+        return personalResponseToLua(await request("/api/v1/public-runs", { character, runs: [], includeScore: true }));
+      };
+      if (folders.available) await folders.saveStandings(load, { requestAccess, personal: true });
+      else download("Accepted.lua", await load());
+      state.standingsError = null;
+      state.lastStandings = { at: new Date().toISOString(), message: "Public scores saved. Use Accepted.lua in Interface / AddOns / GuildedDungeons, then /reload." };
+      log("ok", state.lastStandings.message); return;
+    }
     const load = async () => standingsToLua(rememberStandings(await request(`/api/v1/standings?${guildQuery()}`)));
     if (folders.available) await folders.saveStandings(load, { requestAccess });
     else download("Standings.lua", await load());
@@ -258,7 +275,6 @@ export function createBrowserCompanion(env = globalThis) {
     getPoeRuns: async () => (await request(`/api/v1/poe/visits?${guildQuery()}`)).visits,
     refreshStandings: async () => {
       if (!config.companionCredential) throw new Error("Connect your Discord account first.");
-      if (config.personal) throw new Error("A website (personal) connection has no guild standings: it only sends your dungeon runs to the public leaderboards.");
       if (busy) throw new Error("Wait for the current sync to finish."); busy = true;
       try {
         await saveBrowserStandings();

@@ -57,6 +57,7 @@ local function L(text) return ns.L and ns.L(text) or text end
 -- evidence must not qualify for a guild leaderboard. Keep their saved history.
 function scores.isMember(name)
   name = ns.normalizeName and ns.normalizeName(name)
+  if ns.standalone then return name ~= nil and name == ns.playerName() end
   if not name or not (IsInGuild and IsInGuild()) then return false end
   if name == (ns.playerName and ns.playerName()) then return true end
   local db = ns.getDb and ns.getDb()
@@ -316,7 +317,7 @@ local function decorateUnit(tooltip)
   if not total then return end
   local db = ns.getDb and ns.getDb()
   local bracket = scores.bracketByKey(db and db.dungeonBoard, bracketKey)
-  tooltip:AddLine(string.format(L("Guilded season score: %d"), total) .. (bracket and (" (" .. scores.bracketLabel(bracket) .. ")") or ""), GOLD_R, GOLD_G, GOLD_B)
+  tooltip:AddLine(string.format(L(ns.standalone and "Public season score: %d" or "Guilded season score: %d"), total) .. (bracket and (" (" .. scores.bracketLabel(bracket) .. ")") or ""), GOLD_R, GOLD_G, GOLD_B)
   local snapshot = ns.seasonDetails and ns.seasonDetails.get(1, name, bracketKey)
   for _, role in ipairs(snapshot and snapshot.profile and snapshot.profile.roles or {}) do
     tooltip:AddLine(L(role.role) .. ": " .. role.points, 0.8, 0.85, 1)

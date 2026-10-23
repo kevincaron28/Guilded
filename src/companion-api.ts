@@ -41,6 +41,8 @@ import { exchangePersonalCode, isPersonalCode, issuePersonalCredential, personal
 import { loadOfficialWindows } from "./services/official-seasons.js";
 import { companionSignInRoute, createCompanionSignIn } from "./services/companion-signin.js";
 import { ingestPublicRuns, PUBLIC_LIMITS, prismaPublicRunStore, PublicUploadError } from "./services/public-runs.js";
+import { publicAddonBoard } from "./services/public-addon-board.js";
+import { publicSeasons } from "./services/public-score.js";
 import { COMPANION_FEATURES, markGuildChanged, standingsFeed, type FeedParts } from "./services/standings-feed.js";
 import { commandRegistration } from "./services/command-registration.js";
 const BOT_VERSION = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version as string;
@@ -428,7 +430,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const account = await personalAccess(personalStore, typeof secret === "string" ? secret : undefined);
         if (!account) { recordFailure(address); json(response, 401, { error: "Connect this companion with a code from your Guilded page (guilded.kcaron.top/me/)." }); return; }
         if (!allowPublicUpload(account.accountId)) { json(response, 429, { error: "Too many uploads in the last hour. Try again later." }); return; }
-        const body = await readBody(request) as { character?: { name?: unknown }; runs?: unknown } | null;
+        const body = await readBody(request) as { character?: { name?: unknown; realm?: unknown }; runs?: unknown; includeScore?: unknown } | null;
         const character = typeof body?.character?.name === "string" ? body.character.name.slice(0, 40) : null;
         if (!character) { json(response, 400, { error: "character.name is required" }); return; }
         try {
@@ -446,7 +448,13 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
               create: { accountId: account.accountId, name: player.character, realm: player.realm }, update: {}
             });
           }
-          json(response, 200, { ...result, botVersion: BOT_VERSION });
+          // Explicit opt-in keeps old companions' response and cost unchanged. Public
+          // data may be read without claiming ownership; names are always realm-scoped.
+          const realm = typeof body?.character?.realm === "string" ? body.character.realm.trim().slice(0, 100) : "";
+          const publicScore = body?.includeScore === true && realm && realm !== "-"
+            ? publicAddonBoard(await prismaLeaderboardStore(prisma).characterRuns(character, realm), { character, realm },
+              publicSeasons(new Date(), await loadOfficialWindows(prisma))) : undefined;
+          json(response, 200, { ...result, ...(body?.includeScore === true ? { publicScore: publicScore ?? null } : {}), botVersion: BOT_VERSION });
         } catch (error) {
           if (error instanceof PublicUploadError) { json(response, error.status, { error: error.message }); return; }
           throw error;

@@ -393,6 +393,8 @@ export function exportDungeonRuns(database, realm, options = {}) {
       id: String(run.id),
       protocolVersion: Number(run.protocolVersion ?? 1),
       ...(run.addonVersion ? { addonVersion: String(run.addonVersion) } : {}),
+      ...(run.gameBuild ? { gameBuild: String(run.gameBuild) } : {}),
+      ...(run.startTrigger ? { startTrigger: String(run.startTrigger) } : {}),
       state: String(run.state),
       instanceId: Number(run.instanceId),
       name: String(run.name ?? "Unknown dungeon"),

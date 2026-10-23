@@ -25,6 +25,7 @@ function activeRun() {
     end`);
   session.load("Modules/Dungeon.lua");
   session.run(`fire_event("PLAYER_LOGIN")
+    GetBuildInfo = function() return "1.15", "12345", "date", 11500 end
     STAMP = 1800000000
     NS.compat.serverTime = function() return STAMP end
     INSTANCE = {id=3065, type="party", name="Hall of Thanes", difficultyId=1}
@@ -37,6 +38,13 @@ function activeRun() {
 }
 
 describe("dungeon final-boss completion without the Encounter Journal", () => {
+  it("records the observed game build and timer trigger through peer summaries", () => {
+    const s = activeRun();
+    s.run('ROUNDTRIP=NS.dungeon.deserialize(RUN_ID, NS.dungeon.serialize(GuildedDB.dungeon.current))');
+    expect(s.run('return ROUNDTRIP.gameBuild..":"..ROUNDTRIP.startTrigger')).toBe("12345:first combat");
+    s.run('GuildedDB.dungeon.current.state="STARTING"; NS.commandHandlers.dungeon({"start"})');
+    expect(s.run('return GuildedDB.dungeon.current.startTrigger')).toBe("manual");
+  });
   it("queues one result on real finalization, preserves manual reopen, and never completes an early exit", () => {
     const s = activeRun();
     s.run(`QUEUED=0; SUMMARIES=0; MOCK_UNITS={player={name="Tester"}}

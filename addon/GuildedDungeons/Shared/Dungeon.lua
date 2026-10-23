@@ -144,6 +144,7 @@ local function newRun(instance)
     id = makeId(recorder, stamp),
     protocolVersion = PROTOCOL_VERSION,
     addonVersion = compat.addonVersion(),
+    gameBuild = GetBuildInfo and tostring(select(2, GetBuildInfo())) or nil,
     interface = compat.interfaceVersion(),
     state = "DETECTED",
     recorder = recorder,
@@ -219,12 +220,13 @@ local function finish(state, reason)
   finalize(run)
 end
 
-local function activate(stamp)
+local function activate(stamp, trigger)
   local d = db()
   local run = d and d.current
   if not run or run.state ~= "STARTING" then return end
   run.state = "ACTIVE"
   run.startedAt = stamp or now()
+  run.startTrigger = trigger or "first combat"
   run.lastTick = run.startedAt
   send(string.format("ACTIVE|%s|%d", run.id, run.startedAt))
   save(run)
@@ -295,6 +297,7 @@ serialize = function(run)
   end
   local summary = table.concat({
     "v=" .. PROTOCOL_VERSION, "av=" .. clean(run.addonVersion), "st=" .. run.state,
+    "gb=" .. clean(run.gameBuild or ""), "tr=" .. clean(run.startTrigger or ""),
     "i=" .. tostring(run.instanceId or 0), "n=" .. clean(run.name), "d=" .. tostring(run.difficultyId or 0),
     "s=" .. tostring(run.startedAt or 0), "e=" .. tostring(run.endedAt or 0),
     "cb=" .. clean(run.completedBy or run.endReason or ""), "r=" .. clean(run.recorder),
@@ -332,6 +335,7 @@ local function deserialize(id, text)
   if tonumber(fields.v) ~= PROTOCOL_VERSION or not fields.st then return nil end
   local run = {
     id = id, protocolVersion = PROTOCOL_VERSION, addonVersion = fields.av, state = fields.st,
+    gameBuild = fields.gb ~= "" and fields.gb or nil, startTrigger = fields.tr ~= "" and fields.tr or nil,
     instanceId = tonumber(fields.i), name = fields.n, difficultyId = tonumber(fields.d),
     startedAt = tonumber(fields.s) ~= 0 and tonumber(fields.s) or nil,
     endedAt = tonumber(fields.e) ~= 0 and tonumber(fields.e) or nil,
@@ -455,8 +459,8 @@ local function onAddonMessage(text, sender)
     startedAt = tonumber(startedAt)
     -- A start time before this run was even detected (or in the future) is not believed.
     if run and run.id == id and startedAt and startedAt >= (run.detectedAt or 0) - 600 and startedAt <= now() + 60 then
-      if run.state == "STARTING" then activate(startedAt)
-      elseif run.state == "ACTIVE" and startedAt and startedAt < (run.startedAt or math.huge) then run.startedAt = startedAt; save(run) end
+      if run.state == "STARTING" then activate(startedAt, "peer")
+      elseif run.state == "ACTIVE" and startedAt and startedAt < (run.startedAt or math.huge) then run.startedAt = startedAt; run.startTrigger = "peer"; save(run) end
     end
   elseif kind == "DEATH" then
     local id, name, count = string.match(text, "^DEATH|([^|]+)|([^|]+)|(%d+)$")
@@ -558,7 +562,7 @@ local function onEvent(_, event, ...)
     local run, instance = d.current, compat.instance()
     if not run or TERMINAL[run.state] or not instance or instance.type ~= "party"
       or instance.id ~= run.instanceId or ns.isSecret(encounterId) or not tonumber(encounterId) then return end
-    if run.state == "STARTING" then activate() end
+    if run.state == "STARTING" then activate(nil, "encounter start") end
     if not run.activeEncounter or run.activeEncounter.id ~= tonumber(encounterId) then
       run.activeEncounter = { id = tonumber(encounterId), startedAt = now(), name = not ns.isSecret(name) and name or nil }
       save(run)
@@ -569,7 +573,7 @@ local function onEvent(_, event, ...)
     local instance = compat.instance()
     if not run or TERMINAL[run.state] or not instance or instance.type ~= "party"
       or instance.id ~= run.instanceId or ns.isSecret(encounterId) or ns.isSecret(success) then return end
-    if run.state == "STARTING" then activate() end
+    if run.state == "STARTING" then activate(nil, "encounter end") end
     if not tonumber(encounterId) then return end
     recordEncounter(run, tonumber(encounterId), (not ns.isSecret(name)) and name or nil, success == 1)
     if success == 1 and ((run.finalEncounterId and tonumber(encounterId) == run.finalEncounterId)
@@ -710,7 +714,7 @@ ns.commandHandlers["dungeon"] = function(args)
   elseif action == "start" then
     if not d.current then ns.message("Not in a tracked dungeon run.") return end
     if not canControl() then ns.message("Only the group leader or an officer can do that.") return end
-    activate()
+    activate(nil, "manual")
   elseif action == "complete" then
     if not canControl() then ns.message("Only the group leader or an officer can do that.") return end
     finish("COMPLETED", "manual")

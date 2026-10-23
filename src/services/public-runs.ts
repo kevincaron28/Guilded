@@ -72,26 +72,71 @@ export function summarize(run: DungeonRunInput): RunSummary {
   };
 }
 
-// Two uploads of one run agree when they tell the same story: same length (within 30 s), same
-// end (within 5 min) and mostly the same party.
-export function agrees(stored: { durationSec: number; endedAt: Date; players: string[] }, incoming: RunSummary): boolean {
+export type RunEvidence = Pick<RunSummary, "instanceId" | "difficultyId" | "routeKey" | "durationSec" | "startedAt" | "endedAt" | "completedBy" | "encounters"> & {
+  evidenceVersion: number;
+  players: (Omit<RunSummary["players"][number], "presentSec"> & { presentSec: number | null })[];
+};
+const playerKey = (player: { character: string; realm: string }) => `${key(player.character)}@${key(player.realm)}`;
+const containsKills = (a: RunEvidence, b: RunEvidence) => b.encounters.every(kill => a.encounters.some(other => other.id === kill.id));
+
+// Incomplete observations can agree; conflicting known scoring facts cannot.
+export function agrees(stored: RunEvidence, incoming: RunSummary): boolean {
+  if (stored.instanceId !== incoming.instanceId || stored.difficultyId !== incoming.difficultyId) return false;
+  if (stored.routeKey && incoming.routeKey && stored.routeKey !== incoming.routeKey) return false;
   if (Math.abs(stored.durationSec - incoming.durationSec) > PUBLIC_LIMITS.agreeDurationSec) return false;
   if (Math.abs(stored.endedAt.getTime() - incoming.endedAt.getTime()) > PUBLIC_LIMITS.agreeEndSec * 1000) return false;
-  const mine = new Set(stored.players.map(key));
-  const theirs = incoming.players.map((player) => key(player.character));
+  const mine = new Set(stored.players.map(playerKey));
+  const theirs = incoming.players.map(playerKey);
   const shared = theirs.filter((name) => mine.has(name)).length;
-  return shared / Math.max(mine.size, theirs.length, 1) >= PUBLIC_LIMITS.agreePlayers;
+  if (shared / Math.max(mine.size, theirs.length, 1) < PUBLIC_LIMITS.agreePlayers) return false;
+  for (const player of incoming.players) {
+    const old = stored.players.find(p => playerKey(p) === playerKey(player));
+    if (!old) continue;
+    for (const field of ["level", "minLevel", "role"] as const) {
+      if (old[field] !== null && player[field] !== null && old[field] !== player[field]) return false;
+    }
+    if (old.presentSec !== null && (Math.abs(old.presentSec - player.presentSec) > PUBLIC_LIMITS.agreeDurationSec
+      || (old.presentSec >= 0.8 * stored.durationSec) !== (player.presentSec >= 0.8 * incoming.durationSec))) return false;
+  }
+  if (!containsKills(stored, incoming) && !containsKills(incoming, stored)) return false;
+  for (const kill of incoming.encounters) {
+    const old = stored.encounters.find(e => e.id === kill.id);
+    if (old?.at !== undefined && kill.at !== undefined && Math.abs(old.at - kill.at) > PUBLIC_LIMITS.agreeDurationSec) return false;
+  }
+  if (stored.completedBy && incoming.completedBy && stored.completedBy !== incoming.completedBy
+    && stored.completedBy !== "final boss" && incoming.completedBy !== "final boss") return false;
+  return true;
+}
+
+/** Replace a whole observation only with strictly better, compatible evidence; never splice reports. */
+export function evidenceUpgrade(stored: RunEvidence, incoming: RunSummary): boolean {
+  if (!agrees(stored, incoming) || stored.durationSec !== incoming.durationSec
+    || stored.startedAt.getTime() !== incoming.startedAt.getTime() || stored.endedAt.getTime() !== incoming.endedAt.getTime()
+    || stored.players.length !== incoming.players.length || !containsKills(incoming, stored)) return false;
+  if (stored.players.some(old => !incoming.players.some(p => playerKey(p) === playerKey(old)
+    && (old.level === null || p.level === old.level) && (old.minLevel === null || p.minLevel === old.minLevel)
+    && (old.role === null || p.role === old.role) && (old.presentSec === null || p.presentSec === old.presentSec)))) return false;
+  if (incoming.completedBy !== "final boss") return false;
+  // Kill times/start times are retained evidence too. A longer checklist must not
+  // silently discard the observed clocks used by public checks and boss records.
+  if (stored.encounters.some(old => !incoming.encounters.some(e => e.id === old.id
+    && (old.at === undefined || e.at === old.at) && (old.startedAt === undefined || e.startedAt === old.startedAt)))) return false;
+  const richerPlayers = stored.players.some(old => incoming.players.some(p => playerKey(p) === playerKey(old)
+    && (["level", "minLevel", "role", "presentSec"] as const).some(field => old[field] === null && p[field] !== null)));
+  const richerKills = stored.encounters.some(old => incoming.encounters.some(e => e.id === old.id
+    && (old.at === undefined && e.at !== undefined || old.startedAt === undefined && e.startedAt !== undefined)));
+  return stored.evidenceVersion === 0 || stored.completedBy !== "final boss" || incoming.encounters.length > stored.encounters.length || richerPlayers || richerKills;
 }
 
 /** reporters: every character (lowercase) whose report an upload of this run carried. */
-export interface StoredRun { id: string; status: string; durationSec: number; endedAt: Date; players: string[]; uploaders: string[]; reporters: string[] }
+export interface StoredRun extends RunEvidence { id: string; status: string; uploaders: string[]; reporters: string[] }
 export interface Uploader { key: string; reporters: string[] }
 
 export interface PublicRunStore {
   findRun(runKey: string): Promise<StoredRun | null>;
   createRun(summary: RunSummary, uploader: Uploader, source: "personal" | "guild"): Promise<void>;
-  /** Adds the uploader; agree=false marks the run DISPUTED, confirm=true adds a confirmation. */
-  addUpload(runId: string, uploader: Uploader, summary: RunSummary, agree: boolean, confirm: boolean): Promise<void>;
+  /** Rechecks agreement and reporter independence atomically against the latest stored evidence. */
+  addUpload(runId: string, uploader: Uploader, summary: RunSummary): Promise<{ agree: boolean; duplicate: boolean }>;
   uploadsSince(uploaderKey: string, since: Date): Promise<number>;
   /** The run ids this uploader's runs are stored under, for the addon's "synced" marks. */
   storedRefs(uploaderKey: string): Promise<string[]>;
@@ -123,12 +168,24 @@ export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderK
     // A personal upload is its character's report; a guild's copy carries its reporters' and recorder's.
     const reporters = [...new Set((input.character ? [input.character] : [...run.reporterNames ?? [], ...run.recorder ? [run.recorder] : []]).map(key))];
     const uploader = { key: input.uploaderKey, reporters };
-    const stored = await store.findRun(summary.runKey);
-    if (!stored) { await store.createRun(summary, uploader, input.source); result.accepted.push(run.id); continue; }
+    let stored = await store.findRun(summary.runKey);
+    if (!stored) {
+      try {
+        await store.createRun(summary, uploader, input.source);
+        result.accepted.push(run.id); continue;
+      } catch (error) {
+        // Two companions can both observe "not found" before the first insert.
+        // The unique key chooses the winner; the other report still needs the
+        // same atomic agreement/deduplication path as every later upload.
+        if (!error || typeof error !== "object" || !("code" in error) || error.code !== "P2002") throw error;
+        stored = await store.findRun(summary.runKey);
+        if (!stored) throw error;
+      }
+    }
     if (stored.uploaders.includes(input.uploaderKey)) { result.duplicates.push(run.id); continue; }
-    const agree = agrees(stored, summary);
-    await store.addUpload(stored.id, uploader, summary, agree, agree && !reporters.some((name) => stored.reporters.includes(name)));
-    if (agree) result.confirmed.push(run.id);
+    const { agree, duplicate } = await store.addUpload(stored.id, uploader, summary);
+    if (duplicate) result.duplicates.push(run.id);
+    else if (agree) result.confirmed.push(run.id);
     else result.rejected.push({ id: run.id, reason: "other party members sent a different result; the run is held for review" });
   }
   result.acceptedRunRefs = (await store.storedRefs(input.uploaderKey)).slice(0, 500);
@@ -136,11 +193,16 @@ export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderK
 }
 
 export function prismaPublicRunStore(database: PrismaClient): PublicRunStore {
+  const select = { id: true, status: true, instanceId: true, difficultyId: true, routeKey: true, durationSec: true, startedAt: true, endedAt: true,
+    evidenceVersion: true, completedBy: true, encounters: true, players: true, uploads: { select: { uploaderKey: true, reporters: true } } } as const;
+  function storedRow(row: Prisma.PublicRunGetPayload<{ select: typeof select }>): StoredRun {
+    return { ...row, encounters: Array.isArray(row.encounters) ? row.encounters as RunSummary["encounters"] : [],
+      uploaders: row.uploads.map(u => u.uploaderKey), reporters: [...new Set(row.uploads.flatMap(u => u.reporters))] };
+  }
   return {
     async findRun(runKey) {
-      const row = await database.publicRun.findUnique({ where: { runKey }, select: { id: true, status: true, durationSec: true, endedAt: true, players: { select: { character: true } }, uploads: { select: { uploaderKey: true, reporters: true } } } });
-      return row ? { id: row.id, status: row.status, durationSec: row.durationSec, endedAt: row.endedAt, players: row.players.map((p) => p.character),
-        uploaders: row.uploads.map((u) => u.uploaderKey), reporters: [...new Set(row.uploads.flatMap((u) => u.reporters))] } : null;
+      const row = await database.publicRun.findUnique({ where: { runKey }, select });
+      return row ? storedRow(row) : null;
     },
     async createRun(summary, uploader, source) {
       const { players, encounters, ...run } = summary;
@@ -150,11 +212,23 @@ export function prismaPublicRunStore(database: PrismaClient): PublicRunStore {
         uploads: { create: { uploaderKey: uploader.key, reporters: uploader.reporters, durationSec: summary.durationSec, endedAt: summary.endedAt } }
       } });
     },
-    async addUpload(runId, uploader, summary, agree, confirm) {
-      await database.$transaction([
-        database.publicRunUpload.create({ data: { runId, uploaderKey: uploader.key, reporters: uploader.reporters, durationSec: summary.durationSec, endedAt: summary.endedAt } }),
-        ...(agree && !confirm ? [] : [database.publicRun.update({ where: { id: runId }, data: agree ? { confirmations: { increment: 1 } } : { status: "DISPUTED" } })])
-      ]);
+    async addUpload(runId, uploader, summary) {
+      return database.$transaction(async tx => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`public-run:${runId}`}, 0))`;
+        const stored = storedRow(await tx.publicRun.findUniqueOrThrow({ where: { id: runId }, select }));
+        if (stored.uploaders.includes(uploader.key)) return { agree: true, duplicate: true };
+        const agree = agrees(stored, summary);
+        const confirm = agree && uploader.reporters.length > 0 && !uploader.reporters.some(name => stored.reporters.includes(name));
+        await tx.publicRunUpload.create({ data: { runId, uploaderKey: uploader.key, reporters: uploader.reporters, durationSec: summary.durationSec, endedAt: summary.endedAt } });
+        const promote = stored.status === "ACCEPTED" && evidenceUpgrade(stored, summary);
+        await tx.publicRun.update({ where: { id: runId }, data: {
+          ...(!agree ? { status: "DISPUTED" } : confirm ? { confirmations: { increment: 1 } } : {}),
+          ...(promote ? { evidenceVersion: 1, completedBy: summary.completedBy, encounters: summary.encounters as Prisma.InputJsonValue,
+            routeKey: summary.routeKey, maxLevel: summary.maxLevel, bracket: summary.bracket,
+            players: { deleteMany: {}, create: summary.players } } : {})
+        } });
+        return { agree, duplicate: false };
+      });
     },
     uploadsSince: (uploaderKey, since) => database.publicRunUpload.count({ where: { uploaderKey, createdAt: { gte: since } } }),
     async storedRefs(uploaderKey) {

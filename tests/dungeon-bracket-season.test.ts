@@ -229,32 +229,46 @@ describe("recalibrating a provisional target", () => {
   it("needs real ranked timed runs, suggests their median, and never changes scores already earned", async () => {
     const early = [timed("a", 1500, "2026-10-21T01:00:00Z"), timed("b", 1800, "2026-10-21T02:00:00Z")];
     const few = db(rules, early);
-    expect((await recalibrationEvidence(few.db, "g", "36")).times).toEqual([1500, 1800]);
+    expect((await recalibrationEvidence(few.db, "g", "36")).times).toEqual([]); // legacy build/start evidence is unknown
     await expect(recalibrateRoute(few.db, "g", "36", 28, new Date("2026-10-22T00:00:00Z"))).rejects.toThrow(new RegExp(`${MIN_RECALIBRATION_RUNS} are needed`));
     expect(few.tx.dungeonSeason.update).not.toHaveBeenCalled();
 
     // An over-level group and a run on another route do not calibrate Deadmines.
     const runs = [...early, timed("c", 1680, "2026-10-21T03:00:00Z"), timed("over", 600, "2026-10-21T04:00:00Z", 28)];
-    const enough = db(rules, runs);
+    const diverse = Array.from({ length: 20 }, (_, i) => {
+      const run = timed(`diverse-${i}`, 1680, `2026-10-${21 + Math.floor(i / 5)}T12:00:00Z`);
+      const crew = Array.from({ length: 5 }, (_, p) => `Crew${i % 5}Player${p}`);
+      run.players = crew.map(character => ({ character, memberId: character, presentSec: 1680, member: { displayName: character } }));
+      run.competitionData = { gameBuild: "12345", startTrigger: "first combat", players: crew.map(name => ({ name, level: 20, minLevel: 20 })), encounters: [] };
+      return run;
+    });
+    const enough = db(rules, [...runs, ...diverse]);
     const evidence = await recalibrationEvidence(enough.db, "g", "36");
-    expect(evidence).toMatchObject({ times: [1500, 1680, 1800], median: 1680, suggestedMinutes: 28, currentSec: 2400, provisional: true });
-    const at = new Date("2026-10-22T00:00:00Z");
+    expect(evidence).toMatchObject({ crews: 5, days: 4, ready: true, median: 1680, suggestedMinutes: 28, currentSec: 2400, provisional: true });
+    // A long sample must not be silently clipped and presented as its median.
+    const long = db(rules, diverse.map(r => ({ ...r, durationSec: 10800,
+      players: r.players.map(p => ({ ...p, presentSec: 10800 })) })));
+    expect(await recalibrationEvidence(long.db, "g", "36")).toMatchObject({ ready: false, median: 10800, suggestedMinutes: null });
+    await expect(recalibrateRoute(long.db, "g", "36", 120)).rejects.toThrow(/outside the supported/);
+    expect(long.tx.dungeonSeason.update).not.toHaveBeenCalled();
+    const at = new Date("2026-10-25T00:00:00Z");
+    await expect(recalibrateRoute(enough.db, "g", "36", 40, at)).rejects.toThrow(/reviewed crew\/day median/);
     const result = await recalibrateRoute(enough.db, "g", "36", 28, at);
     const next = result.rules;
     expect(enough.tx.dungeonSeason.update).toHaveBeenCalledWith({ where: { id: "all" }, data: { ratingRules: next } });
     expect(validBracketedRules(JSON.parse(JSON.stringify(next)))).toBe(true);
-    expect(next.recalibrations).toEqual([{ dungeonKey: "36", targetSec: 1680, from: at.toISOString(), runs: 3 }]);
+    expect(next.recalibrations).toEqual([{ dungeonKey: "36", targetSec: 1680, from: at.toISOString(), runs: 20 }]);
     expect(next.targets["36"]).toBe(1680);
     expect(next.catalog.find(d => d.dungeonKey === "36")!.provisional).toBe(false);
     expect(next.provisionalTargets).toBe(true);
 
     // Earned before the change: the 40-minute target. Ending after it: the 28-minute target.
     expect(routeTargetAt(next, "36", new Date("2026-10-21T01:00:00Z"))).toBe(2400);
-    expect(routeTargetAt(next, "36", new Date("2026-10-23T00:00:00Z"))).toBe(1680);
+    expect(routeTargetAt(next, "36", new Date("2026-10-26T00:00:00Z"))).toBe(1680);
     const before = calculateDungeonRating([runs[0]!], rules)[0]!.points;
     expect(calculateDungeonRating([runs[0]!], next)[0]!.points).toBe(before);
     expect(before).toBe(320);
-    const later = timed("d", 1500, "2026-10-23T00:00:00Z");
+    const later = timed("d", 1500, "2026-10-26T00:00:00Z");
     expect(calculateDungeonRating([later], next)[0]!.details![0]).toMatchObject({ targetSec: 1680, points: 224 });
     // Best per route still compares frozen points: the earlier 320 stays Kev's best.
     expect(calculateDungeonRating([runs[0]!, later], next)[0]!.points).toBe(320);

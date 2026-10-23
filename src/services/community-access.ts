@@ -1,5 +1,5 @@
 import { PermissionFlagsBits, type Guild, type GuildMember } from "discord.js";
-import type { CommunitySeason, PrismaClient } from "../generated/prisma/client.js";
+import type { CommunitySeason, PrismaClient } from "@prisma/client";
 import { hasPermission } from "../permissions.js";
 import { communityActivityChannel } from "./community-display.js";
 

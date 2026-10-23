@@ -1,4 +1,4 @@
-import type { PrismaClient } from "../generated/prisma/client.js";
+import type { PrismaClient } from "@prisma/client";
 import { reportRef } from "./error-report.js";
 import { decodeReportOrigin, reportSourceLink } from "./report-context.js";
 

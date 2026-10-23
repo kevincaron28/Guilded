@@ -1,4 +1,4 @@
-import type { PrismaClient, RaidRole } from "../generated/prisma/client.js";
+import type { PrismaClient, RaidRole } from "@prisma/client";
 import { z } from "zod";
 import { createWishlistService } from "./wishlist.js";
 import { createItemValueService, parseItemValues } from "./item-values.js";

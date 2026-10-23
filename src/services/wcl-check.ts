@@ -1,6 +1,6 @@
 import { pilotGuildScope } from "../hosted-pilot.js";
 import type { Client, Guild as DiscordGuild } from "discord.js";
-import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { config } from "../config.js";
 import { createWclClient, type ReportRef, type WclReport, type WclReportStub } from "../integrations/warcraftlogs.js";
 import { wclEmbed } from "../commands/wcl.js";

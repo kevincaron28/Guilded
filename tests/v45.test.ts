@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ApplicationStatus } from "../src/generated/prisma/client.js";
+import { ApplicationStatus } from "@prisma/client";
 import { applicationDecisionRows, createApplicationService } from "../src/services/application.js";
 import { coreRosterEmbed, createRaidCoreService } from "../src/services/raid-core.js";
 import { classLeaderRoleName, hasPermission, isPermissionRoleName } from "../src/permissions.js";

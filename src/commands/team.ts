@@ -1,5 +1,5 @@
 import { ChannelType, PermissionFlagsBits, SlashCommandBuilder, type AutocompleteInteraction, type ButtonInteraction, type ChatInputCommandInteraction, type SlashCommandStringOption, MessageFlags } from "discord.js";
-import type { RaidAttendanceStatus, RaidRole } from "../generated/prisma/client.js";
+import type { RaidAttendanceStatus, RaidRole } from "@prisma/client";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 import { guildService, requireGuildContext } from "./context.js";

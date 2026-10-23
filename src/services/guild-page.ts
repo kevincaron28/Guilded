@@ -1,4 +1,4 @@
-import type { PrismaClient } from "../generated/prisma/client.js";
+import type { PrismaClient } from "@prisma/client";
 import { priority } from "./epgp.js";
 import { breadcrumbs, SITE_HEADER_STYLE, siteHeader } from "./site-header.js";
 

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { PrismaClient } from "../src/generated/prisma/client.js";
+import type { PrismaClient } from "@prisma/client";
 import { createCommunityService } from "../src/services/community.js";
 
 // Called only by the existing disposable-local PostgreSQL release gate.

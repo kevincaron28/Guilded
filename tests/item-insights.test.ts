@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { PrismaClient } from "../src/generated/prisma/client.js";
+import type { PrismaClient } from "@prisma/client";
 import { clean, itemInsights, MAX_ITEMS, WISHERS_SHOWN } from "../src/services/item-insights.js";
 
 const now = Date.now();

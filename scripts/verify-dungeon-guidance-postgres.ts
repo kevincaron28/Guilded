@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createPrismaClient } from "../src/database.js";
-import type { Prisma } from "../src/generated/prisma/client.js";
+import type { Prisma } from "@prisma/client";
 import { provisionalSeasonRules } from "../src/services/dungeon-bracket-season.js";
 import { addonDungeonBoard } from "../src/services/dungeon-stats.js";
 import { dungeonRating } from "../src/services/dungeon-rating.js";

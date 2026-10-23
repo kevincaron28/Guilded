@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import type { PrismaClient } from "../generated/prisma/client.js";
+import type { PrismaClient } from "@prisma/client";
 import { hashCompanionSecret } from "./character-pairing.js";
 
 // Personal companion codes (7.0): a signed-in website account pairs the Guilded companion

@@ -1,4 +1,4 @@
-import type { GameEventBoard, OfficialGameEvent, Prisma, PrismaClient } from "../generated/prisma/client.js";
+import type { GameEventBoard, OfficialGameEvent, Prisma, PrismaClient } from "@prisma/client";
 import { EmbedBuilder, escapeMarkdown } from "discord.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 

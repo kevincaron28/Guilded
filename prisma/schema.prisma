@@ -6,14 +6,14 @@ model AiDailyUsage {
   @@id([day, scope])
 }
 
-// Generated TypeScript, gitignored: `npm install` and `npm run db:update` regenerate it.
+// Recovery client generated into node_modules; schema models remain identical to the candidate.
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+  url = env("DATABASE_URL")
 }
 
 enum MembershipStatus {

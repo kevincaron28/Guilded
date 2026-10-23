@@ -1,4 +1,4 @@
-import type { PrismaClient } from "../generated/prisma/client.js";
+import type { PrismaClient } from "@prisma/client";
 
 // The next raid's signed-up players, for the addon's mass invite (/guilded invite
 // raid). Signups are per Discord member, so each is shown as one character: for a

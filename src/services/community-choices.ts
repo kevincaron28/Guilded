@@ -1,5 +1,5 @@
 import type { Guild } from "discord.js";
-import type { PrismaClient } from "../generated/prisma/client.js";
+import type { PrismaClient } from "@prisma/client";
 import type { Lang } from "../i18n.js";
 import { accessibleCommunityActivities, accessibleCommunitySeasons } from "./community-access.js";
 import { communitySeasonLabel } from "./community-display.js";

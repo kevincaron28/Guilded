@@ -5,7 +5,7 @@ import {
   type ButtonInteraction, type ChatInputCommandInteraction, type Guild as DiscordGuild, type GuildMember,
   MessageFlags,
 } from "discord.js";
-import { RaidAttendanceStatus, RaidBossStatus, RaidRole } from "../generated/prisma/client.js";
+import { RaidAttendanceStatus, RaidBossStatus, RaidRole } from "@prisma/client";
 import { prisma } from "../database.js";
 import { notifications, notify } from "../services/notify.js";
 import { showEpProposal } from "./ep-award.js";

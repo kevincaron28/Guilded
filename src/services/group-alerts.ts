@@ -1,4 +1,4 @@
-import type { RaidRole } from "../generated/prisma/client.js";
+import type { RaidRole } from "@prisma/client";
 import { GROUP_KINDS, type GroupKind } from "./dungeon-group.js";
 
 // Group alerts (5.0): members opt in to pings for the kinds of group they want and say which

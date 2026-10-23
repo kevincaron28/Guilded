@@ -1,5 +1,5 @@
 import { ChannelType, EmbedBuilder, PermissionFlagsBits, escapeMarkdown, type Guild, type OverwriteResolvable } from "discord.js";
-import type { CommunityHonors, Prisma, PrismaClient } from "../generated/prisma/client.js";
+import type { CommunityHonors, Prisma, PrismaClient } from "@prisma/client";
 import { BRAND } from "../brand.js";
 import { asLang, type Lang } from "../i18n.js";
 import { COMMUNITY_CHANNEL_SPECS, communityChannelNames } from "../setup-names.js";

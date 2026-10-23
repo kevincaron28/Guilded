@@ -3,7 +3,7 @@ import {
   type ButtonInteraction, type ChatInputCommandInteraction, type GuildMember, type StringSelectMenuInteraction,
   MessageFlags,
 } from "discord.js";
-import type { GroupAlert, RaidRole } from "../generated/prisma/client.js";
+import type { GroupAlert, RaidRole } from "@prisma/client";
 import { prisma } from "../database.js";
 import { asLang, tx, type Lang } from "../i18n.js";
 import { GROUP_KINDS, type GroupKind } from "../services/dungeon-group.js";

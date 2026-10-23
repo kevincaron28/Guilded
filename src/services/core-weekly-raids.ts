@@ -1,4 +1,4 @@
-import type { PrismaClient, Prisma } from "../generated/prisma/client.js";
+import type { PrismaClient, Prisma } from "@prisma/client";
 import { parseWeeklySchedule, weeklyOccurrences, weeklyScheduleData } from "./core-weekly-time.js";
 import { planningOptions } from "./core-planning.js";
 

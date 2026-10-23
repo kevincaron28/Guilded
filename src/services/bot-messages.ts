@@ -1,6 +1,6 @@
 import { pinnedMessages } from "./pins.js";
 import { ChannelType, EmbedBuilder, type Guild as DiscordGuild, type GuildTextBasedChannel, type ForumChannel } from "discord.js";
-import type { GuildSettings, PrismaClient } from "../generated/prisma/client.js";
+import type { GuildSettings, PrismaClient } from "@prisma/client";
 import { t, tx, type Lang } from "../i18n.js";
 import { dungeonGuideState, ensureDungeonSignupGuide } from "./dungeon-guide.js";
 import { ensureWelcomePanel, welcomePanelState } from "./onboarding.js";

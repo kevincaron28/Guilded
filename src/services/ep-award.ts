@@ -1,4 +1,4 @@
-import { EpgpTransactionType, type PrismaClient } from "../generated/prisma/client.js";
+import { EpgpTransactionType, type PrismaClient } from "@prisma/client";
 import { effectiveRules, poolFor } from "./core-rules.js";
 import { markGuildChanged } from "./standings-feed.js";
 

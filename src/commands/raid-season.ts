@@ -1,5 +1,5 @@
 import { AttachmentBuilder, EmbedBuilder, type ChatInputCommandInteraction, type Guild as DiscordGuild, type GuildMember, MessageFlags } from "discord.js";
-import type { RaidSeason } from "../generated/prisma/client.js";
+import type { RaidSeason } from "@prisma/client";
 import { prisma } from "../database.js";
 import { asLang, type Lang } from "../i18n.js";
 import { hasPermission } from "../permissions.js";

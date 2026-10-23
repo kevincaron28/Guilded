@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { PrismaClient } from "../src/generated/prisma/client.js";
+import type { PrismaClient } from "@prisma/client";
 import { createPoeMappingService } from "../src/services/poe-mapping.js";
 
 // Included in the existing disposable-local migration/concurrency/restore gate.

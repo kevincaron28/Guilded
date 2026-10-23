@@ -1,4 +1,4 @@
-import type { PrismaClient } from "../generated/prisma/client.js";
+import type { PrismaClient } from "@prisma/client";
 
 // Officer polls with button voting. One vote per member; voting again
 // changes the vote. Results are counts only (votes are not shown by name).

@@ -1,3 +1,7 @@
+> Recovery candidate only: this branch uses pinned Prisma 6.19.3 and imports from
+> @prisma/client. Keep createPrismaClient() and its UTC connection invariant.
+> The Prisma 7 generation/import instructions below describe the normal branch.
+> See docs/PRISMA6_FINAL_FALLBACK_2026-10-23.md. Do not deploy this branch directly.
 > 7.3.2 (23 October 2026): deployment candidate for UTC sessions, dungeon evidence/guidance,
 > staged recovery and companion startup fixes. Real game/two-PC acceptance remains pending.
 > 7.3.1 (22 October 2026): raid readiness requires level 60 and flags old checks; companion Update now

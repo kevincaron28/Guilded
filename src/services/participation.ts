@@ -1,4 +1,4 @@
-import type { CommunityParticipationDay, Prisma, PrismaClient } from "../generated/prisma/client.js";
+import type { CommunityParticipationDay, Prisma, PrismaClient } from "@prisma/client";
 import { dateAfter, dayStart, HELPER_POINTS, HELPER_WEEKLY_APPROVALS, HELPER_WEEKLY_POINTS, MESSAGE_COOLDOWN_MS, participationDay, participationRules, participationWeek, VOICE_BLOCK_MS, voiceSegments, type ParticipationRules } from "./participation-rules.js";
 
 type Tx = Prisma.TransactionClient;

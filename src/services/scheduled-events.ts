@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { PrismaClient } from "../generated/prisma/client.js";
+import type { PrismaClient } from "@prisma/client";
 import {
   ChannelType, GuildScheduledEventEntityType, GuildScheduledEventPrivacyLevel,
   GuildScheduledEventStatus, PermissionFlagsBits,

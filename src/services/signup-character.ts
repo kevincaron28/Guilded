@@ -1,4 +1,4 @@
-import type { PrismaClient } from "../generated/prisma/client.js";
+import type { PrismaClient } from "@prisma/client";
 
 type Db = Pick<PrismaClient, "character">;
 export const CHARACTER_REQUIRED = "Choisis ton personnage pour cette inscription. Ajoute-le avec /character add ou associe-le avec /character pair.";

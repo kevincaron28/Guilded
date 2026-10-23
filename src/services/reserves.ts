@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import type { AddonReserves } from "../integrations/addon.js";
 
 // Soft reserves: the list lives in the addon (/guilded reserve) and reaches Discord with

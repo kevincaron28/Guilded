@@ -1,4 +1,4 @@
-import type { PrismaClient, ReadinessStatus } from "../generated/prisma/client.js";
+import type { PrismaClient, ReadinessStatus } from "@prisma/client";
 import { importCharacter, parseCharacterString, type ImportOutcome, type ParsedCharacter } from "./character-import.js";
 import { deriveReadinessStatus } from "./readiness.js";
 import { BRAND } from "../brand.js";

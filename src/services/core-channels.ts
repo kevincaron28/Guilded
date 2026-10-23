@@ -2,7 +2,7 @@ import {
   ChannelType, PermissionFlagsBits,
   type Guild as DiscordGuild, type OverwriteResolvable
 } from "discord.js";
-import type { PrismaClient, RaidCore } from "../generated/prisma/client.js";
+import type { PrismaClient, RaidCore } from "@prisma/client";
 import { isPermissionRoleName, type Permission } from "../permissions.js";
 import { BRAND } from "../brand.js";
 

@@ -3,7 +3,7 @@ import {
   type ButtonInteraction, type ForumChannel, type Guild as DiscordGuild, type GuildMember, type ModalSubmitInteraction, type ThreadChannel,
   MessageFlags,
 } from "discord.js";
-import type { CraftRequestStatus } from "../generated/prisma/client.js";
+import type { CraftRequestStatus } from "@prisma/client";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 import { asLang, tx, type Lang } from "../i18n.js";

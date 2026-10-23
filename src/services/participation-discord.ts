@@ -1,5 +1,5 @@
 import { ChannelType, MessageType, PermissionFlagsBits, type Guild, type GuildMember, type Message, type MessageReaction, type PartialMessage, type PartialMessageReaction, type PartialUser, type User } from "discord.js";
-import type { PrismaClient } from "../generated/prisma/client.js";
+import type { PrismaClient } from "@prisma/client";
 import { hasPermission } from "../permissions.js";
 import { createParticipationService } from "./participation.js";
 import { MAX_VOICE_GAP_MS, memberEligible, messageFingerprint, normalizeEmoji, participationRules, type ParticipationRules } from "./participation-rules.js";

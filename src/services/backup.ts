@@ -2,7 +2,7 @@ import { chmod, mkdir, open, readFile, readdir, rename, rm } from "node:fs/promi
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { gzipSync, gunzipSync } from "node:zlib";
-import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
+import { Prisma, type PrismaClient } from "@prisma/client";
 
 // Daily safety copy of the whole database as gzipped JSON, one file per day
 // (backups/quebec-gold-YYYY-MM-DD.json.gz), keeping the newest `keep`.

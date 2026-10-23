@@ -1,4 +1,4 @@
-import type { PrismaClient } from "../generated/prisma/client.js";
+import type { PrismaClient } from "@prisma/client";
 
 const TAG_NAME = /^[a-z0-9][a-z0-9_-]{0,31}$/;
 export const MAX_TAG_LENGTH = 1900;

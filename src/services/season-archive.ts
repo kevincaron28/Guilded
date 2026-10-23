@@ -1,4 +1,4 @@
-import type { PrismaClient } from "../generated/prisma/client.js";
+import type { PrismaClient } from "@prisma/client";
 import { leaderboard } from "./dungeon-stats.js";
 import { finalRows } from "./season-snapshot.js";
 import { dungeonRating, frozenRating, hasDungeonRating } from "./dungeon-rating.js";

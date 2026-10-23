@@ -21,6 +21,8 @@ function ns.slash(text)
   local action = string.lower(args[1] or "status")
   if DUNGEON_ACTIONS[action] then
     ns.commandHandlers["dungeon"]({ action })
+  elseif action == "score" and not args[2] and ns.dungeonScorePanel then
+    ns.dungeonScorePanel.open("season")
   elseif (action == "score" or action == "lang") and ns.commandHandlers[action] then
     table.remove(args, 1)
     ns.commandHandlers[action](args)
@@ -45,6 +47,14 @@ frame:SetScript("OnEvent", function()
     local identity = ns.compat.identity()
     local class = UnitClass and select(2, UnitClass("player")) or nil
     db.character = { name = ns.playerName(), realm = identity.realm, class = class, level = UnitLevel and UnitLevel("player") or nil, spec = db.character.spec }
+    -- One account SavedVariables file can be used by many alts. Never show the
+    -- last synced character's public score as the newly logged-in character's.
+    local board = GuildedDungeonsPublicScore
+    db.dungeonBoard = nil
+    if type(board) == "table" and type(board.character) == "string" and type(board.realm) == "string"
+      and ns.normalizeName(board.character) == ns.playerName()
+      and string.lower(board.realm) == string.lower(identity.realm or "") then db.dungeonBoard = board end
+    if ns.dungeonScorePanel then ns.dungeonScorePanel.refreshVisible() end
   end)
   if not ok then ns.logDiagnostic("LUA_ERROR", "login: " .. tostring(err)) end
 end)

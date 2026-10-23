@@ -74,6 +74,7 @@ function detail.get(index, name, bracket)
   return nil
 end
 function detail.request(index)
+  if ns.standalone then return end
   if not ns.scores.isMember(ns.playerName()) then return end
   local board, season = boardAt(index)
   if not board or not season or not board.updatedAt or season.detailsAvailable or detail.get(index, ns.playerName()) then return end
@@ -252,6 +253,7 @@ end
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("PLAYER_LOGIN"); frame:RegisterEvent("CHAT_MSG_ADDON")
 frame:SetScript("OnEvent", function(_, event, prefix, text, channel, sender)
+  if ns.standalone then return end
   if event == "PLAYER_LOGIN" then ns.comm.register(PREFIX); return end
   if prefix ~= PREFIX or type(text) ~= "string" or ns.isSecret(text) or ns.isSecret(sender) then return end
   if ns.moduleActive and not ns.moduleActive("scores") then return end

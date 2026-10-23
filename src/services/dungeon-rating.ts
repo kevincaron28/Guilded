@@ -71,7 +71,8 @@ export interface DungeonRatingDetail {
   targetSec: number | null; runRef: string; dungeonKey?: string; ratingVersion?: 3 | 4 | 5 | 6; counted?: boolean; penaltyPercent?: number; unrankedReason?: string; bosses?: BossRecord[];
 }
 // Version 6 rows are per character AND bracket; each row freezes its bracket's best-N.
-export interface RatingRow { memberId: string; character?: string; name: string; points: number; dungeons: number; details?: DungeonRatingDetail[]; bracket?: string; bestCount?: number }
+export interface RatingRow { memberId: string; character?: string; name: string; points: number; dungeons: number; details?: DungeonRatingDetail[]; bracket?: string; bestCount?: number;
+  level?: number; roles?: { role: string; points: number; details: DungeonRatingDetail[] }[] }
 // Runs retain the actual character name. Keep the owner for membership and
 // permissions, but never use their account alone as the competitive identity.
 // Scoped to one guild by dungeonRating; Forever realm labels are not stable.
@@ -82,7 +83,7 @@ export interface BossRecord { id: number; name: string; durationSec: number; run
 export interface RatingRun {
   competitionData?: unknown; difficultyId?: number; startedAt?: Date | null; endedAt?: Date | null; completedBy?: string | null;
   instanceId: number; durationSec: number | null; dungeonName?: string; runRef?: string;
-  players: { character?: string; memberId: string | null; presentSec: number; member: { displayName: string } | null }[];
+  players: { character?: string; memberId: string | null; role?: string | null; presentSec: number; member: { displayName: string } | null }[];
 }
 export function speedPoints(seconds: number, target: number | null): number {
   return target ? Math.round(20 * Math.max(0, Math.min(1, (target - seconds) / (0.3 * target)))) : 0;
@@ -253,11 +254,19 @@ export function frozenRating(value: unknown): RatingRow[] | null {
   if (!Array.isArray(value) || value.some(row => !row || typeof row.memberId !== "string" || typeof row.name !== "string"
     || (row.character !== undefined && (typeof row.character !== "string" || !row.character.trim() || row.name !== row.character))
     || !Number.isInteger(row.points) || row.points < 0 || !Number.isInteger(row.dungeons) || row.dungeons < 0
+    || !validFrozenRoles(row)
     || (row.details === undefined ? row.points !== row.dungeons * 100 || row.bracket !== undefined : !validDetails(row)))) return null;
   return value as RatingRow[];
 }
+function validFrozenRoles(row: RatingRow): boolean {
+  if (row.level !== undefined && (!Number.isInteger(row.level) || row.level < 1 || row.level > 100)) return false;
+  if (row.roles === undefined) return true;
+  return Array.isArray(row.roles) && row.roles.length <= 3 && new Set(row.roles.map(r => r?.role)).size === row.roles.length
+    && row.roles.every(r => r && ["TANK", "HEALER", "DAMAGER"].includes(r.role) && Number.isInteger(r.points) && r.points >= 0 && r.points <= row.points
+      && Array.isArray(r.details) && (r.details.length === 0 ? r.points === 0 : validDetails({ ...row, ...r, dungeons: r.details.length })));
+}
 export async function dungeonRating(database: Pick<PrismaClient, "dungeonRun">, guildId: string,
-  season: { id: string; startsAt: Date; endsAt?: Date | null; status: string; ratingRules?: unknown; finalRating?: unknown }, instanceId: number | null = null): Promise<RatingRow[]> {
+  season: { id: string; startsAt: Date; endsAt?: Date | null; status: string; ratingRules?: unknown; finalRating?: unknown }, instanceId: number | null = null, includeRoles = false): Promise<RatingRow[]> {
   if (!hasDungeonRating(season.ratingRules)) return [];
   if (season.status === "ENDED") {
     const rows = frozenRating(season.finalRating) ?? [];
@@ -276,10 +285,28 @@ export async function dungeonRating(database: Pick<PrismaClient, "dungeonRun">, 
     ...(instanceId !== null ? { instanceId } : {})
   }, select: { competitionData: true, difficultyId: true, startedAt: true, endedAt: true, completedBy: true, instanceId: true, dungeonName: true, runRef: true, durationSec: true, players: {
     ...(!timed ? { where: { member: { guildId } } } : {}),
-    select: { character: true, memberId: true, presentSec: true, member: { select: { displayName: true, guildId: true } } }
+    select: { character: true, memberId: true, role: true, presentSec: true, member: { select: { displayName: true, guildId: true } } }
   } } });
-  return calculateDungeonRating(timed ? runs.map(run => ({ ...run, players: run.players.map(p => ({ ...p,
-    member: p.member?.guildId === guildId ? p.member : null })) })) : runs, season.ratingRules);
+  const eligible = timed ? runs.map(run => ({ ...run, players: run.players.map(p => ({ ...p,
+    member: p.member?.guildId === guildId ? p.member : null })) })) : runs;
+  return includeRoles && validBracketedRules(season.ratingRules) ? ratingWithRoles(eligible, season.ratingRules) : calculateDungeonRating(eligible, season.ratingRules);
+}
+
+/** Keep the whole party for eligibility; only award the selected character's recorded role. */
+export function ratingWithRoles(runs: RatingRun[], rules: BracketedRules): RatingRow[] {
+  const roles = ["TANK", "HEALER", "DAMAGER"].map(role => ({ role, rows: calculateDungeonRating(runs.map(run => ({ ...run,
+    players: run.players.map(p => ({ ...p, member: p.role?.toUpperCase() === role ? p.member : null })) })), rules) }));
+  return calculateDungeonRating(runs, rules).map(row => {
+    const levels = runs.flatMap(run => {
+      if (!run.players.some(p => p.memberId === row.memberId && p.character === row.character)) return [];
+      const metadata = run.competitionData as { players?: { name: string; level?: number }[] } | null;
+      return metadata?.players?.filter(p => p.name === row.character && Number.isInteger(p.level)).map(p => p.level!) ?? [];
+    });
+    return { ...row, ...(levels.length ? { level: Math.max(...levels) } : {}), roles: roles.map(({ role, rows }) => {
+      const match = rows.find(r => r.memberId === row.memberId && r.character === row.character && r.bracket === row.bracket);
+      return { role, points: match?.points ?? 0, details: match?.details ?? [] };
+    }) };
+  });
 }
 export function ratingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, rules: unknown = DUNGEON_RATING_RULES, bracket?: string): EmbedBuilder {
   if (validBracketedRules(rules)) return bracketRatingEmbed(rows, seasonName, lang, rules, bracket);

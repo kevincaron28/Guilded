@@ -44,7 +44,7 @@ describe("best next improvement", () => {
     // A tie with the lowest counted route (Shadowfang 180) adds nothing either.
     expect(scenarioAt(base, "36", 2667, 20)).toMatchObject({ routePoints: 180, gain: 0, pushedOut: [] });
     const deadmines = routeOf(planImprovements(input(full())), "36");
-    expect(deadmines.best).toEqual({ points: 160, durationSec: 3000, counted: false });
+    expect(deadmines.best).toEqual({ points: 160, durationSec: 3000, counted: false, evidence: "legacy", confirmations: 1 });
     expect(deadmines.next).toEqual({ durationSec: 2601, routePoints: 185, gain: 5, total: 975, pushedOut: [{ key: "33", points: 180 }] });
   });
 
@@ -134,6 +134,8 @@ describe("character page guidance", () => {
     expect(body).toContain('<span class="score">1024</span>');
     expect(body).toContain("<h2>Best next improvement · Levels 15–29</h2>");
     expect(body).toContain("Scenarios, not predictions.");
+    expect(body).toContain("Current best: legacy evidence.");
+    expect(body).toContain("Scenario: no run or confirmation yet.");
     expect(body).toContain("Level 20 is taken as the party's highest.");
     expect(body).toContain("Most within reach: Shadowfang Keep in 32:31 adds 5 (season score 1024 → 1029).");
     // Deadmines is outside the best 5: its next gain pushes Shadowfang out.
@@ -155,6 +157,8 @@ describe("character page guidance", () => {
     const fr = await page(runs, "fr");
     expect(fr).toContain("<h2>Meilleure prochaine amélioration · Niveaux 15–29</h2>");
     expect(fr).toContain("Des scénarios, pas des prédictions.");
+    expect(fr).toContain("Admissibilité et confiance");
+    expect(fr).toContain("Scénario : aucun essai ni confirmation pour l'instant.");
     expect(fr).toContain("Le plus accessible : Shadowfang Keep en 32:31 ajoute 5 (score de saison 1024 → 1029).");
     expect(fr).toContain("<strong>43:21</strong> → +5 (saison 1029) · remplace Shadowfang Keep (180)");
     expect(fr).toContain("Hors des 5 meilleurs, un essai n'ajoute rien tant qu'il ne dépasse pas 180 (Shadowfang Keep, le plus bas des parcours comptés).");
@@ -178,5 +182,13 @@ describe("character page guidance", () => {
     const high = await page([run("3065", 1500), run("2959", 2700, { level: 50 })]);
     expect(high).toContain("No rated bracket at level 50 yet (launch data needed).");
     expect(high).not.toContain("Most within reach");
+  });
+  it("shows previous-season roles separately with their own period context", async () => {
+    const body = await page([run("36", 2400), run("36", 2000, { role: "HEALER", endedAt: new Date("2026-10-22T12:00:00Z") })]);
+    expect(body).toContain("Previous-season role context");
+    expect(body).toContain("Score by role · Beta (before Season 1)");
+    expect(body).toContain("totals from different brackets or seasons are not directly comparable");
+    const fr = await page([run("36", 2400), run("36", 2000, { role: "HEALER", endedAt: new Date("2026-10-22T12:00:00Z") })], "fr");
+    expect(fr).toContain("Rôles de la saison précédente");
   });
 });

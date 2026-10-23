@@ -162,3 +162,10 @@ item 1, for the public character page (`src/services/public-guidance.ts`):
 Not done: the addon score panel and tooltips (they still show the overall score only), eligibility
 and trust status per scenario (a scenario assumes a ranked run), and previous-season context next
 to the role scores. Items 3 and 4 are not started.
+
+23 October follow-up: these status paragraphs describe the earlier deliveries. The new draft
+implementation in `docs/DUNGEON_SCORING_FOLLOWUP.md` adds report agreement and evidence upgrades,
+calibration guardrails/build/start metadata, addon role views and best-N guidance, public trust
+and prior-season context, and an offline curve replay tool. Deployment is held. Launch-client
+validation and a diverse real-run calibration/replay dataset remain outstanding; alternative
+curves, percentiles and a fixed-pool competition have not been adopted.

@@ -138,7 +138,7 @@ export async function startSeason(database: Db, guildId: string, name: string, e
     if (expectedSeasonId !== undefined && (ending?.id ?? null) !== expectedSeasonId) throw new Error("The active season changed; no season was rotated.");
     const count = ending ? await tx.member.count({ where: { guildId } }) : 0;
     const top = ending ? await leaderboard(tx, guildId, "season", null, Math.max(count, 1)) : [];
-    const rated = ending && hasDungeonRating(ending.ratingRules) ? await dungeonRating(tx, guildId, ending) : null;
+    const rated = ending && hasDungeonRating(ending.ratingRules) ? await dungeonRating(tx, guildId, ending, null, true) : null;
     const competition = rated ?? top;
     const champions = competition.filter((row) => row.points > 0 && row.points === competition[0]?.points);
     const ended = await tx.dungeonSeason.findMany({ where: { guildId, status: "ACTIVE" } });

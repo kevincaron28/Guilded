@@ -39,6 +39,66 @@ rounded crew/day median (within the existing 5–120 minute bounds). Historical
 scores keep their earlier targets; fixed official seasons cannot be recalibrated.
 No targets change merely by installing this code.
 
+## Player guidance and offline experiments
+
+The guild addon panel now cycles Overall / Tank / Healer / DPS with each role's
+own best runs. Tooltips show separate role totals. Guidance is computed by the
+server from the character's earned route points, current season targets and
+recorded level, then serialized by the companion. It recomputes the whole best-N
+selection, retaining historical earned points across recalibrations. Route
+tooltips show the slowest eligible clear for a five-point gain (or all remaining
+points), the replaced route, level assumptions and the requirement for final-boss
+evidence and 80% presence. These are unconfirmed scenarios, not ability predictions.
+
+The public planner now shows each best's evidence/confirmation status and each
+scenario's conditional eligibility. Previous-season role context uses that
+season's rules. Neither planner suggests times outside the accepted 3-minute to
+4-hour run bounds. Future guild archives retain role breakdowns; old archives
+without them remain unchanged. Guild and public/custom season totals may differ.
+
+Companion snapshots carry the extra role/guidance data. The existing officer
+detail relay remains compatible with old clients and does not carry these new
+fields; the panel requests a companion sync when they are absent. No local run
+history is used to invent an authoritative role total.
+
+## Review corrections and standalone completion (23 October)
+
+- Concurrent first uploads now recover from the unique-key race and use the same
+  atomic confirmation/dispute check as subsequent uploads. Compatible reports can
+  fill missing level, role and boss-clock evidence; an upgrade cannot discard known clocks.
+- A calibration median outside 5–120 minutes is refused instead of silently clamped.
+- Below-level guild/addon scenarios no longer offer impossible gains at the recorded level.
+- Guilded Dungeons now ships the shared score panel and snapshot reader. Personal
+  companion sync receives realm-scoped public scores using the official calendar and
+  the same season rules as the website. It carries overall/role details, exact guidance
+  and history, even on an empty upload after all runs were synced. The standalone addon
+  never relays these as guild scores or combines them with a guild's custom season.
+- Windows writes the response to GuildedDungeons/Accepted.lua; the browser can save it
+  to that addon folder or download it. Refresh public scores is available in personal
+  mode. Reload loads the response; logging onto a different character/realm clears it.
+  Old servers safely leave the new view unavailable. Both addons together still leave
+  recording and the finder tab to Guilded. Shared Lua is copied and validated together.
+
+`verify-public-addon-postgres.ts` verifies the public store-to-snapshot path, including
+removal of a disputed run from the next refresh, against the existing disposable schema.
+No database schema, score formula, live target or published addon version changes.
+
+Run the offline comparison with an anonymized local export:
+
+```
+node --import tsx scripts/replay-dungeon-curves.ts input.json output.json
+```
+
+The input contains `season`, ISO `startsAt`/`endsAt`, `gameBuild`, frozen version-6
+`rules`, and `runs` in addon export format. Only valid completed first-combat runs
+from that build and date window are considered; the shared evaluator excludes
+unranked evidence. The output includes the rules hash, excluded counts, cap
+frequency, best-N route concentration, rank changes and ties **within each
+bracket**, without character names. It compares the existing ratio, a capped
+linear adjustment and a damped square-root ratio. It never reads a database,
+overwrites an existing output, chooses a new formula or changes live scores.
+There is still no representative launch dataset to justify adopting an alternative.
+
 ## Checks and remaining evidence
 
 `scripts/verify-public-evidence-postgres.ts` exercises atomic promotion, concurrent

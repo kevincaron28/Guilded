@@ -8,6 +8,8 @@ local addonName, ns = ...
 ns = ns or {}
 
 local FR = {
+  ["Public rankings: guilded.kcaron.top/leaderboards/. This addon snapshot contains only your character."] = "Classements publics : guilded.kcaron.top/leaderboards/. Cet instantan\195\169 contient uniquement votre personnage.",
+  ["Public season rules. Legacy results may lack full evidence. Role totals are separate."] = "R\195\168gles de saison publiques. Preuves parfois incompl\195\168tes pour les anciens r\195\169sultats. Totaux par r\195\180le s\195\169par\195\169s.",
   ["Public season score: %d"] = "Score de saison public : %d",
   ["Public personal scores. Sync the companion, then reload. Guild scores may differ."] = "Scores publics personnels. Synchronisez le compagnon, puis /reload. Les scores de guilde peuvent varier.",
   ["You are not in a guild, so there is nothing to link: /guilded verify connects guild members to their guild's Discord. Everything else in Guilded works without a guild or Discord."] = "Vous n'\195\170tes pas dans une guilde, il n'y a donc rien \195\160 lier : /guilded verify relie les membres d'une guilde au Discord de leur guilde. Tout le reste de Guilded fonctionne sans guilde ni Discord.",

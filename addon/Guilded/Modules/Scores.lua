@@ -343,6 +343,7 @@ ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHandlers["score"] = function(args)
   local what = args[1]
   if what and string.lower(what) == "top" then
+    if ns.standalone then ns.message(L("Public rankings: guilded.kcaron.top/leaderboards/. This addon snapshot contains only your character.")); return end
     ns.message(L("Guild dungeon scores:"))
     for line in string.gmatch(scores.topText(15, args[2] and string.lower(args[2])), "[^\n]+") do ns.message(line) end
     return

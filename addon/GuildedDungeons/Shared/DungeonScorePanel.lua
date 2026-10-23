@@ -326,6 +326,7 @@ function view.build(parent, compact)
       self.note:SetText(string.format(L("%s: best %d distinct routes. * = provisional target; officers may recalibrate it from real runs."),
         ns.scores.bracketLabel(model.bracket), model.bracket.bestCount))
     elseif model.provisional and model.version ~= 4 and model.version ~= 5 and model.version ~= 6 then self.note:SetText(L("Provisional targets, fixed for this season. Hover for boss records.")) end
+    if ns.standalone and model.available then self.note:SetText(L("Public season rules. Legacy results may lack full evidence. Role totals are separate.")) end
     if not model.available and ns.seasonDetails then ns.seasonDetails.request(model.seasonIndex) end
     for i, card in ipairs(self.cards) do
       local row = model.cards[(self.page - 1) * perPage + i]

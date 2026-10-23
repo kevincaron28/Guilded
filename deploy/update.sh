@@ -152,5 +152,8 @@ say "The bot did not answer within 40 seconds"
 journalctl -u guilded -n 30 --no-pager || true
 echo
 echo "The last lines above usually say why (a missing setting in .env.local, a database error)."
-echo "To go back to the previous version:  cd $SRC && sudo -u $WHO git checkout $BEFORE && sudo bash deploy/update.sh"
+echo "Do not use git checkout $BEFORE with this updater: it requires main and fetches origin/main."
+echo "Recovery: prepare and review a revert on main, resolve conflicts, pass CI, then deploy that commit."
+echo "For urgent recovery, use the saved application backup and the recovery procedure in docs/V5_0_RELEASE_HANDOFF.md."
+echo "Preserve .env.local and backups; do not restore the database over newer writes."
 exit 1

@@ -1,8 +1,13 @@
 # Prisma 7 upgrade: runtime changes, checks, rollback (21 October 2026)
 
+> **23 October review:** #188 is merged; `main` now uses Prisma 7. The earlier failed
+> schema build is superseded by green CI on `473e710`. Production acceptance remains
+> unverified. Follow [the readiness record](PRISMA_7_READINESS_2026-10-23.md) before
+> deployment. This document's original measurements below are historical evidence.
+
 Branch `fix/prisma-7-upgrade`: Prisma 6.19.3 → **7.10.1** for the bot (`@prisma/client`, `prisma`,
 and the new `@prisma/adapter-pg`). Prisma 8 is still a release candidate, so this stays on 7.
-**Not deployed.** No schema change and no new migration. `package.json`'s version is unchanged,
+**Not deployed by the upgrade author at the time of this record.** No schema change and no new migration in #188. `package.json`'s version is unchanged,
 so nothing is announced.
 
 Two commits, so the second can be reverted alone:
@@ -83,34 +88,56 @@ Other differences:
 Never against the live database, except the step marked read-only. Never start the bot
 (`npm run dev`, `start-bot.bat`): Oracle already runs it.
 
-1. **CI.** Push the branch and open the pull request. Both `Guilded quality` jobs must pass; the
+1. **CI.** Pin the exact candidate commit and open the pull request. Both `Guilded quality` jobs must pass; the
    first runs `npm run test:postgres` on PostgreSQL 16, with a dump/restore rehearsal.
-2. **Fresh backup.** On Oracle, as in `docs/V5_0_RELEASE_HANDOFF.md` step 4: a custom-format
-   `pg_dump`, stored outside the checkout with mode 600, then checked with `pg_restore --list`.
-3. **Disposable copy.** Restore that dump with `pg_restore --no-owner` into a local PostgreSQL 16
-   that is not production, under a database such as `guilded_prisma7_copy`. Either the
-   repository's `docker compose up -d postgres` or a PostgreSQL 16 install will do.
+2. **Fresh backup.** On Oracle, as in `docs/V5_0_RELEASE_HANDOFF.md` step 4: record the actual
+   `server_version`, deployed commit and migration history without printing credentials.
+   Use a matching-major `pg_dump` (Aiven was PostgreSQL **18.6** at the recorded cutover),
+   store the custom-format dump outside the checkout with mode 600, and check it using
+   the matching-major `pg_restore --list`. Record its SHA-256. Never use a PostgreSQL 16
+   `pg_dump` against PostgreSQL 18.
+3. **Disposable copy.** Restore with `pg_restore --no-owner --no-acl --exit-on-error`
+   into an empty, isolated **PostgreSQL 18** database such as `guilded_prisma7_copy`
+   (or the production major actually observed in step 2). Pin the server and tools to
+   the same major. The repository's PostgreSQL 16 Compose/CI database is a fixture test,
+   not a supported target for a production PostgreSQL 18 dump. An older-major restore
+   is not guaranteed by [PostgreSQL](https://www.postgresql.org/docs/18/app-pgdump.html#APP-PGDUMP-NOTES).
 4. **Migrations on the copy.** In a branch checkout, with `DATABASE_URL` set in the shell to the
-   copy only: `npx prisma migrate status` must report the database up to date with 88
-   migrations, and `npx prisma migrate deploy` must apply nothing.
-5. **The same data through both versions.** Run `npx tsx scripts/db-snapshot.ts snapshot <empty
-   folder>` twice against the copy: once in a checkout of `main` (Prisma 6) with
-   `scripts/db-snapshot.ts` copied in, and once in the branch. Then, in the branch, run
-   `npx tsx scripts/db-snapshot.ts compare <main file> <branch file>` and expect "Identical". Any
-   table it names means stop. The output lists table and field names only, never values, so it
-   is safe to send.
+   copy only: record `npx prisma migrate status` before applying anything. #188 itself
+   has 88 migrations and adds none; `473e710` has **89**, including the later public-score
+   evidence migration. Do not assume deploying current main is migration-free. Review
+   that later migration separately, apply approved pending SQL **only to the copy**,
+   rerun status and deploy (the second deploy must apply nothing), and check schema drift.
+5. **The same data through both versions.** Use two pinned, isolated checkouts with the
+   same candidate schema: Prisma 7, and a reviewed Prisma 6 fallback that retains later
+   fields and migrations (see Rollback). `main` is no longer a Prisma 6 baseline.
+   Copy `scripts/db-snapshot.ts` and `scripts/compare-db-snapshots.ts` from the reviewed
+   readiness fix into the fallback checkout. With the shell URL pointing only to the
+   copy, run `node --import tsx scripts/db-snapshot.ts snapshot <empty folder>` in each
+   checkout. Compare with `node --import tsx scripts/db-snapshot.ts compare <v6 file> <v7 file>`.
+   Expect exit 0 and "Identical"; missing tables must fail even when empty. Independently
+   verify the expected model/table count (94 at `473e710`), total rows, and non-empty tables.
+   Use the same untouched copy for both reads, in UTC and America/Toronto. Snapshots
+   contain private data: retain restricted permissions and never commit/upload them.
+   Diagnostics contain table names and counts only.
 6. **Read-only TLS check against Aiven** (the owner's call; it only reads). On the PC, in the
    branch, with the normal `.env.local`: `npm run release:ledger-check` must print "Ledger event
    references are unique." A certificate error, `P1010` or `P1011` means the CA translation does
    not work on that machine: stop and stay on 7.3.0's Prisma 6.
 7. **Before deploying,** run the same read-only check on Oracle from a branch checkout. Its
    `.env.local` points at `/etc/guilded/aiven-ca.pem` (see `docs/AIVEN_MIGRATION.md`).
-8. **Note the bot's memory now** (`systemctl status guilded`, the `Memory:` line). Expect it to
-   rise by roughly 50–90 MB; the cap is `MemoryMax=700M` on a 1 GB VM.
+8. **Memory and pool acceptance.** Record `MemoryCurrent`, `MemoryPeak`, `MemoryMax` and
+   `NRestarts` with `systemctl show guilded`, plus host available RAM. The historical
+   50–90 MB increase is not a production budget. Rehearse representative imports, scheduled
+   work and the full daily backup concurrently against the isolated copy, with no Discord
+   login. Record peak RSS, latency, pool saturation/timeouts, idle-disconnect recovery and
+   clean shutdown. The service cap is `MemoryMax=700M`; require measured headroom under
+   that cap and on the 1 GB host. A single-query desktop measurement does not satisfy this gate.
 
 ## Deploy notes (when it ships)
 
-- No `.env.local` change and no migration. `deploy/update.sh` sees the new `package-lock.json` and
+- #188 needs no `.env.local` change and adds no migration; later main commits must be reviewed
+  separately. `deploy/update.sh` sees the new `package-lock.json` and
   runs `npm ci`, whose `postinstall` generates the client. The service's `npm run db:update`
   generates it again before start.
 - Watch the first start: run `journalctl -u guilded -n 100` and look for `P1001`, `P1010` or TLS
@@ -120,15 +147,30 @@ Never against the live database, except the step marked read-only. Never start t
 
 ## Rollback
 
-Code only: there is no data, schema or environment change to undo.
+Code-only recovery is the goal; do not restore a database over newer writes to undo the ORM.
+**Reverting #188 alone is broken:** its first parent already has Prisma 7 from dependency
+PRs #201 and #202. In a disposable worktree at `473e710`, reverting #188 left both packages
+at 7.10.1 and restored the schema URL, reproducing `P1012`. There were also four import conflicts.
 
-- Before the merge: close the pull request.
-- After a deploy: revert the merge on `main` (`git revert -m 1 <merge commit>`), push, and deploy
-  as usual (`redeploy-oracle.bat`). The lockfile change makes `update.sh` run `npm ci`, which
-  reinstalls Prisma 6, and `npm run db:update` regenerates the Prisma 6 client. This upgrade never
-  touches `_prisma_migrations`, so Prisma 6 reads the same history. A leftover `src/generated/`
-  folder on the server is ignored by Prisma 6.
-- To keep Prisma 7 but drop only the generator change, revert `b36667e`.
+Prepare a fallback PR against the exact release candidate *before* deployment:
+
+1. Revert #188 (`a60f93952c7f46a00718add44f9e9851bde536db`) with `git revert --no-commit -m 1`.
+   At `473e710`, resolve `official-seasons.ts`, `player-profiles.ts`, `public-leaderboard.ts`
+   and `public-runs.ts` by retaining the candidate's functionality and types, switching their
+   Prisma imports back to `@prisma/client`. Preserve later migrations and fields.
+2. Also revert #202 (`6a1b51782819e4f980a06be0f545f476ad14324d`) and #201
+   (`916384c3fe05c5354e62c1478134d6709a7c3d0b`), in that order, with `--no-commit -m 1`.
+   Verify both `prisma` and `@prisma/client` resolve to **6.19.3** in the lockfile and installation.
+3. Run clean install, generation, type/unit/lint checks and the database rehearsal against
+   the same disposable copy, including snapshots and backup compatibility. This sequence
+   is tied to `473e710`; re-review conflicts and dependencies if main advances.
+4. Review the fallback PR and require green CI. Only after a separately authorized recovery
+   should it reach main and be deployed. `update.sh` requires main and fetches origin/main;
+   `git checkout <old SHA> && update.sh` cannot roll back. A saved application directory is
+   the emergency alternative described in `V5_0_RELEASE_HANDOFF.md`.
+
+A leftover `src/generated/` directory is unused by Prisma 6. Do not assume reverting only
+the generator commit is supported without its own clean-install and runtime rehearsal.
 
 ## Found while doing this (not changed)
 

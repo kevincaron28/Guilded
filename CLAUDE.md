@@ -1,3 +1,5 @@
+> 7.3.2 (23 October 2026): deployment candidate for UTC sessions, dungeon evidence/guidance,
+> staged recovery and companion startup fixes. Real game/two-PC acceptance remains pending.
 > 7.3.1 (22 October 2026): raid readiness requires level 60 and flags old checks; companion Update now
 > repair (a companion on 7.2.0/7.3.0 needs one manual install). Live on the bot and GitHub; CurseForge
 > has 7.3.0. Pre-release audit and recommendations: docs/PRE_RELEASE_AUDIT_2026-10-22.md.
@@ -56,7 +58,7 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (22 October 2026): version 7.3.1 Release, protocol 2.** WoW Forever launches
+**Current status (23 October 2026): version 7.3.2 Candidate, protocol 2.** WoW Forever launches
 4 November 2026 (beta closed 21 October); its first raids open 9 December.
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
 Standalone guild and optional Guilded Games work is next-version candidate

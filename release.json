@@ -1,6 +1,6 @@
 {
-  "version": "7.3.1",
-  "channel": "release",
-  "notes": "docs/V7_3_1_RELEASE_NOTES.md",
-  "acceptance": "docs/V6_2_GAME_ACCEPTANCE.md"
+  "version": "7.3.2",
+  "channel": "candidate",
+  "notes": "docs/V7_3_2_RELEASE_NOTES.md",
+  "acceptance": "docs/V7_3_2_GAME_CHECKLIST.md"
 }

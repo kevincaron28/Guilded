@@ -3,7 +3,7 @@
 ## Notes: Dungeon run timer and personal records for WoW Forever, with optional public leaderboards. Works without a guild.
 ## Notes-frFR: Chronometre de donjon et records personnels pour WoW Forever, avec classements publics facultatifs. Fonctionne sans guilde.
 ## Author: Kevin Caron
-## Version: 7.3.1
+## Version: 7.3.2
 ## Category: Dungeons
 ## X-License: PolyForm-Noncommercial-1.0.0
 ## OptionalDeps: Guilded

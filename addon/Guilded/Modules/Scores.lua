@@ -317,6 +317,11 @@ local function decorateUnit(tooltip)
   local db = ns.getDb and ns.getDb()
   local bracket = scores.bracketByKey(db and db.dungeonBoard, bracketKey)
   tooltip:AddLine(string.format(L("Guilded season score: %d"), total) .. (bracket and (" (" .. scores.bracketLabel(bracket) .. ")") or ""), GOLD_R, GOLD_G, GOLD_B)
+  local snapshot = ns.seasonDetails and ns.seasonDetails.get(1, name, bracketKey)
+  for _, role in ipairs(snapshot and snapshot.profile and snapshot.profile.roles or {}) do
+    tooltip:AddLine(L(role.role) .. ": " .. role.points, 0.8, 0.85, 1)
+  end
+  if snapshot and snapshot.profile and snapshot.profile.roles then tooltip:AddLine(L("Role scores are separate; unknown roles are not assigned."), 0.7, 0.7, 0.7) end
   if tooltip.Show then tooltip:Show() end
 end
 scores.decorateUnit = decorateUnit

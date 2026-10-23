@@ -5,6 +5,7 @@ import { hasDungeonRating, dungeonRating, seasonDungeonCatalog, type LevelBand }
 import { validBracketedRules } from "./dungeon-november-rules.js";
 import { weekSeason, weekWindow } from "./dungeon-periods.js";
 import { participationDungeonKey, participationMode, participationRecordEligible, type ParticipationRun } from "./dungeon-participation.js";
+import { snapshotGuidance } from "./dungeon-snapshot-guidance.js";
 
 // Read-only views of the dungeon challenge (roadmap D5): leaderboards,
 // records, a player's page, recent runs and the season. Invalidated runs
@@ -191,7 +192,7 @@ export async function addonDungeonBoard(database: Db & Pick<PrismaClient, "chara
   const selected = [...(active ? [active] : []), ...past];
   if (!selected.length) return null;
   const ratingRows = new Map(await Promise.all(selected.filter(season => hasDungeonRating(season.ratingRules))
-    .map(async season => [season.id, await dungeonRating(database, guildId, season)] as const)));
+    .map(async season => [season.id, await dungeonRating(database, guildId, season, null, true)] as const)));
   // Aggregate all requested seasons together: no leaderboard query per season.
   const totals = await database.dungeonPointTransaction.groupBy({
     by: ["seasonId", "memberId"], where: { guildId, seasonId: { in: selected.filter(season => !ratingRows.has(season.id) && finalRows(season.finalStandings) === null).map(season => season.id) } }, _sum: { amount: true }
@@ -216,7 +217,10 @@ export async function addonDungeonBoard(database: Db & Pick<PrismaClient, "chara
     ...(validBracketedRules(season.ratingRules) ? { brackets: season.ratingRules.brackets.map(b => ({ ...b })) } : {}),
     profiles: (ratingRows.get(season.id) ?? []).filter(row => row.details !== undefined).map(row => ({
       name: row.character ?? mainName.get(row.memberId) ?? row.name, points: row.points, details: row.details!, ...(row.bracket ? { bracket: row.bracket } : {}),
-      characters: row.character ? [] : characters.filter(character => character.memberId === row.memberId).map(character => character.name)
+      characters: row.character ? [] : characters.filter(character => character.memberId === row.memberId).map(character => character.name),
+      ...(row.roles ? { roles: row.roles.map(role => ({ ...role, guidance: season.status === "ACTIVE" && validBracketedRules(season.ratingRules)
+        ? snapshotGuidance({ ...row, ...role }, season.ratingRules, now) : null })) } : {}),
+      guidance: season.status === "ACTIVE" && validBracketedRules(season.ratingRules) ? snapshotGuidance(row, season.ratingRules, now) : null
     })),
     catalog: seasonDungeonCatalog(season.ratingRules, ratingRows.get(season.id) ?? []),
     rows: ((ratingRows.get(season.id) ?? finalRows(season.finalStandings))?.map(row => ({ name: ("character" in row && typeof row.character === "string" ? row.character : undefined) ?? mainName.get(row.memberId) ?? row.name, points: row.points,

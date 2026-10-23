@@ -30,7 +30,7 @@ end
 
 -- bracketKey: the level bracket to show in an all-level season (default: the player's own).
 -- period "week": the current season's board since the weekly reset (when the bot sent one).
-function view.model(name, seasonIndex, bracketKey, period)
+function view.model(name, seasonIndex, bracketKey, period, role)
   local db = ns.getDb and ns.getDb() or {}
   local score = ns.scores
   local seasons = {}
@@ -55,12 +55,20 @@ function view.model(name, seasonIndex, bracketKey, period)
   local snapshot = ns.seasonDetails and ns.seasonDetails.get(seasonIndex, name, bracket and bracket.key)
   local available = snapshot and snapshot.available
   local profile = available and snapshot.profile
+  local roles = profile and profile.roles
+  if role and roles then
+    for _, r in ipairs(roles) do if r.role == role then profile = r; break end end
+  else role = nil end
+  local guidance = period ~= "week" and selected and selected.status == "ACTIVE" and profile and profile.guidance
+  local plans = {}
+  for _, r in ipairs(guidance and guidance.routes or {}) do plans[r.key] = r end
   local byId, known, cards = {}, {}, {}
   for _, d in ipairs(profile and profile.details or {}) do byId[d.dungeonKey or tostring(d.instanceId)] = d end
   for _, dungeon in ipairs(snapshot and snapshot.catalog or {}) do
     if not bracket or not dungeon.bracket or dungeon.bracket == bracket.key then
       local best = byId[dungeon.dungeonKey or tostring(dungeon.instanceId)]
       cards[#cards + 1] = { name = dungeon.name, instanceId = dungeon.instanceId, minLevel = dungeon.minLevel, maxLevel = dungeon.maxLevel, points = available and (best and best.points or 0) or nil,
+        guidance = plans[dungeon.dungeonKey or tostring(dungeon.instanceId)], scenarioLevel = guidance and guidance.level, historical = selected and selected.status == "ENDED",
         counted = best and best.counted, reason = best and best.unrankedReason, penalty = best and best.penaltyPercent, bosses = best and best.bosses, sec = best and best.durationSec, speedBonus = best and best.speedBonus, targetSec = dungeon.targetSec,
         -- The officer relay (SeasonDetails) carries only the season's flag, not each route's.
         provisional = snapshot.version == 6 and (dungeon.provisional == true or dungeon.provisional == nil and snapshot.provisional == true) }
@@ -78,10 +86,27 @@ function view.model(name, seasonIndex, bracketKey, period)
     return a.name < b.name
   end)
   return { total = profile and profile.points or own, count = profile and #profile.details or nil,
-    cards = cards, seasons = seasons, seasonIndex = seasonIndex, season = selected, rows = rows,
+    cards = cards, seasons = seasons, seasonIndex = seasonIndex, season = selected, rows = rows, roles = roles, role = role, guidance = guidance,
     own = profile and profile.points or own, available = available, version = snapshot and snapshot.version, provisional = snapshot and snapshot.provisional,
     bracket = bracket, brackets = selected and selected.brackets, period = period, hasWeek = week ~= nil, weekOwn = period == "week" and (own or 0) or nil }
 
+end
+
+function view.guidanceText(row)
+  if row and row.historical then return L("Past season: recorded results only.") end
+  local g = row and row.guidance
+  if not g then return L("Sync your companion for improvement scenarios and role details.") end
+  if g.fit == "carry" then return L("Overlevel: this route cannot add ranked points.") end
+  local lines = { string.format(L("Scenario at level %d (party maximum)."), row.scenarioLevel or 0) }
+  if g.fit == "below" then lines[#lines + 1] = L("Requires the route's minimum level.") end
+  if g.next then
+    local when = g.next.durationSec and duration(g.next.durationSec) or L("Any ranked clear")
+    lines[#lines + 1] = string.format(L("%s: +%d points (season %d)."), when, g.next.gain, g.next.total)
+    if #(g.next.pushedOut or {}) > 0 then lines[#lines + 1] = L("Replaces: ") .. table.concat(g.next.pushedOut, ", ") end
+  else lines[#lines + 1] = L("No further seasonal gain on this route.") end
+  if (g.penaltyPercent or 0) > 0 then lines[#lines + 1] = string.format(L("Group above the level range: -%d%%"), g.penaltyPercent) end
+  lines[#lines + 1] = L("Scenario only: final-boss evidence and 80% presence required. No confirmation yet.")
+  return table.concat(lines, "\n")
 end
 
 local function label(parent, x, y, width, font)
@@ -244,6 +269,7 @@ function view.build(parent, compact)
       GameTooltip:AddLine(self.row.name)
       if self.row.reason then GameTooltip:AddLine(L(self.row.reason), 1, 0.6, 0.2) end
       if self.row.penalty then GameTooltip:AddLine(string.format(L("Group above the level range: -%d%%"), self.row.penalty), 1, 0.6, 0.2) end
+      GameTooltip:AddLine(view.guidanceText(self.row), 0.8, 0.85, 1, true)
       GameTooltip:AddLine(L("Competitive boss records"), 0.83, 0.69, 0.22)
       if #(self.row.bosses or {}) == 0 then GameTooltip:AddLine(L("No eligible timed boss kills recorded.")) end
       for _, b in ipairs(self.row.bosses or {}) do GameTooltip:AddDoubleLine(b.name, duration(b.durationSec)) end
@@ -252,7 +278,7 @@ function view.build(parent, compact)
     card:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
     pane.cards[i] = card
   end
-  pane.page, pane.seasonIndex, pane.elapsed = 1, 1, 0
+  pane.page, pane.seasonIndex, pane.elapsed, pane.role = 1, 1, 0, false
   pane.mode, pane.guildRanking = active("scores") and "season" or "run", false
   pane.rankings = label(pane, 16, -94, width - 32)
   pane.rankings:Hide()
@@ -267,7 +293,12 @@ function view.build(parent, compact)
     self.runView:Hide()
     if not active("scores") then self.mode = "run"; self.runView:Show(); self.runView:Refresh(); return end
     local name = ns.playerName()
-    local model = view.model(name, self.seasonIndex, self.bracket, self.period)
+    local chosenRole = self.role
+    if self.guildRanking or self.period == "week" then chosenRole = nil end
+    local model = view.model(name, self.seasonIndex, self.bracket, self.period, chosenRole)
+    self.role = model.role or false
+    self.roleButton:SetText(L(self.role or "Overall"))
+    if model.roles and model.period ~= "week" then self.roleButton:Show() else self.roleButton:Hide() end
     self.seasonIndex, self.period = model.seasonIndex, model.period
     local ranking = self.guildRanking or model.period == "week"
     -- The current season: one button switches between this month (the season) and this week.
@@ -281,7 +312,7 @@ function view.build(parent, compact)
     else self.bracketButton:Hide() end
     local pages = math.max(1, math.ceil(ranking and #model.rows / 12 or #model.cards / perPage))
     self.page = math.min(self.page, pages)
-    self.summary:SetText(name .. " - " .. (model.period == "week" and (L("Your score this week") .. ": " .. model.weekOwn)
+    self.summary:SetText(name .. (self.role and (" (" .. L(self.role) .. ")") or "") .. " - " .. (model.period == "week" and (L("Your score this week") .. ": " .. model.weekOwn)
       or (L("Your season score") .. ": " .. (model.total and tostring(model.total) or L("Not in this snapshot")))))
     self.note:SetText(model.available and (model.version == 6 and model.bracket and string.format(L("%s: best %d distinct routes. Verified route evidence required."), ns.scores.bracketLabel(model.bracket), model.bracket.bestCount)
       or model.version == 5 and L("Level 60: best 8 distinct routes. Maximum 3200. Verified route evidence required.") or model.version == 4 and L("Beta: best 8 distinct routes. Level 30. Maximum 3200. Provisional targets.") or model.version == 3 and L("200 at target. Best run per dungeon. Hover for boss records.") or model.version == 2 and L("100 per dungeon + up to 20 speed. Only your best run counts.")
@@ -337,8 +368,25 @@ function view.build(parent, compact)
         lines[1] = string.format(L("Updated %s%s."), when, board.from and string.format(L(", shared by %s"), board.from) or "")
       end
     end
+    local easiest
+    for _, card in ipairs(model.cards) do
+      local g = card.guidance
+      if g and g.fit == "ok" and g.next then
+        local ease = g.next.durationSec and g.next.durationSec / g.targetSec or math.huge
+        if not easiest or ease > easiest.ease then easiest = { name = card.name, ease = ease, next = g.next } end
+      end
+    end
+    if easiest and not ranking then
+      lines[#lines + 1] = L("Best next improvement") .. ": " .. easiest.name .. " (+" .. easiest.next.gain .. "). " .. L("Hover for the scenario.")
+    end
     self.seasonRows:SetText(table.concat(lines, "\n"))
   end
+  pane.roleButton = button(pane, "Overall", 16, -394, 110, function()
+    local nextRole = { TANK = "HEALER", HEALER = "DAMAGER", DAMAGER = false }
+    if pane.role then pane.role = nextRole[pane.role] else pane.role = "TANK" end
+    pane.page = 1; pane:Refresh()
+  end)
+  pane.roleButton:Hide()
   button(pane, "Previous", 16, -299, 100, function() pane.page = math.max(1, pane.page - 1); pane:Refresh() end)
   button(pane, "Next", width - 116, -299, 100, function() pane.page = pane.page + 1; pane:Refresh() end)
   pane.rankingToggle = button(pane, "Guild rankings", 16, -423, 110, function() pane.guildRanking = not pane.guildRanking; pane.page = 1; pane:Refresh() end)

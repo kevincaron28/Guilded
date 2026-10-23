@@ -2,6 +2,7 @@ import { bracketForLevel, routeTargetAt, type BracketedRules } from "./dungeon-n
 import type { LevelBand } from "./dungeon-rating.js";
 import { characterId, characterScores, rateRun, type ScorePlayer, type ScoreRow, type ScoreRun } from "./public-score.js";
 import { ROLES, type Role } from "./recruitment.js";
+import { MIN_DURATION_SEC, MAX_DURATION_SEC } from "./dungeon-rules.js";
 
 // Player guidance on the public character page (docs/RAIDER_IO_SCORING_ANALYSIS_2026-10-22.md, item 2).
 // - Best next improvement: for each route of the character's bracket, the slowest clear that would
@@ -30,7 +31,7 @@ export interface Scenario {
 export type LevelFit = "ok" | "below" | "carry" | "unknown";
 export interface RoutePlan {
   key: string; name: string; band: LevelBand; targetSec: number;
-  best: { points: number; durationSec: number; counted: boolean } | null;
+  best: { points: number; durationSec: number; counted: boolean; evidence: "verified" | "legacy"; confirmations: number } | null;
   fit: LevelFit; penaltyPercent: number;
   /** Null when no run of this route can raise the season score (already 400, or a carry). */
   next: Scenario | null;
@@ -74,15 +75,15 @@ export function scenarioAt(base: PlanBase, key: string, durationSec: number, lev
 
 /** The slowest clear that adds GAIN_STEP points (or all that is left); null when nothing can be added. */
 export function nextGain(base: PlanBase, key: string, targetSec: number, level: number): Scenario | null {
-  const most = scenarioAt(base, key, 1, level).gain;
+  const most = scenarioAt(base, key, MIN_DURATION_SEC, level).gain;
   if (most <= 0) return null;
   const need = Math.min(GAIN_STEP, most);
   // From 4 x target on, every clear scores the 50-point floor.
-  const slowest = 4 * targetSec;
+  const slowest = MAX_DURATION_SEC;
   const floor = scenarioAt(base, key, slowest, level);
   if (floor.gain >= need) return { ...floor, durationSec: null };
   // The gain only grows as the time drops: the last second that still earns `need`.
-  let fast = 1;
+  let fast = MIN_DURATION_SEC;
   let slow = slowest;
   while (slow - fast > 1) {
     const mid = Math.floor((fast + slow) / 2);
@@ -121,7 +122,8 @@ export function planImprovements(input: PlanInput): ImprovementPlan | null {
     const targetSec = routeTargetAt(rules, key, now)!;
     const own = before?.routes.find((r) => r.key === key);
     const fit = levelFit(level, band, rules);
-    return { key, name: route.name, band, targetSec, best: own ? { points: own.points, durationSec: own.run.durationSec, counted: own.counted } : null,
+    return { key, name: route.name, band, targetSec, best: own ? { points: own.points, durationSec: own.run.durationSec, counted: own.counted,
+      evidence: own.run.evidence ? "verified" : "legacy", confirmations: own.run.confirmations } : null,
       fit: fit.fit, penaltyPercent: fit.penaltyPercent, next: fit.fit === "carry" ? null : nextGain(base, key, targetSec, fit.at) };
   }).sort((a, b) => a.band.min - b.band.min || a.band.max - b.band.max || a.name.localeCompare(b.name));
   // Easiest: the clear allowed to be slowest against its target.

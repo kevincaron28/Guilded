@@ -8,6 +8,7 @@ import {
 } from "./dungeon-november-rules.js";
 import { SCARLET_WINGS, competitionReason } from "./dungeon-rating.js";
 import { formatDuration } from "./dungeon-rules.js";
+import { CALIBRATION_POLICY, calibrationSample } from "./dungeon-calibration.js";
 
 // Officer flow for a PROVISIONAL all-level season (roadmap item 3; owner, 18 October 2026: "use
 // provisional recommendations until real timed runs exist"). It turns the plan in
@@ -22,7 +23,7 @@ import { formatDuration } from "./dungeon-rules.js";
 // fewer rated routes than its best-N is left out too. Nothing here invents IDs or timers.
 export const PROVISIONAL_PLAN_ID = "bracket-plan-2026-10-18";
 const OBSERVED_DIFFICULTY = 0;
-export const MIN_RECALIBRATION_RUNS = 3;
+export const MIN_RECALIBRATION_RUNS = CALIBRATION_POLICY.samples;
 const NO_MAP = "No map ID observed yet (not in the beta client)";
 
 function provisionalRoute(plan: PlannedRoute, name: string): BracketRoute {
@@ -115,26 +116,33 @@ export async function recalibrationEvidence(database: EvidenceDb, guildId: strin
   const runs = await database.dungeonRun.findMany({ where: { guildId, seasonId: season.id, instanceId: route.instanceId, valid: true,
     state: "COMPLETED", completedBy: "final boss", durationSec: { gt: 0 }, NOT: { runRef: { startsWith: "SIM-" } },
     startedAt: { gte: season.startsAt }, ...(season.endsAt ? { endedAt: { lt: season.endsAt } } : {}) },
-  select: { competitionData: true, difficultyId: true, startedAt: true, endedAt: true, completedBy: true, instanceId: true, durationSec: true,
+  select: { runRef: true, competitionData: true, difficultyId: true, startedAt: true, endedAt: true, completedBy: true, instanceId: true, durationSec: true,
     players: { select: { character: true, memberId: true, presentSec: true } } } });
   // Only runs inside the route's own levels (no over-level groups) calibrate it.
   const band = rules.levelBands[key];
-  const times = runs.filter(run => {
+  const eligible = runs.filter(run => {
     const resolved = resolveNovemberRoute(run, rules);
     return resolved.key === key && !resolved.reason
       && competitionReason({ ...run, players: run.players.map(p => ({ ...p, member: null })) }, band) === undefined;
-  }).map(run => run.durationSec!).sort((a, b) => a - b);
-  const n = times.length;
-  const median = n ? n % 2 ? times[(n - 1) / 2]! : Math.round((times[n / 2 - 1]! + times[n / 2]!) / 2) : null;
+  });
+  const sample = calibrationSample(eligible.filter(run => run.endedAt && run.players.every(p => p.presentSec >= 0.8 * run.durationSec!)).map(run => {
+    const metadata = run.competitionData as { gameBuild?: string; startTrigger?: string } | null;
+    return { id: run.runRef, seconds: run.durationSec!, endedAt: run.endedAt!,
+      crew: run.players.map(p => p.memberId ? `member:${p.memberId}` : `character:${p.character.trim().toLowerCase()}`),
+      build: typeof metadata?.gameBuild === "string" ? metadata.gameBuild : null,
+      startTrigger: typeof metadata?.startTrigger === "string" ? metadata.startTrigger : null };
+  }));
+  const { median } = sample;
   return { season, rules, route, currentSec: rules.targets[key]!, provisional: !(rules.recalibrations ?? []).some(c => c.dungeonKey === key),
-    times, median, suggestedMinutes: median === null ? null : Math.min(120, Math.max(5, Math.round(median / 60))) };
+    ...sample, suggestedMinutes: median === null ? null : Math.min(120, Math.max(5, Math.round(median / 60))) };
 }
 
 export function describeEvidence(e: Awaited<ReturnType<typeof recalibrationEvidence>>): string {
   return [`**${e.route.name}** · target ${formatDuration(e.currentSec)}${e.provisional ? " (provisional)" : " (recalibrated)"}`,
-    e.times.length ? `${e.times.length} ranked timed run(s) this season: best ${formatDuration(e.times[0]!)}, median ${formatDuration(e.median!)}.` : "No ranked timed run on this route this season yet.",
-    e.times.length >= MIN_RECALIBRATION_RUNS ? `Suggested target: **${e.suggestedMinutes} min** (the median). Apply with \`minutes:\`.`
-      : `${MIN_RECALIBRATION_RUNS} are needed before the target can change; it stays provisional until then.`].join("\n");
+    `${e.times.length} crew/day samples from ${e.comparableRuns} comparable runs, ${e.crews} crews, ${e.days} UTC days. Build: ${e.build ?? "unknown"}; first-combat starts only. ${e.excludedRuns} excluded (build/start/party metadata).`,
+    e.times.length ? `Median ${formatDuration(e.median!)}; middle 50% ${formatDuration(e.p25!)}–${formatDuration(e.p75!)}. This spread is not a confidence interval.` : "No comparable sample yet.",
+    e.ready ? `Suggested target: **${e.suggestedMinutes} min** (crew/day median). Only this target can be applied with \`minutes:\`.`
+      : `${MIN_RECALIBRATION_RUNS} are needed, with at least ${CALIBRATION_POLICY.crews} substantially different crews and ${CALIBRATION_POLICY.days} days; the target stays provisional.`].join("\n");
 }
 
 /** Replaces a route's target for runs ending from now on; earlier runs keep the target they earned under. */
@@ -143,7 +151,8 @@ export async function recalibrateRoute(database: Pick<PrismaClient, "$transactio
   return database.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${guildId}, 0))`;
     const e = await recalibrationEvidence(tx, guildId, key);
-    if (e.times.length < MIN_RECALIBRATION_RUNS) throw new Error(`Nothing changed. ${describeEvidence(e)}`);
+    if (!e.ready) throw new Error(`Nothing changed. ${describeEvidence(e)}`);
+    if (minutes !== e.suggestedMinutes) throw new Error(`Nothing changed. Use the reviewed crew/day median: ${e.suggestedMinutes} min. Other targets wait for a new season.`);
     const targetSec = minutes * 60;
     if (targetSec === e.currentSec) throw new Error(`The target is already ${minutes} min.`);
     const rules = createBracketedDungeonRules({ routes: e.rules.routes, brackets: e.rules.brackets, overlevelPenalty: e.rules.overlevelPenalty,

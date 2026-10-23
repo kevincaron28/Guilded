@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agrees, checkPublicRun, ingestPublicRuns, PublicUploadError, seasonOf, summarize, type PublicRunStore, type RunSummary, type StoredRun } from "../src/services/public-runs.js";
+import { agrees, evidenceUpgrade, checkPublicRun, ingestPublicRuns, PublicUploadError, seasonOf, summarize, type PublicRunStore, type RunSummary, type StoredRun } from "../src/services/public-runs.js";
 import { dungeonRunSchema } from "../src/services/dungeon-rules.js";
 
 const NOW = new Date("2026-11-10T20:00:00Z");
@@ -27,16 +27,20 @@ export function memoryRunStore() {
   const store: PublicRunStore = {
     async findRun(runKey) { return runs.get(runKey) ?? null; },
     async createRun(summary, uploader) {
-      runs.set(summary.runKey, { id: `r${++next}`, status: "ACCEPTED", durationSec: summary.durationSec, endedAt: summary.endedAt, players: summary.players.map((p) => p.character),
+      runs.set(summary.runKey, { ...summary, id: `r${++next}`, status: "ACCEPTED",
         uploaders: [uploader.key], reporters: [...uploader.reporters], summary, confirmations: 1 });
       uploads.push({ uploaderKey: uploader.key, runRef: summary.runRef, at: NOW });
     },
-    async addUpload(runId, uploader, summary, agree, confirm) {
+    async addUpload(runId, uploader, summary) {
       const row = [...runs.values()].find((entry) => entry.id === runId)!;
+      const agree = agrees(row, summary);
+      const confirm = agree && uploader.reporters.length > 0 && !uploader.reporters.some(name => row.reporters.includes(name));
+      if (row.status === "ACCEPTED" && evidenceUpgrade(row, summary)) Object.assign(row, summary, { summary });
       row.uploaders.push(uploader.key);
       row.reporters.push(...uploader.reporters.filter((name) => !row.reporters.includes(name)));
       if (!agree) row.status = "DISPUTED"; else if (confirm) row.confirmations++;
       uploads.push({ uploaderKey: uploader.key, runRef: summary.runRef, at: NOW });
+      return { agree, duplicate: false };
     },
     async uploadsSince(uploaderKey, since) { return uploads.filter((u) => u.uploaderKey === uploaderKey && u.at >= since).length; },
     async storedRefs(uploaderKey) { return uploads.filter((u) => u.uploaderKey === uploaderKey).map((u) => u.runRef); }
@@ -76,10 +80,41 @@ describe("public run checks", () => {
   });
 
   it("decides when two uploads of one run agree", () => {
-    const stored = { durationSec: 1500, endedAt: new Date(END * 1000), players: ["Kev", "Amy", "Bob"] };
+    const stored = summarize(parse(run()));
     expect(agrees(stored, summarize(parse(run({ startedAt: END - 1520 }))))).toBe(true);
     expect(agrees(stored, summarize(parse(run({ startedAt: END - 1200 }))))).toBe(false);
     expect(agrees(stored, summarize(parse(run({ players: [{ character: "Zed", realm: "X", presentSec: 1, inGuild: false }], recorder: "Zed", reporterNames: ["Zed"] }))))).toBe(false);
+  });
+
+  it("rejects contradictory scoring facts even when clocks and party overlap agree", () => {
+    const stored = summarize(parse(run({ completedBy: "final boss" })));
+    for (const update of [{ difficultyId: 9 }, { instanceId: 189 }, { routeKey: "189:library" },
+      { players: stored.players.map(p => ({ ...p, level: 99 })) },
+      { players: stored.players.map(p => ({ ...p, realm: "Other" })) },
+      { players: stored.players.map(p => ({ ...p, presentSec: 1100 })) },
+      { players: stored.players.map(p => ({ ...p, role: "DAMAGER" })) },
+      { encounters: [{ id: 999, success: true as const }] }]) {
+      expect(agrees(stored, { ...stored, ...update })).toBe(false);
+    }
+  });
+
+  it("only promotes a coherent stronger observation without changing clocks or party eligibility", async () => {
+    const memory = memoryRunStore();
+    const initial = run({ completedBy: "manual", encounters: [{ id: 1, success: true, at: END - 900 }] });
+    await ingestPublicRuns(memory.store, { uploaderKey: "guild:g", character: null, source: "guild", runs: [initial] }, NOW);
+    const full = run({ completedBy: "final boss" });
+    await ingestPublicRuns(memory.store, { uploaderKey: "account:kev", character: "Kev", source: "personal", runs: [full] }, NOW);
+    const row = [...memory.runs.values()][0]!;
+    expect(row).toMatchObject({ completedBy: "final boss", confirmations: 1, evidenceVersion: 1 });
+    expect(row.encounters).toHaveLength(2);
+    const original = summarize(parse(initial));
+    expect(evidenceUpgrade(original, summarize(parse(full)))).toBe(true);
+    expect(evidenceUpgrade(original, summarize(parse({ ...full, startedAt: END - 1510 })))).toBe(false);
+    expect(evidenceUpgrade(row, original)).toBe(false);
+    row.status = "DISPUTED";
+    row.completedBy = "manual";
+    await ingestPublicRuns(memory.store, { uploaderKey: "account:bob", character: "Bob", source: "personal", runs: [full] }, NOW);
+    expect(row).toMatchObject({ status: "DISPUTED", completedBy: "manual" });
   });
 });
 

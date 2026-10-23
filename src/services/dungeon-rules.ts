@@ -14,6 +14,8 @@ export const dungeonRunSchema = z.object({
   id: z.string().min(3).max(100),
   protocolVersion: z.number().int(),
   addonVersion: z.string().max(40).optional(),
+  gameBuild: z.string().min(1).max(40).optional().catch(undefined),
+  startTrigger: z.enum(["first combat", "manual", "encounter start", "encounter end", "peer"]).optional().catch(undefined),
   state: z.string().max(20),
   instanceId: z.number().int().positive(),
   name: z.string().min(1).max(100),

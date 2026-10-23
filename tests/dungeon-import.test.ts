@@ -73,6 +73,14 @@ const total = (points: { memberId: string; amount: number }[], memberId: string)
   points.filter((row) => row.memberId === memberId).reduce((sum, row) => sum + row.amount, 0);
 
 describe("importDungeonRuns", () => {
+  it("retains observed build and timer convention without fabricating metadata for old runs", async () => {
+    const { tx, runs } = fakeTx();
+    await importDungeonRuns(tx, "g1", [run("metadata", { gameBuild: "12345", startTrigger: "first combat" })], characters, "officer", null, now);
+    expect(runs[0]).toMatchObject({ competitionData: { gameBuild: "12345", startTrigger: "first combat" } });
+    const legacy = fakeTx();
+    await importDungeonRuns(legacy.tx, "g1", [run("legacy")], characters, "officer", null, now);
+    expect(legacy.runs[0]).toMatchObject({ competitionData: { gameBuild: null, startTrigger: null } });
+  });
   it("refuses malformed v5 rules instead of falling back to legacy participation awards", async () => {
     const { tx, points, runs } = fakeTx({ id: "invalid-november", ratingRules: { ...novemberRulesFixture(), competitionLevel: 30 } });
     await expect(importDungeonRuns(tx, "g1", [run("malformed-rules")], characters, "officer", null, now)).rejects.toThrow(/Invalid November rules/);

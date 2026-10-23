@@ -20,6 +20,10 @@ const SAVED = `GuildedDungeonsDB = {
 `;
 
 describe("personal companion mode", () => {
+  it("exports calibration metadata from saved runs", () => {
+    const saved = SAVED.replace('["id"] = "QG-1",', '["id"] = "QG-1", gameBuild="12345", startTrigger="first combat",');
+    expect(readPersonalRuns(saved).runs[0]).toMatchObject({ gameBuild: "12345", startTrigger: "first combat" });
+  });
   it("reads GuildedDungeons' saved file, leaving out runs already sent", () => {
     const { character, runs } = readPersonalRuns(SAVED);
     expect(character).toEqual({ name: "Kev", realm: "Doomhowl", class: "WARRIOR", level: 16 });

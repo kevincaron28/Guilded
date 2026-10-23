@@ -27,6 +27,7 @@ const IDLE_TIMEOUT_MS = 300_000;
 // The node-postgres pool settings set here (a subset of pg's PoolConfig).
 export interface PoolSettings {
   connectionString?: string;
+  options: string;
   max: number;
   connectionTimeoutMillis: number;
   idleTimeoutMillis: number;
@@ -46,7 +47,11 @@ export interface PoolSettings {
 //   sslcert or sslrootcert     -> CA certificate to trust (relative paths from prisma/, as before)
 // Other ssl* parameters (client certificates) are not carried over.
 export function poolSettings(url: string | undefined): PoolSettings {
-  const settings: PoolSettings = { max: DEFAULT_CONNECTION_LIMIT, connectionTimeoutMillis: DEFAULT_TIMEOUT_SECONDS * 1000, idleTimeoutMillis: IDLE_TIMEOUT_MS, allowExitOnIdle: true };
+  // adapter-pg 7.10.1 replaces a timestamptz offset with +00:00 without converting
+  // its clock time. Every connection (including replacements) must therefore use UTC.
+  // Preserve other startup settings; the final -c wins over an earlier TimeZone.
+  const utcOptions = (options: string | undefined | null) => `${options?.trim() ? `${options.trim()} ` : ""}-c TimeZone=UTC`;
+  const settings: PoolSettings = { options: utcOptions(process.env["PGOPTIONS"]), max: DEFAULT_CONNECTION_LIMIT, connectionTimeoutMillis: DEFAULT_TIMEOUT_SECONDS * 1000, idleTimeoutMillis: IDLE_TIMEOUT_MS, allowExitOnIdle: true };
   if (!url) return settings;
   let parsed: URL;
   try {
@@ -55,6 +60,9 @@ export function poolSettings(url: string | undefined): PoolSettings {
     return { ...settings, connectionString: url };
   }
   const params = parsed.searchParams;
+  settings.options = utcOptions(params.get("options") ?? process.env["PGOPTIONS"]);
+  // pg lets URL options override PoolConfig.options, so remove the original.
+  params.delete("options");
   const seconds = (name: string) => {
     const value = Number(params.get(name) ?? DEFAULT_TIMEOUT_SECONDS);
     return Number.isFinite(value) && value >= 0 ? value : DEFAULT_TIMEOUT_SECONDS;

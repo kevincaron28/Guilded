@@ -1,10 +1,11 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_CONNECTION_LIMIT, poolSettings } from "../src/database.js";
 
 describe("database URL to node-postgres pool settings", () => {
+  afterEach(() => vi.unstubAllEnvs());
   const dir = mkdtempSync(join(tmpdir(), "guilded-ca-"));
   const ca = join(dir, "aiven-ca.pem");
   writeFileSync(ca, "-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----\n");
@@ -28,6 +29,7 @@ describe("database URL to node-postgres pool settings", () => {
       connectionTimeoutMillis: 30_000,
       idleTimeoutMillis: 300_000,
       allowExitOnIdle: true,
+      options: "-c TimeZone=UTC",
       ssl: false
     });
   });
@@ -57,5 +59,14 @@ describe("database URL to node-postgres pool settings", () => {
   it("leaves a missing or unparsable URL to node-postgres", () => {
     expect(poolSettings(undefined).connectionString).toBeUndefined();
     expect(poolSettings("not a url").connectionString).toBe("not a url");
+  });
+
+  it("forces UTC after URL or environment options without dropping other startup settings", () => {
+    vi.stubEnv("PGOPTIONS", "-c statement_timeout=9000 -c timezone=America/Toronto");
+    expect(poolSettings(undefined).options).toBe("-c statement_timeout=9000 -c timezone=America/Toronto -c TimeZone=UTC");
+    const settings = poolSettings("postgresql://u:p@localhost/x?options=-c%20timezone%3DAsia%2FKolkata%20-c%20default_transaction_read_only%3Don");
+    expect(settings.options).toBe("-c timezone=Asia/Kolkata -c default_transaction_read_only=on -c TimeZone=UTC");
+    expect(new URL(settings.connectionString!).searchParams.has("options")).toBe(false);
+    expect(poolSettings("postgresql://u:p@localhost/x?options=").options).toBe("-c TimeZone=UTC");
   });
 });

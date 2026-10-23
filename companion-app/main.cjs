@@ -301,12 +301,15 @@ app.whenReady().then(async () => {
   setInterval(() => void checkForUpdate(), 12 * 60 * 60 * 1000);
 
   if (screenshotPath) {
-    win.webContents.once("did-finish-load", () => setTimeout(async () => {
+    const capture = () => setTimeout(async () => {
       const image = await win.webContents.capturePage();
       fs.writeFileSync(screenshotPath, image.toPNG());
       quitting = true;
       app.quit();
-    }, 3500));
+    }, 3500);
+    // Startup awaits can let the renderer finish before this point.
+    if (win.webContents.isLoading()) win.webContents.once("did-finish-load", capture);
+    else capture();
     win.show();
   }
 }).catch(failStartup);

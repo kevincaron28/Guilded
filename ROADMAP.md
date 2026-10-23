@@ -1,8 +1,8 @@
 # Guilded roadmap
 
-## Current stage — 22 October 2026
+## Current stage — 23 October 2026
 
-Guilded **7.3.1 Release** (protocol 2), live on the bot and GitHub; CurseForge has 7.3.0. All six
+Guilded **7.3.2 Candidate** (protocol 2), prepared for deployment and real-client acceptance; CurseForge has 7.3.0. All six
 18-October requests shipped in 7.0.0; 7.1.0 added monthly boards and Raider.IO-style leaderboards,
 7.2.0 companion Sign in with Discord and one-click updates, 7.2.1 a steadier bot, 7.3.0 the dungeon
 result card, raid vacancies and public player profiles, 7.3.1 level-aware raid readiness and the

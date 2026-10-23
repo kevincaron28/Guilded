@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { dungeonResetCutoff, predatesDungeonReset } from "./dungeon-reset.js";
 import { dungeonRunSchema, validateRun, type DungeonRunInput } from "./dungeon-rules.js";
 import { bracketForLevel, DEFAULT_DUNGEON_BRACKETS } from "./dungeon-november-rules.js";
 import { publicRouteKey } from "./public-score.js";
@@ -146,6 +147,7 @@ export interface IngestResult { accepted: string[]; confirmed: string[]; duplica
 export class PublicUploadError extends Error { constructor(message: string, readonly status: number) { super(message); } }
 
 export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderKey: string; character: string | null; source: "personal" | "guild"; runs: unknown }, now = new Date()): Promise<IngestResult> {
+  const cutoff = dungeonResetCutoff();
   if (!Array.isArray(input.runs)) throw new PublicUploadError("runs must be a list", 400);
   if (input.runs.length > PUBLIC_LIMITS.runsPerUpload) throw new PublicUploadError(`Send at most ${PUBLIC_LIMITS.runsPerUpload} runs at once.`, 413);
   if (input.source === "personal" && await store.uploadsSince(input.uploaderKey, new Date(now.getTime() - 3_600_000)) >= PUBLIC_LIMITS.runsPerHour) {
@@ -158,6 +160,7 @@ export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderK
     const id = typeof (raw as { id?: unknown })?.id === "string" ? String((raw as { id: string }).id).slice(0, 100) : "?";
     if (!parsed.success) { result.rejected.push({ id, reason: "not a valid run" }); continue; }
     const run = parsed.data;
+    if (predatesDungeonReset(run, cutoff)) { result.rejected.push({ id: run.id, reason: "run predates the owner's dungeon history reset" }); continue; }
     // Unfinished runs are simply not public; they are not an error.
     if (run.state !== "COMPLETED") continue;
     const check = checkPublicRun(run, input.character, now);

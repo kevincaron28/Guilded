@@ -1,4 +1,5 @@
 import { bracketForLevel, resolveNovemberRoute, validBracketedRules, validRouteRules } from "./dungeon-november-rules.js";
+import { dungeonResetCutoff, predatesDungeonReset } from "./dungeon-reset.js";
 import type { Prisma } from "@prisma/client";
 import { grantRunAchievements, type AchievementKey } from "./dungeon-achievements.js";
 import { findCharacter } from "./character-match.js";
@@ -88,6 +89,17 @@ export async function importDungeonRuns(
 ): Promise<DungeonImportSummary> {
   const summary: DungeonImportSummary = { results: [], duplicates: 0, malformed: 0 };
   if (rawRuns.length === 0) return summary;
+  const cutoff = dungeonResetCutoff();
+  const parsed = rawRuns.map((raw) => dungeonRunSchema.safeParse(raw));
+  summary.malformed = parsed.filter((result) => !result.success).length;
+  const runs = parsed.filter((result) => result.success).map((result) => result.data)
+    .filter(run => {
+      if (!predatesDungeonReset(run, cutoff)) return true;
+      summary.duplicates++;
+      return false;
+    })
+    .sort((a, b) => (a.endedAt ?? a.startedAt ?? 0) - (b.endedAt ?? b.startedAt ?? 0));
+  if (!runs.length) return summary;
   const settings = await tx.guildSettings.findUnique({ where: { guildId } });
   const config = dungeonConfig(settings?.dungeonConfig);
   const season = await activeSeason(tx, guildId, config.targets, config.levelBands);
@@ -104,11 +116,6 @@ export async function importDungeonRuns(
   let previousRating = rated ? await dungeonRating(tx, guildId, season) : [];
 
   // Oldest first, so records and "earlier this week" are judged in order.
-  const parsed = rawRuns.map((raw) => dungeonRunSchema.safeParse(raw));
-  summary.malformed = parsed.filter((result) => !result.success).length;
-  const runs = parsed.filter((result) => result.success).map((result) => result.data)
-    .sort((a, b) => (a.endedAt ?? a.startedAt ?? 0) - (b.endedAt ?? b.startedAt ?? 0));
-
   for (const run of runs) {
     const existing = await tx.dungeonRun.findUnique({ where: { guildId_runRef: { guildId, runRef: run.id } } });
     if (existing || await isNearDuplicate(tx, guildId, run)) {

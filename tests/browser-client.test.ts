@@ -255,7 +255,10 @@ describe("online companion in personal mode (7.0)", () => {
     const sent = env.fetch.mock.calls.find((call) => call[0] === "/api/v1/public-runs")!;
     expect(JSON.parse(sent[1].body!)).toMatchObject({ character: { name: "Kev", realm: "Doomhowl" }, runs: [{ id: "QG-1" }] });
     expect(env.fetch.mock.calls.some((call) => call[0] === "/api/v1/addon-imports")).toBe(false);
-    await expect(api.refreshStandings()).rejects.toThrow("no guild standings");
+    await api.refreshStandings();
+    const refreshed = env.fetch.mock.calls.filter(call => call[0] === "/api/v1/public-runs").at(-1)!;
+    expect(JSON.parse(refreshed[1].body!)).toMatchObject({ runs: [], includeScore: true, character: { name: "Kev", realm: "Doomhowl" } });
+    expect(((await api.getAll()).state.lastStandings as unknown as { message: string }).message).toContain("Accepted.lua");
     expect(((await api.getAll()).state.lastUpload as unknown as { message: string }).message).toBe("Public leaderboards: 1 new, 0 confirmed, 0 already sent.");
   });
 });

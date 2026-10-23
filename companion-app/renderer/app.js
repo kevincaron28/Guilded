@@ -160,7 +160,7 @@ function renderState(snapshot) {
 }
 // Guild or leaderboards only (personal): what is connected, and which saved files the WoW steps mean.
 // The guild wording set by init() is kept the first time and restored when the mode changes back.
-const MODE_TEXT = ['watchFile:placeholder','detectNote','btnWowSelect','wowStep2','wowStep3'];
+const MODE_TEXT = ['watchFile:placeholder','detectNote','btnWowSelect','wowStep2','wowStep3','btnStandings'];
 let modeDefaults = null;
 function renderMode() {
   const personal = savedConfig.personal === true, linked = !!savedConfig.companionCredential;
@@ -172,10 +172,11 @@ function renderMode() {
     detectNote: 'World of Warcraft / WTF / Account / your account / SavedVariables: the companion reads GuildedDungeons.lua and Guilded.lua there, whichever addon you use.',
     btnWowSelect: api.browser && api.folderAccess ? 'Choose SavedVariables folder' : 'Choose saved data',
     wowStep2: api.browser ? 'After /reload, click Sync now: your finished dungeon runs go to the public leaderboards.' : 'The companion notices the saved-file change and sends your finished dungeon runs to the public leaderboards.',
-    wowStep3: 'No standings in this mode: find your runs on guilded.kcaron.top/leaderboards/.'
+    wowStep3: 'Refresh public scores, then /reload and use /gdungeons score. In the browser, save Accepted.lua to Interface / AddOns / GuildedDungeons. Public and guild scores may differ.',
+    btnStandings: api.browser ? 'Save public scores to addon' : 'Refresh public scores'
   };
   for (const key of MODE_TEXT) write(key, personal ? leaderboard[key] : modeDefaults[key]);
-  $('btnStandings').hidden = personal;
+  $('btnStandings').hidden = false;
   $('connectedAs').hidden = !linked;
   $('connectedAs').textContent = !linked ? '' : personal
     ? 'Connected: public dungeon leaderboards only. Your finished runs are sent; no guild data.'
@@ -210,7 +211,7 @@ bind('btnSignInCancel',async () => { await api.signInCancel(); $('signInWaiting'
 $('form').addEventListener('submit',event => { event.preventDefault(); action($('btnSave'),async () => { say('Saving your preferences…',true); const result = await api.saveConfig(readForm()); say(result.message,result.ok); savedConfig = (await api.getAll()).config; renderState(lastSnapshot); if (result.ok) { toast(result.message); showPage('status'); } }); });
 $('autostart').addEventListener('change',event => action(event.target,async () => { $('autostart').checked = await api.setAutostart(event.target.checked); }));
 bind('btnUpload',async () => { await api.uploadNow(); toast(api.browser ? 'Sync finished. Check Activity for the result.' : 'Sync requested. Follow its progress in Activity.'); });
-bind('btnStandings',async () => { await api.refreshStandings(); toast(api.browser ? api.folderAccess ? 'Standings saved. Use /reload in WoW.' : 'Standings downloaded. Add the file to Interface / AddOns / Guilded.' : 'Standings refresh finished. Check Activity for the result.'); });
+bind('btnStandings',async () => { await api.refreshStandings(); toast(savedConfig.personal ? 'Public score refresh finished. Check Activity, then /reload and use /gdungeons score.' : api.browser ? api.folderAccess ? 'Standings saved. Use /reload in WoW.' : 'Standings downloaded. Add the file to Interface / AddOns / Guilded.' : 'Standings refresh finished. Check Activity for the result.'); });
 bind('btnSheets',async () => { const result = await api.exportSheets($('sheetTable').value || undefined); if (!result.canceled) toast(result.message,!result.ok); });
 bind('btnFolder',() => api.openAddonFolder()); bind('btnPause',async () => { await api.toggleTracking(); }); bind('btnOnline',() => api.openOnline());
 bind('btnRemoveData',() => api.removeData());

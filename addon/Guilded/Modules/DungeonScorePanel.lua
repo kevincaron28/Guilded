@@ -97,6 +97,7 @@ function view.guidanceText(row)
   local g = row and row.guidance
   if not g then return L("Sync your companion for improvement scenarios and role details.") end
   if g.fit == "carry" then return L("Overlevel: this route cannot add ranked points.") end
+  if g.fit == "below" then return L("Requires the route's minimum level.") end
   local lines = { string.format(L("Scenario at level %d (party maximum)."), row.scenarioLevel or 0) }
   if g.fit == "below" then lines[#lines + 1] = L("Requires the route's minimum level.") end
   if g.next then
@@ -286,7 +287,8 @@ function view.build(parent, compact)
   pane.seasonTitle = label(pane, 16, -334, width - 160, "GameFontNormal")
   pane.seasonRows = label(pane, 16, -368, width - 32)
   pane.footer = label(pane, 16, -458, width - 32)
-  pane.footer:SetText(L("Guild members only. Best time / fixed target. Past seasons keep their original rules."))
+  pane.footer:SetText(L(ns.standalone and "Public personal scores. Sync the companion, then reload. Guild scores may differ."
+    or "Guild members only. Best time / fixed target. Past seasons keep their original rules."))
   function pane:Refresh()
     if not enabled() then self.summary:SetText(L("Dungeon scores are off (Tools).")); self:Hide(); return end
     if self.mode == "run" then self.runView:Show(); self.runView:Refresh(); return end
@@ -319,7 +321,7 @@ function view.build(parent, compact)
       or L("Historical rules: 100 per distinct dungeon, no speed bonus."))
       or L("Per-dungeon breakdown unavailable in this snapshot."))
     -- A provisional all-level season: officers may recalibrate a route's target from real runs.
-    if model.provisional and model.version == 6 and model.available and model.bracket then
+    if not ns.standalone and model.provisional and model.version == 6 and model.available and model.bracket then
       self.note:SetText(string.format(L("%s: best %d distinct routes. * = provisional target; officers may recalibrate it from real runs."),
         ns.scores.bracketLabel(model.bracket), model.bracket.bestCount))
     elseif model.provisional and model.version ~= 4 and model.version ~= 5 and model.version ~= 6 then self.note:SetText(L("Provisional targets, fixed for this season. Hover for boss records.")) end
@@ -390,6 +392,7 @@ function view.build(parent, compact)
   button(pane, "Previous", 16, -299, 100, function() pane.page = math.max(1, pane.page - 1); pane:Refresh() end)
   button(pane, "Next", width - 116, -299, 100, function() pane.page = pane.page + 1; pane:Refresh() end)
   pane.rankingToggle = button(pane, "Guild rankings", 16, -423, 110, function() pane.guildRanking = not pane.guildRanking; pane.page = 1; pane:Refresh() end)
+  if ns.standalone then pane.rankingToggle:Hide() end
   button(pane, "Newer season", width - 306, -423, 138, function() pane.seasonIndex = math.max(1, pane.seasonIndex - 1); pane.bracket = nil; pane.page = 1; pane:Refresh() end)
   button(pane, "Older season", width - 158, -423, 138, function() pane.seasonIndex = pane.seasonIndex + 1; pane.bracket = nil; pane.page = 1; pane:Refresh() end)
   pane.bracketButton = button(pane, "Bracket", width - 136, -330, 120, function()
@@ -449,6 +452,7 @@ end
 
 -- Retry on load-on-demand UI loads; no polling or changes to queue behavior.
 function view.attach()
+  if not enabled() then return end
   if InCombatLockdown and InCombatLockdown() then return end
   if view.tab then return end
   local finder = LFGParentFrame or PVEFrame or LFGFrame
@@ -466,7 +470,7 @@ function view.attach()
     view.pane:SetFrameLevel(finder:GetFrameLevel() + 20)
     view.tab = CreateFrame("Frame", nil, finder, "LFGVanillaRightTabTemplate")
     view.tab.tooltipText = L("Guilded dungeons")
-    view.tab.Icon:SetTexture("Interface\\AddOns\\Guilded\\Media\\GuildedLogo")
+    view.tab.Icon:SetTexture(ns.standalone and "Interface\\Icons\\INV_Misc_Map_01" or "Interface\\AddOns\\Guilded\\Media\\GuildedLogo")
     view.tab:SetPoint("TOPLEFT", finder.WhoListingTab, "BOTTOMLEFT", 0, -2)
     local nativePages, previousPages = {}, {}
     for _, name in ipairs({ "LFGListingFrame", "LFGBrowseFrame", "LFGWhoListFrame" }) do

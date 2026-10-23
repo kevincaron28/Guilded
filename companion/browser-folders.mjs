@@ -92,13 +92,14 @@ export function createBrowserFolderAccess(env = globalThis, store = localHandleS
       }
       return files;
     },
-    async saveStandings(loadText, { requestAccess = true } = {}) {
+    async saveStandings(loadText, { requestAccess = true, personal = false } = {}) {
+      const addon = personal ? "GuildedDungeons" : "Guilded";
       // ready is already awaited by getAll before controls become usable.
-      if (!output) {
-        if (!requestAccess) throw new Error("Choose your Guilded addon folder with Save standings to addon first.");
+      if (!output || output.name !== addon) {
+        if (!requestAccess) throw new Error(`Choose your ${addon} addon folder with Save standings to addon first.`);
         const selected = await env.showDirectoryPicker({ id: "guilded-addon", mode: "readwrite" });
-        if (selected.name !== "Guilded") throw new Error("Choose Interface / AddOns / Guilded, not SavedVariables.");
-        await selected.getFileHandle("Guilded.toc");
+        if (selected.name !== addon) throw new Error(`Choose Interface / AddOns / ${addon}, not SavedVariables.`);
+        await selected.getFileHandle(`${addon}.toc`);
         output = selected; await remember("output", output);
       }
       if (requestAccess) await permit(output, "readwrite");
@@ -106,9 +107,9 @@ export function createBrowserFolderAccess(env = globalThis, store = localHandleS
         throw new Error("Allow folder access with Save standings to addon, then Sync now will update standings too.");
       }
       // Validate again if the folder was removed or repurposed since selection.
-      await output.getFileHandle("Guilded.toc");
+      await output.getFileHandle(`${addon}.toc`);
       const text = await loadText();
-      const handle = await output.getFileHandle("Standings.lua", { create: true });
+      const handle = await output.getFileHandle(personal ? "Accepted.lua" : "Standings.lua", { create: true });
       const writer = await handle.createWritable();
       try { await writer.write(text); await writer.close(); }
       catch (error) { try { await writer.abort(); } catch { /* already closed */ } throw error; }

@@ -14,6 +14,20 @@ function fixture() {
 }
 
 describe("browser folder access", () => {
+  it("writes personal scores only to the standalone addon and reselects when changing mode", async () => {
+    const f = fixture(); await f.api.ready;
+    f.env.showDirectoryPicker.mockResolvedValue(f.output as never);
+    await f.api.saveStandings(async () => "guild standings");
+    const load = vi.fn(async () => "public scores");
+    await expect(f.api.saveStandings(load, { personal: true, requestAccess: false })).rejects.toThrow("GuildedDungeons");
+    expect(load).not.toHaveBeenCalled();
+    const standalone = { ...f.output, name: "GuildedDungeons", getFileHandle: vi.fn(async () => ({ createWritable: async () => f.writer })) };
+    f.env.showDirectoryPicker.mockResolvedValue(standalone as never);
+    await f.api.saveStandings(load, { personal: true });
+    expect(standalone.getFileHandle.mock.calls).toContainEqual(["GuildedDungeons.toc"]);
+    expect(standalone.getFileHandle.mock.calls).toContainEqual(["Accepted.lua", { create: true }]);
+    expect(f.writer.write).toHaveBeenLastCalledWith("public scores");
+  });
   it("reopens Guilded.lua by name on every sync and restores folder choices", async () => {
     const f = fixture(); await f.api.ready; await f.api.chooseInput();
     expect(await (await f.api.readInput())?.text()).toBe("first export");

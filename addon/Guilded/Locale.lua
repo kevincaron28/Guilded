@@ -8,6 +8,8 @@ local addonName, ns = ...
 ns = ns or {}
 
 local FR = {
+  ["Public season score: %d"] = "Score de saison public : %d",
+  ["Public personal scores. Sync the companion, then reload. Guild scores may differ."] = "Scores publics personnels. Synchronisez le compagnon, puis /reload. Les scores de guilde peuvent varier.",
   ["You are not in a guild, so there is nothing to link: /guilded verify connects guild members to their guild's Discord. Everything else in Guilded works without a guild or Discord."] = "Vous n'\195\170tes pas dans une guilde, il n'y a donc rien \195\160 lier : /guilded verify relie les membres d'une guilde au Discord de leur guilde. Tout le reste de Guilded fonctionne sans guilde ni Discord.",
   ["Your Discord link code was removed from this WoW account."] = "Votre code de lien Discord a \195\169t\195\169 retir\195\169 de ce compte WoW.",
   ["Saved. All your characters on this WoW account will link to your Discord by themselves when an officer's Guilded syncs, and Discord will message you. Nothing else to do, also for your alts."] = "Enregistr\195\169. Tous vos personnages de ce compte WoW se lieront tout seuls \195\160 votre Discord \195\160 la prochaine synchro Guilded d'un officier, et Discord vous enverra un message. Rien d'autre \195\160 faire, aussi pour vos alts.",

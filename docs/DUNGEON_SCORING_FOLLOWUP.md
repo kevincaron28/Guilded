@@ -61,6 +61,28 @@ detail relay remains compatible with old clients and does not carry these new
 fields; the panel requests a companion sync when they are absent. No local run
 history is used to invent an authoritative role total.
 
+## Review corrections and standalone completion (23 October)
+
+- Concurrent first uploads now recover from the unique-key race and use the same
+  atomic confirmation/dispute check as subsequent uploads. Compatible reports can
+  fill missing level, role and boss-clock evidence; an upgrade cannot discard known clocks.
+- A calibration median outside 5–120 minutes is refused instead of silently clamped.
+- Below-level guild/addon scenarios no longer offer impossible gains at the recorded level.
+- Guilded Dungeons now ships the shared score panel and snapshot reader. Personal
+  companion sync receives realm-scoped public scores using the official calendar and
+  the same season rules as the website. It carries overall/role details, exact guidance
+  and history, even on an empty upload after all runs were synced. The standalone addon
+  never relays these as guild scores or combines them with a guild's custom season.
+- Windows writes the response to GuildedDungeons/Accepted.lua; the browser can save it
+  to that addon folder or download it. Refresh public scores is available in personal
+  mode. Reload loads the response; logging onto a different character/realm clears it.
+  Old servers safely leave the new view unavailable. Both addons together still leave
+  recording and the finder tab to Guilded. Shared Lua is copied and validated together.
+
+`verify-public-addon-postgres.ts` verifies the public store-to-snapshot path, including
+removal of a disputed run from the next refresh, against the existing disposable schema.
+No database schema, score formula, live target or published addon version changes.
+
 Run the offline comparison with an anonymized local export:
 
 ```

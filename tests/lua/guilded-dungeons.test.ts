@@ -46,6 +46,8 @@ describe("Guilded Dungeons without Guilded", () => {
     expect(s.chat().join("\n")).toContain("[Guilded Dungeons] No dungeon run in progress");
     s.run(`SlashCmdList["GUILDEDDUNGEONS"]("nonsense")`);
     expect(s.chat().at(-1)).toContain("/gdungeons status");
+    s.run(`SlashCmdList["GUILDEDDUNGEONS"]("score top")`);
+    expect(s.chat().at(-1)).toContain("snapshot contains only your character");
   });
 });
 

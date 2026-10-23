@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 const main = readFileSync("companion-app/main.cjs", "utf8");
 const startup = main.slice(0, main.indexOf("if (!app.requestSingleInstanceLock())"));
@@ -26,5 +26,40 @@ describe("companion launch arguments", () => {
     const result = launch(["electron.exe", "C:/app", "--hidden", "--fresh"], true, isPackaged);
     expect(result.args).toEqual(["--hidden", "--fresh"]);
     expect(result.startHidden).toBe(true);
+  });
+});
+
+describe("installed companion startup capture", () => {
+  it.each([true, false])("finishes when the renderer isLoading=%s after startup", async loading => {
+    const start = main.indexOf("  if (screenshotPath) {");
+    const end = main.indexOf("}).catch(failStartup);", start);
+    const block = main.slice(start, end);
+    const events = new Map<string, () => void>();
+    let timer: (() => Promise<void>) | undefined;
+    const png = Buffer.from("rendered window");
+    const writeFileSync = vi.fn();
+    const quit = vi.fn();
+    const show = vi.fn();
+    runInNewContext("let quitting = false;\n" + block, {
+      screenshotPath: "C:/test/window.png",
+      win: { show, webContents: {
+        isLoading: () => loading,
+        once: (event: string, callback: () => void) => events.set(event, callback),
+        capturePage: async () => ({ toPNG: () => png })
+      } },
+      fs: { writeFileSync }, app: { quit },
+      setTimeout: (callback: () => Promise<void>) => { timer = callback; }
+    });
+    if (loading) {
+      expect(timer).toBeUndefined();
+      events.get("did-finish-load")!();
+    } else {
+      expect(events.size).toBe(0);
+    }
+    expect(timer).toBeTypeOf("function");
+    await timer!();
+    expect(writeFileSync).toHaveBeenCalledWith("C:/test/window.png", png);
+    expect(quit).toHaveBeenCalledOnce();
+    expect(show).toHaveBeenCalledOnce();
   });
 });

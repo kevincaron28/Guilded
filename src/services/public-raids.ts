@@ -1,4 +1,4 @@
-import type { PrismaClient } from "../generated/prisma/client.js";
+import type { PrismaClient } from "@prisma/client";
 import type { Filters, Role } from "./recruitment.js";
 
 export interface PublicRaid {

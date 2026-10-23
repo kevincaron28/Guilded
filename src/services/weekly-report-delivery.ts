@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 import { isWeeklyReportDueAfterReset } from "./weekly-report.js";
 

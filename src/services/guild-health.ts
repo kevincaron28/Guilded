@@ -1,4 +1,4 @@
-import type { PrismaClient } from "../generated/prisma/client.js";
+import type { PrismaClient } from "@prisma/client";
 
 // Officer-facing picture of the guild: who plays what, whether newcomers
 // stay, and a few things that need attention. Counts only.

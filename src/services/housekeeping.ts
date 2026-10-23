@@ -1,7 +1,7 @@
 import { hostedPilot } from "../hosted-pilot.js";
 import { PILOT_DENIED } from "./pilot-policy.js";
 import { type ButtonInteraction, type Guild as DiscordGuild, type GuildMember, type PartialGuildMember, MessageFlags } from "discord.js";
-import type { GuildSettings } from "../generated/prisma/client.js";
+import type { GuildSettings } from "@prisma/client";
 import { prisma } from "../database.js";
 import { createGuildService } from "./guild.js";
 import { isPermissionRoleName, type Permission } from "../permissions.js";

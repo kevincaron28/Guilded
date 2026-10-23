@@ -1,5 +1,5 @@
 import { ChannelType, Collection, MessageType, type Guild, type Message } from "discord.js";
-import type { CommunityKudos, CommunityParticipationDay, CommunityPoint } from "../src/generated/prisma/client.js";
+import type { CommunityKudos, CommunityParticipationDay, CommunityPoint } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 import { createParticipationService } from "../src/services/participation.js";
 import { createParticipationTracker, eligibleVoiceUsers } from "../src/services/participation-discord.js";

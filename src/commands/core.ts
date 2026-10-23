@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember, MessageFlags } from "discord.js";
-import type { RaidRole } from "../generated/prisma/client.js";
+import type { RaidRole } from "@prisma/client";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 import { runCoreWizard } from "./core-wizard.js";

@@ -1,5 +1,5 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, escapeMarkdown } from "discord.js";
-import type { PrismaClient } from "../generated/prisma/client.js";
+import type { PrismaClient } from "@prisma/client";
 import { t, type Lang } from "../i18n.js";
 import { issueCharacterPairingCode } from "./character-pairing.js";
 import { formatVerifyCode, verifyCodeFor } from "./character-verify.js";

@@ -1,4 +1,4 @@
-import type { PrismaClient } from "../generated/prisma/client.js";
+import type { PrismaClient } from "@prisma/client";
 import { raidEpRef } from "./ep-award.js";
 
 export interface RaidReport {

@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient, RaidRole } from "../generated/prisma/client.js";
+import type { Prisma, PrismaClient, RaidRole } from "@prisma/client";
 import type { AddonCalendarEvent } from "../integrations/addon.js";
 import { findCharacter } from "./character-match.js";
 import { createRaidService } from "./raid.js";

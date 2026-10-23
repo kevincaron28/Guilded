@@ -1,4 +1,4 @@
-import type { PrismaClient } from "../generated/prisma/client.js";
+import type { PrismaClient } from "@prisma/client";
 import { guildStats, type GuildStats } from "./guild-stats.js";
 import { weekStart } from "./dungeon-rules.js";
 

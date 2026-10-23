@@ -1,5 +1,5 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
-import { ApplicationStatus, type PrismaClient, type RaidRole } from "../generated/prisma/client.js";
+import { ApplicationStatus, type PrismaClient, type RaidRole } from "@prisma/client";
 import { ownedSignupCharacter } from "./signup-character.js";
 
 // Shared with commands/application.ts (the click-to-apply flow) and

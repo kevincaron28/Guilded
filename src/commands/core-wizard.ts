@@ -4,7 +4,7 @@ import {
   UserSelectMenuBuilder, type ChatInputCommandInteraction, type Message, type MessageComponentInteraction,
   MessageFlags,
 } from "discord.js";
-import type { RaidCore, RaidRole } from "../generated/prisma/client.js";
+import type { RaidCore, RaidRole } from "@prisma/client";
 import { prisma } from "../database.js";
 import { asLootMode, describeRules, effectiveRules, LOOT_MODE_HELP, LOOT_MODE_LABEL, LOOT_MODES } from "../services/core-rules.js";
 import { createItemValueService, parseItemValues, priceDraft } from "../services/item-values.js";

@@ -1,7 +1,7 @@
 // Repairs one run rejected by the obsolete five-name participant-history rule.
 // Read-only unless --apply is explicitly supplied. Never starts a Discord client.
 import { prisma } from "../src/database.js";
-import { Prisma } from "../src/generated/prisma/client.js";
+import { Prisma } from "@prisma/client";
 import { dungeonRunSchema, validateRun } from "../src/services/dungeon-rules.js";
 import { importDungeonRuns } from "../src/services/dungeon-import.js";
 import { dungeonAnnouncement } from "../src/services/dungeon-announce.js";

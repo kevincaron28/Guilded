@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { ChannelType, type Client, type Guild } from "discord.js";
-import type { PrismaClient } from "../src/generated/prisma/client.js";
+import type { PrismaClient } from "@prisma/client";
 import { createCommunityService } from "../src/services/community.js";
 import { cleanupPastRaidPosts, pastRaidPostWhere, stalePlannedBefore } from "../src/services/raid-post-cleanup.js";
 import { buildRaidAttendance } from "../src/services/raid-report.js";

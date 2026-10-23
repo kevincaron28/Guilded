@@ -1,5 +1,5 @@
 import type { Guild } from "discord.js";
-import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import type { Standing } from "./community-rules.js";
 import { participationDay } from "./participation-rules.js";
 

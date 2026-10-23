@@ -1,5 +1,5 @@
 import { EmbedBuilder } from "discord.js";
-import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { startSeason } from "./dungeon-admin.js";
 import { BRACKET_PLAN, type PlannedRoute } from "./dungeon-bracket-plan.js";
 import { novemberDungeonCatalog } from "./dungeon-november-catalog.js";

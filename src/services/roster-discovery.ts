@@ -1,4 +1,4 @@
-import type { Prisma } from "../generated/prisma/client.js";
+import type { Prisma } from "@prisma/client";
 import type { AddonCharacter } from "../integrations/addon.js";
 import { syncProfessionSnapshot } from "./profession-snapshot.js";
 import { findCharacter } from "./character-match.js";

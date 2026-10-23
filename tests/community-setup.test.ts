@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { ChannelType, Collection, PermissionFlagsBits, type Guild } from "discord.js";
-import type { PrismaClient } from "../src/generated/prisma/client.js";
+import type { PrismaClient } from "@prisma/client";
 import { communitySetupState, ensureCommunitySetup } from "../src/services/community-setup.js";
 import { setupChecks, type SetupFacts } from "../src/services/setup-status.js";
 

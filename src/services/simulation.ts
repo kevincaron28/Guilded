@@ -1,4 +1,4 @@
-import type { PrismaClient, RaidRole } from "../generated/prisma/client.js";
+import type { PrismaClient, RaidRole } from "@prisma/client";
 import { createAddonImportService } from "./addon-import.js";
 import { createLootService } from "./loot.js";
 import { createRaidService } from "./raid.js";

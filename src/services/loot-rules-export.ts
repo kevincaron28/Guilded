@@ -1,4 +1,4 @@
-import type { PrismaClient } from "../generated/prisma/client.js";
+import type { PrismaClient } from "@prisma/client";
 import { asLootMode, effectiveRules, type LootMode } from "./core-rules.js";
 import { createItemValueService, type ValueRow } from "./item-values.js";
 

@@ -1,4 +1,4 @@
-import type { GuildSettings, PrismaClient, RaidCore } from "../generated/prisma/client.js";
+import type { GuildSettings, PrismaClient, RaidCore } from "@prisma/client";
 
 // Point rules per raid core. Every core follows the guild's settings (from
 // /config and /setup) unless it overrides a value with /core rules, so a

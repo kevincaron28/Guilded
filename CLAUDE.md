@@ -1,3 +1,7 @@
+> Recovery candidate only: this branch uses pinned Prisma 6.19.3 and imports from
+> @prisma/client. Keep createPrismaClient() and its UTC connection invariant.
+> The Prisma 7 generation/import instructions below describe the normal branch.
+> See docs/PRISMA6_FINAL_FALLBACK_2026-10-23.md. Do not deploy this branch directly.
 > 7.3.1 (22 October 2026): raid readiness requires level 60 and flags old checks; companion Update now
 > repair (a companion on 7.2.0/7.3.0 needs one manual install). Live on the bot and GitHub; CurseForge
 > has 7.3.0. Pre-release audit and recommendations: docs/PRE_RELEASE_AUDIT_2026-10-22.md.

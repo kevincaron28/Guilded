@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import type { WclReport } from "../integrations/warcraftlogs.js";
 
 // Compact summary of a Warcraft Logs report: what was fought and how it went,

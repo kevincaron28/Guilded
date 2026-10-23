@@ -1,4 +1,4 @@
-import type { PrismaClient } from "../generated/prisma/client.js";
+import type { PrismaClient } from "@prisma/client";
 import type { DiscordIdentity } from "./web-auth.js";
 import type { ListingFields, PublicCard, PublicListing } from "./recruitment.js";
 

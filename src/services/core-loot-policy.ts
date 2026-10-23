@@ -1,4 +1,4 @@
-import type { PrismaClient } from "../generated/prisma/client.js";
+import type { PrismaClient } from "@prisma/client";
 
 type Db = Pick<PrismaClient, "guildSettings" | "raidCore">;
 export const CORE_REQUIRED = "Le butin et les EP/GP sont propres à chaque core. Choisis un core ou un raid de core; dans l'addon : /guilded core <nom>.";

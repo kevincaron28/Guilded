@@ -1,5 +1,5 @@
 import { syncProfessionSnapshot } from "./profession-snapshot.js";
-import type { PrismaClient } from "../generated/prisma/client.js";
+import type { PrismaClient } from "@prisma/client";
 import { findCharacter } from "./character-match.js";
 import { createGuildService } from "./guild.js";
 import { BRAND } from "../brand.js";

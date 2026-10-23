@@ -1,7 +1,7 @@
 import { ChannelType, EmbedBuilder, type Guild as DiscordGuild } from "discord.js";
 import { prisma } from "../database.js";
 import { asLang } from "../i18n.js";
-import type { PrismaClient } from "../generated/prisma/client.js";
+import type { PrismaClient } from "@prisma/client";
 import { findProfessionHolders, professionCoverage } from "./profession-search.js";
 import type { Lang } from "../i18n.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";

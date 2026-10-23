@@ -1,5 +1,5 @@
 import { EmbedBuilder, escapeMarkdown, type Guild, type MessageCreateOptions } from "discord.js";
-import type { PrismaClient } from "../generated/prisma/client.js";
+import type { PrismaClient } from "@prisma/client";
 import { publicRaids, type PublicRaid } from "./public-raids.js";
 import { serializeRaidPosts } from "./raid-signup-posts.js";
 import { roleLabel, ROLES } from "./recruitment.js";

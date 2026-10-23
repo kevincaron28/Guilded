@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { PrismaClient } from "../src/generated/prisma/client.js";
+import type { PrismaClient } from "@prisma/client";
 import { archiveTeam, createTeam, fillTeamSessions, manageSession, recordTeamAttendance, respondToSession, setTeamMember, withTeam } from "../src/services/activity-core.js";
 
 // Invoked only after verify-postgres.ts checks its disposable localhost database URL.

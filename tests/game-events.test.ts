@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Collection, ChannelType, PermissionFlagsBits, type Guild, type TextChannel } from "discord.js";
-import type { DiscordJob, GameEventBoard, OfficialGameEvent, PrismaClient } from "../src/generated/prisma/client.js";
+import type { DiscordJob, GameEventBoard, OfficialGameEvent, PrismaClient } from "@prisma/client";
 import { effectiveEventState, eventBoardEmbeds, officialEventSource, parseEventInstant, reminderDue, saveOfficialEvent, validateEvent, visibleEvent } from "../src/services/game-events.js";
 import { deliverGameEvent, eventRole, findEventMessage } from "../src/services/game-events-discord.js";
 import { ownerEventsCommand, executeGameEvents, executeOwnerEvents } from "../src/commands/game-events.js";

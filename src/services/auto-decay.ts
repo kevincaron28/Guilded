@@ -1,5 +1,5 @@
 import { pilotGuildScope } from "../hosted-pilot.js";
-import type { PrismaClient } from "../generated/prisma/client.js";
+import type { PrismaClient } from "@prisma/client";
 import { createEpgpService } from "./epgp.js";
 import { effectiveRules } from "./core-rules.js";
 import { weekStart } from "./dungeon-rules.js";

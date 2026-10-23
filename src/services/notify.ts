@@ -1,6 +1,6 @@
 import { EmbedBuilder, type ActionRowBuilder, type ButtonBuilder, type Guild as DiscordGuild, type Message, type MessageCreateOptions } from "discord.js";
 import { randomUUID } from "node:crypto";
-import type { Prisma } from "../generated/prisma/client.js";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../database.js";
 import { asLang, t, type Lang } from "../i18n.js";
 import { createGuildService } from "./guild.js";

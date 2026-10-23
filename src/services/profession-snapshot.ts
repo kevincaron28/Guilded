@@ -1,4 +1,4 @@
-import type { Prisma } from "../generated/prisma/client.js";
+import type { Prisma } from "@prisma/client";
 
 type Tx = Pick<Prisma.TransactionClient, "character" | "professionSkill" | "recipeKnown" | "professionCooldown">;
 

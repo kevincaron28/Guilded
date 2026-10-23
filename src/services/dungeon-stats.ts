@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { dungeonConfig, weekStart } from "./dungeon-rules.js";
 import { finalRows } from "./season-snapshot.js";
 import { hasDungeonRating, dungeonRating, seasonDungeonCatalog, type LevelBand } from "./dungeon-rating.js";

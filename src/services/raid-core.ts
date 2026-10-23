@@ -1,5 +1,5 @@
 import { EmbedBuilder, type Guild as DiscordGuild } from "discord.js";
-import type { PrismaClient, RaidRole } from "../generated/prisma/client.js";
+import type { PrismaClient, RaidRole } from "@prisma/client";
 import { createGuildService } from "./guild.js";
 import { applyToCoreButtonRow } from "./application.js";
 import { asLootMode, LOOT_MODE_LABEL } from "./core-rules.js";

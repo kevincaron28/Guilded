@@ -1,8 +1,10 @@
 import { config as loadDotenv } from "dotenv";
 import { z } from "zod";
+import { dungeonResetCutoff } from "./services/dungeon-reset.js";
 
 loadDotenv({ path: ".env.local" });
 loadDotenv();
+dungeonResetCutoff(); // Fail startup rather than silently disable a configured reset.
 
 // An empty line in .env ("AI_API_KEY=") means not set.
 function blankAsUndefined<T extends z.ZodTypeAny>(schema: T) {

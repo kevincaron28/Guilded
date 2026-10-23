@@ -25,7 +25,7 @@ What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 - **Plan a quick installation:** use the [30-minute setup checklist](docs/QUICK_START.md), including what must be ready first.
 - **Want an AI to guide you:** copy a [setup or troubleshooting prompt](docs/AI_SETUP_HELP.md).
 
-**Current version: 7.3.1 Release** (22 October 2026, protocol 2). Download the matching addon,
+**Current version: 7.3.2 Candidate** (23 October 2026, protocol 2). Download the matching addon,
 Guilded Dungeons and Windows companion from the
 [latest GitHub release](https://github.com/kevincaron28/Guilded/releases/latest) or
 [CurseForge](https://www.curseforge.com/wow/addons/guilded). What changed: [release notes](docs/V7_3_1_RELEASE_NOTES.md).

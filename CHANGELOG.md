@@ -32,6 +32,13 @@
   owner's request DM shows the date and **Block** stays the veto. Messages say "free hosted bot"
   instead of "pilot" ([guide](docs/HOSTED_PILOT.md)).
 
+## 7.3.2 Candidate — 23 October 2026
+
+- UTC database sessions, stronger dungeon evidence and calibration guardrails, role guidance and standalone score snapshots.
+- Staged server updates and stopped-service recovery; installed companion launch/capture fixes.
+- Optional durable dungeon-history reset boundary prevents old offline uploads recreating wiped results.
+- Matching candidate packages; actual game and two-PC acceptance remains pending.
+
 ## 7.3.1 Release — 22 October 2026
 
 - Raid reports require level 60, distinguish levelling from gear problems, flag checks older than 24 hours, and use the current command link.

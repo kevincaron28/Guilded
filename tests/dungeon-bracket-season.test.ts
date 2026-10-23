@@ -245,6 +245,12 @@ describe("recalibrating a provisional target", () => {
     const enough = db(rules, [...runs, ...diverse]);
     const evidence = await recalibrationEvidence(enough.db, "g", "36");
     expect(evidence).toMatchObject({ crews: 5, days: 4, ready: true, median: 1680, suggestedMinutes: 28, currentSec: 2400, provisional: true });
+    // A long sample must not be silently clipped and presented as its median.
+    const long = db(rules, diverse.map(r => ({ ...r, durationSec: 10800,
+      players: r.players.map(p => ({ ...p, presentSec: 10800 })) })));
+    expect(await recalibrationEvidence(long.db, "g", "36")).toMatchObject({ ready: false, median: 10800, suggestedMinutes: null });
+    await expect(recalibrateRoute(long.db, "g", "36", 120)).rejects.toThrow(/outside the supported/);
+    expect(long.tx.dungeonSeason.update).not.toHaveBeenCalled();
     const at = new Date("2026-10-25T00:00:00Z");
     await expect(recalibrateRoute(enough.db, "g", "36", 40, at)).rejects.toThrow(/reviewed crew\/day median/);
     const result = await recalibrateRoute(enough.db, "g", "36", 28, at);

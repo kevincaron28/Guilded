@@ -130,7 +130,7 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en", now = new Date
       label: T("At least one companion account connected"),
       ok: facts.companionPaired,
       optional: true,
-      fix: T("Optional for WoW sync: /character pair gives the online companion link and a private code. Enter it in Connection & setup, then Connect.")
+      fix: T("Optional for WoW sync: in the companion choose Sign in with Discord, then this server (/character pair has the link). Members without a companion link with the /guilded verify line from /character pair.")
     },
     {
       label: T("At least one WoW character linked"),

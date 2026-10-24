@@ -10,28 +10,29 @@ evidence is recorded in [the acceptance checklist](V6_2_GAME_ACCEPTANCE.md).
 
 | What you want to do | Start here |
 | --- | --- |
-| Join a guild already using Guilded | [Member installation](MEMBER_INSTALL.md) — addon first, optional manual character linking/companion and quick fixes |
+| Join a guild already using Guilded | [Member installation](MEMBER_INSTALL.md) — addon first, optional one-line character linking or companion, and quick fixes |
 | Use only the in-game addon | [Install the addon](MEMBER_INSTALL.md#1-install-the-addon), then stop; no bot or companion required |
-| Add the hosted bot to your guild | [Request pilot access](HOSTED_PILOT.md) — KCaron's approval is required first; no personal server or database needed |
+| Add the hosted bot to your guild | [Add the free hosted bot](HOSTED_PILOT.md) — Guilded Lite right away, KCaron's approval unlocks the rest; no personal server or database needed |
 | Run a bot for your own guild | [Guild owner setup](GUILD_OWNER_SETUP.md) — application, hosting, database, Discord wizard and member rollout |
 | Ask an AI to walk you through setup or a problem | [Copyable AI help prompts](AI_SETUP_HELP.md), including French |
 | Update an existing installation | [Release handoff](V5_0_RELEASE_HANDOFF.md) — CI, backups, migration and client updates |
 
 Members start with the addon download. The default is **In-game only**; Discord
-character linking and companion sync are optional. Manual linking uses
-`/guilded character` → `/character import` and needs no companion. The welcome
-character button shows existing main/alts and both optional paths.
-If you choose the online companion, its private setup reply supplies the server
-ID and link. Only the optional Windows app needs your guild's bot address.
-Members do not need the host's bot token or database credentials.
-In the Windows app, enter **Your guild's bot address** before pairing. Older
-5.0 desktop builds put **Bot address** under **Advanced preferences** and may
-prefill Quebec Gold's address; use the address your own guild owner supplied.
+character linking and companion sync are optional. To link without a companion,
+`/character pair` (or the welcome character button) shows one line,
+`/guilded verify ABCD-EFGH`, to paste in WoW chat once: every character on that
+WoW account then links on the next upload from an officer's companion, and the
+member gets a DM. So at least one officer should run the companion. The manual
+`/guilded character` → `/character import` way still works for one character.
+The companion connects with **Sign in with Discord**: nothing to type.
+Members do not need the host's bot token or database credentials. Only a guild
+with its own bot needs its address, entered in the companion under **Older
+companions or your guild's own bot**.
 
 ## What a working connection looks like
 
-1. Guilded opens in your actual WoW client. Forever beta uses `_classic_beta_`
-   in the tested installation; verify the folder rather than assuming its name.
+1. Guilded opens in your actual WoW client: the folder beside the game executable you launch.
+   The beta used `_classic_beta_`; check the live folder from 4 November rather than assuming its name.
 2. `/reload` or logout saves addon data. Click Sync now on the webpage; the optional Windows app detects changes automatically.
 3. A successful upload appears in Activity and your character is linked to your
    Discord account. Zero new characters or ledger entries can be normal.

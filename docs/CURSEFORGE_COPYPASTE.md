@@ -1,7 +1,8 @@
-# CurseForge listing copy: Guilded 7.3.1
+# CurseForge listing copy: prepared for Guilded 7.3.2
 
-Rewritten 22 October 2026 for the WoW Forever launch (4 November). The live listing still said
-7.1.0 and led with an approval gate that no longer applies to the addon or to Guilded Lite.
+Prepared 24 October 2026. **Public release is held until game/two-PC acceptance passes.**
+This is draft copy, not a claim that 7.3.2 is publicly available. The existing listing led
+with an approval gate that does not apply to the addon or to Guilded Lite.
 Each block below is one field: copy the block, paste it in. Publishing steps:
 [RELEASE_CURSEFORGE.md](RELEASE_CURSEFORGE.md). Older 6.x listing text is in git history.
 
@@ -44,10 +45,10 @@ https://polyformproject.org/licenses/noncommercial/1.0.0
 
 **Free. Works entirely in game. Discord and the website are optional.**
 
-Current release: **7.3.1** (22 October 2026), for WoW Forever 1.60.1. English and French.
+See the file list for the current release and verified client version. English and French.
 
 * **No setup to start.** Install, click the gold coin on your minimap, done. Officers share EP/GP with each other in game; no Discord, website or account needed.
-* **Dungeon Season 1 starts at launch**, 4 November 2026 at 3 PM Pacific: every finished run is timed and scored, with Raider.IO-style [public leaderboards](https://guilded.kcaron.top/leaderboards/).
+* **Dungeon Season 1 is scheduled for launch**, 4 November 2026 at 3 PM Pacific: eligible runs on verified routes earn scores on Raider.IO-style [public leaderboards](https://guilded.kcaron.top/leaderboards/). Targets are provisional; missing routes remain unrated.
 * **Nothing behind a payment.** Every feature is free; tips only help pay for hosting.
 
 ***
@@ -75,7 +76,7 @@ Current release: **7.3.1** (22 October 2026), for WoW Forever 1.60.1. English an
 
 ## Optional: Discord bot and website
 
-* **Hosted Discord bot:** [add it](https://discord.com/oauth2/authorize?client_id=1552633893587394590&scope=bot+applications.commands&integration_type=0&permissions=2269718703631440) and run `/setup start`. Guilded Lite (setup, help, bug reports, dungeon groups, basic signups) works right away; KCaron's approval unlocks addon sync, EP/GP, seasons and the guild page. You can also host your own.
+* **Hosted Discord bot:** [add it](https://discord.com/oauth2/authorize?client_id=1552633893587394590&scope=bot+applications.commands&integration_type=0&permissions=2269718703631440) and run `/setup start`. Guilded Lite (setup, help, bug reports, dungeon groups, basic signups) works right away; approval unlocks addon sync, EP/GP, seasons and the guild page. Approval can be automatic when the host enables it and the server meets its activity requirements. You can also host your own.
 * Raid signups with roles, waitlist and cores; standings, wishlists, polls, Warcraft Logs and weekly reports in Discord.
 * **Website:** a [recruitment board](https://guilded.kcaron.top/recruitment/) with applications that arrive in Discord, open raid spots from other guilds, and public [player profiles](https://guilded.kcaron.top/players/).
 * **Companion** (browser, or Windows for automatic sync): Sign in with Discord, Sync now, and Export to spreadsheet.
@@ -103,15 +104,17 @@ Guilded is an independent project by [KCaron](https://kcaron.top/). If it helps 
 **Français :** Guilded est gratuit et fonctionne entièrement en jeu, sans Discord. La saison 1 des donjons commence au lancement, le 4 novembre 2026 à 15 h (heure du Pacifique), avec des [classements publics](https://guilded.kcaron.top/leaderboards/?lang=fr). Le bot Discord hébergé fonctionne tout de suite en mode Guilded Lite; l'approbation de KCaron débloque le reste. Interface en français incluse.
 ```
 
-## Changelog (paste for the file upload)
+## Candidate changelog (publish only after acceptance)
 ```markdown
-## 7.3.1 — 22 October 2026
+## 7.3.2
 
-- Raid readiness counts only level-60 characters as gear ready, lists levelling characters separately and flags checks older than 24 hours.
-- Companion: Update now works again. Companions on 7.2.0 or 7.3.0 need this installer once; settings and pairing are kept.
-- Link characters without your own companion: paste `/guilded verify ABCD-EFGH` in WoW chat once (needs an officer with this release's addon and companion).
+- Dungeon scores show recorded roles, best-N improvement scenarios and season history. Guilded Dungeons receives its own personal public-score snapshot.
+- Stronger run confirmation and completion evidence; missing routes remain unrated and calibration requires representative real runs.
+- Companion detects a newer live game folder, shows the watched path and last upload, and fixes installed-app startup.
+- Clearer English/French installation, Discord sign-in and officer-assisted character-linking instructions.
+- Bot UTC timestamp handling and safer staged update/recovery. Old offline runs cannot recreate deliberately reset history when the host sets its reset boundary.
 
-Back up your SavedVariables before upgrading. Full notes: https://github.com/kevincaron28/Guilded/releases/tag/v7.3.1
+Back up your SavedVariables before upgrading. Use matching addon and companion versions. Full notes: https://github.com/kevincaron28/Guilded/releases/latest
 ```
 
 ## Guilded Dungeons summary (one line, its own project)

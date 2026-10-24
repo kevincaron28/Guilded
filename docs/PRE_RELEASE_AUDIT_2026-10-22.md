@@ -1,5 +1,9 @@
 # Pre-release audit — 22 October 2026
 
+Historical audit: many recommendations below are now implemented and 7.3.2 is deployed for
+testing. Use [24 October launch readiness](LAUNCH_READINESS_2026-10-24.md) for current gates.
+Public promotion remains on hold until game/two-PC acceptance passes.
+
 Full system audit before the next public release (main is 7.3.1, protocol 2). One part at a
 time; tick each part when it is done so a later session can resume here.
 

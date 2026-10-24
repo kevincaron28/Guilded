@@ -25,12 +25,13 @@ What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 - **Plan a quick installation:** use the [30-minute setup checklist](docs/QUICK_START.md), including what must be ready first.
 - **Want an AI to guide you:** copy a [setup or troubleshooting prompt](docs/AI_SETUP_HELP.md).
 
-**Current version: 7.3.2 Candidate** (23 October 2026, protocol 2). Download the matching addon,
-Guilded Dungeons and Windows companion from the
-[latest GitHub release](https://github.com/kevincaron28/Guilded/releases/latest) or
-[CurseForge](https://www.curseforge.com/wow/addons/guilded). What changed: [release notes](docs/V7_3_1_RELEASE_NOTES.md).
+**Current version: 7.3.2 Candidate** (23 October 2026, protocol 2), deployed for testing.
+Public promotion is held until game and two-PC acceptance passes. Public downloads remain
+[GitHub 7.3.1](https://github.com/kevincaron28/Guilded/releases/latest) and
+[CurseForge 7.3.0](https://www.curseforge.com/wow/addons/guilded); private 7.3.2 test kits
+are supplied separately. What changed: [candidate notes](docs/V7_3_2_RELEASE_NOTES.md).
 WoW Forever launches 4 November 2026; dungeon Season 1 starts the same day at 3 PM Pacific.
-Real-client checks still owed are tracked in [the acceptance checklist](docs/V6_2_GAME_ACCEPTANCE.md).
+Follow [launch readiness](docs/LAUNCH_READINESS_2026-10-24.md) and [the candidate acceptance checklist](docs/V7_3_2_GAME_CHECKLIST.md).
 
 Also from this repository: **Guilded Dungeons** (`addon/GuildedDungeons/`), a standalone dungeon
 timer and score tracker with no guild needed, and the website's

@@ -1,73 +1,52 @@
-> **Current (22 October 2026):** the listing text to paste is in [CURSEFORGE_COPYPASTE.md](CURSEFORGE_COPYPASTE.md)
-> (rewritten for 7.3.1). Upload `dist/Guilded-v<version>.zip` and the Guilded Dungeons zip from `npm run release:prepare`,
-> game version 1.60.1 (Forever). The 6.x steps below are historical.
->
-> 6.2 candidate preparation (15 October 2026): use [the release handoff](archive/V6_2_RELEASE_HANDOFF.md) and [6.2 upload text](archive/V6_2_CURSEFORGE.md).
-> Guilded 6.2.0 Release (October 16, 2026). See docs/archive/V6_2_RELEASE_HANDOFF.md for the release record.
-> Older release instructions below are historical. Do not publish or deploy the candidate before acceptance.
+# Publishing Guilded after acceptance
 
-# Publishing Guilded 6.0.0 Release
+**7.3.2 is a candidate. Public release remains on hold until the game and two-PC
+checks pass.** This procedure prepares publication; it is not approval to upload.
+Current evidence and launch operations: [launch readiness](LAUNCH_READINESS_2026-10-24.md).
+The earlier 6.x instructions are retained in Git history.
 
-Use [CURSEFORGE_COPYPASTE.md](CURSEFORGE_COPYPASTE.md) for the current description
-and changelog. The owner promoted 6.0.0 to full Release on 5 October 2026.
-Unverified checks remain follow-up work. Do not create another 6.0 Beta or bump
-to 6.1 incidentally. The listing must state that KCaron's approval is required
-before the hosted bot works in each Discord server.
+## Prepare the tested files
 
-## Setup-only refresh, 9 October 2026
+1. Use the reviewed source commit and matching `release.json`. Run
+   `npm run release:prepare` on Windows and require both final-commit GitHub quality
+   jobs, including PostgreSQL integration/restore and Windows packaging.
+2. Verify `dist/Guilded-v<version>-Artifact-Verification.json`: correct source commit,
+   `sourceDirty: false`, candidate channel and the current acceptance checklist.
+   The checksum manifest must include both addons, the companion installer and notes.
+3. Supply those exact files to both testers. Record each SHA-256 in
+   [the game checklist](V7_3_2_GAME_CHECKLIST.md). Any changed gameplay/runtime package
+   requires the affected checks again. Packaging and fixture tests do not close live gates.
+4. Keep the test kit separate from public downloads and leave `site/releases.json`
+   unchanged. Do not upload the whole `dist` directory: it contains older releases too.
 
-Main contains the private [officer bridge](OFFICER_COMPANION_BRIDGE.md), reserved
-for 6.1 pending two-player acceptance. Do not publish that game code as a routine
-6.0 documentation refresh. Start with the verified published addon ZIP from
-source `9fd70626b1800eaf26fb0f363144f81753c91d21` and update only
-`Guilded/INSTALL.md`. Verify every other archive entry is byte-identical.
+## After the required checks pass
 
-Use the distinct filename `Guilded-v6.0.0-hosted-pilot.zip` and display name
-**Guilded 6.0.0 - Hosted pilot setup**, type **Release**, existing verified
-**Forever / 1.60.1** compatibility. Keep the original release/source available.
-Attach the refreshed SHA-256 manifest. No gameplay change or new version is implied.
+- Record acceptance for the exact artifact hashes and review the release decision.
+  Use the approved product version; do not bump it incidentally. A bot version change
+  sends a guild notice when that version starts.
+- Publish a matching GitHub release: Guilded ZIP, Guilded Dungeons ZIP, Windows installer,
+  release notes, checksums and exact source reference. Promote the tested binaries;
+  do not silently substitute newly rebuilt binaries with different hashes.
+- Upload only `Guilded-v<version>.zip` to the Guilded CurseForge project and
+  `GuildedDungeons-v<version>.zip` to Guilded Dungeons. Each archive has its own single
+  top-level addon folder. The companion and bot are not part of these addon uploads.
+- Choose only the game build/flavor and Interface compatibility actually verified.
+  If CurseForge has no matching supported option, wait rather than claiming another build.
+- Use [the listing copy](CURSEFORGE_COPYPASTE.md), replacing its candidate status/date only
+  after approval. Include known limitations and unrated routes. Set related-project links
+  both ways. Preserve the logo and sanitized screenshots; no private player data.
+- Use the existing Custom License, PolyForm Noncommercial 1.0.0, and repository `LICENSE`.
+  Hosted Lite works before full approval; tips never buy access or priority.
+- Review and merge the prepared sign-in/linking guides with publication. Merging main
+  automatically republishes website assets/guides, so a merge is a public website change.
 
-## Prepare matching downloads
+## Verify publication
 
-Run `npm run release:prepare` on Windows and verify final-commit PostgreSQL and
-Windows CI. Preserve release evidence and checksums. The release set is:
+Download the actual public assets and compare SHA-256 values with the accepted manifest.
+Test links as a signed-out visitor. Update `site/releases.json` only with the versions and
+URLs actually available on each provider; CurseForge approval may trail GitHub.
+Check both addon listings, the website download buttons, the companion update lookup and
+the install guide. Keep the previous release and private recovery records available.
 
-- `dist/Guilded-v6.0.0.zip` — addon, including the current `Guilded/INSTALL.md`.
-- `dist/companion/Guilded Companion Setup 6.0.0.exe` — desktop companion.
-- Source for the **same reviewed commit**, for independent guild owners.
-- Release notes, known limitations and the [hosted pilot guide](HOSTED_PILOT.md).
-
-Do not upload the whole `dist` folder: it may contain older versions and test
-patch ZIPs. A generated ZIP, local installer or passing unit suite is not proof
-that publication, clean installation or live acceptance succeeded.
-
-## CurseForge listing
-
-Use the existing Guilded project and the current copy-paste sheet. Upload only
-the addon ZIP; its top-level folder must be `Guilded`. Set display name
-**Guilded 6.0.0**, release type **Release**, and only verified client compatibility.
-Do not select a merely similar client version to get past a missing listing.
-The declared interface numbers are 16001 and 20506; they do not prove every
-client with those numbers was tested.
-
-The custom license is **PolyForm Noncommercial 1.0.0**; use the full repository
-LICENSE text. Branding files live under `docs/branding/`. Use current in-game
-screenshots showing the release candidate; Raid tools were removed from v6.
-
-## GitHub and setup links
-
-Publish the matching Windows companion and source reference alongside the addon
-and release notes. The bot and companion are not included in the CurseForge addon.
-Link [HOSTED_PILOT.md](HOSTED_PILOT.md) prominently: users can invite the hosted
-bot, but must wait for KCaron's approval before setup. Support is optional;
-link [SUPPORT_GUILDED.md](SUPPORT_GUILDED.md), never an invented payment URL or
-the owner's private PayPal email. Donations never buy admission or priority.
-Link [MEMBER_INSTALL.md](MEMBER_INSTALL.md) for members and
-[GUILD_OWNER_SETUP.md](GUILD_OWNER_SETUP.md) for owners. Prefer links pinned to
-the published release tag/commit so the guide agrees with the download.
-
-After publication, download the actual public files and compare checksums with
-the approved artifacts. Verify that a signed-out visitor can find the addon,
-companion, matching bot source and instructions from the listing. Record the
-actual URLs and publication status in the release testing record. Do not promise
-30-minute cloud provisioning; the quick guide states the required infrastructure.
+Do not post launch announcements before acceptance. [LAUNCH_POSTS.md](LAUNCH_POSTS.md)
+contains drafts for the owner, not scheduled or automatically sent messages.

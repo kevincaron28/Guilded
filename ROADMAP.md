@@ -2,7 +2,9 @@
 
 ## Current stage — 23 October 2026
 
-Guilded **7.3.2 Candidate** (protocol 2), prepared for deployment and real-client acceptance; CurseForge has 7.3.0. All six
+Guilded **7.3.2 Candidate** (protocol 2), deployed for testing; real-client acceptance and public promotion remain pending.
+Current gates and completed operational checks: [launch readiness](docs/LAUNCH_READINESS_2026-10-24.md).
+GitHub public downloads remain 7.3.1; CurseForge has 7.3.0. All six
 18-October requests shipped in 7.0.0; 7.1.0 added monthly boards and Raider.IO-style leaderboards,
 7.2.0 companion Sign in with Discord and one-click updates, 7.2.1 a steadier bot, 7.3.0 the dungeon
 result card, raid vacancies and public player profiles, 7.3.1 level-aware raid readiness and the

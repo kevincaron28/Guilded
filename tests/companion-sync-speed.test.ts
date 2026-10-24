@@ -10,7 +10,7 @@ import { createEngine } from "../companion/engine.mjs";
 import { newLuaSession } from "./lua/harness.js";
 
 const dirs: string[] = [];
-afterEach(() => { vi.unstubAllGlobals(); for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
 
 function gameFolder(withToc = true) {
   const root = mkdtempSync(join(tmpdir(), "qg-speed-")); dirs.push(root);
@@ -165,11 +165,21 @@ describe("companion engine with a newer bot", () => {
   });
 
   it("compresses uploads, leaves out stored entries and follows changes live", async () => {
+    // Keep real filesystem I/O, but drive the poll/upload timers explicitly. A busy
+    // Windows worker must not have to finish several real 2-second poll gaps in 6s.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] });
     const game = gameFolder();
     writeFileSync(game.file, savedFile);
     const bot = newerBot({ ledger: ["addon:qg:Kev-1-1"] });
     vi.stubGlobal("fetch", bot.fetch);
-    const engine = createEngine({ watchFile: game.file, realm: "R", uploadUrl: "https://bot.test/api/v1/addon-imports", guildDiscordId: "1", companionCredential: "x".repeat(43) });
+    const writes = vi.fn();
+    const errors: string[] = [];
+    const engine = createEngine({ watchFile: game.file, realm: "R", uploadUrl: "https://bot.test/api/v1/addon-imports", guildDiscordId: "1", companionCredential: "x".repeat(43) }, {
+      onLog: ({ level, message }: { level: string; message: string }) => {
+        if (message.startsWith("Wrote EPGP standings")) writes();
+        if (level === "error") errors.push(message);
+      }
+    });
     try {
       expect(await engine.start()).toBe(true);
       expect(engine.state().standingsMode).toBe("live");
@@ -183,10 +193,22 @@ describe("companion engine with a newer bot", () => {
       await vi.waitFor(() => expect(bot.calls.some((call) => call.since === "\"v1\"" && call.wait === "12")).toBe(true));
       // A change on the bot reaches the addon folder without waiting minutes.
       bot.bump();
-      await vi.waitFor(() => expect(readFileSync(game.standings, "utf8")).toContain("ep = 20"), { timeout: 6000 });
+      // The engine announces a write only after BOTH files and its ETag are ready.
+      // Polling the main file used to observe the rename before the refresh finished,
+      // then overwrite it while the worker was still writing GuildedData.
+      await vi.waitFor(() => expect(writes).toHaveBeenCalledTimes(2), { timeout: 6000 });
+      expect(readFileSync(game.standings, "utf8")).toContain("ep = 20");
+      expect(readFileSync(join(game.data, "Standings.lua"), "utf8")).toContain("ep = 20");
       // An addon update replaced Standings.lua with the empty one it ships: written again.
+      const beforeRepair = bot.calls.length;
       writeFileSync(game.standings, "GuildedStandings = { updatedAt = nil, baseGp = 0, players = {} }\n");
-      await vi.waitFor(() => expect(readFileSync(game.standings, "utf8")).toContain("ep = 20"), { timeout: 6000 });
+      await vi.waitFor(() => expect(writes).toHaveBeenCalledTimes(3), { timeout: 6000 });
+      expect(readFileSync(game.standings, "utf8")).toContain("ep = 20");
+      expect(bot.calls.slice(beforeRepair)).toEqual([
+        { url: "/api/v1/standings", since: '"v2"', wait: "12" },
+        { url: "/api/v1/standings", since: null, wait: null }
+      ]);
+      expect(errors).toEqual([]);
     } finally { await engine.stop(); }
   }, 20_000);
 

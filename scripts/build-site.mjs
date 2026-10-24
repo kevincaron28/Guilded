@@ -8,8 +8,8 @@ const guides = ["HOSTED_PILOT", "SUPPORT_GUILDED", "OWNER_WALKTHROUGH", "QUICK_S
 const origin = "https://guilded.kcaron.top";
 const guideDescriptions = {
   DUNGEONS_GUIDE: "Set up Guilded Dungeons, sync runs with Discord sign-in, manage your player profile and find open raids. English and French.",
-  HOSTED_PILOT: "Optional Guilded Discord integration: owner approval, the five-server pilot cap, setup and personal pairing. English and French guide.",
-  SUPPORT_GUILDED: "Optional CA$3 coffee support for Guilded. Downloads and approved pilot access stay free. English and French information.",
+  HOSTED_PILOT: "Free hosted Guilded bot: start with Guilded Lite, set up your server and connect with Discord sign-in after approval. English and French guide.",
+  SUPPORT_GUILDED: "Optional coffee support for Guilded. Downloads and hosted access stay free; support never buys approval. English and French information.",
   OWNER_WALKTHROUGH: "Illustrated independent-hosting walkthrough for Guilded owners, with setup prerequisites and checks.",
   QUICK_START: "Choose addon-only play, EPGP or optional Discord sync for Guilded on WoW Forever. English and French quick setup.",
   MEMBER_INSTALL: "Install Guilded for WoW Forever 1.60.1, fix folder issues and connect the optional companion. English and French instructions.",

@@ -51,9 +51,9 @@ The hosted bot is free. Optional support never buys approval or priority.
 4. Members can use community activities and polls immediately; they do not need
    linked WoW characters for those features.
 5. For WoW features, install the addon. The owner provides the shared browser
-   [online companion](https://guilded.kcaron.top/companion/). In companion 6.5.1,
-   paste your personal `/character pair` code and press **Connect**; the code
-   finds your server. Older companions may still request a server ID. Every member pairs separately. The desktop companion is
+   [online companion](https://guilded.kcaron.top/companion/). Choose **Sign in with Discord**,
+   then your server. Older companions can use the private one-time code from
+   `/character pair`. Every member connects separately. The desktop companion is
    optional; see the [member guide](MEMBER_INSTALL.md).
 
 An invitation is not an approval. Changing the server ID in a copied invite does
@@ -86,9 +86,9 @@ jours si l'hôte l'a activé et que le serveur est configuré et actif.
    des rôles qu'il doit attribuer.
 4. Testez un membre ordinaire et un officier. Les sondages et activités communautaires
    ne nécessitent ni addon WoW, ni personnage lié.
-5. Pour synchroniser WoW, installez l'addon. Chaque membre obtient son propre
-   code avec `/character pair`. Dans le compagnon **6.5.1**, le code suffit
-   à retrouver le serveur. Collez-le seulement dans le compagnon de votre guilde.
+5. Pour synchroniser WoW, installez l'addon. Dans le compagnon, chaque membre
+   choisit **Sign in with Discord**, puis son serveur. Les anciens compagnons
+   peuvent utiliser le code privé à usage unique de `/character pair`.
    Faites `/reload`, synchronisez, vérifiez le bon personnage et rechargez les classements.
 
 Le bot hébergé et l'addon restent gratuits. Le soutien Ko-fi est facultatif et ne

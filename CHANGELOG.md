@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Launch preparation: stabilize the companion sync regression around completed writes and
+  controlled polling; include Guilded Dungeons and packaged companion-source checks in release
+  verification/CI. Refresh English/French setup guides and publication drafts, with an explicit
+  public-release hold until game and two-PC acceptance passes.
+
 - Public dungeon leaderboards rank runs by the guild seasons' own check: the addon must see the
   final boss die (no manual stops), the route and levels come from the run's evidence, and a run
   counts for each player there for 80% of it. Unranked runs still show, with the reason; rows

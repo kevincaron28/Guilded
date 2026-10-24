@@ -52,10 +52,13 @@ jobs:
           npm run test:postgres
       - run: npm audit --audit-level=high
       - run: npm run addon:zip
+      - run: npm run dungeons:zip
       - uses: actions/upload-artifact@v7
         with:
           name: guilded-addon
-          path: dist/Guilded-v*.zip
+          path: |
+            dist/Guilded-v*.zip
+            dist/GuildedDungeons-v*.zip
       - uses: actions/upload-artifact@v7
         with:
           name: guilded-preview-addons
@@ -77,6 +80,7 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       - run: npm run addon:zip
+      - run: npm run dungeons:zip
       - name: Verify matching release artifacts and checksums
         run: node scripts/verify-release-artifacts.mjs
       - uses: actions/upload-artifact@v7
@@ -85,6 +89,7 @@ jobs:
           path: |
             dist/companion/*.exe
             dist/Guilded-v*.zip
+            dist/GuildedDungeons-v*.zip
             dist/Guilded-v*-Release-Notes.md
             dist/Guilded-v*-SHA256SUMS.txt
             dist/Guilded-v*-Artifact-Verification.json

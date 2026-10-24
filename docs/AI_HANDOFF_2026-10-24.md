@@ -11,6 +11,34 @@ the npm 11 lockfile's Undici override during `npm ci`. This was reproduced local
 `package.json` now pins npm 11.13.0 using Cloudflare's supported `packageManager`
 field. Hosted verification is separate from a successful local dry run.
 
+## Cloudflare repair confirmed after sign-in
+
+Fix commit `5c9b8b7c029d53e1e15772dca24dc599a3e1ac46` passed the actual Workers
+Builds check. Build `fee77c0b-24bb-4db9-87d8-2315818fc6d0` selected npm 11.13.0,
+installed dependencies, built the site and completed `npx wrangler preview`.
+The dashboard and GitHub external check both report success. This supersedes
+the access-blocked and unresolved Cloudflare notes retained below as history.
+
+- Branch preview: https://codex-prelaunch-features-guilded-wow.kcaron.workers.dev
+- Unique preview deployment: https://d06e930b-guilded-wow.kcaron.workers.dev
+- Build evidence: `output/cloudflare-build-fixed-2026-10-24.png`.
+- Local npm 10.9.2 failure reproduced in an isolated manifest copy; npm 11.13.0
+  clean-install dry run passed on the same lockfile. No dependency downgrade or
+  lockfile rewrite, no removal of the Undici override, and no dashboard edits.
+- Local validation passed again: 268 files / 2,257 tests, TypeScript, ESLint,
+  both addon validators and Worker/site build. Logs: `backups/cloudflare-npm*.log`
+  and `backups/cloudflare-npm-fix-tests.log`.
+- GitHub quality workflow for the fix: run 40133180553. Windows packaging passed
+  when this record was written; inspect the final documentation head's checks
+  before deployment or merge, as usual.
+- The preview warns that production `OWNER_RESOURCES` KV is absent. This was not
+  changed or granted to the preview. Owner-resource preview functionality is
+  therefore limited; the warning does not fail the build. No production binding,
+  routes, secrets, main branch or public downloads were changed.
+
+The installed companion remains the verified `489664a` build; this repair changes
+build-tool selection only. **Public release and real-client gates remain held.**
+
 ## Latest delivery: French companion installed
 
 - Code/package commit: `489664aa9da79879b438b7c5b8abe3d204f1521f` on the same

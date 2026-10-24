@@ -46,6 +46,12 @@ separate. No new game evidence, route timings or loot values were invented.
 
 ## Cloudflare build investigation
 
+**Resolved:** fix commit `5c9b8b7` passed hosted build
+`fee77c0b-24bb-4db9-87d8-2315818fc6d0`; its log confirms npm 11.13.0, successful
+dependency installation, site build and branch preview deployment. The GitHub
+Workers Builds check also succeeded. See the AI handoff for exact evidence and
+the preview's owner-KV limitation. Production and public release remain held.
+
 Update after Kevin signed in: the dashboard log for `e4206bbb` establishes the
 failure at dependency installation, before the build/preview commands. Cloudflare
 selected npm 10.9.2, which rejects the lockfile's Miniflare Undici override:

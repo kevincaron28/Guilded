@@ -24,6 +24,15 @@ French click-through remains incomplete. No real guild edits, Discord messages,
 notifications, bot deployment, main merge or public publication were performed.
 The existing public-release hold and actual game/two-PC/Discord gates still apply.
 
+`npm run release:prepare` subsequently completed successfully. The candidate
+manifest records clean source `b755adf012e508fbc9b7662d57e2c51140d5b89b`; all 2,262
+tests, both audits (zero vulnerabilities), addon ZIPs, browser bundle, Windows NSIS
+installer and packaged-source verification passed. Installer SHA-256:
+`33a037d41137bee73880e9a5a5a9ccb82d422c59d49c6be9ff92336ee64a1c6b`.
+Manifest and sums are retained in `backups/offline-management-package-2026-10-24/`.
+The installer is built for later acceptance; it was **not installed or published**.
+Installed source remains `489664a`, with the owner's existing settings/pairing.
+
 Latest continuation: see `COMPANION_FRENCH_2026-10-24.md` for the shared French
 companion, signed-out management/error fixes and mobile checks. Earlier statements
 below that French translation is unfinished describe the previous source state.

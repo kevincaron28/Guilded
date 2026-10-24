@@ -69,6 +69,14 @@ the synthetic request display and install the fake bridge before the language
 bundle. They do not alter shipped assets. Check the latest documentation/fixture
 head separately before merging or deploying.
 
+Full `release:prepare` also passed. The verifier recorded clean source
+`b755adf012e508fbc9b7662d57e2c51140d5b89b` and checked addon ZIP contents,
+packaged companion source and NSIS installer. Both audits found zero vulnerabilities.
+Installer SHA-256: `33a037d41137bee73880e9a5a5a9ccb82d422c59d49c6be9ff92336ee64a1c6b`.
+Private evidence: `backups/offline-management-release-2026-10-24.log` and
+`backups/offline-management-package-2026-10-24/`. No install or publication was
+performed; the installed French candidate remains `489664a`.
+
 The static site preview's French main navigation produced `/companion/?lang=fr`.
 It cannot serve the actual bot-backed Companion endpoint; its local 404 is expected.
 The hosted branch preview also proxies Companion to the older production bot, so

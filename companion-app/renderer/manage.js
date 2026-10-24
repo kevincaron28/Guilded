@@ -22,6 +22,7 @@
   // The core shown (null before the first load: the first core, not the guild-wide list).
   let coreChoice = null;
   let loading = false;
+  let saving = false;
 
   function el(tag, props = {}, ...children) {
     const node = document.createElement(tag);
@@ -45,8 +46,8 @@
   const leader = () => !!view?.me.raidLeader;
   const core = () => view?.cores.find(row => row.id === $('coreSelect').value) || null;
 
-  async function load(keepMessage) {
-    if (loading) return; loading = true;
+  async function load(keepMessage, afterSave = false) {
+    if (loading || (saving && !afterSave)) return; loading = true;
     try {
       const result = await api.manageView();
       if (!result.ok) { view = null; $('wishPanel').hidden = true; $('corePanels').hidden = true; say(result.error || T("Could not load. Connect your Discord account in Connection & setup."), false); return; }
@@ -54,18 +55,34 @@
       if (!keepMessage) say('', true);
       $('manageItems').replaceChildren(...view.itemNames.map(name => el('option', { value: name })));
       renderWishlist(); renderCores();
+    } catch {
+      say(T("Could not load. Check your connection and try Reload."), false);
     } finally { loading = false; }
   }
 
   // One change, then the fresh state from the bot (so the page never shows what was not saved).
   async function change(button, body) {
+    if (saving || loading) return false;
+    saving = true;
+    // Inert survives translated child controls being rebuilt while the request is pending.
+    $('wishPanel').inert = true; $('corePanels').inert = true;
+    $('btnWishReload').disabled = true; $('btnCoreReload').disabled = true;
     if (button) button.disabled = true;
     try {
       const result = await api.manageEdit(body);
       say(result.ok ? result.data.message : result.error || T("That change was not saved."), result.ok);
-      await load(true);
+      // A refused edit must retain its draft, including the original conflict-check base.
+      if (result.ok) await load(true, true);
       return result.ok;
-    } finally { if (button) button.disabled = false; }
+    } catch {
+      say(T("Could not confirm that change. Your draft is kept. Check your connection and Reload before retrying."), false);
+      return false;
+    } finally {
+      saving = false;
+      $('wishPanel').inert = false; $('corePanels').inert = false;
+      $('btnWishReload').disabled = false; $('btnCoreReload').disabled = false;
+      if (button) button.disabled = false;
+    }
   }
 
   function renderWishlist() {

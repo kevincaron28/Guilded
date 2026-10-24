@@ -67,7 +67,9 @@ function renderUpdate(update) {
 // upload and file change (amber after 3 days without a change), and the live game's folder to
 // switch to when WoW saves somewhere else. In French when Windows is.
 function liveText() { return {
-  status: (folder, upload, changed) => T("Watching {0} · last upload {1} · file changed {2}", folder, upload, changed),
+  status: (running, folder, upload, changed) => running
+    ? T("Watching {0} · last upload {1} · file changed {2}", folder, upload, changed)
+    : T("Selected folder: {0} · last upload {1} · file changed {2}", folder, upload, changed),
   stale: T(" · over 3 days without a change: is WoW saving somewhere else?"),
   missing: T("never (not saved yet)"),
   betaTitle: T("Your companion is still watching the beta folder"),
@@ -85,7 +87,7 @@ function renderSavedFile(snapshot) {
   const show = !api.browser && savedConfig.wowEnabled !== false && !!file && !!watched;
   $('watchStatus').hidden = !show; $('liveBanner').hidden = !show || !candidate;
   if (!show) return;
-  $('watchStatus').textContent = liveText().status(watched.replace(/[\\/][^\\/]*$/, ''), since(snapshot.state.lastUpload?.at), file.changedAt ? since(file.changedAt) : liveText().missing) + (file.stale ? liveText().stale : '');
+  $('watchStatus').textContent = liveText().status(snapshot.state.running, watched.replace(/[\\/][^\\/]*$/, ''), since(snapshot.state.lastUpload?.at), file.changedAt ? since(file.changedAt) : liveText().missing) + (file.stale ? liveText().stale : '');
   $('watchStatus').classList.toggle('stale', file.stale);
   if (!candidate) return;
   $('liveTitle').textContent = candidate.reason === 'beta' ? liveText().betaTitle : liveText().staleTitle(Math.floor((Date.now() - Date.parse(file.changedAt)) / 86400000));

@@ -1,4 +1,7 @@
 {
+  "Selected folder: {0} · last upload {1} · file changed {2}": "Dossier sélectionné : {0} · dernier envoi {1} · fichier modifié {2}",
+  "Could not load. Check your connection and try Reload.": "Chargement impossible. Vérifiez votre connexion, puis cliquez sur Actualiser.",
+  "Could not confirm that change. Your draft is kept. Check your connection and Reload before retrying.": "Impossible de confirmer cette modification. Votre brouillon est conservé. Vérifiez votre connexion et cliquez sur Actualiser avant de réessayer.",
   "Guilded Companion": "Compagnon Guilded",
   "Skip to content": "Aller au contenu",
   "YOUR GUILD, CONNECTED": "VOTRE GUILDE, CONNECTÉE",

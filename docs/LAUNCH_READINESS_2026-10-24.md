@@ -28,6 +28,11 @@ real-client checks into passes.
 
 ## Work prepared without the game
 
+- [Offline management acceptance](OFFLINE_ACCEPTANCE_2026-10-24.md) covers French
+  draft preservation, refused/disconnected save recovery, pending-save exclusion,
+  ordinary-member rendering and language-preserving Companion navigation. These
+  synthetic browser checks do not replace actual member/guild or native acceptance.
+
 - [Discord acceptance progress](DISCORD_ACCEPTANCE_2026-10-24.md) records private
   Quebec Gold command/signup checks, cleanup, the character-picker language fix,
   and remaining interaction gates. Public online scoring already uses common

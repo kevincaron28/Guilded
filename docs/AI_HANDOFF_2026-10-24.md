@@ -3,6 +3,25 @@
 Read this after `CLAUDE.md`. Kevin requested an end-of-session review of everything
 prepared during this Codex session. This handoff does not authorize a public release.
 
+## Latest continuation: offline management acceptance
+
+See `OFFLINE_ACCEPTANCE_2026-10-24.md` for the reproducible synthetic browser
+walkthrough and five new save-recovery regressions. It found and fixed lost drafts
+after refused saves, unhandled disconnected saves, and overlapping saves after a
+language change. The paused folder detail now says "Selected folder"; French site
+navigation now carries the language into Companion. The native installation is
+still `489664a`; these newer changes are candidate source until explicitly packaged
+and installed. Do not attribute them to that older installed binary.
+
+Local validation: 269 files / 2,262 tests, TypeScript, ESLint, both addon validators
+and Worker/site build passed. The read-only bug inbox has no open member reports;
+the sole historical October 19 connection-pool error has not recurred there.
+Kevin restored the native window, but clicks still failed with unavailable geometry,
+keyboard navigation did not change focus, and screenshot capture timed out. Native
+French click-through remains incomplete. No real guild edits, Discord messages,
+notifications, bot deployment, main merge or public publication were performed.
+The existing public-release hold and actual game/two-PC/Discord gates still apply.
+
 Latest continuation: see `COMPANION_FRENCH_2026-10-24.md` for the shared French
 companion, signed-out management/error fixes and mobile checks. Earlier statements
 below that French translation is unfinished describe the previous source state.

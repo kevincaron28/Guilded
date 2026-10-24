@@ -11,7 +11,7 @@ describe("site menu", () => {
     const html = page("/leaderboards/", "fr");
     for (const item of SITE_NAV) expect(html).toContain(`>${item.fr}</a>`);
     expect(html).toContain('href="/leaderboards/?lang=fr" aria-current="page"');
-    expect(html).toContain('href="/companion/"');
+    expect(html).toContain('href="/companion/?lang=fr"');
     expect(page("/me/", "en")).not.toContain('aria-current="page"');
   });
 
@@ -27,11 +27,13 @@ describe("site menu", () => {
     expect(html).toContain('href="/?lang=fr#start"');
     expect(localizedHref("/leaderboards/?season=s1&lang=en#records", "fr")).toBe("/leaderboards/?season=s1&lang=fr#records");
     expect(localizedHref("features/", "fr")).toBe("features/?lang=fr");
+    expect(localizedHref("/companion/?tab=cores&lang=en#rules", "fr")).toBe("/companion/?tab=cores&lang=fr#rules");
+    expect(localizedHref("/companion/?lang=fr", "en")).toBe("/companion/?lang=en");
     expect(localizedHref("../docs/MEMBER_INSTALL.html#fr", "en")).toBe("../docs/MEMBER_INSTALL.html");
     expect(localizedHref("../docs/MEMBER_INSTALL.html#quick-fixes", "fr")).toBe("../docs/MEMBER_INSTALL.html#quick-fixes");
   });
 
-  it.each(["https://example.com/?lang=en", "//example.com/", "/companion/", "#features", "/logo.png"])("leaves unrelated links unchanged: %s", href => {
+  it.each(["https://example.com/?lang=en", "//example.com/", "/companion/web-bundle.js", "#features", "/logo.png"])("leaves unrelated links unchanged: %s", href => {
     expect(localizedHref(href, "fr")).toBe(href);
   });
 });

@@ -18,7 +18,7 @@ export const SITE_NAV = [
 const escape = (text) => String(text).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");
 
 /** Keep the chosen language across translated pages and bilingual guide sections.
- * Leave external URLs, files, companion settings and unrelated query parameters alone.
+ * Leave external URLs, files and unrelated query parameters alone.
  * @param {string} href
  * @param {"en" | "fr"} lang
  */
@@ -29,7 +29,7 @@ export function localizedHref(href, lang) {
   if (/(?:^|\/)docs\/(?:QUICK_START|MEMBER_INSTALL|DUNGEONS_GUIDE|EPGP_GUIDE|HOSTED_PILOT|SUPPORT_GUILDED)(?:\.html)?$/.test(path)) {
     return base + (hash && hash !== "fr" ? `#${hash}` : lang === "fr" ? "#fr" : "");
   }
-  if (!/^(?:\/?|(?:.*\/)?index\.html|(?:.*\/)?features\/|\/(?:leaderboards|recruitment|players|me)(?:\/.*)?)$/.test(path)) return href;
+  if (!/^(?:\/?|(?:.*\/)?index\.html|(?:.*\/)?features\/|\/companion\/|\/(?:leaderboards|recruitment|players|me)(?:\/.*)?)$/.test(path)) return href;
   const query = new URLSearchParams(search);
   query.set("lang", lang);
   return `${path}?${query}${hash ? `#${hash}` : ""}`;

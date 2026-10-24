@@ -1,5 +1,9 @@
 # Guilded website and feature review — 24 October 2026
 
+Later continuation: the French companion source and mobile follow-up are now
+implemented and tested; see `COMPANION_FRENCH_2026-10-24.md`. Earlier findings
+below describe the reviewed baseline. The public site has not been promoted.
+
 The core product is implemented, but it is not fully accepted for launch. Website
 polish does not substitute for the remaining game, two-PC or Discord checks.
 Public release remains on hold. This review made no production deployment.

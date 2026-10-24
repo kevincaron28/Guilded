@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("companion", {
+  setLanguage: (language) => ipcRenderer.invoke("set-language", language),
   getAll: () => ipcRenderer.invoke("get-all"),
   saveConfig: (config) => ipcRenderer.invoke("save-config", config),
   testConnection: (config) => ipcRenderer.invoke("test-connection", config),

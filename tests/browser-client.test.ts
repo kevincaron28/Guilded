@@ -29,6 +29,20 @@ const logFile = () => {
 };
 
 describe("online companion sign-in", () => {
+  it("explains signed-out management without making an unauthenticated request", async () => {
+    const { env } = environment();
+    const api = createBrowserCompanion(env as never);
+    expect(await api.manageView()).toEqual({ ok: false, error: "Connect your Discord account first." });
+    expect(await api.manageEdit({ action: 'wishlist.set' })).toEqual({ ok: false, error: "Connect your Discord account first." });
+    expect(env.fetch).not.toHaveBeenCalled();
+  });
+  it("shows an actionable message when a proxy returns HTML instead of JSON", async () => {
+    const { env } = environment();
+    const api = createBrowserCompanion(env as never);
+    await api.pairAccount(profile);
+    env.fetch.mockResolvedValueOnce({ ok: false, status: 502, json: async () => { throw new SyntaxError('private upstream response'); } } as never);
+    expect(await api.manageView()).toEqual({ ok: false, error: "The bot returned an unreadable response (502). Try again, or ask your guild owner to check the service." });
+  });
   it("signs in with Discord without a code and keeps the site's own address", async () => {
     const { env } = environment();
     env.fetch.mockImplementation((async (url: string) => ({ ok: true, status: 200, json: async () => url.endsWith("/sign-in")

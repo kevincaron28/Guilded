@@ -6,8 +6,9 @@ import { describe, expect, it, vi } from "vitest";
 
 const require = createRequire(import.meta.url);
 const realUpdates = require("../companion-app/update-check.cjs");
+const i18n = require("../companion-app/i18n.cjs");
 const installer = { name: "setup.exe", url: "https://github.com/kevincaron28/Guilded/releases/download/v7.3.0/setup.exe" };
-function harness(latest: unknown) {
+function harness(latest: unknown, locale = 'en') {
   const handlers = new Map<string, () => Promise<{ ok: boolean; action?: string }>>();
   const openExternal = vi.fn();
   const updates = { ...realUpdates, fetchLatestRelease: vi.fn(async () => latest), downloadInstaller: vi.fn(), launchInstaller: vi.fn() };
@@ -15,10 +16,10 @@ function harness(latest: unknown) {
   const timers = vi.fn();
   const context = {
     require: (id: string) => id === "electron" ? {
-      app: { requestSingleInstanceLock: () => true, whenReady: () => new Promise(() => {}), on: vi.fn(), getVersion: () => "7.2.0", getPath: () => "C:/fake", quit },
+      app: { requestSingleInstanceLock: () => true, whenReady: () => new Promise(() => {}), on: vi.fn(), getVersion: () => "7.2.0", getLocale: () => locale, getPath: () => "C:/fake", quit },
       ipcMain: { handle: (name: string, callback: () => Promise<{ ok: boolean }>) => handlers.set(name, callback) },
       shell: { openExternal }, Notification: { isSupported: () => false }
-    } : id === "./update-check.cjs" ? updates : id === "./detect-wow.cjs" ? {} : id === "node:fs" ? { mkdirSync: vi.fn(), writeFileSync: vi.fn() } : require(id),
+    } : id === "./i18n.cjs" ? i18n : id === "./update-check.cjs" ? updates : id === "./detect-wow.cjs" ? {} : id === "node:fs" ? { mkdirSync: vi.fn(), writeFileSync: vi.fn() } : require(id),
     process: { argv: [] }, __dirname: "C:/fake", setTimeout: timers, setInterval: vi.fn(), console
   };
   runInNewContext(readFileSync("companion-app/main.cjs", "utf8") + `
@@ -30,6 +31,11 @@ function harness(latest: unknown) {
 }
 
 describe("companion updater handoff", () => {
+  it('keeps the updater action intact in French', async () => {
+    const h = harness(null, 'fr-CA');
+    expect(await h.handlers.get('install-update')!()).toMatchObject({ ok: true, action: 'download-page', message: i18n.translate('fr', 'The download page opened. Download and run the installer to finish updating.') });
+    expect(h.openExternal).toHaveBeenCalledOnce();
+  });
   it("uses installer metadata that arrives after the bot announces the same version", async () => {
     const h = harness({ version: "7.3.0", url: realUpdates.RELEASES_PAGE, installer });
     const result = await h.handlers.get("install-update")!();
@@ -72,7 +78,7 @@ describe("companion updater handoff", () => {
     const block = source.slice(source.indexOf("bind('btnUpdate'"), source.indexOf("api.onUpdateProgress"));
     const button = { textContent: "Update now" };
     let click: () => Promise<void> = async () => {};
-    runInNewContext(block, { bind: (_id: string, fn: () => Promise<void>) => { click = fn; }, $: () => button, toast: vi.fn(), api: { installUpdate: async () => ({ ok: true, action }) } });
+    runInNewContext(block, { T: (key: string, ...values: unknown[]) => i18n.translate('en', key, ...values), bind: (_id: string, fn: () => Promise<void>) => { click = fn; }, $: () => button, toast: vi.fn(), api: { installUpdate: async () => ({ ok: true, action }) } });
     await click();
     expect(button.textContent).toBe(action === "installing" ? "Installing…" : "Update now");
   });

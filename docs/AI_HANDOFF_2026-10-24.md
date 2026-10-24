@@ -3,6 +3,12 @@
 Read this after `CLAUDE.md`. Kevin requested an end-of-session review of everything
 prepared during this Codex session. This handoff does not authorize a public release.
 
+Latest continuation: see `COMPANION_FRENCH_2026-10-24.md` for the shared French
+companion, signed-out management/error fixes, mobile checks and Cloudflare access
+blocker. Earlier statements below that French translation is unfinished describe
+the previous source state. The remote Cloudflare failure is still unresolved;
+the successful local dry run does not establish remote success.
+
 ## Owner decisions and boundaries
 
 - Finish everything possible without the game or a second PC. The game is

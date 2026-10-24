@@ -27,15 +27,15 @@ Trouvez une guilde, un core permanent ou une place pour une soirée. Le [tableau
 
 ## Le compagnon
 
-Pour passer en ligne : connectez votre compte, sélectionnez les données enregistrées de l’addon, puis utilisez **Sync now** après avoir joué. L’export vers un tableur fonctionne sans connexion.
+Pour passer en ligne : connectez votre compte, sélectionnez les données enregistrées de l’addon, puis utilisez **Synchroniser** après avoir joué. L’export vers un tableur fonctionne sans connexion.
 
-- **Wishlist :** vos objets recherchés.
+- **Liste de souhaits :** vos objets recherchés.
 - **Cores et prix :** règles, rosters et prix des objets, pour les responsables de raid.
 - **Path of Exile 2 :** un journal personnel des zones de cartes visitées.
 
-Vos permissions Discord déterminent ce que vous pouvez consulter ou modifier. Les commandes du compagnon restent principalement en anglais.
+Vos permissions Discord déterminent ce que vous pouvez consulter ou modifier. Le sélecteur **Langue** permet de choisir le français ou l’anglais sans refaire la connexion.
 
-[Ouvrir le compagnon](/companion/) · [Vérifier la connexion](../docs/ONLINE_COMPANION_CHECK.html)
+[Ouvrir le compagnon](/companion/?lang=fr) · [Vérifier la connexion](../docs/ONLINE_COMPANION_CHECK.html)
 
 ## Discord
 

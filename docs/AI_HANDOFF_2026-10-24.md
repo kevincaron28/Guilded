@@ -9,6 +9,53 @@ blocker. Earlier statements below that French translation is unfinished describe
 the previous source state. The remote Cloudflare failure is still unresolved;
 the successful local dry run does not establish remote success.
 
+## Latest delivery: French companion installed
+
+- Code/package commit: `489664aa9da79879b438b7c5b8abe3d204f1521f` on the same
+  draft PR #215. The subsequent handoff commit is documentation only.
+- Both GitHub quality jobs passed on this exact source in
+  [run 40132075935](https://github.com/kevincaron28/Guilded/actions/runs/40132075935).
+  This includes PostgreSQL integration and Windows packaging. The push run
+  40132072573 also passed both jobs. Do not confuse these with Cloudflare.
+- `npm run release:prepare` completed on the clean source commit: 268 files /
+  2,257 tests, typecheck, lint, addon validation, both zero-vulnerability audits,
+  both addon ZIPs, site, browser companion, Windows NSIS installer and packaged
+  artifact verification. Source dirty was false. Worker dry run also passed.
+- Installed that package on Kevin's PC (silent installer exit 0). All 18 app/
+  engine/library files checked match the build. Configuration remains
+  **byte-identical**, including pairing. No reset, re-pairing or folder change.
+- Installer SHA-256:
+  `ccc73e742dc2d9027be2b12f70a0be50cfe35dfdbbea47e71103f11afc9c49b0`.
+  Manifest: `dist/Guilded-v7.3.2-Artifact-Verification.json`; sums:
+  `dist/Guilded-v7.3.2-SHA256SUMS.txt`. Private backup/verification:
+  `backups/companion-french-install-2026-10-24/` (never publish its config).
+- Installed app launched and its accessibility state reports Account linked,
+  version 7.3.2, tracking paused. Its old beta folder remains absent. A read-only
+  connection check through the installed engine succeeded with three standings
+  characters; management GET returned 200 with one owned character and two cores.
+  No uploads, edits or Discord notifications were triggered by those checks.
+- Browser French UI, eight pages, language/reload behavior, preserved unsaved
+  setup text, signed-out errors and 320 px layout were checked. Screenshot:
+  `output/companion-french-2026-10-24.png`.
+- Native click-through remains incomplete: accessibility could read the running
+  app, but input returned `coordinate input geometry is unavailable` and capture
+  returned `FrameArrived timed out`; refreshing/raising the window did not repair
+  input. No native language selection was changed. Native locale/IPC/updater
+  behavior has automated coverage; do not claim a completed manual Windows
+  French walkthrough or authenticated management editing walkthrough.
+- Cloudflare failed again for this source: build
+  `e4206bbb-dcbf-4e14-b9e5-8b267c1809c7`. Existing CLI access cannot read build logs
+  (403/12004), and the dashboard requires sign-in. No build settings were guessed,
+  permissions expanded, secrets created, checks disabled or production deployed.
+  Continue from the sign-in handoff and inspect the actual failed log.
+
+Production bot/main/public downloads remain unchanged. Real game/two-PC checks,
+remaining private Discord candidate interactions, route/calibration evidence,
+loot/GP verification and signing/native-language review remain the launch gates.
+The installed companion's paused folder detail still uses the old word
+“Watching” alongside the explicit Paused banner; review this small copy issue
+when doing the native walkthrough. **Public release remains on hold.**
+
 ## Owner decisions and boundaries
 
 - Finish everything possible without the game or a second PC. The game is

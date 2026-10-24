@@ -38,13 +38,15 @@ using **synthetic local data** (no credentials, bot, database writes or Discord)
 - Member fixture in French and English: rule inputs disabled, price/roster editors
   hidden, no price/roster mutation buttons, zero write requests. Backend permission
   tests remain separate; this does not prove Discord ordinary-member acceptance.
-- Screenshot: `output/offline-management-french-2026-10-24.png` (synthetic fixture).
+- Screenshots: `output/offline-management-french-2026-10-24.png` and
+  `output/offline-management-french-draft-2026-10-24.png` (synthetic fixture).
 
 Repeat with `npm run companion:build`, then
 `node scripts/preview-companion-management.mjs` and open
 `http://127.0.0.1:8802/?tab=cores` (add `&member=1&lang=fr` for member French).
 The helper binds loopback only, serves allowlisted asset types, handles GET only,
-and replaces the normal app entry with the in-memory fixture. No fixture file is
+and installs the in-memory fixture before the shared language bundle, replacing
+the normal app entry and avoiding browser credential-store initialization. No fixture file is
 inside packaged renderer assets. Stop the helper when finished.
 
 Automated validation passed: **269 test files / 2,262 tests**, TypeScript, ESLint,
@@ -59,6 +61,19 @@ query/fragment preservation and asset exclusions. Local logs are in
 Fresh read-only bug inbox: no open member reports. The single recorded bot error
 remains the October 19 pool timeout from 6.7.0; no recurrence is recorded. It was
 not deleted or marked fixed based on these UI tests.
+
+Source `a42e3117ce766c07692c57a94cae96075ac78726` passed both GitHub quality
+jobs in run `40135905863` and Cloudflare preview build
+`748e8a53-fa14-440e-9de7-de6d30824e49`. Subsequent fixture-only refinements wrap
+the synthetic request display and install the fake bridge before the language
+bundle. They do not alter shipped assets. Check the latest documentation/fixture
+head separately before merging or deploying.
+
+The static site preview's French main navigation produced `/companion/?lang=fr`.
+It cannot serve the actual bot-backed Companion endpoint; its local 404 is expected.
+The hosted branch preview also proxies Companion to the older production bot, so
+the new French browser companion still needs a controlled bot deployment before
+that hosted end-to-end check. Do not claim the new browser bundle is already live.
 
 ## Remaining acceptance
 

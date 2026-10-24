@@ -15,7 +15,7 @@ createServer(async (request, response) => {
     if (file !== fixture && (!file.startsWith(root + sep) || !mime[extname(file)])) { response.writeHead(404).end(); return; }
     let content = await readFile(file);
     if (file === resolve(root, 'index.html')) content = content.toString()
-      .replace('<script src="app.js"></script>', '<script src="fixture.js"></script>');
+      .replace('<script src="web-bundle.js"></script><script src="app.js"></script>', '<script src="fixture.js"></script><script src="web-bundle.js"></script>');
     response.writeHead(200, { 'content-type': `${mime[extname(file)]}; charset=utf-8`, 'cache-control': 'no-store' }).end(content);
   } catch { response.writeHead(404).end('Build with npm run companion:build first.'); }
 }).listen(8802, '127.0.0.1', () => console.log('Offline management fixture: http://127.0.0.1:8802/?tab=cores (synthetic data, no network writes)'));

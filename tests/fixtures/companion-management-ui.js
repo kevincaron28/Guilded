@@ -13,7 +13,7 @@
   };
   const panel = document.createElement('aside');
   panel.className = 'panel';
-  panel.innerHTML = '<h2>OFFLINE TEST — synthetic data only</h2><label>Save result<select id="fixtureOutcome"><option value="fail">Refused</option><option value="throw">Disconnected</option><option value="success">Success</option><option value="hold">Hold until resolved</option></select></label><button id="fixtureResolve">Resolve pending save as refused</button><p id="fixtureCalls">0 save requests</p><pre id="fixturePayload"></pre>';
+  panel.innerHTML = '<h2>OFFLINE TEST — synthetic data only</h2><label>Save result<select id="fixtureOutcome"><option value="fail">Refused</option><option value="throw">Disconnected</option><option value="success">Success</option><option value="hold">Hold until resolved</option></select></label><button id="fixtureResolve">Resolve pending save as refused</button><p id="fixtureCalls">0 save requests</p><textarea id="fixturePayload" readonly aria-label="Last synthetic request"></textarea>';
   document.querySelector('.workspace').prepend(panel);
   let requests = 0, resolvePending;
   window.companion = {

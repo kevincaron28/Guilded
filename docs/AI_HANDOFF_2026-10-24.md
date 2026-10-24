@@ -14,7 +14,9 @@ still `489664a`; these newer changes are candidate source until explicitly packa
 and installed. Do not attribute them to that older installed binary.
 
 Local validation: 269 files / 2,262 tests, TypeScript, ESLint, both addon validators
-and Worker/site build passed. The read-only bug inbox has no open member reports;
+and Worker/site build passed. Source `a42e311` also passed both GitHub quality jobs
+(run `40135905863`) and Cloudflare preview build `748e8a53-fa14-440e-9de7-de6d30824e49`.
+The read-only bug inbox has no open member reports;
 the sole historical October 19 connection-pool error has not recurred there.
 Kevin restored the native window, but clicks still failed with unavailable geometry,
 keyboard navigation did not change focus, and screenshot capture timed out. Native

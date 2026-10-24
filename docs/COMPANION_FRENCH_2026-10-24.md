@@ -46,6 +46,20 @@ separate. No new game evidence, route timings or loot values were invented.
 
 ## Cloudflare build investigation
 
+Update after Kevin signed in: the dashboard log for `e4206bbb` establishes the
+failure at dependency installation, before the build/preview commands. Cloudflare
+selected npm 10.9.2, which rejects the lockfile's Miniflare Undici override:
+`undici@7.30.1 does not satisfy undici@7.29.1`. The same error reproduces with npm
+10.9.2 against a scratch copy of the two package manifests. Local npm is 11.13.0.
+
+The repository now pins `packageManager: npm@11.13.0`. Workers Builds installs
+that exact version before dependencies, per its
+[build-image documentation](https://developers.cloudflare.com/workers/ci-cd/builds/build-image/).
+The dependency lockfile and Undici override remain intact. No dashboard settings,
+credentials, production routes or deploy commands were changed. Hosted branch
+verification is recorded in the AI handoff; the prior access-blocked record
+below is retained as history, not the current diagnosis.
+
 GitHub's Linux and Windows jobs both passed for `363ff60` in run 40130415634.
 The external Cloudflare check still failed. Its build ID was
 `2060a4b0-f580-4cd6-ba0e-377ff8585217` for Worker `guilded-wow`.

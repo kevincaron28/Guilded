@@ -4,10 +4,12 @@ Read this after `CLAUDE.md`. Kevin requested an end-of-session review of everyth
 prepared during this Codex session. This handoff does not authorize a public release.
 
 Latest continuation: see `COMPANION_FRENCH_2026-10-24.md` for the shared French
-companion, signed-out management/error fixes, mobile checks and Cloudflare access
-blocker. Earlier statements below that French translation is unfinished describe
-the previous source state. The remote Cloudflare failure is still unresolved;
-the successful local dry run does not establish remote success.
+companion, signed-out management/error fixes and mobile checks. Earlier statements
+below that French translation is unfinished describe the previous source state.
+Kevin subsequently signed in to Cloudflare. Its log identified npm 10.9.2 rejecting
+the npm 11 lockfile's Undici override during `npm ci`. This was reproduced locally;
+`package.json` now pins npm 11.13.0 using Cloudflare's supported `packageManager`
+field. Hosted verification is separate from a successful local dry run.
 
 ## Latest delivery: French companion installed
 

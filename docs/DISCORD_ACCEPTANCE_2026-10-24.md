@@ -46,10 +46,11 @@ Local validation after these changes: 266 test files / 2,234 tests, TypeScript,
 ESLint and both addon validators passed. Final-commit CI and deployment are
 separate from these local results.
 
-The owner questioned whether guild-local dungeon settings should remain editable.
-Public scoring is already independent of those controls. A separate preference
-question is pending about locking the local settings too; no change of scoring
-policy is implied by the wording correction.
+The owner subsequently requested locking dungeon scoring settings for **all** guilds.
+The candidate now removes guild rule/target setters, makes configuration and evidence
+read-only, and rejects cached editing commands. See
+[DUNGEON_SCORING_LOCK_2026-10-24.md](DUNGEON_SCORING_LOCK_2026-10-24.md).
+This is candidate source, not a claim that the production bot has been updated.
 
 ## Still pending
 

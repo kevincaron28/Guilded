@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { calculateDungeonRating, createDungeonRatingRules, dungeonRating, frozenRating, hasDungeonRating, ratingEmbed } from "../src/services/dungeon-rating.js";
+import { publicRules } from "../src/services/public-score.js";
 import { startSeason } from "../src/services/dungeon-admin.js";
 const rules = createDungeonRatingRules({ "36": 1200 }, 2);
 const run = (seconds: number, ref = String(seconds), instanceId = 36) => ({
@@ -44,12 +45,12 @@ describe("seasonal completion plus speed", () => {
     expect(ratingEmbed([], "New", "en", rules).toJSON().description).toContain("0–20 speed");
     expect(ratingEmbed([], "Old", "en").toJSON().description).toContain("no speed bonus");
   });
-  it("copies configured targets at season creation without rewriting old rules", async () => {
+  it("starts with shared targets instead of carrying old guild overrides", async () => {
     const create = vi.fn(async ({ data }) => data);
     const tx = { $executeRaw: vi.fn(), dungeonSeason: { findFirst: async () => null, findMany: async () => [],
       updateMany: vi.fn(), create }, guildSettings: { findUnique: async () => ({ dungeonConfig: { targets: { "36": 1200 } } }) } };
     const db = { $transaction: async (fn: (t: typeof tx) => unknown) => fn(tx) };
     await startSeason(db as never, "g", "Fresh");
-    expect(create).toHaveBeenCalledWith({ data: expect.objectContaining({ ratingRules: createDungeonRatingRules({ "36": 1200 }) }) });
+    expect(create).toHaveBeenCalledWith({ data: expect.objectContaining({ ratingRules: publicRules() }) });
   });
 });

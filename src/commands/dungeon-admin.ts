@@ -3,12 +3,9 @@ import { SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 import { createAuditService } from "../services/audit.js";
-import {
-  adjustPoints, describeConfig, setDungeonMasterCount, invalidateRun, pointHistory, POINT_RULES, readConfig, setRulePoints, setTarget,
-  setWeeklyRepeat, type PointRule
-} from "../services/dungeon-admin.js";
-import { formatDuration } from "../services/dungeon-rules.js";
-import { describeEvidence, provisionalSeasonEmbed, recalibrateRoute, recalibrationEvidence } from "../services/dungeon-bracket-season.js";
+import { adjustPoints, describeConfig, invalidateRun, pointHistory } from "../services/dungeon-admin.js";
+import { formatDuration, sharedDungeonConfig } from "../services/dungeon-rules.js";
+import { describeEvidence, provisionalSeasonEmbed, recalibrationEvidence } from "../services/dungeon-bracket-season.js";
 import { postToLogChannel } from "../services/housekeeping.js";
 import { findPlayer } from "../services/player-search.js";
 import { requireGuildContext } from "./context.js";
@@ -32,21 +29,10 @@ export const dungeonAdminCommand = new SlashCommandBuilder()
     .addUserOption((o) => o.setName("member").setDescription("Discord member"))
     .addStringOption((o) => o.setName("character").setDescription("Or a character name"))
     .addStringOption((o) => o.setName("run").setDescription("Or one run (pick from the list)").setAutocomplete(true)))
-  .addSubcommand((sub) => sub.setName("config").setDescription("Guild participation rules; public scores unchanged")
-    .addStringOption((o) => o.setName("rule").setDescription("Rule to change").addChoices(...POINT_RULES.map((rule) => ({ name: rule, value: rule }))))
-    .addIntegerOption((o) => o.setName("points").setDescription("New points for that rule").setMinValue(0).setMaxValue(10000))
-    .addStringOption((o) => o.setName("weekly").setDescription("Share per repeat in a week, percent: e.g. 100,50,0"))
-    .addIntegerOption((o) => o.setName("dungeon_master").setDescription("Dungeons needed for Dungeon Master").setMinValue(1).setMaxValue(100)))
-  .addSubcommand((sub) => sub.setName("target").setDescription("Guild-only target; public season targets unchanged")
-    .addStringOption((o) => o.setName("dungeon").setDescription("Dungeon (pick from the list)").setAutocomplete(true).setRequired(true))
-    .addNumberOption((o) => o.setName("minutes").setDescription("e.g. 25").setRequired(true).setMinValue(0).setMaxValue(240))
-    .addIntegerOption(o => o.setName("min_level").setDescription("Minimum party level next season").setMinValue(1).setMaxValue(100))
-    .addIntegerOption(o => o.setName("max_level").setDescription("Maximum party level next season").setMinValue(1).setMaxValue(100))
-    .addIntegerOption(o => o.setName("difficulty").setDescription("Competitive difficulty ID next season").setMinValue(0)))
-  .addSubcommand(sub => sub.setName("bracket-preview").setDescription("Preview the provisional all-level season (nothing starts)"))
-  .addSubcommand(sub => sub.setName("recalibrate").setDescription("Guild rating target from real runs; public rules unchanged")
-    .addStringOption(o => o.setName("route").setDescription("Route (pick from the list)").setAutocomplete(true).setRequired(true))
-    .addIntegerOption(o => o.setName("minutes").setDescription("New target; leave out to see the runs").setMinValue(5).setMaxValue(120)));
+  .addSubcommand((sub) => sub.setName("config").setDescription("View the fixed dungeon participation rules for all guilds"))
+  .addSubcommand(sub => sub.setName("bracket-preview").setDescription("Preview shared season targets (read only)"))
+  .addSubcommand(sub => sub.setName("recalibrate").setDescription("Review timed-run evidence for future shared rules (read only)")
+    .addStringOption(o => o.setName("route").setDescription("Route (pick from the list)").setAutocomplete(true).setRequired(true)));
 
 async function memberFromOptions(interaction: ChatInputCommandInteraction, guildId: string) {
   const character = interaction.options.getString("character");
@@ -70,6 +56,13 @@ export async function executeDungeonAdmin(interaction: ChatInputCommandInteracti
     return;
   }
   const subcommand = interaction.options.getSubcommand();
+  // Reject cached pre-lock commands as well as hiding their controls in registration.
+  if (subcommand === "target"
+    || subcommand === "config" && ["rule", "points", "weekly", "dungeon_master"].some(name => interaction.options.get(name) !== null)
+    || subcommand === "recalibrate" && interaction.options.get("minutes") !== null) {
+    await interaction.reply({ content: "Dungeon scoring settings are locked for all guilds. Season targets, level bands and penalties are shared and frozen. Changes wait for a future shared season; existing scores and history are preserved.", flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+    return;
+  }
   const actor = interaction.user.id;
   const log = async (summary: string, metadata: Record<string, string | number | null>) => {
     await auditService.record({ guildId: context.guildId, actorId: actor, action: "DUNGEON_ADMIN", metadata: { action: subcommand, ...metadata } });
@@ -103,62 +96,19 @@ export async function executeDungeonAdmin(interaction: ChatInputCommandInteracti
       }).join("\n")
       : "No dungeon points recorded for that yet.";
   } else if (subcommand === "config") {
-    const rule = interaction.options.getString("rule") as PointRule | null;
-    const points = interaction.options.getInteger("points");
-    const weekly = interaction.options.getString("weekly");
-    const changes: string[] = [];
-    if (rule !== null || points !== null) {
-      if (rule === null || points === null) throw new Error("Give both a rule and its points.");
-      const result = await setRulePoints(prisma, context.guildId, rule, points);
-      changes.push(`${rule}: ${result.before} → ${result.after}`);
-    }
-    if (weekly) {
-      const shares = await setWeeklyRepeat(prisma, context.guildId, weekly);
-      changes.push(`weekly repeat: ${shares.map((share) => `${Math.round(share * 100)}%`).join(" → ")}`);
-    }
-    const master = interaction.options.getInteger("dungeon_master");
-    if (master !== null) {
-      const result = await setDungeonMasterCount(prisma, context.guildId, master);
-      changes.push(`Dungeon Master: ${result.before} → ${result.after} dungeons`);
-    }
-    if (changes.length) await log(`dungeon rules changed (${changes.join("; ")})`, { changes: changes.join("; ") });
-    const names = new Map((await prisma.dungeonRun.findMany({ where: { guildId: context.guildId }, distinct: ["instanceId"], select: { instanceId: true, dungeonName: true } }))
-      .map((row) => [row.instanceId, row.dungeonName]));
-    reply = `Guild participation points only. Public online scores use the same frozen season rules for every guild.\n\n${changes.length ? `Changed: ${changes.join("; ")}. New runs use this; points already given stay.\n\n` : ""}${describeConfig(await readConfig(prisma, context.guildId), names)}`;
-  } else if (subcommand === "target") {
-    const instanceId = Number(interaction.options.getString("dungeon", true));
-    if (!Number.isInteger(instanceId) || instanceId <= 0) throw new Error("Pick the dungeon from the list.");
-    const minutes = interaction.options.getNumber("minutes", true);
-    const min = interaction.options.getInteger("min_level"), max = interaction.options.getInteger("max_level"), difficultyId = interaction.options.getInteger("difficulty");
-    const hasBand = min !== null || max !== null || difficultyId !== null;
-    if (hasBand && (min === null || max === null || difficultyId === null)) throw new Error("Supply min_level, max_level and difficulty together.");
-    const seconds = await setTarget(prisma, context.guildId, instanceId, minutes, hasBand ? { min: min!, max: max!, difficultyId: difficultyId! } : undefined);
-    const run = await prisma.dungeonRun.findFirst({ where: { guildId: context.guildId, instanceId }, select: { dungeonName: true } });
-    const name = run?.dungeonName ?? `dungeon #${instanceId}`;
-    reply = (seconds === null ? `Removed the target time for ${name}.` : `Target time for ${name}: ${formatDuration(seconds)}. Clears at or under it earn the participation underTarget bonus.`)
-      + " Guild rating targets are frozen when a season starts; this change applies to the next guild rating season. Public online targets are unchanged.";
-    await log(reply, { instanceId, minutes });
+    reply = `Dungeon scoring settings are locked for all guilds. These shared participation rules apply to new awards; existing points stay. Season targets, level bands and penalties are shared and frozen. See /dungeon rules for the active season.\n\n${describeConfig(sharedDungeonConfig(), new Map())}`;
   } else if (subcommand === "bracket-preview") {
     await interaction.reply({ embeds: [provisionalSeasonEmbed()], flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
     return;
   } else if (subcommand === "recalibrate") {
     const key = interaction.options.getString("route", true);
-    const minutes = interaction.options.getInteger("minutes");
-    if (minutes === null) reply = describeEvidence(await recalibrationEvidence(prisma, context.guildId, key));
-    else {
-      const result = await recalibrateRoute(prisma, context.guildId, key, minutes);
-      reply = `**${result.route.name}**: target ${formatDuration(result.beforeSec)} → ${formatDuration(result.afterSec)} for runs ending from <t:${Math.floor(result.from.getTime() / 1000)}:f>, `
-        + `from ${result.times.length} real timed run(s) (median ${formatDuration(result.median!)}). Runs that ended earlier keep their score.`
-        + (result.rules.provisionalTargets ? "" : " Every route is now recalibrated: the season is no longer marked provisional.")
-        + " This changes the guild rating only. Public online scores keep their shared frozen rules.";
-      await log(reply, { seasonId: result.season.id, route: key, beforeSec: result.beforeSec, afterSec: result.afterSec });
-    }
+    reply = describeEvidence(await recalibrationEvidence(prisma, context.guildId, key));
   } else {
     // Seasons follow the bot owner's calendar (/guilded-season); officers no longer start them.
     reply = "Dungeon seasons are set by the Guilded owner for every guild. See them with `/organize dungeon-seasons preview`.";
   }
   await interaction.reply({ content: reply.slice(0, 1990), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
-  if (["award", "invalidate"].includes(subcommand) || subcommand === "recalibrate" && interaction.options.getInteger("minutes") !== null) {
+  if (["award", "invalidate"].includes(subcommand)) {
     await updateDungeonLeaderboard(interaction.guild);
   }
 }

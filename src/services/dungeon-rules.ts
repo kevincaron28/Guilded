@@ -83,7 +83,13 @@ export const DEFAULT_DUNGEON_CONFIG: DungeonConfig = {
   dungeonMasterCount: 10
 };
 
-// Guild settings JSON on top of the defaults; bad values fall back.
+// The effective participation policy is shared. Old guild overrides remain in storage
+// for historical snapshots only; they must never change new awards or rule displays.
+export function sharedDungeonConfig(): DungeonConfig {
+  return dungeonConfig(undefined);
+}
+
+// Legacy settings/snapshot decoder; do not use stored guild overrides for new awards.
 export function dungeonConfig(stored: unknown): DungeonConfig {
   const config: DungeonConfig = { ...DEFAULT_DUNGEON_CONFIG, targets: {}, levelBands: {}, weeklyRepeat: [...DEFAULT_DUNGEON_CONFIG.weeklyRepeat] };
   if (!stored || typeof stored !== "object") return config;

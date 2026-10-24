@@ -45,7 +45,7 @@ function panel(r: typeof rules) {
 describe("provisional all-level season in the addon", () => {
   it("says the targets are provisional and marks each provisional target", () => {
     const s = panel(rules);
-    expect(s.run("return P.note.text")).toBe("Levels 15-29: best 5 distinct routes. * = provisional target; officers may recalibrate it from real runs.");
+    expect(s.run("return P.note.text")).toBe("Levels 15-29: best 5 distinct routes. * = provisional target; shared and locked for the season.");
     expect(s.run('return CARD("The Deadmines")')).toContain("40:00*");
     expect(s.run('return CARD("Ragefire Chasm")')).toContain("20:00*");
   });

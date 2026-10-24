@@ -118,10 +118,10 @@ physical deletion is not necessary. Any removal of old displayed history must be
 scoped to this guild's dungeon competition, never other guild or product data.
 No live reset has been executed. The cutoff is prepared, not scheduled in production.
 
-Officer configuration: `/officer dungeon target` accepts minutes plus min_level,
-max_level and difficulty together; these copy into the next season's rules.
-`/officer dungeon season-start` accepts name and ends_at with an explicit timezone.
-Target/range edits do not retroactively move the goalposts in the current season.
+Current policy (24 October 2026): officers cannot change target times, level bands,
+difficulty or other scoring settings. New official seasons use shared frozen rules.
+See [the scoring lock](DUNGEON_SCORING_LOCK_2026-10-24.md). Historical season rules
+and earned scores remain readable without being rewritten.
 
 Deployment requires the migration, bot, rebuilt companion and addon together.
 The combined release now intentionally uses product version 6.1.0. Offline checks do not prove real-client UI layout,

@@ -11,7 +11,7 @@ interface StoredRun {
   invalidReason: string | null; startedAt: Date | null; endedAt: Date | null; durationSec: number | null; players: StoredPlayer[];
 }
 
-function fakeTx(season: { id: string; startsAt?: Date; endsAt?: Date; status?: string; ratingRules?: unknown } = { id: "season-1", startsAt: new Date(0) }) {
+function fakeTx(season: { id: string; startsAt?: Date; endsAt?: Date; status?: string; ratingRules?: unknown } = { id: "season-1", startsAt: new Date(0), ratingRules: ratingService.createDungeonRatingRules({}, 3, { "36": { min: 15, max: 25, difficultyId: 1 } }) }) {
   const runs: StoredRun[] = [];
   const points: { memberId: string; amount: number; source: string; runId: string }[] = [];
   const achievements: { memberId: string; key: string; runId: string }[] = [];
@@ -19,6 +19,7 @@ function fakeTx(season: { id: string; startsAt?: Date; endsAt?: Date; status?: s
     (where.instanceId === undefined || run.instanceId === where.instanceId) && (where.valid === undefined || run.valid === where.valid)
     && (where.state === undefined || run.state === where.state);
   const tx = {
+    officialSeason: { findFirst: async () => null },
     guildSettings: { findUnique: async () => ({ dungeonConfig: { levelBands: { "36": { min: 15, max: 25, difficultyId: 1 } } } }) },
     dungeonSeason: {
       findFirst: async () => null,
@@ -73,6 +74,20 @@ const total = (points: { memberId: string; amount: number }[], memberId: string)
   points.filter((row) => row.memberId === memberId).reduce((sum, row) => sum + row.amount, 0);
 
 describe("importDungeonRuns", () => {
+  it("ignores different saved guild overrides for new awards and preserves old transactions", async () => {
+    const first = fakeTx(), second = fakeTx();
+    const old = { memberId: "m-kev", amount: 999, source: "rule:completion", runId: "historic" };
+    first.points.push({ ...old }); second.points.push({ ...old });
+    const stored = { completion: 9999, noDeaths: 9999, weeklyRepeat: [1, 1, 1], dungeonMasterCount: 1,
+      levelBands: { "36": { min: 1, max: 100, difficultyId: 1 } }, targets: { "36": 9999 } };
+    second.tx.guildSettings.findUnique = vi.fn().mockResolvedValue({ dungeonConfig: stored });
+    await importDungeonRuns(first.tx, "g1", [run("shared")], characters, "officer", null, now);
+    await importDungeonRuns(second.tx, "g2", [run("shared")], characters, "officer", null, now);
+    expect(second.points.map(p => [p.memberId, p.amount, p.source, p.runId])).toEqual(first.points.map(p => [p.memberId, p.amount, p.source, p.runId]));
+    expect(second.points[0]).toEqual(old);
+    expect(second.achievements.map(a => [a.memberId, a.key])).toEqual(first.achievements.map(a => [a.memberId, a.key]));
+    expect(stored.completion).toBe(9999); // no destructive migration of historical settings
+  });
   it("retains observed build and timer convention without fabricating metadata for old runs", async () => {
     const { tx, runs } = fakeTx();
     await importDungeonRuns(tx, "g1", [run("metadata", { gameBuild: "12345", startTrigger: "first combat" })], characters, "officer", null, now);

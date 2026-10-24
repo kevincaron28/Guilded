@@ -77,8 +77,8 @@ function bracketGuide(rules: BracketedRules, fr: boolean): EmbedBuilder {
         : `ALL observed participants count, including guests and replacements. Above the route's band: −${rules.overlevelPenalty.percentPerLevel}% per level of the highest participant, up to ${rules.overlevelPenalty.maxLevels} levels; beyond that it is a carry and the run scores 0. Below the band: 0. Linked character, ≥80% presence, configured difficulty, valid import, detected final boss and every encounter required by the frozen route.` },
       rules.provisional
         ? { name: fr ? "Participation et historique" : "Participation and history", value: fr
-          ? "La participation suit les mêmes règles hebdomadaires que la saison niveau 60. Tranches et preuves sont figées pour la saison; une cible recalibrée ne vaut que pour les runs terminés après le changement. Les archives gardent chaque tranche séparément."
-          : "Participation follows the same weekly rules as the level-60 season. Brackets and evidence are frozen for the season; a recalibrated target applies only to runs that end after the change. Archives keep each bracket separately." }
+          ? "La participation suit les mêmes règles hebdomadaires que la saison niveau 60. Cibles, tranches et preuves sont communes et figées pour la saison; les ajustements attendent une future saison. Les archives gardent chaque tranche séparément."
+          : "Participation follows the same weekly rules as the level-60 season. Targets, brackets and evidence are shared and frozen for the season; adjustments wait for a future season. Archives keep each bracket separately." }
         : { name: fr ? "Participation et historique" : "Participation and history", value: fr
           ? "La participation suit les mêmes règles hebdomadaires que la saison niveau 60. Cibles, tranches et preuves sont figées pour la saison; les archives gardent chaque tranche séparément."
           : "Participation follows the same weekly rules as the level-60 season. Targets, brackets and evidence are frozen for the season; archives keep each bracket separately." },

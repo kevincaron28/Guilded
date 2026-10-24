@@ -5,7 +5,7 @@ import { asLang, t, tx, type Lang } from "../i18n.js";
 import { v2Reply, type V2Link } from "../services/components-v2.js";
 import { achievementName } from "../services/dungeon-achievements.js";
 import { ensureDungeonSignupGuide } from "../services/dungeon-guide.js";
-import { dungeonConfig, formatDuration } from "../services/dungeon-rules.js";
+import { sharedDungeonConfig, formatDuration } from "../services/dungeon-rules.js";
 import { dungeonScoringGuide } from "../services/dungeon-scoring-guide.js";
 import { novemberCatalogEmbeds } from "../services/dungeon-november-catalog.js";
 import { bracketPlanEmbed } from "../services/dungeon-bracket-plan.js";
@@ -116,9 +116,8 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
     return;
   }
   if (subcommand === "rules") {
-    const settings = await prisma.guildSettings.findUnique({ where: { guildId: context.guildId }, select: { dungeonConfig: true } });
     const season = await prisma.dungeonSeason.findFirst({ where: { guildId: context.guildId, status: "ACTIVE" }, orderBy: { startsAt: "desc" } });
-    await interaction.reply({ embeds: [dungeonScoringGuide(dungeonConfig(settings?.dungeonConfig), lang, season?.ratingRules)], flags: MessageFlags.Ephemeral });
+    await interaction.reply({ embeds: [dungeonScoringGuide(sharedDungeonConfig(), lang, season?.ratingRules)], flags: MessageFlags.Ephemeral });
     return;
   }
   if (subcommand === "archive" || subcommand === "hall-of-fame") {

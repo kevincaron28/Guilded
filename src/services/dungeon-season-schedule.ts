@@ -1,6 +1,3 @@
-import { provisionalSeasonRules } from "./dungeon-bracket-season.js";
-import { validBracketedRules } from "./dungeon-november-rules.js";
-
 // Season helpers shared by the owner's season calendar (official-seasons.ts). The monthly,
 // per-guild rotation of 7.1 is gone (7.3): the bot owner sets every season with /guilded-season.
 // The guild column GuildSettings.dungeonSeasonSchedule is no longer read.
@@ -22,9 +19,4 @@ export function zonedInstant(year: number, month: number, day: number, hour: num
   let at = wall - zoneOffset(wall, timeZone);
   at = wall - zoneOffset(at, timeZone);
   return new Date(at);
-}
-
-/** The rules the next season starts with: the active all-level season's own, or the provisional plan. */
-export function carriedRules(active: { ratingRules: unknown } | null): unknown {
-  return active && validBracketedRules(active.ratingRules) ? active.ratingRules : provisionalSeasonRules().rules;
 }

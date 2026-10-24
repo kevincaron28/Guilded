@@ -1,12 +1,13 @@
+import { publicRules, readRuleSnapshot } from "./public-score.js";
 import { bracketForLevel, resolveNovemberRoute, validBracketedRules, validRouteRules } from "./dungeon-november-rules.js";
 import { dungeonResetCutoff, predatesDungeonReset } from "./dungeon-reset.js";
 import type { Prisma } from "../generated/prisma/client.js";
 import { grantRunAchievements, type AchievementKey } from "./dungeon-achievements.js";
 import { findCharacter } from "./character-match.js";
-import { competitionReason, completionReason, createDungeonRatingRules, dungeonRating, hasDungeonRating, ratingCharacterKey, type LevelBand } from "./dungeon-rating.js";
+import { competitionReason, completionReason, dungeonRating, hasDungeonRating, ratingCharacterKey, type LevelBand } from "./dungeon-rating.js";
 import { participationDungeonKey, participationMode, participationRecordEligible, type ParticipationRun } from "./dungeon-participation.js";
 import {
-  computeRunPoints, computeWeeklyVarietyPoints, dungeonConfig, dungeonRunSchema, validateRun, weekStart,
+  computeRunPoints, computeWeeklyVarietyPoints, sharedDungeonConfig, dungeonRunSchema, validateRun, weekStart,
   type DungeonRunInput, type PlayerContext
 } from "./dungeon-rules.js";
 
@@ -16,7 +17,7 @@ import {
 // can never be counted twice (by run id, or by same dungeon + same players
 // + start within 2 minutes when two members reported it separately).
 
-type Tx = Pick<Prisma.TransactionClient, "dungeonRun" | "dungeonSeason" | "dungeonPointTransaction" | "guildSettings" | "dungeonAchievement">;
+type Tx = Pick<Prisma.TransactionClient, "officialSeason" | "dungeonRun" | "dungeonSeason" | "dungeonPointTransaction" | "guildSettings" | "dungeonAchievement">;
 
 interface LinkedCharacter { name: string; realm: string; memberId: string; spec?: string | null }
 
@@ -55,10 +56,16 @@ export interface DungeonImportSummary {
 
 const NEAR_DUPLICATE_SECONDS = 120;
 
-export async function activeSeason(tx: Pick<Prisma.TransactionClient, "dungeonSeason">, guildId: string, targets: Record<string, number> = {}, bands: Record<string, LevelBand> = {}) {
+export async function activeSeason(tx: Pick<Prisma.TransactionClient, "dungeonSeason" | "officialSeason">, guildId: string, now = new Date()) {
   const current = await tx.dungeonSeason.findFirst({ where: { guildId, status: "ACTIVE" }, orderBy: { startsAt: "desc" } });
   if (current) return current;
-  return tx.dungeonSeason.create({ data: { guildId, name: "Season 1", ratingRules: createDungeonRatingRules(targets, 3, bands) } });
+  // A guild joining mid-season must get the same frozen rules as an existing guild.
+  const official = await tx.officialSeason.findFirst({ where: { startsAt: { lte: now } }, orderBy: { startsAt: "desc" } });
+  const snapshot = official ? readRuleSnapshot(official.rules) : null;
+  if (official && !snapshot) throw new Error("Official dungeon rules must be frozen before guild seasons can start.");
+  return tx.dungeonSeason.create({ data: { guildId, name: official?.name ?? "Beta",
+    ...(official ? { startsAt: official.startsAt } : {}),
+    ratingRules: (snapshot?.rules ?? publicRules()) as unknown as Prisma.InputJsonValue } });
 }
 
 async function isNearDuplicate(tx: Tx, guildId: string, run: DungeonRunInput): Promise<boolean> {
@@ -100,9 +107,8 @@ export async function importDungeonRuns(
     })
     .sort((a, b) => (a.endedAt ?? a.startedAt ?? 0) - (b.endedAt ?? b.startedAt ?? 0));
   if (!runs.length) return summary;
-  const settings = await tx.guildSettings.findUnique({ where: { guildId } });
-  const config = dungeonConfig(settings?.dungeonConfig);
-  const season = await activeSeason(tx, guildId, config.targets, config.levelBands);
+  const config = sharedDungeonConfig();
+  const season = await activeSeason(tx, guildId, now);
   const rated = hasDungeonRating(season.ratingRules);
   const timed = rated && (season.ratingRules as { version: number }).version >= 3;
   const november = validRouteRules(season.ratingRules) ? season.ratingRules : undefined;

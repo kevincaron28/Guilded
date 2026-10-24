@@ -186,3 +186,12 @@ for the feature matrix, live findings, fixes, evidence and limits.
 - Full French companion translation, authenticated web acceptance, external
   score-card unfurls, native language review and real-client gates remain open.
   No additional Discord notifications or production changes were made.
+
+Latest CI observation for source head `2a209e47a442a16b66010c413a9aa0511a9c948c`:
+[run 40130206176](https://github.com/kevincaron28/Guilded/actions/runs/40130206176)
+passed the Linux `checks` job, including PostgreSQL integration and backup/restore.
+The Windows package job was still running when recorded. The external Cloudflare
+check still failed; its diagnostics URL requires a Cloudflare dashboard sign-in
+in this browser, so its cause is unresolved. No dashboard settings were changed.
+This final handoff update is documentation only; check the PR for subsequent
+exact-head results before deployment or merge.

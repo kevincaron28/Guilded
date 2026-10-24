@@ -20,6 +20,38 @@ function gameFolder(withToc = true) {
   return { root, file: join(saved, "Guilded.lua"), standings: join(addon, "Standings.lua"), data: join(root, "Interface", "AddOns", "GuildedData") };
 }
 
+it("quietly refreshes raid freshness, but logs real changes and missing-file repairs", async () => {
+  const game = gameFolder();
+  writeFileSync(game.file, 'GuildedDB = {}');
+  let fetchedAt = "2026-10-24T18:00:00Z";
+  let ep = 10;
+  let raids: { title: string }[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (url: URL | string) => ({ ok: true, status: 200, headers: new Headers(), json: async () =>
+    String(url).includes("/standings") ? { protocolVersion: 2, updatedAt: "2026-10-24T17:00:00Z", standings: [{ character: "Kev", main: true, ep, gp: 0 }], publicRaids: { fetchedAt, raids } } : {} })));
+  const writes: string[] = [];
+  const engine = createEngine({ watchFile: game.file, realm: "R", uploadUrl: "https://bot.test/api/v1/addon-imports", guildDiscordId: "1", companionCredential: "x".repeat(43), liveStandings: false }, {
+    onLog: ({ message }: { message: string }) => { if (message.startsWith("Updated addon data")) writes.push(message); }
+  });
+  try {
+    expect(await engine.start()).toBe(true);
+    const count = writes.length;
+    fetchedAt = "2026-10-24T18:02:00Z";
+    await engine.refreshStandings();
+    expect(writes).toHaveLength(count);
+    for (const path of [game.standings, join(game.data, "Standings.lua")]) expect(readFileSync(path, "utf8")).toContain(fetchedAt);
+    ep = 20;
+    await engine.refreshStandings();
+    expect(writes).toHaveLength(count + 1);
+    raids = [{ title: "New open raid" }];
+    await engine.refreshStandings();
+    expect(writes).toHaveLength(count + 2);
+    rmSync(game.standings);
+    await engine.refreshStandings();
+    expect(writes).toHaveLength(count + 3);
+    expect(readFileSync(game.standings, "utf8")).toContain("ep = 20");
+  } finally { await engine.stop(); }
+});
+
 const exported = {
   epgpTransactions: [
     { character: "Kev", sourceRef: "qg:Kev-1-1", epAmount: 10 },
@@ -176,7 +208,7 @@ describe("companion engine with a newer bot", () => {
     const errors: string[] = [];
     const engine = createEngine({ watchFile: game.file, realm: "R", uploadUrl: "https://bot.test/api/v1/addon-imports", guildDiscordId: "1", companionCredential: "x".repeat(43) }, {
       onLog: ({ level, message }: { level: string; message: string }) => {
-        if (message.startsWith("Wrote EPGP standings")) writes();
+        if (message.startsWith("Updated addon data")) writes();
         if (level === "error") errors.push(message);
       }
     });

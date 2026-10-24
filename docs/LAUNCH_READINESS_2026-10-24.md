@@ -28,6 +28,10 @@ real-client checks into passes.
 
 ## Work prepared without the game
 
+- Additional candidate features and the two-minute companion log fix are described
+  in [pre-launch features](PRELAUNCH_FEATURES_2026-10-24.md). The game is unavailable
+  until its release: live acceptance begins then, and Guilded public promotion
+  waits for the required passes. Earlier package hashes do not cover these changes.
 - The companion sync regression waits for completed writes of both standings files and drives
   the polling clock in the test. It checks the conditional 304 response followed by an
   unconditional repair fetch, compressed/delta uploads, current data and absence of errors.
@@ -61,9 +65,10 @@ real-client checks into passes.
 | Calibration | Gather representative crews/days under the recorded build and start convention. Review the guardrails and offline replay; do not change frozen targets or curves mid-season. |
 | Publication | After acceptance only: promote the exact tested artifacts, update provider metadata and verify public downloads and checksums. |
 
-Deferred enhancements are not required for the initial launch: generated score-card images,
-Components V2 raid signup layouts and alternative scoring curves. Raid seat presets, verified
-loot/GP tables and a full two-officer raid rehearsal belong to raid readiness. Native German/
+Generated score-card images, new-post Components V2 raid signups and editable raid presets
+are now prepared on the feature branch, pending final validation and human Discord acceptance.
+Alternative scoring curves remain deferred. Verified loot/GP tables and a full two-officer
+raid rehearsal belong to raid readiness. Native German/
 Spanish review needs reviewers; signing needs the owner's verified signing identity/service.
 Do not claim those are complete or purchase/enroll in services as part of this preparation.
 

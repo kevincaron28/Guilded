@@ -158,7 +158,7 @@ describe("leaderboard and personal pages", () => {
     expect(kev.body).toContain('class="meter"');
     // A pasted link previews the season score and the logo (Discord reads Open Graph tags).
     expect(kev.body).toMatch(/<meta property="og:description" content="Kev-Doomhowl: dungeon score \d+ \([^"]+\) · Season 1 · Guilded leaderboards\.">/);
-    expect(kev.body).toContain('<meta property="og:image" content="https://guilded.kcaron.top/logo.png">');
+    expect(kev.body).toContain('<meta property="og:image" content="https://guilded.kcaron.top/leaderboards/character/Kev-Doomhowl/card.png?lang=en">');
     expect(home.body).toContain('<meta property="og:title" content="');
     expect(home.body).toContain("Top guilds");
     expect(home.body).toContain('href="/leaderboards/guilds/?');

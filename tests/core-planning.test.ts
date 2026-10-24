@@ -3,8 +3,29 @@ import { coreComposition, planningOptions } from "../src/services/core-planning.
 import { parseWeeklySchedule, weeklyOccurrences } from "../src/services/core-weekly-time.js";
 import { fillCoreWeeklyRaids } from "../src/services/core-weekly-raids.js";
 import { createRaidService } from "../src/services/raid.js";
+import { RAID_PRESETS, presetComposition } from "../src/services/raid-presets.js";
 
 describe("core composition and launch planning", () => {
+  it("validates every suggested composition with the same form rules", () => {
+    for (const preset of RAID_PRESETS) {
+      expect(coreComposition(String(preset.raidSize), String(preset.tankLimit), String(preset.healerLimit), String(preset.dpsLimit)))
+        .toEqual(presetComposition(preset.id));
+    }
+    expect(() => presetComposition("unknown")).toThrow(/Unknown raid preset/);
+  });
+  it("uses explicit seats before a chosen preset, then core defaults; never edits the core", async () => {
+    const create = vi.fn(async (args: unknown) => args);
+    const db = { raidCore: { findFirst: vi.fn(async () => ({ id: "c", tankLimit: 4, healerLimit: 8, dpsLimit: 28 })) }, raid: { create } };
+    const service = createRaidService(db as never);
+    const input = { guildId: "g", coreId: "c", title: "Custom title", createdBy: "leader", scheduledAt: new Date(Date.now() + 86_400_000) };
+    await service.create({ ...input, preset: "barrow", tankLimit: 0, dpsLimit: 8 });
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ title: "Custom title", tankLimit: 0, healerLimit: 2, dpsLimit: 8 }) }));
+    create.mockClear();
+    await expect(service.create({ ...input, preset: "typo" })).rejects.toThrow(/Unknown raid preset/);
+    expect(create).not.toHaveBeenCalled();
+    await service.create(input);
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ tankLimit: 4, healerLimit: 8, dpsLimit: 28 }) }));
+  });
   it("supports independent ten- and twenty-player compositions including zero slots", () => {
     expect(coreComposition("10", "2", "2", "6")).toEqual({ raidSize: 10, tankLimit: 2, healerLimit: 2, dpsLimit: 6 });
     expect(coreComposition("20", "2", "4", "14").raidSize).toBe(20);

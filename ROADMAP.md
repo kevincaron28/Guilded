@@ -34,6 +34,10 @@ full raid still have outstanding acceptance checks.
 
 ## Next
 
+Candidate feature progress while the game is closed: [raid presets, signup layouts,
+score cards and quieter companion sync](docs/PRELAUNCH_FEATURES_2026-10-24.md).
+Game acceptance starts when access returns; public promotion still waits for it.
+
 1. Make independent guild setup clear and rehearse a clean install. Aim for
    30 minutes with hosting/database/DNS ready; see [QUICK_START.md](docs/QUICK_START.md).
 2. Test a genuinely fresh Discord guild and an ordinary member, and complete

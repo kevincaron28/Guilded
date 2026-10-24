@@ -23,6 +23,8 @@ import { guildService, requireGuildContext } from "./context.js";
 import { BRAND } from "../brand.js";
 import { pickSignupCharacter } from "./signup-character-picker.js";
 import { CHARACTER_DISPLAY_SELECT, loadClassEmojis } from "../services/character-display.js";
+import { RAID_PRESETS } from "../services/raid-presets.js";
+import { signupLayout } from "../services/signup-layout.js";
 
 const raidService = createRaidService(prisma);
 
@@ -37,6 +39,8 @@ export const raidCommand = new SlashCommandBuilder()
     .addStringOption((o) => o.setName("description").setDescription("Optional description"))
     .addStringOption((o) => o.setName("bosses").setDescription("Comma-separated boss names"))
     .addStringOption((o) => o.setName("core").setDescription("Raid core: its members get signup priority").setAutocomplete(true))
+    .addStringOption((o) => o.setName("preset").setDescription("Suggested seats; tanks/healers/dps override")
+      .addChoices(...RAID_PRESETS.map(p => ({ name: `${p.name} (${p.raidSize})`, value: p.id }))))
     .addBooleanOption((o) => o.setName("weekly").setDescription("Repeat every week: ending this raid creates the next one"))
     .addIntegerOption((o) => o.setName("tanks").setDescription("Tank slot cap").setMinValue(0))
     .addIntegerOption((o) => o.setName("healers").setDescription("Healer slot cap").setMinValue(0))
@@ -169,7 +173,8 @@ export async function syncSignupEmbed(discordGuild: DiscordGuild, guildId: strin
     const settings = await guildService.getSettings(guildId);
     const coreChannel = raid.coreId ? (await prisma.raidCore.findFirst({ where: { id: raid.coreId, guildId }, select: { signupChannelId: true } }))?.signupChannelId ?? null : null;
     await syncRaidPosts(discordGuild, prisma, raid, settings?.raidSignupChannelId ?? null, coreChannel,
-      { embeds: [embed], components: signupButtons(raid.id, raid.status, lang), allowedMentions: { parse: [] } });
+      { embeds: [embed], components: signupButtons(raid.id, raid.status, lang), allowedMentions: { parse: [] } },
+      signupLayout(embed, signupButtons(raid.id, raid.status, lang), lang));
     failedSignupSyncs.get(guildId)?.delete(raidId);
   } catch (error) {
     if (!failedSignupSyncs.has(guildId)) failedSignupSyncs.set(guildId, new Set());
@@ -247,6 +252,7 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     const dps = interaction.options.getInteger("dps");
     const title = interaction.options.getString("title", true);
     const coreName = interaction.options.getString("core");
+    const preset = interaction.options.getString("preset");
     let core = coreName ? await createRaidCoreService(prisma).byIdOrName(context.guildId, coreName) : null;
     let coreGuessed = false;
     if (!core) {
@@ -260,6 +266,7 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
       ...(core ? { coreId: core.id } : {}),
       guildId: context.guildId,
       title,
+      ...(preset ? { preset } : {}),
       scheduledAt: await readRaidTime(context.guildId, interaction.options.getString("time", true)),
       createdBy: interaction.user.id,
       ...(interaction.options.getBoolean("weekly") ? { repeatWeekly: true } : {}),

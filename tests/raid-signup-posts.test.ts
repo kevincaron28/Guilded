@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { serializeRaidPosts, syncRaidPosts } from "../src/services/raid-signup-posts.js";
+import { EmbedBuilder, MessageFlags } from "discord.js";
+import { signupLayout } from "../src/services/signup-layout.js";
 
-function fixture(legacy = false) {
+function fixture(legacy = false, modern = false) {
   const row = { status: "PLANNED" as "PLANNED" | "ACTIVE" | "COMPLETED" | "CANCELLED", scheduledAt: new Date(Date.now() + 86400000), id: "raid", guildId: "guild", signupChannelId: legacy ? "core" : null, signupMessageId: legacy ? "old" : null, mirrorSignupChannelId: null as string | null, mirrorSignupMessageId: null as string | null };
   const copies = new Map<string, Map<string, { id: string; edit: (body: unknown) => Promise<void> }>>();
   const payloads: unknown[] = [];
@@ -17,7 +19,7 @@ function fixture(legacy = false) {
     } },
     send: async (body: unknown) => {
       payloads.push(body); sends++;
-      const message = { id: `post-${sends}`, edit: async (body: unknown) => { payloads.push(body); } };
+      const message = { id: `post-${sends}`, flags: { has: (flag: number) => (body as { flags?: number }).flags === flag }, edit: async (body: unknown) => { payloads.push(body); } };
       if (!copies.has(id)) copies.set(id, new Map());
       copies.get(id)!.set(message.id, message);
       return message;
@@ -28,11 +30,26 @@ function fixture(legacy = false) {
     expect(where).toEqual({ id: "raid", guildId: "guild" }); Object.assign(row, data);
   } } };
   const payload = { embeds: [], components: [], allowedMentions: { parse: [] as never[] } };
-  const sync = (general: string | null = "general", core: string | null = "core") => syncRaidPosts(guild as never, database as never, { ...row }, general, core, payload);
+  const modernPayload = modern ? signupLayout(new EmbedBuilder().setTitle("Raid"), [], "en") : undefined;
+  const sync = (general: string | null = "general", core: string | null = "core") => syncRaidPosts(guild as never, database as never, { ...row }, general, core, payload, modernPayload);
   return { row, copies, sync, payloads, payload, sends: () => sends, forbid: () => { forbidden = true; }, allow: () => { forbidden = false; } };
 }
 
 describe("one raid roster with two Discord posts", () => {
+  it("keeps an existing embed and uses V2 for its new mirror, including later edits", async () => {
+    const f = fixture(true, true);
+    await f.sync();
+    await f.sync();
+    expect(f.sends()).toBe(1);
+    expect(f.payloads[0]).toMatchObject({ flags: MessageFlags.IsComponentsV2 });
+    expect(f.payloads[1]).toEqual(f.payload);
+    expect(f.payloads[2]).toMatchObject({ flags: MessageFlags.IsComponentsV2 });
+    expect(f.payloads[3]).toEqual(f.payload);
+    f.row.status = "COMPLETED";
+    await f.sync();
+    expect(f.payloads[4]).toMatchObject({ flags: MessageFlags.IsComponentsV2 });
+    expect(f.sends()).toBe(1);
+  });
   afterEach(() => vi.useRealTimers());
 
   it.each(["PLANNED", "ACTIVE", "COMPLETED", "CANCELLED"] as const)("does not repost an October 1 raid left %s on October 3", async status => {

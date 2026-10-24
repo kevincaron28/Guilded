@@ -394,8 +394,8 @@ export function createEngine(initialConfig, hooks = {}) {
     features = new Set(Array.isArray(result.body?.features) ? result.body.features : []);
     ack = acknowledgements(result.body);
     state.botVersion = result.botVersion ?? state.botVersion;
-    state.lastStandings = { at: new Date().toISOString(), message: result.unchanged ? `Standings already up to date (${result.count} characters).` : `Wrote standings for ${result.count} character(s).` };
-    if (!result.unchanged) log("ok", `Wrote EPGP standings for ${result.count} character(s) to ${result.path}.`);
+    state.lastStandings = { at: new Date().toISOString(), message: result.unchanged || result.refreshOnly ? `Standings already up to date (${result.count} characters).` : `Wrote standings for ${result.count} character(s).` };
+    if (!result.unchanged && !result.refreshOnly) log("ok", `Updated addon data for ${result.count} character(s) in ${result.path}.`);
     else hooks.onState?.(snapshot());
     return result;
   }

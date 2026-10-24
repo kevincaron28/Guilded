@@ -398,7 +398,7 @@ After each import, completed runs and new records are posted once in the dungeon
 
 | Command | What it does |
 | --- | --- |
-| `/lead create <title> <time> [description] [bosses] [core] [weekly] [tanks] [healers] [dps]` | Create a raid. Time like `friday 8pm`, `tonight 20:00`, `vendredi 20h`, `2026-10-03 20:00` (your server's timezone). `weekly:true` makes ending it create the next one a week later. Posts the signup message with Tank / Healer / DPS / Maybe / Can't come buttons |
+| `/lead create <title> <time> [description] [bosses] [core] [preset] [weekly] [tanks] [healers] [dps]` | Create a raid. Time like `friday 8pm`, `tonight 20:00`, `vendredi 20h`, `2026-10-03 20:00` (your server's timezone). Presets `barrow`, `hyjal`, `onyxia` suggest role seats; explicit seat counts override them. `weekly:true` repeats after ending. Posts Tank / Healer / DPS / Maybe / Can't come buttons |
 | `/lead edit` / `cancel` / `start` | Manage the raid (raising a cap moves waitlisted players in) |
 | `/lead end <raid>` | End the raid and see the **proposed EP** with Approve / Cancel buttons |
 | `/lead award-ep <raid>` | Show the proposed EP again (e.g. after `/import apply` added attendance) |

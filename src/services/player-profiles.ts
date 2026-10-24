@@ -1,5 +1,5 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
-import { characterPath, leaderRun, PUBLIC_RUN_SELECT, type LeaderRun } from "./public-leaderboard.js";
+import { characterPath, runPath, leaderRun, PUBLIC_RUN_SELECT, type LeaderRun } from "./public-leaderboard.js";
 import { scoreRun } from "./public-score.js";
 import { formatDuration } from "./dungeon-rules.js";
 import { escapeHtml, link } from "./web-layout.js";
@@ -56,7 +56,7 @@ export function createPlayerProfiles(store: ProfileStore): { route: WebRoute; me
     const characters = profile.characters.map(char => `<li><a href="${link(characterPath({ character: char.name, realm: char.realm }), lang)}">${escapeHtml(char.name)}</a> · ${escapeHtml(char.realm)} <span class="tag">${char.source === "guild" ? t("Linked in Discord", "Lié dans Discord") : t("Companion character", "Personnage du compagnon")}</span></li>`).join("");
     const runs = profile.runs.map(run => {
       const score = scoreRun(run);
-      return `<tr><td>${escapeHtml(run.dungeonName)}</td><td>${run.endedAt.toISOString().slice(0, 10)}</td><td>${formatDuration(run.durationSec)}</td><td>${score ? `${score.points}` : "—"}</td><td>${run.confirmations >= 2 ? t("Party confirmed", "Confirmé par le groupe") : t("One upload", "Un envoi")}</td></tr>`;
+      return `<tr><td><a href="${link(runPath(run.runId), lang)}">${escapeHtml(run.dungeonName)}</a></td><td>${run.endedAt.toISOString().slice(0, 10)}</td><td>${formatDuration(run.durationSec)}</td><td>${score ? `${score.points}` : "—"}</td><td>${run.confirmations >= 2 ? t("Party confirmed", "Confirmé par le groupe") : t("One upload", "Un envoi")}</td></tr>`;
     }).join("");
     return `<h2>${t("Characters", "Personnages")}</h2>${characters ? `<ul>${characters}</ul>` : `<p>${t("No linked characters yet. Link a character in your guild's Discord, or upload a completed run with your personal companion.", "Aucun personnage lié. Liez un personnage dans le Discord de votre guilde ou envoyez un donjon terminé avec votre compagnon personnel.")}</p>`}`
       + `<h2>${t("Recent public runs", "Donjons publics récents")}</h2><p>${t("Latest 50 accepted runs. Open a character for seasonal scores and best runs. Uploads are community reports, not Blizzard verification.", "Les 50 derniers donjons acceptés. Ouvrez un personnage pour ses scores saisonniers et meilleurs donjons. Les envois sont des rapports communautaires, sans vérification de Blizzard.")}</p>`

@@ -43,6 +43,7 @@ textarea{min-height:120px}button,.button{cursor:pointer;border:0;font:inherit}bu
 .code{font:700 28px/1.2 ui-monospace,Consolas,monospace;letter-spacing:.12em;color:var(--gold)}`;
 
 export interface LayoutInput {
+  shareImage?: string;
   lang: Lang; title: string; description?: string; path: string; body: string; noindex?: boolean;
   account: { username: string; displayName: string | null } | null; csrf: string | null; signInOn: boolean;
 }
@@ -62,8 +63,9 @@ export function layout(input: LayoutInput): string {
     + `<title>${escapeHtml(input.title)} · Guilded</title><meta name="description" content="${description}">${input.noindex ? '<meta name="robots" content="noindex">' : ""}`
     // Link previews (Discord, social sites): a pasted page shows its title, summary and the logo.
     + `<meta property="og:site_name" content="Guilded"><meta property="og:type" content="website"><meta property="og:title" content="${escapeHtml(input.title)}">`
-    + `<meta property="og:description" content="${description}"><meta property="og:image" content="${SHARE_IMAGE}"><meta property="og:locale" content="${input.lang === "fr" ? "fr_CA" : "en_CA"}">`
-    + `<meta name="twitter:card" content="summary"><meta name="theme-color" content="#d4af37">`
+    + `<meta property="og:description" content="${description}"><meta property="og:image" content="${escapeHtml(input.shareImage ?? SHARE_IMAGE)}"><meta property="og:locale" content="${input.lang === "fr" ? "fr_CA" : "en_CA"}">`
+    + (input.shareImage ? '<meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">' : "")
+    + `<meta name="twitter:card" content="${input.shareImage ? "summary_large_image" : "summary"}"><meta name="theme-color" content="#d4af37">`
     + `<style>${PAGE_STYLE}\n${FORM_STYLE}</style></head><body><main>${siteHeader(input.lang, input.path)}<div class="who">${[...who, language].join("")}</div>${input.body}`
     + `<footer>${t("Made with", "Créé avec")} <a href="https://guilded.kcaron.top/">Guilded</a>. ${t("Not affiliated with Blizzard Entertainment.", "Sans affiliation avec Blizzard Entertainment.")}</footer></main></body></html>`;
 }

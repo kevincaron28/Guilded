@@ -331,7 +331,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         });
         if (answer) {
           response.writeHead(answer.status, answer.headers);
-          response.end(request.method === "HEAD" ? undefined : answer.body);
+          response.end(request.method === "HEAD" ? undefined : answer.binaryBody ?? answer.body);
           return;
         }
       }

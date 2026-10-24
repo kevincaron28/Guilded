@@ -19,6 +19,9 @@ export function resolveStandingsPath(config) {
 // Older bots stamp every answer with the time of the request; compare the rest so an unchanged
 // table does not rewrite the file (the game only reads it on reload anyway).
 export const withoutStamps = (value) => value.replace(/updatedAt = "[^"]*",/g, "");
+// Public vacancies expire after ten minutes in the addon. Keep writing their
+// freshness stamp, but do not announce that heartbeat as an EP/GP change.
+const withoutRefreshStamps = (value) => withoutStamps(value).replace(/fetchedAt = "[^"]*",/g, "");
 
 // Fetches the standings and writes them for the addon.
 // `options.etag`: the ETag of the answer already written. The bot then answers 304 when nothing
@@ -47,8 +50,13 @@ export async function writeStandings(config, signal, options = {}) {
   }
   if (body.protocolVersion !== 2) throw new Error("Update the bot before using this companion (sync protocol 2 required).");
   const text = standingsToLua(body);
-  let unchanged;
-  try { unchanged = withoutStamps(await readFile(path, "utf8")) === withoutStamps(text); } catch { unchanged = false; }
+  let unchanged = false;
+  let refreshOnly = false;
+  try {
+    const current = await readFile(path, "utf8");
+    unchanged = withoutStamps(current) === withoutStamps(text);
+    refreshOnly = !unchanged && withoutRefreshStamps(current) === withoutRefreshStamps(text);
+  } catch { /* Missing file: restore it and report the repair. */ }
   signal?.throwIfAborted();
   if (!unchanged) {
     const temporary = `${path}.${process.pid}.tmp`;
@@ -61,7 +69,7 @@ export async function writeStandings(config, signal, options = {}) {
   if (config.dataAddon !== false) {
     try { dataPath = await writeDataAddon(path, text, body.updatedAt, signal); } catch { signal?.throwIfAborted(); dataPath = null; }
   }
-  return { notModified: false, etag, body, path, dataPath, text, count: body.standings.length, unchanged, botVersion: body.botVersion };
+  return { notModified: false, etag, body, path, dataPath, text, count: body.standings.length, unchanged, refreshOnly, botVersion: body.botVersion };
 }
 
 // True when the addon's Standings.lua still holds `text` (an addon update replaces it with the

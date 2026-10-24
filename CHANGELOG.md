@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Pre-launch features (candidate only): editable raid seat presets in `/lead create`
+  and core Size & roles; Components V2 for new raid signup posts with existing post
+  links/layouts preserved; downloadable PNG cards and link previews for public
+  characters and accepted runs. Real Discord rendering/button checks remain pending.
+- Companion: silently refresh public-raid freshness timestamps instead of logging
+  an EPGP sync every two minutes. Data changes and repaired files still log; vacancy
+  expiry, polling and upload speed remain intact.
 - Launch preparation: stabilize the companion sync regression around completed writes and
   controlled polling; include Guilded Dungeons and packaged companion-source checks in release
   verification/CI. Refresh English/French setup guides and publication drafts, with an explicit

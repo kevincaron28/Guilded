@@ -57,15 +57,16 @@ const form = document.querySelector('#open-companion');
 form?.addEventListener('submit', event => {
   event.preventDefault();
   const result = document.querySelector('#address-result');
+  const fr = document.documentElement.lang === 'fr';
   try {
     const url = new URL(document.querySelector('#guild-address').value.trim());
-    if (url.protocol !== 'https:' || url.username || url.password) throw new Error('Use your guild’s HTTPS address without a username, password or token.');
+    if (url.protocol !== 'https:' || url.username || url.password) throw new Error(fr ? 'Utilisez l’adresse HTTPS de votre guilde, sans identifiant, mot de passe ni jeton.' : 'Use your guild’s HTTPS address without a username, password or token.');
     const guild = url.searchParams.get('guild');
     url.pathname = '/companion/'; url.search = ''; url.hash = '';
     if (guild && /^\d{17,20}$/.test(guild)) url.searchParams.set('guild', guild);
-    const link = document.createElement('a'); link.href = url.href; link.textContent = 'Continue to ' + url.hostname + ' →';
+    const link = document.createElement('a'); link.href = url.href; link.textContent = (fr ? 'Continuer vers ' : 'Continue to ') + url.hostname + ' →';
     result.replaceChildren(link);
-  } catch (error) { result.textContent = error.message || 'Enter your guild’s complete HTTPS address.'; }
+  } catch (error) { result.textContent = error instanceof TypeError ? (fr ? 'Saisissez l’adresse HTTPS complète de votre guilde.' : 'Enter your guild’s complete HTTPS address.') : error.message; }
 });
 for (const block of document.querySelectorAll('pre')) {
   const code = block.querySelector('code');

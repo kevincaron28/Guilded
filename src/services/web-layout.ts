@@ -66,7 +66,7 @@ export function layout(input: LayoutInput): string {
     + `<meta property="og:description" content="${description}"><meta property="og:image" content="${escapeHtml(input.shareImage ?? SHARE_IMAGE)}"><meta property="og:locale" content="${input.lang === "fr" ? "fr_CA" : "en_CA"}">`
     + (input.shareImage ? '<meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">' : "")
     + `<meta name="twitter:card" content="${input.shareImage ? "summary_large_image" : "summary"}"><meta name="theme-color" content="#d4af37">`
-    + `<style>${PAGE_STYLE}\n${FORM_STYLE}</style></head><body><main>${siteHeader(input.lang, input.path)}<div class="who">${[...who, language].join("")}</div>${input.body}`
+    + `<style>${PAGE_STYLE}\n${FORM_STYLE}</style></head><body><a class="skip" href="#content">${t("Skip to content", "Aller au contenu")}</a><main>${siteHeader(input.lang, input.path)}<div class="who">${[...who, language].join("")}</div><div id="content" tabindex="-1">${input.body}</div>`
     + `<footer>${t("Made with", "Créé avec")} <a href="https://guilded.kcaron.top/">Guilded</a>. ${t("Not affiliated with Blizzard Entertainment.", "Sans affiliation avec Blizzard Entertainment.")}</footer></main></body></html>`;
 }
 

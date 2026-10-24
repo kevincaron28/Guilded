@@ -125,10 +125,12 @@ const ROLE_LABEL = { TANK: { en: "Tank", fr: "Tank" }, HEALER: { en: "Healer", f
 
 export const PAGE_STYLE = `:root{color-scheme:dark;--bg:#111312;--panel:#1a1e1b;--line:#353b32;--text:#f1eee4;--muted:#b9c0b2;--gold:#e8c47c}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
+:where(a,button,input,select,textarea,summary,[tabindex]):focus-visible{outline:3px solid #9dc7f0;outline-offset:4px}
+.skip{position:absolute;left:16px;top:8px;transform:translateY(-200%);padding:10px 16px;background:var(--panel);z-index:10}.skip:focus{transform:none}
 main{max-width:960px;margin:auto;padding:48px 20px}h1{font-size:clamp(34px,6vw,56px);line-height:1.1;margin:8px 0 16px}h2{font-size:26px;margin:48px 0 16px}h3{font-size:20px;margin:0 0 6px}
 a{color:var(--gold)}.eyebrow{color:var(--gold);font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin:0}
 .muted{color:var(--muted)}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:22px}.card p{margin:6px 0}
+.card{min-width:0;overflow-wrap:anywhere;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:22px}.card p{margin:6px 0}
 table{width:100%;border-collapse:collapse;font-size:15px}th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}th{color:var(--muted);font-weight:600}
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}.table-wrap{overflow-x:auto}.tag{color:var(--muted);font-size:13px}
 .button{display:inline-block;background:var(--gold);color:#16130b;font-weight:700;padding:12px 20px;border-radius:6px;text-decoration:none}

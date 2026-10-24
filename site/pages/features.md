@@ -5,7 +5,7 @@
 <div class="actions"><a class="button" href="https://www.curseforge.com/wow/addons/guilded">Get the free addon <span aria-hidden="true">↗</span></a><a class="button secondary" href="../docs/MEMBER_INSTALL.html">Install guide <span aria-hidden="true">→</span></a></div>
 </section>
 
-<div class="feature-overview"><div><span class="number">01 / IN GAME</span><h2>Start where you play.</h2><p>Guild knowledge, standings and dungeon history in familiar WoW windows.</p></div><div><span class="number">02 / COMPANION</span><h2>Take it online.</h2><p>Send saved data to Discord or the public leaderboards. Browser or Windows.</p></div><div><span class="number">03 / DISCORD</span><h2>Keep the guild close.</h2><p>Signups, activities and polls. The hosted bot needs approval.</p></div></div>
+<div class="feature-overview"><div><span class="number">01 / IN GAME</span><h2>Start where you play.</h2><p>Guild knowledge, standings and dungeon history in familiar WoW windows.</p></div><div><span class="number">02 / COMPANION</span><h2>Take it online.</h2><p>Send saved data to Discord or the public leaderboards. Browser or Windows.</p></div><div><span class="number">03 / DISCORD</span><h2>Keep the guild close.</h2><p>Signups, activities and polls. Guilded Lite works as soon as you add the bot.</p></div></div>
 
 ## In game, no Discord needed
 
@@ -15,7 +15,7 @@ Recipes, the guild map, attendance, loot and EP/GP standings, shared with your g
 
 ## Dungeon runs and seasons
 
-The dungeon finder's **Guilded** tab shows your recent runs, personal progress, guild rankings and past seasons. Runs are recorded without a connection; the [public leaderboards](/leaderboards/) need the companion.
+The dungeon finder's **Guilded** tab shows your recent runs, personal progress, guild rankings and past seasons. Runs are recorded without a connection; the [public leaderboards](/leaderboards/) need the companion. Public scoring rules are shared by every guild and frozen for the season. Unverified routes remain unrated.
 
 Prefer just dungeons? **Guilded Dungeons** is the standalone tracker, with no guild
 required. Sign in with Discord to sync finished runs, see your public player profile,

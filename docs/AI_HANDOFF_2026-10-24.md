@@ -154,3 +154,35 @@ For Claude's review:
 
 **Public release stays on hold.** A passing code suite, successful installation
 or controlled bot deployment does not satisfy the real-client release gates.
+
+## Website review and polish added later in this session
+
+Kevin asked whether all features were present and requested a full site polish
+review. The answer is: the core features exist, but acceptance and several
+content/localization/distribution gaps remain. Read `SITE_REVIEW_2026-10-24.md`
+for the feature matrix, live findings, fixes, evidence and limits.
+
+- Checked the live public site and the built local candidate. Fixed French
+  navigation continuity, added a complete French Features page, translated the
+  home footer/title/accessibility labels and localized setup-helper messages.
+- Fixed language selection reverting after reload by updating its URL query.
+  Added focusable skip-link targets, public-page focus styling and larger menu
+  targets. Improved module/font/extensionless-route handling in the static preview.
+- Live install documentation is outdated; its corrected source is already in
+  the stacked preparation branch. No public publication was performed here.
+- Checked 15 built pages / 366 internal references without missing targets;
+  15 public HTTP checks passed and signed-out `/me/` correctly returned 401.
+  Mobile 320/390px and desktop 1280px checks passed for the reviewed layouts.
+  Screenshot is privately saved as `output/site-polish-2026-10-24.png`.
+- Latest local suite: 267 files / 2,250 tests, TypeScript, ESLint, both addon
+  validators, site build and Worker dry-run. Logs: `backups/site-polish-final-*.log`.
+- CI for `c46c10b` did **not** pass: run 40128834859's Windows job passed, but the
+  PostgreSQL integration fixture still expected guild overrides to create timed
+  rules. `scripts/verify-dungeon-rating-postgres.ts` now verifies overrides are
+  ignored and uses explicit historical presets for its unchanged score/archive
+  assertions. Check the new head's CI; never substitute an older passing run.
+- The old head's external Cloudflare check failed without annotations. Local
+  Worker dry-run passes, but remote check success remains separately required.
+- Full French companion translation, authenticated web acceptance, external
+  score-card unfurls, native language review and real-client gates remain open.
+  No additional Discord notifications or production changes were made.

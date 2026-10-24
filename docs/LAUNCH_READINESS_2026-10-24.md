@@ -38,6 +38,10 @@ real-client checks into passes.
   without claiming that every recorded run earns a competitive score.
 - Package verification now includes the standalone ZIP, its source contents and clean accepted
   data, both addons in CI artifacts, companion source comparisons, and dirty-source reporting.
+- Updated both lockfiles for the newly reported [undici advisory](https://github.com/advisories/GHSA-xjj6-f33q-929c)
+  and [fast-uri advisory](https://github.com/advisories/GHSA-w74x-v6f9-j3xg). Changes retain the
+  existing major versions (6.29.1 / 7.30.1 and 3.1.9); Miniflare needs a scoped override because
+  its dependency was pinned. No Wrangler downgrade or product-version change is needed.
 - The sync test file passed 12 consecutive local runs. The read-only bug-inbox check found no
   open member reports and one historical connection-pool timeout from 19 October on 6.7.0;
   it has not recurred in that inbox. Ledger source references were unique. The old error stays

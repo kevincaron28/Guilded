@@ -28,6 +28,10 @@ real-client checks into passes.
 
 ## Work prepared without the game
 
+- [Discord acceptance progress](DISCORD_ACCEPTANCE_2026-10-24.md) records private
+  Quebec Gold command/signup checks, cleanup, the character-picker language fix,
+  and remaining interaction gates. Public online scoring already uses common
+  season-frozen rules; guild-local dungeon controls are now labelled separately.
 - Additional candidate features and the two-minute companion log fix are described
   in [pre-launch features](PRELAUNCH_FEATURES_2026-10-24.md). The game is unavailable
   until its release: live acceptance begins then, and Guilded public promotion

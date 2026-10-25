@@ -12,7 +12,7 @@ export async function verifyActivityCoresPostgres(db: PrismaClient, guildId: str
   const session = await db.activitySession.findFirstOrThrow({ where: { coreId: core.id } });
   assert.equal(await db.discordJob.count({ where: { guildId, key: `team-session:${session.id}` } }), 1);
   const people = await Promise.all(Array.from({ length: 5 }, (_, i) => db.member.create({ data: { guildId, discordUserId: `team-player-${i}`, displayName: `Team ${i}`,
-    characters: { create: { name: `TeamPlayer${i}`, realm: "TeamRelease", className: "Warrior" } } }, include: { characters: true } })));
+    characters: { create: { guildId, name: `TeamPlayer${i}`, realm: "TeamRelease", className: "Warrior" } } }, include: { characters: true } })));
   for (const member of people) await setTeamMember(db, guildId, core.id, member.id, "DPS", member === people[4], member.characters[0]!.id);
   await Promise.all(people.map(member => respondToSession(db, guildId, session.id, member.id, "CONFIRMED", "DPS", null, now)));
   assert.equal(await db.activityResponse.count({ where: { sessionId: session.id, status: "CONFIRMED" } }), 3);

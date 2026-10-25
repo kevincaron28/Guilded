@@ -22,6 +22,11 @@ function fakeDatabase(raid: Record<string, unknown>, coreMembers: string[]) {
     raid: { findFirst: async () => raid, findUnique: async () => raid },
     raidCoreMember: { findMany: async () => coreMembers.map((memberId) => ({ memberId })) },
     raidSignup: {
+      // A copy, as Prisma returns: the later upsert must not change what was read.
+      findUnique: async ({ where }: { where: { raidId_memberId: { memberId: string } } }) => {
+        const row = signups.find((s) => s.memberId === where.raidId_memberId.memberId);
+        return row ? { ...row } : null;
+      },
       count: async ({ where }: { where: Record<string, unknown> }) => signups.filter((s) => matches(s, where)).length,
       findMany: async ({ where, orderBy }: { where: Record<string, unknown>; orderBy?: { signedUpAt: "asc" | "desc" } }) => {
         const rows = signups.filter((s) => matches(s, where));

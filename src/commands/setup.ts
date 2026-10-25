@@ -768,8 +768,9 @@ export async function createSectionChannels(guild: DiscordGuild, guildId: string
       await existing.permissionOverwrites.set(overwrites);
       if (category) await existing.setParent(category.id, { lockPermissions: false });
     }
-    // Save each channel before posting guides so a partial setup remains recoverable.
-    await guildService.updateSettings(guildId, { [field]: channel.id });
+    // Save each channel before posting guides so a partial setup remains recoverable. Setup making
+    // the WoW report's own channel turns the weekly report on (step 7 can still turn it off).
+    await guildService.updateSettings(guildId, { [field]: channel.id, ...(field === "weeklyReportChannelId" ? { weeklyReportEnabled: true } : {}) });
     if (field === "answerChannelId") forgetAnswerSettings(guild.id);
     if (spec.forum && channel.type === ChannelType.GuildForum) await postBoardGuide(channel, lang).catch((error: unknown) => guidedFor(`<#${channel.id}>`, error));
     if (field === "guideChannelId" && channel.isTextBased()) await ensureBotGuide(channel, lang).catch((error: unknown) => guidedFor(`<#${channel.id}>`, error));

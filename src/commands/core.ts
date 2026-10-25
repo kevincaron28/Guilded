@@ -7,7 +7,7 @@ import { runCoreEditor } from "./core-editor.js";
 import { describeRules, effectiveRules, LOOT_MODE_LABEL, LOOT_MODES } from "../services/core-rules.js";
 import { executeCoreItems } from "./core-items.js";
 import { coreSpotLabel, createRaidCoreService, ensureCoreDiscord, removeCoreRosterMessage, syncCoreRoster } from "../services/raid-core.js";
-import { deleteCoreDiscord, renameCoreDiscord } from "../services/core-channels.js";
+import { coreChannelLanguage, deleteCoreDiscord, renameCoreDiscord } from "../services/core-channels.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { fillCoreWeeklyRaids, saveCoreWeeklySchedule } from "../services/core-weekly-raids.js";
 import { parseWeeklySchedule } from "../services/core-weekly-time.js";
@@ -155,7 +155,7 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
   if (subcommand === "rename") {
     const before = await coreService.byIdOrName(guildId, interaction.options.getString("core", true));
     const renamed = await coreService.rename(guildId, before.id, interaction.options.getString("name", true));
-    if (interaction.guild) await renameCoreDiscord(interaction.guild, renamed);
+    if (interaction.guild) await renameCoreDiscord(interaction.guild, renamed, await coreChannelLanguage(prisma, guildId));
     await syncCoreRoster(interaction.guild, prisma, guildId, renamed.id);
     await interaction.reply({ content: `Renamed **${before.name}** to **${renamed.name}**. In game the new name arrives with the next companion upload.`, flags: MessageFlags.Ephemeral });
     return;

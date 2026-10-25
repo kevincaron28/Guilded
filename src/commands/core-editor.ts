@@ -8,7 +8,7 @@ import type { RaidRole } from "../generated/prisma/client.js";
 import { prisma } from "../database.js";
 import { coreRosterEmbed, createRaidCoreService, removeCoreRosterMessage, syncCoreRoster } from "../services/raid-core.js";
 import { createItemValueService, parseItemValues, priceDraft } from "../services/item-values.js";
-import { createCoreChannels, renameCoreDiscord } from "../services/core-channels.js";
+import { coreChannelLanguage, createCoreChannels, renameCoreDiscord } from "../services/core-channels.js";
 import { pricesModal } from "./core-wizard.js";
 import { guildService } from "./context.js";
 import { editCoreSchedule, editCoreComposition } from "./core-planning.js";
@@ -200,7 +200,7 @@ export async function runCoreEditor(interaction: ChatInputCommandInteraction, gu
         try {
           const renamed = await coreService.rename(guildId, core.id, submitted.fields.getTextInputValue("name"), submitted.fields.getTextInputValue("description"));
           const name = renamed.name;
-          if (interaction.guild) await renameCoreDiscord(interaction.guild, renamed);
+          if (interaction.guild) await renameCoreDiscord(interaction.guild, renamed, await coreChannelLanguage(prisma, guildId));
           await submitted.deferUpdate();
           await refresh(`Renamed to ${name}.`);
         } catch (error) {

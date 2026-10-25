@@ -42,10 +42,15 @@ export function coreSlug(name: string): string {
   return slug || "core";
 }
 
-export function coreChannelNames(name: string) {
+// French suffixes stay the default: existing guilds' channels keep the names they were made with.
+export function coreChannelNames(name: string, language: string | null = "fr") {
   const slug = coreSlug(name);
-  return { category: `⚔️ ${name}`.slice(0, 100), roster: `${slug}-roster`, signups: `${slug}-signups`, loot: `${slug}-butin`, reports: `${slug}-rapports`, chat: `${slug}-chat`, attendance: `${slug}-presences`, voice: `🔊 ${name}`.slice(0, 100) };
+  const [loot, reports, attendance] = language === "en" ? ["loot", "reports", "attendance"] : ["butin", "rapports", "presences"];
+  return { category: `⚔️ ${name}`.slice(0, 100), roster: `${slug}-roster`, signups: `${slug}-signups`, loot: `${slug}-${loot}`, reports: `${slug}-${reports}`, chat: `${slug}-chat`, attendance: `${slug}-${attendance}`, voice: `🔊 ${name}`.slice(0, 100) };
 }
+
+export const coreChannelLanguage = async (database: Db, guildId: string) =>
+  (await database.guildSettings?.findUnique({ where: { guildId }, select: { language: true } }))?.language ?? null;
 
 // Creates the core's role when it has none (or it was deleted). Returns its id, or null when
 // Discord refused (the bot needs Manage Roles).
@@ -160,7 +165,7 @@ export async function createCoreChannels(guild: DiscordGuild, database: Db, core
   const roleId = await ensureCoreRole(guild, database, core);
   if (!roleId) throw new Error("I could not create the core's role: give my role \"Manage Roles\" (and \"Manage Channels\").");
   await guild.channels.fetch();
-  const names = coreChannelNames(core.name);
+  const names = coreChannelNames(core.name, await coreChannelLanguage(database, core.guildId));
   const created: string[] = [];
   const exists = (id: string | null) => !!id && guild.channels.cache.has(id);
 
@@ -281,8 +286,8 @@ export async function openAllCoreChannels(guild: DiscordGuild, database: Db, gui
 }
 
 // After a rename: the role, the category and the channels follow the new name.
-export async function renameCoreDiscord(guild: DiscordGuild, core: CoreLike): Promise<void> {
-  const names = coreChannelNames(core.name);
+export async function renameCoreDiscord(guild: DiscordGuild, core: CoreLike, language: string | null): Promise<void> {
+  const names = coreChannelNames(core.name, language);
   const rename = async (id: string | null, name: string) => {
     if (!id) return;
     const channel = await guild.channels.fetch(id).catch(() => null);

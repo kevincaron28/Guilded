@@ -97,21 +97,22 @@ export async function gatherImpact(guild: DiscordGuild, guildId: string, setting
     if (category.type !== ChannelType.GuildCategory || !(category.name === ARCHIVE_CATEGORY || category.name.startsWith(`${ARCHIVE_CATEGORY} `))) continue;
     coreCategories.push(category.id);
     for (const channel of guild.channels.cache.values()) {
-      if (channel.parentId === category.id && /-(roster|signups|butin|rapports|chat)$/.test(channel.name)
+      if (channel.parentId === category.id && /-(roster|signups|butin|loot|rapports|reports|chat)$/.test(channel.name)
         && !removableChannels.some(row => row.id === channel.id)) removableChannels.push({ id: channel.id, name: channel.name });
     }
   }
   const cores = await prisma.raidCore.findMany({ where: { guildId } });
   for (const core of cores) {
-    const names = coreChannelNames(core.name);
-    const fields = { rosterChannelId: names.roster, signupChannelId: names.signups, lootChannelId: names.loot, raidLogChannelId: names.reports, chatChannelId: names.chat, voiceChannelId: names.voice };
+    // A core's channels carry French or English suffixes, depending on the language when they were made.
+    const names = coreChannelNames(core.name), english = coreChannelNames(core.name, "en");
+    const fields = { rosterChannelId: [names.roster], signupChannelId: [names.signups], lootChannelId: [names.loot, english.loot], raidLogChannelId: [names.reports, english.reports], chatChannelId: [names.chat], voiceChannelId: [names.voice] };
     for (const [field, expected] of Object.entries(fields)) {
       const id = core[field as keyof typeof fields];
       if (!id) continue;
       const channel = await guild.channels.fetch(id);
       if (!channel) continue;
-      if (channel.name === expected && !removableChannels.some(row => row.id === id)) removableChannels.push({ id, name: channel.name });
-      else if (channel.name !== expected) keptChannels.push(`<#${id}>`);
+      if (expected.includes(channel.name) && !removableChannels.some(row => row.id === id)) removableChannels.push({ id, name: channel.name });
+      else if (!expected.includes(channel.name)) keptChannels.push(`<#${id}>`);
     }
     if (core.categoryId) {
       const category = await guild.channels.fetch(core.categoryId);

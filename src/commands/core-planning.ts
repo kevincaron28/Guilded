@@ -25,7 +25,7 @@ export async function editCoreComposition(i: ButtonInteraction, guildId: string,
   )] });
   const message = await i.fetchReply();
   const choice = await message.awaitMessageComponent({ time: 300_000, filter: c => c.user.id === i.user.id && c.customId === pickerId }).catch(() => null);
-  if (!choice?.isStringSelectMenu()) { await i.editReply({ content: "Taille inchangée (expiré).", components: [] }); return null; }
+  if (!choice?.isStringSelectMenu()) { await i.editReply({ content: "Taille inchangée (expiré). / Size unchanged (expired).", components: [] }); return null; }
   const selected = choice.values[0]!;
   const preset = selected.startsWith("preset:") ? presetComposition(selected.slice(7)) : null;
   const size = preset ? String(preset.raidSize) : selected;
@@ -45,11 +45,12 @@ export async function editCoreComposition(i: ButtonInteraction, guildId: string,
     const data = coreComposition(selected === "custom" ? submitted.fields.getTextInputValue("size") : size, ...["tanks", "healers", "dps"].map(key => submitted.fields.getTextInputValue(key)) as [string, string, string]);
     await submitted.deferReply({ flags: MessageFlags.Ephemeral });
     await prisma.raidCore.update({ where: { id: core.id }, data });
-    const note = `${data.raidSize} joueurs : ${data.tankLimit} tanks / ${data.healerLimit} soigneurs / ${data.dpsLimit} DPS. Appliqué aux nouveaux raids; les raids publiés restent inchangés.`;
+    const note = `${data.raidSize} joueurs : ${data.tankLimit} tanks / ${data.healerLimit} soigneurs / ${data.dpsLimit} DPS. Appliqué aux nouveaux raids; les raids publiés restent inchangés.\n`
+      + `${data.raidSize} players: ${data.tankLimit} tanks / ${data.healerLimit} healers / ${data.dpsLimit} DPS. Applies to new raids; raids already posted stay as they are.`;
     await submitted.editReply(note);
     return note;
   } catch (error) {
-    const content = error instanceof Error ? error.message : "Impossible d'enregistrer.";
+    const content = error instanceof Error ? error.message : "Impossible d'enregistrer. / Could not save.";
     if (submitted.deferred) await submitted.editReply(content); else await submitted.reply({ content, flags: MessageFlags.Ephemeral });
     return null;
   }

@@ -2,6 +2,30 @@ import assert from "node:assert/strict";
 import type { PrismaClient } from "../src/generated/prisma/client.js";
 import { queueGameEvents, saveOfficialEvent } from "../src/services/game-events.js";
 import { deliverDiscordJob } from "../src/services/discord-jobs.js";
+import { createPrismaClient } from "../src/database.js";
+import { setTimeout as delay } from "node:timers/promises";
+
+/** Exercise real pool acquisition, not just a mocked transaction options object. */
+async function verifyBusyEventPool(guildId: string, now: Date) {
+  const url = new URL(process.env["DATABASE_URL"] ?? "");
+  if (!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) || url.pathname !== "/guilded_release_test") throw new Error("Disposable local test database required.");
+  url.searchParams.set("connection_limit", "1");
+  const busy = createPrismaClient(url.toString());
+  let acquired!: () => void;
+  const ready = new Promise<void>(resolve => { acquired = resolve; });
+  try {
+    const holder = busy.$transaction(async tx => {
+      await tx.$queryRaw`SELECT 1`;
+      acquired();
+      // Longer than Prisma's default 2s acquisition deadline, below our bounded wait.
+      await delay(3_000);
+    }, { timeout: 10_000 });
+    await Promise.all([holder, (async () => {
+      await ready;
+      await queueGameEvents(busy, { guildId }, now);
+    })()]);
+  } finally { await busy.$disconnect(); }
+}
 
 export async function verifyGameEventsPostgres(database: PrismaClient, guildId: string) {
   assert.equal((await database.officialGameEvent.findUniqueOrThrow({ where: { id: "poe2-full-release" } })).startsAt, null);
@@ -11,6 +35,7 @@ export async function verifyGameEventsPostgres(database: PrismaClient, guildId: 
   const input = { id: "release-test-event", game: "POE2", region: "GLOBAL", titleEn: "Release test", titleFr: "Test de sortie", sourceUrl: "https://www.pathofexile.com/forum/view-thread/3999366", dateLabelEn: "", dateLabelFr: "", state: "SCHEDULED", startsAt: new Date(now.getTime() + 60 * 60_000) };
   await saveOfficialEvent(database, input, "release-test", now);
   const board = await database.gameEventBoard.create({ data: { guildId, channelId: "release-test-events", enabled: true, games: ["POE2"], region: "NA", poeRoleId: "opt-in-role", poeReminders: [60], poeRemindersEnabledAt: new Date(now.getTime() - 1000) } });
+  await verifyBusyEventPool(guildId, now);
   await Promise.all([1, 2, 3].map(() => queueGameEvents(database, { guildId }, now)));
   const jobs = await database.discordJob.findMany({ where: { guildId, kind: "GAME_EVENT_REMINDER" } });
   assert.equal(jobs.length, 1);

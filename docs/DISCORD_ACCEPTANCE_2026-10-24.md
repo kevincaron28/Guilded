@@ -1,8 +1,9 @@
 # Discord acceptance — 24 October 2026
 
-**Public release remains on hold.** These checks supplement the game and two-PC
-checklist; they do not replace it. The deployed bot remains the 23 October
-candidate. Source changes on the prelaunch feature branch are not yet deployed.
+**Historical evidence from 24 October.** The owner subsequently authorized the
+25 October 7.3.2 release; these source changes are now deployed. Unchecked
+walkthroughs below remain pending, not automatic passes. See the
+[release decision](RELEASE_DECISION_2026-10-25.md) and [current gaps](RELEASE_GAPS_2026-10-25.md).
 
 ## Completed in Quebec Gold
 

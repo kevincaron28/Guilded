@@ -1,6 +1,9 @@
 > 7.3.2 (25 October 2026): owner authorized full release before the unavailable Forever
 > two-PC tests. The prior publication hold is superseded by docs/RELEASE_DECISION_2026-10-25.md.
 > Game checks remain pending follow-up; benchmarks remain provisional.
+> Current release gaps and operational fixes: docs/RELEASE_GAPS_2026-10-25.md.
+> All ten CurseForge edition files are approved. The candidate entries below are
+> historical; their publication holds are superseded by the owner's release decision.
 > 25 October continuation: multi-edition connected candidate on codex/game-editions,
 > PR #216 (stacked on #215/#214). Forever, Era, TBC, Mists and Retail have separate
 > guild contexts in one Discord, role IDs, companion profiles, realm identities,
@@ -79,13 +82,12 @@ feature).
 4 November 2026 (beta closed 21 October); its first raids open 9 December.
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
 The bot and GitHub public downloads are on 7.3.2; all five edition packages and
-the companion are published. CurseForge 7.3.2 is approved for Guilded Forever,
-Era, Mists and Retail; remaining submissions continue through review.
+the companion are published. All ten CurseForge 7.3.2 edition files are approved
+(Guilded and Guilded Dungeons for Forever, Era, TBC, Mists and Retail).
 See `docs/RELEASE_EXECUTION_2026-10-25.md`.
 Follow `docs/LAUNCH_READINESS_2026-10-24.md` before acting on older holds or
 unchecked historical lists. The owner authorized publication on 25 October; retain pending game checks as follow-up.
-Standalone guild and optional Guilded Games work is next-version candidate
-source; do not overwrite the published 6.2.0 downloads or bump incidentally.
+Do not overwrite published 7.3.2 downloads or bump the version incidentally.
 Read `docs/UPDATE_ALL_2026-10-14.md`,
 `docs/DUNGEON_DEPLOYMENT_2026-10-14.md` and
 `docs/V6_2_STANDALONE_AND_GAMES.md` for current evidence and pending acceptance.
@@ -210,7 +212,8 @@ Follow `docs/V5_0_RELEASE_HANDOFF.md` in order. Cloud sessions lack the existing
 do not request or invent it. A local agent on the owner's PC may use the already configured
 key and deployment script after tests, CI, ledger preflight and backup succeed. The owner
 has authorized the mechanical update work. Preserve local changes and SavedVariables.
-Never start a second bot. Public release still depends on real-client checks.
+Never start a second bot. The 25 October release decision waived unavailable
+prelaunch game checks for 7.3.2; retain them as pending post-release acceptance.
 
 Use `npm run release:prepare` for a complete build/check. The new migration refuses duplicate
 ledger source refs; `npm run release:ledger-check` diagnoses them without changing data.

@@ -27,10 +27,10 @@ follow-up, not passed tests.
 
 ## Distribution follow-up
 
-CurseForge edition files are submitted as Release with automatic publication
-after approval. Guilded 7.3.2 Forever, Era, Mists and Retail were approved;
-TBC and standalone submissions continue through review. Provider approval is
-separate from upload completion. GitHub downloads are available for every edition.
+All ten CurseForge edition files are approved and published as Release:
+Guilded and Guilded Dungeons for Forever, Era, TBC, Mists and Retail. Approval
+was verified separately from upload completion. The interrupted duplicate Forever
+upload was archived; the approved file is retained. GitHub downloads are available for every edition.
 The website now advertises the verified 7.3.2 release on both providers and links
 directly to every GitHub edition package.
 

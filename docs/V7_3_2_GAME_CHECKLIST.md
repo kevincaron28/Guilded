@@ -54,4 +54,19 @@ Record PASS/FAIL, date, both testers, officer/member roles, WoW build, language,
 
 ## Launch decision
 
-Promote the exact tested artifacts only after required checks pass. Keep unknown 45–59/60 competitive routes disabled until real observations validate them. Gather the required diverse crews/days before calibration; the automated guardrails do not supply those samples. November's official window excludes earlier testing runs, but local client history remains private unless deliberately cleared by its owner.
+The owner authorized publication on 25 October before unavailable game/two-PC
+tests; see [the release decision](RELEASE_DECISION_2026-10-25.md). This checklist
+is now post-release acceptance. Record the exact installed artifacts and keep
+unverified routes unrated. Gather representative crews/days before prospective
+calibration; automated guardrails do not supply those samples. November's official
+window excludes earlier testing runs; preserve its dates and frozen rules.
+
+## Multi-edition acceptance
+
+Repeat login/reload, live Interface detection, readiness, professions, raid/loot
+sync, personal and guild uploads in Era, TBC, Mists and Retail. In one Discord,
+exercise separate guild roles/channel bindings, same-name characters in different
+realms, revoked permissions and companion profile switches. Verify Forever first
+and last names throughout. Observe Classic NPC checkpoints and partial/reset runs;
+compare Retail key, affixes, native timer and completion flags against the game,
+including restricted combat values. Capture failures without inventing evidence.

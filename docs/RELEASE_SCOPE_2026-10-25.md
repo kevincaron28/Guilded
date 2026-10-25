@@ -7,15 +7,17 @@
 
 ## Scope and status
 
-The connected candidate covers Forever, Classic Era/Hardcore, TBC Anniversary,
+The published connected release covers Forever, Classic Era/Hardcore, TBC Anniversary,
 Mists progression Classic, and Retail. One Discord server can contain multiple
 in-game guilds, including multiple guilds in the same edition. This is version
-7.3.2 candidate / protocol 2, on `codex/game-editions` in draft PR #216, stacked
-on #215 and #214. It is not a public release or a production deployment.
+7.3.2 Release / protocol 2. PRs #214, #215 and #216 are merged, the bot is deployed,
+and all GitHub and CurseForge edition downloads are public. Exact source, artifacts
+and verification are in [the publication record](RELEASE_EXECUTION_2026-10-25.md).
 
 The previous foundation-only limitation has been removed: edition selection,
 guild sync, bot workflows and native/browser companion profiles are implemented.
-Game acceptance and calibrated dungeon competitions remain explicit release gates.
+Game acceptance and benchmark calibration remain pending follow-up under the
+owner's release decision, not recorded passes.
 
 ## Implemented
 
@@ -67,7 +69,7 @@ Game acceptance and calibrated dungeon competitions remain explicit release gate
 - Result cards show native key/time data and authentic Forever full names.
   Non-Forever cards never estimate a score from Forever's local target table.
 
-## Configure a server after deploying the candidate
+## Configure a server
 
 1. Keep the existing Forever setup as `default`. For each additional guild, an
    administrator runs `/wow add edition:<edition> name:<guild> realm:<realm>`.
@@ -92,7 +94,7 @@ Game acceptance and calibrated dungeon competitions remain explicit release gate
 ## Dungeon competition and completion limits
 
 Runs and activity can be imported for every edition. Forever's rules are preserved.
-The candidate now includes 135 source-reviewed provisional routes across Era, TBC,
+The release includes 135 source-reviewed provisional routes across Era, TBC,
 Mists and Retail, plus the eight-map Retail Midnight Season 2 keystone rating pool.
 Details, sources, benchmark policy and client acceptance are in
 `DUNGEON_CATALOG_2026-10-25.md`. NPC-only Classic completion evidence is transported
@@ -134,8 +136,8 @@ guild, season, member and visibility restrictions.
   public disputes, guild-scoped queries and English/French result presentation.
   The final source commit and CI run are recorded in PR #216 and the artifact
   validation file; earlier green CI on `dde4707` predates native challenge support.
-- The Windows installer built successfully. Final packages are rebuilt after commit
-  so source revision and package hashes are reviewable.
+- The Windows installer and edition packages were built from committed source.
+  All 21 public GitHub assets matched their published size and SHA-256 checksum.
 - PostgreSQL rehearsal now provisions six guild contexts in one server (all editions
   plus a second Retail guild), uses identical character names in each, verifies
   separate settings/credentials, rejects wrong-edition characters and duplicates,
@@ -143,9 +145,9 @@ guild, season, member and visibility restrictions.
 - Local tests use a deliberately unreachable test DATABASE_URL; no test suite should
   use the production credentials in `.env.local`.
 
-## Artifacts and release gates
+## Published artifacts and pending acceptance
 
-Candidate ZIPs: `dist/editions/Guilded-v7.3.2-<edition>.zip` and
+Edition ZIPs: `dist/editions/Guilded-v7.3.2-<edition>.zip` and
 `dist/editions/GuildedDungeons-v7.3.2-<edition>.zip`.
 Source revision, dirty flag, interfaces and hashes: `dist/editions/manifest.json`.
 Native installer: `dist/companion/Guilded Companion Setup 7.3.2.exe`.
@@ -155,10 +157,10 @@ Packaging baselines are Forever 16001, Era 11500, TBC 20506, Mists 50500 and Ret
 Supply an observed value with `npm run addon:editions -- --interface=classic-era:<number>`.
 The builder rejects an interface from a different edition.
 
-Before public promotion:
+Publication evidence and follow-up:
 
-1. Both exact-head quality jobs must pass, including disposable PostgreSQL
-   migration/dump/restore and Windows packaging.
+1. Both release-commit quality jobs passed, including disposable PostgreSQL
+   migration/dump/restore and Windows packaging. Require both jobs for subsequent fixes.
 2. Observe each target's actual GetBuildInfo interface and package that interface.
    Test login, reload, messages, full names/realm identities, professions/readiness,
    loot/raid sync, companion upload and acknowledgements in each real client.
@@ -170,13 +172,13 @@ Before public promotion:
    Validate complete, partial, reset, duplicate, wipe and disbanded runs against
    each target; verify native key, affixes, official timer and in-time/practice flags
    against the Retail client. Mists challenge activity has no Retail keystone ranking.
-5. Rehearse deployment with a fresh backup, then deploy migrations and matching bot,
-   companion and addons together. Record exact commit, hashes, build, language,
-   testers and results. Publish only accepted assets and then update public metadata.
+5. Production deployment, verified database/application backup, encrypted off-server
+   recovery copy and public metadata updates are complete. Record exact commit,
+   hashes, client build, language, testers and results when performing the pending tests.
 
 The local directory contained Forever 1.60.1.70532 and Retail 12.1.5.70575; no
 installed Era/progression target was found. Those are filesystem observations,
 not game tests. Forever's beta is closed until the recorded November launch.
-No game acceptance result is invented. No production migration, public asset
-publication, installed companion replacement or live bot restart occurred here.
-See `LAUNCH_READINESS_2026-10-24.md` for the existing deployment/public-release hold.
+No game acceptance result is invented. The earlier publication hold is superseded
+by `RELEASE_DECISION_2026-10-25.md`; current remaining work is tracked in
+`RELEASE_GAPS_2026-10-25.md`.

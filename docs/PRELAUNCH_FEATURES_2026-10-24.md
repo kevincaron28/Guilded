@@ -1,8 +1,9 @@
 # Features prepared while the game is unavailable
 
-These changes are candidates. They do not authorize deployment, main merges or
-public release. The game is unavailable until its release, so game acceptance
-begins when it opens; Guilded promotion follows the required passes, not a date.
+These features shipped in 7.3.2 on 25 October, under the owner's
+[release decision](RELEASE_DECISION_2026-10-25.md). The descriptions below record
+implementation and outstanding acceptance separately. Game checks remain pending;
+see the [current gap audit](RELEASE_GAPS_2026-10-25.md).
 
 ## Raid planning
 

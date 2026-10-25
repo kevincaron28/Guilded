@@ -2,7 +2,7 @@ import { guildWhere } from "../services/guild-scope.js";
 import { ChannelType, MessageFlags, PermissionFlagsBits, SlashCommandBuilder, type ChatInputCommandInteraction } from "discord.js";
 import { prisma } from "../database.js";
 import { botOwnerId } from "./owner-season.js";
-import { EVENT_GAMES, EVENT_REGIONS, EVENT_STATES, GameEventInputError, eventBoardEmbeds, eventLock, eventText, parseEventInstant, saveOfficialEvent } from "../services/game-events.js";
+import { EVENT_GAMES, EVENT_REGIONS, EVENT_STATES, EVENT_TRANSACTION_OPTIONS, GameEventInputError, eventBoardEmbeds, eventLock, eventText, parseEventInstant, saveOfficialEvent } from "../services/game-events.js";
 import { eventChannel, eventRole } from "../services/game-events-discord.js";
 import { enqueueDiscordJob } from "../services/discord-jobs.js";
 
@@ -98,7 +98,7 @@ export async function executeGameEvents(interaction: ChatInputCommandInteraction
       }
       if (sub !== "status") await enqueueDiscordJob(tx, record.id, `game-board:${current.id}`, "GAME_EVENT_BOARD", { boardId: current.id });
       return current;
-    }, { timeout: 30_000 });
+    }, EVENT_TRANSACTION_OPTIONS);
     const events = await prisma.officialGameEvent.findMany({ where: { archived: false }, orderBy: { id: "asc" } });
     const job = await prisma.discordJob.findUnique({ where: { guildId_key: { guildId: record.id, key: `game-board:${board.id}` } } });
     const status = `WoW: ${board.wowReminders.join(" / ") || "off"}; PoE2: ${board.poeReminders.join(" / ") || "off"} (${eventText(fr, "minutes before; 0 = start", "minutes avant ; 0 = début")}).`;
@@ -130,7 +130,7 @@ export async function executeOwnerEvents(interaction: ChatInputCommandInteractio
       await prisma.$transaction(async tx => {
         await eventLock(tx);
         await tx.officialGameEvent.update({ where: { id: str("id") }, data: { archived: true, scheduleVersion: { increment: 1 }, updatedBy: interaction.user.id } });
-      });
+      }, EVENT_TRANSACTION_OPTIONS);
     }
     const events = await prisma.officialGameEvent.findMany({ orderBy: { updatedAt: "desc" }, take: 20 });
     await interaction.editReply({ content: `${sub === "list" ? "" : "Saved; boards refresh within a minute. / Enregistré ; actualisation sous une minute.\n"}${events.map(e => `${e.id} · ${e.archived ? "ARCHIVED" : e.state} · ${e.startsAt?.toISOString() ?? "TBA"}`).join("\n") || "—"}`.slice(0, 1950), allowedMentions: { parse: [] } });

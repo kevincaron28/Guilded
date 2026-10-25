@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Collection, ChannelType, PermissionFlagsBits, type Guild, type TextChannel } from "discord.js";
 import type { DiscordJob, GameEventBoard, OfficialGameEvent, PrismaClient } from "../src/generated/prisma/client.js";
-import { effectiveEventState, eventBoardEmbeds, officialEventSource, parseEventInstant, reminderDue, saveOfficialEvent, validateEvent, visibleEvent } from "../src/services/game-events.js";
+import { effectiveEventState, eventBoardEmbeds, eventCountdown, eventDetails, officialEventSource, parseEventInstant, reminderDue, saveOfficialEvent, validateEvent, visibleEvent } from "../src/services/game-events.js";
 import { deliverGameEvent, eventRole, findEventMessage } from "../src/services/game-events-discord.js";
 import { ownerEventsCommand, executeGameEvents, executeOwnerEvents } from "../src/commands/game-events.js";
 
@@ -49,8 +49,32 @@ describe("official event dates and display", () => {
   it("does not change content every second", () => {
     expect(eventBoardEmbeds([event()], board(), false, new Date(now.getTime() - 5000))).toEqual(eventBoardEmbeds([event()], board(), false, new Date(now.getTime() - 1000)));
   });
-  it("bounds the complete board to Discord's aggregate embed budget", () => {
-    const rows = Array.from({ length: 12 }, (_, i) => event({ id: `e-${i}`, titleFr: "*".repeat(80), state: "TBA", startsAt: null, dateLabelFr: "*".repeat(100), sourceUrl: "https://news.blizzard.com/" + "a".repeat(195) }));
+  it("shows days, hours and minutes in both languages and rolls over at minute boundaries", () => {
+    const start = new Date(now.getTime() + (10 * 1440 + 4 * 60 + 32) * 60_000);
+    expect(eventCountdown(start, false, now)).toContain("10d 04h 32m");
+    expect(eventCountdown(start, true, now)).toContain("10j 04h 32m");
+    expect(eventCountdown(start, false, new Date(now.getTime() + 60_000))).toContain("10d 04h 31m");
+    expect(eventCountdown(new Date(now.getTime() + 24 * 60 * 60_000), false, now)).toContain("1d 00h 00m");
+    expect(eventCountdown(new Date(now.getTime() + 59 * 60_000), false, now)).toContain("Final countdown");
+    expect(eventCountdown(new Date(now.getTime() + 1), true, now)).toContain("0j 00h 01m");
+    expect(eventCountdown(now, false, now)).toBe("");
+  });
+  it("spotlights the nearest visible scheduled event and removes countdown hype when it ends", () => {
+    const future = event({ id: "future", startsAt: new Date(now.getTime() + 2 * 60_000), titleEn: "Near event" });
+    const rows = [event({ id: "past", titleEn: "Past event" }), event({ id: "far", startsAt: new Date(now.getTime() + 86400_000) }), future, event({ id: "eu", titleEn: "Hidden EU", region: "EU", startsAt: new Date(now.getTime() + 60_000) })];
+    const embeds = eventBoardEmbeds(rows, board(), false, now).map(e => e.toJSON());
+    expect(embeds[0]!.description).toContain("Up next · Near event");
+    expect(embeds[1]!.fields![0]!.name).toBe("Near event");
+    expect(embeds[1]!.fields![0]!.value).toContain("0d 00h 02m");
+    expect(eventDetails(future, false, now)).not.toContain("00h 02m"); // old reminders never freeze timers
+    const ended = JSON.stringify(eventBoardEmbeds([event()], board(), false, now));
+    expect(ended).not.toContain("Final countdown");
+    expect(ended).not.toContain("to go");
+    const disabled = JSON.stringify(eventBoardEmbeds([future], board({ enabled: false }), false, now));
+    expect(disabled).not.toContain("Near event");
+  });
+  it.each(["TBA", "SCHEDULED", "REACHED"])("bounds a full %s board to Discord's aggregate embed budget", state => {
+    const rows = Array.from({ length: 12 }, (_, i) => event({ id: `e-${i}`, titleFr: "*".repeat(80), state, startsAt: state === "TBA" ? null : new Date(now.getTime() + (state === "SCHEDULED" ? 60_000 : 0)), dateLabelFr: "*".repeat(100), sourceUrl: "https://news.blizzard.com/" + "a".repeat(195) }));
     const embeds = eventBoardEmbeds(rows, board(), true, now).map(e => e.toJSON());
     const count = embeds.reduce((sum, e) => sum + (e.title?.length ?? 0) + (e.description?.length ?? 0) + (e.footer?.text.length ?? 0) + (e.fields ?? []).reduce((n, f) => n + f.name.length + f.value.length, 0), 0);
     expect(count).toBeLessThanOrEqual(6000);

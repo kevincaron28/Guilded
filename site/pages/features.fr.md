@@ -1,5 +1,5 @@
 <section class="community-hero" aria-labelledby="features-title-fr">
-<p class="eyebrow">LES OUTILS GUILDED · WOW FOREVER</p>
+<p class="eyebrow">LES OUTILS GUILDED · FOREVER · CLASSIC · RETAIL</p>
 <h1 id="features-title-fr">Votre guilde.<br>Au plus près du <em>jeu.</em></h1>
 <p>Commencez avec l’addon. Ajoutez le compagnon et Discord si votre guilde le souhaite.</p>
 <div class="actions"><a class="button" href="https://www.curseforge.com/wow/addons/guilded">Obtenir l’addon gratuit <span aria-hidden="true">↗</span></a><a class="button secondary" href="../docs/MEMBER_INSTALL.html#fr">Guide d’installation <span aria-hidden="true">→</span></a></div>

@@ -1,5 +1,5 @@
 <section class="community-hero" aria-labelledby="features-title">
-<p class="eyebrow">THE GUILDED TOOLKIT · WOW FOREVER</p>
+<p class="eyebrow">THE GUILDED TOOLKIT · FOREVER · CLASSIC · RETAIL</p>
 <h1 id="features-title">Your guild tools.<br>Closer to the <em>game.</em></h1>
 <p>Start with the addon. Add the companion and Discord only if your guild wants them.</p>
 <div class="actions"><a class="button" href="https://www.curseforge.com/wow/addons/guilded">Get the free addon <span aria-hidden="true">↗</span></a><a class="button secondary" href="../docs/MEMBER_INSTALL.html">Install guide <span aria-hidden="true">→</span></a></div>

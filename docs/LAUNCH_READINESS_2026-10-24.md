@@ -16,6 +16,11 @@ and record the exact package SHA-256, testers, roles, client build, language and
   rehearsed. Staged Linux update/recovery checks passed, followed by a successful real update.
   Live rollback was not performed. The separate Prisma 6 contingency remains draft PR #211.
 - The main PC's companion and both addons were upgraded. The second PC is still to be tested.
+  The latest main-PC companion installation is the verified `b755adf` candidate,
+  installed 24 October around 20:08 Toronto time. All 18 installed app/engine files
+  match the package; settings and pairing remain byte-identical. Installed-engine
+  read-only connection and synthetic quiet-refresh/repair checks passed. See the
+  latest section of `AI_HANDOFF_2026-10-24.md`; native interaction gates remain open.
 - Previous dungeon history was cleared with a verified backup; identities, pairing, EP/GP and
   unrelated data were preserved. Keep `DUNGEON_RUNS_NOT_BEFORE` through recovery. Do not repeat
   the reset as a launch step. Season 1 is scheduled for 4 November 2026, 23:00 UTC / 18:00 Toronto.

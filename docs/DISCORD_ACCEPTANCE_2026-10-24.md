@@ -64,5 +64,6 @@ This is candidate source, not a claim that the production bot has been updated.
 - Game, French game UI and second physical PC acceptance remain required.
 
 Use the exact source/package hashes when continuing; the local installed companion
-is the verified French `489664a` package. Changes made after that build do not
+is the verified French/save-recovery `b755adf` package (installed 24 October,
+about 20:08 Toronto time, with settings and pairing preserved). Changes after that build do not
 retroactively change its manifest or establish deployment acceptance.

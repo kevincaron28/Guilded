@@ -3,6 +3,41 @@
 Read this after `CLAUDE.md`. Kevin requested an end-of-session review of everything
 prepared during this Codex session. This handoff does not authorize a public release.
 
+## Latest delivery: updated companion installed on Kevin's PC
+
+On **24 October 2026, about 20:08 Toronto time**, Kevin explicitly requested the
+new candidate installation while preserving settings/pairing and withholding
+public release. Installed the verified `b755adf012e508fbc9b7662d57e2c51140d5b89b`
+package (NSIS silent exit 0), then relaunched the native app. This supersedes the
+older "not installed" / installed `489664a` statements below.
+
+- Installer SHA-256: `33a037d41137bee73880e9a5a5a9ccb82d422c59d49c6be9ff92336ee64a1c6b`.
+- All 18 installed app/engine/library files match the built package. This includes
+  a byte comparison of the **entire app.asar**, covering renderer code/assets too.
+- `config.json` is byte-identical before and after installation and startup,
+  preserving pairing and all saved settings. Private backup and verification:
+  `backups/companion-update-20261024-200745/`. Do not publish that configuration.
+- Native accessibility confirms version 7.3.2, Account linked, Tracking paused,
+  and the corrected **Selected folder** wording. The saved beta directory is
+  still absent; its configured path was deliberately preserved for launch review.
+- Read-only calls through the **installed engine** passed: standings connection
+  sees three characters; management GET returns 200, one owned character, two
+  cores and raid-leader access. No live management edits or uploads were submitted.
+- Installed-engine synthetic smoke: 12 timestamp-only refreshes updated both
+  generated standings files without extra success logs. A real data change logged
+  once; deleting the synthetic standings file caused one logged repair. The test
+  used an in-memory fetch stub, no real game files and zero network requests.
+- Revalidation passed: 269 files / 2,262 tests, TypeScript, ESLint and both addon
+  validators. Logs, `verification.json`, `connection-check.json`, `engine-smoke.json`
+  and repeatable private verification scripts are in the backup folder above.
+- Native automation is still limited: clicks return unavailable geometry and Tab
+  did not change focus. Kevin was asked to choose French and open Cores et prix
+  for a read-only native inspection; this is not yet recorded as a completed test.
+
+No bot deployment, main merge, public download change or Discord notification.
+Required game/two-PC/French-client, fresh-member/guild and remaining Discord
+candidate interaction gates still apply. **Public release remains on hold.**
+
 ## Latest continuation: offline management acceptance
 
 See `OFFLINE_ACCEPTANCE_2026-10-24.md` for the reproducible synthetic browser

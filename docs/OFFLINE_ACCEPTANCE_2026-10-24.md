@@ -1,5 +1,13 @@
 # Offline acceptance continuation — 24 October 2026
 
+**Installation follow-up:** Kevin requested and received this package on his PC
+at about 20:08 Toronto time on 24 October. Installed source is now `b755adf`;
+the entire app.asar and 17 engine/library files match, settings/pairing are
+byte-identical, installed-engine read-only connectivity and synthetic quiet-refresh/
+repair checks passed. The full suite passed again (269 files / 2,262 tests).
+See the latest section of `AI_HANDOFF_2026-10-24.md`. Earlier no-install statements
+below describe the preceding preparation turn. Public release remains held.
+
 **Public release remains on hold.** The live bot, public downloads and installed
 companion (`489664a`) were not changed during these checks. Nobody was notified.
 

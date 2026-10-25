@@ -58,8 +58,8 @@ end
 local function normalizeName(name)
   if type(name) ~= "string" or isSecret(name) then return nil end
   name = string.match(name, "^%s*(.-)%s*$")
-  -- A character name is one word of letters: whatever follows a hyphen or a space is the realm
-  -- ("Ray-Realm", "Ray Realm"), never part of the name, so one player is one entry.
+  -- Legacy accounting key. Forever surnames are preserved separately for display;
+  -- changing this key would orphan existing points, attendance and source refs.
   name = string.match(name, "^([^%-%s]+)") or name
   if name == "" then return nil end
   return string.upper(string.sub(name, 1, 1)) .. string.lower(string.sub(name, 2))
@@ -811,6 +811,7 @@ local function collectCharacter()
   end
   return {
     name = playerName(),
+    displayName = ns.util.unitDisplayName("player"),
     realm = (ns.compat and ns.compat.identity().realm) or (GetRealmName and GetRealmName()) or "",
     class = classFile or "",
     race = raceFile or "",
@@ -846,7 +847,7 @@ local function characterString(info)
   local function clean(value) return (string.gsub(tostring(value or ""), "[|;]", "")) end
   return "QG2;" .. table.concat({
     clean(info.name), clean(info.realm), clean(info.class), clean(info.race),
-    tostring(info.level or 0), clean(info.spec), table.concat(professions, ",")
+    tostring(info.level or 0), clean(info.spec), table.concat(professions, ","), clean(info.displayName)
   }, ";")
 end
 
@@ -2096,7 +2097,9 @@ local function onEvent(_, event, ...)
     db.lastRosterUpdate = now()
     local inRoster = {}
     for i = 1, count do
-      local name = normalizeName(GetGuildRosterInfo(i))
+      local rawName = GetGuildRosterInfo(i)
+      ns.util.rememberDisplayName(rawName)
+      local name = normalizeName(rawName)
       if name then
         inRoster[name] = true
         local entry = db.roster[name]

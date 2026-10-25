@@ -1,7 +1,14 @@
+> 25 October continuation: owner requests Forever plus Classic Era/Hardcore,
+> progression Classic and Retail. Full Forever names are being preserved as
+> presentation data without changing ledger keys. Edition audit, source-only
+> changes and remaining release work: docs/RELEASE_SCOPE_2026-10-25.md.
 > 7.3.2 (23 October 2026): deployment candidate for UTC sessions, dungeon evidence/guidance,
 > staged recovery and companion startup fixes. Real game/two-PC acceptance remains pending.
 > Deployed for testing on 23 October; public release is explicitly held. Current preparation,
 > completed operational checks and remaining gates: docs/LAUNCH_READINESS_2026-10-24.md.
+> Claude review handoff for the 24 October Codex session: docs/AI_HANDOFF_2026-10-24.md.
+> Includes companion installation, Discord evidence/cleanup, fixed shared dungeon scoring,
+> exact validation state and the continuing public-release hold. Read it before continuing.
 > 7.3.1 (22 October 2026): raid readiness requires level 60 and flags old checks; companion Update now
 > repair (a companion on 7.2.0/7.3.0 needs one manual install). Live on the bot and GitHub; CurseForge
 > has 7.3.0. Pre-release audit and recommendations: docs/PRE_RELEASE_AUDIT_2026-10-22.md.

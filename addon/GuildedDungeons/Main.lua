@@ -46,7 +46,7 @@ frame:SetScript("OnEvent", function()
     -- Who this SavedVariables file belongs to, for the companion's personal upload.
     local identity = ns.compat.identity()
     local class = UnitClass and select(2, UnitClass("player")) or nil
-    db.character = { name = ns.playerName(), realm = identity.realm, class = class, level = UnitLevel and UnitLevel("player") or nil, spec = db.character.spec }
+    db.character = { name = ns.playerName(), displayName = ns.util.unitDisplayName("player"), realm = identity.realm, class = class, level = UnitLevel and UnitLevel("player") or nil, spec = db.character.spec }
     -- One account SavedVariables file can be used by many alts. Never show the
     -- last synced character's public score as the newly logged-in character's.
     local board = GuildedDungeonsPublicScore

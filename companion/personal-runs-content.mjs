@@ -14,7 +14,7 @@ export function readPersonalRuns(text, fallbackRealm = "") {
     const character = database.character && typeof database.character.name === "string" ? database.character : null;
     const realm = String(character?.realm || fallbackRealm || "-");
     return {
-      character: character ? { name: character.name, realm, ...(character.class ? { class: String(character.class) } : {}), ...(Number.isInteger(character.level) ? { level: character.level } : {}) } : null,
+      character: character ? { name: character.name, realm, ...(character.displayName ? { displayName: String(character.displayName) } : {}), ...(character.class ? { class: String(character.class) } : {}), ...(Number.isInteger(character.level) ? { level: character.level } : {}) } : null,
       runs: exportDungeonRuns(database, realm, { skipSynced: true })
     };
   }
@@ -23,7 +23,7 @@ export function readPersonalRuns(text, fallbackRealm = "") {
   const realm = exported.character?.realm || fallbackRealm || "-";
   const database = readDatabase(clean, "GuildedDB");
   return {
-    character: exported.character ? { name: exported.character.name, realm, ...(exported.character.class ? { class: exported.character.class } : {}), ...(exported.character.level ? { level: exported.character.level } : {}) } : null,
+    character: exported.character ? { name: exported.character.name, realm, ...(exported.character.displayName ? { displayName: exported.character.displayName } : {}), ...(exported.character.class ? { class: exported.character.class } : {}), ...(exported.character.level ? { level: exported.character.level } : {}) } : null,
     runs: exportDungeonRuns(database, realm, { skipSynced: true })
   };
 }

@@ -360,6 +360,7 @@ local function adoptFileStandings()
   local players = {}
   local baseGp = tonumber(file.baseGp) or 0
   for _, row in ipairs(file.players or {}) do
+    ns.util.rememberDisplayName(row.displayName)
     local name = ns.normalizeName(row.name)
     if name then
       local ep, gp = tonumber(row.ep) or 0, tonumber(row.gp) or 0

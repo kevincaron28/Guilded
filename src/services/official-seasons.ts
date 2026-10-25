@@ -1,7 +1,6 @@
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { startSeason } from "./dungeon-admin.js";
-import type { BracketedRules } from "./dungeon-november-rules.js";
-import { carriedRules } from "./dungeon-season-schedule.js";
+import { validBracketedRules, type BracketedRules } from "./dungeon-november-rules.js";
 import { addedRules, publicRules, readRuleSnapshot, snapshotRules, type PublicRuleSnapshot } from "./public-score.js";
 
 // The bot-wide dungeon season calendar (7.3, owner 20 October 2026: "only I control when a season
@@ -101,16 +100,28 @@ export async function rotateOfficialSeasons(database: RotationDb, windows: Offic
   backup: () => Promise<unknown>, start: StartFn): Promise<OfficialRotation[]> {
   const window = officialWindowAt(windows, now);
   if (!window) return [];
+  // Never seed guild seasons from local overrides or a changing code default.
+  // A failed/malformed official snapshot must stop rotation until it is repaired.
+  if (!window.rules) throw new Error("Official dungeon rules must be frozen before guild seasons can start.");
   const rows = await database.guildSettings.findMany({ select: { guildId: true, guild: { select: { discordId: true } } } });
   const rotated: OfficialRotation[] = [];
   let backedUp = false;
   for (const row of rows) {
     if (!allows(row.guild.discordId)) continue;
     const active = await database.dungeonSeason.findFirst({ where: { guildId: row.guildId, status: "ACTIVE" }, orderBy: { startsAt: "desc" } });
-    // Already in this season (this job ran, or a restart): nothing to do.
-    if (active && active.startsAt.getTime() >= window.start.getTime()) continue;
+    // Already in this season: retain its history and only add missing shared routes.
+    if (active && active.startsAt.getTime() >= window.start.getTime()) {
+      // Keep newly verified routes available to existing and late-joining guilds
+      // alike, without changing any already-frozen target or historical score.
+      const added = validBracketedRules(active.ratingRules) && addedRules(active.ratingRules, window.rules.rules);
+      if (added) {
+        if (!backedUp) { await backup(); backedUp = true; }
+        await database.dungeonSeason.update({ where: { id: active.id }, data: { ratingRules: added.rules as unknown as Prisma.InputJsonValue } });
+      }
+      continue;
+    }
     if (!backedUp) { await backup(); backedUp = true; }
-    await start(row.guildId, window.name, active?.id ?? null, window.end && window.end > now ? window.end : undefined, carriedRules(active), window.start);
+    await start(row.guildId, window.name, active?.id ?? null, window.end && window.end > now ? window.end : undefined, window.rules.rules, window.start);
     rotated.push({ guildId: row.guildId, season: window.name, ended: active?.name ?? null });
   }
   return rotated;

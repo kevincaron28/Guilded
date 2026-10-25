@@ -11,6 +11,7 @@ import { BRAND } from "../brand.js";
 
 export interface ParsedCharacter {
   name: string;
+  displayName?: string;
   realm: string;
   className: string;
   race?: string;
@@ -51,7 +52,7 @@ export function parseCharacterString(input: string): ParsedCharacter {
   } else {
     throw new Error(`That doesn't look like a ${BRAND.name} character line. In game, type /guilded character and copy the line it shows.`);
   }
-  const [, name = "", realm = "", className = "", race = "", levelText = "", spec = "", professionText = ""] = parts;
+  const [, name = "", realm = "", className = "", race = "", levelText = "", spec = "", professionText = "", displayName = ""] = parts;
   if (!name || !realm || !className) throw new Error("The character line is missing the name, realm or class. Run /guilded character again in game.");
   if (name.length > 24 || realm.length > 64) throw new Error("The character line looks damaged. Run /guilded character again in game.");
   const level = Number(levelText);
@@ -65,6 +66,7 @@ export function parseCharacterString(input: string): ParsedCharacter {
     .slice(0, 10);
   return {
     name,
+    ...(displayName && displayName.length <= 80 && !displayName.includes("|") && Array.from(displayName).every(char => char.charCodeAt(0) >= 32 && char.charCodeAt(0) !== 127) ? { displayName } : {}),
     realm,
     className: normalizeClassName(className),
     ...(race ? { race: normalizeRaceName(race) } : {}),
@@ -102,6 +104,7 @@ export async function importCharacter(
     const updated = await database.character.update({
       where: { id: existing.id },
       data: {
+        ...(parsed.displayName ? { displayName: parsed.displayName } : {}),
         className: parsed.className,
         ...(parsed.spec ? { spec: parsed.spec } : {}),
         ...(parsed.level !== undefined ? { level: parsed.level } : {}),
@@ -121,6 +124,7 @@ export async function importCharacter(
     const created = await createGuildService(database).addCharacter({
       memberId,
       name: parsed.name,
+      ...(parsed.displayName ? { displayName: parsed.displayName } : {}),
       realm: parsed.realm,
       className: parsed.className,
       isMain,

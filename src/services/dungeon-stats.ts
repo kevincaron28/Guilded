@@ -1,5 +1,5 @@
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
-import { dungeonConfig, weekStart } from "./dungeon-rules.js";
+import { sharedDungeonConfig, weekStart } from "./dungeon-rules.js";
 import { finalRows } from "./season-snapshot.js";
 import { hasDungeonRating, dungeonRating, seasonDungeonCatalog, type LevelBand } from "./dungeon-rating.js";
 import { validBracketedRules } from "./dungeon-november-rules.js";
@@ -71,8 +71,7 @@ async function recordBands(database: Db, guildId: string): Promise<Record<string
   if (hasDungeonRating(season?.ratingRules) && (season!.ratingRules as { version: number }).version >= 3) {
     return (season!.ratingRules as unknown as { levelBands: Record<string, LevelBand> }).levelBands;
   }
-  const settings = await database.guildSettings.findUnique({ where: { guildId } });
-  return dungeonConfig(settings?.dungeonConfig).levelBands;
+  return sharedDungeonConfig().levelBands;
 }
 
 function recordName(row: ParticipationRun & { dungeonName: string }): string {

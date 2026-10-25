@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BETA_DUNGEONS } from "../src/services/dungeon-beta-preset.js";
 import {
-  MIN_RECALIBRATION_RUNS, PROVISIONAL_PLAN_ID, provisionalSeasonEmbed, provisionalSeasonRules, recalibrateRoute, recalibrationEvidence,
+  PROVISIONAL_PLAN_ID, provisionalSeasonEmbed, provisionalSeasonRules, recalibrationEvidence,
   routeChoices, startProvisionalSeason
 } from "../src/services/dungeon-bracket-season.js";
 import { importDungeonRuns } from "../src/services/dungeon-import.js";
@@ -230,7 +230,6 @@ describe("recalibrating a provisional target", () => {
     const early = [timed("a", 1500, "2026-10-21T01:00:00Z"), timed("b", 1800, "2026-10-21T02:00:00Z")];
     const few = db(rules, early);
     expect((await recalibrationEvidence(few.db, "g", "36")).times).toEqual([]); // legacy build/start evidence is unknown
-    await expect(recalibrateRoute(few.db, "g", "36", 28, new Date("2026-10-22T00:00:00Z"))).rejects.toThrow(new RegExp(`${MIN_RECALIBRATION_RUNS} are needed`));
     expect(few.tx.dungeonSeason.update).not.toHaveBeenCalled();
 
     // An over-level group and a run on another route do not calibrate Deadmines.
@@ -249,15 +248,12 @@ describe("recalibrating a provisional target", () => {
     const long = db(rules, diverse.map(r => ({ ...r, durationSec: 10800,
       players: r.players.map(p => ({ ...p, presentSec: 10800 })) })));
     expect(await recalibrationEvidence(long.db, "g", "36")).toMatchObject({ ready: false, median: 10800, suggestedMinutes: null });
-    await expect(recalibrateRoute(long.db, "g", "36", 120)).rejects.toThrow(/outside the supported/);
     expect(long.tx.dungeonSeason.update).not.toHaveBeenCalled();
     const at = new Date("2026-10-25T00:00:00Z");
-    await expect(recalibrateRoute(enough.db, "g", "36", 40, at)).rejects.toThrow(/reviewed crew\/day median/);
-    const result = await recalibrateRoute(enough.db, "g", "36", 28, at);
-    const next = result.rules;
-    expect(enough.tx.dungeonSeason.update).toHaveBeenCalledWith({ where: { id: "all" }, data: { ratingRules: next } });
+    // Historical recalibrations remain readable, but there is no write API any more.
+    const next = recalibrated(rules, "36", 28, at.toISOString());
+    expect(enough.tx.dungeonSeason.update).not.toHaveBeenCalled();
     expect(validBracketedRules(JSON.parse(JSON.stringify(next)))).toBe(true);
-    expect(next.recalibrations).toEqual([{ dungeonKey: "36", targetSec: 1680, from: at.toISOString(), runs: 20 }]);
     expect(next.targets["36"]).toBe(1680);
     expect(next.catalog.find(d => d.dungeonKey === "36")!.provisional).toBe(false);
     expect(next.provisionalTargets).toBe(true);
@@ -278,7 +274,6 @@ describe("recalibrating a provisional target", () => {
     expect(() => createBracketedDungeonRules({ routes: rules.routes, brackets: rules.brackets,
       recalibrations: [{ dungeonKey: "36", targetSec: 1680, from: "2026-10-22T00:00:00.000Z", runs: 3 }] })).toThrow(/Only a provisional season/);
     await expect(recalibrationEvidence(db(fixed, []).db, "g", "36")).rejects.toThrow(/next season/);
-    await expect(recalibrateRoute(db(rules, []).db, "g", "36", 2)).rejects.toThrow(/5 to 120/);
     expect(() => recalibrated(rules, "4321", 30, "2026-10-22T00:00:00.000Z")).toThrow(/not rated/);
     const one = recalibrated(rules, "36", 30, "2026-10-22T00:00:00.000Z");
     expect(() => recalibrated(one, "90", 30, "2026-10-21T00:00:00.000Z")).toThrow(/time order/);

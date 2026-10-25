@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { SITE_NAV } from "../site/nav.mjs";
+import { localizedHref, SITE_NAV } from "../site/nav.mjs";
 import { layout } from "../src/services/web-layout.js";
 
 // One menu for the whole website: the bot-served pages and the static build both read site/nav.mjs.
@@ -11,12 +11,29 @@ describe("site menu", () => {
     const html = page("/leaderboards/", "fr");
     for (const item of SITE_NAV) expect(html).toContain(`>${item.fr}</a>`);
     expect(html).toContain('href="/leaderboards/?lang=fr" aria-current="page"');
-    expect(html).toContain('href="/companion/"');
+    expect(html).toContain('href="/companion/?lang=fr"');
     expect(page("/me/", "en")).not.toContain('aria-current="page"');
   });
 
   it("builds the static menu from the same list", () => {
-    expect(readFileSync("site/index.html", "utf8")).toContain('<nav id="main-navigation" aria-label="Main navigation">{{SITE_NAV}}');
+    expect(readFileSync("site/index.html", "utf8")).toMatch(/<nav id="main-navigation"[^>]*>\{\{SITE_NAV\}\}/);
     expect(readFileSync("scripts/build-site.mjs", "utf8")).toContain('from "../site/nav.mjs"');
+  });
+
+  it("keeps French across the product, guide and public-page navigation", () => {
+    const html = page("/leaderboards/", "fr");
+    expect(html).toContain('href="/features/?lang=fr"');
+    expect(html).toContain('href="/docs/QUICK_START.html#fr"');
+    expect(html).toContain('href="/?lang=fr#start"');
+    expect(localizedHref("/leaderboards/?season=s1&lang=en#records", "fr")).toBe("/leaderboards/?season=s1&lang=fr#records");
+    expect(localizedHref("features/", "fr")).toBe("features/?lang=fr");
+    expect(localizedHref("/companion/?tab=cores&lang=en#rules", "fr")).toBe("/companion/?tab=cores&lang=fr#rules");
+    expect(localizedHref("/companion/?lang=fr", "en")).toBe("/companion/?lang=en");
+    expect(localizedHref("../docs/MEMBER_INSTALL.html#fr", "en")).toBe("../docs/MEMBER_INSTALL.html");
+    expect(localizedHref("../docs/MEMBER_INSTALL.html#quick-fixes", "fr")).toBe("../docs/MEMBER_INSTALL.html#quick-fixes");
+  });
+
+  it.each(["https://example.com/?lang=en", "//example.com/", "/companion/web-bundle.js", "#features", "/logo.png"])("leaves unrelated links unchanged: %s", href => {
+    expect(localizedHref(href, "fr")).toBe(href);
   });
 });

@@ -16,6 +16,11 @@ and record the exact package SHA-256, testers, roles, client build, language and
   rehearsed. Staged Linux update/recovery checks passed, followed by a successful real update.
   Live rollback was not performed. The separate Prisma 6 contingency remains draft PR #211.
 - The main PC's companion and both addons were upgraded. The second PC is still to be tested.
+  The latest main-PC companion installation is the verified `b755adf` candidate,
+  installed 24 October around 20:08 Toronto time. All 18 installed app/engine files
+  match the package; settings and pairing remain byte-identical. Installed-engine
+  read-only connection and synthetic quiet-refresh/repair checks passed. See the
+  latest section of `AI_HANDOFF_2026-10-24.md`; native interaction gates remain open.
 - Previous dungeon history was cleared with a verified backup; identities, pairing, EP/GP and
   unrelated data were preserved. Keep `DUNGEON_RUNS_NOT_BEFORE` through recovery. Do not repeat
   the reset as a launch step. Season 1 is scheduled for 4 November 2026, 23:00 UTC / 18:00 Toronto.
@@ -28,6 +33,19 @@ real-client checks into passes.
 
 ## Work prepared without the game
 
+- [Offline management acceptance](OFFLINE_ACCEPTANCE_2026-10-24.md) covers French
+  draft preservation, refused/disconnected save recovery, pending-save exclusion,
+  ordinary-member rendering and language-preserving Companion navigation. These
+  synthetic browser checks do not replace actual member/guild or native acceptance.
+
+- [Discord acceptance progress](DISCORD_ACCEPTANCE_2026-10-24.md) records private
+  Quebec Gold command/signup checks, cleanup, the character-picker language fix,
+  and remaining interaction gates. Public online scoring already uses common
+  season-frozen rules; [guild-local scoring controls are now locked in candidate source](DUNGEON_SCORING_LOCK_2026-10-24.md).
+- Additional candidate features and the two-minute companion log fix are described
+  in [pre-launch features](PRELAUNCH_FEATURES_2026-10-24.md). The game is unavailable
+  until its release: live acceptance begins then, and Guilded public promotion
+  waits for the required passes. Earlier package hashes do not cover these changes.
 - The companion sync regression waits for completed writes of both standings files and drives
   the polling clock in the test. It checks the conditional 304 response followed by an
   unconditional repair fetch, compressed/delta uploads, current data and absence of errors.
@@ -61,9 +79,10 @@ real-client checks into passes.
 | Calibration | Gather representative crews/days under the recorded build and start convention. Review the guardrails and offline replay; do not change frozen targets or curves mid-season. |
 | Publication | After acceptance only: promote the exact tested artifacts, update provider metadata and verify public downloads and checksums. |
 
-Deferred enhancements are not required for the initial launch: generated score-card images,
-Components V2 raid signup layouts and alternative scoring curves. Raid seat presets, verified
-loot/GP tables and a full two-officer raid rehearsal belong to raid readiness. Native German/
+Generated score-card images, new-post Components V2 raid signups and editable raid presets
+are now prepared on the feature branch, pending final validation and human Discord acceptance.
+Alternative scoring curves remain deferred. Verified loot/GP tables and a full two-officer
+raid rehearsal belong to raid readiness. Native German/
 Spanish review needs reviewers; signing needs the owner's verified signing identity/service.
 Do not claim those are complete or purchase/enroll in services as part of this preparation.
 

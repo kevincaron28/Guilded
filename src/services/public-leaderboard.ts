@@ -11,6 +11,7 @@ import { characterId, characterScores, DEFAULT_OFFICIAL, periodRules, publicRule
 import { breadcrumbs } from "./site-header.js";
 import { escapeHtml, link, options } from "./web-layout.js";
 import type { WebContext, WebKit, WebResponse, WebRoute } from "./web-app.js";
+import { scoreCardResponse } from "./score-card.js";
 
 // Public dungeon leaderboards (7.0, roadmap request 6; 7.1 season pages). Layout inspired by
 // Raider.IO, built from our own data and words: /leaderboards/ (this week's top runs and top
@@ -23,7 +24,7 @@ import type { WebContext, WebKit, WebResponse, WebRoute } from "./web-app.js";
 // cut off by a row limit. Character pages add the best next improvement and role scores
 // (public-guidance.ts).
 
-export interface LeaderPlayer { character: string; realm: string; className: string | null; role: string | null; level: number | null; minLevel?: number | null; presentSec?: number | null }
+export interface LeaderPlayer { character: string; displayName?: string | null; realm: string; className: string | null; role: string | null; level: number | null; minLevel?: number | null; presentSec?: number | null }
 export interface LeaderRun extends ScoreRun {
   deaths: number | null; bracket: string | null; season: string; players: LeaderPlayer[];
 }
@@ -31,6 +32,8 @@ export interface DungeonSummary { instanceId: number; dungeonName: string; bestS
 export interface RunQuery { from: Date | null; to: Date | null; instanceId?: number | null }
 
 export interface LeaderboardStore {
+  /** Look up only accepted public runs, never guild-private or rejected uploads. */
+  run?(id: string): Promise<LeaderRun | null>;
   runs(query: RunQuery): Promise<LeaderRun[]>;
   characterRuns(character: string, realm: string | null): Promise<LeaderRun[]>;
   /** Guilds that publish their runs; slug is their public guild page, when published. */
@@ -144,12 +147,13 @@ export function dungeonSummaries(runs: LeaderRun[]): DungeonSummary[] {
 }
 
 export const characterPath = (player: { character: string; realm: string }) => `/leaderboards/character/${encodeURIComponent(player.realm ? `${player.character}-${player.realm}` : player.character)}`;
+export const runPath = (id: string) => `/leaderboards/run/${encodeURIComponent(id)}`;
 const classSlug = (name: string | null) => (name ?? "").toLowerCase().replace(/[^a-z]/g, "");
 
 // What the pages read of a public run, evidence included (player-profiles.ts reads the same).
 export const PUBLIC_RUN_SELECT = { id: true, instanceId: true, routeKey: true, difficultyId: true, dungeonName: true, durationSec: true, startedAt: true, endedAt: true, deaths: true, bracket: true, season: true,
   confirmations: true, evidenceVersion: true, completedBy: true, encounters: true,
-  players: { select: { character: true, realm: true, className: true, role: true, level: true, minLevel: true, presentSec: true } } } as const satisfies Prisma.PublicRunSelect;
+  players: { select: { character: true, displayName: true, realm: true, className: true, role: true, level: true, minLevel: true, presentSec: true } } } as const satisfies Prisma.PublicRunSelect;
 type PublicRunRow = Prisma.PublicRunGetPayload<{ select: typeof PUBLIC_RUN_SELECT }>;
 export function leaderRun({ id, startedAt, evidenceVersion, completedBy, encounters, ...row }: PublicRunRow): LeaderRun {
   return { runId: id, ...row, evidence: evidenceVersion >= 1 ? { startedAt, completedBy, encounters: Array.isArray(encounters) ? encounters : [] } : null };
@@ -170,6 +174,10 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
     }
   }
   return {
+    async run(id) {
+      const row = await database.publicRun.findFirst({ where: { id, status: "ACCEPTED" }, select: PUBLIC_RUN_SELECT });
+      return row ? leaderRun(row) : null;
+    },
     async runs(query) {
       return (await every(range(query))).sort((a, b) => a.durationSec - b.durationSec || a.endedAt.getTime() - b.endedAt.getTime());
     },
@@ -226,9 +234,9 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
 
   const time = (seconds: number) => formatDuration(seconds);
   const date = (value: Date) => value.toISOString().slice(0, 10);
-  const who = (ctx: WebContext, player: LeaderPlayer) => `<a class="char c-${classSlug(player.className)}" href="${link(characterPath(player), ctx.lang)}">${escapeHtml(player.character)}</a>`
+  const who = (ctx: WebContext, player: LeaderPlayer) => `<a class="char c-${classSlug(player.className)}" href="${link(characterPath(player), ctx.lang)}">${escapeHtml(player.displayName || player.character)}</a>`
     + (player.realm ? ` <span class="tag">${escapeHtml(player.realm)}</span>` : "");
-  const party = (ctx: WebContext, run: LeaderRun) => run.players.map((player) => `<a class="c-${classSlug(player.className)}" href="${link(characterPath(player), ctx.lang)}">${escapeHtml(player.character)}</a>`).join(", ");
+  const party = (ctx: WebContext, run: LeaderRun) => run.players.map((player) => `<a class="c-${classSlug(player.className)}" href="${link(characterPath(player), ctx.lang)}">${escapeHtml(player.displayName || player.character)}</a>`).join(", ");
   const trust = (ctx: WebContext, run: LeaderRun) => (run.confirmations >= 2
     ? `<span class="badge ok" title="${ctx.t("Party members' uploads agree", "Les envois des membres du groupe concordent")}">✔ ${ctx.t("Confirmed by party", "Confirmé par le groupe")} · ${run.confirmations}</span>`
     : `<span class="badge">${ctx.t("1 upload", "1 envoi")}</span>`)
@@ -418,7 +426,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       { description: t("WoW Forever dungeon scores and leaderboards by season, week, level bracket, dungeon, class, role and realm.", "Scores et classements des donjons WoW Forever par saison, semaine, niveaux, donjon, classe, rôle et royaume.") });
   }
 
-  async function character(ctx: WebContext, kit: WebKit, raw: string): Promise<WebResponse> {
+  async function character(ctx: WebContext, kit: WebKit, raw: string, image = false): Promise<WebResponse> {
     const { t, lang } = ctx;
     let decoded: string;
     try { decoded = decodeURIComponent(raw).trim(); } catch { decoded = ""; }
@@ -429,13 +437,22 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const runs = await cached(`c:${name.toLowerCase()}:${realm?.toLowerCase() ?? ""}`, () => deps.store.characterRuns(name, realm));
     const isMe = (player: LeaderPlayer) => player.character.toLowerCase() === name.toLowerCase() && (realm === null || player.realm.toLowerCase() === realm.toLowerCase());
     const me = runs.flatMap((run) => run.players.filter(isMe))[0];
-    const title = `${me?.character ?? name}${realm ? `-${realm}` : ""}`;
+    const title = `${me?.displayName || me?.character || name}${realm ? `-${realm}` : ""}`;
     const seasons = await seasonsNow();
     const inPeriod = (p: PublicPeriod) => runs.filter((run) => (!p.from || run.endedAt >= p.from) && (!p.to || run.endedAt < p.to));
     const mine = (rows: ScoreRow[]) => rows.filter((row) => isMe(row.player));
     const season = seasons[0]!;
     const seasonRuns = inPeriod(season);
     const current = mine(characterScores(seasonRuns, periodRules(season)));
+    const imagePath = link(`/leaderboards/character/${raw}/card.png`, lang);
+    if (image) {
+      if (!runs.length) return kit.page(404, t("Not found", "Introuvable"), "", { noindex: true });
+      return scoreCardResponse({ title, subtitle: periodName(ctx, season),
+        value: current.length ? current.map(row => `${row.points} (${row.bracket})`).join(" · ") : t("Not rated this season", "Non classé cette saison"),
+        detail: t("Dungeon score by level bracket", "Score de donjon par tranche de niveaux"),
+        footer: t("Community reports · Provisional targets · guilded.kcaron.top", "Rapports communautaires · Cibles provisoires · guilded.kcaron.top")
+      }, ctx.request.method === "HEAD");
+    }
     // Guidance for the running season: the highest level seen is the character's level now.
     const levels = runs.flatMap((run) => run.players.filter(isMe).flatMap((p) => p.level ?? []));
     const level = levels.length ? Math.max(...levels) : null;
@@ -464,7 +481,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
           [...best.values()].sort((a, b) => a.dungeonName.localeCompare(b.dungeonName)).map((run) => `<tr><td><a href="${link("/leaderboards/", lang, { dungeon: String(run.instanceId), season: "all" })}">${escapeHtml(run.dungeonName)}</a></td><td class="num">${time(run.durationSec)}</td><td class="num score">${cell(run)}</td><td>${party(ctx, run)}</td><td>${date(run.endedAt)}</td><td>${trust(ctx, run)}</td></tr>`), [1, 2])
         + `<h2>${t("Recent runs", "Essais récents")}</h2>`
         + table([t("Date", "Date"), t("Dungeon", "Donjon"), t("Time", "Temps"), t("Score", "Score"), t("Deaths", "Morts"), t("Levels", "Niveaux"), ""],
-          runs.slice(0, 30).map((run) => `<tr><td>${date(run.endedAt)}</td><td>${escapeHtml(run.dungeonName)}</td><td class="num">${time(run.durationSec)}</td><td class="num score">${cell(run)}</td><td class="num">${run.deaths ?? "?"}</td><td>${escapeHtml(run.bracket ?? "?")}</td><td>${trust(ctx, run)}</td></tr>`), [2, 3, 4])
+          runs.slice(0, 30).map((run) => `<tr><td>${date(run.endedAt)}</td><td><a href="${link(runPath(run.runId), lang)}">${escapeHtml(run.dungeonName)}</a></td><td class="num">${time(run.durationSec)}</td><td class="num score">${cell(run)}</td><td class="num">${run.deaths ?? "?"}</td><td>${escapeHtml(run.bracket ?? "?")}</td><td>${trust(ctx, run)}</td></tr>`), [2, 3, 4])
         + `<h2>${t("Score history", "Historique du score")}</h2>` + (history.length
           ? table([t("Season", "Saison"), t("Levels", "Niveaux"), t("Score", "Score"), ""], history.flatMap((h) => h.rows.map((row) => `<tr><td>${escapeHtml(periodName(ctx, h.p))}</td><td>${escapeHtml(bracketName(ctx, row.bracket))}</td><td class="num score">${row.points}</td><td class="bar-cell"><div class="meter" style="width:${Math.round(100 * row.points / top)}%"></div></td></tr>`)), [2])
           : `<p class="muted">${t("No rated season yet.", "Aucune saison classée.")}</p>`)
@@ -474,7 +491,32 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const description = scoreLine
       ? t(`${title}: dungeon score ${scoreLine} · ${periodName(ctx, seasons[0]!)} · Guilded leaderboards.`, `${title} : score de donjon ${scoreLine} · ${periodName(ctx, seasons[0]!)} · classements Guilded.`)
       : t(`${title}: dungeon score and times on Guilded's public leaderboards.`, `${title} : score et temps de donjon sur les classements publics de Guilded.`);
-    return kit.page(runs.length ? 200 : 404, title, body, { description, ...(runs.length ? {} : { noindex: true }) });
+    return kit.page(runs.length ? 200 : 404, title, body + (runs.length ? `<p><a href="${imagePath}">${t("Download score card", "Télécharger la carte de score")}</a></p>` : ""), { description, ...(runs.length ? { shareImage: imagePath } : { noindex: true }) });
+  }
+
+  async function runPage(ctx: WebContext, kit: WebKit, id: string, image: boolean): Promise<WebResponse> {
+    // Recheck visibility even when the rendered image is cached.
+    const run = await deps.store.run?.(id);
+    if (!run) return kit.page(404, ctx.t("Not found", "Introuvable"), "", { noindex: true });
+    const { t, lang } = ctx;
+    const seasons = await seasonsNow();
+    const rules = rulesAt(seasons, run.endedAt);
+    const verdict = rateRun(run, rules);
+    const period = seasons.find(p => (!p.from || run.endedAt >= p.from) && (!p.to || run.endedAt < p.to));
+    const score = verdict.score ? `${verdict.score.points} · ${verdict.score.bracket}` : t("Unrated", "Non classé");
+    const evidence = run.confirmations >= 2 ? t("Party confirmed", "Confirmé par le groupe") : t("One upload", "Un envoi");
+    const title = run.dungeonName;
+    const subtitle = `${period ? periodName(ctx, period) : t("Past run", "Ancien donjon")} · ${date(run.endedAt)} UTC`;
+    const imagePath = link(`${runPath(id)}/card.png`, lang);
+    if (image) return scoreCardResponse({ title, subtitle, value: `${time(run.durationSec)} · ${score}`,
+      detail: `${evidence} · ${run.players.length} ${t("players", "joueurs")}${run.evidence ? "" : t(" · Older evidence check", " · Ancienne vérification")}`,
+      footer: t("Community report · Provisional targets · Not Blizzard verified", "Rapport communautaire · Cibles provisoires · Non vérifié par Blizzard")
+    }, ctx.request.method === "HEAD");
+    const description = `${title} · ${time(run.durationSec)} · ${score} · ${evidence}`;
+    return kit.page(200, title, PAGE_CSS + `<h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle)}</p><p class="score">${escapeHtml(time(run.durationSec))} · ${escapeHtml(score)}</p>`
+      + (verdict.reason ? `<p>${escapeHtml(verdict.reason)}</p>` : "")
+      + `<p>${trust(ctx, run)}</p><p>${party(ctx, run)}</p><p>${t("Scores use this run's season rules. Targets are provisional; community uploads are not Blizzard verification.", "Les scores suivent les règles de la saison du donjon. Les cibles sont provisoires; les envois communautaires ne sont pas vérifiés par Blizzard.")}</p>`
+      + `<p><a href="${imagePath}">${t("Download run card", "Télécharger la carte du donjon")}</a></p>`, { description, shareImage: imagePath });
   }
 
   async function guildPage(ctx: WebContext, kit: WebKit, id: string): Promise<WebResponse> {
@@ -521,6 +563,10 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
 
   const route: WebRoute = async (ctx, kit) => {
     const path = ctx.request.path;
+    const card = /^\/leaderboards\/character\/([^/]{1,200})\/card\.png$/.exec(path);
+    if (card && ["GET", "HEAD"].includes(ctx.request.method)) return character(ctx, kit, card[1]!, true);
+    const run = /^\/leaderboards\/run\/([A-Za-z0-9_-]{1,40})(\/card\.png)?$/.exec(path);
+    if (run && ["GET", "HEAD"].includes(ctx.request.method)) return runPage(ctx, kit, run[1]!, !!run[2]);
     if (path === "/leaderboards/" && ctx.request.method !== "POST") return board(ctx, kit);
     const match = /^\/leaderboards\/character\/([^/]{1,200})$/.exec(path);
     if (match && ctx.request.method !== "POST") return character(ctx, kit, match[1]!);

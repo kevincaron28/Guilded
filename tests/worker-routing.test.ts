@@ -6,6 +6,18 @@ const base = "https://guilded-wow.kcaron.workers.dev";
 const env = { ASSETS: { fetch: vi.fn(async () => new Response("website")) } };
 
 describe("unified website and companion", () => {
+  it("proxies score-card PNG bytes and headers without the HTML rewrite", async () => {
+    const bytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0, 255, 128]);
+    const upstream = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => new Response(bytes, { headers: { "content-type": "image/png", "cache-control": "no-store" } }));
+    vi.stubGlobal("fetch", upstream);
+    for (const path of ["/leaderboards/character/K%C3%A9vin-Forever/card.png?lang=fr", "/leaderboards/run/r1/card.png"]) {
+      const response = await worker.fetch(new Request(`https://guilded.kcaron.top${path}`), env);
+      expect(response.headers.get("content-type")).toBe("image/png");
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(new Uint8Array(await response.arrayBuffer())).toEqual(bytes);
+      expect(upstream.mock.calls.at(-1)?.[0]).toBe(`https://guildedqc.duckdns.org${path}`);
+    }
+  });
   it("serves the creator page only at the selected creator domain root", async () => {
     const upstream = vi.fn(); vi.stubGlobal("fetch", upstream);
     for (const hostname of ["kcaron.top", "www.kcaron.top"]) {

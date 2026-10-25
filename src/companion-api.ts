@@ -27,6 +27,7 @@ import type { Client } from "discord.js";
 import { companionAccess, personalSnapshot } from "./services/companion-access.js";
 import { readFileSync } from "node:fs";
 import { ZodError } from "zod";
+import { addonCharacterSchema } from "./integrations/addon.js";
 import type { PrismaClient } from "./generated/prisma/client.js";
 import { createPoeMappingService, poeAreaName, PoeMappingError } from "./services/poe-mapping.js";
 import { notify } from "./services/notify.js";
@@ -292,7 +293,7 @@ async function standingsParts(guild: { id: string; discordId: string }, access: 
     const items = await itemInsights(database, guild.id).catch(() => []);
     // How each raid core decides loot, with its item prices and own-pool standings.
     const loot = await lootRulesForAddon(database, guild.id, async (coreId, coreBaseGp) =>
-      (await epgp.getGuildStandings(guild.id, coreBaseGp, coreId)).map((row) => ({ character: row.character, main: row.main, ep: row.ep, gp: row.gp })));
+      (await epgp.getGuildStandings(guild.id, coreBaseGp, coreId)).map((row) => ({ character: row.character, ...(row.displayName ? { displayName: row.displayName } : {}), main: row.main, ep: row.ep, gp: row.gp })));
     const botRaids = await upcomingRaidsForAddon(database, guild.id);
     const raids = mergeCalendarEvents(botRaids, scheduledEvents);
     const accounts = Object.fromEntries((await database.character.findMany({ where: { member: { guildId: guild.id } }, select: { name: true, memberId: true } })).map((c) => [c.name, c.memberId]));
@@ -331,7 +332,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         });
         if (answer) {
           response.writeHead(answer.status, answer.headers);
-          response.end(request.method === "HEAD" ? undefined : answer.body);
+          response.end(request.method === "HEAD" ? undefined : answer.binaryBody ?? answer.body);
           return;
         }
       }
@@ -430,8 +431,10 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const account = await personalAccess(personalStore, typeof secret === "string" ? secret : undefined);
         if (!account) { recordFailure(address); json(response, 401, { error: "Connect this companion with a code from your Guilded page (guilded.kcaron.top/me/)." }); return; }
         if (!allowPublicUpload(account.accountId)) { json(response, 429, { error: "Too many uploads in the last hour. Try again later." }); return; }
-        const body = await readBody(request) as { character?: { name?: unknown; realm?: unknown }; runs?: unknown; includeScore?: unknown } | null;
+        const body = await readBody(request) as { character?: { name?: unknown; displayName?: unknown; realm?: unknown }; runs?: unknown; includeScore?: unknown } | null;
         const character = typeof body?.character?.name === "string" ? body.character.name.slice(0, 40) : null;
+        const parsedDisplay = addonCharacterSchema.shape.displayName.safeParse(body?.character?.displayName);
+        const displayName = parsedDisplay.success ? parsedDisplay.data : undefined;
         if (!character) { json(response, 400, { error: "character.name is required" }); return; }
         try {
           const result = await ingestPublicRuns(publicRuns, { uploaderKey: `account:${account.accountId}`, character, source: "personal", runs: body?.runs });
@@ -445,7 +448,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
             });
             for (const player of players) if (player.realm) await prisma.webCharacter.upsert({
               where: { accountId_name_realm: { accountId: account.accountId, name: player.character, realm: player.realm } },
-              create: { accountId: account.accountId, name: player.character, realm: player.realm }, update: {}
+              create: { accountId: account.accountId, name: player.character, realm: player.realm, ...(displayName ? { displayName } : {}) }, update: displayName ? { displayName } : {}
             });
           }
           // Explicit opt-in keeps old companions' response and cost unchanged. Public

@@ -16,16 +16,21 @@ export const CLASS_EMOJI_NAMES: Record<WowClass, string> = {
   "Death Knight": "wow_chevalier_mort", Monk: "wow_moine", "Demon Hunter": "wow_chasseur_demons", Evoker: "wow_evocateur"
 };
 export interface DisplayCharacter {
+  name?: string;
+  displayName?: string | null;
   className?: string | null;
   spec?: string | null;
   level?: number | null;
   readinessSnapshots?: { itemLevel: number | null; inspectedAt: Date }[];
 }
 export const CHARACTER_DISPLAY_SELECT = {
-  name: true, realm: true, memberId: true, className: true, spec: true, level: true,
+  name: true, displayName: true, realm: true, memberId: true, className: true, spec: true, level: true,
   readinessSnapshots: { orderBy: { inspectedAt: "desc" as const }, take: 1, select: { itemLevel: true, inspectedAt: true } }
 } as const;
 export const GEAR_MAX_AGE_MS = 24 * 60 * 60_000;
+export function characterName(character: { name: string; displayName?: string | null }): string {
+  return character.displayName?.trim() || character.name;
+}
 const normalized = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z]/gi, "").toLowerCase();
 export function canonicalClass(value?: string | null): WowClass | undefined {
   const key = normalized(value ?? "");
@@ -90,6 +95,12 @@ export const staleGearNote = (lang: Lang) => lang === "fr"
   : "* Gear inspected over 24 hours ago; sync the addon to refresh it.";
 
 export function characterDisplayLine(label: string, character: DisplayCharacter | null | undefined, lang: Lang, emojis: ClassEmojis = {}, now = new Date()): string {
+  // Existing callers pass either the character or "member · character".
+  // Replace only that exact trailing identity, never arbitrary nickname text.
+  if (character?.name && character.displayName) {
+    if (label === character.name) label = character.displayName;
+    else if (label.endsWith(` · ${character.name}`)) label = label.slice(0, -character.name.length) + character.displayName;
+  }
   if (!character?.className) return label;
   const name = canonicalClass(character.className);
   const className = name ? lang === "fr" ? CLASS_NAMES_FR[name] ?? name : name : character.className.slice(0, 50);

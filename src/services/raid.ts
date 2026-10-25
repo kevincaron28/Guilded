@@ -10,6 +10,7 @@ import type {
 import { ownedSignupCharacter } from "./signup-character.js";
 import { assertRealm, requiredRealm } from "./realm-check.js";
 import { CHARACTER_DISPLAY_SELECT } from "./character-display.js";
+import { raidPreset } from "./raid-presets.js";
 
 const activeSignupStatuses: RaidSignupStatus[] = ["SIGNED_UP"];
 
@@ -35,6 +36,7 @@ export interface CreateRaidInput {
   // Create the raid for a raid core: its members get signup priority.
   coreId?: string;
   repeatWeekly?: boolean;
+  preset?: string;
 }
 
 export type SignupAvailability = "AVAILABLE" | "MAYBE";
@@ -105,6 +107,7 @@ export function createRaidService(database: PrismaClient) {
 
   return {
     async create(input: CreateRaidInput) {
+      const preset = raidPreset(input.preset);
       if (input.title.trim().length < 3) throw new Error("Raid title must be at least 3 characters.");
       if (input.scheduledAt.getTime() <= Date.now()) throw new Error("Raid time must be in the future.");
       for (const [label, limit] of [["Tank", input.tankLimit], ["Healer", input.healerLimit], ["DPS", input.dpsLimit]] as const) {
@@ -128,9 +131,9 @@ export function createRaidService(database: PrismaClient) {
           createdBy: input.createdBy,
           description: input.description?.trim() || null,
           repeatWeekly: input.repeatWeekly ?? false,
-          tankLimit: input.tankLimit ?? coreLimits.tankLimit ?? null,
-          healerLimit: input.healerLimit ?? coreLimits.healerLimit ?? null,
-          dpsLimit: input.dpsLimit ?? coreLimits.dpsLimit ?? null,
+          tankLimit: input.tankLimit ?? preset?.tankLimit ?? coreLimits.tankLimit ?? null,
+          healerLimit: input.healerLimit ?? preset?.healerLimit ?? coreLimits.healerLimit ?? null,
+          dpsLimit: input.dpsLimit ?? preset?.dpsLimit ?? coreLimits.dpsLimit ?? null,
           ...(bosses.length > 0 ? {
             bosses: { create: bosses.map((name, sortOrder) => ({ name, sortOrder })) }
           } : {})

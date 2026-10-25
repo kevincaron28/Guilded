@@ -1,3 +1,6 @@
+const languageUI = window.companionLanguage;
+const T = (key, ...values) => languageUI.t(key, ...values);
+const M = value => languageUI.message(value);
 const $ = id => document.getElementById(id);
 const api = window.companion;
 const desktopNavigation = matchMedia('(min-width:1001px)');
@@ -13,6 +16,7 @@ document.addEventListener('keydown',event => {
 });
 document.addEventListener('keydown',event => { if (event.key === 'Escape' && document.body.classList.contains('nav-open')) { closeNavigation(); $('btnNav').focus(); } });
 desktopNavigation.addEventListener('change',closeNavigation);
+const modeLabel = mode => T(({STANDARD:'Trade / Standard', HARDCORE:'Hardcore', SSF:'Solo self-found', SSF_HARDCORE:'Solo self-found Hardcore'})[mode] || mode || '');
 const fields = ['uploadUrl','guildDiscordId','pairingCode','watchFile','realm','wowGuild','standingsIntervalMinutes','poeLogFile','poeCharacter','poeLeague','poeMode'];
 const names = {status:'Overview',wishlist:'Wishlist',cores:'Cores & prices',wow:'World of Warcraft',poe:'PoE2 mapping',settings:'Connection & setup',activity:'Activity',help:'Help & privacy'};
 let lastSnapshot;
@@ -20,19 +24,19 @@ let savedConfig = {};
 let entries = [];
 let toastTimer;
 function ago(iso) {
-  if (!iso || !Number.isFinite(Date.parse(iso))) return 'Not yet';
+  if (!iso || !Number.isFinite(Date.parse(iso))) return T("Not yet");
   const seconds = Math.max(0, (Date.now() - Date.parse(iso)) / 1000);
-  if (seconds < 60) return 'Just now';
-  if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)} hr ago`;
-  return `${Math.floor(seconds / 86400)} days ago`;
+  if (seconds < 60) return T("Just now");
+  if (seconds < 3600) return T("{0} min ago", Math.floor(seconds / 60));
+  if (seconds < 86400) return T("{0} hr ago", Math.floor(seconds / 3600));
+  return T("{0} days ago", Math.floor(seconds / 86400));
 }
 function showPage(name) {
   if (!names[name]) name = 'status';
   document.querySelectorAll('.page').forEach(page => page.hidden = page.id !== `page-${name}`);
   document.querySelectorAll('.nav').forEach(button => { const active = button.dataset.page === name; button.classList.toggle('active', active); if (active) button.setAttribute('aria-current','page'); else button.removeAttribute('aria-current'); });
-  $('breadcrumb').textContent = names[name];
-  document.title = `${names[name]} · Guilded Companion`;
+  $('breadcrumb').textContent = T(names[name]);
+  document.title = T("{0} · Guilded Companion", T(names[name]));
   closeNavigation();
   const heading = document.querySelector('#page-' + name + ' h1');
   if (heading) { heading.tabIndex = -1; heading.focus({preventScroll:true}); }
@@ -40,72 +44,54 @@ function showPage(name) {
 }
 document.querySelectorAll('[data-page],[data-go]').forEach(button => button.addEventListener('click', () => showPage(button.dataset.page || button.dataset.go)));
 function toast(message, error = false) {
-  $('toast').textContent = message; $('toast').hidden = false; $('toast').classList.toggle('error',error); clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').hidden = true, 6000);
+  $('toast').textContent = M(message); $('toast').hidden = false; $('toast').classList.toggle('error',error); clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').hidden = true, 6000);
 }
 async function action(button, task) {
   button.disabled = true; button.dataset.busy = "true";
-  try { return await task(); } catch (error) { toast(error.message || 'This action could not be completed.',true); }
+  try { return await task(); } catch (error) { toast(error.message || T("This action could not be completed."),true); }
   finally { button.disabled = false; delete button.dataset.busy; if (lastSnapshot) renderState(lastSnapshot); }
 }
 const bind = (id, task) => $(id).addEventListener('click', event => action(event.currentTarget, task));
 const readForm = () => ({...Object.fromEntries(fields.map(id => [id,$(id).value.trim()])), wowEnabled:$('wowEnabled').checked, poeEnabled:$('poeEnabled').checked});
-const say = (message, ok) => { $('formResult').textContent = message; $('formResult').className = `result ${ok ? 'ok' : 'bad'}`; };
+const say = (message, ok) => { $('formResult').textContent = M(message); $('formResult').className = `result ${ok ? 'ok' : 'bad'}`; };
 function gameFields() { $('wowSettings').hidden = !$('wowEnabled').checked; $('poeSettings').hidden = !$('poeEnabled').checked; }
 ['wowEnabled','poeEnabled'].forEach(id => $(id).addEventListener('change',gameFields));
 function pill(id, text, level) { $(id).textContent = text; $(id).className = `pill ${level || ''}`; }
 function renderUpdate(update) {
   $('updateBanner').hidden = !update || !!api.browser;
   if (!update) return;
-  $('updateTitle').textContent = `Guilded Companion ${update.version} is available`;
-  $('updateText').textContent = `You have ${$('version').textContent.replace(/^Version /, '')}. ${update.installer ? 'Update now installs it and restarts the companion' : 'Download the new installer and run it'}: your settings and Discord link are kept.`;
+  $('updateTitle').textContent = T("Guilded Companion {0} is available", update.version);
+  $('updateText').textContent = T("You have {0}. {1}: your settings and Discord link are kept.", $('version').textContent.replace(/^Version /, ''), update.installer ? T("Update now installs it and restarts the companion") : T("Download the new installer and run it"));
 }
 // Launch day (companion/live-folder.mjs, installed app only): the watched folder with its last
 // upload and file change (amber after 3 days without a change), and the live game's folder to
 // switch to when WoW saves somewhere else. In French when Windows is.
-const french = /^fr\b/i.test(navigator.language);
-const LIVE = french ? {
-  status: (folder, upload, changed) => `Dossier surveillé : ${folder} · dernier envoi ${upload} · fichier modifié ${changed}`,
-  stale: ' · plus de 3 jours sans changement : WoW enregistre-t-il ailleurs ?',
-  missing: 'jamais (pas encore enregistré)',
-  betaTitle: 'Le compagnon surveille encore le dossier de la bêta',
-  staleTitle: days => `Votre fichier n’a pas changé depuis ${days} jours`,
-  text: (file, folder, account, changed) => `${file} dans ${folder} (compte ${account}) a été modifié ${changed}. Changez de dossier pour que vos envois continuent.`,
-  switchButton: 'Passer au dossier du jeu live',
-  keepButton: 'Garder ce dossier',
-  switched: path => `Dossier changé. Fichier surveillé : ${path}`,
-  notStarted: 'Dossier changé, mais le compagnon n’a pas pu démarrer. Voir la page Activity.',
-  kept: 'Dossier conservé. Cette question ne reviendra pas pour ce fichier.'
-} : {
-  status: (folder, upload, changed) => `Watching ${folder} · last upload ${upload} · file changed ${changed}`,
-  stale: ' · over 3 days without a change: is WoW saving somewhere else?',
-  missing: 'never (not saved yet)',
-  betaTitle: 'Your companion is still watching the beta folder',
-  staleTitle: days => `Your saved file has not changed in ${days} days`,
-  text: (file, folder, account, changed) => `${file} in ${folder} (account ${account}) changed ${changed}. Switch so your uploads keep going.`,
-  switchButton: 'Switch to the live game folder',
-  keepButton: 'Keep this folder',
-  switched: path => `Switched. Now watching ${path}`,
-  notStarted: 'Switched, but the companion could not start. See the Activity page.',
-  kept: 'Kept. You will not be asked about this file again.'
-};
-$('btnLiveSwitch').textContent = LIVE.switchButton; $('btnLiveKeep').textContent = LIVE.keepButton;
-if (french) { $('liveBanner').lang = 'fr'; $('watchStatus').lang = 'fr'; }
-function since(iso) {
-  if (!french) return ago(iso).toLowerCase();
-  if (!iso || !Number.isFinite(Date.parse(iso))) return 'pas encore';
-  const seconds = Math.max(0, (Date.now() - Date.parse(iso)) / 1000), days = Math.floor(seconds / 86400);
-  return seconds < 60 ? 'à l’instant' : seconds < 3600 ? `il y a ${Math.floor(seconds / 60)} min` : seconds < 86400 ? `il y a ${Math.floor(seconds / 3600)} h` : `il y a ${days} jour${days > 1 ? 's' : ''}`;
-}
+function liveText() { return {
+  status: (running, folder, upload, changed) => running
+    ? T("Watching {0} · last upload {1} · file changed {2}", folder, upload, changed)
+    : T("Selected folder: {0} · last upload {1} · file changed {2}", folder, upload, changed),
+  stale: T(" · over 3 days without a change: is WoW saving somewhere else?"),
+  missing: T("never (not saved yet)"),
+  betaTitle: T("Your companion is still watching the beta folder"),
+  staleTitle: days => T("Your saved file has not changed in {0} days", days),
+  text: (file, folder, account, changed) => T("{0} in {1} (account {2}) changed {3}. Switch so your uploads keep going.", file, folder, account, changed),
+  switchButton: T("Switch to the live game folder"),
+  keepButton: T("Keep this folder"),
+  switched: path => T("Switched. Now watching {0}", path),
+  notStarted: T("Switched, but the companion could not start. See the Activity page."),
+  kept: T("Kept. You will not be asked about this file again.")
+}; }
+function since(iso) { return ago(iso).toLowerCase(); }
 function renderSavedFile(snapshot) {
   const file = snapshot.savedFile, candidate = file?.candidate, watched = snapshot.state.watching || savedConfig.watchFile;
   const show = !api.browser && savedConfig.wowEnabled !== false && !!file && !!watched;
   $('watchStatus').hidden = !show; $('liveBanner').hidden = !show || !candidate;
   if (!show) return;
-  $('watchStatus').textContent = LIVE.status(watched.replace(/[\\/][^\\/]*$/, ''), since(snapshot.state.lastUpload?.at), file.changedAt ? since(file.changedAt) : LIVE.missing) + (file.stale ? LIVE.stale : '');
+  $('watchStatus').textContent = liveText().status(snapshot.state.running, watched.replace(/[\\/][^\\/]*$/, ''), since(snapshot.state.lastUpload?.at), file.changedAt ? since(file.changedAt) : liveText().missing) + (file.stale ? liveText().stale : '');
   $('watchStatus').classList.toggle('stale', file.stale);
   if (!candidate) return;
-  $('liveTitle').textContent = candidate.reason === 'beta' ? LIVE.betaTitle : LIVE.staleTitle(Math.floor((Date.now() - Date.parse(file.changedAt)) / 86400000));
-  $('liveText').textContent = LIVE.text(candidate.path.split(/[\\/]/).pop(), candidate.gameFolder, candidate.account, since(candidate.changedAt));
+  $('liveTitle').textContent = candidate.reason === 'beta' ? liveText().betaTitle : liveText().staleTitle(Math.floor((Date.now() - Date.parse(file.changedAt)) / 86400000));
+  $('liveText').textContent = liveText().text(candidate.path.split(/[\\/]/).pop(), candidate.gameFolder, candidate.account, since(candidate.changedAt));
 }
 function renderState(snapshot) {
   lastSnapshot = snapshot;
@@ -113,49 +99,49 @@ function renderState(snapshot) {
   renderUpdate(snapshot.update);
   renderSavedFile(snapshot);
   const overview = window.guildedOverview(savedConfig,state,!!api.browser);
-  $('overviewConnection').textContent = overview.connection;
-  $('overviewTracking').textContent = overview.tracking;
-  $('overviewFiles').textContent = overview.files;
-  $('overviewStandings').textContent = overview.standings;
-  $('overviewStandingsTime').textContent = state.lastStandings ? ago(state.lastStandings.at) : 'A connection is not a completed sync.';
-  $('overviewNext').firstChild.textContent = overview.nextAction + ' →';
+  $('overviewConnection').textContent = M(overview.connection);
+  $('overviewTracking').textContent = M(overview.tracking);
+  $('overviewFiles').textContent = overview.selectedFiles ? (overview.selectedFiles === 1 ? T('1 selected source') : T('{0} selected sources', overview.selectedFiles)) : T('Choose your game files');
+  $('overviewStandings').textContent = M(overview.standings);
+  $('overviewStandingsTime').textContent = state.lastStandings ? ago(state.lastStandings.at) : T("A connection is not a completed sync.");
+  $('overviewNext').firstChild.textContent = M(overview.nextAction) + ' →';
   $('btnUpload').hidden = !overview.linked;
   $('btnUpload').disabled = !overview.canSync || $('btnUpload').dataset.busy === 'true';
   const linked = !!savedConfig.companionCredential;
   const paused = !api.browser && linked && !state.running && health.text === 'Not running';
   const setup = health.level === 'setup' && health.text === 'Setup needed';
   $('banner').className = `banner ${paused ? 'setup' : health.level}`;
-  $('bannerTitle').textContent = paused ? 'Tracking paused' : setup ? "Let's get you connected" : health.level === 'ok' ? api.browser ? 'Ready to sync on your terms' : 'Connected and ready for adventure' : health.level === 'error' ? 'Your sync needs attention' : 'Waiting to sync';
-  $('bannerText').textContent = paused ? 'Resume tracking in Connection & setup when you are ready.' : setup ? 'Addon-only guild? You do not need to connect. With the Guilded bot or for public leaderboards, connect your account and choose your games.' : health.text;
+  $('bannerTitle').textContent = paused ? T("Tracking paused") : setup ? T("Let's get you connected") : health.level === 'ok' ? api.browser ? T("Ready to sync on your terms") : T("Connected and ready for adventure") : health.level === 'error' ? T("Your sync needs attention") : T("Waiting to sync");
+  $('bannerText').textContent = paused ? T("Resume tracking in Connection & setup when you are ready.") : setup ? T("Addon-only guild? You do not need to connect. With the Guilded bot or for public leaderboards, connect your account and choose your games.") : M(health.text);
   $('setupBadge').hidden = !setup;
-  pill('connectionPill', setup ? 'Setup needed' : paused ? 'Paused' : health.level === 'ok' ? 'Connected' : 'Needs attention',health.level === 'ok' ? 'ok' : health.level === 'error' ? 'error' : 'gold');
-  pill('pairBadge', linked ? 'Discord linked' : 'Discord not linked',linked ? 'ok' : '');
+  pill('connectionPill', setup ? T("Setup needed") : paused ? T("Paused") : health.level === 'ok' ? T("Connected") : T("Needs attention"),health.level === 'ok' ? 'ok' : health.level === 'error' ? 'error' : 'gold');
+  pill('pairBadge', linked ? T("Discord linked") : T("Discord not linked"),linked ? 'ok' : '');
   $('removePanel').hidden = !!api.browser && !linked;
-  $('versions').textContent = `Bot ${state.botVersion || 'not connected'}${savedConfig.wowEnabled !== false && state.addonVersion ? ` · Addon ${state.addonVersion}` : ''}`;
-  $('tileUpload').textContent = state.lastUpload ? ago(state.lastUpload.at) : 'Awaiting your first sync';
-  $('tileUploadNote').textContent = state.lastUpload?.message || 'Save fresh addon data with /reload.';
-  $('tileStandings').textContent = state.lastStandings ? ago(state.lastStandings.at) : 'Awaiting first refresh';
-  $('tileStandingsNote').textContent = state.lastStandings?.message || 'Synced from the Discord bot';
+  $('versions').textContent = `Bot ${state.botVersion || T("not connected")}${savedConfig.wowEnabled !== false && state.addonVersion ? ` · Addon ${state.addonVersion}` : ''}`;
+  $('tileUpload').textContent = state.lastUpload ? ago(state.lastUpload.at) : T("Awaiting your first sync");
+  $('tileUploadNote').textContent = M(state.lastUpload?.message) || T("Save fresh addon data with /reload.");
+  $('tileStandings').textContent = state.lastStandings ? ago(state.lastStandings.at) : T("Awaiting first refresh");
+  $('tileStandingsNote').textContent = M(state.lastStandings?.message) || T("Synced from the Discord bot");
   $('tileCount').textContent = String(state.uploads || 0);
-  $('tileWatch').textContent = state.watching || savedConfig.watchFile || 'No saved-data file selected';
-  pill('wowFileState',state.watching || savedConfig.watchFile ? 'File selected' : 'Choose a file',state.watching ? 'ok' : '');
-  pill('wowBadge',savedConfig.wowEnabled === false ? 'Sync off' : state.uploadError ? 'Needs attention' : state.lastUpload ? 'Synced' : state.watching ? api.browser ? 'Ready to sync' : 'Watching' : 'Not configured',state.uploadError ? 'error' : state.lastUpload || state.watching ? 'ok' : '');
+  $('tileWatch').textContent = state.watching || savedConfig.watchFile || T("No saved-data file selected");
+  pill('wowFileState',state.watching || savedConfig.watchFile ? T("File selected") : T("Choose a file"),state.watching ? 'ok' : '');
+  pill('wowBadge',savedConfig.wowEnabled === false ? T("Sync off") : state.uploadError ? T("Needs attention") : state.lastUpload ? T("Synced") : state.watching ? api.browser ? T("Ready to sync") : T("Watching") : T("Not configured"),state.uploadError ? 'error' : state.lastUpload || state.watching ? 'ok' : '');
   const poe = state.poe;
-  pill('poeBadge',!savedConfig.poeEnabled ? 'Tracking off' : poe?.error ? 'Needs attention' : poe?.pending ? 'Ready to sync' : api.browser ? 'Manual sharing' : poe?.running ? 'Watching' : 'Set up tracking',poe?.error ? 'error' : poe?.running ? 'ok' : poe?.pending ? 'gold' : '');
+  pill('poeBadge',!savedConfig.poeEnabled ? T("Tracking off") : poe?.error ? T("Needs attention") : poe?.pending ? T("Ready to sync") : api.browser ? T("Manual sharing") : poe?.running ? T("Watching") : T("Set up tracking"),poe?.error ? 'error' : poe?.running ? 'ok' : poe?.pending ? 'gold' : '');
   const areaName = poe?.currentArea?.replace(/^Map/, '').replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Za-z])(\d)/g, '$1 $2');
-  $('poeCurrent').textContent = areaName || 'Waiting for your next map';
-  $('poeStatus').textContent = poe?.error || poe?.warning || (poe ? `${poe.pending || 0} observations waiting${poe.lastSync ? ` · synced ${ago(poe.lastSync).toLowerCase()}` : ''}` : 'Enable map sharing in setup when you are ready.');
-  $('poeLiveArea').textContent = areaName || 'Waiting for your next map';
+  $('poeCurrent').textContent = areaName || T("Waiting for your next map");
+  $('poeStatus').textContent = M(poe?.error) || M(poe?.warning) || (poe ? T("{0} observations waiting{1}", poe.pending || 0, poe.lastSync ? T(" · synced {0}", ago(poe.lastSync).toLowerCase()) : '') : T("Enable map sharing in setup when you are ready."));
+  $('poeLiveArea').textContent = areaName || T("Waiting for your next map");
   const elapsed = poe?.running && poe.currentStartedAt ? Math.floor((Date.now() - Date.parse(poe.currentStartedAt)) / 1000) : null;
-  $('poeElapsed').textContent = elapsed === null ? 'No open map visit' : elapsed < 0 || elapsed > 21600 ? 'Elapsed time unknown — check game activity and clock' : `${Math.floor(elapsed / 60)}m ${elapsed % 60}s elapsed since generation`;
+  $('poeElapsed').textContent = elapsed === null ? T("No open map visit") : elapsed < 0 || elapsed > 21600 ? T("Elapsed time unknown — check game activity and clock") : T("{0}m {1}s elapsed since generation", Math.floor(elapsed / 60), elapsed % 60);
   $('poeToday').textContent = String(poe?.todayMaps || 0);
   $('poeLastActivity').textContent = ago(poe?.lastActivity);
-  $('poeCaptureNote').textContent = poe?.error || poe?.warning || (poe?.catchingUp ? 'Catching up with recent log activity…' : poe?.running ? 'Watching for supported area and disconnect events.' : 'Tracking paused or not configured.');
-  $('poeProfile').textContent = savedConfig.poeCharacter || 'Not set';
-  $('poeLeagueLabel').textContent = savedConfig.poeLeague ? `${savedConfig.poeLeague} · ${(savedConfig.poeMode || 'STANDARD').replaceAll('_',' ')}` : 'Choose a character, league and mode';
+  $('poeCaptureNote').textContent = M(poe?.error) || M(poe?.warning) || (poe?.catchingUp ? T("Catching up with recent log activity…") : poe?.running ? T("Watching for supported area and disconnect events.") : T("Tracking paused or not configured."));
+  $('poeProfile').textContent = savedConfig.poeCharacter || T("Not set");
+  $('poeLeagueLabel').textContent = savedConfig.poeLeague ? `${savedConfig.poeLeague} · ${modeLabel(savedConfig.poeMode || 'STANDARD')}` : T("Choose a character, league and mode");
   $('poePending').textContent = String(poe?.pending || 0);
-  $('poeSyncTime').textContent = poe?.lastSync ? `Last synced ${ago(poe.lastSync).toLowerCase()}` : 'No visits synced yet';
-  $('btnPause').textContent = state.running ? 'Pause tracking' : 'Resume tracking';
+  $('poeSyncTime').textContent = poe?.lastSync ? T("Last synced {0}", ago(poe.lastSync).toLowerCase()) : T("No visits synced yet");
+  $('btnPause').textContent = state.running ? T("Pause tracking") : T("Resume tracking");
   renderMode();
 }
 // Guild or leaderboards only (personal): what is connected, and which saved files the WoW steps mean.
@@ -168,100 +154,129 @@ function renderMode() {
   const write = (key, text) => { const [id, attribute] = key.split(':'); if (attribute) $(id)[attribute] = text; else $(id).textContent = text; };
   modeDefaults ||= Object.fromEntries(MODE_TEXT.map(key => [key, read(key)]));
   const leaderboard = {
-    'watchFile:placeholder': api.browser && api.folderAccess ? 'Choose your SavedVariables folder' : 'Choose GuildedDungeons.lua or Guilded.lua',
-    detectNote: 'World of Warcraft / WTF / Account / your account / SavedVariables: the companion reads GuildedDungeons.lua and Guilded.lua there, whichever addon you use.',
-    btnWowSelect: api.browser && api.folderAccess ? 'Choose SavedVariables folder' : 'Choose saved data',
-    wowStep2: api.browser ? 'After /reload, click Sync now: your finished dungeon runs go to the public leaderboards.' : 'The companion notices the saved-file change and sends your finished dungeon runs to the public leaderboards.',
-    wowStep3: 'Refresh public scores, then /reload and use /gdungeons score. In the browser, save Accepted.lua to Interface / AddOns / GuildedDungeons. Public and guild scores may differ.',
-    btnStandings: api.browser ? 'Save public scores to addon' : 'Refresh public scores'
+    'watchFile:placeholder': api.browser && api.folderAccess ? T("Choose your SavedVariables folder") : T("Choose GuildedDungeons.lua or Guilded.lua"),
+    detectNote: T("World of Warcraft / WTF / Account / your account / SavedVariables: the companion reads GuildedDungeons.lua and Guilded.lua there, whichever addon you use."),
+    btnWowSelect: api.browser && api.folderAccess ? T("Choose SavedVariables folder") : T("Choose saved data"),
+    wowStep2: api.browser ? T("After /reload, click Sync now: your finished dungeon runs go to the public leaderboards.") : T("The companion notices the saved-file change and sends your finished dungeon runs to the public leaderboards."),
+    wowStep3: T("Refresh public scores, then /reload and use /gdungeons score. In the browser, save Accepted.lua to Interface / AddOns / GuildedDungeons. Public and guild scores may differ."),
+    btnStandings: api.browser ? T("Save public scores to addon") : T("Refresh public scores")
   };
   for (const key of MODE_TEXT) write(key, personal ? leaderboard[key] : modeDefaults[key]);
   $('btnStandings').hidden = false;
   $('connectedAs').hidden = !linked;
   $('connectedAs').textContent = !linked ? '' : personal
-    ? 'Connected: public dungeon leaderboards only. Your finished runs are sent; no guild data.'
-    : `Connected: your guild's Discord${savedConfig.guildDiscordId ? ` (server ${savedConfig.guildDiscordId})` : ''}. Your saved data is synced and standings come back to the addon.`;
+    ? T("Connected: public dungeon leaderboards only. Your finished runs are sent; no guild data.")
+    : T("Connected: your guild's Discord{0}. Your saved data is synced and standings come back to the addon.", savedConfig.guildDiscordId ? T(" (server {0})", savedConfig.guildDiscordId) : '');
 }
 function renderLogs() {
   $('log').replaceChildren();
   const query = $('logSearch').value.toLowerCase(); const filter = $('logFilter').value;
-  const shown = entries.filter(entry => (filter === 'all' || entry.level === filter) && entry.message.toLowerCase().includes(query));
+  const shown = entries.filter(entry => (filter === 'all' || entry.level === filter) && (M(entry.message).toLowerCase().includes(query) || entry.message.toLowerCase().includes(query)));
   $('activityCount').textContent = String(entries.length);
-  if (!shown.length) { const empty = document.createElement('div'); empty.className = 'empty-state'; const heading = document.createElement('h3'); heading.textContent = entries.length ? 'No matching activity' : "You're all caught up"; const note = document.createElement('p'); note.textContent = entries.length ? 'Try a different search or filter.' : 'Your sync activity will appear here.'; empty.append(heading,note); $('log').append(empty); return; }
+  if (!shown.length) { const empty = document.createElement('div'); empty.className = 'empty-state'; const heading = document.createElement('h3'); heading.textContent = entries.length ? T("No matching activity") : T("You're all caught up"); const note = document.createElement('p'); note.textContent = entries.length ? T("Try a different search or filter.") : T("Your sync activity will appear here."); empty.append(heading,note); $('log').append(empty); return; }
   for (const entry of shown.slice().reverse()) {
     const row = document.createElement('div'); row.className = 'log-row';
-    const time = document.createElement('time'); time.dateTime = entry.time; time.textContent = new Date(entry.time).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); time.title = new Date(entry.time).toLocaleString();
-    const level = document.createElement('span'); level.className = `log-level ${['info','ok','warn','error'].includes(entry.level) ? entry.level : 'info'}`; level.textContent = entry.level === 'ok' ? 'Synced' : entry.level;
-    const message = document.createElement('span'); message.className = 'log-message'; message.textContent = entry.message; row.append(time,level,message); $('log').append(row);
+    const time = document.createElement('time'); time.dateTime = entry.time; time.textContent = new Date(entry.time).toLocaleTimeString(languageUI.language, {hour:'2-digit',minute:'2-digit'}); time.title = new Date(entry.time).toLocaleString(languageUI.language);
+    const level = document.createElement('span'); level.className = `log-level ${['info','ok','warn','error'].includes(entry.level) ? entry.level : 'info'}`; level.textContent = entry.level === 'ok' ? T("Synced") : T(entry.level);
+    const message = document.createElement('span'); message.className = 'log-message'; message.textContent = M(entry.message); row.append(time,level,message); $('log').append(row);
   }
 }
 function addLog(entry) { entries.push(entry); entries = entries.slice(-300); renderLogs(); }
 $('logSearch').addEventListener('input',renderLogs); $('logFilter').addEventListener('change',renderLogs); $('btnClearLog').addEventListener('click',() => { entries = []; renderLogs(); });
-async function chooseWow() { const file = await api.browseFile(); if (file) { $('watchFile').value = file; toast('WoW file selected. Save your setup to apply it.'); } }
-async function choosePoe() { const file = await api.browsePoeLog(readForm()); if (file) { $('poeLogFile').value = file; toast(api.browser ? 'Log preview ready. Review your profile and save your setup before syncing.' : 'PoE2 log selected. Save your setup to apply it.'); } }
+async function chooseWow() { const file = await api.browseFile(); if (file) { $('watchFile').value = file; toast(T("WoW file selected. Save your setup to apply it.")); } }
+async function choosePoe() { const file = await api.browsePoeLog(readForm()); if (file) { $('poeLogFile').value = file; toast(api.browser ? T("Log preview ready. Review your profile and save your setup before syncing.") : T("PoE2 log selected. Save your setup to apply it.")); } }
 ['btnBrowse','btnWowSelect'].forEach(id => bind(id,chooseWow)); ['btnPoeBrowse','btnPoeSelect'].forEach(id => bind(id,choosePoe));
-bind('btnDetect',async () => { $('detectNote').textContent = 'Looking for your addon data…'; const found = await api.detectWow(); if (found.length) { $('watchFile').value = found[0].path; $('detectNote').textContent = found.length > 1 ? `Found ${found.length} accounts. Check the selected file before saving.` : found[0].exists ? 'Found your addon data.' : (savedConfig.personal ? 'Account found. Use /reload with Guilded Dungeons (or Guilded) enabled to create its saved file.' : 'Account found. Use /reload with the addon enabled to create Guilded.lua.'); } else $('detectNote').textContent = (savedConfig.personal ? 'Choose Browse and select GuildedDungeons.lua or Guilded.lua in your account’s SavedVariables folder.' : 'Choose Browse and select Guilded.lua in your account’s SavedVariables folder.'); });
-bind('btnLiveSwitch',async () => { const result = await api.switchLiveFolder(); if (!result.path) return; savedConfig = (await api.getAll()).config; $('watchFile').value = savedConfig.watchFile || ''; toast(result.ok ? LIVE.switched(result.path) : LIVE.notStarted,!result.ok); });
-bind('btnLiveKeep',async () => { await api.dismissLiveFolder(); toast(LIVE.kept); });
-bind('btnTest',async () => { say('Checking your connection…',true); const result = await api.testConnection(readForm()); say(result.message,result.ok); });
-bind('btnPair',async () => { if (!$('pairingCode').value.trim()) { say('Paste the code from /character pair (or from guilded.kcaron.top/me/) first, or use Sign in with Discord.',false); $('pairingCode').focus(); return; } say('Connecting your Discord account…',true); const result = await api.pairAccount(readForm()); say(result.message,result.ok); if (result.ok) { $('pairingCode').value = ''; savedConfig = (await api.getAll()).config; $('guildDiscordId').value = savedConfig.guildDiscordId || ''; renderState(lastSnapshot); toast('Discord account connected.'); } else if (/server ID/i.test(result.message)) { $('advanced').open = true; $('guildDiscordId').focus(); } });
+bind('btnDetect',async () => { $('detectNote').textContent = T("Looking for your addon data…"); const found = await api.detectWow(); if (found.length) { $('watchFile').value = found[0].path; $('detectNote').textContent = found.length > 1 ? T("Found {0} accounts. Check the selected file before saving.", found.length) : found[0].exists ? T("Found your addon data.") : (savedConfig.personal ? T("Account found. Use /reload with Guilded Dungeons (or Guilded) enabled to create its saved file.") : T("Account found. Use /reload with the addon enabled to create Guilded.lua.")); } else $('detectNote').textContent = (savedConfig.personal ? T("Choose Browse and select GuildedDungeons.lua or Guilded.lua in your account’s SavedVariables folder.") : T("Choose Browse and select Guilded.lua in your account’s SavedVariables folder.")); });
+bind('btnLiveSwitch',async () => { const result = await api.switchLiveFolder(); if (!result.path) return; savedConfig = (await api.getAll()).config; $('watchFile').value = savedConfig.watchFile || ''; toast(result.ok ? liveText().switched(result.path) : liveText().notStarted,!result.ok); });
+bind('btnLiveKeep',async () => { await api.dismissLiveFolder(); toast(liveText().kept); });
+bind('btnTest',async () => { say(T("Checking your connection…"),true); const result = await api.testConnection(readForm()); say(result.message,result.ok); });
+bind('btnPair',async () => { if (!$('pairingCode').value.trim()) { say(T("Paste the code from /character pair (or from guilded.kcaron.top/me/) first, or use Sign in with Discord."),false); $('pairingCode').focus(); return; } say(T("Connecting your Discord account…"),true); const result = await api.pairAccount(readForm()); say(result.message,result.ok); if (result.ok) { $('pairingCode').value = ''; savedConfig = (await api.getAll()).config; $('guildDiscordId').value = savedConfig.guildDiscordId || ''; renderState(lastSnapshot); toast(T("Discord account connected.")); } else if (/server ID/i.test(result.message)) { $('advanced').open = true; $('guildDiscordId').focus(); } });
 // Sign in with Discord (7.2): the browser opens the website; the companion waits for the approval.
-bind('btnSignIn',async () => { const popup = api.browser ? window.open('', '_blank') : null; say('Opening Discord sign-in…',true); const started = await api.signInStart(readForm()); if (!started.ok) { popup?.close(); say(started.message,false); return; } if (started.url) { $('signInLink').href = started.url; if (popup) { popup.opener = null; popup.location.href = started.url; } } $('signInCode').textContent = started.confirm; $('signInWaiting').hidden = false; say(`Your browser opened. Check that it shows ${started.confirm}.`,true); const result = await api.signInWait(); $('signInWaiting').hidden = true; say(result.message,result.ok); if (result.ok) { savedConfig = (await api.getAll()).config; $('guildDiscordId').value = savedConfig.guildDiscordId || ''; $('uploadUrl').value = savedConfig.uploadUrl || ''; renderState(lastSnapshot); toast('Discord account connected.'); } });
-bind('btnSignInCancel',async () => { await api.signInCancel(); $('signInWaiting').hidden = true; say('Sign-in cancelled.',false); });
-$('form').addEventListener('submit',event => { event.preventDefault(); action($('btnSave'),async () => { say('Saving your preferences…',true); const result = await api.saveConfig(readForm()); say(result.message,result.ok); savedConfig = (await api.getAll()).config; renderState(lastSnapshot); if (result.ok) { toast(result.message); showPage('status'); } }); });
+bind('btnSignIn',async () => { const popup = api.browser ? window.open('', '_blank') : null; say(T("Opening Discord sign-in…"),true); const started = await api.signInStart(readForm()); if (!started.ok) { popup?.close(); say(started.message,false); return; } if (started.url) { $('signInLink').href = started.url; if (popup) { popup.opener = null; popup.location.href = started.url; } } $('signInCode').textContent = started.confirm; $('signInWaiting').hidden = false; say(T("Your browser opened. Check that it shows {0}.", started.confirm),true); const result = await api.signInWait(); $('signInWaiting').hidden = true; say(result.message,result.ok); if (result.ok) { savedConfig = (await api.getAll()).config; $('guildDiscordId').value = savedConfig.guildDiscordId || ''; $('uploadUrl').value = savedConfig.uploadUrl || ''; renderState(lastSnapshot); toast(T("Discord account connected.")); } });
+bind('btnSignInCancel',async () => { await api.signInCancel(); $('signInWaiting').hidden = true; say(T("Sign-in cancelled."),false); });
+$('form').addEventListener('submit',event => { event.preventDefault(); action($('btnSave'),async () => { say(T("Saving your preferences…"),true); const result = await api.saveConfig(readForm()); say(result.message,result.ok); savedConfig = (await api.getAll()).config; renderState(lastSnapshot); if (result.ok) { toast(result.message); showPage('status'); } }); });
 $('autostart').addEventListener('change',event => action(event.target,async () => { $('autostart').checked = await api.setAutostart(event.target.checked); }));
-bind('btnUpload',async () => { await api.uploadNow(); toast(api.browser ? 'Sync finished. Check Activity for the result.' : 'Sync requested. Follow its progress in Activity.'); });
-bind('btnStandings',async () => { await api.refreshStandings(); toast(savedConfig.personal ? 'Public score refresh finished. Check Activity, then /reload and use /gdungeons score.' : api.browser ? api.folderAccess ? 'Standings saved. Use /reload in WoW.' : 'Standings downloaded. Add the file to Interface / AddOns / Guilded.' : 'Standings refresh finished. Check Activity for the result.'); });
+bind('btnUpload',async () => { await api.uploadNow(); toast(api.browser ? T("Sync finished. Check Activity for the result.") : T("Sync requested. Follow its progress in Activity.")); });
+bind('btnStandings',async () => { await api.refreshStandings(); toast(savedConfig.personal ? T("Public score refresh finished. Check Activity, then /reload and use /gdungeons score.") : api.browser ? api.folderAccess ? T("Standings saved. Use /reload in WoW.") : T("Standings downloaded. Add the file to Interface / AddOns / Guilded.") : T("Standings refresh finished. Check Activity for the result.")); });
 bind('btnSheets',async () => { const result = await api.exportSheets($('sheetTable').value || undefined); if (!result.canceled) toast(result.message,!result.ok); });
 bind('btnFolder',() => api.openAddonFolder()); bind('btnPause',async () => { await api.toggleTracking(); }); bind('btnOnline',() => api.openOnline());
 bind('btnRemoveData',() => api.removeData());
 // Update now (7.2): the desktop app downloads, checks and installs the new version itself.
 bind('btnUpdate',async () => {
   if (!api.installUpdate) return api.openUpdate();
-  $('btnUpdate').textContent = 'Checking update…';
+  $('btnUpdate').textContent = T("Checking update…");
   let result;
   try { result = await api.installUpdate(); toast(result.message,!result.ok); }
-  finally { $('btnUpdate').textContent = result?.ok && result.action === 'installing' ? 'Installing…' : 'Update now'; }
+  finally { $('btnUpdate').textContent = result?.ok && result.action === 'installing' ? T("Installing…") : T("Update now"); }
 });
-api.onUpdateProgress?.(percent => { $('btnUpdate').textContent = `Downloading ${percent}%`; });
+api.onUpdateProgress?.(percent => { $('btnUpdate').textContent = T("Downloading {0}%", percent); });
 bind('btnHistory',async () => {
-  if (!savedConfig.companionCredential) { showPage('settings'); toast('Connect your Discord account first.'); return; }
+  if (!savedConfig.companionCredential) { showPage('settings'); toast(T("Connect your Discord account first.")); return; }
   const visits = await api.getPoeRuns();
-  if (!visits.length) { toast('No map observations saved yet.'); return; }
+  if (!visits.length) { toast(T("No map observations saved yet.")); return; }
   $('poeHistory').replaceChildren(); $('poeHistory').className = 'history-list';
-  for (const visit of visits) { const row = document.createElement('div'); row.className = 'history-row'; const info = document.createElement('div'); const title = document.createElement('strong'); title.textContent = `${visit.areaName || visit.areaId} · Level ${visit.areaLevel}`; const note = document.createElement('p'); note.textContent = `${visit.character} · ${visit.league} · ${visit.mode.replaceAll('_',' ')} · ${visit.durationSeconds === null ? 'Duration unknown' : `${Math.floor(visit.durationSeconds / 60)}m ${visit.durationSeconds % 60}s observed`}`; const time = document.createElement('time'); time.dateTime = visit.startedAt; time.textContent = new Date(visit.startedAt).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); info.append(title,note); row.append(info,time); $('poeHistory').append(row); }
+  for (const visit of visits) { const row = document.createElement('div'); row.className = 'history-row'; const info = document.createElement('div'); const title = document.createElement('strong'); title.textContent = T("{0} · Level {1}", visit.areaName || visit.areaId, visit.areaLevel); const note = document.createElement('p'); note.textContent = `${visit.character} · ${visit.league} · ${modeLabel(visit.mode)} · ${visit.durationSeconds === null ? T("Duration unknown") : T("{0}m {1}s observed", Math.floor(visit.durationSeconds / 60), visit.durationSeconds % 60)}`; const time = document.createElement('time'); time.dateTime = visit.startedAt; time.textContent = new Date(visit.startedAt).toLocaleString(languageUI.language, {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); info.append(title,note); row.append(info,time); $('poeHistory').append(row); }
 });
-bind('btnDiagnostics',async () => { const state = lastSnapshot?.state || {}; const summary = {product:'Guilded Companion',version:$('version').textContent,mode:api.browser ? 'browser' : 'desktop',generatedAt:new Date().toISOString(),wowEnabled:savedConfig.wowEnabled !== false,poeEnabled:!!savedConfig.poeEnabled,botVersion:state.botVersion,addonVersion:state.addonVersion,running:state.running,uploads:state.uploads,poePending:state.poe?.pending || 0,hasSyncError:!!(state.uploadError || state.standingsError || state.poe?.error)}; const url = URL.createObjectURL(new Blob([JSON.stringify(summary,null,2)],{type:'application/json'})); const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'Guilded-support-summary.json'; anchor.click(); setTimeout(() => URL.revokeObjectURL(url),1000); toast('Support summary saved without credentials, account IDs or file paths.'); });
-function setTheme(light) { document.body.classList.toggle('light',light); $('btnTheme').setAttribute('aria-label',light ? 'Switch to dark theme' : 'Switch to light theme'); try { localStorage.setItem('guilded.companion.theme',light ? 'light' : 'dark'); } catch { /* theme still applies */ } }
+bind('btnDiagnostics',async () => { const state = lastSnapshot?.state || {}; const summary = {product:'Guilded Companion',version:$('version').textContent,mode:api.browser ? 'browser' : 'desktop',generatedAt:new Date().toISOString(),wowEnabled:savedConfig.wowEnabled !== false,poeEnabled:!!savedConfig.poeEnabled,botVersion:state.botVersion,addonVersion:state.addonVersion,running:state.running,uploads:state.uploads,poePending:state.poe?.pending || 0,hasSyncError:!!(state.uploadError || state.standingsError || state.poe?.error)}; const url = URL.createObjectURL(new Blob([JSON.stringify(summary,null,2)],{type:'application/json'})); const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'Guilded-support-summary.json'; anchor.click(); setTimeout(() => URL.revokeObjectURL(url),1000); toast(T("Support summary saved without credentials, account IDs or file paths.")); });
+function setTheme(light) { document.body.classList.toggle('light',light); $('btnTheme').setAttribute('aria-label',light ? T("Switch to dark theme") : T("Switch to light theme")); try { localStorage.setItem('guilded.companion.theme',light ? 'light' : 'dark'); } catch { /* theme still applies */ } }
 try { setTheme(localStorage.getItem('guilded.companion.theme') === 'light'); } catch { /* use dark */ }
 $('btnTheme').addEventListener('click',() => setTheme(!document.body.classList.contains('light')));
-async function init() {
-  if (!api) { toast('The companion interface could not load. Please reload or reinstall.',true); return; }
-  const all = await api.getAll(); savedConfig = all.config;
-  for (const id of fields) $(id).value = all.config[id] ?? '';
-  $('wowEnabled').checked = all.config.wowEnabled !== false; $('poeEnabled').checked = all.config.poeEnabled === true; $('poeMode').value = all.config.poeMode || 'STANDARD'; $('autostart').checked = all.autostart; $('version').textContent = `Version ${all.version}`;
+function configurePresentation() {
+  for (const key of MODE_TEXT) { const [id, attribute] = key.split(':'); const value = T(languageUI.original(id, attribute)); if (attribute) $(id)[attribute] = value; else $(id).textContent = value; }
+  modeDefaults = null;
   if (api.browser) {
-    $('appMode').textContent = 'Online companion'; $('footerMode').textContent = 'Manual file sync · Personal pairing'; $('sideNote').textContent = 'No installation needed.';
-    $('poeMetricLabel').textContent = 'Latest log area';
+    $('appMode').textContent = T("Online companion"); $('footerMode').textContent = T("Manual file sync · Personal pairing"); $('sideNote').textContent = T("No installation needed.");
+    $('poeMetricLabel').textContent = T("Latest log area");
     ['autostartLabel','btnDetect','btnFolder','btnPause','addressLabel','standingsIntervalLabel','btnOnline','poeLive'].forEach(id => $(id).hidden = true);
-    $('btnSave').textContent = 'Save preferences'; $('btnStandings').textContent = 'Download standings'; $('btnRemoveData').textContent = 'Disconnect this device'; $('removeTitle').textContent = 'Disconnect this browser'; $('removeNote').textContent = 'Revokes this Discord link and clears this browser’s saved connection, folders and queued observations. Sync pending visits first.';
-    $('wowModeNote').textContent = 'Browser files are snapshots. After /reload, choose Guilded.lua again and use Sync now.';
-    $('sheetNote').textContent = 'Your browser downloads one CSV file per table. If it asks, allow multiple downloads.';
-    $('wowStep2').textContent = 'Select Guilded.lua and choose Sync now. Your raw Lua file is parsed on your device.';
-    $('wowStep3').textContent = 'Download Standings.lua, place it in Interface / AddOns / Guilded, then /reload.';
-    $('poeModeNote').textContent = 'Manual import previews completed transitions from the latest 24 hours in the last 8 MB of your log. Only select a log from the declared character and league. Choose the updated file again after playing.';
-    $('poeFileNote').textContent = 'Latest 24 hours only. Review your declared character and league before syncing.';
+    $('btnSave').textContent = T("Save preferences"); $('btnStandings').textContent = T("Download standings"); $('btnRemoveData').textContent = T("Disconnect this device"); $('removeTitle').textContent = T("Disconnect this browser"); $('removeNote').textContent = T("Revokes this Discord link and clears this browser’s saved connection, folders and queued observations. Sync pending visits first.");
+    $('wowModeNote').textContent = T("Browser files are snapshots. After /reload, choose Guilded.lua again and use Sync now.");
+    $('sheetNote').textContent = T("Your browser downloads one CSV file per table. If it asks, allow multiple downloads.");
+    $('wowStep2').textContent = T("Select Guilded.lua and choose Sync now. Your raw Lua file is parsed on your device.");
+    $('wowStep3').textContent = T("Download Standings.lua, place it in Interface / AddOns / Guilded, then /reload.");
+    $('poeModeNote').textContent = T("Manual import previews completed transitions from the latest 24 hours in the last 8 MB of your log. Only select a log from the declared character and league. Choose the updated file again after playing.");
+    $('poeFileNote').textContent = T("Latest 24 hours only. Review your declared character and league before syncing.");
     if (api.folderAccess) {
-      $('btnWowSelect').textContent = 'Choose SavedVariables folder'; $('btnBrowse').textContent = 'Choose folder';
-      $('btnStandings').textContent = 'Save standings to addon';
-      $('wowModeNote').textContent = 'Choose SavedVariables and your Guilded addon folder once on this PC. After /reload, Sync now uploads fresh data and updates standings when addon folder access is allowed. Reload again to see the standings in WoW. This browser remembers your folders; use Save standings to addon if it needs permission again. Nothing syncs after you close the page.';
-      $('wowStep2').textContent = 'After /reload, click Sync now to read the latest Guilded.lua from your chosen folder.';
-      $('wowStep3').textContent = 'First time: Save standings to addon and choose Interface / AddOns / Guilded. Future Sync now clicks update standings too. Then /reload in WoW.';
-      const forget = document.createElement('button'); forget.textContent = 'Forget selected folders';
-      forget.addEventListener('click', () => action(forget, async () => { await api.forgetFiles(); $('watchFile').value = ''; savedConfig.watchFile = ''; renderState(lastSnapshot); toast('Saved folder choices cleared. Browser permission grants can also be removed in site settings.'); }));
+      $('btnWowSelect').textContent = T("Choose SavedVariables folder"); $('btnBrowse').textContent = T("Choose folder");
+      $('btnStandings').textContent = T("Save standings to addon");
+      $('wowModeNote').textContent = T("Choose SavedVariables and your Guilded addon folder once on this PC. After /reload, Sync now uploads fresh data and updates standings when addon folder access is allowed. Reload again to see the standings in WoW. This browser remembers your folders; use Save standings to addon if it needs permission again. Nothing syncs after you close the page.");
+      $('wowStep2').textContent = T("After /reload, click Sync now to read the latest Guilded.lua from your chosen folder.");
+      $('wowStep3').textContent = T("First time: Save standings to addon and choose Interface / AddOns / Guilded. Future Sync now clicks update standings too. Then /reload in WoW.");
+      let forget = $('btnForgetFolders');
+      if (!forget) { forget = document.createElement('button'); forget.id = 'btnForgetFolders';
+      forget.addEventListener('click', () => action(forget, async () => { await api.forgetFiles(); $('watchFile').value = ''; savedConfig.watchFile = ''; renderState(lastSnapshot); toast(T("Saved folder choices cleared. Browser permission grants can also be removed in site settings.")); }));
       $('btnStandings').after(forget);
+      }
+      forget.textContent = T("Forget selected folders");
     }
   } else { $('watchFile').removeAttribute('readonly'); $('poeLogFile').removeAttribute('readonly'); }
+  $('btnLiveSwitch').textContent = liveText().switchButton;
+  $('btnLiveKeep').textContent = liveText().keepButton;
+}
+$('language').addEventListener('change', async event => {
+  const chosen = event.target.value;
+  try {
+    // Only a presentation preference: never submit the connection form here.
+    await api.setLanguage?.(chosen);
+    const url = new URL(location.href); url.searchParams.set('lang', chosen);
+    history.replaceState(history.state, '', url);
+    languageUI.set(chosen);
+  } catch (error) { toast(error.message, true); event.target.value = languageUI.language; }
+});
+document.addEventListener('companion-language', () => {
+  if (!lastSnapshot) return;
+  configurePresentation(); renderState(lastSnapshot); renderLogs();
+  const page = document.querySelector('.nav.active')?.dataset.page || 'status';
+  $('breadcrumb').textContent = T(names[page]);
+  document.title = T('{0} · Guilded Companion', T(names[page]));
+  setTheme(document.body.classList.contains('light'));
+});
+async function init() {
+  if (!api) { toast(T("The companion interface could not load. Please reload or reinstall."),true); return; }
+  const all = await api.getAll(); savedConfig = all.config;
+  if (!languageUI.explicit && ['en','fr'].includes(all.language)) languageUI.set(all.language, false);
+  for (const id of fields) $(id).value = all.config[id] ?? '';
+  $('wowEnabled').checked = all.config.wowEnabled !== false; $('poeEnabled').checked = all.config.poeEnabled === true; $('poeMode').value = all.config.poeMode || 'STANDARD'; $('autostart').checked = all.autostart; $('version').textContent = `Version ${all.version}`;
+  configurePresentation();
   gameFields(); entries = all.logs.slice(-300); renderLogs(); renderState({state:all.state,health:all.health,update:all.update,savedFile:all.savedFile});
   showPage(new URLSearchParams(location.search).get('tab') || (savedConfig.companionCredential ? 'status' : 'settings'));
   api.onState(renderState); api.onLog(addLog);

@@ -168,6 +168,7 @@ export function parseAddonExportText(text, realm) {
     .filter(([, entry]) => entry?.identity?.class)
     .map(([name, entry]) => ({
       name,
+      ...(database.displayNames?.[name] ? { displayName: String(database.displayNames[name]) } : {}),
       realm,
       class: String(entry.identity.class),
       race: String(entry.identity.race ?? ""),
@@ -309,6 +310,7 @@ export function parseAddonExportText(text, realm) {
 function exportCharacter(entry, realm) {
   return {
     name: String(entry.name),
+    ...(entry.displayName ? { displayName: String(entry.displayName) } : {}),
     realm: String(entry.realm || realm),
     class: String(entry.class ?? ""),
     race: String(entry.race ?? ""),
@@ -416,6 +418,7 @@ export function exportDungeonRuns(database, realm, options = {}) {
       ...(run.reporters && Object.keys(run.reporters).length ? { reporterNames: Object.keys(run.reporters).slice(0, 10) } : {}),
       players: Object.entries(run.players ?? {}).map(([character, player]) => ({
         character,
+        ...(database.displayNames?.[character] ? { displayName: String(database.displayNames[character]) } : {}),
         realm,
         ...(player.class ? { class: String(player.class) } : {}),
         ...(player.role ? { role: String(player.role) } : {}),

@@ -1,3 +1,4 @@
+import { characterName } from "../services/character-display.js";
 import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { importCharacter, parseCharacterString } from "../services/character-import.js";
@@ -81,7 +82,7 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
     await interaction.reply({
       content: characters.length === 0
         ? "You have no linked characters."
-        : characters.map((character) => `${character.isMain ? "⭐" : "•"} ${character.name} — ${character.race ? `${character.race} ` : ""}${character.className}${character.spec ? ` (${character.spec})` : ""}${character.lastSeenAt ? ` · last seen <t:${Math.floor(character.lastSeenAt.getTime() / 1000)}:R>` : ""}`).join("\n"),
+        : characters.map((character) => `${character.isMain ? "⭐" : "•"} ${characterName(character)} — ${character.race ? `${character.race} ` : ""}${character.className}${character.spec ? ` (${character.spec})` : ""}${character.lastSeenAt ? ` · last seen <t:${Math.floor(character.lastSeenAt.getTime() / 1000)}:R>` : ""}`).join("\n"),
       flags: MessageFlags.Ephemeral
     });
     return;
@@ -101,7 +102,7 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
     if (!character) throw new Error(`No linked character called "${wanted}". /character list shows what is linked.`);
     const isOwn = character.memberId === context.memberId;
     if (!isOwn && !(interaction.member && hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "officer"))) {
-      throw new Error(`${character.name} is linked to ${character.member.displayName}. Only Officers and Guild Masters can unlink someone else's character.`);
+      throw new Error(`${characterName(character)} is linked to ${character.member.displayName}. Only Officers and Guild Masters can unlink someone else's character.`);
     }
     await prisma.character.delete({ where: { id: character.id } });
     // The /guilded verify code that character keeps repeating in game must not link it back.
@@ -112,11 +113,11 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
     if (!isOwn) await revokeCompanionCredentials(prisma, character.memberId);
     if (interaction.guild) {
       await postToLogChannel(interaction.guild, isOwn
-        ? `${interaction.user.username} unlinked their character ${character.name}.`
-        : `${interaction.user.username} unlinked ${character.name} from ${character.member.displayName} (their companion pairing was also revoked).`);
+        ? `${interaction.user.username} unlinked their character ${characterName(character)}.`
+        : `${interaction.user.username} unlinked ${characterName(character)} from ${character.member.displayName} (their companion pairing was also revoked).`);
     }
     await interaction.reply({
-      content: `Unlinked **${character.name}**${isOwn ? "" : ` from ${character.member.displayName}. Their companion pairing was revoked, so a re-upload won't relink it automatically`}. If the addon reports it again, it will show up as unclaimed until it's linked again.`,
+      content: `Unlinked **${characterName(character)}**${isOwn ? "" : ` from ${character.member.displayName}. Their companion pairing was revoked, so a re-upload won't relink it automatically`}. If the addon reports it again, it will show up as unclaimed until it's linked again.`,
       flags: MessageFlags.Ephemeral
     });
     return;
@@ -200,5 +201,5 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
     ...(level === null ? {} : { level }),
     ...(race === null ? {} : { race })
   });
-  await interaction.reply({ content: `Linked ${character.name} as ${character.isMain ? "your main character" : "an alt"}.`, flags: MessageFlags.Ephemeral });
+  await interaction.reply({ content: `Linked ${characterName(character)} as ${character.isMain ? "your main character" : "an alt"}.`, flags: MessageFlags.Ephemeral });
 }

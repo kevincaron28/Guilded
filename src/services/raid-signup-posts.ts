@@ -1,4 +1,5 @@
-import type { Guild, MessageCreateOptions } from "discord.js";
+import { MessageFlags, type Guild, type MessageCreateOptions } from "discord.js";
+import type { signupLayout } from "./signup-layout.js";
 import type { PrismaClient, Raid } from "../generated/prisma/client.js";
 
 type References = Pick<Raid, "id" | "guildId" | "status" | "scheduledAt" | "signupChannelId" | "signupMessageId" | "mirrorSignupChannelId" | "mirrorSignupMessageId">;
@@ -11,7 +12,8 @@ export async function serializeRaidPosts(key: string, work: () => Promise<void>)
 
 // Both messages carry the same raid id; the signup table remains the sole roster.
 export async function syncRaidPosts(guild: Guild, database: Pick<PrismaClient, "raid">, raid: References,
-  generalChannelId: string | null, coreChannelId: string | null, payload: Pick<MessageCreateOptions, "embeds" | "components" | "allowedMentions">): Promise<void> {
+  generalChannelId: string | null, coreChannelId: string | null, payload: Pick<MessageCreateOptions, "embeds" | "components" | "allowedMentions">,
+  modernPayload?: ReturnType<typeof signupLayout>): Promise<void> {
   const targets = [...new Set([generalChannelId, coreChannelId].filter((id): id is string => !!id))];
   // Retries and character refreshes can outlive the raid. Edit existing posts to
   // show completion, but only create or replace posts for upcoming planned raids.
@@ -30,8 +32,10 @@ export async function syncRaidPosts(guild: Guild, database: Pick<PrismaClient, "
       if (error && typeof error === "object" && "code" in error && error.code === 10008) return null;
       throw error;
     }) : null;
-    if (message) await message.edit(payload);
-    else if (canCreate()) message = await channel.send(payload);
+    // V2 is permanent per message. Preserve legacy posts and their URLs; use
+    // V2 for new posts and keep that layout on subsequent updates/closure.
+    if (message) await message.edit(modernPayload && message.flags?.has(MessageFlags.IsComponentsV2) ? modernPayload : payload);
+    else if (canCreate()) message = await channel.send(modernPayload ?? payload);
     else continue;
     await database.raid.updateMany({ where: { id: raid.id, guildId: raid.guildId }, data: index === 0
       ? { signupChannelId: channelId, signupMessageId: message.id,

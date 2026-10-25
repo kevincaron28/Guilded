@@ -1,4 +1,5 @@
 // Public presentation preference only. No authentication or account state.
+import { localizedHref } from './nav.mjs';
 (() => {
   const controls = [...document.querySelectorAll('[data-set-language]')];
   if (!controls.length) return;
@@ -9,11 +10,22 @@
     for (const element of document.querySelectorAll('[data-alt-en][data-alt-fr]')) element.alt = element.dataset[language === 'fr' ? 'altFr' : 'altEn'];
     for (const button of controls) button.setAttribute('aria-pressed', String(button.dataset.setLanguage === language));
     for (const block of document.querySelectorAll('[data-language-copy]')) block.hidden = block.dataset.languageCopy !== language;
+    for (const anchor of document.querySelectorAll('a[href]')) {
+      anchor.setAttribute('href', localizedHref(anchor.getAttribute('href'), language));
+    }
+    const title = document.querySelector('title[data-en][data-fr]');
+    if (title) document.title = title.dataset[language];
     try { window.localStorage.setItem('kc.language', language); } catch { /* the selected language still works */ }
     document.dispatchEvent(new window.CustomEvent('kc-language', { detail: language }));
   };
   let language = new URLSearchParams(window.location.search).get('lang');
   if (!['en', 'fr'].includes(language)) { try { language = window.localStorage.getItem('kc.language'); } catch { /* default below */ } }
   apply(language === 'fr' ? 'fr' : 'en');
-  for (const button of controls) button.addEventListener('click', () => apply(button.dataset.setLanguage));
+  for (const button of controls) button.addEventListener('click', () => {
+    const language = button.dataset.setLanguage;
+    const url = new URL(window.location.href);
+    url.searchParams.set('lang', language);
+    window.history.replaceState(window.history.state, '', url);
+    apply(language);
+  });
 })();

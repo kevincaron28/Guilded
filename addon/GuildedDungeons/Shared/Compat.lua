@@ -88,6 +88,7 @@ local ROLE = { TANK = "TANK", HEALER = "HEALER", DAMAGER = "DPS" }
 
 local function unitInfo(unit)
   if not exists(UnitExists) or not UnitExists(unit) then return nil end
+  ns.util.unitDisplayName(unit)
   local name = try("unitName", UnitName, unit)
   if not name or secret(name) then return nil end
   local _, classFile = try("unitClass", UnitClass, unit)

@@ -27,6 +27,8 @@
       "preload.cjs",
       "detect-wow.cjs",
       "update-check.cjs",
+      "i18n.cjs",
+      "locales/**",
       "renderer/**",
       "assets/**",
       "package.json"

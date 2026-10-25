@@ -17,7 +17,7 @@ import { publicRaidMatches, type PublicRaid } from "./public-raids.js";
 
 export interface WebHeaders { cookie?: string | undefined; origin?: string | undefined; referer?: string | undefined; "accept-language"?: string | undefined; "content-type"?: string | undefined }
 export interface WebRequest { method: string; path: string; query: URLSearchParams; headers: WebHeaders; body?: string }
-export interface WebResponse { status: number; headers: Record<string, string | string[]>; body: string }
+export interface WebResponse { status: number; headers: Record<string, string | string[]>; body: string; binaryBody?: Buffer }
 
 export interface WebContext {
   request: WebRequest; lang: Lang; t: (en: string, fr: string) => string; now: Date;
@@ -26,7 +26,7 @@ export interface WebContext {
 // Extra pages (the leaderboards, personal pairing) plug in here and share the session.
 export type WebRoute = (context: WebContext, kit: WebKit) => Promise<WebResponse | null>;
 export interface WebKit {
-  page(status: number, title: string, body: string, options?: { description?: string; noindex?: boolean; cookies?: string[] }): WebResponse;
+  page(status: number, title: string, body: string, options?: { description?: string; noindex?: boolean; cookies?: string[]; shareImage?: string }): WebResponse;
   redirect(location: string, cookies?: string[]): WebResponse;
   signInPrompt(): WebResponse;
 }
@@ -76,7 +76,7 @@ export function createWebApp(deps: WebAppDeps) {
 
   function kitFor(context: WebContext): WebKit {
     const page: WebKit["page"] = (status, title, body, extra = {}) => ({
-      status, body: layout({ lang: context.lang, title, path: context.request.path, body, account: context.account, csrf: context.csrf, signInOn: Boolean(deps.auth), ...(extra.description ? { description: extra.description } : {}), ...(extra.noindex ? { noindex: true } : {}) }),
+      status, body: layout({ lang: context.lang, title, path: context.request.path, body, account: context.account, csrf: context.csrf, signInOn: Boolean(deps.auth), ...(extra.description ? { description: extra.description } : {}), ...(extra.noindex ? { noindex: true } : {}), ...(extra.shareImage ? { shareImage: new URL(extra.shareImage, deps.auth?.siteUrl ?? "https://guilded.kcaron.top").href } : {}) }),
       headers: { ...SECURITY_HEADERS, "content-type": "text/html; charset=utf-8", ...(extra.cookies ? { "set-cookie": extra.cookies } : {}) }
     });
     return {

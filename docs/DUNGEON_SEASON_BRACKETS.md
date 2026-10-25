@@ -1,5 +1,11 @@
 # Dungeon season for all levels (rules version 6)
 
+> Current policy (24 October 2026): dungeon scoring settings are locked for every guild.
+> Configuration and calibration evidence are read-only; new official guild seasons use
+> the shared frozen rules. Earlier start/recalibration/monthly instructions below are
+> historical and superseded by [the scoring lock](DUNGEON_SCORING_LOCK_2026-10-24.md).
+
+
 Item 3 of `docs/ROADMAP_REQUESTS_PLAN_2026-10-18.md` (PR #134). Built 18 October 2026.
 Nothing here creates, activates or changes a season by itself; an officer starts the provisional
 season below (7.0).

@@ -34,9 +34,10 @@ format for old clients; their trigger is honestly recorded as unknown (`peer`).
 The timer still excludes travel before the first observed combat.
 
 The review displays the effective sample, build, crews/days, median and middle
-50% range. That range is not a confidence interval. Officers may apply only the
-rounded crew/day median (within the existing 5–120 minute bounds). Historical
-scores keep their earlier targets; fixed official seasons cannot be recalibrated.
+50% range. That range is not a confidence interval. Since the 24 October owner
+decision, officers can only view evidence; no guild can apply a recalibration.
+The rounded crew/day median informs future shared season rules. Historical
+scores keep their earlier targets; current season targets stay frozen.
 No targets change merely by installing this code.
 
 ## Player guidance and offline experiments

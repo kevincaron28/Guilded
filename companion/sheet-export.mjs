@@ -88,19 +88,19 @@ const builders = {
     const names = new Set([...Object.keys(table(db.standings?.players)), ...Object.keys(table(db.epgp))]);
     const rows = [...names].map((name) => ({ name, ...effectiveStanding(db, name, now) }))
       .sort((a, b) => b.pr - a.pr || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
-    return [["Rank", "Name", "EP", "GP", "PR"], ...rows.map((row, i) => [i + 1, row.name, row.ep, row.gp, row.pr.toFixed(2)])];
+    return [["Rank", "Name", "EP", "GP", "PR"], ...rows.map((row, i) => [i + 1, db.displayNames?.[row.name] || row.name, row.ep, row.gp, row.pr.toFixed(2)])];
   },
   loot(db) {
     const titles = new Map(list(db.raids).map((raid) => [raid.id, raid.title]));
     const loot = list(db.loot).slice().reverse();
     return [["Date (UTC)", "Raid", "Item", "Player", "GP", "Boss"],
-      ...loot.map((row) => [sheetTime(row.at), row.raid ? titles.get(row.raid) ?? "" : "", itemText(row.item), row.player ?? "", num(row.cost), row.boss ?? ""])];
+      ...loot.map((row) => [sheetTime(row.at), row.raid ? titles.get(row.raid) ?? "" : "", itemText(row.item), db.displayNames?.[row.player] || row.player || "", num(row.cost), row.boss ?? ""])];
   },
   attendance(db) {
     const out = [["Raid", "Date (UTC)", "Player", "Status"]];
     for (const raid of list(db.raids).slice().reverse()) {
       const present = table(table(db.attendance)[raid.id]);
-      for (const name of Object.keys(present).sort()) out.push([raid.title ?? "Raid", sheetTime(raid.startedAt), name, present[name]?.status ?? ""]);
+      for (const name of Object.keys(present).sort()) out.push([raid.title ?? "Raid", sheetTime(raid.startedAt), db.displayNames?.[name] || name, present[name]?.status ?? ""]);
     }
     return out;
   },
@@ -132,7 +132,7 @@ const builders = {
       if (!board.detailsAvailable) for (const row of list(board.rows)) add(row, "");
     }
     rows.sort((a, b) => b.score - a.score || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
-    return [["Rank", "Name", "Score", "Dungeons", "Bracket"], ...rows.map((row, i) => [i + 1, row.name, row.score, row.dungeons, row.bracket])];
+    return [["Rank", "Name", "Score", "Dungeons", "Bracket"], ...rows.map((row, i) => [i + 1, db.displayNames?.[row.name] || row.name, row.score, row.dungeons, row.bracket])];
   }
 };
 

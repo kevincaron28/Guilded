@@ -22,6 +22,7 @@ export async function createSelfCharacter(tx: Tx, guildId: string, memberId: str
     data: {
       memberId,
       name: self.name,
+      ...(self.displayName ? { displayName: self.displayName } : {}),
       realm: self.realm,
       className: normalizeClassName(self.class as string),
       race: self.race ? normalizeRaceName(self.race) : null,
@@ -57,6 +58,7 @@ export async function linkPairedCharacter(database: PrismaClient, guildId: strin
       await tx.character.update({
         where: { id: existing.id },
         data: {
+          ...(self.displayName ? { displayName: self.displayName } : {}),
           className: normalizeClassName(self.class as string),
           race: self.race ? normalizeRaceName(self.race) : null,
           level: self.level >= 1 ? self.level : null,

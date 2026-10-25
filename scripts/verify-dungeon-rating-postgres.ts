@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import type { PrismaClient } from "../src/generated/prisma/client.js";
 import { startSeason, invalidateRun } from "../src/services/dungeon-admin.js";
-import { dungeonRating, hasDungeonRating, DUNGEON_RATING_RULES } from "../src/services/dungeon-rating.js";
+import { createDungeonRatingRules, dungeonRating, hasDungeonRating, DUNGEON_RATING_RULES } from "../src/services/dungeon-rating.js";
+import { publicRules } from "../src/services/public-score.js";
 import { importDungeonRuns } from "../src/services/dungeon-import.js";
 import { records } from "../src/services/dungeon-stats.js";
 import { bestEightBetaRules } from "../src/services/dungeon-beta-preset.js";
@@ -44,8 +45,13 @@ export async function verifyDungeonRatingPostgres(db: PrismaClient, guildId: str
   assert.equal(await db.dungeonAchievement.count({ where: { seasonId: season.id, key: `seasonChampion:${season.id}` } }), 1);
 
   await db.guildSettings.update({ where: { guildId }, data: { dungeonConfig: { targets: { "36": 1200 }, levelBands: { "36": { min: 15, max: 25, difficultyId: 1 } } } } });
-  const speed = (await startSeason(db, guildId, "Speed rating verification")).season;
-  // Changing the live configuration must not change this season's fixed target.
+  const shared = (await startSeason(db, guildId, "Shared rules verification")).season;
+  assert.deepEqual(shared.ratingRules, publicRules(), "stored guild overrides cannot change a new season's shared rules");
+  // Explicit historical presets keep archive/import coverage without relying on
+  // the removed officer-setting path. These fixtures never touch a live database.
+  const speed = (await startSeason(db, guildId, "Speed rating verification", shared.id, undefined,
+    createDungeonRatingRules({ "36": 1200 }, 3, { "36": { min: 15, max: 25, difficultyId: 1 } }))).season;
+  // Changing stored legacy configuration must not change this season's fixed target.
   await db.guildSettings.update({ where: { guildId }, data: { dungeonConfig: { targets: { "36": 600 } } } });
   const speedStart = Math.ceil(speed.startsAt.getTime() / 1000) + 1;
   await db.$transaction(async tx => {
@@ -64,11 +70,9 @@ export async function verifyDungeonRatingPostgres(db: PrismaClient, guildId: str
   assert.equal((await dungeonRating(db, guildId, frozen, 36))[0]?.points, 235);
 
   const band = { min: 15, max: 25, difficultyId: 1 };
-  await db.guildSettings.update({ where: { guildId }, data: { dungeonConfig: {
-    targets: { "189:graveyard": 1800, "189:library": 1800 },
-    levelBands: { "189:graveyard": band, "189:library": band }
-  } } });
-  const fair = (await startSeason(db, guildId, "Participation verification")).season;
+  const fair = (await startSeason(db, guildId, "Participation verification", undefined, undefined,
+    createDungeonRatingRules({ "189:graveyard": 1800, "189:library": 1800 }, 3,
+      { "189:graveyard": band, "189:library": band }))).season;
   const fairStart = Math.ceil(fair.startsAt.getTime() / 1000) + 1;
   const fairInput = (id: string, boss: string, offset: number, level = 20) => input(id, 189, 0, {
     startedAt: fairStart + offset, endedAt: fairStart + offset + 1000,

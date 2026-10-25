@@ -351,8 +351,8 @@ const rankLine = (rows: RatingRow[], row: RatingRow, fr: boolean) => {
 };
 /** Shown while a provisional all-level season still has a route on its starting target. */
 export const provisionalNote = (fr: boolean) => fr
-  ? "⚠️ **Cibles provisoires** : des recommandations en attendant de vrais chronos. Un officier peut recalibrer un parcours d’après de vrais runs; les scores déjà obtenus gardent leur cible."
-  : "⚠️ **Provisional targets**: recommendations until real timed runs exist. An officer may recalibrate a route from real runs; scores already earned keep their target.";
+  ? "⚠️ **Cibles provisoires** : des recommandations en attendant de vrais chronos. Cibles communes à toutes les guildes et figées pour la saison; les ajustements attendent une future saison."
+  : "⚠️ **Provisional targets**: recommendations until real timed runs exist. Targets are shared by all guilds and frozen for the season; adjustments wait for a future season.";
 const bracketLabel = (b: DungeonBracket, fr: boolean) => b.min === b.max ? `${fr ? "Niveau" : "Level"} ${b.min}` : `${fr ? "Niveaux" : "Levels"} ${b.min}–${b.max}`;
 // One bracket in full, or (no bracket chosen) the top five of every bracket.
 function bracketRatingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, rules: BracketedRules, key?: string): EmbedBuilder {

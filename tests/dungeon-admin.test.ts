@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { adjustPoints, describeConfig, setWeeklyRepeat, startSeason } from "../src/services/dungeon-admin.js";
+import { adjustPoints, describeConfig, startSeason } from "../src/services/dungeon-admin.js";
 import { dungeonConfig } from "../src/services/dungeon-rules.js";
 import { DUNGEON_RATING_RULES } from "../src/services/dungeon-rating.js";
 import { betaSeasonRules, BETA_SEASON_END } from "../src/services/dungeon-beta-preset.js";
@@ -49,11 +49,6 @@ describe("dungeon admin", () => {
     await expect(adjustPoints(noDb, "g", "m", 0, "x", "o")).rejects.toThrow(/not 0/);
     await expect(adjustPoints(noDb, "g", "m", 20_000, "x", "o")).rejects.toThrow();
     await expect(adjustPoints(noDb, "g", "m", 1.5, "x", "o")).rejects.toThrow();
-  });
-
-  it("rejects weekly shares outside 0-100%", async () => {
-    await expect(setWeeklyRepeat(noDb, "g", "100,150")).rejects.toThrow(/percents/);
-    await expect(setWeeklyRepeat(noDb, "g", "abc")).rejects.toThrow(/percents/);
   });
 
   it("shows changed rules with their default and named target times", () => {

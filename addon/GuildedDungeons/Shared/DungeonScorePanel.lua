@@ -321,9 +321,9 @@ function view.build(parent, compact)
       or model.version == 5 and L("Level 60: best 8 distinct routes. Maximum 3200. Verified route evidence required.") or model.version == 4 and L("Beta: best 8 distinct routes. Level 30. Maximum 3200. Provisional targets.") or model.version == 3 and L("200 at target. Best run per dungeon. Hover for boss records.") or model.version == 2 and L("100 per dungeon + up to 20 speed. Only your best run counts.")
       or L("Historical rules: 100 per distinct dungeon, no speed bonus."))
       or L("Per-dungeon breakdown unavailable in this snapshot."))
-    -- A provisional all-level season: officers may recalibrate a route's target from real runs.
+    -- A provisional all-level season: targets are shared and locked for the season.
     if not ns.standalone and model.provisional and model.version == 6 and model.available and model.bracket then
-      self.note:SetText(string.format(L("%s: best %d distinct routes. * = provisional target; officers may recalibrate it from real runs."),
+      self.note:SetText(string.format(L("%s: best %d distinct routes. * = provisional target; shared and locked for the season."),
         ns.scores.bracketLabel(model.bracket), model.bracket.bestCount))
     elseif model.provisional and model.version ~= 4 and model.version ~= 5 and model.version ~= 6 then self.note:SetText(L("Provisional targets, fixed for this season. Hover for boss records.")) end
     if ns.standalone and model.available then self.note:SetText(L("Public season rules. Legacy results may lack full evidence. Role totals are separate.")) end
@@ -350,7 +350,7 @@ function view.build(parent, compact)
       local ranked = {}
       for i = (self.page - 1) * 12 + 1, math.min(#model.rows, self.page * 12) do
         local row = model.rows[i]
-        ranked[#ranked + 1] = string.format("%d. %s - %d", i, row.name, row.points)
+        ranked[#ranked + 1] = string.format("%d. %s - %d", i, ns.displayName(row.name), row.points)
       end
       self.rankings:SetText(#ranked > 0 and table.concat(ranked, "\n") or L(model.period == "week" and "No scores this week yet." or "No points recorded for this season."))
       self.rankings:Show()

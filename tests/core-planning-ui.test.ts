@@ -18,7 +18,18 @@ describe("core planning forms", () => {
     expect(mocks.core).toHaveBeenCalledWith({ where: { id: "core", guildId: "guild" } });
     expect(mocks.update).toHaveBeenCalledWith({ where: { id: "core" }, data: { raidSize: 20, tankLimit: 2, healerLimit: 4, dpsLimit: 14 } });
     expect(choice.showModal.mock.calls[0]![0].toJSON().components).toHaveLength(3);
-    expect(i.editReply.mock.calls[0]![0].components[0].toJSON().components[0].options.map((option: { value: string }) => option.value)).toEqual(["10", "20", "40"]);
+    expect(i.editReply.mock.calls[0]![0].components[0].toJSON().components[0].options.map((option: { value: string }) => option.value)).toEqual(["10", "20", "40", "preset:barrow", "preset:hyjal", "preset:onyxia"]);
+  });
+  it("prefills a chosen preset even at the same core size, then saves the officer's edits", async () => {
+    mocks.core.mockResolvedValue({ id: "core", raidSize: 10, tankLimit: 1, healerLimit: 3, dpsLimit: 6 });
+    const submitted = { fields: { getTextInputValue: (key: string) => ({ tanks: "1", healers: "3", dps: "6" })[key] }, deferReply: vi.fn(), editReply: vi.fn() };
+    const choice = { isStringSelectMenu: () => true, values: ["preset:barrow"], showModal: vi.fn(async modal => modal.toJSON()), awaitModalSubmit: vi.fn(async () => submitted) };
+    const i = { id: "preset", user: { id: "leader" }, deferReply: vi.fn(), editReply: vi.fn(), fetchReply: vi.fn(async () => ({ awaitMessageComponent: async () => choice })) };
+    const result = await editCoreComposition(i as never, "guild", "core");
+    const fields = choice.showModal.mock.calls[0]![0].toJSON().components.map((row: { components: { value: string }[] }) => row.components[0]!.value);
+    expect(fields).toEqual(["2", "2", "6"]);
+    expect(mocks.update).toHaveBeenCalledWith({ where: { id: "core" }, data: { raidSize: 10, tankLimit: 1, healerLimit: 3, dpsLimit: 6 } });
+    expect(result).toContain("raids publiés restent inchangés");
   });
   it("does not save a schedule unless the officer confirms its dated preview", async () => {
     const submitted = { fields: { getTextInputValue: (key: string) => ({ time: "20:00", start: "2026-12-04", days: "28", custom: "" })[key] },

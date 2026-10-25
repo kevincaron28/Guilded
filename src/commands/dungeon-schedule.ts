@@ -1,8 +1,6 @@
 import { EmbedBuilder, SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { asLang } from "../i18n.js";
-import { carriedRules } from "../services/dungeon-season-schedule.js";
-import { validBracketedRules } from "../services/dungeon-november-rules.js";
 import { loadOfficialWindows, officialWindowAt, scheduledNext, type OfficialWindow } from "../services/official-seasons.js";
 import { guildService, requireGuildContext } from "./context.js";
 
@@ -18,7 +16,6 @@ const at = (date: Date, style = "f") => `<t:${Math.floor(date.getTime() / 1000)}
 export function scheduleEmbed(windows: OfficialWindow[], active: { name: string; startsAt: Date; ratingRules: unknown } | null, fr: boolean, now = new Date()): EmbedBuilder {
   const current = officialWindowAt(windows, now);
   const next = scheduledNext(windows, now);
-  const carried = carriedRules(active);
   const lines = [
     fr ? "Les saisons de donjon sont fixées par le propriétaire de Guilded pour toutes les guildes : une nouvelle saison à chaque grosse mise à jour, ou après 2 à 3 mois."
       : "Dungeon seasons are set by the Guilded owner for every guild: a new season with each big patch, or after 2-3 months.",
@@ -30,10 +27,8 @@ export function scheduleEmbed(windows: OfficialWindow[], active: { name: string;
       : (fr ? "Aucune saison active dans cette guilde." : "No active season in this guild."),
     fr ? "À chaque début : sauvegarde, archivage de la saison (classement, cote et champions figés; runs et points gardés), nouvelle saison."
       : "At each start: a backup, then the season is archived (standings, rating and champions frozen; runs and points kept) and the new one starts.",
-    validBracketedRules(carried) && carried.provisional
-      ? (fr ? `Règles reportées : toutes les tranches de niveaux, cibles provisoires et recalibrages inclus (${carried.catalog.length} parcours).`
-        : `Rules carried over: all level brackets, provisional targets and recalibrations included (${carried.catalog.length} routes).`)
-      : (fr ? "Règles reportées : celles de la saison active." : "Rules carried over: the active season's."),
+    fr ? "Les nouvelles saisons utilisent les mêmes règles officielles figées pour toutes les guildes. Les anciens réglages locaux ne sont pas reportés."
+      : "New seasons use the same frozen official rules for every guild. Old local settings are not carried over.",
     fr ? "Classement de la semaine : remis à zéro à la réinitialisation hebdomadaire (mardi 15 h UTC)." : "Weekly board: resets at the weekly reset (Tuesday 15:00 UTC)."
   ].filter(Boolean);
   return new EmbedBuilder().setColor(0x8b5cf6).setTitle(fr ? "Saisons de donjon" : "Dungeon seasons").setDescription(lines.join("\n\n"));

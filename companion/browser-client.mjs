@@ -65,7 +65,9 @@ export function createBrowserCompanion(env = globalThis) {
     const encoded = payload ? await encodeBody(JSON.stringify(payload)) : null;
     if (encoded && encoded.bytes > 1_000_000) throw new Error("This structured export exceeds the bot's 1 MB upload limit. Ask your guild officer for help.");
     const response = await env.fetch(path, { method: payload ? "POST" : "GET", credentials: "omit", headers: { "x-companion-credential": config.companionCredential || "", ...(payload ? { "content-type": "application/json", ...encoded.headers } : {}) }, ...(payload ? { body: encoded.body } : {}), signal: AbortSignal.timeout(20_000) });
-    const body = await response.json();
+    let body;
+    try { body = await response.json(); }
+    catch { throw new Error(`The bot returned an unreadable response (${response.status}). Try again, or ask your guild owner to check the service.`); }
     if (!response.ok && !(response.status === 409 && body.importId)) throw new Error(body.error || `The bot answered ${response.status}.`);
     state.botVersion = body.botVersion || state.botVersion;
     return body;
@@ -295,8 +297,8 @@ export function createBrowserCompanion(env = globalThis) {
       }
     },
     // The Wishlist and Cores & prices pages: { ok, data | error }, like the desktop app.
-    manageView: async () => { try { return { ok: true, data: await request(`/api/v1/manage?${guildQuery()}`) }; } catch (error) { return { ok: false, error: error.message }; } },
-    manageEdit: async change => { try { return { ok: true, data: await request("/api/v1/manage", { guildDiscordId: config.guildDiscordId, change }) }; } catch (error) { return { ok: false, error: error.message }; } },
+    manageView: async () => { if (!config.companionCredential) return { ok: false, error: "Connect your Discord account first." }; try { return { ok: true, data: await request(`/api/v1/manage?${guildQuery()}`) }; } catch (error) { return { ok: false, error: error.message }; } },
+    manageEdit: async change => { if (!config.companionCredential) return { ok: false, error: "Connect your Discord account first." }; try { return { ok: true, data: await request("/api/v1/manage", { guildDiscordId: config.guildDiscordId, change }) }; } catch (error) { return { ok: false, error: error.message }; } },
     onState: fn => listeners.state.push(fn), onLog: fn => listeners.log.push(fn)
   };
   if (visits.length) state.poe = { pending: visits.length, currentArea: null };

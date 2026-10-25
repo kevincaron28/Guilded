@@ -398,7 +398,7 @@ After each import, completed runs and new records are posted once in the dungeon
 
 | Command | What it does |
 | --- | --- |
-| `/lead create <title> <time> [description] [bosses] [core] [weekly] [tanks] [healers] [dps]` | Create a raid. Time like `friday 8pm`, `tonight 20:00`, `vendredi 20h`, `2026-10-03 20:00` (your server's timezone). `weekly:true` makes ending it create the next one a week later. Posts the signup message with Tank / Healer / DPS / Maybe / Can't come buttons |
+| `/lead create <title> <time> [description] [bosses] [core] [preset] [weekly] [tanks] [healers] [dps]` | Create a raid. Time like `friday 8pm`, `tonight 20:00`, `vendredi 20h`, `2026-10-03 20:00` (your server's timezone). Presets `barrow`, `hyjal`, `onyxia` suggest role seats; explicit seat counts override them. `weekly:true` repeats after ending. Posts Tank / Healer / DPS / Maybe / Can't come buttons |
 | `/lead edit` / `cancel` / `start` | Manage the raid (raising a cap moves waitlisted players in) |
 | `/lead end <raid>` | End the raid and see the **proposed EP** with Approve / Cancel buttons |
 | `/lead award-ep <raid>` | Show the proposed EP again (e.g. after `/import apply` added attendance) |
@@ -448,12 +448,11 @@ Approve, and a raid can never be paid twice.
 | `/officer dungeon invalidate <run> <reason>` | A run stops counting and its points are taken back (records update by themselves) |
 | `/officer dungeon award <amount> <reason> [member | character]` | Give dungeon points by hand; a negative amount takes them away |
 | `/officer dungeon audit [member | character | run]` | Point history: what, why, automatic or which officer |
-| `/officer dungeon config [rule] [points] [weekly] [dungeon_master]` | See the point rules, change one, the weekly repeat share (e.g. `100,50,0`), or how many dungeons Dungeon Master needs |
-| `/officer dungeon target <dungeon> <minutes>` | Target time; beating it earns the underTarget bonus. 0 removes it |
+| `/officer dungeon config` | View shared participation rules. Scoring settings are locked for all guilds |
 | `/officer dungeon bracket-preview` | Preview the provisional all-level season (brackets, routes, levels, targets, best-N); nothing starts |
 | `/organize dungeon-seasons preview` | The current and next dungeon season (read only). Seasons are set by the bot owner for every guild |
 | `/guilded-season status` / `next <date> [hour] [time_zone] [name]` / `cancel` | **Bot owner only**, in the bot's home server: the season calendar every guild and the public leaderboards follow. `next` ends the current season at that start (default 15:00 America/Los_Angeles) |
-| `/officer dungeon recalibrate <route> [minutes]` | Without minutes: the route's real timed runs and a suggested target. With minutes (3+ runs needed): new target for runs ending from now; earned scores stay |
+| `/officer dungeon recalibrate <route>` | Read-only timed-run evidence for future shared rules. Current targets cannot be edited |
 | `/mod application list` / `view` / `approve` / `reject` / `trial` | Handle applications |
 | `/mod warn` / `timeout` / `kick` / `ban` / `history` | Moderation (logged) |
 | `/mod faq channel [#channel]` | The answer channel: members ask there and the bot replies (needs `MESSAGE_CONTENT_INTENT=true` on the server, after turning on Message Content Intent in the Discord Developer Portal). Empty = off |

@@ -1,5 +1,5 @@
 import { EmbedBuilder } from "discord.js";
-import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
+import type { PrismaClient } from "../generated/prisma/client.js";
 import { startSeason } from "./dungeon-admin.js";
 import { BRACKET_PLAN, type PlannedRoute } from "./dungeon-bracket-plan.js";
 import { novemberDungeonCatalog } from "./dungeon-november-catalog.js";
@@ -65,7 +65,7 @@ export function provisionalSeasonEmbed(): EmbedBuilder {
   const embed = new EmbedBuilder().setColor(0xf59e0b)
     .setTitle("All-level season · PROVISIONAL preview")
     .setDescription([
-      "**Every target below is provisional**: a recommendation (plan of 18 October 2026) until real timed runs exist. During the season, `/officer dungeon recalibrate` replaces a route's target from at least 3 real timed runs; scores already earned keep their target.",
+      "**Every target below is provisional**: a recommendation (plan of 18 October 2026) until real timed runs exist. Targets are shared by all guilds and frozen for the season. Real timed-run evidence informs a future shared season; officers cannot change scoring settings.",
       `Map IDs and difficulty ${OBSERVED_DIFFICULTY} come from real beta-client runs. A run completes when the addon detects the final boss (Scarlet wings: their last boss by name). Above a route's levels: −${p.percentPerLevel}% per level, up to ${p.maxLevels}; beyond: 0.`,
       "Start: seasons follow the Guilded owner's calendar (`/organize dungeon-seasons preview`); these rules start with Season 1 on 4 November."
     ].join("\n\n"));
@@ -144,25 +144,8 @@ export function describeEvidence(e: Awaited<ReturnType<typeof recalibrationEvide
     `${e.times.length} crew/day samples from ${e.comparableRuns} comparable runs, ${e.crews} crews, ${e.days} UTC days. Build: ${e.build ?? "unknown"}; first-combat starts only. ${e.excludedRuns} excluded (build/start/party metadata).`,
     e.times.length ? `Median ${formatDuration(e.median!)}; middle 50% ${formatDuration(e.p25!)}–${formatDuration(e.p75!)}. This spread is not a confidence interval.` : "No comparable sample yet.",
     e.median !== null && e.suggestedMinutes === null ? "The rounded median is outside the supported 5–120 minute target range. Nothing can be applied; review the route and sample."
-      : e.ready ? `Suggested target: **${e.suggestedMinutes} min** (crew/day median). Only this target can be applied with \`minutes:\`.`
+      : e.ready ? `Suggested target: **${e.suggestedMinutes} min** (crew/day median). For review in a future shared season only; current targets are locked.`
       : `${MIN_RECALIBRATION_RUNS} are needed, with at least ${CALIBRATION_POLICY.crews} substantially different crews and ${CALIBRATION_POLICY.days} days; the target stays provisional.`].join("\n");
-}
-
-/** Replaces a route's target for runs ending from now on; earlier runs keep the target they earned under. */
-export async function recalibrateRoute(database: Pick<PrismaClient, "$transaction">, guildId: string, key: string, minutes: number, now = new Date()) {
-  if (!Number.isInteger(minutes) || minutes < 5 || minutes > 120) throw new Error("Minutes must be a whole number from 5 to 120.");
-  return database.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${guildId}, 0))`;
-    const e = await recalibrationEvidence(tx, guildId, key);
-    if (!e.ready) throw new Error(`Nothing changed. ${describeEvidence(e)}`);
-    if (minutes !== e.suggestedMinutes) throw new Error(`Nothing changed. Use the reviewed crew/day median: ${e.suggestedMinutes} min. Other targets wait for a new season.`);
-    const targetSec = minutes * 60;
-    if (targetSec === e.currentSec) throw new Error(`The target is already ${minutes} min.`);
-    const rules = createBracketedDungeonRules({ routes: e.rules.routes, brackets: e.rules.brackets, overlevelPenalty: e.rules.overlevelPenalty,
-      provisional: e.rules.provisional, recalibrations: [...(e.rules.recalibrations ?? []), { dungeonKey: key, targetSec, from: now.toISOString(), runs: e.times.length }] });
-    await tx.dungeonSeason.update({ where: { id: e.season.id }, data: { ratingRules: rules as unknown as Prisma.InputJsonValue } });
-    return { ...e, beforeSec: e.currentSec, afterSec: targetSec, from: now, rules };
-  });
 }
 
 /** Autocomplete: rated routes of the active season, provisional ones marked. */

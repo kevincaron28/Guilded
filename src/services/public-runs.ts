@@ -3,6 +3,7 @@ import { dungeonResetCutoff, predatesDungeonReset } from "./dungeon-reset.js";
 import { dungeonRunSchema, validateRun, type DungeonRunInput } from "./dungeon-rules.js";
 import { bracketForLevel, DEFAULT_DUNGEON_BRACKETS } from "./dungeon-november-rules.js";
 import { publicRouteKey } from "./public-score.js";
+import { gameEditionOf } from "./game-edition.js";
 
 // Public dungeon runs (7.0, roadmap request 6). Personal companions and opted-in guilds send
 // finished runs; the bot checks each one before it reaches the public leaderboards:
@@ -161,6 +162,14 @@ export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderK
     const id = typeof (raw as { id?: unknown })?.id === "string" ? String((raw as { id: string }).id).slice(0, 100) : "?";
     if (!parsed.success) { result.rejected.push({ id, reason: "not a valid run" }); continue; }
     const run = parsed.data;
+    try {
+      // Until public seasons and player URLs are edition-scoped, accepting a
+      // new client's map IDs here would incorrectly score it under Forever.
+      if (gameEditionOf(run) !== "forever") throw new Error("Public dungeon competitions for this WoW edition are not enabled yet.");
+    } catch (error) {
+      result.rejected.push({ id, reason: error instanceof Error ? error.message : "Invalid WoW edition" });
+      continue;
+    }
     if (predatesDungeonReset(run, cutoff)) { result.rejected.push({ id: run.id, reason: "run predates the owner's dungeon history reset" }); continue; }
     // Unfinished runs are simply not public; they are not an error.
     if (run.state !== "COMPLETED") continue;

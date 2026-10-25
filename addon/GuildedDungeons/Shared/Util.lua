@@ -40,6 +40,23 @@ function util.isForever()
   return ok and not isSecret(interface) and interface == 16001
 end
 
+function util.clientInterface()
+  if not GetBuildInfo then return nil end
+  local ok, _, _, _, api = pcall(GetBuildInfo)
+  if ok and not isSecret(api) and type(api) == "number" then return api end
+end
+
+function util.gameEdition()
+  local api = util.clientInterface()
+  if not api then return "unknown" end
+  if api == 16001 then return "forever" end
+  if api >= 11500 and api < 11600 then return "classic-era" end
+  if api >= 20500 and api < 20600 then return "classic-tbc" end
+  if api >= 50500 and api < 50600 then return "classic-mists" end
+  if api >= 120000 and api < 130000 then return "retail" end
+  return "unknown"
+end
+
 local function safeName(value)
   if type(value) ~= "string" or isSecret(value) or #value > 80 or value:find("[|%c]") then return nil end
   value = value:match("^%s*(.-)%s*$")

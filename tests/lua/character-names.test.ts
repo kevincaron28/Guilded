@@ -29,6 +29,11 @@ describe("Forever display names without changing accounting identity", () => {
     s.run('GuildedDB.displayNames = { Halidor = "Halidor Galemorne" }');
     expect(s.run('return NS.displayName("Halidor")')).toBe("Halidor");
   });
+  it.each([[16001, "forever"], [11509, "classic-era"], [20506, "classic-tbc"], [50504, "classic-mists"], [120105, "retail"]] as const)("captures client provenance for interface %i", (build, edition) => {
+    const s = client(build);
+    expect(s.run('return GuildedDB.character.gameEdition')).toBe(edition);
+    expect(s.run('return GuildedDB.character.interface')).toBe(String(build));
+  });
   it("uses the observed surname API when GetUnitName is unavailable", () => {
     const s = client();
     s.run('GetUnitName = nil');

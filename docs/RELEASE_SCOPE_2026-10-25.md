@@ -4,6 +4,10 @@ Kevin requested feature completion and Classic/Retail releases today, clarified
 that both Classic Era/Hardcore and progression Classic are targets, and required
 Forever characters to display their first and last names. Other editions retain
 single character names. The existing Forever target remains supported.
+Kevin subsequently confirmed **full addon, bot and companion** for every target.
+The in-game-only option is out of scope. Kevin also confirmed **several editions
+in one Discord server**. A server-wide edition setting is therefore incorrect;
+every WoW action needs an unambiguous in-game guild context.
 
 ## Baseline
 
@@ -74,9 +78,8 @@ That design belongs with the edition-isolation work above.
 1. Validate/review the name change and its additive database migration; preserve
    all existing links, points and pairing. Keep the new source distinct from
    the already-installed candidate.
-2. Resolve connected-product scope for the new editions, then implement edition
-   identity/rule isolation and compatibility fixes. Full addon/bot/companion is
-   the proposed default; an in-game-only first release is a separate scope choice.
+2. Implement the confirmed full connected-product scope: edition identity/rule
+   isolation, client compatibility, bot setup and companion selection.
 3. Finish candidate Discord/member workflows and platform previews already
    listed in `LAUNCH_READINESS_2026-10-24.md`.
 4. Run exact-source CI including PostgreSQL restore/migration and Windows
@@ -103,3 +106,57 @@ continuation.
 - Starting head `88db7ab` has successful GitHub quality run `40145757292`.
   That result does not validate today's new code or migration. Exact new-source
   CI, PostgreSQL migration/restore and game/native acceptance remain separate.
+
+## Edition groundwork (separate stacked branch)
+
+Branch `codex/game-editions` starts from the full-name commit `f7251ac` on
+`codex/prelaunch-features`. That full-name commit passed GitHub quality run
+`40179278185`; this does not establish real-game acceptance.
+
+Implemented in the next change:
+
+- Both addons capture the client edition and Interface number; dungeon peer
+  summaries and native/browser companion exports preserve them.
+- A shared parser recognizes Forever, Era, TBC Classic, Mists Classic and
+  Retail interface families. Unknown/contradictory metadata fails explicitly.
+  These families identify data; they are not a compatibility certification.
+- Guild imports check edition provenance at preview (before pairing/relay) and
+  again inside apply's transaction. Personal files from different editions
+  cannot be combined. Standings writes compare saved-client and guild editions.
+- An unapplied migration namespaces linked-character uniqueness by edition and
+  adds edition metadata to unclaimed characters. Existing rows default to
+  Forever; IDs, ownership and ledger references remain unchanged.
+- `WowGuild` can hold multiple in-game guilds/editions under one Discord server,
+  keyed by server, edition, realm and guild name. Its registration/selection
+  service rejects ambiguous choices and foreign-server IDs. It does not infer
+  in-game names from Discord names or move existing history. PostgreSQL
+  verification now covers same-named characters in different editions,
+  multiple guild spaces, uniqueness and backup restoration.
+- Matching keeps the legacy Forever realm fallback, but an explicitly tagged
+  other-edition character requires its own realm. Discovery keys outside
+  Forever include the realm.
+
+**This is groundwork, not the completed port.** New-edition connected guild
+sync and public competitions deliberately remain disabled. No edition chooser
+has been exposed. Before removing those guards, finish the following together:
+
+1. Wire in-game guild selection through setup, channel defaults, commands,
+   companion pairing and uploads. Scope guild settings, cores, rosters, raids,
+   loot, ledger, imports and announcements to the selected `WowGuild`, with a
+   verified migration for existing Forever history. Shared Discord membership
+   must not imply shared points or access to another in-game guild.
+2. Propagate edition and realm through every manual character/verify/claim
+   path and query projection. The addon's non-Forever internal identity must
+   retain realms; its current first-name ledger keys cannot safely identify
+   cross-realm duplicates. Preserve Forever identities through any migration.
+3. Scope public runs, web characters, URLs, caches, official seasons and guild
+   rotation by edition. Give each edition its own verified route evidence and
+   scoring configuration; never reuse Forever map IDs/targets by assumption.
+4. Make raid readiness, presets, attunements and loot rules edition-aware.
+5. Finish companion edition selection and complete the matching addon, bot and
+   installer packages. Audit restricted Retail APIs in the actual client.
+6. Run actual Classic/Retail and Forever acceptance, PostgreSQL migration/restore
+   and Windows packaging on the final source before release promotion.
+
+No new edition has been publicly released, installed on a game client, or
+enabled on the live bot by this branch. The full-product request remains open.

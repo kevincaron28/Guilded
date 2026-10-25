@@ -1,5 +1,6 @@
 import { exportDungeonRuns, parseAddonExportText, readDatabase } from "./lua-export-content.mjs";
 import { publicScoreToLua } from "./standings-format.mjs";
+import { editionMetadata, gameEditionOf } from "./game-edition.mjs";
 
 // The browser-safe half of personal mode (no file system): shared by personal-runs.mjs (desktop
 // and command line) and browser-client.mjs (the website companion).
@@ -14,7 +15,7 @@ export function readPersonalRuns(text, fallbackRealm = "") {
     const character = database.character && typeof database.character.name === "string" ? database.character : null;
     const realm = String(character?.realm || fallbackRealm || "-");
     return {
-      character: character ? { name: character.name, realm, ...(character.displayName ? { displayName: String(character.displayName) } : {}), ...(character.class ? { class: String(character.class) } : {}), ...(Number.isInteger(character.level) ? { level: character.level } : {}) } : null,
+      character: character ? { ...editionMetadata(character), name: character.name, realm, ...(character.displayName ? { displayName: String(character.displayName) } : {}), ...(character.class ? { class: String(character.class) } : {}), ...(Number.isInteger(character.level) ? { level: character.level } : {}) } : null,
       runs: exportDungeonRuns(database, realm, { skipSynced: true })
     };
   }
@@ -23,7 +24,7 @@ export function readPersonalRuns(text, fallbackRealm = "") {
   const realm = exported.character?.realm || fallbackRealm || "-";
   const database = readDatabase(clean, "GuildedDB");
   return {
-    character: exported.character ? { name: exported.character.name, realm, ...(exported.character.displayName ? { displayName: exported.character.displayName } : {}), ...(exported.character.class ? { class: exported.character.class } : {}), ...(exported.character.level ? { level: exported.character.level } : {}) } : null,
+    character: exported.character ? { ...editionMetadata(exported.character), name: exported.character.name, realm, ...(exported.character.displayName ? { displayName: exported.character.displayName } : {}), ...(exported.character.class ? { class: exported.character.class } : {}), ...(exported.character.level ? { level: exported.character.level } : {}) } : null,
     runs: exportDungeonRuns(database, realm, { skipSynced: true })
   };
 }
@@ -50,8 +51,13 @@ export function personalPayloadFrom(texts, fallbackRealm = "") {
   const runs = new Map();
   let character = null;
   let newest = -1;
+  let edition;
   for (const text of texts.filter((value) => typeof value === "string")) {
     const file = readPersonalRuns(text, fallbackRealm);
+    const fileEdition = gameEditionOf(file.character ?? {});
+    if (edition !== undefined && edition !== fileEdition) throw new Error("Choose saved files from one WoW edition at a time.");
+    edition = fileEdition;
+    if (file.runs.some(run => gameEditionOf(run) !== edition)) throw new Error("A dungeon run belongs to a different WoW edition than this saved file.");
     const finished = file.runs.filter((run) => run.state === "COMPLETED");
     const latest = finished.reduce((max, run) => Math.max(max, run.endedAt ?? 0), -1);
     if (file.character && (!character || latest > newest)) { character = file.character; newest = latest; }

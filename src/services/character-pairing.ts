@@ -4,6 +4,7 @@ import type { AddonCharacter } from "../integrations/addon.js";
 import { findCharacter } from "./character-match.js";
 import { normalizeClassName, normalizeRaceName } from "./character-import.js";
 import { nameKey } from "./roster-discovery.js";
+import { gameEditionOf } from "./game-edition.js";
 
 const PAIRING_CODE_LIFETIME_MS = 15 * 60_000;
 type Tx = Prisma.TransactionClient;
@@ -22,6 +23,7 @@ export async function createSelfCharacter(tx: Tx, guildId: string, memberId: str
     data: {
       memberId,
       name: self.name,
+      gameEdition: gameEditionOf(self),
       ...(self.displayName ? { displayName: self.displayName } : {}),
       realm: self.realm,
       className: normalizeClassName(self.class as string),
@@ -51,7 +53,7 @@ export async function linkPairedCharacter(database: PrismaClient, guildId: strin
       where: { member: { guildId } },
       include: { member: true }
     });
-    const existing = findCharacter(characters, self.name, self.realm);
+    const existing = findCharacter(characters, self.name, self.realm, gameEditionOf(self));
     if (existing && existing.memberId !== memberId) return "owned-by-another" as const;
 
     if (existing) {

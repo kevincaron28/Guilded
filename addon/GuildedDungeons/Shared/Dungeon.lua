@@ -146,6 +146,7 @@ local function newRun(instance)
     addonVersion = compat.addonVersion(),
     gameBuild = GetBuildInfo and tostring(select(2, GetBuildInfo())) or nil,
     interface = compat.interfaceVersion(),
+    gameEdition = ns.util.gameEdition(),
     state = "DETECTED",
     recorder = recorder,
     instanceId = instance.id,
@@ -298,6 +299,7 @@ serialize = function(run)
   local summary = table.concat({
     "v=" .. PROTOCOL_VERSION, "av=" .. clean(run.addonVersion), "st=" .. run.state,
     "gb=" .. clean(run.gameBuild or ""), "tr=" .. clean(run.startTrigger or ""),
+    "api=" .. tostring(run.interface or ""), "ed=" .. clean(run.gameEdition or ""),
     "i=" .. tostring(run.instanceId or 0), "n=" .. clean(run.name), "d=" .. tostring(run.difficultyId or 0),
     "s=" .. tostring(run.startedAt or 0), "e=" .. tostring(run.endedAt or 0),
     "cb=" .. clean(run.completedBy or run.endReason or ""), "r=" .. clean(run.recorder),
@@ -336,6 +338,7 @@ local function deserialize(id, text)
   local run = {
     id = id, protocolVersion = PROTOCOL_VERSION, addonVersion = fields.av, state = fields.st,
     gameBuild = fields.gb ~= "" and fields.gb or nil, startTrigger = fields.tr ~= "" and fields.tr or nil,
+    interface = tonumber(fields.api), gameEdition = fields.ed ~= "" and fields.ed or nil,
     instanceId = tonumber(fields.i), name = fields.n, difficultyId = tonumber(fields.d),
     startedAt = tonumber(fields.s) ~= 0 and tonumber(fields.s) or nil,
     endedAt = tonumber(fields.e) ~= 0 and tonumber(fields.e) or nil,

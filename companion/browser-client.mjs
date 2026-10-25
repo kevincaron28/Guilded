@@ -1,5 +1,6 @@
 import { readBrowserAddon, readBrowserPoe } from "./browser-files.mjs";
 import { standingsToLua } from "./standings-format.mjs";
+import { assertSameEdition } from "./game-edition.mjs";
 import { createBrowserFolderAccess } from "./browser-folders.mjs";
 import { acknowledgements, pruneAcknowledged } from "./delta.mjs";
 import { sheetFiles } from "./sheet-export.mjs";
@@ -155,7 +156,12 @@ export function createBrowserCompanion(env = globalThis) {
       state.lastStandings = { at: new Date().toISOString(), message: "Public scores saved. Use Accepted.lua in Interface / AddOns / GuildedDungeons, then /reload." };
       log("ok", state.lastStandings.message); return;
     }
-    const load = async () => standingsToLua(rememberStandings(await request(`/api/v1/standings?${guildQuery()}`)));
+    const load = async () => {
+      const body = await request(`/api/v1/standings?${guildQuery()}`);
+      const currentFile = folders.hasInput() ? await folders.readInput(savedNames()) : wowFile;
+      if (currentFile) assertSameEdition(await readBrowserAddon(currentFile, config.realm), body);
+      return standingsToLua(rememberStandings(body));
+    };
     if (folders.available) await folders.saveStandings(load, { requestAccess });
     else download("Standings.lua", await load());
     state.standingsError = null;

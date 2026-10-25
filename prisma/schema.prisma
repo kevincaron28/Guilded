@@ -121,6 +121,7 @@ enum ApplicationStatus {
 }
 
 model Guild {
+  wowGuilds           WowGuild[]
   gameEventBoards GameEventBoard[]
   activityCores       ActivityCore[]
   id                  String                    @id @default(cuid())
@@ -452,6 +453,7 @@ model Member {
 }
 
 model Character {
+  gameEdition        String @default("forever")
   activityCoreSpots   ActivityCoreMember[]
   activityResponses  ActivityResponse[]
   id                 String                       @id @default(cuid())
@@ -478,7 +480,7 @@ model Character {
   raidSignups        RaidSignup[]
   coreApplications   Application[]
 
-  @@unique([realm, name])
+  @@unique([gameEdition, realm, name])
   @@index([memberId, isMain])
 }
 
@@ -717,6 +719,24 @@ model AddonHeldEntry {
 
   @@unique([guildId, kind, sourceRef])
   @@index([guildId, dismissedAt, lastSeenAt])
+}
+
+// A Discord server can host several in-game guilds, including multiple guilds
+// in the same edition. Selection must use this ID, never the Discord ID alone.
+model WowGuild {
+  id          String   @id @default(cuid())
+  guildId     String
+  gameEdition String
+  name        String
+  realm       String
+  nameKey     String
+  realmKey    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  guild       Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, gameEdition, realmKey, nameKey])
+  @@index([guildId, gameEdition])
 }
 
 model GuildSettings {
@@ -1656,6 +1676,7 @@ model PollVote {
 // member has linked yet. It is linked automatically when a Discord name
 // matches, or by its owner with /character claim.
 model UnclaimedCharacter {
+  gameEdition String @default("forever")
   id          String   @id @default(cuid())
   guildId     String
   // Lowercase name: Forever realms are unreliable, so a name identifies it.

@@ -30,6 +30,7 @@ export function personalSnapshot(snapshot: AddonSnapshot, owned: { name: string;
   const ownCharacter = (c: { name: string; realm: string }) => names.has(key(c.name, c.realm));
   return parseAddonSnapshot({
     source: snapshot.source, exportedAt: snapshot.exportedAt, wowGuild: snapshot.wowGuild,
+    gameEdition: snapshot.gameEdition, interface: snapshot.interface,
     ...(snapshot.character && ownCharacter(snapshot.character) ? { character: snapshot.character } : {}),
     alts: snapshot.alts.filter(ownCharacter),
     readiness: snapshot.readiness.filter(own), attunements: snapshot.attunements.filter(own),

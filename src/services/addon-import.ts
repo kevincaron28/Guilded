@@ -15,6 +15,7 @@ import { createSelfCharacter } from "./character-pairing.js";
 import { excludeHistoryBeforeReset } from "./import-reset.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 import { queueCharacterDisplayRefresh } from "./character-display-refresh.js";
+import { assertSnapshotEdition } from "./game-edition.js";
 
 // Why a row is waiting (see AddonHeldEntry). Every reason clears by itself once the cause is
 // fixed, because each upload carries the whole ledger again; a dismissed row is never imported.
@@ -55,6 +56,7 @@ export function createAddonImportService(database: PrismaClient) {
 
     // The same for a snapshot already parsed (a member's upload narrowed to their own characters).
     async previewSnapshot(guildId: string, snapshot: AddonSnapshot, createdBy: string) {
+      assertSnapshotEdition(snapshot, "forever");
       const checksum = createHash("sha256").update(JSON.stringify(snapshot)).digest("hex");
       const existing = await database.addonImport.findFirst({ where: { guildId, checksum } });
       return {
@@ -95,6 +97,7 @@ export function createAddonImportService(database: PrismaClient) {
         const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { dataResetAt: true, dungeonLeaderboardChannelId: true, craftChannelId: true, coreLootOnly: true, characterSignups: true } });
         const resetAt = settings?.dataResetAt ?? null;
         const snapshot = excludeHistoryBeforeReset(parseAddonSnapshot(imported.payload), resetAt);
+        assertSnapshotEdition(snapshot, "forever");
         const characters = await tx.character.findMany({
           where: { member: { guildId } },
           include: { member: true }

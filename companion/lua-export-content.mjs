@@ -1,4 +1,5 @@
 import luaparse from "luaparse";
+import { editionMetadata, gameEditionOf } from "./game-edition.mjs";
 
 const iso = (epoch) => new Date(Number(epoch) * 1000).toISOString();
 
@@ -69,6 +70,7 @@ export function readDatabase(lua, name = "GuildedDB") {
 
 export function parseAddonExportText(text, realm) {
   const database = readDatabase(text.replace(/^\uFEFF/, ""));
+  const edition = editionMetadata(database.character ?? {});
   const transactions = [];
   const epgpTransactions = [];
   // The addon migrates its legacy db.dkp ledger into db.epgp on login, so a
@@ -265,6 +267,7 @@ export function parseAddonExportText(text, realm) {
   const exportedAt = exportKeys.at(-1) ?? new Date().toISOString();
   return {
     source: "Guilded",
+    ...edition,
     exportedAt,
     // The WoW guild this saved data belongs to ("Guild Name-Realm").
     ...(database.guildKey ? { wowGuild: String(database.guildKey) } : {}),
@@ -309,6 +312,7 @@ export function parseAddonExportText(text, realm) {
 // One character as the bot's addonCharacterSchema expects it.
 function exportCharacter(entry, realm) {
   return {
+    ...editionMetadata(entry),
     name: String(entry.name),
     ...(entry.displayName ? { displayName: String(entry.displayName) } : {}),
     realm: String(entry.realm || realm),
@@ -396,6 +400,7 @@ export function exportDungeonRuns(database, realm, options = {}) {
       protocolVersion: Number(run.protocolVersion ?? 1),
       ...(run.addonVersion ? { addonVersion: String(run.addonVersion) } : {}),
       ...(run.gameBuild ? { gameBuild: String(run.gameBuild) } : {}),
+      ...editionMetadata(run.interface !== undefined || run.gameEdition !== undefined ? run : { gameEdition: gameEditionOf(database.character ?? {}) }),
       ...(run.startTrigger ? { startTrigger: String(run.startTrigger) } : {}),
       state: String(run.state),
       instanceId: Number(run.instanceId),

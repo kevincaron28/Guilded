@@ -1,4 +1,5 @@
 import { hostedPilot } from "./hosted-pilot.js";
+import { GameEditionError, gameEditionOf } from "./services/game-edition.js";
 import { relayProfessions } from "./services/profession-relay.js";
 import { autoLinkUnclaimed } from "./services/character-autolink.js";
 import { updateProfessionDirectory } from "./services/profession-directory.js";
@@ -431,7 +432,12 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const account = await personalAccess(personalStore, typeof secret === "string" ? secret : undefined);
         if (!account) { recordFailure(address); json(response, 401, { error: "Connect this companion with a code from your Guilded page (guilded.kcaron.top/me/)." }); return; }
         if (!allowPublicUpload(account.accountId)) { json(response, 429, { error: "Too many uploads in the last hour. Try again later." }); return; }
-        const body = await readBody(request) as { character?: { name?: unknown; displayName?: unknown; realm?: unknown }; runs?: unknown; includeScore?: unknown } | null;
+        const body = await readBody(request) as { character?: { name?: unknown; displayName?: unknown; realm?: unknown; gameEdition?: unknown; interface?: unknown }; runs?: unknown; includeScore?: unknown } | null;
+        try {
+          if (gameEditionOf(body?.character ?? {}) !== "forever") throw new Error("Public dungeon competitions for this WoW edition are not enabled yet.");
+        } catch (error) {
+          json(response, 409, { error: error instanceof Error ? error.message : "Invalid WoW edition" }); return;
+        }
         const character = typeof body?.character?.name === "string" ? body.character.name.slice(0, 40) : null;
         const parsedDisplay = addonCharacterSchema.shape.displayName.safeParse(body?.character?.displayName);
         const displayName = parsedDisplay.success ? parsedDisplay.data : undefined;
@@ -526,7 +532,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const waitMs = Math.max(0, Math.min(15, Number(url.searchParams.get("wait")) || 0)) * 1000;
         const answer = await standingsFeed.get({
           guildId: guild.id, memberKey: `${access.memberId}:${access.actorId}:${access.officer ? 1 : 0}`, ifNoneMatch, waitMs,
-          header: { protocolVersion: 2, botVersion: BOT_VERSION, features: COMPANION_FEATURES },
+          header: { protocolVersion: 2, botVersion: BOT_VERSION, features: COMPANION_FEATURES, gameEdition: "forever" },
           compose: () => standingsParts(guild, access, client)
         });
         response.setHeader("etag", answer.etag);
@@ -624,6 +630,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       });
     } catch (error) {
       if (error instanceof PoeMappingError) { json(response, error.status, { error: error.message }); return; }
+      if (error instanceof GameEditionError) { json(response, 409, { error: error.message }); return; }
       if (error instanceof BodyTooLargeError) {
         json(response, 413, { error: "This upload is larger than the bot accepts. Update the companion: newer versions compress uploads and send only entries the bot does not have yet." });
         return;

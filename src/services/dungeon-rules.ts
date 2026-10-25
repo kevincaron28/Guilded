@@ -1,5 +1,6 @@
 import { validDungeonKey, validLevelBand, type LevelBand } from "./dungeon-rating.js";
 import { z } from "zod";
+import { GAME_EDITIONS } from "../../companion/game-edition.mjs";
 
 // Dungeon Challenge rules (roadmap D3/D4): what a valid run is, and how
 // points are earned. Pure functions, so they're easy to test and change.
@@ -11,6 +12,8 @@ export const MAX_DURATION_SEC = 4 * 60 * 60;
 // One run as the companion exports it. Parsed per run, so one bad run is
 // rejected on its own instead of failing the whole import.
 export const dungeonRunSchema = z.object({
+  gameEdition: z.enum(GAME_EDITIONS).optional(),
+  interface: z.number().int().positive().optional(),
   id: z.string().min(3).max(100),
   protocolVersion: z.number().int(),
   addonVersion: z.string().max(40).optional(),

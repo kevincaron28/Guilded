@@ -1,4 +1,5 @@
 import { verifyGameEventsPostgres, verifyGameEventsRestored } from "./verify-game-events-postgres.js";
+import { verifyGameEditionsPostgres, verifyGameEditionsRestored } from "./verify-game-editions-postgres.js";
 import { verifyAiBudgetPostgres } from "./verify-ai-budget-postgres.js";
 import { verifyPublicSharingPostgres } from "./verify-public-sharing-postgres.js";
 import { verifyDungeonRatingPostgres, verifyDungeonRatingRestored } from "./verify-dungeon-rating-postgres.js";
@@ -35,6 +36,7 @@ const database = createPrismaClient();
 try {
   if (!process.argv.includes("--restored")) await verifyAiBudgetPostgres(database);
   if (process.argv.includes("--restored")) {
+    await verifyGameEditionsRestored(database);
     await verifyGameEventsRestored(database);
     await verifyDungeonRatingRestored(database);
     await verifyActivityCoresRestored(database);
@@ -87,6 +89,7 @@ try {
   } else {
     await database.guild.deleteMany({ where: { discordId: { startsWith: "release-test-" } } });
     const guild = await database.guild.create({ data: { discordId: "release-test-guild", name: "Release fixture" } });
+    await verifyGameEditionsPostgres(database, guild.id);
     await verifyPublicSharingPostgres(database);
     await verifyActivityCoresPostgres(database, guild.id);
     await verifyGameEventsPostgres(database, guild.id);

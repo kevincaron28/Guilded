@@ -812,6 +812,8 @@ local function collectCharacter()
   return {
     name = playerName(),
     displayName = ns.util.unitDisplayName("player"),
+    gameEdition = ns.util.gameEdition(),
+    interface = ns.util.clientInterface(),
     realm = (ns.compat and ns.compat.identity().realm) or (GetRealmName and GetRealmName()) or "",
     class = classFile or "",
     race = raceFile or "",

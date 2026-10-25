@@ -1,6 +1,7 @@
 import type { GameEventBoard, OfficialGameEvent, Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { EmbedBuilder, escapeMarkdown } from "discord.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
+import { createHash } from "node:crypto";
 
 export const EVENT_GAMES = ["WOW_FOREVER", "POE2"] as const;
 export const EVENT_REGIONS = ["GLOBAL", "NA", "EU", "KR", "TW"] as const;
@@ -10,6 +11,8 @@ export const REMINDER_GRACE_MS = 15 * 60_000;
 // Startup shares the pool with other reconcilers. Prisma's default 2s acquisition
 // deadline expires before our pool's 30s wait; keep acquisition and execution bounded.
 export const EVENT_TRANSACTION_OPTIONS = { maxWait: 30_000, timeout: 30_000 };
+export const EVENT_BOARD_REPAIR_MS = 5 * 60_000;
+export const eventEmbedsHash = (embeds: EmbedBuilder[]) => createHash("sha256").update(JSON.stringify(embeds.map(embed => embed.toJSON()))).digest("hex");
 export class GameEventInputError extends Error {}
 export const eventText = (fr: boolean, en: string, french: string) => fr ? french : en;
 export const eventLock = (tx: Prisma.TransactionClient) => tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('guilded-game-events'))`;
@@ -136,10 +139,16 @@ export async function queueGameEvents(database: PrismaClient, scope: Prisma.Game
     await eventLock(tx);
     await tx.officialGameEvent.updateMany({ where: { state: "SCHEDULED", startsAt: { lte: now } }, data: { state: "REACHED" } });
     const events = await tx.officialGameEvent.findMany({ where: { archived: false }, orderBy: { id: "asc" } });
-    const boards = await tx.gameEventBoard.findMany({ where: { enabled: true, ...scope } });
+    const boards = await tx.gameEventBoard.findMany({ where: { enabled: true, ...scope }, include: { guild: { select: { settings: { select: { language: true } } } } } });
+    if (!boards.length) return;
+    // One read for the batch. Never reset retries/leases for an already pending
+    // refresh: under load one durable job represents the latest board state.
+    const pendingBoards = new Set((await tx.discordJob.findMany({ where: { kind: "GAME_EVENT_BOARD", status: "PENDING", key: { in: boards.map(board => `game-board:${board.id}`) } }, select: { key: true } })).map(job => job.key));
     for (const board of boards) {
-      const pending = await tx.discordJob.findUnique({ where: { guildId_key: { guildId: board.guildId, key: `game-board:${board.id}` } } });
-      if (pending?.status !== "PENDING") await enqueueDiscordJob(tx, board.guildId, `game-board:${board.id}`, "GAME_EVENT_BOARD", { boardId: board.id });
+      const key = `game-board:${board.id}`;
+      const changed = eventEmbedsHash(eventBoardEmbeds(events, board, board.guild.settings?.language === "fr", now)) !== board.contentHash;
+      const repairDue = now.getTime() - board.updatedAt.getTime() >= EVENT_BOARD_REPAIR_MS;
+      if (!pendingBoards.has(key) && (changed || repairDue || !board.messageId)) await enqueueDiscordJob(tx, board.guildId, key, "GAME_EVENT_BOARD", { boardId: board.id });
       for (const event of events) for (const minutes of REMINDER_MINUTES) {
         if (!reminderDue(event, board, minutes, now)) continue;
         const key = `game-reminder:${board.id}:${event.id}:${event.scheduleVersion}:${minutes}`;

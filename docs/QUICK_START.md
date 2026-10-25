@@ -3,10 +3,10 @@
 **Start with the addon only (default).** The addon works alone; optional Discord synchronization adds a
 companion and either the approved hosted bot or your independently hosted bot.
 
-**Want to add the existing Guilded bot? [Request hosted pilot access](HOSTED_PILOT.md).**
-KCaron must approve your Discord server first. Invite, wait for approval, then
-run `/setup start` and pair with the online companion. This free pilot accepts
-only a small number of guilds; no hosting accounts are needed for approved guilds.
+**Want to add the existing Guilded bot? [Add the free hosted bot](HOSTED_PILOT.md).**
+Your server gets Guilded Lite right away; run `/setup start`. KCaron's approval unlocks
+addon sync, EP/GP and seasons, then members connect the online companion. No hosting
+accounts are needed.
 
 New to hosting? Open the [illustrated owner walkthrough](OWNER_WALKTHROUGH.md)
 for account links, Discord/Oracle screenshots and copyable commands.
@@ -15,7 +15,7 @@ for account links, Discord/Oracle screenshots and copyable commands.
 | --- | --- | --- |
 | Addon-only player | Matching published Guilded addon ZIP | 5–10 minutes |
 | Member of a configured guild | Addon; Discord linking and companion sync are optional | 5–10 minutes for the addon |
-| Owner joining the hosted pilot | Addon + hosted bot invitation + online companion | Owner approval first; setup time depends on your server |
+| Owner adding the hosted bot | Addon + hosted bot invitation + online companion | Lite right away; full Guilded after approval |
 | Owner setting up Discord sync | Matching bot source + addon + companion | About 30 minutes **after infrastructure is ready** |
 
 These are planning estimates, not measured acceptance results. Public release
@@ -25,16 +25,17 @@ For a private test, use the matching files supplied by the maintainer.
 
 ## Hosted guild owners: three steps
 
-1. [Request pilot access](HOSTED_PILOT.md) and wait for KCaron's approval.
-   An invite alone does not activate the bot.
-2. After approval, run `/setup start` in Discord. Choose your language and
+1. [Add the free hosted bot](HOSTED_PILOT.md). Your server starts on Guilded Lite;
+   KCaron's approval unlocks the rest (no reinvite needed).
+2. Run `/setup start` in Discord. Choose your language and
    features, place the bot role above roles it must assign, then run
    `/setup start status:true` to find missing settings.
 3. For WoW sync, follow the member steps below with one player first. Confirm
    that their character and standings match in Discord and in game, then share
    [the member guide](MEMBER_INSTALL.md) with your guild. Use the
-   [hosted companion](https://guilded.kcaron.top/companion/); the
-   `/character pair` code is all it asks for.
+   [hosted companion](https://guilded.kcaron.top/companion/) and choose
+   **Sign in with Discord**: nothing to type. At least one officer should run
+   the companion: members who only use the addon reach Discord through it.
 
 Community activities and polls need no WoW addon or character pairing. Hosted
 owners can stop here; the independent hosting sections below are optional.
@@ -47,20 +48,24 @@ owners can stop here; the independent hosting sections below are optional.
    Current releases select this mode automatically; older builds may show
    the chooser. No Discord character link or companion is required.
 
-### Optional: link a main and alts without a companion
+### Optional: link your main and alts without a companion
 
-Press **Link my WoW character / Lier mon personnage WoW** in the welcome panel.
-Log in on your intended main and copy `/guilded character` into Discord's
-`/character import` → **code**, leaving **main** unset. The first character is
-your main. Repeat on each alt with **main** unset; your main stays the same.
-`/character list` confirms the result. Viewing the instructions does not generate
-a companion connection code.
+Press **Link my WoW character / Lier mon personnage WoW** in the welcome panel,
+or run `/character pair`. Copy the line it shows, such as
+`/guilded verify ABCD-EFGH`, and paste it into WoW chat once, on any character.
+That's all: every character you play on that WoW account links itself, the first
+one as your main, after an online officer's addon receives their guild data and
+that officer saves and syncs it. You get a Discord DM; `/character list` confirms the result.
+
+If no officer's companion has synced for two weeks, `/character pair` also shows
+the manual way: `/guilded character` in game, pasted into Discord's
+`/character import` → **code** with **main** unset, once per character.
 
 ### Optional: connect the online companion
 
 1. Choose **Connect optional companion** in that private reply, or use
-   `/character pair`. Open its online companion button, paste your private code,
-   then **Connect**. Since 6.5.1 the code alone finds your server.
+   `/character pair`. Open its online companion button and choose
+   **Sign in with Discord**, then your server: nothing to type.
 2. Enable WoW and choose your account's SavedVariables folder. Use **Save standings
    to addon** once to choose `Interface/AddOns/Guilded`. After `/reload`, click
    **Sync now** on your main first if none is linked. Choose
@@ -144,14 +149,18 @@ et les enchères GP.
 
 ### Ajouter Discord plus tard
 
-Le pilote hébergé est gratuit et limité à **cinq serveurs au maximum, celui du
-propriétaire inclus**. Ce plafond ne signifie pas qu'une place est libre.
-KCaron doit approuver chaque serveur avant `/setup start`. Une invitation ou
-un café ne donne pas accès automatiquement. [Lire le guide du pilote](HOSTED_PILOT.md#fr).
+Le bot hébergé est gratuit. Votre serveur commence en **Guilded Lite** : lancez
+`/setup start` pour les rôles et les salons. L'approbation de KCaron débloque
+la synchronisation, l'EP/GP et les saisons; elle peut être automatique si l'hôte
+l'a activée. La capacité reste limitée. [Lire le guide du bot](HOSTED_PILOT.md#fr).
 
 Après l'approbation et la configuration, chaque membre peut utiliser son propre
-`/character pair`. Avec le compagnon 6.5.1, collez le code privé, puis **Connect** :
-le serveur est retrouvé automatiquement. Le compagnon Windows est facultatif.
+`/character pair`. Sans compagnon, il copie la ligne affichée (par exemple
+`/guilded verify ABCD-EFGH`) et la colle une seule fois dans le chat de WoW : tous
+ses personnages de cette guilde se lient après qu'un officier en ligne a reçu,
+enregistré et synchronisé leurs données; il reçoit un message privé Discord. Avec le compagnon,
+il choisit **Sign in with Discord**, puis le serveur : rien à taper. Au moins un
+officier devrait utiliser le compagnon. Le compagnon Windows est facultatif.
 Vérifiez une première synchronisation et les permissions d'un membre ordinaire
 avant de déployer à toute la guilde.
 

@@ -1,8 +1,8 @@
 # Launch posts — WoW Forever, 4 November 2026
 
-Drafts for the owner to post (nothing here is posted automatically). Recommendation 12 of
-[the pre-release audit](PRE_RELEASE_AUDIT_2026-10-22.md): lead with dungeons, the one thing no
-other Forever guild tool offers. Check each community's self-promotion rules before posting, post
+Drafts for the owner to post after game/two-PC acceptance (nothing here is posted automatically).
+Public release is held: follow [launch readiness](LAUNCH_READINESS_2026-10-24.md).
+Lead with dungeons and check each community's self-promotion rules before posting, post
 once per place, and answer questions in the thread.
 
 Facts used below (true on 22 October 2026; re-check versions on the day): Guilded 7.3.1, free,
@@ -25,8 +25,8 @@ English and French.
 
 > Hi all — I make Guilded, a free addon for WoW Forever.
 >
-> **Dungeon Season 1 starts with the launch.** Every finished run is timed (total and boss
-> times) and scored per level bracket, and you can see where you stand on public leaderboards
+> **Dungeon Season 1 is scheduled to start with the launch.** Recorded runs include total and boss
+> times. Eligible runs on verified routes earn scores per level bracket on public leaderboards
 > with character pages, guild rankings and runs confirmed by the party:
 > https://guilded.kcaron.top/leaderboards/
 >
@@ -56,8 +56,9 @@ Check the subreddit's rules on addon posts first; use the addon or discussion fl
 > - Leaderboards: https://guilded.kcaron.top/leaderboards/
 >
 > It's free and works without Discord. The leaderboard needs a small companion to upload runs
-> (Sign in with Discord, nothing to type). Season 1 targets are provisional and get recalibrated
-> from real runs in the first weeks. Happy to answer questions.
+> (Sign in with Discord, nothing to type). Targets are provisional; missing routes stay unrated
+> until verified. Real runs inform future calibration, while existing official-season targets
+> stay frozen. Happy to answer questions.
 
 ## barrens.chat (English)
 
@@ -65,12 +66,12 @@ Same text as the forums post, shorter title: **Free dungeon timer + Season 1 lea
 
 ## Quebec Gold and Guilded Discord (bilingual)
 
-> 🏆 **La saison 1 des donjons commence demain à 18 h (heure de Montréal).** Chaque donjon
-> terminé est chronométré et noté; classements : https://guilded.kcaron.top/leaderboards/?lang=fr
+> 🏆 **La saison 1 des donjons est prévue demain à 18 h (heure de Montréal).** Les parcours
+> vérifiés et admissibles donnent des points; classements : https://guilded.kcaron.top/leaderboards/?lang=fr
 > Installez Guilded (ou Guilded Dungeons) et reliez le compagnon avec « Connexion avec Discord ».
 >
-> 🏆 **Dungeon Season 1 starts tomorrow at 3 PM Pacific / 6 PM Eastern.** Every finished run is
-> timed and scored: https://guilded.kcaron.top/leaderboards/ — install Guilded (or Guilded
+> 🏆 **Dungeon Season 1 is scheduled tomorrow at 3 PM Pacific / 6 PM Eastern.** Eligible runs on
+> verified routes earn scores: https://guilded.kcaron.top/leaderboards/ — install Guilded (or Guilded
 > Dungeons) and connect the companion with Sign in with Discord.
 
 ## Guide-site outreach
@@ -98,6 +99,6 @@ contact form or listed address; do not send the same message twice.
 ## Week 1 recap (10 November, bilingual)
 
 > Week 1 of Season 1 is in: top runs per bracket and the most active guilds →
-> https://guilded.kcaron.top/leaderboards/ — targets were recalibrated from your real runs on
-> <date>. / Première semaine de la saison 1 : meilleurs parcours et guildes les plus actives →
+> https://guilded.kcaron.top/leaderboards/ — thank you for the runs and route reports. Existing
+> official-season targets stay frozen. / Première semaine de la saison 1 : meilleurs parcours et guildes les plus actives →
 > https://guilded.kcaron.top/leaderboards/?lang=fr

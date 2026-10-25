@@ -12,7 +12,7 @@ export const helpCommand = new SlashCommandBuilder()
 const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record<Lang, string[]>> = {
   everyone: {
     en: [
-      "WoW addon-only is the default. Optional Discord link: `/guilded character` in game → `/character import` here; `/character list` checks main/alts. `/character pair` connects the optional companion",
+      "WoW: the addon works on its own. To link your characters to Discord, `/character pair` shows one line to paste in WoW chat (`/guilded verify …`), once for all of them; `/character list` checks main/alts. The optional companion connects with **Sign in with Discord**",
       "`/character add` — link a character by hand, or `/character import` — paste the line `/guilded character` shows, or the code from `/guilded share`",
       "Raid posts have buttons to sign up (or use `/raid signup`)",
       "`/epgp balance` · `/epgp leaderboard` · `/character profile` · `/character who <name>`",
@@ -32,7 +32,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/poe status` · `/poe pair` · `/poe runs` · `/poe summary` — PoE2 companion mapping journal"
     ],
     fr: [
-      "WoW : l'addon seul est le choix par défaut. Lien Discord facultatif : `/guilded character` en jeu → `/character import` ici; `/character list` montre principal/alts. `/character pair` connecte le compagnon facultatif",
+      "WoW : l'addon fonctionne seul. Pour lier vos personnages à Discord, `/character pair` donne une ligne à coller dans le chat de WoW (`/guilded verify …`), une seule fois pour tous; `/character list` montre principal/alts. Le compagnon facultatif se connecte avec **Sign in with Discord**",
       "`/character add` — liez un personnage manuellement, ou `/character import` — collez la ligne de `/guilded character`, ou le code de `/guilded share`",
       "Les annonces de raid ont des boutons pour s'inscrire (ou `/raid signup`)",
       "`/epgp balance` · `/epgp leaderboard` · `/character profile` · `/character who <nom>`",

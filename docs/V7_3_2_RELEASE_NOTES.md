@@ -2,6 +2,10 @@
 
 This coordinated bot, Guilded addon, Guilded Dungeons addon and Windows companion candidate prepares the product for real-client acceptance. Protocol remains 2. It is not a claim that game/two-PC checks have passed.
 
+Public release remains on hold. The bot was deployed for testing on 23 October;
+see [current launch readiness](LAUNCH_READINESS_2026-10-24.md). Updated installation guides
+cover Discord sign-in, optional officer-assisted linking and the actual game folder.
+
 - Prisma 7 connections use UTC, preserving timestamp instants across application and database time zones.
 - Public evidence handles concurrent reports, independent confirmations and compatible stronger evidence. Calibration requires diverse crews/days and refuses out-of-range medians.
 - Guild and public score views include recorded roles, best-N improvement scenarios and season history. Guilded Dungeons receives personal public snapshots without presenting them as guild/global ranks.

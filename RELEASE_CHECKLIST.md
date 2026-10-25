@@ -1,6 +1,7 @@
-> **Current (22 October 2026): Guilded 7.3.1 Release** — notes in [V7_3_1_RELEASE_NOTES.md](docs/V7_3_1_RELEASE_NOTES.md),
-> real-client checks in [the acceptance checklist](docs/V6_2_GAME_ACCEPTANCE.md), launch-week list in
-> [PRE_RELEASE_AUDIT_2026-10-22.md](docs/PRE_RELEASE_AUDIT_2026-10-22.md). Everything below this box is a
+> **Current (24 October 2026): Guilded 7.3.2 Candidate — public release held.**
+> Use [launch readiness and runbook](docs/LAUNCH_READINESS_2026-10-24.md),
+> [candidate notes](docs/V7_3_2_RELEASE_NOTES.md) and [game/two-PC acceptance](docs/V7_3_2_GAME_CHECKLIST.md).
+> GitHub public downloads remain 7.3.1 and CurseForge 7.3.0. Everything below this box is a
 > historical record of the 4.0-6.2 releases, not the current state.
 >
 > 6.2 candidate preparation (15 October 2026): use [the release handoff](docs/archive/V6_2_RELEASE_HANDOFF.md) and [game acceptance checklist](docs/V6_2_GAME_ACCEPTANCE.md).

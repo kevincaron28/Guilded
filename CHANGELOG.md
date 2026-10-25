@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Launch preparation: stabilize the companion sync regression around completed writes and
+  controlled polling; include Guilded Dungeons and packaged companion-source checks in release
+  verification/CI. Refresh English/French setup guides and publication drafts, with an explicit
+  public-release hold until game and two-PC acceptance passes.
+- Patch vulnerable transitive HTTP/URI dependencies: undici 6.29.1 / 7.30.1 and fast-uri
+  3.1.9. Keep Miniflare's HTTP dependency on patched 7.x without downgrading Wrangler.
+
 - Public dungeon leaderboards rank runs by the guild seasons' own check: the addon must see the
   final boss die (no manual stops), the route and levels come from the run's evidence, and a run
   counts for each player there for 80% of it. Unranked runs still show, with the reason; rows

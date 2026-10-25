@@ -1,3 +1,6 @@
+> 7.3.2 (25 October 2026): owner authorized full release before the unavailable Forever
+> two-PC tests. The prior publication hold is superseded by docs/RELEASE_DECISION_2026-10-25.md.
+> Game checks remain pending follow-up; benchmarks remain provisional.
 > 25 October continuation: multi-edition connected candidate on codex/game-editions,
 > PR #216 (stacked on #215/#214). Forever, Era, TBC, Mists and Retail have separate
 > guild contexts in one Discord, role IDs, companion profiles, realm identities,
@@ -72,12 +75,12 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (23 October 2026): version 7.3.2 Candidate, protocol 2.** WoW Forever launches
+**Current status (25 October 2026): version 7.3.2 Release, protocol 2.** WoW Forever launches
 4 November 2026 (beta closed 21 October); its first raids open 9 December.
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
 The bot and main PC are on 7.3.2 for testing; GitHub public downloads remain 7.3.1 and
 CurseForge 7.3.0. Follow `docs/LAUNCH_READINESS_2026-10-24.md` before acting on older holds or
-unchecked historical lists. Keep public promotion on hold until game/two-PC acceptance passes.
+unchecked historical lists. The owner authorized publication on 25 October; retain pending game checks as follow-up.
 Standalone guild and optional Guilded Games work is next-version candidate
 source; do not overwrite the published 6.2.0 downloads or bump incidentally.
 Read `docs/UPDATE_ALL_2026-10-14.md`,

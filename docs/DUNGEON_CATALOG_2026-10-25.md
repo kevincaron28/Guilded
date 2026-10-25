@@ -1,3 +1,8 @@
+> **25 October release decision:** the owner explicitly authorized publication before
+> the unavailable game/two-PC tests. Earlier hold instructions below are superseded.
+> Tests remain pending follow-up, not passes; targets remain provisional. See
+> [release decision](RELEASE_DECISION_2026-10-25.md) and [current notes](V7_3_2_RELEASE_NOTES.md).
+
 # Offline dungeon preparation — 25 October 2026
 
 The candidate now supplies source-reviewed completion routes and provisional

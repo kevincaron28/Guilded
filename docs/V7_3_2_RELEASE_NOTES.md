@@ -1,23 +1,70 @@
-# Guilded 7.3.2 Candidate — 23 October 2026
+# Guilded 7.3.2 Release — 25 October 2026
 
-This coordinated bot, Guilded addon, Guilded Dungeons addon and Windows companion candidate prepares the product for real-client acceptance. Protocol remains 2. It is not a claim that game/two-PC checks have passed.
+The Guilded addon, standalone Guilded Dungeons, Discord bot, website and Windows
+companion now support WoW Forever, Classic Era/Hardcore, TBC Anniversary,
+Mists Classic and Retail. Protocol remains 2.
 
-Public release remains on hold. The bot was deployed for testing on 23 October;
-see [current launch readiness](LAUNCH_READINESS_2026-10-24.md). Updated installation guides
-cover Discord sign-in, optional officer-assisted linking and the actual game folder.
+The owner approved release before the remaining game/two-PC tests because the
+Forever client is unavailable until launch. These tests are pending follow-up,
+not recorded passes. Dungeon targets are provisional and require real-run
+calibration. See [the game checklist](V7_3_2_GAME_CHECKLIST.md) and
+[the release decision](RELEASE_DECISION_2026-10-25.md).
 
-Additional unpublished preparation: editable raid seat presets, Components V2 for
-new signup posts, generated public score/run cards, and quiet timestamp-only companion
-refreshes. See [feature scope and acceptance](PRELAUNCH_FEATURES_2026-10-24.md).
-These changes require fresh packages; the deployed 23 October version does not contain them.
+## What changed
 
-- Prisma 7 connections use UTC, preserving timestamp instants across application and database time zones.
-- Public evidence handles concurrent reports, independent confirmations and compatible stronger evidence. Calibration requires diverse crews/days and refuses out-of-range medians.
-- Guild and public score views include recorded roles, best-N improvement scenarios and season history. Guilded Dungeons receives personal public snapshots without presenting them as guild/global ranks.
-- Server updates build in a separate directory and retain the previous application for stopped-service code recovery.
-- Installed companion launches honor the first argument; diagnostic capture handles an already-loaded renderer and exits with failure if capture/output fails.
-- Optional `DUNGEON_RUNS_NOT_BEFORE` rejects old or undated dungeon runs after an owner-authorized history reset. It does not erase data itself. Preserve this setting during recovery.
+- Several guilds and WoW editions can share one Discord server. Select the guild
+  with `/wow use`, or bind its channel with `/wow channel`. Permissions, character
+  links, settings, public seasons and uploads stay separated by guild and edition.
+- Forever characters display their authentic first and last names while retaining
+  their existing accounting keys. Other editions use character and realm identities.
+- Desktop and browser companions support separate saved connections. Pair each
+  guild/edition independently; only the selected connection syncs.
+- 135 source-reviewed ordinary dungeon routes cover Era, TBC, Mists and Retail,
+  with difficulty-specific evidence and explicit provisional benchmarks. Classic
+  NPC-only completion evidence is supported. Other content remains recorded activity.
+- Retail preserves native key level, affixes, timer and completion eligibility.
+  Its eight-dungeon Midnight Season 2 rating sums one best score per dungeon.
+  The provisional Guilded formula is inspired by Raider.IO; it is not an official
+  Raider.IO or Blizzard score. `/dungeon keystones` and character pages show results.
+- Dungeon scores include role context, improvement guidance and season history.
+  Guilded Dungeons can receive personal public-score snapshots. Historic scoring
+  rules remain frozen; recalibration applies prospectively.
+- Raid seat presets are editable; new signup posts use Discord Components V2.
+  Public score/run cards, French companion screens and installation guidance improve.
+- Companion refreshes avoid unnecessary log noise, repair missing standings files,
+  and preserve pairing/settings on update. Installed-app startup is corrected.
+- Bot database timestamps use UTC. Updates stage dependencies before replacing
+  the service and retain the previous application for code recovery. The existing
+  dungeon history reset boundary is preserved.
 
-Deployment is authorized by the owner for testing. Public promotion still requires [the game and two-PC checklist](V7_3_2_GAME_CHECKLIST.md). Missing observed 45–59/60 routes and representative calibration samples remain deferred; do not invent route IDs or change live scoring curves from sparse data.
+## Choose your download
 
-Reset operations require a verified database backup, a stopped bot, and an atomic deletion limited to dungeon seasons/runs/points/achievements and public run evidence. Preserve future official seasons, identities, credentials, guild configuration, EP/GP and unrelated community/raid seasons. Pre-launch test results remain separate from the scheduled November season.
+Use **Guilded-v7.3.2-<edition>.zip** for guild/loot tools or
+**GuildedDungeons-v7.3.2-<edition>.zip** for standalone dungeon tracking.
+
+| Client | Filename edition |
+| --- | --- |
+| WoW Forever | `forever` |
+| Classic Era / Hardcore | `classic-era` |
+| TBC Anniversary | `classic-tbc` |
+| Mists Classic | `classic-mists` |
+| Retail | `retail` |
+
+The unsuffixed `Guilded-v7.3.2.zip` and `GuildedDungeons-v7.3.2.zip` are the
+Forever builds. Do not install those unsuffixed builds into a Blizzard client.
+All editions use the same **Guilded.Companion.Setup.7.3.2.exe**. Extract the addon
+folder into the selected client's `Interface/AddOns`. Preserve SavedVariables.
+Use the separate checksum manifest to verify downloads.
+
+The installer is unsigned. Interface baselines are Forever 16001, Era 11500,
+TBC 20506, Mists 50500 and Retail 120105; actual launch-client confirmation is
+still pending. No client test result is invented. Historical leveling/timewalking,
+Season of Discovery and Mists challenge modes are outside this rating catalog.
+
+Existing users on the private 7.3.2 candidate should run this published installer
+once to receive the final 7.3.2 files; the version number is unchanged. Public
+7.3.1 and earlier companions can use their normal update flow.
+
+Self-hosters must back up first, deploy the matching source/migrations, and verify
+health plus command registration. Do not start a second process with the same
+Discord token. Full setup: [multi-edition release scope](RELEASE_SCOPE_2026-10-25.md).

@@ -1,8 +1,9 @@
 # Guilded roadmap
 
-## Current stage — 23 October 2026
+## Current stage — 25 October 2026
 
-Guilded **7.3.2 Candidate** (protocol 2), deployed for testing; real-client acceptance and public promotion remain pending.
+Guilded **7.3.2 Release** (protocol 2), authorized by the owner before launch-client testing.
+Real-client checks remain post-release follow-up; see [the release decision](docs/RELEASE_DECISION_2026-10-25.md).
 Current gates and completed operational checks: [launch readiness](docs/LAUNCH_READINESS_2026-10-24.md).
 GitHub public downloads remain 7.3.1; CurseForge has 7.3.0. All six
 18-October requests shipped in 7.0.0; 7.1.0 added monthly boards and Raider.IO-style leaderboards,

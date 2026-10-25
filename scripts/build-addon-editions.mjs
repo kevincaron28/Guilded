@@ -8,6 +8,7 @@ import { zipSync, unzipSync } from "fflate";
 import luaparse from "luaparse";
 import { GAME_EDITIONS, editionFromInterface } from "../companion/game-edition.mjs";
 import { check } from "./build-dungeons-addon.mjs";
+import { releaseMetadata } from "./release-metadata.mjs";
 
 // Packaging baselines, not client acceptance. Release operators can supply the
 // observed GetBuildInfo() interface with --interface=classic-era:11508.
@@ -32,7 +33,8 @@ export function packageEdition(addon, edition, api = EDITION_INTERFACES[edition]
   toc = toc.replace(/^## Interface:.*$/m, `## Interface: ${api}\n## X-Guilded-Edition: ${edition}`).replaceAll("WoW Forever", edition);
   files[tocPath] = new TextEncoder().encode(toc);
   if (addon === "Guilded") files[`${addon}/Standings.lua`] = new TextEncoder().encode(EMPTY);
-  files[`${addon}/EDITION.txt`] = new TextEncoder().encode(`Guilded ${version}\nEdition: ${edition}\nInterface: ${api}\nCandidate: real-client acceptance required before public release.\nInstall this folder into this edition's Interface/AddOns. Pair a separate companion connection for each in-game guild.\n`);
+  const release = releaseMetadata();
+  files[`${addon}/EDITION.txt`] = new TextEncoder().encode(`Guilded ${version}\nEdition: ${edition}\nInterface: ${api}\nChannel: ${release.channel}\nReal-client and two-PC checks remain pending; provisional benchmarks require in-game calibration.\nInstall this folder into this edition's Interface/AddOns. Pair a separate companion connection for each in-game guild.\n`);
   for (const [file,data] of Object.entries(files)) if(file.endsWith(".lua")) luaparse.parse(new TextDecoder().decode(data),{luaVersion:"5.1"});
   const packed = zipSync(files,{level:9}), unpacked=unzipSync(packed);
   for(const line of toc.split(/\r?\n/).map(s=>s.trim()).filter(s=>s.endsWith(".lua")&&!s.startsWith("#"))) {

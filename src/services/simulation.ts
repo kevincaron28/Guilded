@@ -2,6 +2,8 @@ import type { PrismaClient, RaidRole } from "../generated/prisma/client.js";
 import { createAddonImportService } from "./addon-import.js";
 import { createLootService } from "./loot.js";
 import { createRaidService } from "./raid.js";
+import { currentEdition } from "./edition-context.js";
+import { raidLevel } from "./readiness.js";
 
 // Test raid environment. WoW Forever has no raids released yet, so this
 // fakes one end to end through the real code paths (signups with caps,
@@ -46,8 +48,8 @@ async function ensureTestMembers(database: PrismaClient, guildId: string, realm:
       update: { isTest: true, status: "ACTIVE" }
     });
     await database.character.upsert({
-      where: { guildId_gameEdition_realm_name: { guildId, gameEdition: "forever", realm, name } },
-      create: { guildId, memberId: member.id, name, realm, className: SIM_CLASSES[i % SIM_CLASSES.length] ?? "Warrior", isMain: true, level: 60 },
+      where: { guildId_gameEdition_realm_name: { guildId, gameEdition: currentEdition(), realm, name } },
+      create: { guildId, gameEdition: currentEdition(), memberId: member.id, name, realm, className: SIM_CLASSES[i % SIM_CLASSES.length] ?? "Warrior", isMain: true, level: raidLevel() },
       update: {}
     });
     members.push(member);
@@ -135,6 +137,7 @@ export async function finishTestRaid(database: PrismaClient, input: { guildId: s
     const importService = createAddonImportService(database);
     const payload = {
       source: SIM_IMPORT_SOURCE,
+      gameEdition: currentEdition(),
       exportedAt: new Date().toISOString(),
       raids: [{
         ref: `sim-${raid.id}`,
@@ -216,6 +219,7 @@ export async function simulateDungeonRun(database: PrismaClient, input: { guildI
   const run = {
     id: `${SIM_RUN_PREFIX}${now}-${Math.random().toString(36).slice(2, 7)}`,
     protocolVersion: 1,
+    gameEdition: currentEdition(),
     state: "COMPLETED",
     instanceId: SIM_DUNGEON.instanceId,
     name: SIM_DUNGEON.name,
@@ -235,7 +239,7 @@ export async function simulateDungeonRun(database: PrismaClient, input: { guildI
     }))
   };
   const importService = createAddonImportService(database);
-  const snapshot = importService.parse({ source: SIM_IMPORT_SOURCE, exportedAt: new Date(now * 1000).toISOString(), dungeonRuns: [run] });
+  const snapshot = importService.parse({ source: SIM_IMPORT_SOURCE, gameEdition: currentEdition(), exportedAt: new Date(now * 1000).toISOString(), dungeonRuns: [run] });
   const checksum = `sim-dungeon-${run.id}`;
   const record = await importService.record(input.guildId, snapshot, checksum, input.officerId);
   return importService.apply(input.guildId, record.id, input.officerId);

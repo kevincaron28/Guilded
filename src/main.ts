@@ -484,8 +484,8 @@ if (config.MESSAGE_CONTENT_INTENT) {
 
 client.on(Events.InteractionCreate, async interaction => {
   try {
-    const serverCommands = ["wow", "community", "organize", "poe", "participation", "team", "events", "guilded-season", "guilded-events"];
-    const globalButton = "customId" in interaction && [PILOT_REQUEST_PREFIX, TEAM_BUTTON_PREFIX, COMMUNITY_PREFIX, WELCOME_ROLE_PREFIX, SELF_ROLE_PREFIX, ONBOARD_PREFIX].some(prefix => interaction.customId.startsWith(prefix));
+    const serverCommands = ["wow", "community", "organize", "poe", "participation", "events", "guilded-season", "guilded-events"];
+    const globalButton = "customId" in interaction && [PILOT_REQUEST_PREFIX, COMMUNITY_PREFIX, WELCOME_ROLE_PREFIX, SELF_ROLE_PREFIX, ONBOARD_PREFIX].some(prefix => interaction.customId.startsWith(prefix));
     const wowOrganize = interaction.isChatInputCommand() && interaction.commandName === "organize" && interaction.options.getSubcommandGroup(false) === "dungeon-seasons";
     const globalCommand = "commandName" in interaction && serverCommands.includes(interaction.commandName) && !wowOrganize;
     const scope = interaction.guildId && hostedPilot.allows(interaction.guildId) && !globalCommand && !globalButton

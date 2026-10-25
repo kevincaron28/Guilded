@@ -49,6 +49,10 @@ describe("full edition routing", () => {
     expect((await entityGuildScope(db as never,"server","apply-form:decide:approve:application"))?.guild.id).toBe("one");
     expect(db.application.findUnique).toHaveBeenCalledWith({where:{id:"application"},select:{guildId:true}});
   });
+  it("routes weekly dungeon and PvP team responses to the session's guild", async () => {
+    const db = { activitySession: { findUnique: vi.fn(async()=>({core:{guildId:"one"}})) }, guild: {findFirst:vi.fn(async()=>({...scope("one").guild,wowSpace:null}))} };
+    expect((await entityGuildScope(db as never,"server","team:session:DPS"))?.guild.id).toBe("one");
+  });
 });
 
 describe("edition identities and companion connections", () => {

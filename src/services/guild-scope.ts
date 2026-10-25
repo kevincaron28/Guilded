@@ -45,6 +45,10 @@ export async function entityGuildScope(database: PrismaClient, discordId: string
   if (prefix === "raidsignup" && first) row = await database.raid.findUnique({ where: { id: first }, select: { guildId: true } });
   if (prefix === "epaward" && second) row = await database.raid.findUnique({ where: { id: second }, select: { guildId: true } });
   if (prefix === "dgrp" && first) row = await database.dungeonGroup.findUnique({ where: { id: first }, select: { guildId: true } });
+  if (prefix === "team" && first) {
+    const session = await database.activitySession.findUnique({ where: { id: first }, select: { core: { select: { guildId: true } } } });
+    row = session?.core ?? null;
+  }
   if (prefix === "poll" && first) row = await database.poll.findUnique({ where: { id: first }, select: { guildId: true } });
   if (prefix === "craft" && first && !["new", "new-modal"].includes(first)) row = await database.craftRequest.findUnique({ where: { id: first }, select: { guildId: true } });
   if (prefix === "apply-form" && second && first !== "decide") row = await database.raidCore.findUnique({ where: { id: second }, select: { guildId: true } });
@@ -66,11 +70,12 @@ export async function interactionGuildScope(database: PrismaClient, input: { dis
   // Setup/core channels retain their guild even if a different member presses a button.
   const settingsFields = ["raidSignupChannelId", "logChannelId", "notifyChannelId", "weeklyReportChannelId", "answerChannelId", "dungeonChannelId", "dungeonLeaderboardChannelId", "dungeonSignupChannelId", "raidLogChannelId", "lootChannelId", "craftChannelId", "readinessChannelId", "coreChannelId", "applicationChannelId", "attendanceChannelId", "guideChannelId", "pugChannelId"] as const;
   if (channelIds.length) {
-    const [settings, cores] = await Promise.all([
+    const [settings, cores, teams] = await Promise.all([
       database.guildSettings.findMany({ where: { guild: { discordId: input.discordId }, OR: settingsFields.map(field => ({ [field]: { in: channelIds } })) }, select: { guildId: true } }),
-      database.raidCore.findMany({ where: { guild: { discordId: input.discordId }, OR: ["categoryId", "rosterChannelId", "signupChannelId", "lootChannelId", "raidLogChannelId", "chatChannelId", "voiceChannelId", "attendanceChannelId"].map(field => ({ [field]: { in: channelIds } })) }, select: { guildId: true } })
+      database.raidCore.findMany({ where: { guild: { discordId: input.discordId }, OR: ["categoryId", "rosterChannelId", "signupChannelId", "lootChannelId", "raidLogChannelId", "chatChannelId", "voiceChannelId", "attendanceChannelId"].map(field => ({ [field]: { in: channelIds } })) }, select: { guildId: true } }),
+      database.activityCore.findMany({ where: { guild: { discordId: input.discordId }, channelId: { in: channelIds } }, select: { guildId: true } })
     ]);
-    const owners = [...new Set([...settings, ...cores].map(row => row.guildId))];
+    const owners = [...new Set([...settings, ...cores, ...teams].map(row => row.guildId))];
     if (owners.length > 1) throw new Error("Several guilds use this channel. An officer must bind it with /wow channel.");
     if (owners[0]) return loadGuildScope(database, owners[0], input.discordId);
   }

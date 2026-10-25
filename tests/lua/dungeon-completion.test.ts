@@ -38,6 +38,42 @@ function activeRun() {
 }
 
 describe("dungeon final-boss completion without the Encounter Journal", () => {
+  it("retains native key, affixes and penalty-inclusive timer through reload and peer export", () => {
+    const s = activeRun();
+    s.run(`GetBuildInfo=function() return "12.1.5","12345","date",120105 end
+      INSTANCE.difficultyId=8
+      C_ChallengeMode={IsChallengeModeActive=function() return true end,
+        GetActiveChallengeMapID=function() return 501 end,
+        GetActiveKeystoneInfo=function() return 12,{9,3},true end,
+        GetMapUIInfo=function() return "Fixture",501,1800 end,
+        GetChallengeCompletionInfo=function() return {mapChallengeModeID=501,level=12,time=645123,
+          onTime=true,practiceRun=false,isEligibleForScore=true} end}
+      fire_event("CHALLENGE_MODE_START"); RUN_ID=GuildedDB.dungeon.current.id; STAMP=STAMP+600`);
+    s.run('FRAMES={}'); s.load("Modules/Dungeon.lua");
+    s.run(`fire_event("CHALLENGE_MODE_COMPLETED")
+      SAVED=GuildedDB.dungeon.runs[RUN_ID]
+      ROUNDTRIP=NS.dungeon.deserialize(RUN_ID,NS.dungeon.serialize(SAVED))`);
+    expect(s.run('return SAVED.durationSec')).toBe("600");
+    expect(s.run('return ROUNDTRIP.challenge.durationMs')).toBe("645123");
+    expect(s.run('return ROUNDTRIP.challenge.level..":"..ROUNDTRIP.challenge.mapId..":"..table.concat(ROUNDTRIP.challenge.affixIds,",")')).toBe("12:501:3,9");
+    expect(s.run('return tostring(ROUNDTRIP.challenge.eligibleForScore)..":"..tostring(ROUNDTRIP.challenge.practiceRun)..":"..tostring(ROUNDTRIP.challengeMode)')).toBe("true:false:true");
+    s.load("Modules/RunResults.lua");
+    expect(s.run('return NS.runResults.text(ROUNDTRIP)')).toContain("Mythic+ +12 - 10:45 - In time");
+  });
+  it("does not use a stale, mismatched or restricted native completion", () => {
+    const s = activeRun();
+    s.run(`GetBuildInfo=function() return "12.1.5","12345","date",120105 end
+      ACTIVE={mapId=501,level=10,timeLimitSec=1800,affixIds={}}
+      INFO={mapChallengeModeID=502,level=10,time=600000,onTime=true,practiceRun=false,isEligibleForScore=true}
+      C_ChallengeMode={GetChallengeCompletionInfo=function() return INFO end}`);
+    expect(s.run('return tostring(NS.compat.challengeCompletion(ACTIVE))')).toBe("nil");
+    s.run('INFO.mapChallengeModeID=501; INFO.level=11');
+    expect(s.run('return tostring(NS.compat.challengeCompletion(ACTIVE))')).toBe("nil");
+    s.run('INFO.level=10; NS.isSecret=function(v) return v==600000 end');
+    expect(s.run('return tostring(NS.compat.challengeCompletion(ACTIVE))')).toBe("nil");
+    s.run('NS.isSecret=function() return false end; INFO.time=-1');
+    expect(s.run('return tostring(NS.compat.challengeCompletion(ACTIVE))')).toBe("nil");
+  });
   it("waits for challenge objectives, survives reload and separates reset attempts", () => {
     const s = activeRun();
     s.run(`GetBuildInfo=function() return "12.1.5","12345","date",120105 end

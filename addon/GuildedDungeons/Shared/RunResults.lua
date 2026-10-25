@@ -17,6 +17,7 @@ local function inCombat()
 end
 
 local function L(text) return ns.L and ns.L(text) or text end
+local function displayName(name) return ns.displayName and ns.displayName(name) or name end
 
 function results.timerEnabled()
   local db = ns.getDb and ns.getDb()
@@ -67,7 +68,7 @@ local function rosterText(run)
     local info = player.class or ""
     if roles[player.role] then info = info .. (info ~= "" and " / " or "") .. roles[player.role] end
     local deaths = type(player.deaths) == "number" and string.format(L("%d deaths"), player.deaths) or L("deaths unknown")
-    lines[#lines + 1] = "|cffffd36a" .. name .. "|r" .. (info ~= "" and ("  |cffb0b8c4" .. info .. "|r") or "") .. "\n  " .. deaths
+    lines[#lines + 1] = "|cffffd36a" .. displayName(name) .. "|r" .. (info ~= "" and ("  |cffb0b8c4" .. info .. "|r") or "") .. "\n  " .. deaths
   end
   return table.concat(lines, "\n\n"), #names
 end
@@ -115,6 +116,7 @@ function results.estimate(run)
   local model = { key = key }
   if run.state ~= "COMPLETED" or type(run.durationSec) ~= "number" or run.durationSec <= 0 then
     model.reason = L("Run not completed")
+  elseif (run.gameEdition and run.gameEdition ~= "forever") or (ns.util and not ns.util.isForever()) then model.reason = L("Check your edition's leaderboard after syncing")
   elseif run.completedBy ~= "final boss" then model.reason = L("Automatic final-boss evidence required")
   elseif not route then model.reason = L("No public target for this route")
   elseif run.difficultyId ~= 0 then model.reason = L("Different difficulty from the public rules")
@@ -140,6 +142,12 @@ function results.estimate(run)
 end
 
 function results.breakdown(run)
+  if run.challenge then
+    local c = run.challenge
+    return "Mythic+ +" .. c.level .. " - " .. clock(c.durationMs / 1000) .. " - " .. L(c.onTime and "In time" or "Overtime")
+      .. "\n" .. L("Affixes") .. ": " .. table.concat(c.affixIds or {}, ", ")
+      .. (c.practiceRun and (" - " .. L("Practice run")) or "")
+  end
   local score = results.estimate(run)
   if not score.points then return score.reason end
   return string.format(L("Target %s / time %s\nTime rating %d (50-400) / level penalty %d%%\nProvisional public estimate; guild rules may differ."),
@@ -161,6 +169,7 @@ function results.text(run)
   local seconds = math.max(0, math.floor(run.durationSec or 0))
   local lines = { (run.name or "Dungeon") .. " - " .. (run.state or "?"),
     string.format("Time: %d:%02d", math.floor(seconds / 60), seconds % 60) }
+  if run.challenge then lines[#lines + 1] = results.breakdown(run) end
   local kills = 0
   for _, boss in ipairs(run.encounters or {}) do if boss.success then kills = kills + 1 end end
   lines[#lines + 1] = "Bosses defeated: " .. kills .. (run.bossCount and ("/" .. run.bossCount) or "")
@@ -171,7 +180,7 @@ function results.text(run)
   lines[#lines + 1] = ""
   for _, name in ipairs(names) do
     local player = run.players[name]
-    lines[#lines + 1] = name .. ": " .. (type(player.deaths) == "number" and (player.deaths .. " deaths") or "deaths unknown")
+    lines[#lines + 1] = displayName(name) .. ": " .. (type(player.deaths) == "number" and (player.deaths .. " deaths") or "deaths unknown")
   end
   lines[#lines + 1] = ""
   lines[#lines + 1] = results.syncText(run)
@@ -259,6 +268,10 @@ function results.show(run, resume)
   local score = results.estimate(run)
   window.metrics:SetText((score.points and ("~" .. score.points) or L("Unrated")) .. "   |cffffffff" .. clock(seconds) .. "|r")
   window.caption:SetText(L("Estimated public score / recorded duration"))
+  if run.challenge then
+    window.metrics:SetText("+" .. run.challenge.level .. "   |cffffffff" .. clock(run.challenge.durationMs / 1000) .. "|r")
+    window.caption:SetText(L("Keystone level / official timer"))
+  end
   window.breakdown:SetText(results.breakdown(run))
   local fights = results.fightText(run)
   window.text:SetText(fights ~= "" and (fights .. "\n\n" .. roster) or roster)

@@ -8,6 +8,7 @@ import { canonicalClass, type ClassEmojis } from "./character-display.js";
 import { canonicalSpecialization } from "../wow-specializations.js";
 import { CLASS_NAMES_FR } from "../permissions.js";
 import { dungeonTimeline } from "./dungeon-timeline.js";
+import { challengeClock } from "./challenge-leaderboard.js";
 
 const MAX_RUNS = 12;
 
@@ -54,6 +55,8 @@ export function dungeonAnnouncement(summary: DungeonImportSummary, lang: Lang, e
     const deaths = memberDeaths === null ? "" : ` · ${fr ? "morts de guilde" : "guild deaths"}: ${memberDeaths}${partial
       ? ` (${tracked}/${members.size} ${fr ? "suivis" : "tracked"})` : ""}`;
     const lines = [`✅ **${escapeMarkdown(label(run))}** ${formatDuration(run.durationSec as number)}${deaths}`];
+    if (run.challenge) lines.push(`Mythic+ **+${run.challenge.level}** · ${challengeClock(run.challenge.durationMs)} · ${run.challenge.onTime
+      ? fr ? "à temps" : "in time" : fr ? "hors délai" : "overtime"} · affixes ${run.challenge.affixIds.join(", ") || "—"}`);
     if (run.endedAt) lines.push(`${fr ? "Terminé" : "Finished"} <t:${run.endedAt}:f> · ${run.completedBy === "manual"
       ? (fr ? "fin manuelle" : "manually completed") : run.completedBy === "final boss"
         ? (fr ? "boss final vaincu" : "final boss defeated") : (fr ? "donjon terminé" : "completed")}`);

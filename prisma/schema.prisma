@@ -2054,6 +2054,7 @@ model PublicRun {
   source        String
   // 1: completion method and boss kills recorded (7.4); 0: uploaded before, checked the old way.
   evidenceVersion Int    @default(0)
+  challenge     Json?
   completedBy   String?
   // Successful boss kills inside the run: { id, name?, at?, startedAt? }[].
   encounters    Json?

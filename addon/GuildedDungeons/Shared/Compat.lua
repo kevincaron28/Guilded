@@ -144,8 +144,53 @@ end
 
 -- A challenge ends when the client confirms all objectives, not on its last boss.
 function compat.challengeActive()
-  return C_ChallengeMode and exists(C_ChallengeMode.IsChallengeModeActive)
-    and try("challenge", C_ChallengeMode.IsChallengeModeActive) == true or false
+  local active = C_ChallengeMode and exists(C_ChallengeMode.IsChallengeModeActive)
+    and try("challenge", C_ChallengeMode.IsChallengeModeActive)
+  return not secret(active) and active == true or false
+end
+
+local function challengeNumber(value, minimum, maximum)
+  return not secret(value) and type(value) == "number" and value == math.floor(value)
+    and value >= minimum and value <= maximum and value or nil
+end
+
+-- Capture the key before completion clears active data. Never substitute a player's
+-- personal best for this attempt's result. The native timer includes death penalties.
+function compat.challengeInfo()
+  if ns.util.gameEdition() ~= "retail" or not C_ChallengeMode then return nil end
+  local mapId = challengeNumber(try("challengeMap", C_ChallengeMode.GetActiveChallengeMapID), 1, 1000000)
+  if not mapId then return nil end
+  local level, affixes = try("challengeKey", C_ChallengeMode.GetActiveKeystoneInfo)
+  level = challengeNumber(level, 1, 100)
+  if not mapId or not level or secret(affixes) or type(affixes) ~= "table" then return nil end
+  local _, _, limit = try("challengeLimit", C_ChallengeMode.GetMapUIInfo, mapId)
+  limit = challengeNumber(limit, 1, 14400)
+  if not limit then return nil end
+  local ids = {}
+  for _, value in ipairs(affixes) do
+    local id = challengeNumber(value, 1, 1000000)
+    if not id or #ids >= 10 then return nil end
+    ids[#ids + 1] = id
+  end
+  table.sort(ids)
+  for i = 2, #ids do if ids[i] == ids[i - 1] then return nil end end
+  return { mapId = mapId, level = level, affixIds = ids, timeLimitSec = limit }
+end
+
+function compat.challengeCompletion(active)
+  if ns.util.gameEdition() ~= "retail" or not C_ChallengeMode or not active then return nil end
+  local info = try("challengeCompletion", C_ChallengeMode.GetChallengeCompletionInfo)
+  if secret(info) or type(info) ~= "table" then return nil end
+  local mapId = challengeNumber(info.mapChallengeModeID, 1, 1000000)
+  local level = challengeNumber(info.level, 1, 100)
+  local duration = challengeNumber(info.time, 1, 14400000)
+  if not mapId or not level or not duration or mapId ~= active.mapId or level ~= active.level then return nil end
+  for _, field in ipairs({ "onTime", "practiceRun", "isEligibleForScore" }) do
+    if secret(info[field]) or type(info[field]) ~= "boolean" then return nil end
+  end
+  return { mapId = mapId, level = level, durationMs = duration, timeLimitSec = active.timeLimitSec,
+    affixIds = active.affixIds, onTime = info.onTime, practiceRun = info.practiceRun,
+    eligibleForScore = info.isEligibleForScore }
 end
 
 -- ---------------------------------------------------------------------

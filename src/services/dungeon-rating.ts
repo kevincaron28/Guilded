@@ -155,6 +155,8 @@ export function calculateDungeonRating(runs: RatingRun[], rules?: unknown): Rati
     ? (rules as ReturnType<typeof createDungeonRatingRules>).targets : {};
   const members = new Map<string, { memberId: string; name: string; bracket?: DungeonBracket; bests: Map<string, DungeonRatingDetail> }>();
   for (const run of runs) {
+    if ((run.competitionData as { challengeMode?: boolean; challenge?: unknown } | null)?.challengeMode
+      || (run.competitionData as { challenge?: unknown } | null)?.challenge || run.difficultyId === 8) continue;
     if (!run.durationSec || !Number.isFinite(run.durationSec) || run.durationSec <= 0) continue;
     const verdict = brackets ? bracketedVerdict(run, brackets) : undefined;
     const route = verdict ?? (version === 5 ? resolveNovemberRoute(run, rules as NovemberRules) : undefined);

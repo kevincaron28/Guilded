@@ -5,6 +5,7 @@ import { bracketForLevel, DEFAULT_DUNGEON_BRACKETS } from "./dungeon-november-ru
 import { publicRouteKey } from "./public-score.js";
 import { gameEditionOf } from "./game-edition.js";
 import { characterKey, characterReference } from "../../companion/character-identity.mjs";
+import { challengesAgree, readChallenge, type ChallengeEvidence } from "./challenge-evidence.js";
 
 // Public dungeon runs (7.0, roadmap request 6). Personal companions and opted-in guilds send
 // finished runs; the bot checks each one before it reaches the public leaderboards:
@@ -52,6 +53,7 @@ export function checkPublicRun(run: DungeonRunInput, uploaderCharacter: string |
 
 export interface RunSummary {
   gameEdition: string;
+  challenge?: ChallengeEvidence;
   runKey: string; runRef: string; instanceId: number; dungeonName: string; difficultyId: number; startedAt: Date; endedAt: Date; durationSec: number;
   deaths: number | null; maxLevel: number | null; bracket: string | null; season: string; routeKey: string | null;
   evidenceVersion: 1; completedBy: string | null; encounters: { id: number; name?: string; success: true; at?: number; startedAt?: number }[];
@@ -69,6 +71,7 @@ export function summarize(run: DungeonRunInput): RunSummary {
     bracket: maxLevel ? bracketForLevel(DEFAULT_DUNGEON_BRACKETS, maxLevel)?.key ?? null : null, season: seasonOf(endedAt), routeKey: publicRouteKey(run.instanceId, run.encounters ?? []),
     // The same completion field the guild import stores; only boss kills are kept.
     evidenceVersion: 1, completedBy: run.completedBy ?? run.endReason ?? null,
+    ...(run.challenge ? { challenge: run.challenge } : {}),
     encounters: (run.encounters ?? []).filter((e) => e.success).map((e) => ({ id: e.id, ...(e.name ? { name: e.name } : {}), success: true as const,
       ...(e.at !== undefined ? { at: e.at } : {}), ...(e.startedAt !== undefined ? { startedAt: e.startedAt } : {}) })),
     players: run.players.map((player) => ({ character: player.character, realm: player.realm === "-" ? "" : player.realm, className: player.class ?? null, role: player.role ?? null,
@@ -78,6 +81,7 @@ export function summarize(run: DungeonRunInput): RunSummary {
 }
 
 export type RunEvidence = Pick<RunSummary, "instanceId" | "difficultyId" | "routeKey" | "durationSec" | "startedAt" | "endedAt" | "completedBy" | "encounters"> & {
+  challenge?: ChallengeEvidence;
   evidenceVersion: number;
   players: (Omit<RunSummary["players"][number], "presentSec"> & { presentSec: number | null })[];
 };
@@ -86,6 +90,7 @@ const containsKills = (a: RunEvidence, b: RunEvidence) => b.encounters.every(kil
 
 // Incomplete observations can agree; conflicting known scoring facts cannot.
 export function agrees(stored: RunEvidence, incoming: RunSummary): boolean {
+  if (!challengesAgree(stored.challenge, incoming.challenge)) return false;
   if (stored.instanceId !== incoming.instanceId || stored.difficultyId !== incoming.difficultyId) return false;
   if (stored.routeKey && incoming.routeKey && stored.routeKey !== incoming.routeKey) return false;
   if (Math.abs(stored.durationSec - incoming.durationSec) > PUBLIC_LIMITS.agreeDurationSec) return false;
@@ -121,7 +126,8 @@ export function evidenceUpgrade(stored: RunEvidence, incoming: RunSummary): bool
   if (stored.players.some(old => !incoming.players.some(p => playerKey(p) === playerKey(old)
     && (old.level === null || p.level === old.level) && (old.minLevel === null || p.minLevel === old.minLevel)
     && (old.role === null || p.role === old.role) && (old.presentSec === null || p.presentSec === old.presentSec)))) return false;
-  if (incoming.completedBy !== "final boss") return false;
+  if (incoming.completedBy !== "final boss" && incoming.completedBy !== "challenge objectives") return false;
+  if (stored.challenge && !incoming.challenge) return false;
   // Kill times/start times are retained evidence too. A longer checklist must not
   // silently discard the observed clocks used by public checks and boss records.
   if (stored.encounters.some(old => !incoming.encounters.some(e => e.id === old.id
@@ -130,7 +136,8 @@ export function evidenceUpgrade(stored: RunEvidence, incoming: RunSummary): bool
     && (["level", "minLevel", "role", "presentSec"] as const).some(field => old[field] === null && p[field] !== null)));
   const richerKills = stored.encounters.some(old => incoming.encounters.some(e => e.id === old.id
     && (old.at === undefined && e.at !== undefined || old.startedAt === undefined && e.startedAt !== undefined)));
-  return stored.evidenceVersion === 0 || stored.completedBy !== "final boss" || incoming.encounters.length > stored.encounters.length || richerPlayers || richerKills;
+  return stored.evidenceVersion === 0 || stored.completedBy !== incoming.completedBy || !stored.challenge && !!incoming.challenge
+    || incoming.encounters.length > stored.encounters.length || richerPlayers || richerKills;
 }
 
 /** reporters: every character (lowercase) whose report an upload of this run carried. */
@@ -208,9 +215,11 @@ export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderK
 
 export function prismaPublicRunStore(database: PrismaClient): PublicRunStore {
   const select = { id: true, status: true, instanceId: true, difficultyId: true, routeKey: true, durationSec: true, startedAt: true, endedAt: true,
-    evidenceVersion: true, completedBy: true, encounters: true, players: true, uploads: { select: { uploaderKey: true, reporters: true } } } as const;
+    evidenceVersion: true, completedBy: true, encounters: true, challenge: true, players: true, uploads: { select: { uploaderKey: true, reporters: true } } } as const;
   function storedRow(row: Prisma.PublicRunGetPayload<{ select: typeof select }>): StoredRun {
-    return { ...row, encounters: Array.isArray(row.encounters) ? row.encounters as RunSummary["encounters"] : [],
+    const { challenge, ...rest } = row;
+    const evidence = readChallenge(challenge);
+    return { ...rest, ...(evidence ? { challenge: evidence } : {}), encounters: Array.isArray(row.encounters) ? row.encounters as RunSummary["encounters"] : [],
       uploaders: row.uploads.map(u => u.uploaderKey), reporters: [...new Set(row.uploads.flatMap(u => u.reporters))] };
   }
   return {
@@ -238,6 +247,7 @@ export function prismaPublicRunStore(database: PrismaClient): PublicRunStore {
         await tx.publicRun.update({ where: { id: runId }, data: {
           ...(!agree ? { status: "DISPUTED" } : confirm ? { confirmations: { increment: 1 } } : {}),
           ...(promote ? { evidenceVersion: 1, completedBy: summary.completedBy, encounters: summary.encounters as Prisma.InputJsonValue,
+            ...(summary.challenge ? { challenge: summary.challenge } : {}),
             routeKey: summary.routeKey, maxLevel: summary.maxLevel, bracket: summary.bracket,
             players: { deleteMany: {}, create: summary.players } } : {})
         } });
@@ -279,6 +289,8 @@ export async function publishGuildRuns(database: PrismaClient, store: PublicRunS
         ...(row.recorder ? { recorder: row.recorder } : {}), ...(row.completedBy ? { completedBy: row.completedBy.slice(0, 40) } : {}),
         ...(row.reporterNames.length ? { reporterNames: row.reporterNames.slice(0, 10) } : {}),
         encounters: (row.competitionData as { encounters?: unknown[] } | null)?.encounters ?? [],
+        ...((row.competitionData as { challenge?: unknown } | null)?.challenge ? {
+          challengeMode: true, challenge: (row.competitionData as { challenge: unknown }).challenge } : {}),
         players: row.players.map((player) => {
           const seen = levels.get(key(player.character));
           const linked = player.member?.characters.find(character => characterKey(character.name, character.realm, gameEdition) === characterKey(player.character, "", gameEdition));

@@ -7,7 +7,7 @@ import { memoryWebStore } from "./helpers/memory-web-store.js";
 const SITE = "https://guilded.kcaron.top";
 const NOW = new Date("2026-11-10T20:00:00Z");
 const player = (character: string, className: string, role: string, level = 16) => ({ character, realm: "Doomhowl", className, role, level });
-const leaderRun = (id: string, durationSec: number, players = [player("Kev", "Warrior", "TANK"), player("Amy", "Priest", "HEALER")], over: Partial<LeaderRun> = {}): LeaderRun => ({
+const leaderRun = (id: string, durationSec: number, players: LeaderRun["players"] = [player("Kev", "Warrior", "TANK"), player("Amy", "Priest", "HEALER")], over: Partial<LeaderRun> = {}): LeaderRun => ({
   runId: id, instanceId: 389, dungeonName: "Ragefire Chasm", durationSec, endedAt: new Date(NOW.getTime() - durationSec * 1000), deaths: 1, bracket: "15-29", season: "2026-Q4", confirmations: 1, routeKey: null, difficultyId: 0, players, ...over
 });
 
@@ -91,11 +91,12 @@ describe("guild rankings", () => {
 });
 
 describe("leaderboard and personal pages", () => {
-  function setup() {
+  function setup(extra: LeaderRun[] = []) {
     const runs = [leaderRun("a", 1500), leaderRun("b", 1300, [player("Kev", "Warrior", "TANK"), player("<b>Bad</b>", "Mage", "DPS")], { confirmations: 2 })];
     const beta = leaderRun("old", 1000, [player("Kev", "Warrior", "TANK")], { endedAt: new Date("2026-10-30T00:00:00Z") });
-    const all = [...runs, beta];
+    const all = [...runs, beta, ...extra];
     const store: LeaderboardStore = {
+      async run(id) { return all.find(run => run.runId === id) ?? null; },
       async runs(query) { return all.filter((run) => (!query.from || run.endedAt >= query.from) && (!query.to || run.endedAt < query.to)); },
       async characterRuns(character) { return all.filter((run) => run.players.some((p) => p.character.toLowerCase() === character.toLowerCase())); },
       async guilds() { return [{ id: "g1", name: "Quebec Gold", slug: "quebec-gold" }]; },
@@ -116,6 +117,25 @@ describe("leaderboard and personal pages", () => {
     };
     return { request, personal };
   }
+
+  it("renders native Retail keys and respects player filters without mixing fastest clears", async () => {
+    const challenge = { mapId: 501, level: 10, affixIds: [3, 9], durationMs: 645123, timeLimitSec: 1800,
+      onTime: true, practiceRun: false, eligibleForScore: true };
+    const native = leaderRun("native-run", 600, [{ ...player("Native", "Warrior", "TANK"), presentSec: 600 }], {
+      gameEdition: "retail", difficultyId: 8, challenge,
+      evidence: { startedAt: new Date(NOW.getTime() - 1200000), completedBy: "challenge objectives", encounters: [] } });
+    const { request } = setup([native]);
+    const page = await request("GET", "/leaderboards/?edition=retail");
+    expect(page.body).toContain("10:45.123");
+    expect(page.body).toContain("Highest key finished in time");
+    expect(page.body).toContain("affixes");
+    expect((await request("GET", "/leaderboards/?edition=retail&class=Priest")).body).not.toContain("10:45.123");
+    expect(rankCharacters([native], { className: null, role: null, confirmed: false })).toEqual([]);
+    const detail = await request("GET", "/leaderboards/run/native-run?edition=retail");
+    expect(detail.status).toBe(200);
+    expect(detail.body).toContain("Official timer");
+    expect(detail.body).toContain("+10");
+  });
 
   it("lists dungeons, ranks a dungeon and shows a character page", async () => {
     const { request } = setup();

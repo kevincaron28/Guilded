@@ -5,6 +5,7 @@ import type { OfficialWindow } from "./official-seasons.js";
 import { weekWindow } from "./dungeon-periods.js";
 import { currentEdition } from "./edition-context.js";
 import type { GameEdition } from "./game-edition.js";
+import type { ChallengeEvidence } from "./challenge-evidence.js";
 
 // Public dungeon score (website, 7.1). The same time rating as guild seasons, with the release
 // season's provisional all-level rules: 200 x target / time per route (50-400), the over-level
@@ -26,6 +27,7 @@ export interface ScorePlayer { character: string; realm: string; className: stri
 export interface RunEvidence { startedAt: Date; completedBy: string | null; encounters: unknown[] }
 export interface ScoreRun {
   gameEdition?: string;
+  challenge?: ChallengeEvidence;
   runId: string; instanceId: number; routeKey: string | null; difficultyId: number; dungeonName: string; durationSec: number;
   endedAt: Date; confirmations: number; players: ScorePlayer[];
   /** Null on runs uploaded before 7.4. */
@@ -77,6 +79,7 @@ function ratingRun(run: ScoreRun, evidence: RunEvidence): RatingRun {
 /** A run's score under `rules`; with `player`, whether that character earned it (80% presence). */
 export function rateRun(run: ScoreRun, rules: BracketedRules = publicRules(), player?: ScorePlayer): RunVerdict {
   if ((run.gameEdition ?? "forever") !== (rules.gameEdition ?? "forever")) return { score: null, reason: "Different WoW edition" };
+  if (run.challenge || run.gameEdition === "retail" && run.difficultyId === 8) return { score: null, reason: "Mythic+ uses the keystone leaderboard" };
   if (!rules.routes.some(r => r.instanceId === run.instanceId)) return { score: null, reason: "Route not rated yet" };
   if (run.evidence) {
     const reason = completionReason(run.evidence.completedBy);

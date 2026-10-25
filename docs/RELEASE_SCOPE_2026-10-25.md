@@ -49,6 +49,16 @@ Game acceptance and calibrated dungeon competitions remain explicit release gate
   parsed Lua, checked TOC contents, and a SHA-256 entry in the manifest.
 - The Windows companion includes the edition and profile modules. CI packages
   the same source and rehearses PostgreSQL migration, isolation and dump/restore.
+- Retail Mythic+ keeps the native challenge map, key level, affixes, millisecond
+  timer, time limit, in-time status and practice/score eligibility through reloads,
+  peer summaries, both companions, guild imports and public uploads. Conflicting
+  native results dispute the public run. `/dungeon keystones` and the Retail public
+  leaderboard rank each character's highest in-time key, then official time,
+  separately by dungeon and affix set. They require 80% wall-time presence and
+  exclude practice, overtime, simulations and missing native evidence. They do
+  not manufacture Blizzard rating points or mix keys into ordinary fastest clears.
+- Result cards show native key/time data and authentic Forever full names.
+  Non-Forever cards never estimate a score from Forever's local target table.
 
 ## Configure a server after deploying the candidate
 
@@ -97,21 +107,33 @@ its observed endpoint fallbacks. Classic dungeons without journal data or a
 reviewed endpoint need manual completion; those runs remain unranked. The Scarlet
 wing name fallback covers English/French only.
 
-Retail challenges now wait for `CHALLENGE_MODE_COMPLETED`; killing the final boss
+Retail challenges wait for `CHALLENGE_MODE_COMPLETED`; killing the final boss
 alone does not finish the run. Challenge resets/restarts produce separate attempts.
-These objective completions are recorded as activity and remain unranked: the
-current competition model has no verified keystone-level/affix/native timer scoring.
-This is an outstanding part of full competitive Retail support, not an acceptance
-pass. The event/API contract was checked against Blizzard's generated documentation:
+The keystone leaderboard described above uses native completion evidence. Missing
+or restricted APIs leave an activity record, without guessing a ranked result.
+Ordinary calibrated dungeon ratings remain separate. Guilded does not claim to
+reproduce Blizzard's seasonal Mythic+ rating formula. Native challenge ranking
+has automated coverage but still needs real-client acceptance. The API contract
+and millisecond timer were checked against Blizzard's generated documentation/UI:
 https://github.com/tomrus88/BlizzardInterfaceCode/blob/master/Interface/AddOns/Blizzard_APIDocumentationGenerated/ChallengeModeInfoDocumentation.lua
+https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_ChallengesUI/Mainline/Blizzard_ChallengesUI.lua
+
+Migration `20261125150000_challenge_evidence` adds nullable public native evidence;
+historical rows retain their existing scores. Guild native evidence lives in the
+existing competition JSON. Public and private keystone boards keep edition,
+guild, season, member and visibility restrictions.
 
 ## Build and test evidence
 
-- Final full local regression run: 276 files / 2,325 tests passed
-  (`backups/port-final-suite.log`). New HTTP tests cover concurrent guild contexts,
+- Latest full local regression run: 277 files / 2,342 tests passed
+  (`backups/port-challenge-suite.log`). New HTTP tests cover concurrent guild contexts,
   role revocation, wrong-server credentials and wrong-edition rejection before writes.
-- TypeScript and both addon validators passed; shared standalone Lua was regenerated.
-  Final lint and web builds are recorded with the exact-head CI below.
+- TypeScript, ESLint, both addon validators and Worker dry-run build passed; shared
+  standalone Lua was regenerated. Native challenge tests cover wall/native clocks,
+  reload/peer export, malformed/restricted/mismatched evidence, realm/affix separation,
+  public disputes, guild-scoped queries and English/French result presentation.
+  The final source commit and CI run are recorded in PR #216 and the artifact
+  validation file; earlier green CI on `dde4707` predates native challenge support.
 - The Windows installer built successfully. Final packages are rebuilt after commit
   so source revision and package hashes are reviewable.
 - PostgreSQL rehearsal now provisions six guild contexts in one server (all editions
@@ -144,9 +166,10 @@ Before public promotion:
 3. Complete the existing two-PC/native/French checklist in
    `V7_3_2_GAME_CHECKLIST.md`. Add mixed-edition same-Discord permission tests,
    same-name/different-realm characters, channel selection, pairing and profile switches.
-4. Supply reviewed Classic/retail dungeon route evidence and benchmarks, and finish
-   challenge scoring if it is included in the release claim. Validate complete,
-   partial, reset, duplicate, wipe and disbanded runs against each target.
+4. Supply reviewed Classic/ordinary Retail dungeon route evidence and benchmarks.
+   Validate complete, partial, reset, duplicate, wipe and disbanded runs against
+   each target; verify native key, affixes, official timer and in-time/practice flags
+   against the Retail client. Mists challenge activity has no Retail keystone ranking.
 5. Rehearse deployment with a fresh backup, then deploy migrations and matching bot,
    companion and addons together. Record exact commit, hashes, build, language,
    testers and results. Publish only accepted assets and then update public metadata.

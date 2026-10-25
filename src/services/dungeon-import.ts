@@ -43,6 +43,7 @@ export interface DungeonImportResult {
   startedAt?: number;
   encounters?: DungeonRunInput["encounters"];
   completedBy?: string;
+  challenge?: DungeonRunInput["challenge"];
   ratingEnabled?: boolean;
   ratingSpeedBonus?: number;
   ratingVersion?: number;
@@ -225,7 +226,8 @@ export async function importDungeonRuns(
         recorder: run.recorder ?? null,
         reporterNames: run.reporterNames ?? [],
         competitionData: { players: run.players.map(p => ({ name: p.character, level: p.level ?? null, minLevel: p.minLevel ?? null })), encounters: run.encounters ?? [],
-          gameBuild: run.gameBuild ?? null, startTrigger: run.startTrigger ?? null },
+          gameBuild: run.gameBuild ?? null, startTrigger: run.startTrigger ?? null,
+          challengeMode: run.challengeMode ?? false, ...(run.challenge ? { challenge: run.challenge } : {}) },
         reporters: run.reporters,
         protocolVersion: run.protocolVersion,
         addonVersion: run.addonVersion ?? null,
@@ -298,6 +300,7 @@ export async function importDungeonRuns(
       ...(run.startedAt ? { startedAt: run.startedAt } : {}),
       ...(run.encounters ? { encounters: run.encounters } : {}),
       ...(run.completedBy ? { completedBy: run.completedBy } : {}),
+      ...(run.challenge ? { challenge: run.challenge } : {}),
       playerDetails: linked.map(({ player, character }) => {
         const participationRecipient = contexts.find(p => p.memberId === character?.memberId)?.character;
         const unrankedReason = timed ? !check.ok ? check.reason ?? "Invalid run"

@@ -404,6 +404,8 @@ export function exportDungeonRuns(database, realm, options = {}) {
       ...(run.gameBuild ? { gameBuild: String(run.gameBuild) } : {}),
       ...editionMetadata(run.interface !== undefined || run.gameEdition !== undefined ? run : { gameEdition: gameEditionOf(database.character ?? {}) }),
       ...(run.startTrigger ? { startTrigger: String(run.startTrigger) } : {}),
+      ...(typeof run.challengeMode === "boolean" ? { challengeMode: run.challengeMode } : {}),
+      ...(run.challenge ? { challenge: { ...run.challenge, affixIds: Object.values(run.challenge.affixIds ?? {}) } } : {}),
       state: String(run.state),
       instanceId: Number(run.instanceId),
       name: String(run.name ?? "Unknown dungeon"),

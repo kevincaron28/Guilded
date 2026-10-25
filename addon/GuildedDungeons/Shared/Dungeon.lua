@@ -154,6 +154,7 @@ local function newRun(instance)
     difficultyId = instance.difficultyId,
     difficultyName = instance.difficultyName,
     challengeMode = compat.challengeActive(),
+    activeChallenge = compat.challengeInfo(),
     detectedAt = stamp,
     encounters = {},
     players = {},
@@ -301,11 +302,18 @@ serialize = function(run)
     "v=" .. PROTOCOL_VERSION, "av=" .. clean(run.addonVersion), "st=" .. run.state,
     "gb=" .. clean(run.gameBuild or ""), "tr=" .. clean(run.startTrigger or ""),
     "api=" .. tostring(run.interface or ""), "ed=" .. clean(run.gameEdition or ""),
+    "cm=" .. (run.challengeMode and "1" or "0"),
     "i=" .. tostring(run.instanceId or 0), "n=" .. clean(run.name), "d=" .. tostring(run.difficultyId or 0),
     "s=" .. tostring(run.startedAt or 0), "e=" .. tostring(run.endedAt or 0),
     "cb=" .. clean(run.completedBy or run.endReason or ""), "r=" .. clean(run.recorder),
     "enc=" .. table.concat(encounters, ","), "p=" .. table.concat(players, ",")
   }, ";")
+  if run.challenge then
+    local c = run.challenge
+    summary = summary .. ";ch=" .. table.concat({ c.mapId, c.level, c.durationMs, c.timeLimitSec,
+      c.onTime and "1" or "0", c.practiceRun and "1" or "0", c.eligibleForScore and "1" or "0",
+      table.concat(c.affixIds or {}, ",") }, ":")
+  end
   -- Optional fields keep older peers compatible and respect the 20-chunk limit.
   local specs, timeline = {}, {}
   for name, player in pairs(run.players) do
@@ -340,11 +348,25 @@ local function deserialize(id, text)
     id = id, protocolVersion = PROTOCOL_VERSION, addonVersion = fields.av, state = fields.st,
     gameBuild = fields.gb ~= "" and fields.gb or nil, startTrigger = fields.tr ~= "" and fields.tr or nil,
     interface = tonumber(fields.api), gameEdition = fields.ed ~= "" and fields.ed or nil,
+    challengeMode = fields.cm == "1",
     instanceId = tonumber(fields.i), name = fields.n, difficultyId = tonumber(fields.d),
     startedAt = tonumber(fields.s) ~= 0 and tonumber(fields.s) or nil,
     endedAt = tonumber(fields.e) ~= 0 and tonumber(fields.e) or nil,
     recorder = fields.r, encounters = {}, players = {}, reporters = {}
   }
+  if fields.ch and run.gameEdition == "retail" then
+    local map, level, duration, limit, onTime, practice, eligible, affixes = string.match(fields.ch,
+      "^(%d+):(%d+):(%d+):(%d+):([01]):([01]):([01]):([%d,]*)$")
+    if map then
+      run.challenge = { mapId = tonumber(map), level = tonumber(level), durationMs = tonumber(duration),
+        timeLimitSec = tonumber(limit), onTime = onTime == "1", practiceRun = practice == "1",
+        eligibleForScore = eligible == "1", affixIds = {} }
+      for value in string.gmatch(affixes, "%d+") do
+        if #run.challenge.affixIds >= 10 then run.challenge = nil; break end
+        table.insert(run.challenge.affixIds, tonumber(value))
+      end
+    end
+  end
   if fields.st == "COMPLETED" then run.completedBy = fields.cb else run.endReason = fields.cb end
   if run.startedAt and run.endedAt then run.durationSec = run.endedAt - run.startedAt end
   for encounterId in string.gmatch(fields.enc or "", "[^,]+") do
@@ -571,6 +593,7 @@ local function onEvent(_, event, ...)
     evaluate()
     if d.current then
       d.current.challengeMode = true
+      d.current.activeChallenge = compat.challengeInfo()
       activate(nil, "challenge start")
     end
   elseif event == "CHALLENGE_MODE_RESET" then
@@ -579,6 +602,7 @@ local function onEvent(_, event, ...)
     local run, instance = d.current, compat.instance()
     if run and run.challengeMode and run.state == "ACTIVE" and instance
       and instance.type == "party" and instance.id == run.instanceId then
+      run.challenge = compat.challengeCompletion(run.activeChallenge)
       finish("COMPLETED", "challenge objectives")
     end
   elseif event == "ENCOUNTER_START" then

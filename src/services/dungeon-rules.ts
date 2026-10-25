@@ -2,6 +2,7 @@ import { validDungeonKey, validLevelBand, type LevelBand } from "./dungeon-ratin
 import { z } from "zod";
 import { GAME_EDITIONS, gameEditionOf } from "../../companion/game-edition.mjs";
 import { characterKey } from "../../companion/character-identity.mjs";
+import { challengeEvidenceSchema } from "./challenge-evidence.js";
 
 // Dungeon Challenge rules (roadmap D3/D4): what a valid run is, and how
 // points are earned. Pure functions, so they're easy to test and change.
@@ -14,6 +15,8 @@ export const MAX_DURATION_SEC = 4 * 60 * 60;
 // rejected on its own instead of failing the whole import.
 export const dungeonRunSchema = z.object({
   gameEdition: z.enum(GAME_EDITIONS).optional(),
+  challengeMode: z.boolean().optional(),
+  challenge: challengeEvidenceSchema.optional(),
   interface: z.number().int().positive().optional(),
   id: z.string().min(3).max(100),
   protocolVersion: z.number().int(),
@@ -142,6 +145,8 @@ export function validateRun(run: DungeonRunInput, now = new Date()): Validation 
   if (duration > MAX_DURATION_SEC) return { ok: false, reason: `too long (${Math.round(duration / 60)} min)` };
   let edition;
   try { edition = gameEditionOf(run); } catch { return { ok: false, reason: "Invalid WoW edition" }; }
+  if (run.challenge && (edition !== "retail" || run.difficultyId !== 8 || run.completedBy !== "challenge objectives"
+    || run.challengeMode !== true)) return { ok: false, reason: "challenge evidence does not match this run" };
   const names = new Set(run.players.map((player) => characterKey(player.character, player.realm, edition)));
   if (names.size !== run.players.length) return { ok: false, reason: "same player listed twice" };
   // A run is only believed from someone who was in it: the recorder, and at least one of

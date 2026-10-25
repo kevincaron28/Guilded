@@ -1,10 +1,11 @@
 import { pinnedMessages } from "./pins.js";
-import { ChannelType, EmbedBuilder, type Guild as DiscordGuild, type GuildTextBasedChannel, type ForumChannel } from "discord.js";
+import { ChannelType, EmbedBuilder, type Guild as DiscordGuild, type GuildTextBasedChannel, type ForumChannel, type Message } from "discord.js";
 import type { GuildSettings, PrismaClient } from "../generated/prisma/client.js";
-import { t, tx, type Lang } from "../i18n.js";
+import { asLang, t, tx, type Lang } from "../i18n.js";
 import { dungeonGuideState, ensureDungeonSignupGuide } from "./dungeon-guide.js";
 import { ensureWelcomePanel, welcomePanelState } from "./onboarding.js";
 import { companionLinkText } from "./companion-links.js";
+import { CURRENT_VERSION } from "./version-announce.js";
 
 // The messages the bot keeps in its channels, for the /setup checklist: is each one there, and is
 // it the current text? "Update bot messages" puts every one back or brings it up to date.
@@ -25,28 +26,67 @@ export function gettingStartedPost(lang: Lang): EmbedBuilder {
   return new EmbedBuilder()
     .setTitle(t(lang, "guide.title"))
     .setColor(0xd4af37)
-    .setDescription(t(lang, "guide.body", { url: ADDON_URL, companion: companionLinkText(lang) }));
+    .setDescription(t(lang, "guide.body", { url: ADDON_URL, companion: companionLinkText(lang) }))
+    .setFooter({ text: `Guilded ${CURRENT_VERSION}` });
+}
+
+const GUIDE_TITLES = new Set([t("en", "guide.title"), t("fr", "guide.title")]);
+const isOwnedGuide = (message: Message, channel: GuildTextBasedChannel) => message.author.id === channel.client.user?.id && message.embeds.some(embed => GUIDE_TITLES.has(embed.title ?? ""));
+const guideMatches = (message: Message, guide: EmbedBuilder) => message.embeds[0]?.title === guide.data.title
+  && message.embeds[0]?.description === guide.data.description && message.embeds[0]?.footer?.text === guide.data.footer?.text;
+
+/** Refresh existing pins only. Never post new guides or rewrite guild announcements at startup. */
+export async function refreshPinnedBotGuides(channel: GuildTextBasedChannel, lang: Lang): Promise<number> {
+  const pins = await pinnedMessages(channel);
+  let updated = 0;
+  for (const message of pins) {
+    if (message.author.id !== channel.client.user?.id || !message.editable || message.embeds.length !== 1) continue;
+    if (isOwnedGuide(message, channel)) {
+      const guide = gettingStartedPost(lang);
+      if (!guideMatches(message, guide)) { await message.edit({ embeds: [guide], allowedMentions: { parse: [] } }); updated++; }
+    } else if (message.embeds.length === 1 && message.embeds[0]?.footer?.text === "Guilded · Informations actuelles") {
+      // Legacy custom overview: preserve its guild-specific links, raid dates and
+      // community instructions. Only the explicitly labelled version is managed.
+      const embed = message.embeds[0];
+      const description = embed.description?.replace(/(\*\*Version actuelle : )\d+\.\d+\.\d+( Release\*\*)/, `$1${CURRENT_VERSION}$2`);
+      if (description && description !== embed.description) {
+        await message.edit({ embeds: [new EmbedBuilder(embed.toJSON()).setDescription(description)], allowedMentions: { parse: [] } }); updated++;
+      }
+    }
+  }
+  return updated;
+}
+
+export async function refreshExistingBotGuides(guild: DiscordGuild, database: Pick<PrismaClient, "guildSettings">): Promise<void> {
+  const rows = await database.guildSettings.findMany({ where: { guild: { discordId: guild.id }, guideChannelId: { not: null } }, select: { guideChannelId: true, language: true }, orderBy: { id: "asc" } });
+  const seen = new Set<string>();
+  for (const settings of rows) {
+    if (!settings.guideChannelId || seen.has(settings.guideChannelId)) continue;
+    seen.add(settings.guideChannelId);
+    const channel = await textChannel(guild, settings.guideChannelId);
+    if (channel) await refreshPinnedBotGuides(channel, asLang(settings.language));
+  }
 }
 
 // The pinned guide in the bot guide channel: missing, the current text, or an older text.
 export async function botGuideState(channel: GuildTextBasedChannel, lang: Lang): Promise<BotMessageState> {
   const pins = await pinnedMessages(channel).catch(() => null);
-  const guide = pins?.find((message) => message.embeds.some((embed) => embed.title === t(lang, "guide.title")));
+  const guide = pins?.find((message) => isOwnedGuide(message, channel));
   if (!guide) return "missing";
-  return guide.embeds[0]?.description === gettingStartedPost(lang).data.description ? "current" : "outdated";
+  return guideMatches(guide, gettingStartedPost(lang)) ? "current" : "outdated";
 }
 
 // Pins the guide, or brings the pinned one up to date. Safe to call again.
 export async function ensureBotGuide(channel: GuildTextBasedChannel, lang: Lang): Promise<void> {
-  const pins = await pinnedMessages(channel).catch(() => null);
-  const existing = pins?.find((message) => message.embeds.some((embed) => embed.title === t(lang, "guide.title")));
+  const pins = await pinnedMessages(channel);
+  const existing = pins.find((message) => isOwnedGuide(message, channel));
   if (existing) {
-    if (existing.editable && existing.embeds[0]?.description !== gettingStartedPost(lang).data.description) {
-      await existing.edit({ embeds: [gettingStartedPost(lang)] });
+    if (existing.editable && !guideMatches(existing, gettingStartedPost(lang))) {
+      await existing.edit({ embeds: [gettingStartedPost(lang)], allowedMentions: { parse: [] } });
     }
     return;
   }
-  const message = await channel.send({ embeds: [gettingStartedPost(lang)] });
+  const message = await channel.send({ embeds: [gettingStartedPost(lang)], allowedMentions: { parse: [] } });
   await message.pin().catch(() => undefined);
 }
 

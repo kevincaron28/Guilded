@@ -1,7 +1,6 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { createEpgpService } from "./epgp.js";
 import { t, tx, type Lang } from "../i18n.js";
-import { gettingStartedPost } from "./bot-messages.js";
 
 // The answer channel (5.0): members ask a question in one channel and the bot replies.
 //   1. Officer-written answers (FaqEntry, /mod faq): a message matches an entry when it contains
@@ -92,9 +91,8 @@ export function looksLikeInstallationQuestion(text: string): boolean {
 }
 
 export function installationAnswer(lang: Lang): string {
-  const body = gettingStartedPost(lang).data.description ?? "";
-  // Keep addon-first installation/manual linking and the optional companion shortcut together.
-  return `${body.split("\n\n").slice(1, 3).join("\n\n")}\n\n${t(lang, "guide.companionShort")}`.slice(0, MAX_ANSWER_LENGTH);
+  // A complete short answer, independent of the long guide's paragraph layout.
+  return t(lang, "guide.installShort");
 }
 
 // Shared bot help never gives the AI private raid/core or member records.

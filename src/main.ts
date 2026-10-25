@@ -75,6 +75,7 @@ import { prisma } from "./database.js";
 import { runRaidReminders } from "./services/reminders.js";
 import { runCooldownPings } from "./services/recipes.js";
 import { DUNGEON_SEASON_SELECT, handleDungeonSeasonSelect, updateDungeonLeaderboard } from "./services/dungeon-leaderboard.js";
+import { refreshExistingBotGuides } from "./services/bot-messages.js";
 import { BACKUP_DIR, runBackup } from "./services/backup.js";
 import { freezeSeasonRules, loadOfficialWindows, rotateOfficialSeasons, startOfficialSeason } from "./services/official-seasons.js";
 import { executeOwnerSeason, OWNER_SEASON_COMMAND, ownerSeasonCommand } from "./commands/owner-season.js";
@@ -279,6 +280,7 @@ client.once(Events.ClientReady, (readyClient) => {
         await updateProfessionDirectory(guild).catch(reportJobError("Profession directory", origin));
         await repairCoreRaids(guild, true).catch(reportJobError("Core channels and raid posts", origin));
       });
+      await refreshExistingBotGuides(guild, prisma).catch(reportJobError("Pinned bot guides", origin));
     }
   })();
   logSetupStatus(readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()).catch(reportJobError("Setup status log"));

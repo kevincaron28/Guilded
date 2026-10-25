@@ -83,6 +83,18 @@ checked on 25 October gives December 11 (PST), without an hour. The suggested
 launch habits. The catalogue therefore retains its date and unconfirmed time;
 no guessed official countdown or timed reminder is enabled.
 
+## Discord guide refresh
+
+The live guide channel contained a custom overview still saying 6.1.2 and an
+installation pin with legacy code-first companion instructions. The canonical
+English/French guide, short FAQ installation answer and `/help` now describe the
+five published editions, Discord sign-in, separate connection profiles, guild
+selection and Forever full names. Guide/help versions come from `package.json`.
+Startup updates existing recognized bot-owned guide pins only, without creating
+new messages or changing unrelated announcements. The legacy custom overview's
+version line is refreshed while its guild-specific raid dates and links are
+preserved. A failed pin lookup cannot create a duplicate guide.
+
 ## What is actually still missing
 
 | Area | Current limit | Next action |

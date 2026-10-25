@@ -2,6 +2,7 @@ import { EmbedBuilder, SlashCommandBuilder, type ChatInputCommandInteraction, ty
 import { asLang, t, type Lang } from "../i18n.js";
 import { hasPermission } from "../permissions.js";
 import { guildService } from "./context.js";
+import { CURRENT_VERSION } from "../services/version-announce.js";
 
 // Short, rank-aware command list in the guild's language: everyone sees the
 // member section; officers and leaders also see what they're allowed to run.
@@ -12,7 +13,8 @@ export const helpCommand = new SlashCommandBuilder()
 const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record<Lang, string[]>> = {
   everyone: {
     en: [
-      "WoW: the addon works on its own. To link your characters to Discord, `/character pair` shows one line to paste in WoW chat (`/guilded verify …`), once for all of them; `/character list` checks main/alts. The optional companion connects with **Sign in with Discord**",
+      "WoW: Forever, Era/Hardcore, TBC, Mists and Retail downloads at https://guilded.kcaron.top/#start. The addon works alone. `/character pair` links main/alts; `/character list` checks them. The optional companion uses **Sign in with Discord**, one connection profile per guild/edition",
+      "`/wow list` · `/wow use` — choose your guild; channel bindings take priority. Keep Forever first/last names and Blizzard realms from the addon",
       "`/character add` — link a character by hand, or `/character import` — paste the line `/guilded character` shows, or the code from `/guilded share`",
       "Raid posts have buttons to sign up (or use `/raid signup`)",
       "`/epgp balance` · `/epgp leaderboard` · `/character profile` · `/character who <name>`",
@@ -32,7 +34,8 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/poe status` · `/poe pair` · `/poe runs` · `/poe summary` — PoE2 companion mapping journal"
     ],
     fr: [
-      "WoW : l'addon fonctionne seul. Pour lier vos personnages à Discord, `/character pair` donne une ligne à coller dans le chat de WoW (`/guilded verify …`), une seule fois pour tous; `/character list` montre principal/alts. Le compagnon facultatif se connecte avec **Sign in with Discord**",
+      "WoW : téléchargements Forever, Era/Hardcore, TBC, Mists et Retail sur https://guilded.kcaron.top/#start. L'addon fonctionne seul. `/character pair` lie principal/alts; `/character list` les affiche. Le compagnon facultatif utilise **Sign in with Discord**, un profil par guilde/édition",
+      "`/wow list` · `/wow use` — choisir sa guilde; les salons associés ont priorité. Gardez les prénoms/noms Forever et les royaumes Blizzard de l'addon",
       "`/character add` — liez un personnage manuellement, ou `/character import` — collez la ligne de `/guilded character`, ou le code de `/guilded share`",
       "Les annonces de raid ont des boutons pour s'inscrire (ou `/raid signup`)",
       "`/epgp balance` · `/epgp leaderboard` · `/character profile` · `/character who <nom>`",
@@ -148,6 +151,6 @@ export async function executeHelp(interaction: ChatInputCommandInteraction): Pro
   if (can("dkpOfficer")) addSection(embed, t(lang, "help.epgpOfficers"), LINES.dkpOfficer[lang]);
   if (can("officer")) addSection(embed, t(lang, "help.officers"), LINES.officer[lang]);
   embed.setDescription(t(lang, "help.support"));
-  embed.setFooter({ text: t(lang, "help.footer") });
+  embed.setFooter({ text: `Guilded ${CURRENT_VERSION} · ${t(lang, "help.footer")}` });
   await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
 }

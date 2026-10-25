@@ -728,7 +728,7 @@ local function status()
   for _, encounter in ipairs(run.encounters) do if encounter.success then kills = kills + 1 end end
   ns.message(string.format("%s - %s%s - bosses %d%s - recorder %s", run.name or "?", run.state,
     run.state == "ACTIVE" and string.format(" %d:%02d", math.floor(elapsed / 60), elapsed % 60) or "",
-    kills, run.bossCount and ("/" .. run.bossCount) or "", run.recorder or "?"))
+    kills, run.bossCount and ("/" .. run.bossCount) or "", ns.displayName(run.recorder or "?")))
 end
 
 local function check()

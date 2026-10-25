@@ -1585,10 +1585,10 @@ refresh = function()
     local rows = standingsRows(core)
     local row
     for _, entry in ipairs(rows) do if entry.name == name then row = entry.row; break end end
-    ui.standingsPlayer:SetText(core and not row and string.format(L("%s is not in this core's roster."), name or "?")
+    ui.standingsPlayer:SetText(core and not row and string.format(L("%s is not in this core's roster."), ns.displayName(name or "?"))
       or row and string.format("%s:  EP %d   GP %d   PR %.2f", ns.displayName(name), row.ep, row.gp, row.pr)
       or (ns.standingProblemText and ns.standingProblemText(name))
-      or string.format(L("%s: no standings (character not linked on Discord?)"), name or "?"))
+      or string.format(L("%s: no standings (character not linked on Discord?)"), ns.displayName(name or "?")))
     local lines = { ns.standingsSource and ns.standingsSource() or L("Local ledger (this PC)") }
     if updatedAt then lines[#lines + 1] = string.format(L("Top by PR (snapshot, %s):"), ns.util.whenText(updatedAt) or updatedAt) end
     if #rows == 0 then table.insert(lines, L("No characters in this view.")) end

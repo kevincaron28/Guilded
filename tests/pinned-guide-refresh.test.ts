@@ -37,8 +37,11 @@ describe("existing Discord guide maintenance", () => {
   it("does not trust another author's title or touch unrelated guild messages", async () => {
     const spoof = pinned("⚜️ Getting started with Guilded", "Owner's instructions", "member");
     const unrelated = pinned("Raid schedule", "Keep this exact date");
-    expect(await refreshPinnedBotGuides(channel([spoof, unrelated]) as never, "en")).toBe(0);
+    const customized = pinned("⚜️ Getting started with Guilded", "Custom multi-embed guide");
+    customized.embeds.push(unrelated.embeds[0]!);
+    expect(await refreshPinnedBotGuides(channel([spoof, unrelated, customized]) as never, "en")).toBe(0);
     expect(spoof.edit).not.toHaveBeenCalled(); expect(unrelated.edit).not.toHaveBeenCalled();
+    expect(customized.edit).not.toHaveBeenCalled();
   });
   it("updates only the version of a legacy custom overview and preserves raid dates", async () => {
     const old = "**Version actuelle : 6.1.2 Release**\n\n**Raids**\n9 décembre à 20 h";

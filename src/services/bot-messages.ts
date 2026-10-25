@@ -40,7 +40,7 @@ export async function refreshPinnedBotGuides(channel: GuildTextBasedChannel, lan
   const pins = await pinnedMessages(channel);
   let updated = 0;
   for (const message of pins) {
-    if (message.author.id !== channel.client.user?.id || !message.editable) continue;
+    if (message.author.id !== channel.client.user?.id || !message.editable || message.embeds.length !== 1) continue;
     if (isOwnedGuide(message, channel)) {
       const guide = gettingStartedPost(lang);
       if (!guideMatches(message, guide)) { await message.edit({ embeds: [guide], allowedMentions: { parse: [] } }); updated++; }

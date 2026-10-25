@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 7.3.2 Release — 25 October 2026
+
+- Owner authorized publication before unavailable game/two-PC tests; those remain follow-up.
+- Complete multi-edition connected product, 135 provisional dungeon routes and an eight-map
+  Raider.IO-inspired Guilded Mythic+ rating. See docs/V7_3_2_RELEASE_NOTES.md.
 
 - Pre-launch features (candidate only): editable raid seat presets in `/lead create`
   and core Size & roles; Components V2 for new raid signup posts with existing post
@@ -46,7 +50,7 @@
   owner's request DM shows the date and **Block** stays the veto. Messages say "free hosted bot"
   instead of "pilot" ([guide](docs/HOSTED_PILOT.md)).
 
-## 7.3.2 Candidate — 23 October 2026
+### Initial 7.3.2 candidate — 23 October 2026
 
 - UTC database sessions, stronger dungeon evidence and calibration guardrails, role guidance and standalone score snapshots.
 - Staged server updates and stopped-service recovery; installed companion launch/capture fixes.

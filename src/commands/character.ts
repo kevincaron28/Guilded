@@ -1,4 +1,5 @@
 import { characterName } from "../services/character-display.js";
+import { selectedCharacter } from "../services/character-match.js";
 import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { importCharacter, parseCharacterString } from "../services/character-import.js";
@@ -15,7 +16,7 @@ import { asLang, t } from "../i18n.js";
 
 export const characterCommand = new SlashCommandBuilder()
   .setName("character")
-  .setDescription("Manage your WoW Forever characters.")
+  .setDescription("Manage characters in your selected WoW guild.")
   .addSubcommand((subcommand) => subcommand
     .setName("pair")
     .setDescription("Link your main and alts: one line to paste in WoW, or the optional companion."))
@@ -90,15 +91,15 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
 
   if (subcommand === "claim") {
     const result = await claimCharacter(prisma, context.guildId, context.memberId, interaction.options.getString("name", true));
-    await interaction.reply({ content: `Linked **${result.row.name}** (${result.row.className}${result.row.level ? `, level ${result.row.level}` : ""}) as ${result.isMain ? "your main" : "an alt"}. Its gear and consumables now show up by themselves.`, flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: `Linked **${characterName(result.row)}** (${result.row.className}${result.row.level ? `, level ${result.row.level}` : ""}) as ${result.isMain ? "your main" : "an alt"}. Its gear and consumables now show up by themselves.`, flags: MessageFlags.Ephemeral });
     return;
   }
   if (subcommand === "unlink") {
     const wanted = interaction.options.getString("name", true).trim();
-    const character = await prisma.character.findFirst({
-      where: { member: { guildId: context.guildId }, name: { equals: wanted, mode: "insensitive" } },
+    const character = selectedCharacter(await prisma.character.findMany({
+      where: { member: { guildId: context.guildId } },
       include: { member: true }
-    });
+    }), wanted);
     if (!character) throw new Error(`No linked character called "${wanted}". /character list shows what is linked.`);
     const isOwn = character.memberId === context.memberId;
     if (!isOwn && !(interaction.member && hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "officer"))) {
@@ -106,7 +107,7 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
     }
     await prisma.character.delete({ where: { id: character.id } });
     // The /guilded verify code that character keeps repeating in game must not link it back.
-    await blockVerifiedCharacter(prisma, context.guildId, character.memberId, character.name);
+    await blockVerifiedCharacter(prisma, context.guildId, character.memberId, character.name, character.realm, character.gameEdition);
     // An officer unlinking someone else's character is a correction, not routine
     // cleanup: revoke their paired companion access too, or their next upload
     // would silently relink this character right back.
@@ -131,7 +132,7 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
       const rows = await prisma.unclaimedCharacter.findMany({ where: { guildId: context.guildId }, orderBy: { name: "asc" }, take: 60 });
       await interaction.reply({
         content: rows.length
-          ? `**${rows.length} unclaimed:** ${rows.map((row) => `${row.name} (${row.className}${row.level ? ` ${row.level}` : ""})`).join(", ")}\nOwners: \`/character claim\`. Officers: \`/officer character link\` or \`/officer character autolink\`.`.slice(0, 1950)
+          ? `**${rows.length} unclaimed:** ${rows.map((row) => `${characterName(row)} — ${row.realm} (${row.className}${row.level ? ` ${row.level}` : ""})`).join(", ")}\nOwners: \`/character claim\`. Officers: \`/officer character link\` or \`/officer character autolink\`.`.slice(0, 1950)
           : "Every character the addons reported is linked.",
         flags: MessageFlags.Ephemeral
       });
@@ -149,7 +150,7 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
     const user = interaction.options.getUser("player", true);
     const target = await guildService.ensureMember(context.guildId, user.id, user.username);
     const outcome = await linkUnclaimed(prisma, target.id, row);
-    await interaction.reply({ content: `Linked **${row.name}** to ${user.username} as ${outcome.isMain ? "their main" : "an alt"}.`, flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: `Linked **${characterName(row)}** to ${user.username} as ${outcome.isMain ? "their main" : "an alt"}.`, flags: MessageFlags.Ephemeral });
     return;
   }
 

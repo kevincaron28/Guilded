@@ -1,8 +1,10 @@
 import { EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder, type ChatInputCommandInteraction, type Client } from "discord.js";
 import { prisma } from "../database.js";
+import { withEdition } from "../services/edition-context.js";
+import { GAME_EDITIONS, gameEditionOf } from "../../companion/game-edition.mjs";
 import { validTimeZone, zonedInstant } from "../services/dungeon-season-schedule.js";
 import {
-  cancelNextSeason, loadOfficialWindows, officialWindowAt, scheduleNextSeason, scheduledNext, SeasonCalendarError, type OfficialWindow
+  cancelNextSeason, configureNextSeasonRules, loadOfficialWindows, officialWindowAt, scheduleNextSeason, scheduledNext, SeasonCalendarError, type OfficialWindow
 } from "../services/official-seasons.js";
 
 // /guilded-season: the bot owner's season calendar (services/official-seasons.ts). Registered only in
@@ -14,13 +16,19 @@ export const ownerSeasonCommand = new SlashCommandBuilder()
   .setName(OWNER_SEASON_COMMAND)
   .setDescription("Bot owner: the dungeon season calendar every guild follows")
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-  .addSubcommand((sub) => sub.setName("status").setDescription("The current season and the next one"))
+  .addSubcommand((sub) => sub.setName("status").setDescription("The current season and the next one")
+    .addStringOption(o => o.setName("edition").setDescription("WoW edition (default Forever)").addChoices(...GAME_EDITIONS.map(value => ({ name: value, value })))))
   .addSubcommand((sub) => sub.setName("next").setDescription("Schedule the next season (it ends the current one)")
     .addStringOption((o) => o.setName("date").setDescription("Start date, e.g. 2027-01-26").setRequired(true))
     .addIntegerOption((o) => o.setName("hour").setDescription("Start hour, 0-23 (default 15)").setMinValue(0).setMaxValue(23))
     .addStringOption((o) => o.setName("time_zone").setDescription("Default America/Los_Angeles"))
-    .addStringOption((o) => o.setName("name").setDescription("Default \"Season N\"").setMaxLength(60)))
-  .addSubcommand((sub) => sub.setName("cancel").setDescription("Cancel the next season (the current one keeps running)"));
+    .addStringOption((o) => o.setName("name").setDescription("Default \"Season N\"").setMaxLength(60))
+    .addStringOption(o => o.setName("edition").setDescription("WoW edition (default Forever)").addChoices(...GAME_EDITIONS.map(value => ({ name: value, value })))))
+  .addSubcommand(sub => sub.setName("rules").setDescription("Set reviewed dungeon rules for the next season")
+    .addStringOption(o => o.setName("edition").setDescription("WoW edition").setRequired(true).addChoices(...GAME_EDITIONS.map(value => ({ name: value, value }))))
+    .addAttachmentOption(o => o.setName("file").setDescription("JSON with gameEdition, routes and brackets").setRequired(true)))
+  .addSubcommand((sub) => sub.setName("cancel").setDescription("Cancel the next season (the current one keeps running)")
+    .addStringOption(o => o.setName("edition").setDescription("WoW edition (default Forever)").addChoices(...GAME_EDITIONS.map(value => ({ name: value, value })))));
 
 let ownerId: string | null = null;
 /** The Discord application's owner (a team's owner for team apps), cached after the first look-up. */
@@ -55,7 +63,11 @@ export async function executeOwnerSeason(interaction: ChatInputCommandInteractio
     await interaction.reply({ content: "Only the Guilded bot's owner can change dungeon seasons. / Seul le propriétaire du bot Guilded peut changer les saisons.", flags: MessageFlags.Ephemeral });
     return;
   }
+  return withEdition(gameEditionOf({ gameEdition: interaction.options.getString("edition") ?? "forever" }), () => executeInEdition(interaction));
+}
+async function executeInEdition(interaction: ChatInputCommandInteraction): Promise<void> {
   const sub = interaction.options.getSubcommand();
+  if (sub === "rules") await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const now = new Date();
   let note = "";
   try {
@@ -67,14 +79,33 @@ export async function executeOwnerSeason(interaction: ChatInputCommandInteractio
       const startsAt = zonedInstant(y, m - 1, d, interaction.options.getInteger("hour") ?? 15, zone);
       const season = await scheduleNextSeason(prisma, { name: interaction.options.getString("name"), startsAt, actorId: interaction.user.id }, now);
       note = `Scheduled **${season.name}** for ${at(season.start)}.`;
+    } else if (sub === "rules") {
+      const file = interaction.options.getAttachment("file", true);
+      const url = new URL(file.url);
+      if (file.size > 200_000 || url.protocol !== "https:" || !["cdn.discordapp.com", "media.discordapp.net"].includes(url.hostname)) throw new SeasonCalendarError("Upload a JSON attachment under 200 KB.");
+      const response = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(1500) });
+      if (!response.ok || !response.body) throw new SeasonCalendarError("Could not read the attached rules.");
+      const chunks: Uint8Array[] = []; let bytes = 0;
+      for await (const chunk of response.body) {
+        bytes += chunk.length;
+        if (bytes > 200_000) throw new SeasonCalendarError("Rules exceed 200 KB.");
+        chunks.push(chunk);
+      }
+      let input;
+      try { input = JSON.parse(Buffer.concat(chunks).toString("utf8")); } catch { throw new SeasonCalendarError("The attachment is not valid JSON."); }
+      const count = await configureNextSeasonRules(prisma, input, now);
+      note = `Saved ${count} reviewed routes for the next season. Existing seasons keep their frozen rules.`;
     } else if (sub === "cancel") {
       const cancelled = await cancelNextSeason(prisma, now);
       note = cancelled ? `Cancelled **${cancelled.name}**; the current season keeps running with no end.` : "No next season was scheduled.";
     }
   } catch (error) {
     if (!(error instanceof SeasonCalendarError)) throw error;
-    await interaction.reply({ content: error.message, flags: MessageFlags.Ephemeral });
+    if (interaction.deferred) await interaction.editReply({ content: error.message });
+    else await interaction.reply({ content: error.message, flags: MessageFlags.Ephemeral });
     return;
   }
-  await interaction.reply({ ...(note ? { content: note } : {}), embeds: [calendarEmbed(await loadOfficialWindows(prisma), now)], flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+  const answer = { ...(note ? { content: note } : {}), embeds: [calendarEmbed(await loadOfficialWindows(prisma), now)], allowedMentions: { parse: [] } };
+  if (interaction.deferred) await interaction.editReply(answer);
+  else await interaction.reply({ ...answer, flags: MessageFlags.Ephemeral });
 }

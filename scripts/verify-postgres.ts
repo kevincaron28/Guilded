@@ -1,4 +1,6 @@
+import { guildWhere } from "../src/services/guild-scope.js";
 import { verifyGameEventsPostgres, verifyGameEventsRestored } from "./verify-game-events-postgres.js";
+import { verifyGameEditionsPostgres, verifyGameEditionsRestored } from "./verify-game-editions-postgres.js";
 import { verifyAiBudgetPostgres } from "./verify-ai-budget-postgres.js";
 import { verifyPublicSharingPostgres } from "./verify-public-sharing-postgres.js";
 import { verifyDungeonRatingPostgres, verifyDungeonRatingRestored } from "./verify-dungeon-rating-postgres.js";
@@ -35,6 +37,7 @@ const database = createPrismaClient();
 try {
   if (!process.argv.includes("--restored")) await verifyAiBudgetPostgres(database);
   if (process.argv.includes("--restored")) {
+    await verifyGameEditionsRestored(database);
     await verifyGameEventsRestored(database);
     await verifyDungeonRatingRestored(database);
     await verifyActivityCoresRestored(database);
@@ -54,7 +57,7 @@ try {
     assert.equal(weekly.weeklySchedule, null); // paused schedule survives restore
     assert.equal(await database.raid.count({ where: { coreId: weekly.id, weeklyOccurrence: { not: null } } }), 4);
     assert.equal((await database.discordJob.findFirstOrThrow({ where: { key: "release-test-board" } })).status, "DONE");
-    const restoredSettings = await database.guildSettings.findFirstOrThrow({ where: { guild: { discordId: "release-test-guild" } } });
+    const restoredSettings = await database.guildSettings.findFirstOrThrow({ where: { guild: { discordId: "release-test-guild", scopeKey: "default" } } });
     assert.equal(restoredSettings.coreLootOnly, true);
     assert.equal(restoredSettings.weeklyReportChannelId, "wow-reports");
     assert.equal(restoredSettings.characterSignups, true);
@@ -87,6 +90,7 @@ try {
   } else {
     await database.guild.deleteMany({ where: { discordId: { startsWith: "release-test-" } } });
     const guild = await database.guild.create({ data: { discordId: "release-test-guild", name: "Release fixture" } });
+    await verifyGameEditionsPostgres(database, guild.id);
     await verifyPublicSharingPostgres(database);
     await verifyActivityCoresPostgres(database, guild.id);
     await verifyGameEventsPostgres(database, guild.id);
@@ -132,7 +136,7 @@ try {
     const raidContenders = await Promise.all([raids.signup(capped.id, guild.id, member.id, "TANK"), raids.signup(capped.id, guild.id, contender.id, "TANK")]);
     assert.equal(raidContenders.filter(result => result.status === "SIGNED_UP").length, 1);
     assert.equal(raidContenders.filter(result => result.status === "WAITLISTED").length, 1);
-    const character = await database.character.create({ data: { memberId: member.id, name: "ReleaseAnn", realm: "ReleaseTest", className: "Warrior" } });
+    const character = await database.character.create({ data: { guildId: member.guildId, memberId: member.id, name: "ReleaseAnn", realm: "ReleaseTest", className: "Warrior" } });
     const core = await database.raidCore.create({ data: { guildId: guild.id, name: "Core A", separatePool: true, lootChannelId: "core-loot", raidLogChannelId: "core-reports" } });
     const weekly = await database.raidCore.create({ data: { guildId: guild.id, name: "Weekly release fixture", schedule: "Tue/Thu 8-11pm EST" } });
     const weeklyNow = new Date("2026-10-01T12:00:00Z");
@@ -191,7 +195,7 @@ try {
     const resetMember = await database.member.create({ data: { guildId: resetGuild.id, discordUserId: "reset-member", displayName: "Reset" } });
     const resetJob = await enqueueDiscordJob(database, resetGuild.id, "reset-job", "PROFESSIONS");
     await database.companionCredential.create({ data: { memberId: resetMember.id, tokenHash: "disposable-reset-credential" } });
-    const resetCharacter = await database.character.create({ data: { memberId: resetMember.id, name: "ResetChar", realm: "ReleaseTest", className: "Warrior", professions: { create: { profession: "Mining", skillLevel: 300 } } } });
+    const resetCharacter = await database.character.create({ data: { guildId: resetMember.guildId, memberId: resetMember.id, name: "ResetChar", realm: "ReleaseTest", className: "Warrior", professions: { create: { profession: "Mining", skillLevel: 300 } } } });
     const resetAt = new Date();
     await database.$transaction(async tx => {
       await tx.guild.delete({ where: { id: resetGuild.id } });
@@ -203,9 +207,9 @@ try {
     assert.equal(await database.member.count({ where: { guildId: resetGuild.id } }), 0);
     assert.equal(await database.discordJob.count({ where: { id: resetJob.id } }), 0);
     assert.ok(await database.guild.findUnique({ where: { id: guild.id } }));
-    const fresh = await database.guild.findUniqueOrThrow({ where: { discordId: "release-test-reset" } });
+    const fresh = await database.guild.findUniqueOrThrow({ where: guildWhere("release-test-reset") });
     const freshMember = await database.member.create({ data: { guildId: fresh.id, discordUserId: "reset-member", displayName: "Reset" } });
-    await database.character.create({ data: { memberId: freshMember.id, name: "ResetChar", realm: "ReleaseTest", className: "Warrior" } });
+    await database.character.create({ data: { guildId: freshMember.guildId, memberId: freshMember.id, name: "ResetChar", realm: "ReleaseTest", className: "Warrior" } });
     const resetImporter = createAddonImportService(database);
     const entry = { character: "ResetChar", realm: "ReleaseTest", epAmount: 10, gpAmount: 0, type: "EP_AWARD", reason: "Reset import" };
     const resetPreview = await resetImporter.preview(fresh.id, { source: "Guilded", exportedAt: new Date(), epgpTransactions: [
@@ -281,8 +285,8 @@ try {
     assert.equal((await database.guildSettings.findUniqueOrThrow({ where: { guildId: guild.id } })).weeklyReportLastAt!.toISOString(), reportAt.toISOString());
     // A person has one primary plus backups per core, with independent character choices.
     await database.guildSettings.update({ where: { guildId: guild.id }, data: { characterSignups: true } });
-    const alt = await database.character.create({ data: { memberId: member.id, name: "ReleaseAlt", realm: "ReleaseTest", className: "Mage" } });
-    const bob = await database.character.create({ data: { memberId: contender.id, name: "ReleaseBob", realm: "ReleaseTest", className: "Druid" } });
+    const alt = await database.character.create({ data: { guildId: member.guildId, memberId: member.id, name: "ReleaseAlt", realm: "ReleaseTest", className: "Mage" } });
+    const bob = await database.character.create({ data: { guildId: contender.guildId, memberId: contender.id, name: "ReleaseBob", realm: "ReleaseTest", className: "Druid" } });
     const charCores = createRaidCoreService(database);
     await charCores.addMember(guild.id, core.id, member.id, "DPS", false, character.id);
     await charCores.addMember(guild.id, otherCore.id, member.id, "DPS", false, character.id);

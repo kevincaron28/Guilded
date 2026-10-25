@@ -1,3 +1,4 @@
+import { guildWhere } from "../src/services/guild-scope.js";
 // Read-only inventory; never opens a gateway session or prints credentials.
 import { REST, Routes, ChannelType, PermissionFlagsBits, type APIChannel, type APIMessage } from "discord.js";
 import { config } from "../src/config.js";
@@ -6,7 +7,7 @@ import { prisma } from "../src/database.js";
 try {
   const rest = new REST({ version: "10", timeout: 10_000, retries: 0 }).setToken(config.DISCORD_TOKEN);
   const channels = await rest.get(Routes.guildChannels(config.DISCORD_GUILD_ID)) as APIChannel[];
-  const record = await prisma.guild.findUniqueOrThrow({ where: { discordId: config.DISCORD_GUILD_ID }, include: { settings: true } });
+  const record = await prisma.guild.findUniqueOrThrow({ where: guildWhere(config.DISCORD_GUILD_ID), include: { settings: true } });
   const seasons = await prisma.communitySeason.findMany({ where: { guildId: record.id, status: "ACTIVE" }, select: { id: true, name: true, game: true, channelId: true, audienceRoleId: true } });
   const categories = channels.filter(c => c.type === ChannelType.GuildCategory && /community|communaut/i.test(c.name ?? ""));
   const communityChannels = channels.filter(c => "parent_id" in c && categories.some(category => category.id === c.parent_id));

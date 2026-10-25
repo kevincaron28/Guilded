@@ -1,12 +1,14 @@
 // Supported raid formats; change here if the game's formats change later.
-export const CORE_RAID_SIZES: readonly number[] = [10, 20, 40];
+import { currentEdition } from "./edition-context.js";
+export const CORE_RAID_SIZES: readonly number[] = [10, 20, 25, 30, 40];
 
 export function coreComposition(size: string, tanks: string, healers: string, dps: string) {
   const values = [size, tanks, healers, dps].map(value => value.trim());
   if (!values.every(value => /^\d{1,2}$/.test(value))) throw new Error("Enter whole numbers for size, tanks, healers and DPS / Indique des nombres entiers.");
   const [raidSize, tankLimit, healerLimit, dpsLimit] = values.map(Number) as [number, number, number, number];
-  if (!CORE_RAID_SIZES.includes(raidSize) || tankLimit + healerLimit + dpsLimit !== raidSize) {
-    throw new Error("Choose 10, 20 or 40 players; tanks + healers + DPS must equal that size / Choisis 10, 20 ou 40 joueurs; la somme des rôles doit correspondre.");
+  const supported = currentEdition() === "retail" ? raidSize >= 10 && raidSize <= 30 : CORE_RAID_SIZES.includes(raidSize);
+  if (!supported || tankLimit + healerLimit + dpsLimit !== raidSize) {
+    throw new Error("Choose 10, 20, 25, 30 or 40 players; tanks + healers + DPS must equal that size / Choisis 10, 20, 25, 30 ou 40 joueurs; la somme des rôles doit correspondre.");
   }
   return { raidSize, tankLimit, healerLimit, dpsLimit };
 }

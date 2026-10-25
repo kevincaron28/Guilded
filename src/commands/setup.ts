@@ -1,3 +1,6 @@
+import { bindGuildScope } from "../services/guild-scope.js";
+import { currentGuildScope } from "../services/guild-scope.js";
+import { isPermissionRoleName } from "../permissions.js";
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -21,7 +24,7 @@ import {
 import type { GuildSettings } from "../generated/prisma/client.js";
 import { prisma } from "../database.js";
 import { config } from "../config.js";
-import { classLeaderRoleName, hasPermission, isPermissionRoleName, permissionRoleNames, roleNamesFor, type Permission } from "../permissions.js";
+import { classLeaderRoleName, hasPermission, isPermissionRole, permissionRoleNames, roleNamesFor, type Permission } from "../permissions.js";
 import { CLASSES } from "../wow-data.js";
 import { commandVisibility } from "../services/command-visibility.js";
 import { formatChecks, publicSharingNotice, setupChecks, setupComplete, type ChannelFact, type SetupFacts } from "../services/setup-status.js";
@@ -233,7 +236,7 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
 
   if (step === 1) {
     await guild.roles.fetch();
-    const has = (permission: Permission) => guild.roles.cache.some((role) => isPermissionRoleName(permission, role.name));
+    const has = (permission: Permission) => guild.roles.cache.some((role) => isPermissionRole(permission, role));
     const lines = [...REQUIRED_ROLES, ...OPTIONAL_ROLES].map((permission) =>
       `${has(permission) ? "✅" : REQUIRED_ROLES.includes(permission) ? "❌" : "➖"} **${roleName(permission)}**${OPTIONAL_ROLES.includes(permission) ? T(" (optional)") : ""}`);
     embed.setDescription([
@@ -435,7 +438,7 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
     const done = setupComplete(checks);
     const missingChannels = ALL_CHANNELS.filter((field) => !settings[field]).length;
     await guild.roles.fetch();
-    const missingRoles = REQUIRED_ROLES.filter((permission) => !guild.roles.cache.some((role) => isPermissionRoleName(permission, role.name))).length;
+    const missingRoles = REQUIRED_ROLES.filter((permission) => !guild.roles.cache.some((role) => isPermissionRole(permission, role))).length;
     embed.setDescription([
       done ? T("**Everything required is set up.** 🎉") : T("**Almost there** — fix the ❌ items (each says how)."),
       "",
@@ -512,6 +515,17 @@ async function createClassLeaderRoles(guild: DiscordGuild, lang: Lang, classes: 
   await guild.roles.fetch();
   const created: string[] = [];
   for (const className of classes.filter((name) => (CLASSES as readonly string[]).includes(name))) {
+    const scope = currentGuildScope();
+    if (scope?.permissionRoles) {
+      const key = `classLeader:${className}`;
+      if (scope.permissionRoles[key] && guild.roles.cache.has(scope.permissionRoles[key])) continue;
+      const name = `${classLeaderRoleName(className, lang)} · ${scope.guild.name}`.slice(0, 100);
+      const role = await guild.roles.create({ name, reason: `${BRAND.name} /setup` });
+      scope.permissionRoles[key] = role.id;
+      await prisma.wowGuild.update({ where: { scopeGuildId: scope.guild.id }, data: { permissionRoles: scope.permissionRoles } });
+      created.push(name);
+      continue;
+    }
     const names = [classLeaderRoleName(className, "en"), classLeaderRoleName(className, "fr")];
     if (guild.roles.cache.some((role) => names.includes(role.name))) continue;
     const name = classLeaderRoleName(className, lang);
@@ -526,9 +540,14 @@ async function createMissingRoles(guild: DiscordGuild, lang: Lang): Promise<stri
   const created: string[] = [];
   for (const permission of REQUIRED_ROLES) {
     // Either language's name counts as already there.
-    if (guild.roles.cache.some((role) => isPermissionRoleName(permission, role.name))) continue;
-    const name = roleNamesFor(lang)[permission];
-    await guild.roles.create({ name, reason: `${BRAND.name} /setup` });
+    if (guild.roles.cache.some((role) => isPermissionRole(permission, role))) continue;
+    const scope = currentGuildScope();
+    const name = (roleNamesFor(lang)[permission] + (scope?.permissionRoles ? ` · ${scope.guild.name}` : "")).slice(0, 100);
+    const role = await guild.roles.create({ name, reason: `${BRAND.name} /setup` });
+    if (scope?.permissionRoles) {
+      scope.permissionRoles[permission] = role.id;
+      await prisma.wowGuild.update({ where: { scopeGuildId: scope.guild.id }, data: { permissionRoles: scope.permissionRoles } });
+    }
     created.push(name);
   }
   return created.length ? tx(lang, "Created roles: {roles}. Now give them to your officers.", { roles: created.join(", ") }) : tx(lang, "All roles already existed.");
@@ -548,6 +567,15 @@ export const OPTIONAL_CHANNELS: ChannelField[] = ["pugChannelId"];
 // The category for a group of channels; created once and reused (found by its English or French name).
 async function ensureCategory(guild: DiscordGuild, key: CategoryKey, lang: Lang) {
   await guild.channels.fetch();
+  const scope = currentGuildScope();
+  if (scope?.permissionRoles) {
+    const name = `${CATEGORY_NAMES[lang][key]} · ${scope.guild.name}`.slice(0, 100);
+    const owned = await prisma.wowGuildChannel.findMany({ where: { discordId: guild.id, scopeGuildId: scope.guild.id }, select: { channelId: true } });
+    const category = guild.channels.cache.find(channel => channel.type === ChannelType.GuildCategory && channel.name === name && owned.some(row => row.channelId === channel.id))
+      ?? await guild.channels.create({ name, type: ChannelType.GuildCategory, reason: `${BRAND.name} /setup` });
+    await prisma.wowGuildChannel.upsert({ where: { discordId_channelId: { discordId: guild.id, channelId: category.id } }, create: { discordId: guild.id, channelId: category.id, scopeGuildId: scope.guild.id }, update: {} });
+    return category;
+  }
   const names = categoryNames(key);
   const existing = guild.channels.cache.find(channel => channel.type === ChannelType.GuildCategory && channel.name === CATEGORY_NAMES[lang][key])
     ?? guild.channels.cache.find(channel => channel.type === ChannelType.GuildCategory && names.includes(channel.name));
@@ -565,7 +593,7 @@ async function ensureCategory(guild: DiscordGuild, key: CategoryKey, lang: Lang)
 // The permission overwrites for a kind of channel. Leadership can always
 // post in read-only channels; the bot can always post everywhere it makes.
 function overwritesFor(guild: DiscordGuild, access: Access, sharedSupport = false): OverwriteResolvable[] | undefined {
-  const named = (permissions: Permission[]) => guild.roles.cache.filter((role) => permissions.some((permission) => isPermissionRoleName(permission, role.name)));
+  const named = (permissions: Permission[]) => guild.roles.cache.filter((role) => permissions.some((permission) => isPermissionRole(permission, role)));
   const officers = named(["guildMaster", "officer"]);
   const leaders = named(["guildMaster", "officer", "raidLeader", "lootLeader", "classLeader"]);
   const me = guild.members.me;
@@ -715,15 +743,16 @@ export async function createSectionChannels(guild: DiscordGuild, guildId: string
     }
     // Follow the server's own layout: next to the group's other channels, behind its game role.
     const layout = spec.category === "guild" ? null : serverLayout(guild, { ...settings, ...update }, spec.category, field);
-    if (layout?.gateRoleIds.length && overwrites && spec.access !== "officers" && spec.access !== "leaders") {
-      overwrites = withGameGate(overwrites, guild.roles.everyone.id, layout.gateRoleIds);
+    const gateRoles = currentGuildScope()?.memberRoleId ? [currentGuildScope()!.memberRoleId!] : layout?.gateRoleIds ?? [];
+    if (gateRoles.length && overwrites && spec.access !== "officers" && spec.access !== "leaders") {
+      overwrites = withGameGate(overwrites, guild.roles.everyone.id, gateRoles);
     }
     const ownCategory = layout?.categoryId ? guild.channels.cache.get(layout.categoryId) : undefined;
-    const existing = guild.channels.cache.find(candidate => candidate.type === ChannelType.GuildText
+    const existing = !currentGuildScope()?.permissionRoles && guild.channels.cache.find(candidate => candidate.type === ChannelType.GuildText
       && isSetupLeftover(field, candidate.name, candidate.parentId ? guild.channels.cache.get(candidate.parentId)?.name : undefined));
     const category = existing && spec.category !== "guild" ? null
       : ownCategory?.type === ChannelType.GuildCategory ? ownCategory : await ensureCategory(guild, spec.category, lang);
-    const channel = existing ?? (spec.forum
+    const channel = existing || (spec.forum
       ? await guild.channels.create({
         name: spec.name, type: ChannelType.GuildForum, topic: spec.topic, parent: category!.id,
         availableTags: boardTagNames(lang).map((name) => ({ name })),
@@ -873,7 +902,7 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
         else if (action === "create-optional-roles") note = await createOptionalRoles(guild, lang);
         else if (i.isStringSelectMenu() && action === "class-leaders") note = await createClassLeaderRoles(guild, lang, i.values);
         else if (action === "give-gm") {
-          const role = guild.roles.cache.find((r) => isPermissionRoleName("guildMaster", r.name));
+          const role = guild.roles.cache.find((r) => isPermissionRole("guildMaster", r));
           const member = await guild.members.fetch(i.user.id);
           if (role) {
             await member.roles.add(role, `${BRAND.name} /setup`);
@@ -1060,7 +1089,7 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
     }
   }
 
-  collector.on("collect", (i: MessageComponentInteraction) => {
+  collector.on("collect", bindGuildScope((i: MessageComponentInteraction) => {
     const action = i.customId.replace("setup:", "");
     // Ack the click immediately (Discord allows 3 seconds) regardless of how
     // long this click's turn in the queue takes to come up; the visible
@@ -1068,12 +1097,12 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
     // it's this click's turn.
     void i.deferUpdate().catch(() => undefined);
     queue = queue.then(() => handleClick(i, action)).catch((error: unknown) => console.error("Setup click failed", error));
-  });
+  }));
 
-  collector.on("end", async (_collected, reason) => {
+  collector.on("end", bindGuildScope(async (_collected, reason) => {
     if (reason === "closed") return;
     await interaction.editReply({ content: tx(await currentLang().catch(() => "en" as Lang), "Setup timed out after 15 minutes — your choices are saved. Run `/setup start` to continue."), embeds: [], components: [] }).catch(() => undefined);
-  });
+  }));
 }
 
 // Posted in the server's system channel when the bot is added, so whoever

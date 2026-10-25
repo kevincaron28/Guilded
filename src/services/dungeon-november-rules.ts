@@ -1,13 +1,16 @@
 import { z } from "zod";
+import { GAME_EDITIONS } from "../../companion/game-edition.mjs";
+import { challengeRatingSchema } from "./challenge-rating-rules.js";
 
 // Version 5 is opt-in. No default preset, database access or season activation.
 export const novemberDungeonKey = (key: string): boolean => /^[1-9]\d{0,5}(?::[a-z][a-z0-9-]{0,39})?$/.test(key);
 const identityBase = z.object({
   ids: z.array(z.number().int().positive().max(1000000)).max(20),
+  npcIds: z.array(z.number().int().positive().max(1000000)).max(20).optional(),
   names: z.array(z.string().trim().min(1).max(100)).max(20)
 });
-const identitySchema = identityBase.refine(b => b.ids.length + b.names.length > 0, "Encounter evidence is required");
-const bandSchema = z.object({ min: z.number().int().min(1).max(60), max: z.number().int().min(1).max(60), difficultyId: z.number().int().min(0) })
+const identitySchema = identityBase.refine(b => b.ids.length + b.names.length + (b.npcIds?.length ?? 0) > 0, "Encounter evidence is required");
+const bandSchema = z.object({ min: z.number().int().min(1).max(100), max: z.number().int().min(1).max(100), difficultyId: z.number().int().min(0) })
   .refine(b => b.min <= b.max);
 const routeSchema = z.object({
   dungeonKey: z.string().refine(novemberDungeonKey), instanceId: z.number().int().positive().max(999999),
@@ -16,12 +19,13 @@ const routeSchema = z.object({
   routeStandard: z.string().trim().min(1).max(500),
   participationBand: bandSchema,
   targetSec: z.number().int().min(1).max(14400).nullable(),
-  verification: z.object({ build: z.string().trim().min(1).max(100), runRef: z.string().trim().min(1).max(100) })
+  verification: z.object({ build: z.string().trim().min(1).max(100), runRef: z.string().trim().min(1).max(100),
+    method: z.literal("source-reviewed").optional(), sources: z.array(z.string().url()).max(40).optional() })
 });
 export type NovemberRoute = z.infer<typeof routeSchema>;
 type EncounterIdentity = NovemberRoute["completion"];
 const normalize = (name: string) => name.trim().normalize("NFC").toLowerCase();
-const tokens = (b: EncounterIdentity) => [...b.ids.map(id => `id:${id}`), ...b.names.map(n => `name:${normalize(n)}`)];
+const tokens = (b: EncounterIdentity) => [...b.ids.map(id => `id:${id}`), ...(b.npcIds ?? []).map(id => `npc:${id}`), ...b.names.map(n => `name:${normalize(n)}`)];
 
 export function validatedNovemberRoutes(value: unknown): NovemberRoute[] {
   const routes = checkedRoutes(z.array(routeSchema).min(8).max(100).parse(value));
@@ -38,7 +42,7 @@ function checkedRoutes<T extends NovemberRoute>(routes: T[]): T[] {
     // A shared map must use explicit wing keys for every registered route.
     if (routes.filter(other => other.instanceId === r.instanceId).length > 1 && !r.dungeonKey.includes(":")) throw new Error("Shared maps require wing keys");
     for (const token of [r.completion, ...r.requiredEncounters].flatMap(tokens)) {
-      const key = `${r.instanceId}/${token}`;
+      const key = `${r.instanceId}/${r.participationBand.difficultyId}/${token}`;
       const owner = evidenceOwners.get(key);
       if (owner && owner !== r.dungeonKey) throw new Error("Encounter evidence is shared by different wings");
       evidenceOwners.set(key, r.dungeonKey);
@@ -92,8 +96,8 @@ export const DEFAULT_DUNGEON_BRACKETS = [
   { key: "15-29", min: 15, max: 29, bestCount: 5 }, { key: "30-44", min: 30, max: 44, bestCount: 5 },
   { key: "45-59", min: 45, max: 59, bestCount: 4 }, { key: "60", min: 60, max: 60, bestCount: 8 }
 ] as const;
-const bracketSchema = z.object({ key: z.string().regex(/^[a-z0-9][a-z0-9-]{0,19}$/), min: z.number().int().min(1).max(60),
-  max: z.number().int().min(1).max(60), bestCount: z.number().int().min(1).max(20) }).refine(b => b.min <= b.max);
+const bracketSchema = z.object({ key: z.string().regex(/^[a-z0-9][a-z0-9-]{0,19}$/), min: z.number().int().min(1).max(100),
+  max: z.number().int().min(1).max(100), bestCount: z.number().int().min(1).max(20) }).refine(b => b.min <= b.max);
 export type DungeonBracket = z.infer<typeof bracketSchema>;
 // A group a few levels above a route's band still scores, minus a share per level
 // of the highest participant; beyond maxLevels it is a carry and scores 0.
@@ -108,8 +112,8 @@ const bracketRouteSchema = routeSchema.extend({ competitionBand: bandSchema.null
   completionModel: z.literal("addon-final-boss").optional() })
   .refine(r => (r.targetSec === null) === (r.competitionBand === null), "Rated routes need a competition band; participation-only routes have none")
   .refine(r => r.completionModel === "addon-final-boss"
-    ? r.completion.ids.length + r.completion.names.length === 0 && r.requiredEncounters.length === 0
-    : r.completion.ids.length + r.completion.names.length > 0, "Encounter evidence is required (addon-final-boss routes have none)");
+    ? r.completion.ids.length + r.completion.names.length + (r.completion.npcIds?.length ?? 0) === 0 && r.requiredEncounters.length === 0
+    : r.completion.ids.length + r.completion.names.length + (r.completion.npcIds?.length ?? 0) > 0, "Encounter evidence is required (addon-final-boss routes have none)");
 export type BracketRoute = z.infer<typeof bracketRouteSchema>;
 
 export function bracketForLevel(brackets: readonly DungeonBracket[], level: unknown): DungeonBracket | undefined {
@@ -127,10 +131,13 @@ const recalibrationSchema = z.object({ dungeonKey: z.string().refine(novemberDun
 export type TargetRecalibration = z.infer<typeof recalibrationSchema>;
 
 export function createBracketedDungeonRules(input: unknown) {
-  const parsed = z.object({ routes: z.array(bracketRouteSchema).min(1).max(100), brackets: z.array(bracketSchema).min(1).max(10),
+  const parsed = z.object({ gameEdition: z.enum(GAME_EDITIONS).optional(), routes: z.array(bracketRouteSchema).max(100), brackets: z.array(bracketSchema).max(10),
     overlevelPenalty: penaltySchema.default({ ...DEFAULT_OVERLEVEL_PENALTY }),
-    provisional: provisionalSchema.optional(), recalibrations: z.array(recalibrationSchema).max(200).optional() }).parse(input);
+    provisional: provisionalSchema.optional(), keystoneRating: challengeRatingSchema.optional(), recalibrations: z.array(recalibrationSchema).max(200).optional() }).refine(value => value.routes.length > 0 && value.brackets.length > 0
+      || !!value.gameEdition && value.gameEdition !== "forever" && value.routes.length === 0 && value.brackets.length === 0, "A rated season needs routes and brackets").parse(input);
   const routes = checkedRoutes(parsed.routes);
+  if (parsed.keystoneRating && parsed.gameEdition !== "retail") throw new Error("Keystone rating requires Retail");
+  if (!parsed.provisional && routes.some(r => r.verification.method === "source-reviewed")) throw new Error("Source-reviewed routes require provisional benchmarks");
   for (const r of routes) if (r.completionModel && routes.some(o => o !== r && o.instanceId === r.instanceId)) throw new Error("A shared map needs encounter evidence for each route");
   const brackets = [...parsed.brackets].sort((a, b) => a.min - b.min);
   if (new Set(brackets.map(b => b.key)).size !== brackets.length || brackets.some((b, i) => i > 0 && b.min <= brackets[i - 1]!.max)) {
@@ -158,6 +165,8 @@ export function createBracketedDungeonRules(input: unknown) {
   const provisionalRoute = (key: string) => !!parsed.provisional && !(recalibrations ?? []).some(c => c.dungeonKey === key);
   return {
     version: 6, model: "distinct-dungeons", pointsPerDungeon: 200, speedBonus: 0,
+    ...(parsed.gameEdition ? { gameEdition: parsed.gameEdition } : {}),
+    ...(parsed.keystoneRating ? { keystoneRating: parsed.keystoneRating } : {}),
     minimumPresence: 0.8, automaticCompletionOnly: true, minimumScore: 50, maximumScore: 400,
     participationModel: "weekly-variety-v1", routeEvidenceVersion: 1, routes, brackets, routeBracket, overlevelPenalty: { ...parsed.overlevelPenalty },
     ...(parsed.provisional ? { provisional: parsed.provisional, provisionalTargets: rated.some(r => provisionalRoute(r.dungeonKey)) } : {}),
@@ -186,7 +195,8 @@ export function validBracketedRules(value: unknown): value is BracketedRules {
   if (!value || typeof value !== "object" || (value as { version?: unknown }).version !== 6) return false;
   const r = value as BracketedRules;
   try {
-    return sameJson(r, createBracketedDungeonRules({ routes: r.routes, brackets: r.brackets, overlevelPenalty: r.overlevelPenalty ?? null,
+    return sameJson(r, createBracketedDungeonRules({ ...(r.gameEdition ? { gameEdition: r.gameEdition } : {}), routes: r.routes, brackets: r.brackets, overlevelPenalty: r.overlevelPenalty ?? null,
+      ...(r.keystoneRating !== undefined ? { keystoneRating: r.keystoneRating } : {}),
       ...(r.provisional !== undefined ? { provisional: r.provisional } : {}), ...(r.recalibrations !== undefined ? { recalibrations: r.recalibrations } : {}) }));
   } catch { return false; }
 }
@@ -202,9 +212,10 @@ export function validRouteRules(value: unknown): value is NovemberRules | Bracke
   return validNovemberRules(value) || validBracketedRules(value);
 }
 
-interface EvidenceRun { instanceId: number; startedAt?: Date | null; endedAt?: Date | null; competitionData?: unknown; completedBy?: string | null }
-type Encounter = { id?: number; name?: string; at?: number; success?: boolean };
+interface EvidenceRun { instanceId: number; difficultyId?: number; startedAt?: Date | null; endedAt?: Date | null; competitionData?: unknown; completedBy?: string | null }
+type Encounter = { id?: number; kind?: "npc"; name?: string; at?: number; success?: boolean };
 function matches(b: EncounterIdentity, e: Encounter): boolean {
+  if (e.kind === "npc") return typeof e.id === "number" && !!b.npcIds?.includes(e.id);
   return (typeof e.id === "number" && b.ids.includes(e.id)) || (typeof e.name === "string" && b.names.some(n => normalize(n) === normalize(e.name!)));
 }
 /** Only timestamped successful encounters inside this run can establish a route. */
@@ -216,6 +227,7 @@ export function resolveNovemberRoute(run: EvidenceRun, rules: { routes: November
     && e.at! >= run.startedAt!.getTime() / 1000 && e.at! <= run.endedAt!.getTime() / 1000);
   const finalBoss = (r: NovemberRoute) => (r as { completionModel?: string }).completionModel === "addon-final-boss";
   const candidates = rules.routes.filter(r => r.instanceId === run.instanceId
+    && (run.difficultyId === undefined || r.participationBand.difficultyId === run.difficultyId)
     && (finalBoss(r) || [r.completion, ...r.requiredEncounters].some(b => encounters.some(e => matches(b, e)))));
   if (candidates.length !== 1) return unknown;
   const route = candidates[0]!;

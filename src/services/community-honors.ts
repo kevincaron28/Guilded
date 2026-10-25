@@ -1,3 +1,4 @@
+import { guildWhere } from "./guild-scope.js";
 import { ChannelType, EmbedBuilder, PermissionFlagsBits, escapeMarkdown, type Guild, type OverwriteResolvable } from "discord.js";
 import type { CommunityHonors, Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { BRAND } from "../brand.js";
@@ -233,7 +234,7 @@ export async function ensureCommunityHonors(guild: Guild, database: PrismaClient
 // startup, without anyone running /setup again. A server without a single Community category or
 // a public Discord season is left for /setup.
 export async function adoptCommunityHonors(guild: Guild, database: PrismaClient): Promise<string[] | null> {
-  const record = await database.guild.findUnique({ where: { discordId: guild.id }, include: { settings: true, communityHonors: true } });
+  const record = await database.guild.findUnique({ where: guildWhere(guild.id), include: { settings: true, communityHonors: true } });
   if (!record || record.communityHonors) return null;
   if (!await database.communitySeason.findFirst({ where: { guildId: record.id, ...PUBLIC_DISCORD } })) return null;
   await guild.channels.fetch();

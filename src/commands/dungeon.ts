@@ -20,12 +20,15 @@ import { guildService, requireGuildContext } from "./context.js";
 import { seasonArchive, seasonRows } from "../services/season-archive.js";
 import { weekSeason, weekWindow } from "../services/dungeon-periods.js";
 import { defaultBracket, dungeonRating, hasDungeonRating, ratingEmbed, type RatingRow } from "../services/dungeon-rating.js";
+import { guildChallengeBoard } from "../services/challenge-guild.js";
 
 // Dungeon challenge views (roadmap D5). Points come from runs the addon
 // recorded and an officer imported (/import apply).
 export const dungeonCommand = new SlashCommandBuilder()
   .setName("dungeon")
   .setDescription("Dungeon challenge: points leaderboard, records, player stats, recent runs.")
+  .addSubcommand(sub => sub.setName("keystones").setDescription("Retail: highest timed keys by dungeon and affixes")
+    .setDescriptionLocalizations({ fr: "Retail : plus hautes clés à temps par donjon et affixes" }))
   .addSubcommand(sub => sub.setName("catalog").setDescription("November dungeon plan; separate from active season rules")
     .setDescriptionLocalizations({ fr: "Catalogue prévu pour novembre; distinct des règles actives" }))
   .addSubcommand(sub => sub.setName("rules").setDescription("How dungeon rating and participation points are calculated")
@@ -109,6 +112,11 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
   if (!context) return;
   const lang = asLang((await guildService.getSettings(context.guildId))?.language);
   const subcommand = interaction.options.getSubcommand();
+  if (subcommand === "keystones") {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    await interaction.editReply({ embeds: [await guildChallengeBoard(prisma, context.guildId, lang)], allowedMentions: { parse: [] } });
+    return;
+  }
   if (subcommand === "catalog") {
     await interaction.reply({ embeds: novemberCatalogEmbeds(lang), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
     // Discord's 6,000-character budget is per message: the all-level plan goes in its own.

@@ -44,7 +44,7 @@ describe("personal companion mode", () => {
   });
   it("reads GuildedDungeons' saved file, leaving out runs already sent", () => {
     const { character, runs } = readPersonalRuns(SAVED);
-    expect(character).toEqual({ name: "Kev", realm: "Doomhowl", class: "WARRIOR", level: 16 });
+    expect(character).toEqual({ gameEdition: "forever", name: "Kev", realm: "Doomhowl", class: "WARRIOR", level: 16 });
     expect(runs.map((run) => run.id).sort()).toEqual(["QG-1", "QG-3"]);
     expect(runs.find((run) => run.id === "QG-1")!.players[0]).toMatchObject({ character: "Kev", realm: "Doomhowl", level: 16, deaths: 0 });
   });

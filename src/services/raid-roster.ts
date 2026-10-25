@@ -1,4 +1,5 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
+import { addonName } from "./addon-name.js";
 
 // The next raid's signed-up players, for the addon's mass invite (/guilded invite
 // raid). Signups are per Discord member, so each is shown as one character: for a
@@ -29,7 +30,7 @@ export async function nextRaidRoster(database: Db, guildId: string, now = new Da
     },
     orderBy: { scheduledAt: "asc" },
     include: {
-      core: { select: { name: true, members: { select: { memberId: true, character: { select: { name: true } }, backups: { select: { role: true, character: { select: { name: true } } } } } } } },
+      core: { select: { name: true, members: { select: { memberId: true, character: { select: { name: true, realm: true } }, backups: { select: { role: true, character: { select: { name: true, realm: true } } } } } } } },
       signups: { where: { status: { in: ["SIGNED_UP", "MAYBE"] } }, include: { member: { include: { characters: { orderBy: { isMain: "desc" } } } } }, orderBy: { signedUpAt: "asc" } }
     }
   });
@@ -38,7 +39,8 @@ export async function nextRaidRoster(database: Db, guildId: string, now = new Da
   const nameOf = (signup: (typeof raid.signups)[number]) => {
     const spot = spots.get(signup.memberId);
     const backup = spot?.backups.find((entry) => entry.role === signup.role);
-    return backup?.character.name ?? spot?.character?.name ?? signup.member.characters[0]?.name ?? null;
+    const character = backup?.character ?? spot?.character ?? signup.member.characters[0];
+    return character ? addonName(character.name, character.realm) : null;
   };
   return {
     id: raid.id,

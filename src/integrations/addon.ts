@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { GAME_EDITIONS, editionMetadata } from "../../companion/game-edition.mjs";
 
 export const addonTransactionSchema = z.object({
   createdAt: z.coerce.date().optional(),
@@ -117,6 +118,8 @@ export type AddonLoot = z.infer<typeof addonLootSchema>;
 // The exporting player's own character (name, realm, class, level...). Used
 // to refresh the matching linked character; never creates one on its own.
 export const addonCharacterSchema = z.object({
+  gameEdition: z.enum(GAME_EDITIONS).optional(),
+  interface: z.number().int().positive().optional(),
   name: z.string().min(1),
   displayName: z.string().trim().min(1).max(80).refine(value => !value.includes("|") && Array.from(value).every(char => char.charCodeAt(0) >= 32 && char.charCodeAt(0) !== 127)).optional(),
   realm: z.string().min(1),
@@ -218,6 +221,8 @@ export const addonItemPriceSchema = z.object({
 const MAX_REJECTED = 200;
 
 export const addonSnapshotSchema = z.object({
+  gameEdition: z.enum(GAME_EDITIONS).optional(),
+  interface: z.number().int().positive().optional(),
   source: z.string().min(1),
   exportedAt: z.coerce.date(),
   wowGuild: z.string().optional(),
@@ -284,7 +289,10 @@ export function parseAddonSnapshot(payload: unknown): AddonSnapshot {
     });
   }
   if (rejected.length) cleaned["rejected"] = rejected;
-  return addonSnapshotSchema.parse(cleaned);
+  const parsed = addonSnapshotSchema.parse(cleaned);
+  const edition = editionMetadata(parsed);
+  const inherit = (character: AddonCharacter) => character.gameEdition !== undefined || character.interface !== undefined ? character : { ...character, ...edition };
+  return { ...parsed, ...(parsed.character ? { character: inherit(parsed.character) } : {}), alts: parsed.alts.map(inherit), characters: parsed.characters.map(inherit) };
 }
 
 export function normalizeAddonSnapshot(snapshot: AddonSnapshot): AddonSnapshot {

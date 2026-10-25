@@ -1,4 +1,7 @@
 import type { AutocompleteInteraction, GuildMember } from "discord.js";
+import { currentEdition } from "../services/edition-context.js";
+import { addonName } from "../services/addon-name.js";
+import { characterName } from "../services/character-display.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 import {
@@ -64,7 +67,7 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
       choices = availabilitySuggestions(query);
     } else if (focused.name === "character" && command === "apply") {
       const characters = await prisma.character.findMany({ where: { memberId: member.id, name: { contains: query, mode: "insensitive" } }, orderBy: { name: "asc" }, take: 25 });
-      choices = characters.map(character => ({ name: `${character.name} — ${character.realm}`.slice(0, 100), value: settings?.characterSignups ? character.id : character.name }));
+      choices = characters.map(character => ({ name: `${characterName(character)} — ${character.realm}`.slice(0, 100), value: settings?.characterSignups ? character.id : addonName(character.name, character.realm) }));
     } else if (focused.name === "character" && ["profession", "attunement", "wishlist"].includes(command)) {
       choices = await ownCharacterChoices(prisma, member.id, query);
     } else if (command === "core" && focused.name === "character") {
@@ -122,13 +125,13 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
       choices = await dungeonChoices(prisma, guild.id, query);
     } else if (command === "character" && focused.name === "name" && (subcommand === "claim" || subcommand === "link")) {
       const rows = await prisma.unclaimedCharacter.findMany({ where: { guildId: guild.id, name: { contains: query, mode: "insensitive" } }, orderBy: { name: "asc" }, take: 25 });
-      choices = rows.map((row) => ({ name: `${row.name} - ${row.className}${row.level ? ` ${row.level}` : ""}`.slice(0, 100), value: row.name }));
+      choices = rows.map((row) => ({ name: `${characterName(row)} — ${row.realm} - ${row.className}${row.level ? ` ${row.level}` : ""}`.slice(0, 100), value: currentEdition() === "forever" ? row.name : row.id }));
     } else if (command === "character" && focused.name === "name" && subcommand === "unlink") {
       const rows = await prisma.character.findMany({
         where: { member: { guildId: guild.id }, name: { contains: query, mode: "insensitive" } },
         include: { member: true }, orderBy: { name: "asc" }, take: 25
       });
-      choices = rows.map((row) => ({ name: `${row.name} - ${row.className}${row.isMain ? " (main)" : ""} · ${row.member.displayName}`.slice(0, 100), value: row.name }));
+      choices = rows.map((row) => ({ name: `${characterName(row)} — ${row.realm} - ${row.className}${row.isMain ? " (main)" : ""} · ${row.member.displayName}`.slice(0, 100), value: row.id }));
     } else if (command === "import-apply" && focused.name === "id") {
       choices = await importChoices(prisma, guild.id, query);
     }

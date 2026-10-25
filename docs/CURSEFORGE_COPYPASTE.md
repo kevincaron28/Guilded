@@ -1,3 +1,8 @@
+> **25 October release decision:** the owner explicitly authorized publication before
+> the unavailable game/two-PC tests. Earlier hold instructions below are superseded.
+> Tests remain pending follow-up, not passes; targets remain provisional. See
+> [release decision](RELEASE_DECISION_2026-10-25.md) and [current notes](V7_3_2_RELEASE_NOTES.md).
+
 # CurseForge listing copy: prepared for Guilded 7.3.2
 
 Prepared 24 October 2026. **Public release is held until game/two-PC acceptance passes.**

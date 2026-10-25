@@ -1,5 +1,6 @@
 import { EmbedBuilder, type Guild as DiscordGuild } from "discord.js";
 import type { PrismaClient, RaidRole } from "../generated/prisma/client.js";
+import { currentEdition } from "./edition-context.js";
 import { createGuildService } from "./guild.js";
 import { applyToCoreButtonRow } from "./application.js";
 import { asLootMode, LOOT_MODE_LABEL } from "./core-rules.js";
@@ -44,6 +45,11 @@ export function createRaidCoreService(database: Db) {
 
   // One of the member's own linked characters, by name (case does not matter).
   async function ownCharacter(memberId: string, name: string) {
+    if (currentEdition() !== "forever") {
+      const candidates = await database.character.findMany({ where: { memberId }, select: { member: { select: { guildId: true } } }, take: 1 });
+      if (!candidates[0]) throw new Error("Link your character first with /character.");
+      return ownedSignupCharacter(database, candidates[0].member.guildId, memberId, name);
+    }
     const character = await database.character.findFirst({ where: { memberId, name: { equals: name.trim(), mode: "insensitive" } } });
     if (!character) throw new Error(`"${name.trim()}" is not one of that player's linked characters. Link it first with /character.`);
     return character;
@@ -52,6 +58,7 @@ export function createRaidCoreService(database: Db) {
   // A character joining a core must be on the core's realm: the one an officer set, else the
   // one the other members' characters share.
   function checkCoreRealm(core: Awaited<ReturnType<typeof byIdOrName>>, memberId: string, character: { name: string; realm: string }) {
+    if (currentEdition() === "retail" && !core.realm) return;
     const others = core.members.filter(spot => spot.memberId !== memberId);
     assertRealm(character, requiredRealm(core.realm, others.flatMap(spot => [spot.character?.realm, ...spot.backups.map(backup => backup.character.realm)])), core.name);
   }
@@ -199,7 +206,8 @@ export function createRaidCoreService(database: Db) {
       const core = await database.raidCore?.findUnique?.({ where: { id: coreId }, select: { guildId: true } });
       const settings = core ? await database.guildSettings?.findUnique({ where: { guildId: core.guildId }, select: { characterSignups: true } }) : null;
       const character = settings?.characterSignups && core ? await ownedSignupCharacter(database, core.guildId, memberId, characterName) : characterName?.trim()
-        ? await database.character.findFirst({ where: { memberId, name: { equals: characterName.trim(), mode: "insensitive" } }, select: { id: true } })
+        ? currentEdition() !== "forever" ? await ownCharacter(memberId, characterName)
+          : await database.character.findFirst({ where: { memberId, name: { equals: characterName.trim(), mode: "insensitive" } }, select: { id: true } })
         : null;
       const spot = await database.raidCoreMember.upsert({
         where: { coreId_memberId: { coreId, memberId } },

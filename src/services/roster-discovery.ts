@@ -3,6 +3,8 @@ import type { AddonCharacter } from "../integrations/addon.js";
 import { syncProfessionSnapshot } from "./profession-snapshot.js";
 import { findCharacter } from "./character-match.js";
 import { normalizeClassName, normalizeRaceName } from "./character-import.js";
+import { gameEditionOf } from "./game-edition.js";
+import { characterKey } from "../../companion/character-identity.mjs";
 
 // Characters that addons reveal through the guild digest (name, class, race,
 // level, spec, professions). A character already linked to a Discord member is
@@ -12,7 +14,7 @@ import { normalizeClassName, normalizeRaceName } from "./character-import.js";
 export const nameKey = (name: string) => name.trim().toLowerCase();
 
 type Tx = Prisma.TransactionClient;
-type Linked = { id: string; name: string; realm: string };
+type Linked = { id: string; name: string; realm: string; gameEdition?: string };
 
 export interface DiscoveryResult {
   refreshed: number;
@@ -23,14 +25,15 @@ export async function applyDiscoveredCharacters(tx: Tx, guildId: string, entries
   const result: DiscoveryResult = { refreshed: 0, discovered: 0 };
   const seen = new Set<string>();
   for (const entry of entries) {
-    const key = nameKey(entry.name);
+    const gameEdition = gameEditionOf(entry);
+    const key = characterKey(entry.name, entry.realm, gameEdition);
     if (!key || seen.has(key)) continue;
     seen.add(key);
     const className = entry.class ? normalizeClassName(entry.class) : "";
     const race = entry.race ? normalizeRaceName(entry.race) : null;
     const level = entry.level >= 1 ? entry.level : null;
     const spec = entry.spec || null;
-    const existing = findCharacter(linked, entry.name, entry.realm);
+    const existing = findCharacter(linked, entry.name, entry.realm, gameEdition);
     if (existing) {
       await tx.character.update({
         where: { id: existing.id },
@@ -46,6 +49,7 @@ export async function applyDiscoveredCharacters(tx: Tx, guildId: string, entries
     const acceptProfessions = !before?.professionsUpdatedAt || (entry.professionsComplete === true && at > before.professionsUpdatedAt);
     const data = {
       name: entry.name, realm: entry.realm, className, race, level, spec,
+      gameEdition,
       ...(entry.displayName ? { displayName: entry.displayName } : {}),
       ...(acceptProfessions ? { professions: entry.professions as unknown as Prisma.InputJsonValue, ...(entry.professionsComplete === true ? { professionsUpdatedAt: at } : {}) } : {}), lastSeenAt: new Date()
     };

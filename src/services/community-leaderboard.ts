@@ -1,3 +1,4 @@
+import { guildWhere } from "./guild-scope.js";
 import { REST, Routes, ChannelType, PermissionFlagsBits, EmbedBuilder, escapeMarkdown, ButtonBuilder, ButtonStyle, ActionRowBuilder, type APIChannel, type APIGuildCategoryChannel, type APIGuildTextChannel, type APIMessage, type APIGuildMember, type APIUser } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { BRAND } from "../brand.js";
@@ -84,7 +85,7 @@ async function updateHubMessage(rest: REST, channelId: string, botId: string, bo
 export async function updateCommunityLeaderboard(rest: REST, database: PrismaClient, discordId: string, botId: string,
   provision?: { categoryId: string }) {
   const channels = await rest.get(Routes.guildChannels(discordId)) as APIChannel[];
-  const record = await database.guild.findUnique({ where: { discordId }, include: { settings: true } });
+  const record = await database.guild.findUnique({ where: guildWhere(discordId), include: { settings: true } });
   if (!record) return null;
   const lang = asLang(record.settings?.language);
   const categories = channels.filter((c): c is APIGuildCategoryChannel => c.type === ChannelType.GuildCategory && /community|communaut/i.test(c.name ?? ""));

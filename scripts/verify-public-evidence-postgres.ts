@@ -15,6 +15,10 @@ const input = dungeonRunSchema.parse({ id: `evidence-test-${randomUUID()}`, prot
   players: ["Kev", "Amy", "Bob"].map(character => ({ character, realm: "Test", level: 16, minLevel: 16, presentSec: 1500 })) });
 const summary = summarize(input);
 const race = { ...input, id: `${input.id}-race` };
+const challenge = { mapId: 501, level: 10, affixIds: [3, 9], durationMs: 900123, timeLimitSec: 1800,
+  onTime: true, practiceRun: false, eligibleForScore: true };
+const native = summarize(dungeonRunSchema.parse({ ...input, id: `${input.id}-challenge`, gameEdition: "retail",
+  recorder: "Kev-Test", difficultyId: 8, completedBy: "challenge objectives", challengeMode: true, challenge }));
 try {
   // Force every first reader to observe the same missing run, then race real inserts.
   let readers = 0;
@@ -42,6 +46,12 @@ try {
   await Promise.all(Array.from({ length: 5 }, (_, i) => store.addUpload(stored.id, { key: `fixture:bob-${i}`, reporters: ["bob"] }, full)));
   let row = await db.publicRun.findUniqueOrThrow({ where: { id: stored.id }, include: { players: true, uploads: true } });
   assert.equal(row.confirmations, 2);
+  await store.createRun(native, { key: "fixture:native", reporters: ["kev@test"] }, "personal");
+  const nativeRow = (await store.findRun(native.runKey))!;
+  assert.deepEqual(nativeRow.challenge, challenge);
+  await store.addUpload(nativeRow.id, { key: "fixture:native-disagree", reporters: ["amy@test"] },
+    { ...native, challenge: { ...challenge, level: 11 } });
+  assert.equal((await store.findRun(native.runKey))?.status, "DISPUTED");
   assert.equal(row.players.length, 3);
   assert.equal(row.uploads.length, 7);
   await store.addUpload(stored.id, { key: "fixture:bad", reporters: ["amy"] }, { ...full, difficultyId: 9 });
@@ -51,6 +61,6 @@ try {
   assert.equal(row.confirmations, 2);
   console.log("Public evidence: atomic promotion, independent concurrent confirmations, party preservation and sticky disputes passed.");
 } finally {
-  await db.publicRun.deleteMany({ where: { runKey: { in: [summary.runKey, `${race.instanceId}:${race.id}`] } } });
+  await db.publicRun.deleteMany({ where: { runKey: { in: [summary.runKey, native.runKey, `${race.instanceId}:${race.id}`] } } });
   await db.$disconnect();
 }

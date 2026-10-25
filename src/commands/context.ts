@@ -3,6 +3,7 @@ import { prisma } from "../database.js";
 import { createGuildService } from "../services/guild.js";
 import { createErrorReportService, isMemberAnswer } from "../services/error-report.js";
 import { BRAND } from "../brand.js";
+import { currentGuildScope } from "../services/guild-scope.js";
 
 export const guildService = createGuildService(prisma);
 export const errorReportService = createErrorReportService(prisma);
@@ -19,6 +20,11 @@ export async function requireGuildContext(
   }
 
   const guild = await guildService.ensureGuild(interaction.guildId, interaction.guild.name);
+  const scope = currentGuildScope();
+  if (scope?.memberRoleId) {
+    const member = await interaction.guild.members.fetch(interaction.user.id);
+    if (!member.permissions.has("Administrator") && !member.roles.cache.has(scope.memberRoleId)) throw new Error("You need this in-game guild's member role to use its tools.");
+  }
   const member = await guildService.ensureMember(
     guild.id,
     interaction.user.id,

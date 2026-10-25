@@ -51,7 +51,7 @@ describe("hosted pilot runtime admission", () => {
     for (const id of [owner, guest]) {
       const response = await fetch(`${address}/api/v1/standings?guild=${id}`, { headers: { "x-companion-credential": "x".repeat(43) } });
       expect(response.status).toBe(401);
-      expect(db.companionCredential.findFirst).toHaveBeenLastCalledWith(expect.objectContaining({ where: expect.objectContaining({ member: { guildId: id, status: "ACTIVE" } }) }));
+      expect(db.companionCredential.findFirst).toHaveBeenLastCalledWith(expect.objectContaining({ where: expect.objectContaining({ member: { guild: { discordId: id }, status: "ACTIVE" } }) }));
     }
     expect(client.guilds.fetch).not.toHaveBeenCalled();
   });

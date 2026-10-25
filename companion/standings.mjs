@@ -4,6 +4,8 @@ import { readFile, writeFile, rename, rm } from "node:fs/promises";
 import { credentialHeaders, requestJson } from "./request.mjs";
 import { writeDataAddon } from "./data-addon.mjs";
 import { join, sep } from "node:path";
+import { readDatabase } from "./lua-export-content.mjs";
+import { assertSameEdition } from "./game-edition.mjs";
 
 // SavedVariables live at <game>\WTF\Account\<acct>\SavedVariables\Guilded.lua,
 // and the addon at <game>\Interface\AddOns\Guilded. `standingsFile` in
@@ -49,6 +51,15 @@ export async function writeStandings(config, signal, options = {}) {
     throw new Error(`Standings request failed (${response.status}): ${detail}`);
   }
   if (body.protocolVersion !== 2) throw new Error("Update the bot before using this companion (sync protocol 2 required).");
+  // Check the actual saved file before replacing standings or acknowledging
+  // its ledger. Missing legacy saves retain first-run repair behavior.
+  let saved;
+  try { saved = await readFile(config.watchFile, "utf8"); }
+  catch (error) { if (error.code !== "ENOENT") throw error; }
+  if (saved) {
+    const local = config.watchFile.toLowerCase().endsWith(".lua") ? readDatabase(saved).character ?? {} : JSON.parse(saved);
+    assertSameEdition(local, body);
+  }
   const text = standingsToLua(body);
   let unchanged = false;
   let refreshOnly = false;

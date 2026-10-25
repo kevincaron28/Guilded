@@ -11,6 +11,7 @@ import { describeCalendar, runCalendarPlan, type CalendarSummary } from "./calen
 import type { HeldRow } from "./addon-import.js";
 import type { Lang } from "../i18n.js";
 import { loadClassEmojis } from "./character-display.js";
+import { currentGuildScope, withGuildScope } from "./guild-scope.js";
 
 type ImportResult = Awaited<ReturnType<ReturnType<typeof createAddonImportService>["apply"]>>;
 
@@ -40,6 +41,7 @@ export function heldNotice(rows: HeldRow[], lang: Lang): string {
 // discovered characters by Discord name, announce the import, dungeon runs
 // and the leaderboard, and refresh the readiness board.
 export async function followUpImport(discordGuild: DiscordGuild | null, guildId: string, result: ImportResult): Promise<{ autoLinked: { character: string; member: string }[]; calendar: CalendarSummary | null }> {
+  if (currentGuildScope()?.guild.id !== guildId) return withGuildScope(prisma, guildId, () => followUpImport(discordGuild, guildId, result));
   const autoLinked = discordGuild && result.discovery.discovered > 0
     ? await autoLinkUnclaimed(discordGuild, prisma, guildId).catch(() => [])
     : [];

@@ -1,4 +1,5 @@
 import { pilotGuildScope } from "../hosted-pilot.js";
+import { withGuildScope } from "./guild-scope.js";
 import type { Client, Guild as DiscordGuild } from "discord.js";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { config } from "../config.js";
@@ -118,7 +119,7 @@ export async function runWclDiscovery(discord: Client, database: Db): Promise<nu
       const stubs = await client.listGuildReports(baseUrl, row.wclGuildId, 15);
       for (const stub of stubs) {
         try {
-          if (await processReport(database, client, discordGuild, { guildId: row.guildId, baseUrl, stub })) found++;
+          if (await withGuildScope(database, row.guildId, () => processReport(database, client, discordGuild, { guildId: row.guildId, baseUrl, stub }))) found++;
         } catch (error) {
           console.warn(`Warcraft Logs report ${stub.code} skipped:`, error instanceof Error ? error.message : error);
         }

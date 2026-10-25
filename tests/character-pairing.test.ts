@@ -41,7 +41,7 @@ describe("character pairing", () => {
     expect(result.companionCredential).toHaveLength(43);
     expect(tx.characterPairing.findFirst).toHaveBeenCalledWith({
       where: { codeHash: hashCompanionSecret(code), guild: { discordId: "discord-guild" }, expiresAt: { gt: now }, consumedAt: null },
-      select: { id: true, memberId: true, member: { select: { discordUserId: true } } }
+      select: { id: true, memberId: true, guild: { select: { id: true, name: true, gameEdition: true } }, member: { select: { discordUserId: true } } }
     });
     expect(tx.characterPairing.updateMany).toHaveBeenCalledWith({
       where: { id: "pair", consumedAt: null, expiresAt: { gt: now } },

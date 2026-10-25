@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { Collection } from "discord.js";
 const mocks = vi.hoisted(() => ({ address: vi.fn(), planned: vi.fn(), calendar: vi.fn(), settings: vi.fn() }));
-vi.mock("../src/database.js", () => ({ prisma: { raid: { findMany: mocks.planned }, guildSettings: { findUnique: mocks.settings } } }));
+vi.mock("../src/database.js", () => ({ prisma: { guild: { findFirst: async () => ({ id: "guild", discordId: "server", scopeKey: "default", gameEdition: "forever" }) }, raid: { findMany: mocks.planned }, guildSettings: { findUnique: mocks.settings } } }));
 vi.mock("../src/services/notify.js", () => ({ resolveNotifyAddress: mocks.address }));
 vi.mock("../src/services/calendar-sync.js", () => ({ runCalendarPlan: mocks.calendar }));
 import { dispatchDiscordJob } from "../src/services/discord-jobs.js";

@@ -6,7 +6,8 @@ import { t, type Lang } from "../i18n.js";
 import { findCharacter } from "./character-match.js";
 import { linkPairedCharacter } from "./character-pairing.js";
 import { postToLogChannel } from "./housekeeping.js";
-import { nameKey } from "./roster-discovery.js";
+import { characterKey } from "../../companion/character-identity.mjs";
+import { gameEditionOf } from "./game-edition.js";
 
 // Linking without a companion: a member gets one code (/character pair, the welcome button) and
 // pastes `/guilded verify CODE` in WoW chat once. The addon keeps it with the account's saved data,
@@ -70,7 +71,8 @@ export async function linkVerifiedCharacters(database: PrismaClient, guildId: st
   const wanted = new Map<string, { entry: AddonCharacter; code: string }>();
   for (const entry of entries) {
     const code = normalizeVerifyCode(entry.verify);
-    if (code && entry.class && !wanted.has(nameKey(entry.name))) wanted.set(nameKey(entry.name), { entry, code });
+    const key = characterKey(entry.name, entry.realm, gameEditionOf(entry));
+    if (code && entry.class && !wanted.has(key)) wanted.set(key, { entry, code });
   }
   if (!wanted.size) return [];
   const codes = await database.characterVerifyCode.findMany({
@@ -84,7 +86,7 @@ export async function linkVerifiedCharacters(database: PrismaClient, guildId: st
     select: { memberId: true, nameKey: true, status: true }
   });
   const claimed = new Map(claims.map((claim) => [`${claim.memberId}\n${claim.nameKey}`, claim.status]));
-  const linked = await database.character.findMany({ where: { member: { guildId } }, select: { name: true, realm: true, memberId: true } });
+  const linked = await database.character.findMany({ where: { member: { guildId } }, select: { name: true, realm: true, memberId: true, gameEdition: true } });
   const remember = (memberId: string, key: string, status: "LINKED" | "TAKEN") => database.characterVerifyClaim.upsert({
     where: { guildId_memberId_nameKey: { guildId, memberId, nameKey: key } },
     create: { guildId, memberId, nameKey: key, status },
@@ -97,7 +99,7 @@ export async function linkVerifiedCharacters(database: PrismaClient, guildId: st
     if (!owner) continue;
     const before = claimed.get(`${owner.memberId}\n${key}`);
     if (before === "BLOCKED") continue;
-    const existing = findCharacter(linked, entry.name, entry.realm);
+    const existing = findCharacter(linked, entry.name, entry.realm, gameEditionOf(entry));
     if (existing?.memberId === owner.memberId) continue;
     if (existing) {
       if (before !== "TAKEN") {
@@ -108,8 +110,8 @@ export async function linkVerifiedCharacters(database: PrismaClient, guildId: st
     }
     if (await linkPairedCharacter(database, guildId, owner.memberId, entry) !== "linked") continue;
     await remember(owner.memberId, key, "LINKED");
-    linked.push({ name: entry.name, realm: entry.realm, memberId: owner.memberId });
-    const created = await database.character.findFirst({ where: { memberId: owner.memberId, name: entry.name }, select: { isMain: true } });
+    linked.push({ name: entry.name, realm: entry.realm, memberId: owner.memberId, gameEdition: gameEditionOf(entry) });
+    const created = await database.character.findFirst({ where: { memberId: owner.memberId, name: entry.name, realm: entry.realm, gameEdition: gameEditionOf(entry) }, select: { isMain: true } });
     results.push({ discordUserId: owner.member.discordUserId, name: entry.name, status: "linked", isMain: created?.isMain ?? false });
   }
   return results;
@@ -133,8 +135,8 @@ export async function tellVerified(client: Client, discordGuildId: string, lang:
 }
 
 /** After an unlink: the code this character keeps repeating must not link it to that member again. */
-export async function blockVerifiedCharacter(database: PrismaClient, guildId: string, memberId: string, name: string): Promise<void> {
-  const key = nameKey(name);
+export async function blockVerifiedCharacter(database: PrismaClient, guildId: string, memberId: string, name: string, realm = "", gameEdition = "forever"): Promise<void> {
+  const key = characterKey(name, realm, gameEdition);
   await database.characterVerifyClaim.upsert({
     where: { guildId_memberId_nameKey: { guildId, memberId, nameKey: key } },
     create: { guildId, memberId, nameKey: key, status: "BLOCKED" },

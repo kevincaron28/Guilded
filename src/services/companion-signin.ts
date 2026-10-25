@@ -16,7 +16,7 @@ const MAX_PENDING = 2_000;
 const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 /** What the companion receives: the same fields as POST /api/v1/addon-pairings. */
-export type SignInGrant = { companionCredential: string; personal: true } | { companionCredential: string; personal?: false; guildDiscordId: string };
+export type SignInGrant = { companionCredential: string; personal: true } | { companionCredential: string; personal?: false; guildDiscordId: string; wowGuildId?: string; gameEdition?: string; wowGuildName?: string };
 
 interface Pending { confirm: string; expiresAt: number; grant: SignInGrant | null }
 
@@ -79,9 +79,9 @@ export type CompanionSignIn = ReturnType<typeof createCompanionSignIn>;
 export interface SignInPageDeps {
   signIn: CompanionSignIn;
   /** Approved servers with the Guilded bot where this Discord user is a member right now. */
-  servers(discordUserId: string): Promise<{ discordId: string; name: string }[]>;
+  servers(discordUserId: string): Promise<{ discordId: string; name: string; wowGuildId?: string; gameEdition?: string }[]>;
   /** A guild companion credential, or null when the user is not (or no longer) an active member. */
-  issueGuild(account: WebAccountView, guildDiscordId: string): Promise<string | null>;
+  issueGuild(account: WebAccountView, guildDiscordId: string, wowGuildId?: string): Promise<string | null>;
   issuePersonal(accountId: string): Promise<string>;
 }
 
@@ -103,19 +103,21 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
     if (ctx.request.method === "POST") {
       const choice = ctx.form?.get("choice") ?? "";
       let grant: SignInGrant | null = null;
+      const selected = servers.find(server => (server.wowGuildId ?? server.discordId) === choice);
       if (choice === "personal") grant = { companionCredential: await deps.issuePersonal(ctx.account.id), personal: true };
-      else if (servers.some((server) => server.discordId === choice)) {
-        const credential = await deps.issueGuild(ctx.account, choice);
-        if (credential) grant = { companionCredential: credential, guildDiscordId: choice };
+      else if (selected) {
+        const credential = await deps.issueGuild(ctx.account, selected.discordId, selected.wowGuildId);
+        if (credential) grant = { companionCredential: credential, guildDiscordId: selected.discordId,
+          ...(selected.wowGuildId ? { wowGuildId: selected.wowGuildId, wowGuildName: selected.name } : {}), ...(selected.gameEdition ? { gameEdition: selected.gameEdition } : {}) };
       }
       if (!grant) return kit.page(400, title, `<h1>${t("That choice is not available", "Ce choix n'est pas disponible")}</h1><p><a href="${link("/me/companion", lang, { request: requestId })}">${t("Go back and choose again", "Revenir et choisir de nouveau")}</a></p>`, { noindex: true });
       if (!deps.signIn.approve(requestId, grant)) return kit.page(410, title, `<h1>${t("This sign-in expired", "Cette connexion a expiré")}</h1><p>${t("Go back to your companion and choose Sign in with Discord again.", "Revenez au compagnon et choisissez de nouveau Connexion avec Discord.")}</p>`, { noindex: true });
-      const where = grant.personal ? t("the public dungeon leaderboards", "les classements publics des donjons") : escapeHtml(servers.find((server) => server.discordId === choice)?.name ?? "");
+      const where = grant.personal ? t("the public dungeon leaderboards", "les classements publics des donjons") : escapeHtml(selected?.name ?? "");
       return kit.page(200, title, `<p class="eyebrow">${t("Guilded companion", "Compagnon Guilded")}</p><h1>${t("Companion connected", "Compagnon relié")}</h1><p>${t("Your companion is now linked to", "Votre compagnon est maintenant relié à")} <strong>${where}</strong>. ${t("You can close this tab and go back to the companion.", "Vous pouvez fermer cet onglet et revenir au compagnon.")}</p>`, { noindex: true });
     }
     const radio = (value: string, label: string, hint: string, checked: boolean) =>
       `<label class="choice"><input type="radio" name="choice" value="${escapeHtml(value)}"${checked ? " checked" : ""}> <strong>${label}</strong><br><span class="muted">${hint}</span></label>`;
-    const choices = servers.map((server, index) => radio(server.discordId, escapeHtml(server.name), t("Sync your guild's addon data and standings with this Discord server.", "Synchronisez les données de l'addon et les classements de guilde avec ce serveur Discord."), index === 0)).join("")
+    const choices = servers.map((server, index) => radio(server.wowGuildId ?? server.discordId, escapeHtml(server.name), t("Sync your guild's addon data and standings with this Discord server.", "Synchronisez les données de l'addon et les classements de guilde avec ce serveur Discord."), index === 0)).join("")
       + radio("personal", t("Public dungeon leaderboards only", "Classements publics des donjons seulement"), t("No guild needed: your finished dungeon runs (Guilded Dungeons or Guilded) go to the public leaderboards.", "Aucune guilde requise : vos donjons terminés (Guilded Dungeons ou Guilded) vont aux classements publics."), servers.length === 0);
     const body = `<style>.choice{display:block;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:10px 0;color:var(--text);font-size:16px}.choice input{width:auto}</style>`
       + `<p class="eyebrow">${t("Guilded companion", "Compagnon Guilded")}</p><h1>${title}</h1>`

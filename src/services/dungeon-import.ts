@@ -1,4 +1,7 @@
 import { publicRules, readRuleSnapshot } from "./public-score.js";
+import { gameEditionOf } from "./game-edition.js";
+import { addonName } from "./addon-name.js";
+import { currentEdition } from "./edition-context.js";
 import { bracketForLevel, resolveNovemberRoute, validBracketedRules, validRouteRules } from "./dungeon-november-rules.js";
 import { dungeonResetCutoff, predatesDungeonReset } from "./dungeon-reset.js";
 import type { Prisma } from "../generated/prisma/client.js";
@@ -40,6 +43,7 @@ export interface DungeonImportResult {
   startedAt?: number;
   encounters?: DungeonRunInput["encounters"];
   completedBy?: string;
+  challenge?: DungeonRunInput["challenge"];
   ratingEnabled?: boolean;
   ratingSpeedBonus?: number;
   ratingVersion?: number;
@@ -60,7 +64,7 @@ export async function activeSeason(tx: Pick<Prisma.TransactionClient, "dungeonSe
   const current = await tx.dungeonSeason.findFirst({ where: { guildId, status: "ACTIVE" }, orderBy: { startsAt: "desc" } });
   if (current) return current;
   // A guild joining mid-season must get the same frozen rules as an existing guild.
-  const official = await tx.officialSeason.findFirst({ where: { startsAt: { lte: now } }, orderBy: { startsAt: "desc" } });
+  const official = await tx.officialSeason.findFirst({ where: { gameEdition: currentEdition(), startsAt: { lte: now } }, orderBy: { startsAt: "desc" } });
   const snapshot = official ? readRuleSnapshot(official.rules) : null;
   if (official && !snapshot) throw new Error("Official dungeon rules must be frozen before guild seasons can start.");
   return tx.dungeonSeason.create({ data: { guildId, name: official?.name ?? "Beta",
@@ -123,16 +127,19 @@ export async function importDungeonRuns(
 
   // Oldest first, so records and "earlier this week" are judged in order.
   for (const run of runs) {
+    const check = validateRun(run, now);
+    if (gameEditionOf(run) !== "forever") {
+      for (const player of run.players) player.character = addonName(player.character, player.realm, gameEditionOf(run));
+    }
     const existing = await tx.dungeonRun.findUnique({ where: { guildId_runRef: { guildId, runRef: run.id } } });
     if (existing || await isNearDuplicate(tx, guildId, run)) {
       summary.duplicates++;
       continue;
     }
-    const check = validateRun(run, now);
     const durationSec = run.startedAt && run.endedAt ? run.endedAt - run.startedAt : null;
     const linked = run.players.map((player) => ({
       player,
-      character: findCharacter(characters, player.character, player.realm)
+      character: findCharacter(characters, player.character, player.realm, gameEditionOf(run))
     }));
     const evidence: ParticipationRun = {
       instanceId: run.instanceId, difficultyId: run.difficultyId, durationSec,
@@ -219,7 +226,8 @@ export async function importDungeonRuns(
         recorder: run.recorder ?? null,
         reporterNames: run.reporterNames ?? [],
         competitionData: { players: run.players.map(p => ({ name: p.character, level: p.level ?? null, minLevel: p.minLevel ?? null })), encounters: run.encounters ?? [],
-          gameBuild: run.gameBuild ?? null, startTrigger: run.startTrigger ?? null },
+          gameBuild: run.gameBuild ?? null, startTrigger: run.startTrigger ?? null,
+          challengeMode: run.challengeMode ?? false, ...(run.challenge ? { challenge: run.challenge } : {}) },
         reporters: run.reporters,
         protocolVersion: run.protocolVersion,
         addonVersion: run.addonVersion ?? null,
@@ -292,6 +300,7 @@ export async function importDungeonRuns(
       ...(run.startedAt ? { startedAt: run.startedAt } : {}),
       ...(run.encounters ? { encounters: run.encounters } : {}),
       ...(run.completedBy ? { completedBy: run.completedBy } : {}),
+      ...(run.challenge ? { challenge: run.challenge } : {}),
       playerDetails: linked.map(({ player, character }) => {
         const participationRecipient = contexts.find(p => p.memberId === character?.memberId)?.character;
         const unrankedReason = timed ? !check.ok ? check.reason ?? "Invalid run"

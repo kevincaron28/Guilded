@@ -1,4 +1,5 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
+import { characterReference, realmKey } from "../../companion/character-identity.mjs";
 
 type Db = Pick<PrismaClient, "character">;
 export const CHARACTER_REQUIRED = "Choisis ton personnage pour cette inscription. Ajoute-le avec /character add ou associe-le avec /character pair.";
@@ -7,8 +8,10 @@ export const CHARACTER_REQUIRED = "Choisis ton personnage pour cette inscription
 export async function ownedSignupCharacter(database: Db, guildId: string, memberId: string, value?: string | null) {
   const characters = await database.character.findMany({ where: { memberId, member: { guildId } }, orderBy: [{ name: "asc" }, { realm: "asc" }] });
   const query = value?.trim().toLowerCase();
+  const ref = characterReference(value ?? "", "", "retail");
   const matches = query ? characters.filter(character => character.id.toLowerCase() === query
-    || character.name.toLowerCase() === query || character.displayName?.toLowerCase() === query || `${character.name}-${character.realm}`.toLowerCase() === query) : characters;
+    || character.name.toLowerCase() === query || character.displayName?.toLowerCase() === query
+    || ref.realm && character.name.toLowerCase() === ref.character.toLowerCase() && realmKey(character.realm) === ref.realm) : characters;
   if (matches.length !== 1) throw new Error(CHARACTER_REQUIRED + (matches.length > 1 ? " Précise le personnage et son royaume." : ""));
   return matches[0]!;
 }

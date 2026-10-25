@@ -65,7 +65,7 @@ export interface SyncOutcome extends ImportOutcome {
 export async function applySelfExport(database: PrismaClient, memberId: string, data: SelfExport, main?: boolean): Promise<SyncOutcome> {
   const outcome = await importCharacter(database, memberId, data.character, main);
   const character = await database.character.findFirst({
-    where: { memberId, name: { equals: data.character.name, mode: "insensitive" } }
+    where: { memberId, gameEdition: data.character.gameEdition ?? "forever", realm: { equals: data.character.realm, mode: "insensitive" }, name: { equals: data.character.name, mode: "insensitive" } }
   });
   if (!character) throw new Error("The character could not be found after linking it.");
   let status: ReadinessStatus | null = null;

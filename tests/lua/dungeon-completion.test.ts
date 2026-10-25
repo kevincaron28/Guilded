@@ -25,7 +25,7 @@ function activeRun() {
     end`);
   session.load("Modules/Dungeon.lua");
   session.run(`fire_event("PLAYER_LOGIN")
-    GetBuildInfo = function() return "1.15", "12345", "date", 11500 end
+    GetBuildInfo = function() return "1.60.1", "12345", "date", 16001 end
     STAMP = 1800000000
     NS.compat.serverTime = function() return STAMP end
     INSTANCE = {id=3065, type="party", name="Hall of Thanes", difficultyId=1}
@@ -38,6 +38,61 @@ function activeRun() {
 }
 
 describe("dungeon final-boss completion without the Encounter Journal", () => {
+  it("retains native key, affixes and penalty-inclusive timer through reload and peer export", () => {
+    const s = activeRun();
+    s.run(`GetBuildInfo=function() return "12.1.5","12345","date",120105 end
+      INSTANCE.difficultyId=8
+      C_ChallengeMode={IsChallengeModeActive=function() return true end,
+        GetActiveChallengeMapID=function() return 501 end,
+        GetActiveKeystoneInfo=function() return 12,{9,3},true end,
+        GetMapUIInfo=function() return "Fixture",501,1800 end,
+        GetChallengeCompletionInfo=function() return {mapChallengeModeID=501,level=12,time=645123,
+          onTime=true,practiceRun=false,isEligibleForScore=true} end}
+      fire_event("CHALLENGE_MODE_START"); RUN_ID=GuildedDB.dungeon.current.id; STAMP=STAMP+600`);
+    s.run('FRAMES={}'); s.load("Modules/Dungeon.lua");
+    s.run(`fire_event("CHALLENGE_MODE_COMPLETED")
+      SAVED=GuildedDB.dungeon.runs[RUN_ID]
+      ROUNDTRIP=NS.dungeon.deserialize(RUN_ID,NS.dungeon.serialize(SAVED))`);
+    expect(s.run('return SAVED.durationSec')).toBe("600");
+    expect(s.run('return ROUNDTRIP.challenge.durationMs')).toBe("645123");
+    expect(s.run('return ROUNDTRIP.challenge.level..":"..ROUNDTRIP.challenge.mapId..":"..table.concat(ROUNDTRIP.challenge.affixIds,",")')).toBe("12:501:3,9");
+    expect(s.run('return tostring(ROUNDTRIP.challenge.eligibleForScore)..":"..tostring(ROUNDTRIP.challenge.practiceRun)..":"..tostring(ROUNDTRIP.challengeMode)')).toBe("true:false:true");
+    s.load("Modules/RunResults.lua");
+    expect(s.run('return NS.runResults.text(ROUNDTRIP)')).toContain("Mythic+ +12 - 10:45 - In time");
+  });
+  it("does not use a stale, mismatched or restricted native completion", () => {
+    const s = activeRun();
+    s.run(`GetBuildInfo=function() return "12.1.5","12345","date",120105 end
+      ACTIVE={mapId=501,level=10,timeLimitSec=1800,affixIds={}}
+      INFO={mapChallengeModeID=502,level=10,time=600000,onTime=true,practiceRun=false,isEligibleForScore=true}
+      C_ChallengeMode={GetChallengeCompletionInfo=function() return INFO end}`);
+    expect(s.run('return tostring(NS.compat.challengeCompletion(ACTIVE))')).toBe("nil");
+    s.run('INFO.mapChallengeModeID=501; INFO.level=11');
+    expect(s.run('return tostring(NS.compat.challengeCompletion(ACTIVE))')).toBe("nil");
+    s.run('INFO.level=10; NS.isSecret=function(v) return v==600000 end');
+    expect(s.run('return tostring(NS.compat.challengeCompletion(ACTIVE))')).toBe("nil");
+    s.run('NS.isSecret=function() return false end; INFO.time=-1');
+    expect(s.run('return tostring(NS.compat.challengeCompletion(ACTIVE))')).toBe("nil");
+  });
+  it("waits for challenge objectives, survives reload and separates reset attempts", () => {
+    const s = activeRun();
+    s.run(`GetBuildInfo=function() return "12.1.5","12345","date",120105 end
+      C_ChallengeMode={IsChallengeModeActive=function() return true end}
+      fire_event("CHALLENGE_MODE_START")
+      RUN_ID=GuildedDB.dungeon.current.id
+      GuildedDB.dungeon.current.finalEncounterId=999
+      STAMP=STAMP+600
+      fire_event("BOSS_KILL",999,"Final boss")
+      fire_event("ENCOUNTER_END",999,"Final boss",8,5,1)`);
+    expect(s.run('return GuildedDB.dungeon.current.state')).toBe("ACTIVE");
+    s.run('FRAMES = {}'); s.load("Modules/Dungeon.lua");
+    s.run('fire_event("CHALLENGE_MODE_COMPLETED")');
+    expect(s.run('return GuildedDB.dungeon.runs[RUN_ID].completedBy')).toBe("challenge objectives");
+    expect(s.run('return GuildedDB.dungeon.runs[RUN_ID].startTrigger')).toBe("challenge start");
+    s.run('STAMP=STAMP+30; fire_event("CHALLENGE_MODE_START"); RESET_ID=GuildedDB.dungeon.current.id; fire_event("CHALLENGE_MODE_RESET")');
+    expect(s.run('return GuildedDB.dungeon.runs[RESET_ID].state')).toBe("ABANDONED");
+    expect(s.run('return GuildedDB.dungeon.runs[RUN_ID].state')).toBe("COMPLETED");
+  });
   it("records the observed game build and timer trigger through peer summaries", () => {
     const s = activeRun();
     s.run('ROUNDTRIP=NS.dungeon.deserialize(RUN_ID, NS.dungeon.serialize(GuildedDB.dungeon.current))');
@@ -124,8 +179,8 @@ describe("dungeon final-boss completion without the Encounter Journal", () => {
     expect(s.run('return tostring(GuildedDB.dungeon.runs[RUN_ID].encounters[3].startedAt)')).toBe("nil");
     s.run('local r=GuildedDB.dungeon.runs[RUN_ID]; r.players.Tester={class="PRIEST",role="HEALER",spec="Discipline",minLevel=19,level=20}; ROUNDTRIP=NS.dungeon.deserialize(RUN_ID,NS.dungeon.serialize(r))');
     expect(s.run('return ROUNDTRIP.encounters[2].at-ROUNDTRIP.encounters[2].startedAt')).toBe("45");
-    expect(s.run('return ROUNDTRIP.players.Tester.spec')).toBe("Discipline");
-    expect(s.run('return ROUNDTRIP.players.Tester.minLevel..","..ROUNDTRIP.players.Tester.level')).toBe("19,20");
+    expect(s.run('return ROUNDTRIP.players[NS.normalizeName("Tester")].spec')).toBe("Discipline");
+    expect(s.run('return ROUNDTRIP.players[NS.normalizeName("Tester")].minLevel..","..ROUNDTRIP.players[NS.normalizeName("Tester")].level')).toBe("19,20");
   });
 
   it("bounds peer summaries while keeping full saved encounters and accepts legacy summaries", () => {

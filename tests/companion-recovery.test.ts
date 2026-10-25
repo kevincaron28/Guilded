@@ -17,6 +17,15 @@ function fixture() {
 const standings = { ok: true, status: 200, json: async () => ({ protocolVersion: 2, botVersion: "5.0.0", updatedAt: "now", standings: [] }) };
 const uploaded = { ok: true, status: 201, json: async () => ({ autoApplied: { epgp: 0, discovered: 0 }, botVersion: "5.0.0" }) };
 describe("companion recovery", () => {
+  it("keeps cached standings when the saved client and guild editions differ", async () => {
+    const config = fixture();
+    const path = resolveStandingsPath(config)!;
+    writeFileSync(config.watchFile, 'GuildedDB={character={name="Ray",interface=120105,gameEdition="retail"}}');
+    writeFileSync(path, "cached standings");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(standings));
+    await expect(writeStandings(config)).rejects.toThrow("different WoW editions");
+    expect(readFileSync(path, "utf8")).toBe("cached standings");
+  });
   it.each([
     ["empty gateway response", 502, "", "The guild bot is temporarily unavailable. Standings will retry automatically."],
     ["HTML gateway response", 502, "<html><body>Bad Gateway</body></html>", "The guild bot is temporarily unavailable. Standings will retry automatically."],

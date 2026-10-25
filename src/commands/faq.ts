@@ -1,3 +1,4 @@
+import { currentGuildScope } from "../services/guild-scope.js";
 import { reserveAiAttempt } from "../services/ai-budget.js";
 import {
   ActionRowBuilder, ChannelType, ModalBuilder, SlashCommandBuilder, TextInputBuilder, TextInputStyle,
@@ -179,12 +180,13 @@ const channelCache = new Map<string, { guildId: string; channelId: string | null
 const CACHE_MS = 60_000;
 
 async function answerSettings(discordGuildId: string, name: string) {
-  const cached = channelCache.get(discordGuildId);
+  const cacheKey = `${discordGuildId}:${currentGuildScope()?.guild.id ?? "default"}`;
+  const cached = channelCache.get(cacheKey);
   if (cached && Date.now() - cached.at < CACHE_MS) return cached;
   const record = await guildService.ensureGuild(discordGuildId, name);
   const settings = await guildService.getSettings(record.id);
   const fresh = { guildId: record.id, channelId: settings?.answerChannelId ?? null, ai: settings?.aiAnswers ?? false, timeZone: settings?.timezone ?? "America/Toronto", at: Date.now() };
-  channelCache.set(discordGuildId, fresh);
+  channelCache.set(cacheKey, fresh);
   return fresh;
 }
 
@@ -308,6 +310,6 @@ export async function answerMessage(message: Message, productReference: string):
 
 // /mod faq channel and ai change what the listener reads: forget the cached copy.
 export function forgetAnswerSettings(discordGuildId: string): void {
-  channelCache.delete(discordGuildId);
+  for (const key of channelCache.keys()) if (key.startsWith(`${discordGuildId}:`)) channelCache.delete(key);
 }
 

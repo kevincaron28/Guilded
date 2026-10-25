@@ -42,12 +42,14 @@ end
 
 -- Same spellings as Guilded (Core.lua), so both addons agree on run ids and player names.
 function ns.playerName()
+  if ns.util and ns.util.unitKey then return ns.util.unitKey("player") or "Unknown" end
   local name = UnitName and UnitName("player")
   if type(name) == "string" and not ns.isSecret(name) then name = string.match(name, "^([^%-%s]+)") or name end
   return name or "Unknown"
 end
 
 function ns.normalizeName(name)
+  if ns.util and ns.util.characterKey then return ns.util.characterKey(name) end
   if type(name) ~= "string" or ns.isSecret(name) then return nil end
   name = string.match(name, "^%s*(.-)%s*$")
   name = string.match(name, "^([^%-%s]+)") or name

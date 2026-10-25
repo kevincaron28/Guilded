@@ -1,4 +1,5 @@
 import { pilotGuildScope } from "../hosted-pilot.js";
+import { currentGuildScope, withGuildScope } from "./guild-scope.js";
 import { randomUUID } from "node:crypto";
 import type { DiscordJob, Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { EmbedBuilder, type Client, type Guild, type MessageCreateOptions } from "discord.js";
@@ -38,6 +39,10 @@ export async function deliverDiscordJob(database: Db, id: string, send: (job: Di
 }
 
 export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise<void> {
+  const pending = job.payload as Record<string, unknown>;
+  if (job.kind === "MESSAGE" && pending["route"] === "readiness" && pending["day"]
+    && pending["day"] !== participationDay(new Date(), typeof pending["timezone"] === "string" ? pending["timezone"] : "America/Toronto")) return;
+  if (currentGuildScope()?.guild.id !== job.guildId) return withGuildScope(prisma, job.guildId, () => dispatchDiscordJob(guild, job));
   const payload = job.payload as Record<string, unknown>;
   if (job.kind === "GAME_EVENT_BOARD" || job.kind === "GAME_EVENT_REMINDER") {
     const { deliverGameEvent } = await import("./game-events-discord.js");

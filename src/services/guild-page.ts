@@ -1,3 +1,4 @@
+import { guildWhere } from "./guild-scope.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { priority } from "./epgp.js";
 import { breadcrumbs, SITE_HEADER_STYLE, siteHeader } from "./site-header.js";
@@ -238,7 +239,7 @@ export const GUILD_PAGE_USAGE = "Use: npm run guild-page -- status SERVER_ID | c
 // Owner-side editing until officers get /guildpage (design step 2). Returns a short summary.
 export async function editGuildPage(database: PrismaClient, action: string, discordId: string | undefined, value?: string): Promise<string> {
   if (!discordId || !/^\d{17,20}$/.test(discordId)) throw new Error(GUILD_PAGE_USAGE);
-  const guild = await database.guild.findUnique({ where: { discordId }, select: { id: true, name: true, page: true } });
+  const guild = await database.guild.findUnique({ where: guildWhere(discordId), select: { id: true, name: true, page: true } });
   if (!guild) throw new Error("This server has no Guilded data yet. Run /setup start in it first.");
   const text = (label: string) => {
     const trimmed = (value ?? "").trim();

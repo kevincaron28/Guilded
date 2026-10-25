@@ -1,4 +1,5 @@
 import { gameEventsCommand } from "./game-events.js";
+import { wowCommand } from "./wow.js";
 import { healthCommand, executeHealth } from "./health.js";
 import { profileCommand, executeProfile } from "./profile.js";
 import { characterCommand, executeCharacter } from "./character.js";
@@ -149,6 +150,7 @@ const organize = new MergedCommand("organize", "Organizers: community seasons, q
 
 // Top level: the merged parents above, plus the commands main.ts handles itself.
 export const commands: AnyCommand[] = [
+  wowCommand,
   gameEventsCommand, setup, configCommand, helpCommand, character, raid, epgp, loot, dungeon, craftCommand,
   bankCommand, applyCommand, pollCommand, report, mod, coreCommand, tagCommand, importer,
   community, poeCommand, participationCommand, teamCommand, lead, officer, organize

@@ -1,9 +1,10 @@
+import { currentGuildScope } from "./guild-scope.js";
 import {
   ChannelType, PermissionFlagsBits,
   type Guild as DiscordGuild, type OverwriteResolvable
 } from "discord.js";
 import type { PrismaClient, RaidCore } from "../generated/prisma/client.js";
-import { isPermissionRoleName, type Permission } from "../permissions.js";
+import { isPermissionRole, type Permission } from "../permissions.js";
 import { BRAND } from "../brand.js";
 
 // A raid core's own Discord role and channels.
@@ -104,14 +105,15 @@ export async function corePublicAudience(guild: DiscordGuild, database: Db, guil
   }
   const cores = await database.raidCore.findMany({ where: { guildId }, select: { roleId: true } });
   const ids = new Set<string>([
+    ...(currentGuildScope()?.memberRoleId ? [currentGuildScope()!.memberRoleId!] : []),
     ...(settings?.memberRoleId ? [settings.memberRoleId] : []),
     ...(settings?.applicantRoleId ? [settings.applicantRoleId] : []),
     ...(settings?.welcomeRoleIds ?? []),
     ...cores.flatMap((core) => (core.roleId ? [core.roleId] : [])),
-    ...guild.roles.cache.filter((role) => GUILD_ROLES.some((permission) => isPermissionRoleName(permission, role.name))).map((role) => role.id)
+    ...guild.roles.cache.filter((role) => GUILD_ROLES.some((permission) => isPermissionRole(permission, role))).map((role) => role.id)
   ]);
   ids.delete(guild.roles.everyone.id);
-  return { viewers: [...ids].filter((id) => guild.roles.cache.has(id)), denied: [], restricted: false };
+  return { viewers: [...ids].filter((id) => guild.roles.cache.has(id)), denied: [], restricted: Boolean(currentGuildScope()?.memberRoleId) };
 }
 
 export async function guildViewerRoleIds(guild: DiscordGuild, database: Db, guildId: string): Promise<string[]> {
@@ -124,7 +126,7 @@ const openServer = (guild: DiscordGuild) => guild.roles.everyone.permissions.has
 function overwrites(guild: DiscordGuild, roleId: string, access: "public" | "private" | "officers", viewers: string[] = [], restricted = false, denied: string[] = []): OverwriteResolvable[] {
   // Officers-only channels leave out raid leaders and the core's own role.
   const leadership: Permission[] = access === "officers" ? ["guildMaster", "officer"] : LEADERSHIP;
-  const leaders = guild.roles.cache.filter((role) => leadership.some((permission) => isPermissionRoleName(permission, role.name)));
+  const leaders = guild.roles.cache.filter((role) => leadership.some((permission) => isPermissionRole(permission, role)));
   const me = guild.members.me;
   const list: OverwriteResolvable[] = [];
   if (access === "public") {
@@ -211,7 +213,7 @@ export async function openCoreChannels(guild: DiscordGuild, database: Db, guildI
       const channel = await guild.channels.fetch(id).catch(() => null);
       if (!channel || (channel.type !== ChannelType.GuildText && channel.type !== ChannelType.GuildCategory)) continue;
       let touched = false;
-      const leaders = new Set(guild.roles.cache.filter(role => LEADERSHIP.some(permission => isPermissionRoleName(permission, role.name))).map(role => role.id));
+      const leaders = new Set(guild.roles.cache.filter(role => LEADERSHIP.some(permission => isPermissionRole(permission, role))).map(role => role.id));
       for (const roleId of denied) {
         if (roleId === guild.members.me?.id || leaders.has(roleId) || channel.permissionOverwrites.cache.get(roleId)?.deny.has(PermissionFlagsBits.ViewChannel)) continue;
         await channel.permissionOverwrites.edit(roleId, { ViewChannel: false });
@@ -219,7 +221,7 @@ export async function openCoreChannels(guild: DiscordGuild, database: Db, guildI
       }
       if (restricted) {
         const protectedIds = new Set([guild.members.me?.id, ...viewers, ...denied,
-          ...guild.roles.cache.filter(role => LEADERSHIP.some(permission => isPermissionRoleName(permission, role.name))).map(role => role.id)]);
+          ...guild.roles.cache.filter(role => LEADERSHIP.some(permission => isPermissionRole(permission, role))).map(role => role.id)]);
         for (const entry of channel.permissionOverwrites.cache.values()) {
           if (entry.id === guild.roles.everyone.id || protectedIds.has(entry.id) || !entry.allow.has(PermissionFlagsBits.ViewChannel)) continue;
           await channel.permissionOverwrites.edit(entry.id, { ViewChannel: null, ReadMessageHistory: null });

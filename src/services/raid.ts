@@ -8,6 +8,7 @@ import type {
   RaidRole
 } from "../generated/prisma/client.js";
 import { ownedSignupCharacter } from "./signup-character.js";
+import { currentEdition } from "./edition-context.js";
 import { assertRealm, requiredRealm } from "./realm-check.js";
 import { CHARACTER_DISPLAY_SELECT } from "./character-display.js";
 import { raidPreset } from "./raid-presets.js";
@@ -61,8 +62,10 @@ export function createRaidService(database: PrismaClient) {
   async function raidRealm(raid: { id: string; coreId: string | null }, memberId: string, tx: RaidDb = database): Promise<string | null> {
     if (raid.coreId) {
       const core = await tx.raidCore?.findUnique({ where: { id: raid.coreId }, select: { realm: true, members: { where: { memberId: { not: memberId } }, select: { character: { select: { realm: true } } } } } });
+      if (currentEdition() === "retail") return core?.realm?.trim() || null;
       return core ? requiredRealm(core.realm, core.members.map(spot => spot.character?.realm)) : null;
     }
+    if (currentEdition() === "retail") return null;
     const signups = await tx.raidSignup.findMany({ where: { raidId: raid.id, memberId: { not: memberId }, status: { not: "CANCELLED" }, characterRealm: { not: null } }, select: { characterRealm: true } });
     return requiredRealm(null, signups.map(signup => signup.characterRealm));
   }

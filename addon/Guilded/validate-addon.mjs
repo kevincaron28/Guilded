@@ -2,6 +2,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { validateCombatLog } from "../../scripts/validate-combat-log.mjs";
 
 const root = new URL(".", import.meta.url);
 const rootPath = fileURLToPath(root);
@@ -44,9 +45,7 @@ if (!utilSource.includes("SendAddonMessage")) throw new Error("Util.lua must sen
 // available to the Blizzard UI" popup on load.
 for (const file of ["Core.lua", "Modules/LootRoll.lua"]) {
   const source = readFileSync(new URL(file, root), "utf8");
-  if (/["']COMBAT_LOG_EVENT(?:_UNFILTERED)?["']/.test(source)) {
-    throw new Error(`${file} registers a combat log event, which addons are blocked from doing`);
-  }
+  validateCombatLog(source.replaceAll("\r\n", "\n"), file === "Modules/Dungeon.lua");
 }
 if (!core.includes("GuildedDB")) {
   throw new Error("Core.lua does not reference its SavedVariables database");
@@ -67,9 +66,7 @@ for (const file of addonFiles) {
   const source = readFileSync(new URL(file, root), "utf8");
   // Reject event-name literals too: registration through compat.registerEvent
   // or a table-driven loop is just as restricted as a direct RegisterEvent call.
-  if (/["']COMBAT_LOG_EVENT(?:_UNFILTERED)?["']/.test(source)) {
-    throw new Error(`${file} registers a combat log event, which addons are blocked from doing`);
-  }
+  validateCombatLog(source.replaceAll("\r\n", "\n"), file === "Modules/Dungeon.lua");
 }
 for (const file of addonFiles) {
   if (file === "Util.lua") continue;

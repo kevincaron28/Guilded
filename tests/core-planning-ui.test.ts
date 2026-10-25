@@ -18,7 +18,7 @@ describe("core planning forms", () => {
     expect(mocks.core).toHaveBeenCalledWith({ where: { id: "core", guildId: "guild" } });
     expect(mocks.update).toHaveBeenCalledWith({ where: { id: "core" }, data: { raidSize: 20, tankLimit: 2, healerLimit: 4, dpsLimit: 14 } });
     expect(choice.showModal.mock.calls[0]![0].toJSON().components).toHaveLength(3);
-    expect(i.editReply.mock.calls[0]![0].components[0].toJSON().components[0].options.map((option: { value: string }) => option.value)).toEqual(["10", "20", "40", "preset:barrow", "preset:hyjal", "preset:onyxia"]);
+    expect(i.editReply.mock.calls[0]![0].components[0].toJSON().components[0].options.map((option: { value: string }) => option.value)).toEqual(["10", "20", "25", "30", "40", "preset:barrow", "preset:hyjal", "preset:onyxia", "preset:group10", "preset:group20", "preset:group25", "preset:group30", "preset:group40"]);
   });
   it("prefills a chosen preset even at the same core size, then saves the officer's edits", async () => {
     mocks.core.mockResolvedValue({ id: "core", raidSize: 10, tankLimit: 1, healerLimit: 3, dpsLimit: 6 });

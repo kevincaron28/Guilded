@@ -1,3 +1,5 @@
+import { guildWhere } from "./guild-scope.js";
+import { currentEdition } from "./edition-context.js";
 import { EmbedBuilder, escapeMarkdown, type Guild, type MessageCreateOptions } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { publicRaids, type PublicRaid } from "./public-raids.js";
@@ -7,7 +9,7 @@ import { roleLabel, ROLES } from "./recruitment.js";
 export function pugBoardPayload(raids: PublicRaid[], lang: "en" | "fr", now = new Date()): Pick<MessageCreateOptions, "embeds" | "allowedMentions"> {
   const fr = lang === "fr";
   const embed = new EmbedBuilder().setTitle(fr ? "Places de raid — autres guildes" : "Open raids — other guilds")
-    .setURL("https://guilded.kcaron.top/recruitment/?kind=raids")
+    .setURL(`https://guilded.kcaron.top/recruitment/?kind=raids&edition=${currentEdition()}`)
     .setDescription(fr
       ? "Rejoignez le Discord hôte, puis utilisez son inscription. Actualisé chaque minute; une place doit être confirmée chez l'hôte."
       : "Join the host Discord, then use its signup post. Refreshed every minute; confirm your spot with the host.")
@@ -28,12 +30,12 @@ export function pugBoardPayload(raids: PublicRaid[], lang: "en" | "fr", now = ne
 export async function refreshPugBoard(guild: Guild, database: PrismaClient, allows: (id: string) => boolean, now = new Date()): Promise<void> {
   if (!allows(guild.id)) return;
   await serializeRaidPosts(`pug:${guild.id}`, async () => {
-    const record = await database.guild.findUnique({ where: { discordId: guild.id }, select: { id: true, settings: true } });
+    const record = await database.guild.findUnique({ where: guildWhere(guild.id), select: { id: true, settings: true } });
     const settings = record?.settings;
     if (!record || !settings?.pugChannelId) return;
     const channel = await guild.channels.fetch(settings.pugChannelId);
     if (!channel?.isTextBased() || !("send" in channel)) return;
-    const raids = (await publicRaids(database, allows, now)).filter(raid => raid.guildDiscordId !== guild.id);
+    const raids = (await publicRaids(database, allows, now)).filter(raid => raid.guildId ? raid.guildId !== record.id : raid.guildDiscordId !== guild.id);
     const payload = pugBoardPayload(raids, settings.language === "fr" ? "fr" : "en", now);
     const message = settings.pugMessageId ? await channel.messages.fetch(settings.pugMessageId).catch((error: unknown) => {
       if (error && typeof error === "object" && "code" in error && error.code === 10008) return null;

@@ -1,3 +1,4 @@
+import { guildWhere } from "./guild-scope.js";
 import { ChannelType, EmbedBuilder, type Guild as DiscordGuild } from "discord.js";
 import { prisma } from "../database.js";
 import { asLang } from "../i18n.js";
@@ -25,14 +26,14 @@ export async function professionDirectoryText(database: Pick<PrismaClient, "prof
 export async function updateProfessionDirectory(discordGuild: DiscordGuild | null, delivery = false): Promise<boolean> {
   if (!discordGuild) return false;
   if (!delivery) {
-    const guild = await prisma.guild.findUnique({ where: { discordId: discordGuild.id }, include: { settings: true } });
+    const guild = await prisma.guild.findUnique({ where: guildWhere(discordGuild.id), include: { settings: true } });
     if (!guild?.settings?.craftChannelId) return false;
     const job = await enqueueDiscordJob(prisma, guild.id, "professions", "PROFESSIONS");
     await deliverDiscordJob(prisma, job.id, current => dispatchDiscordJob(discordGuild, current));
     return (await prisma.discordJob.findUnique({ where: { id: job.id } }))?.status === "DONE";
   }
   try {
-    const guild = await prisma.guild.findUnique({ where: { discordId: discordGuild.id }, include: { settings: true } });
+    const guild = await prisma.guild.findUnique({ where: guildWhere(discordGuild.id), include: { settings: true } });
     if (!guild?.settings?.craftChannelId) return false;
     const forum = await discordGuild.channels.fetch(guild.settings.craftChannelId);
     if (forum?.type !== ChannelType.GuildForum) return false;

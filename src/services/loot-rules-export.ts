@@ -1,4 +1,5 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
+import { addonName } from "./addon-name.js";
 import { asLootMode, effectiveRules, type LootMode } from "./core-rules.js";
 import { createItemValueService, type ValueRow } from "./item-values.js";
 
@@ -37,18 +38,19 @@ export interface CoreRosterRow { name: string; member: string; role: string; spo
 
 type SpotForRoster = {
   role: string; bench: boolean; trial: boolean;
-  member: { displayName: string; characters: { name: string }[] };
-  character: { name: string } | null;
-  backups: { role: string; character: { name: string } }[];
+  member: { displayName: string; characters: { name: string; realm?: string }[] };
+  character: { name: string; realm?: string } | null;
+  backups: { role: string; character: { name: string; realm?: string } }[];
 };
 
 export function coreRosterRows(spots: SpotForRoster[]): CoreRosterRow[] {
   return spots.flatMap((spot) => {
     const spotKind = spot.trial ? "trial" : spot.bench ? "bench" : "main";
-    const name = spot.character?.name ?? spot.member.characters[0]?.name;
+    const character = spot.character ?? spot.member.characters[0];
+    const name = character ? addonName(character.name, character.realm) : null;
     const rows: CoreRosterRow[] = name ? [{ name, member: spot.member.displayName, role: spot.role, spot: spotKind, backup: false }] : [];
     for (const backup of spot.backups) {
-      rows.push({ name: backup.character.name, member: spot.member.displayName, role: backup.role, spot: spotKind, backup: true });
+      rows.push({ name: addonName(backup.character.name, backup.character.realm), member: spot.member.displayName, role: backup.role, spot: spotKind, backup: true });
     }
     return rows;
   });
@@ -68,9 +70,9 @@ export async function lootRulesForAddon(
     database.raidCore.findMany({
       where: { guildId }, orderBy: { name: "asc" }, take: 30,
       include: { members: { include: {
-        member: { select: { displayName: true, characters: { select: { name: true }, orderBy: { isMain: "desc" }, take: 1 } } },
-        character: { select: { name: true } },
-        backups: { select: { role: true, character: { select: { name: true } } } }
+        member: { select: { displayName: true, characters: { select: { name: true, realm: true }, orderBy: { isMain: "desc" }, take: 1 } } },
+        character: { select: { name: true, realm: true } },
+        backups: { select: { role: true, character: { select: { name: true, realm: true } } } }
       } } }
     })
   ]);

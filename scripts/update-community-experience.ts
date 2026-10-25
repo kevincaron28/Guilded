@@ -1,3 +1,4 @@
+import { guildWhere } from "../src/services/guild-scope.js";
 // Run --apply only after the new bot and migration passed the release gates.
 // Default is a read-only plan; never starts a second gateway client.
 import { REST, Routes, ChannelType, type APIChannel, type APIGuildTextChannel } from "discord.js";
@@ -20,7 +21,7 @@ try {
   if (hubs.length !== 1 || boards.length !== 1) throw new Error("Ambiguous community channels.");
   const hub = hubs[0]!, board = boards[0]!;
   if (communityAudience(hub, config.DISCORD_CLIENT_ID) !== communityAudience(board, config.DISCORD_CLIENT_ID)) throw new Error("Community channel visibility differs. Review permissions first.");
-  const guild = await prisma.guild.findUniqueOrThrow({ where: { discordId: config.DISCORD_GUILD_ID }, include: { settings: true } });
+  const guild = await prisma.guild.findUniqueOrThrow({ where: guildWhere(config.DISCORD_GUILD_ID), include: { settings: true } });
   const season = await prisma.communitySeason.findFirst({ where: { guildId: guild.id, game: "DISCORD", status: "ACTIVE", audienceRoleId: null, channelId: { in: [board.id, hub.id] } }, select: { id: true, name: true, createdAt: true } });
   if (!season) throw new Error("No unrestricted Discord season in the community channels.");
   const lang = asLang(guild.settings?.language);

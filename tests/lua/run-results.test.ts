@@ -3,6 +3,13 @@ import { newLuaSession, type LuaSession } from "./harness.js";
 let session: LuaSession | undefined;
 afterEach(() => session?.close());
 describe("end of dungeon run summary", () => {
+  it("displays Forever full names without estimating Forever ratings for another edition", () => {
+    session = newLuaSession(); session.run('NS={getDb=function() return {displayNames={Kevin="Kevin Caron"}} end}');
+    session.load("Modules/RunResults.lua");
+    session.run('RUN={state="COMPLETED",gameEdition="classic-era",completedBy="final boss",instanceId=389,difficultyId=0,durationSec=1200,players={Kevin={level=16}}}');
+    expect(session.run('return NS.runResults.text(RUN)')).toContain("Kevin Caron");
+    expect(session.run('return tostring(NS.runResults.estimate(RUN).points)')).toBe("nil");
+  });
   it("keeps boss timing available without a floating overlay, including saved opt-ins", () => {
     session = newLuaSession();
     session.run(`SETTINGS={}; POPUPS=0

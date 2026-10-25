@@ -1,3 +1,4 @@
+import { withEdition } from "./edition-context.js";
 import { createHash } from "node:crypto";
 import { DkpTransactionType, type DkpTransaction, type EpgpTransaction, type EpgpTransactionType, type Prisma, type PrismaClient } from "../generated/prisma/client.js";
 import { normalizeAddonSnapshot, parseAddonSnapshot, type AddonSnapshot } from "../integrations/addon.js";
@@ -15,6 +16,7 @@ import { createSelfCharacter } from "./character-pairing.js";
 import { excludeHistoryBeforeReset } from "./import-reset.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 import { queueCharacterDisplayRefresh } from "./character-display-refresh.js";
+import { assertSnapshotEdition, gameEditionOf } from "./game-edition.js";
 
 // Why a row is waiting (see AddonHeldEntry). Every reason clears by itself once the cause is
 // fixed, because each upload carries the whole ledger again; a dismissed row is never imported.
@@ -55,6 +57,8 @@ export function createAddonImportService(database: PrismaClient) {
 
     // The same for a snapshot already parsed (a member's upload narrowed to their own characters).
     async previewSnapshot(guildId: string, snapshot: AddonSnapshot, createdBy: string) {
+      const guild = await database.guild.findUnique({ where: { id: guildId }, select: { gameEdition: true } });
+      assertSnapshotEdition(snapshot, gameEditionOf(guild ?? {}));
       const checksum = createHash("sha256").update(JSON.stringify(snapshot)).digest("hex");
       const existing = await database.addonImport.findFirst({ where: { guildId, checksum } });
       return {
@@ -95,6 +99,9 @@ export function createAddonImportService(database: PrismaClient) {
         const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { dataResetAt: true, dungeonLeaderboardChannelId: true, craftChannelId: true, coreLootOnly: true, characterSignups: true } });
         const resetAt = settings?.dataResetAt ?? null;
         const snapshot = excludeHistoryBeforeReset(parseAddonSnapshot(imported.payload), resetAt);
+        const guild = await tx.guild.findUnique({ where: { id: guildId }, select: { gameEdition: true } });
+        assertSnapshotEdition(snapshot, gameEditionOf(guild ?? {}));
+        return withEdition(gameEditionOf(guild ?? {}), async () => {
         const characters = await tx.character.findMany({
           where: { member: { guildId } },
           include: { member: true }
@@ -392,6 +399,7 @@ export function createAddonImportService(database: PrismaClient) {
           import: imported, transactions, epgpTransactions, readinessSnapshots, attunements, consumables, reserves, itemPrices, crafting, calendarPlan, discovery, raids, loot, dungeons, skipped,
           voided, held: { rows: held, fresh: newlyHeld.length }, rejected: snapshot.rejected, unchangedSections
         };
+        });
       }, { timeout: 60_000, maxWait: 15_000 });
       const now = Date.now();
       for (const [key, hash] of applied) {

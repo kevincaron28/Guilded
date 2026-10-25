@@ -1,4 +1,5 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
+import { currentEdition } from "./edition-context.js";
 import { AVAILABILITY, DURATIONS, EP_REASONS, GP_REASONS, PROFESSIONS, RACES, REVERSE_REASONS, SPECS, WEEKDAYS, pick } from "../wow-data.js";
 import { formatRaidTime, parseRaidTime } from "./raid-time.js";
 
@@ -53,8 +54,9 @@ export function timeSuggestions(query: string, timeZone: string, language: strin
 }
 
 export async function ownCharacterChoices(database: Pick<PrismaClient, "character">, memberId: string, query: string, identities = false): Promise<Suggestion[]> {
+  identities ||= currentEdition() !== "forever";
   const rows = await database.character.findMany({ where: { memberId, name: { contains: query.trim(), mode: "insensitive" } }, orderBy: [{ isMain: "desc" }, { name: "asc" }], take: 25 });
-  return rows.map((row) => ({ name: `${row.name}${identities ? ` — ${row.realm}` : row.isMain ? " (main)" : ""}`.slice(0, 100), value: identities ? row.id : row.name }));
+  return rows.map((row) => ({ name: `${row.displayName || row.name}${identities ? ` — ${row.realm}` : row.isMain ? " (main)" : ""}`.slice(0, 100), value: identities ? row.id : row.name }));
 }
 
 export async function attunementSuggestions(database: Db, guildId: string, query: string): Promise<Suggestion[]> {

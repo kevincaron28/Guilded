@@ -1,5 +1,5 @@
 import { PermissionFlagsBits, type Guild } from "discord.js";
-import { isPermissionRoleName, type Permission } from "../permissions.js";
+import { isPermissionRole, type Permission } from "../permissions.js";
 
 // Leader and officer commands are hidden from members with default_member_permissions
 // (commands/index.ts HIDDEN_FROM_MEMBERS), but the bot's own check is by role name. A Raid Leader
@@ -41,7 +41,7 @@ export function blockedRoles(input: {
 }): BlockedRole[] {
   const blocked: BlockedRole[] = [];
   for (const role of input.roles) {
-    const permission = (Object.keys(ROLE_COMMANDS) as Permission[]).find((key) => isPermissionRoleName(key, role.name));
+    const permission = (Object.keys(ROLE_COMMANDS) as Permission[]).find((key) => isPermissionRole(key, role));
     if (!permission) continue;
     for (const name of ROLE_COMMANDS[permission] ?? []) {
       const command = input.commands.find((entry) => entry.name === name);

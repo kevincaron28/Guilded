@@ -314,7 +314,7 @@ function view.build(parent, compact)
     else self.bracketButton:Hide() end
     local pages = math.max(1, math.ceil(ranking and #model.rows / 12 or #model.cards / perPage))
     self.page = math.min(self.page, pages)
-    self.summary:SetText(name .. (self.role and (" (" .. L(self.role) .. ")") or "") .. " - " .. (model.period == "week" and (L("Your score this week") .. ": " .. model.weekOwn)
+    self.summary:SetText(ns.displayName(name) .. (self.role and (" (" .. L(self.role) .. ")") or "") .. " - " .. (model.period == "week" and (L("Your score this week") .. ": " .. model.weekOwn)
       or (L("Your season score") .. ": " .. (model.total and tostring(model.total) or L("Not in this snapshot")))))
     self.note:SetText(model.available and (model.version == 6 and model.bracket and string.format(L("%s: best %d distinct routes. Verified route evidence required."), ns.scores.bracketLabel(model.bracket), model.bracket.bestCount)
       or model.version == 5 and L("Level 60: best 8 distinct routes. Maximum 3200. Verified route evidence required.") or model.version == 4 and L("Beta: best 8 distinct routes. Level 30. Maximum 3200. Provisional targets.") or model.version == 3 and L("200 at target. Best run per dungeon. Hover for boss records.") or model.version == 2 and L("100 per dungeon + up to 20 speed. Only your best run counts.")

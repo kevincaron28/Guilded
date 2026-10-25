@@ -1,3 +1,4 @@
+import { bindGuildScope } from "../services/guild-scope.js";
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle, UserSelectMenuBuilder,
   type ChatInputCommandInteraction, type Message, type MessageComponentInteraction,
@@ -83,7 +84,7 @@ export async function runCoreEditor(interaction: ChatInputCommandInteraction, gu
     await interaction.editReply(await screen(guildId, core.id, mode, note));
   };
 
-  collector.on("collect", async (i: MessageComponentInteraction) => {
+  collector.on("collect", bindGuildScope(async (i: MessageComponentInteraction) => {
     try {
       if (i.customId === "coreedit:lootmode" && i.isButton()) {
         const current = await prisma.raidCore.findUniqueOrThrow({ where: { id: core.id } });
@@ -217,10 +218,10 @@ export async function runCoreEditor(interaction: ChatInputCommandInteraction, gu
       if (!i.replied && !i.deferred) await i.reply({ content: `That didn't work: ${text}`, flags: MessageFlags.Ephemeral }).catch(() => undefined);
       else await i.followUp({ content: `That didn't work: ${text}`, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
-  });
-  collector.on("end", async (_c, reason) => {
+  }));
+  collector.on("end", bindGuildScope(async (_c, reason) => {
     if (reason !== "closed") await interaction.editReply({ content: "The editor timed out. Everything you changed was saved; run /core edit again to continue.", embeds: [], components: [] }).catch(() => undefined);
-  });
+  }));
 }
 
 // The Characters step of /core edit, in its own ephemeral message: pick a core player, then the
@@ -264,7 +265,7 @@ async function runCharacterPicker(button: MessageComponentInteraction, guildId: 
   await button.reply({ ...(await characterScreen(guildId, coreId, null, backupRole, "")), flags: MessageFlags.Ephemeral });
   const message = await button.fetchReply();
   const collector = message.createMessageComponentCollector({ time: 10 * 60_000, filter: (i) => i.user.id === button.user.id });
-  collector.on("collect", async (i: MessageComponentInteraction) => {
+  collector.on("collect", bindGuildScope(async (i: MessageComponentInteraction) => {
     try {
       await i.deferUpdate();
       let note = "";
@@ -296,5 +297,5 @@ async function runCharacterPicker(button: MessageComponentInteraction, guildId: 
     } catch (error) {
       await i.followUp({ content: `That didn't work: ${error instanceof Error ? error.message : String(error)}`, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
-  });
+  }));
 }

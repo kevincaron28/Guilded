@@ -1,6 +1,10 @@
+import { characterKey } from "../../companion/character-identity.mjs";
+import { readChallenge } from "./challenge-evidence.js";
+import { rankChallenges, challengeClock } from "./challenge-leaderboard.js";
+import { challengeScores } from "./challenge-rating.js";
+import { DEFAULT_DUNGEON_BRACKETS } from "./dungeon-november-rules.js";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { CLASSES } from "../wow-data.js";
-import { DEFAULT_DUNGEON_BRACKETS } from "./dungeon-november-rules.js";
 import { formatDuration } from "./dungeon-rules.js";
 import { issuePersonalCode, type PersonalStore } from "./personal-pairing.js";
 import { GAIN_STEP, planImprovements, roleScores, type ImprovementPlan, type RoutePlan } from "./public-guidance.js";
@@ -12,6 +16,9 @@ import { breadcrumbs } from "./site-header.js";
 import { escapeHtml, link, options } from "./web-layout.js";
 import type { WebContext, WebKit, WebResponse, WebRoute } from "./web-app.js";
 import { scoreCardResponse } from "./score-card.js";
+import { currentEdition, withEdition } from "./edition-context.js";
+import { gameEditionOf } from "./game-edition.js";
+import { GAME_EDITIONS } from "../../companion/game-edition.mjs";
 
 // Public dungeon leaderboards (7.0, roadmap request 6; 7.1 season pages). Layout inspired by
 // Raider.IO, built from our own data and words: /leaderboards/ (this week's top runs and top
@@ -52,7 +59,7 @@ export function rankGuilds(entries: { guild: PublicGuild; runs: LeaderRun[]; ros
   const ranks: GuildRank[] = [];
   for (const { guild, runs, roster } of entries) {
     const members = new Set(roster.map((name) => name.toLowerCase()));
-    const scores = characterScores(runs, rules).filter((row) => members.has(row.player.character.toLowerCase()));
+    const scores = characterScores(runs, rules).filter((row) => members.has(characterKey(row.player.character, row.player.realm, rules.gameEdition ?? "forever")));
     for (const bracket of rules.brackets) {
       const rows = scores.filter((row) => row.bracket === bracket.key).sort((a, b) => b.points - a.points);
       if (!rows.length) continue;
@@ -66,7 +73,7 @@ export function rankGuilds(entries: { guild: PublicGuild; runs: LeaderRun[]; ros
 export interface LeaderFilters {
   instanceId: number | null; season: string; week: boolean; bracket: string | null; className: string | null; role: string | null; realm: string | null; confirmed: boolean;
 }
-const BRACKETS = DEFAULT_DUNGEON_BRACKETS.map((bracket) => bracket.key as string);
+const brackets = () => (currentEdition() === "forever" ? DEFAULT_DUNGEON_BRACKETS : publicRules().brackets).map(bracket => bracket.key as string);
 
 // Why a run is unranked (public-score.ts rateRun and the guild seasons' shared check), in French too.
 const UNRANKED_FR: Record<string, string> = {
@@ -98,7 +105,7 @@ export function readLeaderFilters(query: URLSearchParams, now = new Date(), peri
     instanceId: Number.isInteger(dungeon) && dungeon > 0 ? dungeon : null,
     season: known ? season : periods[0]!.id,
     week: query.get("period") === "week",
-    bracket: BRACKETS.includes(query.get("bracket") ?? "") ? query.get("bracket") : null,
+    bracket: periods.some(period => periodRules(period).brackets.some(bracket => bracket.key === query.get("bracket"))) || brackets().includes(query.get("bracket") ?? "") ? query.get("bracket") : null,
     className: query.get("class") ? classFromText(query.get("class")!) : null,
     role: (ROLES as readonly string[]).includes(role) ? role : null,
     realm: realm || null,
@@ -126,6 +133,7 @@ export function rankCharacters(runs: LeaderRun[], filters: PlayerFilters, limit 
   const best = new Map<string, RankedEntry>();
   const keep = keepPlayer(filters);
   for (const run of runs) {
+    if (run.gameEdition === "retail" && run.difficultyId === 8) continue;
     for (const player of run.players) {
       if (!keep(player, run)) continue;
       const id = characterId(player);
@@ -139,6 +147,7 @@ export function rankCharacters(runs: LeaderRun[], filters: PlayerFilters, limit 
 export function dungeonSummaries(runs: LeaderRun[]): DungeonSummary[] {
   const map = new Map<number, DungeonSummary>();
   for (const run of runs) {
+    if (run.gameEdition === "retail" && run.difficultyId === 8) continue;
     const row = map.get(run.instanceId) ?? { instanceId: run.instanceId, dungeonName: run.dungeonName, bestSec: run.durationSec, runs: 0 };
     row.runs += 1; row.bestSec = Math.min(row.bestSec, run.durationSec);
     map.set(run.instanceId, row);
@@ -151,12 +160,13 @@ export const runPath = (id: string) => `/leaderboards/run/${encodeURIComponent(i
 const classSlug = (name: string | null) => (name ?? "").toLowerCase().replace(/[^a-z]/g, "");
 
 // What the pages read of a public run, evidence included (player-profiles.ts reads the same).
-export const PUBLIC_RUN_SELECT = { id: true, instanceId: true, routeKey: true, difficultyId: true, dungeonName: true, durationSec: true, startedAt: true, endedAt: true, deaths: true, bracket: true, season: true,
+export const PUBLIC_RUN_SELECT = { id: true, challenge: true, gameEdition: true, instanceId: true, routeKey: true, difficultyId: true, dungeonName: true, durationSec: true, startedAt: true, endedAt: true, deaths: true, bracket: true, season: true,
   confirmations: true, evidenceVersion: true, completedBy: true, encounters: true,
   players: { select: { character: true, displayName: true, realm: true, className: true, role: true, level: true, minLevel: true, presentSec: true } } } as const satisfies Prisma.PublicRunSelect;
 type PublicRunRow = Prisma.PublicRunGetPayload<{ select: typeof PUBLIC_RUN_SELECT }>;
-export function leaderRun({ id, startedAt, evidenceVersion, completedBy, encounters, ...row }: PublicRunRow): LeaderRun {
-  return { runId: id, ...row, evidence: evidenceVersion >= 1 ? { startedAt, completedBy, encounters: Array.isArray(encounters) ? encounters : [] } : null };
+export function leaderRun({ id, startedAt, evidenceVersion, completedBy, encounters, challenge, ...row }: PublicRunRow): LeaderRun {
+  const native = readChallenge(challenge);
+  return { runId: id, ...row, ...(native ? { challenge: native } : {}), evidence: evidenceVersion >= 1 ? { startedAt, completedBy, encounters: Array.isArray(encounters) ? encounters : [] } : null };
 }
 const newestFirst = (a: LeaderRun, b: LeaderRun) => b.endedAt.getTime() - a.endedAt.getTime();
 
@@ -167,7 +177,7 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
   async function every(where: Prisma.PublicRunWhereInput): Promise<LeaderRun[]> {
     const runs: LeaderRun[] = [];
     for (let cursor: string | null = null; ;) {
-      const page: PublicRunRow[] = await database.publicRun.findMany({ where, orderBy: { id: "asc" }, take: 5_000, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}), select: PUBLIC_RUN_SELECT });
+      const page: PublicRunRow[] = await database.publicRun.findMany({ where: { ...where, gameEdition: currentEdition() }, orderBy: { id: "asc" }, take: 5_000, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}), select: PUBLIC_RUN_SELECT });
       runs.push(...page.map(leaderRun));
       if (page.length < 5_000) return runs;
       cursor = page[page.length - 1]!.id;
@@ -175,7 +185,7 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
   }
   return {
     async run(id) {
-      const row = await database.publicRun.findFirst({ where: { id, status: "ACCEPTED" }, select: PUBLIC_RUN_SELECT });
+      const row = await database.publicRun.findFirst({ where: { id, status: "ACCEPTED", gameEdition: currentEdition() }, select: PUBLIC_RUN_SELECT });
       return row ? leaderRun(row) : null;
     },
     async runs(query) {
@@ -185,13 +195,13 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
       return (await every({ status: "ACCEPTED", players: { some: { character: { equals: character, mode: "insensitive" }, ...(realm !== null ? { realm: { equals: realm, mode: "insensitive" } } : {}) } } })).sort(newestFirst);
     },
     async guilds() {
-      const rows = await database.guildSettings.findMany({ where: { publicDungeonRuns: true }, select: { guildId: true, guild: { select: { name: true, discordId: true, page: { select: { slug: true, published: true } } } } }, take: 200 });
+      const rows = await database.guildSettings.findMany({ where: { publicDungeonRuns: true, guild: { gameEdition: currentEdition() } }, select: { guildId: true, guild: { select: { name: true, discordId: true, page: { select: { slug: true, published: true } } } } }, take: 200 });
       return rows.filter((row) => allows(row.guild.discordId))
         .map((row) => ({ id: row.guildId, name: row.guild.name, slug: row.guild.page?.published ? row.guild.page.slug : null })).sort((a, b) => a.name.localeCompare(b.name));
     },
     async guildRoster(guildId) {
-      const rows = await database.character.findMany({ where: { member: { guildId, status: "ACTIVE" } }, select: { name: true }, take: 5_000 });
-      return rows.map((row) => row.name.toLowerCase());
+      const rows = await database.character.findMany({ where: { member: { guildId, status: "ACTIVE" } }, select: { name: true, realm: true, gameEdition: true }, take: 5_000 });
+      return rows.map((row) => characterKey(row.name, row.realm, row.gameEdition ?? "forever"));
     },
     async guildRuns(guildId, query) {
       return (await every({ ...range(query), uploads: { some: { uploaderKey: `guild:${guildId}` } } })).sort(newestFirst);
@@ -215,6 +225,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
   const cacheMs = deps.cacheMs ?? 60_000;
   const cache = new Map<string, { at: number; value: unknown }>();
   async function cached<T>(id: string, load: () => Promise<T>): Promise<T> {
+    id = `${currentEdition()}:${id}`;
     const hit = cache.get(id);
     if (hit && now().getTime() - hit.at < cacheMs) return hit.value as T;
     const value = await load();
@@ -255,9 +266,10 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const any = { value: "", label: t("Any", "Tous") };
     const seasons = periods.map((p) => ({ value: p.id, label: periodName(ctx, p) }));
     return `<form class="filters" method="get" action="/leaderboards/"><input type="hidden" name="lang" value="${lang}">`
+      + `<div><label for="edition">WoW</label><select id="edition" name="edition">${options(GAME_EDITIONS.map(value => ({ value, label: value })), currentEdition())}</select></div>`
       + `<div><label for="season">${t("Season", "Saison")}</label><select id="season" name="season">${options([...seasons, { value: "all", label: t("All time", "Depuis le début") }], filters.season)}</select></div>`
       + `<div><label for="period">${t("Period", "Période")}</label><select id="period" name="period">${options([{ value: "", label: t("Whole season", "Toute la saison") }, { value: "week", label: t("This week", "Cette semaine") }], filters.week ? "week" : "")}</select></div>`
-      + `<div><label for="bracket">${t("Levels", "Niveaux")}</label><select id="bracket" name="bracket">${options([any, ...BRACKETS.map((value) => ({ value, label: bracketName(ctx, value) }))], filters.bracket)}</select></div>`
+      + `<div><label for="bracket">${t("Levels", "Niveaux")}</label><select id="bracket" name="bracket">${options([any, ...[...new Set([...brackets(), ...periods.flatMap(period => periodRules(period).brackets.map(b => b.key))])].map((value) => ({ value, label: bracketName(ctx, value) }))], filters.bracket)}</select></div>`
       + `<div><label for="dungeon">${t("Dungeon", "Donjon")}</label><select id="dungeon" name="dungeon">${options([{ value: "", label: t("All dungeons", "Tous les donjons") }, ...dungeons.map((d) => ({ value: String(d.instanceId), label: d.dungeonName }))], filters.instanceId ? String(filters.instanceId) : "")}</select></div>`
       + `<div><label for="class">${t("Class", "Classe")}</label><select id="class" name="class">${options([any, ...CLASSES.map((name) => ({ value: name, label: classLabel(name, lang) }))], filters.className)}</select></div>`
       + `<div><label for="role">${t("Role", "Rôle")}</label><select id="role" name="role">${options([any, ...ROLES.map((role) => ({ value: role, label: roleLabel(role, lang) }))], filters.role)}</select></div>`
@@ -346,7 +358,9 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
         : t(`${n} ranked runs have no recorded role: they count in the overall score only.`, `${n} essais classés n'ont pas de rôle enregistré : ils comptent seulement dans le score global.`)}</p>` : "");
   }
 
-  const intro = (ctx: WebContext, period: PublicPeriod) => `<p class="eyebrow">Guilded · ${escapeHtml(periodName(ctx, period))}</p><h1>${ctx.t("Dungeon leaderboards", "Classements des donjons")}</h1>`
+  const intro = (ctx: WebContext, period: PublicPeriod) => currentEdition() !== "forever"
+    ? `<p class="eyebrow">Guilded · ${escapeHtml(periodName(ctx, period))}</p><h1>${ctx.t("Dungeon leaderboards", "Classements des donjons")}</h1><p>${ctx.t("Runs from this WoW edition only. Dungeon ratings require reviewed season routes and targets; Mythic+ has a separate keystone leaderboard.", "Essais de cette version de WoW seulement. Les cotes nécessitent des parcours et cibles de saison vérifiés; Mythic+ possède son propre classement de clés.")}</p>`
+    : `<p class="eyebrow">Guilded · ${escapeHtml(periodName(ctx, period))}</p><h1>${ctx.t("Dungeon leaderboards", "Classements des donjons")}</h1>`
     + `<p class="muted">${ctx.t("Scores and times from Guilded and Guilded Dungeons players. Runs are checked before they show: impossible times, duplicates and runs the party disagrees on are left out. A run is ranked when the addon saw the final boss die, and it counts for each player who was there for 80% of it. Score per route: 200 × target ÷ time (50–400); a character's best routes in a level bracket add up. Targets are provisional until real launch times exist.",
       "Scores et temps des joueurs de Guilded et Guilded Dungeons. Les essais sont vérifiés avant d'apparaître : temps impossibles, doublons et essais contestés par le groupe sont écartés. Un essai est classé quand l'addon a vu mourir le dernier boss, et il compte pour chaque joueur présent 80 % du temps. Score par parcours : 200 × cible ÷ temps (50–400); les meilleurs parcours d'un personnage dans une tranche de niveaux s'additionnent. Cibles provisoires en attendant de vrais temps.")}`
     + (period.frozenAt ? ` ${ctx.t(`This season's rules were frozen on ${date(period.frozenAt)}.`, `Les règles de cette saison sont figées depuis le ${date(period.frozenAt)}.`)}` : "") + `</p>`;
@@ -391,8 +405,13 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
   async function board(ctx: WebContext, kit: WebKit): Promise<WebResponse> {
     const { t, lang } = ctx;
     const { periods, filters, period } = await pageFilters(ctx);
-    const all = await periodRuns(period);
+    const periodResults = await periodRuns(period);
+    const all = periodResults.filter(run => !(run.gameEdition === "retail" && run.difficultyId === 8));
     const dungeons = dungeonSummaries(all);
+    const filterDungeons = [...dungeons];
+    for (const run of periodResults) if (!filterDungeons.some(d => d.instanceId === run.instanceId)) {
+      filterDungeons.push({ instanceId: run.instanceId, dungeonName: run.dungeonName, bestSec: run.durationSec, runs: 1 });
+    }
     let body: string;
     if (filters.instanceId) {
       const runs = all.filter((run) => run.instanceId === filters.instanceId && (!filters.bracket || run.bracket === filters.bracket));
@@ -422,7 +441,26 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
         + (ranks.length && !filters.className && !filters.role && !filters.realm && !filters.confirmed ? `<h2>${t("Top guilds", "Meilleures guildes")}</h2><div class="grid2">${brackets.map((b) => `<section><h3>${escapeHtml(bracketName(ctx, b.key))}</h3>${guildTable(ctx, ranks.filter((r) => r.bracket === b.key), 5)}</section>`).join("")}</div>`
           + `<p><a href="${link("/leaderboards/guilds/", lang, { season: filters.season, period: filters.week ? "week" : null })}">${t("All guild rankings →", "Tout le classement des guildes →")}</a></p>` : "");
     }
-    return kit.page(200, t("Dungeon leaderboards", "Classements des donjons"), PAGE_CSS + intro(ctx, period) + views(ctx, "characters", filters) + tabs(ctx, filters) + filterForm(ctx, filters, dungeons, periods) + body,
+    if (currentEdition() === "retail") {
+      const eligible = periodResults.filter(run => !filters.instanceId || run.instanceId === filters.instanceId);
+      const ranks = rankChallenges(eligible, keepPlayer(filters));
+      const ratingRules = periodRules(period).keystoneRating;
+      const scores = challengeScores(eligible, ratingRules, keepPlayer(filters));
+      const rating = ratingRules ? `<h2>${t("Guilded Mythic+ rating", "Cote Guilded Mythic+")} · ${escapeHtml(ratingRules.pool)}</h2><p>${t("Provisional rating inspired by Raider.IO: your best score per dungeon, summed across this pool. Each dungeon counts once across affixes and roles. In-time keys only; this is Guilded's own formula, not an official Raider.IO or Blizzard score.", "Cote provisoire inspirée de Raider.IO : somme du meilleur score de chaque donjon. Chaque donjon compte une fois, tous affixes et rôles confondus. Clés à temps seulement; formule propre à Guilded, sans cote officielle Raider.IO ou Blizzard.")}</p>`
+        + `<p>${t("Base points by key level, plus up to 25 points for speed (full bonus at 40% under the timer). Supported keys: +2 to +30. Repeats cannot lower your score.", "Points de base selon la clé, plus un bonus de vitesse de 25 points maximum (bonus complet à 40 % sous le délai). Clés prises en charge : +2 à +30. Une répétition ne réduit jamais la cote.")}</p>`
+        + (scores.length ? `<table><thead><tr><th>${t("Character", "Personnage")}</th><th>${t("Rating", "Cote")}</th><th>${t("Dungeons", "Donjons")}</th></tr></thead><tbody>${scores.slice(0,100).map(r => `<tr><td>${escapeHtml(r.character)}-${escapeHtml(r.realm)}<details><summary>${t("Contributing runs", "Essais comptabilisés")}</summary>${r.best.map(b => `<div>${escapeHtml(b.run.dungeonName)} · +${b.challenge.level} · ${challengeClock(b.challenge.durationMs)} · ${b.points.toFixed(1)}</div>`).join("")}</details></td><td>${r.points.toFixed(1)}</td><td>${r.completed}/${ratingRules.dungeons.length}</td></tr>`).join("")}</tbody></table>` : `<p>${t("No eligible seasonal rating yet.", "Aucune cote de saison admissible pour le moment.")}</p>`) : "";
+      const groups = [...new Set(ranks.map(r => r.group))];
+      const keystones = `<h2>Mythic+ · ${escapeHtml(periodName(ctx, period))}</h2><p>${t("Highest key finished in time, then the official timer. Separate rankings by dungeon and affixes. At least 80% presence; practice runs and overtime runs do not rank. These are community reports, not Blizzard verification.", "Plus haute clé terminée à temps, puis chrono officiel. Classements séparés par donjon et affixes. Présence d'au moins 80 %; entraînement et hors délai exclus. Rapports communautaires, sans vérification Blizzard.")}</p>`
+        + (groups.length ? groups.map(group => {
+          const rows = ranks.filter(r => r.group === group);
+          const first = rows[0]!;
+          return `<h3>${escapeHtml(first.run.dungeonName)} · ${t("Affixes", "Affixes")} ${first.challenge.affixIds.join(", ") || "—"}</h3>`
+            + table(["#", t("Character", "Personnage"), t("Key", "Clé"), t("Official time", "Temps officiel"), t("Run", "Essai")],
+              rows.slice(0, 50).map((r, i) => `<tr><td>${i + 1}</td><td>${who(ctx, r.player)}</td><td>+${r.challenge.level}</td><td>${challengeClock(r.challenge.durationMs)}</td><td><a href="${link(runPath(r.run.runId), lang)}">${date(r.run.endedAt)}</a></td></tr>`), [2, 3]);
+        }).join("") : `<p class="muted">${t("No eligible keys in this period.", "Aucune clé admissible dans cette période.")}</p>`);
+      body = rating + keystones + body;
+    }
+    return kit.page(200, t("Dungeon leaderboards", "Classements des donjons"), PAGE_CSS + intro(ctx, period) + views(ctx, "characters", filters) + tabs(ctx, filters) + filterForm(ctx, filters, filterDungeons, periods) + body,
       { description: t("WoW Forever dungeon scores and leaderboards by season, week, level bracket, dungeon, class, role and realm.", "Scores et classements des donjons WoW Forever par saison, semaine, niveaux, donjon, classe, rôle et royaume.") });
   }
 
@@ -444,11 +482,16 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const season = seasons[0]!;
     const seasonRuns = inPeriod(season);
     const current = mine(characterScores(seasonRuns, periodRules(season)));
+    const keyRules = periodRules(season).keystoneRating;
+    const keyScores = challengeScores(seasonRuns, keyRules, isMe);
+    const keySection = keyScores.length ? `<h2>${t("Provisional Guilded Mythic+ rating", "Cote Guilded Mythic+ provisoire")}</h2>`
+      + keyScores.map(r => `<p><strong>${r.points.toFixed(1)}</strong> · ${r.completed}/${keyRules!.dungeons.length} · ${escapeHtml(r.realm)}</p><ul>${r.best.map(b => `<li><a href="${link(runPath(b.run.runId),lang)}">${escapeHtml(b.run.dungeonName)}</a> · +${b.challenge.level} · ${challengeClock(b.challenge.durationMs)} · ${b.points.toFixed(1)}</li>`).join("")}</ul>`).join("")
+      + `<p>${t("Best score per dungeon across affixes. Guilded's own provisional formula; not an official Raider.IO or Blizzard score.", "Meilleur score de chaque donjon, tous affixes confondus. Formule provisoire propre à Guilded; sans cote officielle Raider.IO ou Blizzard.")}</p>` : "";
     const imagePath = link(`/leaderboards/character/${raw}/card.png`, lang);
     if (image) {
       if (!runs.length) return kit.page(404, t("Not found", "Introuvable"), "", { noindex: true });
       return scoreCardResponse({ title, subtitle: periodName(ctx, season),
-        value: current.length ? current.map(row => `${row.points} (${row.bracket})`).join(" · ") : t("Not rated this season", "Non classé cette saison"),
+        value: keyScores.length ? keyScores.map(r => `${r.points.toFixed(1)} Mythic+`).join(" · ") : current.length ? current.map(row => `${row.points} (${row.bracket})`).join(" · ") : t("Not rated this season", "Non classé cette saison"),
         detail: t("Dungeon score by level bracket", "Score de donjon par tranche de niveaux"),
         footer: t("Community reports · Provisional targets · guilded.kcaron.top", "Rapports communautaires · Cibles provisoires · guilded.kcaron.top")
       }, ctx.request.method === "HEAD");
@@ -468,11 +511,15 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
         + roleSection(ctx, previous, roleScores(inPeriod(previous), periodRules(previous), me), previousRows.map(row => row.bracket)) + `</details>` : "");
     const cell = (run: LeaderRun) => scoreCell(ctx, run, rulesAt(seasons, run.endedAt), run.players.find(isMe));
     const best = new Map<number, LeaderRun>();
-    for (const run of runs) { const b = best.get(run.instanceId); if (!b || run.durationSec < b.durationSec) best.set(run.instanceId, run); }
+    for (const run of runs) {
+      if (run.gameEdition === "retail" && run.difficultyId === 8) continue;
+      const b = best.get(run.instanceId); if (!b || run.durationSec < b.durationSec) best.set(run.instanceId, run);
+    }
     const history = seasons.map((p) => ({ p, rows: mine(characterScores(inPeriod(p), periodRules(p))) })).filter((h) => h.rows.length);
     const top = Math.max(1, ...history.flatMap((h) => h.rows.map((r) => r.points)));
     const body = PAGE_CSS + `<p class="eyebrow">${t("Character", "Personnage")}</p><div class="hero"><h1 class="c-${classSlug(me?.className ?? null)}">${escapeHtml(title)}</h1>`
       + (me?.className ? `<span>${escapeHtml(classLabel(me.className, lang))}${me.level ? ` · ${t("level", "niveau")} ${me.level}` : ""}</span>` : "") + `</div>`
+      + keySection
       + (runs.length ? `<h2>${t("Score", "Score")} · ${escapeHtml(periodName(ctx, seasons[0]!))}</h2>`
         + (current.length ? `<p>${current.map((row) => `<span class="badge">${escapeHtml(bracketName(ctx, row.bracket))}</span> <span class="score">${row.points}</span>`).join(" &nbsp; ")}</p>` : `<p class="muted">${t("No rated run this season yet.", "Aucun essai classé cette saison.")}</p>`)
         + roles + guidance
@@ -503,17 +550,20 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const rules = rulesAt(seasons, run.endedAt);
     const verdict = rateRun(run, rules);
     const period = seasons.find(p => (!p.from || run.endedAt >= p.from) && (!p.to || run.endedAt < p.to));
-    const score = verdict.score ? `${verdict.score.points} · ${verdict.score.bracket}` : t("Unrated", "Non classé");
+    const score = run.challenge ? `+${run.challenge.level} · ${run.challenge.onTime ? t("In time", "À temps") : t("Overtime", "Hors délai")}`
+      : verdict.score ? `${verdict.score.points} · ${verdict.score.bracket}` : t("Unrated", "Non classé");
+    const displayedTime = run.challenge ? challengeClock(run.challenge.durationMs) : time(run.durationSec);
     const evidence = run.confirmations >= 2 ? t("Party confirmed", "Confirmé par le groupe") : t("One upload", "Un envoi");
     const title = run.dungeonName;
     const subtitle = `${period ? periodName(ctx, period) : t("Past run", "Ancien donjon")} · ${date(run.endedAt)} UTC`;
     const imagePath = link(`${runPath(id)}/card.png`, lang);
-    if (image) return scoreCardResponse({ title, subtitle, value: `${time(run.durationSec)} · ${score}`,
+    if (image) return scoreCardResponse({ title, subtitle, value: `${displayedTime} · ${score}`,
       detail: `${evidence} · ${run.players.length} ${t("players", "joueurs")}${run.evidence ? "" : t(" · Older evidence check", " · Ancienne vérification")}`,
       footer: t("Community report · Provisional targets · Not Blizzard verified", "Rapport communautaire · Cibles provisoires · Non vérifié par Blizzard")
     }, ctx.request.method === "HEAD");
-    const description = `${title} · ${time(run.durationSec)} · ${score} · ${evidence}`;
-    return kit.page(200, title, PAGE_CSS + `<h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle)}</p><p class="score">${escapeHtml(time(run.durationSec))} · ${escapeHtml(score)}</p>`
+    const description = `${title} · ${displayedTime} · ${score} · ${evidence}`;
+    return kit.page(200, title, PAGE_CSS + `<h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle)}</p><p class="score">${escapeHtml(displayedTime)} · ${escapeHtml(score)}</p>`
+      + (run.challenge ? `<p>${t("Official timer", "Chrono officiel")} · affixes ${run.challenge.affixIds.join(", ") || "—"}${run.challenge.practiceRun ? ` · ${t("Practice run", "Entraînement")}` : ""}</p>` : "")
       + (verdict.reason ? `<p>${escapeHtml(verdict.reason)}</p>` : "")
       + `<p>${trust(ctx, run)}</p><p>${party(ctx, run)}</p><p>${t("Scores use this run's season rules. Targets are provisional; community uploads are not Blizzard verification.", "Les scores suivent les règles de la saison du donjon. Les cibles sont provisoires; les envois communautaires ne sont pas vérifiés par Blizzard.")}</p>`
       + `<p><a href="${imagePath}">${t("Download run card", "Télécharger la carte du donjon")}</a></p>`, { description, shareImage: imagePath });
@@ -527,7 +577,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const runs = await guildRuns(id, period);
     const roster = new Set((await cached(`roster:${id}`, () => deps.store.guildRoster(id))).map((name) => name.toLowerCase()));
     // Members only: pickup players in the guild's runs keep their own character pages.
-    const scores = characterScores(runs, periodRules(period)).filter((row) => roster.has(row.player.character.toLowerCase()));
+    const scores = characterScores(runs, periodRules(period)).filter((row) => roster.has(characterKey(row.player.character, row.player.realm, currentEdition())));
     const ranks = await guildRanks(period);
     const standing = periodRules(period).brackets.flatMap((b) => {
       const inBracket = ranks.filter((r) => r.bracket === b.key);
@@ -600,5 +650,10 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       + `<form method="post" action="/me/pair">${csrf}<p><button class="link" type="submit">${connected ? t("Get a new companion code", "Obtenir un nouveau code") : t("Get a companion code", "Obtenir un code de compagnon")}</button></p></form></details>`;
   }
 
-  return { route, meSection };
+  return { route: (ctx, kit) => {
+    let edition;
+    try { edition = gameEditionOf({ gameEdition: ctx.request.query.get("edition") ?? "forever" }); }
+    catch { return Promise.resolve(kit.page(400, "Unknown WoW edition", "")); }
+    return withEdition(edition, () => route(ctx, kit));
+  }, meSection };
 }

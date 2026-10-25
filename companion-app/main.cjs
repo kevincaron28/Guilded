@@ -51,6 +51,7 @@ let config = { ...DEFAULTS };
 const logs = [];
 
 const configFile = () => path.join(app.getPath("userData"), "config.json");
+const profileJournalFile = () => path.join(app.getPath("userData"), !config.activeProfile || config.activeProfile === "default" ? "poe-journal.json" : `poe-journal-${config.activeProfile}.json`);
 const asset = (name) => path.join(__dirname, "assets", name);
 
 function loadConfig() {
@@ -76,7 +77,7 @@ async function loadEngineModules() {
   const dir = app.isPackaged ? path.join(process.resourcesPath, "engine") : path.join(__dirname, "..", "companion");
   const url = (file) => pathToFileURL(path.join(dir, file)).href;
   const [engineModule, standingsModule, requestModule, sheetModule, liveFolderModule] = await Promise.all([import(url("engine.mjs")), import(url("standings.mjs")), import(url("request.mjs")), import(url("sheet-export.mjs")), import(url("live-folder.mjs"))]);
-  return { ...engineModule, ...standingsModule, ...requestModule, sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile };
+  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profiles.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile };
 }
 
 function pushLog(entry) {
@@ -282,7 +283,7 @@ app.whenReady().then(async () => {
     engineModules = await loadEngineModules();
     loadConfig();
     try { const preference = JSON.parse(fs.readFileSync(path.join(app.getPath("userData"), "language.json"), "utf8")); if (["en", "fr"].includes(preference.language)) selectedLanguage = preference.language; } catch { /* use system language */ }
-    config.poeJournalFile = path.join(app.getPath("userData"), "poe-journal.json");
+    config.poeJournalFile = profileJournalFile();
     engine = engineModules.createEngine(config, {
       onLog: (entry) => pushLog(entry),
       onState
@@ -333,6 +334,20 @@ app.on("window-all-closed", () => { /* stay in the tray */ });
 app.on("before-quit", () => { quitting = true; });
 
 ipcMain.handle("get-all", () => ({ config, language: language(), logs, ...currentState(), autostart: app.getLoginItemSettings().openAtLogin, version: app.getVersion() }));
+ipcMain.handle("list-profiles", () => ({ active: config.activeProfile || "default", profiles: engineModules.profileChoices(config) }));
+ipcMain.handle("change-profile", async (_event, choice) => {
+  try {
+    if (signIn) return { ok: false, message: "Finish or cancel Discord sign-in before switching connections." };
+    await engine.stop();
+    config = choice.name ? engineModules.addProfile(config, choice.name) : engineModules.switchProfile(config, choice.id);
+    config.poeJournalFile = path.join(app.getPath("userData"), config.activeProfile === "default" ? "poe-journal.json" : `poe-journal-${config.activeProfile}.json`);
+    saveConfig();
+    savedFile = null;
+    await engine.configure(config);
+    onState(engine.state());
+    return { ok: true, message: "Connection selected." };
+  } catch (error) { return { ok: false, message: error.message }; }
+});
 
 ipcMain.handle("set-language", (_event, value) => {
   if (!["en", "fr"].includes(value)) throw new Error("Unsupported language");
@@ -345,7 +360,7 @@ ipcMain.handle("set-language", (_event, value) => {
 });
 
 ipcMain.handle("save-config", async (_event, next) => {
-  config = { ...config, ...next, poeJournalFile: path.join(app.getPath("userData"), "poe-journal.json"), standingsIntervalMinutes: Math.max(1, Number(next.standingsIntervalMinutes) || 2) };
+  config = { ...config, ...next, poeJournalFile: profileJournalFile(), standingsIntervalMinutes: Math.max(1, Number(next.standingsIntervalMinutes) || 2) };
   const problems = engineModules.validateConfig(config);
   saveConfig();
   void refreshSavedFile();
@@ -424,7 +439,7 @@ ipcMain.handle("test-connection", (_event, next) => engineModules.testConnection
 async function applyPairing(next, result) {
   if (!result.ok) return result;
   // A code from guilded.kcaron.top/me/ pairs a personal account (public dungeon runs, no guild).
-  config = { ...config, ...next, ...(result.uploadUrl ? { uploadUrl: result.uploadUrl } : {}), pairingCode: "", companionCredential: result.companionCredential, personal: result.personal === true, guildDiscordId: result.personal ? "" : result.guildDiscordId || next.guildDiscordId || config.guildDiscordId };
+  config = { ...config, ...next, gameEdition: result.gameEdition, wowGuildId: result.wowGuildId, wowGuildName: result.wowGuildName, ...(result.uploadUrl ? { uploadUrl: result.uploadUrl } : {}), pairingCode: "", companionCredential: result.companionCredential, personal: result.personal === true, guildDiscordId: result.personal ? "" : result.guildDiscordId || next.guildDiscordId || config.guildDiscordId };
   saveConfig();
   const started = await engine.configure(config);
   return {

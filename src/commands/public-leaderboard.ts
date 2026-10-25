@@ -1,3 +1,4 @@
+import { guildWhere } from "../services/guild-scope.js";
 import { MessageFlags, SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember } from "discord.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
@@ -14,7 +15,7 @@ export async function executePublicLeaderboard(interaction: ChatInputCommandInte
     await interaction.reply({ content: "Only Officers, Guild Masters and server administrators can change this.", flags: MessageFlags.Ephemeral });
     return;
   }
-  const guild = await prisma.guild.findUnique({ where: { discordId: interaction.guildId }, select: { id: true } });
+  const guild = await prisma.guild.findUnique({ where: guildWhere(interaction.guildId), select: { id: true } });
   if (!guild) { await interaction.reply({ content: "Run `/setup start` first.", flags: MessageFlags.Ephemeral }); return; }
   const share = interaction.options.getBoolean("share", true);
   const settings = await prisma.guildSettings.upsert({ where: { guildId: guild.id }, create: { guildId: guild.id, publicDungeonRuns: share }, update: { publicDungeonRuns: share } });

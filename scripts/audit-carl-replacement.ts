@@ -1,3 +1,4 @@
+import { guildWhere } from "../src/services/guild-scope.js";
 // Read-only inventory using existing bot credentials; no gateway login or writes.
 import { REST, Routes, ChannelType, type APIChannel, type APIRole, type APIMessage } from "discord.js";
 import { config } from "../src/config.js";
@@ -8,7 +9,7 @@ try {
   const [roles, channels, guild] = await Promise.all([
     rest.get(Routes.guildRoles(config.DISCORD_GUILD_ID)) as Promise<APIRole[]>,
     rest.get(Routes.guildChannels(config.DISCORD_GUILD_ID)) as Promise<APIChannel[]>,
-    prisma.guild.findUnique({ where: { discordId: config.DISCORD_GUILD_ID }, include: { settings: true } })
+    prisma.guild.findUnique({ where: guildWhere(config.DISCORD_GUILD_ID), include: { settings: true } })
   ]);
   const settings = guild?.settings;
   const games = roles.filter(role => /wow|warcraft|poe|exile|diablo|gaming/i.test(role.name));

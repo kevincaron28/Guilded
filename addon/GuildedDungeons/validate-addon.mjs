@@ -3,6 +3,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { validateCombatLog } from "../../scripts/validate-combat-log.mjs";
 import { check as copiesMatch, tocFiles } from "../../scripts/build-dungeons-addon.mjs";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
@@ -27,7 +28,7 @@ let luaparse = null;
 try { luaparse = (await import("luaparse")).default; } catch { console.warn("luaparse not installed; skipping the GuildedDungeons syntax check."); }
 for (const file of files) {
   const source = readFileSync(join(root, file), "utf8");
-  if (/["']COMBAT_LOG_EVENT(?:_UNFILTERED)?["']/.test(source)) throw new Error(`GuildedDungeons/${file} registers a combat log event`);
+  validateCombatLog(source.replaceAll("\r\n", "\n"), file === "Shared/Dungeon.lua");
   if (file !== "Shared/Util.lua" && /SendAddonMessage\(/.test(source)) throw new Error(`GuildedDungeons/${file} calls SendAddonMessage directly; use ns.comm.send`);
   // Its own data only: never write Guilded's SavedVariables.
   if (file === "Shim.lua" || file === "Main.lua") { if (/GuildedDB\b/.test(source)) throw new Error(`GuildedDungeons/${file} touches GuildedDB`); }

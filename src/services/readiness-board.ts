@@ -5,7 +5,7 @@ import { createGuildService } from "./guild.js";
 import { deliverDiscordJob, dispatchDiscordJob } from "./discord-jobs.js";
 import { participationDay } from "./participation-rules.js";
 
-import { assessRaidReadiness, RAID_LEVEL, type RaidReadinessStatus } from "./readiness.js";
+import { assessRaidReadiness, raidLevel, type RaidReadinessStatus } from "./readiness.js";
 
 const guildService = createGuildService(prisma);
 
@@ -56,7 +56,7 @@ export async function buildReadinessLines(database: Db, guildId: string, options
   rows.sort((a, b) => a.name.localeCompare(b.name));
   const count = (status: RaidReadinessStatus) => rows.filter(row => row.status === status).length;
   const summary = `**${count("READY")} gear ready · ${count("PARTIAL") + count("NOT_READY")} need attention · ${count("LEVELLING")} levelling · ${count("UNKNOWN") + noData.length} need sync**`;
-  const lines = [summary, `Level ${RAID_LEVEL} required · latest uploaded character per member · gear checks valid for 24h.`,
+  const lines = [summary, `Level ${raidLevel()} required · latest uploaded character per member · gear checks valid for 24h.`,
     options.attunement ? `Target attunement: **${safe(options.attunement)}**.` : "Attunements are not checked unless a target is selected; consumables are listed separately when scanned."];
   for (const [title, statuses] of [
     ["Raid candidates — action needed", ["NOT_READY", "PARTIAL"]],
@@ -117,7 +117,7 @@ export async function queueDailyReadiness(database: Pick<PrismaClient, "discordJ
     where: { guildId_key: { guildId, key: `readiness:${day}` } },
     create: { guildId, key: `readiness:${day}`, kind: "MESSAGE", payload: {
       route: "readiness", day, timezone,
-      message: { embeds: [{ title: "Raid readiness · Level 60", color: 0xd4af37, description: `${description}\n\nFull current report: \`/lead readiness-raid\`.` }] }
+      message: { embeds: [{ title: `Raid readiness · Level ${raidLevel()}`, color: 0xd4af37, description: `${description}\n\nFull current report: \`/lead readiness-raid\`.` }] }
     } },
     update: {}
   });

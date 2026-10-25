@@ -1,11 +1,12 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { characterPath, runPath, leaderRun, PUBLIC_RUN_SELECT, type LeaderRun } from "./public-leaderboard.js";
-import { scoreRun } from "./public-score.js";
+import { scoreRun, publicRules } from "./public-score.js";
+import { gameEditionOf } from "./game-edition.js";
 import { formatDuration } from "./dungeon-rules.js";
 import { escapeHtml, link } from "./web-layout.js";
 import type { WebContext, WebRoute } from "./web-app.js";
 
-export interface ProfileCharacter { name: string; displayName?: string | null; realm: string; source: "guild" | "companion" }
+export interface ProfileCharacter { name: string; gameEdition?: string; displayName?: string | null; realm: string; source: "guild" | "companion" }
 export interface PlayerProfile { id: string; name: string; public: boolean; characters: ProfileCharacter[]; runs: LeaderRun[] }
 export interface ProfileStore {
   list(page: number): Promise<{ id: string; name: string }[]>;
@@ -21,26 +22,26 @@ export function prismaProfileStore(database: PrismaClient, allows: (id: string) 
     },
     async get(id) {
       const account = await database.webAccount.findUnique({ where: { id }, select: {
-        id: true, discordUserId: true, username: true, displayName: true, publicProfile: true, characters: { select: { name: true, displayName: true, realm: true }, take: 100 }
+        id: true, discordUserId: true, username: true, displayName: true, publicProfile: true, characters: { select: { name: true, displayName: true, realm: true, gameEdition: true }, take: 100 }
       } });
       if (!account) return null;
       const linked = await database.character.findMany({
         where: { member: { discordUserId: account.discordUserId, status: "ACTIVE" } },
-        select: { name: true, displayName: true, realm: true, member: { select: { guild: { select: { discordId: true } } } } }, take: 100
+        select: { name: true, displayName: true, realm: true, gameEdition: true, member: { select: { guild: { select: { discordId: true } } } } }, take: 100
       });
       const characters: ProfileCharacter[] = [];
       for (const char of [
-        ...linked.filter(c => allows(c.member.guild.discordId)).map(c => ({ name: c.name, displayName: c.displayName, realm: c.realm, source: "guild" as const })),
+        ...linked.filter(c => allows(c.member.guild.discordId)).map(c => ({ name: c.name, gameEdition: c.gameEdition, displayName: c.displayName, realm: c.realm, source: "guild" as const })),
         ...account.characters.map(c => ({ ...c, source: "companion" as const }))
       ]) {
-        if (char.realm && !characters.some(c => c.name.toLowerCase() === char.name.toLowerCase() && c.realm.toLowerCase() === char.realm.toLowerCase())) characters.push(char);
+        if (char.realm && !characters.some(c => c.name.toLowerCase() === char.name.toLowerCase() && c.realm.toLowerCase() === char.realm.toLowerCase() && gameEditionOf(c) === gameEditionOf(char))) characters.push(char);
       }
       // Only public, accepted runs. A profile never promotes private guild run data.
       // One bounded query even for accounts with many alts.
       const runs = characters.length ? await database.publicRun.findMany({
-        where: { status: "ACCEPTED", players: { some: { OR: characters.slice(0, 25).map(char => ({
+        where: { status: "ACCEPTED", OR: characters.slice(0, 25).map(char => ({ gameEdition: gameEditionOf(char), players: { some: {
           character: { equals: char.name, mode: "insensitive" as const }, realm: { equals: char.realm, mode: "insensitive" as const }
-        })) } } },
+        } } })) },
         orderBy: [{ endedAt: "desc" }, { id: "asc" }], take: 50, select: PUBLIC_RUN_SELECT
       }) : [];
       return { id: account.id, name: account.displayName ?? account.username, public: account.publicProfile, characters, runs: runs.map(leaderRun) };
@@ -53,10 +54,10 @@ export function createPlayerProfiles(store: ProfileStore): { route: WebRoute; me
   const path = (id: string) => `/players/${encodeURIComponent(id)}`;
   function details(ctx: WebContext, profile: PlayerProfile): string {
     const { t, lang } = ctx;
-    const characters = profile.characters.map(char => `<li><a href="${link(characterPath({ character: char.name, realm: char.realm }), lang)}">${escapeHtml(char.displayName || char.name)}</a> · ${escapeHtml(char.realm)} <span class="tag">${char.source === "guild" ? t("Linked in Discord", "Lié dans Discord") : t("Companion character", "Personnage du compagnon")}</span></li>`).join("");
+    const characters = profile.characters.map(char => `<li><a href="${link(characterPath({ character: char.name, realm: char.realm }), lang, { edition: char.gameEdition ?? "forever" })}">${escapeHtml(char.displayName || char.name)}</a> · ${escapeHtml(char.realm)} <span class="tag">${char.source === "guild" ? t("Linked in Discord", "Lié dans Discord") : t("Companion character", "Personnage du compagnon")}</span></li>`).join("");
     const runs = profile.runs.map(run => {
-      const score = scoreRun(run);
-      return `<tr><td><a href="${link(runPath(run.runId), lang)}">${escapeHtml(run.dungeonName)}</a></td><td>${run.endedAt.toISOString().slice(0, 10)}</td><td>${formatDuration(run.durationSec)}</td><td>${score ? `${score.points}` : "—"}</td><td>${run.confirmations >= 2 ? t("Party confirmed", "Confirmé par le groupe") : t("One upload", "Un envoi")}</td></tr>`;
+      const score = scoreRun(run, publicRules(gameEditionOf(run)));
+      return `<tr><td><a href="${link(runPath(run.runId), lang, { edition: run.gameEdition ?? "forever" })}">${escapeHtml(run.dungeonName)}</a></td><td>${run.endedAt.toISOString().slice(0, 10)}</td><td>${formatDuration(run.durationSec)}</td><td>${score ? `${score.points}` : "—"}</td><td>${run.confirmations >= 2 ? t("Party confirmed", "Confirmé par le groupe") : t("One upload", "Un envoi")}</td></tr>`;
     }).join("");
     return `<h2>${t("Characters", "Personnages")}</h2>${characters ? `<ul>${characters}</ul>` : `<p>${t("No linked characters yet. Link a character in your guild's Discord, or upload a completed run with your personal companion.", "Aucun personnage lié. Liez un personnage dans le Discord de votre guilde ou envoyez un donjon terminé avec votre compagnon personnel.")}</p>`}`
       + `<h2>${t("Recent public runs", "Donjons publics récents")}</h2><p>${t("Latest 50 accepted runs. Open a character for seasonal scores and best runs. Uploads are community reports, not Blizzard verification.", "Les 50 derniers donjons acceptés. Ouvrez un personnage pour ses scores saisonniers et meilleurs donjons. Les envois sont des rapports communautaires, sans vérification de Blizzard.")}</p>`

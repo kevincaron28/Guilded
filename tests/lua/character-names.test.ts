@@ -15,6 +15,19 @@ function client(build = 16001) {
   return session;
 }
 describe("Forever display names without changing accounting identity", () => {
+  it("keeps same-named party members on separate realms and falls back for local units", () => {
+    const s = client(120105);
+    s.run(`GetNormalizedRealmName = function() return "Area52" end
+      UnitFullName = function(unit) return "Amy", unit == "party1" and "Illidan" or "" end
+      IsInGroup = function() return true end
+      IsInRaid = function() return false end`);
+    expect(s.run('return NS.util.unitKey("party1")')).toBe("Amy-illidan");
+    expect(s.run('return NS.util.unitKey("player")')).toBe("Amy-area52");
+    expect(s.run('return tostring(NS.util.inMyGroup("Amy-illidan"))')).toBe("true");
+    expect(s.run('return tostring(NS.util.inMyGroup("Amy-other"))')).toBe("false");
+    s.run('issecretvalue=function(value) return value == "HIDDEN_REALM" end');
+    expect(s.run('return tostring(NS.util.characterKey("Amy","HIDDEN_REALM"))')).toBe("nil");
+  });
   it("captures both names and preserves the existing key and points", () => {
     const s = client();
     expect(s.run('return GuildedDB.character.displayName')).toBe("Halidor Galemorne");
@@ -28,6 +41,11 @@ describe("Forever display names without changing accounting identity", () => {
     expect(s.run('return GuildedDB.character.displayName')).toBe("Halidor");
     s.run('GuildedDB.displayNames = { Halidor = "Halidor Galemorne" }');
     expect(s.run('return NS.displayName("Halidor")')).toBe("Halidor");
+  });
+  it.each([[16001, "forever"], [11509, "classic-era"], [20506, "classic-tbc"], [50504, "classic-mists"], [120105, "retail"]] as const)("captures client provenance for interface %i", (build, edition) => {
+    const s = client(build);
+    expect(s.run('return GuildedDB.character.gameEdition')).toBe(edition);
+    expect(s.run('return GuildedDB.character.interface')).toBe(String(build));
   });
   it("uses the observed surname API when GetUnitName is unavailable", () => {
     const s = client();

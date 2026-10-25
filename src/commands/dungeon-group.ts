@@ -8,7 +8,7 @@ import {
 import type { DungeonGroup, RaidRole } from "../generated/prisma/client.js";
 import { prisma } from "../database.js";
 import { serializeDungeonGroup } from "../services/dungeon-group-queue.js";
-import { hasPermission, isPermissionRoleName } from "../permissions.js";
+import { hasPermission, isPermissionRole } from "../permissions.js";
 import { asGroupKind, createDungeonGroupService, GROUP_CAPS, GROUP_KINDS, groupSize, shouldDeleteVoice, shouldDeleteClosedPost, shouldExpireOpenGroup, type GroupKind } from "../services/dungeon-group.js";
 import { DUNGEON_GUIDE_CREATE_ID, DUNGEON_GUIDE_KIND_ID, LFG_ROLE_NAMES } from "../services/dungeon-guide.js";
 import { alertRecipients, dungeonLevelsFromTitle, parseLevelRange, rolesFromTitle, type AlertGroup } from "../services/group-alerts.js";
@@ -236,7 +236,7 @@ async function dungeonVoiceOverwrites(guild: DiscordGuild, group: DungeonGroup):
   const me = guild.members.me;
   const allow = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak];
   const userIds = new Set([...signups.map((s) => s.member.discordUserId), ...(leader ? [leader.discordUserId] : [])]);
-  const leadership = guild.roles.cache.filter((role) => isPermissionRoleName("guildMaster", role.name) || isPermissionRoleName("officer", role.name));
+  const leadership = guild.roles.cache.filter((role) => isPermissionRole("guildMaster", role) || isPermissionRole("officer", role));
   return [
     { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.Connect] },
     ...[...userIds].map((id) => ({ id, allow })),

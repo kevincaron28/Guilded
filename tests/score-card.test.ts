@@ -67,6 +67,6 @@ describe("shareable dungeon cards", () => {
   it("queries only accepted public data for a direct run URL", async () => {
     const findFirst = vi.fn(async () => null);
     expect(await prismaLeaderboardStore({ publicRun: { findFirst } } as never).run!("rejected")).toBeNull();
-    expect(findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "rejected", status: "ACCEPTED" } }));
+    expect(findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "rejected", status: "ACCEPTED", gameEdition: "forever" } }));
   });
 });

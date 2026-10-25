@@ -1,7 +1,8 @@
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { startSeason } from "./dungeon-admin.js";
-import { validBracketedRules, type BracketedRules } from "./dungeon-november-rules.js";
+import { createBracketedDungeonRules, validBracketedRules, type BracketedRules } from "./dungeon-november-rules.js";
 import { addedRules, publicRules, readRuleSnapshot, snapshotRules, type PublicRuleSnapshot } from "./public-score.js";
+import { currentEdition } from "./edition-context.js";
 
 // The bot-wide dungeon season calendar (7.3, owner 20 October 2026: "only I control when a season
 // starts and ends ... the first real season starting November 4th, then we change season when a
@@ -38,7 +39,7 @@ export function scheduledNext(windows: OfficialWindow[], now: Date): OfficialWin
 type Db = Pick<PrismaClient, "officialSeason">;
 
 export async function loadOfficialWindows(database: Db): Promise<OfficialWindow[]> {
-  return officialWindows(await database.officialSeason.findMany({ select: { number: true, name: true, startsAt: true, rules: true }, orderBy: { startsAt: "asc" } }));
+  return officialWindows(await database.officialSeason.findMany({ where: { gameEdition: currentEdition() }, select: { number: true, name: true, startsAt: true, rules: true }, orderBy: { startsAt: "asc" } }));
 }
 
 /**
@@ -48,7 +49,7 @@ export async function loadOfficialWindows(database: Db): Promise<OfficialWindow[
  * and the penalty keep their frozen values until the next season. Seasons that ended are never touched.
  */
 export async function freezeSeasonRules(database: Db, now: Date, current: BracketedRules = publicRules()): Promise<{ season: string; frozen: boolean; routes: string[]; brackets: string[] } | null> {
-  const row = await database.officialSeason.findFirst({ where: { startsAt: { lte: now } }, orderBy: { startsAt: "desc" }, select: { id: true, name: true, rules: true } });
+  const row = await database.officialSeason.findFirst({ where: { gameEdition: currentEdition(), startsAt: { lte: now } }, orderBy: { startsAt: "desc" }, select: { id: true, name: true, rules: true } });
   if (!row) return null;
   const save = (snapshot: PublicRuleSnapshot) => database.officialSeason.update({ where: { id: row.id }, data: { rules: snapshot as unknown as Prisma.InputJsonValue } });
   if (row.rules === null) {
@@ -65,6 +66,21 @@ export async function freezeSeasonRules(database: Db, now: Date, current: Bracke
 
 export class SeasonCalendarError extends Error {}
 
+/** Install reviewed routes for the next season without rewriting historical scores. */
+export async function configureNextSeasonRules(database: Db, input: unknown, now = new Date()): Promise<number> {
+  const data = input as { gameEdition?: unknown } | null;
+  if (!data || (data.gameEdition ?? "forever") !== currentEdition()) throw new SeasonCalendarError("Rules must name the selected WoW edition.");
+  let rules: BracketedRules;
+  try { rules = createBracketedDungeonRules(input); }
+  catch (error) { throw new SeasonCalendarError(`Invalid dungeon rules: ${error instanceof Error ? error.message : String(error)}`); }
+  if (!rules.routes.length || !rules.brackets.length) throw new SeasonCalendarError("Supply reviewed routes and at least one rated bracket.");
+  const next = await database.officialSeason.findFirst({ where: { gameEdition: currentEdition(), startsAt: { gt: now } }, orderBy: { startsAt: "asc" }, select: { id: true } });
+  if (!next) throw new SeasonCalendarError("Schedule this edition's next season first.");
+  const changed = await database.officialSeason.updateMany({ where: { id: next.id, gameEdition: currentEdition(), startsAt: { gt: new Date(Math.max(now.getTime(), Date.now())) } }, data: { rules: snapshotRules(rules, now) as unknown as Prisma.InputJsonValue } });
+  if (changed.count !== 1) throw new SeasonCalendarError("The season has started. Schedule the next season to change its rules.");
+  return rules.routes.length;
+}
+
 /**
  * Schedules the next season (it ends the current one at `startsAt`). Replaces a next season that
  * has not started yet; never edits a season that already started.
@@ -78,8 +94,9 @@ export async function scheduleNextSeason(database: Db, input: { name?: string | 
   const number = pending?.number ?? (current?.number ?? 0) + 1;
   const name = (input.name?.trim() || `Season ${number}`).slice(0, 60);
   // Only one season can wait to start: re-scheduling replaces it.
-  await database.officialSeason.deleteMany({ where: { startsAt: { gt: now } } });
-  await database.officialSeason.create({ data: { number, name, startsAt: input.startsAt, createdBy: input.actorId } });
+  await database.officialSeason.deleteMany({ where: { gameEdition: currentEdition(), startsAt: { gt: now } } });
+  await database.officialSeason.create({ data: { gameEdition: currentEdition(), number, name, startsAt: input.startsAt, createdBy: input.actorId,
+    ...(pending?.rules ? { rules: pending.rules as unknown as Prisma.InputJsonValue } : {}) } });
   return { number, name, start: input.startsAt, end: null };
 }
 
@@ -87,7 +104,7 @@ export async function scheduleNextSeason(database: Db, input: { name?: string | 
 export async function cancelNextSeason(database: Db, now = new Date()): Promise<OfficialWindow | null> {
   const pending = scheduledNext(await loadOfficialWindows(database), now);
   if (!pending) return null;
-  await database.officialSeason.deleteMany({ where: { startsAt: { gt: now } } });
+  await database.officialSeason.deleteMany({ where: { gameEdition: currentEdition(), startsAt: { gt: now } } });
   return pending;
 }
 
@@ -103,7 +120,7 @@ export async function rotateOfficialSeasons(database: RotationDb, windows: Offic
   // Never seed guild seasons from local overrides or a changing code default.
   // A failed/malformed official snapshot must stop rotation until it is repaired.
   if (!window.rules) throw new Error("Official dungeon rules must be frozen before guild seasons can start.");
-  const rows = await database.guildSettings.findMany({ select: { guildId: true, guild: { select: { discordId: true } } } });
+  const rows = await database.guildSettings.findMany({ where: { guild: { gameEdition: currentEdition() } }, select: { guildId: true, guild: { select: { discordId: true } } } });
   const rotated: OfficialRotation[] = [];
   let backedUp = false;
   for (const row of rows) {

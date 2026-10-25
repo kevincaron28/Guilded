@@ -28,6 +28,7 @@ local function now()
 end
 
 local function playerName()
+  if ns.util and ns.util.unitKey then return ns.util.unitKey("player") or "Unknown" end
   local name = UnitName("player")
   -- Same spelling as everyone else's entry for you (no realm part).
   if type(name) == "string" and not (issecretvalue ~= nil and issecretvalue(name) == true) then
@@ -56,6 +57,7 @@ end
 -- up as separate ledger, roster, or attendance entries. Only ASCII letters
 -- change case; accented names pass through untouched.
 local function normalizeName(name)
+  if ns.util and ns.util.characterKey then return ns.util.characterKey(name) end
   if type(name) ~= "string" or isSecret(name) then return nil end
   name = string.match(name, "^%s*(.-)%s*$")
   -- Legacy accounting key. Forever surnames are preserved separately for display;
@@ -810,8 +812,10 @@ local function collectCharacter()
     if most > 0 and not tied then spec = selected end
   end
   return {
-    name = playerName(),
+    name = ns.util.bareName(playerName()),
     displayName = ns.util.unitDisplayName("player"),
+    gameEdition = ns.util.gameEdition(),
+    interface = ns.util.clientInterface(),
     realm = (ns.compat and ns.compat.identity().realm) or (GetRealmName and GetRealmName()) or "",
     class = classFile or "",
     race = raceFile or "",
@@ -847,7 +851,8 @@ local function characterString(info)
   local function clean(value) return (string.gsub(tostring(value or ""), "[|;]", "")) end
   return "QG2;" .. table.concat({
     clean(info.name), clean(info.realm), clean(info.class), clean(info.race),
-    tostring(info.level or 0), clean(info.spec), table.concat(professions, ","), clean(info.displayName)
+    tostring(info.level or 0), clean(info.spec), table.concat(professions, ","), clean(info.displayName),
+    clean(info.gameEdition), clean(info.interface)
   }, ";")
 end
 
@@ -1163,10 +1168,23 @@ local READINESS_SLOTS = {
 -- Equipment slots where a missing enchant is worth flagging. Officers can
 -- turn the check off or set the level it starts at with /guilded enchants.
 local ENCHANTABLE = { Chest = true, Legs = true, Feet = true, Wrist = true, Hands = true, MainHand = true }
-local DEFAULT_ENCHANT_MIN_LEVEL = 60
+local edition = ns.util.gameEdition()
+local DEFAULT_ENCHANT_MIN_LEVEL = (edition == "retail" or edition == "classic-mists") and 90 or edition == "classic-tbc" and 70 or 60
+if edition == "retail" then
+  ENCHANTABLE = { Head = true, Shoulder = true, Chest = true, Legs = true, Feet = true, Finger0 = true, Finger1 = true, MainHand = true }
+elseif edition == "classic-mists" then
+  ENCHANTABLE.Back, ENCHANTABLE.Shoulder = true, true
+elseif edition == "classic-tbc" then
+  ENCHANTABLE.Back, ENCHANTABLE.Head, ENCHANTABLE.Shoulder = true, true, true
+end
 -- Below this level an empty head or shoulder slot is normal (levelling gear), so empty slots are
 -- only a note there, not "Not ready". /guilded slots level <n> changes it (1 = always count).
-local DEFAULT_SLOT_MIN_LEVEL = 60
+local DEFAULT_SLOT_MIN_LEVEL = DEFAULT_ENCHANT_MIN_LEVEL
+if edition ~= "forever" then
+  table.insert(READINESS_SLOTS, { 15, "Back" })
+  table.insert(READINESS_SLOTS, { 11, "Finger0" })
+  table.insert(READINESS_SLOTS, { 12, "Finger1" })
+end
 
 -- `tries` is set only by the automatic checks (login, gear and talent changes): right after
 -- login WoW Forever can report every slot empty for a few seconds, and such a check used to
@@ -2018,13 +2036,14 @@ local function noteMyCharacter(info)
   local key = currentGuildKey()
   if not key or (db.guildKey and db.guildKey ~= key) then return end
   db.myCharacters = db.myCharacters or {}
-  db.myCharacters[info.name] = info
+  local key = ns.util.characterKey(info.name, info.realm)
+  db.myCharacters[key] = info
   local count, oldestName, oldestAt = 0, nil, nil
   for name, entry in pairs(db.myCharacters) do
     count = count + 1
     if not oldestAt or (entry.capturedAt or "") < oldestAt then oldestName, oldestAt = name, entry.capturedAt or "" end
   end
-  if count > 50 and oldestName and oldestName ~= info.name then db.myCharacters[oldestName] = nil end
+  if count > 50 and oldestName and oldestName ~= key then db.myCharacters[oldestName] = nil end
 end
 
 -- Joining a guild mid-session: GetGuildInfo stays empty for a few seconds after

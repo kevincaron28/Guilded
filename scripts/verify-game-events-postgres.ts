@@ -22,6 +22,9 @@ async function verifyBusyEventPool(guildId: string, now: Date) {
     }, { timeout: 10_000 });
     await Promise.all([holder, (async () => {
       await ready;
+      // Unconfigured transactions (community jobs, imports, etc.) must also wait
+      // successfully; per-feature options alone would leave those jobs broken.
+      await busy.$transaction(async tx => { await tx.$queryRaw`SELECT 1`; });
       await queueGameEvents(busy, { guildId }, now);
     })()]);
   } finally { await busy.$disconnect(); }
@@ -37,6 +40,14 @@ export async function verifyGameEventsPostgres(database: PrismaClient, guildId: 
   const board = await database.gameEventBoard.create({ data: { guildId, channelId: "release-test-events", enabled: true, games: ["POE2"], region: "NA", poeRoleId: "opt-in-role", poeReminders: [60], poeRemindersEnabledAt: new Date(now.getTime() - 1000) } });
   await verifyBusyEventPool(guildId, now);
   await Promise.all([1, 2, 3].map(() => queueGameEvents(database, { guildId }, now)));
+  const boardKey = { guildId_key: { guildId, key: `game-board:${board.id}` } };
+  const retryAt = new Date(now.getTime() + 10 * 60_000);
+  await database.discordJob.update({ where: boardKey, data: { attempts: 3, lastError: "50013", nextAttemptAt: retryAt } });
+  await Promise.all([1, 2, 3].map(() => queueGameEvents(database, { guildId }, now)));
+  const pending = await database.discordJob.findUniqueOrThrow({ where: boardKey });
+  assert.equal(pending.attempts, 3); // refreshing never bypasses failure backoff
+  assert.equal(pending.nextAttemptAt.getTime(), retryAt.getTime());
+  assert.equal(await database.discordJob.count({ where: { guildId, key: `game-board:${board.id}` } }), 1);
   const jobs = await database.discordJob.findMany({ where: { guildId, kind: "GAME_EVENT_REMINDER" } });
   assert.equal(jobs.length, 1);
   let sends = 0;

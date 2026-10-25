@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Collection, ChannelType, PermissionFlagsBits, type Guild, type TextChannel } from "discord.js";
 import type { DiscordJob, GameEventBoard, OfficialGameEvent, PrismaClient } from "../src/generated/prisma/client.js";
-import { effectiveEventState, eventBoardEmbeds, eventCountdown, eventDetails, officialEventSource, parseEventInstant, reminderDue, saveOfficialEvent, validateEvent, visibleEvent } from "../src/services/game-events.js";
+import { effectiveEventState, eventBoardEmbeds, eventCountdown, eventDetails, eventEmbedsHash, officialEventSource, parseEventInstant, queueGameEvents, reminderDue, saveOfficialEvent, validateEvent, visibleEvent } from "../src/services/game-events.js";
 import { deliverGameEvent, eventRole, findEventMessage } from "../src/services/game-events-discord.js";
 import { ownerEventsCommand, executeGameEvents, executeOwnerEvents } from "../src/commands/game-events.js";
 
@@ -100,6 +100,40 @@ describe("reminder eligibility", () => {
     expect(reminderDue(event(), board({ wowRemindersEnabledAt: new Date(now.getTime() + 1) }), 0, now)).toBe(false);
     for (const update of [{ enabled: false }, { wowRoleId: null }, { wowReminders: [] }, { games: ["POE2"] }, { region: "EU" }]) expect(reminderDue(event(), board(update), 0, now)).toBe(false);
     for (const state of ["TBA", "POSTPONED", "CANCELLED"]) expect(reminderDue(event({ state, startsAt: null }), board(), 0, now)).toBe(false);
+  });
+});
+
+describe("countdown reconciliation workload", () => {
+  function queueHarness(events: OfficialGameEvent[], rows: GameEventBoard[], pending: string[] = []) {
+    const upsert = vi.fn();
+    const tx = { $executeRaw: vi.fn(), officialGameEvent: { updateMany: vi.fn(), findMany: vi.fn().mockResolvedValue(events) },
+      gameEventBoard: { findMany: vi.fn().mockResolvedValue(rows.map(row => ({ ...row, guild: { settings: { language: "en" } } }))) },
+      discordJob: { findMany: vi.fn().mockResolvedValue(pending.map(key => ({ key }))), upsert } };
+    return { tx, upsert, db: { $transaction: (fn: (value: typeof tx) => unknown) => fn(tx) } as unknown as PrismaClient };
+  }
+  it("coalesces repeated ticks for 200 pending boards without resets or per-board job reads", async () => {
+    const rows = Array.from({ length: 200 }, (_, i) => board({ id: `board-${i}` }));
+    const h = queueHarness([], rows, rows.map(row => `game-board:${row.id}`));
+    for (let i = 0; i < 3; i++) await queueGameEvents(h.db, {}, new Date(now.getTime() + i * 60_000));
+    expect(h.upsert).not.toHaveBeenCalled();
+    expect(h.tx.discordJob.findMany).toHaveBeenCalledTimes(3);
+  });
+  it("skips unchanged content, but refreshes the next minute and periodically repairs static boards", async () => {
+    const rows = [event({ startsAt: new Date(now.getTime() + 10 * 60_000) })];
+    const b = board({ messageId: "existing", wowReminders: [] });
+    b.contentHash = eventEmbedsHash(eventBoardEmbeds(rows, b, false, now));
+    const h = queueHarness(rows, [b]);
+    await queueGameEvents(h.db, {}, new Date(now.getTime() + 20_000));
+    expect(h.upsert).not.toHaveBeenCalled();
+    await queueGameEvents(h.db, {}, new Date(now.getTime() + 60_000));
+    expect(h.upsert).toHaveBeenCalledOnce();
+    const tba = [event({ state: "TBA", startsAt: null })];
+    b.contentHash = eventEmbedsHash(eventBoardEmbeds(tba, b, false, now));
+    const staticBoard = queueHarness(tba, [b]);
+    await queueGameEvents(staticBoard.db, {}, new Date(now.getTime() + 60_000));
+    expect(staticBoard.upsert).not.toHaveBeenCalled();
+    await queueGameEvents(staticBoard.db, {}, new Date(now.getTime() + 5 * 60_000));
+    expect(staticBoard.upsert).toHaveBeenCalledOnce();
   });
 });
 

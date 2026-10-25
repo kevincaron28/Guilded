@@ -146,15 +146,28 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
 }
 
 let running = false;
+const DELIVERY_BATCH_SIZE = 25;
+const COUNTDOWN_BATCH_SIZE = 5;
+const DELIVERY_BATCH_BUDGET_MS = 20_000;
 export async function runDiscordJobs(client: Client): Promise<void> {
   if (running) return;
   running = true;
   try {
     const now = new Date();
-    const jobs = await prisma.discordJob.findMany({ where: { ...available(now), ...pilotGuildScope }, orderBy: { nextAttemptAt: "asc" }, take: 25, include: { guild: { select: { discordId: true } } } });
-    for (const job of jobs) await deliverDiscordJob(prisma, job.id, async current => {
-      const guild = await client.guilds.fetch(job.guild.discordId);
-      await dispatchDiscordJob(guild, current);
-    });
+    const query = { orderBy: { nextAttemptAt: "asc" as const }, include: { guild: { select: { discordId: true as const } } } };
+    // Countdown cosmetics must never displace reminders, roster changes or loot
+    // announcements. Serve those first; at most five countdowns use spare slots.
+    const jobs = await prisma.discordJob.findMany({ ...query, where: { ...available(now), ...pilotGuildScope, kind: { not: "GAME_EVENT_BOARD" } }, take: DELIVERY_BATCH_SIZE });
+    if (jobs.length < DELIVERY_BATCH_SIZE) jobs.push(...await prisma.discordJob.findMany({ ...query,
+      where: { ...available(now), ...pilotGuildScope, kind: "GAME_EVENT_BOARD" }, take: Math.min(COUNTDOWN_BATCH_SIZE, DELIVERY_BATCH_SIZE - jobs.length) }));
+    for (const job of jobs) {
+      // Finish an in-flight delivery normally; do not start another after the
+      // budget is spent. The next tick resumes pending jobs, with fresh content.
+      if (Date.now() - now.getTime() >= DELIVERY_BATCH_BUDGET_MS) break;
+      await deliverDiscordJob(prisma, job.id, async current => {
+        const guild = await client.guilds.fetch(job.guild.discordId);
+        await dispatchDiscordJob(guild, current);
+      });
+    }
   } finally { running = false; }
 }

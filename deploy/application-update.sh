@@ -16,7 +16,9 @@ prepare_application() {
   done
   chown -R "$owner:$owner" "$STAGED_APP" || return 1
   # Arguments, not interpolated shell text: paths may contain spaces.
-  sudo -u "$owner" bash -c 'cd "$1" && npm ci --no-audit --no-fund && npm run companion:build' _ "$STAGED_APP"
+  # The live bot still serves Discord's short interaction deadline while staging.
+  # Prefer its CPU work over npm extraction/Prisma generation on the small VM.
+  sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && npm ci --no-audit --no-fund && npm run companion:build' _ "$STAGED_APP"
 }
 
 activate_application() {

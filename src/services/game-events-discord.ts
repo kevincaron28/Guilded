@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { DiscordJob, PrismaClient } from "../generated/prisma/client.js";
 import { ChannelType, EmbedBuilder, PermissionFlagsBits, type Guild, type Message, type TextChannel } from "discord.js";
-import { EVENT_TRANSACTION_OPTIONS, eventBoardEmbeds, eventDetails, eventLock, eventText, reminderDue, reminderSettings } from "./game-events.js";
+import { EVENT_TRANSACTION_OPTIONS, eventBoardEmbeds, eventDetails, eventEmbedsHash, eventLock, eventText, reminderDue, reminderSettings } from "./game-events.js";
 import { selfRoleProblem } from "./selfrole.js";
 
 export function missingDiscordMessage(error: unknown): boolean {
@@ -81,7 +81,7 @@ export async function deliverGameEvent(guild: Guild, database: PrismaClient, job
     if (!message && !board.enabled) return;
     const events = await tx.officialGameEvent.findMany({ where: { archived: false }, orderBy: { id: "asc" } });
     const embeds = eventBoardEmbeds(events, board, fr, new Date(Math.max(now.getTime(), Date.now())));
-    const hash = createHash("sha256").update(JSON.stringify(embeds.map(embed => embed.toJSON()))).digest("hex");
+    const hash = eventEmbedsHash(embeds);
     if (!message) {
       message = await channel.send({ embeds, allowedMentions: { parse: [] }, nonce: board.id.slice(-25), enforceNonce: true });
     } else if (board.contentHash !== hash) {

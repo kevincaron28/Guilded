@@ -88,11 +88,18 @@ export function poolSettings(url: string | undefined): PoolSettings {
 }
 
 export function createPrismaClient(url = process.env["DATABASE_URL"]): PrismaClient {
-  const adapter = new PrismaPg(poolSettings(url), {
+  const settings = poolSettings(url);
+  const adapter = new PrismaPg(settings, {
     // A connection the server closed while idle; the pool replaces it on the next query.
     onPoolError: (error) => console.warn(`Database connection closed while idle: ${error.message}`)
   });
-  return new PrismaClient({ adapter });
+  // Interactive transactions otherwise give up after 2s even though pg still
+  // allows 30s for connection acquisition. Match the configured pool wait for
+  // every caller, keeping a finite default when pg's timeout is disabled (0).
+  // This does not extend transaction execution time or enlarge the pool.
+  return new PrismaClient({ adapter, transactionOptions: {
+    maxWait: settings.connectionTimeoutMillis || DEFAULT_TIMEOUT_SECONDS * 1000
+  } });
 }
 
 export const prisma = createPrismaClient();

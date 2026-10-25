@@ -79,8 +79,9 @@ feature).
 4 November 2026 (beta closed 21 October); its first raids open 9 December.
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
 The bot and GitHub public downloads are on 7.3.2; all five edition packages and
-the companion are published. CurseForge submissions are awaiting processing/approval;
-the last verified approved version is 7.3.0. See `docs/RELEASE_EXECUTION_2026-10-25.md`.
+the companion are published. CurseForge 7.3.2 is approved for Guilded Forever,
+Era, Mists and Retail; remaining submissions continue through review.
+See `docs/RELEASE_EXECUTION_2026-10-25.md`.
 Follow `docs/LAUNCH_READINESS_2026-10-24.md` before acting on older holds or
 unchecked historical lists. The owner authorized publication on 25 October; retain pending game checks as follow-up.
 Standalone guild and optional Guilded Games work is next-version candidate

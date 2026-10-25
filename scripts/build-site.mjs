@@ -12,7 +12,7 @@ const guideDescriptions = {
   SUPPORT_GUILDED: "Optional coffee support for Guilded. Downloads and hosted access stay free; support never buys approval. English and French information.",
   OWNER_WALKTHROUGH: "Illustrated independent-hosting walkthrough for Guilded owners, with setup prerequisites and checks.",
   QUICK_START: "Choose addon-only play, EPGP or optional Discord sync for Guilded on WoW Forever. English and French quick setup.",
-  MEMBER_INSTALL: "Install Guilded for WoW Forever 1.60.1, fix folder issues and connect the optional companion. English and French instructions.",
+  MEMBER_INSTALL: "Install Guilded for WoW Forever, Classic or Retail, select the matching edition and connect the optional companion. English and French instructions.",
   EPGP_GUIDE: "Use Guilded EP/GP, core pools, loot methods and standings, with or without Discord. Practical English and French raid workflow.",
   GUILD_OWNER_SETUP: "Configure Guilded roles, permissions and optional Discord synchronization for your own guild.",
   DEPLOY_ORACLE: "Independent Guilded hosting on Ubuntu: prerequisites, installation, maintenance and service checks.",

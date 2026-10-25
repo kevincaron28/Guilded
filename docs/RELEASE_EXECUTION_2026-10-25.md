@@ -28,9 +28,11 @@ follow-up, not passed tests.
 ## Distribution follow-up
 
 CurseForge edition files are submitted as Release with automatic publication
-after approval. Provider approval is separate from upload completion. The
-website must report only the last verified approved CurseForge version; GitHub
-downloads are already available for every edition.
+after approval. Guilded 7.3.2 Forever, Era, Mists and Retail were approved;
+TBC and standalone submissions continue through review. Provider approval is
+separate from upload completion. GitHub downloads are available for every edition.
+The website now advertises the verified 7.3.2 release on both providers and links
+directly to every GitHub edition package.
 
 Choose the matching edition ZIP: `forever`, `classic-era`, `classic-tbc`,
 `classic-mists` or `retail`. Unsuffixed addon ZIPs are Forever. The one Windows

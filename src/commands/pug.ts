@@ -1,3 +1,4 @@
+import { guildWhere } from "../services/guild-scope.js";
 import { ChannelType, MessageFlags, PermissionFlagsBits, SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember } from "discord.js";
 import { prisma } from "../database.js";
 import { hostedPilot } from "../hosted-pilot.js";
@@ -25,7 +26,7 @@ export async function executePug(interaction: ChatInputCommandInteraction): Prom
   const sub = interaction.options.getSubcommand();
   if (sub !== "browse" && !hasPermission(interaction.member as GuildMember, "officer")) throw new Error("Only officers and server administrators can manage public recruitment.");
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const guild = await prisma.guild.findUnique({ where: { discordId: interaction.guild.id }, include: { settings: true } });
+  const guild = await prisma.guild.findUnique({ where: guildWhere(interaction.guild.id), include: { settings: true } });
   if (!guild?.settings) throw new Error("Run /setup start first.");
   const lang = guild.settings.language === "fr" ? "fr" : "en";
   if (sub === "browse") {

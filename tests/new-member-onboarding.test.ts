@@ -11,7 +11,7 @@ function newMember() {
   let pairing: { id: string; memberId: string; codeHash: string; expiresAt: Date; consumedAt: Date | null } | null = null;
   const credentials: { memberId: string; tokenHash: string; revokedAt: Date | null }[] = [];
   const db = {
-    member: { findUnique: vi.fn(async () => ({ guildId: "guild" })) },
+    member: { findUnique: vi.fn(async () => ({ guildId: "guild", guild: { gameEdition: "forever" } })), findUniqueOrThrow: vi.fn(async () => ({ guildId: "guild", guild: { gameEdition: "forever" } })) },
     character: {
       findMany: vi.fn(async ({ where }) => rows.filter(row => !where.name || row.name.toLowerCase() === where.name.equals.toLowerCase())),
       count: vi.fn(async ({ where }) => rows.filter(row => row.memberId === where.memberId && (!where.isMain || row.isMain)).length),

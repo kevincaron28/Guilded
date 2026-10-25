@@ -34,7 +34,10 @@ function localHandleStore(indexedDB) {
   };
 }
 
-export function createBrowserFolderAccess(env = globalThis, store = localHandleStore(env.indexedDB)) {
+export function createBrowserFolderAccess(env = globalThis, store = localHandleStore(env.indexedDB), profile = "default") {
+  const baseStore = store;
+  const prefix = profile === "default" ? "" : `${profile}:`;
+  store = { get: key => baseStore.get(prefix + key), set: (key, value) => baseStore.set(prefix + key, value) };
   const available = typeof env.showDirectoryPicker === "function";
   let input, output;
   const failures = new Set();

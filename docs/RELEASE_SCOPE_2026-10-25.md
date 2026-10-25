@@ -1,162 +1,159 @@
-# Release scope and work remaining — 25 October 2026
+# Guilded multi-edition port — 25 October 2026
 
-Kevin requested feature completion and Classic/Retail releases today, clarified
-that both Classic Era/Hardcore and progression Classic are targets, and required
-Forever characters to display their first and last names. Other editions retain
-single character names. The existing Forever target remains supported.
-Kevin subsequently confirmed **full addon, bot and companion** for every target.
-The in-game-only option is out of scope. Kevin also confirmed **several editions
-in one Discord server**. A server-wide edition setting is therefore incorrect;
-every WoW action needs an unambiguous in-game guild context.
+## Scope and status
 
-## Baseline
+The connected candidate covers Forever, Classic Era/Hardcore, TBC Anniversary,
+Mists progression Classic, and Retail. One Discord server can contain multiple
+in-game guilds, including multiple guilds in the same edition. This is version
+7.3.2 candidate / protocol 2, on `codex/game-editions` in draft PR #216, stacked
+on #215 and #214. It is not a public release or a production deployment.
 
-- Source: `codex/prelaunch-features`, draft PR #215, stacked on draft #214.
-- Starting revision: `88db7ab6d96ae4a735cb6bff469c141d2049a9a1`; clean checkout.
-- Existing candidate: 7.3.2 / protocol 2. Raid presets, Components V2 signup
-  posts, public score images, shared scoring lock, French companion and save
-  recovery fixes are implemented. Candidate interaction acceptance remains.
-- Last recorded production bot: `65be65d`; installed companion: `b755adf`.
-  Last recorded public versions: GitHub 7.3.1 and CurseForge 7.3.0. Today's
-  source edits do not update any of those installations or downloads.
+The previous foundation-only limitation has been removed: edition selection,
+guild sync, bot workflows and native/browser companion profiles are implemented.
+Game acceptance and calibrated dungeon competitions remain explicit release gates.
 
-## Edition readiness
+## Implemented
 
-| Target | Evidence found locally | Work before release |
-| --- | --- | --- |
-| Forever | Existing TOC 16001; installed client recorded as 1.60.1.70532 | Remaining game/two-PC and French checks; verify full names after resync |
-| Retail | Installed client recorded as 12.1.5.70575 | API and restricted-value audit, observed Interface number, appropriate raid/dungeon rules, safe identity isolation, packaging and real-client acceptance |
-| Classic Era / Hardcore | No installed target found in the inspected WoW directory | Install/observe the intended client; compatibility audit, appropriate rules, identity isolation, packaging and acceptance |
-| Progression Classic | No installed target found in the inspected WoW directory | Confirm the intended progression client/build; compatibility audit, appropriate rules, identity isolation, packaging and acceptance |
+- `/wow add`, `/wow list`, `/wow use`, `/wow channel`, and `/wow roles` configure
+  independent in-game guilds. Each gets its own Guild ID, settings, members,
+  character links, raids, cores, loot, ledger, imports and companion credentials.
+- Existing Forever records stay in the `default` guild. Migration retains their
+  IDs, history and credentials. Shared community and PoE commands use that default.
+- Saved channel/category bindings take precedence over personal selection.
+  Existing setup/core channels resolve their owning guild. Raid, application,
+  dungeon-group, poll and craft buttons retain their entity's guild.
+- Permissions use separate role IDs per child guild, including class leaders.
+  Optional member roles restrict access. Companion requests re-fetch Discord
+  membership and roles. Credentials choose the guild; request parameters cannot
+  override it. Setup creates separate channels and roles. Child uninstall/reset
+  stays within that guild; deleting the default is refused while child guilds exist.
+- Character identity includes guild, edition, realm and name. Blizzard references
+  retain realm-qualified names through addon messages, ledgers, raid exports and
+  imports. Pickers reject ambiguous bare names. Forever retains legacy accounting
+  keys and authentic first/last display names across addon, companion and bot.
+- Public runs, characters, player cards, caches, season calendars, frozen rules,
+  recruitment and leaderboards are separated by edition. Site selectors and links
+  retain the edition. Other guilds in the same Discord can appear on raid boards.
+- Raid readiness uses level 60 for Forever/Era, 70 for TBC and 90 for Mists/Retail.
+  Raid presets are filtered by edition; Retail supports flexible 10–30-player
+  rosters and cross-realm signups (unless a core explicitly restricts its realm).
+  Enchant slots are client-specific. Attunements remain configured quest/reputation
+  checks; no unverified quest IDs are supplied.
+- Native and browser companions save separate connection profiles with credentials
+  and file/folder selections. Switching stops the old connection and clears its
+  upload acknowledgements and state. Legacy settings become Original connection.
+- Wrong-edition uploads are rejected before character linking, ledger or import
+  writes. Native/browser companions show the conflict as an error, not a duplicate.
+- `npm run addon:editions` builds ten ZIPs: Guilded and Guilded Dungeons for all
+  five targets. Each has one interface target, an edition label, no guild standings,
+  parsed Lua, checked TOC contents, and a SHA-256 entry in the manifest.
+- The Windows companion includes the edition and profile modules. CI packages
+  the same source and rehearses PostgreSQL migration, isolation and dump/restore.
 
-The installed version evidence comes from the game's `.build.info`; it is not
-a successful login or API compatibility test. Do not infer Interface numbers
-or CurseForge compatibility solely from these version strings.
+## Configure a server after deploying the candidate
 
-The current build script produces a single Guilded ZIP. Its TOC declares
-16001 and 20506, not an accepted set of current retail/Classic targets. Adding
-more Interface numbers alone would not complete the port.
+1. Keep the existing Forever setup as `default`. For each additional guild, an
+   administrator runs `/wow add edition:<edition> name:<guild> realm:<realm>`.
+   Choose its officer role and, if access should be restricted, member role.
+2. Copy its ID from `/wow list`. Select it with `/wow use guild:<id>` or bind a
+   dedicated channel/category using `/wow channel guild:<id> channel:<channel>`.
+   Bindings override personal choices. An officer cannot take over another
+   guild's configured channel without authority in that guild; admins can reassign.
+3. Run `/setup start` in that guild's context. Assign its generated roles and
+   review Discord Settings > Integrations visibility for officer/leader commands.
+   Role labels include the guild name; authorization follows the stored IDs.
+4. Link characters or run `/character pair` in the same context. Prefer addon
+   capture or import so edition, realm and Forever surnames come from the client.
+5. In the companion's connection selector, add a named connection for each guild.
+   Sign in with Discord and select the exact guild/edition, or use its pairing
+   code. Select that edition's own saved file and addon folder. Save and connect.
+   Only the selected connection syncs. Keep PoE on the original shared profile.
+6. Switch connections to change edition/guild. Never copy credentials between
+   profiles. For two guilds in one client, select each guild's relevant character
+   data/files and confirm its guild filter before uploading.
 
-Concrete connected-product gaps found in source:
+## Dungeon competition and completion limits
 
-1. `Character` is unique by realm/name with no edition namespace.
-   `findCharacter` permits a guild-unique name to match across realm spellings
-   for Forever. Retail/Classic must not inherit that loose identity rule.
-2. Dungeon run keys, official seasons, route evidence and public rankings lack
-   edition isolation. Forever rules must not score other editions' runs.
-3. Raid readiness uses a fixed level 60; raid presets, route catalog and loot
-   content need target-specific handling rather than universal eligibility.
-4. Packaging, installed-client validation, provider metadata and acceptance
-   records must identify each exact target. Current mocks are predominantly
-   Forever-oriented and do not establish cross-edition API compatibility.
+Runs and activity can be imported for every edition. Forever's competition rules
+are preserved. Other editions start with empty route/bracket rules, so they cannot
+silently earn ratings using Forever's map IDs or benchmarks.
 
-## Forever display-name implementation
+The bot owner can schedule a season with `/guilded-season next edition:<edition>`,
+then attach reviewed JSON through `/guilded-season rules edition:<edition> file:<json>`.
+The input contains `gameEdition`, `routes`, and `brackets`; it uses the validated
+version-6 input in `src/services/dungeon-november-rules.ts`. Each route must define
+its map/wing key, difficulty, completion evidence, required encounters, participation
+and competition level bands, benchmark time, route standard, and verification
+build/run reference. Brackets specify a distinct key, level range and best-count.
+Do not use the synthetic fixtures in tests as real route evidence.
 
-The new source stores display names separately from existing accounting names.
-On observed Forever interface 16001 it reads `GetUnitName` or the first and
-surname returned by `UnitName`; other interfaces retain their single names.
-Guild roster and addon sender observations populate a presentation lookup.
-Missing surnames are not invented from server names.
+Rules can only replace the next, not-yet-started season. The update checks this
+again atomically. Historical snapshots and scores remain unchanged. Reviewed
+Classic endpoint mappings also belong in `addon/Guilded/DungeonRoutes.lua` before
+packaging, with their build/run evidence; that source list remains empty today.
 
-The change covers character captures/import codes, guild/personal companion
-exports, linked/unclaimed characters, public run/player records, primary addon
-views, Discord character/profile lists and signup picker, signup/core character
-details, companion selectors, CSV export and public character links/titles.
-Stable IDs, ledger keys/source references, ownership and URL lookup keys are
-preserved. A new additive migration adds nullable presentation columns; it has
-not been applied to production. Older data requires an authentic fresh capture
-to acquire surnames. Existing accepted public run snapshots are not backfilled
-with guessed names.
+Clients with Encounter Journal support can detect final bosses. Forever retains
+its observed endpoint fallbacks. Classic dungeons without journal data or a
+reviewed endpoint need manual completion; those runs remain unranked. The Scarlet
+wing name fallback covers English/French only.
 
-This fixes presentation, not the separate first-name identity design. Before
-supporting duplicate first names, identify characters using authoritative full
-identities/GUIDs and define a migration that cannot merge different players.
-That design belongs with the edition-isolation work above.
+Retail challenges now wait for `CHALLENGE_MODE_COMPLETED`; killing the final boss
+alone does not finish the run. Challenge resets/restarts produce separate attempts.
+These objective completions are recorded as activity and remain unranked: the
+current competition model has no verified keystone-level/affix/native timer scoring.
+This is an outstanding part of full competitive Retail support, not an acceptance
+pass. The event/API contract was checked against Blizzard's generated documentation:
+https://github.com/tomrus88/BlizzardInterfaceCode/blob/master/Interface/AddOns/Blizzard_APIDocumentationGenerated/ChallengeModeInfoDocumentation.lua
 
-## Completion order
+## Build and test evidence
 
-1. Validate/review the name change and its additive database migration; preserve
-   all existing links, points and pairing. Keep the new source distinct from
-   the already-installed candidate.
-2. Implement the confirmed full connected-product scope: edition identity/rule
-   isolation, client compatibility, bot setup and companion selection.
-3. Finish candidate Discord/member workflows and platform previews already
-   listed in `LAUNCH_READINESS_2026-10-24.md`.
-4. Run exact-source CI including PostgreSQL restore/migration and Windows
-   packaging, build matching artifacts and execute each target's real-client
-   acceptance. Record hashes, language, build and tester results.
-5. Publish the verified edition packages and matching release metadata, then
-   verify actual public downloads. No release completion is recorded here.
+- Final full local regression run: 276 files / 2,325 tests passed
+  (`backups/port-final-suite.log`). New HTTP tests cover concurrent guild contexts,
+  role revocation, wrong-server credentials and wrong-edition rejection before writes.
+- TypeScript and both addon validators passed; shared standalone Lua was regenerated.
+  Final lint and web builds are recorded with the exact-head CI below.
+- The Windows installer built successfully. Final packages are rebuilt after commit
+  so source revision and package hashes are reviewable.
+- PostgreSQL rehearsal now provisions six guild contexts in one server (all editions
+  plus a second Retail guild), uses identical character names in each, verifies
+  separate settings/credentials, rejects wrong-edition characters and duplicates,
+  then verifies everything after dump/restore. It runs in CI's disposable database.
+- Local tests use a deliberately unreachable test DATABASE_URL; no test suite should
+  use the production credentials in `.env.local`.
 
-No production deployment, installed companion replacement, main merge, public
-upload, guild notification or live-data migration has been performed in this
-continuation.
+## Artifacts and release gates
 
-## Validation of this continuation
+Candidate ZIPs: `dist/editions/Guilded-v7.3.2-<edition>.zip` and
+`dist/editions/GuildedDungeons-v7.3.2-<edition>.zip`.
+Source revision, dirty flag, interfaces and hashes: `dist/editions/manifest.json`.
+Native installer: `dist/companion/Guilded Companion Setup 7.3.2.exe`.
 
-- Full local suite: 271 files / 2,274 tests passed. Private log:
-  `backups/full-names-tests-2026-10-25.log`.
-- TypeScript, ESLint and both addon validators passed; shared standalone files
-  were regenerated with `dungeons:sync`. Browser companion and site builds passed.
-- The final CSV presentation adjustment and version-document checks passed
-  another focused run (2 files / 15 tests). `git diff --check` passed.
-- Built/verified the 47-file main-addon preview at
-  `dist/preview/Guilded-next-preview.zip`. It is not a public release or an
-  installed/tested game package. No new Windows installer was built here.
-- Starting head `88db7ab` has successful GitHub quality run `40145757292`.
-  That result does not validate today's new code or migration. Exact new-source
-  CI, PostgreSQL migration/restore and game/native acceptance remain separate.
+Packaging baselines are Forever 16001, Era 11500, TBC 20506, Mists 50500 and Retail
+120105. They do not certify the installed client's current Interface number.
+Supply an observed value with `npm run addon:editions -- --interface=classic-era:<number>`.
+The builder rejects an interface from a different edition.
 
-## Edition groundwork (separate stacked branch)
+Before public promotion:
 
-Branch `codex/game-editions` starts from the full-name commit `f7251ac` on
-`codex/prelaunch-features`. That full-name commit passed GitHub quality run
-`40179278185`; this does not establish real-game acceptance.
+1. Both exact-head quality jobs must pass, including disposable PostgreSQL
+   migration/dump/restore and Windows packaging.
+2. Observe each target's actual GetBuildInfo interface and package that interface.
+   Test login, reload, messages, full names/realm identities, professions/readiness,
+   loot/raid sync, companion upload and acknowledgements in each real client.
+   Test Retail restricted values during combat and Classic missing APIs.
+3. Complete the existing two-PC/native/French checklist in
+   `V7_3_2_GAME_CHECKLIST.md`. Add mixed-edition same-Discord permission tests,
+   same-name/different-realm characters, channel selection, pairing and profile switches.
+4. Supply reviewed Classic/retail dungeon route evidence and benchmarks, and finish
+   challenge scoring if it is included in the release claim. Validate complete,
+   partial, reset, duplicate, wipe and disbanded runs against each target.
+5. Rehearse deployment with a fresh backup, then deploy migrations and matching bot,
+   companion and addons together. Record exact commit, hashes, build, language,
+   testers and results. Publish only accepted assets and then update public metadata.
 
-Implemented in the next change:
-
-- Both addons capture the client edition and Interface number; dungeon peer
-  summaries and native/browser companion exports preserve them.
-- A shared parser recognizes Forever, Era, TBC Classic, Mists Classic and
-  Retail interface families. Unknown/contradictory metadata fails explicitly.
-  These families identify data; they are not a compatibility certification.
-- Guild imports check edition provenance at preview (before pairing/relay) and
-  again inside apply's transaction. Personal files from different editions
-  cannot be combined. Standings writes compare saved-client and guild editions.
-- An unapplied migration namespaces linked-character uniqueness by edition and
-  adds edition metadata to unclaimed characters. Existing rows default to
-  Forever; IDs, ownership and ledger references remain unchanged.
-- `WowGuild` can hold multiple in-game guilds/editions under one Discord server,
-  keyed by server, edition, realm and guild name. Its registration/selection
-  service rejects ambiguous choices and foreign-server IDs. It does not infer
-  in-game names from Discord names or move existing history. PostgreSQL
-  verification now covers same-named characters in different editions,
-  multiple guild spaces, uniqueness and backup restoration.
-- Matching keeps the legacy Forever realm fallback, but an explicitly tagged
-  other-edition character requires its own realm. Discovery keys outside
-  Forever include the realm.
-
-**This is groundwork, not the completed port.** New-edition connected guild
-sync and public competitions deliberately remain disabled. No edition chooser
-has been exposed. Before removing those guards, finish the following together:
-
-1. Wire in-game guild selection through setup, channel defaults, commands,
-   companion pairing and uploads. Scope guild settings, cores, rosters, raids,
-   loot, ledger, imports and announcements to the selected `WowGuild`, with a
-   verified migration for existing Forever history. Shared Discord membership
-   must not imply shared points or access to another in-game guild.
-2. Propagate edition and realm through every manual character/verify/claim
-   path and query projection. The addon's non-Forever internal identity must
-   retain realms; its current first-name ledger keys cannot safely identify
-   cross-realm duplicates. Preserve Forever identities through any migration.
-3. Scope public runs, web characters, URLs, caches, official seasons and guild
-   rotation by edition. Give each edition its own verified route evidence and
-   scoring configuration; never reuse Forever map IDs/targets by assumption.
-4. Make raid readiness, presets, attunements and loot rules edition-aware.
-5. Finish companion edition selection and complete the matching addon, bot and
-   installer packages. Audit restricted Retail APIs in the actual client.
-6. Run actual Classic/Retail and Forever acceptance, PostgreSQL migration/restore
-   and Windows packaging on the final source before release promotion.
-
-No new edition has been publicly released, installed on a game client, or
-enabled on the live bot by this branch. The full-product request remains open.
+The local directory contained Forever 1.60.1.70532 and Retail 12.1.5.70575; no
+installed Era/progression target was found. Those are filesystem observations,
+not game tests. Forever's beta is closed until the recorded November launch.
+No game acceptance result is invented. No production migration, public asset
+publication, installed companion replacement or live bot restart occurred here.
+See `LAUNCH_READINESS_2026-10-24.md` for the existing deployment/public-release hold.

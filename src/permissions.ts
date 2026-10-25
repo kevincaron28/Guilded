@@ -1,4 +1,5 @@
 import type { GuildMember } from "discord.js";
+import { currentGuildScope } from "./services/guild-scope.js";
 
 export const permissionRoles = {
   guildMaster: "Guild Master",
@@ -44,6 +45,13 @@ const isClassLeaderVariant = (name: string): boolean =>
 export const isPermissionRoleName = (permission: Permission, name: string): boolean =>
   permissionRoleNames(permission).includes(name) || (permission === "classLeader" && isClassLeaderVariant(name));
 
+/** Role IDs, rather than shared names, define authority inside an in-game guild. */
+export function isPermissionRole(permission: Permission, role: { id: string; name: string }): boolean {
+  const roles = currentGuildScope()?.permissionRoles;
+  return roles === undefined ? isPermissionRoleName(permission, role.name)
+    : roles[permission] === role.id || (permission === "classLeader" && Object.entries(roles).some(([key, id]) => key.startsWith("classLeader:") && id === role.id));
+}
+
 const inheritedPermissions: Record<Permission, readonly Permission[]> = {
   guildMaster: ["guildMaster"],
   officer: ["officer", "guildMaster"],
@@ -55,6 +63,12 @@ const inheritedPermissions: Record<Permission, readonly Permission[]> = {
 
 export function hasPermission(member: GuildMember, permission: Permission): boolean {
   if (member.permissions.has("Administrator")) return true;
+  const scope = currentGuildScope();
+  if (scope?.permissionRoles !== undefined) {
+    return inheritedPermissions[permission].some(role => {
+      return member.roles.cache.some(guildRole => isPermissionRole(role, guildRole));
+    });
+  }
   return inheritedPermissions[permission].some((role) =>
     member.roles.cache.some((guildRole) => isPermissionRoleName(role, guildRole.name))
   );

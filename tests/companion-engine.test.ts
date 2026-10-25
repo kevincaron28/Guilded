@@ -107,4 +107,20 @@ describe("companion engine", () => {
     expect(upload?.[1]?.headers["x-companion-credential"]).toBe("p".repeat(43));
     await engine.stop();
   });
+
+  it("shows an edition conflict as a rejected upload rather than an acknowledged duplicate", async () => {
+    const game = gameFolder();
+    writeFileSync(game.file, 'GuildedDB = { version = 1 }\n');
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async (url: URL | string) => String(url).includes("standings")
+      ? { ok: true, status: 200, json: async () => ({ protocolVersion: 2, updatedAt: "x", baseGp: 0, standings: [] }) }
+      : { ok: false, status: 409, json: async () => ({ error: "This guild uses retail; select a saved file from that WoW edition." }) }));
+    const engine = createEngine(config(game.file), {});
+    try {
+      await engine.start();
+      engine.uploadNow();
+      await vi.waitFor(() => expect(engine.state().uploadError).toContain("This guild uses retail"), { timeout: 3000 });
+      expect(engine.state().uploads).toBe(0);
+      expect(engine.state().lastUpload).toBeNull();
+    } finally { await engine.stop(); }
+  });
 });

@@ -3,6 +3,8 @@ import { createBracketedDungeonRules, routeTargetAt, validBracketedRules, type B
 import { SCARLET_WINGS, bracketedVerdict, completionReason, penalized, presentEnough, timeRating, type RatingRun } from "./dungeon-rating.js";
 import type { OfficialWindow } from "./official-seasons.js";
 import { weekWindow } from "./dungeon-periods.js";
+import { currentEdition } from "./edition-context.js";
+import type { GameEdition } from "./game-edition.js";
 
 // Public dungeon score (website, 7.1). The same time rating as guild seasons, with the release
 // season's provisional all-level rules: 200 x target / time per route (50-400), the over-level
@@ -23,6 +25,7 @@ export interface ScorePlayer { character: string; realm: string; className: stri
   minLevel?: number | null; presentSec?: number | null }
 export interface RunEvidence { startedAt: Date; completedBy: string | null; encounters: unknown[] }
 export interface ScoreRun {
+  gameEdition?: string;
   runId: string; instanceId: number; routeKey: string | null; difficultyId: number; dungeonName: string; durationSec: number;
   endedAt: Date; confirmations: number; players: ScorePlayer[];
   /** Null on runs uploaded before 7.4. */
@@ -33,7 +36,12 @@ export interface RunScore { key: string; bracket: string; points: number; penalt
 export interface RunVerdict { score: RunScore | null; reason?: string }
 
 let cachedRules: BracketedRules | null = null;
-export const publicRules = (): BracketedRules => (cachedRules ??= provisionalSeasonRules().rules);
+const editionRules = new Map<GameEdition, BracketedRules>();
+export const publicRules = (edition: GameEdition = currentEdition()): BracketedRules => {
+  if (edition === "forever") return (cachedRules ??= provisionalSeasonRules().rules);
+  if (!editionRules.has(edition)) editionRules.set(edition, createBracketedDungeonRules({ gameEdition: edition, routes: [], brackets: [] }));
+  return editionRules.get(edition)!;
+};
 
 // A season's frozen public rules (OfficialSeason.rules).
 export interface PublicRuleSnapshot { format: 1; frozenAt: string; rules: BracketedRules; additions: { at: string; routes: string[]; brackets: string[] }[] }
@@ -52,7 +60,7 @@ export function addedRules(frozen: BracketedRules, current: BracketedRules): { r
   const brackets = current.brackets.filter(b => !frozen.brackets.some(f => f.key === b.key));
   if (!routes.length && !brackets.length) return null;
   try {
-    const rules = createBracketedDungeonRules({ routes: [...frozen.routes, ...routes], brackets: [...frozen.brackets, ...brackets], overlevelPenalty: frozen.overlevelPenalty,
+    const rules = createBracketedDungeonRules({ ...(frozen.gameEdition ? { gameEdition: frozen.gameEdition } : {}), routes: [...frozen.routes, ...routes], brackets: [...frozen.brackets, ...brackets], overlevelPenalty: frozen.overlevelPenalty,
       ...(frozen.provisional ? { provisional: { plan: frozen.provisional.plan, waiting: current.provisional?.waiting ?? frozen.provisional.waiting } } : {}),
       ...(frozen.recalibrations ? { recalibrations: frozen.recalibrations } : {}) });
     return { rules, routes: routes.map(r => r.dungeonKey), brackets: brackets.map(b => b.key) };
@@ -68,6 +76,7 @@ function ratingRun(run: ScoreRun, evidence: RunEvidence): RatingRun {
 
 /** A run's score under `rules`; with `player`, whether that character earned it (80% presence). */
 export function rateRun(run: ScoreRun, rules: BracketedRules = publicRules(), player?: ScorePlayer): RunVerdict {
+  if ((run.gameEdition ?? "forever") !== (rules.gameEdition ?? "forever")) return { score: null, reason: "Different WoW edition" };
   if (!rules.routes.some(r => r.instanceId === run.instanceId)) return { score: null, reason: "Route not rated yet" };
   if (run.evidence) {
     const reason = completionReason(run.evidence.completedBy);

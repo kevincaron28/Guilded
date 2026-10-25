@@ -3,7 +3,7 @@ import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import type { AddonCharacter } from "../integrations/addon.js";
 import { findCharacter } from "./character-match.js";
 import { normalizeClassName, normalizeRaceName } from "./character-import.js";
-import { nameKey } from "./roster-discovery.js";
+import { characterKey } from "../../companion/character-identity.mjs";
 import { gameEditionOf } from "./game-edition.js";
 
 const PAIRING_CODE_LIFETIME_MS = 15 * 60_000;
@@ -22,6 +22,7 @@ export async function createSelfCharacter(tx: Tx, guildId: string, memberId: str
   const created = await tx.character.create({
     data: {
       memberId,
+      guildId,
       name: self.name,
       gameEdition: gameEditionOf(self),
       ...(self.displayName ? { displayName: self.displayName } : {}),
@@ -42,7 +43,7 @@ export async function createSelfCharacter(tx: Tx, guildId: string, memberId: str
       update: { skillLevel: profession.skillLevel }
     });
   }
-  await tx.unclaimedCharacter.deleteMany({ where: { guildId, nameKey: nameKey(self.name) } });
+  await tx.unclaimedCharacter.deleteMany({ where: { guildId, nameKey: characterKey(self.name, self.realm, gameEditionOf(self)) } });
   return created;
 }
 
@@ -125,7 +126,7 @@ export async function exchangeCharacterPairingCode(database: PrismaClient, guild
   return database.$transaction(async (tx) => {
     const pairing = await tx.characterPairing.findFirst({
       where: { codeHash, guild: { discordId: guildDiscordId }, expiresAt: { gt: now }, consumedAt: null },
-      select: { id: true, memberId: true, member: { select: { discordUserId: true } } }
+      select: { id: true, memberId: true, guild: { select: { id: true, name: true, gameEdition: true } }, member: { select: { discordUserId: true } } }
     });
     if (!pairing) throw new Error("Pairing code is invalid, expired, or already used. Generate a new one with /character pair.");
 
@@ -142,6 +143,7 @@ export async function exchangeCharacterPairingCode(database: PrismaClient, guild
     await tx.companionCredential.create({
       data: { memberId: pairing.memberId, tokenHash: hashCompanionSecret(credential) }
     });
-    return { companionCredential: credential, discordUserId: pairing.member.discordUserId };
+    return { companionCredential: credential, discordUserId: pairing.member.discordUserId,
+      ...(pairing.guild ? { wowGuildId: pairing.guild.id, wowGuildName: pairing.guild.name, gameEdition: pairing.guild.gameEdition } : {}) };
   });
 }

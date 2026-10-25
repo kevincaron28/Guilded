@@ -2,6 +2,7 @@ import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } f
 import { prisma } from "../database.js";
 import { createWishlistService, PRIORITY_LABELS } from "../services/wishlist.js";
 import { guildService, requireGuildContext } from "./context.js";
+import { selectedCharacter } from "../services/character-match.js";
 
 const wishlistService = createWishlistService(prisma);
 
@@ -39,7 +40,7 @@ export async function executeWishlist(interaction: ChatInputCommandInteraction):
 
   const characterName = interaction.options.getString("character", true);
   const characters = await guildService.listCharacters(context.memberId);
-  const character = characters.find((candidate) => candidate.name.toLowerCase() === characterName.toLowerCase());
+  const character = selectedCharacter(characters, characterName);
   if (!character) throw new Error("That character is not linked to your profile.");
 
   if (subcommand === "list") {

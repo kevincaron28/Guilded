@@ -1,3 +1,4 @@
+import { guildWhere } from "../services/guild-scope.js";
 import { ChannelType, MessageFlags, PermissionFlagsBits, SlashCommandBuilder, type ChatInputCommandInteraction } from "discord.js";
 import { prisma } from "../database.js";
 import { botOwnerId } from "./owner-season.js";
@@ -60,7 +61,7 @@ export async function executeGameEvents(interaction: ChatInputCommandInteraction
     await interaction.reply({ content: "Manage Server is required. / La permission Gérer le serveur est requise.", flags: MessageFlags.Ephemeral }); return;
   }
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const record = await prisma.guild.findUnique({ where: { discordId: guild.id }, include: { settings: true } });
+  const record = await prisma.guild.findUnique({ where: guildWhere(guild.id), include: { settings: true } });
   if (!record) { await interaction.editReply("Run /setup start first. / Lancez /setup start d’abord."); return; }
   const fr = record.settings?.language === "fr";
   const channelId = interaction.options.getChannel("channel", true).id;

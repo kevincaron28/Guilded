@@ -25,7 +25,7 @@ function activeRun() {
     end`);
   session.load("Modules/Dungeon.lua");
   session.run(`fire_event("PLAYER_LOGIN")
-    GetBuildInfo = function() return "1.15", "12345", "date", 11500 end
+    GetBuildInfo = function() return "1.60.1", "12345", "date", 16001 end
     STAMP = 1800000000
     NS.compat.serverTime = function() return STAMP end
     INSTANCE = {id=3065, type="party", name="Hall of Thanes", difficultyId=1}
@@ -38,6 +38,25 @@ function activeRun() {
 }
 
 describe("dungeon final-boss completion without the Encounter Journal", () => {
+  it("waits for challenge objectives, survives reload and separates reset attempts", () => {
+    const s = activeRun();
+    s.run(`GetBuildInfo=function() return "12.1.5","12345","date",120105 end
+      C_ChallengeMode={IsChallengeModeActive=function() return true end}
+      fire_event("CHALLENGE_MODE_START")
+      RUN_ID=GuildedDB.dungeon.current.id
+      GuildedDB.dungeon.current.finalEncounterId=999
+      STAMP=STAMP+600
+      fire_event("BOSS_KILL",999,"Final boss")
+      fire_event("ENCOUNTER_END",999,"Final boss",8,5,1)`);
+    expect(s.run('return GuildedDB.dungeon.current.state')).toBe("ACTIVE");
+    s.run('FRAMES = {}'); s.load("Modules/Dungeon.lua");
+    s.run('fire_event("CHALLENGE_MODE_COMPLETED")');
+    expect(s.run('return GuildedDB.dungeon.runs[RUN_ID].completedBy')).toBe("challenge objectives");
+    expect(s.run('return GuildedDB.dungeon.runs[RUN_ID].startTrigger')).toBe("challenge start");
+    s.run('STAMP=STAMP+30; fire_event("CHALLENGE_MODE_START"); RESET_ID=GuildedDB.dungeon.current.id; fire_event("CHALLENGE_MODE_RESET")');
+    expect(s.run('return GuildedDB.dungeon.runs[RESET_ID].state')).toBe("ABANDONED");
+    expect(s.run('return GuildedDB.dungeon.runs[RUN_ID].state')).toBe("COMPLETED");
+  });
   it("records the observed game build and timer trigger through peer summaries", () => {
     const s = activeRun();
     s.run('ROUNDTRIP=NS.dungeon.deserialize(RUN_ID, NS.dungeon.serialize(GuildedDB.dungeon.current))');
@@ -124,8 +143,8 @@ describe("dungeon final-boss completion without the Encounter Journal", () => {
     expect(s.run('return tostring(GuildedDB.dungeon.runs[RUN_ID].encounters[3].startedAt)')).toBe("nil");
     s.run('local r=GuildedDB.dungeon.runs[RUN_ID]; r.players.Tester={class="PRIEST",role="HEALER",spec="Discipline",minLevel=19,level=20}; ROUNDTRIP=NS.dungeon.deserialize(RUN_ID,NS.dungeon.serialize(r))');
     expect(s.run('return ROUNDTRIP.encounters[2].at-ROUNDTRIP.encounters[2].startedAt')).toBe("45");
-    expect(s.run('return ROUNDTRIP.players.Tester.spec')).toBe("Discipline");
-    expect(s.run('return ROUNDTRIP.players.Tester.minLevel..","..ROUNDTRIP.players.Tester.level')).toBe("19,20");
+    expect(s.run('return ROUNDTRIP.players[NS.normalizeName("Tester")].spec')).toBe("Discipline");
+    expect(s.run('return ROUNDTRIP.players[NS.normalizeName("Tester")].minLevel..","..ROUNDTRIP.players[NS.normalizeName("Tester")].level')).toBe("19,20");
   });
 
   it("bounds peer summaries while keeping full saved encounters and accepts legacy summaries", () => {

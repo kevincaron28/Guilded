@@ -1,3 +1,4 @@
+import { guildWhere } from "../services/guild-scope.js";
 import { MessageFlags, SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { prisma } from "../database.js";
@@ -75,7 +76,7 @@ export async function executeRecruit(interaction: ChatInputCommandInteraction): 
     await interaction.reply({ content: "Only Officers, Guild Masters and server administrators can manage recruitment listings.", flags: MessageFlags.Ephemeral });
     return;
   }
-  const guild = await prisma.guild.findUnique({ where: { discordId: interaction.guildId }, select: { id: true, settings: { select: { applicationChannelId: true, logChannelId: true } } } });
+  const guild = await prisma.guild.findUnique({ where: guildWhere(interaction.guildId), select: { id: true, settings: { select: { applicationChannelId: true, logChannelId: true } } } });
   if (!guild) { await interaction.reply({ content: "Run `/setup start` first.", flags: MessageFlags.Ephemeral }); return; }
   const sub = interaction.options.getSubcommand();
   const notes: string[] = [];

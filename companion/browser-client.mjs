@@ -1,6 +1,7 @@
 import { readBrowserAddon, readBrowserPoe } from "./browser-files.mjs";
 import { standingsToLua } from "./standings-format.mjs";
 import { assertSameEdition } from "./game-edition.mjs";
+import { addProfile, switchProfile, profileChoices } from "./profiles.mjs";
 import { createBrowserFolderAccess } from "./browser-folders.mjs";
 import { acknowledgements, pruneAcknowledged } from "./delta.mjs";
 import { sheetFiles } from "./sheet-export.mjs";
@@ -12,7 +13,6 @@ const VERSION = typeof __GUILDED_VERSION__ === "string" ? __GUILDED_VERSION__ : 
 
 export function createBrowserCompanion(env = globalThis) {
   const { location, sessionStorage, document, URL, Blob } = env;
-  const folders = createBrowserFolderAccess(env);
   const key = "guilded.companion.session.v1";
   const deviceKey = "guilded.companion.device.v1";
   let deviceStorage, storageWarning = null;
@@ -20,6 +20,7 @@ export function createBrowserCompanion(env = globalThis) {
   let saved = {};
   try { saved = JSON.parse(deviceStorage?.getItem(deviceKey) || sessionStorage.getItem(key) || "{}"); } catch { /* Storage can be unavailable. */ }
   let config = { wowEnabled: true, poeEnabled: false, realm: "WoW Forever", uploadUrl: `${location.origin}/api/v1/addon-imports`, guildDiscordId: new URLSearchParams(location.search).get("guild") || "", poeMode: "STANDARD", ...saved.config };
+  let folders = createBrowserFolderAccess(env, undefined, config.activeProfile || "default");
   const logs = [];
   const listeners = { state: [], log: [] };
   const state = { running: false, uploads: 0, watching: null, lastUpload: null, lastStandings: null, botVersion: null, poe: /** @type {{ pending?: number, currentArea?: string | null, preview?: boolean, lastSync?: string, error?: string } | null} */ (null) };
@@ -79,6 +80,7 @@ export function createBrowserCompanion(env = globalThis) {
     if (typeof result.companionCredential !== "string" || result.companionCredential.length < 32) throw new Error("The bot did not return a valid Discord link. Please try again.");
     botFeatures = new Set(); ack = null;
     const personal = result.personal === true;
+    config = { ...config, gameEdition: result.gameEdition, wowGuildId: result.wowGuildId, wowGuildName: result.wowGuildName };
     config = { ...config, ...next, personal, guildDiscordId: personal ? "" : typeof result.guildDiscordId === "string" ? result.guildDiscordId : server || config.guildDiscordId, pairingCode: "", companionCredential: result.companionCredential, uploadUrl: `${location.origin}/api/v1/addon-imports` }; state.running = true; state.uploadError = null; persist(); emit();
     return { ok: true, message: personal ? "Leaderboards account connected. Next: choose your saved data in step 2 (your SavedVariables folder), then Sync now. Your finished runs go to the public leaderboards." : "Discord connected. Next: choose your saved data in step 2 (your SavedVariables folder) to start syncing." };
   }
@@ -171,6 +173,19 @@ export function createBrowserCompanion(env = globalThis) {
   const api = {
     browser: true,
     folderAccess: folders.available,
+    listProfiles: async () => ({ active: config.activeProfile || "default", profiles: profileChoices(config) }),
+    changeProfile: async ({ id, name }) => {
+      if (busy || visits.length || signIn) return { ok: false, message: "Finish the current sync and queued visits before switching connections." };
+      try {
+        config = name ? addProfile(config, name) : switchProfile(config, id);
+        folders = createBrowserFolderAccess(env, undefined, config.activeProfile);
+        await folders.ready;
+        wowFile = undefined; botFeatures = new Set(); ack = null;
+        Object.assign(state, { watching: null, uploads: 0, lastUpload: null, lastStandings: null, uploadError: null, standingsError: null, poe: null, botVersion: null, running: !!config.companionCredential });
+        persist(); emit();
+        return { ok: true, message: "Connection selected." };
+      } catch (error) { return { ok: false, message: error.message }; }
+    },
     getAll: async () => { await folders.ready; if (folders.hasInput()) state.watching = `SavedVariables / ${savedNames()[0]}`; return { config, logs, ...snapshot(), autostart: false, version: VERSION }; },
     saveConfig: async next => {
       if (busy) return { ok: false, message: "Wait for the current sync to finish before changing settings." };
@@ -294,7 +309,7 @@ export function createBrowserCompanion(env = globalThis) {
       if (busy) throw new Error("Wait for sync to finish.");
       // A personal credential is disconnected from guilded.kcaron.top/me/; a guild one here.
       if (config.companionCredential && !config.personal) await request("/api/v1/companion/logout", { guildDiscordId: config.guildDiscordId });
-      try { await folders.forget(); }
+      try { for (const profile of profileChoices(config)) await createBrowserFolderAccess(env, undefined, profile.id).forget(); }
       finally {
         config.companionCredential = ""; visits = []; state.running = false;
         try { deviceStorage?.removeItem(deviceKey); } catch { /* Server revocation already stops access. */ }

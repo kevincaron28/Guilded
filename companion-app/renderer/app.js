@@ -264,15 +264,37 @@ $('language').addEventListener('change', async event => {
 });
 document.addEventListener('companion-language', () => {
   if (!lastSnapshot) return;
-  configurePresentation(); renderState(lastSnapshot); renderLogs();
+  configurePresentation();
+  void renderProfiles(); renderState(lastSnapshot); renderLogs();
   const page = document.querySelector('.nav.active')?.dataset.page || 'status';
   $('breadcrumb').textContent = T(names[page]);
   document.title = T('{0} · Guilded Companion', T(names[page]));
   setTheme(document.body.classList.contains('light'));
 });
+async function renderProfiles() {
+  if (!api.listProfiles) return;
+  const data = await api.listProfiles();
+  $('connectionProfile').replaceChildren(...data.profiles.map(p => { const option = document.createElement('option'); option.value = p.id; option.textContent = p.name + (p.gameEdition ? ' · ' + p.gameEdition : ''); return option; }));
+  $('connectionProfile').value = data.active;
+}
+async function changeConnection(choice) {
+  const result = await api.changeProfile(choice);
+  if (!result.ok) { toast(result.message, true); await renderProfiles(); return; }
+  const all = await api.getAll(); savedConfig = all.config;
+  for (const id of fields) $(id).value = all.config[id] ?? '';
+  $('wowEnabled').checked = all.config.wowEnabled !== false;
+  $('poeEnabled').checked = all.config.poeEnabled === true;
+  $('poeMode').value = all.config.poeMode || 'STANDARD';
+  gameFields(); renderState({state:all.state,health:all.health,update:all.update,savedFile:all.savedFile});
+  await renderProfiles(); toast(result.message);
+}
+$('connectionProfile').addEventListener('change', () => changeConnection({ id: $('connectionProfile').value }));
+bind('btnAddProfile', async () => { await changeConnection({ name: $('newProfileName').value }); $('newProfileName').value = ''; });
+
 async function init() {
   if (!api) { toast(T("The companion interface could not load. Please reload or reinstall."),true); return; }
   const all = await api.getAll(); savedConfig = all.config;
+  await renderProfiles();
   if (!languageUI.explicit && ['en','fr'].includes(all.language)) languageUI.set(all.language, false);
   for (const id of fields) $(id).value = all.config[id] ?? '';
   $('wowEnabled').checked = all.config.wowEnabled !== false; $('poeEnabled').checked = all.config.poeEnabled === true; $('poeMode').value = all.config.poeMode || 'STANDARD'; $('autostart').checked = all.autostart; $('version').textContent = `Version ${all.version}`;

@@ -1,8 +1,9 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
+import { currentEdition } from "./edition-context.js";
 import type { Filters, Role } from "./recruitment.js";
 
 export interface PublicRaid {
-  id: string; title: string; guildName: string; guildDiscordId: string; coreName: string | null;
+  id: string; title: string; guildName: string; guildDiscordId: string; guildId?: string; coreName: string | null;
   scheduledAt: string; realm: string; faction: string; language: string;
   spots: Record<Role, number>; signupUrl: string; inviteUrl: string;
 }
@@ -26,12 +27,12 @@ export function openRaidSpots(raid: {
 
 export async function publicRaids(database: Pick<PrismaClient, "raid">, allows: (id: string) => boolean, now = new Date()): Promise<PublicRaid[]> {
   const raids = await database.raid.findMany({
-    where: { publicPug: true, isTest: false, status: "PLANNED", scheduledAt: { gt: now, lte: new Date(now.getTime() + 30 * 86_400_000) } },
+    where: { guild: { gameEdition: currentEdition() }, publicPug: true, isTest: false, status: "PLANNED", scheduledAt: { gt: now, lte: new Date(now.getTime() + 30 * 86_400_000) } },
     select: {
       id: true, title: true, scheduledAt: true, tankLimit: true, healerLimit: true, dpsLimit: true,
       pugRealm: true, pugFaction: true, pugLanguage: true, pugInviteUrl: true,
       signupChannelId: true, signupMessageId: true,
-      guild: { select: { name: true, discordId: true } }, core: { select: { name: true } },
+      guild: { select: { id: true, name: true, discordId: true } }, core: { select: { name: true } },
       signups: { select: { role: true, status: true } }
     },
     orderBy: [{ scheduledAt: "asc" }, { id: "asc" }]
@@ -42,7 +43,7 @@ export async function publicRaids(database: Pick<PrismaClient, "raid">, allows: 
     const spots = openRaidSpots(raid);
     if (!Object.values(spots).some(n => n > 0)) return [];
     return [{
-      id: raid.id, title: raid.title, guildName: raid.guild.name, guildDiscordId: raid.guild.discordId,
+      id: raid.id, title: raid.title, guildName: raid.guild.name, guildDiscordId: raid.guild.discordId, guildId: raid.guild.id,
       coreName: raid.core?.name ?? null, scheduledAt: raid.scheduledAt.toISOString(),
       realm: raid.pugRealm, faction: raid.pugFaction, language: raid.pugLanguage, spots,
       signupUrl: `https://discord.com/channels/${raid.guild.discordId}/${raid.signupChannelId}/${raid.signupMessageId}`,

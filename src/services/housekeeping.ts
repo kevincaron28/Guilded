@@ -4,7 +4,8 @@ import { type ButtonInteraction, type Guild as DiscordGuild, type GuildMember, t
 import type { GuildSettings } from "../generated/prisma/client.js";
 import { prisma } from "../database.js";
 import { createGuildService } from "./guild.js";
-import { isPermissionRoleName, type Permission } from "../permissions.js";
+import { isPermissionRole, type Permission } from "../permissions.js";
+import { currentGuildScope } from "./guild-scope.js";
 import { asLang, t } from "../i18n.js";
 import { onboardingButtons, rulesGateActive, rulesPending, rulesPrompt } from "./onboarding.js";
 
@@ -58,8 +59,9 @@ export async function postToLogChannel(discordGuild: DiscordGuild, content: stri
 // and a leave is logged only for someone who held one. Returns that role's name, or null.
 const GUILD_PERMISSIONS: Permission[] = ["guildMaster", "officer", "raidLeader", "dkpOfficer", "lootLeader", "classLeader"];
 export function guildRoleOf(roles: { id: string; name: string }[], memberRoleId: string | null | undefined): string | null {
+  memberRoleId = currentGuildScope()?.memberRoleId ?? memberRoleId;
   const found = roles.find((role) => (memberRoleId && role.id === memberRoleId)
-    || GUILD_PERMISSIONS.some((permission) => isPermissionRoleName(permission, role.name)));
+    || GUILD_PERMISSIONS.some((permission) => isPermissionRole(permission, role)));
   return found?.name ?? null;
 }
 

@@ -4,6 +4,9 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { hasPermission } from "../permissions.js";
 import { hashCompanionSecret } from "./character-pairing.js";
 import { parseAddonSnapshot, type AddonSnapshot } from "../integrations/addon.js";
+import { currentGuildScope } from "./guild-scope.js";
+import { characterKey } from "../../companion/character-identity.mjs";
+import { gameEditionOf } from "./game-edition.js";
 
 // A credential is revocable and scoped to one active Discord member in one guild.
 // Never accept the old server-wide upload token as member authorization.
@@ -18,13 +21,16 @@ export async function companionAccess(database: PrismaClient, client: Client | u
   const guild = await client.guilds.fetch(discordId);
   const member = await guild.members.fetch({ user: credential.member.discordUserId, force: true }).catch(() => null);
   if (!member) return null;
+  const scope = currentGuildScope();
+  if (scope?.memberRoleId && !member.permissions.has("Administrator") && !member.roles.cache.has(scope.memberRoleId)) return null;
   return { memberId: credential.memberId, actorId: member.id, officer: hasPermission(member, "officer"), raidLeader: hasPermission(member, "raidLeader") };
 }
 
 // Personal companions cannot change the ledger, other players' readiness, prices,
 // attendance or reserves. Build an allowlist, so newly added fields default to denied.
 export function personalSnapshot(snapshot: AddonSnapshot, owned: { name: string; realm: string }[]): AddonSnapshot {
-  const key = (name: string, realm: string) => `${name.toLowerCase()}\0${realm.toLowerCase()}`;
+  const edition = gameEditionOf(snapshot);
+  const key = (name: string, realm: string) => edition === "forever" ? `${name.toLowerCase()}\0${realm.toLowerCase()}` : characterKey(name, realm, edition);
   const names = new Set(owned.map((c) => key(c.name, c.realm)));
   const own = (c: { character: string; realm: string }) => names.has(key(c.character, c.realm));
   const ownCharacter = (c: { name: string; realm: string }) => names.has(key(c.name, c.realm));

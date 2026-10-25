@@ -1,3 +1,8 @@
+import { GAME_EDITIONS } from "../companion/game-edition.mjs";
+import { withEdition } from "./services/edition-context.js";
+import { guildWhere, interactionGuildScope, entityGuildScope, runInGuildScope, withGuildScope, forEachGuildScope } from "./services/guild-scope.js";
+import { executeWow } from "./commands/wow.js";
+import type { Interaction } from "discord.js";
 import { executeGameEvents, executeOwnerEvents, OWNER_EVENTS_COMMAND, ownerEventsCommand } from "./commands/game-events.js";
 import { queueGameEvents } from "./services/game-events.js";
 import { hostedPilot, pilotGuildScope, replacePilotApprovals, replacePilotLite } from "./hosted-pilot.js";
@@ -154,6 +159,7 @@ process.on("uncaughtException", (error) => {
 // A rejected promise nobody awaited is a bug in one handler, not a broken process: report it and carry on.
 process.on("unhandledRejection", (error) => { void errorReportService.report(client, error, { source: "unhandledRejection" }); });
 const handlers = new Collection<string, (interaction: ChatInputCommandInteraction) => Promise<void>>();
+handlers.set("wow", executeWow);
 handlers.set("events", executeGameEvents);
 handlers.set("profile", executeProfile);
 handlers.set("config", executeConfig);
@@ -196,7 +202,7 @@ client.once(Events.ClientReady, (readyClient) => {
     refreshingPugs = true;
     try {
       for (const guild of readyClient.guilds.cache.values()) {
-        await refreshPugBoard(guild, prisma, hostedPilot.allows).catch(reportJobError("Open raid board"));
+        await forEachGuildScope(prisma, guild.id, () => refreshPugBoard(guild, prisma, hostedPilot.allows)).catch(reportJobError("Open raid board"));
       }
     } finally { refreshingPugs = false; }
   };
@@ -253,10 +259,10 @@ client.once(Events.ClientReady, (readyClient) => {
     reconcilingEvents = true;
     try {
       for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) {
-        await withReportContext({ guildId: guild.id, guildName: guild.name, operation: "scheduled-events.reconcile" }, async () => {
-          const record = await prisma.guild.findUnique({ where: { discordId: guild.id }, select: { id: true } });
+        await withReportContext({ guildId: guild.id, guildName: guild.name, operation: "scheduled-events.reconcile" }, () => forEachGuildScope(prisma, guild.id, async () => {
+          const record = await prisma.guild.findUnique({ where: guildWhere(guild.id), select: { id: true } });
           if (record) await queueGuildScheduledEvents(prisma, record.id);
-        });
+        }));
       }
     } finally { reconcilingEvents = false; }
   };
@@ -268,9 +274,11 @@ client.once(Events.ClientReady, (readyClient) => {
   void (async () => {
     for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) {
       const origin = { guildId: guild.id, guildName: guild.name };
-      await updateDungeonLeaderboard(guild).catch(reportJobError("Dungeon leaderboard", origin));
-      await updateProfessionDirectory(guild).catch(reportJobError("Profession directory", origin));
-      await repairCoreRaids(guild, true).catch(reportJobError("Core channels and raid posts", origin));
+      await forEachGuildScope(prisma, guild.id, async () => {
+        await updateDungeonLeaderboard(guild).catch(reportJobError("Dungeon leaderboard", origin));
+        await updateProfessionDirectory(guild).catch(reportJobError("Profession directory", origin));
+        await repairCoreRaids(guild, true).catch(reportJobError("Core channels and raid posts", origin));
+      });
     }
   })();
   logSetupStatus(readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()).catch(reportJobError("Setup status log"));
@@ -304,7 +312,7 @@ client.once(Events.ClientReady, (readyClient) => {
     if (rotating) return;
     rotating = true;
     // The public leaderboards' rules freeze when a season starts, then only gain new routes.
-    freezeSeasonRules(prisma, new Date())
+    (async () => { for (const edition of GAME_EDITIONS) await withEdition(edition, () => freezeSeasonRules(prisma, new Date())
       .then((change) => {
         if (change?.frozen) console.info(`Public dungeon rules frozen for ${change.season}.`);
         else if (change) console.info(`Public dungeon rules for ${change.season} gained routes ${change.routes.join(", ") || "-"}, brackets ${change.brackets.join(", ") || "-"}.`);
@@ -317,10 +325,10 @@ client.once(Events.ClientReady, (readyClient) => {
           console.info(`Dungeon season rotated: ${row.ended ?? "none"} -> ${row.season} (guild ${row.guildId}).`);
           const guild = await prisma.guild.findUnique({ where: { id: row.guildId }, select: { discordId: true } });
           const discordGuild = guild ? readyClient.guilds.cache.get(guild.discordId) ?? null : null;
-          await updateDungeonLeaderboard(discordGuild).catch(reportJobError("Dungeon leaderboard after season rotation"));
+          await withGuildScope(prisma, row.guildId, () => updateDungeonLeaderboard(discordGuild)).catch(reportJobError("Dungeon leaderboard after season rotation"));
         }
       })
-      .catch(reportJobError("Dungeon seasons")).finally(() => { rotating = false; });
+      .catch(reportJobError("Dungeon seasons"))); })().finally(() => { rotating = false; });
   };
   setTimeout(rotateSeasons, 60_000);
   setInterval(rotateSeasons, 5 * 60 * 1000);
@@ -352,7 +360,7 @@ client.once(Events.ClientReady, (readyClient) => {
   setInterval(() => {
     if (repairing) return;
     repairing = true;
-    (async () => { for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) await withReportContext({ guildId: guild.id, guildName: guild.name, operation: "raid-signup.repair" }, () => repairCoreRaids(guild)); })()
+    (async () => { for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) await withReportContext({ guildId: guild.id, guildName: guild.name, operation: "raid-signup.repair" }, () => forEachGuildScope(prisma, guild.id, () => repairCoreRaids(guild))); })()
       .catch(reportJobError("Raid signup repair")).finally(() => { repairing = false; });
   }, 5 * 60 * 1000);
   // Weekly guild report (if enabled): checked hourly.
@@ -368,10 +376,10 @@ client.once(Events.ClientReady, (readyClient) => {
     // Re-evaluate snapshot age even when nobody clicks a signup or uploads new gear.
     (async () => {
       for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) {
-        await withReportContext({ guildId: guild.id, guildName: guild.name, operation: "character-display.refresh" }, async () => {
+        await withReportContext({ guildId: guild.id, guildName: guild.name, operation: "character-display.refresh" }, () => forEachGuildScope(prisma, guild.id, async () => {
           const record = await guildService.ensureGuild(guild.id, guild.name);
           await queueCharacterDisplayRefresh(prisma, record.id);
-        });
+        }));
       }
     })().catch(reportJobError("Character display refresh"));
     runWeeklyReports(readyClient).catch(reportJobError("Weekly report check"));
@@ -406,7 +414,7 @@ client.on(Events.GuildDelete, (guild) => {
 client.on(Events.GuildMemberAdd, async (member) => {
   if (!hostedPilot.allows(member.guild.id)) return;
   try {
-    const record = await prisma.guild.findUnique({ where: { discordId: member.guild.id }, select: { id: true } });
+    const record = await prisma.guild.findUnique({ where: guildWhere(member.guild.id), select: { id: true } });
     if (record && member.joinedAt && !member.user.bot) await rememberRookieJoin(prisma, record.id, member.id, member.joinedAt);
     await handleMemberJoin(member.guild, member);
   } catch (error) {
@@ -419,7 +427,7 @@ client.on(Events.GuildMemberAdd, async (member) => {
 client.on(Events.GuildMemberRemove, async member => {
   if (!hostedPilot.allows(member.guild.id)) return;
   try {
-    const record = await prisma.guild.findUnique({ where: { discordId: member.guild.id }, select: { id: true } });
+    const record = await prisma.guild.findUnique({ where: guildWhere(member.guild.id), select: { id: true } });
     if (record && member.joinedAt && !member.user.bot) await rememberRookieJoin(prisma, record.id, member.id, member.joinedAt);
   } catch (error) { console.error("Rookie membership history failed", error); }
 });
@@ -428,7 +436,7 @@ client.on(Events.GuildMemberRemove, async member => {
 client.on(Events.GuildMemberUpdate, async (before, after) => {
   if (!hostedPilot.allows(after.guild.id)) return;
   try {
-    await handleMemberRolesChange(after.guild, before, after);
+    await forEachGuildScope(prisma, after.guild.id, () => handleMemberRolesChange(after.guild, before, after));
   } catch (error) {
     console.error("GuildMemberUpdate handling failed", error);
     void errorReportService.report(client, error, { source: "GuildMemberUpdate", guildId: after.guild.id, guildName: after.guild.name, userId: after.id });
@@ -438,7 +446,7 @@ client.on(Events.GuildMemberUpdate, async (before, after) => {
 client.on(Events.GuildMemberRemove, async (member) => {
   if (!hostedPilot.allows(member.guild.id)) return;
   try {
-    await handleMemberLeave(member.guild, member);
+    await forEachGuildScope(prisma, member.guild.id, () => handleMemberLeave(member.guild, member));
   } catch (error) {
     console.error("GuildMemberRemove handling failed", error);
     void errorReportService.report(client, error, { source: "GuildMemberRemove", guildId: member.guild.id, guildName: member.guild.name, userId: member.id });
@@ -463,14 +471,42 @@ client.on(Events.ShardResume, () => participationTracker.reset());
 if (config.MESSAGE_CONTENT_INTENT) {
   client.on(Events.MessageCreate, (message) => {
     if (!message.guildId || !hostedPilot.allows(message.guildId)) return;
-    void answerMessage(message, answerCommandList).catch((error: unknown) => {
+    void (async () => {
+      const scope = await interactionGuildScope(prisma, {discordId:message.guildId!,userId:message.author.id,channelId:message.channelId,parentId:"parentId" in message.channel ? message.channel.parentId : null});
+      if (scope) await runInGuildScope(scope, () => answerMessage(message, answerCommandList));
+      else await answerMessage(message, answerCommandList);
+    })().catch((error: unknown) => {
       console.warn("Answer channel failed", error);
       void errorReportService.report(client, error, { source: "Answer channel", guildId: message.guildId, guildName: message.guild?.name, userId: message.author.id, channelId: message.channelId, messageId: message.id, operation: "answer-channel.reply" });
     });
   });
 }
 
-client.on(Events.InteractionCreate, async (interaction) => {
+client.on(Events.InteractionCreate, async interaction => {
+  try {
+    const serverCommands = ["wow", "community", "organize", "poe", "participation", "team", "events", "guilded-season", "guilded-events"];
+    const globalButton = "customId" in interaction && [PILOT_REQUEST_PREFIX, TEAM_BUTTON_PREFIX, COMMUNITY_PREFIX, WELCOME_ROLE_PREFIX, SELF_ROLE_PREFIX, ONBOARD_PREFIX].some(prefix => interaction.customId.startsWith(prefix));
+    const wowOrganize = interaction.isChatInputCommand() && interaction.commandName === "organize" && interaction.options.getSubcommandGroup(false) === "dungeon-seasons";
+    const globalCommand = "commandName" in interaction && serverCommands.includes(interaction.commandName) && !wowOrganize;
+    const scope = interaction.guildId && hostedPilot.allows(interaction.guildId) && !globalCommand && !globalButton
+      ? ("customId" in interaction ? await entityGuildScope(prisma, interaction.guildId, interaction.customId) : null)
+        ?? await interactionGuildScope(prisma, { discordId: interaction.guildId, userId: interaction.user.id, channelId: interaction.channelId, parentId: interaction.channel && "parentId" in interaction.channel ? interaction.channel.parentId : null }) : null;
+    if (scope && interaction.guild) {
+      const member = await interaction.guild.members.fetch(interaction.user.id);
+      if (scope.memberRoleId && !member.permissions.has("Administrator") && !member.roles.cache.has(scope.memberRoleId)) throw new Error("You need this in-game guild's member role.");
+      await runInGuildScope(scope, () => handleGuildInteraction(interaction));
+    } else await handleGuildInteraction(interaction);
+  } catch (error) {
+    if (interaction.isAutocomplete()) await interaction.respond([]).catch(() => undefined);
+    else if (interaction.isRepliable()) {
+      const content = error instanceof Error && error.message.length < 220 ? error.message : "Could not select the in-game guild. Use /wow list and /wow use.";
+      if (interaction.deferred || interaction.replied) await interaction.followUp({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+      else await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+    }
+  }
+});
+
+async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   if (interaction.isButton() && interaction.customId.startsWith(PILOT_REQUEST_PREFIX)) {
     try { await pilotRequests.handle(interaction); }
     catch (error) {
@@ -688,7 +724,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   } catch (error) {
     await replyWithCommandError(interaction, error);
   }
-});
+}
 
 // Replaces the server's whole command list: the full set, or Guilded Lite's (commands/lite.ts).
 // The bot owner's /guilded-season exists only in the home server (DISCORD_GUILD_ID).

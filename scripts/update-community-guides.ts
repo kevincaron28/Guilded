@@ -1,3 +1,4 @@
+import { guildWhere } from "../src/services/guild-scope.js";
 // Explicit maintenance action: REST only, never starts a second bot session.
 import { REST, Routes, ChannelType, type APIMessage, type APIChannel } from "discord.js";
 import { config } from "../src/config.js";
@@ -9,7 +10,7 @@ import { professionDirectoryText } from "../src/services/profession-directory.js
 
 const rest = new REST({ version: "10" }).setToken(config.DISCORD_TOKEN);
 try {
-  const guild = await prisma.guild.findUniqueOrThrow({ where: { discordId: config.DISCORD_GUILD_ID }, include: { settings: true } });
+  const guild = await prisma.guild.findUniqueOrThrow({ where: guildWhere(config.DISCORD_GUILD_ID), include: { settings: true } });
   const settings = guild.settings;
   if (!settings) throw new Error("Guild settings are missing.");
   const lang = asLang(settings.language);

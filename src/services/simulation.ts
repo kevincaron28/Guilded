@@ -46,8 +46,8 @@ async function ensureTestMembers(database: PrismaClient, guildId: string, realm:
       update: { isTest: true, status: "ACTIVE" }
     });
     await database.character.upsert({
-      where: { gameEdition_realm_name: { gameEdition: "forever", realm, name } },
-      create: { memberId: member.id, name, realm, className: SIM_CLASSES[i % SIM_CLASSES.length] ?? "Warrior", isMain: true, level: 60 },
+      where: { guildId_gameEdition_realm_name: { guildId, gameEdition: "forever", realm, name } },
+      create: { guildId, memberId: member.id, name, realm, className: SIM_CLASSES[i % SIM_CLASSES.length] ?? "Warrior", isMain: true, level: 60 },
       update: {}
     });
     members.push(member);

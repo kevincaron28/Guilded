@@ -16,7 +16,7 @@ function fakeDatabase() {
   imports.set("import-1", { id: "import-1", status: "PREVIEWED", payload: payload(["qg:a"]) });
   imports.set("import-2", { id: "import-2", status: "PREVIEWED", payload: payload(["qg:a", "qg:b"]) });
 
-  const tx = {
+  const tx = { guild: { findUnique: async () => ({ gameEdition: "forever" }) },
     guildSettings: { findUnique: async () => null },
     $executeRaw: async () => 0,
     addonImport: {

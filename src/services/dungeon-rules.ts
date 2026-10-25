@@ -1,6 +1,7 @@
 import { validDungeonKey, validLevelBand, type LevelBand } from "./dungeon-rating.js";
 import { z } from "zod";
-import { GAME_EDITIONS } from "../../companion/game-edition.mjs";
+import { GAME_EDITIONS, gameEditionOf } from "../../companion/game-edition.mjs";
+import { characterKey } from "../../companion/character-identity.mjs";
 
 // Dungeon Challenge rules (roadmap D3/D4): what a valid run is, and how
 // points are earned. Pure functions, so they're easy to test and change.
@@ -18,7 +19,7 @@ export const dungeonRunSchema = z.object({
   protocolVersion: z.number().int(),
   addonVersion: z.string().max(40).optional(),
   gameBuild: z.string().min(1).max(40).optional().catch(undefined),
-  startTrigger: z.enum(["first combat", "manual", "encounter start", "encounter end", "peer"]).optional().catch(undefined),
+  startTrigger: z.enum(["first combat", "manual", "encounter start", "encounter end", "challenge start", "peer"]).optional().catch(undefined),
   state: z.string().max(20),
   instanceId: z.number().int().positive(),
   name: z.string().min(1).max(100),
@@ -27,10 +28,10 @@ export const dungeonRunSchema = z.object({
   endedAt: z.number().int().positive().optional(),
   completedBy: z.string().max(40).optional(),
   endReason: z.string().max(80).optional(),
-  recorder: z.string().max(40).optional(),
+  recorder: z.string().max(100).optional(),
   reporters: z.number().int().nonnegative().default(1),
   // Characters whose addon reported the run (newer companions only).
-  reporterNames: z.array(z.string().min(1).max(40)).max(10).optional(),
+  reporterNames: z.array(z.string().min(1).max(100)).max(10).optional(),
   // Optional presentation metadata must never invalidate otherwise valid awards.
   encounters: z.array(z.object({
     id: z.number().int().positive(), name: z.string().max(100).optional(), success: z.boolean(),
@@ -139,13 +140,15 @@ export function validateRun(run: DungeonRunInput, now = new Date()): Validation 
   const duration = run.endedAt - run.startedAt;
   if (duration < MIN_DURATION_SEC) return { ok: false, reason: `too short (${duration}s)` };
   if (duration > MAX_DURATION_SEC) return { ok: false, reason: `too long (${Math.round(duration / 60)} min)` };
-  const names = new Set(run.players.map((player) => player.character.toLowerCase()));
+  let edition;
+  try { edition = gameEditionOf(run); } catch { return { ok: false, reason: "Invalid WoW edition" }; }
+  const names = new Set(run.players.map((player) => characterKey(player.character, player.realm, edition)));
   if (names.size !== run.players.length) return { ok: false, reason: "same player listed twice" };
   // A run is only believed from someone who was in it: the recorder, and at least one of
   // the reporters when the companion says who they were.
-  if (run.recorder && !names.has(run.recorder.toLowerCase())) return { ok: false, reason: "recorder was not in the run" };
+  if (run.recorder && !names.has(characterKey(run.recorder, "", edition))) return { ok: false, reason: "recorder was not in the run" };
   if (run.reporterNames && run.reporterNames.length > 0
-    && !run.reporterNames.some((name) => names.has(name.toLowerCase()))) {
+    && !run.reporterNames.some((name) => names.has(characterKey(name, "", edition)))) {
     return { ok: false, reason: "no reporter was in the run" };
   }
   return { ok: true };

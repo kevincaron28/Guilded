@@ -15,6 +15,17 @@ function client(build = 16001) {
   return session;
 }
 describe("Forever display names without changing accounting identity", () => {
+  it("keeps same-named party members on separate realms and falls back for local units", () => {
+    const s = client(120105);
+    s.run(`GetNormalizedRealmName = function() return "Area52" end
+      UnitFullName = function(unit) return "Amy", unit == "party1" and "Illidan" or "" end
+      IsInGroup = function() return true end
+      IsInRaid = function() return false end`);
+    expect(s.run('return NS.util.unitKey("party1")')).toBe("Amy-illidan");
+    expect(s.run('return NS.util.unitKey("player")')).toBe("Amy-area52");
+    expect(s.run('return tostring(NS.util.inMyGroup("Amy-illidan"))')).toBe("true");
+    expect(s.run('return tostring(NS.util.inMyGroup("Amy-other"))')).toBe("false");
+  });
   it("captures both names and preserves the existing key and points", () => {
     const s = client();
     expect(s.run('return GuildedDB.character.displayName')).toBe("Halidor Galemorne");

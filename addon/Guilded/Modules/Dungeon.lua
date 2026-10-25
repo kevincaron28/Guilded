@@ -152,6 +152,7 @@ local function newRun(instance)
     name = instance.name,
     difficultyId = instance.difficultyId,
     difficultyName = instance.difficultyName,
+    challengeMode = compat.challengeActive(),
     detectedAt = stamp,
     encounters = {},
     players = {},
@@ -559,6 +560,26 @@ local function onEvent(_, event, ...)
     if run and run.state == "STARTING" and run.inside then activate() end
   elseif event == "PLAYER_REGEN_ENABLED" then
     flush()
+  elseif event == "CHALLENGE_MODE_START" then
+    local instance = compat.instance()
+    if not instance or instance.type ~= "party" then return end
+    -- Inserting a new key starts a fresh attempt in the same instance.
+    if d.current and d.current.state == "ACTIVE" then finish("ABANDONED", "challenge restarted") end
+    d.current = nil
+    d.completedInstanceId = nil
+    evaluate()
+    if d.current then
+      d.current.challengeMode = true
+      activate(nil, "challenge start")
+    end
+  elseif event == "CHALLENGE_MODE_RESET" then
+    if d.current and d.current.challengeMode then finish("ABANDONED", "challenge reset") end
+  elseif event == "CHALLENGE_MODE_COMPLETED" then
+    local run, instance = d.current, compat.instance()
+    if run and run.challengeMode and run.state == "ACTIVE" and instance
+      and instance.type == "party" and instance.id == run.instanceId then
+      finish("COMPLETED", "challenge objectives")
+    end
   elseif event == "ENCOUNTER_START" then
     local encounterId, name = ...
     local run, instance = d.current, compat.instance()
@@ -578,7 +599,7 @@ local function onEvent(_, event, ...)
     if run.state == "STARTING" then activate(nil, "encounter end") end
     if not tonumber(encounterId) then return end
     recordEncounter(run, tonumber(encounterId), (not ns.isSecret(name)) and name or nil, success == 1)
-    if success == 1 and ((run.finalEncounterId and tonumber(encounterId) == run.finalEncounterId)
+    if success == 1 and not run.challengeMode and not compat.challengeActive() and ((run.finalEncounterId and tonumber(encounterId) == run.finalEncounterId)
       or compat.isDungeonFinalBoss(run.instanceId, encounterId, name, run.difficultyId)) then
       finish("COMPLETED", "final boss")
     end
@@ -591,8 +612,8 @@ local function onEvent(_, event, ...)
     if not instance or instance.type ~= "party" or instance.id ~= run.instanceId then return end
     if not tonumber(encounterId) then return end
     recordEncounter(run, tonumber(encounterId), name, true)
-    if (run.finalEncounterId and tonumber(encounterId) == run.finalEncounterId)
-      or compat.isDungeonFinalBoss(run.instanceId, encounterId, name, run.difficultyId) then
+    if not run.challengeMode and not compat.challengeActive() and ((run.finalEncounterId and tonumber(encounterId) == run.finalEncounterId)
+      or compat.isDungeonFinalBoss(run.instanceId, encounterId, name, run.difficultyId)) then
       finish("COMPLETED", "final boss")
     end
   elseif event == "PLAYER_DEAD" then
@@ -739,6 +760,9 @@ end
 -- raise Blizzard's blocked-action popup during addon loading.
 compat.registerEvent(frame, "BOSS_KILL", true)
 compat.registerEvent(frame, "ENCOUNTER_START", true)
+compat.registerEvent(frame, "CHALLENGE_MODE_START", true)
+compat.registerEvent(frame, "CHALLENGE_MODE_RESET", true)
+compat.registerEvent(frame, "CHALLENGE_MODE_COMPLETED", true)
 frame:SetScript("OnEvent", function(...)
   if ns.moduleActive and not ns.moduleActive("dungeon") then return end -- /guilded modules
   local ok, err = pcall(onEvent, ...)

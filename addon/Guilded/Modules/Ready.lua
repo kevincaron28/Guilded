@@ -239,6 +239,7 @@ end
 module.check = nil
 
 local function unitName(unit)
+  if ns.util and ns.util.unitKey then return ns.util.unitKey(unit) end
   local name = UnitName and UnitName(unit)
   if not name or (ns.isSecret and ns.isSecret(name)) then return nil end
   return ns.normalizeName and ns.normalizeName(name) or name

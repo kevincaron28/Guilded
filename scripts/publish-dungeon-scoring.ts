@@ -1,3 +1,4 @@
+import { guildWhere } from "../src/services/guild-scope.js";
 // Explicit REST maintenance; never logs in a second bot or changes scores.
 import { REST, Routes, type APIMessage, type RESTGetAPIApplicationGuildCommandsResult } from "discord.js";
 import { config } from "../src/config.js";
@@ -10,7 +11,7 @@ import { dungeonSignupGuideText, DUNGEON_GUIDE_CREATE_ID } from "../src/services
 const marker = "Guilded · dungeon-scoring-rules-v1";
 try {
   const rest = new REST({ version: "10", timeout: 15000, retries: 1 }).setToken(config.DISCORD_TOKEN);
-  const guild = await prisma.guild.findUniqueOrThrow({ where: { discordId: config.DISCORD_GUILD_ID } });
+  const guild = await prisma.guild.findUniqueOrThrow({ where: guildWhere(config.DISCORD_GUILD_ID) });
   const settings = await prisma.guildSettings.findUniqueOrThrow({ where: { guildId: guild.id } });
   const lang = asLang(settings.language);
   const channelId = settings.dungeonLeaderboardChannelId ?? settings.dungeonChannelId;

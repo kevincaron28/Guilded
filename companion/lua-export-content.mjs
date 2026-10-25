@@ -1,5 +1,6 @@
 import luaparse from "luaparse";
 import { editionMetadata, gameEditionOf } from "./game-edition.mjs";
+import { normalizeExportIdentities, characterReference } from "./character-identity.mjs";
 
 const iso = (epoch) => new Date(Number(epoch) * 1000).toISOString();
 
@@ -71,6 +72,7 @@ export function readDatabase(lua, name = "GuildedDB") {
 export function parseAddonExportText(text, realm) {
   const database = readDatabase(text.replace(/^\uFEFF/, ""));
   const edition = editionMetadata(database.character ?? {});
+  if (edition.gameEdition !== "forever") realm = String(database.character?.realm || realm);
   const transactions = [];
   const epgpTransactions = [];
   // The addon migrates its legacy db.dkp ledger into db.epgp on login, so a
@@ -251,7 +253,7 @@ export function parseAddonExportText(text, realm) {
   const alts = Object.values(database.myCharacters ?? {})
     .filter((entry) => entry?.name && entry.class)
     .slice(0, 50)
-    .map((entry) => exportCharacter(entry, realm));
+    .map((entry) => exportCharacter({ ...edition, ...entry }, realm));
   // Item prices officers set in game (addon Modules/Loot.lua); the bot keeps the newer of this and Discord's.
   const itemPrices = Object.values(database.itemPrices ?? {})
     .filter((entry) => entry?.name && Number.isFinite(Number(entry.gp)) && entry.at)
@@ -265,7 +267,7 @@ export function parseAddonExportText(text, realm) {
     }));
   const exportKeys = Object.keys(database.exports ?? {}).sort();
   const exportedAt = exportKeys.at(-1) ?? new Date().toISOString();
-  return {
+  return normalizeExportIdentities({
     source: "Guilded",
     ...edition,
     exportedAt,
@@ -306,7 +308,7 @@ export function parseAddonExportText(text, realm) {
     raids,
     loot,
     dungeonRuns
-  };
+  }, edition.gameEdition, realm);
 }
 
 // One character as the bot's addonCharacterSchema expects it.
@@ -422,9 +424,8 @@ export function exportDungeonRuns(database, realm, options = {}) {
       // Who reported it, so the bot can check at least one of them was in the run.
       ...(run.reporters && Object.keys(run.reporters).length ? { reporterNames: Object.keys(run.reporters).slice(0, 10) } : {}),
       players: Object.entries(run.players ?? {}).map(([character, player]) => ({
-        character,
+        ...characterReference(character, realm, gameEditionOf(run.gameEdition !== undefined || run.interface !== undefined ? run : database.character ?? {})),
         ...(database.displayNames?.[character] ? { displayName: String(database.displayNames[character]) } : {}),
-        realm,
         ...(player.class ? { class: String(player.class) } : {}),
         ...(player.role ? { role: String(player.role) } : {}),
         ...(player.spec ? { spec: String(player.spec).slice(0, 40) } : {}),

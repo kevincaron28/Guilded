@@ -4,7 +4,7 @@ import { ZodError } from "zod";
 import { allowManageWrite, coreOwnValues, createCompanionManage, ManageError, resetManageWrites, type ManageAccess } from "../src/services/companion-manage.js";
 
 const db = vi.hoisted(() => ({
-  guild: { findUnique: vi.fn() },
+  guild: { findUnique: vi.fn(), findFirst: vi.fn() },
   guildSettings: { findUnique: vi.fn() },
   member: { findFirst: vi.fn(), findMany: vi.fn() },
   character: { findFirst: vi.fn(), findMany: vi.fn() },
@@ -119,8 +119,9 @@ describe("companion editing over HTTP", async () => {
   afterAll(async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); });
   beforeEach(() => {
     resetFailures(); isLeader = false;
+    db.guild.findFirst.mockResolvedValue({ id: "guild", discordId: "123", scopeKey: "default", gameEdition: "forever" });
     db.guild.findUnique.mockImplementation(async ({ where }) => ({ id: "guild", discordId: where.discordId }));
-    db.companionCredential.findFirst.mockImplementation(async ({ where }) => where.tokenHash === hashCompanionSecret(secret) ? { memberId: "me", member: { discordUserId: "discord-me" } } : null);
+    db.companionCredential.findFirst.mockImplementation(async ({ where }) => where.tokenHash === hashCompanionSecret(secret) ? { memberId: "me", member: { discordUserId: "discord-me", guild: { id: "guild", discordId: "123", scopeKey: "default", gameEdition: "forever" } } } : null);
   });
   const send = (change: unknown, credential = secret) => fetch(`${address}/api/v1/manage`, { method: "POST", headers: { "content-type": "application/json", "x-companion-credential": credential }, body: JSON.stringify({ guildDiscordId: "123", change }) });
 

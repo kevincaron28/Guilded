@@ -1,7 +1,9 @@
-> 25 October continuation: owner requests Forever plus Classic Era/Hardcore,
-> progression Classic and Retail. Full Forever names are being preserved as
-> presentation data without changing ledger keys. Edition audit, source-only
-> changes and remaining release work: docs/RELEASE_SCOPE_2026-10-25.md.
+> 25 October continuation: multi-edition connected candidate on codex/game-editions,
+> PR #216 (stacked on #215/#214). Forever, Era, TBC, Mists and Retail have separate
+> guild contexts in one Discord, role IDs, companion profiles, realm identities,
+> public seasons and packages. Forever first/last display names retain ledger keys.
+> Real-client acceptance and non-Forever competition evidence remain release gates.
+> Setup, validation and remaining work: docs/RELEASE_SCOPE_2026-10-25.md.
 > 7.3.2 (23 October 2026): deployment candidate for UTC sessions, dungeon evidence/guidance,
 > staged recovery and companion startup fixes. Real game/two-PC acceptance remains pending.
 > Deployed for testing on 23 October; public release is explicitly held. Current preparation,

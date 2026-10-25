@@ -1,9 +1,10 @@
+import { currentEdition } from "../services/edition-context.js";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle, type ButtonInteraction, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { CORE_RAID_SIZES, coreComposition, planningOptions } from "../services/core-planning.js";
 import { parseWeeklySchedule, weeklyOccurrences, weeklyScheduleText } from "../services/core-weekly-time.js";
 import { fillCoreWeeklyRaids, saveCoreWeeklySchedule } from "../services/core-weekly-raids.js";
-import { RAID_PRESETS, presetComposition } from "../services/raid-presets.js";
+import { raidPresetsForEdition, presetComposition } from "../services/raid-presets.js";
 
 const field = (id: string, label: string, value: string, placeholder: string, required = true) => {
   const input = new TextInputBuilder().setCustomId(id).setLabel(label).setPlaceholder(placeholder).setRequired(required).setStyle(TextInputStyle.Short);
@@ -17,9 +18,10 @@ export async function editCoreComposition(i: ButtonInteraction, guildId: string,
   const core = await prisma.raidCore.findFirstOrThrow({ where: { id: coreId, guildId } });
   const pickerId = `size:${i.id}`;
   await i.editReply({ content: "Taille ou modèle / Size or preset. Les rôles proposés sont modifiables / Suggested roles are editable.", components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-    new StringSelectMenuBuilder().setCustomId(pickerId).setPlaceholder("10 / 20 / 40 joueurs").setMinValues(1).setMaxValues(1)
+    new StringSelectMenuBuilder().setCustomId(pickerId).setPlaceholder("Taille du raid / Raid size").setMinValues(1).setMaxValues(1)
       .addOptions(CORE_RAID_SIZES.map(size => ({ label: `${size} joueurs / players`, value: String(size), default: core.raidSize === size })))
-      .addOptions(RAID_PRESETS.map(p => ({ label: `${p.name} (${p.raidSize})`, value: `preset:${p.id}`, description: `${p.tankLimit} tanks / ${p.healerLimit} healers / ${p.dpsLimit} DPS — editable / modifiable` })))
+      .addOptions(currentEdition() === "retail" ? [{label:"Flexible (10–30)",value:"custom"}] : [])
+      .addOptions(raidPresetsForEdition().map(p => ({ label: `${p.name} (${p.raidSize})`, value: `preset:${p.id}`, description: `${p.tankLimit} tanks / ${p.healerLimit} healers / ${p.dpsLimit} DPS — editable / modifiable` })))
   )] });
   const message = await i.fetchReply();
   const choice = await message.awaitMessageComponent({ time: 300_000, filter: c => c.user.id === i.user.id && c.customId === pickerId }).catch(() => null);
@@ -31,6 +33,7 @@ export async function editCoreComposition(i: ButtonInteraction, guildId: string,
   const defaults = preset ?? (keepRoles ? core : null);
   const id = `composition:${i.id}`;
   await choice.showModal(new ModalBuilder().setCustomId(id).setTitle(`${size} joueurs — Rôles / Roles`).addComponents(
+    ...(selected === "custom" ? [field("size", "Taille / Size (10–30)", String(core.raidSize ?? 20), "17")] : []),
     field("tanks", "Tanks", defaults?.tankLimit?.toString() ?? "", "Nombre de tanks"),
     field("healers", "Soigneurs / Healers", defaults?.healerLimit?.toString() ?? "", "Nombre de soigneurs"),
     field("dps", "DPS", defaults?.dpsLimit?.toString() ?? "", "Nombre de DPS")
@@ -39,7 +42,7 @@ export async function editCoreComposition(i: ButtonInteraction, guildId: string,
   await i.editReply({ components: [] });
   if (!submitted) return null;
   try {
-    const data = coreComposition(size, ...["tanks", "healers", "dps"].map(key => submitted.fields.getTextInputValue(key)) as [string, string, string]);
+    const data = coreComposition(selected === "custom" ? submitted.fields.getTextInputValue("size") : size, ...["tanks", "healers", "dps"].map(key => submitted.fields.getTextInputValue(key)) as [string, string, string]);
     await submitted.deferReply({ flags: MessageFlags.Ephemeral });
     await prisma.raidCore.update({ where: { id: core.id }, data });
     const note = `${data.raidSize} joueurs : ${data.tankLimit} tanks / ${data.healerLimit} soigneurs / ${data.dpsLimit} DPS. Appliqué aux nouveaux raids; les raids publiés restent inchangés.`;

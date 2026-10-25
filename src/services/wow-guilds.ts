@@ -29,3 +29,21 @@ export async function resolveWowGuild(database: Db, guildId: string, selectedId?
   if (choices.length !== 1) throw new Error(choices.length ? "Choose the in-game guild for this action." : "Configure an in-game guild first.");
   return choices[0]!;
 }
+
+/** Separate Guild IDs reuse all existing ledger/raid/setting foreign keys. */
+export async function provisionWowGuild(database: PrismaClient, rootGuildId: string, input: unknown, roles: { officer?: string; member?: string } = {}) {
+  return database.$transaction(async tx => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${rootGuildId}, 0))`;
+    const root = await tx.guild.findUniqueOrThrow({ where: { id: rootGuildId } });
+    if (root.scopeKey !== "default") throw new Error("Add in-game guilds from the Discord server's main setup.");
+    const space = await registerWowGuild(tx as unknown as Db, rootGuildId, input);
+    if (space.scopeGuildId) return space;
+    const scoped = await tx.guild.create({ data: {
+      discordId: root.discordId, scopeKey: space.id, gameEdition: space.gameEdition,
+      name: space.name, settings: { create: {} }
+    } });
+    return tx.wowGuild.update({ where: { id: space.id }, data: {
+      scopeGuildId: scoped.id, permissionRoles: roles.officer ? { officer: roles.officer } : {}, memberRoleId: roles.member ?? null
+    } });
+  });
+}

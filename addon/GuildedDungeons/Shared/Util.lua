@@ -57,6 +57,48 @@ function util.gameEdition()
   return "unknown"
 end
 
+-- Blizzard characters are identified by name AND realm. Forever's legacy
+-- keys intentionally remain first names; its second UnitName value is a surname.
+function util.realmKey(realm)
+  if type(realm) ~= "string" or isSecret(realm) then return "" end
+  return (realm:gsub("%s+", ""))
+end
+
+function util.localRealm()
+  local fn = GetNormalizedRealmName or GetRealmName
+  if fn then
+    local ok, realm = pcall(fn)
+    if ok then return util.realmKey(realm) end
+  end
+  return ""
+end
+
+function util.characterKey(name, realm)
+  if type(name) ~= "string" or isSecret(name) then return nil end
+  name = name:match("^%s*(.-)%s*$")
+  local first, suffix = name:match("^([^%-%s]+)%-(.+)$")
+  first = first or name:match("^([^%-%s]+)")
+  if not first or first == "" then return nil end
+  first = first:sub(1, 1):upper() .. first:sub(2):lower()
+  -- Missing build information is the old client/test contract.
+  if util.isForever() or not util.clientInterface() then return first end
+  realm = util.realmKey(suffix or (realm ~= "" and realm) or util.localRealm())
+  return realm ~= "" and (first .. "-" .. realm:lower()) or first
+end
+
+function util.unitKey(unit)
+  local fn = (not util.isForever() and UnitFullName) or UnitName
+  if not fn then return nil end
+  local ok, first, realm = pcall(fn, unit)
+  if not ok then return nil end
+  return util.characterKey(first, util.isForever() and nil or realm)
+end
+
+function util.bareName(name)
+  if type(name) ~= "string" or isSecret(name) then return nil end
+  return name:match("^([^%-%s]+)") or name
+end
+
 local function safeName(value)
   if type(value) ~= "string" or isSecret(value) or #value > 80 or value:find("[|%c]") then return nil end
   value = value:match("^%s*(.-)%s*$")
@@ -81,7 +123,7 @@ function util.unitDisplayName(unit)
   if not ok then return nil end
   first, second = safeName(first), safeName(second)
   if not first then return nil end
-  if not util.isForever() then return normalizeName(first) end
+  if not util.isForever() then return util.bareName(first) end
   local full
   if GetUnitName then
     local fullOk, value = pcall(GetUnitName, unit, true)
@@ -97,7 +139,7 @@ function util.unitDisplayName(unit)
 end
 
 function util.displayName(name)
-  if not util.isForever() then return name end
+  if not util.isForever() then return util.bareName(name) end
   local db = ns.getDb and ns.getDb()
   local key = normalizeName(name)
   return (db and db.displayNames and key and safeName(db.displayNames[key])) or name
@@ -221,7 +263,7 @@ function util.inMyGroup(name)
     for i = 1, 4 do units[#units + 1] = "party" .. i end
   end
   for _, unit in ipairs(units) do
-    local ok, unitName = pcall(UnitName, unit)
+    local ok, unitName = pcall(util.unitKey, unit)
     if ok and not isSecret(unitName) and normalizeName(unitName) == name then return true end
   end
   return false

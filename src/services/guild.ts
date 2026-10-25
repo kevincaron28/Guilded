@@ -1,3 +1,4 @@
+import { guildWhere, currentGuildScope } from "./guild-scope.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { hostedPilot } from "../hosted-pilot.js";
 import { PILOT_DENIED } from "./pilot-policy.js";
@@ -5,11 +6,13 @@ import { PILOT_DENIED } from "./pilot-policy.js";
 export function createGuildService(database: PrismaClient) {
   return {
     ensureGuild(discordId: string, name: string) {
+      const scope = currentGuildScope();
+      if (scope?.guild.discordId === discordId) return Promise.resolve(scope.guild);
       // Lite servers get a record for their setup and signups; scheduled jobs still skip them (pilotGuildScope).
       const tier = hostedPilot.tier(discordId);
       if (tier === "blocked") throw new Error(PILOT_DENIED);
       return database.guild.upsert({
-        where: { discordId },
+        where: guildWhere(discordId),
         create: {
           discordId,
           name,
@@ -49,6 +52,9 @@ export function createGuildService(database: PrismaClient) {
       race?: string;
       isMain: boolean;
     }) {
+      const owner = await database.member.findUniqueOrThrow({ where: { id: input.memberId }, select: { guildId: true, guild: { select: { gameEdition: true } } } });
+      const gameEdition = input.gameEdition ?? owner.guild.gameEdition;
+      if (gameEdition !== owner.guild.gameEdition) throw new Error("This character belongs to a different WoW edition.");
       if (input.isMain) {
         await database.character.updateMany({
           where: { memberId: input.memberId },
@@ -58,8 +64,9 @@ export function createGuildService(database: PrismaClient) {
       return database.character.create({
         data: {
           memberId: input.memberId,
+          guildId: owner.guildId,
           name: input.name,
-          gameEdition: input.gameEdition ?? "forever",
+          gameEdition,
           ...(input.displayName ? { displayName: input.displayName } : {}),
           realm: input.realm,
           className: input.className,

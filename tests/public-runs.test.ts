@@ -53,11 +53,12 @@ describe("public run checks", () => {
     const memory = memoryRunStore();
     const first = await ingestPublicRuns(memory.store, { uploaderKey: "forever", character: "Kev", source: "personal", runs: [run({ interface: 16001 })] }, NOW);
     expect(first.accepted).toHaveLength(1);
-    const other = await ingestPublicRuns(memory.store, { uploaderKey: "retail", character: "Kev", source: "personal", runs: [run({ interface: 120105 })] }, NOW);
-    expect(other.rejected[0]?.reason).toContain("not enabled");
+    const other = await ingestPublicRuns(memory.store, { uploaderKey: "retail", character: "Kev-doomhowl", gameEdition: "retail", source: "personal", runs: [run({ interface: 120105, recorder: "Kev-doomhowl", reporterNames: ["Kev-doomhowl", "Amy-doomhowl"] })] }, NOW);
+    expect(other.rejected).toEqual([]);
+    expect(other.accepted).toHaveLength(1);
     expect(other.confirmed).toEqual([]);
-    expect(memory.runs.size).toBe(1);
-    expect(memory.uploads).toHaveLength(1);
+    expect(memory.runs.size).toBe(2);
+    expect(memory.uploads).toHaveLength(2);
   });
   it("accepts a normal completed run", () => {
     expect(checkPublicRun(parse(run()), "Kev", NOW)).toEqual({ ok: true });

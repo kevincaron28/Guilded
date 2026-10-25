@@ -20,7 +20,7 @@ function importDatabase(options: { coreLootOnly?: boolean; characters?: string[]
   const characters = (options.characters ?? ["Kevin"]).map((name) => ({ id: `char-${name}`, name, realm: "R", memberId: `member-${name}` }));
   const imports = new Map<string, { id: string; status: string; payload: unknown }>();
   const inList = (value: string | null, filter: unknown) => !!value && (filter as { in: string[] }).in.includes(value);
-  const tx = {
+  const tx = { guild: { findUnique: async () => ({ gameEdition: "forever" }) },
     $executeRaw: async () => 0,
     guildSettings: { findUnique: async () => ({ dataResetAt: null, coreLootOnly: options.coreLootOnly ?? false }) },
     addonImport: {

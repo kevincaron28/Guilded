@@ -1,3 +1,4 @@
+import { guildWhere } from "../services/guild-scope.js";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, ModalBuilder, PermissionFlagsBits, SlashCommandBuilder, TextInputBuilder, TextInputStyle, type ButtonInteraction, type ChatInputCommandInteraction, type Guild, type ModalSubmitInteraction, type SlashCommandSubcommandBuilder, type SlashCommandSubcommandsOnlyBuilder, MessageFlags } from "discord.js";
 import type { CommunityActivity, CommunitySeason } from "../generated/prisma/client.js";
 import { prisma } from "../database.js";
@@ -467,7 +468,7 @@ export async function runCommunityActivities(guilds: Iterable<Guild>, onHonorsEr
   ticking = true;
   try {
     for (const guild of guilds) {
-      const record = await prisma.guild.findUnique({ where: { discordId: guild.id } });
+      const record = await prisma.guild.findUnique({ where: guildWhere(guild.id) });
       if (!record) continue;
       await service.tick(record.id);
       await service.rotateMonthly(record.id);

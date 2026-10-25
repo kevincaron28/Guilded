@@ -1,4 +1,5 @@
 import { PAGE_STYLE } from "./guild-page.js";
+import { currentEdition } from "./edition-context.js";
 import { SITE_HEADER_STYLE, siteHeader } from "./site-header.js";
 
 // Shared HTML for the bot-served website pages (/recruitment/, /me/, /leaderboards/). Plain
@@ -18,6 +19,7 @@ export const tr = (lang: Lang) => (en: string, fr: string) => (lang === "fr" ? f
 // An internal link that keeps the page language.
 export function link(path: string, lang: Lang, params: Record<string, string | null | undefined> = {}): string {
   const query = new URLSearchParams();
+  if (/^\/(leaderboards|recruitment|me)/.test(path) && currentEdition() !== "forever") query.set("edition", currentEdition());
   for (const [key, value] of Object.entries(params)) if (value) query.set(key, value);
   query.set("lang", lang);
   return `${path}?${query.toString()}`;

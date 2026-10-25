@@ -15,6 +15,7 @@
     "companion:app": "npm --prefix companion-app start",
     "companion:watch": "node companion/watcher.mjs",
     "addon:zip": "node scripts/build-addon-zip.mjs",
+    "addon:editions": "node scripts/build-addon-editions.mjs",
     "dungeons:sync": "node scripts/build-dungeons-addon.mjs",
     "dungeons:zip": "node scripts/build-dungeons-addon.mjs --zip",
     "locale": "node scripts/addon-locale.mjs",

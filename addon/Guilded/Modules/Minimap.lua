@@ -218,7 +218,7 @@ end
 
 local function fillFromTarget()
   if UnitExists("target") and UnitIsPlayer("target") then
-    setPlayer((UnitName("target")))
+    setPlayer(ns.util.unitKey("target"))
   else
     ns.message("Target a player first.")
   end
@@ -1803,7 +1803,7 @@ local function buildPanel()
   panel:RegisterEvent("PLAYER_TARGET_CHANGED")
   panel:SetScript("OnEvent", function()
     if UnitExists("target") and UnitIsPlayer("target") and not ui.playerBox:HasFocus() then
-      setPlayer((UnitName("target")))
+      setPlayer(ns.util.unitKey("target"))
     end
   end)
   panel:SetScript("OnShow", function()
@@ -1811,7 +1811,7 @@ local function buildPanel()
     -- Reopening the window does not show an old result (such as a diagnostics line).
     if ui.status then ui.status:SetText("") end
     if UnitExists("target") and UnitIsPlayer("target") then
-      setPlayer((UnitName("target")))
+      setPlayer(ns.util.unitKey("target"))
     elseif ui.playerBox:GetText() == "" then
       setPlayer(ns.playerName())
     end

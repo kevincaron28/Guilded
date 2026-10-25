@@ -4,7 +4,7 @@ import { startCompanionApi, resetFailures } from "../src/companion-api.js";
 import { hashCompanionSecret } from "../src/services/character-pairing.js";
 
 const db = vi.hoisted(() => ({
-  guild: { findUnique: vi.fn() },
+  guild: { findUnique: vi.fn(), findFirst: vi.fn() },
   guildSettings: { findUnique: vi.fn() },
   member: { findFirst: vi.fn() },
   companionCredential: { findFirst: vi.fn(), updateMany: vi.fn() },
@@ -30,8 +30,9 @@ beforeAll(async () => {
 afterAll(async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); });
 beforeEach(() => {
   resetFailures(); vi.clearAllMocks();
+  db.guild.findFirst.mockResolvedValue({ id: "guild", discordId: "123", scopeKey: "default", gameEdition: "forever" });
   db.guild.findUnique.mockImplementation(async ({ where }) => ({ id: where.discordId === "123" ? "guild" : "other", discordId: where.discordId }));
-  db.companionCredential.findFirst.mockImplementation(async ({ where }) => where.member.guildId === "guild" && where.tokenHash === hashCompanionSecret(secret) ? { memberId: "owner", member: { discordUserId: "discord-owner" } } : null);
+  db.companionCredential.findFirst.mockImplementation(async ({ where }) => (where.member.guildId === "guild" || where.member.guild?.discordId === "123") && where.tokenHash === hashCompanionSecret(secret) ? { memberId: "owner", member: { discordUserId: "discord-owner", guild: { id: "guild", discordId: "123", scopeKey: "default", gameEdition: "forever" } } } : null);
   fetchMember.mockResolvedValue({ id: "discord-owner", permissions: { has: () => true }, roles: { cache: { some: () => false } } });
   db.guildSettings.findUnique.mockResolvedValue({ poeTrackingEnabled: true, dataResetAt: null });
   db.member.findFirst.mockResolvedValue({ id: "owner" });

@@ -80,7 +80,7 @@ describe("player profiles", () => {
     expect(profile!.characters).toEqual([{ name: "Kev", realm: "Forever", source: "companion" }]);
     expect(profile!.runs).toHaveLength(1);
     expect(database.publicRun.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ status: "ACCEPTED",
-      players: { some: { OR: [{ character: { equals: "Kev", mode: "insensitive" }, realm: { equals: "Forever", mode: "insensitive" } }] } } }) }));
+      OR: [{ gameEdition: "forever", players: { some: { character: { equals: "Kev", mode: "insensitive" }, realm: { equals: "Forever", mode: "insensitive" } } } }] }) }));
     expect(database.character.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { member: { discordUserId: "discord", status: "ACTIVE" } } }));
   });
 });

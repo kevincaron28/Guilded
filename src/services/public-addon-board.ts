@@ -2,6 +2,7 @@ import { characterId, characterScores, periodRules, rateRun, type PublicPeriod, 
 import { routeTargetAt } from "./dungeon-november-rules.js";
 import { snapshotGuidance } from "./dungeon-snapshot-guidance.js";
 import type { DungeonRatingDetail } from "./dungeon-rating.js";
+import { currentEdition } from "./edition-context.js";
 
 /** Personal public scores only. Never include guild standings or claim a global rank. */
 export function publicAddonBoard(runs: ScoreRun[], me: Pick<ScorePlayer, "character" | "realm">, periods: PublicPeriod[], now = new Date()) {
@@ -28,5 +29,5 @@ export function publicAddonBoard(runs: ScoreRun[], me: Pick<ScorePlayer, "charac
       catalog: rules.catalog.map(d => ({ ...d, targetSec: routeTargetAt(rules, d.dungeonKey, active ? now : period.to) ?? d.targetSec })),
       profiles, rows: profiles.map(p => ({ name: p.name, points: p.points, bracket: p.bracket })) };
   });
-  return seasons.length ? { ...seasons[0]!, updatedAt: now.toISOString(), character: me.character, realm: me.realm, history: seasons.slice(1) } : null;
+  return seasons.length ? { ...seasons[0]!, gameEdition: currentEdition(), updatedAt: now.toISOString(), character: me.character, realm: me.realm, history: seasons.slice(1) } : null;
 }

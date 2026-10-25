@@ -44,6 +44,7 @@ jobs:
       - name: Validate and package next-version addon previews
         run: |
           node scripts/build-addon-zip.mjs --preview
+          node scripts/build-addon-editions.mjs
           node scripts/build-games-addon.mjs
       - name: PostgreSQL integration and restore rehearsal
         run: |
@@ -62,7 +63,9 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: guilded-preview-addons
-          path: dist/preview/*.zip
+          path: |
+            dist/preview/*.zip
+            dist/editions/*
   windows-package:
     runs-on: windows-latest
     timeout-minutes: 20

@@ -48,7 +48,7 @@ export async function linkUnclaimed(database: Db, memberId: string, unclaimed: U
     ...(unclaimed.displayName ? { displayName: unclaimed.displayName } : {}),
     ...(unclaimed.spec ? { spec: unclaimed.spec } : {}), ...(unclaimed.level ? { level: unclaimed.level } : {}), ...(unclaimed.race ? { race: unclaimed.race } : {})
   });
-  const created = await database.character.findFirst({ where: { memberId, name: unclaimed.name } });
+  const created = await database.character.findFirst({ where: { memberId, name: unclaimed.name, realm: unclaimed.realm, gameEdition: unclaimed.gameEdition ?? "forever" } });
   const professions = Array.isArray(unclaimed.professions) ? unclaimed.professions as { name: string; skillLevel: number }[] : [];
   if (created) {
     for (const profession of professions) {
@@ -79,7 +79,9 @@ export async function autoLinkUnclaimed(discordGuild: DiscordGuild, database: Db
   }
   const guild = createGuildService(database);
   const linked: { character: string; member: string }[] = [];
-  for (const match of matchUnclaimed(unclaimed, people)) {
+  // A Discord nickname cannot prove which realm owns a same-named character.
+  // Blizzard characters use explicit pairing/claiming; retain legacy Forever linking.
+  for (const match of matchUnclaimed(unclaimed.filter(row => (row.gameEdition ?? "forever") === "forever"), people)) {
     const character = unclaimed.find((row) => row.id === match.characterId);
     const person = people.find((row) => row.id === match.discordId);
     if (!character || !person) continue;
@@ -102,7 +104,7 @@ export async function claimCharacter(database: Db, guildId: string, memberId: st
     if (linked) throw new Error(`${linked.name} is already linked${linked.memberId === memberId ? " to you" : ` to ${linked.member.displayName}`}. /character list shows what is linked.`);
   }
   if (!row) throw new Error(`No unclaimed character called "${wanted}". Log in with it (the addon reports it), then an officer's companion uploads and an officer runs /import apply (or turns on /config auto-import). /character list shows what is linked.`);
-  const taken = await database.character.findFirst({ where: { member: { guildId }, name: { equals: row.name, mode: "insensitive" } } });
+  const taken = await database.character.findFirst({ where: { member: { guildId }, name: { equals: row.name, mode: "insensitive" }, ...((row.gameEdition ?? "forever") !== "forever" ? { realm: { equals: row.realm, mode: "insensitive" }, gameEdition: row.gameEdition } : {}) } });
   if (taken) throw new Error(`${row.name} is already linked to someone.`);
   const outcome = await linkUnclaimed(database, memberId, row);
   return { row, ...outcome };

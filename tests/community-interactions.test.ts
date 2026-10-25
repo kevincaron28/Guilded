@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   settings: vi.fn(async () => ({ language: "fr", timezone: "America/Toronto" })),
   dice: vi.fn(), priorDice: vi.fn()
 }));
-vi.mock("../src/database.js", () => ({ prisma: { communityActivity: { findFirst: mocks.activity }, communitySeason: { findFirst: mocks.season }, communityEntry: { findFirst: mocks.priorDice } } }));
+vi.mock("../src/database.js", () => ({ prisma: { guild: { findFirst: async () => ({ id: "guild", discordId: "server", scopeKey: "default", gameEdition: "forever" }) }, communityActivity: { findFirst: mocks.activity }, communitySeason: { findFirst: mocks.season }, communityEntry: { findFirst: mocks.priorDice } } }));
 vi.mock("../src/commands/context.js", () => ({ guildService: { ensureGuild: mocks.ensureGuild, getSettings: mocks.settings }, requireGuildContext: vi.fn() }));
 vi.mock("../src/services/community.js", () => ({ createCommunityService: () => ({ enterLottery: mocks.enterLottery, create: mocks.create, dice: mocks.dice }) }));
 

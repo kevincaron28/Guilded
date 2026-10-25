@@ -8,7 +8,6 @@ export class GameEditionError extends Error {}
 /** Validate the complete envelope before any linking, relay or ledger writes. */
 export function assertSnapshotEdition(snapshot: AddonSnapshot, expected: GameEdition): void {
   try {
-    if (expected !== "forever") throw new Error("Connected guild sync for this WoW edition is not enabled yet.");
     if (gameEditionOf(snapshot) !== expected) throw new Error(`This guild uses ${expected}; select a saved file from that WoW edition.`);
     for (const character of [snapshot.character, ...snapshot.alts, ...snapshot.characters]) {
       if (!character) continue;

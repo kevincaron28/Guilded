@@ -4,6 +4,7 @@ import { syncProfessionSnapshot } from "./profession-snapshot.js";
 import { findCharacter } from "./character-match.js";
 import { normalizeClassName, normalizeRaceName } from "./character-import.js";
 import { gameEditionOf } from "./game-edition.js";
+import { characterKey } from "../../companion/character-identity.mjs";
 
 // Characters that addons reveal through the guild digest (name, class, race,
 // level, spec, professions). A character already linked to a Discord member is
@@ -25,7 +26,7 @@ export async function applyDiscoveredCharacters(tx: Tx, guildId: string, entries
   const seen = new Set<string>();
   for (const entry of entries) {
     const gameEdition = gameEditionOf(entry);
-    const key = gameEdition === "forever" ? nameKey(entry.name) : `${nameKey(entry.name)}@${nameKey(entry.realm)}`;
+    const key = characterKey(entry.name, entry.realm, gameEdition);
     if (!key || seen.has(key)) continue;
     seen.add(key);
     const className = entry.class ? normalizeClassName(entry.class) : "";

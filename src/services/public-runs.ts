@@ -4,6 +4,7 @@ import { dungeonRunSchema, validateRun, type DungeonRunInput } from "./dungeon-r
 import { bracketForLevel, DEFAULT_DUNGEON_BRACKETS } from "./dungeon-november-rules.js";
 import { publicRouteKey } from "./public-score.js";
 import { gameEditionOf } from "./game-edition.js";
+import { characterKey, characterReference } from "../../companion/character-identity.mjs";
 
 // Public dungeon runs (7.0, roadmap request 6). Personal companions and opted-in guilds send
 // finished runs; the bot checks each one before it reaches the public leaderboards:
@@ -24,7 +25,7 @@ import { gameEditionOf } from "./game-edition.js";
 export const PUBLIC_LIMITS = { runsPerUpload: 50, runsPerHour: 200, requestsPerHour: 30, maxAgeDays: 30, minSecondsPerBoss: 45, agreeDurationSec: 30, agreeEndSec: 300, agreePlayers: 0.6 } as const;
 
 export const seasonOf = (date: Date) => `${date.getUTCFullYear()}-Q${Math.floor(date.getUTCMonth() / 3) + 1}`;
-export const runKeyOf = (run: { instanceId: number; id: string }) => `${run.instanceId}:${run.id}`;
+export const runKeyOf = (run: { instanceId: number; id: string; gameEdition?: string | undefined }) => `${gameEditionOf(run) === "forever" ? "" : `${gameEditionOf(run)}:`}${run.instanceId}:${run.id}`;
 const key = (name: string) => name.trim().toLowerCase();
 
 export interface PublicCheck { ok: boolean; reason?: string }
@@ -36,7 +37,7 @@ export function checkPublicRun(run: DungeonRunInput, uploaderCharacter: string |
   const started = run.startedAt!;
   const ended = run.endedAt!;
   if (ended < Math.floor(now.getTime() / 1000) - PUBLIC_LIMITS.maxAgeDays * 86_400) return { ok: false, reason: `older than ${PUBLIC_LIMITS.maxAgeDays} days` };
-  if (uploaderCharacter && !run.players.some((player) => key(player.character) === key(uploaderCharacter))) return { ok: false, reason: "your character was not in this run" };
+  if (uploaderCharacter && !run.players.some((player) => characterKey(player.character, player.realm, gameEditionOf(run)) === characterKey(uploaderCharacter, "", gameEditionOf(run)))) return { ok: false, reason: "your character was not in this run" };
   const kills = (run.encounters ?? []).filter((encounter) => encounter.success);
   if (kills.length && ended - started < kills.length * PUBLIC_LIMITS.minSecondsPerBoss) return { ok: false, reason: "impossible time for the bosses killed" };
   for (const kill of kills) {
@@ -50,6 +51,7 @@ export function checkPublicRun(run: DungeonRunInput, uploaderCharacter: string |
 }
 
 export interface RunSummary {
+  gameEdition: string;
   runKey: string; runRef: string; instanceId: number; dungeonName: string; difficultyId: number; startedAt: Date; endedAt: Date; durationSec: number;
   deaths: number | null; maxLevel: number | null; bracket: string | null; season: string; routeKey: string | null;
   evidenceVersion: 1; completedBy: string | null; encounters: { id: number; name?: string; success: true; at?: number; startedAt?: number }[];
@@ -62,7 +64,7 @@ export function summarize(run: DungeonRunInput): RunSummary {
   const deaths = run.players.some((player) => typeof player.deaths === "number") ? run.players.reduce((sum, player) => sum + (player.deaths ?? 0), 0) : null;
   const endedAt = new Date(run.endedAt! * 1000);
   return {
-    runKey: runKeyOf(run), runRef: run.id, instanceId: run.instanceId, dungeonName: run.name, difficultyId: run.difficultyId,
+    gameEdition: gameEditionOf(run), runKey: runKeyOf(run), runRef: run.id, instanceId: run.instanceId, dungeonName: run.name, difficultyId: run.difficultyId,
     startedAt: new Date(run.startedAt! * 1000), endedAt, durationSec: run.endedAt! - run.startedAt!, deaths, maxLevel,
     bracket: maxLevel ? bracketForLevel(DEFAULT_DUNGEON_BRACKETS, maxLevel)?.key ?? null : null, season: seasonOf(endedAt), routeKey: publicRouteKey(run.instanceId, run.encounters ?? []),
     // The same completion field the guild import stores; only boss kills are kept.
@@ -142,13 +144,13 @@ export interface PublicRunStore {
   addUpload(runId: string, uploader: Uploader, summary: RunSummary): Promise<{ agree: boolean; duplicate: boolean }>;
   uploadsSince(uploaderKey: string, since: Date): Promise<number>;
   /** The run ids this uploader's runs are stored under, for the addon's "synced" marks. */
-  storedRefs(uploaderKey: string): Promise<string[]>;
+  storedRefs(uploaderKey: string, gameEdition?: string): Promise<string[]>;
 }
 
 export interface IngestResult { accepted: string[]; confirmed: string[]; duplicates: string[]; rejected: { id: string; reason: string }[]; acceptedRunRefs: string[] }
 export class PublicUploadError extends Error { constructor(message: string, readonly status: number) { super(message); } }
 
-export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderKey: string; character: string | null; source: "personal" | "guild"; runs: unknown }, now = new Date()): Promise<IngestResult> {
+export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderKey: string; character: string | null; gameEdition?: string; source: "personal" | "guild"; runs: unknown }, now = new Date()): Promise<IngestResult> {
   const cutoff = dungeonResetCutoff();
   if (!Array.isArray(input.runs)) throw new PublicUploadError("runs must be a list", 400);
   if (input.runs.length > PUBLIC_LIMITS.runsPerUpload) throw new PublicUploadError(`Send at most ${PUBLIC_LIMITS.runsPerUpload} runs at once.`, 413);
@@ -163,9 +165,8 @@ export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderK
     if (!parsed.success) { result.rejected.push({ id, reason: "not a valid run" }); continue; }
     const run = parsed.data;
     try {
-      // Until public seasons and player URLs are edition-scoped, accepting a
-      // new client's map IDs here would incorrectly score it under Forever.
-      if (gameEditionOf(run) !== "forever") throw new Error("Public dungeon competitions for this WoW edition are not enabled yet.");
+      const edition = gameEditionOf(run);
+      if (input.gameEdition !== undefined && input.gameEdition !== edition) throw new Error("The run and uploader use different WoW editions.");
     } catch (error) {
       result.rejected.push({ id, reason: error instanceof Error ? error.message : "Invalid WoW edition" });
       continue;
@@ -201,7 +202,7 @@ export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderK
     else if (agree) result.confirmed.push(run.id);
     else result.rejected.push({ id: run.id, reason: "other party members sent a different result; the run is held for review" });
   }
-  result.acceptedRunRefs = (await store.storedRefs(input.uploaderKey)).slice(0, 500);
+  result.acceptedRunRefs = (await store.storedRefs(input.uploaderKey, input.gameEdition ?? "forever")).slice(0, 500);
   return result;
 }
 
@@ -221,7 +222,7 @@ export function prismaPublicRunStore(database: PrismaClient): PublicRunStore {
       const { players, encounters, ...run } = summary;
       await database.publicRun.create({ data: {
         ...run, encounters: encounters as Prisma.InputJsonValue, source, confirmations: 1,
-        players: { create: players.filter((player, index) => players.findIndex((other) => key(other.character) === key(player.character)) === index) },
+        players: { create: players.filter((player, index) => players.findIndex((other) => playerKey(other) === playerKey(player)) === index) },
         uploads: { create: { uploaderKey: uploader.key, reporters: uploader.reporters, durationSec: summary.durationSec, endedAt: summary.endedAt } }
       } });
     },
@@ -244,8 +245,8 @@ export function prismaPublicRunStore(database: PrismaClient): PublicRunStore {
       });
     },
     uploadsSince: (uploaderKey, since) => database.publicRunUpload.count({ where: { uploaderKey, createdAt: { gte: since } } }),
-    async storedRefs(uploaderKey) {
-      const rows = await database.publicRunUpload.findMany({ where: { uploaderKey }, orderBy: { createdAt: "desc" }, take: 500, select: { run: { select: { runRef: true } } } });
+    async storedRefs(uploaderKey, gameEdition = "forever") {
+      const rows = await database.publicRunUpload.findMany({ where: { uploaderKey, run: { gameEdition } }, orderBy: { createdAt: "desc" }, take: 500, select: { run: { select: { runRef: true } } } });
       return rows.map((row) => row.run.runRef);
     }
   };
@@ -254,11 +255,12 @@ export function prismaPublicRunStore(database: PrismaClient): PublicRunStore {
 // Sharing-enabled guilds (GuildSettings.publicDungeonRuns): their valid completed runs, as the bot
 // already stored and checked them, go through the same public checks under "guild:<id>".
 export async function publishGuildRuns(database: PrismaClient, store: PublicRunStore = prismaPublicRunStore(database), now = new Date()): Promise<number> {
-  const guilds = await database.guildSettings.findMany({ where: { publicDungeonRuns: true }, select: { guildId: true, publicDungeonRunsSince: true } });
+  const guilds = await database.guildSettings.findMany({ where: { publicDungeonRuns: true }, select: { guildId: true, publicDungeonRunsSince: true, guild: { select: { gameEdition: true } } } });
   let published = 0;
-  for (const { guildId, publicDungeonRunsSince } of guilds) {
+  for (const { guildId, publicDungeonRunsSince, guild } of guilds) {
+    const gameEdition = gameEditionOf(guild ?? {});
     const uploaderKey = `guild:${guildId}`;
-    const known = new Set(await store.storedRefs(uploaderKey));
+    const known = new Set(await store.storedRefs(uploaderKey, gameEdition));
     const rows = await database.dungeonRun.findMany({
       where: {
         guildId, valid: true, state: "COMPLETED",
@@ -271,7 +273,7 @@ export async function publishGuildRuns(database: PrismaClient, store: PublicRunS
     const runs = rows.filter((row) => !known.has(row.runRef) && row.startedAt && row.endedAt).map((row) => {
       const levels = new Map(((row.competitionData as { players?: { name: string; level: number | null; minLevel?: number | null }[] } | null)?.players ?? []).map((p) => [key(p.name), p]));
       return {
-        id: row.runRef, protocolVersion: row.protocolVersion, state: row.state, instanceId: row.instanceId, name: row.dungeonName, difficultyId: row.difficultyId,
+        gameEdition, id: row.runRef, protocolVersion: row.protocolVersion, state: row.state, instanceId: row.instanceId, name: row.dungeonName, difficultyId: row.difficultyId,
         startedAt: Math.floor(row.startedAt!.getTime() / 1000), endedAt: Math.floor(row.endedAt!.getTime() / 1000), reporters: row.reporters,
         // completedBy may hold an older addon's end reason (up to 80 characters); uploads allow 40.
         ...(row.recorder ? { recorder: row.recorder } : {}), ...(row.completedBy ? { completedBy: row.completedBy.slice(0, 40) } : {}),
@@ -279,11 +281,10 @@ export async function publishGuildRuns(database: PrismaClient, store: PublicRunS
         encounters: (row.competitionData as { encounters?: unknown[] } | null)?.encounters ?? [],
         players: row.players.map((player) => {
           const seen = levels.get(key(player.character));
-          const linked = player.member?.characters.find(character => key(character.name) === key(player.character));
+          const linked = player.member?.characters.find(character => characterKey(character.name, character.realm, gameEdition) === characterKey(player.character, "", gameEdition));
           return {
-            character: player.character,
+            ...characterReference(player.character, linked?.realm ?? "-", gameEdition),
             ...(linked?.displayName ? { displayName: linked.displayName } : {}),
-            realm: player.member?.characters.find((character) => key(character.name) === key(player.character))?.realm ?? "-",
             ...(player.class ? { class: player.class } : {}), ...(player.role ? { role: player.role } : {}),
             ...(seen?.level ? { level: seen.level } : {}), ...(seen?.minLevel ? { minLevel: seen.minLevel } : {}),
             deaths: player.deaths, presentSec: player.presentSec, inGuild: player.inGuild

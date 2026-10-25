@@ -1,4 +1,7 @@
 import { publicRules, readRuleSnapshot } from "./public-score.js";
+import { gameEditionOf } from "./game-edition.js";
+import { addonName } from "./addon-name.js";
+import { currentEdition } from "./edition-context.js";
 import { bracketForLevel, resolveNovemberRoute, validBracketedRules, validRouteRules } from "./dungeon-november-rules.js";
 import { dungeonResetCutoff, predatesDungeonReset } from "./dungeon-reset.js";
 import type { Prisma } from "../generated/prisma/client.js";
@@ -60,7 +63,7 @@ export async function activeSeason(tx: Pick<Prisma.TransactionClient, "dungeonSe
   const current = await tx.dungeonSeason.findFirst({ where: { guildId, status: "ACTIVE" }, orderBy: { startsAt: "desc" } });
   if (current) return current;
   // A guild joining mid-season must get the same frozen rules as an existing guild.
-  const official = await tx.officialSeason.findFirst({ where: { startsAt: { lte: now } }, orderBy: { startsAt: "desc" } });
+  const official = await tx.officialSeason.findFirst({ where: { gameEdition: currentEdition(), startsAt: { lte: now } }, orderBy: { startsAt: "desc" } });
   const snapshot = official ? readRuleSnapshot(official.rules) : null;
   if (official && !snapshot) throw new Error("Official dungeon rules must be frozen before guild seasons can start.");
   return tx.dungeonSeason.create({ data: { guildId, name: official?.name ?? "Beta",
@@ -123,16 +126,19 @@ export async function importDungeonRuns(
 
   // Oldest first, so records and "earlier this week" are judged in order.
   for (const run of runs) {
+    const check = validateRun(run, now);
+    if (gameEditionOf(run) !== "forever") {
+      for (const player of run.players) player.character = addonName(player.character, player.realm, gameEditionOf(run));
+    }
     const existing = await tx.dungeonRun.findUnique({ where: { guildId_runRef: { guildId, runRef: run.id } } });
     if (existing || await isNearDuplicate(tx, guildId, run)) {
       summary.duplicates++;
       continue;
     }
-    const check = validateRun(run, now);
     const durationSec = run.startedAt && run.endedAt ? run.endedAt - run.startedAt : null;
     const linked = run.players.map((player) => ({
       player,
-      character: findCharacter(characters, player.character, player.realm)
+      character: findCharacter(characters, player.character, player.realm, gameEditionOf(run))
     }));
     const evidence: ParticipationRun = {
       instanceId: run.instanceId, difficultyId: run.difficultyId, durationSec,

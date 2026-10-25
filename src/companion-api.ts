@@ -1,5 +1,9 @@
+import { guildWhere, loadGuildScope, runInGuildScope, withGuildScope } from "./services/guild-scope.js";
 import { hostedPilot } from "./hosted-pilot.js";
 import { GameEditionError, gameEditionOf } from "./services/game-edition.js";
+import { withEdition } from "./services/edition-context.js";
+import { addonName } from "./services/addon-name.js";
+import { characterKey, realmKey } from "../companion/character-identity.mjs";
 import { relayProfessions } from "./services/profession-relay.js";
 import { autoLinkUnclaimed } from "./services/character-autolink.js";
 import { updateProfessionDirectory } from "./services/profession-directory.js";
@@ -177,20 +181,20 @@ export function allowSignInStart(address: string, now = Date.now()): boolean {
 // Approved servers the bot is in, where this Discord user is a member right now.
 async function signInServers(client: Client | undefined, discordUserId: string) {
   if (!client?.isReady()) return [];
-  const guilds = await prisma.guild.findMany({ select: { discordId: true, name: true } });
-  const found: { discordId: string; name: string }[] = [];
+  const guilds = await prisma.guild.findMany({ select: { id: true, discordId: true, name: true, gameEdition: true, wowSpace: { select: { memberRoleId: true } } } });
+  const found: { discordId: string; name: string; wowGuildId: string; gameEdition: string }[] = [];
   for (const guild of guilds) {
     if (!hostedPilot.allows(guild.discordId)) continue;
     const discordGuild = client.guilds.cache.get(guild.discordId);
     const member = discordGuild ? await discordGuild.members.fetch({ user: discordUserId, force: true }).catch(() => null) : null;
-    if (member) found.push({ discordId: guild.discordId, name: discordGuild!.name || guild.name });
+    if (member && (!guild.wowSpace?.memberRoleId || member.permissions.has("Administrator") || member.roles.cache.has(guild.wowSpace.memberRoleId))) found.push({ discordId: guild.discordId, wowGuildId: guild.id, gameEdition: guild.gameEdition, name: `${discordGuild!.name} / ${guild.name} · ${guild.gameEdition}` });
   }
   return found;
 }
 
-async function signInGuildCredential(client: Client | undefined, account: { discordUserId: string; username: string; displayName: string | null }, guildDiscordId: string) {
-  if (!(await signInServers(client, account.discordUserId)).some((server) => server.discordId === guildDiscordId)) return null;
-  const guild = await prisma.guild.findUnique({ where: { discordId: guildDiscordId }, select: { id: true } });
+async function signInGuildCredential(client: Client | undefined, account: { discordUserId: string; username: string; displayName: string | null }, guildDiscordId: string, wowGuildId?: string) {
+  if (!(await signInServers(client, account.discordUserId)).some((server) => server.discordId === guildDiscordId && (!wowGuildId || server.wowGuildId === wowGuildId))) return null;
+  const guild = await prisma.guild.findFirst({ where: wowGuildId ? { id: wowGuildId, discordId: guildDiscordId } : { discordId: guildDiscordId, scopeKey: "default" }, select: { id: true } });
   if (!guild) return null;
   const member = await prisma.member.upsert({
     where: { guildId_discordUserId: { guildId: guild.id, discordUserId: account.discordUserId } },
@@ -208,7 +212,7 @@ export function createSiteApp(client?: Client) {
   const signInPage = companionSignInRoute({
     signIn: companionSignIn,
     servers: (discordUserId) => signInServers(client, discordUserId),
-    issueGuild: (account, guildDiscordId) => signInGuildCredential(client, account, guildDiscordId),
+    issueGuild: (account, guildDiscordId, wowGuildId) => signInGuildCredential(client, account, guildDiscordId, wowGuildId),
     issuePersonal: async (accountId) => (await issuePersonalCredential(personalStore, accountId)).companionCredential
   });
   const routes: WebRoute[] = [signInPage, leaderboards.route, profiles.route];
@@ -216,7 +220,7 @@ export function createSiteApp(client?: Client) {
   return createWebApp({
     publicRaids: now => publicRaids(prisma, hostedPilot.allows, now),
     store: prismaWebStore(prisma), auth: webAuthConfig(config), allows: (id) => hostedPilot.allows(id), routes, meSections,
-    postApplication: (view) => postWebApplication(client, view),
+    postApplication: (view) => view.guildId ? withGuildScope(prisma, view.guildId, () => postWebApplication(client, view)) : postWebApplication(client, view),
     tellOwner: async (text) => {
       const channel = client && config.ERROR_LOG_CHANNEL_ID ? await client.channels.fetch(config.ERROR_LOG_CHANNEL_ID).catch(() => null) : null;
       if (channel?.isSendable()) await channel.send({ content: text.slice(0, 1900), allowedMentions: { parse: [] } });
@@ -241,11 +245,11 @@ export function shouldTellApplyFailure(key: string, now = Date.now()): boolean {
 const RECENT_REF_DAYS = 30;
 const MAX_REFS = 5_000;
 export async function ledgerRefsFor(database: Pick<PrismaClient, "epgpTransaction" | "character">, guildId: string, memberId: string, now = new Date()): Promise<string[]> {
-  const mine = await database.character.findMany({ where: { memberId }, select: { name: true } });
+  const mine = await database.character.findMany({ where: { memberId }, select: { name: true, realm: true, gameEdition: true } });
   const rows = await database.epgpTransaction.findMany({
     where: { guildId, OR: [
       { sourceRef: { startsWith: "addon:" }, createdAt: { gte: new Date(now.getTime() - RECENT_REF_DAYS * 86_400_000) } },
-      ...mine.map((character) => ({ sourceRef: { startsWith: `addon:qg:${character.name}-` } }))
+      ...mine.map((character) => ({ sourceRef: { startsWith: `addon:qg:${addonName(character.name, character.realm, gameEditionOf(character))}-` } }))
     ] },
     select: { sourceRef: true }, orderBy: { createdAt: "desc" }, take: MAX_REFS
   });
@@ -294,13 +298,13 @@ async function standingsParts(guild: { id: string; discordId: string }, access: 
     const items = await itemInsights(database, guild.id).catch(() => []);
     // How each raid core decides loot, with its item prices and own-pool standings.
     const loot = await lootRulesForAddon(database, guild.id, async (coreId, coreBaseGp) =>
-      (await epgp.getGuildStandings(guild.id, coreBaseGp, coreId)).map((row) => ({ character: row.character, ...(row.displayName ? { displayName: row.displayName } : {}), main: row.main, ep: row.ep, gp: row.gp })));
+      (await epgp.getGuildStandings(guild.id, coreBaseGp, coreId)).map((row) => ({ character: addonName(row.character, row.realm), ...(row.displayName ? { displayName: row.displayName } : {}), main: row.main, ep: row.ep, gp: row.gp })));
     const botRaids = await upcomingRaidsForAddon(database, guild.id);
     const raids = mergeCalendarEvents(botRaids, scheduledEvents);
-    const accounts = Object.fromEntries((await database.character.findMany({ where: { member: { guildId: guild.id } }, select: { name: true, memberId: true } })).map((c) => [c.name, c.memberId]));
+    const accounts = Object.fromEntries((await database.character.findMany({ where: { member: { guildId: guild.id } }, select: { name: true, realm: true, memberId: true } })).map((c) => [addonName(c.name, c.realm), c.memberId]));
     const acceptedLedgerRefs = await ledgerRefsFor(database, guild.id, access.memberId);
     const acceptedLootRefs = await lootRefsFor(database, guild.id);
-    const standings = await epgp.getGuildStandings(guild.id, baseGp);
+    const standings = (await epgp.getGuildStandings(guild.id, baseGp)).map(row => ({ ...row, character: addonName(row.character, row.realm) }));
     // Shared: the same for every member, so it sets the stamp. Discord events are filtered
     // per member and dungeon/ledger acknowledgements do not change what the addon shows.
     return {
@@ -412,7 +416,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           serverId = found;
         }
         if (!hostedPilot.allows(serverId)) { json(response, 403, { error: "This server is on Guilded Lite: companion sync unlocks when the Guilded owner approves it." }); return; }
-        const guild = await prisma.guild.findUnique({ where: { discordId: serverId }, select: { id: true } });
+        const guild = await prisma.guild.findUnique({ where: guildWhere(serverId), select: { id: true } });
         if (!guild) {
           json(response, 404, { error: "Guild is not initialized" });
           return;
@@ -433,8 +437,9 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         if (!account) { recordFailure(address); json(response, 401, { error: "Connect this companion with a code from your Guilded page (guilded.kcaron.top/me/)." }); return; }
         if (!allowPublicUpload(account.accountId)) { json(response, 429, { error: "Too many uploads in the last hour. Try again later." }); return; }
         const body = await readBody(request) as { character?: { name?: unknown; displayName?: unknown; realm?: unknown; gameEdition?: unknown; interface?: unknown }; runs?: unknown; includeScore?: unknown } | null;
+        let gameEdition;
         try {
-          if (gameEditionOf(body?.character ?? {}) !== "forever") throw new Error("Public dungeon competitions for this WoW edition are not enabled yet.");
+          gameEdition = gameEditionOf(body?.character ?? {});
         } catch (error) {
           json(response, 409, { error: error instanceof Error ? error.message : "Invalid WoW edition" }); return;
         }
@@ -442,42 +447,52 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const parsedDisplay = addonCharacterSchema.shape.displayName.safeParse(body?.character?.displayName);
         const displayName = parsedDisplay.success ? parsedDisplay.data : undefined;
         if (!character) { json(response, 400, { error: "character.name is required" }); return; }
+        return await withEdition(gameEdition, async () => {
+        const rawRealm = typeof body?.character?.realm === "string" ? body.character.realm.trim().slice(0, 100) : "";
+        const realm = gameEdition === "forever" ? rawRealm : realmKey(rawRealm);
+        if (gameEdition !== "forever" && !realm) { json(response, 400, { error: "character.realm is required" }); return; }
         try {
-          const result = await ingestPublicRuns(publicRuns, { uploaderKey: `account:${account.accountId}`, character, source: "personal", runs: body?.runs });
+          const result = await ingestPublicRuns(publicRuns, { uploaderKey: `account:${account.accountId}`, gameEdition, character: characterKey(character, realm, gameEdition), source: "personal", runs: body?.runs });
           const refs = [...result.accepted, ...result.confirmed, ...result.duplicates];
           if (refs.length) {
             // Link only this uploader's named character in a run accepted from this request.
             // Party members are never claimed as the account's alts.
             const players = await prisma.publicRunPlayer.findMany({
-              where: { character: { equals: character, mode: "insensitive" }, run: { runRef: { in: refs }, status: "ACCEPTED", uploads: { some: { uploaderKey: `account:${account.accountId}` } } } },
+              where: { character: { equals: character, mode: "insensitive" }, ...(gameEdition !== "forever" ? { realm: { equals: realm, mode: "insensitive" } } : {}), run: { gameEdition, runRef: { in: refs }, status: "ACCEPTED", uploads: { some: { uploaderKey: `account:${account.accountId}` } } } },
               select: { character: true, realm: true }, distinct: ["character", "realm"]
             });
             for (const player of players) if (player.realm) await prisma.webCharacter.upsert({
-              where: { accountId_name_realm: { accountId: account.accountId, name: player.character, realm: player.realm } },
-              create: { accountId: account.accountId, name: player.character, realm: player.realm, ...(displayName ? { displayName } : {}) }, update: displayName ? { displayName } : {}
+              where: { accountId_gameEdition_name_realm: { accountId: account.accountId, gameEdition, name: player.character, realm: player.realm } },
+              create: { accountId: account.accountId, gameEdition, name: player.character, realm: player.realm, ...(displayName ? { displayName } : {}) }, update: displayName ? { displayName } : {}
             });
           }
           // Explicit opt-in keeps old companions' response and cost unchanged. Public
           // data may be read without claiming ownership; names are always realm-scoped.
-          const realm = typeof body?.character?.realm === "string" ? body.character.realm.trim().slice(0, 100) : "";
           const publicScore = body?.includeScore === true && realm && realm !== "-"
             ? publicAddonBoard(await prismaLeaderboardStore(prisma).characterRuns(character, realm), { character, realm },
               publicSeasons(new Date(), await loadOfficialWindows(prisma))) : undefined;
-          json(response, 200, { ...result, ...(body?.includeScore === true ? { publicScore: publicScore ?? null } : {}), botVersion: BOT_VERSION });
+          json(response, 200, { ...result, gameEdition, ...(body?.includeScore === true ? { publicScore: publicScore ?? null } : {}), botVersion: BOT_VERSION });
         } catch (error) {
           if (error instanceof PublicUploadError) { json(response, error.status, { error: error.message }); return; }
           throw error;
         }
-        return;
+        });
       }
       const payload = isImport || isPoeUpload || isLogout || isManageEdit ? await readBody(request) : null;
       const requestPayload = payload as { guildDiscordId?: unknown; export?: unknown } | null;
       const guildDiscordId = isStandings || isPoeStatus || isPoeRecent || isManageView ? url.searchParams.get("guild") : requestPayload?.guildDiscordId;
       if (typeof guildDiscordId !== "string") { json(response, 400, { error: "guildDiscordId is required" }); return; }
       if (!hostedPilot.allows(guildDiscordId)) { json(response, 403, { error: "This server is on Guilded Lite: companion sync unlocks when the Guilded owner approves it." }); return; }
-      const guild = await prisma.guild.findUnique({ where: { discordId: guildDiscordId } });
-      if (!guild) { json(response, 404, { error: "Guild is not initialized" }); return; }
       const header = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
+      // The credential binds the in-game guild. A caller cannot change scope by
+      // substituting another guild ID in a request or selecting another file.
+      const credential = typeof header === "string" ? await prisma.companionCredential.findFirst({
+        where: { tokenHash: hashCompanionSecret(header), revokedAt: null, member: { guild: { discordId: guildDiscordId }, status: "ACTIVE" } },
+        select: { member: { select: { guild: true } } }
+      }) : null;
+      const guild = credential?.member.guild;
+      if (!guild) { json(response, 401, { error: "Pair this companion with /character pair in the selected in-game guild." }); return; }
+      return await runInGuildScope(await loadGuildScope(prisma, guild.id, guildDiscordId), async () => {
       const access = typeof header === "string" ? await companionAccess(prisma, client, guild.id, guild.discordId, header) : null;
       if (!access) {
         recordFailure(address);
@@ -532,7 +547,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const waitMs = Math.max(0, Math.min(15, Number(url.searchParams.get("wait")) || 0)) * 1000;
         const answer = await standingsFeed.get({
           guildId: guild.id, memberKey: `${access.memberId}:${access.actorId}:${access.officer ? 1 : 0}`, ifNoneMatch, waitMs,
-          header: { protocolVersion: 2, botVersion: BOT_VERSION, features: COMPANION_FEATURES, gameEdition: "forever" },
+          header: { protocolVersion: 2, botVersion: BOT_VERSION, features: COMPANION_FEATURES, gameEdition: guild.gameEdition, wowGuildId: guild.id, wowGuildName: guild.name },
           compose: () => standingsParts(guild, access, client)
         });
         response.setHeader("etag", answer.etag);
@@ -552,7 +567,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // A name already owned by someone else is left alone (linkPairedCharacter refuses it).
       if (pairedMemberId) {
         for (const alt of preview.snapshot.alts) {
-          if (preview.snapshot.character && alt.name === preview.snapshot.character.name) continue;
+          if (preview.snapshot.character && alt.name === preview.snapshot.character.name && realmKey(alt.realm) === realmKey(preview.snapshot.character.realm)) continue;
           await linkPairedCharacter(prisma, guild.id, pairedMemberId, alt).catch((error: unknown) => console.error("Linking an alt failed", error));
         }
       }
@@ -627,6 +642,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         scope: access.officer ? "officer" : "personal",
         botVersion: BOT_VERSION,
         protocolVersion: 2
+      });
       });
     } catch (error) {
       if (error instanceof PoeMappingError) { json(response, error.status, { error: error.message }); return; }

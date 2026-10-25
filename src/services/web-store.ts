@@ -1,4 +1,5 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
+import { currentEdition } from "./edition-context.js";
 import type { DiscordIdentity } from "./web-auth.js";
 import type { ListingFields, PublicCard, PublicListing } from "./recruitment.js";
 
@@ -14,6 +15,7 @@ export interface CardFields {
   language: string | null; raidDays: string[]; note: string | null; showDiscord: boolean;
 }
 export interface DecisionView {
+  guildId?: string;
   id: string; status: string; character: string; className: string; role: string; message: string;
   guildDiscordId: string; guildName: string; coreName: string | null; discordUserId: string; username: string; inviteUrl: string | null;
 }
@@ -90,11 +92,11 @@ export function prismaWebStore(database: PrismaClient): WebStore {
     async deleteSession(tokenHash) { await database.webSession.deleteMany({ where: { tokenHash } }); },
 
     async openListings() {
-      const rows = await database.recruitmentListing.findMany({ where: { open: true }, include: LISTING_INCLUDE, orderBy: { updatedAt: "desc" }, take: 300 });
+      const rows = await database.recruitmentListing.findMany({ where: { open: true, guild: { gameEdition: currentEdition() } }, include: LISTING_INCLUDE, orderBy: { updatedAt: "desc" }, take: 300 });
       return rows.map(publicListing);
     },
     async listing(id) {
-      const row = await database.recruitmentListing.findUnique({ where: { id }, include: LISTING_INCLUDE });
+      const row = await database.recruitmentListing.findUnique({ where: { id, guild: { gameEdition: currentEdition() } }, include: LISTING_INCLUDE });
       return row ? publicListing(row) : null;
     },
     applicationsSince: (accountId, since) => database.recruitmentApplication.count({ where: { accountId, createdAt: { gte: since } } }),
@@ -122,7 +124,7 @@ export function prismaWebStore(database: PrismaClient): WebStore {
       if (!row) return null;
       return {
         id: row.id, status: row.status, character: row.character, className: row.className, role: row.role, message: row.message,
-        guildDiscordId: row.listing.guild.discordId, guildName: row.listing.guild.name, coreName: row.listing.core?.name ?? null,
+        guildId: row.listing.guildId, guildDiscordId: row.listing.guild.discordId, guildName: row.listing.guild.name, coreName: row.listing.core?.name ?? null,
         discordUserId: row.account.discordUserId, username: row.account.username, inviteUrl: row.listing.guild.page?.inviteUrl ?? null
       };
     },
@@ -132,15 +134,15 @@ export function prismaWebStore(database: PrismaClient): WebStore {
     },
 
     async card(accountId) {
-      const row = await database.playerCard.findUnique({ where: { accountId } });
+      const row = await database.playerCard.findUnique({ where: { accountId_gameEdition: { accountId, gameEdition: currentEdition() } } });
       return row ? { id: row.id, character: row.character, className: row.className, role: row.role, level: row.level, realm: row.realm, faction: row.faction, language: row.language, raidDays: row.raidDays, note: row.note, showDiscord: row.showDiscord, expiresAt: row.expiresAt, hidden: row.hidden } : null;
     },
     async saveCard(accountId, fields, expiresAt) {
-      await database.playerCard.upsert({ where: { accountId }, create: { accountId, ...fields, expiresAt }, update: { ...fields, expiresAt } });
+      await database.playerCard.upsert({ where: { accountId_gameEdition: { accountId, gameEdition: currentEdition() } }, create: { accountId, gameEdition: currentEdition(), ...fields, expiresAt }, update: { ...fields, expiresAt } });
     },
-    async deleteCard(accountId) { await database.playerCard.deleteMany({ where: { accountId } }); },
+    async deleteCard(accountId) { await database.playerCard.deleteMany({ where: { accountId, gameEdition: currentEdition() } }); },
     async visibleCards(now) {
-      const rows = await database.playerCard.findMany({ where: { hidden: false, expiresAt: { gt: now } }, orderBy: { updatedAt: "desc" }, take: 200, include: { account: { select: { username: true } } } });
+      const rows = await database.playerCard.findMany({ where: { gameEdition: currentEdition(), hidden: false, expiresAt: { gt: now } }, orderBy: { updatedAt: "desc" }, take: 200, include: { account: { select: { username: true } } } });
       return rows.map((row) => ({
         id: row.id, character: row.character, className: row.className, role: row.role, level: row.level, realm: row.realm, faction: row.faction,
         language: row.language, raidDays: row.raidDays, note: row.note, discord: row.showDiscord ? row.account.username : null, updatedAt: row.updatedAt

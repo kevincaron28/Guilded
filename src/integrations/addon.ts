@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { GAME_EDITIONS } from "../../companion/game-edition.mjs";
+import { GAME_EDITIONS, editionMetadata } from "../../companion/game-edition.mjs";
 
 export const addonTransactionSchema = z.object({
   createdAt: z.coerce.date().optional(),
@@ -289,7 +289,10 @@ export function parseAddonSnapshot(payload: unknown): AddonSnapshot {
     });
   }
   if (rejected.length) cleaned["rejected"] = rejected;
-  return addonSnapshotSchema.parse(cleaned);
+  const parsed = addonSnapshotSchema.parse(cleaned);
+  const edition = editionMetadata(parsed);
+  const inherit = (character: AddonCharacter) => character.gameEdition !== undefined || character.interface !== undefined ? character : { ...character, ...edition };
+  return { ...parsed, ...(parsed.character ? { character: inherit(parsed.character) } : {}), alts: parsed.alts.map(inherit), characters: parsed.characters.map(inherit) };
 }
 
 export function normalizeAddonSnapshot(snapshot: AddonSnapshot): AddonSnapshot {

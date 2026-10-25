@@ -3,6 +3,7 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { findCharacter } from "./character-match.js";
 import { createGuildService } from "./guild.js";
 import { BRAND } from "../brand.js";
+import { gameEditionOf, type GameEdition } from "./game-edition.js";
 
 // Turns what the addon captured about a character into a linked Character,
 // so members paste one line instead of typing name, realm, class, race, ...
@@ -10,6 +11,8 @@ import { BRAND } from "../brand.js";
 //   QG1|Name|Realm|CLASS|Race|level|spec|Profession:skill,Profession:skill
 
 export interface ParsedCharacter {
+  gameEdition?: GameEdition;
+  interface?: number;
   name: string;
   displayName?: string;
   realm: string;
@@ -52,7 +55,8 @@ export function parseCharacterString(input: string): ParsedCharacter {
   } else {
     throw new Error(`That doesn't look like a ${BRAND.name} character line. In game, type /guilded character and copy the line it shows.`);
   }
-  const [, name = "", realm = "", className = "", race = "", levelText = "", spec = "", professionText = "", displayName = ""] = parts;
+  const [, name = "", realm = "", className = "", race = "", levelText = "", spec = "", professionText = "", displayName = "", edition = "", api = ""] = parts;
+  const metadata = edition || api ? { gameEdition: gameEditionOf({ ...(edition ? { gameEdition: edition } : {}), ...(api ? { interface: Number(api) } : {}) }), ...(api ? { interface: Number(api) } : {}) } : {};
   if (!name || !realm || !className) throw new Error("The character line is missing the name, realm or class. Run /guilded character again in game.");
   if (name.length > 24 || realm.length > 64) throw new Error("The character line looks damaged. Run /guilded character again in game.");
   const level = Number(levelText);
@@ -65,6 +69,7 @@ export function parseCharacterString(input: string): ParsedCharacter {
     .filter((entry) => entry.name.length > 0 && entry.name.length <= 40 && Number.isFinite(entry.skillLevel) && entry.skillLevel >= 0)
     .slice(0, 10);
   return {
+    ...metadata,
     name,
     ...(displayName && displayName.length <= 80 && !displayName.includes("|") && Array.from(displayName).every(char => char.charCodeAt(0) >= 32 && char.charCodeAt(0) !== 127) ? { displayName } : {}),
     realm,
@@ -86,13 +91,15 @@ export async function importCharacter(
   parsed: ParsedCharacter,
   mainChoice?: boolean
 ): Promise<ImportOutcome> {
-  const owner = await database.member.findUnique({ where: { id: memberId }, select: { guildId: true } });
+  const owner = await database.member.findUnique({ where: { id: memberId }, select: { guildId: true, guild: { select: { gameEdition: true } } } });
   if (!owner) throw new Error("Your member profile was not found.");
+  const gameEdition = gameEditionOf(parsed);
+  if (gameEdition !== gameEditionOf(owner.guild ?? {})) throw new Error("Select the matching WoW guild with /wow use before importing this character.");
   // Same name in this guild, tolerating a different realm spelling (Forever has no real realms).
   const sameName = await database.character.findMany({
     where: { name: { equals: parsed.name, mode: "insensitive" }, member: { guildId: owner.guildId } }
   });
-  const existing = findCharacter(sameName, parsed.name, parsed.realm);
+  const existing = findCharacter(sameName, parsed.name, parsed.realm, gameEdition);
   if (existing && existing.memberId !== memberId) {
     throw new Error(`${existing.name} (${existing.realm}) is already linked to another member. Ask an officer if that's a mistake.`);
   }
@@ -124,6 +131,7 @@ export async function importCharacter(
     const created = await createGuildService(database).addCharacter({
       memberId,
       name: parsed.name,
+      gameEdition,
       ...(parsed.displayName ? { displayName: parsed.displayName } : {}),
       realm: parsed.realm,
       className: parsed.className,

@@ -6,6 +6,7 @@ import { asLang } from "../i18n.js";
 import { describeCooldowns } from "../services/recipes.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { PROFESSIONS } from "../wow-data.js";
+import { selectedCharacter } from "../services/character-match.js";
 
 export const professionCommand = new SlashCommandBuilder()
   .setName("profession")
@@ -16,7 +17,7 @@ export const professionCommand = new SlashCommandBuilder()
     .addStringOption((option) => option.setName("character").setDescription("Your character (pick from the list)").setAutocomplete(true).setRequired(true))
     .addStringOption((option) => option.setName("profession").setDescription("Profession (pick from the list)").setRequired(true)
       .addChoices(...PROFESSIONS.map((name) => ({ name, value: name }))))
-    .addIntegerOption((option) => option.setName("skill").setDescription("Skill level").setMinValue(1).setMaxValue(300).setRequired(true)))
+    .addIntegerOption((option) => option.setName("skill").setDescription("Skill level").setMinValue(1).setMaxValue(1000).setRequired(true)))
   .addSubcommand((subcommand) => subcommand
     .setName("list")
     .setDescription("List your recorded professions."))
@@ -101,7 +102,7 @@ export async function executeProfession(interaction: ChatInputCommandInteraction
   }
 
   const characterName = interaction.options.getString("character", true);
-  const character = characters.find((candidate) => candidate.name.toLowerCase() === characterName.toLowerCase());
+  const character = selectedCharacter(characters, characterName);
   if (!character) throw new Error("That character is not linked to your profile.");
   const profession = interaction.options.getString("profession", true).trim();
   const skill = interaction.options.getInteger("skill", true);

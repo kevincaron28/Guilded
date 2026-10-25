@@ -33,13 +33,13 @@ describe("edition provenance and import isolation", () => {
   });
   it("rejects mismatched guild uploads before import lookup or any mutation", async () => {
     const findFirst = vi.fn();
-    const db = { guildSettings: { findUnique: vi.fn().mockResolvedValue({ gameEdition: "forever" }) }, addonImport: { findFirst } };
+    const db = { guild: { findUnique: vi.fn().mockResolvedValue({ gameEdition: "forever" }) }, guildSettings: { findUnique: vi.fn().mockResolvedValue({ gameEdition: "forever" }) }, addonImport: { findFirst } };
     await expect(createAddonImportService(db as never).preview("g", { source: "Guilded", exportedAt: new Date(), gameEdition: "retail" }, "u")).rejects.toThrow("This guild uses forever");
     expect(findFirst).not.toHaveBeenCalled();
   });
   it("rechecks a queued import before touching any character or ledger", async () => {
     const findMany = vi.fn();
-    const tx = {
+    const tx = { guild: { findUnique: vi.fn().mockResolvedValue({ gameEdition: "forever" }) },
       $executeRaw: vi.fn(),
       addonImport: { findFirst: vi.fn().mockResolvedValue({ status: "PREVIEWED", payload: { source: "Guilded", exportedAt: new Date(), gameEdition: "retail" } }) },
       guildSettings: { findUnique: vi.fn().mockResolvedValue({ gameEdition: "forever" }) },

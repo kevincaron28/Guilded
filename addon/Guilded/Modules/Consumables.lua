@@ -368,10 +368,10 @@ local function unitList()
 end
 
 local function unitLabel(unit)
-  local name, realm = UnitName(unit)
+  local name, realm = ((ns.util and not ns.util.isForever() and UnitFullName) or UnitName)(unit)
   if not name or isSecret(name) then return nil end
   if unit ~= "player" and UnitIsUnit and UnitIsUnit(unit, "player") then return nil end
-  if not realm or realm == "" then
+  if not realm or realm == "" or (ns.util and ns.util.isForever()) then
     realm = ns.compat and ns.compat.identity and ns.compat.identity().realm or (GetRealmName and GetRealmName()) or ""
   end
   return name, realm

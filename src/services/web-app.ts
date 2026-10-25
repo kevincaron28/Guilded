@@ -1,3 +1,5 @@
+import { currentEdition, withEdition } from "./edition-context.js";
+import { GAME_EDITIONS, gameEditionOf } from "../../companion/game-edition.mjs";
 import { CLASSES } from "../wow-data.js";
 import {
   authorizeUrl, checkCsrf, clearCookie, csrfToken, exchangeCode, hashToken, newToken, parseCookies, readStateCookie, safeReturnPath,
@@ -100,6 +102,13 @@ export function createWebApp(deps: WebAppDeps) {
   }
 
   async function respond(request: WebRequest): Promise<WebResponse | null> {
+    const form = request.method === "POST" && (request.body ?? "").length <= MAX_FORM ? new URLSearchParams(request.body) : null;
+    let edition;
+    try { edition = gameEditionOf({ gameEdition: request.query.get("edition") ?? form?.get("edition") ?? "forever" }); }
+    catch { return { status: 400, headers: SECURITY_HEADERS, body: "Unknown WoW edition" }; }
+    return withEdition(edition, () => respondInEdition(request));
+  }
+  async function respondInEdition(request: WebRequest): Promise<WebResponse | null> {
     if (!isWebPath(request.path)) return null;
     const ctx = await context(request);
     const kit = kitFor(ctx);
@@ -185,7 +194,7 @@ export function createWebApp(deps: WebAppDeps) {
   function filterForm(ctx: WebContext, filters: Filters): string {
     const { t, lang } = ctx;
     const any = { value: "", label: t("Any", "Tous") };
-    return `<form class="filters" method="get" action="/recruitment/"><input type="hidden" name="lang" value="${lang}">`
+    return `<form class="filters" method="get" action="/recruitment/"><input type="hidden" name="lang" value="${lang}"><div><label for="edition">WoW</label><select name="edition" id="edition">${options(GAME_EDITIONS.map(value => ({value,label:value})),currentEdition())}</select></div>`
       + `<div><label for="kind">${t("Show", "Afficher")}</label><select id="kind" name="kind">${options([{ value: "all", label: t("Everything", "Tout") }, { value: "guild", label: t("Guilds", "Guildes") }, { value: "core", label: t("Raid cores", "Cores de raid") }, { value: "raids", label: t("Open raid spots", "Places de raid") }, { value: "players", label: t("Players", "Joueurs") }], filters.kind)}</select></div>`
       + `<div><label for="class">${t("Class", "Classe")}</label><select id="class" name="class">${options([any, ...CLASSES.map((name) => ({ value: name, label: classLabel(name, lang) }))], filters.className)}</select></div>`
       + `<div><label for="role">${t("Role", "Rôle")}</label><select id="role" name="role">${options([any, ...ROLES.map((role) => ({ value: role, label: roleLabel(role, lang) }))], filters.role)}</select></div>`
@@ -280,7 +289,7 @@ export function createWebApp(deps: WebAppDeps) {
     const form = ctx.form;
     const body = `<p class="eyebrow">${t("Recruitment", "Recrutement")}</p><h1>${escapeHtml(title)}</h1>${listingCard({ ...ctx, account: null }, listing)}`
       + (error ? `<p class="notice error">${escapeHtml(error)}</p>` : "")
-      + `<form method="post" action="/recruitment/apply/${listing.id}"><input type="hidden" name="csrf" value="${escapeHtml(ctx.csrf ?? "")}"><input type="hidden" name="lang" value="${lang}">`
+      + `<form method="post" action="/recruitment/apply/${listing.id}"><input type="hidden" name="csrf" value="${escapeHtml(ctx.csrf ?? "")}"><input type="hidden" name="lang" value="${lang}"><input type="hidden" name="edition" value="${currentEdition()}">`
       + `<label for="character">${t("Character name", "Nom du personnage")}</label><input id="character" name="character" required maxlength="61" value="${escapeHtml(form?.get("character") ?? "")}">`
       + `<label for="class">${t("Class", "Classe")}</label><select id="class" name="class" required>${options([{ value: "", label: "—" }, ...CLASSES.map((name) => ({ value: name, label: classLabel(name, lang) }))], form?.get("class"))}</select>`
       + `<label for="role">${t("Role", "Rôle")}</label><select id="role" name="role" required>${options([{ value: "", label: "—" }, ...ROLES.map((role) => ({ value: role, label: roleLabel(role, lang) }))], form?.get("role"))}</select>`
@@ -334,7 +343,7 @@ export function createWebApp(deps: WebAppDeps) {
       card?.hidden ? `<p class="notice error">${t("Your card was hidden after several reports. Ask the Guilded owner to review it.", "Votre fiche a été masquée après plusieurs signalements. Demandez au propriétaire de Guilded de la revoir.")}</p>` : "",
       card && !card.hidden ? `<p class="muted">${t("Shown until", "Affichée jusqu'au")} ${card.expiresAt.toISOString().slice(0, 10)}.</p>` : "",
       error ? `<p class="notice error">${escapeHtml(error)}</p>` : "",
-      `<form method="post" action="/me/card"><input type="hidden" name="csrf" value="${escapeHtml(ctx.csrf ?? "")}"><input type="hidden" name="lang" value="${lang}">`
+      `<form method="post" action="/me/card"><input type="hidden" name="csrf" value="${escapeHtml(ctx.csrf ?? "")}"><input type="hidden" name="lang" value="${lang}"><input type="hidden" name="edition" value="${currentEdition()}">`
         + `<label for="character">${t("Character name", "Nom du personnage")}</label><input id="character" name="character" required maxlength="61" value="${escapeHtml(value("character"))}">`
         + `<label for="className">${t("Class", "Classe")}</label><select id="className" name="className" required>${options([{ value: "", label: "—" }, ...CLASSES.map((name) => ({ value: name, label: classLabel(name, lang) }))], value("className"))}</select>`
         + `<label for="role">${t("Role", "Rôle")}</label><select id="role" name="role" required>${options([{ value: "", label: "—" }, ...ROLES.map((role) => ({ value: role, label: roleLabel(role, lang) }))], value("role"))}</select>`
@@ -346,7 +355,7 @@ export function createWebApp(deps: WebAppDeps) {
         + `<label for="note">${t("About me (optional)", "À propos de moi (facultatif)")}</label><textarea id="note" name="note" maxlength="${LIMITS.noteLength}">${escapeHtml(value("note"))}</textarea>`
         + `<p><label style="display:inline"><input type="checkbox" style="width:auto" name="showDiscord" value="1"${(form ? form.get("showDiscord") : card?.showDiscord) ? " checked" : ""}> ${t("Show my Discord name so guilds can contact me", "Afficher mon nom Discord pour que les guildes me contactent")}</label></p>`
         + `<p><button class="button" type="submit">${t("Save my card", "Enregistrer ma fiche")}</button></p></form>`,
-      card ? `<form method="post" action="/me/card/delete"><input type="hidden" name="csrf" value="${escapeHtml(ctx.csrf ?? "")}"><input type="hidden" name="lang" value="${lang}"><button class="link" type="submit">${t("Remove my card", "Retirer ma fiche")}</button></form>` : ""
+      card ? `<form method="post" action="/me/card/delete"><input type="hidden" name="csrf" value="${escapeHtml(ctx.csrf ?? "")}"><input type="hidden" name="lang" value="${lang}"><input type="hidden" name="edition" value="${currentEdition()}"><button class="link" type="submit">${t("Remove my card", "Retirer ma fiche")}</button></form>` : ""
     ].join("");
     return kit.page(error ? 400 : 200, t("My Guilded", "Mon Guilded"), body, { noindex: true });
   }
@@ -363,7 +372,7 @@ export function createWebApp(deps: WebAppDeps) {
       if (!(ROLES as readonly string[]).includes(role)) throw new RecruitmentError(t("Choose your role.", "Choisissez votre rôle."));
       const levelText = (form.get("level") ?? "").trim();
       const level = levelText ? Number(levelText) : null;
-      if (level !== null && !(Number.isInteger(level) && level >= 1 && level <= 80)) throw new RecruitmentError(t("The level is a number from 1 to 80.", "Le niveau est un nombre de 1 à 80."));
+      if (level !== null && !(Number.isInteger(level) && level >= 1 && level <= 90)) throw new RecruitmentError(t("The level is a number from 1 to 90.", "Le niveau est un nombre de 1 à 90."));
       const faction = form.get("faction") ?? "";
       const language = form.get("language") ?? "";
       const fields: CardFields = {

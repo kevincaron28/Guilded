@@ -1,6 +1,7 @@
+import { characterKey } from "../../companion/character-identity.mjs";
+import { DEFAULT_DUNGEON_BRACKETS } from "./dungeon-november-rules.js";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { CLASSES } from "../wow-data.js";
-import { DEFAULT_DUNGEON_BRACKETS } from "./dungeon-november-rules.js";
 import { formatDuration } from "./dungeon-rules.js";
 import { issuePersonalCode, type PersonalStore } from "./personal-pairing.js";
 import { GAIN_STEP, planImprovements, roleScores, type ImprovementPlan, type RoutePlan } from "./public-guidance.js";
@@ -12,6 +13,9 @@ import { breadcrumbs } from "./site-header.js";
 import { escapeHtml, link, options } from "./web-layout.js";
 import type { WebContext, WebKit, WebResponse, WebRoute } from "./web-app.js";
 import { scoreCardResponse } from "./score-card.js";
+import { currentEdition, withEdition } from "./edition-context.js";
+import { gameEditionOf } from "./game-edition.js";
+import { GAME_EDITIONS } from "../../companion/game-edition.mjs";
 
 // Public dungeon leaderboards (7.0, roadmap request 6; 7.1 season pages). Layout inspired by
 // Raider.IO, built from our own data and words: /leaderboards/ (this week's top runs and top
@@ -52,7 +56,7 @@ export function rankGuilds(entries: { guild: PublicGuild; runs: LeaderRun[]; ros
   const ranks: GuildRank[] = [];
   for (const { guild, runs, roster } of entries) {
     const members = new Set(roster.map((name) => name.toLowerCase()));
-    const scores = characterScores(runs, rules).filter((row) => members.has(row.player.character.toLowerCase()));
+    const scores = characterScores(runs, rules).filter((row) => members.has(characterKey(row.player.character, row.player.realm, rules.gameEdition ?? "forever")));
     for (const bracket of rules.brackets) {
       const rows = scores.filter((row) => row.bracket === bracket.key).sort((a, b) => b.points - a.points);
       if (!rows.length) continue;
@@ -66,7 +70,7 @@ export function rankGuilds(entries: { guild: PublicGuild; runs: LeaderRun[]; ros
 export interface LeaderFilters {
   instanceId: number | null; season: string; week: boolean; bracket: string | null; className: string | null; role: string | null; realm: string | null; confirmed: boolean;
 }
-const BRACKETS = DEFAULT_DUNGEON_BRACKETS.map((bracket) => bracket.key as string);
+const brackets = () => (currentEdition() === "forever" ? DEFAULT_DUNGEON_BRACKETS : publicRules().brackets).map(bracket => bracket.key as string);
 
 // Why a run is unranked (public-score.ts rateRun and the guild seasons' shared check), in French too.
 const UNRANKED_FR: Record<string, string> = {
@@ -98,7 +102,7 @@ export function readLeaderFilters(query: URLSearchParams, now = new Date(), peri
     instanceId: Number.isInteger(dungeon) && dungeon > 0 ? dungeon : null,
     season: known ? season : periods[0]!.id,
     week: query.get("period") === "week",
-    bracket: BRACKETS.includes(query.get("bracket") ?? "") ? query.get("bracket") : null,
+    bracket: periods.some(period => periodRules(period).brackets.some(bracket => bracket.key === query.get("bracket"))) || brackets().includes(query.get("bracket") ?? "") ? query.get("bracket") : null,
     className: query.get("class") ? classFromText(query.get("class")!) : null,
     role: (ROLES as readonly string[]).includes(role) ? role : null,
     realm: realm || null,
@@ -151,7 +155,7 @@ export const runPath = (id: string) => `/leaderboards/run/${encodeURIComponent(i
 const classSlug = (name: string | null) => (name ?? "").toLowerCase().replace(/[^a-z]/g, "");
 
 // What the pages read of a public run, evidence included (player-profiles.ts reads the same).
-export const PUBLIC_RUN_SELECT = { id: true, instanceId: true, routeKey: true, difficultyId: true, dungeonName: true, durationSec: true, startedAt: true, endedAt: true, deaths: true, bracket: true, season: true,
+export const PUBLIC_RUN_SELECT = { id: true, gameEdition: true, instanceId: true, routeKey: true, difficultyId: true, dungeonName: true, durationSec: true, startedAt: true, endedAt: true, deaths: true, bracket: true, season: true,
   confirmations: true, evidenceVersion: true, completedBy: true, encounters: true,
   players: { select: { character: true, displayName: true, realm: true, className: true, role: true, level: true, minLevel: true, presentSec: true } } } as const satisfies Prisma.PublicRunSelect;
 type PublicRunRow = Prisma.PublicRunGetPayload<{ select: typeof PUBLIC_RUN_SELECT }>;
@@ -167,7 +171,7 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
   async function every(where: Prisma.PublicRunWhereInput): Promise<LeaderRun[]> {
     const runs: LeaderRun[] = [];
     for (let cursor: string | null = null; ;) {
-      const page: PublicRunRow[] = await database.publicRun.findMany({ where, orderBy: { id: "asc" }, take: 5_000, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}), select: PUBLIC_RUN_SELECT });
+      const page: PublicRunRow[] = await database.publicRun.findMany({ where: { ...where, gameEdition: currentEdition() }, orderBy: { id: "asc" }, take: 5_000, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}), select: PUBLIC_RUN_SELECT });
       runs.push(...page.map(leaderRun));
       if (page.length < 5_000) return runs;
       cursor = page[page.length - 1]!.id;
@@ -175,7 +179,7 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
   }
   return {
     async run(id) {
-      const row = await database.publicRun.findFirst({ where: { id, status: "ACCEPTED" }, select: PUBLIC_RUN_SELECT });
+      const row = await database.publicRun.findFirst({ where: { id, status: "ACCEPTED", gameEdition: currentEdition() }, select: PUBLIC_RUN_SELECT });
       return row ? leaderRun(row) : null;
     },
     async runs(query) {
@@ -185,13 +189,13 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
       return (await every({ status: "ACCEPTED", players: { some: { character: { equals: character, mode: "insensitive" }, ...(realm !== null ? { realm: { equals: realm, mode: "insensitive" } } : {}) } } })).sort(newestFirst);
     },
     async guilds() {
-      const rows = await database.guildSettings.findMany({ where: { publicDungeonRuns: true }, select: { guildId: true, guild: { select: { name: true, discordId: true, page: { select: { slug: true, published: true } } } } }, take: 200 });
+      const rows = await database.guildSettings.findMany({ where: { publicDungeonRuns: true, guild: { gameEdition: currentEdition() } }, select: { guildId: true, guild: { select: { name: true, discordId: true, page: { select: { slug: true, published: true } } } } }, take: 200 });
       return rows.filter((row) => allows(row.guild.discordId))
         .map((row) => ({ id: row.guildId, name: row.guild.name, slug: row.guild.page?.published ? row.guild.page.slug : null })).sort((a, b) => a.name.localeCompare(b.name));
     },
     async guildRoster(guildId) {
-      const rows = await database.character.findMany({ where: { member: { guildId, status: "ACTIVE" } }, select: { name: true }, take: 5_000 });
-      return rows.map((row) => row.name.toLowerCase());
+      const rows = await database.character.findMany({ where: { member: { guildId, status: "ACTIVE" } }, select: { name: true, realm: true, gameEdition: true }, take: 5_000 });
+      return rows.map((row) => characterKey(row.name, row.realm, row.gameEdition ?? "forever"));
     },
     async guildRuns(guildId, query) {
       return (await every({ ...range(query), uploads: { some: { uploaderKey: `guild:${guildId}` } } })).sort(newestFirst);
@@ -215,6 +219,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
   const cacheMs = deps.cacheMs ?? 60_000;
   const cache = new Map<string, { at: number; value: unknown }>();
   async function cached<T>(id: string, load: () => Promise<T>): Promise<T> {
+    id = `${currentEdition()}:${id}`;
     const hit = cache.get(id);
     if (hit && now().getTime() - hit.at < cacheMs) return hit.value as T;
     const value = await load();
@@ -255,9 +260,10 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const any = { value: "", label: t("Any", "Tous") };
     const seasons = periods.map((p) => ({ value: p.id, label: periodName(ctx, p) }));
     return `<form class="filters" method="get" action="/leaderboards/"><input type="hidden" name="lang" value="${lang}">`
+      + `<div><label for="edition">WoW</label><select id="edition" name="edition">${options(GAME_EDITIONS.map(value => ({ value, label: value })), currentEdition())}</select></div>`
       + `<div><label for="season">${t("Season", "Saison")}</label><select id="season" name="season">${options([...seasons, { value: "all", label: t("All time", "Depuis le début") }], filters.season)}</select></div>`
       + `<div><label for="period">${t("Period", "Période")}</label><select id="period" name="period">${options([{ value: "", label: t("Whole season", "Toute la saison") }, { value: "week", label: t("This week", "Cette semaine") }], filters.week ? "week" : "")}</select></div>`
-      + `<div><label for="bracket">${t("Levels", "Niveaux")}</label><select id="bracket" name="bracket">${options([any, ...BRACKETS.map((value) => ({ value, label: bracketName(ctx, value) }))], filters.bracket)}</select></div>`
+      + `<div><label for="bracket">${t("Levels", "Niveaux")}</label><select id="bracket" name="bracket">${options([any, ...[...new Set([...brackets(), ...periods.flatMap(period => periodRules(period).brackets.map(b => b.key))])].map((value) => ({ value, label: bracketName(ctx, value) }))], filters.bracket)}</select></div>`
       + `<div><label for="dungeon">${t("Dungeon", "Donjon")}</label><select id="dungeon" name="dungeon">${options([{ value: "", label: t("All dungeons", "Tous les donjons") }, ...dungeons.map((d) => ({ value: String(d.instanceId), label: d.dungeonName }))], filters.instanceId ? String(filters.instanceId) : "")}</select></div>`
       + `<div><label for="class">${t("Class", "Classe")}</label><select id="class" name="class">${options([any, ...CLASSES.map((name) => ({ value: name, label: classLabel(name, lang) }))], filters.className)}</select></div>`
       + `<div><label for="role">${t("Role", "Rôle")}</label><select id="role" name="role">${options([any, ...ROLES.map((role) => ({ value: role, label: roleLabel(role, lang) }))], filters.role)}</select></div>`
@@ -527,7 +533,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const runs = await guildRuns(id, period);
     const roster = new Set((await cached(`roster:${id}`, () => deps.store.guildRoster(id))).map((name) => name.toLowerCase()));
     // Members only: pickup players in the guild's runs keep their own character pages.
-    const scores = characterScores(runs, periodRules(period)).filter((row) => roster.has(row.player.character.toLowerCase()));
+    const scores = characterScores(runs, periodRules(period)).filter((row) => roster.has(characterKey(row.player.character, row.player.realm, currentEdition())));
     const ranks = await guildRanks(period);
     const standing = periodRules(period).brackets.flatMap((b) => {
       const inBracket = ranks.filter((r) => r.bracket === b.key);
@@ -600,5 +606,10 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       + `<form method="post" action="/me/pair">${csrf}<p><button class="link" type="submit">${connected ? t("Get a new companion code", "Obtenir un nouveau code") : t("Get a companion code", "Obtenir un code de compagnon")}</button></p></form></details>`;
   }
 
-  return { route, meSection };
+  return { route: (ctx, kit) => {
+    let edition;
+    try { edition = gameEditionOf({ gameEdition: ctx.request.query.get("edition") ?? "forever" }); }
+    catch { return Promise.resolve(kit.page(400, "Unknown WoW edition", "")); }
+    return withEdition(edition, () => route(ctx, kit));
+  }, meSection };
 }

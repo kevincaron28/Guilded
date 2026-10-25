@@ -1,0 +1,10 @@
+ALTER TABLE "PublicRun" ADD COLUMN "gameEdition" TEXT NOT NULL DEFAULT 'forever';
+CREATE INDEX "PublicRun_gameEdition_status_endedAt_idx" ON "PublicRun"("gameEdition", "status", "endedAt");
+ALTER TABLE "WebCharacter" ADD COLUMN "gameEdition" TEXT NOT NULL DEFAULT 'forever';
+DROP INDEX "WebCharacter_accountId_name_realm_key";
+CREATE UNIQUE INDEX "WebCharacter_accountId_gameEdition_name_realm_key" ON "WebCharacter"("accountId", "gameEdition", "name", "realm");
+ALTER TABLE "OfficialSeason" ADD COLUMN "gameEdition" TEXT NOT NULL DEFAULT 'forever';
+DROP INDEX "OfficialSeason_number_key";
+DROP INDEX "OfficialSeason_startsAt_key";
+CREATE UNIQUE INDEX "OfficialSeason_gameEdition_number_key" ON "OfficialSeason"("gameEdition", "number");
+CREATE UNIQUE INDEX "OfficialSeason_gameEdition_startsAt_key" ON "OfficialSeason"("gameEdition", "startsAt");

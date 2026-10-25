@@ -1,3 +1,4 @@
+import { bindGuildScope } from "../services/guild-scope.js";
 import { editCoreSchedule, editCoreComposition } from "./core-planning.js";
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle,
@@ -146,7 +147,7 @@ export async function runCoreWizard(interaction: ChatInputCommandInteraction): P
 
   const show = async (payload: Awaited<ReturnType<typeof rosterStep>> | ReturnType<typeof nameStep>) => { await interaction.editReply(payload); };
 
-  collector.on("collect", async (i: MessageComponentInteraction) => {
+  collector.on("collect", bindGuildScope(async (i: MessageComponentInteraction) => {
     const action = i.customId.replace("corewiz:", "");
     try {
       if (action === "cancel") {
@@ -291,8 +292,8 @@ export async function runCoreWizard(interaction: ChatInputCommandInteraction): P
       if (!i.replied && !i.deferred) await i.reply({ content: `That didn't work: ${text}`, flags: MessageFlags.Ephemeral }).catch(() => undefined);
       else await i.followUp({ content: `That didn't work: ${text}`, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
-  });
-  collector.on("end", async (_c, reason) => {
+  }));
+  collector.on("end", bindGuildScope(async (_c, reason) => {
     if (reason !== "closed") await interaction.editReply({ content: "The core wizard timed out. What you saved is kept; use /core setup to continue or /core add.", embeds: [], components: [] }).catch(() => undefined);
-  });
+  }));
 }

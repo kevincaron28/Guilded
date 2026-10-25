@@ -323,7 +323,7 @@ export function createEngine(initialConfig, hooks = {}) {
       log(body.applyError || body.autoApplied?.held ? "warn" : "ok", message + leftNote);
       // A live standings connection hears about the change by itself.
       if (state.standingsMode !== "live") void refreshStandings();
-    } else if (response.status === 409) {
+    } else if (response.status === 409 && body.importId) {
       const message = body.status === "PREVIEWED"
         ? `Upload is waiting for officer review: /import apply id:${body.importId}.`
         : `Nothing new since the last upload.${pairingNote(body.pairedCharacterStatus)}`;
@@ -570,7 +570,7 @@ export function createEngine(initialConfig, hooks = {}) {
       if (was) log("info", "Stopped."); else hooks.onState?.(snapshot());
     },
     // Apply new settings and restart.
-    async configure(next) { await this.stop(); config = next; etag = null; ack = null; features = new Set(); gzipOff = false; lastFile = null; lastText = null; return this.start(); },
+    async configure(next) { await this.stop(); state.lastUpload = null; state.lastStandings = null; state.lastUploadBytes = null; state.error = null; state.standingsError = null; config = next; etag = null; ack = null; features = new Set(); gzipOff = false; lastFile = null; lastText = null; return this.start(); },
     uploadNow() { if (config.wowEnabled !== false) scheduleUpload(0); if (poe) track(poe.pollNow()); },
     // The tray's "Refresh in-game standings now" always fetches and writes the full answer.
     refreshStandings: () => config.personal ? personalUpload() : refreshStandings({ force: true })

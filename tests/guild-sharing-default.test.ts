@@ -30,9 +30,9 @@ describe("new-guild sharing default", () => {
       ["missing", { name: "Legacy missing", settings: null }]
     ]);
     const upsert = vi.fn(async ({ where, create, update }) => {
-      const old = rows.get(where.discordId);
+      const old = rows.get(where.discordId_scopeKey.discordId);
       const row = old ? { ...old, ...update } : { name: create.name, settings: create.settings.create };
-      rows.set(where.discordId, row); return row;
+      rows.set(where.discordId_scopeKey.discordId, row); return row;
     });
     const service = createGuildService({ guild: { upsert } } as never);
     for (const id of ["private", "public", "missing", "new"]) await service.ensureGuild(id, "Renamed");

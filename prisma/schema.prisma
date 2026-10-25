@@ -121,11 +121,16 @@ enum ApplicationStatus {
 }
 
 model Guild {
+  wowSelections WowGuildSelection[]
+  wowChannels WowGuildChannel[]
+  scopeKey            String @default("default")
+  gameEdition         String @default("forever")
+  wowSpace            WowGuild? @relation("WowGuildScope")
   wowGuilds           WowGuild[]
   gameEventBoards GameEventBoard[]
   activityCores       ActivityCore[]
   id                  String                    @id @default(cuid())
-  discordId           String                    @unique
+  discordId           String
   name                String
   createdAt           DateTime                  @default(now())
   updatedAt           DateTime                  @updatedAt
@@ -177,6 +182,7 @@ model Guild {
   rookieMemberships CommunityRookieMembership[]
   page              GuildPage?
   recruitmentListings RecruitmentListing[]
+  @@unique([discordId, scopeKey])
 }
 
 // The guild's public web page at /g/<slug>/ (docs/GUILD_PAGES_DESIGN.md). Nothing is public until
@@ -453,6 +459,7 @@ model Member {
 }
 
 model Character {
+  guildId            String
   gameEdition        String @default("forever")
   activityCoreSpots   ActivityCoreMember[]
   activityResponses  ActivityResponse[]
@@ -480,7 +487,7 @@ model Character {
   raidSignups        RaidSignup[]
   coreApplications   Application[]
 
-  @@unique([gameEdition, realm, name])
+  @@unique([guildId, gameEdition, realm, name])
   @@index([memberId, isMain])
 }
 
@@ -731,12 +738,32 @@ model WowGuild {
   realm       String
   nameKey     String
   realmKey    String
+  scopeGuildId String? @unique
+  permissionRoles Json @default("{}")
+  memberRoleId String?
+  scope       Guild? @relation("WowGuildScope", fields: [scopeGuildId], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   guild       Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@unique([guildId, gameEdition, realmKey, nameKey])
   @@index([guildId, gameEdition])
+}
+
+model WowGuildSelection {
+  discordId String
+  userId String
+  scopeGuildId String
+  scopeGuild Guild @relation(fields: [scopeGuildId], references: [id], onDelete: Cascade)
+  @@id([discordId, userId])
+}
+
+model WowGuildChannel {
+  discordId String
+  channelId String
+  scopeGuildId String
+  scopeGuild Guild @relation(fields: [scopeGuildId], references: [id], onDelete: Cascade)
+  @@id([discordId, channelId])
 }
 
 model GuildSettings {
@@ -1172,14 +1199,17 @@ model CraftRequest {
 // A season runs from its start to the next season's start; the last one has no end yet. Every
 // guild's dungeon season and the public leaderboards follow it (official-seasons.ts).
 model OfficialSeason {
+  gameEdition String @default("forever")
   id        String   @id @default(cuid())
-  number    Int      @unique
+  number    Int
   name      String
-  startsAt  DateTime @unique
+  startsAt  DateTime
   createdBy String?
   // Public leaderboard rules, frozen when the season starts (public-score.ts PublicRuleSnapshot).
   rules     Json?
   createdAt DateTime @default(now())
+  @@unique([gameEdition, number])
+  @@unique([gameEdition, startsAt])
 }
 
 model DungeonSeason {
@@ -1840,7 +1870,7 @@ model WebAccount {
   lastSeenAt    DateTime @default(now())
   sessions      WebSession[]
   applications  RecruitmentApplication[]
-  card          PlayerCard?
+  cards         PlayerCard[]
   reports       RecruitmentReport[]
   pairing       WebPairing?
   companionCredentials WebCompanionCredential[]
@@ -1848,6 +1878,7 @@ model WebAccount {
 
 // Only the uploader's own character is linked, never every member of the uploaded party.
 model WebCharacter {
+  gameEdition String @default("forever")
   id        String @id @default(cuid())
   accountId String
   name      String
@@ -1855,7 +1886,7 @@ model WebCharacter {
   realm     String
   account   WebAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
-  @@unique([accountId, name, realm])
+  @@unique([accountId, gameEdition, name, realm])
 }
 
 // One signed-in browser. The cookie holds a random token; only its SHA-256 is stored here.
@@ -1930,7 +1961,8 @@ model RecruitmentApplication {
 // "Looking for guild": one card per signed-in player, shown on /recruitment/ until it expires.
 model PlayerCard {
   id          String     @id @default(cuid())
-  accountId   String     @unique
+  accountId   String
+  gameEdition String     @default("forever")
   character   String
   className   String
   role        String
@@ -1950,6 +1982,7 @@ model PlayerCard {
   account     WebAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@index([hidden, expiresAt])
+  @@unique([accountId, gameEdition])
 }
 
 // A signed-in visitor's report of a listing or a player card. One per visitor and target.
@@ -1994,6 +2027,7 @@ model WebCompanionCredential {
 // One dungeon run on the public leaderboards (7.0, roadmap request 6). Party members share the
 // addon's run id, so their uploads land on the same row and confirm each other.
 model PublicRun {
+  gameEdition String @default("forever")
   id            String   @id @default(cuid())
   // instanceId + the addon's shared run id.
   runKey        String   @unique
@@ -2030,6 +2064,7 @@ model PublicRun {
 
   @@index([instanceId, status, season, durationSec])
   @@index([status, endedAt])
+  @@index([gameEdition, status, endedAt])
 }
 
 model PublicRunPlayer {

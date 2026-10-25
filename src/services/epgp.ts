@@ -104,7 +104,7 @@ export function createEpgpService(database: PrismaClient) {
         }),
         database.character.findMany({
           where: { member: { guildId, status: "ACTIVE" } },
-          select: { name: true, displayName: true, memberId: true, isMain: true }
+          select: { name: true, realm: true, gameEdition: true, displayName: true, memberId: true, isMain: true }
         })
       ]);
       const byMember = new Map(sums.map((row) => [row.memberId, row._sum]));
@@ -112,7 +112,7 @@ export function createEpgpService(database: PrismaClient) {
         const sum = byMember.get(character.memberId);
         const ep = sum?.epAmount ?? 0;
         const gp = sum?.gpAmount ?? 0;
-        return { character: character.name, ...(character.displayName ? { displayName: character.displayName } : {}), main: character.isMain, ep, gp, pr: priority(ep, gp, baseGp) };
+        return { character: character.name, realm: character.realm, gameEdition: character.gameEdition, ...(character.displayName ? { displayName: character.displayName } : {}), main: character.isMain, ep, gp, pr: priority(ep, gp, baseGp) };
       });
     },
 

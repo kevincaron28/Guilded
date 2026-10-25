@@ -1,3 +1,4 @@
+import { guildWhere } from "../services/guild-scope.js";
 import { ChannelType, PermissionFlagsBits, SlashCommandBuilder, type AutocompleteInteraction, type ButtonInteraction, type ChatInputCommandInteraction, type SlashCommandStringOption, MessageFlags } from "discord.js";
 import type { RaidAttendanceStatus, RaidRole } from "../generated/prisma/client.js";
 import { prisma } from "../database.js";
@@ -169,7 +170,7 @@ export async function handleTeamButton(i: ButtonInteraction) {
 
 export async function autocompleteTeam(i: AutocompleteInteraction) {
   if (!i.guild) { await i.respond([]); return; }
-  const record = await prisma.guild.findUnique({ where: { discordId: i.guild.id } });
+  const record = await prisma.guild.findUnique({ where: guildWhere(i.guild.id) });
   if (!record) { await i.respond([]); return; }
   const member = await i.guild.members.fetch(i.user.id);
   const focus = i.options.getFocused(true);

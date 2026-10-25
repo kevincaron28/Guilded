@@ -17,6 +17,6 @@ describe("/guilded-season", () => {
 
   it("is hidden from non-administrators in the home server", () => {
     expect(ownerSeasonCommand.toJSON().default_member_permissions).toBe("8");
-    expect(ownerSeasonCommand.toJSON().options?.map((o) => o.name)).toEqual(["status", "next", "cancel"]);
+    expect(ownerSeasonCommand.toJSON().options?.map((o) => o.name)).toEqual(["status", "next", "rules", "cancel"]);
   });
 });

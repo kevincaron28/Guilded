@@ -88,7 +88,7 @@ local ROLE = { TANK = "TANK", HEALER = "HEALER", DAMAGER = "DPS" }
 local function unitInfo(unit)
   if not exists(UnitExists) or not UnitExists(unit) then return nil end
   ns.util.unitDisplayName(unit)
-  local name = try("unitName", UnitName, unit)
+  local name = ns.util.unitKey(unit)
   if not name or secret(name) then return nil end
   local _, classFile = try("unitClass", UnitClass, unit)
   local guid = exists(UnitGUID) and try("unitGuid", UnitGUID, unit) or nil
@@ -141,6 +141,12 @@ function compat.inCombat()
   return exists(UnitAffectingCombat) and try("combat", UnitAffectingCombat, "player") and true or false
 end
 
+-- A challenge ends when the client confirms all objectives, not on its last boss.
+function compat.challengeActive()
+  return C_ChallengeMode and exists(C_ChallengeMode.IsChallengeModeActive)
+    and try("challenge", C_ChallengeMode.IsChallengeModeActive) == true or false
+end
+
 -- ---------------------------------------------------------------------
 -- Encounter Journal: which bosses a dungeon has, so the last one can end
 -- the run automatically. Optional: without it, runs end by button.
@@ -163,13 +169,13 @@ function compat.isDungeonFinalBoss(instanceId, encounterId, name, difficultyId)
   -- Scarlet wings share map 189. English/French event names identify their endpoints
   -- (the same names the bot uses to tell the wings apart); unknown names still use the
   -- native journal when available.
-  if instanceId == 189 and not secret(name) and type(name) == "string" then
+  if (ns.util.isForever() or ns.util.gameEdition() == "classic-era" or ns.util.gameEdition() == "classic-tbc") and instanceId == 189 and not secret(name) and type(name) == "string" then
     local bosses = { ["Bloodmage Thalnos"]=true, ["Mage de sang Thalnos"]=true,
       ["Arcanist Doan"]=true, ["Arcaniste Doan"]=true, ["Herod"]=true, ["H\195\169rode"]=true,
       ["High Inquisitor Whitemane"]=true, ["Grande Inquisitrice Blanchet\195\170te"]=true }
     if bosses[name] then return true end
   end
-  local boss = finalBossFallbacks[instanceId]
+  local boss = ns.util.isForever() and finalBossFallbacks[instanceId] or nil
   if not boss then return false end
   return not secret(encounterId) and tonumber(encounterId) == boss
 end
@@ -241,7 +247,8 @@ function compat.identity()
     if type(value) == "string" and not secret(value) and value ~= "" then return value end
     return nil
   end
-  local realm = text(realmName) or text(normalized) or text(unitRealm) or ""
+  local realm = ns.util.isForever() and (text(realmName) or text(normalized) or "")
+    or (text(normalized) or text(realmName) or text(unitRealm) or "")
   return {
     name = text(name) or "Unknown",
     realm = realm,

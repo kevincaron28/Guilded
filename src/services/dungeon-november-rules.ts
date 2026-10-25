@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { GAME_EDITIONS } from "../../companion/game-edition.mjs";
 
 // Version 5 is opt-in. No default preset, database access or season activation.
 export const novemberDungeonKey = (key: string): boolean => /^[1-9]\d{0,5}(?::[a-z][a-z0-9-]{0,39})?$/.test(key);
@@ -7,7 +8,7 @@ const identityBase = z.object({
   names: z.array(z.string().trim().min(1).max(100)).max(20)
 });
 const identitySchema = identityBase.refine(b => b.ids.length + b.names.length > 0, "Encounter evidence is required");
-const bandSchema = z.object({ min: z.number().int().min(1).max(60), max: z.number().int().min(1).max(60), difficultyId: z.number().int().min(0) })
+const bandSchema = z.object({ min: z.number().int().min(1).max(100), max: z.number().int().min(1).max(100), difficultyId: z.number().int().min(0) })
   .refine(b => b.min <= b.max);
 const routeSchema = z.object({
   dungeonKey: z.string().refine(novemberDungeonKey), instanceId: z.number().int().positive().max(999999),
@@ -92,8 +93,8 @@ export const DEFAULT_DUNGEON_BRACKETS = [
   { key: "15-29", min: 15, max: 29, bestCount: 5 }, { key: "30-44", min: 30, max: 44, bestCount: 5 },
   { key: "45-59", min: 45, max: 59, bestCount: 4 }, { key: "60", min: 60, max: 60, bestCount: 8 }
 ] as const;
-const bracketSchema = z.object({ key: z.string().regex(/^[a-z0-9][a-z0-9-]{0,19}$/), min: z.number().int().min(1).max(60),
-  max: z.number().int().min(1).max(60), bestCount: z.number().int().min(1).max(20) }).refine(b => b.min <= b.max);
+const bracketSchema = z.object({ key: z.string().regex(/^[a-z0-9][a-z0-9-]{0,19}$/), min: z.number().int().min(1).max(100),
+  max: z.number().int().min(1).max(100), bestCount: z.number().int().min(1).max(20) }).refine(b => b.min <= b.max);
 export type DungeonBracket = z.infer<typeof bracketSchema>;
 // A group a few levels above a route's band still scores, minus a share per level
 // of the highest participant; beyond maxLevels it is a carry and scores 0.
@@ -127,9 +128,10 @@ const recalibrationSchema = z.object({ dungeonKey: z.string().refine(novemberDun
 export type TargetRecalibration = z.infer<typeof recalibrationSchema>;
 
 export function createBracketedDungeonRules(input: unknown) {
-  const parsed = z.object({ routes: z.array(bracketRouteSchema).min(1).max(100), brackets: z.array(bracketSchema).min(1).max(10),
+  const parsed = z.object({ gameEdition: z.enum(GAME_EDITIONS).optional(), routes: z.array(bracketRouteSchema).max(100), brackets: z.array(bracketSchema).max(10),
     overlevelPenalty: penaltySchema.default({ ...DEFAULT_OVERLEVEL_PENALTY }),
-    provisional: provisionalSchema.optional(), recalibrations: z.array(recalibrationSchema).max(200).optional() }).parse(input);
+    provisional: provisionalSchema.optional(), recalibrations: z.array(recalibrationSchema).max(200).optional() }).refine(value => value.routes.length > 0 && value.brackets.length > 0
+      || !!value.gameEdition && value.gameEdition !== "forever" && value.routes.length === 0 && value.brackets.length === 0, "A rated season needs routes and brackets").parse(input);
   const routes = checkedRoutes(parsed.routes);
   for (const r of routes) if (r.completionModel && routes.some(o => o !== r && o.instanceId === r.instanceId)) throw new Error("A shared map needs encounter evidence for each route");
   const brackets = [...parsed.brackets].sort((a, b) => a.min - b.min);
@@ -158,6 +160,7 @@ export function createBracketedDungeonRules(input: unknown) {
   const provisionalRoute = (key: string) => !!parsed.provisional && !(recalibrations ?? []).some(c => c.dungeonKey === key);
   return {
     version: 6, model: "distinct-dungeons", pointsPerDungeon: 200, speedBonus: 0,
+    ...(parsed.gameEdition ? { gameEdition: parsed.gameEdition } : {}),
     minimumPresence: 0.8, automaticCompletionOnly: true, minimumScore: 50, maximumScore: 400,
     participationModel: "weekly-variety-v1", routeEvidenceVersion: 1, routes, brackets, routeBracket, overlevelPenalty: { ...parsed.overlevelPenalty },
     ...(parsed.provisional ? { provisional: parsed.provisional, provisionalTargets: rated.some(r => provisionalRoute(r.dungeonKey)) } : {}),
@@ -186,7 +189,7 @@ export function validBracketedRules(value: unknown): value is BracketedRules {
   if (!value || typeof value !== "object" || (value as { version?: unknown }).version !== 6) return false;
   const r = value as BracketedRules;
   try {
-    return sameJson(r, createBracketedDungeonRules({ routes: r.routes, brackets: r.brackets, overlevelPenalty: r.overlevelPenalty ?? null,
+    return sameJson(r, createBracketedDungeonRules({ ...(r.gameEdition ? { gameEdition: r.gameEdition } : {}), routes: r.routes, brackets: r.brackets, overlevelPenalty: r.overlevelPenalty ?? null,
       ...(r.provisional !== undefined ? { provisional: r.provisional } : {}), ...(r.recalibrations !== undefined ? { recalibrations: r.recalibrations } : {}) }));
   } catch { return false; }
 }

@@ -1,3 +1,4 @@
+import { characterName } from "../services/character-display.js";
 import { EmbedBuilder, SlashCommandBuilder, type ChatInputCommandInteraction } from "discord.js";
 import { createEpgpService } from "../services/epgp.js";
 import { prisma } from "../database.js";
@@ -27,7 +28,7 @@ export async function executeProfile(interaction: ChatInputCommandInteraction): 
         .map((skill) => `${skill.profession} ${skill.skillLevel}`)
         .join(", ");
       const seen = character.lastSeenAt ? ` · seen <t:${Math.floor(character.lastSeenAt.getTime() / 1000)}:R>` : "";
-      return `${character.isMain ? "**Main**" : "Alt"}: ${character.name} (${character.race ? `${character.race} ` : ""}${character.className}${character.spec ? `, ${character.spec}` : ""})${professions ? ` — ${professions}` : ""}${seen}`;
+      return `${character.isMain ? "**Main**" : "Alt"}: ${characterName(character)} (${character.race ? `${character.race} ` : ""}${character.className}${character.spec ? `, ${character.spec}` : ""})${professions ? ` — ${professions}` : ""}${seen}`;
     });
   await interaction.reply({
     embeds: [new EmbedBuilder()

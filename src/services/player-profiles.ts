@@ -5,7 +5,7 @@ import { formatDuration } from "./dungeon-rules.js";
 import { escapeHtml, link } from "./web-layout.js";
 import type { WebContext, WebRoute } from "./web-app.js";
 
-export interface ProfileCharacter { name: string; realm: string; source: "guild" | "companion" }
+export interface ProfileCharacter { name: string; displayName?: string | null; realm: string; source: "guild" | "companion" }
 export interface PlayerProfile { id: string; name: string; public: boolean; characters: ProfileCharacter[]; runs: LeaderRun[] }
 export interface ProfileStore {
   list(page: number): Promise<{ id: string; name: string }[]>;
@@ -21,16 +21,16 @@ export function prismaProfileStore(database: PrismaClient, allows: (id: string) 
     },
     async get(id) {
       const account = await database.webAccount.findUnique({ where: { id }, select: {
-        id: true, discordUserId: true, username: true, displayName: true, publicProfile: true, characters: { select: { name: true, realm: true }, take: 100 }
+        id: true, discordUserId: true, username: true, displayName: true, publicProfile: true, characters: { select: { name: true, displayName: true, realm: true }, take: 100 }
       } });
       if (!account) return null;
       const linked = await database.character.findMany({
         where: { member: { discordUserId: account.discordUserId, status: "ACTIVE" } },
-        select: { name: true, realm: true, member: { select: { guild: { select: { discordId: true } } } } }, take: 100
+        select: { name: true, displayName: true, realm: true, member: { select: { guild: { select: { discordId: true } } } } }, take: 100
       });
       const characters: ProfileCharacter[] = [];
       for (const char of [
-        ...linked.filter(c => allows(c.member.guild.discordId)).map(c => ({ name: c.name, realm: c.realm, source: "guild" as const })),
+        ...linked.filter(c => allows(c.member.guild.discordId)).map(c => ({ name: c.name, displayName: c.displayName, realm: c.realm, source: "guild" as const })),
         ...account.characters.map(c => ({ ...c, source: "companion" as const }))
       ]) {
         if (char.realm && !characters.some(c => c.name.toLowerCase() === char.name.toLowerCase() && c.realm.toLowerCase() === char.realm.toLowerCase())) characters.push(char);
@@ -53,7 +53,7 @@ export function createPlayerProfiles(store: ProfileStore): { route: WebRoute; me
   const path = (id: string) => `/players/${encodeURIComponent(id)}`;
   function details(ctx: WebContext, profile: PlayerProfile): string {
     const { t, lang } = ctx;
-    const characters = profile.characters.map(char => `<li><a href="${link(characterPath({ character: char.name, realm: char.realm }), lang)}">${escapeHtml(char.name)}</a> · ${escapeHtml(char.realm)} <span class="tag">${char.source === "guild" ? t("Linked in Discord", "Lié dans Discord") : t("Companion character", "Personnage du compagnon")}</span></li>`).join("");
+    const characters = profile.characters.map(char => `<li><a href="${link(characterPath({ character: char.name, realm: char.realm }), lang)}">${escapeHtml(char.displayName || char.name)}</a> · ${escapeHtml(char.realm)} <span class="tag">${char.source === "guild" ? t("Linked in Discord", "Lié dans Discord") : t("Companion character", "Personnage du compagnon")}</span></li>`).join("");
     const runs = profile.runs.map(run => {
       const score = scoreRun(run);
       return `<tr><td><a href="${link(runPath(run.runId), lang)}">${escapeHtml(run.dungeonName)}</a></td><td>${run.endedAt.toISOString().slice(0, 10)}</td><td>${formatDuration(run.durationSec)}</td><td>${score ? `${score.points}` : "—"}</td><td>${run.confirmations >= 2 ? t("Party confirmed", "Confirmé par le groupe") : t("One upload", "Un envoi")}</td></tr>`;

@@ -32,6 +32,61 @@ end
 local util = ns.util or {}
 ns.util = util
 
+-- Forever's second UnitName result is a surname, not a realm. Keep the old
+-- accounting keys; full names are presentation data and never ledger IDs.
+function util.isForever()
+  if not GetBuildInfo then return false end
+  local ok, _, _, _, interface = pcall(GetBuildInfo)
+  return ok and not isSecret(interface) and interface == 16001
+end
+
+local function safeName(value)
+  if type(value) ~= "string" or isSecret(value) or #value > 80 or value:find("[|%c]") then return nil end
+  value = value:match("^%s*(.-)%s*$")
+  return value ~= "" and value or nil
+end
+
+function util.rememberDisplayName(raw)
+  if not util.isForever() then return end
+  raw = safeName(raw)
+  if not raw or not raw:find(" ", 1, true) then return end
+  local key = normalizeName(raw)
+  local db = ns.getDb and ns.getDb()
+  if key and db then
+    db.displayNames = db.displayNames or {}
+    db.displayNames[key] = raw
+  end
+end
+
+function util.unitDisplayName(unit)
+  if not UnitName then return nil end
+  local ok, first, second = pcall(UnitName, unit)
+  if not ok then return nil end
+  first, second = safeName(first), safeName(second)
+  if not first then return nil end
+  if not util.isForever() then return normalizeName(first) end
+  local full
+  if GetUnitName then
+    local fullOk, value = pcall(GetUnitName, unit, true)
+    if fullOk then full = safeName(value) end
+  end
+  -- The observed Forever API returns "First Last". Never append a realm
+  -- on Retail/Classic, or invent a surname when the client withholds it.
+  if not full or not full:find(" ", 1, true) then
+    full = first:find(" ", 1, true) and first or (second and (first .. " " .. second) or first)
+  end
+  util.rememberDisplayName(full)
+  return full
+end
+
+function util.displayName(name)
+  if not util.isForever() then return name end
+  local db = ns.getDb and ns.getDb()
+  local key = normalizeName(name)
+  return (db and db.displayNames and key and safeName(db.displayNames[key])) or name
+end
+ns.displayName = util.displayName
+
 -- Same spelling rule as the bot's item keys: lower case, separators and control characters
 -- become spaces, runs of spaces collapse.
 function util.itemKey(name)
@@ -163,6 +218,7 @@ function util.rememberAddress(raw)
   if type(raw) ~= "string" or isSecret(raw) then return end
   local name = normalizeName(raw)
   if name then addresses[name] = raw end
+  util.rememberDisplayName(raw)
 end
 function util.address(name)
   local key = normalizeName(name)

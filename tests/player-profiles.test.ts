@@ -26,6 +26,14 @@ function fixture() {
   return { profile, store, memory, request };
 }
 describe("player profiles", () => {
+  it("shows a Forever full name while keeping the existing character URL", async () => {
+    const { profile, request } = fixture();
+    profile.characters[0]!.displayName = "Kev Galemorne";
+    const page = await request(`/players/${profileId}`);
+    expect(page!.body).toContain('Kev-Forever');
+    expect(page!.body).toContain('>Kev Galemorne</a>');
+    expect(page!.body).not.toContain('character/Kev%20Galemorne');
+  });
   it("shows public profiles and character results without requiring sign-in, with escaped names", async () => {
     const { request } = fixture();
     const page = await request(`/players/${profileId}`);

@@ -57,7 +57,7 @@ function history.fromLedger(name)
 end
 
 local function show(name, lines, source)
-  ns.message(string.format(L("History of %s (%s):"), name, source))
+  ns.message(string.format(L("History of %s (%s):"), ns.displayName(name), source))
   if #lines == 0 then ns.message(L("Nothing recorded yet.")) end
   for _, line in ipairs(lines) do ns.message("  " .. line) end
 end

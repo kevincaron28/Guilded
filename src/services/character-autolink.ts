@@ -44,6 +44,7 @@ export async function linkUnclaimed(database: Db, memberId: string, unclaimed: U
   const guild = createGuildService(database);
   await guild.addCharacter({
     memberId, name: unclaimed.name, realm: unclaimed.realm, className: unclaimed.className, isMain: !hasMain,
+    ...(unclaimed.displayName ? { displayName: unclaimed.displayName } : {}),
     ...(unclaimed.spec ? { spec: unclaimed.spec } : {}), ...(unclaimed.level ? { level: unclaimed.level } : {}), ...(unclaimed.race ? { race: unclaimed.race } : {})
   });
   const created = await database.character.findFirst({ where: { memberId, name: unclaimed.name } });

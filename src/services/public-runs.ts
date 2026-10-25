@@ -52,7 +52,7 @@ export interface RunSummary {
   runKey: string; runRef: string; instanceId: number; dungeonName: string; difficultyId: number; startedAt: Date; endedAt: Date; durationSec: number;
   deaths: number | null; maxLevel: number | null; bracket: string | null; season: string; routeKey: string | null;
   evidenceVersion: 1; completedBy: string | null; encounters: { id: number; name?: string; success: true; at?: number; startedAt?: number }[];
-  players: { character: string; realm: string; className: string | null; role: string | null; level: number | null; minLevel: number | null; presentSec: number; deaths: number | null }[];
+  players: { character: string; displayName?: string | null; realm: string; className: string | null; role: string | null; level: number | null; minLevel: number | null; presentSec: number; deaths: number | null }[];
 }
 
 export function summarize(run: DungeonRunInput): RunSummary {
@@ -69,6 +69,7 @@ export function summarize(run: DungeonRunInput): RunSummary {
     encounters: (run.encounters ?? []).filter((e) => e.success).map((e) => ({ id: e.id, ...(e.name ? { name: e.name } : {}), success: true as const,
       ...(e.at !== undefined ? { at: e.at } : {}), ...(e.startedAt !== undefined ? { startedAt: e.startedAt } : {}) })),
     players: run.players.map((player) => ({ character: player.character, realm: player.realm === "-" ? "" : player.realm, className: player.class ?? null, role: player.role ?? null,
+      ...(player.displayName ? { displayName: player.displayName } : {}),
       level: player.level ?? null, minLevel: player.minLevel ?? null, presentSec: player.presentSec, deaths: player.deaths ?? null }))
   };
 }
@@ -256,7 +257,7 @@ export async function publishGuildRuns(database: PrismaClient, store: PublicRunS
         ...(publicDungeonRunsSince ? { startedAt: { gte: publicDungeonRunsSince } } : {})
       },
       orderBy: { endedAt: "desc" }, take: 200,
-      include: { players: { include: { member: { select: { characters: { select: { name: true, realm: true } } } } } } }
+      include: { players: { include: { member: { select: { characters: { select: { name: true, displayName: true, realm: true } } } } } } }
     });
     const runs = rows.filter((row) => !known.has(row.runRef) && row.startedAt && row.endedAt).map((row) => {
       const levels = new Map(((row.competitionData as { players?: { name: string; level: number | null; minLevel?: number | null }[] } | null)?.players ?? []).map((p) => [key(p.name), p]));
@@ -269,8 +270,10 @@ export async function publishGuildRuns(database: PrismaClient, store: PublicRunS
         encounters: (row.competitionData as { encounters?: unknown[] } | null)?.encounters ?? [],
         players: row.players.map((player) => {
           const seen = levels.get(key(player.character));
+          const linked = player.member?.characters.find(character => key(character.name) === key(player.character));
           return {
             character: player.character,
+            ...(linked?.displayName ? { displayName: linked.displayName } : {}),
             realm: player.member?.characters.find((character) => key(character.name) === key(player.character))?.realm ?? "-",
             ...(player.class ? { class: player.class } : {}), ...(player.role ? { role: player.role } : {}),
             ...(seen?.level ? { level: seen.level } : {}), ...(seen?.minLevel ? { minLevel: seen.minLevel } : {}),

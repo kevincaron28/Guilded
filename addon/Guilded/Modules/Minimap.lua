@@ -211,7 +211,7 @@ end
 
 local function setPlayer(name)
   if ui.playerBox and name and name ~= "" then
-    ui.playerBox:SetText(name)
+    ui.playerBox:SetText(ns.displayName(name))
     if refresh then refresh() end
   end
 end
@@ -278,7 +278,7 @@ local function showPicker()
       pickerButtons[i] = b
     end
     at(b, picker, 16 + ((i - 1) % 2) * 108, -40 - math.floor((i - 1) / 2) * 24)
-    b:SetText(name)
+    b:SetText(ns.displayName(name))
     b:SetScript("OnClick", function() setPlayer(name); picker:Hide() end)
     b:Show()
   end
@@ -1015,7 +1015,7 @@ local WHY_X = GEAR_X + 28
 local function readyTooltip(anchor, entry)
   if not GameTooltip or not entry then return end
   GameTooltip:SetOwner(anchor, "ANCHOR_RIGHT")
-  GameTooltip:AddLine(entry.name)
+  GameTooltip:AddLine(ns.displayName(entry.name))
   GameTooltip:AddLine(L(ns.ready.LABEL[entry.status]), 1, 1, 1)
   for _, reason in ipairs(entry.reasons) do GameTooltip:AddLine("- " .. reason, 1, 0.82, 0.3) end
   local source = entry.source == "none" and L("nothing known yet") or (L("from") .. ": " .. entry.source)
@@ -1171,7 +1171,7 @@ local function refreshReady()
     row.entry = entry
     if entry then
       local color = READY_COLORS[entry.status] or ""
-      row.name:SetText(classColor(entry.class) .. entry.name .. "|r")
+      row.name:SetText(classColor(entry.class) .. ns.displayName(entry.name) .. "|r")
       row.status:SetText(color .. L(ns.ready.LABEL[entry.status]) .. "|r")
       row.why:SetText(table.concat(entry.reasons, ", "))
       local cells = entry.cells or {}
@@ -1377,7 +1377,7 @@ local function refreshHome(db, officer, me)
   local rankName
   if GetGuildInfo then local _; _, rankName = GetGuildInfo("player") end
   if type(rankName) ~= "string" or rankName == "" then rankName = officer and L("Officer") or L("Member") end
-  ui.homeGreeting:SetText(string.format("%s   |cff999999%s|r", me, rankName))
+  ui.homeGreeting:SetText(string.format("%s   |cff999999%s|r", ns.displayName(me), rankName))
 
   local now = {}
   local raid = ns.getActiveRaid and ns.getActiveRaid()
@@ -1474,7 +1474,7 @@ refresh = function()
     else
       -- Discord = the bot's official totals; "this PC" = entries recorded
       -- here that may not have been imported yet.
-      local lines = { name }
+      local lines = { ns.displayName(name) }
       local source = ns.standingsSource and ns.standingsSource() or L("Connected snapshot")
       if ns.isInGameOnly and ns.isInGameOnly() then
         local row = ns.effectiveStanding(name)
@@ -1491,7 +1491,7 @@ refresh = function()
       local voting = moduleOn("council") and ns.council and ns.council.voting
       if voting and not ns.council.current then
         local names = {}
-        for i, entry in ipairs(voting.candidates) do table.insert(names, string.format("%d. %s (%s)", i, entry.name, entry.tier)) end
+        for i, entry in ipairs(voting.candidates) do table.insert(names, string.format("%d. %s (%s)", i, ns.displayName(entry.name), entry.tier)) end
         councilText = string.format(L("Vote for %s: %s"), voting.item, table.concat(names, ", "))
           .. (voting.mine and ("\n" .. string.format(L("Your vote: %s for %s."), voting.mine, voting.item)) or "")
       end
@@ -1586,7 +1586,7 @@ refresh = function()
     local row
     for _, entry in ipairs(rows) do if entry.name == name then row = entry.row; break end end
     ui.standingsPlayer:SetText(core and not row and string.format(L("%s is not in this core's roster."), name or "?")
-      or row and string.format("%s:  EP %d   GP %d   PR %.2f", name, row.ep, row.gp, row.pr)
+      or row and string.format("%s:  EP %d   GP %d   PR %.2f", ns.displayName(name), row.ep, row.gp, row.pr)
       or (ns.standingProblemText and ns.standingProblemText(name))
       or string.format(L("%s: no standings (character not linked on Discord?)"), name or "?"))
     local lines = { ns.standingsSource and ns.standingsSource() or L("Local ledger (this PC)") }
@@ -1594,7 +1594,7 @@ refresh = function()
     if #rows == 0 then table.insert(lines, L("No characters in this view.")) end
     for i = 1, math.min(15, #rows) do
       local r = rows[i]
-      table.insert(lines, string.format("%2d. %-14s PR %.2f   EP %d / GP %d", i, r.name, r.row.pr, r.row.ep, r.row.gp))
+      table.insert(lines, string.format("%2d. %-14s PR %.2f   EP %d / GP %d", i, ns.displayName(r.name), r.row.pr, r.row.ep, r.row.gp))
     end
     ui.standingsList:SetText(table.concat(lines, "\n"))
   end

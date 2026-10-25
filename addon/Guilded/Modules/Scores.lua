@@ -264,7 +264,7 @@ end
 function scores.detailText(name)
   local total, count = scores.scoreOf(name)
   if total == nil then return L("No current season score received yet.") end
-  local out = { name .. ": " .. L("Your season score") .. " " .. total }
+  local out = { ns.displayName(name) .. ": " .. L("Your season score") .. " " .. total }
   local snapshot = ns.seasonDetails and ns.seasonDetails.get(1, name)
   for _, line in ipairs(snapshot and snapshot.profile and snapshot.profile.details or {}) do
     out[#out + 1] = string.format("  %s: %d (+%d)  %s", line.name, line.points, line.speedBonus, clockText(line.durationSec))
@@ -292,7 +292,7 @@ function scores.topText(limit, bracketKey)
   local rank = 1
   for i = 1, math.min(limit or 10, #rows) do
     if i > 1 and rows[i].score ~= rows[i - 1].score then rank = i end
-    table.insert(out, string.format("%2d. %-14s %d", rank, rows[i].name, rows[i].score))
+    table.insert(out, string.format("%2d. %-14s %d", rank, ns.displayName(rows[i].name), rows[i].score))
   end
   return table.concat(out, "\n")
 end

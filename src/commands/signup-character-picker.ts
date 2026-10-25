@@ -2,6 +2,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, 
 import { prisma } from "../database.js";
 import { CHARACTER_REQUIRED } from "../services/signup-character.js";
 import { asLang } from "../i18n.js";
+import { characterName } from "../services/character-display.js";
 
 // A paginated private picker also supports owners with more than Discord's 25 menu options.
 export async function pickSignupCharacter(interaction: ButtonInteraction | ChatInputCommandInteraction | MessageComponentInteraction, guildId: string, memberId: string) {
@@ -15,7 +16,7 @@ export async function pickSignupCharacter(interaction: ButtonInteraction | ChatI
   let page = 0;
   const screen = () => ({ content: text("Which character are you bringing? Choose their name and realm.", "Quel personnage amènes-tu? Choisis son nom et son royaume."), components: [
     new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId("signupchar:choose").setPlaceholder(text("Your character for this signup", "Ton personnage pour cette inscription"))
-      .addOptions(characters.slice(page * 25, (page + 1) * 25).map(character => ({ label: `${character.name} — ${character.realm}`.slice(0, 100), description: character.className.slice(0, 100), value: character.id })))),
+      .addOptions(characters.slice(page * 25, (page + 1) * 25).map(character => ({ label: `${characterName(character)} — ${character.realm}`.slice(0, 100), description: character.className.slice(0, 100), value: character.id })))),
     ...(characters.length > 25 ? [new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId("signupchar:previous").setLabel(text("Previous", "Précédents")).setStyle(ButtonStyle.Secondary).setDisabled(page === 0),
       new ButtonBuilder().setCustomId("signupchar:next").setLabel(text("Next", "Suivants")).setStyle(ButtonStyle.Secondary).setDisabled((page + 1) * 25 >= characters.length))] : [])
@@ -29,7 +30,7 @@ export async function pickSignupCharacter(interaction: ButtonInteraction | ChatI
     if (choice.isStringSelectMenu()) {
       const character = characters.find(value => value.id === choice.values[0]);
       if (!character) { await choice.deferUpdate(); continue; }
-      await choice.update({ content: `${text("Selected character", "Personnage choisi")} : **${character.name} — ${character.realm}**.`, components: [] });
+      await choice.update({ content: `${text("Selected character", "Personnage choisi")} : **${characterName(character)} — ${character.realm}**.`, components: [] });
       return character;
     }
     page = Math.max(0, Math.min(Math.ceil(characters.length / 25) - 1, page + (choice.customId === "signupchar:next" ? 1 : -1)));

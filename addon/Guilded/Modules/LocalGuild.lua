@@ -63,6 +63,7 @@ function localGuild.member(id, rawName, role, spot)
   -- WoW Forever names have a first and a last name ("Highpriest Cheech"); normalizeName keeps
   -- the first, as everywhere else. Chat markup and control characters are still refused.
   if type(rawName) ~= "string" or #rawName > 80 or rawName:find("[|%c]") then return false end
+  ns.util.rememberDisplayName(rawName)
   local name = ns.normalizeName(rawName)
   if not core or not name or name == "" or not ({ TANK = true, HEALER = true, DPS = true })[role]
     or not ({ main = true, bench = true })[spot] then return false end
@@ -93,7 +94,7 @@ function localGuild.describe()
     core.name, label, core.reserves or 1, mains, bench) }
   local roleNames = { DPS = "DPS", TANK = "Tank", HEALER = "Healer" }
   for _, row in ipairs(core.roster) do
-    lines[#lines + 1] = "  " .. row.name .. " - " .. L(roleNames[row.role] or row.role) .. " - " .. L(row.spot == "bench" and "Bench" or "Main")
+    lines[#lines + 1] = "  " .. ns.displayName(row.name) .. " - " .. L(roleNames[row.role] or row.role) .. " - " .. L(row.spot == "bench" and "Bench" or "Main")
   end
   if #core.roster == 0 then lines[#lines + 1] = L("No raiders yet: add them in step 3.") end
   lines[#lines + 1] = L("All raid cores share the guild's EP/GP; a roster does not create separate points.")

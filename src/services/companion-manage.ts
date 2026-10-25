@@ -110,7 +110,7 @@ export function createCompanionManage(database: PrismaClient) {
       const [characters, coreRows, guildPrices, allPrices, wishes, awards] = await Promise.all([
         database.character.findMany({
           where: { memberId: access.memberId }, orderBy: [{ isMain: "desc" }, { name: "asc" }],
-          select: { id: true, name: true, realm: true, className: true, isMain: true, wishlist: { orderBy: [{ priority: "asc" }, { itemName: "asc" }], select: { itemName: true, priority: true } } }
+          select: { id: true, name: true, displayName: true, realm: true, className: true, isMain: true, wishlist: { orderBy: [{ priority: "asc" }, { itemName: "asc" }], select: { itemName: true, priority: true } } }
         }),
         cores.list(guildId),
         settings?.coreLootOnly ? Promise.resolve([]) : prices.list(guildId, null),
@@ -120,7 +120,7 @@ export function createCompanionManage(database: PrismaClient) {
       ]);
       const members = access.raidLeader ? await database.member.findMany({
         where: { guildId, status: "ACTIVE", isTest: false }, orderBy: { displayName: "asc" }, take: MAX_MEMBERS,
-        select: { id: true, displayName: true, characters: { select: { name: true, realm: true, className: true }, orderBy: [{ isMain: "desc" }, { name: "asc" }] } }
+        select: { id: true, displayName: true, characters: { select: { name: true, displayName: true, realm: true, className: true }, orderBy: [{ isMain: "desc" }, { name: "asc" }] } }
       }) : [];
       // Names to suggest when typing an item: priced, wishlisted or awarded before. Skips "Item 123".
       const itemNames = [...new Set([...allPrices, ...wishes, ...awards].map((row) => row.itemName).filter((name) => !/^Item \d+$/.test(name)))]
@@ -141,7 +141,8 @@ export function createCompanionManage(database: PrismaClient) {
             members: core.members.map((spot) => ({
               memberId: spot.memberId, name: spot.member.displayName, role: spot.role, bench: spot.bench, trial: spot.trial,
               character: spot.character?.name ?? null,
-              backups: spot.backups.map((backup) => ({ character: backup.character.name, role: backup.role }))
+              ...(spot.character?.displayName ? { characterDisplayName: spot.character.displayName } : {}),
+              backups: spot.backups.map((backup) => ({ character: backup.character.name, ...(backup.character.displayName ? { displayName: backup.character.displayName } : {}), role: backup.role }))
             }))
           };
         }),

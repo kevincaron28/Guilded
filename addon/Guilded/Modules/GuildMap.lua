@@ -251,7 +251,7 @@ local function newPin(parent, pool, index)
     if not (GameTooltip and self.name) then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     local member = map.members[self.name]
-    GameTooltip:AddLine(self.name, classColor(member and member.class))
+    GameTooltip:AddLine(ns.displayName(self.name), classColor(member and member.class))
     if member then
       GameTooltip:AddLine(string.format(L("Level %d, %s"), member.level or 0, zoneName(member.mapId)), 1, 1, 1)
     end
@@ -354,7 +354,7 @@ function map.listText()
   local lines = {}
   for _, name in ipairs(sortedNames()) do
     local member = map.members[name]
-    table.insert(lines, string.format("%s (%d): %s", name, member.level or 0, zoneName(member.mapId)))
+    table.insert(lines, string.format("%s (%d): %s", ns.displayName(name), member.level or 0, zoneName(member.mapId)))
   end
   return #lines > 0 and table.concat(lines, "\n") or L("No guildmate is sharing a position right now.")
 end

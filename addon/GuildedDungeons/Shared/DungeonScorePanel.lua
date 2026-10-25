@@ -350,7 +350,7 @@ function view.build(parent, compact)
       local ranked = {}
       for i = (self.page - 1) * 12 + 1, math.min(#model.rows, self.page * 12) do
         local row = model.rows[i]
-        ranked[#ranked + 1] = string.format("%d. %s - %d", i, row.name, row.points)
+        ranked[#ranked + 1] = string.format("%d. %s - %d", i, ns.displayName(row.name), row.points)
       end
       self.rankings:SetText(#ranked > 0 and table.concat(ranked, "\n") or L(model.period == "week" and "No scores this week yet." or "No points recorded for this season."))
       self.rankings:Show()

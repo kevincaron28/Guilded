@@ -40,6 +40,7 @@ export function createGuildService(database: PrismaClient) {
     async addCharacter(input: {
       memberId: string;
       name: string;
+      displayName?: string;
       realm: string;
       className: string;
       spec?: string;
@@ -57,6 +58,7 @@ export function createGuildService(database: PrismaClient) {
         data: {
           memberId: input.memberId,
           name: input.name,
+          ...(input.displayName ? { displayName: input.displayName } : {}),
           realm: input.realm,
           className: input.className,
           spec: input.spec ?? null,

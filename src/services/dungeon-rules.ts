@@ -35,6 +35,7 @@ export const dungeonRunSchema = z.object({
   })).max(100).optional().catch(undefined),
   players: z.array(z.object({
     character: z.string().min(1).max(40),
+    displayName: z.string().trim().min(1).max(80).optional().catch(undefined),
     realm: z.string().min(1).max(60),
     class: z.string().max(20).optional(),
     role: z.string().max(10).optional(),

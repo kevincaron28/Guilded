@@ -24,7 +24,7 @@ import { scoreCardResponse } from "./score-card.js";
 // cut off by a row limit. Character pages add the best next improvement and role scores
 // (public-guidance.ts).
 
-export interface LeaderPlayer { character: string; realm: string; className: string | null; role: string | null; level: number | null; minLevel?: number | null; presentSec?: number | null }
+export interface LeaderPlayer { character: string; displayName?: string | null; realm: string; className: string | null; role: string | null; level: number | null; minLevel?: number | null; presentSec?: number | null }
 export interface LeaderRun extends ScoreRun {
   deaths: number | null; bracket: string | null; season: string; players: LeaderPlayer[];
 }
@@ -153,7 +153,7 @@ const classSlug = (name: string | null) => (name ?? "").toLowerCase().replace(/[
 // What the pages read of a public run, evidence included (player-profiles.ts reads the same).
 export const PUBLIC_RUN_SELECT = { id: true, instanceId: true, routeKey: true, difficultyId: true, dungeonName: true, durationSec: true, startedAt: true, endedAt: true, deaths: true, bracket: true, season: true,
   confirmations: true, evidenceVersion: true, completedBy: true, encounters: true,
-  players: { select: { character: true, realm: true, className: true, role: true, level: true, minLevel: true, presentSec: true } } } as const satisfies Prisma.PublicRunSelect;
+  players: { select: { character: true, displayName: true, realm: true, className: true, role: true, level: true, minLevel: true, presentSec: true } } } as const satisfies Prisma.PublicRunSelect;
 type PublicRunRow = Prisma.PublicRunGetPayload<{ select: typeof PUBLIC_RUN_SELECT }>;
 export function leaderRun({ id, startedAt, evidenceVersion, completedBy, encounters, ...row }: PublicRunRow): LeaderRun {
   return { runId: id, ...row, evidence: evidenceVersion >= 1 ? { startedAt, completedBy, encounters: Array.isArray(encounters) ? encounters : [] } : null };
@@ -234,9 +234,9 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
 
   const time = (seconds: number) => formatDuration(seconds);
   const date = (value: Date) => value.toISOString().slice(0, 10);
-  const who = (ctx: WebContext, player: LeaderPlayer) => `<a class="char c-${classSlug(player.className)}" href="${link(characterPath(player), ctx.lang)}">${escapeHtml(player.character)}</a>`
+  const who = (ctx: WebContext, player: LeaderPlayer) => `<a class="char c-${classSlug(player.className)}" href="${link(characterPath(player), ctx.lang)}">${escapeHtml(player.displayName || player.character)}</a>`
     + (player.realm ? ` <span class="tag">${escapeHtml(player.realm)}</span>` : "");
-  const party = (ctx: WebContext, run: LeaderRun) => run.players.map((player) => `<a class="c-${classSlug(player.className)}" href="${link(characterPath(player), ctx.lang)}">${escapeHtml(player.character)}</a>`).join(", ");
+  const party = (ctx: WebContext, run: LeaderRun) => run.players.map((player) => `<a class="c-${classSlug(player.className)}" href="${link(characterPath(player), ctx.lang)}">${escapeHtml(player.displayName || player.character)}</a>`).join(", ");
   const trust = (ctx: WebContext, run: LeaderRun) => (run.confirmations >= 2
     ? `<span class="badge ok" title="${ctx.t("Party members' uploads agree", "Les envois des membres du groupe concordent")}">✔ ${ctx.t("Confirmed by party", "Confirmé par le groupe")} · ${run.confirmations}</span>`
     : `<span class="badge">${ctx.t("1 upload", "1 envoi")}</span>`)
@@ -437,7 +437,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const runs = await cached(`c:${name.toLowerCase()}:${realm?.toLowerCase() ?? ""}`, () => deps.store.characterRuns(name, realm));
     const isMe = (player: LeaderPlayer) => player.character.toLowerCase() === name.toLowerCase() && (realm === null || player.realm.toLowerCase() === realm.toLowerCase());
     const me = runs.flatMap((run) => run.players.filter(isMe))[0];
-    const title = `${me?.character ?? name}${realm ? `-${realm}` : ""}`;
+    const title = `${me?.displayName || me?.character || name}${realm ? `-${realm}` : ""}`;
     const seasons = await seasonsNow();
     const inPeriod = (p: PublicPeriod) => runs.filter((run) => (!p.from || run.endedAt >= p.from) && (!p.to || run.endedAt < p.to));
     const mine = (rows: ScoreRow[]) => rows.filter((row) => isMe(row.player));

@@ -93,7 +93,7 @@
       notice('wishNotice', T("No character is linked to your Discord account yet. Sync your addon data once, or use /character in Discord."), false);
       return;
     }
-    options($('wishCharacter'), view.characters.map(row => [row.id, `${row.name}${row.isMain ? T(" (main)") : ''}`]), view.characters.some(row => row.id === selected) ? selected : view.characters[0].id);
+    options($('wishCharacter'), view.characters.map(row => [row.id, `${row.displayName || row.name}${row.isMain ? T(" (main)") : ''}`]), view.characters.some(row => row.id === selected) ? selected : view.characters[0].id);
     const character = view.characters.find(row => row.id === $('wishCharacter').value);
     $('wishList').replaceChildren(...(character.wishlist.length ? character.wishlist.map(entry => {
       const priority = el('select', { class: 'narrow', 'aria-label': T("Priority of {0}", entry.itemName) });
@@ -102,7 +102,7 @@
       const remove = el('button', { class: 'quiet', type: 'button', text: T("Remove") });
       remove.addEventListener('click', () => change(remove, { action: 'wishlist.remove', characterId: character.id, item: entry.itemName }));
       return el('div', { class: 'edit-row' }, el('span', { class: 'grow', text: entry.itemName }), priority, remove);
-    }) : [el('p', { class: 'micro', text: T("{0} has no wishlist items yet.", character.name) })]));
+    }) : [el('p', { class: 'micro', text: T("{0} has no wishlist items yet.", character.displayName || character.name) })]));
   }
 
   function renderCores() {
@@ -162,7 +162,7 @@
     const member = view.members.find(row => row.id === memberId);
     const names = member ? member.characters.map(row => row.name) : [];
     if (selected && !names.includes(selected)) names.unshift(selected);
-    return [...(none ? [['', none]] : []), ...names.map(name => [name, name])];
+    return [...(none ? [['', none]] : []), ...names.map(name => [name, member?.characters.find(row => row.name === name)?.displayName || name])];
   }
 
   function renderRoster(current) {
@@ -175,8 +175,8 @@
       const tags = `${spot.trial ? T("  trial") : ''}${spot.bench ? T("  bench") : ''}`;
       const name = el('span', { class: 'grow', text: spot.name }, tags ? el('span', { class: 'tag', text: tags }) : null);
       if (!leader()) {
-        return [el('div', { class: 'edit-row' }, name, el('span', { text: `${T(ROLE_LABEL[spot.role])}${spot.character ? ` · ${spot.character}` : ''}` })),
-          ...spot.backups.map(backup => el('div', { class: 'edit-row sub-row' }, el('span', { text: T("Backup: {0} ({1})", backup.character, T(ROLE_LABEL[backup.role])) })))];
+        return [el('div', { class: 'edit-row' }, name, el('span', { text: `${T(ROLE_LABEL[spot.role])}${spot.character ? ` · ${spot.characterDisplayName || spot.character}` : ''}` })),
+          ...spot.backups.map(backup => el('div', { class: 'edit-row sub-row' }, el('span', { text: T("Backup: {0} ({1})", backup.displayName || backup.character, T(ROLE_LABEL[backup.role])) })))];
       }
       const base = { coreId: current.id, memberId: spot.memberId };
       const character = el('select', { 'aria-label': T("Character of {0}", spot.name) });
@@ -201,7 +201,7 @@
         ...spot.backups.map(backup => {
           const drop = el('button', { class: 'quiet', type: 'button', text: T("Remove backup") });
           drop.addEventListener('click', () => change(drop, { ...base, action: 'core.backup.remove', character: backup.character }));
-          return el('div', { class: 'edit-row sub-row' }, el('span', { class: 'grow', text: T("Backup: {0} ({1})", backup.character, T(ROLE_LABEL[backup.role])) }), drop);
+          return el('div', { class: 'edit-row sub-row' }, el('span', { class: 'grow', text: T("Backup: {0} ({1})", backup.displayName || backup.character, T(ROLE_LABEL[backup.role])) }), drop);
         }),
         ...(backupCharacter.options.length > 1 ? [el('div', { class: 'edit-row sub-row' }, backupCharacter, backupRole, addBackup)] : [])
       ];

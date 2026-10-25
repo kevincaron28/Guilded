@@ -34,7 +34,7 @@ export async function applyDiscoveredCharacters(tx: Tx, guildId: string, entries
     if (existing) {
       await tx.character.update({
         where: { id: existing.id },
-        data: { ...(className ? { className } : {}), ...(race ? { race } : {}), ...(level ? { level } : {}), ...(spec ? { spec } : {}), lastSeenAt: new Date() }
+        data: { ...(entry.displayName ? { displayName: entry.displayName } : {}), ...(className ? { className } : {}), ...(race ? { race } : {}), ...(level ? { level } : {}), ...(spec ? { spec } : {}), lastSeenAt: new Date() }
       });
       await syncProfessionSnapshot(tx, guildId, existing, entry.professions, entry.professionsComplete === true, entry.professionsAt ?? new Date());
       result.refreshed++;
@@ -46,6 +46,7 @@ export async function applyDiscoveredCharacters(tx: Tx, guildId: string, entries
     const acceptProfessions = !before?.professionsUpdatedAt || (entry.professionsComplete === true && at > before.professionsUpdatedAt);
     const data = {
       name: entry.name, realm: entry.realm, className, race, level, spec,
+      ...(entry.displayName ? { displayName: entry.displayName } : {}),
       ...(acceptProfessions ? { professions: entry.professions as unknown as Prisma.InputJsonValue, ...(entry.professionsComplete === true ? { professionsUpdatedAt: at } : {}) } : {}), lastSeenAt: new Date()
     };
     await tx.unclaimedCharacter.upsert({

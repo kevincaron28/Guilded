@@ -118,6 +118,7 @@ export type AddonLoot = z.infer<typeof addonLootSchema>;
 // to refresh the matching linked character; never creates one on its own.
 export const addonCharacterSchema = z.object({
   name: z.string().min(1),
+  displayName: z.string().trim().min(1).max(80).refine(value => !value.includes("|") && Array.from(value).every(char => char.charCodeAt(0) >= 32 && char.charCodeAt(0) !== 127)).optional(),
   realm: z.string().min(1),
   class: z.string().default(""),
   race: z.string().default(""),

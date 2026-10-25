@@ -1,7 +1,20 @@
 # Guilded: install and connect
 
-For guildmates using **WoW Forever**, including the beta client. You do not need
+For guildmates using **WoW Forever, Classic Era/Hardcore, Burning Crusade Classic,
+Mists of Pandaria Classic or Retail**. You do not need
 Node.js, a database, or a Discord bot token.
+
+In [the 7.3.2 release](https://github.com/kevincaron28/Guilded/releases/tag/v7.3.2),
+choose the addon ZIP ending in `forever`, `classic-era`, `classic-tbc`,
+`classic-mists` or `retail` for your client. ZIPs without an edition suffix are
+Forever builds. The Windows companion installer supports every edition; connect
+each guild/edition in its own profile. Enable **Load out of date AddOns** if the
+client requests it. Real-client and two-PC checks remain pending follow-up.
+
+**Français :** choisissez le ZIP de votre édition (`forever`, `classic-era`,
+`classic-tbc`, `classic-mists` ou `retail`). Les ZIP sans suffixe sont pour Forever.
+Le même compagnon Windows prend en charge toutes les éditions, avec un profil
+par guilde/édition. Les vérifications en jeu restent à effectuer.
 
 [Français](#fr) · [Quick setup](QUICK_START.md) · [EPGP workflow](EPGP_GUIDE.md) · [Optional hosted bot](HOSTED_PILOT.md)
 

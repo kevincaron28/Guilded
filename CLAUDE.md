@@ -3,7 +3,9 @@
 > guild contexts in one Discord, role IDs, companion profiles, realm identities,
 > public seasons and packages. Forever first/last display names retain ledger keys.
 > Retail native key/affix/timer evidence and separate keystone leaderboards are implemented.
-> Real-client acceptance and non-Forever competition evidence remain release gates.
+> Source-reviewed Classic/Retail routes, provisional benchmarks and Raider.IO-inspired
+> seasonal Guilded scoring are prepared; see docs/DUNGEON_CATALOG_2026-10-25.md.
+> Real-client acceptance and benchmark calibration remain release gates.
 > Setup, validation and remaining work: docs/RELEASE_SCOPE_2026-10-25.md.
 > 7.3.2 (23 October 2026): deployment candidate for UTC sessions, dungeon evidence/guidance,
 > staged recovery and companion startup fixes. Real game/two-PC acceptance remains pending.

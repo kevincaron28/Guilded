@@ -6,6 +6,7 @@ import { weekWindow } from "./dungeon-periods.js";
 import { currentEdition } from "./edition-context.js";
 import type { GameEdition } from "./game-edition.js";
 import type { ChallengeEvidence } from "./challenge-evidence.js";
+import { editionDungeonRules } from "./dungeon-edition-catalog.js";
 
 // Public dungeon score (website, 7.1). The same time rating as guild seasons, with the release
 // season's provisional all-level rules: 200 x target / time per route (50-400), the over-level
@@ -41,7 +42,7 @@ let cachedRules: BracketedRules | null = null;
 const editionRules = new Map<GameEdition, BracketedRules>();
 export const publicRules = (edition: GameEdition = currentEdition()): BracketedRules => {
   if (edition === "forever") return (cachedRules ??= provisionalSeasonRules().rules);
-  if (!editionRules.has(edition)) editionRules.set(edition, createBracketedDungeonRules({ gameEdition: edition, routes: [], brackets: [] }));
+  if (!editionRules.has(edition)) editionRules.set(edition, editionDungeonRules(edition));
   return editionRules.get(edition)!;
 };
 
@@ -63,6 +64,8 @@ export function addedRules(frozen: BracketedRules, current: BracketedRules): { r
   if (!routes.length && !brackets.length) return null;
   try {
     const rules = createBracketedDungeonRules({ ...(frozen.gameEdition ? { gameEdition: frozen.gameEdition } : {}), routes: [...frozen.routes, ...routes], brackets: [...frozen.brackets, ...brackets], overlevelPenalty: frozen.overlevelPenalty,
+      ...(frozen.keystoneRating ? { keystoneRating: frozen.keystoneRating } : {}),
+      ...(!frozen.provisional && current.provisional && routes.length ? { provisional: current.provisional } : {}),
       ...(frozen.provisional ? { provisional: { plan: frozen.provisional.plan, waiting: current.provisional?.waiting ?? frozen.provisional.waiting } } : {}),
       ...(frozen.recalibrations ? { recalibrations: frozen.recalibrations } : {}) });
     return { rules, routes: routes.map(r => r.dungeonKey), brackets: brackets.map(b => b.key) };

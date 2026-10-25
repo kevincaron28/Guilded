@@ -418,6 +418,7 @@ export function exportDungeonRuns(database, realm, options = {}) {
       encounters: Object.values(run.encounters ?? {}).slice(0, 100).flatMap(encounter => {
         if (!encounter || !Number.isInteger(encounter.id) || encounter.id <= 0 || typeof encounter.success !== "boolean") return [];
         return [{ id: encounter.id, success: encounter.success,
+          ...(encounter.kind === "npc" ? { kind: "npc" } : {}),
           ...(typeof encounter.name === "string" ? { name: encounter.name.slice(0, 100) } : {}),
           ...(Number.isInteger(encounter.at) && encounter.at > 0 ? { at: encounter.at } : {}),
           ...(Number.isInteger(encounter.startedAt) && encounter.startedAt > 0 ? { startedAt: encounter.startedAt } : {}) }];

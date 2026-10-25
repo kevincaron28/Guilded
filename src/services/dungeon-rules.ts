@@ -37,7 +37,7 @@ export const dungeonRunSchema = z.object({
   reporterNames: z.array(z.string().min(1).max(100)).max(10).optional(),
   // Optional presentation metadata must never invalidate otherwise valid awards.
   encounters: z.array(z.object({
-    id: z.number().int().positive(), name: z.string().max(100).optional(), success: z.boolean(),
+    id: z.number().int().positive(), kind: z.literal("npc").optional(), name: z.string().max(100).optional(), success: z.boolean(),
     at: z.number().int().positive().optional(), startedAt: z.number().int().positive().optional()
   })).max(100).optional().catch(undefined),
   players: z.array(z.object({

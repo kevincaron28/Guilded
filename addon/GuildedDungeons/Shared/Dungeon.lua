@@ -296,7 +296,7 @@ serialize = function(run)
   end
   local encounters = {}
   for _, encounter in ipairs(run.encounters) do
-    if encounter.success and encounter.id then table.insert(encounters, tostring(encounter.id)) end
+    if encounter.success and encounter.id and encounter.kind ~= "npc" then table.insert(encounters, tostring(encounter.id)) end
   end
   local summary = table.concat({
     "v=" .. PROTOCOL_VERSION, "av=" .. clean(run.addonVersion), "st=" .. run.state,
@@ -331,6 +331,7 @@ serialize = function(run)
     if encounter.id and encounter.at then
       local row = table.concat({ encounter.id, clean(string.sub(encounter.name or "", 1, 100)), encounter.success and "1" or "0",
         encounter.at, encounter.startedAt or "" }, ":")
+      if encounter.kind == "npc" then row = row .. ":npc" end
       local candidate = table.concat(timeline, ",") .. (#timeline > 0 and "," or "") .. row
       if #summary + #candidate + 4 > CHUNK_BYTES * 20 then break end
       timeline[#timeline + 1] = row
@@ -385,9 +386,11 @@ local function deserialize(id, text)
   if fields.tl and fields.tl ~= "" then
     local timeline = {}
     for entry in string.gmatch(fields.tl, "[^,]+") do
+      local kind = string.sub(entry, -4) == ":npc" and "npc" or nil
+      if kind then entry = string.sub(entry, 1, -5) end
       local bossId, name, success, at, startedAt = string.match(entry, "^(%d+):([^:]*):([01]):(%d+):(%d*)$")
       if bossId and #timeline < 100 then
-        timeline[#timeline + 1] = { id = tonumber(bossId), name = name ~= "" and name or nil,
+        timeline[#timeline + 1] = { id = tonumber(bossId), kind = kind, name = name ~= "" and name or nil,
           success = success == "1", at = tonumber(at), startedAt = tonumber(startedAt) }
       end
     end
@@ -535,19 +538,26 @@ local function onAddonMessage(text, sender)
   end
 end
 
-local function recordEncounter(run, encounterId, name, success)
+local function recordEncounter(run, encounterId, name, success, kind)
   local stamp = now()
   local active = run.activeEncounter
   -- Clients can emit both END and BOSS_KILL for the same kill, in either order.
   for index = #run.encounters, 1, -1 do
     local previous = run.encounters[index]
-    if success and previous.success and previous.id == encounterId and previous.at and math.abs(stamp - previous.at) <= 10 then
+    if success and previous.success and previous.at and math.abs(stamp - previous.at) <= 10
+      and (previous.id == encounterId and previous.kind == kind
+        or ns.dungeonRoutes and ns.dungeonRoutes.sameBoss(run.instanceId, run.difficultyId, previous, encounterId, kind)) then
+      if previous.kind == "npc" and not kind then
+        previous.id, previous.kind = encounterId, nil
+        previous.name = name or previous.name
+        save(run)
+      end
       run.activeEncounter = nil
       return
     end
   end
   if #run.encounters < 100 then
-    table.insert(run.encounters, { id = encounterId, name = name, success = success, at = stamp,
+    table.insert(run.encounters, { id = encounterId, kind = kind, name = name, success = success, at = stamp,
       startedAt = active and active.id == encounterId and active.startedAt or nil })
   end
   run.activeEncounter = nil
@@ -639,6 +649,21 @@ local function onEvent(_, event, ...)
     recordEncounter(run, tonumber(encounterId), name, true)
     if not run.challengeMode and not compat.challengeActive() and ((run.finalEncounterId and tonumber(encounterId) == run.finalEncounterId)
       or compat.isDungeonFinalBoss(run.instanceId, encounterId, name, run.difficultyId)) then
+      finish("COMPLETED", "final boss")
+    end
+  elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
+    -- Never register or read combat logs on Retail or Forever (restricted APIs).
+    local edition = ns.util.gameEdition()
+    if edition ~= "classic-era" and edition ~= "classic-tbc" and edition ~= "classic-mists" then return end
+    local run, instance = d.current, compat.instance()
+    if not run or run.state ~= "ACTIVE" or not instance or instance.type ~= "party"
+      or instance.id ~= run.instanceId or not CombatLogGetCurrentEventInfo then return end
+    local _, subevent, _, _, _, _, _, guid, name = CombatLogGetCurrentEventInfo()
+    if subevent ~= "UNIT_DIED" or type(guid) ~= "string" then return end
+    local npcId = tonumber(string.match(guid, "^Creature%-%d+%-%d+%-%d+%-%d+%-(%d+)%-"))
+    if not npcId or not ns.dungeonRoutes.knownNpc(run.instanceId, run.difficultyId, npcId) then return end
+    recordEncounter(run, npcId, name, true, "npc")
+    if not run.challengeMode and ns.dungeonRoutes.sourceFinal(run.instanceId, run.difficultyId, nil, npcId) then
       finish("COMPLETED", "final boss")
     end
   elseif event == "PLAYER_DEAD" then
@@ -781,7 +806,11 @@ for _, event in ipairs({ "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_
   "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "ENCOUNTER_END", "PLAYER_DEAD", "CHAT_MSG_ADDON" }) do
   compat.registerEvent(frame, event)
 end
--- Do not probe restricted combat-log events: even pcall(RegisterEvent) can
+local clientEdition = ns.util.gameEdition()
+if clientEdition == "classic-era" or clientEdition == "classic-tbc" or clientEdition == "classic-mists" then
+  compat.registerEvent(frame, "COMBAT_LOG_EVENT_UNFILTERED", true)
+end
+-- Do not probe restricted combat-log events on Retail/Forever: even pcall(RegisterEvent) can
 -- raise Blizzard's blocked-action popup during addon loading.
 compat.registerEvent(frame, "BOSS_KILL", true)
 compat.registerEvent(frame, "ENCOUNTER_START", true)

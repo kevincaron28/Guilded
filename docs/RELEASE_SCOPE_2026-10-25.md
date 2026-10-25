@@ -57,6 +57,8 @@ Game acceptance and calibrated dungeon competitions remain explicit release gate
   separately by dungeon and affix set. They require 80% wall-time presence and
   exclude practice, overtime, simulations and missing native evidence. They do
   not manufacture Blizzard rating points or mix keys into ordinary fastest clears.
+  A separate, explicitly provisional Guilded rating now sums each character's best
+  dungeon scores using Raider.IO-inspired bases and a documented Guilded speed bonus.
 - Result cards show native key/time data and authentic Forever full names.
   Non-Forever cards never estimate a score from Forever's local target table.
 
@@ -84,28 +86,19 @@ Game acceptance and calibrated dungeon competitions remain explicit release gate
 
 ## Dungeon competition and completion limits
 
-Runs and activity can be imported for every edition. Forever's competition rules
-are preserved. Other editions start with empty route/bracket rules, so they cannot
-silently earn ratings using Forever's map IDs or benchmarks.
+Runs and activity can be imported for every edition. Forever's rules are preserved.
+The candidate now includes 135 source-reviewed provisional routes across Era, TBC,
+Mists and Retail, plus the eight-map Retail Midnight Season 2 keystone rating pool.
+Details, sources, benchmark policy and client acceptance are in
+`DUNGEON_CATALOG_2026-10-25.md`. NPC-only Classic completion evidence is transported
+through both addons and companions without confusing NPC and encounter IDs.
 
-The bot owner can schedule a season with `/guilded-season next edition:<edition>`,
-then attach reviewed JSON through `/guilded-season rules edition:<edition> file:<json>`.
-The input contains `gameEdition`, `routes`, and `brackets`; it uses the validated
-version-6 input in `src/services/dungeon-november-rules.ts`. Each route must define
-its map/wing key, difficulty, completion evidence, required encounters, participation
-and competition level bands, benchmark time, route standard, and verification
-build/run reference. Brackets specify a distinct key, level range and best-count.
-Do not use the synthetic fixtures in tests as real route evidence.
-
-Rules can only replace the next, not-yet-started season. The update checks this
-again atomically. Historical snapshots and scores remain unchanged. Reviewed
-Classic endpoint mappings also belong in `addon/Guilded/DungeonRoutes.lua` before
-packaging, with their build/run evidence; that source list remains empty today.
-
-Clients with Encounter Journal support can detect final bosses. Forever retains
-its observed endpoint fallbacks. Classic dungeons without journal data or a
-reviewed endpoint need manual completion; those runs remain unranked. The Scarlet
-wing name fallback covers English/French only.
+Generate ready-to-import files with `npx tsx scripts/export-edition-rules.ts`.
+The bot owner can schedule `/guilded-season next edition:<edition>`, then attach
+`dist/edition-rules/<edition>.json` with `/guilded-season rules edition:<edition> file:<json>`.
+The command can replace only a future season. Existing frozen targets stay fixed;
+provisional recalibrations apply prospectively. Old snapshots without a keystone
+rating never gain one retroactively. Source review is not real-client verification.
 
 Retail challenges wait for `CHALLENGE_MODE_COMPLETED`; killing the final boss
 alone does not finish the run. Challenge resets/restarts produce separate attempts.
@@ -125,9 +118,11 @@ guild, season, member and visibility restrictions.
 
 ## Build and test evidence
 
-- Latest full local regression run: 277 files / 2,342 tests passed
-  (`backups/port-challenge-suite.log`). New HTTP tests cover concurrent guild contexts,
+- Latest full local regression run: 279 files / 2,357 tests passed
+  (`backups/port-catalog-final-suite.log`). New HTTP tests cover concurrent guild contexts,
   role revocation, wrong-server credentials and wrong-edition rejection before writes.
+- Catalog tests resolve and score all 135 routes, reject missing checkpoints and wrong
+  difficulties, preserve frozen rules, and cover NPC transport and keystone aggregation.
 - TypeScript, ESLint, both addon validators and Worker dry-run build passed; shared
   standalone Lua was regenerated. Native challenge tests cover wall/native clocks,
   reload/peer export, malformed/restricted/mismatched evidence, realm/affix separation,
@@ -166,7 +161,7 @@ Before public promotion:
 3. Complete the existing two-PC/native/French checklist in
    `V7_3_2_GAME_CHECKLIST.md`. Add mixed-edition same-Discord permission tests,
    same-name/different-realm characters, channel selection, pairing and profile switches.
-4. Supply reviewed Classic/ordinary Retail dungeon route evidence and benchmarks.
+4. Confirm the prepared Classic/Retail endpoints and calibrate provisional benchmarks in game.
    Validate complete, partial, reset, duplicate, wipe and disbanded runs against
    each target; verify native key, affixes, official timer and in-time/practice flags
    against the Retail client. Mists challenge activity has no Retail keystone ranking.

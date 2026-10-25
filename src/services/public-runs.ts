@@ -6,6 +6,7 @@ import { publicRouteKey } from "./public-score.js";
 import { gameEditionOf } from "./game-edition.js";
 import { characterKey, characterReference } from "../../companion/character-identity.mjs";
 import { challengesAgree, readChallenge, type ChallengeEvidence } from "./challenge-evidence.js";
+import { encounterKey } from "./dungeon-encounter-identity.js";
 
 // Public dungeon runs (7.0, roadmap request 6). Personal companions and opted-in guilds send
 // finished runs; the bot checks each one before it reaches the public leaderboards:
@@ -56,7 +57,7 @@ export interface RunSummary {
   challenge?: ChallengeEvidence;
   runKey: string; runRef: string; instanceId: number; dungeonName: string; difficultyId: number; startedAt: Date; endedAt: Date; durationSec: number;
   deaths: number | null; maxLevel: number | null; bracket: string | null; season: string; routeKey: string | null;
-  evidenceVersion: 1; completedBy: string | null; encounters: { id: number; name?: string; success: true; at?: number; startedAt?: number }[];
+  evidenceVersion: 1; completedBy: string | null; encounters: { id: number; kind?: "npc"; name?: string; success: true; at?: number; startedAt?: number }[];
   players: { character: string; displayName?: string | null; realm: string; className: string | null; role: string | null; level: number | null; minLevel: number | null; presentSec: number; deaths: number | null }[];
 }
 
@@ -72,7 +73,7 @@ export function summarize(run: DungeonRunInput): RunSummary {
     // The same completion field the guild import stores; only boss kills are kept.
     evidenceVersion: 1, completedBy: run.completedBy ?? run.endReason ?? null,
     ...(run.challenge ? { challenge: run.challenge } : {}),
-    encounters: (run.encounters ?? []).filter((e) => e.success).map((e) => ({ id: e.id, ...(e.name ? { name: e.name } : {}), success: true as const,
+    encounters: (run.encounters ?? []).filter((e) => e.success).map((e) => ({ id: e.id, ...(e.kind ? { kind: e.kind } : {}), ...(e.name ? { name: e.name } : {}), success: true as const,
       ...(e.at !== undefined ? { at: e.at } : {}), ...(e.startedAt !== undefined ? { startedAt: e.startedAt } : {}) })),
     players: run.players.map((player) => ({ character: player.character, realm: player.realm === "-" ? "" : player.realm, className: player.class ?? null, role: player.role ?? null,
       ...(player.displayName ? { displayName: player.displayName } : {}),
@@ -86,7 +87,7 @@ export type RunEvidence = Pick<RunSummary, "instanceId" | "difficultyId" | "rout
   players: (Omit<RunSummary["players"][number], "presentSec"> & { presentSec: number | null })[];
 };
 const playerKey = (player: { character: string; realm: string }) => `${key(player.character)}@${key(player.realm)}`;
-const containsKills = (a: RunEvidence, b: RunEvidence) => b.encounters.every(kill => a.encounters.some(other => other.id === kill.id));
+const containsKills = (a: RunEvidence, b: RunEvidence, edition: string) => b.encounters.every(kill => a.encounters.some(other => encounterKey(other,a,edition) === encounterKey(kill,b,edition)));
 
 // Incomplete observations can agree; conflicting known scoring facts cannot.
 export function agrees(stored: RunEvidence, incoming: RunSummary): boolean {
@@ -108,9 +109,9 @@ export function agrees(stored: RunEvidence, incoming: RunSummary): boolean {
     if (old.presentSec !== null && (Math.abs(old.presentSec - player.presentSec) > PUBLIC_LIMITS.agreeDurationSec
       || (old.presentSec >= 0.8 * stored.durationSec) !== (player.presentSec >= 0.8 * incoming.durationSec))) return false;
   }
-  if (!containsKills(stored, incoming) && !containsKills(incoming, stored)) return false;
+  if (!containsKills(stored, incoming, incoming.gameEdition) && !containsKills(incoming, stored, incoming.gameEdition)) return false;
   for (const kill of incoming.encounters) {
-    const old = stored.encounters.find(e => e.id === kill.id);
+    const old = stored.encounters.find(e => encounterKey(e,stored,incoming.gameEdition) === encounterKey(kill,incoming,incoming.gameEdition));
     if (old?.at !== undefined && kill.at !== undefined && Math.abs(old.at - kill.at) > PUBLIC_LIMITS.agreeDurationSec) return false;
   }
   if (stored.completedBy && incoming.completedBy && stored.completedBy !== incoming.completedBy
@@ -122,7 +123,7 @@ export function agrees(stored: RunEvidence, incoming: RunSummary): boolean {
 export function evidenceUpgrade(stored: RunEvidence, incoming: RunSummary): boolean {
   if (!agrees(stored, incoming) || stored.durationSec !== incoming.durationSec
     || stored.startedAt.getTime() !== incoming.startedAt.getTime() || stored.endedAt.getTime() !== incoming.endedAt.getTime()
-    || stored.players.length !== incoming.players.length || !containsKills(incoming, stored)) return false;
+    || stored.players.length !== incoming.players.length || !containsKills(incoming, stored,incoming.gameEdition)) return false;
   if (stored.players.some(old => !incoming.players.some(p => playerKey(p) === playerKey(old)
     && (old.level === null || p.level === old.level) && (old.minLevel === null || p.minLevel === old.minLevel)
     && (old.role === null || p.role === old.role) && (old.presentSec === null || p.presentSec === old.presentSec)))) return false;
@@ -130,11 +131,11 @@ export function evidenceUpgrade(stored: RunEvidence, incoming: RunSummary): bool
   if (stored.challenge && !incoming.challenge) return false;
   // Kill times/start times are retained evidence too. A longer checklist must not
   // silently discard the observed clocks used by public checks and boss records.
-  if (stored.encounters.some(old => !incoming.encounters.some(e => e.id === old.id
+  if (stored.encounters.some(old => !incoming.encounters.some(e => e.id === old.id && e.kind === old.kind
     && (old.at === undefined || e.at === old.at) && (old.startedAt === undefined || e.startedAt === old.startedAt)))) return false;
   const richerPlayers = stored.players.some(old => incoming.players.some(p => playerKey(p) === playerKey(old)
     && (["level", "minLevel", "role", "presentSec"] as const).some(field => old[field] === null && p[field] !== null)));
-  const richerKills = stored.encounters.some(old => incoming.encounters.some(e => e.id === old.id
+  const richerKills = stored.encounters.some(old => incoming.encounters.some(e => e.id === old.id && e.kind === old.kind
     && (old.at === undefined && e.at !== undefined || old.startedAt === undefined && e.startedAt !== undefined)));
   return stored.evidenceVersion === 0 || stored.completedBy !== incoming.completedBy || !stored.challenge && !!incoming.challenge
     || incoming.encounters.length > stored.encounters.length || richerPlayers || richerKills;

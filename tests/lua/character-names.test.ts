@@ -25,6 +25,8 @@ describe("Forever display names without changing accounting identity", () => {
     expect(s.run('return NS.util.unitKey("player")')).toBe("Amy-area52");
     expect(s.run('return tostring(NS.util.inMyGroup("Amy-illidan"))')).toBe("true");
     expect(s.run('return tostring(NS.util.inMyGroup("Amy-other"))')).toBe("false");
+    s.run('issecretvalue=function(value) return value == "HIDDEN_REALM" end');
+    expect(s.run('return tostring(NS.util.characterKey("Amy","HIDDEN_REALM"))')).toBe("nil");
   });
   it("captures both names and preserves the existing key and points", () => {
     const s = client();

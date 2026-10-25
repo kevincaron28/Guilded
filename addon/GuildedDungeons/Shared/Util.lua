@@ -75,6 +75,7 @@ end
 
 function util.characterKey(name, realm)
   if type(name) ~= "string" or isSecret(name) then return nil end
+  if isSecret(realm) then return nil end
   name = name:match("^%s*(.-)%s*$")
   local first, suffix = name:match("^([^%-%s]+)%-(.+)$")
   first = first or name:match("^([^%-%s]+)")

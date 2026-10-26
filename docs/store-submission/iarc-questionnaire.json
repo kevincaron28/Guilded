@@ -2,9 +2,9 @@
   "storeId": "9N680XX3QFL9",
   "submissionId": "1152921505702234586",
   "observedOn": "2026-10-26",
-  "status": "preview-awaiting-final-terms-consent",
+  "status": "saved-age-ratings-complete",
   "publisherContactDisclosureAuthorized": true,
-  "termsAccepted": false,
+  "termsAccepted": true,
   "ratingVersion": "10.3",
   "answers": {
     "appType": "All Other App Types",
@@ -37,14 +37,63 @@
     "External Discord moderation and guild membership controls are not claimed as native block/report/chat/friends-only features.",
     "Guild points are not cash, purchases, convertible rewards or transferable digital assets."
   ],
-  "previewRatings": [
-    { "system": "CCC", "rating": "TE", "description": "All ages", "source": "Microsoft (mapped)" },
-    { "system": "DJCTQ", "rating": "L", "description": "All ages", "interactiveElements": "Users Interact", "source": "IARC" },
-    { "system": "ESRB", "rating": "E", "description": "Everyone", "interactiveElements": "Users Interact / Online Interactions Not Rated", "source": "IARC" },
-    { "system": "IARC", "rating": "3", "description": "3+", "interactiveElements": "Users Interact", "source": "IARC" },
-    { "system": "Microsoft", "rating": "3", "description": "3+", "source": "Microsoft (mapped)" },
-    { "system": "PCBP", "rating": "0", "description": "All ages", "interactiveElements": "Users Interact", "source": "IARC" },
-    { "system": "PEGI", "rating": "3", "description": "3+", "interactiveElements": "Users Interact", "source": "IARC" },
-    { "system": "USK", "rating": "16", "description": "16+; Increased Communication Risks", "interactiveElements": "Users Interact", "source": "IARC" }
+  "ownerConfirmedAgeOfMajority": true,
+  "ownerAuthorizedSave": true,
+  "currentRatingId": "Pending",
+  "ratings": [
+    {
+      "system": "CCC",
+      "rating": "TE",
+      "description": "All ages",
+      "source": "Microsoft (mapped)"
+    },
+    {
+      "system": "DJCTQ",
+      "rating": "L",
+      "description": "All ages",
+      "interactiveElements": "Users Interact",
+      "source": "IARC"
+    },
+    {
+      "system": "ESRB",
+      "rating": "E",
+      "description": "Everyone",
+      "interactiveElements": "Users Interact / Online Interactions Not Rated",
+      "source": "IARC"
+    },
+    {
+      "system": "IARC",
+      "rating": "3",
+      "description": "3+",
+      "interactiveElements": "Users Interact",
+      "source": "IARC"
+    },
+    {
+      "system": "Microsoft",
+      "rating": "3",
+      "description": "3+",
+      "source": "Microsoft (mapped)"
+    },
+    {
+      "system": "PCBP",
+      "rating": "0",
+      "description": "All ages",
+      "interactiveElements": "Users Interact",
+      "source": "IARC"
+    },
+    {
+      "system": "PEGI",
+      "rating": "3",
+      "description": "3+",
+      "interactiveElements": "Users Interact",
+      "source": "IARC"
+    },
+    {
+      "system": "USK",
+      "rating": "16",
+      "description": "16+; Increased Communication Risks",
+      "interactiveElements": "Users Interact",
+      "source": "IARC"
+    }
   ]
 }

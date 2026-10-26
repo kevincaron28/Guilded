@@ -14,7 +14,12 @@
     "publisher": "CN=3CCAA73D-BED1-46F5-A851-6952ECD86594",
     "publisherDisplayName": "Kcaron"
   },
-  "ageRating": null,
+  "ageRating": {
+    "status": "complete",
+    "source": "IARC questionnaire saved in Partner Center",
+    "currentRatingId": "Pending",
+    "details": "iarc-questionnaire.json"
+  },
   "locales": {
     "en-US": {
       "shortDescription": "Connect your Guilded addon and Discord guild across WoW editions, and track Path of Exile 2 mapping sessions.",

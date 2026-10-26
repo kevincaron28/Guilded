@@ -20,13 +20,13 @@ Partner Center: https://partner.microsoft.com/en-us/dashboard/products/9N680XX3Q
 - English (US) and French (France): descriptions, short descriptions, initial
   feature, copyright, unchanged license link and developer name saved. Both remain
   incomplete pending genuine native screenshots and the package.
-- Age rating: owner authorized publisher-name/developer-email disclosure. The
-  questionnaire is filled and preview generated: ESRB Everyone, PEGI 3+, IARC 3+,
-  USK 16+ (Increased Communication Risks), with Users Interact. Final Save requires
-  an IARC Terms of Use acceptance and an age-of-majority declaration. Explicit
-  action-time consent is pending; the checkbox has not been checked. Answers and
-  rationale: `docs/store-submission/iarc-questionnaire.json`. These are preview
-  ratings, not a completed submission or Microsoft certification.
+- Age rating: **Complete**, verified on the submission overview after Save.
+  Owner authorized publisher-name/developer-email disclosure, then explicitly
+  accepted IARC terms, confirmed age of majority and authorized Save. Saved
+  ratings: ESRB Everyone, PEGI 3+, IARC 3+, USK 16+ (Increased Communication Risks),
+  with Users Interact. Current Rating ID displayed Pending; no certificate ID is
+  claimed. Answers and rationale: `docs/store-submission/iarc-questionnaire.json`.
+  The overall app submission remains a draft, not Microsoft certified.
 - Private certification notes: saved and verified after reload. They explain
   `runFullTrust`, startup/update behavior, the review procedure and unfinished
   acceptance. No credentials were entered. Remove the preparation-status paragraph

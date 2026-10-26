@@ -15,6 +15,7 @@ mkdirSync(join(folder, "preview-not-for-upload"), { recursive: true });
 rmSync(join(folder, "PRIVACY_DRAFT.md"), { force: true }); // Superseded by the owner-confirmed notice.
 const files = [
   ["docs/store-submission/listing.json", "listing.json"],
+  ["docs/store-submission/iarc-questionnaire.json", "iarc-questionnaire.json"],
   ["docs/store-submission/REVIEWER_NOTES.md", "REVIEWER_NOTES.md"],
   ["docs/PRIVACY.md", "PRIVACY.md"],
   ["docs/MICROSOFT_STORE_MSIX.md", "BUILD_AND_SUBMISSION.md"],
@@ -28,7 +29,7 @@ writeFileSync(join(folder, "publisher-identity.example.json"), JSON.stringify({ 
 const pending = [
   "Final release commit/version agreement (Store-identity candidate is built)",
   "Publish and verify the prepared privacy-policy URL",
-  "Genuine final-app screenshots and completed product/age declarations",
+  "Genuine final-app screenshots and final listing review",
   "Packaged install/upgrade/uninstall and Windows App Certification Kit checks",
   "Upload and Microsoft certification (not submitted yet)"
 ];

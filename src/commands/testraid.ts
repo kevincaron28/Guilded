@@ -39,13 +39,14 @@ export async function executeTestRaid(interaction: ChatInputCommandInteraction):
     await interaction.reply({ content: "Only officers can run test raids.", flags: MessageFlags.Ephemeral });
     return;
   }
+  // Every subcommand writes test data and may post to Discord: acknowledge within Discord's 3 seconds first.
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const subcommand = interaction.options.getSubcommand();
 
   if (subcommand === "cleanup") {
     const removed = await cleanupTestRaids(prisma, context.guildId);
-    await interaction.reply({
-      content: `Removed ${removed.raids} test raid(s), ${removed.dungeonRuns} test dungeon run(s), ${removed.members} fake raider(s) with their EPGP, points and loot, ${removed.auctions} test auction(s), and ${removed.imports} simulated import(s). Real data was not touched. (Delete any old test signup embeds by hand.)`,
-      flags: MessageFlags.Ephemeral
+    await interaction.editReply({
+      content: `Removed ${removed.raids} test raid(s), ${removed.dungeonRuns} test dungeon run(s), ${removed.members} fake raider(s) with their EPGP, points and loot, ${removed.auctions} test auction(s), and ${removed.imports} simulated import(s). Real data was not touched. (Delete any old test signup embeds by hand.)`
     });
     return;
   }
@@ -62,13 +63,12 @@ export async function executeTestRaid(interaction: ChatInputCommandInteraction):
     const post = dungeonAnnouncement(result.dungeons, "en", emojis);
     const posted = post ? await notifyDungeon(interaction.guild, (lang) => dungeonAnnouncement(result.dungeons, lang, emojis) ?? post) : false;
     if (post) await updateDungeonLeaderboard(interaction.guild);
-    await interaction.reply({
+    await interaction.editReply({
       content: `Simulated a **Test Dungeon** run through the real import.${dungeonReport(result.dungeons)}
 
 `
         + `${posted ? "The run was announced in the dungeon channel (marked [TEST])." : "No dungeon or notify channel is set, so nothing was announced."} `
-        + "Try `/dungeon leaderboard`, `/dungeon records`, `/officer dungeon invalidate`. Run it again for the weekly repeat share; `/setup testraid cleanup` removes it all.",
-      flags: MessageFlags.Ephemeral
+        + "Try `/dungeon leaderboard`, `/dungeon records`, `/officer dungeon invalidate`. Run it again for the weekly repeat share; `/setup testraid cleanup` removes it all."
     });
     return;
   }
@@ -83,7 +83,7 @@ export async function executeTestRaid(interaction: ChatInputCommandInteraction):
       startsInMinutes: interaction.options.getInteger("starts_in") ?? 70
     });
     if (interaction.guild) await syncSignupEmbed(interaction.guild, context.guildId, result.raid.id);
-    await interaction.reply({
+    await interaction.editReply({
       content: [
         `Created **${result.raid.title}** \`${result.raid.id}\` with ${result.members} fake raiders (realm ${realm}):`,
         `${result.counts.SIGNED_UP} signed up, ${result.counts.MAYBE} maybe, ${result.counts.WAITLISTED} waitlisted.`,
@@ -91,8 +91,7 @@ export async function executeTestRaid(interaction: ChatInputCommandInteraction):
         "The raid reminder fires 60 minutes before start (if a signup channel is set).",
         `When ready: \`/setup testraid finish raid:${result.raid.id}\` (add \`via_addon:true\` to test the import path). Clean up with \`/setup testraid cleanup\`.`,
         `In game, \`/guilded sim\` uses the same fake names (${SIM_CHARACTERS.slice(0, 3).join(", ")}...) so an addon export matches.`
-      ].join("\n"),
-      flags: MessageFlags.Ephemeral
+      ].join("\n")
     });
     return;
   }
@@ -112,9 +111,8 @@ export async function executeTestRaid(interaction: ChatInputCommandInteraction):
     result.loot.length ? `Loot: ${result.loot.map((row) => `${row.item} → ${row.winner} (${row.gp} GP)`).join(", ")}.` : "No loot awarded."
   ].join("\n");
   if (result.importId) {
-    await interaction.reply({
-      content: `${summary}\nAttendance was sent as an addon import. Apply it with \`/import apply id:${result.importId}\` (you should see the no-show and the walk-in), then \`/lead award-ep raid:${result.raid.id}\`.`,
-      flags: MessageFlags.Ephemeral
+    await interaction.editReply({
+      content: `${summary}\nAttendance was sent as an addon import. Apply it with \`/import apply id:${result.importId}\` (you should see the no-show and the walk-in), then \`/lead award-ep raid:${result.raid.id}\`.`
     });
     return;
   }

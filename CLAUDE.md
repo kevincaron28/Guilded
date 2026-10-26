@@ -1,3 +1,10 @@
+> CURRENT — 7.5.0 published 26 October 2026 from bda3382. Oracle healthy, protocol 2,
+> commands accepted, four migrations applied, all 21 GitHub assets hash-verified.
+> Microsoft Store Submission 1 is IN CERTIFICATION, with automatic publication
+> after approval. Restricted synthetic reviewer credentials saved with owner consent.
+> Read docs/SESSION_HANDOFF_2026-10-26.md for current provider status and pending tests.
+> Earlier checkpoints below are historical and their draft/local-only holds superseded.
+>
 > 7.5.0 (26 October 2026): combined release candidate; Claude PRs #226–#228, #230 and #231
 > (launch-week addon tools) integrated; main 490d6db. With Store review polish: 311 files / 2,654 tests, TypeScript/lint/addon checks and disposable
 > PostgreSQL migration/backup/restore pass. Store upload validated; preview installed,

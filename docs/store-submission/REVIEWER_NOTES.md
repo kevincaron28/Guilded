@@ -1,4 +1,4 @@
-# Draft Microsoft certification notes
+# Microsoft certification notes — submitted 26 October 2026
 
 Use only with the final package built using the reserved Partner Center identity.
 The LOCAL-PREVIEW package is not a submission package.
@@ -35,7 +35,10 @@ open Microsoft Store for updates and do not download or execute GitHub installer
    never this public document. Access expires 25 November 2026 at 23:59:59 UTC.
    Select the included Guilded.lua; enable WoW and leave PoE2 off. The first
    upload sets the synthetic Reviewmage EP to 100; duplicates do not apply twice.
-   Refresh standings, pause/restart, inspect Activity/CSV, and disconnect/re-pair.
+   Refresh standings, pause/restart and inspect Activity/CSV. Re-pair in a second
+   review profile to revoke the first. Native Help & privacy removes ALL local
+   companion profiles and quits; use it only on the clean test PC/VM. It does
+   not perform a server logout. The sandbox API logout was tested separately.
    This is synthetic pairing/import/file-sync testing, not a real Discord account,
    OAuth, PoE2 or game-client test. The sample connection refuses real exports and
    other guilds. It has no production database or Discord access. Sessions expire
@@ -52,7 +55,9 @@ certificate trust and private key were removed. Store-signed installation/upgrad
 and real Discord/game acceptance remain pending. The deployed synthetic endpoint
 passed actual companion pairing, engine upload, standings-file creation, duplicate
 handling, rejection of modified exports/other guilds, and logout revocation on
-26 October 2026. The private code is awaiting owner permission to share with Microsoft.
+26 October 2026, including re-pair revocation (ten HTTPS checks). With explicit owner
+permission, the private code was saved in Partner Center Credentials and verified
+after reload. Submission 1 is in certification; approval is pending.
 
 ## Screenshot capture plan
 
@@ -70,6 +75,6 @@ Store-signed installation. Check the handoff for their current upload state.
 Partner Center Properties and Age ratings are Complete. IARC was saved after the
 owner explicitly authorized disclosure and accepted the agreement. Exact answers,
 rating results and rationale are recorded in `iarc-questionnaire.json`; the rating
-ID currently displays Pending. The app remains an uncertified draft submission.
+ID currently displays Pending. The app was submitted and is in certification.
 The listing is free; optional website donations do not unlock app features. The
 project license remains unchanged.

@@ -1,5 +1,7 @@
 {
-  "status": "draft-not-submitted",
+  "status": "in-certification",
+  "submittedAt": "2026-10-26",
+  "publishAfterCertification": true,
   "productName": "Guilded Companion",
   "proposedCategory": "Utilities & tools",
   "proposedPrice": "Free",

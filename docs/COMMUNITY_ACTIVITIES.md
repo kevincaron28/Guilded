@@ -72,8 +72,7 @@ avec les mêmes expressions françaises que les raids : `vendredi 20h`,
 - Une demande de 1 à `limit` billets par membre (maximum 1000); les clics répétés
   réaffichent la demande existante. Les demandes ne sont pas modifiables après création.
 
-Le bouton **Participer** ouvre la demande de billets. Alternative :
-`/community lottery join id:LOTERIE quantity:3`.
+Le bouton **Participer** ouvre la demande de billets (il n'y a pas de commande équivalente).
 Pour les paiements en jeu, la demande reste **PENDING**. L'organisateur collecte
 le paiement en jeu, puis utilise
 `/organize lottery confirm id:LOTERIE player:@membre receipt:Détails du paiement`.

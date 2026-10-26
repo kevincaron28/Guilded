@@ -144,6 +144,7 @@ model Guild {
   heldEntries         AddonHeldEntry[]
   settings            GuildSettings?
   raids               Raid[]
+  worldBuffDrops      WorldBuffDrop[]
   auctions            Auction[]
   applications        Application[]
   lootAwards          LootAward[]
@@ -997,6 +998,8 @@ model Raid {
   signupMessageId String?
   mirrorSignupChannelId String?
   mirrorSignupMessageId String?
+  // Optional: no new signups or role changes after this; Can't come and Late still work.
+  signupsCloseAt  DateTime?
   // Raids created for a raid core give that core's members signup priority.
   coreId          String?
   core            RaidCore?        @relation(fields: [coreId], references: [id], onDelete: SetNull)
@@ -1029,6 +1032,8 @@ model RaidSignup {
   status      RaidSignupStatus @default(SIGNED_UP)
   signedUpAt  DateTime         @default(now())
   cancelledAt DateTime?
+  // The member's own "I'll be late" (the Late button). Attendance is still recorded separately.
+  late        Boolean          @default(false)
   raid        Raid             @relation(fields: [raidId], references: [id], onDelete: Cascade)
   member      Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
   character   Character?       @relation(fields: [characterId], references: [id], onDelete: SetNull)
@@ -1036,6 +1041,22 @@ model RaidSignup {
   @@unique([raidId, memberId])
   @@unique([raidId, characterId])
   @@index([raidId, status])
+}
+
+// A world-buff drop a member announced (Classic Era / Forever): who drops which buff, when
+// and where. Entered by players, never generated; past drops are pruned when new ones are added.
+model WorldBuffDrop {
+  id        String   @id @default(cuid())
+  guildId   String
+  buff      String
+  dropsAt   DateTime
+  location  String?
+  note      String?
+  createdBy String
+  createdAt DateTime @default(now())
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, dropsAt])
 }
 
 model RaidAttendance {

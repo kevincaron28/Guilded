@@ -38,9 +38,24 @@ export interface CreateRaidInput {
   coreId?: string;
   repeatWeekly?: boolean;
   preset?: string;
+  // Close signups this many hours before the start (1-168).
+  signupsCloseHours?: number;
 }
 
 export type SignupAvailability = "AVAILABLE" | "MAYBE";
+
+// A member tried to sign up or change role after the raid's signup deadline.
+export class SignupsClosedError extends Error {
+  constructor(readonly closedAt: Date) { super("Signups are closed for this raid."); }
+}
+
+const HOUR_MS = 3_600_000;
+function deadline(scheduledAt: Date, hours: number, now = new Date()): Date {
+  if (!Number.isInteger(hours) || hours < 1 || hours > 168) throw new Error("The signup deadline must be 1 to 168 hours before the start.");
+  const closesAt = new Date(scheduledAt.getTime() - hours * HOUR_MS);
+  if (closesAt.getTime() <= now.getTime()) throw new Error("That signup deadline is already past: choose fewer hours, or none.");
+  return closesAt;
+}
 
 type RaidDb = Pick<PrismaClient, "raid" | "raidSignup" | "raidCoreMember"> & Partial<Pick<PrismaClient, "raidCore">>;
 
@@ -134,6 +149,7 @@ export function createRaidService(database: PrismaClient) {
           createdBy: input.createdBy,
           description: input.description?.trim() || null,
           repeatWeekly: input.repeatWeekly ?? false,
+          ...(input.signupsCloseHours === undefined ? {} : { signupsCloseAt: deadline(input.scheduledAt, input.signupsCloseHours) }),
           tankLimit: input.tankLimit ?? preset?.tankLimit ?? coreLimits.tankLimit ?? null,
           healerLimit: input.healerLimit ?? preset?.healerLimit ?? coreLimits.healerLimit ?? null,
           dpsLimit: input.dpsLimit ?? preset?.dpsLimit ?? coreLimits.dpsLimit ?? null,
@@ -160,6 +176,8 @@ export function createRaidService(database: PrismaClient) {
         data: {
           guildId, title: raid.title, scheduledAt: new Date(next), createdBy: raid.createdBy, description: raid.description,
           tankLimit: raid.tankLimit, healerLimit: raid.healerLimit, dpsLimit: raid.dpsLimit, repeatWeekly: true,
+          // The same deadline, the same time before the start.
+          ...(raid.signupsCloseAt ? { signupsCloseAt: new Date(next - (raid.scheduledAt.getTime() - raid.signupsCloseAt.getTime())) } : {}),
           ...(raid.coreId ? { coreId: raid.coreId } : {}),
           ...(raid.bosses.length > 0 ? { bosses: { create: raid.bosses.map((boss, sortOrder) => ({ name: boss.name, sortOrder })) } } : {})
         }
@@ -180,6 +198,8 @@ export function createRaidService(database: PrismaClient) {
       tankLimit?: number | null;
       healerLimit?: number | null;
       dpsLimit?: number | null;
+      // Hours before the start; 0 removes the deadline.
+      signupsCloseHours?: number;
     }) {
       return locked(raidId, async tx => {
         const raid = await getRaid(raidId, guildId, tx);
@@ -195,9 +215,16 @@ export function createRaidService(database: PrismaClient) {
             throw new Error("Role limits must be non-negative integers.");
           }
         }
+        // A new time keeps an existing deadline the same number of hours before it.
+        const start = input.scheduledAt ?? raid.scheduledAt;
+        const signupsCloseAt = input.signupsCloseHours === 0 ? null
+          : input.signupsCloseHours !== undefined ? deadline(start, input.signupsCloseHours)
+          : raid.signupsCloseAt && input.scheduledAt ? new Date(start.getTime() - (raid.scheduledAt.getTime() - raid.signupsCloseAt.getTime()))
+          : undefined;
         const updated = await tx.raid.update({
           where: { id: raid.id },
           data: {
+            ...(signupsCloseAt === undefined ? {} : { signupsCloseAt }),
             ...(input.title === undefined ? {} : { title: input.title.trim() }),
             ...(input.description === undefined ? {} : { description: input.description?.trim() || null }),
             ...(input.scheduledAt === undefined ? {} : { scheduledAt: input.scheduledAt }),
@@ -221,10 +248,13 @@ export function createRaidService(database: PrismaClient) {
 
     // AVAILABLE takes a role slot, or joins the waitlist when that role is
     // full. MAYBE never takes a slot.
-    async signup(raidId: string, guildId: string, memberId: string, role: RaidRole, availability: SignupAvailability = "AVAILABLE", characterValue?: string | null) {
+    // respectDeadline: a member signing up themselves (buttons, /raid signup). Imports and
+    // calendar sync record what already happened in game, so they pass false.
+    async signup(raidId: string, guildId: string, memberId: string, role: RaidRole, availability: SignupAvailability = "AVAILABLE", characterValue?: string | null, respectDeadline = false) {
       return locked(raidId, async tx => {
         const raid = await getRaid(raidId, guildId, tx);
         if (raid.status !== "PLANNED") throw new Error("Signups are closed for this raid.");
+        if (respectDeadline && raid.signupsCloseAt && raid.signupsCloseAt.getTime() <= Date.now()) throw new SignupsClosedError(raid.signupsCloseAt);
         const byCharacter = (await tx.guildSettings?.findUnique({ where: { guildId }, select: { characterSignups: true } }))?.characterSignups ?? false;
         const character = characterValue || byCharacter ? await ownedSignupCharacter(tx, guildId, memberId, characterValue) : null;
         if (character && await tx.raidSignup.findFirst({ where: { raidId, characterId: character.id, memberId: { not: memberId }, status: { not: "CANCELLED" } } })) {
@@ -307,10 +337,22 @@ export function createRaidService(database: PrismaClient) {
         if (!signup || signup.status === "CANCELLED") throw new Error("You are not signed up for this raid.");
         const cancelled = await tx.raidSignup.update({
           where: { id: signup.id },
-          data: { status: "CANCELLED", cancelledAt: new Date(), characterId: null }
+          data: { status: "CANCELLED", cancelledAt: new Date(), characterId: null, late: false }
         });
         const promoted = signup.status === "SIGNED_UP" ? await promoteWaitlist(raidId, tx) : [];
         return { cancelled, promoted };
+      });
+    },
+
+    // The Late button: flips the member's own "I'll be late" on a planned raid. Null when
+    // they have no active signup (they pick a role first). Allowed after the signup deadline.
+    async toggleLate(raidId: string, guildId: string, memberId: string) {
+      return locked(raidId, async tx => {
+        const raid = await getRaid(raidId, guildId, tx);
+        if (raid.status !== "PLANNED") throw new Error("Signups are closed for this raid.");
+        const signup = await tx.raidSignup.findUnique({ where: { raidId_memberId: { raidId, memberId } } });
+        if (!signup || signup.status === "CANCELLED") return null;
+        return tx.raidSignup.update({ where: { id: signup.id }, data: { late: !signup.late } });
       });
     },
 

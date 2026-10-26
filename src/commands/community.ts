@@ -40,8 +40,6 @@ export const lotteryCommand = viewCommands(new SlashCommandBuilder().setName("lo
     .addStringOption(o => o.setName("realm").setDescription("Realm/faction or league/mode").setDescriptionLocalizations({ fr: "Royaume ou ligue" }).setMaxLength(100))
     .addIntegerOption(o => o.setName("winners").setDescription("Unique winners").setDescriptionLocalizations({ fr: "Gagnants distincts" }).setMinValue(1).setMaxValue(20))
     .addIntegerOption(o => o.setName("limit").setDescription("Tickets per member").setDescriptionLocalizations({ fr: "Billets par membre" }).setMinValue(1).setMaxValue(1000)))
-  .addSubcommand(sub => ref(sub.setName("join").setDescription("Request tickets").setDescriptionLocalizations({ fr: "Demander des billets" }))
-    .addIntegerOption(o => o.setName("quantity").setDescription("Ticket quantity").setDescriptionLocalizations({ fr: "Nombre de billets" }).setMinValue(1).setMaxValue(1000)))
   .addSubcommand(sub => playerOption(ref(sub.setName("confirm").setDescription("Confirm in-game payment").setDescriptionLocalizations({ fr: "Confirmer le paiement" })))
     .addStringOption(o => o.setName("receipt").setDescription("Trade details").setDescriptionLocalizations({ fr: "Détails du paiement" }).setRequired(true).setMaxLength(300)))
   .addSubcommand(sub => ref(sub.setName("payments").setDescription("Ticket requests").setDescriptionLocalizations({ fr: "Demandes de billets" }))
@@ -228,15 +226,9 @@ export async function executeCommunity(interaction: ChatInputCommandInteraction)
     await interaction.editReply({ ...card, components: [], allowedMentions: { parse: [] } });
     return;
   } else if (sub === "join") {
-    if (kind === "LOTTERY") {
-      const quantity = interaction.options.getInteger("quantity") ?? 1;
-      if (lotteryRules.parse(row!.rules).mode === "POINTS") { await interaction.editReply(lotteryConfirmation(row!, quantity, actor, lang)); return; }
-      const entry = await service.enterLottery(context.guildId, row!.id, actor, quantity);
-      content = ticketReply(lang, row!, entry);
-    } else {
-      const entry = await service.signup(context.guildId, row!.id, actor, interaction.options.getString("choice", true));
-      content = signupReply(lang, entry.status);
-    }
+    // Gaming nights only: lottery tickets are requested with the post's buttons.
+    const entry = await service.signup(context.guildId, row!.id, actor, interaction.options.getString("choice", true));
+    content = signupReply(lang, entry.status);
   } else if (sub === "confirm") {
     const user = interaction.options.getUser("player", true);
     await access(guild, user.id, row!.season);

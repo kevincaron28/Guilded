@@ -144,6 +144,9 @@ model Guild {
   heldEntries         AddonHeldEntry[]
   settings            GuildSettings?
   raids               Raid[]
+  worldBuffDrops      WorldBuffDrop[]
+  doNotInvites        DoNotInvite[]
+  starboardPosts      StarboardPost[]
   auctions            Auction[]
   applications        Application[]
   lootAwards          LootAward[]
@@ -793,6 +796,11 @@ model GuildSettings {
   memberRoleId             String?
   raidSignupChannelId      String?
   logChannelId             String?
+  // Off by default: edited/deleted messages go to the officer log (content needs MESSAGE_CONTENT_INTENT).
+  messageLogEnabled        Boolean   @default(false)
+  // Starboard: messages with this many ⭐ are reposted there. Null = off.
+  starboardChannelId       String?
+  starboardThreshold       Int       @default(3)
   meritEnabled             Boolean   @default(false)
   // EPGP: PR = EP / (GP + baseGp), so a new player with almost no GP does not top the list.
   baseGp                   Int       @default(0)
@@ -999,6 +1007,8 @@ model Raid {
   signupMessageId String?
   mirrorSignupChannelId String?
   mirrorSignupMessageId String?
+  // Optional: no new signups or role changes after this; Can't come and Late still work.
+  signupsCloseAt  DateTime?
   // Raids created for a raid core give that core's members signup priority.
   coreId          String?
   core            RaidCore?        @relation(fields: [coreId], references: [id], onDelete: SetNull)
@@ -1031,6 +1041,8 @@ model RaidSignup {
   status      RaidSignupStatus @default(SIGNED_UP)
   signedUpAt  DateTime         @default(now())
   cancelledAt DateTime?
+  // The member's own "I'll be late" (the Late button). Attendance is still recorded separately.
+  late        Boolean          @default(false)
   raid        Raid             @relation(fields: [raidId], references: [id], onDelete: Cascade)
   member      Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
   character   Character?       @relation(fields: [characterId], references: [id], onDelete: SetNull)
@@ -1038,6 +1050,53 @@ model RaidSignup {
   @@unique([raidId, memberId])
   @@unique([raidId, characterId])
   @@index([raidId, status])
+}
+
+// A world-buff drop a member announced (Classic Era / Forever): who drops which buff, when
+// and where. Entered by players, never generated; past drops are pruned when new ones are added.
+model WorldBuffDrop {
+  id        String   @id @default(cuid())
+  guildId   String
+  buff      String
+  dropsAt   DateTime
+  location  String?
+  note      String?
+  createdBy String
+  createdAt DateTime @default(now())
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, dropsAt])
+}
+
+// Officers' shared "do not invite" list. Officer-only: never shown to members. A match warns
+// the officer log (applications, Discord joins); nothing is blocked automatically.
+model DoNotInvite {
+  id            String   @id @default(cuid())
+  guildId       String
+  name          String
+  realm         String?
+  discordUserId String?
+  reason        String
+  addedBy       String
+  createdAt     DateTime @default(now())
+  guild         Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId])
+}
+
+// One starboard repost per starred message, updated as stars change.
+model StarboardPost {
+  id                 String   @id @default(cuid())
+  guildId            String
+  sourceChannelId    String
+  sourceMessageId    String   @unique
+  starboardChannelId String
+  starboardMessageId String
+  stars              Int
+  createdAt          DateTime @default(now())
+  guild              Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId])
 }
 
 model RaidAttendance {
@@ -1563,6 +1622,12 @@ model RaidCoreMember {
   bench    Boolean  @default(false)
   // On trial (an application moved to Trial): shown apart on the roster until approved.
   trial    Boolean  @default(false)
+  // Trial bookkeeping: when it started and ends, who vouched (Discord user id), and when the
+  // officer log was told it ended (once).
+  trialStartedAt  DateTime?
+  trialEndsAt     DateTime?
+  trialSponsorId  String?
+  trialRemindedAt DateTime?
   // The character they bring to this core (one member can be in several cores, with the same
   // character or a different one in each). Empty = not said: the roster shows only their name.
   characterId String?

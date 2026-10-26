@@ -23,6 +23,8 @@ import { faqChoices } from "./faq.js";
 import { commands } from "./index.js";
 import { resolveCommand } from "./router.js";
 import { communityChoices } from "../services/community-choices.js";
+import { worldBuffDropChoices } from "./world-buffs.js";
+import { dniChoices } from "./do-not-invite.js";
 import { raidPresetChoices } from "../services/raid-presets.js";
 
 // Routes every autocomplete request (see setAutocomplete(true) on ID
@@ -88,8 +90,13 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
       choices = await raidTitleSuggestions(prisma, guild.id, query);
     } else if (command === "raid" && focused.name === "preset") {
       choices = raidPresetChoices(query);
-    } else if (command === "raid" && focused.name === "time") {
+    } else if ((command === "raid" || command === "worldbuff") && focused.name === "time") {
       choices = timeSuggestions(query, timeZone, language);
+    } else if (command === "dni" && focused.name === "entry") {
+      // Officer-only data: never list it for anyone else.
+      choices = interaction.member && hasPermission(interaction.member as GuildMember, "officer") ? await dniChoices(guild.id, query) : [];
+    } else if (command === "worldbuff" && focused.name === "drop") {
+      choices = await worldBuffDropChoices(guild.id, query, language === "fr" ? "fr" : "en");
     } else if (command === "epgp" && focused.name === "reason") {
       choices = reasonSuggestions(subcommand, query);
     } else if (command === "loot" && focused.name === "duration") {

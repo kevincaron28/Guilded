@@ -136,6 +136,10 @@ export function createGuildService(database: PrismaClient) {
       meritEnabled?: boolean;
       answerChannelId?: string | null;
       aiAnswers?: boolean;
+      characterSignups?: boolean;
+      messageLogEnabled?: boolean;
+      starboardChannelId?: string | null;
+      starboardThreshold?: number;
     }) {
       return database.guildSettings.update({
         where: { guildId },

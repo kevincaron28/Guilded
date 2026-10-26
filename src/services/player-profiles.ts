@@ -50,6 +50,20 @@ export function prismaProfileStore(database: PrismaClient, allows: (id: string) 
   };
 }
 
+// The link preview: a pasted profile link shows the best public score, not just the name.
+export function profileDescription(profile: PlayerProfile, t: (en: string, fr: string) => string): string {
+  let best: { points: number; dungeon: string } | null = null;
+  for (const run of profile.runs) {
+    const score = scoreRun(run, publicRules(gameEditionOf(run)));
+    if (score && (!best || score.points > best.points)) best = { points: score.points, dungeon: run.dungeonName };
+  }
+  const chars = profile.characters.length;
+  return best
+    ? t(`${profile.name}: best dungeon score ${best.points} (${best.dungeon}) · ${chars} character(s) · ${profile.runs.length} recent public run(s) on Guilded.`,
+      `${profile.name} : meilleur score de donjon ${best.points} (${best.dungeon}) · ${chars} personnage(s) · ${profile.runs.length} donjon(s) public(s) récent(s) sur Guilded.`)
+    : t(`${profile.name}: ${chars} character(s) and public dungeon runs on Guilded.`, `${profile.name} : ${chars} personnage(s) et donjons publics sur Guilded.`);
+}
+
 export function createPlayerProfiles(store: ProfileStore): { route: WebRoute; meSection(ctx: WebContext): Promise<string> } {
   const path = (id: string) => `/players/${encodeURIComponent(id)}`;
   function details(ctx: WebContext, profile: PlayerProfile): string {
@@ -87,7 +101,7 @@ export function createPlayerProfiles(store: ProfileStore): { route: WebRoute; me
     if (ctx.request.method === "POST") return kit.page(405, "Method not allowed", "");
     const profile = await store.get(match[1]!);
     if (!profile?.public) return kit.page(404, t("Not found", "Introuvable"), `<h1>${t("Profile unavailable", "Profil indisponible")}</h1>`, { noindex: true });
-    return kit.page(200, profile.name, `<h1>${escapeHtml(profile.name)}</h1>${details(ctx, profile)}`);
+    return kit.page(200, profile.name, `<h1>${escapeHtml(profile.name)}</h1>${details(ctx, profile)}`, { description: profileDescription(profile, ctx.t) });
   };
   return {
     route,

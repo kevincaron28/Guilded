@@ -10,6 +10,7 @@ import { coreForRaid, effectiveRules, LOOT_MODE_LABEL } from "../services/core-r
 import { createItemValueService } from "../services/item-values.js";
 import { describePriority, priorityFor } from "../services/loot-priority.js";
 import { guildService, requireGuildContext } from "./context.js";
+import { asLang, t } from "../i18n.js";
 
 const lootService = createLootService(prisma);
 const wishlistService = createWishlistService(prisma);
@@ -142,6 +143,13 @@ export async function executeLoot(interaction: ChatInputCommandInteraction): Pro
       amount: interaction.options.getInteger("amount", true)
     });
     await interaction.reply({ content: `Bid of **${bid.amount} GP** placed.`, flags: MessageFlags.Ephemeral });
+    // Best effort, like the waitlist DMs: closed DMs are ignored.
+    if (bid.outbid) {
+      const lang = asLang((await guildService.getSettings(context.guildId))?.language);
+      await interaction.client.users.send(bid.outbid.discordUserId, t(lang, "dm.outbid", {
+        item: bid.auction.itemName, amount: String(bid.amount), when: `<t:${Math.floor(bid.auction.closesAt.getTime() / 1000)}:R>`
+      })).catch(() => undefined);
+    }
     return;
   }
   if (subcommand === "close") {

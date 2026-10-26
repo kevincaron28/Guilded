@@ -11,6 +11,7 @@ import { config } from "../config.js";
 import { createWclClient, parseGuildRef } from "../integrations/warcraftlogs.js";
 import { ensureBotGuide } from "./setup.js";
 import { asLang } from "../i18n.js";
+import { prisma } from "../database.js";
 
 export const configCommand = new SlashCommandBuilder()
   .setName("config")
@@ -83,7 +84,15 @@ export const configCommand = new SlashCommandBuilder()
     .addStringOption((o) => o.setName("mode").setDescription("Loot system").setRequired(true).addChoices(
       ...LOOT_MODES.map((mode) => ({ name: `${LOOT_MODE_LABEL[mode]}`, value: mode })))))
   .addSubcommand((sub) => sub.setName("merit").setDescription("Rank /epgp leaderboard by PR x 30-day attendance instead of raw PR.")
-    .addBooleanOption((o) => o.setName("enabled").setDescription("Use merit ranking").setRequired(true)));
+    .addBooleanOption((o) => o.setName("enabled").setDescription("Use merit ranking").setRequired(true)))
+  .addSubcommand((sub) => sub.setName("character-signups").setDescription("Signups and cores need a linked character, picked from a list.")
+    .addBooleanOption((o) => o.setName("enabled").setDescription("Require a character").setRequired(true)))
+  .addSubcommand((sub) => sub.setName("starboard").setDescription("Repost messages that get enough ⭐ reactions.")
+    .addChannelOption((o) => o.setName("channel").setDescription("Starboard channel").addChannelTypes(ChannelType.GuildText))
+    .addIntegerOption((o) => o.setName("stars").setDescription("⭐ needed (default 3)").setMinValue(2).setMaxValue(50))
+    .addBooleanOption((o) => o.setName("disable").setDescription("Turn the starboard off")))
+  .addSubcommand((sub) => sub.setName("message-log").setDescription("Log edited and deleted messages in the officer log.")
+    .addBooleanOption((o) => o.setName("enabled").setDescription("Log them").setRequired(true)));
 
 export async function executeConfig(interaction: ChatInputCommandInteraction): Promise<void> {
   const context = await requireGuildContext(interaction);
@@ -353,6 +362,41 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
     const enabled = interaction.options.getBoolean("enabled", true);
     await guildService.updateSettings(context.guildId, { meritEnabled: enabled });
     await interaction.reply({ content: `Merit ranking ${enabled ? "enabled" : "disabled"}. This only changes how /epgp leaderboard is ordered; the EPGP ledger is never touched.`, flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  if (subcommand === "character-signups") {
+    const enabled = interaction.options.getBoolean("enabled", true);
+    await guildService.updateSettings(context.guildId, { characterSignups: enabled });
+    const without = enabled ? await prisma.member.count({ where: { guildId: context.guildId, status: "ACTIVE", isTest: false, characters: { none: {} } } }) : 0;
+    await interaction.reply({ content: enabled
+      ? `Character signups on: raid signups, applications and core spots now need one of the member's linked characters (a picker appears when they have several). ${without} active member(s) have no linked character yet; they link one with /character pair or /character add.`
+      : "Character signups off: members sign up as themselves. Characters already chosen on signups and cores are kept.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  if (subcommand === "starboard") {
+    if (interaction.options.getBoolean("disable")) {
+      await guildService.updateSettings(context.guildId, { starboardChannelId: null });
+      await interaction.reply({ content: "Starboard off. Existing reposts stay where they are.", flags: MessageFlags.Ephemeral });
+      return;
+    }
+    const channel = interaction.options.getChannel("channel");
+    if (!channel) throw new Error("Pick the starboard channel, or use disable:true.");
+    const stars = interaction.options.getInteger("stars") ?? 3;
+    await guildService.updateSettings(context.guildId, { starboardChannelId: channel.id, starboardThreshold: stars });
+    await interaction.reply({ content: `Starboard on: messages with ${stars} ⭐ are reposted in <#${channel.id}>. Only messages at least as visible as that channel are reposted; bots and the starboard itself are skipped.${config.MESSAGE_CONTENT_INTENT ? "" : " Without the Message Content intent, reposts show the author and a link, not the text."}`, flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  if (subcommand === "message-log") {
+    const enabled = interaction.options.getBoolean("enabled", true);
+    const settings = await guildService.getSettings(context.guildId);
+    if (enabled && !settings?.logChannelId) throw new Error("Set the officer log first: /config channel which:Officer log.");
+    await guildService.updateSettings(context.guildId, { messageLogEnabled: enabled });
+    await interaction.reply({ content: enabled
+      ? `Edited and deleted messages are now logged in <#${settings!.logChannelId}>.${config.MESSAGE_CONTENT_INTENT ? "" : " Without the Message Content intent, only deletions are logged, with the author when Discord still had the message; edits need the message text."}`
+      : "Message log off.", flags: MessageFlags.Ephemeral });
     return;
   }
 

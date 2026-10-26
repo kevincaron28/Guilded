@@ -6,6 +6,7 @@ import { characterCommand, executeCharacter } from "./character.js";
 import { professionCommand, executeProfession } from "./profession.js";
 import { configCommand } from "./settings.js";
 import { raidCommand, executeRaid } from "./raid.js";
+import { worldBuffCommand, executeWorldBuff } from "./world-buffs.js";
 import { importCommand, executeImport } from "./import.js";
 import { lootCommand, executeLoot } from "./loot.js";
 import { applicationCommand, applyCommand, executeApplication } from "./application.js";
@@ -65,7 +66,7 @@ const setup = new MergedCommand("setup", `${BRAND.name} setup, sync status, rese
 
 // Leader and officer subcommands live under /lead, /officer and /organize (below), which
 // Discord hides from members; the member parents keep only what members can run.
-const RAID_LEAD = ["create", "edit", "cancel", "start", "end", "attendance", "boss", "note", "award-ep", "fill", "season", "history"];
+const RAID_LEAD = ["create", "edit", "cancel", "start", "end", "attendance", "attendance-voice", "boss", "note", "award-ep", "fill", "season", "history"];
 const EPGP_OFFICER = ["award-ep", "award-gp", "decay", "reverse"];
 const LOOT_OFFICER = ["auction", "award", "close", "priority"];
 const CHARACTER_OFFICER = ["unclaimed", "link", "autolink"];
@@ -86,7 +87,8 @@ const character = new MergedCommand("character", "Your profile, characters, prof
 
 const raid = new MergedCommand("raid", "Raids: signups, progress, reports and Warcraft Logs.", [
   { command: pugCommand, handler: executePug, as: "pug" },
-  { command: wclCommand, handler: executeWcl, as: "wcl", except: ["report"] }
+  { command: wclCommand, handler: executeWcl, as: "wcl", except: ["report"] },
+  { command: worldBuffCommand, handler: executeWorldBuff, flat: { add: "worldbuff", list: "worldbuffs", remove: "worldbuff-remove" } }
 ], { command: raidCommand, handler: executeRaid, except: RAID_LEAD });
 
 const epgp = new MergedCommand("epgp", "Your EPGP: balance, history and the leaderboard.", [],

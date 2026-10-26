@@ -341,10 +341,13 @@ also works. `/help` reminds leaders of this. `/core`, `/team`, `/report`, `/part
 | `/apply <core> <character> <class> <spec> <experience> <availability> <role> [notes]` | Apply to a raid core, with your raid role (Tank, Healer or DPS). Or press **Apply to `<core>`** on that core's own roster message (raid roster channel): pick your role, then a short form. Officers decide on the card: **Trial** adds you to the core as a trial member (shown apart on the roster) and keeps **Approve** and **Reject** on the card to settle it later; **Approve** makes you a full core member |
 | `/raid signup <raid> <role> [availability]` | Sign up (Tank, Healer, DPS). `availability:Maybe` doesn't take a slot. If your role is full you go on the **waitlist** and get a DM when a slot opens |
 | `/raid cancel-signup <raid>` | Drop out (the next waitlisted player moves up) |
+| Raid post **⏰ Late** button | Mark yourself late (click again to undo); the post shows ⏰ next to your name. Works after the signup deadline too, like Can't come |
+| `/raid worldbuff <buff> <time> [where] [note]` | Classic Era and Forever: announce a world-buff drop (Rallying Cry of the Dragonslayer from Onyxia or Nefarian, Spirit of Zandalar, Warchief's Blessing). Posted in the channel without pings |
+| `/raid worldbuffs [post]` / `/raid worldbuff-remove <drop>` | Upcoming drops with live countdowns (`post:true` shares the list); withdraw your own drop (raid leaders: any) |
 | `/raid status <raid>` / `/raid roster <raid>` | Raid info and roster |
 | `/raid progress` | Guild boss progression: first kill, number of kills, latest kill |
 | `/epgp balance` / `history` / `leaderboard` | Your EP, GP, PR, and the leaderboard |
-| `/loot bid <auction> <amount>` | Bid GP on an auction |
+| `/loot bid <auction> <amount>` | Bid GP on an auction. Whoever was leading gets a DM that they were outbid |
 | `/loot reserves [item]` | Who soft-reserved what, from the list kept in the game addon (`/guilded reserve`). It updates when the companion uploads. Type part of an item name, or a character name, to narrow it |
 | `/loot history` | Awarded loot: item, boss/raid, winner, GP, GP before → after, who awarded it, date |
 | `/character readiness me` | Your latest gear check from the addon |
@@ -398,12 +401,13 @@ After each import, completed runs and new records are posted once in the dungeon
 
 | Command | What it does |
 | --- | --- |
-| `/lead create <title> <time> [description] [bosses] [core] [preset] [weekly] [tanks] [healers] [dps]` | Create a raid. Time like `friday 8pm`, `tonight 20:00`, `vendredi 20h`, `2026-10-03 20:00` (your server's timezone). `preset` lists the raids of the selected guild's WoW edition plus generic sizes ([list](docs/raid-loot/RAID_PRESETS_BY_EDITION.md)); it suggests role seats, and explicit seat counts override them. `weekly:true` repeats after ending. Posts Tank / Healer / DPS / Maybe / Can't come buttons |
-| `/lead edit` / `cancel` / `start` | Manage the raid (raising a cap moves waitlisted players in) |
+| `/lead create <title> <time> [description] [bosses] [core] [preset] [weekly] [tanks] [healers] [dps] [close_hours]` | Create a raid. Time like `friday 8pm`, `tonight 20:00`, `vendredi 20h`, `2026-10-03 20:00` (your server's timezone). `preset` lists the raids of the selected guild's WoW edition plus generic sizes ([list](docs/raid-loot/RAID_PRESETS_BY_EDITION.md)); it suggests role seats, and explicit seat counts override them. `weekly:true` repeats after ending. `close_hours` closes signups that many hours before the start (Can't come and Late still work). Posts Tank / Healer / DPS / Maybe / Can't come / Late buttons |
+| `/lead edit` / `cancel` / `start` | Manage the raid (raising a cap moves waitlisted players in; `close_hours` sets or, with 0, removes the signup deadline) |
 | `/lead end <raid>` | End the raid and see the **proposed EP** with Approve / Cancel buttons |
 | `/lead award-ep <raid>` | Show the proposed EP again (e.g. after `/import apply` added attendance) |
 | `/lead boss <raid> <name> <Killed\|Pending>` | Boss status |
 | `/lead attendance <raid> <player> <status> [notes]` | Record attendance |
+| `/lead attendance-voice <raid> [channel]` | Mark everyone in the raid's voice channel present (default: the one you are in). Records already made are kept; nobody is marked absent: signups not in the channel are listed for you |
 | `/lead season [name] [start]` | Officers. With `name`, start a raid attendance season (the current one ends where it starts); `start:2026-09-01` begins it in the past, and the raids since then are included. Alone, list the seasons |
 | `/lead history [season] [core] [player]` | Officers, only you see it. Who attended each raid of the season: rate, count per status and last raids per member, plus a CSV grid (one line per member, one column per raid). `player` lists one member's raids. With no season it covers the last 90 days. The same summary is pinned in the raid attendance channel and updated after each raid report |
 | `/lead note <raid> <text> [boss]` | Officer note (general, per boss, what to improve); shown in `/raid status` to raid leaders |

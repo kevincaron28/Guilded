@@ -1,7 +1,7 @@
 import { serializeRaidPosts, syncRaidPosts } from "../services/raid-signup-posts.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "../services/discord-jobs.js";
 import {
-  ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, SlashCommandBuilder,
+  ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, SlashCommandBuilder,
   type ButtonInteraction, type ChatInputCommandInteraction, type Guild as DiscordGuild, type GuildMember,
   MessageFlags,
 } from "discord.js";
@@ -15,7 +15,7 @@ import { executeRaidHistory, executeRaidSeason } from "./raid-season.js";
 import { bossProgress } from "../services/progress.js";
 import { parseRaidTime } from "../services/raid-time.js";
 import { asLang, t, type Lang } from "../i18n.js";
-import { createRaidService, type SignupAvailability } from "../services/raid.js";
+import { createRaidService, SignupsClosedError, type SignupAvailability } from "../services/raid.js";
 import { coreSpotLabel, createRaidCoreService } from "../services/raid-core.js";
 import { buildSignupEmbed, openSpots } from "../services/signup-embed.js";
 import { hasPermission } from "../permissions.js";
@@ -24,6 +24,7 @@ import { BRAND } from "../brand.js";
 import { pickSignupCharacter } from "./signup-character-picker.js";
 import { CHARACTER_DISPLAY_SELECT, loadClassEmojis } from "../services/character-display.js";
 import { signupLayout } from "../services/signup-layout.js";
+import { voiceAttendancePlan } from "../services/voice-attendance.js";
 
 const raidService = createRaidService(prisma);
 
@@ -42,7 +43,8 @@ export const raidCommand = new SlashCommandBuilder()
     .addBooleanOption((o) => o.setName("weekly").setDescription("Repeat every week: ending this raid creates the next one"))
     .addIntegerOption((o) => o.setName("tanks").setDescription("Tank slot cap").setMinValue(0))
     .addIntegerOption((o) => o.setName("healers").setDescription("Healer slot cap").setMinValue(0))
-    .addIntegerOption((o) => o.setName("dps").setDescription("DPS slot cap").setMinValue(0)))
+    .addIntegerOption((o) => o.setName("dps").setDescription("DPS slot cap").setMinValue(0))
+    .addIntegerOption((o) => o.setName("close_hours").setDescription("Close signups this many hours before start").setMinValue(1).setMaxValue(168)))
   .addSubcommand((sub) => sub.setName("progress").setDescription("Guild boss progression: first kills, kill counts, latest kill."))
   .addSubcommand((sub) => sub.setName("season").setDescription("Officers: start a raid attendance season, or list the seasons.")
     .addStringOption((o) => o.setName("name").setDescription("Name of the season to start (the current one ends)").setMaxLength(60))
@@ -66,7 +68,8 @@ export const raidCommand = new SlashCommandBuilder()
     .addStringOption((o) => o.setName("description").setDescription("New description"))
     .addIntegerOption((o) => o.setName("tanks").setDescription("New tank slot cap").setMinValue(0))
     .addIntegerOption((o) => o.setName("healers").setDescription("New healer slot cap").setMinValue(0))
-    .addIntegerOption((o) => o.setName("dps").setDescription("New DPS slot cap").setMinValue(0)))
+    .addIntegerOption((o) => o.setName("dps").setDescription("New DPS slot cap").setMinValue(0))
+    .addIntegerOption((o) => o.setName("close_hours").setDescription("Signup deadline, hours before start (0 removes it)").setMinValue(0).setMaxValue(168)))
   .addSubcommand((sub) => sub.setName("fill").setDescription("Short on players? Post the open spots for the whole guild and ping the core's bench.")
     .addStringOption((o) => o.setName("raid").setDescription("Raid (start typing its name)").setAutocomplete(true).setRequired(true))
     .addStringOption((o) => o.setName("message").setDescription("Optional extra text").setMaxLength(300)))
@@ -113,7 +116,10 @@ export const raidCommand = new SlashCommandBuilder()
         { name: "Benched (full credit, attendance EP only)", value: "BENCHED" },
         { name: "Absent", value: "ABSENT" }
       ))
-    .addStringOption((o) => o.setName("notes").setDescription("Optional notes")));
+    .addStringOption((o) => o.setName("notes").setDescription("Optional notes")))
+  .addSubcommand((sub) => sub.setName("attendance-voice").setDescription("Mark everyone in a voice channel present; lists signups who aren't there.")
+    .addStringOption((o) => o.setName("raid").setDescription("Raid (start typing its name)").setAutocomplete(true).setRequired(true))
+    .addChannelOption((o) => o.setName("channel").setDescription("Voice channel (default: the one you are in)").addChannelTypes(ChannelType.GuildVoice, ChannelType.GuildStageVoice)));
 
 function requireRaidLeader(interaction: ChatInputCommandInteraction): void {
   if (!interaction.member || !hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "raidLeader")) {
@@ -140,8 +146,10 @@ function signupButtons(raidId: string, status: string, lang: Lang) {
     b("DPS", t(lang, "button.dps"), ButtonStyle.Danger),
     b("MAYBE", t(lang, "button.maybe"), ButtonStyle.Secondary),
     b("CANCEL", t(lang, "button.cancel"), ButtonStyle.Secondary)
-  )];
+  ), new ActionRowBuilder<ButtonBuilder>().addComponents(b("LATE", t(lang, "button.late"), ButtonStyle.Secondary))];
 }
+
+const closedText = (lang: Lang, error: SignupsClosedError) => t(lang, "reply.signupsClosed", { when: `<t:${Math.floor(error.closedAt.getTime() / 1000)}:R>` });
 
 const failedSignupSyncs = new Map<string, Set<string>>();
 export const pendingSignupRaidIds = (guildId: string): string[] => [...(failedSignupSyncs.get(guildId) ?? [])];
@@ -164,7 +172,7 @@ export async function syncSignupEmbed(discordGuild: DiscordGuild, guildId: strin
     const coreLabel = new Map(core?.members.map((m) => [m.memberId, coreSpotLabel(m)]) ?? []);
     const embed = buildSignupEmbed({
       lang, raid, classEmojis: await loadClassEmojis(discordGuild),
-      signups: everyone.map((signup) => ({ memberId: signup.memberId, characterId: signup.characterId, character: signup.character?.memberId === signup.memberId && signup.member.guildId === guildId ? signup.character : null, displayName: signup.characterName ? `${signup.characterName} · ${signup.member.displayName}` : coreLabel.get(signup.memberId) ?? signup.member.displayName, role: signup.role, status: signup.status })),
+      signups: everyone.map((signup) => ({ memberId: signup.memberId, characterId: signup.characterId, character: signup.character?.memberId === signup.memberId && signup.member.guildId === guildId ? signup.character : null, displayName: signup.characterName ? `${signup.characterName} · ${signup.member.displayName}` : coreLabel.get(signup.memberId) ?? signup.member.displayName, role: signup.role, status: signup.status, late: signup.late })),
       core: core ? { name: core.name, members: core.members.map((m) => ({ memberId: m.memberId, characterId: m.characterId, character: m.character?.memberId === m.memberId ? m.character : null, backupCharacterIds: m.backups.map(backup => backup.characterId), displayName: coreSpotLabel(m), role: m.role, bench: m.bench })) } : undefined
     });
 
@@ -239,11 +247,11 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
   const context = await requireGuildContext(interaction);
   if (!context) return;
   const subcommand = interaction.options.getSubcommand();
-  const management = ["create", "edit", "cancel", "start", "end", "attendance", "boss", "note", "award-ep", "fill"].includes(subcommand);
+  const management = ["create", "edit", "cancel", "start", "end", "attendance", "attendance-voice", "boss", "note", "award-ep", "fill"].includes(subcommand);
   if (management) requireRaidLeader(interaction);
   // These post or edit the signup message (and a core's mirror) before answering, which can take
   // longer than Discord's 3 seconds.
-  if (["create", "edit", "cancel", "start", "end"].includes(subcommand)) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  if (["create", "edit", "cancel", "start", "end", "attendance-voice"].includes(subcommand)) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   if (subcommand === "create") {
     const description = interaction.options.getString("description");
@@ -254,7 +262,8 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     const title = interaction.options.getString("title", true);
     const coreName = interaction.options.getString("core");
     const preset = interaction.options.getString("preset");
-    let core = coreName ? await createRaidCoreService(prisma).byIdOrName(context.guildId, coreName) : null;
+    const closeHours = interaction.options.getInteger("close_hours");
+    let core =coreName ? await createRaidCoreService(prisma).byIdOrName(context.guildId, coreName) : null;
     let coreGuessed = false;
     if (!core) {
       const inferredId = await inferCoreId(context.guildId, title);
@@ -271,6 +280,7 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
       scheduledAt: await readRaidTime(context.guildId, interaction.options.getString("time", true)),
       createdBy: interaction.user.id,
       ...(interaction.options.getBoolean("weekly") ? { repeatWeekly: true } : {}),
+      ...(closeHours === null ? {} : { signupsCloseHours: closeHours }),
       ...(description === null ? {} : { description }),
       ...(bosses === null ? {} : { bosses: bosses.split(",") }),
       ...(tanks === null ? {} : { tankLimit: tanks }),
@@ -320,7 +330,12 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     const character = settings?.characterSignups ? await pickSignupCharacter(interaction, context.guildId, context.memberId) : null;
     if (settings?.characterSignups && !character) return;
     if (!interaction.replied && !interaction.deferred) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const signup = await raidService.signup(raidId, context.guildId, context.memberId, role, availability, character?.id);
+    const signup = await raidService.signup(raidId, context.guildId, context.memberId, role, availability, character?.id, true).catch(async (error: unknown) => {
+      if (!(error instanceof SignupsClosedError)) throw error;
+      await interaction.editReply({ content: closedText(asLang(settings?.language), error), components: [] });
+      return null;
+    });
+    if (!signup) return;
     await tellBumped(interaction.client, signup.bumped);
     await tellPromoted(interaction, signup.promoted);
     if (interaction.guild) await syncSignupEmbed(interaction.guild, context.guildId, raidId);
@@ -379,7 +394,7 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
   }
   if (subcommand === "roster") {
     const roster = await raidService.roster(raidId, context.guildId);
-    await interaction.reply({ content: roster.length ? roster.map((signup) => `• ${signup.characterName ? signup.characterName : signup.member.displayName} (<@${signup.member.discordUserId}>) — ${roleLabel[signup.role]}`).join("\n") : "No members are signed up.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: roster.length ? roster.map((signup) => `• ${signup.characterName ? signup.characterName : signup.member.displayName} (<@${signup.member.discordUserId}>) — ${roleLabel[signup.role]}${signup.late ? " ⏰ late" : ""}`).join("\n") : "No members are signed up.", flags: MessageFlags.Ephemeral });
     return;
   }
   if (subcommand === "edit") {
@@ -389,7 +404,9 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     const tanks = interaction.options.getInteger("tanks");
     const healers = interaction.options.getInteger("healers");
     const dps = interaction.options.getInteger("dps");
+    const closeHours = interaction.options.getInteger("close_hours");
     const raid = await raidService.edit(raidId, context.guildId, {
+      ...(closeHours === null ? {} : { signupsCloseHours: closeHours }),
       ...(title === null ? {} : { title }),
       ...(time === null ? {} : { scheduledAt: await readRaidTime(context.guildId, time) }),
       ...(description === null ? {} : { description }),
@@ -444,6 +461,10 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     }
     return;
   }
+  if (subcommand === "attendance-voice") {
+    await recordVoiceAttendance(interaction, context.guildId, raidId);
+    return;
+  }
   const player = interaction.options.getUser("player", true);
   const target = await guildService.ensureMember(context.guildId, player.id, player.username);
   const attendance = await raidService.recordAttendance({
@@ -455,6 +476,37 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     ...(interaction.options.getString("notes") === null ? {} : { notes: interaction.options.getString("notes", true) })
   });
   await interaction.reply({ content: `Recorded **${attendance.status}** attendance for ${player.username}.`, flags: MessageFlags.Ephemeral });
+}
+
+// /lead attendance-voice (see services/voice-attendance.ts for the rules).
+async function recordVoiceAttendance(interaction: ChatInputCommandInteraction, guildId: string, raidId: string): Promise<void> {
+  const raid = await raidService.getStatus(raidId, guildId);
+  if (!raid) throw new Error("Raid not found in this guild.");
+  if (raid.status !== "ACTIVE" && raid.status !== "COMPLETED") throw new Error("Start the raid first (/lead start): attendance is for an active or completed raid.");
+  const picked = interaction.options.getChannel("channel");
+  const channel = picked
+    ? await interaction.guild?.channels.fetch(picked.id).catch(() => null)
+    : (interaction.member as GuildMember | null)?.voice?.channel ?? null;
+  if (!channel?.isVoiceBased()) throw new Error("Join the raid's voice channel, or pick it with channel:.");
+  const inVoice = [...channel.members.values()].filter((member) => !member.user.bot)
+    .map((member) => ({ discordUserId: member.id, displayName: member.displayName }));
+  const known = await prisma.member.findMany({
+    where: { guildId, discordUserId: { in: inVoice.map((person) => person.discordUserId) }, status: "ACTIVE", isTest: false },
+    select: { id: true, discordUserId: true }
+  });
+  const recorded = new Set((await prisma.raidAttendance.findMany({ where: { raidId, memberId: { in: known.map((member) => member.id) } }, select: { memberId: true } })).map((row) => row.memberId));
+  const signups = (await raidService.signups(raidId, guildId)).map((signup) => ({ discordUserId: signup.member.discordUserId, name: signup.characterName ?? signup.member.displayName, status: signup.status }));
+  const plan = voiceAttendancePlan({ inVoice, known, recorded, signups });
+  for (const memberId of plan.mark) {
+    await raidService.recordAttendance({ raidId, guildId, memberId, status: "PRESENT", recordedBy: interaction.user.id, notes: `voice: ${channel.name}` });
+  }
+  const names = (list: string[]) => list.slice(0, 30).join(", ") + (list.length > 30 ? ` +${list.length - 30}` : "");
+  await interaction.editReply({ content: [
+    `Marked **${plan.mark.length}** present from 🔊 ${channel.name} for **${raid.title}**.`,
+    ...(plan.kept.length ? [`Kept ${plan.kept.length} attendance record(s) already made.`] : []),
+    ...(plan.strangers.length ? [`In the channel but not active members of this guild (not recorded): ${names(plan.strangers)}.`] : []),
+    ...(plan.missing.length ? [`Signed up but not in the channel: ${names(plan.missing)}. Record them with /lead attendance.`] : [])
+  ].join("\n"), allowedMentions: { parse: [] } });
 }
 
 // /lead fill: a call for players in the guild's shared raid signup channel (everyone reads it),
@@ -518,7 +570,10 @@ export async function handleRaidSignupButton(interaction: ButtonInteraction): Pr
   const settings = await guildService.getSettings(guild.id);
   const lang = asLang(settings?.language);
   let content: string;
-  if (action === "CANCEL") {
+  if (action === "LATE") {
+    const signup = await raidService.toggleLate(raidId, guild.id, member.id);
+    content = !signup ? t(lang, "reply.lateNeedsSignup") : signup.late ? t(lang, "reply.late") : t(lang, "reply.notLate");
+  } else if (action === "CANCEL") {
     const existing = await prisma.raidSignup.findUnique({ where: { raidId_memberId: { raidId, memberId: member.id } } });
     if (!existing || existing.status === "CANCELLED") {
       content = t(lang, "reply.notSignedUp");
@@ -530,19 +585,32 @@ export async function handleRaidSignupButton(interaction: ButtonInteraction): Pr
   } else {
     const existing = await prisma.raidSignup.findUnique({ where: { raidId_memberId: { raidId, memberId: member.id } } });
     const role = (action === "MAYBE" ? existing?.role ?? "DPS" : action) as RaidRole;
+    // Past the deadline, say so before opening the character picker (the service checks again).
+    const closesAt = (await prisma.raid.findFirst({ where: { id: raidId, guildId: guild.id }, select: { signupsCloseAt: true } }))?.signupsCloseAt;
+    if (closesAt && closesAt.getTime() <= Date.now()) {
+      await interaction.reply({ content: closedText(lang, new SignupsClosedError(closesAt)), flags: MessageFlags.Ephemeral });
+      return;
+    }
     const character = settings?.characterSignups ? await pickSignupCharacter(interaction, guild.id, member.id) : null;
     if (settings?.characterSignups && !character) return;
     if (!interaction.replied && !interaction.deferred) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const signup = await raidService.signup(raidId, guild.id, member.id, role, action === "MAYBE" ? "MAYBE" : "AVAILABLE", character?.id);
-    await tellBumped(interaction.client, signup.bumped);
-    await tellPromoted(interaction, signup.promoted);
-    const roleText = t(lang, `role.${role}` as const);
-    const replies: Record<string, string> = {
-      SIGNED_UP: t(lang, "reply.signedUp", { role: roleText }),
-      MAYBE: t(lang, "reply.maybe", { role: roleText }),
-      WAITLISTED: t(lang, "reply.waitlisted", { role: roleText })
-    };
-    content = (character ? `**${character.name} — ${character.realm}** : ` : "") + (replies[signup.status] ?? "Signup saved.") + await clashNote(raidId, guild.id, member.id, lang);
+    const signup = await raidService.signup(raidId, guild.id, member.id, role, action === "MAYBE" ? "MAYBE" : "AVAILABLE", character?.id, true).catch((error: unknown) => {
+      if (error instanceof SignupsClosedError) return error;
+      throw error;
+    });
+    if (signup instanceof SignupsClosedError) {
+      content = closedText(lang, signup);
+    } else {
+      await tellBumped(interaction.client, signup.bumped);
+      await tellPromoted(interaction, signup.promoted);
+      const roleText = t(lang, `role.${role}` as const);
+      const replies: Record<string, string> = {
+        SIGNED_UP: t(lang, "reply.signedUp", { role: roleText }),
+        MAYBE: t(lang, "reply.maybe", { role: roleText }),
+        WAITLISTED: t(lang, "reply.waitlisted", { role: roleText })
+      };
+      content = (character ? `**${character.name} — ${character.realm}** : ` : "") + (replies[signup.status] ?? "Signup saved.") + await clashNote(raidId, guild.id, member.id, lang);
+    }
   }
   if (interaction.replied || interaction.deferred) await interaction.editReply({ content, components: [] });
   else await interaction.reply({ content, flags: MessageFlags.Ephemeral });

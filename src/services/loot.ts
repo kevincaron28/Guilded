@@ -51,10 +51,19 @@ export function createLootService(database: PrismaClient) {
         const highest = auction.bids.reduce((max, bid) => Math.max(max, bid.amount), 0);
         const minimum = Math.max(auction.minimumBid, highest ? highest + auction.bidIncrement : auction.minimumBid);
         if (input.amount < minimum) throw new Error(`Bid must be at least ${minimum} GP`);
-        return tx.auctionBid.upsert({
+        // The leader before this bid (the earliest top bid, as closing picks), told when someone else overtakes them.
+        const leader = auction.bids.filter((bid) => bid.amount === highest).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0];
+        const bid = await tx.auctionBid.upsert({
           where: { auctionId_memberId: { auctionId: input.auctionId, memberId: input.memberId } },
           create: { auctionId: input.auctionId, memberId: input.memberId, amount: input.amount },
           update: { amount: input.amount }
+        });
+        const outbid = leader && leader.memberId !== input.memberId
+          ? await tx.member.findUnique({ where: { id: leader.memberId }, select: { discordUserId: true, isTest: true } })
+          : null;
+        return Object.assign(bid, {
+          auction: { itemName: auction.itemName, closesAt: auction.closesAt },
+          outbid: outbid && !outbid.isTest ? { discordUserId: outbid.discordUserId } : null
         });
       });
     },

@@ -9,7 +9,7 @@ import { boundRosterEmbed } from "./roster-embed-limits.js";
 // core raid which players are core mains (⭐), on the bench (🪑) or still
 // missing. Pure, so it can be tested without Discord.
 
-export interface SignupRow { memberId: string; characterId?: string | null; character?: DisplayCharacter | null; displayName: string; role: RaidRole; status: string; }
+export interface SignupRow { memberId: string; characterId?: string | null; character?: DisplayCharacter | null; displayName: string; role: RaidRole; status: string; late?: boolean; }
 export interface CoreRow { memberId: string; characterId?: string | null; character?: DisplayCharacter | null; backupCharacterIds?: string[]; displayName: string; role: RaidRole; bench: boolean; }
 
 export interface SignupEmbedInput {
@@ -17,6 +17,7 @@ export interface SignupEmbedInput {
   raid: {
     id: string; title: string; description: string | null; status: RaidStatus; scheduledAt: Date;
     tankLimit: number | null; healerLimit: number | null; dpsLimit: number | null;
+    signupsCloseAt?: Date | null;
   };
   signups: SignupRow[];
   classEmojis?: ClassEmojis;
@@ -51,7 +52,8 @@ export function openSpots(caps: Record<RaidRole, number | null>, signups: { role
 export function buildSignupEmbed(input: SignupEmbedInput): EmbedBuilder {
   const { lang, raid, signups, core } = input;
   const now = input.now ?? new Date();
-  const label = (row: SignupRow | CoreRow) => characterDisplayLine(row.displayName, row.character, lang, input.classEmojis, now);
+  const label = (row: SignupRow | CoreRow) => characterDisplayLine(row.displayName, row.character, lang, input.classEmojis, now)
+    + ("late" in row && row.late ? " ⏰" : "");
   const roleName = (role: RaidRole) => t(lang, `role.${role}` as const);
   const mains = new Set(core?.members.filter((m) => !m.bench).map((m) => m.memberId));
   const bench = new Set(core?.members.filter((m) => m.bench).map((m) => m.memberId));
@@ -73,6 +75,10 @@ export function buildSignupEmbed(input: SignupEmbedInput): EmbedBuilder {
     )
     .setFooter({ text: raid.status === "PLANNED" ? t(lang, "signup.footer.open") : t(lang, "signup.footer.closed", { id: raid.id }) });
   if (raid.description) embed.setDescription(raid.description);
+  // Discord renders <t:…:R> as a live "in 3 hours" / "2 hours ago", so the post needs no refresh at the deadline.
+  if (raid.status === "PLANNED" && raid.signupsCloseAt) {
+    embed.addFields({ name: t(lang, "signup.closes"), value: `<t:${Math.floor(raid.signupsCloseAt.getTime() / 1000)}:R>`, inline: true });
+  }
 
   for (const role of ROLES) {
     const players = signed.filter((s) => s.role === role).sort(byName);
@@ -106,6 +112,9 @@ export function buildSignupEmbed(input: SignupEmbedInput): EmbedBuilder {
     if (free.length) {
       embed.addFields({ name: t(lang, "signup.openSpots"), value: free.map((spot) => `${ROLE_ICON[spot.role]} ${spot.open} ${roleName(spot.role)}`).join(" · "), inline: false });
     }
+  }
+  if (signups.some(row => row.late && row.status !== "CANCELLED")) {
+    embed.setFooter({ text: `${embed.data.footer!.text}\n${t(lang, "signup.lateLegend")}` });
   }
   if ([...signups, ...(core?.members ?? [])].some(row => hasStaleGear(row.character, now))) {
     embed.setFooter({ text: `${embed.data.footer!.text}\n${staleGearNote(lang)}` });

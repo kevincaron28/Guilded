@@ -1,8 +1,11 @@
 > CURRENT — 7.5.0 published 26 October 2026 from bda3382. Oracle healthy, protocol 2,
 > commands accepted, four migrations applied, all 21 GitHub assets hash-verified.
+> All ten CurseForge edition files approved and CDN hashes reverified 26 October.
 > Microsoft Store Submission 1 is IN CERTIFICATION, with automatic publication
 > after approval. Restricted synthetic reviewer credentials saved with owner consent.
 > Read docs/SESSION_HANDOFF_2026-10-26.md for current provider status and pending tests.
+> Claude's live Discord/web walkthrough and limits are recorded in
+> docs/POST_RELEASE_REVIEW_2026-10-26.md. His text fixes merged in #236.
 > Earlier checkpoints below are historical and their draft/local-only holds superseded.
 >
 > 7.5.0 (26 October 2026): combined release candidate; Claude PRs #226–#228, #230 and #231

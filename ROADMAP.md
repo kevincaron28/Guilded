@@ -1,5 +1,5 @@
-> 7.4.0 is published on GitHub and deployed; earlier local-only statements below are historical.
-> Current execution and unfinished work: [session handoff](docs/SESSION_HANDOFF_2026-10-25.md).
+> 7.5.0 is published on GitHub/CurseForge and deployed; earlier local-only statements below are historical.
+> Current execution and unfinished work: [session handoff](docs/SESSION_HANDOFF_2026-10-26.md).
 
 > Latest local review, 25 October: [full bundle fixes and remaining release checks](docs/LOCAL_BUNDLE_REVIEW_2026-10-25.md), 295 files / 2,548 tests passed. Local review only; real-client acceptance pending.
 > Feature instructions: [bulk actions, GRM archive migration and Classic/Forever buff coverage](docs/LOCAL_ROSTER_GRM_BUFFS_2026-10-25.md).
@@ -8,12 +8,12 @@
 
 ## Current stage — 26 October 2026
 
-Guilded **7.5.0 release candidate** (protocol 2), combining the release-gap bundle and Claude’s raid/interaction fixes.
-Publication still requires the combined CI and deployment gates.
+Guilded **7.5.0 Release** (protocol 2), combining the release-gap bundle and Claude’s raid/interaction fixes.
+Combined CI, backups, deployment and publication gates passed. Microsoft Store certification remains pending.
 Real-client checks remain post-release follow-up; see [the release decision](docs/RELEASE_DECISION_2026-10-25.md).
 Current gates and completed operational checks: [launch readiness](docs/LAUNCH_READINESS_2026-10-24.md).
-GitHub publishes 7.4.0 for Forever, Era, TBC, Mists and Retail;
-All ten CurseForge packages are also approved and published as 7.4.0. Previously, both providers published 7.3.2;
+GitHub publishes 7.5.0 for Forever, Era, TBC, Mists and Retail;
+all ten CurseForge packages are also approved and published as 7.5.0. Previously, both providers published 7.4.0;
 see [the publication record](docs/RELEASE_EXECUTION_2026-10-25.md). All six
 18-October requests shipped in 7.0.0; 7.1.0 added monthly boards and Raider.IO-style leaderboards,
 7.2.0 companion Sign in with Discord and one-click updates, 7.2.1 a steadier bot, 7.3.0 the dungeon
@@ -47,12 +47,13 @@ full raid still have outstanding acceptance checks.
 Candidate feature progress while the game is closed: [raid presets, signup layouts,
 score cards and quieter companion sync](docs/PRELAUNCH_FEATURES_2026-10-24.md).
 Game acceptance starts when access returns. The owner authorized 7.3.2 publication
-before those checks; subsequent local feature work remains unpublished.
+before those checks; the subsequent feature bundle shipped in 7.4.0 and 7.5.0.
 
 New local review bundle: [roster, crafting, teams, history, groups, main/alt and
 limited GRM review, opt-in availability, local activity heatmap and Retail key
-sharing](docs/LOCAL_FEATURE_BUNDLE_2026-10-25.md). This is uncommitted work for
-review, with game validation and integration still pending.
+sharing](docs/LOCAL_FEATURE_BUNDLE_2026-10-25.md). This bundle is published;
+game validation remains pending. Claude's live checks are in the
+[post-release review](docs/POST_RELEASE_REVIEW_2026-10-26.md).
 
 1. Make independent guild setup clear and rehearse a clean install. Aim for
    30 minutes with hosting/database/DNS ready; see [QUICK_START.md](docs/QUICK_START.md).

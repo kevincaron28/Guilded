@@ -2,12 +2,12 @@
   "verifiedAt": "2026-10-25",
   "guilded": {
     "github": {
-      "version": "7.3.2",
+      "version": "7.4.0",
       "stage": "release",
-      "url": "https://github.com/kevincaron28/Guilded/releases/tag/v7.3.2"
+      "url": "https://github.com/kevincaron28/Guilded/releases/tag/v7.4.0"
     },
     "curseforge": {
-      "version": "7.3.2",
+      "version": "7.4.0",
       "stage": "release",
       "url": "https://www.curseforge.com/wow/addons/guilded"
     }

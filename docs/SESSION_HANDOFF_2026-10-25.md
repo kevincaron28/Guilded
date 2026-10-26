@@ -19,7 +19,32 @@ His separate checkout must not be reset or edited by the next agent.
 
 ## Release execution
 
-Publication is in progress; append verified results here before ending the session.
+Release PR #224 is merged at 8837fd949582f60de0fef5a0fb575246a2ab630d.
+Claude PRs #222 and #223 are also marked merged. GitHub v7.4.0 is public with
+21 assets, each fetched anonymously and checked for SHA-256 and size.
+Both clean-main Guilded quality jobs passed in run 40251771094, including
+PostgreSQL migration/restore and Windows installer packaging.
+Local full suite: 295 files / 2,548 tests passed; TypeScript, lint, addon/catalog
+validation and both dependency audits passed (zero vulnerabilities).
+The first local packaging run detected a checkout-transition mismatch; all
+artifacts were rebuilt from clean main and passed source/ASAR verification.
+
+Oracle and the online companion now run 7.4.0 / protocol 2 at that commit.
+Systemd is active; public health is OK and Discord command registration is OK
+in every server. Post-deploy ledger references remain unique. Database and
+application backups were verified before deploy, then encrypted off-server
+and verified by authenticated decryption/checksums. Private locations are in
+backups/release-7.4.0/preflight-result.json and offsite-backup.json.
+
+All ten CurseForge edition files are approved and published as Release. Their
+public downloads match the verified edition ZIP checksums. File IDs and checksums
+are in backups/release-7.4.0/curseforge-files.json and
+curseforge-download-verification.json. No CurseForge approval remains pending.
+Website provider metadata is updated in PR #225; merge/deployment verification
+will be appended to the local completion record before ending the session.
+The existing local companion installation was not changed; the new installer
+is published and available through the normal updater. Real-client checks
+remain pending.
 Never infer deployment or CurseForge approval from a successful build/upload.
 Previous published release 7.3.2 must remain intact. Candidate artifacts named
 LOCAL-REVIEW are historical and must not be distributed as the new release.
@@ -36,7 +61,21 @@ LOCAL-REVIEW are historical and must not be distributed as the new release.
    plus Windows clean install/upgrade on a second PC.
 5. Review remaining roadmap proposals separately. Main/alt review stays preview-only;
    no automated ownership changes were promised or silently enabled.
-6. Complete any publication or approval items explicitly left pending below.
+6. Read backups/release-7.4.0/completed.json for the final website deployment
+   confirmation and Git commit after PR #225. No additional product version bump
+   is needed for this documentation/site metadata follow-up.
+
+Other retained backlog items from [release gaps](RELEASE_GAPS_2026-10-25.md):
+remaining real-member Discord onboarding/permissions/closure/link-preview cases;
+observe interaction latency and keep unresolved live reports open until verified;
+verified Classic/Retail event announcements and edition-specific reminder preferences;
+sourced Forever raid loot/GP data and a two-officer raid rehearsal; owner-controlled
+Windows code signing; native German/Spanish review; hosted-onboarding threshold and
+abuse-control decisions; and further reduction of time spent in Discord delivery
+transactions. These are follow-up work, not claimed completed by this release.
+The proposed candidates and their limits remain in ROADMAP.md and
+FEATURE_CANDIDATE_REVIEW_2026-10-25.md; historical local-review labels there do not
+override this session's explicit publication authorization.
 
 ## Operational guardrails
 

@@ -4,12 +4,13 @@ import { parseWeeklySchedule, weeklyOccurrences } from "../src/services/core-wee
 import { fillCoreWeeklyRaids } from "../src/services/core-weekly-raids.js";
 import { createRaidService } from "../src/services/raid.js";
 import { RAID_PRESETS, presetComposition } from "../src/services/raid-presets.js";
+import { withEdition } from "../src/services/edition-context.js";
 
 describe("core composition and launch planning", () => {
   it("validates every suggested composition with the same form rules", () => {
     for (const preset of RAID_PRESETS) {
       expect(coreComposition(String(preset.raidSize), String(preset.tankLimit), String(preset.healerLimit), String(preset.dpsLimit)))
-        .toEqual(presetComposition(preset.id));
+        .toEqual(withEdition(preset.editions?.[0] ?? "forever", () => presetComposition(preset.id)));
     }
     expect(() => presetComposition("unknown")).toThrow(/Unknown raid preset/);
   });

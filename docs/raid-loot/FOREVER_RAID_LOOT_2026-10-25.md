@@ -5,6 +5,11 @@ Onyxia's Lair (40). This page records what public sources actually publish so of
 prepare `/core items` prices. Nothing here is invented: no prices, encounter IDs or drop
 tables beyond what the sources below show.
 
+**Rechecked 26 October 2026:** nothing new. The Barrow Deeps loot table still lists every
+boss with "no drops discovered yet" ([wowtbc.gg](https://wowtbc.gg/warcraftforever/loot-tables/raids/barrow-deeps/)),
+and guides still disagree on its boss count. Raid presets for the other editions:
+[RAID_PRESETS_BY_EDITION.md](RAID_PRESETS_BY_EDITION.md).
+
 ## Status by raid
 
 | Raid | Loot published? | What to do |

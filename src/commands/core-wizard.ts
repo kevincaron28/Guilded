@@ -43,7 +43,7 @@ async function rosterStep(core: { id: string; name: string; description: string 
   const settings = await guildService.getSettings(guildId);
   const embed = coreRosterEmbed(full, settings?.lootMode).setTitle(`⚜️ ${core.name} — step 2 of 3: pick the players`)
     .setDescription([
-      "Set Size & roles first (choose editable Barrow Deeps, Hyjal Summit or Onyxia presets), then Raid days & launch date. You can prepare launch raids now, before adding characters. Pick players below whenever ready.",
+      "Set Size & roles first (editable presets for this edition's raids), then Raid days & launch date. You can prepare launch raids now, before adding characters. Pick players below whenever ready.",
       "To change someone's role or remove them later: `/core edit`.",
       note ? `\n**Last action:** ${note}` : ""
     ].join("\n"));

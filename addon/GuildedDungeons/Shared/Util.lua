@@ -404,27 +404,38 @@ pump = function(prefix)
   local b = bucket(prefix)
   while b.queue[1] and b.tokens >= 1 do
     local item = b.queue[1]
-    local status, code = rawSend(prefix, item.text, item.channel, item.target)
-    b.results[status] = b.results[status] + 1
-    b.lastResult, b.lastCode = status, code
-    if status == "throttled" then
-      b.tokens = 0
-      item.tries = (item.tries or 0) + 1
-      if item.tries >= MAX_TRIES then
-        table.remove(b.queue, 1)
-        diag("SEND", prefix .. ": gave up on a message after " .. MAX_TRIES .. " throttled tries")
-      end
-      break
+    local allowed = true
+    if item.guard then
+      local ok, value = pcall(item.guard)
+      allowed = ok and value == true
     end
-    table.remove(b.queue, 1)
-    b.tokens = b.tokens - 1
+    if not allowed then
+      table.remove(b.queue, 1)
+    else
+      local status, code = rawSend(prefix, item.text, item.channel, item.target)
+      b.results[status] = b.results[status] + 1
+      b.lastResult, b.lastCode = status, code
+      if status == "throttled" then
+        b.tokens = 0
+        item.tries = (item.tries or 0) + 1
+        if item.tries >= MAX_TRIES then
+          table.remove(b.queue, 1)
+          diag("SEND", prefix .. ": gave up on a message after " .. MAX_TRIES .. " throttled tries")
+        end
+        break
+      end
+      table.remove(b.queue, 1)
+      b.tokens = b.tokens - 1
+    end
   end
   if b.queue[1] then schedule(prefix, b) end
 end
 
 -- Queues one message; it goes out at once when the prefix has room. Returns false when
 -- there is nowhere to send it (no channel).
-function comm.send(prefix, text, channel, target)
+-- Optional guard is rechecked before every attempt, including throttled retries.
+-- A false result or error discards the packet without consuming a send token.
+function comm.send(prefix, text, channel, target, guard)
   if not channel then return false end
   text = tostring(text)
   if #text > MAX_ADDON_MESSAGE then
@@ -432,7 +443,7 @@ function comm.send(prefix, text, channel, target)
     text = util.truncate(text, MAX_ADDON_MESSAGE)
   end
   local b = bucket(prefix)
-  table.insert(b.queue, { text = text, channel = channel, target = target })
+  table.insert(b.queue, { text = text, channel = channel, target = target, guard = guard })
   pump(prefix)
   return true
 end

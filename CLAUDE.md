@@ -1,3 +1,22 @@
+> 7.4.0 (25 October 2026): owner now authorizes push and full publication.
+> This supersedes the earlier local-only holds below. Read docs/SESSION_HANDOFF_2026-10-25.md
+> for release execution and every unfinished acceptance check. Protocol remains 2.
+> Claude 816c7af and b9fd62c are included; preserve his separate checkout.
+
+> Latest local bundle review (25 October): docs/LOCAL_BUNDLE_REVIEW_2026-10-25.md.
+> 295 files / 2,548 tests passed. Added current core-interaction authorization,
+> isolated forms, paginated/exact character picks, atomic backup pages and GRM edge fixes.
+> Earlier fixes cover stale roster previews/scope, GRM privacy and
+> import validation, availability retry privacy, report scrolling and core response timing.
+> Local-only hold continues; core.ts/core-editor.ts/core-planning.ts extend Claude 816c7af.
+>
+> Local review continuation (25 October): native roster action plans, desktop/CLI GRM
+> history migration and edition buff coverage are implemented but uncommitted. See
+> docs/LOCAL_ROSTER_GRM_BUFFS_2026-10-25.md (292 files / 2,491 tests passed).
+> The owner explicitly keeps this feature bundle local: no publication or version bump.
+> Real-client acceptance and Forever custom spell confirmation remain pending.
+> Claude 816c7af and b9fd62c changes are integrated unstaged; preserve them before any pull.
+
 > 7.3.2 (25 October 2026): owner authorized full release before the unavailable Forever
 > two-PC tests. The prior publication hold is superseded by docs/RELEASE_DECISION_2026-10-25.md.
 > Game checks remain pending follow-up; benchmarks remain provisional.
@@ -78,10 +97,10 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (25 October 2026): version 7.3.2 Release, protocol 2.** WoW Forever launches
+**Current status (25 October 2026): version 7.4.0 Release, protocol 2.** WoW Forever launches
 4 November 2026 (beta closed 21 October); its first raids open 9 December.
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
-The bot and GitHub public downloads are on 7.3.2; all five edition packages and
+Prior release: the bot and GitHub public downloads were on 7.3.2; all five edition packages and
 the companion are published. All ten CurseForge 7.3.2 edition files are approved
 (Guilded and Guilded Dungeons for Forever, Era, TBC, Mists and Retail).
 See `docs/RELEASE_EXECUTION_2026-10-25.md`.

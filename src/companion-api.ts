@@ -38,7 +38,13 @@ import { createPoeMappingService, poeAreaName, PoeMappingError } from "./service
 import { notify } from "./services/notify.js";
 import { allowManageWrite, createCompanionManage, ManageError } from "./services/companion-manage.js";
 import { syncCoreRoster } from "./services/raid-core.js";
-import { createWebApp, isWebPath, type WebRoute } from "./services/web-app.js";
+import { createWebApp, isWebPath, webFormLimit, type WebRoute } from "./services/web-app.js";
+import { createRosterDashboard } from "./services/roster-dashboard.js";
+import { createRosterReview } from "./services/roster-review.js";
+import { prismaRosterDashboardStore } from "./services/roster-dashboard-store.js";
+import { guildDashboardAccess } from "./services/guild-dashboard-access.js";
+import { prismaGuildToolsStore } from "./services/guild-tools-store.js";
+import { createGuildToolsPages } from "./services/guild-tools-pages.js";
 import { webAuthConfig } from "./services/web-auth.js";
 import { prismaWebStore } from "./services/web-store.js";
 import { postWebApplication } from "./services/recruitment-discord.js";
@@ -142,13 +148,12 @@ const manage = createCompanionManage(prisma);
 const guildPages = createGuildPageServer((slug) => loadGuildPageView(prisma, slug, (id) => hostedPilot.allows(id)));
 
 // The website's signed-in pages (/auth/, /recruitment/, /me/, /leaderboards/), served through the Worker.
-const WEB_FORM_BYTES = 16_000;
-async function readForm(request: IncomingMessage): Promise<string> {
+async function readForm(request: IncomingMessage, path: string): Promise<string> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of request) {
     size += Buffer.byteLength(chunk);
-    if (size > WEB_FORM_BYTES) throw new BodyTooLargeError("Form is too large.");
+    if (size > webFormLimit(path)) throw new BodyTooLargeError("Form is too large.");
     chunks.push(Buffer.from(chunk));
   }
   return Buffer.concat(chunks).toString("utf8");
@@ -207,6 +212,9 @@ async function signInGuildCredential(client: Client | undefined, account: { disc
 }
 
 export function createSiteApp(client?: Client) {
+  const rosterStore = prismaRosterDashboardStore(prisma, client, id => hostedPilot.allows(id));
+  const roster = createRosterDashboard(rosterStore);
+  const guildTools = createGuildToolsPages(prismaGuildToolsStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))));
   const profiles = createPlayerProfiles(prismaProfileStore(prisma, hostedPilot.allows));
   const leaderboards = createLeaderboardPages({ store: prismaLeaderboardStore(prisma, (id) => hostedPilot.allows(id)), personal: personalStore, calendar: () => loadOfficialWindows(prisma) });
   const signInPage = companionSignInRoute({
@@ -215,8 +223,8 @@ export function createSiteApp(client?: Client) {
     issueGuild: (account, guildDiscordId, wowGuildId) => signInGuildCredential(client, account, guildDiscordId, wowGuildId),
     issuePersonal: async (accountId) => (await issuePersonalCredential(personalStore, accountId)).companionCredential
   });
-  const routes: WebRoute[] = [signInPage, leaderboards.route, profiles.route];
-  const meSections = [profiles.meSection, leaderboards.meSection];
+  const routes: WebRoute[] = [signInPage, roster.route, createRosterReview(rosterStore), guildTools.route, leaderboards.route, profiles.route];
+  const meSections = [profiles.meSection, roster.meSection, guildTools.meSection, leaderboards.meSection];
   return createWebApp({
     publicRaids: now => publicRaids(prisma, hostedPilot.allows, now),
     store: prismaWebStore(prisma), auth: webAuthConfig(config), allows: (id) => hostedPilot.allows(id), routes, meSections,
@@ -333,7 +341,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const answer = await site.respond({
           method: request.method ?? "GET", path: url.pathname, query: url.searchParams,
           headers: Object.fromEntries(["cookie", "origin", "referer", "accept-language", "content-type"].map((name) => [name, headerOf(request, name)])),
-          ...(request.method === "POST" ? { body: await readForm(request) } : {})
+          ...(request.method === "POST" ? { body: await readForm(request, url.pathname) } : {})
         });
         if (answer) {
           response.writeHead(answer.status, answer.headers);

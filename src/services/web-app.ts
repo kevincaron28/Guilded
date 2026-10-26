@@ -28,7 +28,7 @@ export interface WebContext {
 // Extra pages (the leaderboards, personal pairing) plug in here and share the session.
 export type WebRoute = (context: WebContext, kit: WebKit) => Promise<WebResponse | null>;
 export interface WebKit {
-  page(status: number, title: string, body: string, options?: { description?: string; noindex?: boolean; cookies?: string[]; shareImage?: string }): WebResponse;
+  page(status: number, title: string, body: string, options?: { description?: string; noindex?: boolean; cookies?: string[]; shareImage?: string; languageParams?: Record<string, string | null | undefined> }): WebResponse;
   redirect(location: string, cookies?: string[]): WebResponse;
   signInPrompt(): WebResponse;
 }
@@ -54,6 +54,8 @@ const PATHS = /^\/(?:auth\/(?:login|callback|logout)|recruitment(?:\/.*)?|me(?:\
 export const isWebPath = (path: string) => path.length <= 200 && PATHS.test(path);
 const ID = /^[a-z0-9]{20,40}$/;
 const MAX_FORM = 16_000;
+// Review CSV is capped at 8,000 decoded characters; allow URL-encoded UTF-8 names.
+export const webFormLimit = (path: string) => path === "/me/roster/review" ? 80_000 : MAX_FORM;
 
 export function createWebApp(deps: WebAppDeps) {
   const now = deps.now ?? (() => new Date());
@@ -71,14 +73,14 @@ export function createWebApp(deps: WebAppDeps) {
         if (account) sessionToken = token;
       }
     }
-    const form = request.method === "POST" && /^application\/x-www-form-urlencoded\b/i.test(request.headers["content-type"] ?? "") && (request.body ?? "").length <= MAX_FORM
+    const form = request.method === "POST" && /^application\/x-www-form-urlencoded\b/i.test(request.headers["content-type"] ?? "") && (request.body ?? "").length <= webFormLimit(request.path)
       ? new URLSearchParams(request.body ?? "") : null;
     return { request, lang, t: tr(lang), now: now(), account, sessionToken, csrf: auth && sessionToken ? csrfToken(auth.sessionSecret, sessionToken) : null, form, auth };
   }
 
   function kitFor(context: WebContext): WebKit {
     const page: WebKit["page"] = (status, title, body, extra = {}) => ({
-      status, body: layout({ lang: context.lang, title, path: context.request.path, body, account: context.account, csrf: context.csrf, signInOn: Boolean(deps.auth), ...(extra.description ? { description: extra.description } : {}), ...(extra.noindex ? { noindex: true } : {}), ...(extra.shareImage ? { shareImage: new URL(extra.shareImage, deps.auth?.siteUrl ?? "https://guilded.kcaron.top").href } : {}) }),
+      status, body: layout({ lang: context.lang, title, path: context.request.path, body, account: context.account, csrf: context.csrf, signInOn: Boolean(deps.auth), ...(extra.description ? { description: extra.description } : {}), ...(extra.noindex ? { noindex: true } : {}), ...(extra.languageParams ? { languageParams: extra.languageParams } : {}), ...(extra.shareImage ? { shareImage: new URL(extra.shareImage, deps.auth?.siteUrl ?? "https://guilded.kcaron.top").href } : {}) }),
       headers: { ...SECURITY_HEADERS, "content-type": "text/html; charset=utf-8", ...(extra.cookies ? { "set-cookie": extra.cookies } : {}) }
     });
     return {
@@ -102,7 +104,7 @@ export function createWebApp(deps: WebAppDeps) {
   }
 
   async function respond(request: WebRequest): Promise<WebResponse | null> {
-    const form = request.method === "POST" && (request.body ?? "").length <= MAX_FORM ? new URLSearchParams(request.body) : null;
+    const form = request.method === "POST" && (request.body ?? "").length <= webFormLimit(request.path) ? new URLSearchParams(request.body) : null;
     let edition;
     try { edition = gameEditionOf({ gameEdition: request.query.get("edition") ?? form?.get("edition") ?? "forever" }); }
     catch { return { status: 400, headers: SECURITY_HEADERS, body: "Unknown WoW edition" }; }

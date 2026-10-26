@@ -1,7 +1,7 @@
 {
   "name": "guilded-companion",
   "productName": "Guilded Companion",
-  "version": "7.3.2",
+  "version": "7.4.0",
   "description": "Your guild, connected. World of Warcraft sync and Path of Exile 2 mapping.",
   "main": "main.cjs",
   "private": true,
@@ -25,6 +25,7 @@
     "files": [
       "main.cjs",
       "preload.cjs",
+      "grm-import.cjs",
       "detect-wow.cjs",
       "update-check.cjs",
       "i18n.cjs",
@@ -39,6 +40,7 @@
         "to": "engine",
         "filter": [
           "engine.mjs",
+          "grm-migration.mjs",
           "lua-export.mjs",
           "standings.mjs",
           "request.mjs",

@@ -64,3 +64,39 @@ end
 
 data.RAID_BUFF_BY_KEY = {}
 for _, buff in ipairs(data.RAID_BUFFS) do data.RAID_BUFF_BY_KEY[buff.key] = buff end
+
+-- This catalog describes Retail. Classic spell ranks, party-only buffs and
+-- Forever's custom rules cannot be inferred from Retail class membership.
+-- nil means no verified coverage catalog, not a fully buffed group.
+function data.activeRaidBuffs()
+  local edition = ns.util and ns.util.gameEdition()
+  local catalog = ns.raidBuffCatalogs and ns.raidBuffCatalogs[edition]
+  if catalog then return catalog.buffs end
+  if edition == "retail" then return data.RAID_BUFFS end
+  return nil
+end
+
+local buffCache = {}
+function data.raidBuffKey(id, name)
+  local edition = ns.util and ns.util.gameEdition()
+  local buffs = data.activeRaidBuffs()
+  if not buffs then return nil end
+  local clock = GetTime and GetTime() or 0
+  if buffCache.edition == edition and clock - buffCache.at < 30 then return buffCache.ids[id] or buffCache.names[name] end
+  buffCache = { edition = edition, at = clock, ids = {}, names = {} }
+  for _, buff in ipairs(buffs) do
+    for _, spell in ipairs(buff.spells) do
+      buffCache.ids[spell] = buff.key
+      -- A ranked TBC spell may have a new ID but the same localized base name.
+      -- Only compare names actually supplied by this client, not English guesses.
+      if edition ~= "retail" then
+        local fn = C_Spell and C_Spell.GetSpellName or GetSpellInfo
+        if type(fn) == "function" then
+          local ok, known = pcall(fn, spell)
+          if ok and not (ns.isSecret and ns.isSecret(known)) and type(known) == "string" then buffCache.names[known] = buff.key end
+        end
+      end
+    end
+  end
+  return buffCache.ids[id] or buffCache.names[name]
+end

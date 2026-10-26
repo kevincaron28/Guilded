@@ -79,13 +79,16 @@ function addDays(parts: LocalParts, days: number): { year: number; month: number
 }
 
 export function parseRaidTime(input: string, timeZone: string, now = new Date()): Date {
-  const text = input.trim().toLowerCase().replace(/\s+/g, " ").replace(/\bat\b|\bà\b/g, " ").replace(/\s+/g, " ").trim();
+  // A suggestion's label ("friday 8pm → Fri, Oct 2, 20:00") comes back as typed text when the field is
+  // clicked again after picking it: what was typed is before the arrow.
+  const typed = input.split("→")[0]!;
+  const text = typed.trim().toLowerCase().replace(/\s+/g, " ").replace(/\bat\b|\bà\b/g, " ").replace(/\s+/g, " ").trim();
   const fail = () => new Error(`I couldn't read "${input}" as a time. Try: ${TIME_EXAMPLES}.`);
   if (!text) throw fail();
 
   // Exact ISO with a timezone: keep the old format working.
   if (/^\d{4}-\d{2}-\d{2}t\d{2}:\d{2}(:\d{2}(\.\d+)?)?(z|[+-]\d{2}:?\d{2})$/.test(text)) {
-    const date = new Date(input.trim());
+    const date = new Date(typed.trim());
     if (Number.isNaN(date.getTime())) throw fail();
     return date;
   }

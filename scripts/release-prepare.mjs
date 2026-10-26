@@ -15,8 +15,8 @@ function run(command, args) {
 }
 run("npm", ["run", "prisma:generate"]);
 for (const task of ["build", "test", "lint"]) {
-  // Match normal Windows tests: isolated fork workers with bounded memory.
-  const testArgs = task === "test" && process.platform === "win32" ? ["--", "--pool=forks", "--maxWorkers=2"] : [];
+  // Use the bounded Windows configuration documented in CLAUDE.md.
+  const testArgs = task === "test" && process.platform === "win32" ? ["--", "--pool=threads", "--maxWorkers=2", "--testTimeout=20000"] : [];
   run("npm", ["run", task, ...testArgs]);
 }
 run("node", ["addon/Guilded/validate-addon.mjs"]);

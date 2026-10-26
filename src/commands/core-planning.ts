@@ -5,6 +5,7 @@ import { CORE_RAID_SIZES, coreComposition, planningOptions } from "../services/c
 import { parseWeeklySchedule, weeklyOccurrences, weeklyScheduleText } from "../services/core-weekly-time.js";
 import { fillCoreWeeklyRaids, saveCoreWeeklySchedule } from "../services/core-weekly-raids.js";
 import { raidPresetsForEdition, presetComposition } from "../services/raid-presets.js";
+import { checkCoreAccess } from "./core-access.js";
 
 const field = (id: string, label: string, value: string, placeholder: string, required = true) => {
   const input = new TextInputBuilder().setCustomId(id).setLabel(label).setPlaceholder(placeholder).setRequired(required).setStyle(TextInputStyle.Short);
@@ -14,6 +15,7 @@ const field = (id: string, label: string, value: string, placeholder: string, re
 const DAYS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
 
 export async function editCoreComposition(i: ButtonInteraction, guildId: string, coreId: string): Promise<string | null> {
+  if (!await checkCoreAccess(i)) return null;
   await i.deferReply({ flags: MessageFlags.Ephemeral });
   const core = await prisma.raidCore.findFirstOrThrow({ where: { id: coreId, guildId } });
   const pickerId = `size:${i.id}`;
@@ -25,7 +27,8 @@ export async function editCoreComposition(i: ButtonInteraction, guildId: string,
   )] });
   const message = await i.fetchReply();
   const choice = await message.awaitMessageComponent({ time: 300_000, filter: c => c.user.id === i.user.id && c.customId === pickerId }).catch(() => null);
-  if (!choice?.isStringSelectMenu()) { await i.editReply({ content: "Taille inchangée (expiré).", components: [] }); return null; }
+  if (!choice?.isStringSelectMenu()) { await i.editReply({ content: "Taille inchangée (expiré). / Size unchanged (expired).", components: [] }); return null; }
+  if (!await checkCoreAccess(choice)) return null;
   const selected = choice.values[0]!;
   const preset = selected.startsWith("preset:") ? presetComposition(selected.slice(7)) : null;
   const size = preset ? String(preset.raidSize) : selected;
@@ -39,29 +42,33 @@ export async function editCoreComposition(i: ButtonInteraction, guildId: string,
     field("dps", "DPS", defaults?.dpsLimit?.toString() ?? "", "Nombre de DPS")
   ));
   const submitted = await choice.awaitModalSubmit({ time: 300_000, filter: m => m.user.id === i.user.id && m.customId === id }).catch(() => null);
-  await i.editReply({ components: [] });
-  if (!submitted) return null;
+  if (!submitted) { await i.editReply({ components: [] }); return null; }
+  if (!await checkCoreAccess(submitted)) return null;
   try {
-    const data = coreComposition(selected === "custom" ? submitted.fields.getTextInputValue("size") : size, ...["tanks", "healers", "dps"].map(key => submitted.fields.getTextInputValue(key)) as [string, string, string]);
     await submitted.deferReply({ flags: MessageFlags.Ephemeral });
+    await i.editReply({ components: [] });
+    const data = coreComposition(selected === "custom" ? submitted.fields.getTextInputValue("size") : size, ...["tanks", "healers", "dps"].map(key => submitted.fields.getTextInputValue(key)) as [string, string, string]);
     await prisma.raidCore.update({ where: { id: core.id }, data });
-    const note = `${data.raidSize} joueurs : ${data.tankLimit} tanks / ${data.healerLimit} soigneurs / ${data.dpsLimit} DPS. Appliqué aux nouveaux raids; les raids publiés restent inchangés.`;
+    const note = `${data.raidSize} joueurs : ${data.tankLimit} tanks / ${data.healerLimit} soigneurs / ${data.dpsLimit} DPS. Appliqué aux nouveaux raids; les raids publiés restent inchangés.\n`
+      + `${data.raidSize} players: ${data.tankLimit} tanks / ${data.healerLimit} healers / ${data.dpsLimit} DPS. Applies to new raids; raids already posted stay as they are.`;
     await submitted.editReply(note);
     return note;
   } catch (error) {
-    const content = error instanceof Error ? error.message : "Impossible d'enregistrer.";
+    const content = error instanceof Error ? error.message : "Impossible d'enregistrer. / Could not save.";
     if (submitted.deferred) await submitted.editReply(content); else await submitted.reply({ content, flags: MessageFlags.Ephemeral });
     return null;
   }
 }
 
 export async function editCoreSchedule(i: ButtonInteraction, guildId: string, coreId: string): Promise<string | null> {
+  if (!await checkCoreAccess(i)) return null;
+  await i.deferReply({ flags: MessageFlags.Ephemeral });
   const core = await prisma.raidCore.findFirstOrThrow({ where: { id: coreId, guildId } });
   const settings = await prisma.guildSettings.findUnique({ where: { guildId }, select: { timezone: true } });
   const timezone = settings?.timezone ?? "America/Toronto";
   const slots = parseWeeklySchedule(core.weeklySchedule ?? "");
   const pickerId = `days:${i.id}`;
-  await i.reply({ content: `📅 **${core.name}** — choisis les jours de raid (${timezone}).`, flags: MessageFlags.Ephemeral,
+  await i.editReply({ content: `📅 **${core.name}** — choisis les jours de raid (${timezone}).`,
     components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId(pickerId)
       .setPlaceholder("Jours de raid / Raid days").setMinValues(1).setMaxValues(7)
       .addOptions(DAYS.map((label, day) => ({ label, value: String(day), default: slots.some(slot => slot.weekday === day) })))
@@ -69,6 +76,7 @@ export async function editCoreSchedule(i: ButtonInteraction, guildId: string, co
   const message = await i.fetchReply();
   const choice = await message.awaitMessageComponent({ time: 300_000, filter: c => c.user.id === i.user.id && c.customId === pickerId }).catch(() => null);
   if (!choice?.isStringSelectMenu()) { await i.editReply({ content: "Horaire inchangé (expiré).", components: [] }); return null; }
+  if (!await checkCoreAccess(choice)) return null;
   if (choice.values.includes("stop")) {
     await choice.deferUpdate();
     if (choice.values.length !== 1) { await i.editReply({ content: "Choisis Arrêter seul, ou seulement les jours. Horaire inchangé.", components: [] }); return null; }
@@ -87,9 +95,11 @@ export async function editCoreSchedule(i: ButtonInteraction, guildId: string, co
     field("custom", "Heures différentes (optionnel / optional)", differentTimes ? core.weeklySchedule ?? "" : "", "mardi 20h; jeudi 21h (remplace les jours)", false)
   ));
   const submitted = await choice.awaitModalSubmit({ time: 300_000, filter: m => m.user.id === i.user.id && m.customId === id }).catch(() => null);
-  await i.editReply({ components: [] });
-  if (!submitted) return null;
+  if (!submitted) { await i.editReply({ components: [] }); return null; }
+  if (!await checkCoreAccess(submitted)) return null;
   try {
+    await submitted.deferReply({ flags: MessageFlags.Ephemeral });
+    await i.editReply({ components: [] });
     const input = submitted.fields.getTextInputValue("custom").trim() || `${choice.values.map(value => DAYS[Number(value)]).join("/")} ${submitted.fields.getTextInputValue("time")}`;
     const start = submitted.fields.getTextInputValue("start"), days = submitted.fields.getTextInputValue("days");
     const planning = planningOptions(start, days);
@@ -97,11 +107,12 @@ export async function editCoreSchedule(i: ButtonInteraction, guildId: string, co
     if (!parsed.length) throw new Error("Choisis au moins un départ de raid.");
     const occurrences = weeklyOccurrences(parsed, timezone, new Date(), planning);
     const confirmId = `confirm:${i.id}`;
-    await submitted.reply({ content: `**${weeklyScheduleText(parsed)}** (${timezone})\nDébut : ${planning.weeklyStartDate ?? "maintenant"} · fenêtre : ${planning.weeklyHorizonDays} jours.\n${occurrences.length} dates à préparer dès maintenant (les dates existantes sont réutilisées).\n${occurrences.slice(0, 6).map(row => `<t:${Math.floor(row.scheduledAt.getTime() / 1000)}:F>`).join("\n")}\nLes raids déjà publiés restent inchangés.`, flags: MessageFlags.Ephemeral,
+    await submitted.editReply({ content: `**${weeklyScheduleText(parsed)}** (${timezone})\nDébut : ${planning.weeklyStartDate ?? "maintenant"} · fenêtre : ${planning.weeklyHorizonDays} jours.\n${occurrences.length} dates à préparer dès maintenant (les dates existantes sont réutilisées).\n${occurrences.slice(0, 6).map(row => `<t:${Math.floor(row.scheduledAt.getTime() / 1000)}:F>`).join("\n")}\nLes raids déjà publiés restent inchangés.`,
       components: [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(confirmId).setLabel("Enregistrer et préparer les raids").setStyle(ButtonStyle.Success))] });
     const preview = await submitted.fetchReply();
     const confirm = await preview.awaitMessageComponent({ time: 300_000, filter: c => c.user.id === i.user.id && c.customId === confirmId }).catch(() => null);
     if (!confirm) { await submitted.editReply({ content: "Horaire inchangé (confirmation expirée).", components: [] }); return null; }
+    if (!await checkCoreAccess(confirm)) return null;
     await confirm.deferUpdate();
     await saveCoreWeeklySchedule(prisma, guildId, coreId, input, i.user.id, { start, days });
     const created = await fillCoreWeeklyRaids(prisma, guildId, coreId);

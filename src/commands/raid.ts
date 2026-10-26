@@ -243,6 +243,9 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
   const subcommand = interaction.options.getSubcommand();
   const management = ["create", "edit", "cancel", "start", "end", "attendance", "boss", "note", "award-ep", "fill"].includes(subcommand);
   if (management) requireRaidLeader(interaction);
+  // These post or edit the signup message (and a core's mirror) before answering, which can take
+  // longer than Discord's 3 seconds.
+  if (["create", "edit", "cancel", "start", "end"].includes(subcommand)) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   if (subcommand === "create") {
     const description = interaction.options.getString("description");
@@ -282,7 +285,7 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     const coreNote = core
       ? ` for the **${core.name}** core (its ${core.members.length} members get signup priority)${coreGuessed ? " — guessed from your other raids/cores, pass core: to change it" : ""}`
       : "";
-    await interaction.reply({ content: `Created raid **${raid.title}** for <t:${when}:F> (<t:${when}:R>)${coreNote}. If that time looks wrong, fix it with \`/lead edit\`.`, flags: MessageFlags.Ephemeral });
+    await interaction.editReply({ content: `Created raid **${raid.title}** for <t:${when}:F> (<t:${when}:R>)${coreNote}. If that time looks wrong, fix it with \`/lead edit\`.` });
     return;
   }
 
@@ -321,6 +324,7 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     if (!interaction.replied && !interaction.deferred) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const signup = await raidService.signup(raidId, context.guildId, context.memberId, role, availability, character?.id);
     await tellBumped(interaction.client, signup.bumped);
+    await tellPromoted(interaction, signup.promoted);
     if (interaction.guild) await syncSignupEmbed(interaction.guild, context.guildId, raidId);
     const replies: Record<string, string> = {
       SIGNED_UP: `You are signed up as ${roleLabel[role]}.`,
@@ -397,16 +401,15 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     });
     if (interaction.guild) await syncSignupEmbed(interaction.guild, context.guildId, raidId);
     await tellPromoted(interaction, raid.promoted);
-    await interaction.reply({
-      content: `Updated raid **${raid.title}**.${raid.promoted.length ? ` Moved ${raid.promoted.length} player(s) off the waitlist.` : ""}`,
-      flags: MessageFlags.Ephemeral
+    await interaction.editReply({
+      content: `Updated raid **${raid.title}**.${raid.promoted.length ? ` Moved ${raid.promoted.length} player(s) off the waitlist.` : ""}`
     });
     return;
   }
   if (subcommand === "cancel") {
     const raid = await raidService.cancel(raidId, context.guildId);
     if (interaction.guild) await syncSignupEmbed(interaction.guild, context.guildId, raidId);
-    await interaction.reply({ content: `Cancelled raid **${raid.title}**.`, flags: MessageFlags.Ephemeral });
+    await interaction.editReply({ content: `Cancelled raid **${raid.title}**.` });
     return;
   }
   if (subcommand === "start" || subcommand === "end") {
@@ -418,7 +421,7 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
       // Ending a raid shows the proposed EP with Approve / Cancel buttons.
       await showEpProposal(interaction, context.guildId, raidId, `Ended raid **${raid.title}**.`);
     } else {
-      await interaction.reply({ content: `Started raid **${raid.title}**.`, flags: MessageFlags.Ephemeral });
+      await interaction.editReply({ content: `Started raid **${raid.title}**.` });
     }
     await notify(interaction.guild, subcommand === "start" ? notifications.raidStarted(raid.title) : notifications.raidEnded(raid.title));
     if (subcommand === "end") {
@@ -534,6 +537,7 @@ export async function handleRaidSignupButton(interaction: ButtonInteraction): Pr
     if (!interaction.replied && !interaction.deferred) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const signup = await raidService.signup(raidId, guild.id, member.id, role, action === "MAYBE" ? "MAYBE" : "AVAILABLE", character?.id);
     await tellBumped(interaction.client, signup.bumped);
+    await tellPromoted(interaction, signup.promoted);
     const roleText = t(lang, `role.${role}` as const);
     const replies: Record<string, string> = {
       SIGNED_UP: t(lang, "reply.signedUp", { role: roleText }),

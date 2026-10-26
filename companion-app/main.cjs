@@ -77,7 +77,7 @@ async function loadEngineModules() {
   const dir = app.isPackaged ? path.join(process.resourcesPath, "engine") : path.join(__dirname, "..", "companion");
   const url = (file) => pathToFileURL(path.join(dir, file)).href;
   const [engineModule, standingsModule, requestModule, sheetModule, liveFolderModule] = await Promise.all([import(url("engine.mjs")), import(url("standings.mjs")), import(url("request.mjs")), import(url("sheet-export.mjs")), import(url("live-folder.mjs"))]);
-  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profiles.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile };
+  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profiles.mjs")), ...await import(url("grm-migration.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile };
 }
 
 function pushLog(entry) {
@@ -512,6 +512,7 @@ ipcMain.handle("export-sheets", async (_event, table) => {
   return { ok: true, message: T("Saved {0} to {1}.", files.map((file) => `${file.table} (${file.rows})`).join(", "), folder), files: files.map(({ name, table, rows }) => ({ name, table, rows })) };
 });
 ipcMain.handle("upload-now", () => { engine.uploadNow(); return true; });
+ipcMain.handle("convert-grm", (_event, options) => require("./grm-import.cjs").createGRMConverter({ dialog, fs: fs.promises, convertGRM: engineModules.convertGRM, getWindow: () => win, T })(options));
 ipcMain.handle("refresh-standings", async () => { await engine.refreshStandings(); return true; });
 ipcMain.handle("set-autostart", (_event, on) => setAutostart(on));
 ipcMain.handle("open-addon-folder", () => {

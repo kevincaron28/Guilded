@@ -232,6 +232,7 @@ export function createRaidService(database: PrismaClient) {
         }
         if (character) assertRealm(character, await raidRealm(raid, memberId, tx), raid.title);
         const identity = byCharacter ? `${memberId}:${character?.id}` : memberId;
+        const previous = await tx.raidSignup.findUnique({ where: { raidId_memberId: { raidId, memberId } } });
         let status: RaidSignupStatus = availability === "MAYBE" ? "MAYBE" : "SIGNED_UP";
         const cap = raid[roleCapField[role]];
         let bumped: Prisma.RaidSignupGetPayload<{ include: { member: true } }> | null = null;
@@ -264,7 +265,10 @@ export function createRaidService(database: PrismaClient) {
           create: { raidId, memberId, role, status, ...(character ? { characterId: character.id, characterName: character.name, characterRealm: character.realm } : {}) },
           update: { status, role, signedUpAt: new Date(), cancelledAt: null, ...(character ? { characterId: character.id, characterName: character.name, characterRealm: character.realm } : {}) }
         });
-        return Object.assign(saved, { bumped });
+        // Leaving a taken slot (another role, Maybe or the waitlist) frees it, as a cancellation does.
+        const promoted = previous?.status === "SIGNED_UP" && (previous.role !== role || status !== "SIGNED_UP")
+          ? await promoteWaitlist(raidId, tx) : [];
+        return Object.assign(saved, { bumped, promoted });
       });
     },
 

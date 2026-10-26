@@ -6,6 +6,7 @@ import {
   type ButtonInteraction,
   type ChatInputCommandInteraction,
   type GuildMember,
+  type InteractionReplyOptions,
   MessageFlags,
 } from "discord.js";
 import { prisma } from "../database.js";
@@ -40,10 +41,12 @@ function proposalEmbed(proposal: EpProposal): EmbedBuilder {
 // buttons. Used by /lead end and /lead award-ep. Nothing is written yet.
 export async function showEpProposal(interaction: ChatInputCommandInteraction, guildId: string, raidId: string, header: string): Promise<void> {
   const proposal = await computeRaidEpProposal(prisma, guildId, raidId);
+  // /lead end acknowledges first (it updates the signup posts); /lead award-ep does not.
+  const answer = (payload: Omit<InteractionReplyOptions, "flags">) => interaction.deferred
+    ? interaction.editReply(payload) : interaction.reply({ ...payload, flags: MessageFlags.Ephemeral });
   if (proposal.rows.length === 0) {
-    await interaction.reply({
-      content: `${header}\nNo attendance recorded yet, so there's no EP to propose. Record attendance (or run \`/import apply\` after the addon export), then \`/lead award-ep raid:${raidId}\`.`,
-      flags: MessageFlags.Ephemeral
+    await answer({
+      content: `${header}\nNo attendance recorded yet, so there's no EP to propose. Record attendance (or run \`/import apply\` after the addon export), then \`/lead award-ep raid:${raidId}\`.`
     });
     return;
   }
@@ -51,7 +54,7 @@ export async function showEpProposal(interaction: ChatInputCommandInteraction, g
     new ButtonBuilder().setCustomId(`${EP_AWARD_PREFIX}approve:${raidId}`).setLabel(`Approve ${proposal.rows.length} awards`).setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId(`${EP_AWARD_PREFIX}cancel:${raidId}`).setLabel("Cancel").setStyle(ButtonStyle.Secondary)
   );
-  await interaction.reply({ content: header, embeds: [proposalEmbed(proposal)], components: [buttons], flags: MessageFlags.Ephemeral });
+  await answer({ content: header, embeds: [proposalEmbed(proposal)], components: [buttons] });
 }
 
 export async function handleEpAwardButton(interaction: ButtonInteraction): Promise<void> {

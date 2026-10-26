@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld("companion", {
   uploadNow: () => ipcRenderer.invoke("upload-now"),
   refreshStandings: () => ipcRenderer.invoke("refresh-standings"),
   exportSheets: (table) => ipcRenderer.invoke("export-sheets", table),
+  convertGRM: (options) => ipcRenderer.invoke("convert-grm", options),
   setAutostart: (on) => ipcRenderer.invoke("set-autostart", on),
   openAddonFolder: () => ipcRenderer.invoke("open-addon-folder"),
   removeData: () => ipcRenderer.invoke("remove-data"),

@@ -398,10 +398,13 @@ function module.assess(name, unit, inRaid, entry, live, connected, extra)
     -- Raid buffs: only the ones somebody in the group can actually give.
     local held = (liveFacts and liveFacts.buffs) or (consumableFacts and consumableFacts.buffs)
     local data = ns.consumableData
-    if held and data and extra.providers then
+    local buffs = data and data.activeRaidBuffs and data.activeRaidBuffs()
+    if held and buffs and extra.providers and ns.util and ns.util.gameEdition() == "retail" then
       local lacking = {}
-      for _, buff in ipairs(data.RAID_BUFFS) do
-        if extra.providers[buff.class] and not held[buff.key] then table.insert(lacking, L(buff.label)) end
+      for _, buff in ipairs(buffs) do
+        local provider = buff.class and extra.providers[buff.class]
+        for _, class in ipairs(buff.classes or {}) do if extra.providers[class] then provider = true end end
+        if provider and not held[buff.key] then table.insert(lacking, L(buff.label)) end
       end
       learned = true
       cells.buffs = cellFor(#lacking == 0, module.setting("buffs") == true)
@@ -484,6 +487,44 @@ function module.collect()
   return { rows = rows, counts = counts, inRaid = inRaid, inGroup = inGroup, total = #rows, check = module.check }
 end
 
+function module.buffCoverage()
+  if not module.canView() then return nil end
+  local edition = ns.util and ns.util.gameEdition()
+  local catalog = ns.raidBuffCatalogs and ns.raidBuffCatalogs[edition]
+  if not catalog or not ns.consumables then return nil end
+  local result = { edition = edition, provisional = catalog.provisional, buffs = {}, total = 0 }
+  for _, buff in ipairs(catalog.buffs) do
+    local french = ns.language and ns.language() == "fr" or not ns.language and GetLocale() == "frFR"
+    result.buffs[#result.buffs + 1] = { label = french and buff.french or buff.label, present = 0, absent = 0, unknown = 0, providers = 0, definition = buff }
+  end
+  local seen = {}
+  for _, unit in ipairs(groupUnits()) do
+    local name = unitName(unit)
+    if (unit == "player" or UnitExists(unit)) and name and not seen[name] then
+      seen[name] = true; result.total = result.total + 1
+      local ok, scan = pcall(ns.consumables.scanUnit, unit)
+      if not ok or type(scan) ~= "table" then scan = {} end
+      local class = unitClass(unit)
+      for _, row in ipairs(result.buffs) do
+        for _, provider in ipairs(row.definition.classes) do if class == provider then row.providers = row.providers + 1; break end end
+        if scan.buffs and scan.buffs[row.definition.key] then row.present = row.present + 1
+        elseif scan.readable and scan.complete then row.absent = row.absent + 1
+        else row.unknown = row.unknown + 1 end
+      end
+    end
+  end
+  return result
+end
+function module.buffCoverageText()
+  local result = module.buffCoverage()
+  if not result then return L("Buff coverage is unavailable or access is denied.") end
+  local lines = { L("Buff coverage") .. " / " .. result.edition,
+    L("Observed / not observed / unknown; potential class providers. This is not a required-buff checklist."),
+    L("Talents, level, chosen blessings and party range affect coverage. Hidden or offline auras remain unknown.") }
+  if result.provisional then lines[#lines + 1] = L("Forever: provisional Classic baseline; custom spells require in-game confirmation.") end
+  for _, row in ipairs(result.buffs) do lines[#lines + 1] = row.label .. ": " .. row.present .. " / " .. row.absent .. " / " .. row.unknown .. " ; " .. L("Potential providers") .. ": " .. row.providers end
+  return table.concat(lines, "\n")
+end
 function module.summary(result)
   local c = result.counts
   return string.format(L("%d ready, %d with issues, %d not ready, %d no data"), c.READY, c.PARTIAL, c.NOT_READY, c.NODATA)

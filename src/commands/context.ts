@@ -25,10 +25,12 @@ export async function requireGuildContext(
     const member = await interaction.guild.members.fetch(interaction.user.id);
     if (!member.permissions.has("Administrator") && !member.roles.cache.has(scope.memberRoleId)) throw new Error("You need this in-game guild's member role to use its tools.");
   }
+  // The server display name, as button clicks store it: the account username would overwrite the
+  // nickname that rosters show and that name matching links characters by.
   const member = await guildService.ensureMember(
     guild.id,
     interaction.user.id,
-    interaction.member.user.username
+    "displayName" in interaction.member ? interaction.member.displayName : interaction.member.nick ?? interaction.user.displayName
   );
   return { guildId: guild.id, memberId: member.id };
 }

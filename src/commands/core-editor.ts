@@ -8,12 +8,14 @@ import type { RaidRole } from "../generated/prisma/client.js";
 import { prisma } from "../database.js";
 import { coreRosterEmbed, createRaidCoreService, removeCoreRosterMessage, syncCoreRoster } from "../services/raid-core.js";
 import { createItemValueService, parseItemValues, priceDraft } from "../services/item-values.js";
-import { createCoreChannels, renameCoreDiscord } from "../services/core-channels.js";
+import { coreChannelLanguage, createCoreChannels, renameCoreDiscord } from "../services/core-channels.js";
 import { pricesModal } from "./core-wizard.js";
 import { guildService } from "./context.js";
 import { editCoreSchedule, editCoreComposition } from "./core-planning.js";
 import { asLootMode, effectiveRules, LOOT_MODES } from "../services/core-rules.js";
 import { pickSignupCharacter } from "./signup-character-picker.js";
+import { checkCoreAccess } from "./core-access.js";
+import { characterName } from "../services/character-display.js";
 
 export const CORE_LOOT_LABEL = { EPGP: "Enchères en GP", COUNCIL: "Conseil de butin", RESERVE: "Réservations souples", PRIORITY: "Priorité EPGP — prix fixes" };
 
@@ -73,9 +75,11 @@ async function screen(guildId: string, coreId: string, mode: EditMode, note: str
 }
 
 export async function runCoreEditor(interaction: ChatInputCommandInteraction, guildId: string, coreValue: string): Promise<void> {
+  if (!await checkCoreAccess(interaction)) return;
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const core = await coreService.byIdOrName(guildId, coreValue);
   let mode: EditMode = { role: "DPS", bench: false };
-  await interaction.reply({ ...(await screen(guildId, core.id, mode, "")), flags: MessageFlags.Ephemeral });
+  await interaction.editReply(await screen(guildId, core.id, mode, ""));
   const message: Message = await interaction.fetchReply();
   const collector = message.createMessageComponentCollector({ time: 20 * 60_000, filter: (i) => i.user.id === interaction.user.id });
 
@@ -86,6 +90,7 @@ export async function runCoreEditor(interaction: ChatInputCommandInteraction, gu
 
   collector.on("collect", bindGuildScope(async (i: MessageComponentInteraction) => {
     try {
+      if (!await checkCoreAccess(i)) return;
       if (i.customId === "coreedit:lootmode" && i.isButton()) {
         const current = await prisma.raidCore.findUniqueOrThrow({ where: { id: core.id } });
         const settings = await guildService.getSettings(guildId);
@@ -102,6 +107,7 @@ export async function runCoreEditor(interaction: ChatInputCommandInteraction, gu
           return;
         }
         const lootMode = asLootMode(choice.values[0]);
+        if (!await checkCoreAccess(choice)) return;
         await choice.deferUpdate();
         await prisma.raidCore.update({ where: { id: core.id }, data: { lootMode, ...(settings?.coreLootOnly ? { separatePool: true } : {}) } });
         await i.editReply({ content: `✅ ${current.name} : ${CORE_LOOT_LABEL[lootMode]}.`, components: [] });
@@ -121,18 +127,23 @@ export async function runCoreEditor(interaction: ChatInputCommandInteraction, gu
       }
       if (i.customId === "coreedit:add" && i.isUserSelectMenu()) {
         await i.deferUpdate();
+        const addingMode = { ...mode };
         const names: string[] = [];
         for (const userId of i.values) {
           const person = await interaction.guild?.members.fetch(userId).catch(() => null);
           if (!person || person.user.bot) continue;
           const member = await guildService.ensureMember(guildId, userId, person.displayName);
           const settings = await guildService.getSettings(guildId);
-          const character = settings?.characterSignups ? await pickSignupCharacter(i, guildId, member.id) : null;
+          let authorized = true;
+          const character = settings?.characterSignups ? await pickSignupCharacter(i, guildId, member.id, async choice => {
+            authorized = await checkCoreAccess(choice); return authorized;
+          }) : null;
+          if (!authorized) return;
           if (settings?.characterSignups && !character) continue;
-          await coreService.addMember(guildId, core.id, member.id, mode.role, mode.bench, character?.id);
+          await coreService.addMember(guildId, core.id, member.id, addingMode.role, addingMode.bench, character?.id);
           names.push(person.displayName);
         }
-        await refresh(names.length ? `${names.join(", ")} → ${ROLE_LABEL[mode.role]}${mode.bench ? " (bench)" : ""}.` : "Nobody added (bots are skipped).");
+        await refresh(names.length ? `${names.join(", ")} → ${ROLE_LABEL[addingMode.role]}${addingMode.bench ? " (bench)" : ""}.` : "Nobody added (bots are skipped).");
         return;
       }
       if (i.customId === "coreedit:remove" && i.isUserSelectMenu()) {
@@ -172,39 +183,47 @@ export async function runCoreEditor(interaction: ChatInputCommandInteraction, gu
       }
       if (i.customId === "coreedit:prices" && i.isButton()) {
         // The same prefilled list as /core setup: current prices, then missing ones with suggestions.
-        await i.showModal(pricesModal(core, (await priceDraft(prisma, guildId, core.id)).text));
-        const submitted = await i.awaitModalSubmit({ time: 10 * 60_000, filter: (m) => m.user.id === i.user.id }).catch(() => null);
+        const modalId = `coreedit:prices:${i.id}`;
+        await i.showModal(pricesModal(core, (await priceDraft(prisma, guildId, core.id)).text).setCustomId(modalId));
+        const submitted = await i.awaitModalSubmit({ time: 10 * 60_000, filter: (m) => m.user.id === i.user.id && m.customId === modalId }).catch(() => null);
         if (!submitted) return;
         try {
+          if (!await checkCoreAccess(submitted)) return;
+          await submitted.deferUpdate();
           const parsed = parseItemValues(submitted.fields.getTextInputValue("prices"));
           if (parsed.values.length === 0) throw new Error(parsed.problems[0] ?? "No prices found. Use one line per item: Sulfuras = 250");
           const saved = await createItemValueService(prisma).setMany(guildId, core.id, parsed.values);
-          await submitted.deferUpdate();
           await refresh(`Saved ${saved} price(s).${parsed.problems.length ? ` Skipped: ${parsed.problems.slice(0, 2).join("; ")}` : ""}`);
         } catch (error) {
-          await submitted.reply({ content: error instanceof Error ? error.message : "Could not save the prices.", flags: MessageFlags.Ephemeral });
+          const response = { content: error instanceof Error ? error.message : "Could not save the prices.", flags: MessageFlags.Ephemeral as const };
+          if (submitted.deferred || submitted.replied) await submitted.followUp(response);
+          else await submitted.reply(response);
         }
         return;
       }
       if (i.customId === "coreedit:rename" && i.isButton()) {
         const current = await prisma.raidCore.findUniqueOrThrow({ where: { id: core.id } });
-        await i.showModal(new ModalBuilder().setCustomId("coreedit:rename-modal").setTitle("Rename raid core").addComponents(
+        const modalId = `coreedit:rename:${i.id}`;
+        await i.showModal(new ModalBuilder().setCustomId(modalId).setTitle("Rename raid core").addComponents(
           new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("name").setLabel("Name").setStyle(TextInputStyle.Short).setMinLength(2).setMaxLength(50).setRequired(true).setValue(current.name)),
           new ActionRowBuilder<TextInputBuilder>().addComponents((() => {
             const field = new TextInputBuilder().setCustomId("description").setLabel("Description (optional)").setStyle(TextInputStyle.Short).setMaxLength(300).setRequired(false);
             if (current.description) field.setValue(current.description);
             return field;
           })())));
-        const submitted = await i.awaitModalSubmit({ time: 5 * 60_000, filter: (m) => m.user.id === i.user.id }).catch(() => null);
+        const submitted = await i.awaitModalSubmit({ time: 5 * 60_000, filter: (m) => m.user.id === i.user.id && m.customId === modalId }).catch(() => null);
         if (!submitted) return;
         try {
+          if (!await checkCoreAccess(submitted)) return;
+          await submitted.deferUpdate();
           const renamed = await coreService.rename(guildId, core.id, submitted.fields.getTextInputValue("name"), submitted.fields.getTextInputValue("description"));
           const name = renamed.name;
-          if (interaction.guild) await renameCoreDiscord(interaction.guild, renamed);
-          await submitted.deferUpdate();
+          if (interaction.guild) await renameCoreDiscord(interaction.guild, renamed, await coreChannelLanguage(prisma, guildId));
           await refresh(`Renamed to ${name}.`);
         } catch (error) {
-          await submitted.reply({ content: error instanceof Error ? error.message : "Could not rename.", flags: MessageFlags.Ephemeral });
+          const response = { content: error instanceof Error ? error.message : "Could not rename.", flags: MessageFlags.Ephemeral as const };
+          if (submitted.deferred || submitted.replied) await submitted.followUp(response);
+          else await submitted.reply(response);
         }
         return;
       }
@@ -229,73 +248,89 @@ export async function runCoreEditor(interaction: ChatInputCommandInteraction, gu
 // backups get the role picked in the editor's "Adding as" menu).
 const NO_CHARACTER = "__none__";
 
-async function characterScreen(guildId: string, coreId: string, memberId: string | null, backupRole: RaidRole, note: string) {
+async function characterScreen(guildId: string, coreId: string, memberId: string | null, backupRole: RaidRole, note: string, page = 0, onVisible?: (ids: string[]) => void) {
   const playerRow = new ActionRowBuilder<UserSelectMenuBuilder>().addComponents(
     new UserSelectMenuBuilder().setCustomId("corechar:player").setPlaceholder("Pick a player of this core").setMinValues(1).setMaxValues(1));
   if (!memberId) return { content: note || "Pick a player of this core.", components: [playerRow] };
   const core = await coreService.byIdOrName(guildId, coreId);
   const spot = core.members.find((entry) => entry.memberId === memberId);
   if (!spot) return { content: "That player is not in this core. Add them first.", components: [playerRow] };
-  const characters = await prisma.character.findMany({ where: { memberId }, orderBy: [{ isMain: "desc" }, { name: "asc" }], take: 24 });
-  if (characters.length === 0) return { content: `${spot.member.displayName} has no linked characters yet (/character).`, components: [playerRow] };
-  const label = (c: { name: string; realm: string; className: string; isMain: boolean }) => `${c.name} — ${c.realm} · ${c.className}`.slice(0, 100);
-  const main = new StringSelectMenuBuilder().setCustomId("corechar:main").setPlaceholder("Character they bring to this core").addOptions(
+  const found = await prisma.character.findMany({ where: { memberId, member: { guildId } }, orderBy: [{ isMain: "desc" }, { name: "asc" }, { realm: "asc" }, { id: "asc" }], skip: page * 24, take: 25 });
+  const characters = found.slice(0, 24);
+  onVisible?.(characters.map(character => character.id));
+  if (characters.length === 0) return { content: `${spot.member.displayName}: no characters on this page (/character).`, components: [playerRow,
+    ...(page > 0 ? [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`corechar:previous:${memberId}:${page}`).setLabel("Previous / Précédents").setStyle(ButtonStyle.Secondary))] : [])] };
+  const label = (c: { name: string; displayName?: string | null; realm: string; className: string; isMain: boolean }) => `${characterName(c)} — ${c.realm} · ${c.className}`.slice(0, 100);
+  const main = new StringSelectMenuBuilder().setCustomId(`corechar:main:${memberId}:${page}`).setPlaceholder("Character they bring to this core").addOptions(
     ...((await guildService.getSettings(guildId))?.characterSignups ? [] : [{ label: "No character (show only their name)", value: NO_CHARACTER, default: !spot.characterId }]),
     ...characters.map((c) => ({ label: label(c), value: c.id, default: spot.characterId === c.id })));
   const backupIds = new Set(spot.backups.map((backup) => backup.characterId));
-  const backups = new StringSelectMenuBuilder().setCustomId("corechar:backups").setPlaceholder(`Backup characters (new ones as ${ROLE_LABEL[backupRole]})`)
+  const backups = new StringSelectMenuBuilder().setCustomId(`corechar:backups:${memberId}:${page}`).setPlaceholder(`Backup characters (new ones as ${ROLE_LABEL[backupRole]})`)
     .setMinValues(0).setMaxValues(characters.length).addOptions(characters.map((c) => ({ label: label(c), value: c.id, default: backupIds.has(c.id) })));
   const current = [
-    `**${spot.member.displayName}** in ${core.name}: ${spot.character ? spot.character.name : "no character set"}`,
-    spot.backups.length ? `Backups: ${spot.backups.map((b) => `${b.character.name} (${ROLE_LABEL[b.role]})`).join(", ")}` : "No backup characters.",
-    note ? `**Last action:** ${note}` : ""
+    `**${spot.member.displayName}** in ${core.name}: ${spot.character ? characterName(spot.character) : "no character set"}`,
+    spot.backups.length ? `Backups: ${spot.backups.map((b) => `${characterName(b.character)} (${ROLE_LABEL[b.role]})`).join(", ")}` : "No backup characters.",
+    note ? `**Last action:** ${note}` : "",
+    `Page ${page + 1}. Backup choices change this page only; other pages are kept. / Les autres pages sont conservées.`
   ].filter(Boolean).join("\n");
   return {
     content: current,
     components: [
       playerRow,
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(main),
-      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(backups)
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(backups),
+      ...(page > 0 || found.length > 24 ? [new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(`corechar:previous:${memberId}:${page}`).setLabel("Previous / Précédents").setStyle(ButtonStyle.Secondary).setDisabled(page === 0),
+        new ButtonBuilder().setCustomId(`corechar:next:${memberId}:${page}`).setLabel("Next / Suivants").setStyle(ButtonStyle.Secondary).setDisabled(found.length <= 24)
+      )] : [])
     ]
   };
 }
 
 async function runCharacterPicker(button: MessageComponentInteraction, guildId: string, coreId: string, backupRole: RaidRole, refresh: () => Promise<void>): Promise<void> {
   let memberId: string | null = null;
-  await button.reply({ ...(await characterScreen(guildId, coreId, null, backupRole, "")), flags: MessageFlags.Ephemeral });
+  let page = 0, busy = false;
+  let visible = new Set<string>();
+  const render = (note: string) => characterScreen(guildId, coreId, memberId, backupRole, note, page, ids => { visible = new Set(ids); });
+  await button.reply({ ...(await render("")), flags: MessageFlags.Ephemeral });
   const message = await button.fetchReply();
   const collector = message.createMessageComponentCollector({ time: 10 * 60_000, filter: (i) => i.user.id === button.user.id });
   collector.on("collect", bindGuildScope(async (i: MessageComponentInteraction) => {
+    if (busy) { await i.reply({ content: "Wait for the current change. / Attends la fin du changement.", flags: MessageFlags.Ephemeral }); return; }
+    busy = true;
     try {
+      if (!await checkCoreAccess(i)) return;
       await i.deferUpdate();
       let note = "";
+      let changed = false;
       if (i.customId === "corechar:player" && i.isUserSelectMenu()) {
         const member = await prisma.member.findFirst({ where: { guildId, discordUserId: i.values[0] ?? "" } });
         memberId = member?.id ?? null;
+        page = 0; visible = new Set();
         if (!memberId) note = "That player is not in this core.";
-      } else if (memberId && i.customId === "corechar:main" && i.isStringSelectMenu()) {
+      } else if (memberId && i.customId === `corechar:main:${memberId}:${page}` && i.isStringSelectMenu()) {
         const pick = i.values[0] ?? NO_CHARACTER;
+        if (pick !== NO_CHARACTER && !visible.has(pick)) throw new Error("Reopen the character picker before changing this selection.");
         const character = pick === NO_CHARACTER ? null : await prisma.character.findFirst({ where: { id: pick, memberId } });
-        await coreService.setCharacter(guildId, coreId, memberId, ((await guildService.getSettings(guildId))?.characterSignups ? character?.id : character?.name) ?? null);
-        note = character ? `Brings ${character.name}.` : "Character cleared.";
-      } else if (memberId && i.customId === "corechar:backups" && i.isStringSelectMenu()) {
-        const core = await coreService.byIdOrName(guildId, coreId);
-        const spot = core.members.find((entry) => entry.memberId === memberId);
-        if (spot) {
-          const wanted = new Set(i.values.filter((id) => id !== spot.characterId));
-          const characters = await prisma.character.findMany({ where: { memberId, id: { in: [...wanted] } } });
-          const settings = await guildService.getSettings(guildId);
-          for (const backup of spot.backups) if (!wanted.has(backup.characterId)) await coreService.removeBackup(guildId, coreId, memberId, settings?.characterSignups ? backup.character.id : backup.character.name);
-          for (const character of characters) {
-            if (!spot.backups.some((backup) => backup.characterId === character.id)) await coreService.addBackup(guildId, coreId, memberId, settings?.characterSignups ? character.id : character.name, backupRole);
-          }
-          note = `${wanted.size} backup character(s).`;
-        }
+        if (pick !== NO_CHARACTER && !character) throw new Error("That character is no longer linked. Reopen the character picker.");
+        await coreService.setCharacter(guildId, coreId, memberId, character?.id ?? null);
+        changed = true;
+        note = character ? `Brings ${characterName(character)}.` : "Character cleared.";
+      } else if (memberId && i.customId === `corechar:backups:${memberId}:${page}` && i.isStringSelectMenu()) {
+        const count = await coreService.replaceBackupPage(guildId, coreId, memberId, [...visible], i.values, backupRole);
+        changed = true;
+        note = `${count} backup character(s) on this page.`;
+      } else if (memberId && i.isButton() && i.customId === `corechar:next:${memberId}:${page}`) {
+        page++;
+      } else if (memberId && i.isButton() && i.customId === `corechar:previous:${memberId}:${page}`) {
+        page = Math.max(0, page - 1);
+      } else {
+        note = "This selection is outdated. Review the current page. / Ce choix est périmé; vérifie la page actuelle.";
       }
-      if (note && memberId) await refresh();
-      await i.editReply(await characterScreen(guildId, coreId, memberId, backupRole, note));
+      if (changed) await refresh();
+      await i.editReply(await render(note));
     } catch (error) {
       await i.followUp({ content: `That didn't work: ${error instanceof Error ? error.message : String(error)}`, flags: MessageFlags.Ephemeral }).catch(() => undefined);
-    }
+    } finally { busy = false; }
   }));
 }

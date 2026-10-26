@@ -41,6 +41,13 @@ describe("private signup character selection", () => {
     expect(await pickSignupCharacter(i as never, "guild", "member")).toBeNull();
     expect(i.webhook.editMessage).toHaveBeenCalledWith("private", expect.objectContaining({ components: [] }));
   });
+  it("does not return a selection after an officer's authority is revoked", async () => {
+    findMany.mockResolvedValue([character(1),character(2)]);
+    const choice={customId:'signupchar:choose',isStringSelectMenu:()=>true,values:['2'],update:vi.fn()};
+    const authorize=vi.fn().mockResolvedValue(false);
+    expect(await pickSignupCharacter(interaction([choice]) as never,'guild','member',authorize)).toBeNull();
+    expect(authorize).toHaveBeenCalledWith(choice);expect(choice.update).not.toHaveBeenCalled();
+  });
   it.each([
     ["en", "Which character", "Your character", "Previous", "Next", "Selected character", "Selection expired"],
     ["fr", "Quel personnage", "Ton personnage", "Précédents", "Suivants", "Personnage choisi", "Choix expiré"]

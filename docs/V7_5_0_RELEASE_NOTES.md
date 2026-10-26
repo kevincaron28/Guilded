@@ -1,8 +1,8 @@
-# Guilded 7.5.0 release candidate
+# Guilded 7.5.0 Release
 
-This candidate combines the release-gap work and Claude's merged PRs #226–#230,
-including raid and community tools. Public downloads and production remain 7.4.0 until release gates
-complete. Protocol remains 2.
+This release combines the release-gap work, raid and community tools, and
+launch-week addon features. The owner authorized publication before unavailable
+game and two-PC checks; those checks remain pending. Protocol remains 2.
 
 - Officers can preview and apply main/alt changes on the web roster with a
   short-lived, user-bound confirmation and an atomic audit record.
@@ -39,6 +39,9 @@ complete. Protocol remains 2.
   profile folder. Store approval is a separate track, not a published claim.
 - A bilingual privacy notice describes data use, retention and private Discord
   support for access/deletion requests. The existing license is unchanged.
+- French connection-profile labels are translated without altering user-authored
+  names. Microsoft reviewers have an isolated synthetic connection prepared;
+  it does not provide access to production guild data or replace real-client tests.
 
 The standard Windows installer remains unsigned. Choose the addon ZIP matching
 Forever, Classic Era, TBC, Mists or Retail; unsuffixed ZIPs target Forever.

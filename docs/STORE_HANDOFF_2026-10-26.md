@@ -14,9 +14,10 @@ in Microsoft Partner Center Credentials. It expires 25 November 2026 UTC.
 French profile labels are fixed; user-authored names are preserved. The rebuilt
 Store package is 165,360,608 bytes, SHA-256
 `41492af383bc9364871ec30faf22402197192d0725bd5eb138ed3d87f594b8e9`.
-Manifest and all packaged sources verify. The portal still has the previous
-package until explicitly replaced; the old French settings screenshot also
-needs replacement/removal. WACK evidence below applies to the prior preview.
+Manifest and all packaged sources verify against merged main. The old package
+was removed, then the rebuilt package uploaded, validated and saved. The outdated
+French settings screenshot was removed; three current French and four English
+images remain. WACK evidence below applies to the prior preview.
 
 Claude merged #231 and #229 into main 09125e6. His updated owner decision brings
 the launch-week addon tools into 7.5.0, declines the guild-wide web heatmap, and
@@ -25,9 +26,18 @@ shared backup file; notify before Oracle restart. Store remains a draft.
 
 The privacy URL returned HTTP 200 with the policy and Discord support contact
 after the main deployment on 26 October. That blocker is cleared. #232 is merged
-as 490d6db. The new Store upload initially hit a duplicate package-name validation
-error while the old package was still pending removal; resolve and verify before
-claiming the new bytes are accepted.
+as 490d6db, and #233 as 3bf97cd. The duplicate package-name error was resolved by
+saving removal before re-uploading. All six sections are Complete and Submit is
+enabled. Updated private reviewer instructions disclose the synthetic scope,
+expiry, tested steps and prior-payload WACK warning. The code itself has not been
+shared while owner confirmation is pending; submission remains in draft.
+
+Local combined gates: 311 files / 2,654 tests, TypeScript, ESLint and both addon
+validators passed. Both #233 remote workflows passed, including PostgreSQL
+restore and Windows/MSIX packaging. Production ledger preflight and verified
+database/application backup passed; encrypted off-server copies passed
+authenticated decryption/checksums. Exact release-main CI and coordinated Oracle
+restart/publication remain separate gates. Keep pending game checks visible.
 
 ## Previous checkpoint — after WACK and combined integration
 

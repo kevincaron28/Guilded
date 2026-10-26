@@ -51,7 +51,8 @@ French connection-profile labels and fallback name translation are fixed. Author
 profile/guild names remain untouched. Preview, Store and standalone builds were
 regenerated. The WACK report above covers the preceding preview payload, not this
 rebuilt payload; it remains WARNING and must not be described as final certification.
-Replace the old Store upload and the French settings screenshot before submission.
+The rebuilt Store package was uploaded, validated and saved. The old French
+settings screenshot was removed; the three other French screenshots remain current.
 
 An isolated Cloudflare Worker has no production database, Discord token or external
 service binding. It accepts only the supplied synthetic export, stores a session

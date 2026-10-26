@@ -30,8 +30,8 @@ if (storeVerification) files.push([storePackage, `Guilded.Companion.${version}.x
 for (const [source, destination] of files) copyFileSync(source, join(folder, destination));
 writeFileSync(join(folder, "publisher-identity.example.json"), JSON.stringify({ name: "", publisher: "", publisherDisplayName: "" }, null, 2) + "\n");
 const pending = [
-  "Final polish PR checks/merge and coordinated release",
-  "Save the verified synthetic reviewer code in Partner Center after owner approval; replace rebuilt package and old French settings screenshot",
+  "Final release-main CI and coordinated publication",
+  "Save the verified synthetic reviewer code in Partner Center after owner approval (rebuilt package and current listings are saved)",
   "Store-signed upgrade and connected acceptance; disclose WACK warnings from LOCAL_VALIDATION_2026-10-26.md",
   "Microsoft certification (not submitted yet; see CURRENT_STATUS.md for upload status)"
 ];

@@ -12,9 +12,10 @@ describe("character identities in signups", () => {
   it("uses an owned ID or an unambiguous name and realm, never another player's character", async () => {
     expect((await ownedSignupCharacter(database as never, "g", "m", "b")).realm).toBe("Toronto");
     expect((await ownedSignupCharacter(database as never, "g", "m", "Ann-Quebec")).id).toBe("a");
-    await expect(ownedSignupCharacter(database as never, "g", "m", "Ann")).rejects.toThrow(/royaume/);
+    await expect(ownedSignupCharacter(database as never, "g", "m", "Ann")).rejects.toThrow(/Name the character and its realm\..*royaume/);
     await expect(ownedSignupCharacter(database as never, "g", "m", "foreign")).rejects.toThrow(/Choisis ton personnage/);
-    await expect(ownedSignupCharacter(database as never, "g", "m")).rejects.toThrow(/Choisis ton personnage/);
+    // English guilds read it too: the services that throw it do not know the guild's language.
+    await expect(ownedSignupCharacter(database as never, "g", "m")).rejects.toThrow(/^Pick one of your linked characters.* \/ Choisis ton personnage/);
     expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { memberId: "m", member: { guildId: "g" } } }));
   });
   it("marks only the primary character or an approved backup as belonging to the core", () => {

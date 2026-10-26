@@ -84,7 +84,7 @@ const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> 
     logChannelId: { name: "officer-log", topic: "Officer log: joins, moderation, bank and craft requests" },
     readinessChannelId: { name: "raid-readiness", topic: "Who is ready for raid night: gear and consumable checks (officers and raid leaders only)" },
     attendanceChannelId: { name: "raid-attendance", topic: "Who was present, late, benched or absent at each raid (officers only), posted with the raid report" },
-    applicationChannelId: { name: "raid-applications", topic: "New recruitment applications (officers only): use /application list|view|approve|reject|trial" },
+    applicationChannelId: { name: "raid-applications", topic: "New recruitment applications (officers only): decide on each card, or use /mod application list|view|approve|reject|trial" },
     guideChannelId: { name: `${BRAND.channelPrefix}-guide`, topic: "How Guilded works, and what's new when it updates" }
   },
   fr: {
@@ -103,7 +103,7 @@ const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> 
     logChannelId: { name: "journal-officiers", topic: "Journal des officiers : arrivées, modération, banque et demandes d'artisanat" },
     readinessChannelId: { name: "preparation-raid", topic: "Qui est prêt pour la soirée de raid : gear et consommables (officiers et chefs de raid seulement)" },
     attendanceChannelId: { name: "presences-raid", topic: "Présents, retards, banc et absents de chaque raid (officiers seulement), publié avec le rapport de raid" },
-    applicationChannelId: { name: "candidatures-raid", topic: "Nouvelles candidatures de recrutement (officiers seulement) : utilisez /application list|view|approve|reject|trial" },
+    applicationChannelId: { name: "candidatures-raid", topic: "Nouvelles candidatures de recrutement (officiers seulement) : décidez sur chaque carte, ou utilisez /mod application list|view|approve|reject|trial" },
     guideChannelId: { name: `${BRAND.channelPrefix}-guide`, topic: "Commence ici : utiliser Guilded, installer l’addon WoW et connecter le compagnon" }
   }
 };

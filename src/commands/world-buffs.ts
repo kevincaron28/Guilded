@@ -4,7 +4,8 @@ import { asLang, t } from "../i18n.js";
 import { hasPermission } from "../permissions.js";
 import { currentEdition } from "../services/edition-context.js";
 import { parseRaidTime } from "../services/raid-time.js";
-import { createWorldBuffService, WORLD_BUFFS, worldBuffLine, worldBuffsSupported } from "../services/world-buffs.js";
+import { createWorldBuffService, validateDrop, WORLD_BUFFS, worldBuffLine, worldBuffsSupported } from "../services/world-buffs.js";
+import { clipRosterLines } from "../services/roster-embed-limits.js";
 import { guildService, requireGuildContext } from "./context.js";
 
 const service = createWorldBuffService(prisma);
@@ -24,36 +25,51 @@ export const worldBuffCommand = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName("remove").setDescription("Withdraw a drop you announced (raid leaders: any).")
     .addStringOption((o) => o.setName("drop").setDescription("The drop (pick from the list)").setAutocomplete(true).setRequired(true)));
 
+// Every list or line stays within Discord's 2,000 characters, whole drops only.
+export function worldBuffListText(title: string, lines: string[], empty: string): string {
+  const header = `**${title}**\n`;
+  return header + (lines.length ? clipRosterLines(lines, 2000 - header.length) : empty);
+}
+
 export async function executeWorldBuff(interaction: ChatInputCommandInteraction): Promise<void> {
+  // Checks that need no database run first, so a mistake is never answered in public; then the
+  // reply is acknowledged (Discord allows 3 seconds) before any database work.
+  if (!worldBuffsSupported(currentEdition())) {
+    await interaction.reply({ content: `${t("en", "worldbuff.unsupported")} / ${t("fr", "worldbuff.unsupported")}`, flags: MessageFlags.Ephemeral });
+    return;
+  }
+  const subcommand = interaction.options.getSubcommand();
+  const post = subcommand === "add" || (subcommand === "list" && interaction.options.getBoolean("post") === true);
+  await interaction.deferReply(post ? {} : { flags: MessageFlags.Ephemeral });
   const context = await requireGuildContext(interaction);
   if (!context) return;
   const settings = await guildService.getSettings(context.guildId);
   const lang = asLang(settings?.language);
-  if (!worldBuffsSupported(currentEdition())) {
-    await interaction.reply({ content: t(lang, "worldbuff.unsupported"), flags: MessageFlags.Ephemeral });
-    return;
-  }
-  const subcommand = interaction.options.getSubcommand();
   if (subcommand === "add") {
-    const drop = await service.add({
-      guildId: context.guildId, buff: interaction.options.getString("buff", true), createdBy: interaction.user.id,
-      dropsAt: parseRaidTime(interaction.options.getString("time", true), settings?.timezone ?? "America/Toronto"),
-      location: interaction.options.getString("where"), note: interaction.options.getString("note")
-    });
+    const buff = interaction.options.getString("buff", true);
+    let dropsAt: Date;
+    try {
+      dropsAt = parseRaidTime(interaction.options.getString("time", true), settings?.timezone ?? "America/Toronto");
+      validateDrop(buff, dropsAt);
+    } catch (error) {
+      // The reply is public: show the mistake privately instead and remove the placeholder.
+      await interaction.deleteReply().catch(() => undefined);
+      await interaction.followUp({ content: error instanceof Error ? error.message : String(error), flags: MessageFlags.Ephemeral });
+      return;
+    }
+    const drop = await service.add({ guildId: context.guildId, buff, createdBy: interaction.user.id, dropsAt, location: interaction.options.getString("where"), note: interaction.options.getString("note") });
     // The public announcement is the point; no pings.
-    await interaction.reply({ content: `${t(lang, "worldbuff.announced")}\n${worldBuffLine(drop, lang)}`, allowedMentions: { parse: [] } });
+    await interaction.editReply({ content: `${t(lang, "worldbuff.announced")}\n${worldBuffLine(drop, lang)}`.slice(0, 2000), allowedMentions: { parse: [] } });
     return;
   }
   if (subcommand === "list") {
     const drops = await service.upcoming(context.guildId);
-    const body = drops.length ? drops.map((drop) => worldBuffLine(drop, lang)).join("\n") : t(lang, "worldbuff.none");
-    const post = interaction.options.getBoolean("post") ?? false;
-    await interaction.reply({ content: `**${t(lang, "worldbuff.title")}**\n${body}`, allowedMentions: { parse: [] }, ...(post ? {} : { flags: MessageFlags.Ephemeral }) });
+    await interaction.editReply({ content: worldBuffListText(t(lang, "worldbuff.title"), drops.map((drop) => worldBuffLine(drop, lang)), t(lang, "worldbuff.none")), allowedMentions: { parse: [] } });
     return;
   }
   const leader = !!interaction.member && hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "raidLeader");
   const drop = await service.remove(context.guildId, interaction.options.getString("drop", true), interaction.user.id, leader);
-  await interaction.reply({ content: `${t(lang, "worldbuff.removed")}\n${worldBuffLine(drop, lang)}`, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+  await interaction.editReply({ content: `${t(lang, "worldbuff.removed")}\n${worldBuffLine(drop, lang)}`.slice(0, 2000), allowedMentions: { parse: [] } });
 }
 
 // Autocomplete for remove: this guild's upcoming drops.

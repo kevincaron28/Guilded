@@ -408,6 +408,21 @@ export function createRaidService(database: PrismaClient) {
       });
     },
 
+    // Voice attendance: adds PRESENT only where nothing is recorded yet, in one insert that skips
+    // existing rows, so an officer's correction made meanwhile is never overwritten. Returns how many were added.
+    async recordPresentIfMissing(raidId: string, guildId: string, memberIds: string[], recordedBy: string, notes: string) {
+      const raid = await getRaid(raidId, guildId);
+      if (raid.status !== "ACTIVE" && raid.status !== "COMPLETED") {
+        throw new Error("Attendance can only be recorded for an active or completed raid.");
+      }
+      if (!memberIds.length) return 0;
+      const created = await database.raidAttendance.createMany({
+        data: memberIds.map((memberId) => ({ raidId, memberId, status: "PRESENT" as const, recordedBy, notes })),
+        skipDuplicates: true
+      });
+      return created.count;
+    },
+
     async recordAttendance(input: {
       raidId: string;
       guildId: string;

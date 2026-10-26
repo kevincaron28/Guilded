@@ -19,3 +19,24 @@ export function voiceAttendancePlan(input: { inVoice: VoicePerson[]; known: Know
   const missing = input.signups.filter((signup) => signup.status === "SIGNED_UP" && !inVoice.has(signup.discordUserId)).map((signup) => signup.name);
   return { mark, kept, strangers, missing };
 }
+
+// The officer's reply: whole names only, each list held to a share of Discord's 2,000 characters.
+export function nameList(names: string[], budget: number): string {
+  let text = "";
+  for (let i = 0; i < names.length; i++) {
+    const next = text ? `${text}, ${names[i]}` : names[i]!;
+    const more = ` +${names.length - i - 1}`;
+    if (next.length + (i < names.length - 1 ? more.length : 0) > budget) return `${text || "…"} +${names.length - i}`;
+    text = next;
+  }
+  return text;
+}
+
+export function voiceAttendanceSummary(input: { raid: string; channel: string; marked: number; kept: number; strangers: string[]; missing: string[] }): string {
+  return [
+    `Marked **${input.marked}** present from 🔊 ${input.channel.slice(0, 100)} for **${input.raid.slice(0, 100)}**.`,
+    ...(input.kept ? [`Kept ${input.kept} attendance record(s) already made.`] : []),
+    ...(input.strangers.length ? [`In the channel but not active members of this guild (not recorded): ${nameList(input.strangers, 700)}.`] : []),
+    ...(input.missing.length ? [`Signed up but not in the channel: ${nameList(input.missing, 700)}. Record them with /lead attendance.`] : [])
+  ].join("\n").slice(0, 2000);
+}

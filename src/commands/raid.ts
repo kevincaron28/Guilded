@@ -24,7 +24,7 @@ import { BRAND } from "../brand.js";
 import { pickSignupCharacter } from "./signup-character-picker.js";
 import { CHARACTER_DISPLAY_SELECT, loadClassEmojis } from "../services/character-display.js";
 import { signupLayout } from "../services/signup-layout.js";
-import { voiceAttendancePlan } from "../services/voice-attendance.js";
+import { voiceAttendancePlan, voiceAttendanceSummary } from "../services/voice-attendance.js";
 
 const raidService = createRaidService(prisma);
 
@@ -497,16 +497,9 @@ async function recordVoiceAttendance(interaction: ChatInputCommandInteraction, g
   const recorded = new Set((await prisma.raidAttendance.findMany({ where: { raidId, memberId: { in: known.map((member) => member.id) } }, select: { memberId: true } })).map((row) => row.memberId));
   const signups = (await raidService.signups(raidId, guildId)).map((signup) => ({ discordUserId: signup.member.discordUserId, name: signup.characterName ?? signup.member.displayName, status: signup.status }));
   const plan = voiceAttendancePlan({ inVoice, known, recorded, signups });
-  for (const memberId of plan.mark) {
-    await raidService.recordAttendance({ raidId, guildId, memberId, status: "PRESENT", recordedBy: interaction.user.id, notes: `voice: ${channel.name}` });
-  }
-  const names = (list: string[]) => list.slice(0, 30).join(", ") + (list.length > 30 ? ` +${list.length - 30}` : "");
-  await interaction.editReply({ content: [
-    `Marked **${plan.mark.length}** present from 🔊 ${channel.name} for **${raid.title}**.`,
-    ...(plan.kept.length ? [`Kept ${plan.kept.length} attendance record(s) already made.`] : []),
-    ...(plan.strangers.length ? [`In the channel but not active members of this guild (not recorded): ${names(plan.strangers)}.`] : []),
-    ...(plan.missing.length ? [`Signed up but not in the channel: ${names(plan.missing)}. Record them with /lead attendance.`] : [])
-  ].join("\n"), allowedMentions: { parse: [] } });
+  // The snapshot above only decides who to try; the insert itself skips anyone recorded meanwhile.
+  const marked = await raidService.recordPresentIfMissing(raidId, guildId, plan.mark, interaction.user.id, `voice: ${channel.name}`.slice(0, 200));
+  await interaction.editReply({ content: voiceAttendanceSummary({ raid: raid.title, channel: channel.name, marked, kept: plan.kept.length + plan.mark.length - marked, strangers: plan.strangers, missing: plan.missing }), allowedMentions: { parse: [] } });
 }
 
 // /lead fill: a call for players in the guild's shared raid signup channel (everyone reads it),
@@ -564,11 +557,15 @@ async function clashNote(raidId: string, guildId: string, memberId: string, lang
 export async function handleRaidSignupButton(interaction: ButtonInteraction): Promise<void> {
   const [raidId, action] = interaction.customId.slice(RAID_SIGNUP_PREFIX.length).split(":");
   if (!interaction.guild || !raidId || !action) return;
+  // Late and Can't come never open the character picker: acknowledge before any database work
+  // (Late takes the raid lock). Role clicks acknowledge as soon as the settings say no picker is needed.
+  if (action === "LATE" || action === "CANCEL") await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
   const member = await guildService.ensureMember(guild.id, interaction.user.id,
     (interaction.member as GuildMember | null)?.displayName ?? interaction.user.username);
   const settings = await guildService.getSettings(guild.id);
   const lang = asLang(settings?.language);
+  if (!settings?.characterSignups && !interaction.deferred) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   let content: string;
   if (action === "LATE") {
     const signup = await raidService.toggleLate(raidId, guild.id, member.id);
@@ -588,7 +585,8 @@ export async function handleRaidSignupButton(interaction: ButtonInteraction): Pr
     // Past the deadline, say so before opening the character picker (the service checks again).
     const closesAt = (await prisma.raid.findFirst({ where: { id: raidId, guildId: guild.id }, select: { signupsCloseAt: true } }))?.signupsCloseAt;
     if (closesAt && closesAt.getTime() <= Date.now()) {
-      await interaction.reply({ content: closedText(lang, new SignupsClosedError(closesAt)), flags: MessageFlags.Ephemeral });
+      if (interaction.deferred) await interaction.editReply({ content: closedText(lang, new SignupsClosedError(closesAt)) });
+      else await interaction.reply({ content: closedText(lang, new SignupsClosedError(closesAt)), flags: MessageFlags.Ephemeral });
       return;
     }
     const character = settings?.characterSignups ? await pickSignupCharacter(interaction, guild.id, member.id) : null;

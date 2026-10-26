@@ -1,10 +1,10 @@
 {
-  "verifiedAt": "2026-10-25",
+  "verifiedAt": "2026-10-26",
   "guilded": {
     "github": {
-      "version": "7.4.0",
+      "version": "7.5.0",
       "stage": "release",
-      "url": "https://github.com/kevincaron28/Guilded/releases/tag/v7.4.0"
+      "url": "https://github.com/kevincaron28/Guilded/releases/tag/v7.5.0"
     },
     "curseforge": {
       "version": "7.4.0",

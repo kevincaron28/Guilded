@@ -1,5 +1,28 @@
 # Microsoft Store preparation — 26 October 2026
 
+## Submitted — 26 October 2026
+
+Partner Center now shows **In certification**: Submission complete, pre-processing
+in progress, certification and publishing not started. The product will publish
+automatically after certification. Product `9N680XX3QFL9`, submission
+`1152921505702234586`. This is submission confirmation, not Microsoft approval.
+
+The final package below is uploaded and validated; all six sections were Complete.
+The owner explicitly approved sharing the restricted code with Microsoft. It was
+saved in the private Credentials field and verified after reload. No secret is
+included here or in the public kit. Ten deployed HTTPS checks pass, including
+re-pair revocation. Native Remove all data clears all local profiles and quits;
+it does not call server logout. Review instructions require a clean test PC/VM.
+
+Seven genuine screenshots remain (four English, three French). Public privacy
+policy returned HTTP 200. WACK warning disclosure applies to the preceding preview;
+Store-signed installation/upgrade and real game tests remain pending. Proof:
+`backups/msix-install-review/store-in-certification.png` (ignored local evidence).
+
+Oracle and GitHub 7.5.0 are live from bda3382 after exact-main CI, verified backups
+and four migrations. See `SESSION_HANDOFF_2026-10-26.md`. All checkpoints below
+are historical; their code-sharing and submission blockers have been cleared.
+
 ## Current follow-up: restricted reviewer connection and French polish
 
 The deployed synthetic reviewer endpoint is

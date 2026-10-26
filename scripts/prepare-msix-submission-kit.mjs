@@ -4,6 +4,8 @@ import { resolve, join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 const version = JSON.parse(readFileSync("companion-app/package.json", "utf8")).version;
+const listing = JSON.parse(readFileSync("docs/store-submission/listing.json", "utf8"));
+const submitted = listing.status === "in-certification" && listing.submittedVersion === version;
 const preview = resolve(`dist/msix-preview/Guilded.Companion.${version}.x64.LOCAL-PREVIEW.msix`);
 const verification = JSON.parse(execFileSync(process.execPath, ["scripts/verify-msix.mjs", preview], { encoding: "utf8" }));
 if (!verification.preview || !verification.manifestAndSourcesVerified) throw new Error("A verified LOCAL-PREVIEW is required.");
@@ -18,6 +20,7 @@ const files = [
   ["docs/store-submission/iarc-questionnaire.json", "iarc-questionnaire.json"],
   ["docs/store-submission/REVIEWER_NOTES.md", "REVIEWER_NOTES.md"],
   ["docs/store-submission/LOCAL_VALIDATION_2026-10-26.md", "LOCAL_VALIDATION_2026-10-26.md"],
+  ["docs/SESSION_HANDOFF_2026-10-26.md", "SESSION_HANDOFF_2026-10-26.md"],
   ["store-review/README.md", "SYNTHETIC_REVIEW_README.md"],
   ["store-review/review-kit.zip", "Guilded-Store-Review.zip"],
   ["docs/PRIVACY.md", "PRIVACY.md"],
@@ -30,18 +33,17 @@ if (storeVerification) files.push([storePackage, `Guilded.Companion.${version}.x
 for (const [source, destination] of files) copyFileSync(source, join(folder, destination));
 writeFileSync(join(folder, "publisher-identity.example.json"), JSON.stringify({ name: "", publisher: "", publisherDisplayName: "" }, null, 2) + "\n");
 const pending = [
-  "Final release-main CI and coordinated publication",
-  "Save the verified synthetic reviewer code in Partner Center after owner approval (rebuilt package and current listings are saved)",
+  ...(submitted ? [] : ["Complete the current portal submission steps described in CURRENT_STATUS.md"]),
   "Store-signed upgrade and connected acceptance; disclose WACK warnings from LOCAL_VALIDATION_2026-10-26.md",
-  "Microsoft certification (not submitted yet; see CURRENT_STATUS.md for upload status)"
+  submitted ? "Microsoft certification and automatic publication after approval" : "Microsoft certification (not submitted yet; see CURRENT_STATUS.md)"
 ];
 writeFileSync(join(folder, "README-FIRST.md"), `# Guilded Companion submission preparation
 
 Prepared ${new Date().toISOString()} from local version ${version}.
 
-**Not submitted for certification.** Guilded Companion is reserved in Partner Center
-as Store ID 9N680XX3QFL9. Submission 1 is a draft. Read CURRENT_STATUS.md for the
-observed portal state and remaining blockers.
+${submitted ? "**Submitted for certification; awaiting Microsoft review.**" : "**Not submitted for certification.**"} Guilded Companion is reserved in Partner Center
+as Store ID 9N680XX3QFL9. Read CURRENT_STATUS.md for the observed portal state
+and remaining checks. This status does not mean Microsoft has certified the app.
 
 The unsigned LOCAL-PREVIEW is separately marked **not for upload**.
 ${storeVerification ? `Upload candidate: Guilded.Companion.${version}.x64.STORE-SUBMISSION.msix. It uses the actual reserved identity and passed source/manifest checks. It has not been installed or certified. Older version files are not this submission candidate.` : "Build the actual Store-identity candidate before uploading; no submission package is included yet."}
@@ -62,7 +64,7 @@ ${pending.map(item => `- ${item}`).join("\n")}
 
 Microsoft controls review timing. This kit cannot guarantee same-day approval.
 `);
-const manifest = { createdAt: new Date().toISOString(), version, submitted: false, storeCertified: false, previewVerification: verification, storeVerification, pending,
+const manifest = { createdAt: new Date().toISOString(), version, submitted, storeCertified: false, previewVerification: verification, storeVerification, pending,
   files: files.map(([, name]) => { const data = readFileSync(join(folder, name)); return { name, bytes: data.length, sha256: createHash("sha256").update(data).digest("hex") }; }) };
 writeFileSync(join(folder, "readiness.json"), JSON.stringify(manifest, null, 2) + "\n");
-console.log(JSON.stringify({ folder, verifiedPreview: true, submitted: false, pending }, null, 2));
+console.log(JSON.stringify({ folder, verifiedPreview: true, submitted, pending }, null, 2));

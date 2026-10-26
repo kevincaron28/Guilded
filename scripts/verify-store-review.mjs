@@ -52,10 +52,14 @@ const call = (path, payload) => requestJson(new URL(path, url), {
 assert.equal((await call('/api/v1/addon-imports', { guildDiscordId: config.guildDiscordId, export: exported })).response.status, 409);
 assert.equal((await call('/api/v1/addon-imports', { guildDiscordId: config.guildDiscordId, export: { ...exported, privateNote: 'rejected-synthetic-probe' } })).response.status, 422);
 assert.equal((await requestJson(new URL('/api/v1/standings?guild=another-guild', url), { headers })).response.status, 403);
+const replacement = await pairAccount({ uploadUrl, pairingCode });
+assert.equal(replacement.ok, true);
+assert.equal((await testConnection(config)).ok, false, 'Re-pairing must revoke the old profile.');
+headers['x-companion-credential'] = replacement.companionCredential;
 assert.equal((await call('/api/v1/companion/logout', { guildDiscordId: config.guildDiscordId })).response.status, 200);
-assert.equal((await testConnection(config)).ok, false);
+assert.equal((await testConnection({ ...config, companionCredential: replacement.companionCredential })).ok, false);
 const evidence = { verifiedAt: new Date().toISOString(), endpoint: url.origin, syntheticOnly: true,
-  checks: ['kit download', 'real companion pairing', 'connection', 'engine upload', 'standings file', 'duplicate', 'modified export rejected', 'cross-guild denied', 'logout revocation'],
+  checks: ['kit download', 'real companion pairing', 'connection', 'engine upload', 'standings file', 'duplicate', 'modified export rejected', 'cross-guild denied', 're-pair revocation', 'API logout revocation'],
   productionAccess: false, gameTested: false };
 await writeFile(join(output, 'result.json'), JSON.stringify(evidence, null, 2) + '\n');
 console.log(JSON.stringify(evidence));

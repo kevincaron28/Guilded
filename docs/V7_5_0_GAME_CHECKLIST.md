@@ -25,10 +25,13 @@ into passes. Protocol remains 2 and benchmarks remain provisional.
   native API tests. No live game results are inferred from offline fixtures.
 - Store MSIX preview installation/launch/uninstall and genuine screenshots are
   complete. WACK returned WARNING; see the Store local-validation record. Actual
-  Store-signed upgrades, tray/startup/file access and connected reviewer access
-  remain pending. The uploaded Store package passed portal package validation.
-  IARC ratings are saved; this is not Microsoft app certification.
+  Store-signed upgrades, tray/startup/file access and the reviewer's actual
+  acceptance remain pending. The uploaded Store package passed portal validation.
+  Synthetic reviewer access is prepared and privately supplied to Microsoft with
+  owner consent; ten deployed HTTPS checks passed. IARC ratings are saved and
+  Submission 1 is in certification; Microsoft approval remains pending.
 
-Before release: final combined GitHub quality checks, ledger preflight, verified
-backup, coordinated Oracle deployment and verified public assets. Store follows
-its own submission checklist in `STORE_HANDOFF_2026-10-26.md`.
+Release gates completed on 26 October: exact-main GitHub quality checks, ledger
+preflight, verified backup, coordinated Oracle deployment and verified GitHub
+assets. Current provider status and pending checks are recorded in
+`SESSION_HANDOFF_2026-10-26.md`; Store follows `STORE_HANDOFF_2026-10-26.md`.

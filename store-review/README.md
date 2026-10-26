@@ -8,10 +8,11 @@ not certify Discord OAuth, PoE2, public leaderboards or game-client behavior.
 
 ## Reviewer steps (English)
 
-1. Download `review-kit.zip` from the review endpoint and extract it to a new
-   folder under Documents. No game installation is needed. Never use real guild files.
+1. Use a clean Windows test user/VM with no personal companion profiles. Download
+   `review-kit.zip` from the review endpoint and extract it to a new folder under
+   Documents. No game installation is needed. Never use real guild files.
 2. Open Guilded Companion → Connection & setup. Add a connection named
-   **Microsoft Store review (synthetic)** so existing profiles remain separate.
+   **Microsoft Store review (synthetic)**.
 3. Expand **Older companions or your guild's own bot**. Set the bot address to
    `<review endpoint>/api/v1/addon-imports`. Enter the private 12-character review
    code supplied in Partner Center Credentials, then Connect. It is a sandbox
@@ -24,8 +25,12 @@ not certify Discord OAuth, PoE2, public leaderboards or game-client behavior.
    standings and inspect `Interface/AddOns/Guilded/Standings.lua` in the extracted
    folder. This is generated sample data, never a real ledger or public score.
 6. Pause/restart; check Overview/Activity, CSV export and language switching.
-7. Disconnect from Help & privacy. The old session must be refused. Reconnect with
-   the review code to reset the synthetic session, if further review is needed.
+7. To test remote revocation, pair a second review connection with the same code.
+   Test connection on the first profile must now be refused. Re-pairing resets the
+   synthetic session. The native **Help & privacy → Remove all data** action clears
+   ALL local companion profiles and quits; use it only in the clean test environment.
+   It is not a server logout. Remote sandbox sessions expire after 24 hours or are
+   revoked by re-pairing; the API logout path was tested separately by the maintainer.
 
 The endpoint refuses other guild IDs, altered/real exports and unsupported APIs.
 It retains only a session hash, expiry, synthetic import flag and bounded request
@@ -33,13 +38,17 @@ counter. It never stores raw uploads or records them in application logs.
 
 ## Procédure (français)
 
-Extrayez le kit dans un nouveau dossier. Créez la connexion « Test Microsoft Store
+Utilisez un compte Windows ou une VM de test sans profils personnels. Extrayez le
+kit dans un nouveau dossier. Créez la connexion « Test Microsoft Store
 (données fictives) ». Dans Connexion et configuration, développez l'option pour
 le bot de votre guilde et saisissez l'adresse du serveur de test, puis le code
 privé fourni à Microsoft. Sélectionnez le fichier Guilded.lua du kit, activez WoW,
 laissez PoE2 désactivé, puis enregistrez et démarrez la synchronisation. Vérifiez
 le personnage fictif Reviewmage, les 100 EP de démonstration après l'envoi, le
-fichier Standings.lua généré, la pause et la déconnexion. N'utilisez aucune donnée
+fichier Standings.lua généré et la pause. Un nouvel appairage révoque la connexion
+précédente. « Supprimer toutes les données » efface TOUS les profils locaux et
+quitte l'application; utilisez cette action uniquement dans l'environnement de
+test propre. Elle ne révoque pas la session serveur. N'utilisez aucune donnée
 réelle. Cette démonstration ne remplace pas les tests Discord ou en jeu.
 
 ## Maintainer operations

@@ -18,6 +18,9 @@ into passes. Protocol remains 2 and benchmarks remain provisional.
   character signups, scored profile previews, Retail key filters, team attendance,
   trial reminders, do-not-invite enforcement, starboard, edit/delete logs and
   lottery button entry. Offline regression results do not replace this walkthrough.
+- Launch-day addon tools: follow the [launch tools checklist](V7_5_0_LAUNCH_TOOLS_CHECKLIST.md)
+  (guild log, guild bank, recruiting and welcome, imports, pug check, chat names, ledger
+  batches, speed recorder, consumable penalty). None has run in a game client yet.
 - Preserve all previous GRM real-archive, bulk action, two-PC, dungeon route and
   native API tests. No live game results are inferred from offline fixtures.
 - Store MSIX preview installation/launch/uninstall and genuine screenshots are

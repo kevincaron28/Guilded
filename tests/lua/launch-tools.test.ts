@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { newLuaSession, type LuaSession } from "./harness.js";
 
-// The 7.6 officer tools, each real module file against a mocked game: loot imports,
+// The 7.5.0 launch-week officer tools, each real module file against a mocked game: loot imports,
 // the consumable penalty (with the real Core.lua), recruiting, the guild log, the guild bank,
 // main names in chat, the pug check and the speed recorder.
 const sessions: LuaSession[] = [];

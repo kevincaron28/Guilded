@@ -1,5 +1,5 @@
-> 7.5.0 (26 October 2026): combined release candidate; Claude PRs #226–#228 and #230 integrated.
-> Combined gates: 309 files / 2,627 tests, TypeScript/lint/addon checks and disposable
+> 7.5.0 (26 October 2026): combined release candidate; Claude PRs #226–#228, #230 and #231
+> (launch-week addon tools) integrated; main 09125e6. Combined gates with #231: 310 files / 2,646 tests, TypeScript/lint/addon checks and disposable
 > PostgreSQL migration/backup/restore pass. Store upload validated; preview installed,
 > captured and removed with its temporary certificate. WACK completed with WARNING,
 > not a clean pass. See docs/store-submission/LOCAL_VALIDATION_2026-10-26.md.

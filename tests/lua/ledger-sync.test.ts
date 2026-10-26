@@ -236,7 +236,7 @@ describe("officer ledger sync (in-game-only guilds)", () => {
   });
 });
 
-describe("compressed ledger batches (7.6)", () => {
+describe("compressed ledger batches (7.5.0)", () => {
   const sentBy = (name: string, kind: string) => delivered.filter((m) => m.from === name && m.text.startsWith(kind + "|")).length;
 
   it("sends a day of entries as one batch between officers whose game can pack text", () => {

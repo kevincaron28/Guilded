@@ -10,6 +10,10 @@ separate from the release. Also adds signup deadlines/Late, voice attendance,
 outbid DMs, Era/Forever buff-drop announcements, configurable character signups,
 scored profile previews, key-level filters, team attendance, trial tracking,
 do-not-invite lists, optional starboard/message logs and clearer lottery entry.
+In game, a new Officer tools page adds a guild event log, guild bank snapshots, a
+prospect list and welcome whisper, softres.it and That's My BiS imports and a pug gear
+check; also main names in chat, compressed officer ledger sync, a speed recorder and
+an optional consumable penalty on group EP awards.
 See [release notes](docs/V7_5_0_RELEASE_NOTES.md).
 
 ## 7.4.0 — 25 October 2026

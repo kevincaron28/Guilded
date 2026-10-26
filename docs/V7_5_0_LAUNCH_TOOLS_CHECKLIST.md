@@ -1,10 +1,10 @@
-# 7.6 addon tools: launch-day test checklist
+# 7.5.0 launch-week addon tools: test checklist
 
-Nine addon-only features held until WoW Forever launches (4 November 2026). They are built and
-covered by the Lua tests (`tests/lua/launch-tools.test.ts`, `tests/lua/ledger-sync.test.ts`),
-but only the game can confirm the client APIs they use. Nothing here changes the bot, the
-companion, Discord or the protocol version. No version bump yet: these ship in the next release
-after 7.5.0.
+Nine addon-only features, built before WoW Forever launches (4 November 2026) and shipped in
+7.5.0 so they can be tested in game from launch day. They are covered by the Lua tests
+(`tests/lua/launch-tools.test.ts`, `tests/lua/ledger-sync.test.ts`), but only the game can
+confirm the client APIs they use. They change nothing in the bot, the companion, Discord or
+the protocol version.
 
 Each check names what to do and what should happen. Record results next to each line
 (pass / fail / not available on this client) and which edition was used.

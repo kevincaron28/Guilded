@@ -31,7 +31,7 @@ const pending = [
   "Publish and verify the prepared privacy-policy URL",
   "Genuine final-app screenshots and final listing review",
   "Packaged install/upgrade/uninstall and Windows App Certification Kit checks",
-  "Upload and Microsoft certification (not submitted yet)"
+  "Microsoft certification (not submitted yet; see CURRENT_STATUS.md for upload status)"
 ];
 writeFileSync(join(folder, "README-FIRST.md"), `# Guilded Companion submission preparation
 
@@ -43,9 +43,9 @@ observed portal state and remaining blockers.
 
 The unsigned LOCAL-PREVIEW is separately marked **not for upload**.
 ${storeVerification ? `Upload candidate: Guilded.Companion.${version}.x64.STORE-SUBMISSION.msix. It uses the actual reserved identity and passed source/manifest checks. It has not been installed or certified. Older version files are not this submission candidate.` : "Build the actual Store-identity candidate before uploading; no submission package is included yet."}
-The upload candidate is unsigned for Microsoft Store processing. A separate local
-test certificate is documented in CURRENT_STATUS.md; no Windows trust has been
-changed. The project license is unchanged.
+The upload candidate is unsigned for Microsoft Store processing. Local preview
+installation, temporary certificate trust and cleanup state are documented in
+CURRENT_STATUS.md. The project license is unchanged.
 
 ## Prepared
 

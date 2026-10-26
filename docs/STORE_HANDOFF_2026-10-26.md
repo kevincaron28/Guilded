@@ -1,5 +1,38 @@
 # Microsoft Store preparation — 26 October 2026
 
+## Active validation session — supersedes the earlier draft state below
+
+- Kevin explicitly accepted the Windows SDK license and approved temporary
+  preview-certificate trust, installation and cleanup. He also approved the
+  Windows elevation prompt for installation.
+- Chrome sign-in completed. Uploaded the verified 7.5.0 STORE-SUBMISSION package;
+  Partner Center overview confirms **Packages: Complete / Validated**.
+- Submitted the 494-character `runFullTrust` explanation. Submission options now
+  show **Complete**. The capability itself still needs Microsoft's review.
+- Pricing, Properties and Age ratings remain Complete. Store listings remain
+  Incomplete for screenshots; Submit for certification remains disabled.
+- SDK/App Certification Kit binaries are installed. WACK has **not run**: Windows
+  canceled the separate test-runner elevation. Kevin was asked whether to retry.
+- The signed local preview installed successfully as
+  `Guilded.Companion.LocalPreview_7.5.0.0_x64__qxyqz10awgpsg`, status Ok, and launched
+  its Connection & setup window. It created `config.secure` (430 bytes) under its
+  package-local `LocalCache/Roaming/Guilded Companion Store` directory. This proves
+  packaged startup/protected-profile creation, not full connected acceptance.
+- **Temporary trust is currently present** in LocalMachine/TrustedPeople for
+  809F9DADFB71BE4B665530AE32199CDDEDE9F9F1. Remove this exact test trust entry and the
+  preview after validation, as Kevin authorized. Do not leave the cleanup pending
+  without calling it out. Installation evidence: ignored
+  `backups/msix-install-review/install-result.json`.
+- Native screenshot capture timed out and accessibility is unavailable for the
+  preview window. No screenshots were generated or uploaded. Explicit permission
+  to use the app's existing screenshot diagnostic command has been requested.
+- Kevin separately instructed Claude to HOLD 7.5.0 deployment while Claude builds
+  nine additional bot/website features. #228 merged as 00e1b8d, but Codex's three
+  review findings remain open in the shared coordination file. #229 at 4cea592
+  has both remote quality jobs green. No production deployment/public release.
+
+The app remains **In draft**, not submitted for Microsoft certification.
+
 ## Latest combined candidate: 7.5.0
 
 Kevin chose 7.5.0 through the shared Claude coordination notes. Claude's merged

@@ -20,8 +20,13 @@ Partner Center: https://partner.microsoft.com/en-us/dashboard/products/9N680XX3Q
 - English (US) and French (France): descriptions, short descriptions, initial
   feature, copyright, unchanged license link and developer name saved. Both remain
   incomplete pending genuine native screenshots and the package.
-- Age rating: not completed. Microsoft says the questionnaire shares the publisher
-  name and developer email with IARC; owner consent was requested before continuing.
+- Age rating: owner authorized publisher-name/developer-email disclosure. The
+  questionnaire is filled and preview generated: ESRB Everyone, PEGI 3+, IARC 3+,
+  USK 16+ (Increased Communication Risks), with Users Interact. Final Save requires
+  an IARC Terms of Use acceptance and an age-of-majority declaration. Explicit
+  action-time consent is pending; the checkbox has not been checked. Answers and
+  rationale: `docs/store-submission/iarc-questionnaire.json`. These are preview
+  ratings, not a completed submission or Microsoft certification.
 - Private certification notes: saved and verified after reload. They explain
   `runFullTrust`, startup/update behavior, the review procedure and unfinished
   acceptance. No credentials were entered. Remove the preparation-status paragraph

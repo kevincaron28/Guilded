@@ -282,21 +282,22 @@ document.addEventListener('companion-language', () => {
 async function renderProfiles() {
   if (!api.listProfiles) return;
   const data = await api.listProfiles();
-  $('connectionProfile').replaceChildren(...data.profiles.map(p => { const option = document.createElement('option'); option.value = p.id; option.textContent = p.name + (p.gameEdition ? ' · ' + p.gameEdition : ''); return option; }));
+  $('connectionProfile').replaceChildren(...data.profiles.map(p => { const option = document.createElement('option'); option.value = p.id; option.textContent = (p.defaultName ? T('Original connection') : p.name) + (p.gameEdition ? ' · ' + p.gameEdition : ''); return option; }));
   $('connectionProfile').value = data.active;
 }
 async function changeConnection(choice) {
   const result = await api.changeProfile(choice);
-  if (!result.ok) { toast(result.message, true); await renderProfiles(); return; }
+  if (!result.ok) { toast(languageUI.message(result.message), true); await renderProfiles(); return; }
   const all = await api.getAll(); savedConfig = all.config;
   for (const id of fields) $(id).value = all.config[id] ?? '';
   $('wowEnabled').checked = all.config.wowEnabled !== false;
   $('poeEnabled').checked = all.config.poeEnabled === true;
   $('poeMode').value = all.config.poeMode || 'STANDARD';
   gameFields(); renderState({state:all.state,health:all.health,update:all.update,savedFile:all.savedFile});
-  await renderProfiles(); toast(result.message);
+  await renderProfiles(); toast(languageUI.message(result.message));
 }
 $('connectionProfile').addEventListener('change', () => changeConnection({ id: $('connectionProfile').value }));
+document.addEventListener('companion-language', () => { void renderProfiles().catch(error => toast(error.message, true)); });
 bind('btnAddProfile', async () => { await changeConnection({ name: $('newProfileName').value }); $('newProfileName').value = ''; });
 
 async function init() {

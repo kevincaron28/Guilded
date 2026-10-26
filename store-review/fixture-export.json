@@ -1,0 +1,27 @@
+{
+  "source": "Guilded",
+  "gameEdition": "retail",
+  "interface": 120105,
+  "exportedAt": "2026-10-26T16:00:00.000Z",
+  "wowGuild": "Guilded Review Sandbox-Review Realm",
+  "character": {
+    "gameEdition": "retail",
+    "interface": 120105,
+    "name": "Reviewmage",
+    "realm": "reviewrealm",
+    "class": "MAGE",
+    "race": "",
+    "level": 80,
+    "spec": "",
+    "professions": [],
+    "professionsComplete": false
+  },
+  "transactions": [],
+  "epgpTransactions": [],
+  "addonVersion": "7.5.0",
+  "readiness": [],
+  "attunements": [],
+  "raids": [],
+  "loot": [],
+  "dungeonRuns": []
+}

@@ -18,6 +18,8 @@ const files = [
   ["docs/store-submission/iarc-questionnaire.json", "iarc-questionnaire.json"],
   ["docs/store-submission/REVIEWER_NOTES.md", "REVIEWER_NOTES.md"],
   ["docs/store-submission/LOCAL_VALIDATION_2026-10-26.md", "LOCAL_VALIDATION_2026-10-26.md"],
+  ["store-review/README.md", "SYNTHETIC_REVIEW_README.md"],
+  ["store-review/review-kit.zip", "Guilded-Store-Review.zip"],
   ["docs/PRIVACY.md", "PRIVACY.md"],
   ["docs/MICROSOFT_STORE_MSIX.md", "BUILD_AND_SUBMISSION.md"],
   ["LICENSE", "LICENSE.Guilded.txt"],
@@ -28,9 +30,8 @@ if (storeVerification) files.push([storePackage, `Guilded.Companion.${version}.x
 for (const [source, destination] of files) copyFileSync(source, join(folder, destination));
 writeFileSync(join(folder, "publisher-identity.example.json"), JSON.stringify({ name: "", publisher: "", publisherDisplayName: "" }, null, 2) + "\n");
 const pending = [
-  "Final combined-release PR checks and merge",
-  "Publish and verify the prepared privacy-policy URL",
-  "Provide dedicated connected reviewer access (EN/FR listings and screenshot uploads complete)",
+  "Final polish PR checks/merge and coordinated release",
+  "Save the verified synthetic reviewer code in Partner Center after owner approval; replace rebuilt package and old French settings screenshot",
   "Store-signed upgrade and connected acceptance; disclose WACK warnings from LOCAL_VALIDATION_2026-10-26.md",
   "Microsoft certification (not submitted yet; see CURRENT_STATUS.md for upload status)"
 ];

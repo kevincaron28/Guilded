@@ -1,6 +1,35 @@
 # Microsoft Store preparation — 26 October 2026
 
-## Current status — 26 October, after WACK and combined integration
+## Current follow-up: restricted reviewer connection and French polish
+
+The deployed synthetic reviewer endpoint is
+https://guilded-store-review.kcaron.workers.dev . Its public `review-kit.zip`
+includes English/French instructions and disposable sample files. Nine HTTPS
+checks passed through actual companion code: download, pairing, connection,
+engine import, standings file, duplicate handling, modified-export rejection,
+cross-guild denial and logout revocation. No production data or Discord access.
+The private code is local and in the Worker secret, awaiting permission to save
+in Microsoft Partner Center Credentials. It expires 25 November 2026 UTC.
+
+French profile labels are fixed; user-authored names are preserved. The rebuilt
+Store package is 165,360,608 bytes, SHA-256
+`41492af383bc9364871ec30faf22402197192d0725bd5eb138ed3d87f594b8e9`.
+Manifest and all packaged sources verify. The portal still has the previous
+package until explicitly replaced; the old French settings screenshot also
+needs replacement/removal. WACK evidence below applies to the prior preview.
+
+Claude merged #231 and #229 into main 09125e6. His updated owner decision brings
+the launch-week addon tools into 7.5.0, declines the guild-wide web heatmap, and
+authorizes publication after #232 and final gates. Coordination remains in the
+shared backup file; notify before Oracle restart. Store remains a draft.
+
+The privacy URL returned HTTP 200 with the policy and Discord support contact
+after the main deployment on 26 October. That blocker is cleared. #232 is merged
+as 490d6db. The new Store upload initially hit a duplicate package-name validation
+error while the old package was still pending removal; resolve and verify before
+claiming the new bytes are accepted.
+
+## Previous checkpoint — after WACK and combined integration
 
 - Store package 7.5.0 is uploaded and Validated. Pricing, Properties, IARC and
   Submission options are Complete. The app is still **In draft**, not certified.

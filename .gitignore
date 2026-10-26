@@ -22,6 +22,7 @@ Published Addons/
 *.code-workspace
 
 .wrangler/
+store-review/review-kit.zip
 
 # Developer bug inbox (npm run bugs): holds members' Discord IDs and messages.
 bug-inbox.md

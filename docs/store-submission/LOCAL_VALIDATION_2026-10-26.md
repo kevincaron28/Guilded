@@ -42,7 +42,21 @@ the main Store handoff. Never upload the signed LOCAL-TEST package or test key.
 
 ## Remaining acceptance
 
-Store-signed install/update, tray/startup destinations, connected sign-in/file sync,
-reviewer access and real game tests are not inferred from these checks. Screenshot
-review found English connection-profile labels in the French settings panel; polish
-is pending. Any app-source change requires rebuilt packages and matching screenshots.
+Store-signed install/update, tray/startup destinations, real Discord sign-in and
+game tests are not inferred from these checks.
+
+## Follow-up: French labels and isolated reviewer sandbox
+
+French connection-profile labels and fallback name translation are fixed. Authored
+profile/guild names remain untouched. Preview, Store and standalone builds were
+regenerated. The WACK report above covers the preceding preview payload, not this
+rebuilt payload; it remains WARNING and must not be described as final certification.
+Replace the old Store upload and the French settings screenshot before submission.
+
+An isolated Cloudflare Worker has no production database, Discord token or external
+service binding. It accepts only the supplied synthetic export, stores a session
+hash/expiry/import flag and bounded rate counter, and expires 25 November 2026 UTC.
+On 26 October its public HTTPS endpoint passed nine checks using the actual
+companion parser, pairing, engine and standings writer. This proves the synthetic
+connection path, not live Discord OAuth, PoE2 or game compatibility. Evidence:
+`backups/store-review-smoke/result.json`. No credential is included in this record.

@@ -1,0 +1,13 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "guilded-store-review",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-10-26",
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": { "enabled": false },
+  "rules": [{ "type": "Data", "globs": ["**/*.zip"], "fallthrough": true }],
+  "vars": { "REVIEW_EXPIRES_AT": "2026-11-25T23:59:59Z" },
+  "durable_objects": { "bindings": [{ "name": "REVIEW_SESSION", "class_name": "ReviewSession" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ReviewSession"] }]
+}

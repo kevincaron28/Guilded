@@ -697,5 +697,15 @@
   "Startup settings": "Paramètres de démarrage",
   "Use Microsoft Store to update this installation.": "Utilisez Microsoft Store pour mettre à jour cette installation.",
   "Guilded Companion could not save settings": "Guilded Companion ne peut pas enregistrer les paramètres",
-  "Privacy policy": "Politique de confidentialité"
+  "Privacy policy": "Politique de confidentialité",
+  "Guild connections": "Connexions aux guildes",
+  "Keep a connection and saved-data folder for each guild or edition. Select the one you are playing.": "Conservez une connexion et un dossier de données pour chaque guilde ou édition. Sélectionnez celle avec laquelle vous jouez.",
+  "Active connection": "Connexion active",
+  "Original connection": "Connexion initiale",
+  "New connection name": "Nom de la nouvelle connexion",
+  "Add connection": "Ajouter une connexion",
+  "Connection selected.": "Connexion sélectionnée.",
+  "Connection profile not found.": "Profil de connexion introuvable.",
+  "Name this connection (for example Retail guild).": "Nommez cette connexion (par exemple Guilde Retail).",
+  "Finish or cancel Discord sign-in before switching connections.": "Terminez ou annulez la connexion Discord avant de changer de connexion."
 }

@@ -5,7 +5,7 @@ export function savedProfiles(config) {
   return { ...profiles, [activeProfile]: { ...active, pairingCode: "" } };
 }
 export function profileChoices(config) {
-  return Object.entries(savedProfiles(config)).map(([id, p]) => ({ id, name: p.profileName || p.wowGuildName || (id === "default" ? "Original connection" : id), gameEdition: p.gameEdition || "" }));
+  return Object.entries(savedProfiles(config)).map(([id, p]) => ({ id, name: p.profileName || p.wowGuildName || (id === "default" ? "Original connection" : id), defaultName: id === "default" && !p.profileName && !p.wowGuildName, gameEdition: p.gameEdition || "" }));
 }
 export function switchProfile(config, id) {
   const profiles = savedProfiles(config);

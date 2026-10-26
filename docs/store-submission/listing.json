@@ -1,6 +1,7 @@
 {
   "status": "in-certification",
   "submittedAt": "2026-10-26",
+  "submittedVersion": "7.5.0",
   "publishAfterCertification": true,
   "productName": "Guilded Companion",
   "proposedCategory": "Utilities & tools",

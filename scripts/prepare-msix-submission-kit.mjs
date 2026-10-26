@@ -5,7 +5,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 const version = JSON.parse(readFileSync("companion-app/package.json", "utf8")).version;
 const listing = JSON.parse(readFileSync("docs/store-submission/listing.json", "utf8"));
-const submitted = listing.status === "in-certification";
+const submitted = listing.status === "in-certification" && listing.submittedVersion === version;
 const preview = resolve(`dist/msix-preview/Guilded.Companion.${version}.x64.LOCAL-PREVIEW.msix`);
 const verification = JSON.parse(execFileSync(process.execPath, ["scripts/verify-msix.mjs", preview], { encoding: "utf8" }));
 if (!verification.preview || !verification.manifestAndSourcesVerified) throw new Error("A verified LOCAL-PREVIEW is required.");
@@ -20,6 +20,7 @@ const files = [
   ["docs/store-submission/iarc-questionnaire.json", "iarc-questionnaire.json"],
   ["docs/store-submission/REVIEWER_NOTES.md", "REVIEWER_NOTES.md"],
   ["docs/store-submission/LOCAL_VALIDATION_2026-10-26.md", "LOCAL_VALIDATION_2026-10-26.md"],
+  ["docs/SESSION_HANDOFF_2026-10-26.md", "SESSION_HANDOFF_2026-10-26.md"],
   ["store-review/README.md", "SYNTHETIC_REVIEW_README.md"],
   ["store-review/review-kit.zip", "Guilded-Store-Review.zip"],
   ["docs/PRIVACY.md", "PRIVACY.md"],

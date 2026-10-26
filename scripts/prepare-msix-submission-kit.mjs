@@ -27,7 +27,7 @@ if (storeVerification) files.push([storePackage, `Guilded.Companion.${version}.x
 for (const [source, destination] of files) copyFileSync(source, join(folder, destination));
 writeFileSync(join(folder, "publisher-identity.example.json"), JSON.stringify({ name: "", publisher: "", publisherDisplayName: "" }, null, 2) + "\n");
 const pending = [
-  "Final release commit/version agreement (Store-identity candidate is built)",
+  "Final combined-release PR checks and merge",
   "Publish and verify the prepared privacy-policy URL",
   "Genuine final-app screenshots and final listing review",
   "Packaged install/upgrade/uninstall and Windows App Certification Kit checks",
@@ -42,8 +42,10 @@ as Store ID 9N680XX3QFL9. Submission 1 is a draft. Read CURRENT_STATUS.md for th
 observed portal state and remaining blockers.
 
 The unsigned LOCAL-PREVIEW is separately marked **not for upload**.
-${storeVerification ? "The STORE-SUBMISSION candidate uses the actual reserved identity and passed source/manifest checks. It has not been installed or certified." : "Build the actual Store-identity candidate before uploading; no submission package is included yet."}
-No certificate or Windows trust was changed. The project license is unchanged.
+${storeVerification ? `Upload candidate: Guilded.Companion.${version}.x64.STORE-SUBMISSION.msix. It uses the actual reserved identity and passed source/manifest checks. It has not been installed or certified. Older version files are not this submission candidate.` : "Build the actual Store-identity candidate before uploading; no submission package is included yet."}
+The upload candidate is unsigned for Microsoft Store processing. A separate local
+test certificate is documented in CURRENT_STATUS.md; no Windows trust has been
+changed. The project license is unchanged.
 
 ## Prepared
 

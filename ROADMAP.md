@@ -6,9 +6,10 @@
 
 # Guilded roadmap
 
-## Current stage — 25 October 2026
+## Current stage — 26 October 2026
 
-Guilded **7.4.0 Release** (protocol 2), authorized by the owner before launch-client testing.
+Guilded **7.5.0 release candidate** (protocol 2), combining the release-gap bundle and Claude’s raid/interaction fixes.
+Publication still requires the combined CI and deployment gates.
 Real-client checks remain post-release follow-up; see [the release decision](docs/RELEASE_DECISION_2026-10-25.md).
 Current gates and completed operational checks: [launch readiness](docs/LAUNCH_READINESS_2026-10-24.md).
 GitHub publishes 7.4.0 for Forever, Era, TBC, Mists and Retail;

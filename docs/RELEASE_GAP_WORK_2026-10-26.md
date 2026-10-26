@@ -87,7 +87,23 @@ The actual manifest, branded tiles, unchanged license and ASAR sources verified:
 `72db3efe220c6981bb678d7f082975e71db82a414fb4582cf2f15af1f4b0481e`.
 Evidence: `backups/msix-preview-verification.json`. Not installed or Store certified.
 
-## Final local verification and next steps
+## Combined 7.5.0 verification — latest
+
+Kevin chose 7.5.0. Merged main 66a6306, including Claude's raid preset PR #226 and
+test-raid defer PR #227, into codex/release-gap-completion. The full release pipeline
+passed with 302 files / 2,588 tests, TypeScript, lint, both dependency audits, addon
+packaging, website and Windows installer/source verification. Evidence:
+`backups/release-7.5.0-prepare.log`. Store and preview MSIX 7.5.0 packages also pass
+manifest/identity/source verification; see `STORE_HANDOFF_2026-10-26.md`.
+
+Claude reviewed the bot/database/addon implementation and reported no blocking
+findings. The real local PostgreSQL integration/restore pass below remains valid;
+the claim in his review that it had not run was corrected in the shared notes.
+Next: push/open the combined PR, await both quality jobs and Kevin's merge, then
+coordinate one deployment after ledger preflight and a verified backup. Store
+submission is separate. No production deployment or game acceptance is claimed.
+
+## Initial local verification and next steps
 
 The evidence below records the initial `4843298` candidate. The subsequent Store
 submission preparation is recorded in [the Store handoff](STORE_HANDOFF_2026-10-26.md),

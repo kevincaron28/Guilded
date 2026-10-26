@@ -1,5 +1,13 @@
 # Changelog
 
+## 7.5.0 — 26 October 2026 (release candidate)
+
+Audited web main/alt changes, evidence-based roster participation, opt-in availability,
+edition event boards and reminders, optional Classic/Forever buffs, edition-filtered
+raid presets and deferred test-raid interactions. Adds Microsoft Store packaging,
+protected Store settings and a bilingual privacy notice. Store certification remains
+separate from the release. See [release notes](docs/V7_5_0_RELEASE_NOTES.md).
+
 ## 7.4.0 — 25 October 2026
 
 Roster and guild dashboards, guarded native bulk actions, GRM local history migration,

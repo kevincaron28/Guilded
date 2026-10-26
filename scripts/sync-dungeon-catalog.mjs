@@ -12,5 +12,6 @@ const after = before.includes("-- BEGIN GENERATED SOURCE CATALOG")
   ? before.replace(/-- BEGIN GENERATED SOURCE CATALOG[\s\S]*?-- END GENERATED SOURCE CATALOG/, block)
   : before.replace("ns.dungeonRoutes = routes", `ns.dungeonRoutes = routes\n\n${block}`);
 if (process.argv.includes("--check")) {
-  if (after !== before) throw new Error("Dungeon endpoint catalog drift: run node scripts/sync-dungeon-catalog.mjs and npm run dungeons:sync");
+  // Git's Windows checkout can use CRLF while the generated block uses LF.
+  if (after.replaceAll("\r\n", "\n") !== before.replaceAll("\r\n", "\n")) throw new Error("Dungeon endpoint catalog drift: run node scripts/sync-dungeon-catalog.mjs and npm run dungeons:sync");
 } else writeFileSync(path, after);

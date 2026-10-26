@@ -1,5 +1,54 @@
 # Microsoft Store preparation — 26 October 2026
 
+## Latest combined candidate: 7.5.0
+
+Kevin chose 7.5.0 through the shared Claude coordination notes. Claude's merged
+PRs #226 and #227 are integrated from main 66a6306. The combined release preparation
+passed: 302 test files / 2,588 tests (253.98 seconds), TypeScript, ESLint, dependency
+audits, addon packaging, website build and standalone Windows installer/source
+verification. Evidence: `backups/release-7.5.0-prepare.log`. Production is still 7.4.0.
+
+Use this Store upload candidate, superseding the historical 7.4.0 package below:
+`dist/msix-store/Guilded.Companion.7.5.0.x64.STORE-SUBMISSION.msix`.
+Size 165,359,991 bytes; SHA-256
+`3b64addd5f139e90537d0cd99c430677a80778e590c35e0ad01058859f9ca708`.
+Exact reserved identity, manifest, sources, engine, assets and license verified.
+Evidence: `backups/msix-7.5.0-store-verification.json`.
+
+The 7.5.0 LOCAL-PREVIEW also verified, SHA-256
+`a41322d523627110ab3432013d24e66153109176a4e18cf0c3b006694331913b`.
+It must not be uploaded to Partner Center.
+
+Both EN-US and FR-FR listings now contain all seven prepared features, verified
+after reopening each saved listing. Screenshots and package upload remain pending.
+The in-app browser is signed in but its upload picker does not open. The separate
+Chrome window still displayed "That code didn't work" at verification; Kevin has
+been asked to finish that Chrome verification directly. No auth code was handled.
+
+Microsoft's signed SDK 10.0.26100.9457 installer was downloaded from Microsoft's
+official SDK page. It is paused at its license agreement; optional telemetry was
+declined. Accepting the SDK agreement is awaiting explicit owner confirmation.
+No SDK installation or WACK pass is claimed.
+
+A seven-day local test certificate (CN=Guilded LocalPreview, thumbprint
+809F9DADFB71BE4B665530AE32199CDDEDE9F9F1) was created in CurrentUser/My and its
+public certificate exported under ignored `backups/msix-install-review/`.
+It is not trusted or a public signing certificate. Local installation/trust and
+genuine Store-profile screenshots remain pending. No production credentials were
+copied into a review profile. The submission remains a draft, not in certification.
+The separate `backups/msix-install-review/Guilded.Companion.7.5.0.x64.SIGNED-LOCAL-TEST.msix`
+was signed successfully by SignTool, SHA-256
+`10ed471a586903ea7e03f1819f66b074bb3c940810a4a59db998327ecaf69079`.
+Windows does not currently trust that signature. Temporary trust, installation and
+cleanup were requested from Kevin; no trust import or package installation yet.
+
+All ten edition addon archives also built and verified. An additional Windows
+catalog check exposed CRLF-only false drift; normalized comparison fixes that and
+the dungeon/buff catalog checks now pass. Targeted packaging/version tests pass
+(12 tests); no app runtime source changed after the full suite/MSIX builds.
+
+## Earlier preparation evidence
+
 The owner retained the existing license and authorized progressing toward Store
 submission. The owner completed developer access, and **Guilded Companion** is now
 reserved as MSIX app **9N680XX3QFL9**. **Submission 1** (`1152921505702234586`) is a
@@ -17,8 +66,8 @@ Partner Center: https://partner.microsoft.com/en-us/dashboard/products/9N680XX3Q
 - Packages: Incomplete; Windows desktop selected, future device-family expansion
   disabled. The in-app browser's browse-files link did not open a file picker
   after click and keyboard activation. No upload or package validation is claimed.
-- English (US) and French (France): descriptions, short descriptions, initial
-  feature, copyright, unchanged license link and developer name saved. Both remain
+- English (US) and French (France): descriptions, short descriptions, all seven
+  features, copyright, unchanged license link and developer name saved. Both remain
   incomplete pending genuine native screenshots and the package.
 - Age rating: **Complete**, verified on the submission overview after Save.
   Owner authorized publisher-name/developer-email disclosure, then explicitly
@@ -91,10 +140,9 @@ Partner Center: https://partner.microsoft.com/en-us/dashboard/products/9N680XX3Q
 
 ## Coordination and release dependencies
 
-Claude's raid preset work is PR #226 (`7aa2279`). The live `/setup testraid`
-interaction timeout fix is now PR #227 (`7bcb71e`), owned by Claude as well.
-Kevin handles their merges; include merged changes before combined release checks.
-The current Codex branch is still local, with no version bump or live bot restart.
-Both remote quality jobs, the final release version and coordinated deployment
-remain required. Game acceptance and other release follow-up remain in
+Claude's raid preset PR #226 and `/setup testraid` timeout PR #227 were merged by
+Claude at Kevin's request. Both are integrated into the 7.5.0 Codex candidate.
+Codex opens the combined PR; Kevin handles its merge. Both remote quality jobs
+and coordinated deployment remain required; no live bot restart has occurred.
+Game acceptance and other release follow-up remain in
 `RELEASE_GAP_WORK_2026-10-26.md`; this Store work does not clear those items.

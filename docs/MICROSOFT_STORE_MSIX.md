@@ -28,7 +28,7 @@ From the repository root:
 
 ```powershell
 npm --prefix companion-app run msix:preview
-node scripts/verify-msix.mjs dist/msix-preview/Guilded.Companion.7.4.0.x64.LOCAL-PREVIEW.msix
+node scripts/verify-msix.mjs dist/msix-preview/Guilded.Companion.7.5.0.x64.LOCAL-PREVIEW.msix
 ```
 
 The filename follows the current companion version. `LOCAL-PREVIEW` uses a

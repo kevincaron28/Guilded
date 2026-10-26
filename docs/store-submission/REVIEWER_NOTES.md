@@ -47,10 +47,11 @@ Do not substitute web-companion screenshots for the native Store edition.
 Check Microsoft's current screenshot dimensions before uploading. No screenshots
 in this kit are claimed to show a Store installation.
 
-## Product declarations still requiring the actual form
+## Product declarations completed in the actual form
 
-Complete the Partner Center age-rating and product-declaration questions from
-their exact wording and the final app. Do not invent an IARC rating. Disclose
-external Discord connections, user-configured service connections and relevant
-user content. The proposed listing is free; optional website donations do not
-unlock app features. The project license remains unchanged.
+Partner Center Properties and Age ratings are Complete. IARC was saved after the
+owner explicitly authorized disclosure and accepted the agreement. Exact answers,
+rating results and rationale are recorded in `iarc-questionnaire.json`; the rating
+ID currently displays Pending. The app remains an uncertified draft submission.
+The listing is free; optional website donations do not unlock app features. The
+project license remains unchanged.

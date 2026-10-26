@@ -101,9 +101,10 @@ feature).
 **Current status (25 October 2026): version 7.4.0 Release, protocol 2.** WoW Forever launches
 4 November 2026 (beta closed 21 October); its first raids open 9 December.
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
-Prior release: the bot and GitHub public downloads were on 7.3.2; all five edition packages and
-the companion are published. All ten CurseForge 7.3.2 edition files are approved
-(Guilded and Guilded Dungeons for Forever, Era, TBC, Mists and Retail).
+The bot, online companion and GitHub public downloads are on 7.4.0.
+All ten Guilded and Guilded Dungeons CurseForge 7.4.0 edition files are approved.
+Both addons have
+Forever, Era, TBC, Mists and Retail builds; the Windows companion supports all.
 See `docs/SESSION_HANDOFF_2026-10-25.md` for current delivery and unfinished work.
 Follow `docs/LAUNCH_READINESS_2026-10-24.md` before acting on older holds or
 unchecked historical lists. The owner authorized publication on 25 October; retain pending game checks as follow-up.

@@ -36,7 +36,12 @@ application backups were verified before deploy, then encrypted off-server
 and verified by authenticated decryption/checksums. Private locations are in
 backups/release-7.4.0/preflight-result.json and offsite-backup.json.
 
-CurseForge submissions and the public website metadata update are in progress.
+All ten CurseForge edition files are approved and published as Release. Their
+public downloads match the verified edition ZIP checksums. File IDs and checksums
+are in backups/release-7.4.0/curseforge-files.json and
+curseforge-download-verification.json. No CurseForge approval remains pending.
+Website provider metadata is updated in PR #225; merge/deployment verification
+will be appended to the local completion record before ending the session.
 The existing local companion installation was not changed; the new installer
 is published and available through the normal updater. Real-client checks
 remain pending.
@@ -56,7 +61,21 @@ LOCAL-REVIEW are historical and must not be distributed as the new release.
    plus Windows clean install/upgrade on a second PC.
 5. Review remaining roadmap proposals separately. Main/alt review stays preview-only;
    no automated ownership changes were promised or silently enabled.
-6. Complete any publication or approval items explicitly left pending below.
+6. Read backups/release-7.4.0/completed.json for the final website deployment
+   confirmation and Git commit after PR #225. No additional product version bump
+   is needed for this documentation/site metadata follow-up.
+
+Other retained backlog items from [release gaps](RELEASE_GAPS_2026-10-25.md):
+remaining real-member Discord onboarding/permissions/closure/link-preview cases;
+observe interaction latency and keep unresolved live reports open until verified;
+verified Classic/Retail event announcements and edition-specific reminder preferences;
+sourced Forever raid loot/GP data and a two-officer raid rehearsal; owner-controlled
+Windows code signing; native German/Spanish review; hosted-onboarding threshold and
+abuse-control decisions; and further reduction of time spent in Discord delivery
+transactions. These are follow-up work, not claimed completed by this release.
+The proposed candidates and their limits remain in ROADMAP.md and
+FEATURE_CANDIDATE_REVIEW_2026-10-25.md; historical local-review labels there do not
+override this session's explicit publication authorization.
 
 ## Operational guardrails
 

@@ -12,7 +12,7 @@ Guilded **7.4.0 Release** (protocol 2), authorized by the owner before launch-cl
 Real-client checks remain post-release follow-up; see [the release decision](docs/RELEASE_DECISION_2026-10-25.md).
 Current gates and completed operational checks: [launch readiness](docs/LAUNCH_READINESS_2026-10-24.md).
 GitHub publishes 7.4.0 for Forever, Era, TBC, Mists and Retail;
-CurseForge submissions are tracked in the current session handoff. Previously, both providers published 7.3.2;
+All ten CurseForge packages are also approved and published as 7.4.0. Previously, both providers published 7.3.2;
 see [the publication record](docs/RELEASE_EXECUTION_2026-10-25.md). All six
 18-October requests shipped in 7.0.0; 7.1.0 added monthly boards and Raider.IO-style leaderboards,
 7.2.0 companion Sign in with Discord and one-click updates, 7.2.1 a steadier bot, 7.3.0 the dungeon

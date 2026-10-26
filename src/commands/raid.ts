@@ -23,7 +23,6 @@ import { guildService, requireGuildContext } from "./context.js";
 import { BRAND } from "../brand.js";
 import { pickSignupCharacter } from "./signup-character-picker.js";
 import { CHARACTER_DISPLAY_SELECT, loadClassEmojis } from "../services/character-display.js";
-import { RAID_PRESETS } from "../services/raid-presets.js";
 import { signupLayout } from "../services/signup-layout.js";
 
 const raidService = createRaidService(prisma);
@@ -39,8 +38,7 @@ export const raidCommand = new SlashCommandBuilder()
     .addStringOption((o) => o.setName("description").setDescription("Optional description"))
     .addStringOption((o) => o.setName("bosses").setDescription("Comma-separated boss names"))
     .addStringOption((o) => o.setName("core").setDescription("Raid core: its members get signup priority").setAutocomplete(true))
-    .addStringOption((o) => o.setName("preset").setDescription("Suggested seats; tanks/healers/dps override")
-      .addChoices(...RAID_PRESETS.map(p => ({ name: `${p.name} (${p.raidSize})`, value: p.id }))))
+    .addStringOption((o) => o.setName("preset").setDescription("Suggested seats; tanks/healers/dps override").setAutocomplete(true))
     .addBooleanOption((o) => o.setName("weekly").setDescription("Repeat every week: ending this raid creates the next one"))
     .addIntegerOption((o) => o.setName("tanks").setDescription("Tank slot cap").setMinValue(0))
     .addIntegerOption((o) => o.setName("healers").setDescription("Healer slot cap").setMinValue(0))

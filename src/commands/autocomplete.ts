@@ -23,6 +23,7 @@ import { faqChoices } from "./faq.js";
 import { commands } from "./index.js";
 import { resolveCommand } from "./router.js";
 import { communityChoices } from "../services/community-choices.js";
+import { raidPresetChoices } from "../services/raid-presets.js";
 
 // Routes every autocomplete request (see setAutocomplete(true) on ID
 // options) to the right list. Must answer within 3 seconds, so any error
@@ -85,6 +86,8 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
       choices = await tagSuggestions(prisma, guild.id, query);
     } else if (command === "raid" && focused.name === "title") {
       choices = await raidTitleSuggestions(prisma, guild.id, query);
+    } else if (command === "raid" && focused.name === "preset") {
+      choices = raidPresetChoices(query);
     } else if (command === "raid" && focused.name === "time") {
       choices = timeSuggestions(query, timeZone, language);
     } else if (command === "epgp" && focused.name === "reason") {

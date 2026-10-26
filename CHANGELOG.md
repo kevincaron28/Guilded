@@ -1,5 +1,13 @@
 # Changelog
 
+## 7.4.0 — 25 October 2026
+
+Roster and guild dashboards, guarded native bulk actions, GRM local history migration,
+edition buff coverage and opt-in presence/key tools. Integrates Claude walkthrough/loot
+work and fixes core permissions, stale editors, character paging, atomic backup changes
+and import privacy. Protocol 2; game/client checks remain pending.
+See [release notes](docs/V7_4_0_RELEASE_NOTES.md).
+
 ## 7.3.2 Release — 25 October 2026
 
 - Owner authorized publication before unavailable game/two-PC tests; those remain follow-up.

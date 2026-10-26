@@ -40,6 +40,11 @@ describe("friendly raid times", () => {
     expect(zonedTime(2026, 11, 1, 20, 0, tz).toISOString()).toBe("2026-11-02T01:00:00.000Z");
   });
 
+  it("reads a picked suggestion's label as what was typed before the arrow", () => {
+    expect(iso("friday 8pm → Fri, Oct 2, 20:00")).toBe("2026-10-03T00:00:00.000Z");
+    expect(iso("tomorrow 9:30pm → Fri, Oct 2, 21:30")).toBe("2026-10-03T01:30:00.000Z");
+  });
+
   it("gives examples when it can't read the input", () => {
     expect(() => parseRaidTime("next week sometime", tz, now)).toThrow("Try: friday 8pm");
   });

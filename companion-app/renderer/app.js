@@ -199,6 +199,12 @@ $('autostart').addEventListener('change',event => action(event.target,async () =
 bind('btnUpload',async () => { await api.uploadNow(); toast(api.browser ? T("Sync finished. Check Activity for the result.") : T("Sync requested. Follow its progress in Activity.")); });
 bind('btnStandings',async () => { await api.refreshStandings(); toast(savedConfig.personal ? T("Public score refresh finished. Check Activity, then /reload and use /gdungeons score.") : api.browser ? api.folderAccess ? T("Standings saved. Use /reload in WoW.") : T("Standings downloaded. Add the file to Interface / AddOns / Guilded.") : T("Standings refresh finished. Check Activity for the result.")); });
 bind('btnSheets',async () => { const result = await api.exportSheets($('sheetTable').value || undefined); if (!result.canceled) toast(result.message,!result.ok); });
+$('grmPanel').hidden = typeof api.convertGRM !== 'function';
+bind('btnGRM', async () => {
+  if (!api.convertGRM) return;
+  const result = await api.convertGRM({ guild: $('grmGuild').value, realm: $('grmRealm').value, edition: $('grmEdition').value, includePrivate: $('grmPrivate').checked });
+  if (!result.canceled) { $('grmResult').textContent = M(result.message); toast(result.message, !result.ok); }
+});
 bind('btnFolder',() => api.openAddonFolder()); bind('btnPause',async () => { await api.toggleTracking(); }); bind('btnOnline',() => api.openOnline());
 bind('btnRemoveData',() => api.removeData());
 // Update now (7.2): the desktop app downloads, checks and installs the new version itself.

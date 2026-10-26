@@ -143,8 +143,9 @@ local function categoryOf(aura)
       if d.FLASK[id] then return "flask" end
       if d.AUGMENT[id] then return "augment" end
       if d.VANTUS[id] then return "vantus" end
-      if d.RAID_BUFF_BY_SPELL[id] then return "buff:" .. d.RAID_BUFF_BY_SPELL[id] end
     end
+    local buff = d.raidBuffKey and d.raidBuffKey(id, aura.name)
+    if buff then return "buff:" .. buff end
     if aura.icon then
       if d.WELL_FED_ICONS[aura.icon] then return "food" end
       if d.EATING_ICONS[aura.icon] then return "eating" end

@@ -31,6 +31,10 @@ local recipes = {}
 ns.recipes = recipes
 
 local function L(text) return ns.L and ns.L(text) or text end
+local function displayName(name)
+  if ns.util and ns.util.isForever and ns.util.isForever() and ns.displayName then return ns.displayName(name) end
+  return name -- preserve cross-realm disambiguation on Blizzard clients
+end
 
 -- ---------------------------------------------------------------------
 -- Saved data (per guild)
@@ -599,7 +603,7 @@ function recipes.tooltipLines(id)
   if #found == 0 then return {} end
   local parts = {}
   for i = 1, math.min(4, #found) do
-    table.insert(parts, string.format("%s (%s)", found[i].name, found[i].profession))
+    table.insert(parts, string.format("%s (%s)", displayName(found[i].name), found[i].profession))
   end
   return { L("Crafted by") .. " " .. table.concat(parts, ", ") .. (#found > 4 and (" +" .. (#found - 4)) or "") }
 end
@@ -614,7 +618,7 @@ local function whoText(query)
   for i = 1, math.min(6, #keys) do
     local crafters = recipes.crafters(keys[i])
     local parts = {}
-    for _, crafter in ipairs(crafters) do table.insert(parts, string.format("%s (%s)", crafter.name, crafter.profession)) end
+    for _, crafter in ipairs(crafters) do table.insert(parts, string.format("%s (%s)", displayName(crafter.name), crafter.profession)) end
     table.insert(lines, nameFor(keys[i]) .. ": " .. (#parts > 0 and table.concat(parts, ", ") or L("nobody known")))
   end
   if #keys > 6 then table.insert(lines, string.format(L("... and %d more matches. Be more specific."), #keys - 6)) end
@@ -688,7 +692,7 @@ function recipes.cooldownLines(onlyMine)
   end)
   local lines = {}
   for _, row in ipairs(rows) do
-    table.insert(lines, string.format("%s - %s (%s): %s", row.player, row.name, row.prof, duration(row.left)))
+    table.insert(lines, string.format("%s - %s (%s): %s", displayName(row.player), row.name, row.prof, duration(row.left)))
   end
   return lines
 end

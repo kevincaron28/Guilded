@@ -1,0 +1,18 @@
+import { afterEach, describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { newLuaSession, type LuaSession } from "./harness.js";
+import { renderBuffCatalog } from "../../scripts/build-raid-buff-catalog.mjs";
+let s: LuaSession;
+afterEach(()=>s?.close());
+function setup(edition:string) {
+ s=newLuaSession();s.run('NS={commandHandlers={},commandHelp={},isOfficer=function() return true end,normalizeName=function(n) return n end,getDb=function() return {} end,playerName=function() return "Tester" end}; function InCombatLockdown() return false end');s.load('Util.lua');s.run(`NS.util.gameEdition=function() return "${edition}" end`);s.load('Modules/RaidBuffCatalog.lua');s.load('Modules/ConsumableData.lua');s.load('Modules/Consumables.lua');s.load('Modules/Ready.lua');return s;
+}
+describe('edition buff observations',()=>{
+ it('keeps generated Lua identical to the shared source',()=>expect(readFileSync('addon/Guilded/Modules/RaidBuffCatalog.lua','utf8').replaceAll('\r\n','\n')).toBe(renderBuffCatalog()));
+ it.each(['forever','classic-era','classic-tbc'])('recognizes ranked and greater buffs in %s',edition=>{setup(edition);expect(s.run('return NS.consumableData.raidBuffKey(10938,"Robustesse")')).toBe('sta');expect(s.run('return NS.consumableData.raidBuffKey(25918,"Sagesse")')).toBe('wisdom');});
+ it('recognizes a later TBC rank by client-provided French name and caches lookup work',()=>{setup('classic-tbc');s.run('LOOKUPS=0; GetSpellInfo=function(id) LOOKUPS=LOOKUPS+1; if id==1459 then return "Intelligence des arcanes" end end');expect(s.run('return NS.consumableData.raidBuffKey(27126,"Intelligence des arcanes")')).toBe('int');s.run('LOOKUPS=0; for i=1,100 do NS.consumableData.raidBuffKey(27126,"Intelligence des arcanes") end');expect(s.run('return tostring(LOOKUPS)')).toBe('0');});
+ it('keeps edition spell meanings separate',()=>{setup('classic-mists');expect(s.run('return NS.consumableData.raidBuffKey(1126,"Mark")')).toBe('stats');s.run('NS.util.gameEdition=function() return "retail" end');expect(s.run('return NS.consumableData.raidBuffKey(1126,"Mark")')).toBe('vers');});
+ it('counts observed, absent and unknown independently without inferring party coverage',()=>{setup('forever');s.run(`function IsInGroup() return true end; function IsInRaid() return false end; MOCK_UNITS={player={name="Tester"},party1={name="Amy"},party2={name="Bob"}};NS.consumables.scanUnit=function(unit) if unit=="player" then return {readable=true,complete=true,buffs={ap=true}} elseif unit=="party1" then return {readable=true,complete=true,buffs={}} else return {readable=false,complete=false,buffs={}} end end`);expect(s.run('local r=NS.ready.buffCoverage();for _,b in ipairs(r.buffs) do if b.definition.key=="ap" then return b.present..":"..b.absent..":"..b.unknown end end')).toBe('1:1:1');expect(s.run('return NS.ready.buffCoverageText()')).toContain('provisional Classic baseline');});
+ it('retains positive evidence from partial scans and does not count hidden auras as absent',()=>{setup('classic-era');s.run('NS.consumables.scanUnit=function() return {readable=true,complete=false,buffs={sta=true}} end');expect(s.run('local r=NS.ready.buffCoverage();return r.buffs[1].present..":"..r.buffs[2].unknown')).toBe('1:1');});
+ it('refuses coverage without current officer or group leader access',()=>{setup('classic-era');s.run('NS.isOfficer=function() return false end');expect(s.run('return tostring(NS.ready.buffCoverage())')).toBe('nil');});
+});

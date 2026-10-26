@@ -20,6 +20,11 @@ describe("raid core channels", () => {
       category: "⚔️ Tuesday MC", roster: "tuesday-mc-roster", signups: "tuesday-mc-signups", loot: "tuesday-mc-butin", reports: "tuesday-mc-rapports", chat: "tuesday-mc-chat", attendance: "tuesday-mc-presences", voice: "🔊 Tuesday MC"
     });
   });
+
+  it("names an English guild's loot, reports and attendance channels in English", () => {
+    expect(coreChannelNames("Tuesday MC", "en")).toMatchObject({ loot: "tuesday-mc-loot", reports: "tuesday-mc-reports", attendance: "tuesday-mc-attendance" });
+    expect(coreChannelNames("Tuesday MC", "fr")).toMatchObject({ loot: "tuesday-mc-butin", reports: "tuesday-mc-rapports", attendance: "tuesday-mc-presences" });
+  });
 });
 
 describe("group finder kinds", () => {

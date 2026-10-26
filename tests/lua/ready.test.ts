@@ -210,12 +210,22 @@ function withScanner(): LuaSession {
     }
   `);
   for (const file of ["Modules/ConsumableData.lua", "Modules/Consumables.lua", "Modules/Ready.lua"]) session.load(file);
+  session.run(`NS.util.gameEdition = function() return "retail" end`);
   return session;
 }
 const row = (s: LuaSession, name: string) => s.run(`for _, r in ipairs(NS.ready.collect().rows) do if r.name == "${name}" then return r.status .. "[" .. table.concat(r.reasons, ";") .. "]" end end`);
 const cell = (s: LuaSession, name: string, key: string) => s.run(`for _, r in ipairs(NS.ready.collect().rows) do if r.name == "${name}" then return tostring(r.cells.${key}) end end`);
 
 describe("Ready.lua: reading buffs by id, in any language", () => {
+  it("keeps unverified Classic and Forever buff coverage unknown instead of applying Retail requirements", () => {
+    const s = withScanner();
+    s.run(`AURAS.Bob = {}; CLASSES.Kev = "SHAMAN"`);
+    for (const edition of ["forever", "classic-era", "classic-tbc", "classic-mists", "unknown"]) {
+      s.run(`NS.util.gameEdition = function() return "${edition}" end`);
+      expect(cell(s, "Bob", "buffs")).toBe("unknown");
+      expect(row(s, "Bob")).not.toContain("no raid buff");
+    }
+  });
   it("everyone with a flask, food and the buff of every class present is ready", () => {
     const s = withScanner();
     expect(row(s, "Amy")).toBe("READY[]");

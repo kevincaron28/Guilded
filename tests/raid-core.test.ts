@@ -22,6 +22,11 @@ function fakeDatabase(raid: Record<string, unknown>, coreMembers: string[]) {
     raid: { findFirst: async () => raid, findUnique: async () => raid },
     raidCoreMember: { findMany: async () => coreMembers.map((memberId) => ({ memberId })) },
     raidSignup: {
+      // A copy, as Prisma returns: the later upsert must not change what was read.
+      findUnique: async ({ where }: { where: { raidId_memberId: { memberId: string } } }) => {
+        const row = signups.find((s) => s.memberId === where.raidId_memberId.memberId);
+        return row ? { ...row } : null;
+      },
       count: async ({ where }: { where: Record<string, unknown> }) => signups.filter((s) => matches(s, where)).length,
       findMany: async ({ where, orderBy }: { where: Record<string, unknown>; orderBy?: { signedUpAt: "asc" | "desc" } }) => {
         const rows = signups.filter((s) => matches(s, where));
@@ -113,6 +118,11 @@ function fakeCoreDatabase() {
   return {
     spots, backups,
     raidCoreBackup: {
+      deleteMany: async ({ where }: { where: { spotId: string; characterId: string } }) => {
+        const index = backups.findIndex(b => b.spotId === where.spotId && b.characterId === where.characterId);
+        if (index >= 0) backups.splice(index, 1);
+        return { count: index >= 0 ? 1 : 0 };
+      },
       upsert: async ({ where, create, update }: { where: { spotId_characterId: { spotId: string; characterId: string } }; create: Omit<Backup, "id">; update: Partial<Backup> }) => {
         const existing = backups.find((b) => b.spotId === where.spotId_characterId.spotId && b.characterId === where.spotId_characterId.characterId);
         if (existing) return Object.assign(existing, update);
@@ -129,6 +139,7 @@ function fakeCoreDatabase() {
       }
     },
     character: {
+      findMany: async ({ where }: { where: { memberId: string; member: { guildId: string } } }) => where.member.guildId === "g" ? characters.filter(c => c.memberId === where.memberId) : [],
       findFirst: async ({ where }: { where: { memberId: string; name: { equals: string } } }) =>
         characters.find((c) => c.memberId === where.memberId && lower(c.name) === lower(where.name.equals)) ?? null
     },
@@ -179,7 +190,7 @@ describe("one member in several raid cores", () => {
 
   it("refuses a character that is not one of the player's own", async () => {
     const service = createRaidCoreService(fakeCoreDatabase() as never);
-    await expect(service.addMember("g", "c1", "m1", "DPS", false, "Uther")).rejects.toThrow(/not one of that player's linked characters/);
+    await expect(service.addMember("g", "c1", "m1", "DPS", false, "Uther")).rejects.toThrow(/Choisis ton personnage/);
     await expect(service.setCharacter("g", "c1", "m1", "Thrall")).rejects.toThrow(/not in Tuesday MC/);
   });
 
@@ -212,6 +223,16 @@ describe("one member in several raid cores", () => {
 });
 
 describe("backup characters in the same core", () => {
+  it('uses exact IDs without strict signups and removes the chosen main from backups',async()=>{
+    const database=fakeCoreDatabase();const service=createRaidCoreService(database as never);
+    await service.addMember('g','c1','m1','TANK',false,'ch-main');
+    await service.addBackup('g','c1','m1','ch-alt','DPS');
+    expect(database.backups).toHaveLength(1);
+    await service.setCharacter('g','c1','m1','ch-alt');
+    expect(database.spots[0]?.characterId).toBe('ch-alt');expect(database.backups).toHaveLength(0);
+    await expect(service.setCharacter('g','c1','m1','ch-other')).rejects.toThrow();
+    expect(database.spots[0]?.characterId).toBe('ch-alt');
+  });
   it("adds a backup with its own role, changes its role when added again, and removes it", async () => {
     const database = fakeCoreDatabase();
     const service = createRaidCoreService(database as never);
@@ -221,7 +242,7 @@ describe("backup characters in the same core", () => {
     expect(database.backups).toEqual([{ id: "b1", spotId: "s1", characterId: "ch-alt", role: "DPS" }]);
     await expect(service.addBackup("g", "c1", "m1", "Thrall", "DPS")).rejects.toThrow(/already their character/);
     await expect(service.addBackup("g", "c2", "m1", "Jaina", "DPS")).rejects.toThrow(/not in Weekend BWL/);
-    await expect(service.addBackup("g", "c1", "m1", "Uther", "DPS")).rejects.toThrow(/linked characters/);
+    await expect(service.addBackup("g", "c1", "m1", "Uther", "DPS")).rejects.toThrow(/Choisis ton personnage/);
     const { character } = await service.removeBackup("g", "c1", "m1", "JAINA");
     expect(character.name).toBe("Jaina");
     expect(database.backups).toEqual([]);

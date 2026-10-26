@@ -275,6 +275,17 @@ describe("Recipes.lua receiving from guildmates", () => {
     expect(s.run("return tostring(DB.recipeBook and next(DB.recipeBook.people) or nil)")).toBe("nil");
   });
 
+  it("shows known Forever full names in lookup, tooltip and cooldowns without changing recipe keys", () => {
+    const s = withRecipes();
+    s.run(`NS.util.gameEdition = function() return "forever" end; DB.displayNames = { Ann = "Ann River" }`);
+    receive(s, "Ann", "R|Tailoring|100|1|1|555");
+    receive(s, "Ann", "CD|Tailoring|1800000000|Mooncloth");
+    expect(s.run(`return NS.recipes.whoText("item:555")`)).toContain("Ann River (Tailoring)");
+    expect(s.run(`return NS.recipes.tooltipLines(555)[1]`)).toContain("Ann River (Tailoring)");
+    expect(s.run(`return NS.recipes.cooldownLines(false)[1]`)).toContain("Ann River - Mooncloth");
+    expect(keysOf(s, "Ann", "Tailoring")).toBe("555");
+  });
+
   it("never saves someone else's profession (a chat link or the guild view) as yours", () => {
     const s = withRecipes();
     s.run(String.raw`

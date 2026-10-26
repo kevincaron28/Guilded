@@ -1,11 +1,18 @@
+> Publication authorized for 7.4.0; earlier local-only statements below are historical.
+> Current execution and unfinished work: [session handoff](docs/SESSION_HANDOFF_2026-10-25.md).
+
+> Latest local review, 25 October: [full bundle fixes and remaining release checks](docs/LOCAL_BUNDLE_REVIEW_2026-10-25.md), 295 files / 2,548 tests passed. Local review only; real-client acceptance pending.
+> Feature instructions: [bulk actions, GRM archive migration and Classic/Forever buff coverage](docs/LOCAL_ROSTER_GRM_BUFFS_2026-10-25.md).
+
 # Guilded roadmap
 
 ## Current stage — 25 October 2026
 
-Guilded **7.3.2 Release** (protocol 2), authorized by the owner before launch-client testing.
+Guilded **7.4.0 Release** (protocol 2), authorized by the owner before launch-client testing.
 Real-client checks remain post-release follow-up; see [the release decision](docs/RELEASE_DECISION_2026-10-25.md).
 Current gates and completed operational checks: [launch readiness](docs/LAUNCH_READINESS_2026-10-24.md).
-GitHub public downloads remain 7.3.1; CurseForge has 7.3.0. All six
+GitHub and CurseForge publish 7.3.2 for Forever, Era, TBC, Mists and Retail;
+see [the publication record](docs/RELEASE_EXECUTION_2026-10-25.md). All six
 18-October requests shipped in 7.0.0; 7.1.0 added monthly boards and Raider.IO-style leaderboards,
 7.2.0 companion Sign in with Discord and one-click updates, 7.2.1 a steadier bot, 7.3.0 the dungeon
 result card, raid vacancies and public player profiles, 7.3.1 level-aware raid readiness and the
@@ -37,7 +44,13 @@ full raid still have outstanding acceptance checks.
 
 Candidate feature progress while the game is closed: [raid presets, signup layouts,
 score cards and quieter companion sync](docs/PRELAUNCH_FEATURES_2026-10-24.md).
-Game acceptance starts when access returns; public promotion still waits for it.
+Game acceptance starts when access returns. The owner authorized 7.3.2 publication
+before those checks; subsequent local feature work remains unpublished.
+
+New local review bundle: [roster, crafting, teams, history, groups, main/alt and
+limited GRM review, opt-in availability, local activity heatmap and Retail key
+sharing](docs/LOCAL_FEATURE_BUNDLE_2026-10-25.md). This is uncommitted work for
+review, with game validation and integration still pending.
 
 1. Make independent guild setup clear and rehearse a clean install. Aim for
    30 minutes with hosting/database/DNS ready; see [QUICK_START.md](docs/QUICK_START.md).
@@ -124,6 +137,55 @@ How each one gets built: [ROADMAP_REQUESTS_PLAN_2026-10-18.md](docs/ROADMAP_REQU
    opt in. Needs: a way to sign in without a guild, cheat checks on uploaded
    runs (party members must agree, time limits), and a database change.
    Largest item on this list: do 3 and 4 first.
+
+## Requested candidates — 25 October 2026
+
+Current local implementation: [integrated candidate and remaining scope](docs/LOCAL_FEATURE_COMPLETION_2026-10-25.md).
+Claude's `816c7af` fixes are integrated locally. The table below is the historical
+candidate capture; its review-only language predates Kevin's implementation
+authorization. Current changes remain uncommitted and unpublished for local review.
+
+Kevin requested these Pandy Guild Management-inspired ideas be captured in the
+backlog at 13:18 Toronto time (17:18 UTC). This is a documentation handoff only,
+not an implementation order, release promise, or permission to copy code or
+branding. Priority and acceptance criteria remain to be decided. Existing release
+restrictions and pending real-game/two-PC checks remain unchanged; ongoing
+Claude Discord acceptance testing takes precedence over new development.
+
+The parent reference-review session `01a17143-42e2-7129-8654-1dffa2316017`
+inspected reference images `4304.png` and `4305.png` and supplied the transcription.
+The forwarding/materialization session `01a17413-6a26-7000-9ec1-b489c30da01f`
+did not inspect pixels because transfers failed. The receiving PC session has
+not visually inspected the originals, and local transfer is not confirmed. Library references and the
+transfer limitation are retained in the local coordination record
+`backups/CODEX_CLAUDE_COORDINATION_2026-10-25.md`. These are candidate ideas, not
+verified client API capabilities.
+
+Follow-up code review and proposed acceptance criteria:
+[feature candidate review](docs/FEATURE_CANDIDATE_REVIEW_2026-10-25.md).
+The owner subsequently authorized starting implementation, kept local for review.
+The first addition is the signed-in officer roster dashboard described there;
+it is not deployed. The documentation-only restriction below describes the
+original handoff, not this later local implementation authorization.
+
+| Candidate | Existing Guilded overlap and deferred scope |
+| --- | --- |
+| Guild dashboard | Cards for total members, active this week, max-level members and vitality; class/race/level/profession breakdowns and activity/inactivity distribution. Filters: Everyone, Max level, Active 30d, Mains only. Define vitality, activity sources, freshness and edition-specific level caps first. Extend existing addon spreadsheet, companion CSV and officer exports; exports are already built ([export plan](docs/ROADMAP_REQUESTS_PLAN_2026-10-18.md#2-spreadsheet-export--built-game-companion-bot)). |
+| Guild group board and native finder integration | One board with role, dungeon, key-level and needs-tank/healer filters, complementing Blizzard Group Finder where supported. Existing Discord group posts/queue live in `src/services/dungeon-group.ts` and `dungeon-group-queue.ts`. Reconcile the previously removed duplicate in-game finder before implementation: restoring it requires an explicit scope decision. Native finder integration feasibility is UNKNOWN. |
+| Who's Free, keys and alts | Availability with automatic busy status while in instances; keystone and alt lists. Compare current group queues and character links before designing a new store. Decide opt-in visibility, stale/offline status and how availability is sourced. Instance detection and key APIs across clients are UNKNOWN until researched and tested. |
+| Multiple raid teams and attendance | Core/Trial/Bench roles, schedules, missing raid buffs and attendance assigned to the correct team with alt credit to mains. Build on existing bot cores, signups, roster and attendance ([core planning and raid-night tools](docs/V6_5_0_RELEASE_NOTES.md)); verify exact gaps first. Automatic attribution and buff checks need client evidence. Reconcile the [retired addon raid-tool scope](docs/archive/raid-tools/README.md) and separate Pullscript project before expanding addon responsibilities. |
+| Online activity heatmap | Hour-by-weekday guild activity view. Decide timezone/DST handling, observation coverage, consent, retention and aggregation. An observer's online sample must not imply complete guild-wide history. |
+| Guild crafter lookup | Recipe/item search for guild crafters and possible profession-window integration. Recipes/crafting already exist (`addon/Guilded/Modules/Recipes.lua`, `src/services/recipes.ts`, `src/services/craft.ts`); compare their search and sharing flows before marking gaps. Profession-window integration and edition-specific recipe APIs are UNKNOWN. |
+| Searchable roster and history | Extend existing character main-alt links, roster views/exports and history rather than duplicate identities. Review search/filter gaps and history coverage; preserve Forever first/last names and Blizzard realm identity. |
+| Reviewed officer bulk actions and GRM imports | Candidate design only. Define preview, permissions, conflict handling, audit and recovery before any implementation. No bulk actions are authorized by this entry. Investigate GRM import format, provenance, consent and compatibility; do not assume a supported import path exists. |
+| Shared data and local privacy | Reuse the existing paced guild addon-message transport in `addon/Guilded/Util.lua`. Team edits require officer authorization; private notes/settings remain local. Define field-level privacy, authority/conflict rules, data sources, freshness, retention/deletion and upload/publication boundaries before expanding synchronization. |
+| Edition gates and feasibility | The reference omits M+ for Forever. Gate Retail/M+ candidates to supported clients and preserve guild/edition separation throughout the addon, bot and companion, including several editions in one Discord server. API availability, combat restrictions, native finder integration and profession integration remain UNKNOWN until researched and tested in each relevant client. |
+
+These comparisons identify reuse opportunities, not new acceptance evidence.
+The original backlog handoff authorized only capture. Kevin subsequently authorized
+local implementation; see [the local bundle](docs/LOCAL_FEATURE_BUNDLE_2026-10-25.md)
+for completed work and remaining scope. Game actions, commits, publication, push,
+merge and deployment remain outside this local review pass.
 
 ## Commands — 18 October 2026
 

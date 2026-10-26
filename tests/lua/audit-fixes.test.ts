@@ -77,6 +77,11 @@ describe("Util.lua helpers", () => {
 });
 
 describe("paced addon messages (ns.comm)", () => {
+  it("fails closed on a guard error and keeps unguarded messages flowing", () => {
+    const s = loggedIn([]);
+    s.run(`SENT={};NS.comm.send("QGuard","private","GUILD",nil,function() error("unavailable") end);NS.comm.send("QGuard","normal","GUILD")`);
+    expect(s.run('return #SENT..":"..SENT[1].text..":"..NS.comm.pending("QGuard")')).toBe("1:normal:0");
+  });
   it("sends a burst at once, queues the rest, and keeps the order", () => {
     const s = loggedIn([]);
     s.run(`SENT = {}; for i = 1, 12 do NS.comm.send("QTest", "m" .. i, "GUILD") end`);

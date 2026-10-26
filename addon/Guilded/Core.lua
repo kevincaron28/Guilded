@@ -899,9 +899,12 @@ local function showCharacterExport(text, title)
     title:SetPoint("TOP", 0, -10)
     title:SetText(exportTitle)
     exportFrame.titleText = title
-    local box = CreateFrame("EditBox", nil, exportFrame)
+    local scroll = CreateFrame("ScrollFrame", nil, exportFrame, "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", 15, -36)
+    scroll:SetSize(470, 24)
+    local box = CreateFrame("EditBox", nil, scroll)
     box:SetSize(490, 24)
-    box:SetPoint("CENTER", 0, 0)
+    scroll:SetScrollChild(box)
     box:SetAutoFocus(true)
     box:SetFontObject(ChatFontNormal or GameFontNormal)
     box:SetScript("OnEscapePressed", function() exportFrame:Hide() end)
@@ -912,15 +915,19 @@ local function showCharacterExport(text, title)
     close:SetText("Close")
     close:SetScript("OnClick", function() exportFrame:Hide() end)
     exportFrame.box = box
+    exportFrame.scroll = scroll
   end
   -- A share code is one line; a raid summary has several, so the box grows for those.
   local lines = 1
   for _ in string.gmatch(text or "", "\n") do lines = lines + 1 end
   local multi = lines > 1
   if exportFrame.box.SetMultiLine then exportFrame.box:SetMultiLine(multi) end
-  exportFrame.box:SetSize(490, multi and math.min(240, lines * 16 + 8) or 24)
-  exportFrame:SetSize(520, multi and math.min(320, lines * 16 + 90) or 110)
+  local viewport = multi and math.min(240, lines * 16 + 8) or 24
+  exportFrame.box:SetSize(470, multi and math.max(viewport, lines * 16 + 8) or 24)
+  exportFrame.scroll:SetSize(470, viewport)
+  exportFrame:SetSize(520, viewport + 90)
   exportFrame.box:SetText(text)
+  exportFrame.scroll:SetVerticalScroll(0)
   exportFrame:Show()
   exportFrame.box:SetFocus()
   exportFrame.box:HighlightText()
@@ -1589,6 +1596,7 @@ ns.MODULES = {
   { key = "consumables", name = "Consumable scan", desc = "who is missing a flask or food", commands = { "consumes" } },
   { key = "sim", name = "Test tools", desc = "fake raid and dungeon runs for officers", commands = { "sim" } },
   { key = "guildmap", name = "Guild map", desc = "guildmates on your world map and minimap", commands = { "map" } },
+  { key = "presence", name = "Availability", desc = "opt-in availability and local activity observations", commands = { "free" } },
   { key = "scores", name = "Dungeon scores", desc = "a dungeon score per player from recorded runs, on tooltips", commands = { "score" } },
 }
 local MODULE_ALIASES = { map = "guildmap", score = "scores", bid = "bidding", bids = "bidding", gp = "bidding", lc = "council", reserves = "reserve", recipe = "recipes", cooldown = "recipes", crafting = "recipes", softres = "reserve", sr = "reserve", lootcouncil = "council", dungeons = "dungeon", test = "sim", tests = "sim", consumable = "consumables", consumes = "consumables", flask = "consumables" }

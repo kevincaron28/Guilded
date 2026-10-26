@@ -955,6 +955,94 @@ end
 
 -- Crafting: who in the guild can craft an item, your own professions, and cooldowns
 -- (Modules/Recipes.lua; recipes are read by themselves when a profession window opens).
+local function buildAvailabilityPage(page)
+  local function action(command) return function() run("free " .. command) end end
+  at(newButton(page, "Share availability", 150, action("share on")), page, 0, 0)
+  at(newButton(page, "Stop sharing", 130, action("share off")), page, 158, 0)
+  at(newButton(page, "Free", 70, action("status free")), page, 0, -34)
+  at(newButton(page, "Busy", 70, action("status busy")), page, 78, -34)
+  at(newButton(page, "Away", 70, action("status away")), page, 156, -34)
+  at(newLabel(page, "My role", "GameFontNormalSmall"), page, 0, -74)
+  for i, role in ipairs({ "any", "tank", "healer", "dps" }) do
+    at(newButton(page, role:upper(), 80, action("role " .. role)), page, 88 + (i - 1) * 88, -68)
+  end
+  local note = at(newLabel(page, "Instances automatically mark you busy. Reports pause in combat. Location is never shared; Retail key sharing is optional.", "GameFontHighlightSmall"), page, 0, -104)
+  note:SetWidth(PAGE_WIDTH)
+  at(newButton(page, "Observe locally", 130, action("observe on")), page, 0, -146)
+  at(newButton(page, "Stop observing", 130, action("observe off")), page, 138, -146)
+  at(newButton(page, "Clear observations", 150, action("clear")), page, 276, -146)
+  at(newButton(page, "Copy activity", 130, action("activity")), page, 0, -180)
+  if ns.util and ns.util.gameEdition() == "retail" then
+    at(newButton(page, "Share my key", 130, action("keys on")), page, 138, -180)
+    at(newButton(page, "Hide my key", 130, action("keys off")), page, 276, -180)
+  end
+  local heading = at(newLabel(page, "Local activity observations", "GameFontNormal"), page, 0, -218)
+  tip(heading, "Only opt-in reports observed on this character. UTC hours, last 28 days. Grey means unknown; zero is a real observed sample.")
+  ui.presenceCells = {}
+  local days = { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" }
+  for hour = 0, 23 do at(newLabel(page, tostring(hour), "GameFontNormalSmall"), page, 40 + hour * 19, -240) end
+  for day = 0, 6 do
+    at(newLabel(page, days[day + 1], "GameFontNormalSmall"), page, 0, -260 - day * 20)
+    for hour = 0, 23 do
+      local cellDay, cellHour = day, hour
+      local cell = CreateFrame("Frame", nil, page)
+      cell:SetSize(17, 17); cell:SetPoint("TOPLEFT", page, "TOPLEFT", 40 + hour * 19, -260 - day * 20)
+      cell.texture = cell:CreateTexture(nil, "BACKGROUND"); cell.texture:SetAllPoints(cell)
+      cell:EnableMouse(true)
+      cell:SetScript("OnEnter", function(self)
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT"); GameTooltip:AddLine(L(days[cellDay + 1]) .. " " .. cellHour .. ":00 UTC")
+        if self.data then
+          GameTooltip:AddLine(string.format(L("Average reports: %.1f; free: %.1f; samples: %d"), self.data.total / self.data.samples, self.data.free / self.data.samples, self.data.samples))
+        else GameTooltip:AddLine(L("Unknown")) end
+        GameTooltip:Show()
+      end)
+      cell:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+      ui.presenceCells[day * 24 + hour] = cell
+    end
+  end
+  local filter = {}
+  local function update() if ui.refreshPresence then ui.refreshPresence() end end
+  at(newLabel(page, "Filter reports by name", "GameFontNormalSmall"), page, 0, -412)
+  local search = at(newEdit(page, 190), page, 6, -432)
+  search:SetMaxLetters(80)
+  search:SetScript("OnTextChanged", function(self) filter.name = self:GetText(); update() end)
+  local roles, roleIndex = { "ANY", "TANK", "HEALER", "DPS" }, 1
+  local roleButton
+  roleButton = at(newButton(page, "ANY", 90, function()
+    roleIndex = roleIndex % #roles + 1; filter.role = roles[roleIndex]; roleButton:SetText(L(filter.role)); update()
+  end), page, 210, -430)
+  tip(roleButton, "Filter by reported role")
+  local freeButton
+  freeButton = at(newButton(page, "Free only: Off", 170, function()
+    filter.free = not filter.free; freeButton:SetText(L(filter.free and "Free only: On" or "Free only: Off")); update()
+  end), page, 308, -430)
+  at(newButton(page, "My recorded characters", 210, action("characters")), page, 0, -466)
+  at(newButton(page, "Blizzard group finder", 230, function()
+    if ns.clientTools then ns.clientTools.openFinder() end
+  end), page, 220, -466)
+  if ns.util and ns.util.gameEdition() == "retail" then
+    at(newLabel(page, "Minimum shared key (blank = any)", "GameFontNormalSmall"), page, 0, -506)
+    local minimum = at(newEdit(page, 60), page, 340, -500)
+    minimum:SetNumeric(true); minimum:SetMaxLetters(4)
+    minimum:SetScript("OnTextChanged", function(self) filter.minKey = tonumber(self:GetText()); update() end)
+  end
+  ui.presenceText = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -540)
+  ui.presenceText:SetWidth(PAGE_WIDTH)
+  ui.refreshPresence = function()
+    if not ns.presence then return end
+    ui.presenceText:SetText(ns.presence.describe(filter))
+    local cells = ns.presence.heatmap()
+    for key, cell in pairs(ui.presenceCells) do
+      cell.data = cells[key] or false
+      if cell.data then
+        local strength = math.min(1, cell.data.total / cell.data.samples / 20)
+        cell.texture:SetColorTexture(0.08, 0.25 + strength * 0.7, 0.15, 1)
+      else cell.texture:SetColorTexture(0.22, 0.22, 0.22, 1) end
+    end
+  end
+end
+
 local function buildCraftingPage(page)
   at(newLabel(page, "Item or recipe (a name, or click the box and shift-click the item)"), page, 0, 0)
   ui.craftBox = itemBox(at(newEdit(page, 300), page, 6, -18))
@@ -1115,7 +1203,8 @@ local function buildReadyPage(page)
     ui.readyRows[i] = row
   end
   ui.readyHint = at(newLabel(page, "", "GameFontDisableSmall"), page, 0, -86 - READY_ROWS * 21 - 6)
-  ui.readyHint:SetWidth(PAGE_WIDTH)
+  ui.readyHint:SetWidth(PAGE_WIDTH - 180)
+  at(newButton(page, L("Buff coverage"), 170, function() if ns.ready then ns.showCopyText(ns.ready.buffCoverageText(), L("Buff coverage")) end end), page, PAGE_WIDTH - 170, -86 - READY_ROWS * 21 - 6)
 end
 
 local function readyTabOpen()
@@ -1229,12 +1318,17 @@ end
 
 -- Sidebar order: pages are grouped under these headings.
 local GROUPS = { "Overview", "Raid night", "Fun and runs", "System" }
+local function buildRosterAdminPage(page)
+  local b = newButton(page, "Roster admin", 220, function() if ns.openRosterAdmin then ns.openRosterAdmin() end end)
+  b:SetPoint("TOPLEFT", 0, -12)
+end
 local TAB_DEFS = {
   { name = "Home", hint = "what is going on, and your data", group = "Overview", build = buildHomePage },
   { name = "Me", label = "My character", hint = "your gear check and attunements", group = "Overview", usesPlayer = true, build = buildMePage },
   { name = "Open raids", hint = "find a raid with room for you", group = "Overview", build = buildPublicRaidsPage },
   { name = "Standings", scope = "guild", group = "Guild", usesPlayer = true, build = buildStandingsPage },
   { name = "Crafting", scope = "guild", group = "Guild", module = "recipes", build = buildCraftingPage },
+  { name = "Availability", scope = "guild", group = "Guild", module = "presence", build = buildAvailabilityPage },
   { name = "Gear", hint = "item level and missing enchants per member", scope = "guild", group = "Guild", officer = true, build = buildGearPage },
   { name = "Ready", hint = "who is ready for the raid", group = "Raid night", leader = true, build = buildReadyPage },
   { name = "Reserves", hint = "soft reserves for the raid", group = "Raid night", module = "reserve", lootModes = { RESERVE = true }, usesPlayer = true, build = buildReservePage },
@@ -1242,6 +1336,7 @@ local TAB_DEFS = {
   { name = "Raid", hint = "run a raid: start, bosses, attendance", group = "Raid night", officer = true, usesPlayer = true, build = buildRaidPage },
   { name = "EPGP", label = "Administration", hint = "award EP and GP", scope = "guild", group = "Guild", officer = true, usesPlayer = true, build = buildEpgpPage },
   { name = "Local guild", scope = "guild", group = "Guild", officer = true, build = buildLocalGuildPage },
+  { name = "Roster admin", scope = "guild", group = "Guild", officer = true, build = buildRosterAdminPage },
   { name = "Loot", hint = "bids and loot", group = "Raid night", lootModes = { EPGP = true }, officer = true, usesPlayer = true, build = buildLootPage },
   { name = "Council", hint = "loot council: BiS / upgrade / off-spec answers", group = "Raid night", module = "council", lootModes = { COUNCIL = true, PRIORITY = true }, officer = true, usesPlayer = true, build = buildCouncilPage },
   { name = "Tools", label = "Settings", hint = "switch parts on or off, diagnostics", group = "System", build = buildToolsPage }
@@ -1450,6 +1545,7 @@ refresh = function()
     layoutTabs(officer)
   end
   refreshModuleRows()
+  if ui.refreshPresence and ui.tabs[ui.currentTab or 0] and ui.tabs[ui.currentTab].name == "Availability" then ui.refreshPresence() end
 
   local me = ns.playerName()
   local name = selectedPlayer()
@@ -1627,6 +1723,7 @@ updateGuildScroll = function()
   if tab.name == "Standings" then height = 80 + textHeight(ui.standingsList) + 52
   elseif tab.name == "Local guild" then height = (ui.localGuildInfoTop or 220) + textHeight(ui.localGuildInfo) + 12
   elseif tab.name == "Crafting" then height = 250 + textHeight(ui.craftCooldowns) + 12
+  elseif tab.name == "Availability" then height = 540 + textHeight(ui.presenceText) + 12
   elseif tab.name == "Gear" then height = 40 + textHeight(ui.gearList) + 12
   elseif tab.name == "Calendar" then height = 70 + textHeight(ui.calendarStatus) + 12 end
   local scroll = ui.guildScroll

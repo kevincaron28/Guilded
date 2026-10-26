@@ -100,10 +100,19 @@ describe("the tools window (sidebar and Home page)", () => {
     expect(s.run('return tostring(NS.windowState().homeSave == NS.windowState().sidebarSave)')).toBe("true");
   });
 
+  it("keeps long review reports in a scrollable viewport without dropping lines", () => {
+    const s = openWindow(1);
+    s.run('NS.showCopyText(string.rep("Review row\\n", 50), "Audit")');
+    expect(s.run('for _,f in ipairs(FRAMES) do if f.frameName=="GuildedCharacterExport" then return f.scroll.height..":"..f.box.height end end')).toBe("240:824");
+    expect(s.run('for _,f in ipairs(FRAMES) do if f.frameName=="GuildedCharacterExport" then return tostring(f.scroll.scrollChild==f.box) end end')).toBe("true");
+    s.run('NS.showCopyText("GGRM1:fixture", "Archive")');
+    expect(s.run('for _,f in ipairs(FRAMES) do if f.frameName=="GuildedCharacterExport" then return f.scroll.height..":"..f.box.text end end')).toBe("24:GGRM1:fixture");
+  });
+
   it("gives each officer feature a single menu scope", () => {
     const s = openWindow(1);
     s.run(`NS.openGuildPanel(nil, "guild", "Standings")`);
-    expect(visibleTabs(s)).toBe("Standings,Crafting,Gear,EPGP,Local guild");
+    expect(visibleTabs(s)).toBe("Standings,Crafting,Availability,Gear,EPGP,Local guild,Roster admin");
     s.run(`NS.openGuildPanel(nil, "calendar", "Calendar")`);
     expect(visibleTabs(s)).toBe("Calendar");
   });
@@ -130,7 +139,7 @@ describe("the tools window (sidebar and Home page)", () => {
       HOST.GetHeight = function() return 600 end
       NS.openGuildPanel(HOST)
     `);
-    expect(visibleTabs(s)).toBe("Standings,Crafting");
+    expect(visibleTabs(s)).toBe("Standings,Crafting,Availability");
     expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`)).toBe("Standings");
     expect(s.run(`return tostring(NS.windowState().guildHost == HOST)`)).toBe("true");
     expect(s.run(`
@@ -409,6 +418,16 @@ describe("the Ready page", () => {
 });
 
 describe("the tools window in 4.6", () => {
+  it("builds availability filters and routes clicks without changing observation settings", () => {
+    const s = openWindow(5);
+    s.run(`NS.presence = { describe = function(filter) FILTER = filter; return "Visible reports" end, heatmap = function() return {} end }; NS.clientTools = { openFinder = function() FINDER = true end }; NS.openGuildPanel(nil, "guild", "Availability")`);
+    expect(s.run(`return NS.windowState().presenceText.text`)).toBe("Visible reports");
+    s.run(`for _, f in ipairs(FRAMES) do if f.text == "Free only: Off" and f.scripts.OnClick then f.scripts.OnClick(f) end end`);
+    expect(s.run(`return tostring(FILTER.free)`)).toBe("true");
+    s.run(`for _, f in ipairs(FRAMES) do if f.text == "Blizzard group finder" and f.scripts.OnClick then f.scripts.OnClick(f) end end`);
+    expect(s.run(`return tostring(FINDER)`)).toBe("true");
+    expect(s.chat().join("\n")).not.toContain("failed");
+  });
   it("remembers where it was dragged and its size", () => {
     const s = openWindow(1);
     s.run(`local panel = _G.GuildedPanel or NS.windowState().tabs[1].page

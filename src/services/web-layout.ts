@@ -46,6 +46,7 @@ textarea{min-height:120px}button,.button{cursor:pointer;border:0;font:inherit}bu
 
 export interface LayoutInput {
   shareImage?: string;
+  languageParams?: Record<string, string | null | undefined>;
   lang: Lang; title: string; description?: string; path: string; body: string; noindex?: boolean;
   account: { username: string; displayName: string | null } | null; csrf: string | null; signInOn: boolean;
 }
@@ -59,7 +60,7 @@ export function layout(input: LayoutInput): string {
       `<a href="${link("/me/", input.lang)}">${t("My page", "Ma page")}</a>`,
       `<form class="inline" method="post" action="/auth/logout"><input type="hidden" name="csrf" value="${escapeHtml(input.csrf ?? "")}"><button class="link" type="submit">${t("Sign out", "Déconnexion")}</button></form>`]
     : input.signInOn ? [`<span>${t("Your player profile is public by default; you can hide it in My Guilded.", "Votre profil joueur est public par défaut; vous pouvez le masquer dans Ma page.")}</span><a href="${link("/auth/login", input.lang, { return: input.path })}">${t("Sign in with Discord", "Connexion avec Discord")}</a>`] : [];
-  const language = `<a href="${link(input.path, other)}" hreflang="${other}">${other === "fr" ? "Français" : "English"}</a>`;
+  const language = `<a href="${escapeHtml(link(input.path, other, input.languageParams))}" hreflang="${other}">${other === "fr" ? "Français" : "English"}</a>`;
   const description = escapeHtml((input.description ?? input.title).slice(0, 160));
   return `<!doctype html><html lang="${input.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`
     + `<title>${escapeHtml(input.title)} · Guilded</title><meta name="description" content="${description}">${input.noindex ? '<meta name="robots" content="noindex">' : ""}`

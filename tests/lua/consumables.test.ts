@@ -79,6 +79,7 @@ describe("Consumables.lua: reading buffs by id, and never blaming a hidden buff"
     const s = withModule();
     s.load("Modules/ConsumableData.lua");
     s.run(String.raw`
+      NS.util.gameEdition = function() return "retail" end
       AURAS = {}
       MOCK_UNITS = { player = { name = "Kev" } }
       GetTime = function() return 1000 end

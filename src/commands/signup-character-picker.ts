@@ -5,7 +5,7 @@ import { asLang } from "../i18n.js";
 import { characterName } from "../services/character-display.js";
 
 // A paginated private picker also supports owners with more than Discord's 25 menu options.
-export async function pickSignupCharacter(interaction: ButtonInteraction | ChatInputCommandInteraction | MessageComponentInteraction, guildId: string, memberId: string) {
+export async function pickSignupCharacter(interaction: ButtonInteraction | ChatInputCommandInteraction | MessageComponentInteraction, guildId: string, memberId: string, authorize?: (choice: MessageComponentInteraction) => Promise<boolean>) {
   const wasAcknowledged = interaction.replied || interaction.deferred;
   if (!wasAcknowledged) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const characters = await prisma.character.findMany({ where: { memberId, member: { guildId } }, orderBy: [{ name: "asc" }, { realm: "asc" }] });
@@ -27,6 +27,10 @@ export async function pickSignupCharacter(interaction: ButtonInteraction | ChatI
   while (Date.now() < expires) {
     const choice = await message.awaitMessageComponent({ time: Math.max(1, expires - Date.now()), filter: value => value.user.id === interaction.user.id && value.customId.startsWith("signupchar:") }).catch(() => null);
     if (!choice) break;
+    if (authorize && !await authorize(choice)) {
+      await interaction.webhook.editMessage(message.id, { components: [] });
+      return null;
+    }
     if (choice.isStringSelectMenu()) {
       const character = characters.find(value => value.id === choice.values[0]);
       if (!character) { await choice.deferUpdate(); continue; }

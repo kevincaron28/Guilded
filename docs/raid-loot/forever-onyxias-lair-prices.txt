@@ -1,0 +1,17 @@
+Onyxia Hide Backpack = ?
+Ancient Cornerstone Grimoire = ?
+Ring of Binding = ?
+Sapphiron Drape = ?
+Eskhandar's Collar = ?
+Bloodfang Hood = ?
+Stormrage Cover = ?
+Dragonstalker's Helm = ?
+Helmet of Ten Storms = ?
+Halo of Transcendence = ?
+Nemesis Skullcap = ?
+Netherwind Crown = ?
+Helm of Wrath = ?
+Judgement Crown = ?
+Deathbringer = ?
+Vis'kag the Bloodletter = ?
+Shard of the Scale = ?

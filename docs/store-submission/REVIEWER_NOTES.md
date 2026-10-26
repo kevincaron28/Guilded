@@ -34,8 +34,12 @@ open Microsoft Store for updates and do not download or execute GitHub installer
    writes, the app should report it rather than requiring a privilege bypass.
 
 No review account, game login, identity document or secret is included in this kit.
-Real Store install/upgrade/uninstall and WACK results are still pending; the local
-package inspection and mocked updater tests do not replace those results.
+The 7.5.0 local preview installed, launched with protected configuration and
+uninstalled successfully. WACK completed with overall WARNING: 22 passes, an
+optional blocked-executables failure and a DPI inspector warning. See
+`LOCAL_VALIDATION_2026-10-26.md` for evidence and limitations. The temporary preview
+certificate trust and private key were removed. Store-signed installation/upgrade
+and connected acceptance remain pending.
 
 ## Screenshot capture plan
 
@@ -44,8 +48,9 @@ credentials or guild records. Required candidates: first-run overview, WoW setup
 connection profiles, optional PoE2 setup. Capture English and French as appropriate.
 Use genuine app screenshots; label any sample guild data as demonstration data.
 Do not substitute web-companion screenshots for the native Store edition.
-Check Microsoft's current screenshot dimensions before uploading. No screenshots
-in this kit are claimed to show a Store installation.
+Eight genuine 7.5.0 installed-preview screenshots were captured in English/French.
+They show the actual packaged app with a clean unlinked profile, not a Microsoft
+Store-signed installation. Check the handoff for their current upload state.
 
 ## Product declarations completed in the actual form
 

@@ -1,4 +1,8 @@
-> 7.5.0 (26 October 2026): combined release candidate; Claude PRs #226 and #227 integrated.
+> 7.5.0 (26 October 2026): combined release candidate; Claude PRs #226–#228 and #230 integrated.
+> Combined gates: 309 files / 2,627 tests, TypeScript/lint/addon checks and disposable
+> PostgreSQL migration/backup/restore pass. Store upload validated; preview installed,
+> captured and removed with its temporary certificate. WACK completed with WARNING,
+> not a clean pass. See docs/store-submission/LOCAL_VALIDATION_2026-10-26.md.
 > Version chosen by Kevin via the shared coordination notes. Public/live remains 7.4.0.
 > Read docs/V7_5_0_RELEASE_NOTES.md and docs/STORE_HANDOFF_2026-10-26.md.
 >

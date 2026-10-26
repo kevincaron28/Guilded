@@ -17,6 +17,7 @@ const files = [
   ["docs/store-submission/listing.json", "listing.json"],
   ["docs/store-submission/iarc-questionnaire.json", "iarc-questionnaire.json"],
   ["docs/store-submission/REVIEWER_NOTES.md", "REVIEWER_NOTES.md"],
+  ["docs/store-submission/LOCAL_VALIDATION_2026-10-26.md", "LOCAL_VALIDATION_2026-10-26.md"],
   ["docs/PRIVACY.md", "PRIVACY.md"],
   ["docs/MICROSOFT_STORE_MSIX.md", "BUILD_AND_SUBMISSION.md"],
   ["LICENSE", "LICENSE.Guilded.txt"],
@@ -29,8 +30,8 @@ writeFileSync(join(folder, "publisher-identity.example.json"), JSON.stringify({ 
 const pending = [
   "Final combined-release PR checks and merge",
   "Publish and verify the prepared privacy-policy URL",
-  "Genuine final-app screenshots and final listing review",
-  "Packaged install/upgrade/uninstall and Windows App Certification Kit checks",
+  "Provide dedicated connected reviewer access (EN/FR listings and screenshot uploads complete)",
+  "Store-signed upgrade and connected acceptance; disclose WACK warnings from LOCAL_VALIDATION_2026-10-26.md",
   "Microsoft certification (not submitted yet; see CURRENT_STATUS.md for upload status)"
 ];
 writeFileSync(join(folder, "README-FIRST.md"), `# Guilded Companion submission preparation

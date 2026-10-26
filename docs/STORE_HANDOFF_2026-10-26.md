@@ -1,37 +1,34 @@
 # Microsoft Store preparation — 26 October 2026
 
-## Active validation session — supersedes the earlier draft state below
+## Current status — 26 October, after WACK and combined integration
 
-- Kevin explicitly accepted the Windows SDK license and approved temporary
-  preview-certificate trust, installation and cleanup. He also approved the
-  Windows elevation prompt for installation.
-- Chrome sign-in completed. Uploaded the verified 7.5.0 STORE-SUBMISSION package;
-  Partner Center overview confirms **Packages: Complete / Validated**.
-- Submitted the 494-character `runFullTrust` explanation. Submission options now
-  show **Complete**. The capability itself still needs Microsoft's review.
-- Pricing, Properties and Age ratings remain Complete. Store listings remain
-  Incomplete for screenshots; Submit for certification remains disabled.
-- SDK/App Certification Kit binaries are installed. WACK has **not run**: Windows
-  canceled the separate test-runner elevation. Kevin was asked whether to retry.
-- The signed local preview installed successfully as
-  `Guilded.Companion.LocalPreview_7.5.0.0_x64__qxyqz10awgpsg`, status Ok, and launched
-  its Connection & setup window. It created `config.secure` (430 bytes) under its
-  package-local `LocalCache/Roaming/Guilded Companion Store` directory. This proves
-  packaged startup/protected-profile creation, not full connected acceptance.
-- **Temporary trust is currently present** in LocalMachine/TrustedPeople for
-  809F9DADFB71BE4B665530AE32199CDDEDE9F9F1. Remove this exact test trust entry and the
-  preview after validation, as Kevin authorized. Do not leave the cleanup pending
-  without calling it out. Installation evidence: ignored
-  `backups/msix-install-review/install-result.json`.
-- Native screenshot capture timed out and accessibility is unavailable for the
-  preview window. No screenshots were generated or uploaded. Explicit permission
-  to use the app's existing screenshot diagnostic command has been requested.
-- Kevin separately instructed Claude to HOLD 7.5.0 deployment while Claude builds
-  nine additional bot/website features. #228 merged as 00e1b8d, but Codex's three
-  review findings remain open in the shared coordination file. #229 at 4cea592
-  has both remote quality jobs green. No production deployment/public release.
+- Store package 7.5.0 is uploaded and Validated. Pricing, Properties, IARC and
+  Submission options are Complete. The app is still **In draft**, not certified.
+- Eight genuine installed-preview screenshots captured with the explicitly
+  approved diagnostic command. Four English and four French screenshots uploaded
+  and saved. All six portal sections are **Complete**; Submit for certification
+  is enabled. Chrome recovered through a fresh signed-in tab after losing control.
+  Private reviewer notes now disclose the WACK findings and unfinished access.
+- WACK finished: **overall WARNING**, 22 PASS, one optional blocked-executables
+  FAIL, one DPI inspector WARNING. Detailed analysis and evidence are in
+  `store-submission/LOCAL_VALIDATION_2026-10-26.md`. Do not call this a clean pass.
+- Preview installation, packaged launch/protected configuration and uninstall
+  succeeded. **Cleanup complete:** preview, TrustedPeople trust entry and private
+  preview certificate/key are absent; cleanup reported no errors.
+- Claude #228/#230 merged on main c75c083 and integrated into #229. The combined
+  tree passed 309 test files / 2,627 tests, TypeScript, ESLint and both addon
+  validators. Disposable local PostgreSQL migration/integration/backup/restore
+  passed and the temporary database server stopped. Production is unchanged.
+- Four additive migrations and all Claude additions are now in the release
+  notes/acceptance list. Kevin handles #229 merge; coordinate the live restart.
+- Pending: reviewer access, public privacy URL, Store-signed
+  upgrade and connected/tray/startup checks, French connection-profile labels,
+  final remote CI/merge and coordinated release. Game checks remain pending.
 
-The app remains **In draft**, not submitted for Microsoft certification.
+The remaining sections are historical checkpoints; this section and the local
+validation record supersede their installation, screenshot and WACK status.
+
+## Historical checkpoint before WACK retry
 
 ## Latest combined candidate: 7.5.0
 

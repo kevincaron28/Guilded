@@ -2,7 +2,7 @@ import { teamComposition, teamClassLabel } from "./team-composition.js";
 import type { WebContext, WebRoute } from "./web-app.js";
 import { escapeHtml as h, link, options, SECURITY_HEADERS, tr, type Lang } from "./web-layout.js";
 import type { RosterGuild } from "./roster-dashboard-store.js";
-import { recipeQuery, type GuildToolsStore, type TeamView, type GroupView, type CraftRow } from "./guild-tools-store.js";
+import { recipeQuery, TEAM_ATTENDANCE_RAIDS, type GuildToolsStore, type TeamView, type GroupView, type CraftRow } from "./guild-tools-store.js";
 
 export function guildToolsNav(lang: Lang, guild: RosterGuild): string {
   const t = tr(lang);
@@ -15,8 +15,10 @@ export const teamVacancies = (core: TeamView) => {
   const count = (role: string) => core.members.filter(row => !row.bench && row.role === role).length;
   return { TANK: core.tankLimit === null ? null : Math.max(0, core.tankLimit - count("TANK")), HEALER: core.healerLimit === null ? null : Math.max(0, core.healerLimit - count("HEALER")), DPS: core.dpsLimit === null ? null : Math.max(0, core.dpsLimit - count("DPS")) };
 };
-export function filterGroupPosts(rows: GroupView[], query: string, need: string): GroupView[] {
-  return rows.filter(row => row.title.toLocaleLowerCase().includes(query.toLocaleLowerCase()) && (!need || row.signedUp < row.size && row.missing && (need === "TANK" ? row.missing.TANK : need === "HEALER" ? row.missing.HEALER : row.missing.DPS) > 0));
+// minKey: Retail keystone level read from the title ("+12"); groups without one are left out.
+export function filterGroupPosts(rows: GroupView[], query: string, need: string, minKey = 0): GroupView[] {
+  return rows.filter(row => row.title.toLocaleLowerCase().includes(query.toLocaleLowerCase()) && (!need || row.signedUp < row.size && row.missing && (need === "TANK" ? row.missing.TANK : need === "HEALER" ? row.missing.HEALER : row.missing.DPS) > 0)
+    && (!minKey || (row.keyLevel ?? 0) >= minKey));
 }
 
 export function createGuildToolsPages(store: GuildToolsStore) {
@@ -31,8 +33,10 @@ export function createGuildToolsPages(store: GuildToolsStore) {
     const characterId = ctx.request.query.get("character") ?? "";
     const coreId = ctx.request.query.get("core") ?? "";
     const need = ctx.request.query.get("need") ?? "";
+    const minKeyText = ctx.request.query.get("minkey") ?? "";
+    const minKey = /^\d{1,2}$/.test(minKeyText) ? Number(minKeyText) : 0;
     const title = path === "/me/crafters" ? t("Guild crafters", "Artisans de guilde") : path === "/me/teams" ? t("Raid teams", "Équipes de raid") : path === "/me/history" ? t("Character links and history", "Personnages liés et historique") : t("Guild group posts", "Annonces de groupe de guilde");
-    if ([guildId, characterId, coreId].some(id => id.length > 64) || q.length > 200 || !["", "TANK", "HEALER", "DPS"].includes(need)) return kit.page(400, title, t("Invalid filter.", "Filtre invalide."), { noindex: true });
+    if ([guildId, characterId, coreId].some(id => id.length > 64) || q.length > 200 || !["", "TANK", "HEALER", "DPS"].includes(need) || (minKeyText && !/^\d{1,2}$/.test(minKeyText))) return kit.page(400, title, t("Invalid filter.", "Filtre invalide."), { noindex: true });
     if (path === "/me/crafters" && q) {
       try { recipeQuery(q); } catch { return kit.page(400, title, t("Enter a valid item name, numeric ID or WoW item link.", "Entrez un nom d'objet, un identifiant numérique ou un lien d'objet WoW valide."), { noindex: true }); }
     }
@@ -70,7 +74,8 @@ export function createGuildToolsPages(store: GuildToolsStore) {
           const missing = teamVacancies(core);
           body += `<section class="card"><h2><a href="${h(link(path, lang, { guild: guildId, edition: guild.edition, core: core.id }))}">${h(core.name)}</a></h2><p>${h(core.schedule || t("Schedule not recorded", "Horaire non enregistré"))}${core.timezone ? ` · ${h(core.timezone)}` : ""}</p><p>${t("Rostered", "Inscrits")}: ${core.members.length} · ${t("Bench", "Remplaçants")}: ${core.members.filter(row => row.bench).length} · ${t("Trial", "Essai")}: ${core.members.filter(row => row.trial).length}</p><p>${t("Open roster roles (configured targets)", "Rôles libres (objectifs configurés)")}: Tank ${missing.TANK ?? unknown} · ${t("Healer", "Soigneur")} ${missing.HEALER ?? unknown} · DPS ${missing.DPS ?? unknown}</p></section>`;
           if (selected) {
-            body += table([t("Character", "Personnage"), t("Realm", "Royaume"), t("Role", "Rôle"), t("Status", "Statut"), t("Linked main", "Principal lié"), t("Backup characters", "Personnages de remplacement")], core.members.map(row => [row.characterId ? `<a href="${h(link("/me/history", lang, { guild: guildId, edition: guild.edition, character: row.characterId }))}">${h(row.name || unknown)}</a>` : h(row.name || unknown), h(row.realm || unknown), h(row.role), [row.bench ? t("Bench", "Remplaçant") : t("Core", "Titulaire"), ...(row.trial ? [t("Trial", "Essai")] : []), ...(!row.assigned ? [t("Character not assigned; linked main shown", "Personnage non affecté; principal lié affiché")] : [])].join(" · "), h(row.main || unknown), row.backups.map(h).join("<br>") || "—"]));
+            body += table([t("Character", "Personnage"), t("Realm", "Royaume"), t("Role", "Rôle"), t("Status", "Statut"), t(`Attendance (last ${TEAM_ATTENDANCE_RAIDS} team raids)`, `Présences (${TEAM_ATTENDANCE_RAIDS} derniers raids de l'équipe)`), t("Linked main", "Principal lié"), t("Backup characters", "Personnages de remplacement")], core.members.map(row => [row.characterId ? `<a href="${h(link("/me/history", lang, { guild: guildId, edition: guild.edition, character: row.characterId }))}">${h(row.name || unknown)}</a>` : h(row.name || unknown), h(row.realm || unknown), h(row.role), [row.bench ? t("Bench", "Remplaçant") : t("Core", "Titulaire"), ...(row.trial ? [t("Trial", "Essai") + (row.trialEndsAt ? ` (${t("ends", "fin")} ${h(utc(row.trialEndsAt).slice(0, 10))}${row.trialSponsor ? ` · ${t("sponsor", "parrain")} ${h(row.trialSponsor)}` : ""})` : "")] : []), ...(!row.assigned ? [t("Character not assigned; linked main shown", "Personnage non affecté; principal lié affiché")] : [])].join(" · "),
+              row.attendance ? `${row.attendance.attended}/${row.attendance.raids}${row.attendance.late ? ` (${row.attendance.late} ${t("late", "en retard")})` : ""}` : "—", h(row.main || unknown), row.backups.map(h).join("<br>") || "—"]));
             const composition = teamComposition(core, guild.edition);
             body += `<h3>${t("Team composition", "Composition de l'équipe")}</h3><p>${t("Recorded classes of assigned, non-benched characters. Trials are included; backups and unassigned mains are excluded. This is a roster plan, not live attendance or proof of learned spells.", "Classes enregistrées des personnages affectés, hors remplaçants. Les essais sont inclus; les personnages de secours et principaux non affectés sont exclus. Il s'agit du plan d'effectif, pas d'une présence en direct ni d'une preuve de sorts appris.")}</p>`
               + table([t("Class", "Classe"), t("Count", "Nombre"), t("Assigned characters", "Personnages affectés")], composition.classes.map(([name, members]) => [h(teamClassLabel(name, lang)), String(members.length), members.map(h).join("<br>")]))
@@ -89,10 +94,12 @@ export function createGuildToolsPages(store: GuildToolsStore) {
           + table([t("Date (UTC)", "Date (UTC)"), t("Record", "Enregistrement"), t("Event / item", "Événement / objet"), t("Result", "Résultat"), t("Raid team", "Équipe de raid")], data.events.map(row => [h(utc(row.at)), row.kind === "attendance" ? t("Attendance", "Présence") : row.kind === "loot" ? t("Loot", "Butin") : t("Points", "Points"), h(row.title), h(row.detail), h(row.team || "—")]))
           + (!data.events.length ? `<p>${t("No recorded history yet.", "Aucun historique enregistré.")}</p>` : "");
       } else {
-        const rows = filterGroupPosts(result.data as GroupView[], q, need);
+        const rows = filterGroupPosts(result.data as GroupView[], q, need, guild.edition === "retail" ? minKey : 0);
+        const keys = guild.edition === "retail";
         body = `<p>${t("Browse guild group posts. Open the original Discord post to sign up or change your role.", "Consultez les annonces de groupe de guilde. Ouvrez l'annonce Discord d'origine pour vous inscrire ou changer de rôle.")}</p>`
-          + `<form method="get" action="${path}">${hidden}<div class="filters"><div><label for="group-q">${t("Dungeon or title", "Donjon ou titre")}</label><input id="group-q" name="q" value="${h(q)}" maxlength="200"></div><div><label for="group-need">${t("Needs role", "Rôle recherché")}</label><select id="group-need" name="need">${options([{ value: "", label: t("Any", "Tous") }, { value: "TANK", label: "Tank" }, { value: "HEALER", label: t("Healer", "Soigneur") }, { value: "DPS", label: "DPS" }], need)}</select></div><button class="button" type="submit">${t("Filter", "Filtrer")}</button></div></form>`
-          + table([t("Group", "Groupe"), t("Levels", "Niveaux"), t("Signed up", "Inscrits"), t("Needed roles", "Rôles recherchés"), t("Posted (UTC)", "Publié (UTC)")], rows.map(row => [row.url ? `<a href="${h(row.url)}" rel="noreferrer">${h(row.title)}</a>` : h(row.title), `${row.minLevel ?? "—"}–${row.maxLevel ?? "—"}`, `${row.signedUp}/${row.size}`, row.missing ? `Tank ${row.missing.TANK} · ${t("Healer", "Soigneur")} ${row.missing.HEALER} · DPS ${row.missing.DPS}` : t("Any role", "Tous rôles"), h(utc(row.createdAt))]))
+          + `<form method="get" action="${path}">${hidden}<div class="filters"><div><label for="group-q">${t("Dungeon or title", "Donjon ou titre")}</label><input id="group-q" name="q" value="${h(q)}" maxlength="200"></div><div><label for="group-need">${t("Needs role", "Rôle recherché")}</label><select id="group-need" name="need">${options([{ value: "", label: t("Any", "Tous") }, { value: "TANK", label: "Tank" }, { value: "HEALER", label: t("Healer", "Soigneur") }, { value: "DPS", label: "DPS" }], need)}</select></div>${keys ? `<div><label for="group-key">${t("Minimum key level", "Niveau de clé minimum")}</label><input id="group-key" name="minkey" type="number" min="2" max="40" value="${minKey || ""}"></div>` : ""}<button class="button" type="submit">${t("Filter", "Filtrer")}</button></div></form>`
+          + (keys ? `<p>${t("Key levels come from the group title, e.g. “Ara-Kara +12”.", "Le niveau de clé vient du titre du groupe, p. ex. « Ara-Kara +12 ».")}</p>` : "")
+          + table([t("Group", "Groupe"), keys ? t("Key", "Clé") : t("Levels", "Niveaux"), t("Signed up", "Inscrits"), t("Needed roles", "Rôles recherchés"), t("Posted (UTC)", "Publié (UTC)")], rows.map(row => [row.url ? `<a href="${h(row.url)}" rel="noreferrer">${h(row.title)}</a>` : h(row.title), keys ? (row.keyLevel ? `+${row.keyLevel}` : "—") : `${row.minLevel ?? "—"}–${row.maxLevel ?? "—"}`, `${row.signedUp}/${row.size}`, row.missing ? `Tank ${row.missing.TANK} · ${t("Healer", "Soigneur")} ${row.missing.HEALER} · DPS ${row.missing.DPS}` : t("Any role", "Tous rôles"), h(utc(row.createdAt))]))
           + (!rows.length ? `<p>${t("No open group posts match.", "Aucune annonce ouverte correspondante.")}</p>` : "")
           + `<p>${t("Signups show the recorded group composition. Check the original post for the latest replies.", "Les inscriptions montrent la composition enregistrée. Consultez l'annonce d'origine pour les réponses récentes.")}</p>`;
       }

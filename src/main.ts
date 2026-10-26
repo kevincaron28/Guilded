@@ -98,6 +98,10 @@ import { handleMemberJoin, handleMemberRolesChange, handleMemberLeave, handleWel
 import { createErrorReportService, isMemberAnswer } from "./services/error-report.js";
 import { buildGuildedReference } from "./services/guilded-reference.js";
 import { runRetention } from "./services/retention.js";
+import { discordTrialDelivery, remindEndedTrials } from "./services/trial-reminders.js";
+import { warnDoNotInvite } from "./services/do-not-invite.js";
+import { handleStarReaction } from "./services/starboard.js";
+import { logMessageDelete, logMessageEdit } from "./services/message-log.js";
 
 // GuildMembers is a privileged intent: it must also be enabled for this bot
 // application under "Server Members Intent" in the Discord Developer Portal,
@@ -305,6 +309,11 @@ client.once(Events.ClientReady, (readyClient) => {
     .catch(reportJobError("Data retention"));
   setTimeout(() => void retention(), 5 * 60 * 1000);
   setInterval(() => void retention(), 6 * 60 * 60 * 1000);
+  // Ended trial periods are announced once in the core's officer log (services/trial-reminders.ts).
+  const trials = () => remindEndedTrials(prisma, discordTrialDelivery(readyClient, prisma, (id) => hostedPilot.allows(id)))
+    .catch(reportJobError("Trial reminders"));
+  setTimeout(() => void trials(), 6 * 60 * 1000);
+  setInterval(() => void trials(), 60 * 60 * 1000);
   // Opted-in guilds' dungeon runs go to the public leaderboards (/mod leaderboard, 7.0).
   setInterval(() => void publishGuildRuns(prisma).catch(reportJobError("Public dungeon runs")), 15 * 60 * 1000);
   // Dungeon seasons follow the owner's calendar (/guilded-season, official-seasons.ts): every guild
@@ -419,6 +428,7 @@ client.on(Events.GuildMemberAdd, async (member) => {
     const record = await prisma.guild.findUnique({ where: guildWhere(member.guild.id), select: { id: true } });
     if (record && member.joinedAt && !member.user.bot) await rememberRookieJoin(prisma, record.id, member.id, member.joinedAt);
     await handleMemberJoin(member.guild, member);
+    if (!member.user.bot) await warnDoNotInvite(member.guild, { discordUserId: member.id }, `<@${member.id}> (${member.user.tag})`, "join");
   } catch (error) {
     console.error("GuildMemberAdd handling failed", error);
     void errorReportService.report(client, error, { source: "GuildMemberAdd", guildId: member.guild.id, guildName: member.guild.name, userId: member.id });
@@ -458,6 +468,11 @@ client.on(Events.GuildMemberRemove, async (member) => {
 client.on(Events.MessageCreate, message => { if (message.guildId && hostedPilot.allows(message.guildId)) void participationTracker.message(message).catch(reportJobError("Participation messages", { guildId: message.guildId, channelId: message.channelId, messageId: message.id })); });
 client.on(Events.MessageReactionAdd, (reaction, user) => { if (reaction.message.guildId && hostedPilot.allows(reaction.message.guildId)) void participationTracker.reaction(reaction, user).catch(reportJobError("Participation reactions", { guildId: reaction.message.guildId, channelId: reaction.message.channelId, messageId: reaction.message.id })); });
 client.on(Events.MessageDelete, message => { if (message.guildId && hostedPilot.allows(message.guildId)) void participationTracker.deleted(message).catch(reportJobError("Participation deleted message", { guildId: message.guildId, channelId: message.channelId })); });
+// Opt-in per server (/config starboard, /config message-log); both do nothing until turned on.
+client.on(Events.MessageReactionAdd, reaction => { if (reaction.message.guildId && hostedPilot.allows(reaction.message.guildId)) void handleStarReaction(reaction).catch(reportJobError("Starboard", { guildId: reaction.message.guildId, channelId: reaction.message.channelId })); });
+client.on(Events.MessageReactionRemove, reaction => { if (reaction.message.guildId && hostedPilot.allows(reaction.message.guildId)) void handleStarReaction(reaction).catch(reportJobError("Starboard", { guildId: reaction.message.guildId, channelId: reaction.message.channelId })); });
+client.on(Events.MessageUpdate, (before, after) => { if (after.guildId && hostedPilot.allows(after.guildId)) void logMessageEdit(before, after).catch(reportJobError("Message log", { guildId: after.guildId, channelId: after.channelId })); });
+client.on(Events.MessageDelete, message => { if (message.guildId && hostedPilot.allows(message.guildId)) void logMessageDelete(message).catch(reportJobError("Message log", { guildId: message.guildId, channelId: message.channelId })); });
 client.on(Events.MessageBulkDelete, messages => { void (async () => { for (const message of messages.values()) if (message.guildId && hostedPilot.allows(message.guildId)) await withReportContext({ guildId: message.guildId, channelId: message.channelId }, () => participationTracker.deleted(message)); })().catch(reportJobError("Participation deleted messages")); });
 client.on(Events.VoiceStateUpdate, (_before, after) => { if (hostedPilot.allows(after.guild.id)) void participationTracker.sampleVoice(after.guild).catch(reportJobError("Participation voice change", { guildId: after.guild.id, channelId: after.channelId })); });
 client.on(Events.GuildMemberUpdate, (_before, after) => { if (hostedPilot.allows(after.guild.id)) void participationTracker.sampleVoice(after.guild).catch(reportJobError("Participation eligibility change", { guildId: after.guild.id })); });

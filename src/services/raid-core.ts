@@ -12,6 +12,9 @@ import { CHARACTER_REQUIRED, ownedSignupCharacter } from "./signup-character.js"
 import { CHARACTER_DISPLAY_SELECT, characterDisplayLine, hasStaleGear, loadClassEmojis, staleGearNote, type ClassEmojis, type DisplayCharacter } from "./character-display.js";
 import { boundRosterEmbed, clipRosterLines } from "./roster-embed-limits.js";
 
+// A trial lasts this long unless the officer picks another length (/application trial days:).
+export const DEFAULT_TRIAL_DAYS = 14;
+
 // A raid core is a named roster (e.g. "Tuesday MC core"). A guild can have
 // several. Core members get priority at signups for raids created for that
 // core (see raid.ts), and every core's roster is kept as one live message in
@@ -215,7 +218,8 @@ export function createRaidCoreService(database: Db) {
     // already set is kept. The character named on the application becomes their character in
     // this core when it is one of their linked characters and none is set yet (their spots in
     // other cores are left alone). Returns false when nothing changed.
-    async settleApplicant(coreId: string, memberId: string, outcome: "TRIAL" | "APPROVED" | "REJECTED", role: RaidRole | null, characterName?: string | null): Promise<boolean> {
+    // trialTerms: how long the trial lasts and who vouched for them (the deciding officer by default).
+    async settleApplicant(coreId: string, memberId: string, outcome: "TRIAL" | "APPROVED" | "REJECTED", role: RaidRole | null, characterName?: string | null, trialTerms?: { days: number; sponsorId: string } | null): Promise<boolean> {
       if (outcome === "REJECTED") {
         const removed = await database.raidCoreMember.deleteMany({ where: { coreId, memberId, trial: true } });
         return removed.count > 0;
@@ -227,10 +231,14 @@ export function createRaidCoreService(database: Db) {
         ? currentEdition() !== "forever" ? await ownCharacter(memberId, characterName)
           : await database.character.findFirst({ where: { memberId, name: { equals: characterName.trim(), mode: "insensitive" } }, select: { id: true } })
         : null;
+      const now = new Date();
+      const terms = trial
+        ? { trialStartedAt: now, trialEndsAt: new Date(now.getTime() + (trialTerms?.days ?? DEFAULT_TRIAL_DAYS) * 86_400_000), trialSponsorId: trialTerms?.sponsorId ?? null, trialRemindedAt: null }
+        : { trialStartedAt: null, trialEndsAt: null, trialSponsorId: null, trialRemindedAt: null };
       const spot = await database.raidCoreMember.upsert({
         where: { coreId_memberId: { coreId, memberId } },
-        create: { coreId, memberId, role: role ?? "DPS", trial, ...(character ? { characterId: character.id } : {}) },
-        update: { trial, ...(settings?.characterSignups && character ? { characterId: character.id } : {}) }
+        create: { coreId, memberId, role: role ?? "DPS", trial, ...terms, ...(character ? { characterId: character.id } : {}) },
+        update: { trial, ...terms, ...(settings?.characterSignups && character ? { characterId: character.id } : {}) }
       });
       if (settings?.characterSignups && character) await database.raidCoreBackup.deleteMany({ where: { spotId: spot.id, characterId: character.id } });
       if (character && !spot.characterId) {

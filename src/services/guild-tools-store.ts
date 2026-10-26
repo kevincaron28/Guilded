@@ -6,11 +6,13 @@ import { findCharacter } from "./character-match.js";
 import { asGroupKind, GROUP_CAPS, groupSize } from "./dungeon-group.js";
 
 export interface CraftRow { character: string; realm: string; profession: string; itemKey: number; itemName: string; scannedAt: Date }
-export interface TeamMember { characterId: string | null; name: string; realm: string; role: string; bench: boolean; trial: boolean; main: string | null; backups: string[]; assigned?: boolean; className?: string | null }
+export interface TeamAttendance { attended: number; late: number; raids: number }
+export interface TeamMember { characterId: string | null; name: string; realm: string; role: string; bench: boolean; trial: boolean; main: string | null; backups: string[]; assigned?: boolean; className?: string | null;
+  attendance?: TeamAttendance | null; trialEndsAt?: Date | null; trialSponsor?: string | null }
 export interface TeamView { id: string; name: string; schedule: string | null; timezone: string | null; tankLimit: number | null; healerLimit: number | null; dpsLimit: number | null; members: TeamMember[]; truncated: boolean }
 export interface HistoryEvent { at: Date; kind: "attendance" | "loot" | "points"; title: string; detail: string; team: string | null }
 export interface CharacterHistory { name: string; characters: { id: string; name: string; realm: string; main: boolean }[]; events: HistoryEvent[]; truncated: boolean }
-export interface GroupView { title: string; kind: string; minLevel: number | null; maxLevel: number | null; createdAt: Date; size: number; signedUp: number; missing: { TANK: number; HEALER: number; DPS: number } | null; url: string | null }
+export interface GroupView { title: string; kind: string; minLevel: number | null; maxLevel: number | null; keyLevel?: number | null; createdAt: Date; size: number; signedUp: number; missing: { TANK: number; HEALER: number; DPS: number } | null; url: string | null }
 export interface ToolResult<T> { guild: RosterGuild; data: T; truncated: boolean }
 export interface GuildToolsStore {
   guilds: GuildDashboardAccess["guilds"];
@@ -18,6 +20,24 @@ export interface GuildToolsStore {
   teams(user: string, guild: string): Promise<ToolResult<TeamView[]> | null>;
   history(user: string, guild: string, characterId: string): Promise<ToolResult<CharacterHistory> | null>;
   groups(user: string, guild: string): Promise<ToolResult<GroupView[]> | null>;
+}
+
+// A member's record over a team's own most recent completed raids (newest first, at most `limit`).
+// Attendance belongs to the member, so any linked alt they brought counts for them. Present, Late
+// and Benched count as attended; no record at a team raid counts as missed. Null: no team raid yet.
+export const TEAM_ATTENDANCE_RAIDS = 8;
+export function teamAttendance(raids: { attendance: { memberId: string; status: string }[] }[], memberId: string, limit = TEAM_ATTENDANCE_RAIDS): TeamAttendance | null {
+  const recent = raids.slice(0, limit);
+  if (!recent.length) return null;
+  const statuses = recent.map(raid => raid.attendance.find(row => row.memberId === memberId)?.status);
+  return { raids: recent.length, attended: statuses.filter(status => status === "PRESENT" || status === "LATE" || status === "BENCHED").length, late: statuses.filter(status => status === "LATE").length };
+}
+
+// A Retail keystone level written in a group title: "+12", "M+ 12", "key 12" / "clé 12". Null when absent.
+export function keyLevelFromTitle(title: string): number | null {
+  const match = /(?:^|[^\w+])\+\s?(\d{1,2})(?!\d)/.exec(title) ?? /\b(?:m\+|mythic\+?|key|cl[ée])\s?(\d{1,2})(?!\d)/i.exec(title);
+  const level = match ? Number(match[1]) : NaN;
+  return level >= 2 && level <= 40 ? level : null;
 }
 
 export function recipeQuery(text: string): { itemKey: number } | { itemName: { contains: string; mode: "insensitive" } } {
@@ -60,9 +80,18 @@ export function prismaGuildToolsStore(db: PrismaClient, access: GuildDashboardAc
       const cores = await db.raidCore.findMany({ where: { guildId }, orderBy: [{ name: "asc" }, { id: "asc" }], take: 51,
         select: { id: true, name: true, schedule: true, weeklyTimezone: true, tankLimit: true, healerLimit: true, dpsLimit: true,
           members: { where: { member: { guildId, status: "ACTIVE", isTest: false } }, orderBy: { addedAt: "asc" }, take: 81,
-            select: { role: true, bench: true, trial: true, character: { select: CHARACTER }, backups: { take: 20, select: { role: true, character: { select: CHARACTER } } },
+            select: { memberId: true, role: true, bench: true, trial: true, trialEndsAt: true, trialSponsorId: true, character: { select: CHARACTER }, backups: { take: 20, select: { role: true, character: { select: CHARACTER } } },
               member: { select: { characters: { where: { guildId, gameEdition: guild.edition }, select: CHARACTER, orderBy: [{ isMain: "desc" }, { name: "asc" }], take: 20 } } } } } } });
       const belongs = (character: { guildId: string; gameEdition: string } | null) => character?.guildId === guildId && character.gameEdition === guild.edition;
+      const coreIds = cores.slice(0, 50).map(core => core.id);
+      // One small query per team (at most 50), so a busy team never crowds out a quiet one's last raids.
+      const raidsByCore = new Map<string, { attendance: { memberId: string; status: string }[] }[]>();
+      for (const coreId of coreIds) {
+        raidsByCore.set(coreId, await db.raid.findMany({ where: { guildId, coreId, status: "COMPLETED", isTest: false }, orderBy: { scheduledAt: "desc" },
+          take: TEAM_ATTENDANCE_RAIDS, select: { attendance: { select: { memberId: true, status: true } } } }));
+      }
+      const sponsorIds = [...new Set(cores.flatMap(core => core.members.map(spot => spot.trialSponsorId).filter((id): id is string => !!id)))];
+      const sponsors = new Map(sponsorIds.length ? (await db.member.findMany({ where: { guildId, discordUserId: { in: sponsorIds } }, select: { discordUserId: true, displayName: true } })).map(row => [row.discordUserId, row.displayName]) : []);
       const data = cores.slice(0, 50).map(core => ({ id: core.id, name: core.name, schedule: core.schedule, timezone: core.weeklyTimezone,
         tankLimit: core.tankLimit, healerLimit: core.healerLimit, dpsLimit: core.dpsLimit, truncated: core.members.length > 80,
         members: core.members.slice(0, 80).map(spot => {
@@ -70,6 +99,8 @@ export function prismaGuildToolsStore(db: PrismaClient, access: GuildDashboardAc
           const character = belongs(spot.character) ? spot.character : null;
           return { characterId: character?.id ?? main?.id ?? null, name: character ? characterName(character) : main ? characterName(main) : "", realm: character?.realm ?? main?.realm ?? "",
             role: spot.role, bench: spot.bench, trial: spot.trial, main: main ? characterName(main) : null, assigned: character !== null, className: character?.className ?? null,
+            attendance: teamAttendance(raidsByCore.get(core.id) ?? [], spot.memberId),
+            trialEndsAt: spot.trial ? spot.trialEndsAt : null, trialSponsor: spot.trial && spot.trialSponsorId ? sponsors.get(spot.trialSponsorId) ?? null : null,
             backups: spot.backups.filter(row => belongs(row.character)).map(row => `${characterName(row.character)} · ${row.character.realm} · ${row.role}`) };
         }) }));
       return { guild, data, truncated: cores.length > 50 || data.some(core => core.truncated) };
@@ -104,7 +135,7 @@ export function prismaGuildToolsStore(db: PrismaClient, access: GuildDashboardAc
         const counts = { TANK: 0, HEALER: 0, DPS: 0 };
         for (const signup of row.signups) counts[signup.role]++;
         const ids = [row.guild.discordId, row.signupChannelId, row.signupMessageId];
-        return { title: row.title, kind, minLevel: row.minLevel, maxLevel: row.maxLevel, createdAt: row.createdAt, size: groupSize(kind, row.maxSize), signedUp: row.signups.length,
+        return { title: row.title, kind, minLevel: row.minLevel, maxLevel: row.maxLevel, keyLevel: guild.edition === "retail" ? keyLevelFromTitle(row.title) : null, createdAt: row.createdAt, size: groupSize(kind, row.maxSize), signedUp: row.signups.length,
           missing: kind === "DUNGEON" ? { TANK: Math.max(0, GROUP_CAPS.TANK - counts.TANK), HEALER: Math.max(0, GROUP_CAPS.HEALER - counts.HEALER), DPS: Math.max(0, GROUP_CAPS.DPS - counts.DPS) } : null,
           url: ids.every(id => typeof id === "string" && /^\d{15,22}$/.test(id)) ? `https://discord.com/channels/${ids.join("/")}` : null };
       });

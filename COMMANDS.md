@@ -457,7 +457,8 @@ Approve, and a raid can never be paid twice.
 | `/organize dungeon-seasons preview` | The current and next dungeon season (read only). Seasons are set by the bot owner for every guild |
 | `/guilded-season status` / `next <date> [hour] [time_zone] [name]` / `cancel` | **Bot owner only**, in the bot's home server: the season calendar every guild and the public leaderboards follow. `next` ends the current season at that start (default 15:00 America/Los_Angeles) |
 | `/officer dungeon recalibrate <route>` | Read-only timed-run evidence for future shared rules. Current targets cannot be edited |
-| `/mod application list` / `view` / `approve` / `reject` / `trial` | Handle applications |
+| `/mod application list` / `view` / `approve` / `reject` / `trial [days] [sponsor]` | Handle applications. A trial lasts 14 days unless you give `days`; the sponsor is you unless you pick someone. When it ends, the officer log says so once (approve or reject; nothing changes by itself). The website's Raid teams page shows each trial's end and sponsor |
+| `/mod dni add <name> <reason> [realm] [user]` / `remove <entry>` / `list` | Officers' private do-not-invite list. When a listed character applies, or a listed Discord account joins the server, the officer log gets a warning; nothing is blocked |
 | `/mod warn` / `timeout` / `kick` / `ban` / `history` | Moderation (logged) |
 | `/mod faq channel [#channel]` | The answer channel: members ask there and the bot replies (needs `MESSAGE_CONTENT_INTENT=true` on the server, after turning on Message Content Intent in the Discord Developer Portal). Empty = off |
 | `/mod faq add` / `edit <entry>` / `remove <entry>` / `list` | Officer-written answers: trigger words (one per line) and the answer. A message containing every word of a trigger gets that answer; the most specific trigger wins |
@@ -489,6 +490,9 @@ Approve, and a raid can never be paid twice.
 | `/config channel` | Channel with one auto-updated dungeon leaderboard message (refreshed after every dungeon import) |
 | `/config channel` | Channel for dungeon signups; setting it posts the pinned group-creation guide automatically. `/setup start status:true` checks the channel and guide; `/dungeon guide` repairs a missing guide |
 | `/config merit <true\|false>` | Rank the leaderboard by PR x attendance |
+| `/config character-signups <true\|false>` | Raid signups, applications and core spots need one of the member's linked characters (a picker appears when they have several). Says how many active members have no linked character yet |
+| `/config starboard [channel] [stars] [disable]` | Messages with that many ⭐ (default 3) are reposted in the channel, with the count kept up to date. Only messages every starboard reader could already see; never bots or the starboard itself. Without the Message Content intent, reposts show the author and a link, not the text |
+| `/config message-log <true\|false>` | Edited and deleted messages go to the officer log (off by default). Edits need the Message Content intent; without it only deletions Discord still remembered are logged |
 
 **Base GP:** PR = EP / (GP + base GP). With base GP 100, someone with 50 EP
 and 0 GP has PR 0.5 instead of an undefined or huge number. The addon uses

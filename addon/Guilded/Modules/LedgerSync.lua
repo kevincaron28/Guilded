@@ -12,6 +12,12 @@
 --   DAYS|1|<author>|<part>|<parts>|<day>=<count>.<hash>;...   per day for one author that differs
 --   GET|1|<author>|<day>                            send me your entries of that day
 --   E|1|<id>|<player>|<ep>|<gp>|<core>|<type>|<voided 0/1>|<reason>   one entry
+--   CAP|1|Z1                                        I can unpack batches (WHISPER, before AUTH/DAYS)
+--   Z|1|<author>|<day>|<part>|<parts>|<chunk>       a day's entries in one batch, to a Z1 officer:
+--                                                   the E fields one per line, zlib, base64
+--
+-- A client whose game cannot pack text (no C_EncodingUtil) never says CAP, so it only ever gets
+-- E messages; older clients ignore CAP.
 --
 -- Only officers' messages count, only in this guild, only while this client is in in-game-only
 -- mode with sync on. Nothing is deleted. An entry that arrives twice is ignored; a received
@@ -29,6 +35,10 @@ local SUM_EVERY = 300          -- check for local changes this often (seconds)
 local SUM_ANYWAY = 900         -- and say SUM at least this often while online
 local ANSWER_COOLDOWN = 60     -- one AUTH per officer per minute
 local ASSEMBLY_SECONDS = 120
+local BATCH_CHUNK = 200
+local BATCH_PARTS = 60
+local BATCH_TEXT = 400000
+local BATCH_LINES = 5000
 
 local started = false
 local cache, cacheAt = nil, 0
@@ -40,6 +50,8 @@ local assemblies = {}
 -- addon messages never reached the other, while its whispers did), so SUM also goes by whisper.
 local MAX_DIRECT = 5
 local partners = {}
+-- Officers who said CAP|1|Z1 this session.
+local capable = {}
 local received, receivedFrom, noticeScheduled = 0, {}, false
 local lastExchange = nil
 
@@ -162,19 +174,31 @@ local function parseList(text)
   return list
 end
 
--- Collects multi-part lists; returns the whole list once every part has arrived.
-local function assemble(key, part, parts, text)
+-- Collects multi-part lists; returns the whole list once every part has arrived (with `raw`,
+-- the parts' text joined in order instead).
+local function assemble(key, part, parts, text, raw)
   part, parts = tonumber(part), tonumber(parts)
-  if not part or not parts or parts < 1 or parts > 60 or part < 1 or part > parts then return nil end
+  if not part or not parts or parts < 1 or parts > BATCH_PARTS or part < 1 or part > parts then return nil end
   local a = assemblies[key]
-  if not a or a.parts ~= parts or clock() - a.at > ASSEMBLY_SECONDS then a = { parts = parts, got = 0, items = {}, at = clock() }; assemblies[key] = a end
+  if not a or a.parts ~= parts or clock() - a.at > ASSEMBLY_SECONDS then a = { parts = parts, got = 0, items = {}, chunks = {}, at = clock() }; assemblies[key] = a end
   if a[part] then return nil end
   a[part] = true
   a.got = a.got + 1
-  for k, v in pairs(parseList(text)) do a.items[k] = v end
+  if raw then a.chunks[part] = text else for k, v in pairs(parseList(text)) do a.items[k] = v end end
   if a.got < a.parts then return nil end
   assemblies[key] = nil
-  return a.items
+  return raw and table.concat(a.chunks) or a.items
+end
+
+-- The game's text packing (C_EncodingUtil), or nil where this client has none.
+local function packer()
+  local E = C_EncodingUtil
+  if not (E and E.CompressString and E.DecompressString and E.EncodeBase64 and E.DecodeBase64) then return nil end
+  return E, Enum and Enum.CompressionMethod and Enum.CompressionMethod.Zlib
+end
+
+local function announceCapability(target)
+  if packer() then send("CAP|1|Z1", "WHISPER", target) end
 end
 
 local function sendSum(force)
@@ -190,19 +214,51 @@ local function sendSum(force)
   for i = 1, math.min(#names, MAX_DIRECT) do send("SUM|1|" .. sum, "WHISPER", partners[names[i]].address) end
 end
 
-local function sendEntry(id, target)
+local function entryMessage(id)
   local found = index().byId[id]
-  if not found then return end
+  if not found then return nil end
   local e = found.entry
   local reason = string.gsub(tostring(e.reason or ""), "[|%c]", " ")
   local head = table.concat({ "E", "1", e.id, found.name, tostring(e.epAmount or 0), tostring(e.gpAmount or 0), e.coreId or "", tostring(e.type or "ADJUSTMENT"), e.voided and "1" or "0" }, "|") .. "|"
-  send(head .. ns.util.truncate(reason, math.max(0, 250 - #head)), "WHISPER", target)
+  return head .. ns.util.truncate(reason, math.max(0, 250 - #head))
+end
+
+local function sendEntry(id, target)
+  local message = entryMessage(id)
+  if message then send(message, "WHISPER", target) end
+end
+
+-- A day of entries as one compressed batch, to an officer who said Z1. False when it cannot go
+-- that way (then each entry goes as its own E message).
+local function sendBatch(author, day, ids, target)
+  local E, method = packer()
+  local who = ns.normalizeName(target)
+  if not (E and who and capable[who]) then return false end
+  local lines = {}
+  for _, id in ipairs(ids) do
+    local message = entryMessage(id)
+    if message then lines[#lines + 1] = string.sub(message, 5) end
+  end
+  local ok, packed = pcall(E.CompressString, table.concat(lines, "\n"), method)
+  if not ok or type(packed) ~= "string" then return false end
+  local encoded
+  ok, encoded = pcall(E.EncodeBase64, packed)
+  if not ok or type(encoded) ~= "string" then return false end
+  local parts = math.ceil(#encoded / BATCH_CHUNK)
+  local head = "Z|1|" .. author .. "|" .. day .. "|"
+  if parts < 1 or parts > BATCH_PARTS or #head + 6 + BATCH_CHUNK > 255 then return false end
+  for part = 1, parts do
+    send(head .. part .. "|" .. parts .. "|" .. string.sub(encoded, (part - 1) * BATCH_CHUNK + 1, part * BATCH_CHUNK), "WHISPER", target)
+  end
+  return true
 end
 
 local function sendDay(author, day, target)
   local a = index().authors[author]
   local bucket = a and a.days[day]
-  for _, id in ipairs(bucket and bucket.ids or {}) do sendEntry(id, target) end
+  local ids = bucket and bucket.ids or {}
+  if #ids > 1 and sendBatch(author, day, ids, target) then return end
+  for _, id in ipairs(ids) do sendEntry(id, target) end
 end
 
 local function sendDays(author, target)
@@ -291,6 +347,25 @@ local function receiveEntry(fields, sender)
   noticeLater()
 end
 
+-- A whole Z batch: each line is one entry's E fields, checked exactly like an E message.
+local function receiveBatch(encoded, sender)
+  local E, method = packer()
+  if not E then return end
+  local ok, packed = pcall(E.DecodeBase64, encoded)
+  if not ok or type(packed) ~= "string" then return end
+  local text
+  ok, text = pcall(E.DecompressString, packed, method)
+  if not ok or type(text) ~= "string" or #text > BATCH_TEXT then return end
+  local lines = 0
+  for line in string.gmatch(text, "[^\n]+") do
+    lines = lines + 1
+    if lines > BATCH_LINES then return end
+    local fields = {}
+    for field in string.gmatch(line .. "|", "([^|]*)|") do fields[#fields + 1] = field end
+    if #fields >= 8 then receiveEntry(fields, sender) end
+  end
+end
+
 -- An officer whose SUM differs from ours: tell them what we have per author.
 local function answerSum(sender, count, hash)
   local ix = index()
@@ -303,6 +378,7 @@ local function answerSum(sender, count, hash)
   local items = {}
   for author, a in pairs(ix.authors) do items[#items + 1] = author .. "=" .. a.count .. "." .. a.hash end
   table.sort(items)
+  announceCapability(sender)
   sendList("AUTH|1|", items, sender)
   lastExchange = clock()
 end
@@ -310,6 +386,7 @@ end
 -- Their per-author totals against ours: send our days for every author that differs.
 local function compareAuthors(theirs, sender)
   local ix = index()
+  announceCapability(sender)
   for author, a in pairs(ix.authors) do
     local t = theirs[author]
     if not t or t.count ~= a.count or t.hash ~= a.hash then sendDays(author, sender) end
@@ -372,6 +449,13 @@ local function onMessage(text, channel, rawSender)
     local fields = {}
     for field in string.gmatch(string.sub(text, 5) .. "|", "([^|]*)|") do fields[#fields + 1] = field end
     if #fields >= 8 then receiveEntry(fields, sender) end
+  elseif kind == "CAP" then
+    local list = string.match(text, "^CAP|1|(.*)$") or ""
+    capable[sender] = string.find("," .. list .. ",", ",Z1,", 1, true) and true or nil
+  elseif kind == "Z" and channel == "WHISPER" then
+    local author, day, part, parts, chunk = string.match(text, "^Z|1|([^|]+)|(%d+)|(%d+)|(%d+)|(.*)$")
+    local whole = author and assemble("Z:" .. sender .. ":" .. author .. ":" .. day, part, parts, chunk, true)
+    if whole then receiveBatch(whole, sender) end
   end
 end
 

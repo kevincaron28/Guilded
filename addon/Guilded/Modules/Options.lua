@@ -142,24 +142,31 @@ local function build()
   setup:SetSize(180, 22); setup:SetPoint("LEFT", open, "RIGHT", 10, 0)
   setup:SetText(L("Guilded setup")); setup:SetScript("OnClick", module.openSetup)
 
+  -- The switches scroll: with every optional part listed they are taller than the panel.
+  local scroll = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
+  scroll:SetPoint("TOPLEFT", 0, -94)
+  scroll:SetPoint("BOTTOMRIGHT", -30, 8)
+  local list = CreateFrame("Frame", nil, scroll)
+  list:SetWidth(620)
+  scroll:SetScrollChild(list)
   boxes = {}
-  local y = -100
+  local y = -6
   for index, switch in ipairs(module.switches()) do
     if index == 4 then
-      local header = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+      local header = list:CreateFontString(nil, "ARTWORK", "GameFontNormal")
       header:SetPoint("TOPLEFT", 16, y - 6)
       header:SetText(L("Optional parts (a part turned back on starts after /reload)"))
       y = y - 26
     end
-    local box = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
+    local box = CreateFrame("CheckButton", nil, list, "UICheckButtonTemplate")
     box:SetSize(24, 24)
     box:SetPoint("TOPLEFT", 16, y)
     box.switch = switch
-    local label = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    local label = list:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     label:SetPoint("LEFT", box, "RIGHT", 4, 0)
     label:SetText(switch.label)
     if switch.module then
-      box.state = panel:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+      box.state = list:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
       box.state:SetPoint("LEFT", label, "RIGHT", 8, 0)
     end
     box:SetScript("OnClick", function(self)
@@ -169,6 +176,7 @@ local function build()
     table.insert(boxes, box)
     y = y - 26
   end
+  list:SetHeight(-y + 10)
   panel:SetScript("OnShow", refresh)
 
   if Settings and Settings.RegisterCanvasLayoutCategory and Settings.RegisterAddOnCategory then

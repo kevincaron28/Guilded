@@ -748,14 +748,26 @@ local function listSnapshots()
 end
 
 -- /guilded award group <amount> [reason]: EP to everyone in the group.
+-- A consumable penalty (Modules/Consumables.lua) lowers the amount for players this raid's scan
+-- saw without a flask or food; one cut to nothing is skipped rather than recorded as zero.
 local function groupAward(rawAmount, reason)
   local names = groupMembers()
-  local count = 0
+  local count, reduced = 0, {}
   for _, name in ipairs(names) do
-    if changeEpgp(name, rawAmount, reason, "EP_AWARD", true) then count = count + 1 else return end
+    local amount, note = rawAmount, reason
+    local cut = ns.consumables and ns.consumables.penaltyFor and ns.consumables.penaltyFor(name, rawAmount)
+    if cut then
+      amount = cut.amount
+      note = ((reason and reason ~= "") and (reason .. "; ") or "") .. cut.note
+      table.insert(reduced, name)
+    end
+    if cut and amount < 1 then
+      -- Nothing left to award.
+    elseif changeEpgp(name, amount, note, "EP_AWARD", true) then count = count + 1 else return end
   end
   message(string.format("Awarded %s EP to %d group member(s)%s.", tostring(rawAmount), count,
     (reason and reason ~= "") and (" (" .. reason .. ")") or ""))
+  if #reduced > 0 then message(string.format(L("Consumable penalty applied to %d player(s): %s."), #reduced, table.concat(reduced, ", "))) end
 end
 
 local function collectProfessions()
@@ -1192,6 +1204,8 @@ if edition ~= "forever" then
   table.insert(READINESS_SLOTS, { 11, "Finger0" })
   table.insert(READINESS_SLOTS, { 12, "Finger1" })
 end
+-- Read-only for other modules (Modules/PugCheck.lua checks other players with the same rules).
+ns.gearSlots, ns.enchantableSlots = READINESS_SLOTS, ENCHANTABLE
 
 -- `tries` is set only by the automatic checks (login, gear and talent changes): right after
 -- login WoW Forever can report every slot empty for a few seconds, and such a check used to
@@ -1598,8 +1612,15 @@ ns.MODULES = {
   { key = "guildmap", name = "Guild map", desc = "guildmates on your world map and minimap", commands = { "map" } },
   { key = "presence", name = "Availability", desc = "opt-in availability and local activity observations", commands = { "free" } },
   { key = "scores", name = "Dungeon scores", desc = "a dungeon score per player from recorded runs, on tooltips", commands = { "score" } },
+  { key = "guildlog", name = "Guild event log", desc = "joins, leaves, promotions and removals, kept longer than the game keeps them", commands = { "guildlog" } },
+  { key = "recruit", name = "Recruiting", desc = "officers' prospect list and a welcome whisper for new members", commands = { "recruit", "welcome" } },
+  { key = "chattags", name = "Main names in chat", desc = "the main's name next to an alt in guild and officer chat", commands = { "chattags" } },
+  { key = "guildbank", name = "Guild bank snapshot", desc = "what the guild bank held when it was last opened", commands = { "gbank" } },
+  { key = "pugcheck", name = "Pug gear check", desc = "item level and missing enchants of group members from outside the guild", commands = { "pugcheck" } },
+  { key = "imports", name = "Loot imports", desc = "softres.it lists and That's My BiS priorities", commands = { "import", "tmb" } },
 }
-local MODULE_ALIASES = { map = "guildmap", score = "scores", bid = "bidding", bids = "bidding", gp = "bidding", lc = "council", reserves = "reserve", recipe = "recipes", cooldown = "recipes", crafting = "recipes", softres = "reserve", sr = "reserve", lootcouncil = "council", dungeons = "dungeon", test = "sim", tests = "sim", consumable = "consumables", consumes = "consumables", flask = "consumables" }
+local MODULE_ALIASES = { map = "guildmap", score = "scores", bid = "bidding", bids = "bidding", gp = "bidding", lc = "council", reserves = "reserve", recipe = "recipes", cooldown = "recipes", crafting = "recipes", softres = "reserve", sr = "reserve", lootcouncil = "council", dungeons = "dungeon", test = "sim", tests = "sim", consumable = "consumables", consumes = "consumables", flask = "consumables",
+  log = "guildlog", recruiting = "recruit", welcome = "recruit", tags = "chattags", bank = "guildbank", gbank = "guildbank", pug = "pugcheck", tmb = "imports", import = "imports" }
 local moduleByKey, commandModule, activeAtLogin = {}, {}, {}
 for _, module in ipairs(ns.MODULES) do
   moduleByKey[module.key] = module
@@ -2233,12 +2254,19 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if elapsed >= SLOW_HANDLER_MS then
       logDiagnostic("SLOW", string.format("%s took %.0f ms", tostring(event), elapsed))
     end
+    -- The opt-in speed recorder (Modules/Perf.lua) keeps every timing while it is on.
+    if ns.perf and ns.perf.active then ns.perf.record("event:" .. tostring(event), elapsed) end
   end
 end)
 
 SLASH_GUILDED1 = "/guilded"
 SLASH_GUILDED2 = "/gd"
-SlashCmdList["GUILDED"] = command
+SlashCmdList["GUILDED"] = function(text)
+  if not (ns.perf and ns.perf.active and debugprofilestop) then return command(text) end
+  local started = debugprofilestop()
+  command(text)
+  ns.perf.record("command:" .. string.lower(string.match(text or "", "^%s*(%S+)") or "menu"), debugprofilestop() - started)
+end
 
 -- Shared namespace API for modules (see Modules/Casino.lua).
 ns.ensureDb = ensureDb

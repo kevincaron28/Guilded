@@ -407,6 +407,36 @@ local function officerChange(action, args)
   shareNow()
 end
 
+-- A whole list from elsewhere (softres.it CSV or Gargul export, Modules/LootImports.lua): this
+-- officer becomes the keeper and the list opens with exactly those reserves, then is shared like
+-- any list. An import is the raid's full list, so it replaces what was there (SR+ weeks carry
+-- over as when a list is reopened). Returns players, items or nil and the reason.
+function reserve.importEntries(map, title, names)
+  if not (ns.isOfficer and ns.isOfficer()) then return nil, L("Only officers can do that.") end
+  local s = state()
+  if not s then return nil, "No saved data yet." end
+  local entries, players, items, most = {}, 0, 0, 1
+  for name, ids in pairs(map or {}) do
+    local list, seen = {}, {}
+    for _, id in ipairs(ids) do
+      if not seen[id] and #list < MAX_LIMIT then seen[id] = true; table.insert(list, id) end
+    end
+    if #list > 0 then
+      entries[name] = list
+      players, items = players + 1, items + #list
+      if #list > most then most = #list end
+    end
+  end
+  if players == 0 then return nil, L("No reserves found in that text.") end
+  carryPlus(s)
+  s.open, s.limit, s.title, s.host, s.hostSender = true, math.min(MAX_LIMIT, most), title or "", ns.playerName(), nil
+  s.entries = entries
+  for id, name in pairs(names or {}) do s.names[id] = name end
+  changed()
+  shareNow()
+  return players, items
+end
+
 local function whoText(itemText)
   local id = itemId(itemText)
   if not id then return "Usage: /guilded reserve who <item link>" end

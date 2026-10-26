@@ -1,3 +1,11 @@
+> Local release-gap work (26 October): read docs/RELEASE_GAP_WORK_2026-10-26.md.
+> Branch codex/release-gap-completion adds audited main/alt apply, participation,
+> opt-in availability, edition events and optional Classic buffs. Not deployed.
+> Owner chose to retain the license and build only a local unsigned MSIX preview;
+> see docs/MICROSOFT_STORE_MSIX.md. No Partner Center identity exists yet.
+> Claude owns edition raid presets in qgb-claude-gaps; coordinate through
+> backups/CODEX_CLAUDE_COORDINATION_2026-10-25.md before integration or restart.
+>
 > 7.4.0 (25 October 2026): published on GitHub and deployed to Oracle at 8837fd9.
 > Both clean-main CI jobs and 2,548 local tests passed; all 21 public assets verified.
 > This supersedes the earlier local-only holds below. Read docs/SESSION_HANDOFF_2026-10-25.md

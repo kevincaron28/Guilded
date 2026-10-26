@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Collection, ChannelType, PermissionFlagsBits, type Guild, type TextChannel } from "discord.js";
 import type { DiscordJob, GameEventBoard, OfficialGameEvent, PrismaClient } from "../src/generated/prisma/client.js";
-import { effectiveEventState, eventBoardEmbeds, eventCountdown, eventDetails, eventEmbedsHash, officialEventSource, parseEventInstant, queueGameEvents, reminderDue, saveOfficialEvent, validateEvent, visibleEvent } from "../src/services/game-events.js";
+import { EVENT_GAMES, retainEventReminders, reminderSettings, effectiveEventState, eventBoardEmbeds, eventCountdown, eventDetails, eventEmbedsHash, officialEventSource, parseEventInstant, queueGameEvents, reminderDue, saveOfficialEvent, validateEvent, visibleEvent } from "../src/services/game-events.js";
 import { deliverGameEvent, eventRole, findEventMessage } from "../src/services/game-events-discord.js";
 import { ownerEventsCommand, executeGameEvents, executeOwnerEvents } from "../src/commands/game-events.js";
 
 const now = new Date("2026-10-27T20:00:00Z");
 const event = (overrides: Partial<OfficialGameEvent> = {}): OfficialGameEvent => ({ id: "names", game: "WOW_FOREVER", region: "NA", titleEn: "Name reservation", titleFr: "Réservation des noms", sourceUrl: "https://news.blizzard.com/en-us/article/24303866/claim-your-world-of-warcraft-forever-character-names", dateLabelEn: "", dateLabelFr: "", state: "SCHEDULED", startsAt: now, scheduleVersion: 1, archived: false, updatedBy: "owner", createdAt: now, updatedAt: now, ...overrides });
-const board = (overrides: Partial<GameEventBoard> = {}): GameEventBoard => ({ id: "board", guildId: "record", channelId: "channel", enabled: true, games: ["WOW_FOREVER", "POE2"], region: "NA", messageId: null, contentHash: null, wowRoleId: "role", poeRoleId: null, wowReminders: [1440, 60, 0], poeReminders: [], poeRemindersEnabledAt: null, wowRemindersEnabledAt: new Date("2026-10-20T00:00:00Z"), createdAt: now, updatedAt: now, ...overrides });
+const board = (overrides: Partial<GameEventBoard> = {}): GameEventBoard => ({ editionReminders: {}, id: "board", guildId: "record", channelId: "channel", enabled: true, games: ["WOW_FOREVER", "POE2"], region: "NA", messageId: null, contentHash: null, wowRoleId: "role", poeRoleId: null, wowReminders: [1440, 60, 0], poeReminders: [], poeRemindersEnabledAt: null, wowRemindersEnabledAt: new Date("2026-10-20T00:00:00Z"), createdAt: now, updatedAt: now, ...overrides });
 afterEach(() => vi.useRealTimers());
 
 describe("official event dates and display", () => {
@@ -143,7 +143,7 @@ function harness(kind = "GAME_EVENT_REMINDER") {
   const e = event();
   const job = { id: "durable-job", guildId: "record", kind, payload: { boardId: b.id, eventId: e.id, scheduleVersion: 1, minutes: 0 }, createdAt: now } as unknown as DiscordJob;
   const tx = { $executeRaw: vi.fn(), gameEventBoard: { findFirst: vi.fn().mockResolvedValue(b), update: vi.fn() }, officialGameEvent: { findUnique: vi.fn().mockResolvedValue(e), findMany: vi.fn().mockResolvedValue([e]) } };
-  const db = { $transaction: (fn: (t: typeof tx) => unknown) => fn(tx) } as unknown as PrismaClient;
+  const db = { ...tx, $transaction: vi.fn((fn: (t: typeof tx) => unknown) => fn(tx)) } as unknown as PrismaClient;
   const send = vi.fn().mockResolvedValue({ id: "posted", pinned: false, pin: vi.fn(), unpin: vi.fn() });
   const channel = { type: ChannelType.GuildText, client: { user: { id: "bot" } }, permissionsFor: () => ({ has: () => true }), messages: { fetch: vi.fn().mockResolvedValue(new Collection()) }, send };
   const guild = { id: "discord", client: channel.client, channels: { fetch: vi.fn().mockResolvedValue(channel) }, members: { fetchMe: vi.fn() }, roles: { fetch: vi.fn().mockResolvedValue({ id: "role", managed: false, mentionable: true, permissions: { bitfield: 0n } }) } } as unknown as Guild;
@@ -151,6 +151,46 @@ function harness(kind = "GAME_EVENT_REMINDER") {
 }
 
 describe("delivery and restart recovery", () => {
+  it("performs Discord permission and recovery reads before reserving a transaction", async () => {
+    const h = harness();
+    h.channel.messages.fetch.mockImplementation(async () => {
+      expect(h.db.$transaction).not.toHaveBeenCalled();
+      expect(h.guild.roles.fetch).toHaveBeenCalledOnce();
+      expect(h.guild.members.fetchMe).toHaveBeenCalledOnce();
+      return new Collection();
+    });
+    await deliverGameEvent(h.guild, h.db, h.job, now);
+    expect(h.db.$transaction).toHaveBeenCalledOnce();
+    expect(h.send).toHaveBeenCalledOnce();
+  });
+  it.each(["version", "cancelled", "disabled"])("rechecks %s after Discord recovery", async reason => {
+    const h = harness();
+    h.channel.messages.fetch.mockImplementation(async () => {
+      if (reason === "version") h.e.scheduleVersion++;
+      if (reason === "cancelled") { h.e.state = "CANCELLED"; h.e.startsAt = null; }
+      if (reason === "disabled") h.b.enabled = false;
+      return new Collection();
+    });
+    await deliverGameEvent(h.guild, h.db, h.job, now);
+    expect(h.send).not.toHaveBeenCalled();
+  });
+  it.each(["channelId", "messageId", "updatedAt"])("retries a board whose %s changed during recovery", async field => {
+    const h = harness("GAME_EVENT_BOARD");
+    h.tx.gameEventBoard.findFirst.mockResolvedValueOnce({ ...h.b }).mockResolvedValueOnce({ ...h.b, [field]: field === "updatedAt" ? new Date(now.getTime() + 1) : "changed" });
+    await expect(deliverGameEvent(h.guild, h.db, h.job, now)).rejects.toThrow("changed during preflight");
+    expect(h.send).not.toHaveBeenCalled();
+    expect(h.tx.gameEventBoard.update).not.toHaveBeenCalled();
+  });
+  it("never sends after history recovery exceeds its deadline", async () => {
+    const h = harness();
+    h.channel.messages.fetch.mockImplementation(async () => {
+      vi.setSystemTime(new Date(now.getTime() + 45_000));
+      return new Collection();
+    });
+    await expect(deliverGameEvent(h.guild, h.db, h.job, now)).rejects.toThrow("time limit");
+    expect(h.send).not.toHaveBeenCalled();
+    expect(h.db.$transaction).not.toHaveBeenCalled();
+  });
   it("only pings the explicitly configured role", async () => {
     const h = harness(); await deliverGameEvent(h.guild, h.db, h.job, now);
     expect(h.send).toHaveBeenCalledOnce();
@@ -219,4 +259,43 @@ it("the owner command fits Discord limits and has required options before option
     for (const choice of row.choices ?? []) walk(choice);
   }
   walk(json); expect(size).toBeLessThanOrEqual(4000);
+});
+
+
+describe("edition event isolation", () => {
+  it("supports each WoW edition with its own official source and board label", () => {
+    const rows = EVENT_GAMES.filter(game => game.startsWith("WOW_")).map((game, i) => event({ id: `edition-${i}`, game }));
+    for (const row of rows) expect(validateEvent(row).game).toBe(row.game);
+    expect(() => officialEventSource("UNKNOWN", "https://www.pathofexile.com/a")).toThrow();
+    expect(() => officialEventSource("WOW_RETAIL", "https://www.pathofexile.com/a")).toThrow();
+    const titles = eventBoardEmbeds(rows, board({ games: [...EVENT_GAMES] }), false, now).map(e => e.toJSON().title);
+    expect(titles).toEqual(expect.arrayContaining(["WoW Forever", "WoW Classic Era", "WoW Classic TBC", "WoW Classic Mists", "WoW Retail", "Path of Exile 2"]));
+  });
+  it("never borrows Forever or PoE opt-ins for another edition and validates stored preferences", () => {
+    const retail = event({ game: "WOW_RETAIL" });
+    const all = board({ games: [...EVENT_GAMES], poeRoleId: "999", poeReminders: [0], poeRemindersEnabledAt: now });
+    expect(reminderDue(retail, all, 0, now)).toBe(false);
+    const configured = { ...all, editionReminders: { WOW_RETAIL: { role: "123", offsets: [0], enabledAt: now.toISOString() } } };
+    expect(reminderDue(retail, configured, 0, now)).toBe(true);
+    expect(reminderDue(event({ game: "WOW_CLASSIC_ERA" }), configured, 0, now)).toBe(false);
+    expect(reminderSettings(configured, "WOW_RETAIL").role).toBe("123");
+    for (const entry of [null, [], { role: "@everyone", offsets: [0], enabledAt: now.toISOString() }, { role: "123", offsets: [12], enabledAt: now.toISOString() }, { role: "123", offsets: [0], enabledAt: "invalid" }]) {
+      expect(reminderDue(retail, { ...all, editionReminders: { WOW_RETAIL: entry } }, 0, now)).toBe(false);
+    }
+    const retained = retainEventReminders(configured, ["POE2"]);
+    expect(retained).toEqual({ editionReminders: {}, wowRoleId: null, wowReminders: [], wowRemindersEnabledAt: null });
+    expect(retainEventReminders({ ...configured, enabled: false }, [...EVENT_GAMES])).toMatchObject({ editionReminders: {}, wowRoleId: null, poeRoleId: null });
+  });
+});
+
+
+it("fits all edition boards inside Discord's shared embed text budget", () => {
+  for (const fr of [false, true]) {
+    const rows = Array.from({ length: 12 }, (_, i) => event({ id: `long-${i}`, game: EVENT_GAMES[i % EVENT_GAMES.length]!, titleEn: "X".repeat(80), titleFr: "Y".repeat(80), sourceUrl: "https://news.blizzard.com/" + "a".repeat(194), startsAt: new Date(now.getTime() + 60000) }));
+    const embeds = eventBoardEmbeds(rows, board({ games: [...EVENT_GAMES] }), fr, now).map(e => e.toJSON());
+    const fields = embeds.flatMap(e => e.fields ?? []);
+    expect(fields).toHaveLength(12);
+    expect(fields.every(f => f.value.includes("https://news.blizzard.com/") && f.value.includes("<t:"))).toBe(true);
+    expect(embeds.reduce((n, e) => n + (e.title?.length ?? 0) + (e.description?.length ?? 0) + (e.footer?.text.length ?? 0) + (e.fields ?? []).reduce((m, f) => m + f.name.length + f.value.length, 0), 0)).toBeLessThanOrEqual(6000);
+  }
 });

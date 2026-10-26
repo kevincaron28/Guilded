@@ -25,12 +25,12 @@ export function teamComposition(core: TeamView, edition: string) {
     const names = classes.get(className) ?? []; names.push(member.name); classes.set(className, names);
   }
   const incomplete = core.truncated || unknown > 0 || duplicates > 0;
-  const catalog = raidBuffCatalog(edition) as { provisional: boolean; buffs: { label: string; french: string; classes: string[]; scope: string }[] } | null;
+  const catalog = raidBuffCatalog(edition) as { provisional: boolean; buffs: { label: string; french: string; classes: string[]; scope: string; optional?: boolean }[] } | null;
   return { classes: [...classes].sort(([a], [b]) => a.localeCompare(b)), unknown, duplicates, incomplete,
     provisional: catalog?.provisional ?? false,
-    buffs: catalog ? catalog.buffs.map((buff: { label: string; french: string; classes: string[]; scope: string }) => {
+    buffs: catalog ? catalog.buffs.map(buff => {
       const providers = buff.classes.flatMap(name => classes.get(name) ?? []);
-      return { en: buff.label, fr: buff.french, className: buff.classes[0], scope: buff.scope, providers,
-        status: providers.length ? "potential" as const : incomplete ? "unknown" as const : "absent" as const };
+      return { en: buff.label, fr: buff.french, className: buff.classes[0], scope: buff.scope, optional: buff.optional === true, providers,
+        status: buff.scope === "world" ? "world" as const : providers.length ? "potential" as const : incomplete ? "unknown" as const : "absent" as const };
     }) : null };
 }

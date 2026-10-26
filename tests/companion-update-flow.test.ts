@@ -8,7 +8,7 @@ const require = createRequire(import.meta.url);
 const realUpdates = require("../companion-app/update-check.cjs");
 const i18n = require("../companion-app/i18n.cjs");
 const installer = { name: "setup.exe", url: "https://github.com/kevincaron28/Guilded/releases/download/v7.3.0/setup.exe" };
-function harness(latest: unknown, locale = 'en') {
+function harness(latest: unknown, locale = 'en', windowsStore = false) {
   const handlers = new Map<string, () => Promise<{ ok: boolean; action?: string }>>();
   const openExternal = vi.fn();
   const updates = { ...realUpdates, fetchLatestRelease: vi.fn(async () => latest), downloadInstaller: vi.fn(), launchInstaller: vi.fn() };
@@ -20,7 +20,7 @@ function harness(latest: unknown, locale = 'en') {
       ipcMain: { handle: (name: string, callback: () => Promise<{ ok: boolean }>) => handlers.set(name, callback) },
       shell: { openExternal }, Notification: { isSupported: () => false }
     } : id === "./i18n.cjs" ? i18n : id === "./update-check.cjs" ? updates : id === "./detect-wow.cjs" ? {} : id === "node:fs" ? { mkdirSync: vi.fn(), writeFileSync: vi.fn() } : require(id),
-    process: { argv: [] }, __dirname: "C:/fake", setTimeout: timers, setInterval: vi.fn(), console
+    process: { argv: [], windowsStore }, __dirname: "C:/fake", setTimeout: timers, setInterval: vi.fn(), console
   };
   runInNewContext(readFileSync("companion-app/main.cjs", "utf8") + `
     engineModules = { validateConfig: () => [] };
@@ -82,4 +82,15 @@ describe("companion updater handoff", () => {
     await click();
     expect(button.textContent).toBe(action === "installing" ? "Installing…" : "Update now");
   });
+});
+
+
+it("keeps MSIX updates in Microsoft Store even when GitHub advertises an EXE", async () => {
+  const h = harness({ version: "7.3.0", installer }, "en", true);
+  expect(await h.handlers.get("install-update")!()).toMatchObject({ ok: true, action: "store" });
+  expect(h.openExternal).toHaveBeenCalledWith("ms-windows-store://downloadsandupdates");
+  expect(h.updates.fetchLatestRelease).not.toHaveBeenCalled();
+  expect(h.updates.downloadInstaller).not.toHaveBeenCalled();
+  expect(h.updates.launchInstaller).not.toHaveBeenCalled();
+  expect(h.timers).not.toHaveBeenCalled();
 });

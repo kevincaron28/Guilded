@@ -208,6 +208,8 @@ bind('btnGRM', async () => {
 bind('btnFolder',() => api.openAddonFolder()); bind('btnPause',async () => { await api.toggleTracking(); }); bind('btnOnline',() => api.openOnline());
 bind('btnRemoveData',() => api.removeData());
 // Update now (7.2): the desktop app downloads, checks and installs the new version itself.
+bind('btnStoreUpdates', () => api.openUpdate());
+bind('btnStoreStartup', () => api.openStartupSettings());
 bind('btnUpdate',async () => {
   if (!api.installUpdate) return api.openUpdate();
   $('btnUpdate').textContent = T("Checking update…");
@@ -303,6 +305,8 @@ async function init() {
   await renderProfiles();
   if (!languageUI.explicit && ['en','fr'].includes(all.language)) languageUI.set(all.language, false);
   for (const id of fields) $(id).value = all.config[id] ?? '';
+  $('storeDistribution').hidden = !all.storePackage;
+  if (all.storePackage) $('autostartLabel').hidden = true;
   $('wowEnabled').checked = all.config.wowEnabled !== false; $('poeEnabled').checked = all.config.poeEnabled === true; $('poeMode').value = all.config.poeMode || 'STANDARD'; $('autostart').checked = all.autostart; $('version').textContent = `Version ${all.version}`;
   configurePresentation();
   gameFields(); entries = all.logs.slice(-300); renderLogs(); renderState({state:all.state,health:all.health,update:all.update,savedFile:all.savedFile});

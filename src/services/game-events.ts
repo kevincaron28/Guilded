@@ -3,7 +3,12 @@ import { EmbedBuilder, escapeMarkdown } from "discord.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 import { createHash } from "node:crypto";
 
-export const EVENT_GAMES = ["WOW_FOREVER", "POE2"] as const;
+export const EVENT_GAMES = ["WOW_FOREVER", "WOW_CLASSIC_ERA", "WOW_CLASSIC_TBC", "WOW_CLASSIC_MISTS", "WOW_RETAIL", "POE2"] as const;
+export const EVENT_GAME_LABELS: Record<typeof EVENT_GAMES[number], string> = {
+  WOW_FOREVER: "WoW Forever", WOW_CLASSIC_ERA: "WoW Classic Era", WOW_CLASSIC_TBC: "WoW Classic TBC",
+  WOW_CLASSIC_MISTS: "WoW Classic Mists", WOW_RETAIL: "WoW Retail", POE2: "Path of Exile 2"
+};
+export function eventGameLabel(game: string): string { return EVENT_GAME_LABELS[game as typeof EVENT_GAMES[number]] ?? game; }
 export const EVENT_REGIONS = ["GLOBAL", "NA", "EU", "KR", "TW"] as const;
 export const EVENT_STATES = ["SCHEDULED", "TBA", "POSTPONED", "CANCELLED", "REACHED"] as const;
 export const REMINDER_MINUTES = [1440, 60, 0];
@@ -31,8 +36,8 @@ export function parseEventInstant(value: string): Date {
 export function officialEventSource(game: string, value: string): string {
   let url: URL;
   try { url = new URL(value); } catch { throw new GameEventInputError("Invalid official URL. / Lien officiel invalide."); }
-  const hosts = game === "WOW_FOREVER" ? ["news.blizzard.com", "worldofwarcraft.blizzard.com"]
-    : ["www.pathofexile.com", "pathofexile.com", "pathofexile2.com", "www.pathofexile2.com"];
+  const hosts = EVENT_GAMES.includes(game as typeof EVENT_GAMES[number]) && game.startsWith("WOW_") ? ["news.blizzard.com", "worldofwarcraft.blizzard.com"]
+    : game === "POE2" ? ["www.pathofexile.com", "pathofexile.com", "pathofexile2.com", "www.pathofexile2.com"] : [];
   if (url.protocol !== "https:" || !hosts.includes(url.hostname) || url.username || url.password || url.port || value.length > 220 || /[<>\s()]/.test(value)) {
     throw new GameEventInputError("Use an official Blizzard or Path of Exile HTTPS announcement (max 220 characters). / Utilisez une annonce officielle HTTPS (220 caractères maximum).");
   }
@@ -100,7 +105,7 @@ export function eventDetails(event: OfficialGameEvent, fr: boolean, now: Date, c
   const timer = countdown && state === "SCHEDULED" && event.startsAt ? eventCountdown(event.startsAt, fr, now) : "";
   return `${timer || `**${labels[state]}**`}${time ? `\n${time}` : ""}\n[${eventText(fr, "Official source", "Source officielle")}](${event.sourceUrl})`;
 }
-export function eventBoardEmbeds(events: OfficialGameEvent[], board: Pick<GameEventBoard, "id" | "games" | "region" | "enabled">, fr: boolean, now = new Date()) {
+export function eventBoardEmbeds(events: OfficialGameEvent[], board: Pick<GameEventBoard, "id" | "games" | "region" | "enabled">, fr: boolean, now = new Date(), compact = false): EmbedBuilder[] {
   const next = events.filter(event => visibleEvent(event, board) && effectiveEventState(event, now) === "SCHEDULED")
     .sort((a, b) => a.startsAt!.getTime() - b.startsAt!.getTime())[0];
   const spotlight = next ? `🎯 **${eventText(fr, "Up next", "Prochain rendez-vous")} · ${escapeMarkdown(fr ? next.titleFr : next.titleEn).slice(0, 80)}**\n\n` : "";
@@ -115,15 +120,41 @@ export function eventBoardEmbeds(events: OfficialGameEvent[], board: Pick<GameEv
       const time = (event: OfficialGameEvent) => effectiveEventState(event, now) === "SCHEDULED" ? event.startsAt!.getTime() : Number.MAX_SAFE_INTEGER;
       return time(a) - time(b) || a.id.localeCompare(b.id);
     });
-    const embed = new EmbedBuilder().setColor(game === "POE2" ? 0xc99a48 : 0x4c87cf).setTitle(game === "POE2" ? "Path of Exile 2" : "WoW Forever");
-    if (rows.length) embed.addFields(rows.map(event => ({ name: escapeMarkdown(fr ? event.titleFr : event.titleEn).slice(0, 80), value: eventDetails(event, fr, now, true) })));
+    const embed = new EmbedBuilder().setColor(game === "POE2" ? 0xc99a48 : 0x4c87cf).setTitle(eventGameLabel(game));
+    if (rows.length) embed.addFields(rows.map(event => ({ name: escapeMarkdown(fr ? event.titleFr : event.titleEn).slice(0, 80), value: eventDetails(event, fr, now, !compact) })));
     else embed.setDescription(eventText(fr, "No announced events.", "Aucun événement annoncé."));
     embeds.push(embed);
   }
-  return embeds;
+  const textLength = embeds.reduce((sum, embed) => {
+    const data = embed.toJSON();
+    return sum + (data.title?.length ?? 0) + (data.description?.length ?? 0) + (data.footer?.text.length ?? 0)
+      + (data.fields ?? []).reduce((n, field) => n + field.name.length + field.value.length, 0);
+  }, 0);
+  // Discord has one 6,000-character budget across all embeds in a message.
+  // Dense boards keep native timestamps and every source while shedding hype.
+  return !compact && textLength > 5900 ? eventBoardEmbeds(events, board, fr, now, true) : embeds;
 }
 export function reminderSettings(board: GameEventBoard, game: string) {
-  return game === "WOW_FOREVER" ? { role: board.wowRoleId, offsets: board.wowReminders, enabledAt: board.wowRemindersEnabledAt } : { role: board.poeRoleId, offsets: board.poeReminders, enabledAt: board.poeRemindersEnabledAt };
+  if (game === "WOW_FOREVER") return { role: board.wowRoleId, offsets: board.wowReminders, enabledAt: board.wowRemindersEnabledAt };
+  if (game === "POE2") return { role: board.poeRoleId, offsets: board.poeReminders, enabledAt: board.poeRemindersEnabledAt };
+  const off = { role: null, offsets: [] as number[], enabledAt: null };
+  if (!EVENT_GAMES.includes(game as typeof EVENT_GAMES[number])) return off;
+  const data = board.editionReminders;
+  if (!data || Array.isArray(data) || typeof data !== "object") return off;
+  const entry = data[game];
+  if (!entry || Array.isArray(entry) || typeof entry !== "object" || typeof entry['role'] !== "string" || !/^\d{1,25}$/.test(entry['role'])
+    || !Array.isArray(entry['offsets']) || !entry['offsets'].every(n => typeof n === "number" && REMINDER_MINUTES.includes(n)) || typeof entry['enabledAt'] !== "string") return off;
+  const enabledAt = new Date(entry['enabledAt']);
+  return Number.isFinite(enabledAt.getTime()) ? { role: entry['role'], offsets: entry['offsets'] as number[], enabledAt } : off;
+}
+// Removing a game revokes its opt-in; re-adding it never revives old role pings.
+export function retainEventReminders(board: GameEventBoard | null, games: string[]): Prisma.GameEventBoardUpdateInput {
+  const data = board?.editionReminders;
+  const editionReminders: Prisma.InputJsonObject = data && typeof data === "object" && !Array.isArray(data) && board?.enabled
+    ? Object.fromEntries(Object.entries(data).filter(([game]) => games.includes(game))) as Prisma.InputJsonObject : {};
+  return { editionReminders,
+    ...(!board?.enabled || !games.includes("WOW_FOREVER") ? { wowRoleId: null, wowReminders: [], wowRemindersEnabledAt: null } : {}),
+    ...(!board?.enabled || !games.includes("POE2") ? { poeRoleId: null, poeReminders: [], poeRemindersEnabledAt: null } : {}) };
 }
 export function reminderDue(event: OfficialGameEvent, board: GameEventBoard, minutes: number, now: Date): boolean {
   const { role, offsets, enabledAt } = reminderSettings(board, event.game);

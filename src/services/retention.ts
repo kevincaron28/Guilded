@@ -36,5 +36,7 @@ export async function runRetention(database: Db, now = new Date()): Promise<{ im
   await database.$executeRaw`DELETE FROM "AiDailyUsage" WHERE "day" < ${before(90).toISOString().slice(0, 10)}`;
   // Completed deliveries need cleanup every few hours, not a DELETE every minute.
   await database.$executeRaw`DELETE FROM "DiscordJob" WHERE "status" = 'DONE' AND "deliveredAt" < ${before(30)}`;
+  // Expired availability is immediately hidden by reads; purge rows every six hours.
+  await database.$executeRaw`DELETE FROM "WebAvailability" WHERE "expiresAt" <= ${now}`;
   return { imports: imports.count, snapshots, errors: errors.count };
 }

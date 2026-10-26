@@ -5,6 +5,8 @@ const { spawn } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
 const { detectSavedVariables } = require("./detect-wow.cjs");
 const updates = require("./update-check.cjs");
+const STORE_PACKAGE = process.windowsStore === true;
+const STORE_UPDATES = "ms-windows-store://downloadsandupdates";
 const i18n = require("./i18n.cjs");
 let selectedLanguage;
 const language = () => selectedLanguage || i18n.normalizeLanguage(app.getLocale());
@@ -103,6 +105,7 @@ let update = null;
 let latestRelease = null;
 
 function refreshUpdate(state = engine?.state()) {
+  if (STORE_PACKAGE) { update = null; return; }
   const next = updates.pickUpdate(app.getVersion(), latestRelease, state?.botVersion);
   // The bot can announce the version before GitHub provides the installer.
   // Refresh the metadata even for the same version; notification dedup is below.
@@ -121,6 +124,7 @@ function refreshUpdate(state = engine?.state()) {
 }
 
 async function checkForUpdate() {
+  if (STORE_PACKAGE) return;
   latestRelease = await updates.fetchLatestRelease() ?? latestRelease;
   if (engine) onState(engine.state());
 }
@@ -217,7 +221,7 @@ function createTray() {
     { label: T("Refresh in-game standings now"), click: () => void engine.refreshStandings() },
     { type: "separator" },
     {
-      label: T("Start with Windows"), type: "checkbox", checked: app.getLoginItemSettings().openAtLogin,
+      label: T("Start with Windows"), type: "checkbox", enabled: !STORE_PACKAGE, checked: !STORE_PACKAGE && app.getLoginItemSettings().openAtLogin,
       click: (item) => { setAutostart(item.checked); }
     },
     { label: T("Quit (stops sending data)"), click: () => { quitting = true; app.quit(); } },
@@ -228,6 +232,7 @@ function createTray() {
 }
 
 function setAutostart(on) {
+  if (STORE_PACKAGE) return false; // Package startup is managed by Windows, never a Run registry entry.
   app.setLoginItemSettings({ openAtLogin: !!on, args: ["--hidden"] });
   return app.getLoginItemSettings().openAtLogin;
 }
@@ -333,7 +338,7 @@ app.whenReady().then(async () => {
 app.on("window-all-closed", () => { /* stay in the tray */ });
 app.on("before-quit", () => { quitting = true; });
 
-ipcMain.handle("get-all", () => ({ config, language: language(), logs, ...currentState(), autostart: app.getLoginItemSettings().openAtLogin, version: app.getVersion() }));
+ipcMain.handle("get-all", () => ({ config, language: language(), logs, ...currentState(), storePackage: STORE_PACKAGE, autostart: !STORE_PACKAGE && app.getLoginItemSettings().openAtLogin, version: app.getVersion() }));
 ipcMain.handle("list-profiles", () => ({ active: config.activeProfile || "default", profiles: engineModules.profileChoices(config) }));
 ipcMain.handle("change-profile", async (_event, choice) => {
   try {
@@ -391,12 +396,17 @@ ipcMain.handle("dismiss-live-folder", async () => {
   return true;
 });
 
-ipcMain.handle("open-update", () => shell.openExternal(update?.url || updates.RELEASES_PAGE));
+ipcMain.handle("open-update", () => shell.openExternal(STORE_PACKAGE ? STORE_UPDATES : update?.url || updates.RELEASES_PAGE));
+ipcMain.handle("open-startup-settings", () => shell.openExternal("ms-settings:startupapps"));
 
 // "Update now" (7.2): download the checked installer, run it silently and quit; the installer
 // restarts the companion. Settings, the Discord link and the queue stay in the user data folder.
 let installing = false;
 ipcMain.handle("install-update", async () => {
+  if (STORE_PACKAGE) {
+    await shell.openExternal(STORE_UPDATES);
+    return { ok: true, action: "store", message: T("Use Microsoft Store to update this installation.") };
+  }
   if (installing) return { ok: false, message: T("The update is already downloading.") };
   installing = true;
   let handedOff = false;

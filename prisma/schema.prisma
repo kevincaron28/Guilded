@@ -414,6 +414,7 @@ model CommunityParticipationDeletion {
 
 
 model Member {
+  webAvailability WebAvailability?
   activityCoreSpots   ActivityCoreMember[]
   activityResponses  ActivityResponse[]
   id                  String                       @id @default(cuid())
@@ -459,6 +460,7 @@ model Member {
 }
 
 model Character {
+  webAvailability WebAvailability[]
   guildId            String
   gameEdition        String @default("forever")
   activityCoreSpots   ActivityCoreMember[]
@@ -2125,6 +2127,7 @@ model OfficialGameEvent {
 
 // No row is created by setup or migration: publication is explicitly opt-in.
 model GameEventBoard {
+  editionReminders Json @default("{}")
   id String @id @default(cuid())
   guildId String
   channelId String
@@ -2143,4 +2146,19 @@ model GameEventBoard {
   updatedAt DateTime @updatedAt
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
   @@unique([guildId, channelId])
+}
+
+// Explicit, short-lived self-report; never imported from peer addon observations.
+model WebAvailability {
+  memberId String @id
+  characterId String
+  guildId String
+  gameEdition String
+  role String
+  expiresAt DateTime @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  @@index([guildId, gameEdition, expiresAt])
+  @@index([expiresAt])
 }

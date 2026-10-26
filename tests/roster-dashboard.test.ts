@@ -130,6 +130,7 @@ describe("roster store authority and isolation", () => {
     const roles = new Collection<string, { id: string; name: string }>([["era-officer", { id: "era-officer", name: "Officer" }], ["member-role", { id: "member-role", name: "Member" }]]);
     const fetchMember = vi.fn(async () => ({ permissions: { has: () => false }, roles: { cache: roles } }));
     const db = {
+      raidAttendance: { groupBy: vi.fn(async () => []) }, dungeonRunPlayer: { groupBy: vi.fn(async () => []) },
       member: { findFirst: vi.fn(async (): Promise<{ id: string } | null> => ({ id: "member1" })), findMany: vi.fn(async () => [{ guildId: "era" }, { guildId: "retail" }]) },
       guild: { findFirst: vi.fn(async ({ where }: { where: { id: string } }) => ({ id: where.id, discordId: "same-server", name: where.id, scopeKey: where.id, gameEdition: where.id === "era" ? "classic-era" : "retail", wowSpace: { memberRoleId: "member-role", permissionRoles: { officer: `${where.id}-officer` } } })) },
       character: { findMany: vi.fn(async () => [{ name: "Alice", displayName: null, realm: "Realm1", className: "Mage", race: null, level: 60, memberId: "member1", isMain: true, professions: [{ profession: "Alchemy" }], lastSeenAt: NOW }]) },

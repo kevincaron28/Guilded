@@ -1,14 +1,15 @@
 import type { RosterDashboardStore, RosterSnapshot, RosterCharacter } from "./roster-dashboard-store.js";
 import type { WebRoute } from "./web-app.js";
-import { checkCsrf, sameOrigin } from "./web-auth.js";
+import { checkCsrf, sameOrigin, sign, unsign, hashToken } from "./web-auth.js";
+import type { RosterPlanWriter } from "./roster-plan-store.js";
 import { escapeHtml as h, link, SECURITY_HEADERS } from "./web-layout.js";
 import { guildToolsNav } from "./guild-tools-pages.js";
 
 // Narrow column contracts: Guilded or GRM's English Name/Main/Alt/Realm Name export.
 // GRM source: TheGeneticsGuy/Guild-Roster-Manager, Retail/GRM_Export.lua.
 // Never accept a full SavedVariables file or unrelated/private-note columns.
-// No evaluation, writes or execution endpoint. The entire plan is revalidated
-// against a fresh authorized snapshot on each preview.
+// Plans never establish ownership. Applying requires a signed, expiring preview
+// and a second complete snapshot check inside the database transaction.
 export function parseMainPlan(csv: string): { character: string; realm: string; main: boolean | null }[] {
   if (csv.length > 8_000) throw new Error("size");
   const rows: string[][] = []; let row: string[] = [], field = "", quoted = false, closed = false;
@@ -48,7 +49,24 @@ export function parseMainPlan(csv: string): { character: string; realm: string; 
   });
 }
 export type PlanStatus = "change" | "unchanged" | "unknown" | "unclaimed" | "duplicate" | "conflict" | "realm" | "unspecified";
-export interface MainPlanRow { character: string; realm: string; current: boolean | null; main: boolean | null; status: PlanStatus }
+export interface MainPlanRow { character: string; realm: string; current: boolean | null; main: boolean | null; status: PlanStatus; characterId?: string }
+export function mainPlanRevision(snapshot: RosterSnapshot): string {
+  return hashToken(JSON.stringify([snapshot.guild, snapshot.truncated, snapshot.characters.map(row =>
+    [row.key, row.characterId, row.name, row.realm, row.memberId, row.isMain, row.updatedAt?.toISOString()]).sort((a, b) => String(a[0]).localeCompare(String(b[0])))]));
+}
+export function mainPlanApproval(snapshot: RosterSnapshot, csv: string, user: string, session: string, secret: string, now: Date): string {
+  return sign(secret, JSON.stringify({ kind: "main-plan-v1", user, session: hashToken(session), guild: snapshot.guild.id,
+    csv: hashToken(csv), revision: mainPlanRevision(snapshot), expires: now.getTime() + 5 * 60_000 }));
+}
+export function approvedMainPlan(token: string, snapshot: RosterSnapshot, csv: string, user: string, session: string, secret: string, now: Date): boolean {
+  try {
+    const raw = unsign(secret, token); if (!raw) return false;
+    const p = JSON.parse(raw);
+    return p.kind === "main-plan-v1" && p.user === user && p.session === hashToken(session) && p.guild === snapshot.guild.id
+      && p.csv === hashToken(csv) && p.revision === mainPlanRevision(snapshot) && typeof p.expires === "number"
+      && p.expires > now.getTime() && p.expires <= now.getTime() + 5 * 60_000;
+  } catch { return false; }
+}
 export function reviewMainPlan(snapshot: RosterSnapshot, csv: string): MainPlanRow[] {
   if (snapshot.truncated) throw new Error("partial");
   const entries = parseMainPlan(csv);
@@ -75,10 +93,10 @@ export function reviewMainPlan(snapshot: RosterSnapshot, csv: string): MainPlanR
     const finalMains = snapshot.characters.filter(row => row.memberId === memberId && (memberPlans.find(plan => plan.characterRow?.key === row.key)?.main ?? row.isMain)).length;
     if (blocked || finalMains !== 1) for (const row of memberPlans) if (["change", "unchanged"].includes(row.status)) row.status = "conflict";
   }
-  return plans.map(({ character, realm, current, main, status }) => ({ character, realm, current, main, status }));
+  return plans.map(({ character, realm, current, main, status, characterRow }) => ({ character, realm, current, main, status, ...(characterRow?.characterId ? { characterId: characterRow.characterId } : {}) }));
 }
 
-export function createRosterReview(store: RosterDashboardStore): WebRoute {
+export function createRosterReview(store: RosterDashboardStore, writer?: RosterPlanWriter): WebRoute {
   return async (ctx, kit) => {
     if (ctx.request.path !== "/me/roster/review") return null;
     if (!["GET", "HEAD", "POST"].includes(ctx.request.method)) return { status: 405, headers: { ...SECURITY_HEADERS, allow: "GET, HEAD, POST" }, body: "" };
@@ -95,6 +113,21 @@ export function createRosterReview(store: RosterDashboardStore): WebRoute {
       const csv = ctx.form?.get("plan") ?? "";
       let rows: MainPlanRow[] = [], invalid = false;
       if (ctx.request.method === "POST") { try { rows = reviewMainPlan(snapshot, csv); } catch { invalid = true; } }
+      if (ctx.request.method === "POST" && ctx.form?.get("intent") === "apply") {
+        if (!writer || invalid || !rows.some(row => row.status === "change") || rows.some(row => !["change", "unchanged"].includes(row.status))
+          || ctx.form.get("confirm") !== "APPLY" || !ctx.auth || !ctx.sessionToken
+          || !approvedMainPlan(ctx.form.get("approval") ?? "", snapshot, csv, ctx.account.discordUserId, ctx.sessionToken, ctx.auth.sessionSecret, ctx.now)) {
+          return kit.page(409, title, t("This confirmation is missing, expired or stale. Review the plan again. Nothing was changed.", "La confirmation est absente, expirée ou périmée. Révisez le plan. Rien n'a été modifié."), { noindex: true });
+        }
+        try {
+          const result = await writer.apply(ctx.account.discordUserId, guildId, csv, mainPlanRevision(snapshot));
+          return kit.page(200, title, `<h1>${title}</h1><p>${t("Main/alt changes saved", "Changements principal/secondaire enregistrés")}: ${result.changes}</p><p>${t("Audit receipt", "Référence d'audit")}: ${h(result.auditId)}</p><p>${t("Account ownership and EP/GP balances are unchanged.", "Les propriétaires des comptes et les soldes EP/GP sont inchangés.")}</p><a href="${h(link("/me/roster", lang, { guild: guildId, edition: snapshot.guild.edition }))}">${t("View roster", "Voir l'effectif")}</a>`, { noindex: true });
+        } catch {
+          return kit.page(409, title, t("The plan could not be applied. Check the current roster and audit history before retrying; review a fresh plan.", "Le plan n'a pas pu être appliqué. Vérifiez l'effectif et l'historique d'audit avant de réessayer; révisez un nouveau plan."), { noindex: true });
+        }
+      }
+      const approval = writer && !invalid && rows.some(row => row.status === "change") && rows.every(row => ["change", "unchanged"].includes(row.status)) && ctx.auth && ctx.sessionToken
+        ? mainPlanApproval(snapshot, csv, ctx.account.discordUserId, ctx.sessionToken, ctx.auth.sessionSecret, ctx.now) : null;
       if (!invalid && rows.length && ctx.form?.get("intent") === "receipt") return {
         status: 200, headers: { ...SECURITY_HEADERS, "content-type": "application/json; charset=utf-8", "content-disposition": 'attachment; filename="guilded-main-review.json"' },
         body: JSON.stringify({ format: "guilded-main-review-v1", createdAt: ctx.now.toISOString(), guild: snapshot.guild,
@@ -109,12 +142,13 @@ export function createRosterReview(store: RosterDashboardStore): WebRoute {
       };
       const status = (value: boolean | null) => value === null ? t("Unknown", "Inconnu") : value ? t("Main", "Principal") : t("Alt", "Secondaire");
       return kit.page(invalid ? 400 : 200, title, `<h1>${title}</h1><p><strong>${h(snapshot.guild.name)}</strong> · ${h(snapshot.guild.edition)}</p>${guildToolsNav(lang, snapshot.guild)}`
-        + `<p class="notice">${t("Preview only. This tool cannot change characters, account links, guild ranks or notes. Use the existing character tools after reviewing the complete plan.", "Aperçu uniquement. Cet outil ne modifie ni personnages, ni liens de compte, ni rangs, ni notes. Utilisez les outils de personnages existants après révision du plan complet.")}</p>`
+        + `<p class="notice">${writer ? t("Review the complete plan, then type APPLY to confirm within five minutes. Only main/alt designations of already-linked characters change; ownership, ranks, notes and EP/GP stay unchanged.", "Révisez le plan complet, puis tapez APPLY pour confirmer dans les cinq minutes. Seul le statut principal/secondaire des personnages déjà liés change; propriétaires, rangs, notes et EP/GP sont conservés.") : t("Preview only. This tool cannot change characters, account links, guild ranks or notes. Use the existing character tools after reviewing the complete plan.", "Aperçu uniquement. Cet outil ne modifie ni personnages, ni liens de compte, ni rangs, ni notes. Utilisez les outils de personnages existants après révision du plan complet.")}</p>`
         + `<p>${t("Paste up to 50 rows with exactly these CSV columns: character,realm,main. Use full display names and true/false. Include both the old and new main when switching.", "Collez au plus 50 lignes CSV avec exactement : character,realm,main. Utilisez les noms complets et true/false. Incluez l'ancien et le nouveau principal lors d'un changement.")}</p>`
         + `<details><summary>${t("Import a GRM main/alt export for review", "Réviser un export principal/secondaire GRM")}</summary><p>${t("Select only Name, Main/Alt and Realm Name in GRM's current-member export, with English headers and Main/Alt values. Comma, semicolon, tilde, double-colon, double-pipe and tab delimiters are detected from the header. Blank status stays unknown. Preserve special characters; review up to 50 rows. Notes, ranks, GUIDs, logs and SavedVariables are not accepted.", "Sélectionnez uniquement Name, Main/Alt et Realm Name dans l'export des membres actuels GRM, avec en-têtes anglais et valeurs Main/Alt. Virgule, point-virgule, tilde, double deux-points, double barre et tabulation sont détectés dans l'en-tête. Un statut vide reste inconnu. Conservez les caractères spéciaux; révisez au plus 50 lignes. Notes, rangs, GUID, journaux et SavedVariables sont refusés.")}</p></details>`
         + (invalid ? `<p role="alert">${t("Invalid CSV. Check the selected format, column headers, values and the 50-row / 8,000-character limits.", "CSV invalide. Vérifiez le format, les en-têtes, les valeurs et les limites de 50 lignes / 8 000 caractères.")}</p>` : "")
         + `<form method="post" action="${h(link("/me/roster/review", lang, { guild: guildId, edition: snapshot.guild.edition }))}"><input type="hidden" name="csrf" value="${h(ctx.csrf ?? "")}"><label for="main-plan">CSV</label><textarea id="main-plan" name="plan" maxlength="8000" rows="10" required>${h(csv.slice(0, 8_000))}</textarea><button class="button" type="submit">${t("Review changes", "Vérifier les changements")}</button>${rows.length ? ` <button class="button" type="submit" name="intent" value="receipt">${t("Download review receipt", "Télécharger le bilan de révision")}</button>` : ""}</form>`
-        + (rows.length ? `<h2>${t("Review result — nothing saved", "Résultat — rien enregistré")}</h2><div class="table-wrap"><table><thead><tr>${[t("Character", "Personnage"), t("Realm", "Royaume"), t("Current", "Actuel"), t("Proposed", "Proposé"), t("Result", "Résultat")].map(label => `<th scope="col">${label}</th>`).join("")}</tr></thead><tbody>${rows.map(row => `<tr><td>${h(row.character)}</td><td>${h(row.realm)}</td><td>${status(row.current)}</td><td>${status(row.main)}</td><td>${labels[row.status]}</td></tr>`).join("")}</tbody></table></div>` : ""), { noindex: true, languageParams: { guild: guildId, edition: snapshot.guild.edition } });
+        + (rows.length ? `<h2>${t("Review result — nothing saved", "Résultat — rien enregistré")}</h2><div class="table-wrap"><table><thead><tr>${[t("Character", "Personnage"), t("Realm", "Royaume"), t("Current", "Actuel"), t("Proposed", "Proposé"), t("Result", "Résultat")].map(label => `<th scope="col">${label}</th>`).join("")}</tr></thead><tbody>${rows.map(row => `<tr><td>${h(row.character)}</td><td>${h(row.realm)}</td><td>${status(row.current)}</td><td>${status(row.main)}</td><td>${labels[row.status]}</td></tr>`).join("")}</tbody></table></div>` : "")
+        + (approval ? `<form method="post" action="${h(link("/me/roster/review", lang, { guild: guildId, edition: snapshot.guild.edition }))}"><input type="hidden" name="csrf" value="${h(ctx.csrf ?? "")}"><input type="hidden" name="intent" value="apply"><input type="hidden" name="approval" value="${h(approval)}"><input type="hidden" name="plan" value="${h(csv)}"><label for="main-confirm">${t("Type APPLY to confirm this reviewed plan", "Tapez APPLY pour confirmer ce plan révisé")}</label><input id="main-confirm" name="confirm" required maxlength="5" autocomplete="off"><button class="button" type="submit">${t("Apply changes", "Appliquer les changements")}</button></form>` : ""), { noindex: true, languageParams: { guild: guildId, edition: snapshot.guild.edition } });
     } catch { return kit.page(503, title, t("The roster could not be loaded. Nothing was changed.", "Impossible de charger l'effectif. Rien n'a été modifié."), { noindex: true }); }
   };
 }

@@ -89,6 +89,17 @@ jobs:
       - run: npm run dungeons:zip
       - name: Verify matching release artifacts and checksums
         run: node scripts/verify-release-artifacts.mjs
+      - name: Build and inspect unsigned MSIX preview
+        run: |
+          npm --prefix companion-app run msix:preview
+          $candidateVersion = (Get-Content companion-app/package.json | ConvertFrom-Json).version
+          node scripts/verify-msix.mjs "dist/msix-preview/Guilded.Companion.$candidateVersion.x64.LOCAL-PREVIEW.msix"
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: actions/upload-artifact@v7
+        with:
+          name: guilded-msix-local-preview-unsigned
+          path: dist/msix-preview/*.msix
       - uses: actions/upload-artifact@v7
         with:
           name: guilded-companion-windows

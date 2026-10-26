@@ -6,7 +6,7 @@ import { gameEditionOf } from "./game-edition.js";
 import type { RosterGuild } from "./roster-dashboard-store.js";
 
 // Shared by the private, read-only guild pages. Matches /officer export.
-export function guildDashboardAccess(database: PrismaClient, client: Client | undefined, allows: (discordId: string) => boolean) {
+export function guildDashboardAccess(database: PrismaClient, client: Client | undefined, allows: (discordId: string) => boolean, permission: "officer" | "member" = "officer") {
   async function authorize(userId: string, guildId: string): Promise<RosterGuild | null> {
     if (!client?.isReady()) return null;
     const member = await database.member.findFirst({ where: { guildId, discordUserId: userId, status: "ACTIVE", isTest: false }, select: { id: true } });
@@ -17,7 +17,7 @@ export function guildDashboardAccess(database: PrismaClient, client: Client | un
     const discordMember = await discordGuild?.members.fetch({ user: userId, force: true }).catch(() => null);
     if (!discordMember) return null;
     if (scope.memberRoleId && !discordMember.permissions.has("Administrator") && !discordMember.roles.cache.has(scope.memberRoleId)) return null;
-    if (!runInGuildScope(scope, () => hasPermission(discordMember, "officer"))) return null;
+    if (permission === "officer" && !runInGuildScope(scope, () => hasPermission(discordMember, "officer"))) return null;
     return { id: scope.guild.id, name: scope.guild.name, edition: gameEditionOf(scope.guild) };
   }
   async function guilds(userId: string) {

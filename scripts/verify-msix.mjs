@@ -42,6 +42,13 @@ try {
   assert.equal(packaged.guildedDistribution, "microsoft-store");
   assert.ok(manifest.includes(`Version="${version}.0"`));
   assert.equal(manifest.includes("Guilded.Companion.LocalPreview"), packaged.guildedStorePreview);
+  if (!packaged.guildedStorePreview) {
+    const identity = JSON.parse(readFileSync("docs/store-submission/publisher-identity.json", "utf8"));
+    const unescape = value => value?.replaceAll("&apos;", "'").replaceAll("&quot;", '"').replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&");
+    assert.equal(unescape(manifest.match(/<Identity\s+Name=["']([^"']+)["']/)?.[1]), identity.name, "Store package name mismatch");
+    assert.equal(unescape(manifest.match(/\bPublisher=["']([^"']+)["']/)?.[1]), identity.publisher, "Store publisher mismatch");
+    assert.equal(unescape(manifest.match(/<PublisherDisplayName>([^<]+)<\/PublisherDisplayName>/)?.[1]), identity.publisherDisplayName, "Store display publisher mismatch");
+  }
   for (const path of ["main.cjs", "store-config.cjs", "preload.cjs", "renderer/app.js", "renderer/index.html", "locales/fr.json", "grm-import.cjs"])
     assert.deepEqual(extractFile(asar, path), readFileSync(`companion-app/${path}`), `Stale package: ${path}`);
   console.log(JSON.stringify({ file: resolve(file), bytes: raw.length, sha256: createHash("sha256").update(raw).digest("hex"), version, preview: packaged.guildedStorePreview,

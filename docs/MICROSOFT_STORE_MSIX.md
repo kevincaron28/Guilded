@@ -40,8 +40,9 @@ are changed by either command.
 
 ## Submission build
 
-Reserve the product in Microsoft Partner Center. Copy the exact, case-sensitive
-values from **Product management → Product identity** into a local JSON file:
+Guilded Companion is now reserved as Store ID `9N680XX3QFL9`. Its exact public
+identity is saved in `docs/store-submission/publisher-identity.json`. Future identity
+changes must be copied exactly from **Product management → Product identity**:
 
 ```json
 {
@@ -83,24 +84,25 @@ the notification-area window. It does not automate game input or inject into gam
 ## Still required
 
 The owner subsequently requested progressing toward Store approval while away.
-On 26 October Microsoft sign-in succeeded. The developer portal is now at
-**Choose account type**, with identity verification, profile details and account
-setup incomplete. The onboarding page is left open for the owner to complete
-directly with Microsoft. No developer account was enrolled and no package submitted.
+On 26 October the owner completed Microsoft developer access. Guilded Companion
+was reserved and Submission 1 created as a draft. The real Store identity package
+built and passed source/manifest checks. Product properties and the bilingual
+privacy text were saved in Partner Center. Package upload and certification are
+not complete; see `docs/STORE_HANDOFF_2026-10-26.md` for current status.
 
 Run `node scripts/prepare-msix-submission-kit.mjs` from the repository root to
 assemble `dist/msix-submission-kit/`. It includes the verified preview separately
-marked **not for upload**, EN/FR listing drafts, reviewer notes, the prepared privacy notice,
-an empty identity template and a readiness manifest. The actual submission build
-still requires the reserved identity. Do not use a fictitious publisher or claim
-that local validation is Microsoft certification.
+marked **not for upload**, EN/FR listing drafts, reviewer notes, the prepared privacy
+notice, actual reserved identity and a readiness manifest. When the Store candidate
+exists, the kit verifies and includes it separately. Do not use the fictitious
+preview publisher or claim that local validation is Microsoft certification.
 
 The owner selected the existing Discord support community for privacy requests.
 The full bilingual notice is prepared in `docs/PRIVACY.md`, built at
 `/docs/PRIVACY.html` and linked from companion Help & privacy. The public URL must
 be deployed and verified before it is used in a submission.
 
-- Owner's Partner Center identity and account enrollment.
+- Complete the draft upload and verify Microsoft's package validation.
 - Store listing privacy/support links, screenshots, age/content declarations,
   and review of the draft above against the final packaged behavior.
 - Windows App Certification Kit and a real packaged install/uninstall/upgrade

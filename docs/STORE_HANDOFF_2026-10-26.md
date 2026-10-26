@@ -1,10 +1,31 @@
 # Microsoft Store preparation — 26 October 2026
 
 The owner retained the existing license and authorized progressing toward Store
-submission. Microsoft sign-in succeeded, but the portal remains at **Choose account
-type**; identity verification, profile details and account setup are incomplete.
-No developer enrollment, product reservation, upload or certification is complete.
-The onboarding tab is left open for the owner. Do not handle identity documents in chat.
+submission. The owner completed developer access, and **Guilded Companion** is now
+reserved as MSIX app **9N680XX3QFL9**. **Submission 1** (`1152921505702234586`) is a
+draft, not submitted for certification. No package has uploaded yet.
+
+Partner Center: https://partner.microsoft.com/en-us/dashboard/products/9N680XX3QFL9/overview
+
+## Portal progress
+
+- Pricing and availability: Complete; base price 0 (free), public worldwide markets.
+- Properties: Complete; Utilities + tools, personal-information use disclosed,
+  project website and Discord support link, full bilingual privacy notice provided
+  as text directly in Partner Center. OneDrive data-backup declaration disabled
+  because Store credentials use Windows-user protection.
+- Packages: Incomplete; Windows desktop selected, future device-family expansion
+  disabled. The in-app browser's browse-files link did not open a file picker
+  after click and keyboard activation. No upload or package validation is claimed.
+- English (US) and French (France): descriptions, short descriptions, initial
+  feature, copyright, unchanged license link and developer name saved. Both remain
+  incomplete pending genuine native screenshots and the package.
+- Age rating: not completed. Microsoft says the questionnaire shares the publisher
+  name and developer email with IARC; owner consent was requested before continuing.
+- Private certification notes: saved and verified after reload. They explain
+  `runFullTrust`, startup/update behavior, the review procedure and unfinished
+  acceptance. No credentials were entered. Remove the preparation-status paragraph
+  only after those checks and reviewer access are actually complete.
 
 ## Prepared locally
 
@@ -20,7 +41,8 @@ The onboarding tab is left open for the owner. Do not handle identity documents 
   trust change, license change or public installer replacement was performed.
 - Reproducible local kit: `node scripts/prepare-msix-submission-kit.mjs`.
   Output: `dist/msix-submission-kit/README-FIRST.md` and `readiness.json`.
-  The preview is explicitly under `preview-not-for-upload/`.
+  The preview is explicitly under `preview-not-for-upload/`; the actual Store
+  identity candidate is separate. Public identity: `docs/store-submission/publisher-identity.json`.
 
 ## Verification
 
@@ -38,12 +60,22 @@ The onboarding tab is left open for the owner. Do not handle identity documents 
 - Standard standalone Windows build also passed ASAR/engine/license comparisons
   at `dist/store-work-standalone-review/win-unpacked`, without the Store package
   marker. This build was not launched or installed.
+- Actual Store identity candidate built from `f9e1415` app sources:
+  `dist/msix-store/Guilded.Companion.7.4.0.x64.STORE-SUBMISSION.msix`.
+  165,359,987 bytes; SHA-256
+  `f920bda682f50c3d75f1bd11cf35ce9a4cf82fe44eca9e425d1b068cece15439`.
+  Manifest name, publisher and publisher display name match Partner Center exactly.
+  Source/engine/assets/license verification passed. Not installed or certified.
+- After adding exact Store-identity verification: all 300 files / 2,579 tests
+  passed again (153.28 seconds), plus TypeScript, ESLint and both addon validators.
+  Log: `backups/store-identity-vitest.log`.
 
 ## Remaining submission steps
 
-1. Owner completes Microsoft developer enrollment and identity verification.
-2. Reserve the product and obtain its exact package name, publisher and publisher
-   display name. Build the final package using that identity and the agreed release version.
+1. Upload the verified Store candidate through Partner Center's Packages file
+   picker and inspect its server-side validation. Do not upload LOCAL-PREVIEW.
+2. Confirm the final combined release version/source before certification;
+   rebuild the Store candidate if the companion sources change.
 3. Publish and verify the privacy URL through the normal reviewed release path.
 4. Perform real packaged install/upgrade/uninstall, startup, file-access, tray and
    sign-in checks, plus Windows App Certification Kit validation. Capture genuine

@@ -9,7 +9,11 @@
   "website": "https://guilded.kcaron.top",
   "supportUrl": "https://discord.gg/YjzFwtP64V",
   "privacyPolicyUrl": "https://guilded.kcaron.top/docs/PRIVACY.html",
-  "publisherIdentity": null,
+  "publisherIdentity": {
+    "name": "Kcaron.GuildedCompanion",
+    "publisher": "CN=3CCAA73D-BED1-46F5-A851-6952ECD86594",
+    "publisherDisplayName": "Kcaron"
+  },
   "ageRating": null,
   "locales": {
     "en-US": {
@@ -41,5 +45,8 @@
       "copyright": "Copyright (c) 2026 Kevin Caron (Guilded). Distribution sous licence PolyForm Noncommercial 1.0.0. Les composants tiers conservent leurs licences respectives."
     }
   },
-  "privacyPolicyPublished": false
+  "privacyPolicyPublished": false,
+  "storeId": "9N680XX3QFL9",
+  "submissionId": "1152921505702234586",
+  "privacyPolicyProvidedAsText": true
 }

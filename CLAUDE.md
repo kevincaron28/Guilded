@@ -2,8 +2,9 @@
 > Branch codex/release-gap-completion adds audited main/alt apply, participation,
 > opt-in availability, edition events and optional Classic buffs. Not deployed.
 > Owner retained the license and then authorized progressing toward Store submission;
-> see docs/MICROSOFT_STORE_MSIX.md. Microsoft sign-in succeeded, but developer
-> enrollment and Partner Center product identity remain pending. Nothing submitted.
+> see docs/MICROSOFT_STORE_MSIX.md. Guilded Companion is reserved in Partner Center
+> as 9N680XX3QFL9; Store-identity build verified, Submission 1 remains a draft.
+> See docs/STORE_HANDOFF_2026-10-26.md for upload/certification blockers.
 > Claude owns edition raid presets in qgb-claude-gaps; coordinate through
 > backups/CODEX_CLAUDE_COORDINATION_2026-10-25.md before integration or restart.
 >

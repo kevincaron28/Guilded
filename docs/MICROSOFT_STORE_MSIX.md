@@ -15,6 +15,13 @@ the GitHub EXE updater. Startup is an initially disabled package startup task,
 managed by the user in Windows settings; the app does not create a registry Run
 entry for a Store installation. The app still works in the tray after launch.
 
+Store profiles use a separate application-data folder and Windows-backed
+`safeStorage` encryption for configuration, including credentials in all profiles.
+They do not import standalone/CLI credentials automatically. Unavailable protection
+or decryption errors fail visibly rather than falling back to plaintext or
+overwriting unreadable settings. Actual Electron/Windows encryption round-trip
+verification passed using synthetic credentials, without a game or network.
+
 ## Local preview
 
 From the repository root:
@@ -74,6 +81,24 @@ Full-trust desktop access supports those existing file pickers/watchers and
 the notification-area window. It does not automate game input or inject into games.
 
 ## Still required
+
+The owner subsequently requested progressing toward Store approval while away.
+On 26 October Microsoft sign-in succeeded. The developer portal is now at
+**Choose account type**, with identity verification, profile details and account
+setup incomplete. The onboarding page is left open for the owner to complete
+directly with Microsoft. No developer account was enrolled and no package submitted.
+
+Run `node scripts/prepare-msix-submission-kit.mjs` from the repository root to
+assemble `dist/msix-submission-kit/`. It includes the verified preview separately
+marked **not for upload**, EN/FR listing drafts, reviewer notes, the prepared privacy notice,
+an empty identity template and a readiness manifest. The actual submission build
+still requires the reserved identity. Do not use a fictitious publisher or claim
+that local validation is Microsoft certification.
+
+The owner selected the existing Discord support community for privacy requests.
+The full bilingual notice is prepared in `docs/PRIVACY.md`, built at
+`/docs/PRIVACY.html` and linked from companion Help & privacy. The public URL must
+be deployed and verified before it is used in a submission.
 
 - Owner's Partner Center identity and account enrollment.
 - Store listing privacy/support links, screenshots, age/content declarations,

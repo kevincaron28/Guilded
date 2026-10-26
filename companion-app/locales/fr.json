@@ -695,5 +695,7 @@
   "Updates are managed by Microsoft Store. Startup is managed in Windows settings.": "Les mises à jour sont gérées par Microsoft Store. Le démarrage est géré dans les paramètres Windows.",
   "Store updates": "Mises à jour du Store",
   "Startup settings": "Paramètres de démarrage",
-  "Use Microsoft Store to update this installation.": "Utilisez Microsoft Store pour mettre à jour cette installation."
+  "Use Microsoft Store to update this installation.": "Utilisez Microsoft Store pour mettre à jour cette installation.",
+  "Guilded Companion could not save settings": "Guilded Companion ne peut pas enregistrer les paramètres",
+  "Privacy policy": "Politique de confidentialité"
 }

@@ -16,10 +16,10 @@ function harness(latest: unknown, locale = 'en', windowsStore = false) {
   const timers = vi.fn();
   const context = {
     require: (id: string) => id === "electron" ? {
-      app: { requestSingleInstanceLock: () => true, whenReady: () => new Promise(() => {}), on: vi.fn(), getVersion: () => "7.2.0", getLocale: () => locale, getPath: () => "C:/fake", quit },
+      app: { requestSingleInstanceLock: () => true, whenReady: () => new Promise(() => {}), on: vi.fn(), getVersion: () => "7.2.0", getLocale: () => locale, getPath: () => "C:/fake", setPath: vi.fn(), quit },
       ipcMain: { handle: (name: string, callback: () => Promise<{ ok: boolean }>) => handlers.set(name, callback) },
       shell: { openExternal }, Notification: { isSupported: () => false }
-    } : id === "./i18n.cjs" ? i18n : id === "./update-check.cjs" ? updates : id === "./detect-wow.cjs" ? {} : id === "node:fs" ? { mkdirSync: vi.fn(), writeFileSync: vi.fn() } : require(id),
+    } : id === "./store-config.cjs" ? require("../companion-app/store-config.cjs") : id === "./i18n.cjs" ? i18n : id === "./update-check.cjs" ? updates : id === "./detect-wow.cjs" ? {} : id === "node:fs" ? { mkdirSync: vi.fn(), writeFileSync: vi.fn() } : require(id),
     process: { argv: [], windowsStore }, __dirname: "C:/fake", setTimeout: timers, setInterval: vi.fn(), console
   };
   runInNewContext(readFileSync("companion-app/main.cjs", "utf8") + `

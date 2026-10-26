@@ -1,8 +1,9 @@
 > Local release-gap work (26 October): read docs/RELEASE_GAP_WORK_2026-10-26.md.
 > Branch codex/release-gap-completion adds audited main/alt apply, participation,
 > opt-in availability, edition events and optional Classic buffs. Not deployed.
-> Owner chose to retain the license and build only a local unsigned MSIX preview;
-> see docs/MICROSOFT_STORE_MSIX.md. No Partner Center identity exists yet.
+> Owner retained the license and then authorized progressing toward Store submission;
+> see docs/MICROSOFT_STORE_MSIX.md. Microsoft sign-in succeeded, but developer
+> enrollment and Partner Center product identity remain pending. Nothing submitted.
 > Claude owns edition raid presets in qgb-claude-gaps; coordinate through
 > backups/CODEX_CLAUDE_COORDINATION_2026-10-25.md before integration or restart.
 >

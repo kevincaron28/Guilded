@@ -89,6 +89,10 @@ Evidence: `backups/msix-preview-verification.json`. Not installed or Store certi
 
 ## Final local verification and next steps
 
+The evidence below records the initial `4843298` candidate. The subsequent Store
+submission preparation is recorded in [the Store handoff](STORE_HANDOFF_2026-10-26.md),
+including its new package hash and 2,579 passing tests.
+
 - All 299 test files / 2,575 tests passed (244.10 seconds), including cancellation,
   recovery deadline and concurrent board-change regressions. Log:
   `backups/release-gaps-vitest-final.log`.

@@ -26,6 +26,7 @@
     },
     "files": [
       "main.cjs",
+      "store-config.cjs",
       "preload.cjs",
       "grm-import.cjs",
       "detect-wow.cjs",

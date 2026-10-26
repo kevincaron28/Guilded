@@ -1,0 +1,45 @@
+{
+  "status": "draft-not-submitted",
+  "productName": "Guilded Companion",
+  "proposedCategory": "Utilities & tools",
+  "proposedPrice": "Free",
+  "deviceFamily": "Windows.Desktop",
+  "architecture": "x64",
+  "minimumWindowsVersion": "10.0.19041.0",
+  "website": "https://guilded.kcaron.top",
+  "supportUrl": "https://discord.gg/YjzFwtP64V",
+  "privacyPolicyUrl": "https://guilded.kcaron.top/docs/PRIVACY.html",
+  "publisherIdentity": null,
+  "ageRating": null,
+  "locales": {
+    "en-US": {
+      "shortDescription": "Connect your Guilded addon and Discord guild across WoW editions, and track Path of Exile 2 mapping sessions.",
+      "description": "Guilded Companion connects your Guilded World of Warcraft addons with your guild's Discord tools. Choose your edition and connection profile, select the addon's SavedVariables file, and keep supported guild records and standings synchronized.\n\nUse separate profiles for WoW Forever, Classic Era, Classic TBC, Classic Mists and Retail. Forever characters retain their first and last display names. You can also enable optional Path of Exile 2 map-session tracking from your selected Client.txt log.\n\nThe companion runs in the notification area. You can pause tracking, review connection status and remove locally saved settings. The Microsoft Store edition uses Store-managed updates and Windows startup settings.\n\nRequirements: Windows 10 version 2004 or later on an x64 PC. WoW synchronization requires the matching Guilded or Guilded Dungeons addon and a configured Guilded service connection. Guild functions require the relevant Discord guild access; hosted guild features may require approval. Optional PoE2 tracking requires Path of Exile 2 and access to its log. Games, game subscriptions and Discord are not included.\n\nGuilded is an independent community project, not affiliated with or endorsed by Blizzard Entertainment, Grinding Gear Games or Discord. Game-client compatibility and provisional benchmark limitations are documented in the project guides.",
+      "features": [
+        "Separate connection profiles for supported World of Warcraft editions",
+        "Discord sign-in or pairing with a configured Guilded service",
+        "SavedVariables synchronization and in-game standings updates",
+        "Optional Path of Exile 2 map-session journal",
+        "Local GRM history conversion with a review step",
+        "English and French interface",
+        "Pause controls and notification-area operation"
+      ],
+      "copyright": "Copyright (c) 2026 Kevin Caron (Guilded). Distributed under PolyForm Noncommercial 1.0.0. Third-party components retain their own licenses."
+    },
+    "fr-FR": {
+      "shortDescription": "Reliez votre addon Guilded et votre guilde Discord sur plusieurs éditions de WoW, et suivez vos sessions de cartes PoE2.",
+      "description": "Guilded Companion relie vos addons Guilded pour World of Warcraft aux outils Discord de votre guilde. Choisissez votre édition et votre profil de connexion, sélectionnez le fichier SavedVariables de l'addon, puis synchronisez les données de guilde prises en charge et les classements.\n\nUtilisez des profils distincts pour WoW Forever, Classic Era, Classic TBC, Classic Mists et Retail. Les personnages Forever conservent leur prénom et leur nom d'affichage. Vous pouvez aussi activer le suivi facultatif des sessions de cartes Path of Exile 2 à partir du journal Client.txt sélectionné.\n\nLe compagnon fonctionne dans la zone de notification. Vous pouvez suspendre le suivi, vérifier la connexion et supprimer les paramètres enregistrés localement. L'édition Microsoft Store utilise les mises à jour du Store et les paramètres de démarrage Windows.\n\nPrérequis : Windows 10 version 2004 ou ultérieure sur un PC x64. La synchronisation WoW nécessite l'addon Guilded ou Guilded Dungeons correspondant et une connexion à un service Guilded configuré. Les fonctions de guilde nécessitent les accès Discord appropriés; les fonctions hébergées peuvent nécessiter une approbation. Le suivi PoE2 facultatif nécessite Path of Exile 2 et l'accès à son journal. Les jeux, abonnements aux jeux et Discord ne sont pas inclus.\n\nGuilded est un projet communautaire indépendant, sans affiliation ni approbation de Blizzard Entertainment, Grinding Gear Games ou Discord. Les guides du projet précisent les limites de compatibilité avec les clients de jeu et des références de performance provisoires.",
+      "features": [
+        "Profils de connexion distincts pour les éditions WoW prises en charge",
+        "Connexion Discord ou appairage avec un service Guilded configuré",
+        "Synchronisation SavedVariables et mise à jour des classements en jeu",
+        "Journal facultatif des sessions de cartes Path of Exile 2",
+        "Conversion locale de l'historique GRM avec étape de vérification",
+        "Interface en français et en anglais",
+        "Commandes de pause et fonctionnement dans la zone de notification"
+      ],
+      "copyright": "Copyright (c) 2026 Kevin Caron (Guilded). Distribution sous licence PolyForm Noncommercial 1.0.0. Les composants tiers conservent leurs licences respectives."
+    }
+  },
+  "privacyPolicyPublished": false
+}

@@ -38,6 +38,9 @@ export const SECURITY_HEADERS = {
 const FORM_STYLE = `${SITE_HEADER_STYLE}
 form.inline{display:inline}label{display:block;margin:10px 0 4px;color:var(--muted);font-size:14px}
 input,select,textarea{width:100%;background:#0c0e0d;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:9px 10px;font:inherit}
+input[type=checkbox],input[type=radio]{width:1.125rem;height:1.125rem;padding:0;margin:3px 0;flex-shrink:0;accent-color:var(--gold)}
+label.check-label{display:flex;align-items:flex-start;gap:10px;margin:16px 0}label.check-label span{min-width:0}
+.availability-revoke{margin-top:16px}
 textarea{min-height:120px}button,.button{cursor:pointer;border:0;font:inherit}button.link{background:none;color:var(--gold);padding:0;text-decoration:underline}
 .filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end}.filters button{padding:10px}
 .who{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;justify-content:flex-end;font-size:13px;color:var(--muted);margin:8px 0 0}.who button.link{font-size:13px}

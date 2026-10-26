@@ -17,8 +17,9 @@ included; the proposed guild-wide web heatmap was declined.
   is public. All 21 anonymous downloads match the expected size and SHA-256.
 - All ten CurseForge edition files were uploaded as Release with automatic
   publication after approval. All ten CDN downloads match the exact release
-  hashes. The author portal still showed processing at this checkpoint; approval
-  is a separate check. Website CurseForge metadata stays 7.4.0 until confirmed.
+  hashes. All ten files were subsequently confirmed **Approved** in the author
+  portal and their download hashes reverified. Website metadata now targets 7.5.0
+  on both providers; see the post-release review for deployment state.
 - Local combined validation passed: 311 files / 2,654 tests, TypeScript, ESLint,
   both addon validators. Exact release-main CI run `40401478643` passed both
   checks and Windows packaging, including PostgreSQL migration/restore and MSIX.
@@ -58,14 +59,13 @@ The standard GitHub installer remains unsigned. The project license is unchanged
 
 ## Remaining checks for the next session
 
-1. Confirm CurseForge approvals; do not confuse available CDN bytes with approval.
-   File IDs and hashes are recorded in the ignored release folder.
+1. CurseForge approvals and matching public downloads are complete for all ten
+   files. File IDs, approval screenshots and hashes are in the ignored release folder.
 2. Check Microsoft certification outcome. Once available, test the Store-signed
    install, upgrade, tray lifecycle and Windows startup on a clean/second PC.
-3. Obtain Claude's live Discord walkthrough results. He was notified before the
-   Oracle restart and after healthy deployment through
-   `backups/CODEX_CLAUDE_COORDINATION_2026-10-25.md`; no result has been recorded yet.
-   Command registration and automated tests do not replace that walkthrough.
+3. Claude's live Discord and web walkthrough results are now recorded in
+   [post-release review](POST_RELEASE_REVIEW_2026-10-26.md), including specific
+   passes, two text fixes (#236), untested second-account flows and test leftovers.
 4. Complete [7.5 game acceptance](V7_5_0_GAME_CHECKLIST.md) and the
    [launch tools checklist](V7_5_0_LAUNCH_TOOLS_CHECKLIST.md), including carried
    forward two-PC, roster/ledger, addon sync and edition-specific client checks.

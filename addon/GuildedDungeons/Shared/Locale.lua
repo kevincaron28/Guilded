@@ -1157,7 +1157,7 @@ FR["No further seasonal gain on this route."] = "Aucun gain de saison suppl\195\
 FR["Scenario only: final-boss evidence and 80% presence required. No confirmation yet."] = "Sc\195\169nario seulement : preuve du boss final et pr\195\169sence de 80 % requises. Aucune confirmation."
 FR["Role scores are separate; unknown roles are not assigned."] = "Scores par r\195\180le s\195\169par\195\169s; r\195\180les inconnus non attribu\195\169s."
 FR["Attendance report"] = "Rapport de pr\195\169sence"
--- 7.6: launch-week officer tools (guild log, recruiting, guild bank, pug check, imports, speed recorder).
+-- 7.5.0: launch-week officer tools (guild log, recruiting, guild bank, pug check, imports, speed recorder).
 FR["Speed recorder: %s since %s, %d kind(s) of operation."] = "Enregistreur de vitesse : %s depuis %s, %d type(s) d'op\195\169ration."
 FR["Slowest moments (over %d ms):"] = "Moments les plus lents (plus de %d ms) :"
 FR["Speed recorder on. Play normally, then /guilded perf to see what took time. Nothing is saved or sent."] = "Enregistreur de vitesse activ\195\169. Jouez normalement, puis /guilded perf pour voir ce qui a pris du temps. Rien n'est enregistr\195\169 ni envoy\195\169."

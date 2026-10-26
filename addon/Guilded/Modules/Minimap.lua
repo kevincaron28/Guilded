@@ -1322,7 +1322,7 @@ local function buildRosterAdminPage(page)
   local b = newButton(page, "Roster admin", 220, function() if ns.openRosterAdmin then ns.openRosterAdmin() end end)
   b:SetPoint("TOPLEFT", 0, -12)
 end
--- Officer tools (7.6): each button runs the same thing as its /guilded command.
+-- Officer tools (7.5.0): each button runs the same thing as its /guilded command.
 local OFFICER_TOOLS = {
   { "Guild event log", "guildlog", { "copy" } },
   { "Prospects", "recruit", { "copy" } },

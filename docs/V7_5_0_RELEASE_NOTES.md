@@ -27,6 +27,13 @@ complete. Protocol remains 2.
 - Officers gain a do-not-invite list, an optional starboard and an optional message
   edit/delete log. Lottery entry uses the post button; the redundant slash join
   command is removed and ticket wording is consistent.
+- In game, officers get an Officer tools page: a guild event log kept past the
+  game's window, guild bank snapshots, a prospect list with one welcome whisper per
+  new member, softres.it and That's My BiS imports and a pug gear check. Members can
+  show mains' names in chat and record slow moments. Officer ledger sync sends a day
+  of entries as one compressed batch where the client supports it, and group EP
+  awards can apply an optional consumable penalty. All are optional parts; the new
+  personal switches start off. See the [launch tools checklist](V7_5_0_LAUNCH_TOOLS_CHECKLIST.md).
 - Microsoft Store MSIX packaging uses the reserved product identity, Store
   updates, Windows startup settings and protected credentials in a separate
   profile folder. Store approval is a separate track, not a published claim.

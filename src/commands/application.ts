@@ -7,7 +7,8 @@ import {
 } from "discord.js";
 import { prisma } from "../database.js";
 import { APPLY_PREFIX, applicationDecisionRows, createApplicationService } from "../services/application.js";
-import { createRaidCoreService, syncCoreRoster } from "../services/raid-core.js";
+import { createRaidCoreService, DEFAULT_TRIAL_DAYS, syncCoreRoster } from "../services/raid-core.js";
+import { warnDoNotInvite } from "../services/do-not-invite.js";
 import { syncApprovedMemberRoles } from "../services/housekeeping.js";
 import { notifyInteractive, resolveNotifyChannel } from "../services/notify.js";
 import { hasPermission } from "../permissions.js";
@@ -32,7 +33,9 @@ export const applicationCommand = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName("reject").setDescription("Reject an application.")
     .addStringOption((o) => o.setName("id").setDescription("Application (start typing the character)").setAutocomplete(true).setRequired(true)))
   .addSubcommand((sub) => sub.setName("trial").setDescription("Move an application to trial.")
-    .addStringOption((o) => o.setName("id").setDescription("Application (start typing the character)").setAutocomplete(true).setRequired(true)));
+    .addStringOption((o) => o.setName("id").setDescription("Application (start typing the character)").setAutocomplete(true).setRequired(true))
+    .addIntegerOption((o) => o.setName("days").setDescription("Trial length in days (default 14)").setMinValue(1).setMaxValue(90))
+    .addUserOption((o) => o.setName("sponsor").setDescription("Who vouches for them (default: you)")));
 
 export const applyCommand = new SlashCommandBuilder()
   .setName("apply").setDescription("Apply to a raid core.")
@@ -93,12 +96,13 @@ function applicationEmbed(app: ApplicationCard, applicantId: string, decision?: 
 async function applyDecision(
   guild: DiscordGuild | null, guildId: string,
   application: { coreId: string | null; memberId: string; role?: RaidRole | null; character?: string | null; characterId?: string | null; member: { discordUserId: string } },
-  status: ApplicationStatus
+  status: ApplicationStatus,
+  trialTerms: { days: number; sponsorId: string } | null = null
 ): Promise<void> {
   try {
     if (status === ApplicationStatus.APPROVED && guild) await syncApprovedMemberRoles(guild, guildId, application.member.discordUserId);
     if (!application.coreId || status === ApplicationStatus.PENDING) return;
-    const changed = await coreService.settleApplicant(application.coreId, application.memberId, status, application.role ?? null, application.characterId ?? application.character);
+    const changed = await coreService.settleApplicant(application.coreId, application.memberId, status, application.role ?? null, application.characterId ?? application.character, trialTerms);
     if (changed) await syncCoreRoster(guild, prisma, guildId, application.coreId);
   } catch (error) {
     console.error("Application decision follow-up failed", error);
@@ -116,6 +120,7 @@ export async function announceApplication(guild: DiscordGuild | null, applicantI
     components: applicationDecisionRows(application.id)
   }), "application");
   if (message) await applicationService.setCardMessage(application.id, message.id);
+  await warnDoNotInvite(guild, { discordUserId: applicantId, names: [application.character] }, `<@${applicantId}> (${application.character})`, "application");
 }
 
 // After a decision made with /application approve|reject|trial (rather than
@@ -191,7 +196,8 @@ export async function executeApplication(interaction: ChatInputCommandInteractio
   if (!application) throw new Error("Application not found");
   const status = ({ approve: ApplicationStatus.APPROVED, reject: ApplicationStatus.REJECTED, trial: ApplicationStatus.TRIAL } as const)[subcommand as "approve" | "reject" | "trial"];
   const updated = await applicationService.transition(context.guildId, id, status, interaction.user.id);
-  await applyDecision(interaction.guild, context.guildId, application, status);
+  await applyDecision(interaction.guild, context.guildId, application, status, status === ApplicationStatus.TRIAL
+    ? { days: interaction.options.getInteger("days") ?? DEFAULT_TRIAL_DAYS, sponsorId: (interaction.options.getUser("sponsor") ?? interaction.user).id } : null);
   await syncApplicationCard(interaction.guild, application, status, interaction.user.id);
   await interaction.reply(`Application \`${updated.id}\` is now **${updated.status}**.`);
 }
@@ -252,7 +258,7 @@ async function handleApplyDecision(interaction: ButtonInteraction, decision: str
       embeds: [applicationEmbed(application, application.member.discordUserId, { status: updated.status, by: interaction.user.id })],
       components: applicationDecisionRows(application.id, updated.status)
     });
-    await applyDecision(interaction.guild, guild.id, application, status);
+    await applyDecision(interaction.guild, guild.id, application, status, status === ApplicationStatus.TRIAL ? { days: DEFAULT_TRIAL_DAYS, sponsorId: interaction.user.id } : null);
   } catch (error) {
     await interaction.reply({ content: error instanceof Error ? error.message : "Could not update the application.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
   }

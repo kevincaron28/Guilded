@@ -272,11 +272,13 @@ async function validateEventVenue(guild: Guild, channelId: string, voiceId: stri
     throw error;
   }
 }
+// "1 ticket", "3 tickets" (FR: billet/billets).
+const tickets = (lang: Lang, count: number) => `${count} ${say(lang, count === 1 ? "ticket" : "tickets", count === 1 ? "billet" : "billets")}`;
 function ticketReply(lang: Lang, row: CommunityActivity, entry: { status: string; quantity: number }) {
   const rules = lotteryRules.parse(row.rules);
   return entry.status === "PENDING"
-    ? say(lang, `${entry.quantity} tickets requested (${entry.quantity * rules.cost} ${rules.currency}, ${rules.realm}). Arrange the trade with an organizer. Tickets count after payment confirmation.`, `${entry.quantity} billets demandés (${entry.quantity * rules.cost} ${rules.currency}, ${rules.realm}). Fais l'échange avec un organisateur. Les billets comptent après sa confirmation du paiement.`)
-    : say(lang, `${entry.quantity} tickets confirmed. One request per member; repeated clicks do not purchase more.`, `${entry.quantity} billets confirmés. Une demande par membre; recliquer n'achète pas de billets supplémentaires.`);
+    ? say(lang, `${tickets(lang, entry.quantity)} requested (${entry.quantity * rules.cost} ${rules.currency}, ${rules.realm}). Arrange the trade with an organizer. Tickets count after payment confirmation.`, `${tickets(lang, entry.quantity)} ${entry.quantity === 1 ? "demandé" : "demandés"} (${entry.quantity * rules.cost} ${rules.currency}, ${rules.realm}). Fais l'échange avec un organisateur. Les billets comptent après sa confirmation du paiement.`)
+    : say(lang, `${tickets(lang, entry.quantity)} confirmed. One request per member; repeated clicks do not purchase more.`, `${tickets(lang, entry.quantity)} ${entry.quantity === 1 ? "confirmé" : "confirmés"}. Une demande par membre; recliquer n'achète pas de billets supplémentaires.`);
 }
 function signupReply(lang: Lang, status: string) {
   return say(lang, `Signup saved: ${status === "WAITLISTED" ? "waitlist; promotion is automatic if a spot opens" : status === "JOINED" ? "present" : status === "MAYBE" ? "maybe" : "absent"}.`, `Inscription enregistrée : ${status === "WAITLISTED" ? "liste d'attente; passage automatique si une place se libère" : status === "JOINED" ? "présent" : status === "MAYBE" ? "peut-être" : "absent"}.`);
@@ -302,7 +304,8 @@ export function communityCard(row: CommunityActivity & { season: CommunitySeason
     const confirmed = entries.filter(entry => entry.status === "CONFIRMED");
     description += `🎁 ${say(lang, "Prize per winner", "Lot par gagnant")} : ${rules.prize}\n`;
     description += rules.mode === "FREE" ? say(lang, "Free: one ticket per member.\n", "Gratuit : un billet par membre.\n") : `${rules.cost} ${rules.currency} / ${say(lang, "ticket", "billet")} · ${rules.maxTickets} ${say(lang, "max per member", "maximum par membre")}\n${rules.realm}\n`;
-    description += `${confirmed.length} ${say(lang, "participants", "participants")} · ${confirmed.reduce((sum, entry) => sum + entry.quantity, 0)} ${say(lang, "confirmed tickets", "billets confirmés")} · ${rules.winners} ${say(lang, "winner(s)", "gagnant(s)")}\n`;
+    const confirmedTickets = confirmed.reduce((sum, entry) => sum + entry.quantity, 0);
+    description += `${confirmed.length} ${say(lang, confirmed.length === 1 ? "participant" : "participants", confirmed.length === 1 ? "participant" : "participants")} · ${confirmedTickets} ${say(lang, confirmedTickets === 1 ? "confirmed ticket" : "confirmed tickets", confirmedTickets === 1 ? "billet confirmé" : "billets confirmés")} · ${rules.winners} ${say(lang, "winner(s)", "gagnant(s)")}\n`;
     if (["WOW_GOLD", "POE_CURRENCY"].includes(rules.mode)) description += say(lang, "In-game payment is confirmed by an organizer. Pending requests do not enter the draw.\n", "Un organisateur confirme le paiement en jeu. Les demandes en attente ne participent pas au tirage.\n");
     description += say(lang, "One request per member. Every confirmed ticket has equal odds; each person can win once.\n", "Une demande par membre. Chaque billet confirmé a la même chance; une personne peut gagner une seule fois.\n");
     const result = row.result as { winners?: string[]; externalRefundsRequired?: { userId: string; amount: number }[] } | null;

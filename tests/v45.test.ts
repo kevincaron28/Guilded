@@ -70,9 +70,11 @@ describe("trial members in a core", () => {
   it("Trial adds them with their role, Approve clears the mark and keeps the role", async () => {
     const { rows, service } = fakeCoreMembers();
     await service.settleApplicant("c1", "m1", "TRIAL", "TANK");
-    expect(rows).toEqual([{ coreId: "c1", memberId: "m1", role: "TANK", bench: false, trial: true }]);
+    expect(rows).toEqual([expect.objectContaining({ coreId: "c1", memberId: "m1", role: "TANK", bench: false, trial: true, trialSponsorId: null, trialRemindedAt: null })]);
+    const spot = rows[0] as unknown as { trialStartedAt: Date; trialEndsAt: Date };
+    expect(spot.trialEndsAt.getTime() - spot.trialStartedAt.getTime()).toBe(14 * 86_400_000);
     await service.settleApplicant("c1", "m1", "APPROVED", "DPS");
-    expect(rows[0]).toMatchObject({ role: "TANK", trial: false });
+    expect(rows[0]).toMatchObject({ role: "TANK", trial: false, trialEndsAt: null });
   });
 
   it("Reject takes a trial member off, but never a full member", async () => {

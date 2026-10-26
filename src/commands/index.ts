@@ -7,6 +7,7 @@ import { professionCommand, executeProfession } from "./profession.js";
 import { configCommand } from "./settings.js";
 import { raidCommand, executeRaid } from "./raid.js";
 import { worldBuffCommand, executeWorldBuff } from "./world-buffs.js";
+import { dniCommand, executeDni } from "./do-not-invite.js";
 import { importCommand, executeImport } from "./import.js";
 import { lootCommand, executeLoot } from "./loot.js";
 import { applicationCommand, applyCommand, executeApplication } from "./application.js";
@@ -116,6 +117,7 @@ const officer = new MergedCommand("officer", "Officers: EPGP, loot, dungeon chal
 
 const mod = new MergedCommand("mod", "Officers: moderation, applications, answer channel, web page, recruitment and leaderboards.", [
   { command: applicationCommand, handler: executeApplication, as: "application" },
+  { command: dniCommand, handler: executeDni, as: "dni" },
   { command: faqCommand, handler: executeFaq, as: "faq" },
   { command: guildPageCommand, handler: executeGuildPage, as: "page" },
   { command: recruitCommand, handler: executeRecruit, as: "recruit" },

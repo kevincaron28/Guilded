@@ -41,6 +41,10 @@ function module.lines(itemName, link)
   if id and (not ns.moduleActive or ns.moduleActive("reserve")) then
     for _, line in ipairs(ns.reserve.tooltipLines(id)) do table.insert(lines, line) end
   end
+  -- That's My BiS priorities an officer imported (Modules/LootImports.lua).
+  if id and ns.lootImports then
+    for _, line in ipairs(ns.lootImports.tooltipLines(id)) do table.insert(lines, line) end
+  end
   -- Who in the guild can craft it (Modules/Recipes.lua).
   local craftId = ns.recipes and ns.recipes.keyFromLink and ns.recipes.keyFromLink(link)
   if craftId and craftId > 0 and (not ns.moduleActive or ns.moduleActive("recipes")) then

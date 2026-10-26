@@ -57,5 +57,13 @@ Modules\RosterAdmin.lua
 Modules\Scores.lua
 Modules\SeasonDetails.lua
 Modules\DungeonScorePanel.lua
+Modules\Perf.lua
+Modules\GuildLog.lua
+Modules\Recruit.lua
+Modules\ChatTags.lua
+Modules\GuildBank.lua
+Modules\PugCheck.lua
+Modules\PasteBox.lua
+Modules\LootImports.lua
 Modules\Minimap.lua
 Modules\Options.lua

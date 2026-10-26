@@ -2,6 +2,7 @@
 --
 --   /guilded consumes          scan everyone in your group and print who is missing what
 --   /guilded consumes me       show your own active consumables
+--   /guilded consumes penalty <0-100>   less group-award EP for players the scan saw without them
 --
 -- Reads buffs only (never uses or changes anything). A buff is recognised by its spell id
 -- (flask, augment rune, vantus rune, raid buffs: Modules/ConsumableData.lua) or its icon
@@ -34,6 +35,8 @@ local MAX_AURAS = 100
 local NO_EXPIRY = 99999
 local module = {}
 ns.consumables = module
+
+local function L(text) return ns.L and ns.L(text) or text end
 
 local function isSecret(value)
   return ns.isSecret and ns.isSecret(value)
@@ -419,7 +422,17 @@ local function report()
   local db = ns.getDb and ns.getDb()
   if db then
     local raid = ns.getActiveRaid and ns.getActiveRaid()
-    db.consumeScan = { at = ns.now(), by = ns.playerName(), raid = raid and raid.title or nil, players = players }
+    -- `missing` and `raidId` stay in the game (the export reads only the players): they are what
+    -- the consumable penalty below goes by.
+    local missing = {}
+    local function mark(names, what)
+      for _, name in ipairs(names) do
+        local key = ns.normalizeName and ns.normalizeName(name) or name
+        if key then missing[key] = missing[key] or {}; missing[key][what] = true end
+      end
+    end
+    mark(noFlask, "flask"); mark(noFood, "food")
+    db.consumeScan = { at = ns.now(), by = ns.playerName(), raid = raid and raid.title or nil, raidId = raid and raid.id or nil, players = players, missing = missing }
   end
   ns.message(string.format("Consumable scan: %d player(s) checked.", #players))
   ns.message("No flask or elixir: " .. listOrNone(noFlask))
@@ -436,18 +449,61 @@ local function mine()
   ns.message("Your consumables: " .. (#parts > 0 and table.concat(parts, ", ") or "none active"))
 end
 
+-- Consumable penalty: /guilded consumes penalty <percent> makes /guilded award group give that
+-- much less EP to players the last scan of the running raid saw without a flask/elixir or food.
+-- Players it could not read, and every award when no scan was taken in this raid, are untouched.
+-- Returns nil (no change) or { amount, note }.
+function module.penaltyFor(name, rawAmount)
+  if ns.moduleActive and not ns.moduleActive("consumables") then return nil end
+  local db = ns.getDb and ns.getDb()
+  local percent = db and db.settings and tonumber(db.settings.consumePenalty) or 0
+  local amount = tonumber(rawAmount)
+  local raid = ns.getActiveRaid and ns.getActiveRaid()
+  local scan = db and db.consumeScan
+  if percent <= 0 or not amount or not raid or not scan or scan.raidId ~= raid.id then return nil end
+  local key = ns.normalizeName and ns.normalizeName(name) or name
+  local missing = key and scan.missing and scan.missing[key]
+  if not missing then return nil end
+  local what = {}
+  if missing.flask then table.insert(what, L("flask")) end
+  if missing.food then table.insert(what, L("food")) end
+  return {
+    amount = math.floor(amount * (100 - percent) / 100 + 0.5),
+    note = string.format(L("no %s at the consumable check, -%d%%"), table.concat(what, "/"), percent)
+  }
+end
+
+local function setPenalty(raw)
+  local db = ns.getDb and ns.getDb()
+  if not (db and db.settings) then return end
+  if raw == nil or raw == "" then
+    local percent = tonumber(db.settings.consumePenalty) or 0
+    ns.message(percent > 0 and string.format(L("Consumable penalty: %d%% less EP from /guilded award group for players the last scan in this raid saw without a flask or food."), percent)
+      or L("No consumable penalty. /guilded consumes penalty <0-100>"))
+    return
+  end
+  local percent = tonumber(raw)
+  if not percent or percent < 0 or percent > 100 then ns.message(L("No consumable penalty. /guilded consumes penalty <0-100>")) return end
+  db.settings.consumePenalty = math.floor(percent + 0.5)
+  setPenalty(nil)
+end
+
 ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHandlers["consumes"] = function(args)
   if ns.moduleActive and not ns.moduleActive("consumables") then return end
   local action = string.lower(args[1] or "")
-  if action == "me" then mine()
+  if action == "penalty" then
+    if ns.isOfficer and not ns.isOfficer() then ns.message(L("Only officers can do that.")) return end
+    setPenalty(args[2])
+  elseif action == "me" then mine()
   elseif action == "" or action == "scan" then
     if ns.isOfficer and not ns.isOfficer() then
       ns.message("Only officers can scan the group. Use /guilded consumes me for your own.")
       return
     end
     report()
-  else ns.message("/guilded consumes [scan] | me") end
+  else ns.message("/guilded consumes [scan] | me | penalty <0-100>") end
 end
 ns.commandHelp = ns.commandHelp or {}
 table.insert(ns.commandHelp, { officer = true, text = "/guilded consumes - who in your group is missing a flask/elixir or food (also /guilded consumes me)" })
+table.insert(ns.commandHelp, { officer = true, text = "/guilded consumes penalty <0-100> - less EP from /guilded award group for players the raid scan saw without a flask or food" })

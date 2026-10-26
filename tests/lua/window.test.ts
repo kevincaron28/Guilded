@@ -112,7 +112,7 @@ describe("the tools window (sidebar and Home page)", () => {
   it("gives each officer feature a single menu scope", () => {
     const s = openWindow(1);
     s.run(`NS.openGuildPanel(nil, "guild", "Standings")`);
-    expect(visibleTabs(s)).toBe("Standings,Crafting,Availability,Gear,EPGP,Local guild,Roster admin");
+    expect(visibleTabs(s)).toBe("Standings,Crafting,Availability,Gear,EPGP,Local guild,Roster admin,Officer tools");
     s.run(`NS.openGuildPanel(nil, "calendar", "Calendar")`);
     expect(visibleTabs(s)).toBe("Calendar");
   });

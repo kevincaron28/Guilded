@@ -68,9 +68,17 @@ privacy boundaries and the two-client acceptance test.
 | Sim.lua | `sim` | (none) | Test raid / dungeon run for officers |
 | Sync.lua | always on | GuildedSync | Version check, standings, guild module switches. Officers answer `STANDREQ` after 1-5 s and stay quiet when another officer is already sending the same standings |
 | OfficerBridge.lua | always on; officer opt-in | GuildedBridge | Core rules/pools/rosters and upcoming raids from an officer's companion; guild-bound cache and late-login requests. `CAP|2` before `REQ|1` asks for the compact `DATA|2` (printable text as is, other bytes `%XX`); `DATA|1` (hex) still goes to older addons |
-| LedgerSync.lua | always loaded; officer opt-in, in-game-only mode | GuildedLedger | `/guilded ledgersync on`: officers merge their EP/GP ledgers in game (`SUM`, `AUTH`, `DAYS`, `GET`, `E`); see [the sync speed-ups](../../../docs/SYNC_SPEEDUPS_2026-10-15.md) |
+| LedgerSync.lua | always loaded; officer opt-in, in-game-only mode | GuildedLedger | `/guilded ledgersync on`: officers merge their EP/GP ledgers in game (`SUM`, `AUTH`, `DAYS`, `GET`, `E`); see [the sync speed-ups](../../../docs/SYNC_SPEEDUPS_2026-10-15.md). 7.6: a client with `C_EncodingUtil` says `CAP\|1\|Z1` before its lists, and a day of entries to such an officer goes as one zlib/base64 batch (`Z\|1\|author\|day\|part\|parts\|chunk`) |
 | GuildMap.lua | `guildmap` | GuildedMap | 5.0: guildmates as dots on the world map and minimap (`P\|map\|x\|y\|class\|level`, `G` = gone, `Q` = rate-limited position refresh); `/guilded map share\|show on\|off` |
 | Scores.lua | `scores` | GuildedScore | 5.0: a dungeon score per player from recorded runs (best run per dungeon), on tooltips; `S\|score\|dungeons`; `/guilded score [player\|top]` |
+| GuildLog.lua | `guildlog` | (none) | 7.6: the game's guild event log saved past its short window; `/guilded guildlog` |
+| Recruit.lua | `recruit` | GuildedRec | 7.6: officers' prospect list and one welcome whisper per new member (`WELCOMED\|1\|name` on GUILD keeps other officers quiet) |
+| ChatTags.lua | `chattags` | (none) | 7.6: personal opt-in, an alt's main name in guild/officer chat from the standings' account groups |
+| GuildBank.lua | `guildbank` | (none) | 7.6: snapshot of the viewable guild bank tabs and gold when opened; `/guilded gbank` |
+| PugCheck.lua | `pugcheck` | (none) | 7.6: inspects non-guild group members one at a time (out of combat) for item level, enchants and empty slots |
+| PasteBox.lua | always on | (none) | 7.6: the multi-line paste window imports use |
+| LootImports.lua | `imports` | (none) | 7.6: softres.it lists into Reserve.lua (`ns.reserve.importEntries`) and That's My BiS priorities onto tooltips |
+| Perf.lua | always loaded; personal opt-in | (none) | 7.6: `/guilded perf`, timings of Guilded events and commands plus message-queue depth while on |
 | Minimap.lua | always on | (none) | Minimap button and tools window |
 
 ## Local guild and loot rolls

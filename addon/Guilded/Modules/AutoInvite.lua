@@ -81,6 +81,7 @@ function module.onWhisper(text, sender)
   sentAt[name] = now
   table.insert(hourly, now)
   record(auto, name, ok and true or false)
+  if ok and ns.recruit and ns.recruit.noteInvited then ns.recruit.noteInvited(name) end
   if ns.message then ns.message(ok and ("Invited " .. name .. " to the guild (they whispered " .. auto.phrase .. ").") or ("Could not invite " .. name .. ".")) end
   return ok and true or false
 end

@@ -1322,6 +1322,26 @@ local function buildRosterAdminPage(page)
   local b = newButton(page, "Roster admin", 220, function() if ns.openRosterAdmin then ns.openRosterAdmin() end end)
   b:SetPoint("TOPLEFT", 0, -12)
 end
+-- Officer tools (7.6): each button runs the same thing as its /guilded command.
+local OFFICER_TOOLS = {
+  { "Guild event log", "guildlog", { "copy" } },
+  { "Prospects", "recruit", { "copy" } },
+  { "Guild bank", "gbank", { "copy" } },
+  { "Check pugs in my group", "pugcheck", { "now" } },
+  { "Import softres.it", "import", { "softres" } },
+  { "Import That's My BiS", "import", { "tmb" } },
+  { "Speed report", "perf", { "copy" } }
+}
+local function buildOfficerToolsPage(page)
+  for i, def in ipairs(OFFICER_TOOLS) do
+    local command, args = def[2], def[3]
+    local b = newButton(page, def[1], 220, function()
+      local handler = ns.commandHandlers and ns.commandHandlers[command]
+      if handler then handler(args) end
+    end)
+    b:SetPoint("TOPLEFT", ((i - 1) % 2) * 230, -12 - math.floor((i - 1) / 2) * 38)
+  end
+end
 local TAB_DEFS = {
   { name = "Home", hint = "what is going on, and your data", group = "Overview", build = buildHomePage },
   { name = "Me", label = "My character", hint = "your gear check and attunements", group = "Overview", usesPlayer = true, build = buildMePage },
@@ -1337,6 +1357,7 @@ local TAB_DEFS = {
   { name = "EPGP", label = "Administration", hint = "award EP and GP", scope = "guild", group = "Guild", officer = true, usesPlayer = true, build = buildEpgpPage },
   { name = "Local guild", scope = "guild", group = "Guild", officer = true, build = buildLocalGuildPage },
   { name = "Roster admin", scope = "guild", group = "Guild", officer = true, build = buildRosterAdminPage },
+  { name = "Officer tools", hint = "guild log, prospects, guild bank, imports", scope = "guild", group = "Guild", officer = true, build = buildOfficerToolsPage },
   { name = "Loot", hint = "bids and loot", group = "Raid night", lootModes = { EPGP = true }, officer = true, usesPlayer = true, build = buildLootPage },
   { name = "Council", hint = "loot council: BiS / upgrade / off-spec answers", group = "Raid night", module = "council", lootModes = { COUNCIL = true, PRIORITY = true }, officer = true, usesPlayer = true, build = buildCouncilPage },
   { name = "Tools", label = "Settings", hint = "switch parts on or off, diagnostics", group = "System", build = buildToolsPage }

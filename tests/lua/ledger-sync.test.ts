@@ -4,12 +4,25 @@ import { newLuaSession, type LuaSession } from "./harness.js";
 // Two (or three) officers' clients with the real LedgerSync.lua, connected by a fake guild
 // channel: GUILD messages reach everyone else, WHISPER only the named player.
 const sessions: LuaSession[] = [];
-afterEach(() => { for (const session of sessions) session.close(); sessions.length = 0; });
+// Every message pump delivered, in order (the compression tests look at what went by).
+const delivered: { from: string; text: string }[] = [];
+afterEach(() => { for (const session of sessions) session.close(); sessions.length = 0; delivered.length = 0; });
 
 interface Client { name: string; s: LuaSession }
 
-function client(name: string, options: { officer?: boolean; local?: boolean; sync?: boolean } = {}): Client {
+// The game's text packing, faked but reversible: "compression" marks the text, base64 is hex.
+const PACKING = String.raw`
+  C_EncodingUtil = {
+    CompressString = function(text) return "Z" .. text end,
+    DecompressString = function(text) if string.sub(text, 1, 1) ~= "Z" then error("not packed") end return string.sub(text, 2) end,
+    EncodeBase64 = function(text) return (string.gsub(text, ".", function(c) return string.format("%02x", string.byte(c)) end)) end,
+    DecodeBase64 = function(text) return (string.gsub(text, "%x%x", function(h) return string.char(tonumber(h, 16)) end)) end
+  }
+`;
+
+function client(name: string, options: { officer?: boolean; local?: boolean; sync?: boolean; pack?: boolean } = {}): Client {
   const s = newLuaSession(); sessions.push(s);
+  if (options.pack) s.run(PACKING);
   s.run(`
     NOW = 1800000000; OUT = {}
     DB = { settings = { setupMode = ${options.local === false ? '"connected"' : '"local"'}, ledgerSync = ${options.sync === false ? "false" : "true"} }, epgp = {} }
@@ -54,6 +67,7 @@ function pump(clients: Client[], rounds = 50, lostGuild: string[] = []) {
       from.s.run("OUT = {}");
       for (const message of messages) {
         expect(Buffer.byteLength(message.text)).toBeLessThanOrEqual(255);
+        delivered.push({ from: from.name, text: message.text });
         for (const to of clients) {
           if (to === from) continue;
           if (message.channel === "WHISPER" && message.target.replace(/-.*/, "") !== to.name) continue;
@@ -219,6 +233,57 @@ describe("officer ledger sync (in-game-only guilds)", () => {
     expect(member.s.run("return tostring(DB.settings.ledgerSync)")).toBe("false");
     officer.s.run('NS.commandHandlers.ledgersync({"status"})');
     expect(officer.s.run("return table.concat(CHAT_LOG, ' | ')")).toContain("0 entries here");
+  });
+});
+
+describe("compressed ledger batches (7.6)", () => {
+  const sentBy = (name: string, kind: string) => delivered.filter((m) => m.from === name && m.text.startsWith(kind + "|")).length;
+
+  it("sends a day of entries as one batch between officers whose game can pack text", () => {
+    const alice = client("Alice", { pack: true }); const bob = client("Bob", { pack: true });
+    alice.s.run('for i = 1, 30 do award("P" .. i, i, 0, i, "Boss kill number " .. i) end');
+    alice.s.run('award("P1", 0, 25, 31, "Sword | of doom")');
+    alice.s.run('NS.commandHandlers.ledgersync({"now"})');
+    pump([alice, bob]);
+    expect(summary(alice)).toBe(summary(bob));
+    expect(bob.s.run('return balance("P1") .. ":" .. balance("P30")')).toBe("1/25:30/0");
+    expect(bob.s.run('for _, e in ipairs(DB.epgp.P1.ledger) do if e.gpAmount == 25 then return e.reason .. "/" .. e.fromPeer end end')).toBe("Sword   of doom/Alice");
+    expect(sentBy("Alice", "E")).toBe(0);
+    expect(sentBy("Alice", "Z")).toBeGreaterThan(1);
+    expect(sentBy("Bob", "CAP")).toBeGreaterThan(0);
+  });
+
+  it("keeps single entries for an officer whose game cannot pack, and for one entry", () => {
+    const alice = client("Alice", { pack: true }); const bob = client("Bob");
+    alice.s.run('for i = 1, 5 do award("P" .. i, i, 0, i) end');
+    alice.s.run('NS.commandHandlers.ledgersync({"now"})');
+    pump([alice, bob]);
+    expect(summary(alice)).toBe(summary(bob));
+    expect(sentBy("Alice", "Z")).toBe(0);
+    expect(sentBy("Alice", "E")).toBe(5);
+    expect(sentBy("Bob", "CAP")).toBe(0);
+    const cara = client("Cara", { pack: true });
+    cara.s.run('award("Solo", 3, 0, 1); NS.commandHandlers.ledgersync({"now"})');
+    pump([alice, cara]);
+    expect(alice.s.run('return balance("Solo")')).toBe("3/0");
+    expect(sentBy("Cara", "Z")).toBe(0);
+  });
+
+  it("checks every line of a batch like an E message, and drops a damaged batch", () => {
+    const bob = client("Bob", { pack: true });
+    const lines = ["Alice-1800000000-1|Tank|10|0||EP_AWARD|0|Raid", "Alice-1800000000-2|Tank|999999|0||EP_AWARD|0|x", "not-an-id|Tank|5|0||EP_AWARD|0|x"].join("\n");
+    const hex = Buffer.from("Z" + lines).toString("hex");
+    const fire = (from: string, text: string) => bob.s.run(`fire_event("CHAT_MSG_ADDON", "GuildedLedger", ${JSON.stringify(text)}, "WHISPER", "${from}-Realm")`);
+    // From a member: ignored whole.
+    fire("Dave", `Z|1|Alice|20833|1|1|${hex}`);
+    expect(bob.s.run('return balance("Tank")')).toBe("none");
+    // In two parts from an officer: the valid line counts, the absurd amount does not.
+    fire("Alice", `Z|1|Alice|20833|1|2|${hex.slice(0, 100)}`);
+    expect(bob.s.run('return balance("Tank")')).toBe("none");
+    fire("Alice", `Z|1|Alice|20833|2|2|${hex.slice(100)}`);
+    expect(bob.s.run('return balance("Tank") .. "/" .. count("Tank")')).toBe("10/0/1");
+    fire("Alice", "Z|1|Alice|20834|1|1|00ff");
+    expect(bob.s.run('return count("Tank")')).toBe("1");
   });
 });
 

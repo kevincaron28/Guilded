@@ -36,6 +36,7 @@ Hover a page name for what it is for. The **Player** box (target someone, or **M
 | `/guilded ready` / `ready ask` / `ready post` | Officers and group leaders (raid leader or assistant): who in your raid or party is ready: a summary and everyone who is not. It runs by itself on every Blizzard ready check (each addon reports what it carries, and you get a summary when it ends). `ask` asks every addon to check again without a ready check; `post` tells the group who needs attention. The window's **Ready** page (officers and group leaders only) shows an icon per check |
 | `/guilded ready settings` / `ready require <flask\|food\|buffs\|weapon\|augment\|vantus> on\|off` / `ready expiry <minutes>` / `ready durability <percent>` / `ready report on\|off` / `ready autopost on\|off` | Officers: what the ready check requires (flask, food and raid buffs by default), how many minutes left counts as running out (10), the lowest durability that is fine (20), whether you get the end-of-check summary, and whether it is also posted to the group |
 | `/guilded consumes` / `/guilded consumes me` | Officers: who in the group lacks a flask/elixir or food. Anyone: your own active consumables |
+| `/guilded consumes penalty <0-100>` | Officers: `/guilded award group` gives that percent less EP to players the last scan of the running raid saw without a flask/elixir or food (the reason says so). Players who could not be read, and raids with no scan, get the full amount. 0 turns it off |
 | `/guilded invite raid` / `/guilded invite missing` | Officers: invite everyone signed up for the next Discord raid (their main characters, from the companion's Standings.lua, for raids in the next 36 hours), or just list who is not in your group yet. Invites go out 0.6 seconds apart; convert to a raid yourself when the group passes 5 |
 | `/guilded autoinvite on [phrase]` / `off` / `status` | Officers: guild-invite anyone who whispers you the phrase (default `ginv`). Off by default; skips people already in the guild, never in combat, max 15 invites an hour |
 | `/guilded backup` | A box with one code (`QGBKP1:...`) holding this guild's saved data (raids, EPGP ledger, roster, attendance, loot, settings). Copy it somewhere safe |
@@ -71,7 +72,7 @@ Hover a page name for what it is for. The **Player** box (target someone, or **M
 | `/guilded attendance group [status]` | Mark everyone in the group right now |
 | `/guilded boss <name>` | Record a boss kill |
 | `/guilded award <player> <amount> [reason]` | Give EP |
-| `/guilded award group <amount> [reason]` | Give EP to everyone in the group |
+| `/guilded award group <amount> [reason]` | Give EP to everyone in the group (less for players a consumable penalty applies to, see `/guilded consumes penalty`) |
 | `/guilded gp <player> <amount> [reason]` | Charge GP for an item |
 | `/guilded gpdeduct <player> <amount> [reason]` | Take GP back (a mistaken charge, a returned item); never below 0. **Deduct GP** on the EPGP page |
 | `/guilded void [player]` | Take back the newest EP/GP entry you made (for that player, or of all). The entry stays in the ledger, marked voided: Discord never imports it, or reverses it if it already had it |
@@ -205,6 +206,7 @@ and puts reservers first in the loot council list. It survives `/reload`.
 | `/guilded reserve roll [item link]` | officers | High roll between the players who reserved it |
 | `/guilded reserve award <player> [item link] [GP]` | officers | Record the loot (GP only if given) and use up the reserve |
 | `/guilded reserve clear` | officers | Close and forget the list |
+| `/guilded import softres` | officers | Paste a softres.it export (CSV or Gargul export) instead: it becomes the list, open, with you as keeper |
 
 ### Officers: loot council (Council tab)
 
@@ -238,6 +240,23 @@ records the loot (and GP only if you give a price) like any other award.
 | `/guilded sim end` | Kill 3 test bosses, mark attendance, give a test item, end it |
 | `/guilded sim dungeon [minutes]` | Save a finished fake dungeon run (you + 4 fake players) to test the export, points and records |
 | `/guilded sim clear` | Remove every test raid and the EP/GP it recorded, and test dungeon runs |
+
+### Officer tools (Officer tools page)
+
+Each of these is an optional part (`/guilded modules`) and has a button on the
+window's **Officer tools** page. Nothing here is sent to Discord.
+
+| Command | What it does |
+| --- | --- |
+| `/guilded guildlog [name]` / `copy` / `refresh` | The guild's joins, leaves, promotions, demotions and removals, kept on your PC beyond the game's short log (read at login and every 30 minutes). A name filters; `copy` gives a box to paste elsewhere |
+| `/guilded recruit add <name> [note]` | Put someone you talked to on the prospect list (kept on your PC, notes can be private) |
+| `/guilded recruit <name> contacted\|invited\|declined\|joined [note]` / `remove <name>` / `list [status]` / `copy` | Update or read the list. Auto-invite marks prospects invited, and anyone on it who joins is marked joined by itself |
+| `/guilded welcome on [message]` / `off` / `status` / `test` | Whisper each new guild member once. `{name}` and `{guild}` are filled in. When several officers have it on, one sends it (the others hear that and stay quiet); at most 10 an hour |
+| `/guilded gbank [item]` / `copy` | What the guild bank held when it was last opened with Guilded on (every tab you may view), and how much gold. `copy` gives a spreadsheet-ready table |
+| `/guilded pugcheck on\|off` / `now` / `last` | Item level, missing enchants and empty slots of group members from outside the guild, by inspecting them one at a time (never in combat). Only you see it. Off by default |
+| `/guilded import tmb` / `import tmb clear` / `/guilded tmb <item link>` | Paste That's My BiS priorities (its Gargul export, or `itemID,player1,player2` lines): item tooltips then show the first five in order |
+| `/guilded chattags on\|off` | Anyone: show an alt's main name in guild and officer chat, from the standings' account groups. Off by default |
+| `/guilded perf on\|off` / `copy` / `clear` | Anyone: a speed recorder for slow moments (which Guilded events and commands took time, how full each message queue is). Nothing is saved or sent; `/guilded perf` shows the report |
 
 ### Officers: modules for the whole guild
 

@@ -4,9 +4,10 @@ import { dirname, posix } from "node:path";
 import { marked } from "marked";
 import { localizedHref, navLinks } from "../site/nav.mjs";
 
-const guides = ["HOSTED_PILOT", "SUPPORT_GUILDED", "OWNER_WALKTHROUGH", "QUICK_START", "MEMBER_INSTALL", "DUNGEONS_GUIDE", "EPGP_GUIDE", "GUILD_OWNER_SETUP", "DEPLOY_ORACLE", "AI_SETUP_HELP", "ONLINE_COMPANION_CHECK"];
+const guides = ["PRIVACY", "HOSTED_PILOT", "SUPPORT_GUILDED", "OWNER_WALKTHROUGH", "QUICK_START", "MEMBER_INSTALL", "DUNGEONS_GUIDE", "EPGP_GUIDE", "GUILD_OWNER_SETUP", "DEPLOY_ORACLE", "AI_SETUP_HELP", "ONLINE_COMPANION_CHECK"];
 const origin = "https://guilded.kcaron.top";
 const guideDescriptions = {
+  PRIVACY: "Guilded privacy: data, permissions, retention and private support requests. English and French.",
   DUNGEONS_GUIDE: "Set up Guilded Dungeons, sync runs with Discord sign-in, manage your player profile and find open raids. English and French.",
   HOSTED_PILOT: "Free hosted Guilded bot: start with Guilded Lite, set up your server and connect with Discord sign-in after approval. English and French guide.",
   SUPPORT_GUILDED: "Optional coffee support for Guilded. Downloads and hosted access stay free; support never buys approval. English and French information.",

@@ -1,5 +1,6 @@
 import { guildWhere } from "../src/services/guild-scope.js";
 import { verifyGameEventsPostgres, verifyGameEventsRestored } from "./verify-game-events-postgres.js";
+import { verifyRosterGapsPostgres, verifyRosterGapsRestored } from "./verify-roster-gaps-postgres.js";
 import { verifyGameEditionsPostgres, verifyGameEditionsRestored } from "./verify-game-editions-postgres.js";
 import { verifyAiBudgetPostgres } from "./verify-ai-budget-postgres.js";
 import { verifyPublicSharingPostgres } from "./verify-public-sharing-postgres.js";
@@ -39,6 +40,7 @@ try {
   if (process.argv.includes("--restored")) {
     await verifyGameEditionsRestored(database);
     await verifyGameEventsRestored(database);
+    await verifyRosterGapsRestored(database);
     await verifyDungeonRatingRestored(database);
     await verifyActivityCoresRestored(database);
     assert.equal((await database.aiDailyUsage.findUniqueOrThrow({ where: { day_scope: { day: "2099-01-01", scope: "global" } } })).attempts, 7);
@@ -94,6 +96,7 @@ try {
     await verifyPublicSharingPostgres(database);
     await verifyActivityCoresPostgres(database, guild.id);
     await verifyGameEventsPostgres(database, guild.id);
+    await verifyRosterGapsPostgres(database);
     await verifyScheduledEventsPostgres(database, guild.id);
     await verifyCommunityPostgres(database, guild.id);
     await verifyParticipationPostgres(database, guild.id);

@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld("companion", {
   getPoeRuns: () => ipcRenderer.invoke("get-poe-runs"),
   openOnline: () => ipcRenderer.invoke("open-online"),
   openUpdate: () => ipcRenderer.invoke("open-update"),
+  openStartupSettings: () => ipcRenderer.invoke("open-startup-settings"),
   installUpdate: () => ipcRenderer.invoke("install-update"),
   onUpdateProgress: (callback) => ipcRenderer.on("update-progress", (_event, percent) => callback(percent)),
   manageView: () => ipcRenderer.invoke("manage-view"),

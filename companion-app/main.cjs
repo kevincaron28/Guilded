@@ -1,10 +1,18 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog, shell, Notification } = require("electron");
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog, shell, Notification, safeStorage } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
 const { detectSavedVariables } = require("./detect-wow.cjs");
 const updates = require("./update-check.cjs");
+const STORE_PACKAGE = process.windowsStore === true;
+const STORE_UPDATES = "ms-windows-store://downloadsandupdates";
+const storeConfig = STORE_PACKAGE ? require("./store-config.cjs").createStoreConfig(safeStorage) : null;
+if (STORE_PACKAGE) {
+  const storeDataDirectory = path.join(app.getPath("appData"), "Guilded Companion Store");
+  fs.mkdirSync(storeDataDirectory, { recursive: true });
+  app.setPath("userData", storeDataDirectory);
+}
 const i18n = require("./i18n.cjs");
 let selectedLanguage;
 const language = () => selectedLanguage || i18n.normalizeLanguage(app.getLocale());
@@ -50,11 +58,15 @@ let quitting = false;
 let config = { ...DEFAULTS };
 const logs = [];
 
-const configFile = () => path.join(app.getPath("userData"), "config.json");
+const configFile = () => path.join(app.getPath("userData"), STORE_PACKAGE ? "config.secure" : "config.json");
 const profileJournalFile = () => path.join(app.getPath("userData"), !config.activeProfile || config.activeProfile === "default" ? "poe-journal.json" : `poe-journal-${config.activeProfile}.json`);
 const asset = (name) => path.join(__dirname, "assets", name);
 
-function loadConfig() {
+async function loadConfig() {
+  if (storeConfig) {
+    config = { ...DEFAULTS, ...await storeConfig.read(configFile()) };
+    return;
+  }
   try {
     config = { ...DEFAULTS, ...JSON.parse(fs.readFileSync(configFile(), "utf8")) };
     return;
@@ -64,11 +76,12 @@ function loadConfig() {
   try {
     const old = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "companion", "companion.config.json"), "utf8"));
     config = { ...DEFAULTS, ...old };
-    saveConfig();
+    await saveConfig();
   } catch { /* nothing to import */ }
 }
 
 function saveConfig() {
+  if (storeConfig) return storeConfig.write(configFile(), config);
   fs.mkdirSync(path.dirname(configFile()), { recursive: true });
   fs.writeFileSync(configFile(), JSON.stringify(config, null, 2));
 }
@@ -103,6 +116,7 @@ let update = null;
 let latestRelease = null;
 
 function refreshUpdate(state = engine?.state()) {
+  if (STORE_PACKAGE) { update = null; return; }
   const next = updates.pickUpdate(app.getVersion(), latestRelease, state?.botVersion);
   // The bot can announce the version before GitHub provides the installer.
   // Refresh the metadata even for the same version; notification dedup is below.
@@ -121,6 +135,7 @@ function refreshUpdate(state = engine?.state()) {
 }
 
 async function checkForUpdate() {
+  if (STORE_PACKAGE) return;
   latestRelease = await updates.fetchLatestRelease() ?? latestRelease;
   if (engine) onState(engine.state());
 }
@@ -145,7 +160,7 @@ async function refreshSavedFile() {
   // The app mostly lives in the tray: say it once per folder outside the window too.
   if (candidate && config.liveFolderNotified !== candidate.path) {
     config.liveFolderNotified = candidate.path;
-    saveConfig();
+    await saveConfig();
     if (Notification.isSupported()) {
       const notice = new Notification({
         title: french() ? "Vos données WoW sont peut-être ailleurs" : T("Your WoW saved data may have moved"),
@@ -217,7 +232,7 @@ function createTray() {
     { label: T("Refresh in-game standings now"), click: () => void engine.refreshStandings() },
     { type: "separator" },
     {
-      label: T("Start with Windows"), type: "checkbox", checked: app.getLoginItemSettings().openAtLogin,
+      label: T("Start with Windows"), type: "checkbox", enabled: !STORE_PACKAGE, checked: !STORE_PACKAGE && app.getLoginItemSettings().openAtLogin,
       click: (item) => { setAutostart(item.checked); }
     },
     { label: T("Quit (stops sending data)"), click: () => { quitting = true; app.quit(); } },
@@ -228,6 +243,7 @@ function createTray() {
 }
 
 function setAutostart(on) {
+  if (STORE_PACKAGE) return false; // Package startup is managed by Windows, never a Run registry entry.
   app.setLoginItemSettings({ openAtLogin: !!on, args: ["--hidden"] });
   return app.getLoginItemSettings().openAtLogin;
 }
@@ -251,6 +267,7 @@ async function removeAllDataAndQuit() {
   if (choice !== 1) return false;
   setAutostart(false);
   await engine.stop();
+  if (storeConfig) await storeConfig.flush().catch(() => {}); // A failed save has settled; deletion must still work.
   quitting = true;
   // config.json (the token and companion credential) first and on its own:
   // it has no open handle, unlike Chromium's cache files below, which can
@@ -264,6 +281,7 @@ async function removeAllDataAndQuit() {
   try {
     fs.rmSync(app.getPath("userData"), { recursive: true, force: true });
   } catch { /* best effort: leftover cache files, not sensitive */ }
+  exitFlushed = true;
   app.quit();
   return true;
 }
@@ -281,7 +299,7 @@ function failStartup(error) {
 app.whenReady().then(async () => {
   try {
     engineModules = await loadEngineModules();
-    loadConfig();
+    await loadConfig();
     try { const preference = JSON.parse(fs.readFileSync(path.join(app.getPath("userData"), "language.json"), "utf8")); if (["en", "fr"].includes(preference.language)) selectedLanguage = preference.language; } catch { /* use system language */ }
     config.poeJournalFile = profileJournalFile();
     engine = engineModules.createEngine(config, {
@@ -297,7 +315,7 @@ app.whenReady().then(async () => {
   // First run: start with Windows by default, since the whole point is that it just works.
   if (app.isPackaged && !config.autostartAsked) {
     config.autostartAsked = true;
-    saveConfig();
+    await saveConfig();
     setAutostart(true);
   }
   await engine.start();
@@ -331,9 +349,19 @@ app.whenReady().then(async () => {
 }).catch(failStartup);
 
 app.on("window-all-closed", () => { /* stay in the tray */ });
-app.on("before-quit", () => { quitting = true; });
+let exitFlushed = false;
+app.on("before-quit", event => {
+  quitting = true;
+  if (storeConfig && !exitFlushed) {
+    event.preventDefault();
+    storeConfig.flush().then(() => { exitFlushed = true; app.quit(); }).catch(error => {
+      quitting = false;
+      dialog.showErrorBox(T("Guilded Companion could not save settings"), error.message);
+    });
+  }
+});
 
-ipcMain.handle("get-all", () => ({ config, language: language(), logs, ...currentState(), autostart: app.getLoginItemSettings().openAtLogin, version: app.getVersion() }));
+ipcMain.handle("get-all", () => ({ config, language: language(), logs, ...currentState(), storePackage: STORE_PACKAGE, autostart: !STORE_PACKAGE && app.getLoginItemSettings().openAtLogin, version: app.getVersion() }));
 ipcMain.handle("list-profiles", () => ({ active: config.activeProfile || "default", profiles: engineModules.profileChoices(config) }));
 ipcMain.handle("change-profile", async (_event, choice) => {
   try {
@@ -341,7 +369,7 @@ ipcMain.handle("change-profile", async (_event, choice) => {
     await engine.stop();
     config = choice.name ? engineModules.addProfile(config, choice.name) : engineModules.switchProfile(config, choice.id);
     config.poeJournalFile = path.join(app.getPath("userData"), config.activeProfile === "default" ? "poe-journal.json" : `poe-journal-${config.activeProfile}.json`);
-    saveConfig();
+    await saveConfig();
     savedFile = null;
     await engine.configure(config);
     onState(engine.state());
@@ -362,7 +390,7 @@ ipcMain.handle("set-language", (_event, value) => {
 ipcMain.handle("save-config", async (_event, next) => {
   config = { ...config, ...next, poeJournalFile: profileJournalFile(), standingsIntervalMinutes: Math.max(1, Number(next.standingsIntervalMinutes) || 2) };
   const problems = engineModules.validateConfig(config);
-  saveConfig();
+  await saveConfig();
   void refreshSavedFile();
   if (problems.length > 0) { await engine.stop(); onState(engine.state()); return { ok: false, message: problems[0] }; }
   const started = await engine.configure(config);
@@ -375,7 +403,7 @@ ipcMain.handle("switch-live-folder", async () => {
   const candidate = savedFile?.candidate;
   if (!candidate) return { ok: false, path: null };
   config = { ...config, watchFile: candidate.path };
-  saveConfig();
+  await saveConfig();
   pushLog({ time: new Date().toISOString(), level: "info", message: E("Saved-data file switched to {0} ({1}).", candidate.path, candidate.reason === "beta" ? E("the beta folder is no longer used") : E("the previous file had not changed for 3 days")) });
   const started = await engine.configure(config);
   await refreshSavedFile();
@@ -385,18 +413,23 @@ ipcMain.handle("dismiss-live-folder", async () => {
   const candidate = savedFile?.candidate;
   if (candidate) {
     config.liveFolderDeclined = [...(config.liveFolderDeclined ?? []), candidate.path].slice(-20);
-    saveConfig();
+    await saveConfig();
   }
   await refreshSavedFile();
   return true;
 });
 
-ipcMain.handle("open-update", () => shell.openExternal(update?.url || updates.RELEASES_PAGE));
+ipcMain.handle("open-update", () => shell.openExternal(STORE_PACKAGE ? STORE_UPDATES : update?.url || updates.RELEASES_PAGE));
+ipcMain.handle("open-startup-settings", () => shell.openExternal("ms-settings:startupapps"));
 
 // "Update now" (7.2): download the checked installer, run it silently and quit; the installer
 // restarts the companion. Settings, the Discord link and the queue stay in the user data folder.
 let installing = false;
 ipcMain.handle("install-update", async () => {
+  if (STORE_PACKAGE) {
+    await shell.openExternal(STORE_UPDATES);
+    return { ok: true, action: "store", message: T("Use Microsoft Store to update this installation.") };
+  }
   if (installing) return { ok: false, message: T("The update is already downloading.") };
   installing = true;
   let handedOff = false;
@@ -417,7 +450,7 @@ ipcMain.handle("install-update", async () => {
       const percent = Math.floor(share * 100);
       if (percent !== shown && percent % 5 === 0) { shown = percent; win?.webContents.send("update-progress", percent); }
     } });
-    saveConfig();
+    await saveConfig();
     // NSIS (electron-builder): /S silent, --updated keeps it an upgrade, --force-run starts the new version.
     await updates.launchInstaller(target, spawn);
     pushLog({ time: new Date().toISOString(), level: "info", message: E("Installer started for Guilded Companion {0}; restarting the companion.", selected.version) });
@@ -440,7 +473,7 @@ async function applyPairing(next, result) {
   if (!result.ok) return result;
   // A code from guilded.kcaron.top/me/ pairs a personal account (public dungeon runs, no guild).
   config = { ...config, ...next, gameEdition: result.gameEdition, wowGuildId: result.wowGuildId, wowGuildName: result.wowGuildName, ...(result.uploadUrl ? { uploadUrl: result.uploadUrl } : {}), pairingCode: "", companionCredential: result.companionCredential, personal: result.personal === true, guildDiscordId: result.personal ? "" : result.guildDiscordId || next.guildDiscordId || config.guildDiscordId };
-  saveConfig();
+  await saveConfig();
   const started = await engine.configure(config);
   return {
     ok: true,

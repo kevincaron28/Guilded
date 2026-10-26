@@ -40,9 +40,12 @@ import { allowManageWrite, createCompanionManage, ManageError } from "./services
 import { syncCoreRoster } from "./services/raid-core.js";
 import { createWebApp, isWebPath, webFormLimit, type WebRoute } from "./services/web-app.js";
 import { createRosterDashboard } from "./services/roster-dashboard.js";
+import { prismaRosterPlanWriter } from "./services/roster-plan-store.js";
 import { createRosterReview } from "./services/roster-review.js";
 import { prismaRosterDashboardStore } from "./services/roster-dashboard-store.js";
 import { guildDashboardAccess } from "./services/guild-dashboard-access.js";
+import { prismaAvailabilityStore } from "./services/web-availability-store.js";
+import { createWebAvailability } from "./services/web-availability.js";
 import { prismaGuildToolsStore } from "./services/guild-tools-store.js";
 import { createGuildToolsPages } from "./services/guild-tools-pages.js";
 import { webAuthConfig } from "./services/web-auth.js";
@@ -214,6 +217,7 @@ async function signInGuildCredential(client: Client | undefined, account: { disc
 export function createSiteApp(client?: Client) {
   const rosterStore = prismaRosterDashboardStore(prisma, client, id => hostedPilot.allows(id));
   const roster = createRosterDashboard(rosterStore);
+  const availability = createWebAvailability(prismaAvailabilityStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")));
   const guildTools = createGuildToolsPages(prismaGuildToolsStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))));
   const profiles = createPlayerProfiles(prismaProfileStore(prisma, hostedPilot.allows));
   const leaderboards = createLeaderboardPages({ store: prismaLeaderboardStore(prisma, (id) => hostedPilot.allows(id)), personal: personalStore, calendar: () => loadOfficialWindows(prisma) });
@@ -223,8 +227,8 @@ export function createSiteApp(client?: Client) {
     issueGuild: (account, guildDiscordId, wowGuildId) => signInGuildCredential(client, account, guildDiscordId, wowGuildId),
     issuePersonal: async (accountId) => (await issuePersonalCredential(personalStore, accountId)).companionCredential
   });
-  const routes: WebRoute[] = [signInPage, roster.route, createRosterReview(rosterStore), guildTools.route, leaderboards.route, profiles.route];
-  const meSections = [profiles.meSection, roster.meSection, guildTools.meSection, leaderboards.meSection];
+  const routes: WebRoute[] = [signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, leaderboards.route, profiles.route];
+  const meSections = [profiles.meSection, availability.meSection, roster.meSection, guildTools.meSection, leaderboards.meSection];
   return createWebApp({
     publicRaids: now => publicRaids(prisma, hostedPilot.allows, now),
     store: prismaWebStore(prisma), auth: webAuthConfig(config), allows: (id) => hostedPilot.allows(id), routes, meSections,

@@ -1398,3 +1398,6 @@ FR["Omitted source fields/logs"] = "Champs/journaux omis"
 FR["Keeps source history locally. Does not alter guild notes, ranks, points or Discord links."] = "Conserve l\226\128\153historique localement sans modifier les notes, rangs, points ou liens Discord."
 FR["Preview and type IMPORT to confirm."] = "Pr\195\169visualisez, puis saisissez IMPORT pour confirmer."
 FR["Showing the first 500 lines. Narrow the search."] = "500 premi\195\168res lignes. Pr\195\169cisez la recherche."
+
+FR["World effect"] = "Effet mondial"
+FR["Optional"] = "Facultatif"

@@ -89,7 +89,9 @@ function data.raidBuffKey(id, name)
       buffCache.ids[spell] = buff.key
       -- A ranked TBC spell may have a new ID but the same localized base name.
       -- Only compare names actually supplied by this client, not English guesses.
-      if edition ~= "retail" then
+      -- World-effect variants can mean "stored in Chronoboon", not active.
+      -- Only the explicitly listed active aura IDs establish world-buff evidence.
+      if edition ~= "retail" and buff.scope ~= "world" then
         local fn = C_Spell and C_Spell.GetSpellName or GetSpellInfo
         if type(fn) == "function" then
           local ok, known = pcall(fn, spell)

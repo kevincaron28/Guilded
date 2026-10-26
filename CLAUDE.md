@@ -1,3 +1,21 @@
+> 7.5.0 (26 October 2026): combined release candidate; Claude PRs #226–#228 and #230 integrated.
+> Combined gates: 309 files / 2,627 tests, TypeScript/lint/addon checks and disposable
+> PostgreSQL migration/backup/restore pass. Store upload validated; preview installed,
+> captured and removed with its temporary certificate. WACK completed with WARNING,
+> not a clean pass. See docs/store-submission/LOCAL_VALIDATION_2026-10-26.md.
+> Version chosen by Kevin via the shared coordination notes. Public/live remains 7.4.0.
+> Read docs/V7_5_0_RELEASE_NOTES.md and docs/STORE_HANDOFF_2026-10-26.md.
+>
+> Local release-gap work (26 October): read docs/RELEASE_GAP_WORK_2026-10-26.md.
+> Branch codex/release-gap-completion adds audited main/alt apply, participation,
+> opt-in availability, edition events and optional Classic buffs. Not deployed.
+> Owner retained the license and then authorized progressing toward Store submission;
+> see docs/MICROSOFT_STORE_MSIX.md. Guilded Companion is reserved in Partner Center
+> as 9N680XX3QFL9; Store-identity build verified, Submission 1 remains a draft.
+> See docs/STORE_HANDOFF_2026-10-26.md for upload/certification blockers.
+> Claude owns edition raid presets in qgb-claude-gaps; coordinate through
+> backups/CODEX_CLAUDE_COORDINATION_2026-10-25.md before integration or restart.
+>
 > 7.4.0 (25 October 2026): published on GitHub and deployed to Oracle at 8837fd9.
 > Both clean-main CI jobs and 2,548 local tests passed; all 21 public assets verified.
 > This supersedes the earlier local-only holds below. Read docs/SESSION_HANDOFF_2026-10-25.md
@@ -98,7 +116,7 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (25 October 2026): version 7.4.0 Release, protocol 2.** WoW Forever launches
+**Current status (26 October 2026): version 7.5.0 release candidate, protocol 2.** WoW Forever launches
 4 November 2026 (beta closed 21 October); its first raids open 9 December.
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
 The bot, online companion and GitHub public downloads are on 7.4.0.

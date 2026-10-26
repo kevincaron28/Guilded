@@ -25,14 +25,15 @@ What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 - **Plan a quick installation:** use the [30-minute setup checklist](docs/QUICK_START.md), including what must be ready first.
 - **Want an AI to guide you:** copy a [setup or troubleshooting prompt](docs/AI_SETUP_HELP.md).
 
-**Current version: 7.4.0 Release** (25 October 2026, protocol 2).
+**Current version: 7.5.0 release candidate** (26 October 2026, protocol 2).
+Public downloads remain 7.4.0 until the 7.5.0 release gates pass.
 Supports Forever, Classic Era/Hardcore, TBC Anniversary, Mists Classic and Retail
 across the addon, Discord bot and companion, including several guilds in one Discord.
 Use the edition-specific ZIP from [GitHub Releases](https://github.com/kevincaron28/Guilded/releases/latest).
-The unsuffixed ZIP is the Forever build. [Release notes](docs/V7_4_0_RELEASE_NOTES.md).
+The unsuffixed ZIP is the Forever build. [Release notes](docs/V7_5_0_RELEASE_NOTES.md).
 
 The owner authorized release before the unavailable Forever two-PC tests.
-[Game checks remain pending follow-up](docs/V7_4_0_GAME_CHECKLIST.md); benchmarks are provisional.
+[Game checks remain pending follow-up](docs/V7_5_0_GAME_CHECKLIST.md); benchmarks are provisional.
 [Release decision](docs/RELEASE_DECISION_2026-10-25.md). WoW Forever launches 4 November 2026.
 
 Also from this repository: **Guilded Dungeons** (`addon/GuildedDungeons/`), a standalone dungeon

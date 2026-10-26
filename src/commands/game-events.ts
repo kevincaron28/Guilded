@@ -2,11 +2,11 @@ import { guildWhere } from "../services/guild-scope.js";
 import { ChannelType, MessageFlags, PermissionFlagsBits, SlashCommandBuilder, type ChatInputCommandInteraction } from "discord.js";
 import { prisma } from "../database.js";
 import { botOwnerId } from "./owner-season.js";
-import { EVENT_GAMES, EVENT_REGIONS, EVENT_STATES, EVENT_TRANSACTION_OPTIONS, GameEventInputError, eventBoardEmbeds, eventLock, eventText, parseEventInstant, saveOfficialEvent } from "../services/game-events.js";
+import { EVENT_GAMES, EVENT_REGIONS, EVENT_STATES, EVENT_TRANSACTION_OPTIONS, GameEventInputError, eventGameLabel, reminderSettings, retainEventReminders, eventBoardEmbeds, eventLock, eventText, parseEventInstant, saveOfficialEvent } from "../services/game-events.js";
 import { eventChannel, eventRole } from "../services/game-events-discord.js";
 import { enqueueDiscordJob } from "../services/discord-jobs.js";
 
-const gameChoices = EVENT_GAMES.map(value => ({ name: value === "POE2" ? "Path of Exile 2" : "WoW Forever", value }));
+const gameChoices = EVENT_GAMES.map(value => ({ name: eventGameLabel(value), value }));
 const regions = EVENT_REGIONS.filter(value => value !== "GLOBAL").map(value => ({ name: value, value }));
 export const gameEventsCommand = new SlashCommandBuilder().setName("events")
   .setDescription("Manage the Upcoming Events board and opt-in game reminders.")
@@ -14,7 +14,7 @@ export const gameEventsCommand = new SlashCommandBuilder().setName("events")
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
   .addSubcommand(s => s.setName("board").setDescription("Enable/update one board in this channel. Reminders stay off initially.")
     .addChannelOption(o => o.setName("channel").setDescription("Board channel").addChannelTypes(ChannelType.GuildText).setRequired(true))
-    .addStringOption(o => o.setName("games").setDescription("Games to show").setRequired(true).addChoices(...gameChoices, { name: "Both / Les deux", value: "BOTH" }))
+    .addStringOption(o => o.setName("games").setDescription("Games to show").setRequired(true).addChoices(...gameChoices, { name: "Forever + PoE2", value: "BOTH" }, { name: "All games / Tous les jeux", value: "ALL" }))
     .addStringOption(o => o.setName("region").setDescription("WoW region (name reservation times differ)").setRequired(true).addChoices(...regions)))
   .addSubcommand(s => s.setName("reminders").setDescription("Set opt-in reminders for a game; off disables them.")
     .addChannelOption(o => o.setName("channel").setDescription("Configured board channel").addChannelTypes(ChannelType.GuildText).setRequired(true))
@@ -67,41 +67,45 @@ export async function executeGameEvents(interaction: ChatInputCommandInteraction
   const channelId = interaction.options.getChannel("channel", true).id;
   const sub = interaction.options.getSubcommand();
   try {
-    if (sub !== "disable" && sub !== "status") await eventChannel(guild, channelId);
+    const channel = sub !== "disable" && sub !== "status" ? await eventChannel(guild, channelId) : null;
+    let checkedRoleId: string | null = null;
+    if (sub === "reminders" && interaction.options.getString("when", true) !== "off") {
+      const role = interaction.options.getRole("role");
+      if (!role || interaction.options.getBoolean("opt_in_confirmed") !== true) throw new GameEventInputError(eventText(fr, "Select a game role and confirm members opted into reminders.", "Choisissez un rôle de jeu et confirmez l’accord volontaire des membres."));
+      await eventRole(guild, role.id, channel!);
+      checkedRoleId = role.id;
+    }
     const board = await prisma.$transaction(async tx => {
       await eventLock(tx);
       let current = await tx.gameEventBoard.findUnique({ where: { guildId_channelId: { guildId: record.id, channelId } } });
       if (sub === "board") {
         const games = interaction.options.getString("games", true);
-        const data = { enabled: true, games: games === "BOTH" ? [...EVENT_GAMES] : [games], region: interaction.options.getString("region", true) };
+        const data = { enabled: true, games: games === "ALL" ? [...EVENT_GAMES] : games === "BOTH" ? ["WOW_FOREVER", "POE2"] : [games], region: interaction.options.getString("region", true) };
         current = await tx.gameEventBoard.upsert({ where: { guildId_channelId: { guildId: record.id, channelId } },
-          create: { guildId: record.id, channelId, ...data }, update: { ...data, ...(!current?.enabled ? { wowRoleId: null, poeRoleId: null, wowReminders: [], poeReminders: [], wowRemindersEnabledAt: null, poeRemindersEnabledAt: null } : {}) } });
+          create: { guildId: record.id, channelId, ...data }, update: { ...data, ...retainEventReminders(current, data.games) } });
       } else if (!current) throw new GameEventInputError(eventText(fr, "Configure /events board first.", "Configurez /events board d’abord."));
       if (!current) throw new Error("Missing board");
       if (sub === "reminders") {
         const game = interaction.options.getString("game", true);
         const when = interaction.options.getString("when", true);
         const offsets = when === "off" ? [] : when.split(",").map(Number);
-        let roleId: string | null = null;
+        const roleId = offsets.length ? checkedRoleId : null;
         if (offsets.length) {
           if (!current.enabled || !current.games.includes(game)) throw new GameEventInputError(eventText(fr, "Enable this game on the board first.", "Activez ce jeu sur le tableau d’abord."));
-          const role = interaction.options.getRole("role");
-          if (!role || interaction.options.getBoolean("opt_in_confirmed") !== true) throw new GameEventInputError(eventText(fr, "Select a game role and confirm members opted into reminders.", "Choisissez un rôle de jeu et confirmez l’accord volontaire des membres."));
-          await eventRole(guild, role.id, await eventChannel(guild, channelId));
-          roleId = role.id;
         }
         current = await tx.gameEventBoard.update({ where: { id: current.id }, data: {
-          ...(game === "WOW_FOREVER" ? { wowRoleId: roleId, wowReminders: offsets, wowRemindersEnabledAt: new Date() } : { poeRoleId: roleId, poeReminders: offsets, poeRemindersEnabledAt: new Date() })
+          ...(game === "WOW_FOREVER" ? { wowRoleId: roleId, wowReminders: offsets, wowRemindersEnabledAt: new Date() } : game === "POE2" ? { poeRoleId: roleId, poeReminders: offsets, poeRemindersEnabledAt: new Date() }
+            : { editionReminders: { ...(current.editionReminders && typeof current.editionReminders === "object" && !Array.isArray(current.editionReminders) ? current.editionReminders : {}), [game]: { role: roleId, offsets, enabledAt: new Date().toISOString() } } })
         } });
       } else if (sub === "disable") {
-        current = await tx.gameEventBoard.update({ where: { id: current.id }, data: { enabled: false, wowRoleId: null, poeRoleId: null, wowReminders: [], poeReminders: [], wowRemindersEnabledAt: null, poeRemindersEnabledAt: null } });
+        current = await tx.gameEventBoard.update({ where: { id: current.id }, data: { enabled: false, editionReminders: {}, wowRoleId: null, poeRoleId: null, wowReminders: [], poeReminders: [], wowRemindersEnabledAt: null, poeRemindersEnabledAt: null } });
       }
       if (sub !== "status") await enqueueDiscordJob(tx, record.id, `game-board:${current.id}`, "GAME_EVENT_BOARD", { boardId: current.id });
       return current;
     }, EVENT_TRANSACTION_OPTIONS);
     const events = await prisma.officialGameEvent.findMany({ where: { archived: false }, orderBy: { id: "asc" } });
     const job = await prisma.discordJob.findUnique({ where: { guildId_key: { guildId: record.id, key: `game-board:${board.id}` } } });
-    const status = `WoW: ${board.wowReminders.join(" / ") || "off"}; PoE2: ${board.poeReminders.join(" / ") || "off"} (${eventText(fr, "minutes before; 0 = start", "minutes avant ; 0 = début")}).`;
+    const status = `${board.games.map(game => `${eventGameLabel(game)}: ${reminderSettings(board, game).offsets.join(" / ") || "off"}`).join("; ")} (${eventText(fr, "minutes before; 0 = start", "minutes avant ; 0 = début")}).`;
     await interaction.editReply({ content: `${sub === "status" ? "" : eventText(fr, "Saved; delivery queued. ", "Enregistré ; publication en attente. ")}${status}\n${eventText(fr, "Delivery", "Publication")}: ${job?.lastError ?? job?.status ?? "—"}`, embeds: eventBoardEmbeds(events, board, fr), allowedMentions: { parse: [] } });
   } catch (error) {
     if (error instanceof GameEventInputError || error instanceof Error && /Event board needs|Choose a mentionable/.test(error.message)) { await interaction.editReply({ content: error.message, allowedMentions: { parse: [] } }); return; }

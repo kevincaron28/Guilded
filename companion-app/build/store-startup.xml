@@ -1,0 +1,3 @@
+<desktop:Extension Category="windows.startupTask" Executable="app\Guilded Companion.exe" EntryPoint="Windows.FullTrustApplication">
+  <desktop:StartupTask TaskId="GuildedCompanionStartup" Enabled="false" DisplayName="Guilded Companion" />
+</desktop:Extension>

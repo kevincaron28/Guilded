@@ -26,10 +26,12 @@ export async function eventRole(guild: Guild, roleId: string, channel: TextChann
 }
 
 /** Scan back to the durable intent, not just 100 messages. Never resend on an unreadable history. */
-export async function findEventMessage(channel: TextChannel, marker: string, since: Date): Promise<Message | null> {
+export async function findEventMessage(channel: TextChannel, marker: string, since: Date, deadline = Date.now() + 45_000): Promise<Message | null> {
   let before: string | undefined;
   for (;;) {
+    if (Date.now() >= deadline) throw new Error("Event history recovery time limit reached");
     const messages = await channel.messages.fetch({ limit: 100, ...(before ? { before } : {}) });
+    if (Date.now() >= deadline) throw new Error("Event history recovery time limit reached");
     const found = messages.find(message => message.author.id === channel.client.user.id && message.embeds.some(embed => embed.footer?.text === marker));
     if (found) return found;
     const oldest = [...messages.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp)[0];
@@ -39,24 +41,40 @@ export async function findEventMessage(channel: TextChannel, marker: string, sin
   }
 }
 
-/** Uses the same database lock as edits: no cancellation/reschedule can race the final send check. */
+/** Recover Discord state outside the transaction; lock/revalidate only for the final write. */
 export async function deliverGameEvent(guild: Guild, database: PrismaClient, job: DiscordJob, now = new Date()): Promise<void> {
   const payload = job.payload as Record<string, unknown>;
+  const query = { where: { id: String(payload['boardId']), guildId: job.guildId, guild: { discordId: guild.id } }, include: { guild: { include: { settings: true as const } } } };
+  const initial = await database.gameEventBoard.findFirst(query);
+  if (!initial || (!initial.enabled && (job.kind === "GAME_EVENT_REMINDER" || !initial.messageId))) return;
+  const minutes = Number(payload['minutes']);
+  const initialEvent = job.kind === "GAME_EVENT_REMINDER" ? await database.officialGameEvent.findUnique({ where: { id: String(payload['eventId']) } }) : null;
+  if (job.kind === "GAME_EVENT_REMINDER" && (!initialEvent || initialEvent.scheduleVersion !== payload['scheduleVersion'] || !reminderDue(initialEvent, initial, minutes, now))) return;
+  const deadline = Date.now() + 45_000;
+  const channel = await eventChannel(guild, initial.channelId);
+  const role = initialEvent ? await eventRole(guild, reminderSettings(initial, initialEvent.game).role!, channel) : null;
+  const marker = job.kind === "GAME_EVENT_REMINDER" ? `Guilded event reminder ${job.id}` : `Guilded events ${initial.id}`;
+  let message: Message | null = null;
+  if (job.kind !== "GAME_EVENT_REMINDER" && initial.messageId) {
+    try { message = await channel.messages.fetch({ message: initial.messageId, force: true }); }
+    catch (error) { if (!missingDiscordMessage(error)) throw error; }
+    if (message && (message.author.id !== guild.client.user?.id || !message.embeds.some(embed => embed.footer?.text === marker))) throw new Error("Event board identity mismatch");
+  }
+  if (!message) message = await findEventMessage(channel, marker, job.kind === "GAME_EVENT_REMINDER" ? job.createdAt : initial.createdAt, deadline);
+  if (Date.now() >= deadline) throw new Error("Event preflight time limit reached");
+  if (job.kind === "GAME_EVENT_REMINDER" && message) return;
   await database.$transaction(async tx => {
     await eventLock(tx);
-    const board = await tx.gameEventBoard.findFirst({ where: { id: String(payload['boardId']), guildId: job.guildId, guild: { discordId: guild.id } }, include: { guild: { include: { settings: true } } } });
+    const board = await tx.gameEventBoard.findFirst(query);
     if (!board || (!board.enabled && job.kind === "GAME_EVENT_REMINDER")) return;
+    // A concurrent edit/delivery invalidates the recovered message/role. Retry
+    // through the durable job instead of acting on a stale Discord target.
+    if (board.updatedAt.getTime() !== initial.updatedAt.getTime() || board.messageId !== initial.messageId || board.channelId !== initial.channelId) throw new Error("Event board changed during preflight");
     const fr = board.guild.settings?.language === "fr";
     if (job.kind === "GAME_EVENT_REMINDER") {
       const event = await tx.officialGameEvent.findUnique({ where: { id: String(payload['eventId']) } });
-      const minutes = Number(payload['minutes']);
-      if (!event || event.scheduleVersion !== payload['scheduleVersion'] || !reminderDue(event, board, minutes, now)) return;
-      const channel = await eventChannel(guild, board.channelId);
-      const role = await eventRole(guild, reminderSettings(board, event.game).role!, channel);
-      const marker = `Guilded event reminder ${job.id}`;
-      if (await findEventMessage(channel, marker, job.createdAt)) return;
-      // History/permission checks may take time. Expire reminders against the actual clock too.
-      if (!reminderDue(event, board, minutes, new Date(Math.max(now.getTime(), Date.now())))) return;
+      if (!event || event.scheduleVersion !== payload['scheduleVersion'] || !reminderDue(event, board, minutes, new Date(Math.max(now.getTime(), Date.now())))) return;
+      if (!role || reminderSettings(board, event.game).role !== role.id) throw new Error("Event reminder role changed during preflight");
       const label = minutes === 0 ? eventText(fr, "Scheduled time reached", "Heure prévue atteinte") : `${minutes === 1440 ? 24 : 1} h`;
       await channel.send({ content: `<@&${role.id}>`,
         embeds: [new EmbedBuilder().setTitle(`${label} · ${fr ? event.titleFr : event.titleEn}`)
@@ -64,19 +82,6 @@ export async function deliverGameEvent(guild: Guild, database: PrismaClient, job
           .setFooter({ text: marker })], allowedMentions: { parse: [], roles: [role.id], users: [], repliedUser: false },
         nonce: createHash("sha256").update(job.id).digest("hex").slice(0, 24), enforceNonce: true });
       return;
-    }
-    if (!board.enabled && !board.messageId) return;
-    const channel = await eventChannel(guild, board.channelId);
-    const marker = `Guilded events ${board.id}`;
-    let message: Message | null = null;
-    if (board.messageId) {
-      try { message = await channel.messages.fetch({ message: board.messageId, force: true }); }
-      catch (error) { if (!missingDiscordMessage(error)) throw error; }
-      if (message && (message.author.id !== guild.client.user?.id || !message.embeds.some(embed => embed.footer?.text === marker))) throw new Error("Event board identity mismatch");
-    }
-    if (!message) {
-      // Covers a restart between Discord accepting the board and committing its message ID.
-      message = await findEventMessage(channel, marker, board.createdAt);
     }
     if (!message && !board.enabled) return;
     const events = await tx.officialGameEvent.findMany({ where: { archived: false }, orderBy: { id: "asc" } });

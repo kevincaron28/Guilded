@@ -690,5 +690,12 @@
   "Archive saved. Open the text file, copy its code, and preview it in /guilded rosteradmin.": "Archive enregistrée. Ouvrez le fichier texte, copiez son code et prévisualisez-le dans /guilded rosteradmin.",
   "Choose a new filename. Existing files are never overwritten.": "Choisissez un nouveau nom. Les fichiers existants ne sont jamais écrasés.",
   "This creates a local archive. Preview it in /guilded rosteradmin. No guild notes, ranks, points or Discord links are changed.": "Crée une archive locale à prévisualiser dans /guilded rosteradmin. Aucune note, aucun rang, point ou lien Discord n’est modifié.",
-  "{0} current members, {1} former members, {2} history entries, {3} alt groups. Private history: {4}. Omitted source fields: {5}; omitted logs: {6}.": "{0} membres actuels, {1} anciens membres, {2} entrées d’historique, {3} groupes de personnages. Historique privé : {4}. Champs omis : {5}; journaux omis : {6}."
+  "{0} current members, {1} former members, {2} history entries, {3} alt groups. Private history: {4}. Omitted source fields: {5}; omitted logs: {6}.": "{0} membres actuels, {1} anciens membres, {2} entrées d’historique, {3} groupes de personnages. Historique privé : {4}. Champs omis : {5}; journaux omis : {6}.",
+  "Microsoft Store installation": "Installation Microsoft Store",
+  "Updates are managed by Microsoft Store. Startup is managed in Windows settings.": "Les mises à jour sont gérées par Microsoft Store. Le démarrage est géré dans les paramètres Windows.",
+  "Store updates": "Mises à jour du Store",
+  "Startup settings": "Paramètres de démarrage",
+  "Use Microsoft Store to update this installation.": "Utilisez Microsoft Store pour mettre à jour cette installation.",
+  "Guilded Companion could not save settings": "Guilded Companion ne peut pas enregistrer les paramètres",
+  "Privacy policy": "Politique de confidentialité"
 }

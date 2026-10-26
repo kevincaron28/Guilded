@@ -1,7 +1,7 @@
 {
   "name": "guilded-companion",
   "productName": "Guilded Companion",
-  "version": "7.4.0",
+  "version": "7.5.0",
   "description": "Your guild, connected. World of Warcraft sync and Path of Exile 2 mapping.",
   "main": "main.cjs",
   "private": true,
@@ -10,7 +10,9 @@
     "start": "npm run icon && electron .",
     "icon": "node make-icon.mjs",
     "dist": "npm --prefix .. run companion:build && electron-builder --win nsis --publish never",
-    "pack": "npm --prefix .. run companion:build && electron-builder --win dir --publish never"
+    "pack": "npm --prefix .. run companion:build && electron-builder --win dir --publish never",
+    "msix:preview": "npm --prefix .. run companion:build && node build-msix.cjs --preview",
+    "msix:store": "npm --prefix .. run companion:build && node build-msix.cjs"
   },
   "devDependencies": {
     "electron": "^45.0.0",
@@ -24,6 +26,7 @@
     },
     "files": [
       "main.cjs",
+      "store-config.cjs",
       "preload.cjs",
       "grm-import.cjs",
       "detect-wow.cjs",
@@ -35,6 +38,10 @@
       "package.json"
     ],
     "extraResources": [
+      {
+        "from": "../LICENSE",
+        "to": "LICENSE.Guilded.txt"
+      },
       {
         "from": "../companion",
         "to": "engine",

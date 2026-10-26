@@ -404,7 +404,7 @@ function module.assess(name, unit, inRaid, entry, live, connected, extra)
       for _, buff in ipairs(buffs) do
         local provider = buff.class and extra.providers[buff.class]
         for _, class in ipairs(buff.classes or {}) do if extra.providers[class] then provider = true end end
-        if provider and not held[buff.key] then table.insert(lacking, L(buff.label)) end
+        if not buff.optional and provider and not held[buff.key] then table.insert(lacking, L(buff.label)) end
       end
       learned = true
       cells.buffs = cellFor(#lacking == 0, module.setting("buffs") == true)
@@ -522,7 +522,10 @@ function module.buffCoverageText()
     L("Observed / not observed / unknown; potential class providers. This is not a required-buff checklist."),
     L("Talents, level, chosen blessings and party range affect coverage. Hidden or offline auras remain unknown.") }
   if result.provisional then lines[#lines + 1] = L("Forever: provisional Classic baseline; custom spells require in-game confirmation.") end
-  for _, row in ipairs(result.buffs) do lines[#lines + 1] = row.label .. ": " .. row.present .. " / " .. row.absent .. " / " .. row.unknown .. " ; " .. L("Potential providers") .. ": " .. row.providers end
+  for _, row in ipairs(result.buffs) do
+    local suffix = row.definition.scope == "world" and L("World effect") or L("Potential providers") .. ": " .. row.providers
+    lines[#lines + 1] = row.label .. (row.definition.optional and " (" .. L("Optional") .. ")" or "") .. ": " .. row.present .. " / " .. row.absent .. " / " .. row.unknown .. " ; " .. suffix
+  end
   return table.concat(lines, "\n")
 end
 function module.summary(result)

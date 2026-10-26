@@ -4,6 +4,11 @@ import type { TeamMember, TeamView } from "../src/services/guild-tools-store.js"
 const member = (id: string, className: string, overrides: Partial<TeamMember> = {}): TeamMember => ({ characterId: id, name: id, realm: "Realm", className, assigned: true, role: "DPS", bench: false, trial: false, main: id, backups: [], ...overrides });
 const team = (members: TeamMember[], truncated = false): TeamView => ({ id: "t", name: "Team", schedule: null, timezone: null, tankLimit: null, healerLimit: null, dpsLimit: null, members, truncated });
 describe("team composition planning", () => {
+  it("keeps world effects external and optional effects separate from core coverage", () => {
+    const result = teamComposition(team([member("A", "Shaman")]), "classic-era");
+    expect(result.buffs?.find(buff => buff.en === "Strength of Earth Totem")).toMatchObject({ optional: true, scope: "party", status: "potential", providers: ["A"] });
+    expect(result.buffs?.find(buff => buff.en === "Spirit of Zandalar")).toMatchObject({ optional: true, scope: "world", status: "world", providers: [] });
+  });
   it("uses alternative Mists providers and keeps Forever provisional", () => {
     const result = teamComposition(team([member("A", "Monk"), member("B", "Druid"), member("C", "Death Knight")]), "classic-mists");
     expect(result.buffs?.find(buff => buff.en === "Primary stats")?.providers).toEqual(["B", "A"]);
@@ -31,7 +36,7 @@ describe("team composition planning", () => {
   it("gates class and buff assumptions by edition", () => {
     for (const edition of ["forever", "classic-era", "classic-tbc"]) {
       const result = teamComposition(team([member("A", "Death Knight"), member("B", "Monk")]), edition);
-      expect(result.unknown).toBe(2); expect(result.buffs).toHaveLength(8);
+      expect(result.unknown).toBe(2); expect(result.buffs?.filter(buff => !buff.optional)).toHaveLength(8);
     }
     expect(teamComposition(team([member("A", "Death Knight"), member("B", "Monk")]), "classic-mists").classes).toHaveLength(2);
     expect(teamComposition(team([member("A", "Demon Hunter"), member("B", "Evoker")]), "retail").classes).toHaveLength(2);

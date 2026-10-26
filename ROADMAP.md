@@ -1,4 +1,4 @@
-> Publication authorized for 7.4.0; earlier local-only statements below are historical.
+> 7.4.0 is published on GitHub and deployed; earlier local-only statements below are historical.
 > Current execution and unfinished work: [session handoff](docs/SESSION_HANDOFF_2026-10-25.md).
 
 > Latest local review, 25 October: [full bundle fixes and remaining release checks](docs/LOCAL_BUNDLE_REVIEW_2026-10-25.md), 295 files / 2,548 tests passed. Local review only; real-client acceptance pending.
@@ -11,7 +11,8 @@
 Guilded **7.4.0 Release** (protocol 2), authorized by the owner before launch-client testing.
 Real-client checks remain post-release follow-up; see [the release decision](docs/RELEASE_DECISION_2026-10-25.md).
 Current gates and completed operational checks: [launch readiness](docs/LAUNCH_READINESS_2026-10-24.md).
-GitHub and CurseForge publish 7.3.2 for Forever, Era, TBC, Mists and Retail;
+GitHub publishes 7.4.0 for Forever, Era, TBC, Mists and Retail;
+CurseForge submissions are tracked in the current session handoff. Previously, both providers published 7.3.2;
 see [the publication record](docs/RELEASE_EXECUTION_2026-10-25.md). All six
 18-October requests shipped in 7.0.0; 7.1.0 added monthly boards and Raider.IO-style leaderboards,
 7.2.0 companion Sign in with Discord and one-click updates, 7.2.1 a steadier bot, 7.3.0 the dungeon

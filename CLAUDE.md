@@ -1,4 +1,5 @@
-> 7.4.0 (25 October 2026): owner now authorizes push and full publication.
+> 7.4.0 (25 October 2026): published on GitHub and deployed to Oracle at 8837fd9.
+> Both clean-main CI jobs and 2,548 local tests passed; all 21 public assets verified.
 > This supersedes the earlier local-only holds below. Read docs/SESSION_HANDOFF_2026-10-25.md
 > for release execution and every unfinished acceptance check. Protocol remains 2.
 > Claude 816c7af and b9fd62c are included; preserve his separate checkout.
@@ -103,7 +104,7 @@ Production uses Aiven PostgreSQL; retained Neon configuration is historical.
 Prior release: the bot and GitHub public downloads were on 7.3.2; all five edition packages and
 the companion are published. All ten CurseForge 7.3.2 edition files are approved
 (Guilded and Guilded Dungeons for Forever, Era, TBC, Mists and Retail).
-See `docs/RELEASE_EXECUTION_2026-10-25.md`.
+See `docs/SESSION_HANDOFF_2026-10-25.md` for current delivery and unfinished work.
 Follow `docs/LAUNCH_READINESS_2026-10-24.md` before acting on older holds or
 unchecked historical lists. The owner authorized publication on 25 October; retain pending game checks as follow-up.
 Do not overwrite published 7.3.2 downloads or bump the version incidentally.

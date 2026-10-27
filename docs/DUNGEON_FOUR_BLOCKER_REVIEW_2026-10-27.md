@@ -97,3 +97,45 @@ prove atomicity of the separate official-calendar mutation path.
 
 The four-case regression matrix is evidence for review, not permission to merge
 or publish. Do not close the release gate solely from a global test count.
+
+## Follow-up to independent review of 3bc67fc
+
+The local branch now includes live main `fefaa569` through merge `3c3ff7e`.
+Quebec Gold badge visibility and the existing access restrictions are retained.
+The following are candidate repairs requiring independent review on the new head:
+
+| Exact finding | Repair | Regression evidence |
+| --- | --- | --- |
+| Earlier incomplete observer replaces a qualifying start; an encounter without native provenance overwrites a native checkpoint | Reconciliation selects an intact qualifying observer's start against the combined clock. Native checkpoints win over otherwise compatible unknown-source copies. Raw reports remain separate. | Both input orders with an earlier peer missing combatAt remain eligible; native checkpoint remains native. Both full/standalone peer tests cover legacy-first, new-first, same-origin richer coverage and rejection of cross-observer splicing. |
+| A later observer's newly eligible member gets rating but no participation award | Duplicate reconciliation continues through the existing eligibility and weekly-budget award path, excluding the same run from its history. Existing rule-ledger recipients are skipped under the guild lock. | Disposable PostgreSQL: each upload order gives both members 75 participation points and firstBlood; identical retries and richer checkpoint revisions give no additional points or firstBlood. |
+| Same uploader/run ID and known guild publication refs suppress compatible evidence revisions | Production public storage compares evidence facts, retains bounded raw revisions with receipt times, reconciles compatible revisions and never adds a confirmation for that uploader. Guild publishing revisits provenance-bearing runs and publishes original reports, not reattributed derived intervals. | Disposable PostgreSQL: v1 and provenance-less v2 to native, and reverse order, through direct same-uploader requests and the real guild publisher; one upload row per uploader, no extra confirmation, original revision retained, identical publisher retry does nothing. |
+| Dungeon summary accepts a clear with no eligible participant | Run-level current-v2 scoring requires at least one player with 80% known presence, matching character/top-run eligibility. Uncredited raw history remains stored. | EN/FR whole-page records include only the eligible run and a count of one when an otherwise valid low-presence clear is also present. |
+
+Calendar writers now take an edition-specific exclusive transaction lock and
+publish official schedule and active v2 guild endpoints atomically. Imports,
+public revisions, rotation and finalization use the shared calendar lock before
+touching dungeon state. Writers never acquire a guild advisory lock. Stale
+rotation ticks reread the authoritative calendar inside their transaction.
+Stored season boundaries override copied explanatory windows. Closed/finalized
+rows are not reopened or rewritten by calendar edits.
+
+The disposable PostgreSQL rehearsal tests a calendar writer queued behind an
+import, schedule/cancel endpoint consistency, and a stale rotation after cancel.
+Existing nonempty import/finalizer and exact-deadline tests remain. Finalization
+winning the guild lock makes later evidence history-only, including an upload
+whose request began before the deadline; there is no durable pre-lock reservation
+of an upload slot. This ordering must be communicated in release guidance.
+
+Fresh builds produced and verified ten local edition archives and the browser
+Companion bundle. They retain version 7.5.0 as unpublished candidate artifacts;
+do not overwrite public 7.5.0 downloads with them. Logs are
+`backups/v2-followup-packages.log` and `backups/v2-followup-companion.log`.
+
+Remaining acceptance: independent exact-head rereview and CI, real-client
+event/capability validation for each edition, two observers and both-installed
+suppression, and Companion acknowledgement/reload behavior for enriched reports.
+No real game session or client installation was performed. Cross-observer peer
+checkpoints are deliberately not pasted into a local source report; independent
+observers must upload their own reports for reconciliation. A complete persistent
+attempt journal, complete reviewed route catalogs, and expanded privacy-safe
+diagnostics are still separate unfinished launch work. Current-v1 stays default.

@@ -1,5 +1,7 @@
 import { dungeonRole } from "../../companion/dungeon-role.mjs";
-import { currentIntegrityPolicy, readDungeonIntegrity, readPlayerIntegrity, UPLOAD_GRACE_MS } from "./dungeon-integrity.js";
+import { isDeepStrictEqual } from "node:util";
+import { lockDungeonCalendar } from "./dungeon-calendar-lock.js";
+import { currentIntegrityPolicy, integrityStartReason, readDungeonIntegrity, readPlayerIntegrity, UPLOAD_GRACE_MS } from "./dungeon-integrity.js";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { dungeonResetCutoff, predatesDungeonReset } from "./dungeon-reset.js";
 import { dungeonRunSchema, validateRun, type DungeonRunInput } from "./dungeon-rules.js";
@@ -109,14 +111,21 @@ export function reconcileSummaries(reports: RunSummary[]): RunSummary | null {
     if (!previous || evidenceReceivedAt && (!previous.evidenceReceivedAt || evidenceReceivedAt < previous.evidenceReceivedAt)) unique.set(id,report);
   }
   if (!unique.size || unique.size > 40) return null;
-  const sorted = [...unique.values()].sort((a,b)=>a.startedAt.getTime()-b.startedAt.getTime() || JSON.stringify(a).localeCompare(JSON.stringify(b)));
-  const base = sorted[0]!, observations = sorted.map(r=>observationOf(r,r.gameEdition));
-  if (observations.some(o=>!o) || sorted.some(r=>r.gameEdition!==base.gameEdition || !agrees(base,r))) return null;
+  const all = [...unique.values()];
+  // Legacy reports remain raw history and constrain shared facts, but cannot
+  // poison a later source-identified observation or supply invented intervals.
+  const sorted = all.filter(r=>observationOf(r,r.gameEdition)).sort((a,b)=>a.startedAt.getTime()-b.startedAt.getTime() || JSON.stringify(a).localeCompare(JSON.stringify(b)));
+  if (!sorted.length) return null;
+  const first = sorted[0]!, observations = sorted.map(r=>observationOf(r,r.gameEdition));
+  if (all.some(r=>r.gameEdition!==first.gameEdition || r.runKey!==first.runKey || !agrees(first,r))) return null;
   const from = Math.min(...sorted.map(r=>r.startedAt.getTime()/1000)), to = Math.max(...sorted.map(r=>r.endedAt.getTime()/1000));
   if (sorted.some(r=>Math.abs(r.startedAt.getTime()/1000-from)>30 || Math.abs(r.endedAt.getTime()/1000-to)>30)) return null;
+  // An earlier peer clock or incomplete report must not replace a qualifying
+  // observer's start provenance. Keep the selected original source intact.
+  const base = sorted.find(r=>!integrityStartReason((r.integrity as {run?:unknown}|undefined)?.run,new Date(from*1000),to-from)) ?? first;
   const players = [...new Map(sorted.flatMap(r=>r.players).map(p=>[playerKey(p),p])).values()].sort((a,b)=>playerKey(a).localeCompare(playerKey(b)));
   const participant = players.map(p=>({character:p.character,realm:p.realm,observation:reconcileParticipation(observations.filter(o=>o!==null),p,from,to,base.gameEdition)}));
-  const encounters = [...new Map(sorted.flatMap(r=>r.encounters).sort((a,b)=>(a.at??0)-(b.at??0)).map(e=>[`${e.kind??"encounter"}:${e.id}`,e])).values()];
+  const encounters = [...new Map(sorted.flatMap(r=>r.encounters).sort((a,b)=>Number(a.source==="native")-Number(b.source==="native") || (a.at??0)-(b.at??0)).map(e=>[`${e.kind??"encounter"}:${e.id}`,e])).values()];
   const data = base.integrity as {run: Prisma.InputJsonValue};
   return {...base,startedAt:new Date(from*1000),endedAt:new Date(to*1000),durationSec:to-from,encounters,
     players:players.map(p=>({...p,presentSec:participant.find(q=>playerKey(q)===playerKey(p))?.observation?.knownSec ?? 0})),
@@ -125,7 +134,8 @@ export function reconcileSummaries(reports: RunSummary[]): RunSummary | null {
 }
 function savedSummary(value: unknown): RunSummary | null {
   if (!value || typeof value !== "object") return null;
-  const data = value as RunSummary;
+  const {previousRevisions,...data} = value as RunSummary & {previousRevisions?:unknown};
+  void previousRevisions;
   if (!Array.isArray(data.players) || !Array.isArray(data.encounters) || typeof data.gameEdition !== "string") return null;
   const result = {...data,startedAt:new Date(data.startedAt),endedAt:new Date(data.endedAt),
     ...(data.evidenceReceivedAt ? {evidenceReceivedAt:new Date(data.evidenceReceivedAt)} : {})};
@@ -158,7 +168,7 @@ export function agrees(stored: RunEvidence, incoming: RunSummary): boolean {
     for (const field of ["level", "minLevel"] as const) {
       if (old[field] !== null && player[field] !== null && old[field] !== player[field]) return false;
     }
-    if (!observed && old.presentSec !== null && (Math.abs(old.presentSec - player.presentSec) > PUBLIC_LIMITS.agreeDurationSec
+    if (!oldObservation && !newObservation && old.presentSec !== null && (Math.abs(old.presentSec - player.presentSec) > PUBLIC_LIMITS.agreeDurationSec
       || (old.presentSec >= 0.8 * stored.durationSec) !== (player.presentSec >= 0.8 * incoming.durationSec))) return false;
   }
   if (!observed && !containsKills(stored, incoming, incoming.gameEdition) && !containsKills(incoming, stored, incoming.gameEdition)) return false;
@@ -189,7 +199,8 @@ export function evidenceUpgrade(stored: RunEvidence, incoming: RunSummary): bool
     && (["level", "minLevel", "role", "presentSec"] as const).some(field => old[field] === null && p[field] !== null)));
   const richerKills = stored.encounters.some(old => incoming.encounters.some(e => e.id === old.id && e.kind === old.kind
     && (old.at === undefined && e.at !== undefined || old.startedAt === undefined && e.startedAt !== undefined)));
-  return stored.evidenceVersion < incoming.evidenceVersion || stored.completedBy !== incoming.completedBy || !stored.challenge && !!incoming.challenge
+  return !observationOf(stored,incoming.gameEdition) && !!observationOf(incoming,incoming.gameEdition)
+    || stored.evidenceVersion < incoming.evidenceVersion || stored.completedBy !== incoming.completedBy || !stored.challenge && !!incoming.challenge
     || incoming.encounters.length > stored.encounters.length || richerPlayers || richerKills;
 }
 
@@ -198,6 +209,7 @@ export interface StoredRun extends RunEvidence { id: string; status: string; upl
 export interface Uploader { key: string; reporters: string[] }
 
 export interface PublicRunStore {
+  supportsEvidenceRevisions?: boolean;
   findRun(runKey: string): Promise<StoredRun | null>;
   createRun(summary: RunSummary, uploader: Uploader, source: "personal" | "guild"): Promise<void>;
   /** Rechecks agreement and reporter independence atomically against the latest stored evidence. */
@@ -237,8 +249,9 @@ export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderK
     const check = checkPublicRun(run, input.character, now);
     if (!check.ok) { result.rejected.push({ id: run.id, reason: check.reason! }); continue; }
     const summary = summarize(run, now);
-    if (seen.has(summary.runKey)) continue;
-    seen.add(summary.runKey);
+    const seenKey=store.supportsEvidenceRevisions ? JSON.stringify(evidenceFacts(summary)) : summary.runKey;
+    if (seen.has(seenKey)) continue;
+    seen.add(seenKey);
     // A personal upload is its character's report; a guild's copy carries its reporters' and recorder's.
     const observer = observationOf(summary, summary.gameEdition)?.observer;
     const reporters = [...new Set((observer ? [observer] : input.character ? [input.character] : [...run.reporterNames ?? [], ...run.recorder ? [run.recorder] : []]).map(key))];
@@ -257,7 +270,7 @@ export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderK
         if (!stored) throw error;
       }
     }
-    if (stored.uploaders.includes(input.uploaderKey)) { result.duplicates.push(run.id); continue; }
+    if (stored.uploaders.includes(input.uploaderKey) && !store.supportsEvidenceRevisions) { result.duplicates.push(run.id); continue; }
     const { agree, duplicate, historyOnly } = await store.addUpload(stored.id, uploader, summary);
     if (duplicate) result.duplicates.push(run.id);
     else if (historyOnly) result.historyOnly.push(run.id);
@@ -277,6 +290,21 @@ export function publicEvidenceFinalized(rows: { startsAt: Date; rules: unknown }
     && receivedAt.getTime() >= next.startsAt.getTime() + UPLOAD_GRACE_MS;
 }
 const uploadEvidence = (summary: RunSummary): Prisma.InputJsonValue => JSON.parse(JSON.stringify(summary)) as Prisma.InputJsonValue;
+function evidenceFacts(value: unknown): unknown {
+  if (!value || typeof value!=="object") return value;
+  const data=JSON.parse(JSON.stringify(value)) as Record<string,unknown>;
+  delete data["evidenceReceivedAt"];delete data["previousRevisions"];
+  return data;
+}
+function revisionsOf(value: unknown): unknown[] {
+  const data=value as {previousRevisions?:unknown[]} | null;
+  return Array.isArray(data?.previousRevisions) ? data.previousRevisions : [];
+}
+function rawRevision(value: unknown): unknown {
+  if (!value || typeof value!=="object") return value;
+  const data=JSON.parse(JSON.stringify(value)) as Record<string,unknown>;
+  delete data["previousRevisions"];return data;
+}
 
 export function prismaPublicRunStore(database: PrismaClient): PublicRunStore {
   const select = { id: true, status: true, gameEdition: true, instanceId: true, difficultyId: true, routeKey: true, durationSec: true, startedAt: true, endedAt: true,
@@ -288,6 +316,7 @@ export function prismaPublicRunStore(database: PrismaClient): PublicRunStore {
       uploaders: row.uploads.map(u => u.uploaderKey), reporters: [...new Set(row.uploads.flatMap(u => u.reporters))] };
   }
   return {
+    supportsEvidenceRevisions:true,
     async findRun(runKey) {
       const row = await database.publicRun.findUnique({ where: { runKey }, select });
       return row ? storedRow(row) : null;
@@ -305,20 +334,33 @@ export function prismaPublicRunStore(database: PrismaClient): PublicRunStore {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`public-run:${runId}`}, 0))`;
         const row = await tx.publicRun.findUniqueOrThrow({ where: { id: runId }, select });
         const stored = storedRow(row);
-        if (stored.uploaders.includes(uploader.key)) return { agree: true, duplicate: true };
+        const previous=row.uploads.find(u=>u.uploaderKey===uploader.key);
+        if (previous && [previous.evidence,...revisionsOf(previous.evidence)].some(e=>isDeepStrictEqual(evidenceFacts(e),evidenceFacts(summary)))) return { agree: true, duplicate: true };
+        // A revision is the same uploader, never an additional confirmation.
+        // Legacy retries keep their old immutable behavior unless strictly richer.
+        if (previous && !observationOf(summary,summary.gameEdition) && !evidenceUpgrade(stored,summary)) return {agree:true,duplicate:true};
+        const revisions=previous ? [...revisionsOf(previous.evidence),rawRevision(previous.evidence)] : [];
+        if (revisions.length>=40) throw new PublicUploadError("Evidence revision limit reached; request a review of this run.",409);
+        await lockDungeonCalendar(tx,false,gameEditionOf(row));
         const windows = await tx.officialSeason.findMany({ where: { gameEdition: row.gameEdition }, select: { startsAt: true, rules: true } });
         const historyOnly = publicEvidenceFinalized(windows, stored.endedAt, summary.evidenceReceivedAt ?? new Date());
         const agree = agrees(stored, summary);
-        const confirm = agree && uploader.reporters.length > 0 && !uploader.reporters.some(name => stored.reporters.includes(name));
-        await tx.publicRunUpload.create({ data: { runId, uploaderKey: uploader.key, reporters: uploader.reporters, durationSec: summary.durationSec, endedAt: summary.endedAt,
-          evidence: uploadEvidence(summary), historyOnly } });
+        const confirm = !previous && agree && uploader.reporters.length > 0 && !uploader.reporters.some(name => stored.reporters.includes(name));
+        const evidence={...uploadEvidence(summary) as Prisma.InputJsonObject,...(previous?{previousRevisions:revisions as Prisma.InputJsonValue}: {})};
+        if (previous) await tx.publicRunUpload.update({where:{runId_uploaderKey:{runId,uploaderKey:uploader.key}},data:{
+          evidence,reporters:[...new Set([...previous.reporters,...uploader.reporters])],durationSec:summary.durationSec,endedAt:summary.endedAt,
+          // Keep the original eligibility of the upload. A late revision is
+          // retained in history but must never feed a later canonical rebuild.
+          historyOnly:previous.historyOnly || historyOnly}});
+        else await tx.publicRunUpload.create({ data: { runId, uploaderKey: uploader.key, reporters: uploader.reporters, durationSec: summary.durationSec, endedAt: summary.endedAt,
+          evidence, historyOnly } });
         // Preserve late reports for review without rewriting final canonical
         // evidence, confirmations, disputes, standings or awards.
         if (historyOnly) return { agree, duplicate: false, historyOnly: true };
         const window = [...windows].filter(w=>w.startsAt<=stored.endedAt).sort((a,b)=>b.startsAt.getTime()-a.startsAt.getTime())[0];
         const observedPolicy = currentIntegrityPolicy(readRuleSnapshot(window?.rules)?.rules);
         const merged = stored.status === "ACCEPTED" && agree && observedPolicy
-          ? reconcileSummaries([...row.uploads.filter(u=>!u.historyOnly).map(u=>savedSummary(u.evidence)).filter(r=>r!==null),summary]) : null;
+          ? reconcileSummaries([...row.uploads.filter(u=>!u.historyOnly).flatMap(u=>[...revisionsOf(u.evidence),u.evidence]).map(savedSummary).filter(r=>r!==null),summary]) : null;
         const promoted = merged ?? summary;
         const promote = !!merged || stored.status === "ACCEPTED" && evidenceUpgrade(stored, summary);
         await tx.publicRun.update({ where: { id: runId }, data: {
@@ -358,9 +400,13 @@ export async function publishGuildRuns(database: PrismaClient, store: PublicRunS
       orderBy: { endedAt: "desc" }, take: 200,
       include: { players: { include: { member: { select: { characters: { select: { name: true, displayName: true, realm: true } } } } } } }
     });
-    const runs = rows.filter((row) => !known.has(row.runRef) && row.startedAt && row.endedAt).map((row) => {
+    const runs: unknown[] = rows.filter((row) => (!known.has(row.runRef) || store.supportsEvidenceRevisions && readDungeonIntegrity((row.competitionData as {integrity?:unknown}|null)?.integrity)?.observer) && row.startedAt && row.endedAt).flatMap((row):unknown[] => {
+      const reports=(row.competitionData as {observerReports?:unknown[]}|null)?.observerReports;
+      // Publish originals, never relabel the derived multi-observer intervals as
+      // the canonical start observer's own measurements.
+      if (store.supportsEvidenceRevisions && Array.isArray(reports) && reports.length) return reports;
       const levels = new Map(((row.competitionData as { players?: { name: string; level: number | null; minLevel?: number | null }[] } | null)?.players ?? []).map((p) => [key(p.name), p]));
-      return {
+      return [{
         gameEdition, id: row.runRef, protocolVersion: row.protocolVersion, state: row.state, instanceId: row.instanceId, name: row.dungeonName, difficultyId: row.difficultyId,
         startedAt: Math.floor(row.startedAt!.getTime() / 1000), endedAt: Math.floor(row.endedAt!.getTime() / 1000), reporters: row.reporters,
         // completedBy may hold an older addon's end reason (up to 80 characters); uploads allow 40.
@@ -382,7 +428,7 @@ export async function publishGuildRuns(database: PrismaClient, store: PublicRunS
             deaths: player.deaths, presentSec: player.presentSec, inGuild: player.inGuild
           };
         })
-      };
+      }];
     });
     if (!runs.length) continue;
     for (let start = 0; start < runs.length; start += PUBLIC_LIMITS.runsPerUpload) {

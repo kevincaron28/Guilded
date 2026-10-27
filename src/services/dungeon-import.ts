@@ -1,4 +1,5 @@
 import { publicRules, readRuleSnapshot } from "./public-score.js";
+import { lockDungeonCalendar } from "./dungeon-calendar-lock.js";
 import { reconcileSummaries, summarize } from "./public-runs.js";
 import { dungeonRole } from "../../companion/dungeon-role.mjs";
 import { currentIntegrityPolicy, integrityWindowReason, withIntegrityWindow } from "./dungeon-integrity.js";
@@ -123,12 +124,13 @@ export async function importDungeonRuns(
   if (!runs.length) return summary;
   // Import, rotation and finalization share this lock, including direct import callers.
   if (tx.$executeRaw) await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${guildId}, 0))`;
+  await lockDungeonCalendar(tx);
   const config = sharedDungeonConfig();
   const currentSeason = await activeSeason(tx, guildId, now);
   const ratingCache = new Map<string, Awaited<ReturnType<typeof dungeonRating>>>();
 
   // Oldest first, using event-time ownership for the new integrity policy.
-  for (const run of runs) {
+  for (let run of runs) {
     const season = await seasonForRun(tx, guildId, currentSeason, run.endedAt);
     const rated = hasDungeonRating(season.ratingRules);
     const timed = rated && (season.ratingRules as { version: number }).version >= 3;
@@ -147,7 +149,8 @@ export async function importDungeonRuns(
       for (const player of run.players) player.character = addonName(player.character, player.realm, gameEditionOf(run));
     }
     const existing = await tx.dungeonRun.findUnique({ where: { guildId_runRef: { guildId, runRef: run.id } } });
-    if (existing && check.ok && run.integrity?.observer && run.startedAt && run.endedAt) {
+    let reconciled = false;
+    if (existing && existing.valid && existing.state === "COMPLETED" && check.ok && run.integrity?.observer && run.startedAt && run.endedAt) {
       const data = existing.competitionData as { observerReports?: unknown[]; lateObserverReports?: unknown[]; [key:string]:unknown } | null;
       const prior = (data?.observerReports ?? []).flatMap(value=>{const p=dungeonRunSchema.safeParse(value);return p.success?[p.data]:[];});
       const duplicate = prior.some(p=>JSON.stringify(p)===JSON.stringify(run));
@@ -168,10 +171,21 @@ export async function importDungeonRuns(
               memberId:findCharacter(characters,p.character,p.realm,gameEditionOf(run))?.memberId??null,
               class:p.className,role:p.role,presentSec:p.presentSec,deaths:p.deaths,inGuild:run.players.find(q=>q.character===p.character)?.inGuild??false}))}} : {})
         }});
-        if (merged) ratingCache.delete(season.id);
+        if (merged && observations) {
+          ratingCache.delete(season.id);
+          reconciled = true;
+          // Continue through the same eligibility/weekly-budget path for newly
+          // eligible accounts. The existing run and ledger are never recreated.
+          run={...run,startedAt:merged.startedAt.getTime()/1000,endedAt:merged.endedAt.getTime()/1000,
+            integrity:observations.run as DungeonRunInput["integrity"],encounters:merged.encounters,
+            players:merged.players.map(p=>({...run.players.find(q=>q.character===p.character && (q.realm==="-"?"":q.realm)===p.realm)!,
+              character:p.character,realm:p.realm,role:p.role??undefined,level:p.level??undefined,minLevel:p.minLevel??undefined,
+              presentSec:p.presentSec,inGuild:run.players.find(q=>q.character===p.character)?.inGuild??false,
+              integrity:observations.players.find(q=>q.character===p.character&&q.realm===p.realm)?.observation as DungeonRunInput["players"][number]["integrity"]}))};
+        }
       }
     }
-    if (existing || await isNearDuplicate(tx, guildId, run)) {
+    if (existing && !reconciled || !existing && await isNearDuplicate(tx, guildId, run)) {
       summary.duplicates++;
       continue;
     }
@@ -206,7 +220,7 @@ export async function importDungeonRuns(
     if (earnsPoints) {
       // Filter old evidence too: a historical carry must not block a fair record.
       const history = await tx.dungeonRun.findMany({
-        where: { guildId, instanceId: run.instanceId, valid: true, state: "COMPLETED", durationSec: { not: null }, ...(bestEight ? { NOT: { runRef: { startsWith: "SIM-" } } } : {}) },
+        where: { guildId, ...(existing ? {id:{not:existing.id}} : {}), instanceId: run.instanceId, valid: true, state: "COMPLETED", durationSec: { not: null }, ...(bestEight ? { NOT: { runRef: { startsWith: "SIM-" } } } : {}) },
         select: { instanceId: true, difficultyId: true, durationSec: true, completedBy: true, competitionData: true,
           startedAt: true, endedAt: true, createdAt: true, players: { select: { character: true, memberId: true, presentSec: true } } }
       });
@@ -221,7 +235,7 @@ export async function importDungeonRuns(
       const weekFrom = weekStart(new Date((run.endedAt ?? 0) * 1000));
       // Guild Points belong to the account, even when multiple alts were recorded.
       // Choose the longest-present eligible character; names break equal-presence ties.
-      const awardedAccounts = new Set<string>();
+      const awardedAccounts = new Set<string>(existing ? (await tx.dungeonPointTransaction.findMany({where:{runId:existing.id,source:{startsWith:"rule:"}},select:{memberId:true}})).map(p=>p.memberId) : []);
       for (const { player, character } of [...linked].sort((a, b) => b.player.presentSec - a.player.presentSec
         || a.player.character.localeCompare(b.player.character))) {
         if (!character) continue;
@@ -251,7 +265,7 @@ export async function importDungeonRuns(
       }
     }
 
-    const stored = await tx.dungeonRun.create({
+    const stored = existing ?? await tx.dungeonRun.create({
       data: {
         guildId,
         createdAt: now,
@@ -269,7 +283,7 @@ export async function importDungeonRuns(
         recorder: run.recorder ?? null,
         reporterNames: run.reporterNames ?? [],
         competitionData: { ...(run.integrity ? { integrity: run.integrity } : {}), players: run.players.map(p => ({ name: p.character, level: p.level ?? null, minLevel: p.minLevel ?? null, ...(p.integrity ? { integrity: p.integrity } : {}) })), encounters: run.encounters ?? [],
-          ...(run.integrity?.observer ? {observerReports:[run]} : {}),
+          observerReports:[run],
           gameBuild: run.gameBuild ?? null, startTrigger: run.startTrigger ?? null,
           challengeMode: run.challengeMode ?? false, ...(run.challenge ? { challenge: run.challenge } : {}) },
         reporters: run.reporters,

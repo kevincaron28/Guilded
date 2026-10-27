@@ -6,7 +6,7 @@ import { dungeonRunSchema } from "../../src/services/dungeon-rules.js";
 
 // Real shipped Lua under a mocked game API, then the real SavedVariables reader.
 // Synthetic evidence only: this is not real-client acceptance.
-export function dungeonRoleFixture(standalone = false, nativeRole = "DAMAGER", capture: { nativeApi?: boolean; reloadGap?: number; peerEarlier?: number; wipe?: boolean; peerRoundTrip?: boolean; peerEndFirst?: boolean } = {}) {
+export function dungeonRoleFixture(standalone = false, nativeRole = "DAMAGER", capture: { nativeApi?: boolean; reloadGap?: number; peerEarlier?: number; wipe?: boolean; peerRoundTrip?: boolean; peerEndFirst?: boolean; peerEvidence?: "legacy-first" | "new-first" | "same-source-richer" | "different-source" } = {}) {
   const lua = newLuaSession();
   try {
     lua.run(`NS={}; GuildedDB=nil; GuildedDungeonsDB=nil
@@ -39,6 +39,24 @@ export function dungeonRoleFixture(standalone = false, nativeRole = "DAMAGER", c
         fire_event("CHAT_MSG_ADDON","GuildedDgn","END|"..run.id.."|COMPLETED|"..STAMP.."|final boss","PARTY","Peer")
       end
       fire_event("ENCOUNTER_END",${capture.nativeApi ? '2747,"Edwin VanCleef",1,1,1' : '9000,"Bazzalan",0,1,1'})
+      if ${capture.peerEvidence ? "true" : "false"} then
+        for id, original in pairs(NS.getDb().dungeon.runs) do
+          local incoming=NS.dungeon.deserialize(id,NS.dungeon.serialize(original))
+          local mode=${JSON.stringify(capture.peerEvidence ?? "")}
+          if mode=="legacy-first" then
+            original.integrity.observer=nil; original.integrity.detectedAt=nil; original.integrity.combatAt=nil
+            for _,e in ipairs(original.encounters) do e.source=nil end
+          elseif mode=="new-first" then
+            incoming.integrity=nil; for _,e in ipairs(incoming.encounters) do e.source=nil end
+          else
+            table.insert(incoming.encounters,1,{id=2000,name="Observed checkpoint",at=incoming.startedAt+300,success=true,source="native"})
+            if mode=="different-source" then incoming.integrity.observer="Peer" end
+          end
+          local payload=NS.dungeon.serialize(incoming)
+          local total=math.ceil(#payload/180)
+          for i=1,total do fire_event("CHAT_MSG_ADDON","GuildedDgn","SUM|"..id.."|"..i.."|"..total.."|"..string.sub(payload,(i-1)*180+1,i*180),"PARTY","Peer") end
+        end
+      end
       if ${capture.peerRoundTrip ? "true" : "false"} then
         for id,run in pairs(NS.getDb().dungeon.runs) do NS.getDb().dungeon.runs[id]=NS.dungeon.deserialize(id,NS.dungeon.serialize(run)) end
       end

@@ -511,6 +511,39 @@ local function storePeerRun(run, sender)
     for _, boss in ipairs(encounters or {}) do if boss.at then count = count + 1 end end
     return count
   end
+  -- Promote a complete source report, never attach a peer's native checkpoints
+  -- to our own observer identity. Old clients/prototypes have no origin.
+  local oldOrigin = existing.integrity and existing.integrity.observer
+  local newOrigin = run.integrity and run.integrity.observer
+  local compatible = existing.instanceId == run.instanceId and existing.difficultyId == run.difficultyId
+    and existing.startedAt == run.startedAt and existing.endedAt == run.endedAt
+  local contains = true
+  for _, old in ipairs(existing.encounters or {}) do
+    local found = false
+    for _, incoming in ipairs(run.encounters or {}) do
+      if incoming.id == old.id and incoming.kind == old.kind and incoming.success == old.success
+        and (not old.at or incoming.at == old.at) and (old.source ~= "native" or incoming.source == "native") then found = true end
+    end
+    if not found then contains = false end
+  end
+  local nativeUpgrade = false
+  for _, incoming in ipairs(run.encounters or {}) do
+    if incoming.source == "native" then
+      local known = false
+      for _, old in ipairs(existing.encounters or {}) do if old.id == incoming.id and old.kind == incoming.kind and old.source == "native" then known = true end end
+      if not known then nativeUpgrade = true end
+    end
+  end
+  if compatible and contains and newOrigin and (not oldOrigin or oldOrigin == newOrigin)
+    and (not oldOrigin or coverage(run.encounters) > coverage(existing.encounters) or nativeUpgrade) then
+    run.reporters = existing.reporters
+    -- Preserve the superseded raw copy locally for diagnosis, without recursively
+    -- exporting it as another witness or resetting any run/season identifier.
+    run.previousObservation = existing.previousObservation or { integrity = existing.integrity, encounters = existing.encounters, players = existing.players }
+    d.runs[run.id] = run
+    if ns.onDungeonRunFinished then pcall(ns.onDungeonRunFinished, run) end
+    return
+  end
   if not existing.integrity and coverage(run.encounters) > coverage(existing.encounters) then existing.encounters = run.encounters end
   for name, player in pairs(run.players) do
     local mine = existing.players[name]

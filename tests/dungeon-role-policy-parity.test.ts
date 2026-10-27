@@ -24,8 +24,9 @@ describe("experimental role-policy parity", () => {
       knownIntervals: kind === "low-presence" ? [] : [[began.getTime()/1000,row.endedAt.getTime()/1000]],
       ...(kind === "unknown" ? {} : { lockedRole: "DPS" }), mixedRole: kind === "mixed" };
     const periods = [{ id: "s1", label: "Season 1", labelFr: "Saison 1", from, to, rules }];
-    const teamPoints = rateRun(row, rules).score!.points;
-    expect(teamPoints).toBeGreaterThan(0);
+    const teamPoints = rateRun(row, rules).score?.points ?? 0;
+    if (kind === "low-presence") expect(rateRun(row,rules).reason).toBe("Known in-instance presence under 80%");
+    else expect(teamPoints).toBeGreaterThan(0);
     const overall = characterScores([row], rules)[0]?.points ?? 0;
     expect(overall).toBe(kind === "low-presence" ? 0 : teamPoints);
     const expected = kind === "locked" ? overall : 0;

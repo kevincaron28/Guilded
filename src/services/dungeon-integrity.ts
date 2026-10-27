@@ -26,7 +26,9 @@ export type PlayerIntegrity = z.infer<typeof playerIntegritySchema>;
 export const UPLOAD_GRACE_MS = 72 * 60 * 60 * 1000;
 export const currentIntegrityPolicy = (rules: unknown): boolean => (rules as { evidencePolicy?: unknown } | null)?.evidencePolicy === "current-v2";
 export function withIntegrityWindow<T extends { evidencePolicy?: string; seasonWindow?: { from: string; to: string | null } }>(rules: T, from: Date, to?: Date | null): T {
-  return currentIntegrityPolicy(rules) && !rules.seasonWindow ? { ...rules, seasonWindow: { from: from.toISOString(), to: to?.toISOString() ?? null } } : rules;
+  // The stored season row owns the calendar, including an atomic future edit.
+  // Do not let a copied explanatory window override its current/final boundary.
+  return currentIntegrityPolicy(rules) ? { ...rules, seasonWindow: { from: from.toISOString(), to: to?.toISOString() ?? null } } : rules;
 }
 
 export function integrityRuleWindowReason(start: Date | null | undefined, end: Date | null | undefined,

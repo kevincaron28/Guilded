@@ -20,7 +20,7 @@ require another addon or external service.
 | --- | --- | --- |
 | Encounter tracking | Shared full/standalone capture; Forever native encounter declarations inspected at build 70532; mocked native-API positive capture through Companion and PostgreSQL | Runtime route/checkpoint catalog, capability record per build/difficulty; prove all required checkpoints on a real route before saying full-observed |
 | Persistent attempts | SavedVariables history; reload preserves clock and records unknown gaps in local candidate | Bounded attempt journal with entry/start/reset-intent/reset-result/gap/end semantics; restart and partial-run recovery acceptance |
-| Observer reconciliation | Local observation inequality no longer creates false disputes; separate upload evidence retained; no summed presence | Observer/source lineage, safe peer upgrades and independent-witness deduplication; same observer in two addons is one source |
+| Observer reconciliation | Source-aware intervals and original reports; safe same-source peer upgrades; legacy/native and same-uploader revisions; no relay confirmation inflation; newly eligible participation awards reconciled under lock | Independent exact-head review; real two-client and acknowledgement/reload acceptance; cross-observer peer data must remain separately sourced |
 | Scoring explanations | Existing EN/FR eligibility and penalty guidance; candidate aligns role filters across web/guidance/standalone | Coverage/confidence/participation labels and reason codes; distinguish unknown evidence, partial coverage and genuine contradiction; explain grace/deadlines consistently |
 
 Recommended contract: coverage (partial / all required checkpoints observed),
@@ -32,8 +32,9 @@ Unknown new observations do not silently invalidate compatible current-v1 runs.
 The original strict freshness prototype has been replaced locally by a
 native-observed contract with honest unknown freshness; it remains inactive.
 See [the four-blocker review matrix](DUNGEON_FOUR_BLOCKER_REVIEW_2026-10-27.md)
-for code and regression evidence. Calendar atomicity, independent review and
-real-client acceptance remain gates. The
+for code and regression evidence. Atomic calendar writes, shared reader locks,
+stale-rotation checks and both finalizer/import lock orderings have disposable
+PostgreSQL coverage. Independent review and real-client acceptance remain gates. The
 [feasibility record](DUNGEON_V2_FEASIBILITY_2026-10-27.md) preserves the API research.
 
 ## Dated targets and exit criteria

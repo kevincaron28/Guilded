@@ -97,6 +97,8 @@ export function rateRun(run: ScoreRun, rules: BracketedRules = publicRules(), pl
     if (verdict.reason || !verdict.targetSec) return { score: null, reason: verdict.reason ?? "Target not calibrated" };
     if (player && !presentEnough(player.presentSec ?? 0, run.durationSec)) return { score: null, reason: "Presence under 80%" };
     if (player && rules.evidencePolicy === "current-v2" && !integrityPresence(player.integrity, run.durationSec, run.evidence.startedAt ? run.evidence.startedAt.getTime()/1000 : undefined)) return { score: null, reason: "Known in-instance presence under 80%" };
+    if (!player && rules.evidencePolicy === "current-v2" && !run.players.some(p=>presentEnough(p.presentSec??0,run.durationSec)
+      && integrityPresence(p.integrity,run.durationSec,run.evidence?.startedAt ? run.evidence.startedAt.getTime()/1000 : undefined))) return {score:null,reason:"Known in-instance presence under 80%"};
     return { score: { key: verdict.key, bracket: rules.routeBracket[verdict.key]!, points: penalized(timeRating(run.durationSec, verdict.targetSec), verdict.penaltyPercent), penaltyPercent: verdict.penaltyPercent } };
   }
   // Uploaded before 7.4: route, difficulty and party levels only.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { dungeonRoleFixture } from "./fixtures/dungeon-role-contract.js";
-import { agrees, reconcileSummaries, summarize } from "../src/services/public-runs.js";
+import { agrees, evidenceUpgrade, reconcileSummaries, summarize } from "../src/services/public-runs.js";
 import { createLeaderboardPages, leaderRun } from "../src/services/public-leaderboard.js";
 import { characterScores, publicRules, rateRun, snapshotRules } from "../src/services/public-score.js";
 import { integrityPresence } from "../src/services/dungeon-integrity.js";
@@ -16,6 +16,37 @@ function setup(standalone=false, options:Parameters<typeof dungeonRoleFixture>[2
 }
 
 describe("Claude blocker 1: independent observations",()=>{
+  it("keeps qualifying native start and checkpoints when an earlier peer lacks them",()=>{
+    const {summary,rules}=setup(false,{peerEarlier:0});
+    const earlier=structuredClone(summary);
+    earlier.startedAt=new Date(summary.startedAt.getTime()-1000);earlier.durationSec++;
+    const data=earlier.integrity as {run:{observer:string;startTrigger:string;combatAt?:number}};
+    data.run.observer="Peer";data.run.startTrigger="peer";delete data.run.combatAt;
+    for (const e of earlier.encounters) delete e.source;
+    for(const reports of [[earlier,summary],[summary,earlier]]) {
+      const merged=reconcileSummaries(reports)!;
+      expect((merged.integrity as {run:{observer:string}}).run.observer).toBe("Tester");
+      expect(merged.encounters[0]!.source).toBe("native");
+      expect(rateRun(leaderRun({...merged,id:"merged",confirmations:2} as never),rules).score).not.toBeNull();
+    }
+  });
+  it("promotes provenance within version 2 and never downgrades native evidence",()=>{
+    const {run,summary}=setup(false,{peerEarlier:0});
+    const legacy=structuredClone(run);delete legacy.integrity!.observer;
+    for(const p of legacy.players) {delete p.integrity;p.presentSec=0;}
+    for(const e of legacy.encounters??[]) delete e.source;
+    const old=summarize(legacy);
+    expect(agrees(old,summary)).toBe(true);expect(agrees(summary,old)).toBe(true);
+    const merged=reconcileSummaries([old,summary])!;
+    expect(merged).toEqual(reconcileSummaries([summary,old]));
+    expect(merged.encounters[0]!.source).toBe("native");
+    expect((merged.integrity as {observers:string[]}).observers).toEqual(["tester"]);
+    const sameTotals={...old,players:summary.players};
+    expect(evidenceUpgrade(sameTotals,summary)).toBe(true);
+    expect(evidenceUpgrade(summary,sameTotals)).toBe(false);
+    expect(reconcileSummaries([summary,{...old,instanceId:389}])).toBeNull();
+    expect(reconcileSummaries([summary,{...summary,runKey:"other"}])).toBeNull();
+  });
   it("reconciles self intervals without upload-order or relay inflation",()=>{
     const {run,now,rules}=setup(false,{peerEarlier:0});
     const other=structuredClone(run); other.integrity!.observer="Peer";
@@ -44,6 +75,14 @@ describe("Claude blocker 1: independent observations",()=>{
 });
 
 describe("Claude blockers 2 and 3: native positive capture and normal play",()=>{
+  it.each([false,true])("promotes whole peer evidence without borrowing another observer's checkpoints, standalone=%s",standalone=>{
+    for(const peerEvidence of ["legacy-first","new-first","same-source-richer","different-source"] as const) {
+      const {run}=setup(standalone,{peerEarlier:0,peerEvidence});
+      expect(run.integrity?.observer).toBe("Tester");
+      expect(run.encounters?.find(e=>e.id===2747)?.source).toBe("native");
+      expect(run.encounters?.some(e=>e.id===2000)).toBe(peerEvidence==="same-source-richer");
+    }
+  });
   it.each([false,true])("scores native capture with unknown freshness, standalone=%s",standalone=>{
     const {run,row,rules}=setup(standalone);
     expect(run.integrity).toMatchObject({observer:"Tester",startWitness:"unknown",startTrigger:"first combat"});
@@ -70,8 +109,11 @@ describe("Claude blocker 4: complete public pages",()=>{
   it.each(["en","fr"])("keeps rejected runs out of ranked sets and shows observed policy notice (%s)",async lang=>{
     const {row,now,from,to,rules}=setup();
     const rejected={...row,runId:"rejected",instanceId:389,routeKey:"389",dungeonName:"RejectedCheckpoint",evidence:{...row.evidence!,encounters:[]}};
+    const lowPresence={...row,runId:"low-presence",dungeonName:"NoEligibleParticipant",
+      players:row.players.map(p=>({...p,presentSec:1,integrity:{knownSec:1,unknownSec:1199,knownIntervals:[[row.endedAt.getTime()/1000-1,row.endedAt.getTime()/1000]],mixedRole:false}}))};
+    expect(rateRun(lowPresence,rules).reason).toBe("Known in-instance presence under 80%");
     const pages=createLeaderboardPages({personal:null,now:()=>now,calendar:async()=>[{number:1,name:"Season 1",start:from,end:to,rules:{...snapshotRules(publicRules(),from),rules}}],
-      store:{runs:async()=>[row,rejected],characterRuns:async()=>[row,rejected],guilds:async()=>[],guildRuns:async()=>[],guildRoster:async()=>[]}});
+      store:{runs:async()=>[row,rejected,lowPresence],characterRuns:async()=>[row,rejected,lowPresence],guilds:async()=>[],guildRuns:async()=>[],guildRoster:async()=>[]}});
     const app=createWebApp({store:memoryWebStore().store,auth:{clientId:"1",clientSecret:"x",siteUrl:"https://guilded.kcaron.top",sessionSecret:"s".repeat(40)},
       allows:()=>true,postApplication:async()=>null,routes:[pages.route],now:()=>now});
     const page=await app.respond({method:"GET",path:"/leaderboards/",query:new URLSearchParams({lang}),headers:{}});
@@ -80,6 +122,8 @@ describe("Claude blocker 4: complete public pages",()=>{
     expect(page!.body).toContain(lang==="en"?"This season requires current stored evidence":"Cette saison exige les preuves actuelles enregistrées");
     const records=page!.body.split(lang==="en"?"<h2>Dungeon records</h2>":"<h2>Records des donjons</h2>")[1]!.split("</table>")[0]!;
     expect(records).toContain("Deadmines"); expect(records).not.toContain("RejectedCheckpoint");
+    expect(records).not.toContain("NoEligibleParticipant");
+    expect(records).toContain('<td class="num">1</td>');
     const filtered=await app.respond({method:"GET",path:"/leaderboards/",query:new URLSearchParams({lang,dungeon:"389"}),headers:{}});
     expect(filtered!.body).toContain(lang==="en"?"No run matches these filters yet":"Aucun essai ne correspond encore");
     expect(characterScores([row,rejected],rules)).toHaveLength(1);

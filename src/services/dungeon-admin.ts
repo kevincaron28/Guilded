@@ -1,4 +1,5 @@
 import { publicRules } from "./public-score.js";
+import { lockDungeonCalendar } from "./dungeon-calendar-lock.js";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { activeSeason } from "./dungeon-import.js";
 import { leaderboard } from "./dungeon-stats.js";
@@ -75,7 +76,7 @@ export function describeConfig(config: DungeonConfig, dungeonNames: Map<number, 
 // (highest rating, or legacy participation; ties share the crown).
 // An optional expected ID makes one-time migration retries safe; null expects no active season.
 // startsAt (default now) may be later than now: runs before it do not count for the new season.
-export async function startSeason(database: Db, guildId: string, name: string, expectedSeasonId?: string | null, endsAt?: Date, presetRules?: unknown, startsAt?: Date) {
+export async function startSeason(database: Db, guildId: string, name: string, expectedSeasonId?: string | null, endsAt?: Date, presetRules?: unknown, startsAt?: Date, official = false) {
   if (presetRules && !hasDungeonRating(presetRules)) throw new Error("Invalid season preset.");
   if (endsAt && (!Number.isFinite(endsAt.getTime()) || endsAt.getTime() <= Date.now())) throw new Error("Season end must be a future date with a time zone.");
   if (startsAt && (!Number.isFinite(startsAt.getTime()) || endsAt && startsAt >= endsAt)) throw new Error("Season start must be a date before its end.");
@@ -83,6 +84,13 @@ export async function startSeason(database: Db, guildId: string, name: string, e
   if (trimmed.length < 2 || trimmed.length > 60) throw new Error("Season name must be 2 to 60 characters.");
   return database.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${guildId}, 0))`;
+    await lockDungeonCalendar(tx);
+    if (official && startsAt) {
+      const row = await tx.officialSeason.findFirst({where:{gameEdition:currentEdition(),startsAt},select:{id:true}});
+      if (!row) throw new Error("The official calendar changed; retry rotation.");
+      const next = await tx.officialSeason.findFirst({where:{gameEdition:currentEdition(),startsAt:{gt:startsAt}},orderBy:{startsAt:"asc"},select:{startsAt:true}});
+      endsAt = next?.startsAt;
+    }
     const ending = await tx.dungeonSeason.findFirst({ where: { guildId, status: "ACTIVE" }, orderBy: { startsAt: "desc" } });
     if (expectedSeasonId !== undefined && (ending?.id ?? null) !== expectedSeasonId) throw new Error("The active season changed; no season was rotated.");
     if (ending && currentIntegrityPolicy(ending.ratingRules)) {
@@ -145,6 +153,7 @@ export async function finalizeClosingSeasons(database: Db, now = new Date(), all
     if (!allows(candidate.guild.discordId)) continue;
     const done = await database.$transaction(async tx => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${candidate.guildId}, 0))`;
+      await lockDungeonCalendar(tx);
       const season = await tx.dungeonSeason.findFirst({ where: { id: candidate.id, guildId: candidate.guildId, status: "CLOSING" } });
       if (!season || !currentIntegrityPolicy(season.ratingRules) || !season.endsAt || now.getTime() < season.endsAt.getTime() + UPLOAD_GRACE_MS) return false;
       const count = await tx.member.count({ where: { guildId: season.guildId } });

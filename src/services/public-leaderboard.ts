@@ -1,5 +1,5 @@
 import { dungeonRole } from "../../companion/dungeon-role.mjs";
-import { readDungeonIntegrity, readPlayerIntegrity } from "./dungeon-integrity.js";
+import { integrityRole, readDungeonIntegrity, readPlayerIntegrity } from "./dungeon-integrity.js";
 import { characterKey } from "../../companion/character-identity.mjs";
 import { readChallenge } from "./challenge-evidence.js";
 import { rankChallenges, challengeClock } from "./challenge-leaderboard.js";
@@ -123,10 +123,10 @@ export function filterPeriod(filters: Pick<LeaderFilters, "season" | "week">, no
 }
 
 type PlayerFilters = Pick<LeaderFilters, "className" | "role" | "confirmed"> & { realm?: string | null };
-const keepPlayer = (filters: PlayerFilters) => (player: LeaderPlayer, run: ScoreRun) =>
+const keepPlayer = (filters: PlayerFilters, rules?: BracketedRules) => (player: LeaderPlayer, run: ScoreRun) =>
   (!filters.confirmed || run.confirmations >= 2)
   && (!filters.className || player.className?.toLowerCase() === filters.className.toLowerCase())
-  && (!filters.role || dungeonRole(player.role) === dungeonRole(filters.role))
+  && (!filters.role || (rules?.evidencePolicy === "current-v2" ? integrityRole(player.integrity) : dungeonRole(player.role)) === dungeonRole(filters.role))
   && (!filters.realm || player.realm.toLowerCase() === filters.realm.toLowerCase());
 
 export interface RankedEntry { player: LeaderPlayer; run: LeaderRun }
@@ -134,7 +134,7 @@ export interface RankedEntry { player: LeaderPlayer; run: LeaderRun }
 // Best run per character (name + realm), fastest first; an earlier finish wins a tie.
 export function rankCharacters(runs: LeaderRun[], filters: PlayerFilters, limit = 100, rules?: BracketedRules): RankedEntry[] {
   const best = new Map<string, RankedEntry>();
-  const keep = keepPlayer(filters);
+  const keep = keepPlayer(filters, rules);
   for (const run of runs) {
     if (run.gameEdition === "retail" && run.difficultyId === 8) continue;
     for (const player of run.players) {
@@ -294,8 +294,9 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
 
   function topRuns(ctx: WebContext, runs: LeaderRun[], filters: LeaderFilters, rules: BracketedRules, limit = 10): string {
     const { t } = ctx;
-    const keep = keepPlayer(filters);
-    const rated = runs.flatMap((run) => { const s = rateRun(run, rules).score; return s && (!filters.bracket || s.bracket === filters.bracket) && run.players.some((p) => keep(p, run)) ? [{ run, s }] : []; })
+    const keep = keepPlayer(filters, rules);
+    const rated = runs.flatMap((run) => { const s = rateRun(run, rules).score; return s && (!filters.bracket || s.bracket === filters.bracket)
+      && run.players.some((p) => keep(p, run) && (rules.evidencePolicy !== "current-v2" || rateRun(run, rules, p).score)) ? [{ run, s }] : []; })
       .sort((a, b) => b.s.points - a.s.points || a.run.durationSec - b.run.durationSec).slice(0, limit);
     if (!rated.length) return `<p class="muted">${t("No rated run this week yet.", "Aucun essai classé cette semaine.")}</p>`;
     return table([t("Dungeon", "Donjon"), t("Levels", "Niveaux"), t("Time", "Temps"), t("Score", "Score"), t("Party", "Groupe"), ""],
@@ -435,7 +436,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     } else {
       const weekPeriod = filterPeriod({ season: filters.season, week: true }, now(), periods);
       const week = filters.week ? all : await periodRuns(weekPeriod);
-      const scores = characterScores(all, periodRules(period), keepPlayer(filters));
+      const scores = characterScores(all, periodRules(period), keepPlayer(filters, periodRules(period)));
       const brackets = periodRules(period).brackets.filter((b) => !filters.bracket || b.key === filters.bracket);
       const ranks = await guildRanks(period);
       body = `<h2>${t("Top runs this week", "Meilleurs essais de la semaine")}</h2>${topRuns(ctx, week, filters, periodRules(weekPeriod))}`

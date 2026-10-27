@@ -10,8 +10,9 @@ your guild permissions and selected modules determine the controls you see.
 
 - **EP (effort points)** records the participation your guild chooses to reward.
 - **GP (gear points)** records the gear cost your guild assigns.
-- **PR (priority)** is `EP / (GP + base GP)`. Guilded shows zero if the denominator
-  is zero. Base GP and minimum-EP eligibility are guild/core rules, not universal values.
+- **PR (priority)** is `EP / (GP + base GP)`. As in EPGP, GP counts as at least 1, so a
+  raider with EP and no gear yet ranks by their EP. Base GP and minimum-EP eligibility
+  are guild/core rules, not universal values.
 - Choose the correct **core and point pool**. Two cores may keep separate points;
   compare standings within the same pool. Some guilds require a core for every award.
 - Name the officer recording awards and agree on attendance, bench credit, prices,
@@ -101,8 +102,8 @@ WoW Forever 1.60.1; vos permissions et modules déterminent les contrôles visib
 ### Avant le raid
 
 Les **EP** représentent la participation récompensée; les **GP**, le coût du
-butin. La priorité est `PR = EP / (GP + GP de base)`; elle vaut zéro si le
-dénominateur est nul. Les GP de base, le minimum d'EP et les tarifs dépendent
+butin. La priorité est `PR = EP / (GP + GP de base)`; comme dans EPGP, les GP comptent
+pour au moins 1, donc un raider avec des EP et sans butin est classé selon ses EP. Les GP de base, le minimum d'EP et les tarifs dépendent
 du règlement de votre guilde ou core. Comparez toujours le même groupe de points.
 Par exemple fictif, 1 000 EP, 100 GP et 100 GP de base donnent une priorité de 5.
 

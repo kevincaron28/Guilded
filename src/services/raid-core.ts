@@ -3,7 +3,7 @@ import type { PrismaClient, RaidRole } from "../generated/prisma/client.js";
 import { currentEdition } from "./edition-context.js";
 import { createGuildService } from "./guild.js";
 import { applyToCoreButtonRow } from "./application.js";
-import { asLootMode, LOOT_MODE_LABEL } from "./core-rules.js";
+import { asLootMode, LOOT_MODE_LABEL, LOOT_MODE_LABEL_FR } from "./core-rules.js";
 import { asLang, tx, type Lang } from "../i18n.js";
 import { openAllCoreChannels, setupCoreDiscord, syncCoreRole } from "./core-channels.js";
 import { assertRealm, requiredRealm } from "./realm-check.js";
@@ -317,7 +317,7 @@ export function coreRosterEmbed(core: CoreForEmbed, guildLootMode?: string | nul
   const reserves = mode === "RESERVE" && core.reservesPerPlayer
     ? ` (${core.reservesPerPlayer === 1 ? tx(lang, "{n} reserve/player", { n: core.reservesPerPlayer }) : tx(lang, "{n} reserves/player", { n: core.reservesPerPlayer })})`
     : "";
-  embed.addFields({ name: `🎲 ${tx(lang, "Loot")}`, value: `${LOOT_MODE_LABEL[mode]}${reserves}`, inline: true });
+  embed.addFields({ name: `🎲 ${tx(lang, "Loot")}`, value: `${lang === "fr" ? LOOT_MODE_LABEL_FR[mode] : LOOT_MODE_LABEL[mode]}${reserves}`, inline: true });
   // Shared pool: points earned in any core count here too. Own pool: this core's points only.
   if (core.separatePool !== undefined) {
     embed.addFields({ name: `💰 ${tx(lang, "Points")}`, value: core.separatePool ? tx(lang, "This core's own pool") : tx(lang, "Shared guild pool"), inline: true });

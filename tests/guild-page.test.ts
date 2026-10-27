@@ -59,9 +59,38 @@ describe("guild page rendering", () => {
     const html = renderGuildPage(view({ language: "fr", dungeonPage: "/leaderboards/guild/g1" }));
     expect(html).toContain('<nav aria-label="Navigation principale">');
     expect(html).toContain(">Classements</a>");
-    expect(html).toContain('href="/leaderboards/guilds/?lang=fr">Guildes</a>');
+    expect(html).toContain('href="/recruitment/guilds/?lang=fr">Guildes</a>');
     expect(html).toContain('href="/leaderboards/guild/g1?lang=fr">Scores de donjon</a>');
     expect(renderGuildPage(view())).not.toContain("Dungeon scores");
+  });
+
+  // Quebec Gold's cores use EPGP priority; the page once called it an officer-made list (27 Oct 2026).
+  const lootCore = (lootMode: string, over: object = {}) => [{ ...view().cores[0]!, lootMode, roster: [], ranking: [], ...over }];
+
+  it("names each loot system as Discord does, in English and French", () => {
+    const fr = renderGuildPage(view({ language: "fr", sections: ["loot"], cores: lootCore("PRIORITY", { baseGp: 100, offspecPercent: 50 }) }));
+    expect(fr).toContain("Priorité EPGP — prix fixes");
+    expect(fr).toContain("Chaque objet a un prix fixe en GP");
+    expect(fr).not.toContain("liste établie par les officiers");
+    expect(fr).toContain("GP de base : 100");
+    expect(fr).toContain("Hors spé : 50 % du prix");
+    const bids = renderGuildPage(view({ sections: ["loot"], cores: lootCore("EPGP") }));
+    expect(bids).toContain("GP bids");
+    expect(bids).toContain("Players bid GP; the highest bid wins and pays it.");
+    expect(renderGuildPage(view({ sections: ["loot"], cores: lootCore("COUNCIL") }))).not.toContain("Decay");
+  });
+
+  it("says weekly decay only when it runs by itself", () => {
+    const manual = renderGuildPage(view({ sections: ["loot"], cores: lootCore("PRIORITY", { autoDecay: false }) }));
+    expect(manual).toContain("Decay 10%, applied by officers");
+    expect(manual).not.toContain("weekly");
+    const weekly = renderGuildPage(view({ language: "fr", sections: ["loot"], cores: lootCore("EPGP", { autoDecay: true }) }));
+    expect(weekly).toContain("Dégradation de 10 % après chaque réinitialisation hebdomadaire");
+  });
+
+  it("marks players under the minimum EP in the ranking", () => {
+    const html = renderGuildPage(view({ sections: ["rankings"], cores: lootCore("PRIORITY", { ranking: [{ name: "Newbie", ep: 40, gp: 10, pr: 4, belowMin: true }] }) }));
+    expect(html).toContain("Newbie <span class=\"tag\">under minimum EP</span>");
   });
 });
 
@@ -128,6 +157,22 @@ describe("guild page data", () => {
     expect(result!.cores[0]!.ranking).toEqual([{ name: "Healy", ep: 100, gp: 40, pr: 2 }]);
     const query = (database.epgpTransaction.groupBy as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![0] as { where: { coreId: string | null } };
     expect(query.where.coreId).toBeNull();
+  });
+
+  it("uses the core's effective rules and ranks players under its minimum EP last, as loot does", async () => {
+    const page = { slug: "quebec-gold", published: true, sections: ["loot", "rankings"], intro: null, recruitment: null, inviteUrl: null, indexable: true, guild: { ...guild, settings: { ...guild.settings, autoDecay: false } } };
+    const own = { ...core, lootMode: "PRIORITY", minEp: 50, decayPercent: 0.2, separatePool: true };
+    const database = fakeDatabase(page, [own], [{ memberId: "m1", _sum: { epAmount: 40, gpAmount: 10 } }, { memberId: "m2", _sum: { epAmount: 100, gpAmount: 50 } }]);
+    const result = (await loadGuildPageView(database, "quebec-gold", () => true))!.cores[0]!;
+    expect(result).toMatchObject({ lootMode: "PRIORITY", decayPercent: 0.2, minEp: 50, baseGp: 10, offspecPercent: 50, autoDecay: false });
+    // Healy has the higher PR (40 / 20 = 2 against 100 / 60) but is under the 50 EP minimum.
+    expect(result.ranking!.map((row) => [row.name, row.belowMin ?? false])).toEqual([["Tanky", false], ["Healy", true]]);
+  });
+
+  it("shows the guild's decay for a core on the shared pool", async () => {
+    const page = { slug: "quebec-gold", published: true, sections: ["loot"], intro: null, recruitment: null, inviteUrl: null, indexable: true, guild: { ...guild, settings: { ...guild.settings, epgpDecayPercent: 0.15 } } };
+    const result = await loadGuildPageView(fakeDatabase(page, [{ ...core, decayPercent: 0.3 }]), "quebec-gold", () => true);
+    expect(result!.cores[0]!.decayPercent).toBe(0.15);
   });
 });
 

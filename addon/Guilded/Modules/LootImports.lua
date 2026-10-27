@@ -6,8 +6,9 @@
 --   /guilded import tmb clear forget the That's My BiS priorities
 --   /guilded tmb <item link>  who has the item on their list, in order
 --
--- Accepted: softres.it's CSV export (header with ItemId, Name; Class, Note, Plus are read when
--- present) and its "Gargul export" string; a priority CSV of "itemID,player1,player2,..." lines
+-- Accepted: softres.it's CSV export (header with ItemId and Name) and its "Gargul export" string.
+-- softres.it's "Plus" (+1, a count of items already won) and bonus rolls are other systems than
+-- Guilded's SR+ weeks: they are not copied, and the officer is told how many players had them; a priority CSV of "itemID,player1,player2,..." lines
 -- (That's My BiS, DFT-style sheets; an optional "Group:" prefix is ignored); and That's My BiS's
 -- compressed Gargul download. The compressed formats need a game client that can unpack them
 -- (C_EncodingUtil); elsewhere paste the CSV. Text is only read, never run.
@@ -77,9 +78,10 @@ local function looksPacked(text)
   return #t > 20 and not string.find(t, "[,\n]") and string.find(t, "^[%w%+/=]+$") ~= nil
 end
 
--- softres.it -> { [player] = { itemIds } }, item names, count of rows read.
+-- softres.it -> { [player] = { itemIds } }, count of rows read, and how many players had a
+-- softres.it +1 or bonus roll that was not copied.
 function imports.parseSoftRes(text)
-  local map, rows = {}, 0
+  local map, rows, extras = {}, 0, {}
   local function add(name, id)
     name, id = player(name), tonumber(id)
     if not (name and id and id > 0) then return end
@@ -92,8 +94,14 @@ function imports.parseSoftRes(text)
     if not data then return nil, problem end
     for _, entry in pairs(type(data.softreserves) == "table" and data.softreserves or {}) do
       for _, item in pairs(type(entry.items) == "table" and entry.items or {}) do add(entry.name, type(item) == "table" and item.id or item) end
+      if (tonumber(entry.plusOnes) or 0) > 0 and player(entry.name) then extras[player(entry.name)] = true end
     end
-    return map, rows
+    for _, entry in pairs(type(data.bonusrolls) == "table" and data.bonusrolls or {}) do
+      if type(entry) == "table" and (tonumber(entry.bonus) or 0) > 0 and player(entry.name) then extras[player(entry.name)] = true end
+    end
+    local skipped = 0
+    for _ in pairs(extras) do skipped = skipped + 1 end
+    return map, rows, skipped
   end
   local all = lines(text)
   if #all < 2 then return nil, "empty" end
@@ -103,8 +111,12 @@ function imports.parseSoftRes(text)
   for i = 2, #all do
     local fields = imports.splitCsv(all[i])
     add(fields[columns.name], fields[columns.itemid])
+    local name = player(fields[columns.name])
+    if columns.plus and name and (tonumber(fields[columns.plus]) or 0) > 0 then extras[name] = true end
   end
-  return map, rows
+  local skipped = 0
+  for _ in pairs(extras) do skipped = skipped + 1 end
+  return map, rows, skipped
 end
 
 -- Priorities -> { [itemId] = { players in order } }.
@@ -193,12 +205,16 @@ function imports.tooltipLines(id)
 end
 
 function imports.importSoftRes(text)
-  local map, rows = imports.parseSoftRes(text)
+  local map, rows, skipped = imports.parseSoftRes(text)
   if not map then return false, problemText(rows) end
   if not (ns.reserve and ns.reserve.importEntries) then return false, L("Soft reserves are switched off.") end
   local players, items = ns.reserve.importEntries(map, L("softres.it import"))
   if not players then return false, items end
-  return true, string.format(L("Imported %d reserve(s) for %d player(s). The list is open and shared with the guild; lock it when the raid starts."), items, players)
+  local done = string.format(L("Imported %d reserve(s) for %d player(s). The list is open and shared with the guild; lock it when the raid starts."), items, players)
+  if (skipped or 0) > 0 then
+    done = done .. " " .. string.format(L("%d player(s) had softres.it +1 or bonus-roll values; Guilded does not copy them and keeps its own SR+ weeks."), skipped)
+  end
+  return true, done
 end
 
 ns.commandHandlers = ns.commandHandlers or {}

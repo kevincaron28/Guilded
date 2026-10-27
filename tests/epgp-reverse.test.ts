@@ -9,6 +9,7 @@ function database(existingReversal: unknown = null, row: unknown = original) {
     epgpTransaction: {
       findUnique: vi.fn().mockResolvedValue(row),
       findFirst: vi.fn().mockResolvedValue(existingReversal),
+      aggregate: vi.fn().mockResolvedValue({ _sum: { epAmount: 50, gpAmount: 0 } }),
       create: vi.fn().mockImplementation(async ({ data }) => ({ id: "t2", ...data }))
     }
   };
@@ -40,8 +41,9 @@ describe("EPGP reversal", () => {
 import { priority } from "../src/services/epgp.js";
 
 describe("PR with base GP", () => {
-  it("adds base GP to the denominator", () => {
-    expect(priority(100, 0, 0)).toBe(0);
+  it("adds base GP to the denominator, and counts GP as at least 1 as EPGP does", () => {
+    expect(priority(100, 0, 0)).toBe(100);
+    expect(priority(0, 0, 0)).toBe(0);
     expect(priority(100, 0, 100)).toBe(1);
     expect(priority(100, 1, 0)).toBe(100);
     expect(priority(100, 1, 99)).toBe(1);

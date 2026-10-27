@@ -1,5 +1,6 @@
 import { publicRules, readRuleSnapshot } from "./public-score.js";
 import { lockDungeonCalendar } from "./dungeon-calendar-lock.js";
+import { reconcileEvidenceAwards } from "./dungeon-evidence-awards.js";
 import { reconcileSummaries, summarize } from "./public-runs.js";
 import { dungeonRole } from "../../companion/dungeon-role.mjs";
 import { currentIntegrityPolicy, integrityWindowReason, withIntegrityWindow } from "./dungeon-integrity.js";
@@ -24,7 +25,7 @@ import {
 // can never be counted twice (by run id, or by same dungeon + same players
 // + start within 2 minutes when two members reported it separately).
 
-type Tx = Pick<Prisma.TransactionClient, "officialSeason" | "dungeonRun" | "dungeonSeason" | "dungeonPointTransaction" | "guildSettings" | "dungeonAchievement">
+type Tx = Pick<Prisma.TransactionClient, "officialSeason" | "dungeonRun" | "dungeonSeason" | "dungeonPointTransaction" | "guildSettings" | "dungeonAchievement" | "auditLog">
   & Partial<Pick<Prisma.TransactionClient, "$executeRaw">>;
 
 interface LinkedCharacter { name: string; realm: string; memberId: string; spec?: string | null }
@@ -338,6 +339,18 @@ export async function importDungeonRuns(
       }
     }
 
+    if(currentIntegrityPolicy(season.ratingRules) && !windowReason) {
+      const deltas=await reconcileEvidenceAwards(tx,guildId,stored.id,[...new Set(linked.flatMap(p=>p.character?[p.character.memberId]:[]))],appliedBy,now);
+      for(const [memberId,delta] of deltas) {
+        points+=delta;
+        const name=linked.find(p=>p.character?.memberId===memberId)?.player.character;
+        if(name) playerPoints.set(name,(playerPoints.get(name)??0)+delta);
+      }
+      if(achievements.length) {
+        const active=await tx.dungeonAchievement.findMany({where:{guildId,revokedAt:null,memberId:{in:linked.flatMap(p=>p.character?[p.character.memberId]:[])}},select:{memberId:true,key:true}});
+        achievements=achievements.filter(a=>active.some(row=>row.key===a.key && row.memberId===linked.find(p=>p.player.character===a.character)?.character?.memberId));
+      }
+    }
     const currentRating = rated ? await dungeonRating(tx, guildId, season) : [];
     if (rated) ratingCache.set(season.id, currentRating);
     // Version 6: the total of the bracket this character played in, by their level in this run.

@@ -1426,6 +1426,7 @@ model DungeonAchievement {
   runId    String?
   seasonId String?
   earnedAt DateTime       @default(now())
+  revokedAt DateTime?
   guild    Guild          @relation(fields: [guildId], references: [id], onDelete: Cascade)
   member   Member         @relation(fields: [memberId], references: [id], onDelete: Cascade)
   run      DungeonRun?    @relation(fields: [runId], references: [id], onDelete: Cascade)

@@ -139,3 +139,32 @@ checkpoints are deliberately not pasted into a local source report; independent
 observers must upload their own reports for reconciliation. A complete persistent
 attempt journal, complete reviewed route catalogs, and expanded privacy-safe
 diagnostics are still separate unfinished launch work. Current-v1 stays default.
+
+## Residual P1 repairs after review of 6f306008
+
+These repairs are a separate local candidate; they do not activate current-v2.
+
+| Finding | Candidate repair | PostgreSQL regression |
+| --- | --- | --- |
+| A later low self-observation removes rating eligibility but leaves earlier participation points and firstBlood | `dungeon-evidence-awards.ts` reconciles positive and negative weekly eligibility under the existing guild/calendar locks. It appends compensating ledger rows, preserves manual awards, and reallocates the unchanged weekly budget to eligible clears. Achievement rows are retained with an audited revocation or a genuinely eligible fallback source; member shelves exclude revoked projections. Finalized and legacy award sources remain unchanged. | Both observer arrival orders, with the second eligible run arriving before or after correction: first run nets zero, the next gets 75, the third gets 25; an unrelated manual 7 remains. firstBlood is revoked or moves to the eligible second run without deleting its row. Identical and richer retries add no ledger or audit churn. |
+| A late revision marks its whole uploader row history-only and can remove timely evidence from a later rebuild | `public-runs.ts` stores canonical eligibility on each retained revision. The uploader flag means it has no timely revision. First uploads and revisions check the trusted clock after calendar/run locks; an earlier request timestamp does not reserve admission before grace expires. | Timely native A, late changed A, then incomplete B with pre-cutoff receipt but post-cutoff admission: A's original revision remains eligible, late revisions stay history-only, and the complete canonical row is unchanged and still scores. A first upload admitted after grace is also history-only and unranked. |
+
+The executable cases live in `scripts/verify-dungeon-residual-postgres.ts`,
+called by the existing Lua/Companion/observed-run database rehearsal. The
+additive migration `20261125230000_dungeon_achievement_revocation` adds nullable
+`revokedAt`; it does not delete ledger or evidence history. It must be applied
+before a future deployment of this candidate. Rolling back the application to
+older code requires care: older member-shelf code does not filter revocations.
+No migration has been applied to production.
+
+The broader rehearsal also exposed a pre-existing wall-clock fixture failure:
+two test clears could straddle Tuesday 15:00 UTC and correctly receive different
+weekly budgets. The verifier now fixes their position inside one weekly window;
+the scoring formula and reset time are unchanged.
+
+Remaining gates: independent exact-head rereview, remote CI, explicit publication
+approval, and real-client evidence. These database tests use actual capture code
+with mocked game APIs, not a real game session. Diagnostics work is held separately
+and no broader error/report collection is enabled. Reconciliation currently reads
+the guild's valid run history; larger-history performance should be measured
+before expanding beyond the currently empty launch baseline.

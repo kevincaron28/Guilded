@@ -134,8 +134,8 @@ export function reconcileSummaries(reports: RunSummary[]): RunSummary | null {
 }
 function savedSummary(value: unknown): RunSummary | null {
   if (!value || typeof value !== "object") return null;
-  const {previousRevisions,...data} = value as RunSummary & {previousRevisions?:unknown};
-  void previousRevisions;
+  const {previousRevisions,canonicalEligible,admittedAt,...data} = value as RunSummary & {previousRevisions?:unknown;canonicalEligible?:unknown;admittedAt?:unknown};
+  void previousRevisions;void canonicalEligible;void admittedAt;
   if (!Array.isArray(data.players) || !Array.isArray(data.encounters) || typeof data.gameEdition !== "string") return null;
   const result = {...data,startedAt:new Date(data.startedAt),endedAt:new Date(data.endedAt),
     ...(data.evidenceReceivedAt ? {evidenceReceivedAt:new Date(data.evidenceReceivedAt)} : {})};
@@ -211,7 +211,7 @@ export interface Uploader { key: string; reporters: string[] }
 export interface PublicRunStore {
   supportsEvidenceRevisions?: boolean;
   findRun(runKey: string): Promise<StoredRun | null>;
-  createRun(summary: RunSummary, uploader: Uploader, source: "personal" | "guild"): Promise<void>;
+  createRun(summary: RunSummary, uploader: Uploader, source: "personal" | "guild"): Promise<void | {historyOnly:boolean}>;
   /** Rechecks agreement and reporter independence atomically against the latest stored evidence. */
   addUpload(runId: string, uploader: Uploader, summary: RunSummary): Promise<{ agree: boolean; duplicate: boolean; historyOnly?: boolean }>;
   uploadsSince(uploaderKey: string, since: Date): Promise<number>;
@@ -259,8 +259,9 @@ export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderK
     let stored = await store.findRun(summary.runKey);
     if (!stored) {
       try {
-        await store.createRun(summary, uploader, input.source);
-        result.accepted.push(run.id); continue;
+        const created=await store.createRun(summary, uploader, input.source);
+        if(created?.historyOnly) result.historyOnly.push(run.id); else result.accepted.push(run.id);
+        continue;
       } catch (error) {
         // Two companions can both observe "not found" before the first insert.
         // The unique key chooses the winner; the other report still needs the
@@ -293,7 +294,7 @@ const uploadEvidence = (summary: RunSummary): Prisma.InputJsonValue => JSON.pars
 function evidenceFacts(value: unknown): unknown {
   if (!value || typeof value!=="object") return value;
   const data=JSON.parse(JSON.stringify(value)) as Record<string,unknown>;
-  delete data["evidenceReceivedAt"];delete data["previousRevisions"];
+  delete data["evidenceReceivedAt"];delete data["previousRevisions"];delete data["canonicalEligible"];delete data["admittedAt"];
   return data;
 }
 function revisionsOf(value: unknown): unknown[] {
@@ -306,7 +307,7 @@ function rawRevision(value: unknown): unknown {
   delete data["previousRevisions"];return data;
 }
 
-export function prismaPublicRunStore(database: PrismaClient): PublicRunStore {
+export function prismaPublicRunStore(database: PrismaClient, clock:()=>Date=()=>new Date()): PublicRunStore {
   const select = { id: true, status: true, gameEdition: true, instanceId: true, difficultyId: true, routeKey: true, durationSec: true, startedAt: true, endedAt: true,
     evidenceVersion: true, integrity: true, completedBy: true, encounters: true, challenge: true, players: true, uploads: { select: { uploaderKey: true, reporters: true, evidence: true, historyOnly: true } } } as const;
   function storedRow(row: Prisma.PublicRunGetPayload<{ select: typeof select }>): StoredRun {
@@ -323,11 +324,20 @@ export function prismaPublicRunStore(database: PrismaClient): PublicRunStore {
     },
     async createRun(summary, uploader, source) {
       const { players, encounters, ...run } = summary;
-      await database.publicRun.create({ data: {
+      return database.$transaction(async tx=>{
+      await lockDungeonCalendar(tx,false,gameEditionOf(summary));
+      const windows=await tx.officialSeason.findMany({where:{gameEdition:summary.gameEdition},select:{startsAt:true,rules:true}});
+      const admittedAt=new Date(Math.max(clock().getTime(),summary.evidenceReceivedAt?.getTime()??0));
+      const historyOnly=publicEvidenceFinalized(windows,summary.endedAt,admittedAt);
+      await tx.publicRun.create({ data: {
         ...run, encounters: encounters as Prisma.InputJsonValue, source, confirmations: 1,
+        ...(historyOnly?{evidenceReceivedAt:admittedAt}:{}),
         players: { create: players.filter((player, index) => players.findIndex((other) => playerKey(other) === playerKey(player)) === index) },
-        uploads: { create: { uploaderKey: uploader.key, reporters: uploader.reporters, durationSec: summary.durationSec, endedAt: summary.endedAt, evidence: uploadEvidence(summary) } }
+        uploads: { create: { uploaderKey: uploader.key, reporters: uploader.reporters, durationSec: summary.durationSec, endedAt: summary.endedAt, historyOnly,
+          evidence:{...uploadEvidence(summary) as Prisma.InputJsonObject,canonicalEligible:!historyOnly,admittedAt:admittedAt.toISOString()} } }
       } });
+      return {historyOnly};
+      });
     },
     async addUpload(runId, uploader, summary) {
       return database.$transaction(async tx => {
@@ -343,15 +353,18 @@ export function prismaPublicRunStore(database: PrismaClient): PublicRunStore {
         if (revisions.length>=40) throw new PublicUploadError("Evidence revision limit reached; request a review of this run.",409);
         await lockDungeonCalendar(tx,false,gameEditionOf(row));
         const windows = await tx.officialSeason.findMany({ where: { gameEdition: row.gameEdition }, select: { startsAt: true, rules: true } });
-        const historyOnly = publicEvidenceFinalized(windows, stored.endedAt, summary.evidenceReceivedAt ?? new Date());
+        // Admission is checked after both locks. A request timestamp is not a
+        // reservation: queued work cannot rewrite canonical evidence after grace.
+        const admittedAt=new Date(Math.max(clock().getTime(),summary.evidenceReceivedAt?.getTime()??0));
+        const historyOnly = publicEvidenceFinalized(windows, stored.endedAt, admittedAt);
         const agree = agrees(stored, summary);
         const confirm = !previous && agree && uploader.reporters.length > 0 && !uploader.reporters.some(name => stored.reporters.includes(name));
-        const evidence={...uploadEvidence(summary) as Prisma.InputJsonObject,...(previous?{previousRevisions:revisions as Prisma.InputJsonValue}: {})};
+        const evidence={...uploadEvidence(summary) as Prisma.InputJsonObject,canonicalEligible:!historyOnly,admittedAt:admittedAt.toISOString(),...(previous?{previousRevisions:revisions as Prisma.InputJsonValue}: {})};
         if (previous) await tx.publicRunUpload.update({where:{runId_uploaderKey:{runId,uploaderKey:uploader.key}},data:{
           evidence,reporters:[...new Set([...previous.reporters,...uploader.reporters])],durationSec:summary.durationSec,endedAt:summary.endedAt,
-          // Keep the original eligibility of the upload. A late revision is
-          // retained in history but must never feed a later canonical rebuild.
-          historyOnly:previous.historyOnly || historyOnly}});
+          // Row flag means no timely revision exists; each revision owns its
+          // eligibility. A late successor never poisons its timely predecessor.
+          historyOnly:previous.historyOnly && historyOnly}});
         else await tx.publicRunUpload.create({ data: { runId, uploaderKey: uploader.key, reporters: uploader.reporters, durationSec: summary.durationSec, endedAt: summary.endedAt,
           evidence, historyOnly } });
         // Preserve late reports for review without rewriting final canonical
@@ -360,7 +373,15 @@ export function prismaPublicRunStore(database: PrismaClient): PublicRunStore {
         const window = [...windows].filter(w=>w.startsAt<=stored.endedAt).sort((a,b)=>b.startsAt.getTime()-a.startsAt.getTime())[0];
         const observedPolicy = currentIntegrityPolicy(readRuleSnapshot(window?.rules)?.rules);
         const merged = stored.status === "ACCEPTED" && agree && observedPolicy
-          ? reconcileSummaries([...row.uploads.filter(u=>!u.historyOnly).flatMap(u=>[...revisionsOf(u.evidence),u.evidence]).map(savedSummary).filter(r=>r!==null),summary]) : null;
+          ? reconcileSummaries([...row.uploads.flatMap(u=>[...revisionsOf(u.evidence),u.evidence].filter(value=>{
+            const revision=value as {canonicalEligible?:boolean;evidenceReceivedAt?:string}|null;
+            if(revision?.canonicalEligible===false) return false;
+            if(revision?.canonicalEligible===true) return true;
+            // Compatibility with older saved revisions: receipt time can prove
+            // the original was timely even if its old row flag was later poisoned.
+            const received=new Date(revision?.evidenceReceivedAt??"");
+            return Number.isFinite(received.getTime()) ? !publicEvidenceFinalized(windows,stored.endedAt,received) : !u.historyOnly;
+          })).map(savedSummary).filter(r=>r!==null),summary]) : null;
         const promoted = merged ?? summary;
         const promote = !!merged || stored.status === "ACCEPTED" && evidenceUpgrade(stored, summary);
         await tx.publicRun.update({ where: { id: runId }, data: {

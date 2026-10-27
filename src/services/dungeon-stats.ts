@@ -159,7 +159,7 @@ export async function playerSummary(database: Db, guildId: string, memberId: str
     bests: [...bests.values()].sort((a, b) => a.dungeonName.localeCompare(b.dungeonName)),
     recent: await recentRuns(database, guildId, memberId, 5),
     achievements: (await database.dungeonAchievement.findMany({
-      where: { guildId, memberId }, orderBy: { earnedAt: "asc" }, include: { season: { select: { name: true } } }
+      where: { guildId, memberId, revokedAt:null }, orderBy: { earnedAt: "asc" }, include: { season: { select: { name: true } } }
     })).map((row) => ({ key: row.key, seasonName: row.season?.name ?? null, earnedAt: row.earnedAt }))
   };
 }

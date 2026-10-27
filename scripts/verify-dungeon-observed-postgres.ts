@@ -10,6 +10,7 @@ import { leaderRun, PUBLIC_RUN_SELECT } from "../src/services/public-leaderboard
 import { characterScores, publicRules, snapshotRules } from "../src/services/public-score.js";
 import { cancelNextSeason, scheduleNextSeason, rotateOfficialSeasons, officialWindows } from "../src/services/official-seasons.js";
 import { lockDungeonCalendar } from "../src/services/dungeon-calendar-lock.js";
+import { verifyDungeonResidualPostgres } from "./verify-dungeon-residual-postgres.js";
 
 // Invoked only after verify-postgres.ts proves it is a disposable local database.
 export async function verifyDungeonObservedPostgres(db: PrismaClient) {
@@ -24,6 +25,7 @@ export async function verifyDungeonObservedPostgres(db: PrismaClient) {
   const next=await db.officialSeason.create({data:{gameEdition:"forever",number:901,name:"Observed next",startsAt:to,createdBy:"release-test"}});
   const store=prismaPublicRunStore(db);
   try {
+    await verifyDungeonResidualPostgres(db,a,from,to,rules);
     for (const legacyFirst of [true,false]) for (const legacyVersion of [1,2]) {
       const label=`${legacyFirst}-v${legacyVersion}`;
       const modern={...structuredClone(a),id:`mixed-${label}-${a.id}`},legacy=structuredClone(modern);

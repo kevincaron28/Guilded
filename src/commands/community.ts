@@ -1,3 +1,6 @@
+import { initializeCommunityBadgeHistory, communityBadgeShelf, configureCommunityBadges } from "../services/community-badges.js";
+import { badgeLabel, COMMUNITY_MILESTONE_LABEL } from "../services/community-badge-rules.js";
+import { deliverCommunityBadges } from "../services/community-badge-delivery.js";
 import { guildWhere } from "../services/guild-scope.js";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, ModalBuilder, PermissionFlagsBits, SlashCommandBuilder, TextInputBuilder, TextInputStyle, type ButtonInteraction, type ChatInputCommandInteraction, type Guild, type ModalSubmitInteraction, type SlashCommandSubcommandBuilder, type SlashCommandSubcommandsOnlyBuilder, MessageFlags } from "discord.js";
 import type { CommunityActivity, CommunitySeason } from "../generated/prisma/client.js";
@@ -93,6 +96,12 @@ export const communityCommand = new SlashCommandBuilder().setName("community").s
     .addStringOption(o => o.setName("d").setDescription("Answer D").setDescriptionLocalizations({ fr: "Réponse D" }).setRequired(true).setMaxLength(80))
     .addIntegerOption(o => o.setName("correct").setDescription("Correct answer: 1=A, 2=B, 3=C, 4=D").setDescriptionLocalizations({ fr: "Bonne réponse" }).setRequired(true).setMinValue(1).setMaxValue(4)))
   .addSubcommand(sub => ref(sub.setName("close-quiz").setDescription("Close a quiz").setDescriptionLocalizations({ fr: "Fermer un quiz" })))
+  .addSubcommand(sub => seasonOption(sub.setName("badges").setDescription("Season badge shelf").setDescriptionLocalizations({ fr: "Badges de saison" }), false)
+    .addUserOption(o => o.setName("player").setDescription("Member").setDescriptionLocalizations({ fr: "Membre" }))
+    .addBooleanOption(o => o.setName("share").setDescription("Share your season shelf with its members").setDescriptionLocalizations({ fr: "Partager tes badges avec les membres de cette saison" })))
+  .addSubcommand(sub => seasonOption(sub.setName("badge-settings").setDescription("Milestone celebrations").setDescriptionLocalizations({ fr: "Célébrations des paliers" }))
+    .addBooleanOption(o => o.setName("enabled").setDescription("Enable future celebrations").setDescriptionLocalizations({ fr: "Activer les futures célébrations" }).setRequired(true))
+    .addChannelOption(o => o.setName("channel").setDescription("Same audience as season").setDescriptionLocalizations({ fr: "Même public que la saison" }).addChannelTypes(ChannelType.GuildText).setRequired(true)))
   .addSubcommand(sub => sub.setName("honors").setDescription("Hall of fame: MVPs and podiums").setDescriptionLocalizations({ fr: "Palmarès" }))
   .addSubcommand(sub => sub.setName("honors-preview").setDescription("Preview the next weekly post").setDescriptionLocalizations({ fr: "Aperçu du prochain palmarès" }))
   .addSubcommand(sub => sub.setName("honors-settings").setDescription("Weekly MVP options").setDescriptionLocalizations({ fr: "Options du MVP" })
@@ -122,15 +131,34 @@ export async function executeCommunity(interaction: ChatInputCommandInteraction)
   const kind = area === "lottery" ? "LOTTERY" : area === "gaming" ? "EVENT" : area === "challenge" ? "CHALLENGE" : "QUIZ";
   const seasonId = interaction.options.getString("season");
   const id = interaction.options.getString("id");
-  const organizer = ["create", "edit", "confirm", "payments", "attendance", "review", "claims", "close", "cancel", "start-season", "end-season", "season-settings", "quiz", "close-quiz"].includes(sub);
-  const current = seasonId || ["dice", "wallet", "leaderboard", "hub"].includes(sub) ? await resolveCommunitySeason(prisma, guild, context.guildId, actor, seasonId, organizer) : null;
+  const organizer = ["create", "edit", "confirm", "payments", "attendance", "review", "claims", "close", "cancel", "start-season", "end-season", "season-settings", "badge-settings", "quiz", "close-quiz"].includes(sub);
+  const current = seasonId || ["dice", "wallet", "leaderboard", "hub", "badges"].includes(sub) ? await resolveCommunitySeason(prisma, guild, context.guildId, actor, seasonId, organizer) : null;
   const row = id ? await getActivity(guild, context.guildId, id, actor, kind, organizer) : null;
   let content = "";
   if (sub === "honors" || sub === "honors-preview" || sub === "honors-settings") {
     await interaction.editReply(await honorsReply(guild, context.guildId, sub, actor, lang, interaction));
     return;
   }
-  if (sub === "start-season") {
+  if (sub === "badges") {
+    const target = interaction.options.getUser("player")?.id ?? actor;
+    await access(guild, target, current!);
+    const shared = interaction.options.getBoolean("share");
+    if (shared !== null) {
+      if (target !== actor) throw new Error("Only your own shelf / Tes propres badges seulement.");
+      await prisma.communityBadgeSharing.upsert({ where: { seasonId_userId: { seasonId: current!.id, userId: actor } }, create: { seasonId: current!.id, userId: actor, shared }, update: { shared } });
+    }
+    await initializeCommunityBadgeHistory(prisma, context.guildId, current!.id);
+    const badges = await communityBadgeShelf(prisma, current!.id, actor, target);
+    if (!badges) content = say(lang, "This member has not shared this season's shelf.", "Ce membre n'a pas partagé ses badges pour cette saison.");
+    else content = say(lang, "Season badges", "Badges de saison") + " · " + COMMUNITY_MILESTONE_LABEL + "\n" +
+      (badges.map(badge => badgeLabel(badge.code, lang) + " · " + (badge.earnedAt ? badge.earnedAt.toISOString().slice(0, 10) : say(lang, "Historical; date unknown", "Historique; date inconnue"))).join("\n") || say(lang, "No badges recorded yet.", "Aucun badge enregistré.")) + "\n\n" +
+      say(lang, "Cosmetic only. Private by default. share:true shares only this season's shelf with members who can access it; share:false hides it again. Archives: select a season.", "Décoratifs seulement. Privés par défaut. share:true partage les badges de cette saison avec les membres qui y ont accès; share:false les masque. Archives : choisis une saison.");
+  } else if (sub === "badge-settings") {
+    const channelId = interaction.options.getChannel("channel", true).id;
+    await validateCommunityDestination(guild, current!, channelId, actor);
+    const cfg = await configureCommunityBadges(prisma, context.guildId, current!.id, channelId, interaction.options.getBoolean("enabled", true), actor);
+    content = say(lang, "Badges configured. Existing milestones are recognized silently. Future celebrations: ", "Badges configurés. Les paliers existants sont reconnus sans annonce. Futures célébrations : ") + (cfg.enabled ? "ON" : "OFF") + " · " + COMMUNITY_MILESTONE_LABEL;
+  } else if (sub === "start-season") {
     const member = await guild.members.fetch({ user: actor, force: true });
     if (!hasPermission(member, "officer")) throw new Error("Organisateurs seulement / Organizers only.");
     const channel = interaction.channel;
@@ -467,6 +495,7 @@ export async function runCommunityActivities(guilds: Iterable<Guild>, onHonorsEr
       if (!record) continue;
       await service.tick(record.id);
       await service.rotateMonthly(record.id);
+      await deliverCommunityBadges(guild, prisma, record.id).catch(onHonorsError);
       // Weekly MVP and monthly podium roles; one server's failure never holds back the others.
       await runCommunityHonors(guild, prisma, record.id).catch(onHonorsError);
     }

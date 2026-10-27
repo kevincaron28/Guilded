@@ -20,6 +20,7 @@ function store() {
     (!where.reference || (typeof where.reference === "string" ? row.reference === where.reference : row.reference.startsWith(where.reference.startsWith))) &&
     (!where.createdAt?.gte || row.createdAt >= where.createdAt.gte) && (!where.createdAt?.lte || row.createdAt <= where.createdAt.lte) && (!where.createdAt?.lt || row.createdAt < where.createdAt.lt) && (!where.season || where.season.guildId === season.guildId && season.status === where.season.status));
   const tx = {
+    communityBadgeConfig: { findUnique: vi.fn(async () => null) },
     $executeRaw: vi.fn(async () => 1),
     communitySeason: { findFirst: vi.fn(async ({ where }) => where.guildId === season.guildId && where.id === season.id && (!where.status || where.status === season.status) ? { ...season, participation: cfg } : null) },
     communityParticipationConfig: {

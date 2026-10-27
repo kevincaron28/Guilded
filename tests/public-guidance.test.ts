@@ -138,7 +138,7 @@ describe("character page guidance", () => {
     expect(body).toContain('<span class="score">1024</span>');
     expect(body).toContain("<h2>Best next improvement · Levels 15–29</h2>");
     expect(body).toContain("Scenarios, not predictions.");
-    expect(body).toContain("Current best: legacy evidence.");
+    expect(body).toContain("Current best: ranked evidence.");
     expect(body).toContain("Scenario: no run or confirmation yet.");
     expect(body).toContain("Level 20 is taken as the party's highest.");
     expect(body).toContain("Most within reach: Shadowfang Keep in 32:31 adds 5 (season score 1024 → 1029).");

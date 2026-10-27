@@ -131,13 +131,13 @@ const keepPlayer = (filters: PlayerFilters) => (player: LeaderPlayer, run: Score
 export interface RankedEntry { player: LeaderPlayer; run: LeaderRun }
 
 // Best run per character (name + realm), fastest first; an earlier finish wins a tie.
-export function rankCharacters(runs: LeaderRun[], filters: PlayerFilters, limit = 100): RankedEntry[] {
+export function rankCharacters(runs: LeaderRun[], filters: PlayerFilters, limit = 100, rules?: BracketedRules): RankedEntry[] {
   const best = new Map<string, RankedEntry>();
   const keep = keepPlayer(filters);
   for (const run of runs) {
     if (run.gameEdition === "retail" && run.difficultyId === 8) continue;
     for (const player of run.players) {
-      if (!keep(player, run)) continue;
+      if (!keep(player, run) || rules?.evidencePolicy === "current-v1" && !rateRun(run, rules, player).score) continue;
       const id = characterId(player);
       const current = best.get(id);
       if (!current || run.durationSec < current.run.durationSec || (run.durationSec === current.run.durationSec && run.endedAt < current.run.endedAt)) best.set(id, { player, run });
@@ -411,7 +411,8 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const { periods, filters, period } = await pageFilters(ctx);
     const periodResults = await periodRuns(period);
     const all = periodResults.filter(run => !(run.gameEdition === "retail" && run.difficultyId === 8));
-    const dungeons = dungeonSummaries(all);
+    const activeRules = periodRules(period);
+    const dungeons = dungeonSummaries(activeRules.evidencePolicy === "current-v1" ? all.filter(run => rateRun(run, activeRules).score) : all);
     const filterDungeons = [...dungeons];
     for (const run of periodResults) if (!filterDungeons.some(d => d.instanceId === run.instanceId)) {
       filterDungeons.push({ instanceId: run.instanceId, dungeonName: run.dungeonName, bestSec: run.durationSec, runs: 1 });
@@ -419,7 +420,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     let body: string;
     if (filters.instanceId) {
       const runs = all.filter((run) => run.instanceId === filters.instanceId && (!filters.bracket || run.bracket === filters.bracket));
-      const ranked = rankCharacters(runs, filters);
+      const ranked = rankCharacters(runs, filters, 100, activeRules);
       const name = dungeons.find((d) => d.instanceId === filters.instanceId)?.dungeonName ?? t("Dungeon", "Donjon");
       body = `<h2>${escapeHtml(name)}</h2>` + (ranked.length
         ? table(["#", t("Character", "Personnage"), t("Class", "Classe"), t("Role", "Rôle"), t("Time", "Temps"), t("Score", "Score"), t("Deaths", "Morts"), t("Party", "Groupe"), t("Date", "Date"), ""],

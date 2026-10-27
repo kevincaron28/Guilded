@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { publicRules, snapshotRules, readRuleSnapshot, rateRun, characterScores, addedRules, publicSeasons, periodRules, rulesAt } from "../src/services/public-score.js";
 import { planBase, scenarioAt } from "../src/services/public-guidance.js";
-import { leaderRun, unrankedText } from "../src/services/public-leaderboard.js";
+import { leaderRun, unrankedText, rankCharacters } from "../src/services/public-leaderboard.js";
 import { summarize } from "../src/services/public-runs.js";
 import { dungeonRoleFixture } from "./fixtures/dungeon-role-contract.js";
 import { validBracketedRules } from "../src/services/dungeon-november-rules.js";
@@ -16,6 +16,8 @@ describe("versioned official current-evidence policy",()=>{
     expect(rateRun(legacy,beta).score?.points).toBe(200);
     expect(rateRun(legacy,official)).toEqual({score:null,reason:"Current evidence required by this season"});
     expect(characterScores([legacy],official)).toEqual([]);
+    expect(rankCharacters([legacy],{className:null,role:null,confirmed:false},100,official)).toEqual([]);
+    expect(rankCharacters([legacy],{className:null,role:null,confirmed:false},100,beta)).toHaveLength(1);
     expect(rateRun(current,official).score?.points).toBe(200);
     const before=JSON.stringify(current);
     const scenario=scenarioAt(planBase({runs:[current],rules:official,me:current.players[0]!,level:16,now:current.endedAt},"15-29"),"389",1000,16);

@@ -8,7 +8,9 @@ const SITE = "https://guilded.kcaron.top";
 const NOW = new Date("2026-11-10T20:00:00Z");
 const player = (character: string, className: string, role: string, level = 16) => ({ character, realm: "Doomhowl", className, role, level });
 const leaderRun = (id: string, durationSec: number, players: LeaderRun["players"] = [player("Kev", "Warrior", "TANK"), player("Amy", "Priest", "HEALER")], over: Partial<LeaderRun> = {}): LeaderRun => ({
-  runId: id, instanceId: 389, dungeonName: "Ragefire Chasm", durationSec, endedAt: new Date(NOW.getTime() - durationSec * 1000), deaths: 1, bracket: "15-29", season: "2026-Q4", confirmations: 1, routeKey: null, difficultyId: 0, players, ...over
+  runId: id, instanceId: 389, dungeonName: "Ragefire Chasm", durationSec, endedAt: new Date(NOW.getTime() - durationSec * 1000), deaths: 1, bracket: "15-29", season: "2026-Q4", confirmations: 1, routeKey: null, difficultyId: 0,
+  evidence: { startedAt: new Date((over.endedAt?.getTime() ?? NOW.getTime() - durationSec * 1000) - durationSec * 1000), completedBy: "final boss", encounters: [] },
+  players: players.map(p => ({ ...p, minLevel:p.level, presentSec:durationSec })), ...over
 });
 
 describe("leaderboard ranking", () => {

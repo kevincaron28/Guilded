@@ -3,6 +3,8 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { readFileSync } from "node:fs";
 import { config } from "../config.js";
 import { ScopedReportError, encodeReportOrigin, reportSourceLink, type ReportOrigin } from "./report-context.js";
+import { automaticDiagnostic, approvedDiagnosticFields, redactDiagnosticText } from "./diagnostic-privacy.js";
+import { diagnosticTarget } from "./diagnostic-target.js";
 
 const BOT_VERSION = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version as string;
 
@@ -17,9 +19,10 @@ export function isMemberAnswer(error: unknown): boolean {
   return error instanceof Error && error.constructor === Error && error.message.length > 0 && error.message.length < 200;
 }
 
-// Captures command/job failures and /report bug submissions: always saved to
+// Captures minimized command/job failures and confirmed /report bug submissions,
+// saved to
 // the ErrorReport table, and posted live to ERROR_LOG_CHANNEL_ID when set (a
-// channel in any guild the bot is in, for the developer to watch after a
+// verified administrator-only channel, for the developer to watch after a
 // release without needing server SSH access). Never throws: reporting a
 // problem must never cause a second one.
 
@@ -28,6 +31,9 @@ export interface ErrorReportContext extends ReportOrigin {
   guildId?: string | null;
   guildName?: string | null | undefined;
   userId?: string | null;
+  consented?: boolean;
+  diagnostics?: unknown;
+  notificationChannelId?: string | null;
 }
 
 // De-dupes identical failures (e.g. a background job failing the same way
@@ -46,14 +52,27 @@ function shouldPost(key: string): boolean {
 
 export function createErrorReportService(prisma: PrismaClient) {
   return {
+    async destination(client: Client | null) {
+      const target = await diagnosticTarget(client, config.ERROR_LOG_CHANNEL_ID);
+      return target ? { id: target.id, label: redactDiagnosticText(target.label, 160) } : null;
+    },
     // Returns the report's short reference (see reportRef), or null when it could not be saved.
     async report(client: Client | null, error: unknown, context: ErrorReportContext): Promise<string | null> {
       if (error instanceof ScopedReportError) {
         context = { ...context, ...error.origin };
         error = error.original;
       }
-      const message = error instanceof Error ? error.message : String(error);
-      const stack = error instanceof Error ? (error.stack ?? null) : null;
+      const bug=context.source==="bug-report";
+      if (bug && !context.consented) return null;
+      const detail=bug ? {message:redactDiagnosticText(typeof error==="string"?error:"[non-text report omitted]"),stack:null} : automaticDiagnostic(error);
+      const {message,stack}=detail;
+      const diagnostics=approvedDiagnosticFields(context.diagnostics);
+      context={...context,source:redactDiagnosticText(context.source,80),
+        guildName:context.guildName ? redactDiagnosticText(context.guildName,80) : undefined,
+        operation:context.operation ? redactDiagnosticText(context.operation,150) : null,
+        messageId:bug ? context.messageId ?? null : null,
+        extra:Object.keys(diagnostics).length ? JSON.stringify(diagnostics) : null,
+        userId:bug ? context.userId ?? null : null};
       let ref: string | null = null;
       try {
         const saved = await prisma.errorReport.create({
@@ -70,15 +89,17 @@ export function createErrorReportService(prisma: PrismaClient) {
         });
         ref = reportRef(saved.id);
       } catch (dbError) {
-        console.error("Failed to save error report", dbError);
+        console.error("Failed to save error report", automaticDiagnostic(dbError));
       }
-      const channelId = config.ERROR_LOG_CHANNEL_ID;
-      // A member's bug report always reaches the developer; repeated failures are de-duplicated.
-      const bug = context.source === "bug-report";
-      if (!client || !channelId || (!bug && !shouldPost(`${context.guildId ?? "global"}:${context.channelId ?? ""}:${context.operation ?? context.source}:${message.slice(0, 200)}`))) return ref;
+      if (!ref) return null;
+      const channelId = bug ? context.notificationChannelId : config.ERROR_LOG_CHANNEL_ID;
+      // Storage is authoritative; a private notification is best-effort and is
+      // never redirected beyond the destination previewed by the reporter.
+      if (!client || !channelId || channelId !== config.ERROR_LOG_CHANNEL_ID || (!bug && !shouldPost(`${context.guildId ?? "global"}:${context.channelId ?? ""}:${context.operation ?? context.source}:${message.slice(0, 200)}`))) return ref;
       try {
-        const channel = await client.channels.fetch(channelId).catch(() => null);
-        if (!channel || !channel.isTextBased() || !("send" in channel)) return ref;
+        const target = await diagnosticTarget(client, channelId);
+        if (!target) return ref;
+        const channel = target.channel;
         const sourceLink = reportSourceLink(context.guildId, context);
         const metadata = [
           `🐞 **${context.source}**${context.guildName ? ` — ${context.guildName}` : ""}${context.guildId ? ` (${context.guildId})` : ""}${context.userId ? ` — <@${context.userId}>` : ""}`,
@@ -92,7 +113,7 @@ export function createErrorReportService(prisma: PrismaClient) {
         const detail = message.replaceAll("```", "'''").slice(0, Math.max(0, 1888 - metadata.length));
         await channel.send({ content: `${metadata}\n\`\`\`\n${detail}\n\`\`\``, allowedMentions: { parse: [] } });
       } catch (postError) {
-        console.error("Failed to post error report", postError);
+        console.error("Failed to post error report", automaticDiagnostic(postError));
       }
       return ref;
     }

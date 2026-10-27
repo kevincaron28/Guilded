@@ -91,9 +91,9 @@ Existing source-backed entry points:
 
 - Member submission: Discord `/report bug`, implemented in
   [bugreport.ts](../src/commands/bugreport.ts). Keep the returned short reference.
-  The existing command also notifies the guild's officer destination with the
-  submitted description/screenshot; it is not a private developer-only upload.
-  New diagnostic-export consent must disclose the actual recipients.
+  The local diagnostics candidate previews sanitized text and the developer
+  destination before Send/Cancel; it removes screenshot input and duplicate
+  officer forwarding. This candidate is not deployed yet.
 - Operator inbox: `npm run bugs -- --days 2` writes private `bug-inbox.md` using
   [scripts/bugs.ts](../scripts/bugs.ts). It reads unresolved reports, with a bounded
   1,000-row query; it is not a complete unbounded log archive.
@@ -105,14 +105,17 @@ Existing source-backed entry points:
   Public scoring smoke check: [leaderboards](https://guilded.kcaron.top/leaderboards/).
   Neither page replaces the private diagnostic inbox or actual game acceptance.
 
-Privacy readiness is still an implementation gate: the existing error service
-truncates arbitrary messages/stacks but does not establish comprehensive secret
-redaction. Do not enable broader automatic capture on that basis. New diagnostics
+Privacy readiness remains a review/deployment gate: the local candidate minimizes
+automatic exceptions and redacts confirmed member text, with recipient checks.
+Do not enable broader automatic capture on that basis. New diagnostics
 should contain bounded build/capability/route/event/reason IDs; no tokens, pairing
 credentials, account paths, DMs, private chat, audio or unrestricted screenshots.
 Provide a preview and explicit selection/consent for diagnostic or SavedVariables
 exports. Store only the selected relevant report, with a documented retention
 limit. External combat-log uploads and new credentials are outside this plan.
+See [diagnostic privacy and actual-client prerequisites](DIAGNOSTIC_PRIVACY_AND_CLIENT_ACCEPTANCE.md)
+for the implemented boundary, tests, installed-state observations and smallest
+real-game capture needed. No game evidence has been gathered by this candidate.
 
 On Nov 4–6, group reports by version/edition/reason and prioritize data loss,
 privacy leaks, duplicate awards, crashes and blocked capture before layout or

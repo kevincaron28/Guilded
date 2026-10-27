@@ -1,3 +1,4 @@
+import "./services/diagnostic-console.js";
 import { GAME_EDITIONS } from "../companion/game-edition.mjs";
 import { badgeCommandsForGuild } from "./services/community-badge-policy.js";
 import { withEdition } from "./services/edition-context.js";

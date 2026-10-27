@@ -84,12 +84,16 @@ describe("/me/companion", () => {
     const { cookie } = await signedIn(target);
     const page = await request("GET", target, { cookie });
     expect(page.status).toBe(200);
-    expect(page.body).toContain(started.confirm);
+    expect(page.body).not.toContain(started.confirm);
     expect(page.body).toContain("Quebec Gold");
     expect(page.body).toContain('value="personal"');
     const csrf = /name="csrf" value="([^"]+)"/.exec(page.body)![1]!;
     const form = { cookie, origin: SITE, "content-type": "application/x-www-form-urlencoded" };
-    const body = (choice: string) => `csrf=${encodeURIComponent(csrf)}&request=${encodeURIComponent(started.requestId)}&choice=${choice}`;
+    const body = (choice: string) => `csrf=${encodeURIComponent(csrf)}&request=${encodeURIComponent(started.requestId)}&choice=${choice}&code=${started.confirm.toLowerCase().replace("-", "")}`;
+    const noCode = `csrf=${encodeURIComponent(csrf)}&request=${encodeURIComponent(started.requestId)}&choice=111`;
+    expect((await request("POST", "/me/companion", form, noCode)).status).toBe(400);
+    expect((await request("POST", "/me/companion", form, `${noCode}&code=ZZZ-ZZZ`)).status).toBe(400);
+    expect(issued).toEqual([]);
     expect((await request("POST", "/me/companion", { ...form, origin: "https://evil.example" }, body("111"))).status).toBe(403);
     expect((await request("POST", "/me/companion", form, body("999"))).status).toBe(400);
     const done = await request("POST", "/me/companion", form, body("111"));
@@ -109,7 +113,7 @@ describe("/me/companion", () => {
     expect(page.body).toContain("Classements publics des donjons seulement");
     expect(page.body).toContain('value="personal" checked');
     const csrf = /name="csrf" value="([^"]+)"/.exec(page.body)![1]!;
-    await request("POST", "/me/companion", { cookie, origin: SITE, "content-type": "application/x-www-form-urlencoded" }, `csrf=${encodeURIComponent(csrf)}&request=${encodeURIComponent(started.requestId)}&choice=personal&lang=fr`);
+    await request("POST", "/me/companion", { cookie, origin: SITE, "content-type": "application/x-www-form-urlencoded" }, `csrf=${encodeURIComponent(csrf)}&request=${encodeURIComponent(started.requestId)}&choice=personal&lang=fr&code=${started.confirm}`);
     expect(issued[0]).toMatch(/^personal:/);
     expect(signIn.poll(started.requestId)).toEqual({ companionCredential: "p".repeat(43), personal: true });
   });

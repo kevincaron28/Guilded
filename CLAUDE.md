@@ -1,6 +1,8 @@
 > 7.5.1 (27 October 2026): Claude finished Codex's dungeon-current-v2 work (Codex out of capacity) and
 > released it with PR #241's loot/site fixes at Kevin's request; Season 1 stays current-v1. See
-> docs/V7_5_1_RELEASE_NOTES.md. Codex's coordination file has the deploy/publication record.
+> docs/V7_5_1_RELEASE_NOTES.md. PUBLISHED from 7f2b3d9: Oracle healthy on 7.5.1 (three migrations,
+> backups first), GitHub v7.5.1 with all 21 assets hash-verified, all ten CurseForge files uploaded
+> (CDN hashes match; approval pending when recorded). Evidence: backups/release-7.5.1/.
 >
 > PREVIOUS — 7.5.0 published 26 October 2026 from bda3382. Oracle healthy, protocol 2,
 > commands accepted, four migrations applied, all 21 GitHub assets hash-verified.

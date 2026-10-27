@@ -183,10 +183,12 @@ describe("leaderboard pages say why a run is unranked", () => {
     const page = await get("/leaderboards/character/Kev-Doomhowl");
     expect(page.body).toContain('title="Unranked: Automatic final-boss completion required"');
     expect(page.body).toContain("older check");
-    // The older row is the only ranked run: 200 x 1200 / 1100.
-    expect(page.body).toContain('<span class="score">218</span>');
+    // Legacy remains visible, but no longer earns official current-evidence credit.
+    expect(page.body).toContain("Unranked: Current evidence required by this season");
+    expect(page.body).not.toContain('<span class="score">218</span>');
     const fr = await get("/leaderboards/character/Kev-Doomhowl?lang=fr");
     expect(fr.body).toContain("Non classé : Fin automatique au dernier boss requise");
+    expect(fr.body).toContain("Preuves actuelles requises pour cette saison");
     const board = await get("/leaderboards/");
     expect(board.body).toContain("This season's rules were frozen on 2026-11-04.");
   });

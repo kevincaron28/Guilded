@@ -1,3 +1,4 @@
+import { dungeonRole } from "../../companion/dungeon-role.mjs";
 import { characterKey } from "../../companion/character-identity.mjs";
 import { readChallenge } from "./challenge-evidence.js";
 import { rankChallenges, challengeClock } from "./challenge-leaderboard.js";
@@ -88,7 +89,8 @@ const UNRANKED_FR: Record<string, string> = {
   "Party levels unknown": "Niveaux du groupe inconnus",
   "Overlevel carry": "Groupe de trop haut niveau",
   "Below level range": "Sous les niveaux du parcours",
-  "Presence under 80%": "Présence sous 80 %"
+  "Presence under 80%": "Présence sous 80 %",
+  "Current evidence required by this season": "Preuves actuelles requises pour cette saison"
 };
 export function unrankedText(ctx: Pick<WebContext, "t">, reason: string | undefined): string {
   const text = reason ?? "Not rated";
@@ -98,7 +100,7 @@ export function unrankedText(ctx: Pick<WebContext, "t">, reason: string | undefi
 export function readLeaderFilters(query: URLSearchParams, now = new Date(), periods: PublicPeriod[] = publicSeasons(now)): LeaderFilters {
   const dungeon = Number(query.get("dungeon"));
   const season = query.get("season") ?? "";
-  const role = query.get("role")?.toUpperCase() ?? "";
+  const role = dungeonRole(query.get("role")) ?? "";
   const realm = (query.get("realm") ?? "").trim().slice(0, 60);
   const known = season === "all" || periods.some((p) => p.id === season);
   return {
@@ -115,7 +117,7 @@ export function readLeaderFilters(query: URLSearchParams, now = new Date(), peri
 
 /** The time span the filters ask for: this week, one season, or all time. */
 export function filterPeriod(filters: Pick<LeaderFilters, "season" | "week">, now: Date, periods: PublicPeriod[] = publicSeasons(now)): PublicPeriod {
-  if (filters.week) return { ...publicWeek(now), ...(periods[0]?.rules ? { rules: periods[0].rules } : {}) };
+  if (filters.week) return { ...publicWeek(now), ...(periods[0] ? { rules: periodRules(periods[0]) } : {}) };
   return periods.find((p) => p.id === filters.season) ?? { id: "all", label: "All time", labelFr: "Depuis le début", from: null, to: null };
 }
 
@@ -123,19 +125,19 @@ type PlayerFilters = Pick<LeaderFilters, "className" | "role" | "confirmed"> & {
 const keepPlayer = (filters: PlayerFilters) => (player: LeaderPlayer, run: ScoreRun) =>
   (!filters.confirmed || run.confirmations >= 2)
   && (!filters.className || player.className?.toLowerCase() === filters.className.toLowerCase())
-  && (!filters.role || player.role?.toUpperCase() === filters.role)
+  && (!filters.role || dungeonRole(player.role) === dungeonRole(filters.role))
   && (!filters.realm || player.realm.toLowerCase() === filters.realm.toLowerCase());
 
 export interface RankedEntry { player: LeaderPlayer; run: LeaderRun }
 
 // Best run per character (name + realm), fastest first; an earlier finish wins a tie.
-export function rankCharacters(runs: LeaderRun[], filters: PlayerFilters, limit = 100): RankedEntry[] {
+export function rankCharacters(runs: LeaderRun[], filters: PlayerFilters, limit = 100, rules?: BracketedRules): RankedEntry[] {
   const best = new Map<string, RankedEntry>();
   const keep = keepPlayer(filters);
   for (const run of runs) {
     if (run.gameEdition === "retail" && run.difficultyId === 8) continue;
     for (const player of run.players) {
-      if (!keep(player, run)) continue;
+      if (!keep(player, run) || rules?.evidencePolicy === "current-v1" && !rateRun(run, rules, player).score) continue;
       const id = characterId(player);
       const current = best.get(id);
       if (!current || run.durationSec < current.run.durationSec || (run.durationSec === current.run.durationSec && run.endedAt < current.run.endedAt)) best.set(id, { player, run });
@@ -361,8 +363,10 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
   const intro = (ctx: WebContext, period: PublicPeriod) => currentEdition() !== "forever"
     ? `<p class="eyebrow">Guilded · ${escapeHtml(periodName(ctx, period))}</p><h1>${ctx.t("Dungeon leaderboards", "Classements des donjons")}</h1><p>${ctx.t("Runs from this WoW edition only. Dungeon ratings require reviewed season routes and targets; Mythic+ has a separate keystone leaderboard.", "Essais de cette version de WoW seulement. Les cotes nécessitent des parcours et cibles de saison vérifiés; Mythic+ possède son propre classement de clés.")}</p>`
     : `<p class="eyebrow">Guilded · ${escapeHtml(periodName(ctx, period))}</p><h1>${ctx.t("Dungeon leaderboards", "Classements des donjons")}</h1>`
-    + `<p class="muted">${ctx.t("Scores and times from Guilded and Guilded Dungeons players. Runs are checked before they show: impossible times, duplicates and runs the party disagrees on are left out. A run is ranked when the addon saw the final boss die, and it counts for each player who was there for 80% of it. Score per route: 200 × target ÷ time (50–400); a character's best routes in a level bracket add up. Targets are provisional until real launch times exist.",
-      "Scores et temps des joueurs de Guilded et Guilded Dungeons. Les essais sont vérifiés avant d'apparaître : temps impossibles, doublons et essais contestés par le groupe sont écartés. Un essai est classé quand l'addon a vu mourir le dernier boss, et il compte pour chaque joueur présent 80 % du temps. Score par parcours : 200 × cible ÷ temps (50–400); les meilleurs parcours d'un personnage dans une tranche de niveaux s'additionnent. Cibles provisoires en attendant de vrais temps.")}`
+    + `<p class="muted">${ctx.t("Team-clear scores and times from Guilded and Guilded Dungeons. Current evidence requires detected final-boss completion and at least 80% recorded presence per credited player. Presence is an observer report, not proof of individual contribution. Round(200 × target ÷ time), clamp to 50–400 before the level penalty, then round again: 50 becomes 35 with a 30% penalty. Ranked runs stay in the route's bracket, including allowed overlevel players. Best distinct routes count; targets remain provisional.",
+      "Scores et temps d'équipe de Guilded et Guilded Dungeons. Les preuves actuelles exigent le boss final détecté et au moins 80 % de présence enregistrée par joueur crédité. Cette présence est une observation, pas une preuve de contribution individuelle. Arrondi(200 × cible ÷ temps), limité à 50–400 avant pénalité de niveau, puis nouvel arrondi : 50 devient 35 avec 30 % de pénalité. Les essais classés restent dans la tranche du parcours, même avec un dépassement de niveau autorisé. Les meilleurs parcours distincts comptent; les cibles restent provisoires.")}`
+    + (periodRules(period).evidencePolicy === "current-v1" ? ` ${ctx.t("This season requires current stored evidence; legacy records remain visible without competitive credit.", "Cette saison exige les preuves actuelles enregistrées; les anciens essais restent visibles sans crédit compétitif.")}`
+      : ` ${ctx.t("Compatibility history retains its original evidence rules; it is not current-evidence official scoring.", "L'historique compatible conserve ses règles de preuve originales; ce n'est pas le classement officiel avec preuves actuelles.")}`)
     + (period.frozenAt ? ` ${ctx.t(`This season's rules were frozen on ${date(period.frozenAt)}.`, `Les règles de cette saison sont figées depuis le ${date(period.frozenAt)}.`)}` : "") + `</p>`;
   const tabs = (ctx: WebContext, filters: LeaderFilters) => `<nav class="tabs">`
     + `<a class="${filters.week ? "" : "on"}" href="${link("/leaderboards/", ctx.lang, { season: filters.season, bracket: filters.bracket })}">${ctx.t("Season", "Saison")}</a>`
@@ -407,7 +411,8 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const { periods, filters, period } = await pageFilters(ctx);
     const periodResults = await periodRuns(period);
     const all = periodResults.filter(run => !(run.gameEdition === "retail" && run.difficultyId === 8));
-    const dungeons = dungeonSummaries(all);
+    const activeRules = periodRules(period);
+    const dungeons = dungeonSummaries(activeRules.evidencePolicy === "current-v1" ? all.filter(run => rateRun(run, activeRules).score) : all);
     const filterDungeons = [...dungeons];
     for (const run of periodResults) if (!filterDungeons.some(d => d.instanceId === run.instanceId)) {
       filterDungeons.push({ instanceId: run.instanceId, dungeonName: run.dungeonName, bestSec: run.durationSec, runs: 1 });
@@ -415,7 +420,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     let body: string;
     if (filters.instanceId) {
       const runs = all.filter((run) => run.instanceId === filters.instanceId && (!filters.bracket || run.bracket === filters.bracket));
-      const ranked = rankCharacters(runs, filters);
+      const ranked = rankCharacters(runs, filters, 100, activeRules);
       const name = dungeons.find((d) => d.instanceId === filters.instanceId)?.dungeonName ?? t("Dungeon", "Donjon");
       body = `<h2>${escapeHtml(name)}</h2>` + (ranked.length
         ? table(["#", t("Character", "Personnage"), t("Class", "Classe"), t("Role", "Rôle"), t("Time", "Temps"), t("Score", "Score"), t("Deaths", "Morts"), t("Party", "Groupe"), t("Date", "Date"), ""],

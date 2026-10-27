@@ -4,6 +4,7 @@ import { dungeonConfig } from "../src/services/dungeon-rules.js";
 import { readFileSync } from "node:fs";
 import { Routes } from "discord.js";
 import { bestEightBetaRules } from "../src/services/dungeon-beta-preset.js";
+import { publicRules } from "../src/services/public-score.js";
 
 describe("dungeon scoring explanation", () => {
   it("uses available Discord REST route helpers in the publication script", () => {
@@ -15,6 +16,15 @@ describe("dungeon scoring explanation", () => {
     for (const helper of helpers) expect(typeof Routes[helper as keyof typeof Routes], helper).toBe("function");
   });
   for (const lang of ["en", "fr"] as const) {
+    it(`explains pre-penalty bounds, route brackets and observer presence (${lang})`, () => {
+      const embed=dungeonScoringGuide(dungeonConfig({}),lang,publicRules());
+      const text=JSON.stringify(embed.toJSON());
+      expect(text).toContain(lang === "fr" ? "50 devient 35" : "50 becomes 35");
+      expect(text).toContain(lang === "fr" ? "tranche du parcours" : "route's bracket");
+      expect(text).toContain(lang === "fr" ? "observateur" : "observer");
+      for (const field of embed.toJSON().fields ?? []) expect(field.value.length).toBeLessThanOrEqual(1024);
+      expect(embed.length).toBeLessThanOrEqual(6000);
+    });
     it(`distinguishes leveling participation from rating without changing frozen rules (${lang})`, () => {
       const rules = bestEightBetaRules();
       const before = JSON.stringify(rules);

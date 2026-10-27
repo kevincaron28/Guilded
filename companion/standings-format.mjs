@@ -1,3 +1,4 @@
+import { snapshotDungeonRole } from "./dungeon-role.mjs";
 function luaString(value) {
   return `"${String(value).replace(/\\/g, "\\\\").replace(/"/g, "\\\"").replace(/[\r\n]/g, " ")}"`;
 }
@@ -87,8 +88,8 @@ function seasonFields(board) {
   if (board.detailsAvailable === undefined) return "";
   const details = (board.profiles ?? []).map(profile => {
     const runs = ratingDetailsToLua(profile.details);
-    const roles = Array.isArray(profile.roles) ? `{ ${profile.roles.filter(r => ["TANK", "HEALER", "DAMAGER"].includes(r.role)).map(r =>
-      `{ role = ${luaString(r.role)}, points = ${Math.trunc(r.points)}, guidance = ${guidanceToLua(r.guidance)}, details = { ${ratingDetailsToLua(r.details).join(", ")} } }`).join(", ")} }` : "nil";
+    const roles = Array.isArray(profile.roles) ? `{ ${profile.roles.filter(r => snapshotDungeonRole(r.role)).map(r =>
+      `{ role = ${luaString(snapshotDungeonRole(r.role))}, points = ${Math.trunc(r.points)}, guidance = ${guidanceToLua(r.guidance)}, details = { ${ratingDetailsToLua(r.details).join(", ")} } }`).join(", ")} }` : "nil";
     return `{ name = ${luaString(profile.name)}, points = ${Math.trunc(profile.points)}, ${bracketField(profile)}characters = { ${(profile.characters ?? []).map(luaString).join(", ")} }, details = { ${runs.join(", ")} }, roles = ${roles}, guidance = ${guidanceToLua(profile.guidance)} }`;
   });
   const catalog = (board.catalog ?? []).map(d => `{ dungeonKey = ${luaString(d.dungeonKey ?? String(d.instanceId))}, instanceId = ${Math.trunc(d.instanceId)}, name = ${luaString(d.name)}, targetSec = ${d.targetSec == null ? "nil" : Math.trunc(d.targetSec)}, minLevel = ${d.minLevel ?? "nil"}, maxLevel = ${d.maxLevel ?? "nil"}, provisional = ${d.provisional === true ? "true" : "false"}${typeof d.bracket === "string" ? `, bracket = ${luaString(d.bracket)}` : ""} }`);

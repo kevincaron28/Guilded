@@ -53,7 +53,7 @@ it("creates a late-joining guild with the official frozen rules and season start
   const db = { dungeonSeason: { findFirst: vi.fn().mockResolvedValue(null), create: vi.fn() },
     officialSeason: { findFirst: vi.fn().mockResolvedValue({ name: "Season 1", startsAt, rules: snapshotRules(frozen, startsAt) }) } };
   await activeSeason(db as never, "new-guild", new Date("2026-12-01T00:00:00Z"));
-  expect(db.dungeonSeason.create).toHaveBeenCalledWith({ data: { guildId: "new-guild", name: "Season 1", startsAt, ratingRules: frozen } });
+  expect(db.dungeonSeason.create).toHaveBeenCalledWith({ data: { guildId: "new-guild", name: "Season 1", startsAt, ratingRules: { ...frozen, evidencePolicy: "current-v1" } } });
   db.dungeonSeason.create.mockClear();
   db.officialSeason.findFirst.mockResolvedValue({ name: "Season 1", startsAt, rules: null });
   await expect(activeSeason(db as never, "new-guild")).rejects.toThrow(/must be frozen/);

@@ -227,3 +227,7 @@ See [implementation and rollout](docs/COMMUNITY_ACHIEVEMENTS_2026-10-27.md) for 
 transaction/delivery guarantees, activation gates and the deferred max-level evidence
 requirement. This records local implementation, not live activation or game acceptance.
 Dungeon integrity and synchronization of both addons follow the badge phase.
+
+## Dungeon integrity draft - 27 October 2026
+
+The first tranche fixes DPS/DAMAGER role parity across both addons, companion and score views; newly frozen official seasons require current evidence while old snapshots and Beta history remain readable. See [implementation, proposed versioned policies and remaining launch checks](docs/DUNGEON_INTEGRITY_2026-10-27.md). This is a draft PR scope, not live activation or a public client release. Timer/presence, season finality and route-pool policies still require an explicit decision and real-game validation. No formula or historical score reset is included.

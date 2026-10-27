@@ -44,6 +44,16 @@ export function automaticDiagnostic(error: unknown): {message:string;stack:strin
   return {message:`${name}${code} [error:${fingerprint}]`,stack};
 }
 
+/** A member's /report bug screenshot: a Discord-hosted attachment link, or null. Never downloaded or inspected. */
+export function discordAttachmentUrl(value: unknown): string | null {
+  if(typeof value!=="string" || value.length>500) return null;
+  try {
+    const url=new URL(value);
+    return url.protocol==="https:" && ["cdn.discordapp.com","media.discordapp.net"].includes(url.hostname)
+      && /^\/(?:ephemeral-)?attachments\//.test(url.pathname) ? url.toString() : null;
+  } catch { return null; }
+}
+
 export function approvedDiagnosticFields(value: unknown): Record<string,string|number> {
   if(!value || typeof value!=="object") return {};
   const input=value as Record<string,unknown>, result:Record<string,string|number>={};

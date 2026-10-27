@@ -84,6 +84,18 @@ describe("report source context", () => {
     expect(s.send.mock.calls[0]![0].content).toContain(`Ref \`12345678\` · v${version}`);
   });
 
+  it("keeps a confirmed bug report's Discord screenshot link, and only that", async () => {
+    const shot = "https://cdn.discordapp.com/ephemeral-attachments/1/2/shot.png?ex=1&is=2&hm=3";
+    const s = fixture();
+    await s.service.report(s.client, "Broken button", { source: "bug-report", consented: true, notificationChannelId: "private-intake", screenshotUrl: shot });
+    await s.service.report(s.client, "Broken button", { source: "bug-report", consented: true, notificationChannelId: "private-intake", screenshotUrl: "https://evil.example/attachments/shot.png" });
+    await s.service.report(s.client, new TypeError("boom"), { source: "job", screenshotUrl: shot });
+    const extra = (call: number) => decodeReportOrigin((s.save.mock.calls[call] as unknown as [{ data: Record<string, unknown> }])[0].data["context"] as string).extra;
+    expect([extra(0), extra(1), extra(2)]).toEqual([shot, null, null]);
+    expect(s.send.mock.calls[0]![0].content).toContain(`Screenshot: ${shot}`);
+    expect(s.send.mock.calls[1]![0].content).not.toContain("evil.example");
+  });
+
   it("keeps host-wide context unknown instead of assigning the developer inbox as the source", async () => {
     const s = fixture();
     await s.service.report(s.client, new TypeError("Host failure"), { source: "context-test-global" });

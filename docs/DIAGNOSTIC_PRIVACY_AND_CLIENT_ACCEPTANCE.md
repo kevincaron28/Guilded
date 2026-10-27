@@ -13,9 +13,14 @@ and interaction, with a five-minute expiry. Cancellation/expiry stores nothing.
 Membership is checked again before sending. Editing means cancel and resubmit.
 The confirmation reports storage success, not guaranteed Discord delivery.
 
-The command no longer accepts screenshots and ignores stale attachment options.
-It no longer copies member reports to the officer notification channel. Existing
-operator access through `npm run bugs` is unchanged; no public inbox is added.
+On 27 October Kevin restored the optional screenshot and the officer notice,
+keeping the preview. The preview says the report also goes to the server's
+officers and shows the screenshot. Only an image hosted on Discord's own CDN is
+kept; any other file is named as not sent. After Send, the redacted text and the
+screenshot go to the server's officer channel (`notifyEmbed`, kind `officer`,
+no pings). Cancel, expiry or leaving the server posts nothing. The developer
+inbox stores the screenshot link; the image is never downloaded or inspected.
+Existing operator access through `npm run bugs` is unchanged; no public inbox is added.
 The report service requires explicit submission consent for the member path.
 
 Notification recipients are checked at preview and again at dispatch. The target
@@ -57,8 +62,9 @@ claim to sanitize every Companion log or historical file.
 - `tests/diagnostic-target.test.ts`: private recipient acceptance, changed/public
   role audience, member overwrites, missing permissions and lookup failures.
 - `tests/bug-report-consent.test.ts`: EN/FR preview, exact actor/guild/interaction,
-  cancel/expiry, membership loss, unavailable notification destination, no
-  attachments, and honest storage failure wording.
+  cancel/expiry, membership loss, unavailable notification destination, the
+  optional screenshot (Discord-hosted images only), the officer notice only
+  after Send, and honest storage failure wording.
 - `tests/report-source-context.test.ts`: confirmed-only storage, no unapproved
   destination, no send after failed storage, minimized metadata, origin and dedup.
 

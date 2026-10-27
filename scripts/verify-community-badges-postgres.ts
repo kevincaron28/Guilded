@@ -35,6 +35,10 @@ export async function verifyCommunityBadgesPostgres(database: PrismaClient) {
   }));
   assert.equal(await database.communityBadge.count({ where: { seasonId: season.id, userId: "rollback" } }), 0);
   assert.equal(await database.communityPoint.count({ where: { seasonId: season.id, userId: "rollback" } }), 0);
+  const restrictedGuild = await database.guild.create({ data: { discordId: "restricted-badge-fixture", name: "Restricted fixture" } });
+  const restricted = await database.communitySeason.create({ data: { guildId: restrictedGuild.id, game: "DISCORD", number: 3, name: "Restricted badge fixture", channelId: "public-channel", audienceRoleId: "private-role", createdBy: "officer" } });
+  await assert.rejects(configureCommunityBadges(database, restrictedGuild.id, restricted.id, "public-channel", true, "officer"), /Role-restricted/);
+  assert.equal(await database.communityBadgeConfig.findUnique({ where: { seasonId: restricted.id } }), null);
   // An old archived season keeps legacy recognition without creating posts/dates.
   const archived = await database.communitySeason.create({ data: { guildId: guild.id, game: "DISCORD", number: 2, name: "Archived badge fixture", channelId: "private-channel", audienceRoleId: "private-role", status: "ENDED", createdBy: "officer" } });
   await database.communityPoint.create({ data: { ...point("archived", 150, "AWARD", "archived"), seasonId: archived.id } });

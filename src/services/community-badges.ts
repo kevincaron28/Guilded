@@ -63,6 +63,7 @@ export async function configureCommunityBadges(database: PrismaClient, guildId: 
     await lock(tx, guildId);
     const season = await tx.communitySeason.findFirst({ where: { id: seasonId, guildId, game: "DISCORD", status: "ACTIVE" } });
     if (!season) throw new Error("Active Discord season required / Saison Discord active requise.");
+    if (enabled && season.audienceRoleId) throw new Error("Role-restricted seasons cannot announce badges / Les saisons limitées à un rôle ne peuvent pas annoncer les badges.");
     const prior = await tx.communityBadgeConfig.findUnique({ where: { seasonId } });
     if (prior?.enabled === enabled && prior.channelId === channelId) return prior;
     if (!prior) {

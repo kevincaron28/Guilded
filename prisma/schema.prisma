@@ -2252,11 +2252,12 @@ model CommunityBadge {
   // SILENT/PENDING/ATTEMPTED/SENT/UNCERTAIN/CANCELLED. Never requeue ATTEMPTED:
   // a process crash may have happened after Discord accepted the message.
   delivery String @default("SILENT")
+  nextAttemptAt DateTime @default(now())
   attemptedAt DateTime?
   messageId String?
   season CommunitySeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   @@unique([seasonId, userId, code])
-  @@index([delivery, recordedAt])
+  @@index([delivery, nextAttemptAt])
 }
 model CommunityBadgeSharing {
   seasonId String

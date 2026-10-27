@@ -36,6 +36,9 @@ character relinking. There are no new legacy-tier awards after initialization.
 
 `/organize badge-settings season:<season> enabled:<true|false> channel:<channel>`
 requires officer authority, active Discord season and equivalent channel visibility.
+Role-restricted seasons cannot enable celebrations: channel visibility alone cannot
+prove that every reader has the season role. Delivery also cancels queued posts if
+a season gains a role restriction, even when source and destination are identical.
 Configuration and ledger writes share the existing guild advisory transaction lock.
 Threshold records are unique per season/member/code; the season belongs to one guild.
 An award crossing several thresholds records all of them but queues only the highest.
@@ -52,7 +55,9 @@ ATTEMPTED. Neither state is automatically retried. This intentionally prefers a
 missing congratulations to duplicates: Discord nonce deduplication expires and
 cannot prove that a deleted message was never delivered. Investigate uncertain
 rows manually; do not reset them to PENDING or replay deleted messages. Preflight
-failures before the durable attempt leave PENDING for retry. Turning off or ending
+failures before the durable attempt leave PENDING for retry after five minutes,
+without blocking later members. A departed member or explicit access denial cancels
+that announcement permanently, retaining the earned badge. Turning off or ending
 a season cancels undelivered records. No message history scanning or backfill.
 
 For Québec Gold (`1323321076478119967`), read-only discovery confirmed

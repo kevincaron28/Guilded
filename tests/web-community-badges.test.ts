@@ -1,18 +1,18 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import type { WebContext, WebKit } from "../src/services/web-app.js";
-const state = vi.hoisted(() => ({ allowed: true, shared: false, visible: true, initialized: vi.fn() }));
+const state = vi.hoisted(() => ({ allowed: true, shared: false, visible: true, discordId: "discord", initialized: vi.fn() }));
 vi.mock("../src/services/guild-dashboard-access.js", () => ({ guildDashboardAccess: () => ({ authorize: async () => state.allowed, guilds: async () => [{ id: "guild", name: "Guild" }] }) }));
 vi.mock("../src/services/guild-scope.js", () => ({ withGuildScope: async (_db: unknown, _id: string, work: () => unknown) => work() }));
 vi.mock("../src/services/community-access.js", () => ({ communityAccess: async () => {}, accessibleCommunitySeasons: async () => state.visible ? [{ id: "season", name: "<private season>", game: "DISCORD", status: "ENDED" }] : [] }));
-vi.mock("../src/services/community-badges.js", () => ({ initializeCommunityBadgeHistory: state.initialized, communityBadgeShelf: async (_db: unknown, _season: string, viewer: string, owner: string) => viewer === owner || state.shared ? [{ code: "community-100", earnedAt: null, evidenceRef: "PRIVATE-PROOF", source: "BASELINE" }] : null }));
+vi.mock("../src/services/community-badges.js", async importOriginal => ({ ...await importOriginal<typeof import("../src/services/community-badges.js")>(), initializeCommunityBadgeHistory: state.initialized }));
 import { createWebCommunityBadges } from "../src/services/web-community-badges.js";
 
 const kit = { page: (status: number, _title: string, body: string) => ({ status, body, headers: {} }), signInPrompt: () => ({ status: 401, body: "Sign in", headers: {} }) } as WebKit;
-const db = { guild: { findUniqueOrThrow: async () => ({ discordId: "discord" }) } };
+const db = { guild: { findUniqueOrThrow: async () => ({ discordId: state.discordId }) }, communitySeason: { findUnique: async () => ({ guild: { discordId: state.discordId } }) }, communityBadgeSharing: { findUnique: async () => ({ shared: state.shared }) }, communityBadge: { findMany: async () => [{ code: "community-100", earnedAt: null, evidenceRef: "PRIVATE-PROOF", source: "BASELINE" }] } };
 const client = { guilds: { fetch: async () => ({}) } };
 const page = createWebCommunityBadges(db as never, client as never, () => true);
 const ctx = (query = "guild=guild&season=season", method = "GET") => ({ request: { path: "/me/badges", method, query: new URLSearchParams(query), headers: {} }, now: new Date(), sessionToken: null, csrf: null, form: null, auth: null, account: { id: "account", discordUserId: "owner", username: "owner", displayName: null }, lang: "en", t: (en: string) => en }) as WebContext;
-beforeEach(() => { state.allowed = true; state.shared = false; state.visible = true; state.initialized.mockClear(); });
+beforeEach(() => { state.allowed = true; state.shared = false; state.visible = true; state.discordId = "discord"; state.initialized.mockClear(); });
 it("requires login and current guild membership, and refuses mutation", async () => {
   expect((await page.route({ ...ctx(), account: null }, kit))?.status).toBe(401);
   expect((await page.route(ctx(undefined, "POST"), kit))?.status).toBe(405);
@@ -38,5 +38,21 @@ it("honors opt-in sharing and immediate withdrawal for other viewers", async () 
   state.shared = true;
   expect((await page.route(other, kit))?.status).toBe(200);
   state.shared = false;
+  expect((await page.route(other, kit))?.status).toBe(403);
+});
+it("shows Québec Gold shelves to eligible members with no opt-out or public disclosure", async () => {
+  state.discordId = "1323321076478119967";
+  const other = { ...ctx(), account: { ...ctx().account!, discordUserId: "viewer" }, request: { ...ctx().request, query: new URLSearchParams("guild=guild&season=season&player=owner") } } as WebContext;
+  for (const request of [ctx(), other]) {
+    const result = await page.route(request, kit);
+    expect(result?.status).toBe(200);
+    expect(result?.body).not.toContain("PRIVATE-PROOF");
+    expect(result?.body).not.toContain("share:true");
+  }
+  expect((await page.route(ctx(), kit))?.body).toContain("no sharing toggle");
+  expect((await page.route({ ...other, account: null }, kit))?.status).toBe(401);
+  state.allowed = false;
+  expect((await page.route(other, kit))?.status).toBe(403);
+  state.allowed = true; state.visible = false;
   expect((await page.route(other, kit))?.status).toBe(403);
 });

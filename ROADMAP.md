@@ -218,3 +218,12 @@ merge and deployment remain outside this local review pass.
 Historical feature plans are in [the roadmap archive](docs/archive/ROADMAP-history.md)
 and version handoffs. Their old version numbers and pending-test statements
 must not override the current release testing record.
+
+## Community achievements implementation — 27 October 2026
+
+The requested 100/300/500 badge shelves, silent legacy baseline, reviewed helper/event
+achievements and scoped congratulations are implemented in the badge change.
+See [implementation and rollout](docs/COMMUNITY_ACHIEVEMENTS_2026-10-27.md) for privacy,
+transaction/delivery guarantees, activation gates and the deferred max-level evidence
+requirement. This records local implementation, not live activation or game acceptance.
+Dungeon integrity and synchronization of both addons follow the badge phase.

@@ -1,3 +1,4 @@
+import { recordCommunityPoint, grantCommunityBadge } from "./community-badges.js";
 import { randomInt } from "node:crypto";
 import type { CommunityActivity, CommunitySeason, Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
@@ -32,7 +33,7 @@ export function createCommunityService(database: PrismaClient) {
   };
   const queue = (tx: Tx, row: CommunityActivity, guildId: string) => enqueueDiscordJob(tx, guildId, `community:${row.id}`, "COMMUNITY_POST", { activityId: row.id });
   const point = (tx: Tx, seasonId: string, userId: string, amount: number, kind: string, reference: string, reason: string, actorId: string) =>
-    tx.communityPoint.create({ data: { seasonId, userId, amount, kind, reference, reason, actorId } });
+    recordCommunityPoint(tx, { seasonId, userId, amount, kind, reference, reason, actorId });
   const balance = async (tx: Tx, seasonId: string, userId: string) => (await tx.communityPoint.aggregate({ where: { seasonId, userId }, _sum: { amount: true } }))._sum.amount ?? 0;
 
   return {
@@ -67,7 +68,7 @@ export function createCommunityService(database: PrismaClient) {
         const timezone = settings?.timezone ?? "America/Toronto", lang = asLang(settings?.language);
         const month = (date: Date) => { const parts = localParts(date, timezone); return parts.year * 12 + parts.month; };
         const rotated: { ended: CommunitySeason; started: CommunitySeason }[] = [];
-        for (const row of await tx.communitySeason.findMany({ where: { guildId, status: "ACTIVE", monthly: true }, include: { participation: true } })) {
+        for (const row of await tx.communitySeason.findMany({ where: { guildId, status: "ACTIVE", monthly: true }, include: { participation: true, badgeConfig: true } })) {
           if (month(row.createdAt) >= month(now)) continue;
           if (await tx.communityActivity.count({ where: { seasonId: row.id, status: "OPEN" } })
             || await tx.communityEntry.count({ where: { activity: { seasonId: row.id, kind: "CHALLENGE", status: { not: "CANCELLED" } }, status: "PENDING" } })
@@ -77,6 +78,7 @@ export function createCommunityService(database: PrismaClient) {
           const counter = await tx.communitySeasonCounter.upsert({ where: { guildId_game: { guildId, game: row.game } }, create: { guildId, game: row.game, nextNumber: 2 }, update: { nextNumber: { increment: 1 } } });
           const started = await tx.communitySeason.create({ data: { guildId, name: communityMonthName(now, timezone, lang), number: counter.nextNumber - 1, game: row.game, channelId: row.channelId,
             announcementChannelId: row.announcementChannelId, audienceRoleId: row.audienceRoleId, monthly: true, createdBy: "Guilded" } });
+          if (row.badgeConfig) await tx.communityBadgeConfig.create({ data: { seasonId: started.id, enabled: row.badgeConfig.enabled, channelId: row.badgeConfig.channelId, baselineAt: now } });
           if (row.participation) await tx.communityParticipationConfig.create({ data: { seasonId: started.id, enabled: row.participation.enabled, rules: json(row.participation.rules) } });
           const text = lang === "fr"
             ? `🏁 **${communitySeasonLabel(ended, lang)}** est terminée : le classement final est archivé.
@@ -202,6 +204,8 @@ export function createCommunityService(database: PrismaClient) {
         const rules = eventRules.parse(row.rules);
         if (rules.points) await point(tx, row.seasonId, userId, rules.points, "AWARD", `attendance:${id}:${userId}`, row.title, actorId);
         const updated = await tx.communityEntry.update({ where: { id: entry.id }, data: { status: "PRESENT", reviewedBy: actorId } });
+        await grantCommunityBadge(tx, row.seasonId, userId, "attendee", entry.id, now);
+        if (row.createdBy !== userId) await grantCommunityBadge(tx, row.seasonId, row.createdBy, "organizer", entry.id, now);
         await queue(tx, row, guildId);
         return updated;
       });

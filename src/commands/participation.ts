@@ -1,3 +1,4 @@
+import { COMMUNITY_MILESTONE_LABEL } from "../services/community-badge-rules.js";
 import { ChannelType, PermissionFlagsBits, SlashCommandBuilder, type ChatInputCommandInteraction, type SlashCommandSubcommandBuilder, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { config } from "../config.js";
@@ -87,7 +88,7 @@ export async function executeParticipation(interaction: ChatInputCommandInteract
     content = `🏅 **${communitySeasonLabel(season, lang)}** · ${season.status}\n${T("Earning", "Gains")} : ${season.status === "ACTIVE" && season.participation?.enabled ? T("enabled", "activés") : T("paused", "en pause")}\n` +
       `${T("Today", "Aujourd'hui")} : ${summary.today?.messages ?? 0}/${rules.messageDailyCap} ${T("message points", "points de messages")} · ${summary.today?.reactions ?? 0}/${rules.reactionDailyCap} ${T("reaction points", "points de réactions")}\n` +
       `${T("Voice", "Vocal")} : ${Math.floor((summary.today?.voiceMs ?? 0) / 60_000)}/${rules.voiceDailyMinutes} min · ${summary.today?.voicePoints ?? 0} points · ${rules.voiceBlockPoints} pts / 15 min\n` +
-      `${T("Season score", "Score de saison")} : ${summary.points} · ${T("Milestone", "Palier")} : ${participationBadge(summary.points)} (50 / 150 / 300)\n` +
+      `${T("Season score", "Score de saison")} : ${summary.points} · ${T("Milestone", "Palier")} : ${participationBadge(summary.points)} (${COMMUNITY_MILESTONE_LABEL})\n` +
       `${T("Weekly guild goal", "Objectif hebdomadaire de guilde")} : ${summary.participants}/${rules.weeklyGoal} ${T("different members", "membres différents")} ${summary.participants >= rules.weeklyGoal ? "🎉" : ""}\n` +
       `${T("Weekly helpers", "Entraide de la semaine")} : ${summary.helpers.map(([id, points]) => `<@${id}> (${points})`).join(", ") || "—"}\n` +
       T("Voice measures shared connected time, not proof of speaking. Use /community wallet and leaderboard for this season. Badges grant no permissions.", "Le vocal mesure le temps connecté ensemble, sans prouver une conversation. /community wallet et leaderboard affichent cette saison. Les badges ne donnent aucune permission.");

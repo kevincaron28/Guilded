@@ -1,3 +1,4 @@
+import { createWebCommunityBadges } from "./services/web-community-badges.js";
 import { guildWhere, loadGuildScope, runInGuildScope, withGuildScope } from "./services/guild-scope.js";
 import { hostedPilot } from "./hosted-pilot.js";
 import { GameEditionError, gameEditionOf } from "./services/game-edition.js";
@@ -227,8 +228,9 @@ export function createSiteApp(client?: Client) {
     issueGuild: (account, guildDiscordId, wowGuildId) => signInGuildCredential(client, account, guildDiscordId, wowGuildId),
     issuePersonal: async (accountId) => (await issuePersonalCredential(personalStore, accountId)).companionCredential
   });
-  const routes: WebRoute[] = [signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, leaderboards.route, profiles.route];
-  const meSections = [profiles.meSection, availability.meSection, roster.meSection, guildTools.meSection, leaderboards.meSection];
+  const badges = createWebCommunityBadges(prisma, client, id => hostedPilot.allows(id));
+  const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, leaderboards.route, profiles.route];
+  const meSections = [badges.meSection, profiles.meSection, availability.meSection, roster.meSection, guildTools.meSection, leaderboards.meSection];
   return createWebApp({
     publicRaids: now => publicRaids(prisma, hostedPilot.allows, now),
     store: prismaWebStore(prisma), auth: webAuthConfig(config), allows: (id) => hostedPilot.allows(id), routes, meSections,

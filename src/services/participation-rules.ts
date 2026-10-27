@@ -1,3 +1,4 @@
+import { reachedMilestones } from "./community-badge-rules.js";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { localParts, zonedTime } from "./raid-time.js";
@@ -70,5 +71,5 @@ export function voiceSegments(start: Date, end: Date, timezone: string): { day: 
 }
 
 export function participationBadge(points: number): string {
-  return points >= 300 ? "🏅 300" : points >= 150 ? "🥈 150" : points >= 50 ? "🥉 50" : "—";
+  return reachedMilestones(points).at(-1)?.toString() ?? "—";
 }

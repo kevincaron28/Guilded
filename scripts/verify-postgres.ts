@@ -1,3 +1,4 @@
+import { verifyCommunityBadgesPostgres, verifyCommunityBadgesRestored } from "./verify-community-badges-postgres.js";
 import { guildWhere } from "../src/services/guild-scope.js";
 import { verifyGameEventsPostgres, verifyGameEventsRestored } from "./verify-game-events-postgres.js";
 import { verifyRosterGapsPostgres, verifyRosterGapsRestored } from "./verify-roster-gaps-postgres.js";
@@ -38,6 +39,7 @@ const database = createPrismaClient();
 try {
   if (!process.argv.includes("--restored")) await verifyAiBudgetPostgres(database);
   if (process.argv.includes("--restored")) {
+    await verifyCommunityBadgesRestored(database);
     await verifyGameEditionsRestored(database);
     await verifyGameEventsRestored(database);
     await verifyRosterGapsRestored(database);
@@ -98,6 +100,7 @@ try {
     await verifyGameEventsPostgres(database, guild.id);
     await verifyRosterGapsPostgres(database);
     await verifyScheduledEventsPostgres(database, guild.id);
+    await verifyCommunityBadgesPostgres(database);
     await verifyCommunityPostgres(database, guild.id);
     await verifyParticipationPostgres(database, guild.id);
     await verifyMonthlyRookiePostgres(database);

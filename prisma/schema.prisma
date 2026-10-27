@@ -246,6 +246,9 @@ model CommunitySeason {
   participation  CommunityParticipationConfig?
   participationDays CommunityParticipationDay[]
   participationDeletions CommunityParticipationDeletion[]
+  badgeConfig    CommunityBadgeConfig?
+  badges         CommunityBadge[]
+  badgeSharing   CommunityBadgeSharing[]
   kudos          CommunityKudos[]
   @@index([guildId, game, status])
   @@unique([guildId, game, number])
@@ -2226,4 +2229,40 @@ model WebAvailability {
   character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
   @@index([guildId, gameEdition, expiresAt])
   @@index([expiresAt])
+}
+
+// Cosmetic achievements: no roles, points or loot advantage. Null earnedAt means
+// historical evidence exists but the old display never recorded an award date.
+model CommunityBadgeConfig {
+  seasonId String @id
+  enabled Boolean @default(false)
+  channelId String
+  baselineAt DateTime @default(now())
+  season CommunitySeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+}
+model CommunityBadge {
+  id String @id @default(cuid())
+  seasonId String
+  userId String
+  code String
+  earnedAt DateTime?
+  recordedAt DateTime @default(now())
+  source String
+  evidenceRef String?
+  // SILENT/PENDING/ATTEMPTED/SENT/UNCERTAIN/CANCELLED. Never requeue ATTEMPTED:
+  // a process crash may have happened after Discord accepted the message.
+  delivery String @default("SILENT")
+  nextAttemptAt DateTime @default(now())
+  attemptedAt DateTime?
+  messageId String?
+  season CommunitySeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  @@unique([seasonId, userId, code])
+  @@index([delivery, nextAttemptAt])
+}
+model CommunityBadgeSharing {
+  seasonId String
+  userId String
+  shared Boolean @default(false)
+  season CommunitySeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  @@id([seasonId, userId])
 }

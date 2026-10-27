@@ -1,4 +1,5 @@
 import { dungeonRole } from "../../companion/dungeon-role.mjs";
+import { integrityRole, readDungeonIntegrity, readPlayerIntegrity } from "./dungeon-integrity.js";
 import { characterKey } from "../../companion/character-identity.mjs";
 import { readChallenge } from "./challenge-evidence.js";
 import { rankChallenges, challengeClock } from "./challenge-leaderboard.js";
@@ -32,7 +33,7 @@ import { GAME_EDITIONS } from "../../companion/game-edition.mjs";
 // cut off by a row limit. Character pages add the best next improvement and role scores
 // (public-guidance.ts).
 
-export interface LeaderPlayer { character: string; displayName?: string | null; realm: string; className: string | null; role: string | null; level: number | null; minLevel?: number | null; presentSec?: number | null }
+export interface LeaderPlayer { character: string; displayName?: string | null; realm: string; className: string | null; role: string | null; level: number | null; minLevel?: number | null; presentSec?: number | null; integrity?: unknown }
 export interface LeaderRun extends ScoreRun {
   deaths: number | null; bracket: string | null; season: string; players: LeaderPlayer[];
 }
@@ -90,7 +91,16 @@ const UNRANKED_FR: Record<string, string> = {
   "Overlevel carry": "Groupe de trop haut niveau",
   "Below level range": "Sous les niveaux du parcours",
   "Presence under 80%": "Présence sous 80 %",
-  "Current evidence required by this season": "Preuves actuelles requises pour cette saison"
+  "Current evidence required by this season": "Preuves actuelles requises pour cette saison",
+  "Observed start provenance required": "Origine du début observé requise",
+  "Observed first-combat start required": "Début au premier combat observé requis",
+  "Native completion checkpoints required": "Boss de fin requis non observés par les événements du jeu",
+  "Known in-instance presence under 80%": "Présence observée dans le donjon sous 80 %",
+  "Run crosses season boundary": "Essai à cheval sur deux saisons",
+  "Season upload grace expired": "Délai d'envoi de la saison expiré",
+  "Run observation interrupted": "Observation de l'essai interrompue",
+  "Official season window unavailable": "Période officielle de la saison indisponible",
+  "Current-v2 evidence required": "Observations de la version actuelle requises"
 };
 export function unrankedText(ctx: Pick<WebContext, "t">, reason: string | undefined): string {
   const text = reason ?? "Not rated";
@@ -122,10 +132,10 @@ export function filterPeriod(filters: Pick<LeaderFilters, "season" | "week">, no
 }
 
 type PlayerFilters = Pick<LeaderFilters, "className" | "role" | "confirmed"> & { realm?: string | null };
-const keepPlayer = (filters: PlayerFilters) => (player: LeaderPlayer, run: ScoreRun) =>
+const keepPlayer = (filters: PlayerFilters, rules?: BracketedRules) => (player: LeaderPlayer, run: ScoreRun) =>
   (!filters.confirmed || run.confirmations >= 2)
   && (!filters.className || player.className?.toLowerCase() === filters.className.toLowerCase())
-  && (!filters.role || dungeonRole(player.role) === dungeonRole(filters.role))
+  && (!filters.role || (rules?.evidencePolicy === "current-v2" ? integrityRole(player.integrity) : dungeonRole(player.role)) === dungeonRole(filters.role))
   && (!filters.realm || player.realm.toLowerCase() === filters.realm.toLowerCase());
 
 export interface RankedEntry { player: LeaderPlayer; run: LeaderRun }
@@ -133,11 +143,11 @@ export interface RankedEntry { player: LeaderPlayer; run: LeaderRun }
 // Best run per character (name + realm), fastest first; an earlier finish wins a tie.
 export function rankCharacters(runs: LeaderRun[], filters: PlayerFilters, limit = 100, rules?: BracketedRules): RankedEntry[] {
   const best = new Map<string, RankedEntry>();
-  const keep = keepPlayer(filters);
+  const keep = keepPlayer(filters, rules);
   for (const run of runs) {
     if (run.gameEdition === "retail" && run.difficultyId === 8) continue;
     for (const player of run.players) {
-      if (!keep(player, run) || rules?.evidencePolicy === "current-v1" && !rateRun(run, rules, player).score) continue;
+      if (!keep(player, run) || rules?.evidencePolicy && !rateRun(run, rules, player).score) continue;
       const id = characterId(player);
       const current = best.get(id);
       if (!current || run.durationSec < current.run.durationSec || (run.durationSec === current.run.durationSec && run.endedAt < current.run.endedAt)) best.set(id, { player, run });
@@ -163,12 +173,15 @@ const classSlug = (name: string | null) => (name ?? "").toLowerCase().replace(/[
 
 // What the pages read of a public run, evidence included (player-profiles.ts reads the same).
 export const PUBLIC_RUN_SELECT = { id: true, challenge: true, gameEdition: true, instanceId: true, routeKey: true, difficultyId: true, dungeonName: true, durationSec: true, startedAt: true, endedAt: true, deaths: true, bracket: true, season: true,
-  confirmations: true, evidenceVersion: true, completedBy: true, encounters: true,
+  confirmations: true, evidenceVersion: true, completedBy: true, encounters: true, integrity: true, evidenceReceivedAt: true,
   players: { select: { character: true, displayName: true, realm: true, className: true, role: true, level: true, minLevel: true, presentSec: true } } } as const satisfies Prisma.PublicRunSelect;
 type PublicRunRow = Prisma.PublicRunGetPayload<{ select: typeof PUBLIC_RUN_SELECT }>;
-export function leaderRun({ id, startedAt, evidenceVersion, completedBy, encounters, challenge, ...row }: PublicRunRow): LeaderRun {
+export function leaderRun({ id, startedAt, evidenceVersion, completedBy, encounters, challenge, integrity, evidenceReceivedAt, ...row }: PublicRunRow): LeaderRun {
   const native = readChallenge(challenge);
-  return { runId: id, ...row, ...(native ? { challenge: native } : {}), evidence: evidenceVersion >= 1 ? { startedAt, completedBy, encounters: Array.isArray(encounters) ? encounters : [] } : null };
+  const data = integrity as { run?: unknown; players?: { character: string; realm: string; observation?: unknown }[] } | null;
+  const observation = evidenceVersion >= 2 ? readDungeonIntegrity(data?.run) : null;
+  const players = row.players.map(p => ({ ...p, ...(observation ? { integrity: readPlayerIntegrity(data?.players?.find(q => characterId(q) === characterId(p))?.observation) } : {}) }));
+  return { runId: id, ...row, players, ...(native ? { challenge: native } : {}), evidence: evidenceVersion >= 1 ? { startedAt, completedBy, encounters: Array.isArray(encounters) ? encounters : [], ...(observation ? { integrity: observation, receivedAt: evidenceReceivedAt } : {}) } : null };
 }
 const newestFirst = (a: LeaderRun, b: LeaderRun) => b.endedAt.getTime() - a.endedAt.getTime();
 
@@ -290,8 +303,9 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
 
   function topRuns(ctx: WebContext, runs: LeaderRun[], filters: LeaderFilters, rules: BracketedRules, limit = 10): string {
     const { t } = ctx;
-    const keep = keepPlayer(filters);
-    const rated = runs.flatMap((run) => { const s = rateRun(run, rules).score; return s && (!filters.bracket || s.bracket === filters.bracket) && run.players.some((p) => keep(p, run)) ? [{ run, s }] : []; })
+    const keep = keepPlayer(filters, rules);
+    const rated = runs.flatMap((run) => { const s = rateRun(run, rules).score; return s && (!filters.bracket || s.bracket === filters.bracket)
+      && run.players.some((p) => keep(p, run) && (rules.evidencePolicy !== "current-v2" || rateRun(run, rules, p).score)) ? [{ run, s }] : []; })
       .sort((a, b) => b.s.points - a.s.points || a.run.durationSec - b.run.durationSec).slice(0, limit);
     if (!rated.length) return `<p class="muted">${t("No rated run this week yet.", "Aucun essai classé cette semaine.")}</p>`;
     return table([t("Dungeon", "Donjon"), t("Levels", "Niveaux"), t("Time", "Temps"), t("Score", "Score"), t("Party", "Groupe"), ""],
@@ -365,8 +379,9 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     : `<p class="eyebrow">Guilded · ${escapeHtml(periodName(ctx, period))}</p><h1>${ctx.t("Dungeon leaderboards", "Classements des donjons")}</h1>`
     + `<p class="muted">${ctx.t("Team-clear scores and times from Guilded and Guilded Dungeons. Current evidence requires detected final-boss completion and at least 80% recorded presence per credited player. Presence is an observer report, not proof of individual contribution. Round(200 × target ÷ time), clamp to 50–400 before the level penalty, then round again: 50 becomes 35 with a 30% penalty. Ranked runs stay in the route's bracket, including allowed overlevel players. Best distinct routes count; targets remain provisional.",
       "Scores et temps d'équipe de Guilded et Guilded Dungeons. Les preuves actuelles exigent le boss final détecté et au moins 80 % de présence enregistrée par joueur crédité. Cette présence est une observation, pas une preuve de contribution individuelle. Arrondi(200 × cible ÷ temps), limité à 50–400 avant pénalité de niveau, puis nouvel arrondi : 50 devient 35 avec 30 % de pénalité. Les essais classés restent dans la tranche du parcours, même avec un dépassement de niveau autorisé. Les meilleurs parcours distincts comptent; les cibles restent provisoires.")}`
-    + (periodRules(period).evidencePolicy === "current-v1" ? ` ${ctx.t("This season requires current stored evidence; legacy records remain visible without competitive credit.", "Cette saison exige les preuves actuelles enregistrées; les anciens essais restent visibles sans crédit compétitif.")}`
+    + (periodRules(period).evidencePolicy ? ` ${ctx.t("This season requires current stored evidence; legacy records remain visible without competitive credit.", "Cette saison exige les preuves actuelles enregistrées; les anciens essais restent visibles sans crédit compétitif.")}`
       : ` ${ctx.t("Compatibility history retains its original evidence rules; it is not current-evidence official scoring.", "L'historique compatible conserve ses règles de preuve originales; ce n'est pas le classement officiel avec preuves actuelles.")}`)
+    + (periodRules(period).evidencePolicy === "current-v2" ? ` ${ctx.t("Native boss events are the foundation. Coverage follows this season's catalog; provisional final-boss routes do not prove a full untouched instance. Freshness remains unknown. Participation uses sourced observation intervals, with mixed roles counted overall only.", "Les événements de boss du jeu sont la base. La couverture suit le catalogue de cette saison; les parcours provisoires au boss final ne prouvent pas une instance complète et intacte. L'état initial reste inconnu. La participation utilise des intervalles d'observation avec leur source; les rôles mixtes comptent seulement au total.")}` : "")
     + (period.frozenAt ? ` ${ctx.t(`This season's rules were frozen on ${date(period.frozenAt)}.`, `Les règles de cette saison sont figées depuis le ${date(period.frozenAt)}.`)}` : "") + `</p>`;
   const tabs = (ctx: WebContext, filters: LeaderFilters) => `<nav class="tabs">`
     + `<a class="${filters.week ? "" : "on"}" href="${link("/leaderboards/", ctx.lang, { season: filters.season, bracket: filters.bracket })}">${ctx.t("Season", "Saison")}</a>`
@@ -412,7 +427,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const periodResults = await periodRuns(period);
     const all = periodResults.filter(run => !(run.gameEdition === "retail" && run.difficultyId === 8));
     const activeRules = periodRules(period);
-    const dungeons = dungeonSummaries(activeRules.evidencePolicy === "current-v1" ? all.filter(run => rateRun(run, activeRules).score) : all);
+    const dungeons = dungeonSummaries(activeRules.evidencePolicy ? all.filter(run => rateRun(run, activeRules).score) : all);
     const filterDungeons = [...dungeons];
     for (const run of periodResults) if (!filterDungeons.some(d => d.instanceId === run.instanceId)) {
       filterDungeons.push({ instanceId: run.instanceId, dungeonName: run.dungeonName, bestSec: run.durationSec, runs: 1 });
@@ -431,7 +446,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     } else {
       const weekPeriod = filterPeriod({ season: filters.season, week: true }, now(), periods);
       const week = filters.week ? all : await periodRuns(weekPeriod);
-      const scores = characterScores(all, periodRules(period), keepPlayer(filters));
+      const scores = characterScores(all, periodRules(period), keepPlayer(filters, periodRules(period)));
       const brackets = periodRules(period).brackets.filter((b) => !filters.bracket || b.key === filters.bracket);
       const ranks = await guildRanks(period);
       body = `<h2>${t("Top runs this week", "Meilleurs essais de la semaine")}</h2>${topRuns(ctx, week, filters, periodRules(weekPeriod))}`

@@ -49,18 +49,20 @@ export function qualifiedAchievements(facts: RunFacts, distinctDungeons: number,
   return keys;
 }
 
-type Tx = Pick<Prisma.TransactionClient, "dungeonAchievement" | "dungeonRun">;
+type Tx = Pick<Prisma.TransactionClient, "dungeonAchievement" | "dungeonRun" | "auditLog">;
 
 // Grants what each linked player newly earned with a stored run.
 export async function grantRunAchievements(
   tx: Tx, guildId: string, run: { id: string; seasonId: string | null },
-  players: { memberId: string; character: string }[], facts: RunFacts, dungeonMasterCount: number
+  players: { memberId: string; character: string }[], facts: RunFacts, dungeonMasterCount: number,
+  actorId: string, now: Date
 ): Promise<{ character: string; key: AchievementKey }[]> {
   if (players.length === 0) return [];
   const existing = await tx.dungeonAchievement.findMany({
-    where: { guildId, memberId: { in: players.map((player) => player.memberId) } }, select: { memberId: true, key: true }
+    where: { guildId, memberId: { in: players.map((player) => player.memberId) } },
+    select: { id: true, memberId: true, key: true, runId: true, seasonId: true, earnedAt: true, revokedAt: true }
   });
-  const has = new Set(existing.map((row) => `${row.memberId}|${row.key}`));
+  const has = new Set(existing.filter(row => !row.revokedAt).map((row) => `${row.memberId}|${row.key}`));
   const granted: { character: string; key: AchievementKey }[] = [];
   for (const player of players) {
     const dungeons = await tx.dungeonRun.findMany({
@@ -71,6 +73,20 @@ export async function grantRunAchievements(
     for (const key of qualifiedAchievements(facts, distinct, dungeonMasterCount)) {
       if (has.has(`${player.memberId}|${key}`)) continue;
       has.add(`${player.memberId}|${key}`);
+      const revoked = existing.find(row => row.memberId === player.memberId && row.key === key && row.revokedAt);
+      if (revoked) {
+        // The importer holds the guild lock. The predicate also prevents a
+        // repeated/concurrent grant from reactivating or auditing twice.
+        const restored = await tx.dungeonAchievement.updateMany({ where: { id: revoked.id, revokedAt: { not: null } },
+          data: { runId: run.id, seasonId: run.seasonId, earnedAt: now, revokedAt: null } });
+        if (!restored.count) continue;
+        await tx.auditLog.create({ data: { guildId, actorId, action: "DUNGEON_ADMIN", entityId: revoked.id,
+          metadata: { area: "dungeon-achievement-reactivation", memberId: player.memberId, key,
+            before: { runId: revoked.runId, seasonId: revoked.seasonId, earnedAt: revoked.earnedAt.toISOString(), revokedAt: revoked.revokedAt!.toISOString() },
+            after: { runId: run.id, seasonId: run.seasonId, earnedAt: now.toISOString(), revokedAt: null } } } });
+        granted.push({ character: player.character, key });
+        continue;
+      }
       await tx.dungeonAchievement.create({ data: { guildId, memberId: player.memberId, key, runId: run.id, seasonId: run.seasonId } });
       granted.push({ character: player.character, key });
     }

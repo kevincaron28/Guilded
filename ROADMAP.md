@@ -6,9 +6,10 @@
 
 # Guilded roadmap
 
-## Current stage — 26 October 2026
+## Current stage — 27 October 2026
 
-Guilded **7.5.0 Release** (protocol 2), combining the release-gap bundle and Claude’s raid/interaction fixes.
+Guilded **7.5.1 Release** (protocol 2): loot rules follow the original EPGP/soft-reserve rules, guild directory and player search, and Codex's dungeon evidence work (Season 1 stays on current-v1).
+Previous: 7.5.0, combining the release-gap bundle and Claude’s raid/interaction fixes.
 Combined CI, backups, deployment and publication gates passed. Microsoft Store certification remains pending.
 Real-client checks remain post-release follow-up; see [the release decision](docs/RELEASE_DECISION_2026-10-25.md).
 Current gates and completed operational checks: [launch readiness](docs/LAUNCH_READINESS_2026-10-24.md).

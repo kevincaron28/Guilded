@@ -25,8 +25,7 @@ What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 - **Plan a quick installation:** use the [30-minute setup checklist](docs/QUICK_START.md), including what must be ready first.
 - **Want an AI to guide you:** copy a [setup or troubleshooting prompt](docs/AI_SETUP_HELP.md).
 
-**Current version: 7.5.0 release candidate** (26 October 2026, protocol 2).
-Public downloads remain 7.4.0 until the 7.5.0 release gates pass.
+**Current version: 7.5.1 Release** (27 October 2026, protocol 2). [Release notes](docs/V7_5_1_RELEASE_NOTES.md).
 Supports Forever, Classic Era/Hardcore, TBC Anniversary, Mists Classic and Retail
 across the addon, Discord bot and companion, including several guilds in one Discord.
 Use the edition-specific ZIP from [GitHub Releases](https://github.com/kevincaron28/Guilded/releases/latest).

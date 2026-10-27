@@ -1,5 +1,6 @@
 import { verifyCommunityBadgesPostgres, verifyCommunityBadgesRestored } from "./verify-community-badges-postgres.js";
 import { verifyDungeonContractPostgres } from "./verify-dungeon-contract-postgres.js";
+import { verifyDungeonObservedPostgres } from "./verify-dungeon-observed-postgres.js";
 import { guildWhere } from "../src/services/guild-scope.js";
 import { verifyGameEventsPostgres, verifyGameEventsRestored } from "./verify-game-events-postgres.js";
 import { verifyRosterGapsPostgres, verifyRosterGapsRestored } from "./verify-roster-gaps-postgres.js";
@@ -105,6 +106,7 @@ try {
     await verifyScheduledEventsPostgres(database, guild.id);
     await verifyCommunityBadgesPostgres(database);
     await verifyDungeonContractPostgres(database);
+    await verifyDungeonObservedPostgres(database);
     await verifyCommunityPostgres(database, guild.id);
     await verifyParticipationPostgres(database, guild.id);
     await verifyMonthlyRookiePostgres(database);

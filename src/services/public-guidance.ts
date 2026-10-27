@@ -1,4 +1,5 @@
 import { dungeonRole } from "../../companion/dungeon-role.mjs";
+import { integrityRole } from "./dungeon-integrity.js";
 import { bracketForLevel, routeTargetAt, type BracketedRules } from "./dungeon-november-rules.js";
 import { penalized, timeRating, type LevelBand } from "./dungeon-rating.js";
 import { characterId, characterScores, rateRun, type ScorePlayer, type ScoreRow, type ScoreRun } from "./public-score.js";
@@ -146,7 +147,7 @@ export interface RoleScores { role: Role; rows: ScoreRow[] }
 /** Each role's season scores from the runs `me` played in that role only; runs with no known role are only counted. */
 export function roleScores(runs: ScoreRun[], rules: BracketedRules, me: ScorePlayer): { roles: RoleScores[]; unknownRuns: number } {
   const id = characterId(me);
-  const roleOf = (player: ScorePlayer) => dungeonRole(player.role);
+  const roleOf = (player: ScorePlayer) => rules.evidencePolicy === "current-v2" ? integrityRole(player.integrity) : dungeonRole(player.role);
   const roles = ROLES.map((role) => ({ role, rows: characterScores(runs, rules, (player) => characterId(player) === id && roleOf(player) === role) }));
   const unknownRuns = runs.filter((run) => {
     const player = run.players.find((p) => characterId(p) === id);

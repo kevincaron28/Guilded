@@ -58,6 +58,38 @@ export async function verifyDungeonResidualPostgres(db:PrismaClient,seed:Dungeon
     assert.equal(await db.auditLog.count({where:{guildId:guild.id}}),audits,"unchanged fallback does not create audit churn");
   }
 
+  {
+    const guild=await db.guild.create({data:{discordId:"release-test-reactivation-v1",name:"Reactivation fixture"}});
+    const member=await db.member.create({data:{guildId:guild.id,discordUserId:"Peer",displayName:"Peer"}});
+    const chars=[{name:"Peer",realm:"TestRealm",memberId:member.id}];
+    const season=await db.dungeonSeason.create({data:{guildId:guild.id,name:"V2 revoke",startsAt:from,endsAt:new Date(to.getTime()+86400000),ratingRules:rules as unknown as Prisma.InputJsonValue}});
+    const a=structuredClone(seed);a.id="v2-before-v1";
+    for(const p of a.players) {p.presentSec=1200;p.integrity={knownSec:1200,unknownSec:0,knownIntervals:[[a.startedAt!,a.endedAt!]],lockedRole:"DPS",mixedRole:false};}
+    const low=structuredClone(a);low.integrity!.observer="Peer";
+    for(const p of low.players) {p.presentSec=600;p.integrity={knownSec:600,unknownSec:600,knownIntervals:[[a.startedAt!,a.startedAt!+600]],lockedRole:"DPS",mixedRole:false};}
+    const send=(run:DungeonRunInput)=>db.$transaction(tx=>importDungeonRuns(tx,guild.id,[run],chars,"release-test",null,new Date(run.endedAt!*1000+1)),{timeout:15000});
+    await send(a);await send(low);
+    const revoked=await db.dungeonAchievement.findUniqueOrThrow({where:{guildId_memberId_key:{guildId:guild.id,memberId:member.id,key:"firstBlood"}}});
+    assert.ok(revoked.revokedAt);
+    // Fixture-only next season: exercise the actual v1 importer, not the v2 reconciler.
+    await db.dungeonSeason.update({where:{id:season.id},data:{status:"ENDED"}});
+    const later=structuredClone(a);later.id="v1-after-v2-revoke";later.startedAt!+=3600;later.endedAt!+=3600;
+    delete later.integrity;for(const p of later.players) delete p.integrity;
+    const next=await db.dungeonSeason.create({data:{guildId:guild.id,name:"V1 reactivation",startsAt:new Date((later.startedAt!-1)*1000),ratingRules:{...rules,evidencePolicy:"current-v1"} as unknown as Prisma.InputJsonValue}});
+    await Promise.all([send(later),send(later)]);
+    const restored=await db.dungeonAchievement.findUniqueOrThrow({where:{id:revoked.id}});
+    assert.equal(restored.revokedAt,null);assert.equal(restored.seasonId,next.id);
+    const source=await db.dungeonRun.findUniqueOrThrow({where:{id:restored.runId!}});assert.equal(source.runRef,later.id);
+    const audits=await db.auditLog.findMany({where:{entityId:restored.id}});
+    assert.equal(audits.filter(row=>(row.metadata as {area?:string}).area==="dungeon-achievement-reactivation").length,1);
+    const points=await db.dungeonPointTransaction.count({where:{guildId:guild.id}});
+    await send(later);
+    assert.equal(await db.dungeonAchievement.count({where:{guildId:guild.id,memberId:member.id,key:"firstBlood"}}),1);
+    assert.equal(await db.auditLog.count({where:{entityId:restored.id}}),audits.length);
+    assert.equal(await db.dungeonPointTransaction.count({where:{guildId:guild.id}}),points);
+    console.log("V2 revocation -> eligible v1 completion: same achievement ID, one audited reactivation, concurrent/repeated imports idempotent.");
+  }
+
   let clock=new Date(seed.endedAt!*1000);
   const store=prismaPublicRunStore(db,()=>clock),a={...structuredClone(seed),id:"public-late-revision-retention"};
   await ingestPublicRuns(store,{uploaderKey:"retention-A",character:"Tester",source:"personal",runs:[a]},clock);

@@ -317,7 +317,7 @@ export async function importDungeonRuns(
         fullGuildGroup,
         underTarget: target !== undefined && durationSec <= target,
         deathless: run.players.every((player) => player.deaths === 0)
-      }, config.dungeonMasterCount);
+      }, config.dungeonMasterCount, appliedBy, now);
       const awards = (bestEight ? computeWeeklyVarietyPoints : computeRunPoints)({
         instanceId: run.instanceId,
         dungeonKey,

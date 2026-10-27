@@ -168,3 +168,15 @@ with mocked game APIs, not a real game session. Diagnostics work is held separat
 and no broader error/report collection is enabled. Reconciliation currently reads
 the guild's valid run history; larger-history performance should be measured
 before expanding beyond the currently empty launch baseline.
+
+### Cross-policy achievement reactivation follow-up
+
+The shared `grantRunAchievements` path now reactivates a revoked achievement
+when a genuinely eligible current-v1 completion qualifies. It updates the same
+row using an atomic revoked-state predicate, records the previous/new source in
+AuditLog, and returns a new grant only for the successful transition. It does not
+filter-and-create a duplicate or rewrite an active historical award.
+The disposable PostgreSQL regression imports a real v2 evidence downgrade,
+then two concurrent imports of an eligible v1 completion and a retry. The original
+achievement ID becomes visible, points are not duplicated, and exactly one
+reactivation audit is written. This follow-up remains local and requires rereview.

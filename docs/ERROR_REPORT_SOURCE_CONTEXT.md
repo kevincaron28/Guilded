@@ -7,7 +7,7 @@ to the failing handler, in the existing ErrorReport context field.
 
 | Failure path | Available context |
 | --- | --- |
-| Confirmed `/report bug` | Previewed sanitized text, reporter ID, source guild/channel and fixed command path. No attachment or conversation capture. |
+| Confirmed `/report bug` | Previewed sanitized text, reporter ID, source guild/channel, fixed command path and the optional previewed screenshot link (Discord CDN only). No conversation capture. |
 | Failed slash command, button, select or modal | Source guild/channel and handler label. Automatic reports omit reporter and message IDs. |
 | Answer-channel or participation message/reaction handler | Source guild/channel IDs already on the event; no message-body lookup or message link. |
 | Scheduled-event reconciliation, raid signup repair, character display refresh | The guild currently being processed and a fixed operation label, even if its first database lookup fails. No channel is guessed for a guild-wide operation. |
@@ -32,8 +32,9 @@ collection. It persists only the IDs and fixed operation labels already being
 processed. Automatic errors keep class, approved error code, fingerprint and up
 to twelve basename/line stack frames, not arbitrary exception text or objects.
 Console error/warning strings become fingerprints; raw objects are omitted.
-Member reports require a private preview and Send confirmation. The duplicate
-officer-channel forwarding and screenshot input have been removed. Existing
+Member reports require a private preview and Send confirmation. The optional
+screenshot and the officer-channel notice were restored on 27 October; both are
+shown in the preview and sent only after Send. Existing
 historical reports and retention policy are unchanged; this is not a retroactive
 redaction or deletion of old rows. See
 [privacy and client acceptance](DIAGNOSTIC_PRIVACY_AND_CLIENT_ACCEPTANCE.md).

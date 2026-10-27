@@ -3,7 +3,7 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { readFileSync } from "node:fs";
 import { config } from "../config.js";
 import { ScopedReportError, encodeReportOrigin, reportSourceLink, type ReportOrigin } from "./report-context.js";
-import { automaticDiagnostic, approvedDiagnosticFields, redactDiagnosticText } from "./diagnostic-privacy.js";
+import { automaticDiagnostic, approvedDiagnosticFields, discordAttachmentUrl, redactDiagnosticText } from "./diagnostic-privacy.js";
 import { diagnosticTarget } from "./diagnostic-target.js";
 
 const BOT_VERSION = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version as string;
@@ -34,6 +34,8 @@ export interface ErrorReportContext extends ReportOrigin {
   consented?: boolean;
   diagnostics?: unknown;
   notificationChannelId?: string | null;
+  // A confirmed /report bug may carry the member's previewed screenshot (Discord CDN only).
+  screenshotUrl?: string | null;
 }
 
 // De-dupes identical failures (e.g. a background job failing the same way
@@ -67,11 +69,13 @@ export function createErrorReportService(prisma: PrismaClient) {
       const detail=bug ? {message:redactDiagnosticText(typeof error==="string"?error:"[non-text report omitted]"),stack:null} : automaticDiagnostic(error);
       const {message,stack}=detail;
       const diagnostics=approvedDiagnosticFields(context.diagnostics);
+      const screenshot=bug ? discordAttachmentUrl(context.screenshotUrl) : null;
       context={...context,source:redactDiagnosticText(context.source,80),
         guildName:context.guildName ? redactDiagnosticText(context.guildName,80) : undefined,
         operation:context.operation ? redactDiagnosticText(context.operation,150) : null,
         messageId:bug ? context.messageId ?? null : null,
-        extra:Object.keys(diagnostics).length ? JSON.stringify(diagnostics) : null,
+        // The developer inbox reads a bug report's extra as its screenshot link.
+        extra:screenshot ?? (Object.keys(diagnostics).length ? JSON.stringify(diagnostics) : null),
         userId:bug ? context.userId ?? null : null};
       let ref: string | null = null;
       try {
@@ -107,7 +111,7 @@ export function createErrorReportService(prisma: PrismaClient) {
           `Operation: ${(context.operation ?? context.source).slice(0, 150)}`,
           `Source guild: ${context.guildId ?? "unknown"} · channel: ${context.channelId ?? "not recorded"}`,
           sourceLink ? `${context.messageId ? "Source message" : "Source channel"}: ${sourceLink}` : "Source message: not recorded",
-          ...(context.extra ? [`Context: ${context.extra.slice(0, 300)}`] : [])
+          ...(screenshot ? [`Screenshot: ${screenshot}`] : context.extra ? [`Context: ${context.extra.slice(0, 300)}`] : [])
         ].join("\n");
         // Keep source/ref metadata and the closing fence even for long errors.
         const detail = message.replaceAll("```", "'''").slice(0, Math.max(0, 1888 - metadata.length));

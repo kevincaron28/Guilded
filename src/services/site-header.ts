@@ -10,8 +10,9 @@ export const SITE_HEADER_STYLE = `.site-top{display:flex;flex-wrap:wrap;gap:10px
 .site-top nav a{display:inline-flex;align-items:center;min-height:44px;color:var(--muted);text-decoration:none}.site-top nav a:hover,.site-top nav a[aria-current=page]{color:var(--text)}.site-top nav a.nav-companion{color:var(--gold)}
 .crumbs{font-size:13px;color:var(--muted);margin:14px 0 20px}.crumbs a{color:var(--muted)}.crumbs a:hover{color:var(--text)}`;
 
-/** The current menu entry for a path, so the page is marked in the menu. */
+/** The current menu entry for a path, so the page is marked in the menu. Guild pages belong to Guilds. */
 export function currentSection(path: string): string | null {
+  if (/^\/(?:recruitment\/guilds|g)\//.test(path)) return "guilds";
   return /^\/(leaderboards|recruitment|players)\//.exec(path)?.[1] ?? null;
 }
 

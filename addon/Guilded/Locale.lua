@@ -1204,6 +1204,7 @@ FR["Imported That's My BiS priorities for %d item(s). Item tooltips show them."]
 FR["That's My BiS"] = "That's My BiS"
 FR["Soft reserves are switched off."] = "Les r\195\169servations sont d\195\169sactiv\195\169es."
 FR["softres.it import"] = "import softres.it"
+FR["%d player(s) had softres.it +1 or bonus-roll values; Guilded does not copy them and keeps its own SR+ weeks."] = "%d joueur(s) avaient des valeurs +1 ou des jets bonus sur softres.it; Guilded ne les copie pas et garde ses propres semaines de SR+."
 FR["Imported %d reserve(s) for %d player(s). The list is open and shared with the guild; lock it when the raid starts."] = "%d r\195\169servation(s) import\195\169e(s) pour %d joueur(s). La liste est ouverte et partag\195\169e avec la guilde; verrouillez-la au d\195\169but du raid."
 FR["On softres.it, open the raid and copy the CSV export (or the Gargul export) and paste it here. It replaces the current soft-reserve list."] = "Sur softres.it, ouvrez le raid, copiez l'export CSV (ou l'export Gargul) et collez-le ici. Il remplace la liste de r\195\169servations actuelle."
 FR["That's My BiS priorities cleared."] = "Priorit\195\169s That's My BiS effac\195\169es."

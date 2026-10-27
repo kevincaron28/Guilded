@@ -19,7 +19,7 @@ ns = ns or {}
 
 local PREFIX = "GuildedRes"
 -- SR+: every week a player reserves the same item and does not get it adds this much to their
--- roll for it (the list is carried over when an officer clears or reopens it).
+-- roll for it (counted when an officer clears or reopens the list, once per weekly reset).
 local PLUS_STEP = 10
 local DEFAULT_LIMIT = 1
 local MAX_LIMIT = 5
@@ -54,21 +54,54 @@ function reserve.plusFor(name, id)
   return weeks * PLUS_STEP
 end
 
--- Called before the list is emptied: every reserve still on it (not won) counts one more week;
--- items a player did not reserve again lose their bonus. An empty list changes nothing (so
--- clearing, then opening, counts once).
-local function carryPlus(s)
-  local kept, any = {}, false
-  for name, list in pairs(s.entries or {}) do
-    for _, id in ipairs(list) do
-      local key = name .. ":" .. tostring(id)
-      kept[key] = (s.plus[key] or 0) + 1
-      any = true
-    end
+-- The weekly reset a moment belongs to, as a number that changes once a week: the game's own
+-- reset when the client knows it (US and EU differ), else Tuesday 15:00 UTC as the bot uses.
+local function resetWeek()
+  local now = ns.util and ns.util.serverTime and ns.util.serverTime() or time()
+  if C_DateAndTime and C_DateAndTime.GetSecondsUntilWeeklyReset then
+    local ok, left = pcall(C_DateAndTime.GetSecondsUntilWeeklyReset)
+    -- The reset is on the hour; rounding keeps a one-second wobble from changing the week.
+    if ok and type(left) == "number" and left > 0 then return math.floor((now + left + 1800) / 3600) end
   end
-  if any then s.plus = kept end
+  -- 1970-01-06 was a Tuesday.
+  return math.floor((now - (5 * 86400 + 15 * 3600)) / (7 * 86400))
+end
+reserve.resetWeek = resetWeek
+
+-- SR+ counts weeks, not lists: a guild that opens a list per raid night, or runs two raids a week,
+-- still adds one week. Reserves are gathered per week (s.weekKeys, for the week s.plusWeek); when
+-- that week is over, each item reserved in it and not won earns one more week, and items reserved
+-- on no list that week lose their bonus. A week with no reserves at all changes nothing, so a
+-- skipped raid week keeps everyone's SR+.
+local function finishWeek(s)
+  if next(s.weekKeys) then
+    local kept = {}
+    for key in pairs(s.weekKeys) do kept[key] = (s.plus[key] or 0) + 1 end
+    s.plus = kept
+  end
+  s.plusWeek, s.weekKeys = nil, {}
+end
+
+-- Called before the list is emptied. A list kept from before this rule has no week: it counts as
+-- an older one, as lists always did.
+local function carryPlus(s)
+  s.weekKeys = s.weekKeys or {}
+  local listWeek = s.listWeek or 0
+  if s.plusWeek and s.plusWeek ~= listWeek then finishWeek(s) end
+  s.plusWeek = listWeek
+  for name, list in pairs(s.entries or {}) do
+    for _, id in ipairs(list) do s.weekKeys[name .. ":" .. tostring(id)] = true end
+  end
+  if listWeek ~= resetWeek() then finishWeek(s) end
 end
 reserve.carryPlus = carryPlus
+
+-- Won: that item's SR+ is used up, and it does not count for this week either.
+local function wonPlus(s, name, id)
+  local key = name .. ":" .. tostring(id)
+  s.plus[key] = nil
+  if s.weekKeys then s.weekKeys[key] = nil end
+end
 
 -- "|cff...|Hitem:17067::...|h[Name]|h|r", "item:17067" or "17067" -> 17067
 local function itemId(text)
@@ -355,7 +388,7 @@ local function openList(args)
   local title = table.concat(args, " ", first)
   s.open, s.limit, s.title, s.host, s.hostSender = true, limit, title, ns.playerName(), nil
   carryPlus(s)
-  s.entries = {}
+  s.entries, s.listWeek = {}, resetWeek()
   changed()
   shareNow()
   announce(string.format(L("Soft reserves are open%s: %d per player. Reserve with /guilded reserve [item link], or whisper me: res [item link]."),
@@ -430,7 +463,7 @@ function reserve.importEntries(map, title, names)
   if players == 0 then return nil, L("No reserves found in that text.") end
   carryPlus(s)
   s.open, s.limit, s.title, s.host, s.hostSender = true, math.min(MAX_LIMIT, most), title or "", ns.playerName(), nil
-  s.entries = entries
+  s.entries, s.listWeek = entries, resetWeek()
   for id, name in pairs(names or {}) do s.names[id] = name end
   changed()
   shareNow()
@@ -495,11 +528,16 @@ local function awardTo(args)
   local plain = itemName(id)
   ns.runCommand("loot " .. name .. " " .. plain .. " " .. gp)
   if gp > 0 then ns.runCommand("gp " .. name .. " " .. gp .. " Reserve: " .. plain) end
-  local removed = s and isHost() and removeFor(name, id)
-  -- Won: the SR+ bonus for that item is used up.
-  if s then s.plus[name .. ":" .. tostring(id)] = nil end
+  local removed = s and removeFor(name, id)
+  if s then wonPlus(s, name, id) end
   changed()
-  if removed then shareNow() end
+  if s and isHost() then
+    if removed then shareNow() end
+  elseif s and s.host then
+    -- Another officer keeps the list: tell them, or the winner keeps the reserve and its SR+.
+    if s.hostSender then sendAddon("WON|" .. name .. "|" .. id, "WHISPER", s.hostSender)
+    else sendAddon("WON|" .. name .. "|" .. id, shareChannel()) end
+  end
   announce(string.format(L("%s goes to %s."), plain, name))
 end
 
@@ -629,7 +667,17 @@ local function onEvent(_, event, ...)
       if message and s.hostSender == sender then ns.message(message) end
     elseif ns.isOfficerName(name) then
       -- The list comes only from an officer.
-      if kind == "STATE" then
+      if kind == "WON" then
+        -- Another officer gave a reserved item out: the keeper takes it off the list.
+        local player, id = string.match(text, "^WON|([^|]+)|(%d+)$")
+        id = tonumber(id)
+        if isHost() and player and id then
+          removeFor(player, id)
+          wonPlus(s, player, id)
+          changed()
+          shareNow()
+        end
+      elseif kind == "STATE" then
         local open, limit, title = string.match(text, "^STATE|(%d)|(%d+)|(.*)$")
         if not open then return end
         s.host, s.hostSender = name, sender

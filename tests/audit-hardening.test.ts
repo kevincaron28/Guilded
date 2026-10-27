@@ -181,8 +181,11 @@ describe("decay", () => {
   it("writes every member's decay in one statement, with a clean percent in the reason", async () => {
     const { database, created } = decayDatabase([{ memberId: "m1", ep: 1000, gp: 100 }, { memberId: "m2", ep: 5, gp: 0 }]);
     const rows = await createEpgpService(database as never).applyDecay("g", 0.07, "officer");
-    expect(rows).toHaveLength(1); // m2: 7% of 5 rounds to nothing, m3 has no points
-    expect(created).toEqual([expect.objectContaining({ memberId: "m1", epAmount: -70, gpAmount: -7, reason: "EPGP decay (7%)", sourceRef: null, coreId: null })]);
+    expect(rows).toHaveLength(2); // m2: 7% of 5 rounds up to 1, as in EPGP; m3 has no points
+    expect(created).toEqual([
+      expect.objectContaining({ memberId: "m1", epAmount: -70, gpAmount: -7, reason: "EPGP decay (7%)", sourceRef: null, coreId: null }),
+      expect.objectContaining({ memberId: "m2", epAmount: -1, gpAmount: 0 })
+    ]);
     expect(database.epgpTransaction.createManyAndReturn).toHaveBeenCalledWith(expect.objectContaining({ skipDuplicates: true }));
   });
 

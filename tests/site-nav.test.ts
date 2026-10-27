@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { localizedHref, SITE_NAV } from "../site/nav.mjs";
 import { layout } from "../src/services/web-layout.js";
+import { currentSection } from "../src/services/site-header.js";
 
 // One menu for the whole website: the bot-served pages and the static build both read site/nav.mjs.
 describe("site menu", () => {
@@ -13,6 +14,13 @@ describe("site menu", () => {
     expect(html).toContain('href="/leaderboards/?lang=fr" aria-current="page"');
     expect(html).toContain('href="/companion/?lang=fr"');
     expect(page("/me/", "en")).not.toContain('aria-current="page"');
+  });
+
+  it("has a Guilds entry, current on the guild directory and on guild pages", () => {
+    expect(page("/recruitment/guilds/", "fr")).toContain('href="/recruitment/guilds/?lang=fr" aria-current="page">Guildes</a>');
+    expect(page("/recruitment/guilds/", "fr")).not.toContain('href="/recruitment/?lang=fr" aria-current');
+    expect(currentSection("/g/quebec-gold/")).toBe("guilds");
+    expect(currentSection("/recruitment/")).toBe("recruitment");
   });
 
   it("builds the static menu from the same list", () => {

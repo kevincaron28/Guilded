@@ -457,8 +457,8 @@ function ns.effectiveStanding(rawName, coreId)
       end
     end
   end
-  local denominator = gp + math.max(0, baseGp)
-  return { ep = ep, gp = gp, pr = denominator > 0 and ep / denominator or 0 }
+  -- GP counts as at least 1, as in EPGP (Modules/Sync.lua, src/services/epgp.ts).
+  return { ep = ep, gp = gp, pr = ep / math.max(1, gp + math.max(0, baseGp)) }
 end
 
 local function changeEpgp(rawName, rawAmount, reason, kind, quiet)

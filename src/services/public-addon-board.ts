@@ -3,6 +3,7 @@ import { routeTargetAt } from "./dungeon-november-rules.js";
 import { snapshotGuidance } from "./dungeon-snapshot-guidance.js";
 import type { DungeonRatingDetail } from "./dungeon-rating.js";
 import { currentEdition } from "./edition-context.js";
+import { dungeonRole } from "../../companion/dungeon-role.mjs";
 
 /** Personal public scores only. Never include guild standings or claim a global rank. */
 export function publicAddonBoard(runs: ScoreRun[], me: Pick<ScorePlayer, "character" | "realm">, periods: PublicPeriod[], now = new Date()) {
@@ -14,7 +15,7 @@ export function publicAddonBoard(runs: ScoreRun[], me: Pick<ScorePlayer, "charac
     const active = (!period.from || period.from <= now) && (!period.to || now < period.to);
     const history = runs.filter(r => (!period.from || r.endedAt >= period.from) && (!period.to || r.endedAt < period.to));
     const profile = (bracket: string, role?: string) => {
-      const row = characterScores(history, rules, p => mine(p) && (!role || p.role?.toUpperCase() === role)).find(r => r.bracket === bracket);
+      const row = characterScores(history, rules, p => mine(p) && (!role || dungeonRole(p.role) === dungeonRole(role))).find(r => r.bracket === bracket);
       const details: DungeonRatingDetail[] = (row?.routes ?? []).map(r => ({ dungeonKey: r.key, instanceId: r.run.instanceId,
         name: rules.routes.find(route => route.dungeonKey === r.key)!.name, points: r.points, durationSec: r.run.durationSec,
         targetSec: routeTargetAt(rules, r.key, r.run.endedAt) ?? null, speedBonus: 0, counted: r.counted,

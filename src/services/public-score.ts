@@ -48,7 +48,9 @@ export const publicRules = (edition: GameEdition = currentEdition()): BracketedR
 
 // A season's frozen public rules (OfficialSeason.rules).
 export interface PublicRuleSnapshot { format: 1; frozenAt: string; rules: BracketedRules; additions: { at: string; routes: string[]; brackets: string[] }[] }
-export const snapshotRules = (rules: BracketedRules, now: Date): PublicRuleSnapshot => ({ format: 1, frozenAt: now.toISOString(), rules, additions: [] });
+// New official snapshots require the current stored evidence contract. Reading an
+// older snapshot never adds this policy or silently changes archived results.
+export const snapshotRules = (rules: BracketedRules, now: Date): PublicRuleSnapshot => ({ format: 1, frozenAt: now.toISOString(), rules: { ...rules, evidencePolicy: "current-v1" }, additions: [] });
 export function readRuleSnapshot(value: unknown): PublicRuleSnapshot | null {
   const s = value as PublicRuleSnapshot | null;
   return s && typeof s === "object" && s.format === 1 && typeof s.frozenAt === "string" && Array.isArray(s.additions) && validBracketedRules(s.rules) ? s : null;
@@ -65,6 +67,7 @@ export function addedRules(frozen: BracketedRules, current: BracketedRules): { r
   try {
     const rules = createBracketedDungeonRules({ ...(frozen.gameEdition ? { gameEdition: frozen.gameEdition } : {}), routes: [...frozen.routes, ...routes], brackets: [...frozen.brackets, ...brackets], overlevelPenalty: frozen.overlevelPenalty,
       ...(frozen.keystoneRating ? { keystoneRating: frozen.keystoneRating } : {}),
+      ...(frozen.evidencePolicy ? { evidencePolicy: frozen.evidencePolicy } : {}),
       ...(!frozen.provisional && current.provisional && routes.length ? { provisional: current.provisional } : {}),
       ...(frozen.provisional ? { provisional: { plan: frozen.provisional.plan, waiting: current.provisional?.waiting ?? frozen.provisional.waiting } } : {}),
       ...(frozen.recalibrations ? { recalibrations: frozen.recalibrations } : {}) });
@@ -83,6 +86,7 @@ function ratingRun(run: ScoreRun, evidence: RunEvidence): RatingRun {
 export function rateRun(run: ScoreRun, rules: BracketedRules = publicRules(), player?: ScorePlayer): RunVerdict {
   if ((run.gameEdition ?? "forever") !== (rules.gameEdition ?? "forever")) return { score: null, reason: "Different WoW edition" };
   if (run.challenge || run.gameEdition === "retail" && run.difficultyId === 8) return { score: null, reason: "Mythic+ uses the keystone leaderboard" };
+  if (rules.evidencePolicy === "current-v1" && !run.evidence) return { score: null, reason: "Current evidence required by this season" };
   if (!rules.routes.some(r => r.instanceId === run.instanceId)) return { score: null, reason: "Route not rated yet" };
   if (run.evidence) {
     const reason = completionReason(run.evidence.completedBy);
@@ -156,10 +160,12 @@ export function characterScores(runs: ScoreRun[], rules: BracketedRules = public
 // Public seasons: "beta" (before Season 1), "s1", "s2", ...; a week is the current one only.
 // A season that froze its rules carries them; every other period uses today's (publicRules).
 export interface PublicPeriod { id: string; label: string; labelFr: string; from: Date | null; to: Date | null; rules?: BracketedRules; frozenAt?: Date }
-export const periodRules = (period: PublicPeriod): BracketedRules => period.rules ?? publicRules();
+export const periodRules = (period: PublicPeriod): BracketedRules => period.rules
+  ?? (/^s\d+$/.test(period.id) ? { ...publicRules(), evidencePolicy: "current-v1" } : publicRules());
 /** The rules a run ending at `date` is scored with: its season's frozen ones, else today's. */
 export function rulesAt(periods: PublicPeriod[], date: Date): BracketedRules {
-  return periods.find((p) => p.id !== "beta" && p.from && p.from <= date && (!p.to || date < p.to))?.rules ?? publicRules();
+  const period = periods.find((p) => /^s\d+$/.test(p.id) && p.from && p.from <= date && (!p.to || date < p.to));
+  return period ? periodRules(period) : publicRules();
 }
 /** The calendar as the migration seeds it, for callers without a database (tests, previews). */
 export const DEFAULT_OFFICIAL: OfficialWindow[] = [{ number: 1, name: "Season 1", start: new Date("2026-11-04T23:00:00Z"), end: null }];

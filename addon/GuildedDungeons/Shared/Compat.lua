@@ -84,8 +84,6 @@ end
 -- Group
 -- ---------------------------------------------------------------------
 
-local ROLE = { TANK = "TANK", HEALER = "HEALER", DAMAGER = "DPS" }
-
 local function unitInfo(unit)
   if not exists(UnitExists) or not UnitExists(unit) then return nil end
   ns.util.unitDisplayName(unit)
@@ -103,7 +101,7 @@ local function unitInfo(unit)
     name = ns.normalizeName(name),
     guid = (not secret(guid)) and guid or nil,
     class = (not secret(classFile)) and classFile or nil,
-    role = ROLE[role or ""] or nil,
+    role = ns.util.dungeonRole(role),
     inGuild = inGuild and true or false,
     online = online and true or false
   }

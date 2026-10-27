@@ -1,3 +1,4 @@
+import { dungeonRole } from "./dungeon-role.mjs";
 import luaparse from "luaparse";
 import { editionMetadata, gameEditionOf } from "./game-edition.mjs";
 import { normalizeExportIdentities, characterReference } from "./character-identity.mjs";
@@ -430,7 +431,7 @@ export function exportDungeonRuns(database, realm, options = {}) {
         ...characterReference(character, realm, gameEditionOf(run.gameEdition !== undefined || run.interface !== undefined ? run : database.character ?? {})),
         ...(database.displayNames?.[character] ? { displayName: String(database.displayNames[character]) } : {}),
         ...(player.class ? { class: String(player.class) } : {}),
-        ...(player.role ? { role: String(player.role) } : {}),
+          ...(dungeonRole(player.role) ? { role: dungeonRole(player.role) } : {}),
         ...(player.spec ? { spec: String(player.spec).slice(0, 40) } : {}),
         deaths: typeof player.deaths === "number" ? player.deaths : null,
         ...(Number.isInteger(player.level) && player.level >= 1 && player.level <= 100 ? { level: player.level } : {}),

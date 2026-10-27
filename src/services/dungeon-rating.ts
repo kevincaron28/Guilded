@@ -1,4 +1,5 @@
 import { EmbedBuilder, escapeMarkdown } from "discord.js";
+import { dungeonRole } from "../../companion/dungeon-role.mjs";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
 import { bracketForLevel, novemberDungeonKey, resolveNovemberRoute, routeTargetAt, validBracketedRules, validNovemberRules,
@@ -131,7 +132,12 @@ export function presentEnough(presentSec: number, durationSec: number): boolean 
 export function bracketedVerdict(run: RatingRun, rules: BracketedRules): ReturnType<typeof resolveNovemberRoute> & { penaltyPercent: number; targetSec: number | null } {
   const route = resolveNovemberRoute(run, rules);
   const band = rules.levelBands[route.key];
-  const reason = route.reason ?? (!rules.targets[route.key] ? "Participation-only route" : competitionReason(run, band, rules.overlevelPenalty.maxLevels));
+  const data = run.competitionData as { players?: unknown; encounters?: unknown } | null;
+  const currentEvidenceReason = rules.evidencePolicy === "current-v1"
+    ? !run.startedAt || !run.endedAt || !Array.isArray(data?.players) || !Array.isArray(data?.encounters)
+      ? "Current evidence required by this season" : completionReason(run.completedBy)
+    : undefined;
+  const reason = currentEvidenceReason ?? route.reason ?? (!rules.targets[route.key] ? "Participation-only route" : competitionReason(run, band, rules.overlevelPenalty.maxLevels));
   return { ...route, ...(reason ? { reason } : {}), penaltyPercent: !reason && band ? overlevelBy(run, band) * rules.overlevelPenalty.percentPerLevel : 0,
     targetSec: routeTargetAt(rules, route.key, run.endedAt) ?? null };
 }
@@ -264,7 +270,8 @@ function validFrozenRoles(row: RatingRow): boolean {
   if (row.level !== undefined && (!Number.isInteger(row.level) || row.level < 1 || row.level > 100)) return false;
   if (row.roles === undefined) return true;
   return Array.isArray(row.roles) && row.roles.length <= 3 && new Set(row.roles.map(r => r?.role)).size === row.roles.length
-    && row.roles.every(r => r && ["TANK", "HEALER", "DAMAGER"].includes(r.role) && Number.isInteger(r.points) && r.points >= 0 && r.points <= row.points
+    && new Set(row.roles.map(r => dungeonRole(r?.role))).size === row.roles.length
+    && row.roles.every(r => r && dungeonRole(r.role) && Number.isInteger(r.points) && r.points >= 0 && r.points <= row.points
       && Array.isArray(r.details) && (r.details.length === 0 ? r.points === 0 : validDetails({ ...row, ...r, dungeons: r.details.length })));
 }
 export async function dungeonRating(database: Pick<PrismaClient, "dungeonRun">, guildId: string,
@@ -297,7 +304,7 @@ export async function dungeonRating(database: Pick<PrismaClient, "dungeonRun">, 
 /** Keep the whole party for eligibility; only award the selected character's recorded role. */
 export function ratingWithRoles(runs: RatingRun[], rules: BracketedRules): RatingRow[] {
   const roles = ["TANK", "HEALER", "DAMAGER"].map(role => ({ role, rows: calculateDungeonRating(runs.map(run => ({ ...run,
-    players: run.players.map(p => ({ ...p, member: p.role?.toUpperCase() === role ? p.member : null })) })), rules) }));
+    players: run.players.map(p => ({ ...p, member: dungeonRole(p.role) === dungeonRole(role) ? p.member : null })) })), rules) }));
   return calculateDungeonRating(runs, rules).map(row => {
     const levels = runs.flatMap(run => {
       if (!run.players.some(p => p.memberId === row.memberId && p.character === row.character)) return [];
@@ -361,8 +368,8 @@ function bracketRatingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, r
   const fr = lang === "fr";
   const chosen = rules.brackets.find(b => b.key === key);
   const lines = [fr ? "**Score de vitesse par tranche de niveaux · meilleure tentative par parcours**" : "**Dungeon-time rating by level bracket · best result per route**",
-    fr ? "Arrondi(200 × cible ÷ durée), 50–400 par parcours. Chaque personnage est classé dans la tranche de son niveau pendant le run; tous les participants doivent rester dans la plage du parcours. Détails : `/dungeon rules`."
-      : "Round(200 × target ÷ duration), 50–400 per route. Each character ranks in the bracket of their level during the run; every participant must stay inside the route's band. Details: `/dungeon rules`.",
+    fr ? "Arrondi(200 × cible ÷ durée), 50–400 avant pénalité, puis nouvel arrondi. Un parcours classé reste dans la tranche du parcours, même avec un dépassement de niveau autorisé. Détails : `/dungeon rules`."
+      : "Round(200 × target ÷ duration), 50–400 before penalty, then round again. A ranked run stays in its route's bracket, including allowed overlevel players. Details: `/dungeon rules`.",
     fr ? `Groupe au-dessus de la plage : −${rules.overlevelPenalty.percentPerLevel} % par niveau du plus haut participant, jusqu’à ${rules.overlevelPenalty.maxLevels} niveaux; au-delà, transport : 0.`
       : `Group above the band: −${rules.overlevelPenalty.percentPerLevel}% per level of the highest participant, up to ${rules.overlevelPenalty.maxLevels} levels; beyond that it is a carry: 0.`];
   if (rules.provisionalTargets) lines.unshift(provisionalNote(fr));

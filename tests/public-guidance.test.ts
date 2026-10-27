@@ -120,6 +120,10 @@ describe("role scores", () => {
 
 describe("character page guidance", () => {
   async function page(runs: LeaderRun[], lang = "en") {
+    // Official page fixtures carry current evidence; arithmetic-only legacy
+    // fixtures above continue testing the compatibility model separately.
+    runs = runs.map(run => ({ ...run, evidence: { startedAt: new Date(run.endedAt.getTime() - run.durationSec * 1000), completedBy: "final boss", encounters: [] },
+      players: run.players.map(p => ({ ...p, presentSec: run.durationSec })) }));
     const store: LeaderboardStore = { async runs() { return runs; }, async characterRuns() { return runs; }, async guilds() { return []; }, async guildRuns() { return []; }, async guildRoster() { return []; } };
     const pages = createLeaderboardPages({ store, personal: null, now: () => NOW });
     const app = createWebApp({ store: memoryWebStore().store, auth: { clientId: "1", clientSecret: "x", siteUrl: "https://guilded.kcaron.top", sessionSecret: "s".repeat(40) }, allows: () => true,

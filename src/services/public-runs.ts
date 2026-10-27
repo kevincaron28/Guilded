@@ -1,3 +1,4 @@
+import { dungeonRole } from "../../companion/dungeon-role.mjs";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { dungeonResetCutoff, predatesDungeonReset } from "./dungeon-reset.js";
 import { dungeonRunSchema, validateRun, type DungeonRunInput } from "./dungeon-rules.js";
@@ -75,7 +76,7 @@ export function summarize(run: DungeonRunInput): RunSummary {
     ...(run.challenge ? { challenge: run.challenge } : {}),
     encounters: (run.encounters ?? []).filter((e) => e.success).map((e) => ({ id: e.id, ...(e.kind ? { kind: e.kind } : {}), ...(e.name ? { name: e.name } : {}), success: true as const,
       ...(e.at !== undefined ? { at: e.at } : {}), ...(e.startedAt !== undefined ? { startedAt: e.startedAt } : {}) })),
-    players: run.players.map((player) => ({ character: player.character, realm: player.realm === "-" ? "" : player.realm, className: player.class ?? null, role: player.role ?? null,
+    players: run.players.map((player) => ({ character: player.character, realm: player.realm === "-" ? "" : player.realm, className: player.class ?? null, role: dungeonRole(player.role),
       ...(player.displayName ? { displayName: player.displayName } : {}),
       level: player.level ?? null, minLevel: player.minLevel ?? null, presentSec: player.presentSec, deaths: player.deaths ?? null }))
   };
@@ -103,7 +104,8 @@ export function agrees(stored: RunEvidence, incoming: RunSummary): boolean {
   for (const player of incoming.players) {
     const old = stored.players.find(p => playerKey(p) === playerKey(player));
     if (!old) continue;
-    for (const field of ["level", "minLevel", "role"] as const) {
+    if (dungeonRole(old.role) && dungeonRole(player.role) && dungeonRole(old.role) !== dungeonRole(player.role)) return false;
+    for (const field of ["level", "minLevel"] as const) {
       if (old[field] !== null && player[field] !== null && old[field] !== player[field]) return false;
     }
     if (old.presentSec !== null && (Math.abs(old.presentSec - player.presentSec) > PUBLIC_LIMITS.agreeDurationSec
@@ -126,7 +128,7 @@ export function evidenceUpgrade(stored: RunEvidence, incoming: RunSummary): bool
     || stored.players.length !== incoming.players.length || !containsKills(incoming, stored,incoming.gameEdition)) return false;
   if (stored.players.some(old => !incoming.players.some(p => playerKey(p) === playerKey(old)
     && (old.level === null || p.level === old.level) && (old.minLevel === null || p.minLevel === old.minLevel)
-    && (old.role === null || p.role === old.role) && (old.presentSec === null || p.presentSec === old.presentSec)))) return false;
+    && (!dungeonRole(old.role) || dungeonRole(p.role) === dungeonRole(old.role)) && (old.presentSec === null || p.presentSec === old.presentSec)))) return false;
   if (incoming.completedBy !== "final boss" && incoming.completedBy !== "challenge objectives") return false;
   if (stored.challenge && !incoming.challenge) return false;
   // Kill times/start times are retained evidence too. A longer checklist must not

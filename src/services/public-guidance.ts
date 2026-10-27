@@ -1,5 +1,6 @@
+import { dungeonRole } from "../../companion/dungeon-role.mjs";
 import { bracketForLevel, routeTargetAt, type BracketedRules } from "./dungeon-november-rules.js";
-import type { LevelBand } from "./dungeon-rating.js";
+import { penalized, timeRating, type LevelBand } from "./dungeon-rating.js";
 import { characterId, characterScores, rateRun, type ScorePlayer, type ScoreRow, type ScoreRun } from "./public-score.js";
 import { ROLES, type Role } from "./recruitment.js";
 import { MIN_DURATION_SEC, MAX_DURATION_SEC } from "./dungeon-rules.js";
@@ -7,7 +8,7 @@ import { MIN_DURATION_SEC, MAX_DURATION_SEC } from "./dungeon-rules.js";
 // Player guidance on the public character page (docs/RAIDER_IO_SCORING_ANALYSIS_2026-10-22.md, item 2).
 // - Best next improvement: for each route of the character's bracket, the slowest clear that would
 //   raise the season score, and by exactly how much. Each scenario adds one hypothetical run and
-//   recomputes the whole best-N selection with characterScores, so the points come from the same
+//   recomputes best-N arithmetically after reading eligible real runs, using the same
 //   timeRating, penalty and rounding as real runs, and a faster run on a route outside best N
 //   honestly adds nothing. Times are scenarios under the season's rules, not predictions.
 // - Role totals: tank, healer and DPS scores, each from the runs played in that role only. Never
@@ -64,12 +65,19 @@ export function planBase(input: PlanInput, bracket: string): PlanBase {
 /** What one more ranked run of `key`, in `durationSec` at `level`, would do to the season score. */
 export function scenarioAt(base: PlanBase, key: string, durationSec: number, level: number): Scenario {
   const route = base.rules.routes.find((r) => r.dungeonKey === key)!;
-  // No evidence: rateRun's route-and-levels check, which gives an evidence run of this route the same points.
-  const run: ScoreRun = { runId: "scenario", instanceId: route.instanceId, routeKey: key, difficultyId: base.rules.levelBands[key]!.difficultyId, dungeonName: route.name,
-    durationSec, endedAt: base.now, confirmations: 1, evidence: null, players: [{ ...base.me, level, minLevel: level, presentSec: durationSec }] };
-  const after = rowOf([...base.runs, run], base.rules, base.me, base.bracket);
-  const kept = new Set(countedRoutes(after).map((r) => r.key));
-  return { durationSec, routePoints: rateRun(run, base.rules).score?.points ?? 0, gain: (after?.points ?? 0) - (base.before?.points ?? 0), total: after?.points ?? 0,
+  // Arithmetic only: never fabricate completion evidence or bypass official
+  // eligibility by inserting a synthetic legacy run into the real scorer.
+  const band = base.rules.levelBands[key]!;
+  const over = Math.max(0, level - band.max);
+  const eligible = level >= band.min && over <= base.rules.overlevelPenalty.maxLevels;
+  const routePoints = eligible ? penalized(timeRating(durationSec, routeTargetAt(base.rules, route.dungeonKey, base.now) ?? null), over * base.rules.overlevelPenalty.percentPerLevel) : 0;
+  const bests = new Map((base.before?.routes ?? []).map(r => [r.key, r.points]));
+  if (routePoints > (bests.get(key) ?? 0)) bests.set(key, routePoints);
+  const n = base.rules.brackets.find(b => b.key === base.bracket)?.bestCount ?? 0;
+  const after = [...bests].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, n);
+  const kept = new Set(after.map(([key]) => key));
+  const total = after.reduce((sum, [, points]) => sum + points, 0);
+  return { durationSec, routePoints, gain: total - (base.before?.points ?? 0), total,
     pushedOut: countedRoutes(base.before).filter((r) => !kept.has(r.key)).map((r) => ({ key: r.key, points: r.points })) };
 }
 
@@ -138,7 +146,7 @@ export interface RoleScores { role: Role; rows: ScoreRow[] }
 /** Each role's season scores from the runs `me` played in that role only; runs with no known role are only counted. */
 export function roleScores(runs: ScoreRun[], rules: BracketedRules, me: ScorePlayer): { roles: RoleScores[]; unknownRuns: number } {
   const id = characterId(me);
-  const roleOf = (player: ScorePlayer) => (ROLES as readonly string[]).find((role) => role === player.role?.toUpperCase()) as Role | undefined;
+  const roleOf = (player: ScorePlayer) => dungeonRole(player.role);
   const roles = ROLES.map((role) => ({ role, rows: characterScores(runs, rules, (player) => characterId(player) === id && roleOf(player) === role) }));
   const unknownRuns = runs.filter((run) => {
     const player = run.players.find((p) => characterId(p) === id);

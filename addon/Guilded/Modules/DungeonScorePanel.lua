@@ -57,7 +57,7 @@ function view.model(name, seasonIndex, bracketKey, period, role)
   local profile = available and snapshot.profile
   local roles = profile and profile.roles
   if role and roles then
-    for _, r in ipairs(roles) do if r.role == role then profile = r; break end end
+    for _, r in ipairs(roles) do if ns.util.dungeonRole(r.role) == ns.util.dungeonRole(role) then profile = r; break end end
   else role = nil end
   local guidance = period ~= "week" and selected and selected.status == "ACTIVE" and profile and profile.guidance
   local plans = {}

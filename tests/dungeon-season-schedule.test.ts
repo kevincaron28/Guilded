@@ -76,7 +76,7 @@ describe("season rotation (every guild follows the owner's calendar)", () => {
     const result = await rotateOfficialSeasons(db as never, windows, new Date("2026-11-04T23:01:00Z"), (id) => id !== "blocked", backup, start);
     expect(order).toEqual(["backup", "start:g1", "start:g2"]);
     expect(result).toEqual([{ guildId: "g1", season: "Season 1", ended: "Beta" }, { guildId: "g2", season: "Season 1", ended: "Beta" }]);
-    expect(start).toHaveBeenCalledWith("g1", "Season 1", "beta", undefined, beta.ratingRules, S1);
+    expect(start).toHaveBeenCalledWith("g1", "Season 1", "beta", undefined, { ...beta.ratingRules, evidencePolicy: "current-v1" }, S1);
   });
 
   it("is idempotent after a restart and rotates again when the owner's next season starts", async () => {
@@ -107,7 +107,7 @@ describe("season rotation (every guild follows the owner's calendar)", () => {
     const start = vi.fn(async () => null);
     await rotateOfficialSeasons(db as never, official, S1, allowAll, async () => null, start);
     expect(start).toHaveBeenCalledTimes(2);
-    for (const call of start.mock.calls as unknown as unknown[][]) expect(call[4]).toEqual(frozen);
+    for (const call of start.mock.calls as unknown as unknown[][]) expect(call[4]).toEqual({ ...frozen, evidencePolicy: "current-v1" });
     expect(recal.targets[key]).toBe(1500); // historical guild rules are untouched
   });
 

@@ -1,4 +1,5 @@
 import { publicRules, readRuleSnapshot } from "./public-score.js";
+import { dungeonRole } from "../../companion/dungeon-role.mjs";
 import { gameEditionOf } from "./game-edition.js";
 import { addonName } from "./addon-name.js";
 import { currentEdition } from "./edition-context.js";
@@ -238,7 +239,7 @@ export async function importDungeonRuns(
             character: player.character,
             memberId: character?.memberId ?? null,
             class: player.class ?? null,
-            role: player.role ?? null,
+            role: dungeonRole(player.role),
             deaths: player.deaths ?? null,
             presentSec: player.presentSec,
             inGuild: player.inGuild

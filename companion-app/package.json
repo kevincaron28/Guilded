@@ -56,6 +56,7 @@
           "lua-export-content.mjs",
           "game-edition.mjs",
           "character-identity.mjs",
+          "dungeon-role.mjs",
           "profiles.mjs",
           "standings-format.mjs",
           "poe-events.mjs",

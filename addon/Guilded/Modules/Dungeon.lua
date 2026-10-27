@@ -113,7 +113,7 @@ local function updatePlayers(run)
     end
     player.lastSeen = stamp
     player.class = member.class or player.class
-    player.role = member.role or player.role
+    player.role = ns.util.dungeonRole(member.role) or ns.util.dungeonRole(player.role)
     player.guid = member.guid or player.guid
     player.inGuild = member.inGuild or player.inGuild
     if member.name == me() then
@@ -377,7 +377,7 @@ local function deserialize(id, text)
     name = name and ns.normalizeName(name)
     if name then
       run.players[name] = {
-        class = class ~= "" and class or nil, role = role ~= "" and role or nil,
+        class = class ~= "" and class or nil, role = ns.util.dungeonRole(role),
         deaths = tonumber(deaths), addon = deaths ~= "?", presentSec = tonumber(present) or 0, inGuild = inGuild == "1"
       }
     end

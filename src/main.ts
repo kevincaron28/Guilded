@@ -78,6 +78,7 @@ import { DUNGEON_SEASON_SELECT, handleDungeonSeasonSelect, updateDungeonLeaderbo
 import { refreshExistingBotGuides } from "./services/bot-messages.js";
 import { BACKUP_DIR, runBackup } from "./services/backup.js";
 import { freezeSeasonRules, loadOfficialWindows, rotateOfficialSeasons, startOfficialSeason } from "./services/official-seasons.js";
+import { finalizeClosingSeasons } from "./services/dungeon-admin.js";
 import { executeOwnerSeason, OWNER_SEASON_COMMAND, ownerSeasonCommand } from "./commands/owner-season.js";
 import { updateCommunityLeaderboard } from "./services/community-leaderboard.js";
 import { cleanupPastRaidPosts } from "./services/raid-post-cleanup.js";
@@ -332,6 +333,8 @@ client.once(Events.ClientReady, (readyClient) => {
       .then(() => loadOfficialWindows(prisma))
       .then((windows) => rotateOfficialSeasons(prisma, windows, new Date(), (discordId) => hostedPilot.allows(discordId), () => runBackup(prisma, new Date(), `${BACKUP_DIR}/seasons`, 24), startOfficialSeason(prisma)))
       .then(async (rotated) => {
+        const finalized = await finalizeClosingSeasons(prisma, new Date(), id => hostedPilot.allows(id));
+        for (const guildId of finalized) if (!rotated.some(row=>row.guildId===guildId)) rotated.push({ guildId, season: "Upload grace finalized", ended: null });
         for (const row of rotated) {
           console.info(`Dungeon season rotated: ${row.ended ?? "none"} -> ${row.season} (guild ${row.guildId}).`);
           const guild = await prisma.guild.findUnique({ where: { id: row.guildId }, select: { discordId: true } });

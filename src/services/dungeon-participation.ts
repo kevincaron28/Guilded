@@ -1,8 +1,9 @@
 import { competitionReason, ratingDungeonKey, type LevelBand } from "./dungeon-rating.js";
 import { resolveNovemberRoute, type NovemberRoute } from "./dungeon-november-rules.js";
+import { currentIntegrityPolicy, integrityPresence, integrityRuleWindowReason, integrityStartReason } from "./dungeon-integrity.js";
 
 // Version 5 and 6 rules both freeze routes; only the routes matter here.
-type RouteRules = { routes: NovemberRoute[] };
+type RouteRules = { routes: NovemberRoute[]; evidencePolicy?: string; seasonWindow?: { from: string; to: string | null } };
 
 export interface ParticipationRun {
   instanceId: number;
@@ -12,6 +13,7 @@ export interface ParticipationRun {
   competitionData: unknown;
   startedAt?: Date | null;
   endedAt?: Date | null;
+  createdAt?: Date | null;
   players: { character: string; memberId: string | null; presentSec: number }[];
 }
 
@@ -21,6 +23,7 @@ export function participationDungeonKey(run: ParticipationRun, rules?: RouteRule
 }
 
 export function participationRecordEligible(run: ParticipationRun, band: LevelBand | undefined, rules?: RouteRules): boolean {
+  if (rules && currentIntegrityPolicy(rules) && (participationIntegrityReason(run, rules) || !run.players.some(p => p.memberId && integrityPresence(observation(run, p.character), run.durationSec ?? 0)))) return false;
   if (rules && resolveNovemberRoute(run, rules).reason) return false;
   return run.completedBy === "final boss" && !!run.durationSec && run.durationSec > 0
     && run.players.some(p => p.memberId && p.presentSec >= run.durationSec! * 0.5)
@@ -30,6 +33,7 @@ export function participationRecordEligible(run: ParticipationRun, band: LevelBa
 
 // Presence is observed for the whole run; a participant history is not a party-size check.
 export function participationMode(run: ParticipationRun, character: string, band: LevelBand | undefined, rules?: RouteRules): "none" | "completion" | "helper" | "full" {
+  if (rules && currentIntegrityPolicy(rules) && (participationIntegrityReason(run, rules) || !integrityPresence(observation(run, character), run.durationSec ?? 0))) return "none";
   if (rules && (run.completedBy !== "final boss" || resolveNovemberRoute(run, rules).reason)) return "none";
   const player = run.players.find(p => p.character === character);
   if (!player || !run.durationSec || run.durationSec <= 0 || !Number.isFinite(player.presentSec) || player.presentSec < run.durationSec * 0.5) return "none";
@@ -42,4 +46,15 @@ export function participationMode(run: ParticipationRun, character: string, band
     return helping ? "helper" : "none";
   }
   return participationRecordEligible(run, band, rules) ? "full" : "completion";
+}
+
+function observation(run: ParticipationRun, character: string): unknown {
+  const players = (run.competitionData as { players?: { name?: string; integrity?: unknown }[] } | null)?.players;
+  return Array.isArray(players) ? players.find(p => p.name === character)?.integrity : undefined;
+}
+export function participationIntegrityReason(run: ParticipationRun, rules: RouteRules): string | undefined {
+  if (!currentIntegrityPolicy(rules)) return undefined;
+  return integrityRuleWindowReason(run.startedAt, run.endedAt, run.createdAt, rules)
+    ?? integrityStartReason((run.competitionData as { integrity?: unknown } | null)?.integrity, run.startedAt, run.durationSec ?? 0)
+    ?? (resolveNovemberRoute(run, rules).route?.verification.fullRoute !== true ? "Full route checkpoints not reviewed" : undefined);
 }

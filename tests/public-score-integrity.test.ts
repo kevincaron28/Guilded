@@ -159,7 +159,7 @@ describe("leaderboard store reads whole histories", () => {
 
   it("maps a stored row's evidence, or none for rows uploaded before 7.4", () => {
     const row = { id: "x", gameEdition: "forever", instanceId: 389, routeKey: "389", difficultyId: 0, dungeonName: "RFC", durationSec: 1000, startedAt: START, endedAt: new Date(START.getTime() + 1_000_000),
-      deaths: null, bracket: "15-29", season: "2026-Q4", confirmations: 1, completedBy: "manual", encounters: null, challenge: null, players: [] };
+      deaths: null, bracket: "15-29", season: "2026-Q4", confirmations: 1, completedBy: "manual", encounters: null, challenge: null, integrity: null, evidenceReceivedAt: null, players: [] };
     expect(leaderRun({ ...row, evidenceVersion: 1 }).evidence).toEqual({ startedAt: START, completedBy: "manual", encounters: [] });
     expect(leaderRun({ ...row, evidenceVersion: 0 }).evidence).toBeNull();
   });

@@ -186,7 +186,7 @@ function isoOrNull(date: Date | null | undefined): string | null {
 export async function addonDungeonBoard(database: Db & Pick<PrismaClient, "character">, guildId: string, now = new Date()) {
   const [active, past] = await Promise.all([
     activeSeasonOrNull(database, guildId),
-    database.dungeonSeason.findMany({ where: { guildId, status: "ENDED" }, orderBy: { startsAt: "desc" }, take: 10 })
+    database.dungeonSeason.findMany({ where: { guildId, status: { in: ["CLOSING", "ENDED"] } }, orderBy: { startsAt: "desc" }, take: 10 })
   ]);
   const selected = [...(active ? [active] : []), ...past];
   if (!selected.length) return null;

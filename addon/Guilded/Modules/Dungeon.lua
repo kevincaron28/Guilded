@@ -99,8 +99,11 @@ end
 local function updatePlayers(run)
   local stamp = now()
   local elapsed = run.lastTick and math.max(0, math.min(stamp - run.lastTick, TICK_SECONDS * 4)) or 0
+  local observedElapsed = run.lastTick and math.max(0, stamp - run.lastTick) or 0
+  local observationGap = observedElapsed > TICK_SECONDS * 2
   run.lastTick = stamp
   local inside = run.inside and run.state == "ACTIVE"
+  local observations = {}
   for _, member in ipairs(compat.groupMembers()) do
     local player = run.players[member.name]
     if not player then
@@ -114,6 +117,16 @@ local function updatePlayers(run)
     player.lastSeen = stamp
     player.class = member.class or player.class
     player.role = ns.util.dungeonRole(member.role) or ns.util.dungeonRole(player.role)
+    if run.integrity then
+      local seen = player.integrity or { knownSec = 0, unknownSec = 0, mixedRole = false }
+      player.integrity = seen
+      if run.state == "ACTIVE" then
+        local role = ns.util.dungeonRole(member.role)
+        if role and seen.lockedRole and role ~= seen.lockedRole then seen.mixedRole = true end
+        if role and not seen.lockedRole then seen.lockedRole = role end
+      end
+      observations[member.name] = inside and compat.dungeonPresence(member.unit) == true
+    end
     player.guid = member.guid or player.guid
     player.inGuild = member.inGuild or player.inGuild
     if member.name == me() then
@@ -125,6 +138,16 @@ local function updatePlayers(run)
       player.deaths = player.deaths or 0
     end
     if inside and member.online then player.presentSec = player.presentSec + elapsed end
+  end
+  if run.integrity then
+    for name, player in pairs(run.players) do
+      local seen = player.integrity
+      if seen and run.state == "ACTIVE" then
+        if not observationGap and observations[name] and player.knownInside then seen.knownSec = seen.knownSec + observedElapsed
+        else seen.unknownSec = seen.unknownSec + observedElapsed end
+      end
+      player.knownInside = observations[name] == true
+    end
   end
 end
 
@@ -158,6 +181,8 @@ local function newRun(instance)
     encounters = {},
     players = {},
     reporters = { [me()] = true },
+    -- Map identity and zero boss kills do not prove a fresh instance copy.
+    integrity = { version = 2, startWitness = "unknown", startTrigger = "unknown", continuous = true },
     inside = true
   }
   local bosses = compat.dungeonBosses(instance.id)
@@ -229,7 +254,9 @@ local function activate(stamp, trigger)
   run.state = "ACTIVE"
   run.startedAt = stamp or now()
   run.startTrigger = trigger or "first combat"
+  if run.integrity then run.integrity.startTrigger = run.startTrigger end
   run.lastTick = run.startedAt
+  updatePlayers(run)
   send(string.format("ACTIVE|%s|%d", run.id, run.startedAt))
   save(run)
   ns.message("Dungeon run started: " .. (run.name or "?") .. ". Good luck!")
@@ -337,6 +364,16 @@ serialize = function(run)
     end
   end
   if #timeline > 0 then summary = summary .. ";tl=" .. table.concat(timeline, ",") end
+  if run.integrity then
+    local observed = {}
+    for name, player in pairs(run.players) do
+      local p = player.integrity
+      if p then observed[#observed + 1] = table.concat({ clean(name), p.knownSec, p.unknownSec, p.lockedRole or "", p.mixedRole and "1" or "0" }, ":") end
+    end
+    local extra = ";iv=2;iw=" .. clean(run.integrity.startWitness) .. ";ic=" .. (run.integrity.continuous and "1" or "0")
+      .. ";it=" .. clean(run.integrity.startTrigger) .. ";ip=" .. table.concat(observed, ",")
+    if #summary + #extra <= CHUNK_BYTES * 20 then summary = summary .. extra end
+  end
   return summary
 end
 
@@ -407,6 +444,14 @@ local function deserialize(id, text)
     name = name and ns.normalizeName(name)
     if name and run.players[name] then run.players[name].spec = string.sub(spec, 1, 40) end
   end
+  if fields.iv == "2" and fields.iw == "unknown" and (fields.ic == "1" or fields.ic == "0") then
+    run.integrity = { version = 2, startWitness = "unknown", startTrigger = fields.it or "unknown", continuous = fields.ic == "1" }
+    for entry in string.gmatch(fields.ip or "", "[^,]+") do
+      local name, known, unknown, role, mixed = string.match(entry, "^([^:]+):(%d+):(%d+):([^:]*):([01])$")
+      name = name and ns.normalizeName(name)
+      if name and run.players[name] then run.players[name].integrity = { knownSec = tonumber(known), unknownSec = tonumber(unknown), lockedRole = ns.util.dungeonRole(role), mixedRole = mixed == "1" } end
+    end
+  end
   return run
 end
 dungeon.serialize = serialize
@@ -432,7 +477,7 @@ local function storePeerRun(run, sender)
     for _, boss in ipairs(encounters or {}) do if boss.at then count = count + 1 end end
     return count
   end
-  if coverage(run.encounters) > coverage(existing.encounters) then existing.encounters = run.encounters end
+  if not existing.integrity and coverage(run.encounters) > coverage(existing.encounters) then existing.encounters = run.encounters end
   for name, player in pairs(run.players) do
     local mine = existing.players[name]
     if mine and player.level then mine.level = math.max(mine.level or player.level, player.level) end
@@ -488,7 +533,17 @@ local function onAddonMessage(text, sender)
     -- A start time before this run was even detected (or in the future) is not believed.
     if run and run.id == id and startedAt and startedAt >= (run.detectedAt or 0) - 600 and startedAt <= now() + 60 then
       if run.state == "STARTING" then activate(startedAt, "peer")
-      elseif run.state == "ACTIVE" and startedAt and startedAt < (run.startedAt or math.huge) then run.startedAt = startedAt; run.startTrigger = "peer"; save(run) end
+      elseif run.state == "ACTIVE" and startedAt and startedAt < (run.startedAt or math.huge) then
+        local gap = run.startedAt - startedAt
+        run.startedAt = startedAt; run.startTrigger = "peer"
+        if run.integrity then
+          run.integrity.startTrigger = "peer"
+          for _, p in pairs(run.players) do
+            if p.integrity then p.integrity.unknownSec = p.integrity.unknownSec + gap end
+          end
+        end
+        save(run)
+      end
     end
   elseif kind == "DEATH" then
     local id, name, count = string.match(text, "^DEATH|([^|]+)|([^|]+)|(%d+)$")
@@ -566,6 +621,16 @@ end
 local function onEvent(_, event, ...)
   local d = db()
   if event == "PLAYER_LOGIN" then
+    if d and d.current and d.current.integrity and d.current.state == "ACTIVE" then
+      -- Keep the original wall clock across reloads. The unobserved interval
+      -- cannot earn presence, but a reload alone does not prove a reset.
+      local gap = math.max(0, now() - (d.current.lastTick or now()))
+      for _, p in pairs(d.current.players) do
+        if p.integrity then p.integrity.unknownSec = p.integrity.unknownSec + gap end
+      end
+      d.current.lastTick = now()
+      for _, p in pairs(d.current.players) do p.knownInside = false end
+    end
     ns.comm.register(PREFIX)
     if C_Timer then C_Timer.After(30, function()
       dungeon.markSynced()

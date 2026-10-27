@@ -3,6 +3,7 @@ import { z } from "zod";
 import { GAME_EDITIONS, gameEditionOf } from "../../companion/game-edition.mjs";
 import { characterKey } from "../../companion/character-identity.mjs";
 import { challengeEvidenceSchema } from "./challenge-evidence.js";
+import { dungeonIntegritySchema, playerIntegritySchema } from "./dungeon-integrity.js";
 
 // Dungeon Challenge rules (roadmap D3/D4): what a valid run is, and how
 // points are earned. Pure functions, so they're easy to test and change.
@@ -17,6 +18,7 @@ export const dungeonRunSchema = z.object({
   gameEdition: z.enum(GAME_EDITIONS).optional(),
   challengeMode: z.boolean().optional(),
   challenge: challengeEvidenceSchema.optional(),
+  integrity: dungeonIntegritySchema.optional().catch(undefined),
   interface: z.number().int().positive().optional(),
   id: z.string().min(3).max(100),
   protocolVersion: z.number().int(),
@@ -46,6 +48,7 @@ export const dungeonRunSchema = z.object({
     realm: z.string().min(1).max(60),
     class: z.string().max(20).optional(),
     role: z.string().max(10).optional(),
+    integrity: playerIntegritySchema.optional().catch(undefined),
     level: z.number().int().min(1).max(100).optional().catch(undefined),
     minLevel: z.number().int().min(1).max(100).optional().catch(undefined),
     spec: z.string().max(40).optional().catch(undefined),

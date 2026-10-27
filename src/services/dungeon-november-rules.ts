@@ -20,6 +20,7 @@ const routeSchema = z.object({
   participationBand: bandSchema,
   targetSec: z.number().int().min(1).max(14400).nullable(),
   verification: z.object({ build: z.string().trim().min(1).max(100), runRef: z.string().trim().min(1).max(100),
+    fullRoute: z.literal(true).optional(),
     method: z.literal("source-reviewed").optional(), sources: z.array(z.string().url()).max(40).optional() })
 });
 export type NovemberRoute = z.infer<typeof routeSchema>;
@@ -133,7 +134,8 @@ export type TargetRecalibration = z.infer<typeof recalibrationSchema>;
 export function createBracketedDungeonRules(input: unknown) {
   const parsed = z.object({ gameEdition: z.enum(GAME_EDITIONS).optional(), routes: z.array(bracketRouteSchema).max(100), brackets: z.array(bracketSchema).max(10),
     overlevelPenalty: penaltySchema.default({ ...DEFAULT_OVERLEVEL_PENALTY }),
-    evidencePolicy: z.literal("current-v1").optional(),
+    evidencePolicy: z.enum(["current-v1", "current-v2"]).optional(),
+    seasonWindow: z.object({ from: z.string().datetime(), to: z.string().datetime().nullable() }).optional(),
     provisional: provisionalSchema.optional(), keystoneRating: challengeRatingSchema.optional(), recalibrations: z.array(recalibrationSchema).max(200).optional() }).refine(value => value.routes.length > 0 && value.brackets.length > 0
       || !!value.gameEdition && value.gameEdition !== "forever" && value.routes.length === 0 && value.brackets.length === 0, "A rated season needs routes and brackets").parse(input);
   const routes = checkedRoutes(parsed.routes);
@@ -169,6 +171,7 @@ export function createBracketedDungeonRules(input: unknown) {
     ...(parsed.gameEdition ? { gameEdition: parsed.gameEdition } : {}),
     ...(parsed.keystoneRating ? { keystoneRating: parsed.keystoneRating } : {}),
     ...(parsed.evidencePolicy ? { evidencePolicy: parsed.evidencePolicy } : {}),
+    ...(parsed.seasonWindow ? { seasonWindow: parsed.seasonWindow } : {}),
     minimumPresence: 0.8, automaticCompletionOnly: true, minimumScore: 50, maximumScore: 400,
     participationModel: "weekly-variety-v1", routeEvidenceVersion: 1, routes, brackets, routeBracket, overlevelPenalty: { ...parsed.overlevelPenalty },
     ...(parsed.provisional ? { provisional: parsed.provisional, provisionalTargets: rated.some(r => provisionalRoute(r.dungeonKey)) } : {}),
@@ -200,6 +203,7 @@ export function validBracketedRules(value: unknown): value is BracketedRules {
     return sameJson(r, createBracketedDungeonRules({ ...(r.gameEdition ? { gameEdition: r.gameEdition } : {}), routes: r.routes, brackets: r.brackets, overlevelPenalty: r.overlevelPenalty ?? null,
       ...(r.keystoneRating !== undefined ? { keystoneRating: r.keystoneRating } : {}),
       ...(r.evidencePolicy !== undefined ? { evidencePolicy: r.evidencePolicy } : {}),
+      ...(r.seasonWindow !== undefined ? { seasonWindow: r.seasonWindow } : {}),
       ...(r.provisional !== undefined ? { provisional: r.provisional } : {}), ...(r.recalibrations !== undefined ? { recalibrations: r.recalibrations } : {}) }));
   } catch { return false; }
 }

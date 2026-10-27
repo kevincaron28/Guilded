@@ -84,6 +84,22 @@ end
 -- Group
 -- ---------------------------------------------------------------------
 
+-- A conservative observation. Unsupported, secret, disconnected or distant
+-- members are unknown, never credited merely for being online. No coordinates.
+function compat.dungeonPresence(unit)
+  local instance = compat.instance()
+  if not instance or instance.type ~= "party" then return false end
+  if unit == "player" then return true end
+  if not exists(UnitIsConnected) or not exists(UnitInRange) or not exists(UnitIsVisible) then return nil end
+  local online = try("dungeonPresenceOnline", UnitIsConnected, unit)
+  if secret(online) or online ~= true then return nil end
+  local visible = try("dungeonPresenceVisible", UnitIsVisible, unit)
+  local inRange, checked = try("dungeonPresenceRange", UnitInRange, unit)
+  if secret(visible) or secret(inRange) or secret(checked) then return nil end
+  if visible == true and checked == true and inRange == true then return true end
+  return nil
+end
+
 local function unitInfo(unit)
   if not exists(UnitExists) or not UnitExists(unit) then return nil end
   ns.util.unitDisplayName(unit)

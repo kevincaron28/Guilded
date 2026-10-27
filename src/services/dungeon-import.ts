@@ -1,5 +1,6 @@
 import { publicRules, readRuleSnapshot } from "./public-score.js";
 import { dungeonRole } from "../../companion/dungeon-role.mjs";
+import { currentIntegrityPolicy, integrityWindowReason, withIntegrityWindow } from "./dungeon-integrity.js";
 import { gameEditionOf } from "./game-edition.js";
 import { addonName } from "./addon-name.js";
 import { currentEdition } from "./edition-context.js";
@@ -90,6 +91,12 @@ async function isNearDuplicate(tx: Tx, guildId: string, run: DungeonRunInput): P
   });
 }
 
+export async function seasonForRun(tx: Pick<Tx, "dungeonSeason">, guildId: string, active: Awaited<ReturnType<typeof activeSeason>>, endedAt: number | undefined) {
+  if (!endedAt || !currentIntegrityPolicy(active.ratingRules) && endedAt * 1000 >= (active.startsAt?.getTime() ?? 0)) return active;
+  const prior = await tx.dungeonSeason.findFirst({ where: { guildId, startsAt: { lte: new Date(endedAt * 1000) } }, orderBy: { startsAt: "desc" } });
+  return prior && currentIntegrityPolicy(prior.ratingRules) ? prior : active;
+}
+
 export async function importDungeonRuns(
   tx: Tx,
   guildId: string,
@@ -113,21 +120,24 @@ export async function importDungeonRuns(
     .sort((a, b) => (a.endedAt ?? a.startedAt ?? 0) - (b.endedAt ?? b.startedAt ?? 0));
   if (!runs.length) return summary;
   const config = sharedDungeonConfig();
-  const season = await activeSeason(tx, guildId, now);
-  const rated = hasDungeonRating(season.ratingRules);
-  const timed = rated && (season.ratingRules as { version: number }).version >= 3;
-  const november = validRouteRules(season.ratingRules) ? season.ratingRules : undefined;
-  const brackets = validBracketedRules(season.ratingRules) ? season.ratingRules.brackets : undefined;
-  const overlevelAllowance = validBracketedRules(season.ratingRules) ? season.ratingRules.overlevelPenalty.maxLevels : 0;
-  const ruleVersion = (season.ratingRules as { version?: number } | null)?.version;
-  if ((ruleVersion === 5 || ruleVersion === 6) && !november) throw new Error("Invalid November rules; import refused without awards");
-  const bestEight = rated && ((season.ratingRules as { version: number }).version === 4 || november !== undefined);
-  const ratingRules = season.ratingRules as unknown as { targets: Record<string, number>; levelBands: Record<string, LevelBand>; participationLevelBands: Record<string, LevelBand> };
-  const participationRules = bestEight ? { targets: {}, levelBands: ratingRules.participationLevelBands } : timed ? season.ratingRules as unknown as { targets: Record<string, number>; levelBands: Record<string, LevelBand> } : config;
-  let previousRating = rated ? await dungeonRating(tx, guildId, season) : [];
+  const currentSeason = await activeSeason(tx, guildId, now);
+  const ratingCache = new Map<string, Awaited<ReturnType<typeof dungeonRating>>>();
 
-  // Oldest first, so records and "earlier this week" are judged in order.
+  // Oldest first, using event-time ownership for the new integrity policy.
   for (const run of runs) {
+    const season = await seasonForRun(tx, guildId, currentSeason, run.endedAt);
+    const rated = hasDungeonRating(season.ratingRules);
+    const timed = rated && (season.ratingRules as { version: number }).version >= 3;
+    const november = validBracketedRules(season.ratingRules) ? withIntegrityWindow(season.ratingRules, season.startsAt, season.endsAt)
+      : validRouteRules(season.ratingRules) ? season.ratingRules : undefined;
+    const brackets = validBracketedRules(season.ratingRules) ? season.ratingRules.brackets : undefined;
+    const overlevelAllowance = validBracketedRules(season.ratingRules) ? season.ratingRules.overlevelPenalty.maxLevels : 0;
+    const ruleVersion = (season.ratingRules as { version?: number } | null)?.version;
+    if ((ruleVersion === 5 || ruleVersion === 6) && !november) throw new Error("Invalid November rules; import refused without awards");
+    const bestEight = rated && ((season.ratingRules as { version: number }).version === 4 || november !== undefined);
+    const ratingRules = season.ratingRules as unknown as { targets: Record<string, number>; levelBands: Record<string, LevelBand>; participationLevelBands: Record<string, LevelBand> };
+    const participationRules = bestEight ? { targets: {}, levelBands: ratingRules.participationLevelBands } : timed ? season.ratingRules as unknown as { targets: Record<string, number>; levelBands: Record<string, LevelBand> } : config;
+
     const check = validateRun(run, now);
     if (gameEditionOf(run) !== "forever") {
       for (const player of run.players) player.character = addonName(player.character, player.realm, gameEditionOf(run));
@@ -137,16 +147,17 @@ export async function importDungeonRuns(
       summary.duplicates++;
       continue;
     }
+    const previousRating = rated ? ratingCache.get(season.id) ?? await dungeonRating(tx, guildId, season) : [];
     const durationSec = run.startedAt && run.endedAt ? run.endedAt - run.startedAt : null;
     const linked = run.players.map((player) => ({
       player,
       character: findCharacter(characters, player.character, player.realm, gameEditionOf(run))
     }));
     const evidence: ParticipationRun = {
-      instanceId: run.instanceId, difficultyId: run.difficultyId, durationSec,
+      instanceId: run.instanceId, difficultyId: run.difficultyId, durationSec, createdAt: now,
       startedAt: run.startedAt ? new Date(run.startedAt * 1000) : null, endedAt: run.endedAt ? new Date(run.endedAt * 1000) : null,
       completedBy: run.completedBy ?? run.endReason ?? null,
-      competitionData: { players: run.players.map(p => ({ name: p.character, level: p.level ?? null, minLevel: p.minLevel ?? null })), encounters: run.encounters ?? [] },
+      competitionData: { ...(run.integrity ? { integrity: run.integrity } : {}), players: run.players.map(p => ({ name: p.character, level: p.level ?? null, minLevel: p.minLevel ?? null, ...(p.integrity ? { integrity: p.integrity } : {}) })), encounters: run.encounters ?? [] },
       players: linked.map(({ player, character }) => ({ character: player.character, memberId: character?.memberId ?? null, presentSec: player.presentSec }))
     };
     const dungeonKey = participationDungeonKey(evidence, november);
@@ -155,7 +166,9 @@ export async function importDungeonRuns(
     const recordEligible = participationRecordEligible(evidence, band, november);
     const inSeason = !!run.startedAt && run.startedAt * 1000 >= (season.startsAt?.getTime() ?? 0)
       && (!season.endsAt || !!run.endedAt && run.endedAt * 1000 < season.endsAt.getTime());
-    const earnsPoints = (!bestEight || evidence.completedBy === "final boss" && !run.id.startsWith("SIM-")) && check.ok && run.state === "COMPLETED" && durationSec !== null && inSeason;
+    const windowReason = currentIntegrityPolicy(season.ratingRules)
+      ? season.status === "ENDED" ? "Season finalized" : integrityWindowReason(evidence.startedAt, evidence.endedAt, now, { from: season.startsAt, to: season.endsAt }) : undefined;
+    const earnsPoints = !windowReason && (!bestEight || evidence.completedBy === "final boss" && !run.id.startsWith("SIM-")) && check.ok && run.state === "COMPLETED" && durationSec !== null && inSeason;
 
     // Records and history are judged BEFORE this run is saved.
     let guildRecord = false;
@@ -167,7 +180,7 @@ export async function importDungeonRuns(
       const history = await tx.dungeonRun.findMany({
         where: { guildId, instanceId: run.instanceId, valid: true, state: "COMPLETED", durationSec: { not: null }, ...(bestEight ? { NOT: { runRef: { startsWith: "SIM-" } } } : {}) },
         select: { instanceId: true, difficultyId: true, durationSec: true, completedBy: true, competitionData: true,
-          startedAt: true, endedAt: true, players: { select: { character: true, memberId: true, presentSec: true } } }
+          startedAt: true, endedAt: true, createdAt: true, players: { select: { character: true, memberId: true, presentSec: true } } }
       });
       const routeHistory = history.filter(row => (!bestEight || row.completedBy === "final boss") && participationDungeonKey(row, november) === dungeonKey);
       const sameRoute = routeHistory.filter(row => row.endedAt
@@ -213,6 +226,7 @@ export async function importDungeonRuns(
     const stored = await tx.dungeonRun.create({
       data: {
         guildId,
+        createdAt: now,
         runRef: run.id,
         instanceId: run.instanceId,
         dungeonName: run.name,
@@ -226,7 +240,7 @@ export async function importDungeonRuns(
         completedBy: run.completedBy ?? run.endReason ?? null,
         recorder: run.recorder ?? null,
         reporterNames: run.reporterNames ?? [],
-        competitionData: { players: run.players.map(p => ({ name: p.character, level: p.level ?? null, minLevel: p.minLevel ?? null })), encounters: run.encounters ?? [],
+        competitionData: { ...(run.integrity ? { integrity: run.integrity } : {}), players: run.players.map(p => ({ name: p.character, level: p.level ?? null, minLevel: p.minLevel ?? null, ...(p.integrity ? { integrity: p.integrity } : {}) })), encounters: run.encounters ?? [],
           gameBuild: run.gameBuild ?? null, startTrigger: run.startTrigger ?? null,
           challengeMode: run.challengeMode ?? false, ...(run.challenge ? { challenge: run.challenge } : {}) },
         reporters: run.reporters,
@@ -282,6 +296,7 @@ export async function importDungeonRuns(
     }
 
     const currentRating = rated ? await dungeonRating(tx, guildId, season) : [];
+    if (rated) ratingCache.set(season.id, currentRating);
     // Version 6: the total of the bracket this character played in, by their level in this run.
     const routeBracket = validBracketedRules(season.ratingRules) ? season.ratingRules.routeBracket[dungeonKey] : undefined;
     const runBracket = (name: string) => routeBracket ?? bracketForLevel(brackets ?? [], run.players.find(p => p.character === name)?.level)?.key;
@@ -305,7 +320,7 @@ export async function importDungeonRuns(
       playerDetails: linked.map(({ player, character }) => {
         const participationRecipient = contexts.find(p => p.memberId === character?.memberId)?.character;
         const unrankedReason = timed ? !check.ok ? check.reason ?? "Invalid run"
-          : !inSeason ? "Outside season window"
+          : windowReason ? windowReason : !inSeason ? "Outside season window"
           : run.id.startsWith("SIM-") ? "Simulation run"
           : completionReason(evidence.completedBy) !== undefined ? completionReason(evidence.completedBy)
           : novemberReason ? novemberReason
@@ -339,7 +354,6 @@ export async function importDungeonRuns(
       unlinked: linked.filter((entry) => !entry.character).map((entry) => entry.player.character),
       achievements
     });
-    previousRating = currentRating;
   }
   return summary;
 }

@@ -3,6 +3,7 @@ import { startSeason } from "./dungeon-admin.js";
 import { createBracketedDungeonRules, validBracketedRules, type BracketedRules } from "./dungeon-november-rules.js";
 import { addedRules, publicRules, readRuleSnapshot, snapshotRules, type PublicRuleSnapshot } from "./public-score.js";
 import { currentEdition } from "./edition-context.js";
+import { currentIntegrityPolicy } from "./dungeon-integrity.js";
 
 // The bot-wide dungeon season calendar (7.3, owner 20 October 2026: "only I control when a season
 // starts and ends ... the first real season starting November 4th, then we change season when a
@@ -128,6 +129,12 @@ export async function rotateOfficialSeasons(database: RotationDb, windows: Offic
     const active = await database.dungeonSeason.findFirst({ where: { guildId: row.guildId, status: "ACTIVE" }, orderBy: { startsAt: "desc" } });
     // Already in this season: retain its history and only add missing shared routes.
     if (active && active.startsAt.getTime() >= window.start.getTime()) {
+      // A scheduled next season can be moved or cancelled. Keep v2 ingestion's
+      // event-time cutoff aligned with the authoritative calendar on every tick.
+      if (currentIntegrityPolicy(active.ratingRules) && active.endsAt?.getTime() !== window.end?.getTime()) {
+        if (!backedUp) { await backup(); backedUp = true; }
+        await database.dungeonSeason.update({ where: { id: active.id }, data: { endsAt: window.end } });
+      }
       // Keep newly verified routes available to existing and late-joining guilds
       // alike, without changing any already-frozen target or historical score.
       const added = validBracketedRules(active.ratingRules) && addedRules(active.ratingRules, window.rules.rules);

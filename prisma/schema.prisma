@@ -1282,7 +1282,7 @@ model DungeonSeason {
   name         String
   startsAt     DateTime                  @default(now())
   endsAt       DateTime?
-  // ACTIVE or ENDED. Ended seasons stay viewable forever.
+  // ACTIVE, CLOSING (v2 upload grace), or ENDED. Ended seasons stay viewable forever.
   status       String                    @default("ACTIVE")
   // Published final standings. Later ledger corrections do not rewrite the award ceremony.
   finalStandings Json?
@@ -2124,6 +2124,9 @@ model PublicRun {
   source        String
   // 1: completion method and boss kills recorded (7.4); 0: uploaded before, checked the old way.
   evidenceVersion Int    @default(0)
+  // Additive current-v2 observation, never inferred from legacy online presence.
+  integrity     Json?
+  evidenceReceivedAt DateTime?
   challenge     Json?
   completedBy   String?
   // Successful boss kills inside the run: { id, name?, at?, startedAt? }[].
@@ -2167,6 +2170,9 @@ model PublicRunUpload {
   // Characters (lowercase) whose report this upload carries: one upload adds a confirmation only
   // when none of them was already counted (a guild's copy and a member's own upload are one report).
   reporters   String[]  @default([])
+  // Individual observation retained for review; never sum overlapping presence.
+  evidence    Json?
+  historyOnly Boolean   @default(false)
   createdAt   DateTime  @default(now())
   run         PublicRun @relation(fields: [runId], references: [id], onDelete: Cascade)
 

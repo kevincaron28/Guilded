@@ -22,7 +22,7 @@ export async function seasonArchive(database: PrismaClient, guildId: string, pag
   const entries = [];
   for (const season of seasons) {
     if (!hall) {
-      entries.push(`**${season.name}** · ${season.status === "ACTIVE" ? "Current / Actuelle" : "Archived / Passée"} · <t:${Math.floor(season.startsAt.getTime() / 1000)}:d>\n\`/dungeon leaderboard season:${season.id}\``);
+      entries.push(`**${season.name}** · ${season.status === "ACTIVE" ? "Current / Actuelle" : season.status === "CLOSING" ? "Upload grace / Délai d'envoi" : "Archived / Passée"} · <t:${Math.floor(season.startsAt.getTime() / 1000)}:d>\n\`/dungeon leaderboard season:${season.id}\``);
       continue;
     }
     const final = hasDungeonRating(season.ratingRules) ? frozenRating(season.finalRating) : finalRows(season.finalStandings);

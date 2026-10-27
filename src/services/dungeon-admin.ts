@@ -4,6 +4,8 @@ import { activeSeason } from "./dungeon-import.js";
 import { leaderboard } from "./dungeon-stats.js";
 import { DEFAULT_DUNGEON_CONFIG, dungeonConfig, formatDuration, type DungeonConfig } from "./dungeon-rules.js";
 import { dungeonRating, hasDungeonRating } from "./dungeon-rating.js";
+import { currentIntegrityPolicy, UPLOAD_GRACE_MS } from "./dungeon-integrity.js";
+import { currentEdition } from "./edition-context.js";
 
 // Officer corrections for the dungeon challenge (roadmap D7). Points are
 // never edited or deleted: every change is a new DungeonPointTransaction,
@@ -83,6 +85,18 @@ export async function startSeason(database: Db, guildId: string, name: string, e
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${guildId}, 0))`;
     const ending = await tx.dungeonSeason.findFirst({ where: { guildId, status: "ACTIVE" }, orderBy: { startsAt: "desc" } });
     if (expectedSeasonId !== undefined && (ending?.id ?? null) !== expectedSeasonId) throw new Error("The active season changed; no season was rotated.");
+    if (ending && currentIntegrityPolicy(ending.ratingRules)) {
+      const now = new Date(), boundary = startsAt ?? now;
+      const closing = await tx.dungeonSeason.findMany({ where: { guildId, status: "ACTIVE" } });
+      if (closing.some(past => !currentIntegrityPolicy(past.ratingRules))) throw new Error("Mixed active season policies require review before rotation.");
+      for (const past of closing) await tx.dungeonSeason.update({ where: { id: past.id }, data: {
+        status: "CLOSING", endsAt: past.endsAt && past.endsAt < boundary ? past.endsAt : boundary
+      } });
+      // No snapshot or champion yet: eligible delayed uploads have 72 hours.
+      const season = await tx.dungeonSeason.create({ data: { guildId, name: trimmed, startsAt: boundary, ...(endsAt ? { endsAt } : {}),
+        ratingRules: (presetRules as Prisma.InputJsonValue | undefined) ?? publicRules() as unknown as Prisma.InputJsonValue } });
+      return { season, ended: closing.map(row=>row.name), champions: [] as string[] };
+    }
     const count = ending ? await tx.member.count({ where: { guildId } }) : 0;
     const top = ending ? await leaderboard(tx, guildId, "season", null, Math.max(count, 1)) : [];
     const rated = ending && hasDungeonRating(ending.ratingRules) ? await dungeonRating(tx, guildId, ending, null, true) : null;
@@ -120,6 +134,37 @@ export async function startSeason(database: Db, guildId: string, name: string, e
       ratingRules: (presetRules as Prisma.InputJsonValue | undefined) ?? publicRules() as unknown as Prisma.InputJsonValue } });
     return { season, ended: ended.map((row) => row.name), champions: champions.map((row) => row.name) };
   });
+}
+
+/** Shares the import/rotation guild lock; exact deadline and retries cannot award twice. */
+export async function finalizeClosingSeasons(database: Db, now = new Date(), allows: (discordId: string) => boolean = () => true): Promise<string[]> {
+  const due = await database.dungeonSeason.findMany({ where: { status: "CLOSING", endsAt: { lte: new Date(now.getTime() - UPLOAD_GRACE_MS) },
+    guild: { gameEdition: currentEdition() } }, select: { id: true, guildId: true, guild: { select: { discordId: true } } } });
+  const finalized: string[] = [];
+  for (const candidate of due) {
+    if (!allows(candidate.guild.discordId)) continue;
+    const done = await database.$transaction(async tx => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${candidate.guildId}, 0))`;
+      const season = await tx.dungeonSeason.findFirst({ where: { id: candidate.id, guildId: candidate.guildId, status: "CLOSING" } });
+      if (!season || !currentIntegrityPolicy(season.ratingRules) || !season.endsAt || now.getTime() < season.endsAt.getTime() + UPLOAD_GRACE_MS) return false;
+      const count = await tx.member.count({ where: { guildId: season.guildId } });
+      const standings = await leaderboard(tx, season.guildId, "season", null, Math.max(count, 1), now, season.id);
+      const rating = await dungeonRating(tx, season.guildId, season, null, true);
+      const rules = await tx.guildSettings.findUnique({ where: { guildId: season.guildId }, select: { dungeonConfig: true } });
+      const best = new Map<string, number>();
+      for (const row of rating) best.set(row.bracket ?? "all", Math.max(best.get(row.bracket ?? "all") ?? 0, row.points));
+      for (const champion of rating.filter(row=>row.points > 0 && row.points === best.get(row.bracket ?? "all"))) {
+        const key = `seasonChampion:${season.id}`;
+        await tx.dungeonAchievement.upsert({ where: { guildId_memberId_key: { guildId: season.guildId, memberId: champion.memberId, key } },
+          create: { guildId: season.guildId, memberId: champion.memberId, key, seasonId: season.id }, update: {} });
+      }
+      await tx.dungeonSeason.update({ where: { id: season.id }, data: { status: "ENDED", finalStandings: standings as unknown as Prisma.InputJsonValue,
+        finalRating: rating as unknown as Prisma.InputJsonValue, rulesSnapshot: dungeonConfig(rules?.dungeonConfig) as unknown as Prisma.InputJsonValue } });
+      return true;
+    });
+    if (done) finalized.push(candidate.guildId);
+  }
+  return finalized;
 }
 
 // Recent runs for the officer autocomplete (value = run id from the addon).

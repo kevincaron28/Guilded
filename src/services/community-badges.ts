@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { historicalPeak, milestoneCode, reachedMilestones } from "./community-badge-rules.js";
+import { memberBadgeShelves } from "./community-badge-policy.js";
 
 type Tx = Prisma.TransactionClient;
 const lock = (tx: Tx, guildId: string) => tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`community:${guildId}`}, 0))`;
@@ -25,7 +26,7 @@ export async function recordCommunityPoint(tx: Tx, data: Prisma.CommunityPointUn
 export async function grantCommunityBadge(tx: Tx, seasonId: string, userId: string, code: "helper" | "attendee" | "organizer", evidenceRef: string, now = new Date()) {
   if (!await tx.communityBadgeConfig.findUnique({ where: { seasonId } })) return;
   // No reward, role or announcement. Independent review/attendance is the evidence;
-  // the shelf remains private until its owner chooses to share this season.
+  // shelf visibility follows the season's guild policy; proof remains private.
   await tx.communityBadge.upsert({ where: { seasonId_userId_code: { seasonId, userId, code } },
     create: { seasonId, userId, code, earnedAt: now, source: "REVIEW", evidenceRef }, update: {} });
 }
@@ -78,7 +79,20 @@ export async function configureCommunityBadges(database: PrismaClient, guildId: 
 }
 
 export async function communityBadgeShelf(database: PrismaClient, seasonId: string, viewer: string, owner: string) {
+  const season = await database.communitySeason.findUnique({ where: { id: seasonId }, select: { guild: { select: { discordId: true } } } });
+  if (!season) return null;
   const sharing = await database.communityBadgeSharing.findUnique({ where: { seasonId_userId: { seasonId, userId: owner } } });
-  if (viewer !== owner && !sharing?.shared) return null;
+  if (viewer !== owner && !memberBadgeShelves(season.guild.discordId) && !sharing?.shared) return null;
   return database.communityBadge.findMany({ where: { seasonId, userId: owner }, orderBy: [{ recordedAt: "asc" }, { code: "asc" }], take: 30 });
+}
+
+// Caller checks live guild/season access. Old cached share requests in Québec Gold
+// are acknowledged without mutating preserved historical sharing preferences.
+export async function setCommunityBadgeSharing(database: PrismaClient, seasonId: string, actor: string, owner: string, shared: boolean): Promise<boolean> {
+  const season = await database.communitySeason.findUnique({ where: { id: seasonId }, select: { guild: { select: { discordId: true } } } });
+  if (!season) throw new Error("Season not found / Saison introuvable.");
+  if (memberBadgeShelves(season.guild.discordId)) return false;
+  if (owner !== actor) throw new Error("Only your own shelf / Tes propres badges seulement.");
+  await database.communityBadgeSharing.upsert({ where: { seasonId_userId: { seasonId, userId: actor } }, create: { seasonId, userId: actor, shared }, update: { shared } });
+  return true;
 }

@@ -1,4 +1,5 @@
 import { GAME_EDITIONS } from "../companion/game-edition.mjs";
+import { badgeCommandsForGuild } from "./services/community-badge-policy.js";
 import { withEdition } from "./services/edition-context.js";
 import { guildWhere, interactionGuildScope, entityGuildScope, runInGuildScope, withGuildScope, forEachGuildScope } from "./services/guild-scope.js";
 import { executeWow } from "./commands/wow.js";
@@ -751,7 +752,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
 async function registerCommands(guildId: string, body: unknown[] = commands.map((command) => command.toJSON())): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(config.DISCORD_TOKEN);
   const full = guildId === config.DISCORD_GUILD_ID ? [...body, ownerSeasonCommand.toJSON(), ownerEventsCommand.toJSON()] : body;
-  await rest.put(Routes.applicationGuildCommands(config.DISCORD_CLIENT_ID, guildId), { body: full });
+  await rest.put(Routes.applicationGuildCommands(config.DISCORD_CLIENT_ID, guildId), { body: badgeCommandsForGuild(guildId, full) });
 }
 
 // Commands are per-guild, so every server the bot is in needs them registered.

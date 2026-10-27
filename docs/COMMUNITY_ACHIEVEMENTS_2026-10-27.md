@@ -8,11 +8,14 @@ remains 7.5.0; this is a bot/web/database change, with no addon payload change.
 ## Member experience
 
 - `/community badges` shows your seasonal shelf; choose `season` for archives.
-- `player` shows another current member's shelf only when that member explicitly
-  shared that season. The viewer must still have access to the season's channel
-  and audience role. Responses are ephemeral.
-- `share:true` opts your selected season into member sharing; `share:false`
-  withdraws it. Sharing is off by default and is not inherited by a new season.
+- In Québec Gold, `player` shows another eligible current member's shelf without
+  a sharing toggle, as requested by the owner on 27 October. Both viewer and owner
+  must still have access to the season's channel and audience role. Responses are
+  ephemeral; private proof and review notes are never rendered.
+- Other Discord servers retain opt-in sharing: `share:true` shares that season,
+  `share:false` withdraws it. Québec Gold's registered command omits this option;
+  cached share requests explain the member-visible policy without changing old
+  preference rows. No preference rows, badges or historical records are deleted.
 - Signed-in `/me/badges` provides the same shelf under the existing guild/member
   and season access checks. Public character profiles expose no new badge data.
 - Reviewed helper nominations and independently confirmed event attendance give

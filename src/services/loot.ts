@@ -1,6 +1,7 @@
 import { AuctionStatus, EpgpTransactionType, type PrismaClient } from "../generated/prisma/client.js";
-import { poolFor } from "./core-rules.js";
+import { effectiveRules, poolFor } from "./core-rules.js";
 import { requireCorePool } from "./core-loot-policy.js";
+import { priority } from "./epgp.js";
 import { markGuildChanged } from "./standings-feed.js";
 
 export interface CreateAuctionInput {
@@ -12,6 +13,22 @@ export interface CreateAuctionInput {
   createdBy: string;
   raidId?: string | undefined;
   bossName?: string | undefined;
+}
+
+// Bids best first, in EPGP Classic's bidding order: bidders with at least the minimum EP before those
+// without, then the highest bid, then the higher PR, then whoever bid first. The addon ranks its
+// sealed bids the same way (Modules/Bidding.lua).
+export function rankBids<T extends { memberId: string; amount: number; createdAt: Date }>(
+  bids: T[], standings: Map<string, { ep: number; gp: number }>, minEp: number, baseGp: number
+): T[] {
+  const rank = (bid: T) => {
+    const { ep, gp } = standings.get(bid.memberId) ?? { ep: 0, gp: 0 };
+    return { below: ep < minEp ? 1 : 0, pr: priority(ep, gp, baseGp) };
+  };
+  return [...bids].sort((a, b) => {
+    const ra = rank(a), rb = rank(b);
+    return ra.below - rb.below || b.amount - a.amount || rb.pr - ra.pr || a.createdAt.getTime() - b.createdAt.getTime();
+  });
 }
 
 export function createLootService(database: PrismaClient) {
@@ -75,17 +92,26 @@ export function createLootService(database: PrismaClient) {
           include: { bids: { orderBy: [{ amount: "desc" }, { createdAt: "asc" }] } }
         });
         if (!auction || auction.status !== AuctionStatus.ACTIVE) throw new Error("Auction is not active");
-        const winner = auction.bids[0];
         const updated = await tx.auction.updateMany({
           where: { id: auctionId, status: AuctionStatus.ACTIVE },
           data: { status: AuctionStatus.CLOSED, closedAt: new Date() }
         });
         if (updated.count !== 1) throw new Error("Auction was already closed");
-        if (!winner) return { auction, award: null };
+        if (!auction.bids.length) return { auction, award: null };
         // GP lands in the raid's core pool when that core keeps its own points.
         const raid = auction.raidId ? await tx.raid.findFirst({ where: { id: auction.raidId, guildId: auction.guildId }, include: { core: true } }) : null;
         const coreId = poolFor(raid?.core);
         await requireCorePool(tx, auction.guildId, coreId);
+        let winner = auction.bids[0]!;
+        if (auction.bids.length > 1) {
+          // EPGP bidding order: bidders with the core's minimum EP first, then the highest bid.
+          const rules = effectiveRules(await tx.guildSettings?.findUnique({ where: { guildId: auction.guildId } }), raid?.core);
+          const sums = await tx.epgpTransaction.groupBy({
+            by: ["memberId"], where: { memberId: { in: auction.bids.map((bid) => bid.memberId) }, coreId }, _sum: { epAmount: true, gpAmount: true }
+          });
+          const standings = new Map(sums.map((row) => [row.memberId, { ep: row._sum.epAmount ?? 0, gp: row._sum.gpAmount ?? 0 }]));
+          winner = rankBids(auction.bids, standings, rules.minEp, rules.baseGp)[0]!;
+        }
         // Snapshot the winner's totals before the GP lands, for loot history.
         const before = await tx.epgpTransaction.aggregate({
           where: { memberId: winner.memberId, coreId },

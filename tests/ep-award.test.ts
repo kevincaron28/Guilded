@@ -46,7 +46,7 @@ describe("raid EP proposal", () => {
 });
 
 describe("bench credit", () => {
-  it("pays a benched player the attendance EP only, and counts full attendance", async () => {
+  it("pays a benched player the same EP as the raid (EPGP standby), and counts full attendance", async () => {
     const { db } = database();
     (db.raid.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
       id: "r1", title: "Molten Core", bosses: [{ status: "KILLED" }, { status: "KILLED" }],
@@ -56,8 +56,8 @@ describe("bench credit", () => {
       ]
     });
     const proposal = await computeRaidEpProposal(db as never, "g1", "r1");
-    // Kev: 10 attendance + 2 kills x 3 + 4 clear bonus; Zed (bench): 10 only.
-    expect(proposal.rows.map((row) => [row.name, row.ep, row.status])).toEqual([["Kev", 20, "PRESENT"], ["Zed", 10, "BENCHED"]]);
+    // Kev: 10 attendance + 2 kills x 3 + 4 clear bonus; Zed (bench) gets the same, as EPGP standby does.
+    expect(proposal.rows.map((row) => [row.name, row.ep, row.status])).toEqual([["Kev", 20, "PRESENT"], ["Zed", 20, "BENCHED"]]);
   });
 });
 

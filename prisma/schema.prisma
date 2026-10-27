@@ -463,6 +463,8 @@ model Member {
 
   @@unique([guildId, discordUserId])
   @@index([guildId, status])
+  // The public players page and profiles find a web account's members across guilds.
+  @@index([discordUserId])
 }
 
 model Character {

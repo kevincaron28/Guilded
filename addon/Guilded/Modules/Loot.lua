@@ -198,35 +198,38 @@ function loot.minEp()
   return math.max(0, core and tonumber(core.minEp) or 0)
 end
 
--- A starting GP price for an item nobody priced yet, from its item level and slot: the usual EPGP
--- shape (price doubles every 26 item levels, weighted by slot), scaled so a Classic tier chest
--- (ilvl 66-78) lands around 70-100 GP and capped at 5000. Only a suggestion: the officer sees it
--- in the price box and can change it. nil when the game does not know the item yet.
+-- A starting GP price for an item nobody priced yet: the Classic EPGP gear-point formula (CEPGP,
+-- after the original EPGP), GP = 4.83 x 2^(ilvl/26 + quality - 4) x slot weight. The price doubles
+-- every 26 item levels, a rare item costs half an epic and a legendary twice as much. Only a
+-- suggestion: the officer sees it in the price box and can change it. nil when the game does not
+-- know the item yet.
+local GP_BASE = 4.83
 local SLOT_WEIGHT = {
-  INVTYPE_HEAD = 1, INVTYPE_CHEST = 1, INVTYPE_ROBE = 1, INVTYPE_LEGS = 1, INVTYPE_2HWEAPON = 2,
+  INVTYPE_HEAD = 1, INVTYPE_CHEST = 1, INVTYPE_ROBE = 1, INVTYPE_LEGS = 1,
   INVTYPE_SHOULDER = 0.75, INVTYPE_HAND = 0.75, INVTYPE_WAIST = 0.75, INVTYPE_FEET = 0.75, INVTYPE_TRINKET = 0.75,
-  INVTYPE_WRIST = 0.5625, INVTYPE_NECK = 0.5625, INVTYPE_CLOAK = 0.5625, INVTYPE_FINGER = 0.5625,
-  INVTYPE_SHIELD = 0.5625, INVTYPE_HOLDABLE = 0.5625, INVTYPE_WEAPONOFFHAND = 0.5625,
-  INVTYPE_WEAPON = 1.5, INVTYPE_WEAPONMAINHAND = 1.5,
-  INVTYPE_RANGED = 0.5, INVTYPE_RANGEDRIGHT = 0.5, INVTYPE_THROWN = 0.5, INVTYPE_RELIC = 0.3
+  INVTYPE_WRIST = 0.5, INVTYPE_NECK = 0.5, INVTYPE_CLOAK = 0.5, INVTYPE_FINGER = 0.5,
+  INVTYPE_SHIELD = 0.5, INVTYPE_HOLDABLE = 0.5, INVTYPE_WEAPONOFFHAND = 0.5, INVTYPE_THROWN = 0.5, INVTYPE_RELIC = 0.5,
+  INVTYPE_WEAPON = 1.5, INVTYPE_WEAPONMAINHAND = 1.5, INVTYPE_2HWEAPON = 2,
+  -- A bow, gun or crossbow is a hunter's main weapon; a wand weighs like an off-hand (below).
+  INVTYPE_RANGED = 2, INVTYPE_RANGEDRIGHT = 2
 }
-function loot.suggestGp(level, equipLoc, quality)
+local WAND_SUBCLASS = 19
+function loot.suggestGp(level, equipLoc, quality, subclass)
   level = tonumber(level)
   if not level or level <= 0 then return nil end
   local weight = SLOT_WEIGHT[equipLoc or ""] or 1
-  -- Epic items cost the full price; rare ones less (as in the EPGP tables).
-  local qualityFactor = (tonumber(quality) or 4) >= 4 and 1 or 0.6
-  local value = 200 * 2 ^ (level / 26 - 4) * weight * qualityFactor
-  value = math.min(5000, value) -- capped before rounding (huge item levels overflow an integer)
-  return math.max(1, math.floor(value / 5 + 0.5) * 5)
+  if equipLoc == "INVTYPE_RANGEDRIGHT" and tonumber(subclass) == WAND_SUBCLASS then weight = 0.5 end
+  local value = GP_BASE * 2 ^ (level / 26 + (tonumber(quality) or 4) - 4) * weight
+  value = math.min(100000, value) -- capped before rounding (huge item levels overflow an integer)
+  return math.max(1, math.floor(value))
 end
 
 function loot.suggestFor(item)
   local suggestion
   pcall(function()
     if not GetItemInfo then return end
-    local _, _, quality, level, _, _, _, _, equipLoc = GetItemInfo(item)
-    suggestion = loot.suggestGp(level, equipLoc, quality)
+    local _, _, quality, level, _, _, _, _, equipLoc, _, _, _, subclass = GetItemInfo(item)
+    suggestion = loot.suggestGp(level, equipLoc, quality, subclass)
   end)
   return suggestion
 end

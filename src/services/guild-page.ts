@@ -1,6 +1,7 @@
 import { guildWhere } from "./guild-scope.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { priority } from "./epgp.js";
+import { asLootMode, effectiveRules, LOOT_MODE_HELP, LOOT_MODE_HELP_FR, LOOT_MODE_LABEL, LOOT_MODE_LABEL_FR } from "./core-rules.js";
 import { breadcrumbs, SITE_HEADER_STYLE, siteHeader } from "./site-header.js";
 
 // A guild's public page at /g/<slug>/ (docs/GUILD_PAGES_DESIGN.md). Read-only, no scripts, and
@@ -37,10 +38,12 @@ export function checkInviteUrl(url: string): string {
 }
 
 export interface RosterRow { name: string; className: string; role: keyof typeof ROLE_ORDER; bench: boolean; trial: boolean }
-export interface RankingRow { name: string; ep: number; gp: number; pr: number }
+export interface RankingRow { name: string; ep: number; gp: number; pr: number; belowMin?: boolean }
 export interface PageCore {
   name: string; description: string | null; realm: string | null; schedule: string | null; timezone: string;
-  lootMode: string; decayPercent: number; minEp: number;
+  // The core's effective rules, as Discord shows them (/core show). autoDecay: the pool decays after
+  // each weekly reset by itself; otherwise only when an officer runs it.
+  lootMode: string; decayPercent: number; minEp: number; baseGp?: number; offspecPercent?: number; autoDecay?: boolean;
   roster?: RosterRow[]; ranking?: RankingRow[];
 }
 export interface GuildPageView {
@@ -56,7 +59,7 @@ export async function loadGuildPageView(database: PrismaClient, slug: string, al
   if (!isPageSlug(slug)) return null;
   const page = await database.guildPage.findUnique({
     where: { slug },
-    include: { guild: { select: { id: true, name: true, discordId: true, settings: { select: { language: true, timezone: true, lootMode: true, baseGp: true, epgpDecayPercent: true, publicDungeonRuns: true } } } } }
+    include: { guild: { select: { id: true, name: true, discordId: true, settings: { select: { language: true, timezone: true, lootMode: true, baseGp: true, epgpDecayPercent: true, autoDecay: true, publicDungeonRuns: true } } } } }
   });
   if (!page?.published || !allows(page.guild.discordId)) return null;
   const sections = page.sections.filter((name): name is PageSection => (PAGE_SECTIONS as readonly string[]).includes(name));
@@ -74,10 +77,13 @@ export async function loadGuildPageView(database: PrismaClient, slug: string, al
       } } }
     });
     for (const core of rows) {
+      // The same rules Discord uses. A core on the shared guild pool decays with the guild's percent.
+      const rules = effectiveRules(settings, core);
       const view: PageCore = {
         name: core.name, description: core.description, realm: core.realm, schedule: core.schedule,
-        timezone: core.weeklyTimezone ?? timezone, lootMode: core.lootMode ?? settings?.lootMode ?? "EPGP",
-        decayPercent: core.decayPercent ?? settings?.epgpDecayPercent ?? 0, minEp: core.minEp ?? 0
+        timezone: core.weeklyTimezone ?? timezone, lootMode: rules.lootMode,
+        decayPercent: rules.separatePool ? rules.decayPercent : settings?.epgpDecayPercent ?? 0.1, minEp: rules.minEp,
+        baseGp: rules.baseGp, offspecPercent: rules.offspecPercent, autoDecay: settings?.autoDecay === true
       };
       // The character each member brings to this core; members without one are left out.
       const spots = core.members.flatMap((spot) => {
@@ -95,12 +101,13 @@ export async function loadGuildPageView(database: PrismaClient, slug: string, al
           _sum: { epAmount: true, gpAmount: true }
         });
         const byMember = new Map(sums.map((row) => [row.memberId, row._sum]));
-        const baseGp = core.baseGp ?? settings?.baseGp ?? 0;
+        // Ordered as loot is given out (loot-priority.ts): players under the core's minimum EP last.
         view.ranking = spots.map(({ memberId, character }) => {
           const ep = byMember.get(memberId)?.epAmount ?? 0;
           const gp = byMember.get(memberId)?.gpAmount ?? 0;
-          return { name: character.name, ep, gp, pr: priority(ep, gp, baseGp) };
-        }).filter((row) => row.ep || row.gp).sort((a, b) => b.pr - a.pr || b.ep - a.ep).slice(0, RANKING_LIMIT);
+          return { name: character.name, ep, gp, pr: priority(ep, gp, rules.baseGp), ...(ep < rules.minEp ? { belowMin: true } : {}) };
+        }).filter((row) => row.ep || row.gp)
+          .sort((a, b) => Number(a.belowMin ?? false) - Number(b.belowMin ?? false) || b.pr - a.pr || b.ep - a.ep).slice(0, RANKING_LIMIT);
       }
       cores.push(view);
     }
@@ -116,12 +123,6 @@ export async function loadGuildPageView(database: PrismaClient, slug: string, al
 const escapeHtml = (text: string) => text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 const paragraphs = (text: string) => text.split(/\n{2,}/).map((part) => `<p>${escapeHtml(part.trim()).replace(/\n/g, "<br>")}</p>`).join("");
 
-const LOOT: Record<string, { en: string; fr: string }> = {
-  EPGP: { en: "EPGP: players earn EP by raiding and pay GP for items; the highest priority (EP ÷ GP) wins.", fr: "EPGP : on gagne des EP en raid et on paie des GP pour les objets; la priorité la plus haute (EP ÷ GP) l'emporte." },
-  COUNCIL: { en: "Loot council: officers decide who receives each item.", fr: "Conseil de butin : les officiers décident qui reçoit chaque objet." },
-  RESERVE: { en: "Soft reserves: players reserve items before the raid.", fr: "Réservations : les joueurs réservent des objets avant le raid." },
-  PRIORITY: { en: "Priority list: items follow a list set by officers.", fr: "Liste de priorité : les objets suivent une liste établie par les officiers." }
-};
 const ROLE_LABEL = { TANK: { en: "Tank", fr: "Tank" }, HEALER: { en: "Healer", fr: "Soigneur" }, DPS: { en: "DPS", fr: "DPS" } };
 
 export const PAGE_STYLE = `:root{color-scheme:dark;--bg:#111312;--panel:#1a1e1b;--line:#353b32;--text:#f1eee4;--muted:#b9c0b2;--gold:#e8c47c}
@@ -159,10 +160,21 @@ export function renderGuildPage(view: GuildPageView): string {
       + (core.description ? `<p class="muted">${escapeHtml(core.description)}</p>` : "") + "</div>").join("")}</div>`);
   }
   if (on("loot") && view.cores.length) {
+    // The same names and explanations as Discord (core-rules.ts), so the page and /core show agree.
     parts.push(`<h2>${t("Loot system", "Système de butin")}</h2><div class="cards">${view.cores.map((core) => {
-      const mode = LOOT[core.lootMode] ?? LOOT["EPGP"]!;
-      const details = core.lootMode === "EPGP" ? `<p class="tag">${label("Weekly decay", "Dégradation hebdomadaire")}${Math.round(core.decayPercent * 1000) / 10}${fr ? " %" : "%"}${core.minEp ? ` · ${label("Minimum EP", "EP minimum")}${core.minEp}` : ""}</p>` : "";
-      return `<div class="card"><h3>${escapeHtml(core.name)}</h3><p>${escapeHtml(fr ? mode.fr : mode.en)}</p>${details}</div>`;
+      const mode = asLootMode(core.lootMode);
+      const percent = `${Math.round(core.decayPercent * 1000) / 10}${fr ? " %" : "%"}`;
+      const points = mode === "EPGP" || mode === "PRIORITY" ? [
+        core.decayPercent <= 0 ? t("No decay", "Aucune dégradation")
+          : core.autoDecay ? t(`Decay ${percent} after each weekly reset`, `Dégradation de ${percent} après chaque réinitialisation hebdomadaire`)
+            : t(`Decay ${percent}, applied by officers`, `Dégradation de ${percent}, appliquée par les officiers`),
+        core.baseGp ? `${label("Base GP", "GP de base")}${core.baseGp}` : "",
+        core.minEp ? `${label("Minimum EP", "EP minimum")}${core.minEp}` : "",
+        mode === "PRIORITY" && core.offspecPercent !== undefined ? t(`Off-spec pays ${core.offspecPercent}% of the price`, `Hors spé : ${core.offspecPercent} % du prix`) : ""
+      ].filter(Boolean) : [];
+      const modeName = fr ? LOOT_MODE_LABEL_FR[mode] : LOOT_MODE_LABEL[mode].charAt(0).toUpperCase() + LOOT_MODE_LABEL[mode].slice(1);
+      return `<div class="card"><h3>${escapeHtml(core.name)}</h3><p><strong>${escapeHtml(modeName)}</strong></p>`
+        + `<p>${escapeHtml(fr ? LOOT_MODE_HELP_FR[mode] : LOOT_MODE_HELP[mode])}</p>${points.length ? `<p class="tag">${escapeHtml(points.join(" · "))}</p>` : ""}</div>`;
     }).join("")}</div>`);
   }
   if (on("rosters")) {
@@ -175,7 +187,7 @@ export function renderGuildPage(view: GuildPageView): string {
   if (on("rankings")) {
     for (const core of view.cores.filter((c) => c.ranking?.length)) {
       parts.push(`<h2>${t("EPGP ranking", "Classement EPGP")} · ${escapeHtml(core.name)}</h2><div class="table-wrap"><table><thead><tr><th>#</th><th>${t("Character", "Personnage")}</th><th class="num">EP</th><th class="num">GP</th><th class="num">${t("Priority", "Priorité")}</th></tr></thead><tbody>`
-        + core.ranking!.map((row, index) => `<tr><td>${index + 1}</td><td>${escapeHtml(row.name)}</td><td class="num">${row.ep}</td><td class="num">${row.gp}</td><td class="num">${row.pr.toFixed(2)}</td></tr>`).join("")
+        + core.ranking!.map((row, index) => `<tr><td>${index + 1}</td><td>${escapeHtml(row.name)}${row.belowMin ? ` <span class="tag">${t("under minimum EP", "sous l'EP minimum")}</span>` : ""}</td><td class="num">${row.ep}</td><td class="num">${row.gp}</td><td class="num">${row.pr.toFixed(2)}</td></tr>`).join("")
         + "</tbody></table></div>");
     }
   }
@@ -187,11 +199,11 @@ export function renderGuildPage(view: GuildPageView): string {
     + `<meta property="og:site_name" content="Guilded"><meta property="og:image" content="https://guilded.kcaron.top/logo.png"><meta name="twitter:card" content="summary"><meta name="theme-color" content="#d4af37">`
     + `<style>${PAGE_STYLE}
 ${SITE_HEADER_STYLE}</style></head><body><main>${siteHeader(view.language, `/g/${view.slug}/`)}`
-    + breadcrumbs(view.language, [[t("Guilds", "Guildes"), `/leaderboards/guilds/?lang=${view.language}`], [view.name, null]], escapeHtml) + parts.join("")
+    + breadcrumbs(view.language, [[t("Guilds", "Guildes"), `/recruitment/guilds/?lang=${view.language}`], [view.name, null]], escapeHtml) + parts.join("")
     + `<footer>${t("Guild page made with", "Page de guilde créée avec")} <a href="https://guilded.kcaron.top/">Guilded</a>. ${t("Not affiliated with Blizzard Entertainment.", "Sans affiliation avec Blizzard Entertainment.")}</footer></main></body></html>`;
 }
 
-const NOT_FOUND = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Page not found · Guilded</title><style>${PAGE_STYLE}</style></head><body><main><h1>Page not found</h1><p class="muted">This guild page does not exist or is not published. / Cette page de guilde n'existe pas ou n'est pas publiée.</p><p><a href="/leaderboards/guilds/">Guilds / Guildes</a> · <a href="https://guilded.kcaron.top/">Guilded</a></p></main></body></html>`;
+const NOT_FOUND = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Page not found · Guilded</title><style>${PAGE_STYLE}</style></head><body><main><h1>Page not found</h1><p class="muted">This guild page does not exist or is not published. / Cette page de guilde n'existe pas ou n'est pas publiée.</p><p><a href="/recruitment/guilds/">Guilds / Guildes</a> · <a href="https://guilded.kcaron.top/">Guilded</a></p></main></body></html>`;
 
 export interface PageResponse { status: number; headers: Record<string, string>; body: string }
 

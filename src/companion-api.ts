@@ -21,6 +21,7 @@ import { lootRulesForAddon } from "./services/loot-rules-export.js";
 import { upcomingRaidsForAddon } from "./services/calendar-sync.js";
 import { publicRaids } from "./services/public-raids.js";
 import { createPlayerProfiles, prismaProfileStore } from "./services/player-profiles.js";
+import { createGuildDirectory, prismaGuildDirectoryStore } from "./services/guild-directory.js";
 import { discordCalendarEvents, mergeCalendarEvents } from "./services/discord-calendar.js";
 import { createAuditService } from "./services/audit.js";
 import { followUpImport } from "./services/import-followup.js";
@@ -221,6 +222,7 @@ export function createSiteApp(client?: Client) {
   const availability = createWebAvailability(prismaAvailabilityStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")));
   const guildTools = createGuildToolsPages(prismaGuildToolsStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))));
   const profiles = createPlayerProfiles(prismaProfileStore(prisma, hostedPilot.allows));
+  const directory = createGuildDirectory(prismaGuildDirectoryStore(prisma, (id) => hostedPilot.allows(id)));
   const leaderboards = createLeaderboardPages({ store: prismaLeaderboardStore(prisma, (id) => hostedPilot.allows(id)), personal: personalStore, calendar: () => loadOfficialWindows(prisma) });
   const signInPage = companionSignInRoute({
     signIn: companionSignIn,
@@ -229,7 +231,7 @@ export function createSiteApp(client?: Client) {
     issuePersonal: async (accountId) => (await issuePersonalCredential(personalStore, accountId)).companionCredential
   });
   const badges = createWebCommunityBadges(prisma, client, id => hostedPilot.allows(id));
-  const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, leaderboards.route, profiles.route];
+  const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, leaderboards.route, directory.route, profiles.route];
   const meSections = [badges.meSection, profiles.meSection, availability.meSection, roster.meSection, guildTools.meSection, leaderboards.meSection];
   return createWebApp({
     publicRaids: now => publicRaids(prisma, hostedPilot.allows, now),

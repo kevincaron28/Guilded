@@ -79,8 +79,8 @@ function effectiveStanding(db, name, now) {
     const other = players[peer.name];
     if (peer.name === name || (baseline?.account && other && other.account === baseline.account)) { ep += num(peer.ep); gp += num(peer.gp); }
   }
-  const denominator = gp + Math.max(0, baseGp);
-  return { ep, gp, pr: denominator > 0 ? ep / denominator : 0 };
+  // GP counts as at least 1, as in EPGP and the bot (src/services/epgp.ts).
+  return { ep, gp, pr: ep / Math.max(1, gp + Math.max(0, baseGp)) };
 }
 
 const builders = {

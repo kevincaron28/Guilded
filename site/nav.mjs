@@ -9,6 +9,8 @@ export const SITE_NAV = [
   { key: "features", href: "/features/", en: "Features", fr: "Fonctions" },
   { key: "guides", href: "/docs/QUICK_START.html", en: "Guides", fr: "Guides" },
   { key: "leaderboards", href: "/leaderboards/", en: "Leaderboards", fr: "Classements", bot: true },
+  // The guild directory sits under /recruitment/ because the Cloudflare Worker already forwards it.
+  { key: "guilds", href: "/recruitment/guilds/", en: "Guilds", fr: "Guildes", bot: true },
   { key: "recruitment", href: "/recruitment/", en: "Recruitment", fr: "Recrutement", bot: true },
   { key: "players", href: "/players/", en: "Players", fr: "Joueurs", bot: true },
   { key: "download", href: "/#start", en: "Download", fr: "Télécharger" },

@@ -74,7 +74,9 @@ describe("softres.it and That's My BiS imports (LootImports.lua)", () => {
       "19364,Boss,Warrior,,0",
       "not-a-number,Ray,Rogue,,0"
     ].join("\r\n");
-    expect(paste(s, csv)).toBe("true: Imported 3 reserve(s) for 3 player(s). The list is open and shared with the guild; lock it when the raid starts.");
+    // Ann's softres.it +1 is another system than SR+: not copied, but the officer is told.
+    expect(paste(s, csv)).toBe("true: Imported 3 reserve(s) for 3 player(s). The list is open and shared with the guild; lock it when the raid starts. 1 player(s) had softres.it +1 or bonus-roll values; Guilded does not copy them and keeps its own SR+ weeks.");
+    expect(s.run("return NS.reserve.plusFor('Ann', 17063)")).toBe("0");
     expect(s.run("return table.concat(DB.reserves.entries.Boss, ',') .. '/' .. table.concat(DB.reserves.entries.Ray, ',') .. '/' .. table.concat(DB.reserves.entries.Ann, ',')")).toBe("19364/17063/17063");
     expect(s.run("return tostring(DB.reserves.open) .. ':' .. DB.reserves.limit .. ':' .. DB.reserves.host .. ':' .. DB.reserves.title")).toBe("true:1:Kev:softres.it import");
     expect(s.run("return table.concat(NS.reserve.holders(17063), ',')")).toBe("Ann,Ray");

@@ -68,9 +68,9 @@ describe("companion spreadsheet export", () => {
       ["Rank", "Name", "EP", "GP", "PR"],
       // 100 + 20 (pending, not accepted); the accepted entry and the core's entry don't count.
       [1, "Amélie", 120, 10, "12.00"],
-      [2, "Bob", 50, 50, "1.00"],
-      // No saved standings for Newbie: the whole ledger counts, and no GP means PR 0.
-      [3, "Newbie", 5, 0, "0.00"]
+      // No saved standings for Newbie: the whole ledger counts. No GP yet: as in EPGP, GP counts as 1.
+      [2, "Newbie", 5, 0, "5.00"],
+      [3, "Bob", 50, 50, "1.00"]
     ]);
   });
 

@@ -40,7 +40,8 @@ export const dungeonRunSchema = z.object({
   // Optional presentation metadata must never invalidate otherwise valid awards.
   encounters: z.array(z.object({
     id: z.number().int().positive(), kind: z.literal("npc").optional(), name: z.string().max(100).optional(), success: z.boolean(),
-    at: z.number().int().positive().optional(), startedAt: z.number().int().positive().optional()
+    at: z.number().int().positive().optional(), startedAt: z.number().int().positive().optional(),
+    source: z.enum(["native", "combat-log"]).optional()
   })).max(100).optional().catch(undefined),
   players: z.array(z.object({
     character: z.string().min(1).max(40),
@@ -155,6 +156,7 @@ export function validateRun(run: DungeonRunInput, now = new Date()): Validation 
   // A run is only believed from someone who was in it: the recorder, and at least one of
   // the reporters when the companion says who they were.
   if (run.recorder && !names.has(characterKey(run.recorder, "", edition))) return { ok: false, reason: "recorder was not in the run" };
+  if (run.integrity?.observer && !names.has(characterKey(run.integrity.observer, "", edition))) return { ok: false, reason: "observer was not in the run" };
   if (run.reporterNames && run.reporterNames.length > 0
     && !run.reporterNames.some((name) => names.has(characterKey(name, "", edition)))) {
     return { ok: false, reason: "no reporter was in the run" };

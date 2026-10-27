@@ -91,7 +91,16 @@ const UNRANKED_FR: Record<string, string> = {
   "Overlevel carry": "Groupe de trop haut niveau",
   "Below level range": "Sous les niveaux du parcours",
   "Presence under 80%": "Présence sous 80 %",
-  "Current evidence required by this season": "Preuves actuelles requises pour cette saison"
+  "Current evidence required by this season": "Preuves actuelles requises pour cette saison",
+  "Observed start provenance required": "Origine du début observé requise",
+  "Observed first-combat start required": "Début au premier combat observé requis",
+  "Native completion checkpoints required": "Boss de fin requis non observés par les événements du jeu",
+  "Known in-instance presence under 80%": "Présence observée dans le donjon sous 80 %",
+  "Run crosses season boundary": "Essai à cheval sur deux saisons",
+  "Season upload grace expired": "Délai d'envoi de la saison expiré",
+  "Run observation interrupted": "Observation de l'essai interrompue",
+  "Official season window unavailable": "Période officielle de la saison indisponible",
+  "Current-v2 evidence required": "Observations de la version actuelle requises"
 };
 export function unrankedText(ctx: Pick<WebContext, "t">, reason: string | undefined): string {
   const text = reason ?? "Not rated";
@@ -372,6 +381,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       "Scores et temps d'équipe de Guilded et Guilded Dungeons. Les preuves actuelles exigent le boss final détecté et au moins 80 % de présence enregistrée par joueur crédité. Cette présence est une observation, pas une preuve de contribution individuelle. Arrondi(200 × cible ÷ temps), limité à 50–400 avant pénalité de niveau, puis nouvel arrondi : 50 devient 35 avec 30 % de pénalité. Les essais classés restent dans la tranche du parcours, même avec un dépassement de niveau autorisé. Les meilleurs parcours distincts comptent; les cibles restent provisoires.")}`
     + (periodRules(period).evidencePolicy ? ` ${ctx.t("This season requires current stored evidence; legacy records remain visible without competitive credit.", "Cette saison exige les preuves actuelles enregistrées; les anciens essais restent visibles sans crédit compétitif.")}`
       : ` ${ctx.t("Compatibility history retains its original evidence rules; it is not current-evidence official scoring.", "L'historique compatible conserve ses règles de preuve originales; ce n'est pas le classement officiel avec preuves actuelles.")}`)
+    + (periodRules(period).evidencePolicy === "current-v2" ? ` ${ctx.t("Native boss events are the foundation. Coverage follows this season's catalog; provisional final-boss routes do not prove a full untouched instance. Freshness remains unknown. Participation uses sourced observation intervals, with mixed roles counted overall only.", "Les événements de boss du jeu sont la base. La couverture suit le catalogue de cette saison; les parcours provisoires au boss final ne prouvent pas une instance complète et intacte. L'état initial reste inconnu. La participation utilise des intervalles d'observation avec leur source; les rôles mixtes comptent seulement au total.")}` : "")
     + (period.frozenAt ? ` ${ctx.t(`This season's rules were frozen on ${date(period.frozenAt)}.`, `Les règles de cette saison sont figées depuis le ${date(period.frozenAt)}.`)}` : "") + `</p>`;
   const tabs = (ctx: WebContext, filters: LeaderFilters) => `<nav class="tabs">`
     + `<a class="${filters.week ? "" : "on"}" href="${link("/leaderboards/", ctx.lang, { season: filters.season, bracket: filters.bracket })}">${ctx.t("Season", "Saison")}</a>`

@@ -16,12 +16,12 @@ describe("experimental role-policy parity", () => {
     const rules = { ...publicRules(), evidencePolicy: "current-v2" as const,
       seasonWindow: { from: from.toISOString(), to: to.toISOString() },
       routes: publicRules().routes.map(r => ({ ...r, verification: { ...r.verification, fullRoute: true as const } })) };
-    // Validator-only evidence: no adapter currently produces a native reset witness.
-    row.evidence = { ...row.evidence!, receivedAt: row.endedAt, integrity: { version: 2, startWitness: "native-reset",
-      witnessAt: began.getTime() / 1000 - 30, startTrigger: "first combat", continuous: true } };
+    // Real capture adapter with mocked game APIs; preserve its honest unknown freshness.
+    row.evidence = { ...row.evidence!, receivedAt: row.endedAt };
     const player = row.players[0]!;
     player.role = "TANK"; // End-role disagrees with the locked role on purpose.
     player.integrity = { knownSec: kind === "low-presence" ? 0 : row.durationSec, unknownSec: kind === "low-presence" ? row.durationSec : 0,
+      knownIntervals: kind === "low-presence" ? [] : [[began.getTime()/1000,row.endedAt.getTime()/1000]],
       ...(kind === "unknown" ? {} : { lockedRole: "DPS" }), mixedRole: kind === "mixed" };
     const periods = [{ id: "s1", label: "Season 1", labelFr: "Saison 1", from, to, rules }];
     const teamPoints = rateRun(row, rules).score!.points;

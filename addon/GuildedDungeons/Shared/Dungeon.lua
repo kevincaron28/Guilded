@@ -119,7 +119,7 @@ local function updatePlayers(run)
     player.class = member.class or player.class
     player.role = ns.util.dungeonRole(member.role) or ns.util.dungeonRole(player.role)
     if run.integrity then
-      local seen = player.integrity or { knownSec = 0, unknownSec = 0, mixedRole = false }
+      local seen = player.integrity or { knownSec = 0, unknownSec = 0, mixedRole = false, knownIntervals = {} }
       player.integrity = seen
       if run.state == "ACTIVE" then
         local role = ns.util.dungeonRole(member.role)
@@ -144,7 +144,15 @@ local function updatePlayers(run)
     for name, player in pairs(run.players) do
       local seen = player.integrity
       if seen and run.state == "ACTIVE" then
-        if not observationGap and observations[name] and player.knownInside then seen.knownSec = seen.knownSec + observedElapsed
+        if not observationGap and observations[name] and player.knownInside then
+          seen.knownIntervals = seen.knownIntervals or {}
+          local intervals, began = seen.knownIntervals, stamp - observedElapsed
+          local last = intervals[#intervals]
+          if last and last[2] == began then
+            last[2] = stamp; seen.knownSec = seen.knownSec + observedElapsed
+          elseif observedElapsed > 0 and #intervals < 64 then
+            intervals[#intervals + 1] = { began, stamp }; seen.knownSec = seen.knownSec + observedElapsed
+          else seen.unknownSec = seen.unknownSec + observedElapsed end
         else seen.unknownSec = seen.unknownSec + observedElapsed end
       end
       player.knownInside = observations[name] == true
@@ -183,7 +191,7 @@ local function newRun(instance)
     players = {},
     reporters = { [me()] = true },
     -- Map identity and zero boss kills do not prove a fresh instance copy.
-    integrity = { version = 2, startWitness = "unknown", startTrigger = "unknown", continuous = true },
+    integrity = { version = 2, startWitness = "unknown", startTrigger = "unknown", continuous = true, observer = me(), detectedAt = stamp },
     inside = true
   }
   local bosses = compat.dungeonBosses(instance.id)
@@ -255,7 +263,10 @@ local function activate(stamp, trigger)
   run.state = "ACTIVE"
   run.startedAt = stamp or now()
   run.startTrigger = trigger or "first combat"
-  if run.integrity then run.integrity.startTrigger = run.startTrigger end
+  if run.integrity then
+    run.integrity.startTrigger = run.startTrigger
+    if run.startTrigger == "first combat" then run.integrity.combatAt = now() end
+  end
   run.lastTick = run.startedAt
   updatePlayers(run)
   send(string.format("ACTIVE|%s|%d", run.id, run.startedAt))
@@ -366,13 +377,21 @@ serialize = function(run)
   end
   if #timeline > 0 then summary = summary .. ";tl=" .. table.concat(timeline, ",") end
   if run.integrity then
-    local observed = {}
+    local observed, intervals, native = {}, {}, {}
     for name, player in pairs(run.players) do
       local p = player.integrity
       if p then observed[#observed + 1] = table.concat({ clean(name), p.knownSec, p.unknownSec, p.lockedRole or "", p.mixedRole and "1" or "0" }, ":") end
+      if p and p.knownIntervals then
+        local spans = {}
+        for _, span in ipairs(p.knownIntervals) do spans[#spans + 1] = span[1] .. "." .. span[2] end
+        intervals[#intervals + 1] = clean(name) .. ":" .. table.concat(spans, "/")
+      end
     end
+    for _, e in ipairs(run.encounters or {}) do if e.source == "native" and e.at then native[#native + 1] = e.id .. ":" .. e.at end end
     local extra = ";iv=2;iw=" .. clean(run.integrity.startWitness) .. ";ic=" .. (run.integrity.continuous and "1" or "0")
+      .. ";io=" .. clean(run.integrity.observer) .. ";ie=" .. (run.integrity.detectedAt or "") .. ";ia=" .. (run.integrity.combatAt or "")
       .. ";it=" .. clean(run.integrity.startTrigger) .. ";ip=" .. table.concat(observed, ",")
+      .. ";ix=" .. table.concat(intervals, ",") .. ";ns=" .. table.concat(native, ",") .. ";wa=" .. (run.integrity.witnessAt or "")
     if #summary + #extra <= CHUNK_BYTES * 20 then summary = summary .. extra end
   end
   return summary
@@ -445,12 +464,27 @@ local function deserialize(id, text)
     name = name and ns.normalizeName(name)
     if name and run.players[name] then run.players[name].spec = string.sub(spec, 1, 40) end
   end
-  if fields.iv == "2" and fields.iw == "unknown" and (fields.ic == "1" or fields.ic == "0") then
-    run.integrity = { version = 2, startWitness = "unknown", startTrigger = fields.it or "unknown", continuous = fields.ic == "1" }
+  if fields.iv == "2" and (fields.iw == "unknown" or fields.iw == "native-reset" and tonumber(fields.wa)) and (fields.ic == "1" or fields.ic == "0") then
+    run.integrity = { version = 2, startWitness = fields.iw, witnessAt = tonumber(fields.wa), startTrigger = fields.it or "unknown", continuous = fields.ic == "1",
+      observer = fields.io and ns.normalizeName(fields.io), detectedAt = tonumber(fields.ie), combatAt = tonumber(fields.ia) }
     for entry in string.gmatch(fields.ip or "", "[^,]+") do
       local name, known, unknown, role, mixed = string.match(entry, "^([^:]+):(%d+):(%d+):([^:]*):([01])$")
       name = name and ns.normalizeName(name)
       if name and run.players[name] then run.players[name].integrity = { knownSec = tonumber(known), unknownSec = tonumber(unknown), lockedRole = ns.util.dungeonRole(role), mixedRole = mixed == "1" } end
+    end
+    for entry in string.gmatch(fields.ix or "", "[^,]+") do
+      local name, spans = string.match(entry, "^([^:]+):(.*)$")
+      name = name and ns.normalizeName(name)
+      local player = name and run.players[name]
+      if player and player.integrity then
+        player.integrity.knownIntervals = {}
+        for a, b in string.gmatch(spans, "(%d+)%.(%d+)") do
+          if #player.integrity.knownIntervals < 64 then table.insert(player.integrity.knownIntervals, { tonumber(a), tonumber(b) }) end
+        end
+      end
+    end
+    for id, at in string.gmatch(fields.ns or "", "(%d+):(%d+)") do
+      for _, e in ipairs(run.encounters) do if e.id == tonumber(id) and e.at == tonumber(at) and not e.kind then e.source = "native" end end
     end
   end
   return run
@@ -484,7 +518,12 @@ local function storePeerRun(run, sender)
     if mine and player.level then mine.level = math.max(mine.level or player.level, player.level) end
     if mine and player.minLevel then mine.minLevel = math.min(mine.minLevel or player.minLevel, player.minLevel) end
     if mine and not mine.spec and player.spec then mine.spec = player.spec end
-    if not mine then existing.players[name] = player
+    if not mine then
+      local copied = {}
+      for field, value in pairs(player) do if field ~= "integrity" then copied[field] = value end end
+      -- A relayed player's intervals were not observed by this report's author.
+      if existing.integrity then copied.integrity = { knownSec = 0, unknownSec = existing.durationSec or 0, knownIntervals = {}, mixedRole = false } end
+      existing.players[name] = copied
     elseif player.deaths and (not mine.deaths or player.deaths > mine.deaths) then mine.deaths = player.deaths; mine.addon = true end
   end
   if ns.onDungeonRunFinished then pcall(ns.onDungeonRunFinished, existing) end
@@ -532,7 +571,7 @@ local function onAddonMessage(text, sender)
     local id, startedAt = string.match(text, "^ACTIVE|([^|]+)|(%d+)$")
     startedAt = tonumber(startedAt)
     -- A start time before this run was even detected (or in the future) is not believed.
-    if run and run.id == id and startedAt and startedAt >= (run.detectedAt or 0) - 600 and startedAt <= now() + 60 then
+    if run and run.players[sender] and run.id == id and startedAt and startedAt >= (run.detectedAt or 0) - 600 and startedAt <= now() + 60 then
       if run.state == "STARTING" then activate(startedAt, "peer")
       elseif run.state == "ACTIVE" and startedAt and startedAt < (run.startedAt or math.huge) then
         local gap = run.startedAt - startedAt
@@ -569,6 +608,7 @@ local function onAddonMessage(text, sender)
       run.endedAt = tonumber(endedAt)
       if state == "COMPLETED" then run.completedBy = reason else run.endReason = reason end
       if state == "COMPLETED" and not run.startedAt then run.startedAt = run.detectedAt end
+      if state == "COMPLETED" and run.integrity and run.integrity.observer then d.peerCompletedRunId = run.id end
       finalize(run)
     end
   elseif kind == "REQUEST" and ns.isOfficerName and ns.isOfficerName(sender) then
@@ -604,6 +644,7 @@ local function recordEncounter(run, encounterId, name, success, kind)
         or ns.dungeonRoutes and ns.dungeonRoutes.sameBoss(run.instanceId, run.difficultyId, previous, encounterId, kind)) then
       if previous.kind == "npc" and not kind then
         previous.id, previous.kind = encounterId, nil
+        previous.source = "native"
         previous.name = name or previous.name
         save(run)
       end
@@ -612,11 +653,27 @@ local function recordEncounter(run, encounterId, name, success, kind)
     end
   end
   if #run.encounters < 100 then
-    table.insert(run.encounters, { id = encounterId, kind = kind, name = name, success = success, at = stamp,
+    table.insert(run.encounters, { id = encounterId, kind = kind, source = kind == "npc" and "combat-log" or "native", name = name, success = success, at = stamp,
       startedAt = active and active.id == encounterId and active.startedAt or nil })
   end
   run.activeEncounter = nil
   save(run)
+end
+
+-- A peer END can arrive just before this client's native final-boss event.
+-- Retain that real local event without reopening the run or announcing it twice.
+local function lateNativeCompletion(encounterId, name)
+  local d, instance = db(), compat.instance()
+  local run = d and d.peerCompletedRunId and d.runs[d.peerCompletedRunId]
+  if not run or not instance or instance.type ~= "party" or instance.id ~= run.instanceId
+    or ns.isSecret(encounterId) or not tonumber(encounterId) or not run.endedAt or math.abs(now() - run.endedAt) > 5 then return end
+  if not (run.finalEncounterId == tonumber(encounterId) or compat.isDungeonFinalBoss(run.instanceId, encounterId, name, run.difficultyId)) then return end
+  local gap = math.max(0, now() - run.endedAt)
+  run.endedAt = math.max(run.endedAt, now()); run.durationSec = run.endedAt - run.startedAt
+  for _, p in pairs(run.players) do if p.integrity then p.integrity.unknownSec = p.integrity.unknownSec + gap end end
+  recordEncounter(run, tonumber(encounterId), not ns.isSecret(name) and name or nil, true)
+  d.current = nil; d.peerCompletedRunId = nil
+  if ns.onDungeonRunFinished then pcall(ns.onDungeonRunFinished, run) end
 end
 
 local function onEvent(_, event, ...)
@@ -655,6 +712,7 @@ local function onEvent(_, event, ...)
     end
   elseif event == "PLAYER_REGEN_DISABLED" then
     local run = d.current
+    if run and run.state == "ACTIVE" and run.inside and run.integrity and not run.integrity.combatAt then run.integrity.combatAt = now() end
     if run and run.state == "STARTING" and run.inside then activate() end
   elseif event == "PLAYER_REGEN_ENABLED" then
     flush()
@@ -693,6 +751,7 @@ local function onEvent(_, event, ...)
   elseif event == "ENCOUNTER_END" then
     local encounterId, name, _, _, success = ...
     local run = d.current
+    if not run and not ns.isSecret(success) and success == 1 then lateNativeCompletion(encounterId, name); return end
     local instance = compat.instance()
     if not run or TERMINAL[run.state] or not instance or instance.type ~= "party"
       or instance.id ~= run.instanceId or ns.isSecret(encounterId) or ns.isSecret(success) then return end
@@ -705,6 +764,7 @@ local function onEvent(_, event, ...)
     end
   elseif event == "BOSS_KILL" then
     local run = d.current
+    if not run then local encounterId, name = ...; lateNativeCompletion(encounterId, name); return end
     if not run or run.state ~= "ACTIVE" then return end
     local encounterId, name = ...
     if ns.isSecret(encounterId) or ns.isSecret(name) then return end

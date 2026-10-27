@@ -1,4 +1,5 @@
 import { publicRules, readRuleSnapshot } from "./public-score.js";
+import { reconcileSummaries, summarize } from "./public-runs.js";
 import { dungeonRole } from "../../companion/dungeon-role.mjs";
 import { currentIntegrityPolicy, integrityWindowReason, withIntegrityWindow } from "./dungeon-integrity.js";
 import { gameEditionOf } from "./game-edition.js";
@@ -22,7 +23,8 @@ import {
 // can never be counted twice (by run id, or by same dungeon + same players
 // + start within 2 minutes when two members reported it separately).
 
-type Tx = Pick<Prisma.TransactionClient, "officialSeason" | "dungeonRun" | "dungeonSeason" | "dungeonPointTransaction" | "guildSettings" | "dungeonAchievement">;
+type Tx = Pick<Prisma.TransactionClient, "officialSeason" | "dungeonRun" | "dungeonSeason" | "dungeonPointTransaction" | "guildSettings" | "dungeonAchievement">
+  & Partial<Pick<Prisma.TransactionClient, "$executeRaw">>;
 
 interface LinkedCharacter { name: string; realm: string; memberId: string; spec?: string | null }
 
@@ -119,6 +121,8 @@ export async function importDungeonRuns(
     })
     .sort((a, b) => (a.endedAt ?? a.startedAt ?? 0) - (b.endedAt ?? b.startedAt ?? 0));
   if (!runs.length) return summary;
+  // Import, rotation and finalization share this lock, including direct import callers.
+  if (tx.$executeRaw) await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${guildId}, 0))`;
   const config = sharedDungeonConfig();
   const currentSeason = await activeSeason(tx, guildId, now);
   const ratingCache = new Map<string, Awaited<ReturnType<typeof dungeonRating>>>();
@@ -143,6 +147,30 @@ export async function importDungeonRuns(
       for (const player of run.players) player.character = addonName(player.character, player.realm, gameEditionOf(run));
     }
     const existing = await tx.dungeonRun.findUnique({ where: { guildId_runRef: { guildId, runRef: run.id } } });
+    if (existing && check.ok && run.integrity?.observer && run.startedAt && run.endedAt) {
+      const data = existing.competitionData as { observerReports?: unknown[]; lateObserverReports?: unknown[]; [key:string]:unknown } | null;
+      const prior = (data?.observerReports ?? []).flatMap(value=>{const p=dungeonRunSchema.safeParse(value);return p.success?[p.data]:[];});
+      const duplicate = prior.some(p=>JSON.stringify(p)===JSON.stringify(run));
+      if (!duplicate && prior.length < 40) {
+        const windowReason = season.status === "ENDED" ? "Season finalized" : integrityWindowReason(
+          new Date(run.startedAt*1000),new Date(run.endedAt*1000),now,{from:season.startsAt,to:season.endsAt});
+        const late = currentIntegrityPolicy(season.ratingRules) && !!windowReason;
+        const reports = [...prior,run];
+        const merged = !late && currentIntegrityPolicy(season.ratingRules) && prior.length ? reconcileSummaries(reports.map(p=>summarize(p,existing.createdAt))) : null;
+        const observations = merged?.integrity as {run:unknown;players:{character:string;realm:string;observation:unknown}[]} | undefined;
+        await tx.dungeonRun.update({where:{id:existing.id},data:{
+          competitionData:{...data,...(late ? {lateObserverReports:[...(data?.lateObserverReports??[]).slice(-39),run]} : {observerReports:reports}),
+            ...(merged && observations ? {integrity:observations.run,encounters:merged.encounters,
+              players:merged.players.map(p=>({name:p.character,level:p.level,minLevel:p.minLevel,
+                integrity:observations.players.find(q=>q.character===p.character && q.realm===p.realm)?.observation}))} : {})} as Prisma.InputJsonValue,
+          ...(merged ? {startedAt:merged.startedAt,endedAt:merged.endedAt,durationSec:merged.durationSec,
+            players:{deleteMany:{},create:merged.players.map(p=>({character:p.character,
+              memberId:findCharacter(characters,p.character,p.realm,gameEditionOf(run))?.memberId??null,
+              class:p.className,role:p.role,presentSec:p.presentSec,deaths:p.deaths,inGuild:run.players.find(q=>q.character===p.character)?.inGuild??false}))}} : {})
+        }});
+        if (merged) ratingCache.delete(season.id);
+      }
+    }
     if (existing || await isNearDuplicate(tx, guildId, run)) {
       summary.duplicates++;
       continue;
@@ -241,6 +269,7 @@ export async function importDungeonRuns(
         recorder: run.recorder ?? null,
         reporterNames: run.reporterNames ?? [],
         competitionData: { ...(run.integrity ? { integrity: run.integrity } : {}), players: run.players.map(p => ({ name: p.character, level: p.level ?? null, minLevel: p.minLevel ?? null, ...(p.integrity ? { integrity: p.integrity } : {}) })), encounters: run.encounters ?? [],
+          ...(run.integrity?.observer ? {observerReports:[run]} : {}),
           gameBuild: run.gameBuild ?? null, startTrigger: run.startTrigger ?? null,
           challengeMode: run.challengeMode ?? false, ...(run.challenge ? { challenge: run.challenge } : {}) },
         reporters: run.reporters,

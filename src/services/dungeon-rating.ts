@@ -3,7 +3,7 @@ import { dungeonRole } from "../../companion/dungeon-role.mjs";
 import { integrityStartReason, integrityPresence, integrityRole, integrityRuleWindowReason, withIntegrityWindow } from "./dungeon-integrity.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
-import { bracketForLevel, novemberDungeonKey, resolveNovemberRoute, routeTargetAt, validBracketedRules, validNovemberRules,
+import { bracketForLevel, nativeCompletionReason, novemberDungeonKey, resolveNovemberRoute, routeTargetAt, validBracketedRules, validNovemberRules,
   type BracketedRules, type DungeonBracket, type NovemberRules } from "./dungeon-november-rules.js";
 
 // Version 1 remains readable forever. New seasons use a frozen version 3 copy.
@@ -141,7 +141,7 @@ export function bracketedVerdict(run: RatingRun, rules: BracketedRules): ReturnT
   const strictReason = rules.evidencePolicy === "current-v2"
     ? integrityRuleWindowReason(run.startedAt, run.endedAt, run.createdAt, rules)
       ?? integrityStartReason(data?.integrity, run.startedAt, run.durationSec ?? 0)
-      ?? (route.route?.verification.fullRoute !== true ? "Full route checkpoints not reviewed" : undefined)
+      ?? nativeCompletionReason(run, rules)
     : undefined;
   const currentEvidenceReason = rules.evidencePolicy
     ? !run.startedAt || !run.endedAt || !Array.isArray(data?.players) || !Array.isArray(data?.encounters)
@@ -183,7 +183,7 @@ export function calculateDungeonRating(runs: RatingRun[], rules?: unknown): Rati
     const bosses = timed && !reason && targets[key] ? bossRecords(run) : [];
     for (const player of run.players) {
       if (!player.memberId || !player.member || !player.character?.trim() || !presentEnough(player.presentSec, run.durationSec)) continue;
-      if (brackets?.evidencePolicy === "current-v2" && (reason || !integrityPresence(playerIntegrityOf(run, player.character), run.durationSec))) continue;
+      if (brackets?.evidencePolicy === "current-v2" && (reason || !integrityPresence(playerIntegrityOf(run, player.character), run.durationSec, run.startedAt ? run.startedAt.getTime()/1000 : undefined))) continue;
       // Version 6: the character's level during this run picks the bracket. A ranked
       // run already kept every participant inside the route's band, so it agrees with the route.
       // A ranked run (penalised or not) belongs to its route's bracket; anything else to the player's level.

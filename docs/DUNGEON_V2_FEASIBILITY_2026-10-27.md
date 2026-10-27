@@ -1,5 +1,12 @@
 # Dungeon integrity candidate: feasible launch boundary
 
+**Current follow-up:** the impossible fresh-instance gate in the earlier
+prototype described below has been replaced locally by an explicit
+[native-observed candidate contract and four-blocker regression matrix](DUNGEON_FOUR_BLOCKER_REVIEW_2026-10-27.md).
+Freshness is still unknown; current-v1 remains live/default. The API-source
+research below remains valid. Earlier strict-v2 recommendations are historical,
+not a claim that the new observed contract proves freshness or full-route coverage.
+
 Local experimental candidate on `codex/dungeon-current-v2`; not activated,
 published, installed or approved for merge. Live backend remains PR240/fefaa569,
 including PR239's current-v1 scoring. No scoring curve change.

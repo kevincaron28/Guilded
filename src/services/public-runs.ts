@@ -9,6 +9,7 @@ import { gameEditionOf } from "./game-edition.js";
 import { characterKey, characterReference } from "../../companion/character-identity.mjs";
 import { challengesAgree, readChallenge, type ChallengeEvidence } from "./challenge-evidence.js";
 import { encounterKey } from "./dungeon-encounter-identity.js";
+import { observationReport, reconcileParticipation } from "./dungeon-observations.js";
 
 // Public dungeon runs (7.0, roadmap request 6). Personal companions and opted-in guilds send
 // finished runs; the bot checks each one before it reaches the public leaderboards:
@@ -60,7 +61,7 @@ export interface RunSummary {
   runKey: string; runRef: string; instanceId: number; dungeonName: string; difficultyId: number; startedAt: Date; endedAt: Date; durationSec: number;
   deaths: number | null; maxLevel: number | null; bracket: string | null; season: string; routeKey: string | null;
   evidenceVersion: 1 | 2; integrity?: Prisma.InputJsonValue; evidenceReceivedAt?: Date;
-  completedBy: string | null; encounters: { id: number; kind?: "npc"; name?: string; success: true; at?: number; startedAt?: number }[];
+  completedBy: string | null; encounters: { id: number; kind?: "npc"; name?: string; success: true; at?: number; startedAt?: number; source?: "native" | "combat-log" }[];
   players: { character: string; displayName?: string | null; realm: string; className: string | null; role: string | null; level: number | null; minLevel: number | null; presentSec: number; deaths: number | null }[];
 }
 
@@ -78,6 +79,7 @@ export function summarize(run: DungeonRunInput, receivedAt = new Date()): RunSum
     ...(run.integrity ? { integrity: { run: run.integrity, players: run.players.map(p => ({ character: p.character, realm: p.realm === "-" ? "" : p.realm, observation: p.integrity ?? null })) } } : {}),
     ...(run.challenge ? { challenge: run.challenge } : {}),
     encounters: (run.encounters ?? []).filter((e) => e.success).map((e) => ({ id: e.id, ...(e.kind ? { kind: e.kind } : {}), ...(e.name ? { name: e.name } : {}), success: true as const,
+      ...(e.source ? { source: e.source } : {}),
       ...(e.at !== undefined ? { at: e.at } : {}), ...(e.startedAt !== undefined ? { startedAt: e.startedAt } : {}) })),
     players: run.players.map((player) => ({ character: player.character, realm: player.realm === "-" ? "" : player.realm, className: player.class ?? null, role: dungeonRole(player.role),
       ...(player.displayName ? { displayName: player.displayName } : {}),
@@ -93,6 +95,42 @@ export type RunEvidence = Pick<RunSummary, "instanceId" | "difficultyId" | "rout
 };
 const playerKey = (player: { character: string; realm: string }) => `${key(player.character)}@${key(player.realm)}`;
 const containsKills = (a: RunEvidence, b: RunEvidence, edition: string) => b.encounters.every(kill => a.encounters.some(other => encounterKey(other,a,edition) === encounterKey(kill,b,edition)));
+function observationOf(summary: RunEvidence, edition: string) {
+  const data = summary.integrity as { run?: unknown; players?: { character:string;realm:string;observation?:unknown }[] } | null;
+  return observationReport(data?.run, summary.players.map(p=>({...p,integrity:data?.players?.find(q=>playerKey(q)===playerKey(p))?.observation})),
+    summary.startedAt.getTime()/1000, summary.endedAt.getTime()/1000, edition);
+}
+
+/** Derived participation retains reports and never invents an individual observer's view. */
+export function reconcileSummaries(reports: RunSummary[]): RunSummary | null {
+  const unique = new Map<string,RunSummary>();
+  for (const report of reports) {
+    const {evidenceReceivedAt,...facts}=report, id=JSON.stringify(facts), previous=unique.get(id);
+    if (!previous || evidenceReceivedAt && (!previous.evidenceReceivedAt || evidenceReceivedAt < previous.evidenceReceivedAt)) unique.set(id,report);
+  }
+  if (!unique.size || unique.size > 40) return null;
+  const sorted = [...unique.values()].sort((a,b)=>a.startedAt.getTime()-b.startedAt.getTime() || JSON.stringify(a).localeCompare(JSON.stringify(b)));
+  const base = sorted[0]!, observations = sorted.map(r=>observationOf(r,r.gameEdition));
+  if (observations.some(o=>!o) || sorted.some(r=>r.gameEdition!==base.gameEdition || !agrees(base,r))) return null;
+  const from = Math.min(...sorted.map(r=>r.startedAt.getTime()/1000)), to = Math.max(...sorted.map(r=>r.endedAt.getTime()/1000));
+  if (sorted.some(r=>Math.abs(r.startedAt.getTime()/1000-from)>30 || Math.abs(r.endedAt.getTime()/1000-to)>30)) return null;
+  const players = [...new Map(sorted.flatMap(r=>r.players).map(p=>[playerKey(p),p])).values()].sort((a,b)=>playerKey(a).localeCompare(playerKey(b)));
+  const participant = players.map(p=>({character:p.character,realm:p.realm,observation:reconcileParticipation(observations.filter(o=>o!==null),p,from,to,base.gameEdition)}));
+  const encounters = [...new Map(sorted.flatMap(r=>r.encounters).sort((a,b)=>(a.at??0)-(b.at??0)).map(e=>[`${e.kind??"encounter"}:${e.id}`,e])).values()];
+  const data = base.integrity as {run: Prisma.InputJsonValue};
+  return {...base,startedAt:new Date(from*1000),endedAt:new Date(to*1000),durationSec:to-from,encounters,
+    players:players.map(p=>({...p,presentSec:participant.find(q=>playerKey(q)===playerKey(p))?.observation?.knownSec ?? 0})),
+    integrity:{run:data.run,players:participant as unknown as Prisma.InputJsonValue,
+      observers:[...new Set(observations.map(o=>o!.observer.toLowerCase()))].sort(),coverage:"catalog-checkpoints",freshness:"unknown"}};
+}
+function savedSummary(value: unknown): RunSummary | null {
+  if (!value || typeof value !== "object") return null;
+  const data = value as RunSummary;
+  if (!Array.isArray(data.players) || !Array.isArray(data.encounters) || typeof data.gameEdition !== "string") return null;
+  const result = {...data,startedAt:new Date(data.startedAt),endedAt:new Date(data.endedAt),
+    ...(data.evidenceReceivedAt ? {evidenceReceivedAt:new Date(data.evidenceReceivedAt)} : {})};
+  return Number.isFinite(result.startedAt.getTime()) && Number.isFinite(result.endedAt.getTime()) && observationOf(result,result.gameEdition) ? result : null;
+}
 
 // Incomplete observations can agree; conflicting known scoring facts cannot.
 export function agrees(stored: RunEvidence, incoming: RunSummary): boolean {
@@ -100,6 +138,8 @@ export function agrees(stored: RunEvidence, incoming: RunSummary): boolean {
   // member, reload, or unknown API result must not dispute an otherwise matching
   // clear. Keep each report separately; never add overlapping observer seconds.
   if (!challengesAgree(stored.challenge, incoming.challenge)) return false;
+  const oldObservation = observationOf(stored,incoming.gameEdition), newObservation = observationOf(incoming,incoming.gameEdition);
+  const observed = !!oldObservation && !!newObservation;
   if (stored.instanceId !== incoming.instanceId || stored.difficultyId !== incoming.difficultyId) return false;
   if (stored.routeKey && incoming.routeKey && stored.routeKey !== incoming.routeKey) return false;
   if (Math.abs(stored.durationSec - incoming.durationSec) > PUBLIC_LIMITS.agreeDurationSec) return false;
@@ -111,14 +151,17 @@ export function agrees(stored: RunEvidence, incoming: RunSummary): boolean {
   for (const player of incoming.players) {
     const old = stored.players.find(p => playerKey(p) === playerKey(player));
     if (!old) continue;
-    if (dungeonRole(old.role) && dungeonRole(player.role) && dungeonRole(old.role) !== dungeonRole(player.role)) return false;
+    const roleCanDiffer = observed && (oldObservation.observer.toLowerCase() !== newObservation.observer.toLowerCase()
+      || readPlayerIntegrity(oldObservation.players.find(p=>playerKey(p)===playerKey(player))?.integrity)?.mixedRole
+      || readPlayerIntegrity(newObservation.players.find(p=>playerKey(p)===playerKey(player))?.integrity)?.mixedRole);
+    if (!roleCanDiffer && dungeonRole(old.role) && dungeonRole(player.role) && dungeonRole(old.role) !== dungeonRole(player.role)) return false;
     for (const field of ["level", "minLevel"] as const) {
       if (old[field] !== null && player[field] !== null && old[field] !== player[field]) return false;
     }
-    if (old.presentSec !== null && (Math.abs(old.presentSec - player.presentSec) > PUBLIC_LIMITS.agreeDurationSec
+    if (!observed && old.presentSec !== null && (Math.abs(old.presentSec - player.presentSec) > PUBLIC_LIMITS.agreeDurationSec
       || (old.presentSec >= 0.8 * stored.durationSec) !== (player.presentSec >= 0.8 * incoming.durationSec))) return false;
   }
-  if (!containsKills(stored, incoming, incoming.gameEdition) && !containsKills(incoming, stored, incoming.gameEdition)) return false;
+  if (!observed && !containsKills(stored, incoming, incoming.gameEdition) && !containsKills(incoming, stored, incoming.gameEdition)) return false;
   for (const kill of incoming.encounters) {
     const old = stored.encounters.find(e => encounterKey(e,stored,incoming.gameEdition) === encounterKey(kill,incoming,incoming.gameEdition));
     if (old?.at !== undefined && kill.at !== undefined && Math.abs(old.at - kill.at) > PUBLIC_LIMITS.agreeDurationSec) return false;
@@ -197,7 +240,8 @@ export async function ingestPublicRuns(store: PublicRunStore, input: { uploaderK
     if (seen.has(summary.runKey)) continue;
     seen.add(summary.runKey);
     // A personal upload is its character's report; a guild's copy carries its reporters' and recorder's.
-    const reporters = [...new Set((input.character ? [input.character] : [...run.reporterNames ?? [], ...run.recorder ? [run.recorder] : []]).map(key))];
+    const observer = observationOf(summary, summary.gameEdition)?.observer;
+    const reporters = [...new Set((observer ? [observer] : input.character ? [input.character] : [...run.reporterNames ?? [], ...run.recorder ? [run.recorder] : []]).map(key))];
     const uploader = { key: input.uploaderKey, reporters };
     let stored = await store.findRun(summary.runKey);
     if (!stored) {
@@ -236,7 +280,7 @@ const uploadEvidence = (summary: RunSummary): Prisma.InputJsonValue => JSON.pars
 
 export function prismaPublicRunStore(database: PrismaClient): PublicRunStore {
   const select = { id: true, status: true, gameEdition: true, instanceId: true, difficultyId: true, routeKey: true, durationSec: true, startedAt: true, endedAt: true,
-    evidenceVersion: true, integrity: true, completedBy: true, encounters: true, challenge: true, players: true, uploads: { select: { uploaderKey: true, reporters: true } } } as const;
+    evidenceVersion: true, integrity: true, completedBy: true, encounters: true, challenge: true, players: true, uploads: { select: { uploaderKey: true, reporters: true, evidence: true, historyOnly: true } } } as const;
   function storedRow(row: Prisma.PublicRunGetPayload<{ select: typeof select }>): StoredRun {
     const { challenge, ...rest } = row;
     const evidence = readChallenge(challenge);
@@ -271,13 +315,19 @@ export function prismaPublicRunStore(database: PrismaClient): PublicRunStore {
         // Preserve late reports for review without rewriting final canonical
         // evidence, confirmations, disputes, standings or awards.
         if (historyOnly) return { agree, duplicate: false, historyOnly: true };
-        const promote = stored.status === "ACCEPTED" && evidenceUpgrade(stored, summary);
+        const window = [...windows].filter(w=>w.startsAt<=stored.endedAt).sort((a,b)=>b.startsAt.getTime()-a.startsAt.getTime())[0];
+        const observedPolicy = currentIntegrityPolicy(readRuleSnapshot(window?.rules)?.rules);
+        const merged = stored.status === "ACCEPTED" && agree && observedPolicy
+          ? reconcileSummaries([...row.uploads.filter(u=>!u.historyOnly).map(u=>savedSummary(u.evidence)).filter(r=>r!==null),summary]) : null;
+        const promoted = merged ?? summary;
+        const promote = !!merged || stored.status === "ACCEPTED" && evidenceUpgrade(stored, summary);
         await tx.publicRun.update({ where: { id: runId }, data: {
           ...(!agree ? { status: "DISPUTED" } : confirm ? { confirmations: { increment: 1 } } : {}),
-          ...(promote ? { evidenceVersion: summary.evidenceVersion, ...(summary.integrity ? { integrity: summary.integrity, evidenceReceivedAt: summary.evidenceReceivedAt } : {}), completedBy: summary.completedBy, encounters: summary.encounters as Prisma.InputJsonValue,
-            ...(summary.challenge ? { challenge: summary.challenge } : {}),
-            routeKey: summary.routeKey, maxLevel: summary.maxLevel, bracket: summary.bracket,
-            players: { deleteMany: {}, create: summary.players } } : {})
+          ...(promote ? { evidenceVersion: promoted.evidenceVersion, ...(promoted.integrity ? { integrity: promoted.integrity, evidenceReceivedAt: promoted.evidenceReceivedAt } : {}), completedBy: promoted.completedBy, encounters: promoted.encounters as Prisma.InputJsonValue,
+            ...(promoted.challenge ? { challenge: promoted.challenge } : {}),
+            ...(merged ? {startedAt:merged.startedAt,endedAt:merged.endedAt,durationSec:merged.durationSec} : {}),
+            routeKey: promoted.routeKey, maxLevel: promoted.maxLevel, bracket: promoted.bracket,
+            players: { deleteMany: {}, create: promoted.players } } : {})
         } });
         return { agree, duplicate: false };
       });

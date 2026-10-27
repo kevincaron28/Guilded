@@ -29,10 +29,12 @@ confidence (single observer / independently corroborated), and participation
 unknown. Never label raw client reports authoritative or anti-cheat evidence.
 Unknown new observations do not silently invalidate compatible current-v1 runs.
 
-Strict v2 stays inactive. Its native-reset witness and reviewed full-route gate
-currently have no real capture positive path. Calendar atomicity, nonempty
-finalization concurrency and peer lineage are also unresolved. See
-[the feasibility record](DUNGEON_V2_FEASIBILITY_2026-10-27.md).
+The original strict freshness prototype has been replaced locally by a
+native-observed contract with honest unknown freshness; it remains inactive.
+See [the four-blocker review matrix](DUNGEON_FOUR_BLOCKER_REVIEW_2026-10-27.md)
+for code and regression evidence. Calendar atomicity, independent review and
+real-client acceptance remain gates. The
+[feasibility record](DUNGEON_V2_FEASIBILITY_2026-10-27.md) preserves the API research.
 
 ## Dated targets and exit criteria
 

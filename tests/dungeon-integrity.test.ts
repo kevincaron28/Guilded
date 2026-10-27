@@ -5,18 +5,19 @@ import { summarize } from "../src/services/public-runs.js";
 import { leaderRun } from "../src/services/public-leaderboard.js";
 
 const start = new Date("2026-11-05T01:00:00Z");
-// Explicitly synthetic contract evidence. No edition adapter currently certifies this witness.
-const witness = { version: 2, startWitness: "native-reset", witnessAt: start.getTime() / 1000 - 30, startTrigger: "first combat", continuous: true };
+// Synthetic API contract inputs, never evidence of a live game session.
+const witness = { version: 2, startWitness: "unknown", observer: "Tester", detectedAt: start.getTime()/1000-30,
+  combatAt:start.getTime()/1000, startTrigger: "first combat", continuous: true };
 describe("current-v2 evidence foundation (not activation)", () => {
-  it.each([undefined, null, {}, { ...witness, startWitness: "unknown" }, { ...witness, startTrigger: "manual" }, { ...witness, continuous: false }, { ...witness, witnessAt: start.getTime() / 1000 + 1 }])("keeps incomplete start evidence provisional: %j", evidence => {
+  it.each([undefined, null, {}, { ...witness, observer: undefined }, { ...witness, startTrigger: "manual" }, { ...witness, continuous: false }, { ...witness, detectedAt: start.getTime() / 1000 + 60 }])("keeps incomplete start evidence provisional: %j", evidence => {
     expect(integrityStartReason(evidence, start, 1200)).toBeTruthy();
   });
-  it("accepts only a recent synthetic reset witness and first combat", () => {
+  it("accepts observed combat with unknown freshness, but rejects late attachment", () => {
     expect(integrityStartReason(witness, start, 1200)).toBeUndefined();
-    expect(integrityStartReason({ ...witness, witnessAt: start.getTime() / 1000 - 601 }, start, 1200)).toBeTruthy();
+    expect(integrityStartReason({ ...witness, detectedAt: start.getTime() / 1000 + 6 }, start, 1200)).toBeTruthy();
   });
   it("requires 80 percent known observation and excludes mixed roles from role ranks", () => {
-    const p = { knownSec: 800, unknownSec: 200, lockedRole: "DPS", mixedRole: false };
+    const p = { knownSec: 800, unknownSec: 200, lockedRole: "DPS", mixedRole: false, knownIntervals:[[100,900]] };
     expect(integrityPresence(p, 1000)).toBe(true);
     expect(integrityPresence({ ...p, knownSec: 799 }, 1000)).toBe(false);
     expect(integrityPresence({ ...p, knownSec: 801 }, 1000)).toBe(false);
@@ -36,7 +37,7 @@ describe("current-v2 evidence foundation (not activation)", () => {
   it.each([false, true])("preserves honest unknown witness through actual Lua export and public row mapping (standalone %s)", standalone => {
     const { run } = dungeonRoleFixture(standalone);
     expect(run.integrity).toMatchObject({ version: 2, startWitness: "unknown", startTrigger: "first combat", continuous: true });
-    expect(integrityStartReason(run.integrity, new Date(run.startedAt! * 1000), run.endedAt! - run.startedAt!)).toBe("Fresh-instance start not verified");
+    expect(integrityStartReason(run.integrity, new Date(run.startedAt! * 1000), run.endedAt! - run.startedAt!)).toBeUndefined();
     expect(run.players[0]?.integrity).toMatchObject({ knownSec: 1200, unknownSec: 0, lockedRole: "DPS", mixedRole: false });
     const summary = summarize(run, start);
     expect(summary.evidenceVersion).toBe(2);

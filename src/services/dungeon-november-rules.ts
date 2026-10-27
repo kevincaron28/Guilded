@@ -220,7 +220,7 @@ export function validRouteRules(value: unknown): value is NovemberRules | Bracke
 }
 
 interface EvidenceRun { instanceId: number; difficultyId?: number; startedAt?: Date | null; endedAt?: Date | null; competitionData?: unknown; completedBy?: string | null }
-type Encounter = { id?: number; kind?: "npc"; name?: string; at?: number; success?: boolean };
+type Encounter = { id?: number; kind?: "npc"; name?: string; at?: number; success?: boolean; source?: string };
 function matches(b: EncounterIdentity, e: Encounter): boolean {
   if (e.kind === "npc") return typeof e.id === "number" && !!b.npcIds?.includes(e.id);
   return (typeof e.id === "number" && b.ids.includes(e.id)) || (typeof e.name === "string" && b.names.some(n => normalize(n) === normalize(e.name!)));
@@ -243,4 +243,13 @@ export function resolveNovemberRoute(run: EvidenceRun, rules: { routes: November
     return { key: route.dungeonKey, route, reason: "Required encounter evidence missing" };
   }
   return { key: route.dungeonKey, route };
+}
+
+/** Native checkpoints support an observed clear, not proof of an untouched instance. */
+export function nativeCompletionReason(run: EvidenceRun, rules: {routes:NovemberRoute[]}): string | undefined {
+  const data = run.competitionData as {encounters?:Encounter[]} | null;
+  const native = Array.isArray(data?.encounters) ? data.encounters.filter(e=>e?.source==="native") : [];
+  const route = resolveNovemberRoute({...run,competitionData:{encounters:native}},rules);
+  return route.reason || !native.some(e=>e.success && Number.isInteger(e.at) && run.endedAt && Math.abs(e.at!-run.endedAt.getTime()/1000)<=5)
+    ? "Native completion checkpoints required" : undefined;
 }

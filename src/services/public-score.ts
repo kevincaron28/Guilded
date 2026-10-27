@@ -96,7 +96,7 @@ export function rateRun(run: ScoreRun, rules: BracketedRules = publicRules(), pl
     const verdict = bracketedVerdict(ratingRun(run, run.evidence), rules);
     if (verdict.reason || !verdict.targetSec) return { score: null, reason: verdict.reason ?? "Target not calibrated" };
     if (player && !presentEnough(player.presentSec ?? 0, run.durationSec)) return { score: null, reason: "Presence under 80%" };
-    if (player && rules.evidencePolicy === "current-v2" && !integrityPresence(player.integrity, run.durationSec)) return { score: null, reason: "Known in-instance presence under 80%" };
+    if (player && rules.evidencePolicy === "current-v2" && !integrityPresence(player.integrity, run.durationSec, run.evidence.startedAt ? run.evidence.startedAt.getTime()/1000 : undefined)) return { score: null, reason: "Known in-instance presence under 80%" };
     return { score: { key: verdict.key, bracket: rules.routeBracket[verdict.key]!, points: penalized(timeRating(run.durationSec, verdict.targetSec), verdict.penaltyPercent), penaltyPercent: verdict.penaltyPercent } };
   }
   // Uploaded before 7.4: route, difficulty and party levels only.
@@ -141,7 +141,7 @@ export function characterScores(runs: ScoreRun[], rules: BracketedRules = public
     if (!score) continue;
     for (const player of run.players) {
       if (!keep(player, run) || run.evidence && !presentEnough(player.presentSec ?? 0, run.durationSec)
-        || rules.evidencePolicy === "current-v2" && !integrityPresence(player.integrity, run.durationSec)) continue;
+        || rules.evidencePolicy === "current-v2" && !integrityPresence(player.integrity, run.durationSec, run.evidence?.startedAt ? run.evidence.startedAt.getTime()/1000 : undefined)) continue;
       const id = `${characterId(player)}\0${score.bracket}`;
       const row = rows.get(id) ?? { player, bracket: score.bracket, points: 0, routes: [] };
       const current = row.routes.find(r => r.key === score.key);

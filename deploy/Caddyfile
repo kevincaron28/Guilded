@@ -25,60 +25,61 @@
 }
 
 YOUR_HOSTNAME {
-	# Optional hosted-origin gate. Independent installations have no matching file.
+	# Keep the origin gate before every handle; Caddy normally sorts handle before route.
+	# Independent installations have no matching snippet.
 	route {
 		import /etc/caddy/guilded-origin*.caddy
-	}
-	request_body {
-		max_size 2MB
-	}
-	# Only the paths the companion uses; everything else is a plain 404.
-	handle /health {
-		reverse_proxy 127.0.0.1:8787
-	}
-	handle /api/v1/* {
-		reverse_proxy 127.0.0.1:8787
-	}
-	handle /companion {
-		reverse_proxy 127.0.0.1:8787
-	}
-	handle /companion/* {
-		reverse_proxy 127.0.0.1:8787
-	}
-	# Public guild pages (read-only).
-	handle /g/* {
-		reverse_proxy 127.0.0.1:8787
-	}
-	# Website pages rendered by the bot (sign-in, recruitment, profiles, /me, leaderboards).
-	# The Worker forwards only these, with a cookie for this host; keep both lists in sync.
-	handle /auth/* {
-		reverse_proxy 127.0.0.1:8787
-	}
-	handle /recruitment {
-		reverse_proxy 127.0.0.1:8787
-	}
-	handle /recruitment/* {
-		reverse_proxy 127.0.0.1:8787
-	}
-	handle /players {
-		reverse_proxy 127.0.0.1:8787
-	}
-	handle /players/* {
-		reverse_proxy 127.0.0.1:8787
-	}
-	handle /me {
-		reverse_proxy 127.0.0.1:8787
-	}
-	handle /me/* {
-		reverse_proxy 127.0.0.1:8787
-	}
-	handle /leaderboards {
-		reverse_proxy 127.0.0.1:8787
-	}
-	handle /leaderboards/* {
-		reverse_proxy 127.0.0.1:8787
-	}
-	handle {
-		respond "Not found" 404
+		request_body {
+			max_size 2MB
+		}
+		# Only the paths the companion uses; everything else is a plain 404.
+		handle /health {
+			reverse_proxy 127.0.0.1:8787
+		}
+		handle /api/v1/* {
+			reverse_proxy 127.0.0.1:8787
+		}
+		handle /companion {
+			reverse_proxy 127.0.0.1:8787
+		}
+		handle /companion/* {
+			reverse_proxy 127.0.0.1:8787
+		}
+		# Public guild pages (read-only).
+		handle /g/* {
+			reverse_proxy 127.0.0.1:8787
+		}
+		# Website pages rendered by the bot (sign-in, recruitment, profiles, /me, leaderboards).
+		# The Worker forwards only these, with a cookie for this host; keep both lists in sync.
+		handle /auth/* {
+			reverse_proxy 127.0.0.1:8787
+		}
+		handle /recruitment {
+			reverse_proxy 127.0.0.1:8787
+		}
+		handle /recruitment/* {
+			reverse_proxy 127.0.0.1:8787
+		}
+		handle /players {
+			reverse_proxy 127.0.0.1:8787
+		}
+		handle /players/* {
+			reverse_proxy 127.0.0.1:8787
+		}
+		handle /me {
+			reverse_proxy 127.0.0.1:8787
+		}
+		handle /me/* {
+			reverse_proxy 127.0.0.1:8787
+		}
+		handle /leaderboards {
+			reverse_proxy 127.0.0.1:8787
+		}
+		handle /leaderboards/* {
+			reverse_proxy 127.0.0.1:8787
+		}
+		handle {
+			respond "Not found" 404
+		}
 	}
 }

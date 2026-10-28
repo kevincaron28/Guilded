@@ -56,6 +56,7 @@ describe("CSRF and origin checks", () => {
   it("returns only to this website's own pages after sign-in", () => {
     expect(safeReturnPath("/recruitment/?class=Mage")).toBe("/recruitment/?class=Mage");
     expect(safeReturnPath("/leaderboards/character/Kev")).toBe("/leaderboards/character/Kev");
+    expect(safeReturnPath("/players/?edition=retail&lang=fr")).toBe("/players/?edition=retail&lang=fr");
     for (const bad of ["https://evil.example/", "//evil.example/me/", "/me//evil", "/companion/", "/me/\nx", null]) expect(safeReturnPath(bad)).toBe("/me/");
   });
 });

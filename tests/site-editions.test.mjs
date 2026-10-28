@@ -28,6 +28,8 @@ describe('edition-specific downloads', () => {
     expect(html).toContain(`href="https://guilded.kcaron.top/editions/${edition.id}/?lang=fr"`);
     expect(html).toContain('data-fr="Installer dans le bon dossier de jeu"');
     expect(html).toContain('https://apps.microsoft.com/detail/9N680XX3QFL9');
+    const query = edition.id === 'forever' ? '' : `?edition=${edition.id}`;
+    for (const path of ['/leaderboards/', '/recruitment/', '/players/']) expect(html).toContain(`href="${path}${query}"`);
     if (curseforge.version === published) {
       for (const url of Object.values(curseforge.editions?.[edition.id] ?? {})) expect(html).toContain(`href="${url}"`);
     }

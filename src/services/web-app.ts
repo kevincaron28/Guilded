@@ -89,7 +89,7 @@ export function createWebApp(deps: WebAppDeps) {
       signInPrompt: () => {
         const t = context.t;
         const body = deps.auth
-          ? `<h1>${t("Sign in first", "Connectez-vous d'abord")}</h1><p>${t("This page needs your Discord account. Guilded only reads your Discord name and ID.", "Cette page demande votre compte Discord. Guilded ne lit que votre nom et votre identifiant Discord.")}</p><p><a class="button" href="${link("/auth/login", context.lang, { return: context.request.path })}">${t("Sign in with Discord", "Connexion avec Discord")}</a></p>`
+          ? `<h1>${t("Sign in first", "Connectez-vous d'abord")}</h1><p>${t("This page needs your Discord account. Guilded only reads your Discord name and ID.", "Cette page demande votre compte Discord. Guilded ne lit que votre nom et votre identifiant Discord.")}</p><p><a class="button" href="${link("/auth/login", context.lang, { return: link(context.request.path, context.lang) })}">${t("Sign in with Discord", "Connexion avec Discord")}</a></p>`
           : `<h1>${t("Sign-in is off", "Connexion désactivée")}</h1><p>${t("Signing in with Discord is not set up on this server yet.", "La connexion avec Discord n'est pas encore configurée sur ce serveur.")}</p>`;
         return page(deps.auth ? 401 : 503, t("Sign in", "Connexion"), body, { noindex: true });
       }

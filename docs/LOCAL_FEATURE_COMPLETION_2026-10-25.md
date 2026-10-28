@@ -1,3 +1,5 @@
+> Historical implementation checkpoint. Delivered features are included in the published 8.0 release; original local/draft/version statements below describe that earlier stage. See [the current final audit](FINAL_LAUNCH_AUDIT_2026-10-28.md) for boundaries and remaining evidence.
+
 > Updated continuation: [roster bulk actions, GRM migration and edition buff coverage](LOCAL_ROSTER_GRM_BUFFS_2026-10-25.md) now implements the three areas listed as deferred below. This document records the earlier bundle and its earlier validation.
 
 # Integrated local feature candidate — 25 October 2026

@@ -74,7 +74,7 @@ export function sameOrigin(headers: { origin?: string | undefined; referer?: str
 }
 
 // Where to go after signing in: only this website's own pages, never another address.
-const RETURN_PATH = /^\/(?:recruitment|me|leaderboards)(?:\/[A-Za-z0-9._~/-]*)?(?:\?[A-Za-z0-9._~=&%+-]*)?$/;
+const RETURN_PATH = /^\/(?:recruitment|me|leaderboards|players)(?:\/[A-Za-z0-9._~/-]*)?(?:\?[A-Za-z0-9._~=&%+-]*)?$/;
 export function safeReturnPath(path: string | null | undefined): string {
   return path && path.length <= 300 && RETURN_PATH.test(path) && !path.includes("//") ? path : "/me/";
 }

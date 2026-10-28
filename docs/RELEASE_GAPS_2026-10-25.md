@@ -1,3 +1,5 @@
+> Historical checkpoint. Current inventory and publication status: [final launch audit](FINAL_LAUNCH_AUDIT_2026-10-28.md).
+
 # Guilded 7.3.2 release gaps — 25 October 2026
 
 ## Released
@@ -104,7 +106,7 @@ preserved. A failed pin lookup cannot create a duplicate guide.
 | Live interaction latency | Three community button acknowledgements expired during deployment preparation | Lower staging CPU priority is mitigation; observe actual interactions and keep the reports open until verified |
 | Dungeon coverage | 135 ordinary Classic/Retail routes and eight Retail seasonal key maps are prepared; targets are provisional, unsupported routes stay unrated | Collect real completion evidence and representative runs; add catalogues and calibrate only future rules |
 | Rating parity | Guilded rating is a separate provisional score; Mists challenge activity is not Retail keystone ranking | Keep labels explicit; do not present it as official Raider.IO/Blizzard rating |
-| Official countdown catalogue | Event boards currently support Forever and PoE2; Classic/Retail raid and season tools are separate | Extend event catalogue/settings for other editions when verified announcements and edition-specific reminder preferences are available |
+| Official countdown catalogue | Event boards support Forever, Era, TBC, Mists, Retail and PoE2; verified announcements determine available entries | Add verified dates to the existing catalogue; retain per-edition subscriptions and TBA for unknown times |
 | Raid content | Presets exist; verified Forever raid loot/GP data and a real two-officer raid rehearsal are outstanding | Add sourced loot data when available and rehearse before raids; do not invent prices or encounter IDs |
 | Windows signing | Public installer is unsigned | Use an owner-controlled signing identity, then verify clean-machine installation/update behavior |
 | Languages | English/French ship; German/Spanish groundwork lacks native acceptance | Get native review and exercise actual client layouts before claiming full support |

@@ -5,6 +5,7 @@
 > and their anonymous downloads match the GitHub release hashes. Edition pages are live.
 > Bot-only message-channel coverage correction deployed at 4e23dac; /participation channels
 > is registered. Client artifacts remain unchanged.
+> Current final feature audit: docs/FINAL_LAUNCH_AUDIT_2026-10-28.md.
 > The owner waived remaining hands-on tests; keep unperformed checks as follow-up.
 > 8.0.0 (28 October 2026): security/reliability, versioned Retail overtime scoring,
 > French indexing, accessibility, lossless storage compaction and Core extraction.

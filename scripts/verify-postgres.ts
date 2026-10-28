@@ -1,4 +1,5 @@
 import { verifyCommunityBadgesPostgres, verifyCommunityBadgesRestored } from "./verify-community-badges-postgres.js";
+import { verifySeasonCalendarPostgres } from "./verify-season-calendar-postgres.js";
 import { verifyDungeonContractPostgres } from "./verify-dungeon-contract-postgres.js";
 import { verifyDungeonObservedPostgres } from "./verify-dungeon-observed-postgres.js";
 import { guildWhere } from "../src/services/guild-scope.js";
@@ -95,6 +96,7 @@ try {
     assert.equal((await database.poeMapVisit.findFirstOrThrow({ where: { character: "ReleasePoeAnn", instanceRef: null } })).durationSeconds, 300);
     assert.equal(await database.poeMapVisit.count({ where: { character: "ReleasePoeAnn", instanceRef: "d".repeat(64) } }), 2);
   } else {
+    await verifySeasonCalendarPostgres();
     await database.guild.deleteMany({ where: { discordId: { startsWith: "release-test-" } } });
     const guild = await database.guild.create({ data: { discordId: "release-test-guild", name: "Release fixture" } });
     await verifyGameEditionsPostgres(database, guild.id);

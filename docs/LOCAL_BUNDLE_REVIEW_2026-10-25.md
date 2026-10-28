@@ -1,3 +1,7 @@
+> Historical development checkpoint. The reviewed features and fixes are included
+> in the published 8.0.1 release. Current scope and acceptance evidence:
+> [final 8.0.1 audit](FINAL_8_0_1_AUDIT_2026-10-28.md).
+
 # Full local bundle review — 25 October 2026
 
 Status: **local review candidate, not published**. This review covers the combined

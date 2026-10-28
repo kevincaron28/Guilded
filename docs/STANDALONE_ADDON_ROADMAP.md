@@ -1,5 +1,9 @@
 # Standalone Guilded Addon Roadmap
 
+> Current 8.0.1 launch implementation and acceptance are recorded in the
+> [final audit](FINAL_8_0_1_AUDIT_2026-10-28.md). The dated development notes and
+> future proposals below retain their historical context.
+
 ## Status - 20 October 2026 (7.2.1 and the next candidate)
 
 | Step | State | Where it stands |

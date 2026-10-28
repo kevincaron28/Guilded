@@ -69,4 +69,49 @@ export async function verifyParticipationPostgres(database: PrismaClient, guildI
   assert.equal(await database.communityParticipationDay.count({ where: { seasonId: season.id, userId: "rollback" } }), 0);
   await community.endSeason(guildId, season.id);
   await assert.rejects(service.reverse(guildId, season.id, helper.id, "officer", "Frozen", at));
+  await verifyParticipationSummaryPostgres(database);
+}
+
+async function verifyParticipationSummaryPostgres(database: PrismaClient) {
+  const guild = await database.guild.create({ data: { name: "Summary fixture", discordId: "release-summary" } });
+  const foreign = await database.guild.create({ data: { name: "Foreign summary fixture", discordId: "release-summary-foreign" } });
+  try {
+    const community = createCommunityService(database), service = createParticipationService(database);
+    const options = { name: "Summary season", game: "DISCORD", channelId: "social", audienceRoleId: null, actorId: "officer" };
+    const season = await community.startSeason(guild.id, options);
+    const other = await community.startSeason(foreign.id, options);
+    const now = new Date("2030-01-08T16:00:00Z"), old = new Date("2030-01-01T16:00:00Z"), weekStart = new Date("2030-01-07T05:00:00Z");
+    const empty = await service.summary(guild.id, season.id, "member", now);
+    assert.deepEqual([empty.points, empty.participants, empty.helpers], [0, 0, []]);
+    const point = (id: string, userId: string, amount: number, reference: string, createdAt = now, kind = "AWARD", seasonId = season.id) =>
+      ({ id, seasonId, userId, amount, kind, reference, createdAt, reason: "Summary fixture", actorId: "officer" });
+    await database.communityPoint.createMany({ data: [
+      point("summary-member-old", "member", 100, "activity:member-old", old),
+      point("summary-member-week", "member", 1, "participation:message:member-week", weekStart),
+      point("summary-member-spend", "member", -500, "spend:fixture", now, "SPEND"),
+      point("summary-helper-old", "summary-helper-a", 15, "participation:helper:old", old),
+      point("summary-helper-week", "summary-helper-a", 45, "participation:helper:week"),
+      point("summary-helper-reverse", "summary-helper-a", -15, "participation:reverse:summary-helper-old", now, "REVERSAL"),
+      // A reversal must not classify a different season's award as this season's helper credit.
+      point("summary-foreign-helper", "summary-helper-a", 200, "participation:helper:foreign", old, "AWARD", other.id),
+      point("summary-foreign-reverse", "summary-helper-a", -15, "participation:reverse:summary-foreign-helper", now, "REVERSAL"),
+      point("summary-foreign-member", "member", 10_000, "activity:foreign", now, "AWARD", other.id),
+      ...["b", "c", "d", "e", "f", "g", "h"].map(key => point(`summary-helper-${key}`, `summary-helper-${key}`, 15, `participation:helper:${key}`)),
+      point("summary-cancel", "cancelled", 1, "participation:message:cancel"),
+      point("summary-cancel-reverse", "cancelled", -1, "participation:reverse:summary-cancel", now, "REVERSAL"),
+      point("summary-old-only", "old-only", 5, "activity:old-only", old),
+      point("summary-future", "future-only", 1, "activity:future", new Date(now.getTime() + 1)),
+      point("summary-activity", "activity-only", 5, "activity:week"),
+      ...Array.from({ length: 1_000 }, (_, index) => point(`summary-history-${index}`, "historical", 1, `activity:history-${index}`, old))
+    ] });
+    const result = await service.summary(guild.id, season.id, "member", now);
+    assert.equal(result.points, 101);
+    assert.equal(result.participants, 10);
+    assert.deepEqual(result.helpers, [["summary-helper-a", 30], ["summary-helper-b", 15], ["summary-helper-c", 15], ["summary-helper-d", 15], ["summary-helper-e", 15]]);
+    assert.equal((await service.summary(guild.id, season.id, "missing", now)).points, 0);
+    await assert.rejects(service.summary(foreign.id, season.id, "member", now), /Season not found/);
+  } finally {
+    await database.guild.delete({ where: { id: guild.id } });
+    await database.guild.delete({ where: { id: foreign.id } });
+  }
 }

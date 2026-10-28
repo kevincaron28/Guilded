@@ -1,8 +1,10 @@
 > CURRENT — 8.0.0 published on GitHub and live on Oracle, 28 October 2026.
 > Release tag/configuration commit: 0daa31d. Feature deployment: 01314c7.
-> Evidence and remaining provider actions: docs/V8_0_RELEASE_EVIDENCE_2026-10-28.md.
-> Store Submission 2 has the validated 8.0 MSIX and EN/FR notes and is in certification.
-> CurseForge 8.0 uploads remain pending. No Store 8.0 approval/publication is claimed.
+> Publication evidence: docs/V8_0_RELEASE_EVIDENCE_2026-10-28.md.
+> Store Submission 2 (8.0.0.0) is published; all ten CurseForge 8.0 files are approved
+> and their anonymous downloads match the GitHub release hashes. Edition pages are live.
+> Bot-only message-channel coverage correction deployed at 4e23dac; /participation channels
+> is registered. Client artifacts remain unchanged.
 > The owner waived remaining hands-on tests; keep unperformed checks as follow-up.
 > 8.0.0 (28 October 2026): security/reliability, versioned Retail overtime scoring,
 > French indexing, accessibility, lossless storage compaction and Core extraction.
@@ -22,7 +24,9 @@ feature).
 **Current status (28 October 2026): version 8.0.0 Release, protocol 2.** WoW Forever launches
 4 November 2026 (beta closed 21 October); its first raids open 9 December.
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
-The bot, online companion and GitHub public release are 8.0.0. Store 8.0 is in certification; CurseForge uploads remain pending.
+The bot, online companion, GitHub, CurseForge and Microsoft Store releases are 8.0.0.
+The WoW edition pages are live. Message earning covers accessible guild channels/threads;
+officers can inspect coverage with `/participation channels`. See `docs/PARTICIPATION_CHANNEL_COVERAGE_2026-10-28.md`.
 Use the release evidence for each published artifact; historical 7.4.0 approval records
 are not evidence for a new 8.0 upload. Current work: `docs/V8_0_LAUNCH_READINESS.md`.
 Both addons have

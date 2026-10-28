@@ -38,8 +38,18 @@ validators. Coverage exercises every supported message channel type, the shared
 cross-channel cooldown, exact restricted IDs, private membership failures,
 reaction deduplication/deletion reversals and officer-visible report boundaries.
 This is a bot-only 8.0 correction; published addon/installer bytes remain unchanged
-and protocol remains 2. Source CI, backup, deployment and live command registration
-are separate gates; record their exact results after completion.
+and protocol remains 2. [PR #250](https://github.com/kevincaron28/Guilded/pull/250)
+passed quality run `40732004968`; merged main `4e23dac` passed push CI
+`40732685873`. Production preflight, database/application backup and encrypted
+off-server verification passed before activation. The pinned source was staged
+with the existing deployment helpers, activated once, and the old application
+retained privately for recovery. No migration or Caddy/service change was needed.
+Post-deploy ledger check passed; public health is 8.0.0 / protocol 2 / commands ok.
+Discord REST confirms `/participation channels`, its French description and the
+updated all-text option in the primary guild. Public routes work and direct origin
+health, companion and API requests still return 404. No new live member message or
+reaction was manufactured; channel-type awards are covered by the automated tests.
+Private recovery/registration evidence: `backups/participation-2026-10-28/`.
 
 References: [Discord threads](https://docs.discord.com/developers/topics/threads),
 [permission overwrites](https://docs.discord.com/developers/topics/permissions).

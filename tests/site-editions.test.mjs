@@ -1,12 +1,13 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { WOW_EDITIONS } from '../site/editions.mjs';
+import { WOW_EDITIONS, editionPages } from '../site/editions.mjs';
 import { GAME_EDITIONS } from '../companion/game-edition.mjs';
 
 beforeAll(() => execFileSync(process.execPath, ['scripts/build-site.mjs'], { stdio: 'pipe' }), 30000);
 const page = path => readFileSync(`dist/site/${path}`, 'utf8');
 const published = JSON.parse(readFileSync('site/releases.json', 'utf8')).guilded.github.version;
+const curseforge = JSON.parse(readFileSync('site/releases.json', 'utf8')).guilded.curseforge;
 
 describe('edition-specific downloads', () => {
   it('offers every packaged client and makes the choice available before features', () => {
@@ -27,10 +28,19 @@ describe('edition-specific downloads', () => {
     expect(html).toContain(`href="https://guilded.kcaron.top/editions/${edition.id}/?lang=fr"`);
     expect(html).toContain('data-fr="Installer dans le bon dossier de jeu"');
     expect(html).toContain('https://apps.microsoft.com/detail/9N680XX3QFL9');
+    if (curseforge.version === published) {
+      for (const url of Object.values(curseforge.editions?.[edition.id] ?? {})) expect(html).toContain(`href="${url}"`);
+    }
     expect(html).not.toContain('undefined');
     const sitemap = page('sitemap.xml');
     expect(sitemap).toContain(`https://guilded.kcaron.top/editions/${edition.id}/?lang=fr`);
     expect(sitemap).toContain(`https://guilded.kcaron.top/editions/${edition.id}/</loc>`);
+  });
+
+  it('does not label an older CurseForge file as the current GitHub release', () => {
+    const older = { version: '0.0.1', editions: { retail: { guilded: 'https://example.invalid/old-file' } } };
+    const retail = editionPages(published, older).find(page => page.path === 'editions/retail/');
+    expect(retail.body).not.toContain('https://example.invalid/old-file');
   });
 
   it('routes edition pages through the Worker for server-rendered French', () => {

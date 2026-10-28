@@ -1,5 +1,6 @@
 > CURRENT RELEASE — 8.0.1; remaining Forever data/calibration require the game.
-> GitHub and Oracle: 8.0.1, source cdc1a51. Preserve published bytes.
+> Client release: 8.0.1, source cdc1a51. Preserve published bytes.
+> Bot runtime also includes the final-audit participation summary read correction.
 > Follow docs/V8_0_1_LAUNCH_COMPLETION.md for completion and provider gates.
 > Current release tag/source: cdc1a51; prior 8.0 tag/configuration: 0daa31d.
 > Publication evidence: docs/V8_0_1_RELEASE_EVIDENCE_2026-10-28.md.
@@ -7,7 +8,7 @@
 > and their anonymous downloads match the GitHub release hashes. Edition pages are live.
 > Bot-only message-channel coverage correction deployed at 4e23dac; /participation channels
 > is registered. Client artifacts remain unchanged.
-> Current final feature audit: docs/FINAL_LAUNCH_AUDIT_2026-10-28.md.
+> Current final feature audit: docs/FINAL_8_0_1_AUDIT_2026-10-28.md.
 > The owner waived remaining hands-on tests; keep unperformed checks as follow-up.
 > 8.0.1 (28 October 2026): full DE/ES addon catalogue and language review.
 > 8.0.0 (28 October 2026): security/reliability, versioned Retail overtime scoring,

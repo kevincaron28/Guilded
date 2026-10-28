@@ -1,6 +1,7 @@
 import { recordCommunityPoint, grantCommunityBadge } from "./community-badges.js";
 import type { CommunityParticipationDay, Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { dateAfter, dayStart, HELPER_POINTS, HELPER_WEEKLY_APPROVALS, HELPER_WEEKLY_POINTS, MESSAGE_COOLDOWN_MS, participationDay, participationRules, participationWeek, VOICE_BLOCK_MS, voiceSegments, type ParticipationRules } from "./participation-rules.js";
+import { participationSummaryTotals } from "./participation-summary.js";
 
 type Tx = Prisma.TransactionClient;
 const fail = (text: string): never => { throw new Error(text); };
@@ -153,18 +154,8 @@ export function createParticipationService(database: PrismaClient) {
       const timezone = season.guild.settings?.timezone ?? "America/Toronto";
       const day = participationDay(now, timezone), week = participationWeek(now, timezone);
       const today: CommunityParticipationDay | null = await database.communityParticipationDay.findUnique({ where: { seasonId_userId_day: { seasonId, userId, day } } });
-      const entries = await database.communityPoint.findMany({ where: { seasonId, kind: { in: ["AWARD", "REVERSAL"] } } });
-      const weekly = entries.filter(entry => entry.createdAt >= dayStart(week, timezone) && entry.createdAt <= now);
-      const totals = new Map<string, number>();
-      for (const entry of weekly) totals.set(entry.userId, (totals.get(entry.userId) ?? 0) + entry.amount);
-      const participants = [...totals].filter(([, amount]) => amount > 0).length;
-      const helperTotals = new Map<string, number>();
-      const awards = new Map(entries.filter(entry => entry.kind === "AWARD").map(entry => [entry.id, entry]));
-      for (const entry of weekly) {
-        const original = entry.kind === "REVERSAL" ? awards.get(entry.reference.slice("participation:reverse:".length)) : entry;
-        if (original?.reference.startsWith("participation:helper:")) helperTotals.set(entry.userId, (helperTotals.get(entry.userId) ?? 0) + entry.amount);
-      }
-      return { season, today, participants, points: entries.filter(entry => entry.userId === userId).reduce((sum, entry) => sum + entry.amount, 0), helpers: [...helperTotals].filter(([, amount]) => amount > 0).sort((a, b) => b[1] - a[1]).slice(0, 5), rules: participationRules.parse(season.participation?.rules ?? {}) };
+      const totals = await participationSummaryTotals(database, seasonId, userId, dayStart(week, timezone), now);
+      return { season, today, ...totals, rules: participationRules.parse(season.participation?.rules ?? {}) };
     }
   };
 }

@@ -1,3 +1,7 @@
+> Historical development checkpoint. These features are included in the published
+> 8.0.1 release. Current scope and acceptance evidence:
+> [final 8.0.1 audit](FINAL_8_0_1_AUDIT_2026-10-28.md).
+
 # Local roster actions, GRM migration and buff coverage — 25 October 2026
 
 Latest validation and fixes: [full local bundle review](LOCAL_BUNDLE_REVIEW_2026-10-25.md).

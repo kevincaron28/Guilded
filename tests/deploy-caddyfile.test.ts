@@ -14,7 +14,7 @@ describe("deploy/Caddyfile", () => {
     const global = caddyfile.match(/^\{\n([\s\S]*?)^\}$/m)?.[1] ?? "";
     expect(global).toMatch(/log default \{/);
     expect(global).toMatch(/format filter \{/);
-    for (const header of ["X-Companion-Credential", "Authorization", "Cookie"]) {
+    for (const header of ["X-Companion-Credential", "Authorization", "Cookie", "X-Guilded-Origin"]) {
       expect(global).toContain(`request>headers>${header} delete`);
     }
   });
@@ -36,7 +36,7 @@ describe("deploy/Caddyfile", () => {
   // 7.0.0 shipped with these routes in the Worker but not here, so every page was Caddy's 404.
   it("proxies every bot page the website Worker forwards", () => {
     for (const path of ["/auth/login", "/auth/callback", "/auth/logout", "/recruitment", "/recruitment/apply/x", "/me", "/me/", "/leaderboards", "/leaderboards/character/A-B", "/g/quebec-gold/", "/companion/", "/api/v1/standings", "/health"]) {
-      const handled = [...caddyfile.matchAll(/^\thandle (\S+) \{\n\t\treverse_proxy 127\.0\.0\.1:8787$/gm)].map((m) => m[1]!)
+      const handled = [...caddyfile.matchAll(/^(\t+)handle (\S+) \{\n\1\treverse_proxy 127\.0\.0\.1:8787$/gm)].map((m) => m[2]!)
         .some((pattern) => pattern.endsWith("/*") ? path.startsWith(pattern.slice(0, -1)) : path === pattern);
       expect(handled, path).toBe(true);
     }

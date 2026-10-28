@@ -2,7 +2,10 @@
 
 Historical audit: many recommendations below are now implemented and 7.3.2 is deployed for
 testing. Use [24 October launch readiness](LAUNCH_READINESS_2026-10-24.md) for current gates.
-Public promotion remains on hold until game/two-PC acceptance passes.
+That historical promotion hold was superseded by the owner's release decision
+and explicit remaining manual-testing waiver. Current implementation and provider
+gates are in the [8.0.1 final audit](FINAL_8_0_1_AUDIT_2026-10-28.md) and
+[8.0.2 evidence](V8_0_2_RELEASE_EVIDENCE_2026-10-28.md).
 
 Full system audit before the next public release (main is 7.3.1, protocol 2). One part at a
 time; tick each part when it is done so a later session can resume here.

@@ -6,8 +6,9 @@ import { localParts, zonedTime } from "./raid-time.js";
 export const participationRules = z.object({
   textChannels: z.array(z.string().min(1)).max(20).default([]),
   voiceChannels: z.array(z.string().min(1)).max(20).default([]),
-  // By default every text channel and every voice channel counts (temporary group channels
-  // included). Turned off, only the listed channels do.
+  // allText covers messages in accessible guild text/announcement/voice/stage
+  // channels and threads (including forum/media posts). Explicit lists remain
+  // exact channel IDs, without implicitly opting in a parent's future threads.
   allText: z.boolean().default(true),
   allVoice: z.boolean().default(true),
   emojis: z.array(z.string().min(1).max(80)).max(10).default(["👍", "❤️", "🎉"]),

@@ -2,18 +2,23 @@
 
 Guilded ajoute des récompenses plafonnées dans une **saison communautaire Discord**.
 Elles utilisent le portefeuille et le classement `/community` existants; aucun EP/GP,
-point de donjon, protocole de compagnon ou SavedVariables n'est modifié. Version 5.0.0.
+point de donjon, protocole de compagnon ou SavedVariables n'est modifié. Guide mis à jour pour 8.0.
 
 ## Activer sur les salons choisis
 
-**Par défaut, tous les salons textuels ordinaires et tous les salons vocaux comptent** (sauf les fils,
-forums, le clavardage des vocaux et le salon AFK). `all-text:false` ou `all-voice:false` dans
-`/participation settings` revient à une liste de salons choisis.
+**Par défaut, les messages de tous les salons accessibles au bot comptent** : salons
+textuels, annonces, clavardage des vocaux/scènes et fils, y compris les publications
+des forums et médias. Les fils privés exigent un accès existant (adhésion ou
+modération); le bot ne les rejoint pas automatiquement. Les MP, bots, webhooks et
+messages système sont exclus. Le temps vocal compte séparément, hors salon AFK.
+`all-text:false` ou `all-voice:false` dans `/participation settings` revient à une
+liste de salons choisis. Les listes de messages visent des identifiants exacts;
+choisir un salon parent n'inscrit pas automatiquement ses futurs fils.
 
 Depuis `/setup start`, « Créer ceux qui manquent » (étape 2) et « Configurer la communauté »
 (liste de vérification) font tout ceci automatiquement sur un nouveau serveur : catégorie
 Communauté, salons activités / leaderboard / chat, première saison Discord et participation
-activée avec les règles par défaut (le chat communautaire et tous les salons vocaux).
+activée avec les règles par défaut (messages de tous les salons accessibles et vocaux hors AFK).
 `/participation settings season:SAISON all-voice:true` compte tous les vocaux (sauf AFK), y compris
 les vocaux temporaires des groupes; `all-voice:false` revient à la liste de salons choisis.
 Une saison existante et des réglages déjà choisis ne sont jamais écrasés. Les commandes
@@ -25,22 +30,33 @@ Un officier crée une saison Discord dans un salon communautaire accessible au b
 /organize start-season name:Participation octobre game:DISCORD
 /participation settings season:SAISON channel:#discussion enabled:true
 /participation settings season:SAISON channel:Vocal
+/participation channels season:SAISON
 /participation status season:SAISON
 ```
 
-Utiliser l'identifiant renvoyé à la place de `SAISON`. Ajouter les autres salons
-un à la fois. Seuls les salons textuels ordinaires et les vocaux explicitement
-choisis comptent; les MP, fils, forums, salons AFK et autres salons sont exclus.
-Le suivi reste désactivé tant qu'un officier ne l'active pas avec au moins un salon.
+Utiliser l'identifiant renvoyé à la place de `SAISON`. En mode liste restreinte,
+ajouter les salons ou fils un à la fois. La sélection d'un salon vocal règle le
+suivi du temps vocal; `all-text:true` inclut aussi son clavardage dans les messages.
+Le suivi exige une saison Discord active, les gains activés et au moins un salon
+choisi ou un mode tous-salons actif.
 `enabled:false` suspend les gains. `channel:... remove:true` retire un salon.
 `settings` sans autre option affiche les règles. Maximum 20 salons de chaque type.
+
+`/participation channels` donne aux officiers un rapport privé paginé des salons
+admissibles, exclus, en pause ou inaccessibles au bot. Il n'affiche que les salons
+visibles par l'officier. Les parents de forum/média sont indiqués comme publications;
+les fils accessibles sont couverts par le mode tous-salons sans être énumérés.
+`page:2` affiche les 20 salons suivants. Aucun réglage ni aucune permission n'est
+modifié par ce rapport. « Admissible » ne garantit pas un point par message : délai
+de cinq minutes, plafonds, ancienneté, audience et filtres continuent de s'appliquer.
 
 ## Règles par défaut
 
 ### Profil vocal de deux heures (9 octobre 2026)
 
-État : implémentation et vérifications locales terminées; CI PostgreSQL/Windows,
-déploiement et activation en production restent à faire.
+Recette de configuration historique du 9 octobre : le taux configurable est livré.
+Vérifier les réglages de la saison avant de l'appliquer; ceci ne décrit pas
+automatiquement la configuration de chaque serveur.
 
 Le taux est maintenant configurable avec `voice-points` (1 à 4 points par
 tranche de 15 minutes). Le profil demandé par le propriétaire est

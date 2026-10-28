@@ -1,4 +1,4 @@
-import { ChannelType, Collection, MessageType, type Guild, type Message } from "discord.js";
+import { ChannelType, Collection, MessageType, PermissionFlagsBits, PermissionsBitField, type Guild, type Message, type MessageReaction, type User } from "discord.js";
 import type { CommunityKudos, CommunityParticipationDay, CommunityPoint } from "../src/generated/prisma/client.js";
 import { describe, expect, it, vi } from "vitest";
 import { createParticipationService } from "../src/services/participation.js";
@@ -289,11 +289,67 @@ describe("persistent participation accounting", () => {
   it("registers a bounded French/English command without mandatory content access", () => {
     const command = commands.find(row => row.name === "participation")!;
     const data = command.toJSON() as { options: { name: string }[] };
-    expect(data.options.map(option => option.name)).toEqual(["settings", "status", "nominate", "claims", "review", "history", "reverse"]);
+    expect(data.options.map(option => option.name)).toEqual(["settings", "status", "channels", "nominate", "claims", "review", "history", "reverse"]);
     type Node = { name?: string; description?: string; description_localizations?: { fr?: string }; value?: string; options?: Node[]; choices?: Node[] };
     const size = (node: Node, french: boolean): number => (node.name?.length ?? 0) + (french ? node.description_localizations?.fr ?? node.description ?? "" : node.description ?? "").length + (typeof node.value === "string" ? node.value.length : 0) + [...(node.options ?? []), ...(node.choices ?? [])].reduce((sum, child) => sum + size(child, french), 0);
     expect(size(command.toJSON() as Node, false)).toBeLessThanOrEqual(4000);
     expect(size(command.toJSON() as Node, true)).toBeLessThanOrEqual(4000);
+  });
+});
+
+describe("Discord message channel coverage", () => {
+  function messageFixture(type: ChannelType, id = "channel", messageId = "message") {
+    const permissions = new PermissionsBitField([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory]);
+    const channel = { id, type, permissionsFor: () => permissions, members: { fetch: vi.fn(async (userId: string) => ({ id: userId })) } };
+    const guild = { id: "discord", channels: { cache: new Collection([["text", channel]]) }, members: { fetch: vi.fn(async ({ user }: { user: string }) => ({ id: user, guild, user: { bot: false, createdTimestamp: Date.now() - 100 * 86400000 }, joinedTimestamp: Date.now() - 50 * 86400000 })) } };
+    return { guild, channel, permissions, message: { id: messageId, guild, inGuild: () => true, channel, channelId: id, author: { id: "member", bot: false }, webhookId: null,
+      type: MessageType.Default, createdTimestamp: Date.now(), createdAt: new Date(), content: "Thanks for helping the group today", partial: false } };
+  }
+  const messageTypes = [ChannelType.GuildText, ChannelType.GuildAnnouncement, ChannelType.GuildVoice, ChannelType.GuildStageVoice, ChannelType.PublicThread, ChannelType.PrivateThread, ChannelType.AnnouncementThread];
+  it.each(messageTypes)("awards an eligible message in guild message channel type %i", async type => {
+    const s = store(), fixture = messageFixture(type);
+    s.cfg.rules = participationRules.parse({});
+    await createParticipationTracker(s.database as never, true).message(fixture.message as unknown as Message);
+    expect(s.points).toHaveLength(1);
+    expect(s.points[0]?.reference).toBe("participation:message:message");
+  });
+  it("keeps the cooldown shared across channels and threads", async () => {
+    const s = store(), first = messageFixture(ChannelType.GuildText, "parent", "one"), second = messageFixture(ChannelType.PublicThread, "thread", "two");
+    s.cfg.rules = participationRules.parse({});
+    const tracker = createParticipationTracker(s.database as never, false);
+    await tracker.message(first.message as unknown as Message);
+    await tracker.message(second.message as unknown as Message);
+    expect(s.points).toHaveLength(1);
+  });
+  it("keeps restricted channel IDs exact instead of opting in future child threads", async () => {
+    const s = store(), fixture = messageFixture(ChannelType.PublicThread, "child");
+    s.cfg.rules = participationRules.parse({ allText: false, textChannels: ["parent"] });
+    const tracker = createParticipationTracker(s.database as never, false);
+    await tracker.message(fixture.message as unknown as Message);
+    expect(s.points).toHaveLength(0);
+    s.cfg.rules.textChannels = ["child"];
+    await tracker.message(fixture.message as unknown as Message);
+    expect(s.points).toHaveLength(1);
+  });
+  it("does not award a private-thread message when current membership cannot be verified", async () => {
+    const s = store(), fixture = messageFixture(ChannelType.PrivateThread);
+    fixture.channel.members.fetch.mockRejectedValue(new Error("No access"));
+    s.cfg.rules = participationRules.parse({});
+    await createParticipationTracker(s.database as never, false).message(fixture.message as unknown as Message);
+    expect(s.points).toHaveLength(0);
+  });
+  it("credits a thread reaction once and reverses it when the message is deleted", async () => {
+    const s = store(), fixture = messageFixture(ChannelType.PublicThread);
+    fixture.message.createdTimestamp -= 180000;
+    s.cfg.rules = participationRules.parse({});
+    const tracker = createParticipationTracker(s.database as never, false);
+    const reaction = { message: fixture.message, emoji: { id: null, name: "👍" } } as unknown as MessageReaction;
+    const reactor = { id: "reactor", bot: false } as User;
+    await tracker.reaction(reaction, reactor); await tracker.reaction(reaction, reactor);
+    expect(s.points).toHaveLength(1);
+    s.tx.communitySeason.findFirst.mockResolvedValueOnce({ ...s.season, participation: s.cfg } as never);
+    await tracker.deleted(fixture.message as unknown as Message);
+    expect(s.points.reduce((sum, point) => sum + point.amount, 0)).toBe(0);
   });
 });
 

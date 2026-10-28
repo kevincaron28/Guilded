@@ -65,6 +65,19 @@ describe("online companion sign-in", () => {
 });
 
 describe("online companion session and queue", () => {
+  it("rejects redirects for pairing and authenticated requests without losing the connection or queue", async () => {
+    const { env, choose } = environment();
+    const api = createBrowserCompanion(env as never);
+    await api.pairAccount(profile);
+    choose(logFile()); await api.browsePoeLog(profile);
+    await api.manageView();
+    for (const [, options] of env.fetch.mock.calls) expect(options).toMatchObject({ redirect: "error", credentials: "omit" });
+    env.fetch.mockRejectedValueOnce(new TypeError("Redirect refused"));
+    expect(await api.manageView()).toMatchObject({ ok: false });
+    const all = await api.getAll();
+    expect(all.config.companionCredential).toBe("c".repeat(43));
+    expect(all.state.poe?.pending).toBe(1);
+  });
   it.each(["guild", "credential", "pairing"])("forgets old acknowledgements after changing %s", async change => {
     const { env, choose } = environment();
     const api = createBrowserCompanion(env as never);

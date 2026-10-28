@@ -1,4 +1,5 @@
-import { localizedHref, navLinks } from "../../site/nav.mjs";
+import { editionHref, localizedHref, navLinks } from "../../site/nav.mjs";
+import { currentEdition } from "./edition-context.js";
 
 // The site menu (site/nav.mjs) for every bot-served page: /leaderboards/, /recruitment/, /me/ and
 // the public guild pages under /g/. Plain HTML and inline CSS, no scripts.
@@ -17,7 +18,7 @@ export function currentSection(path: string): string | null {
 }
 
 export function siteHeader(lang: Lang, path: string): string {
-  const nav = navLinks({ current: currentSection(path), href: (item) => localizedHref(item.href, lang), label: (item) => (lang === "fr" ? item.fr : item.en) });
+  const nav = navLinks({ current: currentSection(path), href: (item) => localizedHref(editionHref(item.href, currentEdition()), lang), label: (item) => (lang === "fr" ? item.fr : item.en) });
   return `<header class="site-top"><a class="brand" href="/?lang=${lang}">GUILDED</a><nav aria-label="${lang === "fr" ? "Navigation principale" : "Main navigation"}">${nav}</nav></header>`;
 }
 

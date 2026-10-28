@@ -1,8 +1,4 @@
-> 7.5.0 is published on GitHub/CurseForge and deployed; earlier local-only statements below are historical.
-> Current execution and unfinished work: [session handoff](docs/SESSION_HANDOFF_2026-10-26.md).
-
-> Latest local review, 25 October: [full bundle fixes and remaining release checks](docs/LOCAL_BUNDLE_REVIEW_2026-10-25.md), 295 files / 2,548 tests passed. Local review only; real-client acceptance pending.
-> Feature instructions: [bulk actions, GRM archive migration and Classic/Forever buff coverage](docs/LOCAL_ROSTER_GRM_BUFFS_2026-10-25.md).
+> Current launch audit: [28 October final audit](docs/FINAL_LAUNCH_AUDIT_2026-10-28.md). Historical proposals below do not override that feature inventory or the owner’s testing waiver.
 
 # Guilded roadmap
 
@@ -12,11 +8,10 @@ Guilded **8.0.0 Release** (protocol 2): security, reliability, ledger storage co
 
 Previous published 7.5.1: loot rules follow the original EPGP/soft-reserve rules, guild directory and player search, and Codex's dungeon evidence work (Season 1 stays on current-v1).
 Previous: 7.5.0, combining the release-gap bundle and Claude’s raid/interaction fixes.
-Combined CI, backups, deployment and publication gates passed. Store/CurseForge 8.0 uploads await browser file-upload access; Microsoft certification follows submission. See [8.0 release evidence](docs/V8_0_RELEASE_EVIDENCE_2026-10-28.md).
+Combined CI, backups, deployment and publication gates passed. Microsoft Store 8.0.0.0 is published and all ten CurseForge 8.0 files are approved; public download hashes match GitHub. See [8.0 release evidence](docs/V8_0_RELEASE_EVIDENCE_2026-10-28.md).
 Real-client checks remain post-release follow-up; see [the release decision](docs/RELEASE_DECISION_2026-10-25.md).
 Current gates and completed operational checks: [launch readiness](docs/LAUNCH_READINESS_2026-10-24.md).
-GitHub publishes 7.5.0 for Forever, Era, TBC, Mists and Retail;
-all ten CurseForge packages are also approved and published as 7.5.0. Previously, both providers published 7.4.0;
+GitHub and CurseForge publish 8.0.0 for Forever, Era, TBC, Mists and Retail. Previously both providers published 7.5.0;
 see [the publication record](docs/RELEASE_EXECUTION_2026-10-25.md). All six
 18-October requests shipped in 7.0.0; 7.1.0 added monthly boards and Raider.IO-style leaderboards,
 7.2.0 companion Sign in with Discord and one-click updates, 7.2.1 a steadier bot, 7.3.0 the dungeon
@@ -171,7 +166,7 @@ Follow-up code review and proposed acceptance criteria:
 [feature candidate review](docs/FEATURE_CANDIDATE_REVIEW_2026-10-25.md).
 The owner subsequently authorized starting implementation, kept local for review.
 The first addition is the signed-in officer roster dashboard described there;
-it is not deployed. The documentation-only restriction below describes the
+it and the subsequent feature bundle shipped before 8.0. The documentation-only restriction below describes the
 original handoff, not this later local implementation authorization.
 
 | Candidate | Existing Guilded overlap and deferred scope |
@@ -228,9 +223,8 @@ The requested 100/300/500 badge shelves, silent legacy baseline, reviewed helper
 achievements and scoped congratulations are implemented in the badge change.
 See [implementation and rollout](docs/COMMUNITY_ACHIEVEMENTS_2026-10-27.md) for privacy,
 transaction/delivery guarantees, activation gates and the deferred max-level evidence
-requirement. This records local implementation, not live activation or game acceptance.
-Dungeon integrity and synchronization of both addons follow the badge phase.
+requirement. The badge implementation is deployed and retained in 8.0. Per-guild activation and legacy baseline rules still apply; game acceptance is separate. Dungeon integrity and shared transport also shipped before/in 8.0.
 
 ## Dungeon integrity draft - 27 October 2026
 
-The first tranche fixes DPS/DAMAGER role parity across both addons, companion and score views; newly frozen official seasons require current evidence while old snapshots and Beta history remain readable. See [implementation, proposed versioned policies and remaining launch checks](docs/DUNGEON_INTEGRITY_2026-10-27.md). This is a draft PR scope, not live activation or a public client release. Timer/presence, season finality and route-pool policies still require an explicit decision and real-game validation. No formula or historical score reset is included.
+The first tranche fixes DPS/DAMAGER role parity across both addons, companion and score views; newly frozen official seasons require current evidence while old snapshots and Beta history remain readable. See [implementation, proposed versioned policies and remaining launch checks](docs/DUNGEON_INTEGRITY_2026-10-27.md). The implemented role/evidence corrections shipped before 8.0 and are retained in its published packages. Season 1 uses current-v1; timer/presence/finality alternatives in the design record remain proposals, not silently enabled policies. Real-game validation is still outstanding; historical scores were not reset.

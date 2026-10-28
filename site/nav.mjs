@@ -20,6 +20,22 @@ export const SITE_NAV = [
 
 const escape = (text) => String(text).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");
 
+/** Keep the selected WoW data set when navigating between public data pages.
+ * Static content, external addresses and explicit edition choices stay unchanged.
+ * @param {string} href
+ * @param {string | null | undefined} edition
+ */
+export function editionHref(href, edition) {
+  if (!edition || edition === "forever" || !/^(?:classic-era|classic-tbc|classic-mists|retail)$/.test(edition)
+    || !/^\/(?:leaderboards|recruitment|players|me)(?:\/|\?|#|$)/.test(href)) return href;
+  const [base, hash = ""] = href.split("#");
+  const [path, search = ""] = base.split("?");
+  const query = new URLSearchParams(search);
+  if (query.has("edition")) return href;
+  query.set("edition", edition);
+  return `${path}?${query}${hash ? `#${hash}` : ""}`;
+}
+
 /** Keep the chosen language across translated pages and bilingual guide sections.
  * Leave external URLs, files and unrelated query parameters alone.
  * @param {string} href

@@ -2,7 +2,9 @@
 
 Updated 28 October 2026. **8.0.0 is public on GitHub and live on Oracle.**
 The website/online companion and authenticated origin protection are deployed.
-Authoritative final evidence: [V8_0_RELEASE_EVIDENCE_2026-10-28.md](V8_0_RELEASE_EVIDENCE_2026-10-28.md).
+Current implementation inventory: [final launch audit](FINAL_LAUNCH_AUDIT_2026-10-28.md).
+The dated checkpoints below retain their original test counts and publication state.
+Authoritative publication evidence: [V8_0_RELEASE_EVIDENCE_2026-10-28.md](V8_0_RELEASE_EVIDENCE_2026-10-28.md).
 All seven requested engineering items are implemented. Final automated checks:
 336 files / 2,814 tests, TypeScript, ESLint, both addon validators, packages and
 exact-main PostgreSQL/Windows CI passed. All 21 public assets are checksum-verified.
@@ -62,8 +64,8 @@ or explicitly deferred by the owner. The owner's exception for item 6 remains in
 | 13 | Bounded prioritized communication | Implemented: 1,024 total slots, 16 reserved for explicit interactive packets; four interactive sends then a bulk turn. Ledger notices use the interactive lane. Snapshot/chunk traffic remains FIFO on the default lane. Tests cover reserve, ordering and fairness. |
 | 14 | Ledger retention/compaction | Lossless storage compactor previews by default, preserves all IDs/history/voids/legacy positions, verifies a full backup and detects concurrent writes. No history pruning. See V8_0_ENGINEERING.md for limits. |
 | 15 | Durable upload/retry/parser safeguards | Added bounded streaming reads (32 MB) for guild/personal SavedVariables, normalized JSON and standings identity validation, including growth during reading. Oversized neighbor files now surface errors. Restart regression proves earlier and newer ledger entries recover after an offline failure. Existing PoE journal remains durable. Real disk-full/Windows acceptance pending. |
-| 16 | Edge rate limits/security headers | Implemented native Cloudflare limits: 120 API writes and 20 pairing starts per IP/minute, separate budgets, 429/Retry-After, fail-closed on limiter errors. Worker and preview URLs disabled in config; static headers included. Dry-run verifies bindings. Deployed verification pending. |
-| 17 | Private origin/tunnel or mutual TLS | Worker-only upstream credential, optional Caddy gate and retired-host companion migration implemented. Candidate config validates on Oracle. Production activation still pending. |
+| 16 | Edge rate limits/security headers | Implemented native Cloudflare limits: 120 API writes and 20 pairing starts per IP/minute, separate budgets, 429/Retry-After, fail-closed on limiter errors. Worker and preview URLs disabled in config; static headers included. Dry-run verifies bindings. Deployed Worker checks passed; see the release evidence. |
+| 17 | Private origin/tunnel or mutual TLS | Worker-only upstream credential, optional Caddy gate and retired-host companion migration implemented. Candidate config validates on Oracle. Production activated; direct origin rejects while public routes work, as recorded in the release evidence. |
 | 18 | Canonical/hreflang/structured data/sitemaps | Server-rendered French content/metadata/links, canonical alternatives and bilingual sitemaps implemented; native workerd tests verify HTML before JavaScript. |
 | 19 | Accessibility/mobile/error states | Rendered axe, accessibility-tree, keyboard and phone/reflow audit completed for recorded states, with limitations and unperformed native screen-reader checks disclosed in V8_0_ACCESSIBILITY.md. |
 | 20 | Core.lua decomposition and edition/spoof matrix | Spreadsheet serialization and roll parsing extracted into CorePresentation.lua. Existing public behavior retained; offline edition/spoof matrix runs in the full suite. |

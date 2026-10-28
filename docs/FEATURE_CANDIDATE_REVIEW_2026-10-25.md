@@ -1,3 +1,5 @@
+> Historical implementation checkpoint. Delivered features are included in the published 8.0 release; original local/draft/version statements below describe that earlier stage. See [the current final audit](FINAL_LAUNCH_AUDIT_2026-10-28.md) for boundaries and remaining evidence.
+
 # Feature candidate review — 25 October 2026
 
 Current implementation and Claude integration:

@@ -42,11 +42,13 @@ type Db = Pick<PrismaClient, "officialSeason"> & Partial<Pick<PrismaClient,"$tra
 
 /** Serialize calendar changes with ingestion/finality and publish guild cutoffs
  * in the same commit. Never rewrite a closed/finalized season. */
-async function mutateCalendar<T>(database: Db, now: Date, action: (tx: Db, lockedNow: Date) => Promise<T>): Promise<T> {
+async function mutateCalendar<T>(database: Db, now: Date, action: (tx: Db, lockedNow: Date) => Promise<T>, syncCutoffs = true): Promise<T> {
   if (!database.$transaction) return action(database,now);
   return database.$transaction(async tx=>{
     await lockDungeonCalendar(tx,true);
     const result = await action(tx,new Date(Math.max(now.getTime(),Date.now())));
+    // Freezing/adding rules does not move a calendar boundary.
+    if (!syncCutoffs) return result;
     const windows = await loadOfficialWindows(tx);
     const active = await tx.dungeonSeason.findMany({where:{status:"ACTIVE",guild:{gameEdition:currentEdition()}}});
     for (const season of active) {
@@ -56,7 +58,7 @@ async function mutateCalendar<T>(database: Db, now: Date, action: (tx: Db, locke
       if (season.endsAt?.getTime() !== window.end?.getTime()) await tx.dungeonSeason.update({where:{id:season.id},data:{endsAt:window.end}});
     }
     return result;
-  });
+  }, { maxWait: 30_000, timeout: 30_000 });
 }
 
 export async function loadOfficialWindows(database: Db): Promise<OfficialWindow[]> {
@@ -70,6 +72,14 @@ export async function loadOfficialWindows(database: Db): Promise<OfficialWindow[
  * and the penalty keep their frozen values until the next season. Seasons that ended are never touched.
  */
 export async function freezeSeasonRules(database: Db, now: Date, current: BracketedRules = publicRules()): Promise<{ season: string; frozen: boolean; routes: string[]; brackets: string[] } | null> {
+  // Most ticks have nothing to write. Avoid competing with imports/finality
+  // for the exclusive calendar lock; every actual write is rechecked below.
+  const pending = await database.officialSeason.findFirst({ where: { gameEdition: currentEdition(), startsAt: { lte: now } }, orderBy: { startsAt: "desc" }, select: { rules: true } });
+  if (!pending) return null;
+  if (pending.rules !== null) {
+    const snapshot = readRuleSnapshot(pending.rules);
+    if (!snapshot || !addedRules(snapshot.rules, current)) return null;
+  }
   return mutateCalendar(database,now,async (database,now)=>{
   const row = await database.officialSeason.findFirst({ where: { gameEdition: currentEdition(), startsAt: { lte: now } }, orderBy: { startsAt: "desc" }, select: { id: true, name: true, rules: true } });
   if (!row) return null;
@@ -84,7 +94,7 @@ export async function freezeSeasonRules(database: Db, now: Date, current: Bracke
   if (!snapshot || !added) return null;
   await save({ ...snapshot, rules: added.rules, additions: [...snapshot.additions, { at: now.toISOString(), routes: added.routes, brackets: added.brackets }] });
   return { season: row.name, frozen: false, routes: added.routes, brackets: added.brackets };
-  });
+  }, false);
 }
 
 export class SeasonCalendarError extends Error {}

@@ -66,7 +66,7 @@ export function createBrowserCompanion(env = globalThis) {
   async function request(path, payload) {
     const encoded = payload ? await encodeBody(JSON.stringify(payload)) : null;
     if (encoded && encoded.bytes > 1_000_000) throw new Error("This structured export exceeds the bot's 1 MB upload limit. Ask your guild officer for help.");
-    const response = await env.fetch(path, { method: payload ? "POST" : "GET", credentials: "omit", headers: { "x-companion-credential": config.companionCredential || "", ...(payload ? { "content-type": "application/json", ...encoded.headers } : {}) }, ...(payload ? { body: encoded.body } : {}), signal: AbortSignal.timeout(20_000) });
+    const response = await env.fetch(path, { method: payload ? "POST" : "GET", credentials: "omit", redirect: "error", headers: { "x-companion-credential": config.companionCredential || "", ...(payload ? { "content-type": "application/json", ...encoded.headers } : {}) }, ...(payload ? { body: encoded.body } : {}), signal: AbortSignal.timeout(20_000) });
     let body;
     try { body = await response.json(); }
     catch { throw new Error(`The bot returned an unreadable response (${response.status}). Try again, or ask your guild owner to check the service.`); }

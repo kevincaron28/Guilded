@@ -1,5 +1,6 @@
 import { PAGE_STYLE } from "./guild-page.js";
 import { currentEdition } from "./edition-context.js";
+import { editionHref } from "../../site/nav.mjs";
 import { SITE_HEADER_STYLE, siteHeader } from "./site-header.js";
 
 // Shared HTML for the bot-served website pages (/recruitment/, /me/, /leaderboards/). Plain
@@ -18,11 +19,12 @@ export const tr = (lang: Lang) => (en: string, fr: string) => (lang === "fr" ? f
 
 // An internal link that keeps the page language.
 export function link(path: string, lang: Lang, params: Record<string, string | null | undefined> = {}): string {
-  const query = new URLSearchParams();
-  if (/^\/(leaderboards|recruitment|me)/.test(path) && currentEdition() !== "forever") query.set("edition", currentEdition());
+  const [base, hash = ""] = editionHref(path, currentEdition()).split("#");
+  const [pathname, search = ""] = base!.split("?");
+  const query = new URLSearchParams(search);
   for (const [key, value] of Object.entries(params)) if (value) query.set(key, value);
   query.set("lang", lang);
-  return `${path}?${query.toString()}`;
+  return `${pathname}?${query.toString()}${hash ? `#${hash}` : ""}`;
 }
 
 // The Guilded logo the public site serves (scripts/build-site.mjs copies it to /logo.png).
@@ -62,7 +64,7 @@ export function layout(input: LayoutInput): string {
     ? [`<span>${t("Signed in as", "Connecté :")} <strong>${escapeHtml(input.account.displayName ?? input.account.username)}</strong></span>`,
       `<a href="${link("/me/", input.lang)}">${t("My page", "Ma page")}</a>`,
       `<form class="inline" method="post" action="/auth/logout"><input type="hidden" name="csrf" value="${escapeHtml(input.csrf ?? "")}"><button class="link" type="submit">${t("Sign out", "Déconnexion")}</button></form>`]
-    : input.signInOn ? [`<span>${t("Your player profile is public by default; you can hide it in My Guilded.", "Votre profil joueur est public par défaut; vous pouvez le masquer dans Ma page.")}</span><a href="${link("/auth/login", input.lang, { return: input.path })}">${t("Sign in with Discord", "Connexion avec Discord")}</a>`] : [];
+    : input.signInOn ? [`<span>${t("Your player profile is public by default; you can hide it in My Guilded.", "Votre profil joueur est public par défaut; vous pouvez le masquer dans Ma page.")}</span><a href="${escapeHtml(link("/auth/login", input.lang, { return: link(input.path, input.lang, input.languageParams) }))}">${t("Sign in with Discord", "Connexion avec Discord")}</a>`] : [];
   const language = `<a href="${escapeHtml(link(input.path, other, input.languageParams))}" hreflang="${other}">${other === "fr" ? "Français" : "English"}</a>`;
   const description = escapeHtml((input.description ?? input.title).slice(0, 160));
   return `<!doctype html><html lang="${input.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`

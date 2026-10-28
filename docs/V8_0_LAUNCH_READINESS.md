@@ -8,8 +8,9 @@ All seven requested engineering items are implemented. Final automated checks:
 exact-main PostgreSQL/Windows CI passed. All 21 public assets are checksum-verified.
 
 The owner waived remaining hands-on acceptance; unperformed checks remain follow-up,
-not passed results. Store and CurseForge 8.0 uploads await Chrome file-upload access;
-Store certification remains separate. Their preparation records below are historical.
+not passed results. Store Submission 2 contains the validated 8.0 MSIX and is in
+certification; CurseForge uploads are in progress. Their preparation records below
+are historical. Each provider's actual publication remains a separate check.
 
 ## Historical preparation checkpoints
 

@@ -46,15 +46,18 @@ records or game data were used in that sandbox.
 ## Still pending: external publication and waived manual checks
 
 The [existing Microsoft Store listing](https://apps.microsoft.com/detail/9N680XX3QFL9)
-is live. Submission 2 (`1152921505702255246`) is a draft with saved EN/FR 8.0 notes.
-The verified 8.0.0.0 MSIX is prepared, but its upload is pending Chrome file-upload
-access. Windows Computer Use stopped the fallback because it could not verify the
-browser URL. No successful 8.0 Store upload or certification is claimed.
+is live. Submission 2 (`1152921505702255246`) now contains the validated 8.0.0.0
+MSIX and saved EN/FR 8.0 notes. The in-app browser file chooser completed the upload
+on 28 October. Partner Center shows **In certification**, with pre-processing in
+progress and automatic publication after approval. The older package was replaced
+inside the draft by Partner Center's version selection. No Store approval or
+publicly available 8.0 Store download is claimed yet. Private screenshot evidence:
+`backups/edition-site/store-8-certification.png`.
 
 MSIX: `Guilded.Companion.8.0.0.x64.STORE-SUBMISSION.msix`, 165,367,448 bytes,
 SHA-256 `402649fccf903f004308566983309b55f323b832418be04c14604c32553b6c81`.
 Microsoft controls certification after submission. The standalone EXE is unsigned.
-CurseForge 8.0 uploads are also pending file-upload access. The matching addon ZIPs
+CurseForge 8.0 uploads remain pending. The matching addon ZIPs
 are already available on GitHub; existing provider downloads remain separate.
 
 The owner explicitly waived remaining hands-on acceptance and requested bug reports

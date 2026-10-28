@@ -6,6 +6,7 @@
 
 /** @type {NavItem[]} */
 export const SITE_NAV = [
+  { key: "editions", href: "/editions/", en: "WoW versions", fr: "Versions WoW" },
   { key: "features", href: "/features/", en: "Features", fr: "Fonctions" },
   { key: "guides", href: "/docs/QUICK_START.html", en: "Guides", fr: "Guides" },
   { key: "leaderboards", href: "/leaderboards/", en: "Leaderboards", fr: "Classements", bot: true },
@@ -31,7 +32,7 @@ export function localizedHref(href, lang) {
   if (/(?:^|\/)docs\/(?:QUICK_START|MEMBER_INSTALL|DUNGEONS_GUIDE|EPGP_GUIDE|HOSTED_PILOT|SUPPORT_GUILDED)(?:\.html)?$/.test(path)) {
     return base + (hash && hash !== "fr" ? `#${hash}` : lang === "fr" ? "#fr" : "");
   }
-  if (!/^(?:\/?|(?:.*\/)?index\.html|(?:.*\/)?features\/|\/companion\/|\/(?:leaderboards|recruitment|players|me)(?:\/.*)?)$/.test(path)) return href;
+  if (!/^(?:\/?|(?:.*\/)?index\.html|(?:.*\/)?features\/|(?:.*\/)?editions\/(?:[a-z-]+\/)?|\/companion\/|\/(?:leaderboards|recruitment|players|me)(?:\/.*)?)$/.test(path)) return href;
   const query = new URLSearchParams(search);
   query.set("lang", lang);
   return `${path}?${query}${hash ? `#${hash}` : ""}`;

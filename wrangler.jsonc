@@ -68,6 +68,8 @@
       "/quebec-gold/wow/",
       "/features",
       "/features/*",
+      "/editions",
+      "/editions/*",
       "/creator/*",
       "/index",
       "/index.html",

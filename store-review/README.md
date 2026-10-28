@@ -29,7 +29,8 @@ not certify Discord OAuth, PoE2, public leaderboards or game-client behavior.
    Test connection on the first profile must now be refused. Re-pairing resets the
    synthetic session. The native **Help & privacy → Remove all data** action clears
    ALL local companion profiles and quits; use it only in the clean test environment.
-   It is not a server logout. Remote sandbox sessions expire after 24 hours or are
+   In 8.0 it also attempts to revoke saved online connections before clearing local data.
+   A network failure can prevent revocation; follow the app's warning. Remote sandbox sessions expire after 24 hours or are
    revoked by re-pairing; the API logout path was tested separately by the maintainer.
 
 The endpoint refuses other guild IDs, altered/real exports and unsupported APIs.
@@ -48,7 +49,9 @@ le personnage fictif Reviewmage, les 100 EP de démonstration après l'envoi, le
 fichier Standings.lua généré et la pause. Un nouvel appairage révoque la connexion
 précédente. « Supprimer toutes les données » efface TOUS les profils locaux et
 quitte l'application; utilisez cette action uniquement dans l'environnement de
-test propre. Elle ne révoque pas la session serveur. N'utilisez aucune donnée
+test propre. Depuis la version 8.0, cette action tente aussi de révoquer les connexions serveur
+   avant la suppression locale. Une erreur réseau peut empêcher la révocation; suivez
+   l’avertissement de l’application. N'utilisez aucune donnée
 réelle. Cette démonstration ne remplace pas les tests Discord ou en jeu.
 
 ## Maintainer operations

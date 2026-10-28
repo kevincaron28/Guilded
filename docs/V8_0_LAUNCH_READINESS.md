@@ -1,13 +1,17 @@
 # Guilded 8.0 launch readiness
 
-Updated 28 October 2026. Target: feature completion/polish by 30 October; launch 4 November.
-Production remains 7.5.1 / protocol 2. Local preparation is on `codex/8.0-launch-audit`,
-combining Copilot's PR #245 and main through `b610e66`. The shared source version is now deliberately 8.0.0; publication is still pending.
+Updated 28 October 2026. **8.0.0 is public on GitHub and live on Oracle.**
+The website/online companion and authenticated origin protection are deployed.
+Authoritative final evidence: [V8_0_RELEASE_EVIDENCE_2026-10-28.md](V8_0_RELEASE_EVIDENCE_2026-10-28.md).
+All seven requested engineering items are implemented. Final automated checks:
+336 files / 2,814 tests, TypeScript, ESLint, both addon validators, packages and
+exact-main PostgreSQL/Windows CI passed. All 21 public assets are checksum-verified.
 
-**Owner decision (28 October): finish all seven engineering items before release.**
-Remaining hands-on acceptance is explicitly waived in favor of bug reports and fixes.
-Automated checks, exact-main CI, verified backups and deployment checks remain mandatory.
-See [engineering completion](V8_0_ENGINEERING.md) and [accessibility evidence](V8_0_ACCESSIBILITY.md).
+The owner waived remaining hands-on acceptance; unperformed checks remain follow-up,
+not passed results. Store and CurseForge 8.0 uploads await Chrome file-upload access;
+Store certification remains separate. Their preparation records below are historical.
+
+## Historical preparation checkpoints
 
 ## Verified work and limitations
 

@@ -67,6 +67,10 @@ Companion 8.0 migrates only the retired `guildedqc.duckdns.org` address to
 that retired address must update or use the public online companion. No redirect
 forwards their credentials. Local service health remains available on loopback.
 Activation evidence is separate from the implementation and configuration review.
+The entire Caddy handler chain lives inside one ordered `route`; otherwise Caddy
+sorts `handle` blocks ahead of an isolated gate. Before publishing, run
+`node scripts/verify-origin-access.mjs PUBLIC_HTTPS_ORIGIN PRIVATE_HTTPS_ORIGIN 8.0.0`
+to verify three direct paths reject caller headers and public health/companion work.
 
 ## French indexing
 

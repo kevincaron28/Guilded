@@ -1,3 +1,10 @@
+> **28 October current procedure:** the owner's publication authorization remains
+> in force. Use exact-source CI and verified packages, upload each of the five
+> edition ZIPs to each addon project with its matching game tag, then verify
+> approval and anonymous download SHA-256 before updating `site/releases.json`.
+> Preserve old files. Current listing copy lives in [docs/curseforge](curseforge/GUILDED_DESCRIPTION.md).
+> The candidate/hold instructions below are historical.
+>
 > **25 October release decision:** the owner explicitly authorized publication before
 > the unavailable game/two-PC tests. Earlier hold instructions below are superseded.
 > Tests remain pending follow-up, not passes; targets remain provisional. See

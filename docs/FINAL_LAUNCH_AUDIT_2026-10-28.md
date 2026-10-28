@@ -1,5 +1,11 @@
 # Guilded final launch audit — 28 October 2026
 
+> Later 8.0.1 completion supersedes this audit's outstanding language and Store
+> installation statements: full FR/DE/ES catalogues, model-assisted language review,
+> actual Store signature/chain validation and owner-performed Overview/French
+> Setup/Help checks passed. The standalone EXE remains unsigned by the owner's
+> free Store distribution decision. See [current evidence](V8_0_1_RELEASE_EVIDENCE_2026-10-28.md).
+
 Guilded 8.0.0, protocol 2. This is the current feature inventory, read with the
 [publication evidence](V8_0_RELEASE_EVIDENCE_2026-10-28.md). Earlier local/draft
 checkpoints are historical. The owner explicitly waived remaining hands-on game

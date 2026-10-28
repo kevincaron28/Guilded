@@ -1,13 +1,14 @@
 # Guilded
 
-Raid and guild management for **WoW Forever** guilds: an in-game addon, a Discord bot and a small
+Raid and guild management for **WoW Forever, Classic Era/Hardcore, Burning Crusade Classic,
+Mists Classic and Retail**: an in-game addon, a Discord bot and a small
 web companion that connects the two. An optional Windows app adds automatic syncing.
 Free for noncommercial use ([license](LICENSE)).
 
 | Part | What it does | Where |
 | --- | --- | --- |
-| **Addon** | Raids, attendance, EPGP, four loot systems (GP bids, loot council, soft reserves, EPGP priority), recipes and cooldowns, the guild calendar, gear and consumable checks, a live Ready page, roll games, a friendly window (gold coin on the minimap). Works alone, no Discord needed. | `addon/Guilded/` |
-| **Discord bot** (optional, approval-required hosted pilot or independent hosting) | Raid signups with roles and waitlist, raid cores with a bench and their own loot system and item prices, weekly raids, EPGP standings, loot log, soft reserves, who can craft what, guild calendar sync, dungeon challenge, craft board, readiness board, polls, Warcraft Logs, applications, moderation helpers. | `src/` |
+| **Addon** | Raids, attendance, EPGP, four loot systems (GP bids, loot council, soft reserves, EPGP priority), recipes and cooldowns, the guild calendar, gear and consumable checks, a live Ready page, a friendly window (gold coin on the minimap). Works alone, no Discord needed. Party/roll games are in the separate optional Guilded Games Alpha. | `addon/Guilded/` |
+| **Discord bot** (optional, hosted Guilded Lite with approval for full access, or independent hosting) | Raid signups with roles and waitlist, raid cores with a bench and their own loot system and item prices, weekly raids, EPGP standings, loot log, soft reserves, who can craft what, guild calendar sync, dungeon challenge, craft board, readiness board, polls, Warcraft Logs, applications, moderation helpers. | `src/` |
 | **Online companion** (default for Discord sync) | Webpage that remembers your pairing/folders and uploads data and returns standings when you click Sync now. | `companion/`, `companion-app/renderer/` |
 | **Windows companion** (optional, useful for leaders/officers) | Tray app that sends the addon's saved data to the bot after each `/reload` or logout and writes standings back into the game. | `companion-app/`, `companion/` |
 
@@ -26,7 +27,7 @@ What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 - **Optional Windows companion:** install [Guilded Companion from Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9), or use the standalone installer from [GitHub Releases](https://github.com/kevincaron28/Guilded/releases/latest). Store installations update through Microsoft Store. Check the version offered by each channel.
 - **Want an AI to guide you:** copy a [setup or troubleshooting prompt](docs/AI_SETUP_HELP.md).
 
-**Current version: 8.0.1 Release** (28 October 2026, protocol 2). [Release notes](docs/V8_0_0_RELEASE_NOTES.md). Publication status: [launch readiness](docs/V8_0_LAUNCH_READINESS.md).
+**Current version: 8.0.1 Release** (28 October 2026, protocol 2). [Release notes](docs/V8_0_1_RELEASE_NOTES.md). Publication status: [release evidence](docs/V8_0_1_RELEASE_EVIDENCE_2026-10-28.md).
 Supports Forever, Classic Era/Hardcore, TBC Anniversary, Mists Classic and Retail
 across the addon, Discord bot and companion, including several guilds in one Discord.
 Use the edition-specific ZIP from [GitHub Releases](https://github.com/kevincaron28/Guilded/releases/latest).

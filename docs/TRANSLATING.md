@@ -1,9 +1,15 @@
 # Translating the addon
 
-The addon speaks English and French in full, and German and Spanish for the most visible text
-(7.4: sidebar, pages, buttons, gear check, standings, dungeon scores, about 150 lines each). Anything
-not translated yet shows in English. A German client (`deDE`) or Spanish client (`esES`, `esMX`) picks
-its language by itself; players can also type `/guilded lang de` or `/guilded lang es`.
+The addon has English, French, German and Spanish translations for all **1,052**
+catalogued strings in 8.0.1. German (`deDE`) and Spanish (`esES`, `esMX`) clients
+select their language automatically. Use `/guilded lang en|fr|de|es|auto` to choose.
+Unknown runtime text, player names, item links and external diagnostics stay unchanged.
+The companion, website and bot support English/French; the addon language catalogue
+does not claim German/Spanish support for those separate surfaces.
+
+The 28 October pass includes a model-assisted linguistic review, complete catalogue
+and formatting checks, and offline Lua/window tests. It is not an external native
+speaker certification or an in-game API/visual acceptance claim.
 
 ## For translators (no Lua needed)
 

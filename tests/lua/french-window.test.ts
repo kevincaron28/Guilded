@@ -63,13 +63,13 @@ const MEASURING_FRAMES = String.raw`
   function UnitIsPlayer() return true end
 `;
 
-function frenchWindow(): LuaSession {
+function frenchWindow(client = "frFR"): LuaSession {
   session = newLuaSession();
   session.run(MEASURING_FRAMES);
   session.run(String.raw`
     GuildedDB = nil; NS = {}
     MOCK_UNITS = { player = { name = "Kev", buffs = {} } }
-    function GetLocale() return "frFR" end
+    function GetLocale() return "${client}" end
     function GetGuildInfo() return "Alpha", "Rank", 1 end
     function GetInventoryItemLink() return nil end
     function GetInventoryItemDurability() return nil end
@@ -80,6 +80,13 @@ function frenchWindow(): LuaSession {
 }
 
 describe("the tools window in French", () => {
+  it.each(["deDE", "esES"])("fits translated button labels on %s", client => {
+    const s = frenchWindow(client);
+    s.run(`NS.openGuildPanel(nil, "guild", "Standings")`);
+    expect(s.run(`local out = {}; for _, f in ipairs(FRAMES) do
+      if f.template == "UIPanelButtonTemplate" and f.text ~= "" and f.width < #f.text * 6 + 20 then out[#out + 1] = f.text end
+      end; return table.concat(out, " | ")`)).toBe("");
+  });
   it("fits every button label, including the long ledger sharing button", () => {
     const s = frenchWindow();
     s.run(`NS.openGuildPanel(nil, "guild", "Standings")`);

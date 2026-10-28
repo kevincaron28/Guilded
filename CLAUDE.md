@@ -1,4 +1,6 @@
-> CURRENT — 8.0.0 published on GitHub and live on Oracle, 28 October 2026.
+> CURRENT WORK — 8.0.1 launch-language completion; publication is pending.
+> Public baseline: 8.0.0; final-audit deployment 2f5a456. Preserve published bytes.
+> Follow docs/V8_0_1_LAUNCH_COMPLETION.md for completion and provider gates.
 > Release tag/configuration commit: 0daa31d. Feature deployment: 01314c7.
 > Publication evidence: docs/V8_0_RELEASE_EVIDENCE_2026-10-28.md.
 > Store Submission 2 (8.0.0.0) is published; all ten CurseForge 8.0 files are approved
@@ -7,6 +9,7 @@
 > is registered. Client artifacts remain unchanged.
 > Current final feature audit: docs/FINAL_LAUNCH_AUDIT_2026-10-28.md.
 > The owner waived remaining hands-on tests; keep unperformed checks as follow-up.
+> 8.0.1 (28 October 2026): full DE/ES addon catalogue and language review.
 > 8.0.0 (28 October 2026): security/reliability, versioned Retail overtime scoring,
 > French indexing, accessibility, lossless storage compaction and Core extraction.
 > Protocol remains 2. Frozen scoring/evidence policies and ledger history are retained.
@@ -22,7 +25,7 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (28 October 2026): version 8.0.0 Release, protocol 2.** WoW Forever launches
+**Current status (28 October 2026): version 8.0.1 Release preparation, protocol 2.** WoW Forever launches
 4 November 2026 (beta closed 21 October); its first raids open 9 December.
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
 The bot, online companion, GitHub, CurseForge and Microsoft Store releases are 8.0.0.

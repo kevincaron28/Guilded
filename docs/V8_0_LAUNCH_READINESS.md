@@ -186,3 +186,21 @@ in [V8_0_ENGINEERING.md](V8_0_ENGINEERING.md). Origin activation and final relea
 remain operational gates; they are not inferred from local source. The full build is
 running against the deliberate 8.0.0 source version. Any failing integration is fixed
 before publication. Manual observations and certification remain separate evidence.
+
+## Final 8.0 implementation validation
+
+Commit `1c2705c` passed the full local release preparation: **335 files / 2,812 tests**,
+TypeScript, ESLint, both addon validators, both dependency audits, browser/site builds,
+Windows installer packaging and byte-for-byte bundled source verification. The artifact
+manifest records a clean source tree. PR #246 quality run `40687410149` passed both
+Linux quality/PostgreSQL integration-and-restore and Windows installer/MSIX jobs.
+
+The hosted origin credential has been provisioned separately from source. The gated
+configuration validates on Oracle but remains inactive pending Worker deployment.
+Microsoft Store Submission 2 (`1152921505702255246`) is a draft update of the existing
+live product, with English/French 8.0 notes saved. Its inherited package is still 7.5.0;
+it must be replaced by the verified 8.0 package before certification submission.
+
+Publication, exact-main CI, verified production recovery backup, one bot deployment,
+origin activation and public provider checks remain to be recorded. This section does
+not claim that preparation alone released 8.0.

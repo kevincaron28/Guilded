@@ -1,6 +1,8 @@
 # Microsoft Store update — Guilded Companion 8.0
 
-Status: prepared draft, not submitted. Public listing verified 28 October 2026:
+Status: Partner Center Submission 2 (`1152921505702255246`) created 28 October 2026;
+English/French 8.0 notes saved, 8.0 package upload and certification pending.
+Public listing verified 28 October 2026:
 [Guilded Companion](https://apps.microsoft.com/detail/9N680XX3QFL9), publisher Kcaron.
 Keep the existing reserved identity in `publisher-identity.json`; this is an update to
 the same product, not a new listing. Target launch: 4 November 2026.
@@ -24,12 +26,13 @@ et en anglais, avec des profils distincts pour les éditions WoW prises en charg
 
 ## Submission gates
 
-1. Finish the 8.0 scope and real Retail/Classic/Windows acceptance in
+1. Finish the 8.0 scope and record the owner's remaining manual acceptance waiver in
    `../V8_0_LAUNCH_READINESS.md`; reconcile these notes with the final implemented behavior.
 2. Deliberately bump the shared product version to 8.0.0 only at the release step.
    Build the Store package with the existing identity; verify the exact MSIX manifest,
    increasing package version, bundled source, license and restricted capabilities.
-3. Re-run Windows App Certification Kit and packaged install/upgrade/uninstall tests.
+3. Keep the preceding WACK warnings disclosed. Remaining hands-on install/upgrade checks
+   were waived by the owner; they are not passed results. Run available package verification.
    Confirm Store updates, startup settings, encrypted profile preservation and browser
    sign-in; ensure only one companion is running. Keep existing warnings visible.
 4. Update this product's Partner Center submission with the final MSIX, EN/FR notes and

@@ -76,6 +76,13 @@ Do not change scoring or delete ledgers to make a checklist appear complete.
 
 ## Retail and Classic acceptance — record each client separately
 
+Initial Retail load/reload now passed on 12.1.5 build 70575, interface 120105,
+with both review addons loaded and zero errors captured during that sequence.
+The owner also confirmed Home, My character and Settings rendering; the following
+save has empty probe errors and empty Guilded diagnostics.
+See [the Retail evidence and remaining checks](RETAIL_ACCEPTANCE_2026-10-28.md).
+This does not close visual, gameplay, upgrade, two-PC or Classic acceptance.
+
 For each result record addon/companion version, client `GetBuildInfo()`, edition, language,
 PC, steps, expected/actual behavior and error text. Back up SavedVariables first.
 

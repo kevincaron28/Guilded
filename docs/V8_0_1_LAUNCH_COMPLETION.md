@@ -33,8 +33,9 @@ created with encrypted `config.secure`. No credentials were entered or copied.
 Initial inspection of Setup did not display controls that actually belong to
 Overview. That was an observation error, not a confirmed distribution-detection
 bug; the proposed fallback change was removed. Desktop capture/input did not work,
-so the owner was asked to verify Overview's Store updates/startup buttons and
-French Setup/Help. Those requested results are not yet recorded passes.
+so the owner verified Overview's “Microsoft Store installation”, “Store updates”
+and “Startup settings” controls. They confirmed Store updates opens Microsoft
+Store and French Setup/Help work. These owner-performed checks passed.
 
 The Store method is free and already published. SignPath requires an OSI-approved
 license, incompatible with the retained PolyForm Noncommercial license. No
@@ -62,10 +63,29 @@ Exact-source CI and provider publication remain separate gates below.
 
 ## Remaining evidence to reconcile
 
-The previous audit's waived non-game checks (Windows install/update, native
-accessibility, fresh member/officer browser flows and supported GRM archives) are
-being revisited in this completion pass. Do not silently reclassify them as
-requiring Forever's release. Current supported GRM formats and permission checks
-are the compatibility contract; arbitrary unknown exports are not assumed supported.
-Forever API/encounter/loot data, live dungeon calibration and gameplay/two-PC
-acceptance remain separate unavailable-game work.
+The actual signed Store installation and owner-performed distribution/French UI
+checks passed. The browser review also exercised the actual companion renderer
+with the existing synthetic management fixture: an ordinary member has read-only
+core/rules/roster controls, their wishlist request uses the selected character,
+and a refused officer rules save retains entered values. French member/officer
+labels and controls render. These are offline UI observations, not a new live
+member/officer sign-in or production mutation. Server authorization is covered
+separately by the existing management tests.
+
+The GRM compatibility contract is the supported saved-variable table shapes,
+guild/realm/edition matching, bounded non-executable parsing, recursive private
+field exclusion, permission rechecks, actual-Lua preview/import/export and undo.
+Those regressions passed. Arbitrary unknown exports and unavailable private GRM
+archives are not assumed supported or silently relabelled game-release blockers.
+
+The earlier owner waiver still covers unperformed manual native screen-reader,
+high-contrast, full live member/officer and gameplay/two-PC acceptance. Automated
+and synthetic checks do not certify these. No unresolved implementation defect
+was identified in this completion pass, but the waiver is not a pass or a claim
+of universal accessibility/GRM compatibility.
+
+Remaining game-dependent implementation evidence is verified Forever API,
+encounter and loot data, representative live dungeon calibration and supported
+gameplay/two-PC acceptance. Frozen scoring policies and historical data must not
+be rewritten to fabricate calibration results. External provider certification
+and deployment receipts are tracked separately from these game dependencies.

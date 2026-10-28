@@ -13,7 +13,8 @@ Microsoft Store distribution. No SignPath enrollment or relicensing is planned.
 
 ## What is prepared
 
-The existing NSIS installer stays the default. MSIX builds use separate output
+Microsoft Store is the recommended signed Windows installation. The optional
+standalone NSIS installer remains unsigned. MSIX builds use separate output
 folders, an explicit Store identity and the same companion/engine sources. They
 include the Guilded license, branded tiles and English/French resources. The only
 restricted capability is `runFullTrust`, required by the Electron desktop app.

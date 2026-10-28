@@ -42,10 +42,11 @@ PR #257 and exact-main CI passed both required jobs. Clean-main packages and all
 21 public GitHub downloads match source `f7ca4c4`. The single production bot now
 runs 8.0.2 after fresh ledger/database/application and encrypted off-server recovery
 checks; post-update ledger, command health, read-only summary comparison, direct
-origin rejection and matching browser assets passed. Ten edition files are
-submitted to CurseForge, and Store Submission 4 contains the validated 8.0.2.0
-package and saved EN/FR notes. Approval/publication and the actual Store upgrade
-remain independent gates. See [provider evidence](V8_0_2_RELEASE_EVIDENCE_2026-10-28.md).
+origin rejection and matching browser assets passed. All ten CurseForge files
+are approved; their anonymous downloads match GitHub. Store Submission 4 contains
+the validated 8.0.2.0 package and saved EN/FR notes and has passed certification.
+Its publication and the actual Store upgrade remain independent gates. See
+[provider evidence](V8_0_2_RELEASE_EVIDENCE_2026-10-28.md).
 
 No independent native-speaker or universal accessibility certification is claimed.
 Remaining Forever API/encounter/loot data and representative live calibration

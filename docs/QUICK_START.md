@@ -165,7 +165,7 @@ Après l'approbation et la configuration, chaque membre peut utiliser son propre
 `/guilded verify ABCD-EFGH`) et la colle une seule fois dans le chat de WoW : tous
 ses personnages de cette guilde se lient après qu'un officier en ligne a reçu,
 enregistré et synchronisé leurs données; il reçoit un message privé Discord. Avec le compagnon,
-il choisit **Sign in with Discord**, saisit le code affiché dans son compagnon
+il choisit **Connexion avec Discord**, saisit le code affiché dans son compagnon
 sur la page de connexion, puis choisit le serveur. Au moins un
 officier devrait utiliser le compagnon. Le compagnon Windows est facultatif.
 Vérifiez une première synchronisation et les permissions d'un membre ordinaire

@@ -1,8 +1,8 @@
-> CURRENT WORK — 8.0.1 launch-language completion; publication is pending.
-> Public baseline: 8.0.0; final-audit deployment 2f5a456. Preserve published bytes.
+> CURRENT WORK — 8.0.1 launch publication and provider verification.
+> GitHub and Oracle: 8.0.1, source cdc1a51. Preserve published bytes.
 > Follow docs/V8_0_1_LAUNCH_COMPLETION.md for completion and provider gates.
-> Release tag/configuration commit: 0daa31d. Feature deployment: 01314c7.
-> Publication evidence: docs/V8_0_RELEASE_EVIDENCE_2026-10-28.md.
+> Current release tag/source: cdc1a51; prior 8.0 tag/configuration: 0daa31d.
+> Publication evidence: docs/V8_0_1_RELEASE_EVIDENCE_2026-10-28.md.
 > Store Submission 2 (8.0.0.0) is published; all ten CurseForge 8.0 files are approved
 > and their anonymous downloads match the GitHub release hashes. Edition pages are live.
 > Bot-only message-channel coverage correction deployed at 4e23dac; /participation channels
@@ -25,10 +25,13 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (28 October 2026): version 8.0.1 Release preparation, protocol 2.** WoW Forever launches
+**Current status (28 October 2026): version 8.0.1 Release, protocol 2.** WoW Forever launches
 4 November 2026 (beta closed 21 October); its first raids open 9 December.
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
-The bot, online companion, GitHub, CurseForge and Microsoft Store releases are 8.0.0.
+The bot, online companion and GitHub release are 8.0.1. CurseForge and Microsoft
+Store still offer verified 8.0.0 while their submitted 8.0.1 updates are reviewed.
+The free signed Store installation and owner Overview/French checks passed.
+Current per-provider evidence: `docs/V8_0_1_RELEASE_EVIDENCE_2026-10-28.md`.
 The WoW edition pages are live. Message earning covers accessible guild channels/threads;
 officers can inspect coverage with `/participation channels`. See `docs/PARTICIPATION_CHANNEL_COVERAGE_2026-10-28.md`.
 Use the release evidence for each published artifact; historical 7.4.0 approval records

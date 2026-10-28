@@ -4,7 +4,7 @@
 
 ## Current stage — 28 October 2026
 
-Guilded **8.0.1 Release preparation** (protocol 2): full German/Spanish addon catalogue and reviewed language layouts. See [launch completion](docs/V8_0_1_LAUNCH_COMPLETION.md).
+Guilded **8.0.1 Release** (protocol 2): published on GitHub and deployed on Oracle, with full German/Spanish addon catalogues and reviewed language layouts. See [launch completion](docs/V8_0_1_LAUNCH_COMPLETION.md) and [provider evidence](docs/V8_0_1_RELEASE_EVIDENCE_2026-10-28.md).
 
 Published baseline: 8.0.0: security, reliability, ledger storage compaction, versioned Retail overtime scoring, origin isolation, French indexing, accessibility and Core presentation extraction. See [8.0 readiness](docs/V8_0_LAUNCH_READINESS.md) for publication gates and the owner's testing waiver.
 
@@ -13,7 +13,7 @@ Previous: 7.5.0, combining the release-gap bundle and Claude’s raid/interactio
 Combined CI, backups, deployment and publication gates passed. Microsoft Store 8.0.0.0 is published and all ten CurseForge 8.0 files are approved; public download hashes match GitHub. See [8.0 release evidence](docs/V8_0_RELEASE_EVIDENCE_2026-10-28.md).
 Real-client checks remain post-release follow-up; see [the release decision](docs/RELEASE_DECISION_2026-10-25.md).
 Current gates and completed operational checks: [launch readiness](docs/LAUNCH_READINESS_2026-10-24.md).
-GitHub and CurseForge publish 8.0.0 for Forever, Era, TBC, Mists and Retail. Previously both providers published 7.5.0;
+GitHub publishes 8.0.1 for Forever, Era, TBC, Mists and Retail. CurseForge 8.0.1 files and Store 8.0.1.0 are submitted for review; their verified 8.0.0 versions stay available meanwhile. Previously both providers published 7.5.0;
 see [the publication record](docs/RELEASE_EXECUTION_2026-10-25.md). All six
 18-October requests shipped in 7.0.0; 7.1.0 added monthly boards and Raider.IO-style leaderboards,
 7.2.0 companion Sign in with Discord and one-click updates, 7.2.1 a steadier bot, 7.3.0 the dungeon

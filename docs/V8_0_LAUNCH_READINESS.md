@@ -8,9 +8,11 @@ All seven requested engineering items are implemented. Final automated checks:
 exact-main PostgreSQL/Windows CI passed. All 21 public assets are checksum-verified.
 
 The owner waived remaining hands-on acceptance; unperformed checks remain follow-up,
-not passed results. Store Submission 2 contains the validated 8.0 MSIX and is in
-certification; CurseForge uploads are in progress. Their preparation records below
-are historical. Each provider's actual publication remains a separate check.
+not passed results. Store Submission 2 (8.0.0.0) is published and all ten CurseForge
+8.0 files are approved, with public downloads checksum-verified. The edition pages
+are live. Message earning now covers accessible guild channels/threads, with a
+private officer coverage report; deployment `4e23dac` passed exact-main CI, fresh
+backup, ledger and command-registration gates. Preparation records below are historical.
 
 ## Historical preparation checkpoints
 

@@ -90,7 +90,7 @@ for (const source of sources) {
 }
 // Public content is explicitly curated; never import guild/database data here.
 
-const pages = [...JSON.parse(readFileSync("site/pages.json", "utf8")), ...editionPages(version)];
+const pages = [...JSON.parse(readFileSync("site/pages.json", "utf8")), ...editionPages(version, publishedGuilded.curseforge)];
 const publicUrls = ["/", ...guides.map(name => `/docs/${name}`)];
 for (const page of pages) {
   const prefix = "../".repeat(page.path.split("/").filter(Boolean).length);

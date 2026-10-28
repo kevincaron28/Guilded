@@ -43,22 +43,43 @@ Ten actual HTTPS checks against the separate synthetic Store review service pass
 using the 8.0 companion engine, including re-pair and logout revocation. No production
 records or game data were used in that sandbox.
 
-## Still pending: external publication and waived manual checks
+## Provider publication completed; manual acceptance waived
 
 The [existing Microsoft Store listing](https://apps.microsoft.com/detail/9N680XX3QFL9)
-is live. Submission 2 (`1152921505702255246`) now contains the validated 8.0.0.0
-MSIX and saved EN/FR 8.0 notes. The in-app browser file chooser completed the upload
-on 28 October. Partner Center shows **In certification**, with pre-processing in
-progress and automatic publication after approval. The older package was replaced
-inside the draft by Partner Center's version selection. No Store approval or
-publicly available 8.0 Store download is claimed yet. Private screenshot evidence:
-`backups/edition-site/store-8-certification.png`.
+is live. Submission 2 (`1152921505702255246`) published the validated 8.0.0.0
+x64 MSIX and saved EN/FR 8.0 notes on 28 October. Partner Center confirms that the
+latest product is available in Microsoft Store; read-only published package details
+show 8.0.0.0. The previous package was replaced inside the draft by Partner Center's
+version selection. Private publication screenshot: `backups/edition-site/store-8-published.png`.
+This establishes provider publication, not a newly installed Store-client test.
 
 MSIX: `Guilded.Companion.8.0.0.x64.STORE-SUBMISSION.msix`, 165,367,448 bytes,
 SHA-256 `402649fccf903f004308566983309b55f323b832418be04c14604c32553b6c81`.
-Microsoft controls certification after submission. The standalone EXE is unsigned.
-CurseForge 8.0 uploads remain pending. The matching addon ZIPs
-are already available on GitHub; existing provider downloads remain separate.
+Microsoft certification completed. The standalone EXE remains unsigned.
+All ten CurseForge 8.0 files are approved and set to publish automatically. Their
+actual anonymous CDN downloads match the original GitHub SHA-256 hashes. Guilded
+file IDs: Forever `9354501`, Era `9354575`, TBC `9354591`, Mists `9354616`, Retail
+`9354622`. Guilded Dungeons: Forever `9354631`, Era `9354656`, TBC `9354662`, Mists
+`9354667`, Retail `9354668`. Each carries only its matching game-version tag.
+Private approval rows and hashes: `backups/edition-site/curseforge-*-8-uploads.json`
+and `curseforge-public-downloads.json`. Seven initial incomplete upload entries were
+recoverably archived; the valid replacements used verified real ZIP paths.
+
+## Follow-up website and message-earning correction
+
+[Dedicated WoW edition pages](WOW_EDITION_WEBSITE_2026-10-28.md) are live in EN/FR.
+The bot-only [channel coverage fix](PARTICIPATION_CHANNEL_COVERAGE_2026-10-28.md)
+deployed exact main `4e23dac` after PR CI `40732004968` and main CI `40732685873`
+passed. The existing single service was replaced from a prepared application with
+verified database/application and encrypted off-server backups. Ledger references
+remain unique. Health reports 8.0.0 / protocol 2 / commands ok; the primary guild's
+registered `/participation channels` and French description were read back through
+Discord REST. Origin denial/public proxy checks passed again. No existing point
+balances, cap settings, permissions, intents, client release bytes or frozen histories were changed.
+Local follow-up checks: 338 files / 2,835 tests, TypeScript, lint and addon validators.
+The final provider-link follow-up passed 338 files / 2,836 tests, TypeScript, lint
+and addon validators; it records approved per-edition CurseForge links separately
+from the published GitHub version. No unapproved provider file is advertised.
 
 The owner explicitly waived remaining hands-on acceptance and requested bug reports
 and fixes after release. Completed Retail observations are in

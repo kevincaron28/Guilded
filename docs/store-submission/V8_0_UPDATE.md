@@ -1,11 +1,13 @@
 # Microsoft Store update — Guilded Companion 8.0
 
-Status: Partner Center Submission 2 (`1152921505702255246`) submitted 28 October 2026.
-The verified 8.0.0.0 MSIX and saved English/French notes are in certification.
-Partner Center shows pre-processing in progress and automatic publication after
-approval. Existing listing properties and private reviewer instructions were retained.
+Status: Partner Center Submission 2 (`1152921505702255246`) published 28 October 2026.
+Partner Center confirms “Your latest product is now available on Microsoft Store.”
+Its published package details show the verified 8.0.0.0 x64 MSIX, with saved EN/FR
+notes. Existing listing properties and private reviewer instructions were retained.
 The desktop app's in-app browser completed the file chooser upload; the Chrome
-chooser timeout did not affect that upload. This is submission evidence, not approval.
+chooser timeout did not affect that upload. Publication and package identity were
+read back in Partner Center. No new installed Store-client acceptance is claimed;
+the owner waived remaining hands-on install/upgrade checks.
 See [release evidence](../V8_0_RELEASE_EVIDENCE_2026-10-28.md) for package SHA-256.
 Public listing verified 28 October 2026:
 [Guilded Companion](https://apps.microsoft.com/detail/9N680XX3QFL9), publisher Kcaron.

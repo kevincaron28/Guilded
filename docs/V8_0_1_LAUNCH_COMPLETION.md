@@ -37,6 +37,13 @@ so the owner verified Overview's “Microsoft Store installation”, “Store up
 and “Startup settings” controls. They confirmed Store updates opens Microsoft
 Store and French Setup/Help work. These owner-performed checks passed.
 
+Submission 3 subsequently published 8.0.1.0. The actual Store update is installed,
+its cryptographic signature/certificate chain and Windows package status passed,
+and its installed application archive matches the submitted build. The encrypted
+Store profile's hash is unchanged. Packaged activation opened the real Setup
+window displaying Version 8.0.1. No paid certificate or trust-setting change was
+needed. See [publication evidence](V8_0_1_RELEASE_EVIDENCE_2026-10-28.md).
+
 The Store method is free and already published. SignPath requires an OSI-approved
 license, incompatible with the retained PolyForm Noncommercial license. No
 relicensing or paid subscription is authorized. The optional GitHub EXE is still
@@ -61,7 +68,7 @@ Exact-source CI and provider publication remain separate gates below.
 - GitHub publication/download hashes, all edition-specific CurseForge approvals,
   Store certification and installed Store update verified separately.
 
-## Remaining evidence to reconcile
+## Acceptance scope and game-dependent follow-up
 
 The actual signed Store installation and owner-performed distribution/French UI
 checks passed. The browser review also exercised the actual companion renderer

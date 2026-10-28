@@ -35,9 +35,17 @@ credentials were copied or entered during these checks.
 SHA-256 `c119293f7dd83105f4b7dde930059b0648ad9431c3fc1baf63d14ec1066519e5`.
 Submission 3 (`1152921505702259238`) contains this validated 8.0.1.0 x64 package
 and saved EN/FR maintenance notes. It was submitted for certification with
-automatic publication. Microsoft confirms certification passed; publication and
-the installed 8.0.1 update remain distinct checks. Baseline signature evidence
-does not establish their completion.
+automatic publication. Microsoft confirms certification and publication completed;
+the read-only published package page shows 8.0.1.0, X64.
+
+The actual Store upgrade to **8.0.1.0** is installed on this PC. WinGet initially
+reported no available upgrade; the installed Microsoft Store CLI found it by name
+and applied it with `store update "Guilded Companion" --apply true`. Windows reports
+Store signing and status OK. The package signature and certificate chain passed
+cryptographic validation; the installed `app.asar` matches the submitted build
+byte for byte. The encrypted Store profile is unchanged from its pre-update hash.
+Packaged activation opened the actual Setup window showing **Version 8.0.1**.
+The original standalone profile and all SavedVariables were retained.
 
 The retained PolyForm Noncommercial license and free Store signing decision
 remain unchanged. The optional standalone GitHub EXE is unsigned.
@@ -49,9 +57,10 @@ addon-only DE/ES coverage, optional typed-code sign-in and the signed Store link
 Canonical text: [Guilded](curseforge/GUILDED_DESCRIPTION.md) and
 [Guilded Dungeons](curseforge/DUNGEONS_DESCRIPTION.md).
 
-Ten actual edition ZIPs were submitted as Release with automatic publication.
-All ten anonymous CDN downloads match the published GitHub hashes and sizes.
-Approval remains a separate provider check before advertising their file links.
+All ten actual edition ZIPs are approved Release files, with automatic publication.
+Their anonymous CDN downloads were rechecked after approval and match the
+published GitHub hashes and sizes. `site/releases.json` records each exact
+approved edition file alongside the separately verified Store 8.0.1.0 version.
 
 | Edition | Game tag | Guilded file | Guilded Dungeons file |
 | --- | --- | --- | --- |
@@ -73,8 +82,11 @@ works, and untrusted direct-origin health, companion and standings probes return
 404. The fresh private bug inbox has zero open member reports and four retained
 historical service-error groups; this release does not mark them resolved.
 The served browser companion bundle matches the local reviewed build byte for
-byte. Website/provider metadata activation remains separate from the successful
-application update; each provider keeps its own verified version.
+byte. PR #254 (`f785c6f`) and exact-main CI `40769299562` passed for the GitHub
+metadata and publication records; all 11 public edition/navigation/sign-in and
+runtime checks passed after automatic website deployment. Final approved
+provider links use the same CI/merge and public-check gates, independently of
+the already successful application update.
 
 No missing implementation was identified in the agreed 8.0 feature inventory.
 Forever API/encounter/loot data and representative gameplay/score calibration

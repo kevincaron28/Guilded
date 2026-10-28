@@ -1,6 +1,10 @@
 # Guilded 8.0 launch readiness
 
-Updated 28 October 2026. **8.0.1 is public on GitHub and live on Oracle.**
+Updated 28 October 2026. **8.0.2 is public on GitHub and live on Oracle.**
+The final 8.0.1 audit corrected spreadsheet text handling and bounded participation
+status reads. [Current publication evidence](V8_0_2_RELEASE_EVIDENCE_2026-10-28.md)
+tracks the ten submitted CurseForge files and Store Submission 4 separately.
+The paragraphs below retain their original 8.0.1 and 8.0.0 checkpoints.
 Full FR/DE/ES addon catalogues and the signed Store installation/owner French
 checks are complete. [Current 8.0.1 evidence](V8_0_1_RELEASE_EVIDENCE_2026-10-28.md)
 records completed Store certification/publication, the installed signed 8.0.1.0

@@ -4,13 +4,15 @@ Record raid attendance, manage EP/GP and loot, find guild crafters and review yo
 
 **For WoW Forever, Classic Era / Hardcore, Burning Crusade Classic, Mists of Pandaria Classic and Retail. English, French, German and Spanish included in the addons. The companion, website and bot remain English/French.**
 
-## 8.0.1 launch release
+## 8.0.2 launch safety patch
+
+The final audit corrected spreadsheet exports so formula-like text stays literal, and bounded the matching bot's participation summaries. All 8.0 features and existing data are retained.
 
 All 1,052 catalogued addon strings are translated in French, German and Spanish. Includes the 8.0 security, lossless ledger compaction, versioned Retail overtime scoring and privacy improvements. Existing points, rosters, SavedVariables and frozen season rules are preserved.
 
 Choose the matching edition file. One Windows companion supports all editions with separate profiles; one Discord server can host several guilds and editions. Forever characters display their first and last names. Classic and Retail include dungeon routes and provisional benchmarks; Retail includes native Mythic+ evidence and a separate Raider.IO-inspired Guilded rating.
 
-[All edition downloads, Windows companion and release notes](https://github.com/kevincaron28/Guilded/releases/tag/v8.0.1). Real-client and two-PC checks remain pending follow-up. Benchmarks and Guilded ratings are provisional, not official Raider.IO or Blizzard scores. Enable Load out of date AddOns if requested by your client.
+[All edition downloads, Windows companion and release notes](https://github.com/kevincaron28/Guilded/releases/tag/v8.0.2). Real-client and two-PC checks remain pending follow-up. Benchmarks and Guilded ratings are provisional, not official Raider.IO or Blizzard scores. Enable Load out of date AddOns if requested by your client.
 
 ## Install and start
 
@@ -50,7 +52,7 @@ Run `/setup start`. Use **Sign in with Discord** in the companion and enter its 
 
 ## Release and feature boundaries
 
-Current release: **Guilded 8.0.1** (28 October 2026), also on [GitHub](https://github.com/kevincaron28/Guilded/releases). Check the exact file version in its own store. Interface declarations alone do not establish support for every WoW client or every protected-action scenario.
+Current release: **Guilded 8.0.2** (28 October 2026), also on [GitHub](https://github.com/kevincaron28/Guilded/releases). Check the exact file version in its own store. Interface declarations alone do not establish support for every WoW client or every protected-action scenario.
 
 **Party/roll games are in the separate optional Guilded Games Alpha**, not the current Guilded addon. No game awards gold or EP/GP. Raid markers, tank marking and boss plans are outside this Guilded toolkit. Real-client acceptance remains documented per feature, and full real-raid acceptance is not yet proven; an automated pass is not a completed live raid trial.
 
@@ -69,6 +71,8 @@ Guilded and approved pilot access are free. If the project helps your guild, [Bu
 [K Caron Projects](https://kcaron.top/) · [Guilded guides](https://guilded.kcaron.top/docs/QUICK_START) · [GitHub issues (optional)](https://github.com/kevincaron28/Guilded/issues)
 
 ## Français
+
+La version 8.0.2 protège les textes ressemblant à des formules dans les exports vers les tableurs et limite les résultats des résumés de participation du bot. Toutes les fonctions 8.0 et les traductions sont conservées. Conservez vos SavedVariables.
 
 Guilded réunit présence aux raids, EP/GP, butin, recettes de guilde et historique de donjons pour **WoW Forever, Classic Era / Hardcore, Burning Crusade Classic, Mists Classic et Retail**, avec interfaces française, anglaise, allemande et espagnole dans les addons. Le compagnon, le site et le bot restent en français et en anglais. Installez le dossier **Guilded** dans `Interface/AddOns`, ouvrez la pièce dorée et faites `/reload`. **L'addon seul ne nécessite ni Discord, ni compagnon.**
 

@@ -1,7 +1,9 @@
-> **Current (28 October 2026): 8.0.2 is public on GitHub and running on Oracle.**
+> **Current (28 October 2026): 8.0.2 is public on GitHub/CurseForge and running on Oracle.**
 > Use [8.0.2 release completion](docs/V8_0_2_RELEASE_COMPLETION.md) and
 > [per-provider evidence](docs/V8_0_2_RELEASE_EVIDENCE_2026-10-28.md) for the final
-> CurseForge approvals and Store certification/update gates. The owner's remaining
+> completed Store publication/update checks and ten approved, hash-verified CurseForge
+> files. Store signing, submitted bytes and retained encrypted profile activation passed.
+> The owner's remaining
 > manual-testing waiver is explicit. Older checkboxes below are historical, not
 > declarations of missing current implementation or passed waived tests.
 >

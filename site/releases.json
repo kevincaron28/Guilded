@@ -7,37 +7,37 @@
       "url": "https://github.com/kevincaron28/Guilded/releases/tag/v8.0.2"
     },
     "curseforge": {
-      "version": "8.0.1",
+      "version": "8.0.2",
       "stage": "release",
       "url": "https://www.curseforge.com/wow/addons/guilded",
       "editions": {
         "retail": {
-          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9356480",
-          "dungeons": "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9356520"
+          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9357291",
+          "dungeons": "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9357310"
         },
         "classic-mists": {
-          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9356476",
-          "dungeons": "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9356517"
+          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9357287",
+          "dungeons": "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9357305"
         },
         "classic-tbc": {
-          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9356471",
-          "dungeons": "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9356513"
+          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9357280",
+          "dungeons": "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9357298"
         },
         "classic-era": {
-          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9356467",
-          "dungeons": "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9356503"
+          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9357273",
+          "dungeons": "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9357289"
         },
         "forever": {
-          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9356457",
-          "dungeons": "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9356498"
+          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9357269",
+          "dungeons": "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9357283"
         }
       }
     },
     "microsoftStore": {
-      "version": "8.0.1",
-      "packageVersion": "8.0.1.0",
+      "version": "8.0.2",
+      "packageVersion": "8.0.2.0",
       "url": "https://apps.microsoft.com/detail/9N680XX3QFL9",
-      "submission": "1152921505702259238"
+      "submission": "1152921505702260716"
     }
   }
 }

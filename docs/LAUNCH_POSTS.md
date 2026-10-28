@@ -38,7 +38,7 @@ is Store-signed; the separate GitHub installer is unsigned.
 > - Running a guild? **Guilded** adds EP/GP with four loot systems (GP bids, loot council, soft
 >   reserves, EPGP priority), attendance, crafters and readiness, all in game. Discord and the
 >   website are optional.
-> - Free, nothing behind a payment. English and French.
+> - Free, nothing behind a payment. English, French, German and Spanish in the addons.
 >
 > CurseForge: https://www.curseforge.com/wow/addons/guilded-dungeons and
 > https://www.curseforge.com/wow/addons/guilded
@@ -72,11 +72,12 @@ Same text as the forums post, shorter title: **Free dungeon timer + Season 1 lea
 
 > 🏆 **La saison 1 des donjons est prévue demain à 18 h (heure de Montréal).** Les parcours
 > vérifiés et admissibles donnent des points; classements : https://guilded.kcaron.top/leaderboards/?lang=fr
-> Installez Guilded (ou Guilded Dungeons) et reliez le compagnon avec « Connexion avec Discord ».
+> Installez Guilded (ou Guilded Dungeons), choisissez « Connexion avec Discord » dans le compagnon et saisissez son code de confirmation sur la page de connexion.
 >
 > 🏆 **Dungeon Season 1 is scheduled tomorrow at 3 PM Pacific / 6 PM Eastern.** Eligible runs on
 > verified routes earn scores: https://guilded.kcaron.top/leaderboards/ — install Guilded (or Guilded
-> Dungeons) and connect the companion with Sign in with Discord.
+> Dungeons), choose Sign in with Discord in the companion and enter its confirmation code on the sign-in page.
+> Compagnon Microsoft Store gratuit / Free Microsoft Store companion: https://apps.microsoft.com/detail/9N680XX3QFL9
 
 ## Guide-site outreach
 
@@ -95,7 +96,7 @@ contact form or listed address; do not send the same message twice.
 > - **Guilded** — guild tools: EP/GP with four loot systems, attendance, crafters and readiness,
 >   all in game; Discord optional. https://www.curseforge.com/wow/addons/guilded
 >
-> Both are free, in English and French. Leaderboards: https://guilded.kcaron.top/leaderboards/
+> Both addons are free, in English, French, German and Spanish. Leaderboards: https://guilded.kcaron.top/leaderboards/
 > Happy to send screenshots or answer questions.
 >
 > KCaron — https://kcaron.top/

@@ -1,8 +1,9 @@
-> CURRENT WORK — 8.0.2 publication after the final 8.0.1 audit.
+> CURRENT RELEASE — 8.0.2 safety patch from the final 8.0.1 audit.
 > GitHub/client source and running bot: f7ca4c4, protocol 2; preserve all published bytes.
 > GitHub's 21 assets and anonymous download hashes are verified.
-> Store Submission 4 (8.0.2.0) is in certification; all ten CurseForge 8.0.2 files
-> are submitted with edition tags. Their public records still show verified 8.0.1.
+> All ten CurseForge 8.0.2 files are approved and their downloads match GitHub.
+> Store Submission 4 (8.0.2.0) is published and installed. Signature/certificate chain,
+> submitted application bytes and retained encrypted profile/account activation passed.
 > Follow docs/V8_0_2_RELEASE_COMPLETION.md and docs/V8_0_2_RELEASE_EVIDENCE_2026-10-28.md.
 > Fresh ledger, verified recovery/off-server backups, one bot deployment and a read-only
 > production participation-summary comparison passed. Commands report ok.
@@ -30,12 +31,13 @@ feature).
 **Current status (28 October 2026): version 8.0.2 Release, protocol 2.** WoW Forever launches
 4 November 2026 (beta closed 21 October); its first raids open 9 December.
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
-The bot, online companion and GitHub release are 8.0.2. CurseForge 8.0.2 approvals
-and Store Submission 4 certification are pending; their verified public baseline is
-8.0.1. The prior Store install/upgrade, signature, submitted application bytes and
-encrypted-profile preservation passed on this PC. Repeat the actual 8.0.2 update
-after publication. Owner Overview/French checks passed; the optional standalone
-EXE remains unsigned. Current per-provider evidence: `docs/V8_0_2_RELEASE_EVIDENCE_2026-10-28.md`.
+The bot, online companion, GitHub and CurseForge releases are 8.0.2. All ten
+approved CurseForge downloads match GitHub. Store Submission 4 publishes 8.0.2.0,
+and its actual update is installed on this PC. Signature/certificate chain, submitted
+application bytes and retained encrypted profile/account activation passed. The
+long-lived earlier ciphertext baseline changed before installation; it is not claimed
+bitwise unchanged. Owner baseline Overview/French checks are retained; the optional
+standalone EXE remains unsigned. Current per-provider evidence: `docs/V8_0_2_RELEASE_EVIDENCE_2026-10-28.md`.
 The WoW edition pages are live. Message earning covers accessible guild channels/threads;
 officers can inspect coverage with `/participation channels`. See `docs/PARTICIPATION_CHANNEL_COVERAGE_2026-10-28.md`.
 Use the release evidence for each published artifact; historical 7.4.0 approval records

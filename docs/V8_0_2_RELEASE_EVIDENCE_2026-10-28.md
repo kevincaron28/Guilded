@@ -43,20 +43,37 @@ Validated submission package: `Guilded.Companion.8.0.2.x64.STORE-SUBMISSION.msix
 `ad8699bae818a0efadf92b32dfec945fc7dd76fad6a767e422572728e8a281d8`.
 Reserved identity, version 8.0.2.0 and packaged application sources were verified.
 Submission 4 (`1152921505702260716`) contains the actual package and saved EN/FR
-patch notes. It is in certification with automatic publication; certification,
-publication and an installed 8.0.2.0 upgrade are not yet claimed.
+patch notes. Microsoft confirms certification and publication completed. The
+read-only published package page shows 8.0.2.0, X64.
 
-The verified installed baseline is Store 8.0.1.0. Its signature/certificate chain,
-package status, submitted application bytes and encrypted-profile retention passed.
-The owner confirmed Store distribution controls and French Setup/Help. Repeat the
-actual package/signature/profile checks after 8.0.2 publication. Retain the free
-Store method and PolyForm Noncommercial license. The optional GitHub EXE is unsigned.
+The actual Store upgrade to **8.0.2.0** is installed on this PC. The Microsoft
+Store CLI applied it by product name. Windows reports Store signing and status OK;
+the PKCS#7 signature and certificate chain verify, and installed `app.asar` matches
+the submitted application byte for byte. Native packaged activation displays
+**Version 8.0.2**, the Store distribution/update/startup controls and the saved
+account connection. Tracking remains paused with game files unset; a live sync is
+not claimed.
+
+An initial comparison against the earlier 430-byte encrypted profile differed.
+Investigation found the current 558-byte file was written at 22:49:39 UTC, before
+the new package directory was created at 22:54:52 UTC. The file is unchanged across
+8.0.2 activation, and the application reads its saved account connection. This
+establishes retention/readability of the existing profile; it does not establish
+bitwise equality to the older baseline or the cause of that earlier rewrite.
+No profile was reset, no credentials were entered by this audit, and existing
+standalone profiles and SavedVariables were retained.
+
+The owner's baseline Store controls and French Setup/Help checks remain recorded.
+Retain the free Store method and PolyForm Noncommercial license. The optional
+GitHub EXE is unsigned; Store certification does not sign that separate installer.
 
 ## CurseForge edition submissions
 
-Ten matching Release files were submitted with automatic publication. Approval
-and public CDN hashes remain separate gates; provider metadata retains 8.0.1
-until verified. Earlier files remain available.
+All ten matching Release files are approved and published. Their anonymous CDN
+downloads match the GitHub release sizes and SHA-256 hashes. Each file has the
+correct edition tag below. Provider metadata now records those exact verified
+files. Earlier files remain available. Both public EN/FR descriptions identify
+8.0.2 and the retained feature/language coverage, typed sign-in and Store link.
 
 | Edition | Game tag | Guilded file | Guilded Dungeons file |
 | --- | --- | --- | --- |
@@ -65,6 +82,28 @@ until verified. Earlier files remain available.
 | Burning Crusade | 2.5.6 | 9357280 | 9357298 |
 | Mists | 5.5.4 | 9357287 | 9357305 |
 | Retail | 12.1.5 | 9357291 | 9357310 |
+
+## Operational observations
+
+After the 8.0.2 update, the service is active with commands OK and no warning-level
+journal entries since activation. The refreshed private bug inbox has zero open
+member reports and four retained historical service-error groups; none was
+automatically marked resolved.
+
+At 22:33 UTC, a bounded read-only Aiven snapshot found six other idle client
+connections, no active/idle-in-transaction clients or lock waiters, zero recorded
+deadlocks/temp files, a 19.2 MiB application database and the existing pool maximum
+of five. Aiven's one-hour graphs show roughly 27% memory available, 72–73% used and
+20% CPU, with a stable trend across this deployment. These are visual estimates,
+not exported metric samples. The earlier maintenance-associated alert's cause is
+still unconfirmed. Ordinary current activity does not prove launch-load capacity;
+no load stress, paid-plan change, database setting change or data deletion was made.
+
+GitHub-only metadata and guide corrections merged in PR #258 (`52daf36`), whose
+PR CI `40781208219` and exact-main CI `40781665889` passed both required jobs.
+English/French edition pages show the 8.0.2 downloads and preserve the selected
+edition/language. Quick-start instructions now describe the typed confirmation
+code. Launch-post text remains an owner-reviewed draft; no outreach was sent.
 
 ## Acceptance limits
 

@@ -1,5 +1,5 @@
 > **28 October current listing source:** use [Guilded](curseforge/GUILDED_DESCRIPTION.md)
-> and [Guilded Dungeons](curseforge/DUNGEONS_DESCRIPTION.md) for the 8.0.1 listings.
+> and [Guilded Dungeons](curseforge/DUNGEONS_DESCRIPTION.md) for the 8.0.2 listings.
 > The 7.3.2 draft below is historical and must not replace the current public text.
 >
 > **25 October release decision:** the owner explicitly authorized publication before

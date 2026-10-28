@@ -35,6 +35,8 @@ describe("site menu", () => {
     expect(html).toContain('href="/?lang=fr#start"');
     expect(localizedHref("/leaderboards/?season=s1&lang=en#records", "fr")).toBe("/leaderboards/?season=s1&lang=fr#records");
     expect(localizedHref("features/", "fr")).toBe("features/?lang=fr");
+    expect(localizedHref("/editions/retail/", "fr")).toBe("/editions/retail/?lang=fr");
+    expect(localizedHref("../../editions/classic-era/?lang=fr", "en")).toBe("../../editions/classic-era/?lang=en");
     expect(localizedHref("/companion/?tab=cores&lang=en#rules", "fr")).toBe("/companion/?tab=cores&lang=fr#rules");
     expect(localizedHref("/companion/?lang=fr", "en")).toBe("/companion/?lang=en");
     expect(localizedHref("../docs/MEMBER_INSTALL.html#fr", "en")).toBe("../docs/MEMBER_INSTALL.html");

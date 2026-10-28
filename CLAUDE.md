@@ -1,13 +1,12 @@
-> CURRENT — 7.5.1 published 27 October 2026. Latest merged main: b610e66.
-> 8.0 preparation is local on codex/8.0-launch-audit; production was last
-> verified at 7.5.1/b610e66 in the October 27 coordination record.
-> Current work and release gates: docs/V8_0_LAUNCH_READINESS.md.
-> Copilot's confirmation-code PR #245 is included locally, with follow-up fixes.
+> CURRENT — 8.0.0 release preparation, 28 October 2026. Not yet published.
+> Branch codex/8.0-launch-audit / PR #246 includes Copilot PR #245 and follow-up fixes.
+> The owner explicitly waived remaining hands-on tests, but required all seven
+> engineering items before release. Implementation: docs/V8_0_ENGINEERING.md.
+> Exact release/deployment evidence and gates: docs/V8_0_LAUNCH_READINESS.md.
+> 8.0.0 (28 October 2026): reliability, security, versioned overtime scoring,
+> French indexing, accessibility, lossless storage compaction and Core extraction.
+> Previous published version: 7.5.1/b610e66. Protocol remains 2.
 > Historical checkpoints: docs/archive/AGENT_STATUS_HISTORY_2026-10-28.md.
->
-> 7.5.1 (27 October 2026): dungeon observations, badges, loot rules and privacy;
-> /report bug screenshot and officer forwarding restored in #244.
-> Current-v1 scoring remains active. Real-client checks are still outstanding.
 
 # Working on Guilded
 
@@ -19,7 +18,7 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (27 October 2026): version 7.5.1 Release, protocol 2.** WoW Forever launches
+**Current status (28 October 2026): version 8.0.0 Release preparation, protocol 2.** WoW Forever launches
 4 November 2026 (beta closed 21 October); its first raids open 9 December.
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
 The latest recorded bot, online companion and GitHub public release is 7.5.1.
@@ -107,7 +106,7 @@ Two sync sharp edges (see `docs/SYNC_SPEEDUPS_2026-10-15.md`):
 - **The website's Cloudflare Worker (`worker/index.mjs`) forwards only the request headers it
   lists and gives up after 20 seconds.** A new header the bot needs must be added there (and
   the bot should cope without it until the Worker is redeployed); long polls stay at 12 s.
-  Headers named `x-guilded-*` or `x-companion-*` pass through without a Worker change.
+  Headers named `x-guilded-*` or `x-companion-*` pass through without a Worker change, except `x-guilded-origin`, which only the Worker may set.
 
 Prisma 7 (see `docs/PRISMA_7_UPGRADE.md`):
 

@@ -2,7 +2,12 @@
 
 Updated 28 October 2026. Target: feature completion/polish by 30 October; launch 4 November.
 Production remains 7.5.1 / protocol 2. Local preparation is on `codex/8.0-launch-audit`,
-combining Copilot's PR #245 and main through `b610e66`. No 8.0 release is published.
+combining Copilot's PR #245 and main through `b610e66`. The shared source version is now deliberately 8.0.0; publication is still pending.
+
+**Owner decision (28 October): finish all seven engineering items before release.**
+Remaining hands-on acceptance is explicitly waived in favor of bug reports and fixes.
+Automated checks, exact-main CI, verified backups and deployment checks remain mandatory.
+See [engineering completion](V8_0_ENGINEERING.md) and [accessibility evidence](V8_0_ACCESSIBILITY.md).
 
 ## Verified work and limitations
 
@@ -39,22 +44,22 @@ or explicitly deferred by the owner. The owner's exception for item 6 remains in
 | 2 | Typed browser confirmation | PR #245 plus local attempt/concurrency fixes; automated tests pass. Real sign-in pending. |
 | 3 | HTTPS, IPC schemas, CSP | HTTPS already enforced; IPC validation/redaction added. Desktop/browser acceptance pending. |
 | 4 | Authenticode and signed update manifest | Requires owner-controlled signing identity; not implemented or claimed signed. |
-| 5 | Inbound addon authorization/replay envelope | Existing per-module defenses need consolidation review and adversarial client checks. Protocol remains 2. |
+| 5 | Inbound addon authorization/replay envelope | Common Transport.lua boundary now used by both addons; existing per-module role, session, revision and stable-ID checks retained. Protocol 2. |
 | 6 | Two independent uploaders before scoring | Explicitly deferred by owner because the initial population is small. Do not silently enable. |
 | 7 | Canonical character/realm/edition identity | Existing implementation/tests; cross-edition, accented-name and two-PC acceptance pending. |
 | 8 | Dungeon event sequence validation | Existing observations/validation; reset/reload/wings/spoof acceptance pending. |
 | 9 | Provisional benchmark confidence | Existing `dungeon-calibration.ts` requires 20 crew/day samples, five independent crews, three days and matching build/timer convention; reports median/quartiles/exclusions. Real observations still needed. |
 | 10 | Distinct scores and ranking explanations | Existing score panels; review each surface for clear labels and acceptance. Current-v1 stays active. |
-| 11 | Retail depleted-key partial credit / affix treatment | Proposed scoring change requires explicit scoring review and real observations; not silently activated. |
+| 11 | Retail depleted-key partial credit / affix treatment | New Retail snapshots use versioned guilded-keystone-v2 overtime policy; stored v1 rules and current-v1 evidence policy remain immutable. EN/FR explanations and regressions added. |
 | 12 | EN/FR, Retail/Classic, two-PC tests | Owner can test both clients. Checklist below; no successful gameplay claim yet. |
 | 13 | Bounded prioritized communication | Implemented: 1,024 total slots, 16 reserved for explicit interactive packets; four interactive sends then a bulk turn. Ledger notices use the interactive lane. Snapshot/chunk traffic remains FIFO on the default lane. Tests cover reserve, ordering and fairness. |
-| 14 | Ledger retention/compaction | Needs safe replay/backup/restore design. No ledger history deleted as cleanup. |
+| 14 | Ledger retention/compaction | Lossless storage compactor previews by default, preserves all IDs/history/voids/legacy positions, verifies a full backup and detects concurrent writes. No history pruning. See V8_0_ENGINEERING.md for limits. |
 | 15 | Durable upload/retry/parser safeguards | Added bounded streaming reads (32 MB) for guild/personal SavedVariables, normalized JSON and standings identity validation, including growth during reading. Oversized neighbor files now surface errors. Restart regression proves earlier and newer ledger entries recover after an offline failure. Existing PoE journal remains durable. Real disk-full/Windows acceptance pending. |
 | 16 | Edge rate limits/security headers | Implemented native Cloudflare limits: 120 API writes and 20 pairing starts per IP/minute, separate budgets, 429/Retry-After, fail-closed on limiter errors. Worker and preview URLs disabled in config; static headers included. Dry-run verifies bindings. Deployed verification pending. |
-| 17 | Private origin/tunnel or mutual TLS | Infrastructure review pending; no production networking change made. |
-| 18 | Canonical/hreflang/structured data/sitemaps | Existing canonical and creator JSON-LD; complete multilingual indexing audit pending. |
-| 19 | Accessibility/mobile/error states | Automated and hands-on website/companion review pending. |
-| 20 | Core.lua decomposition and edition/spoof matrix | Architectural proposal remains open. Do not confuse refactoring with a required user feature; acceptance matrix remains mandatory. |
+| 17 | Private origin/tunnel or mutual TLS | Worker-only upstream credential, optional Caddy gate and retired-host companion migration implemented. Candidate config validates on Oracle. Production activation still pending. |
+| 18 | Canonical/hreflang/structured data/sitemaps | Server-rendered French content/metadata/links, canonical alternatives and bilingual sitemaps implemented; native workerd tests verify HTML before JavaScript. |
+| 19 | Accessibility/mobile/error states | Rendered axe, accessibility-tree, keyboard and phone/reflow audit completed for recorded states, with limitations and unperformed native screen-reader checks disclosed in V8_0_ACCESSIBILITY.md. |
+| 20 | Core.lua decomposition and edition/spoof matrix | Spreadsheet serialization and roll parsing extracted into CorePresentation.lua. Existing public behavior retained; offline edition/spoof matrix runs in the full suite. |
 
 ## Carry-forward product scope
 
@@ -80,6 +85,8 @@ Initial Retail load/reload now passed on 12.1.5 build 70575, interface 120105,
 with both review addons loaded and zero errors captured during that sequence.
 The owner also confirmed Home, My character and Settings rendering; the following
 save has empty probe errors and empty Guilded diagnostics.
+French labels/layout on these pages were then confirmed; the later save has no
+probe errors or Guilded diagnostics and restores automatic language.
 See [the Retail evidence and remaining checks](RETAIL_ACCEPTANCE_2026-10-28.md).
 This does not close visual, gameplay, upgrade, two-PC or Classic acceptance.
 
@@ -108,7 +115,7 @@ the first available game session; do not mark it passed from Retail/Classic resu
 
 - All agreed feature gaps have an implemented result or an explicit owner-approved deferral.
 - Final TypeScript, full tests, ESLint, both addon validators and build/package checks pass.
-- Real Retail and Classic results recorded; outstanding Forever checks clearly disclosed.
+- Completed Retail results recorded; unperformed Classic/Forever and other manual checks explicitly waived by the owner and retained as follow-up, without marking them passed.
 - Database restore rehearsal, unique-ledger preflight and verified backup pass before deploy.
 - Final-commit CI on both required jobs passes; clean main deployment, health, commands and
   artifact checksums are verified. No second bot instance.
@@ -172,10 +179,10 @@ Retail/Classic hands-on testing therefore needs the owner to open and log into a
 No usable code-signing certificate was found in the current user's Windows certificate
 store. An external signing service/certificate may exist elsewhere; none was assumed.
 
-Explicitly unfinished engineering items remain: shared inbound-envelope consolidation,
-ledger compaction with retained replay/void protection, versioned Retail overtime scoring,
-private-origin migration, server-rendered French indexing, the full accessibility audit,
-and further Core.lua decomposition. They are not marked complete by passing existing tests.
-Do not publish 8.0 as complete while these accepted audit items remain unresolved, unless
-the owner explicitly changes the scope. Real gameplay, native translation review, calibration
-observations and Store certification also cannot be replaced by automated test results.
+## Engineering completion checkpoint
+
+The seven required engineering items now have implementations and documented limits
+in [V8_0_ENGINEERING.md](V8_0_ENGINEERING.md). Origin activation and final release checks
+remain operational gates; they are not inferred from local source. The full build is
+running against the deliberate 8.0.0 source version. Any failing integration is fixed
+before publication. Manual observations and certification remain separate evidence.

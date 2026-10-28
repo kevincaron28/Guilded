@@ -347,6 +347,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
       after(10, request)
     elseif event == "CHAT_MSG_ADDON" then
       local prefix, text, channel, sender = unpack(eventArgs)
+      if not ns.comm.accept(prefix, text, channel, sender, PREFIX) then return end
       if prefix ~= PREFIX or channel ~= "GUILD" or not guildKey() then return end
       if ns.isSecret(prefix) or ns.isSecret(text) or ns.isSecret(sender) then return end
       sender = ns.normalizeName(sender)

@@ -255,6 +255,7 @@ frame:RegisterEvent("PLAYER_LOGIN"); frame:RegisterEvent("CHAT_MSG_ADDON")
 frame:SetScript("OnEvent", function(_, event, prefix, text, channel, sender)
   if ns.standalone then return end
   if event == "PLAYER_LOGIN" then ns.comm.register(PREFIX); return end
+  if not ns.comm.accept(prefix, text, channel, sender, PREFIX) then return end
   if prefix ~= PREFIX or type(text) ~= "string" or ns.isSecret(text) or ns.isSecret(sender) then return end
   if ns.moduleActive and not ns.moduleActive("scores") then return end
   local replyTo = sender -- Preserve the client's routable name/server suffix.

@@ -645,7 +645,8 @@ local function onEvent(_, event, ...)
     if verb == "res" or verb == "reserve" then hostChange("ADD", name, id, sender, "whisper")
     elseif verb == "unres" or verb == "unreserve" then hostChange("DEL", name, id, sender, "whisper") end
   elseif event == "CHAT_MSG_ADDON" then
-    local prefix, text, _, sender = ...
+    local prefix, text, channel, sender = ...
+    if not ns.comm.accept(prefix, text, channel, sender, PREFIX) then return end
     if ns.isSecret(prefix) or ns.isSecret(text) or ns.isSecret(sender) or prefix ~= PREFIX then return end
     local name = ns.normalizeName(sender)
     if not name or name == ns.playerName() then return end

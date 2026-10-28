@@ -262,7 +262,7 @@ frame:SetScript("OnEvent", function(_, event, prefix, text, channel, sender)
       if ns.isOfficer() or fresh then share() end
       ns.comm.send(PREFIX, "REQUEST|" .. ((current() and current().updatedAt) or "0"), "GUILD")
     end) end
-  elseif prefix == PREFIX and channel == "GUILD" and not ns.isSecret(text) and not ns.isSecret(sender) then
+  elseif ns.comm.accept(prefix, text, channel, sender, PREFIX) and channel == "GUILD" and not ns.isSecret(text) and not ns.isSecret(sender) then
     sender = ns.normalizeName(sender)
     if not sender or sender == ns.playerName() or not ns.isGuildMember(sender) then return end
     if string.sub(text, 1, 8) == "REQUEST|" then

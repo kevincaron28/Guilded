@@ -489,6 +489,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
       local result
       if secret(text) or secret(sender) or secret(channel) then result = "restricted message"
       elseif channel ~= "GUILD" then result = "other channel"
+      elseif not ns.comm.accept(prefix, text, channel, sender, PREFIX) then result = "invalid payload"
       else result = map.receive(text, sender) end
       received.last = result or "invalid payload"
       if result == "position" then received.positions = received.positions + 1

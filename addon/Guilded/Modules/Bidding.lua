@@ -423,7 +423,8 @@ local function onEvent(_, event, ...)
       addBid(ns.normalizeName(sender), amount, sender, "whisper")
     end
   elseif event == "CHAT_MSG_ADDON" then
-    local prefix, text, _, sender = ...
+    local prefix, text, channel, sender = ...
+    if not ns.comm.accept(prefix, text, channel, sender, PREFIX) then return end
     if ns.isSecret(prefix) or ns.isSecret(text) or ns.isSecret(sender) or prefix ~= PREFIX then return end
     local name = ns.normalizeName(sender)
     if not name or name == ns.playerName() then return end

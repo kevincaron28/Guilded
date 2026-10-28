@@ -7,10 +7,21 @@ import type { ChallengeRatingRules } from "./challenge-rating-rules.js";
 // NOT Blizzard/Raider.IO's exact rating formula. Overtime never scores in v1.
 // https://support.raider.io/kb/frequently-asked-questions/what-is-the-base-score-value-for-each-level-keystone
 const BASE = [155,170,200,215,230,260,275,290,320,335,365];
-export function keystonePoints(c: ChallengeEvidence): number | null {
-  if (c.level < 2 || c.level > 30 || !c.onTime || c.practiceRun || !c.eligibleForScore
-    || c.durationMs > c.timeLimitSec * 1000) return null;
+export function challengePolicyText(model: ChallengeRatingRules["model"], lang: "en" | "fr"): string {
+  if (model === "guilded-keystone-v2") return lang === "fr"
+    ? "Règles v2 : les clés terminées admissibles conservent 100 à 50 % des points de base jusqu’à 40 % hors délai, sans bonus de vitesse. Chaque donjon compte une fois, tous affixes confondus. Formule provisoire propre à Guilded."
+    : "Rules v2: eligible completed keys retain 100–50% of base points up to 40% overtime, without a speed bonus. Each dungeon counts once across affixes. Guilded’s own provisional formula.";
+  return lang === "fr" ? "Règles v1 figées : seules les clés à temps comptent. Chaque donjon compte une fois, tous affixes confondus."
+    : "Frozen v1 rules: only in-time keys count. Each dungeon counts once across affixes.";
+}
+export function keystonePoints(c: ChallengeEvidence, model: ChallengeRatingRules["model"] = "guilded-keystone-v1"): number | null {
+  const ratio = c.durationMs / (c.timeLimitSec * 1000);
+  if (c.level < 2 || c.level > 30 || c.practiceRun || !c.eligibleForScore || !Number.isFinite(ratio) || ratio <= 0
+    || c.onTime !== (ratio <= 1) || ratio > (model === "guilded-keystone-v2" ? 1.4 : 1)) return null;
   const base = c.level <= 12 ? BASE[c.level - 2]! : 365 + (c.level - 12) * 15;
+  // Guilded's v2 policy: eligible completed overtime keys retain 50–100% of
+  // base credit up to 40% overtime. No speed bonus; never Blizzard's formula.
+  if (ratio > 1) return Math.round(base * (1 - (ratio - 1) / 0.4 * 0.5) * 10) / 10;
   const bonus = 25 * Math.min(1, Math.max(0, (1 - c.durationMs / (c.timeLimitSec * 1000)) / 0.4));
   return Math.round((base + bonus) * 10) / 10;
 }
@@ -23,10 +34,10 @@ export function challengeScores<T extends ChallengeRun>(runs: T[], rules: Challe
   keep: (player: T["players"][number], run: T) => boolean = () => true): ChallengeScore<T>[] {
   if (!rules) return [];
   const characters = new Map<string, Map<number, ChallengeRank<T> & { points: number }>>();
-  for (const run of runs) for (const row of rankChallenges([run], keep)) {
+  for (const run of runs) for (const row of rankChallenges([run], keep, rules.model === "guilded-keystone-v2")) {
     const c = row.challenge;
     const dungeon = rules.dungeons.find(d => d.mapId === c.mapId && d.instanceId === run.instanceId && d.timeLimitSec === c.timeLimitSec);
-    const points = keystonePoints(c);
+    const points = keystonePoints(c, rules.model);
     if (!dungeon || points === null) continue;
     const key = JSON.stringify([row.player.character.toLowerCase(), row.player.realm.toLowerCase()]);
     const best = characters.get(key) ?? new Map<number, ChallengeRank<T> & { points: number }>();

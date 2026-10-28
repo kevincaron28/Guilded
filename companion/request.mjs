@@ -10,6 +10,9 @@ export function checkUrl(value) {
   if (url.protocol !== "https:" && !(url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname))) {
     throw new Error("Use HTTPS for the bot address (HTTP is allowed only on this computer).");
   }
+  // Migrate only our retired hosted address, before attaching credentials.
+  // Other guilds' independent hosts are preserved exactly.
+  if (url.origin === "https://guildedqc.duckdns.org") url.hostname = "guilded.kcaron.top";
   return url;
 }
 
@@ -26,8 +29,8 @@ export function jsonBody(value, { gzip = false } = {}) {
 
 // Do not forward credentials across redirects. Bound both headers and response-body reads.
 export async function requestJson(url, options = {}, signal, timeoutMs = 20_000) {
-  checkUrl(url);
-  const response = await fetch(url, {
+  const target = checkUrl(url);
+  const response = await fetch(target, {
     ...options, redirect: "error",
     signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs)
   });

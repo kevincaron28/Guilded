@@ -3,7 +3,7 @@ import { integrityRole, readDungeonIntegrity, readPlayerIntegrity } from "./dung
 import { characterKey } from "../../companion/character-identity.mjs";
 import { readChallenge } from "./challenge-evidence.js";
 import { rankChallenges, challengeClock } from "./challenge-leaderboard.js";
-import { challengeScores } from "./challenge-rating.js";
+import { challengeScores, challengePolicyText } from "./challenge-rating.js";
 import { DEFAULT_DUNGEON_BRACKETS } from "./dungeon-november-rules.js";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { CLASSES } from "../wow-data.js";
@@ -466,7 +466,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       const ranks = rankChallenges(eligible, keepPlayer(filters));
       const ratingRules = periodRules(period).keystoneRating;
       const scores = challengeScores(eligible, ratingRules, keepPlayer(filters));
-      const rating = ratingRules ? `<h2>${t("Guilded Mythic+ rating", "Cote Guilded Mythic+")} · ${escapeHtml(ratingRules.pool)}</h2><p>${t("Provisional rating inspired by Raider.IO: your best score per dungeon, summed across this pool. Each dungeon counts once across affixes and roles. In-time keys only; this is Guilded's own formula, not an official Raider.IO or Blizzard score.", "Cote provisoire inspirée de Raider.IO : somme du meilleur score de chaque donjon. Chaque donjon compte une fois, tous affixes et rôles confondus. Clés à temps seulement; formule propre à Guilded, sans cote officielle Raider.IO ou Blizzard.")}</p>`
+      const rating = ratingRules ? `<h2>${t("Guilded Mythic+ rating", "Cote Guilded Mythic+")} · ${escapeHtml(ratingRules.pool)}</h2><p>${t("Provisional rating inspired by Raider.IO: your best score per dungeon, summed across this pool. Each dungeon counts once across affixes and roles. This is Guilded's own formula, not an official Raider.IO or Blizzard score.", "Cote provisoire inspirée de Raider.IO : somme du meilleur score de chaque donjon. Chaque donjon compte une fois, tous affixes et rôles confondus. Formule propre à Guilded, sans cote officielle Raider.IO ou Blizzard.")}</p><p>${escapeHtml(challengePolicyText(ratingRules.model, ctx.lang))}</p>`
         + `<p>${t("Base points by key level, plus up to 25 points for speed (full bonus at 40% under the timer). Supported keys: +2 to +30. Repeats cannot lower your score.", "Points de base selon la clé, plus un bonus de vitesse de 25 points maximum (bonus complet à 40 % sous le délai). Clés prises en charge : +2 à +30. Une répétition ne réduit jamais la cote.")}</p>`
         + (scores.length ? `<table><thead><tr><th>${t("Character", "Personnage")}</th><th>${t("Rating", "Cote")}</th><th>${t("Dungeons", "Donjons")}</th></tr></thead><tbody>${scores.slice(0,100).map(r => `<tr><td>${escapeHtml(r.character)}-${escapeHtml(r.realm)}<details><summary>${t("Contributing runs", "Essais comptabilisés")}</summary>${r.best.map(b => `<div>${escapeHtml(b.run.dungeonName)} · +${b.challenge.level} · ${challengeClock(b.challenge.durationMs)} · ${b.points.toFixed(1)}</div>`).join("")}</details></td><td>${r.points.toFixed(1)}</td><td>${r.completed}/${ratingRules.dungeons.length}</td></tr>`).join("")}</tbody></table>` : `<p>${t("No eligible seasonal rating yet.", "Aucune cote de saison admissible pour le moment.")}</p>`) : "";
       const groups = [...new Set(ranks.map(r => r.group))];
@@ -506,7 +506,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const keyScores = challengeScores(seasonRuns, keyRules, isMe);
     const keySection = keyScores.length ? `<h2>${t("Provisional Guilded Mythic+ rating", "Cote Guilded Mythic+ provisoire")}</h2>`
       + keyScores.map(r => `<p><strong>${r.points.toFixed(1)}</strong> · ${r.completed}/${keyRules!.dungeons.length} · ${escapeHtml(r.realm)}</p><ul>${r.best.map(b => `<li><a href="${link(runPath(b.run.runId),lang)}">${escapeHtml(b.run.dungeonName)}</a> · +${b.challenge.level} · ${challengeClock(b.challenge.durationMs)} · ${b.points.toFixed(1)}</li>`).join("")}</ul>`).join("")
-      + `<p>${t("Best score per dungeon across affixes. Guilded's own provisional formula; not an official Raider.IO or Blizzard score.", "Meilleur score de chaque donjon, tous affixes confondus. Formule provisoire propre à Guilded; sans cote officielle Raider.IO ou Blizzard.")}</p>` : "";
+      + `<p>${t("Best score per dungeon across affixes. Guilded's own provisional formula; not an official Raider.IO or Blizzard score.", "Meilleur score de chaque donjon, tous affixes confondus. Formule provisoire propre à Guilded; sans cote officielle Raider.IO ou Blizzard.")}</p><p>${escapeHtml(challengePolicyText(keyRules!.model, lang))}</p>` : "";
     const imagePath = link(`/leaderboards/character/${raw}/card.png`, lang);
     if (image) {
       if (!runs.length) return kit.page(404, t("Not found", "Introuvable"), "", { noindex: true });

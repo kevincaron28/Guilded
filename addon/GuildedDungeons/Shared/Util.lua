@@ -292,16 +292,6 @@ function util.address(name)
   local key = normalizeName(name)
   return key and addresses[key] or name
 end
-if CreateFrame then
-  local addressFrame = CreateFrame("Frame")
-  addressFrame:RegisterEvent("CHAT_MSG_ADDON")
-  addressFrame:SetScript("OnEvent", function(_, _, prefix, _, _, sender)
-    if type(prefix) == "string" and not isSecret(prefix) and string.sub(prefix, 1, 7) == "Guilded" then
-      util.rememberAddress(sender)
-    end
-  end)
-end
-
 -- Plain base64 (RFC 4648), so a pasted string survives chat, edit boxes and Discord.
 local B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 local B64_INDEX = {}

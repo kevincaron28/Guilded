@@ -1,6 +1,6 @@
 # Retail acceptance — 28 October 2026
 
-Status: initial load/reload and three main pages passed; broader acceptance in progress.
+Status: initial load/reload, three main pages and French presentation passed; broader acceptance in progress.
 
 ## Environment and build
 
@@ -34,13 +34,34 @@ Language was `auto` during this English check. The copied evidence files are
 `probe-ui-reload.lua`, `ui-summary.json`, `guilded-ui-reload.lua` and
 `guilded-ui-summary.json` in the private acceptance folder.
 
+The owner subsequently confirmed "French labels and layout look correct" after
+the language-override instructions (including the required reload before checking
+the window). The next saved probe has nine checkpoints and no captured errors;
+Guilded's diagnostic list remains empty and its language setting is back to `auto`.
+Evidence: `probe-language-reload.lua`, `guilded-language-reload.lua` and
+`language-summary.json`. This is owner-observed visual acceptance, not an automated
+pixel or complete translation-coverage audit.
+
 Private installation/backup manifest, copied probe data, SHA-256 and status are
 retained under `backups/retail-acceptance-20261028T105526Z/`.
 
-## Pending checks
+The owner then confirmed `/guilded dungeon check`, `/guilded score` and
+`/gdungeons status` respond as expected, with Guilded handling recording when
+both addons are installed. The group finder's Guilded dungeons Run and Season
+views also render correctly. These observations apply to the development build.
 
-- French override and return to English; clipping, scaling and keyboard navigation.
-- Dungeon/score pages and Retail API behavior; a real run, reset/abandon, reload
+## Owner release decision — 28 October
+
+The owner explicitly waived remaining hands-on testing and requested release
+using bug reports and fixes after launch. The subsequent scope decision requires
+finishing the seven listed engineering items before publishing 8.0. Automated
+checks, backup and deployment gates remain required. Unperformed checks below
+are follow-up work, not passed tests.
+
+## Follow-up checks (manual release gate waived)
+
+- Scaling, keyboard navigation and broader translation coverage beyond the three checked pages.
+- Broader Retail API behavior; a real run, reset/abandon, reload
   during a run, completion and depleted-key evidence.
 - Standalone Guilded Dungeons with Guilded disabled; both installed together
   should let Guilded record and keep the standalone recorder quiet.

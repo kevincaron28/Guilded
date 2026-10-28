@@ -834,7 +834,8 @@ local function onEvent(_, event, ...)
       send(string.format("DEATH|%s|%s|%d", run.id, me(), mine.deaths))
     end
   elseif event == "CHAT_MSG_ADDON" then
-    local prefix, text, _, sender = ...
+    local prefix, text, channel, sender = ...
+    if not ns.comm.accept(prefix, text, channel, sender, PREFIX) then return end
     if ns.isSecret(prefix) or ns.isSecret(text) or ns.isSecret(sender) or prefix ~= PREFIX then return end
     sender = ns.normalizeName(sender)
     if not sender or sender == me() then return end

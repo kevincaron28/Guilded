@@ -6,6 +6,18 @@ const base = "https://guilded-wow.kcaron.workers.dev";
 const env = { ASSETS: { fetch: vi.fn(async () => new Response("website")) } };
 
 describe("unified website and companion", () => {
+  it("sets the private origin credential exclusively from Worker configuration", async () => {
+    const upstream = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(async () => Response.json({ ok: true }));
+    vi.stubGlobal("fetch", upstream);
+    const request = () => new Request(base + "/api/v1/companion/sign-in", { method: "POST", headers: { "x-guilded-origin": "caller-controlled", "x-guilded-edition": "retail" } });
+    await worker.fetch(request(), { ...env, GUILDED_ORIGIN_TOKEN: "proxy-configured" });
+    let headers = upstream.mock.calls.at(-1)![1].headers as Headers;
+    expect(headers.get("x-guilded-origin")).toBe("proxy-configured");
+    expect(headers.get("x-guilded-edition")).toBe("retail");
+    await worker.fetch(request(), env);
+    headers = upstream.mock.calls.at(-1)![1].headers as Headers;
+    expect(headers.has("x-guilded-origin")).toBe(false);
+  });
   it("proxies score-card PNG bytes and headers without the HTML rewrite", async () => {
     const bytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0, 255, 128]);
     const upstream = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => new Response(bytes, { headers: { "content-type": "image/png", "cache-control": "no-store" } }));

@@ -53,6 +53,14 @@ describe("whisper addresses (WoW Forever)", () => {
 });
 
 describe("Util.lua helpers", () => {
+  it("shares a fail-closed incoming boundary before module parsing and authorization", () => {
+    const s = loggedIn([]);
+    expect(s.run('return tostring(NS.comm.accept("p", "REQ|1", "GUILD", "Ann", "p", function() return true end))')).toBe('true');
+    for (const args of ['"p", string.rep("x",256), "GUILD", "Ann", "p"', '"p", "REQ", "SAY", "Ann", "p"', '"p", "REQ", "GUILD", "Bad|Name", "p"', '"p", "x"..string.char(0), "GUILD", "Ann", "p"', '"p", "REQ", "GUILD", "Ann", "p", function() error("unreadable role") end']) {
+      expect(s.run(`return tostring(NS.comm.accept(${args}))`)).toBe('false');
+    }
+    expect(s.run('return tostring(NS.comm.authorized("Ann", "officer"))')).toBe('false');
+  });
   it("cuts text without splitting a UTF-8 character", () => {
     const s = loggedIn([]);
     // "ab" + e-acute (two bytes): a 3-byte limit keeps "ab", not half of the accent.

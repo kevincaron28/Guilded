@@ -6,6 +6,28 @@ import { normalizeExportIdentities, characterReference } from "./character-ident
 const iso = (epoch) => new Date(Number(epoch) * 1000).toISOString();
 export const MAX_SAVED_VARIABLE_CHARACTERS = 16_000_000;
 
+// SavedVariables and compact backups may use Lua decimal byte escapes, which
+// JSON.parse cannot decode. Decode their UTF-8 bytes without evaluating Lua.
+function luaString(raw) {
+  if (raw.startsWith('"')) { try { return JSON.parse(raw); } catch { /* Lua escapes below */ } }
+  const long = /^\[(=*)\[/.exec(raw);
+  if (long) return raw.slice(long[0].length, -(long[1].length + 2)).replace(/^\r?\n/, '');
+  const body = raw.slice(1, -1).replace(/\\\r\n/g, '\\\n');
+  const bytes = [], encoder = new TextEncoder();
+  const append = text => { for (const byte of encoder.encode(text)) bytes.push(byte); };
+  const escapes = { a:7, b:8, f:12, n:10, r:13, t:9, v:11, '\n':10, '\r':10 };
+  let at = 0;
+  for (const match of body.matchAll(/\\(\d{1,3}|[\s\S])/g)) {
+    append(body.slice(at, match.index));
+    const value = match[1];
+    if (/^\d+$/.test(value)) bytes.push(Number(value));
+    else if (Object.hasOwn(escapes, value)) bytes.push(escapes[value]); else append(value);
+    at = match.index + match[0].length;
+  }
+  append(body.slice(at));
+  return new TextDecoder().decode(new Uint8Array(bytes));
+}
+
 // "Alchemy:300,Mining:275" from a peer's digest. A part with no name or no number is dropped:
 // the text came from another player's addon and one bad part must not spoil the upload.
 function digestProfessions(text) {
@@ -23,8 +45,7 @@ function evaluate(node) {
   if (node.type === "StringLiteral") {
     if (node.value !== null) return node.value;
     const raw = node.raw ?? "";
-    if (raw.startsWith("\"")) return JSON.parse(raw);
-    return raw.slice(1, -1).replace(/\\(['"])/g, "$1");
+    return luaString(raw);
   }
   if (node.type === "NumericLiteral" || node.type === "BooleanLiteral") return node.value;
   if (node.type === "NilLiteral") return null;

@@ -1,7 +1,9 @@
-> **Current (28 October 2026): 7.5.1 published; 8.0 preparation in progress.**
-> Use [the current launch readiness checklist](docs/V8_0_LAUNCH_READINESS.md), including
-> [the Microsoft Store update](docs/store-submission/V8_0_UPDATE.md), Retail/Classic tests
-> and database capacity checks. The older release records below are historical.
+> **Current (28 October 2026): 8.0.2 is public on GitHub and running on Oracle.**
+> Use [8.0.2 release completion](docs/V8_0_2_RELEASE_COMPLETION.md) and
+> [per-provider evidence](docs/V8_0_2_RELEASE_EVIDENCE_2026-10-28.md) for the final
+> CurseForge approvals and Store certification/update gates. The owner's remaining
+> manual-testing waiver is explicit. Older checkboxes below are historical, not
+> declarations of missing current implementation or passed waived tests.
 >
 > 6.2 candidate preparation (15 October 2026): use [the release handoff](docs/archive/V6_2_RELEASE_HANDOFF.md) and [game acceptance checklist](docs/V6_2_GAME_ACCEPTANCE.md).
 > Guilded 6.2.0 Release (October 16, 2026). See docs/archive/V6_2_RELEASE_HANDOFF.md for the release record.

@@ -50,6 +50,7 @@
           "engine.mjs",
           "grm-migration.mjs",
           "lua-export.mjs",
+          "saved-file.mjs",
           "standings.mjs",
           "request.mjs",
           "poe-engine.mjs",

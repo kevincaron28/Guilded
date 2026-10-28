@@ -21,6 +21,15 @@ describe("private signup character selection", () => {
     expect(await pickSignupCharacter(i as never, "guild", "member")).toEqual(character(1));
     expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { memberId: "member", member: { guildId: "guild" } } }));
   });
+  it.each([false, true])('gives linking instructions without a signup or exception when no characters exist (acknowledged=%s)', async acknowledged => {
+    findMany.mockResolvedValue([]);
+    const i = interaction([], acknowledged);
+    expect(await pickSignupCharacter(i as never, 'guild', 'member')).toBeNull();
+    const send = acknowledged ? i.followUp : i.editReply;
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({ content: expect.stringContaining('/character pair'), components: [] }));
+    expect(send.mock.calls[0]![0].content).toContain('Choisis ton personnage');
+    expect(i.message.awaitMessageComponent).not.toHaveBeenCalled();
+  });
   it("pages beyond 25 choices and only accepts the initiating user's private components", async () => {
     findMany.mockResolvedValue(Array.from({ length: 27 }, (_, id) => character(id)));
     const next = { customId: "signupchar:next", isStringSelectMenu: () => false, update: vi.fn() };

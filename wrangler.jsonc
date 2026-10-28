@@ -3,7 +3,12 @@
   "name": "guilded-wow",
   "main": "worker/index.mjs",
   "compatibility_date": "2026-10-05",
-  "workers_dev": true,
+  "workers_dev": false,
+  "preview_urls": false,
+  "ratelimits": [
+    { "name": "API_WRITES", "namespace_id": "24601", "simple": { "limit": 120, "period": 60 } },
+    { "name": "PAIRING_ATTEMPTS", "namespace_id": "24602", "simple": { "limit": 20, "period": 60 } }
+  ],
   "previews": {},
   "keep_vars": true,
   "kv_namespaces": [

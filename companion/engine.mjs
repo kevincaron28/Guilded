@@ -1,4 +1,5 @@
-import { readFile, access, stat } from "node:fs/promises";
+import { access, stat } from "node:fs/promises";
+import { readSavedText } from "./saved-file.mjs";
 import { watch } from "node:fs";
 import { basename, dirname } from "node:path";
 import { readAddonExport } from "./lua-export.mjs";
@@ -295,7 +296,7 @@ export function createEngine(initialConfig, hooks = {}) {
     lastFile = await fileStamp(current.watchFile);
     const full = current.watchFile.toLowerCase().endsWith(".lua")
       ? await readAddonExport(current.watchFile, current.realm)
-      : JSON.parse(await readFile(current.watchFile, "utf8"));
+      : JSON.parse(await readSavedText(current.watchFile));
     // The saved data belongs to one WoW guild; do not send an alt's other guild.
     if (current.wowGuild && full.wowGuild && full.wowGuild !== current.wowGuild) {
       state.pendingUpload = false;

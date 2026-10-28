@@ -503,7 +503,7 @@ local function changeEpgp(rawName, rawAmount, reason, kind, quiet)
   logEvent(spec.type or kind, { name = name, epAmount = epAmount, gpAmount = gpAmount, reason = reason })
   -- Other officers in the group count it at once (handlePeerLedger).
   local channel = util.groupChannel()
-  if channel then comm.send(PREFIX, string.format("LEDGER|%s|%s|%d|%d|%s", id, name, epAmount, gpAmount, coreId or ""), channel) end
+  if channel then comm.send(PREFIX, string.format("LEDGER|%s|%s|%d|%d|%s", id, name, epAmount, gpAmount, coreId or ""), channel, nil, nil, "interactive") end
   if not quiet then
     -- The totals of the pool the entry went to (a core's own pool, or the guild's).
     local after = ns.effectiveStanding(name, coreId)
@@ -549,7 +549,7 @@ local function voidEntry(target)
   end
   logEvent("VOID", { name = foundName, id = found.id, epAmount = found.epAmount, gpAmount = found.gpAmount })
   local channel = util.groupChannel()
-  if channel then comm.send(PREFIX, "LEDGERVOID|" .. found.id, channel) end
+  if channel then comm.send(PREFIX, "LEDGERVOID|" .. found.id, channel, nil, nil, "interactive") end
   message(string.format("Voided: %s. Discord takes it back with the next upload.", describeEntry(foundName, found)))
   return true
 end

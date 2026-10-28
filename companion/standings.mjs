@@ -1,6 +1,7 @@
 import { standingsToLua } from "./standings-format.mjs";
 export { standingsToLua } from "./standings-format.mjs";
 import { readFile, writeFile, rename, rm } from "node:fs/promises";
+import { readSavedText } from "./saved-file.mjs";
 import { credentialHeaders, requestJson } from "./request.mjs";
 import { writeDataAddon } from "./data-addon.mjs";
 import { join, sep } from "node:path";
@@ -54,7 +55,7 @@ export async function writeStandings(config, signal, options = {}) {
   // Check the actual saved file before replacing standings or acknowledging
   // its ledger. Missing legacy saves retain first-run repair behavior.
   let saved;
-  try { saved = await readFile(config.watchFile, "utf8"); }
+  try { saved = await readSavedText(config.watchFile); }
   catch (error) { if (error.code !== "ENOENT") throw error; }
   if (saved) {
     const local = config.watchFile.toLowerCase().endsWith(".lua") ? readDatabase(saved).character ?? {} : JSON.parse(saved);

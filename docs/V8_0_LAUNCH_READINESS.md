@@ -35,7 +35,7 @@ or explicitly deferred by the owner. The owner's exception for item 6 remains in
 
 | # | Item | Current disposition / remaining evidence |
 |---|---|---|
-| 1 | Credential storage, rotation, revocation | Local storage/revocation changes; real Windows migration/removal and rotation review pending. |
+| 1 | Credential storage, rotation, revocation | Storage/revocation hardened. Existing member and personal credential issuance revoke previous credentials transactionally (`character-pairing.ts`, `personal-pairing.ts`). Real Windows migration/removal pending. |
 | 2 | Typed browser confirmation | PR #245 plus local attempt/concurrency fixes; automated tests pass. Real sign-in pending. |
 | 3 | HTTPS, IPC schemas, CSP | HTTPS already enforced; IPC validation/redaction added. Desktop/browser acceptance pending. |
 | 4 | Authenticode and signed update manifest | Requires owner-controlled signing identity; not implemented or claimed signed. |
@@ -43,14 +43,14 @@ or explicitly deferred by the owner. The owner's exception for item 6 remains in
 | 6 | Two independent uploaders before scoring | Explicitly deferred by owner because the initial population is small. Do not silently enable. |
 | 7 | Canonical character/realm/edition identity | Existing implementation/tests; cross-edition, accented-name and two-PC acceptance pending. |
 | 8 | Dungeon event sequence validation | Existing observations/validation; reset/reload/wings/spoof acceptance pending. |
-| 9 | Provisional benchmark confidence | Keep provisional labels; calibrate with observations. Never invent Forever baselines. |
+| 9 | Provisional benchmark confidence | Existing `dungeon-calibration.ts` requires 20 crew/day samples, five independent crews, three days and matching build/timer convention; reports median/quartiles/exclusions. Real observations still needed. |
 | 10 | Distinct scores and ranking explanations | Existing score panels; review each surface for clear labels and acceptance. Current-v1 stays active. |
 | 11 | Retail depleted-key partial credit / affix treatment | Proposed scoring change requires explicit scoring review and real observations; not silently activated. |
 | 12 | EN/FR, Retail/Classic, two-PC tests | Owner can test both clients. Checklist below; no successful gameplay claim yet. |
-| 13 | Bounded prioritized communication | Bounded FIFO and drop counters added. Priority scheduling remains unimplemented; reordering chunk transfers needs design. |
+| 13 | Bounded prioritized communication | Implemented: 1,024 total slots, 16 reserved for explicit interactive packets; four interactive sends then a bulk turn. Ledger notices use the interactive lane. Snapshot/chunk traffic remains FIFO on the default lane. Tests cover reserve, ordering and fairness. |
 | 14 | Ledger retention/compaction | Needs safe replay/backup/restore design. No ledger history deleted as cleanup. |
-| 15 | Durable upload/retry/parser safeguards | Existing debounce/poll/retry; parser bounds added. Restart/disk-full/durable-retry acceptance pending. |
-| 16 | Edge rate limits/security headers | Static headers added locally; existing Worker controls require abuse/CSP/deployed verification. |
+| 15 | Durable upload/retry/parser safeguards | Added bounded streaming reads (32 MB) for guild/personal SavedVariables, normalized JSON and standings identity validation, including growth during reading. Oversized neighbor files now surface errors. Restart regression proves earlier and newer ledger entries recover after an offline failure. Existing PoE journal remains durable. Real disk-full/Windows acceptance pending. |
+| 16 | Edge rate limits/security headers | Implemented native Cloudflare limits: 120 API writes and 20 pairing starts per IP/minute, separate budgets, 429/Retry-After, fail-closed on limiter errors. Worker and preview URLs disabled in config; static headers included. Dry-run verifies bindings. Deployed verification pending. |
 | 17 | Private origin/tunnel or mutual TLS | Infrastructure review pending; no production networking change made. |
 | 18 | Canonical/hreflang/structured data/sitemaps | Existing canonical and creator JSON-LD; complete multilingual indexing audit pending. |
 | 19 | Accessibility/mobile/error states | Automated and hands-on website/companion review pending. |
@@ -138,3 +138,37 @@ and broader accessibility/mobile review remain pending.
 Raw local logs: `backups/8.0-final-tests.log`, `8.0-typecheck.log`, `8.0-eslint.log`,
 `8.0-site-build.log`, `8.0-store-link-tests.log`, `8.0-desktop-verification.json`.
 Nothing here substitutes for real gameplay or production deployment.
+
+## Continued hardening — 28 October
+
+PR #246's original head passed both Linux quality and Windows packaging CI jobs.
+The next pass adds the priority lane, bounded disk reads and native edge limits described
+above. The Worker dry run confirms both rate-limit bindings, and the rebuilt Windows ASAR
+and bundled engines match source. Cloudflare limits are approximate per location, not a
+global quota; independent bot authentication remains necessary. These changes are not deployed.
+
+The live bug inbox contains no open member bug reports. Three bot-error groups remain:
+an older expired Discord interaction, an older database-pool timeout, and a 7.5.1 raid
+signup with no linked character. The latter was reproduced from its exact throw site:
+the picker now shows bilingual linking instructions and returns without a signup, instead
+of throwing an exception. Both fresh and previously acknowledged interactions are tested.
+The error reports remain open pending deployment and live verification.
+
+Follow-up verification: **332 test files / 2,802 tests passed**, plus TypeScript,
+ESLint, both addon validators, Worker dry run and Windows package/source verification.
+Logs: `backups/8.0-rest-final-tests.log`, `8.0-rest-recovery-tests.log`,
+`8.0-signup-fix.log`, `8.0-rest-worker-build.log`, `8.0-rest-desktop-build.log`.
+The rebuilt test packages are in `dist/review-8.0-20261028/` with START-HERE.md.
+
+A process check found Battle.net and the existing companion, but no running WoW client.
+Retail/Classic hands-on testing therefore needs the owner to open and log into a client.
+No usable code-signing certificate was found in the current user's Windows certificate
+store. An external signing service/certificate may exist elsewhere; none was assumed.
+
+Explicitly unfinished engineering items remain: shared inbound-envelope consolidation,
+ledger compaction with retained replay/void protection, versioned Retail overtime scoring,
+private-origin migration, server-rendered French indexing, the full accessibility audit,
+and further Core.lua decomposition. They are not marked complete by passing existing tests.
+Do not publish 8.0 as complete while these accepted audit items remain unresolved, unless
+the owner explicitly changes the scope. Real gameplay, native translation review, calibration
+observations and Store certification also cannot be replaced by automated test results.

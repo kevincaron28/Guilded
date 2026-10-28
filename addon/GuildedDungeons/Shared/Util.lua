@@ -365,6 +365,7 @@ local comm = ns.comm or {}
 ns.comm = comm
 local BURST, PER_SECOND, MAX_TRIES = 8, 1, 5
 local MAX_QUEUED = 1024
+local INTERACTIVE_RESERVE = 16
 -- SendAddonMessage result codes (Enum.SendAddonMessageResult) that mean "try again".
 local THROTTLED = { [3] = true, [8] = true }
 local buckets = {}
@@ -412,14 +413,22 @@ end
 pump = function(prefix)
   local b = bucket(prefix)
   while b.queue[1] and b.tokens >= 1 do
-    local item = b.queue[1]
+    -- Only explicitly independent traffic may bypass bulk transfers. Keep FIFO
+    -- inside each lane, with one bulk packet after four interactive packets.
+    local index = 1
+    if (b.interactiveBurst or 0) < 4 then
+      for i, candidate in ipairs(b.queue) do if candidate.interactive then index = i break end end
+    else
+      for i, candidate in ipairs(b.queue) do if not candidate.interactive then index = i break end end
+    end
+    local item = b.queue[index]
     local allowed = true
     if item.guard then
       local ok, value = pcall(item.guard)
       allowed = ok and value == true
     end
     if not allowed then
-      table.remove(b.queue, 1)
+      table.remove(b.queue, index)
       b.results.cancelled = b.results.cancelled + 1
     else
       local status, code = rawSend(prefix, item.text, item.channel, item.target)
@@ -429,13 +438,14 @@ pump = function(prefix)
         b.tokens = 0
         item.tries = (item.tries or 0) + 1
         if item.tries >= MAX_TRIES then
-          table.remove(b.queue, 1)
+          table.remove(b.queue, index)
           b.results.abandoned = b.results.abandoned + 1
           diag("SEND", prefix .. ": gave up on a message after " .. MAX_TRIES .. " throttled tries")
         end
         break
       end
-      table.remove(b.queue, 1)
+      table.remove(b.queue, index)
+      b.interactiveBurst = item.interactive and ((b.interactiveBurst or 0) + 1) or 0
       b.tokens = b.tokens - 1
     end
   end
@@ -444,10 +454,11 @@ end
 
 -- Queues one message; it goes out at once when the prefix has room. Returns false when
 -- there is nowhere to send it, the payload exceeds the limit, or the queue is full.
--- Keep FIFO ordering: snapshot headers/chunks/end markers cannot overtake each other.
+-- FIFO within each lane: leave all snapshot headers/chunks/end markers on the
+-- default lane. Only independent, latency-sensitive messages opt into interactive.
 -- Optional guard is rechecked before every attempt, including throttled retries.
 -- A false result or error discards the packet without consuming a send token.
-function comm.send(prefix, text, channel, target, guard)
+function comm.send(prefix, text, channel, target, guard, priority)
   if not channel then return false end
   text = tostring(text)
   local b = bucket(prefix)
@@ -457,12 +468,12 @@ function comm.send(prefix, text, channel, target, guard)
     return false
   end
   pump(prefix)
-  if #b.queue >= MAX_QUEUED then
+  if #b.queue >= (priority == "interactive" and MAX_QUEUED or MAX_QUEUED - INTERACTIVE_RESERVE) then
     b.results.overflow = b.results.overflow + 1
     if b.results.overflow == 1 then diag("SEND", prefix .. ": message queue full; retry sync later") end
     return false
   end
-  table.insert(b.queue, { text = text, channel = channel, target = target, guard = guard })
+  table.insert(b.queue, { text = text, channel = channel, target = target, guard = guard, interactive = priority == "interactive" })
   pump(prefix)
   return true
 end

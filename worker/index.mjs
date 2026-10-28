@@ -98,6 +98,20 @@ export default {
     }
     const methods = api ? apiMethods.get(url.pathname) : web ? ["GET", "HEAD", "POST"] : ["GET", "HEAD"];
     if (!methods.includes(request.method)) return failure(405, "Method not allowed");
+    if (api && request.method === "POST") {
+      const pairing = /\/(?:addon-pairings|companion\/sign-in)$/.test(url.pathname);
+      const limiter = pairing ? env.PAIRING_ATTEMPTS : env.API_WRITES;
+      if (limiter) {
+        // Cloudflare supplies this header; caller-controlled forwarding headers
+        // and credentials must not let an attacker choose a fresh throttle key.
+        const key = request.headers.get("cf-connecting-ip") || "unknown";
+        try {
+          if (!(await limiter.limit({ key })).success) return new Response(JSON.stringify({ error: "Too many requests. Try again shortly." }), {
+            status: 429, headers: { "content-type": "application/json", "cache-control": "no-store", "retry-after": "60" }
+          });
+        } catch { return failure(503, "Request protection is temporarily unavailable. Try again shortly."); }
+      }
+    }
     const headers = new Headers();
     // content-encoding: compressed uploads; if-none-match: "nothing changed" standings answers.
     // Web pages: the session cookie, and Origin/Referer for the bot's CSRF check on form posts.

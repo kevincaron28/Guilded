@@ -121,12 +121,24 @@ describe("paced addon messages (ns.comm)", () => {
   });
   it("bounds a stalled queue without discarding or reordering earlier packets", () => {
     const s = loggedIn([]);
-    s.run(`SENT = {}; for i = 1, 1032 do NS.comm.send("QBound", "m" .. i, "GUILD") end`);
+    s.run(`SENT = {}; for i = 1, 1016 do NS.comm.send("QBound", "m" .. i, "GUILD") end`);
     expect(s.run('return tostring(NS.comm.send("QBound", "overflow", "GUILD"))')).toBe("false");
-    expect(s.run('return tostring(NS.comm.status("QBound").queued)')).toBe("1024");
+    expect(s.run('return tostring(NS.comm.status("QBound").queued)')).toBe("1008");
     expect(s.run('return tostring(NS.comm.status("QBound").overflow)')).toBe("1");
     s.run('GetTime = function() return 30 end; NS.comm.send("QBound", "later", "GUILD")');
     expect(s.run('return SENT[9].text')).toBe("m9");
+  });
+
+  it("reserves interactive capacity and keeps chunk order while preventing bulk starvation", () => {
+    const s = loggedIn([]);
+    s.run(`
+      SENT = {}; for i = 1, 1016 do NS.comm.send("QPriority", "chunk" .. i, "GUILD") end
+      for i = 1, 16 do NS.comm.send("QPriority", "control" .. i, "GUILD", nil, nil, "interactive") end
+    `);
+    expect(s.run('return tostring(NS.comm.pending("QPriority"))')).toBe("1024");
+    expect(s.run('return tostring(NS.comm.send("QPriority", "overflow", "GUILD", nil, nil, "interactive"))')).toBe("false");
+    s.run('GetTime = function() return 30 end; NS.comm.send("QPriority", "trigger", "GUILD")');
+    expect(s.run('return SENT[9].text .. "," .. SENT[12].text .. "," .. SENT[13].text .. "," .. SENT[14].text')).toBe('control1,control4,chunk9,control5');
   });
 
   it("distinguishes client acceptance, refusal and errors without retaining payloads", () => {

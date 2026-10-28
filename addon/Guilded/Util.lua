@@ -363,6 +363,7 @@ end
 local comm = ns.comm or {}
 ns.comm = comm
 local BURST, PER_SECOND, MAX_TRIES = 8, 1, 5
+local MAX_QUEUED = 1024
 -- SendAddonMessage result codes (Enum.SendAddonMessageResult) that mean "try again".
 local THROTTLED = { [3] = true, [8] = true }
 local buckets = {}
@@ -392,7 +393,7 @@ local function bucket(prefix)
   local b = buckets[prefix]
   local t = nowSeconds()
   if not b then
-    b = { tokens = BURST, at = t, queue = {}, results = { sent = 0, refused = 0, error = 0, throttled = 0 } }
+    b = { tokens = BURST, at = t, queue = {}, results = { sent = 0, refused = 0, error = 0, throttled = 0, oversized = 0, overflow = 0, abandoned = 0, cancelled = 0 } }
     buckets[prefix] = b
   end
   b.tokens = math.min(BURST, b.tokens + math.max(0, t - b.at) * PER_SECOND)
@@ -418,6 +419,7 @@ pump = function(prefix)
     end
     if not allowed then
       table.remove(b.queue, 1)
+      b.results.cancelled = b.results.cancelled + 1
     else
       local status, code = rawSend(prefix, item.text, item.channel, item.target)
       b.results[status] = b.results[status] + 1
@@ -427,6 +429,7 @@ pump = function(prefix)
         item.tries = (item.tries or 0) + 1
         if item.tries >= MAX_TRIES then
           table.remove(b.queue, 1)
+          b.results.abandoned = b.results.abandoned + 1
           diag("SEND", prefix .. ": gave up on a message after " .. MAX_TRIES .. " throttled tries")
         end
         break
@@ -439,17 +442,25 @@ pump = function(prefix)
 end
 
 -- Queues one message; it goes out at once when the prefix has room. Returns false when
--- there is nowhere to send it (no channel).
+-- there is nowhere to send it, the payload exceeds the limit, or the queue is full.
+-- Keep FIFO ordering: snapshot headers/chunks/end markers cannot overtake each other.
 -- Optional guard is rechecked before every attempt, including throttled retries.
 -- A false result or error discards the packet without consuming a send token.
 function comm.send(prefix, text, channel, target, guard)
   if not channel then return false end
   text = tostring(text)
-  if #text > MAX_ADDON_MESSAGE then
-    diag("SEND", string.format("%s: a %d-byte message was cut to %d", prefix, #text, MAX_ADDON_MESSAGE))
-    text = util.truncate(text, MAX_ADDON_MESSAGE)
-  end
   local b = bucket(prefix)
+  if #text > MAX_ADDON_MESSAGE then
+    b.results.oversized = b.results.oversized + 1
+    diag("SEND", string.format("%s: rejected a %d-byte message (limit %d)", prefix, #text, MAX_ADDON_MESSAGE))
+    return false
+  end
+  pump(prefix)
+  if #b.queue >= MAX_QUEUED then
+    b.results.overflow = b.results.overflow + 1
+    if b.results.overflow == 1 then diag("SEND", prefix .. ": message queue full; retry sync later") end
+    return false
+  end
   table.insert(b.queue, { text = text, channel = channel, target = target, guard = guard })
   pump(prefix)
   return true
@@ -468,6 +479,8 @@ function comm.status(prefix)
   return {
     sent = b and b.results.sent or 0, refused = b and b.results.refused or 0,
     errors = b and b.results.error or 0, throttled = b and b.results.throttled or 0,
+    oversized = b and b.results.oversized or 0, overflow = b and b.results.overflow or 0,
+    abandoned = b and b.results.abandoned or 0, cancelled = b and b.results.cancelled or 0,
     queued = b and #b.queue or 0, lastResult = b and b.lastResult or nil,
     lastCode = b and b.lastCode or nil
   }

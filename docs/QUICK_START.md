@@ -3,6 +3,10 @@
 **Start with the addon only (default).** The addon works alone; optional Discord synchronization adds a
 companion and either the approved hosted bot or your independently hosted bot.
 
+Optional automatic Windows syncing: [Guilded Companion on Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9)
+or the [standalone GitHub installer](https://github.com/kevincaron28/Guilded/releases/latest).
+Store installations update through Microsoft Store. Verify the version offered by the selected channel.
+
 **Want to add the existing Guilded bot? [Add the free hosted bot](HOSTED_PILOT.md).**
 Your server gets Guilded Lite right away; run `/setup start`. KCaron's approval unlocks
 addon sync, EP/GP and seasons, then members connect the online companion. No hosting

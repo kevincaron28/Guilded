@@ -1,6 +1,7 @@
 // Compile only repository-owned public guides. This does not publish or start a bot.
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, cpSync, existsSync, readdirSync } from "node:fs";
 import { dirname, posix } from "node:path";
+import { createHash } from "node:crypto";
 import { marked } from "marked";
 import { localizedHref, navLinks } from "../site/nav.mjs";
 
@@ -23,6 +24,10 @@ const guideDescriptions = {
 const sources = new Set(guides.map(name => `docs/${name}.md`));
 const out = "dist/site";
 mkdirSync(`${out}/docs`, { recursive: true });
+// The creator's static JSON-LD remains allowed without enabling arbitrary inline scripts.
+const structuredData = [...readFileSync("site/creator/index.html", "utf8").matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)];
+const hashes = structuredData.map(match => `'sha256-${createHash("sha256").update(match[1]).digest("base64")}'`).join(" ");
+writeFileSync(`${out}/_headers`, readFileSync("site/_headers", "utf8").replace("script-src 'self'", `script-src 'self' ${hashes}`));
 // Published provider versions are independent of a local candidate/package bump.
 const { guilded: publishedGuilded } = JSON.parse(readFileSync("site/releases.json", "utf8"));
 const version = publishedGuilded.github.version;

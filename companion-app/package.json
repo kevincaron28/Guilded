@@ -35,7 +35,8 @@
       "locales/**",
       "renderer/**",
       "assets/**",
-      "package.json"
+      "package.json",
+      "ipc-security.cjs"
     ],
     "extraResources": [
       {
@@ -65,7 +66,8 @@
           "personal-runs.mjs",
           "personal-runs-content.mjs",
           "sheet-export.mjs",
-          "live-folder.mjs"
+          "live-folder.mjs",
+          "revoke.mjs"
         ]
       },
       {

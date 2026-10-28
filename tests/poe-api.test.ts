@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { once } from "node:events";
-import { startCompanionApi, resetFailures } from "../src/companion-api.js";
+import { allowCompanionRevocation, startCompanionApi, resetFailures } from "../src/companion-api.js";
 import { hashCompanionSecret } from "../src/services/character-pairing.js";
 
 const db = vi.hoisted(() => ({
@@ -8,6 +8,7 @@ const db = vi.hoisted(() => ({
   guildSettings: { findUnique: vi.fn() },
   member: { findFirst: vi.fn() },
   companionCredential: { findFirst: vi.fn(), updateMany: vi.fn() },
+  webCompanionCredential: { updateMany: vi.fn() },
   poeMapVisit: { createMany: vi.fn(), findMany: vi.fn() },
   $transaction: vi.fn()
 }));
@@ -43,6 +44,13 @@ beforeEach(() => {
 const post = (payload: unknown, credential = secret) => fetch(`${address}/api/v1/poe/visits`, { method: "POST", headers: { "content-type": "application/json", "x-companion-credential": credential }, body: JSON.stringify(payload) });
 
 describe("PoE2 HTTP authentication and personal scope", () => {
+  it("limits revocation attempts before database access and recovers after one minute", async () => {
+    for (let attempt = 0; attempt < 30; attempt++) expect(allowCompanionRevocation('127.0.0.1')).toBe(true);
+    const response = await fetch(`${address}/api/v1/companion/logout`, { method: 'POST', headers: { 'x-companion-credential': secret } });
+    expect(response.status).toBe(429);
+    expect(db.companionCredential.updateMany).not.toHaveBeenCalled();
+    expect(allowCompanionRevocation('127.0.0.1', Date.now() + 60_001)).toBe(true);
+  });
   it("serves only public companion files with browser security headers", async () => {
     const response = await fetch(`${address}/companion/`);
     expect(response.status).toBe(200);
@@ -70,7 +78,17 @@ describe("PoE2 HTTP authentication and personal scope", () => {
   it("disconnects only the presented personal credential", async () => {
     const response = await fetch(`${address}/api/v1/companion/logout`, { method: "POST", headers: { "content-type": "application/json", "x-companion-credential": secret }, body: JSON.stringify({ guildDiscordId: "123" }) });
     expect(response.status).toBe(200);
-    expect(db.companionCredential.updateMany).toHaveBeenCalledWith({ where: { memberId: "owner", tokenHash: hashCompanionSecret(secret), revokedAt: null }, data: { revokedAt: expect.any(Date) } });
+    for (const table of [db.companionCredential, db.webCompanionCredential]) {
+      expect(table.updateMany).toHaveBeenCalledWith({ where: { tokenHash: hashCompanionSecret(secret), revokedAt: null }, data: { revokedAt: expect.any(Date) } });
+    }
+    // Revocation remains available when a member has left or approval was withdrawn.
+    expect(fetchMember).not.toHaveBeenCalled();
+  });
+  it("rejects missing logout credentials without touching either credential store", async () => {
+    const response = await fetch(`${address}/api/v1/companion/logout`, { method: "POST" });
+    expect(response.status).toBe(400);
+    expect(db.companionCredential.updateMany).not.toHaveBeenCalled();
+    expect(db.webCompanionCredential.updateMany).not.toHaveBeenCalled();
   });
   it("reports the feature setting through the authenticated status route", async () => {
     const response = await fetch(`${address}/api/v1/poe/status?guild=123`, { headers: { "x-companion-credential": secret } });

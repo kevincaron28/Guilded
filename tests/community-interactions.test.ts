@@ -5,17 +5,17 @@ const mocks = vi.hoisted(() => ({
   enterLottery: vi.fn(async () => ({ quantity: 3, status: "CONFIRMED" })), create: vi.fn(),
   activity: vi.fn(), season: vi.fn(), ensureGuild: vi.fn(async () => ({ id: "guild" })),
   settings: vi.fn(async () => ({ language: "fr", timezone: "America/Toronto" })),
-  dice: vi.fn(), priorDice: vi.fn()
+  dice: vi.fn(), priorDice: vi.fn(), board: vi.fn()
 }));
 vi.mock("../src/database.js", () => ({ prisma: { guild: { findFirst: async () => ({ id: "guild", discordId: "server", scopeKey: "default", gameEdition: "forever" }) }, communityActivity: { findFirst: mocks.activity }, communitySeason: { findFirst: mocks.season }, communityEntry: { findFirst: mocks.priorDice } } }));
 vi.mock("../src/commands/context.js", () => ({ guildService: { ensureGuild: mocks.ensureGuild, getSettings: mocks.settings }, requireGuildContext: vi.fn() }));
-vi.mock("../src/services/community.js", () => ({ createCommunityService: () => ({ enterLottery: mocks.enterLottery, create: mocks.create, dice: mocks.dice }) }));
+vi.mock("../src/services/community.js", () => ({ createCommunityService: () => ({ enterLottery: mocks.enterLottery, create: mocks.create, dice: mocks.dice, board: mocks.board }) }));
 
 import { handleCommunityButton, handleCommunityModal } from "../src/commands/community.js";
 import { diceReply, handleCommunityHub } from "../src/commands/community-hub.js";
 import { dispatchDiscordJob } from "../src/services/discord-jobs.js";
 
-const season = { id: "season", guildId: "guild", game: "DISCORD", status: "ACTIVE", channelId: "board", announcementChannelId: "activities", audienceRoleId: null };
+const season = { id: "season", name: "Season 1", guildId: "guild", game: "DISCORD", status: "ACTIVE", channelId: "board", announcementChannelId: "activities", audienceRoleId: null };
 const row = { id: "draw", season, postedChannelId: "activities", title: "Tirage", rules: { mode: "POINTS", cost: 10, prize: "Lot", currency: "points", realm: "", winners: 1, maxTickets: 5 } };
 const member = { user: { bot: false }, roles: { cache: new Collection() }, permissions: { has: () => false } };
 const channel = { permissionsFor: () => ({ has: () => true }) };
@@ -23,7 +23,7 @@ const channel = { permissionsFor: () => ({ has: () => true }) };
 function interaction(customId: string) {
   return {
     customId, channelId: "activities", user: { id: "actor" },
-    guild: { id: "discord", name: "Guild", members: { fetch: vi.fn(async () => member) }, channels: { fetch: vi.fn(async () => channel) } },
+    guild: { id: "discord", name: "Guild", members: { cache: new Collection(), fetch: vi.fn(async (id: string) => { void id; return member; }) }, channels: { fetch: vi.fn(async () => channel) } },
     deferReply: vi.fn(), editReply: vi.fn(), showModal: vi.fn(), fields: { getTextInputValue: vi.fn(() => "3") },
     isButton: () => false, isUserSelectMenu: () => false, isStringSelectMenu: () => false, isModalSubmit: () => true
   };
@@ -31,6 +31,18 @@ function interaction(customId: string) {
 beforeEach(() => { vi.clearAllMocks(); mocks.activity.mockResolvedValue(row); mocks.season.mockResolvedValue(season); });
 
 describe("persistent community interactions", () => {
+  it("renders full leaderboard names for readers with no Discord member cache", async () => {
+    mocks.board.mockResolvedValue([{ userId: "winner", points: 50, balance: 12 }]);
+    const button = interaction("community:hub-board:season");
+    button.isButton = () => true;
+    button.guild.members.fetch.mockImplementation(async id => id === "winner" ? { ...member, displayName: "Test Winner" } : member);
+    await handleCommunityHub(button as never);
+    const reply = button.editReply.mock.calls[0]![0];
+    expect(reply.content).toContain("Test Winner");
+    expect(reply.content).toContain("50 pts");
+    expect(reply.content).not.toContain("<@winner>");
+    expect(reply.allowedMentions).toEqual({ parse: [] });
+  });
   it.each([2, 5, 15])("displays the actual saved dice reward (%i), including legacy rounds", async points => {
     mocks.priorDice.mockResolvedValue({ id: "entry" });
     mocks.dice.mockResolvedValue({ evidence: points === 2 ? "10" : "95", awardedPoints: points });

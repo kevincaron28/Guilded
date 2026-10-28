@@ -1,5 +1,10 @@
 # Guilded Companion
 
+Install the Windows app from [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9)
+or [GitHub Releases](https://github.com/kevincaron28/Guilded/releases/latest).
+Store installations use Store updates and separate protected settings; close the standalone
+companion before switching. The commands below are for local development and CLI use.
+
 **Easiest: the desktop app** (`companion-app/`): a window with status, settings
 and an activity log, plus a tray icon (green = running, red = a problem, amber =
 setup needed). Closing the window keeps it running in the tray; it can start
@@ -79,7 +84,7 @@ when the bot supports it (`gzip-upload`, `ledger-delta`). See
 ## Personal mode: public dungeon leaderboards (7.0)
 
 No guild needed. In Connection & setup choose **Sign in with Discord**, then **Public dungeon
-leaderboards only** on the page that opens (7.2; nothing to type). Companions older than 7.2 use a
+leaderboards only** on the page that opens, after typing the code shown by your companion. Companions older than 7.2 use a
 code from https://guilded.kcaron.top/me/ instead (a personal code starts with `P`). Choose
 `GuildedDungeons.lua` or `Guilded.lua` as the saved-data file (online: the SavedVariables folder):
 the companion reads both from that folder, because with both addons installed Guilded records

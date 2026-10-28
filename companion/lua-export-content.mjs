@@ -4,6 +4,7 @@ import { editionMetadata, gameEditionOf } from "./game-edition.mjs";
 import { normalizeExportIdentities, characterReference } from "./character-identity.mjs";
 
 const iso = (epoch) => new Date(Number(epoch) * 1000).toISOString();
+export const MAX_SAVED_VARIABLE_CHARACTERS = 16_000_000;
 
 // "Alchemy:300,Mining:275" from a peer's digest. A part with no name or no number is dropped:
 // the text came from another player's addon and one bad part must not spoil the upload.
@@ -61,7 +62,11 @@ function evaluate(node) {
 // A SavedVariables table (GuildedDB by default; GuildedDungeonsDB for personal-runs.mjs). The
 // spreadsheet export reads it too.
 export function readDatabase(lua, name = "GuildedDB") {
-  const ast = luaparse.parse(lua.replace(/^\uFEFF/, ""));
+  if (typeof lua !== "string" || lua.length > MAX_SAVED_VARIABLE_CHARACTERS) throw new Error("SavedVariables exceeds the 16-million-character parsing limit. Keep your original file and ask an officer for help.");
+  let nodes = 0;
+  const ast = luaparse.parse(lua.replace(/^\uFEFF/, ""), { onCreateNode() {
+    if (++nodes > 500_000) throw new Error("SavedVariables contains too many Lua values. Keep your original file and ask an officer for help.");
+  } });
   const assignment = ast.body.find((statement) =>
     statement.type === "AssignmentStatement" &&
     statement.variables.some((variable) => variable.type === "Identifier" && variable.name === name)

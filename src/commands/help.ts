@@ -13,6 +13,7 @@ export const helpCommand = new SlashCommandBuilder()
 const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record<Lang, string[]>> = {
   everyone: {
     en: [
+      "Optional Windows companion: [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) · updates through the Store",
       "WoW: Forever, Era/Hardcore, TBC, Mists and Retail downloads at https://guilded.kcaron.top/#start. The addon works alone. `/character pair` links main/alts; `/character list` checks them. The optional companion uses **Sign in with Discord**, one connection profile per guild/edition",
       "`/wow list` · `/wow use` — choose your guild; channel bindings take priority. Keep Forever first/last names and Blizzard realms from the addon",
       "`/character add` — link a character by hand, or `/character import` — paste the line `/guilded character` shows, or the code from `/guilded share`",
@@ -34,6 +35,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/poe status` · `/poe pair` · `/poe runs` · `/poe summary` — PoE2 companion mapping journal"
     ],
     fr: [
+      "Compagnon Windows facultatif : [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) · mises à jour par le Store",
       "WoW : téléchargements Forever, Era/Hardcore, TBC, Mists et Retail sur https://guilded.kcaron.top/#start. L'addon fonctionne seul. `/character pair` lie principal/alts; `/character list` les affiche. Le compagnon facultatif utilise **Sign in with Discord**, un profil par guilde/édition",
       "`/wow list` · `/wow use` — choisir sa guilde; les salons associés ont priorité. Gardez les prénoms/noms Forever et les royaumes Blizzard de l'addon",
       "`/character add` — liez un personnage manuellement, ou `/character import` — collez la ligne de `/guilded character`, ou le code de `/guilded share`",

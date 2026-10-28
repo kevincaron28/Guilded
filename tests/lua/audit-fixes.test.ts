@@ -111,12 +111,22 @@ describe("paced addon messages (ns.comm)", () => {
     expect(s.run("return SENT[1].text .. ',' .. SENT[2].text")).toBe("first,second");
   });
 
-  it("cuts an over-long message and notes it quietly in the diagnostics", () => {
+  it("rejects over-long messages instead of sending a corrupted partial packet", () => {
     const s = loggedIn([]);
     s.run(`SENT = {}; NS.comm.send("QLong", string.rep("x", 300), "GUILD")`);
-    expect(s.run("return tostring(#SENT[1].text)")).toBe("255");
+    expect(s.run("return tostring(#SENT)")).toBe("0");
+    expect(s.run('return tostring(NS.comm.status("QLong").oversized)')).toBe("1");
     expect(s.run("local d = GuildedDB.diagnostics; return d[#d].kind")).toBe("SEND");
     expect(s.chat().join("\n")).not.toContain("[Diagnostic] SEND");
+  });
+  it("bounds a stalled queue without discarding or reordering earlier packets", () => {
+    const s = loggedIn([]);
+    s.run(`SENT = {}; for i = 1, 1032 do NS.comm.send("QBound", "m" .. i, "GUILD") end`);
+    expect(s.run('return tostring(NS.comm.send("QBound", "overflow", "GUILD"))')).toBe("false");
+    expect(s.run('return tostring(NS.comm.status("QBound").queued)')).toBe("1024");
+    expect(s.run('return tostring(NS.comm.status("QBound").overflow)')).toBe("1");
+    s.run('GetTime = function() return 30 end; NS.comm.send("QBound", "later", "GUILD")');
+    expect(s.run('return SENT[9].text')).toBe("m9");
   });
 
   it("distinguishes client acceptance, refusal and errors without retaining payloads", () => {

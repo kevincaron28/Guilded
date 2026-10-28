@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { EventEmitter } from "node:events";
@@ -14,15 +15,21 @@ function harness(latest: unknown, locale = 'en', windowsStore = false) {
   const updates = { ...realUpdates, fetchLatestRelease: vi.fn(async () => latest), downloadInstaller: vi.fn(), launchInstaller: vi.fn() };
   const quit = vi.fn();
   const timers = vi.fn();
+  const frame = { url: new URL("../companion-app/renderer/index.html", import.meta.url).href };
+  const contents = { mainFrame: frame, send: vi.fn() };
+  const event = { sender: contents, senderFrame: frame };
   const context = {
+    ipcTestContents: contents,
     require: (id: string) => id === "electron" ? {
       app: { requestSingleInstanceLock: () => true, whenReady: () => new Promise(() => {}), on: vi.fn(), getVersion: () => "7.2.0", getLocale: () => locale, getPath: () => "C:/fake", setPath: vi.fn(), quit },
-      ipcMain: { handle: (name: string, callback: () => Promise<{ ok: boolean }>) => handlers.set(name, callback) },
+      ipcMain: { handle: (name: string, callback: () => Promise<{ ok: boolean }>) => handlers.set(name, () => (callback as (...args: unknown[]) => Promise<{ ok: boolean }>)(event)) },
       shell: { openExternal }, Notification: { isSupported: () => false }
-    } : id === "./store-config.cjs" ? require("../companion-app/store-config.cjs") : id === "./i18n.cjs" ? i18n : id === "./update-check.cjs" ? updates : id === "./detect-wow.cjs" ? {} : id === "node:fs" ? { mkdirSync: vi.fn(), writeFileSync: vi.fn() } : require(id),
-    process: { argv: [], windowsStore }, __dirname: "C:/fake", setTimeout: timers, setInterval: vi.fn(), console
+    } : id === "./ipc-security.cjs" ? require("../companion-app/ipc-security.cjs") : id === "./store-config.cjs" ? require("../companion-app/store-config.cjs") : id === "./i18n.cjs" ? i18n : id === "./update-check.cjs" ? updates : id === "./detect-wow.cjs" ? {} : id === "node:fs" ? { mkdirSync: vi.fn(), writeFileSync: vi.fn() } : require(id),
+    process: { argv: [], windowsStore }, __dirname: fileURLToPath(new URL("../companion-app/", import.meta.url)), setTimeout: timers, setInterval: vi.fn(), console
   };
   runInNewContext(readFileSync("companion-app/main.cjs", "utf8") + `
+    win = { webContents: ipcTestContents };
+    storeConfig = { write: async () => {}, flush: async () => {} };
     engineModules = { validateConfig: () => [] };
     engine = { state: () => ({ botVersion: "7.3.0", running: true }) };
     refreshUpdate();

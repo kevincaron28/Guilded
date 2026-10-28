@@ -1,5 +1,12 @@
 # Guilded Companion — Microsoft Store preparation
 
+**Current, 28 October 2026:** the [public Store listing](https://apps.microsoft.com/detail/9N680XX3QFL9)
+is live with Download and View in Store controls (publisher Kcaron). The public page was
+verified directly; this does not establish which package version it currently delivers.
+The submission/draft notes below describe the original 26 October preparation.
+Use [the 8.0 Store update checklist and bilingual notes](store-submission/V8_0_UPDATE.md)
+for the next release. No 8.0 package has been submitted or approved yet.
+
 Owner decision, 26 October 2026: retain PolyForm Noncommercial 1.0.0 and prepare
 Microsoft Store distribution. No SignPath enrollment or relicensing is planned.
 

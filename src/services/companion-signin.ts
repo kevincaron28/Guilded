@@ -4,9 +4,9 @@ import type { WebRoute } from "./web-app.js";
 import { escapeHtml, link } from "./web-layout.js";
 import type { WebAccountView } from "./web-store.js";
 
-// "Sign in with Discord" for the companion (7.2): no code to copy. The companion asks for a
+// The companion asks for a
 // sign-in request, opens /me/companion?request=… in a browser, and asks again every few seconds.
-// On that page the signed-in member checks the short code their companion shows and chooses a
+// On that page the signed-in member types the short code their companion shows and chooses a
 // server (or the public leaderboards); the next poll then returns the same answer a pairing code
 // would. Requests live 10 minutes in memory: a bot restart only means signing in again.
 
@@ -18,7 +18,7 @@ const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 /** What the companion receives: the same fields as POST /api/v1/addon-pairings. */
 export type SignInGrant = { companionCredential: string; personal: true } | { companionCredential: string; personal?: false; guildDiscordId: string; wowGuildId?: string; gameEdition?: string; wowGuildName?: string };
 
-interface Pending { confirm: string; expiresAt: number; grant: SignInGrant | null }
+interface Pending { confirm: string; expiresAt: number; grant: SignInGrant | null; approving?: boolean; failures?: number }
 
 export function confirmCode(bytes = randomBytes(6)): string {
   const letters = [...bytes].map((byte) => LETTERS[byte % LETTERS.length]).join("");
@@ -50,19 +50,33 @@ export function createCompanionSignIn(options: { now?: () => number } = {}) {
       pending.set(hashCompanionSecret(requestId), { confirm, expiresAt, grant: null });
       return { requestId, confirm, expiresAt: new Date(expiresAt) };
     },
-    /** The code the approval page shows, while the request is still open. */
+    /** Internal code lookup; never render this code on the approval page. */
     confirmFor(requestId: unknown): string | null {
       const entry = find(requestId);
-      return entry && !entry.grant ? entry.confirm : null;
+      return entry && !entry.grant && !entry.approving ? entry.confirm : null;
     },
     /** True when the typed code matches the one the companion shows (case and hyphen ignored). */
     verifyConfirm(requestId: unknown, typed: unknown): boolean {
       const entry = find(requestId);
-      if (!entry || entry.grant || typeof typed !== "string") return false;
-      const clean = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, "");
-      const a = Buffer.from(clean(typed));
+      if (!entry || entry.grant || entry.approving) return false;
+      const valid = typeof typed === "string" && /^[A-Za-z0-9]{3}-?[A-Za-z0-9]{3}$/.test(typed);
+      const clean = (value: string) => value.toUpperCase().replace("-", "");
+      const a = Buffer.from(valid ? clean(typed) : "");
       const b = Buffer.from(clean(entry.confirm));
-      return a.length === b.length && timingSafeEqual(a, b);
+      if (a.length === b.length && timingSafeEqual(a, b)) return true;
+      entry.failures = (entry.failures ?? 0) + 1;
+      if (entry.failures >= 5) pending.delete(hashCompanionSecret(requestId as string));
+      return false;
+    },
+    beginApproval(requestId: unknown): boolean {
+      const entry = find(requestId);
+      if (!entry || entry.grant || entry.approving) return false;
+      entry.approving = true;
+      return true;
+    },
+    endApproval(requestId: unknown): void {
+      const entry = find(requestId);
+      if (entry) entry.approving = false;
     },
     /** Stores the answer for the companion. Only once per request. */
     approve(requestId: unknown, grant: SignInGrant): boolean {
@@ -114,6 +128,8 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
         return kit.page(400, title, `<h1>${t("The code does not match", "Le code ne correspond pas")}</h1><p>${t("Type the code shown on your own companion.", "Tapez le code affiché sur votre propre compagnon.")}</p><p><a href="${link("/me/companion", lang, { request: requestId })}">${t("Go back and try again", "Revenir et réessayer")}</a></p>`, { noindex: true });
       }
       const choice = ctx.form?.get("choice") ?? "";
+      if (!deps.signIn.beginApproval(requestId)) return kit.page(410, title, `<h1>${t("This sign-in expired", "Cette connexion a expiré")}</h1>`, { noindex: true });
+      try {
       let grant: SignInGrant | null = null;
       const selected = servers.find(server => (server.wowGuildId ?? server.discordId) === choice);
       if (choice === "personal") grant = { companionCredential: await deps.issuePersonal(ctx.account.id), personal: true };
@@ -126,6 +142,7 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
       if (!deps.signIn.approve(requestId, grant)) return kit.page(410, title, `<h1>${t("This sign-in expired", "Cette connexion a expiré")}</h1><p>${t("Go back to your companion and choose Sign in with Discord again.", "Revenez au compagnon et choisissez de nouveau Connexion avec Discord.")}</p>`, { noindex: true });
       const where = grant.personal ? t("the public dungeon leaderboards", "les classements publics des donjons") : escapeHtml(selected?.name ?? "");
       return kit.page(200, title, `<p class="eyebrow">${t("Guilded companion", "Compagnon Guilded")}</p><h1>${t("Companion connected", "Compagnon relié")}</h1><p>${t("Your companion is now linked to", "Votre compagnon est maintenant relié à")} <strong>${where}</strong>. ${t("You can close this tab and go back to the companion.", "Vous pouvez fermer cet onglet et revenir au compagnon.")}</p>`, { noindex: true });
+      } finally { deps.signIn.endApproval(requestId); }
     }
     const radio = (value: string, label: string, hint: string, checked: boolean) =>
       `<label class="choice"><input type="radio" name="choice" value="${escapeHtml(value)}"${checked ? " checked" : ""}> <strong>${label}</strong><br><span class="muted">${hint}</span></label>`;

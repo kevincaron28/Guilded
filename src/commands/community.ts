@@ -17,6 +17,7 @@ import { accessibleCommunityActivities, assertCommunityChannelAudience, communit
 import { communityActivityChannel, communityMonthName, communitySeasonLabel, communityStatusLabel } from "../services/community-display.js";
 import { communityHubReply, diceReply, validateCommunityDestination } from "./community-hub.js";
 import { communityHonorsHistory, configureCommunityHonors, discordNames, honorsHistoryMessage, previewCommunityHonors, runCommunityHonors, weekMode } from "../services/community-honors.js";
+import { communityRankingLines } from "../services/community-ranking-display.js";
 export { canAccessCommunity };
 
 const service = createCommunityService(prisma);
@@ -196,7 +197,7 @@ export async function executeCommunity(interaction: ChatInputCommandInteraction)
       const pages = Math.max(1, Math.ceil(board.length / 10));
       const page = Math.min(interaction.options.getInteger("page") ?? 1, pages);
       const top = board.slice((page - 1) * 10, page * 10);
-      content = `🏆 **${communitySeasonLabel(current!, lang)}** · ${communityGameLabel(current!.game, lang)}\n` + (top.map(item => `${1 + board.filter(other => other.points > item.points).length}. <@${item.userId}> · ${item.points} points`).join("\n") || say(lang, "No points yet.", "Aucun point pour le moment.")) + `\nPage ${page}/${pages}`;
+      content = `🏆 **${communitySeasonLabel(current!, lang)}** · ${communityGameLabel(current!.game, lang)}\n` + await communityRankingLines(prisma, guild, context.guildId, board, top, lang) + `\nPage ${page}/${pages}`;
     } else {
       const mine = board.find(item => item.userId === actor);
       const history = await prisma.communityPoint.findMany({ where: { seasonId: current!.id, userId: actor }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 10 });

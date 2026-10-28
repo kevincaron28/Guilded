@@ -3,7 +3,7 @@ import { defineConfig } from "eslint/config";
 import tseslint from "typescript-eslint";
 
 export default defineConfig(
-  { ignores: ["companion-app/**", "dist/**", "node_modules/**", "backups/**", ".claude/**", "src/generated/**"] },
+  { ignores: ["companion-app/**", "dist/**", "node_modules/**", "backups/**", ".claude/**", ".wrangler/**", "src/generated/**"] },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   { files: ["worker/**/*.mjs"], languageOptions: { globals: { Request: "readonly", Response: "readonly", Headers: "readonly" } } },

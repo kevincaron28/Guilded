@@ -1,12 +1,21 @@
 # Guilded Companion — Microsoft Store preparation
 
 **Current, 28 October 2026:** the [Store listing](https://apps.microsoft.com/detail/9N680XX3QFL9)
-published 8.0.0.0. The actual Store package was installed and activated on this PC;
+published 8.0.1.0 through Submission 3. The actual Store package was installed,
+upgraded from 8.0.0.0 and activated on this PC;
 Windows reports Store signing and status OK, and its cryptographic signature and
-certificate chain passed verification. See [8.0 publication](V8_0_RELEASE_EVIDENCE_2026-10-28.md)
+certificate chain passed verification. The installed application archive matches
+the submitted build, the encrypted profile is unchanged, and the real Setup
+window displays Version 8.0.1. See [8.0 publication](V8_0_RELEASE_EVIDENCE_2026-10-28.md)
 and [8.0.1 launch completion](V8_0_1_LAUNCH_COMPLETION.md). The original preparation
 and submission checkpoints below are historical. Store signing is the owner's
 chosen free Windows distribution method; the optional GitHub EXE is separately unsigned.
+
+On this PC WinGet did not initially offer the published update. The installed
+Microsoft Store CLI found and applied it by name:
+`store update "Guilded Companion" --apply true`. This is a Store-managed update,
+not sideloading or installing a new trust certificate. Verify the installed Appx
+version/signature afterwards; CLI download progress alone is not an install pass.
 
 Owner decision, 26 October 2026: retain PolyForm Noncommercial 1.0.0 and prepare
 Microsoft Store distribution. No SignPath enrollment or relicensing is planned.

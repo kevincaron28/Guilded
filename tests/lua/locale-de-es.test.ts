@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { newLuaSession, type LuaSession } from "./harness.js";
-import { fromCsv, luaDecode, luaEncode, readTable, toCsv, writeBlock } from "../../scripts/addon-locale.mjs";
+import { fromCsv, luaDecode, luaEncode, readTable, toCsv, writeBlock, formatSlots } from "../../scripts/addon-locale.mjs";
+import { readFileSync } from "node:fs";
 
 // German and Spanish (7.4): chosen from the game client or /guilded lang, English for anything
 // not translated yet. Translators edit a CSV; scripts/addon-locale.mjs writes the escaped Lua.
@@ -20,6 +21,29 @@ function locale(client: string, chosen?: string): LuaSession {
 }
 
 describe("German and Spanish in the addon", () => {
+  it("covers the full catalogue and preserves formatting, named fields and links", () => {
+    const source = readFileSync("addon/Guilded/Locale.lua", "utf8");
+    const reference = readTable(source, "FR");
+    expect(reference.size).toBeGreaterThanOrEqual(1010);
+    const protectedTokens = (text: string) => text.match(/\{(?:guild|name)\}|\|c[\da-fA-F]{8}|\|r|https?:\/\/[^\s]+/g) ?? [];
+    for (const lang of ["FR", "DE", "ES"]) {
+      const entries = readTable(source, lang);
+      for (const key of reference.keys()) expect(entries.get(key)?.trim(), `${lang}: ${key}`).toBeTruthy();
+      for (const [key, value] of entries) {
+        expect(formatSlots(value), `${lang}: ${key}`).toEqual(formatSlots(key));
+        expect(protectedTokens(value).sort(), `${lang}: ${key}`).toEqual(protectedTokens(key).sort());
+      }
+    }
+    expect(formatSlots("%d:%02d / %.2f / %d%% / %-12s")).toEqual(["%d", "%02d", "%.2f", "%d", "%%", "%-12s"]);
+    expect(formatSlots("80% de presencia")).toEqual([]);
+  });
+
+  it.each(["deDE", "esES", "esMX"])("formats timer, ledger and roster messages on %s", client => {
+    const s = locale(client);
+    expect(s.run(`return string.format(NS.L("Trade: %s -> %s: %s (%d:%02d left)"), "Ann", "Bob", "Sword", 1, 5)`)).toContain("1:05");
+    expect(s.run(`return NS.L("Roster changed; recovery would overwrite newer data.")`)).not.toBe("Roster changed; recovery would overwrite newer data.");
+    expect(s.run(`return NS.L("GRM confirmation: IMPORT. Recovery: UNDO IMPORT. Archives stay on this character; no guild notes are changed.")`)).toContain("UNDO IMPORT");
+  });
   it("follows a German or Spanish game client, with English for untranslated text", () => {
     const de = locale("deDE");
     expect(de.run(`return NS.language()`)).toBe("de");

@@ -1,5 +1,14 @@
 # Changelog
 
+## 8.0.1 — 28 October 2026
+
+Complete German and Spanish addon translations, including calendar, loot, roster,
+GRM, privacy and error messages. French wording/accents and missing labels are
+reviewed; formatting-slot guards cover padded timers and all language catalogues.
+Store-signed Windows installation and certificate-chain verification are recorded.
+Existing protocol, data, scores and permissions are preserved.
+See [release notes](docs/V8_0_1_RELEASE_NOTES.md).
+
 ## 8.0.0 — 28 October 2026
 
 Security and reliability hardening, lossless ledger storage compaction, shared inbound

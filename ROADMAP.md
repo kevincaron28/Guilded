@@ -4,7 +4,9 @@
 
 ## Current stage — 28 October 2026
 
-Guilded **8.0.0 Release** (protocol 2): security, reliability, ledger storage compaction, versioned Retail overtime scoring, origin isolation, French indexing, accessibility and Core presentation extraction. See [8.0 readiness](docs/V8_0_LAUNCH_READINESS.md) for publication gates and the owner's testing waiver.
+Guilded **8.0.1 Release preparation** (protocol 2): full German/Spanish addon catalogue and reviewed language layouts. See [launch completion](docs/V8_0_1_LAUNCH_COMPLETION.md).
+
+Published baseline: 8.0.0: security, reliability, ledger storage compaction, versioned Retail overtime scoring, origin isolation, French indexing, accessibility and Core presentation extraction. See [8.0 readiness](docs/V8_0_LAUNCH_READINESS.md) for publication gates and the owner's testing waiver.
 
 Previous published 7.5.1: loot rules follow the original EPGP/soft-reserve rules, guild directory and player search, and Codex's dungeon evidence work (Season 1 stays on current-v1).
 Previous: 7.5.0, combining the release-gap bundle and Claude’s raid/interaction fixes.

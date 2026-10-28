@@ -26,7 +26,7 @@ What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 - **Optional Windows companion:** install [Guilded Companion from Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9), or use the standalone installer from [GitHub Releases](https://github.com/kevincaron28/Guilded/releases/latest). Store installations update through Microsoft Store. Check the version offered by each channel.
 - **Want an AI to guide you:** copy a [setup or troubleshooting prompt](docs/AI_SETUP_HELP.md).
 
-**Current version: 8.0.0 Release** (28 October 2026, protocol 2). [Release notes](docs/V8_0_0_RELEASE_NOTES.md). Publication status: [launch readiness](docs/V8_0_LAUNCH_READINESS.md).
+**Current version: 8.0.1 Release** (28 October 2026, protocol 2). [Release notes](docs/V8_0_0_RELEASE_NOTES.md). Publication status: [launch readiness](docs/V8_0_LAUNCH_READINESS.md).
 Supports Forever, Classic Era/Hardcore, TBC Anniversary, Mists Classic and Retail
 across the addon, Discord bot and companion, including several guilds in one Discord.
 Use the edition-specific ZIP from [GitHub Releases](https://github.com/kevincaron28/Guilded/releases/latest).

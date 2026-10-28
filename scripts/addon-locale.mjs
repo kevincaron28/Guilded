@@ -13,6 +13,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const LANGUAGES = { de: "DE", es: "ES" };
+// Lua printf slots, including padded integer timers (%02d), precision and %%.
+// A literal "80% presence" must not become an interpolation slot.
+export const formatSlots = text => text.match(/%(?:%|[-+#0]*\d*(?:\.\d+)?[cdiouxXeEfgGqs])/g) ?? [];
 const repo = join(dirname(fileURLToPath(import.meta.url)), "..");
 const localePath = join(repo, "addon", "Guilded", "Locale.lua");
 
@@ -123,8 +126,8 @@ function main([command, lang, file]) {
     if (header[0] !== "english" || column < 0) throw new Error(`The CSV needs an "english" first column and a "${lang}" column.`);
     const translations = new Map(rows.map((row) => [row[0], row[column] ?? ""]));
     for (const [key, text] of translations) {
-      const placeholders = (value) => (value.match(/%[sd%]|%\.\d+f|%-?\d*s/g) ?? []).join(" ");
-      if (text.trim() && placeholders(key) !== placeholders(text)) throw new Error(`Placeholders differ for "${key}": "${text}". Keep %s / %d in the same order.`);
+      if (!reference.has(key)) throw new Error(`Unknown English key: "${key}". Export a fresh catalogue before importing.`);
+      if (text.trim() && JSON.stringify(formatSlots(key)) !== JSON.stringify(formatSlots(text))) throw new Error(`Placeholders differ for "${key}": "${text}". Keep formatting slots in the same order.`);
     }
     writeFileSync(localePath, writeBlock(source, table, translations));
     console.log(`Imported ${[...translations.values()].filter((t) => t.trim()).length} ${lang} strings. Now run npm run dungeons:sync and the tests.`);

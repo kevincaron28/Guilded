@@ -12,12 +12,12 @@ import { coreChannelLanguage, createCoreChannels, renameCoreDiscord } from "../s
 import { pricesModal } from "./core-wizard.js";
 import { guildService } from "./context.js";
 import { editCoreSchedule, editCoreComposition } from "./core-planning.js";
-import { asLootMode, effectiveRules, LOOT_MODES } from "../services/core-rules.js";
+import { asLootMode, effectiveRules, LOOT_MODE_LABEL_FR, LOOT_MODES } from "../services/core-rules.js";
 import { pickSignupCharacter } from "./signup-character-picker.js";
 import { checkCoreAccess } from "./core-access.js";
 import { characterName } from "../services/character-display.js";
 
-export const CORE_LOOT_LABEL = { EPGP: "Enchères en GP", COUNCIL: "Conseil de butin", RESERVE: "Réservations souples", PRIORITY: "Priorité EPGP — prix fixes" };
+export const CORE_LOOT_LABEL = LOOT_MODE_LABEL_FR;
 
 // /core edit: change a raid core by clicking.
 //   • pick how to add (Tank / Healer / DPS, on the main roster or the bench), then pick the players:

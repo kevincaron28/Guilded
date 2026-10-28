@@ -28,8 +28,8 @@ describe("standalone public score snapshots", () => {
     expect(JSON.stringify(board)).not.toContain("Other");
   });
 
-  it("loads the shipped standalone toc and shows companion roles/scenarios without a guild", () => {
-    const board = publicAddonBoard([run("TANK")], me, periods, now)!;
+  it.each(["TANK", "DPS", "DAMAGER"])("loads the shipped standalone toc and shows %s roles/scenarios without a guild", (role) => {
+    const board = publicAddonBoard([run(role)], me, periods, now)!;
     const lua = newLuaSession();
     try {
       lua.run('NS={}; GuildedDungeonsDB=nil; function IsInGuild() return false end; function UnitLevel() return 20 end; C_AddOns={IsAddOnLoaded=function() return false end}');
@@ -38,7 +38,7 @@ describe("standalone public score snapshots", () => {
           : readFileSync(new URL(`../addon/GuildedDungeons/${file}`, import.meta.url), "utf8");
         lua.run(`loadaddon("GuildedDungeons", [=====[${source}]=====], NS)`);
       }
-      lua.run('fire_event("PLAYER_LOGIN"); M=NS.dungeonScorePanel.model("Tester",1,"15-29","month","TANK")');
+      lua.run(`fire_event("PLAYER_LOGIN"); M=NS.dungeonScorePanel.model("Tester",1,"15-29","month",${JSON.stringify(role)})`);
       expect(lua.run('return M.total')).toBe("200");
       expect(lua.run('return NS.scores.scoreOf("Tester",20)')).toBe("200");
       expect(lua.run('return tostring(NS.scores.scoreOf("Stranger",20))')).toBe("nil");

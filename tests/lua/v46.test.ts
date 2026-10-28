@@ -172,14 +172,18 @@ const reserve = (s: LuaSession, line: string) => s.run(`${words(line)}; NS.comma
 describe("SR+ (soft reserve bonus)", () => {
   it("adds 10 for every week the same item was reserved and not won, and uses it in the roll", () => {
     const s = withReserve();
+    s.run("NOW = 1800000000; function GetServerTime() return NOW end");
+    const nextWeek = () => s.run("NOW = NOW + 7 * 86400");
     reserve(s, "open 1");
     reserve(s, `add Ann ${SWORD}`);
     reserve(s, `add Bob ${SWORD}`);
-    reserve(s, "clear");                  // week 1 over: neither got it
-    reserve(s, "open 1");                 // opening right after a clear counts nothing again
+    reserve(s, "clear");                  // the raid is over: neither got it
+    nextWeek();
+    reserve(s, "open 1");                 // week 1 is over; opening right after a clear counts it once
     expect(s.run("return NS.reserve.plusFor('Ann', 19364)")).toBe("10");
     reserve(s, `add Ann ${SWORD}`);       // Ann reserves it again, Bob does not
     reserve(s, `add Cy ${SWORD}`);
+    nextWeek();
     reserve(s, "open 1");                 // week 2 over
     expect(s.run("return NS.reserve.plusFor('Ann', 19364) .. ':' .. NS.reserve.plusFor('Bob', 19364) .. ':' .. NS.reserve.plusFor('Cy', 19364)")).toBe("20:0:10");
     reserve(s, `add Ann ${SWORD}`);
@@ -281,17 +285,18 @@ describe("Loot.lua 4.6", () => {
     expect(s.run("return NS.loot.offspecPercent() .. ':' .. NS.loot.minEp()")).toBe("50:0");
   });
 
-  it("suggests a GP price from the item level and slot", () => {
+  it("suggests a GP price with the Classic EPGP formula: 4.83 x 2^(ilvl/26 + quality - 4) x slot", () => {
     const s = withLoot();
-    const gp = (level: number, slot: string, quality = 4) => Number(s.run(`return NS.loot.suggestGp(${level}, "${slot}", ${quality})`));
-    expect(gp(66, "INVTYPE_CHEST")).toBeGreaterThan(50);
-    expect(gp(66, "INVTYPE_CHEST")).toBeLessThan(100);
-    expect(gp(78, "INVTYPE_CHEST")).toBe(100);
-    expect(gp(104, "INVTYPE_CHEST")).toBe(200); // doubles every 26 item levels
-    expect(gp(66, "INVTYPE_FINGER")).toBeLessThan(gp(66, "INVTYPE_CHEST"));
-    expect(gp(66, "INVTYPE_2HWEAPON")).toBeGreaterThan(gp(66, "INVTYPE_CHEST"));
-    expect(gp(66, "INVTYPE_CHEST", 3)).toBeLessThan(gp(66, "INVTYPE_CHEST"));
-    expect(gp(700, "INVTYPE_2HWEAPON")).toBe(5000);
+    const gp = (level: number, slot: string, quality = 4, subclass = 0) => Number(s.run(`return NS.loot.suggestGp(${level}, "${slot}", ${quality}, ${subclass})`));
+    expect(gp(78, "INVTYPE_CHEST")).toBe(38); // 4.83 x 2^3
+    expect(gp(104, "INVTYPE_CHEST")).toBe(77); // doubles every 26 item levels
+    expect(gp(78, "INVTYPE_FINGER")).toBe(19); // neck, wrist, ring, cloak and off-hand weigh 0.5
+    expect(gp(78, "INVTYPE_2HWEAPON")).toBe(77);
+    expect(gp(78, "INVTYPE_CHEST", 3)).toBe(19); // a rare item costs half
+    expect(gp(78, "INVTYPE_2HWEAPON", 5)).toBe(154); // a legendary twice
+    expect(gp(78, "INVTYPE_RANGED")).toBe(77); // a hunter's bow
+    expect(gp(78, "INVTYPE_RANGEDRIGHT", 4, 19)).toBe(19); // a wand
+    expect(gp(700, "INVTYPE_2HWEAPON")).toBe(100000);
     expect(s.run(`return tostring(NS.loot.suggestGp(nil, "INVTYPE_CHEST"))`)).toBe("nil");
   });
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 7.5.1 — 27 October 2026
+
+Loot follows the original rules (EPGP priority floor, decay rounding up and reaching every balance,
+reversal floor, full standby EP, minimum-EP bid order, weekly SR+), the guild page shows the same loot
+text as Discord, a Guilds directory and player search on the website, Codex's dungeon evidence and
+award reconciliation (Season 1 stays on current-v1) and a private preview for `/report bug`.
+See [release notes](docs/V7_5_1_RELEASE_NOTES.md).
+
 ## 7.5.0 — 26 October 2026 (release candidate)
 
 Audited web main/alt changes, evidence-based roster participation, opt-in availability,

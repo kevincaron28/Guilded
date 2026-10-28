@@ -55,8 +55,9 @@ export async function computeRaidEpProposal(database: Db, guildId: string, raidI
       memberId: row.memberId,
       name: row.member.displayName,
       status: row.status as "PRESENT" | "LATE" | "BENCHED",
-      // Bench credit: the attendance EP only, no boss or full-clear EP.
-      ep: row.status === "BENCHED" ? presentEp : (row.status === "PRESENT" ? presentEp : lateEp) + bossesKilled * perBoss + completionBonus
+      // Bench (standby) credit: the same EP as a player present all raid, as in EPGP, whose
+      // standby players get 100% of each award by default.
+      ep: (row.status === "LATE" ? lateEp : presentEp) + bossesKilled * perBoss + completionBonus
     }))
     .filter((row) => row.ep > 0)
     .sort((a, b) => b.ep - a.ep || a.name.localeCompare(b.name));

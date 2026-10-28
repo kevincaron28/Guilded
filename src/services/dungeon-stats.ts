@@ -159,7 +159,7 @@ export async function playerSummary(database: Db, guildId: string, memberId: str
     bests: [...bests.values()].sort((a, b) => a.dungeonName.localeCompare(b.dungeonName)),
     recent: await recentRuns(database, guildId, memberId, 5),
     achievements: (await database.dungeonAchievement.findMany({
-      where: { guildId, memberId }, orderBy: { earnedAt: "asc" }, include: { season: { select: { name: true } } }
+      where: { guildId, memberId, revokedAt:null }, orderBy: { earnedAt: "asc" }, include: { season: { select: { name: true } } }
     })).map((row) => ({ key: row.key, seasonName: row.season?.name ?? null, earnedAt: row.earnedAt }))
   };
 }
@@ -186,7 +186,7 @@ function isoOrNull(date: Date | null | undefined): string | null {
 export async function addonDungeonBoard(database: Db & Pick<PrismaClient, "character">, guildId: string, now = new Date()) {
   const [active, past] = await Promise.all([
     activeSeasonOrNull(database, guildId),
-    database.dungeonSeason.findMany({ where: { guildId, status: "ENDED" }, orderBy: { startsAt: "desc" }, take: 10 })
+    database.dungeonSeason.findMany({ where: { guildId, status: { in: ["CLOSING", "ENDED"] } }, orderBy: { startsAt: "desc" }, take: 10 })
   ]);
   const selected = [...(active ? [active] : []), ...past];
   if (!selected.length) return null;

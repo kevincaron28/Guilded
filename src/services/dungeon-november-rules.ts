@@ -20,6 +20,7 @@ const routeSchema = z.object({
   participationBand: bandSchema,
   targetSec: z.number().int().min(1).max(14400).nullable(),
   verification: z.object({ build: z.string().trim().min(1).max(100), runRef: z.string().trim().min(1).max(100),
+    fullRoute: z.literal(true).optional(),
     method: z.literal("source-reviewed").optional(), sources: z.array(z.string().url()).max(40).optional() })
 });
 export type NovemberRoute = z.infer<typeof routeSchema>;
@@ -133,6 +134,8 @@ export type TargetRecalibration = z.infer<typeof recalibrationSchema>;
 export function createBracketedDungeonRules(input: unknown) {
   const parsed = z.object({ gameEdition: z.enum(GAME_EDITIONS).optional(), routes: z.array(bracketRouteSchema).max(100), brackets: z.array(bracketSchema).max(10),
     overlevelPenalty: penaltySchema.default({ ...DEFAULT_OVERLEVEL_PENALTY }),
+    evidencePolicy: z.enum(["current-v1", "current-v2"]).optional(),
+    seasonWindow: z.object({ from: z.string().datetime(), to: z.string().datetime().nullable() }).optional(),
     provisional: provisionalSchema.optional(), keystoneRating: challengeRatingSchema.optional(), recalibrations: z.array(recalibrationSchema).max(200).optional() }).refine(value => value.routes.length > 0 && value.brackets.length > 0
       || !!value.gameEdition && value.gameEdition !== "forever" && value.routes.length === 0 && value.brackets.length === 0, "A rated season needs routes and brackets").parse(input);
   const routes = checkedRoutes(parsed.routes);
@@ -167,6 +170,8 @@ export function createBracketedDungeonRules(input: unknown) {
     version: 6, model: "distinct-dungeons", pointsPerDungeon: 200, speedBonus: 0,
     ...(parsed.gameEdition ? { gameEdition: parsed.gameEdition } : {}),
     ...(parsed.keystoneRating ? { keystoneRating: parsed.keystoneRating } : {}),
+    ...(parsed.evidencePolicy ? { evidencePolicy: parsed.evidencePolicy } : {}),
+    ...(parsed.seasonWindow ? { seasonWindow: parsed.seasonWindow } : {}),
     minimumPresence: 0.8, automaticCompletionOnly: true, minimumScore: 50, maximumScore: 400,
     participationModel: "weekly-variety-v1", routeEvidenceVersion: 1, routes, brackets, routeBracket, overlevelPenalty: { ...parsed.overlevelPenalty },
     ...(parsed.provisional ? { provisional: parsed.provisional, provisionalTargets: rated.some(r => provisionalRoute(r.dungeonKey)) } : {}),
@@ -197,6 +202,8 @@ export function validBracketedRules(value: unknown): value is BracketedRules {
   try {
     return sameJson(r, createBracketedDungeonRules({ ...(r.gameEdition ? { gameEdition: r.gameEdition } : {}), routes: r.routes, brackets: r.brackets, overlevelPenalty: r.overlevelPenalty ?? null,
       ...(r.keystoneRating !== undefined ? { keystoneRating: r.keystoneRating } : {}),
+      ...(r.evidencePolicy !== undefined ? { evidencePolicy: r.evidencePolicy } : {}),
+      ...(r.seasonWindow !== undefined ? { seasonWindow: r.seasonWindow } : {}),
       ...(r.provisional !== undefined ? { provisional: r.provisional } : {}), ...(r.recalibrations !== undefined ? { recalibrations: r.recalibrations } : {}) }));
   } catch { return false; }
 }
@@ -213,7 +220,7 @@ export function validRouteRules(value: unknown): value is NovemberRules | Bracke
 }
 
 interface EvidenceRun { instanceId: number; difficultyId?: number; startedAt?: Date | null; endedAt?: Date | null; competitionData?: unknown; completedBy?: string | null }
-type Encounter = { id?: number; kind?: "npc"; name?: string; at?: number; success?: boolean };
+type Encounter = { id?: number; kind?: "npc"; name?: string; at?: number; success?: boolean; source?: string };
 function matches(b: EncounterIdentity, e: Encounter): boolean {
   if (e.kind === "npc") return typeof e.id === "number" && !!b.npcIds?.includes(e.id);
   return (typeof e.id === "number" && b.ids.includes(e.id)) || (typeof e.name === "string" && b.names.some(n => normalize(n) === normalize(e.name!)));
@@ -236,4 +243,13 @@ export function resolveNovemberRoute(run: EvidenceRun, rules: { routes: November
     return { key: route.dungeonKey, route, reason: "Required encounter evidence missing" };
   }
   return { key: route.dungeonKey, route };
+}
+
+/** Native checkpoints support an observed clear, not proof of an untouched instance. */
+export function nativeCompletionReason(run: EvidenceRun, rules: {routes:NovemberRoute[]}): string | undefined {
+  const data = run.competitionData as {encounters?:Encounter[]} | null;
+  const native = Array.isArray(data?.encounters) ? data.encounters.filter(e=>e?.source==="native") : [];
+  const route = resolveNovemberRoute({...run,competitionData:{encounters:native}},rules);
+  return route.reason || !native.some(e=>e.success && Number.isInteger(e.at) && run.endedAt && Math.abs(e.at!-run.endedAt.getTime()/1000)<=5)
+    ? "Native completion checkpoints required" : undefined;
 }

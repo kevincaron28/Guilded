@@ -1,4 +1,6 @@
 import { weekStart } from "./dungeon-rules.js";
+import { validBracketedRules } from "./dungeon-november-rules.js";
+import { withIntegrityWindow } from "./dungeon-integrity.js";
 
 // Weekly and monthly dungeon boards (owner, 19 October 2026). Monthly = the season (one season
 // per calendar month, dungeon-season-schedule.ts). Weekly = the active season's runs that started
@@ -13,10 +15,10 @@ export function weekWindow(now: Date): { start: Date; end: Date } {
 }
 
 /** The active season narrowed to this week, or null (ended season, or no overlap). */
-export function weekSeason<T extends { startsAt: Date; endsAt?: Date | null; status: string }>(season: T, now = new Date()): T | null {
+export function weekSeason<T extends { startsAt: Date; endsAt?: Date | null; status: string; ratingRules?: unknown }>(season: T, now = new Date()): T | null {
   if (season.status !== "ACTIVE") return null;
   const week = weekWindow(now);
   if (season.endsAt && season.endsAt <= week.start || season.startsAt >= week.end) return null;
-  return { ...season, startsAt: season.startsAt > week.start ? season.startsAt : week.start,
+  return { ...season, ...(validBracketedRules(season.ratingRules) ? { ratingRules: withIntegrityWindow(season.ratingRules, season.startsAt, season.endsAt) } : {}), startsAt: season.startsAt > week.start ? season.startsAt : week.start,
     endsAt: season.endsAt && season.endsAt < week.end ? season.endsAt : week.end };
 }

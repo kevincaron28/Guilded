@@ -1,6 +1,6 @@
 {
-  "version": "7.5.0",
+  "version": "7.5.1",
   "channel": "release",
-  "notes": "docs/V7_5_0_RELEASE_NOTES.md",
+  "notes": "docs/V7_5_1_RELEASE_NOTES.md",
   "acceptance": "docs/V7_5_0_GAME_CHECKLIST.md"
 }

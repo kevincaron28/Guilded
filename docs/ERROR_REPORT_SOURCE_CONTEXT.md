@@ -1,15 +1,15 @@
 # Finding the source of a developer report
 
-The developer feed uses `ERROR_LOG_CHANNEL_ID`. Its destination is the inbox,
+The optional developer feed uses `ERROR_LOG_CHANNEL_ID`. Its destination is the inbox,
 not the affected server. Each saved report retains its short reference and bot
 release version. New reports also retain the origin metadata already available
 to the failing handler, in the existing ErrorReport context field.
 
 | Failure path | Available context |
 | --- | --- |
-| `/report bug` or failed slash command | Source guild/channel and fixed command path. Slash submissions have no public source message. |
-| Button, select or modal handler | Source guild/channel and handler label; a source message link when the existing message is not ephemeral. |
-| Answer-channel or participation message/reaction handler | Source guild/channel/message IDs already on the event; no message-body lookup. |
+| Confirmed `/report bug` | Previewed sanitized text, reporter ID, source guild/channel, fixed command path and the optional previewed screenshot link (Discord CDN only). No conversation capture. |
+| Failed slash command, button, select or modal | Source guild/channel and handler label. Automatic reports omit reporter and message IDs. |
+| Answer-channel or participation message/reaction handler | Source guild/channel IDs already on the event; no message-body lookup or message link. |
 | Scheduled-event reconciliation, raid signup repair, character display refresh | The guild currently being processed and a fixed operation label, even if its first database lookup fails. No channel is guessed for a guild-wide operation. |
 | Guild lifecycle, pilot and participation callbacks | Guild and channel where the callback already has them. Deleted messages retain channel context without a dead message link. |
 | Other host-wide/aggregate jobs, process failures, old saved reports | Source guild/channel may remain unknown. Internal service loops require their own scoped context before a specific guild can be claimed. |
@@ -17,7 +17,9 @@ to the failing handler, in the existing ErrorReport context field.
 The Discord card puts origin, operation, reference and version before the error
 detail, so a long exception cannot truncate the source information. Identical
 automatic failures in different guilds/channels/operations have separate live
-deduplication keys. Delivery/retry policy is otherwise unchanged.
+deduplication keys. Notifications require a freshly verified administrator-only
+text channel where the bot can send; public, DM, thread or unverifiable audiences
+are denied without a fallback. Storage remains available when notification is denied.
 
 `npm run bugs` shows the source links/operations for new reports and continues
 to read older screenshot-only context values. It cannot recover source metadata
@@ -27,6 +29,12 @@ who already has permission to view that channel; it grants no access.
 This change requires no migration, new setting, permission, privileged intent,
 message fetch, attachment download, command-argument capture or member-profile
 collection. It persists only the IDs and fixed operation labels already being
-processed alongside the existing report. Report contents, retention and private
-inbox configuration keep their existing policy. Configure the developer feed
-only to a reviewed private destination.
+processed. Automatic errors keep class, approved error code, fingerprint and up
+to twelve basename/line stack frames, not arbitrary exception text or objects.
+Console error/warning strings become fingerprints; raw objects are omitted.
+Member reports require a private preview and Send confirmation. The optional
+screenshot and the officer-channel notice were restored on 27 October; both are
+shown in the preview and sent only after Send. Existing
+historical reports and retention policy are unchanged; this is not a retroactive
+redaction or deletion of old rows. See
+[privacy and client acceptance](DIAGNOSTIC_PRIVACY_AND_CLIENT_ACCEPTANCE.md).

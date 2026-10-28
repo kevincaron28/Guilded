@@ -1,3 +1,4 @@
+import { recordCommunityPoint, grantCommunityBadge } from "./community-badges.js";
 import type { CommunityParticipationDay, Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { dateAfter, dayStart, HELPER_POINTS, HELPER_WEEKLY_APPROVALS, HELPER_WEEKLY_POINTS, MESSAGE_COOLDOWN_MS, participationDay, participationRules, participationWeek, VOICE_BLOCK_MS, voiceSegments, type ParticipationRules } from "./participation-rules.js";
 
@@ -16,7 +17,7 @@ export function createParticipationService(database: PrismaClient) {
     return { ...row, rules: participationRules.parse(row.rules), timezone: row.season.guild.settings?.timezone ?? "America/Toronto" };
   };
   const daily = async (tx: Tx, seasonId: string, userId: string, day: string) => tx.communityParticipationDay.upsert({ where: { seasonId_userId_day: { seasonId, userId, day } }, create: { seasonId, userId, day }, update: {} });
-  const award = (tx: Tx, seasonId: string, userId: string, amount: number, reference: string, reason: string, actorId: string, createdAt: Date) => tx.communityPoint.create({ data: { seasonId, userId, amount, reference, reason, actorId, createdAt, kind: "AWARD" } });
+  const award = (tx: Tx, seasonId: string, userId: string, amount: number, reference: string, reason: string, actorId: string, createdAt: Date) => recordCommunityPoint(tx, { seasonId, userId, amount, reference, reason, actorId, createdAt, kind: "AWARD" });
   const exists = (tx: Tx, seasonId: string, reference: string) => tx.communityPoint.findUnique({ where: { seasonId_reference: { seasonId, reference } } });
 
   return {
@@ -108,7 +109,7 @@ export function createParticipationService(database: PrismaClient) {
         const points = await tx.communityPoint.findMany({ where: { seasonId, kind: "AWARD", OR: [{ reference: `participation:message:${messageId}` }, { reference: { startsWith: `participation:reaction:${messageId}:` } }] } });
         for (const point of points) {
           const reference = `participation:reverse:${point.id}`;
-          if (!await exists(tx, seasonId, reference)) await tx.communityPoint.create({ data: { seasonId, userId: point.userId, amount: -point.amount, kind: "REVERSAL", reference, reason: "Message supprimé / Message deleted", actorId: "Guilded", createdAt: now } });
+          if (!await exists(tx, seasonId, reference)) await recordCommunityPoint(tx, { seasonId, userId: point.userId, amount: -point.amount, kind: "REVERSAL", reference, reason: "Message supprimé / Message deleted", actorId: "Guilded", createdAt: now });
         }
       });
     },
@@ -128,6 +129,7 @@ export function createParticipationService(database: PrismaClient) {
           const count = await tx.communityPoint.count({ where: { seasonId, userId: row.userId, kind: "AWARD", reference: { startsWith: "participation:helper:" }, createdAt: { gte: dayStart(week, cfg.timezone), lt: dayStart(dateAfter(week, 7), cfg.timezone) } } });
           if (count >= HELPER_WEEKLY_APPROVALS) fail(`Maximum ${HELPER_WEEKLY_POINTS} points d'entraide par semaine / Maximum ${HELPER_WEEKLY_POINTS} helper points per week.`);
           await award(tx, seasonId, row.userId, HELPER_POINTS, `participation:helper:${id}`, row.reason, actorId, now);
+          await grantCommunityBadge(tx, seasonId, row.userId, "helper", row.id, now);
         }
         return tx.communityKudos.update({ where: { id }, data: { status: approve ? "APPROVED" : "REJECTED", reviewedBy: actorId, reviewNote: note.trim() } });
       });
@@ -142,7 +144,7 @@ export function createParticipationService(database: PrismaClient) {
         const existing = await exists(tx, seasonId, reference);
         if (existing) return existing;
         if (row.reference.startsWith("participation:helper:")) await tx.communityKudos.update({ where: { id: row.reference.slice("participation:helper:".length) }, data: { status: "REVERSED", reviewedBy: actorId, reviewNote: reason.trim() } });
-        return tx.communityPoint.create({ data: { seasonId, userId: row.userId, amount: -row.amount, kind: "REVERSAL", reference, reason: reason.trim(), actorId, createdAt: now } });
+        return recordCommunityPoint(tx, { seasonId, userId: row.userId, amount: -row.amount, kind: "REVERSAL", reference, reason: reason.trim(), actorId, createdAt: now });
       });
     },
     async summary(guildId: string, seasonId: string, userId: string, now = new Date()) {

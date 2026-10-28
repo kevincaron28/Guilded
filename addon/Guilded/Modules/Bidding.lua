@@ -5,7 +5,8 @@
 --     private addon message.
 --   * Anyone else (pugs, no addon) whispers the officer a number, e.g. 25.
 --   * Bids are sealed. When time runs out (or the officer closes early) the
---     highest bid wins; ties go to the higher PR, then to whoever bid first.
+--     highest bid wins; ties go to the higher PR, then to whoever bid first. As in EPGP,
+--     bidders under the core's minimum EP only win when nobody with it bid.
 --   * Nothing is recorded until the officer presses Award. Award runs the
 --     normal /guilded loot and /guilded gp commands, so the GP gets a ledger id and
 --     imports into Discord like any other entry.
@@ -105,13 +106,18 @@ local function prFor(name)
   return standing and standing.pr or 0
 end
 
--- Bids best first: amount, then PR, then earliest.
+-- Bids best first, in EPGP Classic's bidding order: bidders with the core's minimum EP before
+-- those without (/core rules min_ep), then amount, then PR, then earliest. Discord ranks its
+-- auctions the same way (src/services/loot.ts).
 local function rankedBids(auction)
   local list = {}
+  local minEp = ns.loot and ns.loot.minEp and ns.loot.minEp() or 0
   for name, bid in pairs(auction.bids) do
-    table.insert(list, { name = name, amount = bid.amount, at = bid.at, pr = prFor(name) })
+    local ep = ns.loot and ns.loot.epFor and ns.loot.epFor(name) or 0
+    table.insert(list, { name = name, amount = bid.amount, at = bid.at, pr = prFor(name), belowMin = minEp > 0 and ep < minEp })
   end
   table.sort(list, function(a, b)
+    if a.belowMin ~= b.belowMin then return not a.belowMin end
     if a.amount ~= b.amount then return a.amount > b.amount end
     if a.pr ~= b.pr then return a.pr > b.pr end
     return a.at < b.at

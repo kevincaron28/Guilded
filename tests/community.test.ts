@@ -15,6 +15,7 @@ const member = (roles: string[], officer = false, bot = false) => ({ user: { bot
 
 function store(row = activity) {
   const tx = {
+    communityBadgeConfig: { findUnique: vi.fn(async () => null) },
     $executeRaw: vi.fn(async () => 1),
     communitySeasonCounter: { upsert: vi.fn(async () => ({ nextNumber: 2 })) },
     auditLog: { create: vi.fn(async args => args.data) },

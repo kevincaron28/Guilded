@@ -1,7 +1,7 @@
 {
   "name": "guilded-companion",
   "productName": "Guilded Companion",
-  "version": "7.5.0",
+  "version": "7.5.1",
   "description": "Your guild, connected. World of Warcraft sync and Path of Exile 2 mapping.",
   "main": "main.cjs",
   "private": true,
@@ -56,6 +56,7 @@
           "lua-export-content.mjs",
           "game-edition.mjs",
           "character-identity.mjs",
+          "dungeon-role.mjs",
           "profiles.mjs",
           "standings-format.mjs",
           "poe-events.mjs",

@@ -246,6 +246,9 @@ model CommunitySeason {
   participation  CommunityParticipationConfig?
   participationDays CommunityParticipationDay[]
   participationDeletions CommunityParticipationDeletion[]
+  badgeConfig    CommunityBadgeConfig?
+  badges         CommunityBadge[]
+  badgeSharing   CommunityBadgeSharing[]
   kudos          CommunityKudos[]
   @@index([guildId, game, status])
   @@unique([guildId, game, number])
@@ -460,6 +463,8 @@ model Member {
 
   @@unique([guildId, discordUserId])
   @@index([guildId, status])
+  // The public players page and profiles find a web account's members across guilds.
+  @@index([discordUserId])
 }
 
 model Character {
@@ -1279,7 +1284,7 @@ model DungeonSeason {
   name         String
   startsAt     DateTime                  @default(now())
   endsAt       DateTime?
-  // ACTIVE or ENDED. Ended seasons stay viewable forever.
+  // ACTIVE, CLOSING (v2 upload grace), or ENDED. Ended seasons stay viewable forever.
   status       String                    @default("ACTIVE")
   // Published final standings. Later ledger corrections do not rewrite the award ceremony.
   finalStandings Json?
@@ -1423,6 +1428,7 @@ model DungeonAchievement {
   runId    String?
   seasonId String?
   earnedAt DateTime       @default(now())
+  revokedAt DateTime?
   guild    Guild          @relation(fields: [guildId], references: [id], onDelete: Cascade)
   member   Member         @relation(fields: [memberId], references: [id], onDelete: Cascade)
   run      DungeonRun?    @relation(fields: [runId], references: [id], onDelete: Cascade)
@@ -2121,6 +2127,9 @@ model PublicRun {
   source        String
   // 1: completion method and boss kills recorded (7.4); 0: uploaded before, checked the old way.
   evidenceVersion Int    @default(0)
+  // Additive current-v2 observation, never inferred from legacy online presence.
+  integrity     Json?
+  evidenceReceivedAt DateTime?
   challenge     Json?
   completedBy   String?
   // Successful boss kills inside the run: { id, name?, at?, startedAt? }[].
@@ -2164,6 +2173,9 @@ model PublicRunUpload {
   // Characters (lowercase) whose report this upload carries: one upload adds a confirmation only
   // when none of them was already counted (a guild's copy and a member's own upload are one report).
   reporters   String[]  @default([])
+  // Individual observation retained for review; never sum overlapping presence.
+  evidence    Json?
+  historyOnly Boolean   @default(false)
   createdAt   DateTime  @default(now())
   run         PublicRun @relation(fields: [runId], references: [id], onDelete: Cascade)
 
@@ -2226,4 +2238,40 @@ model WebAvailability {
   character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
   @@index([guildId, gameEdition, expiresAt])
   @@index([expiresAt])
+}
+
+// Cosmetic achievements: no roles, points or loot advantage. Null earnedAt means
+// historical evidence exists but the old display never recorded an award date.
+model CommunityBadgeConfig {
+  seasonId String @id
+  enabled Boolean @default(false)
+  channelId String
+  baselineAt DateTime @default(now())
+  season CommunitySeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+}
+model CommunityBadge {
+  id String @id @default(cuid())
+  seasonId String
+  userId String
+  code String
+  earnedAt DateTime?
+  recordedAt DateTime @default(now())
+  source String
+  evidenceRef String?
+  // SILENT/PENDING/ATTEMPTED/SENT/UNCERTAIN/CANCELLED. Never requeue ATTEMPTED:
+  // a process crash may have happened after Discord accepted the message.
+  delivery String @default("SILENT")
+  nextAttemptAt DateTime @default(now())
+  attemptedAt DateTime?
+  messageId String?
+  season CommunitySeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  @@unique([seasonId, userId, code])
+  @@index([delivery, nextAttemptAt])
+}
+model CommunityBadgeSharing {
+  seasonId String
+  userId String
+  shared Boolean @default(false)
+  season CommunitySeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  @@id([seasonId, userId])
 }

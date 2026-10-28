@@ -22,6 +22,16 @@ export const LOOT_MODE_HELP: Record<LootMode, string> = {
   RESERVE: "Players reserve items before the raid; the reservers of a dropped item roll for it.",
   PRIORITY: "Every item has a set GP price. It goes to the highest PR of the players who want it, and they pay that price."
 };
+// The same two texts in French: the Discord core editor and the public guild page use them.
+export const LOOT_MODE_LABEL_FR: Record<LootMode, string> = {
+  EPGP: "Enchères en GP", COUNCIL: "Conseil de butin", RESERVE: "Réservations souples", PRIORITY: "Priorité EPGP — prix fixes"
+};
+export const LOOT_MODE_HELP_FR: Record<LootMode, string> = {
+  EPGP: "Les joueurs misent des GP; la plus haute mise l'emporte et la paie.",
+  COUNCIL: "Les raiders répondent BiS / amélioration / hors spé; les officiers décident. Des GP seulement si un prix est donné.",
+  RESERVE: "Les joueurs réservent des objets avant le raid; ceux qui ont réservé un objet tombé le tirent aux dés.",
+  PRIORITY: "Chaque objet a un prix fixe en GP. Il va au joueur qui le veut avec la plus haute priorité (EP ÷ GP), qui paie ce prix."
+};
 export const asLootMode = (value: string | null | undefined): LootMode => (LOOT_MODES as string[]).includes(value ?? "") ? (value as LootMode) : "EPGP";
 
 export interface EffectiveRules {

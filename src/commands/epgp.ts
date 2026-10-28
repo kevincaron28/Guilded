@@ -71,12 +71,13 @@ export async function executeEpgp(interaction: ChatInputCommandInteraction): Pro
       return;
     } else throw new Error(CORE_REQUIRED);
   }
-  let pool: { id: string | null; name: string; baseGp: number; decay: number } = { id: null, name: "Guild pool", baseGp: settings?.baseGp ?? 0, decay: settings?.epgpDecayPercent ?? 0.1 };
+  // minEp: a core's minimum EP (the guild pool has none).
+  let pool: { id: string | null; name: string; baseGp: number; decay: number; minEp: number } = { id: null, name: "Guild pool", baseGp: settings?.baseGp ?? 0, decay: settings?.epgpDecayPercent ?? 0.1, minEp: 0 };
   if (coreName) {
     const core = await createRaidCoreService(prisma).byIdOrName(context.guildId, coreName);
     if (!core.separatePool) throw new Error(`${core.name} shares the guild pool. Turn on its own pool with /core rules pool:separate first.`);
     const rules = effectiveRules(settings, core);
-    pool = { id: core.id, name: `${core.name} pool`, baseGp: rules.baseGp, decay: rules.decayPercent };
+    pool = { id: core.id, name: `${core.name} pool`, baseGp: rules.baseGp, decay: rules.decayPercent, minEp: rules.minEp };
   }
   const baseGp = pool.baseGp;
   const standing = await epgpService.getStanding(context.memberId, baseGp, pool.id);
@@ -119,14 +120,15 @@ export async function executeEpgp(interaction: ChatInputCommandInteraction): Pro
     const rates = await meritService.getAttendanceRates(context.guildId);
     const scored = rows.map((row) => {
       const rate = rates.get(row.member.id) ?? 0;
-      return { ...row, rate, score: merit ? meritScore(row.standing.pr, rate) : row.standing.pr };
+      return { ...row, rate, score: merit ? meritScore(row.standing.pr, rate) : row.standing.pr, belowMin: row.standing.ep < pool.minEp };
     });
-    scored.sort((a, b) => b.score - a.score);
+    // The loot order (loot-priority.ts): players under the core's minimum EP come last.
+    scored.sort((a, b) => Number(a.belowMin) - Number(b.belowMin) || b.score - a.score);
     await interaction.reply({ embeds: [new EmbedBuilder().setTitle(`${BRAND.emoji} ${BRAND.name} EPGP${pool.id ? ` — ${pool.name}` : ""}`).setDescription(
       scored.length
-        ? scored.map((row, i) => `${i + 1}. ${row.member.displayName} - EP ${row.standing.ep} | GP ${row.standing.gp} | PR ${row.standing.pr.toFixed(3)} | Att ${Math.round(row.rate * 100)}%${merit ? ` | Merit ${row.score.toFixed(3)}` : ""}`).join("\n")
+        ? scored.map((row, i) => `${i + 1}. ${row.member.displayName} - EP ${row.standing.ep} | GP ${row.standing.gp} | PR ${row.standing.pr.toFixed(3)} | Att ${Math.round(row.rate * 100)}%${merit ? ` | Merit ${row.score.toFixed(3)}` : ""}${row.belowMin ? " | under min EP" : ""}`).join("\n")
         : "No EPGP recorded."
-    ).setFooter({ text: (merit ? "Ranked by merit = PR x attendance over the last 30 days. Ledger is unaffected." : "Att = attendance over the last 30 days (Present = 1, Late = 0.5).") + (baseGp > 0 ? ` PR = EP / (GP + ${baseGp} base GP).` : "") })] });
+    ).setFooter({ text: (merit ? "Ranked by merit = PR x attendance over the last 30 days. Ledger is unaffected." : "Att = attendance over the last 30 days (Present = 1, Late = 0.5).") + (baseGp > 0 ? ` PR = EP / (GP + ${baseGp} base GP).` : "") + (pool.minEp > 0 ? ` Under ${pool.minEp} EP: listed last.` : "") })] });
     return;
   }
   if (!officer(interaction)) {

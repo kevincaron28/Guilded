@@ -86,10 +86,10 @@ end
 -- Standings sharing
 -- ---------------------------------------------------------------------
 
--- PR = EP / (GP + base GP), the same rule the bot uses.
+-- PR = EP / (GP + base GP), the same rule the bot uses. GP counts as at least 1, as in EPGP,
+-- so a raider with EP and no gear yet ranks by their EP instead of last.
 local function priority(ep, gp, baseGp)
-  local denominator = gp + math.max(0, baseGp or 0)
-  return denominator > 0 and ep / denominator or 0
+  return ep / math.max(1, gp + math.max(0, baseGp or 0))
 end
 
 local function encodePlayers(players)

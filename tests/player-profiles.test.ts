@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "../src/generated/prisma/client.js";
-import { createPlayerProfiles, prismaProfileStore, type PlayerProfile, type ProfileStore } from "../src/services/player-profiles.js";
+import { createPlayerProfiles, decodeCursor, encodeCursor, PAGE_SIZE, prismaProfileStore, readPlayerFilters, type PlayerProfile, type ProfileStore } from "../src/services/player-profiles.js";
 import { createWebApp } from "../src/services/web-app.js";
 import { csrfToken, hashToken, SESSION_COOKIE, sign } from "../src/services/web-auth.js";
 import { memoryWebStore } from "./helpers/memory-web-store.js";
@@ -11,7 +11,7 @@ function fixture() {
   const profile: PlayerProfile = { id: profileId, name: "<script>Player</script>", public: true,
     characters: [{ name: "Kev", realm: "Forever", source: "guild" }], runs: [] };
   const store: ProfileStore = {
-    list: vi.fn(async () => profile.public ? [{ id: profile.id, name: profile.name }] : []),
+    list: vi.fn(async () => profile.public ? [{ id: profile.id, character: profile.characters[0]!.name, realm: "Forever", className: "Mage", role: null, level: 60, guild: "Quebec Gold", sortKey: "kev" }] : []),
     get: vi.fn(async id => id === profile.id ? profile : null),
     visibility: vi.fn(async (_id, visible) => { profile.public = visible; })
   };
@@ -82,5 +82,50 @@ describe("player profiles", () => {
     expect(database.publicRun.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ status: "ACCEPTED",
       OR: [{ gameEdition: "forever", players: { some: { character: { equals: "Kev", mode: "insensitive" }, realm: { equals: "Forever", mode: "insensitive" } } } }] }) }));
     expect(database.character.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { member: { discordUserId: "discord", status: "ACTIVE" } } }));
+  });
+});
+
+describe("players directory (/players/)", () => {
+  const row = (id: string, character: string) => ({ id, character, realm: "Doomhowl", className: "Mage", role: "DPS", level: 60, guild: "Quebec Gold", sortKey: character.toLowerCase() });
+  function directory(rows: ReturnType<typeof row>[]) {
+    const list = vi.fn(async () => rows);
+    const store: ProfileStore = { list, get: vi.fn(async () => null), visibility: vi.fn(async () => {}) };
+    const app = createWebApp({ auth, store: memoryWebStore().store, allows: () => true, postApplication: async () => null, routes: [createPlayerProfiles(store).route] });
+    const open = (query: string) => app.respond({ method: "GET", path: "/players/", query: new URLSearchParams(query), headers: {} });
+    return { list, open };
+  }
+
+  it("shows each player by their character, class, role, level, realm and guild, never a Discord name", async () => {
+    const { open } = directory([row(profileId, "Kev Galemorne")]);
+    const body = (await open("lang=fr"))!.body;
+    expect(body).toContain(`/players/${profileId}?lang=fr">Kev Galemorne</a>`);
+    expect(body).toContain("Mage · DPS · niveau 60 · Doomhowl · Quebec Gold");
+  });
+
+  it("passes the filters to the store with server-side limits, and ignores unknown values", async () => {
+    const { list, open } = directory([]);
+    await open(`q=${"k".repeat(80)}&class=Mage&role=HEALER&realm=Doomhowl&guild=quebec&edition=classic-era`);
+    expect(list).toHaveBeenCalledWith({ q: "k".repeat(40), edition: "classic-era", realm: "Doomhowl", className: "Mage", role: "HEALER", guild: "quebec" }, null);
+    await open("class=Jedi&role=BARD&after=not-a-cursor");
+    expect(list).toHaveBeenLastCalledWith({ q: "", edition: "forever", realm: null, className: null, role: null, guild: null }, null);
+  });
+
+  it("pages with a cursor that keeps the filters", async () => {
+    const rows = Array.from({ length: PAGE_SIZE + 1 }, (_, i) => row(`c${String(i).padStart(24, "0")}`, `Player${String(i).padStart(2, "0")}`));
+    const { list, open } = directory(rows);
+    const body = (await open("class=Mage"))!.body;
+    expect(body).not.toContain("Player24"); // the extra row only says there is a next page
+    const next = /href="([^"]*after=[^"]*)">Next/.exec(body)![1]!.replace(/&amp;/g, "&");
+    const query = new URLSearchParams(next.split("?")[1]);
+    expect(query.get("class")).toBe("Mage");
+    await open(query.toString());
+    expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ className: "Mage" }), { sortKey: "player23", id: rows[23]!.id });
+  });
+
+  it("reads cursors only in its own format", () => {
+    expect(decodeCursor(encodeCursor({ sortKey: "kev", id: profileId }))).toEqual({ sortKey: "kev", id: profileId });
+    expect(decodeCursor(Buffer.from(JSON.stringify({ a: 1 })).toString("base64url"))).toBeNull();
+    expect(decodeCursor("x".repeat(300))).toBeNull();
+    expect(readPlayerFilters(new URLSearchParams("q=  Kev  "), "forever").q).toBe("Kev");
   });
 });

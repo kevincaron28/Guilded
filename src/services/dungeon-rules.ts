@@ -3,6 +3,7 @@ import { z } from "zod";
 import { GAME_EDITIONS, gameEditionOf } from "../../companion/game-edition.mjs";
 import { characterKey } from "../../companion/character-identity.mjs";
 import { challengeEvidenceSchema } from "./challenge-evidence.js";
+import { dungeonIntegritySchema, playerIntegritySchema } from "./dungeon-integrity.js";
 
 // Dungeon Challenge rules (roadmap D3/D4): what a valid run is, and how
 // points are earned. Pure functions, so they're easy to test and change.
@@ -17,6 +18,7 @@ export const dungeonRunSchema = z.object({
   gameEdition: z.enum(GAME_EDITIONS).optional(),
   challengeMode: z.boolean().optional(),
   challenge: challengeEvidenceSchema.optional(),
+  integrity: dungeonIntegritySchema.optional().catch(undefined),
   interface: z.number().int().positive().optional(),
   id: z.string().min(3).max(100),
   protocolVersion: z.number().int(),
@@ -38,7 +40,8 @@ export const dungeonRunSchema = z.object({
   // Optional presentation metadata must never invalidate otherwise valid awards.
   encounters: z.array(z.object({
     id: z.number().int().positive(), kind: z.literal("npc").optional(), name: z.string().max(100).optional(), success: z.boolean(),
-    at: z.number().int().positive().optional(), startedAt: z.number().int().positive().optional()
+    at: z.number().int().positive().optional(), startedAt: z.number().int().positive().optional(),
+    source: z.enum(["native", "combat-log"]).optional()
   })).max(100).optional().catch(undefined),
   players: z.array(z.object({
     character: z.string().min(1).max(40),
@@ -46,6 +49,7 @@ export const dungeonRunSchema = z.object({
     realm: z.string().min(1).max(60),
     class: z.string().max(20).optional(),
     role: z.string().max(10).optional(),
+    integrity: playerIntegritySchema.optional().catch(undefined),
     level: z.number().int().min(1).max(100).optional().catch(undefined),
     minLevel: z.number().int().min(1).max(100).optional().catch(undefined),
     spec: z.string().max(40).optional().catch(undefined),
@@ -152,6 +156,7 @@ export function validateRun(run: DungeonRunInput, now = new Date()): Validation 
   // A run is only believed from someone who was in it: the recorder, and at least one of
   // the reporters when the companion says who they were.
   if (run.recorder && !names.has(characterKey(run.recorder, "", edition))) return { ok: false, reason: "recorder was not in the run" };
+  if (run.integrity?.observer && !names.has(characterKey(run.integrity.observer, "", edition))) return { ok: false, reason: "observer was not in the run" };
   if (run.reporterNames && run.reporterNames.length > 0
     && !run.reporterNames.some((name) => names.has(characterKey(name, "", edition)))) {
     return { ok: false, reason: "no reporter was in the run" };

@@ -159,7 +159,7 @@ describe("leaderboard store reads whole histories", () => {
 
   it("maps a stored row's evidence, or none for rows uploaded before 7.4", () => {
     const row = { id: "x", gameEdition: "forever", instanceId: 389, routeKey: "389", difficultyId: 0, dungeonName: "RFC", durationSec: 1000, startedAt: START, endedAt: new Date(START.getTime() + 1_000_000),
-      deaths: null, bracket: "15-29", season: "2026-Q4", confirmations: 1, completedBy: "manual", encounters: null, challenge: null, players: [] };
+      deaths: null, bracket: "15-29", season: "2026-Q4", confirmations: 1, completedBy: "manual", encounters: null, challenge: null, integrity: null, evidenceReceivedAt: null, players: [] };
     expect(leaderRun({ ...row, evidenceVersion: 1 }).evidence).toEqual({ startedAt: START, completedBy: "manual", encounters: [] });
     expect(leaderRun({ ...row, evidenceVersion: 0 }).evidence).toBeNull();
   });
@@ -183,10 +183,12 @@ describe("leaderboard pages say why a run is unranked", () => {
     const page = await get("/leaderboards/character/Kev-Doomhowl");
     expect(page.body).toContain('title="Unranked: Automatic final-boss completion required"');
     expect(page.body).toContain("older check");
-    // The older row is the only ranked run: 200 x 1200 / 1100.
-    expect(page.body).toContain('<span class="score">218</span>');
+    // Legacy remains visible, but no longer earns official current-evidence credit.
+    expect(page.body).toContain("Unranked: Current evidence required by this season");
+    expect(page.body).not.toContain('<span class="score">218</span>');
     const fr = await get("/leaderboards/character/Kev-Doomhowl?lang=fr");
     expect(fr.body).toContain("Non classé : Fin automatique au dernier boss requise");
+    expect(fr.body).toContain("Preuves actuelles requises pour cette saison");
     const board = await get("/leaderboards/");
     expect(board.body).toContain("This season's rules were frozen on 2026-11-04.");
   });

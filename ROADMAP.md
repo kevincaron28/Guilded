@@ -6,9 +6,10 @@
 
 # Guilded roadmap
 
-## Current stage — 26 October 2026
+## Current stage — 27 October 2026
 
-Guilded **7.5.0 Release** (protocol 2), combining the release-gap bundle and Claude’s raid/interaction fixes.
+Guilded **7.5.1 Release** (protocol 2): loot rules follow the original EPGP/soft-reserve rules, guild directory and player search, and Codex's dungeon evidence work (Season 1 stays on current-v1).
+Previous: 7.5.0, combining the release-gap bundle and Claude’s raid/interaction fixes.
 Combined CI, backups, deployment and publication gates passed. Microsoft Store certification remains pending.
 Real-client checks remain post-release follow-up; see [the release decision](docs/RELEASE_DECISION_2026-10-25.md).
 Current gates and completed operational checks: [launch readiness](docs/LAUNCH_READINESS_2026-10-24.md).
@@ -218,3 +219,16 @@ merge and deployment remain outside this local review pass.
 Historical feature plans are in [the roadmap archive](docs/archive/ROADMAP-history.md)
 and version handoffs. Their old version numbers and pending-test statements
 must not override the current release testing record.
+
+## Community achievements implementation — 27 October 2026
+
+The requested 100/300/500 badge shelves, silent legacy baseline, reviewed helper/event
+achievements and scoped congratulations are implemented in the badge change.
+See [implementation and rollout](docs/COMMUNITY_ACHIEVEMENTS_2026-10-27.md) for privacy,
+transaction/delivery guarantees, activation gates and the deferred max-level evidence
+requirement. This records local implementation, not live activation or game acceptance.
+Dungeon integrity and synchronization of both addons follow the badge phase.
+
+## Dungeon integrity draft - 27 October 2026
+
+The first tranche fixes DPS/DAMAGER role parity across both addons, companion and score views; newly frozen official seasons require current evidence while old snapshots and Beta history remain readable. See [implementation, proposed versioned policies and remaining launch checks](docs/DUNGEON_INTEGRITY_2026-10-27.md). This is a draft PR scope, not live activation or a public client release. Timer/presence, season finality and route-pool policies still require an explicit decision and real-game validation. No formula or historical score reset is included.

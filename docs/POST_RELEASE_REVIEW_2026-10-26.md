@@ -1,5 +1,9 @@
 # Post-release review — 26 October 2026
 
+27 October follow-up: [dungeon integrity tranche and launch acceptance matrix](DUNGEON_INTEGRITY_2026-10-27.md)
+records the draft role/evidence corrections and unresolved real-game/policy gates.
+It does not change the published package or game-acceptance status below.
+
 ## Provider checks
 
 All ten 7.5.0 CurseForge files are **Approved**: Guilded and Guilded Dungeons,

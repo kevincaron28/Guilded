@@ -81,6 +81,9 @@ describe("French posts", () => {
 
     const roster = coreRosterEmbed({ name: "Mardi", description: null, members: [{ role: "HEALER", bench: true, member: { displayName: "Cy" } }, { role: "TANK", bench: false, member: { displayName: "Dee" } }] }, undefined, "fr").toJSON();
     expect(roster.fields?.map((f) => f.name)).toEqual(["🎲 Butin", "🛡️ Tanks (1)", "💚 Soigneurs (0)", "⚔️ DPS (0)", "🪑 Banc (1)"]);
+    // The loot system has the same French name as the core editor and the public guild page.
+    expect(roster.fields?.[0]?.value).toBe("Enchères en GP");
+    expect(coreRosterEmbed({ name: "Mardi", description: null, lootMode: "PRIORITY", members: [] }, undefined, "fr").toJSON().fields?.[0]?.value).toBe("Priorité EPGP — prix fixes");
     expect(roster.fields?.find((f) => f.name.startsWith("🪑"))?.value).toBe("Cy (Soigneur)");
     expect(roster.footer?.text).toBe("1 membre du core + 1 sur le banc · les membres du core ont la priorité aux inscriptions des raids de ce core");
 

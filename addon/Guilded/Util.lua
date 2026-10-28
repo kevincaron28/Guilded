@@ -30,6 +30,14 @@ end
 -- ---------------------------------------------------------------------
 local util = ns.util or {}
 ns.util = util
+-- Dungeon roles have one canonical spelling; old snapshots/native APIs use DAMAGER.
+function util.dungeonRole(value)
+  if type(value) ~= "string" or isSecret(value) then return nil end
+  local role = string.upper((string.gsub(value, "^%s*(.-)%s*$", "%1")))
+  if role == "DAMAGER" or role == "DPS" then return "DPS" end
+  if role == "TANK" or role == "HEALER" then return role end
+  return nil
+end
 
 -- Forever's second UnitName result is a surname, not a realm. Keep the old
 -- accounting keys; full names are presentation data and never ledger IDs.

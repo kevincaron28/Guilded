@@ -3,6 +3,8 @@ import { startSeason } from "./dungeon-admin.js";
 import { createBracketedDungeonRules, validBracketedRules, type BracketedRules } from "./dungeon-november-rules.js";
 import { addedRules, publicRules, readRuleSnapshot, snapshotRules, type PublicRuleSnapshot } from "./public-score.js";
 import { currentEdition } from "./edition-context.js";
+import { currentIntegrityPolicy } from "./dungeon-integrity.js";
+import { lockDungeonCalendar } from "./dungeon-calendar-lock.js";
 
 // The bot-wide dungeon season calendar (7.3, owner 20 October 2026: "only I control when a season
 // starts and ends ... the first real season starting November 4th, then we change season when a
@@ -36,7 +38,26 @@ export function scheduledNext(windows: OfficialWindow[], now: Date): OfficialWin
   return windows.find((w) => w.start > now) ?? null;
 }
 
-type Db = Pick<PrismaClient, "officialSeason">;
+type Db = Pick<PrismaClient, "officialSeason"> & Partial<Pick<PrismaClient,"$transaction" | "dungeonSeason">>;
+
+/** Serialize calendar changes with ingestion/finality and publish guild cutoffs
+ * in the same commit. Never rewrite a closed/finalized season. */
+async function mutateCalendar<T>(database: Db, now: Date, action: (tx: Db, lockedNow: Date) => Promise<T>): Promise<T> {
+  if (!database.$transaction) return action(database,now);
+  return database.$transaction(async tx=>{
+    await lockDungeonCalendar(tx,true);
+    const result = await action(tx,new Date(Math.max(now.getTime(),Date.now())));
+    const windows = await loadOfficialWindows(tx);
+    const active = await tx.dungeonSeason.findMany({where:{status:"ACTIVE",guild:{gameEdition:currentEdition()}}});
+    for (const season of active) {
+      if (!currentIntegrityPolicy(season.ratingRules)) continue;
+      const window = officialWindowAt(windows,season.startsAt);
+      if (!window || window.start > now) continue;
+      if (season.endsAt?.getTime() !== window.end?.getTime()) await tx.dungeonSeason.update({where:{id:season.id},data:{endsAt:window.end}});
+    }
+    return result;
+  });
+}
 
 export async function loadOfficialWindows(database: Db): Promise<OfficialWindow[]> {
   return officialWindows(await database.officialSeason.findMany({ where: { gameEdition: currentEdition() }, select: { number: true, name: true, startsAt: true, rules: true }, orderBy: { startsAt: "asc" } }));
@@ -49,6 +70,7 @@ export async function loadOfficialWindows(database: Db): Promise<OfficialWindow[
  * and the penalty keep their frozen values until the next season. Seasons that ended are never touched.
  */
 export async function freezeSeasonRules(database: Db, now: Date, current: BracketedRules = publicRules()): Promise<{ season: string; frozen: boolean; routes: string[]; brackets: string[] } | null> {
+  return mutateCalendar(database,now,async (database,now)=>{
   const row = await database.officialSeason.findFirst({ where: { gameEdition: currentEdition(), startsAt: { lte: now } }, orderBy: { startsAt: "desc" }, select: { id: true, name: true, rules: true } });
   if (!row) return null;
   const save = (snapshot: PublicRuleSnapshot) => database.officialSeason.update({ where: { id: row.id }, data: { rules: snapshot as unknown as Prisma.InputJsonValue } });
@@ -62,6 +84,7 @@ export async function freezeSeasonRules(database: Db, now: Date, current: Bracke
   if (!snapshot || !added) return null;
   await save({ ...snapshot, rules: added.rules, additions: [...snapshot.additions, { at: now.toISOString(), routes: added.routes, brackets: added.brackets }] });
   return { season: row.name, frozen: false, routes: added.routes, brackets: added.brackets };
+  });
 }
 
 export class SeasonCalendarError extends Error {}
@@ -74,11 +97,13 @@ export async function configureNextSeasonRules(database: Db, input: unknown, now
   try { rules = createBracketedDungeonRules(input); }
   catch (error) { throw new SeasonCalendarError(`Invalid dungeon rules: ${error instanceof Error ? error.message : String(error)}`); }
   if (!rules.routes.length || !rules.brackets.length) throw new SeasonCalendarError("Supply reviewed routes and at least one rated bracket.");
+  return mutateCalendar(database,now,async (database,now)=>{
   const next = await database.officialSeason.findFirst({ where: { gameEdition: currentEdition(), startsAt: { gt: now } }, orderBy: { startsAt: "asc" }, select: { id: true } });
   if (!next) throw new SeasonCalendarError("Schedule this edition's next season first.");
   const changed = await database.officialSeason.updateMany({ where: { id: next.id, gameEdition: currentEdition(), startsAt: { gt: new Date(Math.max(now.getTime(), Date.now())) } }, data: { rules: snapshotRules(rules, now) as unknown as Prisma.InputJsonValue } });
   if (changed.count !== 1) throw new SeasonCalendarError("The season has started. Schedule the next season to change its rules.");
   return rules.routes.length;
+  });
 }
 
 /**
@@ -87,6 +112,8 @@ export async function configureNextSeasonRules(database: Db, input: unknown, now
  */
 export async function scheduleNextSeason(database: Db, input: { name?: string | null; startsAt: Date; actorId: string }, now = new Date()): Promise<OfficialWindow> {
   if (!Number.isFinite(input.startsAt.getTime())) throw new SeasonCalendarError("Give the start as YYYY-MM-DD HH:MM.");
+  if (input.startsAt <= now) throw new SeasonCalendarError("The new season must start in the future.");
+  return mutateCalendar(database,now,async (database,now)=>{
   if (input.startsAt <= now) throw new SeasonCalendarError("The new season must start in the future.");
   const windows = await loadOfficialWindows(database);
   const current = officialWindowAt(windows, now);
@@ -98,17 +125,20 @@ export async function scheduleNextSeason(database: Db, input: { name?: string | 
   await database.officialSeason.create({ data: { gameEdition: currentEdition(), number, name, startsAt: input.startsAt, createdBy: input.actorId,
     ...(pending?.rules ? { rules: pending.rules as unknown as Prisma.InputJsonValue } : {}) } });
   return { number, name, start: input.startsAt, end: null };
+  });
 }
 
 /** Removes the season waiting to start; the current season then keeps running with no end. */
 export async function cancelNextSeason(database: Db, now = new Date()): Promise<OfficialWindow | null> {
+  return mutateCalendar(database,now,async (database,now)=>{
   const pending = scheduledNext(await loadOfficialWindows(database), now);
   if (!pending) return null;
   await database.officialSeason.deleteMany({ where: { gameEdition: currentEdition(), startsAt: { gt: now } } });
   return pending;
+  });
 }
 
-type RotationDb = Pick<PrismaClient, "guildSettings" | "dungeonSeason">;
+type RotationDb = Pick<PrismaClient, "guildSettings" | "dungeonSeason"> & Partial<Pick<PrismaClient,"$transaction">>;
 type StartFn = (guildId: string, name: string, expectedId: string | null, endsAt: Date | undefined, rules: unknown, startsAt: Date) => Promise<unknown>;
 export interface OfficialRotation { guildId: string; season: string; ended: string | null }
 
@@ -128,6 +158,20 @@ export async function rotateOfficialSeasons(database: RotationDb, windows: Offic
     const active = await database.dungeonSeason.findFirst({ where: { guildId: row.guildId, status: "ACTIVE" }, orderBy: { startsAt: "desc" } });
     // Already in this season: retain its history and only add missing shared routes.
     if (active && active.startsAt.getTime() >= window.start.getTime()) {
+      // A scheduled next season can be moved or cancelled. Keep v2 ingestion's
+      // event-time cutoff aligned with the authoritative calendar on every tick.
+      if (currentIntegrityPolicy(active.ratingRules) && active.endsAt?.getTime() !== window.end?.getTime()) {
+        if (!backedUp) { await backup(); backedUp = true; }
+        if (database.$transaction) await database.$transaction(async tx=>{
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${row.guildId},0))`;
+          await lockDungeonCalendar(tx);
+          const fresh = await tx.dungeonSeason.findFirst({where:{id:active.id,status:"ACTIVE"}});
+          if (!fresh || !currentIntegrityPolicy(fresh.ratingRules)) return;
+          const latest = officialWindowAt(await loadOfficialWindows(tx),fresh.startsAt);
+          if (latest) await tx.dungeonSeason.update({where:{id:fresh.id},data:{endsAt:latest.end}});
+        });
+        else await database.dungeonSeason.update({ where: { id: active.id }, data: { endsAt: window.end } });
+      }
       // Keep newly verified routes available to existing and late-joining guilds
       // alike, without changing any already-frozen target or historical score.
       const added = validBracketedRules(active.ratingRules) && addedRules(active.ratingRules, window.rules.rules);
@@ -146,4 +190,4 @@ export async function rotateOfficialSeasons(database: RotationDb, windows: Offic
 
 /** The production rotation step: the normal locked, archived startSeason. */
 export const startOfficialSeason = (database: Parameters<typeof startSeason>[0]): StartFn =>
-  (guildId, name, expectedId, endsAt, rules, startsAt) => startSeason(database, guildId, name, expectedId, endsAt, rules, startsAt);
+  (guildId, name, expectedId, endsAt, rules, startsAt) => startSeason(database, guildId, name, expectedId, endsAt, rules, startsAt, true);

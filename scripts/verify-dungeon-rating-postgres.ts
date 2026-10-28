@@ -6,6 +6,7 @@ import { publicRules } from "../src/services/public-score.js";
 import { importDungeonRuns } from "../src/services/dungeon-import.js";
 import { records } from "../src/services/dungeon-stats.js";
 import { bestEightBetaRules } from "../src/services/dungeon-beta-preset.js";
+import { weekStart } from "../src/services/dungeon-rules.js";
 
 export async function verifyDungeonRatingPostgres(db: PrismaClient, guildId: string, memberId: string) {
   const season = await db.dungeonSeason.findFirstOrThrow({ where: { guildId, status: "ACTIVE" } });
@@ -73,7 +74,9 @@ export async function verifyDungeonRatingPostgres(db: PrismaClient, guildId: str
   const fair = (await startSeason(db, guildId, "Participation verification", undefined, undefined,
     createDungeonRatingRules({ "189:graveyard": 1800, "189:library": 1800 }, 3,
       { "189:graveyard": band, "189:library": band }))).season;
-  const fairStart = Math.ceil(fair.startsAt.getTime() / 1000) + 1;
+  // Fixed position within a future weekly window: a rehearsal run near Tuesday
+  // 15:00 UTC must not accidentally place the two clears on opposite resets.
+  const fairStart = Math.ceil((weekStart(fair.startsAt).getTime()+8*86400000)/1000);
   const fairInput = (id: string, boss: string, offset: number, level = 20) => input(id, 189, 0, {
     startedAt: fairStart + offset, endedAt: fairStart + offset + 1000,
     players: [

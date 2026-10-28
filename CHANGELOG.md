@@ -1,5 +1,14 @@
 # Changelog
 
+## 8.0.0 — 28 October 2026
+
+Security and reliability hardening, lossless ledger storage compaction, shared inbound
+validation, versioned Retail overtime credit, authenticated origin isolation, server-rendered
+French indexing, accessibility refinements and Core presentation extraction. Includes typed
+Discord confirmation, encrypted Windows profiles, bounded files/queues, clearer signup
+errors, resolved leaderboard names and Microsoft Store links.
+See [release notes](docs/V8_0_0_RELEASE_NOTES.md) and [publication gates](docs/V8_0_LAUNCH_READINESS.md).
+
 ## 7.5.1 — 27 October 2026
 
 Loot follows the original rules (EPGP priority floor, decay rounding up and reaching every balance,

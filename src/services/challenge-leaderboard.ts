@@ -10,13 +10,14 @@ export interface ChallengeRank<T extends ChallengeRun> {
   group: string; run: T; player: T["players"][number]; challenge: ChallengeEvidence;
 }
 /** One best in-time key per character, dungeon and affix set. No invented rating points. */
-export function rankChallenges<T extends ChallengeRun>(runs: T[], keep: (player: T["players"][number], run: T) => boolean = () => true): ChallengeRank<T>[] {
+export function rankChallenges<T extends ChallengeRun>(runs: T[], keep: (player: T["players"][number], run: T) => boolean = () => true, overtime = false): ChallengeRank<T>[] {
   const best = new Map<string, ChallengeRank<T>>();
   for (const run of runs) {
     const c = readChallenge(run.challenge);
     if (run.gameEdition !== "retail" || run.difficultyId !== 8 || run.evidence?.completedBy !== "challenge objectives"
-      || run.runId.startsWith("SIM-") || !c || c.level < 2 || !c.onTime || c.practiceRun || !c.eligibleForScore
-      || c.durationMs > c.timeLimitSec * 1000 || !Number.isFinite(run.durationSec) || run.durationSec < 180) continue;
+      || run.runId.startsWith("SIM-") || !c || c.level < 2 || !c.onTime && !overtime || c.practiceRun || !c.eligibleForScore
+      || c.durationMs > c.timeLimitSec * 1000 * (overtime ? 1.4 : 1)
+      || c.onTime !== (c.durationMs <= c.timeLimitSec * 1000) || !Number.isFinite(run.durationSec) || run.durationSec < 180) continue;
     const group = `${c.mapId}/${c.affixIds.join(",")}`;
     for (const player of run.players) {
       if (!keep(player, run) || !player.character.trim() || (player.presentSec ?? 0) < run.durationSec * 0.8) continue;

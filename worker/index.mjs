@@ -1,5 +1,6 @@
 // One public address; personal pairing and guild authorization remain on the bot.
 import { createOwnerResources } from "./private-resources.mjs";
+import { localizedAsset } from "./localized-assets.mjs";
 
 const ownerResources = createOwnerResources({ resources: [
   { filename: "approved-brand-kit-v2.zip", key: "brand/approved-v2/kit.zip", type: "application/zip", title: "Approved brand kit v2", description: "Original ribbon logo, transparent emblem, brand styles and usage guide." },
@@ -76,7 +77,9 @@ export default {
     const creatorAssets = { "/": "/creator/", "/robots.txt": "/creator/robots.txt", "/sitemap.xml": "/creator/sitemap.xml" };
     if (creator && Object.hasOwn(creatorAssets, url.pathname)) {
       if (!["GET", "HEAD"].includes(request.method)) return failure(405, "Method not allowed");
-      return env.ASSETS.fetch(new Request(new URL(creatorAssets[url.pathname], url), { method: request.method }));
+      const asset = new URL(creatorAssets[url.pathname], url);
+      asset.search = url.search;
+      return localizedAsset(new Request(asset, { method: request.method }), env);
     }
     // Quebec Gold's hand-written WoW pages were replaced by its live guild page on 16 October 2026.
     if (!creator && /^\/quebec-gold\/(cores|wow)\/?$/.test(url.pathname)) {
@@ -94,10 +97,24 @@ export default {
       && /^\/(?:auth\/(?:login|callback|logout)|recruitment(?:\/[A-Za-z0-9._~/-]*)?|me(?:\/[A-Za-z0-9._~/-]*)?|players(?:\/[A-Za-z0-9._~/-]*)?|leaderboards(?:\/[A-Za-z0-9._~%/-]*)?)$/.test(url.pathname);
     if (!companion && !api && !health && !guildPage && !web) {
       if (url.pathname.startsWith("/api/")) return failure(404, "Not found");
-      return env.ASSETS.fetch(request);
+      return localizedAsset(request, env);
     }
     const methods = api ? apiMethods.get(url.pathname) : web ? ["GET", "HEAD", "POST"] : ["GET", "HEAD"];
     if (!methods.includes(request.method)) return failure(405, "Method not allowed");
+    if (api && request.method === "POST") {
+      const pairing = /\/(?:addon-pairings|companion\/sign-in)$/.test(url.pathname);
+      const limiter = pairing ? env.PAIRING_ATTEMPTS : env.API_WRITES;
+      if (limiter) {
+        // Cloudflare supplies this header; caller-controlled forwarding headers
+        // and credentials must not let an attacker choose a fresh throttle key.
+        const key = request.headers.get("cf-connecting-ip") || "unknown";
+        try {
+          if (!(await limiter.limit({ key })).success) return new Response(JSON.stringify({ error: "Too many requests. Try again shortly." }), {
+            status: 429, headers: { "content-type": "application/json", "cache-control": "no-store", "retry-after": "60" }
+          });
+        } catch { return failure(503, "Request protection is temporarily unavailable. Try again shortly."); }
+      }
+    }
     const headers = new Headers();
     // content-encoding: compressed uploads; if-none-match: "nothing changed" standings answers.
     // Web pages: the session cookie, and Origin/Referer for the bot's CSRF check on form posts.
@@ -112,9 +129,11 @@ export default {
     // bot trusts those only from its own reverse proxy.
     if (api) {
       for (const [name, value] of request.headers) {
-        if (/^x-(guilded|companion)-[a-z0-9-]{1,40}$/.test(name) && value.length <= 512) headers.set(name, value);
+        if (name !== 'x-guilded-origin' && /^x-(guilded|companion)-[a-z0-9-]{1,40}$/.test(name) && value.length <= 512) headers.set(name, value);
       }
     }
+    // This credential belongs to the proxy, never the caller.
+    if (env.GUILDED_ORIGIN_TOKEN) headers.set('x-guilded-origin', env.GUILDED_ORIGIN_TOKEN);
     // Build from the fixed origin and path, never a user-supplied destination.
     const target = new URL(origin);
     target.pathname = url.pathname;

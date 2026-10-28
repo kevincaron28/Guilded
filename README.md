@@ -23,9 +23,10 @@ What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 - **Add the hosted bot:** [add it to your server](docs/HOSTED_PILOT.md) and run `/setup start`; no hosting or database account needed. Guilded Lite (setup, help, bug reports, dungeon groups, basic signups) works right away; KCaron's approval unlocks addon sync, EP/GP, seasons and the guild page. Optional [support](docs/SUPPORT_GUILDED.md) never buys approval.
 - **Run your own guild's bot:** follow [the illustrated beginner walkthrough](docs/OWNER_WALKTHROUGH.md), with Discord and Oracle account links, screenshots and success checks.
 - **Plan a quick installation:** use the [30-minute setup checklist](docs/QUICK_START.md), including what must be ready first.
+- **Optional Windows companion:** install [Guilded Companion from Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9), or use the standalone installer from [GitHub Releases](https://github.com/kevincaron28/Guilded/releases/latest). Store installations update through Microsoft Store. Check the version offered by each channel.
 - **Want an AI to guide you:** copy a [setup or troubleshooting prompt](docs/AI_SETUP_HELP.md).
 
-**Current version: 7.5.1 Release** (27 October 2026, protocol 2). [Release notes](docs/V7_5_1_RELEASE_NOTES.md).
+**Current version: 8.0.0 Release** (28 October 2026, protocol 2). [Release notes](docs/V8_0_0_RELEASE_NOTES.md). Publication status: [launch readiness](docs/V8_0_LAUNCH_READINESS.md).
 Supports Forever, Classic Era/Hardcore, TBC Anniversary, Mists Classic and Retail
 across the addon, Discord bot and companion, including several guilds in one Discord.
 Use the edition-specific ZIP from [GitHub Releases](https://github.com/kevincaron28/Guilded/releases/latest).

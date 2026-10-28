@@ -49,6 +49,11 @@ describe("companion recovery", () => {
     expect(() => checkUrl("https://user:password@remote.test")).toThrow("credentials");
     expect(() => checkUrl("http://127.0.0.1:8787")).not.toThrow();
   });
+  it("migrates the retired hosted origin without rewriting independent guild hosts", () => {
+    expect(checkUrl("https://guildedqc.duckdns.org/api/v1/standings?guild=123").href).toBe("https://guilded.kcaron.top/api/v1/standings?guild=123");
+    expect(checkUrl("https://other-guild.test/api/v1/standings").href).toBe("https://other-guild.test/api/v1/standings");
+    expect(checkUrl("https://guildedqc.duckdns.org.other.test/").hostname).toBe("guildedqc.duckdns.org.other.test");
+  });
   it("uploads existing saved data on startup, retries transient failure, and stops all further retries", async () => {
     let posts = 0;
     vi.stubGlobal("fetch", vi.fn(async (url: string | URL) => {

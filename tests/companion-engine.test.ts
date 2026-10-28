@@ -19,6 +19,33 @@ function gameFolder() {
 const config = (file: string) => ({ watchFile: file, realm: "R", uploadUrl: "https://bot.test/api/v1/addon-imports", guildDiscordId: "123", companionCredential: "x".repeat(32) });
 
 describe("companion engine", () => {
+  it("recovers an offline upload after restart from the saved ledger without losing earlier entries", async () => {
+    const game = gameFolder();
+    const save = (extra = '') => writeFileSync(game.file, `GuildedDB = { version = 3, epgp = { Kev = { ledger = {
+      { id = "first", epAmount = 5, gpAmount = 0, type = "EP_AWARD", reason = "Raid attendance", at = "2026-10-28T00:00:00Z", by = "Kev" }, ${extra}
+    } } } }`);
+    save();
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('fetch failed')));
+    const first = createEngine(config(game.file));
+    try {
+      await first.start(); first.uploadNow();
+      await vi.waitFor(() => expect(first.state().uploadError).toBeTruthy(), { timeout: 3000 });
+    } finally { await first.stop(); }
+    save('{ id = "second", epAmount = 10, gpAmount = 0, type = "EP_AWARD", reason = "Boss reward", at = "2026-10-28T01:00:00Z", by = "Kev" }');
+    const uploaded: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url, options) => {
+      if (String(url).includes('addon-imports')) uploaded.push(String(options.body));
+      return Response.json({ protocolVersion: 2, updatedAt: 'x', baseGp: 0, standings: [], transactionCount: 2, importId: 'test' });
+    }));
+    const restarted = createEngine(config(game.file));
+    try {
+      await restarted.start(); restarted.uploadNow();
+      await vi.waitFor(() => expect(restarted.state().uploads).toBe(1), { timeout: 3000 });
+      expect(uploaded.join('')).toContain('qg:first');
+      expect(uploaded.join('')).toContain('qg:second');
+      expect(readFileSync(game.file, 'utf8')).toContain('id = "first"');
+    } finally { await restarted.stop(); }
+  });
   it("lists what is missing from a config", () => {
     expect(validateConfig({})).toHaveLength(3);
     expect(validateConfig(config("a.lua"))).toEqual([]);

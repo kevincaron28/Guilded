@@ -236,7 +236,7 @@ frame:SetScript("OnEvent", function(_, event, a, b, c, d)
     if ns.moduleActive and not ns.moduleActive("recruit") then return end
     if event == "PLAYER_LOGIN" then ns.comm.register(PREFIX)
     elseif event == "CHAT_MSG_SYSTEM" then recruit.onSystemMessage(a)
-    elseif event == "CHAT_MSG_ADDON" and a == PREFIX and c == "GUILD" then recruit.onAddonMessage(b, d) end
+    elseif event == "CHAT_MSG_ADDON" and ns.comm.accept(a, b, c, d, PREFIX) and c == "GUILD" then recruit.onAddonMessage(b, d) end
   end)
   if not ok and ns.logDiagnostic then ns.logDiagnostic("LUA_ERROR", "recruit: " .. tostring(err)) end
 end)

@@ -139,6 +139,7 @@ frame:RegisterEvent("PLAYER_LOGIN")
 frame:RegisterEvent("CHAT_MSG_ADDON")
 frame:SetScript("OnEvent", function(_, event, prefix, text, channel, sender)
   if event == "PLAYER_LOGIN" then ns.comm.register(PREFIX) return end
+  if not ns.comm.accept(prefix, text, channel, sender, PREFIX) then return end
   if prefix ~= PREFIX or (ns.isSecret and (ns.isSecret(text) or ns.isSecret(sender))) then return end
   local ok, err = pcall(onAddon, text, channel, sender)
   if not ok and ns.logDiagnostic then ns.logDiagnostic("LUA_ERROR", "history: " .. tostring(err)) end

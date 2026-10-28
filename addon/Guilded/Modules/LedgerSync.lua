@@ -549,6 +549,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
       after(SUM_EVERY, tick)
     elseif event == "CHAT_MSG_ADDON" then
       local prefix, text, channel, sender = unpack(eventArgs)
+      if not ns.comm.accept(prefix, text, channel, sender, PREFIX) then return end
       if prefix ~= PREFIX then return end
       if ns.isSecret(prefix) or ns.isSecret(text) or ns.isSecret(sender) or #tostring(text) > 255 then return end
       onMessage(text, channel, sender)

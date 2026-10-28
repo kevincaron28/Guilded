@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { readAddonExport } from "../companion/lua-export.mjs";
+import { readDatabase } from "../companion/lua-export-content.mjs";
 import { parseAddonSnapshot, normalizeAddonSnapshot } from "../src/integrations/addon.js";
 
 // WoW's SavedVariables writer always serializes array-like Lua tables with
@@ -49,6 +50,17 @@ GuildedDB = {
   exports = {},
 }
 `;
+
+it("decodes Lua UTF-8 decimal bytes, single quotes and long bracket strings without executing code", () => {
+  const data = readDatabase(String.raw`GuildedDB = { name = "K\195\169vin", quoted = 'l\'ami', multiline = [=[
+first line
+second line]=], newline = "a\010b", slash = "a\\b" }`);
+  expect(data.name).toBe("Kévin");
+  expect(data.quoted).toBe("l'ami");
+  expect(data.multiline).toBe("first line\nsecond line");
+  expect(data.newline).toBe("a\nb");
+  expect(data.slash).toBe("a\\b");
+});
 
 describe("readAddonExport (real WoW SavedVariables array syntax)", () => {
   let dir: string;

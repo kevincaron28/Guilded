@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
@@ -47,13 +48,17 @@ describe('companion French presentation', () => {
   it('stores native language separately without rewriting pairing or starting a sync', () => {
     const handlers = new Map<string, (...args: unknown[]) => unknown>();
     const writeFileSync = vi.fn();
+    const frame = { url: new URL("../companion-app/renderer/index.html", import.meta.url).href };
+    const contents = { mainFrame: frame };
+    const ipcEvent = { sender: contents, senderFrame: frame };
     const appRequire = createRequire(new URL('../companion-app/main.cjs', import.meta.url));
-    runInNewContext(readFileSync(new URL('../companion-app/main.cjs', import.meta.url), 'utf8'), {
+    runInNewContext(readFileSync(new URL('../companion-app/main.cjs', import.meta.url), 'utf8') + '\nwin = { webContents: ipcTestContents };', {
+      ipcTestContents: contents,
       require: (id: string) => id === 'electron' ? {
         app: { requestSingleInstanceLock: () => true, whenReady: () => new Promise(() => {}), on: vi.fn(), getPath: () => 'C:/fixture-user-data' },
-        ipcMain: { handle: (name: string, handler: (...args: unknown[]) => unknown) => handlers.set(name, handler) }
+        ipcMain: { handle: (name: string, handler: (...args: unknown[]) => unknown) => handlers.set(name, (_event, ...args) => handler(ipcEvent, ...args)) }
       } : id === 'node:fs' ? { mkdirSync: vi.fn(), writeFileSync } : appRequire(id),
-      process: { argv: [] }, __dirname: 'C:/fixture-app'
+      process: { argv: [] }, __dirname: fileURLToPath(new URL("../companion-app/", import.meta.url))
     });
     expect(handlers.get('set-language')!(null, 'fr')).toBe('fr');
     expect(writeFileSync).toHaveBeenCalledOnce();

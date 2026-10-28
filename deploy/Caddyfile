@@ -18,12 +18,17 @@
 				request>headers>X-Companion-Credential delete
 				request>headers>Authorization delete
 				request>headers>Cookie delete
+				request>headers>X-Guilded-Origin delete
 			}
 		}
 	}
 }
 
 YOUR_HOSTNAME {
+	# Optional hosted-origin gate. Independent installations have no matching file.
+	route {
+		import /etc/caddy/guilded-origin*.caddy
+	}
 	request_body {
 		max_size 2MB
 	}

@@ -257,7 +257,7 @@ for _, event in ipairs({ "PLAYER_LOGIN", "CHAT_MSG_ADDON", "PLAYER_GUILD_UPDATE"
 end
 frame:SetScript("OnEvent", function(_, event, prefix, text, channel, sender)
   if event == "PLAYER_LOGIN" then if ns.comm then ns.comm.register(PREFIX) end; state()
-  elseif event == "CHAT_MSG_ADDON" and not secret(prefix) and prefix == PREFIX then presence.receive(text, sender, channel)
+  elseif event == "CHAT_MSG_ADDON" and ns.comm.accept(prefix, text, channel, sender, PREFIX) then presence.receive(text, sender, channel)
   elseif event == "PLAYER_GUILD_UPDATE" then state() end
 end)
 frame:SetScript("OnUpdate", function(_, delta)

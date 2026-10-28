@@ -2,7 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 
-// Store profiles are separate from NSIS profiles. Never silently fall back to
+// Store and desktop profiles keep separate directories. Never silently fall back to
 // plaintext or overwrite an unreadable encrypted configuration with defaults.
 function createStoreConfig(safeStorage) {
   let pending = Promise.resolve();
@@ -28,6 +28,25 @@ function createStoreConfig(safeStorage) {
   return {
     write,
     flush: () => pending,
+    async migrate(file, legacyFile) {
+      const current = await this.read(file);
+      if (current !== null) {
+        // A previous migration may have saved successfully before deletion failed.
+        fs.rmSync(legacyFile, { force: true });
+        return current;
+      }
+      let text;
+      try { text = fs.readFileSync(legacyFile, "utf8"); }
+      catch (error) { if (error.code === "ENOENT") return null; throw error; }
+      const config = JSON.parse(text);
+      if (!config || typeof config !== "object" || Array.isArray(config)) throw new Error("Saved settings are invalid.");
+      await write(file, config);
+      // Verify Windows can read the new file before removing the old credential.
+      const verified = await this.read(file);
+      if (JSON.stringify(verified) !== JSON.stringify(config)) throw new Error("Protected settings verification failed.");
+      fs.rmSync(legacyFile, { force: true });
+      return verified;
+    },
     async read(file) {
       let encrypted;
       try { encrypted = fs.readFileSync(file); } catch (error) { if (error.code === "ENOENT") return null; throw error; }

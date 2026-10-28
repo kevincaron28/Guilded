@@ -12,7 +12,7 @@ const repo = join(dirname(fileURLToPath(import.meta.url)), "..");
 const source = join(repo, "addon", "Guilded");
 const target = join(repo, "addon", "GuildedDungeons");
 // Load order matters: Util and Compat first, then the modules (same order as Guilded.toc).
-export const SHARED = ["Util.lua", "Compat.lua", "Locale.lua", "DungeonRoutes.lua", "Modules/Dungeon.lua", "Modules/RunResults.lua", "Modules/Scores.lua", "Modules/SeasonDetails.lua", "Modules/DungeonScorePanel.lua"];
+export const SHARED = ["Util.lua", "Transport.lua", "Compat.lua", "Locale.lua", "DungeonRoutes.lua", "Modules/Dungeon.lua", "Modules/RunResults.lua", "Modules/Scores.lua", "Modules/SeasonDetails.lua", "Modules/DungeonScorePanel.lua"];
 const header = (file) => `-- Copied from addon/Guilded/${file} by scripts/build-dungeons-addon.mjs. Edit the original, then run npm run dungeons:sync.\n`;
 
 export function expectedCopy(file) {

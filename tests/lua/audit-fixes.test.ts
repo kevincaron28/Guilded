@@ -53,6 +53,14 @@ describe("whisper addresses (WoW Forever)", () => {
 });
 
 describe("Util.lua helpers", () => {
+  it("shares a fail-closed incoming boundary before module parsing and authorization", () => {
+    const s = loggedIn([]);
+    expect(s.run('return tostring(NS.comm.accept("p", "REQ|1", "GUILD", "Ann", "p", function() return true end))')).toBe('true');
+    for (const args of ['"p", string.rep("x",256), "GUILD", "Ann", "p"', '"p", "REQ", "SAY", "Ann", "p"', '"p", "REQ", "GUILD", "Bad|Name", "p"', '"p", "x"..string.char(0), "GUILD", "Ann", "p"', '"p", "REQ", "GUILD", "Ann", "p", function() error("unreadable role") end']) {
+      expect(s.run(`return tostring(NS.comm.accept(${args}))`)).toBe('false');
+    }
+    expect(s.run('return tostring(NS.comm.authorized("Ann", "officer"))')).toBe('false');
+  });
   it("cuts text without splitting a UTF-8 character", () => {
     const s = loggedIn([]);
     // "ab" + e-acute (two bytes): a 3-byte limit keeps "ab", not half of the accent.
@@ -111,12 +119,34 @@ describe("paced addon messages (ns.comm)", () => {
     expect(s.run("return SENT[1].text .. ',' .. SENT[2].text")).toBe("first,second");
   });
 
-  it("cuts an over-long message and notes it quietly in the diagnostics", () => {
+  it("rejects over-long messages instead of sending a corrupted partial packet", () => {
     const s = loggedIn([]);
     s.run(`SENT = {}; NS.comm.send("QLong", string.rep("x", 300), "GUILD")`);
-    expect(s.run("return tostring(#SENT[1].text)")).toBe("255");
+    expect(s.run("return tostring(#SENT)")).toBe("0");
+    expect(s.run('return tostring(NS.comm.status("QLong").oversized)')).toBe("1");
     expect(s.run("local d = GuildedDB.diagnostics; return d[#d].kind")).toBe("SEND");
     expect(s.chat().join("\n")).not.toContain("[Diagnostic] SEND");
+  });
+  it("bounds a stalled queue without discarding or reordering earlier packets", () => {
+    const s = loggedIn([]);
+    s.run(`SENT = {}; for i = 1, 1016 do NS.comm.send("QBound", "m" .. i, "GUILD") end`);
+    expect(s.run('return tostring(NS.comm.send("QBound", "overflow", "GUILD"))')).toBe("false");
+    expect(s.run('return tostring(NS.comm.status("QBound").queued)')).toBe("1008");
+    expect(s.run('return tostring(NS.comm.status("QBound").overflow)')).toBe("1");
+    s.run('GetTime = function() return 30 end; NS.comm.send("QBound", "later", "GUILD")');
+    expect(s.run('return SENT[9].text')).toBe("m9");
+  });
+
+  it("reserves interactive capacity and keeps chunk order while preventing bulk starvation", () => {
+    const s = loggedIn([]);
+    s.run(`
+      SENT = {}; for i = 1, 1016 do NS.comm.send("QPriority", "chunk" .. i, "GUILD") end
+      for i = 1, 16 do NS.comm.send("QPriority", "control" .. i, "GUILD", nil, nil, "interactive") end
+    `);
+    expect(s.run('return tostring(NS.comm.pending("QPriority"))')).toBe("1024");
+    expect(s.run('return tostring(NS.comm.send("QPriority", "overflow", "GUILD", nil, nil, "interactive"))')).toBe("false");
+    s.run('GetTime = function() return 30 end; NS.comm.send("QPriority", "trigger", "GUILD")');
+    expect(s.run('return SENT[9].text .. "," .. SENT[12].text .. "," .. SENT[13].text .. "," .. SENT[14].text')).toBe('control1,control4,chunk9,control5');
   });
 
   it("distinguishes client acceptance, refusal and errors without retaining payloads", () => {

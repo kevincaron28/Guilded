@@ -7,7 +7,7 @@ const { detectSavedVariables } = require("./detect-wow.cjs");
 const updates = require("./update-check.cjs");
 const STORE_PACKAGE = process.windowsStore === true;
 const STORE_UPDATES = "ms-windows-store://downloadsandupdates";
-const storeConfig = STORE_PACKAGE ? require("./store-config.cjs").createStoreConfig(safeStorage) : null;
+let storeConfig;
 if (STORE_PACKAGE) {
   const storeDataDirectory = path.join(app.getPath("appData"), "Guilded Companion Store");
   fs.mkdirSync(storeDataDirectory, { recursive: true });
@@ -51,6 +51,14 @@ const screenshotTab = (args.find((a) => a.startsWith("--tab=")) ?? "").slice("--
 if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
 
 let win;
+function registerIpc(channel, handler) {
+  ipcMain.handle(channel, (event, ...args) => {
+    const security = require("./ipc-security.cjs");
+    security.assertSender(event, win, __dirname);
+    security.validateIpc(channel, args);
+    return handler(event, ...args);
+  });
+}
 let tray;
 let engine;
 let engineModules;
@@ -58,19 +66,15 @@ let quitting = false;
 let config = { ...DEFAULTS };
 const logs = [];
 
-const configFile = () => path.join(app.getPath("userData"), STORE_PACKAGE ? "config.secure" : "config.json");
+const configFile = () => path.join(app.getPath("userData"), "config.secure");
 const profileJournalFile = () => path.join(app.getPath("userData"), !config.activeProfile || config.activeProfile === "default" ? "poe-journal.json" : `poe-journal-${config.activeProfile}.json`);
 const asset = (name) => path.join(__dirname, "assets", name);
 
 async function loadConfig() {
-  if (storeConfig) {
-    config = { ...DEFAULTS, ...await storeConfig.read(configFile()) };
-    return;
-  }
-  try {
-    config = { ...DEFAULTS, ...JSON.parse(fs.readFileSync(configFile(), "utf8")) };
-    return;
-  } catch { /* first run */ }
+  const saved = STORE_PACKAGE ? await storeConfig.read(configFile())
+    : await storeConfig.migrate(configFile(), path.join(app.getPath("userData"), "config.json"));
+  if (saved !== null) { config = { ...DEFAULTS, ...saved }; return; }
+  if (STORE_PACKAGE) return;
   // Carry over the command-line companion's settings when running from the repo.
   if (args.includes("--fresh")) return;
   try {
@@ -81,16 +85,14 @@ async function loadConfig() {
 }
 
 function saveConfig() {
-  if (storeConfig) return storeConfig.write(configFile(), config);
-  fs.mkdirSync(path.dirname(configFile()), { recursive: true });
-  fs.writeFileSync(configFile(), JSON.stringify(config, null, 2));
+  return storeConfig.write(configFile(), config);
 }
 
 async function loadEngineModules() {
   const dir = app.isPackaged ? path.join(process.resourcesPath, "engine") : path.join(__dirname, "..", "companion");
   const url = (file) => pathToFileURL(path.join(dir, file)).href;
   const [engineModule, standingsModule, requestModule, sheetModule, liveFolderModule] = await Promise.all([import(url("engine.mjs")), import(url("standings.mjs")), import(url("request.mjs")), import(url("sheet-export.mjs")), import(url("live-folder.mjs"))]);
-  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profiles.mjs")), ...await import(url("grm-migration.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile };
+  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profiles.mjs")), ...await import(url("revoke.mjs")), ...await import(url("grm-migration.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile };
 }
 
 function pushLog(entry) {
@@ -123,7 +125,7 @@ function refreshUpdate(state = engine?.state()) {
   update = next;
   if (!update || config.updateNotifiedVersion === update.version) return;
   config.updateNotifiedVersion = update.version;
-  saveConfig();
+  void saveConfig().catch(error => pushLog({ time: new Date().toISOString(), level: "error", message: error.message }));
   if (!Notification.isSupported()) return;
   const notice = new Notification({
     title: T("Guilded Companion {0} is available", update.version),
@@ -262,11 +264,21 @@ async function removeAllDataAndQuit() {
     cancelId: 0,
     title: T("Remove all data?"),
     message: T("Stop the companion and remove its saved data from this PC?"),
-    detail: T("This turns off Start with Windows and deletes your settings, Discord link and unsent PoE2 observations. Your game files are untouched. Set it up again any time by reopening Guilded Companion.")
+    detail: T("This revokes your saved online connections, turns off Start with Windows and deletes your local settings and unsent PoE2 observations. Your game files are untouched.")
   });
   if (choice !== 1) return false;
-  setAutostart(false);
+  // Stop requests before revocation, including any outstanding sign-in.
+  signIn?.controller.abort(); signIn = null;
   await engine.stop();
+  const revocation = await engineModules.revokeSavedConnections(config);
+  if (revocation.failed) {
+    dialog.showMessageBoxSync(win ?? undefined, {
+      type: "warning", buttons: [T("OK")],
+      message: T("Some online connections could not be revoked."),
+      detail: T("Local data will still be removed. Revoke those connections from your Guilded account or /character pair when the server is reachable.")
+    });
+  }
+  setAutostart(false);
   if (storeConfig) await storeConfig.flush().catch(() => {}); // A failed save has settled; deletion must still work.
   quitting = true;
   // config.json (the token and companion credential) first and on its own:
@@ -298,6 +310,7 @@ function failStartup(error) {
 
 app.whenReady().then(async () => {
   try {
+    storeConfig = require("./store-config.cjs").createStoreConfig(safeStorage);
     engineModules = await loadEngineModules();
     await loadConfig();
     try { const preference = JSON.parse(fs.readFileSync(path.join(app.getPath("userData"), "language.json"), "utf8")); if (["en", "fr"].includes(preference.language)) selectedLanguage = preference.language; } catch { /* use system language */ }
@@ -361,9 +374,9 @@ app.on("before-quit", event => {
   }
 });
 
-ipcMain.handle("get-all", () => ({ config, language: language(), logs, ...currentState(), storePackage: STORE_PACKAGE, autostart: !STORE_PACKAGE && app.getLoginItemSettings().openAtLogin, version: app.getVersion() }));
-ipcMain.handle("list-profiles", () => ({ active: config.activeProfile || "default", profiles: engineModules.profileChoices(config) }));
-ipcMain.handle("change-profile", async (_event, choice) => {
+registerIpc("get-all", () => ({ config: require("./ipc-security.cjs").rendererConfig(config), language: language(), logs, ...currentState(), storePackage: STORE_PACKAGE, autostart: !STORE_PACKAGE && app.getLoginItemSettings().openAtLogin, version: app.getVersion() }));
+registerIpc("list-profiles", () => ({ active: config.activeProfile || "default", profiles: engineModules.profileChoices(config) }));
+registerIpc("change-profile", async (_event, choice) => {
   try {
     if (signIn) return { ok: false, message: "Finish or cancel Discord sign-in before switching connections." };
     await engine.stop();
@@ -377,7 +390,7 @@ ipcMain.handle("change-profile", async (_event, choice) => {
   } catch (error) { return { ok: false, message: error.message }; }
 });
 
-ipcMain.handle("set-language", (_event, value) => {
+registerIpc("set-language", (_event, value) => {
   if (!["en", "fr"].includes(value)) throw new Error("Unsupported language");
   const file = path.join(app.getPath("userData"), "language.json");
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -387,7 +400,7 @@ ipcMain.handle("set-language", (_event, value) => {
   return value;
 });
 
-ipcMain.handle("save-config", async (_event, next) => {
+registerIpc("save-config", async (_event, next) => {
   config = { ...config, ...next, poeJournalFile: profileJournalFile(), standingsIntervalMinutes: Math.max(1, Number(next.standingsIntervalMinutes) || 2) };
   const problems = engineModules.validateConfig(config);
   await saveConfig();
@@ -399,7 +412,7 @@ ipcMain.handle("save-config", async (_event, next) => {
 
 // The Overview prompt: watch the live game's file instead (the page words the result), or keep
 // this folder and never be asked about that file again.
-ipcMain.handle("switch-live-folder", async () => {
+registerIpc("switch-live-folder", async () => {
   const candidate = savedFile?.candidate;
   if (!candidate) return { ok: false, path: null };
   config = { ...config, watchFile: candidate.path };
@@ -409,7 +422,7 @@ ipcMain.handle("switch-live-folder", async () => {
   await refreshSavedFile();
   return { ok: started, path: candidate.path };
 });
-ipcMain.handle("dismiss-live-folder", async () => {
+registerIpc("dismiss-live-folder", async () => {
   const candidate = savedFile?.candidate;
   if (candidate) {
     config.liveFolderDeclined = [...(config.liveFolderDeclined ?? []), candidate.path].slice(-20);
@@ -419,13 +432,13 @@ ipcMain.handle("dismiss-live-folder", async () => {
   return true;
 });
 
-ipcMain.handle("open-update", () => shell.openExternal(STORE_PACKAGE ? STORE_UPDATES : update?.url || updates.RELEASES_PAGE));
-ipcMain.handle("open-startup-settings", () => shell.openExternal("ms-settings:startupapps"));
+registerIpc("open-update", () => shell.openExternal(STORE_PACKAGE ? STORE_UPDATES : update?.url || updates.RELEASES_PAGE));
+registerIpc("open-startup-settings", () => shell.openExternal("ms-settings:startupapps"));
 
 // "Update now" (7.2): download the checked installer, run it silently and quit; the installer
 // restarts the companion. Settings, the Discord link and the queue stay in the user data folder.
 let installing = false;
-ipcMain.handle("install-update", async () => {
+registerIpc("install-update", async () => {
   if (STORE_PACKAGE) {
     await shell.openExternal(STORE_UPDATES);
     return { ok: true, action: "store", message: T("Use Microsoft Store to update this installation.") };
@@ -466,7 +479,7 @@ ipcMain.handle("install-update", async () => {
   }
 });
 
-ipcMain.handle("test-connection", (_event, next) => engineModules.testConnection({ ...config, ...next }));
+registerIpc("test-connection", (_event, next) => engineModules.testConnection({ ...config, ...next }));
 
 // A pairing code or a Discord sign-in: both end with the same credential and settings.
 async function applyPairing(next, result) {
@@ -481,11 +494,11 @@ async function applyPairing(next, result) {
   };
 }
 
-ipcMain.handle("pair-account", async (_event, next) => applyPairing(next, await engineModules.pairAccount({ ...config, ...next })));
+registerIpc("pair-account", async (_event, next) => applyPairing(next, await engineModules.pairAccount({ ...config, ...next })));
 
 // "Sign in with Discord" (7.2): the browser opens the website, the app waits for the approval.
 let signIn = null;
-ipcMain.handle("sign-in-start", async (_event, next) => {
+registerIpc("sign-in-start", async (_event, next) => {
   signIn?.controller.abort();
   const started = await engineModules.startSignIn({ ...config, ...next });
   if (!started.ok) return started;
@@ -493,16 +506,16 @@ ipcMain.handle("sign-in-start", async (_event, next) => {
   await shell.openExternal(started.url);
   return { ok: true, confirm: started.confirm, url: started.url };
 });
-ipcMain.handle("sign-in-wait", async () => {
+registerIpc("sign-in-wait", async () => {
   const current = signIn;
   if (!current) return { ok: false, message: T("Choose Sign in with Discord first.") };
   const result = await engineModules.waitForSignIn({ ...config, ...current.next, uploadUrl: current.started.uploadUrl }, current.started.requestId, { signal: current.controller.signal });
   if (signIn === current) signIn = null;
   return applyPairing(current.next, result);
 });
-ipcMain.handle("sign-in-cancel", () => { signIn?.controller.abort(); signIn = null; return { ok: true }; });
+registerIpc("sign-in-cancel", () => { signIn?.controller.abort(); signIn = null; return { ok: true }; });
 
-ipcMain.handle("browse-file", async () => {
+registerIpc("browse-file", async () => {
   const start = config.watchFile ? path.dirname(config.watchFile) : undefined;
   const result = await dialog.showOpenDialog(win, {
     title: config.personal
@@ -515,8 +528,8 @@ ipcMain.handle("browse-file", async () => {
 });
 
 // Leaderboards only: either addon's file; the engine then reads both from that folder.
-ipcMain.handle("detect-wow", () => detectSavedVariables(config.personal ? ["GuildedDungeons.lua", "Guilded.lua"] : ["Guilded.lua"]));
-ipcMain.handle("browse-poe-log", async () => {
+registerIpc("detect-wow", () => detectSavedVariables(config.personal ? ["GuildedDungeons.lua", "Guilded.lua"] : ["Guilded.lua"]));
+registerIpc("browse-poe-log", async () => {
   const result = await dialog.showOpenDialog(win, {
     title: T("Choose Path of Exile 2 > logs > Client.txt"),
     properties: ["openFile"], filters: [{ name: T("Game log"), extensions: ["txt"] }]
@@ -525,7 +538,7 @@ ipcMain.handle("browse-poe-log", async () => {
 });
 // Export to spreadsheet: one CSV file per table (all, or `table`) from Guilded.lua, into a
 // folder the player picks.
-ipcMain.handle("export-sheets", async (_event, table) => {
+registerIpc("export-sheets", async (_event, table) => {
   if (!config.watchFile) return { ok: false, message: T("Choose your Guilded.lua file first (World of Warcraft page).") };
   let files;
   try { files = engineModules.sheetFiles(await fs.promises.readFile(config.watchFile, "utf8")).filter((file) => !table || file.table === table); }
@@ -544,23 +557,23 @@ ipcMain.handle("export-sheets", async (_event, table) => {
   void shell.openPath(folder);
   return { ok: true, message: T("Saved {0} to {1}.", files.map((file) => `${file.table} (${file.rows})`).join(", "), folder), files: files.map(({ name, table, rows }) => ({ name, table, rows })) };
 });
-ipcMain.handle("upload-now", () => { engine.uploadNow(); return true; });
-ipcMain.handle("convert-grm", (_event, options) => require("./grm-import.cjs").createGRMConverter({ dialog, fs: fs.promises, convertGRM: engineModules.convertGRM, getWindow: () => win, T })(options));
-ipcMain.handle("refresh-standings", async () => { await engine.refreshStandings(); return true; });
-ipcMain.handle("set-autostart", (_event, on) => setAutostart(on));
-ipcMain.handle("open-addon-folder", () => {
+registerIpc("upload-now", () => { engine.uploadNow(); return true; });
+registerIpc("convert-grm", (_event, options) => require("./grm-import.cjs").createGRMConverter({ dialog, fs: fs.promises, convertGRM: engineModules.convertGRM, getWindow: () => win, T })(options));
+registerIpc("refresh-standings", async () => { await engine.refreshStandings(); return true; });
+registerIpc("set-autostart", (_event, on) => setAutostart(on));
+registerIpc("open-addon-folder", () => {
   const target = engineModules.resolveStandingsPath(config);
   if (target) shell.showItemInFolder(target);
   return !!target;
 });
-ipcMain.handle("remove-data", () => removeAllDataAndQuit());
-ipcMain.handle("toggle-tracking", async () => {
+registerIpc("remove-data", () => removeAllDataAndQuit());
+registerIpc("toggle-tracking", async () => {
   if (engine.state().running) await engine.stop();
   else await engine.start();
   onState(engine.state());
   return currentState();
 });
-ipcMain.handle("get-poe-runs", async () => {
+registerIpc("get-poe-runs", async () => {
   const url = new URL("/api/v1/poe/visits", config.uploadUrl);
   url.searchParams.set("guild", config.guildDiscordId);
   const { response, body } = await engineModules.requestJson(url, { headers: engineModules.credentialHeaders(config) });
@@ -582,9 +595,9 @@ async function manageRequest(change) {
     return { ok: true, data: body };
   } catch (error) { return { ok: false, error: engineModules.describeError(error) }; }
 }
-ipcMain.handle("manage-view", () => manageRequest(null));
-ipcMain.handle("manage-edit", (_event, change) => manageRequest(change));
-ipcMain.handle("open-online", () => {
+registerIpc("manage-view", () => manageRequest(null));
+registerIpc("manage-edit", (_event, change) => manageRequest(change));
+registerIpc("open-online", () => {
   engineModules.checkUrl(config.uploadUrl);
   const url = new URL("/companion/", config.uploadUrl);
   if (config.guildDiscordId) url.searchParams.set("guild", config.guildDiscordId);

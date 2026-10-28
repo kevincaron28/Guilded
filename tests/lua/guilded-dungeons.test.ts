@@ -65,7 +65,7 @@ describe("Guilded Dungeons next to Guilded", () => {
 describe("one source of truth", () => {
   it("ships exact copies of Guilded's dungeon files, in load order", () => {
     expect(() => check()).not.toThrow();
-    expect(tocFiles()).toEqual(["Shim.lua", "Shared/Util.lua", "Shared/Compat.lua", "Shared/Locale.lua", "Shared/DungeonRoutes.lua", "Shared/Dungeon.lua", "Shared/RunResults.lua", "Shared/Scores.lua", "Shared/SeasonDetails.lua", "Shared/DungeonScorePanel.lua", "Accepted.lua", "Main.lua"]);
+    expect(tocFiles()).toEqual(["Shim.lua", "Shared/Util.lua", "Shared/Transport.lua", "Shared/Compat.lua", "Shared/Locale.lua", "Shared/DungeonRoutes.lua", "Shared/Dungeon.lua", "Shared/RunResults.lua", "Shared/Scores.lua", "Shared/SeasonDetails.lua", "Shared/DungeonScorePanel.lua", "Accepted.lua", "Main.lua"]);
     for (const file of SHARED) expect(expectedCopy(file)).toContain(readFileSync(new URL(`../../addon/Guilded/${file}`, import.meta.url), "utf8").replace(/\r\n/g, "\n").slice(0, 200));
   });
 });

@@ -119,6 +119,8 @@ export function newLuaSession(): LuaSession {
       if (file !== "Util.lua" && exec(`return tostring(${ns} ~= nil and ${ns}.comm ~= nil)`) !== "true") {
         this.load("Util.lua", ns);
       }
+      if (file !== "Util.lua" && file !== "Transport.lua" && exec(`return tostring(${ns}.comm.accept ~= nil)`) !== "true") this.load("Transport.lua", ns);
+      if (file === "Core.lua" && exec(`return tostring(${ns}.createSheetExport ~= nil)`) !== "true") this.load("CorePresentation.lua", ns);
       // The source travels as a Lua long string, so no escaping is needed.
       const source = addonSource(file);
       lua.lua_pushstring(L, to_luastring(source));

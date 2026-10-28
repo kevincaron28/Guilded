@@ -1,5 +1,29 @@
 [
-  {"source":"features.md","sourceFr":"features.fr.md","titleFr":"Fonctions de Guilded — addon, compagnon et Discord","path":"features/","title":"Guilded features — addon, web companion and Discord","description":"Use Guilded in game, sync WoW standings from your browser, edit wishlists and explore your personal PoE2 mapping journal.","lang":"en","draft":false},
-  {"source":"quebec-gold.md","path":"quebec-gold/","title":"Quebec Gold — communauté francophone WoW et PoE2","description":"Quebec Gold : WoW Forever et Path of Exile 2, en français à l'heure de Montréal. Découvrez la communauté et rejoignez notre Discord.","lang":"fr","draft":false},
-  {"source":"poe2.md","path":"quebec-gold/poe2/","title":"Quebec Gold — communauté francophone Path of Exile 2","description":"Retrouvez Quebec Gold sur Path of Exile 2 à chaque nouvelle ligue : communauté francophone, heure de Montréal et contact Discord.","lang":"fr","draft":false}
+  {
+    "source": "features.md",
+    "sourceFr": "features.fr.md",
+    "titleFr": "Fonctions de Guilded — addon, compagnon et Discord",
+    "path": "features/",
+    "title": "Guilded features — addon, web companion and Discord",
+    "description": "Use Guilded in game, sync WoW standings from your browser, edit wishlists and explore your personal PoE2 mapping journal.",
+    "lang": "en",
+    "draft": false,
+    "descriptionFr": "Utilisez Guilded en jeu, synchronisez les classements WoW depuis votre navigateur, modifiez vos souhaits et consultez votre journal PoE2."
+  },
+  {
+    "source": "quebec-gold.md",
+    "path": "quebec-gold/",
+    "title": "Quebec Gold — communauté francophone WoW et PoE2",
+    "description": "Quebec Gold : WoW Forever et Path of Exile 2, en français à l'heure de Montréal. Découvrez la communauté et rejoignez notre Discord.",
+    "lang": "fr",
+    "draft": false
+  },
+  {
+    "source": "poe2.md",
+    "path": "quebec-gold/poe2/",
+    "title": "Quebec Gold — communauté francophone Path of Exile 2",
+    "description": "Retrouvez Quebec Gold sur Path of Exile 2 à chaque nouvelle ligue : communauté francophone, heure de Montréal et contact Discord.",
+    "lang": "fr",
+    "draft": false
+  }
 ]

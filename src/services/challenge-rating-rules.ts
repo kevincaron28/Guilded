@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const challengeRatingSchema = z.object({
-  model: z.literal("guilded-keystone-v1"), pool: z.string().min(1).max(80),
+  model: z.enum(["guilded-keystone-v1", "guilded-keystone-v2"]), pool: z.string().min(1).max(80),
   dungeons: z.array(z.object({ mapId: z.number().int().positive(), instanceId: z.number().int().positive(),
     name: z.string().min(1).max(100), timeLimitSec: z.number().int().positive().max(14400) })).min(1).max(20)
 }).refine(r => new Set(r.dungeons.map(d => d.mapId)).size === r.dungeons.length, "Duplicate keystone maps");
@@ -23,3 +23,5 @@ export const MIDNIGHT_S2_RATING: ChallengeRatingRules = {
     {mapId:588,instanceId:2993,name:"Altar of Fangs",timeLimitSec:1800}
   ]
 };
+// Only newly created rules use v2. Stored v1 snapshots retain their exact policy.
+export const MIDNIGHT_S2_RATING_V2: ChallengeRatingRules = { ...MIDNIGHT_S2_RATING, model: "guilded-keystone-v2" };

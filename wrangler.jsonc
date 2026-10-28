@@ -3,21 +3,76 @@
   "name": "guilded-wow",
   "main": "worker/index.mjs",
   "compatibility_date": "2026-10-05",
-  "workers_dev": true,
+  "workers_dev": false,
+  "preview_urls": false,
+  "ratelimits": [
+    {
+      "name": "API_WRITES",
+      "namespace_id": "24601",
+      "simple": {
+        "limit": 120,
+        "period": 60
+      }
+    },
+    {
+      "name": "PAIRING_ATTEMPTS",
+      "namespace_id": "24602",
+      "simple": {
+        "limit": 20,
+        "period": 60
+      }
+    }
+  ],
   "previews": {},
   "keep_vars": true,
   "kv_namespaces": [
-    { "binding": "OWNER_RESOURCES", "id": "ce3898387649485cbc95087cc4e98493" }
+    {
+      "binding": "OWNER_RESOURCES",
+      "id": "ce3898387649485cbc95087cc4e98493"
+    }
   ],
   "routes": [
-    { "pattern": "kcaron.top", "custom_domain": true },
-    { "pattern": "www.kcaron.top", "custom_domain": true },
-    { "pattern": "guilded.kcaron.top", "custom_domain": true }
+    {
+      "pattern": "kcaron.top",
+      "custom_domain": true
+    },
+    {
+      "pattern": "www.kcaron.top",
+      "custom_domain": true
+    },
+    {
+      "pattern": "guilded.kcaron.top",
+      "custom_domain": true
+    }
   ],
   "assets": {
     "directory": "./dist/site",
     "binding": "ASSETS",
-    "run_worker_first": ["/", "/robots.txt", "/sitemap.xml", "/googlefc463a9e1454c920.html", "/support", "/support/", "/owner", "/owner/*", "/companion", "/companion/*", "/api/*", "/health", "/g/*", "/quebec-gold/cores", "/quebec-gold/cores/", "/quebec-gold/wow", "/quebec-gold/wow/"],
+    "run_worker_first": [
+      "/",
+      "/robots.txt",
+      "/sitemap.xml",
+      "/googlefc463a9e1454c920.html",
+      "/support",
+      "/support/",
+      "/owner",
+      "/owner/*",
+      "/companion",
+      "/companion/*",
+      "/api/*",
+      "/health",
+      "/g/*",
+      "/quebec-gold/cores",
+      "/quebec-gold/cores/",
+      "/quebec-gold/wow",
+      "/quebec-gold/wow/",
+      "/features",
+      "/features/*",
+      "/creator/*",
+      "/index",
+      "/index.html",
+      "/creator"
+    ],
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "none"
   }

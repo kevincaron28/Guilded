@@ -1,5 +1,5 @@
 import { createRequire } from "node:module";
-import { mkdtempSync, readFileSync, writeFileSync, rmSync, readdirSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync, rmSync, readdirSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname, resolve, basename } from "node:path";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
@@ -63,4 +63,28 @@ it("rewrites decryptable settings when Windows requests key rotation", async () 
   h.storage.decryptStringAsync.mockResolvedValueOnce({ result: '{"key":"retained"}', shouldReEncrypt: true });
   expect(await h.store.read(h.file)).toEqual({ key: "retained" });
   expect(h.storage.encryptStringAsync).toHaveBeenCalledTimes(2);
+});
+it("migrates all legacy desktop profiles only after a protected round trip", async () => {
+  const h = harness(), legacy = join(h.folder, "config.json");
+  const config = { companionCredential: "old-secret", profiles: { retail: { companionCredential: "other-secret" } } };
+  writeFileSync(legacy, JSON.stringify(config));
+  expect(await h.store.migrate(h.file, legacy)).toEqual(config);
+  expect(existsSync(legacy)).toBe(false);
+  expect(readFileSync(h.file).includes(Buffer.from("secret"))).toBe(false);
+});
+it("preserves the legacy credential when protected migration fails", async () => {
+  const h = harness(), legacy = join(h.folder, "config.json");
+  writeFileSync(legacy, '{"companionCredential":"retained"}');
+  h.storage.isAsyncEncryptionAvailable.mockResolvedValue(false);
+  await expect(h.store.migrate(h.file, legacy)).rejects.toThrow("unavailable");
+  expect(readFileSync(legacy, "utf8")).toContain("retained");
+  expect(existsSync(h.file)).toBe(false);
+});
+it("never imports legacy plaintext over unreadable protected settings", async () => {
+  const h = harness(), legacy = join(h.folder, "config.json");
+  writeFileSync(legacy, '{"companionCredential":"retained"}');
+  writeFileSync(h.file, "corrupt");
+  await expect(h.store.migrate(h.file, legacy)).rejects.toThrow();
+  expect(existsSync(legacy)).toBe(true);
+  expect(readFileSync(h.file, "utf8")).toBe("corrupt");
 });

@@ -1,6 +1,7 @@
 // Compile only repository-owned public guides. This does not publish or start a bot.
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, cpSync, existsSync, readdirSync } from "node:fs";
 import { dirname, posix } from "node:path";
+import { createHash } from "node:crypto";
 import { marked } from "marked";
 import { localizedHref, navLinks } from "../site/nav.mjs";
 
@@ -23,6 +24,10 @@ const guideDescriptions = {
 const sources = new Set(guides.map(name => `docs/${name}.md`));
 const out = "dist/site";
 mkdirSync(`${out}/docs`, { recursive: true });
+// The creator's static JSON-LD remains allowed without enabling arbitrary inline scripts.
+const structuredData = [...readFileSync("site/creator/index.html", "utf8").matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)];
+const hashes = structuredData.map(match => `'sha256-${createHash("sha256").update(match[1]).digest("base64")}'`).join(" ");
+writeFileSync(`${out}/_headers`, readFileSync("site/_headers", "utf8").replace("script-src 'self'", `script-src 'self' ${hashes}`));
 // Published provider versions are independent of a local candidate/package bump.
 const { guilded: publishedGuilded } = JSON.parse(readFileSync("site/releases.json", "utf8"));
 const version = publishedGuilded.github.version;
@@ -91,15 +96,36 @@ for (const page of pages) {
   const french = page.lang === "fr";
   const bilingual = !!page.sourceFr;
   const pageText = (en, fr) => bilingual ? `<span data-en="${escape(en)}" data-fr="${escape(fr)}">${en}</span>` : french ? fr : en;
+  const descriptionAttributes = bilingual ? ` data-content-en="${escape(page.description)}" data-content-fr="${escape(page.descriptionFr)}"` : '';
+  const titleAttributes = bilingual ? ` data-content-en="${escape(page.title)}" data-content-fr="${escape(page.titleFr)}"` : '';
   const enBody = marked.parse(readFileSync(`site/pages/${page.source}`, "utf8"));
   const body = bilingual ? `<div data-language-copy="en" lang="en">${enBody}</div><div data-language-copy="fr" lang="fr" hidden>${marked.parse(readFileSync(`site/pages/${page.sourceFr}`, "utf8"))}</div>` : enBody;
   const communityNav = french ? `<nav class="community-subnav" aria-label="Dans Quebec Gold">${[['quebec-gold/', 'La communauté'], ['g/quebec-gold/', 'World of Warcraft'], ['quebec-gold/poe2/', 'Path of Exile 2']].map(([path, label]) => `<a href="${prefix}${path}"${page.path === path ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>` : '';
   mkdirSync(`${out}/${page.path}`, { recursive: true });
   writeFileSync(`${out}/${page.path}index.html`, `<!doctype html>
-<html lang="${page.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#111312"><title${bilingual ? ` data-en="${escape(page.title)}" data-fr="${escape(page.titleFr)}"` : ""}>${escape(page.title)}</title><meta name="description" content="${escape(page.description)}"><link rel="canonical" href="${origin}/${page.path}">${page.draft ? '<meta name="robots" content="noindex,follow">' : ''}<meta property="og:title" content="${escape(page.title)}"><meta property="og:description" content="${escape(page.description)}"><meta property="og:type" content="website"><meta property="og:url" content="${origin}/${page.path}"><meta property="og:image" content="${origin}/logo.png"><link rel="icon" href="${prefix}logo.png" type="image/png"><link rel="stylesheet" href="${prefix}design-tokens.css"><link rel="stylesheet" href="${prefix}style.css"><link rel="stylesheet" href="${prefix}atelier.css"><script src="${prefix}site.js" defer></script>${bilingual ? `<script src="${prefix}language.js" type="module"></script>` : ""}</head>
+<html lang="${page.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#111312"><title${bilingual ? ` data-en="${escape(page.title)}" data-fr="${escape(page.titleFr)}"` : ""}>${escape(page.title)}</title><meta name="description" content="${escape(page.description)}"${descriptionAttributes}><link rel="canonical" href="${origin}/${page.path}">${page.draft ? '<meta name="robots" content="noindex,follow">' : ''}<meta property="og:title" content="${escape(page.title)}"${titleAttributes}><meta property="og:description" content="${escape(page.description)}"${descriptionAttributes}><meta property="og:type" content="website"><meta property="og:url" content="${origin}/${page.path}"><meta property="og:image" content="${origin}/logo.png"><link rel="icon" href="${prefix}logo.png" type="image/png"><link rel="stylesheet" href="${prefix}design-tokens.css"><link rel="stylesheet" href="${prefix}style.css"><link rel="stylesheet" href="${prefix}atelier.css"><script src="${prefix}site.js" defer></script>${bilingual ? `<script src="${prefix}language.js" type="module"></script>` : ""}</head>
 <body class="site-page ${french ? 'community-page' : 'features-page'}"><a class="skip" href="#main">${pageText('Skip to content', 'Aller au contenu')}</a>${siteHeader(prefix, french, page.path === 'features/' ? 'features' : null, bilingual)}<main class="guide recruitment" id="main" tabindex="-1">${communityNav}${page.draft ? '<aside class="note"><strong>Aperçu de recrutement</strong><p>Les informations de guilde et le contact public restent à confirmer avant publication.</p></aside>' : ''}${body}</main><footer class="page-footer"><a href="${prefix}index.html">Guilded · ${pageText('The product', 'Le produit')}</a><a href="${prefix}quebec-gold/">Quebec Gold · ${pageText('The community', 'La communauté')}</a><a href="https://kcaron.top/">${pageText('By', 'Par')} KCaron ↗</a><a href="https://ko-fi.com/wowguilded">${pageText('Buy me a coffee', 'Offrir un café')} ↗</a><p>${pageText('Independent project, not affiliated with Blizzard Entertainment or Grinding Gear Games.', 'Site indépendant, sans affiliation avec Blizzard Entertainment ou Grinding Gear Games.')}</p></footer></body></html>`);
   if (!page.draft) publicUrls.push(`/${page.path}`);
 }
 writeFileSync(`${out}/sitemap.xml`, `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${publicUrls.map(path => `<url><loc>${origin}${path}</loc></url>`).join('')}</urlset>\n`);
 writeFileSync(`${out}/robots.txt`, `User-agent: *\nAllow: /\nSitemap: ${origin}/sitemap.xml\n`);
+// Each bilingual public page has crawlable EN/FR alternatives. The Worker
+// renders ?lang=fr on the server, including for clients without JavaScript.
+function languageAlternates(directory) {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = `${directory}/${entry.name}`;
+    if (entry.isDirectory()) { languageAlternates(path); continue; }
+    if (!entry.name.endsWith('.html')) continue;
+    let html = readFileSync(path, 'utf8');
+    const canonical = /<link rel="canonical" href="([^"]+)"/.exec(html)?.[1];
+    if (!canonical || !html.includes('data-fr=')) continue;
+    const french = new URL(canonical); french.searchParams.set('lang', 'fr');
+    html = html.replace('</head>', `<link rel="alternate" hreflang="en" href="${escape(canonical)}"><link rel="alternate" hreflang="fr" href="${escape(french.href)}"><link rel="alternate" hreflang="x-default" href="${escape(canonical)}"></head>`);
+    writeFileSync(path, html);
+    if (canonical.startsWith(origin) && !publicUrls.includes(french.pathname + french.search)) publicUrls.push(french.pathname + french.search);
+  }
+}
+languageAlternates(out);
+writeFileSync(`${out}/creator/sitemap.xml`, `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://kcaron.top/</loc></url><url><loc>https://kcaron.top/?lang=fr</loc></url></urlset>\n`);
+writeFileSync(`${out}/sitemap.xml`, `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${publicUrls.map(path => `<url><loc>${escape(origin + path)}</loc></url>`).join('')}</urlset>\n`);
 console.log(`Built ${out}: landing page, ${pages.length} feature/community pages and ${sources.size} guides. No deployment performed.`);

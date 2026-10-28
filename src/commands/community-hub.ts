@@ -14,6 +14,7 @@ import { createParticipationService } from "../services/participation.js";
 import { participationBadge, participationRules } from "../services/participation-rules.js";
 import { eligibleParticipationMember } from "../services/participation-discord.js";
 import { parseRaidTime } from "../services/raid-time.js";
+import { communityRankingLines } from "../services/community-ranking-display.js";
 
 const service = createCommunityService(prisma), participation = createParticipationService(prisma);
 const say = (lang: Lang, en: string, fr: string) => lang === "fr" ? fr : en;
@@ -112,7 +113,7 @@ export async function handleCommunityHub(interaction: HubInteraction): Promise<v
     const board = await service.board(record.id, season.id);
     if (action === "board") {
       const pages = Math.max(1, Math.ceil(board.length / 10)), currentPage = Math.min(page, pages - 1);
-      content = `🏆 **${escapeMarkdown(communitySeasonLabel(season, lang))}**\n` + (board.slice(currentPage * 10, currentPage * 10 + 10).map(row => `${1 + board.filter(other => other.points > row.points).length}. <@${row.userId}> · ${row.points} pts`).join("\n") || T("No points yet.", "Aucun point pour le moment."));
+      content = `🏆 **${escapeMarkdown(communitySeasonLabel(season, lang))}**\n` + await communityRankingLines(prisma, guild, record.id, board, board.slice(currentPage * 10, currentPage * 10 + 10), lang);
       await interaction.editReply({ content: `${content}\n${currentPage + 1}/${pages}`, components: [new ActionRowBuilder<ButtonBuilder>().addComponents(communityHubButton("board", `${season.id}:${Math.max(0, currentPage - 1)}`, "←").setDisabled(currentPage === 0), communityHubButton("board", `${season.id}:${currentPage + 1}`, "→").setDisabled(currentPage + 1 >= pages))], allowedMentions: noMentions }); return;
     }
     const mine = board.find(row => row.userId === actor);

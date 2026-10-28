@@ -3,10 +3,10 @@ import { defineConfig } from "eslint/config";
 import tseslint from "typescript-eslint";
 
 export default defineConfig(
-  { ignores: ["companion-app/**", "dist/**", "node_modules/**", "backups/**", ".claude/**", "src/generated/**"] },
+  { ignores: ["companion-app/**", "dist/**", "node_modules/**", "backups/**", ".claude/**", ".wrangler/**", "src/generated/**"] },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
-  { files: ["worker/**/*.mjs"], languageOptions: { globals: { Request: "readonly", Response: "readonly", Headers: "readonly" } } },
+  { files: ["worker/**/*.mjs"], languageOptions: { globals: { Request: "readonly", Response: "readonly", Headers: "readonly", HTMLRewriter: "readonly" } } },
   { files: ["site/**/*.js"], languageOptions: { globals: { document: "readonly", window: "readonly", navigator: "readonly", URL: "readonly" } } },
   {
     ignores: ["dist/**", "companion-app/**", "node_modules/**", "prisma/migrations/**"],
@@ -28,5 +28,6 @@ export default defineConfig(
         structuredClone: "readonly"
       }
     }
-  }
+  },
+  { files: ["companion/**/*.mjs"], languageOptions: { globals: { TextDecoder: "readonly" } } }
 );

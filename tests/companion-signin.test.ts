@@ -34,16 +34,26 @@ describe("companion sign-in requests", () => {
     expect(confirmCode(Buffer.from([0, 1, 2, 3, 4, 5]))).toBe("ABC-DEF");
     expect(confirmCode(Buffer.from([31, 31, 31, 31, 31, 31]))).toBe("999-999");
   });
+  it("accepts only the displayed code format and expires after five failed attempts", () => {
+    const signIn = createCompanionSignIn();
+    const started = signIn.start()!;
+    expect(signIn.verifyConfirm(started.requestId, started.confirm.toLowerCase().replace("-", ""))).toBe(true);
+    for (const code of ["", null, started.confirm + "!", started.confirm.repeat(1000), "---"]) {
+      expect(signIn.verifyConfirm(started.requestId, code)).toBe(false);
+    }
+    expect(signIn.verifyConfirm(started.requestId, started.confirm)).toBe(false);
+    expect(signIn.poll(started.requestId)).toBe("expired");
+  });
 });
 
 describe("/me/companion", () => {
-  function setup(servers = [{ discordId: "111", name: "Quebec Gold" }]) {
+  function setup(servers = [{ discordId: "111", name: "Quebec Gold" }], beforeIssue = async () => {}) {
     const signIn = createCompanionSignIn({ now: () => NOW.getTime() });
     const issued: string[] = [];
     const route = companionSignInRoute({
       signIn,
       servers: async () => servers,
-      issueGuild: async (account, guildDiscordId) => { issued.push(`${account.discordUserId}@${guildDiscordId}`); return "g".repeat(43); },
+      issueGuild: async (account, guildDiscordId) => { await beforeIssue(); issued.push(`${account.discordUserId}@${guildDiscordId}`); return "g".repeat(43); },
       issuePersonal: async (accountId) => { issued.push(`personal:${accountId}`); return "p".repeat(43); }
     });
     const app = createWebApp({
@@ -84,12 +94,16 @@ describe("/me/companion", () => {
     const { cookie } = await signedIn(target);
     const page = await request("GET", target, { cookie });
     expect(page.status).toBe(200);
-    expect(page.body).toContain(started.confirm);
+    expect(page.body).not.toContain(started.confirm);
     expect(page.body).toContain("Quebec Gold");
     expect(page.body).toContain('value="personal"');
     const csrf = /name="csrf" value="([^"]+)"/.exec(page.body)![1]!;
     const form = { cookie, origin: SITE, "content-type": "application/x-www-form-urlencoded" };
-    const body = (choice: string) => `csrf=${encodeURIComponent(csrf)}&request=${encodeURIComponent(started.requestId)}&choice=${choice}`;
+    const body = (choice: string) => `csrf=${encodeURIComponent(csrf)}&request=${encodeURIComponent(started.requestId)}&choice=${choice}&code=${started.confirm.toLowerCase().replace("-", "")}`;
+    const noCode = `csrf=${encodeURIComponent(csrf)}&request=${encodeURIComponent(started.requestId)}&choice=111`;
+    expect((await request("POST", "/me/companion", form, noCode)).status).toBe(400);
+    expect((await request("POST", "/me/companion", form, `${noCode}&code=ZZZ-ZZZ`)).status).toBe(400);
+    expect(issued).toEqual([]);
     expect((await request("POST", "/me/companion", { ...form, origin: "https://evil.example" }, body("111"))).status).toBe(403);
     expect((await request("POST", "/me/companion", form, body("999"))).status).toBe(400);
     const done = await request("POST", "/me/companion", form, body("111"));
@@ -109,9 +123,31 @@ describe("/me/companion", () => {
     expect(page.body).toContain("Classements publics des donjons seulement");
     expect(page.body).toContain('value="personal" checked');
     const csrf = /name="csrf" value="([^"]+)"/.exec(page.body)![1]!;
-    await request("POST", "/me/companion", { cookie, origin: SITE, "content-type": "application/x-www-form-urlencoded" }, `csrf=${encodeURIComponent(csrf)}&request=${encodeURIComponent(started.requestId)}&choice=personal&lang=fr`);
+    await request("POST", "/me/companion", { cookie, origin: SITE, "content-type": "application/x-www-form-urlencoded" }, `csrf=${encodeURIComponent(csrf)}&request=${encodeURIComponent(started.requestId)}&choice=personal&lang=fr&code=${started.confirm}`);
     expect(issued[0]).toMatch(/^personal:/);
     expect(signIn.poll(started.requestId)).toEqual({ companionCredential: "p".repeat(43), personal: true });
+  });
+  it("issues only one credential when two approval requests overlap", async () => {
+    let release!: () => void, entered!: () => void;
+    const waiting = new Promise<void>(resolve => { release = resolve; });
+    const issuing = new Promise<void>(resolve => { entered = resolve; });
+    const beforeIssue = vi.fn(async () => { entered(); await waiting; });
+    const { signIn, request, signedIn, issued } = setup(undefined, beforeIssue);
+    const started = signIn.start()!;
+    const target = `/me/companion?request=${started.requestId}`;
+    const { cookie } = await signedIn(target);
+    const page = await request("GET", target, { cookie });
+    const csrf = /name="csrf" value="([^"]+)"/.exec(page.body)![1]!;
+    const form = { cookie, origin: SITE, "content-type": "application/x-www-form-urlencoded" };
+    const body = new URLSearchParams({ csrf, request: started.requestId, choice: "111", code: started.confirm }).toString();
+    const first = request("POST", "/me/companion", form, body);
+    await issuing;
+    expect((await request("POST", "/me/companion", form, body)).status).toBe(410);
+    release();
+    expect((await first).status).toBe(200);
+    expect(beforeIssue).toHaveBeenCalledOnce();
+    expect(issued).toHaveLength(1);
+    expect(signIn.poll(started.requestId)).toMatchObject({ companionCredential: "g".repeat(43) });
   });
 });
 

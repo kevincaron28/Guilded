@@ -807,6 +807,7 @@ local function onEvent(_, event, ...)
     recipes.later("craft")
   elseif event == "CHAT_MSG_ADDON" then
     local prefix, text, channel, sender = ...
+    if not ns.comm.accept(prefix, text, channel, sender, PREFIX) then return end
     if ns.isSecret(prefix) or ns.isSecret(text) or ns.isSecret(sender) or prefix ~= PREFIX or channel ~= "GUILD" then return end
     if ns.normalizeName(sender) == ns.playerName() then return end
     onMessage(text, sender)

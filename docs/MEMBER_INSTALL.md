@@ -4,7 +4,7 @@ For guildmates using **WoW Forever, Classic Era/Hardcore, Burning Crusade Classi
 Mists of Pandaria Classic or Retail**. You do not need
 Node.js, a database, or a Discord bot token.
 
-In [the 7.3.2 release](https://github.com/kevincaron28/Guilded/releases/tag/v7.3.2),
+In [the latest published release](https://github.com/kevincaron28/Guilded/releases/latest),
 choose the addon ZIP ending in `forever`, `classic-era`, `classic-tbc`,
 `classic-mists` or `retail` for your client. ZIPs without an edition suffix are
 Forever builds. The Windows companion installer supports every edition; connect
@@ -39,12 +39,22 @@ The hosted bot is free. Adding it puts your server on **Guilded Lite** right awa
 (setup, help, bug reports, dungeon groups, basic signups); KCaron's approval unlocks
 addon sync, EP/GP, seasons and the guild page. Run `/setup start`, then, once approved,
 open the [online companion](https://guilded.kcaron.top/companion/) and choose
-**Sign in with Discord** (nothing to type).
+**Sign in with Discord**, then follow the confirmation shown by your companion.
 You do not need to host a bot or database for this path.
 See the [hosted bot guide](HOSTED_PILOT.md). Independent hosting is also available.
 Any [financial support](SUPPORT_GUILDED.md) is optional and never buys approval.
 
 ## Get your guild's links
+
+For automatic Windows syncing, install [Guilded Companion from Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9).
+The [standalone GitHub installer](https://github.com/kevincaron28/Guilded/releases/latest) is also available.
+Store installations receive updates through Microsoft Store; check its listed version because
+Store certification and GitHub releases can finish at different times. Close your existing
+companion before switching editions; the Store copy keeps separate connection settings.
+
+**Français :** installez le [compagnon Windows depuis le Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9).
+Les mises à jour passent par le Store. Vérifiez la version proposée et fermez l'autre compagnon
+avant de changer d'édition; la version Store conserve ses propres paramètres de connexion.
 
 Ask your officer for the addon download. Start with the addon; the online
 companion and Windows app are optional. If you want companion sync later, ask

@@ -122,7 +122,7 @@ describe("the whole addon, loaded in .toc order", () => {
   it("lists the files it is about to load", () => {
     expect(FILES.length).toBeGreaterThan(20);
     expect(FILES[0]).toBe("Util.lua");
-    expect(FILES[1]).toBe("Core.lua");
+    expect(FILES.slice(0, 4)).toEqual(["Util.lua", "Transport.lua", "CorePresentation.lua", "Core.lua"]);
     for (const name of ["Modules/Bidding.lua", "Modules/Council.lua", "Modules/Loot.lua", "Modules/Reserve.lua", "Modules/Recipes.lua", "Modules/Calendar.lua", "Modules/Minimap.lua"]) {
       expect(FILES).toContain(name);
     }

@@ -1,3 +1,4 @@
+import { revokeCompanionCredential } from "./services/companion-revoke.js";
 import { createWebCommunityBadges } from "./services/web-community-badges.js";
 import { guildWhere, loadGuildScope, runInGuildScope, withGuildScope } from "./services/guild-scope.js";
 import { hostedPilot } from "./hosted-pilot.js";
@@ -82,6 +83,19 @@ const FAILURE_WINDOW_MS = 10 * 60_000;
 const MAX_FAILURES = 10;
 const MAX_TRACKED_ADDRESSES = 5_000;
 const failures = new Map<string, number[]>();
+const revocationRequests = new Map<string, { startedAt: number; count: number }>();
+
+export function allowCompanionRevocation(address: string, now = Date.now()): boolean {
+  let bucket = revocationRequests.get(address);
+  if (!bucket || now - bucket.startedAt >= 60_000) {
+    if (!bucket && revocationRequests.size >= MAX_TRACKED_ADDRESSES) revocationRequests.delete(revocationRequests.keys().next().value!);
+    bucket = { startedAt: now, count: 0 };
+    revocationRequests.set(address, bucket);
+  }
+  if (bucket.count >= 30) return false;
+  bucket.count++;
+  return true;
+}
 
 function isTrustedProxyPeer(remoteAddress: string | undefined): boolean {
   const address = remoteAddress?.replace(/^::ffff:/, "");
@@ -116,6 +130,7 @@ export function recordFailure(address: string, now = Date.now()): void {
 
 export function resetFailures(): void {
   failures.clear();
+  revocationRequests.clear();
 }
 
 // Uploads are at most 1 MB as sent. A gzip upload (newer companions) may unpack to 8 MB.
@@ -385,6 +400,16 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         json(response, 429, { error: "Too many failed attempts. Try again in a few minutes." });
         return;
       }
+      if (isLogout) {
+        // Unknown/already-revoked secrets get the same idempotent response, so
+        // bound attempts independently of the failed-authentication counter.
+        if (!allowCompanionRevocation(address)) { json(response, 429, { error: "Too many disconnect requests. Try again in a minute." }); return; }
+        const secret = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
+        const ok = await revokeCompanionCredential(prisma, secret);
+        if (!ok) recordFailure(address);
+        json(response, ok ? 200 : 400, ok ? { ok: true } : { error: "A valid companion credential is required." });
+        return;
+      }
       if (isSignInStart) {
         // Needs the website's Discord sign-in; a bot without it keeps pairing codes only.
         const auth = webAuthConfig(config);
@@ -494,7 +519,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         }
         });
       }
-      const payload = isImport || isPoeUpload || isLogout || isManageEdit ? await readBody(request) : null;
+      const payload = isImport || isPoeUpload || isManageEdit ? await readBody(request) : null;
       const requestPayload = payload as { guildDiscordId?: unknown; export?: unknown } | null;
       const guildDiscordId = isStandings || isPoeStatus || isPoeRecent || isManageView ? url.searchParams.get("guild") : requestPayload?.guildDiscordId;
       if (typeof guildDiscordId !== "string") { json(response, 400, { error: "guildDiscordId is required" }); return; }
@@ -513,10 +538,6 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (!access) {
         recordFailure(address);
         json(response, 401, { error: "Pair this companion with /character pair. The shared upload token no longer grants access." }); return;
-      }
-      if (isLogout) {
-        await prisma.companionCredential.updateMany({ where: { memberId: access.memberId, tokenHash: hashCompanionSecret(header as string), revokedAt: null }, data: { revokedAt: new Date() } });
-        json(response, 200, { ok: true }); return;
       }
       if (isManageView) {
         json(response, 200, { ...await manage.view(guild.id, access), botVersion: BOT_VERSION });

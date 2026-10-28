@@ -179,7 +179,7 @@ local incomingItems -- { updatedAt, total, parts, received }
 -- Shared data comes only from the guild: an officer, or a name on the guild roster (a whisper
 -- from outside the guild is ignored).
 local function fromGuild(sender)
-  return ns.isOfficerName(sender) or (ns.isGuildMember and ns.isGuildMember(sender)) or false
+  return ns.comm.authorized(sender, "guild")
 end
 
 local function newerThanMine(mine, updatedAt, sender)
@@ -634,6 +634,7 @@ local function onEvent(_, event, ...)
     end)
   elseif event == "CHAT_MSG_ADDON" then
     local prefix, text, channel, sender = ...
+    if not ns.comm.accept(prefix, text, channel, sender, PREFIX) then return end
     if ns.isSecret(prefix) or ns.isSecret(text) or ns.isSecret(sender) or prefix ~= PREFIX then return end
     -- Whispers go back to the sender exactly as the game gave it: on WoW Forever the first
     -- name alone is not a player ("No player named 'Naomine'", 16 October).

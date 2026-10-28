@@ -6,8 +6,10 @@ that transfers saved game data. The addon also works without Discord.
 Start with the [quick setup checklist](QUICK_START.md).
 Use matching downloads from an actually
 published release or the test build your officer provides. Current release
-status is recorded in [launch readiness](LAUNCH_READINESS_2026-10-24.md); 7.3.2
-candidate testing follows [the game/two-PC checklist](V7_3_2_GAME_CHECKLIST.md).
+status and 8.0 preparation are recorded in [launch readiness](V8_0_LAUNCH_READINESS.md).
+For automatic Windows syncing, use [Guilded Companion on Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9)
+or the [standalone installer](https://github.com/kevincaron28/Guilded/releases/latest).
+Store installations update through Microsoft Store; each channel may publish at a different time.
 
 | What you want to do | Start here |
 | --- | --- |

@@ -1,4 +1,5 @@
-import { readFile, writeFile, rename, rm, mkdir } from "node:fs/promises";
+import { writeFile, rename, rm, mkdir } from "node:fs/promises";
+import { readSavedText } from "./saved-file.mjs";
 import { basename, dirname, join, sep } from "node:path";
 import { personalResponseToLua, PERSONAL_SAVED_FILES, personalPayloadFrom, personalResultMessage } from "./personal-runs-content.mjs";
 import { credentialHeaders, jsonBody, requestJson } from "./request.mjs";
@@ -42,7 +43,10 @@ async function writeAccepted(config, body) {
 
 export async function uploadPersonalRuns(config, signal) {
   const [chosen, ...others] = personalSavedFiles(config.watchFile);
-  const texts = [await readFile(chosen, "utf8"), ...await Promise.all(others.map((path) => readFile(path, "utf8").catch(() => null)))];
+  const texts = [await readSavedText(chosen), ...await Promise.all(others.map(async path => {
+    try { return await readSavedText(path); }
+    catch (error) { if (error.code === "ENOENT") return null; throw error; }
+  }))];
   const { character, runs: finished } = personalPayloadFrom(texts, config.realm);
   if (!character) {
     const error = new Error("The saved files have no character yet. Log in once with Guilded Dungeons (or Guilded), then /reload or log out.");

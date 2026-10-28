@@ -1,12 +1,12 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import { hashCompanionSecret } from "./character-pairing.js";
 import type { WebRoute } from "./web-app.js";
 import { escapeHtml, link } from "./web-layout.js";
 import type { WebAccountView } from "./web-store.js";
 
-// "Sign in with Discord" for the companion (7.2): no code to copy. The companion asks for a
+// The companion asks for a
 // sign-in request, opens /me/companion?request=… in a browser, and asks again every few seconds.
-// On that page the signed-in member checks the short code their companion shows and chooses a
+// On that page the signed-in member types the short code their companion shows and chooses a
 // server (or the public leaderboards); the next poll then returns the same answer a pairing code
 // would. Requests live 10 minutes in memory: a bot restart only means signing in again.
 
@@ -18,7 +18,7 @@ const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 /** What the companion receives: the same fields as POST /api/v1/addon-pairings. */
 export type SignInGrant = { companionCredential: string; personal: true } | { companionCredential: string; personal?: false; guildDiscordId: string; wowGuildId?: string; gameEdition?: string; wowGuildName?: string };
 
-interface Pending { confirm: string; expiresAt: number; grant: SignInGrant | null }
+interface Pending { confirm: string; expiresAt: number; grant: SignInGrant | null; approving?: boolean; failures?: number }
 
 export function confirmCode(bytes = randomBytes(6)): string {
   const letters = [...bytes].map((byte) => LETTERS[byte % LETTERS.length]).join("");
@@ -50,10 +50,33 @@ export function createCompanionSignIn(options: { now?: () => number } = {}) {
       pending.set(hashCompanionSecret(requestId), { confirm, expiresAt, grant: null });
       return { requestId, confirm, expiresAt: new Date(expiresAt) };
     },
-    /** The code the approval page shows, while the request is still open. */
+    /** Internal code lookup; never render this code on the approval page. */
     confirmFor(requestId: unknown): string | null {
       const entry = find(requestId);
-      return entry && !entry.grant ? entry.confirm : null;
+      return entry && !entry.grant && !entry.approving ? entry.confirm : null;
+    },
+    /** True when the typed code matches the one the companion shows (case and hyphen ignored). */
+    verifyConfirm(requestId: unknown, typed: unknown): boolean {
+      const entry = find(requestId);
+      if (!entry || entry.grant || entry.approving) return false;
+      const valid = typeof typed === "string" && /^[A-Za-z0-9]{3}-?[A-Za-z0-9]{3}$/.test(typed);
+      const clean = (value: string) => value.toUpperCase().replace("-", "");
+      const a = Buffer.from(valid ? clean(typed) : "");
+      const b = Buffer.from(clean(entry.confirm));
+      if (a.length === b.length && timingSafeEqual(a, b)) return true;
+      entry.failures = (entry.failures ?? 0) + 1;
+      if (entry.failures >= 5) pending.delete(hashCompanionSecret(requestId as string));
+      return false;
+    },
+    beginApproval(requestId: unknown): boolean {
+      const entry = find(requestId);
+      if (!entry || entry.grant || entry.approving) return false;
+      entry.approving = true;
+      return true;
+    },
+    endApproval(requestId: unknown): void {
+      const entry = find(requestId);
+      if (entry) entry.approving = false;
     },
     /** Stores the answer for the companion. Only once per request. */
     approve(requestId: unknown, grant: SignInGrant): boolean {
@@ -101,7 +124,12 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
     }
     const servers = await deps.servers(ctx.account.discordUserId);
     if (ctx.request.method === "POST") {
+      if (!deps.signIn.verifyConfirm(requestId, ctx.form?.get("code"))) {
+        return kit.page(400, title, `<h1>${t("The code does not match", "Le code ne correspond pas")}</h1><p>${t("Type the code shown on your own companion.", "Tapez le code affiché sur votre propre compagnon.")}</p><p><a href="${link("/me/companion", lang, { request: requestId })}">${t("Go back and try again", "Revenir et réessayer")}</a></p>`, { noindex: true });
+      }
       const choice = ctx.form?.get("choice") ?? "";
+      if (!deps.signIn.beginApproval(requestId)) return kit.page(410, title, `<h1>${t("This sign-in expired", "Cette connexion a expiré")}</h1>`, { noindex: true });
+      try {
       let grant: SignInGrant | null = null;
       const selected = servers.find(server => (server.wowGuildId ?? server.discordId) === choice);
       if (choice === "personal") grant = { companionCredential: await deps.issuePersonal(ctx.account.id), personal: true };
@@ -114,6 +142,7 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
       if (!deps.signIn.approve(requestId, grant)) return kit.page(410, title, `<h1>${t("This sign-in expired", "Cette connexion a expiré")}</h1><p>${t("Go back to your companion and choose Sign in with Discord again.", "Revenez au compagnon et choisissez de nouveau Connexion avec Discord.")}</p>`, { noindex: true });
       const where = grant.personal ? t("the public dungeon leaderboards", "les classements publics des donjons") : escapeHtml(selected?.name ?? "");
       return kit.page(200, title, `<p class="eyebrow">${t("Guilded companion", "Compagnon Guilded")}</p><h1>${t("Companion connected", "Compagnon relié")}</h1><p>${t("Your companion is now linked to", "Votre compagnon est maintenant relié à")} <strong>${where}</strong>. ${t("You can close this tab and go back to the companion.", "Vous pouvez fermer cet onglet et revenir au compagnon.")}</p>`, { noindex: true });
+      } finally { deps.signIn.endApproval(requestId); }
     }
     const radio = (value: string, label: string, hint: string, checked: boolean) =>
       `<label class="choice"><input type="radio" name="choice" value="${escapeHtml(value)}"${checked ? " checked" : ""}> <strong>${label}</strong><br><span class="muted">${hint}</span></label>`;
@@ -121,9 +150,10 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
       + radio("personal", t("Public dungeon leaderboards only", "Classements publics des donjons seulement"), t("No guild needed: your finished dungeon runs (Guilded Dungeons or Guilded) go to the public leaderboards.", "Aucune guilde requise : vos donjons terminés (Guilded Dungeons ou Guilded) vont aux classements publics."), servers.length === 0);
     const body = `<style>.choice{display:block;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:10px 0;color:var(--text);font-size:16px}.choice input{width:auto}</style>`
       + `<p class="eyebrow">${t("Guilded companion", "Compagnon Guilded")}</p><h1>${title}</h1>`
-      + `<p>${t("Check that your companion shows the same code. There is nothing to type: it only shows that this sign-in is yours.", "Vérifiez que votre compagnon affiche le même code. Rien à taper : il montre seulement que cette connexion est la vôtre.")}</p><p class="code">${escapeHtml(confirm)}</p>`
+      + `<p>${t("Type the code your companion shows. It proves this sign-in is yours.", "Tapez le code affiché par votre compagnon. Il prouve que cette connexion est la vôtre.")}</p>`
       + `<p class="notice">${t("Only continue if it is the same code, on your own companion. If someone sent you this link, close the page.", "Continuez seulement si c'est le même code, sur votre propre compagnon. Si quelqu'un vous a envoyé ce lien, fermez la page.")}</p>`
       + `<form method="post" action="/me/companion"><input type="hidden" name="csrf" value="${escapeHtml(ctx.csrf ?? "")}"><input type="hidden" name="lang" value="${lang}"><input type="hidden" name="request" value="${escapeHtml(requestId)}">`
+      + `<p><label>${t("Code from your companion", "Code de votre compagnon")}<br><input name="code" autocomplete="off" required maxlength="7" pattern="[A-Za-z0-9]{3}-?[A-Za-z0-9]{3}" placeholder="ABC-DEF" style="width:9em;font-size:20px;text-transform:uppercase"></label></p>`
       + `<h2>${t("Link it to", "Le relier à")}</h2>${choices}`
       + (servers.length ? "" : `<p class="muted">${t("No Discord server with the Guilded bot lists you as a member. Addon-only guilds don't need one: the addon syncs in game.", "Aucun serveur Discord avec le bot Guilded ne vous compte comme membre. Les guildes sans Discord n'en ont pas besoin : l'addon se synchronise en jeu.")}</p>`)
       + `<p><button class="button" type="submit">${t("Connect", "Relier")}</button></p></form>`;

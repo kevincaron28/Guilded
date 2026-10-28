@@ -9,7 +9,12 @@ export async function pickSignupCharacter(interaction: ButtonInteraction | ChatI
   const wasAcknowledged = interaction.replied || interaction.deferred;
   if (!wasAcknowledged) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const characters = await prisma.character.findMany({ where: { memberId, member: { guildId } }, orderBy: [{ name: "asc" }, { realm: "asc" }] });
-  if (!characters.length) throw new Error(CHARACTER_REQUIRED);
+  if (!characters.length) {
+    const reply = { content: CHARACTER_REQUIRED, components: [] };
+    if (wasAcknowledged) await interaction.followUp({ ...reply, flags: MessageFlags.Ephemeral });
+    else await interaction.editReply(reply);
+    return null;
+  }
   if (characters.length === 1) return characters[0]!;
   const lang = asLang((await prisma.guildSettings.findUnique({ where: { guildId }, select: { language: true } }))?.language);
   const text = (en: string, fr: string) => lang === "fr" ? fr : en;

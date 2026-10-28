@@ -388,6 +388,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     elseif event == "CHAT_MSG_ADDON" then
       local prefix, text, channel, sender = args[1], args[2], args[3], args[4]
       if ns.isSecret and (ns.isSecret(prefix) or ns.isSecret(text) or ns.isSecret(sender)) then return end
+      if not ns.comm.accept(prefix, text, channel, sender, PREFIX) then return end
       if prefix ~= PREFIX or channel ~= "GUILD" or not active() then return end
       scores.receive(text, sender)
     end

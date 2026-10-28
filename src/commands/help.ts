@@ -97,7 +97,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/organize start-season` · `/organize lottery create` · `/organize gaming create` · `/organize challenge create` · `/organize quiz` — organize activities",
       "`/events board` · `/events reminders` · `/events status` — Upcoming Events; Manage Server required, reminders opt-in only",
       "`/organize honors-preview` · `/organize honors-settings` — preview the weekly MVP post; weekly on/off, week start, MVP ping",
-      "`/participation settings` · `/participation claims` · `/participation review` · `/participation reverse` — participation controls and helper approvals"
+      "`/participation settings` · `/participation channels` · `/participation claims` · `/participation review` · `/participation reverse` — earning coverage, controls and helper approvals"
     ],
     fr: [
       "`/setup start` — configuration guidée et liste de vérification · `/config` — tous les réglages",
@@ -112,7 +112,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/organize start-season` · `/organize lottery create` · `/organize gaming create` · `/organize challenge create` · `/organize quiz` — organiser les activités",
       "`/events board` · `/events reminders` · `/events status` — événements à venir ; Gérer le serveur requis, rappels volontaires",
       "`/organize honors-preview` · `/organize honors-settings` — aperçu du MVP de la semaine; activation, début de semaine, notification",
-      "`/participation settings` · `/participation claims` · `/participation review` · `/participation reverse` — réglages de participation et validation d'entraide"
+      "`/participation settings` · `/participation channels` · `/participation claims` · `/participation review` · `/participation reverse` — couverture des gains, réglages et entraide"
     ]
   }
 };

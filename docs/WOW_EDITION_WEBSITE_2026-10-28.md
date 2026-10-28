@@ -34,5 +34,9 @@ French chooser/edition content, actual download URLs and 390/1024/1280 layouts.
 The observed views had no horizontal overflow. These are website checks, not new
 in-game acceptance. Private screenshots are in `backups/edition-site/`.
 
-Publication: source is awaiting its reviewed CI/merge at this checkpoint. Record
-the exact accepted source and public-page verification after deployment.
+Publication: [PR #249](https://github.com/kevincaron28/Guilded/pull/249) passed
+quality run `40728724003` and merged at `86b162e`. Cloudflare published the accepted
+source. Twelve actual public EN/FR edition pages returned 200 with the correct
+language, canonical and matching download links; the French home choice and
+deployed navigation module also matched. Private evidence:
+`backups/edition-site/public-verification.json` and `live-editions.png`.

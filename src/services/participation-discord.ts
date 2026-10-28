@@ -2,6 +2,7 @@ import { ChannelType, MessageType, PermissionFlagsBits, type Guild, type GuildMe
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { hasPermission } from "../permissions.js";
 import { createParticipationService } from "./participation.js";
+import { canViewParticipationChannel, participationChannelEnabled } from "./participation-channels.js";
 import { MAX_VOICE_GAP_MS, memberEligible, messageFingerprint, normalizeEmoji, participationRules, type ParticipationRules } from "./participation-rules.js";
 
 export function eligibleParticipationMember(member: GuildMember, season: { audienceRoleId: string | null; channelId: string }, rules: ParticipationRules, now: Date): boolean {
@@ -42,10 +43,9 @@ export function createParticipationTracker(database: PrismaClient, contentAvaila
       const cfg = await load(guild);
       if (!cfg) return;
       const rules = participationRules.parse(cfg.rules);
-      // With every text channel on, ordinary text channels only: no threads, forums or voice chat.
-      if (!(rules.allText ? message.channel.type === ChannelType.GuildText : rules.textChannels.includes(message.channelId)) || rules.messageDailyCap === 0) return;
+      if (!participationChannelEnabled(message.channel, rules) || rules.messageDailyCap === 0) return;
       const member = await guild.members.fetch({ user: message.author.id, force: true });
-      if (!eligibleParticipationMember(member, cfg.season, rules, now) || !message.channel.permissionsFor(member)?.has(PermissionFlagsBits.ViewChannel)) return;
+      if (!eligibleParticipationMember(member, cfg.season, rules, now) || !await canViewParticipationChannel(message.channel, member)) return;
       await service.message(cfg.season.guildId, cfg.seasonId, { userId: member.id, channelId: message.channelId, messageId: message.id, hash: contentAvailable ? messageFingerprint(message.content) : null, contentAvailable, at: message.createdAt, revision: cfg.revision });
     },
     async reaction(reaction: MessageReaction | PartialMessageReaction, user: User | PartialUser) {
@@ -54,14 +54,14 @@ export function createParticipationTracker(database: PrismaClient, contentAvaila
       const cfg = await load(guild);
       if (!cfg) return;
       const rules = participationRules.parse(cfg.rules);
-      if (!(rules.allText ? reaction.message.channel.type === ChannelType.GuildText : rules.textChannels.includes(reaction.message.channelId)) || rules.reactionDailyCap === 0 || !rules.emojis.some(emoji => normalizeEmoji(emoji) === normalizeEmoji(reaction.emoji.id ?? reaction.emoji.name ?? ""))) return;
+      if (!participationChannelEnabled(reaction.message.channel, rules) || rules.reactionDailyCap === 0 || !rules.emojis.some(emoji => normalizeEmoji(emoji) === normalizeEmoji(reaction.emoji.id ?? reaction.emoji.name ?? ""))) return;
       const message = reaction.message.partial ? await reaction.message.fetch() : reaction.message;
       if (!message.inGuild()) return;
       const now = new Date(), age = now.getTime() - message.createdTimestamp;
       if (message.author.bot || message.webhookId || message.author.id === user.id || ![MessageType.Default, MessageType.Reply].includes(message.type) || age < 120_000 || age > 48 * 60 * 60_000) return;
       const author = await guild.members.fetch({ user: message.author.id, force: true });
       const reactor = await guild.members.fetch({ user: user.id, force: true });
-      if (![author, reactor].every(member => eligibleParticipationMember(member, cfg.season, rules, now) && message.channel.permissionsFor(member)?.has(PermissionFlagsBits.ViewChannel))) return;
+      for (const member of [author, reactor]) if (!eligibleParticipationMember(member, cfg.season, rules, now) || !await canViewParticipationChannel(message.channel, member)) return;
       await service.reaction(cfg.season.guildId, cfg.seasonId, { userId: author.id, reactorId: reactor.id, messageId: message.id, channelId: message.channelId, at: now, revision: cfg.revision });
     },
     async deleted(message: Message | PartialMessage) {

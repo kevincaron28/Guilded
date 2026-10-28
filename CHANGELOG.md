@@ -1,5 +1,13 @@
 # Changelog
 
+## 8.0.2 — 28 October 2026
+
+Safety patch from the final 8.0.1 audit: in-game spreadsheet exports keep
+formula-like text literal while preserving numeric cells and saved data.
+Participation status aggregates in PostgreSQL instead of loading a season's
+whole point ledger. Existing 8.0.1 downloads remain intact; protocol stays 2.
+See [release notes](docs/V8_0_2_RELEASE_NOTES.md).
+
 ## 8.0.1 — 28 October 2026
 
 Complete German and Spanish addon translations, including calendar, loot, roster,

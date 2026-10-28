@@ -4,7 +4,7 @@
 
 ## Current stage — 28 October 2026
 
-Guilded **8.0.1 Release** (protocol 2): published on GitHub, CurseForge and Microsoft Store, and deployed on Oracle. Full French/German/Spanish addon catalogues, reviewed language layouts and the actual signed Store upgrade passed. See [launch completion](docs/V8_0_1_LAUNCH_COMPLETION.md) and [provider evidence](docs/V8_0_1_RELEASE_EVIDENCE_2026-10-28.md).
+Guilded **8.0.2 Release preparation** (protocol 2): a deliberate safety patch from the final 8.0.1 audit. In-game spreadsheet text is protected and participation status uses bounded database results. Published 8.0.1 remains available; follow [8.0.2 release gates](docs/V8_0_2_RELEASE_COMPLETION.md). Full FR/DE/ES catalogues and free Store signing are retained.
 
 Published baseline: 8.0.0: security, reliability, ledger storage compaction, versioned Retail overtime scoring, origin isolation, French indexing, accessibility and Core presentation extraction. See [8.0 readiness](docs/V8_0_LAUNCH_READINESS.md) for publication gates and the owner's testing waiver.
 

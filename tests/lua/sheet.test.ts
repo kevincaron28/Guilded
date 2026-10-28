@@ -60,6 +60,23 @@ describe("/guilded sheet", () => {
     ]);
   });
 
+  it("keeps formula-like names and titles literal without changing numeric values", () => {
+    session = start();
+    session.run(`
+      GuildedDB.raids[1].title = '=1+1'
+      GuildedDB.loot[1].item = '  @SUM(A1)'
+      GuildedDB.loot[1].player = '+CMD()'
+      GuildedDB.loot[1].boss = '-0xFF'
+      GuildedDB.loot[1].cost = -25
+      GuildedDB.standings.players.Kev.ep = -300
+    `);
+    expect(rows(session, "loot")[1]).toEqual(["2026-10-01 20:00:00", "'=1+1", "'  @SUM(A1)", "'+CMD()", "-25", "'-0xFF"]);
+    expect(rows(session, "attendance").find(row => row[2] === "Kev" && row[0] !== "Onyxia")?.[0]).toBe("'=1+1");
+    expect(rows(session, "raids")[2]?.[0]).toBe("'=1+1");
+    expect(rows(session, "standings").find(row => row[1] === "Kev")?.slice(2)).toEqual(["-300", "100", "-3.00"]);
+    expect(session.run('return GuildedDB.raids[1].title')).toBe('=1+1');
+  });
+
   it("opens the copy box from the command, and explains an unknown table", () => {
     session = start();
     session.run(`

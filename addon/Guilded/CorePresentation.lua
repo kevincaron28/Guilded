@@ -9,7 +9,12 @@ local db
 local SHEET_ROW_LIMIT = 1000
 local SHEET_TABLES = { "standings", "loot", "attendance", "raids", "dungeons" }
 local function sheetCell(value)
-  return (string.gsub(tostring(value == nil and "" or value), "[\t\r\n]", " "))
+  local text = string.gsub(tostring(value == nil and "" or value), "[\t\r\n]", " ")
+  -- Pasted text must stay text in a spreadsheet, including after whitespace.
+  -- Keep actual numbers and plain decimal strings (such as formatted PR) numeric.
+  local decimal = string.match(text, "^%s*[+%-]?%d+%.?%d*%s*$") or string.match(text, "^%s*[+%-]?%.%d+%s*$")
+  if type(value) ~= "number" and not decimal and string.match(text, "^%s*[=+%-@]") then text = "'" .. text end
+  return text
 end
 local function sheetTime(stamp)
   if not stamp then return "" end

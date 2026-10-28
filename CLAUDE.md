@@ -1,11 +1,12 @@
-> CURRENT — 8.0.0 release preparation, 28 October 2026. Not yet published.
-> Branch codex/8.0-launch-audit / PR #246 includes Copilot PR #245 and follow-up fixes.
-> The owner explicitly waived remaining hands-on tests, but required all seven
-> engineering items before release. Implementation: docs/V8_0_ENGINEERING.md.
-> Exact release/deployment evidence and gates: docs/V8_0_LAUNCH_READINESS.md.
-> 8.0.0 (28 October 2026): reliability, security, versioned overtime scoring,
+> CURRENT — 8.0.0 published on GitHub and live on Oracle, 28 October 2026.
+> Release tag/configuration commit: 0daa31d. Feature deployment: 01314c7.
+> Evidence and remaining provider actions: docs/V8_0_RELEASE_EVIDENCE_2026-10-28.md.
+> Store Submission 2 has EN/FR 8.0 notes; Store/CurseForge 8.0 uploads await browser
+> file-upload access. No Store 8.0 certification or publication is claimed.
+> The owner waived remaining hands-on tests; keep unperformed checks as follow-up.
+> 8.0.0 (28 October 2026): security/reliability, versioned Retail overtime scoring,
 > French indexing, accessibility, lossless storage compaction and Core extraction.
-> Previous published version: 7.5.1/b610e66. Protocol remains 2.
+> Protocol remains 2. Frozen scoring/evidence policies and ledger history are retained.
 > Historical checkpoints: docs/archive/AGENT_STATUS_HISTORY_2026-10-28.md.
 
 # Working on Guilded
@@ -18,10 +19,10 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (28 October 2026): version 8.0.0 Release preparation, protocol 2.** WoW Forever launches
+**Current status (28 October 2026): version 8.0.0 Release, protocol 2.** WoW Forever launches
 4 November 2026 (beta closed 21 October); its first raids open 9 December.
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
-The latest recorded bot, online companion and GitHub public release is 7.5.1.
+The bot, online companion and GitHub public release are 8.0.0. Store/CurseForge 8.0 uploads remain pending browser file-upload access.
 Use the release evidence for each published artifact; historical 7.4.0 approval records
 are not evidence for a new 8.0 upload. Current work: `docs/V8_0_LAUNCH_READINESS.md`.
 Both addons have

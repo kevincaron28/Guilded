@@ -27,11 +27,11 @@ What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 - **Optional Windows companion:** install [Guilded Companion from Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9), or use the standalone installer from [GitHub Releases](https://github.com/kevincaron28/Guilded/releases/latest). Store installations update through Microsoft Store. Check the version offered by each channel.
 - **Want an AI to guide you:** copy a [setup or troubleshooting prompt](docs/AI_SETUP_HELP.md).
 
-**Current version: 8.0.2 Release preparation** (28 October 2026, protocol 2). [Release notes](docs/V8_0_2_RELEASE_NOTES.md). Published 8.0.1 remains available while the safety patch completes its [release gates](docs/V8_0_2_RELEASE_COMPLETION.md).
+**Current version: 8.0.2 Release** (28 October 2026, protocol 2). [Release notes](docs/V8_0_2_RELEASE_NOTES.md). GitHub and the bot are updated; CurseForge approvals and Microsoft Store certification are tracked separately in the [publication evidence](docs/V8_0_2_RELEASE_EVIDENCE_2026-10-28.md). Earlier releases remain available.
 Supports Forever, Classic Era/Hardcore, TBC Anniversary, Mists Classic and Retail
 across the addon, Discord bot and companion, including several guilds in one Discord.
 Use the edition-specific ZIP from [GitHub Releases](https://github.com/kevincaron28/Guilded/releases/latest).
-The unsuffixed ZIP is the Forever build. [Release notes](docs/V7_5_0_RELEASE_NOTES.md).
+The unsuffixed ZIP is the Forever build.
 
 The owner authorized release before the unavailable Forever two-PC tests.
 [Game checks remain pending follow-up](docs/V7_5_0_GAME_CHECKLIST.md); benchmarks are provisional.

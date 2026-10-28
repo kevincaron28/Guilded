@@ -1,5 +1,11 @@
 # Microsoft Store update — Guilded Companion 8.0
 
+Historical 8.0.0 submission record. Submission 3 subsequently published 8.0.1.0,
+and its actual signed installation/upgrade and encrypted-profile preservation
+passed. Submission 4 contains verified 8.0.2.0 and is in certification. Follow
+[current per-provider evidence](../V8_0_2_RELEASE_EVIDENCE_2026-10-28.md); the draft
+notes and gates below retain their original 8.0.0 context.
+
 Status: Partner Center Submission 2 (`1152921505702255246`) published 28 October 2026.
 Partner Center confirms “Your latest product is now available on Microsoft Store.”
 Its published package details show the verified 8.0.0.0 x64 MSIX, with saved EN/FR

@@ -1,10 +1,10 @@
-> Current launch audit: [28 October final audit](docs/FINAL_LAUNCH_AUDIT_2026-10-28.md). Historical proposals below do not override that feature inventory or the owner’s testing waiver.
+> Current launch audit: [28 October final audit](docs/FINAL_8_0_1_AUDIT_2026-10-28.md). Historical proposals below do not override that feature inventory or the owner’s testing waiver.
 
 # Guilded roadmap
 
 ## Current stage — 28 October 2026
 
-Guilded **8.0.2 Release preparation** (protocol 2): a deliberate safety patch from the final 8.0.1 audit. In-game spreadsheet text is protected and participation status uses bounded database results. Published 8.0.1 remains available; follow [8.0.2 release gates](docs/V8_0_2_RELEASE_COMPLETION.md). Full FR/DE/ES catalogues and free Store signing are retained.
+Guilded **8.0.2 Release** (protocol 2): a deliberate safety patch from the final 8.0.1 audit. In-game spreadsheet text is protected and participation status uses bounded database results. GitHub and the bot are updated; follow [8.0.2 release gates](docs/V8_0_2_RELEASE_COMPLETION.md). Full FR/DE/ES catalogues and free Store signing are retained.
 
 Published baseline: 8.0.0: security, reliability, ledger storage compaction, versioned Retail overtime scoring, origin isolation, French indexing, accessibility and Core presentation extraction. See [8.0 readiness](docs/V8_0_LAUNCH_READINESS.md) for publication gates and the owner's testing waiver.
 
@@ -13,7 +13,7 @@ Previous: 7.5.0, combining the release-gap bundle and Claude’s raid/interactio
 The original 8.0 baseline passed combined CI, backups, deployment and publication gates. Its retained downloads and earlier evidence are in [8.0 release evidence](docs/V8_0_RELEASE_EVIDENCE_2026-10-28.md).
 Real-client checks remain post-release follow-up; see [the release decision](docs/RELEASE_DECISION_2026-10-25.md).
 Current gates and completed operational checks: [launch readiness](docs/LAUNCH_READINESS_2026-10-24.md).
-GitHub and CurseForge publish 8.0.1 for Forever, Era, TBC, Mists and Retail. All ten approved CurseForge downloads match GitHub. Store 8.0.1.0 is published and its installed signature, application bytes and unchanged encrypted profile are verified. Previously both addon providers published 7.5.0;
+GitHub publishes 8.0.2 for all five editions and the bot runs its reviewed source. The ten CurseForge 8.0.2 files and Store Submission 4 are processing. Their verified public baseline remains 8.0.1; see [current provider evidence](docs/V8_0_2_RELEASE_EVIDENCE_2026-10-28.md). Previously both addon providers published 7.5.0;
 see [the publication record](docs/RELEASE_EXECUTION_2026-10-25.md). All six
 18-October requests shipped in 7.0.0; 7.1.0 added monthly boards and Raider.IO-style leaderboards,
 7.2.0 companion Sign in with Discord and one-click updates, 7.2.1 a steadier bot, 7.3.0 the dungeon

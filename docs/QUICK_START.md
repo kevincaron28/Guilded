@@ -38,7 +38,8 @@ For a private test, use the matching files supplied by the maintainer.
    that their character and standings match in Discord and in game, then share
    [the member guide](MEMBER_INSTALL.md) with your guild. Use the
    [hosted companion](https://guilded.kcaron.top/companion/) and choose
-   **Sign in with Discord**: nothing to type. At least one officer should run
+   **Sign in with Discord**: enter the code displayed in the companion on the
+   sign-in page, then choose your server. At least one officer should run
    the companion: members who only use the addon reach Discord through it.
 
 Community activities and polls need no WoW addon or character pairing. Hosted
@@ -69,7 +70,8 @@ the manual way: `/guilded character` in game, pasted into Discord's
 
 1. Choose **Connect optional companion** in that private reply, or use
    `/character pair`. Open its online companion button and choose
-   **Sign in with Discord**, then your server: nothing to type.
+   **Sign in with Discord**, enter the companion's confirmation code on the
+   sign-in page, then choose your server.
 2. Enable WoW and choose your account's SavedVariables folder. Use **Save standings
    to addon** once to choose `Interface/AddOns/Guilded`. After `/reload`, click
    **Sync now** on your main first if none is linked. Choose
@@ -163,7 +165,8 @@ Après l'approbation et la configuration, chaque membre peut utiliser son propre
 `/guilded verify ABCD-EFGH`) et la colle une seule fois dans le chat de WoW : tous
 ses personnages de cette guilde se lient après qu'un officier en ligne a reçu,
 enregistré et synchronisé leurs données; il reçoit un message privé Discord. Avec le compagnon,
-il choisit **Sign in with Discord**, puis le serveur : rien à taper. Au moins un
+il choisit **Sign in with Discord**, saisit le code affiché dans son compagnon
+sur la page de connexion, puis choisit le serveur. Au moins un
 officier devrait utiliser le compagnon. Le compagnon Windows est facultatif.
 Vérifiez une première synchronisation et les permissions d'un membre ordinaire
 avant de déployer à toute la guilde.

@@ -1,12 +1,13 @@
 # Get started with Guilded
 
-Guilded connects a WoW Forever addon, your guild's Discord bot, and a companion
-that transfers saved game data. The addon also works without Discord.
+Guilded connects an addon for WoW Forever, Classic Era/Hardcore, Burning Crusade
+Classic, Mists Classic or Retail, your guild's Discord bot, and a companion that
+transfers saved game data. The addon also works without Discord.
 
 Start with the [quick setup checklist](QUICK_START.md).
 Use matching downloads from an actually
 published release or the test build your officer provides. Current release
-status and 8.0 preparation are recorded in [launch readiness](V8_0_LAUNCH_READINESS.md).
+status is recorded in [current publication evidence](V8_0_2_RELEASE_EVIDENCE_2026-10-28.md).
 For automatic Windows syncing, use [Guilded Companion on Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9)
 or the [standalone installer](https://github.com/kevincaron28/Guilded/releases/latest).
 Store installations update through Microsoft Store; each channel may publish at a different time.
@@ -27,7 +28,8 @@ character linking and companion sync are optional. To link without a companion,
 WoW account then links on the next upload from an officer's companion, and the
 member gets a DM. So at least one officer should run the companion. The manual
 `/guilded character` → `/character import` way still works for one character.
-The companion connects with **Sign in with Discord**: nothing to type.
+The companion connects with **Sign in with Discord**: enter the confirmation code
+displayed in your companion on the sign-in page, then choose your server.
 Members do not need the host's bot token or database credentials. Only a guild
 with its own bot needs its address, entered in the companion under **Older
 companions or your guild's own bot**.

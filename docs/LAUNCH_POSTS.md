@@ -1,14 +1,18 @@
 # Launch posts — WoW Forever, 4 November 2026
 
-Drafts for the owner to post after game/two-PC acceptance (nothing here is posted automatically).
-Public release is held: follow [launch readiness](LAUNCH_READINESS_2026-10-24.md).
+Drafts for the owner to review and post; nothing here is posted automatically.
+The owner waived remaining prelaunch hands-on checks. Follow
+[current publication evidence](V8_0_2_RELEASE_EVIDENCE_2026-10-28.md), and check
+each provider's actual available version before posting.
 Lead with dungeons and check each community's self-promotion rules before posting, post
 once per place, and answer questions in the thread.
 
-Facts used below (true on 22 October 2026; re-check versions on the day): Guilded 7.3.1, free,
+Facts refreshed 28 October 2026; re-check provider versions on posting day: Guilded 8.0.2, free,
 works in game without Discord; Guilded Dungeons is the standalone tracker; Season 1 starts
 4 November 2026 at 3 PM Pacific (23:00 UTC); leaderboards at guilded.kcaron.top/leaderboards/;
-English and French.
+English, French, German and Spanish in the addons; English/French companion, bot and website.
+The free [Microsoft Store companion](https://apps.microsoft.com/detail/9N680XX3QFL9)
+is Store-signed; the separate GitHub installer is unsigned.
 
 ## When
 
@@ -56,7 +60,7 @@ Check the subreddit's rules on addon posts first; use the addon or discussion fl
 > - Leaderboards: https://guilded.kcaron.top/leaderboards/
 >
 > It's free and works without Discord. The leaderboard needs a small companion to upload runs
-> (Sign in with Discord, nothing to type). Targets are provisional; missing routes stay unrated
+> (Sign in with Discord, then enter the code shown in the companion). Targets are provisional; missing routes stay unrated
 > until verified. Real runs inform future calibration, while existing official-season targets
 > stay frozen. Happy to answer questions.
 

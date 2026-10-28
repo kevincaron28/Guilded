@@ -43,14 +43,29 @@ Validated submission package: `Guilded.Companion.8.0.2.x64.STORE-SUBMISSION.msix
 `ad8699bae818a0efadf92b32dfec945fc7dd76fad6a767e422572728e8a281d8`.
 Reserved identity, version 8.0.2.0 and packaged application sources were verified.
 Submission 4 (`1152921505702260716`) contains the actual package and saved EN/FR
-patch notes. Microsoft confirms certification passed; automatic publication is
-processing. Publication and an installed 8.0.2.0 upgrade are not yet claimed.
+patch notes. Microsoft confirms certification and publication completed. The
+read-only published package page shows 8.0.2.0, X64.
 
-The verified installed baseline is Store 8.0.1.0. Its signature/certificate chain,
-package status, submitted application bytes and encrypted-profile retention passed.
-The owner confirmed Store distribution controls and French Setup/Help. Repeat the
-actual package/signature/profile checks after 8.0.2 publication. Retain the free
-Store method and PolyForm Noncommercial license. The optional GitHub EXE is unsigned.
+The actual Store upgrade to **8.0.2.0** is installed on this PC. The Microsoft
+Store CLI applied it by product name. Windows reports Store signing and status OK;
+the PKCS#7 signature and certificate chain verify, and installed `app.asar` matches
+the submitted application byte for byte. Native packaged activation displays
+**Version 8.0.2**, the Store distribution/update/startup controls and the saved
+account connection. Tracking remains paused with game files unset; a live sync is
+not claimed.
+
+An initial comparison against the earlier 430-byte encrypted profile differed.
+Investigation found the current 558-byte file was written at 22:49:39 UTC, before
+the new package directory was created at 22:54:52 UTC. The file is unchanged across
+8.0.2 activation, and the application reads its saved account connection. This
+establishes retention/readability of the existing profile; it does not establish
+bitwise equality to the older baseline or the cause of that earlier rewrite.
+No profile was reset, no credentials were entered by this audit, and existing
+standalone profiles and SavedVariables were retained.
+
+The owner's baseline Store controls and French Setup/Help checks remain recorded.
+Retain the free Store method and PolyForm Noncommercial license. The optional
+GitHub EXE is unsigned; Store certification does not sign that separate installer.
 
 ## CurseForge edition submissions
 

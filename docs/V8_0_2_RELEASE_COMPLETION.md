@@ -44,8 +44,11 @@ runs 8.0.2 after fresh ledger/database/application and encrypted off-server reco
 checks; post-update ledger, command health, read-only summary comparison, direct
 origin rejection and matching browser assets passed. All ten CurseForge files
 are approved; their anonymous downloads match GitHub. Store Submission 4 contains
-the validated 8.0.2.0 package and saved EN/FR notes and has passed certification.
-Its publication and the actual Store upgrade remain independent gates. See
+the validated 8.0.2.0 package and saved EN/FR notes. Certification and publication
+completed. The actual installed Store update, signature/certificate chain,
+submitted application bytes and retained encrypted profile/account activation
+passed. The older long-lived ciphertext baseline was rewritten before installation;
+it is not reported as bitwise unchanged. See
 [provider evidence](V8_0_2_RELEASE_EVIDENCE_2026-10-28.md).
 
 No independent native-speaker or universal accessibility certification is claimed.

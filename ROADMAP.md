@@ -13,7 +13,7 @@ Previous: 7.5.0, combining the release-gap bundle and Claude’s raid/interactio
 The original 8.0 baseline passed combined CI, backups, deployment and publication gates. Its retained downloads and earlier evidence are in [8.0 release evidence](docs/V8_0_RELEASE_EVIDENCE_2026-10-28.md).
 Real-client checks remain post-release follow-up; see [the release decision](docs/RELEASE_DECISION_2026-10-25.md).
 Current gates and completed operational checks: [launch readiness](docs/LAUNCH_READINESS_2026-10-24.md).
-GitHub and CurseForge publish 8.0.2 for all five editions and the bot runs its reviewed source. All ten approved CurseForge files match GitHub. Store Submission 4 passed certification and is publishing; its verified public/installed baseline remains 8.0.1. See [current provider evidence](docs/V8_0_2_RELEASE_EVIDENCE_2026-10-28.md). Previously both addon providers published 7.5.0;
+GitHub and CurseForge publish 8.0.2 for all five editions and the bot runs its reviewed source. All ten approved CurseForge files match GitHub. Store Submission 4 publishes 8.0.2.0; its actual installed signature, submitted application bytes and retained encrypted profile/account activation passed. See [current provider evidence](docs/V8_0_2_RELEASE_EVIDENCE_2026-10-28.md). Previously both addon providers published 7.5.0;
 see [the publication record](docs/RELEASE_EXECUTION_2026-10-25.md). All six
 18-October requests shipped in 7.0.0; 7.1.0 added monthly boards and Raider.IO-style leaderboards,
 7.2.0 companion Sign in with Discord and one-click updates, 7.2.1 a steadier bot, 7.3.0 the dungeon

@@ -2,7 +2,8 @@
 
 Historical 8.0.0 submission record. Submission 3 subsequently published 8.0.1.0,
 and its actual signed installation/upgrade and encrypted-profile preservation
-passed. Submission 4 contains verified 8.0.2.0 and is in certification. Follow
+passed. Submission 4 publishes 8.0.2.0; its actual installed signature, application
+bytes and retained encrypted profile/account activation passed. Follow
 [current per-provider evidence](../V8_0_2_RELEASE_EVIDENCE_2026-10-28.md); the draft
 notes and gates below retain their original 8.0.0 context.
 

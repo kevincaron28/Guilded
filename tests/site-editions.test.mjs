@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { WOW_EDITIONS, editionPages } from '../site/editions.mjs';
 import { GAME_EDITIONS } from '../companion/game-edition.mjs';
 
@@ -48,5 +48,50 @@ describe('edition-specific downloads', () => {
   it('routes edition pages through the Worker for server-rendered French', () => {
     const config = JSON.parse(readFileSync('wrangler.jsonc', 'utf8'));
     expect(config.assets.run_worker_first).toEqual(expect.arrayContaining(['/editions', '/editions/*']));
+  });
+});
+
+// 29 October 2026 website review: new pages, search listing, lighter images, plain wording.
+describe('website refresh', () => {
+  it('publishes the officer and Forever pages in both languages, with server-rendered French', () => {
+    for (const path of ['officers', 'forever']) {
+      const html = page(`${path}/index.html`);
+      expect(html).toContain(`<link rel="canonical" href="https://guilded.kcaron.top/${path}/">`);
+      expect(html).toContain(`hreflang="fr" href="https://guilded.kcaron.top/${path}/?lang=fr"`);
+      expect(html).toContain('data-language-copy="fr"');
+      expect(html).toContain('<details class="nav-group has-current" data-nav-group="help">');
+    }
+    const config = JSON.parse(readFileSync('wrangler.jsonc', 'utf8'));
+    expect(config.assets.run_worker_first).toEqual(expect.arrayContaining(['/officers', '/officers/*', '/forever', '/forever/*']));
+  });
+
+  it('lists the public data pages and the guild-page sitemap for search engines', () => {
+    const sitemap = page('sitemap.xml');
+    for (const path of ['/leaderboards/', '/recruitment/guilds/', '/players/', '/officers/', '/forever/']) expect(sitemap).toContain(`<loc>https://guilded.kcaron.top${path}</loc>`);
+    expect(page('robots.txt')).toContain('Sitemap: https://guilded.kcaron.top/recruitment/guilds/sitemap.xml');
+  });
+
+  it('uses light images and a large link preview', () => {
+    expect(statSync('dist/site/logo-88.webp').size).toBeLessThan(10_000);
+    expect(statSync('dist/site/logo.png').size).toBeLessThan(150_000);
+    const home = page('index.html');
+    expect(home).toContain('<meta property="og:image" content="https://guilded.kcaron.top/images/social/guilded-card.png">');
+    expect(home).toContain('<meta name="twitter:card" content="summary_large_image">');
+    expect([...home.matchAll(/<img src="([^"]+)"/g)].map(match => match[1]).filter(src => src.endsWith('.png'))).toEqual([]);
+    expect(page('docs/QUICK_START.html')).toContain('images/social/guilded-card.png');
+    expect(page('editions/forever/index.html')).toContain('href="../../favicon.png"');
+  });
+
+  it('adds no analytics script or policy change until a beacon token is configured', () => {
+    expect(JSON.parse(readFileSync('site/analytics.json', 'utf8')).cloudflareBeaconToken).toBe('');
+    expect(page('index.html')).not.toContain('cloudflareinsights');
+    expect(page('_headers')).not.toContain('cloudflareinsights');
+  });
+
+  it('keeps release-process wording off the public download pages', () => {
+    for (const html of [page('index.html'), page('editions/forever/index.html'), page('docs/QUICK_START.html')]) {
+      for (const phrase of ['in-game checks remain pending', 'Build availability does not mean', 'Store certification', 'not measured acceptance results']) expect(html).not.toContain(phrase);
+    }
+    expect(page('editions/forever/index.html')).toContain('href="/forever/"');
   });
 });

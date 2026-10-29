@@ -313,3 +313,64 @@ describe("public dungeon run uploads (7.0)", () => {
     expect((await worker.fetch(new Request("https://guilded.kcaron.top/api/v1/public-runs"), env)).status).toBe(405);
   });
 });
+
+// 29 October 2026: Cloudflare failed to look up the DuckDNS origin on 9 of 20 visits (error 1016,
+// status 530). The Worker retries, can use an owner-managed hostname first, and shows a real page.
+describe("unreachable bot origin", () => {
+  const dnsError = () => new Response("error code: 1016", { status: 530 });
+  it("retries a failed origin lookup and returns the page once the bot answers", async () => {
+    const upstream = vi.fn<(url: string) => Promise<Response>>()
+      .mockResolvedValueOnce(dnsError()).mockResolvedValueOnce(new Response("leaderboards", { headers: { "content-type": "text/html" } }));
+    vi.stubGlobal("fetch", upstream);
+    const response = await worker.fetch(new Request("https://guilded.kcaron.top/leaderboards/?lang=fr", { headers: { accept: "text/html" } }), env);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("leaderboards");
+    expect(upstream).toHaveBeenCalledTimes(2);
+  });
+  it("tries the configured hostname first and keeps DuckDNS as the fallback", async () => {
+    const upstream = vi.fn<(url: string) => Promise<Response>>().mockResolvedValueOnce(dnsError()).mockResolvedValueOnce(new Response("ok"));
+    vi.stubGlobal("fetch", upstream);
+    await worker.fetch(new Request("https://guilded.kcaron.top/players/?class=Mage"), { ...env, GUILDED_ORIGIN_URL: "https://bot.kcaron.top" });
+    expect(upstream.mock.calls.map(call => call[0])).toEqual(["https://bot.kcaron.top/players/?class=Mage", "https://guildedqc.duckdns.org/players/?class=Mage"]);
+    for (const invalid of ["http://bot.kcaron.top", "https://user:pass@bot.kcaron.top", "https://bot.kcaron.top/path", "not a url"]) {
+      upstream.mockClear(); upstream.mockResolvedValue(new Response("ok"));
+      await worker.fetch(new Request("https://guilded.kcaron.top/players/"), { ...env, GUILDED_ORIGIN_URL: invalid });
+      expect(upstream.mock.calls[0]![0]).toBe("https://guildedqc.duckdns.org/players/");
+    }
+  });
+  it("accepts the bot's canonical redirect from either address", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 301, headers: { location: "https://guildedqc.duckdns.org/g/quebec-gold/" } })));
+    const response = await worker.fetch(new Request("https://guilded.kcaron.top/g/quebec-gold"), { ...env, GUILDED_ORIGIN_URL: "https://bot.kcaron.top" });
+    expect(response.status).toBe(301);
+    expect(response.headers.get("location")).toBe("/g/quebec-gold/");
+  });
+  it("shows a branded, self-retrying page to visitors and JSON to API callers after three failures", async () => {
+    const upstream = vi.fn(async () => dnsError()); vi.stubGlobal("fetch", upstream);
+    const page = await worker.fetch(new Request("https://guilded.kcaron.top/recruitment/guilds/?lang=fr", { headers: { accept: "text/html,application/xhtml+xml" } }), env);
+    expect(upstream).toHaveBeenCalledTimes(3);
+    expect(page.status).toBe(503);
+    expect(page.headers.get("retry-after")).toBe("20");
+    expect(page.headers.get("content-security-policy")).toContain("default-src 'none'");
+    const html = await page.text();
+    expect(html).toContain('<html lang="fr">');
+    expect(html).toContain("De retour dans un instant");
+    expect(html).toContain('<meta http-equiv="refresh" content="20">');
+    expect(html).toContain('href="/recruitment/guilds/?lang=fr"');
+    expect(html).not.toContain("1016");
+    const api = await worker.fetch(new Request("https://guilded.kcaron.top/api/v1/standings"), env);
+    expect(api.status).toBe(503);
+    expect(await api.json()).toEqual({ error: "The guild bot is temporarily unavailable. Try again shortly." });
+  });
+  it("resends a POST only when Cloudflare never reached the bot", async () => {
+    const upstream = vi.fn<(url: string, init: RequestInit) => Promise<Response>>().mockResolvedValueOnce(dnsError()).mockResolvedValueOnce(Response.json({ accepted: [] }));
+    vi.stubGlobal("fetch", upstream);
+    const sent = await worker.fetch(new Request("https://guilded.kcaron.top/api/v1/public-runs", { method: "POST", body: "{\"runs\":[]}", headers: { "content-type": "application/json" } }), env);
+    expect(sent.status).toBe(200);
+    expect(upstream).toHaveBeenCalledTimes(2);
+    expect(new TextDecoder().decode(upstream.mock.calls[1]![1].body as Uint8Array)).toBe("{\"runs\":[]}");
+    const failing = vi.fn(async () => { throw new TypeError("network connection lost"); }); vi.stubGlobal("fetch", failing);
+    const lost = await worker.fetch(new Request("https://guilded.kcaron.top/api/v1/public-runs", { method: "POST", body: "{}" }), env);
+    expect(lost.status).toBe(502);
+    expect(failing).toHaveBeenCalledTimes(1);
+  });
+});

@@ -2,7 +2,7 @@ import { guildWhere } from "./guild-scope.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { priority } from "./epgp.js";
 import { asLootMode, effectiveRules, LOOT_MODE_HELP, LOOT_MODE_HELP_FR, LOOT_MODE_LABEL, LOOT_MODE_LABEL_FR } from "./core-rules.js";
-import { breadcrumbs, SITE_HEADER_STYLE, siteHeader } from "./site-header.js";
+import { breadcrumbs, SHARE_CARD, SITE_HEADER_STYLE, siteHeader } from "./site-header.js";
 
 // A guild's public page at /g/<slug>/ (docs/GUILD_PAGES_DESIGN.md). Read-only, no scripts, and
 // only what officers turned on. Names are character names, never Discord users or IDs.
@@ -196,9 +196,9 @@ export function renderGuildPage(view: GuildPageView): string {
   return `<!doctype html><html lang="${view.language}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`
     + `<title>${name} · Guilded</title><meta name="description" content="${description}">${view.indexable ? "" : '<meta name="robots" content="noindex">'}`
     + `<meta property="og:title" content="${name}"><meta property="og:description" content="${description}"><meta property="og:type" content="website">`
-    + `<meta property="og:site_name" content="Guilded"><meta property="og:image" content="https://guilded.kcaron.top/logo.png"><meta name="twitter:card" content="summary"><meta name="theme-color" content="#d4af37">`
+    + `<meta property="og:site_name" content="Guilded"><meta property="og:image" content="${SHARE_CARD}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><meta name="theme-color" content="#d4af37"><link rel="icon" href="/favicon.png" type="image/png">`
     + `<style>${PAGE_STYLE}
-${SITE_HEADER_STYLE}</style></head><body><main>${siteHeader(view.language, `/g/${view.slug}/`)}`
+${SITE_HEADER_STYLE}</style></head><body>${siteHeader(view.language, `/g/${view.slug}/`)}<main>`
     + breadcrumbs(view.language, [[t("Guilds", "Guildes"), `/recruitment/guilds/?lang=${view.language}`], [view.name, null]], escapeHtml) + parts.join("")
     + `<footer>${t("Guild page made with", "Page de guilde créée avec")} <a href="https://guilded.kcaron.top/">Guilded</a>. ${t("Not affiliated with Blizzard Entertainment.", "Sans affiliation avec Blizzard Entertainment.")}</footer></main></body></html>`;
 }
@@ -218,7 +218,7 @@ export function createGuildPageServer(load: (slug: string) => Promise<GuildPageV
   const maxEntries = options.maxEntries ?? 200;
   const now = options.now ?? Date.now;
   const cache = new Map<string, { at: number; html: string | null }>();
-  const security = { "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'", "referrer-policy": "strict-origin-when-cross-origin", "x-content-type-options": "nosniff" };
+  const security = { "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'", "referrer-policy": "strict-origin-when-cross-origin", "x-content-type-options": "nosniff" };
   const server = { forget(slug?: string) { if (slug) cache.delete(slug); else cache.clear(); } };
   pageServers.add(server);
   const html = (status: number, body: string, maxAge: number): PageResponse => ({ status, body, headers: { ...security, "content-type": "text/html; charset=utf-8", "cache-control": `public, max-age=${maxAge}` } });

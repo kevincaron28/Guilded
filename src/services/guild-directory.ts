@@ -14,6 +14,8 @@ export interface DirectoryGuild {
   id: string; name: string; gameEdition: string; language: string | null;
   /** The published guild page's address (/g/<slug>/), or null. */
   slug: string | null;
+  /** Officers let search engines index the published page (/guildpage); false keeps it out of the sitemap. */
+  indexable?: boolean;
   /** Publishes dungeon runs: /leaderboards/guild/<id>/. */
   dungeons: boolean;
   cores: string[];
@@ -34,7 +36,7 @@ export function prismaGuildDirectoryStore(database: PrismaClient, allows: (disco
         select: {
           id: true, name: true, discordId: true, gameEdition: true,
           settings: { select: { language: true, publicDungeonRuns: true } },
-          page: { select: { slug: true, published: true } },
+          page: { select: { slug: true, published: true, indexable: true } },
           raidCores: { select: { name: true }, orderBy: { name: "asc" }, take: 8 },
           recruitmentListings: { where: { open: true }, select: { id: true, faction: true, realm: true, language: true }, take: 5 }
         },
@@ -42,7 +44,7 @@ export function prismaGuildDirectoryStore(database: PrismaClient, allows: (disco
       });
       return rows.filter((row) => allows(row.discordId)).map((row) => ({
         id: row.id, name: row.name, gameEdition: row.gameEdition, language: row.settings?.language ?? null,
-        slug: row.page?.published ? row.page.slug : null, dungeons: row.settings?.publicDungeonRuns === true,
+        slug: row.page?.published ? row.page.slug : null, indexable: row.page?.published === true && row.page.indexable !== false, dungeons: row.settings?.publicDungeonRuns === true,
         cores: row.raidCores.map((core) => core.name), listings: row.recruitmentListings
       }));
     }
@@ -112,6 +114,16 @@ export function createGuildDirectory(store: GuildDirectoryStore): { route: WebRo
   const route: WebRoute = async (ctx: WebContext, kit: WebKit) => {
     const path = ctx.request.path;
     if (path === "/recruitment/guilds") return kit.redirect(`${path}/${ctx.request.query.size ? `?${ctx.request.query.toString()}` : ""}`);
+    // Search engines find the published guild pages whose officers allow indexing here; the website's
+    // robots.txt names this file (scripts/build-site.mjs).
+    if (path === "/recruitment/guilds/sitemap.xml" && ["GET", "HEAD"].includes(ctx.request.method)) {
+      const slugs = new Set((await Promise.all(GAME_EDITIONS.map((edition) => store.guilds(edition)))).flat()
+        .filter((guild) => guild.slug && guild.indexable !== false).map((guild) => guild.slug!));
+      const body = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${[...slugs].sort().map((slug) => `<url><loc>https://guilded.kcaron.top/g/${encodeURIComponent(slug)}/</loc></url>`).join("")}</urlset>
+`;
+      return { status: 200, headers: { "content-type": "application/xml; charset=utf-8", "cache-control": "public, max-age=3600", "x-content-type-options": "nosniff" }, body: ctx.request.method === "HEAD" ? "" : body };
+    }
     if (path !== "/recruitment/guilds/" || ctx.request.method === "POST") return null;
     const { t, lang } = ctx;
     const filters = readDirectoryFilters(ctx.request.query);
@@ -124,7 +136,7 @@ export function createGuildDirectory(store: GuildDirectoryStore): { route: WebRo
       + (found.length
         ? `<div class="cards">${found.slice(0, SHOWN).map((guild) => guildCard(ctx, guild)).join("")}</div>`
           + (found.length > SHOWN ? `<p class="muted">${t(`Showing ${SHOWN} of ${found.length}. Search by name to find the others.`, `${SHOWN} sur ${found.length} affichées. Cherchez par nom pour trouver les autres.`)}</p>` : "")
-        : `<p class="muted">${t("No guild matches these filters.", "Aucune guilde ne correspond à ces filtres.")}</p>`)
+        : `<p class="muted">${t("No guild matches these filters yet. Officers: create your guild page with /guildpage create, then /guildpage publish in Discord, or list it with /recruit set.", "Aucune guilde ne correspond encore à ces filtres. Officiers : créez la page de votre guilde avec /guildpage create, puis /guildpage publish dans Discord, ou annoncez-la avec /recruit set.")}</p>`)
       + `<p><a href="${link("/recruitment/", lang)}">${t("Recruitment: open listings and players looking for a guild →", "Recrutement : annonces et joueurs qui cherchent une guilde →")}</a><br>`
       + `<a href="${link("/leaderboards/guilds/", lang)}">${t("Guild rankings by dungeon score →", "Classement des guildes par score de donjon →")}</a></p>`;
     return kit.page(200, t("Find a guild", "Trouver une guilde"), body, { description: t("Find a WoW guild using Guilded: raid cores, times, loot rules, recruitment and dungeon scores.", "Trouvez une guilde WoW qui utilise Guilded : cores de raid, horaires, règles de butin, recrutement et scores de donjon.") });

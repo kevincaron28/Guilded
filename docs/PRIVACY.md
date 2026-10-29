@@ -31,6 +31,11 @@ Authentication cookies maintain website sessions; the current session lifetime
 is up to 30 days. Technical requests and error records may contain connection
 metadata and the context needed to operate, troubleshoot and protect the service.
 
+If enabled, the website's static pages count visits with Cloudflare Web Analytics:
+page views, referring sites, countries and page speed, with no cookies, no
+fingerprinting and no cross-site tracking. Pages served by the bot (leaderboards,
+recruitment, profiles, guild pages and the companion) never load it.
+
 ### Storage, recipients and security
 
 Desktop profiles store selected paths, preferences and pairing credentials on
@@ -122,6 +127,12 @@ mot de passe Discord. Les accès et rôles de guilde sont vérifiés. Des témoi
 d'authentification maintiennent les sessions web, actuellement jusqu'à 30 jours.
 Les requêtes techniques et erreurs peuvent contenir les métadonnées de connexion
 et le contexte nécessaires au fonctionnement, au dépannage et à la protection.
+
+Si elle est activée, la mesure d'audience Cloudflare Web Analytics compte les
+visites des pages statiques du site : pages vues, sites d'origine, pays et vitesse
+des pages, sans témoin, sans empreinte numérique ni suivi entre sites. Les pages
+servies par le bot (classements, recrutement, profils, pages de guilde et compagnon)
+ne la chargent jamais.
 
 ### Conservation locale, destinataires et sécurité
 

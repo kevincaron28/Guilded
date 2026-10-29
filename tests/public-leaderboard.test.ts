@@ -144,6 +144,22 @@ describe("leaderboard and personal pages", () => {
     expect(detail.body).toContain("+10");
   });
 
+  // The website homepage's "This week on Guilded" strip reads this; it never carries player names.
+  it("serves the weekly summary for the website homepage without player names", async () => {
+    const { request } = setup();
+    const summary = await request("GET", "/leaderboards/summary.json?lang=en");
+    expect(summary.status).toBe(200);
+    expect(summary.headers["content-type"]).toContain("application/json");
+    const data = JSON.parse(summary.body) as { guilds: number; ratedRunsThisWeek: number; topRuns: { dungeon: string; score: number }[] };
+    expect(data.guilds).toBe(1);
+    expect(data.ratedRunsThisWeek).toBeGreaterThan(0);
+    expect(data.topRuns.length).toBeLessThanOrEqual(3);
+    expect(data.topRuns.map((run) => run.score)).toContain(185);
+    expect(summary.body).not.toMatch(/Kev|Amy|Bad/);
+    const board = await request("GET", "/leaderboards/?lang=fr");
+    expect(board.body).toContain("<summary>Comment les scores sont calculés</summary>");
+  });
+
   it("lists dungeons, ranks a dungeon and shows a character page", async () => {
     const { request } = setup();
     const home = await request("GET", "/leaderboards/");

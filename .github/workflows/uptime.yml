@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Check the bot, website and guild page
+      - name: Check the bot, website, guild page and public data pages
         id: check
         shell: bash
         run: |
@@ -33,11 +33,26 @@ jobs:
             echo "DOWN: $name ($url)"
             failed="$failed $name"
           }
-          check "bot health" "https://guildedqc.duckdns.org/health" '"ok":true'
+          # Since origin protection (28 October 2026) the bot's own address answers only the website's
+          # Worker, so a direct check always fails; the Worker path below is the bot's health check.
           check "bot via website" "https://guilded.kcaron.top/health" '"ok":true'
           check "website" "https://guilded.kcaron.top/" "Guilded"
           check "creator page" "https://kcaron.top/" "K Caron Projects"
           check "guild page" "https://guilded.kcaron.top/g/quebec-gold/" "Quebec Gold"
+          check "leaderboards" "https://guilded.kcaron.top/leaderboards/?lang=en" "Dungeon leaderboards"
+          check "guild directory" "https://guilded.kcaron.top/recruitment/guilds/?lang=en" "Find a guild"
+          # The retries above hide a page that fails every other visit (Cloudflare error 1016 on
+          # 29 October 2026 failed 9 of 20). Ten quick visits: more than one failure is an outage.
+          reliable() {
+            local name="$1" url="$2" bad=0
+            for attempt in $(seq 1 10); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$url" || echo 000)
+              [[ "$code" == 200 ]] || bad=$((bad + 1))
+            done
+            if (( bad > 1 )); then echo "UNRELIABLE: $name ($bad of 10 visits failed)"; failed="$failed $name-reliability"
+            else echo "ok: $name reliability ($bad of 10 visits failed)"; fi
+          }
+          reliable "leaderboards" "https://guilded.kcaron.top/leaderboards/?lang=en"
           echo "failed=${failed# }" >> "$GITHUB_OUTPUT"
           [[ -z "$failed" ]]
       - name: Alert on Discord

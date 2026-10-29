@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { editionHref, localizedHref, SITE_NAV } from "../site/nav.mjs";
+import { editionHref, localizedHref, NAV_GROUPS, navLinks, SITE_NAV } from "../site/nav.mjs";
 import { layout, link } from "../src/services/web-layout.js";
 import { currentSection } from "../src/services/site-header.js";
 import { withEdition } from "../src/services/edition-context.js";
@@ -40,7 +40,7 @@ describe("site menu", () => {
   });
 
   it("has a Guilds entry, current on the guild directory and on guild pages", () => {
-    expect(page("/recruitment/guilds/", "fr")).toContain('href="/recruitment/guilds/?lang=fr" aria-current="page">Guildes</a>');
+    expect(page("/recruitment/guilds/", "fr")).toContain('href="/recruitment/guilds/?lang=fr" aria-current="page">Trouver une guilde</a>');
     expect(page("/recruitment/guilds/", "fr")).not.toContain('href="/recruitment/?lang=fr" aria-current');
     expect(currentSection("/g/quebec-gold/")).toBe("guilds");
     expect(currentSection("/recruitment/")).toBe("recruitment");
@@ -55,7 +55,9 @@ describe("site menu", () => {
     const html = page("/leaderboards/", "fr");
     expect(html).toContain('href="/features/?lang=fr"');
     expect(html).toContain('href="/docs/QUICK_START.html#fr"');
-    expect(html).toContain('href="/?lang=fr#start"');
+    expect(html).toContain('href="/editions/?lang=fr"');
+    expect(html).toContain('href="/officers/?lang=fr"');
+    expect(html).toContain('href="/forever/?lang=fr"');
     expect(localizedHref("/leaderboards/?season=s1&lang=en#records", "fr")).toBe("/leaderboards/?season=s1&lang=fr#records");
     expect(localizedHref("features/", "fr")).toBe("features/?lang=fr");
     expect(localizedHref("/editions/retail/", "fr")).toBe("/editions/retail/?lang=fr");
@@ -68,5 +70,28 @@ describe("site menu", () => {
 
   it.each(["https://example.com/?lang=en", "//example.com/", "/companion/web-bundle.js", "#features", "/logo.png"])("leaves unrelated links unchanged: %s", href => {
     expect(localizedHref(href, "fr")).toBe(href);
+  });
+
+  // 29 October 2026 review: five top-level entries, the rest in two drop-downs that need no script.
+  it("keeps five top-level entries with Community and Help drop-downs", () => {
+    const html = navLinks({ label: item => item.en, current: "players" });
+    const top = html.replace(/<div class="nav-menu">.*?<\/div>/g, "");
+    expect([...top.matchAll(/<a |<summary>/g)]).toHaveLength(5);
+    expect(html).toContain('<details class="nav-group has-current" data-nav-group="community"><summary>Community</summary>');
+    expect(html).toContain('<details class="nav-group" data-nav-group="help"><summary>Help</summary>');
+    expect(html.indexOf('data-nav-group="community"')).toBeLessThan(html.indexOf('data-nav-group="help"'));
+    for (const item of SITE_NAV.filter(item => item.group)) expect(NAV_GROUPS[item.group!]).toBeDefined();
+    expect(html).toContain('href="https://discord.gg/YjzFwtP64V"');
+  });
+
+  it("gives bot pages the website header: logo, phone menu and an EN/FR switch for the same page", () => {
+    const html = page("/players/", "fr");
+    expect(html).toMatch(/<header class="site-top">.*<img src="data:image\/webp;base64,/);
+    expect(html).toContain("VOTRE GUILDE, CONNECTÉE.");
+    expect(html).toContain('<input type="checkbox" id="site-menu" class="menu-check"><label for="site-menu" class="menu-label">');
+    expect(html).toContain('<summary>Communauté</summary>');
+    expect(html).toContain('<a href="/players/?lang=en" hreflang="en" lang="en">EN</a><a href="/players/?lang=fr" hreflang="fr" lang="fr" aria-current="true">FR</a>');
+    expect(html.indexOf('<header class="site-top">')).toBeLessThan(html.indexOf("<main>"));
+    expect(html).not.toContain(">Français</a>");
   });
 });

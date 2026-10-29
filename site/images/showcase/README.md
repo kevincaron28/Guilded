@@ -31,3 +31,9 @@ Listing: https://www.curseforge.com/wow/addons/guilded/gallery. None proves curr
 Eight PNG derivatives were supplied by the dedicated capture task from user-created in-game screenshots. Only the sanitized folder was copied; private originals and source inventories were not read/copied/uploaded by this design task. CAPTURE-MANIFEST-2026-10-19.json records hashes, dimensions, visible states and labelled redactions. Real pixels remain unchanged after import. No upscaling, generated UI or invented data.
 
 The loaded addon version and client build are unknown: neither is visible. Disk metadata 6.3.2 was observed separately and is not proof of the loaded version. The hero shows blank local guild setup; crafting is a blank lookup; loot/raid are idle; readiness is solo and redacted; season entries are not completed and are not a public leaderboard. Mobile detail crops preserve the supplied editorial/redaction footers and full controls/entries.
+
+## WebP copies — 29 October 2026
+
+`guilded-local-guild-setup.webp`, `guilded-crafting-redacted.webp`, `guilded-crafting-lookup-detail.webp`
+and `guilded-loot-redacted.webp` are the same-size PNGs above re-encoded as WebP (quality 84) for
+faster pages: no crop, resize or edit. The homepage shows the WebP; its enlarge links keep the PNGs.

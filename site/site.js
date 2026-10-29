@@ -80,3 +80,43 @@ for (const block of document.querySelectorAll('pre')) {
   });
   block.before(button);
 }
+
+// Menu drop-downs (<details>, usable without this script): one open at a time; a click elsewhere
+// or Escape closes them.
+const navGroups = [...document.querySelectorAll('.nav-group')];
+for (const group of navGroups) group.addEventListener('toggle', () => {
+  if (group.open) for (const other of navGroups) if (other !== group) other.open = false;
+});
+document.addEventListener('click', event => {
+  for (const group of navGroups) if (group.open && !group.contains(event.target)) group.open = false;
+});
+document.addEventListener('keydown', event => {
+  const open = event.key === 'Escape' && navGroups.find(group => group.open);
+  if (open) { open.open = false; open.querySelector('summary').focus(); }
+});
+
+// "This week on Guilded": public numbers from the bot (/leaderboards/summary.json, no player
+// names). The section stays hidden when they cannot load, e.g. in the static preview.
+const live = document.querySelector('[data-live-summary]');
+if (live) {
+  fetch(`/leaderboards/summary.json?lang=${document.documentElement.lang === 'fr' ? 'fr' : 'en'}`, { headers: { accept: 'application/json' } })
+    .then(response => response.ok ? response.json() : null)
+    .then(data => {
+      if (!data || typeof data.ratedRunsThisWeek !== 'number') return;
+      live.querySelector('[data-live="runs"]').textContent = String(data.ratedRunsThisWeek);
+      live.querySelector('[data-live="guilds"]').textContent = String(Number(data.guilds) || 0);
+      const runs = Array.isArray(data.topRuns) ? data.topRuns.slice(0, 3) : [];
+      const list = live.querySelector('[data-live="top"]');
+      list.replaceChildren(...runs.map(run => {
+        const item = document.createElement('li');
+        const name = document.createElement('strong');
+        name.textContent = String(run.dungeon);
+        item.append(name, ` · ${run.levels} · ${run.time} · ${run.score}`);
+        return item;
+      }));
+      list.hidden = !runs.length;
+      live.querySelector('[data-live="empty"]').hidden = runs.length > 0;
+      live.hidden = false;
+    })
+    .catch(() => { /* the rest of the page does not depend on it */ });
+}

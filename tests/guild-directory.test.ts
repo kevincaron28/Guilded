@@ -35,6 +35,18 @@ describe("guild directory page", () => {
     return { store, open };
   }
 
+  it("lists published guild pages that allow indexing in a sitemap, once across editions", async () => {
+    const hidden: DirectoryGuild = { ...beard, id: "g3", slug: "not-indexed", indexable: false };
+    const { open, store } = app([quebecGold, beard, hidden]);
+    const map = (await open("/recruitment/guilds/sitemap.xml"))!;
+    expect(map.status).toBe(200);
+    expect(map.headers["content-type"]).toContain("application/xml");
+    expect(map.body).toContain("<loc>https://guilded.kcaron.top/g/quebec-gold/</loc>");
+    expect(map.body).not.toContain("not-indexed");
+    expect(map.body.match(/<url>/g)).toHaveLength(1);
+    expect(store.guilds).toHaveBeenCalledTimes(5);
+  });
+
   it("lists each guild with its page, recruitment and dungeon scores, in the page language", async () => {
     const { open, store } = app([quebecGold, beard]);
     const page = (await open("/recruitment/guilds/", "lang=fr"))!;
@@ -44,7 +56,7 @@ describe("guild directory page", () => {
     expect(page.body).toContain("2 cores de raid : Les Aggros Anonyme, Les Pulliticiens");
     expect(page.body).toContain("/recruitment/apply/l1");
     expect(page.body).toContain("/leaderboards/guild/g2");
-    expect(page.body).toContain('aria-current="page">Guildes</a>');
+    expect(page.body).toContain('aria-current="page">Trouver une guilde</a>');
     expect(store.guilds).toHaveBeenCalledWith("forever");
   });
 
@@ -53,7 +65,7 @@ describe("guild directory page", () => {
     const filtered = (await open("/recruitment/guilds/", "q=beard"))!.body;
     expect(filtered).toContain("The Beard");
     expect(filtered).not.toContain("Québec Gold</a>");
-    expect((await open("/recruitment/guilds/", "q=nobody"))!.body).toContain("No guild matches these filters.");
+    expect((await open("/recruitment/guilds/", "q=nobody"))!.body).toContain("No guild matches these filters yet.");
     expect((await open("/recruitment/guilds"))!.headers["location"]).toBe("/recruitment/guilds/");
   });
 
@@ -72,6 +84,7 @@ describe("guild directory data", () => {
     ]);
     const guilds = await prismaGuildDirectoryStore({ guild: { findMany } } as unknown as PrismaClient, (id) => id !== "blocked").guilds("forever");
     expect(guilds.map((g) => [g.name, g.slug, g.listings.length])).toEqual([["QG", "qg", 0], ["Draft", null, 1]]);
+    expect(guilds.map((g) => g.indexable)).toEqual([true, false]);
     const query = (findMany.mock.calls[0] as unknown as [{ where: { gameEdition: string; OR: unknown[] }; take: number }])[0];
     expect(query.where.gameEdition).toBe("forever");
     expect(query.where.OR).toHaveLength(3);

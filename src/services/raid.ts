@@ -10,7 +10,7 @@ import type {
 import { ownedSignupCharacter } from "./signup-character.js";
 import { currentEdition } from "./edition-context.js";
 import { assertRealm, requiredRealm } from "./realm-check.js";
-import { CHARACTER_DISPLAY_SELECT } from "./character-display.js";
+import { SIGNUP_CHARACTER_SELECT } from "./character-display.js";
 import { raidPreset } from "./raid-presets.js";
 
 const activeSignupStatuses: RaidSignupStatus[] = ["SIGNED_UP"];
@@ -322,7 +322,7 @@ export function createRaidService(database: PrismaClient) {
       await getRaid(raidId, guildId);
       return database.raidSignup.findMany({
         where: { raidId, status: { not: "CANCELLED" } },
-        include: { member: true, character: { select: CHARACTER_DISPLAY_SELECT } },
+        include: { member: true, character: { select: SIGNUP_CHARACTER_SELECT } },
         orderBy: { signedUpAt: "asc" }
       });
     },

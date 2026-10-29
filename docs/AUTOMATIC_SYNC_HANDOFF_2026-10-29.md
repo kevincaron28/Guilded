@@ -52,6 +52,11 @@ No production database, live bot or public release was modified by this work.
 
 ## Validation
 
+Combined source `aa2a8c2` passed 347 test files / 2,975 tests locally, TypeScript,
+full ESLint, both addon validators, companion build and Worker dry-run build.
+Final CI results belong to the implementation PR head; these local results do
+not assert live OAuth or game acceptance.
+
 Focused coverage includes OAuth cancellation/replay/session isolation, forged
 selection, private storage, conflict refusal, multi-device retention/revocation,
 shared output protection, startup retry and drained profile switching. The

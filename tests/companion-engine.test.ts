@@ -36,10 +36,11 @@ describe("companion engine", () => {
     writeFileSync(game.file, 'GuildedDB = { version = 3, epgp = {} }');
     const fetcher = vi.fn(async () => Response.json({ protocolVersion: 2, updatedAt: 'x', standings: [] }));
     vi.stubGlobal('fetch', fetcher);
-    const engine = createEngine({ ...config(game.file), wowGuild: 'Expected Guild', requireWowGuild: true });
+    const onLog = vi.fn();
+    const engine = createEngine({ ...config(game.file), wowGuild: 'Expected Guild', requireWowGuild: true }, { onLog });
     try {
       await engine.start(); engine.uploadNow();
-      await vi.waitFor(() => expect(engine.state().pendingUpload).toBe(false));
+      await vi.waitFor(() => expect(onLog).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('Skipped:') })));
       expect(fetcher.mock.calls.every(call => !String((call as unknown[])[0]).includes('addon-imports'))).toBe(true);
       expect(engine.state().syncPhase).toBe('waiting-save');
     } finally { await engine.stop(); }

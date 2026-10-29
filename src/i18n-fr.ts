@@ -422,6 +422,7 @@ export const FR_TEXT: Record<string, string> = {
   "{n} reserves/player": "{n} réserves/joueur",
   "{count} core member": "{count} membre du core",
   "{count} core members": "{count} membres du core",
+  "{melee} melee · {ranged} ranged": "{melee} mêlée · {ranged} distance",
   "core members get priority at this core's raid signups": "les membres du core ont la priorité aux inscriptions des raids de ce core",
   " + {n} on the bench": " + {n} sur le banc",
   "Trial": "Essai",

@@ -1008,6 +1008,9 @@ model Raid {
   tankLimit       Int?
   healerLimit     Int?
   dpsLimit        Int?
+  // Optional seats inside the DPS role: melee and ranged, worked out from each player's spec.
+  meleeLimit      Int?
+  rangedLimit     Int?
   signupChannelId String?
   signupMessageId String?
   mirrorSignupChannelId String?
@@ -1043,6 +1046,8 @@ model RaidSignup {
   characterName String?
   characterRealm String?
   role        RaidRole         @default(DPS)
+  // The spec the player picked for this raid; empty means their character's current spec.
+  spec        String?
   status      RaidSignupStatus @default(SIGNED_UP)
   signedUpAt  DateTime         @default(now())
   cancelledAt DateTime?

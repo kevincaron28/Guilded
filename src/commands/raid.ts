@@ -1,8 +1,8 @@
 import { serializeRaidPosts, syncRaidPosts } from "../services/raid-signup-posts.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "../services/discord-jobs.js";
 import {
-  ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, SlashCommandBuilder,
-  type ButtonInteraction, type ChatInputCommandInteraction, type Guild as DiscordGuild, type GuildMember,
+  ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, SlashCommandBuilder, StringSelectMenuBuilder,
+  type ButtonInteraction, type ChatInputCommandInteraction, type StringSelectMenuInteraction, type Guild as DiscordGuild, type GuildMember,
   MessageFlags,
 } from "discord.js";
 import { RaidAttendanceStatus, RaidBossStatus, RaidRole } from "../generated/prisma/client.js";
@@ -15,15 +15,18 @@ import { executeRaidHistory, executeRaidSeason } from "./raid-season.js";
 import { bossProgress } from "../services/progress.js";
 import { parseRaidTime } from "../services/raid-time.js";
 import { asLang, t, type Lang } from "../i18n.js";
-import { createRaidService, SignupsClosedError, type SignupAvailability } from "../services/raid.js";
+import { createRaidService, DpsKindFullError, SignupsClosedError, type SignupAvailability } from "../services/raid.js";
 import { coreSpotLabel, createRaidCoreService } from "../services/raid-core.js";
-import { buildSignupEmbed, openSpots } from "../services/signup-embed.js";
+import { buildSignupEmbed, openKindSpots, openSpots } from "../services/signup-embed.js";
 import { hasPermission } from "../permissions.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { BRAND } from "../brand.js";
 import { pickSignupCharacter } from "./signup-character-picker.js";
 import { SIGNUP_CHARACTER_SELECT, loadClassEmojis } from "../services/character-display.js";
 import { signupLayout } from "../services/signup-layout.js";
+import { dpsKind, signupSpec, specsForRole } from "../services/dps-kind.js";
+import { currentEdition } from "../services/edition-context.js";
+import { signupDpsKind } from "../services/raid.js";
 import { voiceAttendancePlan, voiceAttendanceSummary } from "../services/voice-attendance.js";
 
 const raidService = createRaidService(prisma);
@@ -44,6 +47,8 @@ export const raidCommand = new SlashCommandBuilder()
     .addIntegerOption((o) => o.setName("tanks").setDescription("Tank slot cap").setMinValue(0))
     .addIntegerOption((o) => o.setName("healers").setDescription("Healer slot cap").setMinValue(0))
     .addIntegerOption((o) => o.setName("dps").setDescription("DPS slot cap").setMinValue(0))
+    .addIntegerOption((o) => o.setName("melee").setDescription("Melee DPS cap").setMinValue(0))
+    .addIntegerOption((o) => o.setName("ranged").setDescription("Ranged DPS cap").setMinValue(0))
     .addIntegerOption((o) => o.setName("close_hours").setDescription("Close signups this many hours before start").setMinValue(1).setMaxValue(168)))
   .addSubcommand((sub) => sub.setName("progress").setDescription("Guild boss progression: first kills, kill counts, latest kill."))
   .addSubcommand((sub) => sub.setName("season").setDescription("Officers: start a raid attendance season, or list the seasons.")
@@ -69,6 +74,8 @@ export const raidCommand = new SlashCommandBuilder()
     .addIntegerOption((o) => o.setName("tanks").setDescription("New tank slot cap").setMinValue(0))
     .addIntegerOption((o) => o.setName("healers").setDescription("New healer slot cap").setMinValue(0))
     .addIntegerOption((o) => o.setName("dps").setDescription("New DPS slot cap").setMinValue(0))
+    .addIntegerOption((o) => o.setName("melee").setDescription("New melee DPS cap").setMinValue(0))
+    .addIntegerOption((o) => o.setName("ranged").setDescription("New ranged DPS cap").setMinValue(0))
     .addIntegerOption((o) => o.setName("close_hours").setDescription("Signup deadline, hours before start (0 removes it)").setMinValue(0).setMaxValue(168)))
   .addSubcommand((sub) => sub.setName("fill").setDescription("Short on players? Post the open spots for the whole guild and ping the core's bench.")
     .addStringOption((o) => o.setName("raid").setDescription("Raid (start typing its name)").setAutocomplete(true).setRequired(true))
@@ -149,6 +156,30 @@ function signupButtons(raidId: string, status: string, lang: Lang) {
   ), new ActionRowBuilder<ButtonBuilder>().addComponents(b("LATE", t(lang, "button.late"), ButtonStyle.Secondary))];
 }
 
+// "Playing a different spec for this raid?": shown under a signup reply when the player's class
+// has more than one spec for their role. The choice changes their icon and melee/ranged group.
+export const RAID_SPEC_PREFIX = "raidspec:";
+async function specMenu(raidId: string, memberId: string, lang: Lang): Promise<ActionRowBuilder<StringSelectMenuBuilder>[]> {
+  const signup = await prisma.raidSignup.findUnique({ where: { raidId_memberId: { raidId, memberId } },
+    select: { role: true, status: true, spec: true, character: { select: { className: true, spec: true } }, member: { select: { characters: { where: { isMain: true }, take: 1, select: { className: true, spec: true } } } } } });
+  const character = signup?.character ?? signup?.member.characters[0] ?? null;
+  if (!signup || signup.status === "CANCELLED" || !character) return [];
+  const specs = specsForRole(character.className, signup.role, currentEdition());
+  if (specs.length < 2) return [];
+  const name = (spec: { name: string; french: string }) => lang === "fr" ? spec.french : spec.name;
+  const own = specs.find(spec => spec.name === character.spec);
+  const kindWord = (spec: (typeof specs)[number]) => {
+    const kind = dpsKind(character.className, spec.name, currentEdition());
+    return signup.role === "DPS" && kind ? t(lang, `role.${kind}` as const) : t(lang, `role.${signup.role}` as const);
+  };
+  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder()
+    .setCustomId(`${RAID_SPEC_PREFIX}${raidId}`).setPlaceholder(t(lang, "signup.specPrompt"))
+    .addOptions(
+      { label: t(lang, "signup.specCurrent", { spec: own ? name(own) : character.spec || "?" }).slice(0, 100), value: "current", default: !signup.spec },
+      ...specs.map(spec => ({ label: name(spec).slice(0, 100), description: kindWord(spec).slice(0, 100), value: spec.name, default: signup.spec === spec.name }))
+    ))];
+}
+
 const closedText = (lang: Lang, error: SignupsClosedError) => t(lang, "reply.signupsClosed", { when: `<t:${Math.floor(error.closedAt.getTime() / 1000)}:R>` });
 
 const failedSignupSyncs = new Map<string, Set<string>>();
@@ -175,10 +206,21 @@ export async function syncSignupEmbed(discordGuild: DiscordGuild, guildId: strin
     const coreLabel = new Map(core?.members.map((m) => [m.memberId, coreSpotLabel(m)]) ?? []);
     const label = (signup: { memberId: string; characterName: string | null; member: { displayName: string } }) =>
       signup.characterName ? `${signup.characterName} · ${signup.member.displayName}` : coreLabel.get(signup.memberId) ?? signup.member.displayName;
+    const edition = currentEdition();
     const input = {
       lang, raid, classEmojis: await loadClassEmojis(discordGuild),
-      signups: everyone.map((signup) => ({ memberId: signup.memberId, characterId: signup.characterId, character: signup.character?.memberId === signup.memberId && signup.member.guildId === guildId ? signup.character : null, displayName: label(signup), role: signup.role, status: signup.status, late: signup.late })),
-      core: core ? { name: core.name, members: core.members.map((m) => ({ memberId: m.memberId, characterId: m.characterId, character: m.character?.memberId === m.memberId ? m.character : null, backupCharacterIds: m.backups.map(backup => backup.characterId), displayName: coreSpotLabel(m), role: m.role, bench: m.bench })) } : undefined
+      signups: everyone.map((signup) => {
+        const owned = signup.character?.memberId === signup.memberId && signup.member.guildId === guildId ? signup.character : null;
+        // A spec picked for this raid replaces the character's own spec (icon and melee/ranged).
+        const character = owned ? { ...owned, spec: signupSpec(signup, owned) } : null;
+        return { memberId: signup.memberId, characterId: signup.characterId, character, displayName: label(signup), role: signup.role, status: signup.status, late: signup.late,
+          kind: signup.role === "DPS" ? signupDpsKind({ spec: signup.spec, character, member: signup.member }, edition) : null };
+      }),
+      core: core ? { name: core.name, members: core.members.map((m) => {
+        const character = m.character?.memberId === m.memberId ? m.character : null;
+        return { memberId: m.memberId, characterId: m.characterId, character, backupCharacterIds: m.backups.map(backup => backup.characterId), displayName: coreSpotLabel(m), role: m.role, bench: m.bench,
+          kind: m.role === "DPS" && character ? dpsKind(character.className, character.spec, edition) : null };
+      }) } : undefined
     };
     const embed = buildSignupEmbed(input);
     const event = await prisma.discordEventLink.findUnique({ where: { guildId_sourceType_sourceId: { guildId, sourceType: "raid", sourceId: raidId } }, select: { discordId: true } });
@@ -271,6 +313,8 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     const tanks = interaction.options.getInteger("tanks");
     const healers = interaction.options.getInteger("healers");
     const dps = interaction.options.getInteger("dps");
+    const melee = interaction.options.getInteger("melee");
+    const ranged = interaction.options.getInteger("ranged");
     const title = interaction.options.getString("title", true);
     const coreName = interaction.options.getString("core");
     const preset = interaction.options.getString("preset");
@@ -297,7 +341,9 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
       ...(bosses === null ? {} : { bosses: bosses.split(",") }),
       ...(tanks === null ? {} : { tankLimit: tanks }),
       ...(healers === null ? {} : { healerLimit: healers }),
-      ...(dps === null ? {} : { dpsLimit: dps })
+      ...(dps === null ? {} : { dpsLimit: dps }),
+      ...(melee === null ? {} : { meleeLimit: melee }),
+      ...(ranged === null ? {} : { rangedLimit: ranged })
     });
     if (interaction.guild) await syncSignupEmbed(interaction.guild, context.guildId, raid.id);
     // Discord shows <t:...> in each reader's own timezone, so this doubles as a check.
@@ -357,7 +403,7 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
       WAITLISTED: `${roleLabel[role]} slots are full, so you're on the **waitlist**. You'll get a DM if a slot opens.`
     };
     const lang = asLang((await guildService.getSettings(context.guildId))?.language);
-    await interaction.editReply({ content: (character ? `**${character.name} — ${character.realm}** : ` : "") + (replies[signup.status] ?? "Signup recorded.") + await clashNote(raidId, context.guildId, context.memberId, lang), components: [] });
+    await interaction.editReply({ content: (character ? `**${character.name} — ${character.realm}** : ` : "") + (replies[signup.status] ?? "Signup recorded.") + await clashNote(raidId, context.guildId, context.memberId, lang), components: await specMenu(raidId, context.memberId, lang) });
     return;
   }
   if (subcommand === "fill") {
@@ -406,7 +452,13 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
   }
   if (subcommand === "roster") {
     const roster = await raidService.roster(raidId, context.guildId);
-    await interaction.reply({ content: roster.length ? roster.map((signup) => `• ${signup.characterName ? signup.characterName : signup.member.displayName} (<@${signup.member.discordUserId}>) — ${roleLabel[signup.role]}${signup.late ? " ⏰ late" : ""}`).join("\n") : "No members are signed up.", flags: MessageFlags.Ephemeral });
+    // DPS players show melee or ranged when their spec (or the one picked for this raid) is known.
+    const kinds = new Map((await raidService.signups(raidId, context.guildId)).map((signup) => [signup.id, signup.role === "DPS" ? signupDpsKind(signup) : null]));
+    const kindLabel = { MELEE: "melee", RANGED: "ranged" } as const;
+    await interaction.reply({ content: roster.length ? roster.map((signup) => {
+      const kind = kinds.get(signup.id);
+      return `• ${signup.characterName ? signup.characterName : signup.member.displayName} (<@${signup.member.discordUserId}>) — ${roleLabel[signup.role]}${kind ? ` (${kindLabel[kind]})` : ""}${signup.late ? " ⏰ late" : ""}`;
+    }).join("\n") : "No members are signed up.", flags: MessageFlags.Ephemeral });
     return;
   }
   if (subcommand === "edit") {
@@ -416,6 +468,8 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     const tanks = interaction.options.getInteger("tanks");
     const healers = interaction.options.getInteger("healers");
     const dps = interaction.options.getInteger("dps");
+    const melee = interaction.options.getInteger("melee");
+    const ranged = interaction.options.getInteger("ranged");
     const closeHours = interaction.options.getInteger("close_hours");
     const raid = await raidService.edit(raidId, context.guildId, {
       ...(closeHours === null ? {} : { signupsCloseHours: closeHours }),
@@ -424,7 +478,9 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
       ...(description === null ? {} : { description }),
       ...(tanks === null ? {} : { tankLimit: tanks }),
       ...(healers === null ? {} : { healerLimit: healers }),
-      ...(dps === null ? {} : { dpsLimit: dps })
+      ...(dps === null ? {} : { dpsLimit: dps }),
+      ...(melee === null ? {} : { meleeLimit: melee }),
+      ...(ranged === null ? {} : { rangedLimit: ranged })
     });
     if (interaction.guild) await syncSignupEmbed(interaction.guild, context.guildId, raidId);
     await tellPromoted(interaction, raid.promoted);
@@ -528,14 +584,17 @@ async function postFillCall(interaction: ChatInputCommandInteraction, guildId: s
     : null;
   const answered = new Set(everyone.map((signup) => signup.memberId));
   const free = openSpots({ TANK: raid.tankLimit, HEALER: raid.healerLimit, DPS: raid.dpsLimit }, everyone);
+  const freeKinds = openKindSpots({ MELEE: raid.meleeLimit, RANGED: raid.rangedLimit },
+    everyone.map((signup) => ({ role: signup.role, status: signup.status, kind: signup.role === "DPS" ? signupDpsKind(signup) : null })));
   const missing = core?.members.filter((m) => !m.bench && !answered.has(m.memberId)).length ?? 0;
   const bench = core?.members.filter((m) => m.bench && !answered.has(m.memberId)).map((m) => m.member.discordUserId) ?? [];
   if (!free.length && !missing && raid.tankLimit !== null && raid.healerLimit !== null && raid.dpsLimit !== null) {
     throw new Error("Every slot of this raid is taken: no call needed.");
   }
   const when = Math.floor(raid.scheduledAt.getTime() / 1000);
-  const spots = free.length
-    ? free.map((spot) => `${spot.open} ${t(lang, `role.${spot.role}` as const)}`).join(" · ")
+  const spots = free.length || freeKinds.length
+    ? [...free.map((spot) => `${spot.open} ${t(lang, `role.${spot.role}` as const)}`),
+      ...freeKinds.map((spot) => `${spot.open} ${t(lang, `role.${spot.kind}` as const)}`)].join(" · ")
     : t(lang, "fill.any");
   const link = raid.signupChannelId && raid.signupMessageId
     ? `https://discord.com/channels/${interaction.guildId}/${raid.signupChannelId}/${raid.signupMessageId}`
@@ -579,6 +638,7 @@ export async function handleRaidSignupButton(interaction: ButtonInteraction): Pr
   const lang = asLang(settings?.language);
   if (!settings?.characterSignups && !interaction.deferred) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   let content: string;
+  let components: ActionRowBuilder<StringSelectMenuBuilder>[] = [];
   if (action === "LATE") {
     const signup = await raidService.toggleLate(raidId, guild.id, member.id);
     content = !signup ? t(lang, "reply.lateNeedsSignup") : signup.late ? t(lang, "reply.late") : t(lang, "reply.notLate");
@@ -620,9 +680,35 @@ export async function handleRaidSignupButton(interaction: ButtonInteraction): Pr
         WAITLISTED: t(lang, "reply.waitlisted", { role: roleText })
       };
       content = (character ? `**${character.name} — ${character.realm}** : ` : "") + (replies[signup.status] ?? "Signup saved.") + await clashNote(raidId, guild.id, member.id, lang);
+      components = await specMenu(raidId, member.id, lang);
     }
   }
-  if (interaction.replied || interaction.deferred) await interaction.editReply({ content, components: [] });
-  else await interaction.reply({ content, flags: MessageFlags.Ephemeral });
+  if (interaction.replied || interaction.deferred) await interaction.editReply({ content, components });
+  else await interaction.reply({ content, components, flags: MessageFlags.Ephemeral });
+  await syncSignupEmbed(interaction.guild, guild.id, raidId);
+}
+
+// The spec menu under a signup reply. A move into a full melee or ranged group is refused.
+export async function handleRaidSpecSelect(interaction: StringSelectMenuInteraction): Promise<void> {
+  const raidId = interaction.customId.slice(RAID_SPEC_PREFIX.length);
+  if (!interaction.guild || !raidId) return;
+  await interaction.deferUpdate();
+  const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
+  const member = await guildService.ensureMember(guild.id, interaction.user.id,
+    (interaction.member as GuildMember | null)?.displayName ?? interaction.user.username);
+  const lang = asLang((await guildService.getSettings(guild.id))?.language);
+  const value = interaction.values[0];
+  let content: string;
+  try {
+    const saved = await raidService.setSignupSpec(raidId, guild.id, member.id, value && value !== "current" ? value : null);
+    await tellPromoted(interaction, saved.promoted);
+    content = saved.chosen
+      ? t(lang, "reply.specSaved", { spec: lang === "fr" ? saved.chosen.french : saved.chosen.name, kind: saved.role === "DPS" && saved.kind ? t(lang, `role.${saved.kind}` as const) : t(lang, `role.${saved.role}` as const) })
+      : t(lang, "reply.specCleared");
+  } catch (error) {
+    if (!(error instanceof DpsKindFullError)) throw error;
+    content = t(lang, "reply.kindFull", { kind: t(lang, `role.${error.kind}` as const) });
+  }
+  await interaction.editReply({ content, components: await specMenu(raidId, member.id, lang) });
   await syncSignupEmbed(interaction.guild, guild.id, raidId);
 }

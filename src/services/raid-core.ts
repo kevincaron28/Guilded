@@ -11,6 +11,7 @@ import { weeklyScheduleData } from "./core-weekly-time.js";
 import { CHARACTER_REQUIRED, ownedSignupCharacter } from "./signup-character.js";
 import { CHARACTER_DISPLAY_SELECT, characterDisplayLine, hasStaleGear, loadClassEmojis, staleGearNote, type ClassEmojis, type DisplayCharacter } from "./character-display.js";
 import { boundRosterEmbed, clipRosterLines } from "./roster-embed-limits.js";
+import { dpsKind } from "./dps-kind.js";
 
 // A trial lasts this long unless the officer picks another length (/application trial days:).
 export const DEFAULT_TRIAL_DAYS = 14;
@@ -323,9 +324,13 @@ export function coreRosterEmbed(core: CoreForEmbed, guildLootMode?: string | nul
     embed.addFields({ name: `💰 ${tx(lang, "Points")}`, value: core.separatePool ? tx(lang, "This core's own pool") : tx(lang, "Shared guild pool"), inline: true });
   }
   for (const role of ROLE_ORDER) {
-    const names = core.members.filter((entry) => entry.role === role && !entry.bench && !entry.trial).map(label).sort((a, b) => a.localeCompare(b));
+    const spots = core.members.filter((entry) => entry.role === role && !entry.bench && !entry.trial);
+    const names = spots.map(label).sort((a, b) => a.localeCompare(b));
     const target = { TANK: core.tankLimit, HEALER: core.healerLimit, DPS: core.dpsLimit }[role];
-    embed.addFields({ name: `${ROLE_LABEL[role]} (${names.length}${target == null ? "" : `/${target}`})`, value: clipRosterLines(names), inline: true });
+    // DPS: how many play melee and ranged, from each character's spec.
+    const kinds = role === "DPS" ? spots.map((entry) => entry.character ? dpsKind(entry.character.className, entry.character.spec, currentEdition()) : null) : [];
+    const split = kinds.some(Boolean) ? ` · ${tx(lang, "{melee} melee · {ranged} ranged", { melee: kinds.filter((kind) => kind === "MELEE").length, ranged: kinds.filter((kind) => kind === "RANGED").length })}` : "";
+    embed.addFields({ name: `${ROLE_LABEL[role]} (${names.length}${target == null ? "" : `/${target}`})${split}`, value: clipRosterLines(names), inline: true });
   }
   // Trial members (an application moved to Trial) are listed apart until they are approved.
   const trial = core.members.filter((entry) => entry.trial && !entry.bench)

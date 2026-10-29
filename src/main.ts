@@ -47,7 +47,7 @@ import { commands } from "./commands/index.js";
 import { legacyView, resolveCommand } from "./commands/router.js";
 import { executeProfile } from "./commands/profile.js";
 import { replyWithCommandError } from "./commands/context.js";
-import { handleRaidSignupButton, RAID_SIGNUP_PREFIX } from "./commands/raid.js";
+import { handleRaidSignupButton, handleRaidSpecSelect, RAID_SIGNUP_PREFIX, RAID_SPEC_PREFIX } from "./commands/raid.js";
 import { executeLoot } from "./commands/loot.js";
 import { executeEpgp } from "./commands/epgp.js";
 import { APPLY_PREFIX, executeApply, handleApplyButton, handleApplyModal } from "./commands/application.js";
@@ -676,6 +676,17 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
     } catch (error) {
       reportInteractionError("Raid signup button", interaction, error);
       const content = error instanceof Error ? error.message : "Could not update your signup.";
+      if (interaction.replied || interaction.deferred) await interaction.editReply({ content, components: [] }).catch(() => undefined);
+      else await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+    }
+    return;
+  }
+  if (interaction.isStringSelectMenu() && interaction.customId.startsWith(RAID_SPEC_PREFIX)) {
+    try {
+      await handleRaidSpecSelect(interaction);
+    } catch (error) {
+      reportInteractionError("Raid spec choice", interaction, error);
+      const content = error instanceof Error ? error.message : "Could not change your spec.";
       if (interaction.replied || interaction.deferred) await interaction.editReply({ content, components: [] }).catch(() => undefined);
       else await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }

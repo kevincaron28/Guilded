@@ -1,5 +1,6 @@
 > CURRENT RELEASE — 8.0.2 safety patch from the final 8.0.1 audit.
-> GitHub/client source and running bot: f7ca4c4, protocol 2; preserve all published bytes.
+> Published GitHub/client source: f7ca4c4, protocol 2; preserve all published bytes.
+> Running bot: main a42b6e5 after the October 29 website/origin reliability update.
 > GitHub's 21 assets and anonymous download hashes are verified.
 > All ten CurseForge 8.0.2 files are approved and their downloads match GitHub.
 > Store Submission 4 (8.0.2.0) is published and installed. Signature/certificate chain,
@@ -24,11 +25,16 @@ The owner targets November 4 for the next launch release, with justified feature
 work beforehand and tester-driven fixes during launch day. Follow
 `docs/LAUNCH_AUDIT_2026-10-29.md` for the fresh competitive review and work queue.
 The audit reproduced intermittent public companion HTTP 530 / error 1016
-failures: the separate website reliability work must be deployed and verified
-before the connected launch is called ready. Preserve published 8.0.2 artifacts.
+failures. They are now resolved with the stable bot.kcaron.top origin and
+120/120 live route probes; see docs/LAUNCH_BLOCKER_RESOLUTION_2026-10-29.md.
+PRs #262 and #263 are merged. Preserve published 8.0.2 artifacts.
 The audit branch also prevents service-error floods from hiding player reports
 in the developer bug inbox; this CLI correction does not itself require a bot
 deployment. Remaining manual acceptance is still waived, not passed.
+Loot-history import now includes the desktop converter, officer preview and typed
+confirmation, persistent local history, deduplication and undo; see
+`docs/LOOT_HISTORY_IMPORT.md`. PR #265 completes this source feature for the next
+release. Actual game acceptance remains unperformed; published 8.0.2 is unchanged.
 
 # Working on Guilded
 

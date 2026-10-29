@@ -206,6 +206,34 @@ bind('btnGRM', async () => {
   if (!result.canceled) { $('grmResult').textContent = M(result.message); toast(result.message, !result.ok); }
 });
 bind('btnFolder',() => api.openAddonFolder()); bind('btnPause',async () => { await api.toggleTracking(); }); bind('btnOnline',() => api.openOnline());
+let lootImportToken = null, lootMappingInputs = [];
+$('lootImportPanel').hidden = typeof api.previewLootHistory !== 'function';
+function resetLootPreview() { lootImportToken = null; $('lootImportReview').hidden = true; $('btnLootImportSave').disabled = true; }
+for (const id of ['lootImportSource', 'lootImportGuild', 'lootImportRealm', 'lootImportEdition']) $(id).addEventListener('input', resetLootPreview);
+bind('btnLootImportPreview', async () => {
+  if (!api.previewLootHistory) return;
+  resetLootPreview();
+  if (['lootImportSource', 'lootImportGuild', 'lootImportRealm', 'lootImportEdition'].some(id => !$(id).value.trim())) { $('lootImportResult').textContent = T("Choose the source, destination guild, realm and edition first."); return; }
+  const result = await api.previewLootHistory({ source: $('lootImportSource').value, guild: $('lootImportGuild').value, realm: $('lootImportRealm').value, edition: $('lootImportEdition').value });
+  if (result.canceled) return;
+  if (!result.ok) { $('lootImportResult').textContent = M(result.message); return; }
+  lootImportToken = result.token; lootMappingInputs = []; $('lootImportMappings').replaceChildren();
+  for (const source of result.characters) {
+    const label = document.createElement('label'), input = document.createElement('input');
+    label.textContent = source + ' → '; input.maxLength = 160; input.autocomplete = 'off';
+    input.value = source.includes('-') ? source : ''; label.append(input); $('lootImportMappings').append(label);
+    lootMappingInputs.push({ source, input });
+  }
+  $('lootImportRows').textContent = result.entries.map(row => `${row.sourceCharacter} | ${row.itemId} | ${row.awardedAt.value} (${row.awardedAt.timezone}) | ${row.response}`).join('\n');
+  $('lootImportResult').textContent = T("{0} awards; {1} duplicates omitted; {2} awards without stable IDs.", result.summary.previewRows, result.summary.duplicates, result.summary.missingSourceIds) + '\n' + result.warnings.map(M).join('\n');
+  $('lootImportUnidentified').checked = false; $('lootImportReview').hidden = false; $('btnLootImportSave').disabled = false;
+});
+bind('btnLootImportSave', async () => {
+  if (!api.saveLootHistory || !lootImportToken) return;
+  const result = await api.saveLootHistory({ token: lootImportToken, characterMap: Object.fromEntries(lootMappingInputs.map(({ source, input }) => [source, input.value.trim()])), allowUnidentified: $('lootImportUnidentified').checked });
+  if (result.canceled) return;
+  $('lootImportResult').textContent = M(result.message); if (result.ok) resetLootPreview();
+});
 bind('btnRemoveData',() => api.removeData());
 // Update now (7.2): the desktop app downloads, checks and installs the new version itself.
 bind('btnStoreUpdates', () => api.openUpdate());

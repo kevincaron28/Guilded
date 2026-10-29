@@ -222,7 +222,9 @@ ns.commandHandlers["import"] = function(args)
   if ns.moduleActive and not ns.moduleActive("imports") then return end
   local what = string.lower(args[1] or "")
   if not (ns.isOfficer and ns.isOfficer()) then ns.message(L("Only officers can do that.")) return end
-  if what == "softres" then
+  if what == "history" and ns.lootHistoryImport then
+    ns.lootHistoryImport.command(args)
+  elseif what == "softres" then
     if ns.moduleActive and not ns.moduleActive("reserve") then ns.message(L("Soft reserves are switched off.")) return end
     ns.showPasteBox(L("Import softres.it"), L("On softres.it, open the raid and copy the CSV export (or the Gargul export) and paste it here. It replaces the current soft-reserve list."), imports.importSoftRes)
   elseif what == "tmb" and string.lower(args[2] or "") == "clear" then
@@ -232,7 +234,7 @@ ns.commandHandlers["import"] = function(args)
   elseif what == "tmb" then
     ns.showPasteBox(L("Import That's My BiS"), L("Paste the That's My BiS export for Gargul, or lines of itemID,player1,player2 in priority order."), imports.importTmb)
   else
-    ns.message("/guilded import softres | tmb | tmb clear")
+    ns.message("/guilded import softres | tmb | tmb clear | history")
   end
 end
 ns.commandHandlers["tmb"] = function(args)
@@ -244,3 +246,4 @@ end
 ns.commandHelp = ns.commandHelp or {}
 table.insert(ns.commandHelp, { officer = true, text = "/guilded import softres | tmb - import a softres.it list or That's My BiS priorities" })
 table.insert(ns.commandHelp, "/guilded tmb <item link> - That's My BiS priority for an item")
+table.insert(ns.commandHelp, { officer = true, text = "/guilded import history [confirm | cancel | show <name or item> | undo] - imported loot history" })

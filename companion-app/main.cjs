@@ -92,7 +92,7 @@ async function loadEngineModules() {
   const dir = app.isPackaged ? path.join(process.resourcesPath, "engine") : path.join(__dirname, "..", "companion");
   const url = (file) => pathToFileURL(path.join(dir, file)).href;
   const [engineModule, standingsModule, requestModule, sheetModule, liveFolderModule] = await Promise.all([import(url("engine.mjs")), import(url("standings.mjs")), import(url("request.mjs")), import(url("sheet-export.mjs")), import(url("live-folder.mjs"))]);
-  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profiles.mjs")), ...await import(url("revoke.mjs")), ...await import(url("grm-migration.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile };
+  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profiles.mjs")), ...await import(url("revoke.mjs")), ...await import(url("grm-migration.mjs")), ...await import(url("loot-history-import.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile };
 }
 
 function pushLog(entry) {
@@ -559,6 +559,14 @@ registerIpc("export-sheets", async (_event, table) => {
 });
 registerIpc("upload-now", () => { engine.uploadNow(); return true; });
 registerIpc("convert-grm", (_event, options) => require("./grm-import.cjs").createGRMConverter({ dialog, fs: fs.promises, convertGRM: engineModules.convertGRM, getWindow: () => win, T })(options));
+let lootHistoryConverter;
+function lootConverter() {
+  return lootHistoryConverter ??= require("./loot-history-import.cjs").createLootHistoryConverter({ dialog, fs: fs.promises,
+    readLootImportFile: engineModules.readLootImportFile, previewLootHistory: engineModules.previewLootHistory,
+    createLootHistoryArchive: engineModules.createLootHistoryArchive, getWindow: () => win, T });
+}
+registerIpc("loot-history-preview", (_event, options) => lootConverter().preview(options));
+registerIpc("loot-history-save", (_event, options) => lootConverter().save(options));
 registerIpc("refresh-standings", async () => { await engine.refreshStandings(); return true; });
 registerIpc("set-autostart", (_event, on) => setAutostart(on));
 registerIpc("open-addon-folder", () => {

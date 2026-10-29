@@ -34,6 +34,15 @@ function validateIpc(channel, args) {
     object(value, new Set(["guild", "realm", "edition", "includePrivate"]));
     text(value.guild, 120); text(value.realm, 120);
     if (!["forever", "classic-era", "classic-tbc", "classic-mists", "retail"].includes(value.edition) || typeof value.includePrivate !== "boolean") fail();
+  } else if (channel === "loot-history-preview") {
+    object(value, new Set(["guild", "realm", "edition", "source"]));
+    text(value.guild, 120); text(value.realm, 120);
+    if (!["forever", "classic-era", "classic-tbc", "classic-mists", "retail"].includes(value.edition) || !["rclootcouncil", "gargul"].includes(value.source)) fail();
+  } else if (channel === "loot-history-save") {
+    object(value, new Set(["token", "characterMap", "allowUnidentified"]));
+    if (!Number.isSafeInteger(value.token) || value.token < 1 || typeof value.allowUnidentified !== "boolean") fail();
+    if (!value.characterMap || typeof value.characterMap !== "object" || Array.isArray(value.characterMap) || Object.keys(value.characterMap).length > 5000) fail();
+    for (const [key, target] of Object.entries(value.characterMap)) { text(key, 160); text(target, 160); }
   } else if (channel === "manage-edit") {
     // The server owns the exact action schema and current role checks. Bound the
     // IPC envelope too, before serializing or sending it over the network.

@@ -6,7 +6,7 @@ ns = ns or {}
 
 local function L(text) return ns.L and ns.L(text) or text end
 
-local window, input, status, helpText, handler
+local window, input, status, helpText, handler, importButton
 
 local function build()
   local f = CreateFrame("Frame", "GuildedPasteBox", UIParent, "BasicFrameTemplateWithInset")
@@ -23,6 +23,7 @@ local function build()
   status = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   status:SetPoint("BOTTOMLEFT", 16, 46); status:SetWidth(525); status:SetJustifyH("LEFT")
   local button = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+  importButton = button
   button:SetSize(140, 24); button:SetPoint("BOTTOMLEFT", 16, 14); button:SetText(L("Import"))
   button:SetScript("OnClick", function()
     if not handler then return end
@@ -36,13 +37,14 @@ local function build()
   window = f
 end
 
-function ns.showPasteBox(title, help, onImport)
+function ns.showPasteBox(title, help, onImport, options)
   if not window then build() end
   if window.TitleText then window.TitleText:SetText(title) end
   helpText:SetText(help or "")
   status:SetText("")
   input:SetText("")
   handler = onImport
+  importButton:SetText(options and options.buttonText or L("Import"))
   window:Show()
   input:SetFocus()
 end

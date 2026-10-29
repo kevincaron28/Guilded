@@ -67,5 +67,6 @@ Modules\GuildBank.lua
 Modules\PugCheck.lua
 Modules\PasteBox.lua
 Modules\LootImports.lua
+Modules\LootHistoryImport.lua
 Modules\Minimap.lua
 Modules\Options.lua

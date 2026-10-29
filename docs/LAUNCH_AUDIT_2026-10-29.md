@@ -1,5 +1,10 @@
 # Guilded launch audit and November 4 plan
 
+> Update: the public-origin blocker was fixed and verified after this audit.
+> See [resolution and production evidence](LAUNCH_BLOCKER_RESOLUTION_2026-10-29.md).
+> PR #263 is merged; loot-history preview work has started. Original findings below
+> describe the pre-fix observations.
+
 Audit date: 29 October 2026 (America/Toronto). Published baseline: **8.0.2,
 protocol 2**, client/bot source `f7ca4c4`; maintained evidence at `7e382b0`.
 The owner now targets **4 November** for the next launch release, with useful

@@ -27,7 +27,8 @@ async function setup(enabled = true) {
   };
   const start = async () => {
     const response = await request("POST", "/me/battlenet/start", [["region", "us"], ["gameEdition", "retail"]]);
-    return new URL(String(response.headers["location"])).searchParams.get("state")!;
+    const href = response.body.match(/href="(https:\/\/oauth\.battle\.net\/authorize[^\"]+)"/)![1]!.replaceAll("&amp;", "&");
+    return new URL(href).searchParams.get("state")!;
   };
   const preview = async () => {
     const state = await start();
@@ -51,6 +52,17 @@ describe("Battle.net linking and consent", () => {
     const h = await setup();
     expect((await h.request("POST", "/me/battlenet/start", [["region", "us"], ["gameEdition", "retail"]], "session-one", "https://evil.test")).status).toBe(403);
     expect((await h.request("POST", "/me/battlenet/start", [["region", "us"], ["gameEdition", "forever"]])).status).toBe(400);
+  });
+  it("hands off with a link so strict form-action does not block Blizzard navigation", async () => {
+    const h = await setup();
+    const response = await h.request("POST", "/me/battlenet/start", [["region", "us"], ["gameEdition", "retail"]]);
+    expect(response.status).toBe(200);
+    expect(response.headers.location).toBeUndefined();
+    expect(response.headers["content-security-policy"]).toContain("form-action 'self'");
+    expect(response.body).toContain('rel="noreferrer" href="https://oauth.battle.net/authorize?');
+    expect(response.body).not.toContain(config.clientSecret);
+    expect(h.discover).not.toHaveBeenCalled();
+    expect(h.save).not.toHaveBeenCalled();
   });
   it("binds OAuth state to the initiating session and consumes it once", async () => {
     const h = await setup(); const state = await h.start();

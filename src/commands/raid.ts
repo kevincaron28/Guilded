@@ -191,7 +191,9 @@ export async function syncSignupEmbed(discordGuild: DiscordGuild, guildId: strin
         ...input,
         signups: [...input.signups, ...declined.map((signup) => ({ memberId: signup.memberId, displayName: label(signup), role: signup.role, status: "CANCELLED" }))],
         guild: { name: discordGuild.name, iconUrl: discordGuild.iconURL({ size: 128 }) },
-        eventUrl: event?.discordId && /^\d{15,22}$/.test(event.discordId) ? `https://discord.com/events/${discordGuild.id}/${event.discordId}` : null
+        eventUrl: event?.discordId && /^\d{15,22}$/.test(event.discordId) ? `https://discord.com/events/${discordGuild.id}/${event.discordId}` : null,
+        // Melee or ranged DPS depends on the edition for Survival hunters (dps-range.ts).
+        edition: (await prisma.guild.findUnique({ where: { id: guildId }, select: { gameEdition: true } }))?.gameEdition ?? null
       }, signupButtons(raid.id, raid.status, lang)));
     failedSignupSyncs.get(guildId)?.delete(raidId);
   } catch (error) {

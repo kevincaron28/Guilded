@@ -50,3 +50,21 @@ French text and an oversized roster.
 Rendering in a real Discord client (desktop and mobile, light and dark) was not
 checked; only the payload was tested. Check a new post in a test server before
 relying on the look, especially the title link and the guild icon thumbnail.
+
+## Core roster card and melee/ranged DPS (29 October 2026, later)
+
+Each raid core's roster post now uses the same card style (`coreRosterLayout` in
+`src/services/raid-core.ts`): guild header, a summary (schedule, raid start, size, loot,
+points), Tanks / Healers / DPS with count badges and one detailed line per player, then
+Trial, Bench and Backup characters, the footer and the Apply button. Officers' private
+editing previews keep the older embed.
+
+Under DPS, both the signup card and the roster card show the split, for example
+"⚔️ 4 melee · 🏹 3 ranged · ❔ 1 unknown spec" (`src/services/dps-range.ts`). Hybrids need
+their spec (Shaman, Druid, Demon Hunter); Survival hunters count as melee only in Retail.
+
+Old roster posts are embeds, and a message cannot switch to Components V2, so the bot
+deletes an old roster post and posts the new card when it next refreshes that roster. At
+every startup it refreshes all cores, so the first deploy replaces every old roster post
+(the roster channel's message changes; nothing else links to it). Past raid signup posts
+stay as they are; no upcoming raid had an old-style post on 29 October.

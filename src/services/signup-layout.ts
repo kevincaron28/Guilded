@@ -6,6 +6,7 @@ import type { RaidRole } from "../generated/prisma/client.js";
 import { t, type Lang, type StringKey } from "../i18n.js";
 import { characterIcon, characterName, freshGearCheck, type RoleEmojiKey } from "./character-display.js";
 import { coreMark, openSpots, type CoreRow, type SignupEmbedInput, type SignupRow } from "./signup-embed.js";
+import { dpsSplitLine } from "./dps-range.js";
 
 // The signup post as Discord Components V2, read like a calendar event card: guild header,
 // linked title, local time, a two-per-line summary, one block per role with a count badge
@@ -18,20 +19,22 @@ export interface SignupLayoutInput extends SignupEmbedInput {
   guild?: { name: string; iconUrl?: string | null } | undefined;
   // The raid's native Discord event ("Interested" turns on Discord's reminders).
   eventUrl?: string | null | undefined;
+  // The guild's WoW edition, for the melee/ranged DPS split (dps-range.ts).
+  edition?: string | null | undefined;
 }
 
 const ROLES: RaidRole[] = ["TANK", "HEALER", "DPS"];
 const ROLE_ICON: Record<RaidRole, string> = { TANK: "🛡️", HEALER: "💚", DPS: "⚔️" };
 const LIST_FLOOR = 200;
 
-function clip(value: string, limit: number): string {
+export function clip(value: string, limit: number): string {
   return value.length <= limit ? value : `${value.slice(0, Math.max(0, limit - 1))}…`;
 }
 
 interface Block { heading: string; note?: string; items: string[]; separator: string }
 
 // Whole entries only, never half an emoji token; what is cut becomes "+N more".
-function fit(items: string[], separator: string, budget: number, lang: Lang): string {
+export function fit(items: string[], separator: string, budget: number, lang: Lang): string {
   if (!items.length) return "—";
   const full = items.join(separator);
   if (full.length <= budget) return full;
@@ -48,7 +51,7 @@ function fit(items: string[], separator: string, budget: number, lang: Lang): st
 }
 
 // Shares the room between lists: a short list keeps all of it, the longest ones split the rest.
-function allocate(sizes: number[], total: number): number[] {
+export function allocate(sizes: number[], total: number): number[] {
   const budget = sizes.map(() => 0);
   let open = sizes.map((_, index) => index);
   let left = Math.max(0, total);
@@ -121,9 +124,11 @@ export function signupLayout(input: SignupLayoutInput, buttons: ActionRowBuilder
     const players = signed.filter(s => s.role === role).sort(byName);
     const cap = caps[role];
     const full = cap !== null && players.length >= cap;
+    // DPS also shows how many fight in melee and at range.
+    const split = role === "DPS" ? dpsSplitLine(players.map(p => p.character), lang, input.edition) : "";
     return {
       heading: `${badge(roleIcon(role), t(lang, `signup.column.${role}` as const), cap !== null ? `${players.length}/${cap}` : String(players.length))}${full ? ` · ${t(lang, "signup.full")}` : ""}`,
-      items: players.map(p => player(p)), separator: "\n"
+      ...(split ? { note: split } : {}), items: players.map(p => player(p)), separator: "\n"
     };
   });
 

@@ -36,6 +36,11 @@ confirmation, persistent local history, deduplication and undo; see
 `docs/LOOT_HISTORY_IMPORT.md`. PR #265 completes this source feature for the next
 release. Actual game acceptance remains unperformed; published 8.0.2 is unchanged.
 
+Automatic sync and optional Battle.net source work is documented in
+`docs/AUTOMATIC_SYNC_HANDOFF_2026-10-29.md`; developer-app setup is in
+`docs/BATTLENET_SETUP.md`. Integrate with the November 4 release candidate after
+Claude's independent edition/raid work. No separate version bump or publication.
+
 # Working on Guilded
 
 Discord bot (`src/`) + WoW addon (`addon/Guilded/`) + companion uploader

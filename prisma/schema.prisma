@@ -1845,6 +1845,7 @@ model CharacterVerifyClaim {
 }
 
 model CompanionCredential {
+  deviceName String @default("Paired companion")
   id        String    @id @default(cuid())
   memberId  String
   tokenHash String    @unique
@@ -1932,7 +1933,36 @@ model ActivityResponse {
 
 // 7.0 website accounts: "Sign in with Discord" (identify scope only) on guilded.kcaron.top. Only the
 // Discord user ID and names are kept, never the OAuth access token.
+model BattleNetIdentity {
+  id         String @id @default(cuid())
+  accountId  String @unique
+  subject    String @unique
+  battleTag  String
+  linkedAt   DateTime @default(now())
+  account    WebAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  characters BattleNetCharacter[]
+}
+
+// Only explicitly selected characters are retained. Discovery never publishes alts.
+model BattleNetCharacter {
+  id          String @id @default(cuid())
+  identityId  String
+  region      String
+  gameEdition String
+  realmId     Int
+  characterId Int
+  name        String
+  realm       String
+  isMain      Boolean @default(false)
+  verifiedAt  DateTime
+  identity    BattleNetIdentity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+
+  @@unique([region, gameEdition, realmId, characterId])
+  @@index([identityId])
+}
+
 model WebAccount {
+  battleNet BattleNetIdentity?
   publicProfile Boolean @default(true)
   characters    WebCharacter[]
   id            String   @id @default(cuid())
@@ -2087,6 +2117,7 @@ model WebPairing {
 
 // A personal companion's credential (one active per account). Only its SHA-256 is stored.
 model WebCompanionCredential {
+  deviceName String @default("Paired companion")
   id        String     @id @default(cuid())
   accountId String
   tokenHash String     @unique

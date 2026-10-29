@@ -1,10 +1,10 @@
 import { randomBytes } from "node:crypto";
 import type { PrismaClient } from "../generated/prisma/client.js";
-import { hashCompanionSecret } from "./character-pairing.js";
+import { cleanDeviceName, hashCompanionSecret } from "./character-pairing.js";
 
 // Personal companion codes (7.0): a signed-in website account pairs the Guilded companion
 // without a guild, to send its own dungeon runs to the public leaderboards. Same rules as
-// /character pair: 15 minutes, one use, one active credential per account. Codes start with
+// /character pair: 15 minutes, one use, independent credentials per device. Codes start with
 // "P", which a guild code (hexadecimal) never does, so one pairing endpoint serves both.
 
 const LIFETIME_MS = 15 * 60_000;
@@ -14,7 +14,7 @@ export interface PersonalStore {
   savePairing(accountId: string, codeHash: string, expiresAt: Date): Promise<void>;
   /** The account of a live, unused code, marking it used (once only). */
   consumePairing(codeHash: string, now: Date): Promise<string | null>;
-  replaceCredential(accountId: string, tokenHash: string): Promise<void>;
+  replaceCredential(accountId: string, tokenHash: string, deviceName?: string): Promise<void>;
   credentialAccount(tokenHash: string): Promise<{ accountId: string; username: string } | null>;
   revokeCredentials(accountId: string): Promise<void>;
   hasCredential(accountId: string): Promise<boolean>;
@@ -35,9 +35,9 @@ export async function exchangePersonalCode(store: PersonalStore, code: string, n
 }
 
 // Also used by the companion's Discord sign-in (companion-signin.ts), which needs no code.
-export async function issuePersonalCredential(store: PersonalStore, accountId: string): Promise<{ companionCredential: string }> {
+export async function issuePersonalCredential(store: PersonalStore, accountId: string, deviceName = "Paired companion"): Promise<{ companionCredential: string }> {
   const companionCredential = randomBytes(32).toString("base64url");
-  await store.replaceCredential(accountId, hashCompanionSecret(companionCredential));
+  await store.replaceCredential(accountId, hashCompanionSecret(companionCredential), cleanDeviceName(deviceName));
   return { companionCredential };
 }
 
@@ -57,11 +57,8 @@ export function prismaPersonalStore(database: PrismaClient): PersonalStore {
       const used = await database.webPairing.updateMany({ where: { id: pairing.id, consumedAt: null, expiresAt: { gt: now } }, data: { consumedAt: now } });
       return used.count === 1 ? pairing.accountId : null;
     },
-    async replaceCredential(accountId, tokenHash) {
-      await database.$transaction([
-        database.webCompanionCredential.updateMany({ where: { accountId, revokedAt: null }, data: { revokedAt: new Date() } }),
-        database.webCompanionCredential.create({ data: { accountId, tokenHash } })
-      ]);
+    async replaceCredential(accountId, tokenHash, deviceName = "Paired companion") {
+      await database.webCompanionCredential.create({ data: { accountId, tokenHash, deviceName } });
     },
     async credentialAccount(tokenHash) {
       const row = await database.webCompanionCredential.findFirst({ where: { tokenHash, revokedAt: null }, select: { accountId: true, account: { select: { username: true } } } });

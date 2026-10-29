@@ -62,6 +62,7 @@
           "character-identity.mjs",
           "dungeon-role.mjs",
           "profiles.mjs",
+          "profile-engine.mjs",
           "standings-format.mjs",
           "poe-events.mjs",
           "delta.mjs",

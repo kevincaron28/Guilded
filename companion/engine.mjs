@@ -181,6 +181,7 @@ export function createEngine(initialConfig, hooks = {}) {
     uploadError: null,
     standingsError: null,
     uploads: 0,
+    syncPhase: "waiting-save",
     // "live" (the bot tells this companion about changes as they happen) or "interval".
     standingsMode: null,
     // "watching" (saves upload at once) or "checking" (the folder watch failed; saves are
@@ -251,6 +252,7 @@ export function createEngine(initialConfig, hooks = {}) {
     const epoch = generation;
     const current = { ...config };
     state.pendingUpload = true;
+    state.syncPhase = "uploading";
     state.retryAt = null;
     try {
       lastFile = await savedStamp(current);
@@ -261,6 +263,7 @@ export function createEngine(initialConfig, hooks = {}) {
         log("ok", state.lastStandings.message);
       }
       state.lastUpload = { at: new Date().toISOString(), message: result.message };
+      state.syncPhase = "synced";
       if (result.sent) state.uploads += 1;
       state.uploadError = null;
       failures = 0;
@@ -269,6 +272,7 @@ export function createEngine(initialConfig, hooks = {}) {
     } catch (error) {
       if (epoch !== generation) return;
       state.uploadError = describeError(error);
+      state.syncPhase = error.retryable === false ? "needs-attention" : "retry";
       log("error", `Upload failed: ${state.uploadError}`);
       if (error.retryable !== false && state.running) {
         const delay = Math.min(300_000, 5_000 * 2 ** Math.min(failures++, 6));
@@ -291,6 +295,7 @@ export function createEngine(initialConfig, hooks = {}) {
     const epoch = generation;
     const current = { ...config };
     state.pendingUpload = true;
+    state.syncPhase = "uploading";
     state.retryAt = null;
     try {
     lastFile = await fileStamp(current.watchFile);
@@ -298,8 +303,9 @@ export function createEngine(initialConfig, hooks = {}) {
       ? await readAddonExport(current.watchFile, current.realm)
       : JSON.parse(await readSavedText(current.watchFile));
     // The saved data belongs to one WoW guild; do not send an alt's other guild.
-    if (current.wowGuild && full.wowGuild && full.wowGuild !== current.wowGuild) {
+    if (current.wowGuild && (full.wowGuild || current.requireWowGuild) && full.wowGuild !== current.wowGuild) {
       state.pendingUpload = false;
+      state.syncPhase = "waiting-save";
       log("warn", `Skipped: the saved data belongs to "${full.wowGuild}", this companion is for "${current.wowGuild}".`);
       return;
     }
@@ -320,15 +326,17 @@ export function createEngine(initialConfig, hooks = {}) {
           ? `Professions and recipes synced. Guild ledger imports still await officer review.${pairingNote(body.pairedCharacterStatus)}`
           : `Uploaded ${body.transactionCount} ledger entries. Apply on Discord with: /import apply id:${body.importId}.${pairingNote(body.pairedCharacterStatus)}`;
       state.lastUpload = { at: new Date().toISOString(), message };
+      state.syncPhase = body.applyError ? "apply-error" : body.autoApplied?.held || !body.autoApplied && !body.professionRelay ? "officer-review" : "synced";
       state.uploads += 1;
       log(body.applyError || body.autoApplied?.held ? "warn" : "ok", message + leftNote);
       // A live standings connection hears about the change by itself.
-      if (state.standingsMode !== "live") void refreshStandings();
+      if (state.standingsMode !== "live") track(refreshStandings());
     } else if (response.status === 409 && body.importId) {
       const message = body.status === "PREVIEWED"
         ? `Upload is waiting for officer review: /import apply id:${body.importId}.`
         : `Nothing new since the last upload.${pairingNote(body.pairedCharacterStatus)}`;
       state.lastUpload = { at: new Date().toISOString(), message };
+      state.syncPhase = body.status === "PREVIEWED" ? "officer-review" : "synced";
       log("info", message);
     } else {
       const error = new Error(`Upload failed (${response.status}): ${describeApiError(response.status, body.error)}`);
@@ -341,6 +349,7 @@ export function createEngine(initialConfig, hooks = {}) {
     } catch (error) {
       if (epoch !== generation) return;
       state.uploadError = describeError(error);
+      state.syncPhase = error.retryable === false ? "needs-attention" : "retry";
       log("error", `Upload failed: ${state.uploadError}`);
       if (error.retryable !== false && state.running) {
         const delay = Math.min(300_000, 5_000 * 2 ** Math.min(failures++, 6));
@@ -395,7 +404,7 @@ export function createEngine(initialConfig, hooks = {}) {
     features = new Set(Array.isArray(result.body?.features) ? result.body.features : []);
     ack = acknowledgements(result.body);
     state.botVersion = result.botVersion ?? state.botVersion;
-    state.lastStandings = { at: new Date().toISOString(), message: result.unchanged || result.refreshOnly ? `Standings already up to date (${result.count} characters).` : `Wrote standings for ${result.count} character(s).` };
+    state.lastStandings = { at: new Date().toISOString(), message: result.downloadedOnly ? "Standings downloaded. Select this connection to write them to the shared addon folder." : result.unchanged || result.refreshOnly ? `Standings already up to date (${result.count} characters).` : `Wrote standings for ${result.count} character(s). Use /reload in WoW to load them.` };
     if (!result.unchanged && !result.refreshOnly) log("ok", `Updated addon data for ${result.count} character(s) in ${result.path}.`);
     else hooks.onState?.(snapshot());
     return result;
@@ -527,7 +536,8 @@ export function createEngine(initialConfig, hooks = {}) {
     if (epoch !== generation) return false;
     watchRestarts = 0;
     watchGaveUpAt = 0;
-    watchFolder();
+    try { watchFolder(); }
+    catch (error) { state.fileWatch = "checking"; watchGaveUpAt = Date.now(); log("warn", `Folder watch unavailable (${error.message}). Saves are checked every 30 seconds.`); }
     state.running = true;
     state.watching = config.watchFile;
     log("info", `Watching ${config.watchFile}`);
@@ -538,7 +548,7 @@ export function createEngine(initialConfig, hooks = {}) {
     // Safety net for the folder watch: a save it missed is noticed within 30 seconds.
     fileCheckTimer = setInterval(() => track((async () => {
       retryWatch();
-      if (!state.running || uploading || lastFile === null) return;
+      if (!state.running || uploading) return;
       const now = await savedStamp();
       if (now && now !== lastFile) scheduleUpload(0);
     })()), FILE_CHECK_MS);
@@ -574,6 +584,6 @@ export function createEngine(initialConfig, hooks = {}) {
     async configure(next) { await this.stop(); state.lastUpload = null; state.lastStandings = null; state.lastUploadBytes = null; state.error = null; state.standingsError = null; config = next; etag = null; ack = null; features = new Set(); gzipOff = false; lastFile = null; lastText = null; return this.start(); },
     uploadNow() { if (config.wowEnabled !== false) scheduleUpload(0); if (poe) track(poe.pollNow()); },
     // The tray's "Refresh in-game standings now" always fetches and writes the full answer.
-    refreshStandings: () => config.personal ? personalUpload() : refreshStandings({ force: true })
+    refreshStandings: () => { const pending = config.personal ? personalUpload() : refreshStandings({ force: true }); track(pending); return pending; }
   };
 }

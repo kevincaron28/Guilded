@@ -40,7 +40,7 @@ function memoryPersonalStore() {
   const store: PersonalStore = {
     async savePairing(accountId, codeHash, expiresAt) { for (const [hash, row] of pairings) if (row.accountId === accountId) pairings.delete(hash); pairings.set(codeHash, { accountId, expiresAt, used: false }); },
     async consumePairing(codeHash, now) { const row = pairings.get(codeHash); if (!row || row.used || row.expiresAt <= now) return null; row.used = true; return row.accountId; },
-    async replaceCredential(accountId, tokenHash) { for (const row of credentials) if (row.accountId === accountId) row.revoked = true; credentials.push({ accountId, tokenHash, revoked: false }); },
+    async replaceCredential(accountId, tokenHash) { credentials.push({ accountId, tokenHash, revoked: false }); },
     async credentialAccount(tokenHash) { const row = credentials.find((entry) => entry.tokenHash === tokenHash && !entry.revoked); return row ? { accountId: row.accountId, username: "kev" } : null; },
     async revokeCredentials(accountId) { for (const row of credentials) if (row.accountId === accountId) row.revoked = true; },
     async hasCredential(accountId) { return credentials.some((row) => row.accountId === accountId && !row.revoked); }
@@ -49,7 +49,7 @@ function memoryPersonalStore() {
 }
 
 describe("personal companion codes", () => {
-  it("pairs once, replaces the old credential and can be revoked", async () => {
+  it("pairs once, retains other devices and can be revoked", async () => {
     const { store } = memoryPersonalStore();
     const { code } = await issuePersonalCode(store, "acc1", NOW);
     expect(isPersonalCode(code)).toBe(true);
@@ -59,7 +59,7 @@ describe("personal companion codes", () => {
     expect(await exchangePersonalCode(store, code, NOW)).toBeNull();
     expect(await personalAccess(store, first!.companionCredential)).toEqual({ accountId: "acc1", username: "kev" });
     const second = await exchangePersonalCode(store, (await issuePersonalCode(store, "acc1", NOW)).code, NOW);
-    expect(await personalAccess(store, first!.companionCredential)).toBeNull();
+    expect(await personalAccess(store, first!.companionCredential)).toEqual({ accountId: "acc1", username: "kev" });
     await store.revokeCredentials("acc1");
     expect(await personalAccess(store, second!.companionCredential)).toBeNull();
     const late = await issuePersonalCode(store, "acc1", NOW);

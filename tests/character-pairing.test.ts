@@ -47,10 +47,7 @@ describe("character pairing", () => {
       where: { id: "pair", consumedAt: null, expiresAt: { gt: now } },
       data: { consumedAt: now }
     });
-    expect(tx.companionCredential.updateMany).toHaveBeenCalledWith({
-      where: { memberId: "member", revokedAt: null },
-      data: { revokedAt: expect.any(Date) }
-    });
+    expect(tx.companionCredential.updateMany).not.toHaveBeenCalled();
     expect(tx.companionCredential.create).toHaveBeenCalledWith({
       data: { memberId: "member", tokenHash: hashCompanionSecret(result.companionCredential) }
     });

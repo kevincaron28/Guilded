@@ -3,6 +3,7 @@ const T = (key, ...values) => languageUI.t(key, ...values);
 const M = value => languageUI.message(value);
 const $ = id => document.getElementById(id);
 const api = window.companion;
+window.addEventListener('online', () => { if (!api.browser) void api.recoverSync?.().catch(() => {}); });
 const desktopNavigation = matchMedia('(min-width:1001px)');
 function closeNavigation() { document.body.classList.remove('nav-open'); $('btnNav').setAttribute('aria-expanded','false'); $('navBackdrop').hidden = true; document.querySelector('.sidebar').inert = !desktopNavigation.matches; document.querySelector('.workspace').inert = false; }
 $('btnNav').addEventListener('click', () => { const open = $('btnNav').getAttribute('aria-expanded') !== 'true'; if (!open) { closeNavigation(); return; } document.body.classList.add('nav-open'); $('btnNav').setAttribute('aria-expanded','true'); $('navBackdrop').hidden = false; document.querySelector('.sidebar').inert = false; document.querySelector('.workspace').inert = true; document.querySelector('.nav.active').focus(); });
@@ -52,7 +53,7 @@ async function action(button, task) {
   finally { button.disabled = false; delete button.dataset.busy; if (lastSnapshot) renderState(lastSnapshot); }
 }
 const bind = (id, task) => $(id).addEventListener('click', event => action(event.currentTarget, task));
-const readForm = () => ({...Object.fromEntries(fields.map(id => [id,$(id).value.trim()])), wowEnabled:$('wowEnabled').checked, poeEnabled:$('poeEnabled').checked});
+const readForm = () => ({...Object.fromEntries(fields.map(id => [id,$(id).value.trim()])), wowEnabled:$('wowEnabled').checked, poeEnabled:$('poeEnabled').checked, ...(!api.browser ? {syncEnabled:$('syncEnabled').checked} : {})});
 const say = (message, ok) => { $('formResult').textContent = M(message); $('formResult').className = `result ${ok ? 'ok' : 'bad'}`; };
 function gameFields() { $('wowSettings').hidden = !$('wowEnabled').checked; $('poeSettings').hidden = !$('poeEnabled').checked; }
 ['wowEnabled','poeEnabled'].forEach(id => $(id).addEventListener('change',gameFields));
@@ -95,6 +96,7 @@ function renderSavedFile(snapshot) {
 }
 function renderState(snapshot) {
   lastSnapshot = snapshot;
+  if ($('profileSyncStatus')) $('profileSyncStatus').textContent = (snapshot.state.profiles || []).map(p => p.name + ': ' + M(p.error || (p.running ? 'Syncing' : p.enabled ? 'Setup needed' : 'Paused'))).join(' · ');
   const {state,health} = snapshot;
   renderUpdate(snapshot.update);
   renderSavedFile(snapshot);
@@ -178,7 +180,7 @@ function renderLogs() {
     const row = document.createElement('div'); row.className = 'log-row';
     const time = document.createElement('time'); time.dateTime = entry.time; time.textContent = new Date(entry.time).toLocaleTimeString(languageUI.language, {hour:'2-digit',minute:'2-digit'}); time.title = new Date(entry.time).toLocaleString(languageUI.language);
     const level = document.createElement('span'); level.className = `log-level ${['info','ok','warn','error'].includes(entry.level) ? entry.level : 'info'}`; level.textContent = entry.level === 'ok' ? T("Synced") : T(entry.level);
-    const message = document.createElement('span'); message.className = 'log-message'; message.textContent = M(entry.message); row.append(time,level,message); $('log').append(row);
+    const message = document.createElement('span'); message.className = 'log-message'; message.textContent = (entry.profileName ? '[' + entry.profileName + '] ' : '') + M(entry.message); row.append(time,level,message); $('log').append(row);
   }
 }
 function addLog(entry) { entries.push(entry); entries = entries.slice(-300); renderLogs(); }
@@ -196,6 +198,8 @@ bind('btnSignIn',async () => { const popup = api.browser ? window.open('', '_bla
 bind('btnSignInCancel',async () => { await api.signInCancel(); $('signInWaiting').hidden = true; say(T("Sign-in cancelled."),false); });
 $('form').addEventListener('submit',event => { event.preventDefault(); action($('btnSave'),async () => { say(T("Saving your preferences…"),true); const result = await api.saveConfig(readForm()); say(result.message,result.ok); savedConfig = (await api.getAll()).config; renderState(lastSnapshot); if (result.ok) { toast(result.message); showPage('status'); } }); });
 $('autostart').addEventListener('change',event => action(event.target,async () => { $('autostart').checked = await api.setAutostart(event.target.checked); }));
+bind('btnConnections', () => api.openConnections ? api.openConnections() : window.open('/me/connections','_blank','noopener'));
+bind('btnBattleNet', () => api.openBattleNet ? api.openBattleNet() : window.open('/me/battlenet','_blank','noopener'));
 bind('btnUpload',async () => { await api.uploadNow(); toast(api.browser ? T("Sync finished. Check Activity for the result.") : T("Sync requested. Follow its progress in Activity.")); });
 bind('btnStandings',async () => { await api.refreshStandings(); toast(savedConfig.personal ? T("Public score refresh finished. Check Activity, then /reload and use /gdungeons score.") : api.browser ? api.folderAccess ? T("Standings saved. Use /reload in WoW.") : T("Standings downloaded. Add the file to Interface / AddOns / Guilded.") : T("Standings refresh finished. Check Activity for the result.")); });
 bind('btnSheets',async () => { const result = await api.exportSheets($('sheetTable').value || undefined); if (!result.canceled) toast(result.message,!result.ok); });
@@ -205,7 +209,7 @@ bind('btnGRM', async () => {
   const result = await api.convertGRM({ guild: $('grmGuild').value, realm: $('grmRealm').value, edition: $('grmEdition').value, includePrivate: $('grmPrivate').checked });
   if (!result.canceled) { $('grmResult').textContent = M(result.message); toast(result.message, !result.ok); }
 });
-bind('btnFolder',() => api.openAddonFolder()); bind('btnPause',async () => { await api.toggleTracking(); }); bind('btnOnline',() => api.openOnline());
+bind('btnFolder',() => api.openAddonFolder()); bind('btnPause',async () => { await api.toggleTracking(); const all = await api.getAll(); savedConfig = all.config; $('syncEnabled').checked = all.config.syncEnabled !== false; }); bind('btnOnline',() => api.openOnline());
 let lootImportToken = null, lootMappingInputs = [];
 $('lootImportPanel').hidden = typeof api.previewLootHistory !== 'function';
 function resetLootPreview() { lootImportToken = null; $('lootImportReview').hidden = true; $('btnLootImportSave').disabled = true; }
@@ -318,7 +322,7 @@ async function changeConnection(choice) {
   if (!result.ok) { toast(languageUI.message(result.message), true); await renderProfiles(); return; }
   const all = await api.getAll(); savedConfig = all.config;
   for (const id of fields) $(id).value = all.config[id] ?? '';
-  $('wowEnabled').checked = all.config.wowEnabled !== false;
+  $('syncEnabled').checked = all.config.syncEnabled !== false; $('backgroundSyncPanel').hidden = !!api.browser; $('wowEnabled').checked = all.config.wowEnabled !== false;
   $('poeEnabled').checked = all.config.poeEnabled === true;
   $('poeMode').value = all.config.poeMode || 'STANDARD';
   gameFields(); renderState({state:all.state,health:all.health,update:all.update,savedFile:all.savedFile});
@@ -336,7 +340,7 @@ async function init() {
   for (const id of fields) $(id).value = all.config[id] ?? '';
   $('storeDistribution').hidden = !all.storePackage;
   if (all.storePackage) $('autostartLabel').hidden = true;
-  $('wowEnabled').checked = all.config.wowEnabled !== false; $('poeEnabled').checked = all.config.poeEnabled === true; $('poeMode').value = all.config.poeMode || 'STANDARD'; $('autostart').checked = all.autostart; $('version').textContent = `Version ${all.version}`;
+  $('syncEnabled').checked = all.config.syncEnabled !== false; $('backgroundSyncPanel').hidden = !!api.browser; $('wowEnabled').checked = all.config.wowEnabled !== false; $('poeEnabled').checked = all.config.poeEnabled === true; $('poeMode').value = all.config.poeMode || 'STANDARD'; $('autostart').checked = all.autostart; $('version').textContent = `Version ${all.version}`;
   configurePresentation();
   gameFields(); entries = all.logs.slice(-300); renderLogs(); renderState({state:all.state,health:all.health,update:all.update,savedFile:all.savedFile});
   showPage(new URLSearchParams(location.search).get('tab') || (savedConfig.companionCredential ? 'status' : 'settings'));

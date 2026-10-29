@@ -137,7 +137,7 @@ After the approved server release, members can visit `/companion/` on the
 bot's HTTPS hostname without installing the companion. WoW uses a manually
 selected Guilded.lua and a standings download; the WoW addon is still needed.
 PoE2 manually imports recent log observations. Reselect updated files after
-playing. Personal pairing replaces the previous desktop/browser link.
+playing. Personal pairing preserves existing device links. Manage and revoke individual devices at `/me/connections`.
 See [delivery modes, privacy and release steps](../docs/COMPANION_EXPERIENCE.md).
 
 ## Support Guilded

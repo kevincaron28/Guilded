@@ -8,6 +8,7 @@ import { verifyRosterGapsPostgres, verifyRosterGapsRestored } from "./verify-ros
 import { verifyGameEditionsPostgres, verifyGameEditionsRestored } from "./verify-game-editions-postgres.js";
 import { verifyAiBudgetPostgres } from "./verify-ai-budget-postgres.js";
 import { verifyPublicSharingPostgres } from "./verify-public-sharing-postgres.js";
+import { verifyBattleNetPostgres } from "./verify-battlenet-postgres.js";
 import { verifyPlayerDirectoryPostgres } from "./verify-player-directory-postgres.js";
 import { verifyDungeonRatingPostgres, verifyDungeonRatingRestored } from "./verify-dungeon-rating-postgres.js";
 import { verifyActivityCoresPostgres, verifyActivityCoresRestored } from "./verify-activity-cores-postgres.js";
@@ -101,6 +102,7 @@ try {
     const guild = await database.guild.create({ data: { discordId: "release-test-guild", name: "Release fixture" } });
     await verifyGameEditionsPostgres(database, guild.id);
     await verifyPublicSharingPostgres(database);
+    await verifyBattleNetPostgres(database);
     await verifyPlayerDirectoryPostgres(database);
     await verifyActivityCoresPostgres(database, guild.id);
     await verifyGameEventsPostgres(database, guild.id);

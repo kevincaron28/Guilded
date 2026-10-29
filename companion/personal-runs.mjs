@@ -30,6 +30,7 @@ export function resolveAcceptedPath(config) {
 }
 
 async function writeAccepted(config, body) {
+  if (config.writeStandingsEnabled === false) return null;
   const path = resolveAcceptedPath(config);
   if (!path) return null;
   try {
@@ -68,6 +69,7 @@ export async function uploadPersonalRuns(config, signal) {
   }
   const saved = Array.isArray(body.acceptedRunRefs) ? await writeAccepted(config, body) : null;
   const result = personalResultMessage(body);
+  if (config.writeStandingsEnabled === false) return { ...result, message: `${result.message} Select this connection to write scores to the shared addon folder.`, sent: finished.length };
   if (body.publicScore && !saved) return { level: "warn", message: `${result.message} Public scores could not be saved to GuildedDungeons/Accepted.lua. Check the addon folder and try again.`, sent: finished.length };
   return { ...result, sent: finished.length, ...(body.publicScore && saved ? { scoreSaved: true } : {}) };
 }

@@ -104,8 +104,8 @@ export interface SignInPageDeps {
   /** Approved servers with the Guilded bot where this Discord user is a member right now. */
   servers(discordUserId: string): Promise<{ discordId: string; name: string; wowGuildId?: string; gameEdition?: string }[]>;
   /** A guild companion credential, or null when the user is not (or no longer) an active member. */
-  issueGuild(account: WebAccountView, guildDiscordId: string, wowGuildId?: string): Promise<string | null>;
-  issuePersonal(accountId: string): Promise<string>;
+  issueGuild(account: WebAccountView, guildDiscordId: string, wowGuildId?: string, deviceName?: string): Promise<string | null>;
+  issuePersonal(accountId: string, deviceName?: string): Promise<string>;
 }
 
 export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
@@ -131,10 +131,11 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
       if (!deps.signIn.beginApproval(requestId)) return kit.page(410, title, `<h1>${t("This sign-in expired", "Cette connexion a expiré")}</h1>`, { noindex: true });
       try {
       let grant: SignInGrant | null = null;
+      const deviceName = (ctx.form?.get("deviceName") || "Paired companion").slice(0, 80);
       const selected = servers.find(server => (server.wowGuildId ?? server.discordId) === choice);
-      if (choice === "personal") grant = { companionCredential: await deps.issuePersonal(ctx.account.id), personal: true };
+      if (choice === "personal") grant = { companionCredential: await deps.issuePersonal(ctx.account.id, deviceName), personal: true };
       else if (selected) {
-        const credential = await deps.issueGuild(ctx.account, selected.discordId, selected.wowGuildId);
+        const credential = await deps.issueGuild(ctx.account, selected.discordId, selected.wowGuildId, deviceName);
         if (credential) grant = { companionCredential: credential, guildDiscordId: selected.discordId,
           ...(selected.wowGuildId ? { wowGuildId: selected.wowGuildId, wowGuildName: selected.name } : {}), ...(selected.gameEdition ? { gameEdition: selected.gameEdition } : {}) };
       }
@@ -155,6 +156,7 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
       + `<form method="post" action="/me/companion"><input type="hidden" name="csrf" value="${escapeHtml(ctx.csrf ?? "")}"><input type="hidden" name="lang" value="${lang}"><input type="hidden" name="request" value="${escapeHtml(requestId)}">`
       + `<p><label>${t("Code from your companion", "Code de votre compagnon")}<br><input name="code" autocomplete="off" required maxlength="7" pattern="[A-Za-z0-9]{3}-?[A-Za-z0-9]{3}" placeholder="ABC-DEF" style="width:9em;font-size:20px;text-transform:uppercase"></label></p>`
       + `<h2>${t("Link it to", "Le relier à")}</h2>${choices}`
+      + `<p><label>${t("Device name (for example Home PC)", "Nom de l'appareil (par exemple PC maison)")}<input name="deviceName" maxlength="80" required value="${t("My companion", "Mon compagnon")}"></label></p><p>${t("Your other devices stay connected. Manage devices and optional Battle.net linking in", "Vos autres appareils restent connectés. Gérez les appareils et la connexion Battle.net facultative dans")} <a href="/me/connections">${t("Connections", "Connexions")}</a>.</p>`
       + (servers.length ? "" : `<p class="muted">${t("No Discord server with the Guilded bot lists you as a member. Addon-only guilds don't need one: the addon syncs in game.", "Aucun serveur Discord avec le bot Guilded ne vous compte comme membre. Les guildes sans Discord n'en ont pas besoin : l'addon se synchronise en jeu.")}</p>`)
       + `<p><button class="button" type="submit">${t("Connect", "Relier")}</button></p></form>`;
     return kit.page(200, title, body, { noindex: true });

@@ -62,6 +62,7 @@ export async function writeStandings(config, signal, options = {}) {
     assertSameEdition(local, body);
   }
   const text = standingsToLua(body);
+  if (config.writeStandingsEnabled === false) return { notModified: false, etag, body, path, text: null, count: body.standings.length, unchanged: true, downloadedOnly: true, botVersion: body.botVersion };
   let unchanged = false;
   let refreshOnly = false;
   try {

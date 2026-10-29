@@ -19,6 +19,31 @@ function gameFolder() {
 const config = (file: string) => ({ watchFile: file, realm: "R", uploadUrl: "https://bot.test/api/v1/addon-imports", guildDiscordId: "123", companionCredential: "x".repeat(32) });
 
 describe("companion engine", () => {
+  it("downloads acknowledgements without writing another profile's shared addon files", async () => {
+    const game = gameFolder();
+    writeFileSync(game.file, 'GuildedDB = { version = 3, epgp = {} }');
+    writeFileSync(game.standings, 'selected-profile-data');
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ protocolVersion: 2, updatedAt: 'x', standings: [], acceptedLedgerRefs: ['known'] })));
+    const engine = createEngine({ ...config(game.file), writeStandingsEnabled: false });
+    try {
+      await engine.start();
+      expect(readFileSync(game.standings, 'utf8')).toBe('selected-profile-data');
+      expect(engine.state().lastStandings?.message).toContain('downloaded');
+    } finally { await engine.stop(); }
+  });
+  it("does not upload unidentified guild saves when profiles share the source", async () => {
+    const game = gameFolder();
+    writeFileSync(game.file, 'GuildedDB = { version = 3, epgp = {} }');
+    const fetcher = vi.fn(async () => Response.json({ protocolVersion: 2, updatedAt: 'x', standings: [] }));
+    vi.stubGlobal('fetch', fetcher);
+    const engine = createEngine({ ...config(game.file), wowGuild: 'Expected Guild', requireWowGuild: true });
+    try {
+      await engine.start(); engine.uploadNow();
+      await vi.waitFor(() => expect(engine.state().pendingUpload).toBe(false));
+      expect(fetcher.mock.calls.every(call => !String((call as unknown[])[0]).includes('addon-imports'))).toBe(true);
+      expect(engine.state().syncPhase).toBe('waiting-save');
+    } finally { await engine.stop(); }
+  });
   it("recovers an offline upload after restart from the saved ledger without losing earlier entries", async () => {
     const game = gameFolder();
     const save = (extra = '') => writeFileSync(game.file, `GuildedDB = { version = 3, epgp = { Kev = { ledger = {

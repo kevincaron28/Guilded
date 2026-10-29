@@ -1,8 +1,8 @@
 const { pathToFileURL } = require("node:url");
 const path = require("node:path");
 
-const configFields = new Set(["uploadUrl", "guildDiscordId", "pairingCode", "watchFile", "realm", "wowGuild", "standingsIntervalMinutes", "poeLogFile", "poeCharacter", "poeLeague", "poeMode", "wowEnabled", "poeEnabled"]);
-const noArgs = new Set(["get-all", "list-profiles", "switch-live-folder", "dismiss-live-folder", "open-update", "open-startup-settings", "install-update", "sign-in-wait", "sign-in-cancel", "browse-file", "detect-wow", "browse-poe-log", "upload-now", "refresh-standings", "open-addon-folder", "remove-data", "toggle-tracking", "get-poe-runs", "manage-view", "open-online"]);
+const configFields = new Set(["uploadUrl", "guildDiscordId", "pairingCode", "watchFile", "realm", "wowGuild", "standingsIntervalMinutes", "poeLogFile", "poeCharacter", "poeLeague", "poeMode", "wowEnabled", "poeEnabled", "syncEnabled"]);
+const noArgs = new Set(["open-connections", "open-battlenet", "recover-sync", "get-all", "list-profiles", "switch-live-folder", "dismiss-live-folder", "open-update", "open-startup-settings", "install-update", "sign-in-wait", "sign-in-cancel", "browse-file", "detect-wow", "browse-poe-log", "upload-now", "refresh-standings", "open-addon-folder", "remove-data", "toggle-tracking", "get-poe-runs", "manage-view", "open-online"]);
 function fail() { throw new Error("Invalid companion request."); }
 function object(value, fields) {
   if (!value || typeof value !== "object" || Array.isArray(value)) fail();
@@ -17,7 +17,7 @@ function validateIpc(channel, args) {
   if (["save-config", "test-connection", "pair-account", "sign-in-start"].includes(channel)) {
     object(value, configFields);
     for (const [key, entry] of Object.entries(value)) {
-      if (["wowEnabled", "poeEnabled"].includes(key)) { if (typeof entry !== "boolean") fail(); }
+      if (["wowEnabled", "poeEnabled", "syncEnabled"].includes(key)) { if (typeof entry !== "boolean") fail(); }
       else if (key === "standingsIntervalMinutes") {
         if (!["string", "number"].includes(typeof entry) || !Number.isFinite(Number(entry)) || Number(entry) < 1 || Number(entry) > 1440) fail();
       } else text(entry, key === "pairingCode" ? 64 : 4096);

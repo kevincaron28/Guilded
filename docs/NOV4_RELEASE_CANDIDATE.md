@@ -41,3 +41,7 @@ Private operational receipts and local validation logs: `backups/release-candida
 ## Preparation observations — 29 October
 
 A fresh bounded sample passed 18/18 public requests across health, companion HTML/JavaScript, leaderboards, guild directory and sign-in. Direct unauthenticated origin health returned 404. The private inbox had zero member reports and the same four historical service-error groups, with no new occurrence since October 28. Ledger event references were unique. The existing guilded service was active/running with zero service restarts and one matching tsx process; the host had 466 MiB available memory. This is ordinary-use evidence, not a database capacity or launch-load guarantee.
+
+Fresh database/application backups passed restore-list validation. The encrypted off-server copy passed authenticated decryption and checksum comparison. Repeat these checks immediately before the November 4 deployment.
+
+The first Windows packaging run exposed a provenance-reporting defect: Git status marked LF-generated copies dirty after a CRLF checkout although normalized content matched HEAD. The corrected check compares content against HEAD and separately includes untracked files; regression tests cover line-ending equivalence, staged/unstaged edits and ignored versus untracked files. CI now refuses genuine source drift. Use only artifacts from the final corrected revision, not the superseded first build.

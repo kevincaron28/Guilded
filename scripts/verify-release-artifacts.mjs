@@ -5,9 +5,9 @@ import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { basename, join } from "node:path";
-import { execFileSync } from "node:child_process";
 import { unzipSync } from "fflate";
 import { releaseMetadata } from "./release-metadata.mjs";
+import { releaseSource } from "./release-source.mjs";
 
 const version = JSON.parse(readFileSync("package.json", "utf8")).version;
 const release = releaseMetadata();
@@ -75,10 +75,10 @@ const artifacts = [zipPath, dungeonsZipPath, installerPath, notesPath].map(path 
   sha256: createHash("sha256").update(readFileSync(path)).digest("hex"),
 }));
 writeFileSync(`dist/Guilded-v${version}-SHA256SUMS.txt`, artifacts.map(file => `${file.sha256}  ${file.name}`).join("\n") + "\n");
-const sourceCommit = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-const sourceDirty = Boolean(execFileSync("git", ["status", "--porcelain", "--untracked-files=normal"], { encoding: "utf8" }).trim());
+const { sourceCommit, sourceDirty, changedPaths, untrackedPaths } = releaseSource();
+if (process.env.CI) assert.equal(sourceDirty, false, `CI packaging changed source: ${[...changedPaths, ...untrackedPaths].join(", ")}`);
 writeFileSync(`dist/Guilded-v${version}-Artifact-Verification.json`, JSON.stringify({
-  version, channel: release.channel, acceptance: release.acceptance, sourceCommit, sourceDirty, verifiedAt: new Date().toISOString(),
+  version, channel: release.channel, acceptance: release.acceptance, sourceCommit, sourceDirty, changedPaths, untrackedPaths, verifiedAt: new Date().toISOString(),
   archiveFiles: Object.keys(files).length, dungeonsArchiveFiles: Object.keys(dungeonsFiles).length, artifacts,
   limitations: ["Unverified real-client follow-up is tracked separately", "Windows installer is unsigned", "Installer execution is not verified by this check"],
 }, null, 2) + "\n");

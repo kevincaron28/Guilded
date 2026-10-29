@@ -27,7 +27,7 @@ async function setup(enabled = true) {
   };
   const start = async () => {
     const response = await request("POST", "/me/battlenet/start", [["region", "us"], ["gameEdition", "retail"]]);
-    const href = response.body.match(/href="(https:\/\/oauth\.battle\.net\/authorize[^\"]+)"/)![1]!.replaceAll("&amp;", "&");
+    const href = response.body.match(/href="(https:\/\/oauth\.battle\.net\/authorize[^"]+)"/)![1]!.replaceAll("&amp;", "&");
     return new URL(href).searchParams.get("state")!;
   };
   const preview = async () => {

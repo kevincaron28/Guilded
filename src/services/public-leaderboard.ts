@@ -15,12 +15,11 @@ import type { OfficialWindow } from "./official-seasons.js";
 import type { BracketedRules } from "./dungeon-november-rules.js";
 import { characterId, characterScores, DEFAULT_OFFICIAL, periodRules, publicRules, publicSeasons, publicWeek, rateRun, rulesAt, type PublicPeriod, type ScoreRow, type ScoreRun } from "./public-score.js";
 import { breadcrumbs } from "./site-header.js";
-import { escapeHtml, link, options } from "./web-layout.js";
+import { editionSelect, escapeHtml, link, options } from "./web-layout.js";
 import type { WebContext, WebKit, WebResponse, WebRoute } from "./web-app.js";
 import { scoreCardResponse } from "./score-card.js";
 import { currentEdition, withEdition } from "./edition-context.js";
 import { gameEditionOf } from "./game-edition.js";
-import { GAME_EDITIONS } from "../../companion/game-edition.mjs";
 
 // Public dungeon leaderboards (7.0, roadmap request 6; 7.1 season pages). Layout inspired by
 // Raider.IO, built from our own data and words: /leaderboards/ (this week's top runs and top
@@ -281,7 +280,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const any = { value: "", label: t("Any", "Tous") };
     const seasons = periods.map((p) => ({ value: p.id, label: periodName(ctx, p) }));
     return `<form class="filters" method="get" action="/leaderboards/"><input type="hidden" name="lang" value="${lang}">`
-      + `<div><label for="edition">WoW</label><select id="edition" name="edition">${options(GAME_EDITIONS.map(value => ({ value, label: value })), currentEdition())}</select></div>`
+      + editionSelect(lang)
       + `<div><label for="season">${t("Season", "Saison")}</label><select id="season" name="season">${options([...seasons, { value: "all", label: t("All time", "Depuis le début") }], filters.season)}</select></div>`
       + `<div><label for="period">${t("Period", "Période")}</label><select id="period" name="period">${options([{ value: "", label: t("Whole season", "Toute la saison") }, { value: "week", label: t("This week", "Cette semaine") }], filters.week ? "week" : "")}</select></div>`
       + `<div><label for="bracket">${t("Levels", "Niveaux")}</label><select id="bracket" name="bracket">${options([any, ...[...new Set([...brackets(), ...periods.flatMap(period => periodRules(period).brackets.map(b => b.key))])].map((value) => ({ value, label: bracketName(ctx, value) }))], filters.bracket)}</select></div>`

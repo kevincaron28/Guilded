@@ -1,6 +1,16 @@
 // One public address; personal pairing and guild authorization remain on the bot.
 import { createOwnerResources } from "./private-resources.mjs";
 import { localizedAsset } from "./localized-assets.mjs";
+import { editionSection, splitEditionPath } from "../site/nav.mjs";
+
+// Each WoW edition has its own section (/retail/, /retail/leaderboards/...: site/nav.mjs). The
+// visitor's last edition is remembered in this cookie, so /leaderboards/ opens that edition.
+const EDITION_COOKIE = "guilded_edition";
+function rememberedEdition(request) {
+  const match = /(?:^|;\s*)guilded_edition=([a-z-]{1,20})(?:;|$)/.exec(request.headers.get("cookie") ?? "");
+  return editionSection(match?.[1]);
+}
+const editionCookie = (slug) => `${EDITION_COOKIE}=${slug}; Max-Age=31536000; Path=/; Secure; SameSite=Lax`;
 
 const ownerResources = createOwnerResources({ resources: [
   { filename: "approved-brand-kit-v2.zip", key: "brand/approved-v2/kit.zip", type: "application/zip", title: "Approved brand kit v2", description: "Original ribbon logo, transparent emblem, brand styles and usage guide." },
@@ -91,6 +101,18 @@ function unavailablePage(request, url) {
 
 export default {
   async fetch(request, env) {
+    const response = await route(request, env);
+    // A page inside an edition's section remembers that edition for the next visit.
+    const url = new URL(request.url);
+    const section = ["kcaron.top", "www.kcaron.top"].includes(url.hostname) ? null : splitEditionPath(url.pathname);
+    if (!section || response.status >= 400) return response;
+    const remembered = new Response(response.body, response);
+    remembered.headers.append("set-cookie", editionCookie(section.slug));
+    return remembered;
+  }
+};
+
+async function route(request, env) {
     // Guard every hostname, including workers.dev, before any static fallback.
     const privateResponse = await ownerResources(request, env);
     if (privateResponse) return privateResponse;
@@ -121,6 +143,33 @@ export default {
       if (!["GET", "HEAD"].includes(request.method)) return failure(405, "Method not allowed");
       return new Response(null, { status: 301, headers: { location: "/g/quebec-gold/", "cache-control": "public, max-age=86400" } });
     }
+    // Edition sections: /retail → /retail/ (the hub page); /retail/leaderboards/... is the bot's
+    // /leaderboards/... page with ?edition=retail.
+    const section = creator ? null : splitEditionPath(url.pathname);
+    if (section && !section.rest) {
+      if (!["GET", "HEAD"].includes(request.method)) return failure(405, "Method not allowed");
+      return new Response(null, { status: 301, headers: { location: `/${section.slug}/${url.search}`, "cache-control": "public, max-age=86400" } });
+    }
+    const pagePath = section ? section.rest : url.pathname;
+    const dataPage = /^\/(?:leaderboards|recruitment|players)(?:\/|$)/.test(pagePath);
+    // A page view that still names its edition in the address (?edition=retail: older links and
+    // the filter forms) moves into that edition's section; one without a section goes to the
+    // visitor's remembered edition, Forever by default. Files (.json, .xml, .png) are never moved.
+    if (!creator && dataPage && ["GET", "HEAD"].includes(request.method) && !/\.[a-z]{2,4}$/.test(pagePath)) {
+      const asked = editionSection(url.searchParams.get("edition"));
+      const destination = asked ?? (section ? null : rememberedEdition(request) ?? editionSection("forever"));
+      if (destination && (!section || url.searchParams.has("edition"))) {
+        const query = new URLSearchParams(url.search);
+        query.delete("edition");
+        const rest = query.toString();
+        return new Response(null, { status: 302, headers: { location: `/${destination.slug}${pagePath}${rest ? `?${rest}` : ""}`, "cache-control": "no-store" } });
+      }
+    }
+    if (section && !dataPage) {
+      // The hub page (/retail/) is a static page; anything else in a section does not exist.
+      if (url.pathname.startsWith("/api/")) return failure(404, "Not found");
+      return localizedAsset(request, env);
+    }
     const companion = url.pathname === "/companion" || url.pathname.startsWith("/companion/");
     const api = apiMethods.has(url.pathname);
     const health = url.pathname === "/health";
@@ -128,8 +177,9 @@ export default {
     const guildPage = !creator && /^\/g\/[a-z0-9-]{1,40}\/?$/.test(url.pathname);
     // Signed-in website pages (7.0): Discord sign-in, recruitment, the player's page and the public
     // dungeon leaderboards. Rendered by the bot; the session cookie is for this host only.
+    // Inside an edition's section only the public data pages exist (checked above).
     const web = !creator && url.pathname.length <= 200
-      && /^\/(?:auth\/(?:login|callback|logout)|recruitment(?:\/[A-Za-z0-9._~/-]*)?|me(?:\/[A-Za-z0-9._~/-]*)?|players(?:\/[A-Za-z0-9._~/-]*)?|leaderboards(?:\/[A-Za-z0-9._~%/-]*)?)$/.test(url.pathname);
+      && /^\/(?:auth\/(?:login|callback|logout)|recruitment(?:\/[A-Za-z0-9._~/-]*)?|me(?:\/[A-Za-z0-9._~/-]*)?|players(?:\/[A-Za-z0-9._~/-]*)?|leaderboards(?:\/[A-Za-z0-9._~%/-]*)?)$/.test(pagePath);
     if (!companion && !api && !health && !guildPage && !web) {
       if (url.pathname.startsWith("/api/")) return failure(404, "Not found");
       return localizedAsset(request, env);
@@ -180,8 +230,9 @@ export default {
         if (attempt) await pause(200 * attempt);
         // Build from a fixed origin and the path, never a user-supplied destination.
         target = new URL(origins[attempt % origins.length]);
-        target.pathname = url.pathname;
+        target.pathname = pagePath;
         target.search = health || guildPage ? "" : url.search;
+        if (section) target.searchParams.set("edition", section.edition);
         try {
           upstream = await fetch(target.href, {
             method: request.method, headers, ...(body ? { body } : {}),
@@ -210,7 +261,9 @@ export default {
           return new Response(null, { status: upstream.status, headers: withCookies({ location: redirect.href, "cache-control": "no-store" }, upstream) });
         }
         const allowed = companion ? ["/companion/"] : guildPage ? ["/g/"] : web ? ["/recruitment", "/me/", "/players", "/leaderboards", "/auth/"] : null;
-        if (!allowed || !redirect || !origins.includes(redirect.origin) || !allowed.some((prefix) => redirect.pathname.startsWith(prefix))) {
+        // The bot's own links include the edition's section (/retail/leaderboards/...).
+        const redirectPage = splitEditionPath(redirect?.pathname ?? "")?.rest ?? redirect?.pathname;
+        if (!allowed || !redirect || !origins.includes(redirect.origin) || !allowed.some((prefix) => redirectPage.startsWith(prefix))) {
           return failure(502, "Unexpected server redirect");
         }
         return new Response(null, { status: upstream.status, headers: web
@@ -234,5 +287,4 @@ export default {
       return error.message === "body-limit" ? failure(413, "Request body is too large")
         : pageView ? unavailablePage(request, url) : failure(502, "The guild bot is temporarily unavailable. Try again shortly.");
     }
-  }
-};
+}

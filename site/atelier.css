@@ -65,3 +65,10 @@ body{font-family:var(--kc-font)}h1{font-size:clamp(40px,4.8vw,68px)}.site-header
 @media(max-width:980px){.site-header nav .language-switch{align-self:flex-start}}
 @media(max-width:1100px){.site-header .nav-group>summary{font-size:11px}}
 @media(max-width:980px){.site-header nav a,.site-header .nav-group>summary{font-size:14px}.site-header .nav-menu a{font-size:14px}}
+/* WoW version sections (29 October 2026): the header switcher, the home chooser and edition hubs. */
+.site-header .edition-menu>summary{border:1px solid var(--kc-border);border-radius:5px;padding:0 12px;color:var(--kc-text)}.site-header .edition-menu>summary strong{color:var(--kc-accent);font-weight:650}
+.site-header .edition-menu a[aria-current=true]{color:var(--kc-accent)}
+.edition-chooser .edition-card.featured{grid-column:span 2;background:linear-gradient(135deg,#d4af3714,transparent 60%),var(--kc-surface)}.edition-chooser .edition-card.featured h3{font-size:30px}
+.edition-badge{display:inline-flex;align-items:center;min-height:28px;padding:0 10px;margin-bottom:12px;border-radius:999px;background:var(--kc-accent);color:#1b2019;font-size:12px;font-weight:700;letter-spacing:.04em}
+.hub-page .hub-board{margin-block:40px}.hub-page .hub-board .path-links{display:flex;flex-wrap:wrap;gap:8px 24px;margin-top:18px}.hub-page .path-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+@media(max-width:900px){.edition-chooser .edition-card.featured{grid-column:1/-1}.hub-page .path-grid{grid-template-columns:1fr}}

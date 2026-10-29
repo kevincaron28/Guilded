@@ -1,6 +1,6 @@
 {
   "name": "guilded-bot",
-  "version": "8.0.2",
+  "version": "8.1.0",
   "private": true,
   "packageManager": "npm@11.13.0",
   "description": "Guild management and addon integration bot for Guilded",
@@ -44,7 +44,7 @@
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
     "discord.js": "^14.22.1",
-    "dotenv": "^18.0.8",
+    "dotenv": "^18.0.9",
     "entities": "^8.1.0",
     "luaparse": "^0.3.1",
     "sharp": "^0.35.5",
@@ -64,7 +64,7 @@
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "typescript-eslint": "^8.72.0",
     "vitest": "^5.0.5",
-    "wrangler": "4.151.3"
+    "wrangler": "4.152.0"
   },
   "overrides": {
     "deepmerge-ts": "^8.0.0",

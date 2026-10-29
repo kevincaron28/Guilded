@@ -1,4 +1,4 @@
-import { editionHref, localizedHref, NAV_GROUPS, navLinks } from "../../site/nav.mjs";
+import { editionHref, editionMenu, editionSection, editionSwitchHref, localizedHref, NAV_GROUPS, navLinks } from "../../site/nav.mjs";
 import { currentEdition } from "./edition-context.js";
 import { SITE_LOGO } from "./site-logo.js";
 
@@ -22,6 +22,8 @@ body{font-family:Inter,"Segoe UI Variable","Segoe UI",system-ui,sans-serif}
 .nav-group{position:relative}.nav-group>summary{list-style:none;cursor:pointer;gap:8px}.nav-group>summary::-webkit-details-marker{display:none}
 .nav-group>summary::after{content:"";width:6px;height:6px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:translateY(-2px) rotate(45deg)}
 .nav-group[open]>summary::after{transform:translateY(1px) rotate(225deg)}
+.edition-menu>summary{border:1px solid #494d40;border-radius:5px;padding:0 12px;color:var(--text)}.edition-menu>summary strong{color:var(--gold);font-weight:650}
+.site-top .edition-menu a[aria-current=true]{color:var(--gold)}
 .nav-menu{position:absolute;top:calc(100% + 4px);left:-14px;z-index:30;min-width:230px;display:grid;padding:8px;background:#181c1a;border:1px solid var(--line);border-radius:8px;box-shadow:0 18px 40px #0009}
 .site-top .nav-menu a{padding:0 12px;border-radius:5px;min-height:40px}.site-top .nav-menu a:hover{background:#ffffff0d}
 .language-switch{display:inline-flex;border:1px solid #494d40;border-radius:5px;overflow:hidden}.site-top .language-switch a{min-height:36px;padding:0 11px;font-size:12px}
@@ -44,12 +46,21 @@ export function currentSection(path: string): string | null {
   return /^\/(leaderboards|recruitment|players)\//.exec(path)?.[1] ?? null;
 }
 
-/** The site header. `languages` gives this page's address in each language, for the EN/FR switch. */
-export function siteHeader(lang: Lang, path: string, languages?: Record<Lang, string>): string {
+/** The site header. `languages` gives this page's address in each language, for the EN/FR switch;
+ * `edition` the page's WoW edition (the request's by default), shown in the version switcher. */
+export function siteHeader(lang: Lang, path: string, languages?: Record<Lang, string>, edition: string = currentEdition()): string {
   const t = (en: string, fr: string) => (lang === "fr" ? fr : en);
-  const nav = navLinks({
+  const playing = editionSection(edition) ?? editionSection("forever")!;
+  // "Playing: Retail ▾": the same page in another edition (a leaderboard stays a leaderboard).
+  const versions = editionMenu({
+    current: playing.id,
+    title: `${t("Playing:", "Je joue à :")} <strong>${playing[lang]}</strong>`,
+    label: (section) => section[lang],
+    href: (section) => localizedHref(editionSwitchHref(path, section.id), lang)
+  });
+  const nav = versions + navLinks({
     current: currentSection(path),
-    href: (item) => localizedHref(editionHref(item.href, currentEdition()), lang),
+    href: (item) => localizedHref(editionHref(item.href, playing.id), lang),
     label: (item) => (lang === "fr" ? item.fr : item.en),
     groupLabel: (key) => NAV_GROUPS[key]![lang]
   });

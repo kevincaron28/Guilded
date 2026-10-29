@@ -1,5 +1,14 @@
 # Changelog
 
+## 8.1.0 — Candidate for 4 November 2026
+
+RCLootCouncil/Gargul loot-history conversion with explicit character mapping,
+in-game preview and typed confirmation, persistent local history, deduplication,
+filtering and last-batch undo. Live awards and EP/GP remain unchanged. Includes
+clearer raid signup cards, public-origin reliability and the overflow-safe private
+bug inbox. Protocol stays 2. This candidate is not published or deployed;
+8.0.2 downloads remain intact. See [candidate notes](docs/V8_1_0_RELEASE_NOTES.md).
+
 ## 8.0.2 — 28 October 2026
 
 Safety patch from the final 8.0.1 audit: in-game spreadsheet exports keep

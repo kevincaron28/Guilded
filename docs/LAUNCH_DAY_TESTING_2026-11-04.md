@@ -13,6 +13,23 @@ the day. You can test installation and the companion before the game opens.
 - Guilded works without Discord or the companion. Test that route separately
   from optional connected features.
 
+## Already checked on the owner's PC (29 October)
+
+Done without the game running; do not repeat these. Evidence and the replaced
+Retail files: `backups/launch-checks-2026-10-29/` (local only).
+
+- Guilded and Guilded Dungeons 8.0.2 are installed for **Forever** (`_forever_`,
+  interface 16001, matching the installed 1.60.1 client) and **Retail** (`_retail_`,
+  120105, replacing 8.0.0). The local zips match the GitHub v8.0.2 hashes.
+- The companion is 8.0.2.0 and holds a personal credential. Its old DuckDNS upload
+  address is redirected to `guilded.kcaron.top` by the companion itself.
+- Bug inbox: no member reports; the four logged bot errors all predate 8.0.x.
+
+**Still to do on this PC on launch day:** the companion still watches the closed
+Classic Beta file (realm "Classic Beta PvP"). After the first Forever login and
+`/reload`, choose `_forever_\WTF\Account\<account>\SavedVariables` in the companion
+and set the realm. The checks below still need the game.
+
 ## First session
 
 Record PASS, FAIL or NOT RUN for each applicable row. A pass on one edition or
@@ -32,6 +49,8 @@ recovery experiments; do not create fake points in the live competition.
 | Dungeon completion | Correct party/dungeon; one completion; understandable local/accepted status | |
 | Dungeon abandon/reset/reload | No invented completion or duplicate award | |
 | Loot/council/reserves in a test session | Correct recipients, one award, expected GP and retained history | |
+| RCLC/Gargul historical import in a disposable setup | Correct source/character mapping; preview before typed confirmation; no live awards or GP changed | |
+| Repeat historical import, reload and undo | Records survive reload, stable IDs do not duplicate, last-batch undo preserves earlier history | |
 | Backup preview, restore and undo in a disposable test setup | Scope is clear; original backup remains usable | |
 | Other installed addons | Repeat a failed action with only Guilded enabled; record the difference | |
 

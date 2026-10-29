@@ -28,7 +28,8 @@ Discord sign-in provides your Discord ID, username and available display name
 using Discord's identify permission. Guilded does not ask for your Discord
 password. Guild membership and roles are checked for protected features.
 Authentication cookies maintain website sessions; the current session lifetime
-is up to 30 days. Technical requests and error records may contain connection
+is up to 30 days. A `guilded_edition` cookie remembers the WoW version you last
+viewed on the website (for example `retail`) for up to a year; it holds nothing else. Technical requests and error records may contain connection
 metadata and the context needed to operate, troubleshoot and protect the service.
 
 Where configured, optional Battle.net linking asks Blizzard for account identity
@@ -139,6 +140,8 @@ La connexion Discord fournit l'identifiant, le nom d'utilisateur et le nom
 d'affichage disponible, via la permission identify. Guilded ne demande pas votre
 mot de passe Discord. Les accès et rôles de guilde sont vérifiés. Des témoins
 d'authentification maintiennent les sessions web, actuellement jusqu'à 30 jours.
+Un témoin `guilded_edition` retient la version de WoW consultée en dernier sur le site
+(par exemple `retail`) pendant au plus un an; il ne contient rien d'autre.
 Les requêtes techniques et erreurs peuvent contenir les métadonnées de connexion
 et le contexte nécessaires au fonctionnement, au dépannage et à la protection.
 

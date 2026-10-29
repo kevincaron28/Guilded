@@ -2,13 +2,13 @@ import { readFileSync, readdirSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
 import { TextDecoder, TextEncoder } from "node:util";
 import { zipSync, unzipSync } from "fflate";
 import luaparse from "luaparse";
 import { GAME_EDITIONS, editionFromInterface } from "../companion/game-edition.mjs";
 import { check } from "./build-dungeons-addon.mjs";
 import { releaseMetadata } from "./release-metadata.mjs";
+import { releaseSource } from "./release-source.mjs";
 
 // Packaging baselines, not client acceptance. Release operators can supply the
 // observed GetBuildInfo() interface with --interface=classic-era:11508.
@@ -52,7 +52,9 @@ export function buildEditionPackages(args=process.argv.slice(2)) {
     apis[match[1]]=Number(match[2]);
   }
   const dir="dist/editions"; mkdirSync(dir,{recursive:true});
-  const manifest={sourceCommit:execFileSync("git",["rev-parse","HEAD"],{encoding:"utf8"}).trim(),dirty:Boolean(execFileSync("git",["status","--porcelain"],{encoding:"utf8"}).trim()),clientAcceptance:"pending",packages:[]};
+  const sourceState=releaseSource();
+  if(process.env.CI && sourceState.sourceDirty) throw new Error(`CI packaging changed source: ${[...sourceState.changedPaths,...sourceState.untrackedPaths].join(", ")}`);
+  const manifest={sourceCommit:sourceState.sourceCommit,dirty:sourceState.sourceDirty,clientAcceptance:"pending",packages:[]};
   for(const edition of GAME_EDITIONS) for(const addon of ["Guilded","GuildedDungeons"]) {
     const {packed,...record}=packageEdition(addon,edition,apis[edition]);
     writeFileSync(join(dir,record.filename),packed); manifest.packages.push(record);

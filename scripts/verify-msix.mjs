@@ -49,7 +49,7 @@ try {
     assert.equal(unescape(manifest.match(/\bPublisher=["']([^"']+)["']/)?.[1]), identity.publisher, "Store publisher mismatch");
     assert.equal(unescape(manifest.match(/<PublisherDisplayName>([^<]+)<\/PublisherDisplayName>/)?.[1]), identity.publisherDisplayName, "Store display publisher mismatch");
   }
-  for (const path of ["main.cjs", "store-config.cjs", "preload.cjs", "renderer/app.js", "renderer/index.html", "locales/fr.json", "grm-import.cjs"])
+  for (const path of ["main.cjs", "store-config.cjs", "preload.cjs", "renderer/app.js", "renderer/index.html", "locales/fr.json", "grm-import.cjs", "loot-history-import.cjs", "ipc-security.cjs"])
     assert.deepEqual(extractFile(asar, path), readFileSync(`companion-app/${path}`), `Stale package: ${path}`);
   console.log(JSON.stringify({ file: resolve(file), bytes: raw.length, sha256: createHash("sha256").update(raw).digest("hex"), version, preview: packaged.guildedStorePreview,
     manifestAndSourcesVerified: true, installed: false, storeCertified: false }, null, 2));

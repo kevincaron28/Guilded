@@ -1,7 +1,8 @@
 # Automatic sync and linked accounts — implementation handoff
 
 Scope: the owner's requested items 1–4. Source branch:
-`codex/automatic-sync-battlenet`, based on main `53b0901`.
+`codex/automatic-sync-battlenet`, initially based on main `53b0901`, then merged
+with `daf0d4b` to include the candidate, Claude's edition work and merged dependency updates.
 
 ## Delivered behavior
 
@@ -34,13 +35,13 @@ providers would not remove these limits.
 
 ## Coordination and release order
 
-The release chat owns PR #266, `codex/nov4-release-candidate`, targeting the next
-coordinated version. Claude owns edition routing/navigation in PR #268 and the
-separate melee/ranged raid work. This branch does not modify their site, Worker,
+The release chat prepared PR #266, `codex/nov4-release-candidate`, for 8.1.0;
+it is now merged. Claude's edition routing/navigation PR #268 is also merged,
+and the separate melee/ranged raid work is PR #269. This branch does not modify their site, Worker,
 navigation, raid or web-auth implementation. Schema additions are independent;
 this branch reserves migration `20261127000000`, after Claude's `20261126000000`.
 
-Review and merge the feature PR, then refresh the release candidate against the
+Review and merge the feature PR, then validate the release candidate against the
 combined source and rerun its exact-commit checks and packaging. Apply migration
 and backend routes before distributing clients. Do not publish a second 8.0.2,
 modify existing release assets, or bump this feature branch's version separately.

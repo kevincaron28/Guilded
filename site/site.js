@@ -182,22 +182,49 @@ if (live) {
     });
   }
 }
-// Forever launch countdown on the home page (a fixed UTC moment, so it is right in every time zone).
+// Forever launch countdown: a fixed UTC moment, so it is right in every time zone.
 {
   const box = document.querySelector('[data-launch]');
   if (box) {
     const launch = Date.parse(box.dataset.launch);
+    const start = launch - 30 * 864e5;
+    const units = Object.fromEntries([...box.querySelectorAll('[data-unit]')].map(el => [el.dataset.unit, el]));
+    const sr = box.querySelector('[data-countdown-sr]');
+    const bar = box.querySelector('[data-countdown-progress]');
+    const local = box.querySelector('[data-countdown-local]');
+    const pad = n => String(n).padStart(2, '0');
+    let lastMinute = -1;
+    const set = (key, value) => {
+      const el = units[key];
+      if (el.textContent === value) return;
+      el.textContent = value;
+      el.classList.remove('flip');
+      void el.offsetWidth;
+      el.classList.add('flip');
+    };
     const render = () => {
       const fr = document.documentElement.lang === 'fr';
-      const left = launch - Date.now();
-      if (left <= 0) { box.textContent = box.dataset[fr ? 'frAfter' : 'enAfter']; return false; }
-      const days = Math.floor(left / 864e5);
-      const hours = Math.floor(left % 864e5 / 36e5);
-      const minutes = Math.floor(left % 36e5 / 6e4);
-      box.textContent = `${box.dataset[fr ? 'frBefore' : 'enBefore']} ${days} ${fr ? 'j' : 'd'} ${hours} h ${minutes} min`;
+      const left = Math.max(0, launch - Date.now());
+      const parts = { days: Math.floor(left / 864e5), hours: Math.floor(left % 864e5 / 36e5), minutes: Math.floor(left % 36e5 / 6e4), seconds: Math.floor(left % 6e4 / 1e3) };
+      for (const key of Object.keys(parts)) set(key, pad(parts[key]));
+      bar.style.width = `${Math.min(100, Math.max(0, (Date.now() - start) / (launch - start) * 100)).toFixed(2)}%`;
+      const when = new Intl.DateTimeFormat(fr ? 'fr-CA' : 'en-CA', { dateStyle: 'full', timeStyle: 'short' }).format(launch);
+      local.textContent = `${fr ? 'Ouverture à votre heure locale' : 'Opens at your local time'} : ${when}`;
+      if (parts.minutes !== lastMinute) {
+        lastMinute = parts.minutes;
+        sr.textContent = left ? `${fr ? 'Ouverture dans' : 'Opens in'} ${parts.days} ${fr ? 'jours' : 'days'}, ${parts.hours} ${fr ? 'heures' : 'hours'}, ${parts.minutes} minutes.` : (fr ? 'WoW Forever est ouvert.' : 'WoW Forever is live.');
+      }
+      if (!left) { box.classList.add('is-live'); box.querySelector('h2').textContent = fr ? 'WoW Forever est ouvert.' : 'WoW Forever is live.'; return false; }
       return true;
     };
     box.hidden = false;
-    if (render()) setInterval(render, 5000);
+    if (render()) { const timer = setInterval(() => { if (!render()) clearInterval(timer); }, 1000); }
+    box.querySelector('[data-add-calendar]').addEventListener('click', () => {
+      const stamp = d => new Date(d).toISOString().replace(/[-:]|\.\d{3}/g, '');
+      const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Guilded//Forever launch//EN', 'BEGIN:VEVENT', 'UID:forever-launch@guilded.kcaron.top', `DTSTAMP:${stamp(Date.now())}`, `DTSTART:${stamp(launch)}`, `DTEND:${stamp(launch + 36e5)}`, 'SUMMARY:WoW Forever launch', 'DESCRIPTION:Install Guilded before launch: https://guilded.kcaron.top/forever/', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+      const link = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new window.Blob([ics], { type: 'text/calendar' })), download: 'wow-forever-launch.ics' });
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    });
   }
 }

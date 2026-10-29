@@ -222,16 +222,20 @@ const STRINGS = {
   "pair.verifyTitle": { en: "🎮 Link your characters: 1 step", fr: "🎮 Lier tes personnages : 1 étape" },
   "pair.verifyCompanionTitle": { en: "🎮 No companion? 1 step instead", fr: "🎮 Pas de compagnon ? 1 étape à la place" },
   "pair.verify": {
-    en: "Copy this line, paste it in WoW chat on any of your characters and press Enter:\n```\n/guilded verify {code}\n```That's all. Every character you play on this WoW account links itself, the first one as your main. It happens the next time an officer's Guilded syncs (usually the same day) and I'll send you a DM. Once is enough, also for alts.",
-    fr: "Copie cette ligne, colle-la dans le chat de WoW sur n'importe lequel de tes personnages et appuie sur Entrée :\n```\n/guilded verify {code}\n```C'est tout. Chaque personnage que tu joues sur ce compte WoW se lie tout seul, le premier comme principal. Ça se fait à la prochaine synchro Guilded d'un officier (souvent le jour même) et je t'envoie un MP. Une fois suffit, aussi pour les alts."
+    en: "Copy this line, paste it in WoW chat on any of your characters and press Enter:\n```\n/guilded verify {code}\n```That's all. Every character you play on this WoW account links itself, the first one as your main. It happens the next time anyone in the guild syncs with the Guilded companion (often within the hour) and I'll send you a DM. Once is enough, also for alts.",
+    fr: "Copie cette ligne, colle-la dans le chat de WoW sur n'importe lequel de tes personnages et appuie sur Entrée :\n```\n/guilded verify {code}\n```C'est tout. Chaque personnage que tu joues sur ce compte WoW se lie tout seul, le premier comme principal. Ça se fait à la prochaine synchro d'un membre de la guilde avec le compagnon Guilded (souvent en moins d'une heure) et je t'envoie un MP. Une fois suffit, aussi pour les alts."
   },
   "pair.verifySlow": {
-    en: "⏳ No officer's companion has synced in 2 weeks, so this can take longer. Can't wait? In WoW type `/guilded character`, then paste that line into `/character import` here.",
-    fr: "⏳ Aucun compagnon d'officier n'a synchronisé depuis 2 semaines, ça peut donc prendre plus de temps. Pressé ? Dans WoW tape `/guilded character`, puis colle cette ligne dans `/character import` ici."
+    en: "⏳ No officer's companion has synced in 2 weeks, so this can take longer if guildmates don't use the companion either. Can't wait? In WoW type `/guilded character`, then paste that line into `/character import` here.",
+    fr: "⏳ Aucun compagnon d'officier n'a synchronisé depuis 2 semaines, ça peut donc prendre plus de temps si tes coéquipiers n'utilisent pas le compagnon non plus. Pressé ? Dans WoW tape `/guilded character`, puis colle cette ligne dans `/character import` ici."
   },
   "verify.linked": {
     en: "✅ **{name}** is now linked to your Discord account on **{server}** as {kind} (your `/guilded verify` code). Not your character? Use `/character unlink` there.",
     fr: "✅ **{name}** est maintenant lié à ton compte Discord sur **{server}** comme {kind} (ton code `/guilded verify`). Ce n'est pas ton personnage ? Utilise `/character unlink` là-bas."
+  },
+  "verify.moved": {
+    en: "**{name}** was unlinked from your Discord account on **{server}**: an officer's Guilded heard another member's `/guilded verify` code from that character. If it is yours, ask an officer.",
+    fr: "**{name}** a été délié de ton compte Discord sur **{server}** : le Guilded d'un officier a reçu le code `/guilded verify` d'un autre membre depuis ce personnage. S'il est à toi, demande à un officier."
   },
   "verify.taken": {
     en: "**{name}** sent your `/guilded verify` code, but it is already linked to someone else on **{server}**. Ask an officer to move it to you.",

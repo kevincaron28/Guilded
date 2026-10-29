@@ -1,5 +1,8 @@
 # Guilded launch audit and November 4 plan
 
+> Current evidence: [release checkpoint](NOV4_RELEASE_STATUS.md). The original
+> findings below retain the audit-time state; resolved issues are not new blockers.
+
 > Update: the public-origin blocker was fixed and verified after this audit.
 > See [resolution and production evidence](LAUNCH_BLOCKER_RESOLUTION_2026-10-29.md).
 > PRs #263 and #265 are merged; the confirmed loot-history importer is complete

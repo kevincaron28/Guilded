@@ -51,6 +51,13 @@ Details: [hosted bot guide](/docs/HOSTED_PILOT.html).
 Raid cores and GP prices: `/core setup`, `/core edit` and `/core items`. The [EP/GP guide](/docs/EPGP_GUIDE.html)
 walks through a full raid night.
 
+In the [online companion](/companion/?tab=pricing), **Raid prices** lets officers
+review editable December slot prices and explicitly enable the preset for a core.
+Existing pools keep their rules until an officer chooses to change them.
+**Leaderboards** shows raid priority and dungeon scores. Use matching 8.1.0
+candidate clients for the new in-game pricing flow; stable downloads remain
+separately labelled until the November 4 release.
+
 ## Already using Raid-Helper?
 
 Keep it. Both bots can share a server. Guilded's EP/GP, loot and standings come from the addon in

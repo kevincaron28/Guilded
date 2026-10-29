@@ -55,6 +55,14 @@ Détails : [guide du bot hébergé](/docs/HOSTED_PILOT.html#fr).
 Cores de raid et prix en GP : `/core setup`, `/core edit` et `/core items`. Le
 [guide EP/GP](/docs/EPGP_GUIDE.html#fr) décrit une soirée de raid complète.
 
+Dans le [compagnon en ligne](/companion/?tab=pricing&lang=fr), **Prix de raid**
+permet aux officiers de consulter les prix modifiables par emplacement et
+d’activer explicitement le préréglage de décembre pour un core. Les réserves
+existantes conservent leurs règles tant qu’un officier ne les modifie pas.
+**Classements** affiche la priorité de raid et les scores de donjon. Utilisez
+les clients candidats 8.1.0 correspondants pour le nouveau flux de prix en jeu;
+les téléchargements stables restent indiqués séparément jusqu’au 4 novembre.
+
 ## Vous utilisez déjà Raid-Helper ?
 
 Gardez-le. Les deux bots peuvent partager un serveur. L'EP/GP, le butin et les classements de

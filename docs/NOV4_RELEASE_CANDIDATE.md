@@ -1,5 +1,9 @@
 # November 4 release candidate — 29 October 2026
 
+> Current deployment, prerelease and remaining gates are recorded in
+> [the release checkpoint](NOV4_RELEASE_STATUS.md). The preparation observations
+> below are historical; they do not override that newer checkpoint.
+
 ## Candidate scope
 
 Version **8.1.0**, channel **candidate**, protocol **2**. Target: 4 November 2026 in America/Toronto. Preparation branch: `codex/nov4-release-candidate`, based on merged main `53b0901a8ca6670155a1a8d53b543e7f19df3a33`. The final PR head and its exact-source CI identify the candidate; any later source change invalidates that evidence until rechecked.

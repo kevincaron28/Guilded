@@ -1,8 +1,9 @@
-> CURRENT SOURCE — 8.1.0 candidate for November 4; not published or deployed.
+> CURRENT SOURCE — 8.1.0 candidate for November 4; backend deployed, GitHub prerelease available.
+> Current checkpoint: docs/NOV4_RELEASE_STATUS.md; stable client providers remain 8.0.2.
 > Candidate gates: docs/NOV4_RELEASE_CANDIDATE.md.
 > Published release remains 8.0.2; preserve all existing provider bytes.
 > Published GitHub/client source: f7ca4c4, protocol 2; preserve all published bytes.
-> Running bot: main a42b6e5 after the October 29 website/origin reliability update.
+> Running bot: 6bdc80e after the October 29 pricing/leaderboard deployment.
 > GitHub's 21 assets and anonymous download hashes are verified.
 > All ten CurseForge 8.0.2 files are approved and their downloads match GitHub.
 > Store Submission 4 (8.0.2.0) is published and installed. Signature/certificate chain,

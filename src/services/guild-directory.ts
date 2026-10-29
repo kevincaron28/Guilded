@@ -2,7 +2,7 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { GAME_EDITIONS } from "../../companion/game-edition.mjs";
 import { currentEdition } from "./edition-context.js";
 import { factionLabel, FACTIONS, languageLabel } from "./recruitment.js";
-import { escapeHtml, link, options } from "./web-layout.js";
+import { editionSelect, escapeHtml, link, options } from "./web-layout.js";
 import type { WebContext, WebKit, WebRoute } from "./web-app.js";
 
 // /recruitment/guilds/: every guild a player can find on Guilded, in one list (the "Guilds" menu
@@ -82,7 +82,7 @@ export function createGuildDirectory(store: GuildDirectoryStore): { route: WebRo
     const any = { value: "", label: t("Any", "Tous") };
     return `<form class="filters" method="get" action="/recruitment/guilds/"><input type="hidden" name="lang" value="${lang}">`
       + `<div><label for="q">${t("Guild name", "Nom de la guilde")}</label><input id="q" name="q" type="search" maxlength="${QUERY_MAX}" value="${escapeHtml(filters.q)}"></div>`
-      + `<div><label for="edition">WoW</label><select id="edition" name="edition">${options(GAME_EDITIONS.map((value) => ({ value, label: value })), currentEdition())}</select></div>`
+      + editionSelect(lang)
       + `<div><label for="faction">${t("Faction", "Faction")}</label><select id="faction" name="faction">${options([any, ...FACTIONS.map((value) => ({ value, label: factionLabel(value, lang) }))], filters.faction)}</select></div>`
       + `<div><label for="language">${t("Language", "Langue")}</label><select id="language" name="language">${options([any, { value: "en", label: languageLabel("en", lang) }, { value: "fr", label: languageLabel("fr", lang) }], filters.language)}</select></div>`
       + `<div><label class="check-label"><input type="checkbox" id="recruiting" name="recruiting" value="1"${filters.recruiting ? " checked" : ""}><span>${t("Recruiting now", "Recrute en ce moment")}</span></label></div>`

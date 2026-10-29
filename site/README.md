@@ -7,6 +7,19 @@ Analytics is off until a beacon token is set in `site/analytics.json` (see
 `docs/SITE_RELIABILITY_2026-10-29.md`). Its companion
 link now uses the same website address; see `docs/UNIFIED_SITE.md`.
 
+## One section per WoW edition
+
+Each edition has its own section: `/forever/`, `/classic-era/`, `/tbc/`, `/mists/` and
+`/retail/` (list: `EDITION_SECTIONS` in `site/nav.mjs`). The section's hub page is built from
+`site/editions.mjs` (`editionHubs`): its leaderboard first, then its download, guilds and
+first steps. Its data pages (`/retail/leaderboards/...`, `/retail/recruitment/...`,
+`/retail/players/...`) are the bot's pages: the Worker sends `/leaderboards/...?edition=retail`
+to the bot. The header's "Playing: …" switcher opens the same kind of page in another edition.
+The Worker remembers the last edition in a `guilded_edition` cookie (no personal data), so
+`/leaderboards/` opens that edition (Forever by default), and it moves older `?edition=` links
+into their section. The signed-in `/me/` page stays outside the sections. `/editions/<id>/`
+keeps each edition's download and install steps.
+
 ## Build and preview
 
 From the repository root, with Node 24 and dependencies installed:

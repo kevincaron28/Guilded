@@ -3,8 +3,8 @@ import { readFileSync, writeFileSync, mkdirSync, copyFileSync, cpSync, existsSyn
 import { dirname, posix } from "node:path";
 import { createHash } from "node:crypto";
 import { marked } from "marked";
-import { editionHref, localizedHref, NAV_GROUPS, navLinks } from "../site/nav.mjs";
-import { editionCards, editionPages } from "../site/editions.mjs";
+import { EDITION_SECTIONS, editionHref, editionMenu, editionSection, editionSwitchHref, localizedHref, NAV_GROUPS, navLinks } from "../site/nav.mjs";
+import { editionCards, editionHubs, editionPages } from "../site/editions.mjs";
 
 const guides = ["PRIVACY", "HOSTED_PILOT", "SUPPORT_GUILDED", "OWNER_WALKTHROUGH", "QUICK_START", "MEMBER_INSTALL", "DUNGEONS_GUIDE", "EPGP_GUIDE", "GUILD_OWNER_SETUP", "DEPLOY_ORACLE", "AI_SETUP_HELP", "ONLINE_COMPANION_CHECK"];
 const origin = "https://guilded.kcaron.top";
@@ -43,9 +43,19 @@ const renderVersions = content => content.replaceAll("{{GUILDED_VERSION}}", vers
 // Static pages link relative to the site root (so a project subpath works); bot pages stay absolute.
 const staticHref = prefix => item => item.bot || item.key === "companion" || /^https?:/.test(item.href) ? item.href : prefix + item.href.slice(1);
 const bilingualLabel = ({ en, fr }) => en === fr ? en : `<span data-en="${en}" data-fr="${fr}">${en}</span>`;
-const homeNav = navLinks({ href: staticHref(""), label: bilingualLabel, groupLabel: key => bilingualLabel(NAV_GROUPS[key]) });
+// The header's WoW version switcher (site/nav.mjs). A page of one edition shows "Playing: Retail";
+// elsewhere it reads "Your WoW" until site.js finds the visitor's remembered edition.
+const versionMenu = (path, edition, { french = false, bilingual = false } = {}) => {
+  const label = (en, fr) => bilingual ? bilingualLabel({ en, fr }) : french ? fr : en;
+  const section = editionSection(edition);
+  const title = section ? `${label("Playing:", "Je joue à :")} <strong>${label(section.en, section.fr)}</strong>`
+    : `<span data-edition-none>${label("Your WoW", "Votre WoW")}</span><span data-edition-playing hidden>${label("Playing:", "Je joue à :")} <strong></strong></span>`;
+  return editionMenu({ current: section?.id ?? null, title, label: other => label(other.en, other.fr), href: other => editionSwitchHref(path, other.id) });
+};
+const homeNav = versionMenu("/", null, { bilingual: true }) + navLinks({ href: staticHref(""), label: bilingualLabel, groupLabel: key => bilingualLabel(NAV_GROUPS[key]) });
 for (const name of ["index.html", "style.css", "site.js", "design-tokens.css", "atelier.css", "language.js", "nav.mjs"]) {
-  const content = renderVersions(readFileSync(`site/${name}`, "utf8")).replace("{{SITE_NAV}}", homeNav).replace("{{EDITION_CARDS}}", editionCards());
+  // The home page's version cards open each edition's hub (/forever/, /retail/...).
+  const content = renderVersions(readFileSync(`site/${name}`, "utf8")).replace("{{SITE_NAV}}", homeNav).replace("{{EDITION_CARDS}}", editionCards({ hubs: true }));
   writeFileSync(`${out}/${name}`, content);
 }
 cpSync("site/fonts", `${out}/fonts`, { recursive: true });
@@ -76,7 +86,7 @@ cpSync("docs/images/owner-setup", `${out}/docs/images/owner-setup`, { recursive:
 const escape = text => text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");
 const siteNav = (prefix, { french = false, current = null, bilingual = false, edition = null } = {}) => navLinks({ href: item => french ? localizedHref(editionHref(staticHref(prefix)(item), edition), "fr") : editionHref(staticHref(prefix)(item), edition), current, label: item => bilingual ? bilingualLabel(item) : french ? item.fr : item.en, groupLabel: key => bilingual ? bilingualLabel(NAV_GROUPS[key]) : NAV_GROUPS[key][french ? "fr" : "en"] });
 const languageControls = `<div class="language-switch" role="group" aria-label="Language / Langue"><button type="button" data-set-language="en" aria-pressed="true">EN</button><button type="button" data-set-language="fr" aria-pressed="false">FR</button></div>`;
-const siteHeader = (prefix, french = false, current = null, bilingual = false, edition = null) => `<header class="site-header"><div class="header-inner"><a class="brand" href="${prefix}${french ? 'quebec-gold/' : 'index.html'}"><img src="${prefix}logo-88.webp" alt="" width="44" height="44"><span>${french ? 'QUEBEC GOLD' : 'GUILDED'}<span class="brand-caption">${french ? 'ON SE RETROUVE EN JEU.' : bilingual ? '<span data-en="YOUR GUILD, CONNECTED." data-fr="VOTRE GUILDE, CONNECTÉE.">YOUR GUILD, CONNECTED.</span>' : 'YOUR GUILD, CONNECTED.'}</span></span></a><button class="menu-toggle" type="button" aria-controls="main-navigation" aria-expanded="false" hidden>Menu <span aria-hidden="true">☰</span></button><nav id="main-navigation" aria-label="${french ? 'Navigation principale' : 'Main navigation'}"${bilingual ? ' data-label-en="Main navigation" data-label-fr="Navigation principale"' : ""}>${siteNav(prefix, { french, current, bilingual, edition })}${bilingual ? languageControls : ""}</nav></div></header>`;
+const siteHeader = (prefix, french = false, current = null, bilingual = false, edition = null, path = "/") => `<header class="site-header"><div class="header-inner"><a class="brand" href="${prefix}${french ? 'quebec-gold/' : 'index.html'}"><img src="${prefix}logo-88.webp" alt="" width="44" height="44"><span>${french ? 'QUEBEC GOLD' : 'GUILDED'}<span class="brand-caption">${french ? 'ON SE RETROUVE EN JEU.' : bilingual ? '<span data-en="YOUR GUILD, CONNECTED." data-fr="VOTRE GUILDE, CONNECTÉE.">YOUR GUILD, CONNECTED.</span>' : 'YOUR GUILD, CONNECTED.'}</span></span></a><button class="menu-toggle" type="button" aria-controls="main-navigation" aria-expanded="false" hidden>Menu <span aria-hidden="true">☰</span></button><nav id="main-navigation" aria-label="${french ? 'Navigation principale' : 'Main navigation'}"${bilingual ? ' data-label-en="Main navigation" data-label-fr="Navigation principale"' : ""}>${versionMenu(path, edition, { french, bilingual })}${siteNav(prefix, { french, current, bilingual, edition })}${bilingual ? languageControls : ""}</nav></div></header>`;
 for (const source of sources) {
   const md = readFileSync(source, "utf8");
   const title = md.match(/^# (.+)$/m)?.[1] || "Guilded guide";
@@ -101,9 +111,10 @@ for (const source of sources) {
 }
 // Public content is explicitly curated; never import guild/database data here.
 
-const pages = [...JSON.parse(readFileSync("site/pages.json", "utf8")), ...editionPages(version, publishedGuilded.curseforge)];
-// The bot-served public pages too; published guild pages have their own sitemap, served by the bot.
-const publicUrls = ["/", ...guides.map(name => `/docs/${name}`), "/leaderboards/", "/leaderboards/guilds/", "/recruitment/", "/recruitment/guilds/", "/players/"];
+const pages = [...JSON.parse(readFileSync("site/pages.json", "utf8")), ...editionPages(version, publishedGuilded.curseforge), ...editionHubs(version, publishedGuilded.curseforge)];
+// The bot-served public pages too, in each edition's section; published guild pages have their
+// own sitemap, served by the bot.
+const publicUrls = ["/", ...guides.map(name => `/docs/${name}`), ...EDITION_SECTIONS.flatMap(({ slug }) => ["leaderboards/", "leaderboards/guilds/", "recruitment/", "recruitment/guilds/", "players/"].map(page => `/${slug}/${page}`))];
 for (const page of pages) {
   const prefix = "../".repeat(page.path.split("/").filter(Boolean).length);
   const french = page.lang === "fr";
@@ -117,7 +128,7 @@ for (const page of pages) {
   mkdirSync(`${out}/${page.path}`, { recursive: true });
   writeFileSync(`${out}/${page.path}index.html`, `<!doctype html>
 <html lang="${page.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#111312"><title${bilingual ? ` data-en="${escape(page.title)}" data-fr="${escape(page.titleFr)}"` : ""}>${escape(page.title)}</title><meta name="description" content="${escape(page.description)}"${descriptionAttributes}><link rel="canonical" href="${origin}/${page.path}">${page.draft ? '<meta name="robots" content="noindex,follow">' : ''}<meta property="og:title" content="${escape(page.title)}"${titleAttributes}><meta property="og:description" content="${escape(page.description)}"${descriptionAttributes}><meta property="og:type" content="website"><meta property="og:url" content="${origin}/${page.path}"><meta property="og:image" content="${origin}/images/social/guilded-card.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><link rel="icon" href="${prefix}favicon.png" type="image/png"><link rel="apple-touch-icon" href="${prefix}apple-touch-icon.png"><link rel="stylesheet" href="${prefix}design-tokens.css"><link rel="stylesheet" href="${prefix}style.css"><link rel="stylesheet" href="${prefix}atelier.css"><script src="${prefix}site.js" defer></script>${bilingual ? `<script src="${prefix}language.js" type="module"></script>` : ""}</head>
-<body class="site-page ${page.path.startsWith('editions/') ? 'edition-page' : french ? 'community-page' : 'features-page'}"><a class="skip" href="#main">${pageText('Skip to content', 'Aller au contenu')}</a>${siteHeader(prefix, french, page.path.startsWith('editions/') ? 'download' : { 'features/': 'features', 'officers/': 'officers', 'forever/': 'forever' }[page.path] ?? null, bilingual, page.gameEdition)}<main class="guide recruitment" id="main" tabindex="-1">${communityNav}${page.draft ? '<aside class="note"><strong>Aperçu de recrutement</strong><p>Les informations de guilde et le contact public restent à confirmer avant publication.</p></aside>' : ''}${body}</main><footer class="page-footer"><a href="${prefix}index.html">Guilded · ${pageText('The product', 'Le produit')}</a><a href="${prefix}quebec-gold/">Quebec Gold · ${pageText('The community', 'La communauté')}</a><a href="https://kcaron.top/">${pageText('By', 'Par')} KCaron ↗</a><a href="https://ko-fi.com/wowguilded">${pageText('Buy me a coffee', 'Offrir un café')} ↗</a><p>${pageText('Independent project, not affiliated with Blizzard Entertainment or Grinding Gear Games.', 'Site indépendant, sans affiliation avec Blizzard Entertainment ou Grinding Gear Games.')}</p></footer></body></html>`);
+<body class="site-page ${page.hub ? 'edition-page hub-page' : page.path.startsWith('editions/') ? 'edition-page' : french ? 'community-page' : 'features-page'}"><a class="skip" href="#main">${pageText('Skip to content', 'Aller au contenu')}</a>${siteHeader(prefix, french, page.path.startsWith('editions/') ? 'download' : { 'features/': 'features', 'officers/': 'officers', 'forever/': 'forever' }[page.path] ?? null, bilingual, page.gameEdition, `/${page.path}`)}<main class="guide recruitment" id="main" tabindex="-1">${communityNav}${page.draft ? '<aside class="note"><strong>Aperçu de recrutement</strong><p>Les informations de guilde et le contact public restent à confirmer avant publication.</p></aside>' : ''}${body}</main><footer class="page-footer"><a href="${prefix}index.html">Guilded · ${pageText('The product', 'Le produit')}</a><a href="${prefix}quebec-gold/">Quebec Gold · ${pageText('The community', 'La communauté')}</a><a href="https://kcaron.top/">${pageText('By', 'Par')} KCaron ↗</a><a href="https://ko-fi.com/wowguilded">${pageText('Buy me a coffee', 'Offrir un café')} ↗</a><p>${pageText('Independent project, not affiliated with Blizzard Entertainment or Grinding Gear Games.', 'Site indépendant, sans affiliation avec Blizzard Entertainment ou Grinding Gear Games.')}</p></footer></body></html>`);
   if (!page.draft) publicUrls.push(`/${page.path}`);
 }
 writeFileSync(`${out}/sitemap.xml`, `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${publicUrls.map(path => `<url><loc>${origin}${path}</loc></url>`).join('')}</urlset>\n`);

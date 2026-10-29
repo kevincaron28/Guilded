@@ -201,14 +201,14 @@ describe("leaderboard and personal pages", () => {
     expect(kev.body).toContain('class="meter"');
     // A pasted link previews the season score and the logo (Discord reads Open Graph tags).
     expect(kev.body).toMatch(/<meta property="og:description" content="Kev-Doomhowl: dungeon score \d+ \([^"]+\) · Season 1 · Guilded leaderboards\.">/);
-    expect(kev.body).toContain('<meta property="og:image" content="https://guilded.kcaron.top/leaderboards/character/Kev-Doomhowl/card.png?lang=en">');
+    expect(kev.body).toContain('<meta property="og:image" content="https://guilded.kcaron.top/forever/leaderboards/character/Kev-Doomhowl/card.png?lang=en">');
     expect(home.body).toContain('<meta property="og:title" content="');
     expect(home.body).toContain("Top guilds");
-    expect(home.body).toContain('href="/leaderboards/guilds/?');
+    expect(home.body).toContain('href="/forever/leaderboards/guilds/?');
     const guilds = await request("GET", "/leaderboards/guilds/?lang=fr");
     expect(guilds.status).toBe(200);
     expect(guilds.body).toContain("Classement des guildes");
-    expect(guilds.body).toMatch(/<td>1<\/td><td><a href="\/leaderboards\/guild\/g1\?lang=fr">Quebec Gold<\/a>/);
+    expect(guilds.body).toMatch(/<td>1<\/td><td><a href="\/forever\/leaderboards\/guild\/g1\?lang=fr">Quebec Gold<\/a>/);
     expect(guilds.body).toContain('href="/g/quebec-gold/"');
     expect(guilds.body).toContain('class="crumbs"');
     const season = await request("GET", "/leaderboards/guild/g1/");

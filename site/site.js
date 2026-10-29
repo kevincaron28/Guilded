@@ -95,11 +95,25 @@ document.addEventListener('keydown', event => {
   if (open) { open.open = false; open.querySelector('summary').focus(); }
 });
 
-// "This week on Guilded": public numbers from the bot (/leaderboards/summary.json, no player
-// names). The section stays hidden when they cannot load, e.g. in the static preview.
+// The header's version switcher outside an edition's pages: show the visitor's remembered WoW
+// version (the guilded_edition cookie the website sets in /forever/, /retail/...).
+const remembered = /(?:^|;\s*)guilded_edition=([a-z-]{1,20})/.exec(document.cookie)?.[1];
+for (const menu of document.querySelectorAll('.edition-menu')) {
+  const choice = remembered && menu.querySelector(`a[data-edition="${remembered}"]`);
+  const playing = menu.querySelector('[data-edition-playing]');
+  if (!choice || !playing) continue;
+  playing.querySelector('strong').innerHTML = choice.innerHTML;
+  playing.hidden = false;
+  menu.querySelector('[data-edition-none]').hidden = true;
+}
+
+// "This week on Guilded" and each edition hub's leaderboard: public numbers from the bot
+// (summary.json, no player names). Those numbers stay hidden when they cannot load, e.g. in the
+// static preview; the hub's links to the full leaderboard still work.
 const live = document.querySelector('[data-live-summary]');
 if (live) {
-  fetch(`/leaderboards/summary.json?lang=${document.documentElement.lang === 'fr' ? 'fr' : 'en'}`, { headers: { accept: 'application/json' } })
+  const numbers = live.querySelector('[data-live="numbers"]') ?? live;
+  fetch(`${live.dataset.liveSummary || '/leaderboards/summary.json'}?lang=${document.documentElement.lang === 'fr' ? 'fr' : 'en'}`, { headers: { accept: 'application/json' } })
     .then(response => response.ok ? response.json() : null)
     .then(data => {
       if (!data || typeof data.ratedRunsThisWeek !== 'number') return;
@@ -116,7 +130,7 @@ if (live) {
       }));
       list.hidden = !runs.length;
       live.querySelector('[data-live="empty"]').hidden = runs.length > 0;
-      live.hidden = false;
+      numbers.hidden = false;
     })
     .catch(() => { /* the rest of the page does not depend on it */ });
 }

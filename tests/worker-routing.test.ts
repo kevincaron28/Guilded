@@ -273,7 +273,7 @@ describe("signed-in website pages (7.0)", () => {
     const login = await worker.fetch(new Request(site + "/auth/login?return=/recruitment/"), env);
     expect(login.status).toBe(302);
     expect(login.headers.get("location")).toBe(discord);
-    expect((await worker.fetch(new Request(site + "/recruitment/"), env)).status).toBe(502);
+    expect((await worker.fetch(new Request(site + "/forever/recruitment/"), env)).status).toBe(502);
     vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 302, headers: { location: "https://evil.example/oauth2/authorize" } })));
     expect((await worker.fetch(new Request(site + "/auth/login"), env)).status).toBe(502);
   });
@@ -296,9 +296,9 @@ describe("signed-in website pages (7.0)", () => {
 describe("public dungeon run uploads (7.0)", () => {
   it("proxies public player pages and the authenticated visibility form through the website boundary", async () => {
     const upstream = vi.fn<(url: string) => Promise<Response>>(async () => new Response("profile")); vi.stubGlobal("fetch", upstream);
-    const result = await worker.fetch(new Request("https://guilded.kcaron.top/players/c111111111111111111111111?lang=fr"), env);
+    const result = await worker.fetch(new Request("https://guilded.kcaron.top/retail/players/c111111111111111111111111?lang=fr"), env);
     expect(await result.text()).toBe("profile");
-    expect(upstream.mock.calls[0]![0]).toBe("https://guildedqc.duckdns.org/players/c111111111111111111111111?lang=fr");
+    expect(upstream.mock.calls[0]![0]).toBe("https://guildedqc.duckdns.org/players/c111111111111111111111111?lang=fr&edition=retail");
     const post = await worker.fetch(new Request("https://guilded.kcaron.top/me/profile", { method: "POST", headers: { origin: "https://guilded.kcaron.top", "content-type": "application/x-www-form-urlencoded" }, body: "public=false" }), env);
     expect(post.status).toBe(200);
   });
@@ -322,7 +322,7 @@ describe("unreachable bot origin", () => {
     const upstream = vi.fn<(url: string) => Promise<Response>>()
       .mockResolvedValueOnce(dnsError()).mockResolvedValueOnce(new Response("leaderboards", { headers: { "content-type": "text/html" } }));
     vi.stubGlobal("fetch", upstream);
-    const response = await worker.fetch(new Request("https://guilded.kcaron.top/leaderboards/?lang=fr", { headers: { accept: "text/html" } }), env);
+    const response = await worker.fetch(new Request("https://guilded.kcaron.top/forever/leaderboards/?lang=fr", { headers: { accept: "text/html" } }), env);
     expect(response.status).toBe(200);
     expect(await response.text()).toBe("leaderboards");
     expect(upstream).toHaveBeenCalledTimes(2);
@@ -330,12 +330,12 @@ describe("unreachable bot origin", () => {
   it("tries the configured hostname first and keeps DuckDNS as the fallback", async () => {
     const upstream = vi.fn<(url: string) => Promise<Response>>().mockResolvedValueOnce(dnsError()).mockResolvedValueOnce(new Response("ok"));
     vi.stubGlobal("fetch", upstream);
-    await worker.fetch(new Request("https://guilded.kcaron.top/players/?class=Mage"), { ...env, GUILDED_ORIGIN_URL: "https://bot.kcaron.top" });
-    expect(upstream.mock.calls.map(call => call[0])).toEqual(["https://bot.kcaron.top/players/?class=Mage", "https://guildedqc.duckdns.org/players/?class=Mage"]);
+    await worker.fetch(new Request("https://guilded.kcaron.top/forever/players/?class=Mage"), { ...env, GUILDED_ORIGIN_URL: "https://bot.kcaron.top" });
+    expect(upstream.mock.calls.map(call => call[0])).toEqual(["https://bot.kcaron.top/players/?class=Mage&edition=forever", "https://guildedqc.duckdns.org/players/?class=Mage&edition=forever"]);
     for (const invalid of ["http://bot.kcaron.top", "https://user:pass@bot.kcaron.top", "https://bot.kcaron.top/path", "not a url"]) {
       upstream.mockClear(); upstream.mockResolvedValue(new Response("ok"));
-      await worker.fetch(new Request("https://guilded.kcaron.top/players/"), { ...env, GUILDED_ORIGIN_URL: invalid });
-      expect(upstream.mock.calls[0]![0]).toBe("https://guildedqc.duckdns.org/players/");
+      await worker.fetch(new Request("https://guilded.kcaron.top/forever/players/"), { ...env, GUILDED_ORIGIN_URL: invalid });
+      expect(upstream.mock.calls[0]![0]).toBe("https://guildedqc.duckdns.org/players/?edition=forever");
     }
   });
   it("accepts the bot's canonical redirect from either address", async () => {
@@ -346,7 +346,7 @@ describe("unreachable bot origin", () => {
   });
   it("shows a branded, self-retrying page to visitors and JSON to API callers after three failures", async () => {
     const upstream = vi.fn(async () => dnsError()); vi.stubGlobal("fetch", upstream);
-    const page = await worker.fetch(new Request("https://guilded.kcaron.top/recruitment/guilds/?lang=fr", { headers: { accept: "text/html,application/xhtml+xml" } }), env);
+    const page = await worker.fetch(new Request("https://guilded.kcaron.top/tbc/recruitment/guilds/?lang=fr", { headers: { accept: "text/html,application/xhtml+xml" } }), env);
     expect(upstream).toHaveBeenCalledTimes(3);
     expect(page.status).toBe(503);
     expect(page.headers.get("retry-after")).toBe("20");
@@ -355,7 +355,7 @@ describe("unreachable bot origin", () => {
     expect(html).toContain('<html lang="fr">');
     expect(html).toContain("De retour dans un instant");
     expect(html).toContain('<meta http-equiv="refresh" content="20">');
-    expect(html).toContain('href="/recruitment/guilds/?lang=fr"');
+    expect(html).toContain('href="/tbc/recruitment/guilds/?lang=fr"');
     expect(html).not.toContain("1016");
     const api = await worker.fetch(new Request("https://guilded.kcaron.top/api/v1/standings"), env);
     expect(api.status).toBe(503);
@@ -372,5 +372,63 @@ describe("unreachable bot origin", () => {
     const lost = await worker.fetch(new Request("https://guilded.kcaron.top/api/v1/public-runs", { method: "POST", body: "{}" }), env);
     expect(lost.status).toBe(502);
     expect(failing).toHaveBeenCalledTimes(1);
+  });
+});
+
+// 29 October 2026: each WoW edition has its own section (/forever/, /classic-era/, /tbc/, /mists/,
+// /retail/), so one game's leaderboards and guilds never mix with another's.
+describe("WoW edition sections", () => {
+  const site = "https://guilded.kcaron.top";
+  const page = (path: string, headers: Record<string, string> = {}) => worker.fetch(new Request(site + path, { headers: { accept: "text/html", ...headers } }), env);
+  it("serves each hub page and remembers the edition for the next visit", async () => {
+    const hub = await page("/retail/");
+    expect(hub.status).toBe(200);
+    expect(await hub.text()).toBe("website");
+    expect(hub.headers.get("set-cookie")).toBe("guilded_edition=retail; Max-Age=31536000; Path=/; Secure; SameSite=Lax");
+    const bare = await page("/tbc?lang=fr");
+    expect(bare.status).toBe(301);
+    expect(bare.headers.get("location")).toBe("/tbc/?lang=fr");
+    expect((await worker.fetch(new Request("https://kcaron.top/retail/"), env)).headers.get("set-cookie")).toBeNull();
+  });
+  it("sends a section's data pages to the bot with that edition", async () => {
+    const upstream = vi.fn<(url: string) => Promise<Response>>(async () => new Response("board", { headers: { "content-type": "text/html" } })); vi.stubGlobal("fetch", upstream);
+    const board = await page("/mists/leaderboards/guilds/?lang=fr");
+    expect(await board.text()).toBe("board");
+    expect(upstream.mock.calls[0]![0]).toBe("https://guildedqc.duckdns.org/leaderboards/guilds/?lang=fr&edition=classic-mists");
+    expect(board.headers.get("set-cookie")).toContain("guilded_edition=mists");
+    await worker.fetch(new Request(site + "/retail/leaderboards/summary.json"), env);
+    expect(upstream.mock.calls[1]![0]).toBe("https://guildedqc.duckdns.org/leaderboards/summary.json?edition=retail");
+    upstream.mockClear();
+    // Only the public data pages exist in a section; the signed-in pages stay at /me/ and /auth/.
+    expect(await (await page("/retail/me/")).text()).toBe("website");
+    expect(await (await page("/retail/auth/login")).text()).toBe("website");
+    expect(upstream).not.toHaveBeenCalled();
+  });
+  it("moves older ?edition= links and the filter forms into the chosen section", async () => {
+    const upstream = vi.fn(); vi.stubGlobal("fetch", upstream);
+    const old = await page("/leaderboards/?edition=classic-tbc&season=s1&lang=fr");
+    expect(old.status).toBe(302);
+    expect(old.headers.get("location")).toBe("/tbc/leaderboards/?season=s1&lang=fr");
+    const form = await page("/forever/recruitment/guilds/?q=gold&edition=retail");
+    expect(form.headers.get("location")).toBe("/retail/recruitment/guilds/?q=gold");
+    expect(upstream).not.toHaveBeenCalled();
+  });
+  it("opens unsectioned pages in the remembered edition, Forever by default", async () => {
+    vi.stubGlobal("fetch", vi.fn());
+    expect((await page("/leaderboards/")).headers.get("location")).toBe("/forever/leaderboards/");
+    expect((await page("/players/?class=Mage", { cookie: "a=1; guilded_edition=mists" })).headers.get("location")).toBe("/mists/players/?class=Mage");
+    expect((await page("/recruitment/", { cookie: "guilded_edition=unknown" })).headers.get("location")).toBe("/forever/recruitment/");
+  });
+  it("leaves files, form posts and the bot's sectioned redirects alone", async () => {
+    const upstream = vi.fn<(url: string) => Promise<Response>>(async () => new Response("ok")); vi.stubGlobal("fetch", upstream);
+    await worker.fetch(new Request(site + "/leaderboards/summary.json?edition=retail"), env);
+    await worker.fetch(new Request(site + "/recruitment/guilds/sitemap.xml"), env);
+    const post = await worker.fetch(new Request(site + "/recruitment/", { method: "POST", headers: { origin: site, "content-type": "application/x-www-form-urlencoded" }, body: "edition=retail" }), env);
+    expect(post.status).toBe(200);
+    expect(upstream.mock.calls.map(call => call[0])).toEqual(["https://guildedqc.duckdns.org/leaderboards/summary.json?edition=retail", "https://guildedqc.duckdns.org/recruitment/guilds/sitemap.xml", "https://guildedqc.duckdns.org/recruitment/"]);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 303, headers: { location: "/retail/recruitment/?saved=1" } })));
+    const saved = await worker.fetch(new Request(site + "/retail/recruitment/", { method: "POST", headers: { origin: site }, body: "" }), env);
+    expect(saved.status).toBe(303);
+    expect(saved.headers.get("location")).toBe("/retail/recruitment/?saved=1");
   });
 });

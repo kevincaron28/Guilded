@@ -787,6 +787,8 @@
   "Name this connection (for example Retail guild).": "Nommez cette connexion (par exemple Guilde Retail).",
   "Finish or cancel Discord sign-in before switching connections.": "Terminez ou annulez la connexion Discord avant de changer de connexion.",
   "Type the code shown here into the sign-in page. Then choose your saved data in step 2.": "Tapez le code affiché ici sur la page de connexion. Choisissez ensuite vos données à l’étape 2.",
+  "Your browser opens: choose your server there and press Connect. Then choose your saved data in step 2.": "Votre navigateur s’ouvre : choisissez-y votre serveur et appuyez sur Relier. Choisissez ensuite vos données à l’étape 2.",
+  "Your browser opened. Choose your server there and press Connect.": "Le navigateur est ouvert. Choisissez-y votre serveur et appuyez sur Relier.",
   "Type this code on the sign-in page:": "Tapez ce code sur la page de connexion :",
   "Then choose your server or the leaderboards, press Connect, and come back here.": "Choisissez ensuite votre serveur ou les classements, appuyez sur Connecter, puis revenez ici.",
   "Your browser opened. Type {0} on the sign-in page.": "Le navigateur est ouvert. Tapez {0} sur la page de connexion.",

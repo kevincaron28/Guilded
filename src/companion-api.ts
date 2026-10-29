@@ -423,7 +423,9 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const auth = webAuthConfig(config);
         if (!auth) { json(response, 503, { error: "Sign-in with Discord is not set up on this bot. Use a pairing code instead." }); return; }
         if (!allowSignInStart(address)) { json(response, 429, { error: "Too many sign-in attempts. Try again later." }); return; }
-        const started = companionSignIn.start();
+        // The Windows app's 127.0.0.1 port (8.1): approval then needs no typed code (companion-signin.ts).
+        const startPayload = await readBody(request).catch(() => null) as { loopback?: unknown } | null;
+        const started = companionSignIn.start({ loopback: startPayload?.loopback });
         if (!started) { json(response, 503, { error: "Too many sign-ins in progress. Try again in a few minutes." }); return; }
         const page = new URL("/me/companion", auth.siteUrl);
         page.searchParams.set("request", started.requestId);
@@ -431,8 +433,8 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         return;
       }
       if (isSignInPoll) {
-        const payload = await readBody(request) as { requestId?: unknown } | null;
-        const answer = companionSignIn.poll(payload?.requestId);
+        const payload = await readBody(request) as { requestId?: unknown; proof?: unknown } | null;
+        const answer = await companionSignIn.poll(payload?.requestId, payload?.proof);
         if (answer === "pending") { json(response, 202, { status: "pending" }); return; }
         if (answer === "expired") { json(response, 410, { error: "This sign-in expired. Choose Sign in with Discord again." }); return; }
         json(response, 200, answer);

@@ -501,23 +501,31 @@ async function applyPairing(next, result) {
 registerIpc("pair-account", async (_event, next) => applyPairing(next, await engineModules.pairAccount({ ...config, ...next })));
 
 // "Sign in with Discord" (7.2): the browser opens the website, the app waits for the approval.
+// Since 8.1 the website sends the browser back to a 127.0.0.1 port with a proof: no code to type.
 let signIn = null;
+const endSignIn = (current) => { current?.controller.abort(); current?.loopback?.close(); };
 registerIpc("sign-in-start", async (_event, next) => {
-  signIn?.controller.abort();
-  const started = await engineModules.startSignIn({ ...config, ...next });
-  if (!started.ok) return started;
-  signIn = { controller: new AbortController(), started, next };
+  endSignIn(signIn);
+  signIn = null;
+  // Without a free local port the sign-in still works the 7.2 way, with the code.
+  const loopback = require("./sign-in-loopback.cjs").startSignInLoopback({ onProof: () => { if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.focus(); } } });
+  const port = await loopback.ready.catch(() => null);
+  if (!port) loopback.close();
+  const started = await engineModules.startSignIn({ ...config, ...next }, port ? { loopback: port } : {});
+  if (!started.ok) { if (port) loopback.close(); return started; }
+  signIn = { controller: new AbortController(), started, next, ...(port ? { loopback } : {}) };
   await shell.openExternal(started.url);
-  return { ok: true, confirm: started.confirm, url: started.url };
+  return { ok: true, confirm: started.confirm, url: started.url, automatic: !!port };
 });
 registerIpc("sign-in-wait", async () => {
   const current = signIn;
   if (!current) return { ok: false, message: T("Choose Sign in with Discord first.") };
-  const result = await engineModules.waitForSignIn({ ...config, ...current.next, uploadUrl: current.started.uploadUrl }, current.started.requestId, { signal: current.controller.signal });
+  const result = await engineModules.waitForSignIn({ ...config, ...current.next, uploadUrl: current.started.uploadUrl }, current.started.requestId, { signal: current.controller.signal, proof: () => current.loopback?.proof() });
+  current.loopback?.close();
   if (signIn === current) signIn = null;
   return applyPairing(current.next, result);
 });
-registerIpc("sign-in-cancel", () => { signIn?.controller.abort(); signIn = null; return { ok: true }; });
+registerIpc("sign-in-cancel", () => { endSignIn(signIn); signIn = null; return { ok: true }; });
 
 registerIpc("browse-file", async () => {
   const start = config.watchFile ? path.dirname(config.watchFile) : undefined;

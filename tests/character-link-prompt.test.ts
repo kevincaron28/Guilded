@@ -94,10 +94,10 @@ describe("private character connection instructions", () => {
     expect(fields[0]!.name).toContain("No companion?");
     expect(fields[0]!.value).toContain("/guilded verify ABCD-EFGH");
     expect(fields[1]!.value).toContain("**Sign in with Discord**");
-    expect(fields[1]!.value).toContain("short code");
+    expect(fields[1]!.value).toContain("Nothing to type");
     expect(fields[1]!.value).not.toContain("server ID");
     expect(fields[1]!.value).toContain("every alt that logged in on this PC");
-    expect(fields[1]!.value).toContain("/guilded setup connected");
+    expect(fields[1]!.value).toContain("Discord standings from your next `/reload`");
     expect(fields[2]!.value).toContain("/character list");
     const buttons = reply.components[0]!.toJSON().components;
     expect(buttons.at(-1)).toMatchObject({ custom_id: "onboard:paircode:server1" });

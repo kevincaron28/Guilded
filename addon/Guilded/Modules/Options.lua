@@ -19,7 +19,7 @@ local function run(line)
 end
 
 local setupPanel
-function module.chooseSetup(mode)
+function module.chooseSetup(mode, quiet)
   if mode ~= "local" and mode ~= "connected" then return false end
   local s = settings()
   if not s then return false end
@@ -31,9 +31,10 @@ function module.chooseSetup(mode)
     s.activeCore, s.lootMode = selection.core, selection.mode
   end
   s.setupMode = mode
+  s.setupModeAuto = nil
   if setupPanel then setupPanel:Hide() end
   if ns.onSetupChange then ns.onSetupChange() end
-  ns.message(L(mode == "local" and "In-game only selected. Your saved data and guild permissions are preserved." or "Connected setup selected. Pair the companion when you are ready; your saved data is preserved."))
+  if not quiet then ns.message(L(mode == "local" and "In-game only selected. Your saved data and guild permissions are preserved." or "Connected setup selected. Pair the companion when you are ready; your saved data is preserved.")) end
   return true
 end
 
@@ -45,6 +46,8 @@ function module.guildSetup()
   end
   local s = settings()
   if s and s.setupMode ~= "local" then module.chooseSetup("local") end
+  -- Setting up a local guild is a choice: a companion connected later must not switch it.
+  if s then s.setupModeAuto = nil end
   if setupPanel then setupPanel:Hide() end
   if ns.openToolsPage then ns.openToolsPage("Local guild") end
 end
@@ -223,19 +226,38 @@ frame:SetScript("OnEvent", function()
   if not ok and ns.logDiagnostic then ns.logDiagnostic("LUA_ERROR", "options: " .. tostring(err)) end
 end)
 
+-- Only a companion source proves a connection. Officer-shared snapshots may
+-- come from an addon-only guild and do not carry the localPublish flag.
+local function companionStandings(d)
+  return (d and d.standings and d.standings.updatedAt and d.standings.from == "companion" and not d.standings.localPublish)
+    or (type(GuildedStandings) == "table" and GuildedStandings.updatedAt)
+end
+
 function module.checkFirstRun()
   local s, d = settings(), db()
-  if not s or s.setupMode then return end
-  -- Only a companion source proves a connection. Officer-shared snapshots may
-  -- come from an addon-only guild and do not carry the localPublish flag.
-  if (d and d.standings and d.standings.updatedAt and d.standings.from == "companion" and not d.standings.localPublish)
-    or (type(GuildedStandings) == "table" and GuildedStandings.updatedAt) then
+  if not s then return end
+  if s.setupMode then
+    if s.setupMode ~= "local" or not companionStandings(d) then return end
+    if s.setupModeAuto then
+      -- In-game only was the automatic default, not the player's choice: the companion they
+      -- connected since then switches it, with no /guilded setup step (8.1).
+      module.chooseSetup("connected", true)
+      ns.message(L("Your companion is connected, so Guilded now uses your Discord standings. /guilded setup local switches back."))
+    elseif not s.connectedHintShown then
+      -- Installed before 8.1, when the default and a real choice looked the same: say it once.
+      s.connectedHintShown = true
+      ns.message(L("Your companion is sending Discord standings. To use them in game: /guilded setup connected"))
+    end
+    return
+  end
+  if companionStandings(d) then
     s.setupMode = "connected"
     return
   end
   -- Fresh/unconnected installations start working immediately without a forced chooser.
   -- Assign directly so existing local core selections and saved records remain intact.
   s.setupMode = "local"
+  s.setupModeAuto = true
   ns.message(L("Addon-only is ready. Discord linking and companion sync are optional; use /guilded setup later."))
   if ns.isOfficer and ns.isOfficer() then
     ns.message(L("Officers: /guilded setup guild walks you through creating your raid team, loot rules and roster."))

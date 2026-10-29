@@ -37,7 +37,8 @@
       "renderer/**",
       "assets/**",
       "package.json",
-      "ipc-security.cjs"
+      "ipc-security.cjs",
+      "sign-in-loopback.cjs"
     ],
     "extraResources": [
       {

@@ -1,10 +1,11 @@
-import { EmbedBuilder, type Guild as DiscordGuild } from "discord.js";
+import { ContainerBuilder, EmbedBuilder, MessageFlags, SectionBuilder, SeparatorBuilder, SeparatorSpacingSize, TextDisplayBuilder, ThumbnailBuilder, escapeMarkdown, type Guild as DiscordGuild } from "discord.js";
 import type { PrismaClient, RaidRole } from "../generated/prisma/client.js";
 import { currentEdition } from "./edition-context.js";
 import { createGuildService } from "./guild.js";
 import { applyToCoreButtonRow } from "./application.js";
 import { asLootMode, LOOT_MODE_LABEL, LOOT_MODE_LABEL_FR } from "./core-rules.js";
-import { asLang, tx, type Lang } from "../i18n.js";
+import { asLang, t, tx, type Lang } from "../i18n.js";
+import { allocate, clip, fit, SIGNUP_TEXT_LIMIT } from "./signup-layout.js";
 import { openAllCoreChannels, setupCoreDiscord, syncCoreRole } from "./core-channels.js";
 import { assertRealm, requiredRealm } from "./realm-check.js";
 import { weeklyScheduleData } from "./core-weekly-time.js";
@@ -12,6 +13,7 @@ import { CHARACTER_REQUIRED, ownedSignupCharacter } from "./signup-character.js"
 import { CHARACTER_DISPLAY_SELECT, characterDisplayLine, hasStaleGear, loadClassEmojis, staleGearNote, type ClassEmojis, type DisplayCharacter } from "./character-display.js";
 import { boundRosterEmbed, clipRosterLines } from "./roster-embed-limits.js";
 import { dpsKind } from "./dps-kind.js";
+import { gameEditionOf } from "./game-edition.js";
 
 // A trial lasts this long unless the officer picks another length (/application trial days:).
 export const DEFAULT_TRIAL_DAYS = 14;
@@ -353,6 +355,103 @@ export function coreRosterEmbed(core: CoreForEmbed, guildLootMode?: string | nul
   return boundRosterEmbed(embed);
 }
 
+// The posted roster as Discord Components V2, in the raid signup card's style (signup-layout.ts):
+// guild header, a two-per-line summary, one block per role with a count badge (DPS also split into
+// melee and ranged), then trial, bench and backup characters, the footer and the Apply button.
+// The editors' private previews keep coreRosterEmbed.
+export function coreRosterLayout(core: CoreForEmbed & { id: string }, options: { guildLootMode?: string | null; lang?: Lang; emojis?: ClassEmojis;
+  guild?: { name: string; iconUrl?: string | null }; edition?: string | null; now?: Date } = {}) {
+  const lang = options.lang ?? "en";
+  const emojis = options.emojis ?? {};
+  const now = options.now ?? new Date();
+  const fr = lang === "fr";
+  // An unknown or missing edition counts as Forever, like the rest of the bot.
+  const edition = gameEditionOf({ gameEdition: options.edition ?? "forever" });
+  const label = (entry: CoreSpot) => characterDisplayLine(coreSpotLabel(entry), entry.character, lang, emojis, now);
+  const sorted = (lines: string[]) => lines.sort((a, b) => a.localeCompare(b));
+
+  const header = [
+    options.guild ? `**${escapeMarkdown(clip(options.guild.name, 100))}**` : "",
+    `### ⚜️ ${escapeMarkdown(clip(core.name, 200))}`,
+    core.description ? clip(core.description, 500) : ""
+  ].filter(Boolean).join("\n");
+
+  const mode = asLootMode(core.lootMode ?? options.guildLootMode);
+  const reserves = mode === "RESERVE" && core.reservesPerPlayer
+    ? ` (${core.reservesPerPlayer === 1 ? tx(lang, "{n} reserve/player", { n: core.reservesPerPlayer }) : tx(lang, "{n} reserves/player", { n: core.reservesPerPlayer })})`
+    : "";
+  const facts: [string, string][] = [];
+  if (core.schedule) facts.push([`📅 ${tx(lang, "Schedule")}`, escapeMarkdown(clip(core.schedule, 120))]);
+  if (core.weeklyStartDate) facts.push([fr ? "Début des raids" : "Raids start", `${core.weeklyStartDate} · ${core.weeklyTimezone ?? ""}`]);
+  if (core.raidSize) facts.push([fr ? "Taille du raid" : "Raid size", String(core.raidSize)]);
+  facts.push([`🎲 ${tx(lang, "Loot")}`, `${fr ? LOOT_MODE_LABEL_FR[mode] : LOOT_MODE_LABEL[mode]}${reserves}`]);
+  if (core.separatePool !== undefined) facts.push([`💰 ${tx(lang, "Points")}`, core.separatePool ? tx(lang, "This core's own pool") : tx(lang, "Shared guild pool")]);
+  const summary = facts.reduce<string[]>((lines, fact, index) => {
+    const text = `**${fact[0]}** ${fact[1]}`;
+    if (index % 2) lines[lines.length - 1] += ` · ${text}`; else lines.push(text);
+    return lines;
+  }, []).join("\n");
+
+  // Role blocks: one player per line, with the class/spec details players check before a raid.
+  const badge = (icon: string, name: string, count: string) => `${icon} **\`${name}\`** \`${count}\``;
+  const ROLE_ICON: Record<RaidRole, string> = { TANK: "🛡️", HEALER: "💚", DPS: "⚔️" };
+  const mains = core.members.filter((entry) => !entry.bench && !entry.trial);
+  const roleBlocks = ROLE_ORDER.map((role) => {
+    const players = mains.filter((entry) => entry.role === role);
+    const target = { TANK: core.tankLimit, HEALER: core.healerLimit, DPS: core.dpsLimit }[role];
+    // DPS: how many play melee and ranged, from each character's spec (dps-kind.ts), as on the signup card.
+    const kinds = role === "DPS" ? players.map((entry) => entry.character ? dpsKind(entry.character.className, entry.character.spec, edition) : null) : [];
+    const split = kinds.some(Boolean) ? `⚔️ ${tx(lang, "{melee} melee · {ranged} ranged", { melee: kinds.filter((kind) => kind === "MELEE").length, ranged: kinds.filter((kind) => kind === "RANGED").length })}` : "";
+    return { heading: badge(ROLE_ICON[role], ROLE_LABELS[lang][role].replace(/^\S+\s/, ""), `${players.length}${target == null ? "" : `/${target}`}`),
+      note: split, items: sorted(players.map(label)), separator: "\n" };
+  });
+  const listBlocks: { heading: string; note: string; items: string[]; separator: string }[] = [];
+  const list = (icon: string, name: string, items: string[]) => {
+    if (items.length) listBlocks.push({ heading: badge(icon, name, String(items.length)), note: "", items: sorted(items), separator: "\n" });
+  };
+  list("🧪", tx(lang, "Trial"), core.members.filter((entry) => entry.trial && !entry.bench).map((entry) => `${label(entry)} (${ROLE_WORD[lang][entry.role]})`));
+  list("🪑", tx(lang, "Bench"), core.members.filter((entry) => entry.bench).map((entry) => `${label(entry)} (${ROLE_WORD[lang][entry.role]})`));
+  list("🔁", tx(lang, "Backup characters"), core.members.flatMap((entry) => (entry.backups ?? [])
+    .map((backup) => `${characterDisplayLine(`${entry.member.displayName} · ${backup.character.name}`, backup.character, lang, emojis, now)} (${ROLE_WORD[lang][backup.role]})`)));
+
+  const trials = core.members.filter((entry) => entry.trial && !entry.bench).length;
+  const benched = core.members.filter((entry) => entry.bench).length;
+  const people = mains.length === 1 ? tx(lang, "{count} core member", { count: mains.length }) : tx(lang, "{count} core members", { count: mains.length });
+  const stale = core.members.some((entry) => hasStaleGear(entry.character, now) || entry.backups?.some((backup) => hasStaleGear(backup.character, now)));
+  const footer = [
+    `${people}${trials ? tx(lang, " + {n} on trial", { n: trials }) : ""}${benched ? tx(lang, " + {n} on the bench", { n: benched }) : ""}`,
+    tx(lang, "core members get priority at this core's raid signups"),
+    stale ? staleGearNote(lang) : ""
+  ].filter(Boolean).map((line) => `-# ${line}`).join("\n");
+
+  // The same 4000-character budget as the signup card: every heading stays, long lists end in "+N more".
+  const blocks = [...roleBlocks, ...listBlocks];
+  const lead = (block: typeof blocks[number]) => `${block.heading}${block.note ? `\n-# ${block.note}` : ""}\n>>> `;
+  const reserve = (block: typeof blocks[number]) => block.items.length ? t(lang, "signup.more", { count: block.items.length }).length : 1;
+  const wanted = (block: typeof blocks[number]) => Math.max(0, block.items.join(block.separator).length - reserve(block));
+  const room = SIGNUP_TEXT_LIMIT - [header, summary, footer].reduce((sum, text) => sum + text.length, 0)
+    - blocks.reduce((sum, block) => sum + lead(block).length + reserve(block), 0);
+  const extra = allocate(blocks.map(wanted), room);
+  const texts = blocks.map((block, index) => `${lead(block)}${fit(block.items, block.separator, reserve(block) + extra[index]!, lang)}`);
+
+  const container = new ContainerBuilder().setAccentColor(0xd4af37);
+  const headerText = new TextDisplayBuilder().setContent(header);
+  if (options.guild?.iconUrl) {
+    container.addSectionComponents(new SectionBuilder().addTextDisplayComponents(headerText)
+      .setThumbnailAccessory(new ThumbnailBuilder().setURL(options.guild.iconUrl).setDescription(clip(options.guild.name, 100))));
+  } else container.addTextDisplayComponents(headerText);
+  const divider = () => new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small);
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(summary)).addSeparatorComponents(divider())
+    .addTextDisplayComponents(...texts.slice(0, roleBlocks.length).map((text) => new TextDisplayBuilder().setContent(text)));
+  if (listBlocks.length) {
+    container.addSeparatorComponents(divider())
+      .addTextDisplayComponents(...texts.slice(roleBlocks.length).map((text) => new TextDisplayBuilder().setContent(text)));
+  }
+  container.addSeparatorComponents(divider()).addTextDisplayComponents(new TextDisplayBuilder().setContent(footer))
+    .addActionRowComponents(applyToCoreButtonRow(core));
+  return { components: [container], flags: MessageFlags.IsComponentsV2 as const, allowedMentions: { parse: [] as never[] } };
+}
+
 // Keeps the core's roster message in the roster channel current (edit in
 // place; re-post if it was deleted). False when no roster channel is set.
 // Never throws: a failed refresh must not undo the change that caused it.
@@ -372,12 +471,16 @@ export async function syncCoreRoster(discordGuild: DiscordGuild | null, database
     if (!settings || !channelId) return false;
     const channel = await discordGuild.channels.fetch(channelId).catch(() => null);
     if (!channel?.isTextBased()) return false;
-    const payload = {
-      embeds: [coreRosterEmbed(core, settings.lootMode, asLang(settings.language), await loadClassEmojis(discordGuild))],
-      components: [applyToCoreButtonRow(core)],
-      allowedMentions: { parse: [] as never[] }
-    };
-    const existing = core.rosterMessageId ? await channel.messages.fetch(core.rosterMessageId).catch(() => null) : null;
+    const edition = (await database.guild.findUnique({ where: { id: guildId }, select: { gameEdition: true } }))?.gameEdition ?? null;
+    const payload = coreRosterLayout(core, { guildLootMode: settings.lootMode, lang: asLang(settings.language), emojis: await loadClassEmojis(discordGuild),
+      guild: { name: discordGuild.name, iconUrl: discordGuild.iconURL({ size: 128 }) }, edition });
+    let existing = core.rosterMessageId ? await channel.messages.fetch(core.rosterMessageId).catch(() => null) : null;
+    // A roster posted before 29 October 2026 is an embed; Components V2 cannot be added to it,
+    // so it is replaced by a new post (the roster is a board, not a link people keep).
+    if (existing?.editable && !existing.flags.has(MessageFlags.IsComponentsV2)) {
+      await existing.delete().catch(() => undefined);
+      existing = null;
+    }
     if (existing?.editable) {
       await existing.edit(payload);
     } else {

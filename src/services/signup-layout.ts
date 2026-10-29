@@ -27,14 +27,14 @@ const KIND_ICON: Record<DpsKind, string> = { MELEE: "🗡️", RANGED: "🏹" };
 const rowIcon = (row: { role: RaidRole; kind?: DpsKind | null }) => row.role === "DPS" && row.kind ? KIND_ICON[row.kind] : ROLE_ICON[row.role];
 const LIST_FLOOR = 200;
 
-function clip(value: string, limit: number): string {
+export function clip(value: string, limit: number): string {
   return value.length <= limit ? value : `${value.slice(0, Math.max(0, limit - 1))}…`;
 }
 
 interface Block { heading: string; note?: string; items: string[]; separator: string }
 
 // Whole entries only, never half an emoji token; what is cut becomes "+N more".
-function fit(items: string[], separator: string, budget: number, lang: Lang): string {
+export function fit(items: string[], separator: string, budget: number, lang: Lang): string {
   if (!items.length) return "—";
   const full = items.join(separator);
   if (full.length <= budget) return full;
@@ -51,7 +51,7 @@ function fit(items: string[], separator: string, budget: number, lang: Lang): st
 }
 
 // Shares the room between lists: a short list keeps all of it, the longest ones split the rest.
-function allocate(sizes: number[], total: number): number[] {
+export function allocate(sizes: number[], total: number): number[] {
   const budget = sizes.map(() => 0);
   let open = sizes.map((_, index) => index);
   let left = Math.max(0, total);

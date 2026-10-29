@@ -11,19 +11,26 @@ type Row = { id: string; source: string; guildId: string | null; userId: string 
 
 export interface InboxBug { ref: string; at: Date; guild: string; version: string | null; userId: string | null; description: string; screenshot: string | null; sourceLink: string | null }
 export interface InboxError { ref: string; source: string; message: string; count: number; first: Date; last: Date; versions: string[]; guilds: string[]; stack: string | null; origins: string[] }
-export interface Inbox { since: Date; bugs: InboxBug[]; errors: InboxError[] }
+export interface Inbox { since: Date; bugs: InboxBug[]; errors: InboxError[]; truncated?: { bugs: boolean; errors: boolean } }
 
 const groupKey = (row: Pick<Row, "source" | "message">) => `${row.source}\u0000${row.message.slice(0, 200)}`;
 
 export async function loadInbox(database: Db, options: { days?: number; now?: Date } = {}): Promise<Inbox> {
   const now = options.now ?? new Date();
   const since = new Date(now.getTime() - (options.days ?? 30) * 86_400_000);
-  const rows: Row[] = await database.errorReport.findMany({
-    where: { createdAt: { gte: since }, resolvedAt: null },
-    orderBy: { createdAt: "desc" },
-    take: 1_000,
+  // Separate budgets keep service-error bursts from hiding player submissions.
+  // One extra row detects truncation without loading the entire incident history.
+  const limit = 1_000;
+  const read = (source: string | { not: string }) => database.errorReport.findMany({
+    where: { createdAt: { gte: since }, resolvedAt: null, source },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: limit + 1,
     select: { id: true, source: true, guildId: true, userId: true, message: true, stack: true, context: true, version: true, createdAt: true }
   });
+  const bugRows = await read("bug-report");
+  const errorRows = await read({ not: "bug-report" });
+  const truncated = { bugs: bugRows.length > limit, errors: errorRows.length > limit };
+  const rows: Row[] = [...bugRows.slice(0, limit), ...errorRows.slice(0, limit)];
   const ids = [...new Set(rows.map((row) => row.guildId).filter((id): id is string => !!id))];
   const names = new Map((ids.length ? await database.guild.findMany({ where: { discordId: { in: ids } }, select: { discordId: true, name: true } }) : [])
     .map((guild) => [guild.discordId, guild.name]));
@@ -54,7 +61,7 @@ export async function loadInbox(database: Db, options: { days?: number; now?: Da
     if (!group.origins.includes(label)) group.origins.push(label);
   }
   const errors = [...groups.values()].sort((a, b) => b.count - a.count || b.last.getTime() - a.last.getTime());
-  return { since, bugs, errors };
+  return { since, bugs, errors, truncated };
 }
 
 const day = (date: Date) => date.toISOString().slice(0, 16).replace("T", " ") + " UTC";
@@ -64,10 +71,17 @@ export function renderInbox(inbox: Inbox): string {
   const out = [
     "# Guilded bug inbox",
     "",
-    `Open items since ${day(inbox.since)}: ${inbox.bugs.length} bug report(s), ${inbox.errors.length} kind(s) of bot error.`,
+    `Displayed open items since ${day(inbox.since)}: ${inbox.bugs.length} bug report(s), ${inbox.errors.length} kind(s) of bot error.`,
     "Mark fixed ones with `npm run bugs -- resolve REF [REF...] --note \"what changed\"`.",
     "This file holds members' Discord IDs and messages: keep it private (it is not committed).",
     "",
+    ...(inbox.truncated?.bugs || inbox.truncated?.errors ? [
+      "WARNING: This inbox is incomplete. Only the newest 1,000 rows per category are displayed.",
+      ...(inbox.truncated.bugs ? ["Older member reports are omitted; do not treat this list as the full player backlog."] : []),
+      ...(inbox.truncated.errors ? ["Older automatic errors are omitted; displayed counts and first-seen times cover this sample only."] : []),
+      "Resolve verified fixes, then refresh to reveal older open items. Do not bulk-resolve unverified reports.",
+      ""
+    ] : []),
     "## Bug reports from members (/report bug)",
     ""
   ];

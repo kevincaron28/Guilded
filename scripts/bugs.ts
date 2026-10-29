@@ -24,6 +24,7 @@ try {
     if (!Number.isFinite(days) || days < 1 || days > 365) throw new Error("--days must be between 1 and 365.");
     const inbox = await loadInbox(prisma, { days });
     await writeFile("bug-inbox.md", renderInbox(inbox), { mode: 0o600 });
+    if (inbox.truncated?.bugs || inbox.truncated?.errors) console.warn("INCOMPLETE INBOX: older open reports are omitted. See warnings in bug-inbox.md.");
     console.log(`bug-inbox.md: ${inbox.bugs.length} bug report(s), ${inbox.errors.length} kind(s) of bot error since ${inbox.since.toISOString().slice(0, 10)}.`);
   }
 } catch (error) {

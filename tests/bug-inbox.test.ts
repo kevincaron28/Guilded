@@ -11,7 +11,9 @@ const row = (id: string, source: string, message: string, minute: number, extra:
 function fakeDatabase(rows: ReturnType<typeof row>[]) {
   return {
     errorReport: {
-      findMany: vi.fn(async () => rows),
+      findMany: vi.fn(async ({ where, take }: { where: { source: string | { not: string } }; take: number }) =>
+        rows.filter((r) => typeof where.source === "string" ? r.source === where.source : r.source !== where.source.not)
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id.localeCompare(a.id)).slice(0, take)),
       findFirst: vi.fn(async ({ where }: { where: { id: { endsWith: string } } }) => rows.find((r) => r.id.endsWith(where.id.endsWith)) ?? null),
       updateMany: vi.fn(async () => ({ count: 2 }))
     },
@@ -40,6 +42,35 @@ describe("bug inbox", () => {
     expect(markdown).toContain("> Signup button does nothing");
     expect(markdown).toContain("### ERRBBBB2 · job:roster · 2×");
     expect(markdown).toContain("Error: Missing Access");
+  });
+
+  it("keeps player reports visible during an automatic-error flood and discloses incomplete counts", async () => {
+    const database = fakeDatabase([
+      ...Array.from({ length: 1_100 }, (_, i) => row(
+        `error${String(i).padStart(8, "0")}`, "job:roster", "Repeated failure", 40)),
+      row("cxxxxxxxbugaaaa1", "bug-report", "Player cannot sync", 1)
+    ]);
+    const inbox = await loadInbox(database, { now: at(59) });
+    expect(inbox.bugs.map((bug) => bug.ref)).toEqual(["BUGAAAA1"]);
+    expect(inbox.errors[0]?.count).toBe(1_000);
+    expect(inbox.truncated).toEqual({ bugs: false, errors: true });
+    expect(renderInbox(inbox)).toContain("displayed counts and first-seen times cover this sample only");
+    expect(renderInbox(inbox)).toContain("Player cannot sync");
+  });
+
+  it("warns about omitted player reports without a false warning at the exact limit", async () => {
+    const rows = Array.from({ length: 1_001 }, (_, i) => row(
+      `member${String(i).padStart(8, "0")}`, "bug-report", "Player issue", 40));
+    const limited = await loadInbox(fakeDatabase(rows), { now: at(59) });
+    expect(limited.bugs).toHaveLength(1_000);
+    expect(limited.truncated).toEqual({ bugs: true, errors: false });
+    expect(renderInbox(limited)).toContain("Older member reports are omitted");
+    const exact = await loadInbox(fakeDatabase(rows.slice(0, 1_000)), { now: at(59) });
+    expect(exact.truncated).toEqual({ bugs: false, errors: false });
+    expect(renderInbox(exact)).not.toContain("WARNING");
+    const empty = await loadInbox(fakeDatabase([]), { now: at(59) });
+    expect(renderInbox(empty)).toContain("None open.");
+    expect(renderInbox(empty)).not.toContain("WARNING");
   });
 
   it("resolves a bug by reference, and an error's whole group by its cause", async () => {

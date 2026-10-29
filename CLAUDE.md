@@ -18,6 +18,18 @@
 > Frozen scoring/evidence policies and ledger history are retained.
 > Historical checkpoints: docs/archive/AGENT_STATUS_HISTORY_2026-10-28.md.
 
+## November 4 launch preparation — 29 October
+
+The owner targets November 4 for the next launch release, with justified feature
+work beforehand and tester-driven fixes during launch day. Follow
+`docs/LAUNCH_AUDIT_2026-10-29.md` for the fresh competitive review and work queue.
+The audit reproduced intermittent public companion HTTP 530 / error 1016
+failures: the separate website reliability work must be deployed and verified
+before the connected launch is called ready. Preserve published 8.0.2 artifacts.
+The audit branch also prevents service-error floods from hiding player reports
+in the developer bug inbox; this CLI correction does not itself require a bot
+deployment. Remaining manual acceptance is still waived, not passed.
+
 # Working on Guilded
 
 Discord bot (`src/`) + WoW addon (`addon/Guilded/`) + companion uploader

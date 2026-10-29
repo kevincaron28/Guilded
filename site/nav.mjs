@@ -25,6 +25,7 @@ export const SITE_NAV = [
   { key: "officers", href: "/officers/", en: "For officers", fr: "Pour les officiers", group: "help" },
   { key: "forever", href: "/forever/", en: "WoW Forever launch", fr: "Lancement de WoW Forever", group: "help" },
   { key: "discord", href: "https://discord.gg/YjzFwtP64V", en: "Ask on Discord ↗", fr: "Demander sur Discord ↗", group: "help" },
+  { key: "status", href: "/status/", en: "Status", fr: "État du service", group: "help" },
   { key: "companion", href: "/companion/", en: "Companion", fr: "Compagnon" }
 ];
 

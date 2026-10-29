@@ -99,7 +99,7 @@ export function editionHubs(version, curseforge = {}) {
       + `<p>${text('Running a guild?', 'Vous gérez une guilde ?')} <a href="/officers/">${text('Guide for officers', 'Guide des officiers')} →</a></p></section>`;
     const title = edition.id === 'forever' ? 'WoW Forever guild addon and dungeon leaderboard · Guilded' : `${edition.name} guild addon and dungeon leaderboard · Guilded`;
     const titleFr = edition.id === 'forever' ? 'Addon de guilde et classement des donjons WoW Forever · Guilded' : `Addon de guilde et classement des donjons ${edition.name} · Guilded`;
-    return { gameEdition: edition.id, hub: true, path: `${slug}/`, title, titleFr, description: `The ${edition.name} section of Guilded: its dungeon leaderboard, guilds, recruitment and the free addon download.`, descriptionFr: `La section ${edition.name} de Guilded : son classement des donjons, ses guildes, son recrutement et l’addon gratuit.`, lang: 'en', bilingual: true, body: switcher + heading + download + live + (edition.id === 'forever' ? foreverLaunch : '') + community + start };
+    return { gameEdition: edition.id, hub: true, path: `${slug}/`, title, titleFr, description: `The ${edition.name} section of Guilded: its dungeon leaderboard, guilds, recruitment and the free addon download.`, descriptionFr: `La section ${edition.name} de Guilded : son classement des donjons, ses guildes, son recrutement et l’addon gratuit.`, lang: 'en', bilingual: true, body: switcher + heading + live + download + (edition.id === 'forever' ? foreverLaunch : '') + community + start };
   });
 }
 

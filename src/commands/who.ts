@@ -4,6 +4,10 @@ import { createEpgpService } from "../services/epgp.js";
 import { createMeritService } from "../services/merit.js";
 import { findPlayer } from "../services/player-search.js";
 import { guildService, requireGuildContext } from "./context.js";
+import { canonicalClass } from "../services/character-display.js";
+import { canonicalSpecialization } from "../wow-specializations.js";
+import { specRole } from "../services/dps-kind.js";
+import { currentEdition } from "../services/edition-context.js";
 
 const epgpService = createEpgpService(prisma);
 const meritService = createMeritService(prisma);
@@ -30,7 +34,12 @@ export async function executeWho(interaction: ChatInputCommandInteraction): Prom
   const lines = found.characters.map((character) => {
     const professions = character.professions.map((skill) => `${skill.profession} ${skill.skillLevel}`).join(", ");
     const seen = character.lastSeenAt ? ` · seen <t:${Math.floor(character.lastSeenAt.getTime() / 1000)}:R>` : "";
-    const details = [character.level ? `${character.level}` : null, character.race, character.className, character.spec].filter(Boolean).join(" ");
+    // A damage spec says whether it plays melee or ranged.
+    const className = canonicalClass(character.className);
+    const spec = className ? canonicalSpecialization(className, character.spec) : undefined;
+    const role = spec ? specRole(spec, currentEdition()) : null;
+    const kind = role === "MELEE" ? "(melee)" : role === "RANGED" ? "(ranged)" : null;
+    const details = [character.level ? `${character.level}` : null, character.race, character.className, character.spec, kind].filter(Boolean).join(" ");
     return `${character.isMain ? "⭐" : "•"} **${character.name}** — ${details}${professions ? ` — ${professions}` : ""}${seen}`;
   });
   const rate = rates.get(found.member.id);

@@ -618,10 +618,11 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           await linkPairedCharacter(prisma, guild.id, pairedMemberId, alt).catch((error: unknown) => console.error("Linking an alt failed", error));
         }
       }
-      // Guildmates who pasted their /guilded verify code in game, as this officer's addon heard them.
-      if (access.officer) {
-        await prisma.guild.update({ where: { id: guild.id }, data: { officerSyncAt: new Date() } }).catch(() => undefined);
-        const verified = await linkVerifiedCharacters(prisma, guild.id, access, preview.snapshot.characters)
+      // Guildmates who pasted their /guilded verify code in game, as this uploader's addon heard them:
+      // an officer's upload links and confirms; a member's links provisionally (character-verify.ts).
+      if (access.officer) await prisma.guild.update({ where: { id: guild.id }, data: { officerSyncAt: new Date() } }).catch(() => undefined);
+      if (access.officer || pairedMemberId) {
+        const verified = await linkVerifiedCharacters(prisma, guild.id, { officer: access.officer, memberId: pairedMemberId }, preview.snapshot.characters)
           .catch((error: unknown) => { console.error("Linking verified characters failed", error); return []; });
         if (verified.length && client) {
           const language = await prisma.guildSettings.findUnique({ where: { guildId: guild.id }, select: { language: true } });

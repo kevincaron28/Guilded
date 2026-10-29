@@ -163,8 +163,10 @@ export async function syncScheduledEvent(guild: Guild, database: PrismaClient, g
     }
     await tx.discordEventLink.upsert({ where, create: { guildId, sourceType: type, sourceId: id, discordId: event?.id ?? null, signature: signature(source), settled: terminal },
       update: { discordId: event?.id ?? null, signature: signature(source), settled: terminal } });
-    if (type === "community" && source?.messageId && link?.discordId !== event?.id) {
-      await enqueueDiscordJob(tx, guildId, `community:${id}`, "COMMUNITY_POST", { activityId: id });
+    // Both posts link to their event, so a new or replaced event refreshes the post.
+    if (source?.messageId && link?.discordId !== event?.id) {
+      if (type === "community") await enqueueDiscordJob(tx, guildId, `community:${id}`, "COMMUNITY_POST", { activityId: id });
+      else await enqueueDiscordJob(tx, guildId, `raid:${id}`, "RAID_POST", { raidId: id });
     }
   }, { timeout: 60_000, maxWait: 15_000 });
 }

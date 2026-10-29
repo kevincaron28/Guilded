@@ -21,11 +21,17 @@ export interface DisplayCharacter {
   className?: string | null;
   spec?: string | null;
   level?: number | null;
-  readinessSnapshots?: { itemLevel: number | null; inspectedAt: Date }[];
+  readinessSnapshots?: { itemLevel: number | null; inspectedAt: Date; _count?: { findings: number } }[];
 }
 export const CHARACTER_DISPLAY_SELECT = {
   name: true, displayName: true, realm: true, memberId: true, className: true, spec: true, level: true,
   readinessSnapshots: { orderBy: { inspectedAt: "desc" as const }, take: 1, select: { itemLevel: true, inspectedAt: true } }
+} as const;
+// Signup posts also count the latest gear check's open warnings and errors (the ⚠️ badge).
+export const SIGNUP_CHARACTER_SELECT = {
+  ...CHARACTER_DISPLAY_SELECT,
+  readinessSnapshots: { ...CHARACTER_DISPLAY_SELECT.readinessSnapshots, select: { itemLevel: true, inspectedAt: true,
+    _count: { select: { findings: { where: { severity: { not: "INFO" as const }, resolved: false } } } } } }
 } as const;
 export const GEAR_MAX_AGE_MS = 24 * 60 * 60_000;
 export function characterName(character: { name: string; displayName?: string | null }): string {
@@ -89,6 +95,19 @@ function gear(character: DisplayCharacter, now: Date) {
 }
 export function hasStaleGear(character: DisplayCharacter | null | undefined, now = new Date()): boolean {
   return !!character && !!gear(character, now)?.stale;
+}
+// Item level and open warnings/errors of a gear check from the last 24 hours; an older check proves nothing.
+export function freshGearCheck(character: DisplayCharacter | null | undefined, now = new Date()): { itemLevel: number; issues: number } | null {
+  const checked = character ? gear(character, now) : null;
+  if (!checked || checked.stale) return null;
+  const issues = character?.readinessSnapshots?.[0]?._count?.findings ?? 0;
+  return { itemLevel: checked.itemLevel, issues: Number.isInteger(issues) && issues > 0 ? issues : 0 };
+}
+// One icon per player, as on calendar posts: the spec icon when it is known, else the class icon.
+export function characterIcon(character: DisplayCharacter | null | undefined, emojis: ClassEmojis = {}): string {
+  const name = canonicalClass(character?.className);
+  const spec = name ? canonicalSpecialization(name, character?.spec) : undefined;
+  return (spec && emojis[spec.key]) || (name && emojis[name]) || "";
 }
 export const staleGearNote = (lang: Lang) => lang === "fr"
   ? "* Équipement relevé il y a plus de 24 h; synchronise l’addon pour l’actualiser."

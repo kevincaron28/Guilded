@@ -1,4 +1,6 @@
-> CURRENT RELEASE — 8.0.2 safety patch from the final 8.0.1 audit.
+> CURRENT SOURCE — 8.1.0 candidate for November 4; not published or deployed.
+> Candidate gates: docs/NOV4_RELEASE_CANDIDATE.md.
+> Published release remains 8.0.2; preserve all existing provider bytes.
 > Published GitHub/client source: f7ca4c4, protocol 2; preserve all published bytes.
 > Running bot: main a42b6e5 after the October 29 website/origin reliability update.
 > GitHub's 21 assets and anonymous download hashes are verified.
@@ -12,6 +14,7 @@
 > Message earning covers accessible guild channels/threads; /participation channels
 > reports officer-only coverage. Free Store signing and the existing license are retained.
 > The owner waived remaining hands-on tests; keep unperformed checks as follow-up.
+> 8.1.0 (29 October 2026): candidate with confirmed loot-history import and signup/origin fixes.
 > 8.0.2 (28 October 2026): spreadsheet text safety and bounded participation status.
 > 8.0.1 (28 October 2026): full DE/ES addon catalogue and language review.
 > 8.0.0 (28 October 2026): security/reliability, versioned Retail overtime scoring,
@@ -34,7 +37,8 @@ deployment. Remaining manual acceptance is still waived, not passed.
 Loot-history import now includes the desktop converter, officer preview and typed
 confirmation, persistent local history, deduplication and undo; see
 `docs/LOOT_HISTORY_IMPORT.md`. PR #265 completes this source feature for the next
-release. Actual game acceptance remains unperformed; published 8.0.2 is unchanged.
+release; PR #265 is merged. Actual game acceptance remains unperformed; published
+8.0.2 is unchanged. Candidate work is on codex/nov4-release-candidate.
 
 # Working on Guilded
 
@@ -46,7 +50,8 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (28 October 2026): version 8.0.2 Release, protocol 2.** WoW Forever launches
+**Current status (29 October 2026): version 8.1.0 Candidate, protocol 2.**
+Candidate source is not a production version claim. WoW Forever launches
 4 November 2026 (beta closed 21 October); its first raids open 9 December.
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
 The bot, online companion, GitHub and CurseForge releases are 8.0.2. All ten

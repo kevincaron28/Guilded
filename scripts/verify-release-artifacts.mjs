@@ -5,9 +5,9 @@ import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { basename, join } from "node:path";
-import { execFileSync } from "node:child_process";
 import { unzipSync } from "fflate";
 import { releaseMetadata } from "./release-metadata.mjs";
+import { releaseSource } from "./release-source.mjs";
 
 const version = JSON.parse(readFileSync("package.json", "utf8")).version;
 const release = releaseMetadata();
@@ -30,6 +30,8 @@ for (const path of toc.split(/\r?\n/).map(line => line.trim()).filter(line => li
   assert.ok(files[`Guilded/${path.replaceAll("\\", "/")}`], `Missing TOC file: ${path}`);
 }
 const standings = Buffer.from(files["Guilded/Standings.lua"]).toString("utf8");
+assert.deepEqual(Buffer.from(files["Guilded/Modules/LootHistoryImport.lua"] ?? []),
+  readFileSync("addon/Guilded/Modules/LootHistoryImport.lua"), "Missing or stale loot-history module");
 assert.match(standings, /players = \{\}/);
 assert.match(standings, /GuildedLedgerAccepted = \{\}/);
 assert.doesNotMatch(standings, /credential|discordId|sourceRef|GuildedDB/i);
@@ -54,7 +56,7 @@ const require = createRequire(new URL("../companion-app/package.json", import.me
 const { extractFile } = require("@electron/asar");
 const asar = "dist/companion/win-unpacked/resources/app.asar";
 assert.equal(JSON.parse(extractFile(asar, "package.json").toString()).version, version);
-for (const path of ["main.cjs", "preload.cjs", "detect-wow.cjs", "update-check.cjs", "i18n.cjs", "locales/fr.json"]) {
+for (const path of ["main.cjs", "preload.cjs", "detect-wow.cjs", "update-check.cjs", "i18n.cjs", "locales/fr.json", "loot-history-import.cjs", "ipc-security.cjs", "renderer/app.js", "renderer/index.html"]) {
   assert.deepEqual(extractFile(asar, path), readFileSync(join("companion-app", path)), `Stale packaged companion: ${path}`);
 }
 const companionPackage = JSON.parse(readFileSync("companion-app/package.json", "utf8"));
@@ -73,10 +75,10 @@ const artifacts = [zipPath, dungeonsZipPath, installerPath, notesPath].map(path 
   sha256: createHash("sha256").update(readFileSync(path)).digest("hex"),
 }));
 writeFileSync(`dist/Guilded-v${version}-SHA256SUMS.txt`, artifacts.map(file => `${file.sha256}  ${file.name}`).join("\n") + "\n");
-const sourceCommit = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-const sourceDirty = Boolean(execFileSync("git", ["status", "--porcelain", "--untracked-files=normal"], { encoding: "utf8" }).trim());
+const { sourceCommit, sourceDirty, changedPaths, untrackedPaths } = releaseSource();
+if (process.env.CI) assert.equal(sourceDirty, false, `CI packaging changed source: ${[...changedPaths, ...untrackedPaths].join(", ")}`);
 writeFileSync(`dist/Guilded-v${version}-Artifact-Verification.json`, JSON.stringify({
-  version, channel: release.channel, acceptance: release.acceptance, sourceCommit, sourceDirty, verifiedAt: new Date().toISOString(),
+  version, channel: release.channel, acceptance: release.acceptance, sourceCommit, sourceDirty, changedPaths, untrackedPaths, verifiedAt: new Date().toISOString(),
   archiveFiles: Object.keys(files).length, dungeonsArchiveFiles: Object.keys(dungeonsFiles).length, artifacts,
   limitations: ["Unverified real-client follow-up is tracked separately", "Windows installer is unsigned", "Installer execution is not verified by this check"],
 }, null, 2) + "\n");

@@ -2,9 +2,9 @@
 
 # Guilded roadmap
 
-## Current stage — 28 October 2026
+## Current stage — 29 October 2026
 
-Guilded **8.0.2 Release** (protocol 2): a deliberate safety patch from the final 8.0.1 audit. In-game spreadsheet text is protected and participation status uses bounded database results. GitHub, CurseForge and the bot are updated; follow [8.0.2 release gates](docs/V8_0_2_RELEASE_COMPLETION.md). Full FR/DE/ES catalogues and free Store signing are retained.
+Guilded **8.1.0 Candidate** (protocol 2), prepared for November 4: RCLootCouncil/Gargul history conversion, reviewed in-game confirmation, separate persistent history and undo, raid-signup presentation and public-origin reliability. See [candidate gates](docs/NOV4_RELEASE_CANDIDATE.md). No new core feature gap is established; prioritize tester evidence and release preparation. Published downloads remain 8.0.2.
 
 Published baseline: 8.0.0: security, reliability, ledger storage compaction, versioned Retail overtime scoring, origin isolation, French indexing, accessibility and Core presentation extraction. See [8.0 readiness](docs/V8_0_LAUNCH_READINESS.md) for publication gates and the owner's testing waiver.
 

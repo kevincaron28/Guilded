@@ -759,10 +759,10 @@
   "Connection needs attention": "Connexion à vérifier",
   "Shared saved data needs an exact WoW guild name on each guild connection.": "Des données partagées nécessitent le nom exact de la guilde WoW pour chaque connexion de guilde.",
   "Saved. This connection is paused.": "Enregistré. Cette connexion est en pause.",
-  "Keep a connection and saved-data folder for each guild or edition. Enable background sync for each connection you want to keep updated. Select a connection to view or edit it.": "Gardez une connexion et un dossier de données par guilde ou édition. Activez la synchronisation en arrière-plan pour chaque connexion souhaitée. Sélectionnez une connexion pour la consulter ou la modifier.",
   "Works once, for 15 minutes. Your other devices stay connected.": "Valable une fois, pendant 15 minutes. Vos autres appareils restent connectés.",
   "Standings downloaded. Select this connection to write them to the shared addon folder.": "Classement téléchargé. Sélectionnez cette connexion pour l’écrire dans le dossier addon partagé.",
   "Wrote standings for {0} character(s). Use /reload in WoW to load them.": "Classement écrit pour {0} personnage(s). Utilisez /reload dans WoW pour le charger.",
   "Folder watch unavailable ({0}). Saves are checked every 30 seconds.": "Surveillance du dossier indisponible ({0}). Les sauvegardes sont vérifiées toutes les 30 secondes.",
-  "{0} Select this connection to write scores to the shared addon folder.": "{0} Sélectionnez cette connexion pour écrire les scores dans le dossier addon partagé."
+  "{0} Select this connection to write scores to the shared addon folder.": "{0} Sélectionnez cette connexion pour écrire les scores dans le dossier addon partagé.",
+  "Keep a connection and saved-data folder for each guild or edition. On Windows, enable background sync for each connection you want to keep updated. Select a connection to view or edit it.": "Gardez une connexion et un dossier de données par guilde ou édition. Sous Windows, activez la synchronisation en arrière-plan pour chaque connexion souhaitée. Sélectionnez une connexion pour la consulter ou la modifier."
 }

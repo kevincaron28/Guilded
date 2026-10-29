@@ -37,8 +37,10 @@ providers would not remove these limits.
 
 The release chat prepared PR #266, `codex/nov4-release-candidate`, for 8.1.0;
 it is now merged. Claude's edition routing/navigation PR #268 is also merged,
-and the separate melee/ranged raid work is PR #269. This branch does not modify their site, Worker,
-navigation, raid or web-auth implementation. Schema additions are independent;
+and the separate melee/ranged raid work is PR #269. This branch preserves their
+edition/navigation/raid/web-auth implementation. A narrow Worker addition allows
+only the Battle.net start POST to redirect to Blizzard's authorization endpoint;
+other external redirects remain blocked. Schema additions are independent;
 this branch reserves migration `20261127000000`, after Claude's `20261126000000`.
 
 Review and merge the feature PR, then validate the release candidate against the

@@ -38,7 +38,8 @@ linking while Discord and addon sync continue to work.
 
 Apply the additive `20261127000000_companion_devices_battlenet` migration during
 the coordinated backend deployment. Deploy backend routes and migration before
-shipping the updated companion. Use the existing backup/deployment runbook;
+shipping the updated companion. Deploy the matching Worker change before enabling
+Battle.net: it permits the start route's redirect to Blizzard. Use the existing backup/deployment runbook;
 configuration alone does not deploy this branch. Keep published release bytes intact.
 
 ## Verify after the coordinated deployment

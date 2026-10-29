@@ -1,8 +1,8 @@
 {
   "status": "in-certification",
-  "submittedAt": "2026-10-26",
-  "submittedVersion": "7.5.0",
-  "publishAfterCertification": true,
+  "submittedAt": "2026-10-29",
+  "submittedVersion": "8.1.0",
+  "publishAfterCertification": false,
   "productName": "Guilded Companion",
   "proposedCategory": "Utilities & tools",
   "proposedPrice": "Free",
@@ -55,6 +55,7 @@
   },
   "privacyPolicyPublished": true,
   "storeId": "9N680XX3QFL9",
-  "submissionId": "1152921505702234586",
-  "privacyPolicyProvidedAsText": true
+  "submissionId": "1152921505702272559",
+  "privacyPolicyProvidedAsText": true,
+  "publicationHold": "manual"
 }

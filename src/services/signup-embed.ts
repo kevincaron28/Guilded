@@ -39,6 +39,18 @@ function clip(lines: string[]): string {
   return text || "—";
 }
 
+// ⭐ for a core main and 🪑 for the core's bench, unless they signed up with a character
+// that is neither their core character nor an approved backup.
+export function coreMark(core: SignupEmbedInput["core"]): (memberId: string, characterId?: string | null) => string {
+  const mains = new Set(core?.members.filter((m) => !m.bench).map((m) => m.memberId));
+  const bench = new Set(core?.members.filter((m) => m.bench).map((m) => m.memberId));
+  return (memberId, characterId) => {
+    const spot = core?.members.find(member => member.memberId === memberId);
+    if (characterId && spot && spot.characterId !== characterId && !spot.backupCharacterIds?.includes(characterId)) return "";
+    return mains.has(memberId) ? "⭐ " : bench.has(memberId) ? "🪑 " : "";
+  };
+}
+
 // Free slots per role on a raid with slot caps (roles without a cap are left out).
 export function openSpots(caps: Record<RaidRole, number | null>, signups: { role: RaidRole; status: string }[]): { role: RaidRole; open: number }[] {
   return ROLES.flatMap((role) => {
@@ -55,13 +67,7 @@ export function buildSignupEmbed(input: SignupEmbedInput): EmbedBuilder {
   const label = (row: SignupRow | CoreRow) => characterDisplayLine(row.displayName, row.character, lang, input.classEmojis, now)
     + ("late" in row && row.late ? " ⏰" : "");
   const roleName = (role: RaidRole) => t(lang, `role.${role}` as const);
-  const mains = new Set(core?.members.filter((m) => !m.bench).map((m) => m.memberId));
-  const bench = new Set(core?.members.filter((m) => m.bench).map((m) => m.memberId));
-  const mark = (memberId: string, characterId?: string | null) => {
-    const spot = core?.members.find(member => member.memberId === memberId);
-    if (characterId && spot && spot.characterId !== characterId && !spot.backupCharacterIds?.includes(characterId)) return "";
-    return mains.has(memberId) ? "⭐ " : bench.has(memberId) ? "🪑 " : "";
-  };
+  const mark = coreMark(core);
   const caps: Record<RaidRole, number | null> = { TANK: raid.tankLimit, HEALER: raid.healerLimit, DPS: raid.dpsLimit };
   const signed = signups.filter((s) => s.status === "SIGNED_UP");
   const byName = (a: SignupRow, b: SignupRow) => a.displayName.localeCompare(b.displayName);

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { serializeRaidPosts, syncRaidPosts } from "../src/services/raid-signup-posts.js";
-import { EmbedBuilder, MessageFlags } from "discord.js";
+import { MessageFlags } from "discord.js";
 import { signupLayout } from "../src/services/signup-layout.js";
 
 function fixture(legacy = false, modern = false) {
@@ -30,7 +30,7 @@ function fixture(legacy = false, modern = false) {
     expect(where).toEqual({ id: "raid", guildId: "guild" }); Object.assign(row, data);
   } } };
   const payload = { embeds: [], components: [], allowedMentions: { parse: [] as never[] } };
-  const modernPayload = modern ? signupLayout(new EmbedBuilder().setTitle("Raid"), [], "en") : undefined;
+  const modernPayload = modern ? signupLayout({ lang: "en", raid: { id: "raid", title: "Raid", description: null, status: "PLANNED", scheduledAt: new Date(), tankLimit: null, healerLimit: null, dpsLimit: null }, signups: [] }, []) : undefined;
   const sync = (general: string | null = "general", core: string | null = "core") => syncRaidPosts(guild as never, database as never, { ...row }, general, core, payload, modernPayload);
   return { row, copies, sync, payloads, payload, sends: () => sends, forbid: () => { forbidden = true; }, allow: () => { forbidden = false; } };
 }

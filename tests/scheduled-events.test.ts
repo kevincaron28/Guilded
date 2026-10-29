@@ -60,6 +60,14 @@ describe("native Discord events", () => {
     await s.sync("community", "night");
     expect(s.tx.discordJob.upsert).not.toHaveBeenCalled();
   });
+  it("refreshes the raid signup post so its title links to the new event", async () => {
+    const s = fixture();
+    await s.sync();
+    expect(s.tx.discordJob.upsert).toHaveBeenCalledWith(expect.objectContaining({ create: expect.objectContaining({ kind: "RAID_POST", key: "raid:raid" }) }));
+    s.tx.discordJob.upsert.mockClear();
+    await s.sync();
+    expect(s.tx.discordJob.upsert).not.toHaveBeenCalled();
+  });
   it("publishes one event with a signup link and reuses it after edits/restarts", async () => {
     const s = fixture();
     await s.sync();
@@ -221,6 +229,7 @@ describe("event delivery repair and privacy", () => {
   it("does not queue unchanged deliveries, test raids or non-calendar activities", async () => {
     const s = fixture();
     await s.sync();
+    s.tx.discordJob.upsert.mockClear(); // the signup post's own refresh
     await queueScheduledEvent(s.database as never, "guild", "raid", "raid", now);
     expect(s.tx.discordJob.upsert).not.toHaveBeenCalled();
     s.raid.isTest = true;

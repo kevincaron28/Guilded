@@ -4,6 +4,7 @@ const logged = vi.hoisted(() => vi.fn());
 vi.mock("../src/services/housekeeping.js", () => ({ postToLogChannel: logged }));
 
 import { parseAddonSnapshot } from "../src/integrations/addon.js";
+import { linkPairedCharacter } from "../src/services/character-pairing.js";
 import {
   blockVerifiedCharacter, formatVerifyCode, linkVerifiedCharacters, newVerifyCode, normalizeVerifyCode, tellVerified, verifyCodeFor
 } from "../src/services/character-verify.js";
@@ -33,6 +34,7 @@ function newGuild() {
         .map((row) => ({ ...row, member: { discordUserId: users[row.memberId] } })))
     },
     characterVerifyClaim: {
+      findFirst: vi.fn(async ({ where }) => claims.find((row) => row.guildId === where.guildId && row.memberId === where.memberId && row.nameKey === where.nameKey && row.status === where.status) ?? null),
       findMany: vi.fn(async ({ where }) => claims.filter((row) => row.guildId === where.guildId && where.memberId.in.includes(row.memberId))),
       upsert: vi.fn(async ({ where, create, update }) => {
         const key = where.guildId_memberId_nameKey;
@@ -133,6 +135,18 @@ describe("linking from an officer's upload", () => {
     expect(await linkVerifiedCharacters(guild.database, "guild", officer, peer("Ray", code))).toEqual([]);
     expect(guild.characters).toEqual([]);
     expect(guild.claims).toEqual([{ guildId: "guild", memberId: "ray", nameKey: "ray", status: "BLOCKED" }]);
+  });
+
+  it("keeps an officer's unlink for both verify codes and the member's own uploads", async () => {
+    const guild = newGuild();
+    const code = await verifyCodeFor(guild.database, "guild", "ray");
+    await linkVerifiedCharacters(guild.database, "guild", officer, peer("Ray", code));
+    guild.characters.length = 0; // an officer's /character unlink
+    await blockVerifiedCharacter(guild.database, "guild", "ray", "Ray", "Forever", "forever", true);
+    expect(guild.claims).toEqual([{ guildId: "guild", memberId: "ray", nameKey: "ray", status: "REMOVED" }]);
+    expect(await linkVerifiedCharacters(guild.database, "guild", officer, peer("Ray", code))).toEqual([]);
+    await expect(linkPairedCharacter(guild.database, "guild", "ray", peer("Ray")[0]!)).resolves.toBe("removed-by-officer");
+    expect(guild.characters).toEqual([]);
   });
 });
 

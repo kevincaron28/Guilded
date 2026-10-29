@@ -17,7 +17,7 @@ import { publicRaidMatches, type PublicRaid } from "./public-raids.js";
 // Requests arrive through the Cloudflare Worker (worker/index.mjs), which forwards cookies and
 // Origin for these paths only.
 
-export interface WebHeaders { cookie?: string | undefined; origin?: string | undefined; referer?: string | undefined; "accept-language"?: string | undefined; "content-type"?: string | undefined }
+export interface WebHeaders { cookie?: string | undefined; origin?: string | undefined; referer?: string | undefined; "accept-language"?: string | undefined; "content-type"?: string | undefined; "user-agent"?: string | undefined }
 export interface WebRequest { method: string; path: string; query: URLSearchParams; headers: WebHeaders; body?: string }
 export interface WebResponse { status: number; headers: Record<string, string | string[]>; body: string; binaryBody?: Buffer }
 

@@ -1,7 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, escapeMarkdown } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { t, type Lang } from "../i18n.js";
-import { issueCharacterPairingCode } from "./character-pairing.js";
 import { formatVerifyCode, verifyCodeFor } from "./character-verify.js";
 import { companionWebUrl } from "./companion-links.js";
 import { officerSyncRecent } from "./officer-sync.js";
@@ -33,17 +32,13 @@ export async function characterLinkPrompt(database: PrismaClient, guildId: strin
     value: t(lang, "pair.verify", { code }) + (officersSync ? "" : `\n${t(lang, "pair.verifySlow")}`)
   });
   if (mode === "companion") {
-    // Sign in with Discord (7.2) first; the code is only for companions older than 7.2.
-    const pairing = await issueCharacterPairingCode(database, guildId, memberId);
+    // Sign in with Discord (7.2). The one-use code for older companions is only made when asked
+    // for (the button below): making one on every prompt silently replaced the previous code.
     embed.addFields(
       { name: t(lang, "pair.syncTitle"), value: t(lang, "pair.sync", {
         companion: url ? t(lang, "pair.openOnline") : t(lang, "pair.askLink"), server: discordGuildId
       }) },
-      { name: t(lang, "pair.characterOrderTitle"), value: t(lang, hasMain ? "pair.addAlts" : "pair.firstMain") },
-      { name: t(lang, "pair.codeTitle"), value: t(lang, "pair.code", {
-        code: pairing.code, expires: `<t:${Math.floor(pairing.expiresAt.getTime() / 1000)}:R>`
-      }) },
-      { name: t(lang, "pair.checkTitle"), value: t(lang, "pair.check") }
+      { name: t(lang, "pair.checkTitle"), value: t(lang, hasMain ? "pair.addAlts" : "pair.check") }
     );
   } else {
     embed.addFields({ name: t(lang, "pair.optionalTitle"), value: t(lang, "pair.optional") });
@@ -52,6 +47,8 @@ export async function characterLinkPrompt(database: PrismaClient, guildId: strin
   if (mode === "addon") row.addComponents(new ButtonBuilder().setStyle(ButtonStyle.Secondary)
     .setCustomId(`onboard:companion:${discordGuildId}`).setLabel(t(lang, "pair.connectOptional")));
   if (url) row.addComponents(new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel(t(lang, "pair.online")).setURL(url));
+  if (mode === "companion") row.addComponents(new ButtonBuilder().setStyle(ButtonStyle.Secondary)
+    .setCustomId(`onboard:paircode:${discordGuildId}`).setLabel(t(lang, "pair.codeButton")));
   return {
     embeds: [embed],
     components: row.components.length ? [row] : [],

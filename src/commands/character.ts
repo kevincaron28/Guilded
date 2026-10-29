@@ -9,7 +9,6 @@ import { postToLogChannel } from "../services/housekeeping.js";
 import { hasPermission } from "../permissions.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { CLASSES } from "../wow-data.js";
-import { revokeCompanionCredentials } from "../services/character-pairing.js";
 import { characterLinkPrompt } from "../services/character-link-prompt.js";
 import { blockVerifiedCharacter } from "../services/character-verify.js";
 import { asLang, t } from "../i18n.js";
@@ -107,18 +106,16 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
     }
     await prisma.character.delete({ where: { id: character.id } });
     // The /guilded verify code that character keeps repeating in game must not link it back.
-    await blockVerifiedCharacter(prisma, context.guildId, character.memberId, character.name, character.realm, character.gameEdition);
-    // An officer unlinking someone else's character is a correction, not routine
-    // cleanup: revoke their paired companion access too, or their next upload
-    // would silently relink this character right back.
-    if (!isOwn) await revokeCompanionCredentials(prisma, character.memberId);
+    // An officer unlinking someone else's character is a correction: their companion uploads must
+    // not relink it either. Only this character is affected; their devices stay connected.
+    await blockVerifiedCharacter(prisma, context.guildId, character.memberId, character.name, character.realm, character.gameEdition, !isOwn);
     if (interaction.guild) {
       await postToLogChannel(interaction.guild, isOwn
         ? `${interaction.user.username} unlinked their character ${characterName(character)}.`
-        : `${interaction.user.username} unlinked ${characterName(character)} from ${character.member.displayName} (their companion pairing was also revoked).`);
+        : `${interaction.user.username} unlinked ${characterName(character)} from ${character.member.displayName}.`);
     }
     await interaction.reply({
-      content: `Unlinked **${characterName(character)}**${isOwn ? "" : ` from ${character.member.displayName}. Their companion pairing was revoked, so a re-upload won't relink it automatically`}. If the addon reports it again, it will show up as unclaimed until it's linked again.`,
+      content: `Unlinked **${characterName(character)}**${isOwn ? "" : ` from ${character.member.displayName}. Their uploads won't relink it; an officer can still link it to anyone`}. If the addon reports it again, it will show up as unclaimed until it's linked again.`,
       flags: MessageFlags.Ephemeral
     });
     return;

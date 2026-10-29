@@ -11,6 +11,7 @@ import type { GuildSettings } from "../generated/prisma/client.js";
 import { prisma } from "../database.js";
 import { createGuildService } from "./guild.js";
 import { characterLinkPrompt } from "./character-link-prompt.js";
+import { issueCharacterPairingCode } from "./character-pairing.js";
 import { selfRoleProblem } from "./selfrole.js";
 import { asLang, t, type Lang } from "../i18n.js";
 
@@ -19,7 +20,8 @@ import { asLang, t, type Lang } from "../i18n.js";
 //   rules   where the rules are, and "I have read them" (recorded in MemberOnboarding)
 //   games   a menu of the roles picked in /setup (one role per game opens that game's section)
 //   pair    addon-first character instructions and current main/alts
-//   companion    optional companion code, explicitly requested by the member
+//   companion    optional companion steps (Sign in with Discord), explicitly requested
+//   paircode     a one-use code for companions older than 7.2, only when asked for
 //   steps   a personal checklist of the three above
 // With the rules gate on, games and pairing wait until the rules are accepted, and the applicant
 // role is given at that moment instead of on join. Button ids carry the server id so the same
@@ -36,7 +38,7 @@ const NUDGE_AFTER_MS = 24 * 60 * 60 * 1000;
 const NUDGE_UNTIL_MS = 72 * 60 * 60 * 1000;
 const NUDGES_PER_RUN = 25;
 
-type Action = "rules" | "accept" | "games" | "pick" | "pair" | "companion" | "steps";
+type Action = "rules" | "accept" | "games" | "pick" | "pair" | "companion" | "paircode" | "steps";
 const customId = (action: Action, discordGuildId: string) => `${ONBOARD_PREFIX}${action}:${discordGuildId}`;
 
 type StepSettings = Pick<GuildSettings, "welcomeRoleIds" | "rulesChannelId">;
@@ -272,6 +274,14 @@ export async function handleOnboardingInteraction(interaction: ButtonInteraction
   if (action === "pair" || action === "companion") {
     const record = await guildService.ensureMember(guild.id, member.id, member.user.username);
     await interaction.editReply(await characterLinkPrompt(prisma, guild.id, record.id, discordGuild.id, lang, action === "companion" ? "companion" : "addon"));
+  }
+  if (action === "paircode") {
+    // Companions older than 7.2 only: one code, made on request so no other prompt replaces it.
+    const record = await guildService.ensureMember(guild.id, member.id, member.user.username);
+    const pairing = await issueCharacterPairingCode(prisma, guild.id, record.id);
+    await interaction.editReply({ content: `**${t(lang, "pair.codeTitle")}**\n${t(lang, "pair.code", {
+      code: pairing.code, expires: `<t:${Math.floor(pairing.expiresAt.getTime() / 1000)}:R>`
+    })}`, allowedMentions: { parse: [] } });
   }
 }
 

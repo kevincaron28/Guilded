@@ -112,8 +112,8 @@ or press **Connect optional companion / Connecter le compagnon (facultatif)** in
 your server and press **Connect**. Nothing to type; the short code on that page
 only shows it is your companion. Then save preferences. Sync your intended main
 first if no character is linked yet; later characters become alts. The Windows app
-is optional and the addon is still required. Signing in again replaces your
-previous companion link.
+is optional and the addon is still required. Each device you sign in stays
+connected; manage them under Connections on the website.
 
 **Main already linked?** Keep your working companion: log in on an alt, `/reload`,
 then **Sync now**. It links as an alt without changing your main; nothing new to
@@ -182,9 +182,8 @@ Leave the companion in the tray while playing. New game data reaches disk on
 `/reload` or logout. Open each crafting profession normally: recipe detection is
 automatic; `/guilded recipes mine` is only a way to inspect the stored result.
 
-Signing in on another companion replaces your previous link. Do not alternate
-between the desktop and browser companions unless you intend to reconnect the
-device you use. **Update now** on the Overview page opens the new version's
+Signing in on another companion adds a device; your other companions stay
+connected. Remove a device under Connections on the website. **Update now** on the Overview page opens the new version's
 installer, which shows its progress and restarts the companion; if an update does
 not finish, the next start offers **Run the installer**.
 
@@ -196,7 +195,7 @@ not finish, the next start offers **Run the installer**.
 | Find it finds no Guilded.lua | Log in with Guilded enabled and `/reload`, then Browse to your account's SavedVariables. |
 | Sign in with Discord fails | Check full Guilded approval and, for a guild with its own bot, its address; then choose **Sign in with Discord** again. Companions older than 7.2: use a new `/character pair` code (one use, 15 minutes) and keep it private. |
 | `/guilded verify` did not link yet | Linking happens on the next upload from an **officer's** companion: ask an officer to `/reload` and **Sync now**. `/guilded verify` in game says whether your code is saved. |
-| Link revoked or unauthorized | A newer sign-in may have replaced this one. Ask an officer about membership/access, then sign this device in again. |
+| Link revoked or unauthorized | This device was removed under Connections, or your server access changed. Ask an officer about membership/access, then sign this device in again. |
 | Cannot reach bot | Use Test connection. Ask the owner whether the bot and its HTTPS address are online. |
 | Guild is not initialized / 404 | Confirm this bot is approved and set up in your server. The owner runs `/setup start`. Check the server ID only if an older companion or Advanced preferences asks for it. |
 | Upload says it is awaiting review | An officer reviews/applies it with `/import apply`; ordinary members cannot apply guild ledgers. |

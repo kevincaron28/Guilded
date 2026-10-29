@@ -98,7 +98,7 @@ export async function linkVerifiedCharacters(database: PrismaClient, guildId: st
     const owner = owners.get(code);
     if (!owner) continue;
     const before = claimed.get(`${owner.memberId}\n${key}`);
-    if (before === "BLOCKED") continue;
+    if (before === "BLOCKED" || before === "REMOVED") continue;
     const existing = findCharacter(linked, entry.name, entry.realm, gameEditionOf(entry));
     if (existing?.memberId === owner.memberId) continue;
     if (existing) {
@@ -134,12 +134,16 @@ export async function tellVerified(client: Client, discordGuildId: string, lang:
   }
 }
 
-/** After an unlink: the code this character keeps repeating must not link it to that member again. */
-export async function blockVerifiedCharacter(database: PrismaClient, guildId: string, memberId: string, name: string, realm = "", gameEdition = "forever"): Promise<void> {
+/**
+ * After an unlink: the code this character keeps repeating must not link it to that member again.
+ * An officer's unlink (byOfficer) is REMOVED: that member's own companion uploads don't relink it either.
+ */
+export async function blockVerifiedCharacter(database: PrismaClient, guildId: string, memberId: string, name: string, realm = "", gameEdition = "forever", byOfficer = false): Promise<void> {
   const key = characterKey(name, realm, gameEdition);
+  const status = byOfficer ? "REMOVED" : "BLOCKED";
   await database.characterVerifyClaim.upsert({
     where: { guildId_memberId_nameKey: { guildId, memberId, nameKey: key } },
-    create: { guildId, memberId, nameKey: key, status: "BLOCKED" },
-    update: { status: "BLOCKED" }
+    create: { guildId, memberId, nameKey: key, status },
+    update: { status }
   });
 }

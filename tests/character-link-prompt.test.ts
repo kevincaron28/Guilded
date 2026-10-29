@@ -86,23 +86,27 @@ describe("private character connection instructions", () => {
     expect(never.embeds[0]!.data.fields![0]!.value).toContain("Aucun compagnon d'officier");
   });
 
-  it("generates a private code only for an explicit companion choice and says to sync the main first", async () => {
+  it("shows the companion steps without making a code, which waits for its own button", async () => {
     const reply = await characterLinkPrompt(mocks.db as never, "guild1", "member1", "server1", "en", "companion");
-    expect(mocks.issueCode).toHaveBeenCalledOnce();
+    expect(mocks.issueCode).not.toHaveBeenCalled();
     const fields = reply.embeds[0]!.data.fields!;
-    // The in-game line first (no companion needed), then Sign in with Discord (7.2): nothing to type.
+    // The in-game line first (no companion needed), then Sign in with Discord (7.2).
     expect(fields[0]!.name).toContain("No companion?");
     expect(fields[0]!.value).toContain("/guilded verify ABCD-EFGH");
     expect(fields[1]!.value).toContain("**Sign in with Discord**");
-    expect(fields[1]!.value).toContain("Nothing to type");
+    expect(fields[1]!.value).toContain("short code");
     expect(fields[1]!.value).not.toContain("server ID");
+    expect(fields[1]!.value).toContain("every alt that logged in on this PC");
     expect(fields[1]!.value).toContain("/guilded setup connected");
-    expect(fields[2]!.value).toContain("character you want as your **main**");
-    // The code stays for older companions, alone on its line in a box, so it is easy to copy.
-    expect(fields[3]!.name).toContain("older than 7.2");
-    expect(fields[3]!.value.startsWith("```\nABC123DEF456\n```")).toBe(true);
-    expect(fields[3]!.value).toContain("other companion connections stay active");
-    expect(fields[4]!.value).toContain("/character list");
+    expect(fields[2]!.value).toContain("/character list");
+    const buttons = reply.components[0]!.toJSON().components;
+    expect(buttons.at(-1)).toMatchObject({ custom_id: "onboard:paircode:server1" });
+  });
+
+  it("tells a member with a main that alts need nothing more", async () => {
+    mocks.db.character.findMany.mockResolvedValue([{ name: "Ray", realm: "Forever", isMain: true }]);
+    const reply = await characterLinkPrompt(mocks.db as never, "guild1", "member1", "server1", "en", "companion");
+    expect(reply.embeds[0]!.data.fields![2]!.value).toContain("Nothing to do per alt");
   });
 
   it("offers an officer-provided link when an independent host has not configured its public URL", async () => {
@@ -110,7 +114,7 @@ describe("private character connection instructions", () => {
     mocks.config.DISCORD_CLIENT_ID = "independent";
     try {
       const reply = await characterLinkPrompt(mocks.db as never, "guild1", "member1", "server1", "fr", "companion");
-      expect(reply.components).toEqual([]);
+      expect(reply.components[0]!.toJSON().components.map((button) => "custom_id" in button ? button.custom_id : "link")).toEqual(["onboard:paircode:server1"]);
       expect(reply.embeds[0]!.data.fields![1]!.value).toContain("Demande à un officier le lien");
     } finally { mocks.config.DISCORD_CLIENT_ID = appId; }
   });
@@ -138,7 +142,7 @@ describe("private character connection instructions", () => {
     });
     await executeCharacter(interaction as never);
     expect(interaction.editReply.mock.calls[0]![0].embeds[0].data.title).toBe("🔗 Tes personnages WoW");
-    expect(mocks.issueCode).toHaveBeenCalledWith(mocks.db, "guild1", "member1");
+    expect(mocks.issueCode).not.toHaveBeenCalled();
   });
 
   it.each([true, false])("confirms a manual main/alt link in French and acknowledges before database work (main=%s)", async (isMain) => {

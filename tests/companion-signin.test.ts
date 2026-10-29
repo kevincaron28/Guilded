@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { companionSignInRoute, confirmCode, createCompanionSignIn } from "../src/services/companion-signin.js";
+import { companionSignInRoute, defaultDeviceName, confirmCode, createCompanionSignIn } from "../src/services/companion-signin.js";
 import { createWebApp, type WebRequest, type WebResponse } from "../src/services/web-app.js";
 import { startSignIn, waitForSignIn } from "../companion/engine.mjs";
 import { memoryWebStore } from "./helpers/memory-web-store.js";
@@ -112,6 +112,31 @@ describe("/me/companion", () => {
     expect(issued).toEqual(["222222222222222222@111"]);
     expect(signIn.poll(started.requestId)).toEqual({ companionCredential: "g".repeat(43), guildDiscordId: "111" });
     expect((await request("POST", "/me/companion", form, body("111"))).status).toBe(410);
+  });
+
+  it("chooses a member's only server and names the device by itself", async () => {
+    const { signIn, request, signedIn, issued } = setup();
+    const started = signIn.start()!;
+    const target = `/me/companion?request=${started.requestId}`;
+    const { cookie } = await signedIn(target);
+    const agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
+    const page = await request("GET", target, { cookie, "user-agent": agent });
+    expect(page.body).toContain('<input type="hidden" name="choice" value="111">');
+    expect(page.body).not.toContain('type="radio"');
+    expect(page.body).toContain('value="Windows PC (Chrome)"');
+    const csrf = /name="csrf" value="([^"]+)"/.exec(page.body)![1]!;
+    // The leaderboards-only box under "Other choices" wins over the preselected server.
+    await request("POST", "/me/companion", { cookie, origin: SITE, "content-type": "application/x-www-form-urlencoded" },
+      `csrf=${encodeURIComponent(csrf)}&request=${encodeURIComponent(started.requestId)}&choice=111&personalOnly=personal&code=${started.confirm}`);
+    expect(issued[0]).toMatch(/^personal:/);
+  });
+
+  it.each([
+    ["Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15", "en", "Mac (Safari)"],
+    ["Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36 Edg/130.0", "fr", "PC Windows (Edge)"],
+    [undefined, "en", "My companion"]
+  ] as const)("names a device from its browser: %s", (agent, lang, name) => {
+    expect(defaultDeviceName(agent, lang)).toBe(name);
   });
 
   it("offers the public leaderboards when the member is in no Guilded server", async () => {

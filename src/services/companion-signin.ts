@@ -97,6 +97,16 @@ export function createCompanionSignIn(options: { now?: () => number } = {}) {
 }
 export type CompanionSignIn = ReturnType<typeof createCompanionSignIn>;
 
+/** "Windows PC (Chrome)": a name the member never has to type, from the browser that approves. */
+export function defaultDeviceName(userAgent: string | undefined, lang: "en" | "fr"): string {
+  const agent = userAgent ?? "";
+  const system = /Windows/.test(agent) ? "Windows" : /Mac OS X|Macintosh/.test(agent) ? "Mac" : /Android/.test(agent) ? "Android"
+    : /iPhone|iPad/.test(agent) ? "iPhone/iPad" : /Linux/.test(agent) ? "Linux" : "";
+  const browser = /Edg\//.test(agent) ? "Edge" : /Firefox\//.test(agent) ? "Firefox" : /Chrome\//.test(agent) ? "Chrome" : /Safari\//.test(agent) ? "Safari" : "";
+  const base = system === "Windows" ? (lang === "fr" ? "PC Windows" : "Windows PC") : system || (lang === "fr" ? "Mon compagnon" : "My companion");
+  return browser ? `${base} (${browser})` : base;
+}
+
 // --- /me/companion: the page the companion opens -------------------------------------------------
 
 export interface SignInPageDeps {
@@ -127,11 +137,11 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
       if (!deps.signIn.verifyConfirm(requestId, ctx.form?.get("code"))) {
         return kit.page(400, title, `<h1>${t("The code does not match", "Le code ne correspond pas")}</h1><p>${t("Type the code shown on your own companion.", "Tapez le code affiché sur votre propre compagnon.")}</p><p><a href="${link("/me/companion", lang, { request: requestId })}">${t("Go back and try again", "Revenir et réessayer")}</a></p>`, { noindex: true });
       }
-      const choice = ctx.form?.get("choice") ?? "";
+      const choice = ctx.form?.get("personalOnly") ? "personal" : ctx.form?.get("choice") ?? "";
       if (!deps.signIn.beginApproval(requestId)) return kit.page(410, title, `<h1>${t("This sign-in expired", "Cette connexion a expiré")}</h1>`, { noindex: true });
       try {
       let grant: SignInGrant | null = null;
-      const deviceName = (ctx.form?.get("deviceName") || "Paired companion").slice(0, 80);
+      const deviceName = (ctx.form?.get("deviceName") || defaultDeviceName(ctx.request.headers["user-agent"], lang)).slice(0, 80);
       const selected = servers.find(server => (server.wowGuildId ?? server.discordId) === choice);
       if (choice === "personal") grant = { companionCredential: await deps.issuePersonal(ctx.account.id, deviceName), personal: true };
       else if (selected) {
@@ -147,8 +157,12 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
     }
     const radio = (value: string, label: string, hint: string, checked: boolean) =>
       `<label class="choice"><input type="radio" name="choice" value="${escapeHtml(value)}"${checked ? " checked" : ""}> <strong>${label}</strong><br><span class="muted">${hint}</span></label>`;
-    const choices = servers.map((server, index) => radio(server.wowGuildId ?? server.discordId, escapeHtml(server.name), t("Sync your guild's addon data and standings with this Discord server.", "Synchronisez les données de l'addon et les classements de guilde avec ce serveur Discord."), index === 0)).join("")
-      + radio("personal", t("Public dungeon leaderboards only", "Classements publics des donjons seulement"), t("No guild needed: your finished dungeon runs (Guilded Dungeons or Guilded) go to the public leaderboards.", "Aucune guilde requise : vos donjons terminés (Guilded Dungeons ou Guilded) vont aux classements publics."), servers.length === 0);
+    const personal = radio("personal", t("Public dungeon leaderboards only", "Classements publics des donjons seulement"), t("No guild needed: your finished dungeon runs (Guilded Dungeons or Guilded) go to the public leaderboards.", "Aucune guilde requise : vos donjons terminés (Guilded Dungeons ou Guilded) vont aux classements publics."), servers.length === 0);
+    // One server (the usual case) is chosen already; the leaderboards-only choice waits under "Other choices".
+    const choices = servers.length === 1
+      ? `<input type="hidden" name="choice" value="${escapeHtml(servers[0]!.wowGuildId ?? servers[0]!.discordId)}"><p class="choice"><strong>${escapeHtml(servers[0]!.name)}</strong><br><span class="muted">${t("Your guild's addon data and standings sync with this Discord server.", "Les données de l'addon et les classements de guilde se synchronisent avec ce serveur Discord.")}</span></p>`
+      : servers.map((server, index) => radio(server.wowGuildId ?? server.discordId, escapeHtml(server.name), t("Sync your guild's addon data and standings with this Discord server.", "Synchronisez les données de l'addon et les classements de guilde avec ce serveur Discord."), index === 0)).join("") + personal;
+    const device = defaultDeviceName(ctx.request.headers["user-agent"], lang);
     const body = `<style>.choice{display:block;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:10px 0;color:var(--text);font-size:16px}.choice input{width:auto}</style>`
       + `<p class="eyebrow">${t("Guilded companion", "Compagnon Guilded")}</p><h1>${title}</h1>`
       + `<p>${t("Type the code your companion shows. It proves this sign-in is yours.", "Tapez le code affiché par votre compagnon. Il prouve que cette connexion est la vôtre.")}</p>`
@@ -156,7 +170,9 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
       + `<form method="post" action="/me/companion"><input type="hidden" name="csrf" value="${escapeHtml(ctx.csrf ?? "")}"><input type="hidden" name="lang" value="${lang}"><input type="hidden" name="request" value="${escapeHtml(requestId)}">`
       + `<p><label>${t("Code from your companion", "Code de votre compagnon")}<br><input name="code" autocomplete="off" required maxlength="7" pattern="[A-Za-z0-9]{3}-?[A-Za-z0-9]{3}" placeholder="ABC-DEF" style="width:9em;font-size:20px;text-transform:uppercase"></label></p>`
       + `<h2>${t("Link it to", "Le relier à")}</h2>${choices}`
-      + `<p><label>${t("Device name (for example Home PC)", "Nom de l'appareil (par exemple PC maison)")}<input name="deviceName" maxlength="80" required value="${t("My companion", "Mon compagnon")}"></label></p><p>${t("Your other devices stay connected. Manage devices and optional Battle.net linking in", "Vos autres appareils restent connectés. Gérez les appareils et la connexion Battle.net facultative dans")} <a href="/me/connections">${t("Connections", "Connexions")}</a>.</p>`
+      + `<details><summary>${t("Other choices", "Autres choix")}</summary>${servers.length === 1 ? `<p class="muted">${t("Pick this instead of your server to send only your own dungeon runs:", "Choisissez ceci au lieu de votre serveur pour n'envoyer que vos propres donjons :")}</p>${personal.replace('type="radio"', 'type="checkbox"').replace('name="choice"', 'name="personalOnly"')}` : ""}`
+      + `<p><label>${t("Device name", "Nom de l'appareil")}<input name="deviceName" maxlength="80" value="${escapeHtml(device)}"></label></p></details>`
+      + `<p class="muted">${t("Your other devices stay connected. Manage devices and optional Battle.net linking in", "Vos autres appareils restent connectés. Gérez les appareils et la connexion Battle.net facultative dans")} <a href="/me/connections">${t("Connections", "Connexions")}</a>.</p>`
       + (servers.length ? "" : `<p class="muted">${t("No Discord server with the Guilded bot lists you as a member. Addon-only guilds don't need one: the addon syncs in game.", "Aucun serveur Discord avec le bot Guilded ne vous compte comme membre. Les guildes sans Discord n'en ont pas besoin : l'addon se synchronise en jeu.")}</p>`)
       + `<p><button class="button" type="submit">${t("Connect", "Relier")}</button></p></form>`;
     return kit.page(200, title, body, { noindex: true });

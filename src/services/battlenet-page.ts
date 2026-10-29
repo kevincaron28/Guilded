@@ -39,7 +39,9 @@ export function createBattleNetPage(store: BattleNetStore, config: BattleNetConf
       if (!BNET_REGIONS.includes(region) || !BNET_EDITIONS.includes(edition)) return fail(t("Choose a supported region and edition.", "Choisissez une région et une édition prises en charge."));
       if (pending.size >= 2000 || [...pending.values()].filter(row => row.accountId === ctx.account!.id).length >= 5) return fail(t("Too many pending connections. Try again in ten minutes.", "Trop de connexions en attente. Réessayez dans dix minutes."), 429);
       const state = create({ accountId: ctx.account.id, session, region, edition, expires: now + LIFETIME });
-      return kit.redirect(battleNetAuthorize(config, state));
+      // Chromium applies form-action to the redirect chain of a POST. Keep the
+      // strict same-origin policy and finish the handoff with ordinary navigation.
+      return kit.page(200, title, `<h1>${title}</h1><p>${t("Continue on Blizzard's website to choose what Guilded can access. Your characters are not saved until you confirm your selection here.", "Continuez sur le site de Blizzard pour choisir les accès de Guilded. Vos personnages ne sont enregistrés qu'après confirmation de votre sélection ici.")}</p><p><a class="button" rel="noreferrer" href="${escapeHtml(battleNetAuthorize(config, state))}">${t("Continue to Battle.net", "Continuer vers Battle.net")}</a></p>`, { noindex: true });
     }
     if (path === "/me/battlenet/callback" && ctx.request.method === "GET") {
       const key = ctx.request.query.get("state") ?? "";

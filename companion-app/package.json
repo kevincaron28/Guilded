@@ -29,6 +29,7 @@
       "store-config.cjs",
       "preload.cjs",
       "grm-import.cjs",
+      "loot-history-import.cjs",
       "detect-wow.cjs",
       "update-check.cjs",
       "i18n.cjs",
@@ -49,6 +50,7 @@
         "filter": [
           "engine.mjs",
           "grm-migration.mjs",
+          "loot-history-import.mjs",
           "lua-export.mjs",
           "saved-file.mjs",
           "standings.mjs",

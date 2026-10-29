@@ -13,7 +13,7 @@ describe('companion French presentation', () => {
   it('preserves every interpolation slot and covers authored T calls', () => {
     const slots = (text: string) => [...text.matchAll(/\{\d+\}/g)].map(match => match[0]).sort();
     for (const [key, value] of Object.entries(fr)) expect(slots(value), key).toEqual(slots(key));
-    for (const file of ['main.cjs', 'grm-import.cjs', 'renderer/app.js', 'renderer/manage.js']) {
+    for (const file of ['main.cjs', 'grm-import.cjs', 'loot-history-import.cjs', 'renderer/app.js', 'renderer/manage.js']) {
       const source = ts.createSourceFile(file, readFileSync(new URL(`../companion-app/${file}`, import.meta.url), 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
       function visit(node: ts.Node) {
         if (ts.isCallExpression(node) && node.expression.getText(source) === 'T') {

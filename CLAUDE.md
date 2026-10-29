@@ -31,8 +31,10 @@ PRs #262 and #263 are merged. Preserve published 8.0.2 artifacts.
 The audit branch also prevents service-error floods from hiding player reports
 in the developer bug inbox; this CLI correction does not itself require a bot
 deployment. Remaining manual acceptance is still waived, not passed.
-Loot-history import work starts with an offline preview; see
-`docs/LOOT_HISTORY_IMPORT.md`. It is not yet an in-game import command.
+Loot-history import now includes the desktop converter, officer preview and typed
+confirmation, persistent local history, deduplication and undo; see
+`docs/LOOT_HISTORY_IMPORT.md`. PR #265 completes this source feature for the next
+release. Actual game acceptance remains unperformed; published 8.0.2 is unchanged.
 
 # Working on Guilded
 

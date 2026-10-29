@@ -1,4 +1,4 @@
-// Offline preview only. External awards never become Guilded GP/EP or live awards.
+// Offline preview and local-history archive. External awards never become Guilded GP/EP or live awards.
 import { createHash } from "node:crypto";
 import { open, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
@@ -171,7 +171,7 @@ export function previewLootHistory(input, { source, guild, realm, edition, chara
       ...(source === "gargul" && parsed.format === "csv" ? ["Gargul TMB CSV contains dates only and may substitute token item IDs. Prefer JSON for original item IDs and timestamps."] : [])] };
 }
 
-async function readBounded(file, limit) {
+export async function readLootImportFile(file, limit = LOOT_IMPORT_LIMITS.bytes) {
   const handle = await open(file, "r");
   try {
     const bytes = Buffer.alloc(limit + 1); let size = 0;
@@ -181,14 +181,47 @@ async function readBounded(file, limit) {
   } finally { await handle.close(); }
 }
 
+// Backup.lua's bounded plain-data grammar, not executable Lua. Arrays are 1-based.
+function encodeArchive(value) {
+  if (typeof value === "string") return '"' + value.replace(/[\\"\n\r]/gu, char => char === "\n" ? "\\n" : char === "\r" ? "\\r" : "\\" + char) + '"';
+  if (typeof value === "number" && Number.isFinite(value) || typeof value === "boolean") return String(value);
+  const entries = Array.isArray(value) ? value.map((item, index) => [`#${index + 1}`, item]) : Object.entries(value).map(([key, item]) => [encodeArchive(key), item]);
+  return "{" + entries.map(([key, item]) => key + ":" + encodeArchive(item)).join(",") + "}";
+}
+
+/** Build only from the original export plus reviewed mapping, never a supplied preview object. */
+export function createLootHistoryArchive(input, options, allowUnidentified = false) {
+  const preview = previewLootHistory(input, options);
+  if (preview.unmappedCharacters.length) throw new Error("Map every source character before saving an archive.");
+  if (preview.summary.missingSourceIds && allowUnidentified !== true) throw new Error("Review and acknowledge awards without stable source IDs first.");
+  const archive = { format: 1, ...preview.scope, source: preview.provenance.source, sourceHash: preview.provenance.sourceHash,
+    allowUnidentified: allowUnidentified === true, entries: preview.entries.map(entry => ({
+      row: entry.row, sourceId: entry.sourceId, sourceCharacter: entry.sourceCharacter, character: entry.character,
+      itemId: entry.itemId, itemString: entry.itemString, at: entry.awardedAt.value, precision: entry.awardedAt.precision,
+      timezone: entry.awardedAt.timezone, response: entry.response, offspec: entry.offspec === null ? "unknown" : entry.offspec,
+      instance: entry.instance, boss: entry.boss
+    })) };
+  // Lua measures UTF-8 bytes, not JS UTF-16 code units.
+  for (const value of [archive.guild, archive.realm]) if (Buffer.byteLength(value) > 120) throw new Error("Guild and realm must fit the addon's 120-byte limit.");
+  for (const row of archive.entries) for (const [key, value] of Object.entries(row)) {
+    if (typeof value === "string" && Buffer.byteLength(value) > (["sourceId", "sourceCharacter", "character"].includes(key) ? 160 : 4096)) throw new Error("Award text exceeds the addon's byte limit.");
+  }
+  const bytes = Buffer.from(encodeArchive(archive));
+  if (bytes.length > 290_000) throw new Error("Archive exceeds the in-game paste limit. Export a smaller date range.");
+  let sum = 0; for (const byte of bytes) sum = (sum * 31 + byte) % 16777213;
+  return { preview, code: `GLH1:${sum.toString(16).padStart(6, "0")}:${bytes.toString("base64")}` };
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     const [file, mappingFile, output, ...extra] = process.argv.slice(2);
-    if (!file || !mappingFile || !output || extra.length) throw new Error("Usage: node companion/loot-history-import.mjs EXPORT MAPPING.json NEW-PREVIEW.json");
-    const input = await readBounded(file, LOOT_IMPORT_LIMITS.bytes);
-    const mapping = JSON.parse(await readBounded(mappingFile, 500_000));
+    if (!file || !mappingFile || !output || extra.some(flag => !["--archive", "--allow-unidentified"].includes(flag))) throw new Error("Usage: node companion/loot-history-import.mjs EXPORT MAPPING.json NEW-OUTPUT [--archive] [--allow-unidentified]");
+    const input = await readLootImportFile(file);
+    const mapping = JSON.parse(await readLootImportFile(mappingFile, 500_000));
     const preview = previewLootHistory(input, mapping);
-    await writeFile(output, JSON.stringify(preview, null, 2) + "\n", { flag: "wx", mode: 0o600 });
-    console.log(JSON.stringify({ ...preview.summary, previewOnly: true, output }));
+    const archive = extra.includes("--archive");
+    const result = archive ? createLootHistoryArchive(input, mapping, extra.includes("--allow-unidentified")).code : JSON.stringify(preview, null, 2);
+    await writeFile(output, result + "\n", { flag: "wx", mode: 0o600 });
+    console.log(JSON.stringify({ ...preview.summary, previewOnly: !archive, output }));
   } catch (error) { console.error(error.message); process.exitCode = 1; }
 }

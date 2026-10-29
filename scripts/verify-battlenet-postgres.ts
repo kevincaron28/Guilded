@@ -25,6 +25,27 @@ export async function verifyBattleNetPostgres(database: PrismaClient) {
     assert.equal(await store.get(b.id), null); // Failed transaction did not leave a partial identity.
     const identity = await database.battleNetIdentity.findUniqueOrThrow({ where: { accountId: a.id } });
     await assert.rejects(database.battleNetCharacter.updateMany({ where: { identityId: identity.id }, data: { isMain: true } }));
+    // Maximum-size accounts must use bounded round trips, including refresh.
+    const large = { ...discovery, characters: [...discovery.characters, ...Array.from({ length: 498 }, (_, i) => ({
+      region: "us" as const, gameEdition: "retail" as const, realmId: 3, characterId: 2147400000 + i, name: `Alt${i}`, realm: "three"
+    }))] };
+    await store.save(a.id, large, large.characters.map(discoveredKey), null);
+    const beforeRefresh = await database.battleNetCharacter.findMany({ where: { identityId: identity.id } });
+    assert.equal(beforeRefresh.length, 500);
+    await store.save(a.id, { ...large, characters: large.characters.map(c => ({ ...c, name: `New${c.name}` })) }, large.characters.map(discoveredKey), null);
+    const afterRefresh = await database.battleNetCharacter.findMany({ where: { identityId: identity.id } });
+    assert.deepEqual(afterRefresh.map(c => c.id).sort(), beforeRefresh.map(c => c.id).sort());
+    assert.equal(afterRefresh.filter(c => c.isMain).length, 1);
+    assert.equal(afterRefresh.every(c => c.name.startsWith("New")), true);
+    const era: BattleNetDiscovery = { ...discovery, gameEdition: "classic-era", characters: [{ ...discovery.characters[0]!, gameEdition: "classic-era" }] };
+    await store.save(a.id, era, era.characters.map(discoveredKey), null);
+    assert.equal((await store.get(a.id))!.characters.length, 501);
+    await assert.rejects(store.save(b.id, { ...large, subject: `${prefix}bulk-other` }, large.characters.map(discoveredKey), null));
+    assert.equal(await store.get(b.id), null);
+    assert.equal((await store.get(a.id))!.characters.length, 501);
+    await store.save(a.id, large, [keys[1]!], null);
+    assert.equal((await store.get(a.id))!.characters.length, 2);
+    assert.equal((await store.get(a.id))!.characters.filter(c => c.isMain).length, 1);
     assert.equal(await database.webCharacter.count({ where: { accountId: a.id } }), 0);
     const personal = prismaPersonalStore(database);
     await issuePersonalCredential(personal, a.id, "Home PC");

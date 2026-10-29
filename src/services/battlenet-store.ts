@@ -29,17 +29,19 @@ export function prismaBattleNetStore(database: PrismaClient): BattleNetStore {
         if (byAccount && byAccount.subject !== discovery.subject) throw new Error("Disconnect the previous Battle.net account before choosing another.");
         const identity = await tx.battleNetIdentity.upsert({ where: { accountId }, create: { accountId, subject: discovery.subject, battleTag: discovery.battleTag }, update: { battleTag: discovery.battleTag } });
         const retained = await tx.battleNetCharacter.findMany({ where: { identityId: identity.id } });
-        const removed = retained.filter(c => c.region === discovery.region && c.gameEdition === discovery.gameEdition && !selected.includes(discoveredKey(c as DiscoveredCharacter)));
-        if (removed.length) await tx.battleNetCharacter.deleteMany({ where: { identityId: identity.id, id: { in: removed.map(c => c.id) } } });
+        const previous = new Map(retained.map(c => [discoveredKey(c as DiscoveredCharacter), c]));
         if (main) await tx.battleNetCharacter.updateMany({ where: { identityId: identity.id, isMain: true }, data: { isMain: false } });
-        for (const c of rows) {
-          const key = { region: c.region, gameEdition: c.gameEdition, realmId: c.realmId, characterId: c.characterId };
-          const existing = await tx.battleNetCharacter.findUnique({ where: { region_gameEdition_realmId_characterId: key } });
-          if (existing && existing.identityId !== identity.id) throw new Error("A selected character belongs to another Guilded account. Resolve ownership before linking it.");
-          await tx.battleNetCharacter.upsert({ where: { region_gameEdition_realmId_characterId: key },
-            create: { ...c, identityId: identity.id, isMain: discoveredKey(c) === main, verifiedAt: discovery.verifiedAt },
-            update: { name: c.name, realm: c.realm, verifiedAt: discovery.verifiedAt, ...(main ? { isMain: discoveredKey(c) === main } : {}) } });
-        }
+        // Replace only this identity's selected region/edition in two round trips.
+        // Per-character reads/upserts exceed Prisma's transaction deadline over
+        // a remote database. Preserve row IDs and the existing main on refresh.
+        // The global character unique constraint rejects foreign ownership and
+        // rolls back this whole transaction; never skip duplicates or transfer it.
+        await tx.battleNetCharacter.deleteMany({ where: { identityId: identity.id, region: discovery.region, gameEdition: discovery.gameEdition } });
+        if (rows.length) await tx.battleNetCharacter.createMany({ data: rows.map(c => {
+          const old = previous.get(discoveredKey(c));
+          return { ...c, ...(old ? { id: old.id } : {}), identityId: identity.id,
+            isMain: main ? discoveredKey(c) === main : old?.isMain ?? false, verifiedAt: discovery.verifiedAt };
+        }) });
       }, { isolationLevel: "Serializable" });
     },
     async unlink(accountId) { await database.battleNetIdentity.deleteMany({ where: { accountId } }); }

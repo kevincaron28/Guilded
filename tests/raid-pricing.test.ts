@@ -6,6 +6,7 @@ import { standingsToLua } from "../companion/standings-format.mjs";
 import { newLuaSession, type LuaSession } from "./lua/harness.js";
 import { runAutoDecay } from "../src/services/auto-decay.js";
 import * as epgp from "../src/services/epgp.js";
+import { describePriority } from "../src/services/loot-priority.js";
 
 let lua: LuaSession | undefined;
 afterEach(() => { lua?.close(); lua = undefined; vi.restoreAllMocks(); });
@@ -51,6 +52,8 @@ describe("December prices: shared TypeScript policy and actual Lua quotes", () =
     s.run('LEVEL=100; function GetItemInfo() return "Sword",nil,4,LEVEL,nil,nil,nil,nil,"INVTYPE_WEAPON" end');
     expect(s.run('return NS.loot.priceOf("item:12345")')).toBe("175");
     s.run('LEVEL=101; GuildedLoot.cores[1].pricing.slots.oneHand=777; GuildedLoot.cores[1].pricing.revision=4');
+    s.run('GuildedLoot.cores[1].pool=false');
+    expect(s.run('return tostring(NS.loot.core().pool)')).toBe("true");
     expect(s.run('return NS.loot.priceOf("item:12345")')).toBe("100");
     s.load("Modules/Loot.lua");
     expect(s.run('return NS.loot.quoteFor("item:12345").revision')).toBe("3");
@@ -76,6 +79,12 @@ describe("December prices: shared TypeScript policy and actual Lua quotes", () =
     expect(addonLootSchema.safeParse(row).success).toBe(true);
     expect(addonLootSchema.safeParse({...row,gp:75}).success).toBe(false);
   });
+});
+
+it("never declares a wishlist-order winner for a preset PR tie", () => {
+  const ranking=["Ann","Bob"].map((name,i)=>({memberId:name,displayName:name,character:name,ep:100,gp:0,pr:1,wishPriority:i+1,wishedAt:new Date()}));
+  const text=describePriority("Sword","December",{price:null,ranking,outsideCore:0,visibleTies:true});
+  expect(text).toContain("Priority tie");expect(text).toContain("/roll 100");expect(text).not.toContain("Goes to");
 });
 
 it("decays only the opted-in core after reset, defers an active raid, and reuses the weekly reference", async () => {

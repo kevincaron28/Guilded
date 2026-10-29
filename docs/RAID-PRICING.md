@@ -48,6 +48,8 @@ Preset awards save edition, core, revision, item link, base price, final GP, res
 
 All configured exceptions are exported; there is no 400-price truncation. An import over 500 lines is refused in full with a split-batch instruction.
 
+Discord cannot determine equipment metadata from a name. Direct Discord awards for preset cores require an explicit base `gp:` quote (including an explicit zero for free items); `offspec:true` applies the percentage once. The officer quote is retained in history. Use the addon's saved raid quote for the correct revision. Discord wishlist priority reports ties without declaring the earliest wish the winner.
+
 ## Tokens, quests and new raids
 
 Set verified token/quest exceptions at the highest possible reward-slot cost. Charge once at the token or reward, according to the published guild list, never both. Legendary fragments use verified zero-price exceptions; charge the completed item once. Unknown metadata never silently becomes a free item.

@@ -1,4 +1,5 @@
 /* Offline UI acceptance fixture. Synthetic data; no credentials or network writes. */
+/* global document, location, window, CustomEvent */
 (() => {
   const $=id=>document.getElementById(id);
   const member=new URLSearchParams(location.search).get('member')==='1';

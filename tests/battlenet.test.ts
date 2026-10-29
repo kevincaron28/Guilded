@@ -57,7 +57,7 @@ describe("Battle.net linking and consent", () => {
     const h = await setup();
     const response = await h.request("POST", "/me/battlenet/start", [["region", "us"], ["gameEdition", "retail"]]);
     expect(response.status).toBe(200);
-    expect(response.headers.location).toBeUndefined();
+    expect(response.headers["location"]).toBeUndefined();
     expect(response.headers["content-security-policy"]).toContain("form-action 'self'");
     expect(response.body).toContain('rel="noreferrer" href="https://oauth.battle.net/authorize?');
     expect(response.body).not.toContain(config.clientSecret);

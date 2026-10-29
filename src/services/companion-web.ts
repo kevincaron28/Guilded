@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 const assets: Record<string, string> = {
   "": "index.html", "index.html": "index.html", "style.css": "style.css",
-  "app.js": "app.js", "manage.js": "manage.js", "web-bundle.js": "web-bundle.js", "logo.png": "logo.png", "manifest.json": "manifest.json",
+  "app.js": "app.js", "manage.js": "manage.js", "raid-hub.js": "raid-hub.js", "web-bundle.js": "web-bundle.js", "logo.png": "logo.png", "manifest.json": "manifest.json",
   "precision.css": "precision.css", "kc-emblem.webp": "kc-emblem.webp"
 };
 const sharedAssets: Record<string, string> = {

@@ -9,9 +9,15 @@ function valuesToLua(values, indent) {
   for (const value of values ?? []) {
     const gp = Math.max(0, Math.trunc(Number(value.gp) || 0));
     lines.push(`${indent}[${luaString(value.key)}] = ${gp},`);
-    if (value.id && value.key !== `#${value.id}`) lines.push(`${indent}[${luaString(`#${value.id}`)}] = ${gp},`);
+    if (value.id && !value.key.includes("@") && value.key !== `#${value.id}`) lines.push(`${indent}[${luaString(`#${value.id}`)}] = ${gp},`);
   }
   return lines;
+}
+
+function pricingToLua(p) {
+  if (!p || p.preset !== 'december-flat-v1') return 'nil';
+  const slots = Object.entries(p.slots ?? {}).filter(([,v]) => Number.isInteger(v) && v >= 0 && v <= 100000);
+  return `{ preset = ${luaString(p.preset)}, edition = ${luaString(p.edition)}, revision = ${Math.max(0, Math.trunc(p.revision ?? 0))}, slots = { ${slots.map(([k,v]) => `[${luaString(k)}] = ${v}`).join(', ')} }, equipment = { ${Object.entries(p.equipment ?? {}).map(([k,v]) => `[${luaString(k)}] = ${luaString(v)}`).join(', ')} } }`;
 }
 
 // How each raid core decides loot (see the addon's Modules/Loot.lua).
@@ -32,6 +38,7 @@ function lootToLua(loot) {
       `      id = ${luaString(core.id)}, name = ${luaString(core.name)}, mode = ${luaString(core.mode)}, pool = ${core.separatePool ? "true" : "false"},`,
       `      reserves = ${Math.max(1, Math.trunc(core.reserves ?? 1))}, baseGp = ${Math.max(0, Math.trunc(core.baseGp ?? 0))},`,
       `      offspec = ${Math.max(0, Math.min(100, Math.trunc(core.offspecPercent ?? 50)))}, minEp = ${Math.max(0, Math.trunc(core.minEp ?? 0))},`,
+      `      pricing = ${pricingToLua(core.pricing)},`,
       "      values = {",
       ...valuesToLua(core.values, "        "),
       "      },",

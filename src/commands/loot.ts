@@ -11,6 +11,7 @@ import { createItemValueService } from "../services/item-values.js";
 import { describePriority, priorityFor } from "../services/loot-priority.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { asLang, t } from "../i18n.js";
+import { readPricingPolicy } from "../services/raid-pricing.js";
 
 const lootService = createLootService(prisma);
 const wishlistService = createWishlistService(prisma);
@@ -85,7 +86,7 @@ export async function executeLoot(interaction: ChatInputCommandInteraction): Pro
   const lootMode = rules.lootMode;
   if (subcommand === "priority") {
     const itemName = interaction.options.getString("item", true);
-    const result = await priorityFor(prisma, context.guildId, itemName, { coreId: raidCore?.id ?? null, separatePool: rules.separatePool, baseGp: rules.baseGp, minEp: rules.minEp });
+    const result = await priorityFor(prisma, context.guildId, itemName, { coreId: raidCore?.id ?? null, separatePool: rules.separatePool, baseGp: rules.baseGp, minEp: rules.minEp, visibleTies: !!readPricingPolicy(raidCore?.pricingPolicy) });
     await interaction.reply({ content: describePriority(itemName, raidCore?.name ?? null, result).slice(0, 1990), flags: MessageFlags.Ephemeral });
     return;
   }
@@ -95,6 +96,9 @@ export async function executeLoot(interaction: ChatInputCommandInteraction): Pro
     const itemName = interaction.options.getString("item", true);
     // EPGP priority: an item without an explicit price costs its set price.
     let gp = interaction.options.getInteger("gp");
+    const policy = readPricingPolicy(raidCore?.pricingPolicy);
+    if (policy && gp === null) throw new Error("This core uses the pricing preset. Use the in-game quote, or enter gp: explicitly from the raid's saved prices. Discord cannot verify equipment metadata from an item name.");
+    if (policy && gp !== null && gp > 100000) throw new Error("The preset price cannot exceed 100000 GP.");
     let usedSetPrice = false;
     if (gp === null && lootMode === "PRIORITY") {
       const price = await itemValues.priceOf(context.guildId, raidCore?.id ?? null, { name: itemName });
@@ -102,10 +106,13 @@ export async function executeLoot(interaction: ChatInputCommandInteraction): Pro
     }
     // Off-spec: the core's share of the price (a GP typed by hand is the price it applies to).
     const offspec = interaction.options.getBoolean("offspec") === true;
+    const basePrice = gp ?? 0;
     if (offspec && gp !== null) gp = Math.round(gp * rules.offspecPercent / 100);
     const award = await lootService.awardDirect({
       guildId: context.guildId, memberId: target.id, itemName,
       gp: gp ?? 0, raidId: raidForMode ?? undefined,
+      ...(policy && raidCore ? { pricingSnapshot: { preset: policy.preset, edition: policy.edition, revision: raidCore.pricingRevision, coreId: raidCore.id,
+        itemLink: itemName, baseGp: basePrice, finalGp: gp ?? 0, response: offspec ? "offspec" : "main", source: "officer", provisional: true, via: "discord" } } : {}),
       bossName: interaction.options.getString("boss") ?? undefined, awardedBy: interaction.user.id
     });
     await interaction.reply({ content: `**${award.itemName}** awarded to ${user.username}${award.amount ? ` for ${award.amount} GP${usedSetPrice ? " (its set price)" : ""}${offspec ? ` (off-spec, ${rules.offspecPercent}%)` : ""}` : ""}.`, allowedMentions: { parse: [] } });

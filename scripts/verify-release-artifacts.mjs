@@ -32,6 +32,9 @@ for (const path of toc.split(/\r?\n/).map(line => line.trim()).filter(line => li
 const standings = Buffer.from(files["Guilded/Standings.lua"]).toString("utf8");
 assert.deepEqual(Buffer.from(files["Guilded/Modules/LootHistoryImport.lua"] ?? []),
   readFileSync("addon/Guilded/Modules/LootHistoryImport.lua"), "Missing or stale loot-history module");
+for (const path of ["Core.lua", "Modules/Loot.lua", "Modules/Council.lua", "Modules/LootRoll.lua", "Modules/Sync.lua"]) {
+  assert.deepEqual(Buffer.from(files[`Guilded/${path}`] ?? []), readFileSync(`addon/Guilded/${path}`), `Missing or stale raid pricing module: ${path}`);
+}
 assert.match(standings, /players = \{\}/);
 assert.match(standings, /GuildedLedgerAccepted = \{\}/);
 assert.doesNotMatch(standings, /credential|discordId|sourceRef|GuildedDB/i);
@@ -56,7 +59,7 @@ const require = createRequire(new URL("../companion-app/package.json", import.me
 const { extractFile } = require("@electron/asar");
 const asar = "dist/companion/win-unpacked/resources/app.asar";
 assert.equal(JSON.parse(extractFile(asar, "package.json").toString()).version, version);
-for (const path of ["main.cjs", "preload.cjs", "detect-wow.cjs", "update-check.cjs", "i18n.cjs", "locales/fr.json", "loot-history-import.cjs", "ipc-security.cjs", "renderer/app.js", "renderer/index.html"]) {
+for (const path of ["main.cjs", "preload.cjs", "detect-wow.cjs", "update-check.cjs", "i18n.cjs", "locales/fr.json", "loot-history-import.cjs", "ipc-security.cjs", "renderer/app.js", "renderer/index.html", "renderer/raid-hub.js"]) {
   assert.deepEqual(extractFile(asar, path), readFileSync(join("companion-app", path)), `Stale packaged companion: ${path}`);
 }
 const companionPackage = JSON.parse(readFileSync("companion-app/package.json", "utf8"));

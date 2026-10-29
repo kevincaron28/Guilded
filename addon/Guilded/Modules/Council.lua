@@ -220,9 +220,10 @@ local function rankedResponses(session)
     if session.kind == "priority" then
       -- EPGP priority: players with the core's minimum EP first, then main spec before
       -- off-spec, then the highest PR.
-      if a.belowMin ~= b.belowMin then return not a.belowMin end
       local ra, rb = TIERS[a.tier].rank, TIERS[b.tier].rank
+      if not session.pricing and a.belowMin ~= b.belowMin then return not a.belowMin end
       if ra ~= rb then return ra < rb end
+      if a.belowMin ~= b.belowMin then return not a.belowMin end
       if a.pr ~= b.pr then return a.pr > b.pr end
       return a.at < b.at
     end
@@ -246,6 +247,12 @@ local function passCount(session)
 end
 
 local awardSession
+local function startPriorityRoll(session)
+  if not (session.tiePlayers and ns.lootRoll and ns.lootRoll.start) then return end
+  session.rollStarted = ns.lootRoll.start(session.tiePlayers, nil, function(winner)
+    if council.current == session then session.eligibleWinner = winner; changed() end
+  end, L("EPGP tie: eligible players /roll 100. Ties roll again.")) or session.rollStarted
+end
 
 local function closeSession(id)
   local session = council.current
@@ -257,6 +264,24 @@ local function closeSession(id)
     announce(string.format(L("Nobody wants %s."), session.item))
     council.current = nil
   elseif session.kind == "priority" then
+    if session.pricing then
+      local first = ranked[1]
+      local tied = {}
+      for _, row in ipairs(ranked) do
+        if row.pr == first.pr and row.tier == first.tier and row.belowMin == first.belowMin then table.insert(tied, row.name) end
+      end
+      session.eligibleWinner = first.name
+      if #tied > 1 then
+        session.eligibleWinner = nil
+        session.tiePlayers = tied
+        startPriorityRoll(session)
+        ns.message(L("Priority is tied. Finish the visible roll before awarding."))
+      else
+        ns.message(string.format(L("Highest priority: %s. Confirm the item is usable and tradable, then /guilded council award."), first.name))
+      end
+      changed()
+      return
+    end
     -- The set price goes to the highest PR: no decision left to make.
     changed()
     awardSession({})
@@ -325,6 +350,14 @@ local function openSession(args, opts)
     minEp = ns.loot and ns.loot.minEp and ns.loot.minEp() or 0,
     offspec = ns.loot and ns.loot.offspecPercent and ns.loot.offspecPercent() or 50
   }
+  if opts.kind == "priority" and ns.loot and ns.loot.quoteFor then
+    local quote = ns.loot.quoteFor(item)
+    if quote then
+      if quote.baseGp ~= opts.price then quote.source = "officer" end
+      quote.baseGp, quote.finalGp = opts.price, opts.price
+      council.current.pricing = quote
+    end
+  end
   if opts.kind == "priority" then
     sendAddon(string.format("OPENP|%s|%d|%d|%s", id, seconds, opts.price or 0, item), channel)
     announce(string.format(L("%s costs %d GP. Want it? Answer in the Guilded popup, or whisper me want, os or pass. The highest PR gets it (%ds)."),
@@ -363,6 +396,11 @@ awardSession = function(args)
   if not session then return end
   local name = args[1] and ns.normalizeName and ns.normalizeName(args[1])
   local ranked = rankedResponses(session)
+  if session.pricing then
+    if not session.eligibleWinner then startPriorityRoll(session); ns.message(L("Priority is tied. Finish the visible roll before awarding.")); return end
+    if name and name ~= session.eligibleWinner then ns.message(L("Award the highest-priority player or the visible roll winner.")); return end
+    name = session.eligibleWinner
+  end
   if not name then
     if not ranked[1] then ns.message("Say who gets it: /guilded council award <player> [GP]."); return end
     name = ranked[1].name
@@ -375,7 +413,14 @@ awardSession = function(args)
   if offspecWin then gp = math.floor(session.price * (tonumber(session.offspec) or 50) / 100 + 0.5) end
   if gp < 0 or gp > MAX_GP then ns.message("That GP is out of range."); return end
   local item = plainItem(session.item)
+  if session.pricing then
+    session.pricing.finalGp = gp
+    session.pricing.response = answer and answer.tier == "os" and "offspec" or "main"
+    if tonumber(args[2]) then session.pricing.source = "officer" end
+    ns.lootAwardQuote = session.pricing
+  end
   ns.runCommand("loot " .. name .. " " .. item .. " " .. gp)
+  ns.lootAwardQuote = nil
   if gp > 0 then ns.runCommand("gp " .. name .. " " .. gp .. " " .. (session.kind == "priority" and "Priority: " or "Council: ") .. item) end
   sendAddon(string.format("AWARD|%s|%s", session.id, name), session.channel)
   if session.kind == "priority" then
@@ -390,6 +435,7 @@ end
 local function cancelSession()
   local session = council.current
   if not session then ns.message("No loot council to cancel."); return end
+  if session.rollStarted and ns.lootRoll then ns.lootRoll.session = nil end
   sendAddon("CLOSE|" .. session.id, session.channel)
   announce(string.format(L("Loot council on %s cancelled."), session.item))
   council.current = nil
@@ -415,6 +461,7 @@ function council.restore()
   session.responses = type(session.responses) == "table" and session.responses or {}
   session.endsAt = clock() + math.max(0, left)
   council.current = session
+  if session.pricing and not session.open and not session.eligibleWinner then startPriorityRoll(session) end
   if session.open and C_Timer and C_Timer.After then
     C_Timer.After(math.max(5, left), function() closeSession(session.id) end)
   end

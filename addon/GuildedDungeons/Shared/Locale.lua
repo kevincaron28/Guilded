@@ -9,6 +9,11 @@ local addonName, ns = ...
 ns = ns or {}
 
 local FR = {
+  ["Start a raid with /guilded start before using the pricing preset."] = "D\195\169marrez un raid avec /guilded start avant d\226\128\153utiliser le pr\195\169r\195\169glage de prix.",
+  ["EPGP tie: eligible players /roll 100. Ties roll again."] = "\195\137galit\195\169 EPGP : les joueurs concern\195\169s font /roll 100. Relancez en cas d\226\128\153\195\169galit\195\169.",
+  ["Priority is tied. Finish the visible roll before awarding."] = "Priorit\195\169s \195\169gales. Terminez le jet visible avant d\226\128\153attribuer le butin.",
+  ["Highest priority: %s. Confirm the item is usable and tradable, then /guilded council award."] = "Priorit\195\169 maximale : %s. V\195\169rifiez que l\226\128\153objet est utilisable et \195\169changeable, puis /guilded council award.",
+  ["Award the highest-priority player or the visible roll winner."] = "Attribuez au joueur prioritaire ou au gagnant du jet visible.",
   ["A source award conflicts with stored history. Nothing was changed."] = "Une attribution source contredit l\226\128\153historique. Aucune modification.",
   ["History is full (10,000 awards). Back up SavedVariables before managing this archive."] = "Historique plein (10 000 attributions). Sauvegardez SavedVariables avant de g\195\169rer cette archive.",
   ["History exceeds the 2 MB storage limit. Nothing was changed."] = "L\226\128\153historique d\195\169passe 2 Mo. Aucune modification.",
@@ -646,6 +651,11 @@ local FR = {
 -- scripts/addon-locale.mjs), then npm run dungeons:sync.
 -- BEGIN DE (written by npm run locale -- import; edit the CSV, not these lines)
 local DE = {
+  ["Start a raid with /guilded start before using the pricing preset."] = "Starte einen Raid mit /guilded start, bevor du die Preisvorlage nutzt.",
+  ["EPGP tie: eligible players /roll 100. Ties roll again."] = "EPGP-Gleichstand: Berechtigte Spieler /roll 100. Bei Gleichstand erneut w\195\188rfeln.",
+  ["Priority is tied. Finish the visible roll before awarding."] = "Gleiche Priorit\195\164t. Schlie\195\159t den sichtbaren Wurf vor der Vergabe ab.",
+  ["Highest priority: %s. Confirm the item is usable and tradable, then /guilded council award."] = "H\195\182chste Priorit\195\164t: %s. Pr\195\188fe Nutzbarkeit und Handelbarkeit, dann /guilded council award.",
+  ["Award the highest-priority player or the visible roll winner."] = "Vergib an den Spieler mit h\195\182chster Priorit\195\164t oder den Gewinner des sichtbaren Wurfs.",
   ["A source award conflicts with stored history. Nothing was changed."] = "Eine Quellvergabe widerspricht dem gespeicherten Verlauf. Nichts ge\195\164ndert.",
   ["History is full (10,000 awards). Back up SavedVariables before managing this archive."] = "Verlauf voll (10.000 Vergaben). Sichere SavedVariables, bevor du dieses Archiv verwaltest.",
   ["History exceeds the 2 MB storage limit. Nothing was changed."] = "Der Verlauf \195\188berschreitet 2 MB. Nichts ge\195\164ndert.",
@@ -1733,6 +1743,11 @@ local DE = {
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
 local ES = {
+  ["Start a raid with /guilded start before using the pricing preset."] = "Inicia una banda con /guilded start antes de usar los precios predefinidos.",
+  ["EPGP tie: eligible players /roll 100. Ties roll again."] = "Empate EPGP: los jugadores elegibles usan /roll 100. Repetid si hay empate.",
+  ["Priority is tied. Finish the visible roll before awarding."] = "Prioridades empatadas. Termina la tirada visible antes de asignar.",
+  ["Highest priority: %s. Confirm the item is usable and tradable, then /guilded council award."] = "Mayor prioridad: %s. Comprueba que el objeto se puede usar e intercambiar, luego /guilded council award.",
+  ["Award the highest-priority player or the visible roll winner."] = "Asigna al jugador con mayor prioridad o al ganador de la tirada visible.",
   ["A source award conflicts with stored history. Nothing was changed."] = "Una adjudicaci\195\179n de origen contradice el historial. No se cambi\195\179 nada.",
   ["History is full (10,000 awards). Back up SavedVariables before managing this archive."] = "Historial lleno (10.000 adjudicaciones). Guarda una copia de SavedVariables antes de gestionar este archivo.",
   ["History exceeds the 2 MB storage limit. Nothing was changed."] = "El historial supera los 2 MB. No se cambi\195\179 nada.",

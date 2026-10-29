@@ -249,6 +249,7 @@ export function parseAddonExportText(text, realm) {
       gp: Math.max(0, Math.trunc(Number(row.cost) || 0)),
       ...(row.at ? { awardedAt: row.at } : {}),
       ...(row.raid ? { raidRef: row.raid } : {}),
+      ...(row.pricing ? { pricing: row.pricing } : {}),
       ...(row.boss ? { boss: row.boss } : {})
     });
   }

@@ -19,6 +19,8 @@
       <button class="nav" data-page="wow"><span aria-hidden="true">◇</span>World of Warcraft</button>
       <button class="nav" data-page="poe"><span aria-hidden="true">⌁</span>PoE2 mapping</button>
       <button class="nav" data-page="wishlist"><span aria-hidden="true">★</span>Wishlist</button>
+      <button class="nav" data-page="pricing"><span aria-hidden="true">◈</span>Raid prices</button>
+      <button class="nav" data-page="leaderboards"><span aria-hidden="true">🏆</span>Leaderboards</button>
       <button class="nav" data-page="cores"><span aria-hidden="true">⚑</span>Cores & prices</button>
       <div class="nav-divider"></div>
       <button class="nav" data-page="settings"><span aria-hidden="true">⚙</span>Connection & setup <span id="setupBadge" class="badge" hidden>!</span></button>
@@ -89,6 +91,14 @@
         </div>
         <datalist id="manageItems"></datalist>
       </section>
+      <section id="page-pricing" class="page" hidden>
+        <div class="page-heading"><div><p class="eyebrow">READY BEFORE THE FIRST DROP</p><h1>Raid prices</h1><p class="subtitle">Know the price, understand your priority, and keep your core in control.</p></div><button id="pricingReload">Refresh</button></div>
+        <p id="pricingNotice" role="status"></p><div id="pricingContent"></div>
+      </section>
+      <section id="page-leaderboards" class="page" hidden>
+        <div class="page-heading"><div><p class="eyebrow">YOUR GUILD'S PROGRESS</p><h1>Leaderboards</h1><p class="subtitle">Core loot priority and dungeon scores, with their own rules and seasons.</p></div><button id="boardsReload">Refresh</button></div>
+        <p id="boardsNotice" role="status"></p><div id="boardsContent"></div>
+      </section>
       <section id="page-settings" class="page" hidden>
         <div class="page-heading"><div><p class="eyebrow">MAKE IT YOURS</p><h1>Connection & setup</h1><p class="subtitle">Connect once. Choose the games you want to share.</p></div><span id="pairBadge" class="pill">Discord not linked</span></div>
         <article class="panel"><h2>Guild connections</h2><p class="muted">Keep a connection and saved-data folder for each guild or edition. On Windows, enable background sync for each connection you want to keep updated. Select a connection to view or edit it.</p><label>Active connection<select id="connectionProfile"></select></label><div class="row"><input id="newProfileName" maxlength="80" placeholder="New connection name" aria-label="New connection name"><button type="button" id="btnAddProfile">Add connection</button></div></article>
@@ -108,6 +118,6 @@
     <footer><a href="https://discord.gg/YjzFwtP64V" target="_blank" rel="noopener">Discord community ↗</a><a href="https://ko-fi.com/wowguilded" target="_blank" rel="noopener">Support Guilded · buy me a coffee ↗</a><span id="footerMode">Automatic sync · Personal pairing</span></footer>
   </div>
   <div id="toast" class="toast" role="status" hidden></div>
-  <script src="web-bundle.js"></script><script src="app.js"></script><script src="manage.js"></script>
+  <script src="web-bundle.js"></script><script src="app.js"></script><script src="manage.js"></script><script src="raid-hub.js"></script>
 </body>
 </html>

@@ -30,7 +30,9 @@ beforeEach(() => { vi.clearAllMocks(); resetFailures(); });
 describe("hosted pilot runtime admission", () => {
   it("excludes unapproved guilds before scheduled ledger work is selected", async () => {
     const findMany = vi.fn(async () => []);
-    await runAutoDecay({ guildSettings: { findMany } } as never);
+    const coreFindMany = vi.fn(async () => []);
+    await runAutoDecay({ guildSettings: { findMany }, raidCore: { findMany: coreFindMany } } as never);
+    expect(coreFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: { pricingAutoDecay: true, separatePool: true, guild: { discordId: { in: [owner, guest] } } } }));
     expect(findMany).toHaveBeenCalledWith({ where: { autoDecay: true, guild: { discordId: { in: [owner, guest] } } } });
   });
   it("blocks pairing, reads and uploads before touching an unapproved guild's data", async () => {

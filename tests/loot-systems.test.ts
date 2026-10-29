@@ -265,8 +265,9 @@ describe("the loot block written for the addon", () => {
     expect(rules.minimumBid).toBe(20);
     expect(rules.values.map((row) => row.key)).toEqual(["guild ring"]);
     expect(rules.cores.map((core) => `${core.name}:${core.mode}:${core.reserves}`)).toEqual(["Priority Core:PRIORITY:1", "Follows Guild:COUNCIL:1", "Reserve Core:RESERVE:2"]);
-    // Prices only matter for priority cores; the guild-wide ones come along with them.
-    expect(rules.cores[0]?.values.map((row) => `${row.key}=${row.gp}`).sort()).toEqual(["guild ring=40", "sulfuras=250"]);
+    // Keep own prices distinct so a core ID exception beats a guild name exception.
+    // Guild fallback is carried by rules.values and resolved by the addon.
+    expect(rules.cores[0]?.values.map((row) => `${row.key}=${row.gp}`).sort()).toEqual(["sulfuras=250"]);
     expect(rules.cores[1]?.values).toEqual([]);
     expect(rules.cores[0]?.standings).toEqual([{ character: "pool-c1-10", main: true, ep: 1, gp: 2 }]);
     expect(rules.cores[1]?.standings).toEqual([]);

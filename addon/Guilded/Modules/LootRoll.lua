@@ -12,15 +12,15 @@ local function announce(text)
     if send then pcall(send, "[Guilded] " .. text:sub(1, 240), channel) end
   end
 end
-function roll.start(players, bonuses)
+function roll.start(players, bonuses, onWinner, title)
   if not (ns.isOfficer and ns.isOfficer()) or not ns.util.groupChannel() or roll.session then return false end
   if GuildedGames and GuildedGames.state and GuildedGames.state() then
     ns.message(L("Finish Guilded Games before starting a loot roll.")); return false
   end
   local eligible = {}; for _, name in ipairs(players) do eligible[name] = true end
   if #players < 2 then return false end
-  roll.session = { players = eligible, values = {}, bonus = bonuses or {} }
-  announce(L("Soft-reserve roll: eligible players /roll 100. Highest total wins; ties roll again.")); return true
+  roll.session = { players = eligible, values = {}, bonus = bonuses or {}, onWinner = onWinner }
+  announce(title or L("Soft-reserve roll: eligible players /roll 100. Highest total wins; ties roll again.")); return true
 end
 function roll.receive(name, value, low, high)
   local s = roll.session
@@ -49,6 +49,7 @@ function roll.receive(name, value, low, high)
       announce(string.format(L("Roll winner: %s (%d). Award the item separately."), winners[1], best))
     end
     roll.session = nil
+    if s.onWinner then s.onWinner(winners[1]) end
   end
 end
 ns.commandHandlers.lootroll = function(args)

@@ -110,8 +110,15 @@ export const addonLootSchema = z.object({
   gp: z.number().int().nonnegative().default(0),
   awardedAt: z.coerce.date().optional(),
   raidRef: z.string().min(1).optional(),
-  boss: z.string().min(1).optional()
-});
+  boss: z.string().min(1).optional(),
+  pricing: z.object({
+    preset: z.literal("december-flat-v1"), revision: z.number().int().min(0),
+    edition: z.string().min(1).max(32), coreId: z.string().min(1).max(100),
+    itemLink: z.string().max(2048), variant: z.string().max(100).optional(),
+    baseGp: z.number().int().min(0).max(100000), finalGp: z.number().int().min(0).max(100000),
+      response: z.enum(["main", "offspec"]), source: z.enum(["slot", "override", "officer"]), provisional: z.boolean()
+    }).optional()
+}).refine(row => !row.pricing || row.pricing.finalGp === row.gp, { message: "Quoted GP must match the awarded GP.", path: ["pricing", "finalGp"] });
 
 export type AddonLoot = z.infer<typeof addonLootSchema>;
 

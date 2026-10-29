@@ -20,6 +20,8 @@ export async function runAutoDecay(database: PrismaClient, now = new Date()): Pr
       if (!settings.coreLootOnly && settings.epgpDecayPercent > 0) await epgp.applyDecay(settings.guildId, settings.epgpDecayPercent, "auto-decay", null, `decay:guild:${week}`);
       const cores = await database.raidCore.findMany({ where: { guildId: settings.guildId, separatePool: true } });
       for (const core of cores) {
+        // Preset pools have their own switch and retry cursor. Never double-schedule them.
+        if (core.pricingPolicy) continue;
         const percent = effectiveRules(settings, core).decayPercent;
         if (percent > 0) await epgp.applyDecay(settings.guildId, percent, "auto-decay", core.id, `decay:${core.id}:${week}`);
       }
@@ -27,6 +29,21 @@ export async function runAutoDecay(database: PrismaClient, now = new Date()): Pr
       decayed++;
     } catch (error) {
       console.error(`Automatic decay failed for guild ${settings.guildId}`, error);
+    }
+  }
+  const presetCores = await database.raidCore.findMany({ where: { ...pilotGuildScope, pricingAutoDecay: true, separatePool: true }, include: { guild: { include: { settings: true } } } });
+  for (const core of presetCores) {
+    if (core.lastPricingDecayAt && core.lastPricingDecayAt >= reset) continue;
+    try {
+      // A connected raid must finish before its pool changes. Offline sessions
+      // cannot be observed here; the published reset time remains the boundary.
+      if (await database.raid.count({ where: { coreId: core.id, status: "ACTIVE" } })) continue;
+      const percent = effectiveRules(core.guild.settings, core).decayPercent;
+      if (percent > 0) await epgp.applyDecay(core.guildId, percent, "auto-decay", core.id, `decay:${core.id}:${reset.toISOString().slice(0, 10)}`);
+      await database.raidCore.update({ where: { id: core.id }, data: { lastPricingDecayAt: now } });
+      decayed++;
+    } catch (error) {
+      console.error(`Automatic decay failed for core ${core.id}`, error);
     }
   }
   return decayed;

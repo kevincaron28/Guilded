@@ -77,6 +77,17 @@ function loot.coreName()
 end
 
 function loot.core()
+  local raid = ns.getActiveRaid and ns.getActiveRaid()
+  if raid and raid.pricingContext then
+    local context = raid.pricingContext
+    local pinned = {}; for key, value in pairs(coreNamed(context.coreId) or {}) do pinned[key] = value end
+    pinned.id, pinned.name, pinned.pool = context.coreId, context.coreName, context.pool
+    return pinned
+  end
+  if raid and raid.coreId then
+    local pinned = coreNamed(raid.coreId)
+    if pinned then return pinned end
+  end
   local s = settings()
   if s and s.activeCore and s.activeCore ~= "" then return coreNamed(s.activeCore) end
   local nextRaid = not (ns.isInGameOnly and ns.isInGameOnly()) and GuildedNextRaid
@@ -87,8 +98,81 @@ function loot.core()
   return coreNamed((loot.coreName()))
 end
 
+local function copy(value)
+  if type(value) ~= "table" then return value end
+  local out = {}; for key, item in pairs(value) do out[key] = copy(item) end; return out
+end
+
+-- A raid keeps its quote rules across /reload and companion refreshes. Standings
+-- remain fresh, but new prices and rule edits wait until the next raid.
+function loot.pricingContext()
+  local raid = ns.getActiveRaid and ns.getActiveRaid()
+  if raid and raid.pricingContext then return raid.pricingContext end
+  local core = loot.core()
+  if not core then return nil end
+  if not (core.pricing and core.pricing.preset == "december-flat-v1") then return nil end
+  local r = rules()
+  local context = { pricing = copy(core.pricing), ownValues = copy(core.values or {}), guildValues = {}, coreId = core.id,
+    coreName = core.name, pool = core.pool, mode = core.mode, baseGp = core.baseGp or 0, offspec = core.offspec or 50, minEp = core.minEp or 0 }
+  if not (r and r.coreOnly) then context.guildValues = copy(r and r.values or {}) end
+  local d = ns.getDb and ns.getDb()
+  for key, value in pairs(d and d.itemPrices or {}) do
+    local ownPrefix = (core.id or "") .. ":"
+    if string.sub(key, 1, #ownPrefix) == ownPrefix then context.ownValues[string.sub(key, #ownPrefix + 1)] = value.gp
+    elseif not (r and r.coreOnly) and string.sub(key, 1, 1) == ":" then context.guildValues[string.sub(key, 2)] = value.gp end
+  end
+  if raid then raid.pricingContext = context end
+  return context
+end
+
+-- The item link is retained in the award snapshot; an item-level variant override
+-- can distinguish difficulty/upgraded copies without using localized item names.
+function loot.variantKey(item)
+  local id = string.match(item or "", "item:(%d+)") or string.match(item or "", "^%s*(%d+)%s*$")
+  if not id or not GetItemInfo then return nil end
+  local _, _, _, level = GetItemInfo(item)
+  if GetDetailedItemLevelInfo then level = GetDetailedItemLevelInfo(item) or level
+  elseif C_Item and C_Item.GetDetailedItemLevelInfo then level = C_Item.GetDetailedItemLevelInfo(item) or level end
+  return level and ("#" .. id .. "@ilvl:" .. tostring(level)) or nil
+end
+
+function loot.quoteFor(item)
+  local context = loot.pricingContext()
+  if not context then return nil end
+  local p = context.pricing
+  local edition = ns.util.gameEdition and ns.util.gameEdition()
+  if edition ~= p.edition then return nil end
+  local name = string.match(item or "", "%[(.-)%]") or item
+  local id = string.match(item or "", "item:(%d+)") or string.match(item or "", "^%s*(%d+)%s*$")
+  local key = loot.variantKey(item)
+  local override
+  local officerPrice = context.officerValues and context.officerValues[itemKey(name)]
+  for _, values in ipairs({ context.ownValues, context.guildValues }) do
+    override = key and values[key]
+    if override == nil then override = values[itemKey(name)] end
+    if override == nil and id then override = values["#" .. id] end
+    if override ~= nil then break end
+  end
+  if officerPrice ~= nil then override = officerPrice end
+  local slot, quality, subclass = "unknown"
+  if GetItemInfo then
+    local _, _, q, _, _, _, _, _, equipLoc, _, _, _, sub = GetItemInfo(item)
+    quality, subclass = q, sub
+    slot = p.equipment and p.equipment[equipLoc or ""] or "unknown"
+    if equipLoc == "INVTYPE_RANGEDRIGHT" and tonumber(subclass) == 19 then slot = "relic" end
+    if tonumber(quality) == 5 and slot ~= "unknown" then slot = "legendary" end
+  end
+  local base = override ~= nil and override or (p.slots and p.slots[slot])
+  if base == nil then return nil end
+  return { preset = p.preset, revision = p.revision, edition = p.edition, coreId = context.coreId,
+    itemLink = item, variant = key, baseGp = base, finalGp = base, response = "main",
+    source = officerPrice ~= nil and "officer" or (override ~= nil and "override" or "slot"), provisional = override == nil and slot == "unknown" }
+end
+
 -- "EPGP", "COUNCIL", "RESERVE" or "PRIORITY", and where that came from.
 function loot.mode()
+  local context = loot.pricingContext()
+  if context then return context.mode, "core" end
   local s = settings()
   if s and MODES[s.lootMode or ""] then return s.lootMode, "override" end
   local core = loot.core()
@@ -129,6 +213,11 @@ function loot.setPrice(item, gp)
     name = name, id = tonumber(string.match(item or "", "item:(%d+)")), gp = gp, core = coreId,
     at = ns.now and ns.now() or ""
   }
+  local raid = ns.getActiveRaid and ns.getActiveRaid()
+  if raid and raid.pricingContext then
+    raid.pricingContext.officerValues = raid.pricingContext.officerValues or {}
+    raid.pricingContext.officerValues[key] = gp
+  end
   if ns.syncNow and ns.syncNow.mark then ns.syncNow.mark() end
   return true, name, core and core.name
 end
@@ -136,6 +225,11 @@ end
 -- The set GP price of an item (a link, or a plain name) in this core, or nil.
 function loot.priceOf(item)
   if type(item) ~= "string" then return nil end
+  local quote = loot.quoteFor(item)
+  if quote then
+    if quote.provisional then return nil end
+    return quote.baseGp
+  end
   local core = loot.core()
   local r = rules()
   local name = string.match(item, "%[(.-)%]") or item
@@ -144,7 +238,7 @@ function loot.priceOf(item)
   local prices = localPrices()
   local key = itemKey(name)
   if prices and key then
-    local own = (core and core.id ~= "" and prices[core.id .. ":" .. key]) or prices[":" .. key]
+    local own = (core and core.id ~= "" and prices[core.id .. ":" .. key]) or (not (r and r.coreOnly) and prices[":" .. key])
     if own then return own.gp end
   end
   local keys = {}
@@ -162,7 +256,12 @@ end
 -- PR in the pool the core uses: its own pool when it has one, else the guild pool.
 function loot.prFor(name)
   local core = loot.core()
-  if ns.effectiveStanding then return ns.effectiveStanding(name, core and core.pool and core.id or nil).pr end
+  if ns.effectiveStanding then
+    local standing = ns.effectiveStanding(name, core and core.pool and core.id or nil)
+    local context = loot.pricingContext()
+    if context then return (standing.ep or 0) / math.max(1, (standing.gp or 0) + context.baseGp) end
+    return standing.pr
+  end
   if core and core.pool then
     local row = core.players and core.players[name]
     return row and row.pr or 0
@@ -187,6 +286,8 @@ end
 -- /core rules offspec_percent) and the EP a player needs before priority counts them first
 -- (/core rules min_ep; 0 = no minimum).
 function loot.offspecPercent()
+  local context = loot.pricingContext()
+  if context then return context.offspec end
   local core = loot.core()
   local value = core and tonumber(core.offspec)
   if not value then return 50 end
@@ -194,6 +295,8 @@ function loot.offspecPercent()
 end
 
 function loot.minEp()
+  local context = loot.pricingContext()
+  if context then return context.minEp end
   local core = loot.core()
   return math.max(0, core and tonumber(core.minEp) or 0)
 end
@@ -225,6 +328,8 @@ function loot.suggestGp(level, equipLoc, quality, subclass)
 end
 
 function loot.suggestFor(item)
+  local quote = loot.quoteFor(item)
+  if quote then return quote.baseGp end
   local suggestion
   pcall(function()
     if not GetItemInfo then return end
@@ -272,6 +377,13 @@ function loot.drop(args)
     call("council", { "start", item, tostring(seconds) })
   elseif mode == "PRIORITY" then
     if not moduleOn("council") then ns.message(L("Loot council is off (/guilded modules).")) return end
+    if loot.pricingContext() and ns.getActiveRaid and not ns.getActiveRaid() then
+      ns.message(L("Start a raid with /guilded start before using the pricing preset.")); return
+    end
+    local context = loot.pricingContext()
+    if context and context.pricing.edition ~= ns.util.gameEdition() then
+      ns.message("This pricing preset belongs to another game edition. Connect the matching guild before starting loot."); return
+    end
     local price = loot.priceOf(item)
     if not price then
       -- No price yet: ask for one right here; it is kept and sent to Discord for next time.

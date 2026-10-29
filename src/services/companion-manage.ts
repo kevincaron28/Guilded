@@ -4,6 +4,9 @@ import { createWishlistService } from "./wishlist.js";
 import { createItemValueService, parseItemValues } from "./item-values.js";
 import { createRaidCoreService } from "./raid-core.js";
 import { effectiveRules, LOOT_MODES } from "./core-rules.js";
+import { DECEMBER_RULES, decemberPricing, PRICING_SLOTS, pricingSlotsSchema, readPricingPolicy } from "./raid-pricing.js";
+import { priority } from "./epgp.js";
+import { addonDungeonBoard } from "./dungeon-stats.js";
 
 // What a paired companion may look at and change besides its uploads: a member's own wishlists,
 // and for Raid Leaders the item prices, rules and roster of the cores (the same rights as
@@ -41,6 +44,9 @@ const changes = z.object({
 }).partial().strict();
 
 const actionSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("pricing.create"), name: z.string().trim().min(2).max(60) }),
+  z.object({ action: z.literal("pricing.enable"), coreId: id, revision: z.number().int().min(0), applyRules: z.boolean() }),
+  z.object({ action: z.literal("pricing.update"), coreId: id, revision: z.number().int().min(0), slots: pricingSlotsSchema }),
   z.object({ action: z.literal("wishlist.set"), characterId: id, item: z.string().max(100), priority: z.number().int().min(1).max(3) }),
   z.object({ action: z.literal("wishlist.remove"), characterId: id, item: z.string().max(100) }),
   z.object({ action: z.literal("prices.set"), coreId: id.nullable(), text: z.string().min(1).max(200_000) }),
@@ -122,22 +128,47 @@ export function createCompanionManage(database: PrismaClient) {
         where: { guildId, status: "ACTIVE", isTest: false }, orderBy: { displayName: "asc" }, take: MAX_MEMBERS,
         select: { id: true, displayName: true, characters: { select: { name: true, displayName: true, realm: true, className: true }, orderBy: [{ isMain: "desc" }, { name: "asc" }] } }
       }) : [];
+      const sums = await database.epgpTransaction.groupBy({
+        by: ["coreId", "memberId"], where: { guildId }, _sum: { epAmount: true, gpAmount: true }
+      });
+      const totals = new Map(sums.map(row => [`${row.coreId ?? ""}:${row.memberId}`, row._sum]));
+      const guild = await database.guild.findUniqueOrThrow({ where: { id: guildId }, select: { gameEdition: true, name: true } });
+      const dungeon = await addonDungeonBoard(database, guildId).then(board => ({ available: true, board }))
+        .catch(() => ({ available: false, board: null }));
       // Names to suggest when typing an item: priced, wishlisted or awarded before. Skips "Item 123".
       const itemNames = [...new Set([...allPrices, ...wishes, ...awards].map((row) => row.itemName).filter((name) => !/^Item \d+$/.test(name)))]
         .sort((a, b) => a.localeCompare(b)).slice(0, MAX_ITEM_NAMES);
       return {
         me: { officer: access.officer, raidLeader: access.raidLeader },
+        updatedAt: new Date().toISOString(),
+        edition: guild.gameEdition,
+        guildName: guild.name,
+        pricingPreset: { policy: decemberPricing(guild.gameEdition), slots: PRICING_SLOTS, rules: DECEMBER_RULES },
+        dungeonLeaderboard: dungeon,
         coreLootOnly: settings?.coreLootOnly ?? false,
         lootModes: LOOT_MODES,
         characters,
-        guildPrices: guildPrices.map((row) => ({ name: row.name, id: row.id, gp: row.gp })),
+        guildPrices: guildPrices.map((row) => ({ key: row.key, name: row.name, id: row.id, gp: row.gp })),
         cores: coreRows.map((core) => {
           const rules = effectiveRules(settings, core);
           return {
             id: core.id, name: core.name, schedule: core.schedule,
+            pricing: readPricingPolicy(core.pricingPolicy), pricingRevision: core.pricingRevision,
+            automaticDecay: core.pricingPolicy && rules.separatePool ? core.pricingAutoDecay : settings?.autoDecay || false,
+            leaderboard: (() => {
+              const ranked = core.members.filter(spot => spot.member.status === "ACTIVE" && !spot.member.isTest).map(spot => {
+                const sum = totals.get(`${rules.separatePool ? core.id : ""}:${spot.memberId}`);
+                const ep = sum?.epAmount ?? 0, gp = sum?.gpAmount ?? 0;
+                return { memberId: spot.memberId, name: spot.member.displayName,
+                  character: spot.character?.displayName || spot.character?.name || "", role: spot.role,
+                  ep, gp, pr: priority(ep, gp, rules.baseGp), belowMin: ep < rules.minEp, me: spot.memberId === access.memberId };
+              }).sort((a, b) => Number(a.belowMin) - Number(b.belowMin) || b.pr - a.pr || a.name.localeCompare(b.name));
+              return ranked.map(row => ({ ...row, rank: 1 + ranked.filter(other =>
+                Number(other.belowMin) < Number(row.belowMin) || (other.belowMin === row.belowMin && other.pr > row.pr)).length }));
+            })(),
             own: coreOwnValues(core),
             effective: { attendanceEp: rules.attendanceEp, lateEp: rules.lateEp, bossEp: rules.bossEp, completionEp: rules.completionEp, baseGp: rules.baseGp, decayPercent: Math.round(rules.decayPercent * 100), lootMode: rules.lootMode, reservesPerPlayer: rules.reservesPerPlayer, separatePool: rules.separatePool, offspecPercent: rules.offspecPercent, minEp: rules.minEp },
-            prices: allPrices.filter((row) => row.coreId === core.id).map((row) => ({ name: row.itemName, id: row.itemId, gp: row.gp })),
+            prices: allPrices.filter((row) => row.coreId === core.id).map((row) => ({ key: row.itemKey, name: row.itemName, id: row.itemId, gp: row.gp })),
             members: core.members.map((spot) => ({
               memberId: spot.memberId, name: spot.member.displayName, role: spot.role, bench: spot.bench, trial: spot.trial,
               character: spot.character?.name ?? null,
@@ -165,6 +196,44 @@ export function createCompanionManage(database: PrismaClient) {
       }
 
       requireLeader(access);
+
+      if (action.action === "pricing.create") {
+        const guild = await database.guild.findUniqueOrThrow({ where: { id: guildId }, select: { gameEdition: true } });
+        if (await database.raidCore.findFirst({ where: { guildId, name: action.name } })) throw new ManageError("A core with that name already exists.", 409);
+        const core = await database.raidCore.create({ data: { guildId, name: action.name, ...DECEMBER_RULES,
+          pricingPolicy: decemberPricing(guild.gameEdition), pricingRevision: 1,
+          pricingAutoDecay: true, lastPricingDecayAt: new Date() } });
+        return { message: `Created ${core.name} with the December preset and its own empty point pool.`, rosterCoreId: core.id,
+          audit: { coreId: core.id, preset: "december-flat-v1", revision: 1 } };
+      }
+      if (action.action === "pricing.enable" || action.action === "pricing.update") {
+        const result = await database.$transaction(async tx => {
+          const core = await tx.raidCore.findFirst({ where: { id: action.coreId, guildId } });
+          if (!core) throw new ManageError("That core no longer exists. Reload.", 404);
+          if (core.pricingRevision !== action.revision) throw new ManageError(STALE, 409);
+          const guild = await tx.guild.findUniqueOrThrow({ where: { id: guildId }, select: { gameEdition: true } });
+          const existing = readPricingPolicy(core.pricingPolicy);
+          if (action.action === "pricing.update" && !existing) throw new ManageError("Enable the pricing preset first.");
+          if (action.action === "pricing.enable" && existing) throw new ManageError("This core already has a preset. Edit its prices instead.", 409);
+          const applyRules = action.action === "pricing.enable" && action.applyRules;
+          if (applyRules && await tx.epgpTransaction.count({ where: { guildId, coreId: core.separatePool ? core.id : null } })) {
+            throw new ManageError("This pool already has point history. Enable prices only, or create a new core; existing balances and point rules are preserved.", 409);
+          }
+          const policy = action.action === "pricing.update"
+            ? { ...existing!, slots: action.slots } : decemberPricing(guild.gameEdition);
+          const saved = await tx.raidCore.updateMany({ where: { id: core.id, guildId, pricingRevision: action.revision },
+            data: { pricingPolicy: policy, pricingRevision: { increment: 1 },
+              ...(action.action === "pricing.enable" ? { pricingAutoDecay: applyRules || !!(core.separatePool && (await tx.guildSettings.findUnique({ where: { guildId } }))?.autoDecay), lastPricingDecayAt: new Date() } : {}),
+              ...(applyRules ? DECEMBER_RULES : {}) } });
+          if (saved.count !== 1) throw new ManageError(STALE, 409);
+          return core;
+        }, { isolationLevel: "Serializable", timeout: 15_000 }).catch((error: unknown) => {
+          if (error && typeof error === "object" && "code" in error && error.code === "P2034") throw new ManageError(STALE, 409);
+          throw error;
+        });
+        return { message: `Saved ${result.name}'s pricing for the next raid. Item overrides and past awards are unchanged.`,
+          rosterCoreId: result.id, audit: { coreId: result.id, revision: action.revision + 1, change: action.action } };
+      }
 
       if (action.action === "prices.set" || action.action === "prices.remove") {
         const core = action.coreId ? await coreOf(guildId, action.coreId) : null;

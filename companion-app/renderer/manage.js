@@ -126,12 +126,12 @@
     $('priceCount').textContent = T("{0} set", prices.length);
     $('priceEdit').hidden = !leader();
     $('priceList').replaceChildren(...(prices.length ? prices.map(price => {
-      const label = el('span', { class: 'grow', text: price.name }, price.id ? el('span', { class: 'tag', text: `  #${price.id}` }) : null);
+      const label = el('span', { class: 'grow', text: price.name }, price.id ? el('span', { class: 'tag', text: `  ${price.key || '#' + price.id}` }) : null);
       if (!leader()) return el('div', { class: 'edit-row' }, label, el('span', { text: `${price.gp} GP` }));
       const gp = el('input', { class: 'number', type: 'number', min: '0', max: '100000', value: String(price.gp), 'aria-label': T("Price of {0}", price.name) });
       const save = el('button', { type: 'button', text: T("Save") });
       // A price given by id alone is kept by its id ("Item 19019" is only its label).
-      const key = /^Item \d+$/.test(price.name) && price.id ? String(price.id) : price.name;
+      const key = price.key?.startsWith('#') ? `id:${price.key.slice(1)}` : /^Item \d+$/.test(price.name) && price.id ? String(price.id) : price.name;
       save.addEventListener('click', () => { if (gp.value !== '' && Number(gp.value) >= 0) change(save, { action: 'prices.set', coreId, text: `${key} = ${Math.round(Number(gp.value))}` }); });
       const remove = el('button', { class: 'quiet', type: 'button', text: T("Remove") });
       remove.addEventListener('click', () => change(remove, { action: 'prices.remove', coreId, item: key }));

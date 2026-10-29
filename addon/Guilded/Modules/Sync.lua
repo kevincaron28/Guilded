@@ -311,7 +311,8 @@ local function adoptLootRules(file, updatedAt)
         reserves = tonumber(core.reserves) or 1, baseGp = baseGp, values = cleanValues(core.values), players = players,
         -- 4.6: the share of the price an off-spec win costs (percent) and the EP a player needs
         -- before priority counts them ahead of those below it.
-        offspec = math.max(0, math.min(100, tonumber(core.offspec) or 50)), minEp = math.max(0, tonumber(core.minEp) or 0)
+        offspec = math.max(0, math.min(100, tonumber(core.offspec) or 50)), minEp = math.max(0, tonumber(core.minEp) or 0),
+        pricing = type(core.pricing) == "table" and core.pricing or nil
       })
     end
   end

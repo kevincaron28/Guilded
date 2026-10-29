@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve, sep, extname } from 'node:path';
 
 const root = resolve('companion-app/renderer');
-const fixture = resolve('tests/fixtures/companion-management-ui.js');
+const fixture = resolve(process.argv.includes('--raid') ? 'tests/fixtures/companion-raid-ui.js' : 'tests/fixtures/companion-management-ui.js');
 const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.woff2': 'font/woff2' };
 createServer(async (request, response) => {
   try {

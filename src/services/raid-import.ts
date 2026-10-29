@@ -142,6 +142,10 @@ export async function applyAddonLoot(
     const character = findCharacter(characters, row.character, row.realm);
     if (!character) { unmatched.push(row.character); continue; }
     const raidId = row.raidRef ? raidIds.get(row.raidRef) ?? null : null;
+    if (row.pricing) {
+      const quotedRaid = raidId ? await tx.raid?.findFirst({ where: { id: raidId, guildId, coreId: row.pricing.coreId, guild: { gameEdition: row.pricing.edition } }, select: { id: true } }) : null;
+      if (!quotedRaid) { held.push(row); continue; }
+    }
     if (coreLootOnly) {
       const raid = raidId ? await tx.raid?.findFirst({ where: { id: raidId, guildId, core: { separatePool: true } }, select: { id: true } }) : null;
       if (!raid) { held.push(row); continue; }
@@ -156,6 +160,7 @@ export async function applyAddonLoot(
         bossName: row.boss ?? null,
         awardedBy: appliedBy,
         sourceRef: row.ref,
+        ...(row.pricing ? { pricingSnapshot: row.pricing } : {}),
         ...(row.awardedAt ? { awardedAt: row.awardedAt } : {})
       }
     });

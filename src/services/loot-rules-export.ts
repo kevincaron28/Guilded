@@ -2,6 +2,7 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { addonName } from "./addon-name.js";
 import { asLootMode, effectiveRules, type LootMode } from "./core-rules.js";
 import { createItemValueService, type ValueRow } from "./item-values.js";
+import { pricingForAddon } from "./raid-pricing.js";
 
 // What the addon needs to run loot the way each raid core has chosen: the loot system, the
 // set item prices, and (for a core with its own point pool) that pool's standings. The
@@ -23,6 +24,7 @@ export interface LootRulesForAddon {
     baseGp: number;
     offspecPercent: number;
     minEp: number;
+    pricing: ReturnType<typeof pricingForAddon>;
     values: { key: string; id: number | null; gp: number }[];
     /** Only for a core with its own pool. */
     standings: { character: string; main: boolean; ep: number; gp: number }[];
@@ -56,8 +58,9 @@ export function coreRosterRows(spots: SpotForRoster[]): CoreRosterRow[] {
   });
 }
 
-const MAX_VALUES = 400;
-const slim = (rows: ValueRow[]) => rows.slice(0, MAX_VALUES).map((row) => ({ key: row.key, id: row.id, gp: row.gp }));
+// Never silently lose officer overrides. Flat slot policies stay compact; all
+// explicitly configured exceptions must travel with them.
+const slim = (rows: ValueRow[]) => rows.map((row) => ({ key: row.key, id: row.id, gp: row.gp }));
 
 type Db = Pick<PrismaClient, "guildSettings" | "raidCore" | "coreItemValue">;
 
@@ -68,7 +71,7 @@ export async function lootRulesForAddon(
   const [settings, cores] = await Promise.all([
     database.guildSettings.findUnique({ where: { guildId } }),
     database.raidCore.findMany({
-      where: { guildId }, orderBy: { name: "asc" }, take: 30,
+      where: { guildId }, orderBy: { name: "asc" },
       include: { members: { include: {
         member: { select: { displayName: true, characters: { select: { name: true, realm: true }, orderBy: { isMain: "desc" }, take: 1 } } },
         character: { select: { name: true, realm: true } },
@@ -89,7 +92,8 @@ export async function lootRulesForAddon(
     out.cores.push({
       id: core.id, name: core.name, mode: rules.lootMode, separatePool: rules.separatePool, reserves: rules.reservesPerPlayer, baseGp: rules.baseGp,
       offspecPercent: rules.offspecPercent, minEp: rules.minEp,
-      values: rules.lootMode === "PRIORITY" ? slim(await values.effective(guildId, core.id)) : [],
+      pricing: pricingForAddon(core.pricingPolicy, core.pricingRevision),
+      values: rules.lootMode === "PRIORITY" ? slim(await values.list(guildId, core.id)) : [],
       standings: rules.separatePool ? await poolStandings(core.id, rules.baseGp) : [],
       roster: coreRosterRows(core.members)
     });

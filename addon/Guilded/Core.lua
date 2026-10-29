@@ -342,6 +342,7 @@ local function raidStart(title)
   table.insert(db.raids, activeRaid)
   recordPresence()
   db.activeRaidId = activeRaid.id
+  if ns.loot and ns.loot.pricingContext then ns.loot.pricingContext() end
   logEvent("RAID_START", { id = activeRaid.id, title = activeRaid.title })
   send("RAID_START|" .. activeRaid.id .. "|" .. activeRaid.title)
   message("Started raid: " .. activeRaid.title)
@@ -349,6 +350,9 @@ end
 
 local function raidEnd()
   if not activeRaid then message("No active raid."); return end
+  if ns.council and ns.council.current and ns.council.current.pricing then
+    message("Award or cancel the current priced item before ending this raid."); return
+  end
   recordPresence()
   activeRaid.endedAt = now()
   logEvent("RAID_END", { id = activeRaid.id })
@@ -1363,6 +1367,7 @@ local function recordLoot(args)
   local row = { id = nextLedgerId(), player = name, item = item, cost = cost,
     at = now(), by = playerName(), raid = activeRaid and activeRaid.id,
     boss = bosses and bosses[#bosses] and bosses[#bosses].name or nil }
+  if ns.lootAwardQuote then row.pricing = ns.lootAwardQuote end
   table.insert(db.loot, row)
   logEvent("LOOT", row)
   send("LOOT|" .. name .. "|" .. item .. "|" .. row.cost)

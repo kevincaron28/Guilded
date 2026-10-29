@@ -10,7 +10,7 @@ export const GUILD_DEFAULT = "";
 export const MAX_GP = 100_000;
 const MAX_LINES = 500;
 
-export interface ParsedValue { name: string | null; id: number | null; gp: number }
+export interface ParsedValue { name: string | null; id: number | null; gp: number; variant?: string }
 export interface ParsedValues { values: ParsedValue[]; problems: string[] }
 
 // One item per line, price last: "Sulfuras, Hand of Ragnaros = 250", "Sulfuras;250", "19019 120",
@@ -19,7 +19,7 @@ export function parseItemValues(text: string): ParsedValues {
   const values: ParsedValue[] = [];
   const problems: string[] = [];
   const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  if (lines.length > MAX_LINES) problems.push(`Only the first ${MAX_LINES} lines are read.`);
+  if (lines.length > MAX_LINES) return { values: [], problems: [`Nothing saved: split the list into batches of at most ${MAX_LINES} lines.`] };
   for (const line of lines.slice(0, MAX_LINES)) {
     // "Item = ?" (a prefilled list's item with no price yet) is skipped quietly.
     if (/[=;:\t]\s*\??\s*$/.test(line)) continue;
@@ -32,16 +32,17 @@ export function parseItemValues(text: string): ParsedValues {
     const label = match[1]!.replace(/^["']|["']$/g, "").trim();
     const gp = Number(match[2]);
     if (gp > MAX_GP) { problems.push(`"${label.slice(0, 40)}": ${gp} GP is too high (limit ${MAX_GP}).`); continue; }
-    const idMatch = /^(?:id\s*:?\s*|#)?(\d{2,7})$/i.exec(label);
-    if (idMatch) values.push({ name: null, id: Number(idMatch[1]), gp });
+    const idMatch = /^(?:id\s*:?\s*|#)?(\d{2,7})(?:@(ilvl:\d{1,5}))?$/i.exec(label);
+    if (idMatch) values.push({ name: null, id: Number(idMatch[1]), gp, ...(idMatch[2] ? { variant: idMatch[2].toLowerCase() } : {}) });
+    else if (/^(?:id\s*:|#|\d+@)/i.test(label)) problems.push(`Invalid item identity: "${label.slice(0, 60)}". Use id:12345 or id:12345@ilvl:100.`);
     else if (label.length >= 2 && label.length <= 100) values.push({ name: label, id: null, gp });
     else problems.push(`Not understood: "${line.slice(0, 60)}"`);
   }
   return { values, problems };
 }
 
-export const keyOf = (value: { name: string | null; id: number | null }): string =>
-  value.name ? clean(itemKey(value.name)) : `#${value.id}`;
+export const keyOf = (value: { name: string | null; id: number | null; variant?: string }): string =>
+  value.name ? clean(itemKey(value.name)) : `#${value.id}${value.variant ? `@${value.variant}` : ""}`;
 
 type Db = Pick<PrismaClient, "coreItemValue"> & Partial<Pick<PrismaClient, "guildSettings">>;
 
@@ -71,7 +72,7 @@ export function createItemValueService(database: Db) {
       return changed;
     },
 
-    async remove(guildId: string, coreId: string | null, item: { name: string | null; id: number | null }): Promise<boolean> {
+    async remove(guildId: string, coreId: string | null, item: { name: string | null; id: number | null; variant?: string }): Promise<boolean> {
       const result = await database.coreItemValue.deleteMany({ where: { guildId, coreId: coreId ?? GUILD_DEFAULT, itemKey: keyOf(item) } });
       return result.count > 0;
     },
@@ -99,15 +100,15 @@ export function createItemValueService(database: Db) {
     },
 
     // The price of one item for a core: by name, then by id. null when nobody set one.
-    async priceOf(guildId: string, coreId: string | null, item: { name?: string | null; id?: number | null }): Promise<number | null> {
-      const keys = [item.name ? clean(itemKey(item.name)) : null, item.id ? `#${item.id}` : null].filter((key): key is string => !!key);
+    async priceOf(guildId: string, coreId: string | null, item: { name?: string | null; id?: number | null; variant?: string }): Promise<number | null> {
+      const keys = [item.id && item.variant ? `#${item.id}@${item.variant}` : null, item.name ? clean(itemKey(item.name)) : null, item.id ? `#${item.id}` : null].filter((key): key is string => !!key);
       if (keys.length === 0) return null;
       const pools = await pricePools(guildId, coreId);
       const rows = await database.coreItemValue.findMany({
         where: { guildId, itemKey: { in: keys }, coreId: { in: pools } }
       });
       // The core's own price beats the guild's; a name match beats an id match.
-      const order = (row: (typeof rows)[number]) => (row.coreId === GUILD_DEFAULT ? 0 : 2) + (row.itemKey.startsWith("#") ? 0 : 1);
+      const order = (row: (typeof rows)[number]) => (row.coreId === GUILD_DEFAULT ? 0 : 4) + (row.itemKey.includes("@") ? 3 : row.itemKey.startsWith("#") ? 0 : 1);
       return rows.sort((a, b) => order(b) - order(a))[0]?.gp ?? null;
     }
   };
@@ -146,7 +147,7 @@ export async function priceDraft(
     const key = clean(itemKey(name));
     if (key.length >= 2 && !priced.has(key) && !missing.has(key)) missing.set(key, name);
   }
-  const lines = current.map((row) => `${row.name} = ${row.gp}`);
+  const lines = current.map((row) => `${row.key.startsWith("#") ? `id:${row.key.slice(1)}` : row.name} = ${row.gp}`);
   let suggested = 0;
   for (const [key, name] of [...missing.entries()].sort((a, b) => a[1].localeCompare(b[1]))) {
     const history = paid.get(key);
@@ -191,7 +192,7 @@ export async function applyAddonItemPrices(
 
 export function describeValues(title: string, rows: ValueRow[]): string {
   if (rows.length === 0) return `${title}: no prices set yet.`;
-  const lines = rows.map((row) => `• ${row.name}${row.id && !row.name.startsWith("Item ") ? ` (#${row.id})` : ""} — ${row.gp} GP`);
+  const lines = rows.map((row) => `• ${row.name}${row.key.includes("@") ? ` (${row.key})` : row.id && !row.name.startsWith("Item ") ? ` (#${row.id})` : ""} — ${row.gp} GP`);
   const text = `${title} (${rows.length}):\n${lines.join("\n")}`;
   if (text.length <= 1900) return text;
   let used = title.length + 12;

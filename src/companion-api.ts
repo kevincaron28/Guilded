@@ -568,7 +568,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           const discordGuild = client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null;
           await syncCoreRoster(discordGuild, prisma, guild.id, result.rosterCoreId);
         }
-        json(response, 200, { ok: true, message: result.message, botVersion: BOT_VERSION });
+        json(response, 200, { ok: true, message: result.message, ...(result.rosterCoreId ? { rosterCoreId: result.rosterCoreId } : {}), botVersion: BOT_VERSION });
         return;
       }
       if (isPoeRecent) {

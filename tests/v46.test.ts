@@ -135,7 +135,7 @@ describe("loot rules", () => {
         findMany: async () => [settings],
         update: async ({ data }: { data: { lastAutoDecayAt: Date } }) => { settings.lastAutoDecayAt = data.lastAutoDecayAt; }
       },
-      raidCore: { findMany: async () => [{ id: "c1", separatePool: true, decayPercent: 0.2 }] },
+      raidCore: { findMany: async ({ where }: { where: { pricingAutoDecay?: boolean } }) => where.pricingAutoDecay ? [] : [{ id: "c1", separatePool: true, decayPercent: 0.2 }] },
       member: { findMany: async () => [] },
       epgpTransaction: {
         groupBy: async () => [], findMany: async () => [], createMany: async () => ({ count: 0 }),

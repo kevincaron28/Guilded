@@ -1,36 +1,32 @@
 # Guilded: quick setup
 
-**Start with the addon only (default).** The addon works alone; optional Discord synchronization adds a
-companion and either the approved hosted bot or your independently hosted bot.
+**Start with the addon only.** It works on its own: standings, loot, recipes and dungeon runs are
+shared with your guild in game. Discord and the companion are optional extras for taking it online.
 
-Optional automatic Windows syncing: [Guilded Companion on Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9)
-or the [standalone GitHub installer](https://github.com/kevincaron28/Guilded/releases/latest).
-Store installations update through Microsoft Store. Verify the version offered by the selected channel.
+- **Download:** pick your WoW edition on the [download page](https://guilded.kcaron.top/editions/).
+- **Windows companion (optional):** [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9),
+  which keeps itself up to date, or the [standalone installer](https://github.com/kevincaron28/Guilded/releases/latest).
+- **Discord bot (optional):** [add the free hosted bot](HOSTED_PILOT.md). Your server gets
+  Guilded Lite right away; addon sync, EP/GP and seasons unlock once your server is approved.
+  Nothing to host. The [page for officers](https://guilded.kcaron.top/officers/) sums it up.
+- **Host your own bot:** the [illustrated owner walkthrough](OWNER_WALKTHROUGH.md) has account links,
+  screenshots and copyable commands.
 
-**Want to add the existing Guilded bot? [Add the free hosted bot](HOSTED_PILOT.md).**
-Your server gets Guilded Lite right away; run `/setup start`. KCaron's approval unlocks
-addon sync, EP/GP and seasons, then members connect the online companion. No hosting
-accounts are needed.
-
-New to hosting? Open the [illustrated owner walkthrough](OWNER_WALKTHROUGH.md)
-for account links, Discord/Oracle screenshots and copyable commands.
-
-| You are | Download | Setup target |
+| You are | You need | Time |
 | --- | --- | --- |
-| Addon-only player | Matching published Guilded addon ZIP | 5–10 minutes |
-| Member of a configured guild | Addon; Discord linking and companion sync are optional | 5–10 minutes for the addon |
-| Owner adding the hosted bot | Addon + hosted bot invitation + online companion | Lite right away; full Guilded after approval |
-| Owner setting up Discord sync | Matching bot source + addon + companion | About 30 minutes **after infrastructure is ready** |
+| A player, addon only | The Guilded addon for your edition | 5–10 minutes |
+| A member of a guild with the bot | The addon; the companion is optional | 5–10 minutes |
+| An officer adding the hosted bot | The addon, the bot invitation and the online companion | Lite right away; the rest after approval |
+| An owner hosting their own bot | The bot source, the addon and the companion | About 30 minutes once your server is ready |
 
-These are planning estimates, not measured acceptance results. Public release
-downloads must actually be present on [GitHub Releases](https://github.com/kevincaron28/Guilded/releases)
-or [CurseForge](https://www.curseforge.com/wow/addons/guilded). A local build is not a published download.
-For a private test, use the matching files supplied by the maintainer.
+Times are rough estimates. Download only from the [download page](https://guilded.kcaron.top/editions/),
+[GitHub Releases](https://github.com/kevincaron28/Guilded/releases) or
+[CurseForge](https://www.curseforge.com/wow/addons/guilded).
 
 ## Hosted guild owners: three steps
 
 1. [Add the free hosted bot](HOSTED_PILOT.md). Your server starts on Guilded Lite;
-   KCaron's approval unlocks the rest (no reinvite needed).
+   the rest unlocks once your server is approved (no reinvite needed).
 2. Run `/setup start` in Discord. Choose your language and
    features, place the bot role above roles it must assign, then run
    `/setup start status:true` to find missing settings.
@@ -156,9 +152,10 @@ et les enchères GP.
 ### Ajouter Discord plus tard
 
 Le bot hébergé est gratuit. Votre serveur commence en **Guilded Lite** : lancez
-`/setup start` pour les rôles et les salons. L'approbation de KCaron débloque
-la synchronisation, l'EP/GP et les saisons; elle peut être automatique si l'hôte
-l'a activée. La capacité reste limitée. [Lire le guide du bot](HOSTED_PILOT.md#fr).
+`/setup start` pour les rôles et les salons. La synchronisation, l'EP/GP et les
+saisons se débloquent une fois votre serveur approuvé, parfois automatiquement après
+quelques jours d'utilisation. Les places restent limitées. [Lire le guide du bot](HOSTED_PILOT.md#fr)
+ou la [page des officiers](https://guilded.kcaron.top/officers/?lang=fr).
 
 Après l'approbation et la configuration, chaque membre peut utiliser son propre
 `/character pair`. Sans compagnon, il copie la ligne affichée (par exemple

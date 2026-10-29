@@ -1,7 +1,7 @@
 import { PAGE_STYLE } from "./guild-page.js";
 import { currentEdition } from "./edition-context.js";
 import { editionHref } from "../../site/nav.mjs";
-import { SITE_HEADER_STYLE, siteHeader } from "./site-header.js";
+import { SHARE_CARD, SITE_HEADER_STYLE, siteHeader } from "./site-header.js";
 
 // Shared HTML for the bot-served website pages (/recruitment/, /me/, /leaderboards/). Plain
 // server-rendered forms, no scripts: the pages work under a strict Content-Security-Policy.
@@ -27,11 +27,10 @@ export function link(path: string, lang: Lang, params: Record<string, string | n
   return `${pathname}?${query.toString()}${hash ? `#${hash}` : ""}`;
 }
 
-// The Guilded logo the public site serves (scripts/build-site.mjs copies it to /logo.png).
-const SHARE_IMAGE = "https://guilded.kcaron.top/logo.png";
 
 export const SECURITY_HEADERS = {
-  "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+  // data: is the inline header logo (site-logo.ts); font-src is the website's own Inter font.
+  "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
   "referrer-policy": "strict-origin-when-cross-origin",
   "x-content-type-options": "nosniff",
   "cache-control": "no-store"
@@ -65,16 +64,18 @@ export function layout(input: LayoutInput): string {
       `<a href="${link("/me/", input.lang)}">${t("My page", "Ma page")}</a>`,
       `<form class="inline" method="post" action="/auth/logout"><input type="hidden" name="csrf" value="${escapeHtml(input.csrf ?? "")}"><button class="link" type="submit">${t("Sign out", "Déconnexion")}</button></form>`]
     : input.signInOn ? [`<span>${t("Your player profile is public by default; you can hide it in My Guilded.", "Votre profil joueur est public par défaut; vous pouvez le masquer dans Ma page.")}</span><a href="${escapeHtml(link("/auth/login", input.lang, { return: link(input.path, input.lang, input.languageParams) }))}">${t("Sign in with Discord", "Connexion avec Discord")}</a>`] : [];
-  const language = `<a href="${escapeHtml(link(input.path, other, input.languageParams))}" hreflang="${other}">${other === "fr" ? "Français" : "English"}</a>`;
+  const here = link(input.path, input.lang, input.languageParams);
+  const languages = input.lang === "fr" ? { en: link(input.path, other, input.languageParams), fr: here } : { en: here, fr: link(input.path, other, input.languageParams) };
   const description = escapeHtml((input.description ?? input.title).slice(0, 160));
   return `<!doctype html><html lang="${input.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`
     + `<title>${escapeHtml(input.title)} · Guilded</title><meta name="description" content="${description}">${input.noindex ? '<meta name="robots" content="noindex">' : ""}`
     // Link previews (Discord, social sites): a pasted page shows its title, summary and the logo.
     + `<meta property="og:site_name" content="Guilded"><meta property="og:type" content="website"><meta property="og:title" content="${escapeHtml(input.title)}">`
-    + `<meta property="og:description" content="${description}"><meta property="og:image" content="${escapeHtml(input.shareImage ?? SHARE_IMAGE)}"><meta property="og:locale" content="${input.lang === "fr" ? "fr_CA" : "en_CA"}">`
-    + (input.shareImage ? '<meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">' : "")
-    + `<meta name="twitter:card" content="${input.shareImage ? "summary_large_image" : "summary"}"><meta name="theme-color" content="#d4af37">`
-    + `<style>${PAGE_STYLE}\n${FORM_STYLE}</style></head><body><a class="skip" href="#content">${t("Skip to content", "Aller au contenu")}</a><main>${siteHeader(input.lang, input.path)}<div class="who">${[...who, language].join("")}</div><div id="content" tabindex="-1">${input.body}</div>`
+    // Score cards and the website's own card (the default) are both 1200 × 630 PNGs.
+    + `<meta property="og:description" content="${description}"><meta property="og:image" content="${escapeHtml(input.shareImage ?? SHARE_CARD)}"><meta property="og:locale" content="${input.lang === "fr" ? "fr_CA" : "en_CA"}">`
+    + '<meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">'
+    + `<meta name="twitter:card" content="summary_large_image"><meta name="theme-color" content="#d4af37">`
+    + `<link rel="icon" href="/favicon.png" type="image/png"><style>${PAGE_STYLE}\n${FORM_STYLE}</style></head><body><a class="skip" href="#content">${t("Skip to content", "Aller au contenu")}</a>${siteHeader(input.lang, input.path, languages)}<main>${who.length ? `<div class="who">${who.join("")}</div>` : ""}<div id="content" tabindex="-1">${input.body}</div>`
     + `<footer>${t("Made with", "Créé avec")} <a href="https://guilded.kcaron.top/">Guilded</a>. ${t("Not affiliated with Blizzard Entertainment.", "Sans affiliation avec Blizzard Entertainment.")}</footer></main></body></html>`;
 }
 

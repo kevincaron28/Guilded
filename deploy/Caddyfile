@@ -24,7 +24,8 @@
 	}
 }
 
-YOUR_HOSTNAME {
+# The bot's routes, shared by its main address and any extra address below.
+(guilded_site) {
 	# Keep the origin gate before every handle; Caddy normally sorts handle before route.
 	# Independent installations have no matching snippet.
 	route {
@@ -83,3 +84,16 @@ YOUR_HOSTNAME {
 		}
 	}
 }
+
+YOUR_HOSTNAME {
+	import guilded_site
+}
+
+# Optional extra addresses for the same bot, such as a hostname in a DNS zone you manage: the
+# public website reaches the bot more reliably through one than through a free dynamic-DNS name.
+# One file per address, for example /etc/caddy/guilded-sites/bot.caddy containing
+#   bot.example.com {
+#   	import guilded_site
+#   }
+# deploy/update.sh never edits those files. See docs/SITE_RELIABILITY_2026-10-29.md.
+import /etc/caddy/guilded-sites/*.caddy

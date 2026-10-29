@@ -2,7 +2,9 @@
 
 A static landing page with CurseForge/releases links, an illustrated owner guide,
 member installation and a link builder for each guild's own online companion.
-The landing page has no login, credentials, analytics or database. Its companion
+The landing page has no login, credentials or database. Cookie-free Cloudflare Web
+Analytics is off until a beacon token is set in `site/analytics.json` (see
+`docs/SITE_RELIABILITY_2026-10-29.md`). Its companion
 link now uses the same website address; see `docs/UNIFIED_SITE.md`.
 
 ## Build and preview

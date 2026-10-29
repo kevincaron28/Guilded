@@ -8,7 +8,21 @@ const ownerResources = createOwnerResources({ resources: [
   { filename: "discord-topics-pins.json", key: "discord/topics-pins.json", type: "application/json", title: "Discord topics and pins", description: "Structured copy for the community channels." },
   { filename: "discord-research.md", key: "discord/research.md", type: "text/markdown; charset=utf-8", title: "Discord design research", description: "Public-source references behind the community structure." }
 ] });
-const origin = "https://guildedqc.duckdns.org";
+// The bot's address. GUILDED_ORIGIN_URL (a Worker variable) can name a hostname in the site owner's
+// own DNS zone; the free DuckDNS name stays as the fallback. Cloudflare sometimes fails to look up
+// the DuckDNS name (error 1016, status 530): docs/SITE_RELIABILITY_2026-10-29.md.
+const defaultOrigin = "https://guildedqc.duckdns.org";
+function botOrigins(env) {
+  const list = [];
+  try {
+    const configured = new URL(env.GUILDED_ORIGIN_URL ?? "");
+    if (configured.protocol === "https:" && !configured.username && !configured.password && configured.pathname === "/" && !configured.search && !configured.hash) list.push(configured.origin);
+  } catch { /* not configured */ }
+  if (!list.includes(defaultOrigin)) list.push(defaultOrigin);
+  return list;
+}
+const ATTEMPTS = 3;
+const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const apiMethods = new Map([
   ["/api/v1/addon-imports", ["POST"]],
   ["/api/v1/addon-pairings", ["POST"]],
@@ -52,6 +66,27 @@ function withCookies(headers, upstream) {
   const result = new Headers(headers);
   for (const cookie of hostCookies(upstream)) result.append("set-cookie", cookie);
   return result;
+}
+
+// A visitor's page view while the bot cannot be reached: a branded page that retries by itself,
+// instead of Cloudflare's bare "error code" text. API callers keep a JSON error.
+function unavailablePage(request, url) {
+  const chosen = url.searchParams.get("lang");
+  const fr = chosen === "fr" || (chosen !== "en" && /^\s*fr\b/i.test(request.headers.get("accept-language") ?? ""));
+  const t = (en, frText) => (fr ? frText : en);
+  const again = (url.pathname + url.search).replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;");
+  const home = fr ? "/?lang=fr" : "/";
+  const html = `<!doctype html><html lang="${fr ? "fr" : "en"}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><meta http-equiv="refresh" content="20"><title>${t("Back in a moment", "De retour dans un instant")} · Guilded</title><link rel="icon" href="/favicon.png" type="image/png">`
+    + `<style>:root{color-scheme:dark}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#111312;color:#f4f1e8;font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}main{max-width:560px;padding:40px 20px}.brand{display:inline-flex;align-items:center;gap:10px;color:#f4f1e8;font-weight:800;letter-spacing:.15em;text-decoration:none}h1{font-size:clamp(32px,6vw,48px);line-height:1.1;margin:28px 0 14px}p{color:#afb4ad}a{color:#e8c47c}.actions{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;margin:26px 0}.button{display:inline-flex;align-items:center;min-height:44px;padding:0 20px;border-radius:5px;background:#e8c47c;color:#1b2019;font-weight:650;text-decoration:none}.small{font-size:13px}:focus-visible{outline:3px solid #9dc7f0;outline-offset:4px}</style></head>`
+    + `<body><main><a class="brand" href="${home}"><img src="/logo-88.webp" alt="" width="44" height="44">GUILDED</a><h1>${t("Back in a moment", "De retour dans un instant")}</h1>`
+    + `<p>${t("Leaderboards, guild pages, player profiles and the companion are taking a short break. This page tries again by itself in 20 seconds.", "Les classements, les pages de guilde, les profils et le compagnon font une courte pause. Cette page réessaie toute seule dans 20 secondes.")}</p>`
+    + `<div class="actions"><a class="button" href="${again}">${t("Try again now", "Réessayer maintenant")}</a><a href="${home}">${t("Home", "Accueil")}</a><a href="/editions/${fr ? "?lang=fr" : ""}">${t("Download the addon", "Télécharger l’addon")}</a></div>`
+    + `<p class="small">${t("Downloads and guides still work. Still down after a few minutes?", "Les téléchargements et les guides fonctionnent toujours. Encore en panne dans quelques minutes ?")} <a href="https://discord.gg/YjzFwtP64V">${t("Tell us on Discord", "Dites-le-nous sur Discord")} ↗</a></p></main></body></html>`;
+  return new Response(request.method === "HEAD" ? null : html, { status: 503, headers: {
+    "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "retry-after": "20",
+    "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+    "x-content-type-options": "nosniff", "referrer-policy": "strict-origin-when-cross-origin"
+  } });
 }
 
 export default {
@@ -134,19 +169,37 @@ export default {
     }
     // This credential belongs to the proxy, never the caller.
     if (env.GUILDED_ORIGIN_TOKEN) headers.set('x-guilded-origin', env.GUILDED_ORIGIN_TOKEN);
-    // Build from the fixed origin and path, never a user-supplied destination.
-    const target = new URL(origin);
-    target.pathname = url.pathname;
-    target.search = health || guildPage ? "" : url.search;
     if (web && url.search.length > 2_000) return failure(414, "Address is too long");
+    const origins = botOrigins(env);
+    // A visitor's page view (not an API call or an image) gets the branded page when the bot is unreachable.
+    const pageView = (web || guildPage || companion) && ["GET", "HEAD"].includes(request.method) && (request.headers.get("accept") ?? "").includes("text/html");
     try {
       const body = request.method === "POST" ? await limitedBody(request) : undefined;
-      const upstream = await fetch(target.href, {
-        method: request.method, headers, ...(body ? { body } : {}),
-        redirect: "manual", signal: AbortSignal.timeout(20_000),
-        // A guild page is the same for every visitor: Cloudflare keeps it briefly so visits rarely reach the bot.
-        cf: guildPage ? { cacheEverything: true, cacheTtlByStatus: { "200-299": 300, "301": 3600, "404": 60, "500-599": 0 } } : { cacheTtl: 0, cacheEverything: false }
-      });
+      let upstream, target;
+      for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+        if (attempt) await pause(200 * attempt);
+        // Build from a fixed origin and the path, never a user-supplied destination.
+        target = new URL(origins[attempt % origins.length]);
+        target.pathname = url.pathname;
+        target.search = health || guildPage ? "" : url.search;
+        try {
+          upstream = await fetch(target.href, {
+            method: request.method, headers, ...(body ? { body } : {}),
+            redirect: "manual", signal: AbortSignal.timeout(20_000),
+            // A guild page is the same for every visitor: Cloudflare keeps it briefly so visits rarely reach the bot.
+            cf: guildPage ? { cacheEverything: true, cacheTtlByStatus: { "200-299": 300, "301": 3600, "404": 60, "500-599": 0 } } : { cacheTtl: 0, cacheEverything: false }
+          });
+        } catch (error) {
+          // A timeout is not retried (the visitor already waited); other network failures are, for reads only.
+          if (error?.name === "TimeoutError" || !["GET", "HEAD"].includes(request.method) || attempt === ATTEMPTS - 1) throw error;
+          continue;
+        }
+        // 530 means Cloudflare never reached the bot (error 1016 is a failed address lookup), so even
+        // a POST did not arrive and is safe to send again.
+        if (upstream.status !== 530) break;
+        await upstream.body?.cancel();
+      }
+      if (upstream.status === 530) return pageView ? unavailablePage(request, url) : failure(503, "The guild bot is temporarily unavailable. Try again shortly.");
       if (upstream.status >= 300 && upstream.status < 400) {
         // Never follow a redirect with credentials. Only the companion's and guild pages' local
         // canonical redirects may be returned to the browser.
@@ -157,7 +210,7 @@ export default {
           return new Response(null, { status: upstream.status, headers: withCookies({ location: redirect.href, "cache-control": "no-store" }, upstream) });
         }
         const allowed = companion ? ["/companion/"] : guildPage ? ["/g/"] : web ? ["/recruitment", "/me/", "/players", "/leaderboards", "/auth/"] : null;
-        if (!allowed || !redirect || redirect.origin !== origin || !allowed.some((prefix) => redirect.pathname.startsWith(prefix))) {
+        if (!allowed || !redirect || !origins.includes(redirect.origin) || !allowed.some((prefix) => redirect.pathname.startsWith(prefix))) {
           return failure(502, "Unexpected server redirect");
         }
         return new Response(null, { status: upstream.status, headers: web
@@ -179,7 +232,7 @@ export default {
       return new Response(upstream.body, { status: upstream.status, headers: responseHeaders });
     } catch (error) {
       return error.message === "body-limit" ? failure(413, "Request body is too large")
-        : failure(502, "The guild bot is temporarily unavailable. Try again shortly.");
+        : pageView ? unavailablePage(request, url) : failure(502, "The guild bot is temporarily unavailable. Try again shortly.");
     }
   }
 };

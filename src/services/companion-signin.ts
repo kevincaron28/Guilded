@@ -1,14 +1,24 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { hashCompanionSecret } from "./character-pairing.js";
 import type { WebRoute } from "./web-app.js";
+import { parseCookies } from "./web-auth.js";
 import { escapeHtml, link } from "./web-layout.js";
 import type { WebAccountView } from "./web-store.js";
 
 // The companion asks for a
 // sign-in request, opens /me/companion?request=… in a browser, and asks again every few seconds.
-// On that page the signed-in member types the short code their companion shows and chooses a
-// server (or the public leaderboards); the next poll then returns the same answer a pairing code
-// would. Requests live 10 minutes in memory: a bot restart only means signing in again.
+// On that page the signed-in member chooses a server (or the public leaderboards); the next poll
+// then returns the same answer a pairing code would. Requests live 10 minutes in memory: a bot
+// restart only means signing in again.
+//
+// The page must not approve a request someone else started and sent as a link. Three proofs:
+// - the online companion sets SAME_BROWSER_COOKIE to the request before opening the page, so the
+//   browser that approves is the one that asked (nothing to type);
+// - the Windows app listens on 127.0.0.1 and gives its port; after approval the page sends the
+//   browser there with a one-time proof, and the poll only answers with that proof, so a request
+//   started on another PC never gets the credential (nothing to type, and nothing is issued
+//   before the proof arrives);
+// - otherwise (the command-line companion) the member types the short code it shows.
 
 const LIFETIME_MS = 10 * 60_000;
 const MAX_PENDING = 2_000;
@@ -18,7 +28,17 @@ const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 /** What the companion receives: the same fields as POST /api/v1/addon-pairings. */
 export type SignInGrant = { companionCredential: string; personal: true } | { companionCredential: string; personal?: false; guildDiscordId: string; wowGuildId?: string; gameEdition?: string; wowGuildName?: string };
 
-interface Pending { confirm: string; expiresAt: number; grant: SignInGrant | null; approving?: boolean; failures?: number }
+/** Set by the online companion (same site) to the request it opened; proves the same browser. */
+export const SAME_BROWSER_COOKIE = "__Host-guilded_signin";
+
+interface Pending {
+  confirm: string; expiresAt: number; grant: SignInGrant | null; approving?: boolean; failures?: number;
+  /** The Windows app's 127.0.0.1 port: approval waits for the proof that comes back through it. */
+  loopback?: number;
+  proofHash?: string;
+  /** Issues the grant once the proof arrives (Windows app only). */
+  issue?: () => Promise<SignInGrant | null>;
+}
 
 export function confirmCode(bytes = randomBytes(6)): string {
   const letters = [...bytes].map((byte) => LETTERS[byte % LETTERS.length]).join("");
@@ -41,14 +61,19 @@ export function createCompanionSignIn(options: { now?: () => number } = {}) {
 
   return {
     /** A new request. requestId is the companion's secret; only its hash is kept. */
-    start(): { requestId: string; confirm: string; expiresAt: Date } | null {
+    start(options: { loopback?: unknown } = {}): { requestId: string; confirm: string; expiresAt: Date } | null {
       sweep();
       if (pending.size >= MAX_PENDING) return null;
       const requestId = randomBytes(32).toString("base64url");
       const confirm = confirmCode();
       const expiresAt = now() + LIFETIME_MS;
-      pending.set(hashCompanionSecret(requestId), { confirm, expiresAt, grant: null });
+      const loopback = typeof options.loopback === "number" && Number.isInteger(options.loopback) && options.loopback >= 1024 && options.loopback <= 65535 ? options.loopback : undefined;
+      pending.set(hashCompanionSecret(requestId), { confirm, expiresAt, grant: null, ...(loopback ? { loopback } : {}) });
       return { requestId, confirm, expiresAt: new Date(expiresAt) };
+    },
+    /** The Windows app's port when it gave one: the page then sends the proof there instead of asking for the code. */
+    loopbackFor(requestId: unknown): number | null {
+      return find(requestId)?.loopback ?? null;
     },
     /** Internal code lookup; never render this code on the approval page. */
     confirmFor(requestId: unknown): string | null {
@@ -81,14 +106,32 @@ export function createCompanionSignIn(options: { now?: () => number } = {}) {
     /** Stores the answer for the companion. Only once per request. */
     approve(requestId: unknown, grant: SignInGrant): boolean {
       const entry = find(requestId);
-      if (!entry || entry.grant) return false;
+      if (!entry || entry.grant || entry.issue) return false;
       entry.grant = grant;
       return true;
     },
+    /** Windows app: approved, but nothing is issued until the poll brings the returned proof. */
+    approveWithProof(requestId: unknown, issue: () => Promise<SignInGrant | null>): string | null {
+      const entry = find(requestId);
+      if (!entry?.loopback || entry.grant || entry.issue) return null;
+      const proof = randomBytes(24).toString("base64url");
+      entry.proofHash = hashCompanionSecret(proof);
+      entry.issue = issue;
+      return proof;
+    },
     /** "pending" until approved; the grant is handed out once, then forgotten. */
-    poll(requestId: unknown): SignInGrant | "pending" | "expired" {
+    async poll(requestId: unknown, proof?: unknown): Promise<SignInGrant | "pending" | "expired"> {
       const entry = find(requestId);
       if (!entry) return "expired";
+      if (entry.issue) {
+        // Without the proof the answer stays "pending": a request started elsewhere learns nothing.
+        if (typeof proof !== "string" || proof.length > 100 || !entry.proofHash) return "pending";
+        const a = Buffer.from(hashCompanionSecret(proof)), b = Buffer.from(entry.proofHash);
+        if (a.length !== b.length || !timingSafeEqual(a, b)) return "pending";
+        const issue = entry.issue;
+        pending.delete(hashCompanionSecret(requestId as string));
+        return (await issue()) ?? "expired";
+      }
       if (!entry.grant) return "pending";
       pending.delete(hashCompanionSecret(requestId as string));
       return entry.grant;
@@ -133,26 +176,41 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
       return kit.page(401, title, `<h1>${title}</h1><p>${t("Sign in with your Discord account to connect the Guilded companion. Guilded only reads your Discord name and ID.", "Connectez-vous avec votre compte Discord pour relier le compagnon Guilded. Guilded ne lit que votre nom et votre identifiant Discord.")}</p><p><a class="button" href="${link("/auth/login", lang, { return: back })}">${t("Sign in with Discord", "Connexion avec Discord")}</a></p>`, { noindex: true });
     }
     const servers = await deps.servers(ctx.account.discordUserId);
+    const loopback = deps.signIn.loopbackFor(requestId);
+    const sameBrowser = parseCookies(ctx.request.headers.cookie)[SAME_BROWSER_COOKIE] === requestId;
+    const needsCode = !loopback && !sameBrowser;
     if (ctx.request.method === "POST") {
-      if (!deps.signIn.verifyConfirm(requestId, ctx.form?.get("code"))) {
+      if (needsCode && !deps.signIn.verifyConfirm(requestId, ctx.form?.get("code"))) {
         return kit.page(400, title, `<h1>${t("The code does not match", "Le code ne correspond pas")}</h1><p>${t("Type the code shown on your own companion.", "Tapez le code affiché sur votre propre compagnon.")}</p><p><a href="${link("/me/companion", lang, { request: requestId })}">${t("Go back and try again", "Revenir et réessayer")}</a></p>`, { noindex: true });
       }
       const choice = ctx.form?.get("personalOnly") ? "personal" : ctx.form?.get("choice") ?? "";
       if (!deps.signIn.beginApproval(requestId)) return kit.page(410, title, `<h1>${t("This sign-in expired", "Cette connexion a expiré")}</h1>`, { noindex: true });
       try {
-      let grant: SignInGrant | null = null;
+      const account = ctx.account;
       const deviceName = (ctx.form?.get("deviceName") || defaultDeviceName(ctx.request.headers["user-agent"], lang)).slice(0, 80);
       const selected = servers.find(server => (server.wowGuildId ?? server.discordId) === choice);
-      if (choice === "personal") grant = { companionCredential: await deps.issuePersonal(ctx.account.id, deviceName), personal: true };
-      else if (selected) {
-        const credential = await deps.issueGuild(ctx.account, selected.discordId, selected.wowGuildId, deviceName);
-        if (credential) grant = { companionCredential: credential, guildDiscordId: selected.discordId,
-          ...(selected.wowGuildId ? { wowGuildId: selected.wowGuildId, wowGuildName: selected.name } : {}), ...(selected.gameEdition ? { gameEdition: selected.gameEdition } : {}) };
+      const notAvailable = () => kit.page(400, title, `<h1>${t("That choice is not available", "Ce choix n'est pas disponible")}</h1><p><a href="${link("/me/companion", lang, { request: requestId })}">${t("Go back and choose again", "Revenir et choisir de nouveau")}</a></p>`, { noindex: true });
+      const expired = () => kit.page(410, title, `<h1>${t("This sign-in expired", "Cette connexion a expiré")}</h1><p>${t("Go back to your companion and choose Sign in with Discord again.", "Revenez au compagnon et choisissez de nouveau Connexion avec Discord.")}</p>`, { noindex: true });
+      if (choice !== "personal" && !selected) return notAvailable();
+      const issue = async (): Promise<SignInGrant | null> => {
+        if (choice === "personal") return { companionCredential: await deps.issuePersonal(account.id, deviceName), personal: true };
+        const credential = selected ? await deps.issueGuild(account, selected.discordId, selected.wowGuildId, deviceName) : null;
+        return credential && selected ? { companionCredential: credential, guildDiscordId: selected.discordId,
+          ...(selected.wowGuildId ? { wowGuildId: selected.wowGuildId, wowGuildName: selected.name } : {}), ...(selected.gameEdition ? { gameEdition: selected.gameEdition } : {}) } : null;
+      };
+      const where = choice === "personal" ? t("the public dungeon leaderboards", "les classements publics des donjons") : escapeHtml(selected?.name ?? "");
+      const connected = `<p class="eyebrow">${t("Guilded companion", "Compagnon Guilded")}</p><h1>${t("Companion connected", "Compagnon relié")}</h1><p>${t("Your companion is now linked to", "Votre compagnon est maintenant relié à")} <strong>${where}</strong>. ${t("You can close this tab and go back to the companion.", "Vous pouvez fermer cet onglet et revenir au compagnon.")}</p>`;
+      if (loopback) {
+        const proof = deps.signIn.approveWithProof(requestId, issue);
+        if (!proof) return expired();
+        // Back to the app on this PC. A meta refresh, because a redirect after a form post would break form-action 'self'.
+        const back = `http://127.0.0.1:${loopback}/guilded-sign-in?proof=${encodeURIComponent(proof)}`;
+        return kit.page(200, title, `<meta http-equiv="refresh" content="0;url=${escapeHtml(back)}">${connected}<p><a class="button" href="${escapeHtml(back)}">${t("Back to Guilded Companion", "Retour à Guilded Companion")}</a></p>`, { noindex: true });
       }
-      if (!grant) return kit.page(400, title, `<h1>${t("That choice is not available", "Ce choix n'est pas disponible")}</h1><p><a href="${link("/me/companion", lang, { request: requestId })}">${t("Go back and choose again", "Revenir et choisir de nouveau")}</a></p>`, { noindex: true });
-      if (!deps.signIn.approve(requestId, grant)) return kit.page(410, title, `<h1>${t("This sign-in expired", "Cette connexion a expiré")}</h1><p>${t("Go back to your companion and choose Sign in with Discord again.", "Revenez au compagnon et choisissez de nouveau Connexion avec Discord.")}</p>`, { noindex: true });
-      const where = grant.personal ? t("the public dungeon leaderboards", "les classements publics des donjons") : escapeHtml(selected?.name ?? "");
-      return kit.page(200, title, `<p class="eyebrow">${t("Guilded companion", "Compagnon Guilded")}</p><h1>${t("Companion connected", "Compagnon relié")}</h1><p>${t("Your companion is now linked to", "Votre compagnon est maintenant relié à")} <strong>${where}</strong>. ${t("You can close this tab and go back to the companion.", "Vous pouvez fermer cet onglet et revenir au compagnon.")}</p>`, { noindex: true });
+      const grant = await issue();
+      if (!grant) return notAvailable();
+      if (!deps.signIn.approve(requestId, grant)) return expired();
+      return kit.page(200, title, connected, { noindex: true });
       } finally { deps.signIn.endApproval(requestId); }
     }
     const radio = (value: string, label: string, hint: string, checked: boolean) =>
@@ -165,10 +223,12 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
     const device = defaultDeviceName(ctx.request.headers["user-agent"], lang);
     const body = `<style>.choice{display:block;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:10px 0;color:var(--text);font-size:16px}.choice input{width:auto}</style>`
       + `<p class="eyebrow">${t("Guilded companion", "Compagnon Guilded")}</p><h1>${title}</h1>`
-      + `<p>${t("Type the code your companion shows. It proves this sign-in is yours.", "Tapez le code affiché par votre compagnon. Il prouve que cette connexion est la vôtre.")}</p>`
-      + `<p class="notice">${t("Only continue if it is the same code, on your own companion. If someone sent you this link, close the page.", "Continuez seulement si c'est le même code, sur votre propre compagnon. Si quelqu'un vous a envoyé ce lien, fermez la page.")}</p>`
+      + (needsCode
+        ? `<p>${t("Type the code your companion shows. It proves this sign-in is yours.", "Tapez le code affiché par votre compagnon. Il prouve que cette connexion est la vôtre.")}</p>`
+          + `<p class="notice">${t("Only continue if it is the same code, on your own companion. If someone sent you this link, close the page.", "Continuez seulement si c'est le même code, sur votre propre compagnon. Si quelqu'un vous a envoyé ce lien, fermez la page.")}</p>`
+        : `<p class="notice">${t("Only continue if you just chose Sign in with Discord in your own Guilded companion. If someone sent you this link, close the page.", "Continuez seulement si vous venez de choisir Connexion avec Discord dans votre propre compagnon Guilded. Si quelqu'un vous a envoyé ce lien, fermez la page.")}</p>`)
       + `<form method="post" action="/me/companion"><input type="hidden" name="csrf" value="${escapeHtml(ctx.csrf ?? "")}"><input type="hidden" name="lang" value="${lang}"><input type="hidden" name="request" value="${escapeHtml(requestId)}">`
-      + `<p><label>${t("Code from your companion", "Code de votre compagnon")}<br><input name="code" autocomplete="off" required maxlength="7" pattern="[A-Za-z0-9]{3}-?[A-Za-z0-9]{3}" placeholder="ABC-DEF" style="width:9em;font-size:20px;text-transform:uppercase"></label></p>`
+      + (needsCode ? `<p><label>${t("Code from your companion", "Code de votre compagnon")}<br><input name="code" autocomplete="off" required maxlength="7" pattern="[A-Za-z0-9]{3}-?[A-Za-z0-9]{3}" placeholder="ABC-DEF" style="width:9em;font-size:20px;text-transform:uppercase"></label></p>` : "")
       + `<h2>${t("Link it to", "Le relier à")}</h2>${choices}`
       + `<details><summary>${t("Other choices", "Autres choix")}</summary>${servers.length === 1 ? `<p class="muted">${t("Pick this instead of your server to send only your own dungeon runs:", "Choisissez ceci au lieu de votre serveur pour n'envoyer que vos propres donjons :")}</p>${personal.replace('type="radio"', 'type="checkbox"').replace('name="choice"', 'name="personalOnly"')}` : ""}`
       + `<p><label>${t("Device name", "Nom de l'appareil")}<input name="deviceName" maxlength="80" value="${escapeHtml(device)}"></label></p></details>`

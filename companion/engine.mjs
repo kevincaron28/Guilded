@@ -77,10 +77,12 @@ function pairingResult(config, body) {
 export const HOSTED_UPLOAD_URL = "https://guilded.kcaron.top/api/v1/addon-imports";
 
 // "Sign in with Discord" (7.2): ask for a sign-in request, then open `url` in a browser.
-export async function startSignIn(config) {
+// loopback: the Windows app's 127.0.0.1 port. The page then sends the browser back there with a
+// proof instead of asking for the code (src/services/companion-signin.ts); pass it to waitForSignIn.
+export async function startSignIn(config, { loopback } = {}) {
   const uploadUrl = config.uploadUrl?.trim() || HOSTED_UPLOAD_URL;
   try {
-    const { response, body } = await requestJson(new URL("/api/v1/companion/sign-in", uploadUrl), { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }, undefined, 10_000);
+    const { response, body } = await requestJson(new URL("/api/v1/companion/sign-in", uploadUrl), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(loopback ? { loopback } : {}) }, undefined, 10_000);
     if (response.status === 404) return { ok: false, message: "This bot does not offer Discord sign-in yet. Use a pairing code instead." };
     if (!response.ok) return { ok: false, message: describeApiError(response.status, body.error) };
     if (typeof body.requestId !== "string" || typeof body.url !== "string" || typeof body.confirm !== "string") return { ok: false, message: "The bot's sign-in answer was incomplete." };
@@ -92,13 +94,14 @@ export async function startSignIn(config) {
 }
 
 // Asks every few seconds until the member approves in the browser (or 10 minutes pass).
-export async function waitForSignIn(config, requestId, { signal, intervalMs = 2_000, timeoutMs = 10 * 60_000, sleep = (ms) => new Promise((done) => setTimeout(done, ms)) } = {}) {
+// proof: returns what came back through the loopback port (startSignIn's loopback), once it has.
+export async function waitForSignIn(config, requestId, { signal, proof = /** @type {(() => string | undefined) | undefined} */ (undefined), intervalMs = 2_000, timeoutMs = 10 * 60_000, sleep = (ms) => new Promise((done) => setTimeout(done, ms)) } = {}) {
   const uploadUrl = config.uploadUrl?.trim() || HOSTED_UPLOAD_URL;
   const until = Date.now() + timeoutMs;
   while (Date.now() < until) {
     if (signal?.aborted) return { ok: false, message: "Sign-in cancelled." };
     try {
-      const { response, body } = await requestJson(new URL("/api/v1/companion/sign-in/poll", uploadUrl), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId }) }, signal, 10_000);
+      const { response, body } = await requestJson(new URL("/api/v1/companion/sign-in/poll", uploadUrl), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId, ...(proof?.() ? { proof: proof() } : {}) }) }, signal, 10_000);
       if (response.status === 200) return { ...pairingResult(config, body), uploadUrl };
       if (response.status !== 202) return { ok: false, message: describeApiError(response.status, body.error) };
     } catch (error) {

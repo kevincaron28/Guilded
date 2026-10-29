@@ -91,6 +91,21 @@ describe("the whole addon, loaded in .toc order", () => {
     expect(s.run(`return PROMPTS`)).toBe("0");
   });
 
+  it("switches the automatic addon-only default to connected once a companion saves standings, but never a real choice", () => {
+    const s = fullAddon(1);
+    s.run(`NS.getSettings().setupMode = nil; GuildedStandings = nil; NS.options.checkFirstRun()`);
+    expect(s.run(`return tostring(NS.getSettings().setupModeAuto)`)).toBe("true");
+    s.run(`GuildedStandings = { updatedAt = "2026-11-04" }; NS.options.checkFirstRun()`);
+    expect(s.run(`return NS.getSettings().setupMode`)).toBe("connected");
+    expect(s.chat().join("\n")).toContain("Your companion is connected, so Guilded now uses your Discord standings");
+    expect(s.chat().join("\n")).not.toContain("Connected setup selected");
+
+    // Chosen in-game only: kept, with a one-time hint for installs from before 8.1.
+    s.run(`NS.options.chooseSetup("local"); NS.options.checkFirstRun(); NS.options.checkFirstRun()`);
+    expect(s.run(`return NS.getSettings().setupMode`)).toBe("local");
+    expect(s.chat().filter((line) => line.includes("To use them in game: /guilded setup connected"))).toHaveLength(1);
+  });
+
   it("offers standalone setup without changing saved guild data or permissions", () => {
     const s = fullAddon(5);
     s.run(`

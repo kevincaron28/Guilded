@@ -71,15 +71,20 @@ export async function linkPairedCharacter(database: PrismaClient, guildId: strin
       });
       return "already-linked" as const;
     }
+    // An officer took this character away from this member: their uploads must not link it back.
+    const removed = await tx.characterVerifyClaim.findFirst({
+      where: { guildId, memberId, nameKey: characterKey(self.name, self.realm, gameEditionOf(self)), status: "REMOVED" },
+      select: { id: true }
+    });
+    if (removed) return "removed-by-officer" as const;
     await createSelfCharacter(tx, guildId, memberId, self);
     return "linked" as const;
   });
 }
 
 // Revokes every credential this member currently has (unlinking them from
-// every paired companion). Used when an officer unlinks a character from
-// someone else's account (so a paired upload can't silently relink it right
-// back). Signing in on another device no longer revokes existing devices.
+// every paired companion). An officer's unlink no longer needs this: it marks
+// the character REMOVED, which linkPairedCharacter respects.
 export async function revokeCompanionCredentials(database: PrismaClient | Tx, memberId: string): Promise<void> {
   await database.companionCredential.updateMany({ where: { memberId, revokedAt: null }, data: { revokedAt: new Date() } });
 }

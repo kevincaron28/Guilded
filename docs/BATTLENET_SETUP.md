@@ -21,7 +21,9 @@ or change guild character ownership or mains.
    browser assets or a committed file.
 
 These registration steps follow [Blizzard's OAuth sample instructions](https://github.com/Blizzard/oauth-client-sample#creating-an-oauth-client).
-The exact portal labels may change. No application was registered during implementation.
+The exact portal labels may change. The hosted bot's application is registered and
+configured; US Retail consent, discovery and saving were verified in production
+(see `NOV4_RELEASE_STATUS.md`). Forever discovery remains unverified.
 
 ## Backend configuration
 

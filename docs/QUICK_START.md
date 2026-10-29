@@ -77,9 +77,8 @@ The Windows companion is optional for automatic file watching, background sync
 and PoE2 log tracking, especially useful for leaders and officers.
 
 **Already connected with a main?** Log in on an alt, `/reload`, then **Sync now**
-with the same companion. Your main stays linked; no new code needed. A new code
-is for connecting or reconnecting a companion, and using it replaces the previous
-companion connection. `/character list` shows the result after syncing.
+with the same companion. Your main stays linked; no new code needed. Signing in
+again only adds a device; your other companions stay connected. `/character list` shows the result after syncing.
 
 See [Member installation](MEMBER_INSTALL.md)
 for the detailed UI steps, the manual browser option, French steps and fixes.

@@ -371,7 +371,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (isWebPath(url.pathname)) {
         const answer = await site.respond({
           method: request.method ?? "GET", path: url.pathname, query: url.searchParams,
-          headers: Object.fromEntries(["cookie", "origin", "referer", "accept-language", "content-type"].map((name) => [name, headerOf(request, name)])),
+          headers: Object.fromEntries(["cookie", "origin", "referer", "accept-language", "content-type", "user-agent"].map((name) => [name, headerOf(request, name)])),
           ...(request.method === "POST" ? { body: await readForm(request, url.pathname) } : {})
         });
         if (answer) {

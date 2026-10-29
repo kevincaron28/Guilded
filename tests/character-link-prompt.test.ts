@@ -101,7 +101,7 @@ describe("private character connection instructions", () => {
     // The code stays for older companions, alone on its line in a box, so it is easy to copy.
     expect(fields[3]!.name).toContain("older than 7.2");
     expect(fields[3]!.value.startsWith("```\nABC123DEF456\n```")).toBe(true);
-    expect(fields[3]!.value).toContain("replaces your previous companion connection");
+    expect(fields[3]!.value).toContain("other companion connections stay active");
     expect(fields[4]!.value).toContain("/character list");
   });
 

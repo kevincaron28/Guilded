@@ -40,6 +40,11 @@ confirmation, persistent local history, deduplication and undo; see
 release; PR #265 is merged. Actual game acceptance remains unperformed; published
 8.0.2 is unchanged. Candidate work is on codex/nov4-release-candidate.
 
+Automatic sync and optional Battle.net source work is documented in
+`docs/AUTOMATIC_SYNC_HANDOFF_2026-10-29.md`; developer-app setup is in
+`docs/BATTLENET_SETUP.md`. Integrate with the November 4 release candidate after
+Claude's independent edition/raid work. No separate version bump or publication.
+
 # Working on Guilded
 
 Discord bot (`src/`) + WoW addon (`addon/Guilded/`) + companion uploader

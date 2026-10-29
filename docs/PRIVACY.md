@@ -1,6 +1,6 @@
 # Guilded privacy / Confidentialité
 
-Last updated / Dernière mise à jour : 26 October / octobre 2026.
+Last updated / Dernière mise à jour : 29 October / octobre 2026.
 
 ## English
 
@@ -31,6 +31,20 @@ Authentication cookies maintain website sessions; the current session lifetime
 is up to 30 days. A `guilded_edition` cookie remembers the WoW version you last
 viewed on the website (for example `retail`) for up to a year; it holds nothing else. Technical requests and error records may contain connection
 metadata and the context needed to operate, troubleshoot and protect the service.
+
+Where configured, optional Battle.net linking asks Blizzard for account identity
+and WoW character access. An unconfirmed character preview stays in server memory
+for up to ten minutes. Only confirmed character selections are retained, with
+Battle.net account ID/BattleTag, character and realm IDs, names, region, edition,
+account main choice and verification time. These selections are private and do
+not publish alts or change guild permissions. Blizzard access tokens are discarded
+after discovery. Disconnect Battle.net in your account to delete its private
+selection; existing guild records and retained backups follow their normal rules.
+
+Companion connections have separate credentials and device names. Manage or
+revoke them under your account's Connections page. Enabled Windows profiles keep
+syncing in the background until paused or the companion exits. Pausing one profile
+does not pause the others; quitting stops all profiles on that device.
 
 If enabled, the website's static pages count visits with Cloudflare Web Analytics:
 page views, referring sites, countries and page speed, with no cookies, no
@@ -130,6 +144,22 @@ Un témoin `guilded_edition` retient la version de WoW consultée en dernier sur
 (par exemple `retail`) pendant au plus un an; il ne contient rien d'autre.
 Les requêtes techniques et erreurs peuvent contenir les métadonnées de connexion
 et le contexte nécessaires au fonctionnement, au dépannage et à la protection.
+
+Si elle est configurée, la connexion Battle.net facultative demande à Blizzard
+l'identité du compte et l'accès aux personnages WoW. Un aperçu non confirmé reste
+en mémoire sur le serveur pendant dix minutes au maximum. Seuls les personnages
+confirmés sont conservés, avec l'identifiant Battle.net et le BattleTag, les noms
+et identifiants des personnages et royaumes, la région, l'édition, le choix du
+principal du compte et la date de vérification. Cette sélection privée ne publie
+pas les alts et ne modifie pas les permissions de guilde. Les jetons Blizzard sont
+supprimés après la recherche. Déconnectez Battle.net dans votre compte pour effacer
+sa sélection privée; les données de guilde et sauvegardes suivent leurs règles habituelles.
+
+Chaque connexion compagnon possède son propre identifiant d'accès et nom d'appareil.
+La page Connexions de votre compte permet de les gérer ou révoquer. Les profils
+Windows activés continuent de synchroniser en arrière-plan jusqu'à leur mise en
+pause ou la fermeture du compagnon. Mettre un profil en pause n'arrête pas les
+autres; quitter le compagnon arrête tous les profils de cet appareil.
 
 Si elle est activée, la mesure d'audience Cloudflare Web Analytics compte les
 visites des pages statiques du site : pages vues, sites d'origine, pays et vitesse

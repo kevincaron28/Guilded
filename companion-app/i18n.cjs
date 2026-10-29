@@ -9,6 +9,7 @@ function translate(language, key, ...values) {
 // Engine/server diagnostics remain English internally. Translate only catalogued
 // messages at the display boundary; unknown external diagnostics remain verbatim.
 const leadingDiagnostics = new Set([
+  '{0} Select this connection to write scores to the shared addon folder.',
   '{0} completed observations found in the latest 24 hours{1}. Review the character and league, then Sync now.',
   "{0}. Check the Discord server ID: Discord Settings, Advanced, Developer Mode, then right-click your server and Copy Server ID again — paste it in exactly, don't retype it.",
   '{0} Public scores could not be saved to GuildedDungeons/Accepted.lua. Check the addon folder and try again.',
@@ -39,6 +40,7 @@ function message(language, value) {
     slots.forEach((slot, index) => { args[slot] = match[index + 1]; });
     // Only these slots are authored diagnostics. All other slots can contain
     // names, paths or item text and must remain exactly as supplied.
+    if (key === '{0} Select this connection to write scores to the shared addon folder.') args[0] = message(language, args[0]);
     if (key === 'Connected. PoE2 tracking is {0}.') args[0] = translate(language, args[0]);
     if (key === 'Account connected. PoE2 sharing is {0}.') args[0] = translate(language, args[0]);
     if (key.startsWith('{0} completed observations')) args[1] = translate(language, args[1]);

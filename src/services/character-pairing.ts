@@ -79,18 +79,17 @@ export async function linkPairedCharacter(database: PrismaClient, guildId: strin
 // Revokes every credential this member currently has (unlinking them from
 // every paired companion). Used when an officer unlinks a character from
 // someone else's account (so a paired upload can't silently relink it right
-// back) and when the member re-pairs (one active credential at a time).
+// back). Signing in on another device no longer revokes existing devices.
 export async function revokeCompanionCredentials(database: PrismaClient | Tx, memberId: string): Promise<void> {
   await database.companionCredential.updateMany({ where: { memberId, revokedAt: null }, data: { revokedAt: new Date() } });
 }
 
-// A fresh companion credential for this member, replacing any older one: the companion's
+// A fresh companion credential for this device, retaining other devices: the companion's
 // Discord sign-in (companion-signin.ts) uses it after checking the member is in the server.
-export async function issueMemberCredential(database: PrismaClient, memberId: string): Promise<string> {
+export async function issueMemberCredential(database: PrismaClient, memberId: string, deviceName = "Paired companion"): Promise<string> {
   const credential = randomBytes(32).toString("base64url");
   await database.$transaction(async (tx) => {
-    await revokeCompanionCredentials(tx, memberId);
-    await tx.companionCredential.create({ data: { memberId, tokenHash: hashCompanionSecret(credential) } });
+    await tx.companionCredential.create({ data: { memberId, deviceName: cleanDeviceName(deviceName), tokenHash: hashCompanionSecret(credential) } });
   });
   return credential;
 }
@@ -136,14 +135,18 @@ export async function exchangeCharacterPairingCode(database: PrismaClient, guild
     });
     if (consumed.count !== 1) throw new Error("Pairing code is invalid, expired, or already used. Generate a new one with /character pair.");
 
-    // One active credential per member: re-pairing (lost laptop, new PC,
-    // starting over) replaces the old companion's access instead of leaving
-    // it valid forever alongside the new one.
-    await revokeCompanionCredentials(tx, pairing.memberId);
+    // Each successful exchange connects one device. Lost devices can be revoked
+    // individually (or all at once) from the authenticated connections page.
     await tx.companionCredential.create({
       data: { memberId: pairing.memberId, tokenHash: hashCompanionSecret(credential) }
     });
     return { companionCredential: credential, discordUserId: pairing.member.discordUserId,
       ...(pairing.guild ? { wowGuildId: pairing.guild.id, wowGuildName: pairing.guild.name, gameEdition: pairing.guild.gameEdition } : {}) };
   });
+}
+
+export function cleanDeviceName(value: string): string {
+  // Strip C0 controls from device labels received from forms.
+  // eslint-disable-next-line no-control-regex
+  return value.replace(/[\x00-\x1f\x7f]/g, "").trim().slice(0, 80) || "Paired companion";
 }

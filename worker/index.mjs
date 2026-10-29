@@ -256,9 +256,13 @@ async function route(request, env) {
         // canonical redirects may be returned to the browser.
         const location = upstream.headers.get("location");
         const redirect = location ? new URL(location, target) : null;
-        // Web pages may also send the browser to Discord's sign-in page (and nowhere else).
+        // Only the initiating auth route may redirect the browser to its provider.
         if (web && redirect && redirect.origin === "https://discord.com" && redirect.pathname === "/oauth2/authorize" && url.pathname === "/auth/login") {
           return new Response(null, { status: upstream.status, headers: withCookies({ location: redirect.href, "cache-control": "no-store" }, upstream) });
+        }
+        if (web && request.method === "POST" && url.pathname === "/me/battlenet/start"
+          && redirect?.origin === "https://oauth.battle.net" && redirect.pathname === "/authorize") {
+          return new Response(null, { status: 303, headers: withCookies({ location: redirect.href, "cache-control": "no-store" }, upstream) });
         }
         const allowed = companion ? ["/companion/"] : guildPage ? ["/g/"] : web ? ["/recruitment", "/me/", "/players", "/leaderboards", "/auth/"] : null;
         // The bot's own links include the edition's section (/retail/leaderboards/...).

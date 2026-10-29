@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog, shell, Notification, safeStorage } = require("electron");
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog, shell, Notification, safeStorage, powerMonitor } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
@@ -92,7 +92,7 @@ async function loadEngineModules() {
   const dir = app.isPackaged ? path.join(process.resourcesPath, "engine") : path.join(__dirname, "..", "companion");
   const url = (file) => pathToFileURL(path.join(dir, file)).href;
   const [engineModule, standingsModule, requestModule, sheetModule, liveFolderModule] = await Promise.all([import(url("engine.mjs")), import(url("standings.mjs")), import(url("request.mjs")), import(url("sheet-export.mjs")), import(url("live-folder.mjs"))]);
-  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profiles.mjs")), ...await import(url("revoke.mjs")), ...await import(url("grm-migration.mjs")), ...await import(url("loot-history-import.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile };
+  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profile-engine.mjs")), ...await import(url("profiles.mjs")), ...await import(url("revoke.mjs")), ...await import(url("grm-migration.mjs")), ...await import(url("loot-history-import.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile };
 }
 
 function pushLog(entry) {
@@ -315,7 +315,8 @@ app.whenReady().then(async () => {
     await loadConfig();
     try { const preference = JSON.parse(fs.readFileSync(path.join(app.getPath("userData"), "language.json"), "utf8")); if (["en", "fr"].includes(preference.language)) selectedLanguage = preference.language; } catch { /* use system language */ }
     config.poeJournalFile = profileJournalFile();
-    engine = engineModules.createEngine(config, {
+    engine = engineModules.createProfileEngine(config, {
+      profileConfig: (id, current) => ({ ...current, poeJournalFile: path.join(app.getPath("userData"), id === "default" ? "poe-journal.json" : `poe-journal-${id}.json`) }),
       onLog: (entry) => pushLog(entry),
       onState
     });
@@ -332,6 +333,8 @@ app.whenReady().then(async () => {
     setAutostart(true);
   }
   await engine.start();
+  powerMonitor.on("suspend", () => { void engine.suspend().catch(error => pushLog({ level: "error", time: new Date().toISOString(), message: error.message })); });
+  powerMonitor.on("resume", () => { void engine.resume().catch(error => pushLog({ level: "error", time: new Date().toISOString(), message: error.message })); });
   onState(engine.state());
   void refreshSavedFile();
   setInterval(() => void refreshSavedFile(), 60 * 60 * 1000);
@@ -405,8 +408,9 @@ registerIpc("save-config", async (_event, next) => {
   const problems = engineModules.validateConfig(config);
   await saveConfig();
   void refreshSavedFile();
-  if (problems.length > 0) { await engine.stop(); onState(engine.state()); return { ok: false, message: problems[0] }; }
   const started = await engine.configure(config);
+  if (problems.length > 0) return { ok: false, message: problems[0] };
+  if (config.syncEnabled === false) return { ok: true, message: T("Saved. This connection is paused.") };
   return started ? { ok: true, message: T("Saved. The companion is running.") } : { ok: false, message: T("Saved, but it could not start. See the Activity page.") };
 });
 
@@ -576,8 +580,9 @@ registerIpc("open-addon-folder", () => {
 });
 registerIpc("remove-data", () => removeAllDataAndQuit());
 registerIpc("toggle-tracking", async () => {
-  if (engine.state().running) await engine.stop();
-  else await engine.start();
+  config.syncEnabled = config.syncEnabled === false;
+  await saveConfig();
+  await engine.configure(config);
   onState(engine.state());
   return currentState();
 });
@@ -611,3 +616,7 @@ registerIpc("open-online", () => {
   if (config.guildDiscordId) url.searchParams.set("guild", config.guildDiscordId);
   return shell.openExternal(url.href);
 });
+
+registerIpc("open-connections", () => shell.openExternal(new URL("/me/connections", engineModules.checkUrl(config.uploadUrl || "https://guilded.kcaron.top")).href));
+registerIpc("open-battlenet", () => shell.openExternal(new URL("/me/battlenet", engineModules.checkUrl(config.uploadUrl || "https://guilded.kcaron.top")).href));
+registerIpc("recover-sync", () => engine.resume());

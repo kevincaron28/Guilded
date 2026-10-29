@@ -12,6 +12,10 @@ import { updateProfessionDirectory } from "./services/profession-directory.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { gunzipSync } from "node:zlib";
 import { config } from "./config.js";
+import { createDevicePages, prismaDeviceStore } from "./services/companion-devices.js";
+import { createBattleNetPage } from "./services/battlenet-page.js";
+import { battleNetConfig } from "./services/battlenet.js";
+import { prismaBattleNetStore } from "./services/battlenet-store.js";
 import { prisma } from "./database.js";
 import { createAddonImportService } from "./services/addon-import.js";
 import { createEpgpService } from "./services/epgp.js";
@@ -217,7 +221,7 @@ async function signInServers(client: Client | undefined, discordUserId: string) 
   return found;
 }
 
-async function signInGuildCredential(client: Client | undefined, account: { discordUserId: string; username: string; displayName: string | null }, guildDiscordId: string, wowGuildId?: string) {
+async function signInGuildCredential(client: Client | undefined, account: { discordUserId: string; username: string; displayName: string | null }, guildDiscordId: string, wowGuildId?: string, deviceName?: string) {
   if (!(await signInServers(client, account.discordUserId)).some((server) => server.discordId === guildDiscordId && (!wowGuildId || server.wowGuildId === wowGuildId))) return null;
   const guild = await prisma.guild.findFirst({ where: wowGuildId ? { id: wowGuildId, discordId: guildDiscordId } : { discordId: guildDiscordId, scopeKey: "default" }, select: { id: true } });
   if (!guild) return null;
@@ -228,7 +232,7 @@ async function signInGuildCredential(client: Client | undefined, account: { disc
   });
   // Same rule as companionAccess: only active members get (and keep) companion access.
   if (member.status !== "ACTIVE") return null;
-  return issueMemberCredential(prisma, member.id);
+  return issueMemberCredential(prisma, member.id, deviceName);
 }
 
 export function createSiteApp(client?: Client) {
@@ -242,12 +246,16 @@ export function createSiteApp(client?: Client) {
   const signInPage = companionSignInRoute({
     signIn: companionSignIn,
     servers: (discordUserId) => signInServers(client, discordUserId),
-    issueGuild: (account, guildDiscordId, wowGuildId) => signInGuildCredential(client, account, guildDiscordId, wowGuildId),
-    issuePersonal: async (accountId) => (await issuePersonalCredential(personalStore, accountId)).companionCredential
+    issueGuild: (account, guildDiscordId, wowGuildId, deviceName) => signInGuildCredential(client, account, guildDiscordId, wowGuildId, deviceName),
+    issuePersonal: async (accountId, deviceName) => (await issuePersonalCredential(personalStore, accountId, deviceName)).companionCredential
   });
   const badges = createWebCommunityBadges(prisma, client, id => hostedPilot.allows(id));
+  const devices = createDevicePages(prismaDeviceStore(prisma));
+  const battleNet = createBattleNetPage(prismaBattleNetStore(prisma), battleNetConfig(config));
   const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, leaderboards.route, directory.route, profiles.route];
   const meSections = [badges.meSection, profiles.meSection, availability.meSection, roster.meSection, guildTools.meSection, leaderboards.meSection];
+  routes.unshift(devices.route, battleNet);
+  meSections.push(devices.meSection);
   return createWebApp({
     publicRaids: now => publicRaids(prisma, hostedPilot.allows, now),
     store: prismaWebStore(prisma), auth: webAuthConfig(config), allows: (id) => hostedPilot.allows(id), routes, meSections,

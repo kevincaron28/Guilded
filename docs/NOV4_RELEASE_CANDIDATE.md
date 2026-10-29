@@ -6,6 +6,15 @@ Version **8.1.0**, channel **candidate**, protocol **2**. Target: 4 November 202
 
 Includes the confirmed RCLootCouncil/Gargul importer from [PR #265](https://github.com/kevincaron28/Guilded/pull/265), signup changes from #264 and reliability/audit corrections from #262/#263. Published 8.0.2 bytes and site provider records remain unchanged. This preparation does not deploy a bot, install a companion, publish a release or submit Store/CurseForge files.
 
+The automatic-sync implementation adds independent named devices, enabled background
+profiles with controlled addon writes, and optional private Battle.net character
+selection. See [implementation and coordination](AUTOMATIC_SYNC_HANDOFF_2026-10-29.md)
+and [Blizzard setup](BATTLENET_SETUP.md). Its additive migration and backend routes
+must precede client distribution. Battle.net is disabled until configured; live
+OAuth and edition availability remain unverified. Claude's edition PR #268 is
+merged; his raid/DPS PR #269 is independently coordinated. Any combined source
+needs fresh exact-commit CI, including PostgreSQL and Windows packaging.
+
 ## Readiness assessment
 
 No additional missing core feature is established as a launch blocker. The earlier HTTP 530/1016 origin blocker was resolved and remains under bounded observation. Retail vault/simulation integration and automated trading remain deferred; they are not justified requirements for the Forever launch.

@@ -1,4 +1,4 @@
-import { AuctionStatus, EpgpTransactionType, type PrismaClient } from "../generated/prisma/client.js";
+import { AuctionStatus, EpgpTransactionType, type PrismaClient, type Prisma } from "../generated/prisma/client.js";
 import { effectiveRules, poolFor } from "./core-rules.js";
 import { requireCorePool } from "./core-loot-policy.js";
 import { priority } from "./epgp.js";
@@ -151,7 +151,7 @@ export function createLootService(database: PrismaClient) {
 
     // Loot council / direct award: no auction. GP is charged only when gp > 0
     // (council guilds usually award for 0), and the award lands in loot history.
-    async awardDirect(input: { guildId: string; memberId: string; itemName: string; gp: number; raidId?: string | undefined; bossName?: string | undefined; awardedBy: string }) {
+    async awardDirect(input: { guildId: string; memberId: string; itemName: string; gp: number; raidId?: string | undefined; bossName?: string | undefined; awardedBy: string; pricingSnapshot?: Prisma.InputJsonValue }) {
       const itemName = input.itemName.trim();
       if (!itemName) throw new Error("Item name is required");
       if (!Number.isInteger(input.gp) || input.gp < 0) throw new Error("GP must be zero or a positive whole number");
@@ -175,7 +175,8 @@ export function createLootService(database: PrismaClient) {
           data: {
             guildId: input.guildId, memberId: input.memberId, itemName, amount: input.gp,
             raidId: input.raidId?.trim() || null, bossName: input.bossName?.trim() || null, awardedBy: input.awardedBy,
-            epBefore: before._sum.epAmount ?? 0, gpBefore: before._sum.gpAmount ?? 0
+            epBefore: before._sum.epAmount ?? 0, gpBefore: before._sum.gpAmount ?? 0,
+            ...(input.pricingSnapshot ? { pricingSnapshot: input.pricingSnapshot } : {})
           },
           include: { member: true }
         });

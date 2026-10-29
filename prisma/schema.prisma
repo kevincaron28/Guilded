@@ -622,6 +622,8 @@ model LootAward {
   awardedBy String?
   epBefore  Int?
   gpBefore  Int?
+  // The quote used in game, retained even when the core's prices later change.
+  pricingSnapshot Json?
   awardedAt DateTime @default(now())
   guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
   auction   Auction? @relation(fields: [auctionId], references: [id], onDelete: Cascade)
@@ -1603,6 +1605,11 @@ model RaidCore {
   offspecPercent  Int?
   // EP a player needs before they take priority over players below it (EPGP minimum EP); empty = 0.
   minEp           Int?
+  // Opt-in, versioned flat-slot pricing. Null preserves existing pricing behavior.
+  pricingPolicy   Json?
+  pricingRevision Int @default(0)
+  pricingAutoDecay Boolean @default(false)
+  lastPricingDecayAt DateTime?
   // The core's own Discord role (given to its members, trial members included) and, once created
   // with "Create channels", its category and channels. Empty = the guild's shared channels.
   roleId          String?

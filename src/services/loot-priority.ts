@@ -34,11 +34,13 @@ export interface PriorityResult {
   ranking: PriorityCandidate[];
   /** Wishers left out because they are not in the core's roster. */
   outsideCore: number;
+  visibleTies?: boolean;
+  minEp?: number;
 }
 
 export async function priorityFor(
   database: Db, guildId: string, itemName: string,
-  options: { coreId: string | null; separatePool: boolean; baseGp: number; minEp?: number }
+  options: { coreId: string | null; separatePool: boolean; baseGp: number; minEp?: number; visibleTies?: boolean }
 ): Promise<PriorityResult> {
   const price = await createItemValueService(database).priceOf(guildId, options.coreId, { name: itemName });
   const wishes = await database.wishlistEntry.findMany({
@@ -65,21 +67,24 @@ export async function priorityFor(
     const existing = best.get(member.id);
     if (!existing || candidate.wishPriority < existing.wishPriority) best.set(member.id, candidate);
   }
-  return { price, ranking: rankCandidates([...best.values()], options.minEp ?? 0), outsideCore };
+  return { price, ranking: rankCandidates([...best.values()], options.minEp ?? 0), outsideCore,
+    ...(options.visibleTies ? { visibleTies: true, minEp: options.minEp ?? 0 } : {}) };
 }
 
 export function describePriority(itemName: string, coreName: string | null, result: PriorityResult): string {
-  const head = `**${itemName}** — ${result.price === null ? "no price set (`/core items`)" : `${result.price} GP`}${coreName ? ` · ${coreName}` : ""}`;
+  const head = `**${itemName}** — ${result.price === null ? (result.visibleTies ? "slot price shown in the addon; confirm unknown items explicitly" : "no price set (`/core items`)") : `${result.price} GP`}${coreName ? ` · ${coreName}` : ""}`;
   if (result.ranking.length === 0) {
     return `${head}\nNobody eligible wants it yet. Players add it with \`/character wishlist add\`.${result.outsideCore ? ` (${result.outsideCore} wisher(s) are not in this core.)` : ""}`;
   }
   const lines = result.ranking.slice(0, 10).map((row, index) =>
     `${index + 1}. **${row.character}** (${row.displayName}) — PR ${row.pr.toFixed(2)} (EP ${row.ep} / GP ${row.gp})`);
   const winner = result.ranking[0]!;
+  const tied = result.ranking.filter(row => row.pr === winner.pr && (row.ep < (result.minEp ?? 0)) === (winner.ep < (result.minEp ?? 0)));
   return [
     head, ...lines,
     result.ranking.length > 10 ? `…and ${result.ranking.length - 10} more.` : "",
-    `Goes to **${winner.character}**${result.price === null ? "" : ` for ${result.price} GP`}: \`/officer loot award\` with that player${result.price === null ? " and a gp" : " charges the set price"}.`,
+    result.visibleTies ? (tied.length > 1 ? `Priority tie: ${tied.map(row => `**${row.character}**`).join(", ")}. Resolve with a visible /roll 100 in game; wishlist order does not break the tie.` : `Highest wishlist priority by PR: **${winner.character}**. Confirm main/off-spec interest and usability in game before awarding.`)
+      : `Goes to **${winner.character}**${result.price === null ? "" : ` for ${result.price} GP`}: \`/officer loot award\` with that player${result.price === null ? " and a gp" : " charges the set price"}.`,
     result.outsideCore ? `(${result.outsideCore} wisher(s) are not in this core and were left out.)` : ""
   ].filter(Boolean).join("\n");
 }

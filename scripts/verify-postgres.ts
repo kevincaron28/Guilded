@@ -9,6 +9,7 @@ import { verifyGameEditionsPostgres, verifyGameEditionsRestored } from "./verify
 import { verifyAiBudgetPostgres } from "./verify-ai-budget-postgres.js";
 import { verifyPublicSharingPostgres } from "./verify-public-sharing-postgres.js";
 import { verifyBattleNetPostgres } from "./verify-battlenet-postgres.js";
+import { verifyRaidPricingPostgres } from "./verify-raid-pricing-postgres.js";
 import { verifyPlayerDirectoryPostgres } from "./verify-player-directory-postgres.js";
 import { verifyDungeonRatingPostgres, verifyDungeonRatingRestored } from "./verify-dungeon-rating-postgres.js";
 import { verifyActivityCoresPostgres, verifyActivityCoresRestored } from "./verify-activity-cores-postgres.js";
@@ -103,6 +104,7 @@ try {
     await verifyGameEditionsPostgres(database, guild.id);
     await verifyPublicSharingPostgres(database);
     await verifyBattleNetPostgres(database);
+    await verifyRaidPricingPostgres(database);
     await verifyPlayerDirectoryPostgres(database);
     await verifyActivityCoresPostgres(database, guild.id);
     await verifyGameEventsPostgres(database, guild.id);

@@ -46,7 +46,7 @@ function validateIpc(channel, args) {
   } else if (channel === "manage-edit") {
     // The server owns the exact action schema and current role checks. Bound the
     // IPC envelope too, before serializing or sending it over the network.
-    object(value, new Set(["action", "characterId", "item", "priority", "coreId", "text", "base", "changes", "memberId", "role", "bench", "character"]));
+    object(value, new Set(["action", "characterId", "item", "priority", "coreId", "text", "base", "changes", "memberId", "role", "bench", "character", "name", "revision", "applyRules", "slots"]));
     text(value.action, 40);
     if (JSON.stringify(value).length > 220_000) fail();
   } else fail();

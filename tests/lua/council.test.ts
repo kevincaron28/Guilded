@@ -51,6 +51,38 @@ const order = (s: LuaSession) => s.run(`local t = {}; for _, r in ipairs(NS.coun
 const count = (s: LuaSession, pattern: string) =>
   s.run(`local n = 0; for _, m in ipairs(SENT) do if m:find(${JSON.stringify(pattern)}) then n = n + 1 end end; return n`);
 
+describe("preset priority awards", () => {
+  function preset() {
+    const s=withCouncil("RAID");
+    s.run(`DB={}; NS.getDb=function() return DB end; NS.loot={quoteFor=function() return {preset="december-flat-v1",revision=3,baseGp=75,finalGp=75} end};
+      NS.runCommand=function(line) RAN[#RAN+1]=line; if NS.lootAwardQuote then QUOTE=NS.lootAwardQuote end end`);
+    s.load("Modules/LootRoll.lua");return s;
+  }
+  it("waits for a visible tie roll, resumes it after reload, and accepts only its winner", () => {
+    const s=preset();
+    s.run('PR.Ann=9; NS.council.startPriority("Sword",75,30); NS.council.addResponse("Ann","want"); NS.council.addResponse("Bob","want")');
+    council(s,"close");council(s,"award Ann");
+    expect(s.run("return #RAN")).toBe("0");
+    s.load("Modules/LootRoll.lua");s.load("Modules/Council.lua");s.run("NS.council.restore()");
+    s.run('NS.lootRoll.receive("Outsider",100,1,100); NS.lootRoll.receive("Ann",50,1,100); NS.lootRoll.receive("Bob",50,1,100)');
+    expect(s.run('return tostring(NS.council.current.eligibleWinner)')).toBe("nil");
+    s.run('NS.lootRoll.receive("Ann",60,1,100); NS.lootRoll.receive("Bob",80,1,100)');
+    council(s,"award Ann");expect(s.run("return #RAN")).toBe("0");
+    council(s,"award");expect(s.run("return RAN[1]")).toBe("loot Bob Sword 75");
+    expect(s.run("return QUOTE.revision")).toBe("3");
+    council(s,"award");expect(s.run("return #RAN")).toBe("2");
+  });
+  it("keeps main spec above off-spec, discounts once, and retains the awarded quote", () => {
+    const s=preset();
+    s.run('NS.council.startPriority("Gloves",75,30); NS.council.addResponse("Ann","want"); NS.council.addResponse("Bob","os")');
+    council(s,"close");expect(s.run("return #RAN")).toBe("0");
+    council(s,"award");expect(s.run("return RAN[1]")).toBe("loot Ann Gloves 75");
+    s.run('NS.council.startPriority("Gloves",75,30); NS.council.addResponse("Bob","os")');
+    council(s,"award");expect(s.run("return RAN[3]")).toBe("loot Bob Gloves 38");
+    expect(s.run("return QUOTE.finalGp")).toBe("38");expect(s.run("return QUOTE.response")).toBe("offspec");
+  });
+});
+
 describe("Council.lua officer side", () => {
   it("refuses outside a group and for non-officers", () => {
     let s = withCouncil("NONE");

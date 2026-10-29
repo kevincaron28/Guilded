@@ -11,6 +11,7 @@ import { guildService, requireGuildContext } from "./context.js";
 import { BRAND } from "../brand.js";
 import { coreContext } from "../services/core-context.js";
 import { CORE_REQUIRED } from "../services/core-loot-policy.js";
+import { weekStart } from "../services/dungeon-rules.js";
 
 const epgpService = createEpgpService(prisma);
 const meritService = createMeritService(prisma);
@@ -138,15 +139,25 @@ export async function executeEpgp(interaction: ChatInputCommandInteraction): Pro
   if (subcommand === "decay") {
     if (!settings) throw new Error("Guild settings have not been initialized.");
     const weekly = interaction.options.getBoolean("weekly");
+    const pricingCore = pool.id ? await prisma.raidCore.findUnique({ where: { id: pool.id } }) : null;
+    if (pricingCore?.pricingPolicy) {
+      if (weekly !== null) {
+        await prisma.raidCore.update({ where: { id: pricingCore.id }, data: { pricingAutoDecay: weekly, ...(weekly ? { lastPricingDecayAt: new Date() } : {}) } });
+        await interaction.reply({ content: `Weekly decay for ${pricingCore.name} is ${weekly ? "on (Tuesday 15:00 UTC)" : "off"}. Nothing was decayed now.`, flags: MessageFlags.Ephemeral });
+        return;
+      }
+      if (await prisma.raid.count({ where: { coreId: pricingCore.id, status: "ACTIVE" } })) throw new Error("Finish the active raid before applying decay to this pool.");
+    }
     if (weekly !== null) {
       // Every pool (the guild's and each core's own) decays by its own percent after each reset.
       await prisma.guildSettings.update({ where: { guildId: context.guildId }, data: { autoDecay: weekly, ...(weekly ? { lastAutoDecayAt: new Date() } : {}) } });
       await interaction.reply({ content: weekly
         ? "Automatic decay is **on**: after every weekly reset (Tuesday 15:00 UTC) each point pool decays by its own percent (`/core rules decay` for a core's own pool). Nothing was decayed now."
-        : "Automatic decay is **off**. Run `/officer epgp decay` when you want one.", flags: MessageFlags.Ephemeral });
+        : "Guild automatic decay is **off**. Preset cores have their own switch: use this command with core and weekly options.", flags: MessageFlags.Ephemeral });
       return;
     }
-    const transactions = await epgpService.applyDecay(context.guildId, pool.decay, interaction.user.id, pool.id);
+    const transactions = await epgpService.applyDecay(context.guildId, pool.decay, interaction.user.id, pool.id,
+      pricingCore?.pricingPolicy ? `decay:${pricingCore.id}:${weekStart(new Date()).toISOString().slice(0, 10)}` : undefined);
     await auditService.record({
       guildId: context.guildId,
       actorId: interaction.user.id,

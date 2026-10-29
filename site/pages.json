@@ -22,17 +22,6 @@
     "draft": false
   },
   {
-    "source": "forever.md",
-    "sourceFr": "forever.fr.md",
-    "path": "forever/",
-    "title": "Free WoW Forever guild addon — EP/GP, loot, raid signups and dungeon leaderboards",
-    "titleFr": "Addon de guilde gratuit pour WoW Forever — EP/GP, butin, inscriptions de raid et classements de donjons",
-    "description": "Get your guild ready for WoW Forever: launch and raid dates, a launch-week checklist and the free Guilded addon for the Forever client.",
-    "descriptionFr": "Préparez votre guilde pour WoW Forever : dates du lancement et des raids, liste de préparation et addon Guilded gratuit pour le client Forever.",
-    "lang": "en",
-    "draft": false
-  },
-  {
     "source": "quebec-gold.md",
     "path": "quebec-gold/",
     "title": "Quebec Gold — communauté francophone WoW et PoE2",

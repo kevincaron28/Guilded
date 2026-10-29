@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, statSync } from 'node:fs';
 import { WOW_EDITIONS, editionPages } from '../site/editions.mjs';
+import { editionSection } from '../site/nav.mjs';
 import { GAME_EDITIONS } from '../companion/game-edition.mjs';
 
 beforeAll(() => execFileSync(process.execPath, ['scripts/build-site.mjs'], { stdio: 'pipe' }), 30000);
@@ -15,7 +16,11 @@ describe('edition-specific downloads', () => {
     const home = page('index.html');
     expect(home.indexOf('id="wow-versions"')).toBeLessThan(home.indexOf('id="features"'));
     expect(home).toContain('href="#wow-versions"');
-    for (const edition of WOW_EDITIONS) expect(home).toContain(`href="/editions/${edition.id}/"`);
+    // The home page opens with "Which WoW do you play?": each card leads to that edition's hub.
+    expect(home.indexOf('id="wow-versions"')).toBeLessThan(home.indexOf('id="paths"'));
+    for (const edition of WOW_EDITIONS) expect(home).toContain(`href="/${editionSection(edition.id).slug}/"`);
+    expect(home).toContain('class="edition-card edition-forever featured"');
+    expect(home).toContain('<span data-edition-none><span data-en="Your WoW" data-fr="Votre WoW">Your WoW</span></span>');
     expect(home).not.toMatch(/\{\{[A-Z_]+\}\}/);
   });
 
@@ -28,8 +33,9 @@ describe('edition-specific downloads', () => {
     expect(html).toContain(`href="https://guilded.kcaron.top/editions/${edition.id}/?lang=fr"`);
     expect(html).toContain('data-fr="Installer dans le bon dossier de jeu"');
     expect(html).toContain('https://apps.microsoft.com/detail/9N680XX3QFL9');
-    const query = edition.id === 'forever' ? '' : `?edition=${edition.id}`;
-    for (const path of ['/leaderboards/', '/recruitment/', '/players/']) expect(html).toContain(`href="${path}${query}"`);
+    const { slug } = editionSection(edition.id);
+    for (const path of ['/leaderboards/', '/recruitment/', '/players/']) expect(html).toContain(`href="/${slug}${path}"`);
+    expect(html).toContain(`href="/${slug}/"`);
     if (curseforge.version === published) {
       for (const url of Object.values(curseforge.editions?.[edition.id] ?? {})) expect(html).toContain(`href="${url}"`);
     }
@@ -53,8 +59,8 @@ describe('edition-specific downloads', () => {
 
 // 29 October 2026 website review: new pages, search listing, lighter images, plain wording.
 describe('website refresh', () => {
-  it('publishes the officer and Forever pages in both languages, with server-rendered French', () => {
-    for (const path of ['officers', 'forever']) {
+  it('publishes the officer page in both languages, with server-rendered French', () => {
+    for (const path of ['officers']) {
       const html = page(`${path}/index.html`);
       expect(html).toContain(`<link rel="canonical" href="https://guilded.kcaron.top/${path}/">`);
       expect(html).toContain(`hreflang="fr" href="https://guilded.kcaron.top/${path}/?lang=fr"`);
@@ -67,7 +73,7 @@ describe('website refresh', () => {
 
   it('lists the public data pages and the guild-page sitemap for search engines', () => {
     const sitemap = page('sitemap.xml');
-    for (const path of ['/leaderboards/', '/recruitment/guilds/', '/players/', '/officers/', '/forever/']) expect(sitemap).toContain(`<loc>https://guilded.kcaron.top${path}</loc>`);
+    for (const path of ['/forever/leaderboards/', '/retail/recruitment/guilds/', '/tbc/players/', '/officers/', '/forever/', '/mists/']) expect(sitemap).toContain(`<loc>https://guilded.kcaron.top${path}</loc>`);
     expect(page('robots.txt')).toContain('Sitemap: https://guilded.kcaron.top/recruitment/guilds/sitemap.xml');
   });
 
@@ -93,5 +99,35 @@ describe('website refresh', () => {
       for (const phrase of ['in-game checks remain pending', 'Build availability does not mean', 'Store certification', 'not measured acceptance results']) expect(html).not.toContain(phrase);
     }
     expect(page('editions/forever/index.html')).toContain('href="/forever/"');
+  });
+});
+
+// 29 October 2026: one section per WoW edition, its hub page first.
+describe('edition hubs', () => {
+  it.each(WOW_EDITIONS)('gives $id its own hub: leaderboard first, then download, guilds and first steps', edition => {
+    const { slug } = editionSection(edition.id);
+    const html = page(`${slug}/index.html`);
+    expect(html).toContain(`<link rel="canonical" href="https://guilded.kcaron.top/${slug}/">`);
+    expect(html).toContain(`hreflang="fr" href="https://guilded.kcaron.top/${slug}/?lang=fr"`);
+    expect(html).toContain(`data-live-summary="/${slug}/leaderboards/summary.json"`);
+    const board = html.indexOf('class="live-strip hub-board"');
+    expect(board).toBeGreaterThan(0);
+    expect(board).toBeLessThan(html.indexOf('id="download"'));
+    expect(html.indexOf('id="download"')).toBeLessThan(html.indexOf('id="community-title"'));
+    for (const path of ['leaderboards/', 'leaderboards/guilds/', 'recruitment/guilds/', 'recruitment/', 'players/']) expect(html).toContain(`href="/${slug}/${path}"`);
+    const downloads = [...html.matchAll(/href="(https:\/\/github\.com\/[^" ]+\.zip)"/g)].map(match => match[1]);
+    expect(downloads).toEqual(['Guilded', 'GuildedDungeons'].map(addon => `https://github.com/kevincaron28/Guilded/releases/download/v${published}/${addon}-v${published}-${edition.id}.zip`));
+    // Nothing from another edition: no other edition's downloads or data pages.
+    for (const other of WOW_EDITIONS.filter(other => other.id !== edition.id)) {
+      expect(html).not.toContain(`-${other.id}.zip`);
+      expect(html).not.toContain(`href="/${editionSection(other.id).slug}/leaderboards/`);
+    }
+    expect(html).toContain('<summary><span data-en="Playing:" data-fr="Je joue à :">Playing:</span> <strong>');
+    expect(html).not.toContain('undefined');
+    expect(html.includes('id="dates-title"')).toBe(edition.id === 'forever');
+  });
+  it('routes every section through the Worker', () => {
+    const config = JSON.parse(readFileSync('wrangler.jsonc', 'utf8'));
+    for (const slug of ['forever', 'classic-era', 'tbc', 'mists', 'retail']) expect(config.assets.run_worker_first).toEqual(expect.arrayContaining([`/${slug}`, `/${slug}/*`]));
   });
 });

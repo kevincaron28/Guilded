@@ -3,6 +3,8 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { priority } from "./epgp.js";
 import { asLootMode, effectiveRules, LOOT_MODE_HELP, LOOT_MODE_HELP_FR, LOOT_MODE_LABEL, LOOT_MODE_LABEL_FR } from "./core-rules.js";
 import { breadcrumbs, SHARE_CARD, SITE_HEADER_STYLE, siteHeader } from "./site-header.js";
+import { gameEditionOf } from "./game-edition.js";
+import { editionHref } from "../../site/nav.mjs";
 
 // A guild's public page at /g/<slug>/ (docs/GUILD_PAGES_DESIGN.md). Read-only, no scripts, and
 // only what officers turned on. Names are character names, never Discord users or IDs.
@@ -52,6 +54,8 @@ export interface GuildPageView {
   recruitment: { text: string | null; inviteUrl: string | null } | null;
   /** The guild's public dungeon page (/leaderboards/guild/<id>/), when it publishes its runs. */
   dungeonPage?: string | null;
+  /** The guild's WoW edition: the header's version switcher and links follow it. */
+  edition?: string;
 }
 
 // The published page for `slug`, or null (unknown, unpublished, or its server is not allowed).
@@ -59,7 +63,7 @@ export async function loadGuildPageView(database: PrismaClient, slug: string, al
   if (!isPageSlug(slug)) return null;
   const page = await database.guildPage.findUnique({
     where: { slug },
-    include: { guild: { select: { id: true, name: true, discordId: true, settings: { select: { language: true, timezone: true, lootMode: true, baseGp: true, epgpDecayPercent: true, autoDecay: true, publicDungeonRuns: true } } } } }
+    include: { guild: { select: { id: true, name: true, discordId: true, gameEdition: true, settings: { select: { language: true, timezone: true, lootMode: true, baseGp: true, epgpDecayPercent: true, autoDecay: true, publicDungeonRuns: true } } } } }
   });
   if (!page?.published || !allows(page.guild.discordId)) return null;
   const sections = page.sections.filter((name): name is PageSection => (PAGE_SECTIONS as readonly string[]).includes(name));
@@ -112,11 +116,12 @@ export async function loadGuildPageView(database: PrismaClient, slug: string, al
       cores.push(view);
     }
   }
+  const edition = gameEditionOf(page.guild);
   return {
     slug: page.slug, name: page.guild.name, language: settings?.language === "fr" ? "fr" : "en", indexable: page.indexable,
-    intro: page.intro, sections, cores,
+    intro: page.intro, sections, cores, edition,
     recruitment: on("recruitment") && (page.recruitment || page.inviteUrl) ? { text: page.recruitment, inviteUrl: page.inviteUrl } : null,
-    dungeonPage: settings?.publicDungeonRuns ? `/leaderboards/guild/${encodeURIComponent(page.guild.id)}` : null
+    dungeonPage: settings?.publicDungeonRuns ? editionHref(`/leaderboards/guild/${encodeURIComponent(page.guild.id)}`, edition) : null
   };
 }
 
@@ -198,7 +203,7 @@ export function renderGuildPage(view: GuildPageView): string {
     + `<meta property="og:title" content="${name}"><meta property="og:description" content="${description}"><meta property="og:type" content="website">`
     + `<meta property="og:site_name" content="Guilded"><meta property="og:image" content="${SHARE_CARD}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><meta name="theme-color" content="#d4af37"><link rel="icon" href="/favicon.png" type="image/png">`
     + `<style>${PAGE_STYLE}
-${SITE_HEADER_STYLE}</style></head><body>${siteHeader(view.language, `/g/${view.slug}/`)}<main>`
+${SITE_HEADER_STYLE}</style></head><body>${siteHeader(view.language, `/g/${view.slug}/`, undefined, view.edition)}<main>`
     + breadcrumbs(view.language, [[t("Guilds", "Guildes"), `/recruitment/guilds/?lang=${view.language}`], [view.name, null]], escapeHtml) + parts.join("")
     + `<footer>${t("Guild page made with", "Page de guilde créée avec")} <a href="https://guilded.kcaron.top/">Guilded</a>. ${t("Not affiliated with Blizzard Entertainment.", "Sans affiliation avec Blizzard Entertainment.")}</footer></main></body></html>`;
 }

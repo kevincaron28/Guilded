@@ -19,7 +19,7 @@ document.addEventListener('keydown',event => { if (event.key === 'Escape' && doc
 desktopNavigation.addEventListener('change',closeNavigation);
 const modeLabel = mode => T(({STANDARD:'Trade / Standard', HARDCORE:'Hardcore', SSF:'Solo self-found', SSF_HARDCORE:'Solo self-found Hardcore'})[mode] || mode || '');
 const fields = ['uploadUrl','guildDiscordId','pairingCode','watchFile','realm','wowGuild','standingsIntervalMinutes','poeLogFile','poeCharacter','poeLeague','poeMode'];
-const names = {status:'Overview',wishlist:'Wishlist',cores:'Cores & prices',pricing:'Raid prices',leaderboards:'Leaderboards',wow:'World of Warcraft',poe:'PoE2 mapping',settings:'Connection & setup',activity:'Activity',help:'Help & privacy'};
+const names = {status:'Overview',wishlist:'Wishlist',cores:'Roster & loot settings',pricing:'Raid prices',leaderboards:'Leaderboards',wow:'World of Warcraft',poe:'PoE2 mapping',settings:'Connection & setup',activity:'Activity',help:'Help & privacy'};
 let lastSnapshot;
 let savedConfig = {};
 let entries = [];

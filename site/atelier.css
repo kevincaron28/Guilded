@@ -91,4 +91,6 @@ p a:not(.button,.text-link),li a:not(.button,.text-link),figcaption a,.small a{t
 .status-row .status-dot{background:#8a8f94}
 .status-row[data-state="up"] .status-dot{background:#6fcf8e}
 .status-row[data-state="down"] .status-dot{background:#e5736a}
-.status-row[data-state="down"]{border-color:#e5736a}
+.status-row[data-state="down"]{border-color:#e5736a}.sample-board{margin-top:16px;padding:14px 16px;border:1px dashed var(--kc-border);border-radius:8px;opacity:.75}
+.sample-board ol{margin:8px 0 0;padding:0;list-style:none;font-size:13px;color:var(--kc-muted)}
+.sample-board li{padding:4px 0}.launch-countdown{margin:18px 0 0;font-size:13px;font-weight:600;color:var(--gold)}

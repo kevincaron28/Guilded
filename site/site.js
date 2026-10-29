@@ -130,6 +130,23 @@ if (live) {
       }));
       list.hidden = !runs.length;
       live.querySelector('[data-live="empty"]').hidden = runs.length > 0;
+      if (!runs.length && !live.querySelector('.sample-board')) {
+        const fr = document.documentElement.lang === 'fr';
+        const sample = document.createElement('div');
+        sample.className = 'sample-board';
+        const title = document.createElement('p');
+        title.className = 'eyebrow';
+        title.textContent = fr ? 'EXEMPLE · PAS DE VRAIS ESSAIS' : 'EXAMPLE · NOT REAL RUNS';
+        const rows = document.createElement('ol');
+        rows.setAttribute('aria-label', fr ? 'Exemple de classement' : 'Example leaderboard');
+        [['Dungeon name', '+12', '31:42', '412'], ['Dungeon name', '+11', '28:05', '388'], ['Dungeon name', '+10', '26:50', '351']].forEach(([dungeon, level, time, score], index) => {
+          const item = document.createElement('li');
+          item.append(`#${index + 1} `, Object.assign(document.createElement('strong'), { textContent: dungeon }), ` · ${level} · ${time} · ${score}`);
+          rows.append(item);
+        });
+        sample.append(title, rows);
+        live.querySelector('.live-runs').append(sample);
+      }
       numbers.hidden = false;
     })
     .catch(() => { /* the rest of the page does not depend on it */ });
@@ -163,5 +180,24 @@ if (live) {
     ]).then(() => {
       board.parentElement.querySelector('[data-status-meta]').textContent = `Checked ${new Date().toLocaleTimeString()}.`;
     });
+  }
+}
+// Forever launch countdown on the home page (a fixed UTC moment, so it is right in every time zone).
+{
+  const box = document.querySelector('[data-launch]');
+  if (box) {
+    const launch = Date.parse(box.dataset.launch);
+    const render = () => {
+      const fr = document.documentElement.lang === 'fr';
+      const left = launch - Date.now();
+      if (left <= 0) { box.textContent = box.dataset[fr ? 'frAfter' : 'enAfter']; return false; }
+      const days = Math.floor(left / 864e5);
+      const hours = Math.floor(left % 864e5 / 36e5);
+      const minutes = Math.floor(left % 36e5 / 6e4);
+      box.textContent = `${box.dataset[fr ? 'frBefore' : 'enBefore']} ${days} ${fr ? 'j' : 'd'} ${hours} h ${minutes} min`;
+      return true;
+    };
+    box.hidden = false;
+    if (render()) setInterval(render, 5000);
   }
 }

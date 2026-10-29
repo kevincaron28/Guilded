@@ -141,6 +141,10 @@ bump: the shared version triggers guild update notices.
 
 ## Launch day and bug response
 
+Use the [player test sheet and report template](LAUNCH_DAY_TESTING_2026-11-04.md)
+to collect results consistently. It is prepared for sharing, not sent to players
+by this audit.
+
 Blizzard's [official roadmap](https://worldofwarcraft.blizzard.com/en-us/news/24303862/world-of-warcraft-forever-whats-next)
 states November 4 at 3 p.m. PST: **6 p.m. Toronto/Montréal, 23:00 UTC**.
 Daylight saving time ends before launch. Earlier articles have inconsistent
@@ -179,7 +183,9 @@ because incident material may contain private identifiers.
 - Root and companion dependency audits: zero reported vulnerabilities.
 - Bug-inbox regression file: six tests passed in the initial focused run.
 - Fresh production inbox read and public observations: recorded above.
-- Full suite: pending final completion at document creation.
+- Full isolated suite: **341 files / 2,861 tests passed**, 399.39 seconds, on the
+  reviewed implementation. TypeScript, ESLint, validators and both dependency
+  audits also passed. Documentation additions do not change executable behavior.
 - New candidate PostgreSQL/restore and Windows packaging: pending CI.
 - No new game acceptance, load test, Store installation or provider checksum
   sweep was performed in this pass. October 28 release receipts remain dated

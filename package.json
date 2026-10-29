@@ -1,6 +1,6 @@
 {
   "name": "guilded-bot",
-  "version": "8.0.2",
+  "version": "8.1.0",
   "private": true,
   "packageManager": "npm@11.13.0",
   "description": "Guild management and addon integration bot for Guilded",

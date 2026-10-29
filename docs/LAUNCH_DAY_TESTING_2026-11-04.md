@@ -32,6 +32,8 @@ recovery experiments; do not create fake points in the live competition.
 | Dungeon completion | Correct party/dungeon; one completion; understandable local/accepted status | |
 | Dungeon abandon/reset/reload | No invented completion or duplicate award | |
 | Loot/council/reserves in a test session | Correct recipients, one award, expected GP and retained history | |
+| RCLC/Gargul historical import in a disposable setup | Correct source/character mapping; preview before typed confirmation; no live awards or GP changed | |
+| Repeat historical import, reload and undo | Records survive reload, stable IDs do not duplicate, last-batch undo preserves earlier history | |
 | Backup preview, restore and undo in a disposable test setup | Scope is clear; original backup remains usable | |
 | Other installed addons | Repeat a failed action with only Guilded enabled; record the difference | |
 

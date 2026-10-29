@@ -146,12 +146,14 @@ function loot.quoteFor(item)
   local id = string.match(item or "", "item:(%d+)") or string.match(item or "", "^%s*(%d+)%s*$")
   local key = loot.variantKey(item)
   local override
+  local officerPrice = context.officerValues and context.officerValues[itemKey(name)]
   for _, values in ipairs({ context.ownValues, context.guildValues }) do
     override = key and values[key]
     if override == nil then override = values[itemKey(name)] end
     if override == nil and id then override = values["#" .. id] end
     if override ~= nil then break end
   end
+  if officerPrice ~= nil then override = officerPrice end
   local slot, quality, subclass = "unknown"
   if GetItemInfo then
     local _, _, q, _, _, _, _, _, equipLoc, _, _, _, sub = GetItemInfo(item)
@@ -164,7 +166,7 @@ function loot.quoteFor(item)
   if base == nil then return nil end
   return { preset = p.preset, revision = p.revision, edition = p.edition, coreId = context.coreId,
     itemLink = item, variant = key, baseGp = base, finalGp = base, response = "main",
-    source = override ~= nil and "override" or "slot", provisional = override == nil and slot == "unknown" }
+    source = officerPrice ~= nil and "officer" or (override ~= nil and "override" or "slot"), provisional = override == nil and slot == "unknown" }
 end
 
 -- "EPGP", "COUNCIL", "RESERVE" or "PRIORITY", and where that came from.
@@ -211,6 +213,11 @@ function loot.setPrice(item, gp)
     name = name, id = tonumber(string.match(item or "", "item:(%d+)")), gp = gp, core = coreId,
     at = ns.now and ns.now() or ""
   }
+  local raid = ns.getActiveRaid and ns.getActiveRaid()
+  if raid and raid.pricingContext then
+    raid.pricingContext.officerValues = raid.pricingContext.officerValues or {}
+    raid.pricingContext.officerValues[key] = gp
+  end
   if ns.syncNow and ns.syncNow.mark then ns.syncNow.mark() end
   return true, name, core and core.name
 end

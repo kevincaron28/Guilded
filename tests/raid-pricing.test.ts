@@ -43,6 +43,9 @@ describe("December prices: shared TypeScript policy and actual Lua quotes", () =
     const s=addon();
     expect(s.run('return tostring(NS.loot.quoteFor("item:12345").provisional)')).toBe("true");
     expect(s.run('return tostring(NS.loot.priceOf("item:12345"))')).toBe("nil");
+    s.run('NS.loot.setPrice("item:12345", 125)');
+    expect(s.run('return NS.loot.priceOf("item:12345")')).toBe("125");
+    expect(s.run('return NS.loot.quoteFor("item:12345").source')).toBe("officer");
     s.run('NS.util.gameEdition=function() return "retail" end');
     expect(s.run('return tostring(NS.loot.quoteFor("item:12345"))')).toBe("nil");
     expect(quoteRaidItem(decemberPricing("classic-era"),{edition:"retail",equipLoc:"INVTYPE_HEAD"})).toBeNull();

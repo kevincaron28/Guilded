@@ -319,8 +319,9 @@ async function renderProfiles() {
 }
 async function changeConnection(choice) {
   document.dispatchEvent(new CustomEvent('companion-connection-changing'));
-  const result = await api.changeProfile(choice);
-  document.dispatchEvent(new CustomEvent('companion-connection-changed'));
+  let result;
+  try { result = await api.changeProfile(choice); }
+  finally { document.dispatchEvent(new CustomEvent('companion-connection-changed')); }
   if (!result.ok) { toast(languageUI.message(result.message), true); await renderProfiles(); return; }
   const all = await api.getAll(); savedConfig = all.config;
   for (const id of fields) $(id).value = all.config[id] ?? '';

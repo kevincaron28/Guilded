@@ -72,3 +72,18 @@ body{font-family:var(--kc-font)}h1{font-size:clamp(40px,4.8vw,68px)}.site-header
 .edition-badge{display:inline-flex;align-items:center;min-height:28px;padding:0 10px;margin-bottom:12px;border-radius:999px;background:var(--kc-accent);color:#1b2019;font-size:12px;font-weight:700;letter-spacing:.04em}
 .hub-page .hub-board{margin-block:40px}.hub-page .hub-board .path-links{display:flex;flex-wrap:wrap;gap:8px 24px;margin-top:18px}.hub-page .path-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 @media(max-width:900px){.edition-chooser .edition-card.featured{grid-column:1/-1}.hub-page .path-grid{grid-template-columns:1fr}}
+
+/* 29 October 2026 launch redesign: trust strip, comparison, in-text links, stable live board. */
+.trust-strip{list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:1px;margin:0 auto 8px;padding:0;max-width:1180px;border:1px solid var(--kc-border);border-radius:8px;overflow:hidden;background:var(--kc-border)}
+.trust-strip li{display:flex;flex-direction:column;gap:4px;padding:16px 18px;background:var(--kc-surface);font-size:12px;color:var(--kc-muted)}
+.trust-strip strong{color:var(--gold);font-size:13px}
+.compare-wrap{overflow-x:auto;margin-top:24px}
+.compare-table{width:100%;border-collapse:collapse;font-size:14px;line-height:1.6}
+.compare-table th,.compare-table td{text-align:left;vertical-align:top;padding:16px 18px;border-bottom:1px solid var(--kc-border)}
+.compare-table thead th{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--kc-muted)}
+.compare-table tbody th{white-space:nowrap;color:var(--text);font-weight:600}
+@media(max-width:640px){.compare-table tbody th{white-space:normal}.compare-table th,.compare-table td{padding:12px 10px}}
+p a:not(.button,.text-link),li a:not(.button,.text-link),figcaption a,.small a{text-decoration:underline;text-decoration-thickness:1px}
+.live-grid{min-height:160px}
+.empty-board a{font-weight:600}
+.hero .actions .button{flex:0 1 auto}

@@ -14,7 +14,7 @@
   --kc-focus: #9dc7f0;
   --kc-success: #94c9aa;
   --kc-error: #f0a4a4;
-  --kc-font: Inter, "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --kc-font: Inter, "Inter Fallback", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
   --kc-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
   --kc-mono: Consolas, "Liberation Mono", monospace;
   --kc-radius: 10px;
@@ -26,3 +26,4 @@
 :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible { outline: 3px solid var(--kc-focus); outline-offset: 4px; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto !important; } *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; } }
 @media (forced-colors: active) { :where(button, input, select, textarea, .button, .stage) { border: 1px solid ButtonText !important; } }
+@font-face { font-family: "Inter Fallback"; src: local(Arial); size-adjust: 107%; ascent-override: 90%; descent-override: 22%; line-gap-override: 0%; }

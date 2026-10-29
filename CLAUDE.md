@@ -60,11 +60,14 @@ feature).
 Candidate source is not a production version claim. WoW Forever launches
 4 November 2026 (beta closed 21 October); its first raids open 9 December.
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
-The bot, online companion, GitHub and CurseForge releases are 8.0.2. All ten
-approved CurseForge downloads match GitHub. Store Submission 4 publishes 8.0.2.0,
+The bot and online companion run 8.1.0 at 6bdc80e. GitHub candidate v8.1.0-rc.1
+is available; stable GitHub and CurseForge releases remain 8.0.2. All ten
+approved 8.0.2 CurseForge downloads match GitHub. Store Submission 4 publishes 8.0.2.0,
 and its actual update is installed on this PC. Signature/certificate chain, submitted
 application bytes and retained encrypted profile/account activation passed. The
-long-lived earlier ciphertext baseline changed before installation; it is not claimed
+Store Submission 5 (8.1.0.0) is in certification with a manual publication hold.
+The standalone 8.1.0 update/profile checks are recorded in docs/NOV4_RELEASE_STATUS.md.
+The long-lived earlier ciphertext baseline changed before installation; it is not claimed
 bitwise unchanged. Owner baseline Overview/French checks are retained; the optional
 standalone EXE remains unsigned. Current per-provider evidence: `docs/V8_0_2_RELEASE_EVIDENCE_2026-10-28.md`.
 The WoW edition pages are live. Message earning covers accessible guild channels/threads;

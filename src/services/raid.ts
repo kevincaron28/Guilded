@@ -12,6 +12,7 @@ import { currentEdition } from "./edition-context.js";
 import { assertRealm, requiredRealm } from "./realm-check.js";
 import { SIGNUP_CHARACTER_SELECT } from "./character-display.js";
 import { raidPreset } from "./raid-presets.js";
+import { dpsKind, signupSpec, specsForRole, type DpsKind } from "./dps-kind.js";
 
 const activeSignupStatuses: RaidSignupStatus[] = ["SIGNED_UP"];
 
@@ -24,6 +25,18 @@ const roleCapField: Record<RaidRole, "tankLimit" | "healerLimit" | "dpsLimit"> =
   DPS: "dpsLimit"
 };
 
+// The class and spec that decide melee or ranged: the signup's character, else the member's main.
+const KIND_SELECT = {
+  id: true, memberId: true, role: true, status: true, spec: true, signedUpAt: true, characterId: true,
+  character: { select: { className: true, spec: true } },
+  member: { select: { characters: { where: { isMain: true }, take: 1, select: { className: true, spec: true } } } }
+} as const;
+type KindRow = { spec: string | null; character: { className: string; spec: string | null } | null; member: { characters: { className: string; spec: string | null }[] } };
+export function signupDpsKind(row: KindRow, edition = currentEdition()): DpsKind | null {
+  const character = row.character ?? row.member.characters[0] ?? null;
+  return character ? dpsKind(character.className, signupSpec(row, character), edition) : null;
+}
+
 export interface CreateRaidInput {
   guildId: string;
   title: string;
@@ -34,6 +47,8 @@ export interface CreateRaidInput {
   tankLimit?: number;
   healerLimit?: number;
   dpsLimit?: number;
+  meleeLimit?: number;
+  rangedLimit?: number;
   // Create the raid for a raid core: its members get signup priority.
   coreId?: string;
   repeatWeekly?: boolean;
@@ -47,6 +62,11 @@ export type SignupAvailability = "AVAILABLE" | "MAYBE";
 // A member tried to sign up or change role after the raid's signup deadline.
 export class SignupsClosedError extends Error {
   constructor(readonly closedAt: Date) { super("Signups are closed for this raid."); }
+}
+
+// The other damage kind is full: the player keeps their current spec.
+export class DpsKindFullError extends Error {
+  constructor(readonly kind: DpsKind) { super(`${kind === "MELEE" ? "Melee" : "Ranged"} DPS spots are full for this raid.`); }
 }
 
 const HOUR_MS = 3_600_000;
@@ -114,14 +134,38 @@ export function createRaidService(database: PrismaClient) {
         waiting.sort((a, b) => Number(coreIds.has(key(b))) - Number(coreIds.has(key(a))) || a.signedUpAt.getTime() - b.signedUpAt.getTime());
       }
       const taken = cap === null ? 0 : await tx.raidSignup.count({ where: { raidId, role, status: "SIGNED_UP" } });
-      const open = cap === null ? waiting.length : Math.max(0, cap - taken);
-      for (const signup of waiting.slice(0, open)) {
+      let open = cap === null ? waiting.length : Math.max(0, cap - taken);
+      // DPS with melee/ranged seats: a waiting player moves up only into their own kind's free seats.
+      const kindOpen: Record<DpsKind, number | null> | null = role === "DPS" && (raid.meleeLimit != null || raid.rangedLimit != null) ? await dpsKindRoom(raid, tx) : null;
+      const kinds: Map<string, DpsKind | null> | null = kindOpen ? new Map((await tx.raidSignup.findMany({ where: { raidId, role, status: "WAITLISTED" }, select: KIND_SELECT }))
+        .map(row => [row.id, signupDpsKind(row)])) : null;
+      for (const signup of waiting) {
+        if (open <= 0) break;
+        const kind = kinds?.get(signup.id) ?? null;
+        if (kindOpen && kind && kindOpen[kind] !== null && kindOpen[kind]! <= 0) continue;
         await tx.raidSignup.update({ where: { id: signup.id }, data: { status: "SIGNED_UP" } });
         promoted.push(signup);
+        open--;
+        if (kindOpen && kind && kindOpen[kind] !== null) kindOpen[kind]!--;
       }
     }
     return promoted;
   }
+
+  // Free melee and ranged seats (null where the raid sets no limit). Players whose kind is
+  // unknown count against the DPS limit only.
+  async function dpsKindRoom(raid: { id: string; meleeLimit: number | null; rangedLimit: number | null }, tx: RaidDb, exceptMemberId?: string): Promise<Record<DpsKind, number | null>> {
+    const rows = await tx.raidSignup.findMany({ where: { raidId: raid.id, role: "DPS", status: "SIGNED_UP", ...(exceptMemberId ? { memberId: { not: exceptMemberId } } : {}) }, select: KIND_SELECT });
+    const used = { MELEE: 0, RANGED: 0 };
+    for (const row of rows) { const kind = signupDpsKind(row); if (kind) used[kind]++; }
+    return {
+      MELEE: raid.meleeLimit == null ? null : raid.meleeLimit - used.MELEE,
+      RANGED: raid.rangedLimit == null ? null : raid.rangedLimit - used.RANGED
+    };
+  }
+  const checkLimits = (limits: (number | null | undefined)[]) => {
+    for (const limit of limits) if (limit != null && (!Number.isInteger(limit) || limit < 0)) throw new Error("Role limits must be non-negative integers.");
+  };
 
   return {
     async create(input: CreateRaidInput) {
@@ -133,6 +177,7 @@ export function createRaidService(database: PrismaClient) {
           throw new Error(`${label} limit must be a non-negative integer.`);
         }
       }
+      checkLimits([input.meleeLimit, input.rangedLimit]);
       const bosses = input.bosses?.map((name) => name.trim()).filter(Boolean) ?? [];
       let coreLimits: { tankLimit?: number | null; healerLimit?: number | null; dpsLimit?: number | null } = {};
       if (input.coreId) {
@@ -153,6 +198,8 @@ export function createRaidService(database: PrismaClient) {
           tankLimit: input.tankLimit ?? preset?.tankLimit ?? coreLimits.tankLimit ?? null,
           healerLimit: input.healerLimit ?? preset?.healerLimit ?? coreLimits.healerLimit ?? null,
           dpsLimit: input.dpsLimit ?? preset?.dpsLimit ?? coreLimits.dpsLimit ?? null,
+          meleeLimit: input.meleeLimit ?? null,
+          rangedLimit: input.rangedLimit ?? null,
           ...(bosses.length > 0 ? {
             bosses: { create: bosses.map((name, sortOrder) => ({ name, sortOrder })) }
           } : {})
@@ -175,7 +222,7 @@ export function createRaidService(database: PrismaClient) {
       return database.raid.create({
         data: {
           guildId, title: raid.title, scheduledAt: new Date(next), createdBy: raid.createdBy, description: raid.description,
-          tankLimit: raid.tankLimit, healerLimit: raid.healerLimit, dpsLimit: raid.dpsLimit, repeatWeekly: true,
+          tankLimit: raid.tankLimit, healerLimit: raid.healerLimit, dpsLimit: raid.dpsLimit, meleeLimit: raid.meleeLimit, rangedLimit: raid.rangedLimit, repeatWeekly: true,
           // The same deadline, the same time before the start.
           ...(raid.signupsCloseAt ? { signupsCloseAt: new Date(next - (raid.scheduledAt.getTime() - raid.signupsCloseAt.getTime())) } : {}),
           ...(raid.coreId ? { coreId: raid.coreId } : {}),
@@ -198,6 +245,8 @@ export function createRaidService(database: PrismaClient) {
       tankLimit?: number | null;
       healerLimit?: number | null;
       dpsLimit?: number | null;
+      meleeLimit?: number | null;
+      rangedLimit?: number | null;
       // Hours before the start; 0 removes the deadline.
       signupsCloseHours?: number;
     }) {
@@ -210,11 +259,7 @@ export function createRaidService(database: PrismaClient) {
         if (input.scheduledAt !== undefined && input.scheduledAt.getTime() <= Date.now()) {
           throw new Error("Raid time must be in the future.");
         }
-        for (const limit of [input.tankLimit, input.healerLimit, input.dpsLimit]) {
-          if (limit != null && (!Number.isInteger(limit) || limit < 0)) {
-            throw new Error("Role limits must be non-negative integers.");
-          }
-        }
+        checkLimits([input.tankLimit, input.healerLimit, input.dpsLimit, input.meleeLimit, input.rangedLimit]);
         // A new time keeps an existing deadline the same number of hours before it.
         const start = input.scheduledAt ?? raid.scheduledAt;
         const signupsCloseAt = input.signupsCloseHours === 0 ? null
@@ -230,7 +275,9 @@ export function createRaidService(database: PrismaClient) {
             ...(input.scheduledAt === undefined ? {} : { scheduledAt: input.scheduledAt }),
             ...(input.tankLimit === undefined ? {} : { tankLimit: input.tankLimit }),
             ...(input.healerLimit === undefined ? {} : { healerLimit: input.healerLimit }),
-            ...(input.dpsLimit === undefined ? {} : { dpsLimit: input.dpsLimit })
+            ...(input.dpsLimit === undefined ? {} : { dpsLimit: input.dpsLimit }),
+            ...(input.meleeLimit === undefined ? {} : { meleeLimit: input.meleeLimit }),
+            ...(input.rangedLimit === undefined ? {} : { rangedLimit: input.rangedLimit })
           }
         });
         // A raised cap opens slots for the waitlist.
@@ -264,41 +311,78 @@ export function createRaidService(database: PrismaClient) {
         const identity = byCharacter ? `${memberId}:${character?.id}` : memberId;
         const previous = await tx.raidSignup.findUnique({ where: { raidId_memberId: { raidId, memberId } } });
         let status: RaidSignupStatus = availability === "MAYBE" ? "MAYBE" : "SIGNED_UP";
+        // A spec picked for this raid stays only while the role and character stay the same.
+        const spec = previous?.spec && previous.role === role && (!character || previous.characterId === character.id) ? previous.spec : null;
         const cap = raid[roleCapField[role]];
+        // Melee/ranged seats: only checked when the raid sets one and this player's kind is known.
+        let kind: DpsKind | null = null;
+        let kindFull = false;
+        if (status === "SIGNED_UP" && role === "DPS" && (raid.meleeLimit != null || raid.rangedLimit != null)) {
+          const own = character ?? await tx.character.findFirst({ where: { memberId, isMain: true }, select: { className: true, spec: true } });
+          kind = own ? dpsKind(own.className, signupSpec({ spec }, own), currentEdition()) : null;
+          const room = kind ? (await dpsKindRoom(raid, tx, memberId))[kind] : null;
+          kindFull = room !== null && room <= 0;
+        }
         let bumped: Prisma.RaidSignupGetPayload<{ include: { member: true } }> | null = null;
-        if (status === "SIGNED_UP" && cap !== null) {
-          const count = await tx.raidSignup.count({
-            where: { raidId, role, status: "SIGNED_UP", memberId: { not: memberId } }
-          });
-          if (count >= cap) {
-            status = "WAITLISTED";
-            // Core priority: a core member takes the slot of the most recent
-            // non-core signup in that role, who goes to the front of the waitlist.
-            if (raid.coreId && (await coreMemberIds(raid.coreId, tx, byCharacter)).has(identity)) {
-              const coreIds = await coreMemberIds(raid.coreId, tx, byCharacter);
-              const candidates = await tx.raidSignup.findMany({
-                where: { raidId, role, status: "SIGNED_UP", memberId: { not: memberId } },
-                include: { member: true },
-                orderBy: { signedUpAt: "desc" }
-              });
-              const victim = candidates.find(signup => !coreIds.has(byCharacter ? `${signup.memberId}:${signup.characterId}` : signup.memberId));
-              if (victim) {
-                await tx.raidSignup.update({ where: { id: victim.id }, data: { status: "WAITLISTED" } });
-                bumped = { ...victim, status: "WAITLISTED" };
-                status = "SIGNED_UP";
-              }
+        const roleFull = status === "SIGNED_UP" && cap !== null && await tx.raidSignup.count({
+          where: { raidId, role, status: "SIGNED_UP", memberId: { not: memberId } }
+        }) >= cap;
+        if (roleFull || kindFull) {
+          status = "WAITLISTED";
+          // Core priority: a core member takes the slot of the most recent
+          // non-core signup in that role (and of their own kind when that is what is full),
+          // who goes to the front of the waitlist.
+          if (raid.coreId && (await coreMemberIds(raid.coreId, tx, byCharacter)).has(identity)) {
+            const coreIds = await coreMemberIds(raid.coreId, tx, byCharacter);
+            const candidates = await tx.raidSignup.findMany({
+              where: { raidId, role, status: "SIGNED_UP", memberId: { not: memberId } },
+              include: { member: true },
+              orderBy: { signedUpAt: "desc" }
+            });
+            const sameKind = kindFull ? new Set((await tx.raidSignup.findMany({ where: { raidId, role, status: "SIGNED_UP" }, select: KIND_SELECT }))
+              .filter(row => signupDpsKind(row) === kind).map(row => row.id)) : null;
+            const victim = candidates.find(signup => (!sameKind || sameKind.has(signup.id)) && !coreIds.has(byCharacter ? `${signup.memberId}:${signup.characterId}` : signup.memberId));
+            if (victim) {
+              await tx.raidSignup.update({ where: { id: victim.id }, data: { status: "WAITLISTED" } });
+              bumped = { ...victim, status: "WAITLISTED" };
+              status = "SIGNED_UP";
             }
           }
         }
         const saved = await tx.raidSignup.upsert({
           where: { raidId_memberId: { raidId, memberId } },
           create: { raidId, memberId, role, status, ...(character ? { characterId: character.id, characterName: character.name, characterRealm: character.realm } : {}) },
-          update: { status, role, signedUpAt: new Date(), cancelledAt: null, ...(character ? { characterId: character.id, characterName: character.name, characterRealm: character.realm } : {}) }
+          update: { status, role, spec, signedUpAt: new Date(), cancelledAt: null, ...(character ? { characterId: character.id, characterName: character.name, characterRealm: character.realm } : {}) }
         });
         // Leaving a taken slot (another role, Maybe or the waitlist) frees it, as a cancellation does.
-        const promoted = previous?.status === "SIGNED_UP" && (previous.role !== role || status !== "SIGNED_UP")
+        const promoted = previous?.status === "SIGNED_UP" && (previous.role !== role || status !== "SIGNED_UP" || (previous.spec ?? null) !== spec)
           ? await promoteWaitlist(raidId, tx) : [];
         return Object.assign(saved, { bumped, promoted });
+      });
+    },
+
+    // The spec a player brings to this raid ("Playing a different spec?"). It must fit their
+    // signup's role and class; moving to a full melee or ranged group is refused, not waitlisted.
+    async setSignupSpec(raidId: string, guildId: string, memberId: string, specName: string | null) {
+      return locked(raidId, async tx => {
+        const raid = await getRaid(raidId, guildId, tx);
+        if (raid.status !== "PLANNED") throw new Error("Signups are closed for this raid.");
+        const signup = await tx.raidSignup.findUnique({ where: { raidId_memberId: { raidId, memberId } }, select: KIND_SELECT });
+        if (!signup || signup.status === "CANCELLED") throw new Error("Sign up for this raid first, then choose your spec.");
+        const character = signup.character ?? signup.member.characters[0] ?? null;
+        if (!character) throw new Error("Link your character first (/character pair), so Guilded knows your class.");
+        const edition = currentEdition();
+        const chosen = specName ? specsForRole(character.className, signup.role, edition).find(spec => spec.name === specName) : null;
+        if (specName && !chosen) throw new Error("That spec does not fit your class and role for this raid.");
+        const before = signupDpsKind(signup, edition);
+        const after = signupDpsKind({ ...signup, spec: chosen?.name ?? null }, edition);
+        if (signup.status === "SIGNED_UP" && signup.role === "DPS" && after && after !== before) {
+          const room = (await dpsKindRoom(raid, tx, memberId))[after];
+          if (room !== null && room <= 0) throw new DpsKindFullError(after);
+        }
+        const saved = await tx.raidSignup.update({ where: { id: signup.id }, data: { spec: chosen?.name ?? null } });
+        const promoted = signup.status === "SIGNED_UP" && before !== after ? await promoteWaitlist(raidId, tx) : [];
+        return Object.assign(saved, { kind: after, promoted, chosen: chosen ?? null });
       });
     },
 
@@ -322,7 +406,8 @@ export function createRaidService(database: PrismaClient) {
       await getRaid(raidId, guildId);
       return database.raidSignup.findMany({
         where: { raidId, status: { not: "CANCELLED" } },
-        include: { member: true, character: { select: SIGNUP_CHARACTER_SELECT } },
+        // The member's main character tells melee from ranged when a signup names no character.
+        include: { member: { include: { characters: { where: { isMain: true }, take: 1, select: { className: true, spec: true } } } }, character: { select: SIGNUP_CHARACTER_SELECT } },
         orderBy: { signedUpAt: "asc" }
       });
     },

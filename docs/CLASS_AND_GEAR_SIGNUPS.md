@@ -57,3 +57,29 @@ gear, unknown/stale/future inspections, emoji fallback, large rosters,
 guild-scoped refresh jobs and native PostgreSQL inspection ordering/outbox
 backup/restore. Required release checks, Windows packaging, ledger preflight
 and backup precede deployment. Real-client gates remain separate.
+
+## Melee and ranged DPS (29 October 2026)
+
+`src/services/dps-kind.ts` sorts each class and spec into tank, healer, melee or
+ranged for the guild's WoW edition. Survival Hunters are melee on Retail only and
+ranged everywhere else. A tank or healer spec signed up as DPS falls back to the
+class's usual damage kind; Druids and Shamans with no damage spec stay unknown and
+are listed under "DPS · spec unknown". A signup without a character uses the
+member's main character.
+
+- **Signup post:** once any DPS player's kind is known, or the raid has a limit,
+  the DPS block becomes Melee, Ranged (and unknown) blocks with their own counts;
+  the summary keeps the DPS total and its cap. Open seats name melee and ranged.
+- **Spec for one raid:** the signup reply offers "Playing a different spec for
+  this raid?" when the class has two or more specs for the chosen role. The choice
+  (`RaidSignup.spec`) changes the player's icon and melee/ranged group for that
+  raid only. Changing role or character clears it.
+- **Limits:** `/lead create` and `/lead edit` take optional `melee` and `ranged`
+  caps (`Raid.meleeLimit`, `Raid.rangedLimit`, copied to weekly repeats). A full
+  kind waitlists like a full role, core members bump the latest non-core player of
+  the same kind, and freed seats promote the earliest waiting player of that kind.
+  A spec change into a full kind is refused and the old spec is kept. Players whose
+  kind is unknown count against the DPS cap only.
+- **Elsewhere:** `/lead roster`, `/lead fill`, the core roster (DPS field shows the
+  split), `/who` (damage specs say melee or ranged) and recruitment listings
+  (`/mod recruit roles: melee, ranged`; such a listing still matches a DPS search).

@@ -278,6 +278,24 @@ describe("signed-in website pages (7.0)", () => {
     expect((await worker.fetch(new Request(site + "/auth/login"), env)).status).toBe(502);
   });
 
+  it("permits only the Battle.net start POST to redirect to Blizzard authorization", async () => {
+    let destination = "https://oauth.battle.net/authorize?client_id=1&state=random";
+    const upstream = vi.fn(async () => new Response(null, { status: 303, headers: { location: destination } }));
+    vi.stubGlobal("fetch", upstream);
+    const start = () => worker.fetch(new Request(site + "/me/battlenet/start", { method: "POST", body: "csrf=private", headers: { origin: site, "content-type": "application/x-www-form-urlencoded" } }), env);
+    const response = await start();
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe(destination);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(upstream).toHaveBeenCalledOnce(); // The proxy never follows with cookies/body.
+    expect((await worker.fetch(new Request(site + "/me/battlenet/start"), env)).status).toBe(502);
+    expect((await worker.fetch(new Request(site + "/me/battlenet/callback"), env)).status).toBe(502);
+    destination = "https://evil.example/authorize";
+    expect((await start()).status).toBe(502);
+    destination = "https://oauth.battle.net/token";
+    expect((await start()).status).toBe(502);
+  });
+
   it("returns local redirects with the new session cookie, and keeps other paths static", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => { const headers = new Headers({ location: "/recruitment/" }); headers.append("set-cookie", session); return new Response(null, { status: 302, headers }); }));
     const callback = await worker.fetch(new Request(site + "/auth/callback?code=a&state=b"), env);

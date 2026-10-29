@@ -1,8 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { MessageFlags } from "discord.js";
 import { coreRosterLayout, syncCoreRoster } from "../src/services/raid-core.js";
-import { dpsRange, dpsSplitLine } from "../src/services/dps-range.js";
-import { signupLayout, SIGNUP_TEXT_LIMIT } from "../src/services/signup-layout.js";
+import { SIGNUP_TEXT_LIMIT } from "../src/services/signup-layout.js";
 import type { DisplayCharacter } from "../src/services/character-display.js";
 
 interface Node { type: number; content?: string; custom_id?: string; components?: Node[]; accessory?: Node }
@@ -14,34 +13,6 @@ function texts(payload: { components: { toJSON(): unknown }[] }) {
 }
 const spot = (name: string, role: "TANK" | "HEALER" | "DPS", character: DisplayCharacter | null, extra: { bench?: boolean; trial?: boolean } = {}) =>
   ({ role, bench: extra.bench ?? false, trial: extra.trial ?? false, member: { displayName: name }, character: character ? { name, ...character } : null });
-
-describe("melee and ranged DPS", () => {
-  it("knows each class and the hybrid specs", () => {
-    expect(dpsRange({ className: "Rogue" })).toBe("MELEE");
-    expect(dpsRange({ className: "Mage", spec: "Frost" })).toBe("RANGED");
-    expect(dpsRange({ className: "Shaman", spec: "Enhancement" })).toBe("MELEE");
-    expect(dpsRange({ className: "Shaman", spec: "Élémentaire" })).toBe("RANGED");
-    expect(dpsRange({ className: "Druid", spec: "Feral Combat" })).toBe("MELEE");
-    expect(dpsRange({ className: "Druid" })).toBeNull();
-    expect(dpsRange({ className: "Hunter", spec: "Survival" }, "forever")).toBe("RANGED");
-    expect(dpsRange({ className: "Hunter", spec: "Survival" }, "retail")).toBe("MELEE");
-    expect(dpsRange({ className: "Hunter" }, "classic-era")).toBe("RANGED");
-    expect(dpsRange(null)).toBeNull();
-  });
-  it("counts them in both languages", () => {
-    const players = [{ className: "Rogue" }, { className: "Warrior", spec: "Fury" }, { className: "Mage" }, { className: "Druid" }];
-    expect(dpsSplitLine(players, "en")).toBe("⚔️ 2 melee · 🏹 1 ranged · ❔ 1 unknown spec");
-    expect(dpsSplitLine(players, "fr")).toBe("⚔️ 2 mêlée · 🏹 1 distance · ❔ 1 spé inconnue");
-    expect(dpsSplitLine([], "en")).toBe("");
-  });
-  it("shows the split under DPS on the signup card", () => {
-    const raid = { id: "r1", title: "Molten Core", description: null, scheduledAt: new Date("2026-12-10T01:00:00Z"), status: "PLANNED", tankLimit: 2, healerLimit: 2, dpsLimit: 6, signupsCloseAt: null };
-    const signups = [["Ana", "Rogue", "Combat"], ["Bo", "Mage", "Fire"], ["Cy", "Hunter", "Survival"]].map(([name, className, spec], index) =>
-      ({ memberId: `m${index}`, characterId: `c${index}`, displayName: name!, role: "DPS" as const, status: "SIGNED_UP", late: false, character: { name: name!, className, spec } }));
-    const { text } = texts(signupLayout({ lang: "en", raid, signups, edition: "retail" } as unknown as Parameters<typeof signupLayout>[0], []));
-    expect(text).toContain("-# ⚔️ 2 melee · 🏹 1 ranged");
-  });
-});
 
 describe("core roster card (Components V2)", () => {
   const core = {
@@ -64,7 +35,7 @@ describe("core roster card (Components V2)", () => {
     expect(text).toContain("**📅 Schedule** Tue 8-11pm · **Raid size** 20");
     expect(text).toContain("🛡️ **`Tanks`** `1/2`");
     expect(text).toContain("💚 **`Healers`** `1/4`");
-    expect(text).toContain("⚔️ **`DPS`** `2/14`\n-# ⚔️ 1 melee · 🏹 1 ranged\n>>> ");
+    expect(text).toContain("⚔️ **`DPS`** `2/14`\n-# ⚔️ 1 melee · 1 ranged\n>>> ");
     expect(text).toContain("🧪 **`Trial`** `1`");
     expect(text).toContain("🪑 **`Bench`** `1`");
     expect(text).toContain("-# 4 core members + 1 on trial + 1 on the bench");
@@ -73,7 +44,7 @@ describe("core roster card (Components V2)", () => {
   it("speaks French", () => {
     const { text } = texts(coreRosterLayout(core, { lang: "fr" }));
     expect(text).toContain("💚 **`Soigneurs`** `1/4`");
-    expect(text).toContain("-# ⚔️ 1 mêlée · 🏹 1 distance");
+    expect(text).toContain("-# ⚔️ 1 mêlée · 1 distance");
     expect(text).toContain("🪑 **`Banc`** `1`");
   });
   it("stays within Discord's 4000 characters for a large guild", () => {

@@ -2,7 +2,7 @@
 // the default profile on first use, without requiring another sign-in.
 export function savedProfiles(config) {
   const { profiles = {}, activeProfile = "default", ...active } = config;
-  return { ...profiles, [activeProfile]: { ...active, pairingCode: "" } };
+  return { ...profiles, [activeProfile]: { ...active, syncEnabled: active.syncEnabled !== false, pairingCode: "" } };
 }
 export function profileChoices(config) {
   return Object.entries(savedProfiles(config)).map(([id, p]) => ({ id, name: p.profileName || p.wowGuildName || (id === "default" ? "Original connection" : id), defaultName: id === "default" && !p.profileName && !p.wowGuildName, gameEdition: p.gameEdition || "" }));
@@ -13,6 +13,7 @@ export function switchProfile(config, id) {
   return { ...profiles[id], profiles, activeProfile: id };
 }
 export function addProfile(config, name) {
+  if (Object.keys(savedProfiles(config)).length >= 20) throw new Error("Up to 20 connection profiles are supported.");
   const profileName = String(name || "").trim().slice(0, 80);
   if (!profileName) throw new Error("Name this connection (for example Retail guild).");
   const profiles = savedProfiles(config);

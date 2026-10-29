@@ -7,15 +7,18 @@ export const ROLES = ["TANK", "HEALER", "DPS"] as const;
 export const LANGUAGES = ["en", "fr", "both"] as const;
 export const FACTIONS = ["ALLIANCE", "HORDE"] as const;
 export type Role = typeof ROLES[number];
+// A listing may also ask for melee or ranged DPS; both still match someone looking as DPS.
+export const LISTING_ROLES = ["TANK", "HEALER", "DPS", "MELEE", "RANGED"] as const;
+export type ListingRole = typeof LISTING_ROLES[number];
 
 const FRENCH_CLASSES: Record<string, string> = {
   guerrier: "Warrior", paladin: "Paladin", chasseur: "Hunter", voleur: "Rogue", pretre: "Priest", pretresse: "Priest",
   chaman: "Shaman", mage: "Mage", demoniste: "Warlock", druide: "Druid", "chevalier de la mort": "Death Knight",
   moine: "Monk", "chasseur de demons": "Demon Hunter", evocateur: "Evoker"
 };
-const ROLE_WORDS: Record<string, Role> = {
+const ROLE_WORDS: Record<string, ListingRole> = {
   tank: "TANK", tanks: "TANK", heal: "HEALER", heals: "HEALER", healer: "HEALER", healers: "HEALER", soigneur: "HEALER", soigneurs: "HEALER",
-  dps: "DPS", damage: "DPS"
+  dps: "DPS", damage: "DPS", melee: "MELEE", melee_dps: "MELEE", cac: "MELEE", ranged: "RANGED", range: "RANGED", caster: "RANGED", casters: "RANGED", distance: "RANGED"
 };
 const DAY_WORDS: Record<string, string> = {
   mon: "monday", lun: "monday", lundi: "monday", tue: "tuesday", mar: "tuesday", mardi: "tuesday", wed: "wednesday", mer: "wednesday", mercredi: "wednesday",
@@ -49,14 +52,14 @@ export function parseClasses(text: string): string[] {
   return CLASSES.filter((name) => names.includes(name));
 }
 
-export function parseRoles(text: string): Role[] {
+export function parseRoles(text: string): ListingRole[] {
   if (NONE.has(plain(text))) return [];
   const roles = words(text.replace(/\s+/g, ",")).map((part) => {
-    const role = ROLE_WORDS[plain(part)] ?? (ROLES as readonly string[]).find((name) => name === part.toUpperCase());
-    if (!role) throw new RecruitmentError(`Unknown role: ${part}. Use tank, healer or dps.`);
-    return role as Role;
+    const role = ROLE_WORDS[plain(part)] ?? (LISTING_ROLES as readonly string[]).find((name) => name === part.toUpperCase());
+    if (!role) throw new RecruitmentError(`Unknown role: ${part}. Use tank, healer, dps, melee or ranged.`);
+    return role as ListingRole;
   });
-  return ROLES.filter((role) => roles.includes(role));
+  return LISTING_ROLES.filter((role) => roles.includes(role));
 }
 
 export function parseDays(text: string): string[] {
@@ -124,7 +127,8 @@ export function listingMatches(listing: PublicListing, filters: Filters): boolea
   if (filters.kind === "guild" && listing.core) return false;
   if (filters.kind === "core" && !listing.core) return false;
   if (filters.className && listing.classes.length && !listing.classes.includes(filters.className)) return false;
-  if (filters.role && listing.roles.length && !listing.roles.includes(filters.role)) return false;
+  if (filters.role && listing.roles.length && !listing.roles.includes(filters.role)
+    && !(filters.role === "DPS" && listing.roles.some((role) => role === "MELEE" || role === "RANGED"))) return false;
   if (filters.faction && listing.faction && listing.faction !== filters.faction) return false;
   return speaks(filters.language, listing.language) && sameRealm(filters.realm, listing.realm);
 }
@@ -145,7 +149,7 @@ const CLASS_FR: Record<string, string> = {
   Warrior: "Guerrier", Paladin: "Paladin", Hunter: "Chasseur", Rogue: "Voleur", Priest: "Prêtre", Shaman: "Chaman", Mage: "Mage",
   Warlock: "Démoniste", Druid: "Druide", "Death Knight": "Chevalier de la mort", Monk: "Moine", "Demon Hunter": "Chasseur de démons", Evoker: "Évocateur"
 };
-const ROLE_LABELS: Record<string, [string, string]> = { TANK: ["Tank", "Tank"], HEALER: ["Healer", "Soigneur"], DPS: ["DPS", "DPS"] };
+const ROLE_LABELS: Record<string, [string, string]> = { TANK: ["Tank", "Tank"], HEALER: ["Healer", "Soigneur"], DPS: ["DPS", "DPS"], MELEE: ["Melee DPS", "DPS mêlée"], RANGED: ["Ranged DPS", "DPS distance"] };
 const DAY_LABELS: Record<string, [string, string]> = {
   monday: ["Mon", "lun"], tuesday: ["Tue", "mar"], wednesday: ["Wed", "mer"], thursday: ["Thu", "jeu"], friday: ["Fri", "ven"], saturday: ["Sat", "sam"], sunday: ["Sun", "dim"]
 };

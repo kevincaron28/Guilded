@@ -6,13 +6,14 @@ import { applyToCoreButtonRow } from "./application.js";
 import { asLootMode, LOOT_MODE_LABEL, LOOT_MODE_LABEL_FR } from "./core-rules.js";
 import { asLang, t, tx, type Lang } from "../i18n.js";
 import { allocate, clip, fit, SIGNUP_TEXT_LIMIT } from "./signup-layout.js";
-import { dpsSplitLine } from "./dps-range.js";
 import { openAllCoreChannels, setupCoreDiscord, syncCoreRole } from "./core-channels.js";
 import { assertRealm, requiredRealm } from "./realm-check.js";
 import { weeklyScheduleData } from "./core-weekly-time.js";
 import { CHARACTER_REQUIRED, ownedSignupCharacter } from "./signup-character.js";
 import { CHARACTER_DISPLAY_SELECT, characterDisplayLine, hasStaleGear, loadClassEmojis, staleGearNote, type ClassEmojis, type DisplayCharacter } from "./character-display.js";
 import { boundRosterEmbed, clipRosterLines } from "./roster-embed-limits.js";
+import { dpsKind } from "./dps-kind.js";
+import { gameEditionOf } from "./game-edition.js";
 
 // A trial lasts this long unless the officer picks another length (/application trial days:).
 export const DEFAULT_TRIAL_DAYS = 14;
@@ -325,9 +326,13 @@ export function coreRosterEmbed(core: CoreForEmbed, guildLootMode?: string | nul
     embed.addFields({ name: `💰 ${tx(lang, "Points")}`, value: core.separatePool ? tx(lang, "This core's own pool") : tx(lang, "Shared guild pool"), inline: true });
   }
   for (const role of ROLE_ORDER) {
-    const names = core.members.filter((entry) => entry.role === role && !entry.bench && !entry.trial).map(label).sort((a, b) => a.localeCompare(b));
+    const spots = core.members.filter((entry) => entry.role === role && !entry.bench && !entry.trial);
+    const names = spots.map(label).sort((a, b) => a.localeCompare(b));
     const target = { TANK: core.tankLimit, HEALER: core.healerLimit, DPS: core.dpsLimit }[role];
-    embed.addFields({ name: `${ROLE_LABEL[role]} (${names.length}${target == null ? "" : `/${target}`})`, value: clipRosterLines(names), inline: true });
+    // DPS: how many play melee and ranged, from each character's spec.
+    const kinds = role === "DPS" ? spots.map((entry) => entry.character ? dpsKind(entry.character.className, entry.character.spec, currentEdition()) : null) : [];
+    const split = kinds.some(Boolean) ? ` · ${tx(lang, "{melee} melee · {ranged} ranged", { melee: kinds.filter((kind) => kind === "MELEE").length, ranged: kinds.filter((kind) => kind === "RANGED").length })}` : "";
+    embed.addFields({ name: `${ROLE_LABEL[role]} (${names.length}${target == null ? "" : `/${target}`})${split}`, value: clipRosterLines(names), inline: true });
   }
   // Trial members (an application moved to Trial) are listed apart until they are approved.
   const trial = core.members.filter((entry) => entry.trial && !entry.bench)
@@ -360,6 +365,8 @@ export function coreRosterLayout(core: CoreForEmbed & { id: string }, options: {
   const emojis = options.emojis ?? {};
   const now = options.now ?? new Date();
   const fr = lang === "fr";
+  // An unknown or missing edition counts as Forever, like the rest of the bot.
+  const edition = gameEditionOf({ gameEdition: options.edition ?? "forever" });
   const label = (entry: CoreSpot) => characterDisplayLine(coreSpotLabel(entry), entry.character, lang, emojis, now);
   const sorted = (lines: string[]) => lines.sort((a, b) => a.localeCompare(b));
 
@@ -392,7 +399,9 @@ export function coreRosterLayout(core: CoreForEmbed & { id: string }, options: {
   const roleBlocks = ROLE_ORDER.map((role) => {
     const players = mains.filter((entry) => entry.role === role);
     const target = { TANK: core.tankLimit, HEALER: core.healerLimit, DPS: core.dpsLimit }[role];
-    const split = role === "DPS" ? dpsSplitLine(players.map((entry) => entry.character), lang, options.edition) : "";
+    // DPS: how many play melee and ranged, from each character's spec (dps-kind.ts), as on the signup card.
+    const kinds = role === "DPS" ? players.map((entry) => entry.character ? dpsKind(entry.character.className, entry.character.spec, edition) : null) : [];
+    const split = kinds.some(Boolean) ? `⚔️ ${tx(lang, "{melee} melee · {ranged} ranged", { melee: kinds.filter((kind) => kind === "MELEE").length, ranged: kinds.filter((kind) => kind === "RANGED").length })}` : "";
     return { heading: badge(ROLE_ICON[role], ROLE_LABELS[lang][role].replace(/^\S+\s/, ""), `${players.length}${target == null ? "" : `/${target}`}`),
       note: split, items: sorted(players.map(label)), separator: "\n" };
   });

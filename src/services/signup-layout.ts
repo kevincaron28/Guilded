@@ -5,12 +5,12 @@ import {
 import type { RaidRole } from "../generated/prisma/client.js";
 import { t, type Lang, type StringKey } from "../i18n.js";
 import { characterIcon, characterName, freshGearCheck, type RoleEmojiKey } from "./character-display.js";
-import { coreMark, openSpots, type CoreRow, type SignupEmbedInput, type SignupRow } from "./signup-embed.js";
-import { dpsSplitLine } from "./dps-range.js";
+import { coreMark, openKindSpots, openSpots, type CoreRow, type SignupEmbedInput, type SignupRow } from "./signup-embed.js";
+import type { DpsKind } from "./dps-kind.js";
 
 // The signup post as Discord Components V2, read like a calendar event card: guild header,
 // linked title, local time, a two-per-line summary, one block per role with a count badge
-// and one class/spec icon per player, then late, tentative, waitlist, bench, declined and
+// and one class/spec icon per player (DPS split into melee and ranged once specs are known), then late, tentative, waitlist, bench, declined and
 // pending. V2 has no side-by-side columns, so the blocks stack. A message holds 4000
 // characters of text and 40 components: every heading stays, and long lists end in "+N more".
 
@@ -19,12 +19,12 @@ export interface SignupLayoutInput extends SignupEmbedInput {
   guild?: { name: string; iconUrl?: string | null } | undefined;
   // The raid's native Discord event ("Interested" turns on Discord's reminders).
   eventUrl?: string | null | undefined;
-  // The guild's WoW edition, for the melee/ranged DPS split (dps-range.ts).
-  edition?: string | null | undefined;
 }
 
 const ROLES: RaidRole[] = ["TANK", "HEALER", "DPS"];
 const ROLE_ICON: Record<RaidRole, string> = { TANK: "🛡️", HEALER: "💚", DPS: "⚔️" };
+const KIND_ICON: Record<DpsKind, string> = { MELEE: "🗡️", RANGED: "🏹" };
+const rowIcon = (row: { role: RaidRole; kind?: DpsKind | null }) => row.role === "DPS" && row.kind ? KIND_ICON[row.kind] : ROLE_ICON[row.role];
 const LIST_FLOOR = 200;
 
 export function clip(value: string, limit: number): string {
@@ -81,13 +81,17 @@ export function signupLayout(input: SignupLayoutInput, buttons: ActionRowBuilder
     const icon = characterIcon(row.character, emojis);
     const issues = freshGearCheck(row.character, now)?.issues ?? 0;
     const name = row.character?.name ? characterName({ name: row.character.name, displayName: row.character.displayName ?? null }) : row.displayName;
-    return `${"bench" in row ? "" : mark(row.memberId, row.characterId)}${withRole ? `${ROLE_ICON[row.role]} ` : ""}${icon ? `${icon} ` : ""}`
+    return `${"bench" in row ? "" : mark(row.memberId, row.characterId)}${withRole ? `${rowIcon(row)} ` : ""}${icon ? `${icon} ` : ""}`
       + `${escapeMarkdown(clip(name, 64))}${lateMark && "late" in row && row.late ? " ⏰" : ""}${issues ? ` \`⚠️ ${issues}\`` : ""}`;
   };
 
   const active = signups.filter(s => s.status !== "CANCELLED");
   const signed = signups.filter(s => s.status === "SIGNED_UP");
   const caps: Record<RaidRole, number | null> = { TANK: raid.tankLimit, HEALER: raid.healerLimit, DPS: raid.dpsLimit };
+  const kindCaps: Record<DpsKind, number | null> = { MELEE: raid.meleeLimit ?? null, RANGED: raid.rangedLimit ?? null };
+  // The DPS block splits once a limit is set or any DPS player's spec tells melee from ranged.
+  const dps = signed.filter(s => s.role === "DPS");
+  const splitDps = kindCaps.MELEE !== null || kindCaps.RANGED !== null || dps.some(s => s.kind);
   const seats = ROLES.every(role => caps[role] !== null) ? ROLES.reduce((sum, role) => sum + caps[role]!, 0) : null;
 
   // Header: guild, linked title, the officer's description and the signup deadline.
@@ -106,6 +110,7 @@ export function signupLayout(input: SignupLayoutInput, buttons: ActionRowBuilder
   const facts: [string, string][] = [[t(lang, "signup.status"), t(lang, `status.${raid.status}` as const)]];
   if (core) facts.push([t(lang, "signup.core"), escapeMarkdown(clip(core.name, 80))]);
   facts.push([t(lang, "signup.attendees"), `✅ ${signed.length}${seats !== null ? `/${seats}` : ""}`]);
+  if (splitDps) facts.push([t(lang, "role.DPS"), `${ROLE_ICON.DPS} ${dps.length}${caps.DPS !== null ? `/${caps.DPS}` : ""}`]);
   if (checks.length) {
     const average = checks.reduce((sum, check) => sum + check.itemLevel, 0) / checks.length;
     facts.push([t(lang, "signup.itemLevel"), t(lang, "signup.itemLevelValue", {
@@ -120,16 +125,19 @@ export function signupLayout(input: SignupLayoutInput, buttons: ActionRowBuilder
 
   // One block per role, a player per line; the counts include late players, who keep their seat.
   const badge = (icon: string, label: string, count: string) => `${icon} **\`${label}\`** \`${count}\``;
-  const roleBlocks: Block[] = ROLES.map(role => {
-    const players = signed.filter(s => s.role === role).sort(byName);
-    const cap = caps[role];
-    const full = cap !== null && players.length >= cap;
-    // DPS also shows how many fight in melee and at range.
-    const split = role === "DPS" ? dpsSplitLine(players.map(p => p.character), lang, input.edition) : "";
-    return {
-      heading: `${badge(roleIcon(role), t(lang, `signup.column.${role}` as const), cap !== null ? `${players.length}/${cap}` : String(players.length))}${full ? ` · ${t(lang, "signup.full")}` : ""}`,
-      ...(split ? { note: split } : {}), items: players.map(p => player(p)), separator: "\n"
-    };
+  const block = (icon: string, key: StringKey, players: SignupRow[], cap: number | null): Block => ({
+    heading: `${badge(icon, t(lang, key), cap !== null ? `${players.length}/${cap}` : String(players.length))}${cap !== null && players.length >= cap ? ` · ${t(lang, "signup.full")}` : ""}`,
+    items: [...players].sort(byName).map(p => player(p)), separator: "\n"
+  });
+  const roleBlocks: Block[] = ROLES.flatMap(role => {
+    const players = signed.filter(s => s.role === role);
+    if (role !== "DPS" || !splitDps) return [block(roleIcon(role), `signup.column.${role}` as const, players, caps[role])];
+    const unknown = players.filter(p => !p.kind);
+    return [
+      block(KIND_ICON.MELEE, "signup.column.MELEE", players.filter(p => p.kind === "MELEE"), kindCaps.MELEE),
+      block(KIND_ICON.RANGED, "signup.column.RANGED", players.filter(p => p.kind === "RANGED"), kindCaps.RANGED),
+      ...(unknown.length ? [block(roleIcon(role), "signup.column.DPS_UNKNOWN", unknown, null)] : [])
+    ];
   });
 
   // The other answers flow on shared lines, which keeps long lists compact.
@@ -148,7 +156,9 @@ export function signupLayout(input: SignupLayoutInput, buttons: ActionRowBuilder
   list("⏳", "signup.section.pending", coreMembers.filter(m => !m.bench && !answered.has(m.memberId)).map(m => player(m, true)));
   // Not enough core members for tonight: anyone in the guild can take the free seats.
   const free = core && raid.status === "PLANNED" ? openSpots(caps, signups) : [];
-  list("🙋", "signup.section.openSpots", free.map(spot => `${ROLE_ICON[spot.role]} ${spot.open} ${t(lang, `role.${spot.role}` as const)}`),
+  const freeKinds = core && raid.status === "PLANNED" ? openKindSpots(kindCaps, signups) : [];
+  list("🙋", "signup.section.openSpots", [...free.map(spot => `${ROLE_ICON[spot.role]} ${spot.open} ${t(lang, `role.${spot.role}` as const)}`),
+    ...freeKinds.map(spot => `${KIND_ICON[spot.kind]} ${spot.open} ${t(lang, `role.${spot.kind}` as const)}`)],
     t(lang, "signup.openSpotsNote"), free.reduce((sum, spot) => sum + spot.open, 0));
 
   const footer = [

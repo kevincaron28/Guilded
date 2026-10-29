@@ -1,0 +1,3 @@
+ALTER TABLE "Raid" ADD COLUMN "meleeLimit" INTEGER;
+ALTER TABLE "Raid" ADD COLUMN "rangedLimit" INTEGER;
+ALTER TABLE "RaidSignup" ADD COLUMN "spec" TEXT;

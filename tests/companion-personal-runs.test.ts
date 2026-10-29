@@ -20,6 +20,18 @@ const SAVED = `GuildedDungeonsDB = {
 `;
 
 describe("personal companion mode", () => {
+  it("uploads background scores without overwriting the selected profile's Accepted.lua", async () => {
+    const root = mkdtempSync(join(tmpdir(), "gd-background-"));
+    try {
+      const watchFile = join(root, "GuildedDungeons.lua"), acceptedFile = join(root, "Accepted.lua");
+      writeFileSync(watchFile, SAVED); writeFileSync(acceptedFile, 'selected-profile-data');
+      vi.stubGlobal('fetch', vi.fn(async () => Response.json({ acceptedRunRefs: [], publicScore: {}, accepted: 1 })));
+      const result = await uploadPersonalRuns({ watchFile, acceptedFile, uploadUrl: 'https://bot.test', companionCredential: 'c'.repeat(40), writeStandingsEnabled: false });
+      expect(readFileSync(acceptedFile, 'utf8')).toBe('selected-profile-data');
+      expect(result.message).toContain('Select this connection');
+      expect(result.message).not.toContain('could not be saved');
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
   it("refreshes the public score snapshot even when every run was already synced", async () => {
     const root = mkdtempSync(join(tmpdir(), "gd-score-"));
     try {

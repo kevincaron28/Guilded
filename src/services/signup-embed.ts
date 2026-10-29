@@ -3,20 +3,23 @@ import type { RaidRole, RaidStatus } from "../generated/prisma/client.js";
 import { t, type Lang } from "../i18n.js";
 import { characterDisplayLine, hasStaleGear, staleGearNote, type ClassEmojis, type DisplayCharacter } from "./character-display.js";
 import { boundRosterEmbed } from "./roster-embed-limits.js";
+import { DPS_KINDS, type DpsKind } from "./dps-kind.js";
 
 // The live raid signup post: who signed up in each role (with the count and
 // "FULL" when a role is at its limit), who is maybe or waiting, and for a
 // core raid which players are core mains (⭐), on the bench (🪑) or still
 // missing. Pure, so it can be tested without Discord.
 
-export interface SignupRow { memberId: string; characterId?: string | null; character?: DisplayCharacter | null; displayName: string; role: RaidRole; status: string; late?: boolean; }
-export interface CoreRow { memberId: string; characterId?: string | null; character?: DisplayCharacter | null; backupCharacterIds?: string[]; displayName: string; role: RaidRole; bench: boolean; }
+// kind: melee or ranged for a DPS player whose spec is known (services/dps-kind.ts).
+export interface SignupRow { memberId: string; characterId?: string | null; character?: DisplayCharacter | null; displayName: string; role: RaidRole; status: string; late?: boolean; kind?: DpsKind | null; }
+export interface CoreRow { memberId: string; characterId?: string | null; character?: DisplayCharacter | null; backupCharacterIds?: string[]; displayName: string; role: RaidRole; bench: boolean; kind?: DpsKind | null; }
 
 export interface SignupEmbedInput {
   lang: Lang;
   raid: {
     id: string; title: string; description: string | null; status: RaidStatus; scheduledAt: Date;
     tankLimit: number | null; healerLimit: number | null; dpsLimit: number | null;
+    meleeLimit?: number | null; rangedLimit?: number | null;
     signupsCloseAt?: Date | null;
   };
   signups: SignupRow[];
@@ -61,6 +64,16 @@ export function openSpots(caps: Record<RaidRole, number | null>, signups: { role
   });
 }
 
+// Free melee and ranged seats on a raid that limits them (kinds without a limit are left out).
+export function openKindSpots(caps: Record<DpsKind, number | null | undefined>, signups: { role: RaidRole; status: string; kind?: DpsKind | null }[]): { kind: DpsKind; open: number }[] {
+  return DPS_KINDS.flatMap((kind) => {
+    const cap = caps[kind];
+    if (cap === null || cap === undefined) return [];
+    const open = cap - signups.filter((s) => s.status === "SIGNED_UP" && s.role === "DPS" && s.kind === kind).length;
+    return open > 0 ? [{ kind, open }] : [];
+  });
+}
+
 export function buildSignupEmbed(input: SignupEmbedInput): EmbedBuilder {
   const { lang, raid, signups, core } = input;
   const now = input.now ?? new Date();
@@ -91,8 +104,10 @@ export function buildSignupEmbed(input: SignupEmbedInput): EmbedBuilder {
     const cap = caps[role];
     const full = cap !== null && players.length >= cap;
     const count = cap !== null ? `${players.length}/${cap}` : String(players.length);
+    const split = role === "DPS" && players.some((p) => p.kind)
+      ? ` · ${t(lang, "signup.dpsSplit", { melee: players.filter((p) => p.kind === "MELEE").length, ranged: players.filter((p) => p.kind === "RANGED").length })}` : "";
     embed.addFields({
-      name: `${ROLE_ICON[role]} ${roleName(role)} ${count}${full ? ` · ${t(lang, "signup.full")}` : ""}`,
+      name: `${ROLE_ICON[role]} ${roleName(role)} ${count}${full ? ` · ${t(lang, "signup.full")}` : ""}${split}`,
       value: clip(players.map((p) => `${mark(p.memberId, p.characterId)}${label(p)}`)),
       inline: true
     });

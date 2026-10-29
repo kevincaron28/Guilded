@@ -59,9 +59,8 @@ points), Tanks / Healers / DPS with count badges and one detailed line per playe
 Trial, Bench and Backup characters, the footer and the Apply button. Officers' private
 editing previews keep the older embed.
 
-Under DPS, both the signup card and the roster card show the split, for example
-"⚔️ 4 melee · 🏹 3 ranged · ❔ 1 unknown spec" (`src/services/dps-range.ts`). Hybrids need
-their spec (Shaman, Druid, Demon Hunter); Survival hunters count as melee only in Retail.
+Under DPS, the roster card shows how many play melee and ranged ("⚔️ 4 melee · 3 ranged"),
+using the same rules as the signup card (`src/services/dps-kind.ts`, PR #269).
 
 Old roster posts are embeds, and a message cannot switch to Components V2, so the bot
 deletes an old roster post and posts the new card when it next refreshes that roster. At

@@ -35,6 +35,7 @@ function inside(value: number, window: { start: number; end: number }) {
 export interface SubscriptionEvent {
   key: string; // Canonical event identity, unchanged when a post is edited.
   type: "group" | "vacancy";
+  immediate?: boolean; // Structured open-now group, not a time inferred from its title.
   startsAt: Date;
   expiresAt: Date;
   open: boolean;
@@ -59,9 +60,9 @@ export function subscriptionPreview(input: {
   if (!input.isMember || !input.canViewChannel) return result("not-visible");
   if (Date.parse(settings.createdAt) > now.getTime() || Date.parse(settings.expiresAt) <= now.getTime()) return result("expired");
   if (event.startsAt.getTime() >= Date.parse(settings.expiresAt)) return result("outside-subscription");
-  if (!event.key || !event.open || !event.hasVacancy || event.startsAt < now || event.expiresAt <= now) return result("closed");
+  if (!event.key || !event.open || !event.hasVacancy || !(event.type === "group" && event.immediate) && event.startsAt < now || event.expiresAt <= now) return result("closed");
   if (!settings.types.includes(event.type) || !fitsGroup(event.group, input.candidate)) return result("not-matched");
-  const clock = localClock(event.startsAt, settings.timezone);
+  const clock = localClock(event.type === "group" && event.immediate ? now : event.startsAt, settings.timezone);
   const availabilityDay = settings.available.start > settings.available.end && clock.minute < settings.available.end ? (clock.day + 6) % 7 : clock.day;
   if (!settings.weekdays.includes(availabilityDay) || !inside(clock.minute, settings.available)) return result("outside-availability");
   if (inside(localClock(now, settings.timezone).minute, settings.quiet)) return result("quiet-hours");

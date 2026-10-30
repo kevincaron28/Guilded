@@ -9,6 +9,8 @@ import { asLang, tx, type Lang } from "../i18n.js";
 import { GROUP_KINDS, type GroupKind } from "../services/dungeon-group.js";
 import { ALL_ROLES, describeAlert } from "../services/group-alerts.js";
 import { guildService } from "./context.js";
+import { groupSubscriptionSchema } from "../services/group-subscription.js";
+import { saveGroupWatch } from "../services/group-watch.js";
 
 // "My group alerts" (5.0): a private panel, opened from the pinned group finder menu or with
 // /dungeon alerts, where a member picks the kinds of group they want a ping for and the roles
@@ -20,8 +22,16 @@ export const GROUP_ALERT_OPEN_ID = "dguide:alerts";
 const ROLE_NAMES: Record<RaidRole, string> = { TANK: "Tank", HEALER: "Healer", DPS: "DPS" };
 const ROLE_EMOJI: Record<RaidRole, string> = { TANK: "🛡️", HEALER: "💚", DPS: "⚔️" };
 
-export function alertPanel(lang: Lang, alert: Pick<GroupAlert, "kinds" | "roles"> | null, levels: { name: string; level: number | null }[]) {
+export function alertPanel(lang: Lang, alert: (Pick<GroupAlert, "kinds" | "roles"> & Partial<Pick<GroupAlert, "subscription">>) | null, levels: { name: string; level: number | null }[]) {
   const T = (english: string, vars: Record<string, string | number> = {}) => tx(lang, english, vars);
+  if (alert?.subscription) {
+    const parsed = groupSubscriptionSchema.safeParse(alert.subscription);
+    const active = parsed.success && parsed.data.optedIn && Date.parse(parsed.data.expiresAt) > Date.now();
+    return { content: lang === "fr"
+      ? `**Alertes ciblées : ${active ? "préférences actives" : "désactivées/expirées"}**\nConsultez les limites et l’état d’envoi avec \`/dungeon watch action:status\`, vos résultats avec \`action:matches\`, ou modifiez vos préférences avec \`action:save\`.`
+      : `**Targeted alerts: ${active ? "preferences active" : "off/expired"}**\nCheck limits and delivery status with \`/dungeon watch action:status\`, see matches with \`action:matches\`, or change preferences with \`action:save\`.`,
+    components: [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`${GROUP_ALERT_PREFIX}off`).setLabel(T("Turn my alerts off")).setStyle(ButtonStyle.Secondary).setDisabled(!active))] };
+  }
   const kinds: string[] = (alert?.kinds ?? []).filter((kind) => kind === "DUNGEON");
   const roles = alert?.roles ?? [];
   const summary = describeAlert(kinds, roles, (kind) => T(GROUP_KINDS[kind].label), (role) => T(ROLE_NAMES[role]), T("Off"), T("any role"));
@@ -31,7 +41,8 @@ export function alertPanel(lang: Lang, alert: Pick<GroupAlert, "kinds" | "roles"
   const content = [
     T("**My group alerts**: {summary}", { summary }),
     T("You are pinged in the group finder when a group of these kinds is posted, your characters' level fits it and it still needs one of your roles."),
-    T("Your characters: {list}", { list: characters })
+    T("Your characters: {list}", { list: characters }),
+    lang === "fr" ? "Horaires, silence, expiration et places de raid : `/dungeon watch`." : "Time filters, quiet hours, expiry and raid vacancies: `/dungeon watch`."
   ].join("\n");
   const kindMenu = new StringSelectMenuBuilder()
     .setCustomId(`${GROUP_ALERT_PREFIX}kinds`)
@@ -79,6 +90,22 @@ export async function openGroupAlerts(interaction: ButtonInteraction | ChatInput
 export async function handleGroupAlertComponent(interaction: ButtonInteraction | StringSelectMenuInteraction): Promise<void> {
   const { guildId, memberId, lang, alert, characters } = await context(interaction);
   const action = interaction.customId.slice(GROUP_ALERT_PREFIX.length);
+  // An older open legacy menu must not mutate an advanced subscription outside
+  // its reservation lock or silently discard the member's saved filters.
+  if (alert?.subscription && action !== "off") {
+    await interaction.update(alertPanel(lang, alert, characters));
+    return;
+  }
+  if (action === "off" && alert?.subscription) {
+    const parsed = groupSubscriptionSchema.safeParse(alert.subscription);
+    if (parsed.success) {
+      const saved = await saveGroupWatch(prisma, guildId, memberId, { ...parsed.data, optedIn: false }, alert.roles);
+      await interaction.update(alertPanel(lang, saved, characters));
+      return;
+    }
+    await interaction.update(alertPanel(lang, alert, characters));
+    return;
+  }
   let kinds: string[] = (alert?.kinds ?? []).filter((kind) => kind === "DUNGEON");
   let roles = alert?.roles ?? [];
   if (action === "kinds" && interaction.isStringSelectMenu()) kinds = interaction.values.filter((value) => value === "DUNGEON");

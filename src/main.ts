@@ -55,7 +55,7 @@ import { executeTag } from "./commands/tag.js";
 import { handleSelfRoleButton, SELF_ROLE_PREFIX } from "./commands/selfroles.js";
 import { EP_AWARD_PREFIX, handleEpAwardButton } from "./commands/ep-award.js";
 import { executeCore } from "./commands/core.js";
-import { executePoll, handlePollButton, POLL_PREFIX } from "./commands/poll.js";
+import { executePoll, handlePollButton, handleWeeklyQuestionButton, POLL_PREFIX, WEEKLY_QUESTION_PREFIX } from "./commands/poll.js";
 import { CRAFT_PREFIX, handleCraftButton, handleCraftModal } from "./commands/craft-board.js";
 import {
   cleanupDungeonGroups, DUNGEON_GROUP_PREFIX, handleDungeonGroupButton, handleDungeonGuideButton, handleDungeonGuideModal, handleDungeonGuideSelect
@@ -628,6 +628,10 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   }
   if (interaction.isButton() && interaction.customId.startsWith(POLL_PREFIX)) {
     await handlePollButton(interaction).catch((error: unknown) => reportInteractionError("Poll button", interaction, error));
+    return;
+  }
+  if (interaction.isButton() && interaction.customId.startsWith(WEEKLY_QUESTION_PREFIX)) {
+    await handleWeeklyQuestionButton(interaction).catch((error: unknown) => reportInteractionError("Weekly question review", interaction, error));
     return;
   }
   if (interaction.isStringSelectMenu() && interaction.customId === `${DUNGEON_GUIDE_PREFIX}kind`) {

@@ -21,15 +21,21 @@ import { seasonArchive, seasonRows } from "../services/season-archive.js";
 import { weekSeason, weekWindow } from "../services/dungeon-periods.js";
 import { defaultBracket, dungeonRating, hasDungeonRating, ratingEmbed, type RatingRow } from "../services/dungeon-rating.js";
 import { guildChallengeBoard } from "../services/challenge-guild.js";
-import { cooperativeDungeonPreview } from "../services/cooperative-dungeons.js";
+import { executeCooperativeGoal } from "./cooperative-goal.js";
+import { executeGroupWatch, groupWatchSubcommand } from "./group-watch.js";
 
 // Dungeon challenge views (roadmap D5). Points come from runs the addon
 // recorded and an officer imported (/import apply).
 export const dungeonCommand = new SlashCommandBuilder()
   .setName("dungeon")
   .setDescription("Dungeon challenge: points leaderboard, records, player stats, recent runs.")
+  .addSubcommand(groupWatchSubcommand)
   .addSubcommand(sub => sub.setName("together").setDescription("Preview this week's cooperative dungeon progress; no points")
-    .setDescriptionLocalizations({ fr: "Aperçu des donjons faits ensemble cette semaine; aucun point" }))
+    .setDescriptionLocalizations({ fr: "Objectif de donjons ensemble; reconnaissance sans points" })
+    .addIntegerOption(o => o.setName("goal").setDescription("Officers: target 1–100").setMinValue(1).setMaxValue(100))
+    .addStringOption(o => o.setName("season").setDescription("Required with goal").setAutocomplete(true))
+    .addStringOption(o => o.setName("goal-kind").setDescription("What counts").addChoices({ name: "Different dungeons", value: "dungeons" }, { name: "Runs", value: "runs" }))
+    .addBooleanOption(o => o.setName("pause").setDescription("Officers: pause/resume the goal")))
   .addSubcommand(sub => sub.setName("keystones").setDescription("Retail: highest timed keys by dungeon and affixes")
     .setDescriptionLocalizations({ fr: "Retail : plus hautes clés à temps par donjon et affixes" }))
   .addSubcommand(sub => sub.setName("catalog").setDescription("November dungeon plan; separate from active season rules")
@@ -115,20 +121,12 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
   if (!context) return;
   const lang = asLang((await guildService.getSettings(context.guildId))?.language);
   const subcommand = interaction.options.getSubcommand();
+  if (subcommand === "watch") {
+    await executeGroupWatch(interaction, context.guildId, context.memberId);
+    return;
+  }
   if (subcommand === "together") {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const progress = await cooperativeDungeonPreview(prisma, context.guildId);
-    const fr = lang === "fr";
-    const description = !progress.supported
-      ? fr ? "Les règles de la saison ne permettent pas encore cet aperçu." : "This season's rules do not yet support this preview."
-      : progress.truncated
-        ? fr ? "Trop de parcours pour un aperçu complet. Aucun total partiel affiché." : "Too many runs for a complete preview. Partial totals are not shown."
-        : fr ? `${progress.dungeons} donjons différents · ${progress.runs} parcours admissibles · ${progress.participants} membres\nAu moins deux membres liés et admissibles par parcours. Les observations répétées ne comptent pas comme de nouveaux parcours.`
-          : `${progress.dungeons} different dungeons · ${progress.runs} eligible runs · ${progress.participants} members\nAt least two eligible linked members per run. Repeated observations do not count as new runs.`;
-    await interaction.editReply({ embeds: [new EmbedBuilder().setColor(0x57a773)
-      .setTitle(fr ? "Jouer ensemble · aperçu privé" : "Playing together · private preview")
-      .setDescription(description)
-      .setFooter({ text: fr ? "Depuis la réinitialisation du mardi · Aucun point ni changement de cote" : "Since Tuesday's reset · No points or rating changes" })], allowedMentions: { parse: [] } });
+    await executeCooperativeGoal(interaction, context.guildId, lang);
     return;
   }
   if (subcommand === "keystones") {

@@ -150,7 +150,7 @@ ns.commandHandlers["bgcapture"] = function(args)
   ns.message((fr and "Capture JcJ provisoire : " or "Provisional BG capture: ") .. (d.consents[key] and "ON" or "OFF")
     .. ". /guilded bgcapture on normal | off. " .. (fr and "Accord Discord /bg privacy requis; aucun point automatique."
     or "Discord /bg privacy also required; no automatic points.")
-    .. (nextPremade[key] and ((fr and " Code prochain resultat (non verifie) : " or "Next-result code (unverified): ") .. nextPremade[key]) or ""))
+    .. (nextPremade[key] and ((fr and " Code prochain resultat (non verifie) : " or " Next-result code (unverified): ") .. nextPremade[key]) or ""))
 end
 table.insert(ns.commandHelp, "/guilded bgcapture on normal | off - own postmatch pilot / pilote JcJ personnel")
 table.insert(ns.commandHelp, "/guilded bgcapture premade <code> - next result only, unverified / prochain resultat non verifie")

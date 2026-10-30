@@ -11,6 +11,11 @@ keep personal reports private and require separate consent for guild statistics.
 Replays are idempotent, conflicting reports retain the original with an explanation,
 and consent revocation excludes reports from corroboration and shared statistics.
 
+Officers can choose the optional Battlegrounds page in `/setup start status:true`
+to install or repair localized groups, results and statistics panels. Existing
+channels and permissions are preserved; manual channel selection is available.
+Installation does not enable capture, automatic posts or awards.
+
 Leaderboards now keep advanced filters collapsed until needed, show only the
 selected edition's classes, simplify date formatting and explain a counted-score
 example. Help menus fit narrow viewports. Companion connection tests explain

@@ -128,7 +128,9 @@ officer/raid channels, TEST Core), so this is a re-run of an existing setup, not
 - "Leader commands hidden" appears here too (Guild Master → /lead /officer /organize, Officer → /lead /officer /organize,
   Raid Leader → /lead): this is the default state until a server owner allows the roles in Server Settings → Integrations → Guilded.
   Integrations page reached (Guilded, "Added on Oct 26, 2026 by kevmister28", Bot + Commands, Manage). Applying and verifying the
-  role override was **not completed** (browser tab froze); NOT RUN.
+  role override was **not completed**: a second attempt froze the Chrome renderer again on opening Integrations
+  (CDP screenshot timeout), so it looks reproducible in this automated tab. Owner can do it by hand
+  (Server Settings → Integrations → Guilded → Manage → Commands); NOT RUN.
 - Throwaway-server checks that still need a second account: member command visibility, signup as a plain member,
   `/guilded verify`, multi-character picker. The assistant cannot create the account; **owner must provide it**.
 

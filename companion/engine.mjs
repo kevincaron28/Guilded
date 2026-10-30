@@ -317,7 +317,9 @@ export function createEngine(initialConfig, hooks = {}) {
     const stamp = await stat(current.watchFile);
     if (`${stamp.mtimeMs}:${stamp.size}` !== lastFile) throw new Error("Saved data changed during reading. Retrying the latest save.");
     const revision = createHash("sha256").update(JSON.stringify(full)).digest("hex");
-    state.syncEvidence = { savedAt: stamp.mtime.toISOString(), savedRevision: revision };
+    state.syncEvidence = { savedAt: stamp.mtime.toISOString(), savedRevision: revision,
+      character: full.character?.name ? `${full.character.name} — ${full.character.realm || current.realm || "?"}` : null,
+      edition: full.gameEdition || full.character?.gameEdition };
     // The saved data belongs to one WoW guild; do not send an alt's other guild.
     if (current.wowGuild && (full.wowGuild || current.requireWowGuild) && full.wowGuild !== current.wowGuild) {
       state.pendingUpload = false;

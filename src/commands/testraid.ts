@@ -44,9 +44,26 @@ export async function executeTestRaid(interaction: ChatInputCommandInteraction):
   const subcommand = interaction.options.getSubcommand();
 
   if (subcommand === "cleanup") {
+    // Only remove bot-authored posts referenced by this guild's flagged test raids.
+    // Keep database references on failure so cleanup can safely be retried.
+    const testPosts = await prisma.raid.findMany({ where: { guildId: context.guildId, isTest: true },
+      select: { signupChannelId: true, signupMessageId: true, mirrorSignupChannelId: true, mirrorSignupMessageId: true } });
+    for (const raid of testPosts) {
+      for (const [channelId, messageId] of [[raid.signupChannelId, raid.signupMessageId], [raid.mirrorSignupChannelId, raid.mirrorSignupMessageId]]) {
+        if (!channelId || !messageId) continue;
+        const channel = await interaction.guild?.channels.fetch(channelId);
+        if (!channel?.isTextBased()) throw new Error("Test signup channel unavailable. Restore access and retry cleanup.");
+        const message = await channel.messages.fetch(messageId).catch((error: unknown) => {
+          if (error && typeof error === "object" && "code" in error && error.code === 10008) return null;
+          throw error;
+        });
+        if (message && message.author.id !== interaction.client.user.id) throw new Error("Test signup author mismatch. Cleanup stopped.");
+        if (message) await message.delete();
+      }
+    }
     const removed = await cleanupTestRaids(prisma, context.guildId);
     await interaction.editReply({
-      content: `Removed ${removed.raids} test raid(s), ${removed.dungeonRuns} test dungeon run(s), ${removed.members} fake raider(s) with their EPGP, points and loot, ${removed.auctions} test auction(s), and ${removed.imports} simulated import(s). Real data was not touched. (Delete any old test signup embeds by hand.)`
+      content: `Removed ${removed.raids} test raid(s), ${removed.dungeonRuns} test dungeon run(s), ${removed.members} fake raider(s) with their EPGP, points and loot, ${removed.auctions} test auction(s), and ${removed.imports} simulated import(s), including referenced test signup posts. Real data was not touched. Posts from earlier cleanups without saved references still need manual removal.`
     });
     return;
   }

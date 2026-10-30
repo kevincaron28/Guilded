@@ -335,6 +335,8 @@ export function createWebApp(deps: WebAppDeps) {
     const extra = await Promise.all((deps.meSections ?? []).map((section) => section(ctx)));
     const body = [
       `<p class="eyebrow">Guilded</p><h1>${t("My Guilded", "Mon Guilded")}</h1>`,
+      `<nav aria-label="${t("My shortcuts", "Mes raccourcis")}"><a href="${link("/me/calendar", lang)}">${t("My next raid", "Mon prochain raid")}</a> · <a href="${link("/companion/", lang)}">${t("My sync", "Ma synchronisation")}</a> · <a href="#my-week">${t("My week", "Ma semaine")}</a></nav>`,
+      `<p id="my-week">${t("My week: use", "Ma semaine : utilisez")} <code>/report stats personal:true</code> ${t("in your guild’s Discord for a private recap of the last complete week.", "dans le Discord de votre guilde pour un récapitulatif privé de la dernière semaine complète.")}</p>`,
       flash ? `<p class="notice">${escapeHtml(flash)}</p>` : "",
       extra.join(""),
       `<h2>${t("My applications", "Mes candidatures")}</h2>`,

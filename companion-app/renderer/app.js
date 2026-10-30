@@ -102,6 +102,17 @@ function renderState(snapshot) {
   let evidencePanel = $('syncEvidence');
   if (!evidencePanel) { evidencePanel = document.createElement('p'); evidencePanel.id = 'syncEvidence'; evidencePanel.className = 'panel'; $('page-activity').insertBefore(evidencePanel, $('log')); }
   evidencePanel.textContent = T('Saved: {0} · Uploaded: {1} · Received by bot: {2}', sync.saved.at ? ago(sync.saved.at) : T('Unknown'), sync.uploaded.at ? ago(sync.uploaded.at) : T('Unknown'), sync.accepted.at ? ago(sync.accepted.at) : T('Unknown')) + ' · ' + T('Receipt does not mean officer approval.');
+  const syncActions = {
+    'save-in-game': 'Use /reload in WoW to save your addon data.',
+    'wait-for-upload': api.browser ? 'Choose Sync now to upload your saved data.' : 'Keep tracking enabled while your saved data uploads.',
+    'wait-for-acceptance': 'Check Activity for the bot receipt before retrying.',
+    'reload-in-game': 'After saving standings to the addon, use /reload in WoW.',
+    'officer-review': 'Your upload needs officer review in Discord.',
+    'review-application-error': 'Your upload was received but could not be applied. Ask an officer to review it.',
+    'wait-for-retry': 'Keep the companion open while it retries.',
+    'check-connection': 'Check your connection and the Activity messages.'
+  };
+  evidencePanel.textContent += ' · ' + T('Edition: {0} · Character: {1} · Saved-data source: {2}', sync.edition === 'unknown' ? T('Unknown') : sync.edition, sync.character || T('Unknown'), sync.folder || sync.watchedFile || state.watching || T('Unknown')) + ' · ' + T(syncActions[sync.action]);
   renderUpdate(snapshot.update);
   renderSavedFile(snapshot);
   const overview = window.guildedOverview(savedConfig,state,!!api.browser);

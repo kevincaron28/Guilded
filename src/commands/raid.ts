@@ -484,8 +484,11 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     });
     if (interaction.guild) await syncSignupEmbed(interaction.guild, context.guildId, raidId);
     await tellPromoted(interaction, raid.promoted);
+    const lang = asLang((await guildService.getSettings(context.guildId))?.language);
     await interaction.editReply({
-      content: `Updated raid **${raid.title}**.${raid.promoted.length ? ` Moved ${raid.promoted.length} player(s) off the waitlist.` : ""}`
+      content: lang === "fr"
+        ? `Raid **${raid.title}** mis à jour.${raid.promoted.length ? ` ${raid.promoted.length} joueur(s) ont quitté la liste d’attente.` : ""}`
+        : `Updated raid **${raid.title}**.${raid.promoted.length ? ` Moved ${raid.promoted.length} player(s) off the waitlist.` : ""}`
     });
     return;
   }

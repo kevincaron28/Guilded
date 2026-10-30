@@ -856,5 +856,17 @@
   "Edit individual item exceptions in Roster & loot settings. Use id:12345 for every copy, or id:12345@ilvl:100 for that item level. Named overrides remain supported.": "Modifiez les exceptions par objet dans Effectif et réglages du butin. Utilisez id:12345 pour toutes les copies ou id:12345@ilvl:100 pour ce niveau d’objet. Les prix par nom restent pris en charge.",
   "Manage your roster, loot rules and individual item exceptions. Use Raid prices for preset and slot prices. Everyone can look; Raid Leaders and officers can make changes.": "Gérez votre effectif, les règles de butin et les exceptions par objet. Utilisez Prix de raid pour les préréglages et les prix par emplacement. Tout le monde peut consulter; les responsables de raid et les officiers peuvent modifier.",
   "Choose a pricing preset, edit slot prices and preview your priority. Use Roster & loot settings for roster changes, loot rules and individual item exceptions.": "Choisissez un préréglage, modifiez les prix par emplacement et consultez votre priorité. Utilisez Effectif et réglages du butin pour les membres, les règles et les exceptions par objet.",
-  "Roster & loot settings": "Effectif et réglages du butin"
+  "Roster & loot settings": "Effectif et réglages du butin",
+  "My sync": "Ma synchronisation",
+  "My next raid and my week are available in My Guilded on your guild website.": "Mon prochain raid et ma semaine sont disponibles dans Mon Guilded sur le site de votre guilde.",
+  "Edition: {0} · Character: {1} · Saved-data source: {2}": "Édition : {0} · Personnage : {1} · Source des données : {2}",
+  "Use /reload in WoW to save your addon data.": "Utilisez /reload dans WoW pour enregistrer les données de l’addon.",
+  "Choose Sync now to upload your saved data.": "Choisissez Synchroniser maintenant pour envoyer vos données enregistrées.",
+  "Keep tracking enabled while your saved data uploads.": "Gardez le suivi activé pendant l’envoi de vos données enregistrées.",
+  "Check Activity for the bot receipt before retrying.": "Consultez Activité pour vérifier la réception par le bot avant de réessayer.",
+  "After saving standings to the addon, use /reload in WoW.": "Après avoir enregistré le classement dans l’addon, utilisez /reload dans WoW.",
+  "Your upload needs officer review in Discord.": "Votre envoi doit être vérifié par un officier dans Discord.",
+  "Your upload was received but could not be applied. Ask an officer to review it.": "Votre envoi a été reçu mais n’a pas pu être appliqué. Demandez à un officier de le vérifier.",
+  "Keep the companion open while it retries.": "Gardez le compagnon ouvert pendant la nouvelle tentative.",
+  "Check your connection and the Activity messages.": "Vérifiez votre connexion et les messages dans Activité."
 }

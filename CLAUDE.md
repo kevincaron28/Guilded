@@ -1,5 +1,5 @@
-> CURRENT SOURCE — 8.1.0 candidate for November 4; backend deployed, GitHub prerelease available.
-> Current checkpoint: docs/NOV4_RELEASE_STATUS.md; stable client providers remain 8.0.2.
+> CURRENT SOURCE — 8.2.0 integration candidate for October 30; final build/deployment pending.
+> Current checkpoint: docs/RELEASE_INTEGRATION_2026-10-30.md; stable client providers remain 8.0.2.
 > Candidate gates: docs/NOV4_RELEASE_CANDIDATE.md.
 > Published release remains 8.0.2; preserve all existing provider bytes.
 > Published GitHub/client source: f7ca4c4, protocol 2; preserve all published bytes.

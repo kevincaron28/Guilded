@@ -22,7 +22,7 @@ export function syncStatus(config = {}, state = {}, evidence = {}) {
   const watchedFile = label(config.watchFile);
   const separator = watchedFile ? Math.max(watchedFile.lastIndexOf("/"), watchedFile.lastIndexOf("\\")) : -1;
   return {
-    edition: GAME_EDITIONS.includes(config.gameEdition) ? config.gameEdition : "unknown",
+    edition: GAME_EDITIONS.includes(evidence.edition) ? evidence.edition : GAME_EDITIONS.includes(config.gameEdition) ? config.gameEdition : "unknown",
     character: label(evidence.character), watchedFile, folder: separator < 0 ? null : watchedFile.slice(0, separator),
     saved: { status: savedAt ? "observed" : "unknown", at: savedAt },
     uploaded: { status: sameUpload ? "confirmed" : "unknown", at: sameUpload ? uploadedAt : null },

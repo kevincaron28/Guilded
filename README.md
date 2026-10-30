@@ -15,6 +15,11 @@ Free for noncommercial use ([license](LICENSE)).
 Every in-game and Discord command, and who can run it, is in [COMMANDS.md](COMMANDS.md).
 What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 
+Current source: **8.2.0 candidate**, including approved raid plans, voluntary supply
+planning, personal calendar/data pages and companion sync clarity. See the
+[release notes](docs/V8_2_0_RELEASE_NOTES.md) and [validation/publication record](docs/RELEASE_INTEGRATION_2026-10-30.md).
+Published downloads remain 8.0.2 until the provider records confirm otherwise.
+
 ## Quick start
 
 - **Guildmates or addon-only players:** follow [the member install guide](docs/MEMBER_INSTALL.md).

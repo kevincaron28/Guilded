@@ -107,6 +107,7 @@ export function createBrowserCompanion(env = globalThis) {
     observeFile({ lastModified: Math.max(...files.map(file => file.lastModified || 0)) });
     const { character, runs } = personalPayloadFrom(await Promise.all(files.map(file => file.text())), config.realm);
     if (!character) throw new Error("The saved files have no character yet. Log in once with Guilded Dungeons (or Guilded), then /reload.");
+    Object.assign(state.syncEvidence, { character: `${character.name} — ${character.realm || "?"}`, edition: character.gameEdition });
     const uploadedAt = new Date().toISOString();
     const body = await request("/api/v1/public-runs", { character, runs, includeScore: true });
     Object.assign(state.syncEvidence, { uploadedAt, uploadedRevision: state.syncEvidence.savedRevision });
@@ -134,6 +135,7 @@ export function createBrowserCompanion(env = globalThis) {
       else if (config.wowEnabled && currentFile) {
         observeFile(currentFile);
         const full = await readBrowserAddon(currentFile, config.realm);
+        Object.assign(state.syncEvidence, { character: full.character?.name ? `${full.character.name} — ${full.character.realm || config.realm || "?"}` : null, edition: full.gameEdition || full.character?.gameEdition });
         if (config.wowGuild && full.wowGuild && full.wowGuild !== config.wowGuild) throw new Error("This saved data belongs to a different WoW guild.");
         // Entries the bot already stored are left out (known from this tab's last standings answer).
         const exported = pruneAcknowledged(full, ack, botFeatures).exported;

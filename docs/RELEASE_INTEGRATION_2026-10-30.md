@@ -37,6 +37,28 @@ Codex owns integration; existing feature owners retain their current assignments
 
 ## Current verification
 
+### 8.2.0 freeze preparation
+
+Full GitHub Actions workflow 41043971911 succeeded on `cd9c7b1`, including the
+complete test suite, lint, addon validation, Windows packaging and PostgreSQL
+migration/backup/restore with approved plans and pledges. The preceding `ea8f92b`
+workflow also passed, including the isolated simulation pool rehearsal.
+
+The source now includes local edition/character/source/action sync context,
+My Guilded next-raid/sync/week shortcuts, French raid-edit replies and removal
+of referenced bot-authored test signup posts. Thirty-seven focused tests passed
+after those fixes. Real PostgreSQL character-correction rollback/concurrency and
+dependent-record checks were added for the final CI run. Version 8.2.0 is reserved
+for this build; neither existing 8.1.0 candidate assets nor Store Submission 5
+will be replaced in place.
+
+The unchecked feature rows below denote outstanding final acceptance, not missing
+implementations. Timing policy remains deliberately unchanged: specific new
+targets were not approved and no measured Forever samples are available.
+Claude received the updated test checklist (owner confirmed sending it) and is
+waiting for the installed/deployed build checkpoint. Baseline 8.0.2 observations
+remain distinct from candidate acceptance. Publication has not yet occurred.
+
 ### Timing research received from coordination, October 30
 
 Read-only Method/Jurdi research was forwarded by coordination. These October

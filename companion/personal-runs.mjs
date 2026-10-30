@@ -58,7 +58,8 @@ export async function uploadPersonalRuns(config, signal, onEvidence = () => {}) 
   if (JSON.stringify(before) !== JSON.stringify(after)) throw new Error("Saved data changed during reading. Retry the latest save.");
   const savedTimes = after.map(value => value?.at ?? null);
   const savedAt = savedTimes.some(value => value !== null) ? new Date(Math.max(...savedTimes.filter(value => value !== null))).toISOString() : null;
-  const evidence = { savedAt, savedRevision: revision };
+  const evidence = { savedAt, savedRevision: revision,
+    character: character?.name ? `${character.name} — ${character.realm || "?"}` : null, edition: character?.gameEdition };
   onEvidence({ ...evidence });
   if (!character) {
     const error = new Error("The saved files have no character yet. Log in once with Guilded Dungeons (or Guilded), then /reload or log out.");

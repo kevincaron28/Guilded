@@ -17,6 +17,13 @@ tasks, not shipped-feature claims.
 
 ## Current stage — 30 October 2026
 
+The selected additions are integrated in **8.2.0 candidate**. Full CI on the
+raid-planning checkpoint `cd9c7b1` passed, including PostgreSQL migration/restore
+and Windows packaging. Final 8.2.0 build checks, deployment, installed-client
+testing and provider publication are tracked in the
+[integration record](docs/RELEASE_INTEGRATION_2026-10-30.md). The following 8.1.0
+paragraph records the preceding candidate baseline.
+
 Guilded **8.1.0 Candidate** (protocol 2), prepared for November 4: RCLootCouncil/Gargul history conversion, reviewed in-game confirmation, separate persistent history and undo, raid-signup presentation and public-origin reliability. See [candidate gates](docs/NOV4_RELEASE_CANDIDATE.md). Kevin selected five additional pre-launch features for work on October 30; their implementation and acceptance are tracked below, not claimed complete. Published downloads remain 8.0.2.
 
 ## Selected pre-launch work — 30 October 2026

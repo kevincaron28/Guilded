@@ -42,11 +42,12 @@ The 8.2 file is 165,400,751 bytes, SHA-256
 Upload, analysis, certification, publication and installed Store verification are
 distinct gates. The old held 8.1 package was not published.
 
-Claude's expanded UI/native Companion and screenshot assignment is saved, but
-receipt is **not confirmed**. Native capture timed out; subsequent desktop calls
-report an active request. Owner action was requested rather than bypassing the
-control boundary. The original Retail-only prepared prompt does not contain the
-full new assignment. No native QA completion is claimed.
+Claude's expanded UI/native Companion and screenshot assignment is now prepared
+and read back in the existing session's composer by coordination, replacing the
+old Retail-only draft. **It was not submitted or acknowledged**: Send failed
+with unavailable coordinate geometry and screenshot capture timed out. The
+remaining handoff is a manual Send in that session. No native QA completion
+is claimed and no duplicate tester was started.
 
 Available browser testing confirmed read-only connection testing, an accurate
 8.2 bot version, French mobile wrapping/no horizontal overflow and Escape menu

@@ -1,6 +1,21 @@
 # October 30 release integration
 
-## Active launch checklist — updated 13:26 UTC
+## Current checkpoint — October 30 14:03 UTC
+
+8.3.0 source `2602e67` is merged, CI passed, backend/website deployed and
+GitHub published with all 23 public downloads hash-verified. Both migrations
+completed; automation remains off and selected calendars unchanged. Ten
+CurseForge files are submitted, processing. Store Submission 6 is in
+certification; installed Store remains 8.2.0.0. See
+[current acceptance evidence](V8_3_0_RELEASE_ACCEPTANCE.md).
+
+Latest owner direction: **all available testing is authorized now**. Claude
+acknowledged the expanded handoff and is testing the isolated native 8.3 app;
+Retail addon evidence remains version 8.2 until separately updated. The old
+wait-until-launch instruction below is historical, not an active restriction.
+Remaining approved BG work proceeds on `codex/bg-recorder-history-oct30`.
+
+## Historical launch checklist — 13:26 UTC
 
 Kevin's October 30 12:54:50 UTC direction supersedes the earlier minimal-polish
 scope: launch tonight in Québec, remodel the website and Companion for a simple

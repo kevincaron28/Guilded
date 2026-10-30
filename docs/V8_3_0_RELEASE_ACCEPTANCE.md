@@ -1,8 +1,36 @@
 # Guilded 8.3.0 acceptance
 
-Owner direction, October 30 12:54:50 UTC: launch tonight in Québec and gather
-in-game evidence afterward. Game testing timing is WAIVED UNTIL AFTER LAUNCH /
-NOT RUN. Security/data integrity and non-game gates are not waived.
+## Current checkpoint — October 30 14:03 UTC
+
+The owner's latest direction authorizes all available testing now, superseding
+the earlier timing waiver. Claude acknowledged the expanded handoff and is
+testing native Companion 8.3 on an isolated profile; Retail addons are still
+8.2 until separately installed and verified. No unobserved game, native or
+authenticated multi-account acceptance is claimed. Forever needs November 4.
+
+- Merged source: `2602e673864687dd7356f7800991d77495fb5ed0`, PR #292.
+  Main CI `41064825203` passed, including PostgreSQL concurrency, migrations,
+  restore and Windows packaging. Exact artifact verification passed cleanly.
+- Backend and website deployed. Public `/health` reports 8.3.0, protocol 2,
+  commands `ok`. Worker version: `c9fffed3-daba-4ce5-b83d-e41f3da040d0`.
+- Read-only production check at 13:59:44 UTC confirms both BG planning and
+  opt-in automation migrations completed; zero enabled recaps, question plans
+  or vacancy approvals. All six selected season rows are unchanged.
+- GitHub stable v8.3.0 published: all 23 anonymous downloads returned HTTP 200
+  with matching hashes and verified tag commit. Published bytes are frozen.
+- Ten CurseForge 8.3 edition archives submitted, processing; public availability
+  and download hashes remain to be verified. No duplicate uploads are needed.
+- Store Submission 6 (`1152921505702277828`) is in certification with manual
+  publishing hold. Installed Store remains verified 8.2.0.0, not 8.3 acceptance.
+- Final browser evidence: 23 CUA captures in
+  `backups/ui-qa-2026-10-30/final-8.3/MANIFEST.md`. Populated leaderboards use
+  synthetic data; these are not live gameplay or authenticated acceptance.
+- Recovery backup and encrypted offsite decryption/checksums passed before
+  deployment. Local receipts are in `backups/release-8.3.0/`.
+- Remaining approved BG recorder, cards/history and statistics work continues
+  separately on `codex/bg-recorder-history-oct30`; it is not shipped in 8.3.
+
+## Historical prepublication checklist (superseded by checkpoint above)
 
 - [ ] Exact integrated source TypeScript, Vitest, ESLint and addon validation.
 - [ ] Clean PostgreSQL migrations, concurrent BG/automation claims, pause and
@@ -17,8 +45,8 @@ NOT RUN. Security/data integrity and non-game gates are not waived.
   Never replace published 8.2.0 files. Store certification timing is external.
 - [ ] Actual Store installation, signature/application/profile preservation checks.
 - [ ] Native activation and addon/game/multi-account acceptance — NOT RUN,
-  deferred after launch. Claude handoff remains prepared but unsent due to
-  desktop input failure. Forever requires November 4 availability.
+  at this historical checkpoint. Claude has since acknowledged the expanded
+  handoff and begun testing. Forever requires November 4 availability.
 
 No recurring external sends are enabled merely by deployment. Explicit saved
 channel/audience/schedule or personal recap opt-in is required. Unknown BG queue

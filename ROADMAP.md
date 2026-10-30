@@ -5,11 +5,12 @@
 ## October 30 operational follow-up
 
 8.2.0 is deployed and published on GitHub at `eb3cb4a`; all 23 anonymous downloads
-and the tag were verified. CurseForge and Store completion remain in the release
-checklist. Forever's prospective timing snapshot is installed without moving
+and the tag were verified. All ten CurseForge files are published and verified;
+Store 8.2 is submitted for certification with manual publishing hold. Forever's prospective timing snapshot is installed without moving
 November 4. The newer [edition calendar authorization](docs/EDITION_CALENDARS_2026-10-30.md)
 starts empty other editions prospectively with official period labels and gives
-Era a three-calendar-month cadence; actual application is still pending.
+Era a three-calendar-month cadence. Production activation and readback passed
+at 12:14 UTC October 30.
 The [battleground module](docs/BATTLEGROUNDS_NEXT_MODULE.md) is approved as the next
 isolated module. It is not part of the published 8.2.0 feature claims.
 

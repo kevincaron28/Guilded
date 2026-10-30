@@ -54,5 +54,12 @@ Historical frozen rows remain intact. The real PostgreSQL fixture tests an
 in-flight importer, pending evidence, disputed public runs, stale previews,
 atomic initialization, recurrence and preservation of Forever.
 
-Status: implementation and tests in progress; production activation pending.
+Status: PR #285 passed full CI including real PostgreSQL concurrency/restore checks
+and was deployed at `7be7ebb`. Production initialization committed all four
+editions at **2026-10-30 12:14:41.882 UTC** (08:14 Toronto), after a fresh
+zero-history preview and transactionally locked recheck. Era Season 2 begins
+**2027-01-30 13:14:41.882 UTC** (08:14 Toronto), preserving the local clock
+across DST. Independent readback verified all six official calendar snapshots,
+unchanged Forever start/freeze, and zero imports, runs and awards in the four
+newly initialized editions. No Discord announcement was sent.
 This operational follow-up does not replace the already published 8.2.0 assets.

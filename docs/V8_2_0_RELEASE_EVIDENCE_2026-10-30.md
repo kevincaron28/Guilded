@@ -26,26 +26,36 @@ The separate PR #285 calendar operation does not replace published client bytes.
   `85e2784f398e207100f8e0e0246fc60eea5d93ebf2fc8caafd7515e146cf72f9`.
   Deadmines is 30 minutes, BFD 35 and Dalaran 40; history was not rescored.
 
+The four non-Forever edition calendars were initialized at 12:14:41.882 UTC
+on October 30 under PR #285. Independent readback verified the six snapshots
+(including Era’s next quarterly boundary) and preserved Forever’s start and
+freeze timestamp. See [calendar evidence](EDITION_CALENDARS_2026-10-30.md).
+
 ## Still separate
 
 Microsoft Store still publishes 8.0.2. The held 8.1 submission was returned to
-draft to accept the verified 8.2 MSIX; Microsoft package analysis is pending.
+draft to accept the verified 8.2 MSIX. Package validation and save succeeded;
+English/French 8.2 notes were saved. Submission 5 entered certification
+pre-processing on October 30 with its manual publishing hold preserved.
 The 8.2 file is 165,400,751 bytes, SHA-256
 `f7f23835dd097b0806b234a59c5673db0781d8913bf26aebbd25aa023e0e39ac`.
 Upload, analysis, certification, publication and installed Store verification are
 distinct gates. The old held 8.1 package was not published.
 
-Claude's expanded UI/native Companion and screenshot assignment is saved, but
-receipt is **not confirmed**. Native capture timed out; subsequent desktop calls
-report an active request. Owner action was requested rather than bypassing the
-control boundary. The original Retail-only prepared prompt does not contain the
-full new assignment. No native QA completion is claimed.
+Claude's expanded UI/native Companion and screenshot assignment is now prepared
+and read back in the existing session's composer by coordination, replacing the
+old Retail-only draft. **It was not submitted or acknowledged**: Send failed
+with unavailable coordinate geometry and screenshot capture timed out. The
+remaining handoff is a manual Send in that session. No native QA completion
+is claimed and no duplicate tester was started.
 
 Available browser testing confirmed read-only connection testing, an accurate
 8.2 bot version, French mobile wrapping/no horizontal overflow and Escape menu
 dismissal. Three private originals and two clean browser Companion captures are
-saved locally with a manifest; none was uploaded. A setup-copy issue (claiming
-data is already synced before the first sync) is recorded for correction/retest.
+saved locally with a manifest; none was uploaded. The setup-copy issue (claiming
+data is already synced before the first sync) is corrected in source by PR #287,
+with 12 focused tests and full CI passing. Live/native retest and delivery of
+that later correction remain separate from the frozen 8.2.0 client artifacts.
 These observations do not certify addon/native/offline/multi-account workflows.
 Forever gameplay still awaits its November 4 opening.
 

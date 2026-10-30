@@ -37,6 +37,50 @@ Codex owns integration; existing feature owners retain their current assignments
 
 ## Current verification
 
+### Timing research received from coordination, October 30
+
+Read-only Method/Jurdi research was forwarded by coordination. These October
+15–21 guide ranges are **authored full-run estimates, not measured samples**.
+They do not specify matching party, gear or clock controls. Presets below refer
+to main `930ae040`, not a newly approved policy.
+
+| Route/source | Guide estimate (minutes) | Existing provisional preset |
+| --- | --- | --- |
+| [Deadmines](https://www.method.gg/wow-forever/dungeons/the-deadmines) | 20–30 | 40 |
+| [Shadowfang Keep](https://www.method.gg/wow-forever/dungeons/shadowfang-keep) | 20–30 | 30 |
+| [Stockade](https://www.method.gg/wow-forever/dungeons/the-stockade) | 15–25 | 20 |
+| [Wailing Caverns](https://www.method.gg/wow-forever/dungeons/wailing-caverns) | 30–40 | 40 |
+| [Blackfathom Deeps](https://www.method.gg/wow-forever/dungeons/blackfathom-deeps) | 25–35 | 40 |
+| [Excavation Site: Wetlands](https://www.method.gg/wow-forever/dungeons/excavation-site-wetlands) | 20–35 | 35 |
+| [City of Dalaran](https://www.method.gg/wow-forever/dungeons/city-of-dalaran) | 30–40 | 45 |
+
+Route gaps: Deadmines guide includes Cookie/rare Miner Johnson; Wailing Caverns
+includes rare Faerie Dragon and Naralex escort ending Mutanus (verify completion
+is not Verdan); Stockade includes rare Bruegal/separate wing; BFD's full regular
+boss list is not enforced by the current final-boss preset. Excavation's Highland
+Horror is an Alliance quest boss and Relic Guardian is final; Dalaran includes
+Tome-summoned Lyn and Shade of the Archmage is final. Do not require rare, quest
+or secret bosses universally or count outside preparation. Guide level ranges
+may exceed competition bands. No Clear Time field was found for Ragefire, Hall
+of Thanes or Ruins; these remain evidence gaps.
+
+Review Deadmines/BFD/Dalaran next, but first define the route and
+first-combat-to-completion clock. Preserve the active scoring lock and existing
+calibration requirement: 20 crew/day samples, five substantially different crews,
+three UTC days, same build and recorded starts, eligible in-band runs with three
+participants and 80% presence. No additional calibration engine is needed.
+**Specific targets and scoring changes are not approved.** Any approved change
+must be prospective and versioned; no retrospective rescoring or unperformed
+Forever acceptance claim. Release notes must retain these qualifications.
+
+### Integration checkpoints
+
+Cloud handoff `1b4c18c` is merged locally: stored targeted-alert preferences,
+cooperative goals and officer-reviewed weekly question Post/Skip/Pause flows.
+It adds an additive migration and guarded multi-connection PostgreSQL rehearsal.
+Targeted delivery remains disabled and its timer unregistered until audience,
+channel and cadence are explicitly configured/approved; weekly posting is manual.
+
 Integration draft: PR #283 (`codex/oct30-release-integration`). First CI found an
 exact-optional-property type mismatch in the guild-scope guard; corrected locally
 and the combined typecheck passed. Updater and localization regressions found by

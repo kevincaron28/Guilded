@@ -14,18 +14,19 @@ export const NAV_GROUPS = {
 
 /** @type {NavItem[]} */
 export const SITE_NAV = [
-  { key: "download", href: "/editions/", en: "Download", fr: "Télécharger" },
-  { key: "features", href: "/features/", en: "Features", fr: "Fonctions" },
-  { key: "leaderboards", href: "/leaderboards/", en: "Leaderboards", fr: "Classements", bot: true, group: "community" },
+  { key: "my-guilded", href: "/me/", en: "My Guilded", fr: "Mon Guilded", bot: true },
+  { key: "leaderboards", href: "/leaderboards/", en: "Leaderboards", fr: "Classements", bot: true },
+  { key: "download", href: "/editions/", en: "Get the addon", fr: "Obtenir l’addon" },
   // The guild directory sits under /recruitment/ because the Cloudflare Worker already forwards it.
   { key: "guilds", href: "/recruitment/guilds/", en: "Find a guild", fr: "Trouver une guilde", bot: true, group: "community" },
   { key: "recruitment", href: "/recruitment/", en: "Recruitment", fr: "Recrutement", bot: true, group: "community" },
   { key: "players", href: "/players/", en: "Players", fr: "Joueurs", bot: true, group: "community" },
+  { key: "features", href: "/features/", en: "Features", fr: "Fonctions", group: "help" },
   { key: "guides", href: "/docs/QUICK_START.html", en: "Guides", fr: "Guides", group: "help" },
   { key: "officers", href: "/officers/", en: "For officers", fr: "Pour les officiers", group: "help" },
   { key: "forever", href: "/forever/", en: "WoW Forever launch", fr: "Lancement de WoW Forever", group: "help" },
   { key: "discord", href: "https://discord.gg/YjzFwtP64V", en: "Ask on Discord ↗", fr: "Demander sur Discord ↗", group: "help" },
-  { key: "companion", href: "/companion/", en: "Companion", fr: "Compagnon" }
+  { key: "companion", href: "/companion/", en: "Companion", fr: "Compagnon", group: "help" }
 ];
 
 const escape = (text) => String(text).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");
@@ -38,7 +39,7 @@ const escape = (text) => String(text).replaceAll("&", "&amp;").replaceAll("<", "
  * @type {EditionSection[]} */
 export const EDITION_SECTIONS = [
   { id: "forever", slug: "forever", en: "WoW Forever", fr: "WoW Forever" },
-  { id: "classic-era", slug: "classic-era", en: "Classic Era / Hardcore", fr: "Classic Era / Hardcore" },
+  { id: "classic-era", slug: "classic-era", en: "Classic Era", fr: "Classic Era" },
   { id: "classic-tbc", slug: "tbc", en: "Burning Crusade Classic", fr: "Burning Crusade Classic" },
   { id: "classic-mists", slug: "mists", en: "Mists of Pandaria Classic", fr: "Mists of Pandaria Classic" },
   { id: "retail", slug: "retail", en: "Retail", fr: "Retail" }

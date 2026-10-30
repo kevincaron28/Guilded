@@ -1,6 +1,6 @@
 import { dungeonRole } from "./dungeon-role.mjs";
 import luaparse from "luaparse";
-import { editionMetadata, gameEditionOf } from "./game-edition.mjs";
+import { editionMetadata, gameEditionOf, GAME_EDITIONS } from "./game-edition.mjs";
 import { normalizeExportIdentities, characterReference } from "./character-identity.mjs";
 
 const iso = (epoch) => new Date(Number(epoch) * 1000).toISOString();
@@ -344,13 +344,14 @@ export function parseAddonExportText(text, realm) {
 // Private self-reports only: whitelist the protocol rather than forwarding arbitrary
 // SavedVariables fields (which could contain other players or stale consent).
 export function exportBattlegroundReports(database) {
-  if (gameEditionOf(database.character ?? database) !== "forever") return [];
+  const edition = gameEditionOf(database.character ?? database);
+  if (!GAME_EDITIONS.includes(edition)) return [];
   const d = database?.battleground;
   if (!d || typeof d.reports !== "object" || !d.reports) return [];
   const text = (v, max) => typeof v === "string" && v.length > 0 && v.length <= max;
   const integer = (v, min, max) => Number.isSafeInteger(v) && v >= min && v <= max;
-  return Object.values(d.reports).filter(r => r && r.version === 1 && r.adapter === "forever-postmatch-v1"
-    && r.edition === "forever" && r.realmType === "normal" && r.postmatch === true && r.consent === true
+  return Object.values(d.reports).filter(r => r && r.version === 1 && r.edition === edition
+    && r.adapter === `${edition}-postmatch-v1` && r.realmType === "normal" && r.postmatch === true && r.consent === true
     && text(r.character, 80) && text(r.realm, 100) && d.consents?.[`${r.character}-${r.realm}`] === true
     && typeof r.reportId === "string" && /^[a-zA-Z0-9_:-]{8,100}$/.test(r.reportId)
     && ["casual", "rated", "blitz"].includes(r.mode) && text(r.bracket, 30)

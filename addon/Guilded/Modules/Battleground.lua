@@ -1,4 +1,4 @@
--- Provisional Forever pilot: own-character, permitted postmatch data only.
+-- Provisional pilot on every edition whose client has the PvP match APIs: own-character, permitted postmatch data only.
 -- No scoreboard enumeration, peer messages, opponent roster or point awards.
 local _, ns = ...
 local bg = {}
@@ -25,10 +25,19 @@ local function identity()
   if type(name) ~= "string" or type(realm) ~= "string" or name == "" or realm == "" then return nil end
   return name .. "-" .. realm, name, realm
 end
+-- Hardcore realms exist on these clients only; elsewhere the check does not apply.
+local HARDCORE_EDITIONS = { forever = true, ["classic-era"] = true }
+local EDITIONS = { forever = true, ["classic-era"] = true, ["classic-tbc"] = true, ["classic-mists"] = true, retail = true }
+local function edition()
+  local value = ns.util and ns.util.gameEdition()
+  return EDITIONS[value] and value or nil
+end
 local function supported()
-  if not ns.util or ns.util.gameEdition() ~= "forever" then return false end
-  -- Missing/secret Hardcore information is unknown, never assumed normal.
-  if safe(C_GameRules and C_GameRules.IsHardcoreActive) ~= false then return false end
+  local current = edition()
+  if not current then return false end
+  local hardcore = safe(C_GameRules and C_GameRules.IsHardcoreActive)
+  -- Missing/secret Hardcore information is unknown, never assumed normal, where Hardcore exists.
+  if hardcore == true or (HARDCORE_EDITIONS[current] and hardcore ~= false) then return false end
   return C_PvP and type(C_PvP.IsMatchComplete) == "function"
     and type(C_PvP.IsMatchActive) == "function"
     and type(C_PvP.GetActiveMatchBracket) == "function"
@@ -79,8 +88,8 @@ local function complete()
     or type(soloRated) ~= "boolean" or type(soloBrawl) ~= "boolean" then return end
   local outcome = "unknown"
   if (winner == 0 or winner == 1) and (faction == 0 or faction == 1) then outcome = winner == faction and "win" or "loss" end
-  local report = { version = 1, reportId = a.reportId, adapter = "forever-postmatch-v1",
-    edition = "forever", character = a.character, realm = a.realm, realmType = "normal",
+  local report = { version = 1, reportId = a.reportId, adapter = edition() .. "-postmatch-v1",
+    edition = edition(), character = a.character, realm = a.realm, realmType = "normal",
     mode = (soloRated or soloBrawl) and "blitz" or rated and "rated" or "casual", mapId = a.mapId, bracket = tostring(bracket),
     endedAt = math.floor(at), durationSeconds = math.floor(duration), outcome = outcome,
     presence = a.earlyExit and "early-exit" or a.reloaded and "unknown"

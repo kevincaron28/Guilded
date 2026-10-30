@@ -5,7 +5,7 @@ import { MessageFlags } from "discord.js";
 // "The application did not respond", because they replied only after the slow work.
 const mocks = vi.hoisted(() => ({
   calls: [] as string[],
-  db: { character: { findFirst: vi.fn() } },
+  db: { character: { findFirst: vi.fn() }, raid: { findMany: vi.fn() } },
   context: vi.fn(), officer: vi.fn(),
   start: vi.fn(), finish: vi.fn(), dungeon: vi.fn(), cleanup: vi.fn(),
   sync: vi.fn(), proposal: vi.fn()
@@ -44,6 +44,7 @@ beforeEach(() => {
   mocks.context.mockResolvedValue({ guildId: "guild1", memberId: "member1" });
   mocks.officer.mockReturnValue(true);
   mocks.db.character.findFirst.mockResolvedValue({ realm: "WoW Forever" });
+  mocks.db.raid.findMany.mockResolvedValue([]);
   mocks.start.mockImplementation(async () => { mocks.calls.push("start"); return { raid, members: 10, counts: { SIGNED_UP: 7, MAYBE: 2, WAITLISTED: 1 } }; });
   mocks.finish.mockImplementation(async () => { mocks.calls.push("finish"); return { raid, attending: 9, late: 0, noShow: 0, walkIn: 0, loot: [] }; });
   mocks.cleanup.mockImplementation(async () => { mocks.calls.push("cleanup"); return { raids: 1, dungeonRuns: 0, members: 10, auctions: 0, imports: 0 }; });
@@ -79,5 +80,27 @@ describe("/setup testraid acknowledges Discord before slow work", () => {
     await run(i);
     expect(mocks.calls).toEqual(["reply"]);
     expect(mocks.start).not.toHaveBeenCalled();
+  });
+
+  it("deletes only referenced bot posts and retains cleanup references on a permission or author failure", async () => {
+    mocks.db.raid.findMany.mockResolvedValue([{ signupChannelId: "channel", signupMessageId: "message" }]);
+    const remove = vi.fn(async () => { mocks.calls.push("deletePost"); });
+    const fetchMessage = vi.fn().mockResolvedValue({ author: { id: "bot" }, delete: remove });
+    const i = { ...interaction("cleanup"), client: { user: { id: "bot" } }, guild: {
+      id: "discord-guild", channels: { fetch: vi.fn().mockResolvedValue({ isTextBased: () => true, messages: { fetch: fetchMessage } }) }
+    } };
+    await run(i);
+    expect(mocks.db.raid.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { guildId: "guild1", isTest: true } }));
+    expect(mocks.calls).toEqual(["deferReply", "deletePost", "cleanup", "editReply"]);
+    mocks.cleanup.mockClear(); remove.mockClear();
+    fetchMessage.mockResolvedValue({ author: { id: "human" }, delete: remove });
+    await expect(run(i)).rejects.toThrow("author mismatch");
+    expect(remove).not.toHaveBeenCalled(); expect(mocks.cleanup).not.toHaveBeenCalled();
+    fetchMessage.mockRejectedValue({ code: 50013 });
+    await expect(run(i)).rejects.toEqual({ code: 50013 });
+    expect(mocks.cleanup).not.toHaveBeenCalled();
+    fetchMessage.mockRejectedValue({ code: 10008 });
+    await run(i);
+    expect(mocks.cleanup).toHaveBeenCalledOnce();
   });
 });

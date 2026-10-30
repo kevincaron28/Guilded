@@ -55,7 +55,7 @@ import { executeTag } from "./commands/tag.js";
 import { handleSelfRoleButton, SELF_ROLE_PREFIX } from "./commands/selfroles.js";
 import { EP_AWARD_PREFIX, handleEpAwardButton } from "./commands/ep-award.js";
 import { executeCore } from "./commands/core.js";
-import { executePoll, handlePollButton, POLL_PREFIX } from "./commands/poll.js";
+import { executePoll, handlePollButton, handleWeeklyQuestionButton, POLL_PREFIX, WEEKLY_QUESTION_PREFIX } from "./commands/poll.js";
 import { CRAFT_PREFIX, handleCraftButton, handleCraftModal } from "./commands/craft-board.js";
 import {
   cleanupDungeonGroups, DUNGEON_GROUP_PREFIX, handleDungeonGroupButton, handleDungeonGuideButton, handleDungeonGuideModal, handleDungeonGuideSelect
@@ -75,6 +75,7 @@ import { executeHelp } from "./commands/help.js";
 import { handleAutocomplete } from "./commands/autocomplete.js";
 import { prisma } from "./database.js";
 import { runRaidReminders } from "./services/reminders.js";
+import { queueExpiredPolls } from "./services/poll-expiry.js";
 import { runCooldownPings } from "./services/recipes.js";
 import { DUNGEON_SEASON_SELECT, handleDungeonSeasonSelect, updateDungeonLeaderboard } from "./services/dungeon-leaderboard.js";
 import { refreshExistingBotGuides } from "./services/bot-messages.js";
@@ -260,6 +261,8 @@ client.once(Events.ClientReady, (readyClient) => {
   void reconcileGameEvents();
   setInterval(() => void reconcileGameEvents(), 60_000);
   setInterval(() => void runDiscordJobs(readyClient).catch(reportJobError("Discord delivery queue")), 60_000);
+  void queueExpiredPolls(prisma).catch(reportJobError("Poll expiry"));
+  setInterval(() => void queueExpiredPolls(prisma).catch(reportJobError("Poll expiry")), 60_000);
   // Repair missing event jobs after a restart and advance game nights at their times.
   let reconcilingEvents = false;
   const reconcileEvents = async () => {
@@ -628,6 +631,10 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   }
   if (interaction.isButton() && interaction.customId.startsWith(POLL_PREFIX)) {
     await handlePollButton(interaction).catch((error: unknown) => reportInteractionError("Poll button", interaction, error));
+    return;
+  }
+  if (interaction.isButton() && interaction.customId.startsWith(WEEKLY_QUESTION_PREFIX)) {
+    await handleWeeklyQuestionButton(interaction).catch((error: unknown) => reportInteractionError("Weekly question review", interaction, error));
     return;
   }
   if (interaction.isStringSelectMenu() && interaction.customId === `${DUNGEON_GUIDE_PREFIX}kind`) {

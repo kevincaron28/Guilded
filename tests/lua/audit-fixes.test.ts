@@ -301,6 +301,8 @@ describe("dungeon runs are only believed from people who were in them", () => {
   function withRun(): LuaSession {
     const s = loggedIn(["Modules/Dungeon.lua"]);
     s.run(String.raw`
+      NS.util.inMyGroup = function(name) return name == "Bob" or name == "Ann" end
+      NS.isGuildMember = function(name) return name == "Zed" or name == "Faker" end
       GuildedDB.dungeon = { runs = {}, current = {
         id = "QG-R1", state = "ACTIVE", recorder = "Bob", instanceId = 36, name = "The Deadmines",
         detectedAt = 1800000000 - 1800, startedAt = 1800000000 - 1700, encounters = {}, reporters = { Kev = true },

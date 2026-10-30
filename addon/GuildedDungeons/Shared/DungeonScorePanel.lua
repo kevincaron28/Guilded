@@ -78,7 +78,8 @@ function view.model(name, seasonIndex, bracketKey, period, role)
     end
   end
   -- Keep known unvisited Classic dungeons visible without merging actual instance IDs.
-  for _, dungeon in ipairs(snapshot and (snapshot.provisional or snapshot.version == 5 or snapshot.version == 6) and {} or score.DUNGEONS) do
+  local retail = ns.util and ns.util.gameEdition and ns.util.gameEdition() == "retail"
+  for _, dungeon in ipairs((retail or snapshot and (snapshot.provisional or snapshot.version == 5 or snapshot.version == 6)) and {} or score.DUNGEONS) do
     if not known[dungeon.key] then cards[#cards + 1] = { name = dungeon.name, minLevel = dungeon.minLevel, maxLevel = dungeon.maxLevel, points = available and 0 or nil } end
   end
   table.sort(cards, function(a, b)
@@ -448,6 +449,10 @@ function view.open(mode)
     view.window:SetFrameStrata("DIALOG")
   end
   if mode then view.window.mode = mode end
+  -- The fallback is a separate window, not a page inside Blizzard's finder.
+  -- Opening it must not leave the finder behind its controls. Combat is guarded above.
+  local finder = LFGParentFrame or PVEFrame or LFGFrame
+  if finder and finder.IsShown and finder:IsShown() then ns.util.hideWindow(finder) end
   view.window:Show()
   view.window:Refresh()
 end

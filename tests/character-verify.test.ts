@@ -14,15 +14,17 @@ function newGuild() {
   const characters: { id: string; name: string; realm: string; memberId: string; isMain: boolean; member?: unknown }[] = [];
   const codes: { guildId: string; memberId: string; code: string }[] = [];
   const claims: { guildId: string; memberId: string; nameKey: string; status: string }[] = [];
-  const users: Record<string, string> = { ray: "user-ray", kev: "user-kev" };
+  const users: Record<string, string> = { ray: "user-ray", kev: "user-kev", sam: "user-sam" };
   const db = {
     character: {
       findMany: vi.fn(async () => characters.map((row) => ({ ...row, member: { discordUserId: users[row.memberId] } }))),
       findFirst: vi.fn(async ({ where }) => characters.find((row) => row.memberId === where.memberId && row.name === where.name) ?? null),
       count: vi.fn(async ({ where }) => characters.filter((row) => row.memberId === where.memberId && (!where.isMain || row.isMain)).length),
       create: vi.fn(async ({ data }) => { const row = { id: `character-${characters.length}`, ...data }; characters.push(row); return row; }),
-      update: vi.fn(async ({ where, data }) => Object.assign(characters.find((row) => row.id === where.id)!, data))
+      update: vi.fn(async ({ where, data }) => Object.assign(characters.find((row) => row.id === where.id)!, data)),
+      delete: vi.fn(async ({ where }) => characters.splice(characters.findIndex((row) => row.id === where.id), 1)[0])
     },
+    member: { findUnique: vi.fn(async ({ where }) => (users[where.id] ? { discordUserId: users[where.id] } : null)) },
     characterVerifyCode: {
       upsert: vi.fn(async ({ where, create }) => {
         const found = codes.find((row) => row.guildId === where.guildId_memberId.guildId && row.memberId === where.guildId_memberId.memberId);
@@ -35,7 +37,7 @@ function newGuild() {
     },
     characterVerifyClaim: {
       findFirst: vi.fn(async ({ where }) => claims.find((row) => row.guildId === where.guildId && row.memberId === where.memberId && row.nameKey === where.nameKey && row.status === where.status) ?? null),
-      findMany: vi.fn(async ({ where }) => claims.filter((row) => row.guildId === where.guildId && where.memberId.in.includes(row.memberId))),
+      findMany: vi.fn(async ({ where }) => claims.filter((row) => row.guildId === where.guildId && where.nameKey.in.includes(row.nameKey))),
       upsert: vi.fn(async ({ where, create, update }) => {
         const key = where.guildId_memberId_nameKey;
         const found = claims.find((row) => row.guildId === key.guildId && row.memberId === key.memberId && row.nameKey === key.nameKey);
@@ -98,7 +100,7 @@ describe("linking from an officer's upload", () => {
     expect(guild.characters.map((row) => [row.name, row.memberId, row.isMain])).toEqual([["Highpriest Cheech", "ray", true], ["Cheech Alt", "ray", false]]);
   });
 
-  it("only trusts an officer's upload: a member's own companion could pair any name with their code", async () => {
+  it("needs an officer or a paired member to upload", async () => {
     const guild = newGuild();
     const code = await verifyCodeFor(guild.database, "guild", "ray");
     expect(await linkVerifiedCharacters(guild.database, "guild", { officer: false }, peer("Guild Master", code))).toEqual([]);
@@ -150,6 +152,56 @@ describe("linking from an officer's upload", () => {
   });
 });
 
+describe("linking from a member's upload", () => {
+  const member = { officer: false, memberId: "sam" };
+
+  it("links right away, provisionally, and names the member whose addon heard it", async () => {
+    const guild = newGuild();
+    const code = await verifyCodeFor(guild.database, "guild", "ray");
+    expect(await linkVerifiedCharacters(guild.database, "guild", member, peer("Ray", code)))
+      .toEqual([{ discordUserId: "user-ray", name: "Ray", status: "linked", isMain: true, reportedBy: "user-sam" }]);
+    expect(guild.claims).toEqual([{ guildId: "guild", memberId: "ray", nameKey: "ray", status: "PROVISIONAL" }]);
+    // The next officer upload that hears the same code confirms it, without a second DM.
+    expect(await linkVerifiedCharacters(guild.database, "guild", officer, peer("Ray", code))).toEqual([]);
+    expect(guild.claims[0]!.status).toBe("LINKED");
+  });
+
+  it("lets an officer's upload move a provisional link to the member whose code it really heard", async () => {
+    const guild = newGuild();
+    const ray = await verifyCodeFor(guild.database, "guild", "ray");
+    const kev = await verifyCodeFor(guild.database, "guild", "kev");
+    // Sam's saved file claimed Kev's character carried Ray's code.
+    await linkVerifiedCharacters(guild.database, "guild", member, peer("Kevchar", ray));
+    const originalId = guild.characters[0]!.id;
+    expect(guild.characters.map((row) => [row.name, row.memberId])).toEqual([["Kevchar", "ray"]]);
+    expect(await linkVerifiedCharacters(guild.database, "guild", officer, peer("Kevchar", kev)))
+      .toEqual([{ discordUserId: "user-kev", name: "Kevchar", status: "linked", isMain: true, movedFrom: "user-ray" }]);
+    expect(guild.characters.map((row) => [row.name, row.memberId])).toEqual([["Kevchar", "kev"]]);
+    expect(guild.characters[0]!.id).toBe(originalId);
+    expect(guild.db.character.delete).not.toHaveBeenCalled();
+    expect(guild.db.character.create).toHaveBeenCalledTimes(1);
+    // Ray's code no longer links it back, from anyone.
+    expect(await linkVerifiedCharacters(guild.database, "guild", member, peer("Kevchar", ray))).toEqual([]);
+    expect(guild.claims.find((claim) => claim.memberId === "ray")!.status).toBe("REMOVED");
+  });
+
+  it("never takes a linked character and says nothing about it", async () => {
+    const guild = newGuild();
+    guild.characters.push({ id: "taken", name: "Ray", realm: "Forever", memberId: "kev", isMain: true });
+    const code = await verifyCodeFor(guild.database, "guild", "ray");
+    expect(await linkVerifiedCharacters(guild.database, "guild", member, peer("Ray", code))).toEqual([]);
+    expect(guild.claims).toEqual([]);
+  });
+
+  it("links at most five guildmates' characters per upload", async () => {
+    const guild = newGuild();
+    const code = await verifyCodeFor(guild.database, "guild", "ray");
+    const many = Array.from({ length: 7 }, (_, index) => peer(`Char${index}`, code)[0]!);
+    expect(await linkVerifiedCharacters(guild.database, "guild", member, many)).toHaveLength(5);
+    expect(guild.characters).toHaveLength(5);
+  });
+});
+
 describe("telling the member", () => {
   it("DMs without pings and logs new links for officers", async () => {
     const send = vi.fn().mockResolvedValue(undefined);
@@ -165,6 +217,22 @@ describe("telling the member", () => {
     expect(send.mock.calls[1]![1].content).toContain("déjà lié à quelqu'un d'autre sur **Quebec Gold**");
     // Only the new link reaches the officers' log (postToLogChannel never pings).
     expect(logged).toHaveBeenCalledWith(discordGuild, "🔗 Ray was linked to <@user-ray> by their /guilded verify code.");
+  });
+
+  it("tells officers who reported a provisional link, and the member an officer's sync moved it from", async () => {
+    logged.mockClear();
+    const send = vi.fn().mockResolvedValue(undefined);
+    const discordGuild = { id: "server", name: "Quebec Gold" };
+    const client = { guilds: { fetch: vi.fn().mockResolvedValue(discordGuild) }, users: { send } };
+    await tellVerified(client as never, "server", "en", [
+      { discordUserId: "user-ray", name: "Ray", status: "linked", isMain: true, reportedBy: "user-sam" },
+      { discordUserId: "user-kev", name: "Kevchar", status: "linked", isMain: false, movedFrom: "user-ray" }
+    ]);
+    expect(send.mock.calls.map((call) => call[0])).toEqual(["user-ray", "user-kev", "user-ray"]);
+    expect(send.mock.calls[2]![1].content).toContain("**Kevchar** was unlinked from your Discord account");
+    const log = logged.mock.calls[0]![1] as string;
+    expect(log).toContain("heard by <@user-sam>'s addon");
+    expect(log).toContain("moved it from <@user-ray>");
   });
 
   it("never throws when Discord is unreachable", async () => {

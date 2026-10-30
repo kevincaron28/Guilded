@@ -1,6 +1,6 @@
 {
-  "version": "8.1.0",
-  "channel": "candidate",
-  "notes": "docs/V8_1_0_RELEASE_NOTES.md",
-  "acceptance": "docs/NOV4_RELEASE_CANDIDATE.md"
+  "version": "8.2.0",
+  "channel": "release",
+  "notes": "docs/V8_2_0_RELEASE_NOTES.md",
+  "acceptance": "docs/V8_2_0_RELEASE_ACCEPTANCE.md"
 }

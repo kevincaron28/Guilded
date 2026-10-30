@@ -113,6 +113,8 @@ describe("online companion session and queue", () => {
     expect(all.config.guildDiscordId).toBe("123");
     expect(all.state.poe?.pending).toBe(1);
     expect(JSON.stringify([...storage.values()])).not.toContain(profile.pairingCode);
+    await expect(reopened.removeData()).rejects.toThrow("Sync queued observations");
+    await reopened.uploadNow();
     await reopened.removeData();
     expect(storage.size).toBe(0); expect(session.size).toBe(0);
     expect((await createBrowserCompanion(env as never).getAll()).config.companionCredential).toBeUndefined();
@@ -172,6 +174,17 @@ describe("online companion session and queue", () => {
     env.fetch.mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({ error: "Pair this companion again." }) } as never);
     expect(await api.testConnection({ ...profile, wowEnabled: true })).toMatchObject({ ok: false, message: "Pair this companion again." });
   });
+  it("requires personal authorization even when the server is healthy", async () => {
+    const { env } = environment(); const api = createBrowserCompanion(env as never);
+    env.fetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ personal: true, companionCredential: "p".repeat(43) }) });
+    await api.pairAccount(profile); env.fetch.mockClear();
+    for (const status of [200, 401, 404]) {
+      env.fetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ ok: true }) });
+      env.fetch.mockResolvedValueOnce({ ok: status === 200, status, json: async () => ({ ok: true, scope: "personal" }) });
+      expect(await api.testConnection(profile)).toMatchObject({ ok: status === 200 });
+    }
+    expect(env.fetch.mock.calls.filter(call => call[0].endsWith("personal-status"))).toHaveLength(3);
+  });
   it("does not claim a connected account when health is unready or only a PoE profile is selected", async () => {
     const { env } = environment(); const api = createBrowserCompanion(env as never);
     env.fetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ ok: false }) } as never);
@@ -227,6 +240,34 @@ describe("online companion session and queue", () => {
     await api.pairAccount(profile); await api.removeData();
     expect(env.fetch.mock.calls.at(-1)?.[0]).toBe("/api/v1/companion/logout");
     expect(storage.size).toBe(0); expect(env.location.reload).toHaveBeenCalledOnce();
+  });
+
+  it("disconnects every saved browser credential including personal profiles, deduplicating tokens", async () => {
+    const { env, storage } = environment();
+    storage.set("guilded.companion.device.v1", JSON.stringify({ config: {
+      companionCredential: "a".repeat(43), guildDiscordId: "123",
+      profiles: { personal: { companionCredential: "b".repeat(43), personal: true }, duplicate: { companionCredential: "a".repeat(43) } }
+    } }));
+    const api = createBrowserCompanion(env as never);
+    await api.removeData();
+    expect(env.fetch).toHaveBeenCalledTimes(2);
+    expect(env.fetch.mock.calls.map(([, options]) => (options as unknown as { headers: Record<string, string> }).headers["x-companion-credential"]).sort()).toEqual(["a".repeat(43), "b".repeat(43)]);
+    expect(storage.size).toBe(0);
+  });
+
+  it("retains saved connections and exposes a retry when any revocation fails", async () => {
+    const { env, storage } = environment();
+    storage.set("guilded.companion.device.v1", JSON.stringify({ config: {
+      companionCredential: "a".repeat(43), profiles: { other: { companionCredential: "b".repeat(43), personal: true } }
+    } }));
+    const api = createBrowserCompanion(env as never);
+    env.fetch.mockRejectedValueOnce(new Error("offline"));
+    await expect(api.removeData()).rejects.toThrow("Saved connections were retained");
+    expect(env.fetch).toHaveBeenCalledTimes(2);
+    expect(storage.size).toBe(1);
+    expect(env.location.reload).not.toHaveBeenCalled();
+    await api.removeData();
+    expect(storage.size).toBe(0);
   });
 });
 

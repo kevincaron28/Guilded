@@ -70,8 +70,8 @@ the manual way: `/guilded character` in game, pasted into Discord's
    sign-in page, then choose your server.
 2. Enable WoW and choose your account's SavedVariables folder. Use **Save standings
    to addon** once to choose `Interface/AddOns/Guilded`. After `/reload`, click
-   **Sync now** on your main first if none is linked. Choose
-   `/guilded setup connected` for Discord standings, then `/reload` again.
+   **Sync now** on your main first if none is linked, then `/reload` again: the
+   addon switches to the Discord standings by itself.
 
 The Windows companion is optional for automatic file watching, background sync
 and PoE2 log tracking, especially useful for leaders and officers.

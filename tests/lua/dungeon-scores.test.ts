@@ -23,6 +23,13 @@ function setup() {
 }
 
 describe("guild-only dungeon scores", () => {
+  it("does not invent Classic dungeon cards for Retail without a season catalog", () => {
+    const s = setup();
+    s.run('NS.util.gameEdition=function() return "retail" end; DB.dungeonBoard=nil');
+    expect(s.run('return #NS.dungeonScorePanel.model("Tester").cards')).toBe("0");
+    s.run('NS.util.gameEdition=function() return "forever" end');
+    expect(Number(s.run('return #NS.dungeonScorePanel.model("Tester").cards'))).toBeGreaterThan(0);
+  });
   it("validates model 4 totals from only the best eight routes while retaining coverage", () => {
     const s = setup();
     s.run(`PAYLOAD="S;beta;4;1600;1;1"

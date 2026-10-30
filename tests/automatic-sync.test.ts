@@ -26,6 +26,13 @@ describe("enabled profile synchronization", () => {
     const a = { ...guild("a"), wowGuild: "" }, b = { ...guild("b"), watchFile: a.watchFile };
     expect(planProfiles({ ...a, activeProfile: "a", profiles: { b } }).every(p => !!p.error)).toBe(true);
   });
+  it("does not treat older credentials for one Discord server as one WoW guild", () => {
+    const a = { ...guild("a"), guildDiscordId: "shared", wowGuildId: undefined, wowGuild: "" };
+    const b = { ...a, companionCredential: "different-credential" };
+    expect(planProfiles({ ...a, activeProfile: "a", profiles: { b } }).every(p => !!p.error)).toBe(true);
+    const routed = { ...a, wowGuild: "Alpha-Realm" };
+    expect(planProfiles({ ...routed, activeProfile: "a", profiles: { b: { ...b, wowGuild: "Beta-Realm" } } }).every(p => !p.error && p.config.requireWowGuild)).toBe(true);
+  });
   it("also reserves the companion data addon when custom standings files differ", () => {
     const a = { ...guild("a"), standingsFile: "/game/AddOns/Guilded/first.lua" };
     const b = { ...guild("b"), standingsFile: "/game/AddOns/Guilded/second.lua" };

@@ -8,6 +8,15 @@ import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./disc
 
 const guildService = createGuildService(prisma);
 
+export async function officerReportDestination(guild: DiscordGuild | null) {
+  if (!guild) return null;
+  const address = await notifyAddress(guild, "officer");
+  if (!address) return null;
+  const { diagnosticTarget } = await import("./diagnostic-target.js");
+  const target = await diagnosticTarget(guild.client, address.channelId, guild.id);
+  return target ? { id: target.id, label: target.label } : null;
+}
+
 // Text that's rendered in the guild's language when it's posted.
 export type Localized<T = string> = (lang: Lang) => T;
 
@@ -45,7 +54,7 @@ async function notifyTarget(discordGuild: DiscordGuild, kind: NotifyKind = "noti
   return channel?.isTextBased() ? { channel, lang: address.lang } : null;
 }
 
-async function durableMessage(guild: DiscordGuild, guildId: string, channelId: string, message: MessageCreateOptions, route: NotifyKind | "dungeon", coreId: string | null = null): Promise<boolean> {
+async function durableMessage(guild: DiscordGuild, guildId: string, channelId: string, message: MessageCreateOptions, route: NotifyKind | "dungeon" | "officerReport", coreId: string | null = null): Promise<boolean> {
   const job = await enqueueDiscordJob(prisma, guildId, `message:${randomUUID()}`, "MESSAGE", { channelId, route, coreId, message: JSON.parse(JSON.stringify(message)) } as Prisma.InputJsonValue);
   await deliverDiscordJob(prisma, job.id, current => dispatchDiscordJob(guild, current));
   return (await prisma.discordJob.findUnique({ where: { id: job.id } }))?.status === "DONE";
@@ -92,12 +101,13 @@ export async function notify(discordGuild: DiscordGuild | null, content: string 
 
 // Same rules as notify(), for richer posts like the raid report. Pass
 // "raidLog" to prefer the raid-logs channel (falls back to announcements).
-export async function notifyEmbed(discordGuild: DiscordGuild | null, embed: EmbedBuilder | Localized<EmbedBuilder>, channel: NotifyKind = "notify", coreId: string | null = null): Promise<boolean> {
+export async function notifyEmbed(discordGuild: DiscordGuild | null, embed: EmbedBuilder | Localized<EmbedBuilder>, channel: NotifyKind = "notify", coreId: string | null = null, consentedChannelId?: string): Promise<boolean> {
   if (!discordGuild) return false;
   try {
     const target = await notifyAddress(discordGuild, channel, coreId);
     if (!target) return false;
-    return durableMessage(discordGuild, target.guildId, target.channelId, { embeds: [typeof embed === "function" ? embed(target.lang) : embed] }, channel, coreId);
+    if (consentedChannelId && (target.channelId !== consentedChannelId || (await officerReportDestination(discordGuild))?.id !== consentedChannelId)) return false;
+    return durableMessage(discordGuild, target.guildId, target.channelId, { embeds: [typeof embed === "function" ? embed(target.lang) : embed] }, consentedChannelId ? "officerReport" : channel, coreId);
   } catch (error) {
     console.error("Failed to post notification embed", error);
     return false;

@@ -1,7 +1,7 @@
 {
   "name": "guilded-companion",
   "productName": "Guilded Companion",
-  "version": "8.1.0",
+  "version": "8.2.0",
   "description": "Your guild, connected. World of Warcraft sync and Path of Exile 2 mapping.",
   "main": "main.cjs",
   "private": true,
@@ -37,7 +37,8 @@
       "renderer/**",
       "assets/**",
       "package.json",
-      "ipc-security.cjs"
+      "ipc-security.cjs",
+      "sign-in-loopback.cjs"
     ],
     "extraResources": [
       {

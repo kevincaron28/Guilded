@@ -32,7 +32,7 @@ The preset is an editable guild policy, not a claim that these numbers are mathe
 
 ## Editing and audit history
 
-Core overrides take precedence over guild overrides, then equipment slot prices. Guild prices are excluded when core-only loot is enabled. Within a scope, an item-level override precedes a name override, then the generic item ID. Use **Cores & prices** for individual exceptions:
+Core overrides take precedence over guild overrides, then equipment slot prices. Guild prices are excluded when core-only loot is enabled. Within a scope, an item-level override precedes a name override, then the generic item ID. Use **Roster & loot settings** for individual exceptions:
 
 ```text
 id:12345 = 100

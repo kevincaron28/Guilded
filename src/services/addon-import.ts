@@ -1,4 +1,5 @@
 import { withEdition } from "./edition-context.js";
+import { assertAddonGuildScope } from "./addon-scope.js";
 import { createHash } from "node:crypto";
 import { DkpTransactionType, type DkpTransaction, type EpgpTransaction, type EpgpTransactionType, type Prisma, type PrismaClient } from "../generated/prisma/client.js";
 import { normalizeAddonSnapshot, parseAddonSnapshot, type AddonSnapshot } from "../integrations/addon.js";
@@ -57,8 +58,9 @@ export function createAddonImportService(database: PrismaClient) {
 
     // The same for a snapshot already parsed (a member's upload narrowed to their own characters).
     async previewSnapshot(guildId: string, snapshot: AddonSnapshot, createdBy: string) {
-      const guild = await database.guild.findUnique({ where: { id: guildId }, select: { gameEdition: true } });
+      const guild = await database.guild.findUnique({ where: { id: guildId }, select: { gameEdition: true, wowSpace: { select: { name: true, realm: true } } } });
       assertSnapshotEdition(snapshot, gameEditionOf(guild ?? {}));
+      assertAddonGuildScope(snapshot, guild);
       const checksum = createHash("sha256").update(JSON.stringify(snapshot)).digest("hex");
       const existing = await database.addonImport.findFirst({ where: { guildId, checksum } });
       return {
@@ -99,8 +101,9 @@ export function createAddonImportService(database: PrismaClient) {
         const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { dataResetAt: true, dungeonLeaderboardChannelId: true, craftChannelId: true, coreLootOnly: true, characterSignups: true } });
         const resetAt = settings?.dataResetAt ?? null;
         const snapshot = excludeHistoryBeforeReset(parseAddonSnapshot(imported.payload), resetAt);
-        const guild = await tx.guild.findUnique({ where: { id: guildId }, select: { gameEdition: true } });
+        const guild = await tx.guild.findUnique({ where: { id: guildId }, select: { gameEdition: true, wowSpace: { select: { name: true, realm: true } } } });
         assertSnapshotEdition(snapshot, gameEditionOf(guild ?? {}));
+        assertAddonGuildScope(snapshot, guild);
         return withEdition(gameEditionOf(guild ?? {}), async () => {
         const characters = await tx.character.findMany({
           where: { member: { guildId } },

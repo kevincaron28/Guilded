@@ -31,7 +31,7 @@ local SKIP = {
 -- The copy kept for /guilded restore undo is a whole second set of data in the saved file,
 -- so it is dropped after this long (or at once with /guilded restore forget).
 local UNDO_KEEP_SECONDS = 7 * 86400
-local KEEP = { version = true, guildKey = true, otherGuilds = true }
+local KEEP = { version = true, guildKey = true, guildEdition = true, otherGuilds = true }
 -- What belongs to the PC, not to the guild's records: a restore keeps the receiving PC's own
 -- values (16 October: a restore turned ledger sync on, listed the player as their own sync
 -- partner and opened a chat tab, all copied from the officer who made the backup).
@@ -39,7 +39,8 @@ local KEEP = { version = true, guildKey = true, otherGuilds = true }
 -- restored officer's code would hand the receiving player's characters to that officer.
 local PER_PC_FIELDS = { myCharacters = true, bridgeCompanionGuild = true, verifyCode = true }
 local PER_PC_SETTINGS = {
-  setupMode = true, ledgerSync = true, ledgerSyncSeen = true, ledgerSyncMatch = true, officerBridge = true,
+  guildRealmAliases = true,
+  setupMode = true, setupModeAuto = true, connectedHintShown = true, ledgerSync = true, ledgerSyncSeen = true, ledgerSyncMatch = true, officerBridge = true,
   chatTab = true, language = true, hideBossTimer = true, mapShare = true, mapShow = true,
   minimapAngle = true, minimapHidden = true, panelPoint = true, panelScale = true, panelTab = true, windowState = true
 }
@@ -223,7 +224,7 @@ function module.build()
   local standalone = db.settings and db.settings.setupMode == "local"
   local standaloneStandings
   if standalone then standaloneStandings = db.standings or false end
-  local payload = encode({ v = 1, guildKey = db.guildKey or "", at = ns.now and ns.now() or "", by = ns.playerName and ns.playerName() or "", data = data,
+  local payload = encode({ v = 1, guildKey = db.guildKey or "", gameEdition = ns.util.gameEdition(), at = ns.now and ns.now() or "", by = ns.playerName and ns.playerName() or "", data = data,
     standaloneStandings = standaloneStandings })
   return FORMAT .. ":" .. checksum(payload) .. ":" .. b64encode(payload)
 end
@@ -241,11 +242,16 @@ function module.inspect(code)
   if checksum(payload) ~= sum then return nil, "The backup code is damaged (checksum does not match). Copy the whole code again." end
   local ok, parsed = pcall(decode, payload)
   if not ok or type(parsed) ~= "table" or type(parsed.data) ~= "table" then return nil, "The backup could not be read: " .. tostring(parsed) end
-  -- Keys are "<guild>-<realm>". On WoW Forever the same guild shows a different realm text on
-  -- each PC ("Classic Beta PvP" and "Classic Beta PvP 2" on 16 October), so only the guild name
-  -- must match, as Core.lua does when a realm is renamed.
+  -- Realm aliases require an explicit local mapping on Forever. Same names
+  -- are not evidence that two guilds or editions share a ledger.
   local function guildPart(key) return (string.match(key, "^(.*)%-[^%-]*$")) or key end
-  if db and db.guildKey and parsed.guildKey and parsed.guildKey ~= "" and guildPart(parsed.guildKey) ~= guildPart(db.guildKey) then
+  local edition = ns.util.gameEdition()
+  if not parsed.gameEdition and edition ~= "forever" then return nil, "This old backup has no WoW edition. Its scope cannot be verified. Nothing was changed." end
+  if parsed.gameEdition and parsed.gameEdition ~= edition then return nil, "This backup belongs to a different WoW edition. Nothing was changed." end
+  local aliases = db and db.settings and db.settings.guildRealmAliases
+  local explicitAlias = edition == "forever" and parsed.gameEdition == "forever" and type(aliases) == "table"
+    and aliases[parsed.guildKey] == db.guildKey and guildPart(parsed.guildKey) == guildPart(db.guildKey)
+  if db and db.guildKey and parsed.guildKey and parsed.guildKey ~= "" and parsed.guildKey ~= db.guildKey and not explicitAlias then
     return nil, "This backup is from guild " .. parsed.guildKey .. ", but your saved data belongs to " .. db.guildKey .. ". Nothing was changed."
   end
   local data = parsed.data
@@ -348,8 +354,9 @@ local function ensureFrame()
     local code = frame.box:GetText() or ""
     local info, err = module.inspect(code)
     if not info then ns.message(err) return end
-    if previewed ~= #code then
-      previewed = #code
+    local scope = (activeDb().guildKey or "") .. "|" .. ns.util.gameEdition()
+    if not previewed or previewed.code ~= code or previewed.scope ~= scope then
+      previewed = { code = code, scope = scope }
       ns.message(string.format("Backup from %s by %s: %d raid(s), %d ledger entries, %d known members. Press Restore again to replace your saved data (undo: /guilded restore undo).",
         info.parsed.at ~= "" and info.parsed.at or "?", info.parsed.by ~= "" and info.parsed.by or "?", info.raids, info.ledger, info.members))
       local text = "Local guild: %d core(s), %d roster entries. Restore replaces this PC's copy; it does not merge officers' records."
@@ -388,6 +395,8 @@ ns.commandHandlers["backup"] = function()
   ns.message(string.format("Backup code: %d characters. Copy it from the box (Ctrl+C) and keep it somewhere safe.%s", #code,
     #code > 200000 and " It is large; paste it into a text file, not a chat window." or ""))
   ns.lastBackupCode = code
+  local scopeNote = "This code excludes per-character imported loot history. Back up the character's SavedVariables/Guilded.lua file separately."
+  ns.message(ns.L and ns.L(scopeNote) or scopeNote)
   openBox("Guilded backup - copy this (Ctrl+C)", code, false)
 end
 -- Drops the undo copy once it is older than UNDO_KEEP_SECONDS. Returns true if it did.

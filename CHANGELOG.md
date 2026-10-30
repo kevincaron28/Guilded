@@ -1,5 +1,15 @@
 # Changelog
 
+## 8.2.0 — 30 October 2026 candidate
+
+Approved versioned raid playbooks and catch-up notes, voluntary supply planning,
+explainable bench advice, private member data/calendar/handover pages, optional
+onboarding, reviewed community features and truthful companion sync evidence.
+Includes isolated test pools, safer provisional character corrections, retry and
+scope fixes, Retail catalog/result-card corrections and translated layout polish.
+Protocol remains 2. Final publication is pending; existing provider bytes remain
+intact. See [release notes](docs/V8_2_0_RELEASE_NOTES.md).
+
 ## 8.1.0 — Candidate for 4 November 2026
 
 RCLootCouncil/Gargul loot-history conversion with explicit character mapping,

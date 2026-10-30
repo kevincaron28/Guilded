@@ -5,9 +5,10 @@
 -- test raid started around the same time.
 --
 -- Everything is marked test = true and /guilded sim clear removes it, including
--- any EP/GP it recorded, so it never reaches a real export by accident.
+-- any EP/GP it recorded. Saved tests can sync to Discord as test records.
 local addonName, ns = ...
 ns = ns or {}
+local function L(text) return ns.L and ns.L(text) or text end
 
 local SIM_NAMES = { "Testalpha", "Testbravo", "Testcharlie", "Testdelta", "Testecho", "Testfoxtrot",
   "Testgolf", "Testhotel", "Testindia", "Testjuliet" }
@@ -87,7 +88,7 @@ local function simClear()
   local count = 0
   for _ in pairs(testIds) do count = count + 1 end
   local dungeons = clearSimDungeons(d)
-  ns.message(string.format("Removed %d test raid(s), %d EP/GP entr%s and %d test dungeon run(s).", count, removedEntries, removedEntries == 1 and "y" or "ies", dungeons))
+  ns.message(string.format(L("Removed %d test raid(s), %d EP/GP entries and %d test dungeon run(s)."), count, removedEntries, dungeons))
 end
 
 -- A finished fake dungeon run (you + 4 fake players) saved like a real
@@ -121,7 +122,7 @@ local function simDungeon(minutesArg)
     completedBy = "boss", recorder = ns.playerName(), reporters = { [ns.playerName()] = true },
     encounters = {}, players = players
   }
-  ns.message(string.format("Test dungeon run saved (%d:%02d, you + %s). /reload so the companion sends it; an officer runs /import apply. /guilded sim clear removes it here, /setup testraid cleanup in Discord.",
+  ns.message(string.format(L("Test dungeon run saved (%d:%02d, you + %s). /reload so the companion sends it; an officer runs /import apply. /guilded sim clear removes it here, /setup testraid cleanup in Discord."),
     math.floor(duration / 60), duration % 60, table.concat({ SIM_NAMES[1], SIM_NAMES[2], SIM_NAMES[3], SIM_NAMES[4] }, ", ")))
 end
 
@@ -129,7 +130,10 @@ clearSimDungeons = function(root)
   local removed = 0
   if root and root.dungeon and root.dungeon.runs then
     for id, run in pairs(root.dungeon.runs) do
-      if run.test or string.sub(id, 1, 4) == "SIM-" then root.dungeon.runs[id] = nil; removed = removed + 1 end
+      if run.test or string.sub(id, 1, 4) == "SIM-" then
+        if ns.runResults and ns.runResults.remove then ns.runResults.remove(id) end
+        root.dungeon.runs[id] = nil; removed = removed + 1
+      end
     end
   end
   return removed

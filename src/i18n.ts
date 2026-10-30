@@ -184,6 +184,8 @@ const STRINGS = {
   "onboard.steps.games": { en: "Pick your games", fr: "Choisir tes jeux" },
   "onboard.steps.character": { en: "Link your WoW character", fr: "Lier ton personnage WoW" },
   "onboard.steps.characterOptional": { en: "Link your WoW character (optional; the addon works on its own)", fr: "Lier ton personnage WoW (facultatif; l'addon fonctionne seul)" },
+  "onboard.steps.professionsOptional": { en: "Share your professions (optional): `/profession set` or sync your addon", fr: "Partager tes métiers (facultatif) : `/profession set` ou synchroniser ton addon" },
+  "onboard.steps.firstRaidOptional": { en: "Confirm your first raid signup (optional): open your guild's signup post and choose a role", fr: "Confirmer ta première inscription à un raid (facultatif) : ouvre l'annonce de ta guilde et choisis un rôle" },
   "onboard.steps.next": { en: "Use the buttons below for what is left.", fr: "Sers-toi des boutons ci-dessous pour ce qu'il reste." },
   "onboard.steps.done": { en: "Your Discord access is ready! WoW character linking and the companion are optional. `/help` lists your commands.", fr: "Ton accès Discord est prêt ! Le lien du personnage WoW et le compagnon sont facultatifs. `/help` montre tes commandes." },
   "onboard.rules.prompt": {
@@ -222,16 +224,20 @@ const STRINGS = {
   "pair.verifyTitle": { en: "🎮 Link your characters: 1 step", fr: "🎮 Lier tes personnages : 1 étape" },
   "pair.verifyCompanionTitle": { en: "🎮 No companion? 1 step instead", fr: "🎮 Pas de compagnon ? 1 étape à la place" },
   "pair.verify": {
-    en: "Copy this line, paste it in WoW chat on any of your characters and press Enter:\n```\n/guilded verify {code}\n```That's all. Every character you play on this WoW account links itself, the first one as your main. It happens the next time an officer's Guilded syncs (usually the same day) and I'll send you a DM. Once is enough, also for alts.",
-    fr: "Copie cette ligne, colle-la dans le chat de WoW sur n'importe lequel de tes personnages et appuie sur Entrée :\n```\n/guilded verify {code}\n```C'est tout. Chaque personnage que tu joues sur ce compte WoW se lie tout seul, le premier comme principal. Ça se fait à la prochaine synchro Guilded d'un officier (souvent le jour même) et je t'envoie un MP. Une fois suffit, aussi pour les alts."
+    en: "Copy this line, paste it in WoW chat on any of your characters and press Enter:\n```\n/guilded verify {code}\n```That's all. Every character you play on this WoW account links itself, the first one as your main. It happens the next time anyone in the guild syncs with the Guilded companion (often within the hour) and I'll send you a DM. Once is enough, also for alts.",
+    fr: "Copie cette ligne, colle-la dans le chat de WoW sur n'importe lequel de tes personnages et appuie sur Entrée :\n```\n/guilded verify {code}\n```C'est tout. Chaque personnage que tu joues sur ce compte WoW se lie tout seul, le premier comme principal. Ça se fait à la prochaine synchro d'un membre de la guilde avec le compagnon Guilded (souvent en moins d'une heure) et je t'envoie un MP. Une fois suffit, aussi pour les alts."
   },
   "pair.verifySlow": {
-    en: "⏳ No officer's companion has synced in 2 weeks, so this can take longer. Can't wait? In WoW type `/guilded character`, then paste that line into `/character import` here.",
-    fr: "⏳ Aucun compagnon d'officier n'a synchronisé depuis 2 semaines, ça peut donc prendre plus de temps. Pressé ? Dans WoW tape `/guilded character`, puis colle cette ligne dans `/character import` ici."
+    en: "⏳ No officer's companion has synced in 2 weeks, so this can take longer if guildmates don't use the companion either. Can't wait? In WoW type `/guilded character`, then paste that line into `/character import` here.",
+    fr: "⏳ Aucun compagnon d'officier n'a synchronisé depuis 2 semaines, ça peut donc prendre plus de temps si tes coéquipiers n'utilisent pas le compagnon non plus. Pressé ? Dans WoW tape `/guilded character`, puis colle cette ligne dans `/character import` ici."
   },
   "verify.linked": {
     en: "✅ **{name}** is now linked to your Discord account on **{server}** as {kind} (your `/guilded verify` code). Not your character? Use `/character unlink` there.",
     fr: "✅ **{name}** est maintenant lié à ton compte Discord sur **{server}** comme {kind} (ton code `/guilded verify`). Ce n'est pas ton personnage ? Utilise `/character unlink` là-bas."
+  },
+  "verify.moved": {
+    en: "**{name}** was unlinked from your Discord account on **{server}**: an officer's Guilded heard another member's `/guilded verify` code from that character. If it is yours, ask an officer.",
+    fr: "**{name}** a été délié de ton compte Discord sur **{server}** : le Guilded d'un officier a reçu le code `/guilded verify` d'un autre membre depuis ce personnage. S'il est à toi, demande à un officier."
   },
   "verify.taken": {
     en: "**{name}** sent your `/guilded verify` code, but it is already linked to someone else on **{server}**. Ask an officer to move it to you.",
@@ -239,8 +245,8 @@ const STRINGS = {
   },
   "pair.optionalTitle": { en: "Optional: sync with the online companion", fr: "Facultatif : synchroniser avec le compagnon en ligne" },
   "pair.optional": {
-    en: "Want to sync saved data and download standings? Press **Connect optional companion**: in the companion choose **Sign in with Discord**, type the short code it shows on the page that opens, and press **Connect**. The online companion runs in your browser; the Windows app is optional. You keep your linked characters.",
-    fr: "Tu veux synchroniser tes données et télécharger les classements ? Appuie sur **Connecter le compagnon (facultatif)** : dans le compagnon, choisis **Connexion avec Discord**, tape le code court qu'il affiche sur la page qui s'ouvre, puis appuie sur **Relier**. Le compagnon en ligne fonctionne dans ton navigateur; l'appli Windows est facultative. Tes personnages liés restent liés."
+    en: "Want to sync saved data and download standings? Press **Connect optional companion**: in the companion choose **Sign in with Discord**, then press **Connect** on the page that opens. Nothing to type. The online companion runs in your browser; the Windows app is optional. You keep your linked characters.",
+    fr: "Tu veux synchroniser tes données et télécharger les classements ? Appuie sur **Connecter le compagnon (facultatif)** : dans le compagnon, choisis **Connexion avec Discord**, puis appuie sur **Relier** sur la page qui s'ouvre. Rien à taper. Le compagnon en ligne fonctionne dans ton navigateur; l'appli Windows est facultative. Tes personnages liés restent liés."
   },
   "pair.connectOptional": { en: "Connect optional companion", fr: "Connecter le compagnon (facultatif)" },
   "pair.addAlts": {
@@ -258,8 +264,8 @@ const STRINGS = {
   "pair.askLink": { en: "Ask an officer for your guild's online companion link.", fr: "Demande à un officier le lien du compagnon en ligne de ta guilde." },
   "pair.syncTitle": { en: "Connect the companion: 3 steps", fr: "Relier le compagnon : 3 étapes" },
   "pair.sync": {
-    en: "1. {companion} Choose **Sign in with Discord**. On the page that opens, type the short code your companion shows and press **Connect**.\n2. Pick your WoW folder (the Windows app finds it with **Find it**).\n3. Log in on your main, `/reload`, then **Sync now**. Your main and every alt that logged in on this PC link at once. To use Discord standings in game, run `/guilded setup connected` and `/reload`.",
-    fr: "1. {companion} Choisis **Sign in with Discord**. Sur la page qui s'ouvre, tape le code court affiché par ton compagnon et appuie sur **Relier**.\n2. Choisis ton dossier WoW (l'appli Windows le trouve avec **Find it**).\n3. Connecte-toi sur ton principal, fais `/reload`, puis **Sync now**. Ton principal et chaque alt connecté sur ce PC se lient d'un coup. Pour utiliser les classements Discord en jeu, fais `/guilded setup connected` puis `/reload`."
+    en: "1. {companion} Choose **Sign in with Discord**, then press **Connect** on the page that opens. Nothing to type.\n2. Pick your WoW folder (the Windows app finds it with **Find it**).\n3. Log in on your main, `/reload`, then **Sync now**. Your main and every alt that logged in on this PC link at once, and the addon uses the Discord standings from your next `/reload`.",
+    fr: "1. {companion} Choisis **Sign in with Discord**, puis appuie sur **Relier** sur la page qui s'ouvre. Rien à taper.\n2. Choisis ton dossier WoW (l'appli Windows le trouve avec **Find it**).\n3. Connecte-toi sur ton principal, fais `/reload`, puis **Sync now**. Ton principal et chaque alt connecté sur ce PC se lient d'un coup, et l'addon utilise les classements Discord dès ton prochain `/reload`."
   },
   "pair.checkTitle": { en: "Check the result", fr: "Vérifier le résultat" },
   "pair.check": {

@@ -16,6 +16,7 @@ const temp = mkdtempSync(join(tmpdir(), "guilded-db-"));
 try {
   run("npx", ["prisma", "migrate", "deploy"]);
   run("npx", ["prisma", "generate"]);
+  run("node", ["--import", "tsx", "scripts/verify-edition-calendar-initialization.ts"]);
   run("node", ["--import", "tsx", "scripts/verify-postgres.ts"]);
   run("node", ["--import", "tsx", "scripts/verify-reviewed-community.ts"]);
   run("node", ["--import", "tsx", "scripts/verify-simulation.ts"]);

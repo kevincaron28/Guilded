@@ -34,10 +34,10 @@
       }
     },
     "microsoftStore": {
-      "version": "8.0.2",
-      "packageVersion": "8.0.2.0",
+      "version": "8.2.0",
+      "packageVersion": "8.2.0.0",
       "url": "https://apps.microsoft.com/detail/9N680XX3QFL9",
-      "submission": "1152921505702260716"
+      "submission": "1152921505702272559"
     }
   }
 }

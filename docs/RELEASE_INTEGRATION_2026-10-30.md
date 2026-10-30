@@ -1,5 +1,13 @@
 # October 30 release integration
 
+Latest checkpoint: [8.2 publication evidence](V8_2_0_RELEASE_EVIDENCE_2026-10-30.md).
+GitHub and all ten CurseForge downloads are published and hash-verified; the
+backend is live. Forever's reviewed upcoming snapshot is actually installed.
+Store analysis and native Claude QA remain pending. The later authorized
+[edition calendars](EDITION_CALENDARS_2026-10-30.md) and
+[next battleground module](BATTLEGROUNDS_NEXT_MODULE.md) are separate work.
+Earlier preparation checkpoints below are retained as history.
+
 Kevin requested completion of the selected features, review fixes, small polish,
 live testing and publication today. This supersedes the earlier November 4 target;
 it does not turn unperformed acceptance or pending provider approval into a pass.

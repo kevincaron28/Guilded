@@ -17,18 +17,18 @@ isolated module. It is not part of the published 8.2.0 feature claims.
 
 Today's authoritative work list and release gates are in the
 [October 30 integration checklist](docs/RELEASE_INTEGRATION_2026-10-30.md).
-Additional selected work is pending: signup-based supply planning, approved
+The selected additions are implemented in 8.2.0: signup-based supply planning, approved
 missed-raid catch-up, progressive onboarding, personal calendar export, versioned
 raid playbooks, officer handover/change review, read-only external evidence links,
 member data centre, and explainable bench-rotation suggestions. The checklist
 also tracks accessibility/context/recovery checks and the feature-freeze target.
-Dungeon timing rules await the coordination chat's evidence review; no change to
-existing season scores is authorized by estimates alone. These are selected
-tasks, not shipped-feature claims.
+Forever's researched upcoming-season timing snapshot is installed. Historical
+season scores remain frozen. Live acceptance and the newer edition-calendar
+initialization are tracked separately from the implemented feature inventory.
 
 ## Current stage — 30 October 2026
 
-Guilded **8.2.0 candidate** integrates the selected additions. Full CI on the
+Guilded **8.2.0** is deployed and published on GitHub and CurseForge; the Store update remains pending. It integrates the selected additions. Full CI on the
 raid-planning checkpoint `cd9c7b1` passed, including PostgreSQL migration/restore
 and Windows packaging. Final 8.2.0 build checks, deployment, installed-client
 testing and provider publication are tracked in the

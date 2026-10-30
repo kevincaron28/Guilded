@@ -1,6 +1,5 @@
 {
   "READY BEFORE THE FIRST DROP": "PRÊT AVANT LE PREMIER BUTIN",
-  "Know the price, understand your priority, and keep your core in control.": "Consultez les prix, comprenez votre priorité et gérez les réglages de votre groupe.",
   "YOUR GUILD'S PROGRESS": "LA PROGRESSION DE VOTRE GUILDE",
   "Core loot priority and dungeon scores, with their own rules and seasons.": "Priorité de butin et scores de donjon, avec leurs propres règles et saisons.",
   "Refresh": "Actualiser",
@@ -32,7 +31,6 @@
   "Slot prices": "Prix par emplacement",
   "Item overrides": "Prix particuliers par objet",
   "No item overrides. Equipment uses the slot table.": "Aucun prix particulier. L’équipement utilise le tableau des emplacements.",
-  "Edit individual items in Cores & prices. Use id:12345 for every copy, or id:12345@ilvl:100 for that item level. Named overrides remain supported.": "Modifiez les objets dans Groupes et prix. Utilisez id:12345 pour toutes les copies ou id:12345@ilvl:100 pour ce niveau d’objet. Les prix par nom restent pris en charge.",
   "Enter non-negative whole numbers.": "Saisissez des nombres entiers positifs ou nuls.",
   "PR {0} → {1} after {2} GP": "PR {0} → {1} après {2} GP",
   "What happens to my priority?": "Comment évolue ma priorité ?",
@@ -92,7 +90,6 @@
   "Overview": "Vue d’ensemble",
   "PoE2 mapping": "Journal PoE2",
   "Wishlist": "Liste de souhaits",
-  "Cores & prices": "Cores et prix",
   "Connection & setup": "Connexion et configuration",
   "Activity": "Activité",
   "Help & privacy": "Aide et confidentialité",
@@ -213,7 +210,6 @@
   "Same list as": "Même liste que",
   "in Discord. Changes reach the game with the next standings refresh.": "dans Discord. Les changements arrivent en jeu à la prochaine actualisation des classements.",
   "RAID LEADERSHIP": "GESTION DES RAIDS",
-  "Item prices, loot rules and rosters. Everyone can look; Raid Leaders and officers can change them.": "Prix des objets, règles de butin et effectifs. Tout le monde peut consulter; les responsables de raid et les officiers peuvent modifier.",
   "Item prices": "Prix des objets",
   "Item name or id": "Nom ou identifiant de l’objet",
   "Price in GP": "Prix en GP",
@@ -848,5 +844,9 @@
   "Wrote standings for {0} character(s). Use /reload in WoW to load them.": "Classement écrit pour {0} personnage(s). Utilisez /reload dans WoW pour le charger.",
   "Folder watch unavailable ({0}). Saves are checked every 30 seconds.": "Surveillance du dossier indisponible ({0}). Les sauvegardes sont vérifiées toutes les 30 secondes.",
   "{0} Select this connection to write scores to the shared addon folder.": "{0} Sélectionnez cette connexion pour écrire les scores dans le dossier addon partagé.",
-  "Keep a connection and saved-data folder for each guild or edition. On Windows, enable background sync for each connection you want to keep updated. Select a connection to view or edit it.": "Gardez une connexion et un dossier de données par guilde ou édition. Sous Windows, activez la synchronisation en arrière-plan pour chaque connexion souhaitée. Sélectionnez une connexion pour la consulter ou la modifier."
+  "Keep a connection and saved-data folder for each guild or edition. On Windows, enable background sync for each connection you want to keep updated. Select a connection to view or edit it.": "Gardez une connexion et un dossier de données par guilde ou édition. Sous Windows, activez la synchronisation en arrière-plan pour chaque connexion souhaitée. Sélectionnez une connexion pour la consulter ou la modifier.",
+  "Edit individual item exceptions in Roster & loot settings. Use id:12345 for every copy, or id:12345@ilvl:100 for that item level. Named overrides remain supported.": "Modifiez les exceptions par objet dans Effectif et réglages du butin. Utilisez id:12345 pour toutes les copies ou id:12345@ilvl:100 pour ce niveau d’objet. Les prix par nom restent pris en charge.",
+  "Manage your roster, loot rules and individual item exceptions. Use Raid prices for preset and slot prices. Everyone can look; Raid Leaders and officers can make changes.": "Gérez votre effectif, les règles de butin et les exceptions par objet. Utilisez Prix de raid pour les préréglages et les prix par emplacement. Tout le monde peut consulter; les responsables de raid et les officiers peuvent modifier.",
+  "Choose a pricing preset, edit slot prices and preview your priority. Use Roster & loot settings for roster changes, loot rules and individual item exceptions.": "Choisissez un préréglage, modifiez les prix par emplacement et consultez votre priorité. Utilisez Effectif et réglages du butin pour les membres, les règles et les exceptions par objet.",
+  "Roster & loot settings": "Effectif et réglages du butin"
 }

@@ -21,7 +21,7 @@
       <button class="nav" data-page="wishlist"><span aria-hidden="true">★</span>Wishlist</button>
       <button class="nav" data-page="pricing"><span aria-hidden="true">◈</span>Raid prices</button>
       <button class="nav" data-page="leaderboards"><span aria-hidden="true">🏆</span>Leaderboards</button>
-      <button class="nav" data-page="cores"><span aria-hidden="true">⚑</span>Cores & prices</button>
+      <button class="nav" data-page="cores"><span aria-hidden="true">⚑</span>Roster & loot settings</button>
       <div class="nav-divider"></div>
       <button class="nav" data-page="settings"><span aria-hidden="true">⚙</span>Connection & setup <span id="setupBadge" class="badge" hidden>!</span></button>
       <button class="nav" data-page="activity"><span aria-hidden="true">≡</span>Activity <span id="activityCount" class="nav-count">0</span></button>
@@ -78,7 +78,7 @@
           <p class="micro">Same list as <code>/wishlist</code> in Discord. Changes reach the game with the next standings refresh.</p></article>
       </section>
       <section id="page-cores" class="page" hidden>
-        <div class="page-heading"><div><p class="eyebrow">RAID LEADERSHIP</p><h1>Cores & prices</h1><p class="subtitle">Item prices, loot rules and rosters. Everyone can look; Raid Leaders and officers can change them.</p></div><button class="secondary" id="btnCoreReload">Reload</button></div>
+        <div class="page-heading"><div><p class="eyebrow">RAID LEADERSHIP</p><h1>Roster & loot settings</h1><p class="subtitle">Manage your roster, loot rules and individual item exceptions. Use Raid prices for preset and slot prices. Everyone can look; Raid Leaders and officers can make changes.</p></div><button class="secondary" id="btnCoreReload">Reload</button></div>
         <p id="coreNotice" class="result" hidden></p>
         <div id="corePanels" hidden>
           <article class="panel"><div class="section-title"><h2>Core</h2><select id="coreSelect" aria-label="Core"></select></div><p id="coreSummary" class="micro"></p></article>
@@ -92,7 +92,7 @@
         <datalist id="manageItems"></datalist>
       </section>
       <section id="page-pricing" class="page" hidden>
-        <div class="page-heading"><div><p class="eyebrow">READY BEFORE THE FIRST DROP</p><h1>Raid prices</h1><p class="subtitle">Know the price, understand your priority, and keep your core in control.</p></div><button id="pricingReload">Refresh</button></div>
+        <div class="page-heading"><div><p class="eyebrow">READY BEFORE THE FIRST DROP</p><h1>Raid prices</h1><p class="subtitle">Choose a pricing preset, edit slot prices and preview your priority. Use Roster & loot settings for roster changes, loot rules and individual item exceptions.</p></div><button id="pricingReload">Refresh</button></div>
         <p id="pricingNotice" role="status"></p><div id="pricingContent"></div>
       </section>
       <section id="page-leaderboards" class="page" hidden>

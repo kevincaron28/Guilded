@@ -172,10 +172,14 @@ describe("linking from a member's upload", () => {
     const kev = await verifyCodeFor(guild.database, "guild", "kev");
     // Sam's saved file claimed Kev's character carried Ray's code.
     await linkVerifiedCharacters(guild.database, "guild", member, peer("Kevchar", ray));
+    const originalId = guild.characters[0]!.id;
     expect(guild.characters.map((row) => [row.name, row.memberId])).toEqual([["Kevchar", "ray"]]);
     expect(await linkVerifiedCharacters(guild.database, "guild", officer, peer("Kevchar", kev)))
       .toEqual([{ discordUserId: "user-kev", name: "Kevchar", status: "linked", isMain: true, movedFrom: "user-ray" }]);
     expect(guild.characters.map((row) => [row.name, row.memberId])).toEqual([["Kevchar", "kev"]]);
+    expect(guild.characters[0]!.id).toBe(originalId);
+    expect(guild.db.character.delete).not.toHaveBeenCalled();
+    expect(guild.db.character.create).toHaveBeenCalledTimes(1);
     // Ray's code no longer links it back, from anyone.
     expect(await linkVerifiedCharacters(guild.database, "guild", member, peer("Kevchar", ray))).toEqual([]);
     expect(guild.claims.find((claim) => claim.memberId === "ray")!.status).toBe("REMOVED");

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { EmbedBuilder, MessageFlags, type ChatInputCommandInteraction } from "discord.js";
 const service=vi.hoisted(()=>({destination:vi.fn(),report:vi.fn()}));
-const notifier=vi.hoisted(()=>({notifyEmbed:vi.fn()}));
+const notifier=vi.hoisted(()=>({notifyEmbed:vi.fn(),officerReportDestination:vi.fn()}));
 vi.mock("../src/commands/context.js",()=>({errorReportService:service}));
 vi.mock("../src/services/notify.js",()=>notifier);
 import { bugCommand, executeBug } from "../src/commands/bugreport.js";
@@ -26,7 +26,7 @@ function fixture(action="send",locale="en-US",attachment:Attachment=null) {
   return {i,run:()=>executeBug(i as unknown as ChatInputCommandInteraction),collector};
 }
 const officerEmbed=(lang:"en"|"fr")=>(notifier.notifyEmbed.mock.calls[0]![1] as (l:string)=>EmbedBuilder)(lang).toJSON();
-beforeEach(()=>{vi.clearAllMocks();service.destination.mockResolvedValue({id:"private-intake",label:"#errors (Dev)"});service.report.mockResolvedValue("12345678");notifier.notifyEmbed.mockResolvedValue(true);});
+beforeEach(()=>{vi.clearAllMocks();service.destination.mockResolvedValue({id:"private-intake",label:"#errors (Dev)"});service.report.mockResolvedValue("12345678");notifier.notifyEmbed.mockResolvedValue(true);notifier.officerReportDestination.mockResolvedValue({id:"officer-log",label:"#officers (Guild)"});});
 describe("member bug report consent",()=>{
   it.each(["en-US","fr"])("previews sanitized text and recipients, then sends once on explicit consent (%s)",async locale=>{
     const s=fixture("send",locale);await s.run();
@@ -48,6 +48,7 @@ describe("member bug report consent",()=>{
     expect(service.report.mock.calls[0]![2]).toMatchObject({screenshotUrl:SHOT});
     expect(notifier.notifyEmbed).toHaveBeenCalledTimes(1);
     expect(notifier.notifyEmbed.mock.calls[0]![2]).toBe("officer");
+    expect(notifier.notifyEmbed.mock.calls[0]![4]).toBe("officer-log");
     const embed=officerEmbed("en");
     expect(embed.description).toContain("Bug report `12345678` from <@member>");
     expect(embed.image?.url).toBe(SHOT);
@@ -86,6 +87,13 @@ describe("member bug report consent",()=>{
     service.report.mockResolvedValue(null);notifier.notifyEmbed.mockResolvedValue(false);const s=fixture();await s.run();
     const reply=s.i.editReply.mock.calls.at(-1)![0].content;
     expect(reply).toContain("Could not confirm storage");expect(reply).not.toContain("officers were notified");
+    expect(notifier.notifyEmbed).not.toHaveBeenCalled();
+  });
+  it("does not send an officer copy that was unavailable at preview",async()=>{
+    notifier.officerReportDestination.mockResolvedValue(null);const s=fixture();await s.run();
+    expect(s.i.editReply.mock.calls[0]![0].content).toContain("No officer copy");
+    expect(notifier.notifyEmbed).not.toHaveBeenCalled();
+    expect(service.report).toHaveBeenCalledOnce();
   });
   it("offers an optional screenshot",()=>{
     const options=bugCommand.toJSON().options ?? [];

@@ -1900,7 +1900,7 @@ end
 -- swapped in place. The guild is only known once the client has loaded it,
 -- so this is tried on entering the world and on guild roster updates.
 -- ---------------------------------------------------------------------
-local KEEP_AT_ROOT = { version = true, guildKey = true, otherGuilds = true, bridgeCompanionGuild = true }
+local KEEP_AT_ROOT = { version = true, guildKey = true, guildEdition = true, otherGuilds = true, bridgeCompanionGuild = true }
 local guildResolved = false
 
 local function currentGuildKey()
@@ -1916,22 +1916,29 @@ local function resolveGuildData()
   if guildResolved or not db then return nil end
   local key = currentGuildKey()
   if not key then return nil end
+  local edition = ns.util.gameEdition()
+  local oldEdition = db.guildEdition or edition
+  local function storageKey(guildKey, gameEdition)
+    return gameEdition == "forever" and guildKey or gameEdition .. "@" .. guildKey
+  end
   guildResolved = true
   if not db.guildKey then
     -- First time: the data already saved belongs to this guild.
     db.guildKey = key
+    db.guildEdition = edition
     return "recorded"
   end
-  if db.guildKey == key then return "same" end
+  if db.guildKey == key and oldEdition == edition then db.guildEdition = edition; return "same" end
   local old = db.guildKey
   db.otherGuilds = db.otherGuilds or {}
-  -- Same guild name, new realm text (the realm name changes when the game
-  -- goes from beta to release): keep the data, just rename the key. Only when
-  -- nothing is parked under the new key, so two same-named guilds on
-  -- different realms are still told apart.
+  -- Only an explicitly recorded Forever realm alias can rename a scope.
+  -- Matching guild names alone never establish identity across realms.
   local function guildPart(text) return (string.match(text, "^(.*)%-[^%-]*$")) or text end
-  if guildPart(old) == guildPart(key) and not db.otherGuilds[key] then
+  local aliases = db.settings and db.settings.guildRealmAliases
+  if edition == "forever" and oldEdition == edition and type(aliases) == "table" and aliases[old] == key
+    and guildPart(old) == guildPart(key) and not db.otherGuilds[key] then
     db.guildKey = key
+    db.guildEdition = edition
     message(string.format("Guild realm changed from \"%s\" to \"%s\": your saved data was kept (same guild name).", old, key))
     return "rekeyed"
   end
@@ -1940,15 +1947,16 @@ local function resolveGuildData()
     if not KEEP_AT_ROOT[field] then parked[field] = value end
   end
   for field in pairs(parked) do db[field] = nil end
-  db.otherGuilds[old] = parked
-  local incoming = db.otherGuilds[key]
-  db.otherGuilds[key] = nil
+  db.otherGuilds[storageKey(old, oldEdition)] = parked
+  local incoming = db.otherGuilds[storageKey(key, edition)]
+  db.otherGuilds[storageKey(key, edition)] = nil
   local restored = false
   if incoming then
     for field, value in pairs(incoming) do db[field] = value end
     restored = true
   end
   db.guildKey = key
+  db.guildEdition = edition
   ensureDb()
   message(string.format("Guild changed: now using the saved data for %s (%s). Data for %s is kept and comes back if you play there. /reload is recommended.",
     key, restored and "restored" or "new", old))

@@ -621,9 +621,8 @@ local function onAddonMessage(text, sender)
     local id, name, count = string.match(text, "^DEATH|([^|]+)|([^|]+)|(%d+)$")
     name = ns.normalizeName(name)
     local target = (run and run.id == id) and run or (d and d.runs[id or ""])
-    if target and name == sender then
-      local player = target.players[name] or { presentSec = 0 }
-      target.players[name] = player
+    if target and name == sender and target.players[name] then
+      local player = target.players[name]
       player.addon = true
       player.deaths = math.max(player.deaths or 0, tonumber(count) or 0)
     end
@@ -649,8 +648,20 @@ local function onAddonMessage(text, sender)
     local id, index, total, payload = string.match(text, "^SUM|([^|]+)|(%d+)|(%d+)|(.*)$")
     index, total = tonumber(index), tonumber(total)
     if not id or not index or not total or total < 1 or total > 20 or index < 1 or index > total then return end
-    local key = sender .. id
-    local pending = dungeon.incoming[key] or { parts = {}, count = 0, total = total }
+    if #id > 120 then return end
+    local count, senderCount = 0, 0
+    for bufferKey, buffer in pairs(dungeon.incoming) do
+      if not buffer.at or now() - buffer.at > 60 then dungeon.incoming[bufferKey] = nil
+      else
+        count = count + 1
+        if buffer.sender == sender then senderCount = senderCount + 1 end
+      end
+    end
+    local key = sender .. "|" .. id
+    local pending = dungeon.incoming[key]
+    if pending and pending.total ~= total then dungeon.incoming[key] = nil; return end
+    if not pending and (count >= 64 or senderCount >= 4) then return end
+    pending = pending or { parts = {}, count = 0, total = total, at = now(), sender = sender }
     dungeon.incoming[key] = pending
     if not pending.parts[index] then pending.parts[index] = payload; pending.count = pending.count + 1 end
     if pending.count >= pending.total then
@@ -835,7 +846,14 @@ local function onEvent(_, event, ...)
     end
   elseif event == "CHAT_MSG_ADDON" then
     local prefix, text, channel, sender = ...
-    if not ns.comm.accept(prefix, text, channel, sender, PREFIX) then return end
+    if not ns.comm.accept(prefix, text, channel, sender, PREFIX, function(author, delivery)
+      local kind = string.match(text, "^(%u+)|")
+      if kind == "SUM" or kind == "REQUEST" then
+        return delivery == "GUILD" and ns.comm.authorized(author, "guild")
+      end
+      return (delivery == "PARTY" or delivery == "RAID" or delivery == "INSTANCE_CHAT")
+        and ns.comm.authorized(author, "group")
+    end) then return end
     if ns.isSecret(prefix) or ns.isSecret(text) or ns.isSecret(sender) or prefix ~= PREFIX then return end
     sender = ns.normalizeName(sender)
     if not sender or sender == me() then return end

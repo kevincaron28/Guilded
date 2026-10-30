@@ -98,6 +98,10 @@ function renderState(snapshot) {
   lastSnapshot = snapshot;
   if ($('profileSyncStatus')) $('profileSyncStatus').textContent = (snapshot.state.profiles || []).map(p => p.name + ': ' + M(p.error || (p.running ? 'Syncing' : p.enabled ? 'Setup needed' : 'Paused'))).join(' · ');
   const {state,health} = snapshot;
+  const sync = window.guildedSyncStatus(savedConfig, state, state.syncEvidence);
+  let evidencePanel = $('syncEvidence');
+  if (!evidencePanel) { evidencePanel = document.createElement('p'); evidencePanel.id = 'syncEvidence'; evidencePanel.className = 'panel'; $('page-activity').insertBefore(evidencePanel, $('log')); }
+  evidencePanel.textContent = T('Saved: {0} · Uploaded: {1} · Received by bot: {2}', sync.saved.at ? ago(sync.saved.at) : T('Unknown'), sync.uploaded.at ? ago(sync.uploaded.at) : T('Unknown'), sync.accepted.at ? ago(sync.accepted.at) : T('Unknown')) + ' · ' + T('Receipt does not mean officer approval.');
   renderUpdate(snapshot.update);
   renderSavedFile(snapshot);
   const overview = window.guildedOverview(savedConfig,state,!!api.browser);
@@ -127,7 +131,7 @@ function renderState(snapshot) {
   $('tileCount').textContent = String(state.uploads || 0);
   $('tileWatch').textContent = state.watching || savedConfig.watchFile || T("No saved-data file selected");
   pill('wowFileState',state.watching || savedConfig.watchFile ? T("File selected") : T("Choose a file"),state.watching ? 'ok' : '');
-  pill('wowBadge',savedConfig.wowEnabled === false ? T("Sync off") : state.uploadError ? T("Needs attention") : state.lastUpload ? T("Synced") : state.watching ? api.browser ? T("Ready to sync") : T("Watching") : T("Not configured"),state.uploadError ? 'error' : state.lastUpload || state.watching ? 'ok' : '');
+  pill('wowBadge',savedConfig.wowEnabled === false ? T("Sync off") : state.uploadError || sync.phase === 'apply-error' ? T("Needs attention") : sync.phase === 'officer-review' ? T('Awaiting officer review') : sync.phase === 'synced' ? T("Synced") : state.watching ? api.browser ? T("Ready to sync") : T("Watching") : T("Not configured"),state.uploadError || sync.phase === 'apply-error' ? 'error' : sync.phase === 'officer-review' ? 'gold' : sync.phase === 'synced' || state.watching ? 'ok' : '');
   const poe = state.poe;
   pill('poeBadge',!savedConfig.poeEnabled ? T("Tracking off") : poe?.error ? T("Needs attention") : poe?.pending ? T("Ready to sync") : api.browser ? T("Manual sharing") : poe?.running ? T("Watching") : T("Set up tracking"),poe?.error ? 'error' : poe?.running ? 'ok' : poe?.pending ? 'gold' : '');
   const areaName = poe?.currentArea?.replace(/^Map/, '').replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Za-z])(\d)/g, '$1 $2');
@@ -257,7 +261,9 @@ bind('btnHistory',async () => {
   $('poeHistory').replaceChildren(); $('poeHistory').className = 'history-list';
   for (const visit of visits) { const row = document.createElement('div'); row.className = 'history-row'; const info = document.createElement('div'); const title = document.createElement('strong'); title.textContent = T("{0} · Level {1}", visit.areaName || visit.areaId, visit.areaLevel); const note = document.createElement('p'); note.textContent = `${visit.character} · ${visit.league} · ${modeLabel(visit.mode)} · ${visit.durationSeconds === null ? T("Duration unknown") : T("{0}m {1}s observed", Math.floor(visit.durationSeconds / 60), visit.durationSeconds % 60)}`; const time = document.createElement('time'); time.dateTime = visit.startedAt; time.textContent = new Date(visit.startedAt).toLocaleString(languageUI.language, {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); info.append(title,note); row.append(info,time); $('poeHistory').append(row); }
 });
-bind('btnDiagnostics',async () => { const state = lastSnapshot?.state || {}; const summary = {product:'Guilded Companion',version:$('version').textContent,mode:api.browser ? 'browser' : 'desktop',generatedAt:new Date().toISOString(),wowEnabled:savedConfig.wowEnabled !== false,poeEnabled:!!savedConfig.poeEnabled,botVersion:state.botVersion,addonVersion:state.addonVersion,running:state.running,uploads:state.uploads,poePending:state.poe?.pending || 0,hasSyncError:!!(state.uploadError || state.standingsError || state.poe?.error)}; const url = URL.createObjectURL(new Blob([JSON.stringify(summary,null,2)],{type:'application/json'})); const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'Guilded-support-summary.json'; anchor.click(); setTimeout(() => URL.revokeObjectURL(url),1000); toast(T("Support summary saved without credentials, account IDs or file paths.")); });
+bind('btnDiagnostics',async () => { const state = lastSnapshot?.state || {}; const summary = window.guildedSyncDiagnosticPreview(savedConfig, state, state.syncEvidence); $('diagnosticContent').textContent = JSON.stringify(summary,null,2); $('diagnosticPreview').showModal(); });
+bind('btnCancelDiagnostics',async () => $('diagnosticPreview').close());
+bind('btnSaveDiagnostics',async () => { const url = URL.createObjectURL(new Blob([$('diagnosticContent').textContent],{type:'application/json'})); const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'Guilded-support-summary.json'; anchor.click(); setTimeout(() => URL.revokeObjectURL(url),1000); $('diagnosticPreview').close(); toast(T("Support summary saved without credentials, account IDs or file paths.")); });
 function setTheme(light) { document.body.classList.toggle('light',light); $('btnTheme').setAttribute('aria-label',light ? T("Switch to dark theme") : T("Switch to light theme")); try { localStorage.setItem('guilded.companion.theme',light ? 'light' : 'dark'); } catch { /* theme still applies */ } }
 try { setTheme(localStorage.getItem('guilded.companion.theme') === 'light'); } catch { /* use dark */ }
 $('btnTheme').addEventListener('click',() => setTheme(!document.body.classList.contains('light')));

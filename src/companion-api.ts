@@ -391,6 +391,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const isStandings = request.method === "GET" && url.pathname === "/api/v1/standings";
       const isPoeUpload = request.method === "POST" && url.pathname === "/api/v1/poe/visits";
       const isPublicRuns = request.method === "POST" && url.pathname === "/api/v1/public-runs";
+      const isPersonalStatus = request.method === "GET" && url.pathname === "/api/v1/companion/personal-status";
       const isPoeStatus = request.method === "GET" && url.pathname === "/api/v1/poe/status";
       const isPoeRecent = request.method === "GET" && url.pathname === "/api/v1/poe/visits";
       const isLogout = request.method === "POST" && url.pathname === "/api/v1/companion/logout";
@@ -399,7 +400,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // The companion's own pages: wishlists for members; prices, core rules and rosters for Raid Leaders.
       const isManageView = request.method === "GET" && url.pathname === "/api/v1/manage";
       const isManageEdit = request.method === "POST" && url.pathname === "/api/v1/manage";
-      if (!isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isStandings && !isPoeUpload && !isPoeStatus && !isPoeRecent && !isLogout && !isManageView && !isManageEdit) {
+      if (!isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isStandings && !isPoeUpload && !isPoeStatus && !isPoeRecent && !isLogout && !isManageView && !isManageEdit) {
         json(response, 404, { error: "Not found" });
         return;
       }
@@ -429,7 +430,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         if (!started) { json(response, 503, { error: "Too many sign-ins in progress. Try again in a few minutes." }); return; }
         const page = new URL("/me/companion", auth.siteUrl);
         page.searchParams.set("request", started.requestId);
-        json(response, 200, { requestId: started.requestId, confirm: started.confirm, expiresAt: started.expiresAt.toISOString(), url: page.href });
+        json(response, 200, { requestId: started.requestId, confirm: started.confirm, expiresAt: started.expiresAt.toISOString(), url: page.href, loopbackAccepted: companionSignIn.loopbackFor(started.requestId) !== null });
         return;
       }
       if (isSignInPoll) {
@@ -479,6 +480,13 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           recordFailure(address); json(response, 401, { error: "Pairing code is invalid, expired, or already used. Run /character pair again." }); return;
         }
         json(response, 200, { ...result, guildDiscordId: serverId });
+        return;
+      }
+      if (isPersonalStatus) {
+        const secret = request.headers["x-companion-credential"];
+        const account = await personalAccess(personalStore, typeof secret === "string" ? secret : undefined);
+        if (!account) { recordFailure(address); json(response, 401, { error: "This personal companion link is no longer valid. Sign in again." }); return; }
+        json(response, 200, { ok: true, scope: "personal" });
         return;
       }
       if (isPublicRuns) {

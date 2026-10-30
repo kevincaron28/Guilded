@@ -37,4 +37,16 @@ describe("diagnostic recipient authorization",()=>{
     expect(await diagnosticTarget(null,"intake")).toBeNull();
     expect(PermissionFlagsBits.Administrator).toBeDefined();
   });
+  it("allows the guild's officer audience, but denies public visibility and another guild",async()=>{
+    const s=fixture();
+    Object.assign(s.channel.guild,{id:"guild"});
+    const roles=await s.channel.guild.roles.fetch();
+    Object.assign(roles.get("member")!,{name:"Officer"});
+    s.visible.add("member");
+    expect(await diagnosticTarget(s.client,"intake")).toBeNull();
+    expect((await diagnosticTarget(s.client,"intake","guild"))?.id).toBe("intake");
+    expect(await diagnosticTarget(s.client,"intake","other")).toBeNull();
+    s.visible.add("everyone");
+    expect(await diagnosticTarget(s.client,"intake","guild")).toBeNull();
+  });
 });

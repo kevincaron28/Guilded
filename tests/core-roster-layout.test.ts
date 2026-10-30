@@ -73,13 +73,13 @@ describe("posting the roster", () => {
     };
     return { old, channel, guild, database };
   }
-  it("replaces an old embed roster with the new card and remembers the new message", async () => {
+  it("converts an old embed roster in place, preserving its identity", async () => {
     const { old, channel, guild, database } = setup({ v2: false });
     expect(await syncCoreRoster(guild as never, database as never, "guild", "core1")).toBe(true);
-    expect(old!.delete).toHaveBeenCalled();
-    expect(old!.edit).not.toHaveBeenCalled();
-    expect(channel.send).toHaveBeenCalledWith(expect.objectContaining({ flags: MessageFlags.IsComponentsV2 }));
-    expect(database.raidCore.update).toHaveBeenCalledWith({ where: { id: "core1" }, data: { rosterMessageId: "new-message" } });
+    expect(old!.delete).not.toHaveBeenCalled();
+    expect(old!.edit).toHaveBeenCalledWith(expect.objectContaining({ flags: MessageFlags.IsComponentsV2, content: null, embeds: [], attachments: [] }));
+    expect(channel.send).not.toHaveBeenCalled();
+    expect(database.raidCore.update).not.toHaveBeenCalled();
   });
   it("edits a roster that already uses the new card in place", async () => {
     const { old, channel, guild, database } = setup({ v2: true });
@@ -87,5 +87,20 @@ describe("posting the roster", () => {
     expect(old!.edit).toHaveBeenCalledWith(expect.objectContaining({ flags: MessageFlags.IsComponentsV2 }));
     expect(old!.delete).not.toHaveBeenCalled();
     expect(channel.send).not.toHaveBeenCalled();
+  });
+  it.each([50013, "ETIMEDOUT"])("does not replace a roster after fetch failure %s", async code => {
+    const { channel, guild, database } = setup({ v2: false });
+    channel.messages.fetch.mockRejectedValueOnce({ code });
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try { expect(await syncCoreRoster(guild as never, database as never, "guild", "core1")).toBe(false); }
+    finally { log.mockRestore(); }
+    expect(channel.send).not.toHaveBeenCalled();
+    expect(database.raidCore.update).not.toHaveBeenCalled();
+  });
+  it("replaces only a confirmed missing message", async () => {
+    const { channel, guild, database } = setup({ v2: false });
+    channel.messages.fetch.mockRejectedValueOnce({ code: 10008 });
+    expect(await syncCoreRoster(guild as never, database as never, "guild", "core1")).toBe(true);
+    expect(channel.send).toHaveBeenCalledOnce();
   });
 });

@@ -414,11 +414,11 @@ describe("one saved-data set per WoW guild", () => {
 });
 
 describe("a realm rename is not a different guild", () => {
-  it("keeps the data and only renames the key when the guild name is the same", () => {
+  it("only renames a Forever realm with an explicit local alias", () => {
     session = newLuaSession();
     const t = session;
     t.run(`
-      GuildedDB = { version = 4, guildKey = "Alpha-Classic Beta PvP", epgp = { Bob = { ep = 50, gp = 0, ledger = {} } }, roster = { Bob = {} }, settings = { officers = {} } }
+      GuildedDB = { version = 4, guildKey = "Alpha-Classic Beta PvP", epgp = { Bob = { ep = 50, gp = 0, ledger = {} } }, roster = { Bob = {} }, settings = { officers = {}, guildRealmAliases = { ["Alpha-Classic Beta PvP"] = "Alpha-TestRealm" } } }
       NS = {}
       MOCK_UNITS = { player = { name = "Kev", buffs = {} } }
       function GetGuildInfo() return "Alpha", "Officer", 1 end

@@ -66,10 +66,12 @@ describe("bot update notice", () => {
 });
 
 describe("desktop companion update prompt", () => {
-  it("suggests the newest of the GitHub release and the bot it talks to", () => {
+  it("only suggests published stable clients, even when the backend is newer", () => {
     const latest = { version: "6.6.0", url: release.html_url };
     expect(companion.pickUpdate("6.3.2", latest, "6.5.1")).toEqual(latest);
-    expect(companion.pickUpdate("6.3.2", null, "6.5.1")).toEqual({ version: "6.5.1", url: companion.RELEASES_PAGE });
+    expect(companion.pickUpdate("6.3.2", null, "6.5.1")).toBeNull();
+    expect(companion.pickUpdate("8.0.2", { version: "8.0.2", url: release.html_url }, "8.1.0")).toBeNull();
+    expect(companion.pickUpdate("6.3.2", latest, "8.1.0")).toEqual(latest);
     expect(companion.pickUpdate("6.6.0", latest, "6.6.0")).toBeNull();
     expect(companion.pickUpdate("6.6.0", latest, null)).toBeNull();
   });
@@ -77,5 +79,10 @@ describe("desktop companion update prompt", () => {
   it("never sends the user to a page outside GitHub", async () => {
     const odd = await companion.fetchLatestRelease(github({ tag_name: "v6.6.0", html_url: "https://evil.example/download" }));
     expect(odd).toEqual({ version: "6.6.0", url: companion.RELEASES_PAGE });
+  });
+
+  it("rejects draft or prerelease responses even with a stable-looking tag", async () => {
+    await expect(companion.fetchLatestRelease(github({ ...release, prerelease: true }))).resolves.toBeNull();
+    await expect(companion.fetchLatestRelease(github({ ...release, draft: true }))).resolves.toBeNull();
   });
 });

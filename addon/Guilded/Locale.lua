@@ -8,6 +8,7 @@ local addonName, ns = ...
 ns = ns or {}
 
 local FR = {
+  ["This code excludes per-character imported loot history. Back up the character's SavedVariables/Guilded.lua file separately."] = "Ce code exclut l'historique de butin import\195\169 propre au personnage. Sauvegardez aussi son fichier SavedVariables/Guilded.lua.",
   ["Start a raid with /guilded start before using the pricing preset."] = "D\195\169marrez un raid avec /guilded start avant d\226\128\153utiliser le pr\195\169r\195\169glage de prix.",
   ["EPGP tie: eligible players /roll 100. Ties roll again."] = "\195\137galit\195\169 EPGP : les joueurs concern\195\169s font /roll 100. Relancez en cas d\226\128\153\195\169galit\195\169.",
   ["Priority is tied. Finish the visible roll before awarding."] = "Priorit\195\169s \195\169gales. Terminez le jet visible avant d\226\128\153attribuer le butin.",

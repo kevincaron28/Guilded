@@ -455,7 +455,18 @@ export function coreRosterLayout(core: CoreForEmbed & { id: string }, options: {
 // Keeps the core's roster message in the roster channel current (edit in
 // place; re-post if it was deleted). False when no roster channel is set.
 // Never throws: a failed refresh must not undo the change that caused it.
+const rosterRefreshes = new Map<string, Promise<boolean>>();
 export async function syncCoreRoster(discordGuild: DiscordGuild | null, database: Db, guildId: string, coreId: string): Promise<boolean> {
+  const key = `${guildId}:${coreId}`;
+  // Serialize refreshes, then re-read the saved message ID and latest roster.
+  const previous = rosterRefreshes.get(key);
+  const pending = (async () => { if (previous) await previous; return refreshCoreRoster(discordGuild, database, guildId, coreId); })();
+  rosterRefreshes.set(key, pending);
+  try { return await pending; }
+  finally { if (rosterRefreshes.get(key) === pending) rosterRefreshes.delete(key); }
+}
+
+async function refreshCoreRoster(discordGuild: DiscordGuild | null, database: Db, guildId: string, coreId: string): Promise<boolean> {
   if (!discordGuild) return false;
   // The core's role follows its members with every roster refresh (see core-channels.ts).
   await syncCoreRole(discordGuild, database, coreId);
@@ -474,15 +485,15 @@ export async function syncCoreRoster(discordGuild: DiscordGuild | null, database
     const edition = (await database.guild.findUnique({ where: { id: guildId }, select: { gameEdition: true } }))?.gameEdition ?? null;
     const payload = coreRosterLayout(core, { guildLootMode: settings.lootMode, lang: asLang(settings.language), emojis: await loadClassEmojis(discordGuild),
       guild: { name: discordGuild.name, iconUrl: discordGuild.iconURL({ size: 128 }) }, edition });
-    let existing = core.rosterMessageId ? await channel.messages.fetch(core.rosterMessageId).catch(() => null) : null;
-    // A roster posted before 29 October 2026 is an embed; Components V2 cannot be added to it,
-    // so it is replaced by a new post (the roster is a board, not a link people keep).
-    if (existing?.editable && !existing.flags.has(MessageFlags.IsComponentsV2)) {
-      await existing.delete().catch(() => undefined);
-      existing = null;
-    }
-    if (existing?.editable) {
-      await existing.edit(payload);
+    const existing = core.rosterMessageId ? await channel.messages.fetch(core.rosterMessageId).catch((error: unknown) => {
+      if (typeof error === "object" && error !== null && "code" in error && error.code === 10008) return null;
+      throw error; // Missing access or a timeout is not proof the message was deleted.
+    }) : null;
+    if (existing) {
+      if (!existing.editable) return false;
+      // Discord supports conversion in place once legacy fields are cleared.
+      // Keeping the message preserves pins, links and retry identity.
+      await existing.edit({ ...payload, content: null, embeds: [], attachments: [] });
     } else {
       const sent = await channel.send(payload);
       await database.raidCore.update({ where: { id: core.id }, data: { rosterMessageId: sent.id } });

@@ -1,4 +1,10 @@
 {
+  "Review support summary": "Vérifier le résumé de soutien",
+  "Only the information below will be saved. No file paths, account names or credentials are included.": "Seules les informations ci-dessous seront enregistrées. Aucun chemin de fichier, nom de compte ou identifiant de connexion n’est inclus.",
+  "Save summary": "Enregistrer le résumé",
+  "Saved: {0} · Uploaded: {1} · Received by bot: {2}": "Sauvegardé : {0} · Envoyé : {1} · Reçu par le bot : {2}",
+  "Receipt does not mean officer approval.": "La réception ne signifie pas l’approbation d’un officier.",
+  "Awaiting officer review": "En attente de validation par un officier",
   "READY BEFORE THE FIRST DROP": "PRÊT AVANT LE PREMIER BUTIN",
   "YOUR GUILD'S PROGRESS": "LA PROGRESSION DE VOTRE GUILDE",
   "Core loot priority and dungeon scores, with their own rules and seasons.": "Priorité de butin et scores de donjon, avec leurs propres règles et saisons.",

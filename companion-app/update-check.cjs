@@ -1,7 +1,6 @@
 // Tells the desktop companion when a newer Guilded release is out. Two sources:
-// the latest stable GitHub release, and the version of the bot this companion
-// talks to (a self-hosted bot that was updated is a reason to update too, even
-// when GitHub cannot be reached). "Update now" (7.2) downloads the release's own
+// the latest stable GitHub release. A backend version is not proof that matching
+// stable clients are available. "Update now" (7.2) downloads the release's own
 // installer, checks its SHA-256 against GitHub's digest and runs it; without a
 // checked installer the companion only shows where to get the update.
 const RELEASES_API = "https://api.github.com/repos/kevincaron28/Guilded/releases/latest";
@@ -23,10 +22,9 @@ function isNewer(candidate, current) {
 }
 
 // The update to suggest, or null. `latest` is { version, url } from GitHub (or null).
-function pickUpdate(current, latest, botVersion) {
+function pickUpdate(current, latest) {
   let best = null;
   if (latest && isNewer(latest.version, current)) best = { version: parseVersion(latest.version).join("."), url: latest.url, ...(latest.installer ? { installer: latest.installer } : {}) };
-  if (isNewer(botVersion, current) && (!best || isNewer(botVersion, best.version))) best = { version: parseVersion(botVersion).join("."), url: RELEASES_PAGE };
   return best;
 }
 
@@ -39,7 +37,7 @@ async function fetchLatestRelease(fetchImpl = globalThis.fetch) {
     });
     if (!response.ok) return null;
     const body = await response.json();
-    if (!parseVersion(body?.tag_name)) return null;
+    if (body?.draft || body?.prerelease || !parseVersion(body?.tag_name)) return null;
     const url = typeof body.html_url === "string" && body.html_url.startsWith("https://github.com/") ? body.html_url : RELEASES_PAGE;
     const version = parseVersion(body.tag_name).join(".");
     const installer = installerFrom(body.assets, version);

@@ -515,7 +515,7 @@ registerIpc("sign-in-start", async (_event, next) => {
   if (!started.ok) { if (port) loopback.close(); return started; }
   signIn = { controller: new AbortController(), started, next, ...(port ? { loopback } : {}) };
   await shell.openExternal(started.url);
-  return { ok: true, confirm: started.confirm, url: started.url, automatic: !!port };
+  return { ok: true, confirm: started.confirm, url: started.url, automatic: started.automatic === true };
 });
 registerIpc("sign-in-wait", async () => {
   const current = signIn;

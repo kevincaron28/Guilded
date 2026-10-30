@@ -19,6 +19,17 @@ function gameFolder() {
 const config = (file: string) => ({ watchFile: file, realm: "R", uploadUrl: "https://bot.test/api/v1/addon-imports", guildDiscordId: "123", companionCredential: "x".repeat(32) });
 
 describe("companion engine", () => {
+  it("requires authenticated personal scope, including on older or revoked servers", async () => {
+    const fetcher = vi.fn(); vi.stubGlobal("fetch", fetcher);
+    const personal = { ...config("a.lua"), personal: true, guildDiscordId: "" };
+    fetcher.mockResolvedValue(Response.json({ ok: true, scope: "personal" }));
+    expect(await testConnection(personal)).toMatchObject({ ok: true });
+    expect(String(fetcher.mock.calls[0]![0])).toContain("/api/v1/companion/personal-status");
+    for (const response of [Response.json({ ok: true }), Response.json({}, { status: 404 }), Response.json({}, { status: 401 })]) {
+      fetcher.mockResolvedValue(response);
+      expect(await testConnection(personal)).toMatchObject({ ok: false });
+    }
+  });
   it("downloads acknowledgements without writing another profile's shared addon files", async () => {
     const game = gameFolder();
     writeFileSync(game.file, 'GuildedDB = { version = 3, epgp = {} }');
@@ -67,6 +78,9 @@ describe("companion engine", () => {
     try {
       await restarted.start(); restarted.uploadNow();
       await vi.waitFor(() => expect(restarted.state().uploads).toBe(1), { timeout: 3000 });
+      const evidence = restarted.state().syncEvidence;
+      expect(evidence.acceptedRevision).toBe(evidence.savedRevision);
+      expect(evidence.acceptedAt).toEqual(expect.any(String));
       expect(uploaded.join('')).toContain('qg:first');
       expect(uploaded.join('')).toContain('qg:second');
       expect(readFileSync(game.file, 'utf8')).toContain('id = "first"');
@@ -112,11 +126,11 @@ describe("companion engine", () => {
 
   it("pairs with the code alone and returns the server the bot found", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
-      ok: true, status: 200, json: async () => ({ companionCredential: "c".repeat(43), guildDiscordId: "999" })
+      ok: true, status: 200, json: async () => ({ companionCredential: "c".repeat(43), guildDiscordId: "999", wowGuildId: "guild-a", wowGuildName: "Alpha", gameEdition: "retail" })
     });
     vi.stubGlobal("fetch", fetchMock);
     const result = await pairAccount({ ...config("a.lua"), guildDiscordId: "", pairingCode: " A1B2C3D4E5F6 " });
-    expect(result).toMatchObject({ ok: true, guildDiscordId: "999" });
+    expect(result).toMatchObject({ ok: true, guildDiscordId: "999", wowGuildId: "guild-a", wowGuildName: "Alpha", gameEdition: "retail" });
     expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ code: "A1B2C3D4E5F6" }));
   });
 

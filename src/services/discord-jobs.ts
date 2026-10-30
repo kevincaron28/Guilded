@@ -7,7 +7,7 @@ import { prisma } from "../database.js";
 import { participationDay } from "./participation-rules.js";
 
 type Db = Pick<PrismaClient, "discordJob">;
-export type JobKind = "GAME_EVENT_BOARD" | "GAME_EVENT_REMINDER" | "DUNGEON_BOARD" | "PROFESSIONS" | "RAID_POST" | "CORE_ROSTER" | "CALENDAR" | "MESSAGE" | "COMMUNITY_POST" | "SCHEDULED_EVENT" | "TEAM_ROSTER" | "TEAM_SESSION" | "TEAM_REMINDER";
+export type JobKind = "GAME_EVENT_BOARD" | "GAME_EVENT_REMINDER" | "RAID_REMINDER" | "DUNGEON_BOARD" | "PROFESSIONS" | "RAID_POST" | "CORE_ROSTER" | "CALENDAR" | "MESSAGE" | "COMMUNITY_POST" | "SCHEDULED_EVENT" | "TEAM_ROSTER" | "TEAM_SESSION" | "TEAM_REMINDER";
 export async function enqueueDiscordJob(database: Db, guildId: string, key: string, kind: JobKind, payload: Prisma.InputJsonValue = {}) {
   return database.discordJob.upsert({ where: { guildId_key: { guildId, key } },
     create: { guildId, key, kind, payload },
@@ -44,7 +44,10 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
     && pending["day"] !== participationDay(new Date(), typeof pending["timezone"] === "string" ? pending["timezone"] : "America/Toronto")) return;
   if (currentGuildScope()?.guild.id !== job.guildId) return withGuildScope(prisma, job.guildId, () => dispatchDiscordJob(guild, job));
   const payload = job.payload as Record<string, unknown>;
-  if (job.kind === "GAME_EVENT_BOARD" || job.kind === "GAME_EVENT_REMINDER") {
+  if (job.kind === "RAID_REMINDER") {
+    const { deliverRaidReminder } = await import("./reminders.js");
+    await deliverRaidReminder(guild, prisma, job);
+  } else if (job.kind === "GAME_EVENT_BOARD" || job.kind === "GAME_EVENT_REMINDER") {
     const { deliverGameEvent } = await import("./game-events-discord.js");
     await deliverGameEvent(guild, prisma, job);
   } else if (["TEAM_ROSTER", "TEAM_SESSION", "TEAM_REMINDER"].includes(job.kind)) {
@@ -118,6 +121,13 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
       const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { readinessChannelId: true } });
       if (!settings?.readinessChannelId) return;
       channelId = settings.readinessChannelId;
+    } else if (route === "officerReport") {
+      const { resolveNotifyAddress, officerReportDestination } = await import("./notify.js");
+      const address = await resolveNotifyAddress(guild, "officer");
+      // Consent binds the channel. Fail closed on permission or destination drift,
+      // including retries; never redirect private report text to another channel.
+      if (!address || address.guildId !== job.guildId || address.channelId !== channelId
+        || (await officerReportDestination(guild))?.id !== channelId) return;
     } else if (route !== undefined) {
       if (!["notify", "raidLog", "loot", "officer", "application", "attendance"].includes(String(route))) throw new Error("Unknown notification route");
       const { resolveNotifyAddress } = await import("./notify.js");

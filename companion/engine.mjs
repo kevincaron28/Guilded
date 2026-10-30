@@ -1,4 +1,5 @@
 import { access, stat } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { readSavedText } from "./saved-file.mjs";
 import { watch } from "node:fs";
 import { basename, dirname } from "node:path";
@@ -8,6 +9,7 @@ import { credentialHeaders, checkUrl, requestJson, jsonBody, MAX_UPLOAD_BYTES } 
 import { acknowledgements, pruneAcknowledged } from "./delta.mjs";
 import { createPoeEngine, validatePoeConfig } from "./poe-engine.mjs";
 import { personalSavedFiles, uploadPersonalRuns } from "./personal-runs.mjs";
+import { GAME_EDITIONS } from "./game-edition.mjs";
 
 // The companion's working parts, shared by the command-line watcher
 // (watcher.mjs) and the desktop app (companion-app/). It watches the addon's
@@ -31,9 +33,12 @@ export function validateConfig(config) {
 // Checks the bot address and token without changing anything.
 export async function testConnection(config) {
   try {
-    const url = new URL(config.wowEnabled === false ? "/api/v1/poe/status" : "/api/v1/standings", config.uploadUrl);
+    const url = new URL(config.personal ? "/api/v1/companion/personal-status" : config.wowEnabled === false ? "/api/v1/poe/status" : "/api/v1/standings", config.uploadUrl);
     url.searchParams.set("guild", config.guildDiscordId);
     const { response, body } = await requestJson(url, { headers: credentialHeaders(config) });
+    if (response.ok && config.personal) return body.ok === true && body.scope === "personal"
+      ? { ok: true, message: "Leaderboards account connected. Your personal companion link is valid." }
+      : { ok: false, message: "The server did not confirm this personal companion link." };
     if (response.ok) return { ok: true, message: config.wowEnabled === false ? `Connected. PoE2 tracking is ${body.enabled ? "enabled" : "paused; an officer can enable /poe setup"}.` : `Connected. The bot knows ${body.standings?.length ?? 0} character(s).` };
     if (response.status === 401 || response.status === 403) return { ok: false, message: "The bot refused this companion link. Choose Sign in with Discord again (or use a fresh /character pair code)." };
     return { ok: false, message: `The bot answered ${response.status}: ${describeApiError(response.status, body.error)}` };
@@ -70,7 +75,10 @@ function pairingResult(config, body) {
   if (body.personal === true) {
     return { ok: true, personal: true, companionCredential: body.companionCredential, guildDiscordId: "", message: "Leaderboards account connected. Your finished dungeon runs go to the public leaderboards (guilded.kcaron.top/leaderboards/). In step 2, choose GuildedDungeons.lua or Guilded.lua (with both addons, both are read), then Save and start." };
   }
-  return { ok: true, personal: false, message: config.wowEnabled === false ? "Discord account paired. Your PoE2 observations will belong to this account; choose your PoE2 settings and Save and start." : "Discord account paired. The companion links your own character on its next upload; the guild import still follows its usual apply setting.", companionCredential: body.companionCredential, guildDiscordId: typeof body.guildDiscordId === "string" ? body.guildDiscordId : config.guildDiscordId };
+  return { ok: true, personal: false, message: config.wowEnabled === false ? "Discord account paired. Your PoE2 observations will belong to this account; choose your PoE2 settings and Save and start." : "Discord account paired. The companion links your own character on its next upload; the guild import still follows its usual apply setting.", companionCredential: body.companionCredential, guildDiscordId: typeof body.guildDiscordId === "string" ? body.guildDiscordId : config.guildDiscordId,
+    ...(typeof body.wowGuildId === "string" && body.wowGuildId ? { wowGuildId: body.wowGuildId } : {}),
+    ...(typeof body.wowGuildName === "string" && body.wowGuildName ? { wowGuildName: body.wowGuildName } : {}),
+    ...(GAME_EDITIONS.includes(body.gameEdition) ? { gameEdition: body.gameEdition } : {}) };
 }
 
 // The hosted bot, used when no address was entered: Discord sign-in needs no other setting.
@@ -87,7 +95,7 @@ export async function startSignIn(config, { loopback } = {}) {
     if (!response.ok) return { ok: false, message: describeApiError(response.status, body.error) };
     if (typeof body.requestId !== "string" || typeof body.url !== "string" || typeof body.confirm !== "string") return { ok: false, message: "The bot's sign-in answer was incomplete." };
     const page = checkUrl(body.url);
-    return { ok: true, uploadUrl, requestId: body.requestId, confirm: body.confirm, url: page.href };
+    return { ok: true, uploadUrl, requestId: body.requestId, confirm: body.confirm, url: page.href, automatic: !!loopback && body.loopbackAccepted === true };
   } catch (error) {
     return { ok: false, message: describeError(error) };
   }
@@ -185,6 +193,7 @@ export function createEngine(initialConfig, hooks = {}) {
     standingsError: null,
     uploads: 0,
     syncPhase: "waiting-save",
+    syncEvidence: {},
     // "live" (the bot tells this companion about changes as they happen) or "interval".
     standingsMode: null,
     // "watching" (saves upload at once) or "checking" (the folder watch failed; saves are
@@ -259,14 +268,14 @@ export function createEngine(initialConfig, hooks = {}) {
     state.retryAt = null;
     try {
       lastFile = await savedStamp(current);
-      const result = await uploadPersonalRuns(current, controller.signal);
+      const result = await uploadPersonalRuns(current, controller.signal, evidence => { if (epoch === generation) state.syncEvidence = evidence; });
       if (epoch !== generation) return;
       if (result.scoreSaved) {
         state.lastStandings = { at: new Date().toISOString(), message: "Public scores saved to Guilded Dungeons. Use /reload, then /gdungeons score." };
         log("ok", state.lastStandings.message);
       }
       state.lastUpload = { at: new Date().toISOString(), message: result.message };
-      state.syncPhase = "synced";
+      state.syncPhase = result.level === "warn" || !state.syncEvidence.acceptedAt ? "needs-attention" : "synced";
       if (result.sent) state.uploads += 1;
       state.uploadError = null;
       failures = 0;
@@ -305,6 +314,10 @@ export function createEngine(initialConfig, hooks = {}) {
     const full = current.watchFile.toLowerCase().endsWith(".lua")
       ? await readAddonExport(current.watchFile, current.realm)
       : JSON.parse(await readSavedText(current.watchFile));
+    const stamp = await stat(current.watchFile);
+    if (`${stamp.mtimeMs}:${stamp.size}` !== lastFile) throw new Error("Saved data changed during reading. Retrying the latest save.");
+    const revision = createHash("sha256").update(JSON.stringify(full)).digest("hex");
+    state.syncEvidence = { savedAt: stamp.mtime.toISOString(), savedRevision: revision };
     // The saved data belongs to one WoW guild; do not send an alt's other guild.
     if (current.wowGuild && (full.wowGuild || current.requireWowGuild) && full.wowGuild !== current.wowGuild) {
       state.pendingUpload = false;
@@ -314,8 +327,13 @@ export function createEngine(initialConfig, hooks = {}) {
     }
     // Leave out what the bot already stored (it said so in the last standings answer).
     const { exported, omitted } = pruneAcknowledged(full, ack, features);
+    const uploadedAt = new Date().toISOString();
     const { response, body } = await send(current, exported, epoch);
     if (epoch !== generation) return;
+    if (response.ok || response.status === 409 && body.importId) {
+      Object.assign(state.syncEvidence, { uploadedAt, uploadedRevision: revision });
+      if (body.importId) Object.assign(state.syncEvidence, { acceptedAt: new Date().toISOString(), acceptedRevision: revision });
+    }
     state.botVersion = body.botVersion ?? state.botVersion;
     state.addonVersion = exported.addonVersion ?? state.addonVersion;
     const left = omitted.ledger + omitted.loot + (omitted.raids ?? 0);
@@ -584,7 +602,7 @@ export function createEngine(initialConfig, hooks = {}) {
       if (was) log("info", "Stopped."); else hooks.onState?.(snapshot());
     },
     // Apply new settings and restart.
-    async configure(next) { await this.stop(); state.lastUpload = null; state.lastStandings = null; state.lastUploadBytes = null; state.error = null; state.standingsError = null; config = next; etag = null; ack = null; features = new Set(); gzipOff = false; lastFile = null; lastText = null; return this.start(); },
+    async configure(next) { await this.stop(); state.syncEvidence = {}; state.syncPhase = "waiting-save"; state.lastUpload = null; state.lastStandings = null; state.lastUploadBytes = null; state.error = null; state.standingsError = null; config = next; etag = null; ack = null; features = new Set(); gzipOff = false; lastFile = null; lastText = null; return this.start(); },
     uploadNow() { if (config.wowEnabled !== false) scheduleUpload(0); if (poe) track(poe.pollNow()); },
     // The tray's "Refresh in-game standings now" always fetches and writes the full answer.
     refreshStandings: () => { const pending = config.personal ? personalUpload() : refreshStandings({ force: true }); track(pending); return pending; }

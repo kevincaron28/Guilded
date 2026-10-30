@@ -116,6 +116,38 @@ Overview then showed "Your sync needs attention", Guild standings "Not refreshed
   Raid prices page showed only a title and a disabled Refresh right after resume (empty state without text).
 - Tracking was **paused again at 06:12** (owner-authorised) to stop 409 retries; the button now reads "Resume tracking". The Retail source is still selected; point it at a Forever file before resuming. Activity feed shows 5 entries from the failed attempts.
 
+### Kevmister28's server (throwaway, "Ks" icon, guild 1563959517337747556) — 30 Oct
+
+Bot "Guilded" added there 26 Oct. Server already has Guilded channels (guilded-guide, bot-faq, craft-board,
+officer/raid channels, TEST Core), so this is a re-run of an existing setup, not a fresh install.
+
+- `/setup system status` PASS. 0 pairings, "Last upload: none", auto-apply off, last delivery 14 hours ago, "No pending deliveries".
+  Permissions: **Administrator off**, "Missing: KickMembers, BanMembers, ModerateMembers". This is the true explicit-bit view
+  (no Administrator masking) and is the model for the permission warning in Quebec Gold, where Administrator masks the gap
+  (Missing: CreateEvents). Do not widen permissions to hide either warning.
+- "Leader commands hidden" appears here too (Guild Master → /lead /officer /organize, Officer → /lead /officer /organize,
+  Raid Leader → /lead): this is the default state until a server owner allows the roles in Server Settings → Integrations → Guilded.
+  Integrations page reached (Guilded, "Added on Oct 26, 2026 by kevmister28", Bot + Commands, Manage). Applying and verifying the
+  role override was **not completed** (browser tab froze); NOT RUN.
+- Throwaway-server checks that still need a second account: member command visibility, signup as a plain member,
+  `/guilded verify`, multi-character picker. The assistant cannot create the account; **owner must provide it**.
+
+### Candidate PR #283 (`codex/oct30-release-integration` at `ea8f92b`) — test matrix, nothing run yet
+
+Source only: not deployed (live bot is 8.1.0 at 6bdc80e; `/me/*` returns 404 unauthenticated on bot.kcaron.top and
+guilded.kcaron.top, which does not distinguish "not deployed" from "login required") and not installed in game (Retail still 8.0.2).
+Results above are **baseline 8.0.2 evidence only**. Each row below is NOT RUN until Codex gives the build checkpoint.
+
+| Area | Needs | Status |
+| --- | --- | --- |
+| Simulation pool / finish / cleanup with no real-member awards | deployed bot | NOT RUN |
+| Poll expiry closes and refreshes the Discord post | deployed bot + a test poll | NOT RUN |
+| Private `/me/calendar` (DST, cancellations, import into a calendar app) | deployed bot, signed-in session | NOT RUN |
+| `/me/data` and `/me/handover` (officer-only access, empty/error states) | deployed bot; member and officer sessions | NOT RUN (member session needs second account) |
+| Personal pairing and accepted-sync receipts | Forever file for this guild | NOT RUN |
+| Retail test-card clearing, French layout, missing-season state | installed candidate addon | NOT RUN (baseline 8.0.2 gaps recorded above) |
+| Full + standalone Dungeons coexistence, backup scope | installed candidate addon | NOT RUN |
+
 ### Polish list (bugs and UI fixes, none fixed here)
 
 Discord / bot

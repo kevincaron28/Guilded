@@ -260,3 +260,9 @@ Native full-resolution PNGs (CopyFromScreen of the window rectangle, no resampli
 - **Retail addons:** installed 8.4.0 Retail zips (built from the merged branch) over Guilded and GuildedDungeons after backing up the 8.2.0 folders and SavedVariables to qgb-qa-fixes/backups/retail-addons-8.2.0-before-8.4 (gitignored). SavedVariables untouched. WoW was closed gracefully first (saved variables written 12:06).
 - **In-game 8.4 testing: NOT RUN.** Launching Wow.exe directly shows the password login, which I cannot fill in; the instance was closed. The game must be started from Battle.net by the owner.
 - My stray keystrokes during a quit attempt opened the Reputation panel (harmless).
+### 8.4.0 Retail addon in game (30 Oct, about 12:14-12:16)
+- PASS: after starting WoW from Battle.net, "Guilded version 8.4.0" (`/guilded version`), addon loads without a visible error, "Loaded." line shown.
+- PASS: Settings page lists the new "Battleground capture - on" module; test dungeon run saves ("Test dungeon run saved (23:00...)"); Clear test data removes it ("Removed 0 test raid(s), 0 EP/GP entries and 1 test dungeon run(s)").
+- F-6 not reproduced on 8.4 at default window size (status line sits below the Modules list).
+- Screenshots (private only): private/claude-native/retail-addon-*-8.4.0-en.png, added to manifest.json.
+- Still NOT RUN on 8.4: real dungeon win/failure/early exit, sync receipts and freshness, French on 8.4, backup scopes, missing-season display, opacity comparison, Battleground capture behaviour, full+standalone coexistence beyond both loading.

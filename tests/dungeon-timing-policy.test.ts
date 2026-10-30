@@ -17,7 +17,8 @@ describe("prospective timing reviews", () => {
     expect(provisionalSeasonRules().rules).toEqual(old);
     const run: ScoreRun = { runId: "historical", instanceId: 36, routeKey: null, difficultyId: 0,
       dungeonName: "Deadmines", durationSec: 2400, endedAt: new Date("2026-10-01T20:00:00Z"), confirmations: 1,
-      players: [{ character: "Fixture", realm: "Fixture", className: "Mage", role: "DPS", level: 20 }] };
+      evidence: { startedAt: new Date("2026-10-01T19:20:00Z"), completedBy: "final boss", encounters: [] },
+      players: [{ character: "Fixture", realm: "Fixture", className: "Mage", role: "DPS", level: 20, minLevel: 20, presentSec: 2400 }] };
     const archived = readRuleSnapshot(snapshotRules(old, new Date("2026-10-01T00:00:00Z")))!;
     expect(scoreRun(run, archived.rules)?.points).toBe(200);
     expect(scoreRun(run, result.rules)?.points).toBe(150);

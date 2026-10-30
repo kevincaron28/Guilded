@@ -1,3 +1,4 @@
+import { battlegroundCommand } from "./battleground.js";
 import { gameEventsCommand } from "./game-events.js";
 import { wowCommand } from "./wow.js";
 import { healthCommand, executeHealth } from "./health.js";
@@ -157,7 +158,7 @@ export const commands: AnyCommand[] = [
   wowCommand,
   gameEventsCommand, setup, configCommand, helpCommand, character, raid, epgp, loot, dungeon, craftCommand,
   bankCommand, applyCommand, pollCommand, report, mod, coreCommand, tagCommand, importer,
-  community, poeCommand, participationCommand, teamCommand, lead, officer, organize
+  community, poeCommand, participationCommand, teamCommand, battlegroundCommand, lead, officer, organize
 ];
 
 // Commands whose every subcommand checks a leader role (Raid Leader for /lead, Officer or Guild

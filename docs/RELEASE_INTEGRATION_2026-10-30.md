@@ -1,13 +1,82 @@
 # October 30 release integration
 
-Latest checkpoint: [8.2 publication evidence](V8_2_0_RELEASE_EVIDENCE_2026-10-30.md).
-GitHub and all ten CurseForge downloads are published and hash-verified; the
-backend is live. Forever's reviewed upcoming snapshot is actually installed.
-Store 8.2 is submitted for certification with manual publication hold; native
-Claude QA remains pending. The later authorized
-[edition calendars](EDITION_CALENDARS_2026-10-30.md) are initialized and independently
-verified. The [next battleground module](BATTLEGROUNDS_NEXT_MODULE.md) remains
-separate queued work.
+## Active launch checklist — updated 12:58 UTC
+
+Kevin's October 30 12:54:50 UTC direction supersedes the earlier minimal-polish
+scope: launch tonight in Québec, remodel the website and Companion for a simple
+member journey, add practical opt-in automation, and collect in-game evidence
+AFTER launch. **Game acceptance: WAIVED UNTIL AFTER LAUNCH / NOT RUN.** This does
+not waive authorization, data integrity, migrations/recovery, CI or non-game QA.
+
+PC Codex is the single implementation and release owner. The routing chat
+coordinates requirements only; Claude owns assigned native/game QA when the
+prepared handoff can actually be submitted. Frontend implementation is delegated by Kevin's explicit expert-model request to
+`/root/frontend_remodel`, GPT-6.1 Terra, high reasoning (worker
+`01a18ce5-e04d-7882-9a25-bfd2d00018c6`). It owns site/navigation, Companion
+renderer/locales/presentation, quick guides and presentation-only
+`src/services/public-leaderboard.ts`. PC owns automation/schema/services,
+versioning, integration and releases. Routing has one independent Astra read-only
+beginner evaluator; no duplicate evaluation lane is running.
+
+Verified evaluator priorities: expose rankings directly; fix Whole season versus
+Top runs this week wording; show season/scope/score meaning and simplify eight
+filters. Browser Companion's initial/loading desktop/tray copy is incorrect;
+after initialization it correctly becomes Online Companion/manual sync. Preserve
+web file/folder sync and optional write-back while clearly distinguishing it
+from Windows background watching. Online Companion removal is a QUESTION, not
+approved deletion. Keep it and evaluate Dashboard/Web sync naming.
+
+- [x] Frozen 8.2.0 released: GitHub and ten CurseForge files hash-verified;
+  Microsoft Store Submission 5 published and installed as 8.2.0.0. Store signature,
+  certificate chain, exact application hash and unchanged encrypted profile
+  verified at 12:50 UTC. [Evidence](V8_2_0_RELEASE_EVIDENCE_2026-10-30.md).
+- [x] Four edition calendars applied/read back; Forever November 4 boundary
+  unchanged. [Calendar receipt](EDITION_CALENDARS_2026-10-30.md).
+- [ ] BG organization: PC branch `codex/battleground-organization-oct30`, draft
+  PR #291, committed service/commands/migration/tests at `6557b47`. One-off private
+  planning, own-character signups, waitlists and explicit queue gates implemented.
+  EN/FR panel buttons and create/join forms are now in working code. First CI
+  passed unit/lint/build/Windows packaging but caught migration ordering on a
+  clean database; moving the additive migration after existing migrations.
+  No BG capture/statistics shipped; unverified queue modes remain planning-only.
+- [ ] Member-first navigation: website Home/My Guilded → Play (existing raid,
+  group/dungeon/BG destinations) → Craft → Community → Help. Companion Home
+  (one next action), Sync, My Guilded shortcuts, Help; retain PoE as an optional
+  journal and put connection/import/officer tools under clearly labelled setup
+  or advanced sections. Reuse existing pages and server authorization; no duplicate
+  data surfaces or removal of features. Implementation/visual QA pending.
+- [ ] Progressive install → link → choose edition/guild/character → save/sync →
+  ready checklist, with recovery and truthful saved/uploaded/accepted states.
+  Background watching/reconnect where supported; WoW still must save on reload
+  or logout. No promise to read unsaved game memory.
+- [ ] Optional recurring weekly recap/question and vacancy delivery: reuse
+  durable scheduling/outbox, dedup/idempotency and send-time consent/permission
+  checks; add configurable quiet hours, visible next/last/failure state and Pause.
+  Keep external delivery OFF until a bounded channel/audience/schedule is configured;
+  no blanket DMs or auto-enrollment. Inventory current foundations before extending.
+- [ ] Short EN/FR quick starts and inline help for first sync, raid signup,
+  dungeon upload/scoring, professions/orders, common errors, officer setup and
+  automation. Reuse existing guides and make them easy to find/search.
+- [ ] Non-game browser QA: desktop/mobile, EN/FR, keyboard/focus, empty/offline/
+  loading/error recovery, role boundaries and full regression checks on final code.
+  Recapture final UI into private and clean local collections; publication is
+  not authorized by capture alone.
+- [ ] New release candidate **8.3.0** for the remodel/automation/BG additions;
+  align shared versions, new immutable native/Store/addon artifacts and release
+  notes. Never replace certified/published 8.2.0 bytes. Provider certification
+  timing cannot be guaranteed tonight; report submission versus availability.
+- [ ] Fresh verified recovery backup, exact-source CI and one coordinated backend/
+  website deployment; anonymous download/provider verification after publication.
+- [ ] Post-launch game QA: existing report flow, explicit NOT RUN results until
+  performed; no new spam/telemetry. Forever gameplay remains unavailable before
+  November 4. Native input remains blocked by desktop coordinate/capture failure;
+  Claude's expanded brief is still in its composer, not submitted or acknowledged.
+
+Hard blockers currently: native desktop input/Claude Send; unavailable Forever
+client acceptance until opening; real multi-account/device coverage needs actual
+clients. These do not block authorized source/browser work. CI migration ordering
+is an implementation defect being fixed, not an external blocker.
+
 Earlier preparation checkpoints below are retained as history.
 
 Kevin requested completion of the selected features, review fixes, small polish,

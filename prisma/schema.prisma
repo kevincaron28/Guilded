@@ -1910,6 +1910,7 @@ model CompanionCredential {
 
 // Weekly dungeon/PvP teams deliberately have no loot or point-pool relations.
 model ActivityCore {
+  battlegroundPlan Json?
   id              String @id @default(cuid())
   guildId         String
   name            String

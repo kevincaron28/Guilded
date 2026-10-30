@@ -1,3 +1,4 @@
+import { BG_PREFIX, executeBattleground, handleBattlegroundComponent } from "./commands/battleground.js";
 import "./services/diagnostic-console.js";
 import { GAME_EDITIONS } from "../companion/game-edition.mjs";
 import { badgeCommandsForGuild } from "./services/community-badge-policy.js";
@@ -178,6 +179,7 @@ handlers.set("apply", executeApply);
 handlers.set("tag", executeTag);
 handlers.set("core", executeCore);
 handlers.set("team", executeTeam);
+handlers.set("bg", executeBattleground);
 handlers.set("poll", executePoll);
 handlers.set("bank", executeBank);
 handlers.set("craft", executeCraft);
@@ -551,6 +553,18 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   if (tier === "blocked" || liteBlocked) {
     if (interaction.isAutocomplete()) await interaction.respond([]).catch(() => undefined);
     else if (interaction.isRepliable()) await interaction.reply({ content: tier === "lite" ? PILOT_LITE_DENIED : PILOT_DENIED, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+    return;
+  }
+  if ((interaction.isButton() || interaction.isModalSubmit() || interaction.isStringSelectMenu()) && interaction.customId.startsWith(BG_PREFIX)) {
+    try {
+      if (tier === "lite") throw new Error(PILOT_LITE_DENIED);
+      await handleBattlegroundComponent(interaction);
+    } catch (error) {
+      reportInteractionError("Battleground interaction", interaction, error);
+      const content = error instanceof Error && error.message.length < 250 ? error.message : "Could not update BG / Impossible de modifier le groupe JcJ.";
+      if (interaction.deferred || interaction.replied) await interaction.editReply({ content }).catch(() => undefined);
+      else await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+    }
     return;
   }
   if (interaction.isAutocomplete() && interaction.commandName === "team") {

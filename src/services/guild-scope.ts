@@ -42,6 +42,7 @@ export async function forEachGuildScope(database: Pick<PrismaClient, "guild">, d
 export async function entityGuildScope(database: PrismaClient, discordId: string, customId: string): Promise<GuildScope | null> {
   const [prefix, first, second, third] = customId.split(":");
   let row: { guildId: string } | null = null;
+  if (prefix === "bgui" && first) return loadGuildScope(database, first, discordId);
   if (prefix === "raidsignup" && first) row = await database.raid.findUnique({ where: { id: first }, select: { guildId: true } });
   if (prefix === "epaward" && second) row = await database.raid.findUnique({ where: { id: second }, select: { guildId: true } });
   if (prefix === "dgrp" && first) row = await database.dungeonGroup.findUnique({ where: { id: first }, select: { guildId: true } });

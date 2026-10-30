@@ -33,14 +33,17 @@ freeze timestamp. See [calendar evidence](EDITION_CALENDARS_2026-10-30.md).
 
 ## Still separate
 
-Microsoft Store still publishes 8.0.2. The held 8.1 submission was returned to
-draft to accept the verified 8.2 MSIX. Package validation and save succeeded;
-English/French 8.2 notes were saved. Submission 5 entered certification
-pre-processing on October 30 with its manual publishing hold preserved.
-The 8.2 file is 165,400,751 bytes, SHA-256
+Microsoft Store Submission 5 passed certification and was published on October
+30. Partner Center confirms the latest submission is available. Store CLI
+updated the existing installed package to **8.2.0.0**; verification at 12:50:07 UTC
+confirmed Store signature/status, the signed CMS certificate chain, and exact
+installed `app.asar` equality with the submitted MSIX. The encrypted Store profile
+hash is unchanged. Native activation and in-game acceptance are still unverified.
+The frozen 8.2 MSIX is 165,400,751 bytes, SHA-256
 `f7f23835dd097b0806b234a59c5673db0781d8913bf26aebbd25aa023e0e39ac`.
-Upload, analysis, certification, publication and installed Store verification are
-distinct gates. The old held 8.1 package was not published.
+Installed/submitted application SHA-256:
+`20d3f4269603234954492a73cd4a7bcc3b7904a7490f380252e63d273f6ef232`.
+The old held 8.1 package was not published.
 
 Claude's expanded UI/native Companion and screenshot assignment is now prepared
 and read back in the existing session's composer by coordination, replacing the

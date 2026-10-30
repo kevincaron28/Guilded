@@ -15,6 +15,8 @@ export async function automationChannelAccess(guild: Guild, userId: string, chan
 }
 
 export async function runRecurringDeliveries(client: Client, db: PrismaClient, now = new Date()) {
+  const began = Date.now();
+  const deliveryTime = () => new Date(now.getTime() + Math.max(0, Date.now() - began));
   const guilds = await db.guildSettings.findMany({ where: pilotGuildScope, include: { guild: true } });
   for (const setting of guilds) await withGuildScope(db, setting.guildId, async () => {
     const guild = client.guilds.cache.get(setting.guild.discordId);
@@ -26,7 +28,7 @@ export async function runRecurringDeliveries(client: Client, db: PrismaClient, n
       await actOnWeeklyQuestion(db, { guildId: setting.guildId, actorId: plan.createdBy, reviewId: review.review.id, action: "post",
         authorize: async channelId => {
           const current = await db.weeklyQuestionPlan.findUnique({ where: { guildId: setting.guildId } });
-          return !!current?.automation && !current.paused && current.revision === plan.revision && await automationChannelAccess(guild, plan.createdBy, channelId);
+          return !!current?.automation && !current.paused && current.revision === plan.revision && await automationChannelAccess(guild, plan.createdBy, channelId) && recurringDue(schedule.data, deliveryTime());
         },
         send: async (settings, pollId) => {
           const channel = await guild.channels.fetch(settings.channelId);
@@ -64,8 +66,9 @@ export async function runRecurringDeliveries(client: Client, db: PrismaClient, n
             const fr = setting.language === "fr";
             const embed = personalWeeklyRecapEmbed(result, fr ? "fr" : "en").setFooter({ text: fr ? "Votre bilan privé · Pause : /automation recap action:off" : "Your private recap · Pause: /automation recap action:off" });
             // Recheck after loading private data, immediately before transmission.
+            const authorized = await authorize();
             const current = await db.recurringRecap.findUnique({ where: { memberId: recap.memberId } });
-            if (!current?.enabled || current.revision !== recap.revision || !await authorize()) throw new Error("Recipient consent changed");
+            if (!current?.enabled || current.revision !== recap.revision || !authorized || !recurringDue(parsed.data, deliveryTime())) throw new Error("Recipient consent changed");
             return (await member.send({ embeds: [embed], allowedMentions: { parse: [] } })).id;
           },
         }, now);

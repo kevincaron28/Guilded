@@ -41,7 +41,7 @@ export async function pauseWeeklyQuestion(database: PrismaClient, guildId: strin
 
 /** Permission validation belongs to the Discord adapter and is repeated for the
  * stored guild/channel. Claim commits before send; uncertain outcomes are held.
- * Recurrence is manual only. Two officers/retries cannot post the same week. */
+ * Manual or explicitly approved recurrence. Concurrent workers cannot post the same week. */
 export async function actOnWeeklyQuestion(database: PrismaClient, input: {
   reviewId: string; guildId: string; actorId: string; action: "post" | "skip" | "pause";
   authorize: (channelId: string) => Promise<boolean>;

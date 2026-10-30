@@ -2,6 +2,7 @@
 
 > Current continuation: [stored/reviewed flows and local integration](#coordinated-continuation--items-3-4-and-7).
 > The earlier checkpoint below describes `a139204`, not the completed continuation.
+> Source handoff: PR #282, `1b4c18c573b6613fda5326ff204bb36dbdf3e394`.
 
 Kevin selected items 3, 4, 5, 6 and 7 from the seven-item discussion for today's
 pre-launch roadmap. Items 1 (personal goals) and 2 (mentoring) are excluded.
@@ -290,3 +291,45 @@ validators passed. Cloud typecheck remains blocked by the absent generated
 Prisma module; final combined results will be recorded in the handoff/PR. Live Discord and
 Windows/game evidence belongs to the local owner's Claude acceptance session.
 All existing published/held package bytes and publication holds remain intact.
+
+### Current acceptance and release handoff
+
+| Item | Backend/persistence | User flow | Scheduler/activation | Remaining evidence |
+| --- | --- | --- | --- | --- |
+| 3 | Saved preferences and atomic attempt reservations implemented | `/dungeon watch` Save/Status/Off/Matches; existing alerts panel links to it and preserves opt-out | Discord dispatcher implemented, no timer; flags false/null | Live configured delivery/permissions; audience/channel/cadence approval before any timer |
+| 4 | Saved target, frozen scope and recalculated canonical progress implemented | Officer goal/season/metric/pause controls; private EN/FR progress and cosmetic completion | On demand; no recurring post or award | Live imported-run correction/dispute and edition-switch acceptance |
+| 5 | Initial private recap handed off | Local integration owner owns final hub/report integration | No recurring activation here | Owner's final integration evidence |
+| 6 | Initial sync/diagnostic helper handed off | Local integration owner owns truthful screen/diagnostic flow | No sender activation here | Owner's Windows, browser, backend and game acceptance |
+| 7 | Saved plan, expiring actor-bound reviews and durable weekly occurrence implemented | Officer preview/Post/Skip/Pause; existing poll buttons record votes | Manual only; no recurring sender | Live private review, permission loss, vote and uncertain-outcome acceptance |
+
+- [x] Focused policy, command, delivery, correction and SQL constraint tests: 45/45.
+- [x] Full ESLint and both addon static validators.
+- [x] Generated-Prisma TypeScript build on GitHub at `1b4c18c` (quality run 41039305182).
+- [x] Feature-branch full CI including real PostgreSQL concurrency/restore rehearsal: run 41039305182 passed at `1b4c18c`.
+- [ ] Local integration with recap/sync/safety fixes and Claude live acceptance.
+- [ ] Explicit audience/channel/cadence approval before automatic targeted sends.
+
+Cloud full-suite attempt: **239 files passed, 121 failed to load; 1,985 tests
+passed and 11 skipped**. Load failures trace to the missing generated Prisma
+module after the original checksum HTTP 403. Cloud `tsc` is likewise blocked by
+that missing module and resulting type cascades. GitHub generation and typecheck
+passed without changing or bypassing this environment's network restriction.
+
+Quality run: https://github.com/kevincaron28/Guilded/actions/runs/41039305182.
+Both Linux checks and Windows packaging passed. GitHub executed **360 test files,
+3,065 tests, all passed**. The PostgreSQL step explicitly reports:
+`Reviewed community PostgreSQL concurrency, deduplication and uncertain-delivery checks passed; no Discord calls.`
+This verifies actual concurrent advisory-lock claims and unique reservations,
+not only the serialized mocks/embedded SQL tests. The CI build includes this
+feature branch against main; the local owner's additional integration changes
+still need their own combined-source checks. Packaging success does not replace
+live installation/game acceptance or authorize publication.
+
+The local owner can fetch this branch and integrate commits after `a139204`:
+`9e4e72a` (reported TS2345 correction), then `1b4c18c` (stored/reviewed flows).
+Shared integration touch points are `prisma/schema.prisma`, `src/main.ts` (one
+weekly-button route/import only), and `scripts/test-postgres.mjs` (one rehearsal
+call). The continuation does not touch Companion, addon, pairing, privacy or
+raid-core implementation files. Apply the migration and generate Prisma before
+starting the combined backend; register updated `/dungeon` and `/poll` commands.
+No client/addon protocol change is required.

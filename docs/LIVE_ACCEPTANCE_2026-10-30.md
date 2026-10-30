@@ -201,3 +201,54 @@ After the next bot deployment, repeat: ping, `/help` footer version, system stat
 (pairings, delivery line, permission list), test raid start → button signup/maybe/
 absent → `/lead edit` promotion → cleanup, plus the new linking commands
 (`/character pair`, `/guilded verify`, auto server selection).
+
+## 8.3 UI/Companion QA pass (30 Oct, about 09:30-10:05 Toronto) — Claude
+
+Direct owner authorization received mid-pass (all available tests allowed). Codex owns fixes; items below are for the PC-owned fix/retest list.
+
+### Versions actually under test
+| Item | Actual |
+| --- | --- |
+| Retail addons | Guilded + GuildedDungeons **8.2.0** (`.toc` and in-game `/guilded version` = 8.2.0), client 12.1.5, Lebbowski/Zul'jin. **The 8.3 addon was not tested.** |
+| Native Companion candidate | `dist\companion\win-unpacked\Guilded Companion.exe`, ProductVersion **8.3.0.0**, SHA-256 `622015A6500A2DA72AF3A89E1C7DDFEC05E953CDB8C1741D9307B0F2D1CECED6`, 249,953,280 bytes, built 30 Oct 09:30. Run with `--user-data-dir` on an **isolated empty profile**; owner profiles untouched. |
+| Installed standalone Companion | 8.1.0.0 (real profile, left running and unchanged) |
+| Windows package registry | `Kcaron.GuildedCompanion` **8.2.0.0** is registered on this PC (see F-9) |
+| Backend | `https://guilded.kcaron.top/health` = ok, botVersion **8.3.0**, protocol 2, commands ok (09:48). `bot.kcaron.top/health` 404 as expected for direct origin. Earlier 404s on `/me/*` predate this deployment. |
+| Source | worktree HEAD `794c4e0`; handoff names `e6a0bd7` / `2602e67`. Not reconciled by me. |
+
+### Results
+| Check | Result |
+| --- | --- |
+| Retail load, `/guilded` main window, Home/My character/Open raids/Ready/Raid/Loot/Settings pages (EN) | PASS, no Lua error seen |
+| `/guilded sim clear` dismisses the test result card; Dungeons list shows "No saved dungeon result yet" (baseline 8.0.2 failed this) | PASS (EN, slash command) |
+| Settings "Clear test data" button (FR "Effacer les tests") | PASS but needs two quick clicks; see F-5 |
+| Translated simulation chat (FR "Donjon de test enregistré…") | PASS |
+| French layout, save button ("Sauvegarder"), options page, module rows | PASS, no clipping seen at default size |
+| Group Finder vs Guilded Dungeons window | PASS: both open side by side, edges touch, no overlap seen |
+| Language restored to English + `/reload` | done |
+| Candidate Companion 8.3.0 first run (EN): Home, Sync & setup, WoW page, Activity, Help & privacy | PASS: honest empty states ("Not connected", "Awaiting first refresh", "Not started: saved-data file is not set", "A connection is not a completed sync") |
+| Companion 8.3.0 French: Home, Help & privacy | PASS, no truncation |
+| Companion 8.3.0 narrow (560 px): menu collapses to "Menu", no horizontal overflow | PASS |
+| Companion version truth | Sidebar shows "Version 8.3.0" |
+| Discord `/bg panel`, buttons My groups, Upcoming (Ks server, ephemeral) | PASS: panel text matches design ("Private planning. No automatic posts, match capture or awards") |
+| `/bg` Create: start without timezone offset | PASS, refused with a clear message |
+| `/bg` Create: valid private session (Ks only, no public post) | PASS: session `cmvv1h6f6000m9ont11jra0fy` created, visible in Upcoming |
+| `/bg` Join with an unlinked character | PASS: refused, tells user to `/character add` or `/character pair` |
+
+### Findings (for the PC-owned fix/retest list)
+- **F-1 (P3, Companion 8.3.0 native)** "Test connection" with no connection shows raw **"Invalid URL"**. Steps: isolated profile, Sync & setup, bottom, Test connection. Expected: "Connect your account first". Shot: `private/claude-native/native-companion-8.3.0-test-connection-invalid-url-en.png`.
+- **F-2 (P3, Companion 8.3.0)** "Refresh standings" with nothing connected toasts **"Standings refresh finished. Check Activity for the result."**; Activity says "Not started". Wording implies success. Shots: `native-companion-8.3.0-wow-page-empty-en.png`, `native-companion-8.3.0-activity-unconfigured-en.png`.
+- **F-3 (P2 candidate, a11y, inconclusive)** After pressing Tab 5 times in the narrow French view I saw **no visible focus ring** on cards or links, though focus moved (page scrolled). Needs a proper keyboard/contrast retest with Windows high contrast and 150-200% scaling. Shot: `native-companion-8.3.0-keyboard-tab5-narrow-fr.png`.
+- **F-4 (P3, addon 8.2.0 FR)** The load line "Loaded. /guilded help for commands." stays English in French.
+- **F-5 (P3, addon 8.2.0)** The two-step clear confirmation ("Cliquez encore pour confirmer") expires quickly and its tooltip covers the neighbouring "Terminer le test" label. Shot: `retail-addon-clear-confirm-fr-8.2.0.png`.
+- **F-6 (P3, addon 8.2.0)** On Settings the status message after a test action overlaps the last visible Modules row (EN and FR). Shot: `retail-addon-settings-test-dungeon-saved-en-8.2.0.png`.
+- **F-7 (P3, Discord /bg)** "My groups" and "Upcoming" give identical empty text "No upcoming groups you can access"; session IDs are raw 25-character ids retyped in a modal (consider a select); validation errors are bilingual on an English guild.
+- **F-8 (process)** A `codex-computer-use` process started at 09:39 during this pass and repeatedly took the foreground; some clicks were lost, and the Chrome tab froze whenever it was not the active tab. Not a product bug.
+- **F-9 (version truth, needs PC answer)** `Get-AppxPackage` lists `Kcaron.GuildedCompanion` **8.2.0.0** although the brief says Store 8.2 is still in certification and the installed standalone is 8.1.0.0. Please confirm what that package is.
+- **F-10 (my own error, harmless)** While reloading I typed `/guilded` before the UI was ready and it went out as ordinary chat: "[Lebbowski] says: /guilded" in the open world. No other effect.
+
+### NOT RUN (still open)
+Window opacity comparison (looked mostly opaque; no baseline, not judged), missing-season display, full + standalone coexistence, backup scopes, real dungeon win/failure/early exit, sync with receipts and freshness, offline/reconnect, pause/resume on the candidate (isolated profile has no connection), linking/profile/edition switching (needs Discord sign-in, which is the owner's), light theme and high contrast, 150-200% scaling, update/version-truth flow, `/bg join` with a linked valid character and level/edition checks, `/bg manage` cancel (the test session above remains in the throwaway Ks server), consenting-recipient automation tests, Forever and two-PC checks.
+
+### Screenshots
+Native full-resolution PNGs (CopyFromScreen of the window rectangle, no resampling) in `backups/ui-qa-2026-10-30/private/claude-native/` (28 files; Retail ones show the character name and other players: private only) in the Codex checkout, and ten clean isolated-profile Companion 8.3.0 captures duplicated in `.../publication-ready/claude-native/`. `manifest.json` has one entry per file with version, language, SHA-256 and classification. Nothing uploaded; `publicationApproved` is false for all.

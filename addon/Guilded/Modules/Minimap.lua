@@ -936,7 +936,7 @@ local function buildToolsPage(page)
   ui.moduleRows = {}
   for i, module in ipairs(ns.MODULES or {}) do
     local y = -(i - 1) * 22
-    local row = { key = module.key }
+    local row = { key = module.key, parent = scrollChild, y = y }
     row.label = at(newLabel(scrollChild, "", "GameFontHighlightSmall"), scrollChild, 0, y - 4)
     row.label:SetWidth(330)
     row.mine = at(newButton(scrollChild, "", 86, function()
@@ -1481,6 +1481,19 @@ local function refreshModuleRows()
     row.label:SetText(L(ns.moduleName(row.key)) .. " - " .. state)
     row.mine:SetText(mineOff and L("Turn on") or L("Turn off"))
     row.guild:SetText(L(guildOff and "Guild: on" or "Guild: off"))
+    -- Dynamic labels need the same measured padding as buttons built with text.
+    -- Anchor the switches from the right so translations stay inside the page.
+    local label = row.guild.GetFontString and row.guild:GetFontString()
+    local needed = label and label.GetStringWidth and label:GetStringWidth()
+    local guildWidth = math.max(110, type(needed) == "number" and needed + BUTTON_PADDING or 110)
+    label = row.mine.GetFontString and row.mine:GetFontString()
+    needed = label and label.GetStringWidth and label:GetStringWidth()
+    local mineWidth = math.max(86, type(needed) == "number" and needed + BUTTON_PADDING or 86)
+    local guildX = PAGE_WIDTH - 24 - guildWidth
+    local mineX = guildX - mineWidth - 6
+    row.guild:SetWidth(guildWidth); row.guild:SetPoint("TOPLEFT", row.parent, "TOPLEFT", guildX, row.y)
+    row.mine:SetWidth(mineWidth); row.mine:SetPoint("TOPLEFT", row.parent, "TOPLEFT", mineX, row.y)
+    row.label:SetWidth(math.max(80, mineX - 4))
   end
 end
 

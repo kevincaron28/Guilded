@@ -252,3 +252,11 @@ Window opacity comparison (looked mostly opaque; no baseline, not judged), missi
 
 ### Screenshots
 Native full-resolution PNGs (CopyFromScreen of the window rectangle, no resampling) in `backups/ui-qa-2026-10-30/private/claude-native/` (28 files; Retail ones show the character name and other players: private only) in the Codex checkout, and ten clean isolated-profile Companion 8.3.0 captures duplicated in `.../publication-ready/claude-native/`. `manifest.json` has one entry per file with version, language, SHA-256 and classification. Nothing uploaded; `publicationApproved` is false for all.
+
+## 8.4 follow-up (30 Oct, about 12:00-12:20 Toronto) - Claude
+
+- **Source:** F-7 fixed in PR #294 (merged into codex/bg-recorder-history-oct30, ac872da). F-1 and F-2 were already fixed in 8.4 source (connection test says "Connect your account first"; standings refresh refuses when not connected). F-4 could not be reproduced from source (code path translates). F-5/F-6 are layout items needing in-game verification, not changed. Full vitest (3220), tsc, eslint and both addon validators passed on fd7dcdc plus the fix.
+- **Live surfaces (read-only check 12:10):** bot /health 8.3.0 ok, website guilded.kcaron.top and kcaron.top show 8.3.0, latest GitHub release v8.3.0 (published 13:47Z). Consistent with each other; 8.4 is source only, so no live surface says 8.4 yet. Updating Discord notices and the site to 8.4 requires the 8.4 deployment, which is not done.
+- **Retail addons:** installed 8.4.0 Retail zips (built from the merged branch) over Guilded and GuildedDungeons after backing up the 8.2.0 folders and SavedVariables to qgb-qa-fixes/backups/retail-addons-8.2.0-before-8.4 (gitignored). SavedVariables untouched. WoW was closed gracefully first (saved variables written 12:06).
+- **In-game 8.4 testing: NOT RUN.** Launching Wow.exe directly shows the password login, which I cannot fill in; the instance was closed. The game must be started from Battle.net by the owner.
+- My stray keystrokes during a quit attempt opened the Reputation panel (harmless).

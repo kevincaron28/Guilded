@@ -2,6 +2,38 @@
 
 Status: source candidate; not deployed, packaged or published yet.
 
+Checkpoint a41011b: PR293 workflow41075850865 passed all jobs, including
+PostgreSQL race/migration/restore and Windows packaging. Local full run had3185
+passing tests and8 catalogue/documentation failures; all8 were corrected and19
+affected tests passed on rerun. TypeScript and lint passed. These results precede
+the reusable setup module below, which requires fresh integrated checks.
+
+## Remaining reusable bot setup
+
+Owner's existing request to finish BG and bot setup includes an optional reusable
+BG setup module. Assigned to the existing bg_discord lane; root owns integration.
+Current deployed8.3 and candidate `/bg setup` only provide instructions; the
+Québec Gold layout alone does not complete reusable setup.
+
+- [x] Source: optional wizard action with persisted guild-scoped category/channel/panel IDs.
+- [x] Source: reuse/create/adopt and repair localized guides without duplicates or changing
+  existing history/overwrites; missing-permission/manual-channel fallback.
+- [ ] Upgrade, idempotency, scope and permission tests; integrated CI/migration.
+- [ ] Deploy wizard, then adopt existing Québec Gold IDs and verify readback.
+  No other-guild rollout is authorized or planned.
+
+Québec Gold existing category1565740141643964497; groups1552246570714402827,
+hub1565730945766527019; stats1565740142977880104/guide1565740363321442386;
+results1565740144299081798/guide1565740366987005953. Preserve these IDs.
+Automatic result posts/awards remain off. No8.4 artifacts are frozen yet, so this
+work remains in8.4; previous published8.3 artifacts remain immutable.
+
+Root integrated setup/routing/UI/wizard run passed67 tests across4 files before
+the last readonly inheritance regression was added. Final lane run passed59
+focused tests (22 service tests), TypeScript and ESLint. Independent final review
+confirmed scope ownership and readonly/bot permission fixes; no remaining blocker
+found in reviewed source. New integrated CI and actual deployment remain pending.
+
 EQSCTS66 triage: deployed signup-character.ts19 rejects missing/ambiguous owned
 characters as intended. The bilingual response exceeded the reporter's200-character
 heuristic and was incorrectly filed as an automatic error. Explicit member-answer

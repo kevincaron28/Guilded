@@ -69,7 +69,7 @@ export async function interactionGuildScope(database: PrismaClient, input: { dis
     if (binding) return loadGuildScope(database, binding.scopeGuildId, input.discordId);
   }
   // Setup/core channels retain their guild even if a different member presses a button.
-  const settingsFields = ["raidSignupChannelId", "logChannelId", "notifyChannelId", "weeklyReportChannelId", "answerChannelId", "dungeonChannelId", "dungeonLeaderboardChannelId", "dungeonSignupChannelId", "raidLogChannelId", "lootChannelId", "craftChannelId", "readinessChannelId", "coreChannelId", "applicationChannelId", "attendanceChannelId", "guideChannelId", "pugChannelId"] as const;
+  const settingsFields = ["raidSignupChannelId", "logChannelId", "notifyChannelId", "weeklyReportChannelId", "answerChannelId", "dungeonChannelId", "dungeonLeaderboardChannelId", "dungeonSignupChannelId", "bgCategoryId", "bgGroupsChannelId", "bgResultsChannelId", "bgStatsChannelId", "raidLogChannelId", "lootChannelId", "craftChannelId", "readinessChannelId", "coreChannelId", "applicationChannelId", "attendanceChannelId", "guideChannelId", "pugChannelId"] as const;
   if (channelIds.length) {
     const [settings, cores, teams] = await Promise.all([
       database.guildSettings.findMany({ where: { guild: { discordId: input.discordId }, OR: settingsFields.map(field => ({ [field]: { in: channelIds } })) }, select: { guildId: true } }),

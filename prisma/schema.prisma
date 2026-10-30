@@ -870,6 +870,13 @@ model GuildSettings {
   onboardingNudge          Boolean   @default(false)
   // Dungeon Challenge: announcements channel and point rules (JSON; missing
   // keys use the built-in defaults).
+  bgCategoryId             String?
+  bgGroupsChannelId        String?
+  bgResultsChannelId       String?
+  bgStatsChannelId         String?
+  bgGroupsMessageId        String?
+  bgResultsMessageId       String?
+  bgStatsMessageId         String?
   dungeonChannelId         String?
   dungeonConfig            Json?
   // Monthly dungeon seasons (opt-in; src/services/dungeon-season-schedule.ts).

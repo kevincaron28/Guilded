@@ -19,6 +19,13 @@ function gameFolder() {
 const config = (file: string) => ({ watchFile: file, realm: "R", uploadUrl: "https://bot.test/api/v1/addon-imports", guildDiscordId: "123", companionCredential: "x".repeat(32) });
 
 describe("companion engine", () => {
+  it("explains missing connection setup without a network request", async () => {
+    const fetcher = vi.fn(); vi.stubGlobal("fetch", fetcher);
+    expect(await testConnection({})).toMatchObject({ ok: false, message: expect.stringContaining("Connect your account first") });
+    expect(await testConnection({ ...config(""), uploadUrl: "" })).toMatchObject({ ok: false, message: "The bot address is not set." });
+    expect(await testConnection({ ...config(""), guildDiscordId: "" })).toMatchObject({ ok: false, message: "The Discord server ID is not set." });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
   it("requires authenticated personal scope, including on older or revoked servers", async () => {
     const fetcher = vi.fn(); vi.stubGlobal("fetch", fetcher);
     const personal = { ...config("a.lua"), personal: true, guildDiscordId: "" };

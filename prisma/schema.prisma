@@ -121,6 +121,8 @@ enum ApplicationStatus {
 }
 
 model Guild {
+  battlegroundReports BattlegroundReport[]
+  battlegroundConsents BattlegroundConsent[]
   recurringRecaps RecurringRecap[]
   cooperativeGoal CooperativeGoal?
   weeklyQuestionPlan WeeklyQuestionPlan?
@@ -426,6 +428,8 @@ model CommunityParticipationDeletion {
 
 
 model Member {
+  battlegroundReports BattlegroundReport[]
+  battlegroundConsent BattlegroundConsent?
   recurringRecap RecurringRecap?
   supplyPledges RaidSupplyPledge[]
   targetedAlertAttempts TargetedAlertAttempt[]
@@ -477,6 +481,7 @@ model Member {
 }
 
 model Character {
+  battlegroundReports BattlegroundReport[]
   webAvailability WebAvailability[]
   guildId            String
   gameEdition        String @default("forever")
@@ -2447,4 +2452,50 @@ model WeeklyQuestionOccurrence {
   createdAt DateTime @default(now())
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
   @@unique([guildId, weekKey])
+}
+
+model BattlegroundConsent {
+  memberId String @id
+  guildId String
+  capture Boolean @default(false)
+  guildStats Boolean @default(false)
+  consentedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  @@index([guildId, guildStats])
+}
+
+model BattlegroundReport {
+  id String @id @default(cuid())
+  guildId String
+  memberId String
+  characterId String
+  reportId String
+  adapter String
+  gameEdition String
+  mode String
+  mapId Int
+  bracket String
+  endedAt DateTime
+  durationSeconds Int
+  outcome String
+  presence String
+  reloaded Boolean
+  premadeNonce String?
+  corroborated Boolean @default(false)
+  fingerprint String
+  status String @default("PROVISIONAL")
+  correctionReason String?
+  correctedAt DateTime?
+  conflictFingerprint String?
+  conflictSummary String?
+  createdAt DateTime @default(now())
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  @@unique([guildId, memberId, reportId])
+  @@index([guildId, gameEdition, endedAt])
+  @@index([memberId, endedAt])
+  @@index([guildId, premadeNonce])
 }

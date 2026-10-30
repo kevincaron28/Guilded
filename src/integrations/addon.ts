@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { battlegroundReportSchema } from "../services/battleground-record-schema.js";
 import { GAME_EDITIONS, editionMetadata } from "../../companion/game-edition.mjs";
 
 export const addonTransactionSchema = z.object({
@@ -255,6 +256,7 @@ export const addonSnapshotSchema = z.object({
   // Dungeon runs are validated one by one on apply (services/dungeon-rules),
   // so a single malformed run can't reject the whole import.
   dungeonRuns: z.array(z.unknown()).max(500).default([]),
+  battlegroundReports: z.array(battlegroundReportSchema).max(100).default([]),
   // Rows left out because they were malformed (see parseAddonSnapshot); the rest still imports.
   rejected: z.array(z.object({ section: z.string().max(40), label: z.string().max(120), reason: z.string().max(200) })).max(MAX_REJECTED).default([])
 });
@@ -268,7 +270,7 @@ const ROW_SCHEMAS = {
   transactions: addonTransactionSchema, epgpTransactions: addonEpgpTransactionSchema, readiness: addonReadinessSchema,
   attunements: addonAttunementSchema, raids: addonRaidSchema, loot: addonLootSchema, characters: addonCharacterSchema,
   alts: addonCharacterSchema, itemPrices: addonItemPriceSchema, calendarEvents: addonCalendarEventSchema,
-  recipes: addonRecipeSetSchema, cooldowns: addonCooldownSetSchema
+  recipes: addonRecipeSetSchema, cooldowns: addonCooldownSetSchema, battlegroundReports: battlegroundReportSchema
 } as const;
 
 function rowLabel(row: unknown, index: number): string {

@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, escapeMarkdown, MessageFlags, ModalBuilder, SlashCommandBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle, type ButtonInteraction, type ChatInputCommandInteraction, type ModalSubmitInteraction, type StringSelectMenuInteraction } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, escapeMarkdown, MessageFlags, ModalBuilder, PermissionFlagsBits, SlashCommandBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle, type ButtonInteraction, type ChatInputCommandInteraction, type ModalSubmitInteraction, type StringSelectMenuInteraction } from "discord.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 import { requireGuildContext } from "./context.js";
@@ -6,6 +6,9 @@ import { createBattleground } from "../services/battleground-organization.js";
 import { manageSession, respondToSession, sessionInclude } from "../services/activity-core.js";
 import { requireTeamChannel, teamLanguage, teamSessionEmbed } from "../services/activity-core-discord.js";
 import { Prisma, type RaidRole } from "../generated/prisma/client.js";
+import { battlegroundHistory, battlegroundStats, correctBattlegroundReport, setBattlegroundConsent } from "../services/battleground-records.js";
+import { battlegroundPrivacyHelp, battlegroundRecordPanel, battlegroundResultCard, battlegroundSetupHelp } from "./battleground-record-ui.js";
+import { currentGuildScope } from "../services/guild-scope.js";
 
 export const battlegroundCommand = new SlashCommandBuilder().setName("bg").setDescription("Battleground planning")
   .setDescriptionLocalizations({ fr: "Organisation des champs de bataille" })
@@ -35,7 +38,21 @@ export const battlegroundCommand = new SlashCommandBuilder().setName("bg").setDe
   .addSubcommand(s => s.setName("manage").setDescription("Start, cancel or close a session (leaders)")
     .addStringOption(o => o.setName("session").setDescription("Session ID").setRequired(true))
     .addStringOption(o => o.setName("action").setDescription("Action").setRequired(true).addChoices(...["open", "close", "start", "cancel", "complete"].map(value => ({ name: value, value })))))
-  .addSubcommand(s => s.setName("view").setDescription("View group and signup details").addStringOption(o => o.setName("session").setDescription("Session ID").setRequired(true)));
+  .addSubcommand(s => s.setName("view").setDescription("View group and signup details").addStringOption(o => o.setName("session").setDescription("Session ID").setRequired(true)))
+  .addSubcommand(s => s.setName("history").setDescription("My private battleground reports").setDescriptionLocalizations({ fr: "Mes rapports JcJ privés" }))
+  .addSubcommand(s => s.setName("result").setDescription("View one of my private reports").setDescriptionLocalizations({ fr: "Voir un de mes rapports privés" })
+    .addStringOption(o => o.setName("report").setDescription("Report ID from /bg history").setRequired(true).setMaxLength(160)))
+  .addSubcommand(s => s.setName("correct").setDescription("Withdraw my incorrect report; retain correction history").setDescriptionLocalizations({ fr: "Retirer mon rapport erroné en conservant la correction" })
+    .addStringOption(o => o.setName("report").setDescription("My report ID").setRequired(true).setMaxLength(160))
+    .addStringOption(o => o.setName("reason").setDescription("Reason for withdrawal").setRequired(true).setMinLength(3).setMaxLength(240)))
+  .addSubcommand(s => s.setName("privacy").setDescription("Choose personal capture and guild-statistics consent").setDescriptionLocalizations({ fr: "Choisir la collecte personnelle et les statistiques de guilde" })
+    .addBooleanOption(o => o.setName("capture").setDescription("Allow my paired Companion to submit my postmatch reports").setRequired(true))
+    .addBooleanOption(o => o.setName("guild-stats").setDescription("Allow my eligible reports in guild statistics; requires capture").setRequired(true)))
+  .addSubcommand(s => s.setName("stats").setDescription("Opt-in guild participation reports, explicitly provisional").setDescriptionLocalizations({ fr: "Participations de guilde avec accord, explicitement provisoires" })
+    .addStringOption(o => o.setName("mode").setDescription("Format").setRequired(true).addChoices(...["casual", "rated", "blitz"].map(value => ({ name: value, value }))))
+    .addStringOption(o => o.setName("bracket").setDescription("Reported API bracket identifier from /bg result").setRequired(true).setMaxLength(20))
+    .addIntegerOption(o => o.setName("season").setDescription("Season number; defaults to current").setMinValue(1)))
+  .addSubcommand(s => s.setName("setup").setDescription("Officer setup instructions; changes no channels or permissions").setDescriptionLocalizations({ fr: "Guide officiers, sans modification de salons ou permissions" }));
 
 type BgInteraction = ChatInputCommandInteraction | ButtonInteraction | ModalSubmitInteraction | StringSelectMenuInteraction;
 type BgInput = { action: string; strings?: Record<string, string>; integers?: Record<string, number>; booleans?: Record<string, boolean>; channelId?: string | undefined };
@@ -63,14 +80,68 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
   const ctx = await requireGuildContext(i);
   if (!ctx) return;
   const actor = await i.guild.members.fetch({ user: i.user.id, force: true });
+  const memberRoleId = currentGuildScope()?.memberRoleId;
+  if (memberRoleId && !actor.permissions.has(PermissionFlagsBits.Administrator) && !actor.roles.cache.has(memberRoleId)) {
+    throw new Error("Current guild member role required / Rôle de membre actuel requis.");
+  }
   const fr = await teamLanguage(prisma, ctx.guildId);
   const t = (en: string, french: string) => fr ? french : en;
   const sub = command?.options.getSubcommand() ?? input?.action ?? "";
   if (["create", "manage"].includes(sub) && !hasPermission(actor, "raidLeader")) throw new Error("Raid Leader required / Responsable de raid requis.");
+  if (sub === "setup" && !hasPermission(actor, "officer")) throw new Error("Officer required / Officier requis.");
+  if (sub === "setup" || sub === "privacy-help") {
+    await i.editReply({ content: sub === "setup" ? battlegroundSetupHelp(fr) : battlegroundPrivacyHelp(fr), allowedMentions: { parse: [] } }); return;
+  }
+  if (sub === "privacy") {
+    const capture = command?.options.getBoolean("capture", true) ?? false;
+    const guildStats = command?.options.getBoolean("guild-stats", true) ?? false;
+    await setBattlegroundConsent(prisma, ctx.guildId, ctx.memberId, { capture, guildStats });
+    await i.editReply({ content: `${t("Saved", "Enregistré")} — ${t("capture", "collecte")}: ${capture ? "ON" : "OFF"}; ${t("guild statistics", "statistiques de guilde")}: ${guildStats ? "ON" : "OFF"}.\n${battlegroundPrivacyHelp(fr)}`, allowedMentions: { parse: [] } }); return;
+  }
+  if (sub === "history" || sub === "result") {
+    const rows = await battlegroundHistory(prisma, ctx.guildId, ctx.memberId, sub === "result" ? text("report", true) : undefined);
+    if (sub === "result") {
+      const id = text("report", true);
+      const row = rows.find(row => row.id === id || row.reportId === id);
+      if (!row) throw new Error("Own report not found / Rapport personnel introuvable.");
+      await i.editReply({ embeds: [battlegroundResultCard(row, fr)], allowedMentions: { parse: [] } }); return;
+    }
+    const description = rows.length ? rows.map(row => `${escapeMarkdown(row.id)} · ${escapeMarkdown(row.gameEdition)} · ${escapeMarkdown(row.mode)} · ${escapeMarkdown(row.bracket)}\n<t:${Math.floor(row.endedAt.getTime() / 1000)}:f> · ${row.outcome} · ${row.status}`).join("\n\n")
+      : t("No personal reports. /bg privacy chooses consent; the paired Companion uploads eligible postmatch reports.", "Aucun rapport personnel. /bg privacy définit votre accord; le Compagnon lié importe les rapports admissibles après match.");
+    await i.editReply({ embeds: [new EmbedBuilder().setTitle(t("My recent reports (up to 25)", "Mes rapports récents (25 maximum)")).setDescription(description.slice(0, 4000))
+      .setFooter({ text: t("Private · /bg result report:<ID> · /bg correct report:<ID> reason:<reason>", "Privé · /bg result report:<ID> · /bg correct report:<ID> reason:<motif>") })], allowedMentions: { parse: [] } }); return;
+  }
+  if (sub === "correct") {
+    await correctBattlegroundReport(prisma, ctx.guildId, ctx.memberId, text("report", true), text("reason", true));
+    await i.editReply({ content: t("Your report is withdrawn from statistics. The correction is retained in your private history.", "Votre rapport est retiré des statistiques. La correction reste dans votre historique privé."), allowedMentions: { parse: [] } }); return;
+  }
+  if (sub === "stats") {
+    const mode = text("mode"), bracket = text("bracket");
+    if (!mode || !bracket) {
+      await i.editReply({ content: t("Choose one format and the reported API bracket identifier shown in /bg result: /bg stats mode:casual bracket:<identifier>. This is not a verified level range. The current guild edition and season apply; use season:<number> for an earlier season. Formats and brackets are never mixed.", "Choisissez un format et l'identifiant de bracket rapporté par l'API dans /bg result : /bg stats mode:casual bracket:<identifiant>. Ce n'est pas une tranche de niveaux vérifiée. L'édition de guilde et la saison actuelle s'appliquent; season:<numéro> choisit une saison antérieure. Les formats et brackets ne sont jamais mélangés."), allowedMentions: { parse: [] } }); return;
+    }
+    const guild = await prisma.guild.findUniqueOrThrow({ where: { id: ctx.guildId }, select: { gameEdition: true } });
+    const now = new Date();
+    const selected = integer("season");
+    const season = await prisma.officialSeason.findFirst({ where: { gameEdition: guild.gameEdition, ...(selected ? { number: selected } : { startsAt: { lte: now } }) }, orderBy: { startsAt: "desc" } });
+    if (!season) { await i.editReply({ content: t("No season is available for this edition.", "Aucune saison disponible pour cette édition.") }); return; }
+    const next = await prisma.officialSeason.findFirst({ where: { gameEdition: guild.gameEdition, startsAt: { gt: season.startsAt } }, orderBy: { startsAt: "asc" } });
+    const endsAt = next && next.startsAt < now ? next.startsAt : now;
+    if (season.startsAt >= endsAt) { await i.editReply({ content: t("This season has not started.", "Cette saison n'a pas commencé.") }); return; }
+    const stats = await battlegroundStats(prisma, ctx.guildId, { edition: guild.gameEdition, ...(mode ? { mode } : {}), ...(bracket ? { bracket } : {}), startsAt: season.startsAt, endsAt });
+    await i.editReply({ embeds: [new EmbedBuilder().setTitle(t("Provisional guild participation reports", "Participations de guilde provisoires"))
+      .setDescription(`${escapeMarkdown(guild.gameEdition)} · ${t("Season", "Saison")} ${season.number} · ${escapeMarkdown(mode ?? t("All formats", "Tous formats"))} · ${t("API bracket", "Bracket API")}: ${escapeMarkdown(bracket)}\n<t:${Math.floor(season.startsAt.getTime() / 1000)}:d> → <t:${Math.floor(endsAt.getTime() / 1000)}:d>`)
+      .addFields({ name: t("Player participations (not unique matches)", "Participations (pas des matchs uniques)"), value: String(stats.participations), inline: true },
+        { name: t("Reported wins / losses / draws", "Victoires / défaites / nuls rapportés"), value: `${stats.wins} / ${stats.losses} / ${stats.draws}`, inline: true },
+        { name: t("Reported win rate", "Taux de victoire rapporté"), value: stats.winRate === null ? "—" : `${(stats.winRate * 100).toFixed(1)}%`, inline: true },
+        { name: t("Known-outcome sample / unknown", "Échantillon connu / résultat inconnu"), value: `${stats.wins + stats.losses + stats.draws} / ${stats.unknownOutcomes}`, inline: true },
+        { name: t("Verified unique matches", "Matchs uniques vérifiés"), value: t("Unavailable: adapters and cross-reporter identity are not verified.", "Indisponibles : adaptateurs et identité entre rapporteurs non validés.") })
+      .setFooter({ text: t("Opted-in reports only; withdrawn/conflicting reports excluded. Provisional, not official or ranked. No MMR, skill score or competitive points.", "Rapports consentants seulement; retraits et conflits exclus. Provisoire, sans classement officiel. Aucun MMR, score de talent ou point compétitif.") })], allowedMentions: { parse: [] } }); return;
+  }
   if (sub === "panel") {
-    await i.editReply({ components: [battlegroundPanel(fr, ctx.guildId)], embeds: [new EmbedBuilder().setTitle(t("Battlegrounds", "Champs de bataille")).setDescription(t(
-      "Create: /bg create\nJoin: /bg upcoming → /bg join\nMy groups: /bg mine\nDetails: /bg view\nLeave: /bg leave\n\nPrivate planning. No automatic posts, match capture or awards. Unverified queue formats cannot start.",
-      "Créer : /bg create\nRejoindre : /bg upcoming → /bg join\nMes groupes : /bg mine\nDétails : /bg view\nQuitter : /bg leave\n\nPlanification privée. Aucun message automatique, capture ou récompense. Les formats non vérifiés ne peuvent pas démarrer."))] });
+    await i.editReply({ components: [battlegroundPanel(fr, ctx.guildId), battlegroundRecordPanel(fr, ctx.guildId)], embeds: [new EmbedBuilder().setTitle(t("Battlegrounds", "Champs de bataille")).setDescription(t(
+      "Create: /bg create\nJoin: /bg upcoming → /bg join\nMy groups: /bg mine\nDetails: /bg view\nLeave: /bg leave\n\nMy results: /bg history · Privacy: /bg privacy\nGuild statistics: /bg stats\nPrivate planning and opt-in reports. No automatic posts or awards. Unverified queue formats cannot start; provisional reports are excluded from verified statistics.",
+      "Créer : /bg create\nRejoindre : /bg upcoming → /bg join\nMes groupes : /bg mine\nDétails : /bg view\nQuitter : /bg leave\n\nMes résultats : /bg history · Confidentialité : /bg privacy\nStatistiques de guilde : /bg stats\nPlanification privée et rapports avec accord. Aucun message automatique ni récompense. Les formats non vérifiés ne démarrent pas; les rapports provisoires restent hors des statistiques vérifiées."))] });
     return;
   }
   if (sub === "create") {
@@ -170,7 +241,7 @@ export function battlegroundFormInput(i: Pick<ModalSubmitInteraction, "customId"
 export async function handleBattlegroundComponent(i: ButtonInteraction | ModalSubmitInteraction | StringSelectMenuInteraction) {
   const action = i.customId.split(":").slice(2).join(":");
   if (i.isModalSubmit()) { await executeBattleground(i, battlegroundFormInput(i)); return; }
-  if (i.isButton() && ["mine", "upcoming"].includes(action)) {
+  if (i.isButton() && ["mine", "upcoming", "history", "stats", "privacy-help", "setup"].includes(action)) {
     await executeBattleground(i, { action: action }); return;
   }
   const ctx = await requireGuildContext(i);

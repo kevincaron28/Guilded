@@ -32,6 +32,9 @@ export function validateConfig(config) {
 
 // Checks the bot address and token without changing anything.
 export async function testConnection(config) {
+  if (typeof config.companionCredential !== "string" || config.companionCredential.length < 32) return { ok: false, message: "Connect your account first: choose Sign in with Discord (or enter a pairing code) in Connection & setup." };
+  if (!config.uploadUrl) return { ok: false, message: "The bot address is not set." };
+  if (!config.personal && !config.guildDiscordId) return { ok: false, message: "The Discord server ID is not set." };
   try {
     const url = new URL(config.personal ? "/api/v1/companion/personal-status" : config.wowEnabled === false ? "/api/v1/poe/status" : "/api/v1/standings", config.uploadUrl);
     url.searchParams.set("guild", config.guildDiscordId);

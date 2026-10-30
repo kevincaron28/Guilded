@@ -80,6 +80,39 @@ function frenchWindow(client = "frFR"): LuaSession {
 }
 
 describe("the tools window in French", () => {
+  it("translates login help with and without a restored active raid", () => {
+    const s = frenchWindow();
+    expect(s.chat().join("\n")).toContain("Chargé. /guilded help pour les commandes.");
+    s.run(`NS.runCommand("start Friday raid"); fire_event("PLAYER_LOGIN")`);
+    expect(s.chat().join("\n")).toContain("le raid 'Friday raid' est toujours actif.");
+  });
+
+  it("keeps confirmation compact and gives each arm its own ten-second timeout", () => {
+    const s = frenchWindow();
+    s.run(`TIMERS = {}; C_Timer.After = function(seconds, fn) TIMERS[#TIMERS + 1] = { seconds = seconds, fn = fn } end
+      for _, f in ipairs(FRAMES) do if f.text == NS.L("Clear test data") then CLEAR_BUTTON = f; break end end
+      CLEAR_BUTTON.scripts.OnClick(CLEAR_BUTTON)`);
+    expect(s.run(`return CLEAR_BUTTON.text`)).toBe("Valider ?");
+    expect(s.run(`return tostring(CLEAR_BUTTON.width >= #CLEAR_BUTTON.text * 6 + 20)`)).toBe("true");
+    expect(s.run(`return tostring(TIMERS[1].seconds)`)).toBe("10");
+    s.run(`CLEAR_BUTTON.scripts.OnClick(CLEAR_BUTTON); CLEAR_BUTTON.scripts.OnClick(CLEAR_BUTTON); TIMERS[1].fn()`);
+    expect(s.run(`return tostring(CLEAR_BUTTON.armed)`)).toBe("true");
+    s.run(`TIMERS[#TIMERS].fn()`);
+    expect(s.run(`return tostring(CLEAR_BUTTON.armed)`)).toBe("false");
+    expect(s.run(`return CLEAR_BUTTON.text == NS.L("Clear test data") and "restored" or "wrong"`)).toBe("restored");
+  });
+
+  it("reserves space below the module list for status messages", () => {
+    const s = frenchWindow();
+    expect(s.run(`for _, f in ipairs(FRAMES) do
+      if f.kind == "ScrollFrame" then
+        local moduleList = false
+        for _, point in ipairs(f.points) do if point[1] == "TOPLEFT" and point[5] == -298 then moduleList = true end end
+        if moduleList then for _, point in ipairs(f.points) do if point[1] == "BOTTOMRIGHT" then return tostring(point[5]) end end end
+      end
+    end; return "missing"`)).toBe("24");
+  });
+
   it.each(["deDE", "esES"])("fits translated button labels on %s", client => {
     const s = frenchWindow(client);
     s.run(`NS.openGuildPanel(nil, "guild", "Standings")`);

@@ -1,5 +1,10 @@
 # Guilded 8.3.0 acceptance
 
+## Provider update — October 30 14:24 UTC
+
+All10 CurseForge8.3 files are Approved; anonymous HTTP200 downloads match every frozen edition ZIP byte length and SHA256. Store Submission6 is published and available; installed8.3 package verification remains pending. GitHub23 assets remain verified. Receipt: `backups/release-8.3.0/curseforge-public-downloads.json`. Next8.4 source candidate is tracked in `V8_4_0_RELEASE_ACCEPTANCE.md`; earlier checkpoints below are historical.
+
+
 ## Current checkpoint — October 30 14:03 UTC
 
 The owner's latest direction authorizes all available testing now, superseding

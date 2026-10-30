@@ -1,5 +1,6 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { characterReference, realmKey } from "../../companion/character-identity.mjs";
+import { MemberAnswerError } from "./member-answer.js";
 
 type Db = Pick<PrismaClient, "character">;
 // Thrown from services that do not know the guild's language, so it carries both.
@@ -16,6 +17,6 @@ export async function ownedSignupCharacter(database: Db, guildId: string, member
   const matches = query ? characters.filter(character => character.id.toLowerCase() === query
     || character.name.toLowerCase() === query || character.displayName?.toLowerCase() === query
     || ref.realm && character.name.toLowerCase() === ref.character.toLowerCase() && realmKey(character.realm) === ref.realm) : characters;
-  if (matches.length !== 1) throw new Error(matches.length > 1 ? CHARACTER_AMBIGUOUS : CHARACTER_REQUIRED);
+  if (matches.length !== 1) throw new MemberAnswerError(matches.length > 1 ? CHARACTER_AMBIGUOUS : CHARACTER_REQUIRED);
   return matches[0]!;
 }

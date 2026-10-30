@@ -6,6 +6,7 @@ import { normalizeAddonSnapshot, parseAddonSnapshot, type AddonSnapshot } from "
 import { deriveReadinessStatus } from "./readiness.js";
 import { applyAddonLoot, applyRaidAttendance, touchLastSeen } from "./raid-import.js";
 import { importDungeonRuns } from "./dungeon-import.js";
+import { importBattlegroundReports } from "./battleground-records.js";
 import { applyDiscoveredCharacters } from "./roster-discovery.js";
 import { findCharacter } from "./character-match.js";
 import { applyReserves } from "./reserves.js";
@@ -74,18 +75,39 @@ export function createAddonImportService(database: PrismaClient) {
     },
 
     async record(guildId: string, snapshot: AddonSnapshot, checksum: string, createdBy: string, pairedMemberId?: string) {
-      return database.addonImport.create({
+      // BG consent is independent of officer import access. Do not retain a BG
+      // payload in staging when its authenticated reporter has not opted in.
+      const persist = async (tx: Pick<Prisma.TransactionClient, "addonImport" | "battlegroundConsent" | "character" | "member">) => {
+        let battlegroundReports: AddonSnapshot["battlegroundReports"] = [];
+        if (pairedMemberId && snapshot.battlegroundReports.length) {
+          const consent = await tx.battlegroundConsent.findUnique({ where: { memberId: pairedMemberId } });
+          const member = await tx.member.findFirst({ where: { id: pairedMemberId, guildId, status: "ACTIVE" }, select: { id: true } });
+          if (member && consent?.capture && consent.guildId === guildId) {
+            const own = await tx.character.findMany({ where: { guildId, memberId: pairedMemberId } });
+            battlegroundReports = snapshot.battlegroundReports.filter(row => row.endedAt * 1000 >= consent.consentedAt.getTime()
+              && own.some(c => c.gameEdition === row.edition && findCharacter([c], row.character, row.realm, row.edition)));
+          }
+        }
+        return tx.addonImport.create({
         data: {
           guildId,
           source: snapshot.source,
           checksum,
           status: "PREVIEWED",
           // Parsed from a JSON upload, so it is JSON (dungeonRuns stay unvalidated until apply).
-          payload: snapshot as unknown as Prisma.InputJsonValue,
+          payload: { ...snapshot, battlegroundReports } as unknown as Prisma.InputJsonValue,
           createdBy,
           ...(pairedMemberId ? { pairedMemberId } : {})
         }
+        });
+      };
+      if (pairedMemberId && snapshot.battlegroundReports.length) return database.$transaction(async tx => {
+        // Consent changes and staging use the same guild lock; a revoke cannot
+        // commit between checking permission and persisting this sensitive payload.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${guildId}, 0))`;
+        return persist(tx);
       });
+      return persist(database);
     },
 
     async apply(guildId: string, importId: string, appliedBy: string) {
@@ -380,6 +402,7 @@ export function createAddonImportService(database: PrismaClient) {
         }
         const dungeons = await importDungeonRuns(tx, guildId, snapshot.dungeonRuns,
           characters.map((character) => ({ name: character.name, realm: character.realm, memberId: character.memberId, spec: character.spec })), appliedBy, importId);
+        const battlegrounds = await importBattlegroundReports(tx, guildId, imported.pairedMemberId, snapshot.battlegroundReports);
 
         await tx.addonImport.update({
           where: { id: imported.id },
@@ -399,7 +422,7 @@ export function createAddonImportService(database: PrismaClient) {
         }
         if (calendarPlan.matches.length) await enqueueDiscordJob(tx, guildId, `calendar:${imported.id}`, "CALENDAR", { plan: JSON.parse(JSON.stringify(calendarPlan)) });
         return {
-          import: imported, transactions, epgpTransactions, readinessSnapshots, attunements, consumables, reserves, itemPrices, crafting, calendarPlan, discovery, raids, loot, dungeons, skipped,
+          import: imported, transactions, epgpTransactions, readinessSnapshots, attunements, consumables, reserves, itemPrices, crafting, calendarPlan, discovery, raids, loot, dungeons, battlegrounds, skipped,
           voided, held: { rows: held, fresh: newlyHeld.length }, rejected: snapshot.rejected, unchangedSections
         };
         });

@@ -4,8 +4,23 @@ import { buildSignupEmbed } from "../src/services/signup-embed.js";
 import { channelSpec, categoryNames } from "../src/setup-names.js";
 import { PermissionFlagsBits as F } from "discord.js";
 import { reportChannelOverwrites } from "../src/services/report-channel-permissions.js";
+import { isMemberAnswer } from "../src/services/error-report.js";
 
 describe("character identities in signups", () => {
+  it("classifies bilingual missing and ambiguous character responses as expected validation", async () => {
+    for (const rows of [[], [{ id: "a", name: "Ann", realm: "A" }, { id: "b", name: "Ann", realm: "B" }]]) {
+      const db = { character: { findMany: vi.fn().mockResolvedValue(rows) } };
+      const error = await ownedSignupCharacter(db as never, "g", "m").catch(error => error);
+      expect(error).toBeInstanceOf(Error);
+      expect(error.message.length).toBeGreaterThan(200);
+      expect(isMemberAnswer(error)).toBe(true);
+    }
+    const dbError = new TypeError("Database failure");
+    const db = { character: { findMany: vi.fn().mockRejectedValue(dbError) } };
+    const error = await ownedSignupCharacter(db as never, "g", "m").catch(error => error);
+    expect(error).toBe(dbError);
+    expect(isMemberAnswer(error)).toBe(false);
+  });
   const characters = [{ id: "a", name: "Ann", realm: "Quebec", memberId: "m" }, { id: "b", name: "Ann", realm: "Toronto", memberId: "m" }];
   const findMany = vi.fn().mockResolvedValue(characters);
   const database = { character: { findMany } };

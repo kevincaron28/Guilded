@@ -1,5 +1,13 @@
 # Changelog
 
+## 8.3.0 — 30 October 2026 candidate
+
+Opt-in weekly questions, private recap schedules and approved vacancy alerts;
+private battleground planning; clearer Home, edition navigation, leaderboards
+and EN/FR member guides. Web sync remains available alongside automatic Windows
+sync. Candidate validation and publication are pending; protocol remains 2.
+See [release notes](docs/V8_3_0_RELEASE_NOTES.md).
+
 ## 8.2.0 — 30 October 2026 candidate
 
 Approved versioned raid playbooks and catch-up notes, voluntary supply planning,

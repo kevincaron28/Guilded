@@ -16,7 +16,7 @@ describe("site menu", () => {
     const { slug } = editionSection(edition)!;
     for (const lang of ["en", "fr"] as const) withEdition(edition, () => {
       const html = page("/players/", lang);
-      for (const item of SITE_NAV.filter(item => item.bot)) expect(html).toContain(`href="/${slug}${item.href}?lang=${lang}"`);
+      for (const item of SITE_NAV.filter(item => item.bot && item.key !== "my-guilded")) expect(html).toContain(`href="/${slug}${item.href}?lang=${lang}"`);
       expect(link("/players/", lang)).toBe(`/${slug}/players/?lang=${lang}`);
       const login = /href="(\/auth\/login[^"]+)"/.exec(html)![1]!.replaceAll("&amp;", "&");
       const returned = new URL(new URL(login, "https://guilded.test").searchParams.get("return")!, "https://guilded.test");

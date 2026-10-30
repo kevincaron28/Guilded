@@ -56,7 +56,7 @@ describe("PoE2 HTTP authentication and personal scope", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
-    expect(await response.text()).toContain("Your connection, at a glance.");
+    expect(await response.text()).toContain('id="page-status"');
     for (const [file, type] of [["design-tokens.css", "text/css"], ["precision.css", "text/css"], ["kc-emblem.webp", "image/webp"], ["fonts/inter-latin.woff2", "font/woff2"], ["fonts/source-serif-latin.ttf", "font/ttf"]]) {
       const asset = await fetch(`${address}/companion/${file}`);
       expect(asset.status).toBe(200);

@@ -4,15 +4,17 @@ import { pilotGuildScope } from "../hosted-pilot.js";
 import { currentGuildScope, withGuildScope } from "./guild-scope.js";
 import { deliverGroupWatch, groupWatchEvents } from "./group-watch.js";
 import { subscriptionPreview } from "./group-subscription.js";
+import { hasPermission } from "../permissions.js";
 
-/** Approval-gated dispatcher; deliberately not registered with a timer in this
- * change. The release owner must record audience/channel/cadence approval first.
+/** Approval-gated dispatcher. Only explicitly configured automation is scheduled.
  * No DM fallback, no role mentions and no changed-channel substitution. */
 export async function dispatchGroupWatches(client: Client, database: PrismaClient, now = new Date()) {
-  const settings = await database.guildSettings.findMany({ where: { ...pilotGuildScope, targetedAlertsEnabled: true, targetedAlertsChannelId: { not: null } }, include: { guild: true } });
+  const settings = await database.guildSettings.findMany({ where: { ...pilotGuildScope, targetedAlertsEnabled: true, targetedAlertsChannelId: { not: null }, targetedAlertsAutomationApprovedBy: { not: null } }, include: { guild: true } });
   for (const setting of settings) await withGuildScope(database, setting.guildId, async () => {
     const guild = client.guilds.cache.get(setting.guild.discordId);
     if (!guild) return;
+    const approver = await guild.members.fetch({ user: setting.targetedAlertsAutomationApprovedBy!, force: true }).catch(() => null);
+    if (!approver || !hasPermission(approver, "officer")) return;
     const alerts = await database.groupAlert.findMany({ where: { guildId: setting.guildId }, take: 100, orderBy: { memberId: "asc" },
       include: { member: { select: { discordUserId: true, characters: { select: { level: true } } } } } });
     const events = (await groupWatchEvents(database, setting.guildId, now)).filter(event => event.channelId === setting.targetedAlertsChannelId).slice(0, 10);
@@ -23,7 +25,11 @@ export async function dispatchGroupWatches(client: Client, database: PrismaClien
       const result = await deliverGroupWatch(database, { guildId: setting.guildId, memberId: alert.memberId, eventKey: event.key,
         loadEvent: async () => (await groupWatchEvents(database, setting.guildId)).find(row => row.key === event.key) ?? null,
         access: async (userId, channelId) => {
-          const [member, channel, bot] = await Promise.all([guild.members.fetch(userId).catch(() => null), guild.channels.fetch(channelId).catch(() => null), guild.members.fetchMe().catch(() => null)]);
+          const currentSettings = await database.guildSettings.findUnique({ where: { guildId: setting.guildId } });
+          if (!currentSettings?.targetedAlertsEnabled || currentSettings.targetedAlertsAutomationApprovedBy !== setting.targetedAlertsAutomationApprovedBy) return false;
+          const currentApprover = await guild.members.fetch({ user: setting.targetedAlertsAutomationApprovedBy!, force: true }).catch(() => null);
+          if (!currentApprover || !hasPermission(currentApprover, "officer")) return false;
+          const [member, channel, bot] = await Promise.all([guild.members.fetch({ user: userId, force: true }).catch(() => null), guild.channels.fetch(channelId).catch(() => null), guild.members.fetchMe({ force: true }).catch(() => null)]);
           if (!member || !bot || channel?.type !== ChannelType.GuildText) return false;
           const role = currentGuildScope()?.memberRoleId;
           return (!role || member.permissions.has(PermissionFlagsBits.Administrator) || member.roles.cache.has(role))

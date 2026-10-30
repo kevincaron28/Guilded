@@ -1,4 +1,4 @@
-import type { PrismaClient } from "../generated/prisma/client.js";
+import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
 import { weeklyQuestionDraftSchema } from "./weekly-question.js";
 
 export function questionWeek(now: Date, timezone: string) {
@@ -14,7 +14,7 @@ export async function saveWeeklyQuestion(database: PrismaClient, guildId: string
   return database.$transaction(async tx => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`weekly-question:${guildId}`}))`;
     return tx.weeklyQuestionPlan.upsert({ where: { guildId }, create: { guildId, settings, createdBy: actorId },
-      update: { settings, paused: false, createdBy: actorId, revision: { increment: 1 } } });
+      update: { settings, paused: false, automation: Prisma.DbNull, createdBy: actorId, revision: { increment: 1 } } });
   });
 }
 
@@ -35,7 +35,7 @@ export async function reviewWeeklyQuestion(database: PrismaClient, guildId: stri
 export async function pauseWeeklyQuestion(database: PrismaClient, guildId: string, paused: boolean) {
   return database.$transaction(async tx => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`weekly-question:${guildId}`}))`;
-    return tx.weeklyQuestionPlan.updateMany({ where: { guildId }, data: { paused, revision: { increment: 1 } } });
+    return tx.weeklyQuestionPlan.updateMany({ where: { guildId }, data: { paused, automation: Prisma.DbNull, revision: { increment: 1 } } });
   });
 }
 
@@ -79,8 +79,8 @@ export async function actOnWeeklyQuestion(database: PrismaClient, input: {
   if (!claim) return "already-handled";
   if (claim.status !== "claimed") return claim.status;
   // No fallback channel or automatic retry after a permission/configuration race.
-  const latest = await database.weeklyQuestionPlan.findUnique({ where: { guildId: input.guildId } });
   const stillAuthorized = await input.authorize(settings.channelId);
+  const latest = await database.weeklyQuestionPlan.findUnique({ where: { guildId: input.guildId } });
   const checkedAt = new Date(now.getTime() + Math.max(0, Date.now() - began));
   if (!latest || latest.paused || latest.revision !== claim.revision || !stillAuthorized || review.expiresAt <= checkedAt || questionWeek(checkedAt, settings.timezone) !== review.weekKey) {
     await database.weeklyQuestionOccurrence.update({ where: { id: claim.occurrence.id }, data: { status: "SKIPPED" } });

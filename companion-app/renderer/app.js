@@ -10,7 +10,7 @@ $('btnNav').addEventListener('click', () => { const open = $('btnNav').getAttrib
 $('navBackdrop').addEventListener('click',closeNavigation);
 document.addEventListener('keydown',event => {
   if (event.key !== 'Tab' || !document.body.classList.contains('nav-open')) return;
-  const focusable = [...document.querySelectorAll('.sidebar button, .sidebar a[href]')].filter(element => !element.hidden);
+  const focusable = [...document.querySelectorAll('.sidebar button, .sidebar a[href], .sidebar summary')].filter(element => !element.hidden && element.getClientRects().length);
   const first = focusable[0], last = focusable.at(-1);
   if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
   else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
@@ -19,7 +19,7 @@ document.addEventListener('keydown',event => { if (event.key === 'Escape' && doc
 desktopNavigation.addEventListener('change',closeNavigation);
 const modeLabel = mode => T(({STANDARD:'Trade / Standard', HARDCORE:'Hardcore', SSF:'Solo self-found', SSF_HARDCORE:'Solo self-found Hardcore'})[mode] || mode || '');
 const fields = ['uploadUrl','guildDiscordId','pairingCode','watchFile','realm','wowGuild','standingsIntervalMinutes','poeLogFile','poeCharacter','poeLeague','poeMode'];
-const names = {status:'Overview',wishlist:'Wishlist',cores:'Roster & loot settings',pricing:'Raid prices',leaderboards:'Leaderboards',wow:'World of Warcraft',poe:'PoE2 mapping',settings:'Connection & setup',activity:'Activity',help:'Help & privacy'};
+const names = {status:'Home',wishlist:'Wishlist',cores:'Roster & loot settings',pricing:'Raid prices',leaderboards:'Leaderboards',wow:'World of Warcraft',poe:'PoE2 mapping',settings:'Sync & setup',activity:'Activity',help:'Help & privacy'};
 let lastSnapshot;
 let savedConfig = {};
 let entries = [];
@@ -34,6 +34,8 @@ function ago(iso) {
 }
 function showPage(name) {
   if (!names[name]) name = 'status';
+  const selectedNav = document.querySelector(`.nav[data-page="${name}"]`);
+  if (selectedNav?.closest('details')) selectedNav.closest('details').open = true;
   document.querySelectorAll('.page').forEach(page => page.hidden = page.id !== `page-${name}`);
   document.querySelectorAll('.nav').forEach(button => { const active = button.dataset.page === name; button.classList.toggle('active', active); if (active) button.setAttribute('aria-current','page'); else button.removeAttribute('aria-current'); });
   $('breadcrumb').textContent = T(names[name]);
@@ -95,6 +97,7 @@ function renderSavedFile(snapshot) {
   $('liveText').textContent = liveText().text(candidate.path.split(/[\\/]/).pop(), candidate.gameFolder, candidate.account, since(candidate.changedAt));
 }
 function renderState(snapshot) {
+  updateProfileLinks();
   lastSnapshot = snapshot;
   if ($('profileSyncStatus')) $('profileSyncStatus').textContent = (snapshot.state.profiles || []).map(p => p.name + ': ' + M(p.error || (p.running ? 'Syncing' : p.enabled ? 'Setup needed' : 'Paused'))).join(' · ');
   const {state,health} = snapshot;
@@ -122,6 +125,7 @@ function renderState(snapshot) {
   $('overviewStandings').textContent = M(overview.standings);
   $('overviewStandingsTime').textContent = state.lastStandings ? ago(state.lastStandings.at) : T("A connection is not a completed sync.");
   $('overviewNext').firstChild.textContent = M(overview.nextAction) + ' →';
+  $('overviewNext').dataset.go = overview.nextPage;
   $('btnUpload').hidden = !overview.linked;
   $('btnUpload').disabled = !overview.canSync || $('btnUpload').dataset.busy === 'true';
   const linked = !!savedConfig.companionCredential;
@@ -278,11 +282,20 @@ bind('btnSaveDiagnostics',async () => { const url = URL.createObjectURL(new Blob
 function setTheme(light) { document.body.classList.toggle('light',light); $('btnTheme').setAttribute('aria-label',light ? T("Switch to dark theme") : T("Switch to light theme")); try { localStorage.setItem('guilded.companion.theme',light ? 'light' : 'dark'); } catch { /* theme still applies */ } }
 try { setTheme(localStorage.getItem('guilded.companion.theme') === 'light'); } catch { /* use dark */ }
 $('btnTheme').addEventListener('click',() => setTheme(!document.body.classList.contains('light')));
+function updateProfileLinks() {
+  for (const anchor of document.querySelectorAll('[data-profile-link-base], a[href^="https://guilded.kcaron.top/me/"], a[href^="https://guilded.kcaron.top/leaderboards/"]')) {
+    const base = anchor.dataset.profileLinkBase || anchor.href;
+    anchor.dataset.profileLinkBase = base;
+    anchor.href = window.guildedProfileSiteHref(base, savedConfig.gameEdition, languageUI.language);
+  }
+}
 function configurePresentation() {
+  updateProfileLinks();
   for (const key of MODE_TEXT) { const [id, attribute] = key.split(':'); const value = T(languageUI.original(id, attribute)); if (attribute) $(id)[attribute] = value; else $(id).textContent = value; }
   modeDefaults = null;
+  $('browserChoice').hidden = !api.browser;
   if (api.browser) {
-    $('appMode').textContent = T("Online companion"); $('footerMode').textContent = T("Manual file sync · Personal pairing"); $('sideNote').textContent = T("No installation needed.");
+    $('appMode').textContent = T("Web sync"); $('footerMode').textContent = T("Manual file sync · Personal pairing"); $('sideNote').textContent = T("No installation needed.");
     $('poeMetricLabel').textContent = T("Latest log area");
     ['autostartLabel','btnDetect','btnFolder','btnPause','addressLabel','standingsIntervalLabel','btnOnline','poeLive'].forEach(id => $(id).hidden = true);
     $('btnSave').textContent = T("Save preferences"); $('btnStandings').textContent = T("Download standings"); $('btnRemoveData').textContent = T("Disconnect this device"); $('removeTitle').textContent = T("Disconnect this browser"); $('removeNote').textContent = T("Revokes this Discord link and clears this browser’s saved connection, folders and queued observations. Sync pending visits first.");
@@ -305,7 +318,7 @@ function configurePresentation() {
       }
       forget.textContent = T("Forget selected folders");
     }
-  } else { $('watchFile').removeAttribute('readonly'); $('poeLogFile').removeAttribute('readonly'); }
+  } else { $('appMode').textContent = T('Desktop companion'); $('sideNote').textContent = T('Keeps working in your tray.'); $('watchFile').removeAttribute('readonly'); $('poeLogFile').removeAttribute('readonly'); }
   $('btnLiveSwitch').textContent = liveText().switchButton;
   $('btnLiveKeep').textContent = liveText().keepButton;
 }
@@ -331,7 +344,7 @@ document.addEventListener('companion-language', () => {
 async function renderProfiles() {
   if (!api.listProfiles) return;
   const data = await api.listProfiles();
-  $('connectionProfile').replaceChildren(...data.profiles.map(p => { const option = document.createElement('option'); option.value = p.id; option.textContent = (p.defaultName ? T('Original connection') : p.name) + (p.gameEdition ? ' · ' + p.gameEdition : ''); return option; }));
+  $('connectionProfile').replaceChildren(...data.profiles.map(p => { const option = document.createElement('option'); option.value = p.id; option.textContent = (p.defaultName ? T('Original connection') : p.name) + (p.gameEdition ? ' · ' + window.guildedProfileEditionLabel(p.gameEdition, languageUI.language) : ''); return option; }));
   $('connectionProfile').value = data.active;
 }
 async function changeConnection(choice) {
@@ -363,7 +376,7 @@ async function init() {
   $('syncEnabled').checked = all.config.syncEnabled !== false; $('backgroundSyncPanel').hidden = !!api.browser; $('wowEnabled').checked = all.config.wowEnabled !== false; $('poeEnabled').checked = all.config.poeEnabled === true; $('poeMode').value = all.config.poeMode || 'STANDARD'; $('autostart').checked = all.autostart; $('version').textContent = `Version ${all.version}`;
   configurePresentation();
   gameFields(); entries = all.logs.slice(-300); renderLogs(); renderState({state:all.state,health:all.health,update:all.update,savedFile:all.savedFile});
-  showPage(new URLSearchParams(location.search).get('tab') || (savedConfig.companionCredential ? 'status' : 'settings'));
+  showPage(new URLSearchParams(location.search).get('tab') || 'status');
   api.onState(renderState); api.onLog(addLog);
   setInterval(() => { if (lastSnapshot) renderState(lastSnapshot); },1000);
 }

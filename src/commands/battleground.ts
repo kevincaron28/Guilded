@@ -62,7 +62,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
   await i.deferReply({ flags: MessageFlags.Ephemeral });
   const ctx = await requireGuildContext(i);
   if (!ctx) return;
-  const actor = await i.guild.members.fetch(i.user.id);
+  const actor = await i.guild.members.fetch({ user: i.user.id, force: true });
   const fr = await teamLanguage(prisma, ctx.guildId);
   const t = (en: string, french: string) => fr ? french : en;
   const sub = command?.options.getSubcommand() ?? input?.action ?? "";
@@ -175,7 +175,7 @@ export async function handleBattlegroundComponent(i: ButtonInteraction | ModalSu
   }
   const ctx = await requireGuildContext(i);
   if (!ctx || !i.guild) return;
-  const actor = await i.guild.members.fetch(i.user.id);
+  const actor = await i.guild.members.fetch({ user: i.user.id, force: true });
   await requireTeamChannel(i.guild, i.channelId, actor);
   const fr = await teamLanguage(prisma, ctx.guildId);
   if (i.isButton() && action === "join") { await i.showModal(battlegroundJoinModal(fr, ctx.guildId)); return; }

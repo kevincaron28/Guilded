@@ -19,6 +19,13 @@ describe('companion overview readiness', () => {
     expect(companionOverview(config, {}).standings).toBe('Not refreshed yet');
     expect(companionOverview(config, { lastStandings: { at: '2026-10-19T00:00:00Z' } }).standings).toBe('Standings refreshed');
   });
+  it('offers the next available step without calling an account link a sync', () => {
+    expect(companionOverview({}, {}).nextPage).toBe('settings');
+    expect(companionOverview({ companionCredential: 'fixture' }, {}).nextAction).toBe('Choose your saved data');
+    const config = { companionCredential: 'fixture', watchFile: 'local.lua' };
+    expect(companionOverview(config, {}, true).nextPage).toBe('wow');
+    expect(companionOverview(config, { running: true, lastUpload: {} }).nextPage).toBe('activity');
+  });
   it('does not imply guild standings for an existing personal connection', () => {
     expect(companionOverview({ personal: true }, {}).standings).toBe('Not used by this connection');
   });

@@ -6,7 +6,7 @@
 
 8.2.0 is deployed and published on GitHub at `eb3cb4a`; all 23 anonymous downloads
 and the tag were verified. All ten CurseForge files are published and verified;
-Store 8.2 is submitted for certification with manual publishing hold. Forever's prospective timing snapshot is installed without moving
+Store 8.2 is published, installed and signature/hash verified. Forever's prospective timing snapshot is installed without moving
 November 4. The newer [edition calendar authorization](docs/EDITION_CALENDARS_2026-10-30.md)
 starts empty other editions prospectively with official period labels and gives
 Era a three-calendar-month cadence. Production activation and readback passed
@@ -29,12 +29,11 @@ initialization are tracked separately from the implemented feature inventory.
 
 ## Current stage — 30 October 2026
 
-Guilded **8.2.0** is deployed and published on GitHub and CurseForge; the Store update remains pending. It integrates the selected additions. Full CI on the
-raid-planning checkpoint `cd9c7b1` passed, including PostgreSQL migration/restore
-and Windows packaging. Final 8.2.0 build checks, deployment, installed-client
-testing and provider publication are tracked in the
-[integration record](docs/RELEASE_INTEGRATION_2026-10-30.md). The following 8.1.0
-paragraph records the preceding candidate baseline.
+Guilded **8.3.0 Candidate** integrates opt-in recurring automation and the website/
+Companion remodel. Battleground organization is merged; recording is still pending.
+8.3.0 deployment, packaging and final acceptance are pending. The published baseline
+is 8.2.0 on GitHub, CurseForge and Microsoft Store. See the
+[integration record](docs/RELEASE_INTEGRATION_2026-10-30.md) for exact evidence.
 
 Guilded **8.1.0 Candidate** (protocol 2), prepared for November 4: RCLootCouncil/Gargul history conversion, reviewed in-game confirmation, separate persistent history and undo, raid-signup presentation and public-origin reliability. See [candidate gates](docs/NOV4_RELEASE_CANDIDATE.md). Kevin selected five additional pre-launch features for work on October 30; their implementation and acceptance are tracked below, not claimed complete. Published downloads remain 8.0.2.
 

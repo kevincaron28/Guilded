@@ -5,9 +5,9 @@ import { reportWeek } from "./weekly-report.js";
 
 type Db = Pick<PrismaClient, "member" | "dungeonPointTransaction" | "dungeonAchievement" | "communityBadge" | "raidSignup">;
 
-/** On-demand only. Resolve the member from the authenticated Discord actor and
+/** Private recap for on-demand or explicitly approved delivery. Resolve the member from the authenticated Discord actor and
  * existing guild scope; no arbitrary member selector or public report fallback. */
-export async function personalWeeklyRecap(database: Db, guildId: string, discordUserId: string, now = new Date()) {
+export async function personalWeeklyRecap(database: Db, guildId: string, discordUserId: string, now = new Date(), canViewChannel?: (channelId: string) => Promise<boolean>) {
   const member = await database.member.findFirst({ where: { guildId, discordUserId }, select: { id: true } });
   if (!member) throw new Error("Your member record is not available in this guild.");
   const { start, end } = reportWeek(now);
@@ -18,11 +18,13 @@ export async function personalWeeklyRecap(database: Db, guildId: string, discord
     database.communityBadge.findMany({ where: { userId: discordUserId, season: { guildId }, earnedAt: window, source: { in: ["LEDGER", "REVIEW"] } }, select: { code: true, earnedAt: true }, orderBy: [{ earnedAt: "asc" }, { id: "asc" }], take: 11 }),
     database.raidSignup.findMany({ where: { memberId: member.id, status: { in: ["SIGNED_UP", "MAYBE", "WAITLISTED"] },
       raid: { guildId, isTest: false, status: "PLANNED", scheduledAt: { gte: now, lt: new Date(now.getTime() + 7 * 86_400_000) } } },
-      select: { status: true, raid: { select: { title: true, scheduledAt: true } } }, orderBy: [{ raid: { scheduledAt: "asc" } }, { id: "asc" }], take: 6 })
+      select: { status: true, raid: { select: { title: true, scheduledAt: true, signupChannelId: true } } }, orderBy: [{ raid: { scheduledAt: "asc" } }, { id: "asc" }], take: 6 })
   ]);
+  const visibleSignups = [];
+  for (const signup of signups) if (!canViewChannel || signup.raid.signupChannelId && await canViewChannel(signup.raid.signupChannelId)) visibleSignups.push(signup);
   return { start, end, netParticipationPoints: points._sum.amount ?? 0, pointEntries: points._count,
-    dungeonBadges: dungeonBadges.slice(0, 10), communityBadges: communityBadges.slice(0, 10), signups: signups.slice(0, 5),
-    moreBadges: dungeonBadges.length > 10 || communityBadges.length > 10, moreSignups: signups.length > 5 };
+    dungeonBadges: dungeonBadges.slice(0, 10), communityBadges: communityBadges.slice(0, 10), signups: visibleSignups.slice(0, 5),
+    moreBadges: dungeonBadges.length > 10 || communityBadges.length > 10, moreSignups: visibleSignups.length > 5 };
 }
 
 export function personalWeeklyRecapEmbed(recap: Awaited<ReturnType<typeof personalWeeklyRecap>>, lang: Lang) {

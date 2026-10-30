@@ -45,3 +45,15 @@ Acceptance: win/loss, backfill, early leave, reload/disconnect, replay, two
 reporters, permission loss and corrections. Forever availability and multi-client
 tests are material gates. Capture must respect SecretInActivePvPMatch; no live
 restriction bypass. [Reviewed API source](https://github.com/Gethe/wow-ui-source/blob/ca8368f2f2380cbe696854f7f2646387c278a61b/Interface/AddOns/Blizzard_APIDocumentationGenerated/PvpInfoDocumentation.lua).
+
+## Remaining implementation sequence — October 30
+
+Recorder, result cards/history, deduplication/privacy and separate guild statistics
+remain approved. Integrate the 8.3 organization/remodel/automation candidate first,
+then implement the capture pipeline on a separate branch: versioned consenting
+reporter payload and idempotent ingestion, private history/corrections and
+unranked conflict handling, then opt-in guild statistics/cards. Native capture
+requires a capability-checked postmatch adapter; Forever live verification cannot
+run before November 4. Unsupported adapters remain disabled, and provisional
+evidence cannot grant competitive points or trigger public sends. This sequence
+does not remove the remaining features from scope.

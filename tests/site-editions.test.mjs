@@ -20,7 +20,7 @@ describe('edition-specific downloads', () => {
     expect(home.indexOf('id="wow-versions"')).toBeLessThan(home.indexOf('id="paths"'));
     for (const edition of WOW_EDITIONS) expect(home).toContain(`href="/${editionSection(edition.id).slug}/"`);
     expect(home).toContain('class="edition-card edition-forever featured"');
-    expect(home).toContain('<span data-edition-none><span data-en="Your WoW" data-fr="Votre WoW">Your WoW</span></span>');
+    expect(home).toContain('<span data-edition-none><span data-en="Choose your WoW" data-fr="Choisir votre WoW">Choose your WoW</span></span>');
     expect(home).not.toMatch(/\{\{[A-Z_]+\}\}/);
   });
 

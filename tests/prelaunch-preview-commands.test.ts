@@ -68,7 +68,7 @@ describe("private preview command integration with mocked Discord/database", () 
     await executePoll(i as never);
     expect(i.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
     expect(i.editReply.mock.calls[0]![0]).toMatchObject({ allowedMentions: { parse: [] } });
-    expect(i.editReply.mock.calls[0]![0].embeds[0].toJSON().footer.text).toContain("Manual posting only");
+    expect(i.editReply.mock.calls[0]![0].embeds[0].toJSON().footer.text).toContain("/automation question");
     expect(mocks.saveQuestion).toHaveBeenCalled();
     expect(i.channel.send).not.toHaveBeenCalled();
     mocks.hasPermission.mockReturnValue(false);

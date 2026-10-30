@@ -6,9 +6,10 @@ import { marked } from "marked";
 import { EDITION_SECTIONS, editionHref, editionMenu, editionSection, editionSwitchHref, localizedHref, NAV_GROUPS, navLinks } from "../site/nav.mjs";
 import { editionCards, editionHubs, editionPages } from "../site/editions.mjs";
 
-const guides = ["PRIVACY", "HOSTED_PILOT", "SUPPORT_GUILDED", "OWNER_WALKTHROUGH", "QUICK_START", "MEMBER_INSTALL", "DUNGEONS_GUIDE", "EPGP_GUIDE", "GUILD_OWNER_SETUP", "DEPLOY_ORACLE", "AI_SETUP_HELP", "ONLINE_COMPANION_CHECK"];
+const guides = ["PRIVACY", "HOSTED_PILOT", "SUPPORT_GUILDED", "OWNER_WALKTHROUGH", "QUICK_START", "MEMBER_INSTALL", "DUNGEONS_GUIDE", "EPGP_GUIDE", "GUILD_OWNER_SETUP", "DEPLOY_ORACLE", "AI_SETUP_HELP", "ONLINE_COMPANION_CHECK", "AUTOMATION_QUICK_START"];
 const origin = "https://guilded.kcaron.top";
 const guideDescriptions = {
+  AUTOMATION_QUICK_START: "Optional member and officer automation: setup, status and stopping delivery. English and French.",
   PRIVACY: "Guilded privacy: data, permissions, retention and private support requests. English and French.",
   DUNGEONS_GUIDE: "Set up Guilded Dungeons, sync runs with Discord sign-in, manage your player profile and find open raids. English and French.",
   HOSTED_PILOT: "Free hosted Guilded bot: start with Guilded Lite, set up your server and connect with Discord sign-in after approval. English and French guide.",
@@ -49,7 +50,7 @@ const versionMenu = (path, edition, { french = false, bilingual = false } = {}) 
   const label = (en, fr) => bilingual ? bilingualLabel({ en, fr }) : french ? fr : en;
   const section = editionSection(edition);
   const title = section ? `${label("Playing:", "Je joue à :")} <strong>${label(section.en, section.fr)}</strong>`
-    : `<span data-edition-none>${label("Your WoW", "Votre WoW")}</span><span data-edition-playing hidden>${label("Playing:", "Je joue à :")} <strong></strong></span>`;
+    : `<span data-edition-none>${label("Choose your WoW", "Choisir votre WoW")}</span><span data-edition-playing hidden>${label("Playing:", "Je joue à :")} <strong></strong></span>`;
   return editionMenu({ current: section?.id ?? null, title, label: other => label(other.en, other.fr), href: other => editionSwitchHref(path, other.id) });
 };
 const homeNav = versionMenu("/", null, { bilingual: true }) + navLinks({ href: staticHref(""), label: bilingualLabel, groupLabel: key => bilingualLabel(NAV_GROUPS[key]) });
@@ -93,10 +94,10 @@ for (const source of sources) {
   const description = escape(guideDescriptions[source.slice(5, -3)]);
   const canonical = `${origin}/${source.replace(/\.md$/, "")}`;
   // The four main guides, with this one marked; the guide sources no longer repeat these links.
-  const guideLinks = [["QUICK_START", "Quick start"], ["MEMBER_INSTALL", "Install"], ["DUNGEONS_GUIDE", "Dungeons"], ["EPGP_GUIDE", "EPGP"], ["HOSTED_PILOT", "Discord bot"]]
-    .map(([name, label]) => `<a href="${name}.html"${source === `docs/${name}.md` ? ' aria-current="page"' : ''}>${label}</a>`).join('');
+  const guideLinks = [["QUICK_START", "Quick start", "Démarrage"], ["MEMBER_INSTALL", "Install", "Installation"], ["DUNGEONS_GUIDE", "Dungeons", "Donjons"], ["EPGP_GUIDE", "EPGP", "EPGP"], ["HOSTED_PILOT", "Discord bot", "Bot Discord"]]
+    .map(([name, label, fr]) => `<a href="/docs/${name}.html"${source === `docs/${name}.md` ? ' aria-current="page"' : ''}><span data-en="${label}" data-fr="${fr}">${label}</span></a>`).join('');
   const relatedGuides = `<nav class="guide-nav" aria-label="Guilded guides">${guideLinks}${md.includes('id="fr"') ? '<a class="guide-fr" href="#fr" lang="fr">Français ↓</a>' : ''}</nav>`;
-  const body = marked.parse(md, { walkTokens(token) {
+  let body = marked.parse(md, { walkTokens(token) {
     if ((token.type !== "link" && token.type !== "image") || /^(https?:|#|mailto:)/.test(token.href)) return;
     const [path, fragment] = token.href.split("#");
     const target = posix.normalize(posix.join(dirname(source).replaceAll("\\", "/"), path));
@@ -107,7 +108,8 @@ for (const source of sources) {
     const slug = content.replace(/<[^>]*>/g, "").toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, "").replace(/\s+/g, "-");
     return `<h${level} id="${slug}">${content}</h${level}>`;
   });
-  writeFileSync(`${out}/${source.replace(/\.md$/, ".html")}`, `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#111312"><title>${escape(title)} · Guilded</title><meta name="description" content="${description}"><link rel="canonical" href="${canonical}"><meta property="og:title" content="${escape(title)}"><meta property="og:description" content="${description}"><meta property="og:type" content="article"><meta property="og:url" content="${canonical}"><meta property="og:image" content="${origin}/images/social/guilded-card.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><link rel="icon" href="../favicon.png" type="image/png"><link rel="apple-touch-icon" href="../apple-touch-icon.png"><link rel="stylesheet" href="../design-tokens.css"><link rel="stylesheet" href="../style.css"><link rel="stylesheet" href="../atelier.css"><script src="../site.js" defer></script></head><body class="site-page docs-page"><a class="skip" href="#main">Skip to content</a>${siteHeader('../', false, 'guides')}<main class="guide" id="main" tabindex="-1">${relatedGuides}${body}</main><footer class="page-footer"><a href="../index.html">← Back to Guilded</a><a href="https://ko-fi.com/wowguilded">Buy me a coffee ↗</a><span>Installation and setup guides · Check each store's listed release</span></footer></body></html>`);
+  if (source === "docs/QUICK_START.md") body = body.replace('<section id="fr"', '</div><section data-language-copy="fr" id="fr"').replace(/^/, '<div data-language-copy="en">');
+  writeFileSync(`${out}/${source.replace(/\.md$/, ".html")}`, `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#111312"><title>${escape(title)} · Guilded</title><meta name="description" content="${description}"><link rel="canonical" href="${canonical}"><meta property="og:title" content="${escape(title)}"><meta property="og:description" content="${description}"><meta property="og:type" content="article"><meta property="og:url" content="${canonical}"><meta property="og:image" content="${origin}/images/social/guilded-card.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><link rel="icon" href="../favicon.png" type="image/png"><link rel="apple-touch-icon" href="../apple-touch-icon.png"><link rel="stylesheet" href="../design-tokens.css"><link rel="stylesheet" href="../style.css"><link rel="stylesheet" href="../atelier.css"><script src="../site.js" defer></script><script src="../language.js" type="module"></script></head><body class="site-page docs-page"><a class="skip" href="#main">Skip to content</a>${siteHeader('../', false, 'guides', true)}<main class="guide" id="main" tabindex="-1">${relatedGuides}${body}</main><footer class="page-footer"><a href="../index.html">← Back to Guilded</a><a href="https://ko-fi.com/wowguilded">Buy me a coffee ↗</a><span>Installation and setup guides · Check each store's listed release</span></footer></body></html>`);
 }
 // Public content is explicitly curated; never import guild/database data here.
 

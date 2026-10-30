@@ -1,28 +1,15 @@
-> CURRENT SOURCE — 8.2.0 integration candidate for October 30; final build/deployment pending.
-> Current checkpoint: docs/RELEASE_INTEGRATION_2026-10-30.md; stable client providers remain 8.0.2.
-> Candidate gates: docs/NOV4_RELEASE_CANDIDATE.md.
-> Published release remains 8.0.2; preserve all existing provider bytes.
-> Published GitHub/client source: f7ca4c4, protocol 2; preserve all published bytes.
-> Running bot: 6bdc80e after the October 29 pricing/leaderboard deployment.
-> GitHub's 21 assets and anonymous download hashes are verified.
-> All ten CurseForge 8.0.2 files are approved and their downloads match GitHub.
-> Store Submission 4 (8.0.2.0) is published and installed. Signature/certificate chain,
-> submitted application bytes and retained encrypted profile/account activation passed.
-> Follow docs/V8_0_2_RELEASE_COMPLETION.md and docs/V8_0_2_RELEASE_EVIDENCE_2026-10-28.md.
-> Fresh ledger, verified recovery/off-server backups, one bot deployment and a read-only
-> production participation-summary comparison passed. Commands report ok.
-> Final feature audit: docs/FINAL_8_0_1_AUDIT_2026-10-28.md.
-> Message earning covers accessible guild channels/threads; /participation channels
-> reports officer-only coverage. Free Store signing and the existing license are retained.
-> The owner waived remaining hands-on tests; keep unperformed checks as follow-up.
-> 8.2.0 (30 October 2026): selected roadmap integration and launch fixes; final checks pending.
-> 8.1.0 (29 October 2026): candidate with confirmed loot-history import and signup/origin fixes.
-> 8.0.2 (28 October 2026): spreadsheet text safety and bounded participation status.
-> 8.0.1 (28 October 2026): full DE/ES addon catalogue and language review.
-> 8.0.0 (28 October 2026): security/reliability, versioned Retail overtime scoring,
-> French indexing, accessibility, lossless storage compaction and Core extraction.
-> Frozen scoring/evidence policies and ledger history are retained.
-> Historical checkpoints: docs/archive/AGENT_STATUS_HISTORY_2026-10-28.md.
+> 8.3.0 (30 October 2026 candidate): remodel/opt-in automation integration in progress.
+> Single active checklist: docs/RELEASE_INTEGRATION_2026-10-30.md.
+> Published immutable clients: 8.2.0, source eb3cb4a. GitHub/all ten CurseForge files verified.
+> Microsoft Store Submission 5 is published and installed8.2.0.0; signature/chain/application hash and unchanged encrypted profile verified.
+> Backend/browser source97c8d32 is live; site provider metadatafa4188a deployed.
+> BG organization PR291 merged7dd8c5b; not yet deployed. New candidate branch codex/launch-remodel-8-3-0.
+> User waived GAME testing timing until AFTER launch; mark NOT RUN, never passed.
+> Security/data integrity, clean migrations/recovery, CI and non-game tests remain release gates.
+> Claude's expanded brief remains UNSENT in its composer: desktop input/capture failure; preserve it.
+> Current roles: PC integrates automation/release; frontend_remodel GPT-6.1 Terra high owns UI; routing has one read-only Astra evaluator.
+> Never replace 8.2.0 provider bytes. New native changes require new8.3.0 artifacts.
+> Historical notes below remain historical; current evidence overrides old provider/version status.
 
 ## November 4 launch preparation — 29 October
 
@@ -57,7 +44,7 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (30 October 2026): version 8.2.0 Candidate, protocol 2.**
+**Current status (30 October 2026): version 8.3.0 Candidate, protocol 2.**
 Candidate source is not a production version claim. WoW Forever launches
 4 November 2026 (beta closed 21 October); its first raids open 9 December.
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.

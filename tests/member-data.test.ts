@@ -6,7 +6,7 @@ const account = { id: "account", discordUserId: "member", username: "Name", disp
 const context = (query = ""): WebContext => ({ account, request: { path: "/me/data", method: "GET", query: new URLSearchParams(query), headers: {} },
   lang: "en", t: en => en, now: new Date("2026-10-30T12:00:00Z"), sessionToken: null, csrf: null, form: null, auth: null });
 const kit: WebKit = { page: (status, _title, body) => ({ status, headers: {}, body }), redirect: () => ({ status: 303, headers: {}, body: "" }), signInPrompt: () => ({ status: 401, headers: {}, body: "Sign in" }) };
-const snapshot = { publicProfile: false, guilds: [], devices: [], characters: [], recentSignups: [], limited: false };
+const snapshot = { publicProfile: false, guilds: [], devices: [], characters: [], recentSignups: [], recapSchedules: [], limited: false };
 
 describe("private member data centre", () => {
   it("uses the signed-in account, never a requested account ID, and requires sign-in", async () => {
@@ -30,11 +30,12 @@ describe("private member data centre", () => {
     const characters = vi.fn(async () => []), signups = vi.fn(async () => []);
     const db = { webAccount: { findUnique: vi.fn(async () => ({ publicProfile: false })) },
       companionCredential: { findMany: vi.fn(async () => [{ id: "device", deviceName: "PC", tokenHash: "secret", createdAt: new Date(), member: { guild: { name: "Guild", gameEdition: "retail" } } }]) },
-      webCompanionCredential: { findMany: vi.fn(async () => []) }, character: { findMany: characters }, raidSignup: { findMany: signups } };
+      webCompanionCredential: { findMany: vi.fn(async () => []) }, character: { findMany: characters }, raidSignup: { findMany: signups }, recurringRecap: { findMany: vi.fn(async () => []) } };
     const access = { guilds: vi.fn(async () => [{ id: "allowed", name: "Guild", edition: "retail" }]) };
     const result = await memberDataStore(db as never, access as never)(account);
     expect(characters).toHaveBeenCalledWith(expect.objectContaining({ where: { member: { discordUserId: "member", guildId: { in: ["allowed"] } } } }));
     expect(signups).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ member: { discordUserId: "member", guildId: { in: ["allowed"] } } }) }));
+    expect(db.recurringRecap.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { guildId: { in: ["allowed"] }, member: { discordUserId: "member" } } }));
     expect(JSON.stringify(result)).not.toContain("secret"); expect(JSON.stringify(result)).not.toContain("tokenHash");
   });
 });

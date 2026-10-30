@@ -54,8 +54,10 @@ Available browser testing confirmed read-only connection testing, an accurate
 dismissal. Three private originals and two clean browser Companion captures are
 saved locally with a manifest; none was uploaded. The setup-copy issue (claiming
 data is already synced before the first sync) is corrected in source by PR #287,
-with 12 focused tests and full CI passing. Live/native retest and delivery of
-that later correction remain separate from the frozen 8.2.0 client artifacts.
+with 12 focused tests and full CI passing. It is deployed at `97c8d32`; live
+English/French browser retesting passed at 12:26 UTC without a game-data upload.
+The saved/uploaded/accepted state remained unchanged. Native delivery/retest of
+that copy correction remains separate from the frozen 8.2.0 client artifacts.
 These observations do not certify addon/native/offline/multi-account workflows.
 Forever gameplay still awaits its November 4 opening.
 

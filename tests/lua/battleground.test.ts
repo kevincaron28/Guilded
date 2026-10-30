@@ -19,6 +19,8 @@ function setup() {
       isSecret = function(v) return v == "SECRET" end }
   `);
   s.load("Modules/Battleground.lua");
+  // The harness supplies the real namespace on load; make the client edition selectable per test.
+  s.run(`NS.util.gameEdition = function() return EDITION end`);
   return s;
 }
 const count = `local n = 0; for _ in pairs(DB.battleground.reports) do n = n + 1 end; return tostring(n)`;
@@ -65,12 +67,25 @@ describe("provisional own-character BG capture", () => {
   });
   it("blocks Hardcore, unsupported editions, missing APIs and secret postmatch values", () => {
     const lua = setup();
-    for (const condition of [`HARDCORE = true`, `EDITION = "retail"`, `C_GameRules = nil`]) {
-      lua.run(`${condition}; NS.commandHandlers.bgcapture("on normal")`);
+    // Each condition is checked on its own: reset to a supported client first.
+    for (const condition of [`HARDCORE = true`, `EDITION = "unknown"`, `C_GameRules = nil`, `C_PvP.IsRatedMap = nil`]) {
+      lua.run(`EDITION = "forever"; HARDCORE = false; C_GameRules = { IsHardcoreActive = function() return HARDCORE end }; DB.battleground = nil; ${condition}; NS.commandHandlers.bgcapture("on normal")`);
       expect(lua.run(`return tostring(DB.battleground.consents["Kev-Realm"])`)).toBe("nil");
     }
+    lua.run(`C_PvP.IsRatedMap = function() return false end`);
+    // Hardcore exists on Era: unknown Hardcore status is never assumed normal there, but is on clients without Hardcore.
+    lua.run(`EDITION = "classic-era"; C_GameRules = nil; DB.battleground = nil; NS.commandHandlers.bgcapture("on normal")`);
+    expect(lua.run(`return tostring(DB.battleground.consents["Kev-Realm"])`)).toBe("nil");
+    lua.run(`EDITION = "retail"; HARDCORE = true; C_GameRules = { IsHardcoreActive = function() return HARDCORE end }; NS.commandHandlers.bgcapture("on normal")`);
+    expect(lua.run(`return tostring(DB.battleground.consents["Kev-Realm"])`)).toBe("nil");
     lua.run(`EDITION = "forever"; C_GameRules = {IsHardcoreActive = function() return false end}; NS.commandHandlers.bgcapture("on normal"); fire_event("PVP_MATCH_ACTIVE"); COMPLETE = true; DURATION = "SECRET"; fire_event("PVP_MATCH_COMPLETE")`);
     expect(lua.run(count)).toBe("0");
+  });
+  it.each(["forever", "classic-era", "classic-tbc", "classic-mists", "retail"])("captures its own report on %s with that edition's adapter", edition => {
+    const lua = setup();
+    lua.run(`EDITION = "${edition}"; ${edition === "classic-tbc" || edition === "classic-mists" || edition === "retail" ? "C_GameRules = nil;" : ""} NS.commandHandlers.bgcapture("on normal"); fire_event("PVP_MATCH_ACTIVE"); COMPLETE = true; ACTIVE = false; DURATION = 600; CLOCK = CLOCK + 600; fire_event("PVP_MATCH_COMPLETE")`);
+    expect(lua.run(count)).toBe("1");
+    expect(lua.run(`for _,r in pairs(DB.battleground.reports) do return r.edition .. "|" .. r.adapter end`)).toBe(`${edition}|${edition}-postmatch-v1`);
   });
   it("revocation prevents completion and backfill remains labelled", () => {
     const lua = setup();

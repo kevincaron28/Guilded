@@ -79,5 +79,7 @@ export async function cooperativeDungeonPreview(database: Pick<PrismaClient, "du
   // Do not present a partial projection as completed challenge progress.
   if (rows.length > 2000) return { supported: true, runs: 0, dungeons: 0, participants: 0, truncated: true, start, end };
   return { ...cooperativeDungeonProgress({ guildId, seasonId: season.id, start, end,
-    rules: withIntegrityWindow(season.ratingRules, season.startsAt, season.endsAt) }, rows), truncated: false, start, end };
+    rules: withIntegrityWindow({ ...season.ratingRules, seasonWindow: {
+      from: season.startsAt.toISOString(), to: season.endsAt?.toISOString() ?? null
+    } }, season.startsAt, season.endsAt) }, rows), truncated: false, start, end };
 }

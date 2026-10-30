@@ -29,7 +29,7 @@ Codex owns integration; existing feature owners retain their current assignments
 - [ ] Versioned raid playbooks with approved assignments/resources; note export only after testing.
 - [ ] Officer handover and change review using existing audit and backup surfaces.
 - [ ] Read-only external evidence links, manual links first, with source and freshness; no new credentials or API registrations.
-- [ ] Member data centre aggregating existing visibility, devices, history, export and retention controls; preserve existing sharing and revocation scope.
+- [ ] Member data centre aggregating existing visibility, devices, history, export and retention controls; preserve existing sharing and revocation scope. Private `/me/data` implemented with session-bound visible-record export, fresh guild authorization, existing control links, bounded personal signup history, empty/error states and no sharing mutations; final UI acceptance pending.
 - [ ] Explainable bench-rotation suggestions with officer override and no automatic penalties.
 - [ ] Keyboard access, scalable text, contrast, explicit offline/empty/stale/permission states, consistent edition/guild/season/character context, cancellation/undo/recovery and clear first-sync onboarding across changed surfaces.
 - [ ] Dungeon timing policy: **pending evidence/review**. The existing coordination chat owns one online research pass; do not duplicate it. Freeze/version approved rules prospectively, distinguish estimates from observations, never silently re-score existing season runs.

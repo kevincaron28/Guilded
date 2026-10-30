@@ -114,7 +114,7 @@ Overview then showed "Your sync needs attention", Guild standings "Not refreshed
 - Polish: the failure shows only on Overview and the activity feed, while the header chip briefly said "Connected"
   just before; add an edition hint ("choose your Forever saved file") with a one-click Browse on the Overview card.
   Raid prices page showed only a title and a disabled Refresh right after resume (empty state without text).
-- The companion remains in the tracking state; it will keep retrying and failing with 409 until paused or pointed at a Forever file. Pause it if the noise is unwanted.
+- Tracking was **paused again at 06:12** (owner-authorised) to stop 409 retries; the button now reads "Resume tracking". The Retail source is still selected; point it at a Forever file before resuming. Activity feed shows 5 entries from the failed attempts.
 
 ### Polish list (bugs and UI fixes, none fixed here)
 

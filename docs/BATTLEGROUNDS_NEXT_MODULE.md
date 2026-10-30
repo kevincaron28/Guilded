@@ -18,7 +18,10 @@ based on [Blizzard's published queue rules](https://worldofwarcraft.blizzard.com
 Other formats currently allow a planning lobby of at most five (a product limit,
 not a claimed legal queue limit); starting is blocked until a reviewed adapter
 exists. This is a partial organization phase, not all-edition queue acceptance.
-The Discord visual button/modal panel and native recorder remain outstanding.
+The EN/FR Discord panel now has Create, Join, My groups and Upcoming controls;
+Create selects format/faction and opens a five-field form in the current channel.
+Join requires the player's character, role, faction and normal-realm declaration.
+Native recorder and real Discord visual acceptance remain outstanding.
 
 1. Organization panel: reuse PvP teams/groups for Create, Join, My group and
    Upcoming sessions. Edition, map/random queue, bracket, faction, casual/rated,

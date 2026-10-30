@@ -17,7 +17,7 @@ tasks, not shipped-feature claims.
 
 ## Current stage — 30 October 2026
 
-The selected additions are integrated in **8.2.0 candidate**. Full CI on the
+Guilded **8.2.0 candidate** integrates the selected additions. Full CI on the
 raid-planning checkpoint `cd9c7b1` passed, including PostgreSQL migration/restore
 and Windows packaging. Final 8.2.0 build checks, deployment, installed-client
 testing and provider publication are tracked in the

@@ -2,6 +2,7 @@
 
 October 30, 2026. Protocol remains 2. Publication and final installed-client
 acceptance are tracked separately in the [integration record](RELEASE_INTEGRATION_2026-10-30.md).
+Use the [8.2.0 acceptance checklist](V8_2_0_RELEASE_ACCEPTANCE.md) for final testing.
 This includes the [8.1 improvements](V8_1_0_RELEASE_NOTES.md) and the additions below.
 
 ## For members

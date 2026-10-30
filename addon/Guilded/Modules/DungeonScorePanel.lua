@@ -448,6 +448,10 @@ function view.open(mode)
     view.window:SetFrameStrata("DIALOG")
   end
   if mode then view.window.mode = mode end
+  -- The fallback is a separate window, not a page inside Blizzard's finder.
+  -- Opening it must not leave the finder behind its controls. Combat is guarded above.
+  local finder = LFGParentFrame or PVEFrame or LFGFrame
+  if finder and finder.IsShown and finder:IsShown() then ns.util.hideWindow(finder) end
   view.window:Show()
   view.window:Refresh()
 end

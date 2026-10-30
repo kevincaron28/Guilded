@@ -100,6 +100,22 @@ Defect found in game:
 - Result: companion acknowledgement and returned standings stay **NOT RUN**. Resuming tracking would upload
   real Retail data, so it was left paused for the owner to decide.
 
+### Companion 8.1.0 standalone: Resume tracking (06:10, owner-authorised)
+
+After the owner restarted the standalone 8.1.0 companion (pointing at the Retail SavedVariables
+folder, connected to the guild's Discord server 1323321076478119967), Resume tracking was clicked.
+Result: **"Upload failed (409): This guild uses forever; select a saved file from that WoW edition."**
+Overview then showed "Your sync needs attention", Guild standings "Not refreshed yet", World of Warcraft card
+"Needs attention / Awaiting your first sync", Activity badge 3.
+
+- PASS (guardrail): the bot refused a Retail file for a Forever guild; no Retail data was ingested.
+- NOT RUN: acknowledgement and returned standings. They need a Forever client/profile for this guild.
+  Retail cannot satisfy them and must not be counted as Forever acceptance.
+- Polish: the failure shows only on Overview and the activity feed, while the header chip briefly said "Connected"
+  just before; add an edition hint ("choose your Forever saved file") with a one-click Browse on the Overview card.
+  Raid prices page showed only a title and a disabled Refresh right after resume (empty state without text).
+- The companion remains in the tracking state; it will keep retrying and failing with 409 until paused or pointed at a Forever file. Pause it if the noise is unwanted.
+
 ### Polish list (bugs and UI fixes, none fixed here)
 
 Discord / bot

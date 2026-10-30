@@ -25,7 +25,7 @@ Codex owns integration; existing feature owners retain their current assignments
 - [ ] Guild supply planner from raid signups, with voluntary crafting and contributions; no loot-point awards.
 - [ ] Missed-raid catch-up with officer-authored or approved progress, decisions and preparation; no voice capture or absence judgments.
 - [ ] Progressive new-member checklist using existing linking, character/roles, professions and first-event flows; optional steps must not become access gates. Implemented private professions and confirmed first-raid progress in the existing checklist, with EN/FR copy and tests; final UI acceptance pending.
-- [ ] Personal calendar export using existing events, stable IDs, cancellations and DST handling.
+- [ ] Personal calendar export using existing events, stable IDs, cancellations and DST handling. Private `/me/calendar` implemented for raid signups and team responses with fresh membership/channel authorization, stable per-account event IDs, UTC/DST coverage and cancellation records. Manual snapshot only; community/Discord-only events excluded and refresh limitations displayed. Focused tests pass; final UI/import acceptance pending.
 - [ ] Versioned raid playbooks with approved assignments/resources; note export only after testing.
 - [ ] Officer handover and change review using existing audit and backup surfaces.
 - [ ] Read-only external evidence links, manual links first, with source and freshness; no new credentials or API registrations.
@@ -74,6 +74,19 @@ must be prospective and versioned; no retrospective rescoring or unperformed
 Forever acceptance claim. Release notes must retain these qualifications.
 
 ### Integration checkpoints
+
+CI on `50d6747` passed the full tests, lint, addon validators and Windows packaging;
+PostgreSQL rehearsal failed on an old import fixture missing its now-configured
+guild identity. `81ec472` fixes the fixture and adds wrong/missing identity rejection
+checks. This is not yet a passing restore rehearsal.
+
+Claude's updated installed-8.0.2 Retail report prompted source fixes for the stale
+test result card, misleading test-data upload promise, French labels/save-button
+length and Classic catalog fallback on Retail. The 23 focused addon checks pass;
+final installed-client verification remains pending. Test-raid rehearsal now uses
+an isolated disposable core and excludes real members from simulated awards;
+focused tests pass and a real PostgreSQL rehearsal has been added. Poll expiry
+closes and queues its Discord refresh atomically, with retryable delivery.
 
 Cloud handoff `1b4c18c` is merged locally: stored targeted-alert preferences,
 cooperative goals and officer-reviewed weekly question Post/Skip/Pause flows.

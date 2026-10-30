@@ -18,6 +18,7 @@ try {
   run("npx", ["prisma", "generate"]);
   run("node", ["--import", "tsx", "scripts/verify-postgres.ts"]);
   run("node", ["--import", "tsx", "scripts/verify-reviewed-community.ts"]);
+  run("node", ["--import", "tsx", "scripts/verify-simulation.ts"]);
   const backup = join(temp, "rehearsal.dump");
   run("pg_dump", ["--format=custom", "--no-owner", "--file", backup]);
   run("psql", ["-v", "ON_ERROR_STOP=1", "-c", 'UPDATE "EpgpTransaction" SET "epAmount" = 999 WHERE "createdBy" = \'release-test\';']);

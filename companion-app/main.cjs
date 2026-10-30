@@ -117,11 +117,10 @@ function health(state) {
 let update = null;
 let latestRelease = null;
 
-function refreshUpdate(state = engine?.state()) {
+function refreshUpdate() {
   if (STORE_PACKAGE) { update = null; return; }
-  const next = updates.pickUpdate(app.getVersion(), latestRelease, state?.botVersion);
-  // The bot can announce the version before GitHub provides the installer.
-  // Refresh the metadata even for the same version; notification dedup is below.
+  const next = updates.pickUpdate(app.getVersion(), latestRelease);
+  // Refresh provider metadata even for the same version; notification dedup is below.
   update = next;
   if (!update || config.updateNotifiedVersion === update.version) return;
   config.updateNotifiedVersion = update.version;
@@ -453,6 +452,7 @@ registerIpc("install-update", async () => {
   try {
     // Retry metadata on click, including when the startup GitHub request failed.
     await checkForUpdate();
+    if (!latestRelease) return { ok: false, message: T("Could not verify available updates. Try again when the release service is reachable.") };
     const selected = update;
     if (!selected) return { ok: true, action: "current", message: T("Your companion is up to date.") };
     if (!selected.installer) {

@@ -24,7 +24,7 @@ Codex owns integration; existing feature owners retain their current assignments
 
 - [ ] Guild supply planner from raid signups, with voluntary crafting and contributions; no loot-point awards.
 - [ ] Missed-raid catch-up with officer-authored or approved progress, decisions and preparation; no voice capture or absence judgments.
-- [ ] Progressive new-member checklist using existing linking, character/roles, professions and first-event flows; optional steps must not become access gates.
+- [ ] Progressive new-member checklist using existing linking, character/roles, professions and first-event flows; optional steps must not become access gates. Implemented private professions and confirmed first-raid progress in the existing checklist, with EN/FR copy and tests; final UI acceptance pending.
 - [ ] Personal calendar export using existing events, stable IDs, cancellations and DST handling.
 - [ ] Versioned raid playbooks with approved assignments/resources; note export only after testing.
 - [ ] Officer handover and change review using existing audit and backup surfaces.
@@ -36,6 +36,12 @@ Codex owns integration; existing feature owners retain their current assignments
 - [ ] Feature freeze after the selected work is complete and validated; subsequent work limited to reported bugs. Today's target is not evidence that release gates passed.
 
 ## Current verification
+
+Integration draft: PR #283 (`codex/oct30-release-integration`). First CI found an
+exact-optional-property type mismatch in the guild-scope guard; corrected locally
+and the combined typecheck passed. Updater and localization regressions found by
+the broader suite were corrected and rerun. Publication remains blocked on the
+unfinished feature list and final checks, not on an approval request.
 
 The local combined TypeScript check passed after merging cloud fix `9e4e72a`.
 The latest focused companion/dungeon run passed 65 tests. Reminder and delivery

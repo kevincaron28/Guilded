@@ -653,6 +653,7 @@ local FR = {
 -- scripts/addon-locale.mjs), then npm run dungeons:sync.
 -- BEGIN DE (written by npm run locale -- import; edit the CSV, not these lines)
 local DE = {
+  ["This code excludes per-character imported loot history. Back up the character's SavedVariables/Guilded.lua file separately."] = "Dieser Code enth\195\164lt keinen importierten Beuteverlauf pro Charakter. Sichere die Datei SavedVariables/Guilded.lua des Charakters separat.",
   ["Start a raid with /guilded start before using the pricing preset."] = "Starte einen Raid mit /guilded start, bevor du die Preisvorlage nutzt.",
   ["EPGP tie: eligible players /roll 100. Ties roll again."] = "EPGP-Gleichstand: Berechtigte Spieler /roll 100. Bei Gleichstand erneut w\195\188rfeln.",
   ["Priority is tied. Finish the visible roll before awarding."] = "Gleiche Priorit\195\164t. Schlie\195\159t den sichtbaren Wurf vor der Vergabe ab.",
@@ -1747,6 +1748,7 @@ local DE = {
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
 local ES = {
+  ["This code excludes per-character imported loot history. Back up the character's SavedVariables/Guilded.lua file separately."] = "Este c\195\179digo no incluye el historial de bot\195\173n importado del personaje. Guarda por separado su archivo SavedVariables/Guilded.lua.",
   ["Start a raid with /guilded start before using the pricing preset."] = "Inicia una banda con /guilded start antes de usar los precios predefinidos.",
   ["EPGP tie: eligible players /roll 100. Ties roll again."] = "Empate EPGP: los jugadores elegibles usan /roll 100. Repetid si hay empate.",
   ["Priority is tied. Finish the visible roll before awarding."] = "Prioridades empatadas. Termina la tirada visible antes de asignar.",

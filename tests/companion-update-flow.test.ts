@@ -39,7 +39,7 @@ function harness(latest: unknown, locale = 'en', windowsStore = false) {
 
 describe("companion updater handoff", () => {
   it('keeps the updater action intact in French', async () => {
-    const h = harness(null, 'fr-CA');
+    const h = harness({ version: "7.3.0", url: realUpdates.RELEASES_PAGE }, 'fr-CA');
     expect(await h.handlers.get('install-update')!()).toMatchObject({ ok: true, action: 'download-page', message: i18n.translate('fr', 'The download page opened. Download and run the installer to finish updating.') });
     expect(h.openExternal).toHaveBeenCalledOnce();
   });
@@ -53,7 +53,7 @@ describe("companion updater handoff", () => {
     expect((await h.handlers.get("install-update")!()).ok).toBe(false);
   });
   it("does not report installing or quit when it only opens a download page", async () => {
-    const h = harness(null);
+    const h = harness({ version: "7.3.0", url: realUpdates.RELEASES_PAGE });
     expect(await h.handlers.get("install-update")!()).toMatchObject({ ok: true, action: "download-page" });
     expect(h.openExternal).toHaveBeenCalledOnce();
     expect(h.updates.downloadInstaller).not.toHaveBeenCalled();
@@ -65,6 +65,12 @@ describe("companion updater handoff", () => {
     expect((await h.handlers.get("install-update")!()).ok).toBe(false);
     expect(h.timers).not.toHaveBeenCalled();
     expect((await h.handlers.get("install-update")!()).action).toBe("installing");
+  });
+  it("does not offer an unavailable client just because the backend is newer", async () => {
+    const h = harness(null);
+    expect(await h.handlers.get("install-update")!()).toMatchObject({ ok: false });
+    expect(h.openExternal).not.toHaveBeenCalled();
+    expect(h.updates.downloadInstaller).not.toHaveBeenCalled();
   });
   it("awaits spawn and catches asynchronous launch errors", async () => {
     const child = Object.assign(new EventEmitter(), { unref: vi.fn() });

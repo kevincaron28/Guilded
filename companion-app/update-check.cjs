@@ -1,4 +1,4 @@
-// Tells the desktop companion when a newer Guilded release is out. Two sources:
+// Tells the desktop companion when a newer Guilded release is out, using
 // the latest stable GitHub release. A backend version is not proof that matching
 // stable clients are available. "Update now" (7.2) downloads the release's own
 // installer, checks its SHA-256 against GitHub's digest and runs it; without a

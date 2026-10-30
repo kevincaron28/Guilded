@@ -1,4 +1,6 @@
 {
+  "Unknown": "Inconnu",
+  "Could not verify available updates. Try again when the release service is reachable.": "Impossible de vérifier les mises à jour disponibles. Réessayez lorsque le service de publication sera accessible.",
   "Review support summary": "Vérifier le résumé de soutien",
   "Only the information below will be saved. No file paths, account names or credentials are included.": "Seules les informations ci-dessous seront enregistrées. Aucun chemin de fichier, nom de compte ou identifiant de connexion n’est inclus.",
   "Save summary": "Enregistrer le résumé",

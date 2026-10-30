@@ -184,6 +184,8 @@ const STRINGS = {
   "onboard.steps.games": { en: "Pick your games", fr: "Choisir tes jeux" },
   "onboard.steps.character": { en: "Link your WoW character", fr: "Lier ton personnage WoW" },
   "onboard.steps.characterOptional": { en: "Link your WoW character (optional; the addon works on its own)", fr: "Lier ton personnage WoW (facultatif; l'addon fonctionne seul)" },
+  "onboard.steps.professionsOptional": { en: "Share your professions (optional): `/profession set` or sync your addon", fr: "Partager tes métiers (facultatif) : `/profession set` ou synchroniser ton addon" },
+  "onboard.steps.firstRaidOptional": { en: "Confirm your first raid signup (optional): open your guild's signup post and choose a role", fr: "Confirmer ta première inscription à un raid (facultatif) : ouvre l'annonce de ta guilde et choisis un rôle" },
   "onboard.steps.next": { en: "Use the buttons below for what is left.", fr: "Sers-toi des boutons ci-dessous pour ce qu'il reste." },
   "onboard.steps.done": { en: "Your Discord access is ready! WoW character linking and the companion are optional. `/help` lists your commands.", fr: "Ton accès Discord est prêt ! Le lien du personnage WoW et le compagnon sont facultatifs. `/help` montre tes commandes." },
   "onboard.rules.prompt": {

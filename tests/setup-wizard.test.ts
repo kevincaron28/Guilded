@@ -38,6 +38,19 @@ beforeAll(async () => {
 }, 120_000);
 
 describe("setup wizard screens", () => {
+  it("offers BG only as an optional action and keeps component rows within Discord limits", async () => {
+    for (const language of ["en", "fr"]) {
+      settings.language = language;
+      const summary = await renderStep(8, guild as never, "g1", "");
+      expect(summary.components.length).toBeLessThanOrEqual(5);
+      expect(summary.components.flatMap(r => r.toJSON().components).some(c => "custom_id" in c && c.custom_id === "setup:bg-open")).toBe(true);
+      const optional = await renderStep(9, guild as never, "g1", "");
+      expect(optional.components).toHaveLength(4);
+      expect(optional.components.flatMap(r => r.toJSON().components).filter(c => "custom_id" in c && c.custom_id.startsWith("setup:bg-select-"))).toHaveLength(3);
+      for (const row of [...summary.components, ...optional.components]) expect(row.components.length).toBeLessThanOrEqual(5);
+    }
+    settings.language = "en";
+  });
   it("shows the public audience, cutoff and opt-out on the welcome screen and checklist in both languages", async () => {
     settings.publicDungeonRuns = true;
     settings.publicDungeonRunsSince = new Date("2026-11-10T12:00:00Z");

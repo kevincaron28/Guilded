@@ -255,6 +255,7 @@ export function parseAddonExportText(text, realm) {
   }
 
   const dungeonRuns = exportDungeonRuns(database, realm);
+  const battlegroundReports = exportBattlegroundReports(database);
 
   // Soft reserves (addon Modules/Reserve.lua): the whole list, replaced in Discord when newer.
   const reserves = buildReserves(database.reserves, realm);
@@ -335,8 +336,33 @@ export function parseAddonExportText(text, realm) {
     ...(calendarEvents.length ? { calendarEvents } : {}),
     raids,
     loot,
-    dungeonRuns
+    dungeonRuns,
+    ...(battlegroundReports.length ? { battlegroundReports } : {})
   }, edition.gameEdition, realm);
+}
+
+// Private self-reports only: whitelist the protocol rather than forwarding arbitrary
+// SavedVariables fields (which could contain other players or stale consent).
+export function exportBattlegroundReports(database) {
+  if (gameEditionOf(database.character ?? database) !== "forever") return [];
+  const d = database?.battleground;
+  if (!d || typeof d.reports !== "object" || !d.reports) return [];
+  const text = (v, max) => typeof v === "string" && v.length > 0 && v.length <= max;
+  const integer = (v, min, max) => Number.isSafeInteger(v) && v >= min && v <= max;
+  return Object.values(d.reports).filter(r => r && r.version === 1 && r.adapter === "forever-postmatch-v1"
+    && r.edition === "forever" && r.realmType === "normal" && r.postmatch === true && r.consent === true
+    && text(r.character, 80) && text(r.realm, 100) && d.consents?.[`${r.character}-${r.realm}`] === true
+    && typeof r.reportId === "string" && /^[a-zA-Z0-9_:-]{8,100}$/.test(r.reportId)
+    && ["casual", "rated", "blitz"].includes(r.mode) && text(r.bracket, 30)
+    && integer(r.mapId, 1, 1000000) && integer(r.endedAt, 1, 4102444800)
+    && integer(r.durationSeconds, 0, 14400) && ["win", "loss", "draw", "unknown"].includes(r.outcome)
+    && ["complete", "backfill", "early-exit", "unknown"].includes(r.presence) && typeof r.reloaded === "boolean")
+    .sort((a, b) => b.endedAt - a.endedAt).slice(0, 100).map(r => ({
+      version: 1, reportId: r.reportId, adapter: r.adapter, edition: r.edition,
+      character: r.character, realm: r.realm, realmType: "normal", mode: r.mode,
+      mapId: r.mapId, bracket: r.bracket, endedAt: r.endedAt, durationSeconds: r.durationSeconds,
+      outcome: r.outcome, presence: r.presence, reloaded: r.reloaded, postmatch: true, consent: true
+    }));
 }
 
 // One character as the bot's addonCharacterSchema expects it.

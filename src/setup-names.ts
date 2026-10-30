@@ -129,3 +129,9 @@ export function isSetupLeftover(field: ChannelField, name: string, parentName: s
   return RESET_REQUIRED_CHANNELS.includes(field) && channelNames(field).includes(name)
     && parentName !== undefined && [...categoryNames(channelSpec(field, "en").category), "⚜️ Guilded"].includes(parentName);
 }
+
+// Optional module: deliberately excluded from ALL_CHANNELS and normal setup/reset.
+export const BG_SETUP_NAMES = {
+  en: { category: "🏴 Battlegrounds", groups: "battleground-groups", results: "battleground-results", stats: "battleground-statistics" },
+  fr: { category: "🏴 Champs de bataille", groups: "groupes-jcj", results: "resultats-jcj", stats: "statistiques-jcj" }
+} as const;

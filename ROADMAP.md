@@ -1,8 +1,26 @@
-> Current launch audit: [28 October final audit](docs/FINAL_8_0_1_AUDIT_2026-10-28.md). Historical proposals below do not override that feature inventory or the owner’s testing waiver.
+> Current checkpoint: [October 30 integration record](docs/RELEASE_INTEGRATION_2026-10-30.md). The latest owner direction authorizes all available testing now and supersedes earlier testing waivers. Historical release notes below are not current availability or acceptance claims.
 
 # Guilded roadmap
 
 ## October 30 operational follow-up
+
+**8.3.0 is live:** backend, website and Web Companion are deployed at reviewed
+source `2602e67`. GitHub's 23 public downloads are hash-verified. All ten
+CurseForge edition files are approved and their anonymous downloads match the
+frozen release ZIPs. Microsoft Store Submission 6 is published; verification of
+the installed 8.3 package remains pending. Publication is not native/game acceptance.
+
+The previously selected edition calendars are unchanged, including Forever's
+November 4 start. The latest readback and provider evidence are tracked in the
+[8.3 acceptance record](docs/V8_3_0_RELEASE_ACCEPTANCE.md).
+
+The [QuébecGold BG hub](https://discord.com/channels/1323321076478119967/1552246570714402827/1565730945766527019)
+is posted in the existing scoped channel with French Create, Join, My groups and
+Upcoming buttons. These are deployed **8.3 organization controls only**; result
+and statistics controls await the next deployment. Permissions were unchanged,
+mentions suppressed, and native button-click acceptance is not yet recorded.
+
+### Historical 8.2 publication checkpoint
 
 8.2.0 is deployed and published on GitHub at `eb3cb4a`; all 23 anonymous downloads
 and the tag were verified. All ten CurseForge files are published and verified;
@@ -29,15 +47,32 @@ initialization are tracked separately from the implemented feature inventory.
 
 ## Current stage — 30 October 2026
 
-Guilded **8.3.0 Candidate** integrates opt-in recurring automation and the website/
-Companion remodel. Battleground organization is merged; recording is still pending.
-8.3.0 deployment, packaging and final acceptance are pending. The published baseline
-is 8.2.0 on GitHub, CurseForge and Microsoft Store. See the
-[integration record](docs/RELEASE_INTEGRATION_2026-10-30.md) for exact evidence.
+Guilded **8.4.0 Candidate** is under integration; published baseline is8.3.0.
+
+Guilded **8.4 source candidate** is being integrated on
+`codex/bg-recorder-history-oct30`. The provisional BG pipeline is implemented in
+source: capability-checked Forever postmatch self reports, SavedVariables through
+Companion, independent server consent and paired ownership checks, replay/conflict
+handling, private result cards/history, withdrawal with a reason, and consented
+seasonal player-participation statistics separated by edition, mode and API bracket.
+Conflicts include a bounded explanation. A source-level next-capture shared premade
+code supplies an optional correlation hint; it does not establish a universal match ID.
+
+These additions are **not part of frozen 8.3 files** and are not yet claimed
+deployed or fully accepted. Integrated regression/migration checks, packaging,
+publication and live acceptance remain gates. Verified unique-match totals,
+verified match win rates and additional accepted capture adapters remain gated
+after the live pilot. Current statistics count provisional player reports, not
+unique matches or competitive rating. Forever real-client acceptance cannot
+precede November 4. Other unverified queue formats remain planning-only.
+See the [BG module checkpoint](docs/BATTLEGROUNDS_NEXT_MODULE.md) and
+[integration record](docs/RELEASE_INTEGRATION_2026-10-30.md).
+
+### Historical 8.1 candidate checkpoint
 
 Guilded **8.1.0 Candidate** (protocol 2), prepared for November 4: RCLootCouncil/Gargul history conversion, reviewed in-game confirmation, separate persistent history and undo, raid-signup presentation and public-origin reliability. See [candidate gates](docs/NOV4_RELEASE_CANDIDATE.md). Kevin selected five additional pre-launch features for work on October 30; their implementation and acceptance are tracked below, not claimed complete. Published downloads remain 8.0.2.
 
-## Selected pre-launch work — 30 October 2026
+## Historical selected pre-launch work — 30 October 2026
 
 These numbers refer to Kevin's seven-item feature discussion, not the older lists
 below. Kevin subsequently targeted a product release today, October 30, and asked

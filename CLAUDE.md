@@ -1,15 +1,10 @@
-> 8.3.0 (30 October 2026 candidate): remodel/opt-in automation integration in progress.
-> Single active checklist: docs/RELEASE_INTEGRATION_2026-10-30.md.
-> Published immutable clients: 8.2.0, source eb3cb4a. GitHub/all ten CurseForge files verified.
-> Microsoft Store Submission 5 is published and installed8.2.0.0; signature/chain/application hash and unchanged encrypted profile verified.
-> Backend/browser source97c8d32 is live; site provider metadatafa4188a deployed.
-> BG organization PR291 merged7dd8c5b; not yet deployed. New candidate branch codex/launch-remodel-8-3-0.
-> User waived GAME testing timing until AFTER launch; mark NOT RUN, never passed.
-> Security/data integrity, clean migrations/recovery, CI and non-game tests remain release gates.
-> Claude's expanded brief remains UNSENT in its composer: desktop input/capture failure; preserve it.
-> Current roles: PC integrates automation/release; frontend_remodel GPT-6.1 Terra high owns UI; routing has one read-only Astra evaluator.
-> Never replace 8.2.0 provider bytes. New native changes require new8.3.0 artifacts.
-> Historical notes below remain historical; current evidence overrides old provider/version status.
+> 8.4.0 (30 October 2026 candidate): provisional BG records and QA fixes; final CI/release pending.
+> Current checkpoint: 30 October 2026. 8.3.0 source2602e67 is deployed and published on GitHub; all23 downloads verified. Store Submission6 is published; installed-package update verification pending. CurseForge8.3 approval/download verification in progress.
+> Next candidate8.4.0 on codex/bg-recorder-history-oct30 adds opt-in provisional BG capture/history/stats and QA fixes. No8.4 deployment or publication yet.
+> Latest owner authorization: ALL AVAILABLE TESTING NOW. The older wait-until-launch waiver is superseded. Claude acknowledged the expanded QA handoff and completed a first pass; Retail evidence is addon8.2, native isolated-profile evidence8.3.
+> Active release evidence: docs/V8_4_0_RELEASE_ACCEPTANCE.md; previous deployed evidence: docs/V8_3_0_RELEASE_ACCEPTANCE.md. Historical statements below are not current provider status.
+> Keep selected edition calendars unchanged. Preserve published8.2 and8.3 artifact bytes. Forever live acceptance remains NOT RUN until an actual client is available.
+> Root owns integration/release. Native/game testing is assigned to Claude; avoid concurrent desktop control. No automatic messages/awards without configured opt-in.
 
 ## November 4 launch preparation — 29 October
 
@@ -44,7 +39,7 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (30 October 2026): version 8.3.0 Candidate, protocol 2.**
+**Current status (30 October 2026): version 8.4.0 Candidate, protocol 2.**
 Candidate source is not a production version claim. WoW Forever launches
 4 November 2026 (beta closed 21 October); its first raids open 9 December.
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.

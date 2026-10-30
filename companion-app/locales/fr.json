@@ -428,6 +428,7 @@
   "Standings saved. Use /reload in WoW.": "Classements enregistrés. Faites /reload dans WoW.",
   "Standings downloaded. Add the file to Interface / AddOns / Guilded.": "Classements téléchargés. Placez le fichier dans Interface / AddOns / Guilded.",
   "Standings refresh finished. Check Activity for the result.": "Actualisation des classements terminée. Consultez le résultat dans Activité.",
+  "Standings refresh requested. Check Activity for the result.": "Actualisation des classements demandée. Consultez le résultat dans Activité.",
   "Checking update…": "Vérification de la mise à jour…",
   "Installing…": "Installation…",
   "Downloading {0}%": "Téléchargement : {0} %",

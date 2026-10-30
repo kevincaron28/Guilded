@@ -155,19 +155,22 @@ local function atan2(y, x)
 end
 
 -- Big actions (whole-group awards, ending a raid) need a second click
--- within 3 seconds instead of a popup dialog.
+-- within 10 seconds instead of a popup dialog. Each arm owns its timeout.
 local function confirmClick(b, label, action)
+  local generation = 0
   b:SetScript("OnClick", function(self)
-    if self.armed or not C_Timer then
+    generation = generation + 1
+    if self.armed == true or not C_Timer then
       self.armed = false
       self:SetText(L(label))
       action()
       return
     end
     self.armed = true
-    self:SetText(L("Click again to confirm"))
-    C_Timer.After(3, function()
-      if self.armed then
+    self:SetText(L("Confirm?"))
+    local armedGeneration = generation
+    C_Timer.After(10, function()
+      if self.armed and generation == armedGeneration then
         self.armed = false
         self:SetText(L(label))
       end
@@ -927,7 +930,8 @@ local function buildToolsPage(page)
   at(newLabel(page, L("Modules"), "GameFontNormal"), page, 0, -280)
   local scroll = CreateFrame("ScrollFrame", nil, page, "UIPanelScrollFrameTemplate")
   scroll:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -298)
-  scroll:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -24, 2)
+  -- Keep the last module row clear of the shared status footer.
+  scroll:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -24, 24)
   local scrollChild = CreateFrame("Frame", nil, scroll)
   scrollChild:SetWidth(PAGE_WIDTH - 24)
   scrollChild:SetHeight(math.max(1, #(ns.MODULES or {}) * 22))

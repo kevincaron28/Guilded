@@ -32,7 +32,7 @@ Codex owns integration; existing feature owners retain their current assignments
 - [ ] Member data centre aggregating existing visibility, devices, history, export and retention controls; preserve existing sharing and revocation scope. Private `/me/data` implemented with session-bound visible-record export, fresh guild authorization, existing control links, bounded personal signup history, empty/error states and no sharing mutations; final UI acceptance pending.
 - [ ] Explainable bench rotation: officer-only advice alongside raid plans, using available confirmed/waitlisted members, role capacities and recorded benches in the last eight completed raids of the same core. Stable signup-order ties, unknown-history disclosure, incomplete-list refusal, no automated selections/penalties/points; existing officer controls retain final selection. Combined/live acceptance pending.
 - [ ] Keyboard access, scalable text, contrast, explicit offline/empty/stale/permission states, consistent edition/guild/season/character context, cancellation/undo/recovery and clear first-sync onboarding across changed surfaces.
-- [ ] Dungeon timing policy: **pending evidence/review**. The existing coordination chat owns one online research pass; do not duplicate it. Freeze/version approved rules prospectively, distinguish estimates from observations, never silently re-score existing season runs.
+- [ ] Dungeon timing policy: research received and prospective five-edition implementation SOURCE-READY; production application and final CI pending. Versioned snapshots distinguish guide-informed and retained design estimates from native Mythic+ timers. Historical season results stay unchanged.
 - [ ] Feature freeze after the selected work is complete and validated; subsequent work limited to reported bugs. Today's target is not evidence that release gates passed.
 
 ## Current verification
@@ -53,8 +53,9 @@ for this build; neither existing 8.1.0 candidate assets nor Store Submission 5
 will be replaced in place.
 
 The unchecked feature rows below denote outstanding final acceptance, not missing
-implementations. Timing policy remains deliberately unchanged: specific new
-targets were not approved and no measured Forever samples are available.
+implementations. The owner subsequently authorized researched timings for the upcoming first
+season on October 30 at 11:10 UTC. The prospective policy below supersedes the
+earlier timing hold; no measured Forever samples are available.
 Claude received the updated test checklist (owner confirmed sending it) and is
 waiting for the installed/deployed build checkpoint. Baseline 8.0.2 observations
 remain distinct from candidate acceptance. Publication has not yet occurred.
@@ -64,7 +65,7 @@ remain distinct from candidate acceptance. Publication has not yet occurred.
 Read-only Method/Jurdi research was forwarded by coordination. These October
 15–21 guide ranges are **authored full-run estimates, not measured samples**.
 They do not specify matching party, gear or clock controls. Presets below refer
-to main `930ae040`, not a newly approved policy.
+to main `930ae040`; the approved prospective changes are recorded below.
 
 | Route/source | Guide estimate (minutes) | Existing provisional preset |
 | --- | --- | --- |
@@ -91,9 +92,29 @@ first-combat-to-completion clock. Preserve the active scoring lock and existing
 calibration requirement: 20 crew/day samples, five substantially different crews,
 three UTC days, same build and recorded starts, eligible in-band runs with three
 participants and 80% presence. No additional calibration engine is needed.
-**Specific targets and scoring changes are not approved.** Any approved change
-must be prospective and versioned; no retrospective rescoring or unperformed
-Forever acceptance claim. Release notes must retain these qualifications.
+**October 30 owner authorization supersedes the earlier hold.** Review
+`launch-timings-2026-10-30-v1` selects Deadmines 30, BFD 35 and Dalaran 40 minutes.
+The other four researched Forever targets remain unchanged. All seven carry
+guide provenance and uncontrolled-clock qualifications; every remaining ordinary
+route is explicitly a retained, unverified design estimate. No retrospective
+rescoring or unperformed Forever acceptance claim is permitted.
+
+Cross-edition review retains the 26 Era routes, 58 TBC routes, 18 Mists routes and
+33 ordinary Retail routes. No comparable route/difficulty/level/clock population
+data was established. Mists Challenge medal times are not normal/heroic targets
+([Blizzard](https://worldofwarcraft.blizzard.com/en-us/news/24221824/scenarios-challenge-modes-in-mists-of-pandaria-classic)).
+The eight frozen native Retail Mythic+ timers match the October 30
+[RaiderIO catalog](https://github.com/RaiderIO/raiderio-addon/blob/develop/db/db_dungeons.lua)
+and remain isolated by challenge/instance/season identity. No extra edition or
+mode coverage is claimed.
+
+Implementation is SOURCE-READY, not yet installed in production.
+`scripts/export-edition-rules.ts` exports all five reviewed snapshots and hashes.
+`scripts/configure-launch-timings.ts` previews existing scheduled Season 1 rows;
+apply requires the exact preview hash, locks all five calendars in fixed order,
+and commits all editions together. It refuses missing/already-started seasons
+or changed previews. Existing public fallback rules and archived snapshots stay
+unchanged. Production receipt and final CI are still pending.
 
 ### Integration checkpoints
 

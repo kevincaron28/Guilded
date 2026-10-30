@@ -52,8 +52,13 @@ This includes the [8.1 improvements](V8_1_0_RELEASE_NOTES.md) and the additions 
 
 All five recognized WoW editions retain separate packages and data scopes.
 Retail testing does not establish Forever compatibility; Forever opens November 4.
-Season 1 keeps its existing scoring lock. Guide timing estimates are not measured
-samples or approval for new scoring targets, and historical runs are not rescored.
+The authorized upcoming Season 1 timing review sets Forever Deadmines to 30 minutes,
+Blackfathom Deeps to 35 and City of Dalaran to 40. These are provisional design
+targets informed by authored guide ranges, not measured calibration. Other ordinary
+editions retain their own design estimates; Retail native Mythic+ timers stay
+mode-specific. Historical runs and active season snapshots are not rescored.
+The five exported rule files carry timing provenance; production installation
+requires a separate verified upcoming-season receipt.
 Battle.net discovery still requires the server owner's Blizzard application setup.
 Unavailable multi-account, two-device and actual-game checks remain NOT RUN until
 evidence is recorded. Provider submission, approval, download and installation are

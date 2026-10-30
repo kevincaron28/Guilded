@@ -1,4 +1,4 @@
-# Guilded 8.2.0 Candidate
+# Guilded 8.2.0 — Release preparation
 
 October 30, 2026. Protocol remains 2. Publication and final installed-client
 acceptance are tracked separately in the [integration record](RELEASE_INTEGRATION_2026-10-30.md).

@@ -2,9 +2,33 @@
 
 # Guilded roadmap
 
-## Current stage — 29 October 2026
+## Current stage — 30 October 2026
 
-Guilded **8.1.0 Candidate** (protocol 2), prepared for November 4: RCLootCouncil/Gargul history conversion, reviewed in-game confirmation, separate persistent history and undo, raid-signup presentation and public-origin reliability. See [candidate gates](docs/NOV4_RELEASE_CANDIDATE.md). No new core feature gap is established; prioritize tester evidence and release preparation. Published downloads remain 8.0.2.
+Guilded **8.1.0 Candidate** (protocol 2), prepared for November 4: RCLootCouncil/Gargul history conversion, reviewed in-game confirmation, separate persistent history and undo, raid-signup presentation and public-origin reliability. See [candidate gates](docs/NOV4_RELEASE_CANDIDATE.md). Kevin selected five additional pre-launch features for work on October 30; their implementation and acceptance are tracked below, not claimed complete. Published downloads remain 8.0.2.
+
+## Selected pre-launch work — 30 October 2026
+
+These numbers refer to Kevin's seven-item feature discussion, not the older lists
+below. Today's work precedes the November 4 launch; it is not a release promise.
+See [scope, reuse audit and acceptance checklist](docs/PRELAUNCH_COMMUNITY_2026-10-30.md).
+
+3. **Targeted group/vacancy alerts:** extend existing opt-in group alerts with
+   role/time filters, expiry, quiet hours and strict notification limits.
+4. **Cooperative guild challenges:** reuse canonical dungeon runs and eligible
+   participation; do not count observer uploads as separate runs. Recognition
+   is cosmetic, with no competitive rating, balance or legacy reward changes.
+5. **Optional personal weekly recap:** build on existing report windows and
+   member data; private preview first, explicit opt-in and delivery approval later.
+6. **Companion sync clarity:** show edition, character, watched folder and distinct
+   saved/uploaded/accepted status; preview redacted diagnostics before the existing
+   report handoff. Coordinate integration with the active Companion PRs.
+7. **Weekly community question/poll:** moderator configuration and preview;
+   no automatic activity points or new recurring posts before delivery approval.
+
+Personal dungeon goals (1) and mentoring (2) were **not selected**. All new
+recurring delivery stays inactive until audience, channel and cadence are approved.
+Preserve stable 8.0.2, rc.1 and Store Submission 5 bytes/manual publication hold.
+Release work remains owned by session `01a181ce-30fa-7c60-b973-c385d45d3502`.
 
 Published baseline: 8.0.0: security, reliability, ledger storage compaction, versioned Retail overtime scoring, origin isolation, French indexing, accessibility and Core presentation extraction. See [8.0 readiness](docs/V8_0_LAUNCH_READINESS.md) for publication gates and the owner's testing waiver.
 

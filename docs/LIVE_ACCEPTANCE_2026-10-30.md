@@ -131,6 +131,12 @@ officer/raid channels, TEST Core), so this is a re-run of an existing setup, not
   role override was **not completed**: a second attempt froze the Chrome renderer again on opening Integrations
   (CDP screenshot timeout), so it looks reproducible in this automated tab. Owner can do it by hand
   (Server Settings → Integrations → Guilded → Manage → Commands); NOT RUN.
+  **Update, later 30 Oct:** completed in a fresh Chrome tab by driving the DOM with element refs (screenshots still
+  time out on this page). Ks server only: `/lead` → Guild Master, Officer, Raid Leader; `/officer` and `/organize` → Guild Master,
+  Officer, each set to Allow and saved. Reopening `/lead` and `/officer` showed the saved overrides. PASS for "the override
+  can be applied and persists". NOT verified: that those roles now actually see the commands in the slash picker
+  (needs a member holding the role / View as role), and Quebec Gold is unchanged. Side effect: one mistimed click
+  joined the Ks "General" voice channel; disconnected immediately.
 - Throwaway-server checks that still need a second account: member command visibility, signup as a plain member,
   `/guilded verify`, multi-character picker. The assistant cannot create the account; **owner must provide it**.
 

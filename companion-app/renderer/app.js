@@ -182,8 +182,8 @@ function renderMode() {
   $('btnStandings').hidden = false;
   $('connectedAs').hidden = !linked;
   $('connectedAs').textContent = !linked ? '' : personal
-    ? T("Connected: public dungeon leaderboards only. Your finished runs are sent; no guild data.")
-    : T("Connected: your guild's Discord{0}. Your saved data is synced and standings come back to the addon.", savedConfig.guildDiscordId ? T(" (server {0})", savedConfig.guildDiscordId) : '');
+    ? T("Connected: public dungeon leaderboards only. Sync your finished runs without sharing guild data.")
+    : T("Connected: your guild's Discord{0}. Sync saved data and refresh standings from this companion.", savedConfig.guildDiscordId ? T(" (server {0})", savedConfig.guildDiscordId) : '');
 }
 function renderLogs() {
   $('log').replaceChildren();

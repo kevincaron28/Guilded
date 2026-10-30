@@ -109,10 +109,14 @@ and remain isolated by challenge/instance/season identity. No extra edition or
 mode coverage is claimed.
 
 Implementation is SOURCE-READY, not yet installed in production.
+Read-only production inspection found only Forever Season 1, scheduled November 4
+at 23:00 UTC with no rules snapshot yet. The other four editions have no calendar
+row. Their presets are exported, but their start dates require an owner decision;
+the installer can target `--edition=forever` without creating any new calendar.
 `scripts/export-edition-rules.ts` exports all five reviewed snapshots and hashes.
 `scripts/configure-launch-timings.ts` previews existing scheduled Season 1 rows;
-apply requires the exact preview hash, locks all five calendars in fixed order,
-and commits all editions together. It refuses missing/already-started seasons
+apply requires the exact preview hash, locks selected calendars in fixed order,
+and commits selected editions together (all five by default). It refuses missing/already-started seasons
 or changed previews. Existing public fallback rules and archived snapshots stay
 unchanged. Production receipt and final CI are still pending.
 

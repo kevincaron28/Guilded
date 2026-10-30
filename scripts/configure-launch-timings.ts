@@ -5,14 +5,17 @@ import { configureNextSeasonRules } from "../src/services/official-seasons.js";
 import { lockDungeonCalendar } from "../src/services/dungeon-calendar-lock.js";
 import { withEdition } from "../src/services/edition-context.js";
 
-const editions = ["forever", "classic-era", "classic-tbc", "classic-mists", "retail"] as const;
+const supported = ["forever", "classic-era", "classic-tbc", "classic-mists", "retail"] as const;
+const selection = process.argv.find(v => v.startsWith("--edition="))?.slice(10);
+if (selection && !supported.some(e => e === selection)) throw new Error("Unknown --edition; omit it to apply all five");
+const editions = selection ? supported.filter(e => e === selection) : supported;
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 const apply = process.argv.includes("--apply");
 const expected = process.argv.find(v => v.startsWith("--expected="))?.slice(11);
 if (apply && !expected) throw new Error("Apply requires --expected=<previewHash> from a reviewed dry run");
 try {
   const result = await prisma.$transaction(async tx => {
-    // Fixed lock order and one transaction: all editions commit or none do.
+    // Fixed lock order and one transaction: selected editions commit or none do.
     for (const edition of editions) await lockDungeonCalendar(tx, true, edition);
     const now = new Date();
     const preview = [];

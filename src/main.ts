@@ -80,7 +80,7 @@ import { runCooldownPings } from "./services/recipes.js";
 import { DUNGEON_SEASON_SELECT, handleDungeonSeasonSelect, updateDungeonLeaderboard } from "./services/dungeon-leaderboard.js";
 import { refreshExistingBotGuides } from "./services/bot-messages.js";
 import { BACKUP_DIR, runBackup } from "./services/backup.js";
-import { freezeSeasonRules, loadOfficialWindows, rotateOfficialSeasons, startOfficialSeason } from "./services/official-seasons.js";
+import { ensureQuarterlyCalendar, freezeSeasonRules, loadOfficialWindows, rotateOfficialSeasons, startOfficialSeason } from "./services/official-seasons.js";
 import { finalizeClosingSeasons } from "./services/dungeon-admin.js";
 import { executeOwnerSeason, OWNER_SEASON_COMMAND, ownerSeasonCommand } from "./commands/owner-season.js";
 import { updateCommunityLeaderboard } from "./services/community-leaderboard.js";
@@ -329,7 +329,8 @@ client.once(Events.ClientReady, (readyClient) => {
     if (rotating) return;
     rotating = true;
     // The public leaderboards' rules freeze when a season starts, then only gain new routes.
-    (async () => { for (const edition of GAME_EDITIONS) await withEdition(edition, () => freezeSeasonRules(prisma, new Date())
+    (async () => { for (const edition of GAME_EDITIONS) await withEdition(edition, () => ensureQuarterlyCalendar(prisma, new Date())
+      .then(() => freezeSeasonRules(prisma, new Date()))
       .then((change) => {
         if (change?.frozen) console.info(`Public dungeon rules frozen for ${change.season}.`);
         else if (change) console.info(`Public dungeon rules for ${change.season} gained routes ${change.routes.join(", ") || "-"}, brackets ${change.brackets.join(", ") || "-"}.`);

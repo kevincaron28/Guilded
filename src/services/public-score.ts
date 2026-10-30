@@ -48,7 +48,8 @@ export const publicRules = (edition: GameEdition = currentEdition()): BracketedR
 };
 
 // A season's frozen public rules (OfficialSeason.rules).
-export interface PublicRuleSnapshot { format: 1; frozenAt: string; rules: BracketedRules; additions: { at: string; routes: string[]; brackets: string[] }[] }
+export interface PublicRuleSnapshot { format: 1; frozenAt: string; rules: BracketedRules; additions: { at: string; routes: string[]; brackets: string[] }[];
+  calendar?: import("./official-periods.js").OfficialPeriodMetadata }
 // New official snapshots require the current stored evidence contract. Reading an
 // older snapshot never adds this policy or silently changes archived results.
 export const snapshotRules = (rules: BracketedRules, now: Date): PublicRuleSnapshot => ({ format: 1, frozenAt: now.toISOString(), rules: { ...rules, evidencePolicy: "current-v1" }, additions: [] });

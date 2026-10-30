@@ -172,7 +172,9 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
       if (visible.length === 5) break;
     }
     await i.editReply(visible.length ? { embeds: [new EmbedBuilder().setTitle(t("Upcoming groups", "Groupes à venir")).setDescription(visible.map(s => `${escapeMarkdown(s.core.name)} · <t:${Math.floor(s.scheduledAt.getTime() / 1000)}:F>\n/bg view session:${s.id}`).join("\n\n"))], allowedMentions: { parse: [] } }
-      : { content: t("No upcoming groups you can access.", "Aucun groupe à venir accessible.") });
+      : { content: sub === "mine"
+        ? t("You have not joined any upcoming groups. Use Upcoming to find one, then /bg join.", "Vous n'avez rejoint aucun groupe à venir. Utilisez À venir pour en trouver un, puis /bg join.")
+        : t("No upcoming groups you can access yet. Leaders can start one with /bg create.", "Aucun groupe à venir accessible pour le moment. Les responsables peuvent en créer un avec /bg create.") });
     return;
   }
   const id = text("session", true);

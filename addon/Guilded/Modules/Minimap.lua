@@ -896,7 +896,7 @@ local function buildToolsPage(page)
   officerOnly(tip(at(newButton(page, "Officer setup", 136, function() run("officer list") end), page, 142, -116), "Who counts as an officer in this guild."))
 
   -- Test tools (/guilded sim): a pretend raid with fake players, to learn the tools alone.
-  forModule("sim", at(newLabel(page, "Test tools (fake players, nothing reaches Discord)", "GameFontNormalSmall"), page, 0, -146), true)
+  forModule("sim", at(newLabel(page, "Test tools (fake players; saved tests can sync to Discord)", "GameFontNormalSmall"), page, 0, -146), true)
   local tests = {
     { "Start test raid", "sim start", "A test raid with fake players; bosses and loot work like a real one." },
     { "Fake bids", "sim bids", "Fake players bid on the item open for GP bids." },
@@ -1480,7 +1480,7 @@ local function refreshModuleRows()
     else state = L("on") end
     row.label:SetText(L(ns.moduleName(row.key)) .. " - " .. state)
     row.mine:SetText(mineOff and L("Turn on") or L("Turn off"))
-    row.guild:SetText(guildOff and "Guild: on" or "Guild: off")
+    row.guild:SetText(L(guildOff and "Guild: on" or "Guild: off"))
   end
 end
 

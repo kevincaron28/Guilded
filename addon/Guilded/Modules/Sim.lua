@@ -5,7 +5,7 @@
 -- test raid started around the same time.
 --
 -- Everything is marked test = true and /guilded sim clear removes it, including
--- any EP/GP it recorded, so it never reaches a real export by accident.
+-- any EP/GP it recorded. Saved tests can sync to Discord as test records.
 local addonName, ns = ...
 ns = ns or {}
 
@@ -129,7 +129,10 @@ clearSimDungeons = function(root)
   local removed = 0
   if root and root.dungeon and root.dungeon.runs then
     for id, run in pairs(root.dungeon.runs) do
-      if run.test or string.sub(id, 1, 4) == "SIM-" then root.dungeon.runs[id] = nil; removed = removed + 1 end
+      if run.test or string.sub(id, 1, 4) == "SIM-" then
+        if ns.runResults and ns.runResults.remove then ns.runResults.remove(id) end
+        root.dungeon.runs[id] = nil; removed = removed + 1
+      end
     end
   end
   return removed

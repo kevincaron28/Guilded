@@ -165,6 +165,17 @@ function results.dismiss()
   if window then window:Hide() end
 end
 
+-- Test cleanup must clear queued and visible results, not just the saved run.
+function results.remove(runId)
+  if pending and pending.run and pending.run.id == runId then pending = nil end
+  local d = dungeonDb()
+  if d and d.pendingResult == runId then d.pendingResult = nil end
+  if results.last and results.last.id == runId then
+    results.last = nil
+    if window then window:Hide() end
+  end
+end
+
 function results.text(run)
   local seconds = math.max(0, math.floor(run.durationSec or 0))
   local lines = { (run.name or "Dungeon") .. " - " .. (run.state or "?"),

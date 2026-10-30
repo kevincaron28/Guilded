@@ -654,6 +654,13 @@ local FR = {
 -- scripts/addon-locale.mjs), then npm run dungeons:sync.
 -- BEGIN DE (written by npm run locale -- import; edit the CSV, not these lines)
 local DE = {
+  ["Partly ready"] = "Teilweise bereit",
+  ["Guild: on"] = "Gilde: an",
+  ["Guild: off"] = "Gilde: aus",
+  ["Backup and restore"] = "Sicherung und Wiederherstellung",
+  ["Season"] = "Saison",
+  ["COMPLETED"] = "ABGESCHLOSSEN",
+  ["Test tools (fake players; saved tests can sync to Discord)"] = "Tests (fiktive Spieler; gespeicherte Tests k\195\182nnen Discord erreichen)",
   ["This code excludes per-character imported loot history. Back up the character's SavedVariables/Guilded.lua file separately."] = "Dieser Code enth\195\164lt keinen importierten Beuteverlauf pro Charakter. Sichere die Datei SavedVariables/Guilded.lua des Charakters separat.",
   ["Start a raid with /guilded start before using the pricing preset."] = "Starte einen Raid mit /guilded start, bevor du die Preisvorlage nutzt.",
   ["EPGP tie: eligible players /roll 100. Ties roll again."] = "EPGP-Gleichstand: Berechtigte Spieler /roll 100. Bei Gleichstand erneut w\195\188rfeln.",
@@ -1749,6 +1756,13 @@ local DE = {
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
 local ES = {
+  ["Partly ready"] = "Parcialmente listo",
+  ["Guild: on"] = "Hermandad: activar",
+  ["Guild: off"] = "Hermandad: desactivar",
+  ["Backup and restore"] = "Copia y restauraci\195\179n",
+  ["Season"] = "Temporada",
+  ["COMPLETED"] = "COMPLETADO",
+  ["Test tools (fake players; saved tests can sync to Discord)"] = "Pruebas (jugadores ficticios; pueden sincronizarse con Discord)",
   ["This code excludes per-character imported loot history. Back up the character's SavedVariables/Guilded.lua file separately."] = "Este c\195\179digo no incluye el historial de bot\195\173n importado del personaje. Guarda por separado su archivo SavedVariables/Guilded.lua.",
   ["Start a raid with /guilded start before using the pricing preset."] = "Inicia una banda con /guilded start antes de usar los precios predefinidos.",
   ["EPGP tie: eligible players /roll 100. Ties roll again."] = "Empate EPGP: los jugadores elegibles usan /roll 100. Repetid si hay empate.",
@@ -3374,3 +3388,12 @@ FR["Guilded saved %s's %s recipes (%d) from the window you opened."] = "Guilded 
 FR["Open your %s window once so your guild can see what you craft (Guilded reads it by itself)."] = "Ouvrez une fois la fen\195\170tre de %s pour que la guilde voie vos recettes (Guilded les lit automatiquement)."
 FR["No reserves found in that text."] = "Aucune r\195\169serve trouv\195\169e dans ce texte."
 FR["Confirmation"] = "Confirmation"
+FR["RUN COMPLETE"] = "DONJON TERMIN\195\137"
+FR["Save my addon data"] = "Sauvegarder"
+FR["Partly ready"] = "Partiellement pr\195\170t"
+FR["Guild: on"] = "Guilde : activer"
+FR["Guild: off"] = "Guilde : d\195\169sactiver"
+FR["Backup and restore"] = "Sauvegarde et restauration"
+FR["Season"] = "Saison"
+FR["COMPLETED"] = "TERMIN\195\137"
+FR["Test tools (fake players; saved tests can sync to Discord)"] = "Tests (faux joueurs; donn\195\169es synchronisables vers Discord)"

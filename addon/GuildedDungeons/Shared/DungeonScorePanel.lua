@@ -78,7 +78,8 @@ function view.model(name, seasonIndex, bracketKey, period, role)
     end
   end
   -- Keep known unvisited Classic dungeons visible without merging actual instance IDs.
-  for _, dungeon in ipairs(snapshot and (snapshot.provisional or snapshot.version == 5 or snapshot.version == 6) and {} or score.DUNGEONS) do
+  local retail = ns.util and ns.util.gameEdition and ns.util.gameEdition() == "retail"
+  for _, dungeon in ipairs((retail or snapshot and (snapshot.provisional or snapshot.version == 5 or snapshot.version == 6)) and {} or score.DUNGEONS) do
     if not known[dungeon.key] then cards[#cards + 1] = { name = dungeon.name, minLevel = dungeon.minLevel, maxLevel = dungeon.maxLevel, points = available and 0 or nil } end
   end
   table.sort(cards, function(a, b)

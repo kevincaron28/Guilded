@@ -68,7 +68,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
   const sub = command?.options.getSubcommand() ?? input?.action ?? "";
   if (["create", "manage"].includes(sub) && !hasPermission(actor, "raidLeader")) throw new Error("Raid Leader required / Responsable de raid requis.");
   if (sub === "panel") {
-    await i.editReply({ components: [battlegroundPanel(fr)], embeds: [new EmbedBuilder().setTitle(t("Battlegrounds", "Champs de bataille")).setDescription(t(
+    await i.editReply({ components: [battlegroundPanel(fr, ctx.guildId)], embeds: [new EmbedBuilder().setTitle(t("Battlegrounds", "Champs de bataille")).setDescription(t(
       "Create: /bg create\nJoin: /bg upcoming → /bg join\nMy groups: /bg mine\nDetails: /bg view\nLeave: /bg leave\n\nPrivate planning. No automatic posts, match capture or awards. Unverified queue formats cannot start.",
       "Créer : /bg create\nRejoindre : /bg upcoming → /bg join\nMes groupes : /bg mine\nDétails : /bg view\nQuitter : /bg leave\n\nPlanification privée. Aucun message automatique, capture ou récompense. Les formats non vérifiés ne peuvent pas démarrer."))] });
     return;
@@ -120,10 +120,10 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
 }
 
 export const BG_PREFIX = "bgui:";
-export function battlegroundPanel(fr: boolean) {
+export function battlegroundPanel(fr: boolean, guildId: string) {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     ...[["create", fr ? "Créer" : "Create"], ["join", fr ? "Rejoindre" : "Join"], ["mine", fr ? "Mes groupes" : "My groups"], ["upcoming", fr ? "À venir" : "Upcoming"]].map(([id, label]) =>
-      new ButtonBuilder().setCustomId(`${BG_PREFIX}${id}`).setLabel(label!).setStyle(ButtonStyle.Secondary)));
+      new ButtonBuilder().setCustomId(`${BG_PREFIX}${guildId}:${id}`).setLabel(label!).setStyle(ButtonStyle.Secondary)));
 }
 
 function bgField(id: string, label: string, placeholder: string, maxLength: number) {
@@ -131,8 +131,8 @@ function bgField(id: string, label: string, placeholder: string, maxLength: numb
     .setStyle(TextInputStyle.Short).setPlaceholder(placeholder).setRequired(true).setMaxLength(maxLength));
 }
 
-export function battlegroundCreateModal(mode: string, faction: string, fr: boolean) {
-  return new ModalBuilder().setCustomId(`${BG_PREFIX}create-form:${mode}:${faction}`).setTitle(fr ? "Planifier un champ de bataille" : "Plan a battleground")
+export function battlegroundCreateModal(mode: string, faction: string, fr: boolean, guildId: string) {
+  return new ModalBuilder().setCustomId(`${BG_PREFIX}${guildId}:create-form:${mode}:${faction}`).setTitle(fr ? "Planifier un champ de bataille" : "Plan a battleground")
     .addComponents(bgField("name", fr ? "Nom du groupe" : "Group name", fr ? "Groupe du vendredi" : "Friday group", 50),
       bgField("map", fr ? "Carte ou file aléatoire" : "Map or random queue", fr ? "Aléatoire" : "Random", 70),
       bgField("start", fr ? "Début avec décalage horaire" : "Start with timezone offset", "2026-11-05T20:00:00-05:00", 40),
@@ -140,8 +140,8 @@ export function battlegroundCreateModal(mode: string, faction: string, fr: boole
       bgField("roles", fr ? "Places tank/soigneur/DPS" : "Tank/healer/DPS slots", mode === "blitz" ? "0/1/1" : "0/1/4", 8));
 }
 
-export function battlegroundJoinModal(fr: boolean) {
-  return new ModalBuilder().setCustomId(`${BG_PREFIX}join-form`).setTitle(fr ? "Rejoindre un groupe" : "Join a group")
+export function battlegroundJoinModal(fr: boolean, guildId: string) {
+  return new ModalBuilder().setCustomId(`${BG_PREFIX}${guildId}:join-form`).setTitle(fr ? "Rejoindre un groupe" : "Join a group")
     .addComponents(bgField("session", fr ? "ID de séance (/bg upcoming)" : "Session ID (/bg upcoming)", "c...", 40),
       bgField("character", fr ? "Votre personnage-royaume" : "Your character-realm", "Name-Realm", 120),
       bgField("role", fr ? "Rôle : TANK, HEALER ou DPS" : "Role: TANK, HEALER or DPS", "DPS", 6),
@@ -151,11 +151,12 @@ export function battlegroundJoinModal(fr: boolean) {
 
 export function battlegroundFormInput(i: Pick<ModalSubmitInteraction, "customId" | "fields" | "channelId">): BgInput {
   const field = (key: string) => i.fields.getTextInputValue(key).trim();
-  if (i.customId === `${BG_PREFIX}join-form`) return { action: "join", strings: {
+  const actionId = i.customId.replace(/^bgui:[^:]+:/, "bgui:");
+  if (actionId === `${BG_PREFIX}join-form`) return { action: "join", strings: {
     session: field("session"), character: field("character"), role: field("role").toUpperCase(),
     faction: /^alliance$/i.test(field("faction")) ? "Alliance" : /^horde$/i.test(field("faction")) ? "Horde" : field("faction"),
   }, booleans: { "normal-realm": field("normal").toLowerCase() === "normal" } };
-  const match = /^bgui:create-form:(casual|rated|blitz):(Alliance|Horde)$/.exec(i.customId);
+  const match = /^bgui:create-form:(casual|rated|blitz):(Alliance|Horde)$/.exec(actionId);
   if (!match) throw new Error("Invalid BG form / Formulaire JcJ invalide.");
   const levels = /^(\d{2})\s*-\s*(\d{2})$/.exec(field("levels"));
   const roles = /^(\d)\s*\/\s*(\d)\s*\/\s*(\d)$/.exec(field("roles"));
@@ -167,30 +168,31 @@ export function battlegroundFormInput(i: Pick<ModalSubmitInteraction, "customId"
 }
 
 export async function handleBattlegroundComponent(i: ButtonInteraction | ModalSubmitInteraction | StringSelectMenuInteraction) {
+  const action = i.customId.split(":").slice(2).join(":");
   if (i.isModalSubmit()) { await executeBattleground(i, battlegroundFormInput(i)); return; }
-  if (i.isButton() && ["mine", "upcoming"].includes(i.customId.slice(BG_PREFIX.length))) {
-    await executeBattleground(i, { action: i.customId.slice(BG_PREFIX.length) }); return;
+  if (i.isButton() && ["mine", "upcoming"].includes(action)) {
+    await executeBattleground(i, { action: action }); return;
   }
   const ctx = await requireGuildContext(i);
   if (!ctx || !i.guild) return;
   const actor = await i.guild.members.fetch(i.user.id);
   await requireTeamChannel(i.guild, i.channelId, actor);
   const fr = await teamLanguage(prisma, ctx.guildId);
-  if (i.isButton() && i.customId === `${BG_PREFIX}join`) { await i.showModal(battlegroundJoinModal(fr)); return; }
+  if (i.isButton() && action === "join") { await i.showModal(battlegroundJoinModal(fr, ctx.guildId)); return; }
   if (!hasPermission(actor, "raidLeader")) throw new Error("Raid Leader required / Responsable de raid requis.");
-  if (i.isButton() && i.customId === `${BG_PREFIX}create`) {
+  if (i.isButton() && action === "create") {
     await i.reply({ flags: MessageFlags.Ephemeral, content: fr
       ? "Choisissez le format et la faction. Ce choix confirme un royaume normal (sans Hardcore). Le salon actuel définit l'accès au groupe. Aucun message public ne sera envoyé."
       : "Choose format and faction. This confirms a normal realm (not Hardcore). The current channel defines group access. No public post will be sent.",
-    components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId(`${BG_PREFIX}format`)
+    components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId(`${BG_PREFIX}${ctx.guildId}:format`)
       .setPlaceholder(fr ? "Format · faction · royaume normal" : "Format · faction · normal realm")
       .addOptions(...["casual", "rated", "blitz"].flatMap(mode => ["Alliance", "Horde"].map(faction => ({ label: `${mode} · ${faction}`, value: `${mode}:${faction}` })))))] });
     return;
   }
-  if (i.isStringSelectMenu() && i.customId === `${BG_PREFIX}format`) {
+  if (i.isStringSelectMenu() && action === "format") {
     const match = /^(casual|rated|blitz):(Alliance|Horde)$/.exec(i.values[0] ?? "");
     if (!match) throw new Error("Invalid BG format / Format JcJ invalide.");
-    await i.showModal(battlegroundCreateModal(match[1]!, match[2]!, fr)); return;
+    await i.showModal(battlegroundCreateModal(match[1]!, match[2]!, fr, ctx.guildId)); return;
   }
   throw new Error("Unknown BG control / Contrôle JcJ inconnu.");
 }

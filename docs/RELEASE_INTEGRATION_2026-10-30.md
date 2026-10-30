@@ -10,7 +10,21 @@ not waive authorization, data integrity, migrations/recovery, CI or non-game QA.
 
 PC Codex is the single implementation and release owner. The routing chat
 coordinates requirements only; Claude owns assigned native/game QA when the
-prepared handoff can actually be submitted. No duplicate implementer is active.
+prepared handoff can actually be submitted. Frontend implementation is delegated by Kevin's explicit expert-model request to
+`/root/frontend_remodel`, GPT-6.1 Terra, high reasoning (worker
+`01a18ce5-e04d-7882-9a25-bfd2d00018c6`). It owns site/navigation, Companion
+renderer/locales/presentation, quick guides and presentation-only
+`src/services/public-leaderboard.ts`. PC owns automation/schema/services,
+versioning, integration and releases. Routing has one independent Astra read-only
+beginner evaluator; no duplicate evaluation lane is running.
+
+Verified evaluator priorities: expose rankings directly; fix Whole season versus
+Top runs this week wording; show season/scope/score meaning and simplify eight
+filters. Browser Companion's initial/loading desktop/tray copy is incorrect;
+after initialization it correctly becomes Online Companion/manual sync. Preserve
+web file/folder sync and optional write-back while clearly distinguishing it
+from Windows background watching. Online Companion removal is a QUESTION, not
+approved deletion. Keep it and evaluate Dashboard/Web sync naming.
 
 - [x] Frozen 8.2.0 released: GitHub and ten CurseForge files hash-verified;
   Microsoft Store Submission 5 published and installed as 8.2.0.0. Store signature,

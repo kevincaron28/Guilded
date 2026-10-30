@@ -47,6 +47,8 @@ initialization are tracked separately from the implemented feature inventory.
 
 ## Current stage — 30 October 2026
 
+Guilded **8.4.0 Candidate** is under integration; published baseline is8.3.0.
+
 Guilded **8.4 source candidate** is being integrated on
 `codex/bg-recorder-history-oct30`. The provisional BG pipeline is implemented in
 source: capability-checked Forever postmatch self reports, SavedVariables through

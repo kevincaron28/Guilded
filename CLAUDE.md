@@ -1,3 +1,4 @@
+> 8.4.0 (30 October 2026 candidate): provisional BG records and QA fixes; final CI/release pending.
 > Current checkpoint: 30 October 2026. 8.3.0 source2602e67 is deployed and published on GitHub; all23 downloads verified. Store Submission6 is published; installed-package update verification pending. CurseForge8.3 approval/download verification in progress.
 > Next candidate8.4.0 on codex/bg-recorder-history-oct30 adds opt-in provisional BG capture/history/stats and QA fixes. No8.4 deployment or publication yet.
 > Latest owner authorization: ALL AVAILABLE TESTING NOW. The older wait-until-launch waiver is superseded. Claude acknowledged the expanded QA handoff and completed a first pass; Retail evidence is addon8.2, native isolated-profile evidence8.3.
@@ -38,7 +39,7 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (30 October 2026): version 8.3.0 Candidate, protocol 2.**
+**Current status (30 October 2026): version 8.4.0 Candidate, protocol 2.**
 Candidate source is not a production version claim. WoW Forever launches
 4 November 2026 (beta closed 21 October); its first raids open 9 December.
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.

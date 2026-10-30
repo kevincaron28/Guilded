@@ -1,5 +1,12 @@
 # Changelog
 
+## 8.4.0 — 30 October 2026 candidate
+
+Opt-in provisional battleground capture, paired-owner consent checks, private
+history and withdrawal, participation statistics, optional single-use premade
+codes and launch QA fixes. Verified matches remain gated on live acceptance.
+See [release notes](docs/V8_4_0_RELEASE_NOTES.md); packaging/deployment pending.
+
 ## 8.3.0 — 30 October 2026 candidate
 
 Opt-in weekly questions, private recap schedules and approved vacancy alerts;

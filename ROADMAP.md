@@ -9,7 +9,9 @@ Guilded **8.1.0 Candidate** (protocol 2), prepared for November 4: RCLootCouncil
 ## Selected pre-launch work — 30 October 2026
 
 These numbers refer to Kevin's seven-item feature discussion, not the older lists
-below. Today's work precedes the November 4 launch; it is not a release promise.
+below. Kevin subsequently targeted a product release today, October 30, and asked
+for a whole-product gap review before finalizing scope. WoW Forever opens November 4.
+The feature branch is held for review/PC-owner coordination, not a release promise.
 See [scope, reuse audit and acceptance checklist](docs/PRELAUNCH_COMMUNITY_2026-10-30.md).
 
 3. **Targeted group/vacancy alerts:** extend existing opt-in group alerts with

@@ -1,5 +1,5 @@
 import {
-  ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, SlashCommandBuilder,
+  ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, SlashCommandBuilder, PermissionFlagsBits, escapeMarkdown,
   type ButtonInteraction, type ChatInputCommandInteraction, type Guild as DiscordGuild, type GuildMember,
   MessageFlags,
 } from "discord.js";
@@ -9,6 +9,7 @@ import { cleanOptions, createPollService, resultBar } from "../services/poll.js"
 import { parseRaidTime } from "../services/raid-time.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { asLang, tx, type Lang } from "../i18n.js";
+import { weeklyQuestionDraft } from "../services/weekly-question.js";
 
 const service = createPollService(prisma);
 export const POLL_PREFIX = "poll:";
@@ -16,6 +17,18 @@ export const POLL_PREFIX = "poll:";
 export const pollCommand = new SlashCommandBuilder()
   .setName("poll")
   .setDescription("Polls answered with buttons.")
+  .addSubcommand(sub => {
+    sub.setName("weekly-preview").setDescription("Officers: private weekly question/poll draft; does not schedule")
+      .setDescriptionLocalizations({ fr: "Officiers : aperçu privé de question/sondage hebdo; sans envoi" })
+      .addStringOption(o => o.setName("question").setDescription("Question for the community").setMinLength(3).setMaxLength(250).setRequired(true))
+      .addIntegerOption(o => o.setName("day").setDescription("Day of week").setRequired(true).addChoices(
+        { name: "Sunday", value: 0 }, { name: "Monday", value: 1 }, { name: "Tuesday", value: 2 }, { name: "Wednesday", value: 3 },
+        { name: "Thursday", value: 4 }, { name: "Friday", value: 5 }, { name: "Saturday", value: 6 }))
+      .addStringOption(o => o.setName("time").setDescription("24-hour local time, HH:mm").setRequired(true))
+      .addStringOption(o => o.setName("timezone").setDescription("IANA timezone; defaults to the guild timezone"));
+    for (const n of [1, 2, 3, 4, 5]) sub.addStringOption(o => o.setName(`option${n}`).setDescription(`Poll option ${n}; omit all for a discussion question`).setMaxLength(80));
+    return sub;
+  })
   .addSubcommand((sub) => {
     sub.setName("create").setDescription("Officers: post a poll (2 to 5 options).")
       .addStringOption((o) => o.setName("question").setDescription("The question").setMinLength(3).setMaxLength(250).setRequired(true))
@@ -73,6 +86,29 @@ export async function executePoll(interaction: ChatInputCommandInteraction): Pro
     return;
   }
   const subcommand = interaction.options.getSubcommand();
+  if (subcommand === "weekly-preview") {
+    const settings = await guildService.getSettings(context.guildId);
+    const fr = asLang(settings?.language) === "fr";
+    const localTime = interaction.options.getString("time", true);
+    if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(localTime)) throw new Error(fr ? "Utilisez le format HH:mm (24 heures)." : "Use HH:mm in 24-hour time.");
+    const options = [1, 2, 3, 4, 5].flatMap(n => { const value = interaction.options.getString(`option${n}`); return value === null ? [] : [value]; });
+    const channel = interaction.channel;
+    const bot = interaction.guild.members.me;
+    const memberPermissions = channel && "permissionsFor" in channel ? channel.permissionsFor(interaction.member as GuildMember) : null;
+    const botPermissions = channel && "permissionsFor" in channel && bot ? channel.permissionsFor(bot) : null;
+    const draft = weeklyQuestionDraft({ question: interaction.options.getString("question", true), options, mode: options.length ? "button-poll" : "question",
+      timezone: interaction.options.getString("timezone") ?? settings?.timezone ?? "America/Toronto",
+      weekday: interaction.options.getInteger("day", true), minute: Number(localTime.slice(0, 2)) * 60 + Number(localTime.slice(3)), channelId: interaction.channelId },
+    { canManagePolls: true, canViewChannel: !!memberPermissions?.has(PermissionFlagsBits.ViewChannel) && !!botPermissions?.has(PermissionFlagsBits.ViewChannel),
+      canSendToChannel: !!botPermissions?.has(PermissionFlagsBits.SendMessages) });
+    const days = fr ? ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"] : ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    await interaction.reply({ flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] }, embeds: [new EmbedBuilder().setColor(0x5865f2)
+      .setTitle(fr ? "Question hebdomadaire · brouillon" : "Weekly question · draft")
+      .setDescription([escapeMarkdown(draft.question), ...draft.options.map((option, index) => `${index + 1}. ${escapeMarkdown(option)}`)].join("\n"))
+      .addFields({ name: fr ? "Horaire proposé" : "Proposed schedule", value: `${days[draft.weekday]} · ${localTime} · ${draft.timezone} · <#${draft.channelId}>` })
+      .setFooter({ text: fr ? "Non enregistré, non programmé · Aucun point automatique" : "Not saved or scheduled · No automatic points" })] });
+    return;
+  }
   if (subcommand === "close") {
     const poll = await service.close(interaction.options.getString("poll", true), context.guildId);
     await syncPoll(interaction.guild, poll.id);

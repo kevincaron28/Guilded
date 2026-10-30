@@ -1,3 +1,4 @@
+import { executeBattleground } from "./commands/battleground.js";
 import "./services/diagnostic-console.js";
 import { GAME_EDITIONS } from "../companion/game-edition.mjs";
 import { badgeCommandsForGuild } from "./services/community-badge-policy.js";
@@ -178,6 +179,7 @@ handlers.set("apply", executeApply);
 handlers.set("tag", executeTag);
 handlers.set("core", executeCore);
 handlers.set("team", executeTeam);
+handlers.set("bg", executeBattleground);
 handlers.set("poll", executePoll);
 handlers.set("bank", executeBank);
 handlers.set("craft", executeCraft);

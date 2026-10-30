@@ -21,6 +21,13 @@ function fixture() {
 }
 
 describe("team Discord delivery", () => {
+  it("suppresses all automatic BG posts, including delayed jobs", async () => {
+    const f = fixture();
+    Object.assign(f.core, { battlegroundPlan: { version: 1 } });
+    for (const kind of ["TEAM_ROSTER", "TEAM_SESSION", "TEAM_REMINDER"]) await f.deliver(kind);
+    expect(f.guild.channels.fetch).not.toHaveBeenCalled();
+    expect(f.channel.send).not.toHaveBeenCalled();
+  });
   it("does not recreate a cancelled or expired session", async () => {
     const f = fixture();
     f.session.status = "CANCELLED";

@@ -33,10 +33,10 @@ describe("command registration", () => {
   });
 
   it("keeps the command list short: old commands live under a parent", () => {
-    // Weekly dungeon/PvP teams add one entry point; /lead, /officer and /organize (hidden from
+    // Battleground planning adds /bg beside weekly /team; /lead, /officer and /organize (hidden from
     // members) hold the leader tools; legacy smaller commands stay merged.
     // Discord's separate 4000-character command limit is enforced in commands-shape.test.ts.
-    expect(commands.length).toBeLessThanOrEqual(27);
+    expect(commands.length).toBeLessThanOrEqual(28);
     const names = commands.map((command) => command.name);
     for (const gone of ["testraid", "selfroles", "who", "wcl", "dkp", "application", "import-apply", "readiness", "profession", "attunement", "wishlist", "dungeon-admin", "stats", "inactive", "export", "guildhealth", "health"]) {
       expect(names).not.toContain(gone);

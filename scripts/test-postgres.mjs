@@ -22,6 +22,7 @@ try {
   run("node", ["--import", "tsx", "scripts/verify-simulation.ts"]);
   run("node", ["--import", "tsx", "scripts/verify-character-correction.ts"]);
   run("node", ["--import", "tsx", "scripts/verify-battleground-organization.ts"]);
+  run("node", ["--import", "tsx", "scripts/verify-recurring-delivery.ts"]);
   run("node", ["--import", "tsx", "scripts/verify-raid-planning.ts"]);
   const backup = join(temp, "rehearsal.dump");
   run("pg_dump", ["--format=custom", "--no-owner", "--file", backup]);

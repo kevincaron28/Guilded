@@ -19,9 +19,16 @@ import { localizedHref } from './nav.mjs';
     try { window.localStorage.setItem('kc.language', language); } catch { /* the selected language still works */ }
     document.dispatchEvent(new window.CustomEvent('kc-language', { detail: language }));
   };
-  let language = new URLSearchParams(window.location.search).get('lang');
+  let language = new URLSearchParams(window.location.search).get('lang') || (window.location.hash === '#fr' ? 'fr' : null);
   if (!['en', 'fr'].includes(language)) { try { language = window.localStorage.getItem('kc.language'); } catch { /* default below */ } }
   apply(language === 'fr' ? 'fr' : 'en');
+  window.addEventListener('hashchange', () => {
+    if (window.location.hash !== '#fr') return;
+    const url = new URL(window.location.href);
+    url.searchParams.set('lang', 'fr');
+    window.history.replaceState(window.history.state, '', url);
+    apply('fr');
+  });
   for (const button of controls) button.addEventListener('click', () => {
     const language = button.dataset.setLanguage;
     const url = new URL(window.location.href);

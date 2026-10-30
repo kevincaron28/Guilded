@@ -15,32 +15,36 @@
     <div class="brand"><img src="logo.png" alt="Guilded"><div><strong>GUILDED</strong><span>YOUR GUILD, CONNECTED</span></div></div>
     <div class="nav-label">COMPANION</div>
     <nav id="companion-navigation" aria-label="Main navigation">
-      <button class="nav active" data-page="status"><span aria-hidden="true">▦</span>Overview</button>
+      <button class="nav active" data-page="status"><span aria-hidden="true">▦</span>Home</button>
+      <button class="nav" data-page="settings"><span aria-hidden="true">⇄</span>Sync &amp; setup <span id="setupBadge" class="badge" hidden>!</span></button>
+      <button class="nav" data-page="leaderboards"><span aria-hidden="true">🏆</span>Leaderboards</button>
+      <a class="nav nav-external" href="https://guilded.kcaron.top/me/" target="_blank" rel="noopener"><span aria-hidden="true">↗</span>My Guilded</a>
       <button class="nav" data-page="wow"><span aria-hidden="true">◇</span>World of Warcraft</button>
+      <details class="nav-extras"><summary>More tools</summary>
       <button class="nav" data-page="poe"><span aria-hidden="true">⌁</span>PoE2 mapping</button>
       <button class="nav" data-page="wishlist"><span aria-hidden="true">★</span>Wishlist</button>
       <button class="nav" data-page="pricing"><span aria-hidden="true">◈</span>Raid prices</button>
-      <button class="nav" data-page="leaderboards"><span aria-hidden="true">🏆</span>Leaderboards</button>
       <button class="nav" data-page="cores"><span aria-hidden="true">⚑</span>Roster & loot settings</button>
+      </details>
       <div class="nav-divider"></div>
-      <button class="nav" data-page="settings"><span aria-hidden="true">⚙</span>Connection & setup <span id="setupBadge" class="badge" hidden>!</span></button>
       <button class="nav" data-page="activity"><span aria-hidden="true">≡</span>Activity <span id="activityCount" class="nav-count">0</span></button>
       <button class="nav" data-page="help"><span aria-hidden="true">?</span>Help & privacy</button>
     </nav>
-    <div class="side-bottom"><div class="mode-chip"><span class="status-dot"></span><span id="appMode">Desktop companion</span></div><p id="sideNote">Keeps working in your tray.</p><span id="version">Version</span><a class="publisher-signature" href="https://kcaron.top/" target="_blank" rel="noopener"><img src="kc-emblem.webp" alt="">By K Caron ↗</a></div>
+    <div class="side-bottom"><div class="mode-chip"><span class="status-dot"></span><span id="appMode">Guilded Companion</span></div><p id="sideNote">Loading sync options…</p><span id="version">Version</span><a class="publisher-signature" href="https://kcaron.top/" target="_blank" rel="noopener"><img src="kc-emblem.webp" alt="">By K Caron ↗</a></div>
   </aside>
   <div class="workspace">
-    <button id="navBackdrop" class="nav-backdrop" aria-label="Close navigation" hidden></button><header class="topbar"><span><button id="btnNav" class="nav-toggle" type="button" aria-controls="companion-navigation" aria-expanded="false">Menu ☰</button>Guilded <span class="slash">/</span> <span id="breadcrumb">Overview</span></span><div><label class="language-control"><span>Language</span><select id="language" aria-label="Language"><option value="en">English</option><option value="fr">Français</option></select></label><span id="connectionPill" class="pill">Not connected</span><button id="btnTheme" class="icon-button" aria-label="Switch color theme" title="Switch color theme">◐</button></div></header>
+    <button id="navBackdrop" class="nav-backdrop" aria-label="Close navigation" hidden></button><header class="topbar"><span><button id="btnNav" class="nav-toggle" type="button" aria-controls="companion-navigation" aria-expanded="false">Menu ☰</button>Guilded <span class="slash">/</span> <span id="breadcrumb">Home</span></span><div><label class="language-control"><span>Language</span><select id="language" aria-label="Language"><option value="en">English</option><option value="fr">Français</option></select></label><span id="connectionPill" class="pill">Not connected</span><button id="btnTheme" class="icon-button" aria-label="Switch color theme" title="Switch color theme">◐</button></div></header>
     <main id="main" tabindex="-1">
       <section id="page-status" class="page">
-        <div class="page-heading"><div><p class="eyebrow">YOUR COMPANION</p><h1>Your connection, at a glance.</h1><p class="subtitle">Your games, saved data and next step in one place.</p></div><button id="btnUpload" class="primary" hidden>↗ Sync now</button></div>
+        <div class="page-heading"><div><p class="eyebrow">YOUR COMPANION</p><h1>Welcome to Guilded.</h1><p class="subtitle">Your next step and sync status, in one place.</p></div><button id="btnUpload" class="primary" hidden>↗ Sync now</button></div>
+        <div id="browserChoice" class="browser-choice" hidden><div><strong>Web sync · no installation</strong><p>Sync manually while this page is open. For automatic background sync on Windows, use the installed companion.</p></div><a href="https://apps.microsoft.com/detail/9N680XX3QFL9" target="_blank" rel="noopener">Get the Windows companion ↗</a></div>
         <div id="storeDistribution" class="banner setup" hidden><div><strong>Microsoft Store installation</strong><p>Updates are managed by Microsoft Store. Startup is managed in Windows settings.</p></div><button id="btnStoreUpdates">Store updates</button><button id="btnStoreStartup">Startup settings</button></div>
         <div id="updateBanner" class="banner setup" role="status" hidden><span class="banner-symbol" aria-hidden="true">⬆</span><div><strong id="updateTitle">Update available</strong><p id="updateText">A newer Guilded Companion is out.</p></div><button id="btnUpdate" class="primary">Update now</button></div>
         <div id="liveBanner" class="banner setup" role="status" hidden><span class="banner-symbol" aria-hidden="true">⇄</span><div><strong id="liveTitle">Your saved data may have moved</strong><p id="liveText"></p></div><div class="banner-actions"><button id="btnLiveSwitch" class="primary">Switch to the live game folder</button><button id="btnLiveKeep" class="secondary">Keep this folder</button></div></div>
         <div id="banner" class="banner setup" role="status"><span class="banner-symbol" aria-hidden="true">◉</span><div><strong id="bannerTitle">Let's get you connected</strong><p id="bannerText">Link your Discord account and choose the games you play.</p></div><button class="quiet" id="overviewNext" data-go="settings">Connect your companion →</button></div>
         <div class="overview-health" aria-label="Connection summary"><article><span class="label">Account connection</span><strong id="overviewConnection">Not connected</strong><p id="overviewTracking">Connect your account first</p></article><article><span class="label">Selected game files</span><strong id="overviewFiles">Choose your game files</strong><p>Only the sources you choose are used.</p></article><article><span class="label">Guild standings</span><strong id="overviewStandings">Not refreshed yet</strong><p id="overviewStandingsTime">A connection is not a completed sync.</p></article></div>
         <p id="watchStatus" class="watch-status" hidden></p>
-        <p><button class="secondary" data-go="activity">My sync</button> <span>My next raid and my week are available in My Guilded on your guild website.</span></p>
+        <div class="quick-links"><a href="https://guilded.kcaron.top/me/" target="_blank" rel="noopener"><strong>My Guilded →</strong><span>Your raids and guild activity</span></a><a href="https://guilded.kcaron.top/leaderboards/" target="_blank" rel="noopener"><strong>Public leaderboards →</strong><span>Browse scores without connecting</span></a><button data-go="activity"><strong>Sync activity →</strong><span>See saves, uploads and receipts</span></button></div>
         <div class="section-title"><h2>Your games</h2><span id="versions" class="muted">Ready when you are</span></div>
         <div class="game-grid">
           <article class="game-card wow-card"><div class="game-heading"><span class="game-emblem" aria-hidden="true">W</span><span id="wowBadge" class="pill">Not configured</span></div><p class="eyebrow">GUILD & RAID SYNC</p><h2>World of Warcraft</h2><p class="muted">Characters, professions, readiness and guild standings.</p><div class="game-metric"><span>Last sync</span><strong id="tileUpload">Awaiting your first sync</strong></div><p id="tileUploadNote" class="micro">Save fresh addon data with /reload.</p><button class="game-link" data-go="wow">Open WoW companion <span aria-hidden="true">→</span></button></article>
@@ -97,7 +101,7 @@
         <p id="pricingNotice" role="status"></p><div id="pricingContent"></div>
       </section>
       <section id="page-leaderboards" class="page" hidden>
-        <div class="page-heading"><div><p class="eyebrow">YOUR GUILD'S PROGRESS</p><h1>Leaderboards</h1><p class="subtitle">Core loot priority and dungeon scores, with their own rules and seasons.</p></div><button id="boardsReload">Refresh</button></div>
+        <div class="page-heading"><div><p class="eyebrow">YOUR GUILD'S PROGRESS</p><h1>Leaderboards</h1><p class="subtitle">Your guild’s loot priority and dungeon scores. For public rankings, choose your WoW edition on the website.</p><p><a href="https://guilded.kcaron.top/leaderboards/" target="_blank" rel="noopener">Browse public leaderboards →</a></p></div><button id="boardsReload">Refresh</button></div>
         <p id="boardsNotice" role="status"></p><div id="boardsContent"></div>
       </section>
       <section id="page-settings" class="page" hidden>

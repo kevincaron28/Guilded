@@ -29,7 +29,7 @@ describe("private personal recap", () => {
     expect(database.communityBadge.findMany).not.toHaveBeenCalled();
     expect(database.raidSignup.findMany).not.toHaveBeenCalled();
   });
-  it("bounds previews and honestly labels extra data and delivery being off in both languages", async () => {
+  it("bounds previews and points to delivery controls without assuming opt-in state", async () => {
     const database = db();
     database.communityBadge.findMany.mockResolvedValue(Array.from({ length: 11 }, (_, i) => ({ code: `badge-${i}`, earnedAt: now })));
     database.raidSignup.findMany.mockResolvedValue(Array.from({ length: 6 }, () => ({ status: "WAITLISTED", raid: { title: "**Raid**", scheduledAt: now } })));
@@ -37,7 +37,8 @@ describe("private personal recap", () => {
     expect(result).toMatchObject({ moreBadges: true, moreSignups: true });
     expect(result.communityBadges).toHaveLength(10); expect(result.signups).toHaveLength(5);
     const en = personalWeeklyRecapEmbed(result, "en").toJSON(), fr = personalWeeklyRecapEmbed(result, "fr").toJSON();
-    expect(en.footer?.text).toContain("delivery is off"); expect(fr.footer?.text).toContain("désactivé");
+    expect(en.footer?.text).toContain("/automation recap"); expect(fr.footer?.text).toContain("/automation recap");
+    expect(en.footer?.text).not.toContain("delivery is off"); expect(fr.footer?.text).not.toContain("désactivé");
     expect(en.fields![2]!.value).toContain("Waitlisted"); expect(fr.fields![2]!.value).toContain("attente");
     expect(en.fields![2]!.value).not.toContain("**Raid**");
   });

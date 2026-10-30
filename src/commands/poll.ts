@@ -158,7 +158,7 @@ async function showWeeklyQuestionReview(interaction: ChatInputCommandInteraction
       .setDescription([escapeMarkdown(settings.question), ...settings.options.map((option, index) => `${index + 1}. ${escapeMarkdown(option)}`)].join("\n"))
       .addFields({ name: fr ? "Destination et horaire indicatif" : "Destination and proposed schedule", value: `<#${settings.channelId}> · ${days[settings.weekday]} ${clock} · ${settings.timezone}` },
         { name: fr ? "État" : "Status", value: `${review.weekKey} · ${plan.paused ? fr ? "En pause" : "Paused" : occurrence?.status ?? (fr ? "À valider" : "Ready for review")}` })
-      .setFooter({ text: fr ? "Enregistré · Publication manuelle seulement · Aperçu valable 5 min · Aucun point ajouté" : "Saved · Manual posting only · Preview expires in 5 min · No added points" })],
+      .setFooter({ text: fr ? "Enregistré · État récurrent : /automation question · Aucun point ajouté" : "Saved · Recurring status: /automation question · No added points" })],
     components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`${WEEKLY_QUESTION_PREFIX}${review.id}:post`).setStyle(ButtonStyle.Primary).setLabel(fr ? "Publier cette semaine maintenant" : "Post this week now").setDisabled(plan.paused || !!occurrence),
       new ButtonBuilder().setCustomId(`${WEEKLY_QUESTION_PREFIX}${review.id}:skip`).setStyle(ButtonStyle.Secondary).setLabel(fr ? "Passer cette semaine" : "Skip this week").setDisabled(plan.paused || !!occurrence),
@@ -194,7 +194,7 @@ export async function handleWeeklyQuestionButton(interaction: ButtonInteraction)
       }
     });
     const messages: Record<string, [string, string]> = {
-      sent: ["Posted. Automatic posting remains off.", "Publié. La publication automatique reste désactivée."],
+      sent: ["Posted. Recurring status: /automation question.", "Publié. État récurrent : /automation question."],
       skipped: ["Skipped this week.", "Cette semaine est passée."], paused: ["Paused. Use /poll weekly to resume manual review.", "En pause. /poll weekly permet de reprendre la validation manuelle."],
       uncertain: ["Delivery outcome uncertain. Do not retry; check the target channel.", "Résultat incertain. Ne réessayez pas; vérifiez le canal."],
       cancelled: ["Cancelled because access or configuration changed.", "Annulé : accès ou configuration modifiés."],

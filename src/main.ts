@@ -1,3 +1,6 @@
+import { executeAutomation } from "./commands/automation.js";
+import { runRecurringDeliveries } from "./services/recurring-discord.js";
+import { dispatchGroupWatches } from "./services/group-watch-discord.js";
 import { BG_PREFIX, executeBattleground, handleBattlegroundComponent } from "./commands/battleground.js";
 import "./services/diagnostic-console.js";
 import { GAME_EDITIONS } from "../companion/game-edition.mjs";
@@ -180,6 +183,7 @@ handlers.set("tag", executeTag);
 handlers.set("core", executeCore);
 handlers.set("team", executeTeam);
 handlers.set("bg", executeBattleground);
+handlers.set("automation", executeAutomation);
 handlers.set("poll", executePoll);
 handlers.set("bank", executeBank);
 handlers.set("craft", executeCraft);
@@ -354,6 +358,17 @@ client.once(Events.ClientReady, (readyClient) => {
   };
   setTimeout(rotateSeasons, 60_000);
   setInterval(rotateSeasons, 5 * 60 * 1000);
+  let recurringBusy = false;
+  const recurring = async () => {
+    if (recurringBusy) return;
+    recurringBusy = true;
+    try {
+      await runRecurringDeliveries(readyClient, prisma).catch(reportJobError("Opt-in recurring delivery"));
+      await dispatchGroupWatches(readyClient, prisma).catch(reportJobError("Opt-in vacancy delivery"));
+    } finally { recurringBusy = false; }
+  };
+  void recurring();
+  setInterval(() => void recurring(), 5 * 60_000);
   // Raid reminders: checked every 5 minutes so a "60 minutes before" ping
   // lands within a few minutes of that mark.
   setInterval(() => {

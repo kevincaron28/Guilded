@@ -9,8 +9,8 @@ import type { ChallengeRatingRules } from "./challenge-rating-rules.js";
 const BASE = [155,170,200,215,230,260,275,290,320,335,365];
 export function challengePolicyText(model: ChallengeRatingRules["model"], lang: "en" | "fr"): string {
   if (model === "guilded-keystone-v2") return lang === "fr"
-    ? "Règles v2 : les clés terminées admissibles conservent 100 à 50 % des points de base jusqu’à 40 % hors délai, sans bonus de vitesse. Chaque donjon compte une fois, tous affixes confondus. Formule provisoire propre à Guilded."
-    : "Rules v2: eligible completed keys retain 100–50% of base points up to 40% overtime, without a speed bonus. Each dungeon counts once across affixes. Guilded’s own provisional formula.";
+    ? "Règles v2 : les clés à temps peuvent recevoir un bonus de vitesse. Les clés admissibles hors délai conservent de 100 à 50 % des points de base jusqu’à 40 % de dépassement, sans bonus. Chaque donjon compte une fois, tous affixes confondus. Formule provisoire propre à Guilded."
+    : "Rules v2: in-time keys can earn a speed bonus. Eligible overtime keys retain 100–50% of base points up to 40% overtime, without a bonus. Each dungeon counts once across affixes. Guilded’s own provisional formula.";
   return lang === "fr" ? "Règles v1 figées : seules les clés à temps comptent. Chaque donjon compte une fois, tous affixes confondus."
     : "Frozen v1 rules: only in-time keys count. Each dungeon counts once across affixes.";
 }

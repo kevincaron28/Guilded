@@ -15,6 +15,7 @@ export function companionOverview(config = {}, state = {}, browser = false) {
     files: selectedFiles ? `${selectedFiles} selected ${selectedFiles === 1 ? 'source' : 'sources'}` : 'Choose your game files',
     tracking: !linked ? 'Connect your account first' : paused ? 'Tracking paused' : browser ? 'Manual browser sync' : state.running ? phases[state.syncPhase] || 'Desktop tracking running' : 'Ready to configure',
     standings: config.personal ? 'Not used by this connection' : state.lastStandings ? 'Standings refreshed' : 'Not refreshed yet',
-    nextAction: linked ? 'Manage connection' : 'Connect your companion'
+    nextAction: !linked ? 'Connect your account' : !selectedFiles ? 'Choose your saved data' : paused ? 'Resume tracking' : browser ? 'Open sync instructions' : state.lastUpload ? 'View sync activity' : 'Save in WoW, then check sync',
+    nextPage: !linked || !selectedFiles || paused ? 'settings' : browser ? 'wow' : 'activity'
   };
 }

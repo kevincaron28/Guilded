@@ -121,6 +121,7 @@ enum ApplicationStatus {
 }
 
 model Guild {
+  recurringRecaps RecurringRecap[]
   cooperativeGoal CooperativeGoal?
   weeklyQuestionPlan WeeklyQuestionPlan?
   weeklyQuestionReviews WeeklyQuestionReview[]
@@ -425,6 +426,7 @@ model CommunityParticipationDeletion {
 
 
 model Member {
+  recurringRecap RecurringRecap?
   supplyPledges RaidSupplyPledge[]
   targetedAlertAttempts TargetedAlertAttempt[]
   webAvailability WebAvailability?
@@ -788,6 +790,7 @@ model WowGuildChannel {
 model GuildSettings {
   // New targeted alerts remain held until audience/channel/cadence approval.
   targetedAlertsEnabled Boolean @default(false)
+  targetedAlertsAutomationApprovedBy String?
   targetedAlertsChannelId String?
   pugChannelId             String?
   pugMessageId             String?
@@ -2396,6 +2399,7 @@ model TargetedAlertAttempt {
 }
 
 model WeeklyQuestionPlan {
+  automation Json?
   guildId String @id
   settings Json
   revision Int @default(1)
@@ -2403,6 +2407,22 @@ model WeeklyQuestionPlan {
   createdBy String
   updatedAt DateTime @updatedAt
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+}
+
+model RecurringRecap {
+  memberId String @id
+  guildId String
+  settings Json
+  enabled Boolean @default(false)
+  revision Int @default(1)
+  lastPeriod String?
+  lastAttemptAt DateTime?
+  status String @default("OFF")
+  messageId String?
+  updatedAt DateTime @updatedAt
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  @@index([enabled, guildId])
 }
 
 model WeeklyQuestionReview {

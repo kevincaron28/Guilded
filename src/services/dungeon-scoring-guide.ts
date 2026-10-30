@@ -94,6 +94,9 @@ function provisionalFields(rules: BracketedRules, fr: boolean) {
   const waiting = rules.provisional!.waiting.length;
   const note = { name: rules.provisionalTargets ? (fr ? "Cibles provisoires (*)" : "Provisional targets (*)") : (fr ? "Cibles recalibrées" : "Recalibrated targets"), value: [
     ...(rules.provisionalTargets ? [provisionalNote(fr)] : []),
+    ...(rules.routes.some(r => r.timing) ? [fr
+      ? "Révision des cibles : estimations de conception conservées ou informées par des guides, pas des mesures calibrées. Les chronos Mythique+ natifs restent propres à leur mode."
+      : "Timing review: retained design estimates or guide-informed targets, not calibrated measurements. Native Mythic+ timers remain specific to their mode."] : []),
     fr ? "Fin : boss final détecté par l’addon (ailes de Scarlet : leur dernier boss, par son nom)." : "Completion: final boss detected by the addon (Scarlet wings: their last boss, by name).",
     ...(waiting ? [fr ? `${waiting} donjon(s) du plan attendent les données du lancement (aucun ID de carte observé) : pas de cote pour l’instant.`
       : `${waiting} planned dungeon(s) wait for launch data (no map ID observed): not rated yet.`] : [])

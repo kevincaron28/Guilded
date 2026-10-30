@@ -19,6 +19,13 @@ const routeSchema = z.object({
   routeStandard: z.string().trim().min(1).max(500),
   participationBand: bandSchema,
   targetSec: z.number().int().min(1).max(14400).nullable(),
+  timing: z.object({
+    reviewId: z.string().min(1).max(80), reviewedAt: z.string().datetime(),
+    basis: z.enum(["legacy-design-unverified", "guide-estimate", "native-timer", "measured"]),
+    clock: z.string().min(1).max(200), note: z.string().min(1).max(500),
+    sources: z.array(z.string().url()).max(12),
+    rangeSec: z.object({ min: z.number().int().positive(), max: z.number().int().max(14400) }).refine(r => r.min <= r.max).optional()
+  }).optional(),
   verification: z.object({ build: z.string().trim().min(1).max(100), runRef: z.string().trim().min(1).max(100),
     fullRoute: z.literal(true).optional(),
     method: z.literal("source-reviewed").optional(), sources: z.array(z.string().url()).max(40).optional() })

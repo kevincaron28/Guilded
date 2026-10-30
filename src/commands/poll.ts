@@ -71,16 +71,22 @@ function pollButtons(pollId: string, options: string[], closed: boolean) {
   )];
 }
 
-async function syncPoll(guild: DiscordGuild, pollId: string): Promise<void> {
+export async function syncPoll(guild: DiscordGuild, pollId: string): Promise<boolean> {
   try {
-    const poll = await prisma.poll.findUnique({ where: { id: pollId } });
-    if (!poll?.channelId || !poll.messageId) return;
+    const poll = await prisma.poll.findFirst({ where: { id: pollId, guild: { discordId: guild.id } } });
+    if (!poll?.channelId || !poll.messageId) return true;
     const channel = await guild.channels.fetch(poll.channelId).catch(() => null);
-    if (!channel?.isTextBased()) return;
-    const message = await channel.messages.fetch(poll.messageId).catch(() => null);
-    await message?.edit({ embeds: [await pollEmbed(pollId)], components: pollButtons(pollId, poll.options, poll.closed) });
+    if (!channel?.isTextBased()) return false;
+    const message = await channel.messages.fetch(poll.messageId).catch((error: unknown) => {
+      if (error && typeof error === "object" && "code" in error && error.code === 10008) return null;
+      throw error;
+    });
+    if (!message) return true;
+    await message.edit({ embeds: [await pollEmbed(pollId)], components: pollButtons(pollId, poll.options, poll.closed || !!poll.closesAt && poll.closesAt.getTime() <= Date.now()) });
+    return true;
   } catch (error) {
     console.error("Failed to refresh poll", error);
+    return false;
   }
 }
 
@@ -202,14 +208,16 @@ export async function handleWeeklyQuestionButton(interaction: ButtonInteraction)
 export async function handlePollButton(interaction: ButtonInteraction): Promise<void> {
   const [pollId, optionText] = interaction.customId.slice(POLL_PREFIX.length).split(":");
   if (!interaction.guild || !pollId || optionText === undefined) return;
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
   const member = await guildService.ensureMember(guild.id, interaction.user.id, (interaction.member as GuildMember | null)?.displayName ?? interaction.user.username);
   try {
     const poll = await service.vote(pollId, guild.id, member.id, Number(optionText));
     const lang: Lang = asLang((await guildService.getSettings(guild.id))?.language);
-    await interaction.reply({ content: tx(lang, "Your vote for **{option}** is recorded. Click another option to change it.", { option: poll.options[Number(optionText)] ?? "" }), flags: MessageFlags.Ephemeral });
+    await interaction.editReply({ content: tx(lang, "Your vote for **{option}** is recorded. Click another option to change it.", { option: poll.options[Number(optionText)] ?? "" }), allowedMentions: { parse: [] } });
     await syncPoll(interaction.guild, pollId);
   } catch (error) {
-    await interaction.reply({ content: error instanceof Error ? error.message : "Could not record your vote.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
+    await interaction.editReply({ content: error instanceof Error ? error.message : "Could not record your vote.", allowedMentions: { parse: [] } }).catch(() => undefined);
+    await syncPoll(interaction.guild, pollId);
   }
 }

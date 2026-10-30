@@ -75,6 +75,7 @@ import { executeHelp } from "./commands/help.js";
 import { handleAutocomplete } from "./commands/autocomplete.js";
 import { prisma } from "./database.js";
 import { runRaidReminders } from "./services/reminders.js";
+import { queueExpiredPolls } from "./services/poll-expiry.js";
 import { runCooldownPings } from "./services/recipes.js";
 import { DUNGEON_SEASON_SELECT, handleDungeonSeasonSelect, updateDungeonLeaderboard } from "./services/dungeon-leaderboard.js";
 import { refreshExistingBotGuides } from "./services/bot-messages.js";
@@ -260,6 +261,8 @@ client.once(Events.ClientReady, (readyClient) => {
   void reconcileGameEvents();
   setInterval(() => void reconcileGameEvents(), 60_000);
   setInterval(() => void runDiscordJobs(readyClient).catch(reportJobError("Discord delivery queue")), 60_000);
+  void queueExpiredPolls(prisma).catch(reportJobError("Poll expiry"));
+  setInterval(() => void queueExpiredPolls(prisma).catch(reportJobError("Poll expiry")), 60_000);
   // Repair missing event jobs after a restart and advance game nights at their times.
   let reconcilingEvents = false;
   const reconcileEvents = async () => {

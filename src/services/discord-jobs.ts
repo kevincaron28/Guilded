@@ -7,7 +7,7 @@ import { prisma } from "../database.js";
 import { participationDay } from "./participation-rules.js";
 
 type Db = Pick<PrismaClient, "discordJob">;
-export type JobKind = "GAME_EVENT_BOARD" | "GAME_EVENT_REMINDER" | "RAID_REMINDER" | "DUNGEON_BOARD" | "PROFESSIONS" | "RAID_POST" | "CORE_ROSTER" | "CALENDAR" | "MESSAGE" | "COMMUNITY_POST" | "SCHEDULED_EVENT" | "TEAM_ROSTER" | "TEAM_SESSION" | "TEAM_REMINDER";
+export type JobKind = "GAME_EVENT_BOARD" | "GAME_EVENT_REMINDER" | "RAID_REMINDER" | "POLL_REFRESH" | "DUNGEON_BOARD" | "PROFESSIONS" | "RAID_POST" | "CORE_ROSTER" | "CALENDAR" | "MESSAGE" | "COMMUNITY_POST" | "SCHEDULED_EVENT" | "TEAM_ROSTER" | "TEAM_SESSION" | "TEAM_REMINDER";
 export async function enqueueDiscordJob(database: Db, guildId: string, key: string, kind: JobKind, payload: Prisma.InputJsonValue = {}) {
   return database.discordJob.upsert({ where: { guildId_key: { guildId, key } },
     create: { guildId, key, kind, payload },
@@ -44,7 +44,12 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
     && pending["day"] !== participationDay(new Date(), typeof pending["timezone"] === "string" ? pending["timezone"] : "America/Toronto")) return;
   if (currentGuildScope()?.guild.id !== job.guildId) return withGuildScope(prisma, job.guildId, () => dispatchDiscordJob(guild, job));
   const payload = job.payload as Record<string, unknown>;
-  if (job.kind === "RAID_REMINDER") {
+  if (job.kind === "POLL_REFRESH") {
+    const poll = await prisma.poll.findFirst({ where: { id: String(payload["pollId"] ?? ""), guildId: job.guildId }, select: { id: true } });
+    if (!poll) return;
+    const { syncPoll } = await import("../commands/poll.js");
+    if (!await syncPoll(guild, poll.id)) throw new Error("Poll message unavailable");
+  } else if (job.kind === "RAID_REMINDER") {
     const { deliverRaidReminder } = await import("./reminders.js");
     await deliverRaidReminder(guild, prisma, job);
   } else if (job.kind === "GAME_EVENT_BOARD" || job.kind === "GAME_EVENT_REMINDER") {

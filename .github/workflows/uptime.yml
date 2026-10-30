@@ -26,7 +26,7 @@ jobs:
             local name="$1" url="$2" expect="$3"
             # Three tries over about a minute, so a restart or a network blip is not an outage.
             for attempt in 1 2 3; do
-              body=$(curl -s --max-time 20 "$url" || true)
+              body=$(curl -sL --max-time 20 "$url" || true)
               if [[ "$body" == *"$expect"* ]]; then echo "ok: $name"; return 0; fi
               sleep 20
             done
@@ -46,7 +46,7 @@ jobs:
           reliable() {
             local name="$1" url="$2" bad=0
             for attempt in $(seq 1 10); do
-              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$url" || echo 000)
+              code=$(curl -sL -o /dev/null -w '%{http_code}' --max-time 20 "$url" || echo 000)
               [[ "$code" == 200 ]] || bad=$((bad + 1))
             done
             if (( bad > 1 )); then echo "UNRELIABLE: $name ($bad of 10 visits failed)"; failed="$failed $name-reliability"

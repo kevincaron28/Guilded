@@ -87,6 +87,19 @@ Defect found in game:
   buttons and text show through the dialog, so its text is hard to read
   (Settings → Guilded setup; reproduced twice). Not yet checked on the 8.1.0 candidate.
 
+### Companion observed (06:05, read-only; nothing clicked that changes state)
+
+- Two companion windows are open at once: one on **8.0.2** (Overview, Store-style install) and
+  one on **8.1.0** (standalone, `%LOCALAPPDATA%\Programs\guilded-companion`).
+  Two companions on the same machine could watch the same SavedVariables and upload twice;
+  confirm only one is allowed to track.
+- 8.1.0 standalone Overview: **Tracking paused**; Account connection "Account linked";
+  Selected game files "1 selected source" (`D:\Program Files (x86)\World of Warcraft\_retail_\WTF\Account\77911595#2\SavedVariables`);
+  last upload "not yet"; "file changed 1 day ago" (stale even though the game saved at 05:45–06:00);
+  Guild standings "Not refreshed yet"; World of Warcraft card "Not configured / Awaiting your first sync".
+- Result: companion acknowledgement and returned standings stay **NOT RUN**. Resuming tracking would upload
+  real Retail data, so it was left paused for the owner to decide.
+
 ### Polish list (bugs and UI fixes, none fixed here)
 
 Discord / bot
@@ -106,6 +119,8 @@ Addon (Retail 12.1.5, 8.0.2)
 12. Dungeons window opens over the Group Finder frame and the two overlap; the window also opens on top of the previous page state after reload (fine) but leaves the Group Finder open.
 13. Season page lists classic dungeons (Blackfathom Deeps … Maraudon) on a Retail client; confirm intended.
 14. `/guilded lang` needs a `/reload` before the open window updates; consider refreshing open windows automatically.
+16. Companion "file changed 1 day ago" is stale after the game saved minutes earlier, and two companion versions run side by side (see above).
+17. Discord: the stale `[TEST] Simulated raid` post (buttons dead after cleanup) is still in `#inscriptions-raid`. The tester could not delete it (browser tab froze, and a right-click once opened the menu on a real pinned guide post instead; nothing was deleted). Owner: delete it by hand.
 15. Reload took ~40–60 s in this crowded zone; note for launch-day reports (client load, not necessarily the addon).
 
 Environment notes: repeated `open_application "Wow"` from the tester launched extra Wow.exe instances (three extra processes at 05:55–05:58); only PID 25472 is the logged-in client. Close the extras manually. A second computer-use agent's overlay repeatedly took the foreground and blocked

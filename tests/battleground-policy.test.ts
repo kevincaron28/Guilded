@@ -18,7 +18,7 @@ describe("Battleground queue and identity boundaries", () => {
     expect(() => assertBattlegroundStart(plan, [])).toThrow();
   });
   it("keeps unknown formats planning-only and rejects malformed or Hardcore metadata", () => {
-    for (const edition of ["forever", "era", "tbc", "mists", "retail"] as const) {
+    for (const edition of ["forever", "classic-era", "classic-tbc", "classic-mists", "retail"] as const) {
       const unknown = { ...plan, edition, mode: "casual" as const };
       expect(battlegroundQueuePolicy(unknown)).toBeNull();
       expect(() => assertBattlegroundStart(unknown, [{ role: "HEALER" }])).toThrow(/Planning only/);

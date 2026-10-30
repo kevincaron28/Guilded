@@ -1,10 +1,11 @@
 import { z } from "zod";
+import { GAME_EDITIONS } from "../../companion/game-edition.mjs";
 
 // Planning metadata is immutable for a session. Unknown queue rules never become
 // permission to queue a raid-sized roster. No capture or statistics consent here.
 export const battlegroundPlanSchema = z.object({
   version: z.literal(1),
-  edition: z.enum(["forever", "era", "tbc", "mists", "retail"]),
+  edition: z.enum(GAME_EDITIONS),
   realmType: z.literal("normal"),
   mode: z.enum(["casual", "rated", "blitz"]),
   map: z.string().trim().min(2).max(70),

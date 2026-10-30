@@ -39,7 +39,7 @@ local KEEP = { version = true, guildKey = true, otherGuilds = true }
 -- restored officer's code would hand the receiving player's characters to that officer.
 local PER_PC_FIELDS = { myCharacters = true, bridgeCompanionGuild = true, verifyCode = true }
 local PER_PC_SETTINGS = {
-  setupMode = true, ledgerSync = true, ledgerSyncSeen = true, ledgerSyncMatch = true, officerBridge = true,
+  setupMode = true, setupModeAuto = true, connectedHintShown = true, ledgerSync = true, ledgerSyncSeen = true, ledgerSyncMatch = true, officerBridge = true,
   chatTab = true, language = true, hideBossTimer = true, mapShare = true, mapShow = true,
   minimapAngle = true, minimapHidden = true, panelPoint = true, panelScale = true, panelTab = true, windowState = true
 }

@@ -215,7 +215,11 @@ export function createBrowserCompanion(env = globalThis) {
         if (typeof started.requestId !== "string" || typeof started.url !== "string" || new URL(started.url).origin !== location.origin) throw new Error("The bot's sign-in answer was incomplete.");
         signIn = new AbortController();
         signInRequest = started.requestId;
-        return { ok: true, confirm: started.confirm, url: started.url };
+        // Tells /me/companion that this same browser asked, so there is no code to type (8.1).
+        // Lax, so it survives the Discord sign-in redirect; it ends with the request after 10 minutes.
+        const automatic = typeof document !== "undefined";
+        if (automatic) document.cookie = `__Host-guilded_signin=${started.requestId}; Path=/; Max-Age=600; Secure; SameSite=Lax`;
+        return { ok: true, confirm: started.confirm, url: started.url, automatic };
       } catch (error) { return { ok: false, message: error.message }; }
     },
     signInWait: async () => {

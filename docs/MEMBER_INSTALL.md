@@ -109,8 +109,9 @@ Open the **online companion link supplied by your guild** (ending in `/companion
 or press **Connect optional companion / Connecter le compagnon (facultatif)** in the
 `/character pair` reply and use its **Open online companion** button. In
 **Connection & setup**, choose **Sign in with Discord**: your browser opens, pick
-your server and press **Connect**. Nothing to type; the short code on that page
-only shows it is your companion. Then save preferences. Sync your intended main
+your server and press **Connect**. Nothing to type: the page knows the request
+came from your own companion (only the command-line companion still shows a
+short code to type). Then save preferences. Sync your intended main
 first if no character is linked yet; later characters become alts. The Windows app
 is optional and the addon is still required. Each device you sign in stays
 connected; manage them under Connections on the website.
@@ -127,8 +128,8 @@ desktop Chrome/Edge): choose your account's `WTF/Account/<account>/SavedVariable
 folder containing `Guilded.lua`. After `/reload`, **Sync now** rereads the latest
 file; you do not need to select it each time. **Save standings to addon** asks for
 `<client>/Interface/AddOns/Guilded` and writes only `Standings.lua` there. Then
-Choose `/guilded setup connected` when you want to use Discord standings, then
-`/reload` again to load them. Do not select SavedVariables as
+`/reload` again to load them: the addon switches to the Discord standings by itself
+(unless you chose in-game only with `/guilded setup`). Do not select SavedVariables as
 the output folder.
 
 Folder choices and the Discord connection are
@@ -171,8 +172,8 @@ and PoE2 log tracking, especially useful for leaders and officers.
    Do not select the addon code in `Interface\AddOns`.
 5. Press **Save & start syncing**. In WoW, `/reload`. Check **Activity** for a
    successful upload and the message that your character is linked.
-6. Let the companion refresh standings. Choose `/guilded setup connected` to use
-   Discord standings, then `/reload` again to load them in game.
+6. Let the companion refresh standings, then `/reload` again: the addon loads and
+   uses the Discord standings by itself.
 
 **Success:** a fresh successful upload appears and the correct character is linked.
 `0 ledger entries, 0 new characters` is normal when nothing new needs importing.
@@ -281,9 +282,8 @@ soutien financier est facultatif et ne donne aucune priorité.
    Sélectionnez le dossier `SavedVariables` de votre compte et, avec
    **Save standings to addon**, le dossier `Interface/AddOns/Guilded`.
 7. Après `/reload`, cliquez sur **Sync now**. Synchronisez votre principal d'abord
-   si aucun personnage n'est encore lié. Pour les classements Discord en jeu,
-   choisissez `/guilded setup connected`. Vérifiez l'envoi et le classement,
-   puis faites `/reload` pour charger le classement en jeu. Le navigateur garde
+   si aucun personnage n'est encore lié. Vérifiez l'envoi et le classement,
+   puis faites `/reload` : l'addon charge et utilise le classement Discord tout seul. Le navigateur garde
    la connexion et les dossiers si le stockage est disponible.
 
 Le compagnon Windows reste facultatif pour la synchronisation automatique en

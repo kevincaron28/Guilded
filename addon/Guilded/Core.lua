@@ -1725,7 +1725,7 @@ local function command(text)
       local code = verifyCodeFrom(table.concat(args, "", 2))
       if code then
         db.verifyCode = code
-        message(L("Saved. All your characters on this WoW account will link to your Discord by themselves when an officer's Guilded syncs, and Discord will message you. Nothing else to do, also for your alts."))
+        message(L("Saved. All your characters on this WoW account will link to your Discord by themselves the next time a guildmate's Guilded companion syncs, and Discord will message you. Nothing else to do, also for your alts."))
         inspectReadiness(true, "GUILD")
       else
         message(L("That code does not look right. In Discord, use /character pair and copy the whole /guilded verify line."))

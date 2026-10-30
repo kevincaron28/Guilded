@@ -29,3 +29,16 @@ version 0, expected 499,952 bytes/nine entries. Materialization is blocked: the 
 transfer helper, which failed with “library file transfer failed: download failed”.
 No local ZIP exists and the nine entries are not locally verified. The
 reference is preserved locally; no guessed URL or public upload was used.
+
+## Prepublication checkpoint - October 30 13:30 UTC
+
+Integrated checkpoint 16b47f6 passed both full CI runs, including PostgreSQL
+concurrency/migrations/restore and Windows packaging. Local release preparation
+passed 3,145 tests in 374 files, TypeScript, ESLint, addon validation and both
+dependency audits; installer/addon inspection passed. Its initial manifest was
+dirty while final browser findings were corrected and is not publishable.
+Final fixes cover French guide persistence/anchors, accurate in-time versus
+overtime scoring copy, and standard-record empty wording. Focused tests pass;
+exact final-source CI and clean regenerated manifests remain required.
+Fresh production ledger check and encrypted offsite backup verification passed.
+Synthetic populated leaderboard QA is separate from production/player evidence.

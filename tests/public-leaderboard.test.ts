@@ -199,6 +199,7 @@ describe("leaderboard and personal pages", () => {
     expect(beta.body).toContain('<td class="num score">240</td>');
     const realm = await request("GET", "/leaderboards/?realm=Elsewhere");
     expect(realm.body).not.toContain('class="char c-warrior"');
+    expect(realm.body).toContain("No rated standard dungeon run this week yet.");
     const kev = await request("GET", "/leaderboards/character/Kev-Doomhowl");
     expect(kev.body).toContain("Score history");
     expect(kev.body).toContain("Beta (before Season 1)");

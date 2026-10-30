@@ -41,5 +41,5 @@ export function personalWeeklyRecapEmbed(recap: Awaited<ReturnType<typeof person
       { name: fr ? "Mes inscriptions · 7 prochains jours" : "My signups · next 7 days", value: recap.signups.map(row =>
         `${escapeMarkdown(row.raid.title).slice(0, 100)} · <t:${Math.floor(row.raid.scheduledAt.getTime() / 1000)}:f> · ${signupStatus[row.status as keyof typeof signupStatus] ?? row.status}`).join("\n").slice(0, 950)
         + (recap.moreSignups ? "\n…" : "") || (fr ? "Aucune inscription enregistrée." : "No signups recorded.") })
-    .setFooter({ text: fr ? "Aperçu privé sur demande · Envoi automatique désactivé" : "Private on-demand preview · Automatic delivery is off" });
+    .setFooter({ text: fr ? "Aperçu privé · Horaire et pause : /automation recap" : "Private preview · Schedule and pause: /automation recap" });
 }

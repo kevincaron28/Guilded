@@ -1,6 +1,6 @@
 # Guilded 8.3.0 — Simpler navigation and optional automation
 
-Candidate for the October 30 launch. Provider availability is separate from
+Prepared for the October 30 launch. Provider availability is separate from
 source readiness. Acceptance: [V8_3_0_RELEASE_ACCEPTANCE.md](V8_3_0_RELEASE_ACCEPTANCE.md).
 
 - Website: direct My Guilded and leaderboard navigation, clearer edition

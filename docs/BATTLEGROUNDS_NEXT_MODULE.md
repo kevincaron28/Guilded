@@ -46,7 +46,7 @@ reporters, permission loss and corrections. Forever availability and multi-clien
 tests are material gates. Capture must respect SecretInActivePvPMatch; no live
 restriction bypass. [Reviewed API source](https://github.com/Gethe/wow-ui-source/blob/ca8368f2f2380cbe696854f7f2646387c278a61b/Interface/AddOns/Blizzard_APIDocumentationGenerated/PvpInfoDocumentation.lua).
 
-## Remaining implementation sequence — October 30
+## Remaining implementation sequence â€” October 30
 
 Recorder, result cards/history, deduplication/privacy and separate guild statistics
 remain approved. Integrate the 8.3 organization/remodel/automation candidate first,

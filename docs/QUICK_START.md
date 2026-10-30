@@ -26,7 +26,7 @@ Need help? See [installation](MEMBER_INSTALL.md), [dungeons](DUNGEONS_GUIDE.md),
 3. **Facultatif : partager les données en ligne.** Ouvrez la [synchronisation Web](https://guilded.kcaron.top/companion/?lang=fr) ou installez le [compagnon Windows](https://apps.microsoft.com/detail/9N680XX3QFL9). Connectez-vous avec Discord, choisissez votre serveur ou les classements publics, puis vos données sauvegardées. Consultez le [guide d’installation](MEMBER_INSTALL.md#fr).
 4. Dans WoW, faites `/reload` ou déconnectez-vous pour enregistrer les données. Sur le Web, gardez la page ouverte et cliquez sur **Synchroniser**; sous Windows, la synchronisation en arrière-plan activée surveille le fichier choisi. Pour voir les classements reçus dans WoW, suivez les instructions du compagnon et faites à nouveau `/reload`.
 
-Récapitulatifs et alertes facultatifs : [guide d’automatisation](AUTOMATION_QUICK_START.md).
+Récapitulatifs et alertes facultatifs : [guide d’automatisation](https://guilded.kcaron.top/docs/AUTOMATION_QUICK_START.html?lang=fr#fr).
 
 Besoin d’aide ? Voyez les guides [installation](MEMBER_INSTALL.md#fr), [donjons](DUNGEONS_GUIDE.md#fr) et [EPGP](EPGP_GUIDE.md#fr), ou [posez votre question sur Discord](https://discord.gg/YjzFwtP64V).
 

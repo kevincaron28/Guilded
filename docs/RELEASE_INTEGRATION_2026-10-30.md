@@ -1,6 +1,6 @@
 # October 30 release integration
 
-## Active launch checklist — updated 13:14 UTC
+## Active launch checklist — updated 13:26 UTC
 
 Kevin's October 30 12:54:50 UTC direction supersedes the earlier minimal-polish
 scope: launch tonight in Québec, remodel the website and Companion for a simple
@@ -72,9 +72,18 @@ approved deletion. Keep it and evaluate Dashboard/Web sync naming.
 Hard blockers currently: native desktop input/Claude Send; unavailable Forever
 client acceptance until opening; real multi-account/device coverage needs actual
 clients. These do not block authorized source/browser work. The initial BG migration-order defect is fixed and passed clean-database CI.
-Baseline Library QA ZIP materialization is blocked by missing Library download
-tools/skill; reference `libfile_f80a84c36ad8819183f9043647b01e8e` is recorded,
+Baseline Library QA ZIP materialization failed twice through the routing session’s
+official transfer helper (download failed); no local ZIP exists. Reference `libfile_f80a84c36ad8819183f9043647b01e8e` is recorded,
 not treated as a local ZIP.
+
+Integration checkpoint: PR #292 contains 8.3 automation/remodel; original full
+local suite had 3,136 passes and seven stale copy/version assertions. Corrections
+passed all five affected/focused files (28 tests). Full release preparation and
+exact-source CI are running. Fresh production ledger/recovery checks and encrypted
+offsite decryption/checksums passed. Final CUA found guide-language reload and
+automation-link issues; frontend owner is fixing/retesting. No 8.3 deployment
+or publication has occurred. BG recorder/cards/history/statistics remain approved
+follow-up work; see BATTLEGROUNDS_NEXT_MODULE.md for sequence and capability gates.
 
 Earlier preparation checkpoints below are retained as history.
 

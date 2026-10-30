@@ -425,6 +425,7 @@ model CommunityParticipationDeletion {
 
 
 model Member {
+  supplyPledges RaidSupplyPledge[]
   targetedAlertAttempts TargetedAlertAttempt[]
   webAvailability WebAvailability?
   activityCoreSpots   ActivityCoreMember[]
@@ -999,6 +1000,7 @@ model ReadinessFinding {
 }
 
 model Raid {
+  planningRevisions RaidPlanRevision[]
   // Explicit opt-in for this occurrence only; weekly successors start private.
   publicPug       Boolean          @default(false)
   pugRealm        String?
@@ -1206,6 +1208,33 @@ model RaidNote {
   raid      Raid     @relation(fields: [raidId], references: [id], onDelete: Cascade)
 
   @@index([raidId, createdAt])
+}
+
+// Explicitly approved member-facing plans; never reuse private RaidNote records.
+model RaidPlanRevision {
+  id String @id @default(cuid())
+  raidId String
+  kind String
+  revision Int
+  active Boolean @default(true)
+  payload Json
+  approvedBy String
+  approvedAt DateTime @default(now())
+  raid Raid @relation(fields: [raidId], references: [id], onDelete: Cascade)
+  pledges RaidSupplyPledge[]
+  @@unique([raidId, kind, revision])
+}
+
+model RaidSupplyPledge {
+  revisionId String
+  memberId String
+  itemIndex Int
+  quantity Int
+  delivered Int @default(0)
+  updatedAt DateTime @updatedAt
+  revision RaidPlanRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  @@id([revisionId, memberId, itemIndex])
 }
 
 enum BankRequestStatus {

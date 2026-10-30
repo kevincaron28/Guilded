@@ -55,7 +55,7 @@ export const isWebPath = (path: string) => path.length <= 200 && PATHS.test(path
 const ID = /^[a-z0-9]{20,40}$/;
 const MAX_FORM = 16_000;
 // Review CSV is capped at 8,000 decoded characters; allow URL-encoded UTF-8 names.
-export const webFormLimit = (path: string) => path === "/me/roster/review" ? 80_000 : MAX_FORM;
+export const webFormLimit = (path: string) => path === "/me/raid-plans" ? 250_000 : path === "/me/roster/review" ? 80_000 : MAX_FORM;
 
 export function createWebApp(deps: WebAppDeps) {
   const now = deps.now ?? (() => new Date());

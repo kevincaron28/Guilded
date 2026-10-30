@@ -40,6 +40,8 @@ import { companionAccess, personalSnapshot } from "./services/companion-access.j
 import { createMemberData, memberDataStore } from "./services/member-data.js";
 import { createPersonalCalendar, personalCalendarStore } from "./services/personal-calendar.js";
 import { createOfficerHandover, officerHandoverStore } from "./services/officer-handover.js";
+import { raidPlanningStore } from "./services/raid-planning.js";
+import { createRaidPlanning } from "./services/raid-planning-page.js";
 import { readFileSync } from "node:fs";
 import { ZodError } from "zod";
 import { addonCharacterSchema } from "./integrations/addon.js";
@@ -255,13 +257,14 @@ export function createSiteApp(client?: Client) {
   const badges = createWebCommunityBadges(prisma, client, id => hostedPilot.allows(id));
   const devices = createDevicePages(prismaDeviceStore(prisma));
   const memberData = createMemberData(memberDataStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")));
+  const raidPlanning = createRaidPlanning(raidPlanningStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)), client));
   const handover = createOfficerHandover(officerHandoverStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))));
   const personalCalendar = createPersonalCalendar(personalCalendarStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), client));
   const battleNet = createBattleNetPage(prismaBattleNetStore(prisma), battleNetConfig(config));
   const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, leaderboards.route, directory.route, profiles.route];
   const meSections = [badges.meSection, profiles.meSection, availability.meSection, roster.meSection, guildTools.meSection, leaderboards.meSection];
-  routes.unshift(devices.route, battleNet, memberData.route, personalCalendar.route, handover.route);
-  meSections.push(devices.meSection, memberData.meSection, personalCalendar.meSection, handover.meSection);
+  routes.unshift(devices.route, battleNet, memberData.route, personalCalendar.route, handover.route, raidPlanning.route);
+  meSections.push(devices.meSection, memberData.meSection, personalCalendar.meSection, handover.meSection, raidPlanning.meSection);
   return createWebApp({
     publicRaids: now => publicRaids(prisma, hostedPilot.allows, now),
     store: prismaWebStore(prisma), auth: webAuthConfig(config), allows: (id) => hostedPilot.allows(id), routes, meSections,

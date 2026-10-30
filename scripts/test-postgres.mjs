@@ -19,10 +19,12 @@ try {
   run("node", ["--import", "tsx", "scripts/verify-postgres.ts"]);
   run("node", ["--import", "tsx", "scripts/verify-reviewed-community.ts"]);
   run("node", ["--import", "tsx", "scripts/verify-simulation.ts"]);
+  run("node", ["--import", "tsx", "scripts/verify-raid-planning.ts"]);
   const backup = join(temp, "rehearsal.dump");
   run("pg_dump", ["--format=custom", "--no-owner", "--file", backup]);
   run("psql", ["-v", "ON_ERROR_STOP=1", "-c", 'UPDATE "EpgpTransaction" SET "epAmount" = 999 WHERE "createdBy" = \'release-test\';']);
   run("pg_restore", ["--clean", "--if-exists", "--no-owner", "--exit-on-error", "--dbname", "guilded_release_test", backup]);
   run("node", ["--import", "tsx", "scripts/verify-postgres.ts", "--restored"]);
+  run("node", ["--import", "tsx", "scripts/verify-raid-planning.ts", "--restored"]);
   console.log("PostgreSQL migrations, concurrent imports, pool routing, and backup/restore passed.");
 } finally { rmSync(temp, { recursive: true, force: true }); }

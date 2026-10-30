@@ -266,3 +266,11 @@ Native full-resolution PNGs (CopyFromScreen of the window rectangle, no resampli
 - F-6 not reproduced on 8.4 at default window size (status line sits below the Modules list).
 - Screenshots (private only): private/claude-native/retail-addon-*-8.4.0-en.png, added to manifest.json.
 - Still NOT RUN on 8.4: real dungeon win/failure/early exit, sync receipts and freshness, French on 8.4, backup scopes, missing-season display, opacity comparison, Battleground capture behaviour, full+standalone coexistence beyond both loading.
+## 8.4 Retail follow-up, continued (30 October)
+
+- French on installed 8.4.0 Retail: load line and window translated; F-4 and F-6 not reproduced.
+- Battleground capture (PR #295 files copied into the Retail AddOns folder, then `/reload`): `/guilded bgcapture on normal` turns capture ON on Retail (the 8.4.0 zip refused), `premade Shared:Code_123` is accepted, and `off` returns it to OFF. No real battleground was played; Classic Era, TBC and Mists were not run.
+- Backup button (Settings, Officer): works. It prints "Backup code: 3264 characters" with the per-character loot-history note. The earlier "Open the loot council first" message came from a misclick, not from Backup.
+- Finding (cosmetic): the backup code box overlaps the "Settings" nav button and the "Window size" row. Escape closes it.
+- Finding (fixed in PR #295, `87a3e86`): English status line printed "points.Next-result code" with no space.
+- Per-edition website pages and their GitHub zip links were checked live; live bot, site and GitHub are still 8.3.0 because 8.4 is not deployed.

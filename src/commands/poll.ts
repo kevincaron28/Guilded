@@ -10,15 +10,21 @@ import { parseRaidTime } from "../services/raid-time.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { asLang, tx, type Lang } from "../i18n.js";
 import { weeklyQuestionDraft } from "../services/weekly-question.js";
+import { actOnWeeklyQuestion, pauseWeeklyQuestion, reviewWeeklyQuestion, saveWeeklyQuestion } from "../services/weekly-question-store.js";
+import { withGuildScope } from "../services/guild-scope.js";
 
 const service = createPollService(prisma);
 export const POLL_PREFIX = "poll:";
+export const WEEKLY_QUESTION_PREFIX = "weeklyq:";
 
 export const pollCommand = new SlashCommandBuilder()
   .setName("poll")
   .setDescription("Polls answered with buttons.")
+  .addSubcommand(sub => sub.setName("weekly").setDescription("Review, pause or resume the saved weekly question")
+    .setDescriptionLocalizations({ fr: "Revoir, suspendre ou reprendre la question enregistrée" })
+    .addStringOption(o => o.setName("action").setDescription("Manual review only; no automatic posts").addChoices({ name: "Preview", value: "preview" }, { name: "Pause", value: "pause" }, { name: "Resume manual review", value: "resume" })))
   .addSubcommand(sub => {
-    sub.setName("weekly-preview").setDescription("Officers: private weekly question/poll draft; does not schedule")
+    sub.setName("weekly-preview").setDescription("Officers: save and review a weekly question; no automatic posts")
       .setDescriptionLocalizations({ fr: "Officiers : aperçu privé de question/sondage hebdo; sans envoi" })
       .addStringOption(o => o.setName("question").setDescription("Question for the community").setMinLength(3).setMaxLength(250).setRequired(true))
       .addIntegerOption(o => o.setName("day").setDescription("Day of week").setRequired(true).addChoices(
@@ -86,7 +92,15 @@ export async function executePoll(interaction: ChatInputCommandInteraction): Pro
     return;
   }
   const subcommand = interaction.options.getSubcommand();
+  if (subcommand === "weekly") {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const action = interaction.options.getString("action") ?? "preview";
+    if (action === "pause" || action === "resume") await pauseWeeklyQuestion(prisma, context.guildId, action === "pause");
+    await showWeeklyQuestionReview(interaction, context.guildId);
+    return;
+  }
   if (subcommand === "weekly-preview") {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const settings = await guildService.getSettings(context.guildId);
     const fr = asLang(settings?.language) === "fr";
     const localTime = interaction.options.getString("time", true);
@@ -101,12 +115,9 @@ export async function executePoll(interaction: ChatInputCommandInteraction): Pro
       weekday: interaction.options.getInteger("day", true), minute: Number(localTime.slice(0, 2)) * 60 + Number(localTime.slice(3)), channelId: interaction.channelId },
     { canManagePolls: true, canViewChannel: !!memberPermissions?.has(PermissionFlagsBits.ViewChannel) && !!botPermissions?.has(PermissionFlagsBits.ViewChannel),
       canSendToChannel: !!botPermissions?.has(PermissionFlagsBits.SendMessages) });
-    const days = fr ? ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"] : ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-    await interaction.reply({ flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] }, embeds: [new EmbedBuilder().setColor(0x5865f2)
-      .setTitle(fr ? "Question hebdomadaire · brouillon" : "Weekly question · draft")
-      .setDescription([escapeMarkdown(draft.question), ...draft.options.map((option, index) => `${index + 1}. ${escapeMarkdown(option)}`)].join("\n"))
-      .addFields({ name: fr ? "Horaire proposé" : "Proposed schedule", value: `${days[draft.weekday]} · ${localTime} · ${draft.timezone} · <#${draft.channelId}>` })
-      .setFooter({ text: fr ? "Non enregistré, non programmé · Aucun point automatique" : "Not saved or scheduled · No automatic points" })] });
+    await saveWeeklyQuestion(prisma, context.guildId, interaction.user.id, { question: draft.question, options: draft.options, mode: draft.mode,
+      timezone: draft.timezone, weekday: draft.weekday, minute: draft.minute, channelId: draft.channelId });
+    await showWeeklyQuestionReview(interaction, context.guildId);
     return;
   }
   if (subcommand === "close") {
@@ -129,6 +140,63 @@ export async function executePoll(interaction: ChatInputCommandInteraction): Pro
   const message = await channel.send({ embeds: [await pollEmbed(poll.id)], components: pollButtons(poll.id, poll.options, false) });
   await service.setMessage(poll.id, channel.id, message.id);
   await interaction.reply({ content: `Poll posted. Close it with \`/poll close poll:${poll.id}\`.`, flags: MessageFlags.Ephemeral });
+}
+
+async function showWeeklyQuestionReview(interaction: ChatInputCommandInteraction, guildId: string) {
+  const { settings, review, plan, occurrence } = await reviewWeeklyQuestion(prisma, guildId, interaction.user.id);
+  const fr = asLang((await guildService.getSettings(guildId))?.language) === "fr";
+  const days = fr ? ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"] : ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const clock = `${String(Math.floor(settings.minute / 60)).padStart(2, "0")}:${String(settings.minute % 60).padStart(2, "0")}`;
+  await interaction.editReply({ allowedMentions: { parse: [] },
+    embeds: [new EmbedBuilder().setColor(0x5865f2).setTitle(fr ? "Question hebdomadaire · aperçu avant envoi" : "Weekly question · review before posting")
+      .setDescription([escapeMarkdown(settings.question), ...settings.options.map((option, index) => `${index + 1}. ${escapeMarkdown(option)}`)].join("\n"))
+      .addFields({ name: fr ? "Destination et horaire indicatif" : "Destination and proposed schedule", value: `<#${settings.channelId}> · ${days[settings.weekday]} ${clock} · ${settings.timezone}` },
+        { name: fr ? "État" : "Status", value: `${review.weekKey} · ${plan.paused ? fr ? "En pause" : "Paused" : occurrence?.status ?? (fr ? "À valider" : "Ready for review")}` })
+      .setFooter({ text: fr ? "Enregistré · Publication manuelle seulement · Aperçu valable 5 min · Aucun point ajouté" : "Saved · Manual posting only · Preview expires in 5 min · No added points" })],
+    components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`${WEEKLY_QUESTION_PREFIX}${review.id}:post`).setStyle(ButtonStyle.Primary).setLabel(fr ? "Publier cette semaine maintenant" : "Post this week now").setDisabled(plan.paused || !!occurrence),
+      new ButtonBuilder().setCustomId(`${WEEKLY_QUESTION_PREFIX}${review.id}:skip`).setStyle(ButtonStyle.Secondary).setLabel(fr ? "Passer cette semaine" : "Skip this week").setDisabled(plan.paused || !!occurrence),
+      new ButtonBuilder().setCustomId(`${WEEKLY_QUESTION_PREFIX}${review.id}:pause`).setStyle(ButtonStyle.Secondary).setLabel(fr ? "Mettre en pause" : "Pause").setDisabled(plan.paused)
+    )] });
+}
+
+export async function handleWeeklyQuestionButton(interaction: ButtonInteraction) {
+  const [reviewId, action] = interaction.customId.slice(WEEKLY_QUESTION_PREFIX.length).split(":");
+  if (!interaction.guild || !reviewId || !["post", "skip", "pause"].includes(action ?? "")) return;
+  const review = await prisma.weeklyQuestionReview.findFirst({ where: { id: reviewId, actorId: interaction.user.id, guild: { discordId: interaction.guild.id } } });
+  if (!review) {
+    await interaction.reply({ content: "This review is unavailable / Cet aperçu est indisponible.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  await interaction.deferUpdate();
+  await withGuildScope(prisma, review.guildId, async () => {
+    const guild = interaction.guild!;
+    const fr = asLang((await guildService.getSettings(review.guildId))?.language) === "fr";
+    const result = await actOnWeeklyQuestion(prisma, { reviewId, guildId: review.guildId, actorId: interaction.user.id, action: action as "post" | "skip" | "pause",
+      authorize: async channelId => {
+        const [member, channel, bot] = await Promise.all([guild.members.fetch(interaction.user.id).catch(() => null), guild.channels.fetch(channelId).catch(() => null), guild.members.fetchMe().catch(() => null)]);
+        return !!member && !!bot && hasPermission(member, "officer") && !!channel && !channel.isThread() && "permissionsFor" in channel && "send" in channel
+          && !!channel.permissionsFor(member)?.has(PermissionFlagsBits.ViewChannel)
+          && !!channel.permissionsFor(bot)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks]);
+      },
+      send: async (settings, pollId) => {
+        const channel = await guild.channels.fetch(settings.channelId);
+        if (!channel?.isTextBased() || !("send" in channel) || channel.isThread()) throw new Error("Channel unavailable");
+        const message = await channel.send({ embeds: [pollId ? await pollEmbed(pollId) : new EmbedBuilder().setColor(0x5865f2).setTitle(fr ? "Question de la semaine" : "Question of the week").setDescription(escapeMarkdown(settings.question))],
+          components: pollId ? pollButtons(pollId, settings.options, false) : [], allowedMentions: { parse: [] } });
+        return message.id;
+      }
+    });
+    const messages: Record<string, [string, string]> = {
+      sent: ["Posted. Automatic posting remains off.", "Publié. La publication automatique reste désactivée."],
+      skipped: ["Skipped this week.", "Cette semaine est passée."], paused: ["Paused. Use /poll weekly to resume manual review.", "En pause. /poll weekly permet de reprendre la validation manuelle."],
+      uncertain: ["Delivery outcome uncertain. Do not retry; check the target channel.", "Résultat incertain. Ne réessayez pas; vérifiez le canal."],
+      cancelled: ["Cancelled because access or configuration changed.", "Annulé : accès ou configuration modifiés."],
+      "not-authorized": ["Officer permission or channel access is no longer available.", "Autorisation d’officier ou accès au canal indisponible."]
+    };
+    const text = messages[result] ?? ["This preview expired or the week was already handled. Open /poll weekly again.", "Aperçu expiré ou semaine déjà traitée. Rouvrez /poll weekly."];
+    await interaction.editReply({ content: text[fr ? 1 : 0], embeds: [], components: [], allowedMentions: { parse: [] } });
+  });
 }
 
 export async function handlePollButton(interaction: ButtonInteraction): Promise<void> {

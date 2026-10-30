@@ -44,6 +44,11 @@ Personal dungeon goals (1) and mentoring (2) were **not selected**. All new
 recurring delivery stays inactive until audience, channel and cadence are approved.
 Preserve stable 8.0.2, rc.1 and Store Submission 5 bytes/manual publication hold.
 Release work remains owned by session `01a181ce-30fa-7c60-b973-c385d45d3502`.
+The coordinated continuation in draft PR #282 adds stored `/dungeon watch`
+preferences/private matches, configured `/dungeon together` goals and saved
+`/poll weekly-preview` reviews with Post/Skip/Pause. Automatic alert rollout is
+held; weekly questions require an officer click. The local integration owner
+`01a18c22-fb70-7ea2-8689-7c2a85655ad7` owns items 5/6, combined checks and release.
 
 Published baseline: 8.0.0: security, reliability, ledger storage compaction, versioned Retail overtime scoring, origin isolation, French indexing, accessibility and Core presentation extraction. See [8.0 readiness](docs/V8_0_LAUNCH_READINESS.md) for publication gates and the owner's testing waiver.
 

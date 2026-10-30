@@ -1,5 +1,8 @@
 # Selected pre-launch community work — 30 October 2026
 
+> Current continuation: [stored/reviewed flows and local integration](#coordinated-continuation--items-3-4-and-7).
+> The earlier checkpoint below describes `a139204`, not the completed continuation.
+
 Kevin selected items 3, 4, 5, 6 and 7 from the seven-item discussion for today's
 pre-launch roadmap. Items 1 (personal goals) and 2 (mentoring) are excluded.
 Implementation is authorized on an isolated branch. Kevin subsequently targeted
@@ -197,3 +200,93 @@ PC follow-up: ordinary dependency generation, full type/lint/tests, merged-comma
 shape/handler coverage, PostgreSQL checks, actual Discord mobile/member/officer
 acceptance, Companion installed Windows UI and game acceptance. Published/held
 artifacts are unchanged; no new packaging/publication evidence is claimed.
+
+## Coordinated continuation — items 3, 4 and 7
+
+The verified local integration owner requested completion of items 3/4/7 here,
+and explicitly owns items 5 (recap), 6 (sync/diagnostics), correctness fixes,
+combined checks, live acceptance and release. PR #281 and #277 are merged only
+in its isolated `codex/oct30-release-integration` worktree, not main. This
+continuation avoids Companion, addon, linking/privacy and raid-core files.
+`src/main.ts` changes only the weekly-question button import/dispatch.
+The cooperative frozen-rule TypeScript fix was separately pushed as `9e4e72a`.
+
+### Usable flows
+
+- **3 — `/dungeon watch`:** Save/Status/Off/Matches. Explicit roles, availability,
+  timezone, weekdays, quiet hours, opportunity type and 1–168-hour expiry are
+  stored on the existing GroupAlert. New subscriptions are excluded from the
+  older direct-mention path. Matches are private and check current channel
+  access, existing attempts, vacancies, signup deadlines and membership. Open
+  dungeon groups are explicitly immediate; raid times come from structured
+  schedules, never title parsing. Unknown raid capacities are not guessed.
+- **4 — `/dungeon together`:** Officers set `goal`, explicit `season` and
+  `goal-kind` (different dungeons/runs), or pause/resume. Members see aggregate
+  progress and cosmetic completion. The stored scope fixes guild/edition,
+  season calendar, rules hash and weekly window. Rule/edition/calendar changes
+  require a new officer decision. Invalidations/revisions recompute the visual
+  result; no permanent reward or balance is minted. Existing v5/v6 eligibility
+  applies, with current-v2 only where already selected by that season.
+- **7 — `/poll weekly-preview`:** Officers save a question or existing button
+  poll with destination and proposed local day/time. `/poll weekly` reopens the
+  stored draft or pauses/resumes manual review. Each private review offers
+  **Post this week now / Skip this week / Pause** and expires in five minutes.
+  Post rechecks the exact officer, guild, current plan revision and channel
+  permissions. The ordinary Poll table/buttons handle votes. No native-poll
+  engine, new XP source, automatic reward or background question sender exists.
+
+### Delivery and activation boundaries
+
+Targeted alert reservations use a per-guild/member PostgreSQL advisory lock and
+unique canonical event identity. Attempts, cancellations and uncertain outcomes
+consume the six-hour/two-per-rolling-day budget; changing preferences does not
+erase history. Membership, opt-out, vacancies, quiet hours and exact destination
+are rechecked before send. Existing independent role notifications are not
+claimed to fall under this new personal subscription budget.
+
+`dispatchGroupWatches` is a complete Discord adapter but **has no timer registered**.
+It also requires `targetedAlertsEnabled=true` and the exact configured channel.
+Both new settings default off/null; no activation command or migration turns
+them on. Before registration/activation, the local owner must obtain the stated
+audience/channel/cadence approval. Each pass is bounded to 100 subscriptions and
+10 opportunities per configured guild; more subscribers need a reviewed paging
+strategy before rollout at that size. No DMs, role mentions or fallback channels.
+
+Weekly manual posts commit an ATTEMPTED occurrence before Discord. Concurrent
+officers/replayed buttons cannot create a second occurrence. Timeout/crash states
+are not automatically retried; inspect the channel before operator recovery.
+Editing a draft invalidates older reviews; timezone changes cannot produce a
+second immediate post (six-day backstop plus unique local week). Skip/Pause send
+nothing. Paused plans require explicit resume/save; resume does not post.
+Replies to a question retain existing participation rules; this feature adds no
+new points and does not alter legacy earning/privacy policies.
+
+### Migration and local-owner checks
+
+Apply additive `20261129000000_reviewed_community_flows` before running this
+backend or registering its commands. It adds GroupAlert preferences, disabled
+GuildSettings gates, CooperativeGoal and weekly review/occurrence/alert-attempt
+tables. No existing row, balance, score policy or protocol is rewritten. No
+client update is required for these Discord commands. No migration was applied
+to production here.
+
+The new behavior tests cover concurrent/replayed delivery, uncertainty, access
+loss, actor/guild/expiry binding, destination edits, off/pause/skip and frozen
+cooperative scope. The actual SQL migration/default/unique/check constraints are
+also exercised through embedded PostgreSQL (the already-locked PGlite dependency).
+This is not a multi-connection server test.
+
+`scripts/verify-reviewed-community.ts` is now invoked by the existing guarded
+`npm run test:postgres` runner. It uses the disposable localhost
+`guilded_release_test` database and mocked sends to verify real concurrent
+reservations and weekly uncertain-outcome deduplication. The local owner/CI must
+run it with generated Prisma. The cloud checksum 403 remains in effect; no
+download retry or bypass was used. The original PR CI confirms generation works
+on GitHub; its initial TypeScript issue is the separately corrected `9e4e72a`.
+
+Focused run at this continuation: **45 tests passed across 8 files**, including
+the migration and stale legacy-menu/opt-out checks. Full ESLint and both addon
+validators passed. Cloud typecheck remains blocked by the absent generated
+Prisma module; final combined results will be recorded in the handoff/PR. Live Discord and
+Windows/game evidence belongs to the local owner's Claude acceptance session.
+All existing published/held package bytes and publication holds remain intact.

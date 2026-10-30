@@ -121,6 +121,11 @@ enum ApplicationStatus {
 }
 
 model Guild {
+  cooperativeGoal CooperativeGoal?
+  weeklyQuestionPlan WeeklyQuestionPlan?
+  weeklyQuestionReviews WeeklyQuestionReview[]
+  weeklyQuestionOccurrences WeeklyQuestionOccurrence[]
+  targetedAlertAttempts TargetedAlertAttempt[]
   wowSelections WowGuildSelection[]
   wowChannels WowGuildChannel[]
   scopeKey            String @default("default")
@@ -420,6 +425,7 @@ model CommunityParticipationDeletion {
 
 
 model Member {
+  targetedAlertAttempts TargetedAlertAttempt[]
   webAvailability WebAvailability?
   activityCoreSpots   ActivityCoreMember[]
   activityResponses  ActivityResponse[]
@@ -779,6 +785,9 @@ model WowGuildChannel {
 }
 
 model GuildSettings {
+  // New targeted alerts remain held until audience/channel/cadence approval.
+  targetedAlertsEnabled Boolean @default(false)
+  targetedAlertsChannelId String?
   pugChannelId             String?
   pugMessageId             String?
   poeTrackingEnabled Boolean @default(false)
@@ -1725,6 +1734,8 @@ model DungeonGroupSignup {
 // A member's group alerts (5.0): ping me in the group finder when a group of these kinds is
 // posted that my linked characters' level fits and that still needs one of my roles.
 model GroupAlert {
+  // Explicit advanced subscription; null retains the legacy panel behavior.
+  subscription Json?
   id        String   @id @default(cuid())
   guildId   String
   memberId  String   @unique
@@ -2317,4 +2328,73 @@ model CommunityBadgeSharing {
   shared Boolean @default(false)
   season CommunitySeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   @@id([seasonId, userId])
+}
+
+// Cosmetic, read-only progress. Frozen scope/rules; no point ledger relation.
+model CooperativeGoal {
+  guildId String @id
+  seasonId String
+  edition String
+  seasonStartsAt DateTime
+  seasonEndsAt DateTime?
+  target Int
+  metric String
+  startsAt DateTime
+  endsAt DateTime
+  rules Json
+  rulesHash String
+  paused Boolean @default(false)
+  createdBy String
+  updatedAt DateTime @updatedAt
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+}
+
+// ATTEMPTED/UNCERTAIN is never retried automatically: Discord may have accepted.
+model TargetedAlertAttempt {
+  id String @id @default(cuid())
+  guildId String
+  memberId String
+  eventKey String
+  channelId String
+  status String @default("ATTEMPTED")
+  attemptedAt DateTime @default(now())
+  messageId String?
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  @@unique([guildId, memberId, eventKey])
+  @@index([guildId, memberId, attemptedAt])
+}
+
+model WeeklyQuestionPlan {
+  guildId String @id
+  settings Json
+  revision Int @default(1)
+  paused Boolean @default(false)
+  createdBy String
+  updatedAt DateTime @updatedAt
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+}
+
+model WeeklyQuestionReview {
+  id String @id @default(cuid())
+  guildId String
+  actorId String
+  revision Int
+  weekKey String
+  expiresAt DateTime
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  @@index([guildId, expiresAt])
+}
+
+model WeeklyQuestionOccurrence {
+  id String @id @default(cuid())
+  guildId String
+  weekKey String
+  status String
+  pollId String?
+  channelId String
+  messageId String?
+  createdAt DateTime @default(now())
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  @@unique([guildId, weekKey])
 }

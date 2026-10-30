@@ -2,7 +2,7 @@
 
 # Guilded roadmap
 
-## Current stage — 30 October 2026
+## Today's integration work — 30 October 2026
 
 Today's authoritative work list and release gates are in the
 [October 30 integration checklist](docs/RELEASE_INTEGRATION_2026-10-30.md).
@@ -14,6 +14,8 @@ also tracks accessibility/context/recovery checks and the feature-freeze target.
 Dungeon timing rules await the coordination chat's evidence review; no change to
 existing season scores is authorized by estimates alone. These are selected
 tasks, not shipped-feature claims.
+
+## Current stage — 30 October 2026
 
 Guilded **8.1.0 Candidate** (protocol 2), prepared for November 4: RCLootCouncil/Gargul history conversion, reviewed in-game confirmation, separate persistent history and undo, raid-signup presentation and public-origin reliability. See [candidate gates](docs/NOV4_RELEASE_CANDIDATE.md). Kevin selected five additional pre-launch features for work on October 30; their implementation and acceptance are tracked below, not claimed complete. Published downloads remain 8.0.2.
 

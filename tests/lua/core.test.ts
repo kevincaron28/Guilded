@@ -414,6 +414,28 @@ describe("one saved-data set per WoW guild", () => {
 });
 
 describe("a realm rename is not a different guild", () => {
+  it("keeps same-name realm and edition ledgers separate across A to B to A logins", () => {
+    session = newLuaSession(); const s = session;
+    s.run(`GuildedDB=nil; NS={}; MOCK_UNITS={player={name="Kev"}};
+      REALM="RealmA"; EDITION="retail";
+      function GetGuildInfo() return "Alpha", "Officer", 1 end
+      function GetRealmName() return REALM end`);
+    const login = () => {
+      s.run("FRAMES={}; NS={}"); s.load("Core.lua"); s.load("Compat.lua");
+      s.run(`NS.util.gameEdition=function() return EDITION end; fire_event("PLAYER_LOGIN"); fire_event("GUILD_ROSTER_UPDATE")`);
+    };
+    login(); s.run("GuildedDB.epgp.Bob={ep=50,gp=0,ledger={}}; REALM='RealmB'");
+    login();
+    expect(s.run("return tostring(GuildedDB.epgp.Bob)")).toBe("nil");
+    s.run("GuildedDB.epgp.Bob={ep=7,gp=0,ledger={}}; REALM='RealmA'"); login();
+    expect(s.run("return GuildedDB.epgp.Bob.ep")).toBe("50");
+    s.run("EDITION='classic-era'"); login();
+    expect(s.run("return tostring(GuildedDB.epgp.Bob)")).toBe("nil");
+    s.run("GuildedDB.epgp.Bob={ep=9,gp=0,ledger={}}; EDITION='retail'"); login();
+    expect(s.run("return GuildedDB.epgp.Bob.ep")).toBe("50");
+    expect(s.run("return GuildedDB.otherGuilds['retail@Alpha-RealmB'].epgp.Bob.ep")).toBe("7");
+    expect(s.run("return GuildedDB.otherGuilds['classic-era@Alpha-RealmA'].epgp.Bob.ep")).toBe("9");
+  });
   it("only renames a Forever realm with an explicit local alias", () => {
     session = newLuaSession();
     const t = session;

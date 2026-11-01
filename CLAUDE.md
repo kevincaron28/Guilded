@@ -1,5 +1,5 @@
 > 8.4.0 (published on GitHub 30 October 2026; bot live 1 November 2026): provisional BG records, QA fixes and the WoW-style share cards (dungeon, character, raid, battleground).
-> Current checkpoint: 1 November 2026. GitHub v8.4.0 is stable (23 assets). The Oracle bot runs main e400396 (8.4.0, protocol 2). CurseForge and Microsoft Store status for 8.4 was not re-verified on this date: check each provider before claiming it is published.
+> Current checkpoint: 1 November 2026. GitHub v8.4.0 is stable (23 assets). The Oracle bot runs main 0cc696d (8.4.0, protocol 2). CurseForge and Microsoft Store status for 8.4 was not re-verified on this date: check each provider before claiming it is published.
 > Cards: `src/services/score-card.ts` renders every share card (WoW theme, roster layout); `end-cards.ts` builds the raid and battleground cards; queued Discord messages store a card definition and draw it on delivery. Point-in-time handoffs, audits and evidence from before 8.4 live in docs/archive/.
 > Latest owner authorization: ALL AVAILABLE TESTING NOW. The older wait-until-launch waiver is superseded. Claude acknowledged the expanded QA handoff and completed a first pass; Retail evidence is addon8.2, native isolated-profile evidence8.3.
 > Active release evidence: docs/V8_4_0_RELEASE_ACCEPTANCE.md; previous deployed evidence: docs/V8_3_0_RELEASE_ACCEPTANCE.md. Historical statements below are not current provider status.
@@ -43,16 +43,9 @@ feature).
 GitHub v8.4.0 is published and the bot runs it; provider records below may lag. WoW Forever launches
 4 November 2026 (beta closed 21 October); its first raids open 9 December.
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
-The bot and online companion run 8.1.0 at 6bdc80e. GitHub candidate v8.1.0-rc.1
-is available; stable GitHub and CurseForge releases remain 8.0.2. All ten
-approved 8.0.2 CurseForge downloads match GitHub. Store Submission 4 publishes 8.0.2.0,
-and its actual update is installed on this PC. Signature/certificate chain, submitted
-application bytes and retained encrypted profile/account activation passed. The
-Store Submission 5 (8.1.0.0) is in certification with a manual publication hold.
-The standalone 8.1.0 update/profile checks are recorded in docs/NOV4_RELEASE_STATUS.md.
-The long-lived earlier ciphertext baseline changed before installation; it is not claimed
-bitwise unchanged. Owner baseline Overview/French checks are retained; the optional
-standalone EXE remains unsigned. Current per-provider evidence: `docs/V8_0_2_RELEASE_EVIDENCE_2026-10-28.md`.
+Provider records from 8.0.2 and 8.1.0 are historical (Store submissions, CurseForge approvals, the standalone EXE
+staying unsigned): see docs/NOV4_RELEASE_STATUS.md and docs/V8_4_0_RELEASE_ACCEPTANCE.md, and check each provider live before claiming status.
+Current per-provider evidence: `docs/V8_0_2_RELEASE_EVIDENCE_2026-10-28.md`.
 The WoW edition pages are live. Message earning covers accessible guild channels/threads;
 officers can inspect coverage with `/participation channels`. See `docs/PARTICIPATION_CHANNEL_COVERAGE_2026-10-28.md`.
 Use the release evidence for each published artifact; historical 7.4.0 approval records

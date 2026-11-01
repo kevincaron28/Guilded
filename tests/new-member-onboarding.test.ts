@@ -3,7 +3,7 @@ vi.mock("../src/config.js", () => ({ config: { DISCORD_CLIENT_ID: "1552633893587
 
 import { characterLinkPrompt } from "../src/services/character-link-prompt.js";
 import { importCharacter, parseCharacterString } from "../src/services/character-import.js";
-import { exchangeCharacterPairingCode, linkPairedCharacter } from "../src/services/character-pairing.js";
+import { exchangeCharacterPairingCode, issueCharacterPairingCode, linkPairedCharacter } from "../src/services/character-pairing.js";
 
 // In-memory persistence boundary; the linking, import, pairing and prompt services are real.
 function newMember() {
@@ -34,7 +34,8 @@ function newMember() {
     guild: { findUnique: vi.fn(async () => ({ officerSyncAt: new Date() })) },
     professionSkill: { deleteMany: vi.fn(), upsert: vi.fn() },
     recipeKnown: { deleteMany: vi.fn() }, professionCooldown: { deleteMany: vi.fn() },
-    unclaimedCharacter: { deleteMany: vi.fn() }, $executeRaw: vi.fn()
+    unclaimedCharacter: { deleteMany: vi.fn() }, $executeRaw: vi.fn(),
+    characterVerifyClaim: { findFirst: vi.fn(async () => null) }
   };
   const database = { ...db, $transaction: async (callback: (tx: typeof db) => unknown) => callback(db) };
   return { db, database: database as never, rows, credentials };
@@ -61,8 +62,10 @@ describe("a new member's main and alt journey", () => {
     await importCharacter(member.database, "member", line("NewMain"));
     await characterLinkPrompt(member.database, "guild", "member", "server", "en");
     expect(member.db.characterPairing.upsert).not.toHaveBeenCalled();
-    const reply = await characterLinkPrompt(member.database, "guild", "member", "server", "en", "companion");
-    const code = reply.embeds[0]!.data.fields!.map(field => field.value).join(" ").match(/```\n([A-F0-9]{12})\n```/)![1]!;
+    await characterLinkPrompt(member.database, "guild", "member", "server", "en", "companion");
+    // The companion steps alone make no code; "Older companion? Get a code" does.
+    expect(member.db.characterPairing.upsert).not.toHaveBeenCalled();
+    const { code } = await issueCharacterPairingCode(member.database, "guild", "member");
     const connection = await exchangeCharacterPairingCode(member.database, "server", code);
     expect(connection.discordUserId).toBe("user");
     expect(await linkPairedCharacter(member.database, "guild", "member", self("NewMain"))).toBe("already-linked");
@@ -75,8 +78,10 @@ describe("a new member's main and alt journey", () => {
 
   it("links the first companion upload as main and the next character as alt with one connection", async () => {
     const member = newMember();
-    const reply = await characterLinkPrompt(member.database, "guild", "member", "server", "en", "companion");
-    const code = reply.embeds[0]!.data.fields!.map(field => field.value).join(" ").match(/```\n([A-F0-9]{12})\n```/)![1]!;
+    await characterLinkPrompt(member.database, "guild", "member", "server", "en", "companion");
+    // The companion steps alone make no code; "Older companion? Get a code" does.
+    expect(member.db.characterPairing.upsert).not.toHaveBeenCalled();
+    const { code } = await issueCharacterPairingCode(member.database, "guild", "member");
     await exchangeCharacterPairingCode(member.database, "server", code);
     await linkPairedCharacter(member.database, "guild", "member", self("NewMain"));
     await linkPairedCharacter(member.database, "guild", "member", self("NewAlt"));

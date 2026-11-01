@@ -18,17 +18,15 @@ an additional product spec.
   character) to that member, directly on upload, even when the export is a
   duplicate or imports await officer approval. Characters in the shared guild
   digest remain on the existing auto-match/claim/officer-link path.
-- One active credential per member: exchanging a new pairing code revokes any
-  credential(s) already issued to that member first (`revokeCompanionCredentials`
-  in `character-pairing.ts`). This doubles as self-service recovery (lost
-  laptop, new PC: just run `/character pair` again) and keeps `CompanionCredential`
-  rows from accumulating unbounded. It does NOT fire on code issuance, only on
-  a successful exchange — so generating a code you never use can't lock out an
-  already-working companion.
-- `/character unlink` also revokes the affected member's credentials, but only
-  when an *officer* unlinks someone else's character (not a self-unlink).
-  Without this, a paired companion would silently relink the exact character an
-  officer just removed on its next upload, defeating the point of `/unlink`.
+- One credential per device: each sign-in or pairing code adds a device and
+  keeps the others (since 8.1). Members remove lost devices under Connections on
+  the website. The one-use code for companions older than 7.2 is only made when
+  the member presses **Older companion? Get a code**, so no other prompt silently
+  replaces an unused code.
+- An officer's `/character unlink` of someone else's character marks it
+  `REMOVED` for that member (`CharacterVerifyClaim`). `linkPairedCharacter` and
+  `/guilded verify` both skip it, so their next upload can't relink it, and their
+  devices stay connected. Before 8.1 this revoked every device of that member.
 - The character-upsert logic (normalize class/race, clamp level, upsert
   professions, clear from unclaimed) is shared via `createSelfCharacter()` in
   `character-pairing.ts`, called both by the immediate upload-time link and by

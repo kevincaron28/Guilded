@@ -30,6 +30,16 @@ function database(paidRefs: string[] = []) {
 }
 
 describe("raid EP proposal", () => {
+  it("limits test-raid EP proposals to fake members even when a real member joined", async () => {
+    const { db, created } = database();
+    db.raid.findFirst.mockResolvedValue({ id: "test", title: "[TEST]", isTest: true, bosses: [],
+      attendance: [
+        { memberId: "fake", status: "PRESENT", member: { displayName: "Test", isTest: true } },
+        { memberId: "real", status: "PRESENT", member: { displayName: "Real", isTest: false } }
+      ] });
+    await applyRaidEpProposal(db as never, "g1", "test", "officer");
+    expect(created.map(row => row.memberId)).toEqual(["fake"]);
+  });
   it("adds attendance, per-boss EP, and the full-clear bonus; skips absentees", async () => {
     const { db } = database();
     const proposal = await computeRaidEpProposal(db as never, "g1", "r1");

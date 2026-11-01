@@ -42,6 +42,7 @@ export async function forEachGuildScope(database: Pick<PrismaClient, "guild">, d
 export async function entityGuildScope(database: PrismaClient, discordId: string, customId: string): Promise<GuildScope | null> {
   const [prefix, first, second, third] = customId.split(":");
   let row: { guildId: string } | null = null;
+  if (prefix === "bgui" && first) return loadGuildScope(database, first, discordId);
   if (prefix === "raidsignup" && first) row = await database.raid.findUnique({ where: { id: first }, select: { guildId: true } });
   if (prefix === "epaward" && second) row = await database.raid.findUnique({ where: { id: second }, select: { guildId: true } });
   if (prefix === "dgrp" && first) row = await database.dungeonGroup.findUnique({ where: { id: first }, select: { guildId: true } });
@@ -68,7 +69,7 @@ export async function interactionGuildScope(database: PrismaClient, input: { dis
     if (binding) return loadGuildScope(database, binding.scopeGuildId, input.discordId);
   }
   // Setup/core channels retain their guild even if a different member presses a button.
-  const settingsFields = ["raidSignupChannelId", "logChannelId", "notifyChannelId", "weeklyReportChannelId", "answerChannelId", "dungeonChannelId", "dungeonLeaderboardChannelId", "dungeonSignupChannelId", "raidLogChannelId", "lootChannelId", "craftChannelId", "readinessChannelId", "coreChannelId", "applicationChannelId", "attendanceChannelId", "guideChannelId", "pugChannelId"] as const;
+  const settingsFields = ["raidSignupChannelId", "logChannelId", "notifyChannelId", "weeklyReportChannelId", "answerChannelId", "dungeonChannelId", "dungeonLeaderboardChannelId", "dungeonSignupChannelId", "bgCategoryId", "bgGroupsChannelId", "bgResultsChannelId", "bgStatsChannelId", "raidLogChannelId", "lootChannelId", "craftChannelId", "readinessChannelId", "coreChannelId", "applicationChannelId", "attendanceChannelId", "guideChannelId", "pugChannelId"] as const;
   if (channelIds.length) {
     const [settings, cores, teams] = await Promise.all([
       database.guildSettings.findMany({ where: { guild: { discordId: input.discordId }, OR: settingsFields.map(field => ({ [field]: { in: channelIds } })) }, select: { guildId: true } }),

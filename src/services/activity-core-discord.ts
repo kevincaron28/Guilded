@@ -1,6 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, escapeMarkdown, PermissionFlagsBits, type Guild, type GuildMember, type Message, type MessageCreateOptions } from "discord.js";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { sessionInclude, teamInclude } from "./activity-core.js";
+import { battlegroundDescription, readBattlegroundPlan } from "./battleground-policy.js";
 
 export const TEAM_BUTTON_PREFIX = "team:";
 type Session = Prisma.ActivitySessionGetPayload<{ include: typeof sessionInclude }>;
@@ -42,11 +43,12 @@ export function teamRosterEmbed(core: Team, fr: boolean) {
 export function teamSessionEmbed(session: Session, fr: boolean) {
   const t = (en: string, french: string) => teamText(fr, en, french);
   const core = session.core;
+  const bg = readBattlegroundPlan(core.battlegroundPlan);
   const states: Record<string, string> = { PLANNED: t("Planned", "Prévu"), ACTIVE: t("In progress", "En cours"), COMPLETED: t("Completed", "Terminé"), CANCELLED: t("Cancelled", "Annulé") };
   const labels: Record<string, string> = { CONFIRMED: t("Confirmed", "Confirmés"), WAITLISTED: t("Waiting / substitutes", "En attente / remplaçants"), ABSENT: t("Unavailable", "Indisponibles"), TENTATIVE: t("Tentative", "Incertains") };
   const embed = new EmbedBuilder().setColor(core.kind === "PVP" ? 0xb14565 : 0x4186b8)
     .setTitle(`${clean(core.name)} · ${states[session.status]}`)
-    .setDescription(`${stamp(session.scheduledAt)} → <t:${Math.floor(session.endsAt.getTime() / 1000)}:t>\n`
+    .setDescription((bg ? `${clean(battlegroundDescription(bg, fr))}\n` : "") + `${stamp(session.scheduledAt)} → <t:${Math.floor(session.endsAt.getTime() / 1000)}:t>\n`
       + `${session.openRecruitment ? t("Recruitment open to members who can see this channel.", "Recrutement ouvert aux membres ayant accès au salon.") : t("Team members and substitutes first.", "Membres du core et remplaçants en priorité.")}\n`
       + t("Roster membership is not a confirmation. Regulars have priority; extra players wait.", "Être dans le core ne confirme pas votre présence. Les titulaires sont prioritaires; les autres attendent.")
       + `\n${["TANK", "HEALER", "DPS"].map((role, i) => `${["🛡️", "💚", "⚔️"][i]} ${session.responses.filter(r => r.role === role && r.status === "CONFIRMED").length}/${[core.tanks, core.healers, core.dps][i]}`).join(" · ")}`);
@@ -89,7 +91,7 @@ export async function deliverTeamPost(guild: Guild, db: PrismaClient, guildId: s
   const fr = await teamLanguage(db, guildId);
   if (kind === "TEAM_ROSTER") {
     const core = await db.activityCore.findFirst({ where: { id, guildId }, include: teamInclude });
-    if (!core || (core.archived && !core.rosterMessageId)) return;
+    if (!core || core.battlegroundPlan != null || (core.archived && !core.rosterMessageId)) return;
     const channel = await requireTeamChannel(guild, core.channelId);
     const existing = await recoverMessage(channel, core.rosterMessageId, `Guilded team ${id}`);
     const payload = { embeds: [teamRosterEmbed(core, fr)], allowedMentions: { parse: [] as never[] } };
@@ -98,7 +100,7 @@ export async function deliverTeamPost(guild: Guild, db: PrismaClient, guildId: s
     return;
   }
   const session = await db.activitySession.findFirst({ where: { id, core: { guildId } }, include: sessionInclude });
-  if (!session) return;
+  if (!session || session.core.battlegroundPlan != null) return;
   if (kind === "TEAM_REMINDER") {
     if (session.status !== "PLANNED" || session.core.archived || session.scheduledAt <= now) return;
     const channel = await requireTeamChannel(guild, session.core.channelId);

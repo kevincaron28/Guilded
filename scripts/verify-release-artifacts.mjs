@@ -59,7 +59,7 @@ const require = createRequire(new URL("../companion-app/package.json", import.me
 const { extractFile } = require("@electron/asar");
 const asar = "dist/companion/win-unpacked/resources/app.asar";
 assert.equal(JSON.parse(extractFile(asar, "package.json").toString()).version, version);
-for (const path of ["main.cjs", "preload.cjs", "detect-wow.cjs", "update-check.cjs", "i18n.cjs", "locales/fr.json", "loot-history-import.cjs", "ipc-security.cjs", "renderer/app.js", "renderer/index.html", "renderer/raid-hub.js"]) {
+for (const path of ["main.cjs", "preload.cjs", "detect-wow.cjs", "update-check.cjs", "i18n.cjs", "locales/fr.json", "loot-history-import.cjs", "ipc-security.cjs", "sign-in-loopback.cjs", "renderer/app.js", "renderer/index.html", "renderer/raid-hub.js"]) {
   assert.deepEqual(extractFile(asar, path), readFileSync(join("companion-app", path)), `Stale packaged companion: ${path}`);
 }
 const companionPackage = JSON.parse(readFileSync("companion-app/package.json", "utf8"));

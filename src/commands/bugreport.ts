@@ -1,7 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags, escapeMarkdown } from "discord.js";
 import { errorReportService } from "./context.js";
 import { discordAttachmentUrl, redactDiagnosticText } from "../services/diagnostic-privacy.js";
-import { notifyEmbed } from "../services/notify.js";
+import { notifyEmbed, officerReportDestination } from "../services/notify.js";
 
 export const bugCommand = new SlashCommandBuilder()
   .setName("bug")
@@ -17,18 +17,21 @@ export async function executeBug(interaction: ChatInputCommandInteraction): Prom
   const screenshot = attachment?.contentType?.startsWith("image/") ? discordAttachmentUrl(attachment.url) : null;
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const destination = await errorReportService.destination(interaction.client);
+  const officerDestination = await officerReportDestination(interaction.guild).catch(() => null);
   const sendId = `bugconfirm:${interaction.id}:send`, cancelId = `bugconfirm:${interaction.id}:cancel`;
   const intro = fr
     ? "**Aperçu privé — rien n’a été envoyé.**\nDestinataires : boîte privée du développeur Guilded et officiers de ce serveur. Inclut votre identifiant Discord, le serveur, le salon et la version du bot, ainsi que votre capture d’écran si vous en avez joint une. Aucune conversation n’est collectée. Vérifiez le texte et retirez toute information privée avant de confirmer."
     : "**Private preview — nothing has been sent.**\nRecipients: the Guilded developer’s private report inbox and this server’s officers. Includes your Discord ID, server, channel and bot version, plus your screenshot if you attached one. No conversations are collected. Check the text and remove private information before confirming.";
   const notice = destination ? (fr ? "Notification privée : " : "Private notification: ") + escapeMarkdown(destination.label)
-    : (fr ? "Aucune notification Discord : aucun salon privé autorisé disponible." : "No Discord notification: no authorized private channel available.");
+    : (fr ? "Aucune notification Discord au développeur : aucun salon privé autorisé disponible." : "No Discord notification to the developer: no authorized private channel available.");
+  const officerNotice = officerDestination ? (fr ? "Copie aux officiers : " : "Officer copy: ") + escapeMarkdown(officerDestination.label)
+    : (fr ? "Aucune copie aux officiers : aucun salon privé autorisé disponible." : "No officer copy: no authorized private channel available.");
   const file = !attachment ? null : screenshot
     ? (fr ? "Capture d’écran jointe : " : "Screenshot included: ") + escapeMarkdown(attachment.name)
     : (fr ? "Le fichier joint n’est pas une image : il ne sera pas envoyé." : "The attached file is not an image: it will not be sent.");
   const shown = new EmbedBuilder().setDescription(escapeMarkdown(description) || "—");
   if (screenshot) shown.setImage(screenshot);
-  await interaction.editReply({ content: `${intro}\n${notice}${file ? `\n${file}` : ""}\n\n${fr ? "Pour modifier, annulez et relancez /report bug." : "To edit, cancel and run /report bug again."}`,
+  await interaction.editReply({ content: `${intro}\n${notice}\n${officerNotice}${file ? `\n${file}` : ""}\n\n${fr ? "Pour modifier, annulez et relancez /report bug." : "To edit, cancel and run /report bug again."}`,
     embeds: [shown],
     allowedMentions: { parse: [] }, components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(sendId).setLabel(fr ? "Envoyer ce rapport" : "Send this report").setStyle(ButtonStyle.Primary),
@@ -53,13 +56,13 @@ export async function executeBug(interaction: ChatInputCommandInteraction): Prom
     channelId: interaction.channelId, operation: "/report bug"
   });
   // The officers see exactly what the member previewed: the redacted text and the screenshot.
-  const officers = await notifyEmbed(interaction.guild, (lang) => {
+  const officers = officerDestination && ref ? await notifyEmbed(interaction.guild, (lang) => {
     const embed = new EmbedBuilder().setColor(0xd4a017).setDescription([
       `🐞 ${lang === "fr" ? "Rapport de bug" : "Bug report"}${ref ? ` \`${ref}\`` : ""} ${lang === "fr" ? "de" : "from"} <@${interaction.user.id}>`,
       escapeMarkdown(description) || "—"
     ].join("\n"));
     return screenshot ? embed.setImage(screenshot) : embed;
-  }, "officer");
+  }, "officer", null, officerDestination.id) : false;
   const shared = officers ? (fr ? " Les officiers du serveur ont été avisés." : " Your server’s officers were notified.") : "";
   await interaction.editReply({ content: (ref
     ? (fr ? `Rapport enregistré dans la boîte du développeur (référence \`${ref}\`).` : `Saved in the developer inbox (reference \`${ref}\`).`)

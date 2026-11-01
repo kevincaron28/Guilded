@@ -26,6 +26,28 @@ export const SIM_IMPORT_SOURCE = "Guilded-Simulation";
 // so /setup testraid cleanup can find them.
 export const SIM_DUNGEON = { instanceId: 999001, name: "Test Dungeon" };
 export const SIM_RUN_PREFIX = "SIM-";
+const SIM_CORE_DESCRIPTION = "Guilded disposable simulation pool; created only for one test raid.";
+
+async function simulationGuildIdentity(database: PrismaClient, guildId: string) {
+  const guild = await database.guild.findUniqueOrThrow({ where: { id: guildId }, include: { wowSpace: true } });
+  return guild.wowSpace ? `${guild.wowSpace.name}-${guild.wowSpace.realm}` : undefined;
+}
+
+// A test never borrows a real core's economy, even if an officer joined its signup.
+export async function ensureSimulationPool(database: PrismaClient, guildId: string, raidId: string, realm: string) {
+  return database.$transaction(async tx => {
+    const raid = await tx.raid.findFirst({ where: { id: raidId, guildId, isTest: true } });
+    if (!raid) throw new Error("A test raid is required.");
+    const id = `sim-core:${raid.id}`;
+    if (raid.coreId && raid.coreId !== id) throw new Error("Test raid is attached to a different core. Start a new test raid.");
+    const core = await tx.raidCore.upsert({ where: { id }, create: {
+      id, guildId, name: `[TEST] ${raid.id}`, realm, separatePool: true, description: SIM_CORE_DESCRIPTION
+    }, update: {} });
+    if (core.guildId !== guildId || !core.separatePool || core.description !== SIM_CORE_DESCRIPTION) throw new Error("Test pool identity changed. Start a new test raid.");
+    await tx.raid.update({ where: { id: raid.id }, data: { coreId: id } });
+    return id;
+  });
+}
 
 export interface SimStartInput {
   guildId: string;
@@ -77,6 +99,7 @@ export async function startTestRaid(database: PrismaClient, input: SimStartInput
     dpsLimit: dpsCap
   });
   await database.raid.update({ where: { id: raid.id }, data: { isTest: true } });
+  await ensureSimulationPool(database, input.guildId, raid.id, input.realm);
 
   const counts: { SIGNED_UP: number; MAYBE: number; WAITLISTED: number; CANCELLED: number } = { SIGNED_UP: 0, MAYBE: 0, WAITLISTED: 0, CANCELLED: 0 };
   for (const [index, member] of members.entries()) {
@@ -103,11 +126,12 @@ export async function finishTestRaid(database: PrismaClient, input: { guildId: s
   });
   if (!raid) throw new Error("Raid not found in this guild.");
   if (!raid.isTest) throw new Error("That is a real raid. /setup testraid only plays [TEST] raids.");
+  await ensureSimulationPool(database, input.guildId, raid.id, input.realm);
   if (raid.status === "PLANNED") await raidService.start(raid.id, input.guildId);
   if (raid.status === "COMPLETED" || raid.status === "CANCELLED") throw new Error("That test raid is already over. Start a new one.");
 
-  const signedUp = raid.signups.filter((signup) => signup.status === "SIGNED_UP");
-  const waitlisted = raid.signups.filter((signup) => signup.status === "WAITLISTED");
+  const signedUp = raid.signups.filter((signup) => signup.member.isTest && signup.status === "SIGNED_UP");
+  const waitlisted = raid.signups.filter((signup) => signup.member.isTest && signup.status === "WAITLISTED");
   const noShow = signedUp.at(-1);
   const late = signedUp[1];
   const walkIn = waitlisted[0];
@@ -137,6 +161,7 @@ export async function finishTestRaid(database: PrismaClient, input: { guildId: s
     const importService = createAddonImportService(database);
     const payload = {
       source: SIM_IMPORT_SOURCE,
+      wowGuild: await simulationGuildIdentity(database, input.guildId),
       gameEdition: currentEdition(),
       exportedAt: new Date().toISOString(),
       raids: [{
@@ -199,6 +224,8 @@ export async function cleanupTestRaids(database: PrismaClient, guildId: string) 
   const raidIds = raids.map((raid) => raid.id);
   const auctions = await database.auction.deleteMany({ where: { guildId, raidId: { in: raidIds } } });
   const raidRows = await database.raid.deleteMany({ where: { guildId, isTest: true } });
+  await database.raidCore.deleteMany({ where: { guildId, id: { in: raidIds.map(id => `sim-core:${id}`) },
+    description: SIM_CORE_DESCRIPTION, separatePool: true, raids: { none: {} }, members: { none: {} } } });
   const members = await database.member.deleteMany({ where: { guildId, isTest: true } });
   const imports = await database.addonImport.deleteMany({ where: { guildId, source: SIM_IMPORT_SOURCE } });
   // Test dungeon runs, and the points they gave (an officer in an in-game
@@ -239,7 +266,7 @@ export async function simulateDungeonRun(database: PrismaClient, input: { guildI
     }))
   };
   const importService = createAddonImportService(database);
-  const snapshot = importService.parse({ source: SIM_IMPORT_SOURCE, gameEdition: currentEdition(), exportedAt: new Date(now * 1000).toISOString(), dungeonRuns: [run] });
+  const snapshot = importService.parse({ source: SIM_IMPORT_SOURCE, wowGuild: await simulationGuildIdentity(database, input.guildId), gameEdition: currentEdition(), exportedAt: new Date(now * 1000).toISOString(), dungeonRuns: [run] });
   const checksum = `sim-dungeon-${run.id}`;
   const record = await importService.record(input.guildId, snapshot, checksum, input.officerId);
   return importService.apply(input.guildId, record.id, input.officerId);

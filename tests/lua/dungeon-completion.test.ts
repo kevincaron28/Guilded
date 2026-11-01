@@ -38,6 +38,42 @@ function activeRun() {
 }
 
 describe("dungeon final-boss completion without the Encounter Journal", () => {
+  it("rejects outsider and wrong-channel control messages before recorder adoption", () => {
+    const s = activeRun();
+    s.run(`NS.util.inMyGroup=function(name) return name=="Afriend" end
+      NS.isGuildMember=function() return true end
+      fire_event("CHAT_MSG_ADDON","GuildedDgn","START|hijacked|3065","WHISPER","Aoutsider")
+      fire_event("CHAT_MSG_ADDON","GuildedDgn","START|hijacked|3065","PARTY","Aoutsider")
+      fire_event("CHAT_MSG_ADDON","GuildedDgn","START|hijacked|3065","GUILD","Afriend")`);
+    expect(s.run("return tostring(GuildedDB.dungeon.current.id==RUN_ID)")).toBe("true");
+    s.run(`fire_event("CHAT_MSG_ADDON","GuildedDgn","START|group-run|3065","PARTY","Afriend")`);
+    expect(s.run("return GuildedDB.dungeon.current.id")).toBe("group-run");
+    s.run(`fire_event("CHAT_MSG_ADDON","GuildedDgn","END|group-run|COMPLETED|"..STAMP.."|peer","WHISPER","Afriend")`);
+    expect(s.run("return GuildedDB.dungeon.current.state")).toBe("ACTIVE");
+  });
+
+  it("bounds partial guild summaries and expires old buffers", () => {
+    const s = activeRun();
+    s.run(`NS.isGuildMember=function(name) return name=="Guildmate" end
+      fire_event("CHAT_MSG_ADDON","GuildedDgn","SUM|outsider|1|2|x","GUILD","Outsider")
+      for i=1,100 do fire_event("CHAT_MSG_ADDON","GuildedDgn","SUM|run"..i.."|1|2|x","GUILD","Guildmate") end
+      function pendingCount() local n=0; for _ in pairs(NS.dungeon.incoming) do n=n+1 end; return n end`);
+    expect(s.run("return pendingCount()")).toBe("4");
+    s.run(`STAMP=STAMP+61; fire_event("CHAT_MSG_ADDON","GuildedDgn","SUM|fresh|1|2|x","GUILD","Guildmate")`);
+    expect(s.run("return pendingCount()")).toBe("1");
+    s.run(`fire_event("CHAT_MSG_ADDON","GuildedDgn","SUM|fresh|2|3|y","GUILD","Guildmate")`);
+    expect(s.run("return pendingCount()")).toBe("0");
+  });
+  it("does not let a group member add themselves to a previous run through a death message", () => {
+    const s = activeRun();
+    s.run(`NS.util.inMyGroup=function() return true end
+      GuildedDB.dungeon.runs.old={id="old",players={Kev={deaths=1}}}
+      fire_event("CHAT_MSG_ADDON","GuildedDgn","DEATH|old|Latecomer|5","PARTY","Latecomer")`);
+    expect(s.run("return tostring(GuildedDB.dungeon.runs.old.players.Latecomer)")).toBe("nil");
+    s.run(`fire_event("CHAT_MSG_ADDON","GuildedDgn","DEATH|old|Kev|3","PARTY","Kev")`);
+    expect(s.run("return GuildedDB.dungeon.runs.old.players.Kev.deaths")).toBe("3");
+  });
+
   it("retains native key, affixes and penalty-inclusive timer through reload and peer export", () => {
     const s = activeRun();
     s.run(`GetBuildInfo=function() return "12.1.5","12345","date",120105 end

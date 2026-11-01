@@ -1,6 +1,6 @@
 # Guilded privacy / Confidentialité
 
-Last updated / Dernière mise à jour : 29 October / octobre 2026.
+Last updated / Dernière mise à jour : 30 October / octobre 2026.
 
 ## English
 
@@ -9,6 +9,14 @@ Guilded service operated by Kevin Caron (Guilded). A guild using its own server 
 its own operator; contact that operator about its hosting and retention choices.
 
 ### Information used and why
+
+Optional weekly recap delivery stores your chosen schedule, timezone, quiet hours,
+on/off preference and latest delivery receipt. It sends a private Discord message
+only after you opt in with `/automation recap`; pause with `action:off`. Preferences
+and the latest receipt remain with your guild member record until removed under
+the existing deletion process. Pausing does not recall messages already delivered
+to Discord. Your visible preferences are included in `/me/data` and its export.
+
 
 The desktop companion uses the game files you select to provide synchronization.
 WoW records can include character names and realms, guild and edition identifiers,
@@ -114,6 +122,14 @@ guild exports in public channels. This notice will be updated when data practice
 change.
 
 ## Français
+
+Le bilan hebdomadaire facultatif conserve votre horaire, fuseau, heures de silence,
+choix actif/inactif et dernier résultat d'envoi. Un MP Discord est envoyé seulement
+après votre accord avec `/automation recap`; `action:off` suspend les prochains.
+Ces préférences restent liées à votre fiche membre jusqu'à leur suppression selon
+la procédure existante. Une pause ne rappelle pas les messages déjà livrés.
+Les préférences visibles figurent dans `/me/data` et son export.
+
 
 Cette politique concerne Guilded Companion, le site Guilded et le service hébergé
 par le projet, exploité par Kevin Caron (Guilded). Une guilde utilisant son propre

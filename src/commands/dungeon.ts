@@ -21,12 +21,21 @@ import { seasonArchive, seasonRows } from "../services/season-archive.js";
 import { weekSeason, weekWindow } from "../services/dungeon-periods.js";
 import { defaultBracket, dungeonRating, hasDungeonRating, ratingEmbed, type RatingRow } from "../services/dungeon-rating.js";
 import { guildChallengeBoard } from "../services/challenge-guild.js";
+import { executeCooperativeGoal } from "./cooperative-goal.js";
+import { executeGroupWatch, groupWatchSubcommand } from "./group-watch.js";
 
 // Dungeon challenge views (roadmap D5). Points come from runs the addon
 // recorded and an officer imported (/import apply).
 export const dungeonCommand = new SlashCommandBuilder()
   .setName("dungeon")
   .setDescription("Dungeon challenge: points leaderboard, records, player stats, recent runs.")
+  .addSubcommand(groupWatchSubcommand)
+  .addSubcommand(sub => sub.setName("together").setDescription("Preview this week's cooperative dungeon progress; no points")
+    .setDescriptionLocalizations({ fr: "Objectif de donjons ensemble; reconnaissance sans points" })
+    .addIntegerOption(o => o.setName("goal").setDescription("Officers: target 1–100").setMinValue(1).setMaxValue(100))
+    .addStringOption(o => o.setName("season").setDescription("Required with goal").setAutocomplete(true))
+    .addStringOption(o => o.setName("goal-kind").setDescription("What counts").addChoices({ name: "Different dungeons", value: "dungeons" }, { name: "Runs", value: "runs" }))
+    .addBooleanOption(o => o.setName("pause").setDescription("Officers: pause/resume the goal")))
   .addSubcommand(sub => sub.setName("keystones").setDescription("Retail: highest timed keys by dungeon and affixes")
     .setDescriptionLocalizations({ fr: "Retail : plus hautes clés à temps par donjon et affixes" }))
   .addSubcommand(sub => sub.setName("catalog").setDescription("November dungeon plan; separate from active season rules")
@@ -112,6 +121,14 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
   if (!context) return;
   const lang = asLang((await guildService.getSettings(context.guildId))?.language);
   const subcommand = interaction.options.getSubcommand();
+  if (subcommand === "watch") {
+    await executeGroupWatch(interaction, context.guildId, context.memberId);
+    return;
+  }
+  if (subcommand === "together") {
+    await executeCooperativeGoal(interaction, context.guildId, lang);
+    return;
+  }
   if (subcommand === "keystones") {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     await interaction.editReply({ embeds: [await guildChallengeBoard(prisma, context.guildId, lang)], allowedMentions: { parse: [] } });

@@ -45,6 +45,7 @@ import { BRAND } from "../brand.js";
 import { hostedPilot } from "../hosted-pilot.js";
 import { LITE_SETUP_STEPS, LITE_SUMMARY } from "./lite.js";
 import { boardTagNames, postBoardGuide } from "./craft-board.js";
+import { ensureBattlegroundSetup, BG_SETUP_PARTS, BG_SETUP_FIELDS } from "../services/battleground-setup.js";
 import { communitySetupState, ensureCommunitySetup } from "../services/community-setup.js";
 
 // Guided first-time setup. One private message that walks an admin through
@@ -83,6 +84,7 @@ const LAST_STEP = 7;
 // The checklist's "use an existing channel for…" choice, until the channel is picked (per guild).
 const pendingField = new Map<string, ChannelField>();
 const SUMMARY_STEP = 8;
+const BG_SETUP_STEP = 9;
 
 // Common choices; anything else can be set with /config timezone.
 const TIMEZONES: [string, string][] = [
@@ -433,6 +435,23 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
     );
   }
 
+  if (step === BG_SETUP_STEP) {
+    const fr = lang === "fr";
+    embed.setTitle(fr ? "JcJ — module facultatif" : "Battlegrounds — optional module").setDescription(fr
+      ? "Installer/réparer crée uniquement les salons manquants et actualise les panneaux statiques. Les salons existants gardent leurs accès et leur historique. Sans Gérer les salons, choisissez trois salons ci-dessous. Aucun enregistrement, consentement, classement ou envoi automatique activé."
+      : "Install/repair creates only missing channels and updates static panels. Existing channels retain access and history. Without Manage Channels, select three existing channels below. No capture, consent, ranking or automatic posting is enabled.");
+    components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
+      button("bg-install", fr ? "Installer / réparer les panneaux" : "Install / repair panels", ButtonStyle.Success),
+      button("jump-summary", fr ? "Retour" : "Back")));
+    for (const part of BG_SETUP_PARTS) {
+      const label = part === "groups" ? (fr ? "Groupes" : "Groups") : part === "results" ? (fr ? "Résultats privés" : "Private results") : (fr ? "Statistiques" : "Statistics");
+      embed.addFields({ name: label, value: channelLabel(lang, settings[BG_SETUP_FIELDS[part].channel]) });
+      components.push(new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(new ChannelSelectMenuBuilder()
+        .setCustomId(`setup:bg-select-${part}`).setPlaceholder(`${label} — ${fr ? "utiliser un salon existant" : "use an existing channel"}`)
+        .setChannelTypes(ChannelType.GuildText).setMinValues(1).setMaxValues(1)));
+    }
+  }
+
   if (step === SUMMARY_STEP) {
     const checks = setupChecks(await gatherFacts(guild, guildId, settings), lang);
     const done = setupComplete(checks);
@@ -484,6 +503,7 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
     }
     components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
       button("restart", T("Go through setup again")),
+      button("bg-open", lang === "fr" ? "JcJ (facultatif)" : "Battlegrounds (optional)"),
       button("close", T("Close"), ButtonStyle.Primary),
       button("public-sharing-off", T("Turn public sharing off"), ButtonStyle.Secondary, !settings.publicDungeonRuns)
     ));
@@ -890,7 +910,13 @@ export async function executeSetup(interaction: ChatInputCommandInteraction): Pr
       const withCommunity = async (channels: string) => `${channels}
 ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
         .catch((error: unknown) => `⚠️ ${T("Community setup didn't finish: {error}", { error: error instanceof Error ? error.message : String(error) })}`)}`;
-      if (action === "next") step = lite ? LITE_SETUP_STEPS.find((s) => s > step) ?? SUMMARY_STEP : Math.min(SUMMARY_STEP, step + 1);
+      if (action === "bg-open") step = BG_SETUP_STEP;
+      else if (action === "bg-install") note = await ensureBattlegroundSetup(guild, prisma, guildId, lang, i.user.id);
+      else if (i.isChannelSelectMenu() && action.startsWith("bg-select-")) {
+        const part = BG_SETUP_PARTS.find(p => action === `bg-select-${p}`);
+        if (part && i.values[0]) note = await ensureBattlegroundSetup(guild, prisma, guildId, lang, i.user.id, { part, channelId: i.values[0] });
+      }
+      else if (action === "next") step = lite ? LITE_SETUP_STEPS.find((s) => s > step) ?? SUMMARY_STEP : Math.min(SUMMARY_STEP, step + 1);
       else if (action === "back") step = lite ? Math.max(1, ...LITE_SETUP_STEPS.filter((s) => s < step)) : Math.max(1, step - 1);
       else if (action === "jump-summary") step = SUMMARY_STEP;
       else if (action === "restart") step = 1;

@@ -1,6 +1,6 @@
 import { pilotGuildScope } from "../hosted-pilot.js";
 import { coreContext } from "../services/core-context.js";
-import { EmbedBuilder, SlashCommandBuilder, type ChatInputCommandInteraction, type Client } from "discord.js";
+import { EmbedBuilder, SlashCommandBuilder, MessageFlags, type ChatInputCommandInteraction, type Client } from "discord.js";
 import { prisma } from "../database.js";
 import { config } from "../config.js";
 import { guildStats, type GuildStats } from "../services/guild-stats.js";
@@ -10,10 +10,13 @@ import { asLang, t, type Lang } from "../i18n.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { runDiscordJobs } from "../services/discord-jobs.js";
 import { queueWeeklyWowReport } from "../services/weekly-report-delivery.js";
+import { personalWeeklyRecap, personalWeeklyRecapEmbed } from "../services/personal-weekly-recap.js";
 
 export const statsCommand = new SlashCommandBuilder()
   .setName("stats")
   .setDescription("Guild activity: raids, boss kills, loot, EP, top attendance.")
+  .addBooleanOption(o => o.setName("personal").setDescription("Private weekly recap; excludes guild days/core filters")
+    .setDescriptionLocalizations({ fr: "Bilan hebdomadaire privé; sans filtres jours/core" }))
   .addIntegerOption((o) => o.setName("days").setDescription("How far back (default 7)").setMinValue(1).setMaxValue(365))
   .addStringOption(o => o.setName("core").setDescription("Raid core (defaults to this channel)").setAutocomplete(true));
 
@@ -48,6 +51,16 @@ export function statsEmbed(stats: GuildStats, title: string, lang: Lang = "en", 
 export async function executeStats(interaction: ChatInputCommandInteraction): Promise<void> {
   const context = await requireGuildContext(interaction);
   if (!context) return;
+  if (interaction.options.getBoolean("personal")) {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const lang = asLang((await guildService.getSettings(context.guildId))?.language);
+    if (interaction.options.getInteger("days") !== null || interaction.options.getString("core") !== null) {
+      await interaction.editReply({ content: lang === "fr" ? "Le bilan personnel utilise la dernière semaine complète. Retirez les filtres days/core." : "Personal recap uses the last complete week. Remove the days/core filters.", allowedMentions: { parse: [] } });
+      return;
+    }
+    await interaction.editReply({ embeds: [personalWeeklyRecapEmbed(await personalWeeklyRecap(prisma, context.guildId, interaction.user.id), lang)], allowedMentions: { parse: [] } });
+    return;
+  }
   const days = interaction.options.getInteger("days") ?? 7;
   const core = await coreContext(prisma, context.guildId, interaction.channelId, interaction.options.getString("core"));
   const stats = await guildStats(prisma, context.guildId, new Date(Date.now() - days * 86_400_000), undefined, core?.id);

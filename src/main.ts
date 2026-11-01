@@ -1,3 +1,7 @@
+import { executeAutomation } from "./commands/automation.js";
+import { runRecurringDeliveries } from "./services/recurring-discord.js";
+import { dispatchGroupWatches } from "./services/group-watch-discord.js";
+import { BG_PREFIX, executeBattleground, handleBattlegroundComponent } from "./commands/battleground.js";
 import "./services/diagnostic-console.js";
 import { GAME_EDITIONS } from "../companion/game-edition.mjs";
 import { badgeCommandsForGuild } from "./services/community-badge-policy.js";
@@ -55,7 +59,7 @@ import { executeTag } from "./commands/tag.js";
 import { handleSelfRoleButton, SELF_ROLE_PREFIX } from "./commands/selfroles.js";
 import { EP_AWARD_PREFIX, handleEpAwardButton } from "./commands/ep-award.js";
 import { executeCore } from "./commands/core.js";
-import { executePoll, handlePollButton, POLL_PREFIX } from "./commands/poll.js";
+import { executePoll, handlePollButton, handleWeeklyQuestionButton, POLL_PREFIX, WEEKLY_QUESTION_PREFIX } from "./commands/poll.js";
 import { CRAFT_PREFIX, handleCraftButton, handleCraftModal } from "./commands/craft-board.js";
 import {
   cleanupDungeonGroups, DUNGEON_GROUP_PREFIX, handleDungeonGroupButton, handleDungeonGuideButton, handleDungeonGuideModal, handleDungeonGuideSelect
@@ -75,11 +79,12 @@ import { executeHelp } from "./commands/help.js";
 import { handleAutocomplete } from "./commands/autocomplete.js";
 import { prisma } from "./database.js";
 import { runRaidReminders } from "./services/reminders.js";
+import { queueExpiredPolls } from "./services/poll-expiry.js";
 import { runCooldownPings } from "./services/recipes.js";
 import { DUNGEON_SEASON_SELECT, handleDungeonSeasonSelect, updateDungeonLeaderboard } from "./services/dungeon-leaderboard.js";
 import { refreshExistingBotGuides } from "./services/bot-messages.js";
 import { BACKUP_DIR, runBackup } from "./services/backup.js";
-import { freezeSeasonRules, loadOfficialWindows, rotateOfficialSeasons, startOfficialSeason } from "./services/official-seasons.js";
+import { ensureQuarterlyCalendar, freezeSeasonRules, loadOfficialWindows, rotateOfficialSeasons, startOfficialSeason } from "./services/official-seasons.js";
 import { finalizeClosingSeasons } from "./services/dungeon-admin.js";
 import { executeOwnerSeason, OWNER_SEASON_COMMAND, ownerSeasonCommand } from "./commands/owner-season.js";
 import { updateCommunityLeaderboard } from "./services/community-leaderboard.js";
@@ -177,6 +182,8 @@ handlers.set("apply", executeApply);
 handlers.set("tag", executeTag);
 handlers.set("core", executeCore);
 handlers.set("team", executeTeam);
+handlers.set("bg", executeBattleground);
+handlers.set("automation", executeAutomation);
 handlers.set("poll", executePoll);
 handlers.set("bank", executeBank);
 handlers.set("craft", executeCraft);
@@ -260,6 +267,8 @@ client.once(Events.ClientReady, (readyClient) => {
   void reconcileGameEvents();
   setInterval(() => void reconcileGameEvents(), 60_000);
   setInterval(() => void runDiscordJobs(readyClient).catch(reportJobError("Discord delivery queue")), 60_000);
+  void queueExpiredPolls(prisma).catch(reportJobError("Poll expiry"));
+  setInterval(() => void queueExpiredPolls(prisma).catch(reportJobError("Poll expiry")), 60_000);
   // Repair missing event jobs after a restart and advance game nights at their times.
   let reconcilingEvents = false;
   const reconcileEvents = async () => {
@@ -326,7 +335,8 @@ client.once(Events.ClientReady, (readyClient) => {
     if (rotating) return;
     rotating = true;
     // The public leaderboards' rules freeze when a season starts, then only gain new routes.
-    (async () => { for (const edition of GAME_EDITIONS) await withEdition(edition, () => freezeSeasonRules(prisma, new Date())
+    (async () => { for (const edition of GAME_EDITIONS) await withEdition(edition, () => ensureQuarterlyCalendar(prisma, new Date())
+      .then(() => freezeSeasonRules(prisma, new Date()))
       .then((change) => {
         if (change?.frozen) console.info(`Public dungeon rules frozen for ${change.season}.`);
         else if (change) console.info(`Public dungeon rules for ${change.season} gained routes ${change.routes.join(", ") || "-"}, brackets ${change.brackets.join(", ") || "-"}.`);
@@ -348,6 +358,17 @@ client.once(Events.ClientReady, (readyClient) => {
   };
   setTimeout(rotateSeasons, 60_000);
   setInterval(rotateSeasons, 5 * 60 * 1000);
+  let recurringBusy = false;
+  const recurring = async () => {
+    if (recurringBusy) return;
+    recurringBusy = true;
+    try {
+      await runRecurringDeliveries(readyClient, prisma).catch(reportJobError("Opt-in recurring delivery"));
+      await dispatchGroupWatches(readyClient, prisma).catch(reportJobError("Opt-in vacancy delivery"));
+    } finally { recurringBusy = false; }
+  };
+  void recurring();
+  setInterval(() => void recurring(), 5 * 60_000);
   // Raid reminders: checked every 5 minutes so a "60 minutes before" ping
   // lands within a few minutes of that mark.
   setInterval(() => {
@@ -549,6 +570,18 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
     else if (interaction.isRepliable()) await interaction.reply({ content: tier === "lite" ? PILOT_LITE_DENIED : PILOT_DENIED, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     return;
   }
+  if ((interaction.isButton() || interaction.isModalSubmit() || interaction.isStringSelectMenu()) && interaction.customId.startsWith(BG_PREFIX)) {
+    try {
+      if (tier === "lite") throw new Error(PILOT_LITE_DENIED);
+      await handleBattlegroundComponent(interaction);
+    } catch (error) {
+      reportInteractionError("Battleground interaction", interaction, error);
+      const content = error instanceof Error && error.message.length < 250 ? error.message : "Could not update BG / Impossible de modifier le groupe JcJ.";
+      if (interaction.deferred || interaction.replied) await interaction.editReply({ content }).catch(() => undefined);
+      else await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+    }
+    return;
+  }
   if (interaction.isAutocomplete() && interaction.commandName === "team") {
     await autocompleteTeam(interaction).catch(async () => { if (!interaction.responded) await interaction.respond([]).catch(() => undefined); });
     return;
@@ -628,6 +661,10 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   }
   if (interaction.isButton() && interaction.customId.startsWith(POLL_PREFIX)) {
     await handlePollButton(interaction).catch((error: unknown) => reportInteractionError("Poll button", interaction, error));
+    return;
+  }
+  if (interaction.isButton() && interaction.customId.startsWith(WEEKLY_QUESTION_PREFIX)) {
+    await handleWeeklyQuestionButton(interaction).catch((error: unknown) => reportInteractionError("Weekly question review", interaction, error));
     return;
   }
   if (interaction.isStringSelectMenu() && interaction.customId === `${DUNGEON_GUIDE_PREFIX}kind`) {

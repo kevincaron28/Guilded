@@ -3,6 +3,15 @@ import { newLuaSession, type LuaSession } from "./harness.js";
 let session: LuaSession | undefined;
 afterEach(() => session?.close());
 describe("end of dungeon run summary", () => {
+  it("removes a deleted test result from the visible and pending state", () => {
+    session = newLuaSession();
+    session.run('ROOT={dungeon={runs={},pendingResult="SIM-1"}}; NS={getDb=function() return ROOT end}');
+    session.load("Modules/RunResults.lua");
+    session.run('NS.runResults.last={id="SIM-1",test=true}; NS.runResults.remove("unrelated")');
+    expect(session.run('return NS.runResults.last.id')).toBe("SIM-1");
+    session.run('NS.runResults.remove("SIM-1")');
+    expect(session.run('return tostring(NS.runResults.last)..":"..tostring(ROOT.dungeon.pendingResult)')).toBe("nil:nil");
+  });
   it("displays Forever full names without estimating Forever ratings for another edition", () => {
     session = newLuaSession(); session.run('NS={getDb=function() return {displayNames={Kevin="Kevin Caron"}} end}');
     session.load("Modules/RunResults.lua");

@@ -239,7 +239,13 @@ try {
     await resetImporter.apply(fresh.id, resetImport.id, "reset-test");
     assert.equal(await database.epgpTransaction.count({ where: { guildId: fresh.id } }), 1);
     const service = createAddonImportService(database);
-    const payload = { source: "Guilded", exportedAt: new Date(), epgpTransactions: [{ character: "ReleaseAnn", realm: "ReleaseTest", epAmount: 10, gpAmount: 5, type: "EP_AWARD", reason: "release test", sourceRef: "release-test-event", coreId: core.id }] };
+    const scopedGuild = await database.guild.findUniqueOrThrow({ where: { id: guild.id }, include: { wowSpace: true } });
+    const wowGuild = scopedGuild.wowSpace ? `${scopedGuild.wowSpace.name}-${scopedGuild.wowSpace.realm}` : undefined;
+    const payload = { source: "Guilded", wowGuild, exportedAt: new Date(), epgpTransactions: [{ character: "ReleaseAnn", realm: "ReleaseTest", epAmount: 10, gpAmount: 5, type: "EP_AWARD", reason: "release test", sourceRef: "release-test-event", coreId: core.id }] };
+    if (wowGuild) {
+      await assert.rejects(service.preview(guild.id, { ...payload, wowGuild: undefined }, "scope-test"), /selected WoW guild and realm/);
+      await assert.rejects(service.preview(guild.id, { ...payload, wowGuild: "Other Guild-Other Realm" }, "scope-test"), /selected WoW guild and realm/);
+    }
     const preview = await service.preview(guild.id, payload, "release-test");
     const a = await service.record(guild.id, preview.snapshot, "a", "release-test");
     const b = await service.record(guild.id, preview.snapshot, "b", "release-test");
@@ -343,13 +349,13 @@ try {
     await applications.transition(guild.id, characterApplication.id, "APPROVED", "character-test");
     // Gear is selected by character, not the player's primary in another core.
     // A later upload of an older inspection must not replace a newer inspection.
-    const gearPayload = { source: "Guilded", exportedAt: new Date(), character: { name: alt.name, realm: alt.realm, class: "Mage", spec: "Fire", level: 60 },
+    const gearPayload = { source: "Guilded", wowGuild, exportedAt: new Date(), character: { name: alt.name, realm: alt.realm, class: "Mage", spec: "Fire", level: 60 },
       readiness: [{ character: alt.name, realm: alt.realm, itemLevel: 42.5, inspectedAt: new Date("2026-10-01T12:00:00Z") }] };
     const gearPreview = await service.preview(guild.id, gearPayload, "gear-test");
     const gearImport = await service.record(guild.id, gearPreview.snapshot, "gear-fixture", "gear-test");
     await service.apply(guild.id, gearImport.id, "gear-test");
     assert.ok(await database.discordJob.count({ where: { guildId: guild.id, kind: "CORE_ROSTER" } }));
-    const olderPreview = await service.preview(guild.id, { source: "Guilded", exportedAt: new Date(),
+    const olderPreview = await service.preview(guild.id, { source: "Guilded", wowGuild, exportedAt: new Date(),
       readiness: [{ character: alt.name, realm: alt.realm, itemLevel: 12.3, inspectedAt: new Date("2026-09-30T12:00:00Z") }] }, "gear-test");
     const olderImport = await service.record(guild.id, olderPreview.snapshot, "old-gear-fixture", "gear-test");
     await service.apply(guild.id, olderImport.id, "gear-test");

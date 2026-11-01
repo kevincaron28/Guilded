@@ -15,6 +15,7 @@ export function excludeHistoryBeforeReset(snapshot: AddonSnapshot, resetAt: Date
     epgpTransactions: snapshot.epgpTransactions.filter(row => after(row.createdAt)),
     raids: snapshot.raids.filter(row => after(row.startedAt)),
     loot: snapshot.loot.filter(row => after(row.awardedAt)),
-    dungeonRuns: snapshot.dungeonRuns.filter(row => row && typeof row === "object" && "endedAt" in row && after(row.endedAt))
+    dungeonRuns: snapshot.dungeonRuns.filter(row => row && typeof row === "object" && "endedAt" in row && after(row.endedAt)),
+    battlegroundReports: snapshot.battlegroundReports.filter(row => after(row.endedAt))
   };
 }

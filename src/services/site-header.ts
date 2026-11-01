@@ -24,7 +24,7 @@ body{font-family:Inter,"Segoe UI Variable","Segoe UI",system-ui,sans-serif}
 .nav-group[open]>summary::after{transform:translateY(1px) rotate(225deg)}
 .edition-menu>summary{border:1px solid #494d40;border-radius:5px;padding:0 12px;color:var(--text)}.edition-menu>summary strong{color:var(--gold);font-weight:650}
 .site-top .edition-menu a[aria-current=true]{color:var(--gold)}
-.nav-menu{position:absolute;top:calc(100% + 4px);left:-14px;z-index:30;min-width:230px;display:grid;padding:8px;background:#181c1a;border:1px solid var(--line);border-radius:8px;box-shadow:0 18px 40px #0009}
+.nav-menu{position:absolute;top:calc(100% + 4px);right:0;z-index:30;width:260px;max-width:calc(100vw - 40px);box-sizing:border-box;display:grid;padding:8px;background:#181c1a;border:1px solid var(--line);border-radius:8px;box-shadow:0 18px 40px #0009}.edition-menu .nav-menu{left:0;right:auto}
 .site-top .nav-menu a{padding:0 12px;border-radius:5px;min-height:40px}.site-top .nav-menu a:hover{background:#ffffff0d}
 .language-switch{display:inline-flex;border:1px solid #494d40;border-radius:5px;overflow:hidden}.site-top .language-switch a{min-height:36px;padding:0 11px;font-size:12px}
 .site-top .language-switch a[aria-current=true]{background:#e8c47c1f;color:var(--gold)}
@@ -32,7 +32,7 @@ body{font-family:Inter,"Segoe UI Variable","Segoe UI",system-ui,sans-serif}
 .menu-label{display:none;cursor:pointer;align-items:center;gap:12px;min-height:44px;padding:0 14px;border:1px solid #505447;border-radius:4px;font-size:13px;color:var(--text)}
 .menu-check:focus-visible+.menu-label{outline:3px solid #9dc7f0;outline-offset:4px}
 @media(max-width:860px){.site-top-inner{padding:12px 20px}.menu-label{display:inline-flex}.site-top nav{display:none;width:100%;flex-direction:column;align-items:stretch;gap:0;padding:6px 0 10px}
-.menu-check:checked~nav{display:flex}.nav-menu{position:static;min-width:0;padding:0 0 6px 16px;background:none;border:0;box-shadow:none}.site-top nav a.nav-companion{align-self:flex-start;margin-top:6px}.language-switch{align-self:flex-start;margin-top:10px}}
+.menu-check:checked~nav{display:flex}.nav-menu{position:static;width:auto;min-width:0;padding:0 0 6px 16px;background:none;border:0;box-shadow:none}.site-top nav a.nav-companion{align-self:flex-start;margin-top:6px}.language-switch{align-self:flex-start;margin-top:10px}}
 .crumbs{font-size:13px;color:var(--muted);margin:14px 0 20px}.crumbs a{color:var(--muted)}.crumbs a:hover{color:var(--text)}`;
 
 // The website's 1200 × 630 link-preview card (site/images/social/), for pages without their own.

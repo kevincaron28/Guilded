@@ -49,6 +49,20 @@ describe("full edition routing", () => {
     expect((await entityGuildScope(db as never,"server","apply-form:decide:approve:application"))?.guild.id).toBe("one");
     expect(db.application.findUnique).toHaveBeenCalledWith({where:{id:"application"},select:{guildId:true}});
   });
+  it.each(["bgCategoryId", "bgGroupsChannelId", "bgResultsChannelId", "bgStatsChannelId"])("routes persisted %s before the member's other guild selection", async field => {
+    const selection = vi.fn();
+    const settings = vi.fn(async (query: { where: { guild: { discordId: string }; OR: Record<string, { in: string[] }>[] } }) =>
+      query.where.guild.discordId === "server" && query.where.OR.some(row => row[field]?.in.includes("bg-channel")) ? [{ guildId: "bg-owner" }] : []);
+    const db = {
+      wowGuildChannel: { findUnique: vi.fn(async () => null) }, guildSettings: { findMany: settings },
+      raidCore: { findMany: vi.fn(async () => []) }, activityCore: { findMany: vi.fn(async () => []) },
+      wowGuildSelection: { findUnique: selection },
+      guild: { findFirst: vi.fn(async () => ({ ...scope("bg-owner").guild, wowSpace: null })) }
+    };
+    expect((await interactionGuildScope(db as never, { discordId: "server", userId: "user", channelId: "bg-channel" }))?.guild.id).toBe("bg-owner");
+    expect(selection).not.toHaveBeenCalled();
+    expect(db.guild.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "bg-owner", discordId: "server" } }));
+  });
   it("routes weekly dungeon and PvP team responses to the session's guild", async () => {
     const db = { activitySession: { findUnique: vi.fn(async()=>({core:{guildId:"one"}})) }, guild: {findFirst:vi.fn(async()=>({...scope("one").guild,wowSpace:null}))} };
     expect((await entityGuildScope(db as never,"server","team:session:DPS"))?.guild.id).toBe("one");

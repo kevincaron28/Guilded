@@ -155,19 +155,22 @@ local function atan2(y, x)
 end
 
 -- Big actions (whole-group awards, ending a raid) need a second click
--- within 3 seconds instead of a popup dialog.
+-- within 10 seconds instead of a popup dialog. Each arm owns its timeout.
 local function confirmClick(b, label, action)
+  local generation = 0
   b:SetScript("OnClick", function(self)
-    if self.armed or not C_Timer then
+    generation = generation + 1
+    if self.armed == true or not C_Timer then
       self.armed = false
       self:SetText(L(label))
       action()
       return
     end
     self.armed = true
-    self:SetText(L("Click again to confirm"))
-    C_Timer.After(3, function()
-      if self.armed then
+    self:SetText(L("Confirm?"))
+    local armedGeneration = generation
+    C_Timer.After(10, function()
+      if self.armed and generation == armedGeneration then
         self.armed = false
         self:SetText(L(label))
       end
@@ -896,7 +899,7 @@ local function buildToolsPage(page)
   officerOnly(tip(at(newButton(page, "Officer setup", 136, function() run("officer list") end), page, 142, -116), "Who counts as an officer in this guild."))
 
   -- Test tools (/guilded sim): a pretend raid with fake players, to learn the tools alone.
-  forModule("sim", at(newLabel(page, "Test tools (fake players, nothing reaches Discord)", "GameFontNormalSmall"), page, 0, -146), true)
+  forModule("sim", at(newLabel(page, "Test tools (fake players; saved tests can sync to Discord)", "GameFontNormalSmall"), page, 0, -146), true)
   local tests = {
     { "Start test raid", "sim start", "A test raid with fake players; bosses and loot work like a real one." },
     { "Fake bids", "sim bids", "Fake players bid on the item open for GP bids." },
@@ -927,7 +930,8 @@ local function buildToolsPage(page)
   at(newLabel(page, L("Modules"), "GameFontNormal"), page, 0, -280)
   local scroll = CreateFrame("ScrollFrame", nil, page, "UIPanelScrollFrameTemplate")
   scroll:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -298)
-  scroll:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -24, 2)
+  -- Keep the last module row clear of the shared status footer.
+  scroll:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -24, 24)
   local scrollChild = CreateFrame("Frame", nil, scroll)
   scrollChild:SetWidth(PAGE_WIDTH - 24)
   scrollChild:SetHeight(math.max(1, #(ns.MODULES or {}) * 22))
@@ -936,7 +940,7 @@ local function buildToolsPage(page)
   ui.moduleRows = {}
   for i, module in ipairs(ns.MODULES or {}) do
     local y = -(i - 1) * 22
-    local row = { key = module.key }
+    local row = { key = module.key, parent = scrollChild, y = y }
     row.label = at(newLabel(scrollChild, "", "GameFontHighlightSmall"), scrollChild, 0, y - 4)
     row.label:SetWidth(330)
     row.mine = at(newButton(scrollChild, "", 86, function()
@@ -1480,7 +1484,20 @@ local function refreshModuleRows()
     else state = L("on") end
     row.label:SetText(L(ns.moduleName(row.key)) .. " - " .. state)
     row.mine:SetText(mineOff and L("Turn on") or L("Turn off"))
-    row.guild:SetText(guildOff and "Guild: on" or "Guild: off")
+    row.guild:SetText(L(guildOff and "Guild: on" or "Guild: off"))
+    -- Dynamic labels need the same measured padding as buttons built with text.
+    -- Anchor the switches from the right so translations stay inside the page.
+    local label = row.guild.GetFontString and row.guild:GetFontString()
+    local needed = label and label.GetStringWidth and label:GetStringWidth()
+    local guildWidth = math.max(110, type(needed) == "number" and needed + BUTTON_PADDING or 110)
+    label = row.mine.GetFontString and row.mine:GetFontString()
+    needed = label and label.GetStringWidth and label:GetStringWidth()
+    local mineWidth = math.max(86, type(needed) == "number" and needed + BUTTON_PADDING or 86)
+    local guildX = PAGE_WIDTH - 24 - guildWidth
+    local mineX = guildX - mineWidth - 6
+    row.guild:SetWidth(guildWidth); row.guild:SetPoint("TOPLEFT", row.parent, "TOPLEFT", guildX, row.y)
+    row.mine:SetWidth(mineWidth); row.mine:SetPoint("TOPLEFT", row.parent, "TOPLEFT", mineX, row.y)
+    row.label:SetWidth(math.max(80, mineX - 4))
   end
 end
 

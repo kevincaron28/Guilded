@@ -20,6 +20,23 @@ const SAVED = `GuildedDungeonsDB = {
 `;
 
 describe("personal companion mode", () => {
+  it("records receipt only when the server acknowledges every uploaded run", async () => {
+    const root = mkdtempSync(join(tmpdir(), "gd-evidence-"));
+    try {
+      const watchFile = join(root, "GuildedDungeons.lua"); writeFileSync(watchFile, SAVED);
+      const evidence = vi.fn();
+      const fetcher = vi.fn(async () => Response.json({ acceptedRunRefs: [] })); vi.stubGlobal("fetch", fetcher);
+      const cfg = { watchFile, uploadUrl: "https://bot.test", companionCredential: "c".repeat(40), writeStandingsEnabled: false };
+      await uploadPersonalRuns(cfg, undefined, evidence);
+      expect(evidence.mock.calls.at(-1)![0]).toMatchObject({ savedAt: expect.any(String), uploadedAt: expect.any(String) });
+      expect(evidence.mock.calls.at(-1)![0].acceptedAt).toBeUndefined();
+      fetcher.mockImplementation(async () => Response.json({ acceptedRunRefs: ["QG-1"] }));
+      await uploadPersonalRuns(cfg, undefined, evidence);
+      const accepted = evidence.mock.calls.at(-1)![0];
+      expect(accepted.acceptedRevision).toBe(accepted.savedRevision);
+      expect(accepted.acceptedAt).toEqual(expect.any(String));
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
   it("uploads background scores without overwriting the selected profile's Accepted.lua", async () => {
     const root = mkdtempSync(join(tmpdir(), "gd-background-"));
     try {

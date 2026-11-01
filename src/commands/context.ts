@@ -1,4 +1,4 @@
-import { MessageFlags, type ChatInputCommandInteraction } from "discord.js";
+import { MessageFlags, type ChatInputCommandInteraction, type ButtonInteraction, type ModalSubmitInteraction, type StringSelectMenuInteraction } from "discord.js";
 import { prisma } from "../database.js";
 import { createGuildService } from "../services/guild.js";
 import { createErrorReportService, isMemberAnswer } from "../services/error-report.js";
@@ -9,7 +9,7 @@ export const guildService = createGuildService(prisma);
 export const errorReportService = createErrorReportService(prisma);
 
 export async function requireGuildContext(
-  interaction: ChatInputCommandInteraction
+  interaction: ChatInputCommandInteraction | ButtonInteraction | ModalSubmitInteraction | StringSelectMenuInteraction
 ): Promise<{ guildId: string; memberId: string } | null> {
   if (!interaction.guild || !interaction.guildId || !interaction.member) {
     await interaction.reply({

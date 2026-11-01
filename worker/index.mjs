@@ -202,9 +202,10 @@ async function route(request, env) {
     }
     const headers = new Headers();
     // content-encoding: compressed uploads; if-none-match: "nothing changed" standings answers.
-    // Web pages: the session cookie, and Origin/Referer for the bot's CSRF check on form posts.
+    // Web pages: the session cookie, Origin/Referer for the bot's CSRF check on form posts, and
+    // User-Agent so a companion sign-in can name the device ("Windows PC (Chrome)") by itself.
     const forwarded = api ? ["content-type", "content-encoding", "x-companion-credential", "authorization", "accept", "if-none-match"]
-      : web ? ["accept", "accept-language", "content-type", "cookie", "origin", "referer"] : ["accept"];
+      : web ? ["accept", "accept-language", "content-type", "cookie", "origin", "referer", "user-agent"] : ["accept"];
     for (const name of forwarded) {
       const value = request.headers.get(name);
       if (value) headers.set(name, value);

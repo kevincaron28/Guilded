@@ -4,6 +4,8 @@ import { MessageFlags } from "discord.js";
 const db = vi.hoisted(() => ({
   memberOnboarding: { findUnique: vi.fn(), upsert: vi.fn() },
   character: { count: vi.fn(), findMany: vi.fn() },
+  professionSkill: { count: vi.fn() },
+  raidSignup: { count: vi.fn() },
   characterVerifyCode: { upsert: vi.fn() },
   guild: { findUnique: vi.fn() }
 }));
@@ -74,12 +76,22 @@ beforeEach(() => {
   db.memberOnboarding.findUnique.mockReset().mockResolvedValue(null);
   db.memberOnboarding.upsert.mockReset().mockResolvedValue({});
   db.character.count.mockReset().mockResolvedValue(0);
+  db.professionSkill.count.mockReset().mockResolvedValue(0);
+  db.raidSignup.count.mockReset().mockResolvedValue(0);
   db.character.findMany.mockReset().mockResolvedValue([]);
   db.characterVerifyCode.upsert.mockReset().mockResolvedValue({ code: "ABCDEFGH" });
   db.guild.findUnique.mockReset().mockResolvedValue({ officerSyncAt: new Date() });
 });
 
 describe("onboarding checklist", () => {
+  it("shows optional progress without making professions or a first raid an access gate", () => {
+    const progress = { rules: true, games: true, character: true, professions: false, firstRaid: false };
+    expect(onboardingIncomplete(progress)).toBe(false);
+    const text = checklistText(progress, "en", "Guild");
+    expect(text).toContain("⬜ Share your professions (optional)");
+    expect(text).toContain("⬜ Confirm your first raid signup (optional)");
+    expect(text).toContain("Your Discord access is ready");
+  });
   it("is incomplete while the rules or the games are open", () => {
     expect(onboardingIncomplete({ rules: false, games: true, character: true })).toBe(true);
     expect(onboardingIncomplete({ rules: true, games: false, character: true })).toBe(true);
@@ -217,19 +229,24 @@ describe("game menu and pairing", () => {
     expect(instructions).toContain("Une fois suffit, aussi pour les alts");
   });
 
-  it("issues a companion code only after the optional connect button is clicked", async () => {
+  it("shows the companion steps without making a code, which only its own button issues", async () => {
     accepted();
     const member = fakeMember();
     useSettings(baseSettings);
     const interaction = click("onboard:companion:g1", fakeGuild(member));
     await handleOnboardingInteraction(interaction as never);
     const payload = interaction.editReply.mock.calls[0]![0];
-    // Sign in with Discord first; the code (for older companions) in its own field after it.
     expect(payload.embeds[0].data.fields[0].value).toContain("/guilded verify ABCD-EFGH");
     expect(payload.embeds[0].data.fields[1].value).toContain("**Sign in with Discord**");
-    expect(payload.embeds[0].data.fields[3].value).toContain("```\nABCD-1234\n```");
-    expect(issueCharacterPairingCode).toHaveBeenCalledOnce();
+    expect(issueCharacterPairingCode).not.toHaveBeenCalled();
+    expect(payload.components[0].toJSON().components.at(-1)).toMatchObject({ custom_id: "onboard:paircode:g1" });
     expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
+
+    // A code only when the member asks for one, so no other prompt replaces it unused.
+    const asked = click("onboard:paircode:g1", fakeGuild(member));
+    await handleOnboardingInteraction(asked as never);
+    expect(issueCharacterPairingCode).toHaveBeenCalledOnce();
+    expect(asked.editReply.mock.calls[0]![0].content).toContain("```\nABCD-1234\n```");
   });
 
   it("keeps a held game checked when removing its role fails", async () => {

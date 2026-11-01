@@ -86,4 +86,12 @@ describe("/core delete", () => {
     expect(mocks.cleanup).not.toHaveBeenCalled();
     expect(mocks.remove).not.toHaveBeenCalled();
   });
+  it("does not report a failure when the reply's channel was the core's own deleted channel", async () => {
+    const command = interaction();
+    command.editReply.mockRejectedValue(Object.assign(new Error("Unknown Message"), { code: 10008 }));
+    await expect(executeCore(command as never)).resolves.toBeUndefined();
+    expect(mocks.remove).toHaveBeenCalledWith("g", "c");
+    command.editReply.mockRejectedValue(new Error("boom"));
+    await expect(executeCore(command as never)).rejects.toThrow("boom");
+  });
 });

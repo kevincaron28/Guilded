@@ -142,12 +142,17 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
     const { runDiscordJobs } = await import("../services/discord-jobs.js");
     await runDiscordJobs(interaction.client);
     const made = await prisma.raidCore.findUnique({ where: { id: core.id } });
+    const fr = settings?.language === "fr";
+    const say = (en: string, french: string) => fr ? french : en;
     await interaction.editReply({
-      content: `Core **${core.name}** créé. Ajoute tes joueurs avec \`/core add\`.`
-        + (core.weeklySchedule ? `\n📅 ${created.length} raid(s) préparé(s) pour les 6 prochains jours. Horaire : **${core.schedule}** (${core.weeklyTimezone}). La prochaine semaine s'ajoute automatiquement. Modifie l'horaire avec \`/core edit\`.` : "")
-        + (!core.weeklySchedule ? ` Configure l'horaire automatique dans \`/core edit\`, ou crée un raid avec \`/lead create core:${core.name}\`.` : "")
-        + (made?.categoryId ? ` Its channels are ready${made.chatChannelId ? ` (<#${made.chatChannelId}>)` : ""}.` : "")
-        + (discord.error ? ` Its channels could not be made: ${discord.error} It uses the shared channels until then (\`/core edit\` > Create channels & role).` : "")
+      content: say(`Core **${core.name}** created. Add your players with \`/core add\`.`, `Core **${core.name}** créé. Ajoute tes joueurs avec \`/core add\`.`)
+        + (core.weeklySchedule ? say(`
+📅 ${created.length} raid(s) prepared for the next 6 days. Schedule: **${core.schedule}** (${core.weeklyTimezone}). Next week is added automatically. Change the schedule with \`/core edit\`.`,
+          `
+📅 ${created.length} raid(s) préparé(s) pour les 6 prochains jours. Horaire : **${core.schedule}** (${core.weeklyTimezone}). La prochaine semaine s'ajoute automatiquement. Modifie l'horaire avec \`/core edit\`.`) : "")
+        + (!core.weeklySchedule ? say(` Set the automatic schedule in \`/core edit\`, or create a raid with \`/lead create core:${core.name}\`.`, ` Configure l'horaire automatique dans \`/core edit\`, ou crée un raid avec \`/lead create core:${core.name}\`.`) : "")
+        + (made?.categoryId ? say(` Its channels are ready${made.chatChannelId ? ` (<#${made.chatChannelId}>)` : ""}.`, ` Ses salons sont prêts${made.chatChannelId ? ` (<#${made.chatChannelId}>)` : ""}.`) : "")
+        + (discord.error ? say(` Its channels could not be made: ${discord.error} It uses the shared channels until then (\`/core edit\` > Create channels & role).`, ` Ses salons n'ont pas pu être créés : ${discord.error} Il utilise les salons communs en attendant (\`/core edit\` > Créer salons et rôle).`) : "")
     });
     return;
   }
@@ -322,6 +327,12 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
   }
   const core = await coreService.remove(guildId, toDelete.id);
   await removeCoreRosterMessage(interaction.guild, prisma, guildId, core.rosterMessageId, core.rosterChannelId);
-  await interaction.editReply({ content: `Deleted raid core **${core.name}**.`
-    + (cleanup.removed ? ` Removed ${cleanup.removed} Discord channels/categories/roles.` : "") });
+  // Run from inside the core's own channel, the reply's channel is already gone (Discord 10003/10008): the core is deleted, so that is not a failure.
+  try {
+    await interaction.editReply({ content: `Deleted raid core **${core.name}**.`
+      + (cleanup.removed ? ` Removed ${cleanup.removed} Discord channels/categories/roles.` : "") });
+  } catch (error) {
+    const code = (error as { code?: unknown }).code;
+    if (code !== 10003 && code !== 10008) throw error;
+  }
 }

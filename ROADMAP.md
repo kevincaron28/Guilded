@@ -1,10 +1,107 @@
-> Current launch audit: [28 October final audit](docs/FINAL_8_0_1_AUDIT_2026-10-28.md). Historical proposals below do not override that feature inventory or the owner’s testing waiver.
+> Current checkpoint: [October 30 integration record](docs/RELEASE_INTEGRATION_2026-10-30.md). The latest owner direction authorizes all available testing now and supersedes earlier testing waivers. Historical release notes below are not current availability or acceptance claims.
 
 # Guilded roadmap
 
-## Current stage — 29 October 2026
+## October 30 operational follow-up
 
-Guilded **8.1.0 Candidate** (protocol 2), prepared for November 4: RCLootCouncil/Gargul history conversion, reviewed in-game confirmation, separate persistent history and undo, raid-signup presentation and public-origin reliability. See [candidate gates](docs/NOV4_RELEASE_CANDIDATE.md). No new core feature gap is established; prioritize tester evidence and release preparation. Published downloads remain 8.0.2.
+**8.3.0 is live:** backend, website and Web Companion are deployed at reviewed
+source `2602e67`. GitHub's 23 public downloads are hash-verified. All ten
+CurseForge edition files are approved and their anonymous downloads match the
+frozen release ZIPs. Microsoft Store Submission 6 is published; verification of
+the installed 8.3 package remains pending. Publication is not native/game acceptance.
+
+The previously selected edition calendars are unchanged, including Forever's
+November 4 start. The latest readback and provider evidence are tracked in the
+[8.3 acceptance record](docs/V8_3_0_RELEASE_ACCEPTANCE.md).
+
+The [QuébecGold BG hub](https://discord.com/channels/1323321076478119967/1552246570714402827/1565730945766527019)
+is posted in the existing scoped channel with French Create, Join, My groups and
+Upcoming buttons. These are deployed **8.3 organization controls only**; result
+and statistics controls await the next deployment. Permissions were unchanged,
+mentions suppressed, and native button-click acceptance is not yet recorded.
+
+### Historical 8.2 publication checkpoint
+
+8.2.0 is deployed and published on GitHub at `eb3cb4a`; all 23 anonymous downloads
+and the tag were verified. All ten CurseForge files are published and verified;
+Store 8.2 is published, installed and signature/hash verified. Forever's prospective timing snapshot is installed without moving
+November 4. The newer [edition calendar authorization](docs/EDITION_CALENDARS_2026-10-30.md)
+starts empty other editions prospectively with official period labels and gives
+Era a three-calendar-month cadence. Production activation and readback passed
+at 12:14 UTC October 30.
+The [battleground module](docs/BATTLEGROUNDS_NEXT_MODULE.md) is approved as the next
+isolated module. It is not part of the published 8.2.0 feature claims.
+
+## Today's integration work — 30 October 2026
+
+Today's authoritative work list and release gates are in the
+[October 30 integration checklist](docs/RELEASE_INTEGRATION_2026-10-30.md).
+The selected additions are implemented in 8.2.0: signup-based supply planning, approved
+missed-raid catch-up, progressive onboarding, personal calendar export, versioned
+raid playbooks, officer handover/change review, read-only external evidence links,
+member data centre, and explainable bench-rotation suggestions. The checklist
+also tracks accessibility/context/recovery checks and the feature-freeze target.
+Forever's researched upcoming-season timing snapshot is installed. Historical
+season scores remain frozen. Live acceptance and the newer edition-calendar
+initialization are tracked separately from the implemented feature inventory.
+
+## Current stage — 30 October 2026
+
+Guilded **8.4.0 Candidate** is under integration; published baseline is8.3.0.
+
+Guilded **8.4 source candidate** is being integrated on
+`codex/bg-recorder-history-oct30`. The provisional BG pipeline is implemented in
+source: capability-checked Forever postmatch self reports, SavedVariables through
+Companion, independent server consent and paired ownership checks, replay/conflict
+handling, private result cards/history, withdrawal with a reason, and consented
+seasonal player-participation statistics separated by edition, mode and API bracket.
+Conflicts include a bounded explanation. A source-level next-capture shared premade
+code supplies an optional correlation hint; it does not establish a universal match ID.
+
+These additions are **not part of frozen 8.3 files** and are not yet claimed
+deployed or fully accepted. Integrated regression/migration checks, packaging,
+publication and live acceptance remain gates. Verified unique-match totals,
+verified match win rates and additional accepted capture adapters remain gated
+after the live pilot. Current statistics count provisional player reports, not
+unique matches or competitive rating. Forever real-client acceptance cannot
+precede November 4. Other unverified queue formats remain planning-only.
+See the [BG module checkpoint](docs/BATTLEGROUNDS_NEXT_MODULE.md) and
+[integration record](docs/RELEASE_INTEGRATION_2026-10-30.md).
+
+### Historical 8.1 candidate checkpoint
+
+Guilded **8.1.0 Candidate** (protocol 2), prepared for November 4: RCLootCouncil/Gargul history conversion, reviewed in-game confirmation, separate persistent history and undo, raid-signup presentation and public-origin reliability. See [candidate gates](docs/NOV4_RELEASE_CANDIDATE.md). Kevin selected five additional pre-launch features for work on October 30; their implementation and acceptance are tracked below, not claimed complete. Published downloads remain 8.0.2.
+
+## Historical selected pre-launch work — 30 October 2026
+
+These numbers refer to Kevin's seven-item feature discussion, not the older lists
+below. Kevin subsequently targeted a product release today, October 30, and asked
+for a whole-product gap review before finalizing scope. WoW Forever opens November 4.
+The feature branch is held for review/PC-owner coordination, not a release promise.
+See [scope, reuse audit and acceptance checklist](docs/PRELAUNCH_COMMUNITY_2026-10-30.md).
+
+3. **Targeted group/vacancy alerts:** extend existing opt-in group alerts with
+   role/time filters, expiry, quiet hours and strict notification limits.
+4. **Cooperative guild challenges:** reuse canonical dungeon runs and eligible
+   participation; do not count observer uploads as separate runs. Recognition
+   is cosmetic, with no competitive rating, balance or legacy reward changes.
+5. **Optional personal weekly recap:** build on existing report windows and
+   member data; private preview first, explicit opt-in and delivery approval later.
+6. **Companion sync clarity:** show edition, character, watched folder and distinct
+   saved/uploaded/accepted status; preview redacted diagnostics before the existing
+   report handoff. Coordinate integration with the active Companion PRs.
+7. **Weekly community question/poll:** moderator configuration and preview;
+   no automatic activity points or new recurring posts before delivery approval.
+
+Personal dungeon goals (1) and mentoring (2) were **not selected**. All new
+recurring delivery stays inactive until audience, channel and cadence are approved.
+Preserve stable 8.0.2, rc.1 and Store Submission 5 bytes/manual publication hold.
+Release work remains owned by session `01a181ce-30fa-7c60-b973-c385d45d3502`.
+The coordinated continuation in draft PR #282 adds stored `/dungeon watch`
+preferences/private matches, configured `/dungeon together` goals and saved
+`/poll weekly-preview` reviews with Post/Skip/Pause. Automatic alert rollout is
+held; weekly questions require an officer click. The local integration owner
+`01a18c22-fb70-7ea2-8689-7c2a85655ad7` owns items 5/6, combined checks and release.
 
 Published baseline: 8.0.0: security, reliability, ledger storage compaction, versioned Retail overtime scoring, origin isolation, French indexing, accessibility and Core presentation extraction. See [8.0 readiness](docs/V8_0_LAUNCH_READINESS.md) for publication gates and the owner's testing waiver.
 

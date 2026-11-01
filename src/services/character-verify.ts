@@ -113,22 +113,38 @@ export async function linkVerifiedCharacters(database: PrismaClient, guildId: st
     if (!owner) continue;
     const before = claimed.get(`${owner.memberId}\n${key}`);
     if (before === "BLOCKED" || before === "REMOVED") continue;
-    let existing = findCharacter(linked, entry.name, entry.realm, gameEditionOf(entry));
+    const existing = findCharacter(linked, entry.name, entry.realm, gameEditionOf(entry));
     if (existing?.memberId === owner.memberId) {
       // An officer's addon heard the same code: the provisional link is now confirmed.
       if (uploader.officer && before === "PROVISIONAL") await remember(owner.memberId, key, "LINKED");
       continue;
     }
-    let movedFrom: string | undefined;
     if (existing && uploader.officer && claimed.get(`${existing.memberId}\n${key}`) === "PROVISIONAL") {
-      // A member's upload linked it to someone else; the officer's addon heard this code from the
-      // character itself. The officer is right: the character moves, and stays away from them.
+      // Preserve the character ID and all dependent history. Ownership and claims
+      // change together, and concurrent confirmation/correction must not be lost.
       const from = existing;
-      await database.character.delete({ where: { id: from.id } });
-      await remember(from.memberId, key, "REMOVED");
-      linked.splice(linked.indexOf(from), 1);
-      existing = undefined;
-      movedFrom = from.member.discordUserId;
+      const moved = await database.$transaction(async (tx) => {
+        const current = findCharacter(await tx.character.findMany({ where: { member: { guildId } } }), entry.name, entry.realm, gameEditionOf(entry));
+        if (!current || current.id !== from.id || current.memberId !== from.memberId) return null;
+        const provisionalClaim = await tx.characterVerifyClaim.findFirst({ where: { guildId, memberId: from.memberId, nameKey: key, status: "PROVISIONAL" } });
+        if (!provisionalClaim) return null;
+        const blocked = await tx.characterVerifyClaim.findMany({ where: { guildId, memberId: owner.memberId, nameKey: { in: [key] } } });
+        if (blocked.some((claim) => claim.memberId === owner.memberId && (claim.status === "REMOVED" || claim.status === "BLOCKED"))) return null;
+        const isMain = (await tx.character.count({ where: { memberId: owner.memberId, isMain: true } })) === 0;
+        const character = await tx.character.update({ where: { id: from.id }, data: { memberId: owner.memberId, isMain } });
+        for (const [memberId, status] of [[from.memberId, "REMOVED"], [owner.memberId, "LINKED"]] as const) {
+          await tx.characterVerifyClaim.upsert({
+            where: { guildId_memberId_nameKey: { guildId, memberId, nameKey: key } },
+            create: { guildId, memberId, nameKey: key, status }, update: { status }
+          });
+        }
+        return character;
+      }, { isolationLevel: "Serializable" });
+      if (moved) {
+        linked.splice(linked.indexOf(from), 1, { ...from, memberId: owner.memberId, member: { discordUserId: owner.member.discordUserId } });
+        results.push({ discordUserId: owner.member.discordUserId, name: entry.name, status: "linked", isMain: moved.isMain, movedFrom: from.member.discordUserId });
+      }
+      continue;
     }
     if (existing) {
       // A member's upload says nothing about taken characters: only an officer's is sure enough.
@@ -144,7 +160,7 @@ export async function linkVerifiedCharacters(database: PrismaClient, guildId: st
     const created = await database.character.findFirst({ where: { memberId: owner.memberId, name: entry.name, realm: entry.realm, gameEdition: gameEditionOf(entry) }, select: { id: true, isMain: true } });
     linked.push({ id: created?.id ?? "", name: entry.name, realm: entry.realm, memberId: owner.memberId, gameEdition: gameEditionOf(entry), member: { discordUserId: owner.member.discordUserId } });
     results.push({ discordUserId: owner.member.discordUserId, name: entry.name, status: "linked", isMain: created?.isMain ?? false,
-      ...(reporter ? { reportedBy: reporter.discordUserId } : {}), ...(movedFrom ? { movedFrom } : {}) });
+      ...(reporter ? { reportedBy: reporter.discordUserId } : {}) });
   }
   return results;
 }

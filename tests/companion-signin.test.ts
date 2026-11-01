@@ -290,8 +290,11 @@ describe("companion engine sign-in", () => {
   it("gives the bot the app's local port and brings back the proof once it arrives", async () => {
     const fetch = vi.fn().mockResolvedValue(reply(200, { requestId: "r".repeat(43), confirm: "ABC-DEF", url: `${SITE}/me/companion?request=x` }));
     vi.stubGlobal("fetch", fetch);
-    await startSignIn({ uploadUrl: "" }, { loopback: 49152 });
+    expect(await startSignIn({ uploadUrl: "" }, { loopback: 49152 })).toMatchObject({ automatic: false });
     expect(JSON.parse(fetch.mock.calls[0]![1].body)).toEqual({ loopback: 49152 });
+    fetch.mockResolvedValue(reply(200, { requestId: "r".repeat(43), confirm: "ABC-DEF", url: `${SITE}/me/companion?request=x`, loopbackAccepted: true }));
+    expect(await startSignIn({ uploadUrl: "" }, { loopback: 49152 })).toMatchObject({ automatic: true });
+    expect(await startSignIn({ uploadUrl: "" })).toMatchObject({ automatic: false });
     let proof: string | undefined;
     const polls = vi.fn()
       .mockImplementationOnce(async () => { proof = "p".repeat(32); return reply(202, { status: "pending" }); })
@@ -313,7 +316,7 @@ describe("the Windows app's sign-in callback", () => {
       expect((await globalThis.fetch(`http://127.0.0.1:${port}/other?proof=${"a".repeat(32)}`)).status).toBe(404);
       const ok = await globalThis.fetch(`http://127.0.0.1:${port}/guilded-sign-in?proof=${"a".repeat(32)}`);
       expect(ok.status).toBe(200);
-      expect(await ok.text()).toContain("Companion connected");
+      expect(await ok.text()).toContain("Confirming connection");
       await globalThis.fetch(`http://127.0.0.1:${port}/guilded-sign-in?proof=${"b".repeat(32)}`);
       expect(loopback.proof()).toBe("a".repeat(32));
       expect(onProof).toHaveBeenCalled();

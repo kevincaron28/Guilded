@@ -50,6 +50,7 @@ export async function computeRaidEpProposal(database: Db, guildId: string, raidI
   const completionBonus = fullClear ? rules.completionEp : 0;
 
   const rows: EpProposalRow[] = raid.attendance
+    .filter((row) => !raid.isTest || row.member.isTest)
     .filter((row) => row.status === "PRESENT" || row.status === "LATE" || row.status === "BENCHED")
     .map((row) => ({
       memberId: row.memberId,

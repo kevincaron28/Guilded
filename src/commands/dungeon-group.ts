@@ -105,7 +105,9 @@ async function matchingAlertUsers(guildId: string, group: AlertGroup, alreadyPin
     where: { guildId, kinds: { has: group.kind } },
     include: { member: { select: { discordUserId: true, characters: { select: { level: true } } } } }
   });
-  return alertRecipients(group, alerts.map((alert) => ({
+  // Advanced subscribers use the bounded delivery path; never also mention them
+  // through this older unbounded per-post matching path.
+  return alertRecipients(group, alerts.filter(alert => !alert.subscription).map((alert) => ({
     discordUserId: alert.member.discordUserId, kinds: alert.kinds, roles: alert.roles, levels: alert.member.characters.map((c) => c.level)
   })), alreadyPinged);
 }

@@ -592,3 +592,13 @@ controls official dates centrally. [Guide and verified sources](docs/GAME_COUNTD
 Événements à venir : `/events board`, `/events status`, `/events refresh`, `/events reminders`,
 `/events disable` (Gérer le serveur requis). Rappels volontaires par rôle de jeu ; aucune
 activation automatique. Seul le propriétaire du bot gère les dates officielles.
+
+## Optional battleground Discord setup
+
+Officers: `/setup start status:true` → **Battlegrounds (optional)** → **Install / repair panels** (French: **JcJ (facultatif)** → **Installer / réparer les panneaux**). This module is excluded from normal setup and Create missing channels.
+
+The module saves guild-scoped category, groups/results/statistics channel and panel IDs. Repeat installs update the same static panels. Existing channel history and access remain unchanged. Creating channels needs Manage Channels and a configured member role; otherwise use the three existing-channel menus. Each selection installs only its own panel. Missing pin permission leaves a manual-pin instruction. Channels owned by another guild scope are rejected; ambiguous unsaved categories require manual selection.
+
+`/bg setup` displays guidance only. Installation does not enable capture, member consent, recurring results, rankings or awards. Each player chooses `/bg privacy`. Statistics describe provisional player participations, not certified unique matches or MMR.
+
+Repair bounds: concurrent installs are serialized within the bot process. A lost message ID can be recovered from pinned messages or the most recent 100 messages; keep guides pinned. If category creation succeeds but saving its ID fails, choose its channels manually instead of creating a second category. Never run multiple bot workers as concurrent setup writers.

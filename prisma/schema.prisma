@@ -121,6 +121,14 @@ enum ApplicationStatus {
 }
 
 model Guild {
+  battlegroundReports BattlegroundReport[]
+  battlegroundConsents BattlegroundConsent[]
+  recurringRecaps RecurringRecap[]
+  cooperativeGoal CooperativeGoal?
+  weeklyQuestionPlan WeeklyQuestionPlan?
+  weeklyQuestionReviews WeeklyQuestionReview[]
+  weeklyQuestionOccurrences WeeklyQuestionOccurrence[]
+  targetedAlertAttempts TargetedAlertAttempt[]
   wowSelections WowGuildSelection[]
   wowChannels WowGuildChannel[]
   scopeKey            String @default("default")
@@ -420,6 +428,11 @@ model CommunityParticipationDeletion {
 
 
 model Member {
+  battlegroundReports BattlegroundReport[]
+  battlegroundConsent BattlegroundConsent?
+  recurringRecap RecurringRecap?
+  supplyPledges RaidSupplyPledge[]
+  targetedAlertAttempts TargetedAlertAttempt[]
   webAvailability WebAvailability?
   activityCoreSpots   ActivityCoreMember[]
   activityResponses  ActivityResponse[]
@@ -468,6 +481,7 @@ model Member {
 }
 
 model Character {
+  battlegroundReports BattlegroundReport[]
   webAvailability WebAvailability[]
   guildId            String
   gameEdition        String @default("forever")
@@ -779,6 +793,10 @@ model WowGuildChannel {
 }
 
 model GuildSettings {
+  // New targeted alerts remain held until audience/channel/cadence approval.
+  targetedAlertsEnabled Boolean @default(false)
+  targetedAlertsAutomationApprovedBy String?
+  targetedAlertsChannelId String?
   pugChannelId             String?
   pugMessageId             String?
   poeTrackingEnabled Boolean @default(false)
@@ -852,6 +870,13 @@ model GuildSettings {
   onboardingNudge          Boolean   @default(false)
   // Dungeon Challenge: announcements channel and point rules (JSON; missing
   // keys use the built-in defaults).
+  bgCategoryId             String?
+  bgGroupsChannelId        String?
+  bgResultsChannelId       String?
+  bgStatsChannelId         String?
+  bgGroupsMessageId        String?
+  bgResultsMessageId       String?
+  bgStatsMessageId         String?
   dungeonChannelId         String?
   dungeonConfig            Json?
   // Monthly dungeon seasons (opt-in; src/services/dungeon-season-schedule.ts).
@@ -990,6 +1015,7 @@ model ReadinessFinding {
 }
 
 model Raid {
+  planningRevisions RaidPlanRevision[]
   // Explicit opt-in for this occurrence only; weekly successors start private.
   publicPug       Boolean          @default(false)
   pugRealm        String?
@@ -1197,6 +1223,33 @@ model RaidNote {
   raid      Raid     @relation(fields: [raidId], references: [id], onDelete: Cascade)
 
   @@index([raidId, createdAt])
+}
+
+// Explicitly approved member-facing plans; never reuse private RaidNote records.
+model RaidPlanRevision {
+  id String @id @default(cuid())
+  raidId String
+  kind String
+  revision Int
+  active Boolean @default(true)
+  payload Json
+  approvedBy String
+  approvedAt DateTime @default(now())
+  raid Raid @relation(fields: [raidId], references: [id], onDelete: Cascade)
+  pledges RaidSupplyPledge[]
+  @@unique([raidId, kind, revision])
+}
+
+model RaidSupplyPledge {
+  revisionId String
+  memberId String
+  itemIndex Int
+  quantity Int
+  delivered Int @default(0)
+  updatedAt DateTime @updatedAt
+  revision RaidPlanRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  @@id([revisionId, memberId, itemIndex])
 }
 
 enum BankRequestStatus {
@@ -1725,6 +1778,8 @@ model DungeonGroupSignup {
 // A member's group alerts (5.0): ping me in the group finder when a group of these kinds is
 // posted that my linked characters' level fits and that still needs one of my roles.
 model GroupAlert {
+  // Explicit advanced subscription; null retains the legacy panel behavior.
+  subscription Json?
   id        String   @id @default(cuid())
   guildId   String
   memberId  String   @unique
@@ -1870,6 +1925,7 @@ model CompanionCredential {
 
 // Weekly dungeon/PvP teams deliberately have no loot or point-pool relations.
 model ActivityCore {
+  battlegroundPlan Json?
   id              String @id @default(cuid())
   guildId         String
   name            String
@@ -2317,4 +2373,136 @@ model CommunityBadgeSharing {
   shared Boolean @default(false)
   season CommunitySeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   @@id([seasonId, userId])
+}
+
+// Cosmetic, read-only progress. Frozen scope/rules; no point ledger relation.
+model CooperativeGoal {
+  guildId String @id
+  seasonId String
+  edition String
+  seasonStartsAt DateTime
+  seasonEndsAt DateTime?
+  target Int
+  metric String
+  startsAt DateTime
+  endsAt DateTime
+  rules Json
+  rulesHash String
+  paused Boolean @default(false)
+  createdBy String
+  updatedAt DateTime @updatedAt
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+}
+
+// ATTEMPTED/UNCERTAIN is never retried automatically: Discord may have accepted.
+model TargetedAlertAttempt {
+  id String @id @default(cuid())
+  guildId String
+  memberId String
+  eventKey String
+  channelId String
+  status String @default("ATTEMPTED")
+  attemptedAt DateTime @default(now())
+  messageId String?
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  @@unique([guildId, memberId, eventKey])
+  @@index([guildId, memberId, attemptedAt])
+}
+
+model WeeklyQuestionPlan {
+  automation Json?
+  guildId String @id
+  settings Json
+  revision Int @default(1)
+  paused Boolean @default(false)
+  createdBy String
+  updatedAt DateTime @updatedAt
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+}
+
+model RecurringRecap {
+  memberId String @id
+  guildId String
+  settings Json
+  enabled Boolean @default(false)
+  revision Int @default(1)
+  lastPeriod String?
+  lastAttemptAt DateTime?
+  status String @default("OFF")
+  messageId String?
+  updatedAt DateTime @updatedAt
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  @@index([enabled, guildId])
+}
+
+model WeeklyQuestionReview {
+  id String @id @default(cuid())
+  guildId String
+  actorId String
+  revision Int
+  weekKey String
+  expiresAt DateTime
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  @@index([guildId, expiresAt])
+}
+
+model WeeklyQuestionOccurrence {
+  id String @id @default(cuid())
+  guildId String
+  weekKey String
+  status String
+  pollId String?
+  channelId String
+  messageId String?
+  createdAt DateTime @default(now())
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  @@unique([guildId, weekKey])
+}
+
+model BattlegroundConsent {
+  memberId String @id
+  guildId String
+  capture Boolean @default(false)
+  guildStats Boolean @default(false)
+  consentedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  @@index([guildId, guildStats])
+}
+
+model BattlegroundReport {
+  id String @id @default(cuid())
+  guildId String
+  memberId String
+  characterId String
+  reportId String
+  adapter String
+  gameEdition String
+  mode String
+  mapId Int
+  bracket String
+  endedAt DateTime
+  durationSeconds Int
+  outcome String
+  presence String
+  reloaded Boolean
+  premadeNonce String?
+  corroborated Boolean @default(false)
+  fingerprint String
+  status String @default("PROVISIONAL")
+  correctionReason String?
+  correctedAt DateTime?
+  conflictFingerprint String?
+  conflictSummary String?
+  createdAt DateTime @default(now())
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  @@unique([guildId, memberId, reportId])
+  @@index([guildId, gameEdition, endedAt])
+  @@index([memberId, endedAt])
+  @@index([guildId, premadeNonce])
 }

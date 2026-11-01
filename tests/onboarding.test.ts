@@ -4,6 +4,8 @@ import { MessageFlags } from "discord.js";
 const db = vi.hoisted(() => ({
   memberOnboarding: { findUnique: vi.fn(), upsert: vi.fn() },
   character: { count: vi.fn(), findMany: vi.fn() },
+  professionSkill: { count: vi.fn() },
+  raidSignup: { count: vi.fn() },
   characterVerifyCode: { upsert: vi.fn() },
   guild: { findUnique: vi.fn() }
 }));
@@ -74,12 +76,22 @@ beforeEach(() => {
   db.memberOnboarding.findUnique.mockReset().mockResolvedValue(null);
   db.memberOnboarding.upsert.mockReset().mockResolvedValue({});
   db.character.count.mockReset().mockResolvedValue(0);
+  db.professionSkill.count.mockReset().mockResolvedValue(0);
+  db.raidSignup.count.mockReset().mockResolvedValue(0);
   db.character.findMany.mockReset().mockResolvedValue([]);
   db.characterVerifyCode.upsert.mockReset().mockResolvedValue({ code: "ABCDEFGH" });
   db.guild.findUnique.mockReset().mockResolvedValue({ officerSyncAt: new Date() });
 });
 
 describe("onboarding checklist", () => {
+  it("shows optional progress without making professions or a first raid an access gate", () => {
+    const progress = { rules: true, games: true, character: true, professions: false, firstRaid: false };
+    expect(onboardingIncomplete(progress)).toBe(false);
+    const text = checklistText(progress, "en", "Guild");
+    expect(text).toContain("⬜ Share your professions (optional)");
+    expect(text).toContain("⬜ Confirm your first raid signup (optional)");
+    expect(text).toContain("Your Discord access is ready");
+  });
   it("is incomplete while the rules or the games are open", () => {
     expect(onboardingIncomplete({ rules: false, games: true, character: true })).toBe(true);
     expect(onboardingIncomplete({ rules: true, games: false, character: true })).toBe(true);

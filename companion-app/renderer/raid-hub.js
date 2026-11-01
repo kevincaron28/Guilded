@@ -105,7 +105,7 @@
     const priceRows=[...merged.values()].map(p=>el('tr',{},el('th',{scope:'row',text:p.name}),el('td',{text:p.key||String(p.id||'')}),el('td',{text:String(p.gp)}),el('td',{text:T(p.source)})));
     host.append(el('article',{class:'panel'},el('h2',{text:T('Item overrides')}),
       priceRows.length?table(['Item','Identity','GP','Source'],priceRows):text(T('No item overrides. Equipment uses the slot table.')),
-      text(T('Edit individual items in Cores & prices. Use id:12345 for every copy, or id:12345@ilvl:100 for that item level. Named overrides remain supported.'))));
+      text(T('Edit individual item exceptions in Roster & loot settings. Use id:12345 for every copy, or id:12345@ilvl:100 for that item level. Named overrides remain supported.'))));
     const mine=c.leaderboard?.find(row=>row.me);
     const ep=el('input',{type:'number',min:0,step:1,value:String(mine?.ep??100),'aria-label':'EP'});
     const gp=el('input',{type:'number',min:0,step:1,value:String(mine?.gp??0),'aria-label':'GP'});

@@ -27,7 +27,7 @@ function startSignInLoopback({ onProof = () => {}, page = defaultPage } = {}) {
 
 function defaultPage() {
   return `<!doctype html><meta charset="utf-8"><title>Guilded Companion</title><body style="font-family:system-ui,sans-serif;max-width:32em;margin:3em auto;padding:0 1em">`
-    + `<h1>Companion connected / Compagnon relié</h1><p>You can close this tab and go back to Guilded Companion.</p><p>Vous pouvez fermer cet onglet et revenir à Guilded Companion.</p>`;
+    + `<h1>Confirming connection / Confirmation en cours</h1><p>Return to Guilded Companion to check that sign-in finishes successfully.</p><p>Revenez à Guilded Companion pour vérifier que la connexion se termine correctement.</p>`;
 }
 
 module.exports = { startSignInLoopback };

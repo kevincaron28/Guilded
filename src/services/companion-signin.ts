@@ -205,7 +205,8 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
         if (!proof) return expired();
         // Back to the app on this PC. A meta refresh, because a redirect after a form post would break form-action 'self'.
         const back = `http://127.0.0.1:${loopback}/guilded-sign-in?proof=${encodeURIComponent(proof)}`;
-        return kit.page(200, title, `<meta http-equiv="refresh" content="0;url=${escapeHtml(back)}">${connected}<p><a class="button" href="${escapeHtml(back)}">${t("Back to Guilded Companion", "Retour à Guilded Companion")}</a></p>`, { noindex: true });
+        const pending = `<h1>${t("Finish connecting in Guilded Companion", "Terminez la connexion dans Guilded Companion")}</h1><p>${t("Your account choice is approved. Return to the companion to complete and verify this device’s connection.", "Votre choix de compte est approuvé. Revenez au compagnon pour terminer et vérifier la connexion de cet appareil.")}</p>`;
+        return kit.page(200, title, `<meta http-equiv="refresh" content="0;url=${escapeHtml(back)}">${pending}<p><a class="button" href="${escapeHtml(back)}">${t("Back to Guilded Companion", "Retour à Guilded Companion")}</a></p>`, { noindex: true });
       }
       const grant = await issue();
       if (!grant) return notAvailable();

@@ -44,7 +44,7 @@ const customId = (action: Action, discordGuildId: string) => `${ONBOARD_PREFIX}$
 type StepSettings = Pick<GuildSettings, "welcomeRoleIds" | "rulesChannelId">;
 
 // Each step: done, not done, or null when this server does not use it.
-export interface OnboardingProgress { rules: boolean | null; games: boolean | null; character: boolean }
+export interface OnboardingProgress { rules: boolean | null; games: boolean | null; character: boolean; professions?: boolean; firstRaid?: boolean }
 
 export function rulesGateActive(settings: Pick<GuildSettings, "rulesGate" | "rulesChannelId">): boolean {
   return settings.rulesGate && !!settings.rulesChannelId;
@@ -73,6 +73,8 @@ export function checklistText(progress: OnboardingProgress, lang: Lang, guildNam
   if (progress.rules !== null) lines.push(`${mark(progress.rules)} ${t(lang, "onboard.steps.rules")}`);
   if (progress.games !== null) lines.push(`${mark(progress.games)} ${t(lang, "onboard.steps.games")}`);
   lines.push(`${mark(progress.character)} ${t(lang, "onboard.steps.characterOptional")}`);
+  if (progress.professions !== undefined) lines.push(`${mark(progress.professions)} ${t(lang, "onboard.steps.professionsOptional")}`);
+  if (progress.firstRaid !== undefined) lines.push(`${mark(progress.firstRaid)} ${t(lang, "onboard.steps.firstRaidOptional")}`);
   lines.push("", t(lang, onboardingIncomplete(progress) ? "onboard.steps.next" : "onboard.steps.done"));
   return lines.join("\n");
 }
@@ -139,10 +141,16 @@ export async function rulesPending(guildId: string, settings: Pick<GuildSettings
 
 async function loadProgress(guildId: string, settings: GuildSettings, member: GuildMember): Promise<OnboardingProgress> {
   const roles = offeredRoles(settings, member.guild);
+  const owner = { guildId, discordUserId: member.id };
+  const [characters, professions, firstRaid] = await Promise.all([
+    prisma.character.count({ where: { member: owner } }),
+    prisma.professionSkill.count({ where: { character: { member: owner } } }),
+    prisma.raidSignup.count({ where: { member: owner, status: "SIGNED_UP", raid: { guildId, isTest: false, status: { not: "CANCELLED" } } } })
+  ]);
   return {
     rules: settings.rulesChannelId ? await rulesAccepted(guildId, member.id) : null,
     games: roles.length > 0 ? roles.some((role) => member.roles.cache.has(role.id)) : null,
-    character: (await prisma.character.count({ where: { member: { guildId, discordUserId: member.id } } })) > 0
+    character: characters > 0, professions: professions > 0, firstRaid: firstRaid > 0
   };
 }
 

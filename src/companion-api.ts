@@ -37,6 +37,11 @@ import { serveCompanionWeb } from "./services/companion-web.js";
 import { createGuildPageServer, loadGuildPageView } from "./services/guild-page.js";
 import type { Client } from "discord.js";
 import { companionAccess, personalSnapshot } from "./services/companion-access.js";
+import { createMemberData, memberDataStore } from "./services/member-data.js";
+import { createPersonalCalendar, personalCalendarStore } from "./services/personal-calendar.js";
+import { createOfficerHandover, officerHandoverStore } from "./services/officer-handover.js";
+import { raidPlanningStore } from "./services/raid-planning.js";
+import { createRaidPlanning } from "./services/raid-planning-page.js";
 import { readFileSync } from "node:fs";
 import { ZodError } from "zod";
 import { addonCharacterSchema } from "./integrations/addon.js";
@@ -251,11 +256,15 @@ export function createSiteApp(client?: Client) {
   });
   const badges = createWebCommunityBadges(prisma, client, id => hostedPilot.allows(id));
   const devices = createDevicePages(prismaDeviceStore(prisma));
+  const memberData = createMemberData(memberDataStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")));
+  const raidPlanning = createRaidPlanning(raidPlanningStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)), client));
+  const handover = createOfficerHandover(officerHandoverStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))));
+  const personalCalendar = createPersonalCalendar(personalCalendarStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), client));
   const battleNet = createBattleNetPage(prismaBattleNetStore(prisma), battleNetConfig(config));
   const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, leaderboards.route, directory.route, profiles.route];
   const meSections = [badges.meSection, profiles.meSection, availability.meSection, roster.meSection, guildTools.meSection, leaderboards.meSection];
-  routes.unshift(devices.route, battleNet);
-  meSections.push(devices.meSection);
+  routes.unshift(devices.route, battleNet, memberData.route, personalCalendar.route, handover.route, raidPlanning.route);
+  meSections.push(devices.meSection, memberData.meSection, personalCalendar.meSection, handover.meSection, raidPlanning.meSection);
   return createWebApp({
     publicRaids: now => publicRaids(prisma, hostedPilot.allows, now),
     store: prismaWebStore(prisma), auth: webAuthConfig(config), allows: (id) => hostedPilot.allows(id), routes, meSections,
@@ -391,6 +400,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const isStandings = request.method === "GET" && url.pathname === "/api/v1/standings";
       const isPoeUpload = request.method === "POST" && url.pathname === "/api/v1/poe/visits";
       const isPublicRuns = request.method === "POST" && url.pathname === "/api/v1/public-runs";
+      const isPersonalStatus = request.method === "GET" && url.pathname === "/api/v1/companion/personal-status";
       const isPoeStatus = request.method === "GET" && url.pathname === "/api/v1/poe/status";
       const isPoeRecent = request.method === "GET" && url.pathname === "/api/v1/poe/visits";
       const isLogout = request.method === "POST" && url.pathname === "/api/v1/companion/logout";
@@ -399,7 +409,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // The companion's own pages: wishlists for members; prices, core rules and rosters for Raid Leaders.
       const isManageView = request.method === "GET" && url.pathname === "/api/v1/manage";
       const isManageEdit = request.method === "POST" && url.pathname === "/api/v1/manage";
-      if (!isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isStandings && !isPoeUpload && !isPoeStatus && !isPoeRecent && !isLogout && !isManageView && !isManageEdit) {
+      if (!isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isStandings && !isPoeUpload && !isPoeStatus && !isPoeRecent && !isLogout && !isManageView && !isManageEdit) {
         json(response, 404, { error: "Not found" });
         return;
       }
@@ -429,7 +439,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         if (!started) { json(response, 503, { error: "Too many sign-ins in progress. Try again in a few minutes." }); return; }
         const page = new URL("/me/companion", auth.siteUrl);
         page.searchParams.set("request", started.requestId);
-        json(response, 200, { requestId: started.requestId, confirm: started.confirm, expiresAt: started.expiresAt.toISOString(), url: page.href });
+        json(response, 200, { requestId: started.requestId, confirm: started.confirm, expiresAt: started.expiresAt.toISOString(), url: page.href, loopbackAccepted: companionSignIn.loopbackFor(started.requestId) !== null });
         return;
       }
       if (isSignInPoll) {
@@ -479,6 +489,13 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           recordFailure(address); json(response, 401, { error: "Pairing code is invalid, expired, or already used. Run /character pair again." }); return;
         }
         json(response, 200, { ...result, guildDiscordId: serverId });
+        return;
+      }
+      if (isPersonalStatus) {
+        const secret = request.headers["x-companion-credential"];
+        const account = await personalAccess(personalStore, typeof secret === "string" ? secret : undefined);
+        if (!account) { recordFailure(address); json(response, 401, { error: "This personal companion link is no longer valid. Sign in again." }); return; }
+        json(response, 200, { ok: true, scope: "personal" });
         return;
       }
       if (isPublicRuns) {

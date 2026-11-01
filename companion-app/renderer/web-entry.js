@@ -1,4 +1,10 @@
+import { profileEditionLabel, profileSiteHref } from "../../companion/presentation.mjs";
+window.guildedProfileEditionLabel = profileEditionLabel;
+window.guildedProfileSiteHref = profileSiteHref;
 import { companionOverview } from "../../companion/overview.mjs";
+import { syncStatus, syncDiagnosticPreview } from "../../companion/sync-status.mjs";
+window.guildedSyncStatus = syncStatus;
+window.guildedSyncDiagnosticPreview = syncDiagnosticPreview;
 import { createLanguageUI } from './language.js';
 let storage;
 try { storage = window.localStorage; } catch { /* language still works */ }

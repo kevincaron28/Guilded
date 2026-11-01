@@ -95,15 +95,19 @@ describe("Backup.lua", () => {
     expect(s.run(`return tostring(DB.settings.activeCore) .. ":" .. tostring(DB.settings.chatTab) .. ":" .. DB.settings.panelPoint[1]`)).toBe("nil:false:TOP");
   });
 
-  it("accepts the same guild seen under another realm text (WoW Forever segments)", () => {
+  it("requires an explicit Forever alias for another realm and rejects another edition", () => {
     const s = withBackup();
     const code = s.run(`return NS.backup.build()`);
     const check = (input: string) => s.run(`local info, err = NS.backup.inspect(${JSON.stringify(input)}); return tostring(info ~= nil) .. "|" .. tostring(err)`);
     // 16 October: one PC said "Classic Beta PvP", the other "Classic Beta PvP 2" for one guild.
     s.run(`DB.guildKey = "Alpha-Realm 2"`);
+    expect(check(code)).toContain("from guild Alpha-Realm");
+    s.run(`DB.settings.guildRealmAliases = { ["Alpha-Realm"] = "Alpha-Realm 2" }`);
     expect(check(code)).toBe("true|nil");
     s.run(`DB.guildKey = "Beta-Realm 2"`);
     expect(check(code)).toContain("from guild Alpha-Realm");
+    s.run(`DB.guildKey = "Alpha-Realm"; GetBuildInfo=function() return "12.1.5","12345","date",120105 end`);
+    expect(check(code)).toContain("different WoW edition");
   });
 
   it("keeps what was there so a restore can be undone", () => {

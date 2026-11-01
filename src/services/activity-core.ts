@@ -3,6 +3,7 @@ import { enqueueDiscordJob } from "./discord-jobs.js";
 import { parseWeeklySchedule, weeklyOccurrences, weeklyScheduleText } from "./core-weekly-time.js";
 import { isValidTimeZone } from "./raid-time.js";
 import { ownedSignupCharacter } from "./signup-character.js";
+import { assertBattlegroundCharacter, assertBattlegroundStart, readBattlegroundPlan } from "./battleground-policy.js";
 
 export const TEAM_ROLES: RaidRole[] = ["TANK", "HEALER", "DPS"];
 export const RESPONSE_STATES = ["CONFIRMED", "ABSENT", "TENTATIVE"] as const;
@@ -41,7 +42,8 @@ export async function withTeam<T>(db: PrismaClient, guildId: string, id: string,
   }, { timeout: 15_000, maxWait: 15_000 });
 }
 
-export async function queueTeam(db: Pick<PrismaClient, "discordJob">, core: Pick<ActivityCore, "id" | "guildId">) {
+export async function queueTeam(db: Pick<PrismaClient, "discordJob">, core: Pick<ActivityCore, "id" | "guildId"> & { battlegroundPlan?: unknown }) {
+  if (core.battlegroundPlan != null) return; // BG publication has no audience opt-in yet.
   await enqueueDiscordJob(db, core.guildId, `team-roster:${core.id}`, "TEAM_ROSTER", { coreId: core.id });
 }
 export async function queueSession(db: Pick<PrismaClient, "discordJob">, guildId: string, sessionId: string) {
@@ -72,6 +74,8 @@ export async function setTeamMember(db: PrismaClient, guildId: string, coreId: s
     if (!member) throw new Error("Member not found in this server.");
     const previous = core.members.find(m => m.memberId === memberId);
     const chosen = await ownedSignupCharacter(tx, guildId, memberId, character ?? previous?.characterId);
+    const bg = readBattlegroundPlan(core.battlegroundPlan);
+    if (bg) throw new Error("BG members join themselves with /bg join / Inscription personnelle avec /bg join.");
     await tx.activityCoreMember.upsert({ where: { coreId_memberId: { coreId, memberId } },
       create: { coreId, memberId, role, bench, characterId: chosen.id }, update: { role, bench, characterId: chosen.id } });
     await queueTeam(tx, core);
@@ -115,12 +119,12 @@ async function rebalance(tx: Tx, sessionId: string) {
 async function refreshPlanned(tx: Tx, core: ActivityCore) {
   for (const session of await tx.activitySession.findMany({ where: { coreId: core.id, status: "PLANNED" } })) {
     await rebalance(tx, session.id);
-    await queueSession(tx, core.guildId, session.id);
+    if (core.battlegroundPlan == null) await queueSession(tx, core.guildId, session.id);
   }
 }
 
 export async function respondToSession(db: PrismaClient, guildId: string, sessionId: string, memberId: string,
-  status: TeamResponse, role?: RaidRole | null, character?: string | null, now = new Date()) {
+  status: TeamResponse, role?: RaidRole | null, character?: string | null, now = new Date(), bgConfirmation?: { normalRealm: boolean; faction: string }) {
   if (!RESPONSE_STATES.includes(status)) throw new Error("Invalid response.");
   const source = await db.activitySession.findFirst({ where: { id: sessionId, core: { guildId } } });
   if (!source) throw new Error("Session not found in this server.");
@@ -136,13 +140,18 @@ export async function respondToSession(db: PrismaClient, guildId: string, sessio
     // Absence/tentative still works if a player deleted their linked character.
     const chosen = status === "CONFIRMED" || character
       ? await ownedSignupCharacter(tx, guildId, memberId, character ?? previous?.characterId ?? roster?.characterId) : null;
+    const bg = readBattlegroundPlan(core.battlegroundPlan);
+    if (bg && chosen) assertBattlegroundCharacter(bg, chosen);
+    if (bg && status === "CONFIRMED" && (!bgConfirmation?.normalRealm || bgConfirmation.faction !== bg.faction)) {
+      throw new Error("Confirm normal realm and faction with /bg join / Confirmez royaume normal et faction avec /bg join.");
+    }
     const data = { status, role: selectedRole, ...(chosen ? { characterId: chosen.id } : {}),
       ...(previous?.lineupOverride === "SELECTED" && (status !== "CONFIRMED" || previous.role !== selectedRole) ? { lineupOverride: null } : {}),
       ...(!previous || previous.status === "ABSENT" || previous.status === "TENTATIVE" ? { respondedAt: now } : {}) };
     await tx.activityResponse.upsert({ where: { sessionId_memberId: { sessionId, memberId } },
       create: { sessionId, memberId, ...data }, update: data });
     await rebalance(tx, sessionId);
-    await queueSession(tx, guildId, sessionId);
+    if (core.battlegroundPlan == null) await queueSession(tx, guildId, sessionId);
     const response = await tx.activityResponse.findUniqueOrThrow({ where: { sessionId_memberId: { sessionId, memberId } } });
     const conflicts = status === "CONFIRMED" ? await tx.activityResponse.findMany({ where: {
       memberId, status: "CONFIRMED", sessionId: { not: sessionId }, session: { core: { guildId },
@@ -160,7 +169,7 @@ export async function fillTeamSessions(db: PrismaClient, guildId: string, coreId
       if (await tx.activitySession.findUnique({ where: { coreId_occurrence: { coreId, occurrence: slot.key } } })) continue;
       const session = await tx.activitySession.create({ data: { coreId, occurrence: slot.key, scheduledAt: slot.scheduledAt,
         endsAt: new Date(slot.scheduledAt.getTime() + core.durationMinutes * 60_000) } });
-      await queueSession(tx, guildId, session.id);
+      if (core.battlegroundPlan == null) await queueSession(tx, guildId, session.id);
       created.push(session.id);
     }
     return created;
@@ -170,6 +179,7 @@ export async function fillTeamSessions(db: PrismaClient, guildId: string, coreId
 export async function updateTeamSchedule(db: PrismaClient, guildId: string, coreId: string, schedule: string, timezone: string, duration: number) {
   return withTeam(db, guildId, coreId, async (tx, core) => {
     if (core.archived) throw new Error("This team is archived.");
+    if (core.battlegroundPlan != null) throw new Error("BG sessions are one-off / Les séances JcJ sont ponctuelles.");
     await tx.activityCore.update({ where: { id: coreId }, data: scheduleData(schedule, timezone, duration) });
     await queueTeam(tx, core);
     // Published occurrences keep their time, identity and responses. Cancel them individually.
@@ -186,12 +196,21 @@ export async function manageSession(db: PrismaClient, guildId: string, sessionId
     if (core.archived || session.status === "COMPLETED" || session.status === "CANCELLED") throw new Error("This session is closed.");
     if ((action === "open" || action === "close" || action === "start") && session.status !== "PLANNED") throw new Error("This session has already started.");
     if (action === "start" && session.endsAt <= now) throw new Error("This session has already ended; cancel it or record its result.");
+    const bg = readBattlegroundPlan(core.battlegroundPlan);
+    if (action === "start" && bg) {
+      const lineup = await tx.activityResponse.findMany({ where: { sessionId, status: "CONFIRMED" }, include: { character: true } });
+      for (const player of lineup) {
+        if (!player.character || player.character.memberId !== player.memberId || player.character.guildId !== guildId) throw new Error("BG character ownership changed / Propriétaire du personnage JcJ modifié.");
+        assertBattlegroundCharacter(bg, player.character);
+      }
+      assertBattlegroundStart(bg, lineup);
+    }
     if (action === "complete" && session.scheduledAt > now) throw new Error("A future session cannot be completed.");
     const data: Prisma.ActivitySessionUpdateInput = action === "open" || action === "close"
       ? { openRecruitment: action === "open" }
       : { status: action === "start" ? "ACTIVE" : action === "complete" ? "COMPLETED" : "CANCELLED", ...(result ? { result: result.slice(0, 500) } : {}) };
     await tx.activitySession.update({ where: { id: sessionId }, data });
-    await queueSession(tx, guildId, sessionId);
+    if (core.battlegroundPlan == null) await queueSession(tx, guildId, sessionId);
   });
 }
 
@@ -210,7 +229,7 @@ export async function selectTeamLineup(db: PrismaClient, guildId: string, sessio
     }
     await tx.activityResponse.update({ where: { sessionId_memberId: { sessionId, memberId } }, data: { lineupOverride: selection === "AUTO" ? null : selection } });
     await rebalance(tx, sessionId);
-    await queueSession(tx, guildId, sessionId);
+    if (core.battlegroundPlan == null) await queueSession(tx, guildId, sessionId);
   });
 }
 
@@ -228,7 +247,7 @@ export async function recordTeamAttendance(db: PrismaClient, guildId: string, se
       // A leader can record an actual no-show or late arrival without inventing an RSVP.
       await tx.activityResponse.create({ data: { sessionId, memberId, role: spot.role, characterId: spot.characterId, status: "UNANSWERED", attendance } });
     }
-    await queueSession(tx, guildId, sessionId);
+    if (core.battlegroundPlan == null) await queueSession(tx, guildId, sessionId);
   });
 }
 
@@ -237,7 +256,7 @@ export async function archiveTeam(db: PrismaClient, guildId: string, coreId: str
     const future = await tx.activitySession.findMany({ where: { coreId, status: { in: ["PLANNED", "ACTIVE"] } } });
     await tx.activitySession.updateMany({ where: { id: { in: future.map(s => s.id) } }, data: { status: "CANCELLED" } });
     await tx.activityCore.update({ where: { id: coreId }, data: { archived: true, weeklySchedule: null } });
-    for (const session of future) await queueSession(tx, guildId, session.id);
+    for (const session of future) if (core.battlegroundPlan == null) await queueSession(tx, guildId, session.id);
     await queueTeam(tx, core);
   });
 }
@@ -245,6 +264,7 @@ export async function archiveTeam(db: PrismaClient, guildId: string, coreId: str
 export async function runTeamSchedules(db: PrismaClient, guildId: string, onError: (error: unknown) => void, now = new Date()) {
   const cores = await db.activityCore.findMany({ where: { guildId, archived: false } });
   for (const core of cores) {
+    if (core.battlegroundPlan != null) continue;
     try {
       await fillTeamSessions(db, guildId, core.id, now);
       await withTeam(db, guildId, core.id, async tx => {

@@ -14,7 +14,9 @@ function pathKey(path) {
     catch { const next = dirname(parent); if (next === parent) return resolve(path).replaceAll("\\", "/").toLowerCase(); missing.unshift(basename(parent)); parent = next; }
   }
 }
-const scope = p => `${p.uploadUrl}|${p.wowGuildId || p.guildDiscordId}|${p.personal === true}`;
+// Older grants lack a WoW scope ID. Distinct credentials on one Discord server
+// are not evidence of identical in-game scope; require explicit source routing.
+const scope = p => `${p.uploadUrl}|${p.gameEdition || ""}|${p.wowGuildId || `${p.guildDiscordId}|${p.companionCredential || ""}`}|${p.personal === true}`;
 
 // One writer per destination, with the selected connection taking priority.
 // Other enabled connections still upload and fetch acknowledgements. Switching

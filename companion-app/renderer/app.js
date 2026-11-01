@@ -10,7 +10,7 @@ $('btnNav').addEventListener('click', () => { const open = $('btnNav').getAttrib
 $('navBackdrop').addEventListener('click',closeNavigation);
 document.addEventListener('keydown',event => {
   if (event.key !== 'Tab' || !document.body.classList.contains('nav-open')) return;
-  const focusable = [...document.querySelectorAll('.sidebar button, .sidebar a[href]')].filter(element => !element.hidden);
+  const focusable = [...document.querySelectorAll('.sidebar button, .sidebar a[href], .sidebar summary')].filter(element => !element.hidden && element.getClientRects().length);
   const first = focusable[0], last = focusable.at(-1);
   if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
   else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
@@ -19,7 +19,7 @@ document.addEventListener('keydown',event => { if (event.key === 'Escape' && doc
 desktopNavigation.addEventListener('change',closeNavigation);
 const modeLabel = mode => T(({STANDARD:'Trade / Standard', HARDCORE:'Hardcore', SSF:'Solo self-found', SSF_HARDCORE:'Solo self-found Hardcore'})[mode] || mode || '');
 const fields = ['uploadUrl','guildDiscordId','pairingCode','watchFile','realm','wowGuild','standingsIntervalMinutes','poeLogFile','poeCharacter','poeLeague','poeMode'];
-const names = {status:'Overview',wishlist:'Wishlist',cores:'Cores & prices',pricing:'Raid prices',leaderboards:'Leaderboards',wow:'World of Warcraft',poe:'PoE2 mapping',settings:'Connection & setup',activity:'Activity',help:'Help & privacy'};
+const names = {status:'Home',wishlist:'Wishlist',cores:'Roster & loot settings',pricing:'Raid prices',leaderboards:'Leaderboards',wow:'World of Warcraft',poe:'PoE2 mapping',settings:'Sync & setup',activity:'Activity',help:'Help & privacy'};
 let lastSnapshot;
 let savedConfig = {};
 let entries = [];
@@ -34,6 +34,8 @@ function ago(iso) {
 }
 function showPage(name) {
   if (!names[name]) name = 'status';
+  const selectedNav = document.querySelector(`.nav[data-page="${name}"]`);
+  if (selectedNav?.closest('details')) selectedNav.closest('details').open = true;
   document.querySelectorAll('.page').forEach(page => page.hidden = page.id !== `page-${name}`);
   document.querySelectorAll('.nav').forEach(button => { const active = button.dataset.page === name; button.classList.toggle('active', active); if (active) button.setAttribute('aria-current','page'); else button.removeAttribute('aria-current'); });
   $('breadcrumb').textContent = T(names[name]);
@@ -95,9 +97,25 @@ function renderSavedFile(snapshot) {
   $('liveText').textContent = liveText().text(candidate.path.split(/[\\/]/).pop(), candidate.gameFolder, candidate.account, since(candidate.changedAt));
 }
 function renderState(snapshot) {
+  updateProfileLinks();
   lastSnapshot = snapshot;
   if ($('profileSyncStatus')) $('profileSyncStatus').textContent = (snapshot.state.profiles || []).map(p => p.name + ': ' + M(p.error || (p.running ? 'Syncing' : p.enabled ? 'Setup needed' : 'Paused'))).join(' · ');
   const {state,health} = snapshot;
+  const sync = window.guildedSyncStatus(savedConfig, state, state.syncEvidence);
+  let evidencePanel = $('syncEvidence');
+  if (!evidencePanel) { evidencePanel = document.createElement('p'); evidencePanel.id = 'syncEvidence'; evidencePanel.className = 'panel'; $('page-activity').insertBefore(evidencePanel, $('log')); }
+  evidencePanel.textContent = T('Saved: {0} · Uploaded: {1} · Received by bot: {2}', sync.saved.at ? ago(sync.saved.at) : T('Unknown'), sync.uploaded.at ? ago(sync.uploaded.at) : T('Unknown'), sync.accepted.at ? ago(sync.accepted.at) : T('Unknown')) + ' · ' + T('Receipt does not mean officer approval.');
+  const syncActions = {
+    'save-in-game': 'Use /reload in WoW to save your addon data.',
+    'wait-for-upload': api.browser ? 'Choose Sync now to upload your saved data.' : 'Keep tracking enabled while your saved data uploads.',
+    'wait-for-acceptance': 'Check Activity for the bot receipt before retrying.',
+    'reload-in-game': 'After saving standings to the addon, use /reload in WoW.',
+    'officer-review': 'Your upload needs officer review in Discord.',
+    'review-application-error': 'Your upload was received but could not be applied. Ask an officer to review it.',
+    'wait-for-retry': 'Keep the companion open while it retries.',
+    'check-connection': 'Check your connection and the Activity messages.'
+  };
+  evidencePanel.textContent += ' · ' + T('Edition: {0} · Character: {1} · Saved-data source: {2}', sync.edition === 'unknown' ? T('Unknown') : sync.edition, sync.character || T('Unknown'), sync.folder || sync.watchedFile || state.watching || T('Unknown')) + ' · ' + T(syncActions[sync.action]);
   renderUpdate(snapshot.update);
   renderSavedFile(snapshot);
   const overview = window.guildedOverview(savedConfig,state,!!api.browser);
@@ -107,6 +125,7 @@ function renderState(snapshot) {
   $('overviewStandings').textContent = M(overview.standings);
   $('overviewStandingsTime').textContent = state.lastStandings ? ago(state.lastStandings.at) : T("A connection is not a completed sync.");
   $('overviewNext').firstChild.textContent = M(overview.nextAction) + ' →';
+  $('overviewNext').dataset.go = overview.nextPage;
   $('btnUpload').hidden = !overview.linked;
   $('btnUpload').disabled = !overview.canSync || $('btnUpload').dataset.busy === 'true';
   const linked = !!savedConfig.companionCredential;
@@ -127,7 +146,7 @@ function renderState(snapshot) {
   $('tileCount').textContent = String(state.uploads || 0);
   $('tileWatch').textContent = state.watching || savedConfig.watchFile || T("No saved-data file selected");
   pill('wowFileState',state.watching || savedConfig.watchFile ? T("File selected") : T("Choose a file"),state.watching ? 'ok' : '');
-  pill('wowBadge',savedConfig.wowEnabled === false ? T("Sync off") : state.uploadError ? T("Needs attention") : state.lastUpload ? T("Synced") : state.watching ? api.browser ? T("Ready to sync") : T("Watching") : T("Not configured"),state.uploadError ? 'error' : state.lastUpload || state.watching ? 'ok' : '');
+  pill('wowBadge',savedConfig.wowEnabled === false ? T("Sync off") : state.uploadError || sync.phase === 'apply-error' ? T("Needs attention") : sync.phase === 'officer-review' ? T('Awaiting officer review') : sync.phase === 'synced' ? T("Synced") : state.watching ? api.browser ? T("Ready to sync") : T("Watching") : T("Not configured"),state.uploadError || sync.phase === 'apply-error' ? 'error' : sync.phase === 'officer-review' ? 'gold' : sync.phase === 'synced' || state.watching ? 'ok' : '');
   const poe = state.poe;
   pill('poeBadge',!savedConfig.poeEnabled ? T("Tracking off") : poe?.error ? T("Needs attention") : poe?.pending ? T("Ready to sync") : api.browser ? T("Manual sharing") : poe?.running ? T("Watching") : T("Set up tracking"),poe?.error ? 'error' : poe?.running ? 'ok' : poe?.pending ? 'gold' : '');
   const areaName = poe?.currentArea?.replace(/^Map/, '').replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Za-z])(\d)/g, '$1 $2');
@@ -167,8 +186,8 @@ function renderMode() {
   $('btnStandings').hidden = false;
   $('connectedAs').hidden = !linked;
   $('connectedAs').textContent = !linked ? '' : personal
-    ? T("Connected: public dungeon leaderboards only. Your finished runs are sent; no guild data.")
-    : T("Connected: your guild's Discord{0}. Your saved data is synced and standings come back to the addon.", savedConfig.guildDiscordId ? T(" (server {0})", savedConfig.guildDiscordId) : '');
+    ? T("Connected: public dungeon leaderboards only. Sync your finished runs without sharing guild data.")
+    : T("Connected: your guild's Discord{0}. Sync saved data and refresh standings from this companion.", savedConfig.guildDiscordId ? T(" (server {0})", savedConfig.guildDiscordId) : '');
 }
 function renderLogs() {
   $('log').replaceChildren();
@@ -201,7 +220,12 @@ $('autostart').addEventListener('change',event => action(event.target,async () =
 bind('btnConnections', () => api.openConnections ? api.openConnections() : window.open('/me/connections','_blank','noopener'));
 bind('btnBattleNet', () => api.openBattleNet ? api.openBattleNet() : window.open('/me/battlenet','_blank','noopener'));
 bind('btnUpload',async () => { await api.uploadNow(); toast(api.browser ? T("Sync finished. Check Activity for the result.") : T("Sync requested. Follow its progress in Activity.")); });
-bind('btnStandings',async () => { await api.refreshStandings(); toast(savedConfig.personal ? T("Public score refresh finished. Check Activity, then /reload and use /gdungeons score.") : api.browser ? api.folderAccess ? T("Standings saved. Use /reload in WoW.") : T("Standings downloaded. Add the file to Interface / AddOns / Guilded.") : T("Standings refresh finished. Check Activity for the result.")); });
+bind('btnStandings',async () => {
+  if (!savedConfig.companionCredential) { toast(T("Connect your account first: choose Sign in with Discord (or enter a pairing code) in Connection & setup."),true); return; }
+  if (!api.browser && !lastSnapshot?.state?.running) { toast(T("Resume tracking in Connection & setup when you are ready."),true); return; }
+  await api.refreshStandings();
+  toast(api.browser ? api.folderAccess ? T("Standings saved. Use /reload in WoW.") : T("Standings downloaded. Add the file to Interface / AddOns / Guilded.") : T("Standings refresh requested. Check Activity for the result."));
+});
 bind('btnSheets',async () => { const result = await api.exportSheets($('sheetTable').value || undefined); if (!result.canceled) toast(result.message,!result.ok); });
 $('grmPanel').hidden = typeof api.convertGRM !== 'function';
 bind('btnGRM', async () => {
@@ -257,15 +281,26 @@ bind('btnHistory',async () => {
   $('poeHistory').replaceChildren(); $('poeHistory').className = 'history-list';
   for (const visit of visits) { const row = document.createElement('div'); row.className = 'history-row'; const info = document.createElement('div'); const title = document.createElement('strong'); title.textContent = T("{0} · Level {1}", visit.areaName || visit.areaId, visit.areaLevel); const note = document.createElement('p'); note.textContent = `${visit.character} · ${visit.league} · ${modeLabel(visit.mode)} · ${visit.durationSeconds === null ? T("Duration unknown") : T("{0}m {1}s observed", Math.floor(visit.durationSeconds / 60), visit.durationSeconds % 60)}`; const time = document.createElement('time'); time.dateTime = visit.startedAt; time.textContent = new Date(visit.startedAt).toLocaleString(languageUI.language, {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); info.append(title,note); row.append(info,time); $('poeHistory').append(row); }
 });
-bind('btnDiagnostics',async () => { const state = lastSnapshot?.state || {}; const summary = {product:'Guilded Companion',version:$('version').textContent,mode:api.browser ? 'browser' : 'desktop',generatedAt:new Date().toISOString(),wowEnabled:savedConfig.wowEnabled !== false,poeEnabled:!!savedConfig.poeEnabled,botVersion:state.botVersion,addonVersion:state.addonVersion,running:state.running,uploads:state.uploads,poePending:state.poe?.pending || 0,hasSyncError:!!(state.uploadError || state.standingsError || state.poe?.error)}; const url = URL.createObjectURL(new Blob([JSON.stringify(summary,null,2)],{type:'application/json'})); const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'Guilded-support-summary.json'; anchor.click(); setTimeout(() => URL.revokeObjectURL(url),1000); toast(T("Support summary saved without credentials, account IDs or file paths.")); });
+bind('btnDiagnostics',async () => { const state = lastSnapshot?.state || {}; const summary = window.guildedSyncDiagnosticPreview(savedConfig, state, state.syncEvidence); $('diagnosticContent').textContent = JSON.stringify(summary,null,2); $('diagnosticPreview').showModal(); });
+bind('btnCancelDiagnostics',async () => $('diagnosticPreview').close());
+bind('btnSaveDiagnostics',async () => { const url = URL.createObjectURL(new Blob([$('diagnosticContent').textContent],{type:'application/json'})); const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'Guilded-support-summary.json'; anchor.click(); setTimeout(() => URL.revokeObjectURL(url),1000); $('diagnosticPreview').close(); toast(T("Support summary saved without credentials, account IDs or file paths.")); });
 function setTheme(light) { document.body.classList.toggle('light',light); $('btnTheme').setAttribute('aria-label',light ? T("Switch to dark theme") : T("Switch to light theme")); try { localStorage.setItem('guilded.companion.theme',light ? 'light' : 'dark'); } catch { /* theme still applies */ } }
 try { setTheme(localStorage.getItem('guilded.companion.theme') === 'light'); } catch { /* use dark */ }
 $('btnTheme').addEventListener('click',() => setTheme(!document.body.classList.contains('light')));
+function updateProfileLinks() {
+  for (const anchor of document.querySelectorAll('[data-profile-link-base], a[href^="https://guilded.kcaron.top/me/"], a[href^="https://guilded.kcaron.top/leaderboards/"]')) {
+    const base = anchor.dataset.profileLinkBase || anchor.href;
+    anchor.dataset.profileLinkBase = base;
+    anchor.href = window.guildedProfileSiteHref(base, savedConfig.gameEdition, languageUI.language);
+  }
+}
 function configurePresentation() {
+  updateProfileLinks();
   for (const key of MODE_TEXT) { const [id, attribute] = key.split(':'); const value = T(languageUI.original(id, attribute)); if (attribute) $(id)[attribute] = value; else $(id).textContent = value; }
   modeDefaults = null;
+  $('browserChoice').hidden = !api.browser;
   if (api.browser) {
-    $('appMode').textContent = T("Online companion"); $('footerMode').textContent = T("Manual file sync · Personal pairing"); $('sideNote').textContent = T("No installation needed.");
+    $('appMode').textContent = T("Web sync"); $('footerMode').textContent = T("Manual file sync · Personal pairing"); $('sideNote').textContent = T("No installation needed.");
     $('poeMetricLabel').textContent = T("Latest log area");
     ['autostartLabel','btnDetect','btnFolder','btnPause','addressLabel','standingsIntervalLabel','btnOnline','poeLive'].forEach(id => $(id).hidden = true);
     $('btnSave').textContent = T("Save preferences"); $('btnStandings').textContent = T("Download standings"); $('btnRemoveData').textContent = T("Disconnect this device"); $('removeTitle').textContent = T("Disconnect this browser"); $('removeNote').textContent = T("Revokes this Discord link and clears this browser’s saved connection, folders and queued observations. Sync pending visits first.");
@@ -288,7 +323,7 @@ function configurePresentation() {
       }
       forget.textContent = T("Forget selected folders");
     }
-  } else { $('watchFile').removeAttribute('readonly'); $('poeLogFile').removeAttribute('readonly'); }
+  } else { $('appMode').textContent = T('Desktop companion'); $('sideNote').textContent = T('Keeps working in your tray.'); $('watchFile').removeAttribute('readonly'); $('poeLogFile').removeAttribute('readonly'); }
   $('btnLiveSwitch').textContent = liveText().switchButton;
   $('btnLiveKeep').textContent = liveText().keepButton;
 }
@@ -314,7 +349,7 @@ document.addEventListener('companion-language', () => {
 async function renderProfiles() {
   if (!api.listProfiles) return;
   const data = await api.listProfiles();
-  $('connectionProfile').replaceChildren(...data.profiles.map(p => { const option = document.createElement('option'); option.value = p.id; option.textContent = (p.defaultName ? T('Original connection') : p.name) + (p.gameEdition ? ' · ' + p.gameEdition : ''); return option; }));
+  $('connectionProfile').replaceChildren(...data.profiles.map(p => { const option = document.createElement('option'); option.value = p.id; option.textContent = (p.defaultName ? T('Original connection') : p.name) + (p.gameEdition ? ' · ' + window.guildedProfileEditionLabel(p.gameEdition, languageUI.language) : ''); return option; }));
   $('connectionProfile').value = data.active;
 }
 async function changeConnection(choice) {
@@ -346,7 +381,7 @@ async function init() {
   $('syncEnabled').checked = all.config.syncEnabled !== false; $('backgroundSyncPanel').hidden = !!api.browser; $('wowEnabled').checked = all.config.wowEnabled !== false; $('poeEnabled').checked = all.config.poeEnabled === true; $('poeMode').value = all.config.poeMode || 'STANDARD'; $('autostart').checked = all.autostart; $('version').textContent = `Version ${all.version}`;
   configurePresentation();
   gameFields(); entries = all.logs.slice(-300); renderLogs(); renderState({state:all.state,health:all.health,update:all.update,savedFile:all.savedFile});
-  showPage(new URLSearchParams(location.search).get('tab') || (savedConfig.companionCredential ? 'status' : 'settings'));
+  showPage(new URLSearchParams(location.search).get('tab') || 'status');
   api.onState(renderState); api.onLog(addLog);
   setInterval(() => { if (lastSnapshot) renderState(lastSnapshot); },1000);
 }

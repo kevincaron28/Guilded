@@ -5,6 +5,7 @@ import { config } from "../config.js";
 import { ScopedReportError, encodeReportOrigin, reportSourceLink, type ReportOrigin } from "./report-context.js";
 import { automaticDiagnostic, approvedDiagnosticFields, discordAttachmentUrl, redactDiagnosticText } from "./diagnostic-privacy.js";
 import { diagnosticTarget } from "./diagnostic-target.js";
+import { MemberAnswerError } from "./member-answer.js";
 
 const BOT_VERSION = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version as string;
 
@@ -16,7 +17,7 @@ export const reportRef = (id: string): string => id.slice(-8).toUpperCase();
 // bug, so it is not reported. Discord, database, validation and programming errors use their
 // own error classes (or long messages) and are still reported.
 export function isMemberAnswer(error: unknown): boolean {
-  return error instanceof Error && error.constructor === Error && error.message.length > 0 && error.message.length < 200;
+  return error instanceof MemberAnswerError || (error instanceof Error && error.constructor === Error && error.message.length > 0 && error.message.length < 200);
 }
 
 // Captures minimized command/job failures and confirmed /report bug submissions,

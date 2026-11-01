@@ -64,7 +64,7 @@ function fullAddon(rank: number, guildless = false): LuaSession {
 const COMMANDS = [
   "help", "modules", "standings", "peers", "status",
   "calendar list", "reserve list", "recipes mine", "cooldowns", "council status", "core", "drop mode",
-  "bid status", "digest", "sync status"
+  "bid status", "digest", "sync status", "bgcapture status"
 ];
 
 const problems = (s: LuaSession) => s.chat().filter((line) => /(^|\s)(error|failed)|attempt to|stack traceback/i.test(line));

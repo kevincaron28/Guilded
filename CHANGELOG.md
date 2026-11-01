@@ -1,5 +1,30 @@
 # Changelog
 
+## 8.4.0 — 30 October 2026 candidate
+
+Opt-in provisional battleground capture, paired-owner consent checks, private
+history and withdrawal, participation statistics, optional single-use premade
+codes and launch QA fixes. Verified matches remain gated on live acceptance.
+See [release notes](docs/V8_4_0_RELEASE_NOTES.md); packaging/deployment pending.
+
+## 8.3.0 — 30 October 2026 candidate
+
+Opt-in weekly questions, private recap schedules and approved vacancy alerts;
+private battleground planning; clearer Home, edition navigation, leaderboards
+and EN/FR member guides. Web sync remains available alongside automatic Windows
+sync. Candidate validation and publication are pending; protocol remains 2.
+See [release notes](docs/V8_3_0_RELEASE_NOTES.md).
+
+## 8.2.0 — 30 October 2026 candidate
+
+Approved versioned raid playbooks and catch-up notes, voluntary supply planning,
+explainable bench advice, private member data/calendar/handover pages, optional
+onboarding, reviewed community features and truthful companion sync evidence.
+Includes isolated test pools, safer provisional character corrections, retry and
+scope fixes, Retail catalog/result-card corrections and translated layout polish.
+Protocol remains 2. Final publication is pending; existing provider bytes remain
+intact. See [release notes](docs/V8_2_0_RELEASE_NOTES.md).
+
 ## 8.1.0 — Candidate for 4 November 2026
 
 RCLootCouncil/Gargul loot-history conversion with explicit character mapping,

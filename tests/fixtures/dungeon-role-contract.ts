@@ -11,7 +11,8 @@ export function dungeonRoleFixture(standalone = false, nativeRole = "DAMAGER", c
   try {
     lua.run(`NS={}; GuildedDB=nil; GuildedDungeonsDB=nil
       MOCK_UNITS={player={name="Tester"}}; function UnitLevel() return ${capture.nativeApi ? 17 : 16} end
-      ${capture.peerEarlier !== undefined ? 'MOCK_UNITS.party1={name="Peer"}' : ''}
+      ${capture.peerEarlier !== undefined ? 'MOCK_UNITS.party1={name="Peer"}; MOCK_GROUP_SIZE=2' : ''}
+      function IsInGroup() return (MOCK_GROUP_SIZE or 1)>1 end
       function UnitGroupRolesAssigned() return ${JSON.stringify(nativeRole)} end
       C_AddOns={IsAddOnLoaded=function() return false end}
       C_Timer.NewTicker=function(_,fn) DUNGEON_TICK=fn end`);
@@ -20,6 +21,7 @@ export function dungeonRoleFixture(standalone = false, nativeRole = "DAMAGER", c
       lua.run(`loadaddon("GuildedDungeons", [=====[${source}]=====], NS)`);
     } else for (const file of ["Core.lua", "DungeonRoutes.lua", "Compat.lua", "Modules/Dungeon.lua"]) lua.load(file);
     lua.run(`fire_event("PLAYER_LOGIN"); STAMP=1800000000
+      NS.isGuildMember=function(name) return name=="Peer" or name=="Tester" end
       function GetServerTime() return STAMP end
       ${capture.nativeApi ? 'function GetInstanceInfo() return "Deadmines", "party", 0, "Normal", 5, false, false, 36 end'
         : 'NS.compat.instance=function() return {id=389,type="party",name="Ragefire Chasm",difficultyId=0} end; NS.compat.isDungeonFinalBoss=function(_,id) return id==9000 end'}
@@ -54,7 +56,7 @@ export function dungeonRoleFixture(standalone = false, nativeRole = "DAMAGER", c
           end
           local payload=NS.dungeon.serialize(incoming)
           local total=math.ceil(#payload/180)
-          for i=1,total do fire_event("CHAT_MSG_ADDON","GuildedDgn","SUM|"..id.."|"..i.."|"..total.."|"..string.sub(payload,(i-1)*180+1,i*180),"PARTY","Peer") end
+          for i=1,total do fire_event("CHAT_MSG_ADDON","GuildedDgn","SUM|"..id.."|"..i.."|"..total.."|"..string.sub(payload,(i-1)*180+1,i*180),"GUILD","Peer") end
         end
       end
       if ${capture.peerRoundTrip ? "true" : "false"} then

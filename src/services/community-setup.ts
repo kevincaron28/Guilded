@@ -1,4 +1,4 @@
-import { ChannelType, PermissionFlagsBits, type Guild as DiscordGuild, type OverwriteResolvable, type REST } from "discord.js";
+import { ChannelType, PermissionFlagsBits, type Guild as DiscordGuild, type OverwriteResolvable, type PermissionsBitField, type REST, type TextChannel } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { BRAND } from "../brand.js";
 import type { Lang } from "../i18n.js";
@@ -29,6 +29,32 @@ export async function communitySetupState(database: PrismaClient, guildId: strin
   const season = await database.communitySeason.findFirst({ where: { guildId, game: "DISCORD", status: "ACTIVE", audienceRoleId: null }, include: { participation: true } });
   const honors = await database.communityHonors.findUnique({ where: { guildId }, select: { channelId: true, weeklyRoleId: true } });
   return { season: !!season, participation: !!season?.participation?.enabled, honors: !!honors?.channelId && !!honors.weeklyRoleId };
+}
+
+// The Discord admin channel: where the community officers review helper nominations. It is not
+// the WoW officers' log. A hidden channel the server already named admin is reused; one visible
+// to everyone never is, since nominations name members.
+async function ensureDiscordAdminChannel(guild: DiscordGuild, database: PrismaClient, guildId: string, lang: Lang, categoryId: string, botId: string): Promise<string[]> {
+  const settings = await database.guildSettings.findUnique({ where: { guildId }, select: { adminChannelId: true } });
+  const names = communityChannelNames("admin");
+  const hidden = (channel: { permissionsFor(role: DiscordGuild["roles"]["everyone"]): Readonly<PermissionsBitField> | null }) => !channel.permissionsFor(guild.roles.everyone)?.has(PermissionFlagsBits.ViewChannel);
+  const isText = (channel: unknown): channel is TextChannel => (channel as { type?: ChannelType } | undefined)?.type === ChannelType.GuildText;
+  let channel: TextChannel | undefined = [settings?.adminChannelId ? guild.channels.cache.get(settings.adminChannelId) : undefined].find(isText)
+    ?? guild.channels.cache.find((c): c is TextChannel => isText(c) && names.includes(c.name) && hidden(c));
+  const created: string[] = [];
+  if (!channel) {
+    const view = PermissionFlagsBits.ViewChannel | PermissionFlagsBits.SendMessages | PermissionFlagsBits.ReadMessageHistory | PermissionFlagsBits.EmbedLinks;
+    const overwrites: OverwriteResolvable[] = [
+      { id: guild.roles.everyone.id, deny: PermissionFlagsBits.ViewChannel },
+      ...guild.roles.cache.filter(role => isPermissionRoleName("guildMaster", role.name) || isPermissionRoleName("officer", role.name)).map(role => ({ id: role.id, allow: view })),
+      { id: botId, allow: view }
+    ];
+    const spec = COMMUNITY_CHANNEL_SPECS[lang].admin;
+    channel = await guild.channels.create({ name: spec.name, type: ChannelType.GuildText, topic: spec.topic, parent: categoryId, permissionOverwrites: overwrites, reason: `${BRAND.name} /setup` });
+    created.push(`<#${channel.id}>`);
+  }
+  if (settings?.adminChannelId !== channel.id) await database.guildSettings.upsert({ where: { guildId }, create: { guildId, adminChannelId: channel.id }, update: { adminChannelId: channel.id } });
+  return created;
 }
 
 type Refresh = typeof updateCommunityLeaderboard;
@@ -85,6 +111,7 @@ export async function ensureCommunitySetup(guild: DiscordGuild, database: Prisma
   if (!hadBoard) done.push(`<#${board.channelId}>`);
   // Hall of fame and the weekly/monthly recognition roles.
   done.push(...await ensureCommunityHonors(guild, database, guildId, lang, category.id));
+  done.push(...await ensureDiscordAdminChannel(guild, database, guildId, lang, category.id, me.id));
 
   const lines = [done.length ? say(lang, `Community: created ${done.join(", ")}.`, `Communauté : ${done.join(", ")} créé(s).`) : say(lang, "Community: the channels were already there.", "Communauté : les salons existaient déjà.")];
   const active = await database.communitySeason.findFirst({ where: { guildId, game: "DISCORD", status: "ACTIVE" }, include: { participation: true } });

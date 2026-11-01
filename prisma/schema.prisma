@@ -403,6 +403,8 @@ model CommunityKudos {
   status String @default("PENDING")
   reviewedBy String?
   reviewNote String?
+  // Review card in the Discord admin channel: null until posted, "posting" while being sent.
+  cardMessageId String?
   createdAt DateTime @default(now())
   season CommunitySeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   @@unique([seasonId, nominatorId, userId, week])
@@ -779,6 +781,8 @@ model WowGuildChannel {
 }
 
 model GuildSettings {
+  // Private channel for Discord community officers (not the WoW officers' log): reviews and approvals.
+  adminChannelId String?
   pugChannelId             String?
   pugMessageId             String?
   poeTrackingEnabled Boolean @default(false)

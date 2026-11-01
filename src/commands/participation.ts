@@ -12,6 +12,7 @@ import { canViewParticipationChannel, participationChannelCoverage, supportsPart
 import { HELPER_POINTS, HELPER_WEEKLY_POINTS, participationBadge, participationRules } from "../services/participation-rules.js";
 import { resolveCommunitySeason } from "../services/community-access.js";
 import { communitySeasonLabel } from "../services/community-display.js";
+import { postNominationCards, reviewNomination } from "../services/nomination-cards.js";
 
 const service = createParticipationService(prisma);
 const seasonOption = (sub: SlashCommandSubcommandBuilder, required = true) => sub.addStringOption(o => o.setName("season").setDescription("Discord season").setDescriptionLocalizations({ fr: "Saison Discord" }).setRequired(required).setAutocomplete(true));
@@ -113,6 +114,7 @@ export async function executeParticipation(interaction: ChatInputCommandInteract
     const target = await guild.members.fetch({ user: interaction.options.getUser("player", true).id, force: true });
     if (![member, target].every(person => eligibleParticipationMember(person, season, rules, new Date()))) throw new Error("Membres admissibles requis / Eligible members required.");
     const claim = await service.nominate(context.guildId, seasonId, target.id, actor, interaction.options.getString("reason", true));
+    await postNominationCards(guild, prisma, context.guildId).catch(() => undefined);
     content = `${T("Nomination saved for officer review", "Nomination enregistrée pour validation")} : \`${claim.id}\` · ${claim.status}`;
   } else if (sub === "claims") {
     const page = interaction.options.getInteger("page") ?? 1;
@@ -121,13 +123,7 @@ export async function executeParticipation(interaction: ChatInputCommandInteract
     content += `\nPage ${page}`;
   } else if (sub === "review") {
     const id = interaction.options.getString("id", true), approve = interaction.options.getString("decision", true) === "APPROVE";
-    const claim = await prisma.communityKudos.findFirst({ where: { id, seasonId } });
-    if (!claim) throw new Error("Nomination introuvable / Nomination not found.");
-    if (approve) for (const userId of [claim.userId, claim.nominatorId]) {
-      const person = await guild.members.fetch({ user: userId, force: true });
-      if (!eligibleParticipationMember(person, season, rules, new Date())) throw new Error("Membres admissibles requis / Eligible members required.");
-    }
-    const reviewed = await service.review(context.guildId, seasonId, id, actor, approve, interaction.options.getString("reason", true));
+    const { reviewed } = await reviewNomination(guild, prisma, context.guildId, id, actor, approve, interaction.options.getString("reason", true), seasonId);
     content = `${reviewed.status} · \`${reviewed.id}\``;
   } else if (sub === "history") {
     const target = interaction.options.getUser("player")?.id ?? actor, page = interaction.options.getInteger("page") ?? 1;

@@ -24,12 +24,13 @@ function fixture() {
 
 describe("shareable dungeon cards", () => {
   it("renders a real 1200x630 PNG with bundled font and escaped user text; changed facts change pixels", async () => {
-    const card = { title: '<span foreground="red">Kévin & friends</span>', subtitle: "Saison 1 · Niveau 15–29", value: "200", detail: "20:00 · Confirmé par le groupe", footer: "Rapport communautaire" };
+    const card = { title: '<span foreground="red">Kévin & friends</span>', subtitle: "Saison 1 · Niveau 15–29", stats: [{ label: "Temps", value: "20:00", note: "Cible 22:00" }, { label: "Score", value: "200" }],
+      party: [{ name: "Kévin <b>", className: "Warrior", role: "Tank" }], badges: [{ text: "Confirmé par le groupe", tone: "ok" as const }], footer: "Rapport communautaire" };
     const first = await scoreCardResponse(card);
     expect(first.status).toBe(200);
     expect(await sharp(first.binaryBody).metadata()).toMatchObject({ width: 1200, height: 630, format: "png" });
     expect((await scoreCardResponse(card)).binaryBody).toEqual(first.binaryBody);
-    expect((await scoreCardResponse({ ...card, value: "240" })).binaryBody).not.toEqual(first.binaryBody);
+    expect((await scoreCardResponse({ ...card, stats: [card.stats[0]!, { label: "Score", value: "240" }] })).binaryBody).not.toEqual(first.binaryBody);
   });
   it("adds image metadata and download links to public character and run pages in both languages", async () => {
     const f = fixture();

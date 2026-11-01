@@ -4,7 +4,7 @@ import { characterKey } from "../../companion/character-identity.mjs";
 import { readChallenge } from "./challenge-evidence.js";
 import { rankChallenges, challengeClock } from "./challenge-leaderboard.js";
 import { challengeScores, challengePolicyText } from "./challenge-rating.js";
-import { DEFAULT_DUNGEON_BRACKETS } from "./dungeon-november-rules.js";
+import { DEFAULT_DUNGEON_BRACKETS, routeTargetAt } from "./dungeon-november-rules.js";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { CLASSES } from "../wow-data.js";
 import { formatDuration } from "./dungeon-rules.js";
@@ -17,7 +17,7 @@ import { characterId, characterScores, DEFAULT_OFFICIAL, periodRules, publicRule
 import { breadcrumbs } from "./site-header.js";
 import { escapeHtml, link, options } from "./web-layout.js";
 import type { WebContext, WebKit, WebResponse, WebRoute } from "./web-app.js";
-import { scoreCardResponse } from "./score-card.js";
+import { scoreCardResponse, type CardStat } from "./score-card.js";
 import { currentEdition, withEdition } from "./edition-context.js";
 import { gameEditionOf } from "./game-edition.js";
 
@@ -522,10 +522,13 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const imagePath = link(`/leaderboards/character/${raw}/card.png`, lang);
     if (image) {
       if (!runs.length) return kit.page(404, t("Not found", "Introuvable"), "", { noindex: true });
-      return scoreCardResponse({ title, subtitle: periodName(ctx, season),
-        value: keyScores.length ? keyScores.map(r => `${r.points.toFixed(1)} Mythic+`).join(" · ") : current.length ? current.map(row => `${row.points} (${row.bracket})`).join(" · ") : t("Not rated this season", "Non classé cette saison"),
-        detail: t("Dungeon score by level bracket", "Score de donjon par tranche de niveaux"),
-        footer: t("Community reports · Provisional targets · guilded.kcaron.top", "Rapports communautaires · Cibles provisoires · guilded.kcaron.top")
+      const stats: CardStat[] = keyScores.length ? keyScores.slice(0, 3).map(r => ({ label: t("Mythic+ rating", "Cote Mythic+"), value: r.points.toFixed(1), note: t(`${r.completed}/${keyRules!.dungeons.length} dungeons · ${r.realm}`, `${r.completed}/${keyRules!.dungeons.length} donjons · ${r.realm}`) }))
+        : current.length ? current.slice(0, 3).map(row => ({ label: bracketName(ctx, row.bracket), value: String(row.points), note: t("Best-run score this season", "Score des meilleurs essais cette saison") }))
+        : [{ label: t("Season score", "Score de saison"), value: "—", note: t("Not rated this season yet", "Pas encore classé cette saison"), accent: "red" as const }];
+      return scoreCardResponse({ eyebrow: t("Guilded · Dungeons · Character", "Guilded · Donjons · Personnage"), title,
+        subtitle: [me?.className ? classLabel(me.className, lang) : null, me?.level ? `${t("level", "niveau")} ${me.level}` : null, periodName(ctx, season)].filter(Boolean).join(" · "), stats,
+        badges: [{ text: t(`${runs.length} public ${runs.length === 1 ? "run" : "runs"}`, `${runs.length} ${runs.length === 1 ? "essai public" : "essais publics"}`), tone: "muted" }],
+        footer: t("Community reports · Provisional targets · Not Blizzard verified · guilded.kcaron.top", "Rapports communautaires · Cibles provisoires · Non vérifié par Blizzard · guilded.kcaron.top")
       }, ctx.request.method === "HEAD");
     }
     // Guidance for the running season: the highest level seen is the character's level now.
@@ -589,10 +592,36 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const title = run.dungeonName;
     const subtitle = `${period ? periodName(ctx, period) : t("Past run", "Ancien donjon")} · ${date(run.endedAt)} UTC`;
     const imagePath = link(`${runPath(id)}/card.png`, lang);
-    if (image) return scoreCardResponse({ title, subtitle, value: `${displayedTime} · ${score}`,
-      detail: `${evidence} · ${run.players.length} ${t("players", "joueurs")}${run.evidence ? "" : t(" · Older evidence check", " · Ancienne vérification")}`,
-      footer: t("Community report · Provisional targets · Not Blizzard verified", "Rapport communautaire · Cibles provisoires · Non vérifié par Blizzard")
-    }, ctx.request.method === "HEAD");
+    if (image) {
+      const target = verdict.score ? routeTargetAt(rules, verdict.score.key, run.endedAt) : undefined;
+      const delta = target ? Math.abs(run.durationSec - target) : 0;
+      const timeNote = run.challenge ? (run.challenge.onTime ? t("Finished in time", "Terminé à temps") : t("Finished over the timer", "Terminé hors délai"))
+        : target ? (run.durationSec <= target ? t(`Target ${time(target)} · ${time(delta)} faster`, `Cible ${time(target)} · ${time(delta)} plus vite`) : t(`Target ${time(target)} · ${time(delta)} slower`, `Cible ${time(target)} · ${time(delta)} plus lent`))
+          : t("No target for this route yet", "Pas encore de cible pour ce parcours");
+      const levels = run.players.flatMap((p) => p.level ?? []);
+      const levelRange = levels.length ? (Math.min(...levels) === Math.max(...levels) ? `${levels[0]}` : `${Math.min(...levels)}–${Math.max(...levels)}`) : null;
+      const stats: CardStat[] = run.challenge ? [
+        { label: t("Time", "Temps"), value: displayedTime, note: timeNote, accent: run.challenge.onTime ? "green" : "red" },
+        { label: t("Keystone level", "Niveau de clé"), value: `+${run.challenge.level}`, note: run.challenge.onTime ? t("Timed", "À temps") : t("Overtime", "Hors délai") },
+        { label: t("Deaths", "Morts"), value: run.deaths === null ? "?" : String(run.deaths), note: run.deaths === null ? t("Not reported", "Non rapporté") : undefined }
+      ] : [
+        { label: t("Clear time", "Temps de complétion"), value: displayedTime, note: timeNote, accent: target ? (run.durationSec <= target ? "green" : "gold") : "gold" },
+        verdict.score ? { label: t("Run score", "Score de l'essai"), value: String(verdict.score.points), note: t("200 = target pace · more is faster", "200 = cible · plus = plus rapide") }
+          : { label: t("Run score", "Score de l'essai"), value: "—", note: verdict.reason ?? t("Unrated", "Non classé"), accent: "red" },
+        { label: t("Level bracket", "Tranche de niveaux"), value: (run.bracket ?? "?").replace("-", "–"), note: levelRange ? t(`Party levels ${levelRange}`, `Niveaux du groupe ${levelRange}`) : undefined }
+      ];
+      const roleName = (role: string | null) => role === "TANK" ? t("Tank", "Tank") : role === "HEALER" ? t("Healer", "Soigneur") : role === "DPS" ? t("DPS", "DPS") : null;
+      return scoreCardResponse({ eyebrow: t("Guilded · Dungeons · Run", "Guilded · Donjons · Essai"), title, subtitle, stats,
+        party: run.players.map((p) => ({ name: p.displayName || p.character, className: p.className ? classLabel(p.className, lang) : null, role: roleName(p.role) })),
+        partyLabel: `${t("Party", "Groupe")} · ${run.players.length} ${t("players", "joueurs")}`,
+        badges: [
+          { text: run.confirmations >= 2 ? t(`Party confirmed · ${run.confirmations} uploads agree`, `Confirmé par le groupe · ${run.confirmations} envois concordent`) : t("One upload · not yet confirmed", "Un envoi · pas encore confirmé"), tone: run.confirmations >= 2 ? "ok" : "warn" },
+          ...(!run.challenge && run.deaths !== null ? [{ text: run.deaths === 1 ? t("1 death", "1 mort") : t(`${run.deaths} deaths`, `${run.deaths} morts`), tone: "muted" as const }] : []),
+          ...(run.evidence ? [] : [{ text: t("Older evidence check", "Ancienne vérification"), tone: "warn" as const }])
+        ],
+        footer: t("Community report · Provisional targets · Not Blizzard verified · guilded.kcaron.top", "Rapport communautaire · Cibles provisoires · Non vérifié par Blizzard · guilded.kcaron.top")
+      }, ctx.request.method === "HEAD");
+    }
     const description = `${title} · ${displayedTime} · ${score} · ${evidence}`;
     return kit.page(200, title, PAGE_CSS + `<h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle)}</p><p class="score">${escapeHtml(displayedTime)} · ${escapeHtml(score)}</p>`
       + (run.challenge ? `<p>${t("Official timer", "Chrono officiel")} · affixes ${run.challenge.affixIds.join(", ") || "—"}${run.challenge.practiceRun ? ` · ${t("Practice run", "Entraînement")}` : ""}</p>` : "")

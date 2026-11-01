@@ -22,6 +22,14 @@
     "draft": false
   },
   {
+    "source": "status.md",
+    "path": "status/",
+    "title": "Guilded status — bot, companion and leaderboards",
+    "description": "Live check of the Guilded Discord bot, online companion and leaderboards, with what to do if something is down.",
+    "lang": "en",
+    "draft": false
+  },
+  {
     "source": "quebec-gold.md",
     "path": "quebec-gold/",
     "title": "Quebec Gold — communauté francophone WoW et PoE2",

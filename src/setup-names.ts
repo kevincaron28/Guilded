@@ -24,24 +24,26 @@ export const CATEGORY_NAMES: Record<Lang, Record<CategoryKey, string>> = {
 export interface ChannelSpec { name: string; topic: string; access: Access; category: CategoryKey; forum?: boolean }
 
 export const COMMUNITY_CATEGORY_NAMES: Record<Lang, string> = { en: "Community", fr: "Communauté" };
-export const COMMUNITY_CHANNEL_SPECS: Record<Lang, Record<"activities" | "standings" | "chat" | "honors", Pick<ChannelSpec, "name" | "topic" | "access">>> = {
+export const COMMUNITY_CHANNEL_SPECS: Record<Lang, Record<"activities" | "standings" | "chat" | "honors" | "admin", Pick<ChannelSpec, "name" | "topic" | "access">>> = {
   en: {
     activities: { name: "activities", topic: "Start here: daily dice, current activities, personal points and helper recognition. Use the pinned buttons. Organizer templates: /community hub.", access: "readonly" },
     standings: { name: "🏆・leaderboard", topic: "The community podium. Click for your points, daily dice, full rankings and previous seasons. Earned score and spendable balance are separate.", access: "readonly" },
     chat: { name: "community-chat", topic: "Community chat for everyone, across all games.", access: "open" },
-    honors: { name: "🏅・hall-of-fame", topic: "Every Monday: the MVP of the week and a recap of the guild's week. At each month's end: the top 3 of the community podium.", access: "readonly" }
+    honors: { name: "🏅・hall-of-fame", topic: "Every Monday: the MVP of the week and a recap of the guild's week. At each month's end: the top 3 of the community podium.", access: "readonly" },
+    admin: { name: "discord-admin", topic: "For the Discord community officers, not the WoW guild officers (their channels are in the Officers category). Helper nominations and other community reviews land here.", access: "officers" }
   },
   fr: {
     activities: { name: "activités", topic: "À toi de jouer : dé quotidien, activités, points et entraide. Utilise les boutons du panneau épinglé. Modèles organisateurs : /community hub.", access: "readonly" },
     standings: { name: "🏆・leaderboard", topic: "Le podium de la gang. Clique pour tes points, ton dé, le classement complet et les anciennes saisons. Score gagné et solde disponible restent distincts.", access: "readonly" },
     chat: { name: "chat-communauté", topic: "Chat communautaire pour tout le monde, tous jeux confondus.", access: "open" },
-    honors: { name: "🏅・palmarès", topic: "Chaque lundi : le MVP de la semaine et le résumé de la semaine de la guilde. À la fin du mois : le top 3 du podium de la gang.", access: "readonly" }
+    honors: { name: "🏅・palmarès", topic: "Chaque lundi : le MVP de la semaine et le résumé de la semaine de la guilde. À la fin du mois : le top 3 du podium de la gang.", access: "readonly" },
+    admin: { name: "admin-discord", topic: "Pour les officiers de la communauté Discord, pas ceux de la guilde WoW (leurs salons sont dans la catégorie Officiers). Les nominations d’entraide et autres validations communautaires arrivent ici.", access: "officers" }
   }
 };
 
 // Spellings used before the October 2026 accent fix; existing servers keep these channels.
 const LEGACY_COMMUNITY_CHANNEL_NAMES: Record<keyof (typeof COMMUNITY_CHANNEL_SPECS)["en"], string[]> = {
-  activities: ["activites"], standings: [], chat: ["chat-communaute"], honors: ["🏅・palmares"]
+  activities: ["activites"], standings: [], chat: ["chat-communaute"], honors: ["🏅・palmares"], admin: ["admin", "administration"]
 };
 // Every name a server's existing community channel may have, so setup reuses it instead of duplicating it.
 export const communityChannelNames = (key: keyof (typeof COMMUNITY_CHANNEL_SPECS)["en"]): string[] =>
@@ -81,7 +83,7 @@ const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> 
     dungeonLeaderboardChannelId: { name: "dungeon-leaderboard", topic: "Dungeon challenge standings, updated automatically" },
     dungeonChannelId: { name: "dungeon-runs", topic: "Completed dungeon runs and new records" },
     craftChannelId: { name: "craft-board", topic: "Craft requests: press Request a craft in the pinned post. Crafters filter by profession tag and press I'll craft it." },
-    logChannelId: { name: "officer-log", topic: "Officer log: joins, moderation, bank and craft requests" },
+    logChannelId: { name: "officer-log", topic: "WoW officer log: joins, moderation, bank and craft requests (Discord community reviews go to the Discord admin channel)" },
     readinessChannelId: { name: "raid-readiness", topic: "Who is ready for raid night: gear and consumable checks (officers and raid leaders only)" },
     attendanceChannelId: { name: "raid-attendance", topic: "Who was present, late, benched or absent at each raid (officers only), posted with the raid report" },
     applicationChannelId: { name: "raid-applications", topic: "New recruitment applications (officers only): decide on each card, or use /mod application list|view|approve|reject|trial" },
@@ -100,7 +102,7 @@ const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> 
     dungeonLeaderboardChannelId: { name: "classement-donjons", topic: "Classement du défi des donjons, mis à jour automatiquement" },
     dungeonChannelId: { name: "donjons-termines", topic: "Donjons terminés et nouveaux records" },
     craftChannelId: { name: "tableau-artisanat", topic: "Demandes d'artisanat : appuyez sur Demander un craft dans le message épinglé. Les artisans filtrent par métier et appuient sur Je le fabrique." },
-    logChannelId: { name: "journal-officiers", topic: "Journal des officiers : arrivées, modération, banque et demandes d'artisanat" },
+    logChannelId: { name: "journal-officiers", topic: "Journal des officiers WoW : arrivées, modération, banque et demandes d'artisanat (les validations de la communauté Discord vont au salon admin Discord)" },
     readinessChannelId: { name: "preparation-raid", topic: "Qui est prêt pour la soirée de raid : gear et consommables (officiers et chefs de raid seulement)" },
     attendanceChannelId: { name: "presences-raid", topic: "Présents, retards, banc et absents de chaque raid (officiers seulement), publié avec le rapport de raid" },
     applicationChannelId: { name: "candidatures-raid", topic: "Nouvelles candidatures de recrutement (officiers seulement) : décidez sur chaque carte, ou utilisez /mod application list|view|approve|reject|trial" },

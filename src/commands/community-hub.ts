@@ -15,6 +15,7 @@ import { participationBadge, participationRules } from "../services/participatio
 import { eligibleParticipationMember } from "../services/participation-discord.js";
 import { parseRaidTime } from "../services/raid-time.js";
 import { communityRankingLines } from "../services/community-ranking-display.js";
+import { decideNominationFromCard, postNominationCards } from "../services/nomination-cards.js";
 
 const service = createCommunityService(prisma), participation = createParticipationService(prisma);
 const say = (lang: Lang, en: string, fr: string) => lang === "fr" ? fr : en;
@@ -83,6 +84,15 @@ export async function handleCommunityHub(interaction: HubInteraction): Promise<v
     await interaction.showModal(new ModalBuilder().setCustomId(`${COMMUNITY_HUB_PREFIX}nominate:${rawId}:${target}`).setTitle("Remercier / Thank a member")
       .addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("reason").setLabel("Coup de main / How did they help?").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(300)))); return;
   }
+  // Review cards in the Discord admin channel: the button asks for a reason, the form decides.
+  if (interaction.isButton() && action === "nomreview" && (extra === "approve" || extra === "reject")) {
+    if (!hasPermission(await interaction.guild.members.fetch(interaction.user.id), "officer")) { await interaction.reply({ content: "Officiers seulement / Officers only.", flags: MessageFlags.Ephemeral }); return; }
+    await interaction.showModal(new ModalBuilder().setCustomId(`${COMMUNITY_HUB_PREFIX}nomdecide:${rawId}:${extra}`).setTitle(extra === "approve" ? "Approuver / Approve" : "Refuser / Reject")
+      .addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("reason").setLabel("Motif / Reason").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(300)))); return;
+  }
+  if (interaction.isModalSubmit() && action === "nomdecide" && (extra === "approve" || extra === "reject")) {
+    await decideNominationFromCard(interaction, prisma, (await guildService.ensureGuild(interaction.guild.id, interaction.guild.name)).id, rawId, extra === "approve"); return;
+  }
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const guild = interaction.guild, actor = interaction.user.id;
   const record = await guildService.ensureGuild(guild.id, guild.name);
@@ -146,6 +156,7 @@ export async function handleCommunityHub(interaction: HubInteraction): Promise<v
     const rules = participationRules.parse(cfg.rules);
     if (![member, target].every(person => eligibleParticipationMember(person, season, rules, new Date()))) throw new Error("Membres admissibles requis / Eligible members required.");
     await participation.nominate(record.id, season.id, extra, actor, interaction.fields.getTextInputValue("reason"));
+    await postNominationCards(guild, prisma, record.id).catch(() => undefined);
     content = T("Nomination saved for independent officer review.", "Nomination enregistrée pour validation indépendante.");
   } else if (action === "templates") {
     await interaction.editReply({ content: T("Choose a template, fill its details, then submit to publish. Polls: /poll create. Existing Discord events provide optional reminders.", "Choisis un modèle, remplis les détails, puis envoie pour publier. Sondages : /poll create. Les événements Discord offrent les rappels facultatifs."), components: [new ActionRowBuilder<ButtonBuilder>().addComponents(

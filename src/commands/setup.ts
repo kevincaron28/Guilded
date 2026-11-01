@@ -279,10 +279,10 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       T("📢 **Announcements** — raid started, boss kills, loot, EP awards: {channel}", { channel: channelLabel(lang, settings.notifyChannelId) }),
       T("📅 **Raid signups** — signup posts that update live, and raid reminders: {channel}", { channel: channelLabel(lang, settings.raidSignupChannelId) }),
       T("📜 **Raid reports and loot logs** — each raid core has its own, in the core's category (`/core setup` makes them). There is no server-wide one."),
-      T("🔒 **Officer log** — joins/leaves, moderation, bank and craft requests: {channel}", { channel: channelLabel(lang, settings.logChannelId) }),
+      T("🔒 **Officer log** (WoW guild officers) — joins/leaves, moderation, bank and craft requests: {channel}", { channel: channelLabel(lang, settings.logChannelId) }),
       T("📖 **Bot guide** — the getting-started guide, pinned; also where update notices post: {channel} (\"Create the missing ones for me\" makes this one too, or pick it later with `/config channel`)", { channel: channelLabel(lang, settings.guideChannelId) }),
       T("💬 **Bot FAQ** — members ask questions and the bot answers automatically: {channel}", { channel: channelLabel(lang, settings.answerChannelId) }),
-      T("🎉 **Community** — activities, leaderboard and chat, with a first season and participation rewards already on (\"Create the missing ones for me\" makes these too).")
+      T("🎉 **Community** — activities, leaderboard and chat, with a first season and participation rewards already on, plus a private **Discord admin** channel for community reviews (separate from the WoW officer channels). (\"Create the missing ones for me\" makes these too.)")
     ].join("\n"));
     const select = (id: string, placeholder: string) => new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(
       new ChannelSelectMenuBuilder().setCustomId(`setup:${id}`).setPlaceholder(placeholder)

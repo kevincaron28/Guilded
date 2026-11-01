@@ -12,7 +12,7 @@ function fakeGuild(existing: Partial<FakeChannel>[] = [], voiceOpen = true) {
   let next = 1;
   const add = (data: Partial<FakeChannel> & { options?: Row }) => {
     const channel: FakeChannel = { id: data.id ?? `new-${next++}`, type: data.type ?? ChannelType.GuildText, name: data.name ?? "", parentId: data.parentId ?? null,
-      permissionOverwrites: { cache: new Collection() }, permissionsFor: () => ({ has: () => voiceOpen }), ...(data.options ? { options: data.options } : {}) };
+      permissionOverwrites: { cache: new Collection() }, permissionsFor: data.permissionsFor ?? (() => ({ has: () => voiceOpen })), ...(data.options ? { options: data.options } : {}) };
     cache.set(channel.id, channel);
     return channel;
   };
@@ -28,9 +28,13 @@ function fakeGuild(existing: Partial<FakeChannel>[] = [], voiceOpen = true) {
 }
 
 function fakeDatabase(seasons: Row[] = [], configs: Row[] = []) {
+  const settings: Row = {};
   const tx = {
     $executeRaw: vi.fn(async () => 1),
-    guildSettings: { findUnique: vi.fn(async () => ({ timezone: "America/Toronto" })) },
+    guildSettings: {
+      findUnique: vi.fn(async () => ({ timezone: "America/Toronto", ...settings })),
+      upsert: vi.fn(async ({ create, update }: { create: Row; update: Row }) => Object.assign(settings, settings["adminChannelId"] === undefined ? create : update))
+    },
     auditLog: { create: vi.fn(async () => ({})) },
     communityActivity: { findMany: vi.fn(async () => []) },
     communitySeasonCounter: { upsert: vi.fn(async () => ({ nextNumber: 2 })) },
@@ -51,7 +55,7 @@ function fakeDatabase(seasons: Row[] = [], configs: Row[] = []) {
     upsert: vi.fn(async ({ create, update }: { create: Row; update: Row }) => { if (honors[0]) Object.assign(honors[0], update); else honors.push(create); return honors[0]; })
   };
   const database = { ...tx, communityHonors, $transaction: <T>(work: (transaction: typeof tx) => Promise<T>) => work(tx) };
-  return { database: database as unknown as PrismaClient, tx, seasons, configs, honors };
+  return { database: database as unknown as PrismaClient, tx, seasons, configs, honors, settings };
 }
 
 const refreshFor = (cache: Collection<string, FakeChannel>) => vi.fn(async (_rest: unknown, _db: unknown, _guild: string, _bot: string, provision?: { categoryId: string }) => {
@@ -66,7 +70,7 @@ describe("community section of /setup", () => {
     const refresh = refreshFor(cache);
     const text = await ensureCommunitySetup(guild, database, "guild", "fr", "officer", refresh as never);
 
-    expect(create.mock.calls.map(([options]) => options.name)).toEqual(["Communauté", "activités", "chat-communauté", "🏅・palmarès"]);
+    expect(create.mock.calls.map(([options]) => options.name)).toEqual(["Communauté", "activités", "chat-communauté", "🏅・palmarès", "admin-discord"]);
     const category = cache.find(channel => channel.type === ChannelType.GuildCategory)!;
     const hub = cache.find(channel => channel.name === "activités")!, chat = cache.find(channel => channel.name === "chat-communauté")!;
     expect([hub.parentId, chat.parentId]).toEqual([category.id, category.id]);
@@ -106,6 +110,36 @@ describe("community section of /setup", () => {
     expect(cache.filter(channel => channel.name.startsWith("🏅")).size).toBe(1);
   });
 
+  it("adds one private Discord admin channel for community reviews, apart from the WoW officer channels", async () => {
+    const { guild, cache } = fakeGuild([{ id: "lobby", type: ChannelType.GuildVoice, name: "Lobby" }]);
+    const { database, settings } = fakeDatabase();
+    await ensureCommunitySetup(guild, database, "guild", "en", "officer", refreshFor(cache) as never);
+    const admin = cache.find(channel => channel.name === "discord-admin")!;
+    expect(settings["adminChannelId"]).toBe(admin.id);
+    expect(admin.options!["topic"]).toContain("not the WoW guild officers");
+    const overwrites = admin.options!["permissionOverwrites"] as { id: string; allow?: bigint; deny?: bigint }[];
+    expect(overwrites.find(o => o.id === "discord")!.deny! & PermissionFlagsBits.ViewChannel).toBe(PermissionFlagsBits.ViewChannel);
+    expect(overwrites.find(o => o.id === "officer-role")!.allow! & PermissionFlagsBits.ViewChannel).toBe(PermissionFlagsBits.ViewChannel);
+    expect(overwrites.find(o => o.id === "bot")!.allow! & PermissionFlagsBits.SendMessages).toBe(PermissionFlagsBits.SendMessages);
+    // Rerunning, even in French, keeps the same channel.
+    await ensureCommunitySetup(guild, database, "guild", "fr", "officer", refreshFor(cache) as never);
+    expect(cache.filter(channel => channel.name.includes("admin")).size).toBe(1);
+  });
+
+  it("reuses a hidden channel the server already calls admin, but never one everyone can see", async () => {
+    const hidden = fakeGuild([{ id: "admin", name: "admin", permissionsFor: () => ({ has: () => false }) }]);
+    const first = fakeDatabase();
+    await ensureCommunitySetup(hidden.guild, first.database, "guild", "en", "officer", refreshFor(hidden.cache) as never);
+    expect(first.settings["adminChannelId"]).toBe("admin");
+    expect(hidden.cache.some(channel => channel.name === "discord-admin")).toBe(false);
+
+    const open = fakeGuild([{ id: "admin", name: "admin" }]);
+    const second = fakeDatabase();
+    await ensureCommunitySetup(open.guild, second.database, "guild", "en", "officer", refreshFor(open.cache) as never);
+    expect(second.settings["adminChannelId"]).not.toBe("admin");
+    expect(open.cache.some(channel => channel.name === "discord-admin")).toBe(true);
+  });
+
   it("creates a voice channel only when the server has none", async () => {
     const { guild, cache, create } = fakeGuild();
     const { database, configs } = fakeDatabase();
@@ -120,7 +154,7 @@ describe("community section of /setup", () => {
     const { guild, cache, create } = fakeGuild([
       { id: "cat", type: ChannelType.GuildCategory, name: "🎉 Communauté" }, { id: "hub", name: "activites", parentId: "cat" },
       { id: "chat", name: "chat-communaute", parentId: "cat" }, { id: "board", name: "🏆・leaderboard", parentId: "cat" }, { id: "lobby", type: ChannelType.GuildVoice, name: "Lobby" },
-      { id: "fame", name: "🏅・palmares", parentId: "cat" }
+      { id: "fame", name: "🏅・palmares", parentId: "cat" }, { id: "adm", name: "discord-admin", parentId: "cat", permissionsFor: () => ({ has: () => false }) }
     ]);
     const { database, tx } = fakeDatabase([{ id: "live", game: "DISCORD", status: "ACTIVE", audienceRoleId: null, name: "Octobre 2026", channelId: "board" }], [{ seasonId: "live", enabled: false, rules: { textChannels: ["elsewhere"] } }]);
     const text = await ensureCommunitySetup(guild, database, "guild", "en", "officer", refreshFor(cache) as never);

@@ -16,6 +16,7 @@ import { eventVenue } from "../services/scheduled-events.js";
 import { accessibleCommunityActivities, assertCommunityChannelAudience, communityAccess as access, resolveCommunitySeason, canAccessCommunity } from "../services/community-access.js";
 import { communityActivityChannel, communityMonthName, communitySeasonLabel, communityStatusLabel } from "../services/community-display.js";
 import { communityHubReply, diceReply, validateCommunityDestination } from "./community-hub.js";
+import { postNominationCards } from "../services/nomination-cards.js";
 import { communityHonorsHistory, configureCommunityHonors, discordNames, honorsHistoryMessage, previewCommunityHonors, runCommunityHonors, weekMode } from "../services/community-honors.js";
 import { communityRankingLines } from "../services/community-ranking-display.js";
 export { canAccessCommunity };
@@ -499,6 +500,7 @@ export async function runCommunityActivities(guilds: Iterable<Guild>, onHonorsEr
       await service.tick(record.id);
       await service.rotateMonthly(record.id);
       await deliverCommunityBadges(guild, prisma, record.id).catch(onHonorsError);
+      await postNominationCards(guild, prisma, record.id).catch(onHonorsError);
       // Weekly MVP and monthly podium roles; one server's failure never holds back the others.
       await runCommunityHonors(guild, prisma, record.id).catch(onHonorsError);
     }

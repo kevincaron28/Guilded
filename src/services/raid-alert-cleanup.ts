@@ -55,6 +55,8 @@ export async function cleanupRaidAlerts(client: Client, database: PrismaClient, 
           if (messages.size === 100 && oldest) cursors.set(id, oldest);
           else cursors.delete(id);
         } catch (error) {
+          // A channel deleted in Discord (10003) is stale settings, not a fault: forget its cursor and stay quiet.
+          if ((error as { code?: unknown }).code === 10003) { cursors.delete(id); continue; }
           // Keep the cursor on failure so permissions/network errors are retried.
           console.warn(`Could not clean old raid alerts in channel ${id}`, error);
         }

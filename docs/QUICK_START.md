@@ -7,6 +7,8 @@
 3. **Optional: share saved data online.** Open [web sync](https://guilded.kcaron.top/companion/) or install the [Windows companion](https://apps.microsoft.com/detail/9N680XX3QFL9). Sign in with Discord, choose your server or public leaderboards, and choose your saved data. See [member installation](MEMBER_INSTALL.md) for the full steps.
 4. In WoW, use `/reload` or log out to save addon data. On the web, keep the page open and select **Sync now**; on Windows, enabled background sync watches your selected file. To see returned standings in WoW, follow the companion's instructions and `/reload` again.
 
+5. **Share cards.** Every dungeon run, character and raid report page has a shareable image card. Optional: `/bg privacy` and `/bg history` in Discord keep private battleground records from your paired companion; nothing is posted or awarded automatically.
+
 Optional weekly recaps and alerts: [automation quick start](AUTOMATION_QUICK_START.md).
 
 Need help? See [installation](MEMBER_INSTALL.md), [dungeons](DUNGEONS_GUIDE.md), or [EPGP](EPGP_GUIDE.md), or [ask on Discord](https://discord.gg/YjzFwtP64V).
@@ -25,6 +27,8 @@ Need help? See [installation](MEMBER_INSTALL.md), [dungeons](DUNGEONS_GUIDE.md),
 2. [Consultez les classements publics de donjon](https://guilded.kcaron.top/leaderboards/?lang=fr) sans connexion. Choisissez votre jeu dans le menu des éditions. [Mon Guilded](https://guilded.kcaron.top/me/?lang=fr) rassemble vos raccourcis de compte et de guilde.
 3. **Facultatif : partager les données en ligne.** Ouvrez la [synchronisation Web](https://guilded.kcaron.top/companion/?lang=fr) ou installez le [compagnon Windows](https://apps.microsoft.com/detail/9N680XX3QFL9). Connectez-vous avec Discord, choisissez votre serveur ou les classements publics, puis vos données sauvegardées. Consultez le [guide d’installation](MEMBER_INSTALL.md#fr).
 4. Dans WoW, faites `/reload` ou déconnectez-vous pour enregistrer les données. Sur le Web, gardez la page ouverte et cliquez sur **Synchroniser**; sous Windows, la synchronisation en arrière-plan activée surveille le fichier choisi. Pour voir les classements reçus dans WoW, suivez les instructions du compagnon et faites à nouveau `/reload`.
+
+5. **Cartes à partager.** Chaque page de donjon, de personnage et de rapport de raid a une carte image à partager. Facultatif : `/bg privacy` et `/bg history` sur Discord gardent vos rapports de champ de bataille privés du compagnon lié; rien n’est publié ni attribué automatiquement.
 
 Récapitulatifs et alertes facultatifs : [guide d’automatisation](https://guilded.kcaron.top/docs/AUTOMATION_QUICK_START.html?lang=fr#fr).
 

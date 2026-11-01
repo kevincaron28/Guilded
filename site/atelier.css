@@ -72,3 +72,31 @@ body{font-family:var(--kc-font)}h1{font-size:clamp(40px,4.8vw,68px)}.site-header
 .edition-badge{display:inline-flex;align-items:center;min-height:28px;padding:0 10px;margin-bottom:12px;border-radius:999px;background:var(--kc-accent);color:#1b2019;font-size:12px;font-weight:700;letter-spacing:.04em}
 .hub-page .hub-board{margin-block:40px}.hub-page .hub-board .path-links{display:flex;flex-wrap:wrap;gap:8px 24px;margin-top:18px}.hub-page .path-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 @media(max-width:900px){.edition-chooser .edition-card.featured{grid-column:1/-1}.hub-page .path-grid{grid-template-columns:1fr}}
+
+.feature-list{list-style:none;margin:0;padding:0;display:grid;gap:10px}.feature-list li{padding:12px 16px;border:1px solid var(--kc-border);border-radius:8px;background:var(--kc-surface);font-size:14px;line-height:1.6}.feature-list li strong{margin-right:6px}.feature-list li a{white-space:nowrap;margin-left:6px}
+.get-started{padding-block:12px!important}.start-line{display:flex;flex-wrap:wrap;align-items:center;gap:10px 22px;margin:0}
+@media(max-width:760px){
+.home-page .hero-art,.home-page .release-pill{display:none}
+.home-page .hero-copy .lead{margin-bottom:14px}
+.home-page .release-note{padding-top:8px;margin-top:8px}
+.home-main>section{padding-block:18px}
+#wow-versions>p{display:none}
+.home-page .edition-chooser{grid-template-columns:1fr 1fr;gap:10px}
+.home-page .edition-card{padding:14px}
+.home-page .edition-card p,.home-page .edition-card .edition-family{display:none}
+.home-page .edition-card h3{font-size:17px;margin:0}
+.home-page .edition-card-action{font-size:12px}
+#features .section-heading{margin-bottom:10px}
+.home-page .path-card p:not(.eyebrow):not(.path-links){display:none}
+.home-page .path-card{padding:16px}
+.home-page .path-card h3{font-size:19px;margin:4px 0 8px}
+.home-page .edition-card{min-height:0!important;gap:4px}
+.home-page .edition-card-action{display:none}
+.home-page .edition-card .edition-badge{position:static;margin:0 0 4px}
+.home-page .edition-chooser .edition-card.featured h3{font-size:20px}
+.home-page .path-card .eyebrow{display:none}
+.home-page .path-grid{gap:10px}
+#features{display:none}
+#wow-versions .section-heading .text-link{display:none}
+.home-page .hero{padding-block:20px 8px!important}
+}

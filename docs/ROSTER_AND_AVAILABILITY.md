@@ -21,7 +21,7 @@ To correct a completed plan, prepare a new reviewed plan using those prior flags
 
 GRM SavedVariables history migration remains a separate desktop/CLI workflow.
 Its local archive does not assign Discord ownership or import an EP/GP ledger.
-See [the GRM and roster implementation notes](LOCAL_ROSTER_GRM_BUFFS_2026-10-25.md).
+See [the GRM and roster implementation notes](archive/LOCAL_ROSTER_GRM_BUFFS_2026-10-25.md).
 
 ## Officers: participation filters
 

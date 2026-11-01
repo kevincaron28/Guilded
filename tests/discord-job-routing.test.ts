@@ -52,3 +52,17 @@ it("notifies nobody unless a job names its users, and only valid user IDs", asyn
   await dispatchDiscordJob(d.guild as never, job({ channelId: "fame", mentionUsers: ["337035968668499981", "@everyone", 5], message: { content: "⭐ Bravo <@337035968668499981>" } }) as never);
   expect(d.send.mock.calls[1]?.[0].allowedMentions).toEqual({ parse: [], users: ["337035968668499981"] });
 });
+
+it("draws a stored card when a queued message is delivered and still posts without one", async () => {
+  mocks.address.mockResolvedValue({ guildId: "guild", channelId: "raid-logs" });
+  const card = { title: "Molten Core", subtitle: "Completed", stats: [{ label: "Bosses", value: "7/10" }], footer: "Guild raid report" };
+  const d = discord();
+  await dispatchDiscordJob(d.guild as never, job({ route: "raidLog", channelId: "raid-logs", message: { embeds: [{ title: "Report" }] }, card }) as never);
+  const sent = d.send.mock.calls[0]![0];
+  expect(sent.files).toHaveLength(1);
+  expect(sent.files[0].name).toBe("card.png");
+  expect(sent.embeds[0].data.image.url).toBe("attachment://card.png");
+  const plain = discord();
+  await dispatchDiscordJob(plain.guild as never, job({ route: "raidLog", channelId: "raid-logs", message: { embeds: [{ title: "Report" }] } }) as never);
+  expect(plain.send.mock.calls[0]![0].files).toBeUndefined();
+});

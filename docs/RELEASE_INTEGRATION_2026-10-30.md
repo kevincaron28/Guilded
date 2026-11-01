@@ -49,7 +49,7 @@ approved deletion. Keep it and evaluate Dashboard/Web sync naming.
 - [x] Frozen 8.2.0 released: GitHub and ten CurseForge files hash-verified;
   Microsoft Store Submission 5 published and installed as 8.2.0.0. Store signature,
   certificate chain, exact application hash and unchanged encrypted profile
-  verified at 12:50 UTC. [Evidence](V8_2_0_RELEASE_EVIDENCE_2026-10-30.md).
+  verified at 12:50 UTC. [Evidence](archive/V8_2_0_RELEASE_EVIDENCE_2026-10-30.md).
 - [x] Four edition calendars applied/read back; Forever November 4 boundary
   unchanged. [Calendar receipt](EDITION_CALENDARS_2026-10-30.md).
 - [x] BG organization source merged as PR #291 (`7dd8c5b`), exact head

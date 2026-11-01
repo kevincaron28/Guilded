@@ -1,7 +1,7 @@
 # Guilded final launch audit — 28 October 2026
 
 Historical 8.0 baseline. The subsequent [8.0.1 final audit](FINAL_8_0_1_AUDIT_2026-10-28.md)
-and [8.0.2 publication evidence](V8_0_2_RELEASE_EVIDENCE_2026-10-28.md) contain the
+and [8.0.2 publication evidence](../V8_0_2_RELEASE_EVIDENCE_2026-10-28.md) contain the
 current feature review and two additional safety corrections.
 
 > Later 8.0.1 completion supersedes this audit's outstanding language and Store

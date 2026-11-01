@@ -7,14 +7,14 @@ records all ten approved, checksum-verified CurseForge files and published Store
 Submission 4, including the actual signed 8.0.2.0 update and retained profile activation.
 The paragraphs below retain their original 8.0.1 and 8.0.0 checkpoints.
 Full FR/DE/ES addon catalogues and the signed Store installation/owner French
-checks are complete. [Current 8.0.1 evidence](V8_0_1_RELEASE_EVIDENCE_2026-10-28.md)
+checks are complete. [Current 8.0.1 evidence](archive/V8_0_1_RELEASE_EVIDENCE_2026-10-28.md)
 records completed Store certification/publication, the installed signed 8.0.1.0
 upgrade and all ten approved, checksum-verified CurseForge files. The 8.0.0
 provider/test checkpoints below retain their original publication state.
 The website/online companion and authenticated origin protection are deployed.
-Current implementation inventory: [final launch audit](FINAL_LAUNCH_AUDIT_2026-10-28.md).
+Current implementation inventory: [final launch audit](archive/FINAL_LAUNCH_AUDIT_2026-10-28.md).
 The dated checkpoints below retain their original test counts and publication state.
-Authoritative publication evidence: [V8_0_RELEASE_EVIDENCE_2026-10-28.md](V8_0_RELEASE_EVIDENCE_2026-10-28.md).
+Authoritative publication evidence: [V8_0_RELEASE_EVIDENCE_2026-10-28.md](archive/V8_0_RELEASE_EVIDENCE_2026-10-28.md).
 All seven requested engineering items are implemented. Final automated checks:
 336 files / 2,814 tests, TypeScript, ESLint, both addon validators, packages and
 exact-main PostgreSQL/Windows CI passed. All 21 public assets are checksum-verified.
@@ -48,7 +48,7 @@ backup, ledger and command-registration gates. Preparation records below are his
 - Baseline: 326 test files / 2,775 tests; TypeScript, lint and addon validation passed.
   Production-dependency audit returned zero vulnerabilities. Final results are recorded
   below when complete; baseline results do not certify the edits above.
-- [Aiven warning investigation](AIVEN_MEMORY_REVIEW_2026-10-28.md): overnight pressure
+- [Aiven warning investigation](archive/AIVEN_MEMORY_REVIEW_2026-10-28.md): overnight pressure
   recovered; cause unconfirmed. Capacity under ordinary launch traffic remains a gate.
 
 ## Copilot's recovered audit scope
@@ -106,7 +106,7 @@ The owner also confirmed Home, My character and Settings rendering; the followin
 save has empty probe errors and empty Guilded diagnostics.
 French labels/layout on these pages were then confirmed; the later save has no
 probe errors or Guilded diagnostics and restores automatic language.
-See [the Retail evidence and remaining checks](RETAIL_ACCEPTANCE_2026-10-28.md).
+See [the Retail evidence and remaining checks](archive/RETAIL_ACCEPTANCE_2026-10-28.md).
 This does not close visual, gameplay, upgrade, two-PC or Classic acceptance.
 
 For each result record addon/companion version, client `GetBuildInfo()`, edition, language,

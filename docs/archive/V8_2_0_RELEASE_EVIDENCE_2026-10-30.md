@@ -29,7 +29,7 @@ The separate PR #285 calendar operation does not replace published client bytes.
 The four non-Forever edition calendars were initialized at 12:14:41.882 UTC
 on October 30 under PR #285. Independent readback verified the six snapshots
 (including Era’s next quarterly boundary) and preserved Forever’s start and
-freeze timestamp. See [calendar evidence](EDITION_CALENDARS_2026-10-30.md).
+freeze timestamp. See [calendar evidence](../EDITION_CALENDARS_2026-10-30.md).
 
 ## Still separate
 

@@ -60,7 +60,7 @@ Automated checks and publication evidence are recorded in
 [launch readiness](V8_0_LAUNCH_READINESS.md), with
 [engineering details](V8_0_ENGINEERING.md),
 [accessibility results and limitations](V8_0_ACCESSIBILITY.md) and
-[Retail evidence](RETAIL_ACCEPTANCE_2026-10-28.md).
+[Retail evidence](archive/RETAIL_ACCEPTANCE_2026-10-28.md).
 Dungeon benchmarks and Guilded keystone ratings remain provisional. Unreviewed
 routes do not acquire a verified score, and current-v1 evidence policy remains
 active. The owner's independent-uploader exception remains in force.

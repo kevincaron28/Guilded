@@ -5,6 +5,7 @@ import { prisma } from "../database.js";
 import { asLang, t, type Lang } from "../i18n.js";
 import { createGuildService } from "./guild.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
+import type { ScoreCard } from "./score-card.js";
 
 const guildService = createGuildService(prisma);
 
@@ -54,8 +55,9 @@ async function notifyTarget(discordGuild: DiscordGuild, kind: NotifyKind = "noti
   return channel?.isTextBased() ? { channel, lang: address.lang } : null;
 }
 
-async function durableMessage(guild: DiscordGuild, guildId: string, channelId: string, message: MessageCreateOptions, route: NotifyKind | "dungeon" | "officerReport", coreId: string | null = null): Promise<boolean> {
-  const job = await enqueueDiscordJob(prisma, guildId, `message:${randomUUID()}`, "MESSAGE", { channelId, route, coreId, message: JSON.parse(JSON.stringify(message)) } as Prisma.InputJsonValue);
+// A card is stored as plain data and drawn when the job is delivered, so retries need no stored image.
+async function durableMessage(guild: DiscordGuild, guildId: string, channelId: string, message: MessageCreateOptions, route: NotifyKind | "dungeon" | "officerReport", coreId: string | null = null, card: ScoreCard | null = null): Promise<boolean> {
+  const job = await enqueueDiscordJob(prisma, guildId, `message:${randomUUID()}`, "MESSAGE", { channelId, route, coreId, message: JSON.parse(JSON.stringify(message)), ...(card ? { card: JSON.parse(JSON.stringify(card)) } : {}) } as Prisma.InputJsonValue);
   await deliverDiscordJob(prisma, job.id, current => dispatchDiscordJob(guild, current));
   return (await prisma.discordJob.findUnique({ where: { id: job.id } }))?.status === "DONE";
 }
@@ -101,13 +103,13 @@ export async function notify(discordGuild: DiscordGuild | null, content: string 
 
 // Same rules as notify(), for richer posts like the raid report. Pass
 // "raidLog" to prefer the raid-logs channel (falls back to announcements).
-export async function notifyEmbed(discordGuild: DiscordGuild | null, embed: EmbedBuilder | Localized<EmbedBuilder>, channel: NotifyKind = "notify", coreId: string | null = null, consentedChannelId?: string): Promise<boolean> {
+export async function notifyEmbed(discordGuild: DiscordGuild | null, embed: EmbedBuilder | Localized<EmbedBuilder>, channel: NotifyKind = "notify", coreId: string | null = null, consentedChannelId?: string, card?: (lang: Lang) => ScoreCard): Promise<boolean> {
   if (!discordGuild) return false;
   try {
     const target = await notifyAddress(discordGuild, channel, coreId);
     if (!target) return false;
     if (consentedChannelId && (target.channelId !== consentedChannelId || (await officerReportDestination(discordGuild))?.id !== consentedChannelId)) return false;
-    return durableMessage(discordGuild, target.guildId, target.channelId, { embeds: [typeof embed === "function" ? embed(target.lang) : embed] }, consentedChannelId ? "officerReport" : channel, coreId);
+    return durableMessage(discordGuild, target.guildId, target.channelId, { embeds: [typeof embed === "function" ? embed(target.lang) : embed] }, consentedChannelId ? "officerReport" : channel, coreId, card ? card(target.lang) : null);
   } catch (error) {
     console.error("Failed to post notification embed", error);
     return false;

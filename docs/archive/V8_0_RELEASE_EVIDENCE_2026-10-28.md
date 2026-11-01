@@ -67,8 +67,8 @@ recoverably archived; the valid replacements used verified real ZIP paths.
 
 ## Follow-up website and message-earning correction
 
-[Dedicated WoW edition pages](WOW_EDITION_WEBSITE_2026-10-28.md) are live in EN/FR.
-The bot-only [channel coverage fix](PARTICIPATION_CHANNEL_COVERAGE_2026-10-28.md)
+[Dedicated WoW edition pages](../WOW_EDITION_WEBSITE_2026-10-28.md) are live in EN/FR.
+The bot-only [channel coverage fix](../PARTICIPATION_CHANNEL_COVERAGE_2026-10-28.md)
 deployed exact main `4e23dac` after PR CI `40732004968` and main CI `40732685873`
 passed. The existing single service was replaced from a prepared application with
 verified database/application and encrypted off-server backups. Ledger references

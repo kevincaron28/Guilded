@@ -54,8 +54,8 @@ remain unchanged. The optional standalone GitHub EXE is unsigned.
 
 Both public descriptions were updated from stale 7.3.2 text to 8.0.1, with accurate
 addon-only DE/ES coverage, optional typed-code sign-in and the signed Store link.
-Canonical text: [Guilded](curseforge/GUILDED_DESCRIPTION.md) and
-[Guilded Dungeons](curseforge/DUNGEONS_DESCRIPTION.md).
+Canonical text: [Guilded](../curseforge/GUILDED_DESCRIPTION.md) and
+[Guilded Dungeons](../curseforge/DUNGEONS_DESCRIPTION.md).
 
 All ten actual edition ZIPs are approved Release files, with automatic publication.
 Their anonymous CDN downloads were rechecked after approval and match the

@@ -15,7 +15,7 @@ The desktop app's in-app browser completed the file chooser upload; the Chrome
 chooser timeout did not affect that upload. Publication and package identity were
 read back in Partner Center. No new installed Store-client acceptance is claimed;
 the owner waived remaining hands-on install/upgrade checks.
-See [release evidence](../V8_0_RELEASE_EVIDENCE_2026-10-28.md) for package SHA-256.
+See [release evidence](../archive/V8_0_RELEASE_EVIDENCE_2026-10-28.md) for package SHA-256.
 Public listing verified 28 October 2026:
 [Guilded Companion](https://apps.microsoft.com/detail/9N680XX3QFL9), publisher Kcaron.
 Keep the existing reserved identity in `publisher-identity.json`; this is an update to

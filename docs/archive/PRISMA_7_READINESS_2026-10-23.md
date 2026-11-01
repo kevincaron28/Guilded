@@ -35,7 +35,7 @@ works. There is no current failing main quality job in the reviewed results.
    #201/#202 had already changed those packages in its first parent. Generation then
    failed with `P1012` on the restored schema URL. Also reverting #202 and #201 restores
    6.19.3 and permits generation and type checking. See the corrected, pinned procedure
-   in [PRISMA_7_UPGRADE.md](PRISMA_7_UPGRADE.md#rollback). This local candidate is not a
+   in [PRISMA_7_UPGRADE.md](../PRISMA_7_UPGRADE.md#rollback). This local candidate is not a
    production-tested or approved rollback release.
 2. **The copy instructions targeted the wrong PostgreSQL major.** The Aiven migration
    record says PostgreSQL 18.6, whereas the upgrade instructions said to restore into 16.

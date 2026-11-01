@@ -1,6 +1,6 @@
-> 8.4.0 (30 October 2026 candidate): provisional BG records and QA fixes; final CI/release pending.
-> Current checkpoint: 30 October 2026. 8.3.0 source2602e67 is deployed and published on GitHub; all23 downloads verified. Store Submission6 is published; installed-package update verification pending. CurseForge8.3 approval/download verification in progress.
-> Next candidate8.4.0 on codex/bg-recorder-history-oct30 adds opt-in provisional BG capture/history/stats and QA fixes. No8.4 deployment or publication yet.
+> 8.4.0 (published on GitHub 30 October 2026; bot live 1 November 2026): provisional BG records, QA fixes and the WoW-style share cards (dungeon, character, raid, battleground).
+> Current checkpoint: 1 November 2026. GitHub v8.4.0 is stable (23 assets). The Oracle bot runs main e400396 (8.4.0, protocol 2). CurseForge and Microsoft Store status for 8.4 was not re-verified on this date: check each provider before claiming it is published.
+> Cards: `src/services/score-card.ts` renders every share card (WoW theme, roster layout); `end-cards.ts` builds the raid and battleground cards; queued Discord messages store a card definition and draw it on delivery. Point-in-time handoffs, audits and evidence from before 8.4 live in docs/archive/.
 > Latest owner authorization: ALL AVAILABLE TESTING NOW. The older wait-until-launch waiver is superseded. Claude acknowledged the expanded QA handoff and completed a first pass; Retail evidence is addon8.2, native isolated-profile evidence8.3.
 > Active release evidence: docs/V8_4_0_RELEASE_ACCEPTANCE.md; previous deployed evidence: docs/V8_3_0_RELEASE_ACCEPTANCE.md. Historical statements below are not current provider status.
 > Keep selected edition calendars unchanged. Preserve published8.2 and8.3 artifact bytes. Forever live acceptance remains NOT RUN until an actual client is available.
@@ -39,8 +39,8 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (30 October 2026): version 8.4.0 Candidate, protocol 2.**
-Candidate source is not a production version claim. WoW Forever launches
+**Current status (1 November 2026): version 8.4.0, protocol 2.**
+GitHub v8.4.0 is published and the bot runs it; provider records below may lag. WoW Forever launches
 4 November 2026 (beta closed 21 October); its first raids open 9 December.
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
 The bot and online companion run 8.1.0 at 6bdc80e. GitHub candidate v8.1.0-rc.1
@@ -59,8 +59,8 @@ Use the release evidence for each published artifact; historical 7.4.0 approval 
 are not evidence for a new 8.0 upload. Current work: `docs/V8_0_LAUNCH_READINESS.md`.
 Both addons have
 Forever, Era, TBC, Mists and Retail builds; the Windows companion supports all.
-See `docs/SESSION_HANDOFF_2026-10-25.md` for current delivery and unfinished work.
-Follow `docs/LAUNCH_READINESS_2026-10-24.md` before acting on older holds or
+See `docs/archive/SESSION_HANDOFF_2026-10-25.md` for current delivery and unfinished work.
+Follow `docs/archive/LAUNCH_READINESS_2026-10-24.md` before acting on older holds or
 unchecked historical lists. The owner authorized publication on 25 October; retain pending game checks as follow-up.
 Do not overwrite published 7.3.2 downloads or bump the version incidentally.
 Read `docs/UPDATE_ALL_2026-10-14.md`,

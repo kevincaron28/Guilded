@@ -64,10 +64,10 @@ The standard GitHub installer remains unsigned. The project license is unchanged
 2. Check Microsoft certification outcome. Once available, test the Store-signed
    install, upgrade, tray lifecycle and Windows startup on a clean/second PC.
 3. Claude's live Discord and web walkthrough results are now recorded in
-   [post-release review](POST_RELEASE_REVIEW_2026-10-26.md), including specific
+   [post-release review](archive/POST_RELEASE_REVIEW_2026-10-26.md), including specific
    passes, two text fixes (#236), untested second-account flows and test leftovers.
-4. Complete [7.5 game acceptance](V7_5_0_GAME_CHECKLIST.md) and the
-   [launch tools checklist](V7_5_0_LAUNCH_TOOLS_CHECKLIST.md), including carried
+4. Complete [7.5 game acceptance](archive/V7_5_0_GAME_CHECKLIST.md) and the
+   [launch tools checklist](archive/V7_5_0_LAUNCH_TOOLS_CHECKLIST.md), including carried
    forward two-PC, roster/ledger, addon sync and edition-specific client checks.
 5. Confirm Forever custom buff/spell observations and calibrate dungeon baselines
    from real runs. Current benchmark values remain provisional.

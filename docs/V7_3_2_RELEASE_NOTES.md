@@ -7,8 +7,8 @@ Mists Classic and Retail. Protocol remains 2.
 The owner approved release before the remaining game/two-PC tests because the
 Forever client is unavailable until launch. These tests are pending follow-up,
 not recorded passes. Dungeon targets are provisional and require real-run
-calibration. See [the game checklist](V7_3_2_GAME_CHECKLIST.md) and
-[the release decision](RELEASE_DECISION_2026-10-25.md).
+calibration. See [the game checklist](archive/V7_3_2_GAME_CHECKLIST.md) and
+[the release decision](archive/RELEASE_DECISION_2026-10-25.md).
 
 ## What changed
 
@@ -67,4 +67,4 @@ once to receive the final 7.3.2 files; the version number is unchanged. Public
 
 Self-hosters must back up first, deploy the matching source/migrations, and verify
 health plus command registration. Do not start a second process with the same
-Discord token. Full setup: [multi-edition release scope](RELEASE_SCOPE_2026-10-25.md).
+Discord token. Full setup: [multi-edition release scope](archive/RELEASE_SCOPE_2026-10-25.md).

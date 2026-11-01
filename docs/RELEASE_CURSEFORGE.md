@@ -8,13 +8,13 @@
 > **25 October release decision:** the owner explicitly authorized publication before
 > the unavailable game/two-PC tests. Earlier hold instructions below are superseded.
 > Tests remain pending follow-up, not passes; targets remain provisional. See
-> [release decision](RELEASE_DECISION_2026-10-25.md) and [current notes](V7_3_2_RELEASE_NOTES.md).
+> [release decision](archive/RELEASE_DECISION_2026-10-25.md) and [current notes](V7_3_2_RELEASE_NOTES.md).
 
 # Publishing Guilded after acceptance
 
 **7.3.2 is a candidate. Public release remains on hold until the game and two-PC
 checks pass.** This procedure prepares publication; it is not approval to upload.
-Current evidence and launch operations: [launch readiness](LAUNCH_READINESS_2026-10-24.md).
+Current evidence and launch operations: [launch readiness](archive/LAUNCH_READINESS_2026-10-24.md).
 The earlier 6.x instructions are retained in Git history.
 
 ## Prepare the tested files
@@ -26,7 +26,7 @@ The earlier 6.x instructions are retained in Git history.
    `sourceDirty: false`, candidate channel and the current acceptance checklist.
    The checksum manifest must include both addons, the companion installer and notes.
 3. Supply those exact files to both testers. Record each SHA-256 in
-   [the game checklist](V7_3_2_GAME_CHECKLIST.md). Any changed gameplay/runtime package
+   [the game checklist](archive/V7_3_2_GAME_CHECKLIST.md). Any changed gameplay/runtime package
    requires the affected checks again. Packaging and fixture tests do not close live gates.
 4. Keep the test kit separate from public downloads and leave `site/releases.json`
    unchanged. Do not upload the whole `dist` directory: it contains older releases too.

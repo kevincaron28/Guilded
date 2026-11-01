@@ -10,7 +10,7 @@ deadlocks/temp files and a 19.2 MiB application database. Pool maximum remains f
 The final audit removed a separate unbounded participation-summary transfer to
 the bot; it does not establish this alert's cause. No plan, memory setting or data
 changed. These current-activity observations do not certify launch-load capacity.
-Receipts: `backups/release-8.0.2/`; [release evidence](V8_0_2_RELEASE_EVIDENCE_2026-10-28.md).
+Receipts: `backups/release-8.0.2/`; [release evidence](../V8_0_2_RELEASE_EVIDENCE_2026-10-28.md).
 
 The owner reported the alert at 00:08 America/Toronto (04:08 UTC), after evening maintenance.
 Read-only inspection around 09:43 UTC confirmed that the configured database is `guilded-free`.

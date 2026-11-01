@@ -1,7 +1,7 @@
 > **25 October release decision:** the owner explicitly authorized publication before
 > the unavailable game/two-PC tests. Earlier hold instructions below are superseded.
 > Tests remain pending follow-up, not passes; targets remain provisional. See
-> [release decision](RELEASE_DECISION_2026-10-25.md) and [current notes](V7_3_2_RELEASE_NOTES.md).
+> [release decision](RELEASE_DECISION_2026-10-25.md) and [current notes](../V7_3_2_RELEASE_NOTES.md).
 
 # Guilded launch readiness — 24 October 2026
 
@@ -46,7 +46,7 @@ real-client checks into passes.
 - [Discord acceptance progress](DISCORD_ACCEPTANCE_2026-10-24.md) records private
   Quebec Gold command/signup checks, cleanup, the character-picker language fix,
   and remaining interaction gates. Public online scoring already uses common
-  season-frozen rules; [guild-local scoring controls are now locked in candidate source](DUNGEON_SCORING_LOCK_2026-10-24.md).
+  season-frozen rules; [guild-local scoring controls are now locked in candidate source](../DUNGEON_SCORING_LOCK_2026-10-24.md).
 - Additional candidate features and the two-minute companion log fix are described
   in [pre-launch features](PRELAUNCH_FEATURES_2026-10-24.md). The game is unavailable
   until its release: live acceptance begins then, and Guilded public promotion
@@ -106,8 +106,8 @@ Do not claim those are complete or purchase/enroll in services as part of this p
 4. **Check the season:** `/guilded-season status` must retain 4 November, 23:00 UTC. Test history
    must not appear in November rankings. Keep the reset boundary and unknown routes disabled.
    Do not move the official calendar to simulate launch.
-5. **Only after required passes:** review [publication instructions](RELEASE_CURSEFORGE.md),
-   release notes and [listing copy](CURSEFORGE_COPYPASTE.md). Approve the actual hashes for
+5. **Only after required passes:** review [publication instructions](../RELEASE_CURSEFORGE.md),
+   release notes and [listing copy](../CURSEFORGE_COPYPASTE.md). Approve the actual hashes for
    promotion. Keep the source, bot, addons and companion compatible; no incidental version bump.
 6. **Publication verification:** fetch each published asset, compare hashes, test signed-out
    download links and update `site/releases.json` with actual provider versions/URLs. Main merges
@@ -117,5 +117,5 @@ Do not claim those are complete or purchase/enroll in services as part of this p
    recovery procedure if necessary; an application rollback must preserve current configuration
    and cannot restore old database data over newer writes without a separate decision.
 
-Launch messages in [LAUNCH_POSTS.md](LAUNCH_POSTS.md) remain drafts for the owner to post after
+Launch messages in [LAUNCH_POSTS.md](../LAUNCH_POSTS.md) remain drafts for the owner to post after
 acceptance. No scheduled announcement, public release or score recalibration is implied here.

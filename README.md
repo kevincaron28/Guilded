@@ -39,8 +39,8 @@ Use the edition-specific ZIP from [GitHub Releases](https://github.com/kevincaro
 The unsuffixed ZIP is the Forever build.
 
 The owner authorized release before the unavailable Forever two-PC tests.
-[Game checks remain pending follow-up](docs/V7_5_0_GAME_CHECKLIST.md); benchmarks are provisional.
-[Release decision](docs/RELEASE_DECISION_2026-10-25.md). WoW Forever launches 4 November 2026.
+[Game checks remain pending follow-up](docs/archive/V7_5_0_GAME_CHECKLIST.md); benchmarks are provisional.
+[Release decision](docs/archive/RELEASE_DECISION_2026-10-25.md). WoW Forever launches 4 November 2026.
 
 Also from this repository: **Guilded Dungeons** (`addon/GuildedDungeons/`), a standalone dungeon
 timer and score tracker with no guild needed, and the website's

@@ -33,7 +33,7 @@ game and two-PC checks; those checks remain pending. Protocol remains 2.
   show mains' names in chat and record slow moments. Officer ledger sync sends a day
   of entries as one compressed batch where the client supports it, and group EP
   awards can apply an optional consumable penalty. All are optional parts; the new
-  personal switches start off. See the [launch tools checklist](V7_5_0_LAUNCH_TOOLS_CHECKLIST.md).
+  personal switches start off. See the [launch tools checklist](archive/V7_5_0_LAUNCH_TOOLS_CHECKLIST.md).
 - Microsoft Store MSIX packaging uses the reserved product identity, Store
   updates, Windows startup settings and protected credentials in a separate
   profile folder. Store approval is a separate track, not a published claim.
@@ -46,7 +46,7 @@ game and two-PC checks; those checks remain pending. Protocol remains 2.
 The standard Windows installer remains unsigned. Choose the addon ZIP matching
 Forever, Classic Era, TBC, Mists or Retail; unsuffixed ZIPs target Forever.
 Game/two-PC acceptance, Forever custom spell confirmation and benchmark calibration
-remain pending. See [acceptance](V7_5_0_GAME_CHECKLIST.md).
+remain pending. See [acceptance](archive/V7_5_0_GAME_CHECKLIST.md).
 
 Deploy the four additive migrations in order: `20261125160000_web_availability`,
 `20261125170000_event_editions`, `20261125180000_raid_signup_extras`, then

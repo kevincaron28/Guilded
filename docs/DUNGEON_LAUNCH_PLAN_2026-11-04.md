@@ -81,7 +81,7 @@ Both-installed duplicate capture needs a separate short check. Start with an
 available edition; repeat on the actual Forever launch build. Do not install
 over a running game or assume the user has approved a client replacement.
 
-Use [the existing two-PC checklist](V7_3_2_GAME_CHECKLIST.md) for test mechanics,
+Use [the existing two-PC checklist](archive/V7_3_2_GAME_CHECKLIST.md) for test mechanics,
 but record the actual selected candidate version/hash rather than copying its
 historical 7.3.2 version instructions. No real-game pass is recorded by this plan.
 

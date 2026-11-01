@@ -1,5 +1,7 @@
 # November 4 release status
 
+> **Superseded checkpoint.** This is the 29 October record of the 8.1.0 candidate. Current state: [8.4.0 acceptance](V8_4_0_RELEASE_ACCEPTANCE.md). Provider rows below describe 8.0.2/8.1.0 and must not be read as 8.4 status.
+
 Checkpoint: 29 October 2026. This checkpoint supersedes earlier statements that
 the entire 8.1.0 candidate is undeployed. Stable publication remains planned for
 November 4 in America/Toronto. All in-game testing is deferred to launch by the

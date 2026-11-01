@@ -2,7 +2,7 @@ import { pilotGuildScope } from "../hosted-pilot.js";
 import { currentGuildScope, withGuildScope } from "./guild-scope.js";
 import { randomUUID } from "node:crypto";
 import type { DiscordJob, Prisma, PrismaClient } from "../generated/prisma/client.js";
-import { EmbedBuilder, type Client, type Guild, type MessageCreateOptions } from "discord.js";
+import { AttachmentBuilder, EmbedBuilder, type Client, type Guild, type MessageCreateOptions } from "discord.js";
 import { prisma } from "../database.js";
 import { participationDay } from "./participation-rules.js";
 
@@ -156,7 +156,11 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
     last.setFooter({ text: footer ? `${footer.slice(0, 1900)} · ${marker}` : marker });
     // Nobody is notified, except the users a job names explicitly (the hall of fame's opt-in MVP ping).
     const users = Array.isArray(payload["mentionUsers"]) ? payload["mentionUsers"].filter((id): id is string => typeof id === "string" && /^\d{17,20}$/.test(id)).slice(0, 10) : [];
-    await channel.send({ ...message, embeds, allowedMentions: { parse: [], users }, nonce: job.id.slice(-25), enforceNonce: true });
+    // An optional card is drawn here from its stored definition; without an image the post still goes out.
+    const { scoreCardPng } = await import("./score-card.js");
+    const card = payload["card"] && typeof payload["card"] === "object" ? await scoreCardPng(payload["card"] as import("./score-card.js").ScoreCard).catch(() => null) : null;
+    if (card) last.setImage("attachment://card.png");
+    await channel.send({ ...message, embeds, ...(card ? { files: [new AttachmentBuilder(card, { name: "card.png" })] } : {}), allowedMentions: { parse: [], users }, nonce: job.id.slice(-25), enforceNonce: true });
   } else throw new Error("Unknown job type");
 }
 

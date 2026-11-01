@@ -107,11 +107,11 @@ Published baseline: 8.0.0: security, reliability, ledger storage compaction, ver
 
 Previous published 7.5.1: loot rules follow the original EPGP/soft-reserve rules, guild directory and player search, and Codex's dungeon evidence work (Season 1 stays on current-v1).
 Previous: 7.5.0, combining the release-gap bundle and Claude’s raid/interaction fixes.
-The original 8.0 baseline passed combined CI, backups, deployment and publication gates. Its retained downloads and earlier evidence are in [8.0 release evidence](docs/V8_0_RELEASE_EVIDENCE_2026-10-28.md).
-Real-client checks remain post-release follow-up; see [the release decision](docs/RELEASE_DECISION_2026-10-25.md).
-Current gates and completed operational checks: [launch readiness](docs/LAUNCH_READINESS_2026-10-24.md).
+The original 8.0 baseline passed combined CI, backups, deployment and publication gates. Its retained downloads and earlier evidence are in [8.0 release evidence](docs/archive/V8_0_RELEASE_EVIDENCE_2026-10-28.md).
+Real-client checks remain post-release follow-up; see [the release decision](docs/archive/RELEASE_DECISION_2026-10-25.md).
+Current gates and completed operational checks: [launch readiness](docs/archive/LAUNCH_READINESS_2026-10-24.md).
 GitHub and CurseForge publish 8.0.2 for all five editions and the bot runs its reviewed source. All ten approved CurseForge files match GitHub. Store Submission 4 publishes 8.0.2.0; its actual installed signature, submitted application bytes and retained encrypted profile/account activation passed. See [current provider evidence](docs/V8_0_2_RELEASE_EVIDENCE_2026-10-28.md). Previously both addon providers published 7.5.0;
-see [the publication record](docs/RELEASE_EXECUTION_2026-10-25.md). All six
+see [the publication record](docs/archive/RELEASE_EXECUTION_2026-10-25.md). All six
 18-October requests shipped in 7.0.0; 7.1.0 added monthly boards and Raider.IO-style leaderboards,
 7.2.0 companion Sign in with Discord and one-click updates, 7.2.1 a steadier bot, 7.3.0 the dungeon
 result card, raid vacancies and public player profiles, 7.3.1 level-aware raid readiness and the
@@ -122,7 +122,7 @@ moment (23:00 UTC, `/guilded-season`). The beta closed on 21 October, so the rea
 still owed — G6-G8 (dungeon runs), G10 (French client) and the 6.1.2 parts of G2/G12 — can only
 run on live servers; see [the 6.2 game acceptance record](docs/V6_2_GAME_ACCEPTANCE.md). Forever's
 first raids (Barrow Deeps, 10 players; Hyjal Summit, 20) open on 9 December. Launch-week priorities
-and the competitive review: [PRE_RELEASE_AUDIT_2026-10-22.md](docs/PRE_RELEASE_AUDIT_2026-10-22.md).
+and the competitive review: [PRE_RELEASE_AUDIT_2026-10-22.md](docs/archive/PRE_RELEASE_AUDIT_2026-10-22.md).
 
 ## Built
 
@@ -142,15 +142,15 @@ full raid still have outstanding acceptance checks.
 ## Next
 
 Candidate feature progress while the game is closed: [raid presets, signup layouts,
-score cards and quieter companion sync](docs/PRELAUNCH_FEATURES_2026-10-24.md).
+score cards and quieter companion sync](docs/archive/PRELAUNCH_FEATURES_2026-10-24.md).
 Game acceptance starts when access returns. The owner authorized 7.3.2 publication
 before those checks; the subsequent feature bundle shipped in 7.4.0 and 7.5.0.
 
 New local review bundle: [roster, crafting, teams, history, groups, main/alt and
 limited GRM review, opt-in availability, local activity heatmap and Retail key
-sharing](docs/LOCAL_FEATURE_BUNDLE_2026-10-25.md). This bundle is published;
+sharing](docs/archive/LOCAL_FEATURE_BUNDLE_2026-10-25.md). This bundle is published;
 game validation remains pending. Claude's live checks are in the
-[post-release review](docs/POST_RELEASE_REVIEW_2026-10-26.md).
+[post-release review](docs/archive/POST_RELEASE_REVIEW_2026-10-26.md).
 
 1. Make independent guild setup clear and rehearse a clean install. Aim for
    30 minutes with hosting/database/DNS ready; see [QUICK_START.md](docs/QUICK_START.md).
@@ -240,7 +240,7 @@ How each one gets built: [ROADMAP_REQUESTS_PLAN_2026-10-18.md](docs/ROADMAP_REQU
 
 ## Requested candidates — 25 October 2026
 
-Current local implementation: [integrated candidate and remaining scope](docs/LOCAL_FEATURE_COMPLETION_2026-10-25.md).
+Current local implementation: [integrated candidate and remaining scope](docs/archive/LOCAL_FEATURE_COMPLETION_2026-10-25.md).
 Claude's `816c7af` fixes are integrated locally. The table below is the historical
 candidate capture; its review-only language predates Kevin's implementation
 authorization. Current changes remain uncommitted and unpublished for local review.
@@ -262,7 +262,7 @@ transfer limitation are retained in the local coordination record
 verified client API capabilities.
 
 Follow-up code review and proposed acceptance criteria:
-[feature candidate review](docs/FEATURE_CANDIDATE_REVIEW_2026-10-25.md).
+[feature candidate review](docs/archive/FEATURE_CANDIDATE_REVIEW_2026-10-25.md).
 The owner subsequently authorized starting implementation, kept local for review.
 The first addition is the signed-in officer roster dashboard described there;
 it and the subsequent feature bundle shipped before 8.0. The documentation-only restriction below describes the
@@ -283,7 +283,7 @@ original handoff, not this later local implementation authorization.
 
 These comparisons identify reuse opportunities, not new acceptance evidence.
 The original backlog handoff authorized only capture. Kevin subsequently authorized
-local implementation; see [the local bundle](docs/LOCAL_FEATURE_BUNDLE_2026-10-25.md)
+local implementation; see [the local bundle](docs/archive/LOCAL_FEATURE_BUNDLE_2026-10-25.md)
 for completed work and remaining scope. Game actions, commits, publication, push,
 merge and deployment remain outside this local review pass.
 

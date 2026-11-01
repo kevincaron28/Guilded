@@ -101,5 +101,5 @@ Details: [WEB_SIGNIN_AND_RECRUITMENT.md](WEB_SIGNIN_AND_RECRUITMENT.md),
 - Automated: TypeScript, ESLint, both addon validators, the Worker build and the full test suite,
   including sign-in, cookies and CSRF, recruitment and applications, run trust checks, leaderboard
   queries, CSV export, the provisional season and Guilded Dungeons running next to Guilded.
-- Before publishing, on 19 October: [the 7.0.0 test checklist](V7_0_0_TEST_CHECKLIST.md) (in game,
+- Before publishing, on 19 October: [the 7.0.0 test checklist](archive/V7_0_0_TEST_CHECKLIST.md) (in game,
   in Discord and on the website).

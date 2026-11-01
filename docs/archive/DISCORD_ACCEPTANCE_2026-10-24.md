@@ -50,7 +50,7 @@ separate from these local results.
 The owner subsequently requested locking dungeon scoring settings for **all** guilds.
 The candidate now removes guild rule/target setters, makes configuration and evidence
 read-only, and rejects cached editing commands. See
-[DUNGEON_SCORING_LOCK_2026-10-24.md](DUNGEON_SCORING_LOCK_2026-10-24.md).
+[DUNGEON_SCORING_LOCK_2026-10-24.md](../DUNGEON_SCORING_LOCK_2026-10-24.md).
 This is candidate source, not a claim that the production bot has been updated.
 
 ## Still pending

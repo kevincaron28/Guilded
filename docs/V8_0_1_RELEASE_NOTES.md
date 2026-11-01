@@ -36,4 +36,4 @@ Keep SavedVariables and connection data when updating. No score, ledger, role,
 privacy default, eligibility policy or historical season is reset.
 
 Validation, publication and remaining game evidence are recorded in the
-[launch completion checklist](V8_0_1_LAUNCH_COMPLETION.md).
+[launch completion checklist](archive/V8_0_1_LAUNCH_COMPLETION.md).

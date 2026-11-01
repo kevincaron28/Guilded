@@ -4,6 +4,7 @@ import { t, type Lang } from "../i18n.js";
 import { notifyEmbed } from "../services/notify.js";
 import { buildRaidAttendance, buildRaidReport, formatDuration, type RaidAttendanceList, type RaidReport } from "../services/raid-report.js";
 import { linkedReport } from "../services/wcl.js";
+import { raidEndCard } from "../services/end-cards.js";
 import { refreshSeasonSummary } from "./raid-season.js";
 
 export function raidReportEmbed(report: RaidReport, lang: Lang = "en"): EmbedBuilder {
@@ -70,5 +71,5 @@ export async function postRaidReport(discordGuild: DiscordGuild | null, guildId:
     const embed = raidReportEmbed(report, lang);
     if (wcl) embed.addFields({ name: "Warcraft Logs", value: `[${wcl.title}](${wcl.url})` });
     return embed;
-  }, "raidLog", raid?.coreId ?? null);
+  }, "raidLog", raid?.coreId ?? null, undefined, (lang) => raidEndCard(report, lang));
 }

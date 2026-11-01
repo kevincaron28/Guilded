@@ -6,7 +6,7 @@ formula. PRs [#256](https://github.com/kevincaron28/Guilded/pull/256) and
 [#257](https://github.com/kevincaron28/Guilded/pull/257) fix these in a deliberate
 8.0.2 release. All agreed 8.0 features, complete FR/DE/ES addon catalogues, protocol
 2, existing data and frozen policies are retained. Published 8.0/8.0.1 bytes remain
-available. See [the feature audit](FINAL_8_0_1_AUDIT_2026-10-28.md).
+available. See [the feature audit](archive/FINAL_8_0_1_AUDIT_2026-10-28.md).
 
 ## Reviewed source and public GitHub downloads
 

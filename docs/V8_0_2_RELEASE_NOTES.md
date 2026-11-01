@@ -19,6 +19,6 @@ The free [Microsoft Store companion](https://apps.microsoft.com/detail/9N680XX3Q
 uses Store signing and Store updates. The optional GitHub EXE remains unsigned.
 No paid signing service or license change is introduced.
 
-Validation/publication: [release completion](V8_0_2_RELEASE_COMPLETION.md).
+Validation/publication: [release completion](archive/V8_0_2_RELEASE_COMPLETION.md).
 Forever game data and live calibration remain dependent on game availability;
 the owner's earlier manual testing waiver remains recorded.

@@ -15,7 +15,7 @@ Archived October 28, 2026. These records describe their dates, not current deplo
 > after approval. Restricted synthetic reviewer credentials saved with owner consent.
 > Read docs/SESSION_HANDOFF_2026-10-26.md for current provider status and pending tests.
 > Claude's live Discord/web walkthrough and limits are recorded in
-> docs/POST_RELEASE_REVIEW_2026-10-26.md. His text fixes merged in #236.
+> docs/archive/POST_RELEASE_REVIEW_2026-10-26.md. His text fixes merged in #236.
 > Earlier checkpoints below are historical and their draft/local-only holds superseded.
 >
 > 7.5.0 (26 October 2026): combined release candidate; Claude PRs #226–#228, #230 and #231
@@ -26,7 +26,7 @@ Archived October 28, 2026. These records describe their dates, not current deplo
 > Version chosen by Kevin via the shared coordination notes. Public/live remains 7.4.0.
 > Read docs/V7_5_0_RELEASE_NOTES.md and docs/STORE_HANDOFF_2026-10-26.md.
 >
-> Local release-gap work (26 October): read docs/RELEASE_GAP_WORK_2026-10-26.md.
+> Local release-gap work (26 October): read docs/archive/RELEASE_GAP_WORK_2026-10-26.md.
 > Branch codex/release-gap-completion adds audited main/alt apply, participation,
 > opt-in availability, edition events and optional Classic buffs. Not deployed.
 > Owner retained the license and then authorized progressing toward Store submission;
@@ -38,11 +38,11 @@ Archived October 28, 2026. These records describe their dates, not current deplo
 >
 > 7.4.0 (25 October 2026): published on GitHub and deployed to Oracle at 8837fd9.
 > Both clean-main CI jobs and 2,548 local tests passed; all 21 public assets verified.
-> This supersedes the earlier local-only holds below. Read docs/SESSION_HANDOFF_2026-10-25.md
+> This supersedes the earlier local-only holds below. Read docs/archive/SESSION_HANDOFF_2026-10-25.md
 > for release execution and every unfinished acceptance check. Protocol remains 2.
 > Claude 816c7af and b9fd62c are included; preserve his separate checkout.
 
-> Latest local bundle review (25 October): docs/LOCAL_BUNDLE_REVIEW_2026-10-25.md.
+> Latest local bundle review (25 October): docs/archive/LOCAL_BUNDLE_REVIEW_2026-10-25.md.
 > 295 files / 2,548 tests passed. Added current core-interaction authorization,
 > isolated forms, paginated/exact character picks, atomic backup pages and GRM edge fixes.
 > Earlier fixes cover stale roster previews/scope, GRM privacy and
@@ -51,15 +51,15 @@ Archived October 28, 2026. These records describe their dates, not current deplo
 >
 > Local review continuation (25 October): native roster action plans, desktop/CLI GRM
 > history migration and edition buff coverage are implemented but uncommitted. See
-> docs/LOCAL_ROSTER_GRM_BUFFS_2026-10-25.md (292 files / 2,491 tests passed).
+> docs/archive/LOCAL_ROSTER_GRM_BUFFS_2026-10-25.md (292 files / 2,491 tests passed).
 > The owner explicitly keeps this feature bundle local: no publication or version bump.
 > Real-client acceptance and Forever custom spell confirmation remain pending.
 > Claude 816c7af and b9fd62c changes are integrated unstaged; preserve them before any pull.
 
 > 7.3.2 (25 October 2026): owner authorized full release before the unavailable Forever
-> two-PC tests. The prior publication hold is superseded by docs/RELEASE_DECISION_2026-10-25.md.
+> two-PC tests. The prior publication hold is superseded by docs/archive/RELEASE_DECISION_2026-10-25.md.
 > Game checks remain pending follow-up; benchmarks remain provisional.
-> Current release gaps and operational fixes: docs/RELEASE_GAPS_2026-10-25.md.
+> Current release gaps and operational fixes: docs/archive/RELEASE_GAPS_2026-10-25.md.
 > All ten CurseForge edition files are approved. The candidate entries below are
 > historical; their publication holds are superseded by the owner's release decision.
 > 25 October continuation: multi-edition connected candidate on codex/game-editions,
@@ -70,17 +70,17 @@ Archived October 28, 2026. These records describe their dates, not current deplo
 > Source-reviewed Classic/Retail routes, provisional benchmarks and Raider.IO-inspired
 > seasonal Guilded scoring are prepared; see docs/DUNGEON_CATALOG_2026-10-25.md.
 > Real-client acceptance and benchmark calibration remain release gates.
-> Setup, validation and remaining work: docs/RELEASE_SCOPE_2026-10-25.md.
+> Setup, validation and remaining work: docs/archive/RELEASE_SCOPE_2026-10-25.md.
 > 7.3.2 (23 October 2026): deployment candidate for UTC sessions, dungeon evidence/guidance,
 > staged recovery and companion startup fixes. Real game/two-PC acceptance remains pending.
 > Deployed for testing on 23 October; public release is explicitly held. Current preparation,
-> completed operational checks and remaining gates: docs/LAUNCH_READINESS_2026-10-24.md.
-> Claude review handoff for the 24 October Codex session: docs/AI_HANDOFF_2026-10-24.md.
+> completed operational checks and remaining gates: docs/archive/LAUNCH_READINESS_2026-10-24.md.
+> Claude review handoff for the 24 October Codex session: docs/archive/AI_HANDOFF_2026-10-24.md.
 > Includes companion installation, Discord evidence/cleanup, fixed shared dungeon scoring,
 > exact validation state and the continuing public-release hold. Read it before continuing.
 > 7.3.1 (22 October 2026): raid readiness requires level 60 and flags old checks; companion Update now
 > repair (a companion on 7.2.0/7.3.0 needs one manual install). Live on the bot and GitHub; CurseForge
-> has 7.3.0. Pre-release audit and recommendations: docs/PRE_RELEASE_AUDIT_2026-10-22.md.
+> has 7.3.0. Pre-release audit and recommendations: docs/archive/PRE_RELEASE_AUDIT_2026-10-22.md.
 > 7.3.0 (20 October 2026): safe-exit dungeon result card in both addons, optional cross-guild raid vacancies and companion browser, public player profiles and dungeon setup guide. See docs/V7_3_0_RELEASE_NOTES.md for deployment and pending real-client acceptance.
 > 7.2.1 (20 October 2026): leaderboards-only companions read GuildedDungeons.lua AND Guilded.lua
 > (companion/personal-runs.mjs); pool of 8 DB connections (src/database.ts); /health "commands" and

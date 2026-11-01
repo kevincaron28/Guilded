@@ -2,7 +2,7 @@
 
 > **23 October review:** #188 is merged; `main` now uses Prisma 7. The earlier failed
 > schema build is superseded by green CI on `473e710`. Production acceptance remains
-> unverified. Follow [the readiness record](PRISMA_7_READINESS_2026-10-23.md) before
+> unverified. Follow [the readiness record](archive/PRISMA_7_READINESS_2026-10-23.md) before
 > deployment. This document's original measurements below are historical evidence.
 
 Branch `fix/prisma-7-upgrade`: Prisma 6.19.3 → **7.10.1** for the bot (`@prisma/client`, `prisma`,

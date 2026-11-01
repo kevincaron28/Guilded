@@ -24,5 +24,5 @@ The Windows companion supports every edition. Its installer is unsigned.
 The owner authorized publication before unavailable game and two-PC checks.
 Those checks remain pending, not passed. Forever custom buffs and dungeon score
 benchmarks are provisional; this is not an official Raider.IO or Blizzard rating.
-See [the acceptance checklist](V7_4_0_GAME_CHECKLIST.md) and
-[the next-session handoff](SESSION_HANDOFF_2026-10-25.md).
+See [the acceptance checklist](archive/V7_4_0_GAME_CHECKLIST.md) and
+[the next-session handoff](archive/SESSION_HANDOFF_2026-10-25.md).

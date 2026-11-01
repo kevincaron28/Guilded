@@ -37,7 +37,7 @@ Sources checked: https://signpath.org/terms.html and
 https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/code-signing-options.
 
 Owner subsequently chose **keep the license and prepare Microsoft Store MSIX**.
-See [Store preparation](MICROSOFT_STORE_MSIX.md). A local unsigned preview built
+See [Store preparation](../MICROSOFT_STORE_MSIX.md). A local unsigned preview built
 and passed manifest/ASAR verification. Store identity, certification and real
 packaged installation remain pending. No self-signed certificate was created.
 
@@ -80,7 +80,7 @@ tests. Claude's older fixes checkout remains at b9fd62c with no tracked modifica
 His new `qgb-claude-gaps` checkout has active raid-preset changes; the shared
 coordination file records the agreed ownership. No restart or deployment occurred.
 
-User-facing instructions: [Roster and availability](ROSTER_AND_AVAILABILITY.md).
+User-facing instructions: [Roster and availability](../ROSTER_AND_AVAILABILITY.md).
 The MSIX preview was rebuilt after correcting duplicate resource-copy operations.
 The actual manifest, branded tiles, unchanged license and ASAR sources verified:
 165,358,670 bytes; SHA-256
@@ -106,7 +106,7 @@ submission is separate. No production deployment or game acceptance is claimed.
 ## Initial local verification and next steps
 
 The evidence below records the initial `4843298` candidate. The subsequent Store
-submission preparation is recorded in [the Store handoff](STORE_HANDOFF_2026-10-26.md),
+submission preparation is recorded in [the Store handoff](../STORE_HANDOFF_2026-10-26.md),
 including its new package hash and 2,579 passing tests.
 
 - All 299 test files / 2,575 tests passed (244.10 seconds), including cancellation,

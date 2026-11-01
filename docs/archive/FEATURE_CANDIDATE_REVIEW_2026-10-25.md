@@ -12,7 +12,7 @@ The bundle is the current status and validation record; the first-dashboard
 results and proposed order below describe the earlier stage. Remaining candidates
 are not release commitments. Review is required before any publication.
 The original reference provenance and all ten candidates remain in
-[the roadmap](../ROADMAP.md#requested-candidates--25-october-2026).
+[the roadmap](../../ROADMAP.md#requested-candidates--25-october-2026).
 
 ## Existing capabilities to extend
 

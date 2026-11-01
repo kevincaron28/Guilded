@@ -35,4 +35,4 @@ English/French help and both addons describe the lock.
 
 Local validation: 267 files / 2,244 tests, TypeScript, ESLint, both addon validators
 and `git diff --check` passed. Final-head CI and live candidate command acceptance
-remain separate gates. See [Claude's session handoff](AI_HANDOFF_2026-10-24.md).
+remain separate gates. See [Claude's session handoff](archive/AI_HANDOFF_2026-10-24.md).

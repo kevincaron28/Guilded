@@ -49,7 +49,7 @@ completed. The actual installed Store update, signature/certificate chain,
 submitted application bytes and retained encrypted profile/account activation
 passed. The older long-lived ciphertext baseline was rewritten before installation;
 it is not reported as bitwise unchanged. See
-[provider evidence](V8_0_2_RELEASE_EVIDENCE_2026-10-28.md).
+[provider evidence](../V8_0_2_RELEASE_EVIDENCE_2026-10-28.md).
 
 No independent native-speaker or universal accessibility certification is claimed.
 Remaining Forever API/encounter/loot data and representative live calibration

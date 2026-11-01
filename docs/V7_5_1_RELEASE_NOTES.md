@@ -2,7 +2,7 @@
 
 Released by Claude at Kevin's request ("finish codex work so we can test retail and other version of wow
 today"; "publish everything"), while Codex was out of capacity. Protocol 2. Real-client checks on every
-edition are collected from players after release; see [the 7.5 game checklist](V7_5_0_GAME_CHECKLIST.md).
+edition are collected from players after release; see [the 7.5 game checklist](archive/V7_5_0_GAME_CHECKLIST.md).
 
 ## Loot follows the original rules (PR #241)
 

@@ -6,8 +6,8 @@ upgraded from 8.0.0.0 and activated on this PC;
 Windows reports Store signing and status OK, and its cryptographic signature and
 certificate chain passed verification. The installed application archive matches
 the submitted build, the encrypted profile is unchanged, and the real Setup
-window displays Version 8.0.1. See [8.0 publication](V8_0_RELEASE_EVIDENCE_2026-10-28.md)
-and [8.0.1 launch completion](V8_0_1_LAUNCH_COMPLETION.md). The original preparation
+window displays Version 8.0.1. See [8.0 publication](archive/V8_0_RELEASE_EVIDENCE_2026-10-28.md)
+and [8.0.1 launch completion](archive/V8_0_1_LAUNCH_COMPLETION.md). The original preparation
 and submission checkpoints below are historical. Store signing is the owner's
 chosen free Windows distribution method; the optional GitHub EXE is separately unsigned.
 

@@ -5,7 +5,7 @@ There is no separate test bot, so the order is: **deploy 7.0.0 to the bot** (aft
 project. If a test fails badly, the backup and the previous release (6.7.0) are the way back.
 
 Before testing sign-in, recruitment applications or personal codes, do the owner setup in
-[V7_0_0_RELEASE_NOTES.md](V7_0_0_RELEASE_NOTES.md#owner-setup-for-website-sign-in). Install the 7.0.0
+[V7_0_0_RELEASE_NOTES.md](../V7_0_0_RELEASE_NOTES.md#owner-setup-for-website-sign-in). Install the 7.0.0
 addon zip and companion installer from the build on at least one PC.
 
 Mark each line ✅ / ❌ with a note.
@@ -44,7 +44,7 @@ only if you want the all-level season live today; otherwise stop after step 2.
        and the addon's score panel shows the target with `*`.
 6. [ ] `/officer dungeon recalibrate route:<route>` with too few clears explains that 3 are needed.
 
-Full script: PR #147 and [DUNGEON_SEASON_BRACKETS.md](DUNGEON_SEASON_BRACKETS.md).
+Full script: PR #147 and [DUNGEON_SEASON_BRACKETS.md](../DUNGEON_SEASON_BRACKETS.md).
 
 ## D. Website recruitment (15 minutes, needs the owner setup)
 
@@ -58,7 +58,7 @@ Full script: PR #147 and [DUNGEON_SEASON_BRACKETS.md](DUNGEON_SEASON_BRACKETS.md
 6. [ ] `/me/` → "Looking for a guild" card → it shows on the page.
 7. [ ] Sign out → `/me/` asks to sign in again.
 
-Full script: [WEB_SIGNIN_AND_RECRUITMENT.md](WEB_SIGNIN_AND_RECRUITMENT.md#test-script).
+Full script: [WEB_SIGNIN_AND_RECRUITMENT.md](../WEB_SIGNIN_AND_RECRUITMENT.md#test-script).
 
 ## E. Guilded Dungeons and public leaderboards (30 minutes, a dungeon run)
 
@@ -70,7 +70,7 @@ Full script: [WEB_SIGNIN_AND_RECRUITMENT.md](WEB_SIGNIN_AND_RECRUITMENT.md#test-
 4. [ ] With Guilded and Guilded Dungeons both installed, `/gdg status` says Guilded records the run.
 5. [ ] In Quebec Gold: `/mod leaderboard share:true`; within 15 minutes guild runs appear.
 
-Full script: [PUBLIC_DUNGEON_LEADERBOARDS.md](PUBLIC_DUNGEON_LEADERBOARDS.md#test-script).
+Full script: [PUBLIC_DUNGEON_LEADERBOARDS.md](../PUBLIC_DUNGEON_LEADERBOARDS.md#test-script).
 
 ## F. Upgrade (5 minutes)
 

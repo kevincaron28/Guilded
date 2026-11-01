@@ -1,6 +1,6 @@
 # 8.4.0 acceptance — 30 October 2026
 
-Status: source candidate; not deployed, packaged or published yet.
+Status as of 1 November 2026: GitHub v8.4.0 is published as a stable release (30 October, 23 assets). The Oracle bot runs main `e400396` (8.4.0), which adds the WoW-style share cards on top of the 8.4.0 source; the cards are bot-only and change no client artifact. CurseForge and Store 8.4 status was not re-verified on this date. The checkpoint notes below are the 30 October record and are kept as written.
 
 Checkpoint a41011b: PR293 workflow41075850865 passed all jobs, including
 PostgreSQL race/migration/restore and Windows packaging. Local full run had3185

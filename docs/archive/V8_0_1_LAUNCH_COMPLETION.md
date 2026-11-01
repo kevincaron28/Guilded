@@ -20,7 +20,7 @@ have regression coverage. Both addons receive the same generated locale file.
 The review is model-assisted linguistic work plus automated/offline layout checks,
 not an external native-speaker certification. Companion/bot/site support remains
 English/French; addon language coverage does not imply extra supported languages
-on those products. See [translation maintenance](TRANSLATING.md).
+on those products. See [translation maintenance](../TRANSLATING.md).
 
 ## Windows signing and installation
 

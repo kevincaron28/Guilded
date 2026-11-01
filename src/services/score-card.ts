@@ -52,8 +52,10 @@ async function render(card: ScoreCard): Promise<Buffer> {
   const hasRows = Boolean(card.rows?.length);
   const leftW = hasRows ? 500 : 1080;
 
+  // The title shrinks to fit the narrower left column rather than being cut short.
+  const titleLen = [...card.title].length, titleSize = !hasRows || titleLen <= 12 ? 62 : titleLen <= 17 ? 50 : 40;
   await put(caps(th.gold, clip(card.eyebrow ?? "Guilded · Dungeons", 44)), 20, 60, 40, leftW);
-  await put(span(th.ink, clip(card.title, hasRows ? 17 : 38)), hasRows ? ([...card.title].length > 12 ? 50 : 62) : 62, 58, 68, leftW);
+  await put(span(th.ink, clip(card.title, hasRows ? 26 : 38)), titleSize, 58, 68 + (62 - titleSize) / 2, leftW);
   await put(span(th.muted, clip(card.subtitle, hasRows ? 38 : 90)), 25, 60, 146, leftW);
 
   // Headline: the first stat is large, the next two sit side by side underneath.

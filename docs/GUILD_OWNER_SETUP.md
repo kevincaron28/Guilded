@@ -11,8 +11,7 @@ This page is the shorter technical reference.
 One owner hosts the Discord bot and database; members install the addon and use
 the online companion by default. The Windows app is optional for automatic sync,
 especially useful for leaders and officers. Use the bot source, addon and companion from
-the same [published release](https://github.com/kevincaron28/Guilded/releases/latest) (7.3.1 on
-22 October 2026) and read its notes for known limitations. A timed fresh-guild rehearsal on a
+the same [published release](https://github.com/kevincaron28/Guilded/releases/latest) (8.4.0) and read its notes for known limitations. A timed fresh-guild rehearsal on a
 non-developer PC is still pending.
 
 Start with the [30-minute checklist](QUICK_START.md). That is a target with hosting,

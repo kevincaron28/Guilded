@@ -54,9 +54,7 @@ walks through a full raid night.
 In the [online companion](/companion/?tab=pricing), **Raid prices** lets officers
 review editable December slot prices and explicitly enable the preset for a core.
 Existing pools keep their rules until an officer chooses to change them.
-**Leaderboards** shows raid priority and dungeon scores. Use matching 8.1.0
-candidate clients for the new in-game pricing flow; stable downloads remain
-separately labelled until the November 4 release.
+**Leaderboards** shows raid priority and dungeon scores. Use the matching 8.4.0 addon and companion for the in-game pricing flow.
 
 ## Already using Raid-Helper?
 

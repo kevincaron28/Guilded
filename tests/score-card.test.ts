@@ -25,7 +25,7 @@ function fixture() {
 describe("shareable dungeon cards", () => {
   it("renders a real 1200x630 PNG with bundled font and escaped user text; changed facts change pixels", async () => {
     const card = { title: '<span foreground="red">Kévin & friends</span>', subtitle: "Saison 1 · Niveau 15–29", stats: [{ label: "Temps", value: "20:00", note: "Cible 22:00" }, { label: "Score", value: "200" }],
-      party: [{ name: "Kévin <b>", className: "Warrior", role: "Tank" }], badges: [{ text: "Confirmé par le groupe", tone: "ok" as const }], footer: "Rapport communautaire" };
+      rows: [{ name: "Kévin <b>", sub: "Warrior", right: "Tank", color: "#c79c6e" }], rowsLabel: "Groupe", badges: [{ text: "Confirmé par le groupe", tone: "ok" as const }], footer: "Rapport communautaire" };
     const first = await scoreCardResponse(card);
     expect(first.status).toBe(200);
     expect(await sharp(first.binaryBody).metadata()).toMatchObject({ width: 1200, height: 630, format: "png" });

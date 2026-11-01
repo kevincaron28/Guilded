@@ -17,7 +17,7 @@ import { characterId, characterScores, DEFAULT_OFFICIAL, periodRules, publicRule
 import { breadcrumbs } from "./site-header.js";
 import { escapeHtml, link, options } from "./web-layout.js";
 import type { WebContext, WebKit, WebResponse, WebRoute } from "./web-app.js";
-import { scoreCardResponse, type CardStat } from "./score-card.js";
+import { classColor, scoreCardResponse, type CardRow, type CardStat } from "./score-card.js";
 import { currentEdition, withEdition } from "./edition-context.js";
 import { gameEditionOf } from "./game-edition.js";
 
@@ -522,11 +522,20 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const imagePath = link(`/leaderboards/character/${raw}/card.png`, lang);
     if (image) {
       if (!runs.length) return kit.page(404, t("Not found", "Introuvable"), "", { noindex: true });
-      const stats: CardStat[] = keyScores.length ? keyScores.slice(0, 3).map(r => ({ label: t("Mythic+ rating", "Cote Mythic+"), value: r.points.toFixed(1), note: t(`${r.completed}/${keyRules!.dungeons.length} dungeons · ${r.realm}`, `${r.completed}/${keyRules!.dungeons.length} donjons · ${r.realm}`) }))
-        : current.length ? current.slice(0, 3).map(row => ({ label: bracketName(ctx, row.bracket), value: String(row.points), note: t("Best-run score this season", "Score des meilleurs essais cette saison") }))
-        : [{ label: t("Season score", "Score de saison"), value: "—", note: t("Not rated this season yet", "Pas encore classé cette saison"), accent: "red" as const }];
+      const scoreStats: CardStat[] = keyScores.length ? keyScores.slice(0, 2).map(r => ({ label: t("Mythic+ rating", "Cote Mythic+"), value: r.points.toFixed(1), note: t(`${r.completed}/${keyRules!.dungeons.length} dungeons`, `${r.completed}/${keyRules!.dungeons.length} donjons`) }))
+        : current.length ? current.slice(0, 2).map(row => ({ label: bracketName(ctx, row.bracket), value: String(row.points), note: t("Season score", "Score de saison") }))
+        : [{ label: t("Season score", "Score de saison"), value: "—", note: t("Not rated yet", "Pas encore classé"), accent: "red" as const }];
+      const runPoints = (r: LeaderRun) => rateRun(r, rulesAt(seasons, r.endedAt), r.players.find(isMe)).score?.points;
+      const bestRun = runs.flatMap((r) => { const points = runPoints(r); return points === undefined ? [] : [{ r, points }]; }).sort((a, b) => b.points - a.points)[0];
+      const stats: CardStat[] = [scoreStats[0]!, ...(bestRun ? [{ label: t("Best dungeon", "Meilleur donjon"), value: bestRun.r.dungeonName, note: `${time(bestRun.r.durationSec)} · ${bestRun.points}` }] : []), ...scoreStats.slice(1)];
+      const rows: CardRow[] = runs.slice(0, 5).map((r) => {
+        const points = runPoints(r);
+        return { name: r.dungeonName, color: r.challenge ? (r.challenge.onTime ? "#8fd19e" : "#ee8a7a") : undefined, sub: `${date(r.endedAt)} · ${r.challenge ? challengeClock(r.challenge.durationMs) : time(r.durationSec)}`,
+          right: r.challenge ? `+${r.challenge.level}` : points === undefined ? "—" : String(points), rightTone: r.challenge ? (r.challenge.onTime ? "green" as const : "red" as const) : undefined };
+      });
       return scoreCardResponse({ eyebrow: t("Guilded · Dungeons · Character", "Guilded · Donjons · Personnage"), title,
         subtitle: [me?.className ? classLabel(me.className, lang) : null, me?.level ? `${t("level", "niveau")} ${me.level}` : null, periodName(ctx, season)].filter(Boolean).join(" · "), stats,
+        rows, rowsLabel: t("Recent runs", "Essais récents"),
         badges: [{ text: t(`${runs.length} public ${runs.length === 1 ? "run" : "runs"}`, `${runs.length} ${runs.length === 1 ? "essai public" : "essais publics"}`), tone: "muted" }],
         footer: t("Community reports · Provisional targets · Not Blizzard verified · guilded.kcaron.top", "Rapports communautaires · Cibles provisoires · Non vérifié par Blizzard · guilded.kcaron.top")
       }, ctx.request.method === "HEAD");
@@ -606,14 +615,14 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
         { label: t("Deaths", "Morts"), value: run.deaths === null ? "?" : String(run.deaths), note: run.deaths === null ? t("Not reported", "Non rapporté") : undefined }
       ] : [
         { label: t("Clear time", "Temps de complétion"), value: displayedTime, note: timeNote, accent: target ? (run.durationSec <= target ? "green" : "gold") : "gold" },
-        verdict.score ? { label: t("Run score", "Score de l'essai"), value: String(verdict.score.points), note: t("200 = target pace · more is faster", "200 = cible · plus = plus rapide") }
+        verdict.score ? { label: t("Run score", "Score de l'essai"), value: String(verdict.score.points), note: t("200 = target pace", "200 = rythme cible") }
           : { label: t("Run score", "Score de l'essai"), value: "—", note: verdict.reason ?? t("Unrated", "Non classé"), accent: "red" },
         { label: t("Level bracket", "Tranche de niveaux"), value: (run.bracket ?? "?").replace("-", "–"), note: levelRange ? t(`Party levels ${levelRange}`, `Niveaux du groupe ${levelRange}`) : undefined }
       ];
       const roleName = (role: string | null) => role === "TANK" ? t("Tank", "Tank") : role === "HEALER" ? t("Healer", "Soigneur") : role === "DPS" ? t("DPS", "DPS") : null;
       return scoreCardResponse({ eyebrow: t("Guilded · Dungeons · Run", "Guilded · Donjons · Essai"), title, subtitle, stats,
-        party: run.players.map((p) => ({ name: p.displayName || p.character, className: p.className ? classLabel(p.className, lang) : null, role: roleName(p.role) })),
-        partyLabel: `${t("Party", "Groupe")} · ${run.players.length} ${t("players", "joueurs")}`,
+        rows: run.players.map((p) => ({ name: p.displayName || p.character, color: classColor(p.className), sub: p.className ? classLabel(p.className, lang) : undefined, right: roleName(p.role) ?? undefined })),
+        rowsLabel: `${t("Party", "Groupe")} · ${run.players.length} ${t("players", "joueurs")}`,
         badges: [
           { text: run.confirmations >= 2 ? t(`Party confirmed · ${run.confirmations} uploads agree`, `Confirmé par le groupe · ${run.confirmations} envois concordent`) : t("One upload · not yet confirmed", "Un envoi · pas encore confirmé"), tone: run.confirmations >= 2 ? "ok" : "warn" },
           ...(!run.challenge && run.deaths !== null ? [{ text: run.deaths === 1 ? t("1 death", "1 mort") : t(`${run.deaths} deaths`, `${run.deaths} morts`), tone: "muted" as const }] : []),

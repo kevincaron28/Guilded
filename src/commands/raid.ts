@@ -1,7 +1,7 @@
 import { serializeRaidPosts, syncRaidPosts } from "../services/raid-signup-posts.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "../services/discord-jobs.js";
 import {
-  ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, SlashCommandBuilder, StringSelectMenuBuilder,
+  ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, SlashCommandBuilder, StringSelectMenuBuilder,
   type ButtonInteraction, type ChatInputCommandInteraction, type StringSelectMenuInteraction, type Guild as DiscordGuild, type GuildMember,
   MessageFlags,
 } from "discord.js";
@@ -11,6 +11,8 @@ import { notifications, notify } from "../services/notify.js";
 import { showEpProposal } from "./ep-award.js";
 import { postRaidReport, raidReportEmbed } from "./raid-report.js";
 import { buildRaidReport } from "../services/raid-report.js";
+import { raidEndCard } from "../services/end-cards.js";
+import { scoreCardPng } from "../services/score-card.js";
 import { executeRaidHistory, executeRaidSeason } from "./raid-season.js";
 import { bossProgress } from "../services/progress.js";
 import { parseRaidTime } from "../services/raid-time.js";
@@ -425,7 +427,12 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const posted = await postRaidReport(interaction.guild, context.guildId, raidId);
       await interaction.editReply({ content: posted ? "Posted in this core's raid reports channel." : "No report channel is configured for this core." });
-    } else await interaction.reply({ embeds: [raidReportEmbed(report, lang)], allowedMentions: { parse: [] } });
+    } else {
+      const png = await scoreCardPng(raidEndCard(report, lang)).catch(() => null);
+      const embed = raidReportEmbed(report, lang);
+      if (png) embed.setImage("attachment://raid.png");
+      await interaction.reply({ embeds: [embed], ...(png ? { files: [new AttachmentBuilder(png, { name: "raid.png" })] } : {}), allowedMentions: { parse: [] } });
+    }
     return;
   }
   if (subcommand === "award-ep") {

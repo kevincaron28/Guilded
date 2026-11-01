@@ -85,7 +85,7 @@ async function render(card: ScoreCard): Promise<Buffer> {
     for (const [i, row] of rows.entries()) {
       const ry = top + 70 + i * 74, color = row.color ?? th.gold;
       shapes.push(`<rect x="${px + 28}" y="${ry + 4}" width="5" height="54" rx="2.5" fill="${color}"/>`);
-      await put(span(color, clip(row.name, 22)), 27, px + 48, ry, 330);
+      await put(span(color, clip(row.name, 26)), 27, px + 48, ry, 330);
       if (row.sub) await put(span(th.muted, clip(row.sub, 34)), 17, px + 48, ry + 36, 330);
       if (row.right) {
         const t = await text(span(row.rightTone ? accent[row.rightTone] : th.ink, clip(row.right, 14)), 23, 200);
@@ -115,18 +115,15 @@ async function render(card: ScoreCard): Promise<Buffer> {
   return sharp(base).composite(layers).png().toBuffer();
 }
 
-// Only call after the route has checked public visibility. Cache by the complete
-// facts, not a player id, so changed scores immediately get a different image.
-// Bound both memory (32 images) and concurrent render work (2 distinct images).
-export async function scoreCardResponse(card: ScoreCard, head = false): Promise<WebResponse> {
-  const headers = { "content-type": "image/png", "cache-control": "no-store", "x-content-type-options": "nosniff" };
-  if (head) return { status: 200, headers, body: "" };
+// Cache by the complete facts, not a player id, so changed scores immediately get a different image.
+// Bound both memory (32 images) and concurrent render work (2 distinct images); null means busy.
+export async function scoreCardPng(card: ScoreCard): Promise<Buffer | null> {
   const key = createHash("sha256").update(JSON.stringify(card)).digest("hex");
   const cached = images.get(key);
-  if (cached) return { status: 200, headers, body: "", binaryBody: cached };
+  if (cached) return cached;
   let work = pending.get(key);
   if (!work) {
-    if (pending.size >= 2) return { status: 503, headers: { ...headers, "retry-after": "2" }, body: "" };
+    if (pending.size >= 2) return null;
     work = render(card);
     pending.set(key, work);
   }
@@ -134,6 +131,14 @@ export async function scoreCardResponse(card: ScoreCard, head = false): Promise<
     const binaryBody = await work;
     images.set(key, binaryBody);
     while (images.size > 32) images.delete(images.keys().next().value!);
-    return { status: 200, headers, body: "", binaryBody };
+    return binaryBody;
   } finally { if (pending.get(key) === work) pending.delete(key); }
+}
+
+// Only call after the route has checked public visibility.
+export async function scoreCardResponse(card: ScoreCard, head = false): Promise<WebResponse> {
+  const headers = { "content-type": "image/png", "cache-control": "no-store", "x-content-type-options": "nosniff" };
+  if (head) return { status: 200, headers, body: "" };
+  const binaryBody = await scoreCardPng(card);
+  return binaryBody ? { status: 200, headers, body: "", binaryBody } : { status: 503, headers: { ...headers, "retry-after": "2" }, body: "" };
 }

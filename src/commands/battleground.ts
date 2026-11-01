@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, escapeMarkdown, MessageFlags, ModalBuilder, PermissionFlagsBits, SlashCommandBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle, type ButtonInteraction, type ChatInputCommandInteraction, type ModalSubmitInteraction, type StringSelectMenuInteraction } from "discord.js";
+import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, escapeMarkdown, MessageFlags, ModalBuilder, PermissionFlagsBits, SlashCommandBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle, type ButtonInteraction, type ChatInputCommandInteraction, type ModalSubmitInteraction, type StringSelectMenuInteraction } from "discord.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 import { requireGuildContext } from "./context.js";
@@ -9,6 +9,8 @@ import { Prisma, type RaidRole } from "../generated/prisma/client.js";
 import { battlegroundHistory, battlegroundStats, correctBattlegroundReport, setBattlegroundConsent } from "../services/battleground-records.js";
 import { battlegroundPrivacyHelp, battlegroundRecordPanel, battlegroundResultCard, battlegroundSetupHelp } from "./battleground-record-ui.js";
 import { currentGuildScope } from "../services/guild-scope.js";
+import { battlegroundEndCard } from "../services/end-cards.js";
+import { scoreCardPng } from "../services/score-card.js";
 
 export const battlegroundCommand = new SlashCommandBuilder().setName("bg").setDescription("Battleground planning")
   .setDescriptionLocalizations({ fr: "Organisation des champs de bataille" })
@@ -104,7 +106,11 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
       const id = text("report", true);
       const row = rows.find(row => row.id === id || row.reportId === id);
       if (!row) throw new Error("Own report not found / Rapport personnel introuvable.");
-      await i.editReply({ embeds: [battlegroundResultCard(row, fr)], allowedMentions: { parse: [] } }); return;
+      const recent = await battlegroundHistory(prisma, ctx.guildId, ctx.memberId).catch(() => [row]);
+      const png = await scoreCardPng(battlegroundEndCard(row, recent, fr ? "fr" : "en")).catch(() => null);
+      const embed = battlegroundResultCard(row, fr);
+      if (png) embed.setImage("attachment://match.png");
+      await i.editReply({ embeds: [embed], ...(png ? { files: [new AttachmentBuilder(png, { name: "match.png" })] } : {}), allowedMentions: { parse: [] } }); return;
     }
     const description = rows.length ? rows.map(row => `${escapeMarkdown(row.id)} · ${escapeMarkdown(row.gameEdition)} · ${escapeMarkdown(row.mode)} · ${escapeMarkdown(row.bracket)}\n<t:${Math.floor(row.endedAt.getTime() / 1000)}:f> · ${row.outcome} · ${row.status}`).join("\n\n")
       : t("No personal reports. /bg privacy chooses consent; the paired Companion uploads eligible postmatch reports.", "Aucun rapport personnel. /bg privacy définit votre accord; le Compagnon lié importe les rapports admissibles après match.");

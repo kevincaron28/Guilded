@@ -109,7 +109,7 @@ export async function battlegroundHistory(db: PrismaClient, guildId: string, mem
     ...(reportId ? { OR: [{ id: reportId }, { reportId }] } : {}) },
     orderBy: [{ endedAt: "desc" }, { id: "desc" }], take: reportId ? 1 : 25,
     select: { id: true, reportId: true, gameEdition: true, mode: true, mapId: true, bracket: true,
-      endedAt: true, outcome: true, presence: true, reloaded: true, status: true, corroborated: true, conflictSummary: true, correctionReason: true } });
+      durationSeconds: true, endedAt: true, outcome: true, presence: true, reloaded: true, status: true, corroborated: true, conflictSummary: true, correctionReason: true } });
 }
 
 export async function correctBattlegroundReport(db: PrismaClient, guildId: string, memberId: string, reportId: string, reason: string) {

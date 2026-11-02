@@ -126,6 +126,11 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
       const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { readinessChannelId: true } });
       if (!settings?.readinessChannelId) return;
       channelId = settings.readinessChannelId;
+    } else if (route === "achievements") {
+      // Re-checked at delivery: switching announcements off (or the channel) takes effect for queued posts too.
+      const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { achievementAnnounceEnabled: true, achievementChannelId: true, achievementsEnabled: true } });
+      if (!settings?.achievementAnnounceEnabled || !settings.achievementsEnabled || !settings.achievementChannelId) return;
+      channelId = settings.achievementChannelId;
     } else if (route === "officerReport") {
       const { resolveNotifyAddress, officerReportDestination } = await import("./notify.js");
       const address = await resolveNotifyAddress(guild, "officer");

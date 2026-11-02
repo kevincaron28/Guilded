@@ -811,6 +811,10 @@ model GuildSettings {
   // Achievements are viewable and recorded unless an officer turns them off. There is no announcement setting:
   // nothing is ever posted or awarded automatically.
   achievementsEnabled Boolean @default(true)
+  // Opt-in celebration posts: off by default, an officer turns them on with /config achievements. Turning them
+  // on first records everything already earned as announced, so there is no backfill.
+  achievementAnnounceEnabled Boolean @default(false)
+  achievementChannelId String?
   // Full setup reset excludes history that still exists on members' PCs.
   dataResetAt DateTime?
   id                       String    @id @default(cuid())
@@ -2531,11 +2535,14 @@ model MemberAchievement {
   recordedAt DateTime @default(now())
   // The measured value when it was recorded (a level, a count).
   value      Int
+  // When it was announced (or silently marked as announced). Null = waiting for the next announcement pass.
+  announcedAt DateTime?
   guild      Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
   member     Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@unique([guildId, memberId, key])
   @@index([memberId])
+  @@index([guildId, announcedAt])
 }
 
 // A Path of Exile 2 character level the member's own client log reported ("is now level N").

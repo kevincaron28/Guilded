@@ -91,3 +91,21 @@ export function achievementsCard(name: string, items: AchievementCardItem[], lan
     footer: t("Earned from synced characters, runs, raid attendance and your own PoE2 log · No points · guilded.kcaron.top", "Obtenus à partir des personnages synchronisés, donjons, présences aux raids et de votre journal PoE2 · Aucun point · guilded.kcaron.top")
   };
 }
+
+/** The card for a celebration post: the achievements just unlocked, with their badges. */
+export function achievementUnlockedCard(name: string, ids: string[], totalEarned: number, lang: Lang = "en"): ScoreCard {
+  const t = pick(lang);
+  const defs = ids.flatMap(id => { const def = achievementById(id); return def ? [def] : []; });
+  const shown = defs.slice(-5).reverse();
+  return {
+    eyebrow: t("Guilded · Achievement unlocked", "Guilded · Succès débloqué"), title: name,
+    subtitle: t("Computed from recorded guild data", "Données enregistrées de la guilde"),
+    stats: [
+      { label: t("Unlocked now", "Débloqués"), value: `+${defs.length}`, accent: "gold" },
+      { label: t("Total", "Total"), value: `${totalEarned}/${ACHIEVEMENTS.length}` }
+    ],
+    rowsLabel: t("New achievements", "Nouveaux succès"),
+    rows: shown.map(def => ({ name: def[lang].name, sub: GAME_LABEL[def.game][lang], color: TIER_COLOR[def.tier], right: TIER_LABEL[def.tier][lang], icon: badgeInner(def, true) })),
+    footer: t("Earned from synced characters, runs, raid attendance and the PoE2 log · No points · guilded.kcaron.top", "Obtenus à partir des personnages synchronisés, donjons, présences aux raids et du journal PoE2 · Aucun point · guilded.kcaron.top")
+  };
+}

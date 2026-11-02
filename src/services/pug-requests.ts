@@ -36,8 +36,15 @@ export const pugNoticeKey = (requestId: string) => `pugnotice:${requestId}`;
 
 // --- Joining, leaving, blocking -------------------------------------------------------------
 
-export async function joinPugBoard(db: Db, guildId: string, channelId: string, userId: string): Promise<void> {
+export async function joinPugBoard(db: Db, guildId: string, channelId: string, userId: string, allows: Allows = () => true): Promise<void> {
+  const existing = await db.pugBoardGuild.findUnique({ where: { guildId } });
   await db.pugBoardGuild.upsert({ where: { guildId }, create: { guildId, channelId, joinedBy: userId }, update: { channelId } });
+  if (existing) return;
+  // A guild that joins late still sees the requests that are open right now for its edition.
+  const guild = await db.guild.findUnique({ where: { id: guildId }, select: { gameEdition: true } });
+  if (!guild) return;
+  const open = await db.pugRequest.findMany({ where: { status: "OPEN", guildId: { not: guildId }, edition: guild.gameEdition }, select: { id: true } });
+  for (const request of open) await fanOutPugRequest(db, request.id, allows);
 }
 
 /** Leaving retires this guild's own requests and removes every post from its channel. */
@@ -64,7 +71,12 @@ export async function blockPugGuild(db: Db, guildId: string, blockedGuildId: str
 export async function unblockPugGuild(db: Db, guildId: string, blockedGuildId: string, allows: Allows): Promise<boolean> {
   const { count } = await db.pugBlock.deleteMany({ where: { guildId, blockedGuildId } });
   if (count) {
-    const requests = await db.pugRequest.findMany({ where: { status: "OPEN", guildId: { in: [guildId, blockedGuildId] } }, select: { id: true } });
+    const requests = await db.pugRequest.findMany({ where: { status: "OPEN", guildId: { in: [guildId, blockedGuildId] } }, select: { id: true, guildId: true } });
+    // Blocking retired the posts between the two guilds; bring them back so the next fan-out re-posts them.
+    for (const request of requests) {
+      const viewer = request.guildId === guildId ? blockedGuildId : guildId;
+      await db.pugPost.updateMany({ where: { requestId: request.id, guildId: viewer, removedAt: { not: null } }, data: { removedAt: null, messageId: null } });
+    }
     for (const request of requests) await fanOutPugRequest(db, request.id, allows);
   }
   return count > 0;

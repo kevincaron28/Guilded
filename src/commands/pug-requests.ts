@@ -69,7 +69,7 @@ export async function executePugs(interaction: ChatInputCommandInteraction): Pro
       channel = created ?? await interaction.guild.channels.fetch(existing!.channelId);
     }
     if (!channel) throw new PugError("That channel is unavailable.");
-    await joinPugBoard(prisma, guild.id, channel.id, interaction.user.id);
+    await joinPugBoard(prisma, guild.id, channel.id, interaction.user.id, allows);
     await interaction.editReply(pt(lang,
       `This guild joined the PUG board: other guilds' requests for your WoW edition appear in <#${channel.id}>, each tagged as another guild's raid. Nothing is shared about your members. Officers can block any guild from its post, and /raid pugs leave undoes this.`,
       `Cette guilde a rejoint le tableau PUG : les demandes d'autres guildes pour votre édition de WoW apparaissent dans <#${channel.id}>, chacune marquée comme raid d'une autre guilde. Rien n'est partagé sur vos membres. Les officiers peuvent bloquer une guilde depuis son message, et /raid pugs leave annule tout.`));

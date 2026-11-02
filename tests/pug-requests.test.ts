@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  blockPugGuild, closePugRequest, createPugRequest, decidePugSignup, fanOutPugRequest, isFilled, openCounts, publicPugRequests, pugTargets, PUG_LIMITS, PugError,
-  signUpForPug, sweepPugRequests
+  blockPugGuild, closePugRequest, createPugRequest, decidePugSignup, fanOutPugRequest, isFilled, joinPugBoard, openCounts, publicPugRequests, pugTargets, PUG_LIMITS, PugError,
+  signUpForPug, sweepPugRequests, unblockPugGuild
 } from "../src/services/pug-requests.js";
 
 const now = new Date("2026-11-05T12:00:00Z");
@@ -23,12 +23,18 @@ function fake(options: { boards?: Board[]; blocks?: { guildId: string; blockedGu
       findUnique: vi.fn(async ({ where }: { where: { guildId: string } }) => (options.boards ?? []).find(b => b.guildId === where.guildId) ?? null),
       findMany: vi.fn(async ({ where }: { where?: { guildId?: { not: string }; guild?: { gameEdition: string } } } = {}) =>
         (options.boards ?? []).filter(b => (!where?.guildId || b.guildId !== where.guildId.not) && (!where?.guild || b.guild.gameEdition === where.guild.gameEdition))),
-      upsert: vi.fn(), delete: vi.fn()
+      upsert: vi.fn(async ({ create }: { create: { guildId: string; channelId: string } }) => { (options.boards ??= []).push({ ...create, guild: { discordId: `d${create.guildId.slice(1)}`, gameEdition: "classic-tbc" } }); }), delete: vi.fn()
     },
+    guild: { findUnique: vi.fn(async () => ({ gameEdition: "classic-tbc" })) },
     pugBlock: {
       findMany: vi.fn(async ({ where }: { where: { OR?: { guildId?: string; blockedGuildId?: string }[]; guildId?: string } }) =>
         (options.blocks ?? []).filter(b => where.OR ? where.OR.some(c => c.guildId === b.guildId || c.blockedGuildId === b.blockedGuildId) : b.guildId === where.guildId)),
-      upsert: vi.fn(async ({ create }: { create: { guildId: string; blockedGuildId: string } }) => { (options.blocks ??= []).push(create); })
+      upsert: vi.fn(async ({ create }: { create: { guildId: string; blockedGuildId: string } }) => { (options.blocks ??= []).push(create); }),
+      deleteMany: vi.fn(async ({ where }: { where: { guildId: string; blockedGuildId: string } }) => {
+        const before = options.blocks?.length ?? 0;
+        options.blocks = (options.blocks ?? []).filter(b => !(b.guildId === where.guildId && b.blockedGuildId === where.blockedGuildId));
+        return { count: before - options.blocks.length };
+      })
     },
     raid: { findFirst: vi.fn(async () => raid), findUnique: vi.fn(async () => raid) },
     pugRequest: {
@@ -42,7 +48,8 @@ function fake(options: { boards?: Board[]; blocks?: { guildId: string; blockedGu
         const row = requests.find(r => r.id === where.id);
         return row ? { ...row, signups, guild: { discordId: "d1" } } : null;
       }),
-      findMany: vi.fn(async ({ where }: { where: { status?: string } }) => requests.filter(r => !where.status || r.status === where.status)),
+      findMany: vi.fn(async ({ where }: { where: { status?: string; guildId?: { not?: string; in?: string[] }; edition?: string } }) => requests.filter(r =>
+        (!where.status || r.status === where.status) && (!where.guildId?.not || r.guildId !== where.guildId.not) && (!where.guildId?.in || where.guildId.in.includes(r.guildId as string)) && (!where.edition || r["edition"] === where.edition))),
       updateMany: vi.fn(async ({ where, data }: { where: { id: string; status: string }; data: Row }) => {
         const row = requests.find(r => r.id === where.id && r.status === where.status);
         if (row) Object.assign(row, data);
@@ -55,7 +62,12 @@ function fake(options: { boards?: Board[]; blocks?: { guildId: string; blockedGu
       upsert: vi.fn(async ({ where, create }: { where: { requestId_guildId: { requestId: string; guildId: string } }; create: Row }) => {
         if (!posts.some(p => p.requestId === where.requestId_guildId.requestId && p.guildId === where.requestId_guildId.guildId)) posts.push({ id: `p${posts.length + 1}`, createdAt: now, removedAt: null, ...create });
       }),
-      findMany: vi.fn(async ({ where }: { where: { requestId?: string; removedAt?: null } }) => posts.filter(p => (!where.requestId || p.requestId === where.requestId) && !p.removedAt))
+      findMany: vi.fn(async ({ where }: { where: { requestId?: string; removedAt?: null } }) => posts.filter(p => (!where.requestId || p.requestId === where.requestId) && !p.removedAt)),
+      updateMany: vi.fn(async ({ where, data }: { where: { requestId: string; guildId: string }; data: Row }) => {
+        const hit = posts.filter(p => p.requestId === where.requestId && p.guildId === where.guildId && p.removedAt);
+        hit.forEach(p => Object.assign(p, data));
+        return { count: hit.length };
+      })
     },
     pugSignup: {
       create: vi.fn(async ({ data }: { data: Row }) => {
@@ -284,5 +296,27 @@ describe("website view", () => {
     expect(rows.map(r => r.id)).toEqual(["req1"]); // filled and unserved ones are hidden
     expect(JSON.stringify(rows)).not.toMatch(/officer-secret|"g1"|"r1"|discordUserId/);
     expect(db.pugRequest.findMany.mock.calls[0]![0].where).toMatchObject({ status: "OPEN", edition: "classic-tbc" });
+  });
+});
+
+describe("live-test regressions", () => {
+  it("a guild that joins late gets the requests that are already open for its edition", async () => {
+    const f = fake({ boards: boards.slice(0, 1), requests: [{ id: "open1", guildId: "g1", status: "OPEN", edition: "classic-tbc" }, { id: "other", guildId: "g1", status: "OPEN", edition: "retail" }] });
+    await joinPugBoard(f.db, "g2", "c2", "officer", allowAll);
+    expect(f.posts.map(p => `${p.requestId}/${p.guildId}`)).toEqual(["open1/g2"]);
+  });
+
+  it("joining again does not re-fan-out (channel change only)", async () => {
+    const f = fake({ boards: boards.slice(0, 2), requests: [{ id: "open1", guildId: "g1", status: "OPEN", edition: "classic-tbc" }] });
+    await joinPugBoard(f.db, "g2", "c9", "officer", allowAll);
+    expect(f.posts).toHaveLength(0);
+  });
+
+  it("unblocking brings back the post that blocking retired", async () => {
+    const f = fake({ boards, blocks: [{ guildId: "g2", blockedGuildId: "g1" }], requests: [{ id: "open1", guildId: "g1", status: "OPEN", edition: "classic-tbc" }] });
+    f.posts.push({ id: "p1", requestId: "open1", guildId: "g2", channelId: "c2", messageId: "m1", removedAt: new Date(), createdAt: now });
+    expect(await unblockPugGuild(f.db, "g2", "g1", allowAll)).toBe(true);
+    expect(f.posts[0]).toMatchObject({ removedAt: null, messageId: null });
+    expect(f.jobs.has("g2/pug:open1")).toBe(true);
   });
 });

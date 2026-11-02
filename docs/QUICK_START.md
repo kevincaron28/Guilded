@@ -2,12 +2,13 @@
 
 ## For players
 
-1. [Choose your WoW edition and install the addon](https://guilded.kcaron.top/editions/). Hardcore is a Classic Era mode. Close WoW before installing, then open the gold minimap icon in game. The addon works without Discord or a companion.
-2. [Browse public dungeon leaderboards](https://guilded.kcaron.top/leaderboards/) without signing in. Use the edition menu to see the right game. [My Guilded](https://guilded.kcaron.top/me/) has your account and guild shortcuts.
-3. **Optional: share saved data online.** Install the [Windows companion from Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (or the [direct GitHub download](https://github.com/kevincaron28/Guilded/releases/latest), unsigned and Windows may warn). It is Windows only and optional if you only use the addon. Sign in with Discord, choose your server or public leaderboards, and choose your saved data. See [member installation](MEMBER_INSTALL.md) for the full steps.
-4. In WoW, use `/reload` or log out to save addon data. On the web, keep the page open and select **Sync now**; on Windows, enabled background sync watches your selected file. To see returned standings in WoW, follow the companion's instructions and `/reload` again.
+Easiest: the [Start here page](https://guilded.kcaron.top/start/) walks you through the same three steps.
 
-5. **Share cards.** Every dungeon run, character and raid report page has a shareable image card. Optional: `/bg privacy` and `/bg history` in Discord keep private battleground records from your paired companion; nothing is posted or awarded automatically.
+1. **Install the addon (required).** [Choose your WoW edition](https://guilded.kcaron.top/editions/) (Hardcore uses Classic Era). Close WoW first, then copy the `Guilded` folder into that game's `Interface/AddOns`. The addon works alone, without Discord.
+2. **Get the companion (optional, Windows only).** It sends your saved game data to Discord and the website. [Latest from Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9), or the [direct GitHub download](https://github.com/kevincaron28/Guilded/releases/latest) (unsigned: Windows may warn you).
+3. **Sign in with Discord.** One click on [My Guilded](https://guilded.kcaron.top/me/), and in the companion if you use it. Pairing and sync are then automatic.
+
+Nothing shows on the website or in Discord? WoW only saves your data on `/reload` or when you log out. [Public leaderboards](https://guilded.kcaron.top/leaderboards/) need no sign-in. Every dungeon run, character and raid report page has a shareable image card. Optional: `/bg privacy` and `/bg history` in Discord keep private battleground records from your paired companion; nothing is posted or awarded automatically.
 
 Optional weekly recaps and alerts: [automation quick start](AUTOMATION_QUICK_START.md).
 
@@ -23,12 +24,13 @@ Need help? See [installation](MEMBER_INSTALL.md), [dungeons](DUNGEONS_GUIDE.md),
 
 ## Pour les joueurs
 
-1. [Choisissez votre édition de WoW et installez l’addon](https://guilded.kcaron.top/editions/?lang=fr). Hardcore est un mode de Classic Era. Fermez WoW avant l’installation, puis ouvrez la pièce dorée sur la minicarte. L’addon fonctionne sans Discord ni compagnon.
-2. [Consultez les classements publics de donjon](https://guilded.kcaron.top/leaderboards/?lang=fr) sans connexion. Choisissez votre jeu dans le menu des éditions. [Mon Guilded](https://guilded.kcaron.top/me/?lang=fr) rassemble vos raccourcis de compte et de guilde.
-3. **Facultatif : partager les données en ligne.** Installez le [compagnon Windows depuis le Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (ou le [téléchargement direct GitHub](https://github.com/kevincaron28/Guilded/releases/latest), non signé : Windows peut avertir). Il fonctionne sous Windows seulement et reste facultatif si vous n'utilisez que l'addon. Connectez-vous avec Discord, choisissez votre serveur ou les classements publics, puis vos données sauvegardées. Consultez le [guide d’installation](MEMBER_INSTALL.md#fr).
-4. Dans WoW, faites `/reload` ou déconnectez-vous pour enregistrer les données. Sur le Web, gardez la page ouverte et cliquez sur **Synchroniser**; sous Windows, la synchronisation en arrière-plan activée surveille le fichier choisi. Pour voir les classements reçus dans WoW, suivez les instructions du compagnon et faites à nouveau `/reload`.
+Le plus simple : la [page Commencer ici](https://guilded.kcaron.top/start/?lang=fr) suit les trois mêmes étapes.
 
-5. **Cartes à partager.** Chaque page de donjon, de personnage et de rapport de raid a une carte image à partager. Facultatif : `/bg privacy` et `/bg history` sur Discord gardent vos rapports de champ de bataille privés du compagnon lié; rien n’est publié ni attribué automatiquement.
+1. **Installez l’addon (obligatoire).** [Choisissez votre édition de WoW](https://guilded.kcaron.top/editions/?lang=fr) (Hardcore utilise Classic Era). Fermez WoW, puis copiez le dossier `Guilded` dans `Interface/AddOns` de ce jeu. L’addon fonctionne seul, sans Discord.
+2. **Obtenez le compagnon (facultatif, Windows seulement).** Il envoie vos données de jeu enregistrées vers Discord et le site. [Dernière version du Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9), ou le [téléchargement direct GitHub](https://github.com/kevincaron28/Guilded/releases/latest) (non signé : Windows peut vous avertir).
+3. **Connectez-vous avec Discord.** Un clic sur [Mon Guilded](https://guilded.kcaron.top/me/?lang=fr), et dans le compagnon si vous l’utilisez. Le lien et la synchronisation sont ensuite automatiques.
+
+Rien ne s’affiche sur le site ou dans Discord ? WoW n’enregistre vos données que sur `/reload` ou à la déconnexion. Les [classements publics](https://guilded.kcaron.top/leaderboards/?lang=fr) n’exigent aucune connexion. Chaque page de donjon, de personnage et de rapport de raid a une carte image à partager. Facultatif : `/bg privacy` et `/bg history` sur Discord gardent vos rapports de champ de bataille privés du compagnon lié; rien n’est publié ni attribué automatiquement.
 
 Récapitulatifs et alertes facultatifs : [guide d’automatisation](https://guilded.kcaron.top/docs/AUTOMATION_QUICK_START.html?lang=fr#fr).
 

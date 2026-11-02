@@ -34,6 +34,8 @@ contextBridge.exposeInMainWorld("companion", {
   openStartupSettings: () => ipcRenderer.invoke("open-startup-settings"),
   installUpdate: () => ipcRenderer.invoke("install-update"),
   onUpdateProgress: (callback) => ipcRenderer.on("update-progress", (_event, percent) => callback(percent)),
+  hubView: (lang) => ipcRenderer.invoke("hub-view", lang),
+  hubEdit: (change) => ipcRenderer.invoke("hub-edit", change),
   manageView: () => ipcRenderer.invoke("manage-view"),
   manageEdit: (change) => ipcRenderer.invoke("manage-edit", change),
   onState: (callback) => ipcRenderer.on("state", (_event, state) => callback(state)),

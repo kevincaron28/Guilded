@@ -38,3 +38,14 @@ describe("desktop IPC boundary", () => {
     expect(() => validateIpc("manage-edit", [{ action: "prices.set", text: "x".repeat(220_001) }])).toThrow();
   });
 });
+
+describe("hub IPC envelopes", () => {
+  it("accepts only a language for hub-view and only known fields for hub-edit", () => {
+    expect(() => validateIpc("hub-view", ["fr"])).not.toThrow();
+    expect(() => validateIpc("hub-view", ["de"])).toThrow();
+    expect(() => validateIpc("hub-edit", [{ action: "server.reminders", on: true }])).not.toThrow();
+    expect(() => validateIpc("hub-edit", [{ action: "server.language", value: "fr" }])).not.toThrow();
+    expect(() => validateIpc("hub-edit", [{ action: "server.reminders", on: "yes" }])).toThrow();
+    expect(() => validateIpc("hub-edit", [{ action: "server.x", guildId: "other" }])).toThrow();
+  });
+});

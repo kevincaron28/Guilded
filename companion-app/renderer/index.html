@@ -17,6 +17,9 @@
     <nav id="companion-navigation" aria-label="Main navigation">
       <button class="nav active" data-page="status"><span aria-hidden="true">▦</span>Home</button>
       <button class="nav" data-page="settings"><span aria-hidden="true">⇄</span>Sync &amp; setup <span id="setupBadge" class="badge" hidden>!</span></button>
+      <button class="nav" data-page="characters"><span aria-hidden="true">☻</span>My characters</button>
+      <button class="nav" data-page="reserves"><span aria-hidden="true">✦</span>Reserves</button>
+      <button class="nav" data-page="server" id="serverNav" hidden><span aria-hidden="true">⚙</span>Server</button>
       <button class="nav" data-page="leaderboards"><span aria-hidden="true">🏆</span>Leaderboards</button>
       <a class="nav nav-external" href="https://guilded.kcaron.top/me/" target="_blank" rel="noopener"><span aria-hidden="true">↗</span>My Guilded</a>
       <button class="nav" data-page="wow"><span aria-hidden="true">◇</span>World of Warcraft</button>
@@ -37,6 +40,7 @@
     <main id="main" tabindex="-1">
       <section id="page-status" class="page">
         <div class="page-heading"><div><p class="eyebrow">YOUR COMPANION</p><h1>Welcome to Guilded.</h1><p class="subtitle">Your next step and sync status, in one place.</p></div><button id="btnUpload" class="primary" hidden>↗ Sync now</button></div>
+        <p id="hubStatus" class="watch-status" role="status" hidden></p>
         <div id="storeDistribution" class="banner setup" hidden><div><strong>Microsoft Store installation</strong><p>Updates are managed by Microsoft Store. Startup is managed in Windows settings.</p></div><button id="btnStoreUpdates">Store updates</button><button id="btnStoreStartup">Startup settings</button></div>
         <div id="updateBanner" class="banner setup" role="status" hidden><span class="banner-symbol" aria-hidden="true">⬆</span><div><strong id="updateTitle">Update available</strong><p id="updateText">A newer Guilded Companion is out.</p></div><button id="btnUpdate" class="primary">Update now</button></div>
         <div id="liveBanner" class="banner setup" role="status" hidden><span class="banner-symbol" aria-hidden="true">⇄</span><div><strong id="liveTitle">Your saved data may have moved</strong><p id="liveText"></p></div><div class="banner-actions"><button id="btnLiveSwitch" class="primary">Switch to the live game folder</button><button id="btnLiveKeep" class="secondary">Keep this folder</button></div></div>
@@ -99,6 +103,18 @@
         <div class="page-heading"><div><p class="eyebrow">READY BEFORE THE FIRST DROP</p><h1>Raid prices</h1><p class="subtitle">Choose a pricing preset, edit slot prices and preview your priority. Use Roster & loot settings for roster changes, loot rules and individual item exceptions.</p></div><button id="pricingReload">Refresh</button></div>
         <p id="pricingNotice" role="status"></p><div id="pricingContent"></div>
       </section>
+      <section id="page-characters" class="page" hidden>
+        <div class="page-heading"><div><p class="eyebrow">WHO YOU PLAY</p><h1>My characters</h1><p class="subtitle">Your characters, the guild each one is in, and the raid core each one belongs to.</p></div><button class="secondary" id="charactersReload">Reload</button></div>
+        <div id="charactersContent"></div>
+      </section>
+      <section id="page-reserves" class="page" hidden>
+        <div class="page-heading"><div><p class="eyebrow">BEFORE THE RAID</p><h1>Reserves</h1><p class="subtitle">The soft-reserve list of your guild, and your own reserves.</p></div><button class="secondary" id="reservesReload">Reload</button></div>
+        <div id="reservesContent"></div>
+      </section>
+      <section id="page-server" class="page" hidden>
+        <div class="page-heading"><div><p class="eyebrow">OFFICERS</p><h1>Server</h1><p class="subtitle">What is ready on your Discord server, and the main switches, in plain words.</p></div><button class="secondary" id="serverReload">Reload</button></div>
+        <p id="serverNotice" role="status"></p><div id="serverContent"></div>
+      </section>
       <section id="page-leaderboards" class="page" hidden>
         <div class="page-heading"><div><p class="eyebrow">YOUR GUILD'S PROGRESS</p><h1>Leaderboards</h1><p class="subtitle">Your guild’s loot priority and dungeon scores. For public rankings, choose your WoW edition on the website.</p><p><a href="https://guilded.kcaron.top/leaderboards/" target="_blank" rel="noopener">Browse public leaderboards →</a></p></div><button id="boardsReload">Refresh</button></div>
         <p id="boardsNotice" role="status"></p><div id="boardsContent"></div>
@@ -123,6 +139,6 @@
   </div>
   <div id="toast" class="toast" role="status" hidden></div>
   <dialog id="diagnosticPreview" aria-labelledby="diagnosticTitle"><h2 id="diagnosticTitle">Review support summary</h2><p>Only the information below will be saved. No file paths, account names or credentials are included.</p><pre id="diagnosticContent"></pre><button id="btnSaveDiagnostics">Save summary</button><button id="btnCancelDiagnostics">Cancel</button></dialog>
-  <script src="ui-bundle.js"></script><script src="app.js"></script><script src="manage.js"></script><script src="raid-hub.js"></script>
+  <script src="ui-bundle.js"></script><script src="app.js"></script><script src="manage.js"></script><script src="raid-hub.js"></script><script src="hub.js"></script>
 </body>
 </html>

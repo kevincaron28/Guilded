@@ -429,3 +429,35 @@ form { margin: 22px 0 0; }
 .guide-nav{display:flex;flex-wrap:wrap;gap:8px 24px;padding-block:14px;margin-bottom:28px;border-block:1px solid #333b40}.guide-nav a{display:inline-flex;align-items:center;gap:4px;min-height:44px;font-size:13px}.docs-page .guide{overflow-wrap:anywhere}.docs-page .guide code{white-space:break-spaces}.docs-page .guide pre{max-width:100%;overflow:auto}.docs-page .guide table{width:100%;font-size:14px}.docs-page .guide section[lang=fr]{margin-top:48px;padding-top:24px;border-top:1px solid #333b40;scroll-margin-top:24px}.companion-figure figcaption{font-size:12px;line-height:1.7;color:#b3b5ae;padding:14px 4px 0}
 @media(max-width:600px){.guide-nav{gap:4px 16px}.docs-page .guide table{font-size:12px}}
 .guide-nav a[aria-current="page"]{color:var(--text);font-weight:600;text-decoration:none}.guide-nav .guide-fr{margin-left:auto}
+
+/* Start here (/start/): pick a path; only that path shows. Without :has() support every path shows stacked. */
+.start-hero { padding-bottom: 28px; }
+.start-picker { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 26px 0 8px; }
+.start-picker .button { flex-direction: column; align-items: flex-start; gap: 4px; padding: 16px 18px; min-height: 72px; text-align: left; font-size: 16px; }
+.start-picker .button small { font-size: 12px; font-weight: 400; opacity: .85; }
+.start-paths { padding-top: 28px; }
+.start-path { scroll-margin-top: 96px; margin-bottom: 40px; }
+@supports selector(:has(a)) {
+  .start-paths > .start-path { display: none; margin-bottom: 0; }
+  .start-paths > .start-path:target, .start-paths:not(:has(:target)) > .start-path:first-child { display: block; }
+}
+.start-list { list-style: none; margin: 22px 0; padding: 0; display: grid; gap: 16px; }
+.start-step { margin: 0; padding: 22px; border: 1px solid #353b32; border-radius: 8px; background: #171b18; }
+.start-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.start-head h3, .start-head p { margin: 0; }
+.start-head h3 { flex: 1 1 auto; font-size: 22px; }
+.start-num { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; background: var(--gold); color: #1b2019; font-weight: 700; }
+.start-tag { padding: 3px 10px; border: 1px solid #505447; border-radius: 99px; font-size: 12px; color: var(--muted, #aab5ba); }
+.start-tag.required { border-color: var(--gold); color: var(--gold); }
+.start-editions { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin: 14px 0; }
+.start-editions .button, .start-big { justify-content: space-between; width: 100%; max-width: 440px; font-size: 15px; }
+.start-help details { border: 1px solid #353b32; border-radius: 8px; margin: 8px 0; padding: 0 16px; background: #171b18; }
+.start-help summary { cursor: pointer; padding: 14px 0; min-height: 44px; font-weight: 600; }
+.start-help details[open] summary { border-bottom: 1px solid #353b32; margin-bottom: 10px; }
+@media (max-width: 700px) {
+  .start-picker { grid-template-columns: 1fr; }
+  .start-step { padding: 16px; }
+  .start-head h3 { font-size: 19px; }
+  .start-editions { grid-template-columns: 1fr; }
+  .start-editions .button, .start-big { max-width: none; }
+}

@@ -73,7 +73,7 @@ export async function interactionGuildScope(database: PrismaClient, input: { dis
   if (channelIds.length) {
     const [settings, cores, teams] = await Promise.all([
       database.guildSettings.findMany({ where: { guild: { discordId: input.discordId }, OR: settingsFields.map(field => ({ [field]: { in: channelIds } })) }, select: { guildId: true } }),
-      database.raidCore.findMany({ where: { guild: { discordId: input.discordId }, OR: ["categoryId", "rosterChannelId", "signupChannelId", "lootChannelId", "raidLogChannelId", "chatChannelId", "voiceChannelId", "attendanceChannelId"].map(field => ({ [field]: { in: channelIds } })) }, select: { guildId: true } }),
+      database.raidCore.findMany({ where: { guild: { discordId: input.discordId }, OR: ["categoryId", "rosterChannelId", "signupChannelId", "lootChannelId", "raidLogChannelId", "chatChannelId", "voiceChannelId", "attendanceChannelId", "applicationChannelId"].map(field => ({ [field]: { in: channelIds } })) }, select: { guildId: true } }),
       database.activityCore.findMany({ where: { guild: { discordId: input.discordId }, channelId: { in: channelIds } }, select: { guildId: true } })
     ]);
     const owners = [...new Set([...settings, ...cores, ...teams].map(row => row.guildId))];

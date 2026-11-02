@@ -5,6 +5,7 @@ import { asLang, t, tx, type Lang } from "../i18n.js";
 import { dungeonGuideState, ensureDungeonSignupGuide } from "./dungeon-guide.js";
 import { ensureWelcomePanel, welcomePanelState } from "./onboarding.js";
 import { companionLinkText } from "./companion-links.js";
+import { ensureInstallPost, installPinHint, installPostState } from "./install-post.js";
 import { CURRENT_VERSION } from "./version-announce.js";
 
 // The messages the bot keeps in its channels, for the /setup checklist: is each one there, and is
@@ -18,7 +19,7 @@ import { CURRENT_VERSION } from "./version-announce.js";
 //                core has no channels of its own)
 
 export type BotMessageState = "current" | "outdated" | "missing";
-export interface BotMessageFact { kind: "botGuide" | "groupFinder" | "craftGuide" | "welcomePanel" | "leaderboard" | "roster"; name?: string; state: BotMessageState }
+export interface BotMessageFact { kind: "botGuide" | "installPost" | "groupFinder" | "craftGuide" | "welcomePanel" | "leaderboard" | "roster"; name?: string; state: BotMessageState }
 
 export const ADDON_URL = "https://www.curseforge.com/wow/addons/guilded";
 
@@ -113,7 +114,10 @@ export async function botMessageFacts(
 ): Promise<BotMessageFact[]> {
   const facts: BotMessageFact[] = [];
   const guideChannel = await textChannel(guild, settings.guideChannelId);
-  if (guideChannel) facts.push({ kind: "botGuide", state: await botGuideState(guideChannel, lang) });
+  if (guideChannel) {
+    facts.push({ kind: "botGuide", state: await botGuideState(guideChannel, lang) });
+    facts.push({ kind: "installPost", state: await installPostState(guideChannel, lang) });
+  }
   const finder = await textChannel(guild, settings.dungeonSignupChannelId);
   if (finder) facts.push({ kind: "groupFinder", state: await dungeonGuideState(finder).catch(() => "missing" as const) });
   if (settings.craftChannelId) {
@@ -147,7 +151,13 @@ export async function updateBotMessages(
 ): Promise<string> {
   const done: string[] = [];
   const guideChannel = await textChannel(guild, settings.guideChannelId);
-  if (guideChannel) { await ensureBotGuide(guideChannel, lang); done.push(tx(lang, "bot guide")); }
+  let pinNote = "";
+  if (guideChannel) {
+    await ensureBotGuide(guideChannel, lang); done.push(tx(lang, "bot guide"));
+    const install = await ensureInstallPost(guideChannel, lang);
+    done.push(tx(lang, "install post"));
+    if (!install.pinned) pinNote = ` ${installPinHint(lang)}`;
+  }
   const finder = await textChannel(guild, settings.dungeonSignupChannelId);
   if (finder) { await ensureDungeonSignupGuide(finder, lang); done.push(tx(lang, "group finder menu")); }
   if (extra.craftGuide) { await extra.craftGuide(); done.push(tx(lang, "craft board guide")); }
@@ -155,12 +165,12 @@ export async function updateBotMessages(
   if (welcome) { await ensureWelcomePanel(welcome, settings, lang); done.push(tx(lang, "welcome panel")); }
   if (extra.leaderboard && settings.dungeonLeaderboardChannelId) { await extra.leaderboard(); done.push(tx(lang, "dungeon leaderboard")); }
   if (extra.rosters) { await extra.rosters(); done.push(tx(lang, "core rosters")); }
-  return done.length ? tx(lang, "Updated: {list}.", { list: done.join(", ") }) : tx(lang, "No bot message channel is set yet.");
+  return done.length ? tx(lang, "Updated: {list}.", { list: done.join(", ") }) + pinNote : tx(lang, "No bot message channel is set yet.");
 }
 
 // The label used for each kind in /setup's checklist (roster gets its own name-based label there).
 const HEALTH_LABELS: Record<Exclude<BotMessageFact["kind"], "roster">, string> = {
-  botGuide: "Pinned bot guide", groupFinder: "Pinned group finder menu", craftGuide: "Pinned craft board guide", welcomePanel: "Pinned welcome panel", leaderboard: "Dungeon leaderboard message"
+  botGuide: "Pinned bot guide", installPost: "Pinned install post", groupFinder: "Pinned group finder menu", craftGuide: "Pinned craft board guide", welcomePanel: "Pinned welcome panel", leaderboard: "Dungeon leaderboard message"
 };
 
 // An answer-channel summary of botMessageFacts, for an officer asking if anything is outdated or

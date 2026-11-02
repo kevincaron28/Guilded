@@ -43,6 +43,14 @@ function validateIpc(channel, args) {
     if (!Number.isSafeInteger(value.token) || value.token < 1 || typeof value.allowUnidentified !== "boolean") fail();
     if (!value.characterMap || typeof value.characterMap !== "object" || Array.isArray(value.characterMap) || Object.keys(value.characterMap).length > 5000) fail();
     for (const [key, target] of Object.entries(value.characterMap)) { text(key, 160); text(target, 160); }
+  } else if (channel === "hub-view") {
+    if (!["en", "fr"].includes(value)) fail();
+  } else if (channel === "hub-edit") {
+    // Server settings only: the bot checks the officer role and the exact action again.
+    object(value, new Set(["action", "value", "on"]));
+    text(value.action, 40);
+    if (value.value !== undefined) text(value.value, 8);
+    if (value.on !== undefined && typeof value.on !== "boolean") fail();
   } else if (channel === "manage-edit") {
     // The server owns the exact action schema and current role checks. Bound the
     // IPC envelope too, before serializing or sending it over the network.

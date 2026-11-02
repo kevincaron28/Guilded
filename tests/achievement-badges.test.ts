@@ -13,7 +13,7 @@ describe("achievement badge art", () => {
   it("tells badges apart: a glyph repeats within a game only across tiers or ranks of one progression", () => {
     const seen = new Map<string, string>();
     for (const def of ACHIEVEMENTS) {
-      const key = `${def.game}/${GLYPH_BY_ID[def.id]}/${def.tier}/${def.rank ?? 0}`;
+      const key = `${def.game}/${def.edition ?? ""}/${GLYPH_BY_ID[def.id]}/${def.tier}/${def.rank ?? 0}`;
       expect(seen.get(key), `${def.id} repeats ${seen.get(key)}`).toBeUndefined();
       seen.set(key, def.id);
     }

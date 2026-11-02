@@ -53,6 +53,8 @@ import { legacyView, resolveCommand } from "./commands/router.js";
 import { executeProfile } from "./commands/profile.js";
 import { replyWithCommandError } from "./commands/context.js";
 import { handleRaidSignupButton, handleRaidSpecSelect, RAID_SIGNUP_PREFIX, RAID_SPEC_PREFIX } from "./commands/raid.js";
+import { handleOfficerButton, handleOfficerModal } from "./commands/officer-tools.js";
+import { OFFICER_PREFIX } from "./services/officer-buttons.js";
 import { executeLoot } from "./commands/loot.js";
 import { executeEpgp } from "./commands/epgp.js";
 import { APPLY_PREFIX, executeApply, handleApplyButton, handleApplyModal } from "./commands/application.js";
@@ -102,6 +104,9 @@ import { config } from "./config.js";
 import { startCompanionApi } from "./companion-api.js";
 import { handleWebApplicationButton, WEB_APPLY_PREFIX } from "./services/recruitment-discord.js";
 import { refreshPugBoard } from "./services/pug-board.js";
+import { handlePugComponent } from "./commands/pug-requests.js";
+import { PUG_PREFIX } from "./services/pug-discord.js";
+import { sweepPugRequests } from "./services/pug-requests.js";
 import { prismaWebStore } from "./services/web-store.js";
 import { publishGuildRuns } from "./services/public-runs.js";
 import { keepStampsOnDisk, standingsFeed } from "./services/standings-feed.js";
@@ -234,6 +239,10 @@ client.once(Events.ClientReady, (readyClient) => {
   void refreshPugs();
   setInterval(() => void ownerConsole.refresh().catch(reportJobError("Owner console board")), 5 * 60_000);
   setInterval(() => void refreshPugs(), 60_000);
+  // Cross-guild PUG requests: close finished ones, retire orphaned posts (delivery itself runs in the job queue).
+  const sweepPugs = () => void sweepPugRequests(prisma, hostedPilot.allows).catch(reportJobError("PUG board sweep"));
+  sweepPugs();
+  setInterval(sweepPugs, 60_000);
   // Lite list first, then servers that joined while offline, then commands (full or Lite per server).
   void (async () => {
     await pilotRequests.restore();
@@ -549,7 +558,8 @@ if (config.MESSAGE_CONTENT_INTENT) {
 client.on(Events.InteractionCreate, async interaction => {
   try {
     const serverCommands = ["wow", "community", "organize", "poe", "participation", "events", "guilded-season", "guilded-events", OWNER_CONSOLE_COMMAND];
-    const globalButton = "customId" in interaction && [PILOT_REQUEST_PREFIX, COMMUNITY_PREFIX, WELCOME_ROLE_PREFIX, SELF_ROLE_PREFIX, ONBOARD_PREFIX, CONSOLE_PREFIX].some(prefix => interaction.customId.startsWith(prefix));
+    const globalButton = "customId" in interaction && [PILOT_REQUEST_PREFIX, COMMUNITY_PREFIX, WELCOME_ROLE_PREFIX, SELF_ROLE_PREFIX, ONBOARD_PREFIX, PUG_PREFIX, CONSOLE_PREFIX].some(prefix => interaction.customId.startsWith(prefix));
+
     const wowOrganize = interaction.isChatInputCommand() && interaction.commandName === "organize" && interaction.options.getSubcommandGroup(false) === "dungeon-seasons";
     const globalCommand = "commandName" in interaction && serverCommands.includes(interaction.commandName) && !wowOrganize;
     const scope = interaction.guildId && hostedPilot.allows(interaction.guildId) && !globalCommand && !globalButton
@@ -594,6 +604,16 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   if (tier === "blocked" || liteBlocked) {
     if (interaction.isAutocomplete()) await interaction.respond([]).catch(() => undefined);
     else if (interaction.isRepliable()) await interaction.reply({ content: tier === "lite" ? PILOT_LITE_DENIED : PILOT_DENIED, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+    return;
+  }
+  if ((interaction.isButton() || interaction.isModalSubmit()) && interaction.customId.startsWith(PUG_PREFIX)) {
+    try { await handlePugComponent(interaction); }
+    catch (error) {
+      reportInteractionError("PUG board interaction", interaction, error);
+      const content = "Could not update the PUG board. / Impossible de mettre à jour le tableau PUG.";
+      if (interaction.deferred || interaction.replied) await interaction.editReply({ content }).catch(() => undefined);
+      else await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+    }
     return;
   }
   if ((interaction.isButton() || interaction.isModalSubmit() || interaction.isStringSelectMenu()) && interaction.customId.startsWith(BG_PREFIX)) {
@@ -734,6 +754,18 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
       reportInteractionError("Dungeon group button", interaction, error);
       const content = error instanceof Error && error.message.length < 200 ? error.message : "Could not update the group.";
       if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+    }
+    return;
+  }
+  if ((interaction.isButton() || interaction.isModalSubmit()) && interaction.customId.startsWith(OFFICER_PREFIX)) {
+    try {
+      if (interaction.isButton()) await handleOfficerButton(interaction);
+      else await handleOfficerModal(interaction);
+    } catch (error) {
+      reportInteractionError("Officer tools", interaction, error);
+      const content = error instanceof Error && error.message.length < 200 ? error.message : "Could not apply that change.";
+      if (interaction.replied || interaction.deferred) await interaction.editReply({ content, components: [] }).catch(() => undefined);
+      else await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
     return;
   }

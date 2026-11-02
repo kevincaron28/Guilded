@@ -16,6 +16,8 @@ export interface CardFields {
 }
 export interface DecisionView {
   guildId?: string;
+  // The listing's raid core, so its application card goes to that core's own channel.
+  coreId?: string | null;
   id: string; status: string; character: string; className: string; role: string; message: string;
   guildDiscordId: string; guildName: string; coreName: string | null; discordUserId: string; username: string; inviteUrl: string | null;
 }
@@ -124,7 +126,7 @@ export function prismaWebStore(database: PrismaClient): WebStore {
       if (!row) return null;
       return {
         id: row.id, status: row.status, character: row.character, className: row.className, role: row.role, message: row.message,
-        guildId: row.listing.guildId, guildDiscordId: row.listing.guild.discordId, guildName: row.listing.guild.name, coreName: row.listing.core?.name ?? null,
+        guildId: row.listing.guildId, coreId: row.listing.coreId ?? null, guildDiscordId: row.listing.guild.discordId, guildName: row.listing.guild.name, coreName: row.listing.core?.name ?? null,
         discordUserId: row.account.discordUserId, username: row.account.username, inviteUrl: row.listing.guild.page?.inviteUrl ?? null
       };
     },

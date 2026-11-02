@@ -60,7 +60,7 @@ function isOfficer(interaction: ChatInputCommandInteraction): boolean {
 
 type ApplicationCard = {
   id: string; character: string; className: string; spec: string; experience: string; availability: string;
-  notes?: string | null; role?: RaidRole | null; core: { name: string } | null;
+  notes?: string | null; role?: RaidRole | null; core: { name: string } | null; coreId?: string | null;
 };
 
 const DECISION_COLOR: Record<ApplicationStatus, number> = {
@@ -118,7 +118,7 @@ export async function announceApplication(guild: DiscordGuild | null, applicantI
   const message = await notifyInteractive(guild, () => ({
     embeds: [applicationEmbed(application, applicantId)],
     components: applicationDecisionRows(application.id)
-  }), "application");
+  }), "application", application.coreId ?? null);
   if (message) await applicationService.setCardMessage(application.id, message.id);
   await warnDoNotInvite(guild, { discordUserId: applicantId, names: [application.character] }, `<@${applicantId}> (${application.character})`, "application");
 }
@@ -135,9 +135,13 @@ async function syncApplicationCard(
 ): Promise<void> {
   if (!guild || !application.cardMessageId) return;
   try {
-    const target = await resolveNotifyChannel(guild, "application");
-    if (!target) return;
-    const message = await target.channel.messages.fetch(application.cardMessageId).catch(() => null);
+    // The card is in the core's own channel, or in the common one (posted before the core had a channel).
+    let message = null;
+    for (const coreId of application.coreId ? [application.coreId, null] : [null]) {
+      const target = await resolveNotifyChannel(guild, "application", coreId);
+      message = target ? await target.channel.messages.fetch(application.cardMessageId).catch(() => null) : null;
+      if (message) break;
+    }
     if (!message?.editable) return;
     await message.edit({
       embeds: [applicationEmbed(application, application.member.discordUserId, { status, by })],

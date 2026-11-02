@@ -1,7 +1,7 @@
 // The one main menu for every guilded.kcaron.top page: the static site (scripts/build-site.mjs)
 // and the bot-served pages (src/services/web-layout.ts). Change the menu and footer here only.
 // `bot: true` pages are served by the bot and keep the page language with ?lang=.
-// 2 November 2026 rebuild: six visible entries and no hidden drop-downs for them. "Get the addon"
+// 2 November 2026 rebuild: six visible entries (Start here first) and no hidden drop-downs for them. "Get the addon"
 // (`cta`) is the one button. Everything else (officers, companion, status, Discord...) sits in the
 // footer columns below, which every page shows.
 
@@ -9,8 +9,8 @@
 
 /** @type {NavItem[]} */
 export const SITE_NAV = [
+  { key: "start", href: "/start/", en: "Start here", fr: "Commencer ici" },
   { key: "features", href: "/features/", en: "Features", fr: "Fonctions" },
-  { key: "guides", href: "/docs/QUICK_START.html", en: "Guides", fr: "Guides" },
   { key: "leaderboards", href: "/leaderboards/", en: "Leaderboards", fr: "Classements", bot: true },
   // The guild directory sits under /recruitment/ because the Cloudflare Worker already forwards it.
   { key: "guilds", href: "/recruitment/guilds/", en: "Find a guild", fr: "Trouver une guilde", bot: true },
@@ -30,6 +30,7 @@ export const FOOTER_COLUMNS = {
 
 /** @type {FooterItem[]} */
 export const FOOTER_NAV = [
+  { key: "start", column: "product", href: "/start/", en: "Start here", fr: "Commencer ici" },
   { key: "download", column: "product", href: "/editions/", en: "Get the addon", fr: "Obtenir l’addon" },
   { key: "features", column: "product", href: "/features/", en: "Features", fr: "Fonctions" },
   { key: "officers", column: "product", href: "/officers/", en: "For officers", fr: "Pour les officiers" },

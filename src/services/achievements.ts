@@ -10,6 +10,8 @@ export interface AchievementFacts {
   highestWowLevel: number;
   /** Per synced character: the level and the cap of its edition. */
   charactersAtCap: number;
+  /** Per WoW edition: from the characters of that edition only. */
+  editions: Record<string, { highestLevel: number; atCap: number; profession: number }>;
   dungeonRuns: Date[];
   /** First completion of each distinct dungeon. */
   dungeonVariety: Date[];
@@ -30,14 +32,19 @@ export interface AchievementFacts {
 
 export interface AchievementResult { def: AchievementDef; value: number; earned: boolean; earnedAt: Date | null }
 
-export const emptyFacts = (): AchievementFacts => ({ highestWowLevel: 0, charactersAtCap: 0, dungeonRuns: [], dungeonVariety: [], highestProfessionSkill: 0, raidsAttended: [], raidClears: [], activeDays: [], poeLevels: [], poeMaps: [], messagesSent: 0, reactionsGiven: 0, reactionsReceived: 0, voiceHours: 0, communityPoints: 0, epEarned: 0 });
+export const emptyFacts = (): AchievementFacts => ({ highestWowLevel: 0, charactersAtCap: 0, editions: {}, dungeonRuns: [], dungeonVariety: [], highestProfessionSkill: 0, raidsAttended: [], raidClears: [], activeDays: [], poeLevels: [], poeMaps: [], messagesSent: 0, reactionsGiven: 0, reactionsReceived: 0, voiceHours: 0, communityPoints: 0, epEarned: 0 });
 
-function measure(metric: AchievementMetric, threshold: number, facts: AchievementFacts): { value: number; at: Date | null } {
+function measure(def: AchievementDef, facts: AchievementFacts): { value: number; at: Date | null } {
+  const { metric, threshold } = def;
+  const edition = facts.editions[def.edition ?? ""];
   const counted = (dates: Date[]) => ({ value: dates.length, at: dates[threshold - 1] ?? null });
   switch (metric) {
     // Levels and the level cap keep no history, so the date is when the sync was first seen at it (null = now).
     case "wowLevel": return { value: facts.highestWowLevel, at: null };
     case "wowMaxLevel": return { value: facts.charactersAtCap, at: null };
+    case "wowEditionLevel": return { value: edition?.highestLevel ?? 0, at: null };
+    case "wowEditionCap": return { value: edition?.atCap ?? 0, at: null };
+    case "wowEditionProfession": return { value: edition?.profession ?? 0, at: null };
     case "dungeonRuns": return counted(facts.dungeonRuns);
     case "dungeonVariety": return counted(facts.dungeonVariety);
     case "professionSkill": return { value: facts.highestProfessionSkill, at: null };
@@ -62,8 +69,9 @@ function measure(metric: AchievementMetric, threshold: number, facts: Achievemen
 /** Pure: which achievements these facts earn, with the date the data gives. */
 export function evaluateAchievements(facts: AchievementFacts, now: Date): AchievementResult[] {
   return ACHIEVEMENTS.map(def => {
-    const { value, at } = measure(def.metric, def.threshold, facts);
-    const earned = value >= def.threshold;
+    const { value, at } = measure(def, facts);
+    // Legacy rows are never awarded again; an earned one is kept by syncMemberAchievements from what is stored.
+    const earned = !def.legacy && value >= def.threshold;
     // A date from the future (a skewed clock) is clamped; no history means "first seen now".
     const earnedAt = earned ? (at && at.getTime() <= now.getTime() ? at : now) : null;
     return { def, value, earned, earnedAt };
@@ -81,7 +89,7 @@ export async function gatherAchievementFacts(db: Db, guildId: string, memberId: 
   const max = (metric: AchievementMetric) => Math.max(...ACHIEVEMENTS.filter(row => row.metric === metric).map(row => row.threshold));
   const [characters, skills, runs, attendance, days, levels, visits, counter, points, given, ep] = await Promise.all([
     db.character.findMany({ where: { memberId, guildId }, select: { level: true, gameEdition: true } }),
-    db.professionSkill.findMany({ where: { character: { memberId, guildId } }, select: { skillLevel: true }, orderBy: { skillLevel: "desc" }, take: 1 }),
+    db.professionSkill.findMany({ where: { character: { memberId, guildId } }, select: { skillLevel: true, character: { select: { gameEdition: true } } }, take: 500 }),
     db.dungeonRunPlayer.findMany({ where: { memberId, run: { guildId, valid: true, state: "COMPLETED" } }, select: { runId: true, run: { select: { instanceId: true, endedAt: true, startedAt: true, createdAt: true } } }, take: 1000 }),
     db.raidAttendance.findMany({ where: { memberId, status: { in: ["PRESENT", "LATE", "BENCHED"] }, raid: { guildId, status: "COMPLETED", isTest: false } },
       select: { raidId: true, raid: { select: { endedAt: true, scheduledAt: true, bosses: { select: { status: true } } } } }, take: 1000 }),
@@ -102,12 +110,21 @@ export async function gatherAchievementFacts(db: Db, guildId: string, memberId: 
   const raidRows = attendance.map(row => ({ id: row.raidId, at: row.raid.endedAt ?? row.raid.scheduledAt, cleared: row.raid.bosses.length > 0 && row.raid.bosses.every(boss => boss.status === "KILLED") }));
   const runDated = dedupe(runs, row => row.runId).map(row => ({ ...row, at: row.run.endedAt ?? row.run.startedAt ?? row.run.createdAt })).sort((x, y) => byDate(x.at, y.at));
   const runDates = runDated.map(row => row.at);
+  const editions: AchievementFacts["editions"] = {};
+  const forEdition = (key: string | null | undefined) => (editions[key ?? "forever"] ??= { highestLevel: 0, atCap: 0, profession: 0 });
+  for (const row of characters) {
+    const entry = forEdition(row.gameEdition), level = row.level ?? 0;
+    entry.highestLevel = Math.max(entry.highestLevel, level);
+    if (level >= wowLevelCap(row.gameEdition)) entry.atCap++;
+  }
+  for (const row of skills) { const entry = forEdition(row.character?.gameEdition); entry.profession = Math.max(entry.profession, row.skillLevel); }
   return {
     highestWowLevel: characters.reduce((best, row) => Math.max(best, row.level ?? 0), 0),
     charactersAtCap: characters.filter(row => (row.level ?? 0) >= wowLevelCap(row.gameEdition)).length,
     dungeonRuns: runDates,
     dungeonVariety: dedupe(runDated, row => String(row.run.instanceId)).map(row => row.at),
-    highestProfessionSkill: skills[0]?.skillLevel ?? 0,
+    highestProfessionSkill: skills.reduce((best, row) => Math.max(best, row.skillLevel), 0),
+    editions,
     raidsAttended: raidRows.map(row => row.at).sort(byDate),
     raidClears: raidRows.filter(row => row.cleared).map(row => row.at).sort(byDate),
     // Day strings are YYYY-MM-DD; the same day in two seasons counts once.

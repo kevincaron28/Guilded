@@ -66,6 +66,17 @@ export function createParticipationService(database: PrismaClient) {
         return true;
       });
     },
+    // One point the first time a member votes in each poll; changing the vote earns nothing more.
+    async pollVote(guildId: string, seasonId: string, input: { userId: string; pollId: string; at: Date; revision: number }) {
+      return locked(guildId, async tx => {
+        const cfg = await current(tx, guildId, seasonId, input.revision);
+        if (!cfg) return false;
+        const reference = `participation:poll:${input.pollId}:${input.userId}`;
+        if (await exists(tx, seasonId, reference)) return false;
+        await award(tx, seasonId, input.userId, 1, reference, "Sondage / Poll vote", "Guilded", input.at);
+        return true;
+      });
+    },
     async voice(guildId: string, seasonId: string, userId: string, start: Date, end: Date, revision: number) {
       return locked(guildId, async tx => {
         const cfg = await current(tx, guildId, seasonId, revision);

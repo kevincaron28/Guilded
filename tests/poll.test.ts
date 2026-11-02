@@ -3,7 +3,8 @@ import { cleanOptions, createPollService, resultBar, tallyVotes } from "../src/s
 
 describe("poll helpers", () => {
   it("cleans options: trims, drops blanks, needs two different ones, keeps five", () => {
-    expect(cleanOptions([" Tue ", "", "Wed", null, "Thu", "Fri", "Sat", "Sun"])).toEqual(["Tue", "Wed", "Thu", "Fri", "Sat"]);
+    expect(cleanOptions([" Tue ", "", "Wed", null, "Thu", "Fri", "Sat", "Sun"])).toEqual(["Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]);
+    expect(cleanOptions(Array.from({ length: 30 }, (_, i) => `Option ${i}`))).toHaveLength(25);
     expect(() => cleanOptions(["Only", ""])).toThrow(/at least 2/);
     expect(() => cleanOptions(["Yes", "yes"])).toThrow(/different/);
   });

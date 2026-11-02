@@ -60,6 +60,12 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
     } else if (command === "raid" && focused.name === "season") {
       const seasons = await prisma.raidSeason.findMany({ where: { guildId: guild.id, name: { contains: query, mode: "insensitive" } }, orderBy: { startsAt: "desc" }, take: 25 });
       choices = seasons.map((season) => ({ name: `${season.name} (${season.endsAt ? "past" : "current"})`.slice(0, 100), value: season.id }));
+    } else if (command === "poll" && focused.name === "poll") {
+      // Officers pick from the open polls instead of typing an id.
+      const polls = interaction.member && hasPermission(interaction.member as GuildMember, "officer")
+        ? await prisma.poll.findMany({ where: { guildId: guild.id, closed: false, question: { contains: query, mode: "insensitive" } }, orderBy: { createdAt: "desc" }, take: 25 })
+        : [];
+      choices = polls.map(poll => ({ name: `${poll.question} (${poll.options.length})`.slice(0, 100), value: poll.id }));
     } else if (command === "faq" && focused.name === "entry") {
       choices = await faqChoices(guild.id, query);
     } else if (focused.name === "race") {

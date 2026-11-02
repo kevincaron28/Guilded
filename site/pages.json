@@ -1,5 +1,16 @@
 [
   {
+    "source": "start.md",
+    "sourceFr": "start.fr.md",
+    "path": "start/",
+    "title": "Start here — install Guilded in three steps",
+    "titleFr": "Commencer ici — installer Guilded en trois étapes",
+    "description": "New to Guilded? Pick player, officer or server owner and get the shortest correct steps: addon, optional Windows companion, Discord sign-in.",
+    "descriptionFr": "Nouveau sur Guilded ? Choisissez joueur, officier ou propriétaire du serveur et suivez les étapes les plus courtes : addon, compagnon Windows facultatif, connexion Discord.",
+    "lang": "en",
+    "draft": false
+  },
+  {
     "source": "companion.md",
     "sourceFr": "companion.fr.md",
     "path": "companion/",

@@ -108,7 +108,7 @@ describe("site menu", () => {
     const html = navLinks({ label: item => item.en, current: "leaderboards" });
     expect([...html.matchAll(/<a /g)]).toHaveLength(6);
     expect(html).not.toMatch(/<details|<summary/);
-    expect(SITE_NAV.map(item => item.key)).toEqual(["features", "guides", "leaderboards", "guilds", "my-guilded", "download"]);
+    expect(SITE_NAV.map(item => item.key)).toEqual(["start", "features", "leaderboards", "guilds", "my-guilded", "download"]);
     expect(html).toContain('<a href="/editions/" class="nav-cta">Get the addon</a>');
     expect(html.match(/class="nav-cta"/g)).toHaveLength(1);
     expect(html).toContain('<a href="/leaderboards/" aria-current="page">Leaderboards</a>');

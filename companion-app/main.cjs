@@ -616,6 +616,33 @@ async function manageRequest(change) {
     return { ok: true, data: body };
   } catch (error) { return { ok: false, error: engineModules.describeError(error) }; }
 }
+// The hub pages (My characters, Reserves, Server): one read, one officer-only write. The last
+// good answer is kept on this PC so the pages still show something offline, marked as saved.
+const hubCacheFile = () => path.join(app.getPath("userData"), "hub-cache.json");
+async function hubRequest(change, lang) {
+  if (!config.companionCredential) return { ok: false, error: "Connect your Discord account first." };
+  try {
+    const url = new URL("/api/v1/hub", config.uploadUrl);
+    if (!change) { url.searchParams.set("guild", config.guildDiscordId); url.searchParams.set("lang", lang === "fr" ? "fr" : "en"); }
+    const headers = engineModules.credentialHeaders(config);
+    const { response, body } = await engineModules.requestJson(url, change
+      ? { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify({ guildDiscordId: config.guildDiscordId, change }) }
+      : { headers });
+    if (!response.ok) return { ok: false, error: response.status === 404 && body.error === "Not found" ? T("This bot does not support the hub yet. Ask the owner to update it.") : body.error || T("The bot answered {0}.", response.status) };
+    if (!change) { try { await fs.promises.writeFile(hubCacheFile(), JSON.stringify({ guild: config.guildDiscordId, at: new Date().toISOString(), data: body })); } catch { /* the cache is optional */ } }
+    return { ok: true, data: body };
+  } catch (error) {
+    if (!change) {
+      try {
+        const saved = JSON.parse(await fs.promises.readFile(hubCacheFile(), "utf8"));
+        if (saved.guild === config.guildDiscordId && saved.data) return { ok: true, data: saved.data, offline: true, savedAt: saved.at };
+      } catch { /* nothing saved yet */ }
+    }
+    return { ok: false, error: engineModules.describeError(error) };
+  }
+}
+registerIpc("hub-view", (_event, lang) => hubRequest(null, lang));
+registerIpc("hub-edit", (_event, change) => hubRequest(change));
 registerIpc("manage-view", () => manageRequest(null));
 registerIpc("manage-edit", (_event, change) => manageRequest(change));
 

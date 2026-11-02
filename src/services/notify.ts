@@ -31,11 +31,22 @@ async function coreAttendanceChannel(guildId: string, coreId: string | null): Pr
   return (await prisma.raidCore.findFirst({ where: { id: coreId, guildId }, select: { attendanceChannelId: true } }))?.attendanceChannelId ?? null;
 }
 
+// A core with its own applications channel gets its applications there; any other core, or one
+// whose channel was never made, uses the guild's common applications channel, then the officer log.
+export function applicationChannelFor(coreChannelId: string | null | undefined, settings: { applicationChannelId?: string | null; logChannelId?: string | null } | null): string | null {
+  return coreChannelId ?? settings?.applicationChannelId ?? settings?.logChannelId ?? null;
+}
+
+async function coreApplicationChannel(guildId: string, coreId: string | null): Promise<string | null> {
+  if (!coreId) return null;
+  return (await prisma.raidCore.findFirst({ where: { id: coreId, guildId }, select: { applicationChannelId: true } }))?.applicationChannelId ?? null;
+}
+
 async function notifyAddress(discordGuild: DiscordGuild, kind: NotifyKind = "notify", coreId: string | null = null) {
   const guild = await guildService.ensureGuild(discordGuild.id, discordGuild.name);
   const settings = await guildService.getSettings(guild.id);
   if (kind === "officer" || kind === "application" || kind === "attendance") {
-    const channelId = kind === "application" ? (settings?.applicationChannelId ?? settings?.logChannelId)
+    const channelId = kind === "application" ? applicationChannelFor(await coreApplicationChannel(guild.id, coreId), settings)
       : kind === "attendance" ? (await coreAttendanceChannel(guild.id, coreId) ?? settings?.attendanceChannelId ?? settings?.logChannelId) : settings?.logChannelId;
     if (!channelId) return null;
     return { guildId: guild.id, channelId, lang: asLang(settings?.language) };
@@ -123,11 +134,13 @@ export async function notifyEmbed(discordGuild: DiscordGuild | null, embed: Embe
 export async function notifyInteractive(
   discordGuild: DiscordGuild | null,
   build: (lang: Lang) => { embeds: EmbedBuilder[]; components: ActionRowBuilder<ButtonBuilder>[] },
-  kind: NotifyKind = "notify"
+  kind: NotifyKind = "notify",
+  coreId: string | null = null
 ): Promise<Message | null> {
   if (!discordGuild) return null;
   try {
-    const target = await notifyTarget(discordGuild, kind);
+    // A core's own applications channel that was deleted falls back to the common one.
+    const target = (await notifyTarget(discordGuild, kind, coreId)) ?? (coreId && kind === "application" ? await notifyTarget(discordGuild, kind) : null);
     if (!target) return null;
     return await target.channel.send({ ...build(target.lang), allowedMentions: { parse: [] } });
   } catch (error) {

@@ -36,7 +36,7 @@ export function webApplicationEmbed(view: DecisionView, lang: "en" | "fr") {
 
 export async function postWebApplication(client: Client | undefined, view: DecisionView): Promise<{ channelId: string; messageId: string } | null> {
   const guild = client ? await client.guilds.fetch(view.guildDiscordId).catch(() => null) : null;
-  const message = await notifyInteractive(guild, (lang) => ({ embeds: [webApplicationEmbed(view, lang)], components: webApplicationRows(view.id) }), "application");
+  const message = await notifyInteractive(guild, (lang) => ({ embeds: [webApplicationEmbed(view, lang)], components: webApplicationRows(view.id) }), "application", view.coreId ?? null);
   return message ? { channelId: message.channelId, messageId: message.id } : null;
 }
 

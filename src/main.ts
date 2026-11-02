@@ -52,6 +52,8 @@ import { legacyView, resolveCommand } from "./commands/router.js";
 import { executeProfile } from "./commands/profile.js";
 import { replyWithCommandError } from "./commands/context.js";
 import { handleRaidSignupButton, handleRaidSpecSelect, RAID_SIGNUP_PREFIX, RAID_SPEC_PREFIX } from "./commands/raid.js";
+import { handleOfficerButton, handleOfficerModal } from "./commands/officer-tools.js";
+import { OFFICER_PREFIX } from "./services/officer-buttons.js";
 import { executeLoot } from "./commands/loot.js";
 import { executeEpgp } from "./commands/epgp.js";
 import { APPLY_PREFIX, executeApply, handleApplyButton, handleApplyModal } from "./commands/application.js";
@@ -721,6 +723,18 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
       reportInteractionError("Dungeon group button", interaction, error);
       const content = error instanceof Error && error.message.length < 200 ? error.message : "Could not update the group.";
       if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+    }
+    return;
+  }
+  if ((interaction.isButton() || interaction.isModalSubmit()) && interaction.customId.startsWith(OFFICER_PREFIX)) {
+    try {
+      if (interaction.isButton()) await handleOfficerButton(interaction);
+      else await handleOfficerModal(interaction);
+    } catch (error) {
+      reportInteractionError("Officer tools", interaction, error);
+      const content = error instanceof Error && error.message.length < 200 ? error.message : "Could not apply that change.";
+      if (interaction.replied || interaction.deferred) await interaction.editReply({ content, components: [] }).catch(() => undefined);
+      else await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
     return;
   }

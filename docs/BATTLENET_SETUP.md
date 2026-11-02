@@ -6,7 +6,21 @@ Battle.net adds a private, verified character selection to that same account.
 It does not read addon ledgers, grant Discord roles, replace companion uploads,
 or change guild character ownership or mains.
 
-## Register the application
+## Reuse the existing Blizzard application (owner steps, 2 November 2026)
+
+The owner already has a Blizzard developer application for the companion's sign-in. Use that
+same one: no new application, and no new secret if the bot already has the two settings below.
+
+1. In the Battle.net developer portal, open the existing application and add this redirect URI
+   next to the ones it has (keep the others): `https://guilded.kcaron.top/me/battlenet/callback`.
+2. On the Oracle server, check the bot's protected environment already has `BATTLENET_CLIENT_ID`
+   and `BATTLENET_CLIENT_SECRET` (names are read in `src/config.ts`). If they are set, there is
+   nothing else to add. If not, add the existing application's values there, then restart the bot.
+3. Connect once with a real account and try each edition.
+
+That is all. The older section below describes creating an application from scratch, which is not needed.
+
+## Register the application (only if none exists)
 
 1. Sign in to the [Battle.net developer portal](https://develop.battle.net/access/clients).
    It may redirect to Blizzard's developer community login. Open API Access /

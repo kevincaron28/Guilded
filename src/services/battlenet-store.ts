@@ -39,7 +39,8 @@ export function prismaBattleNetStore(database: PrismaClient): BattleNetStore {
         await tx.battleNetCharacter.deleteMany({ where: { identityId: identity.id, region: discovery.region, gameEdition: discovery.gameEdition } });
         if (rows.length) await tx.battleNetCharacter.createMany({ data: rows.map(c => {
           const old = previous.get(discoveredKey(c));
-          return { ...c, ...(old ? { id: old.id } : {}), identityId: identity.id,
+          return { region: c.region, gameEdition: c.gameEdition, realmId: c.realmId, characterId: c.characterId, name: c.name, realm: c.realm,
+            ...(old ? { id: old.id } : {}), identityId: identity.id,
             isMain: main ? discoveredKey(c) === main : old?.isMain ?? false, verifiedAt: discovery.verifiedAt };
         }) });
       }, { isolationLevel: "Serializable" });

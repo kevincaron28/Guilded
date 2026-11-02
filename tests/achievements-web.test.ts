@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+const sync = vi.hoisted(() => vi.fn());
+vi.mock("../src/services/achievements.js", async (original) => ({ ...(await original<typeof import("../src/services/achievements.js")>()), syncMemberAchievements: sync }));
 import { createAchievementsWeb } from "../src/services/achievements-web.js";
 import { ACHIEVEMENTS } from "../src/services/achievements-catalogue.js";
 import type { WebContext, WebKit } from "../src/services/web-app.js";
@@ -37,6 +39,17 @@ describe("achievements on the website", () => {
     const db = fakeDb({ publicProfile: true });
     db.memberAchievement.findMany.mockResolvedValue([]);
     expect(await createAchievementsWeb(db as never, allows).publicSection(ctx("/players/x"), "a".repeat(24))).toBe("");
+  });
+  it("evaluates and always shows the card on the signed-in owner's own page", async () => {
+    sync.mockResolvedValue({ results: ACHIEVEMENTS.map(def => ({ def, earned: false, earnedAt: null, value: 3 })) });
+    const db = fakeDb({ publicProfile: true });
+    db.memberAchievement.findMany.mockResolvedValue([]);
+    const owner = { id: "a".repeat(24) } as WebContext["account"];
+    const html = await createAchievementsWeb(db as never, allows).publicSection(ctx("/players/x", "en", owner), "a".repeat(24));
+    expect(sync).toHaveBeenCalled();
+    expect(html).toContain("0 of 31 unlocked");
+    expect(html).toContain("Locked ·");
+    expect(await createAchievementsWeb(db as never, allows).publicSection(ctx("/players/x", "en", { id: "b".repeat(24) } as WebContext["account"]), "a".repeat(24))).toBe("");
   });
   it("is bilingual", async () => {
     const html = await createAchievementsWeb(fakeDb({ publicProfile: true }) as never, allows).publicSection(ctx("/players/x", "fr"), "a".repeat(24));

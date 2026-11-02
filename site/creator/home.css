@@ -1,0 +1,44 @@
+/* Guilded-first home page: layout for the redesigned kcaron.top. Shares the KC tokens. */
+.hero-g{display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center;padding-block:56px 52px}
+.hero-g h1{font-size:clamp(44px,5.4vw,72px)}
+.hero-g .eyebrow{margin-bottom:20px}
+.hero-g .lead{max-width:540px;font-size:17px;line-height:1.7;margin-block:22px 0}
+.hero-actions{display:flex;flex-wrap:wrap;align-items:center;gap:12px 14px;margin-top:28px}
+.hero-actions .quiet-link{color:var(--kc-muted);margin-left:8px}
+.facts{list-style:none;display:flex;flex-wrap:wrap;gap:6px 22px;margin:28px 0 0;padding:18px 0 0;border-top:1px solid var(--kc-border);font:12px/1.6 var(--kc-mono);color:var(--kc-muted)}
+.facts strong{color:var(--kc-text);margin-left:4px}
+.shot{margin:0;padding:16px;background:var(--kc-surface);border:1px solid var(--kc-border);border-radius:10px}
+.shot img{width:100%;height:auto;max-height:420px;object-fit:contain;background:#0d1011;border:1px solid var(--kc-border);border-radius:5px}
+.shot figcaption{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--kc-muted);margin-top:12px}
+.shot figcaption a{color:var(--kc-accent);display:inline-flex;align-items:center;min-height:32px}
+.block{padding-block:46px;border-top:1px solid var(--kc-border)}
+.block-head{display:flex;justify-content:space-between;align-items:flex-end;gap:32px;margin-bottom:26px}
+.block-head .eyebrow{margin-bottom:10px}
+.block-head>p{font-size:13px;max-width:320px;margin:0;line-height:1.7}
+.feature-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.feature{padding:22px;background:var(--kc-surface);border:1px solid var(--kc-border);border-radius:8px}
+.feature h3{font-size:19px;letter-spacing:-.02em;margin-bottom:10px}
+.feature p{font-size:14px;line-height:1.7;margin:0}
+.edition-row{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.edition-row a{display:flex;flex-direction:column;justify-content:center;gap:2px;min-height:68px;padding:14px 16px;border:1px solid var(--kc-border);border-radius:8px;background:var(--kc-surface)}
+.edition-row a:hover{border-color:var(--kc-accent);text-decoration:none}
+.edition-row .featured{border-color:var(--kc-accent)}
+.edition-row small{font-size:11px;color:var(--kc-muted)}
+.note{font-size:12px;margin:16px 0 0}
+.note a{color:var(--kc-accent);display:inline-block;padding-block:8px}
+.visitor-guides{border-bottom:0}
+.group{font:600 10px/1.7 var(--kc-mono);letter-spacing:.13em;color:var(--kc-accent);margin:30px 0 4px}
+.group:first-of-type{margin-top:0}
+.rows{display:flex;flex-direction:column}
+.row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.8fr) auto;align-items:center;gap:8px 28px;padding:16px 0;border-top:1px solid var(--kc-border)}
+.row-title{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.row-title h3{font-size:19px;letter-spacing:-.02em}
+.row p{margin:0;font-size:13px;line-height:1.7}
+.row .go{display:inline-flex;align-items:center;min-height:44px;color:var(--kc-accent);font:600 12px var(--kc-mono);white-space:nowrap}
+.betas{margin-top:20px;border-top:1px solid var(--kc-border)}
+.betas>summary{min-height:48px;padding-block:12px;font-size:14px;font-weight:600;color:var(--kc-accent);cursor:pointer}
+.betas[open]>summary{margin-bottom:4px}
+.support{border-top:1px solid var(--kc-border)}
+.about-copy{max-width:560px;font-size:15px;margin-block:16px 8px}
+@media(max-width:1020px){.hero-g{gap:32px}.feature-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.edition-row{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:760px){.hero-g{grid-template-columns:1fr;gap:28px;padding-block:34px 36px}.hero-g .lead{font-size:15px}.hero-actions .button{flex:1 1 100%}.hero-actions .quiet-link{margin-left:0}.block{padding-block:36px}.block-head{display:block}.block-head>p{margin-top:14px;max-width:none}.row{grid-template-columns:1fr;gap:4px}.row .go{min-height:44px}.feature-grid{grid-template-columns:1fr}.edition-row{grid-template-columns:repeat(2,minmax(0,1fr))}.edition-row .featured{grid-column:1/-1}}

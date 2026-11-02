@@ -35,6 +35,7 @@ awards points, and nothing is posted to Discord automatically.
   never changed or removed, so an achievement stays earned if the underlying data later shrinks.
 - **Dates.** Counted achievements use the date of the Nth recorded event; PoE2 levels use the log's own
   time; WoW levels keep no history, so they are dated when first seen.
+- **Default on.** `GuildSettings.achievementsEnabled` defaults true (existing guilds too, via the migration `20261207000000_achievements_default_on`); it is only a kill switch, with no command yet. The command and website skip a guild where it is false.
 - **No automation.** No DMs, channel posts or points. An announcement would be a separate per-guild opt-in
   (see `docs/archive` and `opt_in_automation`); not built.
 - **Web privacy.** Only members of guilds the site serves (`hostedPilot.allows`), only for public

@@ -16,6 +16,11 @@ export async function executeAchievements(i: ChatInputCommandInteraction): Promi
   if (!ctx) return;
   const fr = await teamLanguage(prisma, ctx.guildId);
   const t = (en: string, french: string) => fr ? french : en;
+  const settings = await prisma.guildSettings.findUnique({ where: { guildId: ctx.guildId }, select: { achievementsEnabled: true } });
+  if (settings && !settings.achievementsEnabled) {
+    await i.reply({ content: t("Achievements are turned off in this guild.", "Les succès sont désactivés dans cette guilde."), flags: MessageFlags.Ephemeral });
+    return;
+  }
   const other = i.options.getUser("member");
   const target = other && other.id !== i.user.id
     ? await prisma.member.findFirst({ where: { guildId: ctx.guildId, discordUserId: other.id, status: "ACTIVE", isTest: false }, select: { id: true, displayName: true } })

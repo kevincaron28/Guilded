@@ -10,7 +10,7 @@ import type { WebContext, WebRoute } from "./web-app.js";
 // public player page. The public page shows what is already stored; only the signed-in owner's /me/
 // view evaluates (and records) newly earned ones. Guilds the site does not serve are never included.
 
-type Db = Pick<PrismaClient, "webAccount" | "member" | "memberAchievement" | "character" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit">;
+type Db = Pick<PrismaClient, "webAccount" | "guildSettings" | "member" | "memberAchievement" | "character" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit">;
 export interface AchievementProgress { earnedAt: Date | null; value: number }
 
 export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) => boolean) {
@@ -18,7 +18,9 @@ export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) =
 
   async function members(discordUserId: string) {
     const rows = await db.member.findMany({ where: { discordUserId, status: "ACTIVE", isTest: false }, select: { id: true, guildId: true, guild: { select: { discordId: true } } }, take: 25 });
-    return rows.filter(row => allows(row.guild.discordId));
+    const served = rows.filter(row => allows(row.guild.discordId));
+    const off = new Set((await db.guildSettings.findMany({ where: { guildId: { in: served.map(row => row.guildId) }, achievementsEnabled: false }, select: { guildId: true } })).map(row => row.guildId));
+    return served.filter(row => !off.has(row.guildId));
   }
 
   /** Merged across the account's guilds: the earliest date, the highest value. `evaluate` records new ones. */

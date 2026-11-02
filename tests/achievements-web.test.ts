@@ -17,6 +17,7 @@ function fakeDb(profile: { publicProfile: boolean } | null) {
   const stored = [{ key: "wow-level-20", earnedAt: new Date("2026-10-20T00:00:00Z") }, { key: "dungeon-runs-1", earnedAt: new Date("2026-10-22T00:00:00Z") }, { key: "dungeon-runs-1", earnedAt: new Date("2026-10-21T00:00:00Z") }];
   return {
     webAccount: { findUnique: vi.fn(async () => profile ? { discordUserId: "u1", username: "kev", displayName: "Kev <b>", ...profile } : null) },
+    guildSettings: { findMany: vi.fn(async () => []) },
     member: { findMany: vi.fn(async () => [{ id: "m1", guildId: "g1", guild: { discordId: "d1" } }, { id: "m2", guildId: "g2", guild: { discordId: "blocked" } }]) },
     memberAchievement: { findMany: vi.fn(async (args: { where: { memberId: { in: string[] } } }) => { expect(args.where.memberId.in).toEqual(["m1"]); return stored; }) }
   };

@@ -808,6 +808,9 @@ model GuildSettings {
   pugChannelId             String?
   pugMessageId             String?
   poeTrackingEnabled Boolean @default(false)
+  // Achievements are viewable and recorded unless an officer turns them off. There is no announcement setting:
+  // nothing is ever posted or awarded automatically.
+  achievementsEnabled Boolean @default(true)
   // Full setup reset excludes history that still exists on members' PCs.
   dataResetAt DateTime?
   id                       String    @id @default(cuid())

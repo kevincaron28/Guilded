@@ -12,6 +12,7 @@ import {
 import { escapeHtml, langFrom, layout, link, options, SECURITY_HEADERS, tr, type Lang } from "./web-layout.js";
 import type { CardFields, DecisionView, WebAccountView, WebStore } from "./web-store.js";
 import { publicRaidMatches, type PublicRaid } from "./public-raids.js";
+import { normalizeSections, renderGroups, renderSpec, type MeSectionInput } from "./me-layout.js";
 
 // The bot-served half of guilded.kcaron.top (7.0): Discord sign-in, /recruitment/ and /me/.
 // Requests arrive through the Cloudflare Worker (worker/index.mjs), which forwards cookies and
@@ -47,7 +48,7 @@ export interface WebAppDeps {
   now?: () => Date;
   routes?: WebRoute[];
   /** Extra sections at the end of /me/ (the personal companion code). */
-  meSections?: ((context: WebContext) => Promise<string>)[];
+  meSections?: MeSectionInput[];
 }
 
 const PATHS = /^\/(?:auth\/(?:login|callback|logout)|recruitment(?:\/.*)?|me(?:\/.*)?|players(?:\/.*)?|leaderboards(?:\/.*)?)$/;
@@ -332,18 +333,9 @@ export function createWebApp(deps: WebAppDeps) {
       : done === "card-deleted" ? t("Your card is removed.", "Votre fiche est retirée.") : null;
     const status: Record<string, string> = { PENDING: t("Waiting", "En attente"), ACCEPTED: t("Accepted", "Acceptée"), DECLINED: t("Declined", "Refusée"), SPAM: t("Declined", "Refusée") };
     const days = form ? form.getAll("days") : card?.raidDays ?? [];
-    const extra = await Promise.all((deps.meSections ?? []).map((section) => section(ctx)));
-    const body = [
-      `<p class="eyebrow">Guilded</p><h1>${t("My Guilded", "Mon Guilded")}</h1>`,
-      `<nav aria-label="${t("My shortcuts", "Mes raccourcis")}"><a href="${link("/me/calendar", lang)}">${t("My next raid", "Mon prochain raid")}</a> · <a href="${link("/companion/", lang)}">${t("My sync", "Ma synchronisation")}</a> · <a href="#my-week">${t("My week", "Ma semaine")}</a></nav>`,
-      `<p id="my-week">${t("My week: use", "Ma semaine : utilisez")} <code>/report stats personal:true</code> ${t("in your guild’s Discord for a private recap of the last complete week.", "dans le Discord de votre guilde pour un récapitulatif privé de la dernière semaine complète.")}</p>`,
-      flash ? `<p class="notice">${escapeHtml(flash)}</p>` : "",
-      extra.join(""),
-      `<h2>${t("My applications", "Mes candidatures")}</h2>`,
-      applications.length
-        ? `<div class="table-wrap"><table><thead><tr><th>${t("Guild", "Guilde")}</th><th>${t("Character", "Personnage")}</th><th>${t("Sent", "Envoyée")}</th><th>${t("Answer", "Réponse")}</th></tr></thead><tbody>${applications.map((row) => `<tr><td>${escapeHtml(row.guildName)}${row.coreName ? ` · ${escapeHtml(row.coreName)}` : ""}</td><td>${escapeHtml(row.character)}</td><td>${row.createdAt.toISOString().slice(0, 10)}</td><td>${escapeHtml(status[row.status] ?? row.status)}</td></tr>`).join("")}</tbody></table></div>`
-        : `<p class="muted">${t("None yet.", "Aucune pour l'instant.")} <a href="${link("/recruitment/", lang)}">${t("See who is recruiting", "Voir qui recrute")}</a></p>`,
-      `<h2>${t("Looking for a guild", "Je cherche une guilde")}</h2>`,
+    const specs = normalizeSections(deps.meSections ?? []);
+    const rendered = await Promise.all(specs.map(async (spec) => ({ spec, html: await renderSpec(spec, ctx) })));
+    const cardForm = [
       card?.hidden ? `<p class="notice error">${t("Your card was hidden after several reports. Ask the Guilded owner to review it.", "Votre fiche a été masquée après plusieurs signalements. Demandez au propriétaire de Guilded de la revoir.")}</p>` : "",
       card && !card.hidden ? `<p class="muted">${t("Shown until", "Affichée jusqu'au")} ${card.expiresAt.toISOString().slice(0, 10)}.</p>` : "",
       error ? `<p class="notice error">${escapeHtml(error)}</p>` : "",
@@ -360,6 +352,25 @@ export function createWebApp(deps: WebAppDeps) {
         + `<p><label style="display:inline"><input type="checkbox" style="width:auto" name="showDiscord" value="1"${(form ? form.get("showDiscord") : card?.showDiscord) ? " checked" : ""}> ${t("Show my Discord name so guilds can contact me", "Afficher mon nom Discord pour que les guildes me contactent")}</label></p>`
         + `<p><button class="button" type="submit">${t("Save my card", "Enregistrer ma fiche")}</button></p></form>`,
       card ? `<form method="post" action="/me/card/delete"><input type="hidden" name="csrf" value="${escapeHtml(ctx.csrf ?? "")}"><input type="hidden" name="lang" value="${lang}"><input type="hidden" name="edition" value="${currentEdition()}"><button class="link" type="submit">${t("Remove my card", "Retirer ma fiche")}</button></form>` : ""
+    ].join("");
+    const guildOwn = `<section class="me-sec" id="sec-applications"><h3 id="applications">${t("My applications", "Mes candidatures")}</h3>`
+      + (applications.length
+        ? `<div class="table-wrap"><table><thead><tr><th>${t("Guild", "Guilde")}</th><th>${t("Character", "Personnage")}</th><th>${t("Sent", "Envoyée")}</th><th>${t("Answer", "Réponse")}</th></tr></thead><tbody>${applications.map((row) => `<tr><td>${escapeHtml(row.guildName)}${row.coreName ? ` · ${escapeHtml(row.coreName)}` : ""}</td><td>${escapeHtml(row.character)}</td><td>${row.createdAt.toISOString().slice(0, 10)}</td><td>${escapeHtml(status[row.status] ?? row.status)}</td></tr>`).join("")}</tbody></table></div>`
+        : `<p class="muted">${t("None yet.", "Aucune pour l'instant.")} <a href="${link("/recruitment/", lang)}">${t("See who is recruiting", "Voir qui recrute")}</a></p>`)
+      + `</section>`
+      + `<section class="me-sec" id="sec-looking"><h3 id="looking-for-a-guild">${t("Looking for a guild", "Je cherche une guilde")}</h3><details class="me-fold"${error ? " open" : ""}><summary>${card ? t("Edit my card", "Modifier ma fiche") : t("Create my card", "Créer ma fiche")}</summary>${cardForm}</details></section>`;
+    const overviewOwn = `<p id="my-week">${t("My week: use", "Ma semaine : utilisez")} <code>/report stats personal:true</code> ${t("in your guild’s Discord for a private recap of the last complete week.", "dans le Discord de votre guilde pour un récapitulatif privé de la dernière semaine complète.")}</p>`;
+    const quick = [
+      { href: "/me/battlenet", en: "Link a character", fr: "Lier un personnage" },
+      { href: "#achievements", en: "My achievements", fr: "Mes succès" },
+      { href: "/me/availability", en: "Set availability", fr: "Ma disponibilité" },
+      { href: "/me/calendar", en: "My next raid", fr: "Mon prochain raid" },
+      { href: "/companion/", en: "My sync", fr: "Ma synchronisation" }
+    ];
+    const body = [
+      `<p class="eyebrow">Guilded</p><h1>${t("My Guilded", "Mon Guilded")}</h1>`,
+      flash ? `<p class="notice">${escapeHtml(flash)}</p>` : "",
+      renderGroups(ctx, rendered, { overview: overviewOwn, guild: guildOwn }, quick)
     ].join("");
     return kit.page(error ? 400 : 200, t("My Guilded", "Mon Guilded"), body, { noindex: true });
   }

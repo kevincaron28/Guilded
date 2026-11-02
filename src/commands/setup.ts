@@ -123,7 +123,7 @@ function botCanAssign(guild: DiscordGuild, roleId: string): { name: string; botC
   return { name: role.name, botCanAssign: ok };
 }
 
-async function gatherFacts(guild: DiscordGuild, guildId: string, settings: GuildSettings): Promise<SetupFacts> {
+export async function gatherFacts(guild: DiscordGuild, guildId: string, settings: GuildSettings): Promise<SetupFacts> {
   await guild.roles.fetch();
   const signupChannel = settings.dungeonSignupChannelId
     ? await guild.channels.fetch(settings.dungeonSignupChannelId).catch(() => null)

@@ -53,6 +53,9 @@ import type { PrismaClient } from "./generated/prisma/client.js";
 import { createPoeMappingService, poeAreaName, PoeMappingError } from "./services/poe-mapping.js";
 import { notify } from "./services/notify.js";
 import { allowManageWrite, createCompanionManage, ManageError } from "./services/companion-manage.js";
+import { createCompanionHub } from "./services/companion-hub.js";
+import { baselineAchievements } from "./services/achievement-announce.js";
+import { setupChecks } from "./services/setup-status.js";
 import { syncCoreRoster } from "./services/raid-core.js";
 import { createWebApp, isWebPath, webFormLimit, type WebRoute } from "./services/web-app.js";
 import { createRosterDashboard } from "./services/roster-dashboard.js";
@@ -177,6 +180,7 @@ export async function readBody(request: IncomingMessage): Promise<unknown> {
 
 const auditService = createAuditService(prisma);
 const manage = createCompanionManage(prisma);
+const hub = createCompanionHub(prisma, { baselineAchievements: (guildId) => baselineAchievements(prisma, guildId) });
 // Public guild pages (/g/<slug>/): read-only HTML, no pairing needed.
 const guildPages = createGuildPageServer((slug) => loadGuildPageView(prisma, slug, (id) => hostedPilot.allows(id)));
 
@@ -436,7 +440,10 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // The companion's own pages: wishlists for members; prices, core rules and rosters for Raid Leaders.
       const isManageView = request.method === "GET" && url.pathname === "/api/v1/manage";
       const isManageEdit = request.method === "POST" && url.pathname === "/api/v1/manage";
-      if (!isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isStandings && !isPoeUpload && !isPoeLevels && !isPoeStatus && !isPoeRecent && !isLogout && !isManageView && !isManageEdit) {
+      // The companion's hub: my characters, reserves and (officers) the server page.
+      const isHubView = request.method === "GET" && url.pathname === "/api/v1/hub";
+      const isHubEdit = request.method === "POST" && url.pathname === "/api/v1/hub";
+      if (!isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isStandings && !isPoeUpload && !isPoeLevels && !isPoeStatus && !isPoeRecent && !isLogout && !isManageView && !isManageEdit && !isHubView && !isHubEdit) {
         json(response, 404, { error: "Not found" });
         return;
       }
@@ -573,9 +580,9 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         }
         });
       }
-      const payload = isImport || isPoeUpload || isPoeLevels || isManageEdit ? await readBody(request) : null;
+      const payload = isImport || isPoeUpload || isPoeLevels || isManageEdit || isHubEdit ? await readBody(request) : null;
       const requestPayload = payload as { guildDiscordId?: unknown; export?: unknown } | null;
-      const guildDiscordId = isStandings || isPoeStatus || isPoeRecent || isManageView ? url.searchParams.get("guild") : requestPayload?.guildDiscordId;
+      const guildDiscordId = isStandings || isPoeStatus || isPoeRecent || isManageView || isHubView ? url.searchParams.get("guild") : requestPayload?.guildDiscordId;
       if (typeof guildDiscordId !== "string") { json(response, 400, { error: "guildDiscordId is required" }); return; }
       if (!hostedPilot.allows(guildDiscordId)) { json(response, 403, { error: "This server is on Guilded Lite: companion sync unlocks when the Guilded owner approves it." }); return; }
       const header = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
@@ -592,6 +599,35 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (!access) {
         recordFailure(address);
         json(response, 401, { error: "Pair this companion with /character pair. The shared upload token no longer grants access." }); return;
+      }
+      if (isHubView) {
+        // The /setup checklist is read from Discord for officers only; if Discord cannot be reached the page says so.
+        let checks = null;
+        if (access.officer && client) {
+          const language = url.searchParams.get("lang") === "fr" ? "fr" : "en";
+          try {
+            const { gatherFacts } = await import("./commands/setup.js");
+            const discordGuild = await client.guilds.fetch(guild.discordId);
+            const settings = await prisma.guildSettings.findUnique({ where: { guildId: guild.id } });
+            if (settings) checks = setupChecks(await gatherFacts(discordGuild, guild.id, settings), language);
+          } catch (error) { console.warn("Companion hub could not read the setup checklist", error); }
+        }
+        json(response, 200, { ...await hub.view(guild.id, access, checks), botVersion: BOT_VERSION });
+        return;
+      }
+      if (isHubEdit) {
+        if (!allowManageWrite(access.memberId)) { json(response, 429, { error: "Too many changes in a short time. Try again in a few minutes." }); return; }
+        let result;
+        try { result = await hub.applyServer(guild.id, access, (payload as { change?: unknown }).change); }
+        catch (error) {
+          if (error instanceof ManageError) { json(response, error.status, { error: error.message }); return; }
+          if (error instanceof ZodError) { json(response, 400, { error: "That change is not valid." }); return; }
+          throw error;
+        }
+        markGuildChanged(guild.id);
+        if (result.audit) await auditService.record({ guildId: guild.id, actorId: access.actorId, action: "CONFIG_UPDATED", metadata: { via: "companion", ...result.audit } });
+        json(response, 200, { ok: true, message: result.message, botVersion: BOT_VERSION });
+        return;
       }
       if (isManageView) {
         json(response, 200, { ...await manage.view(guild.id, access), botVersion: BOT_VERSION });

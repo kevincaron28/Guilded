@@ -61,8 +61,11 @@ export async function verifyCommunityBadgesPostgres(database: PrismaClient) {
   await attemptBadgeDelivery(database, other.id, guild.id, send);
   assert.equal(sends, 2);
   assert.equal((await database.communityBadge.findUniqueOrThrow({ where: { id: other.id } })).delivery, "UNCERTAIN");
+  // New seasons share by default, so a member has to opt out explicitly to hide the shelf.
+  assert.equal((await communityBadgeShelf(database, season.id, "viewer", "jump"))?.length, 3);
+  await database.communityBadgeSharing.create({ data: { seasonId: season.id, userId: "jump", shared: false } });
   assert.equal(await communityBadgeShelf(database, season.id, "viewer", "jump"), null);
-  await database.communityBadgeSharing.create({ data: { seasonId: season.id, userId: "jump", shared: true } });
+  await database.communityBadgeSharing.update({ where: { seasonId_userId: { seasonId: season.id, userId: "jump" } }, data: { shared: true } });
   assert.equal((await communityBadgeShelf(database, season.id, "viewer", "jump"))?.length, 3);
   await configureCommunityBadges(database, guild.id, season.id, "channel", false, "officer");
   await write(point("paused", 500, "AWARD", "paused"));

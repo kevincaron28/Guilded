@@ -21,7 +21,7 @@ Roadmap request 6 (`docs/ROADMAP_REQUESTS_PLAN_2026-10-18.md`). Builds on the we
 - `/me/` → **Get a companion code**: a `P…` code (15 minutes, one use). The companion's usual
   Connect box takes it; the bot's pairing endpoint recognizes personal codes by their `P` and
   returns a personal credential (one active per account, only its SHA-256 stored).
-- In personal mode the companion (desktop, command line or the online companion at /companion/)
+- In personal mode the companion (Windows app or command line)
   reads `GuildedDungeons.lua` (or `Guilded.lua`), sends up to 50
   finished, not-yet-synced runs to `POST /api/v1/public-runs`, and writes
   `AddOns/GuildedDungeons/Accepted.lua` so the addon marks them as sent. No standings, no guild.

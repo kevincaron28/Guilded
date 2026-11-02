@@ -2,7 +2,7 @@ const { pathToFileURL } = require("node:url");
 const path = require("node:path");
 
 const configFields = new Set(["uploadUrl", "guildDiscordId", "pairingCode", "watchFile", "realm", "wowGuild", "standingsIntervalMinutes", "poeLogFile", "poeCharacter", "poeLeague", "poeMode", "wowEnabled", "poeEnabled", "syncEnabled"]);
-const noArgs = new Set(["open-connections", "open-battlenet", "recover-sync", "get-all", "list-profiles", "switch-live-folder", "dismiss-live-folder", "open-update", "open-startup-settings", "install-update", "sign-in-wait", "sign-in-cancel", "browse-file", "detect-wow", "browse-poe-log", "upload-now", "refresh-standings", "open-addon-folder", "remove-data", "toggle-tracking", "get-poe-runs", "manage-view", "open-online"]);
+const noArgs = new Set(["open-connections", "open-battlenet", "recover-sync", "get-all", "list-profiles", "switch-live-folder", "dismiss-live-folder", "open-update", "open-startup-settings", "install-update", "sign-in-wait", "sign-in-cancel", "browse-file", "detect-wow", "browse-poe-log", "upload-now", "refresh-standings", "open-addon-folder", "remove-data", "toggle-tracking", "get-poe-runs", "manage-view"]);
 function fail() { throw new Error("Invalid companion request."); }
 function object(value, fields) {
   if (!value || typeof value !== "object" || Array.isArray(value)) fail();

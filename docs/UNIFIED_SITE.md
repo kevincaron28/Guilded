@@ -4,7 +4,7 @@ The owner's public address is https://guilded-wow.kcaron.workers.dev/.
 The website, guides and Quebec Gold companion share that address:
 
 - `/` and `/docs/` serve the static website and installation guides.
-- `/companion/` serves the existing online companion through the Worker.
+- `/companion/` is the static companion download page (Microsoft Store first); former browser-companion paths under it redirect there.
 - `/health` and the explicitly listed `/api/v1/` routes forward to the existing
   Oracle bot at `https://guildedqc.duckdns.org`.
 

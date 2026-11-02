@@ -29,8 +29,8 @@ try {
   const fields = error instanceof ZodError ? [...new Set(error.issues.map((issue) => issue.path.join(".")))].join(", ") : "configuration";
   check(false, "Configuration loads", `Check ${fields} in .env.local. Leave optional integrations blank.`);
 }
-check(existsSync(fileURLToPath(new URL("../companion-app/renderer/web-bundle.js", import.meta.url))),
-  "Online companion built", "Run npm run companion:build.");
+check(existsSync(fileURLToPath(new URL("../companion-app/renderer/ui-bundle.js", import.meta.url))),
+  "Companion interface built", "Run npm run companion:build.");
 console.log("Offline check only: token validity, database access, Discord permissions, DNS and HTTPS still need live verification.");
 console.log(failed ? "Fix the FAIL items and run npm run setup:check again. See docs/GUILD_OWNER_SETUP.md." : "Configuration checks passed. Continue with service startup and the checkpoints in docs/GUILD_OWNER_SETUP.md.");
 process.exitCode = failed ? 1 : 0;

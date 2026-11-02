@@ -1,7 +1,7 @@
 # Guilded download and setup website
 
 A static landing page with CurseForge/releases links, an illustrated owner guide,
-member installation and a link builder for each guild's own online companion.
+member installation and the Windows companion download page (`/companion/`).
 The landing page has no login, credentials or database. Cookie-free Cloudflare Web
 Analytics is off until a beacon token is set in `site/analytics.json` (see
 `docs/SITE_RELIABILITY_2026-10-29.md`). Its companion
@@ -57,7 +57,6 @@ environment variables belong in the Worker.
 Cloudflare browser access was restored on 5 October 2026. The public landing page
 is now https://guilded-wow.kcaron.workers.dev/. Worker configuration
 is now integrated with the companion/setup release branch for publication on main.
-See `docs/WEB_COMPANION_ROLLOUT.md` for deployment and acceptance evidence.
 
 Reference: https://developers.cloudflare.com/workers/static-assets/get-started/
 
@@ -75,9 +74,7 @@ links from a signed-out browser. All paths support hosting under a project subpa
 There are no made-up third-party addon links: add other addons only after their
 exact project/download URLs are supplied and checked.
 
-The Quebec Gold companion link is labelled for Quebec Gold members only. The
-guild-address form makes a same-browser link and strips unrelated URL parameters;
-it never requests or forwards pairing codes. Each other guild hosts its own bot.
+Each guild that hosts its own bot gives members its bot address to set in the Windows companion.
 
 Screenshots and provenance: `docs/images/owner-setup/README.md`. Screenshots of
 vendor tutorial examples are labelled as such and must not be presented as a
@@ -112,11 +109,9 @@ pricing, functionality or adoption. No testimonials, player statistics or
 compatibility claims were invented. Published versions shown on the site come from
 `site/releases.json` (7.3.1 GitHub, 7.3.0 CurseForge on 22 October 2026); update it with each upload.
 
-The static preview does not proxy `/companion/` or call the live bot. Companion
-links intentionally keep the existing production route for eventual hosting.
-The guild-address form builds a link locally, requires HTTPS, rejects embedded
-credentials, and discards unrelated query parameters. Do not pair an account
-or upload game data as part of public website QA.
+`/companion/` is a static download page; the Worker redirects former browser-companion
+paths under it to that page.
+Do not pair an account or upload game data as part of public website QA.
 
 Verification for this refresh: `site:build`, TypeScript, ESLint and addon
 validation passed; the full Vitest rerun passed 184 files / 1,548 tests with

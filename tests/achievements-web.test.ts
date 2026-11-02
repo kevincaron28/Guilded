@@ -30,7 +30,7 @@ describe("achievements on the website", () => {
   it("shows stored achievements on a public player page, earliest date winning, only for allowed guilds", async () => {
     const web = createAchievementsWeb(fakeDb({ publicProfile: true }) as never, allows);
     const html = await web.publicSection(ctx("/players/x"), "a".repeat(24));
-    expect(html).toContain("2 of 31 unlocked");
+    expect(html).toContain(`2 of ${ACHIEVEMENTS.length} unlocked`);
     expect(html).toContain("Unlocked 2026-10-21");
     expect(html).toContain("achievements.png");
     expect(html).not.toContain("Locked ·");
@@ -47,13 +47,13 @@ describe("achievements on the website", () => {
     const owner = { id: "a".repeat(24) } as WebContext["account"];
     const html = await createAchievementsWeb(db as never, allows).publicSection(ctx("/players/x", "en", owner), "a".repeat(24));
     expect(sync).toHaveBeenCalled();
-    expect(html).toContain("0 of 31 unlocked");
+    expect(html).toContain(`0 of ${ACHIEVEMENTS.length} unlocked`);
     expect(html).toContain("Locked ·");
     expect(await createAchievementsWeb(db as never, allows).publicSection(ctx("/players/x", "en", { id: "b".repeat(24) } as WebContext["account"]), "a".repeat(24))).toBe("");
   });
   it("is bilingual", async () => {
     const html = await createAchievementsWeb(fakeDb({ publicProfile: true }) as never, allows).publicSection(ctx("/players/x", "fr"), "a".repeat(24));
-    expect(html).toContain("2 sur 31 débloqués");
+    expect(html).toContain(`2 sur ${ACHIEVEMENTS.length} débloqués`);
     expect(html).toContain("Premiers pas");
   });
   it("serves the card image only for a public profile", async () => {
@@ -73,5 +73,5 @@ describe("achievements on the website", () => {
     expect((await web.ownerRoute(ctx("/me/achievements.png"), kit))?.status).toBe(401);
     expect(await web.meSection(ctx("/me/"))).toBe("");
   });
-  it("catalogue is large enough to list by game", () => expect(ACHIEVEMENTS.length).toBe(31));
+  it("catalogue is large enough to list by game", () => expect(ACHIEVEMENTS.length).toBe(72));
 });

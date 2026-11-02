@@ -43,7 +43,7 @@ sudo -u "$WHO" git -C "$SRC" merge --ff-only origin/main
 AFTER="$(sudo -u "$WHO" git -C "$SRC" rev-parse --short HEAD)"
 if [ "$BEFORE" = "$AFTER" ]; then echo "Already on the newest code ($AFTER)."; else echo "Updated $BEFORE -> $AFTER"; sudo -u "$WHO" git -C "$SRC" log -10 --oneline "$BEFORE..$AFTER"; fi
 
-say "Preparing dependencies and online companion outside the running application"
+say "Preparing dependencies and the companion interface bundle outside the running application"
 command -v rsync >/dev/null || apt-get install -y rsync
 source "$SRC/deploy/application-update.sh"
 if ! prepare_application "$SRC" "$APP" guilded; then

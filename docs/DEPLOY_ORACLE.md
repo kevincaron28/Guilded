@@ -58,7 +58,7 @@ sudo bash deploy/setup-server.sh guild.example.org
 ```
 
 The installer installs Node 24 if missing/older, Caddy and dependencies; copies
-the app to `/opt/guilded`; builds the online companion; installs/enables the
+the app to `/opt/guilded`; builds the Windows app's interface bundle; installs/enables the
 `guilded` systemd service; and configures HTTPS. It does **not** start the bot.
 It refuses to install over an active Guilded service. It may add swap on a small
 server. Check your cloud firewall separately; the script cannot configure it.
@@ -73,8 +73,8 @@ Fill only `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_GUILD_ID` and
 `DATABASE_URL` to start. Keep `COMPANION_API_HOST=127.0.0.1`,
 `COMPANION_API_PORT=8787` and `MESSAGE_CONTENT_INTENT=false`.
 Optional Warcraft Logs, AI and error-report fields may stay blank.
-Set `COMPANION_WEB_URL=https://your-hostname/companion/` to include your own online
-companion button in Discord's private character setup and pinned guide. The
+Set `COMPANION_WEB_URL` to the companion download page (`https://guilded.kcaron.top/companion/`
+is the hosted one) to include its button in Discord's private character setup and pinned guide. The
 official hosted bot defaults to its hosted companion; independent bots without
 this setting ask members for their officer's link.
 If `DATABASE_URL` is a pooled connection (Neon: the host contains `-pooler`), also set
@@ -109,7 +109,7 @@ here and complete the release backup/preflight procedure first.
 From another PC, open your own URLs:
 
 - `https://guild.example.org/health`: expect `ok: true` and the intended version.
-- `https://guild.example.org/companion/`: expect the online companion setup page.
+- `https://guild.example.org/companion/`: expect a redirect to the hosted companion download page.
 - In your Discord server, `/report ping` must respond. Health alone does not
   prove Discord login or command registration succeeded.
 
@@ -121,7 +121,7 @@ A database connection failure needs the provider URL/SSL/network fixed. A
 ## 6. Give members the right address
 
 Your member bot address is `https://guild.example.org/api/v1/addon-imports`.
-Your manual browser companion is `https://guild.example.org/companion/`.
+Members install the Windows companion from [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) and set your bot address under Advanced.
 Replace the hostname, then fill the handout in [Guild owner setup](GUILD_OWNER_SETUP.md#5-give-members-one-pinned-message).
 Each member uses their own `/character pair` code. Desktop companions stay on
 players' PCs because they read game files; they do not move to the bot host.

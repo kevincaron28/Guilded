@@ -35,7 +35,11 @@ export async function updateProfessionDirectory(discordGuild: DiscordGuild | nul
   try {
     const guild = await prisma.guild.findUnique({ where: guildWhere(discordGuild.id), include: { settings: true } });
     if (!guild?.settings?.craftChannelId) return false;
-    const forum = await discordGuild.channels.fetch(guild.settings.craftChannelId);
+    // A deleted craft channel (Discord error 10003) is not a failure worth a diagnostic: the directory just has nowhere to go.
+    const forum = await discordGuild.channels.fetch(guild.settings.craftChannelId).catch((error: unknown) => {
+      if ((error as { code?: number }).code === 10003) return null;
+      throw error;
+    });
     if (forum?.type !== ChannelType.GuildForum) return false;
     const active = await forum.threads.fetchActive();
     const lang = asLang(guild.settings.language);

@@ -51,20 +51,15 @@ describe("PoE2 HTTP authentication and personal scope", () => {
     expect(db.companionCredential.updateMany).not.toHaveBeenCalled();
     expect(allowCompanionRevocation('127.0.0.1', Date.now() + 60_001)).toBe(true);
   });
-  it("serves only public companion files with browser security headers", async () => {
-    const response = await fetch(`${address}/companion/`);
-    expect(response.status).toBe(200);
-    expect(response.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
-    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
-    expect(await response.text()).toContain('id="page-status"');
-    for (const [file, type] of [["design-tokens.css", "text/css"], ["precision.css", "text/css"], ["kc-emblem.webp", "image/webp"], ["fonts/inter-latin.woff2", "font/woff2"], ["fonts/source-serif-latin.ttf", "font/ttf"]]) {
-      const asset = await fetch(`${address}/companion/${file}`);
-      expect(asset.status).toBe(200);
-      expect(asset.headers.get("content-type")).toContain(type);
+  it("redirects every former browser-companion address to the download page and serves no files", async () => {
+    for (const path of ["/companion", "/companion/", "/companion/app.js", "/companion/preload.cjs", "/companion/..%2F..%2F.env.local", "/companion/config.json", "/companion/fonts/inter-latin.woff2"]) {
+      const response = await fetch(`${address}${path}`, { redirect: "manual" });
+      expect(response.status, path).toBe(301);
+      expect(response.headers.get("location"), path).toBe("https://guilded.kcaron.top/companion/");
     }
-    for (const file of ["preload.cjs", "../.env.local", "config.json", "..%2F..%2F.env.local", "fonts/../../.env.local", "fonts/source.css"]) {
-      expect((await fetch(`${address}/companion/${file}`)).status).toBe(404);
-    }
+    const french = await fetch(`${address}/companion/app.js?lang=fr`, { redirect: "manual" });
+    expect(french.headers.get("location")).toBe("https://guilded.kcaron.top/companion/?lang=fr");
+    expect((await fetch(`${address}/companion/`, { method: "POST", redirect: "manual" })).status).toBe(405);
     expect(db.companionCredential.findFirst).not.toHaveBeenCalled();
   });
   it("keeps map history scoped to the paired member, including officers", async () => {

@@ -12,10 +12,9 @@ describe('companion overview readiness', () => {
     expect(companionOverview({ companionCredential: 'fixture', wowEnabled: false, watchFile: 'old.lua', poeLogFile: 'Client.txt' }, {}).selectedFiles).toBe(0);
     expect(companionOverview({ companionCredential: 'fixture', wowEnabled: false, poeEnabled: true, poeLogFile: 'Client.txt' }, {}).canSync).toBe(true);
   });
-  it('distinguishes paused desktop tracking, manual browser sync and a completed refresh', () => {
+  it('distinguishes paused desktop tracking and a completed refresh', () => {
     const config = { companionCredential: 'fixture', watchFile: 'local.lua' };
     expect(companionOverview(config, { running: false }).tracking).toBe('Tracking paused');
-    expect(companionOverview(config, {}, true).tracking).toBe('Manual browser sync');
     expect(companionOverview(config, {}).standings).toBe('Not refreshed yet');
     expect(companionOverview(config, { lastStandings: { at: '2026-10-19T00:00:00Z' } }).standings).toBe('Standings refreshed');
   });
@@ -23,7 +22,6 @@ describe('companion overview readiness', () => {
     expect(companionOverview({}, {}).nextPage).toBe('settings');
     expect(companionOverview({ companionCredential: 'fixture' }, {}).nextAction).toBe('Choose your saved data');
     const config = { companionCredential: 'fixture', watchFile: 'local.lua' };
-    expect(companionOverview(config, {}, true).nextPage).toBe('wow');
     expect(companionOverview(config, { running: true, lastUpload: {} }).nextPage).toBe('activity');
   });
   it('does not imply guild standings for an existing personal connection', () => {

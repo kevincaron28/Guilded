@@ -29,7 +29,7 @@ const environmentSchema = z.object({
   COMPANION_API_PORT: z.coerce.number().int().min(1).max(65535).default(8787),
   // 127.0.0.1 = this computer only. On a server behind HTTPS (deploy/), use 0.0.0.0 or leave 127.0.0.1 with a reverse proxy.
   COMPANION_API_HOST: z.string().min(1).default("127.0.0.1"),
-  // Public browser companion link shown in Discord. Independent hosts supply their own URL.
+  // Companion download page linked in Discord. Independent hosts supply their own URL.
   COMPANION_WEB_URL: blankAsUndefined(z.string().url().max(450).refine((value) => {
     const url = new URL(value);
     return ["https:", "http:"].includes(url.protocol) && !url.username && !url.password;

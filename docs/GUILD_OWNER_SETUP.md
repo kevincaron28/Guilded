@@ -8,9 +8,9 @@ KCaron must approve your server before it works. After approval, start at
 for Discord and Oracle signup links, screenshots, commands and success checks.
 This page is the shorter technical reference.
 
-One owner hosts the Discord bot and database; members install the addon and use
-the online companion by default. The Windows app is optional for automatic sync,
-especially useful for leaders and officers. Use the bot source, addon and companion from
+One owner hosts the Discord bot and database; members install the addon and the
+Windows companion (Microsoft Store first; optional for the addon alone, needed for Discord
+and website features; Windows only). Use the bot source, addon and companion from
 the same [published release](https://github.com/kevincaron28/Guilded/releases/latest) (8.4.0) and read its notes for known limitations. A timed fresh-guild rehearsal on a
 non-developer PC is still pending.
 
@@ -36,8 +36,7 @@ Record these non-secret details as you go:
 | Discord server ID | |
 | Bot host / service owner | |
 | Companion bot address (`https://your-host/api/v1/addon-imports`) | |
-| Online companion (`https://your-host/companion/`) | |
-| Addon download and online companion links; optional Windows download | |
+| Addon download links and the Windows companion (Microsoft Store) | |
 | Officer responsible for support / backups | |
 
 Keep the Discord bot token and database connection string in `.env.local` on the
@@ -96,7 +95,7 @@ not need Node.js on your Windows PC or to fill two configuration files.
 | `MESSAGE_CONTENT_INTENT` | Leave `false` for initial setup |
 
 For a new source installation, `npm ci` installs the locked dependencies,
-`npm run companion:build` builds the online companion, and `npm run db:update`
+`npm run companion:build` builds the Windows app's interface, and `npm run db:update`
 applies migrations and generates the database client. Existing databases need a
 verified backup and ledger preflight before an update. Never reset a database to
 get past a migration error.
@@ -125,9 +124,9 @@ it targets the maintainer's existing server. Use the server-side update procedur
 on your own host, after the release checks and backup gates.
 
 **Checkpoint:** `https://your-host/health` returns `ok: true` with the intended
-version/protocol, and `/report ping` responds in your Discord server. The online
-companion opens at `https://your-host/companion/`. A working Discord bot alone
-does not prove the HTTPS companion endpoint works from members' PCs.
+version/protocol, and `/report ping` responds in your Discord server. A working Discord bot alone
+does not prove the HTTPS companion endpoint works from members' PCs: test a sign-in from the
+Windows companion with your bot address.
 
 ## 3. Configure Discord with the wizard
 
@@ -183,9 +182,9 @@ Optional Windows companion (automatic sync): <matching installer download link>
 Setup guide: <link to MEMBER_INSTALL.md for this release>
 Our Discord server ID: <copy exact ID>
 Our bot address: <https://our-host/api/v1/addon-imports>
-Online companion (default): <https://our-host/companion/>
+Windows companion: https://apps.microsoft.com/detail/9N680XX3QFL9
 Install the addon in your actual WoW client, log in, then /reload.
-Open our online companion link; desktop users set our bot address before connecting.
+Install the Windows companion and set our bot address (Advanced) before connecting.
 Use /character pair here in Discord to get your own private code.
 Need help? Contact <officer>; share the error or support summary, never your code.
 ```

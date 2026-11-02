@@ -70,7 +70,10 @@ function fakeDb(overrides: Record<string, unknown> = {}) {
     character: { findMany: vi.fn(async () => [{ level: 60, gameEdition: "forever" }]) },
     dungeonRunPlayer: { findMany: vi.fn(async () => [{ runId: "r1", run: { endedAt: day(3), startedAt: null, createdAt: day(3) } }, { runId: "r1", run: { endedAt: day(3), startedAt: null, createdAt: day(3) } }]) },
     raidAttendance: { findMany: vi.fn(async () => [{ raidId: "a", raid: { endedAt: day(6), scheduledAt: day(6), bosses: [{ status: "KILLED" }, { status: "KILLED" }] } }, { raidId: "b", raid: { endedAt: null, scheduledAt: day(7), bosses: [{ status: "KILLED" }, { status: "PENDING" }] } }]) },
-    communityParticipationDay: { findMany: vi.fn(async () => [{ day: "2026-10-01" }, { day: "2026-10-01" }, { day: "2026-10-02" }]) },
+    communityParticipationDay: { findMany: vi.fn(async () => [{ day: "2026-10-01", messages: 60, reactions: 4, voiceMs: 7_200_000 }, { day: "2026-10-01", messages: 0, reactions: 0, voiceMs: 0 }, { day: "2026-10-02", messages: 50, reactions: 7, voiceMs: 3_600_000 }]) },
+    memberActivityTotal: { findUnique: vi.fn(async () => ({ messages: 600, reactionsGiven: 30, reactionsReceived: 2, voiceSeconds: 40 * 3600 + 59 })) },
+    communityPoint: { aggregate: vi.fn(async () => ({ _sum: { amount: 130 } })), count: vi.fn(async () => 40) },
+    epgpTransaction: { aggregate: vi.fn(async () => ({ _sum: { epAmount: 250 } })) },
     professionSkill: { findMany: vi.fn(async () => [{ skillLevel: 175 }]) },
     poeLevelReached: { findMany: vi.fn(async () => []) },
     poeMapVisit: { findMany: vi.fn(async () => []) },
@@ -100,6 +103,29 @@ describe("syncMemberAchievements", () => {
     expect(second.newlyEarned).toEqual([]);
     expect(stored.length).toBe(count);
     expect(second.results.find(row => row.def.id === "dungeon-runs-1")?.earnedAt).toEqual(day(3));
+  });
+  it("measures activity and scoring totals, taking the larger of the counter and the season record", async () => {
+    const { db } = fakeDb();
+    const view = await syncMemberAchievements(db, "g", "m", now);
+    const value = (id: string) => view.results.find(row => row.def.id === id)!;
+    // Counter 600 beats the season record (110): the 500 step is earned, 1,000 is not.
+    expect(value("messages-500")).toMatchObject({ earned: true, value: 600 });
+    expect(value("messages-1000").earned).toBe(false);
+    // Voice: counter 40 h 59 s beats the season record (5 h); partial hours do not count.
+    expect(value("voice-hours-25").value).toBe(40);
+    expect(value("voice-hours-50").earned).toBe(false);
+    // Reactions given come from the participation ledger (40) when above the counter (30); received from the season record (11).
+    expect(value("reactions-given-25")).toMatchObject({ earned: true, value: 40 });
+    expect(value("reactions-received-10")).toMatchObject({ earned: true, value: 11 });
+    expect(value("points-100")).toMatchObject({ earned: true, value: 130 });
+    expect(value("points-500").earned).toBe(false);
+    expect(value("ep-100")).toMatchObject({ earned: true, value: 250 });
+    expect(value("ep-500").earned).toBe(false);
+  });
+  it("never reads message text: only counts are asked of the database", async () => {
+    const { raw } = fakeDb();
+    await syncMemberAchievements(raw as never, "g", "m", now);
+    expect(JSON.stringify((raw.communityParticipationDay.findMany as ReturnType<typeof vi.fn>).mock.calls)).not.toMatch(/content|messageHashes/);
   });
   it("keeps an earned achievement even if the data later shrinks", async () => {
     const { db, raw } = fakeDb();
@@ -158,5 +184,35 @@ describe("PoE2 level ingest", () => {
   it("skips levels from before a data reset", async () => {
     const db = makeDb({ poeTrackingEnabled: true, dataResetAt: new Date("2026-11-01T00:00:00Z") });
     expect(await createPoeMappingService(db as never).ingestLevels("g", "m", { guildDiscordId: "1", levels: [level] }, now)).toEqual({ inserted: 0, excludedByReset: 1 });
+  });
+});
+
+describe("long progressions", () => {
+  const ladders = (metric: string) => ACHIEVEMENTS.filter(def => def.metric === metric);
+  it("gives messages 10 steps and voice 8, rising in threshold and tier, ending at a very high number", () => {
+    const order = ["bronze", "silver", "gold", "platinum", "epic", "legendary"];
+    for (const [metric, steps, top] of [["messagesSent", 10, 250_000], ["voiceHours", 8, 1000], ["reactionsGiven", 7, 10_000], ["communityPoints", 7, 25_000]] as const) {
+      const rows = ladders(metric);
+      expect(rows, metric).toHaveLength(steps);
+      expect(rows.map(def => def.threshold)).toEqual([...rows.map(def => def.threshold)].sort((a, b) => a - b));
+      expect(rows.map(def => def.rank)).toEqual(rows.map((_, i) => i + 1));
+      expect(rows.map(def => order.indexOf(def.tier))).toEqual([...rows.map(def => order.indexOf(def.tier))].sort((a, b) => a - b));
+      expect(rows.at(-1)!.threshold).toBe(top);
+    }
+  });
+  it("has English and French text with the number in each description and plural hours", () => {
+    expect(ACHIEVEMENTS.find(def => def.id === "messages-250000")!.fr.description).toBe("Envoyer 250\u00a0000 messages sur le Discord de la guilde.");
+    expect(ACHIEVEMENTS.find(def => def.id === "messages-250000")!.en.description).toBe("Send 250,000 messages in the guild's Discord.");
+    expect(ACHIEVEMENTS.find(def => def.id === "voice-hours-1")!.en.description).toContain("1 hour in");
+    expect(ACHIEVEMENTS.find(def => def.id === "voice-hours-10")!.fr.description).toContain("10 heures");
+    for (const def of ACHIEVEMENTS) for (const lang of ["en", "fr"] as const) { expect(def[lang].name.length, def.id).toBeGreaterThan(2); expect(def[lang].description.length, def.id).toBeGreaterThan(10); }
+  });
+  it("shows only the top earned step and the next unearned step of a ladder on the card", () => {
+    const earnedIds = ["messages-100", "messages-500", "messages-1000"];
+    const items = ACHIEVEMENTS.map(def => ({ id: def.id, earnedAt: earnedIds.includes(def.id) ? day(2) : null, value: earnedIds.includes(def.id) ? def.threshold : 3 }));
+    const card = achievementsCard("Kevin", items, "en");
+    expect(card.rows).toHaveLength(1);
+    expect(card.rows![0]!.name).toBe("Regular Poster");
+    expect(JSON.stringify(card)).toContain("Next:");
   });
 });

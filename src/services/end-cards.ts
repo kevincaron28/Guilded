@@ -1,3 +1,4 @@
+import { badgeInner } from "./achievement-badges.js";
 import { ACHIEVEMENTS, GAME_LABEL, TIER_COLOR, TIER_LABEL, achievementById, type AchievementDef, type AchievementGame } from "./achievements-catalogue.js";
 import type { RaidReport } from "./raid-report.js";
 import { formatDuration } from "./raid-report.js";
@@ -69,12 +70,15 @@ export function achievementsCard(name: string, items: AchievementCardItem[], lan
   const rows = items.flatMap(item => { const def = achievementById(item.id); return def ? [{ def, ...item }] : []; });
   const earned = rows.filter(row => row.earnedAt).sort((a, b) => b.earnedAt!.getTime() - a.earnedAt!.getTime());
   const count = (game: AchievementGame) => `${earned.filter(row => row.def.game === game).length}/${ACHIEVEMENTS.filter(def => def.game === game).length}`;
-  const next = rows.filter(row => !row.earnedAt).map(row => ({ row, ratio: row.value / row.def.threshold })).sort((a, b) => b.ratio - a.ratio)[0]?.row;
+  // A long progression shows only its highest earned step, and only its next unearned step as "next", so one ladder cannot crowd the card.
+  const topStep = (row: (typeof earned)[number]) => !row.def.rank || !earned.some(other => other.def.metric === row.def.metric && other.def.threshold > row.def.threshold);
+  const nextStep = (row: (typeof rows)[number]) => !row.def.rank || !rows.some(other => !other.earnedAt && other.def.metric === row.def.metric && other.def.threshold < row.def.threshold);
+  const next = rows.filter(row => !row.earnedAt && nextStep(row)).map(row => ({ row, ratio: row.value / row.def.threshold })).sort((a, b) => b.ratio - a.ratio)[0]?.row;
   const label = (def: AchievementDef) => def[lang].name;
   const shown: CardRow[] = earned.length
-    ? earned.slice(0, 5).map(row => ({ name: label(row.def), sub: `${row.earnedAt!.toISOString().slice(0, 10)} · ${GAME_LABEL[row.def.game][lang]}`, color: TIER_COLOR[row.def.tier], right: TIER_LABEL[row.def.tier][lang] }))
-    : rows.filter(row => !row.earnedAt).sort((a, b) => b.value / b.def.threshold - a.value / a.def.threshold).slice(0, 5)
-      .map(row => ({ name: label(row.def), sub: `${Math.min(row.value, row.def.threshold)}/${row.def.threshold}`, color: "#8a7a5a", right: t("Locked", "Verrouillé") }));
+    ? earned.filter(topStep).slice(0, 5).map(row => ({ name: label(row.def), sub: `${row.earnedAt!.toISOString().slice(0, 10)} · ${GAME_LABEL[row.def.game][lang]}`, color: TIER_COLOR[row.def.tier], right: TIER_LABEL[row.def.tier][lang], icon: badgeInner(row.def, true) }))
+    : rows.filter(row => !row.earnedAt && nextStep(row)).sort((a, b) => b.value / b.def.threshold - a.value / a.def.threshold).slice(0, 5)
+      .map(row => ({ name: label(row.def), sub: `${Math.min(row.value, row.def.threshold)}/${row.def.threshold}`, color: "#8a7a5a", right: t("Locked", "Verrouillé"), icon: badgeInner(row.def, false) }));
   return {
     eyebrow: t("Guilded · Achievements", "Guilded · Succès"), title: name,
     subtitle: t("Computed from recorded guild data", "Données enregistrées de la guilde"),
@@ -88,5 +92,23 @@ export function achievementsCard(name: string, items: AchievementCardItem[], lan
       ...(next ? [{ text: t(`Next: ${label(next.def)} ${Math.min(next.value, next.def.threshold)}/${next.def.threshold}`, `Prochain : ${label(next.def)} ${Math.min(next.value, next.def.threshold)}/${next.def.threshold}`), tone: "ok" as const }] : [])
     ],
     footer: t("Earned from synced characters, runs, raid attendance and your own PoE2 log · No points · guilded.kcaron.top", "Obtenus à partir des personnages synchronisés, donjons, présences aux raids et de votre journal PoE2 · Aucun point · guilded.kcaron.top")
+  };
+}
+
+/** The card for a celebration post: the achievements just unlocked, with their badges. */
+export function achievementUnlockedCard(name: string, ids: string[], totalEarned: number, lang: Lang = "en"): ScoreCard {
+  const t = pick(lang);
+  const defs = ids.flatMap(id => { const def = achievementById(id); return def ? [def] : []; });
+  const shown = defs.slice(-5).reverse();
+  return {
+    eyebrow: t("Guilded · Achievement unlocked", "Guilded · Succès débloqué"), title: name,
+    subtitle: t("Computed from recorded guild data", "Données enregistrées de la guilde"),
+    stats: [
+      { label: t("Unlocked now", "Débloqués"), value: `+${defs.length}`, accent: "gold" },
+      { label: t("Total", "Total"), value: `${totalEarned}/${ACHIEVEMENTS.length}` }
+    ],
+    rowsLabel: t("New achievements", "Nouveaux succès"),
+    rows: shown.map(def => ({ name: def[lang].name, sub: GAME_LABEL[def.game][lang], color: TIER_COLOR[def.tier], right: TIER_LABEL[def.tier][lang], icon: badgeInner(def, true) })),
+    footer: t("Earned from synced characters, runs, raid attendance and the PoE2 log · No points · guilded.kcaron.top", "Obtenus à partir des personnages synchronisés, donjons, présences aux raids et du journal PoE2 · Aucun point · guilded.kcaron.top")
   };
 }

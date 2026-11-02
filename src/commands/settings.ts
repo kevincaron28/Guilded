@@ -12,6 +12,8 @@ import { createWclClient, parseGuildRef } from "../integrations/warcraftlogs.js"
 import { ensureBotGuide } from "./setup.js";
 import { asLang } from "../i18n.js";
 import { prisma } from "../database.js";
+import { baselineAchievements } from "../services/achievement-announce.js";
+import { ACHIEVEMENT_CATALOGUE_VERSION } from "../services/achievements-catalogue.js";
 
 export const configCommand = new SlashCommandBuilder()
   .setName("config")
@@ -92,7 +94,10 @@ export const configCommand = new SlashCommandBuilder()
     .addIntegerOption((o) => o.setName("stars").setDescription("⭐ needed (default 3)").setMinValue(2).setMaxValue(50))
     .addBooleanOption((o) => o.setName("disable").setDescription("Turn the starboard off")))
   .addSubcommand((sub) => sub.setName("message-log").setDescription("Log edited and deleted messages in the officer log.")
-    .addBooleanOption((o) => o.setName("enabled").setDescription("Log them").setRequired(true)));
+    .addBooleanOption((o) => o.setName("enabled").setDescription("Log them").setRequired(true)))
+  .addSubcommand((sub) => sub.setName("achievements").setDescription("Announce new achievements in a channel (off by default).")
+    .addBooleanOption((o) => o.setName("announce").setDescription("Post when a member earns one").setRequired(true))
+    .addChannelOption((o) => o.setName("channel").setDescription("Where to post").addChannelTypes(ChannelType.GuildText)));
 
 export async function executeConfig(interaction: ChatInputCommandInteraction): Promise<void> {
   const context = await requireGuildContext(interaction);
@@ -386,6 +391,22 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
     const stars = interaction.options.getInteger("stars") ?? 3;
     await guildService.updateSettings(context.guildId, { starboardChannelId: channel.id, starboardThreshold: stars });
     await interaction.reply({ content: `Starboard on: messages with ${stars} ⭐ are reposted in <#${channel.id}>. Only messages at least as visible as that channel are reposted; bots and the starboard itself are skipped.${config.MESSAGE_CONTENT_INTENT ? "" : " Without the Message Content intent, reposts show the author and a link, not the text."}`, flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  if (subcommand === "achievements") {
+    const announce = interaction.options.getBoolean("announce", true);
+    const channel = interaction.options.getChannel("channel");
+    const current = await prisma.guildSettings.findUnique({ where: { guildId: context.guildId }, select: { achievementChannelId: true, achievementAnnounceEnabled: true } });
+    const channelId = channel?.id ?? current?.achievementChannelId ?? null;
+    if (announce && !channelId) throw new Error("Pick the channel to post in: /config achievements announce:true channel:#...");
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    if (announce && !current?.achievementAnnounceEnabled) await baselineAchievements(prisma, context.guildId);
+    await prisma.guildSettings.upsert({ where: { guildId: context.guildId }, create: { guildId: context.guildId, achievementAnnounceEnabled: announce, achievementChannelId: channelId, achievementBaselineVersion: ACHIEVEMENT_CATALOGUE_VERSION }, update: { achievementAnnounceEnabled: announce, achievementChannelId: channelId, ...(announce ? { achievementBaselineVersion: ACHIEVEMENT_CATALOGUE_VERSION } : {}) } });
+    await prisma.auditLog.create({ data: { guildId: context.guildId, actorId: interaction.user.id, action: "CONFIG_UPDATED", metadata: { achievementAnnounceEnabled: announce, achievementChannelId: channelId } } });
+    await interaction.editReply(announce
+      ? `Achievement announcements on in <#${channelId}>. Everything members already earned was marked announced, so only new unlocks are posted (one message per member, at most hourly; members with a hidden profile are skipped; only the member is mentioned).`
+      : "Achievement announcements off. Achievements are still recorded and shown on cards and the website.");
     return;
   }
 

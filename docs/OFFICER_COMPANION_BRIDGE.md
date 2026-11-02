@@ -4,8 +4,8 @@ The bridge shipped in the owner's 13 October 6.0.0 CurseForge update for
 two-player testing. Acceptance remains incomplete. The owner then requested
 default-on officer sharing after the member reported waiting for an officer.
 
-Members use the addon and Discord. An officer uses either the online companion
-or the optional desktop companion to bring Discord guild data into WoW, then
+Members use the addon and Discord. An officer uses the Windows companion
+to bring Discord guild data into WoW, then
 shares it with online guildmates. The desktop app remains optional for officers
 too: it adds automatic/background file synchronization.
 
@@ -26,7 +26,7 @@ too: it adds automatic/background file synchronization.
    guild identifier, so the initial binding uses the officer's current guild.
 5. The member runs `/guilded bridge refresh`, then `/guilded bridge status`.
    Check standings, core rules/pools/rosters and upcoming Guilded raids without
-   opening a browser companion or desktop app on the member PC.
+   opening the companion app on the member PC.
 
 Since the 15 October sync work, a newer addon sends `CAP|2` before `REQ|1` and receives the
 compact `DATA|2` (about half the messages); older addons keep getting `DATA|1`. Officers wait
@@ -58,7 +58,7 @@ shares pairing credentials or grants members ledger-write authority.
 - Unguilded characters, private Discord calendar events and personal PoE data
   still need their own companion connection when those features are wanted.
 - Large snapshots can take several minutes through the paced addon queue.
-  Oversized snapshots report a personal browser sync fallback.
+  Oversized snapshots report a Windows companion fallback.
 - This patch does not make WoW communicate directly with Discord or update
   files while WoW is running.
 

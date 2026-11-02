@@ -237,7 +237,7 @@ local function share(forceV1)
   elseif okay and not v1 and #payload <= MAX_BYTES then
     wire, size, kind = escape2(payload), CHUNK2, "DATA|2|"
   end
-  if not wire or math.ceil(#wire / size) > MAX_PARTS then ns.message("Officer bridge data is too large to share. Use personal browser sync for now."); return end
+  if not wire or math.ceil(#wire / size) > MAX_PARTS then ns.message("Officer bridge data is too large to share. Use the Windows companion for now."); return end
   lastShare = clock()
   local total = math.ceil(#wire / size)
   for index = 1, total do
@@ -316,7 +316,7 @@ ns.commandHandlers["bridge"] = function(args)
       ns.message("Officer bridge needs companion data. Sync and save standings on this PC, then /reload."); return
     end
   end
-  ns.message(data and sameGuild(data.snapshot) and ("Guild data from " .. tostring(data.from) .. " (" .. data.updatedAt .. ").") or "Waiting for an online officer to share Discord guild data. Personal browser sync is optional.")
+  ns.message(data and sameGuild(data.snapshot) and ("Guild data from " .. tostring(data.from) .. " (" .. data.updatedAt .. ").") or "Waiting for an online officer to share Discord guild data. The Windows companion is optional.")
 end
 table.insert(ns.commandHelp, "/guilded bridge status | refresh - request core and raid data from an online officer")
 table.insert(ns.commandHelp, { officer = true, text = "/guilded bridge on | off - bridge your companion's data to this WoW guild" })

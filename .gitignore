@@ -13,7 +13,7 @@ companion/poe-journal*.json*
 backups/
 companion-app/node_modules/
 companion-app/assets/
-companion-app/renderer/web-bundle.js
+companion-app/renderer/ui-bundle.js
 
 # Local agent tooling
 .agents/

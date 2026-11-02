@@ -12,7 +12,7 @@ toolkit. Start in game with the addon alone; add the Discord bot when your guild
 | Addon only | Addon + Discord bot |
 | --- | --- |
 | EP/GP, loot, attendance, recipes and dungeon runs, shared with your guild in game | Everything in game, plus raid signups, standings and polls in Discord |
-| Nothing to set up outside WoW | Members connect once with the online companion |
+| Nothing to set up outside WoW | Members connect once with the Windows companion |
 | [Download for your WoW edition](/editions/) | [Add the bot](https://discord.com/oauth2/authorize?client_id=1552633893587394590&scope=bot+applications.commands&integration_type=0&permissions=2269718703631440), then follow the steps below |
 
 ## Lite now, full Guilded after approval
@@ -41,7 +41,7 @@ Details: [hosted bot guide](/docs/HOSTED_PILOT.html).
    the roles it must give.
 3. **Ask members to install the addon** for your WoW edition: [download page](/editions/) and
    [member guide](/docs/MEMBER_INSTALL.html).
-4. **After approval, connect the companion.** Members open the [online companion](/companion/),
+4. **After approval, connect the companion.** Members install the [Windows companion](/companion/) (Microsoft Store first),
    choose *Sign in with Discord*, then your server. At least one officer should run it: members
    who only use the addon reach Discord through an officer's sync.
 5. **Go public when you are ready.** Create your guild page with `/guildpage create`, then
@@ -51,7 +51,7 @@ Details: [hosted bot guide](/docs/HOSTED_PILOT.html).
 Raid cores and GP prices: `/core setup`, `/core edit` and `/core items`. The [EP/GP guide](/docs/EPGP_GUIDE.html)
 walks through a full raid night.
 
-In the [online companion](/companion/?tab=pricing), **Raid prices** lets officers
+In the Windows companion, **Raid prices** lets officers
 review editable December slot prices and explicitly enable the preset for a core.
 Existing pools keep their rules until an officer chooses to change them.
 **Leaderboards** shows raid priority and dungeon scores. Use the matching 8.4.0 addon and companion for the in-game pricing flow.

@@ -182,7 +182,13 @@ async function route(request, env) {
       if (url.pathname.startsWith("/api/")) return failure(404, "Not found");
       return localizedAsset(request, env);
     }
-    const companion = url.pathname === "/companion" || url.pathname.startsWith("/companion/");
+    // The browser companion was removed: its old addresses lead to the static download page at
+    // /companion/ (EN/FR), which is served from the site's own assets like any other page.
+    if (!creator && (url.pathname === "/companion" || url.pathname.startsWith("/companion/") && url.pathname.length > 11)) {
+      if (!["GET", "HEAD"].includes(request.method)) return failure(405, "Method not allowed");
+      const lang = url.searchParams.get("lang");
+      return new Response(null, { status: 301, headers: { location: `/companion/${lang === "fr" || lang === "en" ? `?lang=${lang}` : ""}`, "cache-control": "public, max-age=3600" } });
+    }
     const api = apiMethods.has(url.pathname);
     const health = url.pathname === "/health";
     // Public guild pages, served by the bot (docs/GUILD_PAGES_DESIGN.md). Guilded host only.
@@ -192,7 +198,7 @@ async function route(request, env) {
     // Inside an edition's section only the public data pages exist (checked above).
     const web = !creator && url.pathname.length <= 200
       && /^\/(?:auth\/(?:login|callback|logout)|recruitment(?:\/[A-Za-z0-9._~/-]*)?|me(?:\/[A-Za-z0-9._~/-]*)?|players(?:\/[A-Za-z0-9._~/-]*)?|leaderboards(?:\/[A-Za-z0-9._~%/-]*)?)$/.test(pagePath);
-    if (!companion && !api && !health && !guildPage && !web) {
+    if (!api && !health && !guildPage && !web) {
       if (url.pathname.startsWith("/api/")) return failure(404, "Not found");
       return localizedAsset(request, env);
     }
@@ -235,7 +241,7 @@ async function route(request, env) {
     if (web && url.search.length > 2_000) return failure(414, "Address is too long");
     const origins = botOrigins(env);
     // A visitor's page view (not an API call or an image) gets the branded page when the bot is unreachable.
-    const pageView = (web || guildPage || companion) && ["GET", "HEAD"].includes(request.method) && (request.headers.get("accept") ?? "").includes("text/html");
+    const pageView = (web || guildPage) && ["GET", "HEAD"].includes(request.method) && (request.headers.get("accept") ?? "").includes("text/html");
     try {
       const body = request.method === "POST" ? await limitedBody(request) : undefined;
       let upstream, target;
@@ -265,7 +271,7 @@ async function route(request, env) {
       }
       if (upstream.status === 530) return pageView ? unavailablePage(request, url) : failure(503, "The guild bot is temporarily unavailable. Try again shortly.");
       if (upstream.status >= 300 && upstream.status < 400) {
-        // Never follow a redirect with credentials. Only the companion's and guild pages' local
+        // Never follow a redirect with credentials. Only the guild pages' local
         // canonical redirects may be returned to the browser.
         const location = upstream.headers.get("location");
         const redirect = location ? new URL(location, target) : null;
@@ -277,7 +283,7 @@ async function route(request, env) {
           && redirect?.origin === "https://oauth.battle.net" && redirect.pathname === "/authorize") {
           return new Response(null, { status: 303, headers: withCookies({ location: redirect.href, "cache-control": "no-store" }, upstream) });
         }
-        const allowed = companion ? ["/companion/"] : guildPage ? ["/g/"] : web ? ["/recruitment", "/me/", "/players", "/leaderboards", "/auth/"] : null;
+        const allowed = guildPage ? ["/g/"] : web ? ["/recruitment", "/me/", "/players", "/leaderboards", "/auth/"] : null;
         // The bot's own links include the edition's section (/retail/leaderboards/...).
         const redirectPage = splitEditionPath(redirect?.pathname ?? "")?.rest ?? redirect?.pathname;
         if (!allowed || !redirect || !origins.includes(redirect.origin) || !allowed.some((prefix) => redirectPage.startsWith(prefix))) {
@@ -291,14 +297,6 @@ async function route(request, env) {
       if (!guildPage) responseHeaders.set("cache-control", "no-store");
       responseHeaders.delete("set-cookie");
       if (web) for (const cookie of hostCookies(upstream)) responseHeaders.append("set-cookie", cookie);
-      if (companion && request.method === "GET" && upstream.status === 200
-        && upstream.headers.get("content-type")?.startsWith("text/html")) {
-        const html = (await upstream.text()).replace('<nav aria-label="Main navigation">',
-          '<nav aria-label="Main navigation"><a class="nav" href="/">Website &amp; guides</a>');
-        responseHeaders.delete("content-length");
-        responseHeaders.delete("content-encoding");
-        return new Response(html, { status: upstream.status, headers: responseHeaders });
-      }
       return new Response(upstream.body, { status: upstream.status, headers: responseHeaders });
     } catch (error) {
       return error.message === "body-limit" ? failure(413, "Request body is too large")

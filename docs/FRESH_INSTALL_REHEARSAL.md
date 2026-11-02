@@ -65,9 +65,8 @@ no Raid tools TOC entry, and no environment/config/SavedVariables files.
 Later on 5 October, the illustrated owner guide, static download/setup website
 and online companion connection-check fix were added. A new full release check
 passed **151 files / 1,219 tests**, both audits (zero vulnerabilities), TypeScript,
-ESLint, addon validation and all package/site builds. See
-[online companion verification](ONLINE_COMPANION_CHECK.md) for the live 5.0.0
-finding, local 6.0.0 coverage and remaining authenticated-browser checks.
+ESLint, addon validation and all package/site builds. The online
+companion verification note was removed with the browser companion.
 
 ## Still required
 

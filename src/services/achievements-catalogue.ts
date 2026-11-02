@@ -7,7 +7,10 @@
 // facts if it is a new metric. French text is part of the row, so no separate i18n entry is needed.
 
 export type AchievementGame = "wow" | "poe2" | "guild";
-export type AchievementTier = "bronze" | "silver" | "gold" | "epic";
+export type AchievementTier = "bronze" | "silver" | "gold" | "platinum" | "epic" | "legendary";
+
+/** Bumped whenever rows are added that older data can already satisfy; guilds that announce re-baseline quietly once. */
+export const ACHIEVEMENT_CATALOGUE_VERSION = 2;
 
 /**
  * What is measured:
@@ -21,8 +24,13 @@ export type AchievementTier = "bronze" | "silver" | "gold" | "epic";
  * - professionSkill: the highest profession skill among the member's synced characters.
  * - poeLevel: the highest PoE2 character level the member's own client log reported.
  * - poeMaps: distinct PoE2 map instances the member's companion recorded.
+ * - messagesSent / reactionsGiven / reactionsReceived / voiceHours: Discord activity totals. Guilded keeps a
+ *   counter per member (numbers only, never message text) from the day counting started; the larger of that
+ *   counter and the season participation record is used, so earlier tracked activity still counts.
+ * - communityPoints: points earned on the guild's community leaderboards (awards minus reversals).
+ * - epEarned: effort points (EP) the raid ledger awarded.
  */
-export type AchievementMetric = "wowLevel" | "wowMaxLevel" | "dungeonRuns" | "dungeonVariety" | "professionSkill" | "raidsAttended" | "raidClears" | "activeDays" | "poeLevel" | "poeMaps";
+export type AchievementMetric = "wowLevel" | "wowMaxLevel" | "dungeonRuns" | "dungeonVariety" | "professionSkill" | "raidsAttended" | "raidClears" | "activeDays" | "poeLevel" | "poeMaps" | "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned";
 
 export interface AchievementText { name: string; description: string }
 export interface AchievementDef {
@@ -31,6 +39,8 @@ export interface AchievementDef {
   tier: AchievementTier;
   metric: AchievementMetric;
   threshold: number;
+  /** Position in a long progression (1 = first step); the badge shows that many pips so same-tier steps differ. */
+  rank?: number;
   en: AchievementText;
   fr: AchievementText;
 }
@@ -42,6 +52,48 @@ export const wowLevelCap = (edition: string | null | undefined) => WOW_LEVEL_CAP
 
 const def = (id: string, game: AchievementGame, tier: AchievementTier, metric: AchievementMetric, threshold: number, en: [string, string], fr: [string, string]): AchievementDef =>
   ({ id, game, tier, metric, threshold, en: { name: en[0], description: en[1] }, fr: { name: fr[0], description: fr[1] } });
+
+const grouped = (n: number, fr: boolean) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, fr ? "\u00a0" : ",");
+type Step = [threshold: number, tier: AchievementTier, en: string, fr: string];
+/** A long progression: one row per step, same metric and glyph, tier rising with the number. Ids are `${prefix}-${threshold}`. */
+function ladder(prefix: string, metric: AchievementMetric, steps: Step[], text: (n: number, fr: boolean) => string): AchievementDef[] {
+  return steps.map(([threshold, tier, en, fr], i) => ({
+    id: `${prefix}-${threshold}`, game: "guild" as const, tier, metric, threshold, rank: i + 1,
+    en: { name: en, description: text(threshold, false) }, fr: { name: fr, description: text(threshold, true) }
+  }));
+}
+const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
+
+const ACTIVITY_LADDERS: AchievementDef[] = [
+  ...ladder("messages", "messagesSent", [
+    [100, "bronze", "First Words", "Premiers mots"], [500, "bronze", "Chatterbox", "Moulin à paroles"], [1000, "silver", "Regular Poster", "Habitué du clavardage"],
+    [2500, "silver", "Town Crier", "Crieur public"], [5000, "gold", "Voice of the Guild", "Voix de la guilde"], [10000, "gold", "Silver Tongue", "Langue d'argent"],
+    [25000, "platinum", "Orator", "Orateur"], [50000, "platinum", "Bard of Legend", "Barde de légende"], [100000, "epic", "Living Archive", "Archive vivante"],
+    [250000, "legendary", "Never Stops Talking", "Intarissable"]
+  ], (n, fr) => fr ? `Envoyer ${grouped(n, true)} messages sur le Discord de la guilde.` : `Send ${grouped(n, false)} messages in the guild's Discord.`),
+  ...ladder("voice-hours", "voiceHours", [
+    [1, "bronze", "Mic Check", "Test du micro"], [10, "bronze", "Voice Chat Regular", "Habitué du vocal"], [25, "silver", "Comms Specialist", "Spécialiste des comms"],
+    [50, "silver", "Fireside Storyteller", "Conteur au coin du feu"], [100, "gold", "Hundred Hours Aloud", "Cent heures de vocal"], [250, "platinum", "Callsign Veteran", "Vétéran des ondes"],
+    [500, "epic", "Voice of the Hall", "Voix de la grande salle"], [1000, "legendary", "Always On Comms", "Toujours au vocal"]
+  ], (n, fr) => fr ? `Passer ${grouped(n, true)} ${plural(n, "heure", "heures")} en vocal avec d'autres membres.` : `Spend ${grouped(n, false)} ${plural(n, "hour", "hours")} in voice channels with other members.`),
+  ...ladder("reactions-given", "reactionsGiven", [
+    [25, "bronze", "Thumbs Up", "Pouce en l'air"], [100, "silver", "Cheerleader", "Meneur de claque"], [250, "silver", "Applause", "Applaudissements"],
+    [1000, "gold", "Hype Machine", "Machine à enthousiasme"], [2500, "platinum", "Morale Booster", "Booster de moral"], [5000, "epic", "Beacon of Positivity", "Phare de positivité"],
+    [10000, "legendary", "Reaction Legend", "Légende des réactions"]
+  ], (n, fr) => fr ? `Réagir à ${grouped(n, true)} messages de la guilde.` : `React to ${grouped(n, false)} messages in the guild.`),
+  ...ladder("reactions-received", "reactionsReceived", [
+    [10, "bronze", "Noticed", "Remarqué"], [50, "silver", "Well Liked", "Apprécié"], [250, "gold", "Crowd Favourite", "Chouchou du public"],
+    [1000, "platinum", "Guild Icon", "Icône de la guilde"], [5000, "epic", "Beloved", "Adulé"]
+  ], (n, fr) => fr ? `Recevoir ${grouped(n, true)} réactions sur vos messages.` : `Receive ${grouped(n, false)} reactions on your messages.`),
+  ...ladder("points", "communityPoints", [
+    [100, "bronze", "Contributor", "Contributeur"], [500, "bronze", "Steady Earner", "Gagnant constant"], [1000, "silver", "Point Collector", "Collectionneur de points"],
+    [2500, "gold", "Season Standout", "Éclat de la saison"], [5000, "platinum", "Leaderboard Climber", "Grimpeur du classement"], [10000, "epic", "Top of the Board", "Tête du classement"],
+    [25000, "legendary", "Hall of Fame", "Temple de la renommée"]
+  ], (n, fr) => fr ? `Gagner ${grouped(n, true)} points communautaires au classement de la guilde.` : `Earn ${grouped(n, false)} community points on the guild leaderboards.`),
+  ...ladder("ep", "epEarned", [
+    [100, "bronze", "EP Initiate", "Initié des PE"], [500, "silver", "Effort Rewarded", "Effort récompensé"], [2000, "gold", "Pillar of Effort", "Pilier de l'effort"], [10000, "epic", "Effort Incarnate", "Effort incarné"]
+  ], (n, fr) => fr ? `Gagner ${grouped(n, true)} points d'effort (PE) dans le registre de raid.` : `Earn ${grouped(n, false)} effort points (EP) in the raid ledger.`)
+];
 
 export const ACHIEVEMENTS: readonly AchievementDef[] = [
   // WoW: levels, then the level cap.
@@ -86,14 +138,18 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   def("poe2-level-99", "poe2", "epic", "poeLevel", 99, ["On the Brink", "Reach level 99 in Path of Exile 2."], ["Au bord du sommet", "Atteindre le niveau 99 dans Path of Exile 2."]),
   def("poe2-level-100", "poe2", "epic", "poeLevel", 100, ["Pinnacle of Wraeclast", "Reach level 100 in Path of Exile 2."], ["Sommet de Wraeclast", "Atteindre le niveau 100 dans Path of Exile 2."]),
   def("poe2-maps-100", "poe2", "silver", "poeMaps", 100, ["Cartographer", "Clear 100 maps in Path of Exile 2."], ["Cartographe", "Parcourir 100 cartes dans Path of Exile 2."]),
-  def("poe2-maps-500", "poe2", "gold", "poeMaps", 500, ["Master Cartographer", "Clear 500 maps in Path of Exile 2."], ["Maître cartographe", "Parcourir 500 cartes dans Path of Exile 2."])
+  def("poe2-maps-500", "poe2", "gold", "poeMaps", 500, ["Master Cartographer", "Clear 500 maps in Path of Exile 2."], ["Maître cartographe", "Parcourir 500 cartes dans Path of Exile 2."]),
+
+  // Discord activity, community points and EP: long progressions (see ACTIVITY_LADDERS above).
+  ...ACTIVITY_LADDERS
 ];
 
 const BY_ID = new Map(ACHIEVEMENTS.map(row => [row.id, row]));
 export const achievementById = (id: string): AchievementDef | undefined => BY_ID.get(id);
-export const TIER_COLOR: Record<AchievementTier, string> = { bronze: "#cd7f32", silver: "#c9d1d9", gold: "#ffd100", epic: "#c56cf0" };
+export const TIER_COLOR: Record<AchievementTier, string> = { bronze: "#cd7f32", silver: "#c9d1d9", gold: "#ffd100", platinum: "#7fe3f5", epic: "#c56cf0", legendary: "#ff6a2e" };
 export const TIER_LABEL: Record<AchievementTier, { en: string; fr: string }> = {
-  bronze: { en: "Bronze", fr: "Bronze" }, silver: { en: "Silver", fr: "Argent" }, gold: { en: "Gold", fr: "Or" }, epic: { en: "Epic", fr: "Épique" }
+  bronze: { en: "Bronze", fr: "Bronze" }, silver: { en: "Silver", fr: "Argent" }, gold: { en: "Gold", fr: "Or" },
+  platinum: { en: "Platinum", fr: "Platine" }, epic: { en: "Epic", fr: "Épique" }, legendary: { en: "Legendary", fr: "Légendaire" }
 };
 export const GAME_LABEL: Record<AchievementGame, { en: string; fr: string }> = {
   wow: { en: "World of Warcraft", fr: "World of Warcraft" }, poe2: { en: "Path of Exile 2", fr: "Path of Exile 2" }, guild: { en: "Guild", fr: "Guilde" }

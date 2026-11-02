@@ -1,3 +1,4 @@
+import { cachedOfficerCheck, meSection, type MeSectionInput } from "./services/me-layout.js";
 import { revokeCompanionCredential } from "./services/companion-revoke.js";
 import { createWebCommunityBadges } from "./services/web-community-badges.js";
 import { guildWhere, loadGuildScope, runInGuildScope, withGuildScope } from "./services/guild-scope.js";
@@ -36,7 +37,7 @@ import { followUpImport } from "./services/import-followup.js";
 import { exchangeCharacterPairingCode, findPairingServer, hashCompanionSecret, issueMemberCredential, linkPairedCharacter } from "./services/character-pairing.js";
 import { linkVerifiedCharacters, tellVerified } from "./services/character-verify.js";
 import { asLang } from "./i18n.js";
-import { serveCompanionWeb } from "./services/companion-web.js";
+import { serveCompanionWeb } from "./services/companion-redirect.js";
 import { createGuildPageServer, loadGuildPageView } from "./services/guild-page.js";
 import type { Client } from "discord.js";
 import { companionAccess, personalSnapshot } from "./services/companion-access.js";
@@ -273,9 +274,23 @@ export function createSiteApp(client?: Client) {
   };
   const battleNet = createBattleNetPage(prismaBattleNetStore(prisma), battleNetConfig(config), discoverBattleNet, battleNetLinking);
   const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, leaderboards.route, directory.route, achievementsWeb.route, achievementsWeb.ownerRoute, profiles.route];
-  const meSections = [badges.meSection, profiles.meSection, achievementsWeb.meSection, availability.meSection, roster.meSection, guildTools.meSection, leaderboards.meSection];
+  const isOfficer = cachedOfficerCheck(rosterStore.guilds);
+  const meSections: MeSectionInput[] = [
+    meSection({ id: "profile", group: "overview", render: profiles.meSection, fold: { en: "Privacy and details", fr: "Confidentialité et détails" } }),
+    meSection({ id: "characters", group: "overview", render: battleNetMeSection(battleNetLinking, battleNetConfig(config)) }),
+    meSection({ id: "achievements", group: "play", render: achievementsWeb.meSection }),
+    meSection({ id: "badges", group: "play", render: badges.meSection }),
+    meSection({ id: "availability", group: "play", render: availability.meSection }),
+    meSection({ id: "calendar", group: "play", render: personalCalendar.meSection }),
+    meSection({ id: "raid-planning", group: "play", render: raidPlanning.meSection }),
+    meSection({ id: "leaderboards", group: "play", render: leaderboards.meSection, fold: { en: "How to connect the companion", fr: "Comment connecter le compagnon" } }),
+    meSection({ id: "guild-tools", group: "guild", render: guildTools.meSection }),
+    meSection({ id: "roster", group: "guild", render: roster.meSection, officer: true, visible: isOfficer }),
+    meSection({ id: "handover", group: "guild", render: handover.meSection, officer: true, visible: isOfficer }),
+    meSection({ id: "connections", group: "account", render: devices.meSection }),
+    meSection({ id: "your-data", group: "account", render: memberData.meSection })
+  ];
   routes.unshift(devices.route, battleNet, memberData.route, personalCalendar.route, handover.route, raidPlanning.route);
-  meSections.push(battleNetMeSection(battleNetLinking, battleNetConfig(config)), devices.meSection, memberData.meSection, personalCalendar.meSection, handover.meSection, raidPlanning.meSection);
   return createWebApp({
     publicRaids: now => publicRaids(prisma, hostedPilot.allows, now),
     store: prismaWebStore(prisma), auth: webAuthConfig(config), allows: (id) => hostedPilot.allows(id), routes, meSections,

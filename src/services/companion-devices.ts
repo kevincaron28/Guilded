@@ -30,7 +30,7 @@ export function prismaDeviceStore(database: PrismaClient): DeviceStore {
 }
 
 export function createDevicePages(store: DeviceStore) {
-  const meSection = async (ctx: WebContext) => `<h2>${ctx.t("Connections", "Connexions")}</h2><p><a href="${link("/me/connections", ctx.lang)}">${ctx.t("Manage companion devices", "Gérer les appareils du compagnon")}</a> · <a href="${link("/me/battlenet", ctx.lang)}">${ctx.t("Connect Battle.net and choose characters", "Connecter Battle.net et choisir des personnages")}</a></p>`;
+  const meSection = async (ctx: WebContext) => `<h2>${ctx.t("Connections", "Connexions")}</h2><p><a href="${link("/me/connections", ctx.lang)}">${ctx.t("Manage companion devices", "Gérer les appareils du compagnon")}</a></p>`;
   const route: WebRoute = async (ctx, kit) => {
     if (ctx.request.path !== "/me/connections") return null;
     if (!ctx.account) return kit.signInPrompt();

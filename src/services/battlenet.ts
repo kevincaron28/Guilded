@@ -24,7 +24,7 @@ const accountSchema = z.object({ wow_accounts: z.array(z.object({ characters: z.
 
 // No API-supplied URLs are followed, and no access/refresh token is persisted.
 // Expired consent is renewed explicitly in Blizzard's own browser flow.
-export async function discoverBattleNet(config: BattleNetConfig, code: string, region: BnetRegion, edition: BnetEdition, fetcher: typeof fetch = fetch): Promise<BattleNetDiscovery> {
+async function connect(config: BattleNetConfig, code: string, fetcher: typeof fetch) {
   const signal = AbortSignal.timeout(15_000); // Stay inside the website proxy deadline.
   async function json(url: string, init: RequestInit) {
     const response = await fetcher(url, { ...init, redirect: "error", signal });
@@ -42,13 +42,40 @@ export async function discoverBattleNet(config: BattleNetConfig, code: string, r
   const identity = z.object({ sub: z.union([z.string().regex(/^\d+$/), positiveId]).optional(), id: positiveId.optional(), battletag: z.string().min(1).max(100) }).parse(await json("https://oauth.battle.net/userinfo", { headers }));
   const subject = String(identity.sub ?? identity.id ?? "");
   if (!subject) throw new Error("Battle.net did not return a stable account ID.");
-  const url = new URL(`https://${region}.api.blizzard.com/profile/user/wow`);
-  url.search = new URLSearchParams({ namespace: `${namespaces[edition]}-${region}`, locale: "en_US" }).toString();
-  const account = accountSchema.parse(await json(url.href, { headers }));
-  const characters = [...new Map(account.wow_accounts.flatMap(a => a.characters).map(c => {
-    const row = { region, gameEdition: edition, realmId: c.realm.id, characterId: c.id, name: c.name, realm: c.realm.slug };
-    return [discoveredKey(row), row] as const;
-  })).values()];
-  if (characters.length > 500) throw new Error("Too many characters were returned. No selection was saved.");
-  return { subject, battleTag: identity.battletag, characters, region, gameEdition: edition, verifiedAt: new Date() };
+  async function characters(region: BnetRegion, edition: BnetEdition): Promise<DiscoveredCharacter[]> {
+    const url = new URL(`https://${region}.api.blizzard.com/profile/user/wow`);
+    url.search = new URLSearchParams({ namespace: `${namespaces[edition]}-${region}`, locale: "en_US" }).toString();
+    const account = accountSchema.parse(await json(url.href, { headers }));
+    const found = [...new Map(account.wow_accounts.flatMap(a => a.characters).map(c => {
+      const row = { region, gameEdition: edition, realmId: c.realm.id, characterId: c.id, name: c.name, realm: c.realm.slug };
+      return [discoveredKey(row), row] as const;
+    })).values()];
+    if (found.length > 500) throw new Error("Too many characters were returned. No selection was saved.");
+    return found;
+  }
+  return { subject, battleTag: identity.battletag, characters };
+}
+
+export async function discoverBattleNet(config: BattleNetConfig, code: string, region: BnetRegion, edition: BnetEdition, fetcher: typeof fetch = fetch): Promise<BattleNetDiscovery> {
+  const session = await connect(config, code, fetcher);
+  return { subject: session.subject, battleTag: session.battleTag, characters: await session.characters(region, edition), region, gameEdition: edition, verifiedAt: new Date() };
+}
+
+/**
+ * One consent, every region and edition Blizzard answers for. A region or edition with no
+ * characters (or no Profile API for that game) is simply absent: the caller falls back to the
+ * addon/companion path for it. Only a failed sign-in or token exchange throws.
+ */
+export async function discoverAllBattleNet(config: BattleNetConfig, code: string, fetcher: typeof fetch = fetch): Promise<{ subject: string; battleTag: string; found: BattleNetDiscovery[]; unavailable: number }> {
+  const session = await connect(config, code, fetcher);
+  const verifiedAt = new Date();
+  const pairs = BNET_REGIONS.flatMap(region => BNET_EDITIONS.map(gameEdition => ({ region, gameEdition })));
+  const settled = await Promise.allSettled(pairs.map(async ({ region, gameEdition }) => ({ region, gameEdition, characters: await session.characters(region, gameEdition) })));
+  const found: BattleNetDiscovery[] = [];
+  let unavailable = 0;
+  for (const result of settled) {
+    if (result.status === "rejected") { unavailable++; continue; }
+    if (result.value.characters.length) found.push({ subject: session.subject, battleTag: session.battleTag, verifiedAt, ...result.value });
+  }
+  return { subject: session.subject, battleTag: session.battleTag, found, unavailable };
 }

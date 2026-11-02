@@ -13,8 +13,10 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { gunzipSync } from "node:zlib";
 import { config } from "./config.js";
 import { createDevicePages, prismaDeviceStore } from "./services/companion-devices.js";
-import { createBattleNetPage } from "./services/battlenet-page.js";
-import { battleNetConfig } from "./services/battlenet.js";
+import { battleNetMeSection, createBattleNetPage, type BattleNetLinking } from "./services/battlenet-page.js";
+import { autoLinkBattleNet, recentBattleNetLinks, undoBattleNetLinks } from "./services/battlenet-autolink.js";
+import { memberLinkStatus } from "./services/link-status.js";
+import { battleNetConfig, discoverAllBattleNet, discoverBattleNet } from "./services/battlenet.js";
 import { prismaBattleNetStore } from "./services/battlenet-store.js";
 import { prisma } from "./database.js";
 import { createAddonImportService } from "./services/addon-import.js";
@@ -262,11 +264,18 @@ export function createSiteApp(client?: Client) {
   const raidPlanning = createRaidPlanning(raidPlanningStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)), client));
   const handover = createOfficerHandover(officerHandoverStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))));
   const personalCalendar = createPersonalCalendar(personalCalendarStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), client));
-  const battleNet = createBattleNetPage(prismaBattleNetStore(prisma), battleNetConfig(config));
+  const battleNetLinking: BattleNetLinking = {
+    discoverAll: discoverAllBattleNet,
+    autoLink: (discordUserId, characters) => autoLinkBattleNet(prisma, discordUserId, characters),
+    recent: discordUserId => recentBattleNetLinks(prisma, discordUserId),
+    undo: discordUserId => undoBattleNetLinks(prisma, discordUserId),
+    status: discordUserId => memberLinkStatus(prisma, discordUserId)
+  };
+  const battleNet = createBattleNetPage(prismaBattleNetStore(prisma), battleNetConfig(config), discoverBattleNet, battleNetLinking);
   const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, leaderboards.route, directory.route, achievementsWeb.route, achievementsWeb.ownerRoute, profiles.route];
   const meSections = [badges.meSection, profiles.meSection, achievementsWeb.meSection, availability.meSection, roster.meSection, guildTools.meSection, leaderboards.meSection];
   routes.unshift(devices.route, battleNet, memberData.route, personalCalendar.route, handover.route, raidPlanning.route);
-  meSections.push(devices.meSection, memberData.meSection, personalCalendar.meSection, handover.meSection, raidPlanning.meSection);
+  meSections.push(battleNetMeSection(battleNetLinking, battleNetConfig(config)), devices.meSection, memberData.meSection, personalCalendar.meSection, handover.meSection, raidPlanning.meSection);
   return createWebApp({
     publicRaids: now => publicRaids(prisma, hostedPilot.allows, now),
     store: prismaWebStore(prisma), auth: webAuthConfig(config), allows: (id) => hostedPilot.allows(id), routes, meSections,

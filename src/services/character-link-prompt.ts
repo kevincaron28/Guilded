@@ -4,6 +4,9 @@ import { t, type Lang } from "../i18n.js";
 import { formatVerifyCode, verifyCodeFor } from "./character-verify.js";
 import { companionWebUrl } from "./companion-links.js";
 import { officerSyncRecent } from "./officer-sync.js";
+import { battleNetConfig } from "./battlenet.js";
+import { linkStatusLines, memberLinkStatus } from "./link-status.js";
+import { config } from "../config.js";
 
 // Shared by the welcome button and /character pair so the two entry points never drift.
 export async function characterLinkPrompt(database: PrismaClient, guildId: string, memberId: string, discordGuildId: string, lang: Lang, mode: "addon" | "companion" = "addon") {
@@ -14,14 +17,14 @@ export async function characterLinkPrompt(database: PrismaClient, guildId: strin
     take: 6
   });
   const hasMain = characters.some((character) => character.isMain);
-  const status = characters.length
+  const listing = characters.length
     ? [t(lang, "pair.linked"), ...characters.slice(0, 5).map((character) => t(lang, character.isMain ? "pair.main" : "pair.alt", {
       name: escapeMarkdown(character.name.slice(0, 50)), realm: escapeMarkdown(character.realm.slice(0, 50))
     })), ...(characters.length > 5 ? [t(lang, "pair.more")] : [])].join("\n")
     : t(lang, "pair.none");
   const url = companionWebUrl(discordGuildId);
   const embed = new EmbedBuilder().setTitle(t(lang, "pair.title")).setColor(0xd4af37)
-    .setDescription(`${status}\n\n${t(lang, "pair.addonDefault")}`);
+    .setDescription(`${listing}\n\n${t(lang, "pair.addonDefault")}`);
   // One line to paste in game, the same every time: the easiest way for everyone, so it comes first.
   const code = formatVerifyCode(await verifyCodeFor(database, guildId, memberId));
   const guild = await database.guild.findUnique({ where: { id: guildId }, select: { officerSyncAt: true } });
@@ -43,7 +46,16 @@ export async function characterLinkPrompt(database: PrismaClient, guildId: strin
   } else {
     embed.addFields({ name: t(lang, "pair.optionalTitle"), value: t(lang, "pair.optional") });
   }
+  // Connected / Last synced / What to do next, in plain words. Never blocks the prompt.
+  const status = await (async () => {
+    const member = await database.member.findUnique({ where: { id: memberId }, select: { discordUserId: true } });
+    return member ? memberLinkStatus(database, member.discordUserId, guildId) : null;
+  })().catch(() => null);
+  if (status) embed.addFields({ name: t(lang, "pair.statusTitle"), value: linkStatusLines(status, lang).join("\n") });
   const row = new ActionRowBuilder<ButtonBuilder>();
+  // One click to Blizzard and back: characters are linked for them. Only when the bot has Battle.net set up.
+  const bnet = battleNetConfig(config);
+  if (bnet) row.addComponents(new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel(t(lang, "pair.bnetButton")).setURL(`${bnet.siteUrl}/me/battlenet/connect`));
   if (mode === "addon") row.addComponents(new ButtonBuilder().setStyle(ButtonStyle.Secondary)
     .setCustomId(`onboard:companion:${discordGuildId}`).setLabel(t(lang, "pair.connectOptional")));
   if (url) row.addComponents(new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel(t(lang, "pair.online")).setURL(url));

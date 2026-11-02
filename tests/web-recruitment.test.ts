@@ -72,6 +72,18 @@ describe("sign-in flow", () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
+  it("explains a Discord error (cancelled, unfinished 2FA) instead of calling the link expired", async () => {
+    const { request, fetcher } = setup();
+    const login = await request("GET", "/auth/login");
+    const state = new URL(String(login.headers["location"])).searchParams.get("state");
+    const cookie = String((login.headers["set-cookie"] as string[])[0]).split(";")[0]!;
+    const answer = await request("GET", `/auth/callback?error=access_denied&state=${state}`, { cookie });
+    expect(answer.status).toBe(400);
+    expect(answer.body).toContain("two-factor");
+    expect(answer.body).not.toContain("expired");
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
   it("does not trust a forged session cookie", async () => {
     const { request } = setup();
     const answer = await request("GET", "/me/", { cookie: "__Host-guilded_session=made-up.signature" });

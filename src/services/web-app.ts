@@ -133,6 +133,10 @@ export function createWebApp(deps: WebAppDeps) {
       if (!deps.auth) return kit.signInPrompt();
       const saved = readStateCookie(deps.auth, parseCookies(request.headers.cookie)[STATE_COOKIE], request.query.get("state"), ctx.now);
       const code = request.query.get("code");
+      // Discord sends ?error=... instead of a code when the person cancels or does not finish login (2FA included).
+      if (saved && !code && request.query.get("error")) {
+        return kit.page(400, t("Sign-in failed", "Échec de la connexion"), `<h1>${t("Sign-in was not completed", "La connexion n'a pas été terminée")}</h1><p>${t("Discord did not finish signing you in: the sign-in was cancelled or Discord needs you to finish logging in first (for example your two-factor code). Try again and complete each step in Discord.", "Discord n'a pas terminé la connexion : elle a été annulée ou Discord vous demande d'abord de vous connecter complètement (par exemple avec votre code à deux facteurs). Réessayez et terminez chaque étape dans Discord.")}</p><p><a class="button" href="${link("/auth/login", ctx.lang)}">${t("Try again", "Réessayer")}</a></p>`, { noindex: true, cookies: [clearCookie(STATE_COOKIE)] });
+      }
       if (!saved || !code || code.length > 200) {
         return kit.page(400, t("Sign-in failed", "Échec de la connexion"), `<h1>${t("Sign-in did not finish", "La connexion n'a pas abouti")}</h1><p>${t("The sign-in link expired or was opened in another browser.", "Le lien de connexion a expiré ou a été ouvert dans un autre navigateur.")}</p><p><a class="button" href="${link("/auth/login", ctx.lang)}">${t("Try again", "Réessayer")}</a></p>`, { noindex: true, cookies: [clearCookie(STATE_COOKIE)] });
       }

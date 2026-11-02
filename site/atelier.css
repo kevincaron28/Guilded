@@ -107,3 +107,31 @@ body{font-family:var(--kc-font)}h1{font-size:clamp(40px,4.8vw,68px)}.site-header
 .status-row[data-state="down"] .status-dot{background:#e5736a}
 .status-row[data-state="down"]{border-color:#e5736a}
 @media(pointer:coarse){.site-footer .footer-links a,.footer-bottom a,.site-header .brand{min-height:44px;display:inline-flex;align-items:center}.site-header nav a:not(.button){min-height:44px;display:inline-flex;align-items:center}.home-page .hero-art figcaption a,.page-footer a{min-height:44px;display:inline-flex;align-items:center}}
+
+/* 2 November 2026 navigation rebuild: six visible entries, "Get the addon" as the one button, and a
+   full footer (site/nav.mjs). The panel below 981px is a full-width list with 48px rows. */
+.site-header nav{gap:4px}
+.site-header nav>a{padding:0 10px;border-radius:5px;font-size:13px}
+.site-header nav>a[aria-current=page]{color:var(--kc-text);box-shadow:inset 0 -2px var(--kc-accent);border-radius:0}
+.site-header nav a.nav-cta{margin-left:8px;padding:0 18px;background:var(--kc-accent);color:#1b2019;font-weight:650;border-radius:5px;box-shadow:none}
+.site-header nav a.nav-cta:hover{background:var(--kc-accent-hover);color:#1b2019}
+.site-header .edition-menu{margin-right:8px}.site-header .edition-menu>summary{font-size:13px}
+.site-header .language-switch{margin-left:8px}
+.site-footer{margin:0 auto}
+.footer-cols{display:grid;align-items:start;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px 32px;padding:4px 0 28px}
+.footer-title{margin:0 0 8px;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--kc-text)}
+.footer-cols ul{list-style:none;margin:0;padding:0}.footer-cols a{display:inline-flex;align-items:center;min-height:34px;font-size:13px;color:var(--kc-muted)}.footer-cols a:hover{color:var(--kc-text)}
+.site-footer .footer-bottom{flex-wrap:wrap;align-items:center;font-size:12px}.site-footer .footer-bottom a{color:var(--kc-muted)}.site-footer .footer-bottom span{max-width:100%}
+.site-footer .footer-top{padding-bottom:20px}
+@media(max-width:1100px){.site-header nav>a{padding:0 7px;font-size:12px}.site-header nav a.nav-cta{padding:0 13px;margin-left:4px}.site-header .edition-menu{margin-right:4px}.site-header .edition-menu>summary{font-size:12px;padding:0 9px}.site-header .language-switch{margin-left:4px}}
+@media(max-width:980px){
+.site-header nav{padding-top:6px;padding-bottom:14px;gap:0}
+.site-header nav>a,.site-header .nav-group>summary{min-height:48px;padding:0 4px;font-size:16px;border-bottom:1px solid var(--kc-border);border-radius:0}
+.site-header nav>a[aria-current=page]{box-shadow:none;color:var(--kc-accent)}
+.site-header .edition-menu{display:block;margin:0 0 4px}.site-header .edition-menu>summary{display:flex}.site-header .edition-menu>summary{border:0;border-bottom:1px solid var(--kc-border);border-radius:0;padding:0 4px;justify-content:space-between;font-size:16px}
+.site-header .nav-menu a{min-height:48px}
+.site-header nav a.nav-cta{justify-content:center;margin:14px 0 0;min-height:52px;border-bottom:0;border-radius:5px}
+.site-header .language-switch{margin:14px 0 0}.site-header .language-switch button{min-height:44px;padding:0 16px}
+}
+@media(max-width:700px){.footer-cols{grid-template-columns:repeat(2,minmax(0,1fr))}.footer-cols a{min-height:44px}}
+.site-header nav>a,.site-header .edition-menu>summary{white-space:nowrap}

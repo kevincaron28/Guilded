@@ -1,33 +1,55 @@
 // The one main menu for every guilded.kcaron.top page: the static site (scripts/build-site.mjs)
-// and the bot-served pages (src/services/web-layout.ts). Change the menu here only.
+// and the bot-served pages (src/services/web-layout.ts). Change the menu and footer here only.
 // `bot: true` pages are served by the bot and keep the page language with ?lang=.
-// Five top-level entries (29 October 2026 review): links with a `group` sit in that group's
-// drop-down, a plain <details> element that works without scripts.
+// 2 November 2026 rebuild: six visible entries and no hidden drop-downs for them. "Get the addon"
+// (`cta`) is the one button. Everything else (officers, companion, status, Discord...) sits in the
+// footer columns below, which every page shows.
 
-/** @typedef {{ key: string, href: string, en: string, fr: string, bot?: boolean, group?: string }} NavItem */
-
-/** @type {Record<string, { en: string, fr: string }>} */
-export const NAV_GROUPS = {
-  community: { en: "Community", fr: "Communauté" },
-  help: { en: "Help", fr: "Aide" }
-};
+/** @typedef {{ key: string, href: string, en: string, fr: string, bot?: boolean, cta?: boolean }} NavItem */
 
 /** @type {NavItem[]} */
 export const SITE_NAV = [
-  { key: "my-guilded", href: "/me/", en: "My Guilded", fr: "Mon Guilded", bot: true },
+  { key: "features", href: "/features/", en: "Features", fr: "Fonctions" },
+  { key: "guides", href: "/docs/QUICK_START.html", en: "Guides", fr: "Guides" },
   { key: "leaderboards", href: "/leaderboards/", en: "Leaderboards", fr: "Classements", bot: true },
-  { key: "download", href: "/editions/", en: "Get the addon", fr: "Obtenir l’addon" },
   // The guild directory sits under /recruitment/ because the Cloudflare Worker already forwards it.
-  { key: "guilds", href: "/recruitment/guilds/", en: "Find a guild", fr: "Trouver une guilde", bot: true, group: "community" },
-  { key: "recruitment", href: "/recruitment/", en: "Recruitment", fr: "Recrutement", bot: true, group: "community" },
-  { key: "players", href: "/players/", en: "Players", fr: "Joueurs", bot: true, group: "community" },
-  { key: "features", href: "/features/", en: "Features", fr: "Fonctions", group: "help" },
-  { key: "guides", href: "/docs/QUICK_START.html", en: "Guides", fr: "Guides", group: "help" },
-  { key: "officers", href: "/officers/", en: "For officers", fr: "Pour les officiers", group: "help" },
-  { key: "forever", href: "/forever/", en: "WoW Forever launch", fr: "Lancement de WoW Forever", group: "help" },
-  { key: "discord", href: "https://discord.gg/YjzFwtP64V", en: "Ask on Discord ↗", fr: "Demander sur Discord ↗", group: "help" },
-  { key: "status", href: "/status/", en: "Status", fr: "État du service", group: "help" },
-  { key: "companion", href: "/companion/", en: "Companion", fr: "Compagnon", group: "help" }
+  { key: "guilds", href: "/recruitment/guilds/", en: "Find a guild", fr: "Trouver une guilde", bot: true },
+  { key: "my-guilded", href: "/me/", en: "My Guilded", fr: "Mon Guilded", bot: true },
+  { key: "download", href: "/editions/", en: "Get the addon", fr: "Obtenir l’addon", cta: true }
+];
+
+/** @typedef {{ key: string, href: string, en: string, fr: string, column: string, bot?: boolean }} FooterItem */
+
+/** @type {Record<string, { en: string, fr: string }>} */
+export const FOOTER_COLUMNS = {
+  product: { en: "Guilded", fr: "Guilded" },
+  community: { en: "Community", fr: "Communauté" },
+  help: { en: "Help", fr: "Aide" },
+  about: { en: "About", fr: "À propos" }
+};
+
+/** @type {FooterItem[]} */
+export const FOOTER_NAV = [
+  { key: "download", column: "product", href: "/editions/", en: "Get the addon", fr: "Obtenir l’addon" },
+  { key: "features", column: "product", href: "/features/", en: "Features", fr: "Fonctions" },
+  { key: "officers", column: "product", href: "/officers/", en: "For officers", fr: "Pour les officiers" },
+  { key: "companion", column: "product", href: "/companion/", en: "Companion app", fr: "Application compagnon" },
+  { key: "forever", column: "product", href: "/forever/", en: "WoW Forever launch", fr: "Lancement de WoW Forever" },
+  { key: "leaderboards", column: "community", href: "/leaderboards/", en: "Leaderboards", fr: "Classements", bot: true },
+  { key: "guilds", column: "community", href: "/recruitment/guilds/", en: "Find a guild", fr: "Trouver une guilde", bot: true },
+  { key: "recruitment", column: "community", href: "/recruitment/", en: "Recruitment", fr: "Recrutement", bot: true },
+  { key: "players", column: "community", href: "/players/", en: "Players", fr: "Joueurs", bot: true },
+  { key: "my-guilded", column: "community", href: "/me/", en: "My Guilded", fr: "Mon Guilded", bot: true },
+  { key: "discord", column: "community", href: "https://discord.gg/YjzFwtP64V", en: "Ask on Discord ↗", fr: "Demander sur Discord ↗" },
+  { key: "guides", column: "help", href: "/docs/QUICK_START.html", en: "Quick start", fr: "Démarrage rapide" },
+  { key: "install", column: "help", href: "/docs/MEMBER_INSTALL.html", en: "Install guide", fr: "Guide d’installation" },
+  { key: "setup-help", column: "help", href: "/docs/AI_SETUP_HELP.html", en: "Setup help", fr: "Aide à la configuration" },
+  { key: "status", column: "help", href: "/status/", en: "Service status", fr: "État du service" },
+  { key: "privacy", column: "help", href: "/docs/PRIVACY.html", en: "Privacy", fr: "Confidentialité" },
+  { key: "support", column: "about", href: "/docs/SUPPORT_GUILDED.html", en: "Support Guilded", fr: "Soutenir Guilded" },
+  { key: "releases", column: "about", href: "https://github.com/kevincaron28/Guilded/releases", en: "Releases ↗", fr: "Versions ↗" },
+  { key: "quebec-gold", column: "about", href: "/quebec-gold/", en: "Quebec Gold", fr: "Quebec Gold" },
+  { key: "kcaron", column: "about", href: "https://kcaron.top/", en: "By KCaron ↗", fr: "Par KCaron ↗" }
 ];
 
 const escape = (text) => String(text).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");
@@ -127,21 +149,23 @@ export function localizedHref(href, lang) {
 }
 
 /**
- * The menu as HTML: plain links, and one drop-down per group at its first link's place. label(item)
- * gives the link text; href(item) the address (defaults to item.href); groupLabel(key) a group's
- * name; current is the key of the page being shown.
- * @param {{ label: (item: NavItem) => string, href?: (item: NavItem) => string, groupLabel?: (key: string) => string, current?: string | null }} options
+ * The menu as HTML: one plain link per entry, no drop-downs; the `cta` entry is the button.
+ * label(item) gives the link text; href(item) the address (defaults to item.href); current is the
+ * key of the page being shown.
+ * @param {{ label: (item: NavItem) => string, href?: (item: NavItem) => string, current?: string | null }} options
  * @returns {string}
  */
-export function navLinks({ label, href = (item) => item.href, groupLabel = (key) => NAV_GROUPS[key].en, current = null }) {
-  const anchor = (item) => `<a href="${escape(href(item))}"${item.key === "companion" ? ' class="nav-companion"' : ""}${item.key === current ? ' aria-current="page"' : ""}>${label(item)}</a>`;
-  const shown = new Set();
-  return SITE_NAV.map((item) => {
-    if (!item.group) return anchor(item);
-    if (shown.has(item.group)) return "";
-    shown.add(item.group);
-    const members = SITE_NAV.filter((other) => other.group === item.group);
-    const active = members.some((other) => other.key === current);
-    return `<details class="nav-group${active ? " has-current" : ""}" data-nav-group="${item.group}"><summary>${groupLabel(item.group)}</summary><div class="nav-menu">${members.map(anchor).join("")}</div></details>`;
-  }).join("");
+export function navLinks({ label, href = (item) => item.href, current = null }) {
+  return SITE_NAV.map((item) => `<a href="${escape(href(item))}"${item.cta ? ' class="nav-cta"' : ""}${item.key === current ? ' aria-current="page"' : ""}>${label(item)}</a>`).join("");
+}
+
+/**
+ * The footer columns as HTML, the same on every page: Guilded, Community, Help and About.
+ * label(item) gives the link text, href(item) the address, columnLabel(key) a column's title.
+ * @param {{ label: (item: FooterItem) => string, href?: (item: FooterItem) => string, columnLabel?: (key: string) => string, ariaLabel?: string }} options
+ * @returns {string}
+ */
+export function footerLinks({ label, href = (item) => item.href, columnLabel = (key) => FOOTER_COLUMNS[key].en, ariaLabel = "Site map" }) {
+  const columns = Object.keys(FOOTER_COLUMNS).map((key) => `<div class="footer-col"><p class="footer-title">${columnLabel(key)}</p><ul>${FOOTER_NAV.filter((item) => item.column === key).map((item) => `<li><a href="${escape(href(item))}">${label(item)}</a></li>`).join("")}</ul></div>`);
+  return `<nav class="footer-cols" aria-label="${escape(ariaLabel)}">${columns.join("")}</nav>`;
 }

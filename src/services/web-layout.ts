@@ -1,7 +1,7 @@
 import { PAGE_STYLE } from "./guild-page.js";
 import { currentEdition } from "./edition-context.js";
 import { EDITION_SECTIONS, editionHref } from "../../site/nav.mjs";
-import { SHARE_CARD, SITE_HEADER_STYLE, siteHeader } from "./site-header.js";
+import { SHARE_CARD, SITE_HEADER_STYLE, siteFooterNav, siteHeader } from "./site-header.js";
 
 // Shared HTML for the bot-served website pages (/recruitment/, /me/, /leaderboards/). Plain
 // server-rendered forms, no scripts: the pages work under a strict Content-Security-Policy.
@@ -76,7 +76,7 @@ export function layout(input: LayoutInput): string {
     + '<meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">'
     + `<meta name="twitter:card" content="summary_large_image"><meta name="theme-color" content="#d4af37">`
     + `<link rel="icon" href="/favicon.png" type="image/png"><style>${PAGE_STYLE}\n${FORM_STYLE}</style></head><body><a class="skip" href="#content">${t("Skip to content", "Aller au contenu")}</a>${siteHeader(input.lang, input.path, languages)}<main>${who.length ? `<div class="who">${who.join("")}</div>` : ""}<div id="content" tabindex="-1">${input.body}</div>`
-    + `<footer>${t("Made with", "Créé avec")} <a href="https://guilded.kcaron.top/">Guilded</a>. ${t("Not affiliated with Blizzard Entertainment.", "Sans affiliation avec Blizzard Entertainment.")}</footer></main></body></html>`;
+    + `<footer class="site-foot">${siteFooterNav(input.lang)}<p class="foot-note">${t("Made with", "Créé avec")} <a href="https://guilded.kcaron.top/">Guilded</a>. ${t("Not affiliated with Blizzard Entertainment.", "Sans affiliation avec Blizzard Entertainment.")}</p></footer></main></body></html>`;
 }
 
 export const options = (values: readonly { value: string; label: string }[], selected: string | null | undefined) =>

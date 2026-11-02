@@ -65,7 +65,8 @@ describe('website refresh', () => {
       expect(html).toContain(`<link rel="canonical" href="https://guilded.kcaron.top/${path}/">`);
       expect(html).toContain(`hreflang="fr" href="https://guilded.kcaron.top/${path}/?lang=fr"`);
       expect(html).toContain('data-language-copy="fr"');
-      expect(html).toContain('<details class="nav-group has-current" data-nav-group="help">');
+      expect(html).toContain('<nav class="footer-cols"');
+      expect(html).not.toContain('<details class="nav-group has-current"');
     }
     const config = JSON.parse(readFileSync('wrangler.jsonc', 'utf8'));
     expect(config.assets.run_worker_first).toEqual(expect.arrayContaining(['/officers', '/officers/*', '/forever', '/forever/*']));

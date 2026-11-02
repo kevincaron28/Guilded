@@ -12,7 +12,7 @@ import {
 import { escapeHtml, langFrom, layout, link, options, SECURITY_HEADERS, tr, type Lang } from "./web-layout.js";
 import type { CardFields, DecisionView, WebAccountView, WebStore } from "./web-store.js";
 import { publicRaidMatches, type PublicRaid } from "./public-raids.js";
-import { normalizeSections, renderGroups, type MeSectionInput } from "./me-layout.js";
+import { normalizeSections, renderGroups, renderSpec, type MeSectionInput } from "./me-layout.js";
 
 // The bot-served half of guilded.kcaron.top (7.0): Discord sign-in, /recruitment/ and /me/.
 // Requests arrive through the Cloudflare Worker (worker/index.mjs), which forwards cookies and
@@ -334,7 +334,7 @@ export function createWebApp(deps: WebAppDeps) {
     const status: Record<string, string> = { PENDING: t("Waiting", "En attente"), ACCEPTED: t("Accepted", "Acceptée"), DECLINED: t("Declined", "Refusée"), SPAM: t("Declined", "Refusée") };
     const days = form ? form.getAll("days") : card?.raidDays ?? [];
     const specs = normalizeSections(deps.meSections ?? []);
-    const rendered = await Promise.all(specs.map(async (spec) => ({ spec, html: await spec.render(ctx) })));
+    const rendered = await Promise.all(specs.map(async (spec) => ({ spec, html: await renderSpec(spec, ctx) })));
     const cardForm = [
       card?.hidden ? `<p class="notice error">${t("Your card was hidden after several reports. Ask the Guilded owner to review it.", "Votre fiche a été masquée après plusieurs signalements. Demandez au propriétaire de Guilded de la revoir.")}</p>` : "",
       card && !card.hidden ? `<p class="muted">${t("Shown until", "Affichée jusqu'au")} ${card.expiresAt.toISOString().slice(0, 10)}.</p>` : "",

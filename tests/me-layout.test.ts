@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createWebApp, type WebResponse } from "../src/services/web-app.js";
 import { hashToken, SESSION_COOKIE, sign } from "../src/services/web-auth.js";
-import { ME_GROUPS, meSection, type MeSectionInput } from "../src/services/me-layout.js";
+import { cachedOfficerCheck, ME_GROUPS, meSection, type MeSectionInput } from "../src/services/me-layout.js";
 import { memoryWebStore } from "./helpers/memory-web-store.js";
 
 const NOW = new Date("2026-11-02T18:00:00Z");
@@ -21,7 +21,7 @@ const sections: MeSectionInput[] = [
   meSection({ id: "profile", group: "overview", render: fixed("<h2>Your player profile</h2><p>Long privacy text</p>"), fold: { en: "Privacy and details", fr: "Confidentialité et détails" } }),
   meSection({ id: "achievements", group: "play", render: fixed('<h2 id="achievements">My achievements</h2><p>list</p>') }),
   meSection({ id: "availability", group: "play", render: fixed("<h2>Who's free?</h2>") }),
-  meSection({ id: "roster", group: "guild", render: fixed("<h2>Guild roster</h2>"), officer: true }),
+  meSection({ id: "roster", group: "guild", render: fixed("<h2>Guild roster</h2>"), officer: true, visible: async () => true }),
   meSection({ id: "your-data", group: "account", render: fixed("<h2>Your data</h2>") }),
   meSection({ id: "empty", group: "account", render: fixed("") }),
   fixed("<h2>Legacy bare section</h2>")
@@ -72,5 +72,28 @@ describe("/me/ grouping", () => {
     expect(french).toContain("Actions rapides");
     expect(french).not.toContain('id="account"');
     expect(french).toContain("Mes candidatures");
+  });
+
+  it("hides officer sections from non-officers, and when the check fails", async () => {
+    const officerOnly = (visible: () => Promise<boolean>) => [meSection({ id: "roster", group: "guild", render: fixed("<h2>Guild roster</h2>"), officer: true, visible })];
+    expect((await page(officerOnly(async () => false))).body).not.toMatch(/Guild roster|Officer tools/);
+    expect((await page(officerOnly(async () => { throw new Error("discord down"); }))).body).not.toMatch(/Guild roster|Officer tools/);
+  });
+
+  it("caches the officer lookup per user and does not cache failures", async () => {
+    let calls = 0;
+    const check = cachedOfficerCheck(async () => { calls++; return [{}]; }, 1000);
+    const ctx = (ms: number, id = "u1") => ({ account: { discordUserId: id }, now: new Date(ms) }) as never;
+    expect(await check(ctx(0))).toBe(true);
+    expect(await check(ctx(500))).toBe(true);
+    expect(calls).toBe(1);
+    expect(await check(ctx(1500))).toBe(true);
+    expect(calls).toBe(2);
+    expect(await check({ account: null, now: new Date(0) } as never)).toBe(false);
+    let fail = true;
+    const flaky = cachedOfficerCheck(async () => { if (fail) throw new Error("x"); return []; });
+    await expect(flaky(ctx(0))).rejects.toThrow();
+    fail = false;
+    expect(await flaky(ctx(1))).toBe(false);
   });
 });

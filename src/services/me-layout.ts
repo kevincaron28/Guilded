@@ -16,18 +16,44 @@ export interface MeSectionSpec {
   render: (context: WebContext) => Promise<string>;
   /** Keep the heading and put the rest behind a <details> (long instructions, forms). */
   fold?: { en: string; fr: string };
-  /** Listed under a collapsed "Officer tools" block: the destination page still checks the officer role. */
+  /** Listed under a collapsed "Officer tools" block. Pair with `visible` so non-officers never see it. */
   officer?: boolean;
+  /** When it resolves false the section is not rendered. Destination pages still check access themselves. */
+  visible?: (context: WebContext) => Promise<boolean>;
 }
 /** A bare function (older callers, tests) lands in Play, wrapped and unfolded. */
 export type MeSectionInput = ((context: WebContext) => Promise<string>) | MeSectionSpec;
 
 export function meSection(spec: MeSectionSpec): MeSectionSpec { return spec; }
 
+/** Renders a spec, or "" when its `visible` check says no (or throws: hidden is the safe failure). */
+export async function renderSpec(spec: MeSectionSpec, context: WebContext): Promise<string> {
+  if (spec.visible && !(await spec.visible(context).catch(() => false))) return "";
+  return spec.render(context);
+}
+
+/**
+ * Officer check for the /me/ sections. `guilds` does forced Discord member fetches per guild, so the
+ * answer is cached per Discord user for `ttlMs`; a failed lookup is not cached and counts as "no".
+ */
+export function cachedOfficerCheck(guilds: (discordUserId: string) => Promise<unknown[]>, ttlMs = 5 * 60_000) {
+  const cache = new Map<string, { at: number; officer: boolean }>();
+  return async (context: WebContext): Promise<boolean> => {
+    const user = context.account?.discordUserId;
+    if (!user) return false;
+    const hit = cache.get(user);
+    if (hit && context.now.getTime() - hit.at < ttlMs) return hit.officer;
+    const officer = (await guilds(user)).length > 0;
+    if (cache.size > 2_000) cache.delete(cache.keys().next().value!);
+    cache.set(user, { at: context.now.getTime(), officer });
+    return officer;
+  };
+}
+
 const TITLES: Record<MeGroup, { en: string; fr: string; summaryEn: string; summaryFr: string }> = {
   overview: { en: "Overview", fr: "Aperçu", summaryEn: "Who you are on Guilded and your weekly recap.", summaryFr: "Qui vous êtes sur Guilded et votre récapitulatif de la semaine." },
   play: { en: "Play", fr: "Jouer", summaryEn: "Achievements, availability, calendar, raids and leaderboards.", summaryFr: "Succès, disponibilité, calendrier, raids et classements." },
-  guild: { en: "Guild", fr: "Guilde", summaryEn: "Guild tools, recruitment and your applications; officer tools are folded below.", summaryFr: "Outils de guilde, recrutement et candidatures; les outils d'officier sont repliés plus bas." },
+  guild: { en: "Guild", fr: "Guilde", summaryEn: "Guild tools, recruitment and your applications; officer tools appear here for officers.", summaryFr: "Outils de guilde, recrutement et candidatures; les outils d'officier apparaissent ici pour les officiers." },
   account: { en: "Account & data", fr: "Compte et données", summaryEn: "Connected devices, your data and privacy.", summaryFr: "Appareils connectés, vos données et confidentialité." }
 };
 
@@ -64,7 +90,7 @@ export function renderGroups(ctx: WebContext, sections: RenderedSection[], own: 
     const wrap = (section: RenderedSection) => `<section class="me-sec" id="sec-${escapeHtml(section.spec.id)}">${section.spec.fold ? fold(demote(section.html), t(section.spec.fold.en, section.spec.fold.fr)) : demote(section.html)}</section>`;
     return `<section class="me-group" id="${group}" aria-labelledby="${group}-title"><h2 id="${group}-title">${t(TITLES[group].en, TITLES[group].fr)}</h2><p class="muted me-summary">${t(TITLES[group].summaryEn, TITLES[group].summaryFr)}</p>`
       + (own[group] ?? "") + normal.map(wrap).join("")
-      + (officer.length ? `<details class="me-officer"><summary>${t("Officer tools", "Outils d'officier")}</summary><p class="muted">${t("Shown to everyone; each page checks your current officer role before showing anything.", "Visibles pour tous; chaque page vérifie votre rôle d'officier actuel avant d'afficher quoi que ce soit.")}</p>${officer.map(wrap).join("")}</details>` : "")
+      + (officer.length ? `<details class="me-officer"><summary>${t("Officer tools", "Outils d'officier")}</summary>${officer.map(wrap).join("")}</details>` : "")
       + `</section>`;
   }).join("");
   return `<style>${ME_STYLE}</style>${tabs}${quickLinks}${panels}`;

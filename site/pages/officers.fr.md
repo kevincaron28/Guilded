@@ -13,7 +13,7 @@ seul; ajoutez le bot Discord quand votre guilde le souhaite.
 | Addon seulement | Addon + bot Discord |
 | --- | --- |
 | EP/GP, butin, présences, recettes et donjons, partagés avec la guilde en jeu | Tout ce qui est en jeu, plus les inscriptions de raid, les classements et les sondages dans Discord |
-| Rien à configurer hors de WoW | Les membres se connectent une fois avec le compagnon en ligne |
+| Rien à configurer hors de WoW | Les membres se connectent une fois avec le compagnon Windows |
 | [Télécharger pour votre édition de WoW](/editions/?lang=fr) | [Ajouter le bot](https://discord.com/oauth2/authorize?client_id=1552633893587394590&scope=bot+applications.commands&integration_type=0&permissions=2269718703631440), puis suivre les étapes ci-dessous |
 
 ## Lite tout de suite, Guilded complet après approbation
@@ -43,8 +43,8 @@ Détails : [guide du bot hébergé](/docs/HOSTED_PILOT.html#fr).
    rôle de Guilded au-dessus des rôles qu'il doit attribuer.
 3. **Demandez aux membres d'installer l'addon** pour votre édition de WoW :
    [page de téléchargement](/editions/?lang=fr) et [guide des membres](/docs/MEMBER_INSTALL.html#fr).
-4. **Après l'approbation, reliez le compagnon.** Les membres ouvrent le
-   [compagnon en ligne](/companion/?lang=fr), choisissent *Connexion avec Discord*, puis votre
+4. **Après l'approbation, reliez le compagnon.** Les membres installent le
+   [compagnon Windows](/companion/?lang=fr) (Microsoft Store d’abord), choisissent *Connexion avec Discord*, puis votre
    serveur. Au moins un officier devrait l'utiliser : les membres qui n'ont que l'addon passent par
    la synchro d'un officier pour rejoindre Discord.
 5. **Passez en public quand vous êtes prêts.** Créez la page de votre guilde avec
@@ -55,7 +55,7 @@ Détails : [guide du bot hébergé](/docs/HOSTED_PILOT.html#fr).
 Cores de raid et prix en GP : `/core setup`, `/core edit` et `/core items`. Le
 [guide EP/GP](/docs/EPGP_GUIDE.html#fr) décrit une soirée de raid complète.
 
-Dans le [compagnon en ligne](/companion/?tab=pricing&lang=fr), **Prix de raid**
+Dans le compagnon Windows, **Prix de raid**
 permet aux officiers de consulter les prix modifiables par emplacement et
 d’activer explicitement le préréglage de décembre pour un core. Les réserves
 existantes conservent leurs règles tant qu’un officier ne les modifie pas.

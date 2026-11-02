@@ -1,6 +1,6 @@
 # Guilded Dungeons: setup, runs and your player page
 
-[Français](#fr) · [Install Guilded](MEMBER_INSTALL.md) · [Connection checklist](ONLINE_COMPANION_CHECK.md)
+[Français](#fr) · [Install Guilded](MEMBER_INSTALL.md)
 
 ## Choose your addon
 
@@ -33,8 +33,8 @@ determine eligibility. Do not manually finish a run just to make it score.
 
 ## Send runs to the website
 
-1. Open the [companion](https://guilded.kcaron.top/companion/) or the Windows
-   companion app. Choose **Sign in with Discord**.
+1. Install the [Windows companion](https://apps.microsoft.com/detail/9N680XX3QFL9) (Microsoft Store first; direct download
+   on the [companion page](https://guilded.kcaron.top/companion/) is the unsigned fallback) and open it. Choose **Sign in with Discord**.
 2. Choose your **personal account** for public dungeon runs without a guild. If you
    want an approved guild's standings and raid information too, choose that server.
    A guild administrator controls whether guild runs are shared publicly.
@@ -122,7 +122,7 @@ coté : les parcours, niveaux et règles de la saison déterminent les points.
 
 ## Français — connexion, profil et recrutement
 
-Dans le [compagnon](https://guilded.kcaron.top/companion/), choisissez
+Dans le [compagnon Windows](https://apps.microsoft.com/detail/9N680XX3QFL9) (Microsoft Store d'abord), choisissez
 **Connexion avec Discord**, puis votre **compte personnel** pour les classements
 sans guilde, ou un serveur approuvé pour les données de guilde. Sélectionnez
 `WTF\Account\<compte>\SavedVariables\GuildedDungeons.lua` (ou `Guilded.lua`),

@@ -17,7 +17,7 @@ Rejoignez notre Discord, présentez-vous et indiquez le jeu qui vous intéresse.
 
 Nous jouons en français et utilisons l'heure de Montréal, avec ses changements d'heure saisonniers. [Découvrez les deux cores, leurs horaires de raid et leurs règles de butin](../g/quebec-gold/). Confirmez votre place avec l'équipe sur Discord avant de vous engager.
 
-<aside class="member-band"><div><h2>Déjà dans la guilde ?</h2><p>Retrouvez vos cores, les classements EPGP, les prix et votre wishlist. Votre code personnel se saisit uniquement dans le compagnon.</p></div><a class="button secondary" href="/companion/">Ouvrir le compagnon <span aria-hidden="true">↗</span></a></aside>
+<aside class="member-band"><div><h2>Déjà dans la guilde ?</h2><p>Retrouvez vos cores, les classements EPGP, les prix et votre wishlist avec le compagnon Windows (Microsoft Store). Votre code personnel se saisit uniquement dans le compagnon.</p></div><a class="button secondary" href="/companion/">Obtenir le compagnon <span aria-hidden="true">↗</span></a></aside>
 
 ## Et Guilded ?
 

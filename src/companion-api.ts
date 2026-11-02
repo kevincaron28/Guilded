@@ -35,7 +35,7 @@ import { followUpImport } from "./services/import-followup.js";
 import { exchangeCharacterPairingCode, findPairingServer, hashCompanionSecret, issueMemberCredential, linkPairedCharacter } from "./services/character-pairing.js";
 import { linkVerifiedCharacters, tellVerified } from "./services/character-verify.js";
 import { asLang } from "./i18n.js";
-import { serveCompanionWeb } from "./services/companion-web.js";
+import { serveCompanionWeb } from "./services/companion-redirect.js";
 import { createGuildPageServer, loadGuildPageView } from "./services/guild-page.js";
 import type { Client } from "discord.js";
 import { companionAccess, personalSnapshot } from "./services/companion-access.js";

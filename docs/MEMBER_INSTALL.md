@@ -38,7 +38,7 @@ points and rosters and does not stop an already-running companion.
 The hosted bot is free. Adding it puts your server on **Guilded Lite** right away
 (setup, help, bug reports, dungeon groups, basic signups); KCaron's approval unlocks
 addon sync, EP/GP, seasons and the guild page. Run `/setup start`, then, once approved,
-open the [online companion](https://guilded.kcaron.top/companion/) and choose
+install the [Windows companion](https://guilded.kcaron.top/companion/) (Microsoft Store first) and choose
 **Sign in with Discord**, then follow the confirmation shown by your companion.
 You do not need to host a bot or database for this path.
 See the [hosted bot guide](HOSTED_PILOT.md). Independent hosting is also available.
@@ -103,17 +103,20 @@ manual way: in WoW type `/guilded character`, copy the line, then in Discord use
 character). Without a guild, `/guilded verify` has nothing to link: the addon
 works on its own. If you do not want Discord character linking, skip this.
 
-## Optional: connect the online companion
+## Optional: install and connect the Windows companion
 
-Open the **online companion link supplied by your guild** (ending in `/companion/`),
-or press **Connect optional companion / Connecter le compagnon (facultatif)** in the
-`/character pair` reply and use its **Open online companion** button. In
+The companion is optional if you only use the addon, but needed to share data with Discord
+and the website (achievements, leaderboards, sync). It runs on **Windows only**. Install it
+from [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (recommended: Store-signed, updates itself). The fallback is
+the [direct download on GitHub](https://github.com/kevincaron28/Guilded/releases/latest),
+which is unsigned, so Windows may warn before running it. You can also press **Connect optional
+companion / Connecter le compagnon (facultatif)** in the `/character pair` reply and use its
+**Get the Windows companion** button. In
 **Connection & setup**, choose **Sign in with Discord**: your browser opens, pick
-your server and press **Connect**. Nothing to type: the page knows the request
-came from your own companion (only the command-line companion still shows a
+your server and press **Connect**. Nothing to type: the Windows app
+receives the approval by itself (only the command-line companion still shows a
 short code to type). Then save preferences. Sync your intended main
-first if no character is linked yet; later characters become alts. The Windows app
-is optional and the addon is still required. Each device you sign in stays
+first if no character is linked yet; later characters become alts. The addon is still required. Each device you sign in stays
 connected; manage them under Connections on the website.
 
 **Main already linked?** Keep your working companion: log in on an alt, `/reload`,
@@ -274,7 +277,7 @@ soutien financier est facultatif et ne donne aucune priorité.
    `/character import` → **code** sur Discord avec **main** vide.
 5. **Compagnon facultatif :** dans **Lier mon personnage WoW**, choisissez
    **Connecter le compagnon (facultatif)**, ou utilisez `/character pair`.
-   Ouvrez **Ouvrir le compagnon en ligne**.
+   Installez le compagnon Windows avec **Obtenir le compagnon Windows** (Microsoft Store d'abord).
 6. Dans **Connection & setup**, choisissez **Sign in with Discord** : le navigateur
    s'ouvre, choisissez votre serveur et appuyez sur **Connect**. Rien à taper.
    Les compagnons plus anciens que 7.2 utilisent plutôt le code à usage unique de

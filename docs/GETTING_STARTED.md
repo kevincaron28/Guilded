@@ -45,8 +45,9 @@ companions or your guild's own bot**.
 
 Open professions normally to collect recipes automatically. Personal uploads
 apply automatically; an officer's guild data may require `/import apply` if
-automatic import is disabled. Start with the online companion. The optional Windows
-app provides background syncing, especially useful for leaders and officers.
+automatic import is disabled. Install the Windows companion from [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (GitHub direct download as
+a fallback; it is unsigned). It is optional for the addon alone, needed for Discord and
+website features, and Windows only.
 
 The [command reference](../COMMANDS.md), [addon README](../addon/Guilded/README.md)
 and [release checklist](../RELEASE_CHECKLIST.md) cover the next steps after setup.

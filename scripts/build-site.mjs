@@ -6,7 +6,7 @@ import { marked } from "marked";
 import { EDITION_SECTIONS, editionHref, editionMenu, editionSection, editionSwitchHref, FOOTER_COLUMNS, footerLinks, localizedHref, navLinks } from "../site/nav.mjs";
 import { editionCards, editionHubs, editionPages } from "../site/editions.mjs";
 
-const guides = ["PRIVACY", "HOSTED_PILOT", "SUPPORT_GUILDED", "OWNER_WALKTHROUGH", "QUICK_START", "MEMBER_INSTALL", "DUNGEONS_GUIDE", "EPGP_GUIDE", "GUILD_OWNER_SETUP", "DEPLOY_ORACLE", "AI_SETUP_HELP", "ONLINE_COMPANION_CHECK", "AUTOMATION_QUICK_START"];
+const guides = ["PRIVACY", "HOSTED_PILOT", "SUPPORT_GUILDED", "OWNER_WALKTHROUGH", "QUICK_START", "MEMBER_INSTALL", "DUNGEONS_GUIDE", "EPGP_GUIDE", "GUILD_OWNER_SETUP", "DEPLOY_ORACLE", "AI_SETUP_HELP", "AUTOMATION_QUICK_START"];
 const origin = "https://guilded.kcaron.top";
 const guideDescriptions = {
   AUTOMATION_QUICK_START: "Optional member and officer automation: setup, status and stopping delivery. English and French.",
@@ -20,8 +20,7 @@ const guideDescriptions = {
   EPGP_GUIDE: "Use Guilded EP/GP, core pools, loot methods and standings, with or without Discord. Practical English and French raid workflow.",
   GUILD_OWNER_SETUP: "Configure Guilded roles, permissions and optional Discord synchronization for your own guild.",
   DEPLOY_ORACLE: "Independent Guilded hosting on Ubuntu: prerequisites, installation, maintenance and service checks.",
-  AI_SETUP_HELP: "Troubleshoot Guilded setup with safe diagnostic prompts and clear member and owner checks.",
-  ONLINE_COMPANION_CHECK: "Check Guilded companion connection, SavedVariables, returned standings and permissions without exposing private codes."
+  AI_SETUP_HELP: "Troubleshoot Guilded setup with safe diagnostic prompts and clear member and owner checks."
 };
 const sources = new Set(guides.map(name => `docs/${name}.md`));
 const out = "dist/site";

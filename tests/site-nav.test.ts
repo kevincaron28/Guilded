@@ -99,7 +99,7 @@ describe("site menu", () => {
     expect(localizedHref("../docs/MEMBER_INSTALL.html#quick-fixes", "fr")).toBe("../docs/MEMBER_INSTALL.html#quick-fixes");
   });
 
-  it.each(["https://example.com/?lang=en", "//example.com/", "/companion/web-bundle.js", "#features", "/logo.png"])("leaves unrelated links unchanged: %s", href => {
+  it.each(["https://example.com/?lang=en", "//example.com/", "/companion/ui-bundle.js", "#features", "/logo.png"])("leaves unrelated links unchanged: %s", href => {
     expect(localizedHref(href, "fr")).toBe(href);
   });
 

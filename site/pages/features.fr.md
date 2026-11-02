@@ -5,7 +5,7 @@
 <div class="actions"><a class="button" href="https://www.curseforge.com/wow/addons/guilded">Obtenir l’addon gratuit <span aria-hidden="true">↗</span></a><a class="button secondary" href="../docs/MEMBER_INSTALL.html#fr">Guide d’installation <span aria-hidden="true">→</span></a></div>
 </section>
 
-<div class="feature-overview"><div><span class="number">01 / EN JEU</span><h2>Jouez ensemble.</h2><p>Artisanat, classements et historique des donjons dans les fenêtres de WoW.</p></div><div><span class="number">02 / COMPAGNON</span><h2>Passez en ligne.</h2><p>Envoyez les données enregistrées à Discord ou aux classements publics. Navigateur ou Windows.</p></div><div><span class="number">03 / DISCORD</span><h2>Gardez le contact.</h2><p>Inscriptions, activités et sondages. Guilded Lite fonctionne dès l’ajout du bot.</p></div></div>
+<div class="feature-overview"><div><span class="number">01 / EN JEU</span><h2>Jouez ensemble.</h2><p>Artisanat, classements et historique des donjons dans les fenêtres de WoW.</p></div><div><span class="number">02 / COMPAGNON</span><h2>Passez en ligne.</h2><p>Envoyez les données enregistrées à Discord ou aux classements publics. Application Windows gratuite.</p></div><div><span class="number">03 / DISCORD</span><h2>Gardez le contact.</h2><p>Inscriptions, activités et sondages. Guilded Lite fonctionne dès l’ajout du bot.</p></div></div>
 
 ## En jeu, sans Discord
 
@@ -27,15 +27,15 @@ Trouvez une guilde, un core permanent ou une place pour une soirée. Le [tableau
 
 ## Le compagnon
 
-Pour passer en ligne : connectez votre compte, sélectionnez les données enregistrées de l’addon, puis utilisez **Synchroniser** après avoir joué. L’export vers un tableur fonctionne sans connexion.
+Une application Windows gratuite, facultative pour l’addon seul mais nécessaire pour les fonctions Discord et site. Obtenez-la sur le [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (téléchargement direct GitHub en solution de rechange). Connectez votre compte, sélectionnez les données enregistrées de l’addon, puis utilisez **Synchroniser** après avoir joué. L’export vers un tableur fonctionne sans connexion.
 
 - **Liste de souhaits :** vos objets recherchés.
 - **Cores et prix :** règles, rosters et prix des objets, pour les responsables de raid.
 - **Path of Exile 2 :** un journal personnel des zones de cartes visitées.
 
-Vos permissions Discord déterminent ce que vous pouvez consulter ou modifier. Le sélecteur **Langue** permet de choisir le français ou l’anglais sans refaire la connexion.
+Vos permissions Discord déterminent ce que vous pouvez consulter ou modifier.
 
-[Ouvrir le compagnon](/companion/?lang=fr) · [Vérifier la connexion](../docs/ONLINE_COMPANION_CHECK.html)
+[Obtenir le compagnon](/companion/?lang=fr)
 
 ## Discord
 

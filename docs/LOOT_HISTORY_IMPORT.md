@@ -19,7 +19,7 @@ Local source dates keep their original precision and an unknown timezone. Explic
 4. Select Review and save archive, approve the local save summary, and choose a new text filename. Existing files are never overwritten.
 5. Copy the saved GLH1 code and continue in-game below.
 
-This converter is in the installed desktop companion. The browser companion does not provide the native file workflow; the offline CLI is an alternative.
+This converter is in the Windows companion; the offline CLI is an alternative.
 
 ## In-game preview, confirmation and history
 

@@ -21,8 +21,11 @@ My release version is [version]. My officer gave me the download links,
 Discord server ID and bot address, which I can enter locally.
 
 Guide me through one short step at a time with a visible success check.
-Use the online companion webpage by default. Offer the Windows app as an optional
-automatic/background sync path, especially useful for leaders and officers.
+Point me to the Guilded companion on Microsoft Store first (https://apps.microsoft.com/detail/9N680XX3QFL9);
+the GitHub direct download is the fallback and is unsigned, so Windows may warn.
+The companion is optional if I only use the addon, but needed for Discord and website
+features (achievements, leaderboards, sync). It is Windows only: there is no Mac,
+Linux or browser version, so say so honestly if my OS is not Windows.
 Locate the actual game client and account before selecting files. Do not assume
 _forever_, _retail_ or _classic_beta_ without checking my installation.
 I do not need Node.js, a database or the Discord bot token. Set my guild's bot

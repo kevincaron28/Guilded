@@ -155,10 +155,6 @@ describe("unified website and companion", () => {
     expect(sent.get("x-forwarded-for")).toBeNull();
     expect(sent.get("x-real-ip")).toBeNull();
     expect(sent.get("x-guilded-long")).toBeNull();
-    // Website pages never forward them.
-    upstream.mockClear();
-    await worker.fetch(new Request(base + "/companion/", { headers: { "x-guilded-protocol": "2" } }), env);
-    expect(new Headers((upstream.mock.calls[0]! as unknown as [string, RequestInit])[1].headers).get("x-guilded-protocol")).toBeNull();
   });
 
   it("blocks unknown API paths, disallowed methods and oversized bodies before reaching the bot", async () => {
@@ -176,20 +172,17 @@ describe("unified website and companion", () => {
     expect(upstream).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps the companion canonical redirect on the public address", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 301, headers: { location: "https://guildedqc.duckdns.org/companion/?guild=123" } })));
-    const response = await worker.fetch(new Request(base + "/companion?guild=123"), env);
-    expect(response.headers.get("location")).toBe("/companion/?guild=123");
-  });
-
-  it("adds a website link to the proxied companion while retaining its security headers", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response('<nav aria-label="Main navigation"><button>Overview</button></nav>', {
-      headers: { "content-type": "text/html; charset=utf-8", "content-security-policy": "default-src 'self'", "content-length": "72" }
-    })));
-    const response = await worker.fetch(new Request(base + "/companion/"), env);
-    expect(await response.text()).toContain('href="/">Website &amp; guides</a>');
-    expect(response.headers.get("content-security-policy")).toBe("default-src 'self'");
-    expect(response.headers.get("content-length")).toBeNull();
+  it("serves the companion download page statically and redirects the removed browser companion", async () => {
+    const upstream = vi.fn(); vi.stubGlobal("fetch", upstream);
+    const asset = vi.fn(async () => new Response("download page"));
+    const page = await worker.fetch(new Request(base + "/companion/"), { ASSETS: { fetch: asset } });
+    expect(await page.text()).toBe("download page");
+    for (const [path, target] of [["/companion", "/companion/"], ["/companion/app.js", "/companion/"], ["/companion/index.html?tab=pricing", "/companion/"], ["/companion/?lang=fr", null], ["/companion/web-bundle.js?lang=fr", "/companion/?lang=fr"]] as const) {
+      const response = await worker.fetch(new Request(base + path), { ASSETS: { fetch: asset } });
+      if (target) { expect(response.status).toBe(301); expect(response.headers.get("location")).toBe(target); }
+      else expect(response.status).toBe(200);
+    }
+    expect(upstream).not.toHaveBeenCalled();
   });
 
   it("reports backend downtime without leaking upstream errors", async () => {

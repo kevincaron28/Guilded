@@ -4,7 +4,7 @@
 
 ## October 30 operational follow-up
 
-**8.3.0 is live:** backend, website and Web Companion are deployed at reviewed
+**8.3.0 is live:** backend, website and the companion are deployed at reviewed
 source `2602e67`. GitHub's 23 public downloads are hash-verified. All ten
 CurseForge edition files are approved and their anonymous downloads match the
 frozen release ZIPs. Microsoft Store Submission 6 is published; verification of
@@ -131,7 +131,7 @@ and the competitive review: [PRE_RELEASE_AUDIT_2026-10-22.md](docs/archive/PRE_R
   dungeon scores, games and backups.
 - Discord bot: setup wizard, cores and signups, standings, personal pairing,
   crafting, onboarding, community seasons/activities, participation and PoE2 journals.
-- Desktop and browser companions: personal uploads and standings; desktop file
+- Windows companion (the browser companion was removed in November 2026): personal uploads and standings; file
   watching and optional PoE2 log tracking.
 
 Built does not mean every live workflow has passed. Recorded two-player results

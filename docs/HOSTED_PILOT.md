@@ -50,8 +50,8 @@ The hosted bot is free. Optional support never buys approval or priority.
    anything still missing. Move Guilded's bot role above roles it needs to assign.
 4. Members can use community activities and polls immediately; they do not need
    linked WoW characters for those features.
-5. For WoW features, install the addon. The owner provides the shared browser
-   [online companion](https://guilded.kcaron.top/companion/). Choose **Sign in with Discord**,
+5. For WoW features, install the addon. Install the free
+   [Windows companion](https://guilded.kcaron.top/companion/) (Microsoft Store first, unsigned GitHub download as a fallback; Windows only). Choose **Sign in with Discord**,
    then your server. Older companions can use the private one-time code from
    `/character pair`. Every member connects separately. The desktop companion is
    optional; see the [member guide](MEMBER_INSTALL.md).

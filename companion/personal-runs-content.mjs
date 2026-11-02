@@ -3,7 +3,7 @@ import { publicScoreToLua } from "./standings-format.mjs";
 import { editionMetadata, gameEditionOf } from "./game-edition.mjs";
 
 // The browser-safe half of personal mode (no file system): shared by personal-runs.mjs (desktop
-// and command line) and browser-client.mjs (the website companion).
+// and command line) and the companion engine.
 
 export const MAX_PERSONAL_RUNS = 50;
 

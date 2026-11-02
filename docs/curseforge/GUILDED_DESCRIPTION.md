@@ -46,9 +46,9 @@ The free [Microsoft Store companion](https://apps.microsoft.com/detail/9N680XX3Q
 
 Use signups, core rosters, shared rules/prices, recruitment listings and reports in your guild's Discord. A server that adds the hosted bot starts on **Guilded Lite** right away (setup, help, FAQ, bug reports, dungeon groups and basic raid signups); KCaron's approval unlocks everything else. Independent hosting is also available.
 
-Run `/setup start`. Use **Sign in with Discord** in the companion and enter its displayed confirmation code on the sign-in page. Each member connects their own account and chooses their server. Private `/character pair` codes remain available for supported fallback setups. The Windows companion can watch saved data and export CSV files; the browser companion supports manual synchronization. Reload WoW before syncing and again after loading returned standings.
+Run `/setup start`. Use **Sign in with Discord** in the companion and enter its displayed confirmation code on the sign-in page. Each member connects their own account and chooses their server. Private `/character pair` codes remain available for supported fallback setups. The Windows companion (Windows only) watches saved data and exports CSV files. Reload WoW before syncing and again after loading returned standings.
 
-[Request pilot access](https://guilded.kcaron.top/docs/HOSTED_PILOT) · [Online companion](https://guilded.kcaron.top/companion/)
+[Request pilot access](https://guilded.kcaron.top/docs/HOSTED_PILOT) · [Get the Windows companion](https://guilded.kcaron.top/companion/)
 
 ## Release and feature boundaries
 

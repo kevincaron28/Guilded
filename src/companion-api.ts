@@ -26,6 +26,7 @@ import { lootRulesForAddon } from "./services/loot-rules-export.js";
 import { upcomingRaidsForAddon } from "./services/calendar-sync.js";
 import { publicRaids } from "./services/public-raids.js";
 import { createPlayerProfiles, prismaProfileStore } from "./services/player-profiles.js";
+import { createAchievementsWeb } from "./services/achievements-web.js";
 import { createGuildDirectory, prismaGuildDirectoryStore } from "./services/guild-directory.js";
 import { discordCalendarEvents, mergeCalendarEvents } from "./services/discord-calendar.js";
 import { createAuditService } from "./services/audit.js";
@@ -245,7 +246,8 @@ export function createSiteApp(client?: Client) {
   const roster = createRosterDashboard(rosterStore);
   const availability = createWebAvailability(prismaAvailabilityStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")));
   const guildTools = createGuildToolsPages(prismaGuildToolsStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))));
-  const profiles = createPlayerProfiles(prismaProfileStore(prisma, hostedPilot.allows));
+  const achievementsWeb = createAchievementsWeb(prisma, hostedPilot.allows);
+  const profiles = createPlayerProfiles(prismaProfileStore(prisma, hostedPilot.allows), achievementsWeb);
   const directory = createGuildDirectory(prismaGuildDirectoryStore(prisma, (id) => hostedPilot.allows(id)));
   const leaderboards = createLeaderboardPages({ store: prismaLeaderboardStore(prisma, (id) => hostedPilot.allows(id)), personal: personalStore, calendar: () => loadOfficialWindows(prisma) });
   const signInPage = companionSignInRoute({
@@ -261,8 +263,8 @@ export function createSiteApp(client?: Client) {
   const handover = createOfficerHandover(officerHandoverStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))));
   const personalCalendar = createPersonalCalendar(personalCalendarStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), client));
   const battleNet = createBattleNetPage(prismaBattleNetStore(prisma), battleNetConfig(config));
-  const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, leaderboards.route, directory.route, profiles.route];
-  const meSections = [badges.meSection, profiles.meSection, availability.meSection, roster.meSection, guildTools.meSection, leaderboards.meSection];
+  const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, leaderboards.route, directory.route, achievementsWeb.route, achievementsWeb.ownerRoute, profiles.route];
+  const meSections = [badges.meSection, profiles.meSection, achievementsWeb.meSection, availability.meSection, roster.meSection, guildTools.meSection, leaderboards.meSection];
   routes.unshift(devices.route, battleNet, memberData.route, personalCalendar.route, handover.route, raidPlanning.route);
   meSections.push(devices.meSection, memberData.meSection, personalCalendar.meSection, handover.meSection, raidPlanning.meSection);
   return createWebApp({
@@ -399,6 +401,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const isPairing = request.method === "POST" && url.pathname === "/api/v1/addon-pairings";
       const isStandings = request.method === "GET" && url.pathname === "/api/v1/standings";
       const isPoeUpload = request.method === "POST" && url.pathname === "/api/v1/poe/visits";
+      const isPoeLevels = request.method === "POST" && url.pathname === "/api/v1/poe/levels";
       const isPublicRuns = request.method === "POST" && url.pathname === "/api/v1/public-runs";
       const isPersonalStatus = request.method === "GET" && url.pathname === "/api/v1/companion/personal-status";
       const isPoeStatus = request.method === "GET" && url.pathname === "/api/v1/poe/status";
@@ -409,7 +412,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // The companion's own pages: wishlists for members; prices, core rules and rosters for Raid Leaders.
       const isManageView = request.method === "GET" && url.pathname === "/api/v1/manage";
       const isManageEdit = request.method === "POST" && url.pathname === "/api/v1/manage";
-      if (!isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isStandings && !isPoeUpload && !isPoeStatus && !isPoeRecent && !isLogout && !isManageView && !isManageEdit) {
+      if (!isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isStandings && !isPoeUpload && !isPoeLevels && !isPoeStatus && !isPoeRecent && !isLogout && !isManageView && !isManageEdit) {
         json(response, 404, { error: "Not found" });
         return;
       }
@@ -546,7 +549,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         }
         });
       }
-      const payload = isImport || isPoeUpload || isManageEdit ? await readBody(request) : null;
+      const payload = isImport || isPoeUpload || isPoeLevels || isManageEdit ? await readBody(request) : null;
       const requestPayload = payload as { guildDiscordId?: unknown; export?: unknown } | null;
       const guildDiscordId = isStandings || isPoeStatus || isPoeRecent || isManageView ? url.searchParams.get("guild") : requestPayload?.guildDiscordId;
       if (typeof guildDiscordId !== "string") { json(response, 400, { error: "guildDiscordId is required" }); return; }
@@ -597,6 +600,11 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (isPoeStatus) {
         const settings = await prisma.guildSettings.findUnique({ where: { guildId: guild.id } });
         json(response, 200, { enabled: settings?.poeTrackingEnabled ?? false, botVersion: BOT_VERSION });
+        return;
+      }
+      if (isPoeLevels) {
+        const result = await createPoeMappingService(prisma).ingestLevels(guild.id, access.memberId, payload);
+        json(response, 200, { ...result, botVersion: BOT_VERSION });
         return;
       }
       if (isPoeUpload) {

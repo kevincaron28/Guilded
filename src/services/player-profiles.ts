@@ -127,7 +127,9 @@ export function profileDescription(profile: PlayerProfile, t: (en: string, fr: s
     : t(`${profile.name}: ${chars} character(s) and public dungeon runs on Guilded.`, `${profile.name} : ${chars} personnage(s) et donjons publics sur Guilded.`);
 }
 
-export function createPlayerProfiles(store: ProfileStore): { route: WebRoute; meSection(ctx: WebContext): Promise<string> } {
+export interface ProfileAchievements { publicSection(ctx: WebContext, accountId: string): Promise<string>; imagePath(accountId: string): string }
+
+export function createPlayerProfiles(store: ProfileStore, achievements?: ProfileAchievements): { route: WebRoute; meSection(ctx: WebContext): Promise<string> } {
   const path = (id: string) => `/players/${encodeURIComponent(id)}`;
   function details(ctx: WebContext, profile: PlayerProfile): string {
     const { t, lang } = ctx;
@@ -181,7 +183,8 @@ export function createPlayerProfiles(store: ProfileStore): { route: WebRoute; me
     if (ctx.request.method === "POST") return kit.page(405, "Method not allowed", "");
     const profile = await store.get(match[1]!);
     if (!profile?.public) return kit.page(404, t("Not found", "Introuvable"), `<h1>${t("Profile unavailable", "Profil indisponible")}</h1>`, { noindex: true });
-    return kit.page(200, profile.name, `<h1>${escapeHtml(profile.name)}</h1>${details(ctx, profile)}`, { description: profileDescription(profile, ctx.t) });
+    const badges = achievements ? await achievements.publicSection(ctx, profile.id) : "";
+    return kit.page(200, profile.name, `<h1>${escapeHtml(profile.name)}</h1>${badges}${details(ctx, profile)}`, { description: profileDescription(profile, ctx.t), ...(badges && achievements ? { shareImage: achievements.imagePath(profile.id) } : {}) });
   };
   return {
     route,

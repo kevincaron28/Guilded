@@ -349,6 +349,7 @@ also works. `/help` reminds leaders of this. `/core`, `/team`, `/report`, `/part
 | `/report ping` | Is the bot online? |
 | `/report bug <description> [screenshot]` | Report a bug or problem. Also captured automatically whenever a command errors, for the developer to review |
 | `/character profile` | Your profile: characters (race, class, professions, last seen), EP/GP/PR |
+| `/character achievements [member]` | Achievements card (levels, guild dungeon runs, raids, participation, PoE2 levels), yours or another member's. Computed from recorded data only; no points, no automatic posts. Also on [guilded.kcaron.top/me/](https://guilded.kcaron.top/me/) and on public player pages |
 | `/character who <character>` | Look anyone up: main and alts, professions, EP/GP/PR, 30-day attendance, last seen |
 | `/character pair` | **Start here.** Shows your `/guilded verify` line to paste in WoW (links every character of your WoW account, no companion needed), then how to connect the optional Companion |
 | `/character add <name> <realm> <class> <main> [spec] [level] [race]` / `/character list` | Link your WoW characters (needed before imports can match you) |

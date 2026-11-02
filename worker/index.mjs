@@ -50,6 +50,7 @@ const apiMethods = new Map([
   ["/api/v1/public-runs", ["POST"]],
   ["/api/v1/standings", ["GET"]],
   ["/api/v1/poe/visits", ["GET", "POST"]],
+  ["/api/v1/poe/levels", ["POST"]],
   ["/api/v1/poe/status", ["GET"]],
   ["/api/v1/companion/logout", ["POST"]],
   ["/api/v1/companion/sign-in", ["POST"]],

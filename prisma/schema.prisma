@@ -1823,7 +1823,7 @@ model FaqEntry {
   @@index([guildId])
 }
 
-// An officer poll answered with buttons; one vote per member, changeable.
+// An officer poll answered with buttons; each member picks up to maxChoices options, changeable.
 model Poll {
   id        String     @id @default(cuid())
   guildId   String
@@ -1833,6 +1833,7 @@ model Poll {
   channelId String?
   messageId String?
   closed    Boolean    @default(false)
+  maxChoices Int       @default(1)
   closesAt  DateTime?
   createdAt DateTime   @default(now())
   guild     Guild      @relation(fields: [guildId], references: [id], onDelete: Cascade)
@@ -1850,7 +1851,7 @@ model PollVote {
   poll     Poll     @relation(fields: [pollId], references: [id], onDelete: Cascade)
   member   Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
-  @@unique([pollId, memberId])
+  @@unique([pollId, memberId, option])
 }
 
 // A character the addons revealed (through the guild digest) that no Discord

@@ -66,13 +66,14 @@ export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) =
   return {
     route,
     imagePath,
-    /** On a public player page: stored achievements only. */
+    /** On a public player page: stored achievements only, except for the signed-in owner, whose own page is evaluated and always shown. */
     async publicSection(ctx: WebContext, accountId: string): Promise<string> {
       const account = await db.webAccount.findUnique({ where: { id: accountId }, select: { discordUserId: true } });
       if (!account) return "";
-      const data = await progress(account.discordUserId, false, ctx.now);
-      if (![...data.values()].some(row => row.earnedAt)) return "";
-      return `<h2>${ctx.t("Achievements", "Succès")}</h2><p><img src="${link(imagePath(accountId), ctx.lang)}" alt="${ctx.t("Achievements share card", "Carte de partage des succès")}" width="600" height="315" loading="lazy" style="max-width:100%;height:auto"></p>${list(ctx, data, false)}`;
+      const isOwner = ctx.account?.id === accountId;
+      const data = await progress(account.discordUserId, isOwner, ctx.now);
+      if (!isOwner && ![...data.values()].some(row => row.earnedAt)) return "";
+      return `<h2>${ctx.t("Achievements", "Succès")}</h2><p><img src="${link(imagePath(accountId), ctx.lang)}" alt="${ctx.t("Achievements share card", "Carte de partage des succès")}" width="600" height="315" loading="lazy" style="max-width:100%;height:auto"></p>${list(ctx, data, isOwner)}`;
     },
     /** On /me/: evaluates the signed-in member's data and records what is newly earned. */
     async meSection(ctx: WebContext): Promise<string> {

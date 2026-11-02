@@ -1,3 +1,4 @@
+import { createPugWeb } from "./services/pug-web.js";
 import { cachedOfficerCheck, meSection, type MeSectionInput } from "./services/me-layout.js";
 import { revokeCompanionCredential } from "./services/companion-revoke.js";
 import { createWebCommunityBadges } from "./services/web-community-badges.js";
@@ -277,7 +278,7 @@ export function createSiteApp(client?: Client) {
     status: discordUserId => memberLinkStatus(prisma, discordUserId)
   };
   const battleNet = createBattleNetPage(prismaBattleNetStore(prisma), battleNetConfig(config), discoverBattleNet, battleNetLinking);
-  const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, leaderboards.route, directory.route, achievementsWeb.route, achievementsWeb.ownerRoute, profiles.route];
+  const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, leaderboards.route, directory.route, achievementsWeb.route, achievementsWeb.ownerRoute, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
   const isOfficer = cachedOfficerCheck(rosterStore.guilds);
   const meSections: MeSectionInput[] = [
     meSection({ id: "profile", group: "overview", render: profiles.meSection, fold: { en: "Privacy and details", fr: "Confidentialité et détails" } }),

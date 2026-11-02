@@ -78,11 +78,14 @@ export async function configureCommunityBadges(database: PrismaClient, guildId: 
   }, { timeout: 20_000 });
 }
 
+/** Seasons created from this date share their shelves unless the member opts out; older seasons keep their opt-in. */
+export const SHARED_BY_DEFAULT_FROM = new Date("2026-11-02T00:00:00Z");
+
 export async function communityBadgeShelf(database: PrismaClient, seasonId: string, viewer: string, owner: string) {
-  const season = await database.communitySeason.findUnique({ where: { id: seasonId }, select: { guild: { select: { discordId: true } } } });
+  const season = await database.communitySeason.findUnique({ where: { id: seasonId }, select: { createdAt: true, guild: { select: { discordId: true } } } });
   if (!season) return null;
   const sharing = await database.communityBadgeSharing.findUnique({ where: { seasonId_userId: { seasonId, userId: owner } } });
-  if (viewer !== owner && !memberBadgeShelves(season.guild.discordId) && !sharing?.shared) return null;
+  if (viewer !== owner && !memberBadgeShelves(season.guild.discordId) && !(sharing ? sharing.shared : season.createdAt >= SHARED_BY_DEFAULT_FROM)) return null;
   return database.communityBadge.findMany({ where: { seasonId, userId: owner }, orderBy: [{ recordedAt: "asc" }, { code: "asc" }], take: 30 });
 }
 

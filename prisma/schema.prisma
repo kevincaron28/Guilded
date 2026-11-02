@@ -2680,3 +2680,28 @@ model PugSignup {
   @@unique([requestId, discordUserId])
   @@index([requestId, status])
 }
+
+// The bot owner's private console in the home server (docs/OWNER_CONSOLE.md): one row, id "main".
+model OwnerConsole {
+  id             String    @id @default("main")
+  channelId      String?
+  boardMessageId String?
+  // Opt-in daily digest (new/removed servers, error spikes). Off by default.
+  digestEnabled  Boolean   @default(false)
+  digestLastAt   DateTime?
+  // { [discordGuildId]: name } as of the last digest, so the next one can say what changed.
+  knownGuilds    Json?
+  updatedAt      DateTime  @updatedAt
+}
+
+// Every owner console action (who, what, which server). Never holds message text or secrets.
+model OwnerConsoleAudit {
+  id             String   @id @default(cuid())
+  actorId        String
+  action         String
+  targetGuildId  String?
+  detail         String?
+  createdAt      DateTime @default(now())
+
+  @@index([createdAt])
+}

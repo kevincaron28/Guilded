@@ -573,7 +573,7 @@ async function createMissingRoles(guild: DiscordGuild, lang: Lang): Promise<stri
   return created.length ? tx(lang, "Created roles: {roles}. Now give them to your officers.", { roles: created.join(", ") }) : tx(lang, "All roles already existed.");
 }
 
-const CORE_CHANNELS: ChannelField[] = ["notifyChannelId", "raidSignupChannelId", "logChannelId", "guideChannelId", "answerChannelId"];
+export const CORE_CHANNELS: ChannelField[] = ["notifyChannelId", "raidSignupChannelId", "logChannelId", "guideChannelId", "answerChannelId"];
 const RAIDTEAM_CHANNELS: ChannelField[] = ["readinessChannelId", "craftChannelId", "applicationChannelId", "attendanceChannelId", "weeklyReportChannelId"];
 const DUNGEON_CHANNELS: ChannelField[] = ["dungeonLeaderboardChannelId", "dungeonSignupChannelId", "dungeonChannelId"];
 // Every channel field /setup can create. Also used by /setup uninstall to find what to remove.

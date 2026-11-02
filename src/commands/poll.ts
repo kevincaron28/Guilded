@@ -46,6 +46,7 @@ export const pollCommand = new SlashCommandBuilder()
       .addStringOption((o) => o.setName("option1").setDescription("First option").setMaxLength(80).setRequired(true))
       .addStringOption((o) => o.setName("option2").setDescription("Second option").setMaxLength(80).setRequired(true));
     for (const n of [3, 4, 5]) sub.addStringOption((o) => o.setName(`option${n}`).setDescription(`Option ${n}`).setMaxLength(80));
+    sub.addIntegerOption((o) => o.setName("picks").setDescription("How many options each member may pick (default 1)").setMinValue(1).setMaxValue(25));
     sub.addStringOption((o) => o.setName("more").setDescription("More options after the first 5, separated by ; (25 in all)").setMaxLength(1500));
     sub.addStringOption((o) => o.setName("closes").setDescription("When it closes by itself, e.g. friday 8pm (default: stays open)"));
     return sub;
@@ -67,7 +68,7 @@ async function pollEmbed(pollId: string): Promise<EmbedBuilder> {
       { name: T("Votes"), value: String(total), inline: true },
       { name: T("Status"), value: closed ? T("Closed") : poll.closesAt ? T("Open until <t:{time}:f>", { time: Math.floor(poll.closesAt.getTime() / 1000) }) : T("Open"), inline: true }
     )
-    .setFooter({ text: T("Poll {id} · one vote each, you can change it", { id: poll.id }) });
+    .setFooter({ text: poll.maxChoices > 1 ? T("Poll {id} · pick up to {max}, click again to remove", { id: poll.id, max: poll.maxChoices }) : T("Poll {id} · one vote each, you can change it", { id: poll.id }) });
 }
 
 function pollButtons(pollId: string, options: string[], closed: boolean) {
@@ -148,7 +149,7 @@ export async function executePoll(interaction: ChatInputCommandInteraction): Pro
   const closesText = interaction.options.getString("closes");
   const settings = await guildService.getSettings(context.guildId);
   const closesAt = closesText ? parseRaidTime(closesText, settings?.timezone ?? "America/Toronto") : null;
-  const poll = await service.create({ guildId: context.guildId, question: interaction.options.getString("question", true), options, createdBy: interaction.user.id, closesAt });
+  const poll = await service.create({ guildId: context.guildId, question: interaction.options.getString("question", true), options, createdBy: interaction.user.id, closesAt, maxChoices: interaction.options.getInteger("picks") ?? 1 });
   const channel = interaction.channel;
   if (!channel?.isTextBased() || !("send" in channel)) throw new Error("I can't post in this channel.");
   const message = await channel.send({ embeds: [await pollEmbed(poll.id)], components: pollButtons(poll.id, poll.options, false) });
@@ -231,10 +232,14 @@ export async function handlePollButton(interaction: ButtonInteraction): Promise<
   const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
   const member = await guildService.ensureMember(guild.id, interaction.user.id, (interaction.member as GuildMember | null)?.displayName ?? interaction.user.username);
   try {
-    const poll = await service.vote(pollId, guild.id, member.id, Number(optionText));
+    const { poll, selected } = await service.vote(pollId, guild.id, member.id, Number(optionText));
     const lang: Lang = asLang((await guildService.getSettings(guild.id))?.language);
     const earned = await awardPollPoint(interaction, pollId).catch((error: unknown) => { console.error("Poll point failed", error); return false; });
-    await interaction.editReply({ content: tx(lang, "Your vote for **{option}** is recorded. Click another option to change it.", { option: poll.options[Number(optionText)] ?? "" }) + (earned ? "\n" + tx(lang, "+1 community point for voting.") : ""), allowedMentions: { parse: [] } });
+    const picks = selected.map((index) => poll.options[index] ?? "").join(", ");
+    const recorded = poll.maxChoices > 1
+      ? tx(lang, "Your picks ({count} of {max}): **{options}**. Click an option again to remove it.", { count: selected.length, max: poll.maxChoices, options: picks || "—" })
+      : tx(lang, "Your vote for **{option}** is recorded. Click another option to change it.", { option: poll.options[Number(optionText)] ?? "" });
+    await interaction.editReply({ content: recorded + (earned ? "\n" + tx(lang, "+1 community point for voting.") : ""), allowedMentions: { parse: [] } });
     await syncPoll(interaction.guild, pollId);
   } catch (error) {
     await interaction.editReply({ content: error instanceof Error ? error.message : "Could not record your vote.", allowedMentions: { parse: [] } }).catch(() => undefined);

@@ -60,3 +60,17 @@ Generated from `achievement-badges.ts`: tier picks the frame and metal (bronze c
 
 Add a row to `ACHIEVEMENTS` and a glyph in `GLYPH_BY_ID` (a test fails without it). Never reuse or rename an id. A new kind of measurement needs a case in
 `measure()` and a fact in `gatherAchievementFacts()`.
+
+## Sharing and announcements
+
+- **Share.** `/character achievements` replies privately with a "Share to channel" button. One click posts the same
+  card in the current channel as the member who clicked (no pings, 2 minute cooldown per member). The clicker must
+  be able to post and attach files there, and another member's card is not shared if their profile is hidden.
+- **Announcements (opt-in, default off).** `/config achievements announce:true channel:#...` turns on celebration
+  posts (`GuildSettings.achievementAnnounceEnabled`, `achievementChannelId`). Switching on first evaluates every
+  active member and marks everything already earned as announced, so nothing is backfilled. After that an hourly pass
+  (and any `/character achievements` view) evaluates members, and each member's new unlocks become ONE queued
+  `MESSAGE` job (`route: "achievements"`, so delivery is retried and rate-limited, and re-checks the setting). Only
+  that member is mentioned. A member with a hidden web profile is skipped (their rows are marked announced). The claim
+  is a transaction on `MemberAchievement.announcedAt`, so a restart or concurrent pass cannot post twice. A posting
+  failure never blocks evaluation. Turning it off posts nothing and keeps recording.

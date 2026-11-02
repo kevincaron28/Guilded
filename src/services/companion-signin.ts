@@ -1,7 +1,6 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { hashCompanionSecret } from "./character-pairing.js";
 import type { WebRoute } from "./web-app.js";
-import { parseCookies } from "./web-auth.js";
 import { escapeHtml, link } from "./web-layout.js";
 import type { WebAccountView } from "./web-store.js";
 
@@ -11,9 +10,7 @@ import type { WebAccountView } from "./web-store.js";
 // then returns the same answer a pairing code would. Requests live 10 minutes in memory: a bot
 // restart only means signing in again.
 //
-// The page must not approve a request someone else started and sent as a link. Three proofs:
-// - the online companion sets SAME_BROWSER_COOKIE to the request before opening the page, so the
-//   browser that approves is the one that asked (nothing to type);
+// The page must not approve a request someone else started and sent as a link. Two proofs:
 // - the Windows app listens on 127.0.0.1 and gives its port; after approval the page sends the
 //   browser there with a one-time proof, and the poll only answers with that proof, so a request
 //   started on another PC never gets the credential (nothing to type, and nothing is issued
@@ -27,9 +24,6 @@ const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 /** What the companion receives: the same fields as POST /api/v1/addon-pairings. */
 export type SignInGrant = { companionCredential: string; personal: true } | { companionCredential: string; personal?: false; guildDiscordId: string; wowGuildId?: string; gameEdition?: string; wowGuildName?: string };
-
-/** Set by the online companion (same site) to the request it opened; proves the same browser. */
-export const SAME_BROWSER_COOKIE = "__Host-guilded_signin";
 
 interface Pending {
   confirm: string; expiresAt: number; grant: SignInGrant | null; approving?: boolean; failures?: number;
@@ -177,8 +171,7 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
     }
     const servers = await deps.servers(ctx.account.discordUserId);
     const loopback = deps.signIn.loopbackFor(requestId);
-    const sameBrowser = parseCookies(ctx.request.headers.cookie)[SAME_BROWSER_COOKIE] === requestId;
-    const needsCode = !loopback && !sameBrowser;
+    const needsCode = !loopback;
     if (ctx.request.method === "POST") {
       if (needsCode && !deps.signIn.verifyConfirm(requestId, ctx.form?.get("code"))) {
         return kit.page(400, title, `<h1>${t("The code does not match", "Le code ne correspond pas")}</h1><p>${t("Type the code shown on your own companion.", "Tapez le code affiché sur votre propre compagnon.")}</p><p><a href="${link("/me/companion", lang, { request: requestId })}">${t("Go back and try again", "Revenir et réessayer")}</a></p>`, { noindex: true });

@@ -2,7 +2,7 @@
 
 Version remains 5.0.0. No database migration, protocol change or additional
 uploaded fields. Both parser modules remain required: `poe-log.mjs` provides
-Node hashing around `poe-events.mjs`, also used by the browser companion.
+Node hashing around `poe-events.mjs`.
 
 ## Behavior
 

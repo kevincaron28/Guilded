@@ -99,8 +99,7 @@ On the World of Warcraft page, **Export to spreadsheet** turns Guilded.lua into 
 Excel or Google Sheets, one per table (or one table picked from the list): standings (EP, GP,
 PR), loot history, attendance, raids and dungeon scores, with the same columns as
 `/guilded sheet` in game (`companion/sheet-export.mjs`). The desktop app asks for a folder and
-saves `guilded-<table>-<date>.csv` files there; the online companion downloads them (the browser
-may ask to allow multiple downloads). Files are UTF-8 with a byte-order mark so Excel shows
+saves `guilded-<table>-<date>.csv` files there. Files are UTF-8 with a byte-order mark so Excel shows
 accents, quoted as RFC 4180 says. Nothing is uploaded. `/reload` in WoW first so the file holds
 the latest data. Officers get Discord's own copy (standings, ledger, loot, attendance, roster)
 with `/officer export`.
@@ -127,18 +126,16 @@ The CLI uses `poeEnabled`, `poeLogFile`, `poeCharacter`, `poeLeague`, `poeMode`
 and `wowEnabled` in its config. See [the mapping guide](../docs/POE2_MAPPING.md)
 for consent, queue recovery, limitations and the real-client checklist.
 
-## Branded desktop and online companion
+## Branded Windows companion
 
 The redesigned companion uses the owner's Guilded logo, individual WoW and
 PoE2 pages, guided setup, light/dark themes, personal map history and searchable
-activity. `npm run companion:build` builds the shared browser interface.
+activity. `npm run companion:build` builds the app's interface bundle.
 
-After the approved server release, members can visit `/companion/` on the
-bot's HTTPS hostname without installing the companion. WoW uses a manually
-selected Guilded.lua and a standings download; the WoW addon is still needed.
-PoE2 manually imports recent log observations. Reselect updated files after
-playing. Personal pairing preserves existing device links. Manage and revoke individual devices at `/me/connections`.
-See [delivery modes, privacy and release steps](../docs/COMPANION_EXPERIENCE.md).
+The companion is Windows only (Microsoft Store first, unsigned GitHub download as a
+fallback); there is no browser version, and `/companion/` on the website is its
+download page. The WoW addon is still needed. Personal pairing preserves existing device links. Manage and revoke individual devices at `/me/connections`.
+See [install, privacy and build steps](../docs/COMPANION_EXPERIENCE.md).
 
 ## Support Guilded
 

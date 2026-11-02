@@ -218,6 +218,7 @@ through a pull request, then `npm run bugs -- resolve REF [REF...] --note "what 
 - `companion/` — the Node/CLI half of the uploader (also embedded in
   `companion-app/`, the Electron desktop app); `companion/engine.mjs` is the
   shared logic both use.
+- The companion is **Windows only** (Microsoft Store first, unsigned GitHub download as fallback; guidance everywhere is Store-first). The browser/online companion was removed: `/companion/` is a static download page on the site (`site/pages/companion*.md`), the Worker and bot redirect old `/companion/<asset>` paths to it, and `companion-app/renderer/ui-bundle.js` is built by `npm run companion:build` for the Electron UI only.
 - `addon/Guilded/Util.lua` — loaded first: shared helpers (`ns.util`) and the paced
   addon-message queue (`ns.comm`). Every module sends through `ns.comm.send`; the validator
   fails a module that calls `SendAddonMessage` directly.

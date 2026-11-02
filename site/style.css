@@ -184,10 +184,6 @@ form { margin: 22px 0 0; }
 .figure-bar > span:last-child { margin-left: auto; font-size: 14px; }
 .companion-figure img { display: block; width: 100%; height: auto; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .companion-figure figcaption { font-size: 9px; padding: 12px 16px; }
-.guild-address-details { margin: 16px 0 0; padding: 16px 0; }
-.guild-address-details summary { font-size: 12px; color: #c4cbbd; }
-.guild-address-details form .button { margin-top: 18px; }
-#address-result a { display: inline-block; padding: 10px 0; overflow-wrap: anywhere; }
 .community-section { display: grid; grid-template-columns: .65fr 1fr; gap: 65px; align-items: center; }
 .community-art { position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 280px; border: 1px solid #4b4a35; border-radius: 8px; background: radial-gradient(ellipse at 50% 60%, #75613c33, transparent 70%), repeating-linear-gradient(45deg, transparent 0 34px, #dbbd7110 35px, transparent 36px), #22261b; }
 .community-art::before { content: ""; position: absolute; width: 200px; height: 200px; border: 1px solid #9d865638; border-radius: 50%; }

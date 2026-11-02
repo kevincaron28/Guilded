@@ -115,7 +115,7 @@ describe("private character connection instructions", () => {
     try {
       const reply = await characterLinkPrompt(mocks.db as never, "guild1", "member1", "server1", "fr", "companion");
       expect(reply.components[0]!.toJSON().components.map((button) => "custom_id" in button ? button.custom_id : "link")).toEqual(["onboard:paircode:server1"]);
-      expect(reply.embeds[0]!.data.fields![1]!.value).toContain("Demande à un officier le lien");
+      expect(reply.embeds[0]!.data.fields![1]!.value).toContain("Demande à un officier où télécharger le compagnon");
     } finally { mocks.config.DISCORD_CLIENT_ID = appId; }
   });
 

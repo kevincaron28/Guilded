@@ -7,7 +7,7 @@ const HOSTED_COMPANION_URL = "https://guilded.kcaron.top/companion/";
 type LinkSettings = { COMPANION_WEB_URL?: string | undefined; DISCORD_CLIENT_ID?: string | undefined };
 
 // Never send an independently hosted bot's members to a different bot's pairing endpoint.
-// The browser already reads ?guild= for first-time setup; existing connections stay intact.
+// The page itself ignores ?guild=; it is kept so older links and tests stay valid.
 export function companionWebUrl(discordGuildId?: string, settings: LinkSettings = config): string | null {
   const address = settings.COMPANION_WEB_URL
     || (settings.DISCORD_CLIENT_ID === HOSTED_APPLICATION_ID ? HOSTED_COMPANION_URL : null);

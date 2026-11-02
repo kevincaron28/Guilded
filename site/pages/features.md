@@ -5,7 +5,7 @@
 <div class="actions"><a class="button" href="https://www.curseforge.com/wow/addons/guilded">Get the free addon <span aria-hidden="true">↗</span></a><a class="button secondary" href="../docs/MEMBER_INSTALL.html">Install guide <span aria-hidden="true">→</span></a></div>
 </section>
 
-<div class="feature-overview"><div><span class="number">01 / IN GAME</span><h2>Start where you play.</h2><p>Guild knowledge, standings and dungeon history in familiar WoW windows.</p></div><div><span class="number">02 / COMPANION</span><h2>Take it online.</h2><p>Send saved data to Discord or the public leaderboards. Browser or Windows.</p></div><div><span class="number">03 / DISCORD</span><h2>Keep the guild close.</h2><p>Signups, activities and polls. Guilded Lite works as soon as you add the bot.</p></div></div>
+<div class="feature-overview"><div><span class="number">01 / IN GAME</span><h2>Start where you play.</h2><p>Guild knowledge, standings and dungeon history in familiar WoW windows.</p></div><div><span class="number">02 / COMPANION</span><h2>Take it online.</h2><p>Send saved data to Discord or the public leaderboards. Free Windows app.</p></div><div><span class="number">03 / DISCORD</span><h2>Keep the guild close.</h2><p>Signups, activities and polls. Guilded Lite works as soon as you add the bot.</p></div></div>
 
 ## In game, no Discord needed
 
@@ -32,7 +32,7 @@ in an open-raids channel; full Guilded can browse a recent companion snapshot in
 
 ## The companion
 
-For taking your data online: connect your account, choose your saved addon data, then **Sync now** after playing. Export to spreadsheet works without connecting.
+A free Windows app, optional for the addon alone but needed for Discord and website features. Get it from [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (GitHub direct download as a fallback). Connect your account, choose your saved addon data, then **Sync now** after playing. Export to spreadsheet works without connecting.
 
 - **Wishlist:** your wanted items.
 - **Cores & prices:** core rules, rosters and item prices, for raid leaders.
@@ -40,7 +40,7 @@ For taking your data online: connect your account, choose your saved addon data,
 
 Your Discord permissions decide what you can see or change.
 
-[Open the companion](/companion/) · [Connection checklist](../docs/ONLINE_COMPANION_CHECK.html)
+[Get the companion](/companion/)
 
 ## Discord
 

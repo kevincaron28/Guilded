@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { companionSignInRoute, defaultDeviceName, confirmCode, createCompanionSignIn, SAME_BROWSER_COOKIE } from "../src/services/companion-signin.js";
+import { companionSignInRoute, defaultDeviceName, confirmCode, createCompanionSignIn } from "../src/services/companion-signin.js";
 import { createRequire } from "node:module";
 import { createWebApp, type WebRequest, type WebResponse } from "../src/services/web-app.js";
 import { startSignIn, waitForSignIn } from "../companion/engine.mjs";
@@ -209,25 +209,11 @@ describe("/me/companion without a code", () => {
     return { signIn, request, session, form, csrfOf, issued };
   }
 
-  it("approves in the online companion's own browser without asking for the code", async () => {
+  it("asks for the code when no Windows app started the request", async () => {
     const { signIn, request, session, form, csrfOf, issued } = setup();
-    const started = signIn.start()!;
-    const target = `/me/companion?request=${started.requestId}`;
-    const cookie = `${await session(target)}; ${SAME_BROWSER_COOKIE}=${started.requestId}`;
-    const page = await request("GET", target, { cookie });
-    expect(page.body).not.toContain('name="code"');
-    const done = await form(cookie, { csrf: csrfOf(page.body), request: started.requestId, choice: "111" });
-    expect(done.status).toBe(200);
-    expect(issued).toEqual(["222222222222222222@111"]);
-    expect(await signIn.poll(started.requestId)).toMatchObject({ companionCredential: "g".repeat(43), guildDiscordId: "111" });
-  });
-
-  it("still asks for the code when the link came from someone else's companion", async () => {
-    const { signIn, request, session, form, csrfOf, issued } = setup();
-    const theirs = signIn.start()!, mine = signIn.start()!;
+    const theirs = signIn.start()!;
     const target = `/me/companion?request=${theirs.requestId}`;
-    // This browser started a different request: that is no proof for the one in the link.
-    const cookie = `${await session(target)}; ${SAME_BROWSER_COOKIE}=${mine.requestId}`;
+    const cookie = await session(target);
     const page = await request("GET", target, { cookie });
     expect(page.body).toContain('name="code"');
     expect((await form(cookie, { csrf: csrfOf(page.body), request: theirs.requestId, choice: "111" })).status).toBe(400);

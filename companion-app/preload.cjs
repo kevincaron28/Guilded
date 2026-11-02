@@ -27,7 +27,6 @@ contextBridge.exposeInMainWorld("companion", {
   removeData: () => ipcRenderer.invoke("remove-data"),
   toggleTracking: () => ipcRenderer.invoke("toggle-tracking"),
   getPoeRuns: () => ipcRenderer.invoke("get-poe-runs"),
-  openOnline: () => ipcRenderer.invoke("open-online"),
   openConnections: () => ipcRenderer.invoke("open-connections"),
   openBattleNet: () => ipcRenderer.invoke("open-battlenet"),
   recoverSync: () => ipcRenderer.invoke("recover-sync"),

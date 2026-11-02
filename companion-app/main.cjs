@@ -618,12 +618,6 @@ async function manageRequest(change) {
 }
 registerIpc("manage-view", () => manageRequest(null));
 registerIpc("manage-edit", (_event, change) => manageRequest(change));
-registerIpc("open-online", () => {
-  engineModules.checkUrl(config.uploadUrl);
-  const url = new URL("/companion/", config.uploadUrl);
-  if (config.guildDiscordId) url.searchParams.set("guild", config.guildDiscordId);
-  return shell.openExternal(url.href);
-});
 
 registerIpc("open-connections", () => shell.openExternal(new URL("/me/connections", engineModules.checkUrl(config.uploadUrl || "https://guilded.kcaron.top")).href));
 registerIpc("open-battlenet", () => shell.openExternal(new URL("/me/battlenet", engineModules.checkUrl(config.uploadUrl || "https://guilded.kcaron.top")).href));

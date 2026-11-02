@@ -2,15 +2,14 @@
 
 Raid and guild management for **WoW Forever, Classic Era/Hardcore, Burning Crusade Classic,
 Mists Classic and Retail**: an in-game addon, a Discord bot and a small
-web companion that connects the two. An optional Windows app adds automatic syncing.
+Windows companion app that connects the two (optional for the addon alone, needed for Discord and website features; Windows only).
 Free for noncommercial use ([license](LICENSE)).
 
 | Part | What it does | Where |
 | --- | --- | --- |
 | **Addon** | Raids, attendance, EPGP, four loot systems (GP bids, loot council, soft reserves, EPGP priority), recipes and cooldowns, the guild calendar, gear and consumable checks, a live Ready page, a friendly window (gold coin on the minimap). Works alone, no Discord needed. Party/roll games are in the separate optional Guilded Games Alpha. | `addon/Guilded/` |
 | **Discord bot** (optional, hosted Guilded Lite with approval for full access, or independent hosting) | Raid signups with roles and waitlist, raid cores with a bench and their own loot system and item prices, weekly raids, EPGP standings, loot log, soft reserves, who can craft what, guild calendar sync, dungeon challenge, craft board, readiness board, polls, Warcraft Logs, applications, moderation helpers. | `src/` |
-| **Online companion** (default for Discord sync) | Webpage that remembers your pairing/folders and uploads data and returns standings when you click Sync now. | `companion/`, `companion-app/renderer/` |
-| **Windows companion** (optional, useful for leaders/officers) | Tray app that sends the addon's saved data to the bot after each `/reload` or logout and writes standings back into the game. | `companion-app/`, `companion/` |
+| **Windows companion** (optional for the addon alone; needed for Discord and website features) | Tray app that sends the addon's saved data to the bot after each `/reload` or logout and writes standings back into the game. Get it from [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) first; the unsigned GitHub download is the fallback. Windows only. | `companion-app/`, `companion/` |
 
 Every in-game and Discord command, and who can run it, is in [COMMANDS.md](COMMANDS.md).
 What changed in each version: [CHANGELOG.md](CHANGELOG.md).
@@ -56,7 +55,6 @@ and [recruitment board](https://guilded.kcaron.top/recruitment/).
 | [docs/GUILD_OWNER_SETUP.md](docs/GUILD_OWNER_SETUP.md) | Owners hosting an independent bot for their guild |
 | [docs/OWNER_WALKTHROUGH.md](docs/OWNER_WALKTHROUGH.md) | First-time owners: illustrated account-to-first-sync walkthrough |
 | [site/README.md](site/README.md) | Build, preview and publish the download/setup website |
-| [docs/ONLINE_COMPANION_CHECK.md](docs/ONLINE_COMPANION_CHECK.md) | Live companion findings and remaining sync acceptance |
 | [docs/AI_SETUP_HELP.md](docs/AI_SETUP_HELP.md) | Copyable prompts for guided installation and troubleshooting |
 | [COMMANDS.md](COMMANDS.md) | Every command and its permissions |
 | [addon/Guilded/README.md](addon/Guilded/README.md) | The addon in detail |

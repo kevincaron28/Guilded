@@ -1,14 +1,25 @@
 [
   {
+    "source": "companion.md",
+    "sourceFr": "companion.fr.md",
+    "path": "companion/",
+    "title": "Guilded companion — free Windows app (Microsoft Store)",
+    "titleFr": "Compagnon Guilded — application Windows gratuite (Microsoft Store)",
+    "description": "Install the free Guilded companion for Windows from Microsoft Store, with a direct GitHub download as a fallback. Optional for the addon, needed for Discord and website features.",
+    "descriptionFr": "Installez le compagnon Guilded gratuit pour Windows depuis le Microsoft Store, avec un téléchargement direct GitHub en solution de rechange. Facultatif pour l’addon, requis pour Discord et le site.",
+    "lang": "en",
+    "draft": false
+  },
+  {
     "source": "features.md",
     "sourceFr": "features.fr.md",
     "titleFr": "Fonctions de Guilded — addon, compagnon et Discord",
     "path": "features/",
-    "title": "Guilded features — addon, web companion and Discord",
-    "description": "Use Guilded in game, sync WoW standings from your browser, edit wishlists and explore your personal PoE2 mapping journal.",
+    "title": "Guilded features — addon, Windows companion and Discord",
+    "description": "Use Guilded in game, sync WoW standings with the Windows companion, edit wishlists and explore your personal PoE2 mapping journal.",
     "lang": "en",
     "draft": false,
-    "descriptionFr": "Utilisez Guilded en jeu, synchronisez les classements WoW depuis votre navigateur, modifiez vos souhaits et consultez votre journal PoE2."
+    "descriptionFr": "Utilisez Guilded en jeu, synchronisez les classements WoW avec le compagnon Windows, modifiez vos souhaits et consultez votre journal PoE2."
   },
   {
     "source": "officers.md",
@@ -24,8 +35,8 @@
   {
     "source": "status.md",
     "path": "status/",
-    "title": "Guilded status — bot, companion and leaderboards",
-    "description": "Live check of the Guilded Discord bot, online companion and leaderboards, with what to do if something is down.",
+    "title": "Guilded status — bot and leaderboards",
+    "description": "Live check of the Guilded Discord bot and leaderboards, with what to do if something is down.",
     "lang": "en",
     "draft": false
   },

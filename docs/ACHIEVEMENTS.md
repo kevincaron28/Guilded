@@ -1,6 +1,6 @@
 # Achievements and badges
 
-72 achievements, computed only from data Guilded already recorded. Nothing is self-reported, nothing
+125 rows (117 can be earned; 8 are legacy, see below), computed only from data Guilded already recorded. Nothing is self-reported, nothing
 awards points, and nothing is posted to Discord automatically.
 
 ## Where things live
@@ -20,10 +20,10 @@ awards points, and nothing is posted to Discord automatically.
 
 | Metric | Source |
 | --- | --- |
-| WoW level | highest `Character.level` among the member's synced characters |
-| Maximum level | characters at the cap of their edition (`WOW_LEVEL_CAP`: forever 60 (fixed, per Blizzard), era 60, TBC 70, Mists 90, retail 90) |
+| WoW level (per edition) | highest `Character.level` among the member's synced characters of that `gameEdition` |
+| Maximum level / alts (per edition) | characters of that edition at its cap (`WOW_LEVEL_CAP`: forever 60 (fixed, per Blizzard), era 60, TBC 70, Mists 90, retail 90) |
 | Dungeon variety | first completion of each distinct dungeon (`DungeonRun.instanceId`) |
-| Profession skill | highest `ProfessionSkill.skillLevel` (300 is the Era and Forever cap) |
+| Profession skill (per edition) | highest `ProfessionSkill.skillLevel` on a character of that edition (Forever and Era 300, TBC 375, Mists 600; Retail has none because its skill is per expansion) |
 | Dungeon runs | `DungeonRunPlayer` rows of valid, completed `DungeonRun`s |
 | Raids attended | `RaidAttendance` PRESENT, LATE or BENCHED on a COMPLETED, non-test raid |
 | Raid clears | those raids where every `RaidBoss` is KILLED |
@@ -50,6 +50,28 @@ awards points, and nothing is posted to Discord automatically.
   (see `docs/archive` and `opt_in_automation`); not built.
 - **Web privacy.** Only members of guilds the site serves (`hostedPilot.allows`), only for public
   profiles; a hidden profile shows nothing publicly.
+
+## WoW achievements per edition
+
+Level, level-cap and profession rows exist once per edition (`wow-<edition>-level-N`, `-alts-3`,
+`-profession-N`; editions `forever`, `classic-era`, `classic-tbc`, `classic-mists`, `retail`) and read only
+characters whose `gameEdition` matches, so a Retail 90 earns nothing for Forever. Levels step by 10 up to the
+edition's cap, so none is unreachable: **WoW Forever is fixed at 60** (Blizzard: growth is horizontal;
+`docs/archive/PRE_RELEASE_AUDIT_2026-10-22.md`), Era 60, TBC 70, Mists 90, Retail 90. There is no Wrath
+edition in Guilded, so no level 80 row. Each edition has its own badge colour and glyph and names itself
+("Forever: Level 40" / "Forever : niveau 40"). The website lists them in one section per edition.
+
+Dungeon runs, raids, Discord activity and the other guild rows stay common: runs and raid attendance do not
+record an edition, and they describe the guild, not a character.
+
+**Legacy rows.** The first WoW rows ignored the edition (`wow-level-20/40/60/80`, `wow-max-level`,
+`wow-max-level-3`, `profession-150/300`). They are flagged `legacy`: never awarded again, but a row a member
+already earned stays earned (never deleted, never re-announced) and is still listed on the website
+("earlier achievements") and the card. `ACHIEVEMENT_CATALOGUE_VERSION` is 3, so the first hourly pass after
+deploy records what history already earns for the new rows silently in every guild that announces.
+
+The website tiles are expandable without script (the CSP forbids it): a hidden checkbox plus label, so a tap,
+click or Space toggles the panel; with a mouse, hover or keyboard focus also shows it.
 
 ## Activity totals and long progressions
 

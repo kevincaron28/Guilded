@@ -1,5 +1,5 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
-import { ACHIEVEMENTS, GAME_LABEL, TIER_COLOR, TIER_LABEL, type AchievementGame } from "./achievements-catalogue.js";
+import { ACHIEVEMENTS, ACTIVE_ACHIEVEMENTS, EDITION_LABEL, GAME_LABEL, TIER_COLOR, TIER_LABEL, WOW_EDITIONS, ladderKey } from "./achievements-catalogue.js";
 import { badgeLabel, badgeSvg } from "./achievement-badges.js";
 import { storedAchievements, syncMemberAchievements } from "./achievements.js";
 import { achievementsCard } from "./end-cards.js";
@@ -40,12 +40,36 @@ export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) =
     return merged;
   }
 
-  /** A compact badge wall: small tiles grouped by game, earned first, with a progress bar on locked ones and a "next up" strip. */
+  // Each tile is a hidden checkbox + label + details panel, so it needs no script (the pages run under a strict
+  // CSP): a tap or click (or Space on the focused tile) toggles it, and on a mouse device hover or keyboard focus
+  // also shows it. On touch screens the open tile spans the row; with a mouse the panel floats over the rows below.
+  const TILE_STYLE = `<style>
+.ach-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px;position:relative}
+.ach{min-width:0}
+.ach>input.ach-t{position:absolute;width:1px;height:1px;margin:0;padding:0;border:0;opacity:0}
+.ach>label.ach-tile{display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;padding:8px 4px;margin:0;border-radius:8px;border:1px solid rgba(128,128,128,.3);border-top-width:3px;height:100%;box-sizing:border-box;cursor:pointer;color:var(--text);font-size:inherit}
+.ach>label.ach-tile.ach-locked{opacity:.75}
+.ach>input.ach-t:focus-visible+label.ach-tile{outline:2px solid var(--gold);outline-offset:2px}
+.ach>.ach-more{display:none;margin-top:6px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel);text-align:left;font-size:.85em;line-height:1.4;box-sizing:border-box}
+.ach>.ach-more p{margin:4px 0}
+.ach>input.ach-t:checked~.ach-more{display:block}
+.ach>input.ach-t:checked+label.ach-tile{height:auto}
+.ach:has(>input.ach-t:checked){grid-column:1/-1}
+@media (hover:hover) and (pointer:fine){
+.ach:has(>input.ach-t:checked){grid-column:auto}
+.ach>input.ach-t:checked+label.ach-tile{height:100%}
+.ach>.ach-more{position:absolute;left:0;right:0;z-index:10;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.ach:hover>.ach-more,.ach>input.ach-t:focus-visible~.ach-more{display:block}
+}
+</style>`;
+
+  /** A compact badge wall: small tiles grouped by WoW edition, guild and game, earned first, with a progress bar on locked ones, a details panel on each tile and a "next up" strip. */
   function list(ctx: WebContext, data: Map<string, AchievementProgress>, showProgress: boolean): string {
     const { t, lang } = ctx;
     const row = (id: string) => data.get(id) ?? { earnedAt: null, value: 0 };
-    const earned = ACHIEVEMENTS.filter(def => row(def.id).earnedAt).length;
-    const games: AchievementGame[] = ["wow", "guild", "poe2"];
+    // Legacy rows (replaced by the per-edition ones) are listed only when already earned.
+    const listed = ACHIEVEMENTS.filter(def => !def.legacy || row(def.id).earnedAt);
+    const earned = listed.filter(def => row(def.id).earnedAt).length;
     const track = "height:6px;border-radius:3px;background:rgba(128,128,128,.28);overflow:hidden";
     const bar = (def: (typeof ACHIEVEMENTS)[number], value: number) => `<div style="${track}" role="progressbar" aria-valuemin="0" aria-valuemax="${def.threshold}" aria-valuenow="${Math.min(value, def.threshold)}"><div style="height:100%;width:${Math.round(Math.min(value / def.threshold, 1) * 100)}%;background:${TIER_COLOR[def.tier]}"></div></div>`;
     const statusOf = (def: (typeof ACHIEVEMENTS)[number]) => {
@@ -55,19 +79,33 @@ export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) =
     };
     // The badge is decorative with its accessible name in a title; the name, tier and status are all text too.
     const badge = (def: (typeof ACHIEVEMENTS)[number], size: number) => `<span title="${escapeHtml(badgeLabel(def, Boolean(row(def.id).earnedAt), lang))}" style="flex:none;display:block;width:${size}px;height:${size}px">${badgeSvg(def, Boolean(row(def.id).earnedAt), { size })}</span>`;
-    const next = showProgress ? ACHIEVEMENTS.filter(def => !row(def.id).earnedAt && row(def.id).value > 0 && !(def.rank && ACHIEVEMENTS.some(other => other.metric === def.metric && other.threshold < def.threshold && !row(other.id).earnedAt))).sort((a, b) => row(b.id).value / b.threshold - row(a.id).value / a.threshold).slice(0, 3) : [];
+    const next = showProgress ? ACTIVE_ACHIEVEMENTS.filter(def => !row(def.id).earnedAt && row(def.id).value > 0 && !(def.rank && ACTIVE_ACHIEVEMENTS.some(other => ladderKey(other) === ladderKey(def) && other.threshold < def.threshold && !row(other.id).earnedAt))).sort((a, b) => row(b.id).value / b.threshold - row(a.id).value / a.threshold).slice(0, 3) : [];
     const nextUp = next.length ? `<h3>${t("Next up", "Prochains succès")}</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">${next.map(def => `<article class="card" style="display:flex;gap:12px;align-items:center;border-left:4px solid ${TIER_COLOR[def.tier]}">${badge(def, 48)}<div style="min-width:0;flex:1"><h4 style="margin:0">${escapeHtml(def[lang].name)}</h4><p style="margin:2px 0 6px;font-size:.85em">${escapeHtml(def[lang].description)}</p>${bar(def, row(def.id).value)}<p class="tag" style="margin:4px 0 0">${escapeHtml(statusOf(def))}</p></div></article>`).join("")}</div>` : "";
-    return `<p>${t(`${earned} of ${ACHIEVEMENTS.length} unlocked. Achievements are worked out from data Guilded already recorded (synced characters, dungeon runs, raid attendance, Discord activity totals and your own PoE2 log), never self-reported, and they give no points.`, `${earned} sur ${ACHIEVEMENTS.length} débloqués. Les succès sont calculés à partir de données déjà enregistrées par Guilded (personnages synchronisés, donjons, présences aux raids, totaux d'activité Discord et votre journal PoE2), jamais déclarés, et ne donnent aucun point.`)}</p>${nextUp}`
-      + games.map(game => {
-        const defs = ACHIEVEMENTS.filter(def => def.game === game);
-        const done = defs.filter(def => row(def.id).earnedAt).length;
-        const ordered = [...defs.filter(def => row(def.id).earnedAt), ...defs.filter(def => !row(def.id).earnedAt)];
-        const tiles = ordered.map(def => {
-          const r = row(def.id);
-          return `<article title="${escapeHtml(def[lang].description)}" style="display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;padding:8px 4px;border-radius:8px;border:1px solid rgba(128,128,128,.3);border-top:3px solid ${TIER_COLOR[def.tier]};${r.earnedAt ? "" : "opacity:.75"}">${badge(def, 56)}<span style="font-size:.8em;font-weight:600;line-height:1.2;overflow-wrap:anywhere">${escapeHtml(def[lang].name)}</span>${!r.earnedAt && showProgress ? `<div style="width:80%">${bar(def, r.value)}</div>` : ""}<span class="tag" style="font-size:.7em">${TIER_LABEL[def.tier][lang]} · ${escapeHtml(statusOf(def))}</span></article>`;
-        }).join("");
-        return `<h3>${GAME_LABEL[game][lang]} <small>(${done}/${defs.length})</small></h3><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px">${tiles}</div>`;
+    // The details panel: full text, tier, edition, how it is worked out, the date or the progress, and how to share it.
+    const details = (def: (typeof ACHIEVEMENTS)[number]) => {
+      const r = row(def.id);
+      const edition = def.edition ? `<p><strong>${t("Edition", "Édition")}:</strong> ${escapeHtml(EDITION_LABEL[def.edition][lang])} · ${t("only characters of this edition count", "seuls les personnages de cette édition comptent")}</p>` : "";
+      const state = r.earnedAt ? `<p><strong>${escapeHtml(statusOf(def))}</strong></p>${showProgress ? `<p>${t("Share it in Discord: run /achievements, then press “Share to channel”.", "Partagez-le sur Discord : lancez /achievements, puis « Partager dans le salon ».")}</p>` : ""}`
+        : showProgress ? `<p>${t("Progress", "Progression")}: ${Math.min(r.value, def.threshold)}/${def.threshold}</p>${bar(def, r.value)}` : `<p>${t("Locked", "Verrouillé")}</p>`;
+      return `<h4 style="margin:0 0 4px">${escapeHtml(def[lang].name)}</h4><p><strong>${t("How to earn", "Comment l'obtenir")}:</strong> ${escapeHtml(def[lang].description)}</p><p><strong>${t("Tier", "Niveau")}:</strong> ${TIER_LABEL[def.tier][lang]}</p>${edition}${state}`;
+    };
+    const section = (title: string, defs: readonly (typeof ACHIEVEMENTS)[number][]) => {
+      const visible = defs.filter(def => listed.includes(def));
+      if (!visible.length) return "";
+      const done = visible.filter(def => row(def.id).earnedAt).length;
+      const ordered = [...visible.filter(def => row(def.id).earnedAt), ...visible.filter(def => !row(def.id).earnedAt)];
+      const tiles = ordered.map(def => {
+        const r = row(def.id), id = `ach-${def.id}`;
+        return `<div class="ach"><input type="checkbox" class="ach-t" id="${id}" aria-controls="${id}-more" aria-label="${escapeHtml(`${def[lang].name}: ${TIER_LABEL[def.tier][lang]}, ${statusOf(def)}`)}"><label class="ach-tile${r.earnedAt ? "" : " ach-locked"}" for="${id}" title="${escapeHtml(def[lang].description)}" style="border-top-color:${TIER_COLOR[def.tier]}">${badge(def, 56)}<span style="font-size:.8em;font-weight:600;line-height:1.2;overflow-wrap:anywhere">${escapeHtml(def[lang].name)}</span>${!r.earnedAt && showProgress ? `<div style="width:80%">${bar(def, r.value)}</div>` : ""}<span class="tag" style="font-size:.7em">${TIER_LABEL[def.tier][lang]} · ${escapeHtml(statusOf(def))}</span></label><div class="ach-more" id="${id}-more">${details(def)}</div></div>`;
       }).join("");
+      return `<h3>${escapeHtml(title)} <small>(${done}/${visible.length})</small></h3><div class="ach-grid">${tiles}</div>`;
+    };
+    const wow = (GAME_LABEL.wow)[lang];
+    return TILE_STYLE + `<p>${t(`${earned} of ${listed.length} unlocked. Achievements are worked out from data Guilded already recorded (synced characters, dungeon runs, raid attendance, Discord activity totals and your own PoE2 log), never self-reported, and they give no points. Tap or hover a badge for details.`, `${earned} sur ${listed.length} débloqués. Les succès sont calculés à partir de données déjà enregistrées par Guilded (personnages synchronisés, donjons, présences aux raids, totaux d'activité Discord et votre journal PoE2), jamais déclarés, et ne donnent aucun point. Touchez ou survolez un badge pour les détails.`)}</p>${nextUp}`
+      + WOW_EDITIONS.map(edition => section(`${wow} · ${EDITION_LABEL[edition][lang]}`, ACHIEVEMENTS.filter(def => def.edition === edition))).join("")
+      + section(`${wow} · ${t("earlier achievements", "anciens succès")}`, ACHIEVEMENTS.filter(def => def.game === "wow" && !def.edition))
+      + section(GAME_LABEL.guild[lang], ACHIEVEMENTS.filter(def => def.game === "guild"))
+      + section(GAME_LABEL.poe2[lang], ACHIEVEMENTS.filter(def => def.game === "poe2"));
   }
 
   const route: WebRoute = async (ctx, kit) => {

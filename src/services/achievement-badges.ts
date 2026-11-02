@@ -1,4 +1,4 @@
-import type { AchievementDef, AchievementGame, AchievementMetric, AchievementTier } from "./achievements-catalogue.js";
+import type { AchievementDef, AchievementGame, AchievementMetric, AchievementTier, WowEdition } from "./achievements-catalogue.js";
 import { ACHIEVEMENTS, TIER_LABEL } from "./achievements-catalogue.js";
 
 // Badge artwork for the achievements, generated as SVG from this one module (original shapes, no game
@@ -67,7 +67,13 @@ const SINGLE_GLYPH: Record<string, GlyphName> = {
   "poe2-maps-100": "map", "poe2-maps-500": "pin"
 };
 /** One glyph per achievement id. The test suite requires every catalogue id to appear here. */
-export const GLYPH_BY_ID: Record<string, GlyphName> = { ...SINGLE_GLYPH, ...Object.fromEntries(ACHIEVEMENTS.filter(def => def.rank).map(def => [def.id, LADDER_GLYPH[def.metric] ?? "star"])) };
+const EDITION_LEVEL_GLYPH: Record<WowEdition, GlyphName> = { forever: "flame", "classic-era": "shield", "classic-tbc": "gem", "classic-mists": "tower", retail: "crown" };
+const editionGlyph = (def: AchievementDef): GlyphName => def.metric === "wowEditionCap" ? "stars" : def.metric === "wowEditionProfession" ? "anvil" : EDITION_LEVEL_GLYPH[def.edition!];
+export const GLYPH_BY_ID: Record<string, GlyphName> = {
+  ...SINGLE_GLYPH,
+  ...Object.fromEntries(ACHIEVEMENTS.filter(def => def.edition).map(def => [def.id, editionGlyph(def)])),
+  ...Object.fromEntries(ACHIEVEMENTS.filter(def => def.rank && !def.edition).map(def => [def.id, LADDER_GLYPH[def.metric] ?? "star"]))
+};
 
 // Frame outlines on a 64x64 grid, one per tier: circle, hexagon, shield, octagon, spiked star, sunburst.
 const spiked = Array.from({ length: 16 }, (_, i) => { const a = -Math.PI / 2 + (i * Math.PI) / 8, d = i % 2 ? 24.500 : 30.500; return `${(32 + d * Math.cos(a)).toFixed(1)},${(32 + d * Math.sin(a)).toFixed(1)}`; }).join(" ");
@@ -92,14 +98,21 @@ const METAL: Record<AchievementTier, [string, string, string, string]> = {
 const GAME: Record<AchievementGame, { plate: [string, string]; glyph: string }> = {
   wow: { plate: ["#24518a", "#0c1c36"], glyph: "#ffd45c" }, guild: { plate: ["#1f5a34", "#0b2214"], glyph: "#8ff0a0" }, poe2: { plate: ["#661616", "#240606"], glyph: "#ff8a4a" }
 };
+// Each WoW edition has its own centre-plate colour and glyph colour, so a Forever badge never reads as a Retail one.
+const EDITION_ACCENT: Record<WowEdition, { plate: [string, string]; glyph: string }> = {
+  forever: { plate: ["#4a2f9a", "#150b36"], glyph: "#d2c4ff" }, "classic-era": { plate: ["#7a5420", "#2e1c07"], glyph: "#ffd990" },
+  "classic-tbc": { plate: ["#1f7a2e", "#082a0f"], glyph: "#b4ff8a" }, "classic-mists": { plate: ["#0f7364", "#05302a"], glyph: "#8ff5df" },
+  retail: { plate: ["#24518a", "#0c1c36"], glyph: "#ffd45c" }
+};
 const LOCKED = { metal: ["#4a4f58", "#33373e", "#24272c", "#181a1e"], plate: ["#16181c", "#0b0c0e"], glyph: "#5e6268" };
 
 /** The badge's elements on a 64x64 grid (no outer svg), with ids unique to this def and state. */
 export function badgeInner(def: AchievementDef, earned: boolean): string {
   const id = `ab-${def.id}-${earned ? "e" : "l"}`;
   const [m0, m1, m2, edge] = earned ? METAL[def.tier] : (LOCKED.metal as [string, string, string, string]);
-  const [p0, p1] = earned ? GAME[def.game].plate : (LOCKED.plate as [string, string]);
-  const glyph = earned ? GAME[def.game].glyph : LOCKED.glyph;
+  const accent = def.edition ? EDITION_ACCENT[def.edition] : GAME[def.game];
+  const [p0, p1] = earned ? accent.plate : (LOCKED.plate as [string, string]);
+  const glyph = earned ? accent.glyph : LOCKED.glyph;
   const frame = FRAME[def.tier];
   const gloss = earned ? `<ellipse cx="25" cy="17" rx="13" ry="6" fill="#fff" opacity=".18" transform="rotate(-20 25 17)"/>` : "";
   const gem = def.tier === "epic" || def.tier === "legendary" ? `<circle cx="32" cy="6.500" r="3.200" fill="${earned ? (def.tier === "epic" ? "#ff5ad0" : "#5ae6ff") : "#2a2d33"}" stroke="${edge}" stroke-width="1"/>` : "";

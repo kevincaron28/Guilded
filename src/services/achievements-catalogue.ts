@@ -10,12 +10,15 @@ export type AchievementGame = "wow" | "poe2" | "guild";
 export type AchievementTier = "bronze" | "silver" | "gold" | "platinum" | "epic" | "legendary";
 
 /** Bumped whenever rows are added that older data can already satisfy; guilds that announce re-baseline quietly once. */
-export const ACHIEVEMENT_CATALOGUE_VERSION = 2;
+export const ACHIEVEMENT_CATALOGUE_VERSION = 3;
 
 /**
  * What is measured:
- * - wowLevel: the highest level among the member's synced characters.
- * - wowMaxLevel: characters standing at their edition's level cap (threshold = how many).
+ * - wowLevel / wowMaxLevel: the original edition-less level rows. They are legacy: kept so rows already earned stay
+ *   earned, never awarded again (the edition rows below replace them).
+ * - wowEditionLevel: the highest level among the member's synced characters of ONE edition (def.edition).
+ * - wowEditionCap: characters of that edition standing at its level cap (threshold = how many).
+ * - wowEditionProfession: the highest profession skill on a character of that edition.
  * - dungeonRuns: valid, completed dungeon runs the member took part in.
  * - raidsAttended: completed guild raids where an officer recorded the member present, late or benched.
  * - raidClears: those raids where every boss was marked defeated.
@@ -30,7 +33,7 @@ export const ACHIEVEMENT_CATALOGUE_VERSION = 2;
  * - communityPoints: points earned on the guild's community leaderboards (awards minus reversals).
  * - epEarned: effort points (EP) the raid ledger awarded.
  */
-export type AchievementMetric = "wowLevel" | "wowMaxLevel" | "dungeonRuns" | "dungeonVariety" | "professionSkill" | "raidsAttended" | "raidClears" | "activeDays" | "poeLevel" | "poeMaps" | "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned";
+export type AchievementMetric = "wowLevel" | "wowMaxLevel" | "dungeonRuns" | "dungeonVariety" | "professionSkill" | "raidsAttended" | "raidClears" | "activeDays" | "poeLevel" | "poeMaps" | "wowEditionLevel" | "wowEditionCap" | "wowEditionProfession" | "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned";
 
 export interface AchievementText { name: string; description: string }
 export interface AchievementDef {
@@ -41,6 +44,10 @@ export interface AchievementDef {
   threshold: number;
   /** Position in a long progression (1 = first step); the badge shows that many pips so same-tier steps differ. */
   rank?: number;
+  /** WoW edition this row belongs to; it is evaluated from characters of that edition only. */
+  edition?: WowEdition;
+  /** Replaced by edition rows: never awarded again, but an already earned row stays earned and is shown. */
+  legacy?: boolean;
   en: AchievementText;
   fr: AchievementText;
 }
@@ -49,6 +56,19 @@ export interface AchievementDef {
 // TBC 70, Mists Classic and Retail (Midnight) 90. Anything not listed counts as 60. PoE2 caps at 100.
 export const WOW_LEVEL_CAP: Record<string, number> = { forever: 60, "classic-era": 60, "classic-tbc": 70, "classic-mists": 90, retail: 90 };
 export const wowLevelCap = (edition: string | null | undefined) => WOW_LEVEL_CAP[edition ?? "forever"] ?? 60;
+
+export type WowEdition = "forever" | "classic-era" | "classic-tbc" | "classic-mists" | "retail";
+export const WOW_EDITIONS: readonly WowEdition[] = ["forever", "classic-era", "classic-tbc", "classic-mists", "retail"];
+/** `label` heads the website section; `short` prefixes the achievement names. */
+export const EDITION_LABEL: Record<WowEdition, { en: string; fr: string; short: string }> = {
+  forever: { en: "WoW Forever", fr: "WoW Forever", short: "Forever" }, "classic-era": { en: "Classic Era", fr: "Classic Era", short: "Era" },
+  "classic-tbc": { en: "TBC Classic", fr: "TBC Classic", short: "TBC" }, "classic-mists": { en: "Mists Classic", fr: "Mists Classic", short: "Mists" },
+  retail: { en: "Retail", fr: "Retail", short: "Retail" }
+};
+// Highest profession skill per edition (Forever and Era 300, TBC 375, Mists 600). Retail's skill is per expansion, so it has no profession rows.
+const PROFESSION_STEPS: Partial<Record<WowEdition, number[]>> = { forever: [150, 300], "classic-era": [150, 300], "classic-tbc": [150, 300, 375], "classic-mists": [150, 300, 450, 600] };
+/** Two rows share a progression (and a "next" slot) only if they share this key. */
+export const ladderKey = (def: AchievementDef) => `${def.metric}:${def.edition ?? ""}`;
 
 const def = (id: string, game: AchievementGame, tier: AchievementTier, metric: AchievementMetric, threshold: number, en: [string, string], fr: [string, string]): AchievementDef =>
   ({ id, game, tier, metric, threshold, en: { name: en[0], description: en[1] }, fr: { name: fr[0], description: fr[1] } });
@@ -95,8 +115,39 @@ const ACTIVITY_LADDERS: AchievementDef[] = [
   ], (n, fr) => fr ? `Gagner ${grouped(n, true)} points d'effort (PE) dans le registre de raid.` : `Earn ${grouped(n, false)} effort points (EP) in the raid ledger.`)
 ];
 
-export const ACHIEVEMENTS: readonly AchievementDef[] = [
-  // WoW: levels, then the level cap.
+const tierFor = (value: number, cap: number): AchievementTier => value >= cap ? "epic" : value / cap >= 0.7 ? "gold" : value / cap >= 0.4 ? "silver" : "bronze";
+
+/** Per edition: a level step every 10 levels up to that edition's cap (so none is unreachable), the cap, three characters at it, and profession steps. */
+const EDITION_ACHIEVEMENTS: AchievementDef[] = WOW_EDITIONS.flatMap(edition => {
+  const cap = WOW_LEVEL_CAP[edition]!, { short } = EDITION_LABEL[edition], label = EDITION_LABEL[edition];
+  const base = { game: "wow" as const, edition };
+  const levels: number[] = [];
+  for (let level = 10; level < cap; level += 10) levels.push(level);
+  levels.push(cap);
+  const rows: AchievementDef[] = levels.map((level, i) => ({
+    ...base, id: `wow-${edition}-level-${level}`, tier: tierFor(level, cap), metric: "wowEditionLevel" as const, threshold: level, rank: i + 1,
+    en: { name: `${short}: Level ${level}${level === cap ? " (Max)" : ""}`, description: level === cap ? `Reach the level cap (${level}) on a ${label.en} character.` : `Reach level ${level} on a ${label.en} character.` },
+    fr: { name: `${short} : niveau ${level}${level === cap ? " (max)" : ""}`, description: level === cap ? `Atteindre le niveau maximum (${level}) avec un personnage ${label.fr}.` : `Atteindre le niveau ${level} avec un personnage ${label.fr}.` }
+  }));
+  rows.push({
+    ...base, id: `wow-${edition}-alts-3`, tier: "epic", metric: "wowEditionCap", threshold: 3,
+    en: { name: `${short}: Army of Alts`, description: `Have three ${label.en} characters at the level cap (${cap}).` },
+    fr: { name: `${short} : armée de rerolls`, description: `Avoir trois personnages ${label.fr} au niveau maximum (${cap}).` }
+  });
+  const skills = PROFESSION_STEPS[edition] ?? [];
+  skills.forEach((skill, i) => rows.push({
+    ...base, id: `wow-${edition}-profession-${skill}`, tier: tierFor(skill, skills[skills.length - 1]!), metric: "wowEditionProfession", threshold: skill, rank: i + 1,
+    en: { name: `${short}: Artisan ${skill}`, description: `Reach skill ${skill} in a profession on a ${label.en} character.` },
+    fr: { name: `${short} : artisan ${skill}`, description: `Atteindre la compétence ${skill} dans un métier avec un personnage ${label.fr}.` }
+  }));
+  return rows;
+});
+
+// The first WoW rows ignored the edition, so a level 60 on Retail earned "Sixty and Counting". They are replaced by the edition rows.
+const LEGACY_IDS = new Set(["wow-level-20", "wow-level-40", "wow-level-60", "wow-level-80", "wow-max-level", "wow-max-level-3", "profession-150", "profession-300"]);
+
+const BASE_ACHIEVEMENTS: AchievementDef[] = [
+  // WoW: the original edition-less rows (legacy), replaced by EDITION_ACHIEVEMENTS.
   def("wow-level-20", "wow", "bronze", "wowLevel", 20, ["Getting Started", "Reach level 20 on a character."], ["Premiers pas", "Atteindre le niveau 20 avec un personnage."]),
   def("wow-level-40", "wow", "silver", "wowLevel", 40, ["Seasoned Adventurer", "Reach level 40 on a character."], ["Aventurier aguerri", "Atteindre le niveau 40 avec un personnage."]),
   def("wow-level-60", "wow", "gold", "wowLevel", 60, ["Sixty and Counting", "Reach level 60 on a character."], ["Soixante et plus", "Atteindre le niveau 60 avec un personnage."]),
@@ -141,8 +192,16 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   def("poe2-maps-500", "poe2", "gold", "poeMaps", 500, ["Master Cartographer", "Clear 500 maps in Path of Exile 2."], ["Maître cartographe", "Parcourir 500 cartes dans Path of Exile 2."]),
 
   // Discord activity, community points and EP: long progressions (see ACTIVITY_LADDERS above).
-  ...ACTIVITY_LADDERS
+  ...ACTIVITY_LADDERS,
+
+  // WoW per edition (levels, level cap, profession skill).
+  ...EDITION_ACHIEVEMENTS
 ];
+
+/** Every row, legacy included (ids are stored forever, so lookups and the badge art cover all of them). */
+export const ACHIEVEMENTS: readonly AchievementDef[] = BASE_ACHIEVEMENTS.map(row => LEGACY_IDS.has(row.id) ? { ...row, legacy: true } : row);
+/** What can still be earned: the catalogue without the legacy rows. */
+export const ACTIVE_ACHIEVEMENTS: readonly AchievementDef[] = ACHIEVEMENTS.filter(row => !row.legacy);
 
 const BY_ID = new Map(ACHIEVEMENTS.map(row => [row.id, row]));
 export const achievementById = (id: string): AchievementDef | undefined => BY_ID.get(id);
@@ -154,3 +213,5 @@ export const TIER_LABEL: Record<AchievementTier, { en: string; fr: string }> = {
 export const GAME_LABEL: Record<AchievementGame, { en: string; fr: string }> = {
   wow: { en: "World of Warcraft", fr: "World of Warcraft" }, poe2: { en: "Path of Exile 2", fr: "Path of Exile 2" }, guild: { en: "Guild", fr: "Guilde" }
 };
+/** Where a row is listed: its WoW edition if it has one, else its game. */
+export const groupLabel = (def: AchievementDef, lang: "en" | "fr") => def.edition ? EDITION_LABEL[def.edition][lang] : GAME_LABEL[def.game][lang];

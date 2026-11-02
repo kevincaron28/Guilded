@@ -70,11 +70,14 @@ export function achievementsCard(name: string, items: AchievementCardItem[], lan
   const rows = items.flatMap(item => { const def = achievementById(item.id); return def ? [{ def, ...item }] : []; });
   const earned = rows.filter(row => row.earnedAt).sort((a, b) => b.earnedAt!.getTime() - a.earnedAt!.getTime());
   const count = (game: AchievementGame) => `${earned.filter(row => row.def.game === game).length}/${ACHIEVEMENTS.filter(def => def.game === game).length}`;
-  const next = rows.filter(row => !row.earnedAt).map(row => ({ row, ratio: row.value / row.def.threshold })).sort((a, b) => b.ratio - a.ratio)[0]?.row;
+  // A long progression shows only its highest earned step, and only its next unearned step as "next", so one ladder cannot crowd the card.
+  const topStep = (row: (typeof earned)[number]) => !row.def.rank || !earned.some(other => other.def.metric === row.def.metric && other.def.threshold > row.def.threshold);
+  const nextStep = (row: (typeof rows)[number]) => !row.def.rank || !rows.some(other => !other.earnedAt && other.def.metric === row.def.metric && other.def.threshold < row.def.threshold);
+  const next = rows.filter(row => !row.earnedAt && nextStep(row)).map(row => ({ row, ratio: row.value / row.def.threshold })).sort((a, b) => b.ratio - a.ratio)[0]?.row;
   const label = (def: AchievementDef) => def[lang].name;
   const shown: CardRow[] = earned.length
-    ? earned.slice(0, 5).map(row => ({ name: label(row.def), sub: `${row.earnedAt!.toISOString().slice(0, 10)} · ${GAME_LABEL[row.def.game][lang]}`, color: TIER_COLOR[row.def.tier], right: TIER_LABEL[row.def.tier][lang], icon: badgeInner(row.def, true) }))
-    : rows.filter(row => !row.earnedAt).sort((a, b) => b.value / b.def.threshold - a.value / a.def.threshold).slice(0, 5)
+    ? earned.filter(topStep).slice(0, 5).map(row => ({ name: label(row.def), sub: `${row.earnedAt!.toISOString().slice(0, 10)} · ${GAME_LABEL[row.def.game][lang]}`, color: TIER_COLOR[row.def.tier], right: TIER_LABEL[row.def.tier][lang], icon: badgeInner(row.def, true) }))
+    : rows.filter(row => !row.earnedAt && nextStep(row)).sort((a, b) => b.value / b.def.threshold - a.value / a.def.threshold).slice(0, 5)
       .map(row => ({ name: label(row.def), sub: `${Math.min(row.value, row.def.threshold)}/${row.def.threshold}`, color: "#8a7a5a", right: t("Locked", "Verrouillé"), icon: badgeInner(row.def, false) }));
   return {
     eyebrow: t("Guilded · Achievements", "Guilded · Succès"), title: name,

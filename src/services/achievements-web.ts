@@ -11,7 +11,7 @@ import type { WebContext, WebRoute } from "./web-app.js";
 // public player page. The public page shows what is already stored; only the signed-in owner's /me/
 // view evaluates (and records) newly earned ones. Guilds the site does not serve are never included.
 
-type Db = Pick<PrismaClient, "webAccount" | "guildSettings" | "member" | "memberAchievement" | "character" | "professionSkill" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit">;
+type Db = Pick<PrismaClient, "webAccount" | "guildSettings" | "member" | "memberAchievement" | "character" | "professionSkill" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit" | "communityPoint" | "epgpTransaction" | "memberActivityTotal">;
 export interface AchievementProgress { earnedAt: Date | null; value: number }
 
 export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) => boolean) {
@@ -55,9 +55,9 @@ export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) =
     };
     // The badge is decorative with its accessible name in a title; the name, tier and status are all text too.
     const badge = (def: (typeof ACHIEVEMENTS)[number], size: number) => `<span title="${escapeHtml(badgeLabel(def, Boolean(row(def.id).earnedAt), lang))}" style="flex:none;display:block;width:${size}px;height:${size}px">${badgeSvg(def, Boolean(row(def.id).earnedAt), { size })}</span>`;
-    const next = showProgress ? ACHIEVEMENTS.filter(def => !row(def.id).earnedAt && row(def.id).value > 0).sort((a, b) => row(b.id).value / b.threshold - row(a.id).value / a.threshold).slice(0, 3) : [];
+    const next = showProgress ? ACHIEVEMENTS.filter(def => !row(def.id).earnedAt && row(def.id).value > 0 && !(def.rank && ACHIEVEMENTS.some(other => other.metric === def.metric && other.threshold < def.threshold && !row(other.id).earnedAt))).sort((a, b) => row(b.id).value / b.threshold - row(a.id).value / a.threshold).slice(0, 3) : [];
     const nextUp = next.length ? `<h3>${t("Next up", "Prochains succès")}</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">${next.map(def => `<article class="card" style="display:flex;gap:12px;align-items:center;border-left:4px solid ${TIER_COLOR[def.tier]}">${badge(def, 48)}<div style="min-width:0;flex:1"><h4 style="margin:0">${escapeHtml(def[lang].name)}</h4><p style="margin:2px 0 6px;font-size:.85em">${escapeHtml(def[lang].description)}</p>${bar(def, row(def.id).value)}<p class="tag" style="margin:4px 0 0">${escapeHtml(statusOf(def))}</p></div></article>`).join("")}</div>` : "";
-    return `<p>${t(`${earned} of ${ACHIEVEMENTS.length} unlocked. Achievements are worked out from data Guilded already recorded (synced characters, dungeon runs, raid attendance, Discord activity and your own PoE2 log), never self-reported, and they give no points.`, `${earned} sur ${ACHIEVEMENTS.length} débloqués. Les succès sont calculés à partir de données déjà enregistrées par Guilded (personnages synchronisés, donjons, présences aux raids, activité Discord et votre journal PoE2), jamais déclarés, et ne donnent aucun point.`)}</p>${nextUp}`
+    return `<p>${t(`${earned} of ${ACHIEVEMENTS.length} unlocked. Achievements are worked out from data Guilded already recorded (synced characters, dungeon runs, raid attendance, Discord activity totals and your own PoE2 log), never self-reported, and they give no points.`, `${earned} sur ${ACHIEVEMENTS.length} débloqués. Les succès sont calculés à partir de données déjà enregistrées par Guilded (personnages synchronisés, donjons, présences aux raids, totaux d'activité Discord et votre journal PoE2), jamais déclarés, et ne donnent aucun point.`)}</p>${nextUp}`
       + games.map(game => {
         const defs = ACHIEVEMENTS.filter(def => def.game === game);
         const done = defs.filter(def => row(def.id).earnedAt).length;

@@ -1,5 +1,5 @@
-import type { AchievementDef, AchievementGame, AchievementTier } from "./achievements-catalogue.js";
-import { TIER_LABEL } from "./achievements-catalogue.js";
+import type { AchievementDef, AchievementGame, AchievementMetric, AchievementTier } from "./achievements-catalogue.js";
+import { ACHIEVEMENTS, TIER_LABEL } from "./achievements-catalogue.js";
 
 // Badge artwork for the achievements, generated as SVG from this one module (original shapes, no game
 // or publisher artwork). Tier picks the frame shape and metal, the game picks the colours of the centre
@@ -42,12 +42,19 @@ export const GLYPHS = {
   ascend: `<path d="M12 21V5M5 12l7-7 7 7M7 21h10"/>`,
   sun: `<circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>`,
   map: `<path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14"/>`,
-  pin: `<path d="M12 21s-6-5.500-6-11a6 6 0 0 1 12 0c0 5.500-6 11-6 11z"/><circle cx="12" cy="10" r="2" fill="currentColor"/>`
+  pin: `<path d="M12 21s-6-5.500-6-11a6 6 0 0 1 12 0c0 5.500-6 11-6 11z"/><circle cx="12" cy="10" r="2" fill="currentColor"/>`,
+  bubble: `<path d="M4 5h16v11h-9l-5 4v-4H4z"/><circle cx="8.500" cy="10.500" r="1" fill="currentColor"/><circle cx="12" cy="10.500" r="1" fill="currentColor"/><circle cx="15.500" cy="10.500" r="1" fill="currentColor"/>`,
+  mic: `<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/>`,
+  smile: `<circle cx="12" cy="12" r="9"/><path d="M8 14a5 5 0 0 0 8 0"/><circle cx="9" cy="9.500" r="1" fill="currentColor"/><circle cx="15" cy="9.500" r="1" fill="currentColor"/>`,
+  sparkle: `<path d="M12 2c1 5 3 8 8 10-5 2-7 5-8 10-1-5-3-8-8-10 5-2 7-5 8-10z"/>`,
+  coin: `<circle cx="12" cy="12" r="9"/><path d="M12 6.500v11M9.500 9.500c0-2 5-2 5 0s-5 2-5 4.500 5 2.500 5 .5"/>`,
+  bolt: `<path d="M13 2L5 14h6l-1 8 8-12h-6z"/>`
 } as const;
 export type GlyphName = keyof typeof GLYPHS;
 
-/** One glyph per achievement id. The test suite requires every catalogue id to appear here. */
-export const GLYPH_BY_ID: Record<string, GlyphName> = {
+// Long progressions share one glyph per metric; the tier frame and the rank pips tell the steps apart.
+const LADDER_GLYPH: Partial<Record<AchievementMetric, GlyphName>> = { messagesSent: "bubble", voiceHours: "mic", reactionsGiven: "smile", reactionsReceived: "sparkle", communityPoints: "coin", epEarned: "bolt" };
+const SINGLE_GLYPH: Record<string, GlyphName> = {
   "wow-level-20": "chevron1", "wow-level-40": "chevron2", "wow-level-60": "chevron3", "wow-level-80": "chevron4",
   "wow-max-level": "star", "wow-max-level-3": "stars",
   "profession-150": "hammer", "profession-300": "anvil",
@@ -59,20 +66,27 @@ export const GLYPH_BY_ID: Record<string, GlyphName> = {
   "poe2-level-75": "gem", "poe2-level-90": "orb", "poe2-level-99": "ascend", "poe2-level-100": "sun",
   "poe2-maps-100": "map", "poe2-maps-500": "pin"
 };
+/** One glyph per achievement id. The test suite requires every catalogue id to appear here. */
+export const GLYPH_BY_ID: Record<string, GlyphName> = { ...SINGLE_GLYPH, ...Object.fromEntries(ACHIEVEMENTS.filter(def => def.rank).map(def => [def.id, LADDER_GLYPH[def.metric] ?? "star"])) };
 
-// Frame outlines on a 64x64 grid, one per tier: circle, hexagon, shield, spiked star.
+// Frame outlines on a 64x64 grid, one per tier: circle, hexagon, shield, octagon, spiked star, sunburst.
 const spiked = Array.from({ length: 16 }, (_, i) => { const a = -Math.PI / 2 + (i * Math.PI) / 8, d = i % 2 ? 24.500 : 30.500; return `${(32 + d * Math.cos(a)).toFixed(1)},${(32 + d * Math.sin(a)).toFixed(1)}`; }).join(" ");
 const hex = Array.from({ length: 6 }, (_, i) => { const a = -Math.PI / 2 + (i * Math.PI) / 3; return `${(32 + 29.500 * Math.cos(a)).toFixed(1)},${(32 + 29.500 * Math.sin(a)).toFixed(1)}`; }).join(" ");
+const octagon = Array.from({ length: 8 }, (_, i) => { const a = -Math.PI / 2 + Math.PI / 8 + (i * Math.PI) / 4; return `${(32 + 30.500 * Math.cos(a)).toFixed(1)},${(32 + 30.500 * Math.sin(a)).toFixed(1)}`; }).join(" ");
+const sunburst = Array.from({ length: 24 }, (_, i) => { const a = -Math.PI / 2 + (i * Math.PI) / 12, d = i % 2 ? 26.500 : 31; return `${(32 + d * Math.cos(a)).toFixed(1)},${(32 + d * Math.sin(a)).toFixed(1)}`; }).join(" ");
 const FRAME: Record<AchievementTier, string> = {
   bronze: `<circle cx="32" cy="32" r="29"/>`,
   silver: `<polygon points="${hex}" stroke-linejoin="round"/>`,
   gold: `<path d="M32 3l25 8v23c0 13-11 23-25 27C18 57 7 47 7 34V11z" stroke-linejoin="round"/>`,
-  epic: `<polygon points="${spiked}" stroke-linejoin="round"/>`
+  platinum: `<polygon points="${octagon}" stroke-linejoin="round"/>`,
+  epic: `<polygon points="${spiked}" stroke-linejoin="round"/>`,
+  legendary: `<polygon points="${sunburst}" stroke-linejoin="round"/><circle cx="32" cy="32" r="25" fill="none" stroke-width="1.200"/>`
 };
 // Metal gradients (top, middle, bottom) and edge colour per tier.
 const METAL: Record<AchievementTier, [string, string, string, string]> = {
   bronze: ["#f0b27a", "#c0763a", "#7a4218", "#4d2810"], silver: ["#f4f7fa", "#b4bdc8", "#707b88", "#454d58"],
-  gold: ["#fff3a6", "#e3ae1c", "#8a6508", "#5a4204"], epic: ["#efc0ff", "#a54be0", "#52207f", "#2e1048"]
+  gold: ["#fff3a6", "#e3ae1c", "#8a6508", "#5a4204"], platinum: ["#f4ffff", "#8fd6e8", "#3c8aa6", "#1f4a5c"],
+  epic: ["#efc0ff", "#a54be0", "#52207f", "#2e1048"], legendary: ["#ffe2a8", "#ff7a2e", "#b02410", "#5a0d05"]
 };
 // Per game: centre plate (top, bottom) and glyph colour. WoW gold on blue, guild green, PoE2 ember on dark red.
 const GAME: Record<AchievementGame, { plate: [string, string]; glyph: string }> = {
@@ -88,14 +102,16 @@ export function badgeInner(def: AchievementDef, earned: boolean): string {
   const glyph = earned ? GAME[def.game].glyph : LOCKED.glyph;
   const frame = FRAME[def.tier];
   const gloss = earned ? `<ellipse cx="25" cy="17" rx="13" ry="6" fill="#fff" opacity=".18" transform="rotate(-20 25 17)"/>` : "";
-  const gem = def.tier === "epic" ? `<circle cx="32" cy="6.500" r="3.200" fill="${earned ? "#ff5ad0" : "#2a2d33"}" stroke="${edge}" stroke-width="1"/>` : "";
+  const gem = def.tier === "epic" || def.tier === "legendary" ? `<circle cx="32" cy="6.500" r="3.200" fill="${earned ? (def.tier === "epic" ? "#ff5ad0" : "#5ae6ff") : "#2a2d33"}" stroke="${edge}" stroke-width="1"/>` : "";
+  // Rank pips (one per step of a long progression) under the glyph, so steps in the same tier look different.
+  const pips = def.rank ? Array.from({ length: Math.min(def.rank, 10) }, (_, i) => `<circle cx="${(32 + (i - (Math.min(def.rank!, 10) - 1) / 2) * 3.200).toFixed(1)}" cy="49.500" r="1.100" fill="${glyph}"${earned ? "" : ` opacity=".7"`}/>`).join("") : "";
   const body = GLYPHS[GLYPH_BY_ID[def.id] ?? "star"];
   return `<defs><linearGradient id="${id}-m" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${m0}"/><stop offset=".5" stop-color="${m1}"/><stop offset="1" stop-color="${m2}"/></linearGradient>`
     + `<linearGradient id="${id}-p" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${p0}"/><stop offset="1" stop-color="${p1}"/></linearGradient></defs>`
     + `<g fill="url(#${id}-m)" stroke="${edge}" stroke-width="2">${frame}</g>`
     + `<g transform="translate(32 32) scale(.74) translate(-32 -32)" fill="url(#${id}-p)" stroke="${edge}" stroke-width="2.500" stroke-opacity=".8">${frame}</g>`
-    + gloss + gem
-    + `<g transform="translate(18.200 18.800) scale(1.150)" color="${glyph}" fill="none" stroke="currentColor" stroke-width="1.900" stroke-linecap="round" stroke-linejoin="round"${earned ? "" : ` opacity=".7"`}>${body}</g>`;
+    + gloss + gem + pips
+    + `<g transform="translate(${def.rank ? "20 16.500" : "18.200 18.800"}) scale(${def.rank ? "1" : "1.150"})" color="${glyph}" fill="none" stroke="currentColor" stroke-width="1.900" stroke-linecap="round" stroke-linejoin="round"${earned ? "" : ` opacity=".7"`}>${body}</g>`;
 }
 
 /**

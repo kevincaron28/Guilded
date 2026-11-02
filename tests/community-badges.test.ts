@@ -32,7 +32,7 @@ describe("community badge rules and privacy", () => {
   });
   it("never queries another member's private shelf until that season is shared", async () => {
     let reads = 0, shared = false;
-    const db = { communitySeason: { findUnique: async () => ({ guild: { discordId: "another-server" } }) }, communityBadgeSharing: { findUnique: async () => ({ shared }) }, communityBadge: { findMany: async () => { reads++; return []; } } };
+    const db = { communitySeason: { findUnique: async () => ({ createdAt: new Date("2026-10-01T00:00:00Z"), guild: { discordId: "another-server" } }) }, communityBadgeSharing: { findUnique: async () => ({ shared }) }, communityBadge: { findMany: async () => { reads++; return []; } } };
     expect(await communityBadgeShelf(db as never, "season", "viewer", "owner")).toBeNull();
     expect(reads).toBe(0);
     expect(await communityBadgeShelf(db as never, "season", "owner", "owner")).toEqual([]);
@@ -41,6 +41,12 @@ describe("community badge rules and privacy", () => {
     shared = false;
     expect(await communityBadgeShelf(db as never, "season", "viewer", "owner")).toBeNull();
     expect(reads).toBe(2);
+  });
+  it("shares shelves of seasons created from the default date unless the member opted out", async () => {
+    const make = (createdAt: string, row: { shared: boolean } | null) => ({ communitySeason: { findUnique: async () => ({ createdAt: new Date(createdAt), guild: { discordId: "another-server" } }) }, communityBadgeSharing: { findUnique: async () => row }, communityBadge: { findMany: async () => [] } });
+    expect(await communityBadgeShelf(make("2026-11-05T00:00:00Z", null) as never, "s", "viewer", "owner")).toEqual([]);
+    expect(await communityBadgeShelf(make("2026-11-05T00:00:00Z", { shared: false }) as never, "s", "viewer", "owner")).toBeNull();
+    expect(await communityBadgeShelf(make("2026-10-01T00:00:00Z", null) as never, "s", "viewer", "owner")).toBeNull();
   });
   it("shares Québec Gold shelves regardless of preserved old preferences, never mutating them", async () => {
     let writes = 0;

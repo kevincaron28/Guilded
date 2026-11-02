@@ -68,6 +68,8 @@ describe("Discord OAuth", () => {
     expect(url.searchParams.get("scope")).toBe("identify");
     expect(url.searchParams.get("redirect_uri")).toBe("https://guilded.kcaron.top/auth/callback");
     expect(url.searchParams.get("state")).toBe("state1");
+    // prompt=none made Discord skip login/2FA for people who had not authorized yet
+    expect(url.searchParams.has("prompt")).toBe(false);
   });
 
   it("binds the state to the browser and expires it", () => {

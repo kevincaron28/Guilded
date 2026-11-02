@@ -82,7 +82,7 @@ export function safeReturnPath(path: string | null | undefined): string {
 
 export function authorizeUrl(auth: WebAuthConfig, state: string): string {
   const url = new URL("https://discord.com/oauth2/authorize");
-  url.search = new URLSearchParams({ response_type: "code", client_id: auth.clientId, scope: "identify", redirect_uri: `${auth.siteUrl}/auth/callback`, state, prompt: "none" }).toString();
+  url.search = new URLSearchParams({ response_type: "code", client_id: auth.clientId, scope: "identify", redirect_uri: `${auth.siteUrl}/auth/callback`, state }).toString();
   return url.href;
 }
 

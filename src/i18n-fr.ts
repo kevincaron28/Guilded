@@ -408,6 +408,7 @@ export const FR_TEXT: Record<string, string> = {
   "Open until <t:{time}:f>": "Ouvert jusqu'au <t:{time}:f>",
   "Open": "Ouvert",
   "Poll {id} · one vote each, you can change it": "Sondage {id} · un vote chacun, vous pouvez le changer",
+  "+1 community point for voting.": "+1 point de communauté pour avoir voté.",
   "Your vote for **{option}** is recorded. Click another option to change it.": "Votre vote pour **{option}** est enregistré. Cliquez sur une autre option pour le changer.",
 
   // --- core roster

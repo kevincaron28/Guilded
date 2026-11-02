@@ -5,7 +5,7 @@ import {
 } from "discord.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
-import { cleanOptions, createPollService, resultBar } from "../services/poll.js";
+import { cleanOptions, createPollService, MAX_OPTIONS, resultBar } from "../services/poll.js";
 import { parseRaidTime } from "../services/raid-time.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { asLang, tx, type Lang } from "../i18n.js";
@@ -13,7 +13,12 @@ import { weeklyQuestionDraft } from "../services/weekly-question.js";
 import { actOnWeeklyQuestion, pauseWeeklyQuestion, reviewWeeklyQuestion, saveWeeklyQuestion } from "../services/weekly-question-store.js";
 import { withGuildScope } from "../services/guild-scope.js";
 
+import { createParticipationService } from "../services/participation.js";
+import { eligibleParticipationMember } from "../services/participation-discord.js";
+import { participationRules } from "../services/participation-rules.js";
+
 const service = createPollService(prisma);
+const participation = createParticipationService(prisma);
 export const POLL_PREFIX = "poll:";
 export const WEEKLY_QUESTION_PREFIX = "weeklyq:";
 
@@ -36,16 +41,17 @@ export const pollCommand = new SlashCommandBuilder()
     return sub;
   })
   .addSubcommand((sub) => {
-    sub.setName("create").setDescription("Officers: post a poll (2 to 5 options).")
+    sub.setName("create").setDescription("Officers: post a poll (2 to 25 options).")
       .addStringOption((o) => o.setName("question").setDescription("The question").setMinLength(3).setMaxLength(250).setRequired(true))
       .addStringOption((o) => o.setName("option1").setDescription("First option").setMaxLength(80).setRequired(true))
       .addStringOption((o) => o.setName("option2").setDescription("Second option").setMaxLength(80).setRequired(true));
     for (const n of [3, 4, 5]) sub.addStringOption((o) => o.setName(`option${n}`).setDescription(`Option ${n}`).setMaxLength(80));
+    sub.addStringOption((o) => o.setName("more").setDescription("More options after the first 5, separated by ; (25 in all)").setMaxLength(1500));
     sub.addStringOption((o) => o.setName("closes").setDescription("When it closes by itself, e.g. friday 8pm (default: stays open)"));
     return sub;
   })
   .addSubcommand((sub) => sub.setName("close").setDescription("Officers: close a poll and post the result.")
-    .addStringOption((o) => o.setName("poll").setDescription("Poll id (from the post's footer)").setRequired(true)));
+    .addStringOption((o) => o.setName("poll").setDescription("Pick the open poll to close").setAutocomplete(true).setRequired(true)));
 
 async function pollEmbed(pollId: string): Promise<EmbedBuilder> {
   const { poll, counts, total } = await service.results(pollId);
@@ -66,9 +72,10 @@ async function pollEmbed(pollId: string): Promise<EmbedBuilder> {
 
 function pollButtons(pollId: string, options: string[], closed: boolean) {
   if (closed) return [];
-  return [new ActionRowBuilder<ButtonBuilder>().addComponents(
-    ...options.map((option, index) => new ButtonBuilder().setCustomId(`${POLL_PREFIX}${pollId}:${index}`).setLabel(option.slice(0, 80)).setStyle(ButtonStyle.Primary))
-  )];
+  const buttons = options.slice(0, MAX_OPTIONS).map((option, index) => new ButtonBuilder().setCustomId(`${POLL_PREFIX}${pollId}:${index}`).setLabel(option.slice(0, 80)).setStyle(ButtonStyle.Primary));
+  const rows: ActionRowBuilder<ButtonBuilder>[] = [];
+  for (let start = 0; start < buttons.length; start += 5) rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(...buttons.slice(start, start + 5)));
+  return rows;
 }
 
 export async function syncPoll(guild: DiscordGuild, pollId: string): Promise<boolean> {
@@ -136,7 +143,8 @@ export async function executePoll(interaction: ChatInputCommandInteraction): Pro
     });
     return;
   }
-  const options = cleanOptions([1, 2, 3, 4, 5].map((n) => interaction.options.getString(`option${n}`)));
+  const more = (interaction.options.getString("more") ?? "").split(";");
+  const options = cleanOptions([...[1, 2, 3, 4, 5].map((n) => interaction.options.getString(`option${n}`)), ...more]);
   const closesText = interaction.options.getString("closes");
   const settings = await guildService.getSettings(context.guildId);
   const closesAt = closesText ? parseRaidTime(closesText, settings?.timezone ?? "America/Toronto") : null;
@@ -205,6 +213,17 @@ export async function handleWeeklyQuestionButton(interaction: ButtonInteraction)
   });
 }
 
+// Voting is a community activity: one point per poll, only where the guild enabled participation points.
+async function awardPollPoint(interaction: ButtonInteraction, pollId: string): Promise<boolean> {
+  const guild = interaction.guild, member = interaction.member as GuildMember | null;
+  if (!guild || !member || interaction.user.bot) return false;
+  const cfg = await prisma.communityParticipationConfig.findFirst({ where: { enabled: true, season: { game: "DISCORD", status: "ACTIVE", guild: { discordId: guild.id } } }, include: { season: true } });
+  if (!cfg) return false;
+  const rules = participationRules.parse(cfg.rules);
+  if (!eligibleParticipationMember(member, cfg.season, rules, new Date())) return false;
+  return participation.pollVote(cfg.season.guildId, cfg.seasonId, { userId: member.id, pollId, at: new Date(), revision: cfg.revision });
+}
+
 export async function handlePollButton(interaction: ButtonInteraction): Promise<void> {
   const [pollId, optionText] = interaction.customId.slice(POLL_PREFIX.length).split(":");
   if (!interaction.guild || !pollId || optionText === undefined) return;
@@ -214,7 +233,8 @@ export async function handlePollButton(interaction: ButtonInteraction): Promise<
   try {
     const poll = await service.vote(pollId, guild.id, member.id, Number(optionText));
     const lang: Lang = asLang((await guildService.getSettings(guild.id))?.language);
-    await interaction.editReply({ content: tx(lang, "Your vote for **{option}** is recorded. Click another option to change it.", { option: poll.options[Number(optionText)] ?? "" }), allowedMentions: { parse: [] } });
+    const earned = await awardPollPoint(interaction, pollId).catch((error: unknown) => { console.error("Poll point failed", error); return false; });
+    await interaction.editReply({ content: tx(lang, "Your vote for **{option}** is recorded. Click another option to change it.", { option: poll.options[Number(optionText)] ?? "" }) + (earned ? "\n" + tx(lang, "+1 community point for voting.") : ""), allowedMentions: { parse: [] } });
     await syncPoll(interaction.guild, pollId);
   } catch (error) {
     await interaction.editReply({ content: error instanceof Error ? error.message : "Could not record your vote.", allowedMentions: { parse: [] } }).catch(() => undefined);

@@ -106,3 +106,4 @@ body{font-family:var(--kc-font)}h1{font-size:clamp(40px,4.8vw,68px)}.site-header
 .status-row[data-state="up"] .status-dot{background:#6fcf8e}
 .status-row[data-state="down"] .status-dot{background:#e5736a}
 .status-row[data-state="down"]{border-color:#e5736a}
+@media(pointer:coarse){.site-footer .footer-links a,.footer-bottom a,.site-header .brand{min-height:44px;display:inline-flex;align-items:center}.site-header nav a:not(.button){min-height:44px;display:inline-flex;align-items:center}.home-page .hero-art figcaption a,.page-footer a{min-height:44px;display:inline-flex;align-items:center}}

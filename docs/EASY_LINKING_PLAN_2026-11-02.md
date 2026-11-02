@@ -89,13 +89,14 @@ When `BATTLENET_CLIENT_ID` or `BATTLENET_CLIENT_SECRET` is missing, none of this
 
 ## 5. Owner steps (no secrets in chat, in the repo or in the app)
 
-Per `BATTLENET_SETUP.md`: register the Blizzard application with the redirect URI
-`https://guilded.kcaron.top/me/battlenet/callback`; put `BATTLENET_CLIENT_ID` and `BATTLENET_CLIENT_SECRET`
-in the Oracle bot's protected environment (`PUBLIC_SITE_URL` stays `https://guilded.kcaron.top`);
-apply the existing additive migration `20261127000000_companion_devices_battlenet` if it is not live yet;
-deploy the matching Worker (it already allows the start POST; the new `GET /connect` page is a normal page
-with a link, so no Worker change is needed); restart the bot. Then connect with a real account per edition and
-note which editions answer, so the unconfirmed rows above can be settled.
+The existing Blizzard application is reused. The only step left is adding the redirect URI
+`https://guilded.kcaron.top/me/battlenet/callback` to it in the Battle.net developer portal (keep the existing ones).
+If the bot's environment on Oracle already has `BATTLENET_CLIENT_ID` and `BATTLENET_CLIENT_SECRET`
+(`src/config.ts`), nothing else is needed; otherwise add that application's values there and restart the bot.
+Also: apply the existing additive migration `20261127000000_companion_devices_battlenet` if it is not live yet.
+The Worker already allows the start POST; the new `GET /connect` page is an ordinary page, so no Worker change.
+Then connect with a real account per edition and note which editions answer, to settle the *unconfirmed* rows above.
+Details: `BATTLENET_SETUP.md`.
 
 ## 6. Not done, for after launch
 

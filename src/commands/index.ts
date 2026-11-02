@@ -55,6 +55,7 @@ import { participationCommand } from "./participation.js";
 import { executeRecruit, recruitCommand } from "./recruit.js";
 import { executePublicLeaderboard, publicLeaderboardCommand } from "./public-leaderboard.js";
 import { executePug, pugCommand } from "./pug.js";
+import { executePugs, pugsCommand } from "./pug-requests.js";
 
 // One parent per area, with the smaller commands mounted under it (see router.ts).
 // /config stays its own command: under /setup it came close to Discord's 4000-character limit
@@ -92,6 +93,7 @@ const character = new MergedCommand("character", "Your profile, characters, prof
 
 const raid = new MergedCommand("raid", "Raids: signups, progress, reports and Warcraft Logs.", [
   { command: pugCommand, handler: executePug, as: "pug" },
+  { command: pugsCommand, handler: executePugs, as: "pugs" },
   { command: wclCommand, handler: executeWcl, as: "wcl", except: ["report"] },
   { command: worldBuffCommand, handler: executeWorldBuff, flat: { add: "worldbuff", list: "worldbuffs", remove: "worldbuff-remove" } }
 ], { command: raidCommand, handler: executeRaid, except: RAID_LEAD });

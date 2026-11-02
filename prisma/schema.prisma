@@ -121,6 +121,9 @@ enum ApplicationStatus {
 }
 
 model Guild {
+  pugBoard PugBoardGuild?
+  pugBlocks PugBlock[]
+  pugRequests PugRequest[]
   memberAchievements MemberAchievement[]
   memberActivityTotals MemberActivityTotal[]
   poeLevelsReached PoeLevelReached[]
@@ -2580,4 +2583,90 @@ model PoeLevelReached {
 
   @@unique([guildId, memberId, character, league, level])
   @@index([memberId, level])
+}
+
+// Cross-guild PUG board (opt-in): a guild joins explicitly; nothing is created or posted before that.
+model PugBoardGuild {
+  id        String   @id @default(cuid())
+  guildId   String   @unique
+  channelId String
+  joinedBy  String
+  joinedAt  DateTime @default(now())
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+}
+
+// A guild hides another guild's requests (and its own requests are not shown there).
+model PugBlock {
+  id             String   @id @default(cuid())
+  guildId        String
+  blockedGuildId String
+  createdAt      DateTime @default(now())
+  guild          Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, blockedGuildId])
+}
+
+// One request per raid while OPEN (a partial unique index in the migration enforces it).
+// raidId is deliberately not a relation: deleting a raid must leave the row for the sweep to retire its posts.
+model PugRequest {
+  id              String      @id @default(cuid())
+  raidId          String
+  guildId         String
+  edition         String
+  raidTitle       String
+  scheduledAt     DateTime
+  wantTank        Int         @default(0)
+  wantHealer      Int         @default(0)
+  wantDps         Int         @default(0)
+  note            String?
+  status          String      @default("OPEN")
+  closeReason     String?
+  createdBy       String
+  expiresAt       DateTime
+  createdAt       DateTime    @default(now())
+  closedAt        DateTime?
+  noticeChannelId String?
+  noticeMessageId String?
+  guild           Guild       @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  posts           PugPost[]
+  signups         PugSignup[]
+
+  @@index([status, expiresAt])
+  @@index([guildId, createdAt])
+  @@index([raidId, status])
+}
+
+// The one message a participating guild shows for a request, edited in place.
+model PugPost {
+  id        String     @id @default(cuid())
+  requestId String
+  guildId   String
+  channelId String
+  messageId String?
+  removedAt DateTime?
+  createdAt DateTime   @default(now())
+  request   PugRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, guildId])
+  @@index([removedAt])
+}
+
+// discordUserId only deduplicates and is never shown; others see display name, character, class, role and note.
+model PugSignup {
+  id             String     @id @default(cuid())
+  requestId      String
+  discordUserId  String
+  displayName    String
+  sourceGuild    String?
+  characterName  String
+  characterClass String?
+  role           String
+  note           String?
+  status         String     @default("PENDING")
+  createdAt      DateTime   @default(now())
+  decidedAt      DateTime?
+  request        PugRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, discordUserId])
+  @@index([requestId, status])
 }

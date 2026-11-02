@@ -11,6 +11,9 @@ export interface AchievementFacts {
   /** Per synced character: the level and the cap of its edition. */
   charactersAtCap: number;
   dungeonRuns: Date[];
+  /** First completion of each distinct dungeon. */
+  dungeonVariety: Date[];
+  highestProfessionSkill: number;
   raidsAttended: Date[];
   raidClears: Date[];
   activeDays: Date[];
@@ -20,7 +23,7 @@ export interface AchievementFacts {
 
 export interface AchievementResult { def: AchievementDef; value: number; earned: boolean; earnedAt: Date | null }
 
-export const emptyFacts = (): AchievementFacts => ({ highestWowLevel: 0, charactersAtCap: 0, dungeonRuns: [], raidsAttended: [], raidClears: [], activeDays: [], poeLevels: [], poeMaps: [] });
+export const emptyFacts = (): AchievementFacts => ({ highestWowLevel: 0, charactersAtCap: 0, dungeonRuns: [], dungeonVariety: [], highestProfessionSkill: 0, raidsAttended: [], raidClears: [], activeDays: [], poeLevels: [], poeMaps: [] });
 
 function measure(metric: AchievementMetric, threshold: number, facts: AchievementFacts): { value: number; at: Date | null } {
   const counted = (dates: Date[]) => ({ value: dates.length, at: dates[threshold - 1] ?? null });
@@ -29,6 +32,8 @@ function measure(metric: AchievementMetric, threshold: number, facts: Achievemen
     case "wowLevel": return { value: facts.highestWowLevel, at: null };
     case "wowMaxLevel": return { value: facts.charactersAtCap, at: null };
     case "dungeonRuns": return counted(facts.dungeonRuns);
+    case "dungeonVariety": return counted(facts.dungeonVariety);
+    case "professionSkill": return { value: facts.highestProfessionSkill, at: null };
     case "raidsAttended": return counted(facts.raidsAttended);
     case "raidClears": return counted(facts.raidClears);
     case "activeDays": return counted(facts.activeDays);
@@ -51,7 +56,7 @@ export function evaluateAchievements(facts: AchievementFacts, now: Date): Achiev
   });
 }
 
-type Db = Pick<PrismaClient, "character" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit" | "member" | "memberAchievement">;
+type Db = Pick<PrismaClient, "character" | "professionSkill" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit" | "member" | "memberAchievement">;
 
 const dedupe = <T>(rows: T[], key: (row: T) => string) => { const seen = new Set<string>(); return rows.filter(row => { const k = key(row); if (seen.has(k)) return false; seen.add(k); return true; }); };
 
@@ -60,9 +65,10 @@ export async function gatherAchievementFacts(db: Db, guildId: string, memberId: 
   const member = await db.member.findFirst({ where: { id: memberId, guildId }, select: { discordUserId: true } });
   if (!member) return emptyFacts();
   const max = (metric: AchievementMetric) => Math.max(...ACHIEVEMENTS.filter(row => row.metric === metric).map(row => row.threshold));
-  const [characters, runs, attendance, days, levels, visits] = await Promise.all([
+  const [characters, skills, runs, attendance, days, levels, visits] = await Promise.all([
     db.character.findMany({ where: { memberId, guildId }, select: { level: true, gameEdition: true } }),
-    db.dungeonRunPlayer.findMany({ where: { memberId, run: { guildId, valid: true, state: "COMPLETED" } }, select: { runId: true, run: { select: { endedAt: true, startedAt: true, createdAt: true } } }, take: 1000 }),
+    db.professionSkill.findMany({ where: { character: { memberId, guildId } }, select: { skillLevel: true }, orderBy: { skillLevel: "desc" }, take: 1 }),
+    db.dungeonRunPlayer.findMany({ where: { memberId, run: { guildId, valid: true, state: "COMPLETED" } }, select: { runId: true, run: { select: { instanceId: true, endedAt: true, startedAt: true, createdAt: true } } }, take: 1000 }),
     db.raidAttendance.findMany({ where: { memberId, status: { in: ["PRESENT", "LATE", "BENCHED"] }, raid: { guildId, status: "COMPLETED", isTest: false } },
       select: { raidId: true, raid: { select: { endedAt: true, scheduledAt: true, bosses: { select: { status: true } } } } }, take: 1000 }),
     db.communityParticipationDay.findMany({ where: { userId: member.discordUserId, season: { guildId }, OR: [{ messages: { gt: 0 } }, { reactions: { gt: 0 } }, { voiceMs: { gt: 0 } }] }, select: { day: true }, orderBy: { day: "asc" }, take: 2000 }),
@@ -71,10 +77,14 @@ export async function gatherAchievementFacts(db: Db, guildId: string, memberId: 
   ]);
   const byDate = (a: Date, b: Date) => a.getTime() - b.getTime();
   const raidRows = attendance.map(row => ({ id: row.raidId, at: row.raid.endedAt ?? row.raid.scheduledAt, cleared: row.raid.bosses.length > 0 && row.raid.bosses.every(boss => boss.status === "KILLED") }));
+  const runDated = dedupe(runs, row => row.runId).map(row => ({ ...row, at: row.run.endedAt ?? row.run.startedAt ?? row.run.createdAt })).sort((x, y) => byDate(x.at, y.at));
+  const runDates = runDated.map(row => row.at);
   return {
     highestWowLevel: characters.reduce((best, row) => Math.max(best, row.level ?? 0), 0),
     charactersAtCap: characters.filter(row => (row.level ?? 0) >= wowLevelCap(row.gameEdition)).length,
-    dungeonRuns: dedupe(runs, row => row.runId).map(row => row.run.endedAt ?? row.run.startedAt ?? row.run.createdAt).sort(byDate),
+    dungeonRuns: runDates,
+    dungeonVariety: dedupe(runDated, row => String(row.run.instanceId)).map(row => row.at),
+    highestProfessionSkill: skills[0]?.skillLevel ?? 0,
     raidsAttended: raidRows.map(row => row.at).sort(byDate),
     raidClears: raidRows.filter(row => row.cleared).map(row => row.at).sort(byDate),
     // Day strings are YYYY-MM-DD; the same day in two seasons counts once.

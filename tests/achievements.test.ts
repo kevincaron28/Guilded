@@ -23,7 +23,7 @@ describe("achievement catalogue", () => {
     expect([...new Set(ACHIEVEMENTS.map(row => row.game))].sort()).toEqual(["guild", "poe2", "wow"]);
   });
   it("covers the PoE2 levels 90, 99 and 100 and the WoW level cap", () => {
-    expect(ACHIEVEMENTS.filter(row => row.metric === "poeLevel").map(row => row.threshold).sort((a, b) => a - b)).toEqual([90, 99, 100]);
+    expect(ACHIEVEMENTS.filter(row => row.metric === "poeLevel").map(row => row.threshold).sort((a, b) => a - b)).toEqual([75, 90, 99, 100]);
     expect(achievementById("wow-max-level")?.metric).toBe("wowMaxLevel");
     expect(wowLevelCap("classic-tbc")).toBe(70);
     expect(wowLevelCap("retail")).toBe(90);
@@ -71,6 +71,7 @@ function fakeDb(overrides: Record<string, unknown> = {}) {
     dungeonRunPlayer: { findMany: vi.fn(async () => [{ runId: "r1", run: { endedAt: day(3), startedAt: null, createdAt: day(3) } }, { runId: "r1", run: { endedAt: day(3), startedAt: null, createdAt: day(3) } }]) },
     raidAttendance: { findMany: vi.fn(async () => [{ raidId: "a", raid: { endedAt: day(6), scheduledAt: day(6), bosses: [{ status: "KILLED" }, { status: "KILLED" }] } }, { raidId: "b", raid: { endedAt: null, scheduledAt: day(7), bosses: [{ status: "KILLED" }, { status: "PENDING" }] } }]) },
     communityParticipationDay: { findMany: vi.fn(async () => [{ day: "2026-10-01" }, { day: "2026-10-01" }, { day: "2026-10-02" }]) },
+    professionSkill: { findMany: vi.fn(async () => [{ skillLevel: 175 }]) },
     poeLevelReached: { findMany: vi.fn(async () => []) },
     poeMapVisit: { findMany: vi.fn(async () => []) },
     memberAchievement: {
@@ -90,6 +91,8 @@ describe("syncMemberAchievements", () => {
     expect(first.newlyEarned).not.toContain("dungeon-runs-10");
     // The duplicate run row counts once, the raid with a pending boss is not a clear, a repeated day counts once.
     expect(first.results.find(row => row.def.id === "dungeon-runs-1")?.value).toBe(1);
+    expect(first.results.find(row => row.def.id === "profession-150")?.earned).toBe(true);
+    expect(first.results.find(row => row.def.id === "profession-300")?.earned).toBe(false);
     expect(first.results.find(row => row.def.id === "raid-clears-1")?.value).toBe(1);
     expect(first.results.find(row => row.def.id === "active-days-7")?.value).toBe(2);
     const count = stored.length;
@@ -118,7 +121,7 @@ describe("achievement card", () => {
   it("summarises unlocked counts per game and lists the latest in tier colours", () => {
     const card = achievementsCard("Kevin", items(["wow-level-20", "wow-max-level", "dungeon-runs-1"]), "en");
     expect(card.stats[0]).toMatchObject({ label: "Unlocked", value: `3/${ACHIEVEMENTS.length}` });
-    expect(card.stats[1]).toMatchObject({ label: "WoW", value: "2/6" });
+    expect(card.stats[1]).toMatchObject({ label: "WoW", value: "2/8" });
     expect(card.rows).toHaveLength(3);
   });
   it("shows the closest locked ones before anything is earned, in French when asked", () => {

@@ -17,10 +17,12 @@ export type AchievementTier = "bronze" | "silver" | "gold" | "epic";
  * - raidsAttended: completed guild raids where an officer recorded the member present, late or benched.
  * - raidClears: those raids where every boss was marked defeated.
  * - activeDays: distinct days with recorded Discord participation (messages, reactions or voice).
+ * - dungeonVariety: distinct dungeons completed (the first completion of each).
+ * - professionSkill: the highest profession skill among the member's synced characters.
  * - poeLevel: the highest PoE2 character level the member's own client log reported.
  * - poeMaps: distinct PoE2 map instances the member's companion recorded.
  */
-export type AchievementMetric = "wowLevel" | "wowMaxLevel" | "dungeonRuns" | "raidsAttended" | "raidClears" | "activeDays" | "poeLevel" | "poeMaps";
+export type AchievementMetric = "wowLevel" | "wowMaxLevel" | "dungeonRuns" | "dungeonVariety" | "professionSkill" | "raidsAttended" | "raidClears" | "activeDays" | "poeLevel" | "poeMaps";
 
 export interface AchievementText { name: string; description: string }
 export interface AchievementDef {
@@ -33,8 +35,8 @@ export interface AchievementDef {
   fr: AchievementText;
 }
 
-// Level caps per WoW edition. Anything not listed counts as 60. "forever" is the launch cap; raise it
-// here (and nowhere else) when WoW Forever opens a higher cap.
+// Level caps per WoW edition (checked 2 Nov 2026): WoW Forever is fixed at 60 (growth is horizontal), Era 60,
+// TBC 70, Mists Classic and Retail (Midnight) 90. Anything not listed counts as 60. PoE2 caps at 100.
 export const WOW_LEVEL_CAP: Record<string, number> = { forever: 60, "classic-era": 60, "classic-tbc": 70, "classic-mists": 90, retail: 90 };
 export const wowLevelCap = (edition: string | null | undefined) => WOW_LEVEL_CAP[edition ?? "forever"] ?? 60;
 
@@ -50,12 +52,18 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   def("wow-max-level", "wow", "gold", "wowMaxLevel", 1, ["Maximum Level", "Reach the level cap of your WoW edition."], ["Niveau maximum", "Atteindre le niveau maximum de votre édition de WoW."]),
   def("wow-max-level-3", "wow", "epic", "wowMaxLevel", 3, ["Army of Alts", "Have three characters at the level cap."], ["Armée de rerolls", "Avoir trois personnages au niveau maximum."]),
 
+  // Professions (skill 300 is the Era and Forever cap; later editions go higher).
+  def("profession-150", "wow", "bronze", "professionSkill", 150, ["Journeyman Artisan", "Reach skill 150 in a profession."], ["Artisan compagnon", "Atteindre la compétence 150 dans un métier."]),
+  def("profession-300", "wow", "gold", "professionSkill", 300, ["Master Artisan", "Reach skill 300 in a profession."], ["Maître artisan", "Atteindre la compétence 300 dans un métier."]),
+
   // Guild dungeon runs.
   def("dungeon-runs-1", "guild", "bronze", "dungeonRuns", 1, ["First Descent", "Complete a guild dungeon run."], ["Première descente", "Terminer un donjon de guilde."]),
   def("dungeon-runs-10", "guild", "bronze", "dungeonRuns", 10, ["Dungeon Regular", "Complete 10 guild dungeon runs."], ["Habitué des donjons", "Terminer 10 donjons de guilde."]),
   def("dungeon-runs-25", "guild", "silver", "dungeonRuns", 25, ["Dungeon Delver", "Complete 25 guild dungeon runs."], ["Fouilleur de donjons", "Terminer 25 donjons de guilde."]),
   def("dungeon-runs-50", "guild", "gold", "dungeonRuns", 50, ["Dungeon Veteran", "Complete 50 guild dungeon runs."], ["Vétéran des donjons", "Terminer 50 donjons de guilde."]),
   def("dungeon-runs-100", "guild", "epic", "dungeonRuns", 100, ["Centurion of the Depths", "Complete 100 guild dungeon runs."], ["Centurion des profondeurs", "Terminer 100 donjons de guilde."]),
+
+  def("dungeon-variety-5", "guild", "silver", "dungeonVariety", 5, ["Dungeon Explorer", "Complete 5 different dungeons with the guild."], ["Explorateur de donjons", "Terminer 5 donjons différents avec la guilde."]),
 
   // Guild raids: attendance an officer recorded, and full clears.
   def("raids-1", "guild", "bronze", "raidsAttended", 1, ["Into the Raid", "Attend a guild raid."], ["Au raid", "Participer à un raid de guilde."]),
@@ -73,6 +81,7 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   def("active-days-100", "guild", "gold", "activeDays", 100, ["Heart of the Guild", "Be active in the guild's Discord on 100 different days."], ["Cœur de la guilde", "Être actif sur le Discord de la guilde pendant 100 jours différents."]),
 
   // Path of Exile 2, from the member's own companion (client log).
+  def("poe2-level-75", "poe2", "silver", "poeLevel", 75, ["Seasoned Exile", "Reach level 75 in Path of Exile 2."], ["Exilé aguerri", "Atteindre le niveau 75 dans Path of Exile 2."]),
   def("poe2-level-90", "poe2", "gold", "poeLevel", 90, ["Exile Ascendant", "Reach level 90 in Path of Exile 2."], ["Exilé ascendant", "Atteindre le niveau 90 dans Path of Exile 2."]),
   def("poe2-level-99", "poe2", "epic", "poeLevel", 99, ["On the Brink", "Reach level 99 in Path of Exile 2."], ["Au bord du sommet", "Atteindre le niveau 99 dans Path of Exile 2."]),
   def("poe2-level-100", "poe2", "epic", "poeLevel", 100, ["Pinnacle of Wraeclast", "Reach level 100 in Path of Exile 2."], ["Sommet de Wraeclast", "Atteindre le niveau 100 dans Path of Exile 2."]),

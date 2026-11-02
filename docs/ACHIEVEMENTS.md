@@ -1,6 +1,6 @@
 # Achievements and badges
 
-27 achievements, computed only from data Guilded already recorded. Nothing is self-reported, nothing
+31 achievements, computed only from data Guilded already recorded. Nothing is self-reported, nothing
 awards points, and nothing is posted to Discord automatically.
 
 ## Where things live
@@ -19,7 +19,9 @@ awards points, and nothing is posted to Discord automatically.
 | Metric | Source |
 | --- | --- |
 | WoW level | highest `Character.level` among the member's synced characters |
-| Maximum level | characters at the cap of their edition (`WOW_LEVEL_CAP`: forever 60, era 60, TBC 70, Mists 90, retail 90) |
+| Maximum level | characters at the cap of their edition (`WOW_LEVEL_CAP`: forever 60 (fixed, per Blizzard), era 60, TBC 70, Mists 90, retail 90) |
+| Dungeon variety | first completion of each distinct dungeon (`DungeonRun.instanceId`) |
+| Profession skill | highest `ProfessionSkill.skillLevel` (300 is the Era and Forever cap) |
 | Dungeon runs | `DungeonRunPlayer` rows of valid, completed `DungeonRun`s |
 | Raids attended | `RaidAttendance` PRESENT, LATE or BENCHED on a COMPLETED, non-test raid |
 | Raid clears | those raids where every `RaidBoss` is KILLED |
@@ -45,8 +47,8 @@ awards points, and nothing is posted to Discord automatically.
 
 `PoeLevelReached` is filled through `POST /api/v1/poe/levels` (added to the Worker allow-list in
 `worker/index.mjs`; Worker redeploy needed). The companion does not send levels yet: `companion/poe-events.mjs`
-must parse the client-log line for a level-up and the engine must upload it like visits. Until then the three
-PoE2 level achievements (90, 99, 100) stay locked; the two map-count achievements work today. Verify the
+must parse the client-log line for a level-up and the engine must upload it like visits. Until then the four
+PoE2 level achievements (75, 90, 99, 100) stay locked; the two map-count achievements work today. Verify the
 exact PoE2 log wording against a real `Client.txt` before writing the parser.
 
 ## Adding an achievement

@@ -57,8 +57,9 @@ link to `/me/battlenet/connect`. After Blizzard's consent screen the bot:
 4. shows a summary of what was linked with a single **Undo these links** button.
 
 Blizzard proves ownership, so this is stronger than the provisional guildmate-reported link and needs
-no officer. A character the guild has never seen stays private: it links by itself the first time the
-addon or companion reports it (the existing path).
+no officer. The owner approved publishing alts, so the member's other characters on the same realm as one the guild
+already knows are added too, with the class, race and level Blizzard reports. Characters on other realms stay
+private and link by themselves when the addon or companion reports them (the existing path).
 
 **Fallback.** WoW Forever (and any edition Blizzard does not answer for) is not an error: the summary
 says the addon and Guilded app link those characters, and the status line says what to do.
@@ -101,8 +102,7 @@ note which editions answer, so the unconfirmed rows above can be settled.
 - Companion app: sign in with Discord already exists; the in-app status line, deep-link approval and removing
   the remaining folder prompt are not changed here (they touch the Electron app and the Store-first work
   running in parallel).
-- Auto-creating guild characters from Blizzard's list for members whose characters the guild has not yet seen
-  (needs guild-name matching through per-character requests, and a design decision on publishing alts).
+- Guild-name matching through per-character requests (alts are matched by shared realm instead).
 - Per-edition confirmation of the Classic namespaces with real accounts.
 - The existing manual region/edition chooser can be removed once the one-click path is proven.
 - Refresh needs the person to press the button again (no stored tokens, by design).

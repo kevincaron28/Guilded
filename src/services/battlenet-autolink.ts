@@ -1,6 +1,8 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { characterKey } from "../../companion/character-identity.mjs";
 import { linkUnclaimed } from "./character-autolink.js";
+import { createGuildService } from "./guild.js";
+import { normalizeClassName, normalizeRaceName } from "./character-import.js";
 import type { DiscoveredCharacter } from "./battlenet.js";
 
 // Blizzard proved these characters belong to this person, so a guild character the addons already
@@ -37,10 +39,10 @@ export async function autoLinkBattleNet(database: PrismaClient, discordUserId: s
       const cut = row.nameKey.indexOf("-");
       return cut > 0 && wanted.has(looseKey(row.nameKey.slice(0, cut), row.nameKey.slice(cut + 1)));
     });
-    if (!unclaimed.length) continue;
     const refused = new Set((await database.characterVerifyClaim.findMany({
       where: { guildId: member.guildId, memberId: member.id, status: { in: ["BLOCKED", "REMOVED"] } }, select: { nameKey: true }
     })).map(claim => claim.nameKey));
+    const anchors = new Map<string, string>(); // loose realm -> the realm as the guild spells it
     for (const row of unclaimed) {
       if (refused.has(row.nameKey)) continue;
       const { isMain } = await linkUnclaimed(database, member.id, row);
@@ -49,6 +51,30 @@ export async function autoLinkBattleNet(database: PrismaClient, discordUserId: s
         create: { guildId: member.guildId, memberId: member.id, nameKey: row.nameKey, status: BNET_CLAIM }, update: { status: BNET_CLAIM }
       });
       linked.push({ guildId: member.guildId, guildName: member.guild.name, name: row.name, realm: row.realm, isMain });
+      anchors.set(loose(row.realm), row.realm);
+    }
+    // Alts on the same realm as a character the guild knows are theirs too (Blizzard lists them
+    // under the same account), so they are added with the class Blizzard reports. Anything on a
+    // realm the guild has not seen this member on stays private.
+    const known = await database.character.findMany({ where: { member: { guildId: member.guildId } }, select: { name: true, realm: true, memberId: true } });
+    for (const own of known) if (own.memberId === member.id) anchors.set(loose(own.realm), own.realm);
+    const taken = new Set(known.map(c => looseKey(c.name, c.realm)));
+    const service = createGuildService(database);
+    for (const c of mine) {
+      const realm = anchors.get(loose(c.realm));
+      const key = looseKey(c.name, c.realm);
+      if (!realm || !c.className || taken.has(key)) continue;
+      const nameKey = characterKey(c.name, realm, c.gameEdition);
+      if (refused.has(nameKey)) continue;
+      const hasMain = (await database.character.count({ where: { memberId: member.id, isMain: true } })) > 0;
+      await service.addCharacter({ memberId: member.id, name: c.name, realm, className: normalizeClassName(c.className), gameEdition: c.gameEdition, isMain: !hasMain,
+        ...(c.level ? { level: c.level } : {}), ...(c.race ? { race: normalizeRaceName(c.race) } : {}) });
+      await database.characterVerifyClaim.upsert({
+        where: { guildId_memberId_nameKey: { guildId: member.guildId, memberId: member.id, nameKey } },
+        create: { guildId: member.guildId, memberId: member.id, nameKey, status: BNET_CLAIM }, update: { status: BNET_CLAIM }
+      });
+      taken.add(key);
+      linked.push({ guildId: member.guildId, guildName: member.guild.name, name: c.name, realm, isMain: !hasMain });
     }
   }
   return linked;

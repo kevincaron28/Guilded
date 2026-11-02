@@ -10,7 +10,7 @@ export function battleNetConfig(env: { BATTLENET_CLIENT_ID?: string | undefined;
   if (!env.BATTLENET_CLIENT_ID || !env.BATTLENET_CLIENT_SECRET || !env.PUBLIC_SITE_URL) return null;
   return { clientId: env.BATTLENET_CLIENT_ID, clientSecret: env.BATTLENET_CLIENT_SECRET, siteUrl: new URL(env.PUBLIC_SITE_URL).origin };
 }
-export interface DiscoveredCharacter { region: BnetRegion; gameEdition: BnetEdition; realmId: number; characterId: number; name: string; realm: string }
+export interface DiscoveredCharacter { region: BnetRegion; gameEdition: BnetEdition; realmId: number; characterId: number; name: string; realm: string; className?: string; race?: string; level?: number }
 export interface BattleNetDiscovery { subject: string; battleTag: string; characters: DiscoveredCharacter[]; region: BnetRegion; gameEdition: BnetEdition; verifiedAt: Date }
 export const discoveredKey = (c: DiscoveredCharacter) => `${c.region}:${c.gameEdition}:${c.realmId}:${c.characterId}`;
 export function battleNetAuthorize(config: BattleNetConfig, state: string) {
@@ -19,7 +19,8 @@ export function battleNetAuthorize(config: BattleNetConfig, state: string) {
   return url.href;
 }
 const positiveId = z.number().int().positive().max(2147483647);
-const characterSchema = z.object({ id: positiveId, name: z.string().min(1).max(100), realm: z.object({ id: positiveId, slug: z.string().min(1).max(100) }) });
+const label = z.object({ name: z.string().min(1).max(100) }).optional().catch(undefined);
+const characterSchema = z.object({ id: positiveId, name: z.string().min(1).max(100), realm: z.object({ id: positiveId, slug: z.string().min(1).max(100) }), playable_class: label, playable_race: label, level: z.number().int().min(1).max(200).optional().catch(undefined) });
 const accountSchema = z.object({ wow_accounts: z.array(z.object({ characters: z.array(characterSchema).max(500) })).max(50) });
 
 // No API-supplied URLs are followed, and no access/refresh token is persisted.
@@ -47,7 +48,8 @@ async function connect(config: BattleNetConfig, code: string, fetcher: typeof fe
     url.search = new URLSearchParams({ namespace: `${namespaces[edition]}-${region}`, locale: "en_US" }).toString();
     const account = accountSchema.parse(await json(url.href, { headers }));
     const found = [...new Map(account.wow_accounts.flatMap(a => a.characters).map(c => {
-      const row = { region, gameEdition: edition, realmId: c.realm.id, characterId: c.id, name: c.name, realm: c.realm.slug };
+      const row = { region, gameEdition: edition, realmId: c.realm.id, characterId: c.id, name: c.name, realm: c.realm.slug,
+        ...(c.playable_class ? { className: c.playable_class.name } : {}), ...(c.playable_race ? { race: c.playable_race.name } : {}), ...(c.level ? { level: c.level } : {}) };
       return [discoveredKey(row), row] as const;
     })).values()];
     if (found.length > 500) throw new Error("Too many characters were returned. No selection was saved.");

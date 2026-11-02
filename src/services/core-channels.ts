@@ -31,7 +31,7 @@ import { BRAND } from "../brand.js";
 // (member, applicant, welcome, leadership and core roles) provide the legacy audience.
 
 type Db = Pick<PrismaClient, "raidCore" | "raidCoreMember"> & Partial<Pick<PrismaClient, "guildSettings">>;
-type CoreLike = Pick<RaidCore, "id" | "name" | "roleId" | "categoryId" | "rosterChannelId" | "signupChannelId" | "lootChannelId" | "raidLogChannelId" | "chatChannelId" | "voiceChannelId" | "attendanceChannelId">;
+type CoreLike = Pick<RaidCore, "id" | "name" | "roleId" | "categoryId" | "rosterChannelId" | "signupChannelId" | "lootChannelId" | "raidLogChannelId" | "chatChannelId" | "voiceChannelId" | "attendanceChannelId"> & Partial<Pick<RaidCore, "applicationChannelId">>;
 
 const LEADERSHIP: Permission[] = ["guildMaster", "officer", "raidLeader"];
 
@@ -155,6 +155,40 @@ function overwrites(guild: DiscordGuild, roleId: string, access: "public" | "pri
   }
   if (me) list.push({ id: me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageMessages, PermissionFlagsBits.Connect] });
   return [...new Map(list.map(entry => [entry.id, entry])).values()];
+}
+
+export const coreApplicationChannelName = (name: string, language: string | null = "fr") =>
+  `${coreSlug(name)}-${language === "en" ? "applications" : "candidatures"}`;
+
+// Permission overwrites of a core's own applications channel: hidden from everyone, readable and
+// writable by the guild's Guild Master and Officer roles, the core's own officer role (when it has
+// one) and the bot. Not the core role itself: applicants are never shown each other's forms.
+export function applicationChannelOverwrites(guild: DiscordGuild, officerRoleId: string | null): OverwriteResolvable[] {
+  // The "officers" layout lists only @everyone (denied), Guild Master / Officer and the bot.
+  const filtered = overwrites(guild, guild.roles.everyone.id, "officers");
+  if (officerRoleId && guild.roles.cache.has(officerRoleId)) {
+    filtered.push({ id: officerRoleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] });
+  }
+  return [...new Map(filtered.map(entry => [entry.id, entry])).values()];
+}
+
+// Opt-in: an officer presses "Create application channel" on the core's post. Makes (or keeps) one
+// officers-only channel for this core and remembers it; nothing is created automatically.
+export async function createCoreApplicationChannel(guild: DiscordGuild, database: Db, coreId: string): Promise<{ channelId: string; created: boolean }> {
+  const core = await database.raidCore.findUniqueOrThrow({ where: { id: coreId } });
+  await guild.channels.fetch();
+  if (core.applicationChannelId && guild.channels.cache.has(core.applicationChannelId)) return { channelId: core.applicationChannelId, created: false };
+  await guild.roles.fetch();
+  const name = coreApplicationChannelName(core.name, await coreChannelLanguage(database, core.guildId));
+  const parent = core.categoryId && guild.channels.cache.has(core.categoryId) ? core.categoryId : undefined;
+  const channel = await guild.channels.create({
+    name, type: ChannelType.GuildText, ...(parent ? { parent } : {}),
+    topic: `Applications to ${core.name} (officers only)`.slice(0, 1024),
+    permissionOverwrites: applicationChannelOverwrites(guild, core.officerRoleId ?? null),
+    reason: `${BRAND.name}: application channel for core ${core.name}`
+  });
+  await database.raidCore.update({ where: { id: core.id }, data: { applicationChannelId: channel.id } });
+  return { channelId: channel.id, created: true };
 }
 
 // Creates what is missing of the core's role, category and four channels (safe to press again:
@@ -333,7 +367,7 @@ export const ARCHIVE_CATEGORY = "🗄️ Archived cores";
 export async function deleteCoreDiscord(guild: DiscordGuild, core: CoreLike): Promise<{ removed: number; failed: string[] }> {
   const result = { removed: 0, failed: [] as string[] };
   const channelIds = new Set([core.rosterChannelId, core.signupChannelId, core.lootChannelId,
-    core.raidLogChannelId, core.chatChannelId, core.voiceChannelId, core.attendanceChannelId].filter((id): id is string => !!id));
+    core.raidLogChannelId, core.chatChannelId, core.voiceChannelId, core.attendanceChannelId, core.applicationChannelId].filter((id): id is string => !!id));
   if (core.categoryId) {
     try {
       const channels = await guild.channels.fetch();

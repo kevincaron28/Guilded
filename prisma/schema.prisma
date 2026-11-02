@@ -71,6 +71,8 @@ enum AuditAction {
   MODERATION_KICK
   MODERATION_BAN
   DUNGEON_ADMIN
+  RAID_OFFICER
+  CORE_OFFICER
 }
 
 enum RaidStatus {
@@ -1696,6 +1698,14 @@ model RaidCore {
   voiceChannelId  String?
   // Officers-only: who was present, late, benched or absent at each of this core's raids.
   attendanceChannelId String?
+  // Officers-only: this core's own applications. Empty = the guild's common applications channel.
+  applicationChannelId String?
+  // Extra Discord role (this core's officers) allowed to read the application channel.
+  officerRoleId   String?
+  // Short free-text summary of the core's loot rules, shown on its roster post.
+  lootRulesNote   String?
+  // Set by an officer's Archive button; an archived core takes no applications and spawns no weekly raids.
+  archivedAt      DateTime?
   createdAt       DateTime         @default(now())
   guild           Guild            @relation(fields: [guildId], references: [id], onDelete: Cascade)
   members         RaidCoreMember[]

@@ -29,6 +29,7 @@ import { signupLayout } from "../services/signup-layout.js";
 import { dpsKind, signupSpec, specsForRole } from "../services/dps-kind.js";
 import { currentEdition } from "../services/edition-context.js";
 import { signupDpsKind } from "../services/raid.js";
+import { officerEntryButton } from "../services/officer-buttons.js";
 import { voiceAttendancePlan, voiceAttendanceSummary } from "../services/voice-attendance.js";
 
 const raidService = createRaidService(prisma);
@@ -146,6 +147,8 @@ async function readRaidTime(guildId: string, value: string): Promise<Date> {
 // shown while the raid is still planned.
 export const RAID_SIGNUP_PREFIX = "raidsignup:";
 function signupButtons(raidId: string, status: string, lang: Lang) {
+  // A cancelled raid keeps one Officer button so an officer can reopen it.
+  if (status === "CANCELLED") return [new ActionRowBuilder<ButtonBuilder>().addComponents(officerEntryButton("raid", raidId, lang))];
   if (status !== "PLANNED") return [];
   const b = (action: string, label: string, style: ButtonStyle) =>
     new ButtonBuilder().setCustomId(`${RAID_SIGNUP_PREFIX}${raidId}:${action}`).setLabel(label).setStyle(style);
@@ -155,7 +158,7 @@ function signupButtons(raidId: string, status: string, lang: Lang) {
     b("DPS", t(lang, "button.dps"), ButtonStyle.Danger),
     b("MAYBE", t(lang, "button.maybe"), ButtonStyle.Secondary),
     b("CANCEL", t(lang, "button.cancel"), ButtonStyle.Secondary)
-  ), new ActionRowBuilder<ButtonBuilder>().addComponents(b("LATE", t(lang, "button.late"), ButtonStyle.Secondary))];
+  ), new ActionRowBuilder<ButtonBuilder>().addComponents(b("LATE", t(lang, "button.late"), ButtonStyle.Secondary), officerEntryButton("raid", raidId, lang))];
 }
 
 // "Playing a different spec for this raid?": shown under a signup reply when the player's class

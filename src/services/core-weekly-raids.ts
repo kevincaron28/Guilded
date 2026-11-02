@@ -56,7 +56,7 @@ export async function fillCoreWeeklyRaids(database: PrismaClient, guildId: strin
 }
 
 export async function fillGuildWeeklyRaids(database: PrismaClient, guildId: string, onError: (error: unknown) => void, now = new Date()) {
-  const cores = await database.raidCore.findMany({ where: { guildId, weeklySchedule: { not: null } }, select: { id: true } });
+  const cores = await database.raidCore.findMany({ where: { guildId, weeklySchedule: { not: null }, archivedAt: null }, select: { id: true } });
   for (const core of cores) {
     try { await fillCoreWeeklyRaids(database, guildId, core.id, now); }
     catch (error) { onError(error); }

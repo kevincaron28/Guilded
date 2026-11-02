@@ -3,6 +3,7 @@ import type { PrismaClient, RaidRole } from "../generated/prisma/client.js";
 import { currentEdition } from "./edition-context.js";
 import { createGuildService } from "./guild.js";
 import { applyToCoreButtonRow } from "./application.js";
+import { officerEntryRow } from "./officer-buttons.js";
 import { asLootMode, LOOT_MODE_LABEL, LOOT_MODE_LABEL_FR } from "./core-rules.js";
 import { asLang, t, tx, type Lang } from "../i18n.js";
 import { allocate, clip, fit, SIGNUP_TEXT_LIMIT } from "./signup-layout.js";
@@ -280,6 +281,8 @@ export function createRaidCoreService(database: Db) {
 }
 
 type CoreForEmbed = {
+  lootRulesNote?: string | null;
+  archivedAt?: Date | null;
   raidSize?: number | null;
   tankLimit?: number | null;
   healerLimit?: number | null;
@@ -373,7 +376,9 @@ export function coreRosterLayout(core: CoreForEmbed & { id: string }, options: {
   const header = [
     options.guild ? `**${escapeMarkdown(clip(options.guild.name, 100))}**` : "",
     `### ⚜️ ${escapeMarkdown(clip(core.name, 200))}`,
-    core.description ? clip(core.description, 500) : ""
+    core.description ? clip(core.description, 500) : "",
+    core.lootRulesNote ? `-# ${fr ? "Butin" : "Loot"}: ${escapeMarkdown(clip(core.lootRulesNote, 300))}` : "",
+    core.archivedAt ? `-# 🗄️ ${fr ? "Core archivé : plus de candidatures." : "Archived core: no new applications."}` : ""
   ].filter(Boolean).join("\n");
 
   const mode = asLootMode(core.lootMode ?? options.guildLootMode);
@@ -448,7 +453,7 @@ export function coreRosterLayout(core: CoreForEmbed & { id: string }, options: {
       .addTextDisplayComponents(...texts.slice(roleBlocks.length).map((text) => new TextDisplayBuilder().setContent(text)));
   }
   container.addSeparatorComponents(divider()).addTextDisplayComponents(new TextDisplayBuilder().setContent(footer))
-    .addActionRowComponents(applyToCoreButtonRow(core));
+    .addActionRowComponents(...(core.archivedAt ? [] : [applyToCoreButtonRow(core)]), officerEntryRow("core", core.id, fr ? "fr" : "en"));
   return { components: [container], flags: MessageFlags.IsComponentsV2 as const, allowedMentions: { parse: [] as never[] } };
 }
 

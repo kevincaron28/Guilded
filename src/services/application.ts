@@ -46,6 +46,7 @@ export function createApplicationService(database: PrismaClient) {
       }
       const settings = await database.guildSettings?.findUnique({ where: { guildId: input.guildId }, select: { characterSignups: true } });
       const character = settings?.characterSignups && input.coreId ? await ownedSignupCharacter(database, input.guildId, input.memberId, input.characterId ?? input.character) : null;
+      if (input.coreId && await database.raidCore?.findFirst({ where: { id: input.coreId, guildId: input.guildId, archivedAt: { not: null } }, select: { id: true } })) throw new Error("Ce core est archivé et ne prend plus de candidatures. / This core is archived and takes no applications.");
       if (input.coreId && settings?.characterSignups && !await database.raidCore.findFirst({ where: { id: input.coreId, guildId: input.guildId }, select: { id: true } })) throw new Error("Ce core n'est pas dans ce serveur.");
       return database.application.create({
         data: {

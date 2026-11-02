@@ -572,7 +572,7 @@ describe("answer channel: bot-health fast path", () => {
     const settings = { guildId: "g1", guideChannelId: "c1" } as never;
     const answer = await botHealthAnswer(guild, database, settings, "en", "craft guide text");
     expect(answer).toBe(
-      "These bot messages need attention:\n• Pinned bot guide — missing\nAn officer can fix these: run /setup start, then press \"Update bot messages\"."
+      "These bot messages need attention:\n• Pinned bot guide — missing\n• Pinned install post — missing\nAn officer can fix these: run /setup start, then press \"Update bot messages\"."
     );
   });
 });

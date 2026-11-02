@@ -1,5 +1,6 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { ACHIEVEMENTS, GAME_LABEL, TIER_COLOR, TIER_LABEL, type AchievementGame } from "./achievements-catalogue.js";
+import { badgeLabel, badgeSvg } from "./achievement-badges.js";
 import { storedAchievements, syncMemberAchievements } from "./achievements.js";
 import { achievementsCard } from "./end-cards.js";
 import { scoreCardResponse } from "./score-card.js";
@@ -49,7 +50,9 @@ export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) =
         const color = TIER_COLOR[def.tier];
         const status = row.earnedAt ? `${t("Unlocked", "Débloqué")} ${row.earnedAt.toISOString().slice(0, 10)}`
           : showProgress ? `${t("Locked", "Verrouillé")} · ${Math.min(row.value, def.threshold)}/${def.threshold}` : t("Locked", "Verrouillé");
-        return `<article class="card" style="border-left:4px solid ${color};${row.earnedAt ? "" : "opacity:.55"}"><h4>${escapeHtml(def[lang].name)}</h4><p>${escapeHtml(def[lang].description)}</p><p class="tag">${TIER_LABEL[def.tier][lang]} · ${escapeHtml(status)}</p></article>`;
+        // The badge is decorative (aria-hidden) with its accessible name in a title: the name, tier and status are all text too.
+        const badge = `<span title="${escapeHtml(badgeLabel(def, Boolean(row.earnedAt), lang))}" style="flex:none;display:block;width:56px;height:56px">${badgeSvg(def, Boolean(row.earnedAt), { size: 56 })}</span>`;
+        return `<article class="card" style="display:flex;gap:14px;align-items:center;border-left:4px solid ${color};${row.earnedAt ? "" : "opacity:.7"}">${badge}<div style="min-width:0"><h4>${escapeHtml(def[lang].name)}</h4><p>${escapeHtml(def[lang].description)}</p><p class="tag">${TIER_LABEL[def.tier][lang]} · ${escapeHtml(status)}</p></div></article>`;
       }).join("")}</div>`).join("");
   }
 

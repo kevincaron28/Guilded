@@ -9,7 +9,7 @@ import type { WebResponse } from "./web-app.js";
  * character's recent runs). Fine print along the bottom.
  */
 export interface CardStat { label: string; value: string; note?: string | undefined; accent?: "gold" | "green" | "red" | undefined }
-export interface CardRow { name: string; color?: string | undefined; sub?: string | undefined; right?: string | undefined; rightTone?: "gold" | "green" | "red" | undefined }
+export interface CardRow { name: string; color?: string | undefined; sub?: string | undefined; right?: string | undefined; rightTone?: "gold" | "green" | "red" | undefined; icon?: string | undefined }
 export interface CardBadge { text: string; tone?: "ok" | "warn" | "muted" }
 export interface ScoreCard { eyebrow?: string; title: string; subtitle: string; stats: CardStat[]; rowsLabel?: string; rows?: CardRow[]; badges?: CardBadge[]; footer: string }
 
@@ -86,9 +86,11 @@ async function render(card: ScoreCard): Promise<Buffer> {
     shapes.push(`<rect x="${px + 28}" y="${top + 54}" width="${pw - 56}" height="1" fill="${th.edge}"/>`);
     for (const [i, row] of rows.entries()) {
       const ry = top + 70 + i * 74, color = row.color ?? th.gold;
-      shapes.push(`<rect x="${px + 28}" y="${ry + 4}" width="5" height="54" rx="2.5" fill="${color}"/>`);
-      await put(span(color, clip(row.name, 26)), 27, px + 48, ry, 330);
-      if (row.sub) await put(span(th.muted, clip(row.sub, 34)), 17, px + 48, ry + 36, 330);
+      // An icon (badge artwork, 64x64 grid) replaces the colour bar and pushes the text right.
+      const tx = row.icon ? px + 100 : px + 48;
+      shapes.push(row.icon ? `<svg x="${px + 28}" y="${ry + 1}" width="60" height="60" viewBox="0 0 64 64">${row.icon}</svg>` : `<rect x="${px + 28}" y="${ry + 4}" width="5" height="54" rx="2.5" fill="${color}"/>`);
+      await put(span(color, clip(row.name, row.icon ? 22 : 26)), row.icon ? 24 : 27, tx, ry + (row.icon ? 2 : 0), 330);
+      if (row.sub) await put(span(th.muted, clip(row.sub, row.icon ? 30 : 34)), 17, tx, ry + 36, 330);
       if (row.right) {
         const t = await text(span(row.rightTone ? accent[row.rightTone] : th.ink, clip(row.right, 14)), 23, 200);
         layers.push({ input: t.input, left: px + pw - 28 - t.width, top: ry + 14 });

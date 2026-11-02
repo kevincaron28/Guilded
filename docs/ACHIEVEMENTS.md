@@ -10,6 +10,7 @@ awards points, and nothing is posted to Discord automatically.
 | Catalogue (id, EN/FR name and description, game, tier, metric, threshold) | `src/services/achievements-catalogue.ts` |
 | Evaluation and storage | `src/services/achievements.ts` |
 | Share card (WoW theme, `score-card.ts`) | `achievementsCard` in `src/services/end-cards.ts` |
+| Badge artwork (SVG glyphs, tier frames, locked silhouettes) | `src/services/achievement-badges.ts` |
 | Discord | `/character achievements [member]` (`src/commands/achievements.ts`) |
 | Website | `/me/` section and public player page (`src/services/achievements-web.ts`), card image at `/me/achievements.png` and `/players/<id>/achievements.png` |
 | Tables | `MemberAchievement`, `PoeLevelReached` (migration `20261206000000_member_achievements`) |
@@ -51,7 +52,11 @@ must parse the client-log line for a level-up and the engine must upload it like
 PoE2 level achievements (75, 90, 99, 100) stay locked; the two map-count achievements work today. Verify the
 exact PoE2 log wording against a real `Client.txt` before writing the parser.
 
+## Badge artwork
+
+Generated from `achievement-badges.ts`: tier picks the frame and metal (bronze circle, silver hexagon, gold shield, epic spiked star with gem), game picks the plate and glyph colours (WoW blue and gold, guild green, PoE2 ember on dark red), and `GLYPH_BY_ID` picks the glyph. Locked badges are dark greyscale. The same SVG is drawn on the share card and inlined on the website (decorative, with name, tier and status kept as text). All artwork is original.
+
 ## Adding an achievement
 
-Add a row to `ACHIEVEMENTS`. Never reuse or rename an id. A new kind of measurement needs a case in
+Add a row to `ACHIEVEMENTS` and a glyph in `GLYPH_BY_ID` (a test fails without it). Never reuse or rename an id. A new kind of measurement needs a case in
 `measure()` and a fact in `gatherAchievementFacts()`.

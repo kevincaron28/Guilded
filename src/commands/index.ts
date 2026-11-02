@@ -4,6 +4,7 @@ import { gameEventsCommand } from "./game-events.js";
 import { wowCommand } from "./wow.js";
 import { healthCommand, executeHealth } from "./health.js";
 import { profileCommand, executeProfile } from "./profile.js";
+import { achievementsCommand, executeAchievements } from "./achievements.js";
 import { characterCommand, executeCharacter } from "./character.js";
 import { professionCommand, executeProfession } from "./profession.js";
 import { configCommand } from "./settings.js";
@@ -81,6 +82,7 @@ const same = (names: string[]) => Object.fromEntries(names.map((name) => [name, 
 
 const character = new MergedCommand("character", "Your profile, characters, professions, attunements, wishlist and readiness.", [
   { command: profileCommand, handler: executeProfile, as: "profile" },
+  { command: achievementsCommand, handler: executeAchievements, as: "achievements" },
   { command: whoCommand, handler: executeWho, as: "who" },
   { command: professionCommand, handler: executeProfession, as: "profession" },
   { command: attunementCommand, handler: executeAttunement, as: "attunement" },

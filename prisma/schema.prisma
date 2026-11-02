@@ -121,6 +121,8 @@ enum ApplicationStatus {
 }
 
 model Guild {
+  memberAchievements MemberAchievement[]
+  poeLevelsReached PoeLevelReached[]
   battlegroundReports BattlegroundReport[]
   battlegroundConsents BattlegroundConsent[]
   recurringRecaps RecurringRecap[]
@@ -430,6 +432,8 @@ model CommunityParticipationDeletion {
 
 
 model Member {
+  achievements MemberAchievement[]
+  poeLevelsReached PoeLevelReached[]
   battlegroundReports BattlegroundReport[]
   battlegroundConsent BattlegroundConsent?
   recurringRecap RecurringRecap?
@@ -804,6 +808,9 @@ model GuildSettings {
   pugChannelId             String?
   pugMessageId             String?
   poeTrackingEnabled Boolean @default(false)
+  // Achievements are viewable and recorded unless an officer turns them off. There is no announcement setting:
+  // nothing is ever posted or awarded automatically.
+  achievementsEnabled Boolean @default(true)
   // Full setup reset excludes history that still exists on members' PCs.
   dataResetAt DateTime?
   id                       String    @id @default(cuid())
@@ -2509,4 +2516,41 @@ model BattlegroundReport {
   @@index([guildId, gameEdition, endedAt])
   @@index([memberId, endedAt])
   @@index([guildId, premadeNonce])
+}
+
+// Achievements (catalogue in src/services/achievements-catalogue.ts). One row per member per key, written
+// the first time the recorded data reaches the threshold; earnedAt is the date that data says (or the
+// detection time when the source keeps no history). Permanent, no points, no automatic announcement.
+model MemberAchievement {
+  id         String   @id @default(cuid())
+  guildId    String
+  memberId   String
+  key        String
+  earnedAt   DateTime
+  recordedAt DateTime @default(now())
+  // The measured value when it was recorded (a level, a count).
+  value      Int
+  guild      Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  member     Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, memberId, key])
+  @@index([memberId])
+}
+
+// A Path of Exile 2 character level the member's own client log reported ("is now level N").
+// One row per character, league and level, so uploads can repeat safely.
+model PoeLevelReached {
+  id        String   @id @default(cuid())
+  guildId   String
+  memberId  String
+  character String
+  league    String
+  level     Int
+  reachedAt DateTime
+  createdAt DateTime @default(now())
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, memberId, character, league, level])
+  @@index([memberId, level])
 }

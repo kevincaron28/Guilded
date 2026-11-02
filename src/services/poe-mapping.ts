@@ -21,6 +21,10 @@ export const poeUploadSchema = z.object({
   visits: z.array(poeVisitSchema).min(1).max(100)
 }).strict();
 
+// Character levels from the member's own client log ("is now level N"): one row per character, league and level.
+export const poeLevelSchema = z.object({ character: label, league: label, level: z.number().int().min(2).max(100), reachedAt: z.iso.datetime({ offset: true }) }).strict();
+export const poeLevelUploadSchema = z.object({ guildDiscordId: z.string().min(1).max(30), levels: z.array(poeLevelSchema).min(1).max(100) }).strict();
+
 // "MapHiddenGrotto" -> "Hidden Grotto". Display only; areaId stays the stored key.
 export function poeAreaName(areaId: string): string {
   const name = areaId.replace(/^Map/, "").replace(/_/g, " ")
@@ -57,6 +61,17 @@ export function createPoeMappingService(database: PrismaClient) {
         // Acknowledging reset-excluded rows prevents the client retrying old history forever.
         return { inserted: result.count, acceptedRunRefs: visits.map(row => row.runRef), excludedByReset: visits.length - accepted.length };
       });
+    },
+    async ingestLevels(guildId: string, memberId: string, payload: unknown, now = new Date()) {
+      const { levels } = poeLevelUploadSchema.parse(payload);
+      const settings = await database.guildSettings.findUnique({ where: { guildId } });
+      if (!settings?.poeTrackingEnabled) throw new PoeMappingError("PoE2 tracking is disabled. An officer can enable it with /poe setup.", 403);
+      const member = await database.member.findFirst({ where: { id: memberId, guildId, status: "ACTIVE" }, select: { id: true } });
+      if (!member) throw new PoeMappingError("This Discord member is not active in this guild.", 403);
+      if (levels.some(row => Date.parse(row.reachedAt) > now.getTime() + 5 * 60_000)) throw new PoeMappingError("Level timestamp is in the future. Check the companion computer clock.", 400);
+      const accepted = levels.filter(row => !settings.dataResetAt || Date.parse(row.reachedAt) > settings.dataResetAt.getTime());
+      const result = accepted.length ? await database.poeLevelReached.createMany({ data: accepted.map(row => ({ ...row, guildId, memberId, reachedAt: new Date(row.reachedAt) })), skipDuplicates: true }) : { count: 0 };
+      return { inserted: result.count, excludedByReset: levels.length - accepted.length };
     },
     recent(guildId: string, memberId: string, league?: string) {
       return database.poeMapVisit.findMany({ where: { guildId, memberId, ...(league ? { league: leagueFilter(league) } : {}) }, orderBy: { startedAt: "desc" }, take: 15 });

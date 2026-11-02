@@ -1,3 +1,4 @@
+import { ACHIEVEMENTS, GAME_LABEL, TIER_COLOR, TIER_LABEL, achievementById, type AchievementDef, type AchievementGame } from "./achievements-catalogue.js";
 import type { RaidReport } from "./raid-report.js";
 import { formatDuration } from "./raid-report.js";
 import type { CardRow, ScoreCard } from "./score-card.js";
@@ -57,5 +58,35 @@ export function battlegroundEndCard(row: BgCardRow, recent: BgCardRow[] = [], la
       ...(row.status !== "PROVISIONAL" ? [{ text: row.status.toLowerCase(), tone: "muted" as const }] : [])
     ],
     footer: t("Private to you · Your own post-match report · Not Blizzard verified · no honor or ranking implied", "Privé · Votre propre rapport d'après-match · Non vérifié par Blizzard · aucun honneur ni classement")
+  };
+}
+
+export interface AchievementCardItem { id: string; earnedAt: Date | null; value: number }
+
+/** A member's achievements: how many are unlocked, the latest ones, and what is closest. Computed from recorded data only. */
+export function achievementsCard(name: string, items: AchievementCardItem[], lang: Lang = "en"): ScoreCard {
+  const t = pick(lang);
+  const rows = items.flatMap(item => { const def = achievementById(item.id); return def ? [{ def, ...item }] : []; });
+  const earned = rows.filter(row => row.earnedAt).sort((a, b) => b.earnedAt!.getTime() - a.earnedAt!.getTime());
+  const count = (game: AchievementGame) => `${earned.filter(row => row.def.game === game).length}/${ACHIEVEMENTS.filter(def => def.game === game).length}`;
+  const next = rows.filter(row => !row.earnedAt).map(row => ({ row, ratio: row.value / row.def.threshold })).sort((a, b) => b.ratio - a.ratio)[0]?.row;
+  const label = (def: AchievementDef) => def[lang].name;
+  const shown: CardRow[] = earned.length
+    ? earned.slice(0, 5).map(row => ({ name: label(row.def), sub: `${row.earnedAt!.toISOString().slice(0, 10)} · ${GAME_LABEL[row.def.game][lang]}`, color: TIER_COLOR[row.def.tier], right: TIER_LABEL[row.def.tier][lang] }))
+    : rows.filter(row => !row.earnedAt).sort((a, b) => b.value / b.def.threshold - a.value / a.def.threshold).slice(0, 5)
+      .map(row => ({ name: label(row.def), sub: `${Math.min(row.value, row.def.threshold)}/${row.def.threshold}`, color: "#8a7a5a", right: t("Locked", "Verrouillé") }));
+  return {
+    eyebrow: t("Guilded · Achievements", "Guilded · Succès"), title: name,
+    subtitle: t("Computed from recorded guild data", "Données enregistrées de la guilde"),
+    stats: [
+      { label: t("Unlocked", "Débloqués"), value: `${earned.length}/${rows.length}`, accent: earned.length ? "gold" : "red", note: t(`${Math.round(rows.length ? (earned.length / rows.length) * 100 : 0)}% of the catalogue`, `${Math.round(rows.length ? (earned.length / rows.length) * 100 : 0)} % du catalogue`) },
+      { label: "WoW", value: count("wow") }, { label: t("Guild", "Guilde"), value: count("guild") }
+    ],
+    rowsLabel: earned.length ? t("Latest achievements", "Derniers succès") : t("Closest to unlocking", "Les plus proches"), rows: shown,
+    badges: [
+      { text: `PoE2 ${count("poe2")}`, tone: "muted" },
+      ...(next ? [{ text: t(`Next: ${label(next.def)} ${Math.min(next.value, next.def.threshold)}/${next.def.threshold}`, `Prochain : ${label(next.def)} ${Math.min(next.value, next.def.threshold)}/${next.def.threshold}`), tone: "ok" as const }] : [])
+    ],
+    footer: t("Earned from synced characters, runs, raid attendance and your own PoE2 log · No points · guilded.kcaron.top", "Obtenus à partir des personnages synchronisés, donjons, présences aux raids et de votre journal PoE2 · Aucun point · guilded.kcaron.top")
   };
 }

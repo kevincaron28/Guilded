@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { executeAutomation } from "./commands/automation.js";
 import { runRecurringDeliveries } from "./services/recurring-discord.js";
 import { dispatchGroupWatches } from "./services/group-watch-discord.js";
@@ -88,7 +89,11 @@ import { refreshExistingBotGuides } from "./services/bot-messages.js";
 import { BACKUP_DIR, runBackup } from "./services/backup.js";
 import { ensureQuarterlyCalendar, freezeSeasonRules, loadOfficialWindows, rotateOfficialSeasons, startOfficialSeason } from "./services/official-seasons.js";
 import { finalizeClosingSeasons } from "./services/dungeon-admin.js";
-import { executeOwnerSeason, OWNER_SEASON_COMMAND, ownerSeasonCommand } from "./commands/owner-season.js";
+import { botOwnerId, executeOwnerSeason, OWNER_SEASON_COMMAND, ownerSeasonCommand } from "./commands/owner-season.js";
+import { executeOwnerConsole, OWNER_CONSOLE_COMMAND, ownerConsoleCommand } from "./commands/owner-console.js";
+import { createOwnerConsole } from "./services/owner-console.js";
+import { consoleTools } from "./services/owner-console-tools.js";
+import { CONSOLE_PREFIX } from "./services/owner-console-model.js";
 import { updateCommunityLeaderboard } from "./services/community-leaderboard.js";
 import { cleanupPastRaidPosts } from "./services/raid-post-cleanup.js";
 import { cleanupRaidAlerts } from "./services/raid-alert-cleanup.js";
@@ -227,6 +232,7 @@ client.once(Events.ClientReady, (readyClient) => {
     } finally { refreshingPugs = false; }
   };
   void refreshPugs();
+  setInterval(() => void ownerConsole.refresh().catch(reportJobError("Owner console board")), 5 * 60_000);
   setInterval(() => void refreshPugs(), 60_000);
   // Lite list first, then servers that joined while offline, then commands (full or Lite per server).
   void (async () => {
@@ -421,6 +427,8 @@ client.once(Events.ClientReady, (readyClient) => {
     pilotRequests.sweepIdle().catch(reportJobError("Idle Lite servers"));
     // Set-up, active Lite servers are approved by themselves when HOSTED_AUTO_APPROVE_DAYS is set.
     pilotRequests.sweepAutoApprove().catch(reportJobError("Automatic Lite approval"));
+    // The owner console's optional daily digest (off unless the owner turned it on).
+    ownerConsole.digestTick().catch(reportJobError("Owner console digest"));
     // Re-evaluate snapshot age even when nobody clicks a signup or uploads new gear.
     (async () => {
       for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) {
@@ -540,8 +548,8 @@ if (config.MESSAGE_CONTENT_INTENT) {
 
 client.on(Events.InteractionCreate, async interaction => {
   try {
-    const serverCommands = ["wow", "community", "organize", "poe", "participation", "events", "guilded-season", "guilded-events"];
-    const globalButton = "customId" in interaction && [PILOT_REQUEST_PREFIX, COMMUNITY_PREFIX, WELCOME_ROLE_PREFIX, SELF_ROLE_PREFIX, ONBOARD_PREFIX].some(prefix => interaction.customId.startsWith(prefix));
+    const serverCommands = ["wow", "community", "organize", "poe", "participation", "events", "guilded-season", "guilded-events", OWNER_CONSOLE_COMMAND];
+    const globalButton = "customId" in interaction && [PILOT_REQUEST_PREFIX, COMMUNITY_PREFIX, WELCOME_ROLE_PREFIX, SELF_ROLE_PREFIX, ONBOARD_PREFIX, CONSOLE_PREFIX].some(prefix => interaction.customId.startsWith(prefix));
     const wowOrganize = interaction.isChatInputCommand() && interaction.commandName === "organize" && interaction.options.getSubcommandGroup(false) === "dungeon-seasons";
     const globalCommand = "commandName" in interaction && serverCommands.includes(interaction.commandName) && !wowOrganize;
     const scope = interaction.guildId && hostedPilot.allows(interaction.guildId) && !globalCommand && !globalButton
@@ -563,6 +571,11 @@ client.on(Events.InteractionCreate, async interaction => {
 });
 
 async function handleGuildInteraction(interaction: Interaction): Promise<void> {
+  // The owner's private console: every id is owner-checked inside, in the home server only.
+  if ("customId" in interaction && interaction.customId.startsWith(CONSOLE_PREFIX)) {
+    await ownerConsole.handle(interaction).catch((error: unknown) => reportInteractionError("Owner console", interaction, error));
+    return;
+  }
   if (interaction.isButton() && interaction.customId.startsWith(PILOT_REQUEST_PREFIX)) {
     try { await pilotRequests.handle(interaction); }
     catch (error) {
@@ -796,6 +809,10 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
     await executeOwnerEvents(interaction).catch((error: unknown) => replyWithCommandError(interaction, error));
     return;
   }
+  if (interaction.commandName === OWNER_CONSOLE_COMMAND) {
+    await executeOwnerConsole(interaction, ownerConsole, () => botOwnerId(client)).catch((error: unknown) => replyWithCommandError(interaction, error));
+    return;
+  }
   if (interaction.commandName === OWNER_SEASON_COMMAND) {
     await executeOwnerSeason(interaction).catch((error: unknown) => replyWithCommandError(interaction, error));
     return;
@@ -817,7 +834,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
 // The bot owner's /guilded-season exists only in the home server (DISCORD_GUILD_ID).
 async function registerCommands(guildId: string, body: unknown[] = commands.map((command) => command.toJSON())): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(config.DISCORD_TOKEN);
-  const full = guildId === config.DISCORD_GUILD_ID ? [...body, ownerSeasonCommand.toJSON(), ownerEventsCommand.toJSON()] : body;
+  const full = guildId === config.DISCORD_GUILD_ID ? [...body, ownerSeasonCommand.toJSON(), ownerEventsCommand.toJSON(), ownerConsoleCommand.toJSON()] : body;
   await rest.put(Routes.applicationGuildCommands(config.DISCORD_CLIENT_ID, guildId), { body: badgeCommandsForGuild(guildId, full) });
 }
 
@@ -841,8 +858,11 @@ async function registerCommandsEverywhere(): Promise<void> {
 const pilotRequests = createPilotRequests(client, { enabled: hostedPilot.enabled, allows: hostedPilot.allows, replace: replacePilotApprovals,
   liteLimit: config.HOSTED_LITE_LIMIT, replaceLite: replacePilotLite,
   activate: async guild => { await registerCommands(guild.id); await greetNewGuild(guild); },
+  demote: async guild => { const lite = commandSetFor("lite", commands); if (lite) await registerCommands(guild.id, lite).catch(reportJobError("Registering Lite commands after demotion", { guildId: guild.id, guildName: guild.name })); },
   welcome: guild => welcomeApprovedOwner(client, guild), warnIdle: guild => warnIdleLite(client, guild),
   autoApprove: { days: config.HOSTED_AUTO_APPROVE_DAYS, members: config.HOSTED_AUTO_APPROVE_MEMBERS,
     // Settings exist after any command; the bot-guide channel only after /setup start.
     ready: async id => Boolean(await prisma.guildSettings.findFirst({ where: { guild: { discordId: id }, guideChannelId: { not: null } }, select: { guildId: true } })) } });
+const ownerConsole = createOwnerConsole({ db: prisma, client, homeGuildId: config.DISCORD_GUILD_ID, ownerId: () => botOwnerId(client),
+  tier: id => hostedPilot.tier(id), setTier: (id, tier) => pilotRequests.setTier(id, tier), version: JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version as string, tools: consoleTools });
 await client.login(config.DISCORD_TOKEN);

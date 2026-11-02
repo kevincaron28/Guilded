@@ -20,6 +20,8 @@ type Options = { enabled: boolean; allows: (id: string) => boolean; replace: (id
   // How many waiting servers get Guilded Lite (default 0: none), and where the running bot keeps that list.
   liteLimit?: number; replaceLite?: (ids: string[]) => void;
   activate: (guild: Guild) => Promise<void>;
+  // Re-registers a demoted server's commands as Guilded Lite's (owner console). Must not throw.
+  demote?: (guild: Guild) => Promise<void>;
   // Tells the approved server's owner (true when the message was delivered). Must not throw.
   welcome?: (guild: Guild) => Promise<boolean>;
   // Tells an idle Lite server it will be left (true when delivered). Must not throw.
@@ -153,6 +155,33 @@ export function createPilotRequests(client: Client, options: Options) {
         await user.send({ content: `**Guilded — approbation automatique / automatic approval**\nServeur / Server: **${escapeMarkdown(request.name).slice(0, 200)}**\nID: \`${id}\`\nMembres / Members: ${guild.memberCount}\n${result.activated ? "Activé. / Activated." : "Configuration Discord à réessayer au redémarrage. / Discord setup will retry on restart."}\nRetirer / Revoke: \`npm run pilot -- revoke ${id}\``, allowedMentions: { parse: [] } }).catch(() => undefined);
       }
       if (changed) await save(state);
+    }); },
+    /** Owner console: moves a server between full approval and Guilded Lite; returns a one-line result. */
+    setTier(id: string, tier: "approved" | "lite") { return serial(async (): Promise<string> => {
+      if (!options.enabled) return "The hosted pilot is off, so there are no tiers.";
+      const state = await load(), request = state[id] ?? { nonce: randomUUID(), name: client.guilds.cache.get(id)?.name ?? id, status: "lite" as const, since: now(), activeAt: now() };
+      if (tier === "approved") {
+        if (options.allows(id)) return "Already approved.";
+        state[id] = request;
+        const result = await approve(id, state, request);
+        if (result === "full") return "The hosting limit (HOSTED_GUILD_LIMIT) is reached; nothing changed.";
+        return result.activated ? "Approved. Full commands are registered." : "Approved; Discord setup will retry on restart.";
+      }
+      if (!options.allows(id)) return "Already on Lite (or waiting).";
+      const lite = Object.entries(state).filter(([key, row]) => row.status === "lite" && !options.allows(key)).length;
+      if (lite >= (options.liteLimit ?? 0)) return "No Guilded Lite slot is free (HOSTED_LITE_LIMIT); nothing changed.";
+      const source = await readFile(envPath, "utf8"), next = editPilotApprovals(source, "revoke", id), info = await stat(envPath), temp = `${envPath}.${randomUUID()}.tmp`;
+      try {
+        await writeFile(temp, next, { flag: "wx", mode: info.mode & 0o777 });
+        if (process.platform !== "win32") await chown(temp, info.uid, info.gid);
+        if (await readFile(envPath, "utf8") !== source) throw new Error("Configuration changed; try again.");
+        await rename(temp, envPath);
+      } finally { await rm(temp, { force: true }); }
+      options.replace(pilotFilePolicy(next).guildIds);
+      state[id] = { ...request, status: "lite", since: now(), activeAt: now() }; delete state[id]!.warnedAt; await save(state);
+      const guild = client.guilds.cache.get(id);
+      if (guild) await options.demote?.(guild);
+      return "Moved to Guilded Lite; the Lite command set is registered.";
     }); },
     request(guild: Guild) { return serial(async () => {
       if (!options.enabled || options.allows(guild.id)) return;

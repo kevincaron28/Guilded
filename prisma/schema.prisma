@@ -122,6 +122,7 @@ enum ApplicationStatus {
 
 model Guild {
   memberAchievements MemberAchievement[]
+  memberActivityTotals MemberActivityTotal[]
   poeLevelsReached PoeLevelReached[]
   battlegroundReports BattlegroundReport[]
   battlegroundConsents BattlegroundConsent[]
@@ -815,6 +816,8 @@ model GuildSettings {
   // on first records everything already earned as announced, so there is no backfill.
   achievementAnnounceEnabled Boolean @default(false)
   achievementChannelId String?
+  // Catalogue version this guild's announcements were last quietly baselined at (see ACHIEVEMENT_CATALOGUE_VERSION).
+  achievementBaselineVersion Int @default(0)
   // Full setup reset excludes history that still exists on members' PCs.
   dataResetAt DateTime?
   id                       String    @id @default(cuid())
@@ -2526,6 +2529,22 @@ model BattlegroundReport {
 // Achievements (catalogue in src/services/achievements-catalogue.ts). One row per member per key, written
 // the first time the recorded data reaches the threshold; earnedAt is the date that data says (or the
 // detection time when the source keeps no history). Permanent, no points, no automatic announcement.
+// Running Discord activity totals per member, for the message, voice and reaction achievements. Numbers only:
+// message text is never read or stored. Counting starts when the bot first records a guild with achievements on.
+model MemberActivityTotal {
+  guildId           String
+  userId            String
+  messages          Int      @default(0)
+  reactionsGiven    Int      @default(0)
+  reactionsReceived Int      @default(0)
+  voiceSeconds      Int      @default(0)
+  since             DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  guild             Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@id([guildId, userId])
+}
+
 model MemberAchievement {
   id         String   @id @default(cuid())
   guildId    String

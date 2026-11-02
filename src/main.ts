@@ -103,6 +103,7 @@ import { keepStampsOnDisk, standingsFeed } from "./services/standings-feed.js";
 import { executePoe } from "./commands/poe.js";
 import { executeParticipation } from "./commands/participation.js";
 import { createParticipationTracker } from "./services/participation-discord.js";
+import { createActivityTracker, VOICE_TICK_MS } from "./services/activity-totals.js";
 import { handleOnboardingInteraction, ONBOARD_PREFIX, runOnboardingNudges } from "./services/onboarding.js";
 import { handleMemberJoin, handleMemberRolesChange, handleMemberLeave, handleWelcomeRoleButton, WELCOME_ROLE_PREFIX } from "./services/housekeeping.js";
 import { createErrorReportService, isMemberAnswer } from "./services/error-report.js";
@@ -127,6 +128,8 @@ const client = new Client({
   partials: [Partials.Message, Partials.Reaction, Partials.User]
 });
 const participationTracker = createParticipationTracker(prisma, config.MESSAGE_CONTENT_INTENT);
+// Numbers-only activity totals for the message, voice and reaction achievements (never message text).
+const activityTotals = createActivityTracker(prisma);
 const answerCommandList = buildGuildedReference(commands);
 const errorReportService = createErrorReportService(prisma);
 // Before the companion API answers: unchanged standings keep their stamp across restarts.
@@ -236,6 +239,10 @@ client.once(Events.ClientReady, (readyClient) => {
   const voice = async () => { for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) await participationTracker.sampleVoice(guild); };
   void voice().catch(reportJobError("Participation voice checkpoint"));
   setInterval(() => void voice().catch(reportJobError("Participation voice checkpoint")), 30_000);
+  setInterval(() => void (async () => {
+    for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) await activityTotals.voice(guild);
+    await activityTotals.flush();
+  })().catch(reportJobError("Activity totals")), VOICE_TICK_MS);
   const communityActivities = () => runCommunityActivities(readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values(), reportJobError("Community honors")).catch(reportJobError("Community activities"));
   void (async () => {
     for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) {
@@ -495,6 +502,8 @@ client.on(Events.GuildMemberRemove, async (member) => {
   }
 });
 
+client.on(Events.MessageCreate, message => { if (message.guildId && hostedPilot.allows(message.guildId)) void activityTotals.message(message).catch(reportJobError("Activity totals messages", { guildId: message.guildId, channelId: message.channelId })); });
+client.on(Events.MessageReactionAdd, (reaction, user) => { if (reaction.message.guildId && hostedPilot.allows(reaction.message.guildId)) void activityTotals.reaction(reaction, user).catch(reportJobError("Activity totals reactions", { guildId: reaction.message.guildId, channelId: reaction.message.channelId })); });
 client.on(Events.MessageCreate, message => { if (message.guildId && hostedPilot.allows(message.guildId)) void participationTracker.message(message).catch(reportJobError("Participation messages", { guildId: message.guildId, channelId: message.channelId, messageId: message.id })); });
 client.on(Events.MessageReactionAdd, (reaction, user) => { if (reaction.message.guildId && hostedPilot.allows(reaction.message.guildId)) void participationTracker.reaction(reaction, user).catch(reportJobError("Participation reactions", { guildId: reaction.message.guildId, channelId: reaction.message.channelId, messageId: reaction.message.id })); });
 client.on(Events.MessageDelete, message => { if (message.guildId && hostedPilot.allows(message.guildId)) void participationTracker.deleted(message).catch(reportJobError("Participation deleted message", { guildId: message.guildId, channelId: message.channelId })); });

@@ -1,5 +1,5 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
-import { achievementById, TIER_LABEL } from "./achievements-catalogue.js";
+import { ACHIEVEMENT_CATALOGUE_VERSION, achievementById, TIER_LABEL } from "./achievements-catalogue.js";
 import { syncMemberAchievements } from "./achievements.js";
 import { achievementUnlockedCard } from "./end-cards.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
@@ -20,8 +20,10 @@ export async function markAnnouncedSilently(db: Pick<PrismaClient, "memberAchiev
 
 /** Queues one celebration message for a member's waiting achievements. Returns how many were announced. */
 export async function announceNewAchievements(db: Db, guildId: string, memberId: string, now = new Date()): Promise<number> {
-  const settings = await db.guildSettings.findUnique({ where: { guildId }, select: { achievementAnnounceEnabled: true, achievementChannelId: true, achievementsEnabled: true, language: true } });
+  const settings = await db.guildSettings.findUnique({ where: { guildId }, select: { achievementAnnounceEnabled: true, achievementChannelId: true, achievementsEnabled: true, achievementBaselineVersion: true, language: true } });
   if (!settings?.achievementAnnounceEnabled || !settings.achievementChannelId || !settings.achievementsEnabled) return 0;
+  // New catalogue rows that history already satisfies are baselined quietly by the next sweep first (no flood).
+  if (settings.achievementBaselineVersion < ACHIEVEMENT_CATALOGUE_VERSION) return 0;
   const member = await db.member.findFirst({ where: { id: memberId, guildId, status: "ACTIVE", isTest: false }, select: { discordUserId: true, displayName: true } });
   if (!member) return 0;
   const waiting = await db.memberAchievement.findMany({ where: { guildId, memberId, announcedAt: null }, select: { id: true, key: true, earnedAt: true }, orderBy: { earnedAt: "asc" }, take: 200 });
@@ -58,11 +60,17 @@ export async function announceNewAchievements(db: Db, guildId: string, memberId:
  * Hourly pass: evaluates every active member of guilds that announce (evaluation is otherwise on view only),
  * then queues the celebrations. One member or guild failing never stops the rest.
  */
-export async function sweepAchievementAnnouncements(db: Db & Pick<PrismaClient, "character" | "professionSkill" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit">, now = new Date(), onError: (error: unknown) => void = () => undefined): Promise<number> {
+export async function sweepAchievementAnnouncements(db: Db & Pick<PrismaClient, "character" | "professionSkill" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit" | "communityPoint" | "epgpTransaction" | "memberActivityTotal">, now = new Date(), onError: (error: unknown) => void = () => undefined): Promise<number> {
   let posted = 0;
-  const guilds = await db.guildSettings.findMany({ where: { achievementAnnounceEnabled: true, achievementsEnabled: true, achievementChannelId: { not: null } }, select: { guildId: true }, take: 100 });
-  for (const { guildId } of guilds) {
+  const guilds = await db.guildSettings.findMany({ where: { achievementAnnounceEnabled: true, achievementsEnabled: true, achievementChannelId: { not: null } }, select: { guildId: true, achievementBaselineVersion: true }, take: 100 });
+  for (const { guildId, achievementBaselineVersion } of guilds) {
     try {
+      if (achievementBaselineVersion < ACHIEVEMENT_CATALOGUE_VERSION) {
+        // The catalogue grew since this guild last baselined: record what history already earns without posting it.
+        await baselineAchievements(db, guildId, now);
+        await db.guildSettings.update({ where: { guildId }, data: { achievementBaselineVersion: ACHIEVEMENT_CATALOGUE_VERSION } });
+        continue;
+      }
       for (const member of await db.member.findMany({ where: { guildId, status: "ACTIVE", isTest: false }, select: { id: true }, take: 2000 })) {
         try { await syncMemberAchievements(db, guildId, member.id, now); posted += await announceNewAchievements(db, guildId, member.id, now); } catch (error) { onError(error); }
       }

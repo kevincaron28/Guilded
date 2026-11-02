@@ -1,15 +1,16 @@
 import { describe, expect, it } from "vitest";
+import { ACHIEVEMENT_CATALOGUE_VERSION } from "../src/services/achievements-catalogue.js";
 import { announceNewAchievements, markAnnouncedSilently, sweepAchievementAnnouncements } from "../src/services/achievement-announce.js";
 
 interface Row { id: string; guildId: string; memberId: string; key: string; earnedAt: Date; announcedAt: Date | null }
 type Where = { id?: { in: string[] }; announcedAt?: null; guildId?: string; memberId?: string };
 
-function fakeDb(options: { enabled?: boolean; channel?: string | null; hidden?: boolean; language?: string; keys?: string[] } = {}) {
+function fakeDb(options: { enabled?: boolean; channel?: string | null; hidden?: boolean; language?: string; keys?: string[]; baseline?: number } = {}) {
   const rows: Row[] = (options.keys ?? ["wow-level-20", "dungeon-runs-1"]).map((key, i) => ({ id: `r${i}`, guildId: "g1", memberId: "m1", key, earnedAt: new Date(2026, 10, 1 + i), announcedAt: null }));
   const jobs: { key: string; kind: string; payload: Record<string, unknown> }[] = [];
   const match = (row: Row, where: Where) => (!where.id || where.id.in.includes(row.id)) && (where.announcedAt === undefined || row.announcedAt === where.announcedAt) && (!where.guildId || row.guildId === where.guildId) && (!where.memberId || row.memberId === where.memberId);
   const db = {
-    guildSettings: { findUnique: async () => ({ achievementAnnounceEnabled: options.enabled ?? true, achievementChannelId: options.channel === undefined ? "c1" : options.channel, achievementsEnabled: true, language: options.language ?? "en" }) },
+    guildSettings: { findUnique: async () => ({ achievementAnnounceEnabled: options.enabled ?? true, achievementChannelId: options.channel === undefined ? "c1" : options.channel, achievementsEnabled: true, achievementBaselineVersion: options.baseline ?? ACHIEVEMENT_CATALOGUE_VERSION, language: options.language ?? "en" }) },
     member: { findFirst: async () => ({ discordUserId: "123456789012345678", displayName: "Kev" }) },
     webAccount: { findFirst: async () => options.hidden ? { publicProfile: false } : null },
     memberAchievement: {
@@ -71,6 +72,12 @@ describe("achievement announcements", () => {
     expect(await announceNewAchievements(db, "g1", "m1")).toBe(0);
     expect(jobs).toHaveLength(0);
     expect(rows.every(row => row.announcedAt)).toBe(true);
+  });
+  it("waits for the quiet baseline after the catalogue grows: nothing is announced until the sweep has recorded history silently", async () => {
+    const { db, jobs, rows } = fakeDb({ baseline: ACHIEVEMENT_CATALOGUE_VERSION - 1 });
+    expect(await announceNewAchievements(db, "g1", "m1")).toBe(0);
+    expect(jobs).toHaveLength(0);
+    expect(rows.every(row => row.announcedAt === null)).toBe(true);
   });
   it("writes the message in the guild language", async () => {
     const { db, jobs } = fakeDb({ language: "fr", keys: ["raids-1"] });

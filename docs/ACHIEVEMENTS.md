@@ -1,6 +1,6 @@
 # Achievements and badges
 
-31 achievements, computed only from data Guilded already recorded. Nothing is self-reported, nothing
+72 achievements, computed only from data Guilded already recorded. Nothing is self-reported, nothing
 awards points, and nothing is posted to Discord automatically.
 
 ## Where things live
@@ -13,7 +13,8 @@ awards points, and nothing is posted to Discord automatically.
 | Badge artwork (SVG glyphs, tier frames, locked silhouettes) | `src/services/achievement-badges.ts` |
 | Discord | `/character achievements [member]` (`src/commands/achievements.ts`) |
 | Website | `/me/` section and public player page (`src/services/achievements-web.ts`), card image at `/me/achievements.png` and `/players/<id>/achievements.png` |
-| Tables | `MemberAchievement`, `PoeLevelReached` (migration `20261206000000_member_achievements`) |
+| Activity counters | `ActivityBuffer` / `createActivityTracker` in `src/services/activity-totals.ts`, wired in `src/main.ts` |
+| Tables | `MemberAchievement`, `PoeLevelReached` (migration `20261206000000_member_achievements`), `MemberActivityTotal` (migration `20261210000000_member_activity_totals`) |
 
 ## Where each metric comes from
 
@@ -29,6 +30,12 @@ awards points, and nothing is posted to Discord automatically.
 | Active days | distinct days in `CommunityParticipationDay` with messages, reactions or voice |
 | PoE2 level | `PoeLevelReached`, from the member's own client log ("is now level N") |
 | PoE2 maps | distinct `PoeMapVisit` instances |
+| Messages sent | larger of `MemberActivityTotal.messages` and the sum of `CommunityParticipationDay.messages` |
+| Voice hours | larger of `MemberActivityTotal.voiceSeconds` and `CommunityParticipationDay.voiceMs`, in whole hours |
+| Reactions given | larger of `MemberActivityTotal.reactionsGiven` and the participation reaction awards where the member is the actor |
+| Reactions received | larger of `MemberActivityTotal.reactionsReceived` and `CommunityParticipationDay.reactions` |
+| Community points | sum of `CommunityPoint` AWARD and REVERSAL rows across the guild's seasons (the leaderboard sum), never below 0 |
+| EP earned | sum of positive `EpgpTransaction.epAmount` of type EP_AWARD |
 
 ## Behaviour
 
@@ -44,6 +51,34 @@ awards points, and nothing is posted to Discord automatically.
 - **Web privacy.** Only members of guilds the site serves (`hostedPilot.allows`), only for public
   profiles; a hidden profile shows nothing publicly.
 
+## Activity totals and long progressions
+
+Season participation is a capped lower bound (10 messages a day, a five-minute cooldown, tracked channels
+only, and only while a Discord season with participation is on), so it cannot show a real "messages sent"
+number. Guilded therefore keeps one small counter row per member (`MemberActivityTotal`): messages, reactions
+given and received, and voice seconds. It stores numbers only, never message text, needs no privileged intent
+(a message event carries its author without Message Content) and counts only guilds with achievements on.
+
+- **What counts.** Messages from people (not bots, webhooks or system messages; bursts under 2 s count once),
+  in any channel the bot can see. Reactions added by people, once per message and person (toggling does not
+  repeat), as given for the reactor and received for the author (not on your own message, not on a bot's).
+  Voice: each minute, everyone in a voice channel with at least one other person, not deafened and not in the
+  AFK channel, is credited the time since the last check.
+- **Only from deploy onward.** The counters start at zero when this release is deployed. Earlier history counts
+  only through the season participation record (the larger of the two is used), so long-time members may start
+  with less than they really did. Voice and reaction totals before then are not recoverable.
+- **Cost.** Increments are buffered in memory and written about once a minute (one upsert per active member).
+  A restart can lose up to a minute of counts. A failed write keeps its counts for the next flush.
+- **Dates.** Totals keep no event history, so these achievements are dated when first seen at the threshold
+  (the next view or the hourly pass when announcements are on).
+- **Long progressions.** `ladder()` in the catalogue builds them: messages (10 steps, 100 to 250,000), voice
+  hours (8, 1 to 1,000), reactions given (7), reactions received (5), community points (7) and EP (4). The
+  badge shows the step as pips under the glyph; tiers now run bronze, silver, gold, platinum, epic, legendary.
+  The card and the website "next up" strip show only the top earned and the next unearned step of a ladder.
+- **No flood on announcing guilds.** `ACHIEVEMENT_CATALOGUE_VERSION` is bumped when rows are added that history
+  already satisfies. A guild that announces is baselined once, silently, by the next hourly pass
+  (`GuildSettings.achievementBaselineVersion`); nothing is announced for it until then.
+
 ## Open item: PoE2 levels need a companion release
 
 `PoeLevelReached` is filled through `POST /api/v1/poe/levels` (added to the Worker allow-list in
@@ -54,7 +89,7 @@ exact PoE2 log wording against a real `Client.txt` before writing the parser.
 
 ## Badge artwork
 
-Generated from `achievement-badges.ts`: tier picks the frame and metal (bronze circle, silver hexagon, gold shield, epic spiked star with gem), game picks the plate and glyph colours (WoW blue and gold, guild green, PoE2 ember on dark red), and `GLYPH_BY_ID` picks the glyph. Locked badges are dark greyscale. The same SVG is drawn on the share card and inlined on the website (decorative, with name, tier and status kept as text). All artwork is original.
+Generated from `achievement-badges.ts`: tier picks the frame and metal (bronze circle, silver hexagon, gold shield, platinum octagon, epic spiked star with gem, legendary sunburst with gem; long progressions add rank pips), game picks the plate and glyph colours (WoW blue and gold, guild green, PoE2 ember on dark red), and `GLYPH_BY_ID` picks the glyph. Locked badges are dark greyscale. The same SVG is drawn on the share card and inlined on the website (decorative, with name, tier and status kept as text). All artwork is original.
 
 ## Adding an achievement
 

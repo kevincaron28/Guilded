@@ -19,11 +19,18 @@ export interface AchievementFacts {
   activeDays: Date[];
   poeLevels: { level: number; reachedAt: Date }[];
   poeMaps: Date[];
+  /** Discord activity and scoring totals (no history, so these earn on first sight). */
+  messagesSent: number;
+  reactionsGiven: number;
+  reactionsReceived: number;
+  voiceHours: number;
+  communityPoints: number;
+  epEarned: number;
 }
 
 export interface AchievementResult { def: AchievementDef; value: number; earned: boolean; earnedAt: Date | null }
 
-export const emptyFacts = (): AchievementFacts => ({ highestWowLevel: 0, charactersAtCap: 0, dungeonRuns: [], dungeonVariety: [], highestProfessionSkill: 0, raidsAttended: [], raidClears: [], activeDays: [], poeLevels: [], poeMaps: [] });
+export const emptyFacts = (): AchievementFacts => ({ highestWowLevel: 0, charactersAtCap: 0, dungeonRuns: [], dungeonVariety: [], highestProfessionSkill: 0, raidsAttended: [], raidClears: [], activeDays: [], poeLevels: [], poeMaps: [], messagesSent: 0, reactionsGiven: 0, reactionsReceived: 0, voiceHours: 0, communityPoints: 0, epEarned: 0 });
 
 function measure(metric: AchievementMetric, threshold: number, facts: AchievementFacts): { value: number; at: Date | null } {
   const counted = (dates: Date[]) => ({ value: dates.length, at: dates[threshold - 1] ?? null });
@@ -38,6 +45,13 @@ function measure(metric: AchievementMetric, threshold: number, facts: Achievemen
     case "raidClears": return counted(facts.raidClears);
     case "activeDays": return counted(facts.activeDays);
     case "poeMaps": return counted(facts.poeMaps);
+    // Totals keep no per-event history here, so the date is when the total was first seen at the threshold (null = now).
+    case "messagesSent": return { value: facts.messagesSent, at: null };
+    case "reactionsGiven": return { value: facts.reactionsGiven, at: null };
+    case "reactionsReceived": return { value: facts.reactionsReceived, at: null };
+    case "voiceHours": return { value: facts.voiceHours, at: null };
+    case "communityPoints": return { value: facts.communityPoints, at: null };
+    case "epEarned": return { value: facts.epEarned, at: null };
     case "poeLevel": {
       const reached = facts.poeLevels.filter(row => row.level >= threshold).sort((a, b) => a.reachedAt.getTime() - b.reachedAt.getTime())[0];
       return { value: facts.poeLevels.reduce((best, row) => Math.max(best, row.level), 0), at: reached?.reachedAt ?? null };
@@ -56,7 +70,7 @@ export function evaluateAchievements(facts: AchievementFacts, now: Date): Achiev
   });
 }
 
-type Db = Pick<PrismaClient, "character" | "professionSkill" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit" | "member" | "memberAchievement">;
+type Db = Pick<PrismaClient, "character" | "professionSkill" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit" | "communityPoint" | "epgpTransaction" | "memberActivityTotal" | "member" | "memberAchievement">;
 
 const dedupe = <T>(rows: T[], key: (row: T) => string) => { const seen = new Set<string>(); return rows.filter(row => { const k = key(row); if (seen.has(k)) return false; seen.add(k); return true; }); };
 
@@ -65,16 +79,25 @@ export async function gatherAchievementFacts(db: Db, guildId: string, memberId: 
   const member = await db.member.findFirst({ where: { id: memberId, guildId }, select: { discordUserId: true } });
   if (!member) return emptyFacts();
   const max = (metric: AchievementMetric) => Math.max(...ACHIEVEMENTS.filter(row => row.metric === metric).map(row => row.threshold));
-  const [characters, skills, runs, attendance, days, levels, visits] = await Promise.all([
+  const [characters, skills, runs, attendance, days, levels, visits, counter, points, given, ep] = await Promise.all([
     db.character.findMany({ where: { memberId, guildId }, select: { level: true, gameEdition: true } }),
     db.professionSkill.findMany({ where: { character: { memberId, guildId } }, select: { skillLevel: true }, orderBy: { skillLevel: "desc" }, take: 1 }),
     db.dungeonRunPlayer.findMany({ where: { memberId, run: { guildId, valid: true, state: "COMPLETED" } }, select: { runId: true, run: { select: { instanceId: true, endedAt: true, startedAt: true, createdAt: true } } }, take: 1000 }),
     db.raidAttendance.findMany({ where: { memberId, status: { in: ["PRESENT", "LATE", "BENCHED"] }, raid: { guildId, status: "COMPLETED", isTest: false } },
       select: { raidId: true, raid: { select: { endedAt: true, scheduledAt: true, bosses: { select: { status: true } } } } }, take: 1000 }),
-    db.communityParticipationDay.findMany({ where: { userId: member.discordUserId, season: { guildId }, OR: [{ messages: { gt: 0 } }, { reactions: { gt: 0 } }, { voiceMs: { gt: 0 } }] }, select: { day: true }, orderBy: { day: "asc" }, take: 2000 }),
+    db.communityParticipationDay.findMany({ where: { userId: member.discordUserId, season: { guildId }, OR: [{ messages: { gt: 0 } }, { reactions: { gt: 0 } }, { voiceMs: { gt: 0 } }] }, select: { day: true, messages: true, reactions: true, voiceMs: true }, orderBy: { day: "asc" }, take: 2000 }),
     db.poeLevelReached.findMany({ where: { guildId, memberId }, select: { level: true, reachedAt: true }, take: 2000 }),
-    db.poeMapVisit.findMany({ where: { guildId, memberId }, select: { instanceRef: true, runRef: true, startedAt: true }, orderBy: { startedAt: "asc" }, take: Math.max(2000, max("poeMaps") * 4) })
+    db.poeMapVisit.findMany({ where: { guildId, memberId }, select: { instanceRef: true, runRef: true, startedAt: true }, orderBy: { startedAt: "asc" }, take: Math.max(2000, max("poeMaps") * 4) }),
+    db.memberActivityTotal.findUnique({ where: { guildId_userId: { guildId, userId: member.discordUserId } }, select: { messages: true, reactionsGiven: true, reactionsReceived: true, voiceSeconds: true } }),
+    // Community points: awards minus reversals across the guild's seasons (the same sum the leaderboard uses).
+    db.communityPoint.aggregate({ where: { userId: member.discordUserId, kind: { in: ["AWARD", "REVERSAL"] }, season: { guildId } }, _sum: { amount: true } }),
+    // Reactions this member gave that the season participation record counted (the reactor is the point's actor).
+    db.communityPoint.count({ where: { actorId: member.discordUserId, kind: "AWARD", reference: { startsWith: "participation:reaction:" }, season: { guildId } } }),
+    db.epgpTransaction.aggregate({ where: { guildId, memberId, type: "EP_AWARD", epAmount: { gt: 0 } }, _sum: { epAmount: true } })
   ]);
+  // Season participation is a lower bound (capped, only in tracked channels); the counter is the full total from
+  // when counting started. Taking the larger keeps earlier tracked activity counted.
+  const seasonSum = (field: "messages" | "reactions" | "voiceMs") => days.reduce((sum, row) => sum + (row[field] ?? 0), 0);
   const byDate = (a: Date, b: Date) => a.getTime() - b.getTime();
   const raidRows = attendance.map(row => ({ id: row.raidId, at: row.raid.endedAt ?? row.raid.scheduledAt, cleared: row.raid.bosses.length > 0 && row.raid.bosses.every(boss => boss.status === "KILLED") }));
   const runDated = dedupe(runs, row => row.runId).map(row => ({ ...row, at: row.run.endedAt ?? row.run.startedAt ?? row.run.createdAt })).sort((x, y) => byDate(x.at, y.at));
@@ -91,7 +114,13 @@ export async function gatherAchievementFacts(db: Db, guildId: string, memberId: 
     activeDays: dedupe(days, row => row.day).map(row => new Date(`${row.day}T12:00:00Z`)).filter(date => Number.isFinite(date.getTime())),
     poeLevels: levels,
     // A map entered through several portals is one map; visits from older companions have no instance and count one each.
-    poeMaps: dedupe(visits, row => row.instanceRef ?? row.runRef).map(row => row.startedAt).sort(byDate)
+    poeMaps: dedupe(visits, row => row.instanceRef ?? row.runRef).map(row => row.startedAt).sort(byDate),
+    messagesSent: Math.max(counter?.messages ?? 0, seasonSum("messages")),
+    reactionsGiven: Math.max(counter?.reactionsGiven ?? 0, given),
+    reactionsReceived: Math.max(counter?.reactionsReceived ?? 0, seasonSum("reactions")),
+    voiceHours: Math.floor(Math.max(counter?.voiceSeconds ?? 0, seasonSum("voiceMs") / 1000) / 3600),
+    communityPoints: Math.max(0, points._sum.amount ?? 0),
+    epEarned: Math.max(0, ep._sum.epAmount ?? 0)
   };
 }
 

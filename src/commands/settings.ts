@@ -13,6 +13,7 @@ import { ensureBotGuide } from "./setup.js";
 import { asLang } from "../i18n.js";
 import { prisma } from "../database.js";
 import { baselineAchievements } from "../services/achievement-announce.js";
+import { ACHIEVEMENT_CATALOGUE_VERSION } from "../services/achievements-catalogue.js";
 
 export const configCommand = new SlashCommandBuilder()
   .setName("config")
@@ -401,7 +402,7 @@ export async function executeConfig(interaction: ChatInputCommandInteraction): P
     if (announce && !channelId) throw new Error("Pick the channel to post in: /config achievements announce:true channel:#...");
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     if (announce && !current?.achievementAnnounceEnabled) await baselineAchievements(prisma, context.guildId);
-    await prisma.guildSettings.upsert({ where: { guildId: context.guildId }, create: { guildId: context.guildId, achievementAnnounceEnabled: announce, achievementChannelId: channelId }, update: { achievementAnnounceEnabled: announce, achievementChannelId: channelId } });
+    await prisma.guildSettings.upsert({ where: { guildId: context.guildId }, create: { guildId: context.guildId, achievementAnnounceEnabled: announce, achievementChannelId: channelId, achievementBaselineVersion: ACHIEVEMENT_CATALOGUE_VERSION }, update: { achievementAnnounceEnabled: announce, achievementChannelId: channelId, ...(announce ? { achievementBaselineVersion: ACHIEVEMENT_CATALOGUE_VERSION } : {}) } });
     await prisma.auditLog.create({ data: { guildId: context.guildId, actorId: interaction.user.id, action: "CONFIG_UPDATED", metadata: { achievementAnnounceEnabled: announce, achievementChannelId: channelId } } });
     await interaction.editReply(announce
       ? `Achievement announcements on in <#${channelId}>. Everything members already earned was marked announced, so only new unlocks are posted (one message per member, at most hourly; members with a hidden profile are skipped; only the member is mentioned).`

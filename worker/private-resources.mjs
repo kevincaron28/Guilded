@@ -3,7 +3,7 @@
 // Private bytes belong in a KV namespace, never in the static assets directory.
 const encoder = new TextEncoder();
 const decoder = new TextDecoder('utf-8', { fatal: true });
-const allowedTypes = new Set(['application/zip', 'application/pdf', 'application/json', 'image/png', 'image/webp', 'text/plain; charset=utf-8', 'text/markdown; charset=utf-8']);
+const allowedTypes = new Set(['application/zip', 'application/pdf', 'application/json', 'image/png', 'image/webp', 'video/mp4', 'text/plain; charset=utf-8', 'text/markdown; charset=utf-8']);
 const html = value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 const decode = value => {
   if (!/^[A-Za-z0-9_-]+$/.test(value)) throw new Error('invalid encoding');

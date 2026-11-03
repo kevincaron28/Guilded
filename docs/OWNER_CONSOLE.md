@@ -20,10 +20,18 @@ clears the stored id once with a console warning (no error report); setup recrea
 
 ## The board
 One message, edited in place every 5 minutes (and after each action). Eight servers per page, with
-Prev/Next/Refresh, a menu to open a server, a Help button and the daily digest switch. Per server:
-name, id, tier, members, language, editions, setup progress (8 key channels, no Discord calls),
-toggles (achievements, announcements, public sharing, weekly report), errors in 24 hours, last
-activity, last sync/upload, linked characters, cores, upcoming raids, version last announced.
+Prev/Next/Refresh, a menu to open a server, a Help button and the daily digest switch. The embed
+opens with a summary line (servers, total members, servers with errors, servers not synced; the last
+two count the servers on the page when there is more than one page) and its colour shows health
+(green, amber for any errors in 24 hours, red for a spike of 10 or more).
+
+Each server is one embed field: a title line with rank, name, tier badge (✅ approved, 🔹 lite,
+⛔ blocked), language and members, then a status row (setup bar such as ▰▰▰▱▱▱▱▱ 3/8 across the 8 key
+channels with no Discord calls, errors in 24 hours marked 🟢/🟡/🔴), the toggles with labelled icons
+(🏆 achievements, 📣 announcements, 🌐 public sharing, 📰 weekly report), last activity and last
+sync/upload, edition data, linked characters, cores, upcoming raids, the version last announced and
+the server id in a code span. The per-server detail view (menu) shows the same data in labelled
+fields, plus weekly honors.
 Only counts and settings are read: no message content, DMs, tokens or `DATABASE_URL`.
 
 ## Actions (each: confirm, then audit)

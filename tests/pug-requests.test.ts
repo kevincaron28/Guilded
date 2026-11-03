@@ -18,6 +18,7 @@ function fake(options: { boards?: Board[]; blocks?: { guildId: string; blockedGu
   const signups: Row[] = [];
   const jobs = new Map<string, Row>();
   const raid = options.raid === undefined ? { id: "r1", guildId: "g1", title: "Karazhan", status: "PLANNED", isTest: false, scheduledAt: later, guild: { gameEdition: "classic-tbc" } } : options.raid;
+  let tail: Promise<unknown> = Promise.resolve();
   const db = {
     pugBoardGuild: {
       findUnique: vi.fn(async ({ where }: { where: { guildId: string } }) => (options.boards ?? []).find(b => b.guildId === where.guildId) ?? null),
@@ -86,6 +87,14 @@ function fake(options: { boards?: Board[]; blocks?: { guildId: string; blockedGu
       })
     },
     member: { findMany: vi.fn(async () => options.members ?? []) },
+    // Accepts serialize on the request row. This stand-in runs one transaction at a time so the
+    // locked re-check sees the other officer's accept, and $queryRaw stands in for the row lock.
+    $queryRaw: vi.fn(async () => []),
+    $transaction: vi.fn((work: (tx: unknown) => Promise<unknown>) => {
+      const run = tail.then(() => work(db));
+      tail = run.then(() => undefined, () => undefined);
+      return run;
+    }),
     discordJob: {
       upsert: vi.fn(async ({ where, create, update }: { where: { guildId_key: { guildId: string; key: string } }; create: Row; update: Row }) => {
         const key = `${where.guildId_key.guildId}/${where.guildId_key.key}`;
@@ -234,6 +243,34 @@ describe("sign-ups and decisions", () => {
     expect(await decidePugSignup(f.db, "s1", "g1", false, allowAll, now)).toBe("declined");
     expect(f.requests[0]!.status).toBe("OPEN");
     await expect(signUpForPug(f.db, person, allowAll, now)).rejects.toThrow("already signed up");
+  });
+
+  // Regression from #343: two officers accepting different guests for the last spot.
+  // Both reads finish before either write; the accept re-checks the count under the request lock.
+  it("does not let two accepts fill the same last spot", async () => {
+    const f = fake({ boards, requests: [open({ wantTank: 1, wantHealer: 0, wantDps: 0 })] });
+    await signUpForPug(f.db, person, allowAll, now);
+    await signUpForPug(f.db, { ...person, discordUserId: "u2", characterName: "Bobth" }, allowAll, now);
+    let release: () => void = () => undefined;
+    const bothRead = new Promise<void>((resolve) => { release = resolve; });
+    let reads = 0;
+    f.raw.pugSignup.findUnique.mockImplementation((async ({ where }: { where: { id: string } }) => {
+      const row = f.signups.find((signup) => signup["id"] === where.id);
+      if (!row) return null;
+      const request = f.requests.find((item) => item["id"] === row["requestId"]);
+      const snapshot = f.signups.map((signup) => ({ role: signup["role"], status: signup["status"] }));
+      reads += 1;
+      if (reads === 1) await bothRead;
+      else release();
+      return { ...row, request: { ...request, status: "OPEN", signups: snapshot } };
+    }) as never);
+    const settled = await Promise.allSettled([
+      decidePugSignup(f.db, "s1", "g1", true, allowAll, now),
+      decidePugSignup(f.db, "s2", "g1", true, allowAll, now)
+    ]);
+    const accepted = f.signups.filter((signup) => signup["status"] === "ACCEPTED");
+    expect(accepted).toHaveLength(1);
+    expect(settled.filter((result) => result.status === "fulfilled" && result.value === "accepted")).toHaveLength(1);
   });
 
   it("counts only accepted PUGs against the spots", () => {

@@ -21,6 +21,8 @@ export interface AchievementFacts {
   activeDays: Date[];
   poeLevels: { level: number; reachedAt: Date }[];
   poeMaps: Date[];
+  /** When each MVP-of-the-week award was recorded. */
+  mvpWeeks: Date[];
   /** Discord activity and scoring totals (no history, so these earn on first sight). */
   messagesSent: number;
   reactionsGiven: number;
@@ -32,7 +34,7 @@ export interface AchievementFacts {
 
 export interface AchievementResult { def: AchievementDef; value: number; earned: boolean; earnedAt: Date | null }
 
-export const emptyFacts = (): AchievementFacts => ({ highestWowLevel: 0, charactersAtCap: 0, editions: {}, dungeonRuns: [], dungeonVariety: [], highestProfessionSkill: 0, raidsAttended: [], raidClears: [], activeDays: [], poeLevels: [], poeMaps: [], messagesSent: 0, reactionsGiven: 0, reactionsReceived: 0, voiceHours: 0, communityPoints: 0, epEarned: 0 });
+export const emptyFacts = (): AchievementFacts => ({ highestWowLevel: 0, charactersAtCap: 0, editions: {}, dungeonRuns: [], dungeonVariety: [], highestProfessionSkill: 0, raidsAttended: [], raidClears: [], activeDays: [], poeLevels: [], poeMaps: [], mvpWeeks: [], messagesSent: 0, reactionsGiven: 0, reactionsReceived: 0, voiceHours: 0, communityPoints: 0, epEarned: 0 });
 
 function measure(def: AchievementDef, facts: AchievementFacts): { value: number; at: Date | null } {
   const { metric, threshold } = def;
@@ -52,6 +54,7 @@ function measure(def: AchievementDef, facts: AchievementFacts): { value: number;
     case "raidClears": return counted(facts.raidClears);
     case "activeDays": return counted(facts.activeDays);
     case "poeMaps": return counted(facts.poeMaps);
+    case "mvpWeeks": return counted(facts.mvpWeeks);
     // Totals keep no per-event history here, so the date is when the total was first seen at the threshold (null = now).
     case "messagesSent": return { value: facts.messagesSent, at: null };
     case "reactionsGiven": return { value: facts.reactionsGiven, at: null };
@@ -78,7 +81,7 @@ export function evaluateAchievements(facts: AchievementFacts, now: Date): Achiev
   });
 }
 
-type Db = Pick<PrismaClient, "character" | "professionSkill" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit" | "communityPoint" | "epgpTransaction" | "memberActivityTotal" | "member" | "memberAchievement">;
+type Db = Pick<PrismaClient, "character" | "professionSkill" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit" | "communityPoint" | "communityHonorAward" | "epgpTransaction" | "memberActivityTotal" | "member" | "memberAchievement">;
 
 const dedupe = <T>(rows: T[], key: (row: T) => string) => { const seen = new Set<string>(); return rows.filter(row => { const k = key(row); if (seen.has(k)) return false; seen.add(k); return true; }); };
 
@@ -87,7 +90,7 @@ export async function gatherAchievementFacts(db: Db, guildId: string, memberId: 
   const member = await db.member.findFirst({ where: { id: memberId, guildId }, select: { discordUserId: true } });
   if (!member) return emptyFacts();
   const max = (metric: AchievementMetric) => Math.max(...ACHIEVEMENTS.filter(row => row.metric === metric).map(row => row.threshold));
-  const [characters, skills, runs, attendance, days, levels, visits, counter, points, given, ep] = await Promise.all([
+  const [characters, skills, runs, attendance, days, levels, visits, counter, points, given, ep, mvps] = await Promise.all([
     db.character.findMany({ where: { memberId, guildId }, select: { level: true, gameEdition: true } }),
     db.professionSkill.findMany({ where: { character: { memberId, guildId } }, select: { skillLevel: true, character: { select: { gameEdition: true } } }, take: 500 }),
     db.dungeonRunPlayer.findMany({ where: { memberId, run: { guildId, valid: true, state: "COMPLETED" } }, select: { runId: true, run: { select: { instanceId: true, endedAt: true, startedAt: true, createdAt: true } } }, take: 1000 }),
@@ -101,7 +104,8 @@ export async function gatherAchievementFacts(db: Db, guildId: string, memberId: 
     db.communityPoint.aggregate({ where: { userId: member.discordUserId, kind: { in: ["AWARD", "REVERSAL"] }, season: { guildId } }, _sum: { amount: true } }),
     // Reactions this member gave that the season participation record counted (the reactor is the point's actor).
     db.communityPoint.count({ where: { actorId: member.discordUserId, kind: "AWARD", reference: { startsWith: "participation:reaction:" }, season: { guildId } } }),
-    db.epgpTransaction.aggregate({ where: { guildId, memberId, type: "EP_AWARD", epAmount: { gt: 0 } }, _sum: { epAmount: true } })
+    db.epgpTransaction.aggregate({ where: { guildId, memberId, type: "EP_AWARD", epAmount: { gt: 0 } }, _sum: { epAmount: true } }),
+    db.communityHonorAward.findMany({ where: { guildId, kind: "WEEK", userId: member.discordUserId }, select: { createdAt: true }, orderBy: { createdAt: "asc" }, take: 200 })
   ]);
   // Season participation is a lower bound (capped, only in tracked channels); the counter is the full total from
   // when counting started. Taking the larger keeps earlier tracked activity counted.
@@ -132,6 +136,7 @@ export async function gatherAchievementFacts(db: Db, guildId: string, memberId: 
     poeLevels: levels,
     // A map entered through several portals is one map; visits from older companions have no instance and count one each.
     poeMaps: dedupe(visits, row => row.instanceRef ?? row.runRef).map(row => row.startedAt).sort(byDate),
+    mvpWeeks: mvps.map(row => row.createdAt),
     messagesSent: Math.max(counter?.messages ?? 0, seasonSum("messages")),
     reactionsGiven: Math.max(counter?.reactionsGiven ?? 0, given),
     reactionsReceived: Math.max(counter?.reactionsReceived ?? 0, seasonSum("reactions")),

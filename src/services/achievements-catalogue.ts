@@ -10,7 +10,7 @@ export type AchievementGame = "wow" | "poe2" | "guild";
 export type AchievementTier = "bronze" | "silver" | "gold" | "platinum" | "epic" | "legendary";
 
 /** Bumped whenever rows are added that older data can already satisfy; guilds that announce re-baseline quietly once. */
-export const ACHIEVEMENT_CATALOGUE_VERSION = 3;
+export const ACHIEVEMENT_CATALOGUE_VERSION = 4;
 
 /**
  * What is measured:
@@ -32,8 +32,9 @@ export const ACHIEVEMENT_CATALOGUE_VERSION = 3;
  *   counter and the season participation record is used, so earlier tracked activity still counts.
  * - communityPoints: points earned on the guild's community leaderboards (awards minus reversals).
  * - epEarned: effort points (EP) the raid ledger awarded.
+ * - mvpWeeks: weeks the member was named MVP of the week (the community honors record).
  */
-export type AchievementMetric = "wowLevel" | "wowMaxLevel" | "dungeonRuns" | "dungeonVariety" | "professionSkill" | "raidsAttended" | "raidClears" | "activeDays" | "poeLevel" | "poeMaps" | "wowEditionLevel" | "wowEditionCap" | "wowEditionProfession" | "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned";
+export type AchievementMetric = "wowLevel" | "wowMaxLevel" | "dungeonRuns" | "dungeonVariety" | "professionSkill" | "raidsAttended" | "raidClears" | "activeDays" | "poeLevel" | "poeMaps" | "wowEditionLevel" | "wowEditionCap" | "wowEditionProfession" | "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned" | "mvpWeeks";
 
 export interface AchievementText { name: string; description: string }
 export interface AchievementDef {
@@ -112,7 +113,11 @@ const ACTIVITY_LADDERS: AchievementDef[] = [
   ], (n, fr) => fr ? `Gagner ${grouped(n, true)} points communautaires au classement de la guilde.` : `Earn ${grouped(n, false)} community points on the guild leaderboards.`),
   ...ladder("ep", "epEarned", [
     [100, "bronze", "EP Initiate", "Initié des PE"], [500, "silver", "Effort Rewarded", "Effort récompensé"], [2000, "gold", "Pillar of Effort", "Pilier de l'effort"], [10000, "epic", "Effort Incarnate", "Effort incarné"]
-  ], (n, fr) => fr ? `Gagner ${grouped(n, true)} points d'effort (PE) dans le registre de raid.` : `Earn ${grouped(n, false)} effort points (EP) in the raid ledger.`)
+  ], (n, fr) => fr ? `Gagner ${grouped(n, true)} points d'effort (PE) dans le registre de raid.` : `Earn ${grouped(n, false)} effort points (EP) in the raid ledger.`),
+  ...ladder("mvp-weeks", "mvpWeeks", [
+    [1, "bronze", "MVP of the Week", "MVP de la semaine"], [3, "silver", "Triple Threat", "Triple menace"], [5, "gold", "Perennial MVP", "MVP perpétuel"],
+    [10, "platinum", "Ten-Time MVP", "MVP dix fois"], [25, "epic", "Dynasty", "Dynastie"]
+  ], (n, fr) => fr ? `Être nommé MVP de la semaine ${n} ${plural(n, "fois", "fois")}.` : `Be named MVP of the week ${n} ${plural(n, "time", "times")}.`)
 ];
 
 const tierFor = (value: number, cap: number): AchievementTier => value >= cap ? "epic" : value / cap >= 0.7 ? "gold" : value / cap >= 0.4 ? "silver" : "bronze";

@@ -1,5 +1,5 @@
 import { COMMUNITY_MILESTONE_LABEL } from "../services/community-badge-rules.js";
-import { ActionRowBuilder, ButtonBuilder, ChannelType, ModalBuilder, PermissionFlagsBits, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle, UserSelectMenuBuilder, escapeMarkdown, type ButtonInteraction, type Guild, type ModalSubmitInteraction, type StringSelectMenuInteraction, type UserSelectMenuInteraction, MessageFlags } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ChannelType, ModalBuilder, PermissionFlagsBits, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle, UserSelectMenuBuilder, escapeMarkdown, type ButtonInteraction, type Guild, type GuildMember, type ModalSubmitInteraction, type StringSelectMenuInteraction, type UserSelectMenuInteraction, MessageFlags } from "discord.js";
 import type { CommunitySeason } from "../generated/prisma/client.js";
 import { prisma } from "../database.js";
 import { asLang, type Lang } from "../i18n.js";
@@ -21,6 +21,14 @@ const service = createCommunityService(prisma), participation = createParticipat
 const say = (lang: Lang, en: string, fr: string) => lang === "fr" ? fr : en;
 const noMentions = { parse: [] as [] };
 type HubInteraction = ButtonInteraction | ModalSubmitInteraction | UserSelectMenuInteraction | StringSelectMenuInteraction;
+
+// Officer role names are on the cached member. A REST fetch before showModal
+// runs past Discord's 3-second ack; the form rechecks after it is acknowledged.
+function cachedOfficer(interaction: HubInteraction): boolean | null {
+  const member = interaction.member;
+  if (!member || typeof member === "string" || !("roles" in member) || !member.roles || typeof member.roles !== "object" || !("cache" in member.roles)) return null;
+  return hasPermission(member as GuildMember, "officer");
+}
 
 export async function validateCommunityDestination(guild: Guild, season: CommunitySeason, channelId: string, actorId: string) {
   await communityAccess(guild, actorId, season, true, channelId);
@@ -86,11 +94,13 @@ export async function handleCommunityHub(interaction: HubInteraction): Promise<v
   }
   // Review cards in the Discord admin channel: the button asks for a reason, the form decides.
   if (interaction.isButton() && action === "nomreview" && (extra === "approve" || extra === "reject")) {
-    if (!hasPermission(await interaction.guild.members.fetch(interaction.user.id), "officer")) { await interaction.reply({ content: "Officiers seulement / Officers only.", flags: MessageFlags.Ephemeral }); return; }
+    const officer = cachedOfficer(interaction);
+    if (officer === false) { await interaction.reply({ content: "Officiers seulement / Officers only.", flags: MessageFlags.Ephemeral }); return; }
     await interaction.showModal(new ModalBuilder().setCustomId(`${COMMUNITY_HUB_PREFIX}nomdecide:${rawId}:${extra}`).setTitle(extra === "approve" ? "Approuver / Approve" : "Refuser / Reject")
       .addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("reason").setLabel("Motif / Reason").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(300)))); return;
   }
   if (interaction.isModalSubmit() && action === "nomdecide" && (extra === "approve" || extra === "reject")) {
+    if (!interaction.deferred) await interaction.deferUpdate();
     await decideNominationFromCard(interaction, prisma, (await guildService.ensureGuild(interaction.guild.id, interaction.guild.name)).id, rawId, extra === "approve"); return;
   }
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });

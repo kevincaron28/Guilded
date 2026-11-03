@@ -19,6 +19,7 @@ import { communityHubReply, diceReply, validateCommunityDestination } from "./co
 import { postNominationCards } from "../services/nomination-cards.js";
 import { communityHonorsHistory, configureCommunityHonors, discordNames, honorsHistoryMessage, previewCommunityHonors, runCommunityHonors, weekMode } from "../services/community-honors.js";
 import { communityRankingLines } from "../services/community-ranking-display.js";
+import { ScopedReportError, withReportContext, type ReportScope } from "../services/report-context.js";
 export { canAccessCommunity };
 
 const service = createCommunityService(prisma);
@@ -490,19 +491,31 @@ async function honorsReply(guild: Guild, guildId: string, sub: string, actor: st
 }
 
 let ticking = false;
-export async function runCommunityActivities(guilds: Iterable<Guild>, onHonorsError: (error: unknown) => void = console.error): Promise<void> {
+export async function runCommunityActivities(guilds: Iterable<Guild>, onHonorsError: (error: unknown) => void = console.error, onActivitiesError: (error: unknown) => void = (error) => { throw error; }): Promise<void> {
   if (ticking) return;
   ticking = true;
   try {
     for (const guild of guilds) {
-      const record = await prisma.guild.findUnique({ where: guildWhere(guild.id) });
-      if (!record) continue;
-      await service.tick(record.id);
-      await service.rotateMonthly(record.id);
-      await deliverCommunityBadges(guild, prisma, record.id).catch(onHonorsError);
-      await postNominationCards(guild, prisma, record.id).catch(onHonorsError);
-      // Weekly MVP and monthly podium roles; one server's failure never holds back the others.
-      await runCommunityHonors(guild, prisma, record.id).catch(onHonorsError);
+      const origin: ReportScope = { guildId: guild.id, guildName: guild.name, operation: "community.activities", channelId: null };
+      try {
+        await withReportContext(origin, async () => {
+          const record = await prisma.guild.findUnique({ where: guildWhere(guild.id) });
+          if (!record) return;
+          const season = await prisma.communitySeason.findFirst({ where: { guildId: record.id, status: "ACTIVE" }, select: { channelId: true, announcementChannelId: true }, orderBy: { createdAt: "desc" } });
+          origin.channelId = season?.announcementChannelId ?? season?.channelId ?? null;
+          await service.tick(record.id);
+          await service.rotateMonthly(record.id);
+          await deliverCommunityBadges(guild, prisma, record.id).catch(error => onHonorsError(new ScopedReportError(error, { ...origin, operation: "community.badges" })));
+          await postNominationCards(guild, prisma, record.id).catch(error => onHonorsError(new ScopedReportError(error, { ...origin, operation: "community.nominations" })));
+          const honors = await prisma.communityHonors.findUnique({ where: { guildId: record.id }, select: { channelId: true } });
+          // Weekly MVP and monthly podium roles; one server's failure never holds back the others.
+          await withReportContext({ ...origin, channelId: honors?.channelId ?? origin.channelId, operation: "community.honors" }, () => runCommunityHonors(guild, prisma, record.id));
+        });
+      } catch (error) {
+        const scoped = error instanceof ScopedReportError ? error : new ScopedReportError(error, origin);
+        if (scoped.origin.operation === "community.honors") onHonorsError(scoped);
+        else onActivitiesError(scoped);
+      }
     }
   } finally { ticking = false; }
 }

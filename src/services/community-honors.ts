@@ -7,6 +7,7 @@ import { COMMUNITY_CHANNEL_SPECS, communityChannelNames } from "../setup-names.j
 import { standings, type Standing } from "./community-rules.js";
 import { communitySeasonLabel } from "./community-display.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
+import { retryTransientTransaction, SHORT_TRANSACTION } from "./transaction-retry.js";
 import { dateAfter, dayStart, participationDay, participationWeek } from "./participation-rules.js";
 import { monthlyRookie, rookieMemberLookup, ROOKIE_ROLE, type MonthlyRookie, type RookieMemberLookup } from "./monthly-rookie.js";
 import { weekStart as resetWeekStart } from "./dungeon-rules.js";
@@ -285,11 +286,11 @@ async function mvpCounts(tx: Db, guildId: string, mvps: string[], plusOne: boole
 const names3 = (summary: { board: Standing[]; rookie: Standing | null }) =>
   [...new Set([...summary.board.filter(row => row.points > 0).slice(0, 3).map(row => row.userId), ...(summary.rookie ? [summary.rookie.userId] : [])])];
 
-// Looking up a few names from Discord happens inside the transaction, hence the longer timeout.
-const locked = <T>(database: PrismaClient, guildId: string, work: (tx: Db) => Promise<T>) => database.$transaction(async tx => {
+// Names and join dates are resolved before this lock. The callback is database work only.
+const locked = <T>(database: PrismaClient, guildId: string, work: (tx: Db) => Promise<T>) => retryTransientTransaction(() => database.$transaction(async tx => {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`community-honors:${guildId}`}))`;
   return work(tx);
-}, { timeout: 60_000 });
+}, SHORT_TRANSACTION));
 
 export type NameLookup = (ids: string[]) => Promise<Names>;
 // Server nickname, else Discord display name, one REST call per member not already cached.
@@ -307,7 +308,33 @@ const SNOWFLAKE = /^\d{17,20}$/;
 
 // Decides the new holders, records the awards and queues the announcements. Each week and each
 // season is handled once: the decision, the history and the message are saved together.
+// Discord name and join lookups happen before the lock so the transaction does not
+// hold a pooled connection across HTTP.
 export async function advanceCommunityHonors(database: PrismaClient, guildId: string, now = new Date(), lookup: NameLookup = async () => new Map(), memberLookup: RookieMemberLookup = async () => null): Promise<{ week: string | null; seasonId: string | null }> {
+  const existing = await database.communityHonors.findUnique({ where: { guildId } });
+  if (!existing) return { week: null, seasonId: null };
+  const previewSettings = await database.guildSettings.findUnique({ where: { guildId }, select: { timezone: true } });
+  const previewZone = previewSettings?.timezone ?? "America/Toronto";
+  const previewMode = weekMode(existing.weekStart);
+  const dueWeek = honorsWeekDue(now, previewZone, existing.week, previewMode);
+  let names: Names = new Map();
+  if (dueWeek && existing.weeklyEnabled !== false) {
+    const window = honorsWindow(dueWeek, previewZone, previewMode);
+    // Same summary the post prints. names3 keeps the rookie even when they are
+    // outside the top 3; every tied MVP is named in the congratulations line.
+    const preview = await summarizeWeek(database, guildId, window, previewZone);
+    const ids = new Set([...names3(preview), ...preview.mvps]);
+    if (ids.size) names = await lookup([...ids]);
+  }
+  const endedPreview = await database.communitySeason.findFirst({ where: { guildId, ...PUBLIC_DISCORD, monthly: true, status: "ENDED" }, orderBy: [{ endedAt: "desc" }, { id: "desc" }] });
+  const joins = new Map<string, Date | null>();
+  if (endedPreview && endedPreview.id !== existing.monthSeasonId) {
+    const board = (endedPreview.finalStandings ?? []) as unknown as Standing[];
+    const ids = [...new Set([...podiumPlaces(board).flat(), ...board.filter(row => row.points > 0).map(row => row.userId)])];
+    if (ids.length) names = new Map([...names, ...(await lookup(ids))]);
+    for (const id of ids) joins.set(id, await memberLookup(id));
+  }
+  const cachedMember: RookieMemberLookup = async (userId) => joins.has(userId) ? joins.get(userId) ?? null : null;
   return locked(database, guildId, async tx => {
     const honors = await tx.communityHonors.findUnique({ where: { guildId } });
     if (!honors) return { week: null, seasonId: null };
@@ -332,7 +359,7 @@ export async function advanceCommunityHonors(database: PrismaClient, guildId: st
       // A silent week only frees the role; there is nothing to announce.
       if (honors.channelId && Object.values(recap).some(Boolean)) {
         const ping = honors.pingMvp && mvps.length > 0;
-        const message = weeklyHonorsMessage(lang, { week, board, mvps, recap, rookie, mode, ping, mvpCounts: await mvpCounts(tx, guildId, mvps, false), names: await lookup(names3(summary)) });
+        const message = weeklyHonorsMessage(lang, { week, board, mvps, recap, rookie, mode, ping, mvpCounts: await mvpCounts(tx, guildId, mvps, false), names });
         await enqueueDiscordJob(tx, guildId, `community-week:${week}`, "MESSAGE", { channelId: honors.channelId, message: JSON.parse(JSON.stringify(message)),
           ...(ping ? { mentionUsers: mvps.filter(id => SNOWFLAKE.test(id)) } : {}) });
       }
@@ -343,13 +370,13 @@ export async function advanceCommunityHonors(database: PrismaClient, guildId: st
     if (ended && ended.id !== honors.monthSeasonId) {
       const board = (ended.finalStandings ?? []) as unknown as Standing[];
       const places = podiumPlaces(board);
-      const rookie = await monthlyRookie(tx, guildId, ended, board, timezone, memberLookup);
+      const rookie = await monthlyRookie(tx, guildId, ended, board, timezone, cachedMember);
       const points = new Map(board.map(row => [row.userId, row.points]));
       await tx.communityHonors.update({ where: { guildId }, data: { monthSeasonId: ended.id, monthHolderIds: places, rookieHolderId: rookie?.userId ?? null, rolesPending: true } });
       await tx.communityHonorAward.createMany({ skipDuplicates: true, data: places.flatMap((ids, i) => ids.map(userId => ({ guildId, kind: "MONTH", period: ended.id, place: i + 1, userId, points: points.get(userId) ?? null }))) });
       if (rookie) await tx.communityHonorAward.createMany({ skipDuplicates: true, data: [{ guildId, kind: "MONTH_ROOKIE", period: ended.id, userId: rookie.userId, points: rookie.points }] });
       if (honors.channelId && (places[0].length || rookie)) {
-        await enqueueDiscordJob(tx, guildId, `community-month:${ended.id}`, "MESSAGE", { channelId: honors.channelId, message: JSON.parse(JSON.stringify(monthlyHonorsMessage(lang, ended, board, await lookup([...new Set([...places.flat(), ...(rookie ? [rookie.userId] : [])])]), rookie))) });
+        await enqueueDiscordJob(tx, guildId, `community-month:${ended.id}`, "MESSAGE", { channelId: honors.channelId, message: JSON.parse(JSON.stringify(monthlyHonorsMessage(lang, ended, board, names, rookie))) });
       }
       result.seasonId = ended.id;
     }

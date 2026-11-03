@@ -85,6 +85,43 @@ describe("persistent community interactions", () => {
     await expect(handleCommunityButton(button as never)).rejects.toThrow("Access denied");
     expect(mocks.enterLottery).not.toHaveBeenCalled();
   });
+  it("lets an uncached member open the nomination form, then refuses them on submit", async () => {
+    const open = interaction("community:hub-nomreview:claim:approve");
+    open.isButton = () => true;
+    (open as unknown as { member: { roles: string[] } }).member = { roles: ["not-a-cached-member"] };
+    await handleCommunityHub(open as never);
+    expect(open.showModal).toHaveBeenCalledOnce();
+    expect(open.deferReply).not.toHaveBeenCalled();
+
+    const form = interaction("community:hub-nomdecide:claim:approve") as ReturnType<typeof interaction> & {
+      deferred: boolean; deferUpdate: ReturnType<typeof vi.fn>; isFromMessage: () => boolean; followUp: ReturnType<typeof vi.fn>; member: { roles: string[] };
+    };
+    form.deferred = false;
+    form.member = { roles: ["not-a-cached-member"] };
+    form.deferUpdate = vi.fn(async () => { form.deferred = true; });
+    form.isFromMessage = () => true;
+    form.followUp = vi.fn(async () => undefined);
+    form.fields.getTextInputValue = vi.fn(() => "They helped");
+    await handleCommunityHub(form as never);
+    expect(form.guild.members.fetch).toHaveBeenCalledWith("actor");
+    expect(form.followUp).toHaveBeenCalledWith(expect.objectContaining({ content: expect.stringContaining("Officiers seulement") }));
+    expect(mocks.enterLottery).not.toHaveBeenCalled();
+  });
+  it("acknowledges a nomination decision before looking up the guild", async () => {
+    const form = interaction("community:hub-nomdecide:claim:approve") as ReturnType<typeof interaction> & {
+      deferred: boolean; deferUpdate: ReturnType<typeof vi.fn>; isFromMessage: () => boolean; followUp: ReturnType<typeof vi.fn>;
+    };
+    form.deferred = false;
+    form.deferUpdate = vi.fn(async () => { form.deferred = true; });
+    form.isFromMessage = () => true;
+    form.followUp = vi.fn(async () => undefined);
+    mocks.ensureGuild.mockImplementationOnce(async () => {
+      expect(form.deferUpdate).toHaveBeenCalledOnce();
+      return { id: "guild" };
+    });
+    await handleCommunityHub(form as never);
+    expect(form.deferUpdate.mock.invocationCallOrder[0]).toBeLessThan(mocks.ensureGuild.mock.invocationCallOrder[0]!);
+  });
   it("rechecks officer authority at template submission, even with an old valid form", async () => {
     await expect(handleCommunityHub(interaction("community:hub-create-quiz:season") as never)).rejects.toThrow("Access denied");
     expect(mocks.create).not.toHaveBeenCalled();

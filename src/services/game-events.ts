@@ -1,6 +1,7 @@
 import type { GameEventBoard, OfficialGameEvent, Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { EmbedBuilder, escapeMarkdown } from "discord.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
+import { retryTransientTransaction, SHORT_TRANSACTION } from "./transaction-retry.js";
 import { createHash } from "node:crypto";
 
 export const EVENT_GAMES = ["WOW_FOREVER", "WOW_CLASSIC_ERA", "WOW_CLASSIC_TBC", "WOW_CLASSIC_MISTS", "WOW_RETAIL", "POE2"] as const;
@@ -13,9 +14,9 @@ export const EVENT_REGIONS = ["GLOBAL", "NA", "EU", "KR", "TW"] as const;
 export const EVENT_STATES = ["SCHEDULED", "TBA", "POSTPONED", "CANCELLED", "REACHED"] as const;
 export const REMINDER_MINUTES = [1440, 60, 0];
 export const REMINDER_GRACE_MS = 15 * 60_000;
-// Startup shares the pool with other reconcilers. Prisma's default 2s acquisition
-// deadline expires before our pool's 30s wait; keep acquisition and execution bounded.
-export const EVENT_TRANSACTION_OPTIONS = { maxWait: 30_000, timeout: 30_000 };
+// One global advisory lock. Callers hold a pooled connection until the lock is
+// free, so acquisition and execution stay short. Discord HTTP stays outside.
+export const EVENT_TRANSACTION_OPTIONS = SHORT_TRANSACTION;
 export const EVENT_BOARD_REPAIR_MS = 5 * 60_000;
 export const eventEmbedsHash = (embeds: EmbedBuilder[]) => createHash("sha256").update(JSON.stringify(embeds.map(embed => embed.toJSON()))).digest("hex");
 export class GameEventInputError extends Error {}
@@ -62,14 +63,14 @@ export function validateEvent(input: EventInput, now = new Date()): EventInput {
 
 export async function saveOfficialEvent(database: PrismaClient, input: EventInput, actorId: string, now = new Date()) {
   const data = validateEvent(input, now);
-  return database.$transaction(async tx => {
+  return retryTransientTransaction(() => database.$transaction(async tx => {
     await eventLock(tx);
     const old = await tx.officialGameEvent.findUnique({ where: { id: data.id } });
     if ((!old || old.archived) && await tx.officialGameEvent.count({ where: { archived: false } }) >= 12) throw new GameEventInputError("Archive an event first (12 visible events maximum). / Archivez un événement (12 maximum).");
     const changed = old && (old.state !== data.state || old.startsAt?.getTime() !== data.startsAt?.getTime() || old.game !== data.game || old.region !== data.region || old.archived);
     return tx.officialGameEvent.upsert({ where: { id: data.id }, create: { ...data, updatedBy: actorId },
       update: { ...data, archived: false, updatedBy: actorId, ...(changed ? { scheduleVersion: { increment: 1 } } : {}) } });
-  }, EVENT_TRANSACTION_OPTIONS);
+  }, EVENT_TRANSACTION_OPTIONS));
 }
 
 export function visibleEvent(event: OfficialGameEvent, board: Pick<GameEventBoard, "games" | "region">): boolean {
@@ -164,9 +165,36 @@ export function reminderDue(event: OfficialGameEvent, board: GameEventBoard, min
   return due >= enabledAt.getTime() && now.getTime() >= due && now.getTime() < due + REMINDER_GRACE_MS;
 }
 
+/** One catalogue pass for every guild. The global event lock is taken once.
+ * A failed pass is retried per guild so the report can name that server. */
+export async function reconcileGameEventBoards(
+  database: PrismaClient,
+  guilds: { id: string; name: string }[],
+  report: (error: unknown, guild: { id: string; name: string }, channelId: string | null) => void,
+  now = new Date()
+): Promise<void> {
+  if (!guilds.length) {
+    await queueGameEvents(database, { id: { in: [] } }, now);
+    return;
+  }
+  try {
+    await queueGameEvents(database, { guild: { discordId: { in: guilds.map(guild => guild.id) } } }, now);
+    return;
+  } catch { /* The steady pass could not start; attribute the next attempt. */ }
+  for (const guild of guilds) {
+    let channelId: string | null = null;
+    try {
+      channelId = (await database.gameEventBoard.findFirst({ where: { enabled: true, guild: { discordId: guild.id } }, select: { channelId: true } }))?.channelId ?? null;
+      await queueGameEvents(database, { guild: { discordId: guild.id } }, now);
+    } catch (error) {
+      report(error, guild, channelId);
+    }
+  }
+}
+
 /** Reconcile at startup and once per minute; unchanged boards are not edited. */
 export async function queueGameEvents(database: PrismaClient, scope: Prisma.GameEventBoardWhereInput = {}, now = new Date()) {
-  await database.$transaction(async tx => {
+  await retryTransientTransaction(() => database.$transaction(async tx => {
     await eventLock(tx);
     await tx.officialGameEvent.updateMany({ where: { state: "SCHEDULED", startsAt: { lte: now } }, data: { state: "REACHED" } });
     const events = await tx.officialGameEvent.findMany({ where: { archived: false }, orderBy: { id: "asc" } });
@@ -188,5 +216,5 @@ export async function queueGameEvents(database: PrismaClient, scope: Prisma.Game
           create: { guildId: board.guildId, key, kind: "GAME_EVENT_REMINDER", payload: { boardId: board.id, eventId: event.id, scheduleVersion: event.scheduleVersion, minutes } } });
       }
     }
-  }, EVENT_TRANSACTION_OPTIONS);
+  }, EVENT_TRANSACTION_OPTIONS));
 }

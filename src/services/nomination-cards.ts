@@ -88,7 +88,7 @@ export async function reviewNomination(guild: Guild, database: PrismaClient, gui
 export async function decideNominationFromCard(interaction: ModalSubmitInteraction, database: PrismaClient, guildId: string, claimId: string, approve: boolean): Promise<void> {
   const guild = interaction.guild;
   if (!guild || !interaction.isFromMessage()) throw new Error("Bouton invalide / Invalid button.");
-  await interaction.deferUpdate();
+  if (!interaction.deferred) await interaction.deferUpdate();
   try {
     const member = await guild.members.fetch(interaction.user.id);
     if (!hasPermission(member, "officer")) throw new Error("Officiers seulement / Officers only.");

@@ -33,6 +33,31 @@ describe("daily backup integrity", () => {
     expect(await runBackup(database as never, now, dir)).not.toBeNull();
     expect(JSON.parse(gunzipSync(await readFile(join(dir, backupFileName(now)))).toString()).tables.Guild).toHaveLength(1);
   });
+  it("does not open a second snapshot while the first is still reading", async () => {
+    const dirA = await mkdtemp(join(tmpdir(), "guilded-backup-")); dirs.push(dirA);
+    const dirB = await mkdtemp(join(tmpdir(), "guilded-backup-")); dirs.push(dirB);
+    let started = 0;
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const transaction = vi.fn(async (work: (tx: { guild: { findMany: () => Promise<unknown[]> } }) => Promise<unknown>) => {
+      started += 1;
+      if (started === 1) await gate;
+      return work({ guild: { findMany: async () => [] } });
+    });
+    const database = { $transaction: transaction };
+    const first = runBackup(database as never, new Date("2026-09-30T12:00:00Z"), dirA);
+    const deadline = Date.now() + 2_000;
+    while (started < 1) {
+      if (Date.now() > deadline) throw new Error("backup did not start");
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    const second = runBackup(database as never, new Date("2026-10-01T12:00:00Z"), dirB);
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(started).toBe(1);
+    release();
+    await Promise.all([first, second]);
+    expect(started).toBe(2);
+  });
   it("does not publish a finished backup when database reads fail", async () => {
     const { dir, database } = await fixture(true);
     await expect(runBackup(database as never, new Date(), dir)).rejects.toThrow("database unavailable");

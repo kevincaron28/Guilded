@@ -11,8 +11,8 @@ import { guildWhere, interactionGuildScope, entityGuildScope, runInGuildScope, w
 import { executeWow } from "./commands/wow.js";
 import type { Interaction } from "discord.js";
 import { executeGameEvents, executeOwnerEvents, OWNER_EVENTS_COMMAND, ownerEventsCommand } from "./commands/game-events.js";
-import { queueGameEvents } from "./services/game-events.js";
-import { hostedPilot, pilotGuildScope, replacePilotApprovals, replacePilotLite } from "./hosted-pilot.js";
+import { reconcileGameEventBoards } from "./services/game-events.js";
+import { hostedPilot, replacePilotApprovals, replacePilotLite } from "./hosted-pilot.js";
 import { createPilotRequests, PILOT_REQUEST_PREFIX } from "./services/pilot-requests.js";
 import { warnIdleLite, welcomeApprovedOwner } from "./services/pilot-welcome.js";
 import { PILOT_DENIED, PILOT_LITE_DENIED } from "./services/pilot-policy.js";
@@ -259,7 +259,7 @@ client.once(Events.ClientReady, (readyClient) => {
     for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) await activityTotals.voice(guild);
     await activityTotals.flush();
   })().catch(reportJobError("Activity totals")), VOICE_TICK_MS);
-  const communityActivities = () => runCommunityActivities(readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values(), reportJobError("Community honors")).catch(reportJobError("Community activities"));
+  const communityActivities = () => runCommunityActivities(readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values(), reportJobError("Community honors"), reportJobError("Community activities"));
   void (async () => {
     for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) {
       const created = await adoptCommunityHonors(guild, prisma).catch(reportJobError("Community honors setup"));
@@ -285,11 +285,20 @@ client.once(Events.ClientReady, (readyClient) => {
   const reconcileGameEvents = async () => {
     if (eventsRunning) return;
     eventsRunning = true;
-    try { await queueGameEvents(prisma, pilotGuildScope); }
-    catch (error) { reportJobError("Upcoming game events")(error); }
+    try {
+      // One lock for every board. A failed pass is repeated per guild so the
+      // report names that server and its board channel.
+      const guilds = [...readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()].map(guild => ({ id: guild.id, name: guild.name }));
+      await reconcileGameEventBoards(prisma, guilds, (error, guild, channelId) => {
+        reportJobError("Upcoming game events", { guildId: guild.id, guildName: guild.name, channelId, operation: "game-events.reconcile" })(error);
+      });
+    } catch (error) { reportJobError("Upcoming game events", { operation: "game-events.reconcile" })(error); }
     finally { eventsRunning = false; }
   };
-  void reconcileGameEvents();
+  // Not at the same instant as the per-guild startup repair below: that burst
+  // filled the pool on 19 October 2026, and these reconciles failed the same way
+  // on 25 October. The minute interval still runs.
+  setTimeout(() => void reconcileGameEvents(), 15_000);
   setInterval(() => void reconcileGameEvents(), 60_000);
   setInterval(() => void runDiscordJobs(readyClient).catch(reportJobError("Discord delivery queue")), 60_000);
   // Opt-in achievement celebrations: hourly evaluation of guilds that turned them on (no-op otherwise).

@@ -14,6 +14,12 @@ const row = (n: number, extra: Partial<FleetRow> = {}): FleetRow => ({
 });
 
 describe("owner console model", () => {
+  it("never repeats a component custom id, even with a single page", () => {
+    for (const total of [0, 1, 5, 40]) {
+      const ids = boardComponents([], total, 0, false).flatMap(row => (row.toJSON().components as { custom_id?: string }[]).map(component => component.custom_id));
+      expect(new Set(ids).size).toBe(ids.length);
+    }
+  });
   it("paginates fleets and clamps pages", () => {
     const all = Array.from({ length: 30 }, (_, i) => i);
     expect(pageCount(30)).toBe(Math.ceil(30 / PAGE_SIZE));

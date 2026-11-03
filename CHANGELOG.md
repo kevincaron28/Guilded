@@ -1,5 +1,12 @@
 # Changelog
 
+## 8.4.2 — 3 November 2026
+
+Companion: fix startup crash on launch (a removed button was still bound, so the
+window never finished loading); Link everything screen polish, with empty panels
+hidden while signed out. The Store's 8.4.1.0 package has the crash; 8.4.2.0
+replaces it. Protocol remains 2. See [release notes](docs/V8_4_2_RELEASE_NOTES.md).
+
 ## 8.4.1 — 3 November 2026
 
 Brings the Windows companion and its Microsoft Store package up to date: the

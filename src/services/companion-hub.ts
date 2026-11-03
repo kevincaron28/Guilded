@@ -13,8 +13,8 @@ const OFFICERS_ONLY = "Only Officers and Guild Masters can change the server set
 
 export interface HubCharacter {
   id: string; name: string; displayName: string | null; realm: string; className: string; spec: string | null; level: number | null;
-  isMain: boolean; edition: string;
-  guild: { name: string; edition: string; current: boolean };
+  isMain: boolean; edition: string; rank: string | null;
+  guild: { name: string; edition: string; current: boolean; discordId: string; serverName?: string | null };
   cores: { id: string; name: string; role: string; bench: boolean; trial: boolean; backup: boolean; lootMode: string | null }[];
 }
 
@@ -53,11 +53,11 @@ export function createCompanionHub(database: PrismaClient, hooks: HubHooks = {})
     const memberships = await database.member.findMany({
       where: { discordUserId, status: "ACTIVE", isTest: false },
       select: {
-        guild: { select: { id: true, name: true, gameEdition: true } },
+        guild: { select: { id: true, name: true, gameEdition: true, discordId: true } },
         characters: {
           orderBy: [{ isMain: "desc" }, { name: "asc" }],
           select: {
-            id: true, name: true, displayName: true, realm: true, className: true, spec: true, level: true, isMain: true, gameEdition: true,
+            id: true, name: true, displayName: true, realm: true, className: true, spec: true, level: true, isMain: true, gameEdition: true, guildRankName: true,
             coreSpots: { select: { role: true, bench: true, trial: true, core: { select: { id: true, name: true, lootMode: true } } } },
             coreBackups: { select: { role: true, spot: { select: { bench: true, trial: true, core: { select: { id: true, name: true, lootMode: true } } } } } }
           }
@@ -69,8 +69,8 @@ export function createCompanionHub(database: PrismaClient, hooks: HubHooks = {})
       for (const c of membership.characters) {
         rows.push({
           id: c.id, name: c.name, displayName: c.displayName, realm: c.realm, className: c.className, spec: c.spec, level: c.level,
-          isMain: c.isMain, edition: c.gameEdition,
-          guild: { name: membership.guild.name, edition: membership.guild.gameEdition, current: membership.guild.id === guildId },
+          isMain: c.isMain, edition: c.gameEdition, rank: c.guildRankName,
+          guild: { name: membership.guild.name, edition: membership.guild.gameEdition, current: membership.guild.id === guildId, discordId: membership.guild.discordId },
           cores: [
             ...c.coreSpots.map((spot) => ({ id: spot.core.id, name: spot.core.name, role: spot.role, bench: spot.bench, trial: spot.trial, backup: false, lootMode: spot.core.lootMode })),
             ...c.coreBackups.map((backup) => ({ id: backup.spot.core.id, name: backup.spot.core.name, role: backup.role, bench: backup.spot.bench, trial: backup.spot.trial, backup: true, lootMode: backup.spot.core.lootMode }))

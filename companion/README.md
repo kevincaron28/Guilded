@@ -121,6 +121,10 @@ and keep your existing Discord pairing (or get a code with `/poe pair`). An
 officer must enable `/poe setup enabled:true` after updating the bot. For a
 PoE2-only setup, turn off WoW tracking. `/poe runs` and `/poe summary` show map
 observations; clears, deaths and loot are not inferred. Chat stays local.
+On an English client, a level-up line (`: Name (Class) is now level N`) for the
+character you declared is sent after tracking is on. Earlier lines and other
+players' level-ups stay on this PC. A current-patch log has not confirmed that
+wording yet.
 
 The CLI uses `poeEnabled`, `poeLogFile`, `poeCharacter`, `poeLeague`, `poeMode`
 and `wowEnabled` in its config. See [the mapping guide](../docs/POE2_MAPPING.md)

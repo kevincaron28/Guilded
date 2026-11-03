@@ -11,6 +11,15 @@ function launch(argv: string[], defaultApp?: boolean, isPackaged = true) {
   }) as { args: string[]; startHidden: boolean; screenshotPath: string; screenshotTab: string };
 }
 
+describe("companion window build before launch", () => {
+  it("builds the gitignored interface before Electron starts", () => {
+    const app = JSON.parse(readFileSync("companion-app/package.json", "utf8")) as { scripts: { start: string } };
+    expect(app.scripts.start).toContain("ensure-ui.cjs");
+    expect(readFileSync("companion-app/ensure-ui.cjs", "utf8")).toContain("companion:build");
+    expect(readFileSync("start-companion-app.bat", "utf8")).toContain("renderer\\ui-bundle.js");
+  });
+});
+
 describe("companion launch arguments", () => {
   it("honors the first --hidden option supplied by Windows autostart", () => {
     expect(launch(["C:/Program Files/Guilded Companion.exe", "--hidden"]).startHidden).toBe(true);

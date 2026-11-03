@@ -101,13 +101,16 @@ given and received, and voice seconds. It stores numbers only, never message tex
   already satisfies. A guild that announces is baselined once, silently, by the next hourly pass
   (`GuildSettings.achievementBaselineVersion`); nothing is announced for it until then.
 
-## Open item: PoE2 levels need a companion release
+## PoE2 levels
 
-`PoeLevelReached` is filled through `POST /api/v1/poe/levels` (added to the Worker allow-list in
-`worker/index.mjs`; Worker redeploy needed). The companion does not send levels yet: `companion/poe-events.mjs`
-must parse the client-log line for a level-up and the engine must upload it like visits. Until then the four
-PoE2 level achievements (75, 90, 99, 100) stay locked; the two map-count achievements work today. Verify the
-exact PoE2 log wording against a real `Client.txt` before writing the parser.
+`PoeLevelReached` is filled through `POST /api/v1/poe/levels`. The companion parses the English
+client line `: Name (Class) is now level N` and uploads it for the character named in its settings,
+the same way it uploads map visits. Other players' lines, chat, and the class name are not sent.
+Tracking starts at the end of the existing log, so level-ups from before it was turned on are not
+backfilled. The four level achievements (75, 90, 99, 100) stay locked until a level-up is captured
+after that. The wording matches public PoE2 log tools; a current-patch `Client.txt` from a real
+session is still required before calling the line confirmed. French and other client languages are
+not parsed.
 
 ## Badge artwork
 

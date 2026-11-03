@@ -41,10 +41,12 @@ export function createPoeEngine(config, hooks = {}) {
   let captureError = null;
   let uploadError = null;
   let unrecognizedSince = null;
-  const state = { running: false, watching: null, pending: 0, currentArea: null, currentStartedAt: null, todayMaps: 0, lastActivity: null, warning: null, catchingUp: false, lastSync: null, error: null, retryAt: null, botVersion: null };
+  let levelsUnsupported = false;
+  const state = { running: false, watching: null, pending: 0, pendingLevels: 0, currentArea: null, currentStartedAt: null, todayMaps: 0, lastActivity: null, warning: null, catchingUp: false, lastSync: null, error: null, retryAt: null, botVersion: null };
   const snapshot = () => ({ ...state });
   const publish = () => {
     state.pending = journal?.pending.length ?? 0;
+    state.pendingLevels = journal?.pendingLevels?.length ?? 0;
     state.currentArea = journal?.active?.areaId ?? null;
     state.currentStartedAt = journal?.active?.startedAt ?? null;
     state.lastActivity = journal?.lastEventAt ?? null;
@@ -75,12 +77,35 @@ export function createPoeEngine(config, hooks = {}) {
     if (!journal.active) return;
     consumePoeEvent(journal, { kind: "interrupted", at: journal.active.startedAt, pid: journal.active.pid }, profile);
   }
+  function validLevel(row) {
+    return row && typeof row === "object"
+      && Object.keys(row).every(key => ["character", "league", "level", "reachedAt"].includes(key))
+      && ["character", "league", "level", "reachedAt"].every(key => key in row)
+      && row.character === profile.character && row.league === profile.league
+      && Number.isInteger(row.level) && row.level >= 2 && row.level <= 100
+      && isoDate(row.reachedAt);
+  }
+  // Only the character named in settings. Other players' lines, and levels the
+  // bot already accepted, stay out of the queue. The class from the log is dropped.
+  function recordLevel(event) {
+    if (event.name !== profile.character || event.level < 2) return;
+    journal.pendingLevels ??= [];
+    journal.knownLevels ??= [];
+    if (journal.knownLevels.includes(event.level) || journal.pendingLevels.some(row => row.level === event.level)) return;
+    if (journal.pendingLevels.length >= 100) return;
+    journal.pendingLevels.push({ character: profile.character, league: profile.league, level: event.level, reachedAt: event.at });
+  }
   function consume(event) {
     if (!event) return;
     if (journal.recoveryAfter && (Date.parse(event.at) <= Date.parse(journal.recoveryAfter)
       || Date.parse(event.at) < Date.now() - RECOVERY_WINDOW_MS || Date.parse(event.at) > Date.now() + RECOVERY_WINDOW_MS)) return;
     unrecognizedSince = null;
     state.warning = null;
+    if (event.kind === "level") {
+      recordLevel(event);
+      if (!journal.lastEventAt || event.at > journal.lastEventAt) journal.lastEventAt = event.at;
+      return;
+    }
     consumePoeEvent(journal, event, profile);
     if (!journal.lastEventAt || event.at > journal.lastEventAt) journal.lastEventAt = event.at;
     if (event.kind === "area" && journal.active?.fingerprint === event.fingerprint) {
@@ -169,8 +194,43 @@ export function createPoeEngine(config, hooks = {}) {
       }
     } finally { await handle.close(); }
   }
+  async function syncLevels() {
+    if (levelsUnsupported || !journal?.pendingLevels?.length || !state.running) return;
+    const batch = journal.pendingLevels.slice(0, 100);
+    const { response, body } = await requestJson(new URL("/api/v1/poe/levels", config.uploadUrl), {
+      method: "POST", headers: { ...credentialHeaders(config), "content-type": "application/json" },
+      body: JSON.stringify({ guildDiscordId: config.guildDiscordId, levels: batch })
+    }, controller.signal);
+    if (!state.running) return;
+    // An older bot has no level route. Keep the queue and keep sending map visits.
+    if (response.status === 404) {
+      levelsUnsupported = true;
+      log("warn", "This bot does not accept PoE2 level-ups yet. They stay on this PC until the bot is updated.");
+      return;
+    }
+    if (!response.ok) {
+      const error = new Error(`PoE2 level upload refused (${response.status}). ${response.status === 401 ? "Pair this companion again." : response.status === 403 ? "Ask an officer to enable /poe setup, then Save and start." : "Check bot availability or the computer clock."}`);
+      error.retryable = response.status === 429 || response.status >= 500;
+      throw error;
+    }
+    if (typeof body.inserted !== "number") throw new Error("PoE2 level upload was not acknowledged. The queue has been kept.");
+    const sent = batch.map(row => row.level);
+    journal.pendingLevels.splice(0, batch.length);
+    for (const level of sent) if (!journal.knownLevels.includes(level) && journal.knownLevels.length < 100) journal.knownLevels.push(level);
+    try { await save(); } catch (error) {
+      journal.pendingLevels.unshift(...batch);
+      journal.knownLevels = journal.knownLevels.filter(level => !sent.includes(level));
+      throw error;
+    }
+    failures = 0; retryAt = 0; state.retryAt = null;
+    state.lastSync = new Date().toISOString(); uploadError = null;
+    state.botVersion = body.botVersion ?? state.botVersion;
+    log("ok", `PoE2 synced ${batch.length} level-up(s).`);
+  }
   async function sync() {
-    if (blocked || Date.now() < retryAt || !journal?.pending.length || !state.running) return;
+    if (blocked || Date.now() < retryAt || !state.running) return;
+    if (!journal?.pending.length && !journal?.pendingLevels?.length) return;
+    if (!journal.pending.length) { await syncLevels(); return; }
     const batch = journal.pending.slice(0, 100);
     const { response, body } = await requestJson(new URL("/api/v1/poe/visits", config.uploadUrl), {
       method: "POST", headers: { ...credentialHeaders(config), "content-type": "application/json" },
@@ -189,6 +249,7 @@ export function createPoeEngine(config, hooks = {}) {
     state.lastSync = new Date().toISOString(); uploadError = null;
     state.botVersion = body.botVersion ?? state.botVersion;
     log("ok", `PoE2 synced ${batch.length} map visit(s). /poe runs`);
+    await syncLevels();
   }
   async function poll() {
     if (!state.running) return;
@@ -229,12 +290,16 @@ export function createPoeEngine(config, hooks = {}) {
           || !Number.isSafeInteger(saved.offset) || saved.offset < 0 || !Number.isInteger(saved.prefixBytes) || saved.prefixBytes < 0 || saved.prefixBytes > 256
           || typeof saved.identity !== "string" || typeof saved.skipping !== "boolean" || !/^[a-f0-9]{64}$/.test(saved.prefix)
           || ["captureStartedAt", "lastEventAt", "recoveryAfter"].some(key => key in saved && !isoDate(saved[key]))
+          || ("pendingLevels" in saved && (!Array.isArray(saved.pendingLevels) || saved.pendingLevels.length > 100 || !saved.pendingLevels.every(row => validLevel(row))))
+          || ("knownLevels" in saved && (!Array.isArray(saved.knownLevels) || saved.knownLevels.length > 100 || !saved.knownLevels.every(level => Number.isInteger(level) && level >= 2 && level <= 100)))
           || ("daily" in saved && (!saved.daily || !/^\d{4}-\d{2}-\d{2}$/.test(saved.daily.date)
             || !Array.isArray(saved.daily.instances) || saved.daily.instances.length > 10_000
             || !saved.daily.instances.every(ref => typeof ref === "string" && /^[a-f0-9]{64}$/.test(ref))
             || !Object.keys(saved.daily).every(key => ["date", "instances"].includes(key))))
-          || !Object.keys(saved).every(key => ["version", "identity", "prefix", "prefixBytes", "offset", "skipping", "active", "pending", "captureStartedAt", "lastEventAt", "recoveryAfter", "daily"].includes(key))) throw new Error("Invalid journal");
+          || !Object.keys(saved).every(key => ["version", "identity", "prefix", "prefixBytes", "offset", "skipping", "active", "pending", "pendingLevels", "knownLevels", "captureStartedAt", "lastEventAt", "recoveryAfter", "daily"].includes(key))) throw new Error("Invalid journal");
         journal = saved;
+        journal.pendingLevels ??= [];
+        journal.knownLevels ??= [];
         journal.captureStartedAt ??= new Date().toISOString();
         interrupt(); await save();
       } catch (error) {

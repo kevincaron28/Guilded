@@ -16,6 +16,12 @@ and plain linked states. Also ships the redesigned owner console, the Quick
 reference page, redesigned achievement cards and WoW guild rank. Protocol
 remains 2. See [release notes](docs/V8_4_1_RELEASE_NOTES.md).
 
+- The companion sends English PoE2 level-ups (`: Name (Class) is now level N`)
+  for the character named in its settings, after tracking is turned on. Other
+  players' lines are not sent. My characters shows guild rank and spec. A fresh
+  checkout builds the window before the app opens. A real current-patch
+  `Client.txt` has not confirmed the level-up line yet.
+
 ## 8.4.0 — 30 October 2026 candidate
 
 Opt-in provisional battleground capture, paired-owner consent checks, private

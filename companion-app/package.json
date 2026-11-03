@@ -7,7 +7,7 @@
   "private": true,
   "author": "Guilded",
   "scripts": {
-    "start": "npm run icon && electron .",
+    "start": "npm run icon && node ensure-ui.cjs && electron .",
     "icon": "node make-icon.mjs",
     "dist": "npm --prefix .. run companion:build && electron-builder --win nsis --publish never",
     "pack": "npm --prefix .. run companion:build && electron-builder --win dir --publish never",

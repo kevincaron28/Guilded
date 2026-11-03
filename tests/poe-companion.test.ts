@@ -23,6 +23,65 @@ function successfulFetch() {
   vi.stubGlobal("fetch", mock); return mock;
 }
 describe("PoE2 companion capture and recovery", () => {
+  it("uploads only the declared character's level-up and does not end the open map", async () => {
+    const config = fixture();
+    const fetchMock = vi.fn(async (url: unknown, options: { body: string }) => {
+      const body = JSON.parse(options.body) as { visits?: { runRef: string }[]; levels?: unknown[] };
+      if (String(url).endsWith("/poe/levels")) return { ok: true, status: 200, json: async () => ({ inserted: body.levels?.length ?? 0, excludedByReset: 0, botVersion: "8.4.1" }) };
+      return { ok: true, status: 200, json: async () => ({ botVersion: "8.4.1", acceptedRunRefs: body.visits?.map(row => row.runRef) ?? [] }) };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const engine = createPoeEngine(config);
+    const level = (name: string, n: number, time: string) => `2026/09/30 ${time} 123456 2caa1afc [INFO Client 123] : ${name} (Witch) is now level ${n}\n`;
+    try {
+      await engine.start();
+      appendFileSync(config.poeLogFile, map + level("Bob", 40, "12:01:00") + level("Ann", 1, "12:01:30") + level("Ann", 90, "12:02:00") + level("Ann", 90, "12:02:01") + ': chat\n' + hideout);
+      await engine.pollNow();
+      const levelCall = fetchMock.mock.calls.find(call => String(call[0]).endsWith("/poe/levels"));
+      const visitCall = fetchMock.mock.calls.find(call => String(call[0]).endsWith("/poe/visits"));
+      expect(JSON.parse(levelCall![1].body).levels).toEqual([{ character: "Ann", league: "Pilot", level: 90, reachedAt: new Date(2026, 8, 30, 12, 2, 0).toISOString() }]);
+      expect(JSON.parse(visitCall![1].body).visits).toHaveLength(1);
+      expect(JSON.parse(visitCall![1].body).visits[0].endReason).toBe("AREA_CHANGED");
+      expect(engine.state().pendingLevels).toBe(0);
+      const saved = JSON.parse(readFileSync(poeJournalPath(config), "utf8"));
+      expect(saved.knownLevels).toEqual([90]);
+      expect(JSON.stringify(saved)).not.toMatch(/Bob|Witch/);
+    } finally { await engine.stop(); }
+  });
+  it("keeps map uploads working when the bot has no level-up route", async () => {
+    const config = fixture();
+    const fetchMock = vi.fn(async (url: unknown, options: { body: string }) => {
+      const body = JSON.parse(options.body) as { visits?: { runRef: string }[] };
+      if (String(url).endsWith("/poe/levels")) return { ok: false, status: 404, json: async () => ({ error: "Not found" }) };
+      return { ok: true, status: 200, json: async () => ({ acceptedRunRefs: body.visits?.map(row => row.runRef) ?? [] }) };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const engine = createPoeEngine(config);
+    try {
+      await engine.start();
+      appendFileSync(config.poeLogFile, map + '2026/09/30 12:02:00 123456 2caa1afc [INFO Client 123] : Ann (Witch) is now level 75\n' + hideout);
+      await engine.pollNow();
+      await engine.pollNow();
+      expect(fetchMock.mock.calls.filter(call => String(call[0]).endsWith("/poe/visits"))).toHaveLength(1);
+      expect(fetchMock.mock.calls.filter(call => String(call[0]).endsWith("/poe/levels"))).toHaveLength(1);
+      expect(engine.state().pending).toBe(0);
+      expect(engine.state().pendingLevels).toBe(1);
+      expect(engine.state().error).toBeNull();
+    } finally { await engine.stop(); }
+  });
+  it("still reads a journal saved before level-ups were queued", async () => {
+    const config = fixture(); successfulFetch(); const engine = createPoeEngine(config);
+    try {
+      await engine.start(); appendFileSync(config.poeLogFile, map + hideout); await engine.pollNow();
+    } finally { await engine.stop(); }
+    const file = poeJournalPath(config);
+    const saved = JSON.parse(readFileSync(file, "utf8"));
+    delete saved.pendingLevels; delete saved.knownLevels;
+    writeFileSync(file, JSON.stringify(saved));
+    const again = createPoeEngine(config);
+    try { expect(await again.start()).toBe(true); expect(again.state().pendingLevels).toBe(0); }
+    finally { await again.stop(); }
+  });
   it("runs the shared synthetic lifecycle through the desktop reader with CRLF", async () => {
     const config = fixture(); const fetchMock = successfulFetch(); const engine = createPoeEngine(config);
     try {

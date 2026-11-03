@@ -541,6 +541,19 @@ registerIpc("browse-file", async () => {
 
 // Leaderboards only: either addon's file; the engine then reads both from that folder.
 registerIpc("detect-wow", () => detectSavedVariables(config.personal ? ["GuildedDungeons.lua", "Guilded.lua"] : ["Guilded.lua"]));
+// "Link everything", step 3: after sign-in, pick the saved-data file by itself when exactly one
+// account on this PC has it. Local read only; with several accounts the member chooses.
+registerIpc("link-find-saved-data", async () => {
+  if (!config.companionCredential) return { ok: false, found: 0, message: T("Sign in with Discord first.") };
+  if (config.watchFile) return { ok: true, found: 1, already: true };
+  const found = (await detectSavedVariables(config.personal ? ["GuildedDungeons.lua", "Guilded.lua"] : ["Guilded.lua"])).filter((entry) => entry.exists);
+  if (found.length !== 1) return { ok: false, found: found.length, message: found.length ? T("Found {0} accounts. Check the selected file before saving.", found.length) : T("Choose Browse and select Guilded.lua in your account’s SavedVariables folder.") };
+  config = { ...config, watchFile: found[0].path, wowEnabled: true };
+  await saveConfig();
+  const started = await engine.configure(config);
+  if (started) engine.uploadNow();
+  return { ok: started, found: 1 };
+});
 registerIpc("browse-poe-log", async () => {
   const result = await dialog.showOpenDialog(win, {
     title: T("Choose Path of Exile 2 > logs > Client.txt"),

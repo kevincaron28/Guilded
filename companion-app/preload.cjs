@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld("companion", {
   getPoeRuns: () => ipcRenderer.invoke("get-poe-runs"),
   openConnections: () => ipcRenderer.invoke("open-connections"),
   openBattleNet: () => ipcRenderer.invoke("open-battlenet"),
+  linkFindSavedData: () => ipcRenderer.invoke("link-find-saved-data"),
   recoverSync: () => ipcRenderer.invoke("recover-sync"),
   openUpdate: () => ipcRenderer.invoke("open-update"),
   openStartupSettings: () => ipcRenderer.invoke("open-startup-settings"),

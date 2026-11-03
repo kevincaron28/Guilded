@@ -19,7 +19,7 @@ document.addEventListener('keydown',event => { if (event.key === 'Escape' && doc
 desktopNavigation.addEventListener('change',closeNavigation);
 const modeLabel = mode => T(({STANDARD:'Trade / Standard', HARDCORE:'Hardcore', SSF:'Solo self-found', SSF_HARDCORE:'Solo self-found Hardcore'})[mode] || mode || '');
 const fields = ['uploadUrl','guildDiscordId','pairingCode','watchFile','realm','wowGuild','standingsIntervalMinutes','poeLogFile','poeCharacter','poeLeague','poeMode'];
-const names = {status:'Home',characters:'My characters',reserves:'Reserves',server:'Server',wishlist:'Wishlist',cores:'Roster & loot settings',pricing:'Raid prices',leaderboards:'Leaderboards',wow:'World of Warcraft',poe:'PoE2 mapping',settings:'Sync & setup',activity:'Activity',help:'Help & privacy'};
+const names = {status:'Home',link:'Link everything',characters:'My characters',reserves:'Reserves',server:'Server',wishlist:'Wishlist',cores:'Roster & loot settings',pricing:'Raid prices',leaderboards:'Leaderboards',wow:'World of Warcraft',poe:'PoE2 mapping',settings:'Sync & setup',activity:'Activity',help:'Help & privacy'};
 let lastSnapshot;
 let savedConfig = {};
 let entries = [];
@@ -213,8 +213,19 @@ bind('btnLiveKeep',async () => { await api.dismissLiveFolder(); toast(liveText()
 bind('btnTest',async () => { say(T("Checking your connection…"),true); const result = await api.testConnection(readForm()); say(result.message,result.ok); });
 bind('btnPair',async () => { if (!$('pairingCode').value.trim()) { say(T("Paste the code from /character pair (or from guilded.kcaron.top/me/) first, or use Sign in with Discord."),false); $('pairingCode').focus(); return; } say(T("Connecting your Discord account…"),true); const result = await api.pairAccount(readForm()); say(result.message,result.ok); if (result.ok) { $('pairingCode').value = ''; savedConfig = (await api.getAll()).config; $('guildDiscordId').value = savedConfig.guildDiscordId || ''; renderState(lastSnapshot); toast(T("Discord account connected.")); } else if (/server ID/i.test(result.message)) { $('advanced').open = true; $('guildDiscordId').focus(); } });
 // Sign in with Discord (7.2): the browser opens the website; the companion waits for the approval.
-bind('btnSignIn',async () => { say(T("Opening Discord sign-in…"),true); const started = await api.signInStart(readForm()); if (!started.ok) { say(started.message,false); return; } if (started.url) { $('signInLink').href = started.url; } $('signInCode').textContent = started.confirm; $('signInCodeLine').hidden = !!started.automatic; $('signInWaiting').hidden = false; say(started.automatic ? T("Your browser opened. Choose your server there and press Connect.") : T("Your browser opened. Type {0} on the sign-in page.", started.confirm),true); const result = await api.signInWait(); $('signInWaiting').hidden = true; say(result.message,result.ok); if (result.ok) { savedConfig = (await api.getAll()).config; $('guildDiscordId').value = savedConfig.guildDiscordId || ''; $('uploadUrl').value = savedConfig.uploadUrl || ''; renderState(lastSnapshot); toast(T("Discord account connected.")); } });
+// The same sign-in serves Connection & setup and the Link everything page: only the places that show progress differ.
+const signInViews = {
+  setup: { say, waiting: 'signInWaiting', code: 'signInCode', line: 'signInCodeLine', link: 'signInLink' },
+  link: { say: (message, ok) => { $('linkResult').textContent = M(message); $('linkResult').className = `result ${ok ? 'ok' : 'bad'}`; }, waiting: 'linkSignInWaiting', code: 'linkSignInCode', line: 'linkSignInCodeLine', link: 'linkSignInLink' }
+};
+async function runSignIn(view) {
+  const ui = signInViews[view];
+  ui.say(T("Opening Discord sign-in…"),true); const started = await api.signInStart(readForm()); if (!started.ok) { ui.say(started.message,false); return; } if (started.url) { $(ui.link).href = started.url; } $(ui.code).textContent = started.confirm; $(ui.line).hidden = !!started.automatic; $(ui.waiting).hidden = false; ui.say(started.automatic ? T("Your browser opened. Choose your server there and press Connect.") : T("Your browser opened. Type {0} on the sign-in page.", started.confirm),true); const result = await api.signInWait(); $(ui.waiting).hidden = true; ui.say(result.message,result.ok); if (result.ok) { savedConfig = (await api.getAll()).config; $('guildDiscordId').value = savedConfig.guildDiscordId || ''; $('uploadUrl').value = savedConfig.uploadUrl || ''; renderState(lastSnapshot); toast(T("Discord account connected.")); document.dispatchEvent(new CustomEvent('companion-signed-in')); }
+}
+bind('btnSignIn',() => runSignIn('setup'));
+bind('btnLinkSignIn',() => runSignIn('link'));
 bind('btnSignInCancel',async () => { await api.signInCancel(); $('signInWaiting').hidden = true; say(T("Sign-in cancelled."),false); });
+bind('btnLinkSignInCancel',async () => { await api.signInCancel(); $('linkSignInWaiting').hidden = true; signInViews.link.say(T("Sign-in cancelled."),false); });
 $('form').addEventListener('submit',event => { event.preventDefault(); action($('btnSave'),async () => { say(T("Saving your preferences…"),true); const result = await api.saveConfig(readForm()); say(result.message,result.ok); savedConfig = (await api.getAll()).config; renderState(lastSnapshot); if (result.ok) { toast(result.message); showPage('status'); } }); });
 $('autostart').addEventListener('change',event => action(event.target,async () => { $('autostart').checked = await api.setAutostart(event.target.checked); }));
 bind('btnConnections', () => api.openConnections ? api.openConnections() : window.open('/me/connections','_blank','noopener'));
@@ -345,6 +356,8 @@ $('connectionProfile').addEventListener('change', () => changeConnection({ id: $
 document.addEventListener('companion-language', () => { void renderProfiles().catch(error => toast(error.message, true)); });
 bind('btnAddProfile', async () => { await changeConnection({ name: $('newProfileName').value }); $('newProfileName').value = ''; });
 
+// A new companion user lands on Link everything once; Skip for now remembers the choice on this PC.
+function linkSkipped() { try { return localStorage.getItem('guilded.companion.linkSkipped') === '1'; } catch { return false; } }
 async function init() {
   if (!api) { toast(T("The companion interface could not load. Please reload or reinstall."),true); return; }
   const all = await api.getAll(); savedConfig = all.config;
@@ -356,7 +369,7 @@ async function init() {
   $('syncEnabled').checked = all.config.syncEnabled !== false; $('wowEnabled').checked = all.config.wowEnabled !== false; $('poeEnabled').checked = all.config.poeEnabled === true; $('poeMode').value = all.config.poeMode || 'STANDARD'; $('autostart').checked = all.autostart; $('version').textContent = `Version ${all.version}`;
   configurePresentation();
   gameFields(); entries = all.logs.slice(-300); renderLogs(); renderState({state:all.state,health:all.health,update:all.update,savedFile:all.savedFile});
-  showPage(new URLSearchParams(location.search).get('tab') || 'status');
+  showPage(new URLSearchParams(location.search).get('tab') || (!all.config.companionCredential && !linkSkipped() ? 'link' : 'status'));
   api.onState(renderState); api.onLog(addLog);
   setInterval(() => { if (lastSnapshot) renderState(lastSnapshot); },1000);
 }

@@ -2,6 +2,9 @@ import { profileEditionLabel, profileSiteHref } from "../../companion/presentati
 window.guildedProfileEditionLabel = profileEditionLabel;
 window.guildedProfileSiteHref = profileSiteHref;
 import { companionOverview } from "../../companion/overview.mjs";
+import { linkSteps, linkSummary } from "../../companion/link-everything.mjs";
+window.guildedLinkSteps = linkSteps;
+window.guildedLinkSummary = linkSummary;
 import { syncStatus, syncDiagnosticPreview } from "../../companion/sync-status.mjs";
 window.guildedSyncStatus = syncStatus;
 window.guildedSyncDiagnosticPreview = syncDiagnosticPreview;

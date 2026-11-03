@@ -15,9 +15,9 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { gunzipSync } from "node:zlib";
 import { config } from "./config.js";
 import { createDevicePages, prismaDeviceStore } from "./services/companion-devices.js";
+import { memberLinkStatus } from "./services/link-status.js";
 import { battleNetMeSection, createBattleNetPage, type BattleNetLinking } from "./services/battlenet-page.js";
 import { autoLinkBattleNet, recentBattleNetLinks, undoBattleNetLinks } from "./services/battlenet-autolink.js";
-import { memberLinkStatus } from "./services/link-status.js";
 import { battleNetConfig, discoverAllBattleNet, discoverBattleNet } from "./services/battlenet.js";
 import { prismaBattleNetStore } from "./services/battlenet-store.js";
 import { prisma } from "./database.js";
@@ -613,7 +613,9 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
             if (settings) checks = setupChecks(await gatherFacts(discordGuild, guild.id, settings), language);
           } catch (error) { console.warn("Companion hub could not read the setup checklist", error); }
         }
-        json(response, 200, { ...await hub.view(guild.id, access, checks), botVersion: BOT_VERSION });
+        // What the companion's Link everything list shows next to the characters (link-status.ts): never fails the hub.
+        const link = await memberLinkStatus(prisma, access.actorId, guild.id).catch(() => null);
+        json(response, 200, { ...await hub.view(guild.id, access, checks), ...(link ? { link: { battleNet: link.battleNet, characters: link.characters } } : {}), botVersion: BOT_VERSION });
         return;
       }
       if (isHubEdit) {

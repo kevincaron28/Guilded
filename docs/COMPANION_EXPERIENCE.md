@@ -72,3 +72,16 @@ All shared Node parser modules are included in packaged resources.
 
 Never start a live bot to try the interface. Follow `V5_0_RELEASE_HANDOFF.md` and the
 current release evidence for deployment gates.
+
+## Link everything (companion screen)
+
+`companion/link-everything.mjs` builds the status list; `companion-app/renderer/link-everything.js` shows it and is the first page a signed-out user sees (Skip for now remembers on this PC). It adds no sign-in scheme.
+
+| Step | What it reuses | Where the status comes from |
+| --- | --- | --- |
+| Discord | Sign in with Discord (`/api/v1/companion/sign-in`, personal credential) | credential on this PC |
+| Battle.net (optional) | the website's `/me/battlenet` flow (PR #312), opened by the existing `open-battlenet` IPC | `link.battleNet` in the hub answer (bot 8.4.0 + this PR) |
+| Characters | the upload's existing paired-character linking and `linkVerifiedCharacters` (`/guilded verify`) | `characters` in the hub answer |
+
+The only new IPC is `link-find-saved-data` (after sign-in; picks `Guilded.lua` when exactly one account has it, then asks for an upload). Against a bot without `link`, Battle.net shows "optional" and nothing breaks. Unlink: Manage connected devices (`/me/connections`), the Battle.net page's undo, Remove data & quit.
+Not verifiable without a real Windows install and real Discord/Battle.net accounts: the live sign-in round trip, the file detection on a real WTF folder, and Battle.net discovery.
